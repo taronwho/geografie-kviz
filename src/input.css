@@ -1,0 +1,30 @@
+/* Zdroj pro styles.css – po změně tříd v index.html nebo app.js spusť: npm run build:css */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+    * { -webkit-tap-highlight-color: transparent; }
+    html { touch-action: manipulation; }
+    ::-webkit-scrollbar { display: none; }
+    body {
+        -ms-overflow-style: none; scrollbar-width: none; overscroll-behavior-y: none;
+        /* Jemný topografický nádech na pozadí */
+        background-color: #f1f5f9;
+        background-image: radial-gradient(#e2e8f0 1px, transparent 1px);
+        background-size: 20px 20px;
+    }
+    @media (prefers-color-scheme: dark) {
+        body {
+            background-color: #020617;
+            background-image: radial-gradient(#1e293b 1px, transparent 1px);
+        }
+    }
+}
+
+.fade-in { animation: fadeIn 0.5s ease-out; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+.spin { animation: spin 1.5s linear infinite; }
+@keyframes spin { 100% { transform: rotate(360deg); } }
+.blur-photo { filter: blur(18px) brightness(0.5) saturate(1.2); transform: scale(1.15); }
+.blur-photo-light { filter: blur(6px) brightness(0.7); transform: scale(1.08); }
