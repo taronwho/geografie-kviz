@@ -61,6 +61,7 @@ const setup = async (browser, options = {}) => {
         if (url.hostname === 'cs.wikipedia.org') {
             log.wiki.push(url.href);
             if (options.wikiDown) return route.fulfill({ status: 503, body: '' });
+            if (options.wikiHangs) return; // odpověď nikdy nepřijde
             if (url.searchParams.get('prop') === 'langlinks') {
                 const pages = {};
                 url.searchParams.get('pageids').split('|').forEach(id => {
@@ -90,7 +91,9 @@ const setup = async (browser, options = {}) => {
         return route.abort();
     });
 
-    await tab.clock.setFixedTime(new Date('2026-10-16T10:00:00'));
+    const now = new Date('2026-10-16T10:00:00');
+    if (options.fakeTimers) await tab.clock.install({ time: now });
+    else await tab.clock.setFixedTime(now);
     return { context, tab, log };
 };
 
@@ -199,6 +202,20 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         await tab.click('[data-action="retry"]');
         await tab.waitForSelector('text=Chyba spojení', { timeout: 30000 });
         assert.ok(log.wiki.slice(3).every(url => url.includes('generator=allpages')));
+        await context.close();
+    });
+
+    await t.test('zaseknutý dotaz skončí chybou spojení, ne nekonečným načítáním', async () => {
+        const { context, tab, log } = await setup(browser, { wikiHangs: true, fakeTimers: true });
+        // Falešné hodiny zastaví i requestAnimationFrame, proto žádné waitFor…, jen posouvání času
+        await tab.goto(`${ORIGIN}/`);
+        assert.ok(await tab.isVisible('text=Prozkoumávám atlas světa'));
+        for (let i = 0; i < 10 && !(await tab.isVisible('text=Chyba spojení')); i++) {
+            await tab.clock.runFor(15000);
+            await tab.waitForTimeout(100);
+        }
+        assert.ok(await tab.isVisible('text=Chyba spojení'));
+        assert.equal(log.wiki.length, 3, 'tři pokusy, každý po vypršení limitu');
         await context.close();
     });
 

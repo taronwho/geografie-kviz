@@ -15,6 +15,8 @@
     const STATE_VERSION = 3;
     const SESSION_MAX_AGE = 2 * 60 * 60 * 1000;
     const MAX_ATTEMPTS = 25;
+    const REQUEST_TIMEOUT = 12000;
+    const SEARCH_TIMEOUT = 60000;
     const DEFAULT_MAP_ZOOM = 5;
     const MIN_MAP_ZOOM = 2;
     const MAX_MAP_ZOOM = 12;
@@ -478,17 +480,21 @@
         }
     };
 
-    // Při výpadku nebo omezení (429) zkusí dotaz ještě dvakrát, pak to vzdá jako chybu spojení
+    // Při výpadku, omezení (429) nebo zaseknutém spojení zkusí dotaz ještě dvakrát, pak to vzdá jako chybu spojení
     const fetchJson = async (url) => {
         let lastError = null;
         for (let attempt = 0; attempt < 3; attempt++) {
             if (attempt > 0) await new Promise(resolve => setTimeout(resolve, 800 * attempt));
+            const controller = new AbortController();
+            const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT);
             try {
-                const response = await fetch(url);
+                const response = await fetch(url, { signal: controller.signal });
                 if (response.ok) return await response.json();
                 lastError = new Error(`HTTP ${response.status}`);
             } catch (e) {
                 lastError = e;
+            } finally {
+                clearTimeout(timer);
             }
         }
         throw new NetworkError(lastError ? lastError.message : 'Síťová chyba');
@@ -565,7 +571,11 @@
         const pools = { all: [], notable: [] };
         const strictBlacklist = ['společnost', 'firma', 'podnik', 'korporace', 'bitva', 'obléhání', 'válka', 'smlouva', 'dohoda', 'zemětřesení', 'povodeň', 'atentát', 'turnaj', 'mistrovství', 'olympiáda', 'masakr', 'dálnice', 'silnice', 'planetka', 'asteroid', 'film', 'album', 'seznam', 'letiště', 'nádraží', 'gymnázium', 'fakulta', 'univerzita', 'kostel', 'kaple', 'klášter', 'organizace', 'klub'];
 
+        const deadline = Date.now() + SEARCH_TIMEOUT;
+
         for (let attempt = 1; attempt <= MAX_ATTEMPTS && !foundPage; attempt++) {
+            // Pomalé spojení nesmí nechat uživatele čekat donekonečna
+            if (Date.now() > deadline) throw new NetworkError('Hledání místa trvá příliš dlouho');
             const data = await fetchJson(buildBatchUrl(rng, isDaily));
             const pages = Object.values((data.query && data.query.pages) || {});
 
