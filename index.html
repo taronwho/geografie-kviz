@@ -2,7 +2,7 @@
 <html lang="cs">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="theme-color" content="#059669"> <!-- Změněno na smaragdově zelenou pro Android lištu -->
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -10,9 +10,10 @@
     <title>Geo Kvíz</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://unpkg.com/lucide@1.48.0/dist/umd/lucide.min.js"></script>
     <style>
         * { -webkit-tap-highlight-color: transparent; }
+        html { touch-action: manipulation; }
         .fade-in { animation: fadeIn 0.5s ease-out; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
         .spin { animation: spin 1.5s linear infinite; }
@@ -69,10 +70,73 @@
             "Přírodní úkaz": "https://images.unsplash.com/photo-1444464666168-49b659f49c15?q=80&w=800&auto=format&fit=crop"
         };
 
+        const DEFAULT_CATEGORY = "Město / Sídlo";
+        const UNKNOWN_COUNTRY = "Neznámá poloha";
+        const INTERNATIONAL_WATERS = "Mezinárodní vody / Oceán";
+        const CZECHIA_QID = "Q213";
+        const DAILY_STORAGE_KEY = 'geoQuizData14';
+        const SESSION_STORAGE_KEY = 'geoSessionState';
+        const STATE_VERSION = 2;
+        const MAX_ATTEMPTS = 25;
+        const WIKI_API = 'https://cs.wikipedia.org/w/api.php?format=json&origin=*';
+        const WIKIDATA_API = 'https://www.wikidata.org/w/api.php?format=json&origin=*';
+
+        // Zjednodušená hranice Česka [délka, šířka] podle Natural Earth 1:50m
+        const CZECH_BORDER = [
+            [18.83,49.51],[18.6,49.49],[18.37,49.34],[18.16,49.26],[18.08,49.07],[17.91,49],[17.76,48.89],[17.48,48.83],[17.19,48.86],[17.13,48.84],
+            [17.06,48.78],[16.95,48.6],[16.88,48.7],[16.54,48.8],[16.48,48.8],[16.37,48.74],[16.06,48.75],[15.82,48.86],[15.7,48.86],[15.31,48.97],
+            [15.16,48.95],[15.07,49],[14.99,49],[14.92,48.77],[14.79,48.75],[14.71,48.67],[14.69,48.6],[14.49,48.63],[14.37,48.58],[14.19,48.58],
+            [14.05,48.6],[13.99,48.69],[13.82,48.77],[13.55,48.96],[13.44,48.96],[13.29,49.1],[13.14,49.16],[12.92,49.33],[12.81,49.33],[12.68,49.41],
+            [12.39,49.74],[12.51,49.9],[12.46,49.96],[12.21,50.1],[12.09,50.3],[12.17,50.29],[12.28,50.18],[12.45,50.35],[12.55,50.39],[12.76,50.43],
+            [12.94,50.41],[13.02,50.49],[13.18,50.51],[13.24,50.58],[13.38,50.62],[13.44,50.6],[13.56,50.7],[13.9,50.76],[14.37,50.9],[14.25,51],
+            [14.28,51.03],[14.55,50.99],[14.63,50.91],[14.61,50.86],[14.72,50.82],[14.98,50.89],[14.99,51.01],[15.26,50.96],[15.28,50.88],[15.36,50.81],
+            [15.73,50.74],[15.95,50.67],[16.01,50.61],[16.28,50.66],[16.36,50.62],[16.42,50.57],[16.38,50.52],[16.21,50.42],[16.34,50.37],[16.64,50.1],
+            [16.99,50.24],[16.88,50.43],[17.15,50.38],[17.42,50.25],[17.7,50.31],[17.74,50.23],[17.71,50.19],[17.59,50.16],[17.63,50.12],[17.88,49.97],
+            [18.03,50.04],[18.3,49.91],[18.35,49.93],[18.56,49.88],[18.6,49.76],[18.81,49.61],[18.83,49.51]
+        ];
+
         let isDailyMode = true;
         let isLoading = false;
         let isRevealed = false;
         let currentLocationData = null;
+
+        class NetworkError extends Error {}
+
+        const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch]);
+        const escapeRegExp = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const stripBrackets = (text) => text.replace(/[\[\(][^[\]()]*[\]\)]/g, '');
+        const getFallbackImage = (category) => fallbackImages[category] || fallbackImages[DEFAULT_CATEGORY];
+        const refreshIcons = () => { if (window.lucide) lucide.createIcons(); };
+
+        const getTodayKey = () => {
+            const d = new Date();
+            return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        };
+
+        // Generátor náhodných čísel se semínkem – dnešní místo je díky němu pro všechny stejné
+        const createSeededRandom = (seedText) => {
+            let state = 2166136261;
+            for (let i = 0; i < seedText.length; i++) state = Math.imul(state ^ seedText.charCodeAt(i), 16777619);
+            state >>>= 0;
+            return () => {
+                state = (state + 0x6D2B79F5) >>> 0;
+                let t = state;
+                t = Math.imul(t ^ (t >>> 15), t | 1);
+                t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+                return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+            };
+        };
+        const pickRandom = (items, rng) => items[Math.floor(rng() * items.length)];
+
+        const isInsideCzechia = (lat, lon) => {
+            let inside = false;
+            for (let i = 0, j = CZECH_BORDER.length - 1; i < CZECH_BORDER.length; j = i++) {
+                const [xi, yi] = CZECH_BORDER[i];
+                const [xj, yj] = CZECH_BORDER[j];
+                if ((yi > lat) !== (yj > lat) && lon < (xj - xi) * (lat - yi) / (yj - yi) + xi) inside = !inside;
+            }
+            return inside;
+        };
 
         const inferGeoCategory = (text) => {
             const t = text.substring(0, 300).toLowerCase();
@@ -111,44 +175,69 @@
             return 'map-pin';
         };
 
-        const censorName = (text, name) => {
-            let res = text.replace(/[\[\(][^[\]()]*[\]\)]/g, '').replace(/\s{2,}/g, ' '); 
-            const cleanName = name.replace(/[\[\(][^[\]()]*[\]\)]/g, '').trim();
-            const words = cleanName.split(/[\s-]+/);
-            for(let w of words) {
-                if (w.length > 3) {
-                    const base = w.slice(0, -1);
-                    res = res.replace(new RegExp(base + '[a-záčďéěíňóřšťúůýž]*', 'gi'), '[***]');
-                } else {
-                    res = res.replace(new RegExp('\\b' + w + '\\b', 'gi'), '[***]');
+        // \b v JavaScriptu nezná česká písmena, proto hranice slov přes Unicode třídy
+        const NOT_LETTER_BEFORE = '(?<![\\p{L}\\p{N}])';
+        const NOT_LETTER_AFTER = '(?![\\p{L}\\p{N}])';
+        const CENSOR_SKIP_WORDS = new Set(['nad', 'pod', 'na', 've', 'de', 'la', 'le', 'les', 'des', 'du', 'di', 'da', 'del', 'der', 'die', 'das', 'am', 'an', 'im', 'of', 'the', 'and', 'et', 'san', 'saint', 'sankt']);
+        const STEM_ALTERNATIONS = [[/h$/iu, 'z'], [/g$/iu, 'z'], [/ch$/iu, 'š'], [/k$/iu, 'c'], [/r$/iu, 'ř'], [/ň$/iu, 'n'], [/ť$/iu, 't'], [/ď$/iu, 'd']];
+        // Krátký kmen by s libovolnou koncovkou zakryl i nesouvisející slova (Peru → „pe…“), proto jen běžné pádové a přídavné koncovky
+        const SHORT_STEM_ENDINGS = '(?:(?:sk|ck|ick|ijsk|ánsk|ansk|ensk)(?:ý|á|é|ého|ém|ému|ou|ých|ým|ými|í)|ie|ii|ií|ou|em|ím|ům|ách|ech|ích|ami|[aueěiyoíé])?';
+
+        // Kmeny slova pro skloňované tvary: Praha → Prah/Praz (Praze), Sněžka → Sněžk/Sněžc, Hradec → Hradc, Plzeň → Plzn
+        const getWordStems = (word) => {
+            const stems = new Set([word.replace(/[aeiouyáéěíóúůý]+$/iu, '')]);
+            for (const stem of [...stems]) {
+                for (const [pattern, replacement] of STEM_ALTERNATIONS) {
+                    if (pattern.test(stem)) stems.add(stem.replace(pattern, replacement));
                 }
             }
-            return res;
+            for (const stem of [...stems]) {
+                stems.add(stem.replace(/e([^aeiouyáéěíóúůý])$/iu, '$1'));
+            }
+            return [...stems].filter(stem => stem.length >= 2);
         };
 
-        const censorCountry = (text, country) => {
-            let res = text.replace(/[\[\(][^[\]()]*[\]\)]/g, '').replace(/\s{2,}/g, ' '); 
-            if (!country || country.includes("Oceán")) return res;
-            
-            res = res.replace(/(americké|americký|americká|ruské|ruský|ruská|německé|německý|německá|francouzské|francouzský|francouzská|italské|italský|italská|japonské|japonský|japonská|čínské|čínský|čínská|kanadské|kanadský|kanadská|australské|australský|australská|britské|britský|britská)/gi, '[***]');
-            res = res.replace(/\b(Evropě|Evropa|Asii|Asie|Africe|Afrika|Americe|Amerika|Austrálii|Austrálie|Antarktidě|Antarktida)\b/gi, '[***]');
-            res = res.replace(/v Česku|v České republice|v ČR|na Moravě|ve Slezsku|v Čechách|český|česká|české/gi, '[***]');
-            res = res.replace(/(?:v okrese|v provincii|ve státě|v regionu|v kraji|na kontinentu|v americkém státě|na ostrově|v pohoří) [A-ZÁČĎÉĚÍŇÓŘŠŤÚŮÝŽ][a-záčďéěíňóřšťúůýž-]+/g, '[***]');
-
-            const cleanCountry = country.replace(/[\[\(][^[\]()]*[\]\)]/g, '').trim();
-            const words = cleanCountry.split(/[\s-]+/);
-            for(let w of words) {
-                if (w.length > 3) {
-                    const base = w.slice(0, -2);
-                    res = res.replace(new RegExp(base + '[a-záčďéěíňóřšťúůýž]*', 'gi'), '[***]');
+        const buildWordsPattern = (words) => {
+            const parts = [];
+            for (const word of words) {
+                if (word.length < 2 || CENSOR_SKIP_WORDS.has(word.toLowerCase())) continue;
+                for (const stem of getWordStems(word)) {
+                    parts.push(escapeRegExp(stem) + (stem.length >= 4 ? '\\p{L}*' : SHORT_STEM_ENDINGS));
                 }
             }
-            return res;
+            if (parts.length === 0) return null;
+            return new RegExp(NOT_LETTER_BEFORE + '(?:' + parts.join('|') + ')' + NOT_LETTER_AFTER, 'giu');
+        };
+
+        const censorWords = (text, phrase) => {
+            const pattern = buildWordsPattern(stripBrackets(phrase).trim().split(/[\s,\-–]+/));
+            return pattern ? text.replace(pattern, '[***]') : text;
+        };
+
+        const censorName = (text, name) => {
+            const res = stripBrackets(text).replace(/\s{2,}/g, ' ');
+            return censorWords(res, name);
+        };
+
+        const NATIONALITY_PATTERN = new RegExp(NOT_LETTER_BEFORE + '(?:americk|rusk|německ|francouzsk|italsk|japonsk|čínsk|kanadsk|australsk|britsk)\\p{L}*', 'giu');
+        const CONTINENT_PATTERN = new RegExp(NOT_LETTER_BEFORE + '(?:Evrop(?:a|y|ě|u|ou)|Asi(?:e|i|í)|Afri(?:ka|ky|ce|ku|kou)|Ameri(?:ka|ky|ce|ku|kou)|Austráli(?:e|i|í)|Antarktid(?:a|y|ě|u|ou)|Oceáni(?:e|i|í)|(?:evropsk|asijsk|africk|australsk|antarktick)\\p{L}*)' + NOT_LETTER_AFTER, 'giu');
+        const CZECH_PATTERN = new RegExp(NOT_LETTER_BEFORE + '(?:v Česku|v České republice|v ČR|na Moravě|ve Slezsku|v Čechách|česk\\p{L}*|moravsk\\p{L}*|slezsk\\p{L}*)' + NOT_LETTER_AFTER, 'giu');
+        const REGION_PATTERN = /(?:v okrese|v provincii|ve státě|v regionu|v kraji|na kontinentu|v americkém státě|na ostrově|v pohoří) \p{Lu}[\p{Ll}-]+/gu;
+
+        const censorCountry = (text, country) => {
+            let res = stripBrackets(text).replace(/\s{2,}/g, ' ');
+            res = res
+                .replace(NATIONALITY_PATTERN, '[***]')
+                .replace(CONTINENT_PATTERN, '[***]')
+                .replace(CZECH_PATTERN, '[***]')
+                .replace(REGION_PATTERN, '[***]');
+
+            if (!country || country === UNKNOWN_COUNTRY || country === INTERNATIONAL_WATERS) return res;
+            return censorWords(res, country);
         };
 
         const processWikiText = (extract) => {
-            let cleanExtract = extract.replace(/[\[\(][^[\]()]*[\]\)]/g, '');
-            cleanExtract = cleanExtract.replace(/[\[\(][^[\]()]*[\]\)]/g, '');
+            let cleanExtract = stripBrackets(stripBrackets(extract));
             cleanExtract = cleanExtract.replace(/\s+([,;.?!])/g, '$1').replace(/\s{2,}/g, ' ');
 
             cleanExtract = cleanExtract
@@ -158,10 +247,17 @@
                 .replace(/\btj\./gi, 'to jest')
                 .replace(/\batd\./gi, 'a tak dále');
 
+            // Tečky, které nekončí větu (zkratky, řadové číslovky, „m n. m.“), dočasně schováme
+            const KEPT_DOT = '\uE000';
+            cleanExtract = cleanExtract
+                .replace(/(?<!\p{L})hl\. m\./giu, `hl${KEPT_DOT} m${KEPT_DOT}`)
+                .replace(/(?<!\p{L})(sv|st|č|ul|odd|mt|dr|ing|gen|resp|příp|cca)\.(?=\s)/giu, `$1${KEPT_DOT}`)
+                .replace(/\.(?=\s*[\p{Ll}\d,;:])/gu, KEPT_DOT);
+
             let sentences = cleanExtract.match(/[^.!?]+[.!?]+/g) || [cleanExtract];
             
             const validSentences = sentences
-                .map(s => s.trim().replace(/^[,;:\s]+/, '').replace(/\s{2,}/g, ' '))
+                .map(s => s.replaceAll(KEPT_DOT, '.').trim().replace(/^[,;:\s]+/, '').replace(/\s{2,}/g, ' '))
                 .filter(s => s.length > 30);
 
             const description = validSentences.slice(0, 2).join(' ');
@@ -185,7 +281,8 @@
         const saveSessionState = () => {
             if (!currentLocationData) return;
             try {
-                localStorage.setItem('geoSessionState', JSON.stringify({
+                localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify({
+                    version: STATE_VERSION,
                     data: currentLocationData,
                     isRevealed: isRevealed,
                     isDailyMode: isDailyMode,
@@ -225,7 +322,7 @@
                     <p class="text-slate-600 font-bold tracking-wider text-sm uppercase">Prozkoumávám atlas světa...</p>
                 </div>
             `;
-            lucide.createIcons();
+            refreshIcons();
         };
 
         window.revealAnswer = () => {
@@ -240,6 +337,11 @@
             saveSessionState();
             
             const appContent = document.getElementById('app-content');
+            const imageUrl = escapeHtml(data.imageUrl);
+            const fallbackImage = escapeHtml(getFallbackImage(data.category));
+            const name = escapeHtml(data.name);
+            const country = escapeHtml(data.country);
+            const category = escapeHtml(data.category);
 
             if (!isRevealed) {
                 const hintText = data.quizType === 'name' 
@@ -249,7 +351,7 @@
                 appContent.innerHTML = `
                     <div class="fade-in flex flex-col w-full bg-white min-h-full pb-6">
                         <div class="relative h-[48vh] w-full shrink-0 overflow-hidden bg-slate-900">
-                            <img src="${data.imageUrl}" class="w-full h-full object-cover blur-image opacity-80" onerror="this.src='${fallbackImages['Místo / Sídlo']}'" />
+                            <img src="${imageUrl}" class="w-full h-full object-cover blur-image opacity-80" onerror="this.onerror=null;this.src='${fallbackImage}'" />
                             <div class="absolute inset-0 bg-gradient-to-t from-slate-900 via-slate-900/40 to-transparent"></div>
                             
                             <div class="absolute inset-0 flex flex-col items-center justify-center p-6 text-center text-white z-10 mt-8">
@@ -260,7 +362,7 @@
                                     ${data.quizType === 'name' ? 'Jak se jmenuje<br/>toto místo?' : 'Kde se nachází<br/>toto místo?'}
                                 </h2>
                                 <span class="bg-emerald-600/90 text-white px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-widest shadow-md backdrop-blur-sm border border-emerald-400">
-                                    Kategorie: ${data.category}
+                                    Kategorie: ${category}
                                 </span>
                             </div>
                         </div>
@@ -274,17 +376,17 @@
                                 ${data.quizType === 'name' ? `
                                     <div class="mb-4 text-sm text-slate-600 bg-white p-3 rounded-xl border border-slate-100 shadow-sm inline-flex items-center gap-2">
                                         <i data-lucide="navigation" class="w-4 h-4 text-sky-500"></i> 
-                                        <span class="font-medium">Poloha:</span> <b class="text-slate-800">${data.country}</b>
+                                        <span class="font-medium">Poloha:</span> <b class="text-slate-800">${country}</b>
                                     </div>
                                 ` : `
                                     <div class="mb-4 text-sm text-slate-600 bg-white p-3 rounded-xl border border-slate-100 shadow-sm inline-flex items-center gap-2">
                                         <i data-lucide="tag" class="w-4 h-4 text-sky-500"></i> 
-                                        <span class="font-medium">Název:</span> <b class="text-slate-800">${data.name}</b>
+                                        <span class="font-medium">Název:</span> <b class="text-slate-800">${name}</b>
                                     </div>
                                 `}
                                 
                                 <p class="text-slate-700 leading-relaxed font-medium text-[16px] italic border-l-4 border-emerald-200 pl-4 py-1">
-                                    „${hintText}“
+                                    „${escapeHtml(hintText)}“
                                 </p>
                             </div>
 
@@ -305,40 +407,40 @@
                         <div class="bg-emerald-100 text-emerald-700 rounded-lg w-8 h-8 flex items-center justify-center flex-shrink-0 text-sm font-black border border-emerald-200 mt-0.5">
                             ${i + 1}
                         </div>
-                        <p class="text-slate-700 text-[15px] leading-relaxed pt-1">${fact}</p>
+                        <p class="text-slate-700 text-[15px] leading-relaxed pt-1">${escapeHtml(fact)}</p>
                     </div>
                 `).join('');
 
                 const originBadge = data.isCzech ? 
                     `<span class="text-[10px] font-bold text-white bg-rose-600/90 backdrop-blur-sm px-3 py-1.5 rounded-lg flex items-center gap-1.5 shadow-sm border border-rose-500"><i data-lucide="map-pin" class="w-3 h-3"></i>Česká stopa</span>` : 
-                    `<span class="text-[10px] font-bold text-white bg-slate-800/60 backdrop-blur-sm px-3 py-1.5 rounded-lg flex items-center gap-1.5 shadow-sm border border-slate-600"><i data-lucide="globe-2" class="w-3 h-3 text-sky-300"></i>Světové (Jazyků: ${data.langCount}+)</span>`;
+                    `<span class="text-[10px] font-bold text-white bg-slate-800/60 backdrop-blur-sm px-3 py-1.5 rounded-lg flex items-center gap-1.5 shadow-sm border border-slate-600"><i data-lucide="globe-2" class="w-3 h-3 text-sky-300"></i>Světové (Jazyků: ${escapeHtml(data.langCount)}+)</span>`;
 
                 appContent.innerHTML = `
                     <div class="fade-in flex flex-col w-full min-h-full pb-6 bg-slate-50">
                         <div class="relative h-[48vh] w-full shrink-0 bg-slate-900">
-                            <img src="${data.imageUrl}" alt="${data.name}" class="w-full h-full object-cover opacity-90" onerror="this.src='${fallbackImages['Stát / Region']}'" />
+                            <img src="${imageUrl}" alt="${name}" class="w-full h-full object-cover opacity-90" onerror="this.onerror=null;this.src='${fallbackImage}'" />
                             <div class="absolute inset-0 bg-gradient-to-t from-slate-900 via-slate-900/30 to-transparent"></div>
                             
                             <div class="absolute bottom-0 left-0 p-6 w-full text-white">
                                 <div class="flex flex-wrap items-center gap-2 mb-3">
                                     <span class="bg-emerald-500 text-white px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5 shadow-md border border-emerald-400">
                                         <i data-lucide="${getCategoryIconName(data.category)}" class="w-3.5 h-3.5"></i>
-                                        ${data.category}
+                                        ${category}
                                     </span>
                                     ${originBadge}
                                 </div>
-                                <h1 class="text-4xl font-black tracking-tight leading-tight text-white drop-shadow-xl mb-3">${data.name}</h1>
-                                
+                                <h1 class="text-4xl font-black tracking-tight leading-tight text-white drop-shadow-xl mb-3">${name}</h1>
+
                                 <div class="flex items-center gap-2 text-sm font-semibold text-emerald-50 bg-slate-800/60 backdrop-blur-md w-fit px-3.5 py-2 rounded-xl border border-slate-600 shadow-lg">
                                     <i data-lucide="navigation" class="w-4 h-4 text-emerald-400"></i>
-                                    ${data.country}
+                                    ${country}
                                 </div>
                             </div>
                         </div>
 
                         <div class="p-6 flex flex-col gap-8 flex-grow bg-slate-50 rounded-t-[2.5rem] -mt-6 z-10 relative overflow-y-auto pb-6">
                             <div class="text-slate-700 leading-relaxed text-[16px] font-medium text-justify">
-                                ${data.description}
+                                ${escapeHtml(data.description)}
                             </div>
 
                             <div class="bg-white p-6 rounded-[1.5rem] shadow-sm border border-slate-100">
@@ -350,7 +452,7 @@
                                 </div>
                             </div>
                             
-                            <a href="https://cs.wikipedia.org/?curid=${data.id}" target="_blank" rel="noopener noreferrer" style="-webkit-tap-highlight-color: transparent;" class="w-full bg-slate-800 active:bg-slate-700 hover:bg-slate-700 text-white py-4 rounded-[1.2rem] text-center font-bold text-[16px] shadow-xl flex items-center justify-center gap-2 transition-colors">
+                            <a href="https://cs.wikipedia.org/?curid=${encodeURIComponent(data.id)}" target="_blank" rel="noopener noreferrer" style="-webkit-tap-highlight-color: transparent;" class="w-full bg-slate-800 active:bg-slate-700 hover:bg-slate-700 text-white py-4 rounded-[1.2rem] text-center font-bold text-[16px] shadow-xl flex items-center justify-center gap-2 transition-colors">
                                 <i data-lucide="book-open" class="w-5 h-5 text-slate-300"></i>
                                 Číst encyklopedii
                             </a>
@@ -362,128 +464,190 @@
                 `;
             }
             
-            lucide.createIcons();
-            if (!isRevealed) document.getElementById('app-content').scrollTo(0, 0);
+            refreshIcons();
+            appContent.scrollTo(0, 0);
         };
 
-        const fetchRandomGeoFromWiki = async () => {
-            let foundPage = null;
-            let attempts = 0;
-            const strictBlacklist = ['společnost', 'firma', 'podnik', 'korporace', 'bitva', 'obléhání', 'válka', 'smlouva', 'dohoda', 'zemětřesení', 'povodeň', 'atentát', 'turnaj', 'mistrovství', 'olympiáda', 'masakr', 'dálnice', 'silnice', 'planetka', 'asteroid', 'film', 'album', 'seznam', 'letiště', 'nádraží', 'gymnázium', 'fakulta', 'univerzita', 'kostel', 'kaple', 'klášter', 'organizace', 'klub'];
-
-            while (!foundPage && attempts < 25) { 
-                attempts++;
-                const url = `https://cs.wikipedia.org/w/api.php?action=query&generator=random&grnnamespace=0&grnlimit=50&prop=coordinates|extracts|pageimages|langlinks&lllimit=500&exintro=1&explaintext=1&exchars=1500&pithumbsize=800&format=json&origin=*`;
-                
+        // Při výpadku nebo omezení (429) zkusí dotaz ještě dvakrát, pak to vzdá jako chybu spojení
+        const fetchJson = async (url) => {
+            let lastError = null;
+            for (let attempt = 0; attempt < 3; attempt++) {
+                if (attempt > 0) await new Promise(resolve => setTimeout(resolve, 800 * attempt));
                 try {
                     const response = await fetch(url);
-                    const data = await response.json();
-                    
-                    if (data.query && data.query.pages) {
-                        const pages = Object.values(data.query.pages);
-                        
-                        const validPages = pages.filter(p => {
-                            if (!p.coordinates || !p.extract || p.extract.length < 150) return false;
-                            
-                            const titleLower = p.title.toLowerCase();
-                            const extractLower = p.extract.toLowerCase().substring(0, 250); 
-                            
-                            if (strictBlacklist.some(word => titleLower.includes(word) || extractLower.includes(word))) return false;
-                            
-                            const strictCategory = inferGeoCategory(p.extract);
-                            if (strictCategory === null) return false; 
-                            
-                            if (strictCategory === "Město / Sídlo") {
-                                const pop = getPopulation(p.extract);
-                                if (pop !== null && pop < 6000) return false;
-                                if (pop === null && (!p.langlinks || p.langlinks.length < 10)) {
-                                    if (extractLower.includes("vesnice") || extractLower.includes("osada") || extractLower.includes("městys") || extractLower.match(/\bobec\b/)) {
-                                        return false;
-                                    }
-                                }
-                            }
-                            
-                            const lat = p.coordinates[0].lat;
-                            const lon = p.coordinates[0].lon;
-                            const isGeoCzech = (lat >= 48.5 && lat <= 51.1 && lon >= 12.0 && lon <= 18.9);
-                            const isTextCzech = extractLower.includes('v česku') || extractLower.includes('české republice');
-                            
-                            p.isCzech = isGeoCzech || isTextCzech;
-                            p.finalCategory = strictCategory; 
-                            
-                            const langCount = p.langlinks ? p.langlinks.length : 0;
-                            let requiredLangs = p.isCzech ? 4 : 7;
-                            if (attempts > 12) requiredLangs = p.isCzech ? 3 : 5;
-                            
-                            return langCount >= requiredLangs;
-                        });
+                    if (response.ok) return await response.json();
+                    lastError = new Error(`HTTP ${response.status}`);
+                } catch (e) {
+                    lastError = e;
+                }
+            }
+            throw new NetworkError(lastError ? lastError.message : 'Síťová chyba');
+        };
 
-                        if (validPages.length > 0) {
-                            const groupedPages = {};
-                            validPages.forEach(p => {
-                                if (!groupedPages[p.finalCategory]) groupedPages[p.finalCategory] = [];
-                                groupedPages[p.finalCategory].push(p);
-                            });
+        const TITLE_FIRST_LETTERS = [...'ABCČDEFGHIJKLMNOPRŘSŠTUVZŽ'];
+        const TITLE_NEXT_LETTERS = [...'abcdefghijklmnoprstuvyzáéíóúýčďěňřšťůž'];
+        const PAGE_DETAILS_PARAMS = '&prop=coordinates|extracts|pageimages|pageprops&colimit=max&exlimit=max&exintro=1&explaintext=1&exchars=1200&pithumbsize=800&ppprop=wikibase_item';
 
-                            const availableCategories = Object.keys(groupedPages);
-                            const nonCityCategories = availableCategories.filter(c => c !== "Město / Sídlo");
+        // API vrací souřadnice a úvody nejvýš pro 20 stránek najednou, proto dávky po 20
+        const buildBatchUrl = (rng, isDaily) => {
+            if (!isDaily) return `${WIKI_API}&action=query&generator=random&grnnamespace=0&grnlimit=20${PAGE_DETAILS_PARAMS}`;
+            // Náhodný generátor Wikipedie nejde zopakovat, dnešní místo proto hledáme abecedně od místa daného semínkem
+            const titlePrefix = pickRandom(TITLE_FIRST_LETTERS, rng) + pickRandom(TITLE_NEXT_LETTERS, rng) + pickRandom(TITLE_NEXT_LETTERS, rng);
+            return `${WIKI_API}&action=query&generator=allpages&gapnamespace=0&gapfilterredir=nonredirects&gaplimit=20&gapfrom=${encodeURIComponent(titlePrefix)}${PAGE_DETAILS_PARAMS}`;
+        };
 
-                            let selectedCategory;
-                            
-                            if (nonCityCategories.length > 0 && availableCategories.includes("Město / Sídlo")) {
-                                if (Math.random() < 0.85) {
-                                    selectedCategory = nonCityCategories[Math.floor(Math.random() * nonCityCategories.length)];
-                                } else {
-                                    selectedCategory = "Město / Sídlo";
-                                }
-                            } else {
-                                selectedCategory = availableCategories[Math.floor(Math.random() * availableCategories.length)];
-                            }
+        // Odkazy na jiné jazyky API vrací nejvýš 500 na dotaz pro všechny stránky dohromady, proto pokračujeme přes „continue“
+        const fetchLangCounts = async (pageIds) => {
+            const counts = {};
+            pageIds.forEach(id => { counts[id] = 0; });
+            let continueParams = null;
+            for (let i = 0; i < 10; i++) {
+                const continueQuery = continueParams ? '&' + new URLSearchParams(continueParams).toString() : '';
+                const data = await fetchJson(`${WIKI_API}&action=query&prop=langlinks&lllimit=max&pageids=${pageIds.join('|')}${continueQuery}`);
+                Object.values((data.query && data.query.pages) || {}).forEach(p => {
+                    counts[p.pageid] += (p.langlinks || []).length;
+                });
+                if (!data.continue) break;
+                continueParams = data.continue;
+            }
+            return counts;
+        };
 
-                            const pagesInCategory = groupedPages[selectedCategory];
-                            foundPage = pagesInCategory[Math.floor(Math.random() * pagesInCategory.length)];
-                        }
+        // Aktuální hodnoty vlastnosti z Wikidat (preferované, bez data konce, bez zastaralých)
+        const fetchCurrentClaimIds = async (qid, property) => {
+            const data = await fetchJson(`${WIKIDATA_API}&action=wbgetclaims&entity=${encodeURIComponent(qid)}&property=${property}`);
+            const claims = ((data.claims || {})[property] || [])
+                .filter(c => c.rank !== 'deprecated' && c.mainsnak.datavalue);
+            const preferred = claims.filter(c => c.rank === 'preferred');
+            const ranked = preferred.length ? preferred : claims;
+            const current = ranked.filter(c => !(c.qualifiers && c.qualifiers.P582));
+            return [...new Set((current.length ? current : ranked).map(c => c.mainsnak.datavalue.value.id))].slice(0, 50);
+        };
+
+        const fetchCountry = async (qid) => {
+            if (!qid) return { ids: [], name: UNKNOWN_COUNTRY };
+            try {
+                let ids = await fetchCurrentClaimIds(qid, 'P17');
+                if (ids.length === 0) ids = await fetchCurrentClaimIds(qid, 'P30');
+                if (ids.length === 0) return { ids: [], name: INTERNATIONAL_WATERS };
+
+                const data = await fetchJson(`${WIKIDATA_API}&action=wbgetentities&ids=${ids.join('|')}&props=labels&languages=cs&languagefallback=1`);
+                const names = ids
+                    .map(id => { const entity = (data.entities || {})[id]; return entity && entity.labels && entity.labels.cs && entity.labels.cs.value; })
+                    .filter(Boolean);
+                return { ids, name: names.length ? names.join(', ') : UNKNOWN_COUNTRY };
+            } catch (e) {
+                console.error(e);
+                return { ids: [], name: UNKNOWN_COUNTRY };
+            }
+        };
+
+        const fetchGeoLocation = async (rng, isDaily) => {
+            let foundPage = null;
+            const strictBlacklist = ['společnost', 'firma', 'podnik', 'korporace', 'bitva', 'obléhání', 'válka', 'smlouva', 'dohoda', 'zemětřesení', 'povodeň', 'atentát', 'turnaj', 'mistrovství', 'olympiáda', 'masakr', 'dálnice', 'silnice', 'planetka', 'asteroid', 'film', 'album', 'seznam', 'letiště', 'nádraží', 'gymnázium', 'fakulta', 'univerzita', 'kostel', 'kaple', 'klášter', 'organizace', 'klub'];
+
+            for (let attempt = 1; attempt <= MAX_ATTEMPTS && !foundPage; attempt++) {
+                const data = await fetchJson(buildBatchUrl(rng, isDaily));
+                const pages = Object.values((data.query && data.query.pages) || {});
+
+                const candidates = pages.filter(p => {
+                    if (!p.coordinates || !p.extract || p.extract.length < 150) return false;
+
+                    const titleLower = p.title.toLowerCase();
+                    const extractLower = p.extract.toLowerCase().substring(0, 250);
+
+                    if (strictBlacklist.some(word => titleLower.includes(word) || extractLower.includes(word))) return false;
+
+                    const strictCategory = inferGeoCategory(p.extract);
+                    if (strictCategory === null) return false;
+
+                    p.looksLikeVillage = false;
+                    if (strictCategory === "Město / Sídlo") {
+                        const pop = getPopulation(p.extract);
+                        if (pop !== null && pop < 6000) return false;
+                        p.looksLikeVillage = pop === null && (extractLower.includes("vesnice") || extractLower.includes("osada") || extractLower.includes("městys") || /\bobec\b/.test(extractLower));
                     }
-                } catch (e) { console.error(e); }
+
+                    const { lat, lon } = p.coordinates[0];
+                    p.isTextCzech = extractLower.includes('v česku') || extractLower.includes('české republice');
+                    p.isCzech = isInsideCzechia(lat, lon) || p.isTextCzech;
+                    p.finalCategory = strictCategory;
+                    return true;
+                });
+                if (candidates.length === 0) continue;
+
+                const langCounts = await fetchLangCounts(candidates.map(p => p.pageid));
+                const validPages = candidates.filter(p => {
+                    p.langCount = langCounts[p.pageid] || 0;
+                    if (p.looksLikeVillage && p.langCount < 10) return false;
+
+                    let requiredLangs = p.isCzech ? 4 : 7;
+                    if (attempt > 12) requiredLangs = p.isCzech ? 3 : 5;
+                    return p.langCount >= requiredLangs;
+                });
+                if (validPages.length === 0) continue;
+
+                const groupedPages = {};
+                validPages.forEach(p => {
+                    if (!groupedPages[p.finalCategory]) groupedPages[p.finalCategory] = [];
+                    groupedPages[p.finalCategory].push(p);
+                });
+
+                const availableCategories = Object.keys(groupedPages);
+                const nonCityCategories = availableCategories.filter(c => c !== "Město / Sídlo");
+
+                let selectedCategory;
+
+                if (nonCityCategories.length > 0 && availableCategories.includes("Město / Sídlo")) {
+                    if (rng() < 0.85) {
+                        selectedCategory = pickRandom(nonCityCategories, rng);
+                    } else {
+                        selectedCategory = "Město / Sídlo";
+                    }
+                } else {
+                    selectedCategory = pickRandom(availableCategories, rng);
+                }
+
+                foundPage = pickRandom(groupedPages[selectedCategory], rng);
             }
 
-            if (!foundPage) throw new Error("Dnes se nedaří najít správnou lokaci. Zkus to prosím znovu.");
+            if (!foundPage) throw new Error("Nepodařilo se najít vhodné místo. Zkus to prosím znovu.");
 
-            const lat = foundPage.coordinates[0].lat;
-            const lon = foundPage.coordinates[0].lon;
-            let countryName = "";
-            try {
-                const geoRes = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=cs`);
-                const geoData = await geoRes.json();
-                countryName = geoData.countryName || "";
-            } catch(e) {}
-
-            if (!countryName) countryName = "Mezinárodní vody / Oceán";
-
+            const country = await fetchCountry(foundPage.pageprops && foundPage.pageprops.wikibase_item);
             const { description, funFacts } = processWikiText(foundPage.extract);
-            const langCount = foundPage.langlinks ? foundPage.langlinks.length : 0;
-            const quizType = Math.random() > 0.5 ? 'name' : 'location';
+            const quizType = rng() > 0.5 ? 'name' : 'location';
 
             return {
                 id: foundPage.pageid,
                 name: foundPage.title,
                 category: foundPage.finalCategory, 
-                langCount: langCount,
-                isCzech: foundPage.isCzech,
-                country: countryName,
-                imageUrl: foundPage.thumbnail ? foundPage.thumbnail.source : fallbackImages[foundPage.finalCategory] || fallbackImages["Místo / Sídlo"],
+                langCount: foundPage.langCount,
+                isCzech: country.ids.length > 0 ? country.ids.includes(CZECHIA_QID) || foundPage.isTextCzech : foundPage.isCzech,
+                country: country.name,
+                imageUrl: foundPage.thumbnail ? foundPage.thumbnail.source : getFallbackImage(foundPage.finalCategory),
                 description: description,
                 funFacts: funFacts,
                 quizType: quizType
             };
         };
 
+        const removeOldDailyData = () => {
+            try {
+                Object.keys(localStorage)
+                    .filter(key => /^geoQuizData\d+$/.test(key) && key !== DAILY_STORAGE_KEY)
+                    .forEach(key => localStorage.removeItem(key));
+            } catch (e) {}
+        };
+
         const checkSessionAndLoad = async () => {
             try {
-                const sessionStr = localStorage.getItem('geoSessionState');
+                const sessionStr = localStorage.getItem(SESSION_STORAGE_KEY);
                 if (sessionStr) {
                     const session = JSON.parse(sessionStr);
-                    if (Date.now() - session.timestamp < 7200000) { 
+                    const isFresh = Date.now() - session.timestamp < 7200000;
+                    // Dnešní místo z uložené relace platí jen do půlnoci
+                    const isCurrent = !session.isDailyMode || (session.data && session.data.dailyDate === getTodayKey());
+                    if (session.version === STATE_VERSION && session.data && isFresh && isCurrent) {
                         currentLocationData = session.data;
                         isRevealed = session.isRevealed;
                         isDailyMode = session.isDailyMode;
@@ -504,9 +668,9 @@
             updateControlsUI();
             renderLoading();
             
-            const today = new Date().toLocaleDateString('cs-CZ');
+            const today = getTodayKey();
             try {
-                const savedDaily = localStorage.getItem('geoQuizData13'); 
+                const savedDaily = localStorage.getItem(DAILY_STORAGE_KEY);
                 if (savedDaily) {
                     const parsedData = JSON.parse(savedDaily);
                     if (parsedData.date === today && parsedData.data) {
@@ -520,11 +684,12 @@
             } catch (e) {}
 
             try {
-                currentLocationData = await fetchRandomGeoFromWiki();
-                try { localStorage.setItem('geoQuizData13', JSON.stringify({ date: today, data: currentLocationData })); } catch (e) {}
+                const location = await fetchGeoLocation(createSeededRandom('geo-kviz-' + today), true);
+                currentLocationData = { ...location, dailyDate: today };
+                try { localStorage.setItem(DAILY_STORAGE_KEY, JSON.stringify({ date: today, data: currentLocationData })); } catch (e) {}
                 renderLocation();
             } catch (error) {
-                renderError(error.message);
+                renderError(error);
             }
             isLoading = false;
             updateControlsUI();
@@ -539,31 +704,41 @@
             renderLoading();
 
             try {
-                currentLocationData = await fetchRandomGeoFromWiki();
+                currentLocationData = await fetchGeoLocation(Math.random, false);
                 renderLocation();
             } catch (error) {
-                renderError("Nemám přístup k internetu.");
+                renderError(error);
             }
             isLoading = false;
             updateControlsUI();
         };
 
-        const renderError = (msg) => {
+        window.retryLoad = () => isDailyMode ? loadDailyLocation() : loadRandomLocation();
+
+        const renderError = (error) => {
+            console.error(error);
+            const isNetworkError = error instanceof NetworkError || !navigator.onLine;
+            const title = isNetworkError ? 'Chyba spojení' : 'Místo se nenašlo';
+            const message = isNetworkError
+                ? 'Nepodařilo se spojit s Wikipedií. Zkontroluj připojení k internetu a zkus to znovu.'
+                : 'Nepodařilo se najít vhodné místo. Zkus to prosím znovu.';
+
             document.getElementById('app-content').innerHTML = `
                 <div class="absolute inset-0 z-10 flex flex-col items-center justify-center p-8 text-center fade-in bg-slate-50">
-                    <i data-lucide="wifi-off" class="w-16 h-16 text-slate-300 mb-4"></i>
-                    <h2 class="text-xl font-bold text-slate-700 mb-2">Chyba spojení</h2>
-                    <p class="text-slate-500 mb-6">${msg}</p>
-                    <button onclick="loadRandomLocation()" class="bg-emerald-600 text-white px-6 py-3 rounded-2xl font-bold active:scale-95 shadow-lg">Zkusit znovu</button>
+                    <i data-lucide="${isNetworkError ? 'wifi-off' : 'search-x'}" class="w-16 h-16 text-slate-300 mb-4"></i>
+                    <h2 class="text-xl font-bold text-slate-700 mb-2">${title}</h2>
+                    <p class="text-slate-500 mb-6">${message}</p>
+                    <button onclick="retryLoad()" class="bg-emerald-600 text-white px-6 py-3 rounded-2xl font-bold active:scale-95 shadow-lg">Zkusit znovu</button>
                 </div>`;
-            lucide.createIcons();
+            refreshIcons();
         };
 
         document.getElementById('btn-daily').addEventListener('click', loadDailyLocation);
         document.getElementById('btn-random').addEventListener('click', loadRandomLocation);
 
         window.addEventListener('DOMContentLoaded', () => {
-            lucide.createIcons();
+            refreshIcons();
+            removeOldDailyData();
             checkSessionAndLoad(); 
         });
     </script>
