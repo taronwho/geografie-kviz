@@ -130,7 +130,10 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         // Satelitní snímek bez popisků: první nápověda = přiblížení 7
         assert.ok(await tab.locator('#hint-satellite img').count() > 0);
         assert.ok(log.satellite.length > 0 && log.satellite.every(tile => tile.includes('/GoogleMapsCompatible_Level8/7/')));
-        assert.equal(await tab.locator('p.italic').count(), 0, 'na první úrovni ještě není text');
+        // Popis je vidět hned, fotka i satelit jsou na první úrovni lehce rozmazané
+        assert.match(await tab.textContent('p.italic'), /<img src=x onerror=__xss=1>/, 'HTML z Wikipedie se zobrazí jako text');
+        assert.match(await tab.getAttribute('#hint-photo', 'class'), /hint-blur/);
+        assert.match(await tab.getAttribute('#hint-satellite', 'class'), /hint-blur/);
 
         // Fotka není zakrytá textem a lišta nahoře nepřekrývá obsah
         const header = await tab.locator('header').boundingBox();
@@ -139,12 +142,12 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         assert.ok(header.y + header.height <= content.y + 1, 'obsah začíná pod lištou');
         assert.ok(photo.y >= content.y, 'fotka je v obsahu pod lištou');
 
+        // Druhá úroveň: obrázky zaostří, satelit zůstane zblízka
         await tab.click('[data-action="hint"]');
-        assert.match(await tab.locator('section', { hasText: 'Nápovědy' }).textContent(), /2\/3/);
-        await tab.waitForFunction(() => [...document.querySelectorAll('#hint-satellite img')].some(img => img.src.includes('_Level8/5/')));
-        assert.match(await tab.textContent('#app-content'), /Satelit: širší region/);
-        const hint = await tab.textContent('p.italic');
-        assert.match(hint, /<img src=x onerror=__xss=1>/, 'HTML z Wikipedie se zobrazí jako text');
+        assert.match(await tab.textContent('#app-content'), /Nápověda 2\/3/);
+        assert.doesNotMatch(await tab.getAttribute('#hint-photo', 'class'), /hint-blur/);
+        assert.doesNotMatch(await tab.getAttribute('#hint-satellite', 'class'), /hint-blur/);
+        assert.ok([...await tab.locator('#hint-satellite img').evaluateAll(imgs => imgs.map(img => img.src))].every(src => src.includes('_Level8/7/')));
 
         await tab.click(`[data-action="choice"]:has-text("${await correctChoiceLabel(tab)}")`);
         await waitForResult(tab);
@@ -272,6 +275,11 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         await waitForQuestion(tab);
         assert.equal(await tab.locator('#hint-photo').count(), 0, 'vlajka se jako fotka neukáže');
         assert.ok(await tab.locator('#hint-satellite img').count() > 0);
+        // Třetí úroveň: satelit se oddálí
+        await tab.click('[data-action="hint"]');
+        await tab.click('[data-action="hint"]');
+        await tab.waitForFunction(() => [...document.querySelectorAll('#hint-satellite img')].every(img => img.src.includes('_Level8/4/')));
+        assert.match(await tab.textContent('#app-content'), /Satelit: širší okolí/);
         await tab.click('[data-action="give-up"]');
         await waitForResult(tab);
         await tab.waitForFunction(() => document.querySelectorAll('#result-visual img').length > 0);

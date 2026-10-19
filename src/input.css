@@ -26,3 +26,5 @@
 @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 .spin { animation: spin 1.5s linear infinite; }
 @keyframes spin { 100% { transform: rotate(360deg); } }
+/* Na první úrovni nápověd jsou fotka i satelitní snímek lehce rozmazané (zvětšení skryje rozmazané okraje) */
+.hint-blur { filter: blur(5px); transform: scale(1.06); }

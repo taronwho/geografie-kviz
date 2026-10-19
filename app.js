@@ -5,21 +5,22 @@
     const {
         escapeHtml, isRealPhoto, displayName, formatPoints, getDayKey, formatDayKey, createSeededRandom, pickRandom,
         isInsideCzechia, inferGeoCategory, getCategoryIconName, censorName, censorCountry, isKnownCountry, processWikiText, getPopulation,
-        isAnswerMatch, buildNameChoices, buildCountryChoices, isCountryItself, canAskForCountry, getAcceptedAnswers, pointsFor,
+        isAnswerMatch, buildNameChoices, buildCountryChoices, isCountryItself, canAskForCountry, getCountryAliases, getAcceptedAnswers, pointsFor,
         computeStreak, buildShareText, getTileLayout, SATELLITE_TILES, OSM_TILES, SATELLITE_ZOOM_BY_HINT,
         CATEGORY_CITY, UNKNOWN_COUNTRY, INTERNATIONAL_WATERS, CZECHIA_QID, MAX_HINT_LEVEL
     } = window.GeoQuizCore;
 
-    const DAILY_STORAGE_KEY = 'geoQuizDaily17';
+    const DAILY_STORAGE_KEY = 'geoQuizDaily18';
     const SESSION_STORAGE_KEY = 'geoSessionState';
     const STATS_STORAGE_KEY = 'geoQuizStats';
     const VARIANT_STORAGE_KEY = 'geoQuizVariant';
-    const STATE_VERSION = 5;
+    const STATE_VERSION = 6;
     const SESSION_MAX_AGE = 2 * 60 * 60 * 1000;
     const MAX_ATTEMPTS = 25;
     const REQUEST_TIMEOUT = 12000;
     const SEARCH_TIMEOUT = 60000;
     const DEFAULT_MAP_ZOOM = 5;
+    const RESULT_SATELLITE_ZOOM = 5;
     const MIN_MAP_ZOOM = 2;
     const MAX_MAP_ZOOM = 12;
     const WIKI_API = 'https://cs.wikipedia.org/w/api.php?format=json&origin=*';
@@ -296,11 +297,15 @@
         const level = round.hintLevel;
         const isNameQuiz = data.quizType === 'name';
         const points = pointsFor(level, round.variant === 'typed');
-        const hintText = isNameQuiz ? censorName(data.description, data.name) : censorCountry(data.description, data.country);
+        const hintText = isNameQuiz
+            ? censorName(data.description, data.name)
+            : censorCountry(data.description, data.country, getCountryAliases(data.countryIds));
         const locationHint = isNameQuiz ? getLocationHint(data) : '';
-        // Každá nápověda oddálí satelitní snímek; druhá k tomu přidá popis (a u otázky na název polohu)
-        const satelliteView = { 1: 'okolí místa', 2: 'širší region', 3: 'kontinent' }[level];
-        const nextHintLabel = level === 1 ? `širší region na mapě, ${locationHint ? 'poloha a popis' : 'popis'}` : 'celý kontinent na mapě';
+        // Popis je vidět hned; nápovědy pak obrázky nejdřív zaostří a potom satelitní snímek oddálí
+        const isBlurred = level === 1;
+        const satelliteView = level >= MAX_HINT_LEVEL ? 'širší okolí' : 'okolí místa';
+        const visualName = data.photoUrl ? 'fotka a satelit' : 'satelit';
+        const nextHintLabel = level === 1 ? `ostrá ${visualName === 'satelit' ? 'mapa' : 'fotka a mapa'}` : 'oddálená mapa';
 
         appContent.innerHTML = `
             <div class="fade-in flex min-h-full w-full flex-col gap-5 bg-slate-50 p-5 pb-6 dark:bg-slate-900">
@@ -313,31 +318,10 @@
                     </span>
                 </div>
 
-                <section class="relative h-56 shrink-0 overflow-hidden rounded-[1.5rem] bg-slate-800 shadow-sm">
-                    <div id="hint-satellite" class="absolute inset-0 overflow-hidden" role="img" aria-label="Satelitní snímek bez popisků: ${satelliteView}"></div>
-                    <div class="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-full drop-shadow-md">
-                        <i data-lucide="map-pin" class="h-9 w-9 fill-rose-500 stroke-white"></i>
-                    </div>
-                    <span class="absolute bottom-3 left-3 flex items-center gap-1.5 rounded-lg bg-black/60 px-2.5 py-1 text-[11px] font-bold text-white backdrop-blur-sm">
-                        <i data-lucide="globe" class="h-3.5 w-3.5"></i> Satelit: ${satelliteView}
-                    </span>
-                    <span class="absolute bottom-3 right-3 rounded bg-black/40 px-1.5 py-0.5 text-[9px] text-white/80">NASA Blue Marble</span>
-                </section>
-
-                ${data.photoUrl ? `
-                    <section class="relative h-56 shrink-0 overflow-hidden rounded-[1.5rem] bg-slate-200 shadow-sm dark:bg-slate-800">
-                        <div class="absolute inset-0 flex items-center justify-center text-slate-400 dark:text-slate-600"><i data-lucide="image" class="h-10 w-10"></i></div>
-                        <div id="hint-photo" class="absolute inset-0 bg-cover bg-center" aria-hidden="true"></div>
-                        <span class="absolute bottom-3 left-3 flex items-center gap-1.5 rounded-lg bg-black/60 px-2.5 py-1 text-[11px] font-bold text-white backdrop-blur-sm">
-                            <i data-lucide="image" class="h-3.5 w-3.5"></i> Fotka místa
-                        </span>
-                    </section>
-                ` : ''}
-
                 <section class="${CARD} p-5">
                     <div class="mb-4 flex items-center justify-between">
-                        <h3 class="${CARD_TITLE}"><i data-lucide="radar" class="w-4 h-4 text-emerald-500"></i> Nápovědy</h3>
-                        <span class="rounded-lg bg-emerald-100 px-2 py-1 text-xs font-black text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300">${level}/${MAX_HINT_LEVEL}</span>
+                        <h3 class="${CARD_TITLE}"><i data-lucide="radar" class="w-4 h-4 text-emerald-500"></i> Popis místa</h3>
+                        <span class="rounded-lg bg-emerald-100 px-2 py-1 text-xs font-black text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300" title="Použité nápovědy">Nápověda ${level}/${MAX_HINT_LEVEL}</span>
                     </div>
 
                     ${!isNameQuiz ? `
@@ -346,26 +330,44 @@
                             <span class="font-medium">Název:</span> <b class="text-slate-800 dark:text-slate-100">${escapeHtml(displayName(data.name))}</b>
                         </div>
                     ` : ''}
-                    ${level >= 2 && locationHint ? `
+                    ${locationHint ? `
                         <div class="${HINT_CHIP}">
                             <i data-lucide="navigation" class="w-4 h-4 text-sky-500"></i>
                             <span class="font-medium">Poloha:</span> <b class="text-slate-800 dark:text-slate-100">${escapeHtml(locationHint)}</b>
                         </div>
                     ` : ''}
 
-                    ${level >= 2 ? `
-                        <p class="text-slate-700 dark:text-slate-200 leading-relaxed font-medium text-[16px] italic border-l-4 border-emerald-200 dark:border-emerald-700 pl-4 py-1">
-                            „${escapeHtml(hintText)}“
-                        </p>
-                    ` : `
-                        <p class="text-sm text-slate-500 dark:text-slate-400">Zatím vidíš ${isNameQuiz ? '' : 'název, '}kategorii a satelitní snímek okolí${data.photoUrl ? ' s fotkou' : ''}. Hádej hned za nejvíc bodů, nebo si vezmi další nápovědu.</p>
-                    `}
-                    ${level < MAX_HINT_LEVEL ? `
-                        <button type="button" data-action="hint" class="mt-4 flex w-full items-center justify-center gap-2 rounded-xl border-2 border-dashed border-emerald-300 px-4 py-3 text-sm font-bold text-emerald-700 transition-colors hover:bg-emerald-50 active:scale-95 dark:border-emerald-700 dark:text-emerald-300 dark:hover:bg-emerald-900/30">
-                            <i data-lucide="lightbulb" class="w-4 h-4"></i> Další nápověda: ${nextHintLabel}
-                        </button>
-                    ` : ''}
+                    <p class="text-slate-700 dark:text-slate-200 leading-relaxed font-medium text-[16px] italic border-l-4 border-emerald-200 dark:border-emerald-700 pl-4 py-1">
+                        „${escapeHtml(hintText)}“
+                    </p>
                 </section>
+
+                <section class="relative h-56 shrink-0 overflow-hidden rounded-[1.5rem] bg-slate-800 shadow-sm">
+                    <div id="hint-satellite" class="absolute inset-0 overflow-hidden ${isBlurred ? 'hint-blur' : ''}" role="img" aria-label="Satelitní snímek bez popisků: ${satelliteView}"></div>
+                    <div class="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-full drop-shadow-md">
+                        <i data-lucide="map-pin" class="h-9 w-9 fill-rose-500 stroke-white"></i>
+                    </div>
+                    <span class="absolute bottom-3 left-3 flex items-center gap-1.5 rounded-lg bg-black/60 px-2.5 py-1 text-[11px] font-bold text-white backdrop-blur-sm">
+                        <i data-lucide="globe" class="h-3.5 w-3.5"></i> Satelit: ${satelliteView}${isBlurred ? ' (rozmazaný)' : ''}
+                    </span>
+                    <span class="absolute bottom-3 right-3 rounded bg-black/40 px-1.5 py-0.5 text-[9px] text-white/80">NASA Blue Marble</span>
+                </section>
+
+                ${data.photoUrl ? `
+                    <section class="relative h-56 shrink-0 overflow-hidden rounded-[1.5rem] bg-slate-200 shadow-sm dark:bg-slate-800">
+                        <div class="absolute inset-0 flex items-center justify-center text-slate-400 dark:text-slate-600"><i data-lucide="image" class="h-10 w-10"></i></div>
+                        <div id="hint-photo" class="absolute inset-0 bg-cover bg-center ${isBlurred ? 'hint-blur' : ''}" aria-hidden="true"></div>
+                        <span class="absolute bottom-3 left-3 flex items-center gap-1.5 rounded-lg bg-black/60 px-2.5 py-1 text-[11px] font-bold text-white backdrop-blur-sm">
+                            <i data-lucide="image" class="h-3.5 w-3.5"></i> Fotka místa${isBlurred ? ' (rozmazaná)' : ''}
+                        </span>
+                    </section>
+                ` : ''}
+
+                ${level < MAX_HINT_LEVEL ? `
+                    <button type="button" data-action="hint" class="flex w-full items-center justify-center gap-2 rounded-xl border-2 border-dashed border-emerald-300 px-4 py-3 text-sm font-bold text-emerald-700 transition-colors hover:bg-emerald-50 active:scale-95 dark:border-emerald-700 dark:text-emerald-300 dark:hover:bg-emerald-900/30">
+                        <i data-lucide="lightbulb" class="w-4 h-4"></i> Další nápověda: ${nextHintLabel} (za ${formatPoints(pointsFor(level + 1, round.variant === 'typed'))})
+                    </button>
+                ` : ''}
 
                 <section class="${CARD} p-5">
                     <div class="mb-2 flex items-center justify-between gap-2">
@@ -480,8 +482,11 @@
                 return;
             } catch (e) {}
         }
-        if (element.isConnected) renderTiles(element, lat, lon, SATELLITE_ZOOM_BY_HINT[2], SATELLITE_TILES);
+        if (element.isConnected) renderTiles(element, lat, lon, RESULT_SATELLITE_ZOOM, SATELLITE_TILES);
     };
+
+    // „ve“ před čísly čtenými dvou-/tří-/čtyř- (2, 30, 299) a dvanácti až čtrnácti, jinak „v“ (v 15, v 100)
+    const formatLanguages = (count) => `${/^[234]|^1[234]$/.test(String(count)) ? 've' : 'v'} ${count} jazycích`;
 
     const renderResult = () => {
         const data = currentPlace;
@@ -499,7 +504,7 @@
 
         const originBadge = data.isCzech ?
             `<span class="text-[10px] font-bold text-white bg-rose-600/90 backdrop-blur-sm px-3 py-1.5 rounded-lg flex items-center gap-1.5 shadow-sm border border-rose-500"><i data-lucide="map-pin" class="w-3 h-3"></i>Česká stopa</span>` :
-            `<span class="text-[10px] font-bold text-white bg-slate-800/60 backdrop-blur-sm px-3 py-1.5 rounded-lg flex items-center gap-1.5 shadow-sm border border-slate-600"><i data-lucide="globe-2" class="w-3 h-3 text-sky-300"></i>Světové (Jazyků: ${escapeHtml(data.langCount)}+)</span>`;
+            `<span class="text-[10px] font-bold text-white bg-slate-800/60 backdrop-blur-sm px-3 py-1.5 rounded-lg flex items-center gap-1.5 shadow-sm border border-slate-600"><i data-lucide="globe-2" class="w-3 h-3 text-sky-300"></i>Wikipedie ${formatLanguages((data.langCount || 0) + 1)}</span>`;
 
         appContent.innerHTML = `
             <div class="fade-in flex flex-col w-full min-h-full pb-6 bg-slate-50 dark:bg-slate-900">
@@ -535,7 +540,7 @@
 
                     <section class="${CARD} p-6">
                         <h3 class="${CARD_TITLE} mb-6">
-                            <i data-lucide="compass" class="w-4 h-4 text-emerald-500"></i> Kvízová fakta z map
+                            <i data-lucide="compass" class="w-4 h-4 text-emerald-500"></i> Zajímavosti
                         </h3>
                         <div class="space-y-5">
                             ${funFactsHtml}

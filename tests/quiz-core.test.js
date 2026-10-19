@@ -199,10 +199,69 @@ test('jako fotka projde jen skutečná fotka, ne vlajka, znak nebo mapa', () => 
     }
 });
 
-test('satelitní dlaždice NASA mají pořadí z/y/x a zoom podle nápovědy', () => {
+test('satelitní dlaždice NASA mají pořadí z/y/x, oddálí se až na poslední nápovědě', () => {
     const tiles = core.getTileLayout(50.087, 14.421, core.SATELLITE_ZOOM_BY_HINT[1], 400, 224, core.SATELLITE_TILES);
     assert.ok(tiles.every(tile => tile.url.startsWith('https://gibs.earthdata.nasa.gov/') && tile.url.endsWith('.jpeg')));
     // Praha na zoomu 7: x = 69, y = 43 → v adrese .../7/43/69.jpeg
     assert.ok(tiles.some(tile => tile.url.endsWith('/7/43/69.jpeg')));
-    assert.deepEqual([1, 2, 3].map(level => core.SATELLITE_ZOOM_BY_HINT[level]), [7, 5, 3]);
+    assert.deepEqual([1, 2, 3].map(level => core.SATELLITE_ZOOM_BY_HINT[level]), [7, 7, 4]);
+});
+
+
+// Věty ve stylu úvodů české Wikipedie: [ID státu, věta, co nesmí zůstat, co musí zůstat]
+const COUNTRY_CASES = [
+    ['Q884', 'Mandžanggul je jeskyně nacházející se v Jižní Koreji na ostrově Čedžu mezi městy Gimnyeong-ri a Gujwaeup.', /korej|koreji|jižní/i, /jeskyně/],
+    ['Q884', 'Soul je hlavní město Jižní Koreje a leží na Korejském poloostrově.', /kore/i, /hlavní město/],
+    ['Q884', 'Ostrov je největším jihokorejským ostrovem a oblíbeným cílem turistů.', /korej/i, /ostrov/],
+    ['Q30', 'Yellowstone je národní park ve Spojených státech amerických, převážně ve státě Wyoming.', /spojen|americk|wyoming/i, /národní park/],
+    ['Q30', 'Je to nejvyšší hora v USA a jedna z nejznámějších hor Severní Ameriky.', /\bUSA\b|ameri/i, /nejvyšší hora/],
+    ['Q30', 'Řeka protéká severoamerickým kontinentem a vlévá se do Mexického zálivu.', /americk/i, /protéká/],
+    ['Q145', 'Ben Nevis je nejvyšší hora Spojeného království a leží ve Skotsku ve Velké Británii.', /spojen|královst|británi/i, /nejvyšší hora/],
+    ['Q183', 'Zugspitze je nejvyšší hora Německa, leží ve spolkové zemi Bavorsko na hranici s Rakouskem.', /němec|německ|bavorsk/i, /Rakouskem/],
+    ['Q38', 'Etna je činná sopka na Sicílii v Itálii, nejvyšší činná sopka italského území.', /itál|ital/i, /činná sopka/],
+    ['Q142', 'Lazurové pobřeží je pobřeží ve Francii, francouzská riviéra je známá letovisky.', /franc/i, /pobřeží/],
+    ['Q41', 'Olymp je nejvyšší hora Řecka a podle řecké mytologie sídlo bohů.', /řeck|řeck/i, /mytologie/],
+    ['Q148', "Jang-c'-ťiang je nejdelší řeka Číny a Čínské lidové republiky, protéká celou ČLR.", /čín|ČLR/i, /nejdelší řeka/],
+    ['Q17', 'Fudži je nejvyšší hora Japonska a symbol japonské kultury.', /japon/i, /symbol/],
+    ['Q668', 'Ganga je řeka v Indii, posvátná pro indické hinduisty.', /indi/i, /posvátná/],
+    ['Q159', 'Bajkal je jezero na Sibiři v Rusku, nejhlubší jezero Ruské federace.', /rusk/i, /nejhlubší jezero/],
+    ['Q96', 'Popocatépetl je činná sopka v Mexiku, druhá nejvyšší hora mexického území.', /mexi/i, /činná sopka/],
+    ['Q16', 'Banff je národní park v Kanadě v provincii Alberta, nejstarší kanadský park.', /kanad|alberta/i, /národní park/],
+    ['Q408', 'Uluru je skalní útvar v Austrálii, posvátný pro australské domorodce.', /austral|austrál/i, /skalní útvar/],
+    ['Q155', 'Cukrová homole je hora v Brazílii a symbol brazilského města Rio.', /brazil|brazíl/i, /symbol/],
+    ['Q79', 'Sinaj je poloostrov v Egyptě mezi Středozemním a Rudým mořem, patří egyptské vládě.', /egypt/i, /poloostrov/],
+    ['Q1028', 'Atlas je pohoří v Maroku, nejvyšší vrchol marockého pohoří je Toubkal.', /marok|marock/i, /nejvyšší vrchol/],
+    ['Q43', 'Ararat je hora na východě Turecka, nejvyšší hora tureckého území.', /turec/i, /nejvyšší hora/],
+    ['Q664', 'Milford Sound je fjord na Novém Zélandu, nejznámější novozélandský fjord.', /zéland|zeland/i, /fjord/],
+    ['Q298', 'Atacama je poušť v Chile, nejsušší místo chilského území.', /chil/i, /poušť/],
+    ['Q419', 'Titicaca je jezero na hranici Peru a Bolívie, posvátné pro peruánské Inky.', /\bperu|peruán/i, /jezero.*pro /],
+    ['Q213', 'Sněžka je nejvyšší hora Česka a České republiky, leží na hranici ČR s Polskem.', /česk|ČR/i, /Polskem/],
+    ['Q252', 'Krakatoa je sopka v Indonésii, nejznámější indonéská sopka.', /indonés/i, /sopka/],
+    ['Q881', 'Halong je záliv ve Vietnamu, symbol vietnamské krajiny.', /vietnam/i, /záliv/],
+    ['Q924', 'Kilimandžáro leží v Tanzanii nedaleko hranice s Keňou.', /tanzan/i, /Keňou/],
+    ['Q20', 'Geirangerfjord je fjord v Norsku, jeden z nejkrásnějších norských fjordů.', /norsk/i, /fjord/]
+];
+
+test('otázka na stát: v popisu nezůstane název ani přídavné jméno státu', () => {
+    for (const [id, text, forbidden, required] of COUNTRY_CASES) {
+        const country = core.COUNTRIES.find(c => c.id === id);
+        const out = core.censorCountry(text, country.name, core.getCountryAliases([id]));
+        assert.doesNotMatch(out, forbidden, `${country.name}: ${out}`);
+        assert.match(out, required, `${country.name}: zakryto navíc: ${out}`);
+    }
+});
+
+test('otázka na název: zakryje i odvozená přídavná jména', () => {
+    const cases = [
+        ['Praha', 'Praha je hlavní město. V Praze žije přes milion lidí, pražský hrad je dominantou.', /prah|praz|praž/i, /hlavní město/],
+        ['Brno', 'Brno je druhé největší město, brněnská přehrada je oblíbená.', /brn/i, /přehrada/],
+        ['Ústí nad Labem', 'Ústí nad Labem je statutární město, ústecký kraj leží na severu.', /úst|labem/i, /statutární město/],
+        ['České Budějovice', 'České Budějovice jsou krajské město, budějovický pivovar je známý.', /budějovic|česk/i, /krajské město/],
+        ['Peru', 'Peru je stát v Jižní Americe, peruánská kuchyně je pestrá a je známá pro ceviche.', /peru/i, / pro ceviche/]
+    ];
+    for (const [name, text, forbidden, required] of cases) {
+        const out = core.censorName(text, name);
+        assert.doesNotMatch(out, forbidden, `${name}: ${out}`);
+        assert.match(out, required, `${name}: zakryto navíc: ${out}`);
+    }
 });

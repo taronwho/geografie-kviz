@@ -1,6 +1,6 @@
 # Geo Kvíz
 
-Hádání míst světa podle nápověd z české Wikipedie. Každý den je pro všechny stejné **dnešní místo** (série dní, sdílení výsledku) a k tomu neomezený **trénink**. Při prvním spuštění si hráč zvolí variantu hry – výběr ze čtyř možností, nebo psaní odpovědi za dvojnásobek bodů (změna v nastavení ⚙). Obrazovou nápovědou je satelitní snímek bez popisků, který se s každou další nápovědou oddálí (okolí → region → kontinent), a fotka místa, pokud ji Wikipedie má (vlajky, znaky ani mapy se jako fotka nepoužijí). Každá další nápověda ubírá body.
+Hádání míst světa podle nápověd z české Wikipedie. Každý den je pro všechny stejné **dnešní místo** (série dní, sdílení výsledku) a k tomu neomezený **trénink**. Při prvním spuštění si hráč zvolí variantu hry – výběr ze čtyř možností, nebo psaní odpovědi za dvojnásobek bodů (změna v nastavení ⚙). Popis místa je vidět hned. K němu satelitní snímek bez popisků a fotka místa, pokud ji Wikipedie má (vlajky, znaky ani mapy se jako fotka nepoužijí) – nejdřív lehce rozmazané; první nápověda je zaostří, druhá satelitní snímek oddálí. Každá nápověda ubírá body.
 
 Statická stránka bez serveru a bez build kroku při nasazení – na Netlify se publikuje kořen repozitáře tak, jak je.
 

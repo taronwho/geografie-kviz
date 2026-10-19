@@ -16,8 +16,8 @@
     // Mapové dlaždice: satelitní snímek NASA bez popisků (nápověda) a OpenStreetMap s popisky (po odhalení)
     const SATELLITE_TILES = 'https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/BlueMarble_ShadedRelief_Bathymetry/default/GoogleMapsCompatible_Level8/{z}/{y}/{x}.jpeg';
     const OSM_TILES = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
-    // S každou nápovědou se satelitní snímek oddálí: okolí → širší region → kontinent
-    const SATELLITE_ZOOM_BY_HINT = { 1: 7, 2: 5, 3: 3 };
+    // Satelitní snímek: na 1. úrovni rozmazané okolí, na 2. ostré okolí, na 3. oddálený na širší okolí
+    const SATELLITE_ZOOM_BY_HINT = { 1: 7, 2: 7, 3: 4 };
 
     const CATEGORY_EMOJI = {
         'Město / Sídlo': '🏙️',
@@ -49,12 +49,12 @@
         ['Q45', 'Portugalsko', 'EU'], ['Q145', 'Spojené království', 'EU', ['Velká Británie', 'Británie', 'UK']], ['Q27', 'Irsko', 'EU'],
         ['Q55', 'Nizozemsko', 'EU', ['Holandsko']], ['Q31', 'Belgie', 'EU'], ['Q32', 'Lucembursko', 'EU'], ['Q39', 'Švýcarsko', 'EU'],
         ['Q35', 'Dánsko', 'EU'], ['Q20', 'Norsko', 'EU'], ['Q34', 'Švédsko', 'EU'], ['Q33', 'Finsko', 'EU'], ['Q189', 'Island', 'EU'],
-        ['Q191', 'Estonsko', 'EU'], ['Q211', 'Lotyšsko', 'EU'], ['Q37', 'Litva', 'EU'], ['Q212', 'Ukrajina', 'EU'], ['Q159', 'Rusko', 'EU'],
+        ['Q191', 'Estonsko', 'EU'], ['Q211', 'Lotyšsko', 'EU'], ['Q37', 'Litva', 'EU'], ['Q212', 'Ukrajina', 'EU'], ['Q159', 'Rusko', 'EU', ['Ruská federace']],
         ['Q184', 'Bělorusko', 'EU'], ['Q217', 'Moldavsko', 'EU'], ['Q218', 'Rumunsko', 'EU'], ['Q219', 'Bulharsko', 'EU'], ['Q41', 'Řecko', 'EU'],
         ['Q224', 'Chorvatsko', 'EU'], ['Q215', 'Slovinsko', 'EU'], ['Q403', 'Srbsko', 'EU'], ['Q225', 'Bosna a Hercegovina', 'EU', ['Bosna']],
         ['Q236', 'Černá Hora', 'EU'], ['Q222', 'Albánie', 'EU'], ['Q221', 'Severní Makedonie', 'EU', ['Makedonie']], ['Q233', 'Malta', 'EU'],
-        ['Q229', 'Kypr', 'EU'], ['Q43', 'Turecko', 'AS'], ['Q148', 'Čína', 'AS', ['Čínská lidová republika']], ['Q17', 'Japonsko', 'AS'],
-        ['Q884', 'Jižní Korea', 'AS', ['Korea']], ['Q668', 'Indie', 'AS'], ['Q843', 'Pákistán', 'AS'], ['Q252', 'Indonésie', 'AS'],
+        ['Q229', 'Kypr', 'EU'], ['Q43', 'Turecko', 'AS'], ['Q148', 'Čína', 'AS', ['Čínská lidová republika', 'ČLR']], ['Q17', 'Japonsko', 'AS'],
+        ['Q884', 'Jižní Korea', 'AS', ['Korea', 'Korejská republika']], ['Q668', 'Indie', 'AS'], ['Q843', 'Pákistán', 'AS'], ['Q252', 'Indonésie', 'AS'],
         ['Q869', 'Thajsko', 'AS'], ['Q881', 'Vietnam', 'AS'], ['Q928', 'Filipíny', 'AS'], ['Q833', 'Malajsie', 'AS'], ['Q794', 'Írán', 'AS'],
         ['Q796', 'Irák', 'AS'], ['Q851', 'Saúdská Arábie', 'AS'], ['Q801', 'Izrael', 'AS'], ['Q810', 'Jordánsko', 'AS'],
         ['Q232', 'Kazachstán', 'AS'], ['Q711', 'Mongolsko', 'AS'], ['Q837', 'Nepál', 'AS'],
@@ -185,22 +185,35 @@
     const NOT_LETTER_BEFORE = '(?<![\\p{L}\\p{N}])';
     const NOT_LETTER_AFTER = '(?![\\p{L}\\p{N}])';
     const CENSOR_SKIP_WORDS = new Set(['nad', 'pod', 'na', 've', 'de', 'la', 'le', 'les', 'des', 'du', 'di', 'da', 'del', 'der', 'die', 'das', 'am', 'an', 'im', 'of', 'the', 'and', 'et', 'san', 'saint', 'sankt']);
-    const STEM_ALTERNATIONS = [[/h$/iu, 'z'], [/g$/iu, 'z'], [/ch$/iu, 'š'], [/k$/iu, 'c'], [/r$/iu, 'ř'], [/ň$/iu, 'n'], [/ť$/iu, 't'], [/ď$/iu, 'd']];
+    const STEM_ALTERNATIONS = [
+        [/h$/iu, 'z'], [/h$/iu, 'ž'], [/g$/iu, 'z'], [/g$/iu, 'ž'], [/ch$/iu, 'š'], [/k$/iu, 'c'], [/k$/iu, 'č'],
+        [/r$/iu, 'ř'], [/ň$/iu, 'n'], [/ť$/iu, 't'], [/ď$/iu, 'd']
+    ];
+    const SHORT_VOWELS = { 'á': 'a', 'é': 'e', 'í': 'i', 'ó': 'o', 'ú': 'u', 'ů': 'u', 'ý': 'y', 'Á': 'A', 'É': 'E', 'Í': 'I', 'Ó': 'O', 'Ú': 'U', 'Ý': 'Y' };
     // Krátký kmen by s libovolnou koncovkou zakryl i nesouvisející slova (Peru → „pe…“), proto jen běžné pádové a přídavné koncovky
-    const SHORT_STEM_ENDINGS = '(?:(?:sk|ck|ick|ijsk|ánsk|ansk|ensk)(?:ý|á|é|ého|ém|ému|ou|ých|ým|ými|í)|ie|ii|ií|ou|em|ím|ům|ách|ech|ích|ami|[aueěiyoíé])?';
+    const SHORT_STEM_ENDINGS = '(?:(?:sk|ck|eck|ick|ijsk|ánsk|uánsk|ansk|ensk|ěnsk)(?:ý|á|é|ého|ém|ému|ou|ých|ým|ými|í)|ie|ii|ií|ou|em|ím|ům|ách|ech|ích|ami|[aueěiyoíé])?';
+    // Složená přídavná jména: jihokorejský, severoamerický, novozélandský
+    const COMPOUND_PREFIX = '(?:(?:jiho|severo)(?:východo|západo)?|východo|západo|středo|novo)?';
 
-    // Kmeny slova pro skloňované tvary: Praha → Prah/Praz (Praze), Sněžka → Sněžk/Sněžc, Hradec → Hradc, Plzeň → Plzn
+    // Kmeny slova pro skloňované tvary a odvozená přídavná jména:
+    // Praha → Prah/Praz/Praž (Praze, pražský), Korea → Kore/Kor (Koreji), Itálie → Itál/Ital (italský),
+    // Sněžka → Sněžk/Sněžc, Hradec → Hradc, Plzeň → Plzn
     const getWordStems = (word) => {
-        const stems = new Set([word.replace(/[aeiouyáéěíóúůý]+$/iu, '')]);
+        const stems = new Set([word.replace(/[aeiouyáéěíóúůý]$/iu, ''), word.replace(/[aeiouyáéěíóúůý]+$/iu, '')]);
         for (const stem of [...stems]) {
             for (const [pattern, replacement] of STEM_ALTERNATIONS) {
                 if (pattern.test(stem)) stems.add(stem.replace(pattern, replacement));
             }
         }
+        // Pohyblivé e (Hradec → Hradci) jen u delších kmenů, z „Per“ (Peru) by jinak vzniklo „Pr“ a zakrylo „pro“
         for (const stem of [...stems]) {
-            stems.add(stem.replace(/e([^aeiouyáéěíóúůý])$/iu, '$1'));
+            if (stem.length >= 5) stems.add(stem.replace(/e([^aeiouyáéěíóúůý])$/iu, '$1'));
         }
-        return [...stems].filter(stem => stem.length >= 2);
+        for (const stem of [...stems]) {
+            stems.add(stem.replace(/[áéíóúůýÁÉÍÓÚÝ]/g, ch => SHORT_VOWELS[ch]));
+        }
+        // Dvoupísmenné kmeny jen u krátkých názvů (Aš), jinak by zakrývaly běžná slova
+        return [...stems].filter(stem => stem.length >= 3 || (stem.length === 2 && word.length <= 3));
     };
 
     const buildWordsPattern = (words) => {
@@ -212,12 +225,21 @@
             }
         }
         if (parts.length === 0) return null;
-        return new RegExp(NOT_LETTER_BEFORE + '(?:' + parts.join('|') + ')' + NOT_LETTER_AFTER, 'giu');
+        return new RegExp(NOT_LETTER_BEFORE + COMPOUND_PREFIX + '(?:' + parts.join('|') + ')' + NOT_LETTER_AFTER, 'giu');
     };
 
+    // Zkratky (USA, ČR, ČLR) jen jako celé slovo a s velkými písmeny, ať nezakryjí běžná slova
+    const isAbbreviation = (word) => /^\p{Lu}{2,4}$/u.test(word);
+
     const censorWords = (text, phrase) => {
-        const pattern = buildWordsPattern(stripBrackets(phrase).trim().split(/[\s,\-–]+/));
-        return pattern ? text.replace(pattern, '[***]') : text;
+        const words = stripBrackets(phrase).trim().split(/[\s,\-–]+/);
+        const abbreviations = words.filter(isAbbreviation);
+        const pattern = buildWordsPattern(words.filter(word => !isAbbreviation(word)));
+        let res = pattern ? text.replace(pattern, '[***]') : text;
+        if (abbreviations.length) {
+            res = res.replace(new RegExp(NOT_LETTER_BEFORE + '(?:' + abbreviations.map(escapeRegExp).join('|') + ')' + NOT_LETTER_AFTER, 'gu'), '[***]');
+        }
+        return res;
     };
 
     const censorName = (text, name) => {
@@ -228,11 +250,12 @@
     const NATIONALITY_PATTERN = new RegExp(NOT_LETTER_BEFORE + '(?:americk|rusk|německ|francouzsk|italsk|japonsk|čínsk|kanadsk|australsk|britsk)\\p{L}*', 'giu');
     const CONTINENT_PATTERN = new RegExp(NOT_LETTER_BEFORE + '(?:Evrop(?:a|y|ě|u|ou)|Asi(?:e|i|í)|Afri(?:ka|ky|ce|ku|kou)|Ameri(?:ka|ky|ce|ku|kou)|Austráli(?:e|i|í)|Antarktid(?:a|y|ě|u|ou)|Oceáni(?:e|i|í)|(?:evropsk|asijsk|africk|australsk|antarktick)\\p{L}*)' + NOT_LETTER_AFTER, 'giu');
     const CZECH_PATTERN = new RegExp(NOT_LETTER_BEFORE + '(?:v Česku|v České republice|v ČR|na Moravě|ve Slezsku|v Čechách|česk\\p{L}*|moravsk\\p{L}*|slezsk\\p{L}*)' + NOT_LETTER_AFTER, 'giu');
-    const REGION_PATTERN = /(?:v okrese|v provincii|ve státě|v regionu|v kraji|na kontinentu|v americkém státě|na ostrově|v pohoří) \p{Lu}[\p{Ll}-]+/gu;
+    const REGION_PATTERN = /(?:v okrese|v provincii|ve státě|v regionu|v kraji|na kontinentu|v americkém státě|na ostrově|v pohoří|ve spolkové zemi|v departementu|v prefektuře|v kantonu|v župě|ve vojvodství|v hrabství|v oblasti|v autonomní oblasti|v distriktu|v gubernii|v emirátu) \p{Lu}[\p{Ll}-]+/gu;
 
     const isKnownCountry = (country) => Boolean(country) && country !== UNKNOWN_COUNTRY && country !== INTERNATIONAL_WATERS;
 
-    const censorCountry = (text, country) => {
+    // aliases: další názvy a zkratky státu (USA, ČR, Ruská federace…) – zakryjí se také
+    const censorCountry = (text, country, aliases = []) => {
         let res = stripBrackets(text).replace(/\s{2,}/g, ' ');
         res = res
             .replace(NATIONALITY_PATTERN, '[***]')
@@ -241,7 +264,7 @@
             .replace(REGION_PATTERN, '[***]');
 
         if (!isKnownCountry(country)) return res;
-        return censorWords(res, country);
+        return censorWords(res, [country, ...aliases].join(', '));
     };
 
     const processWikiText = (extract) => {
@@ -370,6 +393,8 @@
         return !censorCountry(displayName(title), countryNames.join(', ')).includes('[***]');
     };
 
+    const getCountryAliases = (countryIds = []) => COUNTRIES.filter(c => countryIds.includes(c.id)).flatMap(c => c.aliases);
+
     const getAcceptedAnswers = (location) => {
         if (location.quizType === 'name') return [location.name, displayName(location.name)];
         const aliases = COUNTRIES.filter(c => (location.countryIds || []).includes(c.id)).flatMap(c => [c.name, ...c.aliases]);
@@ -434,6 +459,6 @@
         getDayKey, shiftDayKey, formatDayKey, createSeededRandom, pickRandom, shuffle,
         isInsideCzechia, inferGeoCategory, getCategoryIconName, getWordStems, censorName, censorCountry, isKnownCountry,
         processWikiText, getPopulation, normalizeAnswer, levenshtein, isAnswerMatch,
-        buildNameChoices, buildCountryChoices, isCountryItself, canAskForCountry, getAcceptedAnswers, pointsFor, computeStreak, buildShareText, getTileLayout
+        buildNameChoices, buildCountryChoices, isCountryItself, canAskForCountry, getCountryAliases, getAcceptedAnswers, pointsFor, computeStreak, buildShareText, getTileLayout
     };
 });
