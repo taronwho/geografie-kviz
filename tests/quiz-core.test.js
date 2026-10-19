@@ -344,8 +344,12 @@ test('slepá mapa: místo uprostřed, mimo výřez nic, zvýraznění státu, p�
     assert.equal(pacific[0].highlight, false);
 });
 
-test('odkaz na fotku z Wikimedia Commons', () => {
-    assert.equal(core.commonsPhotoUrl('Karlův most (2010).jpg'), 'https://commons.wikimedia.org/wiki/Special:FilePath/Karl%C5%AFv%20most%20(2010).jpg?width=800');
+test('odkaz na náhled fotky z Wikimedia Commons', () => {
+    // Hash je MD5 názvu souboru s podtržítky (počítá ho skript sady míst)
+    const hash = require('node:crypto').createHash('md5').update('Charles_Bridge,_Prague.jpg').digest('hex').slice(0, 2);
+    assert.equal(core.commonsPhotoUrl('Charles Bridge, Prague.jpg', hash),
+        `https://upload.wikimedia.org/wikipedia/commons/thumb/${hash[0]}/${hash}/Charles_Bridge%2C_Prague.jpg/960px-Charles_Bridge%2C_Prague.jpg`);
+    assert.equal(core.commonsPhotoUrl('Karlův most.jpg', 'ab', 500), 'https://upload.wikimedia.org/wikipedia/commons/thumb/a/ab/Karl%C5%AFv_most.jpg/500px-Karl%C5%AFv_most.jpg');
 });
 
 // Kontrola vygenerované sady míst (data/places.json) a obrysů států (data/world.json)

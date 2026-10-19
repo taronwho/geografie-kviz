@@ -1,6 +1,6 @@
 # Geo Kvíz
 
-Hádání míst světa – států, měst, hor, řek, jezer a moří, ostrovů, přírodních divů a slavných staveb. Každý den je pro všechny stejné **dnešní místo** (vždy známé místo, série dní, sdílení výsledku) a k tomu neomezený **trénink**, ve kterém si hráč v nastavení ⚙ vybere kategorie a jestli chce jen známá místa, nebo i méně známá.
+Hádání míst světa – států, měst, hor, řek, jezer a moří, ostrovů, přírodních míst a slavných staveb. Každý den je pro všechny stejné **dnešní místo** (vždy známé místo, série dní, sdílení výsledku) a k tomu neomezený **trénink**, ve kterém si hráč v nastavení ⚙ vybere kategorie a jestli chce jen známá místa, nebo i méně známá.
 
 Při prvním spuštění si hráč zvolí variantu hry – výběr ze čtyř možností, nebo psaní odpovědi za dvojnásobek bodů. Otázka zní „Co je to za místo?“, a kde to dává smysl (místo leží v jednom státě a název ho neprozradí), také „Ve kterém státě to je?“.
 

@@ -18,7 +18,7 @@ const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR
 
 // Testovací sada míst ve formátu data/places.json. Známá místa mají fotku i fakta (dnešní místo má tedy 4 úrovně),
 // ostrovy jsou méně známé a slouží k testu míst bez fotky.
-const place = (q, n, c, k, co, extra = {}) => ({ q, t: n, n, c, k, s: 100, la: 47, lo: 8, ty: '', d: `${c} v testovacím světě`, co, im: `${n}_z_jihu.jpg`, f: {}, ...extra });
+const place = (q, n, c, k, co, extra = {}) => ({ q, t: n, n, c, k, la: 47, lo: 8, ty: '', d: `${c} v testovacím světě`, co, im: `${n}_z_jihu.jpg`, ih: 'ab', f: {}, ...extra });
 const DATASET = {
     generated: '2026-10-19',
     countries: {
@@ -113,7 +113,7 @@ const setup = async (browser, options = {}) => {
             const title = url.searchParams.get('titles');
             return route.fulfill({ json: { query: { pages: { 7: { pageid: 7, title, extract: extractFor(title) } } } } });
         }
-        if (url.hostname === 'commons.wikimedia.org') {
+        if (url.hostname === 'upload.wikimedia.org') {
             log.photos.push(decodeURIComponent(url.pathname));
             return url.pathname.includes('Chybejici') ? route.fulfill({ status: 404, body: '' }) : route.fulfill({ contentType: 'image/png', body: PNG });
         }
@@ -163,7 +163,7 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
 
         // 1. nápověda: skutečná fotka jako pozadí prvku (ne <img>)
         await tab.click('[data-action="hint"]');
-        await tab.waitForFunction(() => document.getElementById('hint-photo').style.backgroundImage.includes('Special:FilePath'));
+        await tab.waitForFunction(() => document.getElementById('hint-photo').style.backgroundImage.includes('upload.wikimedia.org/wikipedia/commons/thumb/a/ab/'));
         assert.match(await appText(tab), /Nápověda 2\/4/);
         assert.match(await appText(tab), /Teď za ni získáš 3 body/);
         assert.equal(await tab.locator('#app-content section img').count(), 0);

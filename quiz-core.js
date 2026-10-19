@@ -19,7 +19,7 @@
         { key: 'reka', label: 'Řeky', one: 'řeka', icon: 'waves', emoji: '🏞️', mapSpan: 24 },
         { key: 'jezero', label: 'Jezera a moře', one: 'vodní plocha', icon: 'droplets', emoji: '🌊', mapSpan: 30 },
         { key: 'ostrov', label: 'Ostrovy', one: 'ostrov', icon: 'palmtree', emoji: '🏝️', mapSpan: 30 },
-        { key: 'priroda', label: 'Přírodní divy', one: 'přírodní místo', icon: 'leaf', emoji: '🌿', mapSpan: 24 },
+        { key: 'priroda', label: 'Příroda a krajina', one: 'přírodní místo', icon: 'leaf', emoji: '🌿', mapSpan: 24 },
         { key: 'stavba', label: 'Stavby a památky', one: 'stavba', icon: 'landmark', emoji: '🏛️', mapSpan: 24 }
     ];
     const CATEGORY_BY_KEY = Object.fromEntries(CATEGORIES.map(category => [category.key, category]));
@@ -65,7 +65,7 @@
         'scheme', 'schema', 'chart', 'signature', 'podpis', 'orthographic', 'projection', 'administrative', 'divisions', 'svg'
     ]);
     const isRealPhoto = (fileName) => {
-        if (!fileName || !/\.(jpe?g|webp|tiff?)$/i.test(fileName)) return false;
+        if (!fileName || !/\.(jpe?g|webp)$/i.test(fileName)) return false;
         return !fileName.toLowerCase().split(/[^\p{L}]+/u).some(word => NON_PHOTO_WORDS.has(word));
     };
 
@@ -267,8 +267,12 @@
         });
     };
 
-    // Odkaz na zmenšeninu fotky z Wikimedia Commons (Special:FilePath přesměruje na upload.wikimedia.org)
-    const commonsPhotoUrl = (fileName, width = 800) => `https://commons.wikimedia.org/wiki/Special:FilePath/${encodeURIComponent(fileName)}?width=${width}`;
+    // Náhled fotky z Wikimedia Commons přímo z upload.wikimedia.org (bez přesměrování na plné rozlišení);
+    // hash = první dva znaky MD5 názvu souboru, spočítané při sestavení sady míst
+    const commonsPhotoUrl = (fileName, hash, width = 960) => {
+        const name = encodeURIComponent(fileName.replace(/ /g, '_'));
+        return `https://upload.wikimedia.org/wikipedia/commons/thumb/${hash[0]}/${hash}/${name}/${width}px-${name}`;
+    };
 
     // Výběr míst: dnešní místo jen ze známých ze všech kategorií, trénink podle nastavení a bez nedávno hraných
     const filterPlaces = (places, { categories, tier }) =>

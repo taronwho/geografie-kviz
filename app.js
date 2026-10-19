@@ -183,7 +183,7 @@
             : buildPlaceChoices(place, places, countries, rng);
         const [text, photoUrl] = await Promise.all([
             fetchPlaceText(place),
-            probePhoto(isRealPhoto(place.im) ? commonsPhotoUrl(place.im) : null)
+            probePhoto(isRealPhoto(place.im) && place.ih ? commonsPhotoUrl(place.im, place.ih) : null)
         ]);
         const facts = buildFacts(place, countries, quizType);
         return {
@@ -192,7 +192,10 @@
             name: place.n,
             category: place.c,
             known: place.k === 1,
-            typeLabel: place.ty || getCategory(place.c).one,
+            // Typ místa nesmí u otázky na stát prozradit odpověď
+            typeLabel: place.ty && !(quizType === 'location' && censorCountry(place.ty, getCountryNames(place, countries)[0], getCountryAliases(place.co)).includes('[***]'))
+                ? place.ty
+                : getCategory(place.c).one,
             lat: place.la,
             lon: place.lo,
             countryIds: place.co || [],
@@ -434,7 +437,8 @@
         const width = Math.round(container.clientWidth) || 360;
         const height = Math.round(container.clientHeight) || 224;
         const svg = svgElement('svg', { viewBox: `0 0 ${width} ${height}`, class: 'absolute inset-0 h-full w-full', 'aria-hidden': 'true' });
-        for (const shape of buildBlindMap(world, { lat: data.lat, lon: data.lon, spanLon: data.mapSpan, width, height, highlightIso: data.highlightIso })) {
+        const shapes = buildBlindMap(world, { lat: data.lat, lon: data.lon, spanLon: data.mapSpan, width, height, highlightIso: data.highlightIso });
+        for (const shape of shapes) {
             svg.appendChild(svgElement('path', {
                 d: shape.d,
                 'stroke-width': 0.8,
@@ -444,7 +448,8 @@
                     : 'fill-amber-50 stroke-slate-400 dark:fill-slate-600 dark:stroke-slate-400'
             }));
         }
-        if (data.category !== 'stat') {
+        // Malé státy (Malta, Monako) na mapě obrys nemají – pak i u státu terč
+        if (!shapes.some(shape => shape.highlight)) {
             svg.appendChild(svgElement('circle', { cx: width / 2, cy: height / 2, r: 15, fill: 'none', 'stroke-width': 2.5, class: 'stroke-rose-500/60' }));
             svg.appendChild(svgElement('circle', { cx: width / 2, cy: height / 2, r: 6, 'stroke-width': 2.5, class: 'fill-rose-500 stroke-white' }));
         }
@@ -487,7 +492,7 @@
                 </section>`;
         }
         if (step === 'map') {
-            const what = data.category === 'stat' ? 'Stát je zvýrazněný' : 'Místo je uprostřed';
+            const what = data.category === 'stat' ? 'Stát je uprostřed' : 'Místo je uprostřed';
             const width = formatDistance(getMapWidthKm(data));
             return `
                 <section ${newestId} class="relative h-56 shrink-0 overflow-hidden rounded-[1.5rem] border border-sky-200 bg-sky-200 shadow-sm dark:border-slate-700 dark:bg-slate-950">
