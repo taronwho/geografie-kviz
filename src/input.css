@@ -26,7 +26,3 @@
 @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 .spin { animation: spin 1.5s linear infinite; }
 @keyframes spin { 100% { transform: rotate(360deg); } }
-/* Fotka se s každou nápovědou zaostří: lehce rozmazaná → skoro ostrá → ostrá (zvětšení skryje rozmazané okraje) */
-.photo-blur-1 { filter: blur(6px); transform: scale(1.06); }
-.photo-blur-2 { filter: blur(2.5px); transform: scale(1.03); }
-.photo-blur-3 { filter: none; }

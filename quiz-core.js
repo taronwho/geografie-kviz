@@ -13,14 +13,11 @@
     const MAX_HINT_LEVEL = 3;
     const TILE_SIZE = 256;
 
-    const fallbackImages = {
-        'Město / Sídlo': 'https://images.unsplash.com/photo-1477959858617-67f85cf4f1df?q=80&w=800&auto=format&fit=crop',
-        'Hora / Pohoří': 'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?q=80&w=800&auto=format&fit=crop',
-        'Vodní plocha': 'https://images.unsplash.com/photo-1437482078695-73f5af6e68bf?q=80&w=800&auto=format&fit=crop',
-        'Ostrov': 'https://images.unsplash.com/photo-1559128010-7c1ad6e1b6a5?q=80&w=800&auto=format&fit=crop',
-        'Stát / Region': 'https://images.unsplash.com/photo-1501504905252-473c47e087f8?q=80&w=800&auto=format&fit=crop',
-        'Přírodní úkaz': 'https://images.unsplash.com/photo-1444464666168-49b659f49c15?q=80&w=800&auto=format&fit=crop'
-    };
+    // Mapové dlaždice: satelitní snímek NASA bez popisků (nápověda) a OpenStreetMap s popisky (po odhalení)
+    const SATELLITE_TILES = 'https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/BlueMarble_ShadedRelief_Bathymetry/default/GoogleMapsCompatible_Level8/{z}/{y}/{x}.jpeg';
+    const OSM_TILES = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+    // S každou nápovědou se satelitní snímek oddálí: okolí → širší region → kontinent
+    const SATELLITE_ZOOM_BY_HINT = { 1: 7, 2: 5, 3: 3 };
 
     const CATEGORY_EMOJI = {
         'Město / Sídlo': '🏙️',
@@ -82,7 +79,17 @@
     const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch]);
     const escapeRegExp = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const stripBrackets = (text) => text.replace(/[\[\(][^[\]()]*[\]\)]/g, '');
-    const getFallbackImage = (category) => fallbackImages[category] || fallbackImages[CATEGORY_CITY];
+    // Hlavní obrázek článku bývá i vlajka, znak nebo mapa – jako nápověda se hodí jen skutečná fotka
+    const NON_PHOTO_WORDS = new Set([
+        'flag', 'flags', 'vlajka', 'coat', 'arms', 'erb', 'znak', 'wappen', 'blason', 'escudo', 'stemma', 'herb', 'logo', 'seal', 'emblem',
+        'symbol', 'locator', 'location', 'lokace', 'poloha', 'map', 'maps', 'mapa', 'mapka', 'karte', 'carte', 'diagram', 'plan', 'plán',
+        'scheme', 'schema', 'chart', 'signature', 'podpis', 'orthographic', 'projection', 'administrative', 'divisions', 'svg'
+    ]);
+    const isRealPhoto = (fileName) => {
+        if (!fileName || !/\.(jpe?g|webp|tiff?)$/i.test(fileName)) return false;
+        return !fileName.toLowerCase().split(/[^\p{L}]+/u).some(word => NON_PHOTO_WORDS.has(word));
+    };
+
     const displayName = (title) => stripBrackets(title).replace(/\s{2,}/g, ' ').trim();
 
     const plural = (count, one, few, many) => {
@@ -397,8 +404,8 @@
         ].filter(Boolean).join('\n');
     };
 
-    // Dlaždice OpenStreetMap, které pokryjí výřez width × height se zadaným bodem uprostřed
-    const getTileLayout = (lat, lon, zoom, width, height) => {
+    // Dlaždice (podle šablony s {z}/{x}/{y}), které pokryjí výřez width × height se zadaným bodem uprostřed
+    const getTileLayout = (lat, lon, zoom, width, height, template = OSM_TILES) => {
         const scale = TILE_SIZE * 2 ** zoom;
         const sin = Math.min(Math.max(Math.sin(lat * Math.PI / 180), -0.9999), 0.9999);
         const centerX = (lon + 180) / 360 * scale;
@@ -411,7 +418,7 @@
             for (let ty = Math.floor(top / TILE_SIZE); ty <= Math.floor((top + height) / TILE_SIZE); ty++) {
                 if (ty < 0 || ty >= tileCount) continue;
                 tiles.push({
-                    url: `https://tile.openstreetmap.org/${zoom}/${((tx % tileCount) + tileCount) % tileCount}/${ty}.png`,
+                    url: template.replace('{z}', zoom).replace('{x}', ((tx % tileCount) + tileCount) % tileCount).replace('{y}', ty),
                     left: Math.round(tx * TILE_SIZE - left),
                     top: Math.round(ty * TILE_SIZE - top)
                 });
@@ -422,7 +429,8 @@
 
     return {
         CATEGORY_CITY, UNKNOWN_COUNTRY, INTERNATIONAL_WATERS, CZECHIA_QID, MAX_HINT_LEVEL, TILE_SIZE, COUNTRIES, FALLBACK_PLACES,
-        escapeHtml, stripBrackets, getFallbackImage, displayName, plural, formatPoints,
+        SATELLITE_TILES, OSM_TILES, SATELLITE_ZOOM_BY_HINT,
+        escapeHtml, stripBrackets, isRealPhoto, displayName, plural, formatPoints,
         getDayKey, shiftDayKey, formatDayKey, createSeededRandom, pickRandom, shuffle,
         isInsideCzechia, inferGeoCategory, getCategoryIconName, getWordStems, censorName, censorCountry, isKnownCountry,
         processWikiText, getPopulation, normalizeAnswer, levenshtein, isAnswerMatch,

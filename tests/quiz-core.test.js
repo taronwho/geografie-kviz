@@ -189,3 +189,20 @@ test('na stát se neptá u státu ani když ho prozradí název', () => {
     // Bez státu z Wikidat (jen kontinent) se na stát neptá
     assert.equal(core.canAskForCountry({ ...base, title: 'Atlantik', countrySource: 'P30', countryIds: ['Q49'], countryNames: ['Severní Amerika'] }), false);
 });
+
+test('jako fotka projde jen skutečná fotka, ne vlajka, znak nebo mapa', () => {
+    for (const name of ['Matterhorn_from_Zermatt.jpg', 'Sněžka_(2016).JPG', 'Plana_nad_Lužnicí.jpg', 'Malta_satellite_image.jpg']) {
+        assert.equal(core.isRealPhoto(name), true, name);
+    }
+    for (const name of ['Flag_of_Greece.svg', 'Coat_of_arms_of_Prague.jpg', 'Greece_location_map.jpg', 'Karte_Bayern.jpg', 'Erb_Brna.png', 'EU-Greece.svg', undefined, '']) {
+        assert.equal(core.isRealPhoto(name), false, String(name));
+    }
+});
+
+test('satelitní dlaždice NASA mají pořadí z/y/x a zoom podle nápovědy', () => {
+    const tiles = core.getTileLayout(50.087, 14.421, core.SATELLITE_ZOOM_BY_HINT[1], 400, 224, core.SATELLITE_TILES);
+    assert.ok(tiles.every(tile => tile.url.startsWith('https://gibs.earthdata.nasa.gov/') && tile.url.endsWith('.jpeg')));
+    // Praha na zoomu 7: x = 69, y = 43 → v adrese .../7/43/69.jpeg
+    assert.ok(tiles.some(tile => tile.url.endsWith('/7/43/69.jpeg')));
+    assert.deepEqual([1, 2, 3].map(level => core.SATELLITE_ZOOM_BY_HINT[level]), [7, 5, 3]);
+});

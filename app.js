@@ -3,18 +3,18 @@
     'use strict';
 
     const {
-        escapeHtml, getFallbackImage, displayName, formatPoints, getDayKey, formatDayKey, createSeededRandom, pickRandom,
+        escapeHtml, isRealPhoto, displayName, formatPoints, getDayKey, formatDayKey, createSeededRandom, pickRandom,
         isInsideCzechia, inferGeoCategory, getCategoryIconName, censorName, censorCountry, isKnownCountry, processWikiText, getPopulation,
         isAnswerMatch, buildNameChoices, buildCountryChoices, isCountryItself, canAskForCountry, getAcceptedAnswers, pointsFor,
-        computeStreak, buildShareText, getTileLayout,
+        computeStreak, buildShareText, getTileLayout, SATELLITE_TILES, OSM_TILES, SATELLITE_ZOOM_BY_HINT,
         CATEGORY_CITY, UNKNOWN_COUNTRY, INTERNATIONAL_WATERS, CZECHIA_QID, MAX_HINT_LEVEL
     } = window.GeoQuizCore;
 
-    const DAILY_STORAGE_KEY = 'geoQuizDaily16';
+    const DAILY_STORAGE_KEY = 'geoQuizDaily17';
     const SESSION_STORAGE_KEY = 'geoSessionState';
     const STATS_STORAGE_KEY = 'geoQuizStats';
     const VARIANT_STORAGE_KEY = 'geoQuizVariant';
-    const STATE_VERSION = 4;
+    const STATE_VERSION = 5;
     const SESSION_MAX_AGE = 2 * 60 * 60 * 1000;
     const MAX_ATTEMPTS = 25;
     const REQUEST_TIMEOUT = 12000;
@@ -237,14 +237,31 @@
         image.src = url;
     });
 
-    // Fotka je pozadí prvku, ne <img> – dokud je rozmazaná, nejde ji podržením otevřít ostrou
-    const setHintPhoto = async (element, urls) => {
-        for (const url of urls) {
-            try {
-                await loadImage(url);
-                if (element.isConnected) element.style.backgroundImage = `url("${url.replace(/["\\]/g, '\\$&')}")`;
-                return;
-            } catch (e) {}
+    const cssUrl = (url) => `url("${url.replace(/["\\]/g, '\\$&')}")`;
+
+    // Fotka je pozadí prvku, ne <img> – podržením nejde otevřít a z adresy souboru vyčíst název místa
+    const setHintPhoto = async (element, url) => {
+        try {
+            await loadImage(url);
+            if (element.isConnected) element.style.backgroundImage = cssUrl(url);
+        } catch (e) {
+            const card = element.closest('section');
+            if (card) card.remove();
+        }
+    };
+
+    const renderTiles = (container, lat, lon, zoom, template) => {
+        if (!container) return;
+        container.textContent = '';
+        for (const tile of getTileLayout(lat, lon, zoom, container.clientWidth, container.clientHeight, template)) {
+            const image = document.createElement('img');
+            image.src = tile.url;
+            image.alt = '';
+            image.draggable = false;
+            image.className = 'absolute h-64 w-64 max-w-none select-none';
+            image.style.left = `${tile.left}px`;
+            image.style.top = `${tile.top}px`;
+            container.appendChild(image);
         }
     };
 
@@ -281,19 +298,12 @@
         const points = pointsFor(level, round.variant === 'typed');
         const hintText = isNameQuiz ? censorName(data.description, data.name) : censorCountry(data.description, data.country);
         const locationHint = isNameQuiz ? getLocationHint(data) : '';
-        // Každá nápověda zaostří fotku; druhá k tomu přidá popis (a u otázky na název polohu)
-        const nextHintLabel = level === 1 ? `${locationHint ? 'poloha, popis' : 'popis'} a ostřejší fotka` : 'ostrá fotka';
+        // Každá nápověda oddálí satelitní snímek; druhá k tomu přidá popis (a u otázky na název polohu)
+        const satelliteView = { 1: 'okolí místa', 2: 'širší region', 3: 'kontinent' }[level];
+        const nextHintLabel = level === 1 ? `širší region na mapě, ${locationHint ? 'poloha a popis' : 'popis'}` : 'celý kontinent na mapě';
 
         appContent.innerHTML = `
             <div class="fade-in flex min-h-full w-full flex-col gap-5 bg-slate-50 p-5 pb-6 dark:bg-slate-900">
-                <section class="relative h-56 shrink-0 overflow-hidden rounded-[1.5rem] bg-slate-200 shadow-sm dark:bg-slate-800">
-                    <div class="absolute inset-0 flex items-center justify-center text-slate-400 dark:text-slate-600"><i data-lucide="image" class="h-10 w-10"></i></div>
-                    <div id="hint-photo" class="absolute inset-0 bg-cover bg-center photo-blur-${level}" aria-hidden="true"></div>
-                    <span class="absolute bottom-3 left-3 flex items-center gap-1.5 rounded-lg bg-black/55 px-2.5 py-1 text-[11px] font-bold text-white backdrop-blur-sm">
-                        <i data-lucide="eye" class="h-3.5 w-3.5"></i> ${level < MAX_HINT_LEVEL ? 'Fotka se s nápovědami zaostří' : 'Ostrá fotka'}
-                    </span>
-                </section>
-
                 <div class="text-center">
                     <h2 class="mb-3 text-2xl font-black leading-tight tracking-tight text-slate-800 dark:text-slate-50">
                         ${isNameQuiz ? 'Jak se jmenuje toto místo?' : 'Ve kterém státě leží toto místo?'}
@@ -302,6 +312,27 @@
                         <i data-lucide="${getCategoryIconName(data.category)}" class="h-3.5 w-3.5"></i> ${escapeHtml(data.category)}
                     </span>
                 </div>
+
+                <section class="relative h-56 shrink-0 overflow-hidden rounded-[1.5rem] bg-slate-800 shadow-sm">
+                    <div id="hint-satellite" class="absolute inset-0 overflow-hidden" role="img" aria-label="Satelitní snímek bez popisků: ${satelliteView}"></div>
+                    <div class="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-full drop-shadow-md">
+                        <i data-lucide="map-pin" class="h-9 w-9 fill-rose-500 stroke-white"></i>
+                    </div>
+                    <span class="absolute bottom-3 left-3 flex items-center gap-1.5 rounded-lg bg-black/60 px-2.5 py-1 text-[11px] font-bold text-white backdrop-blur-sm">
+                        <i data-lucide="globe" class="h-3.5 w-3.5"></i> Satelit: ${satelliteView}
+                    </span>
+                    <span class="absolute bottom-3 right-3 rounded bg-black/40 px-1.5 py-0.5 text-[9px] text-white/80">NASA Blue Marble</span>
+                </section>
+
+                ${data.photoUrl ? `
+                    <section class="relative h-56 shrink-0 overflow-hidden rounded-[1.5rem] bg-slate-200 shadow-sm dark:bg-slate-800">
+                        <div class="absolute inset-0 flex items-center justify-center text-slate-400 dark:text-slate-600"><i data-lucide="image" class="h-10 w-10"></i></div>
+                        <div id="hint-photo" class="absolute inset-0 bg-cover bg-center" aria-hidden="true"></div>
+                        <span class="absolute bottom-3 left-3 flex items-center gap-1.5 rounded-lg bg-black/60 px-2.5 py-1 text-[11px] font-bold text-white backdrop-blur-sm">
+                            <i data-lucide="image" class="h-3.5 w-3.5"></i> Fotka místa
+                        </span>
+                    </section>
+                ` : ''}
 
                 <section class="${CARD} p-5">
                     <div class="mb-4 flex items-center justify-between">
@@ -327,7 +358,7 @@
                             „${escapeHtml(hintText)}“
                         </p>
                     ` : `
-                        <p class="text-sm text-slate-500 dark:text-slate-400">Zatím vidíš ${isNameQuiz ? '' : 'název, '}kategorii a rozmazanou fotku. Hádej hned za nejvíc bodů, nebo si vezmi další nápovědu.</p>
+                        <p class="text-sm text-slate-500 dark:text-slate-400">Zatím vidíš ${isNameQuiz ? '' : 'název, '}kategorii a satelitní snímek okolí${data.photoUrl ? ' s fotkou' : ''}. Hádej hned za nejvíc bodů, nebo si vezmi další nápovědu.</p>
                     `}
                     ${level < MAX_HINT_LEVEL ? `
                         <button type="button" data-action="hint" class="mt-4 flex w-full items-center justify-center gap-2 rounded-xl border-2 border-dashed border-emerald-300 px-4 py-3 text-sm font-bold text-emerald-700 transition-colors hover:bg-emerald-50 active:scale-95 dark:border-emerald-700 dark:text-emerald-300 dark:hover:bg-emerald-900/30">
@@ -357,7 +388,8 @@
         `;
 
         renderIcons(appContent);
-        setHintPhoto(document.getElementById('hint-photo'), [data.imageUrl, getFallbackImage(data.category)]);
+        renderTiles(document.getElementById('hint-satellite'), data.lat, data.lon, SATELLITE_ZOOM_BY_HINT[level], SATELLITE_TILES);
+        if (data.photoUrl) setHintPhoto(document.getElementById('hint-photo'), data.photoUrl);
         if (!keepScroll) appContent.scrollTo(0, 0);
     };
 
@@ -432,24 +464,27 @@
         const container = document.getElementById('map-tiles');
         if (!container || !currentPlace) return;
         const { lat, lon } = currentPlace;
-        container.textContent = '';
-        for (const tile of getTileLayout(lat, lon, mapZoom, container.clientWidth, container.clientHeight)) {
-            const image = document.createElement('img');
-            image.src = tile.url;
-            image.alt = '';
-            image.draggable = false;
-            image.className = 'absolute h-64 w-64 max-w-none select-none';
-            image.style.left = `${tile.left}px`;
-            image.style.top = `${tile.top}px`;
-            container.appendChild(image);
-        }
+        renderTiles(container, lat, lon, mapZoom, OSM_TILES);
         document.getElementById('map-open-link').href = `https://www.openstreetmap.org/?mlat=${lat}&mlon=${lon}#map=${Math.min(mapZoom + 4, 18)}/${lat}/${lon}`;
+    };
+
+    // Nahoře ve výsledku fotka místa, a když žádná není (nebo se nenačte), satelitní snímek regionu
+    const showResultVisual = async () => {
+        const element = document.getElementById('result-visual');
+        if (!element) return;
+        const { photoUrl, lat, lon } = currentPlace;
+        if (photoUrl) {
+            try {
+                await loadImage(photoUrl);
+                if (element.isConnected) element.style.backgroundImage = cssUrl(photoUrl);
+                return;
+            } catch (e) {}
+        }
+        if (element.isConnected) renderTiles(element, lat, lon, SATELLITE_ZOOM_BY_HINT[2], SATELLITE_TILES);
     };
 
     const renderResult = () => {
         const data = currentPlace;
-        const imageUrl = escapeHtml(data.imageUrl);
-        const fallbackImage = escapeHtml(getFallbackImage(data.category));
         const name = escapeHtml(data.name);
         const country = escapeHtml(data.isCountry && data.locationHint ? data.locationHint : data.country);
 
@@ -469,7 +504,7 @@
         appContent.innerHTML = `
             <div class="fade-in flex flex-col w-full min-h-full pb-6 bg-slate-50 dark:bg-slate-900">
                 <div class="relative h-[42vh] w-full shrink-0 bg-slate-900">
-                    <img src="${imageUrl}" alt="${name}" data-fallback="${fallbackImage}" class="w-full h-full object-cover opacity-90" />
+                    <div id="result-visual" class="absolute inset-0 overflow-hidden bg-cover bg-center opacity-90" aria-hidden="true"></div>
                     <div class="absolute inset-0 bg-gradient-to-t from-slate-900 via-slate-900/30 to-transparent"></div>
 
                     <div class="absolute bottom-0 left-0 p-6 w-full text-white">
@@ -524,6 +559,7 @@
         `;
 
         renderIcons(appContent);
+        showResultVisual();
         renderMap();
         appContent.scrollTo(0, 0);
     };
@@ -792,7 +828,8 @@
             locationHint: placeIsCountry ? country.continent : (isKnownCountry(country.name) ? country.name : ''),
             lat,
             lon,
-            imageUrl: foundPage.thumbnail ? foundPage.thumbnail.source : getFallbackImage(foundPage.finalCategory),
+            // Jen skutečná fotka – vlajky, znaky a mapy z článku nápovědou nejsou
+            photoUrl: foundPage.thumbnail && isRealPhoto(foundPage.pageimage) ? foundPage.thumbnail.source : null,
             description,
             funFacts,
             quizType,
@@ -943,16 +980,9 @@
         submitAnswer({ correct: isAnswerMatch(answer, getAcceptedAnswers(currentPlace)), typed: true, answer });
     });
 
-    // Chyba načtení obrázku nebublá, zachytíme ji ve fázi capture; náhradní obrázek zkusíme jen jednou
+    // Chyba načtení obrázku (dlaždice mapy) nebublá, zachytíme ji ve fázi capture a obrázek skryjeme
     appContent.addEventListener('error', (event) => {
-        const image = event.target;
-        if (!(image instanceof HTMLImageElement) || !image.dataset.fallback) return;
-        if (image.dataset.fallbackUsed) {
-            image.classList.add('invisible');
-            return;
-        }
-        image.dataset.fallbackUsed = '1';
-        image.src = image.dataset.fallback;
+        if (event.target instanceof HTMLImageElement) event.target.classList.add('invisible');
     }, true);
 
     document.getElementById('btn-daily').addEventListener('click', loadDailyLocation);

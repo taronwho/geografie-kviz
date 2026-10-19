@@ -39,7 +39,8 @@ const page = (pageid, title, extract, lat, lon, extra = {}) => ({ pageid, title,
 const TARGET = page(4242, 'Testovací hora (Alpy)',
     'Testovací hora je hora v pohoří Alpy ve Švýcarsku, vysoká přibližně tři tisíce metrů nad mořem. <img src=x onerror=__xss=1> ' +
     'Na vrcholu stojí horská chata, kterou navštěvují turisté z celého světa. Hora je známá svými ledovci a krásnými výhledy do okolních údolí. ' +
-    'Ve 20. století zde vznikla lanovka vedoucí až na vrchol hory.', 46.5, 8.0, { thumbnail: { source: 'https://upload.wikimedia.org/broken.jpg' } });
+    'Ve 20. století zde vznikla lanovka vedoucí až na vrchol hory.', 46.5, 8.0,
+    { thumbnail: { source: 'https://upload.wikimedia.org/ok.jpg' }, pageimage: 'Testovaci_hora_z_jihu.jpg' });
 const OTHERS = [
     page(5001, 'Vedlejší vrch', 'Vedlejší vrch je hora v pohoří Jura, která má nadmořskou výšku přes tisíc metrů a je oblíbená mezi turisty z okolí i ze zahraničí.', 47.0, 7.0),
     page(5002, 'Malé jezero', 'Malé jezero je jezero v podhůří, které je napájeno několika potoky a slouží jako rekreační oblast pro obyvatele okolních měst a vesnic.', 46.0, 7.5)
@@ -52,7 +53,7 @@ const setup = async (browser, options = {}) => {
     // Uložená varianta hry (null = první spuštění s výběrem varianty)
     if (options.variant !== null) await context.addInitScript(variant => localStorage.setItem('geoQuizVariant', variant), options.variant || 'choices');
     const tab = await context.newPage();
-    const log = { wiki: [], wikidata: [], tiles: 0, errors: [], csp: [] };
+    const log = { wiki: [], wikidata: [], tiles: 0, satellite: [], errors: [], csp: [] };
     tab.on('pageerror', error => log.errors.push(error.message));
     tab.on('console', message => { if (/Content Security Policy/i.test(message.text())) log.csp.push(message.text()); });
 
@@ -73,6 +74,8 @@ const setup = async (browser, options = {}) => {
             }
             const pages = {};
             [TARGET, ...OTHERS].forEach(p => { pages[p.pageid] = JSON.parse(JSON.stringify(p)); });
+            // flagImage: hlavním obrázkem článku je vlajka (jako u států) – nesmí se ukázat jako fotka
+            if (options.flagImage) pages[TARGET.pageid].pageimage = 'Flag_of_Testland.svg';
             return route.fulfill({ json: { query: { pages } } });
         }
         if (url.hostname === 'www.wikidata.org') {
@@ -93,8 +96,8 @@ const setup = async (browser, options = {}) => {
             url.searchParams.get('ids').split('|').forEach(id => { if (labels[id]) entities[id] = { labels: { cs: { value: labels[id] } } }; });
             return route.fulfill({ json: { entities } });
         }
-        if (url.hostname === 'upload.wikimedia.org') return route.fulfill({ status: 404, body: '' });
-        if (url.hostname === 'images.unsplash.com') return route.fulfill({ contentType: 'image/png', body: PNG });
+        if (url.hostname === 'upload.wikimedia.org') return url.pathname === '/ok.jpg' ? route.fulfill({ contentType: 'image/png', body: PNG }) : route.fulfill({ status: 404, body: '' });
+        if (url.hostname === 'gibs.earthdata.nasa.gov') { log.satellite.push(url.pathname); return route.fulfill({ contentType: 'image/jpeg', body: PNG }); }
         if (url.hostname === 'tile.openstreetmap.org') { log.tiles++; return route.fulfill({ contentType: 'image/png', body: PNG }); }
         return route.abort();
     });
@@ -122,22 +125,24 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         assert.equal(await tab.textContent('#status-text'), 'Dnešní místo · 16. 10.');
         assert.equal(await tab.locator('[data-action="choice"]').count(), 4);
         assert.equal(await tab.locator('#answer-input').count(), 0, 've variantě s možnostmi není pole pro psaní');
-        assert.equal(await tab.locator('#app-content img').count(), 0, 'rozmazaná fotka nesmí být <img>');
-        await tab.waitForFunction(() => document.getElementById('hint-photo').style.backgroundImage.includes('unsplash'));
-        assert.match(await tab.getAttribute('#hint-photo', 'class'), /photo-blur-1/);
+        assert.equal(await tab.locator('#hint-photo-img, #app-content section img:not(#hint-satellite img)').count(), 0, 'fotka nesmí být <img>');
+        await tab.waitForFunction(() => document.getElementById('hint-photo').style.backgroundImage.includes('ok.jpg'));
+        // Satelitní snímek bez popisků: první nápověda = přiblížení 7
+        assert.ok(await tab.locator('#hint-satellite img').count() > 0);
+        assert.ok(log.satellite.length > 0 && log.satellite.every(tile => tile.includes('/GoogleMapsCompatible_Level8/7/')));
         assert.equal(await tab.locator('p.italic').count(), 0, 'na první úrovni ještě není text');
 
         // Fotka není zakrytá textem a lišta nahoře nepřekrývá obsah
         const header = await tab.locator('header').boundingBox();
-        const photo = await tab.locator('#hint-photo').boundingBox();
+        const photo = await tab.locator('#hint-satellite').boundingBox();
         const content = await tab.locator('#app-content').boundingBox();
         assert.ok(header.y + header.height <= content.y + 1, 'obsah začíná pod lištou');
         assert.ok(photo.y >= content.y, 'fotka je v obsahu pod lištou');
-        assert.equal(await tab.locator('#hint-photo ~ h2, #hint-photo ~ div h2').count(), 0, 'přes fotku není nadpis');
 
         await tab.click('[data-action="hint"]');
         assert.match(await tab.locator('section', { hasText: 'Nápovědy' }).textContent(), /2\/3/);
-        assert.match(await tab.getAttribute('#hint-photo', 'class'), /photo-blur-2/);
+        await tab.waitForFunction(() => [...document.querySelectorAll('#hint-satellite img')].some(img => img.src.includes('_Level8/5/')));
+        assert.match(await tab.textContent('#app-content'), /Satelit: širší region/);
         const hint = await tab.textContent('p.italic');
         assert.match(hint, /<img src=x onerror=__xss=1>/, 'HTML z Wikipedie se zobrazí jako text');
 
@@ -258,6 +263,21 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         assert.match(await tab.textContent('#app-content'), /Poloha: Evropa/);
         assert.doesNotMatch(await tab.textContent('#app-content'), /Poloha: Testovací/);
         assert.deepEqual(log.errors, []);
+        await context.close();
+    });
+
+    await t.test('vlajka místo fotky: žádná fotka, ve výsledku satelitní snímek', async () => {
+        const { context, tab, log } = await setup(browser, { flagImage: true });
+        await tab.goto(`${ORIGIN}/`);
+        await waitForQuestion(tab);
+        assert.equal(await tab.locator('#hint-photo').count(), 0, 'vlajka se jako fotka neukáže');
+        assert.ok(await tab.locator('#hint-satellite img').count() > 0);
+        await tab.click('[data-action="give-up"]');
+        await waitForResult(tab);
+        await tab.waitForFunction(() => document.querySelectorAll('#result-visual img').length > 0);
+        assert.ok(log.satellite.some(tile => tile.includes('_Level8/5/')), 've výsledku satelitní snímek regionu');
+        assert.deepEqual(log.errors, []);
+        assert.deepEqual(log.csp, []);
         await context.close();
     });
 
