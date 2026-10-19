@@ -49,6 +49,8 @@ const setup = async (browser, options = {}) => {
     const origin = options.origin || ORIGIN;
     const context = await browser.newContext({ serviceWorkers: options.serviceWorkers || 'block', colorScheme: options.colorScheme || 'light' });
     await context.grantPermissions(['clipboard-read', 'clipboard-write'], { origin });
+    // Uložená varianta hry (null = první spuštění s výběrem varianty)
+    if (options.variant !== null) await context.addInitScript(variant => localStorage.setItem('geoQuizVariant', variant), options.variant || 'choices');
     const tab = await context.newPage();
     const log = { wiki: [], wikidata: [], tiles: 0, errors: [], csp: [] };
     tab.on('pageerror', error => log.errors.push(error.message));
@@ -77,13 +79,19 @@ const setup = async (browser, options = {}) => {
             log.wikidata.push(url.href);
             if (options.wikidataDown) return route.fulfill({ status: 500, body: '' });
             if (url.searchParams.get('action') === 'wbgetclaims') {
-                const claims = url.searchParams.get('property') === 'P17' ? { P17: [
-                    { mainsnak: { datavalue: { value: { id: 'Q39' } } }, rank: 'preferred' },
-                    { mainsnak: { datavalue: { value: { id: 'Q131964' } } }, rank: 'normal', qualifiers: { P582: [{}] } }
-                ] } : {};
+                const property = url.searchParams.get('property');
+                const claim = (id, extra = {}) => ({ mainsnak: { datavalue: { value: { id } } }, rank: 'normal', ...extra });
+                let claims = {};
+                // countryItself: hádané místo je samo státem (jako Řecko) – P17 ukazuje samo na sebe
+                if (property === 'P17' && options.countryItself) claims = { P17: [claim('Q4242')] };
+                else if (property === 'P17') claims = { P17: [claim('Q39', { rank: 'preferred' }), claim('Q131964', { qualifiers: { P582: [{}] } })] };
+                else if (property === 'P30' && options.countryItself) claims = { P30: [claim('Q46')] };
                 return route.fulfill({ json: { claims } });
             }
-            return route.fulfill({ json: { entities: { Q39: { labels: { cs: { value: 'Švýcarsko' } } } } } });
+            const labels = { Q39: 'Švýcarsko', Q4242: 'Testovací hora', Q46: 'Evropa' };
+            const entities = {};
+            url.searchParams.get('ids').split('|').forEach(id => { if (labels[id]) entities[id] = { labels: { cs: { value: labels[id] } } }; });
+            return route.fulfill({ json: { entities } });
         }
         if (url.hostname === 'upload.wikimedia.org') return route.fulfill({ status: 404, body: '' });
         if (url.hostname === 'images.unsplash.com') return route.fulfill({ contentType: 'image/png', body: PNG });
@@ -111,14 +119,25 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         await waitForQuestion(tab);
 
         assert.match(log.wiki[0], /generator=allpages/);
-        assert.match(await tab.textContent('#status-text'), /Dnešní místo · 16\. 10\. 2026/);
+        assert.equal(await tab.textContent('#status-text'), 'Dnešní místo · 16. 10.');
         assert.equal(await tab.locator('[data-action="choice"]').count(), 4);
+        assert.equal(await tab.locator('#answer-input').count(), 0, 've variantě s možnostmi není pole pro psaní');
         assert.equal(await tab.locator('#app-content img').count(), 0, 'rozmazaná fotka nesmí být <img>');
         await tab.waitForFunction(() => document.getElementById('hint-photo').style.backgroundImage.includes('unsplash'));
+        assert.match(await tab.getAttribute('#hint-photo', 'class'), /photo-blur-1/);
         assert.equal(await tab.locator('p.italic').count(), 0, 'na první úrovni ještě není text');
 
+        // Fotka není zakrytá textem a lišta nahoře nepřekrývá obsah
+        const header = await tab.locator('header').boundingBox();
+        const photo = await tab.locator('#hint-photo').boundingBox();
+        const content = await tab.locator('#app-content').boundingBox();
+        assert.ok(header.y + header.height <= content.y + 1, 'obsah začíná pod lištou');
+        assert.ok(photo.y >= content.y, 'fotka je v obsahu pod lištou');
+        assert.equal(await tab.locator('#hint-photo ~ h2, #hint-photo ~ div h2').count(), 0, 'přes fotku není nadpis');
+
         await tab.click('[data-action="hint"]');
-        assert.match(await tab.textContent('section'), /2\/3/);
+        assert.match(await tab.locator('section', { hasText: 'Nápovědy' }).textContent(), /2\/3/);
+        assert.match(await tab.getAttribute('#hint-photo', 'class'), /photo-blur-2/);
         const hint = await tab.textContent('p.italic');
         assert.match(hint, /<img src=x onerror=__xss=1>/, 'HTML z Wikipedie se zobrazí jako text');
 
@@ -158,12 +177,14 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         await context.close();
     });
 
-    await t.test('trénink: napsaná odpověď za dvojnásobek a další místo', async () => {
-        const { context, tab, log } = await setup(browser);
+    await t.test('trénink ve variantě psaní: dvojnásobek bodů a další místo', async () => {
+        const { context, tab, log } = await setup(browser, { variant: 'typed' });
         await tab.goto(`${ORIGIN}/`);
         await waitForQuestion(tab);
         await tab.click('#btn-random');
         await waitForQuestion(tab);
+        assert.equal(await tab.locator('[data-action="choice"]').count(), 0, 've variantě psaní nejsou možnosti');
+        assert.match(await tab.textContent('#app-content'), /Teď za ni získáš 6 bodů/);
 
         const typed = (await correctChoiceLabel(tab)) === 'Švýcarsko' ? 'svycarsko' : 'testovaci hora';
         await tab.fill('#answer-input', typed);
@@ -181,6 +202,62 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         assert.match(await tab.textContent('#app-content'), /správně 1 z 2/);
         assert.deepEqual(log.errors, []);
         assert.deepEqual(log.csp, []);
+        await context.close();
+    });
+
+    await t.test('první spuštění: výběr varianty hry před první otázkou', async () => {
+        const { context, tab, log } = await setup(browser, { variant: null });
+        await tab.goto(`${ORIGIN}/`);
+        await tab.waitForSelector('text=Jak chceš hrát?');
+        assert.equal(log.wiki.length, 0, 'bez varianty se nic nenačítá');
+        await tab.click('#variant-welcome [data-variant="typed"]');
+        await waitForQuestion(tab);
+        assert.equal(await tab.locator('#answer-input').count(), 1);
+        assert.equal(await tab.evaluate(() => localStorage.getItem('geoQuizVariant')), 'typed');
+        assert.deepEqual(log.errors, []);
+        await context.close();
+    });
+
+    await t.test('nastavení: psaní až od další otázky, možnosti hned', async () => {
+        const { context, tab, log } = await setup(browser);
+        await tab.goto(`${ORIGIN}/`);
+        await waitForQuestion(tab);
+
+        await tab.click('#btn-settings');
+        await tab.click('#settings-overlay [data-variant="typed"]');
+        assert.match(await tab.textContent('#settings-note'), /od další otázky/);
+        await tab.click('#settings-overlay [data-close]');
+        assert.equal(await tab.locator('#settings-overlay').count(), 0);
+        assert.equal(await tab.locator('[data-action="choice"]').count(), 4, 'u rozehrané otázky zůstanou možnosti');
+
+        await tab.click('[data-action="give-up"]');
+        await waitForResult(tab);
+        await tab.click('[data-action="next"]');
+        await waitForQuestion(tab);
+        assert.equal(await tab.locator('#answer-input').count(), 1, 'další otázka už je na psaní');
+
+        // Zpět na možnosti jde hned (je to snazší)
+        await tab.click('[data-action="settings"]');
+        await tab.click('#settings-overlay [data-variant="choices"]');
+        assert.match(await tab.textContent('#settings-note'), /hned/);
+        await tab.keyboard.press('Escape');
+        assert.equal(await tab.locator('[data-action="choice"]').count(), 4);
+        assert.deepEqual(log.errors, []);
+        assert.deepEqual(log.csp, []);
+        await context.close();
+    });
+
+    await t.test('stát jako hádané místo: ptá se na název, poloha je kontinent', async () => {
+        const { context, tab, log } = await setup(browser, { countryItself: true });
+        await tab.goto(`${ORIGIN}/`);
+        await waitForQuestion(tab);
+        assert.match(await tab.textContent('h2'), /Jak se jmenuje/, 'na stát u státu se neptá');
+        const labels = await tab.locator('[data-action="choice"]').allTextContents();
+        assert.ok(labels.some(label => label.trim() === 'Testovací hora'));
+        await tab.click('[data-action="hint"]');
+        assert.match(await tab.textContent('#app-content'), /Poloha: Evropa/);
+        assert.doesNotMatch(await tab.textContent('#app-content'), /Poloha: Testovací/);
+        assert.deepEqual(log.errors, []);
         await context.close();
     });
 

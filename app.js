@@ -5,14 +5,16 @@
     const {
         escapeHtml, getFallbackImage, displayName, formatPoints, getDayKey, formatDayKey, createSeededRandom, pickRandom,
         isInsideCzechia, inferGeoCategory, getCategoryIconName, censorName, censorCountry, isKnownCountry, processWikiText, getPopulation,
-        isAnswerMatch, buildNameChoices, buildCountryChoices, getAcceptedAnswers, pointsFor, computeStreak, buildShareText, getTileLayout,
+        isAnswerMatch, buildNameChoices, buildCountryChoices, isCountryItself, canAskForCountry, getAcceptedAnswers, pointsFor,
+        computeStreak, buildShareText, getTileLayout,
         CATEGORY_CITY, UNKNOWN_COUNTRY, INTERNATIONAL_WATERS, CZECHIA_QID, MAX_HINT_LEVEL
     } = window.GeoQuizCore;
 
-    const DAILY_STORAGE_KEY = 'geoQuizDaily15';
+    const DAILY_STORAGE_KEY = 'geoQuizDaily16';
     const SESSION_STORAGE_KEY = 'geoSessionState';
     const STATS_STORAGE_KEY = 'geoQuizStats';
-    const STATE_VERSION = 3;
+    const VARIANT_STORAGE_KEY = 'geoQuizVariant';
+    const STATE_VERSION = 4;
     const SESSION_MAX_AGE = 2 * 60 * 60 * 1000;
     const MAX_ATTEMPTS = 25;
     const REQUEST_TIMEOUT = 12000;
@@ -30,6 +32,8 @@
     let currentPlace = null;
     let round = null;
     let mapZoom = DEFAULT_MAP_ZOOM;
+    // Varianta hry: 'choices' (výběr ze 4 možností) nebo 'typed' (psaní odpovědi za dvojnásobek bodů)
+    let gameVariant = null;
 
     class NetworkError extends Error {}
 
@@ -51,7 +55,12 @@
         return { daily: saved.daily || {}, practice: { played: 0, correct: 0, points: 0, ...(saved.practice || {}) } };
     };
 
-    const createRound = () => ({ hintLevel: 1, answered: false, correct: false, points: 0, typed: false, answer: null, gaveUp: false });
+    const createRound = () => ({ hintLevel: 1, variant: gameVariant || 'choices', answered: false, correct: false, points: 0, typed: false, answer: null, gaveUp: false });
+
+    const VARIANTS = {
+        choices: { icon: 'layout-grid', title: 'Výběr ze 4 možností', text: 'Klasický kvíz. Za správnou odpověď 3, 2 nebo 1 bod podle počtu použitých nápověd.' },
+        typed: { icon: 'keyboard', title: 'Psaní odpovědi', text: 'Těžší varianta za dvojnásobek bodů (6, 4 nebo 2). Na diakritice, velkých písmenech ani drobném překlepu nezáleží.' }
+    };
 
     // Ikony: zástupné <i data-lucide="…"> nahradíme SVG z icons.js (podmnožina Lucide)
     const SVG_NS = 'http://www.w3.org/2000/svg';
@@ -88,9 +97,103 @@
         showToast.timer = setTimeout(() => toast.classList.add('opacity-0'), 2500);
     };
 
-    const BUTTON_ACTIVE_DAILY = 'p-3 rounded-2xl transition-all bg-emerald-600 text-white shadow-md active:scale-95 border border-emerald-500';
-    const BUTTON_ACTIVE_RANDOM = 'p-3 rounded-2xl transition-all bg-sky-600 text-white shadow-md active:scale-95 border border-sky-500';
-    const BUTTON_INACTIVE = 'p-3 rounded-2xl transition-all bg-white/90 text-slate-600 hover:text-emerald-600 shadow-md active:scale-95 border border-slate-200/60 dark:bg-slate-800/90 dark:text-slate-300 dark:border-slate-700 dark:hover:text-emerald-400';
+    const readVariant = () => {
+        try {
+            const variant = localStorage.getItem(VARIANT_STORAGE_KEY);
+            return VARIANTS[variant] ? variant : null;
+        } catch (e) {
+            return null;
+        }
+    };
+    const saveVariant = (variant) => {
+        try { localStorage.setItem(VARIANT_STORAGE_KEY, variant); } catch (e) {}
+    };
+
+    const renderVariantCards = (selected) => Object.entries(VARIANTS).map(([key, variant]) => `
+        <button type="button" data-variant="${key}" aria-pressed="${selected === key}" class="flex w-full items-start gap-4 rounded-2xl border-2 p-4 text-left transition-colors active:scale-[0.98] ${selected === key ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-900/30' : 'border-slate-200 bg-white hover:border-emerald-300 dark:border-slate-700 dark:bg-slate-800 dark:hover:border-emerald-700'}">
+            <span class="shrink-0 rounded-xl bg-emerald-100 p-2.5 text-emerald-700 dark:bg-emerald-900/60 dark:text-emerald-300"><i data-lucide="${variant.icon}" class="h-6 w-6"></i></span>
+            <span>
+                <span class="block font-black text-slate-800 dark:text-slate-100">${variant.title}</span>
+                <span class="mt-1 block text-sm leading-snug text-slate-500 dark:text-slate-400">${variant.text}</span>
+            </span>
+        </button>`).join('');
+
+    // Při prvním spuštění si hráč vybere variantu hry, než uvidí první otázku
+    const renderVariantWelcome = () => {
+        appContent.innerHTML = `
+            <div class="fade-in flex min-h-full flex-col justify-center gap-4 p-6">
+                <div class="mb-2 text-center">
+                    <i data-lucide="globe-2" class="mx-auto mb-3 h-12 w-12 text-emerald-500"></i>
+                    <h2 class="text-2xl font-black text-slate-800 dark:text-slate-50">Jak chceš hrát?</h2>
+                    <p class="mt-2 text-sm text-slate-500 dark:text-slate-400">Variantu můžeš kdykoli změnit tlačítkem nastavení vpravo nahoře.</p>
+                </div>
+                <div id="variant-welcome" class="flex flex-col gap-3">${renderVariantCards(null)}</div>
+            </div>`;
+        renderIcons(appContent);
+    };
+
+    const closeSettings = () => {
+        const overlay = document.getElementById('settings-overlay');
+        if (overlay) overlay.remove();
+    };
+
+    const openSettings = (note = '') => {
+        closeSettings();
+        const overlay = document.createElement('div');
+        overlay.id = 'settings-overlay';
+        overlay.setAttribute('role', 'dialog');
+        overlay.setAttribute('aria-modal', 'true');
+        overlay.setAttribute('aria-labelledby', 'settings-title');
+        overlay.className = 'fixed inset-0 z-50 flex items-end justify-center bg-slate-900/60 p-4 backdrop-blur-sm sm:items-center';
+        overlay.innerHTML = `
+            <div class="fade-in w-full max-w-md rounded-[1.75rem] bg-slate-50 p-5 shadow-2xl dark:bg-slate-900">
+                <div class="mb-4 flex items-center justify-between">
+                    <h2 id="settings-title" class="text-lg font-black text-slate-800 dark:text-slate-100">Varianta hry</h2>
+                    <button type="button" data-close aria-label="Zavřít" class="rounded-xl p-2 text-slate-500 hover:bg-slate-200 dark:text-slate-400 dark:hover:bg-slate-800"><i data-lucide="x" class="h-5 w-5"></i></button>
+                </div>
+                <div class="flex flex-col gap-3">${renderVariantCards(gameVariant)}</div>
+                <p id="settings-note" class="mt-4 min-h-[1.25rem] text-sm text-slate-500 dark:text-slate-400">${escapeHtml(note)}</p>
+            </div>`;
+        overlay.addEventListener('click', (event) => {
+            if (event.target === overlay || event.target.closest('[data-close]')) {
+                closeSettings();
+                return;
+            }
+            const button = event.target.closest('[data-variant]');
+            if (button) changeVariant(button.dataset.variant);
+        });
+        document.body.appendChild(overlay);
+        renderIcons(overlay);
+        overlay.querySelector('[aria-pressed="true"]')?.focus();
+    };
+
+    const changeVariant = (variant) => {
+        if (!VARIANTS[variant]) return;
+        gameVariant = variant;
+        saveVariant(variant);
+        if (!currentPlace) {
+            closeSettings();
+            checkSessionAndLoad();
+            return;
+        }
+        let note = 'Uloženo, platí od další otázky.';
+        if (round && !round.answered && round.variant !== variant) {
+            if (variant === 'choices') {
+                // Na možnosti jde přepnout hned – je to snazší varianta
+                round.variant = 'choices';
+                renderPlace({ keepScroll: true });
+                note = 'Uloženo, platí hned pro tuto otázku.';
+            } else {
+                // Na psaní (dvojnásobek bodů) až od další otázky – možnosti už tady byly vidět
+                note = 'Uloženo. Psaní platí od další otázky, tady už byly možnosti vidět.';
+            }
+        }
+        openSettings(note);
+    };
+
+    const BUTTON_ACTIVE_DAILY = 'p-2.5 rounded-2xl transition-all bg-emerald-600 text-white shadow-md active:scale-95 border border-emerald-500';
+    const BUTTON_ACTIVE_RANDOM = 'p-2.5 rounded-2xl transition-all bg-sky-600 text-white shadow-md active:scale-95 border border-sky-500';
+    const BUTTON_INACTIVE = 'p-2.5 rounded-2xl transition-all bg-white/90 text-slate-600 hover:text-emerald-600 shadow-md active:scale-95 border border-slate-200/60 dark:bg-slate-800/90 dark:text-slate-300 dark:border-slate-700 dark:hover:text-emerald-400';
 
     const updateControlsUI = () => {
         const btnDaily = document.getElementById('btn-daily');
@@ -113,7 +216,7 @@
         iconSlot.innerHTML = `<i data-lucide="${isDailyMode ? 'calendar-days' : 'shuffle'}" class="w-5 h-5 text-emerald-600 dark:text-emerald-400"></i>`;
         renderIcons(iconSlot);
         document.getElementById('status-text').textContent = isDailyMode
-            ? `Dnešní místo · ${formatDayKey((currentPlace && currentPlace.dailyDate) || getDayKey())}`
+            ? `Dnešní místo · ${formatDayKey((currentPlace && currentPlace.dailyDate) || getDayKey()).replace(/ \d{4}$/, '')}`
             : `Trénink · ${formatPoints(loadStats().practice.points)}`;
     };
 
@@ -134,7 +237,7 @@
         image.src = url;
     });
 
-    // Rozmazaná fotka je pozadí prvku, ne <img> – nejde ji tak podržením otevřít ostrou
+    // Fotka je pozadí prvku, ne <img> – dokud je rozmazaná, nejde ji podržením otevřít ostrou
     const setHintPhoto = async (element, urls) => {
         for (const url of urls) {
             try {
@@ -147,97 +250,109 @@
 
     const CARD = 'bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-[1.5rem] shadow-sm';
     const CARD_TITLE = 'text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-2';
+    const HINT_CHIP = 'mb-4 text-sm text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-900/60 p-3 rounded-xl border border-slate-100 dark:border-slate-700 inline-flex items-center gap-2';
 
-    const renderQuestion = (keepScroll) => {
-        const data = currentPlace;
-        const level = round.hintLevel;
-        const isNameQuiz = data.quizType === 'name';
-        const points = pointsFor(level, false);
-        const hintText = isNameQuiz ? censorName(data.description, data.name) : censorCountry(data.description, data.country);
-        const nextHintLabel = level === 1 ? (isNameQuiz ? 'poloha a popis' : 'popis místa') : 'ostřejší fotka';
+    // Poloha jako nápověda u otázky na název: stát, u samotného státu kontinent
+    const getLocationHint = (data) => data.locationHint !== undefined ? data.locationHint : (isKnownCountry(data.country) ? data.country : '');
 
+    const renderAnswerInput = (data, isNameQuiz) => {
+        if (round.variant === 'typed') {
+            return `
+                <form id="answer-form" class="flex gap-2" autocomplete="off">
+                    <label for="answer-input" class="sr-only">${isNameQuiz ? 'Název místa' : 'Stát'}</label>
+                    <input id="answer-input" name="answer" type="text" enterkeyhint="send" placeholder="${isNameQuiz ? 'Napiš název místa…' : 'Napiš stát…'}" class="min-w-0 flex-1 rounded-xl border border-slate-200 bg-white px-4 py-3 text-[16px] text-slate-800 placeholder:text-slate-400 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100">
+                    <button type="submit" aria-label="Odeslat odpověď" class="flex items-center justify-center rounded-xl bg-emerald-600 px-4 text-white shadow-md transition-all hover:bg-emerald-700 active:scale-95">
+                        <i data-lucide="send" class="w-5 h-5"></i>
+                    </button>
+                </form>`;
+        }
         const choicesHtml = (data.choices || []).map((choice, index) => `
             <button type="button" data-action="choice" data-index="${index}" class="min-h-[3.25rem] rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm font-bold leading-tight text-slate-700 transition-colors hover:border-emerald-400 hover:bg-emerald-50 active:scale-95 dark:border-slate-600 dark:bg-slate-700/60 dark:text-slate-100 dark:hover:border-emerald-500 dark:hover:bg-emerald-900/40">
                 ${escapeHtml(choice.label)}
             </button>
         `).join('');
+        return `<div class="grid grid-cols-2 gap-2">${choicesHtml}</div>`;
+    };
+
+    const renderQuestion = (keepScroll) => {
+        const data = currentPlace;
+        const level = round.hintLevel;
+        const isNameQuiz = data.quizType === 'name';
+        const points = pointsFor(level, round.variant === 'typed');
+        const hintText = isNameQuiz ? censorName(data.description, data.name) : censorCountry(data.description, data.country);
+        const locationHint = isNameQuiz ? getLocationHint(data) : '';
+        // Každá nápověda zaostří fotku; druhá k tomu přidá popis (a u otázky na název polohu)
+        const nextHintLabel = level === 1 ? `${locationHint ? 'poloha, popis' : 'popis'} a ostřejší fotka` : 'ostrá fotka';
 
         appContent.innerHTML = `
-            <div class="fade-in flex flex-col w-full bg-white dark:bg-slate-900 min-h-full pb-6">
-                <div class="relative h-[42vh] w-full shrink-0 overflow-hidden bg-slate-900">
-                    <div id="hint-photo" class="absolute inset-0 bg-cover bg-center opacity-80 ${level >= MAX_HINT_LEVEL ? 'blur-photo-light' : 'blur-photo'}" aria-hidden="true"></div>
-                    <div class="absolute inset-0 bg-gradient-to-t from-slate-900 via-slate-900/40 to-transparent"></div>
+            <div class="fade-in flex min-h-full w-full flex-col gap-5 bg-slate-50 p-5 pb-6 dark:bg-slate-900">
+                <section class="relative h-56 shrink-0 overflow-hidden rounded-[1.5rem] bg-slate-200 shadow-sm dark:bg-slate-800">
+                    <div class="absolute inset-0 flex items-center justify-center text-slate-400 dark:text-slate-600"><i data-lucide="image" class="h-10 w-10"></i></div>
+                    <div id="hint-photo" class="absolute inset-0 bg-cover bg-center photo-blur-${level}" aria-hidden="true"></div>
+                    <span class="absolute bottom-3 left-3 flex items-center gap-1.5 rounded-lg bg-black/55 px-2.5 py-1 text-[11px] font-bold text-white backdrop-blur-sm">
+                        <i data-lucide="eye" class="h-3.5 w-3.5"></i> ${level < MAX_HINT_LEVEL ? 'Fotka se s nápovědami zaostří' : 'Ostrá fotka'}
+                    </span>
+                </section>
 
-                    <div class="absolute inset-0 flex flex-col items-center justify-center p-6 text-center text-white z-10 mt-8">
-                        <div class="bg-white/20 backdrop-blur-md p-4 rounded-full mb-5 shadow-lg border border-white/30">
-                            <i data-lucide="map-pinned" class="w-10 h-10 text-emerald-300 drop-shadow-md"></i>
-                        </div>
-                        <h2 class="text-3xl font-black mb-4 drop-shadow-xl leading-tight text-slate-50 tracking-tight">
-                            ${isNameQuiz ? 'Jak se jmenuje<br/>toto místo?' : 'Ve kterém státě<br/>leží toto místo?'}
-                        </h2>
-                        <span class="bg-emerald-600/90 text-white px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-widest shadow-md backdrop-blur-sm border border-emerald-400">
-                            Kategorie: ${escapeHtml(data.category)}
-                        </span>
+                <div class="text-center">
+                    <h2 class="mb-3 text-2xl font-black leading-tight tracking-tight text-slate-800 dark:text-slate-50">
+                        ${isNameQuiz ? 'Jak se jmenuje toto místo?' : 'Ve kterém státě leží toto místo?'}
+                    </h2>
+                    <span class="inline-flex items-center gap-1.5 rounded-xl border border-emerald-400 bg-emerald-600 px-3 py-1.5 text-[11px] font-bold uppercase tracking-widest text-white shadow-sm">
+                        <i data-lucide="${getCategoryIconName(data.category)}" class="h-3.5 w-3.5"></i> ${escapeHtml(data.category)}
+                    </span>
+                </div>
+
+                <section class="${CARD} p-5">
+                    <div class="mb-4 flex items-center justify-between">
+                        <h3 class="${CARD_TITLE}"><i data-lucide="radar" class="w-4 h-4 text-emerald-500"></i> Nápovědy</h3>
+                        <span class="rounded-lg bg-emerald-100 px-2 py-1 text-xs font-black text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300">${level}/${MAX_HINT_LEVEL}</span>
                     </div>
-                </div>
 
-                <div class="p-6 flex flex-col gap-5 flex-grow bg-white dark:bg-slate-900 rounded-t-[2.5rem] -mt-8 z-20 relative shadow-[0_-10px_40px_rgba(0,0,0,0.15)]">
-                    <section class="bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700 p-5 rounded-[1.5rem] shadow-sm">
-                        <div class="mb-4 flex items-center justify-between">
-                            <h3 class="${CARD_TITLE}"><i data-lucide="radar" class="w-4 h-4 text-emerald-500"></i> Nápovědy</h3>
-                            <span class="rounded-lg bg-emerald-100 px-2 py-1 text-xs font-black text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300">${level}/${MAX_HINT_LEVEL}</span>
+                    ${!isNameQuiz ? `
+                        <div class="${HINT_CHIP}">
+                            <i data-lucide="tag" class="w-4 h-4 text-sky-500"></i>
+                            <span class="font-medium">Název:</span> <b class="text-slate-800 dark:text-slate-100">${escapeHtml(displayName(data.name))}</b>
                         </div>
+                    ` : ''}
+                    ${level >= 2 && locationHint ? `
+                        <div class="${HINT_CHIP}">
+                            <i data-lucide="navigation" class="w-4 h-4 text-sky-500"></i>
+                            <span class="font-medium">Poloha:</span> <b class="text-slate-800 dark:text-slate-100">${escapeHtml(locationHint)}</b>
+                        </div>
+                    ` : ''}
 
-                        ${!isNameQuiz ? `
-                            <div class="mb-4 text-sm text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-800 p-3 rounded-xl border border-slate-100 dark:border-slate-700 shadow-sm inline-flex items-center gap-2">
-                                <i data-lucide="tag" class="w-4 h-4 text-sky-500"></i>
-                                <span class="font-medium">Název:</span> <b class="text-slate-800 dark:text-slate-100">${escapeHtml(displayName(data.name))}</b>
-                            </div>
-                        ` : ''}
-                        ${isNameQuiz && level >= 2 && isKnownCountry(data.country) ? `
-                            <div class="mb-4 text-sm text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-800 p-3 rounded-xl border border-slate-100 dark:border-slate-700 shadow-sm inline-flex items-center gap-2">
-                                <i data-lucide="navigation" class="w-4 h-4 text-sky-500"></i>
-                                <span class="font-medium">Poloha:</span> <b class="text-slate-800 dark:text-slate-100">${escapeHtml(data.country)}</b>
-                            </div>
-                        ` : ''}
+                    ${level >= 2 ? `
+                        <p class="text-slate-700 dark:text-slate-200 leading-relaxed font-medium text-[16px] italic border-l-4 border-emerald-200 dark:border-emerald-700 pl-4 py-1">
+                            „${escapeHtml(hintText)}“
+                        </p>
+                    ` : `
+                        <p class="text-sm text-slate-500 dark:text-slate-400">Zatím vidíš ${isNameQuiz ? '' : 'název, '}kategorii a rozmazanou fotku. Hádej hned za nejvíc bodů, nebo si vezmi další nápovědu.</p>
+                    `}
+                    ${level < MAX_HINT_LEVEL ? `
+                        <button type="button" data-action="hint" class="mt-4 flex w-full items-center justify-center gap-2 rounded-xl border-2 border-dashed border-emerald-300 px-4 py-3 text-sm font-bold text-emerald-700 transition-colors hover:bg-emerald-50 active:scale-95 dark:border-emerald-700 dark:text-emerald-300 dark:hover:bg-emerald-900/30">
+                            <i data-lucide="lightbulb" class="w-4 h-4"></i> Další nápověda: ${nextHintLabel}
+                        </button>
+                    ` : ''}
+                </section>
 
-                        ${level >= 2 ? `
-                            <p class="text-slate-700 dark:text-slate-200 leading-relaxed font-medium text-[16px] italic border-l-4 border-emerald-200 dark:border-emerald-700 pl-4 py-1">
-                                „${escapeHtml(hintText)}“
-                            </p>
-                        ` : `
-                            <p class="text-sm text-slate-500 dark:text-slate-400">Zatím vidíš jen kategorii a rozmazanou fotku. Hádej hned za nejvíc bodů, nebo si vezmi další nápovědu.</p>
-                        `}
-                        ${level >= MAX_HINT_LEVEL ? `
-                            <p class="mt-3 flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400"><i data-lucide="eye" class="w-4 h-4"></i> Fotka je teď méně rozmazaná.</p>
-                        ` : `
-                            <button type="button" data-action="hint" class="mt-4 flex w-full items-center justify-center gap-2 rounded-xl border-2 border-dashed border-emerald-300 px-4 py-3 text-sm font-bold text-emerald-700 transition-colors hover:bg-emerald-50 active:scale-95 dark:border-emerald-700 dark:text-emerald-300 dark:hover:bg-emerald-900/30">
-                                <i data-lucide="lightbulb" class="w-4 h-4"></i> Další nápověda: ${nextHintLabel}
-                            </button>
-                        `}
-                    </section>
+                <section class="${CARD} p-5">
+                    <div class="mb-2 flex items-center justify-between gap-2">
+                        <h3 class="${CARD_TITLE}"><i data-lucide="target" class="w-4 h-4 text-emerald-500"></i> Tvoje odpověď</h3>
+                        <button type="button" data-action="settings" class="flex items-center gap-1.5 rounded-lg px-2 py-1 text-[11px] font-bold uppercase tracking-wider text-slate-400 hover:bg-slate-100 hover:text-emerald-700 dark:hover:bg-slate-700 dark:hover:text-emerald-300">
+                            <i data-lucide="${VARIANTS[round.variant].icon}" class="h-3.5 w-3.5"></i> ${round.variant === 'typed' ? 'Psaní' : 'Možnosti'}
+                        </button>
+                    </div>
+                    <p class="mb-4 text-sm text-slate-500 dark:text-slate-400">Teď za ni získáš <b class="text-slate-700 dark:text-slate-200">${formatPoints(points)}</b>.</p>
+                    ${renderAnswerInput(data, isNameQuiz)}
+                </section>
 
-                    <section class="${CARD} p-5">
-                        <h3 class="${CARD_TITLE} mb-2"><i data-lucide="target" class="w-4 h-4 text-emerald-500"></i> Tvoje odpověď</h3>
-                        <p class="mb-4 text-sm text-slate-500 dark:text-slate-400">Teď za ni získáš <b class="text-slate-700 dark:text-slate-200">${formatPoints(points)}</b>, za napsanou dvojnásobek.</p>
-                        <form id="answer-form" class="flex gap-2" autocomplete="off">
-                            <label for="answer-input" class="sr-only">${isNameQuiz ? 'Název místa' : 'Stát'}</label>
-                            <input id="answer-input" name="answer" type="text" enterkeyhint="send" placeholder="${isNameQuiz ? 'Napiš název místa…' : 'Napiš stát…'}" class="min-w-0 flex-1 rounded-xl border border-slate-200 bg-white px-4 py-3 text-[16px] text-slate-800 placeholder:text-slate-400 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100">
-                            <button type="submit" aria-label="Odeslat odpověď" class="flex items-center justify-center rounded-xl bg-emerald-600 px-4 text-white shadow-md transition-all hover:bg-emerald-700 active:scale-95">
-                                <i data-lucide="send" class="w-5 h-5"></i>
-                            </button>
-                        </form>
-                        <p class="my-4 text-center text-[11px] font-bold uppercase tracking-widest text-slate-400">nebo vyber</p>
-                        <div class="grid grid-cols-2 gap-2">${choicesHtml}</div>
-                    </section>
+                <button type="button" data-action="give-up" class="mx-auto flex items-center gap-2 py-2 text-sm font-semibold text-slate-500 underline-offset-4 hover:underline dark:text-slate-400">
+                    <i data-lucide="eye" class="w-4 h-4"></i> Nevím, ukázat odpověď
+                </button>
 
-                    <button type="button" data-action="give-up" class="mx-auto flex items-center gap-2 py-2 text-sm font-semibold text-slate-500 underline-offset-4 hover:underline dark:text-slate-400">
-                        <i data-lucide="eye" class="w-4 h-4"></i> Nevím, ukázat odpověď
-                    </button>
-
-                    <!-- Bezpečnostní mezera pro spodní okraj displeje -->
-                    <div class="h-12 w-full shrink-0"></div>
-                </div>
+                <!-- Bezpečnostní mezera pro spodní okraj displeje -->
+                <div class="h-12 w-full shrink-0"></div>
             </div>
         `;
 
@@ -336,7 +451,7 @@
         const imageUrl = escapeHtml(data.imageUrl);
         const fallbackImage = escapeHtml(getFallbackImage(data.category));
         const name = escapeHtml(data.name);
-        const country = escapeHtml(data.country);
+        const country = escapeHtml(data.isCountry && data.locationHint ? data.locationHint : data.country);
 
         const funFactsHtml = data.funFacts.map((fact, i) => `
             <div class="flex items-start gap-4">
@@ -540,9 +655,10 @@
         return [...new Set((current.length ? current : ranked).map(c => c.mainsnak.datavalue.value.id))].slice(0, 50);
     };
 
-    // Stát z Wikidat (P17), u moří a pohoří bez státu aspoň kontinent (P30)
+    // Stát z Wikidat (P17), u moří a pohoří bez státu aspoň kontinent (P30).
+    // U samotného státu (Řecko má jako stát samo sebe) navíc jeho kontinent – poslouží jako nápověda polohy.
     const fetchCountry = async (qid) => {
-        const unknown = { ids: [], names: [], name: UNKNOWN_COUNTRY, source: null };
+        const unknown = { ids: [], names: [], name: UNKNOWN_COUNTRY, source: null, continent: '' };
         if (!qid) return unknown;
         try {
             let source = 'P17';
@@ -552,13 +668,13 @@
                 ids = await fetchCurrentClaimIds(qid, 'P30');
             }
             if (ids.length === 0) return { ...unknown, name: INTERNATIONAL_WATERS };
+            const continentIds = source === 'P17' && ids.includes(qid) ? await fetchCurrentClaimIds(qid, 'P30') : [];
 
-            const data = await fetchJson(`${WIKIDATA_API}&action=wbgetentities&ids=${ids.join('|')}&props=labels&languages=cs&languagefallback=1`);
-            const names = ids
-                .map(id => { const entity = (data.entities || {})[id]; return entity && entity.labels && entity.labels.cs && entity.labels.cs.value; })
-                .filter(Boolean);
+            const data = await fetchJson(`${WIKIDATA_API}&action=wbgetentities&ids=${[...ids, ...continentIds].join('|')}&props=labels&languages=cs&languagefallback=1`);
+            const label = (id) => { const entity = (data.entities || {})[id]; return entity && entity.labels && entity.labels.cs && entity.labels.cs.value; };
+            const names = ids.map(label).filter(Boolean);
             if (names.length === 0) return unknown;
-            return { ids, names, name: names.join(', '), source };
+            return { ids, names, name: names.join(', '), source, continent: continentIds.map(label).filter(Boolean).join(', ') };
         } catch (e) {
             console.error(e);
             return unknown;
@@ -644,18 +760,23 @@
 
         if (!foundPage) throw new Error('Nepodařilo se najít vhodné místo. Zkus to prosím znovu.');
 
-        const country = await fetchCountry(foundPage.pageprops && foundPage.pageprops.wikibase_item);
+        const ownQid = foundPage.pageprops && foundPage.pageprops.wikibase_item;
+        const country = await fetchCountry(ownQid);
         const { description, funFacts } = processWikiText(foundPage.extract);
-        // Na stát se ptáme, jen když ho Wikidata opravdu znají – jinak by otázka neměla odpověď
+        const countryFacts = { title: foundPage.title, ownQid, countryIds: country.ids, countryNames: country.names, countrySource: country.source };
+        const placeIsCountry = country.source === 'P17' && isCountryItself(countryFacts);
+        // Na stát se ptáme, jen když ho Wikidata znají a neprozradí ho už název – jinak by otázka neměla smysl
         const wantsCountryQuestion = rng() > 0.5;
-        const quizType = wantsCountryQuestion && country.source === 'P17' ? 'location' : 'name';
+        const quizType = wantsCountryQuestion && canAskForCountry(countryFacts) ? 'location' : 'name';
         const otherPlaces = {
             all: pools.all.filter(p => p.pageid !== foundPage.pageid),
             notable: pools.notable.filter(p => p.pageid !== foundPage.pageid)
         };
-        const choices = quizType === 'name'
-            ? buildNameChoices(foundPage.title, foundPage.finalCategory, otherPlaces, rng)
-            : buildCountryChoices(country.ids, country.names, rng);
+        let choices;
+        if (quizType === 'location') choices = buildCountryChoices(country.ids, country.names, rng);
+        // U státu jsou nesprávnými možnostmi jiné státy, ne regiony
+        else if (placeIsCountry) choices = buildCountryChoices(country.ids, [displayName(foundPage.title)], rng);
+        else choices = buildNameChoices(foundPage.title, foundPage.finalCategory, otherPlaces, rng);
         const { lat, lon } = foundPage.coordinates[0];
 
         return {
@@ -667,6 +788,8 @@
             country: country.name,
             countryIds: country.source === 'P17' ? country.ids : [],
             countryNames: country.source === 'P17' ? country.names : [],
+            isCountry: placeIsCountry,
+            locationHint: placeIsCountry ? country.continent : (isKnownCountry(country.name) ? country.name : ''),
             lat,
             lon,
             imageUrl: foundPage.thumbnail ? foundPage.thumbnail.source : getFallbackImage(foundPage.finalCategory),
@@ -704,6 +827,10 @@
 
     const loadDailyLocation = async () => {
         if (isLoading) return;
+        if (!gameVariant) {
+            renderVariantWelcome();
+            return;
+        }
         isLoading = true;
         isDailyMode = true;
         updateControlsUI();
@@ -734,6 +861,10 @@
 
     const loadRandomLocation = async () => {
         if (isLoading) return;
+        if (!gameVariant) {
+            renderVariantWelcome();
+            return;
+        }
         isLoading = true;
         isDailyMode = false;
         updateControlsUI();
@@ -785,13 +916,20 @@
         share: () => shareResult(),
         'zoom-in': () => changeMapZoom(1),
         'zoom-out': () => changeMapZoom(-1),
+        settings: () => openSettings(),
         choice: (button) => {
+            if (!round || round.variant === 'typed') return;
             const choice = currentPlace && (currentPlace.choices || [])[Number(button.dataset.index)];
             if (choice) submitAnswer({ correct: choice.correct, typed: false, answer: choice.label });
         }
     };
 
     appContent.addEventListener('click', (event) => {
+        const variantButton = event.target.closest('#variant-welcome [data-variant]');
+        if (variantButton) {
+            changeVariant(variantButton.dataset.variant);
+            return;
+        }
         const button = event.target.closest('[data-action]');
         if (button && ACTIONS[button.dataset.action]) ACTIONS[button.dataset.action](button);
     });
@@ -799,6 +937,7 @@
     appContent.addEventListener('submit', (event) => {
         if (event.target.id !== 'answer-form') return;
         event.preventDefault();
+        if (!round || round.variant !== 'typed') return;
         const answer = event.target.elements.answer.value.trim();
         if (!answer || !currentPlace) return;
         submitAnswer({ correct: isAnswerMatch(answer, getAcceptedAnswers(currentPlace)), typed: true, answer });
@@ -818,11 +957,15 @@
 
     document.getElementById('btn-daily').addEventListener('click', loadDailyLocation);
     document.getElementById('btn-random').addEventListener('click', loadRandomLocation);
+    document.getElementById('btn-settings').addEventListener('click', () => openSettings());
+    document.addEventListener('keydown', (event) => { if (event.key === 'Escape') closeSettings(); });
 
+    gameVariant = readVariant();
     renderIcons(document);
     removeOldStorage();
     updateControlsUI();
-    checkSessionAndLoad();
+    if (gameVariant) checkSessionAndLoad();
+    else renderVariantWelcome();
 
     if ('serviceWorker' in navigator && window.isSecureContext) {
         navigator.serviceWorker.register('sw.js').catch(error => console.error(error));

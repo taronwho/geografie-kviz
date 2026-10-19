@@ -172,3 +172,20 @@ test('seznam států odpovídá Wikidatům: unikátní ID a názvy', () => {
     assert.equal(new Set(core.COUNTRIES.map(c => c.name)).size, core.COUNTRIES.length);
     assert.ok(core.COUNTRIES.every(c => /^Q\d+$/.test(c.id) && ['EU', 'AS', 'AF', 'NA', 'SA', 'OC'].includes(c.continent)));
 });
+
+test('na stát se neptá u státu ani když ho prozradí název', () => {
+    const base = { ownQid: 'Q1', countrySource: 'P17' };
+    // Řecko má jako stát samo sebe
+    assert.equal(core.isCountryItself({ ...base, title: 'Řecko', ownQid: 'Q41', countryIds: ['Q41'], countryNames: ['Řecko'] }), true);
+    assert.equal(core.canAskForCountry({ ...base, title: 'Řecko', ownQid: 'Q41', countryIds: ['Q41'], countryNames: ['Řecko'] }), false);
+    // Shoda názvu i bez shody ID
+    assert.equal(core.isCountryItself({ ...base, title: 'Island (stát)', countryIds: ['Q189'], countryNames: ['Island'] }), true);
+    // Název prozradí stát
+    assert.equal(core.canAskForCountry({ ...base, title: 'Česká Lípa', countryIds: ['Q213'], countryNames: ['Česko'] }), false);
+    assert.equal(core.canAskForCountry({ ...base, title: 'Řecké ostrovy', countryIds: ['Q41'], countryNames: ['Řecko'] }), false);
+    // Běžné místo
+    assert.equal(core.canAskForCountry({ ...base, title: 'Bavorsko', countryIds: ['Q183'], countryNames: ['Německo'] }), true);
+    assert.equal(core.canAskForCountry({ ...base, title: 'Matterhorn', countryIds: ['Q39', 'Q38'], countryNames: ['Švýcarsko', 'Itálie'] }), true);
+    // Bez státu z Wikidat (jen kontinent) se na stát neptá
+    assert.equal(core.canAskForCountry({ ...base, title: 'Atlantik', countrySource: 'P30', countryIds: ['Q49'], countryNames: ['Severní Amerika'] }), false);
+});

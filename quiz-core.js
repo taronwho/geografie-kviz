@@ -352,6 +352,17 @@
         return shuffle([{ label: countryNames[0], correct: true }, ...distractors.map(label => ({ label, correct: false }))], rng);
     };
 
+    // Místo je samo státem (Řecko má ve Wikidatech jako stát samo sebe)
+    const isCountryItself = ({ title, ownQid, countryIds, countryNames }) =>
+        countryIds.includes(ownQid) || countryNames.some(name => normalizeAnswer(name) === normalizeAnswer(displayName(title)));
+
+    // Na stát se ptáme, jen když ho známe a když ho neprozradí už samotný název (Česká Lípa, Řecké ostrovy)
+    const canAskForCountry = ({ title, ownQid, countryIds, countryNames, countrySource }) => {
+        if (countrySource !== 'P17' || countryNames.length === 0) return false;
+        if (isCountryItself({ title, ownQid, countryIds, countryNames })) return false;
+        return !censorCountry(displayName(title), countryNames.join(', ')).includes('[***]');
+    };
+
     const getAcceptedAnswers = (location) => {
         if (location.quizType === 'name') return [location.name, displayName(location.name)];
         const aliases = COUNTRIES.filter(c => (location.countryIds || []).includes(c.id)).flatMap(c => [c.name, ...c.aliases]);
@@ -415,6 +426,6 @@
         getDayKey, shiftDayKey, formatDayKey, createSeededRandom, pickRandom, shuffle,
         isInsideCzechia, inferGeoCategory, getCategoryIconName, getWordStems, censorName, censorCountry, isKnownCountry,
         processWikiText, getPopulation, normalizeAnswer, levenshtein, isAnswerMatch,
-        buildNameChoices, buildCountryChoices, getAcceptedAnswers, pointsFor, computeStreak, buildShareText, getTileLayout
+        buildNameChoices, buildCountryChoices, isCountryItself, canAskForCountry, getAcceptedAnswers, pointsFor, computeStreak, buildShareText, getTileLayout
     };
 });
