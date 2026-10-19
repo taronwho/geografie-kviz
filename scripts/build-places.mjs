@@ -15,14 +15,14 @@ const CZECHIA = 'Q213';
 // Česká místa se berou i méně známá (od czMin jazykových verzí) a mezi známá patří navíc czKnown nejznámějších z nich.
 const CATEGORIES = [
     { key: 'stat', types: ['Q3624078'], min: 50, limit: 200, known: 110 },
-    { key: 'hora', types: ['Q8072', 'Q169358', 'Q8502', 'Q46831'], min: 25, limit: 550, known: 90, czMin: 12, czKnown: 20 },
-    { key: 'reka', types: ['Q4022'], min: 25, limit: 450, known: 90, czMin: 12, czKnown: 15 },
+    { key: 'hora', types: ['Q8072', 'Q169358', 'Q8502', 'Q46831'], min: 25, limit: 550, known: 90, czMin: 12, czKnown: 15 },
+    { key: 'reka', types: ['Q4022'], min: 25, limit: 450, known: 90, czMin: 12, czKnown: 10 },
     { key: 'jezero', types: ['Q9430', 'Q165', 'Q23397', 'Q131681', 'Q39594', 'Q37901', 'Q187223'], min: 25, limit: 450, known: 90, czMin: 12, czKnown: 5 },
     { key: 'ostrov', types: ['Q23442', 'Q33837'], min: 30, limit: 450, known: 90 },
     {
         key: 'priroda',
         types: ['Q46169', 'Q8514', 'Q34038', 'Q35509', 'Q150784', 'Q35666', 'Q34763', 'Q39816', 'Q1139493', 'Q631305', 'Q184358'],
-        min: 20, limit: 450, known: 90, czMin: 10, czKnown: 10
+        min: 20, limit: 450, known: 90, czMin: 10, czKnown: 6
     },
     {
         key: 'mesto',
@@ -37,7 +37,7 @@ const CATEGORIES = [
             'Q1784293', 'Q57821', 'Q11303', 'Q1440300', 'Q11166728', 'Q797765', 'Q853854', 'Q12570', 'Q158438', 'Q12280', 'Q143912',
             'Q82117', 'Q1779653', 'Q179700', 'Q483453', 'Q153562', 'Q2114972', 'Q12323', 'Q949819', 'Q174782', 'Q4588528', 'Q2319498',
             'Q4989906', 'Q207694', 'Q33506', 'Q1081138', 'Q15661340', 'Q839954'],
-        min: 30, limit: 700, known: 160, czMin: 12, czKnown: 30
+        min: 30, limit: 700, known: 160, czMin: 12, czKnown: 20
     }
 ];
 // Starověká města a archeologická naleziště (Petra, Pompeje) patří mezi památky, ne mezi dnešní města
@@ -202,7 +202,7 @@ const factsOf = ({ values, pops }) => {
         pop: latestPop ? Math.round(latestPop.value) : undefined,
         area: area === undefined ? undefined : round(area / 1e6, area < 1e7 ? 2 : 0),
         elev: numberOf(values, 'elev') === undefined ? undefined : Math.round(numberOf(values, 'elev')),
-        len: numberOf(values, 'len') === undefined ? undefined : Math.round(numberOf(values, 'len') / 1000),
+        len: numberOf(values, 'len') === undefined ? undefined : round(numberOf(values, 'len') / 1000, numberOf(values, 'len') < 1e4 ? 1 : 0),
         h: numberOf(values, 'h') === undefined ? undefined : Math.round(numberOf(values, 'h')),
         year: numberOf(values, 'year'),
         cap: values.cap,
@@ -229,11 +229,29 @@ const typeLabelOf = (category, typeId, label) => {
     return label;
 };
 
-// Dnešní obce v Česku jen od 5 000 obyvatel (Wikipedie má článek o každé vesnici)
+// Dnešní obce v Česku jen od 5 000 obyvatel (Wikipedie má článek o každé vesnici), jinde od 30 000 nebo hlavní města
 const CZECH_TOWN_MIN_POP = 5000;
+const TOWN_MIN_POP = 30000;
 
 // Náhled fotky přímo z upload.wikimedia.org: cesta podle MD5 názvu souboru, šířka 960 px je jedna ze standardních velikostí
 const thumbHash = (file) => createHash('md5').update(file.replace(/ /g, '_')).digest('hex').slice(0, 2);
+
+// Počet jazykových verzí u států a ostrovů známost moc neodráží (Tuvalu jich má tolik co Kuba), proto vlastní pravidla:
+// známé státy jsou evropské a ty od 3 milionů obyvatel, známá města hlavní města známých států a velkoměsta,
+// známé ostrovy ty největší a nejznámější z větších (ne ostrůvky zámořských území) a pár slavných malých
+const isKnownState = (qid, facts) => countries[qid].continent === 'EU' || facts.pop >= 3e6;
+const FAMOUS_SMALL_ISLANDS = new Set(['Capri', 'Santorini', 'Mykonos', 'Bora Bora', 'Stromboli', 'Helgoland', 'Manhattan', 'Alcatraz']);
+const stateFacts = new Map(ordered
+    .filter(([qid, entry]) => countries[qid] && categoryOf(entry, factsOf(details.get(qid))).key === 'stat')
+    .map(([qid]) => [qid, factsOf(details.get(qid))]));
+const capitals = new Set([...stateFacts.values()].map(facts => facts.cap).filter(Boolean));
+const knownCapitals = new Set([...stateFacts].filter(([qid, facts]) => isKnownState(qid, facts)).map(([, facts]) => facts.cap).filter(Boolean));
+const KNOWN_RULES = {
+    stat: ({ qid, facts }) => isKnownState(qid, facts),
+    mesto: ({ name, facts, rank, category }) => knownCapitals.has(name) || facts.pop >= 2e6 || (rank < category.known && facts.pop >= 15e4),
+    ostrov: ({ name, facts, rank, category }) => FAMOUS_SMALL_ISLANDS.has(name) || facts.area >= 1e5
+        || (rank < category.known * 1.6 && facts.area >= 150) || (!facts.area && rank < category.known / 2)
+};
 
 const places = [];
 const rankByCategory = {};
@@ -246,20 +264,23 @@ for (const [qid, entry] of ordered) {
     const point = parsePoint(values.coord);
     // Státy jen ty, které dnes existují (stejný seznam jako v tabulce států)
     if (!category || !values.t || !point || (category.key === 'stat' && !countries[qid])) continue;
+    const name = values.n || values.t.replace(/ \(.*\)$/, '');
     const isCzech = detail.co.includes(CZECHIA) || entry.czech;
-    if (category.key === 'mesto' && isCzech && !(facts.pop >= CZECH_TOWN_MIN_POP)) continue;
+    if (category.key === 'mesto' && !(facts.pop >= (isCzech ? CZECH_TOWN_MIN_POP : TOWN_MIN_POP)) && !capitals.has(name)) continue;
     const rank = rankByCategory[category.key] || 0;
     if (rank >= category.limit && !isCzech) continue;
     rankByCategory[category.key] = rank + 1;
     const czechRank = czechRankByCategory[category.key] || 0;
     if (isCzech) czechRankByCategory[category.key] = czechRank + 1;
-    const known = rank < category.known || (isCzech && czechRank < (category.czKnown || 0));
+    const knownRule = KNOWN_RULES[category.key];
+    const known = (knownRule ? knownRule({ qid, name, facts, rank, category }) : rank < category.known)
+        || (isCzech && czechRank < (category.czKnown || 0));
     const typeId = category.types.find(type => entry.types.has(type));
     const image = values.im ? fileName(values.im) : undefined;
     places.push({
         q: qid,
         t: values.t,
-        n: values.n || values.t.replace(/ \(.*\)$/, ''),
+        n: name,
         c: category.key,
         k: known ? 1 : 0,
         la: point.lat,
@@ -273,9 +294,9 @@ for (const [qid, entry] of ordered) {
     });
 }
 
-// Méně známé místo se jménem známého místa jiné kategorie (sopka „Amsterdam“) by jen mátlo
-const knownNames = new Map(places.filter(p => p.k).map(p => [p.n, p.c]));
-const result = places.filter(p => p.k || !knownNames.has(p.n) || knownNames.get(p.n) === p.c);
+// Méně známé místo se jménem státu nebo města z jiné kategorie (sopka „Amsterdam“, řeka „Senegal“) by jen mátlo
+const placeNames = new Map(places.filter(p => p.c === 'stat' || p.c === 'mesto').map(p => [p.n, p.c]));
+const result = places.filter(p => p.k || p.c === 'stat' || p.c === 'mesto' || !placeNames.has(p.n));
 
 for (const category of CATEGORIES) {
     const inCategory = result.filter(p => p.c === category.key);

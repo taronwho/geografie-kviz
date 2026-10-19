@@ -495,7 +495,7 @@
             const what = data.category === 'stat' ? 'Stát je uprostřed' : 'Místo je uprostřed';
             const width = formatDistance(getMapWidthKm(data));
             return `
-                <section ${newestId} class="relative h-56 shrink-0 overflow-hidden rounded-[1.5rem] border border-sky-200 bg-sky-200 shadow-sm dark:border-slate-700 dark:bg-slate-950">
+                <section ${newestId} class="relative h-56 shrink-0 overflow-hidden rounded-[1.5rem] border border-sky-200 bg-sky-200 shadow-sm dark:border-slate-700 dark:bg-sky-950">
                     <div id="hint-map" class="absolute inset-0" role="img" aria-label="Slepá mapa bez popisků. ${what}, výřez je široký asi ${width}.">
                         <p data-map-failed class="hidden absolute inset-0 flex items-center justify-center text-sm text-slate-500">Mapu se nepodařilo načíst</p>
                     </div>

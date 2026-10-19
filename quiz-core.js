@@ -305,16 +305,19 @@
         return picked;
     };
 
-    // Nesprávné možnosti názvu: místa stejné kategorie, přednostně ze stejného kontinentu a podobně známá
+    // Nesprávné možnosti názvu: místa stejné kategorie, přednostně stejného typu (k průlivu průlivy, ne jezera),
+    // podobně známá a ze stejného kontinentu
     const buildPlaceChoices = (place, places, countries, rng) => {
         const continent = getContinent(place, countries);
         const taken = new Set([normalizeAnswer(place.n)]);
         const sameCategory = places.filter(other => other.c === place.c && other.q !== place.q);
+        const sameType = (other) => Boolean(place.ty) && other.ty === place.ty;
+        const sameTier = (other) => other.k === place.k;
+        const sameContinent = (other) => Boolean(continent) && getContinent(other, countries) === continent;
         const sources = [
-            sameCategory.filter(other => other.k === place.k && continent && getContinent(other, countries) === continent),
-            sameCategory.filter(other => other.k === place.k),
-            sameCategory
-        ];
+            [sameType, sameTier, sameContinent], [sameType, sameTier], [sameType],
+            [sameTier, sameContinent], [sameTier], []
+        ].map(conditions => sameCategory.filter(other => conditions.every(condition => condition(other))));
         const distractors = [];
         for (const source of sources) distractors.push(...pickDistinct(source.map(other => other.n), 3 - distractors.length, taken, rng));
         return shuffle([{ label: place.n, correct: true }, ...distractors.map(label => ({ label, correct: false }))], rng);

@@ -282,6 +282,19 @@ test('možnosti názvu: stejná kategorie, přednostně stejný kontinent a zná
     assert.deepEqual(few.map(c => c.label).sort(), ['Fudži', 'Sněžka']);
 });
 
+test('možnosti názvu: přednost má stejný typ místa', () => {
+    const water = [
+        place('Q1', 'Bospor', 'jezero', 1, ['Q213'], { ty: 'průliv' }),
+        place('Q2', 'Dardanely', 'jezero', 1, [], { ty: 'průliv' }),
+        place('Q3', 'Gibraltarský průliv', 'jezero', 0, [], { ty: 'průliv' }),
+        place('Q4', 'Lamanšský průliv', 'jezero', 1, ['Q142'], { ty: 'průliv' }),
+        place('Q5', 'Bajkal', 'jezero', 1, ['Q213'], { ty: 'jezero' }),
+        place('Q6', 'Lipno', 'jezero', 1, ['Q213'], { ty: 'přehradní nádrž' })
+    ];
+    const choices = core.buildPlaceChoices(water[0], water, COUNTRIES_TABLE, core.createSeededRandom('c'));
+    assert.deepEqual(choices.map(c => c.label).sort(), ['Bospor', 'Dardanely', 'Gibraltarský průliv', 'Lamanšský průliv']);
+});
+
 test('možnosti státu: jiné státy ze stejného kontinentu', () => {
     const choices = core.buildCountryChoices('Q183', COUNTRIES_TABLE, core.createSeededRandom('x'));
     assert.equal(choices.length, 4);
