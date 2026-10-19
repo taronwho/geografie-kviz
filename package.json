@@ -2,10 +2,12 @@
   "name": "geografie-kviz",
   "version": "1.0.0",
   "private": true,
-  "description": "Geo Kvíz – hádání míst světa podle nápověd z Wikipedie",
+  "description": "Geo Kvíz – hádání míst světa podle popisu z Wikipedie, fotky, slepé mapy a faktů",
   "scripts": {
     "build:css": "npx --yes tailwindcss@3.4.17 -c tailwind.config.js -i src/input.css -o styles.css --minify",
     "build:icons": "node scripts/build-icons.mjs",
+    "build:places": "node scripts/build-places.mjs",
+    "build:world": "node scripts/build-world.mjs",
     "build": "npm run build:icons && npm run build:css",
     "test": "node --test"
   }

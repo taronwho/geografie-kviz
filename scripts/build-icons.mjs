@@ -5,10 +5,10 @@ import vm from 'node:vm';
 
 const LUCIDE_VERSION = '1.48.0';
 const ICONS = [
-    'arrow-right', 'book-open', 'building-2', 'calendar-days', 'circle-check', 'circle-x', 'compass', 'external-link', 'eye', 'flag',
-    'flame', 'globe', 'globe-2', 'image', 'keyboard', 'layout-grid', 'leaf', 'lightbulb', 'map-pin', 'minus',
-    'mountain', 'navigation', 'palmtree', 'plus', 'radar', 'search-x', 'send', 'settings-2', 'share-2', 'shuffle',
-    'tag', 'target', 'trophy', 'waves', 'wifi-off', 'x'
+    'arrow-right', 'book-open', 'building-2', 'calendar-days', 'check', 'circle-check', 'circle-x', 'compass', 'droplets', 'external-link',
+    'eye', 'flag', 'flame', 'globe', 'globe-2', 'image', 'info', 'keyboard', 'landmark', 'layout-grid',
+    'leaf', 'map', 'map-pin', 'minus', 'mountain', 'navigation', 'palmtree', 'plus', 'search-x', 'send',
+    'settings-2', 'share-2', 'shuffle', 'star', 'tag', 'target', 'trophy', 'waves', 'wifi-off', 'x'
 ];
 
 const toPascalCase = (name) => name.replace(/(^|-)(\w)/g, (_, __, letter) => letter.toUpperCase());

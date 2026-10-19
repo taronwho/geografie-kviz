@@ -1,7 +1,7 @@
 # Hlavičky pro Netlify. CSP povoluje skripty a styly jen z tohoto webu
-# a připojení jen k Wikipedii a Wikidatům; obrázky z Wikimedia Commons, satelitní snímky NASA a mapy OpenStreetMap.
+# a připojení jen k české Wikipedii (popisy míst); obrázky z Wikimedia Commons, satelitní snímky NASA a mapy OpenStreetMap.
 /*
-  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' https://upload.wikimedia.org https://gibs.earthdata.nasa.gov https://tile.openstreetmap.org; connect-src 'self' https://cs.wikipedia.org https://www.wikidata.org; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'
+  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' https://commons.wikimedia.org https://upload.wikimedia.org https://gibs.earthdata.nasa.gov https://tile.openstreetmap.org; connect-src 'self' https://cs.wikipedia.org; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'
   X-Content-Type-Options: nosniff
   Referrer-Policy: strict-origin-when-cross-origin
   Permissions-Policy: camera=(), microphone=(), geolocation=()

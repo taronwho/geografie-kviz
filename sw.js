@@ -1,7 +1,7 @@
-// Service worker: aplikace se otevře i bez internetu (dnešní místo je uložené v prohlížeči)
-const CACHE_NAME = 'geo-kviz-v1';
+// Service worker: aplikace se otevře i bez internetu (sada míst i obrysy států jsou v mezipaměti)
+const CACHE_NAME = 'geo-kviz-v2';
 const APP_SHELL = [
-    './', 'index.html', 'styles.css', 'icons.js', 'quiz-core.js', 'app.js', 'manifest.webmanifest',
+    './', 'index.html', 'styles.css', 'icons.js', 'quiz-core.js', 'app.js', 'manifest.webmanifest', 'data/places.json', 'data/world.json',
     'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png'
 ];
 
@@ -17,7 +17,7 @@ self.addEventListener('activate', (event) => {
     );
 });
 
-// Jen vlastní soubory aplikace; Wikipedie, Wikidata, fotky a mapy jdou přímo na síť
+// Jen vlastní soubory aplikace; Wikipedie, fotky a mapy jdou přímo na síť
 self.addEventListener('fetch', (event) => {
     const { request } = event;
     if (request.method !== 'GET' || new URL(request.url).origin !== self.location.origin) return;
