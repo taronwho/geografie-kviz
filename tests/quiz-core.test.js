@@ -475,6 +475,42 @@ test('psaná odpověď: překlep po slovech, čísla, římské číslice, znač
     const bc = { match: 'century', century: -5 };
     assert.ok(core.checkAnswer('5. století př. n. l.', bc) && !core.checkAnswer('5', bc) && !core.checkAnswer('4. stol. př. n. l.', bc));
     assert.ok(core.checkAnswer('N', { accepted: ['newton'], symbols: ['N'] }));
+    // Římské století, oddělovače ve značkách, vzorec stejného složení
+    const century = { match: 'century', century: 14 };
+    assert.ok(core.checkAnswer('XIV. století', century) && core.checkAnswer('ve XIV století', century) && !core.checkAnswer('XV. století', century));
+    assert.ok(core.checkAnswer('V. stol. př. n. l.', bc));
+    assert.ok(core.checkAnswer('N m', { match: 'symbol', accepted: ['N·m'] }) && core.checkAnswer('ly', { match: 'symbol', accepted: ['l.y.'] }));
+    const ethanol = { match: 'formula', accepted: ['C₂H₅OH'] };
+    assert.ok(core.checkAnswer('C2H5OH', ethanol) && core.checkAnswer('C2H6O', ethanol) && !core.checkAnswer('C2H4O', ethanol));
+    assert.ok(core.checkAnswer('C2H4O2', { match: 'formula', accepted: ['CH₃COOH'] }));
+    assert.deepEqual([...core.formulaCounts('CuSO4·5H2O')].sort(), [['Cu', 1], ['H', 10], ['O', 9], ['S', 1]]);
+    assert.deepEqual([...core.formulaCounts('Ca(OH)2')].sort(), [['Ca', 1], ['H', 2], ['O', 2]]);
+});
+
+test('kontinent místa: zámoří a státy na dvou kontinentech podle polohy', () => {
+    const countries = { Q159: { continent: 'EU' }, Q142: { continent: 'EU' }, Q43: { continent: 'AS' }, Q230: { continent: 'EU' }, Q29: { continent: 'EU' } };
+    const at = (co, la, lo) => core.getContinent({ c: 'mesto', co: [co], la, lo }, countries);
+    assert.equal(at('Q159', 55.75, 37.6), 'EU', 'Moskva');
+    assert.equal(at('Q159', 55.0, 82.9), 'AS', 'Novosibirsk');
+    assert.equal(at('Q159', 43.35, 42.44), 'EU', 'Elbrus');
+    assert.equal(at('Q159', 46.35, 48.0), 'EU', 'Astrachaň u ústí Volhy');
+    assert.equal(at('Q142', -21.1, 55.5), 'AF', 'Réunion');
+    assert.equal(at('Q142', -17.6, -149.4), 'OC', 'Tahiti');
+    assert.equal(at('Q142', 14.6, -61.0), 'NA', 'Martinik');
+    assert.equal(at('Q142', 4.9, -52.3), 'SA', 'Cayenne');
+    assert.equal(at('Q29', 28.3, -16.6), 'AF', 'Tenerife');
+    assert.equal(at('Q43', 41.01, 28.97), 'EU', 'Istanbul');
+    assert.equal(at('Q43', 39.93, 32.85), 'AS', 'Ankara');
+    assert.equal(at('Q230', 41.7, 44.8), 'EU', 'Tbilisi jako stát Gruzie');
+    assert.equal(core.getContinent({ c: 'stat', q: 'Q159', co: ['Q159'], la: 60, lo: 90 }, countries), 'EU', 'stát podle tabulky');
+});
+
+test('zakrývání: římské číslice a členy zůstanou, rody v množném čísle, značka po slově „značka“, vzorce z Wikipedie', () => {
+    assert.equal(core.censorName('Karel IV. byl otec Václava IV.', 'Karel IV.'), '[***] IV. byl otec Václava IV.');
+    assert.equal(core.censorName('Ale vůdce al-Káidy', 'Abú Bakr al-Bagdádí'), 'Ale vůdce al-Káidy');
+    assert.equal(core.censorName('Přemyslovec Václav z přemyslovského rodu', 'Přemyslovci'), '[***] Václav z [***] rodu');
+    assert.ok(!core.processWikiText('Energie {\\displaystyle E=mc^{2}} je veličina. Další věta je tady.').description.includes('displaystyle'));
+    assert.ok(core.isFactVisible('klouzkovité', 'klouzek sličný') && core.isFactVisible('psovití', 'pes domácí') && !core.isFactVisible('pstruhovití', 'pes domácí'));
 });
 
 test('výběr položky: když už bylo všechno, ne ta právě hraná', () => {

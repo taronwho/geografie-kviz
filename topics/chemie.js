@@ -102,10 +102,11 @@
     };
 
     // Značka do popisu nepatří: dvoupísmenná jako samostatné slovo, jednopísmenná jen ve vzorci (O₂), aby nezmizelo „o“ nebo „C“ ve větě
+    // Jednopísmennou značku (N, O) jen ve vzorci (N₂) a hned po slově „značka“, jinak by zmizelo kdejaké písmeno
     const hideSymbol = (text, symbol) => {
         const pattern = symbol.length > 1
             ? new RegExp(`(?<![\\p{L}])${escapeRegExp(symbol)}(?![\\p{Ll}])`, 'gu')
-            : new RegExp(`(?<![\\p{L}])${escapeRegExp(symbol)}(?=[₀-₉\\d])`, 'gu');
+            : new RegExp(`(?:(?<![\\p{L}])${escapeRegExp(symbol)}(?=[₀-₉\\d])|(?<=${core.AFTER_SYMBOL_WORD})${escapeRegExp(symbol)}(?![\\p{L}]))`, 'gu');
         return text.replace(pattern, '[***]').replace(/\s{2,}/g, ' ');
     };
 
@@ -190,7 +191,7 @@
                     title: 'Jaký vzorec má tato látka?',
                     showName: true,
                     choices: shuffle([f.formula, ...wrong], rng).map(formula => ({ id: `vzorec-${formula}`, label: formula, correct: formula === f.formula })),
-                    match: 'symbol',
+                    match: 'formula',
                     accepted: [f.formula],
                     placeholder: 'Napiš vzorec, třeba H2O',
                     answerLabel: f.formula

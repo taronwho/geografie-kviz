@@ -8,7 +8,7 @@
     'use strict';
 
     const {
-        CONTINENT_NAMES, CZECHIA_QID, getCountryNames, getContinent, getCountryAliases, censorCountry,
+        CONTINENT_NAMES, CZECHIA_QID, getCountryNames, getContinent, getCountryAliases, censorCountry, getWordStems, normalizeAnswer,
         buildCountryChoices, findAnswerCountry, countryAnswers, formatFacts, formatNumber, formatPopulation, formatYear, getMapSpan,
         distanceKm, nearness, STATE_STEPS
     } = core;
@@ -28,15 +28,10 @@
     // Jak často se místo „Co je to za místo?“ ptáme „Ve kterém státě to je?“ (jen kde to dává smysl)
     const LOCATION_QUIZ_SHARE = 0.35;
 
-    // Na stát se ptáme jen u míst v jednom známém státě, ne u států a ne když stát prozradí už název (Česká Lípa)
-    const canAskForCountry = (item, countries) => {
-        if (item.c === 'stat' || (item.co || []).length !== 1 || !countries[item.co[0]]) return false;
-        return !censorCountry(item.n, countries[item.co[0]].name, getCountryAliases(item.co)).includes('[***]');
-    };
-
-    // Hlavní číslo kategorie – podobně velká místa jsou lepší nesprávné možnosti (velkoměsto k velkoměstu)
-    const SIZE_FACT = { stat: 'area', mesto: 'pop', hora: 'elev', reka: 'len', jezero: 'area', ostrov: 'area' };
-    const isComparable = (a, b) => a > 0 && b > 0 && a / b > 0.4 && a / b < 2.5;
+    // Sporná území: Palestina a Kosovo, Jeruzalém a okolí – „Ve kterém státě to je?“ by nemělo jednu odpověď
+    const DISPUTED = new Set(['Q219060', 'Q1246']);
+    const ISRAEL = 'Q801';
+    const JERUSALEM = { la: 31.78, lo: 35.22 };
 
     // Střed státu podle položky státu v datech (pro nejbližší státy u otázky „Ve kterém státě to je?“)
     const centres = new WeakMap();
@@ -44,6 +39,69 @@
         if (!centres.has(items)) centres.set(items, new Map(items.filter(item => item.c === 'stat' && item.la !== undefined).map(item => [item.q, item])));
         return centres.get(items);
     };
+    // Města státu, která stát prozradí (hlavní město a města v datech): u „Pražského hradu“ je jasné, že jde o Česko
+    const cityLists = new WeakMap();
+    const citiesOf = (countryId, items) => {
+        if (!cityLists.has(items)) {
+            const byCountry = new Map();
+            for (const item of items) {
+                if (item.c !== 'mesto' || (item.co || []).length !== 1) continue;
+                if (!byCountry.has(item.co[0])) byCountry.set(item.co[0], []);
+                byCountry.get(item.co[0]).push(item);
+            }
+            cityLists.set(items, byCountry);
+        }
+        return cityLists.get(items).get(countryId) || [];
+    };
+    const capitalOf = (countryId, items) => {
+        const state = countryCentres(items).get(countryId);
+        return state && state.f && state.f.cap ? state.f.cap : '';
+    };
+    // Název obsahuje jméno města i v jiném tvaru (Pražský hrad, katedrála ve Vídni, v Hradci Králové) – všechna hlavní
+    // slova jména před „nad“, „de“… (Frankfurt nad Mohanem → Frankfurt), ne obecné slovo (Karlův most × Most)
+    const GENERIC_CITY_WORDS = new Set(['San', 'Santa', 'Santo', 'São', 'Saint', 'Sankt', 'Port', 'Puerto', 'Porto', 'New', 'Nové', 'Nový', 'Nová', 'Velké', 'Velký', 'Malé', 'Rio', 'Los', 'Las', 'El', 'La', 'Le']);
+    const namesCity = (name, city) => {
+        const head = city.split(/\s+/);
+        const end = head.findIndex(part => !/^\p{Lu}/u.test(part));
+        const words = head.slice(0, end < 0 ? head.length : end).filter(part => part.length >= 4 && !GENERIC_CITY_WORDS.has(part));
+        const parts = name.split(/[\s\-–]+/);
+        return words.length > 0 && words.every(word => getWordStems(word).filter(stem => stem.length >= 4)
+            .some(stem => parts.some(part => part.startsWith(stem) && part.length <= stem.length + 4)));
+    };
+
+    // Hlavní město a známá velká města státu (malé město zná jen ten, kdo zná i stát)
+    const knownCities = (countryId, items, item) => [capitalOf(countryId, items), ...citiesOf(countryId, items)
+        .filter(city => city.q !== item.q && (city.k === 1 || (city.f || {}).pop >= 250000)).map(city => city.n)]
+        .filter(city => city && city !== item.n);
+
+    // Stejně pojmenovaná místa v různých státech (Birmingham, San José, Katedrála Notre-Dame) – u otázky na stát sporná
+    const sharedNames = new WeakMap();
+    const isSharedName = (item, items) => {
+        if (!sharedNames.has(items)) {
+            const countriesByName = new Map();
+            for (const other of items) {
+                const key = normalizeAnswer(other.n);
+                if (!countriesByName.has(key)) countriesByName.set(key, new Set());
+                for (const country of other.co || []) countriesByName.get(key).add(country);
+            }
+            sharedNames.set(items, countriesByName);
+        }
+        return (sharedNames.get(items).get(normalizeAnswer(item.n)) || new Set()).size > 1;
+    };
+
+    // Na stát se ptáme jen u míst v jednom známém státě, ne u států a ne když stát prozradí už název (Česká Lípa, Pražský hrad)
+    const canAskForCountry = (item, countries, items = []) => {
+        if (item.c === 'stat' || (item.co || []).length !== 1 || !countries[item.co[0]] || isSharedName(item, items)) return false;
+        const countryId = item.co[0];
+        if (DISPUTED.has(countryId) || (countryId === ISRAEL && item.la !== undefined && distanceKm(item, JERUSALEM) < 25)) return false;
+        if (censorCountry(item.n, countries[countryId].name, getCountryAliases(item.co)).includes('[***]')) return false;
+        // U měst se jiná města nehledají (Dillí × Nové Dillí)
+        return item.c === 'mesto' || !knownCities(countryId, items, item).some(city => namesCity(item.n, city));
+    };
+
+    // Hlavní číslo kategorie – podobně velká místa jsou lepší nesprávné možnosti (velkoměsto k velkoměstu)
+    const SIZE_FACT = { stat: 'area', mesto: 'pop', hora: 'elev', reka: 'len', jezero: 'area', ostrov: 'area' };
+    const isComparable = (a, b) => a > 0 && b > 0 && a / b > 0.4 && a / b < 2.5;
 
     const FACT_FORMATS = [
         ['cap', 'Hlavní město', value => value],
@@ -104,7 +162,7 @@
 
         // Občas otázka „Ve kterém státě to je?“ – název místa je pak vidět a z popisu zmizí stát, národnost i kontinent
         specialQuestion: (item, { countries, items }, rng) => {
-            if (!(rng() < LOCATION_QUIZ_SHARE && canAskForCountry(item, countries))) return null;
+            if (!(rng() < LOCATION_QUIZ_SHARE && canAskForCountry(item, countries, items || []))) return null;
             const countryId = item.co[0];
             const countryName = countries[countryId].name;
             return {
@@ -121,9 +179,12 @@
                 answerLabel: countryName
             };
         },
-        censor: (type, text, item, { countries }) => type === 'location'
-            ? censorCountry(text, countries[item.co[0]].name, getCountryAliases(item.co))
-            : null,
+        // U otázky na stát se zakryjí i známá města státu (katedrála v Paříži, opera v Sydney)
+        censor: (type, text, item, { countries, items }) => {
+            if (type !== 'location') return null;
+            const cities = knownCities(item.co[0], items || [], item).filter(city => namesCity(text, city));
+            return censorCountry(text, countries[item.co[0]].name, [...getCountryAliases(item.co), ...cities]);
+        },
         findAnswer: (type, answer, item, { countries }) => {
             if (type !== 'location') return null;
             const countryId = findAnswerCountry(answer, item.co || [], countries);

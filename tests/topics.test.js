@@ -448,3 +448,28 @@ test('nesprávné možnosti ve skutečných datech: stejný druh, blízko, stejn
         }
     }
 });
+
+// --- Otázky, které by odpověď prozradily nebo neměly jednoznačnou odpověď, se nekladou ---
+
+test('otázka na stát: ne u názvů s městem státu ani na sporných územích; zakryje i známé město', () => {
+    const data = JSON.parse(fs.readFileSync(path.join(ROOT, 'data', 'zemepis.json'), 'utf8'));
+    const topic = TOPICS.find(t => t.id === 'zemepis');
+    const ctx = { topic, items: data.items, collections: data.collections, countries: COUNTRIES };
+    const ask = (name) => topic.specialQuestion(data.items.find(item => item.n === name), ctx, () => 0);
+    for (const name of ['Pražský hrad', 'Katedrála svatého Štěpána ve Vídni', 'Opera v Sydney', 'Betlém', 'Priština']) assert.equal(ask(name), null, name);
+    for (const name of ['Karlův most', 'Paříž', 'Brno']) assert.equal(ask(name).type, 'location', name);
+    const bridge = data.items.find(item => item.n === 'Karlův most');
+    assert.ok(!/Praze|Česk/.test(topic.censor('location', 'Gotický most v Praze, nejstarší v Česku.', bridge, ctx)));
+});
+
+test('psané odpovědi: řád v jednotném čísle, jednopísmenná značka v popisu zakrytá', () => {
+    const biologie = TOPICS.find(t => t.id === 'biologie');
+    const data = JSON.parse(fs.readFileSync(path.join(ROOT, 'data', 'biologie.json'), 'utf8'));
+    const ctx = { topic: biologie, items: data.items, collections: data.collections, countries: COUNTRIES };
+    const wolf = data.items.find(item => item.n === 'Vlk obecný');
+    const taxon = biologie.specialQuestion(wolf, ctx, (() => { let first = true; const rng = core.createSeededRandom('vlk'); return () => first ? (first = false, 0) : rng(); })());
+    assert.equal(taxon.type, 'taxon');
+    assert.ok(core.checkAnswer('šelma', taxon) && core.checkAnswer('šelmy', taxon));
+    const chemie = TOPICS.find(t => t.id === 'chemie');
+    assert.ok(!/značka N\b/.test(chemie.censor('symbol', 'Dusík, chemická značka N, je plyn.', { n: 'Dusík', c: 'prvky', f: { sym: 'N' } })));
+});

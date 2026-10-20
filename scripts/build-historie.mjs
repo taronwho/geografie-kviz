@@ -39,10 +39,10 @@ const CZECH_POSITIONS = [POSITIONS.cesky_kral, POSITIONS.cesky_knize, POSITIONS.
 
 // Kategorie: kolik vzít a kolik nejznámějších je „známých“ (czKnown = navíc nejznámější česká)
 const CATEGORIES = {
-    panovnik: { limit: 900, known: 150, czKnown: 25 },
-    statnik: { limit: 450, known: 110, czKnown: 10 },
-    osobnost: { limit: 600, known: 120, czKnown: 15 },
-    bitva: { limit: 700, known: 120, czKnown: 10 },
+    panovnik: { limit: 900, known: 150, czKnown: 45 },
+    statnik: { limit: 450, known: 110, czKnown: 15 },
+    osobnost: { limit: 600, known: 120, czKnown: 30 },
+    bitva: { limit: 700, known: 120, czKnown: 20 },
     rise: { limit: 400, known: 80, czKnown: 6 }
 };
 
@@ -164,7 +164,7 @@ const warMembers = new Map(await cached('historie-wars', async () => {
 // --- 3. krok: položky ---
 const word = (text) => new RegExp(`(?<!\\p{L})${text}(?!\\p{L})`, 'u');
 const FEMININE = [['král', 'královna'], ['císař', 'císařovna'], ['kníže', 'kněžna'], ['car', 'carevna'], ['prezident', 'prezidentka'],
-    ['premiér', 'premiérka'], ['kancléř', 'kancléřka'], ['vévoda', 'vévodkyně'], ['panovník', 'panovnice'], ['imperátor', 'imperátorka']];
+    ['premiér', 'premiérka'], ['kancléř', 'kancléřka'], ['vévoda', 'vévodkyně'], ['panovník', 'panovnice'], ['imperátor', 'imperátorka'], ['faraon', 'faraonka']];
 // „anglický král“ → „anglická královna“: změní se i přídavná jména před funkcí
 const feminine = (text) => {
     const changed = FEMININE.reduce((result, [male, female]) => result.replace(word(male), female), text);
@@ -176,6 +176,12 @@ const STATESMAN_ROLES = [/^prezident \p{L}/u, /^premiér/u, /kancléř/u, /před
 const STATESMAN_FALLBACK = /prezident|premiér|kancléř|předseda|vůdce|tajemník|chalífa|emír/u;
 const NOT_A_ROLE = /choť|manžel|spolukníže|následník|Oxford|Akademie|Svazu|kurfiřt|kníže z Walesu/u;
 
+// Spisovatelé a vědci s čestnou funkcí, které Wikidata vedou i jako „státníky“ (Goethe, Gorkij, Laplace), jsou osobnosti;
+// herci, kteří byli starosty (Clint Eastwood), do dějepisu nepatří
+const CATEGORY_OVERRIDES = {
+    Q5879: 'osobnost', Q12706: 'osobnost', Q44481: 'osobnost', Q140694: 'osobnost', Q189564: 'osobnost', Q167997: 'osobnost',
+    Q315366: 'osobnost', Q344661: 'osobnost', Q43203: null, Q104027: null
+};
 // Kategorie osoby: panovník (povolání nebo funkce), státník (prezidenti, premiéři, hlavy států a vlád), jinak osobnost
 const positionLabels = (detail) => detail.pos.map(position => label(position.id) || '').filter(text => text && !NOT_A_ROLE.test(text));
 const occupationLabels = (detail) => (detail.occ || []).map(label).filter(Boolean);
@@ -210,6 +216,11 @@ const mainPosition = (detail, category) => {
     const found = (qid) => ({ id: qid, statements: detail.pos.filter(position => position.id === qid) });
     const known = POSITION_ORDER.find(qid => detail.pos.some(position => position.id === qid));
     if (known) return found(known);
+    // Egyptští faraoni z číslovaných dynastií a Ptolemaiovci jsou faraoni („sakkárský král“ by mátl), Alexandr Veliký
+    // a perští králové ne
+    const isEgyptian = (detail.fam || []).map(label).some(text => /^\d+\. dynastie$|Ptolemaiovci/u.test(text || ''));
+    const pharaoh = ids(POSITIONS.faraon).find(qid => detail.pos.some(position => position.id === qid));
+    if (pharaoh && isEgyptian) return found(pharaoh);
     const roles = category === 'statnik' ? [...STATESMAN_ROLES, ...MONARCH_ROLES] : [...MONARCH_ROLES, ...STATESMAN_ROLES];
     for (const role of [...roles, word('papež')]) {
         const match = detail.pos.find(position => !NOT_A_ROLE.test(label(position.id) || '') && role.test(label(position.id) || ''));
@@ -223,7 +234,10 @@ const typeLabelOf = (category, detail, main) => {
     if (!text || text.length > 40) {
         const occupations = occupationLabels(detail).filter(name => name.length <= 30);
         // Šlechtický titul má přednost (Eliška Přemyslovna má ve Wikidatech „filozof“ i „královna“)
-        const occupation = occupations.find(name => ROYAL.test(name)) || occupations.find(name => HISTORICAL.test(name)) || occupations[0];
+        // Filozof a teolog až za ostatními dějinnými povoláními (vojevůdce, reformátor), jsou u lidí často jen navíc
+        const occupation = occupations.find(name => ROYAL.test(name))
+            || occupations.find(name => HISTORICAL.test(name) && !/filozof|teolog/u.test(name))
+            || occupations.find(name => HISTORICAL.test(name)) || occupations[0];
         text = category === 'osobnost' && occupation ? occupation : { panovnik: 'panovník', statnik: 'státník', osobnost: 'osobnost' }[category];
     }
     return detail.sex === FEMALE ? feminine(text) : text;
@@ -237,6 +251,33 @@ const isCzechItem = (detail, main) => [...(detail.cit || []), ...(detail.co || [
     || detail.pos.some(position => CZECH_POSITIONS.includes(position.id))
     || Boolean(main && CZECH_POSITIONS.includes(main.id));
 
+// Kontrola dat narození a úmrtí: Wikidata u starověku často uvádějí jen století („500“ = 5. století). Zaokrouhlený rok,
+// který odporuje druhému (úmrtí před narozením, věk přes 105 let, obojí stejné), se vynechá.
+const THIS_YEAR = new Date().getFullYear();
+const isRound = (year) => year % 50 === 0;
+const lifeYears = (rawBorn, rawDied) => {
+    let born = rawBorn !== undefined && rawBorn <= THIS_YEAR ? rawBorn : undefined;
+    let died = rawDied !== undefined && rawDied <= THIS_YEAR ? rawDied : undefined;
+    if (born !== undefined && died !== undefined && (died <= born || died - born > 105)) {
+        if (isRound(died) && !isRound(born)) died = undefined;
+        else born = undefined;
+    }
+    return { born, died };
+};
+
+// Ze stejně pojmenovaných položek zůstane ta, která má k českým dějinám nejblíž (Anna Jagellonská, česká královna),
+// jinak ta známější
+const nameKeyOf = (detail) => (detail.n || detail.t.replace(/ \(.*\)$/, '')).toLocaleLowerCase('cs');
+const czechScore = (detail) => (isCzechItem(detail, null) ? 2 : 0) + (/česk/u.test(detail.d || '') ? 1 : 0);
+const preferredByName = new Map();
+for (const [qid] of ordered) {
+    const detail = details.get(qid);
+    if (!detail || !detail.t) continue;
+    const key = nameKeyOf(detail);
+    const current = preferredByName.get(key);
+    if (!current || czechScore(detail) > czechScore(details.get(current))) preferredByName.set(key, qid);
+}
+
 const items = [];
 const rankByCategory = {};
 const czechRankByCategory = {};
@@ -246,10 +287,11 @@ for (const [qid, entry] of ordered) {
     const isPerson = (entry.kinds.includes('osoba') || entry.kinds.includes('statnik')) && (detail.type || []).includes(HUMAN);
     const kind = isPerson ? 'osoba' : entry.kinds.includes('udalost') ? 'udalost' : entry.kinds.includes('stat') ? 'stat' : null;
     if (!kind) continue;
-    const category = kind === 'osoba' ? personCategory(detail, entry) : kind === 'udalost' ? eventCategory() : 'rise';
+    const category = qid in CATEGORY_OVERRIDES ? CATEGORY_OVERRIDES[qid]
+        : kind === 'osoba' ? personCategory(detail, entry) : kind === 'udalost' ? eventCategory() : 'rise';
+    if (!category) continue;
     const main = kind === 'osoba' ? mainPosition(detail, category) : null;
-    const born = yearOf(detail.born);
-    const died = yearOf(detail.died);
+    const { born, died } = lifeYears(yearOf(detail.born), yearOf(detail.died));
     if (category === 'osobnost' && !isHistoricalPerson(detail, born)) continue;
     // Panovnické rody a svazové republiky SSSR nejsou státy, které by stálo za to hádat
     const typeLabels = (detail.type || []).map(label).filter(Boolean);
@@ -260,10 +302,15 @@ for (const [qid, entry] of ordered) {
         // Doba vlády nebo úřadu: od prvního začátku do posledního konce hlavní funkce
         const starts = (main ? main.statements : []).map(s => yearOf(s.start)).filter(y => y !== undefined);
         const ends = (main ? main.statements : []).map(s => yearOf(s.end)).filter(y => y !== undefined);
-        const from = starts.length ? Math.min(...starts) : undefined;
-        const to = ends.length ? Math.max(...ends) : undefined;
+        let from = starts.length ? Math.min(...starts) : undefined;
+        let to = ends.length ? Math.max(...ends) : undefined;
+        // Vláda mimo život (nástup po smrti, konec po smrti) je chyba v datech: konec nejpozději smrtí, nástup jinak pryč
+        if (from !== undefined && ((died !== undefined && from > died) || (born !== undefined && from < born))) from = undefined;
+        if (to !== undefined && died !== undefined && to > died) to = died;
+        if (to !== undefined && (from === undefined || to < from)) to = from === undefined ? undefined : to;
         if (born === undefined && from === undefined) continue;
-        year = from ?? (born !== undefined ? born + 35 : undefined);
+        // Bez začátku vlády zhruba vrchol života – ve 35 letech, u krátkého života dřív (Gagarin, Princip)
+        year = from ?? (born !== undefined ? Math.min(born + 35, died !== undefined ? Math.round(born + (died - born) * 0.75) : born + 35) : undefined);
         facts = {
             born, died, from, to,
             dyn: (detail.fam || []).map(label).filter(Boolean)[0],
@@ -271,10 +318,16 @@ for (const [qid, entry] of ordered) {
             y: year
         };
     } else if (kind === 'udalost') {
-        const start = yearOf(detail.date) ?? yearOf(detail.start);
-        const end = yearOf(detail.end);
-        // Pravěk (neolitická revoluce) do bitev a válek nepatří
-        if (start === undefined || start < -3000) continue;
+        // Roky v názvu článku (Rusko-turecká válka (1768–1774)) platí přednostně; datum (P585) bývá jen zaokrouhlené
+        // na století (Války růží „1500“), proto až po začátku (P580)
+        const titled = /\((\d{3,4})(?:[–-](\d{3,4}))?\)$/.exec(detail.t || '');
+        let start = titled ? Number(titled[1]) : yearOf(detail.start) ?? yearOf(detail.date);
+        let end = titled ? (titled[2] ? Number(titled[2]) : undefined) : yearOf(detail.end);
+        // Konec před začátkem: jeden z údajů je chybný, platí ten dřívější (Irácká invaze do Kuvajtu 1990, ne 2009)
+        if (end !== undefined && start !== undefined && end < start) [start, end] = [end, undefined];
+        // Pravěk (neolitická revoluce) do bitev a válek nepatří, budoucnost (válka „do roku 2100“) taky ne
+        if (start === undefined || start < -3000 || start > THIS_YEAR) continue;
+        if (end !== undefined && end > THIS_YEAR) end = undefined;
         year = start;
         facts = {
             year: start,
@@ -298,7 +351,8 @@ for (const [qid, entry] of ordered) {
     const rank = rankByCategory[rankKey] || 0;
     const limits = isPope ? { limit: 300, known: 12 } : settings;
     if (rank >= limits.limit && !isCzech) continue;
-    if (items.some(other => other.c === category && other.n === (detail.n || detail.t.replace(/ \(.*\)$/, '')))) continue;
+    // Stejné jméno má i jiná položka (dvě Anny Jagellonské, dvě Řecko-turecké války) – zůstane jen jedna, jinak by byla sporná
+    if (preferredByName.get(nameKeyOf(detail)) !== qid) continue;
     rankByCategory[rankKey] = rank + 1;
     const czechRank = czechRankByCategory[category] || 0;
     if (isCzech) czechRankByCategory[category] = czechRank + 1;

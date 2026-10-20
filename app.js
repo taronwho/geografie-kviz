@@ -331,7 +331,9 @@
     // u vzorce složení), jinak fotka → obrazová nápověda → čísla a fakta. Nápověda, která nic nepřidá, se vynechá:
     // fotka, která se nenačte, prázdná fakta i fakta, která hráč už vidí v zadání nebo v popisu.
     // shared = fakta, která mají stejná všechny nabízené nesprávné možnosti (třída savci u čtyř savců) – mezi nimi nerozhodnou
-    const buildHints = (plan, { photoUrl, visibleText, shared = new Set() }) => {
+    // answers = odpovědi, které nápověda nesmí prozradit (u otázky na název jméno položky, u řádu řád…)
+    const buildHints = (plan, { photoUrl, visibleText, shared = new Set(), answers = '' }) => {
+        const revealsAnswer = (fact) => Boolean(answers) && censorName(String(fact.value), answers).includes('[***]');
         const hints = [];
         for (const step of plan) {
             let hint = null;
@@ -340,7 +342,8 @@
                 hint = { kind: 'visual', spec: step.spec, label: Visuals.info(step.spec).name, icon: Visuals.info(step.spec).icon };
             }
             if (step.kind === 'facts') {
-                const facts = dropKnownFacts(step.facts || [], visibleText).filter(fact => step.label || !shared.has(`${fact.label}\u0000${fact.value}`));
+                const facts = dropKnownFacts(step.facts || [], visibleText)
+                    .filter(fact => (step.label || !shared.has(`${fact.label}\u0000${fact.value}`)) && !revealsAnswer(fact));
                 // extra = vlastní nápověda tématu; po odpovědi se ukáže i mezi fakty
                 if (facts.length) hint = { kind: 'facts', facts, label: step.label || 'čísla a fakta', icon: step.icon || 'info', extra: Boolean(step.label) };
             }
@@ -358,6 +361,14 @@
                 { photoUrl: data.photoUrl, visibleText: '' });
         }
         return data;
+    };
+
+    // Co nápověda nesmí obsahovat: u otázky na název jméno položky (vědecký název je naopak schválně poslední nápovědou),
+    // u řádu, jednotky či veličiny samotnou odpověď; u století, značek a vzorců se nekontroluje (krátká značka by „našla“ kdeco)
+    const hintAnswers = (question, item) => {
+        if (question.match) return '';
+        if (question.type === 'name') return [item.n, displayName(item.t)].join(', ');
+        return question.accepted.join(', ');
     };
 
     // Data jedné otázky – vše, co se uloží a po obnovení stránky zobrazí znovu
@@ -409,7 +420,7 @@
             // Ve výsledku už odpověď známe, takže nápověda může ukázat vše (u otázky na století časovou osu)
             resultVisual: topic.visual ? topic.visual(item, ctx, 'result') : null,
             resultFacts: topic.facts(item, ctx, 'result'),
-            hints: buildHints(plan, { photoUrl, visibleText, shared }),
+            hints: buildHints(plan, { photoUrl, visibleText, shared, answers: hintAnswers(question, item) }),
             subtitle: topic.subtitle(item, ctx),
             coords: topic.coords ? topic.coords(item, ctx) : null,
             isCzech: Boolean(topic.isCzech && topic.isCzech(item, ctx)),
@@ -2112,8 +2123,10 @@
             }
         }
         // Přesně název jiné položky (Slovinsko u Slovenska, Vodík u Sodíku) není překlep, ale jiná odpověď
+        // (jen když to není přesně jedna z vlastních odpovědí – Moskva je město i řeka, Irsko stát i ostrov)
         const other = answerRef && loadedTopics.get(answerRef.topic) && loadedTopics.get(answerRef.topic).byId.get(answerRef.id);
-        if (correct && other && normalizeAnswer(other.n) === normalizeAnswer(answer)) correct = false;
+        const exactlyOwn = current.question.accepted.some(accepted => normalizeAnswer(accepted) === normalizeAnswer(answer));
+        if (correct && other && !exactlyOwn && normalizeAnswer(other.n) === normalizeAnswer(answer)) correct = false;
         submitAnswer({ correct, typed: true, answer, answerRef: correct ? null : answerRef });
     });
 

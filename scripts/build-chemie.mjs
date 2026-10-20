@@ -87,6 +87,12 @@ const capitalize = (text) => text.charAt(0).toUpperCase() + text.slice(1);
 const max = (list) => list && list.length ? Math.max(...list) : undefined;
 const round = (value, digits) => value === undefined ? undefined : Number(Number(value).toPrecision(digits));
 const kelvinToCelsius = (k) => k === undefined ? undefined : Math.round((k - 273.15) * 10) / 10;
+// Teplota tání a varu; když by látka tála až nad bodem varu (astat ve Wikidatech), je jeden údaj chybný – nevíme který
+const phaseTemperatures = (detail) => {
+    const melt = kelvinToCelsius(max(detail.melt));
+    const boil = kelvinToCelsius(max(detail.boil));
+    return melt !== undefined && boil !== undefined && melt > boil ? {} : { melt, boil };
+};
 
 // --- Prvky ---
 const elements = await cached('chemie-elements', async () => {
@@ -215,8 +221,7 @@ for (const element of elements) {
             year: yearOf(firstValue(detail.found)),
             disc: discoverer.slice(0, 2).join(', ') || undefined,
             named: (detail.named || []).map(cs).filter(Boolean)[0],
-            melt: kelvinToCelsius(max(detail.melt)),
-            boil: kelvinToCelsius(max(detail.boil)),
+            ...phaseTemperatures(detail),
             // Hustota v g/cm³ (Wikidata ji normalizují na kg/m³)
             dens: detail.dens ? round(max(detail.dens) / 1000, 4) : undefined
         })
@@ -331,8 +336,7 @@ for (const [qid] of compoundCandidates) {
             formula,
             plain: formula ? toPlain(formula) : undefined,
             molar: formula ? molarMassOf(formula) : undefined,
-            melt: kelvinToCelsius(max(detail.melt)),
-            boil: kelvinToCelsius(max(detail.boil)),
+            ...phaseTemperatures(detail),
             dens: detail.dens ? round(max(detail.dens) / 1000, 4) : undefined
         }),
         kinds: kindsOf(detail)

@@ -35,11 +35,11 @@
     const days = (value) => value >= 730 ? `${formatNumber(Math.round(value / 365.25 * 10) / 10)} let` : `${formatNumber(Math.round(value * 10) / 10)} dní`;
     const unitLabel = (f) => f.usym ? `${f.unit} (${f.usym})` : f.unit;
 
-    const factsOf = (item, mode) => {
+    const factsOf = (item, mode, ctx) => {
         const f = item.f || {};
         if (item.c === 'veliciny') {
             const facts = formatFacts(item, [['sym', 'Značka', v => v]]);
-            if (mode !== 'unit' && f.unit) facts.push({ label: 'Jednotka SI', value: unitLabel(f) });
+            if (mode !== 'unit' && f.unit) facts.push({ label: isSIUnit(f.unit, ctx) ? 'Jednotka SI' : 'Jednotka', value: unitLabel(f) });
             return facts;
         }
         if (item.c === 'jednotky') {
@@ -98,15 +98,13 @@
     const fieldLabels = (item, ctx) => fieldsOf(item, ctx)
         .map(field => ((ctx.collections || []).find(collection => collection.id === field) || {}).label)
         .filter(Boolean).map(label => label.toLowerCase());
-    const unitByName = new WeakMap();
     const eponymHint = (named) => ({ kind: 'facts', label: 'pojmenována po', icon: 'user', facts: named ? [{ label: 'Pojmenována po', value: named }] : [] });
     const hintsFor = (item, ctx, type) => {
         const f = item.f || {};
         const field = fieldLabels(item, ctx);
         const fieldFact = field.length ? [{ label: 'Obor', value: field.join(', ') }] : [];
         if (type === 'unit') {
-            if (!unitByName.has(ctx.items)) unitByName.set(ctx.items, new Map(ctx.items.filter(other => other.c === 'jednotky').map(other => [other.n.toLowerCase(), other])));
-            const unit = unitByName.get(ctx.items).get((f.unit || '').toLowerCase());
+            const unit = unitNamed(f.unit, ctx);
             return [
                 { kind: 'facts', label: 'o veličině', icon: 'gauge', facts: [...(f.sym ? [{ label: 'Značka veličiny', value: f.sym }] : []), ...fieldFact] },
                 eponymHint(unit && unit.f.named)
@@ -130,6 +128,27 @@
         return null;
     };
 
+    const SYNONYMS = { 'vzdalenost': 'delka', 'termodynamicka teplota': 'teplota', 'velikost rychlosti': 'rychlost', 'cas': 'doba' };
+    const TYPEABLE_SYMBOL = /^[A-Za-z0-9/.·⋅²³⁻¹ ]+$/;
+    const SI_SYSTEMS = new Set(['základní jednotka SI', 'odvozená jednotka SI']);
+    const unitIndex = new WeakMap();
+    const unitNamed = (name, ctx) => {
+        if (!ctx || !ctx.items) return null;
+        if (!unitIndex.has(ctx.items)) unitIndex.set(ctx.items, new Map(ctx.items.filter(other => other.c === 'jednotky').map(other => [other.n.toLowerCase(), other])));
+        return unitIndex.get(ctx.items).get((name || '').toLowerCase()) || null;
+    };
+    // Jednotka SI: podle údaje u jednotky; složenou jednotku, která mezi položkami není (metr za sekundu na druhou),
+    // poznáme podle slov – jen jednotky SI a spojky (gram na mol ani mol na litr SI nejsou)
+    const SI_WORDS = new Set(['metr', 'metru', 'kilogram', 'kilogramu', 'sekunda', 'sekundu', 'sekund', 'amper', 'kelvin', 'kelvinu', 'mol', 'molu',
+        'kandela', 'newton', 'joule', 'watt', 'pascal', 'hertz', 'coulomb', 'volt', 'ohm', 'farad', 'siemens', 'weber', 'tesla', 'henry',
+        'lumen', 'lux', 'becquerel', 'gray', 'sievert', 'katal', 'radian', 'steradian',
+        'na', 'za', 'druhou', 'ctverecni', 'krychlovy', 'reciproky', 'reciproka', 'ctvrtou']);
+    const isSIUnit = (name, ctx) => {
+        const unit = unitNamed(name, ctx);
+        if (unit) return SI_SYSTEMS.has(unit.f.system);
+        return normalizeAnswer(name).split(' ').every(word => SI_WORDS.has(word));
+    };
+
     // Značka jednotky, která se od jiné liší jen velikostí písmen (m – M), se musí napsat přesně
     const hasCaseTwin = (symbol, ctx) => Boolean(symbol) && ctx.items.some(other => other.f && other.f.usym
         && other.f.usym !== symbol && other.f.usym.toLowerCase() === symbol.toLowerCase());
@@ -140,7 +159,7 @@
         const escaped = symbol.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
         const pattern = symbol.length > 1
             ? new RegExp(`(?<![\\p{L}])${escaped}(?![\\p{L}])`, 'gu')
-            : new RegExp(`(?<=\\d\\s?)${escaped}(?![\\p{L}])`, 'gu');
+            : new RegExp(`(?<=\\d\\s?|${core.AFTER_SYMBOL_WORD})${escaped}(?![\\p{L}])`, 'gu');
         return text.replace(pattern, '[***]');
     };
 
@@ -179,12 +198,14 @@
             // Nejpodobnější položky téže kategorie (z téhož oboru), jejich hodnota key jako nesprávné možnosti
             // Značky se porovnávají přesně (m a m² jsou různé), názvy bez diakritiky a velikosti písmen
             const rankedValues = (key, correct, extra = () => 0) => {
-                const keyOf = key === 'usym' ? (value) => value : normalizeAnswer;
+                // Synonyma (délka – vzdálenost) by byla dvě správné odpovědi, proto se porovnávají jako jedno
+                const keyOf = key === 'usym' ? (value) => value : (value) => SYNONYMS[normalizeAnswer(value)] || normalizeAnswer(value);
                 return takeDistinct(rankBySimilarity(same.filter(other => other.f[key]), other => (sameField(item, other, ctx) ? 2 : 0) + extra(other), rng),
                     3, new Set([keyOf(correct)]), other => other.f[key], keyOf).map(other => other.f[key]);
             };
             if (item.c === 'veliciny') {
-                if (!(rng() < UNIT_QUIZ_SHARE) || !f.unit) return null;
+                // Jen u jednotky SI – „Jaká je jednotka SI elektrické energie?“ by s kilowatthodinou neplatilo
+                if (!(rng() < UNIT_QUIZ_SHARE) || !f.unit || !isSIUnit(f.unit, ctx)) return null;
                 // Jednotky z téhož oboru a podobně složené (k newtonu joule, pascal, watt; ne bit za sekundu)
                 const wrong = rankedValues('unit', f.unit, other => (/[/·⋅ ]/.test(other.f.usym || '') === /[/·⋅ ]/.test(f.usym || '') ? 1 : 0));
                 if (wrong.length < 3) return null;
@@ -207,7 +228,8 @@
             }
             if (item.c === 'jednotky') {
                 const roll = rng();
-                if (roll < SYMBOL_QUIZ_SHARE && f.usym) {
+                // Značka, která nejde napsat na klávesnici telefonu (Ω, °, ℥), by při psaní byla neřešitelná
+                if (roll < SYMBOL_QUIZ_SHARE && f.usym && TYPEABLE_SYMBOL.test(f.usym)) {
                     // Značky jednotek téže veličiny nebo oboru a stejné soustavy (k Pa: bar, atm, N…)
                     const wrong = rankedValues('usym', f.usym, other => (other.f.measures === f.measures ? 3 : 0) + (other.f.system === f.system ? 1 : 0));
                     if (wrong.length < 3) return null;
@@ -254,7 +276,7 @@
 
         hints: hintsFor,
         visual: visualOf,
-        facts: (item, ctx, mode) => factsOf(item, mode),
+        facts: (item, ctx, mode) => factsOf(item, mode, ctx),
         subtitle: (item) => {
             const f = item.f || {};
             if (item.c === 'veliciny') return [f.sym ? `značka ${f.sym}` : '', f.unit ? `jednotka ${f.usym || f.unit}` : ''].filter(Boolean).join(' · ');

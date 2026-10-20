@@ -26,7 +26,15 @@ const MUST_QUANTITIES = { Q11466: 'Q11579', Q11651: 'Q25272' };
 // Co jednotka měří, kde Wikidata uvádějí méně obvyklou veličinu první
 const MEASURES_OVERRIDES = { Q11579: 'teplota', Q25272: 'elektrický proud' };
 // Jednotky, které do fyziky nepatří (kalendář, informatika) nebo jsou konstantou
-const NOT_UNITS = /^(1|týden|měsíc|rok|den|rychlost světla|pixel|procento|bit|bajt|sluneční hmotnost)$/iu;
+const NOT_UNITS = /^(1|týden|měsíc|rok|den|rychlost světla|pixel|procento|bit|bajt|sluneční hmotnost|zvláštní práva čerpání|galaktický rok|procentní bod|bazický bod|\p{L}*bajt|oktet|planckův náboj|sverdrup)$/iu;
+// Značky, které Wikidata uvádějí jinak, než se u nás píšou (tuna „MT“, unce „℥“)
+const SYMBOL_OVERRIDES = { Q191118: 't', Q48013: 'oz' };
+// Násobek jednotky SI: předpona a za ní jednotka SI (kilometr, mikrogram, femtometr, centimetr krychlový), ne decibel,
+// kilopond nebo kilometr za hodinu; kilogram na metr krychlový je odvozená jednotka
+const SI_PREFIX = '(?:yokto|zepto|atto|femto|piko|nano|mikro|mili|centi|deci|deka|hekto|kilo|mega|giga|tera|peta|exa)';
+const SI_UNIT_NAME = '(?:metr|gram|sekund|ampér|kelvin|mol|kandel|newton|joule|watt|pascal|hertz|volt|ohm|coulomb|farad|henry|tesla|weber|siemens|gray|sievert|lumen|lux|radián|steradián|katal|becquerel)';
+const isSIMultipleName = (name) => name.toLowerCase() === 'gram' || (new RegExp(`^${SI_PREFIX}${SI_UNIT_NAME}`, 'iu').test(name)
+    && !/^kilogram/iu.test(name) && !/hodin|minut|den|rok/iu.test(name));
 // Sedm základních jednotek SI
 const SI_BASE = ['Q11573', 'Q11570', 'Q11574', 'Q25272', 'Q11579', 'Q41509', 'Q83216'];
 
@@ -186,7 +194,7 @@ rank = 0;
 for (const [qid] of candidates.units) {
     const detail = usable(qid);
     if (!detail || rank >= LIMITS.jednotky.limit || NOT_UNITS.test(detail.n)) continue;
-    const symbol = unitSymbol(detail);
+    const symbol = SYMBOL_OVERRIDES[qid] || unitSymbol(detail);
     // Co jednotka měří: přednost má veličina, kterou máme mezi veličinami (u voltu napětí, ne „elektrotonický potenciál“)
     const measured = (detail.measures || []).map(cs).filter(Boolean);
     const quantityItems = items.filter(item => item.c === 'veliciny');
@@ -194,7 +202,7 @@ for (const [qid] of candidates.units) {
     const measures = MEASURES_OVERRIDES[qid] || (known ? known.n.toLowerCase() : undefined) || measured[0] || (quantityItems.find(item => item.f.unitId === qid) || {}).n?.toLowerCase();
     if (!symbol || !measures) continue;
     // Kilometr, miligram, gram: násobky a díly jednotek SI, ne odvozené jednotky
-    const isMultiple = /^(kilo|mili|centi|mikro|deci|nano|mega|giga|piko|hekto|deka)(?!gram$)|^gram$/iu.test(detail.n) && !SI_BASE.includes(qid);
+    const isMultiple = isSIMultipleName(detail.n) && !SI_BASE.includes(qid);
     const system = SI_BASE.includes(qid) ? 'základní jednotka SI' : isMultiple ? 'násobek jednotky SI' : isSI(qid) ? 'odvozená jednotka SI' : 'mimo soustavu SI';
     const added = addItem({
         q: qid, t: detail.t, n: capitalize(detail.n), c: 'jednotky', k: rank < LIMITS.jednotky.known || SI_BASE.includes(qid) ? 1 : 0, d: detail.d,
@@ -209,7 +217,7 @@ const PLANETS = ['Q308', 'Q313', 'Q2', 'Q111', 'Q319', 'Q193', 'Q324', 'Q332'];
 const solarKind = (detail) => {
     const types = (detail.type || []).map(en).join(' | ').toLowerCase();
     if (/hypothetical|fictional|myth|legend/.test(types)) return null;
-    if (/(^|\| )dwarf planet($| \|)/.test(types)) return 'trpaslicí planeta';
+    if (/(^|\| )dwarf planet($| \|)/.test(types)) return 'trpasličí planeta';
     if (/comet/.test(types)) return 'kometa';
     // Planety jsou jen ty skutečné (Varuna nebo Quaoar planety nejsou, i když to typ ve Wikidatech napovídá)
     if (PLANETS.includes(detail.q)) return 'planeta';
@@ -218,7 +226,7 @@ const solarKind = (detail) => {
 };
 const KIND_LABELS = { mesic: 'měsíc', hvezda: 'hvězda', galaxie: 'galaxie', souhvezdi: 'souhvězdí' };
 // Kolik nejznámějších těles každého druhu (planetek a komet má česká Wikipedie stovky)
-const KIND_LIMITS = { 'planeta': 20, 'trpaslicí planeta': 10, 'planetka': 20, 'kometa': 15, 'měsíc': 45, 'hvězda': 60, 'galaxie': 25, 'souhvězdí': 88 };
+const KIND_LIMITS = { 'planeta': 20, 'trpasličí planeta': 10, 'planetka': 20, 'kometa': 15, 'měsíc': 45, 'hvězda': 60, 'galaxie': 25, 'souhvězdí': 88 };
 const kindCounts = {};
 rank = 0;
 for (const [qid, sl, source] of candidates.space) {
@@ -233,7 +241,7 @@ for (const [qid, sl, source] of candidates.space) {
     const parent = (detail.parent || []).map(cs).filter(Boolean)[0];
     const lightYears = max(detail.dist) ? max(detail.dist) / 9.4607e15 : undefined;
     const added = addItem({
-        q: qid, t: detail.t, n: capitalize(detail.n), c: 'vesmir', k: rank < LIMITS.vesmir.known || ['planeta', 'trpaslicí planeta'].includes(kind) ? 1 : 0,
+        q: qid, t: detail.t, n: capitalize(detail.n), c: 'vesmir', k: rank < LIMITS.vesmir.known || ['planeta', 'trpasličí planeta'].includes(kind) ? 1 : 0,
         ty: kind, d: detail.d,
         ...imageFields(detail.im),
         f: {
@@ -288,7 +296,7 @@ const COLLECTIONS = [
     { id: 'teplo', label: 'Teplo a termika', test: item => quantity(q => THERMAL.test(q.n) || THERMAL.test(q.f.unit))(item) },
     { id: 'mechanika', label: 'Mechanika', text: 'Pohyb, síla, energie, tlak',
         test: quantity(q => /^(metr|kilogram|sekunda|newton|joule|watt|pascal|metr za sekundu|metr za sekundu na druhou|metr čtvereční|metr krychlový|kilogram na metr krychlový|newton metr|radián za sekundu)$/iu.test(q.f.unit) && !THERMAL.test(q.n)) },
-    { id: 'slunecni-soustava', label: 'Sluneční soustava', text: 'Slunce, planety, trpasličí planety a Měsíc', test: item => space('planeta', 'trpaslicí planeta')(item) || ['Q525', 'Q405'].includes(item.q) },
+    { id: 'slunecni-soustava', label: 'Sluneční soustava', text: 'Slunce, planety, trpasličí planety a Měsíc', test: item => space('planeta', 'trpasličí planeta')(item) || ['Q525', 'Q405'].includes(item.q) },
     { id: 'mesice', label: 'Měsíce planet', test: space('měsíc') },
     { id: 'hvezdy', label: 'Hvězdy', test: space('hvězda') },
     { id: 'souhvezdi', label: 'Souhvězdí', test: space('souhvězdí') },

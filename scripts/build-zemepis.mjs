@@ -4,7 +4,10 @@
 // 1. krok: pro každý typ (P31) seznam položek s nejvíc jazykovými verzemi (míra známosti)
 // 2. krok: podrobnosti po dávkách – článek na české Wikipedii, název, souřadnice, státy, fotka, čísla
 // 3. krok: zápis v UNESCO a okruhy pro systematické učení
+import { createRequire } from 'node:module';
 import { sparql, id, round, values, parsePoint, imageFields, cached, inBatches, readCountries, writeTopic, sleep, CZECHIA } from './lib/wikidata.mjs';
+
+const { getContinent } = createRequire(import.meta.url)('../quiz-core.js');
 
 // Typy jsou seřazené od nejvýstižnějšího – podle prvního nalezeného se místo popíše („hrad“, „mešita“…).
 // limit = kolik míst z kategorie vzít, known = kolik nejznámějších z nich patří mezi „známá místa“.
@@ -77,6 +80,11 @@ SELECT ?item ?sitelinks WHERE {
     return [...candidates];
 });
 const candidates = new Map(candidateList.map(([qid, entry]) => [qid, { ...entry, types: new Set(entry.types) }]));
+// Nizozemsko a Dánsko nejsou ve Wikidatech „suverénní stát“ (tím je celé království i se zámořím), přidají se ručně
+const EXTRA_STATES = { Q55: 400, Q35: 400 };
+for (const [qid, sitelinks] of Object.entries(EXTRA_STATES)) {
+    if (!candidates.has(qid)) candidates.set(qid, { sitelinks, types: new Set(['Q3624078']), czech: false });
+}
 
 // --- 2. krok: podrobnosti po dávkách ---
 const detailsQuery = (qids) => `
@@ -116,6 +124,24 @@ const details = new Map(await cached('zemepis-details', async () => {
     });
     return [...result];
 }));
+// Kandidáti přidaní až po uložení podrobností do mezipaměti (Nizozemsko, Dánsko) se dotáhnou zvlášť
+const missing = ordered.map(([qid]) => qid).filter(qid => !details.has(qid));
+if (missing.length) {
+    for (const [qid, detail] of await cached(`zemepis-details-extra-${missing.join('-')}`, async () => {
+        const result = new Map(missing.map(qid => [qid, { values: {}, types: {}, pops: [], co: [] }]));
+        await inBatches(missing, 80, detailsQuery, (row) => {
+            const entry = result.get(id(row.item.value));
+            const key = row.p.value;
+            if (!row.v) return;
+            const v = row.v.value;
+            if (key === 'type') entry.types[id(row.ref.value)] = v;
+            else if (key === 'pop') entry.pops.push({ value: Number(v), time: row.time ? row.time.value : '' });
+            else if (key === 'co') { if (!entry.co.includes(id(v))) entry.co.push(id(v)); }
+            else if (!(key in entry.values)) entry.values[key] = v;
+        });
+        return [...result];
+    })) details.set(qid, detail);
+}
 
 // Opravy chybných údajů ve Wikidatech (Annapurna je tam masiv s výškou vedlejšího vrcholu 7 756 m, hlavní vrchol má 8 091 m)
 const FACT_OVERRIDES = { Q159621: { elev: '8091' } };
@@ -189,7 +215,10 @@ for (const [qid, entry] of ordered) {
     const point = parsePoint(v.coord);
     // Státy jen ty, které dnes existují (stejný seznam jako v tabulce států)
     if (!category || !v.t || !point || (category.key === 'stat' && !countries[qid])) continue;
-    const name = v.n || v.t.replace(/ \(.*\)$/, '');
+    // Český štítek bývá malým písmenem (socha Svobody), název místa ve hře velkým; štítek „Q1“ (mrakodrap) není název
+    const rawName = v.n || v.t.replace(/ \(.*\)$/, '');
+    if (/^Q\d+$/.test(rawName)) continue;
+    const name = rawName.charAt(0).toUpperCase() + rawName.slice(1);
     const isCzech = detail.co.includes(CZECHIA) || entry.czech;
     if (category.key === 'mesto' && !(facts.pop >= (isCzech ? CZECH_TOWN_MIN_POP : TOWN_MIN_POP)) && !capitals.has(name)) continue;
     const rank = rankByCategory[category.key] || 0;
@@ -211,9 +240,11 @@ for (const [qid, entry] of ordered) {
         lo: point.lon,
         ty: TYPE_OVERRIDES[qid] || typeLabelOf(category, typeId, types[typeId]),
         d: v.d || undefined,
-        co: category.key === 'stat' ? [qid] : detail.co,
+        // Jen dnešní státy (u Moskevské konzervatoře ne Sovětský svaz a Ruské impérium)
+        co: category.key === 'stat' ? [qid] : detail.co.filter(country => countries[country]),
         ...imageFields(v.im),
-        f: facts
+        // Rok vzniku státu (Francie 481) by jen mátl
+        f: category.key === 'stat' ? Object.fromEntries(Object.entries(facts).filter(([key]) => key !== 'year')) : facts
     });
 }
 
@@ -231,10 +262,8 @@ SELECT DISTINCT ?item WHERE { VALUES ?item { ${values(qids)} } ?item wdt:P1435 w
     return found;
 }));
 
-const continentOf = (item) => {
-    const country = item.co.map(q => countries[q]).find(c => c && c.continent);
-    return country ? country.continent : '';
-};
+// Kontinent podle státu, u míst ve státech na pomezí (Rusko, Turecko…) podle polohy – stejně jako ve hře
+const continentOf = (item) => getContinent(item, countries);
 const CONTINENT_COLLECTIONS = [
     ['evropa', 'EU', 'Evropa'], ['asie', 'AS', 'Asie'], ['afrika', 'AF', 'Afrika'],
     ['severni-amerika', 'NA', 'Severní Amerika'], ['jizni-amerika', 'SA', 'Jižní Amerika'], ['oceanie', 'OC', 'Austrálie a Oceánie']

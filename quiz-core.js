@@ -22,11 +22,11 @@
     const COUNTRIES = [
         ['Q213', 'Česko', 'EU', ['Česká republika', 'ČR']], ['Q183', 'Německo', 'EU'], ['Q40', 'Rakousko', 'EU'], ['Q214', 'Slovensko', 'EU'],
         ['Q36', 'Polsko', 'EU'], ['Q28', 'Maďarsko', 'EU'], ['Q142', 'Francie', 'EU'], ['Q38', 'Itálie', 'EU'], ['Q29', 'Španělsko', 'EU'],
-        ['Q45', 'Portugalsko', 'EU'], ['Q145', 'Spojené království', 'EU', ['Velká Británie', 'Británie', 'UK']], ['Q27', 'Irsko', 'EU'],
+        ['Q45', 'Portugalsko', 'EU'], ['Q145', 'Spojené království', 'EU', ['Velká Británie', 'Británie', 'UK', 'Anglie']], ['Q27', 'Irsko', 'EU'],
         ['Q55', 'Nizozemsko', 'EU', ['Holandsko']], ['Q31', 'Belgie', 'EU'], ['Q32', 'Lucembursko', 'EU'], ['Q39', 'Švýcarsko', 'EU'],
         ['Q35', 'Dánsko', 'EU'], ['Q20', 'Norsko', 'EU'], ['Q34', 'Švédsko', 'EU'], ['Q33', 'Finsko', 'EU'], ['Q189', 'Island', 'EU'],
         ['Q191', 'Estonsko', 'EU'], ['Q211', 'Lotyšsko', 'EU'], ['Q37', 'Litva', 'EU'], ['Q212', 'Ukrajina', 'EU'], ['Q159', 'Rusko', 'EU', ['Ruská federace']],
-        ['Q184', 'Bělorusko', 'EU'], ['Q217', 'Moldavsko', 'EU'], ['Q218', 'Rumunsko', 'EU'], ['Q219', 'Bulharsko', 'EU'], ['Q41', 'Řecko', 'EU'],
+        ['Q184', 'Bělorusko', 'EU', ['Belarus']], ['Q217', 'Moldavsko', 'EU', ['Moldova']], ['Q218', 'Rumunsko', 'EU'], ['Q219', 'Bulharsko', 'EU'], ['Q41', 'Řecko', 'EU'],
         ['Q224', 'Chorvatsko', 'EU'], ['Q215', 'Slovinsko', 'EU'], ['Q403', 'Srbsko', 'EU'], ['Q225', 'Bosna a Hercegovina', 'EU', ['Bosna']],
         ['Q236', 'Černá Hora', 'EU'], ['Q222', 'Albánie', 'EU'], ['Q221', 'Severní Makedonie', 'EU', ['Makedonie']], ['Q233', 'Malta', 'EU'],
         ['Q229', 'Kypr', 'EU'], ['Q43', 'Turecko', 'AS'], ['Q148', 'Čína', 'AS', ['Čínská lidová republika', 'ČLR']], ['Q17', 'Japonsko', 'AS'],
@@ -39,7 +39,15 @@
         ['Q717', 'Venezuela', 'SA'], ['Q736', 'Ekvádor', 'SA'], ['Q750', 'Bolívie', 'SA'],
         ['Q79', 'Egypt', 'AF'], ['Q1028', 'Maroko', 'AF'], ['Q262', 'Alžírsko', 'AF'], ['Q948', 'Tunisko', 'AF'], ['Q1033', 'Nigérie', 'AF'],
         ['Q114', 'Keňa', 'AF'], ['Q115', 'Etiopie', 'AF'], ['Q924', 'Tanzanie', 'AF'], ['Q258', 'Jihoafrická republika', 'AF', ['JAR']],
-        ['Q1019', 'Madagaskar', 'AF'], ['Q408', 'Austrálie', 'OC'], ['Q664', 'Nový Zéland', 'OC']
+        ['Q1019', 'Madagaskar', 'AF'], ['Q408', 'Austrálie', 'OC'], ['Q664', 'Nový Zéland', 'OC'],
+        // Další běžné názvy a zkratky (psaná odpověď je přijme, popis je zakryje)
+        ['Q974', 'Konžská demokratická republika', 'AF', ['DR Kongo', 'Demokratická republika Kongo', 'KDR', 'Kongo']],
+        ['Q971', 'Konžská republika', 'AF', ['Kongo', 'Kongo-Brazzaville']], ['Q878', 'Spojené arabské emiráty', 'AS', ['SAE', 'Emiráty']],
+        ['Q836', 'Myanmar', 'AS', ['Barma']], ['Q865', 'Tchaj-wan', 'AS', ['Taiwan', 'Tchajwan', 'Čínská republika']],
+        ['Q423', 'Severní Korea', 'AS', ['KLDR', 'Korejská lidově demokratická republika']], ['Q1011', 'Kapverdy', 'AF', ['Kapverdské ostrovy']],
+        ['Q237', 'Vatikán', 'EU', ['Svatý stolec', 'Městský stát Vatikán']], ['Q219060', 'Stát Palestina', 'AS', ['Palestina']],
+        ['Q1050', 'Svazijsko', 'AF', ['Eswatini']], ['Q574', 'Východní Timor', 'AS', ['Timor-Leste']],
+        ['Q786', 'Dominikánská republika', 'NA', ['Dominikána']]
     ].map(([id, name, continent, aliases = []]) => ({ id, name, continent, aliases }));
 
     const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch]);
@@ -103,7 +111,11 @@
     // \b v JavaScriptu nezná česká písmena, proto hranice slov přes Unicode třídy
     const NOT_LETTER_BEFORE = '(?<![\\p{L}\\p{N}])';
     const NOT_LETTER_AFTER = '(?![\\p{L}\\p{N}])';
-    const CENSOR_SKIP_WORDS = new Set(['nad', 'pod', 'na', 've', 'de', 'la', 'le', 'les', 'des', 'du', 'di', 'da', 'del', 'der', 'die', 'das', 'am', 'an', 'im', 'of', 'the', 'and', 'et', 'san', 'saint', 'sankt']);
+    // Předložky a členy (i al- v Abú Bakr al-Bagdádí), které by zakryly běžná slova („al“ by vzalo i „ale“)
+    const CENSOR_SKIP_WORDS = new Set(['nad', 'pod', 'na', 've', 'de', 'la', 'le', 'les', 'des', 'du', 'di', 'da', 'del', 'der', 'die', 'das', 'am', 'an', 'im', 'of', 'the', 'and', 'et', 'san', 'saint', 'sankt',
+        'al', 'el', 'ad', 'as', 'ar', 'az', 'ibn', 'bin', 'ben', 'von', 'van', 'zu', 'den', 'ten', 'ter', 'dos', 'do', 'y']);
+    // Římská číslice (Karel IV.) – zakrytá by v textu schovala i čísla jiných panovníků a nic by nepřidala
+    const isRomanNumeral = (word) => /^[IVXLC]+\.?$/.test(word);
     const STEM_ALTERNATIONS = [
         [/h$/iu, 'z'], [/h$/iu, 'ž'], [/g$/iu, 'z'], [/g$/iu, 'ž'], [/ch$/iu, 'š'], [/k$/iu, 'c'], [/k$/iu, 'č'],
         [/r$/iu, 'ř'], [/ň$/iu, 'n'], [/ť$/iu, 't'], [/ď$/iu, 'd']
@@ -119,6 +131,9 @@
     // Sněžka → Sněžk/Sněžc, Hradec → Hradc, Plzeň → Plzn
     const getWordStems = (word) => {
         const stems = new Set([word.replace(/[aeiouyáéěíóúůý]$/iu, ''), word.replace(/[aeiouyáéěíóúůý]+$/iu, '')]);
+        // Rody a národy v množném čísle: Přemyslovci → Přemyslovec, přemyslovský; Lucemburkové → Lucemburk, Lucemburků
+        if (word.length >= 7 && /ovci$/iu.test(word)) stems.add(word.slice(0, -2));
+        if (word.length >= 7 && /ové$/iu.test(word)) stems.add(word.slice(0, -3));
         for (const stem of [...stems]) {
             for (const [pattern, replacement] of STEM_ALTERNATIONS) {
                 if (pattern.test(stem)) stems.add(stem.replace(pattern, replacement));
@@ -138,7 +153,7 @@
     const buildWordsPattern = (words) => {
         const parts = [];
         for (const word of words) {
-            if (word.length < 2 || CENSOR_SKIP_WORDS.has(word.toLowerCase())) continue;
+            if (word.length < 2 || CENSOR_SKIP_WORDS.has(word.toLowerCase()) || isRomanNumeral(word)) continue;
             for (const stem of getWordStems(word)) {
                 parts.push(escapeRegExp(stem) + (stem.length >= 4 ? '\\p{L}*' : SHORT_STEM_ENDINGS));
             }
@@ -152,7 +167,7 @@
 
     const censorWords = (text, phrase) => {
         const words = stripBrackets(phrase).trim().split(/[\s,\-–]+/);
-        const abbreviations = words.filter(isAbbreviation);
+        const abbreviations = words.filter(word => isAbbreviation(word) && !isRomanNumeral(word));
         const pattern = buildWordsPattern(words.filter(word => !isAbbreviation(word)));
         let res = pattern ? text.replace(pattern, '[***]') : text;
         if (abbreviations.length) {
@@ -176,6 +191,9 @@
     // Region přídavným jménem: v Jihomoravském kraji, ve Středočeském kraji, v Plzeňském regionu
     const REGION_ADJECTIVE_PATTERN = /(?<![\p{L}\p{N}])(?:v|ve) \p{Lu}\p{Ll}+(?:ém|ím) (?:kraji|okrese|regionu|vojvodství|kantonu|departementu|hrabství)(?![\p{L}\p{N}])/gu;
 
+    // Místo hned po slově „značka“ (značka N, se značkou m, značí se A) – tam se zakryje i jednopísmenná značka
+    const AFTER_SYMBOL_WORD = '(?:[Zz]načk\\p{L}*|[Ss]ymbol\\p{L}*|[Zz]kratk\\p{L}*|[Zz]načí se|[Oo]značuje se|[Oo]značení)\\s*:?\\s+';
+
     const isKnownCountry = (country) => Boolean(country) && country !== UNKNOWN_COUNTRY && country !== INTERNATIONAL_WATERS;
 
     // aliases: další názvy a zkratky státu (USA, ČR, Ruská federace…) – zakryjí se také
@@ -192,8 +210,23 @@
         return mergeCensored(censorWords(res, [country, ...aliases].join(', ')));
     };
 
+    // Vzorce z Wikipedie ({\displaystyle E=mc^{2}}) jsou v textu nečitelné – i s vnořenými závorkami pryč
+    const stripMath = (text) => {
+        let result = text;
+        for (let start = result.indexOf('{\\displaystyle'); start >= 0; start = result.indexOf('{\\displaystyle')) {
+            let depth = 0;
+            let end = start;
+            for (; end < result.length; end++) {
+                if (result[end] === '{') depth++;
+                if (result[end] === '}' && --depth === 0) break;
+            }
+            result = result.slice(0, start) + result.slice(end + 1);
+        }
+        return result;
+    };
+
     const processWikiText = (extract) => {
-        let cleanExtract = stripBrackets(stripBrackets(extract));
+        let cleanExtract = stripBrackets(stripBrackets(stripMath(extract)));
         cleanExtract = cleanExtract.replace(/\s+([,;.?!])/g, '$1').replace(/\s{2,}/g, ' ');
 
         cleanExtract = cleanExtract
@@ -268,25 +301,77 @@
     };
     // Značka nebo vzorec přesně (m ≠ m², CO ≠ CO₂); horní a dolní indexy jako obyčejné číslice, bez mezer;
     // velikost písmen jen tam, kde by rozhodovala (m – M)
+    // Oddělovače se nepočítají: N·m = N m = Nm, A⋅h = Ah, l.y. = ly
     const normalizeSymbol = (text, caseSensitive) => {
-        const plain = String(text ?? '').normalize('NFKC').replace(/\s+/g, '').replace(/[·⋅•*]/g, '.');
+        const plain = String(text ?? '').normalize('NFKC').replace(/[\s·⋅•*.]+/g, '');
         return caseSensitive ? plain : plain.toLowerCase();
     };
     const isSymbolMatch = (input, symbols, caseSensitive = false) => {
         const given = normalizeSymbol(input, caseSensitive);
         return Boolean(given) && symbols.some(symbol => normalizeSymbol(symbol, caseSensitive) === given);
     };
-    // Století: číslo a zda jde o dobu před naším letopočtem („5. století př. n. l.“, „5 pnl“, „-5“)
+    // Složení vzorce (počet atomů každého prvku), i se závorkami a krystalovou vodou; null, když to vzorec není
+    const formulaCounts = (text) => {
+        const plain = String(text ?? '').normalize('NFKC').replace(/\s+/g, '');
+        if (!plain || !/^[A-Za-z0-9()[\]·⋅.*]+$/.test(plain)) return null;
+        const total = new Map();
+        for (const part of plain.split(/[·⋅.*]/)) {
+            const [, coefficient, body] = /^(\d*)(.*)$/.exec(part);
+            const stack = [new Map()];
+            const tokens = body.match(/[A-Z][a-z]?|\d+|./g) || [];
+            const add = (map, element, n) => map.set(element, (map.get(element) || 0) + n);
+            for (let i = 0; i < tokens.length; i++) {
+                const token = tokens[i];
+                if (token === '(' || token === '[') {
+                    stack.push(new Map());
+                    continue;
+                }
+                const count = /^\d+$/.test(tokens[i + 1] || '') ? Number(tokens[++i]) : 1;
+                if (token === ')' || token === ']') {
+                    if (stack.length < 2) return null;
+                    const group = stack.pop();
+                    for (const [element, n] of group) add(stack[stack.length - 1], element, n * count);
+                } else if (/^[A-Z][a-z]?$/.test(token)) {
+                    add(stack[stack.length - 1], token, count);
+                } else {
+                    return null;
+                }
+            }
+            if (stack.length !== 1) return null;
+            for (const [element, n] of stack[0]) total.set(element, (total.get(element) || 0) + n * Number(coefficient || 1));
+        }
+        return total.size ? total : null;
+    };
+    const sameCounts = (a, b) => Boolean(a && b) && a.size === b.size && [...a].every(([key, n]) => b.get(key) === n);
+    // Vzorec stejného složení platí taky (C2H5OH i C2H6O u ethanolu, CH3COOH i C2H4O2)
+    const isFormulaMatch = (input, formulas) => isSymbolMatch(input, formulas)
+        || formulas.some(formula => sameCounts(formulaCounts(input), formulaCounts(formula)));
+
+    const ROMAN_VALUES = { i: 1, v: 5, x: 10, l: 50, c: 100 };
+    const romanToNumber = (text) => {
+        let total = 0;
+        for (let i = 0; i < text.length; i++) {
+            const value = ROMAN_VALUES[text[i]];
+            const next = ROMAN_VALUES[text[i + 1]] || 0;
+            total += value < next ? -value : value;
+        }
+        return total;
+    };
+    // Století: číslo (i římské – XIV. století) a zda jde o dobu před naším letopočtem („5. století př. n. l.“, „5 pnl“, „-5“)
     const isCenturyMatch = (input, century) => {
         const text = normalizeAnswer(input);
-        const number = /\d+/.exec(text);
+        const digits = /\d+/.exec(text);
+        // Římské číslo: nejdelší slovo z římských číslic (ve „v XIV. století př. n. l.“ je to XIV, ne předložka v ani l)
+        const roman = text.split(' ').filter(word => /^[ivxlc]+$/.test(word)).sort((a, b) => b.length - a.length)[0];
+        const number = digits ? Number(digits[0]) : roman ? romanToNumber(roman) : NaN;
         if (!number) return false;
         const beforeChrist = /(^|\s)(pr|pred|pnl|bc)(\s|$)/.test(text) || /^-/.test(String(input).trim());
-        return Number(number[0]) === Math.abs(century) && beforeChrist === (century < 0);
+        return number === Math.abs(century) && beforeChrist === (century < 0);
     };
-    // Odpověď podle druhu otázky: match = 'century' | 'symbol', jinak názvy s tolerancí překlepů a případně i přesné značky
+    // Odpověď podle druhu otázky: match = 'century' | 'symbol' | 'formula', jinak názvy s tolerancí překlepů a případně i přesné značky
     const checkAnswer = (input, question) => {
         if (question.match === 'century') return isCenturyMatch(input, question.century);
+        if (question.match === 'formula') return isFormulaMatch(input, question.accepted);
         if (question.match === 'symbol') return isSymbolMatch(input, question.accepted, question.caseSensitive);
         return isAnswerMatch(input, question.accepted) || isSymbolMatch(input, question.symbols || [], question.caseSensitive);
     };
@@ -341,9 +426,29 @@
     });
 
     const getCountryNames = (item, countries) => (item.co || []).map(id => countries[id] && countries[id].name).filter(Boolean);
+    // Širší Evropa mezi Atlantikem a Uralem, se Špicberky, Kyprem, Kavkazem i Krétou (hrubě, jen pro zámoří a Sibiř)
+    const isInEurope = (lat, lon) => lat >= 34 && lat <= 82 && lon >= -32 && lon <= 69 && !(lon > 60 && lat < 69);
+    // Jasně Evropa: bez Malé Asie za Bosporem, Zakavkazska a Kazachstánu za Kaspickým mořem (pro Thrákii u Turecka)
+    const isClearlyEurope = (lat, lon) => isInEurope(lat, lon) && lat >= 35
+        && !(lat < 42.3 && lon > 26 && !(lat > 40.6 && lon < 29.01)) && !(lon > 40 && lat < 44) && !(lon > 50 && lat < 51.5);
+    // Kontinent mimo Evropu podle polohy (jen hrubě – pro zámoří a státy na dvou kontinentech)
+    const continentAt = (lat, lon) => {
+        if (isInEurope(lat, lon)) return 'EU';
+        if (lat > 50 && (lon > 60 || lon < -168)) return 'AS';
+        if ((lon > 110 || lon < -120) && lat < 25) return 'OC';
+        if (lon < -25) return lat > 13 || (lat > 11 && lon > -72) || (lat > 7 && lon < -77) ? 'NA' : 'SA';
+        if (lat < 37 && lon >= -26 && (lon < 60 || lat < -5 && lon < 80) && !(lon > 34 && lat > 12) && !(lon > 25 && lat > 32)) return 'AF';
+        return 'AS';
+    };
+    // Místa státu, který leží na dvou kontinentech nebo má zámoří (Sibiř, Ankara, Réunion, Tahiti), podle polohy;
+    // stát sám podle tabulky států (Rusko je evropský stát)
     const getContinent = (item, countries) => {
         const country = (item.co || []).map(id => countries[id]).find(c => c && c.continent);
-        return country ? country.continent : '';
+        const continent = country ? country.continent : '';
+        if (!continent || item.c === 'stat' || item.la === undefined || item.lo === undefined) return continent;
+        if (continent === 'EU') return continentAt(item.la, item.lo);
+        if (continent === 'AS' && isClearlyEurope(item.la, item.lo)) return 'EU';
+        return continent;
     };
 
     // --- Nesprávné možnosti: co nejpodobnější správné odpovědi, aby nebyla poznat na první pohled ---
@@ -395,7 +500,8 @@
     };
 
     // Je jeden název celý obsažený v druhém (Síla – Tíhová síla, Energie – Vnitřní energie, i se skloněním: Rychlost –
-    // Velikost rychlosti)? Taková možnost by byla sporná, proto má přednost cokoli jiného. Krátká slova a římské číslice
+    // Velikost rychlosti, sokol – sokol stěhovavý)? Taková možnost by byla sporná, proto přijde na řadu až po všech
+    // ostatních. Krátká slova a římské číslice
     // musí sedět přesně (Václav II. a Václav III. sporní nejsou)
     const isNamePart = (a, b) => {
         const [shorter, longer] = [normalizeAnswer(a).split(' '), normalizeAnswer(b).split(' ')].sort((x, y) => x.length - y.length);
@@ -410,7 +516,7 @@
         // Ke známé odpovědi známá možnost váží víc – jinak by známá odpověď mezi samými neznámými byla nápadná
         const tier = (other) => other.k !== item.k ? 0 : item.k === 1 ? 3 : 2;
         const score = (other) => tier(other) + (item.ty && other.ty === item.ty ? 4 : 0) + (similarity(other) || 0)
-            - (isNamePart(item.n, other.n) ? 4 : 0);
+            - (isNamePart(item.n, other.n) ? 100 : 0);
         const ranked = rankBySimilarity(items.filter(other => other.c === item.c && other.q !== item.q), score, rng);
         const distractors = takeDistinct(ranked, 3, new Set([normalizeAnswer(item.n)]), other => other.n);
         return shuffle([
@@ -472,13 +578,18 @@
     // Fakt, který hráč už vidí v zadání nebo popisu („Místo: Sudoměř“ u „bitvy u Sudoměře“), nápovědu nepřidá.
     // Slovo se hledá podle kmene (začátku), ať se najde i v jiném pádě; čísla a krátká slova se neporovnávají.
     const stemOf = (word) => word.slice(0, Math.max(4, Math.ceil(word.length * 0.7)));
-    // Slovo je vidět i tehdy, když z některého slova textu vychází (vorvaň → vorvaňovití, hřib → hřibovité)
+    // Slovo je vidět i tehdy, když z některého slova textu vychází (vorvaň → vorvaňovití, hřib → hřibovité,
+    // s pohyblivým e: klouzek → klouzkovité, orel → orlovití)
     const isFactVisible = (value, text) => {
         const haystack = normalizeAnswer(text);
         const significant = (word) => word.length >= 4 && !/^\d+$/.test(word);
         const textWords = haystack.split(' ').filter(significant);
+        const rootsOf = (other) => [other.slice(0, Math.max(3, other.length - 1)), other.replace(/e([^aeiouy])$/, '$1')];
+        // Krátké slovo textu jen s příponou skupiny (pes → psovití), jinak by „ps“ našlo i pstruhy
+        const shortWords = haystack.split(' ').filter(word => word.length === 3 && /^\p{L}+$/u.test(word));
         const seen = (word) => haystack.includes(stemOf(word))
-            || textWords.some(other => word.length <= other.length + 6 && word.startsWith(other.slice(0, Math.max(3, other.length - 1))));
+            || textWords.some(other => word.length <= other.length + 6 && rootsOf(other).some(root => root.length >= 3 && word.startsWith(root)))
+            || shortWords.some(other => [other, other.replace(/e([^aeiouy])$/, '$1')].some(root => word.startsWith(`${root}ov`)));
         const words = normalizeAnswer(value).split(' ').filter(significant);
         return words.length > 0 && words.every(seen);
     };
@@ -686,13 +797,13 @@
     };
 
     return {
-        UNKNOWN_COUNTRY, INTERNATIONAL_WATERS, CZECHIA_QID, TILE_SIZE, COUNTRIES, CONTINENT_NAMES,
+        UNKNOWN_COUNTRY, INTERNATIONAL_WATERS, CZECHIA_QID, AFTER_SYMBOL_WORD, TILE_SIZE, COUNTRIES, CONTINENT_NAMES,
         SATELLITE_TILES, OSM_TILES,
         escapeHtml, stripBrackets, isRealPhoto, commonsPhotoUrl, commonsFileUrl, displayName, plural, formatPoints,
         getDayKey, shiftDayKey, formatDayKey, createSeededRandom, pickRandom, shuffle,
         ELEMENT_FAMILIES, elementFamily, periodicPosition,
-        getWordStems, censorName, mergeCensored, censorCountry, isKnownCountry, processWikiText, normalizeAnswer, levenshtein, isAnswerMatch, isSymbolMatch, isCenturyMatch, checkAnswer,
-        inCollection, filterItems, pickItem, sortItems, getCountryNames, getContinent, getCountryAliases,
+        getWordStems, censorName, mergeCensored, censorCountry, isKnownCountry, processWikiText, normalizeAnswer, levenshtein, isAnswerMatch, isSymbolMatch, isCenturyMatch, isFormulaMatch, formulaCounts, checkAnswer,
+        inCollection, filterItems, pickItem, sortItems, getCountryNames, getContinent, continentAt, getCountryAliases,
         distanceKm, nearness, STATE_STEPS, sharesGroup, eraNearness, personSimilarity, rankBySimilarity, takeDistinct,
         buildItemChoices, buildCountryChoices, findAnswerItem, findAnswerCountry, updateMistakes, nameAnswers, countryAnswers,
         pointsFor, dropKnownFacts, isFactVisible, formatNumber, formatPopulation, formatYear, formatFacts, getMapSpan, buildBlindMap,

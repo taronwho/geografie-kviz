@@ -43,7 +43,9 @@
         const f = item.f || {};
         // U otázky „Kam patří?“ zařazení od hledané úrovně níž chybí
         const hidden = mode === 'taxon' ? (isPlantLike(item) ? ['fam'] : ['ord', 'fam']) : [];
-        const levels = [['cls', 'Třída'], ['ord', 'Řád'], ['fam', 'Čeleď']].filter(([key]) => !hidden.includes(key));
+        // Jen české názvy skupin (vědecké jako Pangalliformes nic neřeknou) a čeleď, jen když se jmenuje jinak než řád (sokoli)
+        const isCzechGroup = (key) => /^\p{Ll}/u.test(f[key] || '') && !(key === 'fam' && f.fam === f.ord);
+        const levels = [['cls', 'Třída'], ['ord', 'Řád'], ['fam', 'Čeleď']].filter(([key]) => !hidden.includes(key) && isCzechGroup(key));
         const facts = formatFacts(item, [
             ...levels.map(([key, label]) => [key, label, v => v]),
             ['iucn', 'Ohrožení', v => IUCN[v] || v],
@@ -81,6 +83,19 @@
             ...(level.key === 'ord' && /^\p{Ll}/u.test(f.fam || '') ? [{ kind: 'facts', label: 'čeleď', icon: 'git-branch', facts: [{ label: 'Čeleď', value: f.fam }] }] : []),
             { kind: 'facts', label: 'příbuzní', icon: 'network', facts: relatives.length ? [{ label: level.key === 'ord' ? 'Ze stejného řádu' : 'Ze stejné čeledi', value: relatives.join(', ') }] : [] }
         ];
+    };
+
+    // Psaná odpověď na řád či čeleď i v jednotném čísle: hlodavci → hlodavec, ptáci → pták, psovití → psovitý,
+    // růžovité → růžovitá, šelmy → šelma, letouni → letoun (u víceslovných názvů každé slovo)
+    const SINGULAR_ENDINGS = [[/([^aeiouyáéíóúůý])ci$/u, '$1ec'], [/áci$/u, 'ák'], [/íci$/u, 'ík'], [/ouci$/u, 'ouk'], [/ití$/u, 'itý'], [/ité$/u, 'itá'], [/([^aeiouyáéíóúůý])y$/u, '$1a'], [/([^aeiouyáéíóúůýc])i$/u, '$1']];
+    const singularsOf = (name) => {
+        const forms = new Set();
+        for (const [pattern, replacement] of SINGULAR_ENDINGS) {
+            const words = name.split(' ').map(word => word.replace(pattern, replacement));
+            const form = words.join(' ');
+            if (form !== name) forms.add(form);
+        }
+        return [...forms];
     };
 
     const rangeMapOf = (item) => item.rm && item.rh ? { type: 'image', file: item.rm, hash: item.rh, name: 'mapa rozšíření', icon: 'map' } : null;
@@ -147,7 +162,7 @@
             const isCzechName = (label) => Boolean(label) && /^\p{Ll}/u.test(label);
             if (!isCzechName(answer)) return null;
             // Skupina, kterou prozradí už název (krokodýl nilský → krokodýli, hřib → hřibovité), by nebyla otázka
-            if (core.isFactVisible(answer, item.n)) return null;
+            if (answer.split(' ').some(word => core.isFactVisible(word, item.n))) return null;
             // Sesterské skupiny seřazené podle toho, kolik druhů v nich máme – běžné řády (hlodavci, kytovci), ne vzácné (luskouni)
             const siblings = (parentKey) => {
                 const counts = new Map();
@@ -170,7 +185,7 @@
                 title: level.title,
                 showName: true,
                 choices: shuffle([answer, ...wrong], rng).map(label => ({ id: `taxon-${label}`, label, correct: label === answer })),
-                accepted: [answer],
+                accepted: [answer, ...singularsOf(answer)],
                 placeholder: `Napiš ${level.key === 'ord' ? 'řád' : 'čeleď'}, třeba ${level.key === 'ord' ? 'šelmy' : 'růžovité'}`,
                 answerLabel: answer
             };

@@ -25,13 +25,23 @@
 
     // Otázka na století se ptá na jeden okamžik (nástup, narození, vznik), ne na celý život –
     // kdo žil na přelomu století (Eliška Přemyslovna 1292–1330), patřil by do obou
+    // Rok narození u starověkých osob bývá jen odhad (−3000, 500) – na takový se neptáme
+    const isEstimate = (year) => year < 1500 && year % 50 === 0;
+    const THIS_YEAR = new Date().getFullYear();
+    // Nesmyslné údaje z Wikidat (úmrtí před narozením, konec před začátkem, budoucnost) otázku na století vyřadí
+    const hasValidDates = (f) => !(f.born !== undefined && f.died !== undefined && f.died <= f.born)
+        && !(f.year !== undefined && f.end !== undefined && f.end < f.year)
+        && !(f.from !== undefined && f.to !== undefined && f.to < f.from)
+        && [f.born, f.died, f.from, f.year].every(year => year === undefined || year <= THIS_YEAR);
     const centuryEvent = (item) => {
         const f = item.f || {};
+        if (!hasValidDates(f)) return null;
         const ending = item.sx === 'f' ? 'a' : '';
         if (item.c === 'panovnik' && f.from !== undefined) return { year: f.from, title: `Ve kterém století začal${ending} vládnout?` };
-        if (item.c === 'statnik' && f.from !== undefined) return { year: f.from, title: `Ve kterém století nastoupil${ending} do úřadu?` };
-        if (isPerson(item) && f.born !== undefined) return { year: f.born, title: `Ve kterém století se narodil${ending}?` };
-        if (isPerson(item) && f.died !== undefined) return { year: f.died, title: `Ve kterém století zemřel${ending}?` };
+        // Úřad i u papežů a dalších osobností – narození je u nich často jen odhad
+        if (isPerson(item) && f.from !== undefined) return { year: f.from, title: `Ve kterém století nastoupil${ending} do úřadu?` };
+        if (isPerson(item) && f.born !== undefined && !isEstimate(f.born)) return { year: f.born, title: `Ve kterém století se narodil${ending}?` };
+        if (isPerson(item) && f.died !== undefined && !isEstimate(f.died)) return { year: f.died, title: `Ve kterém století zemřel${ending}?` };
         if (item.c === 'bitva' && f.year !== undefined) {
             const spansCenturies = f.end !== undefined && centuryOf(f.end) !== centuryOf(f.year);
             return { year: f.year, title: spansCenturies ? 'Ve kterém století to začalo?' : 'Ve kterém století se to odehrálo?' };
@@ -282,8 +292,9 @@
         specialQuestion: (item, ctx, rng) => {
             if (!(rng() < CENTURY_QUIZ_SHARE)) return null;
             const event = centuryEvent(item);
-            // Rok 1300 patří do 13. století, většina lidí by ale řekla 14. – takovou otázku vynecháme
-            if (!event || event.year % 100 === 0) return null;
+            // Rok 1300 patří do 13. století, většina lidí by ale řekla 14. – takovou otázku vynecháme;
+            // stejně tak, když je letopočet vidět už v názvu („Pád Akkonu (1291)“)
+            if (!event || event.year % 100 === 0 || /\d{3,4}/.test(item.n)) return null;
             const century = centuryOf(event.year);
             // Nesprávná století co nejblíž: obě sousední, pak o dvě dál (u Washingtona 17., 19., 16. – ne 15. nebo 21.)
             const shift = (offset) => {
