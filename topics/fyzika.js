@@ -16,7 +16,7 @@
         { key: 'veliciny', label: 'Fyzikální veličiny', one: 'veličina', icon: 'gauge', question: 'Která veličina to je?', placeholder: 'Napiš název veličiny…', sort: { by: 'name' } },
         { key: 'jednotky', label: 'Jednotky', one: 'jednotka', icon: 'ruler', question: 'Která jednotka to je?', placeholder: 'Napiš název jednotky…', sort: { by: 'name' } },
         { key: 'vesmir', label: 'Vesmír', one: 'vesmírné těleso', icon: 'orbit', question: 'Co je to za těleso?', placeholder: 'Napiš název…', sort: { by: 'name' } },
-        { key: 'fyzici', label: 'Fyzici', one: 'fyzik', icon: 'user', question: 'Kdo to je?', placeholder: 'Napiš jméno…', ask: 'Kdo je', sort: { by: 'y' } }
+        { key: 'fyzici', label: 'Fyzici', one: 'fyzik', icon: 'user', question: 'Kdo to je?', placeholder: 'Napiš jméno…', ask: 'Kdo je', portrait: true, sort: { by: 'y' } }
     ];
 
     // Jak často se u veličiny ptáme na jednotku a u jednotky na značku nebo na to, co měří

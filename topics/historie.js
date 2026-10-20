@@ -9,7 +9,8 @@
 
     const { formatYear, formatFacts, centuryOf, centuryLabel, getCountryNames, shuffle, eraNearness, personSimilarity } = core;
 
-    const PERSON = { question: 'Kdo to je?', placeholder: 'Napiš jméno…', ask: 'Kdo je', sort: { by: 'y' } };
+    // portrait: fotky osob se zarovnají nahoru, ať je vidět obličej
+    const PERSON = { question: 'Kdo to je?', placeholder: 'Napiš jméno…', ask: 'Kdo je', portrait: true, sort: { by: 'y' } };
     const CATEGORIES = [
         { key: 'panovnik', label: 'Panovníci', one: 'panovník', icon: 'crown', ...PERSON, spanLabel: 'vláda' },
         { key: 'statnik', label: 'Prezidenti a státníci', one: 'státník', icon: 'scale', ...PERSON, spanLabel: 'v úřadu' },

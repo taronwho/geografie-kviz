@@ -76,12 +76,12 @@
             svg.appendChild(svgElement('line', { x1: point.x, x2: point.x, y1: axisY - 44, y2: axisY, 'stroke-width': 2, class: 'stroke-amber-500' }));
             svg.appendChild(svgElement('circle', { cx: point.x, cy: axisY - 44, r: 7, 'stroke-width': 2.5, class: 'fill-amber-500 stroke-white dark:stroke-slate-900' }));
         }
-        // Známé události v okolí: krátká značka pod osou a popisek
-        layout.anchors.forEach((anchor, index) => {
-            const y = axisY + 46 + (index % 2) * 15;
+        // Známé události v okolí: čárka pod osou a popisek v řádku a zarovnání, které spočítalo jádro (bez překrývání)
+        for (const anchor of layout.anchors) {
+            const y = axisY + 46 + anchor.row * 15;
             svg.appendChild(svgElement('line', { x1: anchor.x, x2: anchor.x, y1: axisY + 4, y2: y - 11, 'stroke-width': 1, 'stroke-dasharray': '2 2', class: 'stroke-slate-400 dark:stroke-slate-500' }));
-            svg.appendChild(svgText(anchor.label, { x: anchor.x, y, 'text-anchor': anchor.x < width * 0.25 ? 'start' : anchor.x > width * 0.75 ? 'end' : 'middle', 'font-size': 11, class: 'fill-slate-600 dark:fill-slate-300' }));
-        });
+            svg.appendChild(svgText(anchor.label, { x: anchor.x, y, 'text-anchor': anchor.align, 'font-size': 11, class: 'fill-slate-600 dark:fill-slate-300' }));
+        }
         // Popisky pruhů
         const legend = [];
         if (layout.bars.some(bar => bar.kind === 'life')) legend.push(['fill-amber-200 dark:fill-amber-900', 'život']);

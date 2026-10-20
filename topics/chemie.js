@@ -15,7 +15,7 @@
     const CATEGORIES = [
         { key: 'prvky', label: 'Chemické prvky', one: 'prvek', icon: 'atom', question: 'Který prvek to je?', placeholder: 'Napiš název prvku…', sort: { by: 'z' } },
         { key: 'latky', label: 'Sloučeniny a látky', one: 'látka', icon: 'test-tube', question: 'Co je to za látku?', placeholder: 'Napiš název látky…', sort: { by: 'name' } },
-        { key: 'chemici', label: 'Chemici', one: 'chemik', icon: 'user', question: 'Kdo to je?', placeholder: 'Napiš jméno…', ask: 'Kdo je', sort: { by: 'y' } }
+        { key: 'chemici', label: 'Chemici', one: 'chemik', icon: 'user', question: 'Kdo to je?', placeholder: 'Napiš jméno…', ask: 'Kdo je', portrait: true, sort: { by: 'y' } }
     ];
 
     // Jak často se u prvku ptáme na značku a u látky na vzorec

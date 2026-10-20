@@ -161,9 +161,12 @@
         return res;
     };
 
+    // Sousední zakrytá slova jako jeden blok – podle počtu [***] by šlo poznat, z kolika slov se odpověď skládá
+    const mergeCensored = (text) => text.replace(/\[\*\*\*\](?:[\s\-–]+\[\*\*\*\])+/g, '[***]');
+
     const censorName = (text, name) => {
         const res = stripBrackets(text).replace(/\s{2,}/g, ' ');
-        return censorWords(res, name);
+        return mergeCensored(censorWords(res, name));
     };
 
     const NATIONALITY_PATTERN = new RegExp(NOT_LETTER_BEFORE + '(?:americk|rusk|německ|francouzsk|italsk|japonsk|čínsk|kanadsk|australsk|britsk)\\p{L}*', 'giu');
@@ -185,8 +188,8 @@
             .replace(REGION_PATTERN, '[***]')
             .replace(REGION_ADJECTIVE_PATTERN, '[***]');
 
-        if (!isKnownCountry(country)) return res;
-        return censorWords(res, [country, ...aliases].join(', '));
+        if (!isKnownCountry(country)) return mergeCensored(res);
+        return mergeCensored(censorWords(res, [country, ...aliases].join(', ')));
     };
 
     const processWikiText = (extract) => {
@@ -489,6 +492,9 @@
     // --- Časová osa (historie, vědci…) ---
 
     const NICE_STEPS = [1, 2, 5, 10, 20, 25, 50, 100, 200, 250, 500, 1000, 2000];
+    // Odhad šířky znaku popisku v px (písmo 11 px) a mezera mezi popisky
+    const CHAR_WIDTH = 5.6;
+    const LABEL_GAP = 8;
     const formatTick = (year) => year < 0 ? `${-year} př. n. l.` : String(year);
 
     // Rozvržení časové osy na šířku width: dílky s roky, pruhy období, body událostí a nejvýš tři orientační události.
@@ -514,15 +520,27 @@
         const candidates = events
             .filter(([year, text]) => year > start && year < end && !own.has(year) && !(hide && censorName(text, hide).includes('[***]')))
             .map(([year, text, near]) => ({ x: x(year), year, label: `${formatTick(year)} ${text}`, near: Number(near) || 0 }));
-        // Rozprostřít: nejdřív blízké dějiny, z nich ty nejblíž středu hádaného období, s odstupem aspoň čtvrtiny šířky
+        // Nejdřív blízké dějiny, z nich ty nejblíž středu hádaného období; každý popisek do jednoho ze dvou řádků tak,
+        // aby se s žádným jiným nepřekrýval a nevyčníval z osy (šířku textu odhadneme podle počtu znaků)
         const center = x((min + max) / 2);
-        const anchors = [];
+        const placed = [];
         for (const anchor of candidates.sort((a, b) => b.near - a.near || Math.abs(a.x - center) - Math.abs(b.x - center))) {
-            if (anchors.length < 3 && anchors.every(other => Math.abs(other.x - anchor.x) >= width * 0.26)) anchors.push(anchor);
+            if (placed.length >= 3) break;
+            const textWidth = anchor.label.length * CHAR_WIDTH + 6;
+            const align = anchor.x - textWidth / 2 < 4 ? 'start' : anchor.x + textWidth / 2 > width - 4 ? 'end' : 'middle';
+            const left = align === 'start' ? anchor.x : align === 'end' ? anchor.x - textWidth : anchor.x - textWidth / 2;
+            if (left < 2 || left + textWidth > width - 2) continue;
+            const span = [left - LABEL_GAP, left + textWidth + LABEL_GAP];
+            // Svislé čárky událostí nesmí splývat
+            if (placed.some(other => Math.abs(other.x - anchor.x) < 14)) continue;
+            const row = [0, 1].find(r => placed.filter(other => other.row === r).every(other => span[1] <= other.span[0] || span[0] >= other.span[1]));
+            if (row === undefined) continue;
+            placed.push({ ...anchor, row, align, span });
         }
+        const anchors = placed.map(({ near, span, ...anchor }) => anchor);
         return {
             start, end, ticks, bars, points: points.map(year => ({ x: x(year), year })),
-            anchors: anchors.sort((a, b) => a.x - b.x).map(({ near, ...anchor }) => anchor)
+            anchors: anchors.sort((a, b) => a.x - b.x)
         };
     };
 
@@ -618,7 +636,7 @@
         escapeHtml, stripBrackets, isRealPhoto, commonsPhotoUrl, commonsFileUrl, displayName, plural, formatPoints,
         getDayKey, shiftDayKey, formatDayKey, createSeededRandom, pickRandom, shuffle,
         ELEMENT_FAMILIES, elementFamily, periodicPosition,
-        getWordStems, censorName, censorCountry, isKnownCountry, processWikiText, normalizeAnswer, levenshtein, isAnswerMatch,
+        getWordStems, censorName, mergeCensored, censorCountry, isKnownCountry, processWikiText, normalizeAnswer, levenshtein, isAnswerMatch,
         inCollection, filterItems, pickItem, sortItems, getCountryNames, getContinent, getCountryAliases,
         distanceKm, nearness, STATE_STEPS, sharesGroup, eraNearness, personSimilarity, rankBySimilarity, takeDistinct,
         buildItemChoices, buildCountryChoices, findAnswerItem, findAnswerCountry, updateMistakes, nameAnswers, countryAnswers,

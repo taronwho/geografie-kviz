@@ -6,7 +6,8 @@ import vm from 'node:vm';
 const LUCIDE_VERSION = '1.48.0';
 const ICONS = [
     'arrow-right', 'atom', 'beaker', 'bird', 'book-open', 'bug', 'building-2', 'calendar-days', 'calendar-range', 'castle',
-    'cat', 'check', 'chevron-left', 'chevron-right', 'circle-check', 'circle-x', 'compass', 'crown', 'dna', 'droplets',
+    'cat', 'check', 'chevron-down', 'chevron-left', 'chevron-right', 'circle-check', 'circle-x', 'compass', 'crown', 'dna', 'droplets',
+    'lock', 'play', 'quote', 'satellite', 'square', 'square-check-big',
     'external-link', 'eye', 'fish', 'flag', 'flame', 'flask-conical', 'flower-2', 'gauge', 'gem', 'git-branch',
     'globe', 'globe-2', 'graduation-cap', 'grid-3x3', 'hourglass', 'house', 'image', 'info', 'keyboard', 'landmark',
     'layers', 'layout-grid', 'leaf', 'magnet', 'map', 'map-pin', 'microscope', 'minus', 'mountain', 'navigation',

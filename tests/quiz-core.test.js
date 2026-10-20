@@ -428,8 +428,16 @@ test('časová osa: pruhy uvnitř šířky, rozumné značky, známé události 
     assert.ok(layout.anchors.every(anchor => anchor.year < layout.start || anchor.year > layout.end ? false : true));
     // Založení Karlovy univerzity by prozradilo Karla IV.
     assert.ok(!layout.anchors.some(anchor => /Karl/.test(anchor.label)));
-    // Blízké dějiny mají přednost před světovými, události mimo osu se nevyberou
-    assert.deepEqual(layout.anchors.map(anchor => anchor.year), [1306, 1415]);
+    // Blízké dějiny mají přednost, světové doplní volné místo (popisky ve dvou řádcích se nepřekrývají), události mimo osu se nevyberou
+    assert.deepEqual(layout.anchors.map(anchor => anchor.year), [1306, 1347, 1415]);
+    for (const row of [0, 1]) {
+        const inRow = layout.anchors.filter(anchor => anchor.row === row);
+        const spans = inRow.map(anchor => {
+            const width = anchor.label.length * 5.6;
+            return anchor.align === 'start' ? [anchor.x, anchor.x + width] : anchor.align === 'end' ? [anchor.x - width, anchor.x] : [anchor.x - width / 2, anchor.x + width / 2];
+        });
+        spans.forEach((span, i) => spans.slice(i + 1).forEach(other => assert.ok(span[1] <= other[0] || other[1] <= span[0], 'popisky se nepřekrývají')));
+    }
     assert.deepEqual(core.buildTimeline({ spans: [{ kind: 'reign', from: 1346, to: 1378 }], anchors: [[1347, 'morová epidemie']] }, 400).anchors.map(a => a.label), ['1347 morová epidemie']);
     assert.deepEqual(core.buildTimeline({ spans: [{ kind: 'reign', from: 1346, to: 1378 }] }, 400).anchors, [], 'bez událostí od tématu žádné');
     // Bod před naším letopočtem a popisky let
