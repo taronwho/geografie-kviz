@@ -194,6 +194,7 @@ const personCategory = (detail, entry) => {
 };
 // Osobnosti: herci a filmaři sem nepatří; od roku 1800 jen lidé s „dějinným“ povoláním (spisovatelé patří do jiného tématu)
 const ENTERTAINMENT = /herec|herečka|scenárist|režisér|zpěvák|zpěvačka|komik|producent|skladatel|moderátor|model/u;
+const ROYAL = /^(král|královna|císař|císařovna|kníže|kněžna|princ|princezna|vévoda|vévodkyně|markrabě|hrabě|hraběnka)$/u;
 const HISTORICAL = /objevitel|cestovatel|mořeplavec|námořník|vojevůdce|generál|revolucionář|reformátor|kazatel|politik|státník|aktivist|kosmonaut|astronaut|vynálezce|vládce|diplomat|misionář|prorok|světec|bojovník|teolog|filozof/u;
 // Filozofové a teologové posledních dvou století patří spíš do jiných témat
 const MODERN_HISTORICAL = new RegExp(HISTORICAL.source.replace('|teolog|filozof', ''), 'u');
@@ -221,7 +222,8 @@ const typeLabelOf = (category, detail, main) => {
     let text = main && label(main.id);
     if (!text || text.length > 40) {
         const occupations = occupationLabels(detail).filter(name => name.length <= 30);
-        const occupation = occupations.find(name => HISTORICAL.test(name)) || occupations[0];
+        // Šlechtický titul má přednost (Eliška Přemyslovna má ve Wikidatech „filozof“ i „královna“)
+        const occupation = occupations.find(name => ROYAL.test(name)) || occupations.find(name => HISTORICAL.test(name)) || occupations[0];
         text = category === 'osobnost' && occupation ? occupation : { panovnik: 'panovník', statnik: 'státník', osobnost: 'osobnost' }[category];
     }
     return detail.sex === FEMALE ? feminine(text) : text;

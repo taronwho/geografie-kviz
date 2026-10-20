@@ -169,6 +169,7 @@ const histCtx = { countries: COUNTRIES_TABLE, items: [] };
 const person = (n, c, f, extra = {}) => ({ q: 'Q1', t: n, n, c, k: 1, ty: '', f: { y: f.from ?? f.born, ...f }, ...extra });
 const anchorsOf = (item, mode = 'name') => core.buildTimeline(historie.visual(item, histCtx, mode), 360).anchors.map(anchor => anchor.label);
 
+const asLineOf = (list) => list.map(fact => `${fact.label}: ${fact.value}`);
 test('historie: časová osa, události z vlastních dějin, otázka na století', () => {
     const edward = person('Eduard III.', 'panovnik', { born: 1312, died: 1377, from: 1327, to: 1377, dyn: 'Plantageneti', land: 'Anglické království' }, { ty: 'anglický král', g: ['anglicti-panovnici'] });
     const charles = person('Karel IV.', 'panovnik', { born: 1316, died: 1378, from: 1346, to: 1378, land: 'Svatá říše římská' }, { ty: 'český král', cz: 1 });
@@ -185,9 +186,11 @@ test('historie: časová osa, události z vlastních dějin, otázka na století
     assert.deepEqual(historie.regionsOf(gandhi), []);
     assert.ok(!anchorsOf(gandhi).some(label => czech.test(label) || /Mnichov|Československa/.test(label)));
 
-    // Otázka na století: jméno je vidět, nápověda časovou osou ani roky ve faktech nejsou
+    // Otázka na století: jméno je vidět, nápověda časovou osou ani roky ve faktech nejsou;
+    // ptá se na jeden okamžik (u panovníka nástup), ať na přelomu století nejsou správně dvě odpovědi
     const century = historie.specialQuestion(charles, histCtx, () => 0.1);
     assert.equal(century.type, 'century');
+    assert.equal(century.title, 'Ve kterém století začal vládnout?');
     assert.equal(century.answerLabel, '14. století');
     assert.ok(century.accepted.includes('14'));
     assert.equal(century.choices.filter(choice => choice.correct).length, 1);
@@ -197,8 +200,17 @@ test('historie: časová osa, události z vlastních dějin, otázka na století
     assert.ok(historie.facts(charles, histCtx, 'century').every(fact => !/\d/.test(fact.value)));
     assert.doesNotMatch(historie.censor('century', 'Karel IV. vládl od roku 1346 ve 14. století.', charles, histCtx), /\d/);
     assert.equal(historie.specialQuestion(charles, histCtx, () => 0.9), null);
+    const elizabeth = person('Eliška Přemyslovna', 'osobnost', { born: 1292, died: 1330 }, { ty: 'královna', sx: 'f', cz: 1 });
+    const born = historie.specialQuestion(elizabeth, histCtx, () => 0.1);
+    assert.equal(born.title, 'Ve kterém století se narodila?');
+    assert.equal(born.answerLabel, '13. století');
+    assert.ok(asLineOf(historie.facts(elizabeth, histCtx, 'result')).includes('Století: 13.–14. století'));
+    const war = { q: 'Q1', n: 'Stoletá válka', c: 'bitva', f: { year: 1337, end: 1453, y: 1337 } };
+    assert.equal(historie.specialQuestion(war, histCtx, () => 0.1).title, 'Ve kterém století to začalo?');
+    // Rok 1300 patří do 13. století, většina lidí by ale tipla 14. – na takový rok se neptá
+    assert.equal(historie.specialQuestion(person('Někdo', 'osobnost', { born: 1300, died: 1350 }), histCtx, () => 0.1), null);
     // Po odpovědi fakta i se stoletím a rozumně zapsaná období
-    const asLine = (list) => list.map(fact => `${fact.label}: ${fact.value}`);
+    const asLine = asLineOf;
     assert.ok(asLine(historie.facts(charles, histCtx, 'result')).includes('Století: 14. století'));
     assert.equal(historie.subtitle(person('Alfréd Veliký', 'panovnik', { born: 849, died: 899, from: 871, to: 899 }), histCtx), '849–899 n. l.');
     assert.equal(historie.subtitle(person('Caesar', 'statnik', { born: -100, died: -44 }), histCtx), '100–44 př. n. l.');

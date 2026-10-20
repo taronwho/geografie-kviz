@@ -613,7 +613,7 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         const century = await readRound(second.tab);
         assert.equal(century.name, 'Přemysl Otakar II.');
         assert.equal(century.question.type, 'century');
-        assert.equal(await second.tab.textContent('h2'), 'Do kterého století to patří?');
+        assert.equal(await second.tab.textContent('h2'), 'Ve kterém století začal vládnout?');
         assert.match(await appText(second.tab), /Přemysl Otakar II\./);
         assert.doesNotMatch(await second.tab.textContent('p.italic'), /\d/);
         assert.deepEqual(century.hints, ['photo', 'facts'], 'časová osa by prozradila století');

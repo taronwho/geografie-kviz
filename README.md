@@ -15,7 +15,7 @@ Základní otázka je „Co je to?“ podle kategorie (Který prvek to je?, Kdo 
 | Téma | Další otázky |
 | --- | --- |
 | Zeměpis | Ve kterém státě to je? |
-| Historie | Do kterého století to patří? |
+| Historie | Ve kterém století začal vládnout? (narodila se, nastoupil do úřadu, odehrálo se, vznikl) – vždy jeden okamžik, ať na přelomu století nejsou správně dvě odpovědi |
 | Biologie | Do kterého řádu (u rostlin a hub čeledi) patří? |
 | Chemie | Jakou značku má tento prvek? Jaký vzorec má tato látka? |
 | Fyzika | Jaká je jednotka SI této veličiny? Jakou značku má tato jednotka? Co měří tato jednotka? |

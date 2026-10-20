@@ -21,8 +21,39 @@
     const isPerson = (item) => item.c === 'panovnik' || item.c === 'statnik' || item.c === 'osobnost';
     const categoryOf = (item) => CATEGORIES.find(category => category.key === item.c) || CATEGORIES[0];
 
-    // Jak často se místo „Kdo to je?“ ptáme „Do kterého století to patří?“
+    // Jak často se místo „Kdo to je?“ ptáme na století
     const CENTURY_QUIZ_SHARE = 0.3;
+
+    // Otázka na století se ptá na jeden okamžik (nástup, narození, vznik), ne na celý život –
+    // kdo žil na přelomu století (Eliška Přemyslovna 1292–1330), patřil by do obou
+    const centuryEvent = (item) => {
+        const f = item.f || {};
+        const ending = item.sx === 'f' ? 'a' : '';
+        if (item.c === 'panovnik' && f.from !== undefined) return { year: f.from, title: `Ve kterém století začal${ending} vládnout?` };
+        if (item.c === 'statnik' && f.from !== undefined) return { year: f.from, title: `Ve kterém století nastoupil${ending} do úřadu?` };
+        if (isPerson(item) && f.born !== undefined) return { year: f.born, title: `Ve kterém století se narodil${ending}?` };
+        if (isPerson(item) && f.died !== undefined) return { year: f.died, title: `Ve kterém století zemřel${ending}?` };
+        if (item.c === 'bitva' && f.year !== undefined) {
+            const spansCenturies = f.end !== undefined && centuryOf(f.end) !== centuryOf(f.year);
+            return { year: f.year, title: spansCenturies ? 'Ve kterém století to začalo?' : 'Ve kterém století se to odehrálo?' };
+        }
+        if (item.c === 'rise' && f.from !== undefined) return { year: f.from, title: 'Ve kterém století tento stát vznikl?' };
+        return null;
+    };
+    // Století celého období („13.–14. století“), ve výsledku a v atlasu
+    const centuryRange = (from, to) => {
+        const first = centuryOf(from);
+        const last = to === undefined ? first : centuryOf(to);
+        if (first === last) return centuryLabel(first);
+        if (first > 0 || last < 0) return first > 0 ? `${first}.–${last}. století` : `${-first}.–${-last}. století př. n. l.`;
+        return `${centuryLabel(first)} – ${centuryLabel(last)}`;
+    };
+    const periodOf = (item) => {
+        const f = item.f || {};
+        if (isPerson(item)) return f.born !== undefined ? [f.born, f.died] : [f.y, f.y];
+        if (item.c === 'bitva') return [f.year, f.end];
+        return f.from !== undefined ? [f.from, f.to] : [f.y, f.y];
+    };
 
     // Období: „871–899“, „753–509 př. n. l.“, „27 př. n. l. – 476“
     const range = (from, to) => {
@@ -37,7 +68,8 @@
         const f = item.f || {};
         const withYears = mode !== 'century';
         // Po odpovědi a v atlasu i století, ať se dá učit
-        const century = (mode === 'result' || mode === 'card') && f.y !== undefined ? [{ label: 'Století', value: centuryLabel(centuryOf(f.y)) }] : [];
+        const [from, to] = periodOf(item);
+        const century = (mode === 'result' || mode === 'card') && from !== undefined ? [{ label: 'Století', value: centuryRange(from, to) }] : [];
         if (isPerson(item)) {
             const facts = withYears ? formatFacts(item, [['born', 'Narození', formatYear], ['died', 'Úmrtí', formatYear]], ['born', 'died']) : [];
             if (withYears && f.from !== undefined) facts.push({ label: item.c === 'panovnik' ? 'Vláda' : 'V úřadu', value: range(f.from, f.to) });
@@ -213,10 +245,13 @@
             return score;
         },
 
-        // Občas „Do kterého století to patří?“ – jméno je pak vidět a z popisu zmizí letopočty
+        // Občas „Ve kterém století začal vládnout?“ (narodila se, odehrálo se…) – jméno je pak vidět a z popisu zmizí letopočty
         specialQuestion: (item, ctx, rng) => {
-            if (!(rng() < CENTURY_QUIZ_SHARE) || !item.f || item.f.y === undefined) return null;
-            const century = centuryOf(item.f.y);
+            if (!(rng() < CENTURY_QUIZ_SHARE)) return null;
+            const event = centuryEvent(item);
+            // Rok 1300 patří do 13. století, většina lidí by ale řekla 14. – takovou otázku vynecháme
+            if (!event || event.year % 100 === 0) return null;
+            const century = centuryOf(event.year);
             // Nesprávná století co nejblíž: obě sousední, pak o dvě dál (u Washingtona 17., 19., 16. – ne 15. nebo 21.)
             const shift = (offset) => {
                 let result = century + offset;
@@ -228,7 +263,7 @@
                 .filter(c => c <= 21 && !(c === 21 && century < 20)).slice(0, 3);
             return {
                 type: 'century',
-                title: 'Do kterého století to patří?',
+                title: event.title,
                 showName: true,
                 choices: shuffle([century, ...wrong], rng).map(c => ({ id: `stoleti-${c}`, label: centuryLabel(c), correct: c === century })),
                 accepted: century > 0 ? [String(century), `${century}.`, centuryLabel(century)] : [centuryLabel(century)],
