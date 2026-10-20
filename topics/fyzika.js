@@ -189,7 +189,10 @@
                 const wrong = rankedValues('unit', f.unit, other => (/[/·⋅ ]/.test(other.f.usym || '') === /[/·⋅ ]/.test(f.usym || '') ? 1 : 0));
                 if (wrong.length < 3) return null;
                 const symbols = new Map(same.map(other => [other.f.unit, other.f.usym]));
-                const label = (unit) => unit === f.unit ? unitLabel(f) : symbols.get(unit) ? `${unit} (${symbols.get(unit)})` : unit;
+                // Značky v závorce jen tehdy, když je mají všechny možnosti – jinak by se správná lišila na první pohled
+                const symbolOf = (unit) => unit === f.unit ? f.usym : symbols.get(unit);
+                const withSymbols = [f.unit, ...wrong].every(unit => symbolOf(unit));
+                const label = (unit) => withSymbols ? `${unit} (${symbolOf(unit)})` : unit;
                 return {
                     type: 'unit',
                     title: 'Jaká je jednotka SI této veličiny?',

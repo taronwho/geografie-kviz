@@ -140,14 +140,16 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         assert.match(description, /<img src=x onerror=__xss=1>/);
         assert.ok(!description.includes(data.question.answerLabel), description);
         assert.equal(await tab.locator('#hint-photo, #hint-visual').count(), 0, 'nápovědy až na požádání');
-        assert.match(await appText(tab), /Nápověda 1\/4/);
+        assert.match(await appText(tab), /Nápovědy 0\/3/);
         assert.match(await appText(tab), /Za 4 body/);
-        assert.equal(await tab.getAttribute('[data-action="hint-tab"][data-step="text"]', 'aria-selected'), 'true', 'popis v první záložce');
+        // Dokud není odemčená nápověda, je v panelu jen popis (bez záložek); tlačítko nápovědy říká, co odemkne
+        assert.equal(await tab.locator('[role="tablist"]').count(), 0);
+        assert.match(await tab.textContent('[data-action="hint"]'), /Fotka\s*· pak 3 body/);
 
         // 1. nápověda: skutečná fotka jako pozadí prvku (ne <img>)
         await tab.click('[data-action="hint"]');
         await tab.waitForFunction(() => document.getElementById('hint-photo').style.backgroundImage.includes('upload.wikimedia.org/wikipedia/commons/thumb/a/ab/'));
-        assert.match(await appText(tab), /Nápověda 2\/4/);
+        assert.match(await appText(tab), /Nápovědy 1\/3/);
         // Odpověď se při nápovědě neposune – nápovědy jsou záložky panelu pevné výšky
         const answerTop = await tab.locator('[data-action="choice"]').first().boundingBox();
         assert.equal(await tab.locator('#app-content section img').count(), 0);
@@ -164,7 +166,7 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         await tab.waitForSelector('[data-action="hint-tab"][data-step="facts"][aria-selected="true"]');
         assert.match(await appText(tab), /Kontinent/);
         assert.equal(await tab.locator('[data-action="hint"]').count(), 0);
-        assert.match(await appText(tab), /Nápověda 4\/4/);
+        assert.match(await appText(tab), /Nápovědy 3\/3/);
         assert.equal((await tab.locator('[data-action="choice"]').first().boundingBox()).y, answerTop.y);
 
         // Popis i dřívější nápovědy jdou otevřít znovu
@@ -199,7 +201,7 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         await tab.click('[data-action="share"]');
         await tab.waitForSelector('#toast:not(.opacity-0)');
         const shared = await tab.evaluate(() => navigator.clipboard.readText());
-        assert.equal(shared, 'Mudrlant · 🌍 Zeměpis · 16. 10. 2026\n✅ 1 bod · nápověda 4/4\n🔥 Série: 1\nhttps://geo.test/');
+        assert.equal(shared, 'Mudrlant · 🌍 Zeměpis · 16. 10. 2026\n✅ 1 bod · nápovědy 3/3\n🔥 Série: 1\nhttps://geo.test/');
 
         // Zpět na dnešní otázky: zeměpis je odehraný a série běží
         await tab.click('[data-action="next"]');
@@ -311,7 +313,7 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
             const data = await readRound(tab);
             assert.equal(data.name, name);
             assert.equal(data.photoUrl, null);
-            assert.match(await appText(tab), /Nápověda 1\/3/);
+            assert.match(await appText(tab), /Nápovědy 0\/2/);
             assert.match(await tab.textContent('[data-action="hint"]'), /slepá mapa/i);
             await tab.click('[data-action="give-up"]');
             await waitForResult(tab);
@@ -562,7 +564,7 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         assert.equal(await tab.locator('#answer-input').count(), 1, 'další otázka už je na psaní');
 
         // Zpět na možnosti jde hned (je to snazší)
-        await tab.click('[data-action="settings"]');
+        await tab.click('#btn-settings');
         await tab.click('#settings-overlay [data-variant="choices"]');
         assert.match(await tab.textContent('#settings-note'), /hned/);
         await tab.keyboard.press('Escape');

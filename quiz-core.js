@@ -221,9 +221,8 @@
             descriptionParts.push(sentences[index++]);
         }
         const description = descriptionParts.join(' ') || cleanExtract.replaceAll(KEPT_DOT, '.').trim().slice(0, 300);
-        let funFacts = sentences.slice(index).filter(s => s.length > 30).slice(0, 3);
-
-        if (funFacts.length === 0) funFacts = ['Toto místo je natolik specifické, že další zajímavosti najdete přímo v detailu na Wikipedii.'];
+        // Bez zajímavostí se sekce prostě nezobrazí (výplňová věta by se tvářila jako zajímavost)
+        const funFacts = sentences.slice(index).filter(s => s.length > 30).slice(0, 3);
 
         return { description, funFacts };
     };
@@ -650,10 +649,11 @@
     };
 
     const buildShareText = ({ appName, topic, dayKey, result, streak, url }) => {
-        const levels = `${result.hintLevel}/${result.levelCount || result.hintLevel}`;
+        // Použité nápovědy z dostupných (levelCount = 1 + počet nápověd otázky)
+        const levels = `${result.hintLevel - 1}/${(result.levelCount || result.hintLevel) - 1}`;
         const outcome = result.correct
-            ? `✅ ${formatPoints(result.points)} · nápověda ${levels}${result.typed ? ' · napsáno' : ''}`
-            : `❌ tentokrát ne · nápověda ${levels}`;
+            ? `✅ ${formatPoints(result.points)} · nápovědy ${levels}${result.typed ? ' · napsáno' : ''}`
+            : `❌ tentokrát ne · nápovědy ${levels}`;
         return [
             `${appName} · ${topic.emoji} ${topic.title} · ${formatDayKey(dayKey)}`,
             outcome,

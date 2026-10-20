@@ -21,7 +21,7 @@
         { key: 'reka', label: 'Řeky', one: 'řeka', icon: 'waves', mapSpan: 24, sort: { by: 'len', desc: true } },
         { key: 'jezero', label: 'Jezera a moře', one: 'vodní plocha', icon: 'droplets', mapSpan: 30, sort: { by: 'area', desc: true } },
         { key: 'ostrov', label: 'Ostrovy', one: 'ostrov', icon: 'palmtree', mapSpan: 30, sort: { by: 'area', desc: true } },
-        { key: 'priroda', label: 'Příroda a krajina', one: 'přírodní místo', icon: 'leaf', mapSpan: 24, sort: { by: 'name' } },
+        { key: 'priroda', label: 'Příroda a krajina', one: 'přírodní místo', icon: 'trees', mapSpan: 24, sort: { by: 'name' } },
         { key: 'stavba', label: 'Stavby a památky', one: 'stavba', icon: 'landmark', mapSpan: 24, sort: { by: 'name' } }
     ];
 

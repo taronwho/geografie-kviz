@@ -74,7 +74,7 @@
             const barHeight = bar.kind === 'life' ? 12 : 24;
             svg.appendChild(svgElement('rect', {
                 x: bar.x, y, width: Math.max(bar.width, 4), height: barHeight, rx: 4,
-                class: bar.kind === 'life' ? 'fill-amber-200 dark:fill-amber-900' : 'fill-amber-500 dark:fill-amber-500'
+                class: bar.kind === 'life' ? 'fill-amber-300 dark:fill-amber-800' : 'fill-amber-500 dark:fill-amber-500'
             }));
         }
         for (const point of layout.points) {
@@ -85,11 +85,15 @@
         for (const anchor of layout.anchors) {
             const y = axisY + 46 + anchor.row * 15;
             svg.appendChild(svgElement('line', { x1: anchor.x, x2: anchor.x, y1: axisY + 4, y2: y - 11, 'stroke-width': 1, 'stroke-dasharray': '2 2', class: 'stroke-slate-400 dark:stroke-slate-500' }));
-            svg.appendChild(svgText(anchor.label, { x: anchor.x, y, 'text-anchor': anchor.align, 'font-size': 11, class: 'fill-slate-600 dark:fill-slate-300' }));
+            // Obrys v barvě pozadí, ať popisek nepřeškrtne čárka jiné události
+            svg.appendChild(svgText(anchor.label, {
+                x: anchor.x, y, 'text-anchor': anchor.align, 'font-size': 11, 'paint-order': 'stroke', 'stroke-width': 3, 'stroke-linejoin': 'round',
+                class: 'fill-slate-600 stroke-amber-50 dark:fill-slate-300 dark:stroke-slate-800'
+            }));
         }
         // Popisky pruhů
         const legend = [];
-        if (layout.bars.some(bar => bar.kind === 'life')) legend.push(['fill-amber-200 dark:fill-amber-900', 'život']);
+        if (layout.bars.some(bar => bar.kind === 'life')) legend.push(['fill-amber-300 dark:fill-amber-800', 'život']);
         if (layout.bars.some(bar => bar.kind !== 'life')) legend.push(['fill-amber-500', spec.spanLabel || 'vláda']);
         legend.forEach(([fill, text], index) => {
             const x = 14 + index * 78;

@@ -123,9 +123,9 @@ test('text pro sdílení', () => {
         appName: 'Mudrlant', topic, dayKey: '2026-10-16',
         result: { correct: true, points: 8, hintLevel: 1, levelCount: 4, typed: true }, streak: 4, url: 'https://example.org/'
     });
-    assert.equal(text, 'Mudrlant · 🌍 Zeměpis · 16. 10. 2026\n✅ 8 bodů · nápověda 1/4 · napsáno\n🔥 Série: 4\nhttps://example.org/');
+    assert.equal(text, 'Mudrlant · 🌍 Zeměpis · 16. 10. 2026\n✅ 8 bodů · nápovědy 0/3 · napsáno\n🔥 Série: 4\nhttps://example.org/');
     const lost = core.buildShareText({ appName: 'Mudrlant', topic, dayKey: '2026-10-16', result: { correct: false, points: 0, hintLevel: 3, levelCount: 3 }, streak: 0, url: '' });
-    assert.equal(lost, 'Mudrlant · 🌍 Zeměpis · 16. 10. 2026\n❌ tentokrát ne · nápověda 3/3\n🔥 Série: 0');
+    assert.equal(lost, 'Mudrlant · 🌍 Zeměpis · 16. 10. 2026\n❌ tentokrát ne · nápovědy 2/2\n🔥 Série: 0');
 });
 
 test('dlaždice mapy pokryjí výřez a bod je uprostřed', () => {

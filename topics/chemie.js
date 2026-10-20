@@ -13,8 +13,8 @@
     } = core;
 
     const CATEGORIES = [
-        { key: 'prvky', label: 'Chemické prvky', one: 'prvek', icon: 'atom', question: 'Který prvek to je?', placeholder: 'Napiš název prvku…', sort: { by: 'z' } },
-        { key: 'latky', label: 'Sloučeniny a látky', one: 'látka', icon: 'test-tube', question: 'Co je to za látku?', placeholder: 'Napiš název látky…', sort: { by: 'name' } },
+        { key: 'prvky', label: 'Chemické prvky', one: 'prvek', icon: 'grid-3x3', question: 'Který prvek to je?', placeholder: 'Napiš název prvku…', sort: { by: 'z' } },
+        { key: 'latky', label: 'Sloučeniny a látky', one: 'látka', icon: 'beaker', question: 'Co je to za látku?', placeholder: 'Napiš název látky…', sort: { by: 'name' } },
         { key: 'chemici', label: 'Chemici', one: 'chemik', icon: 'user', question: 'Kdo to je?', placeholder: 'Napiš jméno…', ask: 'Kdo je', sort: { by: 'y' } }
     ];
 
@@ -23,7 +23,8 @@
     const FORMULA_QUIZ_SHARE = 0.35;
 
     const celsius = (value) => `${formatNumber(value)} °C`;
-    const density = (value) => `${formatNumber(value)} g/cm³`;
+    // Hustota plynů je tisíckrát menší (vodík 0,00009 g/cm³) – zaokrouhlením by z ní byla nula
+    const density = (value) => `${formatNumber(value >= 0.01 ? value : Number(value.toPrecision(2)))} g/cm³`;
     const SUBSCRIPTS = '₀₁₂₃₄₅₆₇₈₉';
     const plainFormula = (formula) => formula.replace(/[₀-₉]/g, digit => String(SUBSCRIPTS.indexOf(digit)));
     const symbolsOf = (formula) => formula.match(/[A-Z][a-z]?/g) || [];
