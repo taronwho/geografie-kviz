@@ -7,7 +7,7 @@
         SATELLITE_TILES, OSM_TILES,
         escapeHtml, isRealPhoto, commonsPhotoUrl, displayName, formatPoints, getDayKey, formatDayKey, createSeededRandom, pickRandom,
         censorName, processWikiText, isAnswerMatch, filterItems, pickItem, sortItems,
-        buildItemChoices, findAnswerItem, updateMistakes, nameAnswers, getHintSteps, pointsFor,
+        buildItemChoices, findAnswerItem, updateMistakes, nameAnswers, pointsFor, dropKnownFacts,
         computeStreak, buildShareText, getTileLayout
     } = window.MudrlantCore;
     const Visuals = window.MudrlantVisuals;
@@ -307,6 +307,38 @@
         return censorName(text, [item.n, displayName(item.t), ...aliases].join(', '));
     };
 
+    // Nápovědy otázky: téma je pro svůj druh otázky může určit samo (u století současníci a osa bez letopočtů,
+    // u vzorce složení), jinak fotka → obrazová nápověda → čísla a fakta. Nápověda, která nic nepřidá, se vynechá:
+    // fotka, která se nenačte, prázdná fakta i fakta, která hráč už vidí v zadání nebo v popisu.
+    const buildHints = (plan, { photoUrl, visibleText }) => {
+        const hints = [];
+        for (const step of plan) {
+            let hint = null;
+            if (step.kind === 'photo' && photoUrl) hint = { kind: 'photo', label: 'fotka', icon: 'image' };
+            if (step.kind === 'visual' && step.spec && Visuals.info(step.spec)) {
+                hint = { kind: 'visual', spec: step.spec, label: Visuals.info(step.spec).name, icon: Visuals.info(step.spec).icon };
+            }
+            if (step.kind === 'facts') {
+                const facts = dropKnownFacts(step.facts || [], visibleText);
+                // extra = vlastní nápověda tématu; po odpovědi se ukáže i mezi fakty
+                if (facts.length) hint = { kind: 'facts', facts, label: step.label || 'čísla a fakta', icon: step.icon || 'info', extra: Boolean(step.label) };
+            }
+            if (!hint) continue;
+            let key = hint.kind;
+            for (let n = 2; hints.some(other => other.key === key); n++) key = `${hint.kind}-${n}`;
+            hints.push({ key, ...hint });
+        }
+        return hints;
+    };
+    // Otázka uložená starší verzí má nápovědy jen jako názvy kroků ('photo', 'visual', 'facts')
+    const upgradeRoundData = (data) => {
+        if (data && Array.isArray(data.hints) && data.hints.some(step => typeof step === 'string')) {
+            data.hints = buildHints(data.hints.map(step => step === 'visual' ? { kind: 'visual', spec: data.visual } : step === 'facts' ? { kind: 'facts', facts: data.facts } : { kind: step }),
+                { photoUrl: data.photoUrl, visibleText: '' });
+        }
+        return data;
+    };
+
     // Data jedné otázky – vše, co se uloží a po obnovení stránky zobrazí znovu
     const createRoundData = async (item, ctx, rng) => {
         const { topic, items } = ctx;
@@ -325,9 +357,12 @@
         };
         const [text, photoUrl] = await Promise.all([fetchItemText(item), probePhoto(photoOf(item, 960))]);
         const visual = topic.visual ? topic.visual(item, ctx, question.type) : null;
-        const facts = topic.facts(item, ctx, question.type);
         // Typ položky („obec ve Španělsku“, „král“) nesmí prozradit odpověď
         const typeLabel = item.ty && !censorFor(question.type, item.ty, item, ctx).includes('[***]') ? item.ty : category.one;
+        const questionText = censorFor(question.type, text.description, item, ctx);
+        const plan = (topic.hints && topic.hints(item, ctx, question.type))
+            || [{ kind: 'photo' }, { kind: 'visual', spec: visual }, { kind: 'facts', facts: topic.facts(item, ctx, question.type) }];
+        const visibleText = [question.title, question.showName ? item.n : '', typeLabel, questionText].join(' · ');
         return {
             topic: topic.id,
             id: item.q,
@@ -337,14 +372,13 @@
             known: item.k === 1,
             typeLabel,
             question,
-            questionText: censorFor(question.type, text.description, item, ctx),
+            questionText,
             photoUrl,
             visual,
             // Ve výsledku už odpověď známe, takže nápověda může ukázat vše (u otázky na století časovou osu)
             resultVisual: topic.visual ? topic.visual(item, ctx, 'result') : null,
-            facts,
             resultFacts: topic.facts(item, ctx, 'result'),
-            hints: getHintSteps({ hasPhoto: Boolean(photoUrl), hasVisual: Boolean(visual && Visuals.info(visual)), hasFacts: facts.length > 0 }),
+            hints: buildHints(plan, { photoUrl, visibleText }),
             subtitle: topic.subtitle(item, ctx),
             coords: topic.coords ? topic.coords(item, ctx) : null,
             isCzech: Boolean(topic.isCzech && topic.isCzech(item, ctx)),
@@ -776,29 +810,70 @@
 
     const cssUrl = (url) => `url("${url.replace(/["\\]/g, '\\$&')}")`;
 
-    // Fotka je pozadí prvku, ne <img> – podržením nejde otevřít a z adresy souboru vyčíst název
-    const setBackgroundPhoto = async (element, url) => {
+    // Fotka je pozadí prvku, ne <img> – podržením nejde otevřít a z adresy souboru vyčíst název.
+    // Ukáže se celá (nic se neořízne) na rozmazaném pozadí ze sebe sama; když je na ploše moc malá
+    // (vysoký portrét v široké ploše), objeví se tlačítko na zvětšení přes celou obrazovku.
+    const loadImageSize = (url) => new Promise((resolve, reject) => {
+        const image = new Image();
+        image.onload = () => resolve({ width: image.naturalWidth, height: image.naturalHeight });
+        image.onerror = reject;
+        image.src = url;
+    });
+    const showPhoto = async (element, url, onFail) => {
         try {
-            await loadImage(url);
-            if (element.isConnected) element.style.backgroundImage = cssUrl(url);
+            const size = await loadImageSize(url);
+            if (!element.isConnected) return;
+            element.style.backgroundImage = cssUrl(url);
+            const frame = element.parentElement;
+            const backdrop = frame.querySelector('[data-photo-backdrop]');
+            if (backdrop) backdrop.style.backgroundImage = cssUrl(url);
+            const box = element.getBoundingClientRect();
+            const ratio = size.width / size.height;
+            const boxRatio = box.width / box.height;
+            const zoom = frame.querySelector('[data-photo-zoom]');
+            if (zoom && Math.min(ratio / boxRatio, boxRatio / ratio) < 0.6) {
+                zoom.dataset.url = url;
+                zoom.classList.remove('hidden');
+            }
         } catch (e) {
-            const failure = element.parentElement.querySelector('[data-photo-failed]');
+            if (onFail) onFail();
+            const failure = element.parentElement && element.parentElement.querySelector('[data-photo-failed]');
             if (failure) failure.classList.remove('hidden');
         }
     };
-
-    // Nápověda na tlačítku („Nápověda: slepá mapa“) a v záložce („Slepá mapa“)
-    const HINT_INFO = {
-        photo: { label: 'fotka', icon: 'image' },
-        facts: { label: 'čísla a fakta', icon: 'info' }
+    // Zvětšená fotka přes celou obrazovku; zavře se klepnutím kamkoli nebo Escape
+    const closePhotoZoom = () => {
+        const overlay = document.getElementById('photo-zoom');
+        if (overlay) overlay.remove();
     };
-    const hintInfo = (step, data) => step === 'visual'
-        ? { label: Visuals.info(data.visual).name, icon: Visuals.info(data.visual).icon }
-        : HINT_INFO[step];
+    const openPhotoZoom = (url) => {
+        closePhotoZoom();
+        const overlay = document.createElement('div');
+        overlay.id = 'photo-zoom';
+        overlay.setAttribute('role', 'dialog');
+        overlay.setAttribute('aria-modal', 'true');
+        overlay.setAttribute('aria-label', 'Zvětšená fotka');
+        overlay.className = 'fade-in fixed inset-0 z-[60] bg-black/90 p-3';
+        overlay.innerHTML = `
+            <div data-zoom-image class="h-full w-full bg-contain bg-center bg-no-repeat" aria-hidden="true"></div>
+            <button type="button" data-close aria-label="Zavřít" class="absolute right-3 top-3 rounded-full bg-white/15 p-2 text-white backdrop-blur-sm"><i data-lucide="x" class="h-6 w-6"></i></button>`;
+        overlay.querySelector('[data-zoom-image]').style.backgroundImage = cssUrl(url);
+        overlay.addEventListener('click', closePhotoZoom);
+        document.body.appendChild(overlay);
+        renderIcons(overlay);
+        overlay.querySelector('[data-close]').focus();
+    };
+    // Rámeček fotky: zástupná ikona, rozmazané pozadí, celá fotka a skryté tlačítko na zvětšení
+    const photoFrame = (attributes) => `
+        <div class="absolute inset-0 flex items-center justify-center bg-slate-200 text-slate-400 dark:bg-slate-800 dark:text-slate-600"><i data-lucide="image" class="h-10 w-10"></i></div>
+        <p data-photo-failed class="hidden absolute inset-x-0 top-1/2 mt-8 text-center text-sm text-slate-500">Fotku se nepodařilo načíst</p>
+        <div data-photo-backdrop class="absolute inset-0 scale-110 bg-cover bg-center opacity-50 blur-xl" aria-hidden="true"></div>
+        <div ${attributes} class="absolute inset-0 bg-contain bg-center bg-no-repeat" aria-hidden="true"></div>
+        <button type="button" data-photo-zoom aria-label="Zvětšit fotku" class="hidden absolute bottom-2 right-2 rounded-xl bg-black/55 p-2 text-white shadow backdrop-blur-sm"><i data-lucide="expand" class="h-4 w-4"></i></button>`;
+
     const capitalize = (text) => text.charAt(0).toUpperCase() + text.slice(1);
-    const TAB_LABELS = { photo: 'Fotka', facts: 'Fakta' };
-    // Fotky osob zarovnané nahoru, ať je vidět obličej (kategorie s příznakem portrait)
-    const photoPosition = (topic, categoryKey) => categoryOf(topic, categoryKey).portrait ? 'bg-top' : 'bg-center';
+    // Záložka nápovědy: „Fakta“ místo dlouhého „Čísla a fakta“, jinak název nápovědy
+    const tabLabel = (hint) => hint.kind === 'facts' && !hint.extra ? 'Fakta' : capitalize(hint.label);
 
     const renderFactsList = (facts) => `
         <dl class="grid grid-cols-2 gap-2">
@@ -823,10 +898,7 @@
     };
 
     // Plochy panelu: popis, fotka, obrazová nápověda (výsledek přidá mapu a snímek z družice)
-    const photoPane = (id, position) => `
-        <div class="absolute inset-0 flex items-center justify-center bg-slate-200 text-slate-400 dark:bg-slate-800 dark:text-slate-600"><i data-lucide="image" class="h-10 w-10"></i></div>
-        <p data-photo-failed class="hidden absolute inset-x-0 top-1/2 mt-8 text-center text-sm text-slate-500">Fotku se nepodařilo načíst</p>
-        <div id="${id}" class="absolute inset-0 bg-cover ${position}" aria-hidden="true"></div>`;
+    const photoPane = (id) => `<div class="absolute inset-0 overflow-hidden">${photoFrame(`id="${id}"`)}</div>`;
     const visualPane = (id, spec) => {
         const visual = Visuals.info(spec);
         const corner = visual.corner ? visual.corner(spec) : '';
@@ -869,15 +941,11 @@
             </section>`;
     };
 
-    const hintPanes = (data, steps) => {
-        const topic = TOPIC_BY_ID[data.topic];
-        return steps.map(step => {
-            if (step === 'visual') {
-                const visual = Visuals.info(data.visual);
-                return { key: step, label: capitalize(visual.name), icon: visual.icon, html: visualPane('hint-visual', data.visual) };
-            }
-            const html = step === 'photo' ? photoPane('hint-photo', photoPosition(topic, data.category)) : factsPane(data.facts);
-            return { key: step, label: TAB_LABELS[step], icon: HINT_INFO[step].icon, html };
+    const hintPanes = (hints) => {
+        return hints.map(hint => {
+            const html = hint.kind === 'visual' ? visualPane('hint-visual', hint.spec)
+                : hint.kind === 'photo' ? photoPane('hint-photo') : factsPane(hint.facts);
+            return { key: hint.key, label: tabLabel(hint), icon: hint.icon, html };
         });
     };
 
@@ -886,14 +954,13 @@
         const style = styleOf(TOPIC_BY_ID[data.topic]);
         const level = round.hintLevel;
         const unlocked = data.hints.slice(0, level - 1);
-        const nextHint = data.hints[level - 1];
-        const next = nextHint ? hintInfo(nextHint, data) : null;
-        const nextCost = next ? formatPoints(pointsFor(level + 1, getLevelCount(data), round.variant === 'typed')) : '';
+        const next = data.hints[level - 1];
+        const nextCost = next ? formatPoints(pointsFor(level + 1, round.variant === 'typed')) : '';
         const nextButton = next ? `
             <button type="button" data-action="hint" title="Nápověda: ${escapeHtml(next.label)} – pak za ${nextCost}" class="flex shrink-0 items-center gap-1 rounded-xl border-2 border-dashed border-slate-300 px-2.5 py-1 text-xs font-bold transition-colors active:scale-95 hover:bg-slate-100 dark:border-slate-600 dark:hover:bg-slate-800 ${style.text}">
                 <i data-lucide="plus" class="h-3.5 w-3.5"></i>${escapeHtml(capitalize(next.label))}<span class="font-semibold opacity-70">· ${nextCost}</span>
             </button>` : '';
-        const panes = [{ key: 'text', label: 'Popis', icon: 'quote', html: textPane(data, style) }, ...hintPanes(data, unlocked)];
+        const panes = [{ key: 'text', label: 'Popis', icon: 'quote', html: textPane(data, style) }, ...hintPanes(unlocked)];
         return renderTabbedPanel(panes, round.tab || 'text', 'hint-tab', nextButton);
     };
 
@@ -927,11 +994,12 @@
             if (overflow > 0) list.scrollLeft += overflow + 8;
         });
         const hintPhoto = document.getElementById('hint-photo');
-        if (hintPhoto) setBackgroundPhoto(hintPhoto, current.photoUrl);
+        if (hintPhoto) showPhoto(hintPhoto, current.photoUrl);
         const hintVisual = document.getElementById('hint-visual');
-        if (hintVisual) Visuals.render(hintVisual, current.visual, visualDeps);
+        const visualHint = current.hints.find(hint => hint.kind === 'visual');
+        if (hintVisual && visualHint) Visuals.render(hintVisual, visualHint.spec, visualDeps);
         const resultPhoto = document.getElementById('result-photo');
-        if (resultPhoto) setBackgroundPhoto(resultPhoto, current.photoUrl);
+        if (resultPhoto) showPhoto(resultPhoto, current.photoUrl);
         const satellite = document.getElementById('result-satellite');
         if (satellite && current.coords) renderTiles(satellite, current.coords.lat, current.coords.lon, RESULT_SATELLITE_ZOOM, SATELLITE_TILES);
         renderMap();
@@ -979,7 +1047,7 @@
 
                 <section class="${CARD} p-4">
                     <div class="mb-3 flex items-center justify-between gap-2">
-                        <h3 class="${CARD_TITLE}"><i data-lucide="target" class="w-4 h-4 ${style.text}"></i> Za ${formatPoints(pointsFor(level, levelCount, typed))}</h3>
+                        <h3 class="${CARD_TITLE}"><i data-lucide="target" class="w-4 h-4 ${style.text}"></i> Za ${formatPoints(pointsFor(level, typed))}</h3>
                         <button type="button" data-action="settings" class="flex items-center gap-1.5 rounded-lg px-2 py-1 text-[11px] font-bold uppercase tracking-wider text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-700 dark:hover:text-slate-200">
                             <i data-lucide="${VARIANTS[round.variant].icon}" class="h-3.5 w-3.5"></i> ${typed ? 'Psaní' : 'Možnosti'}
                         </button>
@@ -1010,8 +1078,8 @@
         const visual = topic.visual ? topic.visual(item, ctx, 'card') : null;
         return `
             ${hasPhoto ? `
-                <div data-card-photo class="relative ${compact ? 'h-44' : 'h-56'} shrink-0 overflow-hidden bg-slate-200 dark:bg-slate-800">
-                    <div data-photo class="absolute inset-0 bg-cover ${photoPosition(topic, item.c)}" aria-hidden="true"></div>
+                <div data-card-photo class="relative ${compact ? 'h-52' : 'h-64'} shrink-0 overflow-hidden bg-slate-200 dark:bg-slate-800">
+                    ${photoFrame('data-photo')}
                 </div>
             ` : ''}
             <div class="flex flex-col gap-4 p-5">
@@ -1040,9 +1108,7 @@
     const hydrateItemCard = async (root, item, ctx, photoWidth) => {
         const photo = root.querySelector('[data-photo]');
         if (photo) {
-            loadImage(photoOf(item, photoWidth))
-                .then(url => { if (photo.isConnected) photo.style.backgroundImage = cssUrl(url); })
-                .catch(() => { const box = root.querySelector('[data-card-photo]'); if (box) box.remove(); });
+            showPhoto(photo, photoOf(item, photoWidth), () => { const box = root.querySelector('[data-card-photo]'); if (box) box.remove(); });
         }
         const visualBox = root.querySelector('[data-visual]');
         if (visualBox) Visuals.render(visualBox, ctx.topic.visual(item, ctx, 'card'), visualDeps);
@@ -1217,9 +1283,8 @@
 
     // Záložky výsledku: fotka, mapa s polohou, bez fotky snímek z družice, obrazová nápověda (časová osa, tabulka…)
     const resultPanes = (data) => {
-        const topic = TOPIC_BY_ID[data.topic];
         const panes = [];
-        if (data.photoUrl) panes.push({ key: 'photo', label: 'Fotka', icon: 'image', html: photoPane('result-photo', photoPosition(topic, data.category)) });
+        if (data.photoUrl) panes.push({ key: 'photo', label: 'Fotka', icon: 'image', html: photoPane('result-photo') });
         if (data.coords) {
             panes.push({ key: 'map', label: 'Mapa', icon: 'map-pin', html: mapPane() });
             if (!data.photoUrl) panes.push({ key: 'satellite', label: 'Z družice', icon: 'satellite', html: '<div id="result-satellite" class="absolute inset-0 overflow-hidden bg-slate-800" role="img" aria-label="Snímek z družice"></div>' });
@@ -1258,6 +1323,9 @@
         const topic = TOPIC_BY_ID[data.topic];
         const style = styleOf(topic);
         const category = categoryOf(topic, data.category);
+        // K faktům i vlastní nápovědy tématu (současníci, složení látky), ať je hráč vidí, i když je neotevřel
+        const extraFacts = data.hints.filter(hint => hint.kind === 'facts' && hint.extra).flatMap(hint => hint.facts);
+        const resultFacts = [...data.resultFacts, ...extraFacts.filter(fact => !data.resultFacts.some(other => other.label === fact.label))];
 
         const funFactsHtml = data.funFacts.map((fact, i) => `
             <div class="flex items-start gap-3">
@@ -1293,10 +1361,10 @@
 
                     ${data.description ? `<p class="text-[15px] font-medium leading-relaxed text-slate-700 dark:text-slate-200">${escapeHtml(data.description)}</p>` : ''}
 
-                    ${data.resultFacts.length ? `
+                    ${resultFacts.length ? `
                         <section class="${CARD} p-4">
                             <h3 class="${CARD_TITLE} mb-3"><i data-lucide="info" class="w-4 h-4 ${style.text}"></i> Čísla a fakta</h3>
-                            ${renderFactsList(data.resultFacts)}
+                            ${renderFactsList(resultFacts)}
                         </section>
                     ` : ''}
 
@@ -1381,7 +1449,7 @@
     // answerRef: položka (nebo stát) ze špatné odpovědi – výsledek k ní nabídne okno s popisem
     const submitAnswer = ({ correct, typed, answer, answerRef = null, gaveUp = false }) => {
         if (!round || round.answered) return;
-        const points = correct ? pointsFor(round.hintLevel, getLevelCount(current), typed) : 0;
+        const points = correct ? pointsFor(round.hintLevel, typed) : 0;
         const ref = !correct && isKnownRef(answerRef) ? answerRef : null;
         Object.assign(round, { answered: true, correct, typed, answer, answerRef: ref, gaveUp, points });
         mapZoom = DEFAULT_MAP_ZOOM;
@@ -1393,7 +1461,7 @@
         if (!round || round.answered || round.hintLevel >= getLevelCount(current)) return;
         round.hintLevel += 1;
         // Nově odemčená nápověda se hned ukáže ve své záložce
-        round.tab = current.hints[round.hintLevel - 2];
+        round.tab = current.hints[round.hintLevel - 2].key;
         renderRound({ keepScroll: true });
     };
 
@@ -1432,7 +1500,7 @@
         // Dnešní otázka z uložené relace platí jen do půlnoci
         const isCurrent = session.mode !== 'daily' || session.data.dailyDate === getDayKey();
         if (!isFresh || !isCurrent) return false;
-        current = session.data;
+        current = upgradeRoundData(session.data);
         round = session.round;
         mode = session.mode;
         pool = session.pool || { kind: 'mix' };
@@ -1476,7 +1544,7 @@
         const saved = (readJson(KEYS.daily) || {})[topicId];
         if (saved && saved.date === today && saved.data) {
             mode = 'daily';
-            current = saved.data;
+            current = upgradeRoundData(saved.data);
             round = saved.round || createRound();
             renderRound();
             return;
@@ -1913,10 +1981,16 @@
     document.getElementById('btn-learn').addEventListener('click', () => openLearn('home'));
     document.getElementById('btn-settings').addEventListener('click', () => openSettings());
     document.getElementById('status-badge').addEventListener('click', () => switchFromBadge());
+    // Zvětšení fotky funguje všude: v nápovědě, ve výsledku, v okně s popisem i v atlasu
+    document.addEventListener('click', (event) => {
+        const zoom = event.target.closest('[data-photo-zoom]');
+        if (zoom && zoom.dataset.url) openPhotoZoom(zoom.dataset.url);
+    });
     // Escape zavře nejdřív okno s popisem, pak výběr co hrát, pak nastavení
     document.addEventListener('keydown', (event) => {
         if (event.key !== 'Escape') return;
-        if (document.getElementById('place-info')) closePlaceInfo();
+        if (document.getElementById('photo-zoom')) closePhotoZoom();
+        else if (document.getElementById('place-info')) closePlaceInfo();
         else if (document.getElementById('play-chooser')) closeChooser();
         else closeSettings();
     });

@@ -58,6 +58,31 @@
         return facts;
     };
 
+    // Nápovědy k otázce „Kam patří?“: fotka (podle vzhledu se pozná), u živočichů čeleď a nakonec známí příbuzní
+    // z hledané skupiny (k šelmám vlk a kočka); mapa rozšíření ani hmotnost řád neprozradí
+    const fameIndex = new WeakMap();
+    const fameOf = (other, ctx) => {
+        if (!fameIndex.has(ctx.items)) fameIndex.set(ctx.items, new Map(ctx.items.map((candidate, index) => [candidate.q, index])));
+        return fameIndex.get(ctx.items).get(other.q) ?? Infinity;
+    };
+    const relativesOf = (item, ctx, levelKey) => {
+        const group = (item.f || {})[levelKey];
+        return ctx.items
+            .filter(other => other.q !== item.q && other.c === item.c && other.f && other.f[levelKey] === group)
+            .sort((a, b) => (b.k || 0) - (a.k || 0) || fameOf(a, ctx) - fameOf(b, ctx))
+            .slice(0, 4).map(other => other.n);
+    };
+    const taxonHints = (item, ctx) => {
+        const level = taxonLevel(item);
+        const f = item.f || {};
+        const relatives = relativesOf(item, ctx, level.key);
+        return [
+            { kind: 'photo' },
+            ...(level.key === 'ord' && /^\p{Ll}/u.test(f.fam || '') ? [{ kind: 'facts', label: 'čeleď', icon: 'git-branch', facts: [{ label: 'Čeleď', value: f.fam }] }] : []),
+            { kind: 'facts', label: 'příbuzní', icon: 'network', facts: relatives.length ? [{ label: level.key === 'ord' ? 'Ze stejného řádu' : 'Ze stejné čeledi', value: relatives.join(', ') }] : [] }
+        ];
+    };
+
     // Psaná odpověď: i vědecký název a samotné první slovo, pokud ho nemá žádný jiný druh („lev“, ale ne „sýkora“)
     const firstWords = new WeakMap();
     const firstWordCounts = (items) => {
@@ -119,6 +144,8 @@
             // Jen české názvy skupin (malým písmenem); vědecké (Pangalliformes) by byly jen hádání
             const isCzechName = (label) => Boolean(label) && /^\p{Ll}/u.test(label);
             if (!isCzechName(answer)) return null;
+            // Skupina, kterou prozradí už název (krokodýl nilský → krokodýli, hřib → hřibovité), by nebyla otázka
+            if (core.isFactVisible(answer, item.n)) return null;
             // Sesterské skupiny seřazené podle toho, kolik druhů v nich máme – běžné řády (hlodavci, kytovci), ne vzácné (luskouni)
             const siblings = (parentKey) => {
                 const counts = new Map();
@@ -154,6 +181,7 @@
             return hide.length ? censorName(text, hide.join(', ')) : text;
         },
 
+        hints: (item, ctx, type) => type === 'taxon' ? taxonHints(item, ctx) : null,
         // Mapa rozšíření z Wikimedia Commons
         visual: (item) => item.rm && item.rh ? { type: 'image', file: item.rm, hash: item.rh, name: 'mapa rozšíření', icon: 'map' } : null,
         facts: (item, ctx, mode) => factsOf(item, mode),

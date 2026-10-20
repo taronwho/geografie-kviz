@@ -56,6 +56,11 @@
         const svg = svgElement('svg', { viewBox: `0 0 ${width} ${height}`, class: 'absolute inset-0 h-full w-full', 'aria-hidden': 'true' });
         const axisY = Math.round(height * 0.58);
         svg.appendChild(svgElement('line', { x1: 12, x2: width - 12, y1: axisY, y2: axisY, 'stroke-width': 2, class: 'stroke-slate-400 dark:stroke-slate-500' }));
+        // Osa bez letopočtů: aspoň směr času
+        if (spec.blind) {
+            svg.appendChild(svgText('dříve', { x: 14, y: axisY + 20, 'font-size': 11, 'font-weight': 600, class: 'fill-slate-400 dark:fill-slate-500' }));
+            svg.appendChild(svgText('později →', { x: width - 14, y: axisY + 20, 'text-anchor': 'end', 'font-size': 11, 'font-weight': 600, class: 'fill-slate-400 dark:fill-slate-500' }));
+        }
         for (const tick of layout.ticks) {
             svg.appendChild(svgElement('line', { x1: tick.x, x2: tick.x, y1: axisY - 5, y2: axisY + 5, 'stroke-width': 1.5, class: 'stroke-slate-400 dark:stroke-slate-500' }));
             // Roky před naším letopočtem ve dvou řádcích, aby se popisky nepřekrývaly
@@ -170,7 +175,7 @@
             name: 'časová osa',
             icon: 'calendar-range',
             frame: 'border-amber-200 bg-amber-50 dark:border-slate-700 dark:bg-slate-800',
-            describe: () => 'Časová osa s roky a s několika známými událostmi pro orientaci.',
+            describe: (spec) => spec.blind ? 'Časová osa bez letopočtů: hádané období mezi známými událostmi.' : 'Časová osa s roky a s několika známými událostmi pro orientaci.',
             render: renderTimeline
         },
         periodic: {

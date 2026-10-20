@@ -9,8 +9,7 @@
 
     const { formatYear, formatFacts, centuryOf, centuryLabel, getCountryNames, shuffle, eraNearness, personSimilarity } = core;
 
-    // portrait: fotky osob se zarovnají nahoru, ať je vidět obličej
-    const PERSON = { question: 'Kdo to je?', placeholder: 'Napiš jméno…', ask: 'Kdo je', portrait: true, sort: { by: 'y' } };
+    const PERSON = { question: 'Kdo to je?', placeholder: 'Napiš jméno…', ask: 'Kdo je', sort: { by: 'y' } };
     const CATEGORIES = [
         { key: 'panovnik', label: 'Panovníci', one: 'panovník', icon: 'crown', ...PERSON, spanLabel: 'vláda' },
         { key: 'statnik', label: 'Prezidenti a státníci', one: 'státník', icon: 'scale', ...PERSON, spanLabel: 'v úřadu' },
@@ -178,17 +177,16 @@
 
     // Časová osa (u bitev se souřadnicemi slepá mapa); u otázky na století by roky na ose prozradily odpověď
     const visualOf = (item, ctx, mode) => {
-        const visual = timelineOf(item, ctx, mode);
-        if (!visual || visual.type !== 'timeline') return visual;
-        const years = [...visual.spans.flatMap(span => [span.from, span.to]), ...visual.points].filter(Number.isFinite);
-        return years.length ? { ...visual, anchors: eventsFor(item, years) } : null;
-    };
-    const timelineOf = (item, ctx, mode) => {
-        const f = item.f || {};
         if (item.c === 'bitva' && item.la !== undefined) {
             return { type: 'map', lat: item.la, lon: item.lo, span: 24, highlightIso: '', label: 'Místo je uprostřed' };
         }
         if (mode === 'century') return null;
+        return withAnchors(item, timelineOf(item));
+    };
+    const yearsOf = (spec) => [...spec.spans.flatMap(span => [span.from, span.to]), ...spec.points].filter(Number.isFinite);
+    const withAnchors = (item, spec) => spec && yearsOf(spec).length ? { ...spec, anchors: eventsFor(item, yearsOf(spec)) } : null;
+    const timelineOf = (item) => {
+        const f = item.f || {};
         if (isPerson(item)) {
             const spans = [];
             if (f.born !== undefined && f.died !== undefined) spans.push({ kind: 'life', from: f.born, to: f.died });
@@ -196,10 +194,45 @@
             return spans.length ? { type: 'timeline', spans, points: [], hide: item.n, spanLabel: categoryOf(item).spanLabel } : null;
         }
         if (item.c === 'bitva') {
+            if (f.year === undefined) return null;
             return f.end ? { type: 'timeline', spans: [{ kind: 'reign', from: f.year, to: f.end }], points: [], hide: item.n, spanLabel: 'trvání' }
                 : { type: 'timeline', spans: [], points: [f.year], hide: item.n };
         }
+        if (f.from === undefined) return null;
         return { type: 'timeline', spans: [{ kind: 'reign', from: f.from, to: f.to }], points: [], hide: item.n, spanLabel: 'trvání' };
+    };
+
+    // Nápovědy k otázce na století: fotka, mapa místa ani fakta (rod, místo bitvy) století neprozradí.
+    // Pomůže, kdo v té době žil a co se tehdy dělo, a osa bez letopočtů se známými událostmi před a po.
+    const fameIndex = new WeakMap();
+    const fameOf = (other, ctx) => {
+        if (!fameIndex.has(ctx.items)) fameIndex.set(ctx.items, new Map(ctx.items.map((candidate, index) => [candidate.q, index])));
+        return fameIndex.get(ctx.items).get(other.q) ?? Infinity;
+    };
+    const contemporariesOf = (item, ctx, year) => {
+        const regions = cachedRegions(item);
+        const sameHistory = (other) => cachedRegions(other).some(region => regions.includes(region));
+        // Jména bez číslic (jinak by mohla prozradit rok) a nejdřív ze stejných dějin, pak ta nejznámější
+        const pick = (candidates, score, count) => candidates
+            .filter(other => other.q !== item.q && other.k === 1 && !/\d/.test(other.n))
+            .map(other => ({ other, score: score(other) }))
+            .sort((a, b) => b.score - a.score || fameOf(a.other, ctx) - fameOf(b.other, ctx))
+            .slice(0, count).map(({ other }) => other.n);
+        const people = pick(ctx.items.filter(other => isPerson(other) && other.f && other.f.born <= year && year <= other.f.died),
+            other => (sameHistory(other) ? 2 : 0), 3);
+        const events = pick(ctx.items.filter(other => other.c === 'bitva' && other.f && Math.abs(other.f.year - year) <= 10),
+            other => (item.f.war && other.f.war === item.f.war ? 3 : 0) + (sameHistory(other) ? 1 : 0), 2);
+        return [
+            people.length ? { label: 'Tehdy žili', value: people.join(', ') } : null,
+            events.length ? { label: 'Ve stejné době', value: events.join(', ') } : null
+        ].filter(Boolean);
+    };
+    // Osa bez letopočtů jen tehdy, když na ní jsou aspoň dvě známé události (jinak nic neřekne)
+    const blindTimelineOf = (item) => {
+        const spec = withAnchors(item, timelineOf(item));
+        if (!spec) return null;
+        const blind = { ...spec, blind: true, name: 'osa bez letopočtů', icon: 'calendar-range' };
+        return core.buildTimeline(blind, 340).anchors.length >= 2 ? blind : null;
     };
 
     const subtitle = (item, { countries }) => {
@@ -272,6 +305,14 @@
             };
         },
         censor: (type, text) => type === 'century' ? hideYears(text) : null,
+        hints: (item, ctx, type) => {
+            if (type !== 'century') return null;
+            const event = centuryEvent(item);
+            return [
+                { kind: 'facts', label: 'současníci', icon: 'users', facts: event ? contemporariesOf(item, ctx, event.year) : [] },
+                { kind: 'visual', spec: blindTimelineOf(item) }
+            ];
+        },
 
         visual: visualOf,
         regionsOf,

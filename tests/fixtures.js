@@ -75,7 +75,7 @@ const historie = {
 };
 
 const organism = (q, n, c, f, extra = {}) => ({ q, t: n, n, c, k: 1, d: `${c} v testovací přírodě`, im: `${n}.jpg`, ih: 'ef', f, ...extra });
-const mammal = (q, n, lat, ord, extra = {}) => organism(q, n, 'savci', { lat, cls: 'savci', ord, fam: `${ord} – čeleď`, iucn: 'LC', mass: 120 }, extra);
+const mammal = (q, n, lat, ord, extra = {}) => organism(q, n, 'savci', { lat, cls: 'savci', ord, fam: `čeleď rodu ${lat.split(' ')[0]}`, iucn: 'LC', mass: 120 }, extra);
 const biologie = {
     generated: '2026-10-20',
     collections: [
@@ -113,7 +113,7 @@ const chemie = {
     collections: [{ id: 'alkalicke-kovy', label: 'Alkalické kovy', sort: { by: 'z' } }],
     items: [
         element('Q556', 'Vodík', 1, 'H'), element('Q560', 'Helium', 2, 'He'), element('Q568', 'Lithium', 3, 'Li', { g: ['alkalicke-kovy'] }),
-        element('Q629', 'Kyslík', 8, 'O'), element('Q658', 'Sodík', 11, 'Na', { g: ['alkalicke-kovy'] }), element('Q677', 'Železo', 26, 'Fe'),
+        element('Q629', 'Kyslík', 8, 'O'), element('Q658', 'Sodík', 11, 'Na', { g: ['alkalicke-kovy'], f: { z: 11, sym: 'Na', fam: 'test', lat: 'natrium' } }), element('Q677', 'Železo', 26, 'Fe'),
         element('Q650', 'Fluor', 9, 'F'), element('Q671', 'Francium', 87, 'Fr', { g: ['alkalicke-kovy'] }),
         substance('Q283', 'Voda', 'H₂O'), substance('Q1997', 'Oxid uhličitý', 'CO₂'), substance('Q37129', 'Methan', 'CH₄'),
         substance('Q4087', 'Amoniak', 'NH₃'), substance('Q2314', 'Chlorid sodný', 'NaCl'),

@@ -15,7 +15,7 @@
     const CATEGORIES = [
         { key: 'prvky', label: 'Chemické prvky', one: 'prvek', icon: 'atom', question: 'Který prvek to je?', placeholder: 'Napiš název prvku…', sort: { by: 'z' } },
         { key: 'latky', label: 'Sloučeniny a látky', one: 'látka', icon: 'test-tube', question: 'Co je to za látku?', placeholder: 'Napiš název látky…', sort: { by: 'name' } },
-        { key: 'chemici', label: 'Chemici', one: 'chemik', icon: 'user', question: 'Kdo to je?', placeholder: 'Napiš jméno…', ask: 'Kdo je', portrait: true, sort: { by: 'y' } }
+        { key: 'chemici', label: 'Chemici', one: 'chemik', icon: 'user', question: 'Kdo to je?', placeholder: 'Napiš jméno…', ask: 'Kdo je', sort: { by: 'y' } }
     ];
 
     // Jak často se u prvku ptáme na značku a u látky na vzorec
@@ -46,6 +46,16 @@
     };
     const escapeRegExp = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
+    const capitalize = (text) => text.charAt(0).toUpperCase() + text.slice(1);
+    // Názvy prvků ve vzorci (H₂SO₄ → vodík, síra, kyslík) – nápověda k otázce na vzorec
+    const elementNames = new WeakMap();
+    const elementNamesOf = (formula, ctx) => {
+        if (!elementNames.has(ctx.items)) {
+            elementNames.set(ctx.items, new Map(ctx.items.filter(other => other.c === 'prvky').map(other => [other.f.sym, other.n.toLowerCase()])));
+        }
+        return [...new Set(symbolsOf(formula || ''))].map(symbol => elementNames.get(ctx.items).get(symbol)).filter(Boolean);
+    };
+
     const factsOf = (item, mode) => {
         const f = item.f || {};
         const answered = mode === 'result' || mode === 'card';
@@ -53,6 +63,8 @@
             const family = elementFamily(f.z);
             const facts = [];
             if (answered) facts.push({ label: 'Značka', value: f.sym }, { label: 'Protonové číslo', value: String(f.z) });
+            if (answered && f.lat && normalizeAnswer(f.lat) !== normalizeAnswer(item.n)) facts.push({ label: 'Latinsky', value: capitalize(f.lat) });
+            if (answered && f.ar) facts.push({ label: 'Atomová hmotnost', value: formatNumber(f.ar) });
             if (family) facts.push({ label: 'Skupina prvků', value: family.label });
             if (f.year !== undefined) facts.push({ label: 'Objeven', value: f.year < 1000 ? 'známý od starověku' : String(f.year) });
             return [...facts, ...formatFacts(item, [['disc', 'Objevitel', v => v], ['named', 'Pojmenován po', v => v],
@@ -138,6 +150,8 @@
             const f = item.f || {};
             if (item.c === 'prvky') {
                 if (!(rng() < SYMBOL_QUIZ_SHARE) || !f.sym) return null;
+                // Značku, kterou je vidět už v názvu (Helium → He, Neon → Ne), by nebylo co hádat
+                if (normalizeAnswer(item.n).startsWith(f.sym.toLowerCase())) return null;
                 // Matoucí možnosti: značky začínající stejným písmenem (Fe – F, Fr, Fm), jinak prvky z okolí v tabulce (W – Mo, Re, Ta)
                 const others = ctx.items.filter(other => other.c === 'prvky' && other.f.sym && other.f.sym !== f.sym);
                 const position = periodicPosition(f.z);
@@ -178,6 +192,23 @@
                     placeholder: 'Napiš vzorec, třeba H2O',
                     answerLabel: f.formula
                 };
+            }
+            return null;
+        },
+        // Nápovědy: u značky latinský název (Natrium → Na), u vzorce prvky, ze kterých je, a molární hmotnost;
+        // fotka bílého prášku ani teplota tání by tu nepomohly
+        hints: (item, ctx, type) => {
+            const f = item.f || {};
+            if (type === 'symbol') {
+                const latin = f.lat && normalizeAnswer(f.lat) !== normalizeAnswer(item.n) ? capitalize(f.lat) : null;
+                return [{ kind: 'facts', label: 'latinský název', icon: 'scroll', facts: latin ? [{ label: 'Latinsky', value: latin }] : [] }];
+            }
+            if (type === 'formula') {
+                const elements = elementNamesOf(f.formula, ctx);
+                return [
+                    { kind: 'facts', label: 'složení', icon: 'atom', facts: elements.length ? [{ label: 'Prvky', value: elements.join(', ') }] : [] },
+                    { kind: 'facts', label: 'molární hmotnost', icon: 'scale', facts: f.molar ? [{ label: 'Molární hmotnost', value: `${formatNumber(f.molar)} g/mol` }] : [] }
+                ];
             }
             return null;
         },

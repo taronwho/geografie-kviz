@@ -16,7 +16,7 @@
         { key: 'veliciny', label: 'Fyzikální veličiny', one: 'veličina', icon: 'gauge', question: 'Která veličina to je?', placeholder: 'Napiš název veličiny…', sort: { by: 'name' } },
         { key: 'jednotky', label: 'Jednotky', one: 'jednotka', icon: 'ruler', question: 'Která jednotka to je?', placeholder: 'Napiš název jednotky…', sort: { by: 'name' } },
         { key: 'vesmir', label: 'Vesmír', one: 'vesmírné těleso', icon: 'orbit', question: 'Co je to za těleso?', placeholder: 'Napiš název…', sort: { by: 'name' } },
-        { key: 'fyzici', label: 'Fyzici', one: 'fyzik', icon: 'user', question: 'Kdo to je?', placeholder: 'Napiš jméno…', ask: 'Kdo je', portrait: true, sort: { by: 'y' } }
+        { key: 'fyzici', label: 'Fyzici', one: 'fyzik', icon: 'user', question: 'Kdo to je?', placeholder: 'Napiš jméno…', ask: 'Kdo je', sort: { by: 'y' } }
     ];
 
     // Jak často se u veličiny ptáme na jednotku a u jednotky na značku nebo na to, co měří
@@ -46,7 +46,8 @@
             return formatFacts(item, [
                 ...(mode === 'usymbol' ? [] : [['usym', 'Značka', v => v]]),
                 ...(mode === 'measures' ? [] : [['measures', 'Veličina', v => v]]),
-                ['system', 'Soustava', v => v]
+                ['system', 'Soustava', v => v],
+                ...(mode === 'result' || mode === 'card' ? [['named', 'Pojmenována po', v => v]] : [])
             ]);
         }
         if (item.c === 'vesmir') {
@@ -90,6 +91,43 @@
     const sameField = (a, b, ctx) => {
         const fields = fieldsOf(a, ctx);
         return fields.length > 0 && fieldsOf(b, ctx).some(field => fields.includes(field));
+    };
+
+    // Nápovědy k otázkám, kde je název vidět: fotka ani čísla o tělese tu nepomohou, pomůže značka a obor veličiny,
+    // u jednotky co měří (nebo jaká je její značka) a po kom je pojmenovaná (newton – Isaac Newton)
+    const fieldLabels = (item, ctx) => fieldsOf(item, ctx)
+        .map(field => ((ctx.collections || []).find(collection => collection.id === field) || {}).label)
+        .filter(Boolean).map(label => label.toLowerCase());
+    const unitByName = new WeakMap();
+    const eponymHint = (named) => ({ kind: 'facts', label: 'pojmenována po', icon: 'user', facts: named ? [{ label: 'Pojmenována po', value: named }] : [] });
+    const hintsFor = (item, ctx, type) => {
+        const f = item.f || {};
+        const field = fieldLabels(item, ctx);
+        const fieldFact = field.length ? [{ label: 'Obor', value: field.join(', ') }] : [];
+        if (type === 'unit') {
+            if (!unitByName.has(ctx.items)) unitByName.set(ctx.items, new Map(ctx.items.filter(other => other.c === 'jednotky').map(other => [other.n.toLowerCase(), other])));
+            const unit = unitByName.get(ctx.items).get((f.unit || '').toLowerCase());
+            return [
+                { kind: 'facts', label: 'o veličině', icon: 'gauge', facts: [...(f.sym ? [{ label: 'Značka veličiny', value: f.sym }] : []), ...fieldFact] },
+                eponymHint(unit && unit.f.named)
+            ];
+        }
+        if (type === 'usymbol') {
+            // Po kom je pojmenovaná, prozradí už název (pascal); pomůže tvar značky – po osobě velkým písmenem
+            const symbol = f.usym || '';
+            const shape = `${symbol.length} ${symbol.length === 1 ? 'znak' : symbol.length < 5 ? 'znaky' : 'znaků'}, ${/^\p{Lu}/u.test(symbol) ? 'začíná velkým písmenem' : 'malými písmeny'}`;
+            return [
+                { kind: 'facts', label: 'o jednotce', icon: 'ruler', facts: [{ label: 'Měří', value: f.measures }, { label: 'Soustava', value: f.system }].filter(fact => fact.value) },
+                { kind: 'facts', label: 'tvar značky', icon: 'type', facts: symbol ? [{ label: 'Značka', value: shape }] : [] }
+            ];
+        }
+        if (type === 'measures') {
+            return [
+                { kind: 'facts', label: 'o jednotce', icon: 'ruler', facts: [{ label: 'Značka', value: f.usym }, { label: 'Soustava', value: f.system }].filter(fact => fact.value).concat(fieldFact) },
+                eponymHint(f.named)
+            ];
+        }
+        return null;
     };
 
     // Značka jednotky v textu: víceznaková jako samostatné slovo, jednoznaková (V, N, J) jen za číslem („230 V“), ať nezmizí předložka
@@ -203,6 +241,7 @@
             return null;
         },
 
+        hints: hintsFor,
         visual: visualOf,
         facts: (item, ctx, mode) => factsOf(item, mode),
         subtitle: (item) => {

@@ -427,10 +427,25 @@
     ];
 
     // Nápovědy v pořadí: popis (hned) → fotka → obrazová nápověda tématu (mapa, časová osa…) → fakta; chybějící krok se vynechá
-    const getHintSteps = ({ hasPhoto, hasVisual, hasFacts }) => [hasPhoto && 'photo', hasVisual && 'visual', hasFacts && 'facts'].filter(Boolean);
+    // Body: bez nápovědy vždy 4 (i když otázka nápověd tolik nemá), každá použitá nápověda o bod méně, aspoň 1;
+    // level = 1 + počet použitých nápověd; psaná odpověď dvojnásobek
+    const MAX_POINTS = 4;
+    const pointsFor = (level, typed) => Math.max(MAX_POINTS - level + 1, 1) * (typed ? 2 : 1);
 
-    // Body: na začátku tolik, kolik je úrovní (4 s fotkou, 3 bez ní), každá nápověda o bod méně; psaná odpověď dvojnásobek
-    const pointsFor = (level, levelCount, typed) => Math.max(levelCount - level + 1, 1) * (typed ? 2 : 1);
+    // Fakt, který hráč už vidí v zadání nebo popisu („Místo: Sudoměř“ u „bitvy u Sudoměře“), nápovědu nepřidá.
+    // Slovo se hledá podle kmene (začátku), ať se najde i v jiném pádě; čísla a krátká slova se neporovnávají.
+    const stemOf = (word) => word.slice(0, Math.max(4, Math.ceil(word.length * 0.7)));
+    // Slovo je vidět i tehdy, když z některého slova textu vychází (vorvaň → vorvaňovití, hřib → hřibovité)
+    const isFactVisible = (value, text) => {
+        const haystack = normalizeAnswer(text);
+        const significant = (word) => word.length >= 4 && !/^\d+$/.test(word);
+        const textWords = haystack.split(' ').filter(significant);
+        const seen = (word) => haystack.includes(stemOf(word))
+            || textWords.some(other => word.length <= other.length + 6 && word.startsWith(other.slice(0, Math.max(3, other.length - 1))));
+        const words = normalizeAnswer(value).split(' ').filter(significant);
+        return words.length > 0 && words.every(seen);
+    };
+    const dropKnownFacts = (facts, text) => facts.filter(fact => !isFactVisible(fact.value, text));
 
     // Fakta na konec: čísla z Wikidat v češtině
     const formatNumber = (value) => Number(value).toLocaleString('cs-CZ');
@@ -500,12 +515,14 @@
     // Rozvržení časové osy na šířku width: dílky s roky, pruhy období, body událostí a nejvýš tři orientační události.
     // anchors = [[rok, text, blízkost]] dodá téma (čím vyšší blízkost, tím větší přednost; světové události 0);
     // nevybere se událost, která by prozradila odpověď (hide = jméno, které se nesmí objevit), ani letopočet hádané položky
-    const buildTimeline = ({ spans = [], points = [], hide = '', anchors: events = [] }, width, margin = 24) => {
+    // blind = osa bez letopočtů (nápověda u otázky na století): bez značek let a události bez roků, širší okolí,
+    // ať jsou vidět známé události před i po
+    const buildTimeline = ({ spans = [], points = [], hide = '', anchors: events = [], blind = false }, width, margin = 24) => {
         const years = [...spans.flatMap(span => [span.from, span.to ?? span.from]), ...points].filter(Number.isFinite);
         const min = Math.min(...years);
         const max = Math.max(...years);
-        // Okolí hádaného období: polovina jeho délky na každou stranu, aspoň 40 a nejvýš 300 let
-        const pad = Math.min(Math.max((max - min) * 0.5, 40), 300);
+        // Okolí hádaného období: polovina jeho délky na každou stranu, aspoň 40 (bez letopočtů 100) a nejvýš 300 let
+        const pad = Math.min(Math.max((max - min) * 0.5, blind ? 100 : 40), 300);
         const start = min - pad;
         // Do budoucnosti osa nesahá dál než pár let za dnešek
         const end = Math.min(max + pad, Math.max(max + 10, 2030));
@@ -514,12 +531,12 @@
         const step = NICE_STEPS.find(candidate => tickCount(candidate) <= 5) || 5000;
         const x = (year) => Math.round(margin + (year - start) / (end - start) * (width - 2 * margin));
         const ticks = [];
-        for (let year = Math.ceil(start / step) * step; year <= end; year += step) ticks.push({ x: x(year), year, label: formatTick(year) });
+        if (!blind) for (let year = Math.ceil(start / step) * step; year <= end; year += step) ticks.push({ x: x(year), year, label: formatTick(year) });
         const bars = spans.map(span => ({ kind: span.kind, x: x(span.from), width: x(span.to ?? span.from + 1) - x(span.from) }));
         const own = new Set(years);
         const candidates = events
             .filter(([year, text]) => year > start && year < end && !own.has(year) && !(hide && censorName(text, hide).includes('[***]')))
-            .map(([year, text, near]) => ({ x: x(year), year, label: `${formatTick(year)} ${text}`, near: Number(near) || 0 }));
+            .map(([year, text, near]) => ({ x: x(year), year, label: blind ? text : `${formatTick(year)} ${text}`, near: Number(near) || 0 }));
         // Nejdřív blízké dějiny, z nich ty nejblíž středu hádaného období; každý popisek do jednoho ze dvou řádků tak,
         // aby se s žádným jiným nepřekrýval a nevyčníval z osy (šířku textu odhadneme podle počtu znaků)
         const center = x((min + max) / 2);
@@ -640,7 +657,7 @@
         inCollection, filterItems, pickItem, sortItems, getCountryNames, getContinent, getCountryAliases,
         distanceKm, nearness, STATE_STEPS, sharesGroup, eraNearness, personSimilarity, rankBySimilarity, takeDistinct,
         buildItemChoices, buildCountryChoices, findAnswerItem, findAnswerCountry, updateMistakes, nameAnswers, countryAnswers,
-        getHintSteps, pointsFor, formatNumber, formatPopulation, formatYear, formatFacts, getMapSpan, buildBlindMap,
+        pointsFor, dropKnownFacts, isFactVisible, formatNumber, formatPopulation, formatYear, formatFacts, getMapSpan, buildBlindMap,
         buildTimeline, centuryOf, centuryLabel, computeStreak, buildShareText, getTileLayout
     };
 });

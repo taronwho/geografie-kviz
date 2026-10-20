@@ -95,11 +95,9 @@ test('přijímané odpovědi: název i titulek článku, u státu i běžné ná
 });
 
 test('body podle nápověd a napsané odpovědi', () => {
-    // 4 úrovně: popis, fotka, slepá mapa, fakta
-    assert.deepEqual([1, 2, 3, 4].map(level => core.pointsFor(level, 4, false)), [4, 3, 2, 1]);
-    assert.deepEqual([1, 2, 3, 4].map(level => core.pointsFor(level, 4, true)), [8, 6, 4, 2]);
-    // Bez fotky jen 3 úrovně
-    assert.deepEqual([1, 2, 3].map(level => core.pointsFor(level, 3, false)), [3, 2, 1]);
+    // Bez nápovědy 4 body, každá nápověda o bod méně (level = 1 + použité nápovědy), aspoň 1; psaná odpověď dvojnásobek
+    assert.deepEqual([1, 2, 3, 4, 5].map(level => core.pointsFor(level, false)), [4, 3, 2, 1, 1]);
+    assert.deepEqual([1, 2, 3, 4].map(level => core.pointsFor(level, true)), [8, 6, 4, 2]);
     assert.equal(core.formatPoints(1), '1 bod');
     assert.equal(core.formatPoints(3), '3 body');
     assert.equal(core.formatPoints(6), '6 bodů');
@@ -353,10 +351,25 @@ test('seznam chyb: chyba na začátek, správná odpověď ho odebere', () => {
     assert.equal(core.updateMistakes(Array.from({ length: 300 }, (_, i) => `zemepis:Q${i}`), 'zemepis:Q999', false).length, 300);
 });
 
-test('pořadí nápověd: fotka, obrazová nápověda, fakta; chybějící se vynechá', () => {
-    assert.deepEqual(core.getHintSteps({ hasPhoto: true, hasVisual: true, hasFacts: true }), ['photo', 'visual', 'facts']);
-    assert.deepEqual(core.getHintSteps({ hasPhoto: false, hasVisual: true, hasFacts: true }), ['visual', 'facts']);
-    assert.deepEqual(core.getHintSteps({ hasPhoto: true, hasVisual: false, hasFacts: false }), ['photo']);
+test('nápověda nesmí opakovat, co hráč vidí v zadání nebo popisu', () => {
+    const facts = [{ label: 'Místo', value: 'Sudoměř' }, { label: 'Součást', value: 'husitské války' }, { label: 'Rok', value: '1420' }];
+    const shown = core.dropKnownFacts(facts, 'Bitva u Sudoměře · byla jednou z prvních bitev husitských válek').map(fact => fact.label);
+    assert.ok(!shown.includes('Místo'), 'Sudoměř je vidět v názvu (v jiném pádě)');
+    assert.ok(shown.includes('Rok'), 'čísla se neporovnávají');
+    // Skupina odvozená ze jména (vorvaň → vorvaňovití, hřib → hřibovité) je vidět, nesouvisející ne
+    assert.equal(core.isFactVisible('vorvaňovití', 'Vorvaň obrovský'), true);
+    assert.equal(core.isFactVisible('hřibovité', 'Hřib smrkový'), true);
+    assert.equal(core.isFactVisible('šelmy', 'Liška obecná'), false);
+    assert.equal(core.isFactVisible('Anglické království', 'vládl v království'), false);
+});
+
+test('osa bez letopočtů: žádné roky na ose ani u událostí, širší okolí', () => {
+    const spec = { spans: [], points: [1420], anchors: [[1348, 'založení Karlovy univerzity', 1], [1415, 'upálení Jana Husa', 1], [1492, 'objevení Ameriky']] };
+    const blind = core.buildTimeline({ ...spec, blind: true }, 340);
+    assert.equal(blind.ticks.length, 0);
+    assert.ok(blind.anchors.length >= 2);
+    assert.ok(blind.anchors.every(anchor => !/\d/.test(anchor.label)), blind.anchors.map(anchor => anchor.label).join(' / '));
+    assert.ok(core.buildTimeline(spec, 340).anchors.every(anchor => /\d/.test(anchor.label)), 'běžná osa roky má');
 });
 
 test('fakta: české formátování, chybějící údaje se vynechají, rok i před naším letopočtem', () => {

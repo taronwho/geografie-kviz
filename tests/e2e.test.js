@@ -96,6 +96,7 @@ const waitForQuestion = (tab) => tab.waitForSelector('[data-action="give-up"]', 
 const waitForResult = (tab) => tab.waitForSelector('h1', { timeout: 30000 });
 // Rozehraná otázka z uloženého stavu – podle ní test ví, co je správná odpověď
 const readRound = (tab) => tab.evaluate(() => JSON.parse(localStorage.getItem('mudrlant.session')).data);
+const hintKeys = (data) => data.hints.map(hint => hint.key);
 const readStorage = (tab, key) => tab.evaluate(k => JSON.parse(localStorage.getItem(k)), key);
 const appText = (tab) => tab.textContent('#app-content');
 // Záložka panelu ve výsledku (fotka, mapa, z družice, obrazová nápověda)
@@ -128,7 +129,7 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         await waitForQuestion(tab);
         const data = await readRound(tab);
         assert.equal(data.known, true, 'dnešní otázka je ze známých');
-        assert.deepEqual(data.hints, ['photo', 'visual', 'facts']);
+        assert.deepEqual(hintKeys(data), ['photo', 'visual', 'facts']);
         assert.equal(await tab.textContent('#status-text'), 'Zeměpis · 16. 10.');
         assert.equal(await tab.locator('[data-action="choice"]').count(), 4);
         assert.equal(await tab.locator('#answer-input').count(), 0, 've variantě s možnostmi není pole pro psaní');
@@ -276,17 +277,21 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         const data = await readRound(tab);
         assert.equal(data.name, 'Švýcarsko');
         assert.equal(data.question.type, 'name');
-        assert.deepEqual(data.hints, ['visual', 'facts'], 'stát bez fotky');
+        assert.deepEqual(hintKeys(data), ['visual', 'facts'], 'stát bez fotky');
         assert.doesNotMatch(await tab.textContent('p.italic'), /Švýcar|švýcar/);
         await tab.click('[data-action="hint"]');
         await tab.waitForSelector('#hint-visual path.fill-emerald-400');
         assert.equal(await tab.locator('#hint-visual svg circle').count(), 0);
         await tab.click('[data-action="hint"]');
-        assert.match(await appText(tab), /Hlavní město\s*Bern/);
+        // Hlavní město i kontinent jsou vidět už v popisu („Hlavním městem je Bern… ve střední Evropě“) – nápověda je neopakuje
+        const factsPane = await tab.textContent('#hint-tab-panel [role="tabpanel"]');
+        assert.match(factsPane, /Rozloha\s*41\s285 km²/);
+        assert.doesNotMatch(factsPane, /Bern|Evropa/);
         await tab.fill('#answer-input', 'svycarsko');
         await tab.press('#answer-input', 'Enter');
         await waitForResult(tab);
-        assert.match(await appText(tab), /Správně! \+2 body/);
+        // Dvě nápovědy z 4 bodů ubraly 2, psaná odpověď dvojnásobek
+        assert.match(await appText(tab), /Správně! \+4 body/);
         assert.match(await appText(tab), /Evropa/);
         assert.deepEqual(log.errors, []);
         assert.deepEqual(log.csp, []);
@@ -587,7 +592,7 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         assert.equal(data.question.type, 'name');
         assert.equal(await tab.textContent('h2'), 'Kdo to je?');
         assert.equal(await tab.getAttribute('#answer-input', 'placeholder'), 'Napiš jméno…');
-        assert.deepEqual(data.hints, ['photo', 'visual', 'facts']);
+        assert.deepEqual(hintKeys(data), ['photo', 'visual', 'facts']);
         assert.ok(!(await tab.textContent('p.italic')).includes(data.name));
         await tab.click('[data-action="hint"]');
         assert.match(await tab.textContent('[data-action="hint"]'), /časová osa/i);
@@ -616,8 +621,11 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         assert.equal(await second.tab.textContent('h2'), 'Ve kterém století začal vládnout?');
         assert.match(await appText(second.tab), /Přemysl Otakar II\./);
         assert.doesNotMatch(await second.tab.textContent('p.italic'), /\d/);
-        assert.deepEqual(century.hints, ['photo', 'facts'], 'časová osa by prozradila století');
-        assert.ok(century.facts.every(fact => !/\d/.test(fact.value)));
+        // Fotka ani běžná fakta století neprozradí; nápovědy jsou současníci a osa bez letopočtů, bez číslic
+        assert.ok(!hintKeys(century).includes('photo'));
+        assert.ok(century.hints.every(hint => hint.kind !== 'facts' || hint.extra));
+        assert.ok(century.hints.flatMap(hint => hint.facts || []).every(fact => !/\d/.test(fact.value)));
+        assert.ok(century.hints.filter(hint => hint.kind === 'visual').every(hint => hint.spec.blind));
         await second.tab.fill('#answer-input', '13');
         await second.tab.press('#answer-input', 'Enter');
         await waitForResult(second.tab);
@@ -658,7 +666,8 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         assert.deepEqual(taxon.question.choices.map(choice => choice.label).sort(), ['hlodavci', 'primáti', 'sudokopytníci', 'šelmy']);
         assert.doesNotMatch(await tab.textContent('p.italic'), /šelm/i);
         assert.match(await tab.textContent('p.italic'), /Lev pustinný/);
-        assert.ok(taxon.facts.every(fact => !/šelm/.test(fact.value)));
+        assert.ok(taxon.hints.flatMap(hint => hint.facts || []).every(fact => !/šelm/.test(fact.value)));
+        assert.ok(!hintKeys(taxon).includes('visual'), 'mapa rozšíření řád neprozradí');
         await tab.click('[data-action="choice"]:has-text("šelmy")');
         await waitForResult(tab);
         assert.match(await appText(tab), /Správně!/);
@@ -684,7 +693,7 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         assert.equal(round.name, 'Lev pustinný');
         assert.equal(round.question.type, 'name');
         assert.equal(await second.tab.textContent('h2'), 'Co je to za zvíře?');
-        assert.deepEqual(round.hints, ['photo', 'visual', 'facts']);
+        assert.deepEqual(hintKeys(round), ['photo', 'visual', 'facts']);
         await second.tab.click('[data-action="hint"]');
         assert.match(await second.tab.textContent('[data-action="hint"]'), /mapa rozšíření/i);
         await second.tab.click('[data-action="hint"]');
@@ -705,19 +714,32 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         await tab.goto(`${ORIGIN}/`);
         await waitForHome(tab);
 
-        // Jakou značku má tento prvek? Psaná značka platí jen přesně
+        // Lithium → Li je vidět už v názvu, na značku se tedy neptá
         await practiceCollection(tab, 'chemie', 'alkalicke-kovy');
-        const symbol = await readRound(tab);
-        assert.equal(symbol.name, 'Lithium');
-        assert.equal(symbol.question.type, 'symbol');
-        assert.equal(await tab.textContent('h2'), 'Jakou značku má tento prvek?');
-        assert.match(await appText(tab), /Název: Lithium/);
-        await tab.fill('#answer-input', 'li');
-        await tab.press('#answer-input', 'Enter');
+        const trivial = await readRound(tab);
+        assert.equal(trivial.name, 'Lithium');
+        assert.equal(trivial.question.type, 'name');
+        await tab.click('[data-action="give-up"]');
         await waitForResult(tab);
-        assert.match(await appText(tab), /Správně!/);
         assert.match(await appText(tab), /Značka\s*Li/);
         assert.match(await appText(tab), /Protonové číslo\s*3/);
+
+        // Jakou značku má tento prvek? Nápověda latinský název (Natrium), psaná značka platí jen přesně
+        await tab.click('[data-action="next"]');
+        await waitForQuestion(tab);
+        const symbol = await readRound(tab);
+        assert.equal(symbol.name, 'Sodík');
+        assert.equal(symbol.question.type, 'symbol');
+        assert.equal(await tab.textContent('h2'), 'Jakou značku má tento prvek?');
+        assert.match(await appText(tab), /Název: Sodík/);
+        assert.deepEqual(symbol.hints.map(hint => hint.label), ['latinský název']);
+        await tab.click('[data-action="hint"]');
+        assert.match(await tab.textContent('#hint-tab-panel [role="tabpanel"]'), /Latinsky\s*Natrium/);
+        await tab.fill('#answer-input', 'Na');
+        await tab.press('#answer-input', 'Enter');
+        await waitForResult(tab);
+        assert.match(await appText(tab), /Správně! \+6 bodů/, 'po jedné nápovědě 3 body, psaná odpověď dvojnásobek');
+        assert.match(await appText(tab), /Latinsky\s*Natrium/, 'nápověda je i mezi fakty výsledku');
         await context.close();
 
         // Který prvek to je? Nápověda periodická tabulka: 118 políček bez značek, hledané zvýrazněné
@@ -728,7 +750,7 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         const element = await readRound(second.tab);
         assert.equal(element.question.type, 'name');
         assert.equal(await second.tab.textContent('h2'), 'Který prvek to je?');
-        assert.deepEqual(element.hints, ['photo', 'visual', 'facts']);
+        assert.deepEqual(hintKeys(element), ['photo', 'visual', 'facts']);
         await second.tab.click('[data-action="hint"]');
         assert.match(await second.tab.textContent('[data-action="hint"]'), /periodická tabulka/i);
         await second.tab.click('[data-action="hint"]');
@@ -749,8 +771,9 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         const formula = await readRound(third.tab);
         assert.equal(formula.question.type, 'formula');
         assert.equal(await third.tab.textContent('h2'), 'Jaký vzorec má tato látka?');
-        assert.ok(!formula.facts.some(fact => fact.label === 'Vzorec'));
-        assert.ok(!formula.hints.includes('visual'), 'strukturní vzorec by prozradil odpověď');
+        assert.ok(!formula.hints.flatMap(hint => hint.facts || []).some(fact => fact.label === 'Vzorec'));
+        assert.ok(!hintKeys(formula).includes('visual'), 'strukturní vzorec by prozradil odpověď');
+        assert.ok(formula.hints.some(hint => hint.label === 'složení'), 'nápověda: z jakých prvků látka je');
         await third.tab.fill('#answer-input', formula.question.accepted[1]);
         await third.tab.press('#answer-input', 'Enter');
         await waitForResult(third.tab);
@@ -774,7 +797,7 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         assert.equal(unit.name, 'Síla');
         assert.equal(unit.question.type, 'unit');
         assert.equal(await tab.textContent('h2'), 'Jaká je jednotka SI této veličiny?');
-        assert.ok(!unit.facts.some(fact => fact.label === 'Jednotka SI'));
+        assert.ok(!unit.hints.flatMap(hint => hint.facts || []).some(fact => fact.label === 'Jednotka SI'));
         await tab.fill('#answer-input', 'N');
         await tab.press('#answer-input', 'Enter');
         await waitForResult(tab);
@@ -914,9 +937,9 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         await tab.click('#btn-practice');
         await waitForQuestion(tab);
         const data = await readRound(tab);
-        for (let i = 0; i < data.hints.indexOf('visual') + 1; i++) await tab.click('[data-action="hint"]');
+        for (let i = 0; i < hintKeys(data).indexOf('visual') + 1; i++) await tab.click('[data-action="hint"]');
         // Mapa, osa i tabulka se vykreslí i bez sítě; obrázek z Commons ukáže zprávu, že se nenačetl
-        if (data.hints.includes('visual')) await tab.waitForSelector('#hint-visual svg > *, #hint-visual div[class*="bg-contain"], #hint-visual p', { state: 'attached' });
+        if (hintKeys(data).includes('visual')) await tab.waitForSelector('#hint-visual svg > *, #hint-visual div[class*="bg-contain"], #hint-visual p', { state: 'attached' });
         const files = ['data/zemepis.json', 'data/historie.json', 'data/biologie.json', 'data/chemie.json', 'data/fyzika.json', 'data/world.json'];
         assert.deepEqual(await tab.evaluate(list => Promise.all(list.map(file => fetch(file).then(response => response.status))), files), files.map(() => 200));
         assert.deepEqual(log.errors, []);

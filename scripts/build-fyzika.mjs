@@ -174,6 +174,13 @@ for (const [qid] of candidates.quantities) {
     if (added) rank++;
 }
 
+// Po kom je jednotka pojmenovaná (newton – Isaac Newton): nápověda k otázce na značku a na to, co měří
+const eponyms = new Map(await cached('fyzika-eponyms', async () => {
+    const rows = await qlever(`SELECT ?unit ?l WHERE { VALUES ?unit { ${values(candidates.units.map(([qid]) => qid))} }
+  ?unit wdt:P138 ?person . ?person wdt:P31 wd:Q5 . ?person rdfs:label ?l FILTER(LANG(?l) = "cs") }`);
+    return rows.map(row => [id(row.unit.value), row.l.value]);
+}));
+
 // Jednotky: co měří, značka, zda patří do SI
 rank = 0;
 for (const [qid] of candidates.units) {
@@ -192,7 +199,7 @@ for (const [qid] of candidates.units) {
     const added = addItem({
         q: qid, t: detail.t, n: capitalize(detail.n), c: 'jednotky', k: rank < LIMITS.jednotky.known || SI_BASE.includes(qid) ? 1 : 0, d: detail.d,
         ...imageFields(detail.im),
-        f: { usym: symbol, measures, system }
+        f: compact({ usym: symbol, measures, system, named: eponyms.get(qid) })
     });
     if (added) rank++;
 }
