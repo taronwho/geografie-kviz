@@ -1,4 +1,4 @@
-// Testy čisté logiky kvízu. Spuštění: npm test (stačí Node 20+, žádné závislosti)
+// Testy obecného jádra (quiz-core.js). Spuštění: npm test (stačí Node 20+, žádné závislosti)
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const core = require('../quiz-core.js');
@@ -81,18 +81,17 @@ test('psaná odpověď toleruje diakritiku, velikost písmen a drobný překlep'
     assert.ok(!core.isAnswerMatch('Brno', ['Brod']));
 });
 
-test('přijímané odpovědi pro stát obsahují i běžné názvy', () => {
-    const accepted = core.getAcceptedAnswers({ quizType: 'location', countryIds: ['Q30'], countryNames: ['Spojené státy americké'] });
+test('přijímané odpovědi: název i titulek článku, u státu i běžné názvy', () => {
+    const accepted = core.countryAnswers(['Q30'], ['Spojené státy americké']);
     assert.ok(core.isAnswerMatch('USA', accepted));
     assert.ok(core.isAnswerMatch('spojene staty americke', accepted));
-    const czech = core.getAcceptedAnswers({ quizType: 'location', countryIds: ['Q213'], countryNames: ['Česko'] });
-    assert.ok(core.isAnswerMatch('Česká republika', czech));
-    // U otázky na název státu platí i jeho běžné názvy
-    const state = core.getAcceptedAnswers({ quizType: 'name', category: 'stat', id: 'Q30', name: 'Spojené státy americké', title: 'Spojené státy americké' });
-    assert.ok(core.isAnswerMatch('USA', state));
-    const bridge = core.getAcceptedAnswers({ quizType: 'name', category: 'stavba', id: 'Q1', name: 'Karlův most', title: 'Karlův most' });
+    assert.ok(core.isAnswerMatch('Česká republika', core.countryAnswers(['Q213'], ['Česko'])));
+    const bridge = core.nameAnswers({ n: 'Karlův most', t: 'Karlův most' });
     assert.ok(core.isAnswerMatch('karluv most', bridge));
     assert.ok(!core.isAnswerMatch('USA', bridge));
+    // Titulek s upřesněním v závorce i bez něj, další názvy z tématu
+    const labe = core.nameAnswers({ n: 'Labe', t: 'Labe (řeka)' }, ['Elbe']);
+    assert.ok(core.isAnswerMatch('labe', labe) && core.isAnswerMatch('Elbe', labe));
 });
 
 test('body podle nápověd a napsané odpovědi', () => {
@@ -121,13 +120,14 @@ test('série dní', () => {
 });
 
 test('text pro sdílení', () => {
+    const topic = { title: 'Zeměpis', emoji: '🌍' };
     const text = core.buildShareText({
-        dayKey: '2026-10-16', category: 'hora',
+        appName: 'Mudrlant', topic, dayKey: '2026-10-16',
         result: { correct: true, points: 8, hintLevel: 1, levelCount: 4, typed: true }, streak: 4, url: 'https://example.org/'
     });
-    assert.equal(text, 'Geo Kvíz · 16. 10. 2026\n🏔️ Hory a sopky\n✅ 8 bodů · nápověda 1/4 · napsáno\n🔥 Série: 4\nhttps://example.org/');
-    const lost = core.buildShareText({ dayKey: '2026-10-16', category: 'stavba', result: { correct: false, points: 0, hintLevel: 3, levelCount: 3 }, streak: 0, url: '' });
-    assert.equal(lost, 'Geo Kvíz · 16. 10. 2026\n🏛️ Stavby a památky\n❌ tentokrát ne · nápověda 3/3\n🔥 Série: 0');
+    assert.equal(text, 'Mudrlant · 🌍 Zeměpis · 16. 10. 2026\n✅ 8 bodů · nápověda 1/4 · napsáno\n🔥 Série: 4\nhttps://example.org/');
+    const lost = core.buildShareText({ appName: 'Mudrlant', topic, dayKey: '2026-10-16', result: { correct: false, points: 0, hintLevel: 3, levelCount: 3 }, streak: 0, url: '' });
+    assert.equal(lost, 'Mudrlant · 🌍 Zeměpis · 16. 10. 2026\n❌ tentokrát ne · nápověda 3/3\n🔥 Série: 0');
 });
 
 test('dlaždice mapy pokryjí výřez a bod je uprostřed', () => {
@@ -216,7 +216,7 @@ test('otázka na název: zakryje i odvozená přídavná jména', () => {
     }
 });
 
-// Malá sada míst ve formátu data/places.json
+// Malá sada položek ve formátu data/<téma>.json (zde místa ze zeměpisu)
 const COUNTRIES_TABLE = {
     Q213: { name: 'Česko', continent: 'EU', iso: '203' },
     Q183: { name: 'Německo', continent: 'EU', iso: '276' },
@@ -226,63 +226,73 @@ const COUNTRIES_TABLE = {
     Q17: { name: 'Japonsko', continent: 'AS', iso: '392' },
     Q30: { name: 'Spojené státy americké', continent: 'NA', iso: '840' }
 };
-const place = (q, n, c, k, co, extra = {}) => ({ q, t: n, n, c, k, s: 100, la: 50, lo: 15, ty: '', d: '', co, f: {}, ...extra });
+const place = (q, n, c, k, co, extra = {}) => ({ q, t: n, n, c, k, la: 50, lo: 15, ty: '', co, f: {}, ...extra });
 const PLACES = [
-    place('Q1085', 'Praha', 'mesto', 1, ['Q213'], { f: { pop: 1384732 } }),
-    place('Q64', 'Berlín', 'mesto', 1, ['Q183']),
-    place('Q1741', 'Vídeň', 'mesto', 1, ['Q40']),
+    place('Q1085', 'Praha', 'mesto', 1, ['Q213'], { f: { pop: 1384732 }, g: ['cesko'] }),
+    place('Q64', 'Berlín', 'mesto', 1, ['Q183'], { f: { pop: 3700000 } }),
+    place('Q1741', 'Vídeň', 'mesto', 1, ['Q40'], { f: { pop: 1900000 } }),
     place('Q31487', 'Krakov', 'mesto', 1, ['Q36']),
-    place('Q1490', 'Tokio', 'mesto', 1, ['Q17']),
-    place('Q14960', 'Brno', 'mesto', 0, ['Q213']),
-    place('Q170424', 'Sněžka', 'hora', 1, ['Q213', 'Q36'], { f: { elev: 1603 } }),
-    place('Q39231', 'Fudži', 'hora', 1, ['Q17']),
+    place('Q1490', 'Tokio', 'mesto', 1, ['Q17'], { f: { pop: 14000000 } }),
+    place('Q14960', 'Brno', 'mesto', 0, ['Q213'], { f: { pop: 400000 }, g: ['cesko'] }),
+    place('Q170424', 'Sněžka', 'hora', 1, ['Q213', 'Q36'], { f: { elev: 1603 }, g: ['cesko'] }),
+    place('Q39231', 'Fudži', 'hora', 1, ['Q17'], { f: { elev: 3776 } }),
     place('Q243', 'Eiffelova věž', 'stavba', 1, ['Q142'], { f: { h: 330, year: 1889 } }),
-    place('Q1288', 'Česká Lípa', 'mesto', 0, ['Q213']),
-    place('Q213', 'Česko', 'stat', 1, ['Q213'], { f: { cap: 'Praha', area: 78871, pop: 10900555 } })
+    place('Q1288', 'Česká Lípa', 'mesto', 0, ['Q213'], { g: ['cesko'] }),
+    place('Q213', 'Česko', 'stat', 1, ['Q213'], { f: { cap: 'Praha', area: 78871, pop: 10900555 }, g: ['cesko'] })
 ];
+const continentOf = (item) => core.getContinent(item, COUNTRIES_TABLE);
 
-test('výběr míst podle kategorií a známosti', () => {
-    const known = core.filterPlaces(PLACES, { categories: ['mesto'], tier: 'known' });
-    assert.deepEqual(known.map(p => p.n), ['Praha', 'Berlín', 'Vídeň', 'Krakov', 'Tokio']);
-    const all = core.filterPlaces(PLACES, { categories: ['mesto', 'hora'], tier: 'all' });
-    assert.equal(all.length, 9);
-    assert.ok(all.every(p => p.c === 'mesto' || p.c === 'hora'));
+test('okruhy: celé téma, kategorie a zvláštní okruhy; známost', () => {
+    assert.equal(core.filterItems(PLACES).length, PLACES.length);
+    assert.deepEqual(core.filterItems(PLACES, { tier: 'known', collection: 'c:mesto' }).map(p => p.n), ['Praha', 'Berlín', 'Vídeň', 'Krakov', 'Tokio']);
+    assert.deepEqual(core.filterItems(PLACES, { collection: 'cesko' }).map(p => p.n), ['Praha', 'Brno', 'Sněžka', 'Česká Lípa', 'Česko']);
+    assert.deepEqual(core.filterItems(PLACES, { tier: 'known', collection: 'cesko' }).map(p => p.n), ['Praha', 'Sněžka', 'Česko']);
+    assert.equal(core.inCollection(PLACES[0], null), true);
+    assert.equal(core.inCollection(PLACES[0], 'c:hora'), false);
 });
 
-test('náhodné místo: nejdřív kategorie, nedávno hraná místa se neopakují', () => {
+test('řazení okruhu: podle názvu česky, nebo podle faktu; bez údaje na konec', () => {
+    assert.deepEqual(core.sortItems(PLACES.filter(p => p.c === 'mesto')).map(p => p.n), ['Berlín', 'Brno', 'Česká Lípa', 'Krakov', 'Praha', 'Tokio', 'Vídeň']);
+    assert.deepEqual(core.sortItems(PLACES.filter(p => p.c === 'mesto'), { by: 'pop', desc: true }).map(p => p.n),
+        ['Tokio', 'Berlín', 'Vídeň', 'Praha', 'Brno', 'Česká Lípa', 'Krakov']);
+    assert.deepEqual(core.sortItems(PLACES.filter(p => p.c === 'hora'), { by: 'elev' }).map(p => p.n), ['Sněžka', 'Fudži']);
+});
+
+test('náhodná položka: nejdřív kategorie, nedávno hrané se neopakují', () => {
     const rng = core.createSeededRandom('vyber');
     const counts = {};
     for (let i = 0; i < 400; i++) {
-        const picked = core.pickPlace(PLACES, rng);
+        const picked = core.pickItem(PLACES, rng);
         counts[picked.c] = (counts[picked.c] || 0) + 1;
     }
     // Čtyři kategorie zhruba stejně často, i když měst je v sadě nejvíc
     assert.deepEqual(Object.keys(counts).sort(), ['hora', 'mesto', 'stat', 'stavba']);
     assert.ok(Object.values(counts).every(count => count > 60), JSON.stringify(counts));
-    // Nedávno hraná se přeskočí, dokud je z čeho vybírat
+    // Nedávno hrané se přeskočí, dokud je z čeho vybírat
     const mountains = PLACES.filter(p => p.c === 'hora');
-    for (let i = 0; i < 20; i++) assert.equal(core.pickPlace(mountains, rng, ['Q170424']).n, 'Fudži');
-    assert.ok(['Sněžka', 'Fudži'].includes(core.pickPlace(mountains, rng, ['Q170424', 'Q39231']).n));
-    // Stejné semínko = stejné dnešní místo pro všechny
-    const a = core.pickPlace(PLACES, core.createSeededRandom('geo-kviz-2026-10-19'));
-    const b = core.pickPlace(PLACES, core.createSeededRandom('geo-kviz-2026-10-19'));
+    for (let i = 0; i < 20; i++) assert.equal(core.pickItem(mountains, rng, ['Q170424']).n, 'Fudži');
+    assert.ok(['Sněžka', 'Fudži'].includes(core.pickItem(mountains, rng, ['Q170424', 'Q39231']).n));
+    // Stejné semínko a pořadí kategorií = stejná dnešní otázka pro všechny
+    const order = ['stat', 'mesto', 'hora', 'stavba'];
+    const a = core.pickItem(PLACES, core.createSeededRandom('geo-kviz-2026-10-19'), [], order);
+    const b = core.pickItem(PLACES, core.createSeededRandom('geo-kviz-2026-10-19'), [], order);
     assert.equal(a.q, b.q);
 });
 
-test('možnosti názvu: stejná kategorie, přednostně stejný kontinent a známost', () => {
-    const choices = core.buildPlaceChoices(PLACES[0], PLACES, COUNTRIES_TABLE, core.createSeededRandom('a'));
+test('možnosti názvu: stejná kategorie, přednostně stejná skupina a známost; nesou ID', () => {
+    const choices = core.buildItemChoices(PLACES[0], PLACES, core.createSeededRandom('a'), continentOf);
     assert.equal(choices.length, 4);
     assert.equal(choices.filter(c => c.correct).length, 1);
     assert.equal(choices.find(c => c.correct).label, 'Praha');
-    const wrong = choices.filter(c => !c.correct).map(c => c.label).sort();
     // Známá evropská města, ne Tokio, Brno ani hora
-    assert.deepEqual(wrong, ['Berlín', 'Krakov', 'Vídeň']);
-    // Málo míst v kategorii: doplní se z čeho jde a možnosti se neopakují
-    const few = core.buildPlaceChoices(PLACES[7], PLACES, COUNTRIES_TABLE, core.createSeededRandom('b'));
+    assert.deepEqual(choices.filter(c => !c.correct).map(c => c.label).sort(), ['Berlín', 'Krakov', 'Vídeň']);
+    assert.ok(choices.every(c => PLACES.find(p => p.q === c.id).n === c.label));
+    // Málo položek v kategorii: doplní se z čeho jde a možnosti se neopakují
+    const few = core.buildItemChoices(PLACES[7], PLACES, core.createSeededRandom('b'), continentOf);
     assert.deepEqual(few.map(c => c.label).sort(), ['Fudži', 'Sněžka']);
 });
 
-test('možnosti názvu: přednost má stejný typ místa', () => {
+test('možnosti názvu: přednost má stejný typ', () => {
     const water = [
         place('Q1', 'Bospor', 'jezero', 1, ['Q213'], { ty: 'průliv' }),
         place('Q2', 'Dardanely', 'jezero', 1, [], { ty: 'průliv' }),
@@ -291,85 +301,62 @@ test('možnosti názvu: přednost má stejný typ místa', () => {
         place('Q5', 'Bajkal', 'jezero', 1, ['Q213'], { ty: 'jezero' }),
         place('Q6', 'Lipno', 'jezero', 1, ['Q213'], { ty: 'přehradní nádrž' })
     ];
-    const choices = core.buildPlaceChoices(water[0], water, COUNTRIES_TABLE, core.createSeededRandom('c'));
+    const choices = core.buildItemChoices(water[0], water, core.createSeededRandom('c'), continentOf);
     assert.deepEqual(choices.map(c => c.label).sort(), ['Bospor', 'Dardanely', 'Gibraltarský průliv', 'Lamanšský průliv']);
 });
 
-test('možnosti státu: jiné státy ze stejného kontinentu', () => {
+test('možnosti státu: jiné státy ze stejného kontinentu, s ID', () => {
     const choices = core.buildCountryChoices('Q183', COUNTRIES_TABLE, core.createSeededRandom('x'));
     assert.equal(choices.length, 4);
     assert.equal(choices.find(c => c.correct).label, 'Německo');
     const european = ['Česko', 'Rakousko', 'Polsko', 'Francie'];
     assert.ok(choices.filter(c => !c.correct).every(c => european.includes(c.label)));
-    // Každá možnost nese ID státu, ať k ní jde ukázat popis
     assert.ok(choices.every(c => COUNTRIES_TABLE[c.id] && COUNTRIES_TABLE[c.id].name === c.label));
 });
 
-test('možnosti názvu nesou ID míst', () => {
-    const choices = core.buildPlaceChoices(PLACES[0], PLACES, COUNTRIES_TABLE, core.createSeededRandom('a'));
-    assert.ok(choices.every(c => PLACES.find(p => p.q === c.id).n === c.label));
-});
-
-test('napsaná špatná odpověď: které jiné místo nebo stát to je', () => {
-    const dataset = { countries: COUNTRIES_TABLE, places: PLACES };
-    const prague = { quizType: 'name', id: 'Q1085', category: 'mesto' };
-    assert.equal(core.findAnswerPlace('Viden', prague, dataset), 'Q1741');
-    assert.equal(core.findAnswerPlace('fudzi', prague, dataset), 'Q39231', 'i z jiné kategorie');
-    assert.equal(core.findAnswerPlace('Praha', prague, dataset), null, 'správné místo se nehledá');
-    assert.equal(core.findAnswerPlace('Atlantida', prague, dataset), null);
-    const location = { quizType: 'location', id: 'Q1085', countryIds: ['Q213'] };
-    assert.equal(core.findAnswerPlace('USA', location, dataset), 'Q30');
-    assert.equal(core.findAnswerPlace('rakousko', location, dataset), 'Q40');
-    assert.equal(core.findAnswerPlace('Česká republika', location, dataset), null);
+test('napsaná špatná odpověď: která jiná položka nebo stát to je', () => {
+    const prague = PLACES[0];
+    assert.equal(core.findAnswerItem('Viden', prague, PLACES), 'Q1741');
+    assert.equal(core.findAnswerItem('fudzi', prague, PLACES), 'Q39231', 'i z jiné kategorie');
+    assert.equal(core.findAnswerItem('Praha', prague, PLACES), null, 'správná položka se nehledá');
+    assert.equal(core.findAnswerItem('Atlantida', prague, PLACES), null);
+    assert.equal(core.findAnswerCountry('USA', ['Q213'], COUNTRIES_TABLE), 'Q30');
+    assert.equal(core.findAnswerCountry('rakousko', ['Q213'], COUNTRIES_TABLE), 'Q40');
+    assert.equal(core.findAnswerCountry('Česká republika', ['Q213'], COUNTRIES_TABLE), null);
 });
 
 test('seznam chyb: chyba na začátek, správná odpověď ho odebere', () => {
-    let mistakes = core.updateMistakes([], 'Q1', false);
-    mistakes = core.updateMistakes(mistakes, 'Q2', false);
-    mistakes = core.updateMistakes(mistakes, 'Q1', false);
-    assert.deepEqual(mistakes, ['Q1', 'Q2']);
-    assert.deepEqual(core.updateMistakes(mistakes, 'Q1', true), ['Q2']);
-    assert.deepEqual(core.updateMistakes(mistakes, 'Q3', true), ['Q1', 'Q2']);
-    assert.equal(core.updateMistakes(Array.from({ length: 200 }, (_, i) => `Q${i}`), 'Q999', false).length, 200);
+    let mistakes = core.updateMistakes([], 'zemepis:Q1', false);
+    mistakes = core.updateMistakes(mistakes, 'historie:Q2', false);
+    mistakes = core.updateMistakes(mistakes, 'zemepis:Q1', false);
+    assert.deepEqual(mistakes, ['zemepis:Q1', 'historie:Q2']);
+    assert.deepEqual(core.updateMistakes(mistakes, 'zemepis:Q1', true), ['historie:Q2']);
+    assert.deepEqual(core.updateMistakes(mistakes, 'zemepis:Q3', true), ['zemepis:Q1', 'historie:Q2']);
+    assert.equal(core.updateMistakes(Array.from({ length: 300 }, (_, i) => `zemepis:Q${i}`), 'zemepis:Q999', false).length, 300);
 });
 
-test('na stát se ptáme jen tam, kde to dává smysl', () => {
-    const byName = (name) => PLACES.find(p => p.n === name);
-    assert.equal(core.canAskForCountry(byName('Praha'), COUNTRIES_TABLE), true);
-    assert.equal(core.canAskForCountry(byName('Eiffelova věž'), COUNTRIES_TABLE), true);
-    // Stát sám, místo na hranici dvou států, název prozrazující stát, stát mimo tabulku
-    assert.equal(core.canAskForCountry(byName('Česko'), COUNTRIES_TABLE), false);
-    assert.equal(core.canAskForCountry(byName('Sněžka'), COUNTRIES_TABLE), false);
-    assert.equal(core.canAskForCountry(byName('Česká Lípa'), COUNTRIES_TABLE), false);
-    assert.equal(core.canAskForCountry(place('Q1', 'Ostrov', 'ostrov', 1, ['Q99']), COUNTRIES_TABLE), false);
+test('pořadí nápověd: fotka, obrazová nápověda, fakta; chybějící se vynechá', () => {
+    assert.deepEqual(core.getHintSteps({ hasPhoto: true, hasVisual: true, hasFacts: true }), ['photo', 'visual', 'facts']);
+    assert.deepEqual(core.getHintSteps({ hasPhoto: false, hasVisual: true, hasFacts: true }), ['visual', 'facts']);
+    assert.deepEqual(core.getHintSteps({ hasPhoto: true, hasVisual: false, hasFacts: false }), ['photo']);
 });
 
-test('pořadí nápověd: fotka, slepá mapa, fakta; chybějící se vynechá', () => {
-    assert.deepEqual(core.getHintSteps({ hasPhoto: true, hasFacts: true }), ['photo', 'map', 'facts']);
-    assert.deepEqual(core.getHintSteps({ hasPhoto: false, hasFacts: true }), ['map', 'facts']);
-    assert.deepEqual(core.getHintSteps({ hasPhoto: false, hasFacts: false }), ['map']);
+test('fakta: české formátování, chybějící údaje se vynechají, rok i před naším letopočtem', () => {
+    const formats = [['pop', 'Počet obyvatel', core.formatPopulation], ['h', 'Výška', v => `${core.formatNumber(v)} m`], ['year', 'Vznik', core.formatYear]];
+    const asText = (list) => list.map(fact => `${fact.label}: ${fact.value}`.replace(/\u00a0/g, ' '));
+    assert.deepEqual(asText(core.formatFacts({ f: { pop: 10900555, h: 0, year: 1889 } }, formats)), ['Počet obyvatel: 10,9 mil.', 'Vznik: 1889']);
+    assert.deepEqual(asText(core.formatFacts({ f: { pop: 15200, year: -3800 } }, formats)), ['Počet obyvatel: 15 200', 'Vznik: 3800 př. n. l.']);
+    assert.deepEqual(asText(core.formatFacts({ f: { year: 82 } }, formats)), ['Vznik: 82 n. l.']);
 });
 
-test('fakta: stát u otázky na název, ne u otázky na stát; česká čísla', () => {
-    const facts = (name, quizType) => core.buildFacts(PLACES.find(p => p.n === name), COUNTRIES_TABLE, quizType);
-    const asText = (list) => list.map(fact => `${fact.label}: ${fact.value}`.replace(/ /g, ' '));
-    assert.deepEqual(asText(facts('Sněžka', 'name')), ['Státy: Česko, Polsko', 'Kontinent: Evropa', 'Nadmořská výška: 1 603 m']);
-    assert.deepEqual(asText(facts('Eiffelova věž', 'location')), ['Kontinent: Evropa', 'Výška: 330 m', 'Vznik: 1889']);
-    assert.deepEqual(asText(facts('Česko', 'name')), ['Kontinent: Evropa', 'Hlavní město: Praha', 'Počet obyvatel: 10,9 mil.', 'Rozloha: 78 871 km²']);
-    assert.deepEqual(asText(core.buildFacts(place('Q1', 'Ur', 'stavba', 1, [], { f: { year: -3800 } }), COUNTRIES_TABLE, 'name')), ['Vznik: 3800 př. n. l.']);
-    assert.deepEqual(asText(core.buildFacts(place('Q10285', 'Koloseum', 'stavba', 1, [], { f: { year: 82 } }), COUNTRIES_TABLE, 'name')), ['Vznik: 82 n. l.']);
-});
-
-test('šířka slepé mapy podle kategorie a u států podle rozlohy', () => {
-    assert.equal(core.getMapSpan(PLACES[0], 'name'), 24);
-    assert.equal(core.getMapSpan(PLACES[0], 'location'), 36);
-    assert.equal(core.getMapSpan(PLACES.find(p => p.c === 'stat'), 'name'), 15);
-    assert.equal(core.getMapSpan(place('Q159', 'Rusko', 'stat', 1, [], { f: { area: 17098246 } }), 'name'), 120);
-    assert.equal(core.getMapSpan(place('Q233', 'Malta', 'stat', 1, [], { f: { area: 316 } }), 'name'), 14);
-    // Oceán a dlouhá řeka se vejdou celé, krátká řeka má základní výřez
-    assert.equal(core.getMapSpan(place('Q98', 'Tichý oceán', 'jezero', 1, [], { f: { area: 165250000 } }), 'name'), 120);
-    assert.equal(core.getMapSpan(place('Q3783', 'Amazonka', 'reka', 1, [], { f: { len: 6400 } }), 'name'), 46);
-    assert.equal(core.getMapSpan(place('Q1', 'Vltava', 'reka', 1, [], { f: { len: 430 } }), 'name'), 24);
+test('šířka slepé mapy: základ, nebo podle rozlohy či délky', () => {
+    assert.equal(core.getMapSpan({}, 24), 24);
+    assert.equal(core.getMapSpan({ area: 78871 }, 14), 15);
+    assert.equal(core.getMapSpan({ area: 17098246 }, 14), 120);
+    assert.equal(core.getMapSpan({ area: 316 }, 14), 14);
+    assert.equal(core.getMapSpan({ area: 165250000 }, 30), 120);
+    assert.equal(core.getMapSpan({ len: 6400 }, 24), 46);
+    assert.equal(core.getMapSpan({ len: 430 }, 24), 24);
 });
 
 test('slepá mapa: místo uprostřed, mimo výřez nic, zvýraznění státu, přes 180. poledník', () => {
@@ -394,37 +381,4 @@ test('odkaz na náhled fotky z Wikimedia Commons', () => {
     assert.equal(core.commonsPhotoUrl('Charles Bridge, Prague.jpg', hash),
         `https://upload.wikimedia.org/wikipedia/commons/thumb/${hash[0]}/${hash}/Charles_Bridge%2C_Prague.jpg/960px-Charles_Bridge%2C_Prague.jpg`);
     assert.equal(core.commonsPhotoUrl('Karlův most.jpg', 'ab', 500), 'https://upload.wikimedia.org/wikipedia/commons/thumb/a/ab/Karl%C5%AFv_most.jpg/500px-Karl%C5%AFv_most.jpg');
-});
-
-// Kontrola vygenerované sady míst (data/places.json) a obrysů států (data/world.json)
-const fs = require('node:fs');
-const path = require('node:path');
-const DATA_DIR = path.join(__dirname, '..', 'data');
-
-test('sada míst: kategorie, známá místa, státy a obrysy', { skip: !fs.existsSync(path.join(DATA_DIR, 'places.json')) }, () => {
-    const dataset = JSON.parse(fs.readFileSync(path.join(DATA_DIR, 'places.json'), 'utf8'));
-    const world = JSON.parse(fs.readFileSync(path.join(DATA_DIR, 'world.json'), 'utf8'));
-    const keys = core.CATEGORIES.map(c => c.key);
-    assert.equal(new Set(dataset.places.map(p => p.q)).size, dataset.places.length, 'každé místo jen jednou');
-    for (const p of dataset.places) {
-        assert.ok(keys.includes(p.c), `${p.n}: kategorie ${p.c}`);
-        assert.ok(p.t && p.n && /^Q\d+$/.test(p.q), JSON.stringify(p));
-        assert.ok(Math.abs(p.la) <= 90 && Math.abs(p.lo) <= 180, `${p.n}: souřadnice`);
-        assert.ok(p.k === 0 || p.k === 1);
-    }
-    for (const key of keys) {
-        const inCategory = dataset.places.filter(p => p.c === key);
-        assert.ok(inCategory.filter(p => p.k === 1).length >= 30, `${key}: málo známých míst`);
-        assert.ok(inCategory.length >= 100, `${key}: málo míst`);
-    }
-    // Státy v sadě jsou v tabulce států a skoro všechny mají obrys pro zvýraznění na slepé mapě
-    const outlines = new Set(world.countries.map(c => c.id));
-    const states = dataset.places.filter(p => p.c === 'stat');
-    assert.ok(states.every(p => dataset.countries[p.q]));
-    const withOutline = states.filter(p => outlines.has(dataset.countries[p.q].iso));
-    assert.ok(withOutline.length >= 150, `obrysy má jen ${withOutline.length} států`);
-    // Známá místa, na která se ptá dnešní místo
-    for (const name of ['Praha', 'Paříž', 'Česko', 'Mount Everest', 'Vltava', 'Eiffelova věž', 'Sněžka']) {
-        assert.ok(dataset.places.some(p => p.n === name && p.k === 1), `chybí známé místo ${name}`);
-    }
 });

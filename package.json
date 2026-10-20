@@ -1,13 +1,14 @@
 {
-  "name": "geografie-kviz",
+  "name": "mudrlant",
   "version": "1.0.0",
   "private": true,
-  "description": "Geo Kvíz – hádání míst světa podle popisu z Wikipedie, fotky, slepé mapy a faktů",
+  "description": "Mudrlant – kvíz ze zeměpisu, historie, biologie, chemie a fyziky s postupnými nápovědami a učením po okruzích",
   "scripts": {
     "build:css": "npx --yes tailwindcss@3.4.17 -c tailwind.config.js -i src/input.css -o styles.css --minify",
     "build:icons": "node scripts/build-icons.mjs",
-    "build:places": "node scripts/build-places.mjs",
+    "build:countries": "node scripts/build-countries.mjs",
     "build:world": "node scripts/build-world.mjs",
+    "build:zemepis": "node scripts/build-zemepis.mjs",
     "build": "npm run build:icons && npm run build:css",
     "test": "node --test"
   }

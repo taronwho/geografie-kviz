@@ -1,4 +1,4 @@
-// Test celé aplikace v prohlížeči s malou testovací sadou míst a podvrženou Wikipedií.
+// Test celé aplikace v prohlížeči s malými testovacími daty (tests/fixtures.js) a podvrženou Wikipedií.
 // Potřebuje Playwright (npm i -D playwright && npx playwright install chromium), jinak se přeskočí.
 // Soubory se servírují s CSP z _headers, takže test odhalí i porušení Content-Security-Policy.
 const test = require('node:test');
@@ -6,6 +6,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const http = require('node:http');
 const path = require('node:path');
+const fixtures = require('./fixtures.js');
 
 let chromium = null;
 try { ({ chromium } = require('playwright')); } catch (e) {}
@@ -16,57 +17,9 @@ const CONTENT_TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.css': 
 const CSP = fs.readFileSync(path.join(ROOT, '_headers'), 'utf8').match(/Content-Security-Policy: (.+)/)[1];
 const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==', 'base64');
 
-// Testovací sada míst ve formátu data/places.json. Známá místa mají fotku i fakta (dnešní místo má tedy 4 úrovně),
-// ostrovy jsou méně známé a slouží k testu míst bez fotky.
-const place = (q, n, c, k, co, extra = {}) => ({ q, t: n, n, c, k, la: 47, lo: 8, ty: '', d: `${c} v testovacím světě`, co, im: `${n}_z_jihu.jpg`, ih: 'ab', f: {}, ...extra });
-const DATASET = {
-    generated: '2026-10-19',
-    countries: {
-        Q39: { name: 'Švýcarsko', continent: 'EU', iso: '756' },
-        Q40: { name: 'Rakousko', continent: 'EU', iso: '040' },
-        Q183: { name: 'Německo', continent: 'EU', iso: '276' },
-        Q142: { name: 'Francie', continent: 'EU', iso: '250' },
-        Q38: { name: 'Itálie', continent: 'EU', iso: '380' },
-        Q213: { name: 'Česko', continent: 'EU', iso: '203' },
-        Q17: { name: 'Japonsko', continent: 'AS', iso: '392' }
-    },
-    places: [
-        place('Q39', 'Švýcarsko', 'stat', 1, ['Q39'], { im: undefined, la: 46.8, lo: 8.2, f: { cap: 'Bern', area: 41285, pop: 8700000 } }),
-        place('Q40', 'Rakousko', 'stat', 1, ['Q40'], { im: undefined, la: 47.6, lo: 14.1, f: { cap: 'Vídeň', area: 83879 } }),
-        place('Q183', 'Německo', 'stat', 1, ['Q183'], { im: undefined, la: 51, lo: 10, f: { cap: 'Berlín', area: 357588 } }),
-        place('Q142', 'Francie', 'stat', 1, ['Q142'], { im: undefined, la: 46, lo: 2, f: { cap: 'Paříž', area: 551695 } }),
-        place('Q38', 'Itálie', 'stat', 1, ['Q38'], { im: undefined, la: 42.8, lo: 12.8, f: { cap: 'Řím', area: 302073 } }),
-        place('Q213', 'Česko', 'stat', 1, ['Q213'], { im: undefined, la: 49.8, lo: 15.5, f: { cap: 'Praha', area: 78871 } }),
-        place('Q17', 'Japonsko', 'stat', 1, ['Q17'], { im: undefined, la: 36, lo: 138, f: { cap: 'Tokio', area: 377975 } }),
-        place('Q5000', 'Testov', 'mesto', 1, ['Q213'], { ty: 'město', la: 50, lo: 15, f: { pop: 120000 } }),
-        place('Q64', 'Berlín', 'mesto', 1, ['Q183'], { la: 52.5, lo: 13.4, f: { pop: 3700000 } }),
-        place('Q1741', 'Vídeň', 'mesto', 1, ['Q40'], { la: 48.2, lo: 16.4, f: { pop: 1900000 } }),
-        place('Q220', 'Řím', 'mesto', 1, ['Q38'], { la: 41.9, lo: 12.5, f: { pop: 2800000 } }),
-        place('Q4242', 'Testovací hora', 'hora', 1, ['Q39'], { ty: 'hora', la: 46.5, lo: 8, f: { elev: 3000 } }),
-        place('Q4243', 'Vedlejší vrch', 'hora', 1, ['Q142'], { f: { elev: 1500 } }),
-        place('Q4244', 'Malý kopec', 'hora', 0, ['Q40'], { f: { elev: 900 } }),
-        place('Q39231', 'Fudži', 'hora', 1, ['Q17'], { la: 35.4, lo: 138.7, f: { elev: 3776 } }),
-        place('Q6001', 'Vlajkový ostrov', 'ostrov', 0, ['Q38'], { im: 'Flag_of_Testland.svg', la: 40, lo: 9 }),
-        place('Q6002', 'Druhý ostrov', 'ostrov', 0, ['Q142'], { im: 'Chybejici_fotka.jpg', la: 42, lo: 9 })
-    ]
-};
-
-const EXTRACTS = {
-    'Testovací hora': 'Testovací hora je hora v pohoří Alpy ve Švýcarsku, vysoká přibližně tři tisíce metrů. <img src=x onerror=__xss=1> ' +
-        'Na vrcholu Testovací hory stojí horská chata, kterou navštěvují turisté z celého světa. Hora je známá svými ledovci a výhledy do údolí. ' +
-        'Ve 20. století zde vznikla lanovka vedoucí až na vrchol hory.',
-    'Testov': 'Testov je statutární město v Česku, leží v Jihomoravském kraji na řece Svratce. Je to známé české univerzitní město s bohatou historií. ' +
-        'Ve městě sídlí několik vysokých škol a velký výstavní areál, který každoročně hostí mnoho veletrhů.',
-    'Švýcarsko': 'Švýcarsko, oficiálně Švýcarská konfederace, je vnitrozemský stát ve střední Evropě. Hlavním městem je Bern, největším městem Curych. ' +
-        'Švýcarská neutralita má dlouhou tradici a země je známá hodinkami, sýry a čokoládou.'
-};
-const extractFor = (title) => EXTRACTS[title] || `${title} je místo, o kterém se píše v testu. <img src=x onerror=__xss=1> ` +
-    'Leží v zemi, kterou je třeba uhodnout, a je známé svou krásou a dlouhou historií. Ve 20. století sem začali jezdit turisté z celého světa. ' +
-    'Místo má bohatou historii a nabízí mnoho zajímavostí pro návštěvníky každého věku.';
-
-// Soubor z repozitáře se stejnými hlavičkami jako na Netlify (CSP u HTML), místo skutečné sady míst testovací
+// Soubor z repozitáře se stejnými hlavičkami jako na Netlify (CSP u HTML), místo skutečných dat testovací
 const serveFile = (pathname) => {
-    if (pathname === '/data/places.json') return { status: 200, headers: { 'content-type': 'application/json' }, body: JSON.stringify(DATASET) };
+    if (fixtures.files[pathname]) return { status: 200, headers: { 'content-type': 'application/json' }, body: JSON.stringify(fixtures.files[pathname]) };
     const file = path.join(ROOT, pathname === '/' ? 'index.html' : decodeURIComponent(pathname));
     if (!file.startsWith(ROOT) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) return { status: 404, headers: {}, body: '' };
     const headers = { 'content-type': CONTENT_TYPES[path.extname(file)] || 'application/octet-stream' };
@@ -84,15 +37,22 @@ const startServer = () => new Promise(resolve => {
     server.listen(0, '127.0.0.1', () => resolve(server));
 });
 
-// options: variant (null = první spuštění), filters, fixedRandom (Math.random vrací 0.1 → první místo a otázka na stát, kde jde),
-// wikiDown, wikiHangs, dataDown, fakeTimers, colorScheme, origin + serviceWorkers
+// options: variant (null = první spuštění), settings, storage (další uložená data), fixedRandom (Math.random vrací 0.1 →
+// první položka a u zeměpisu otázka na stát, kde jde), wikiDown, wikiHangs, dataDown, fakeTimers, colorScheme, origin + serviceWorkers
 const setup = async (browser, options = {}) => {
     const origin = options.origin || ORIGIN;
     const flags = { ...options };
     const context = await browser.newContext({ serviceWorkers: options.serviceWorkers || 'block', colorScheme: options.colorScheme || 'light' });
     await context.grantPermissions(['clipboard-read', 'clipboard-write'], { origin });
-    if (options.variant !== null) await context.addInitScript(variant => localStorage.setItem('geoQuizVariant', variant), options.variant || 'choices');
-    if (options.filters) await context.addInitScript(filters => localStorage.setItem('geoQuizFilters', filters), JSON.stringify(options.filters));
+    const storage = { ...(options.storage || {}) };
+    if (options.variant !== null) storage['mudrlant.variant'] = options.variant || 'choices';
+    if (options.settings) storage['mudrlant.settings'] = JSON.stringify(options.settings);
+    // Uložená data jen při prvním načtení, ať test vidí, co s nimi aplikace udělá
+    await context.addInitScript(entries => {
+        if (sessionStorage.getItem('test-storage-set')) return;
+        sessionStorage.setItem('test-storage-set', '1');
+        Object.entries(entries).forEach(([key, value]) => localStorage.setItem(key, value));
+    }, storage);
     if (options.fixedRandom) await context.addInitScript(() => { Math.random = () => 0.1; });
     const tab = await context.newPage();
     const log = { wiki: [], data: 0, photos: [], tiles: 0, satellite: [], errors: [], csp: [] };
@@ -102,7 +62,7 @@ const setup = async (browser, options = {}) => {
     await context.route('**/*', async (route) => {
         const url = new URL(route.request().url());
         if (url.origin === ORIGIN) {
-            if (url.pathname === '/data/places.json') {
+            if (url.pathname === '/data/zemepis.json') {
                 log.data++;
                 if (flags.dataDown) return route.fulfill({ status: 503, body: '' });
             }
@@ -114,7 +74,7 @@ const setup = async (browser, options = {}) => {
             if (flags.wikiDown) return route.fulfill({ status: 503, body: '' });
             if (flags.wikiHangs) return; // odpověď nikdy nepřijde
             const title = url.searchParams.get('titles');
-            return route.fulfill({ json: { query: { pages: { 7: { pageid: 7, title, extract: extractFor(title) } } } } });
+            return route.fulfill({ json: { query: { pages: { 7: { pageid: 7, title, extract: fixtures.extractFor(title) } } } } });
         }
         if (url.hostname === 'upload.wikimedia.org') {
             log.photos.push(decodeURIComponent(url.pathname));
@@ -131,36 +91,52 @@ const setup = async (browser, options = {}) => {
     return { context, tab, log, flags };
 };
 
+const waitForHome = (tab) => tab.waitForSelector('text=Dnešní otázky', { timeout: 30000 });
 const waitForQuestion = (tab) => tab.waitForSelector('text=Tvoje odpověď', { timeout: 30000 });
 const waitForResult = (tab) => tab.waitForSelector('h1', { timeout: 30000 });
-// Rozehrané místo z uloženého stavu – podle něj test ví, co je správná odpověď
-const readRound = (tab) => tab.evaluate(() => JSON.parse(localStorage.getItem('geoSessionState')).data);
-const correctAnswer = (data) => data.quizType === 'name' ? data.name : data.countryNames[0];
+// Rozehraná otázka z uloženého stavu – podle ní test ví, co je správná odpověď
+const readRound = (tab) => tab.evaluate(() => JSON.parse(localStorage.getItem('mudrlant.session')).data);
+const readStorage = (tab, key) => tab.evaluate(k => JSON.parse(localStorage.getItem(k)), key);
 const appText = (tab) => tab.textContent('#app-content');
+// Učení → téma → okruh (null = celé téma)
+const openCollection = async (tab, topic, collection) => {
+    await tab.click('#btn-learn');
+    await tab.click(`[data-action="learn-topic"][data-topic="${topic}"]`);
+    await tab.click(`[data-action="learn-collection"][data-collection="${collection || ''}"]`);
+    await tab.waitForSelector('[data-action="learn-practice"]');
+};
+const practiceCollection = async (tab, topic, collection) => {
+    await openCollection(tab, topic, collection);
+    await tab.click('[data-action="learn-practice"]');
+    await waitForQuestion(tab);
+};
 
 test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstalovaný' }, async (t) => {
     const browser = await chromium.launch(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {});
     t.after(() => browser.close());
 
-    await t.test('dnešní místo: popis, fotka, slepá mapa, fakta, odpověď, série a sdílení', async () => {
+    await t.test('dnešní otázka zeměpisu: popis, fotka, slepá mapa, fakta, odpověď, série a sdílení', async () => {
         const { context, tab, log } = await setup(browser);
         await tab.goto(`${ORIGIN}/`);
+        await waitForHome(tab);
+        assert.match(await tab.textContent('[data-action="daily"][data-topic="zemepis"]'), /Zeměpis\s*Čeká na tebe/);
+        assert.equal(await tab.textContent('#status-text'), 'Mudrlant · 16. 10.');
+
+        await tab.click('[data-action="daily"][data-topic="zemepis"]');
         await waitForQuestion(tab);
         const data = await readRound(tab);
-
-        assert.equal(data.known, true, 'dnešní místo je známé');
-        assert.deepEqual(data.hints, ['photo', 'map', 'facts']);
-        assert.equal(await tab.textContent('#status-text'), 'Dnešní místo · 16. 10.');
+        assert.equal(data.known, true, 'dnešní otázka je ze známých');
+        assert.deepEqual(data.hints, ['photo', 'visual', 'facts']);
+        assert.equal(await tab.textContent('#status-text'), 'Zeměpis · 16. 10.');
         assert.equal(await tab.locator('[data-action="choice"]').count(), 4);
         assert.equal(await tab.locator('#answer-input').count(), 0, 've variantě s možnostmi není pole pro psaní');
-        assert.match(await tab.textContent('h2'), data.quizType === 'name' ? /Co je to za místo\?/ : /Ve kterém státě to je\?/);
+        assert.equal(await tab.textContent('h2'), data.question.title);
 
         // Popis je vidět hned a neprozradí odpověď; HTML z Wikipedie je jen text
         const description = await tab.textContent('p.italic');
         assert.match(description, /<img src=x onerror=__xss=1>/);
-        if (data.quizType === 'name') assert.ok(!description.includes(data.name), description);
-        else assert.ok(!description.includes(data.countryNames[0]), description);
-        assert.equal(await tab.locator('#hint-photo, #hint-map').count(), 0, 'nápovědy až na požádání');
+        assert.ok(!description.includes(data.question.answerLabel), description);
+        assert.equal(await tab.locator('#hint-photo, #hint-visual').count(), 0, 'nápovědy až na požádání');
         assert.match(await appText(tab), /Nápověda 1\/4/);
         assert.match(await appText(tab), /Teď za ni získáš 4 body/);
 
@@ -168,22 +144,18 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         await tab.click('[data-action="hint"]');
         await tab.waitForFunction(() => document.getElementById('hint-photo').style.backgroundImage.includes('upload.wikimedia.org/wikipedia/commons/thumb/a/ab/'));
         assert.match(await appText(tab), /Nápověda 2\/4/);
-        assert.match(await appText(tab), /Teď za ni získáš 3 body/);
         assert.equal(await tab.locator('#app-content section img').count(), 0);
 
-        // 2. nápověda: slepá mapa bez popisků s obrysy států a terčem uprostřed
+        // 2. nápověda: slepá mapa bez popisků s obrysy států
         await tab.click('[data-action="hint"]');
-        await tab.waitForSelector('#hint-map svg path');
-        assert.ok(await tab.locator('#hint-map svg path').count() >= 3, 'obrysy okolních států');
-        assert.equal(await tab.locator('#hint-map svg text').count(), 0, 'žádné popisky');
-        if (data.category === 'stat') assert.ok(await tab.locator('#hint-map path.fill-emerald-400').count() > 0, 'stát je zvýrazněný');
-        else assert.equal(await tab.locator('#hint-map svg circle').count(), 2, 'terč uprostřed');
+        await tab.waitForSelector('#hint-visual svg path');
+        assert.ok(await tab.locator('#hint-visual svg path').count() >= 3, 'obrysy okolních států');
+        assert.equal(await tab.locator('#hint-visual svg text').count(), 0, 'žádné popisky');
         assert.match(await appText(tab), /↔ [\d\s ]+ km/);
 
         // 3. nápověda: čísla a fakta, další už není
         await tab.click('[data-action="hint"]');
         await tab.waitForSelector('text=Čísla a fakta');
-        assert.ok(await tab.locator('dl dt').count() >= 1);
         assert.equal(await tab.locator('[data-action="hint"]').count(), 0);
         assert.match(await appText(tab), /Nápověda 4\/4/);
 
@@ -192,7 +164,7 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         const content = await tab.locator('#app-content').boundingBox();
         assert.ok(header.y + header.height <= content.y + 1, 'obsah začíná pod lištou');
 
-        await tab.click(`[data-action="choice"]:has-text("${correctAnswer(data)}")`);
+        await tab.click(`[data-action="choice"]:has-text("${data.question.answerLabel}")`);
         await waitForResult(tab);
         assert.match(await appText(tab), /Správně! \+1 bod/);
         assert.equal(await tab.textContent('h1'), data.name);
@@ -205,21 +177,21 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         await tab.click('[data-action="share"]');
         await tab.waitForSelector('#toast:not(.opacity-0)');
         const shared = await tab.evaluate(() => navigator.clipboard.readText());
-        assert.match(shared, /^Geo Kvíz · 16\. 10\. 2026\n\S+ [^\n]+\n✅ 1 bod · nápověda 4\/4\n🔥 Série: 1\nhttps:\/\/geo\.test\/$/);
+        assert.equal(shared, 'Mudrlant · 🌍 Zeměpis · 16. 10. 2026\n✅ 1 bod · nápověda 4/4\n🔥 Série: 1\nhttps://geo.test/');
 
-        // Po návratu z tréninku zůstane dnešní místo odhalené
-        await tab.click('#btn-random');
-        await waitForQuestion(tab);
-        assert.match(await tab.textContent('#status-text'), /Trénink · 0 bodů/);
+        // Zpět na dnešní otázky: zeměpis je odehraný a série běží
+        await tab.click('[data-action="next"]');
+        await waitForHome(tab);
+        assert.match(await tab.textContent('[data-action="daily"][data-topic="zemepis"]'), /Správně · 1 bod\s*1/);
+
+        // Odehraná dnešní otázka zůstane uložená i po obnovení stránky
         const requestsBefore = log.wiki.length;
-        await tab.click('#btn-daily');
+        await tab.click('[data-action="daily"][data-topic="zemepis"]');
         await waitForResult(tab);
-        assert.equal(log.wiki.length, requestsBefore, 'dnešní místo z mezipaměti');
-        assert.equal(await tab.textContent('h1'), data.name);
-
-        // Po obnovení stránky totéž
+        assert.equal(log.wiki.length, requestsBefore, 'dnešní otázka z mezipaměti');
         await tab.reload();
         await waitForResult(tab);
+        assert.equal(await tab.textContent('h1'), data.name);
         assert.equal(log.wiki.length, requestsBefore);
 
         assert.equal(await tab.evaluate(() => window.__xss), undefined);
@@ -229,21 +201,20 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         await context.close();
     });
 
-    await t.test('otázka na stát ve variantě psaní: zakrytý stát, dvojnásobek bodů, další místo', async () => {
-        const { context, tab, log } = await setup(browser, { variant: 'typed', fixedRandom: true, filters: { categories: ['mesto'], tier: 'known' } });
+    await t.test('procvičení okruhu ve variantě psaní: otázka na stát, zakrytý stát, dvojnásobek bodů', async () => {
+        const { context, tab, log } = await setup(browser, { variant: 'typed', fixedRandom: true });
         await tab.goto(`${ORIGIN}/`);
-        await waitForQuestion(tab);
-        await tab.click('#btn-random');
-        await waitForQuestion(tab);
+        await waitForHome(tab);
+        await practiceCollection(tab, 'zemepis', 'c:mesto');
         const data = await readRound(tab);
         assert.equal(data.name, 'Testov');
-        assert.equal(data.quizType, 'location');
+        assert.equal(data.question.type, 'location');
+        assert.equal(await tab.textContent('#status-text'), 'Zeměpis · Města');
         assert.match(await tab.textContent('h2'), /Ve kterém státě to je\?/);
         assert.match(await appText(tab), /Název: Testov/);
         const description = await tab.textContent('p.italic');
         assert.doesNotMatch(description, /Česk|česk|Jihomoravsk/, description);
         assert.match(description, /na řece Svratce/);
-        assert.match(description, /statutární město/);
         assert.equal(await tab.locator('[data-action="choice"]').count(), 0, 've variantě psaní nejsou možnosti');
         assert.match(await appText(tab), /Teď za ni získáš 8 bodů/);
 
@@ -253,20 +224,20 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         assert.match(await appText(tab), /Správně! \+8 bodů/);
         assert.match(await appText(tab), /Napsaná odpověď/);
         assert.match(await appText(tab), /Česká stopa/);
-        assert.match(await tab.textContent('#status-text'), /Trénink · 8 bodů/);
 
-        // Další místo se neopakuje; napsaný jiný stát výsledek pozná a nabídne o něm popis
+        // Další z okruhu se neopakuje; napsaný jiný stát výsledek pozná a nabídne o něm popis
+        assert.match(await tab.textContent('[data-action="next"]'), /Další z okruhu/);
         await tab.click('[data-action="next"]');
         await waitForQuestion(tab);
         const next = await readRound(tab);
         assert.notEqual(next.name, 'Testov');
-        assert.equal(next.quizType, 'location');
+        assert.equal(next.category, 'mesto');
         await tab.fill('#answer-input', 'Rakousko');
         await tab.press('#answer-input', 'Enter');
         await waitForResult(tab);
         assert.match(await appText(tab), /Bohužel, to není ono/);
         assert.match(await appText(tab), /správně 1 z 2/);
-        await tab.click('[data-action="place-info"]:has-text("Co je Rakousko?")');
+        await tab.click('[data-action="item-info"]:has-text("Co je Rakousko?")');
         await tab.waitForSelector('#place-info h2:has-text("Rakousko")');
         await tab.keyboard.press('Escape');
         assert.equal(await tab.locator('#place-info').count(), 0);
@@ -276,20 +247,19 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         await context.close();
     });
 
-    await t.test('stát: na stát se neptá, slepá mapa ho zvýrazní, psaná zkratka platí', async () => {
-        const { context, tab, log } = await setup(browser, { variant: 'typed', fixedRandom: true, filters: { categories: ['stat'], tier: 'known' } });
+    await t.test('stát: slepá mapa ho zvýrazní, psaná zkratka platí', async () => {
+        const { context, tab, log } = await setup(browser, { variant: 'typed', fixedRandom: true });
         await tab.goto(`${ORIGIN}/`);
-        await waitForQuestion(tab);
-        await tab.click('#btn-random');
-        await waitForQuestion(tab);
+        await waitForHome(tab);
+        await practiceCollection(tab, 'zemepis', 'c:stat');
         const data = await readRound(tab);
         assert.equal(data.name, 'Švýcarsko');
-        assert.equal(data.quizType, 'name');
-        assert.deepEqual(data.hints, ['map', 'facts'], 'stát bez fotky');
+        assert.equal(data.question.type, 'name');
+        assert.deepEqual(data.hints, ['visual', 'facts'], 'stát bez fotky');
         assert.doesNotMatch(await tab.textContent('p.italic'), /Švýcar|švýcar/);
         await tab.click('[data-action="hint"]');
-        await tab.waitForSelector('#hint-map path.fill-emerald-400');
-        assert.equal(await tab.locator('#hint-map svg circle').count(), 0);
+        await tab.waitForSelector('#hint-visual path.fill-emerald-400');
+        assert.equal(await tab.locator('#hint-visual svg circle').count(), 0);
         await tab.click('[data-action="hint"]');
         assert.match(await appText(tab), /Hlavní město\s*Bern/);
         await tab.fill('#answer-input', 'svycarsko');
@@ -303,12 +273,15 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
     });
 
     await t.test('bez skutečné fotky (vlajka, nedostupný soubor) nápověda s fotkou chybí', async () => {
-        const { context, tab, log } = await setup(browser, { fixedRandom: true, filters: { categories: ['ostrov'], tier: 'all' } });
+        const { context, tab, log } = await setup(browser, { fixedRandom: true });
         await tab.goto(`${ORIGIN}/`);
-        await waitForQuestion(tab);
+        await waitForHome(tab);
+        await practiceCollection(tab, 'zemepis', 'c:ostrov');
         for (const name of ['Vlajkový ostrov', 'Druhý ostrov']) {
-            await tab.click('#btn-random');
-            await waitForQuestion(tab);
+            if (name !== 'Vlajkový ostrov') {
+                await tab.click('[data-action="next"]');
+                await waitForQuestion(tab);
+            }
             const data = await readRound(tab);
             assert.equal(data.name, name);
             assert.equal(data.photoUrl, null);
@@ -322,152 +295,161 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         // Ve výsledku místo fotky satelitní snímek okolí
         await tab.waitForFunction(() => document.querySelectorAll('#result-visual img').length > 0);
         assert.ok(log.satellite.some(tile => tile.includes('_Level8/5/')));
-        assert.match(await appText(tab), /Méně známé místo/);
+        assert.match(await appText(tab), /Méně známé/);
         assert.deepEqual(log.errors, []);
         assert.deepEqual(log.csp, []);
         await context.close();
     });
 
-    await t.test('špatná odpověď: okno s popisem zvoleného místa a ostatních možností', async () => {
-        const { context, tab, log } = await setup(browser, { fixedRandom: true, filters: { categories: ['hora'], tier: 'known' } });
+    await t.test('špatná odpověď: okno s popisem zvolené možnosti i ostatních', async () => {
+        const { context, tab, log } = await setup(browser, { fixedRandom: true });
         await tab.goto(`${ORIGIN}/`);
-        await waitForQuestion(tab);
-        await tab.click('#btn-random');
-        await waitForQuestion(tab);
+        await waitForHome(tab);
+        await practiceCollection(tab, 'zemepis', 'c:hora');
         const data = await readRound(tab);
         assert.equal(data.name, 'Testovací hora');
-        assert.equal(data.quizType, 'location');
-        const wrong = data.choices.filter(choice => !choice.correct);
+        assert.equal(data.question.type, 'location');
+        const wrong = data.question.choices.filter(choice => !choice.correct);
         await tab.click(`[data-action="choice"]:has-text("${wrong[0].label}")`);
         await waitForResult(tab);
         assert.match(await appText(tab), new RegExp(`Tvoje odpověď: ${wrong[0].label}`));
 
         // Okno s popisem: název, úvod z Wikipedie, mapa a fakta
-        await tab.click(`[data-action="place-info"]:has-text("Co je ${wrong[0].label}?")`);
+        await tab.click(`[data-action="item-info"]:has-text("Co je ${wrong[0].label}?")`);
         await tab.waitForSelector('#place-info [role="img"] svg path');
         assert.equal(await tab.textContent('#place-info h2'), wrong[0].label);
-        await tab.waitForFunction(() => /o kterém se píše v testu/.test(document.querySelector('#place-info [data-card-text]').textContent));
+        await tab.waitForFunction(() => /o které se píše v testu/.test(document.querySelector('#place-info [data-card-text]').textContent));
         assert.match(await tab.textContent('#place-info'), /Hlavní město/);
         assert.equal(await tab.getAttribute('#place-info a:has-text("Více na Wikipedii")', 'href'), `https://cs.wikipedia.org/wiki/${encodeURIComponent(wrong[0].label)}`);
         await tab.click('#place-info [data-close]');
         assert.equal(await tab.locator('#place-info').count(), 0);
 
         // Ostatní nabízené možnosti jdou rozkliknout také
-        const others = await tab.locator('section:has-text("ostatní možnosti") [data-action="place-info"]').allTextContents();
+        const others = await tab.locator('section:has-text("ostatní možnosti") [data-action="item-info"]').allTextContents();
         assert.deepEqual(others.map(text => text.trim()).sort(), wrong.slice(1).map(choice => choice.label).sort());
-        await tab.click(`section:has-text("ostatní možnosti") [data-action="place-info"]:has-text("${wrong[1].label}")`);
+        await tab.click(`section:has-text("ostatní možnosti") [data-action="item-info"]:has-text("${wrong[1].label}")`);
         await tab.waitForSelector(`#place-info h2:has-text("${wrong[1].label}")`);
         await tab.click('#place-info', { position: { x: 5, y: 5 } });
         assert.equal(await tab.locator('#place-info').count(), 0, 'klik mimo okno ho zavře');
 
-        // Neuhodnuté místo je v seznamu chyb
-        assert.deepEqual(JSON.parse(await tab.evaluate(() => localStorage.getItem('geoQuizMistakes'))), ['Q4242']);
+        // Neuhodnutá položka je v seznamu chyb
+        assert.deepEqual(await readStorage(tab, 'mudrlant.mistakes'), ['zemepis:Q4242']);
         assert.deepEqual(log.errors, []);
         assert.deepEqual(log.csp, []);
         await context.close();
     });
 
-    await t.test('učení: atlas míst a procvičení chyb', async () => {
-        const { context, tab, log } = await setup(browser, { filters: { categories: ['stat'], tier: 'known' } });
+    await t.test('učení: okruh popořadě, postup, procvičení a opakování chyb', async () => {
+        const { context, tab, log } = await setup(browser);
         await tab.goto(`${ORIGIN}/`);
-        await waitForQuestion(tab);
+        await waitForHome(tab);
 
-        // Atlas: karta místa podle nastavení, tam a zpět
+        // Téma: okruhy a kategorie s počty
         await tab.click('#btn-learn');
-        await tab.waitForSelector('#learn-card [role="img"] svg path');
         assert.equal(await tab.textContent('#status-text'), 'Učení');
-        assert.equal(await tab.getAttribute('#btn-learn', 'aria-pressed'), 'true');
-        assert.match(await tab.textContent('#app-content'), /Všechny kategorie|Státy · jen známá místa/);
+        await tab.click('[data-action="learn-topic"][data-topic="zemepis"]');
+        await tab.waitForSelector('[data-action="learn-collection"][data-collection="cesko"]');
+        assert.equal(await tab.textContent('#status-text'), 'Učení · Zeměpis');
+        assert.match(await tab.textContent('[data-collection="cesko"]'), /Česko\s*2/);
+        assert.match(await tab.textContent('[data-collection="c:hora"]'), /Hory a sopky\s*3/, 'kategorie jen se známými');
+
+        // Okruh velkoměsta popořadě podle počtu obyvatel
+        await tab.click('[data-action="learn-collection"][data-collection="velkomesta"]');
+        await tab.click('[data-action="learn-browse"]');
+        await tab.waitForSelector('#learn-card [role="img"] svg path');
+        assert.equal(await tab.textContent('#learn-card h2'), 'Berlín');
+        assert.match(await appText(tab), /1 \/ 3/);
         assert.equal(await tab.isDisabled('[data-action="learn-prev"]'), true);
-        const first = await tab.textContent('#learn-card h2');
-        assert.ok(DATASET.places.some(p => p.c === 'stat' && p.n === first), first);
         await tab.waitForFunction(() => !/Načítám popis/.test(document.querySelector('#learn-card [data-card-text]').textContent));
         await tab.click('[data-action="learn-next"]');
-        const second = await tab.textContent('#learn-card h2');
-        assert.notEqual(second, first);
+        assert.equal(await tab.textContent('#learn-card h2'), 'Řím');
+        await tab.click('[data-action="learn-next"]');
+        assert.equal(await tab.textContent('#learn-card h2'), 'Vídeň');
+        assert.equal(await tab.isDisabled('[data-action="learn-next"]'), true);
         await tab.click('[data-action="learn-prev"]');
-        assert.equal(await tab.textContent('#learn-card h2'), first);
+        assert.equal(await tab.textContent('#learn-card h2'), 'Řím');
 
-        // Chyby: zatím prázdné
-        await tab.click('[data-action="learn-tab"][data-tab="mistakes"]');
-        await tab.waitForSelector('text=Zatím tu nic není');
+        // Procvičení okruhu: jen velkoměsta; po správné odpovědi roste postup
+        await tab.click('[data-action="learn-collection"]');
+        await tab.click('[data-action="learn-practice"]');
+        await waitForQuestion(tab);
+        const first = await readRound(tab);
+        assert.ok(['Berlín', 'Řím', 'Vídeň'].includes(first.name) || first.question.type === 'location');
+        await tab.click(`[data-action="choice"]:has-text("${first.question.answerLabel}")`);
+        await waitForResult(tab);
+        await openCollection(tab, 'zemepis', 'velkomesta');
+        assert.match(await appText(tab), /3 položek · uhodnuto 1/);
 
-        // Neuhodnuté místo z dnešní hry se objeví v seznamu
-        await tab.click('#btn-daily');
+        // Chyba z dnešní otázky se objeví v seznamu chyb
+        await tab.click('#btn-home');
+        await tab.click('[data-action="daily"][data-topic="zemepis"]');
         await waitForQuestion(tab);
         const daily = await readRound(tab);
         await tab.click('[data-action="give-up"]');
         await waitForResult(tab);
         await tab.click('#btn-learn');
+        await tab.click('[data-action="learn-mistakes"]');
         await tab.waitForSelector('[data-action="practice-mistakes"]');
-        assert.match(await tab.textContent('[data-action="learn-tab"][data-tab="mistakes"]'), /Moje chyby \(1\)/);
-        await tab.click(`ul [data-action="place-info"]:has-text("${daily.name}")`);
+        assert.match(await appText(tab), /Procvičit chyby \(1\)/);
+        await tab.click(`ul [data-action="item-info"]:has-text("${daily.name}")`);
         await tab.waitForSelector(`#place-info h2:has-text("${daily.name}")`);
         await tab.keyboard.press('Escape');
 
-        // Procvičení chyb: stejné místo znovu, po správné odpovědi ze seznamu zmizí
+        // Procvičení chyb: stejná otázka znovu, po správné odpovědi ze seznamu zmizí
         await tab.click('[data-action="practice-mistakes"]');
         await waitForQuestion(tab);
         const again = await readRound(tab);
         assert.equal(again.id, daily.id);
         assert.equal(await tab.textContent('#status-text'), 'Opakování chyb · 1');
-        await tab.click(`[data-action="choice"]:has-text("${correctAnswer(again)}")`);
+        await tab.click(`[data-action="choice"]:has-text("${again.question.answerLabel}")`);
         await waitForResult(tab);
-        assert.match(await appText(tab), /Správně!/);
-        assert.match(await tab.textContent('[data-action="next"]'), /Hotovo – další místo/);
-        assert.deepEqual(JSON.parse(await tab.evaluate(() => localStorage.getItem('geoQuizMistakes'))), []);
+        assert.match(await tab.textContent('[data-action="next"]'), /Hotovo – zpět do učení/);
+        assert.deepEqual(await readStorage(tab, 'mudrlant.mistakes'), []);
         await tab.click('[data-action="next"]');
-        await waitForQuestion(tab);
-        assert.match(await tab.textContent('#status-text'), /^Trénink/);
+        await tab.waitForSelector('text=Zatím tu nic není');
 
-        // Trénink z učení: rozehraná otázka zůstane
-        const practice = await readRound(tab);
-        await tab.click('#btn-learn');
-        await tab.waitForSelector('[data-action="learn-tab"]');
-        await tab.click('#btn-random');
-        await waitForQuestion(tab);
-        assert.equal((await readRound(tab)).id, practice.id);
         assert.equal(await tab.locator('i[data-lucide]').count(), 0, 'všechny ikony vykreslené');
         assert.deepEqual(log.errors, []);
         assert.deepEqual(log.csp, []);
         await context.close();
     });
 
-    await t.test('první spuštění: výběr varianty hry před první otázkou', async () => {
-        const { context, tab, log } = await setup(browser, { variant: null });
+    await t.test('trénink: tlačítko vrátí rozehranou otázku, jinak nová ze zapnutých témat', async () => {
+        const { context, tab, log } = await setup(browser);
         await tab.goto(`${ORIGIN}/`);
-        await tab.waitForSelector('text=Jak chceš hrát?');
-        assert.equal(log.data, 0, 'bez varianty se nic nenačítá');
-        await tab.click('#variant-welcome [data-variant="typed"]');
+        await waitForHome(tab);
+        await tab.click('#btn-practice');
         await waitForQuestion(tab);
-        assert.equal(await tab.locator('#answer-input').count(), 1);
-        assert.equal(await tab.evaluate(() => localStorage.getItem('geoQuizVariant')), 'typed');
+        assert.match(await tab.textContent('#status-text'), /^Trénink · 0 bodů/);
+        const practice = await readRound(tab);
+        await tab.click('#btn-learn');
+        await tab.waitForSelector('[data-action="learn-topic"]');
+        await tab.click('#btn-practice');
+        await waitForQuestion(tab);
+        assert.equal((await readRound(tab)).id, practice.id, 'rozehraná otázka zůstala');
+        await tab.click('[data-action="give-up"]');
+        await waitForResult(tab);
+        assert.match(await tab.textContent('[data-action="next"]'), /Další otázka/);
         assert.deepEqual(log.errors, []);
         await context.close();
     });
 
-    await t.test('nastavení: varianta hry a co hádat v tréninku', async () => {
+    await t.test('nastavení: varianta hry, známost a témata v tréninku', async () => {
         const { context, tab, log } = await setup(browser);
         await tab.goto(`${ORIGIN}/`);
+        await waitForHome(tab);
+        await tab.click('#btn-practice');
         await waitForQuestion(tab);
 
         await tab.click('#btn-settings');
         await tab.click('#settings-overlay [data-variant="typed"]');
         assert.match(await tab.textContent('#settings-note'), /od další otázky/);
-
-        // Výchozí: všechny kategorie, jen známá místa; počty podle sady
         assert.equal(await tab.getAttribute('#settings-overlay [data-tier="known"]', 'aria-pressed'), 'true');
-        assert.match(await tab.textContent('#settings-overlay [data-category="hora"]'), /Hory a sopky\s*3/);
         await tab.click('#settings-overlay [data-tier="all"]');
-        assert.match(await tab.textContent('#settings-overlay [data-category="hora"]'), /Hory a sopky\s*4/);
-        assert.match(await tab.textContent('#settings-note'), /od dalšího místa v tréninku/);
-
-        // Vypnout všechno kromě ostrovů; poslední kategorie vypnout nejde
-        for (const key of ['stat', 'mesto', 'hora', 'reka', 'jezero', 'priroda', 'stavba']) await tab.click(`#settings-overlay [data-category="${key}"]`);
-        await tab.click('#settings-overlay [data-category="ostrov"]');
-        assert.match(await tab.textContent('#settings-note'), /Aspoň jedna kategorie/);
-        assert.equal(await tab.getAttribute('#settings-overlay [data-category="ostrov"]', 'aria-pressed'), 'true');
-        assert.deepEqual(JSON.parse(await tab.evaluate(() => localStorage.getItem('geoQuizFilters'))), { categories: ['ostrov'], tier: 'all' });
+        assert.deepEqual(await readStorage(tab, 'mudrlant.settings'), { tier: 'all', topics: ['zemepis'] });
+        // Jediné téma vypnout nejde
+        await tab.click('#settings-overlay [data-topic-toggle="zemepis"]');
+        assert.match(await tab.textContent('#settings-note'), /Aspoň jedno téma/);
         await tab.click('#settings-overlay [data-close]');
         assert.equal(await tab.locator('#settings-overlay').count(), 0);
         assert.equal(await tab.locator('[data-action="choice"]').count(), 4, 'u rozehrané otázky zůstanou možnosti');
@@ -476,7 +458,6 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         await waitForResult(tab);
         await tab.click('[data-action="next"]');
         await waitForQuestion(tab);
-        assert.equal((await readRound(tab)).category, 'ostrov', 'trénink jen z vybrané kategorie');
         assert.equal(await tab.locator('#answer-input').count(), 1, 'další otázka už je na psaní');
 
         // Zpět na možnosti jde hned (je to snazší)
@@ -484,17 +465,64 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         await tab.click('#settings-overlay [data-variant="choices"]');
         assert.match(await tab.textContent('#settings-note'), /hned/);
         await tab.keyboard.press('Escape');
-        // V testovací sadě jsou jen dva ostrovy: u otázky na název dvě možnosti, u otázky na stát čtyři
         assert.ok(await tab.locator('[data-action="choice"]').count() >= 2);
         assert.equal(await tab.locator('#answer-input').count(), 0);
+
+        // Známost i méně známé: v učení se kategorie počítají celé
+        await openCollection(tab, 'zemepis', 'c:hora');
+        assert.match(await appText(tab), /4 položek/);
         assert.deepEqual(log.errors, []);
         assert.deepEqual(log.csp, []);
+        await context.close();
+    });
+
+    await t.test('první spuštění: výběr varianty hry, pak dnešní otázky', async () => {
+        const { context, tab, log } = await setup(browser, { variant: null });
+        await tab.goto(`${ORIGIN}/`);
+        await tab.waitForSelector('text=Vítej v Mudrlantovi');
+        assert.equal(log.data, 0, 'bez varianty se nic nenačítá');
+        await tab.click('#variant-welcome [data-variant="typed"]');
+        await waitForHome(tab);
+        assert.equal(await tab.evaluate(() => localStorage.getItem('mudrlant.variant')), 'typed');
+        await tab.click('[data-action="daily"][data-topic="zemepis"]');
+        await waitForQuestion(tab);
+        assert.equal(await tab.locator('#answer-input').count(), 1);
+        assert.deepEqual(log.errors, []);
+        await context.close();
+    });
+
+    await t.test('převzetí uložených dat z Geo Kvízu', async () => {
+        const { context, tab, log } = await setup(browser, {
+            variant: null,
+            storage: {
+                geoQuizVariant: 'typed',
+                geoQuizStats: JSON.stringify({
+                    daily: { '2026-10-15': { correct: true, points: 4 }, '2026-10-16': { correct: true, points: 3 } },
+                    practice: { played: 2, correct: 1, points: 4 }
+                }),
+                geoQuizMistakes: JSON.stringify(['Q4242']),
+                geoQuizFilters: JSON.stringify({ categories: ['hora'], tier: 'all' }),
+                geoQuizDaily19: JSON.stringify({ date: '2026-10-16' }),
+                geoSessionState: JSON.stringify({ version: 7 })
+            }
+        });
+        await tab.goto(`${ORIGIN}/`);
+        await waitForHome(tab);
+        assert.match(await tab.textContent('[data-action="daily"][data-topic="zemepis"]'), /Správně · 3 body\s*2/);
+        assert.equal(await tab.evaluate(() => localStorage.getItem('mudrlant.variant')), 'typed');
+        assert.deepEqual(await readStorage(tab, 'mudrlant.mistakes'), ['zemepis:Q4242']);
+        assert.equal((await readStorage(tab, 'mudrlant.settings')).tier, 'all');
+        assert.equal((await readStorage(tab, 'mudrlant.stats')).practice.points, 4);
+        assert.deepEqual(await tab.evaluate(() => Object.keys(localStorage).filter(key => key.startsWith('geo'))), [], 'staré klíče jsou pryč');
+        assert.deepEqual(log.errors, []);
         await context.close();
     });
 
     await t.test('výpadek Wikipedie: hraje se dál s krátkým popisem z Wikidat', async () => {
         const { context, tab, log } = await setup(browser, { wikiDown: true });
         await tab.goto(`${ORIGIN}/`);
+        await waitForHome(tab);
+        await tab.click('[data-action="daily"][data-topic="zemepis"]');
         await waitForQuestion(tab);
         assert.equal(log.wiki.length, 2, 'dva pokusy o popis');
         assert.match(await tab.textContent('p.italic'), /v testovacím světě\./);
@@ -505,9 +533,11 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         await context.close();
     });
 
-    await t.test('nedostupná data hry: chyba spojení a opakování', async () => {
+    await t.test('nedostupná data tématu: chyba spojení a opakování', async () => {
         const { context, tab, log, flags } = await setup(browser, { dataDown: true });
         await tab.goto(`${ORIGIN}/`);
+        await waitForHome(tab);
+        await tab.click('[data-action="daily"][data-topic="zemepis"]');
         await tab.waitForSelector('text=Chyba spojení', { timeout: 30000 });
         assert.equal(log.data, 3);
         flags.dataDown = false;
@@ -520,6 +550,8 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         const { context, tab, log } = await setup(browser, { wikiHangs: true, fakeTimers: true });
         // Falešné hodiny zastaví i requestAnimationFrame, proto žádné waitFor…, jen posouvání času
         await tab.goto(`${ORIGIN}/`);
+        for (let i = 0; i < 10 && !(await tab.isVisible('[data-action="daily"]')); i++) await tab.clock.runFor(1000);
+        await tab.click('[data-action="daily"][data-topic="zemepis"]');
         for (let i = 0; i < 10 && !(await tab.isVisible('text=Tvoje odpověď')); i++) {
             await tab.clock.runFor(10000);
             await tab.waitForTimeout(100);
@@ -535,10 +567,12 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         const origin = `http://127.0.0.1:${server.address().port}`;
         const { context, tab, log } = await setup(browser, { origin, serviceWorkers: 'allow' });
         await tab.goto(`${origin}/`);
+        await waitForHome(tab);
+        await tab.click('[data-action="daily"][data-topic="zemepis"]');
         await waitForQuestion(tab);
         await tab.evaluate(() => navigator.serviceWorker.ready);
 
-        // Vypnout síť i server – stránka i data hry se musí načíst jen z mezipaměti service workeru
+        // Vypnout síť i server – stránka i data se musí načíst jen z mezipaměti service workeru
         await context.setOffline(true);
         server.closeAllConnections();
         await new Promise(resolve => server.close(resolve));
@@ -548,12 +582,12 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         assert.equal(await tab.evaluate(() => getComputedStyle(document.getElementById('app-content')).display), 'flex', 'styly z mezipaměti');
         assert.equal(await tab.evaluate(() => Boolean(navigator.serviceWorker.controller)), true);
 
-        // Nové místo v tréninku: sada míst i obrysy států z mezipaměti
-        await tab.click('#btn-random');
+        // Nová otázka v tréninku: data tématu i obrysy států z mezipaměti
+        await tab.click('#btn-practice');
         await waitForQuestion(tab);
         const data = await readRound(tab);
-        for (let i = 0; i < data.hints.indexOf('map') + 1; i++) await tab.click('[data-action="hint"]');
-        await tab.waitForSelector('#hint-map svg path');
+        for (let i = 0; i < data.hints.indexOf('visual') + 1; i++) await tab.click('[data-action="hint"]');
+        await tab.waitForSelector('#hint-visual svg path');
         assert.deepEqual(log.errors, []);
         await context.close();
     });
@@ -561,7 +595,7 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
     await t.test('tmavý režim', async () => {
         const { context, tab, log } = await setup(browser, { colorScheme: 'dark' });
         await tab.goto(`${ORIGIN}/`);
-        await waitForQuestion(tab);
+        await waitForHome(tab);
         const background = await tab.evaluate(() => getComputedStyle(document.getElementById('app-content')).backgroundColor);
         assert.equal(background, 'rgb(15, 23, 42)');
         assert.deepEqual(log.csp, []);

@@ -1,7 +1,8 @@
-// Service worker: aplikace se otevře i bez internetu (sada míst i obrysy států jsou v mezipaměti)
-const CACHE_NAME = 'geo-kviz-v2';
+// Service worker: aplikace se otevře i bez internetu (témata, jejich data i obrysy států jsou v mezipaměti)
+const CACHE_NAME = 'mudrlant-v1';
 const APP_SHELL = [
-    './', 'index.html', 'styles.css', 'icons.js', 'quiz-core.js', 'app.js', 'manifest.webmanifest', 'data/places.json', 'data/world.json',
+    './', 'index.html', 'styles.css', 'icons.js', 'quiz-core.js', 'visuals.js', 'app.js', 'manifest.webmanifest',
+    'topics/zemepis.js', 'data/zemepis.json', 'data/countries.json', 'data/world.json',
     'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png'
 ];
 

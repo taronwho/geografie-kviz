@@ -1,8 +1,9 @@
-// Čistá logika kvízu bez práce s DOM a sítí – používá ji aplikace (app.js) i testy (tests/)
+// Jádro Mudrlanta: čistá logika kvízu bez práce s DOM a sítí, společná pro všechna témata (topics/*.js).
+// Používá ji aplikace (app.js) i testy (tests/).
 (function (root, factory) {
     const core = factory();
     if (typeof module === 'object' && module.exports) module.exports = core;
-    else root.GeoQuizCore = core;
+    else root.MudrlantCore = core;
 })(typeof self !== 'undefined' ? self : this, () => {
     'use strict';
 
@@ -10,20 +11,6 @@
     const INTERNATIONAL_WATERS = 'Mezinárodní vody / Oceán';
     const CZECHIA_QID = 'Q213';
     const TILE_SIZE = 256;
-
-    // Kategorie míst ze sady data/places.json; mapSpan = kolik stupňů zeměpisné délky ukáže slepá mapa
-    const CATEGORIES = [
-        { key: 'stat', label: 'Státy', one: 'stát', icon: 'flag', emoji: '🗺️', mapSpan: 70 },
-        { key: 'mesto', label: 'Města', one: 'město', icon: 'building-2', emoji: '🏙️', mapSpan: 24 },
-        { key: 'hora', label: 'Hory a sopky', one: 'hora', icon: 'mountain', emoji: '🏔️', mapSpan: 24 },
-        { key: 'reka', label: 'Řeky', one: 'řeka', icon: 'waves', emoji: '🏞️', mapSpan: 24 },
-        { key: 'jezero', label: 'Jezera a moře', one: 'vodní plocha', icon: 'droplets', emoji: '🌊', mapSpan: 30 },
-        { key: 'ostrov', label: 'Ostrovy', one: 'ostrov', icon: 'palmtree', emoji: '🏝️', mapSpan: 30 },
-        { key: 'priroda', label: 'Příroda a krajina', one: 'přírodní místo', icon: 'leaf', emoji: '🌿', mapSpan: 24 },
-        { key: 'stavba', label: 'Stavby a památky', one: 'stavba', icon: 'landmark', emoji: '🏛️', mapSpan: 24 }
-    ];
-    const CATEGORY_BY_KEY = Object.fromEntries(CATEGORIES.map(category => [category.key, category]));
-    const getCategory = (key) => CATEGORY_BY_KEY[key] || { key, label: key, one: 'místo', icon: 'map-pin', emoji: '📍', mapSpan: 24 };
 
     const CONTINENT_NAMES = { EU: 'Evropa', AS: 'Asie', AF: 'Afrika', NA: 'Severní Amerika', SA: 'Jižní Amerika', OC: 'Austrálie a Oceánie', AN: 'Antarktida' };
 
@@ -274,22 +261,44 @@
         return `https://upload.wikimedia.org/wikipedia/commons/thumb/${hash[0]}/${hash}/${name}/${width}px-${name}`;
     };
 
-    // Výběr míst: dnešní místo jen ze známých ze všech kategorií, trénink podle nastavení a bez nedávno hraných
-    const filterPlaces = (places, { categories, tier }) =>
-        places.filter(place => categories.includes(place.c) && (tier === 'all' || place.k === 1));
-    // Nejdřív kategorie, potom místo v ní – jinak by převážila města, kterých je v sadě nejvíc
-    const pickPlace = (pool, rng, recentIds = []) => {
-        const categoryKeys = CATEGORIES.map(category => category.key).filter(key => pool.some(place => place.c === key));
+    // --- Položky témat: místa, osobnosti, druhy, prvky… (formát data/<téma>.json) ---
+
+    // Okruh: null = celé téma, „c:klíč“ = kategorie, jinak zvláštní okruh z dat (pole g u položky)
+    const inCollection = (item, collectionId) => {
+        if (!collectionId) return true;
+        if (collectionId.startsWith('c:')) return item.c === collectionId.slice(2);
+        return (item.g || []).includes(collectionId);
+    };
+    const filterItems = (items, { tier = 'all', collection = null } = {}) =>
+        items.filter(item => (tier === 'all' || item.k === 1) && inCollection(item, collection));
+
+    // Nejdřív kategorie (v pořadí z tématu), potom položka v ní – jinak by převážila nejpočetnější kategorie
+    const pickItem = (pool, rng, recentIds = [], categoryOrder = []) => {
+        const present = new Set(pool.map(item => item.c));
+        const categoryKeys = [...categoryOrder.filter(key => present.has(key)), ...[...present].filter(key => !categoryOrder.includes(key))];
         const categoryKey = pickRandom(categoryKeys, rng);
-        const inCategory = pool.filter(place => place.c === categoryKey);
+        const inCategory = pool.filter(item => item.c === categoryKey);
         const recent = new Set(recentIds);
-        const fresh = inCategory.filter(place => !recent.has(place.q));
+        const fresh = inCategory.filter(item => !recent.has(item.q));
         return pickRandom(fresh.length ? fresh : inCategory, rng);
     };
 
-    const getCountryNames = (place, countries) => (place.co || []).map(id => countries[id] && countries[id].name).filter(Boolean);
-    const getContinent = (place, countries) => {
-        const country = (place.co || []).map(id => countries[id]).find(c => c && c.continent);
+    // Řazení pro systematické procházení okruhu: podle názvu, nebo podle faktu (výška, rok…) – položky bez údaje na konec
+    const collator = typeof Intl !== 'undefined' ? new Intl.Collator('cs') : null;
+    const compareNames = (a, b) => collator ? collator.compare(a.n, b.n) : a.n.localeCompare(b.n);
+    const sortItems = (items, sort = { by: 'name' }) => [...items].sort((a, b) => {
+        if (!sort || sort.by === 'name') return compareNames(a, b);
+        const va = (a.f || {})[sort.by];
+        const vb = (b.f || {})[sort.by];
+        if (va === undefined && vb === undefined) return compareNames(a, b);
+        if (va === undefined) return 1;
+        if (vb === undefined) return -1;
+        return (sort.desc ? vb - va : va - vb) || compareNames(a, b);
+    });
+
+    const getCountryNames = (item, countries) => (item.co || []).map(id => countries[id] && countries[id].name).filter(Boolean);
+    const getContinent = (item, countries) => {
+        const country = (item.co || []).map(id => countries[id]).find(c => c && c.continent);
         return country ? country.continent : '';
     };
 
@@ -306,23 +315,23 @@
         return picked;
     };
 
-    // Nesprávné možnosti názvu: místa stejné kategorie, přednostně stejného typu (k průlivu průlivy, ne jezera),
-    // podobně známá a ze stejného kontinentu
-    const buildPlaceChoices = (place, places, countries, rng) => {
-        const continent = getContinent(place, countries);
-        const taken = new Set([normalizeAnswer(place.n)]);
-        const sameCategory = places.filter(other => other.c === place.c && other.q !== place.q);
-        const sameType = (other) => Boolean(place.ty) && other.ty === place.ty;
-        const sameTier = (other) => other.k === place.k;
-        const sameContinent = (other) => Boolean(continent) && getContinent(other, countries) === continent;
+    // Nesprávné možnosti názvu: položky stejné kategorie, přednostně stejného typu (k průlivu průlivy, ne jezera),
+    // podobně známé a ze stejné skupiny – co je skupina, určí téma (kontinent, století, třída živočichů…)
+    const buildItemChoices = (item, items, rng, groupOf = () => '') => {
+        const group = groupOf(item);
+        const taken = new Set([normalizeAnswer(item.n)]);
+        const sameCategory = items.filter(other => other.c === item.c && other.q !== item.q);
+        const sameType = (other) => Boolean(item.ty) && other.ty === item.ty;
+        const sameTier = (other) => other.k === item.k;
+        const sameGroup = (other) => Boolean(group) && groupOf(other) === group;
         const sources = [
-            [sameType, sameTier, sameContinent], [sameType, sameTier], [sameType],
-            [sameTier, sameContinent], [sameTier], []
+            [sameType, sameTier, sameGroup], [sameType, sameTier], [sameType],
+            [sameTier, sameGroup], [sameTier], []
         ].map(conditions => sameCategory.filter(other => conditions.every(condition => condition(other))));
         const distractors = [];
         for (const source of sources) distractors.push(...pickDistinct(source, 3 - distractors.length, taken, rng, other => other.n));
         return shuffle([
-            { id: place.q, label: place.n, correct: true },
+            { id: item.q, label: item.n, correct: true },
             ...distractors.map(other => ({ id: other.q, label: other.n, correct: false }))
         ], rng);
     };
@@ -341,45 +350,36 @@
         ], rng);
     };
 
-    // Které jiné místo (u otázky na stát který jiný stát) hráč napsal – ať se o něm může hned dočíst
-    const findAnswerPlace = (answer, round, dataset) => {
-        if (round.quizType === 'location') {
-            const match = Object.entries(dataset.countries)
-                .find(([id, country]) => !(round.countryIds || []).includes(id) && isAnswerMatch(answer, [country.name, ...getCountryAliases([id])]));
-            return match ? match[0] : null;
-        }
-        const others = dataset.places.filter(place => place.q !== round.id);
-        const match = others.filter(place => place.c === round.category).find(place => isAnswerMatch(answer, [place.n]))
-            || others.find(place => isAnswerMatch(answer, [place.n]));
+    // Kterou jinou položku hráč napsal – ať se o ní může hned dočíst (nejdřív ze stejné kategorie)
+    const findAnswerItem = (answer, item, items) => {
+        const others = items.filter(other => other.q !== item.q);
+        const match = others.filter(other => other.c === item.c).find(other => isAnswerMatch(answer, [other.n]))
+            || others.find(other => isAnswerMatch(answer, [other.n]));
         return match ? match.q : null;
     };
-
-    // Místa k zopakování: chyba místo přidá na začátek seznamu, správná odpověď ho odebere
-    const updateMistakes = (mistakes, id, correct, max = 200) => {
-        const rest = mistakes.filter(other => other !== id);
-        return correct ? rest : [id, ...rest].slice(0, max);
+    // Který jiný stát hráč napsal (u otázky „Ve kterém státě to je?“)
+    const findAnswerCountry = (answer, excludeIds, countries) => {
+        const match = Object.entries(countries)
+            .find(([id, country]) => !excludeIds.includes(id) && isAnswerMatch(answer, [country.name, ...getCountryAliases([id])]));
+        return match ? match[0] : null;
     };
 
-    // Na stát se ptáme jen u míst v jednom známém státě, ne u států a ne když stát prozradí už název (Česká Lípa)
-    const canAskForCountry = (place, countries) => {
-        if (place.c === 'stat' || (place.co || []).length !== 1 || !countries[place.co[0]]) return false;
-        const countryName = countries[place.co[0]].name;
-        return !censorCountry(place.n, countryName, getCountryAliases(place.co)).includes('[***]');
+    // Seznam k zopakování (klíče „téma:ID“): chyba položku přidá na začátek, správná odpověď ji odebere
+    const updateMistakes = (mistakes, key, correct, max = 300) => {
+        const rest = mistakes.filter(other => other !== key);
+        return correct ? rest : [key, ...rest].slice(0, max);
     };
 
     const getCountryAliases = (countryIds = []) => COUNTRIES.filter(c => countryIds.includes(c.id)).flatMap(c => c.aliases);
+    // Přijímané psané odpovědi: název, titulek článku i bez upřesnění v závorce, případně další názvy z tématu
+    const nameAnswers = (item, extra = []) => [item.n, item.t, displayName(item.t || ''), ...extra].filter(Boolean);
+    const countryAnswers = (countryIds, countryNames) => [
+        ...countryNames,
+        ...COUNTRIES.filter(c => countryIds.includes(c.id)).flatMap(c => [c.name, ...c.aliases])
+    ];
 
-    const getAcceptedAnswers = (round) => {
-        if (round.quizType === 'name') {
-            const countryAliases = round.category === 'stat' ? getCountryAliases([round.id]) : [];
-            return [round.name, round.title, displayName(round.title || ''), ...countryAliases].filter(Boolean);
-        }
-        const aliases = COUNTRIES.filter(c => (round.countryIds || []).includes(c.id)).flatMap(c => [c.name, ...c.aliases]);
-        return [...(round.countryNames || []), ...aliases];
-    };
-
-    // Nápovědy v pořadí: popis (hned) → fotka → slepá mapa → fakta; chybějící krok se vynechá
-    const getHintSteps = ({ hasPhoto, hasFacts }) => [hasPhoto && 'photo', 'map', hasFacts && 'facts'].filter(Boolean);
+    // Nápovědy v pořadí: popis (hned) → fotka → obrazová nápověda tématu (mapa, časová osa…) → fakta; chybějící krok se vynechá
+    const getHintSteps = ({ hasPhoto, hasVisual, hasFacts }) => [hasPhoto && 'photo', hasVisual && 'visual', hasFacts && 'facts'].filter(Boolean);
 
     // Body: na začátku tolik, kolik je úrovní (4 s fotkou, 3 bez ní), každá nápověda o bod méně; psaná odpověď dvojnásobek
     const pointsFor = (level, levelCount, typed) => Math.max(levelCount - level + 1, 1) * (typed ? 2 : 1);
@@ -389,37 +389,23 @@
     const formatPopulation = (value) => value >= 1e6
         ? `${(value / 1e6).toLocaleString('cs-CZ', { maximumFractionDigits: 1 })} mil.`
         : formatNumber(value);
-    const FACT_FORMATS = [
-        ['cap', 'Hlavní město', value => value],
-        ['pop', 'Počet obyvatel', formatPopulation],
-        ['area', 'Rozloha', value => `${formatNumber(value)} km²`],
-        ['elev', 'Nadmořská výška', value => `${formatNumber(value)} m`],
-        ['len', 'Délka', value => `${formatNumber(value)} km`],
-        ['h', 'Výška', value => `${formatNumber(value)} m`],
-        ['year', 'Vznik', value => value < 0 ? `${-value} př. n. l.` : value < 1000 ? `${value} n. l.` : String(value)],
-        ['mouth', 'Ústí do', value => value]
-    ];
-    const buildFacts = (place, countries, quizType) => {
+    const formatYear = (value) => value < 0 ? `${-value} př. n. l.` : value < 1000 ? `${value} n. l.` : String(value);
+    // formats: [[klíč faktu, popisek, formátovací funkce], …] – chybějící a nulové údaje se vynechají (rok i záporný)
+    const formatFacts = (item, formats, yearKeys = ['year']) => {
         const facts = [];
-        const countryNames = getCountryNames(place, countries);
-        if (quizType === 'name' && place.c !== 'stat' && countryNames.length) facts.push({ label: countryNames.length > 1 ? 'Státy' : 'Stát', value: countryNames.join(', ') });
-        const continent = getContinent(place, countries);
-        if (continent) facts.push({ label: 'Kontinent', value: CONTINENT_NAMES[continent] });
-        for (const [key, label, format] of FACT_FORMATS) {
-            const value = (place.f || {})[key];
-            const isMissing = value === undefined || value === null || value === '' || (typeof value === 'number' && value <= 0 && key !== 'year');
+        for (const [key, label, format] of formats) {
+            const value = (item.f || {})[key];
+            const isMissing = value === undefined || value === null || value === '' || (Array.isArray(value) && value.length === 0)
+                || (typeof value === 'number' && value <= 0 && !yearKeys.includes(key));
             if (!isMissing) facts.push({ label, value: format(value) });
         }
         return facts;
     };
 
-    // Šířka výřezu slepé mapy ve stupních: podle kategorie, u velkých míst (státy, oceány, velké ostrovy, dlouhé řeky)
-    // podle rozlohy nebo délky, ať se vejdou celá i se sousedstvím; u otázky na stát širší, ať mapa odpověď hned neprozradí
-    const getMapSpan = (place, quizType) => {
-        const facts = place.f || {};
-        const base = place.c === 'stat' ? 14 : getCategory(place.c).mapSpan * (quizType === 'location' ? 1.5 : 1);
-        const area = facts.area || (place.c === 'stat' ? 100000 : 0);
-        const sizeSpan = Math.max(area ? Math.sqrt(area) / 111 * 6 : 0, facts.len ? facts.len / 111 * 0.8 : 0);
+    // Šířka výřezu slepé mapy ve stupních: základ podle kategorie, u velkých míst (státy, oceány, velké ostrovy,
+    // dlouhé řeky) podle rozlohy nebo délky, ať se vejdou celá i se sousedstvím
+    const getMapSpan = (facts, base) => {
+        const sizeSpan = Math.max(facts.area ? Math.sqrt(facts.area) / 111 * 6 : 0, facts.len ? facts.len / 111 * 0.8 : 0);
         return Math.round(Math.min(Math.max(base, sizeSpan), 120));
     };
 
@@ -466,15 +452,13 @@
         return streak;
     };
 
-    const buildShareText = ({ dayKey, category, result, streak, url }) => {
+    const buildShareText = ({ appName, topic, dayKey, result, streak, url }) => {
         const levels = `${result.hintLevel}/${result.levelCount || result.hintLevel}`;
         const outcome = result.correct
             ? `✅ ${formatPoints(result.points)} · nápověda ${levels}${result.typed ? ' · napsáno' : ''}`
             : `❌ tentokrát ne · nápověda ${levels}`;
-        const categoryInfo = getCategory(category);
         return [
-            `Geo Kvíz · ${formatDayKey(dayKey)}`,
-            `${categoryInfo.emoji} ${categoryInfo.label}`,
+            `${appName} · ${topic.emoji} ${topic.title} · ${formatDayKey(dayKey)}`,
             outcome,
             `🔥 Série: ${streak}`,
             url
@@ -505,13 +489,14 @@
     };
 
     return {
-        UNKNOWN_COUNTRY, INTERNATIONAL_WATERS, CZECHIA_QID, TILE_SIZE, COUNTRIES, CATEGORIES, CONTINENT_NAMES,
+        UNKNOWN_COUNTRY, INTERNATIONAL_WATERS, CZECHIA_QID, TILE_SIZE, COUNTRIES, CONTINENT_NAMES,
         SATELLITE_TILES, OSM_TILES,
         escapeHtml, stripBrackets, isRealPhoto, commonsPhotoUrl, displayName, plural, formatPoints,
-        getDayKey, shiftDayKey, formatDayKey, createSeededRandom, pickRandom, shuffle, getCategory,
+        getDayKey, shiftDayKey, formatDayKey, createSeededRandom, pickRandom, shuffle,
         getWordStems, censorName, censorCountry, isKnownCountry, processWikiText, normalizeAnswer, levenshtein, isAnswerMatch,
-        filterPlaces, pickPlace, getCountryNames, getContinent, buildPlaceChoices, buildCountryChoices, findAnswerPlace, updateMistakes, canAskForCountry,
-        getCountryAliases, getAcceptedAnswers, getHintSteps, pointsFor, buildFacts, getMapSpan, buildBlindMap,
+        inCollection, filterItems, pickItem, sortItems, getCountryNames, getContinent, getCountryAliases,
+        buildItemChoices, buildCountryChoices, findAnswerItem, findAnswerCountry, updateMistakes, nameAnswers, countryAnswers,
+        getHintSteps, pointsFor, formatNumber, formatPopulation, formatYear, formatFacts, getMapSpan, buildBlindMap,
         computeStreak, buildShareText, getTileLayout
     };
 });

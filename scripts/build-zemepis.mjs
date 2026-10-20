@@ -1,14 +1,10 @@
-// Sestaví sadu míst pro kvíz z Wikidat: data/places.json
-// Spuštění: npm run build:places (dotazuje query.wikidata.org, trvá asi deset minut)
+// Téma Zeměpis: data/zemepis.json z Wikidat (asi 20 minut; s BUILD_CACHE=složka jde pravidla ladit bez stahování)
+// Spuštění: npm run build:zemepis (potřebuje data/countries.json – npm run build:countries)
 //
 // 1. krok: pro každý typ (P31) seznam položek s nejvíc jazykovými verzemi (míra známosti)
 // 2. krok: podrobnosti po dávkách – článek na české Wikipedii, název, souřadnice, státy, fotka, čísla
-import { writeFileSync, mkdirSync, readFileSync, existsSync } from 'node:fs';
-import { createHash } from 'node:crypto';
-
-const ENDPOINT = 'https://query.wikidata.org/sparql';
-const USER_AGENT = 'GeoKvizBuild/1.0 (https://github.com/taronwho/geografie-kviz)';
-const CZECHIA = 'Q213';
+// 3. krok: zápis v UNESCO a okruhy pro systematické učení
+import { sparql, id, round, values, parsePoint, imageFields, cached, inBatches, readCountries, writeTopic, sleep, CZECHIA } from './lib/wikidata.mjs';
 
 // Typy jsou seřazené od nejvýstižnějšího – podle prvního nalezeného se místo popíše („hrad“, „mešita“…).
 // limit = kolik míst z kategorie vzít, known = kolik nejznámějších z nich patří mezi „známá místa“.
@@ -42,100 +38,50 @@ const CATEGORIES = [
 ];
 // Starověká města a archeologická naleziště (Petra, Pompeje) patří mezi památky, ne mezi dnešní města
 const LANDMARK_OVER_CITY = new Set(['Q15661340', 'Q839954']);
+const WORLD_HERITAGE_SITE = 'Q9259';
 
-const CONTINENTS = { Q46: 'EU', Q48: 'AS', Q15: 'AF', Q49: 'NA', Q18: 'SA', Q538: 'OC', Q55643: 'OC', Q3960: 'OC', Q51: 'AN' };
-
-const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
-
-const sparql = async (query) => {
-    for (let attempt = 1; attempt <= 6; attempt++) {
-        let status;
-        try {
-            const response = await fetch(ENDPOINT, {
-                method: 'POST',
-                headers: { 'User-Agent': USER_AGENT, 'Accept': 'application/sparql-results+json', 'Content-Type': 'application/x-www-form-urlencoded' },
-                body: new URLSearchParams({ query })
-            });
-            if (response.ok) return (await response.json()).results.bindings;
-            status = `HTTP ${response.status}`;
-        } catch (error) {
-            status = error.message;
-        }
-        console.warn(`  ${status}, zkouším znovu (${attempt}/6)`);
-        await sleep(15000 * attempt);
-    }
-    throw new Error('Wikidata neodpovídají');
-};
-
-const id = (uri) => uri.split('/').pop();
-const round = (n, digits = 0) => Math.round(n * 10 ** digits) / 10 ** digits;
-
-// --- Státy: české názvy, kontinent a číselný kód ISO (pro zvýraznění na slepé mapě) ---
-console.log('Státy…');
-const countries = {};
-const countryRows = await sparql(`
-SELECT ?c ?label ?iso (GROUP_CONCAT(DISTINCT ?cont; separator="|") AS ?continents) WHERE {
-  ?c wdt:P31 wd:Q3624078 .
-  FILTER NOT EXISTS { ?c wdt:P576 [] }
-  ?c rdfs:label ?label FILTER(LANG(?label) = "cs")
-  OPTIONAL { ?c wdt:P299 ?iso }
-  OPTIONAL { ?c wdt:P30 ?cont }
-} GROUP BY ?c ?label ?iso`);
-// Nizozemské a Dánské království (celky i se zámořím) by se pletly s Nizozemskem a Dánskem
-const EXCLUDED_STATES = new Set(['Q29999', 'Q756617']);
-for (const row of countryRows) {
-    if (EXCLUDED_STATES.has(id(row.c.value))) continue;
-    const continent = (row.continents ? row.continents.value : '').split('|').map(id).map(q => CONTINENTS[q]).find(Boolean);
-    countries[id(row.c.value)] = { name: row.label.value, continent: continent || '', iso: row.iso ? row.iso.value : '' };
-}
-console.log(`  ${Object.keys(countries).length} států`);
+const countries = readCountries();
 
 // --- 1. krok: kandidáti podle typů ---
-// Volitelně se mezivýsledek uloží (PLACES_CACHE=soubor), aby šel 2. krok zopakovat bez dlouhého 1. kroku
-const CACHE = process.env.PLACES_CACHE;
-const candidates = new Map(); // qid → { sitelinks, types: Set, czech }
-const addCandidate = (row, type, czech) => {
-    const qid = id(row.item.value);
-    const entry = candidates.get(qid) || { sitelinks: Number(row.sitelinks.value), types: new Set(), czech: false };
-    entry.types.add(type);
-    entry.czech = entry.czech || czech;
-    candidates.set(qid, entry);
-};
-
-if (CACHE && existsSync(CACHE)) {
-    for (const [qid, entry] of JSON.parse(readFileSync(CACHE, 'utf8'))) candidates.set(qid, { ...entry, types: new Set(entry.types) });
-    console.log(`Kandidáti z ${CACHE}: ${candidates.size}`);
-} else for (const category of CATEGORIES) {
-    for (const type of category.types) {
-        const rows = await sparql(`
+const candidateList = await cached('zemepis-candidates', async () => {
+    const candidates = new Map();
+    const add = (row, type, czech) => {
+        const qid = id(row.item.value);
+        const entry = candidates.get(qid) || { sitelinks: Number(row.sitelinks.value), types: [], czech: false };
+        if (!entry.types.includes(type)) entry.types.push(type);
+        entry.czech = entry.czech || czech;
+        candidates.set(qid, entry);
+    };
+    for (const category of CATEGORIES) {
+        for (const type of category.types) {
+            const rows = await sparql(`
 SELECT ?item ?sitelinks WHERE {
   ?item wdt:P31 wd:${type} ; wikibase:sitelinks ?sitelinks .
   FILTER(?sitelinks >= ${category.min})
 } ORDER BY DESC(?sitelinks) LIMIT 1500`);
-        rows.forEach(row => addCandidate(row, type, false));
-        let czech = 0;
-        if (category.czMin) {
-            const czRows = await sparql(`
+            rows.forEach(row => add(row, type, false));
+            let czech = 0;
+            if (category.czMin) {
+                const czRows = await sparql(`
 SELECT ?item ?sitelinks WHERE {
   ?item wdt:P31 wd:${type} ; wdt:P17 wd:${CZECHIA} ; wikibase:sitelinks ?sitelinks .
   FILTER(?sitelinks >= ${category.czMin})
 }`);
-            czRows.forEach(row => addCandidate(row, type, true));
-            czech = czRows.length;
+                czRows.forEach(row => add(row, type, true));
+                czech = czRows.length;
+            }
+            console.log(`${category.key} ${type}: ${rows.length}${category.czMin ? ` + ${czech} českých` : ''}`);
+            await sleep(500);
         }
-        console.log(`${category.key} ${type}: ${rows.length}${category.czMin ? ` + ${czech} českých` : ''}`);
-        await sleep(500);
     }
-}
-
-if (CACHE && !existsSync(CACHE)) {
-    writeFileSync(CACHE, JSON.stringify([...candidates].map(([qid, entry]) => [qid, { ...entry, types: [...entry.types] }])));
-}
+    return [...candidates];
+});
+const candidates = new Map(candidateList.map(([qid, entry]) => [qid, { ...entry, types: new Set(entry.types) }]));
 
 // --- 2. krok: podrobnosti po dávkách ---
 const detailsQuery = (qids) => `
 SELECT ?item ?p ?v ?ref ?time WHERE {
-  VALUES ?item { ${qids.map(q => 'wd:' + q).join(' ')} }
+  VALUES ?item { ${values(qids)} }
   { ?article schema:about ?item ; schema:isPartOf <https://cs.wikipedia.org/> ; schema:name ?v . BIND("t" AS ?p) }
   UNION { ?item rdfs:label ?v FILTER(LANG(?v) = "cs") BIND("n" AS ?p) }
   UNION { ?item schema:description ?v FILTER(LANG(?v) = "cs") BIND("d" AS ?p) }
@@ -153,62 +99,40 @@ SELECT ?item ?p ?v ?ref ?time WHERE {
   UNION { ?item wdt:P31 ?x . ?x rdfs:label ?v FILTER(LANG(?v) = "cs") BIND(STR(?x) AS ?ref) BIND("type" AS ?p) }
 }`;
 
-// Souřadnice na jiném tělese (Olympus Mons na Marsu) mají před bodem odkaz na glóbus – ty vynecháme
-const parsePoint = (wkt) => {
-    if (!wkt || wkt.trim().startsWith('<')) return null;
-    const match = /Point\(([-\d.eE]+) ([-\d.eE]+)\)/.exec(wkt || '');
-    return match ? { lon: round(Number(match[1]), 3), lat: round(Number(match[2]), 3) } : null;
-};
-
-const fileName = (commonsUrl) => decodeURIComponent(commonsUrl.split('/Special:FilePath/').pop());
-
-// Podrobnosti se při PLACES_CACHE také uloží, aby šlo pravidla níž ladit bez opakovaného stahování
-const DETAILS_CACHE = CACHE && CACHE.replace(/(\.json)?$/, '.details.json');
-const fetchDetails = async (qids) => {
-    if (DETAILS_CACHE && existsSync(DETAILS_CACHE)) {
-        console.log(`Podrobnosti z ${DETAILS_CACHE}`);
-        return new Map(JSON.parse(readFileSync(DETAILS_CACHE, 'utf8')));
-    }
-    const details = new Map(qids.map(q => [q, { values: {}, types: {}, pops: [], co: [] }]));
-    for (let i = 0; i < qids.length; i += 80) {
-        const rows = await sparql(detailsQuery(qids.slice(i, i + 80)));
-        for (const row of rows) {
-            const entry = details.get(id(row.item.value));
-            const key = row.p.value;
-            // Neznámá hodnota (např. datum „neznámo“) přijde bez ?v
-            if (!row.v) continue;
-            const v = row.v.value;
-            if (key === 'type') entry.types[id(row.ref.value)] = v;
-            else if (key === 'pop') entry.pops.push({ value: Number(v), time: row.time ? row.time.value : '' });
-            else if (key === 'co') { if (!entry.co.includes(id(v))) entry.co.push(id(v)); }
-            else if (!(key in entry.values)) entry.values[key] = v;
-        }
-        process.stdout.write(`  ${Math.min(i + 80, qids.length)}/${qids.length}\r`);
-        await sleep(500);
-    }
-    if (DETAILS_CACHE) writeFileSync(DETAILS_CACHE, JSON.stringify([...details]));
-    return details;
-};
-
 const ordered = [...candidates.entries()].sort((a, b) => b[1].sitelinks - a[1].sitelinks);
 console.log(`Podrobnosti k ${ordered.length} kandidátům…`);
-const details = await fetchDetails(ordered.map(([qid]) => qid));
+const details = new Map(await cached('zemepis-details', async () => {
+    const result = new Map(ordered.map(([qid]) => [qid, { values: {}, types: {}, pops: [], co: [] }]));
+    await inBatches(ordered.map(([qid]) => qid), 80, detailsQuery, (row) => {
+        const entry = result.get(id(row.item.value));
+        const key = row.p.value;
+        // Neznámá hodnota (např. datum „neznámo“) přijde bez ?v
+        if (!row.v) return;
+        const v = row.v.value;
+        if (key === 'type') entry.types[id(row.ref.value)] = v;
+        else if (key === 'pop') entry.pops.push({ value: Number(v), time: row.time ? row.time.value : '' });
+        else if (key === 'co') { if (!entry.co.includes(id(v))) entry.co.push(id(v)); }
+        else if (!(key in entry.values)) entry.values[key] = v;
+    });
+    return [...result];
+}));
 
-const numberOf = (values, key) => values[key] === undefined ? undefined : Number(values[key]);
-const factsOf = ({ values, pops }) => {
+const numberOf = (detailValues, key) => detailValues[key] === undefined ? undefined : Number(detailValues[key]);
+const factsOf = ({ values: v, pops }) => {
     const latestPop = [...pops].sort((a, b) => b.time.localeCompare(a.time) || b.value - a.value)[0];
-    const area = numberOf(values, 'area');
+    const area = numberOf(v, 'area');
+    const length = numberOf(v, 'len');
     const facts = {
         pop: latestPop ? Math.round(latestPop.value) : undefined,
         area: area === undefined ? undefined : round(area / 1e6, area < 1e7 ? 2 : 0),
-        elev: numberOf(values, 'elev') === undefined ? undefined : Math.round(numberOf(values, 'elev')),
-        len: numberOf(values, 'len') === undefined ? undefined : round(numberOf(values, 'len') / 1000, numberOf(values, 'len') < 1e4 ? 1 : 0),
-        h: numberOf(values, 'h') === undefined ? undefined : Math.round(numberOf(values, 'h')),
-        year: numberOf(values, 'year'),
-        cap: values.cap,
-        mouth: values.mouth
+        elev: numberOf(v, 'elev') === undefined ? undefined : Math.round(numberOf(v, 'elev')),
+        len: length === undefined ? undefined : round(length / 1000, length < 1e4 ? 1 : 0),
+        h: numberOf(v, 'h') === undefined ? undefined : Math.round(numberOf(v, 'h')),
+        year: numberOf(v, 'year'),
+        cap: v.cap,
+        mouth: v.mouth
     };
-    return Object.fromEntries(Object.entries(facts).filter(([, v]) => v !== undefined && v !== '' && !Number.isNaN(v)));
+    return Object.fromEntries(Object.entries(facts).filter(([, x]) => x !== undefined && x !== '' && !Number.isNaN(x)));
 };
 
 // Každé místo do jedné kategorie: první v pořadí CATEGORIES vyhrává (Monako je stát, ne město).
@@ -233,9 +157,6 @@ const typeLabelOf = (category, typeId, label) => {
 const CZECH_TOWN_MIN_POP = 5000;
 const TOWN_MIN_POP = 30000;
 
-// Náhled fotky přímo z upload.wikimedia.org: cesta podle MD5 názvu souboru, šířka 960 px je jedna ze standardních velikostí
-const thumbHash = (file) => createHash('md5').update(file.replace(/ /g, '_')).digest('hex').slice(0, 2);
-
 // Počet jazykových verzí u států a ostrovů známost moc neodráží (Tuvalu jich má tolik co Kuba), proto vlastní pravidla:
 // známé státy jsou evropské a ty od 3 milionů obyvatel, známá města hlavní města známých států a velkoměsta,
 // známé ostrovy ty největší a nejznámější z větších (ne ostrůvky zámořských území) a pár slavných malých
@@ -258,13 +179,13 @@ const rankByCategory = {};
 const czechRankByCategory = {};
 for (const [qid, entry] of ordered) {
     const detail = details.get(qid);
-    const { values, types } = detail;
+    const { values: v, types } = detail;
     const facts = factsOf(detail);
     const category = categoryOf(entry, facts);
-    const point = parsePoint(values.coord);
+    const point = parsePoint(v.coord);
     // Státy jen ty, které dnes existují (stejný seznam jako v tabulce států)
-    if (!category || !values.t || !point || (category.key === 'stat' && !countries[qid])) continue;
-    const name = values.n || values.t.replace(/ \(.*\)$/, '');
+    if (!category || !v.t || !point || (category.key === 'stat' && !countries[qid])) continue;
+    const name = v.n || v.t.replace(/ \(.*\)$/, '');
     const isCzech = detail.co.includes(CZECHIA) || entry.czech;
     if (category.key === 'mesto' && !(facts.pop >= (isCzech ? CZECH_TOWN_MIN_POP : TOWN_MIN_POP)) && !capitals.has(name)) continue;
     const rank = rankByCategory[category.key] || 0;
@@ -276,37 +197,70 @@ for (const [qid, entry] of ordered) {
     const known = (knownRule ? knownRule({ qid, name, facts, rank, category }) : rank < category.known)
         || (isCzech && czechRank < (category.czKnown || 0));
     const typeId = category.types.find(type => entry.types.has(type));
-    const image = values.im ? fileName(values.im) : undefined;
     places.push({
         q: qid,
-        t: values.t,
+        t: v.t,
         n: name,
         c: category.key,
         k: known ? 1 : 0,
         la: point.lat,
         lo: point.lon,
         ty: typeLabelOf(category, typeId, types[typeId]),
-        d: values.d || undefined,
+        d: v.d || undefined,
         co: category.key === 'stat' ? [qid] : detail.co,
-        im: image,
-        ih: image ? thumbHash(image) : undefined,
+        ...imageFields(v.im),
         f: facts
     });
 }
 
 // Méně známé místo se jménem státu nebo města z jiné kategorie (sopka „Amsterdam“, řeka „Senegal“) by jen mátlo
 const placeNames = new Map(places.filter(p => p.c === 'stat' || p.c === 'mesto').map(p => [p.n, p.c]));
-const result = places.filter(p => p.k || p.c === 'stat' || p.c === 'mesto' || !placeNames.has(p.n));
+const items = places.filter(p => p.k || p.c === 'stat' || p.c === 'mesto' || !placeNames.has(p.n));
+
+// --- 3. krok: památky UNESCO a okruhy ---
+console.log('Světové dědictví UNESCO…');
+const heritage = new Set(await cached('zemepis-unesco', async () => {
+    const found = [];
+    await inBatches(items.map(item => item.q), 400, (qids) => `
+SELECT DISTINCT ?item WHERE { VALUES ?item { ${values(qids)} } ?item wdt:P1435 wd:${WORLD_HERITAGE_SITE} . }`,
+    (row) => found.push(id(row.item.value)));
+    return found;
+}));
+
+const continentOf = (item) => {
+    const country = item.co.map(q => countries[q]).find(c => c && c.continent);
+    return country ? country.continent : '';
+};
+const CONTINENT_COLLECTIONS = [
+    ['evropa', 'EU', 'Evropa'], ['asie', 'AS', 'Asie'], ['afrika', 'AF', 'Afrika'],
+    ['severni-amerika', 'NA', 'Severní Amerika'], ['jizni-amerika', 'SA', 'Jižní Amerika'], ['oceanie', 'OC', 'Austrálie a Oceánie']
+];
+// Okruhy: id, název, popis, řazení při procházení (fakt a směr) a pravidlo, co do okruhu patří
+const COLLECTIONS = [
+    { id: 'cesko', label: 'Česko', text: 'Města, hory, řeky, přírodní místa a památky v Česku', sort: { by: 'name' }, test: item => item.co.includes(CZECHIA) },
+    ...CONTINENT_COLLECTIONS.map(([key, code, label]) => ({ id: key, label, text: `Vše, co leží v kontinentu ${label}`, sort: { by: 'name' }, test: item => continentOf(item) === code })),
+    { id: 'staty-evropy', label: 'Státy Evropy', sort: { by: 'name' }, test: item => item.c === 'stat' && continentOf(item) === 'EU' },
+    { id: 'hlavni-mesta', label: 'Hlavní města států', sort: { by: 'name' }, test: item => item.c === 'mesto' && capitals.has(item.n) },
+    { id: 'hlavni-mesta-evropy', label: 'Hlavní města Evropy', sort: { by: 'name' }, test: item => item.c === 'mesto' && capitals.has(item.n) && continentOf(item) === 'EU' },
+    { id: 'velkomesta', label: 'Největší města světa', text: 'Města nad 5 milionů obyvatel', sort: { by: 'pop', desc: true }, test: item => item.c === 'mesto' && item.f.pop >= 5e6 },
+    { id: 'osmitisicovky', label: 'Osmitisícovky', text: 'Hory vyšší než 8 000 m', sort: { by: 'elev', desc: true }, test: item => item.c === 'hora' && item.ty !== 'pohoří' && item.f.elev >= 8000 },
+    { id: 'nejdelsi-reky', label: 'Nejdelší řeky světa', text: 'Řeky delší než 2 000 km', sort: { by: 'len', desc: true }, test: item => item.c === 'reka' && item.f.len >= 2000 },
+    { id: 'unesco', label: 'Světové dědictví UNESCO', sort: { by: 'name' }, test: item => heritage.has(item.q) }
+];
+
+for (const item of items) {
+    const groups = COLLECTIONS.filter(collection => collection.test(item)).map(collection => collection.id);
+    if (groups.length) item.g = groups;
+}
+const collections = COLLECTIONS
+    .map(({ test, ...collection }) => ({ ...collection, count: items.filter(item => (item.g || []).includes(collection.id)).length }))
+    .filter(collection => collection.count >= 5)
+    .map(({ count, ...collection }) => collection);
 
 for (const category of CATEGORIES) {
-    const inCategory = result.filter(p => p.c === category.key);
+    const inCategory = items.filter(p => p.c === category.key);
     console.log(`${category.key}: ${inCategory.length} míst (${inCategory.filter(p => p.k).length} známých)`);
 }
+for (const collection of collections) console.log(`okruh ${collection.label}: ${items.filter(item => (item.g || []).includes(collection.id)).length}`);
 
-mkdirSync(new URL('../data/', import.meta.url), { recursive: true });
-writeFileSync(new URL('../data/places.json', import.meta.url), JSON.stringify({
-    generated: new Date().toISOString().slice(0, 10),
-    countries,
-    places: result
-}));
-console.log(`Hotovo: ${result.length} míst`);
+writeTopic('zemepis', { collections, items });

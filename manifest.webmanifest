@@ -1,7 +1,7 @@
 {
-    "name": "Geo Kvíz",
-    "short_name": "Geo Kvíz",
-    "description": "Hádej místa světa podle nápověd z Wikipedie.",
+    "name": "Mudrlant",
+    "short_name": "Mudrlant",
+    "description": "Kvíz ze zeměpisu, historie, biologie, chemie a fyziky – dnešní otázky, trénink a učení po okruzích.",
     "lang": "cs",
     "start_url": "./",
     "scope": "./",
