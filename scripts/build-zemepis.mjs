@@ -117,6 +117,10 @@ const details = new Map(await cached('zemepis-details', async () => {
     return [...result];
 }));
 
+// Opravy chybných údajů ve Wikidatech (Annapurna je tam masiv s výškou vedlejšího vrcholu 7 756 m, hlavní vrchol má 8 091 m)
+const FACT_OVERRIDES = { Q159621: { elev: '8091' } };
+const TYPE_OVERRIDES = { Q159621: 'hora' };
+for (const [qid, values] of Object.entries(FACT_OVERRIDES)) if (details.has(qid)) Object.assign(details.get(qid).values, values);
 const numberOf = (detailValues, key) => detailValues[key] === undefined ? undefined : Number(detailValues[key]);
 const factsOf = ({ values: v, pops }) => {
     const latestPop = [...pops].sort((a, b) => b.time.localeCompare(a.time) || b.value - a.value)[0];
@@ -205,7 +209,7 @@ for (const [qid, entry] of ordered) {
         k: known ? 1 : 0,
         la: point.lat,
         lo: point.lon,
-        ty: typeLabelOf(category, typeId, types[typeId]),
+        ty: TYPE_OVERRIDES[qid] || typeLabelOf(category, typeId, types[typeId]),
         d: v.d || undefined,
         co: category.key === 'stat' ? [qid] : detail.co,
         ...imageFields(v.im),

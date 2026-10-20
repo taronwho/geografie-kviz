@@ -184,7 +184,8 @@
         // Popis: u otázky na značku zmizí značka, u otázky na vzorec vzorec; u otázky na název k tomu i název
         censor: (type, text, item) => {
             const f = item.f || {};
-            const hideFormula = (value) => [f.formula, plainFormula(f.formula)].reduce((result, formula) => result.split(formula).join('[***]'), value);
+            // Skupiny vitamínů (vitamín A) vzorec nemají
+            const hideFormula = (value) => f.formula ? [f.formula, plainFormula(f.formula)].reduce((result, formula) => result.split(formula).join('[***]'), value) : value;
             const plain = stripBrackets(text).replace(/\s{2,}/g, ' ').replace(/\s+([,;.?!])/g, '$1');
             if (type === 'symbol') return hideSymbol(plain, f.sym);
             if (type === 'formula') return hideFormula(plain);

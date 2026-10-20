@@ -3,8 +3,8 @@
 Kvízová aplikace s tématy **Zeměpis**, **Historie**, **Biologie**, **Chemie** a **Fyzika**. Všechna témata fungují stejně:
 
 - **Dnešní otázky** – každé téma má jednu otázku denně, pro všechny stejnou (vždy ze známých položek), a vlastní sérii dní; výsledek jde sdílet.
-- **Trénink** – neomezeně otázek ze všech témat, nebo jen z vybraných (nastavení ⚙), jen známé položky, nebo i méně známé.
-- **Učení** – bez bodů a systematicky: v každém tématu jsou **okruhy** (Česko, Přemyslovci, Angličtí panovníci, Šelmy, Naše příroda, Halogeny, Základní jednotky SI…) i celé kategorie. Okruh jde procházet popořadě jako atlas, nebo procvičovat jen jeho otázky; postup se ukládá. K tomu **Moje chyby** – co hráč neuhodl, jde si prohlédnout a procvičit znovu.
+- **Hraní tématu** – dlaždice tématu na domovské obrazovce; poprvé se otevře okno s výběrem kategorií (výchozí všechny), pak se hraje rovnou. **Mix** míchá otázky z vybraných témat. Každé téma má svou barvu (štítek a okraj hlavičky), klepnutím na štítek jde změnit kategorie nebo téma. Jen známé položky, nebo i méně známé.
+- **Učení** – bez bodů a systematicky: v každém tématu jsou celé kategorie a **okruhy** (Česko, Přemyslovci, Angličtí panovníci, Šelmy, Naše příroda, Vyhynulé druhy, Halogeny, Vitamíny, Základní jednotky SI…). Okruh jde procházet popořadě jako atlas, nebo procvičovat jen jeho otázky; postup se ukládá. K tomu **Moje chyby** – co hráč neuhodl, jde si prohlédnout a procvičit znovu.
 
 Při prvním spuštění si hráč zvolí variantu hry – výběr ze čtyř možností, nebo psaní odpovědi za dvojnásobek bodů.
 
@@ -27,7 +27,7 @@ Nápovědy jdou postupně a každá ubere bod: **popis** z české Wikipedie (je
 - **mapa rozšíření** (biologie) a **strukturní vzorec** (chemie) – obrázek z Wikimedia Commons,
 - **slepá periodická tabulka** (chemie) – políčka bez značek obarvená podle skupin, hledaný prvek zvýrazněný.
 
-Po odpovědi jde rozkliknout okno s popisem položky ze špatné odpovědi i ostatních nabízených možností.
+Popis a odemčené nápovědy jsou záložky jednoho panelu pevné výšky, takže se odpověď při nápovědě neposune a na telefonu není co posouvat. Po odpovědi jsou v záložkách fotka, mapa s polohou, snímek z družice a obrazová nápověda (i ty, které hráč neotevřel), fakta pod nimi a tlačítko **Další otázka** je přilepené dole. Jde rozkliknout i okno s popisem položky ze špatné odpovědi a ostatních nabízených možností.
 
 Statická stránka bez serveru a bez build kroku při nasazení – na Netlify se publikuje kořen repozitáře tak, jak je.
 

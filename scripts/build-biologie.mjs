@@ -20,11 +20,16 @@ const CATEGORIES = [
 ];
 
 // Domácí zvířata nemají ve Wikidatech taxonomickou úroveň (jsou podtřídou divokého druhu) – vybraná podle ID a podle názvu
-const DOMESTIC_IDS = ['Q144', 'Q146', 'Q726', 'Q830', 'Q787', 'Q7368', 'Q2934', 'Q19707', 'Q780', 'Q9394', 'Q42710', 'Q16529344', 'Q3736439'];
+const DOMESTIC_IDS = ['Q144', 'Q146', 'Q726', 'Q830', 'Q787', 'Q7368', 'Q2934', 'Q19707', 'Q780', 'Q9394', 'Q42710', 'Q16529344', 'Q3736439',
+    // husa a krůta domácí, jak domácí, kanár domácí, fretka, křeček zlatý, činčila, korela, perlička, velbloud jednohrbý, karas zlatý, zebřička
+    'Q255503', 'Q848706', 'Q13408062', 'Q253941', 'Q178973', 'Q204175', 'Q834053', 'Q514809', 'Q251842', 'Q71516', 'Q123141', 'Q331065'];
 const DOMESTIC = ['morče domácí', 'krocan domácí', 'lama krotká', 'velbloud dvouhrbý', 'bourec morušový', 'včela medonosná',
     'andulka vlnkovaná', 'zlatá rybka', 'holub domácí', 'alpaka'];
 // Domácí zvířata, jejichž předky Wikidata přes podtřídu nenajdou: zařazení převezmou od divokého předka
-const DOMESTIC_WILD = { Q144: 'Canis lupus', Q830: 'Bos primigenius', Q16529344: 'Anser anser', Q3736439: 'Anas platyrhynchos', Q780: 'Gallus gallus', Q7368: 'Ovis orientalis' };
+const DOMESTIC_WILD = {
+    Q144: 'Canis lupus', Q830: 'Bos primigenius', Q16529344: 'Anser anser', Q3736439: 'Anas platyrhynchos', Q780: 'Gallus gallus', Q7368: 'Ovis orientalis',
+    Q255503: 'Anser anser', Q848706: 'Meleagris gallopavo', Q13408062: 'Bos mutus', Q253941: 'Serinus canaria', Q178973: 'Mustela putorius'
+};
 // Pravěcí tvorové: sitelinky jsou u nich zkreslené roboty, známé jsou tyhle (rody)
 const FAMOUS_PREHISTORIC = new Set(['Tyrannosaurus', 'Triceratops', 'Stegosaurus', 'Velociraptor', 'Diplodocus', 'Brachiosaurus', 'Spinosaurus',
     'Ankylosaurus', 'Iguanodon', 'Allosaurus', 'Parasaurolophus', 'Pteranodon', 'Apatosaurus', 'Brontosaurus', 'Pachycephalosaurus',
@@ -92,6 +97,9 @@ const NATIVE = new Set([
     'Craterellus cornucopioides', 'Rubroboletus satanas', 'Tylopilus felleus', 'Clitocybe nebularis', 'Phallus impudicus', 'Xerocomellus chrysenteron'
 ]);
 
+// Okruh má mít aspoň tolik položek – chybějící doplní i méně známé druhy nad limit kategorie
+const COLLECTION_MIN = 40;
+
 const IUCN = {
     Q211005: 'LC', Q719675: 'NT', Q278113: 'VU', Q11394: 'EN', Q219127: 'CR', Q239509: 'EW', Q237350: 'EX', Q3245245: 'DD'
 };
@@ -143,7 +151,7 @@ for (const [q, sl] of domestic) candidates.set(q, sl);
 // --- 3. krok: podrobnosti a předkové po dávkách ---
 const ordered = [...candidates.entries()].sort((a, b) => b[1] - a[1]).map(([qid]) => qid);
 console.log(`Podrobnosti k ${ordered.length} kandidátům…`);
-const SINGLE = { t: 1, n: 1, d: 1, im: 1, rm: 1, lat: 1, iucn: 1, edib: 1 };
+const SINGLE = { t: 1, n: 1, d: 1, im: 1, rm: 1, lat: 1, iucn: 1 };
 const fetchDetails = async (list) => {
     const result = new Map(list.map(qid => [qid, {}]));
     await inBatches(list, 200, (qids) => `SELECT ?item ?p ?v WHERE {
@@ -155,7 +163,6 @@ const fetchDetails = async (list) => {
   UNION { ?item wdt:P181 ?v BIND("rm" AS ?p) }
   UNION { ?item wdt:P225 ?v BIND("lat" AS ?p) }
   UNION { ?item wdt:P141 ?v BIND("iucn" AS ?p) }
-  UNION { ?item wdt:P789 ?v BIND("edib" AS ?p) }
   UNION { ?item p:P2067/psn:P2067/wikibase:quantityAmount ?v BIND("mass" AS ?p) }
   UNION { ?item p:P2043/psn:P2043/wikibase:quantityAmount ?v BIND("len" AS ?p) }
   UNION { ?item p:P2048/psn:P2048/wikibase:quantityAmount ?v BIND("hgt" AS ?p) }
@@ -213,102 +220,33 @@ for (const [qid, ancestors] of domesticLineage) {
     else if (!(lineage.get(qid) || []).length) lineage.set(qid, ancestors);
 }
 
-const edibilityLabels = new Map(await cached('biologie-edibility', async () => {
-    const ids = [...new Set([...details.values()].map(detail => detail.edib).filter(Boolean))];
-    if (!ids.length) return [];
-    const rows = await qlever(`SELECT ?item ?l WHERE { VALUES ?item { ${values(ids)} } ?item rdfs:label ?l FILTER(LANG(?l) = "cs") }`);
-    return rows.map(row => [id(row.item.value), row.l.value]);
+// Jedlost: houba mívá víc hodnot (jedlá i léčivá) – platí ta, na které houbaři záleží nejvíc
+const EDIBILITY_PRIORITY = ['prudce jedovatá houba', 'jedovatá houba', 'psychoaktivní houba', 'nutná opatrnost', 'nejedlá houba',
+    'vynikající jedlá houba', 'jedlé houby', 'léčivá houba'];
+const edibility = new Map(await cached('biologie-edibility-all', async () => {
+    const rows = await qlever(`SELECT ?item ?l WHERE { ?item wdt:P789 ?v . ?v rdfs:label ?l FILTER(LANG(?l) = "cs") }`);
+    const result = new Map();
+    for (const row of rows) {
+        const qid = id(row.item.value);
+        result.set(qid, [...new Set([...(result.get(qid) || []), row.l.value])]);
+    }
+    return [...result];
 }));
-
-// --- 4. krok: položky ---
-const categoryOf = (ancestors) => {
-    const names = new Set(ancestors.map(ancestor => ancestor.name));
-    const category = CATEGORIES.find(c => c.roots.some(root => names.has(root)) && !(c.except || []).some(name => names.has(name)));
-    return category ? category.key : null;
+// Známé houby, u kterých Wikidata uvádějí protichůdné údaje (vědecké jméno → jedlost)
+const EDIBILITY_OVERRIDES = {
+    'Imleria badia': 'jedlé houby', 'Aleuria aurantia': 'jedlé houby', 'Scleroderma citrinum': 'jedovatá houba',
+    'Mycena pura': 'jedovatá houba', 'Russula emetica': 'jedovatá houba', 'Tricholoma sulphureum': 'jedovatá houba'
 };
-// Třída, řád, čeleď: český název, jinak vědecký
-const levelOf = (ancestors, rank) => {
-    if (rank === RANK.order) {
-        const override = Object.keys(ORDER_OVERRIDES).find(name => ancestors.some(ancestor => ancestor.name === name));
-        if (override) return ORDER_OVERRIDES[override];
-    }
-    const ancestor = ancestors.find(entry => entry.rank === rank);
-    return ancestor ? (ancestor.label || ancestor.name) : undefined;
+const edibilityOf = (qid) => {
+    const latin = (details.get(qid) || {}).lat;
+    if (EDIBILITY_OVERRIDES[latin]) return EDIBILITY_OVERRIDES[latin];
+    const labels = edibility.get(qid) || [];
+    // Jedlá i jedovatá zároveň (jedlá jen po úpravě, bez alkoholu…) = nutná opatrnost
+    if (!labels.includes('prudce jedovatá houba') && labels.includes('jedovatá houba') && labels.some(label => /jedlá|jedlé/u.test(label))) return 'nutná opatrnost';
+    return EDIBILITY_PRIORITY.find(label => labels.includes(label)) || labels[0];
 };
-// Třída podle školní systematiky: Wikidata řadí ptáky mezi plazy a savce i mezi „ryby“ (nozdraté)
-const classOf = (category, ancestors) => {
-    const has = (name) => ancestors.some(ancestor => ancestor.name === name);
-    if (category === 'savci') return 'savci';
-    if (category === 'ptaci') return 'ptáci';
-    if (category === 'hmyz') return 'hmyz';
-    if (category === 'plazi') return has('Amphibia') ? 'obojživelníci' : 'plazi';
-    if (category === 'ryby') return has('Chondrichthyes') ? 'paryby' : 'paprskoploutví';
-    return levelOf(ancestors, RANK.class);
-};
-const CATEGORY_ONE = { savci: 'savec', ptaci: 'pták', plazi: 'plaz', ryby: 'ryba', hmyz: 'hmyz', bezobratli: 'bezobratlý', rostliny: 'rostlina', houby: 'houba', pravek: 'pravěk' };
-const max = (list) => list && list.length ? Math.max(...list) : undefined;
-const round = (value, digits) => value === undefined ? undefined : Number(value.toPrecision(digits));
-const capitalize = (text) => text.charAt(0).toUpperCase() + text.slice(1);
 
-const items = [];
-const rankByCategory = {};
-const names = new Set();
-for (const qid of ordered) {
-    const detail = details.get(qid);
-    const ancestors = lineage.get(qid) || [];
-    const category = categoryOf(ancestors);
-    if (!category || !detail.t || !detail.n || !detail.im) continue;
-    const genus = (detail.lat || '').split(' ')[0];
-    const isFamousPrehistoric = category === 'pravek' && FAMOUS_PREHISTORIC.has(genus);
-    // Bez českého jména (jen vědecké) nejde o druh, který by Čech znal; pravěcí tvorové se jmenují latinsky i česky
-    if (category !== 'pravek' && detail.lat && detail.n.toLowerCase() === detail.lat.toLowerCase()) continue;
-    let name = capitalize(detail.n);
-    // Stejné jméno u různých organismů (liška obecná šelma i houba): druhý dostane upřesnění
-    if (names.has(name.toLowerCase())) {
-        const other = items.find(item => item.n.toLowerCase() === name.toLowerCase());
-        if (!other || other.c === category) continue;
-        name = `${name} (${CATEGORY_ONE[category]})`;
-    }
-    const settings = CATEGORIES.find(c => c.key === category);
-    const isNative = NATIVE.has(detail.lat);
-    const isDomestic = domestic.has(qid);
-    const rank = rankByCategory[category] || 0;
-    if (rank >= settings.limit && !isNative && !isDomestic && !isFamousPrehistoric) continue;
-    rankByCategory[category] = rank + 1;
-    names.add(name.toLowerCase());
-    const ancestorNames = new Set(ancestors.map(ancestor => ancestor.name));
-    const life = max(detail.life);
-    const rangeMap = imageFields(detail.rm);
-    items.push(compact({
-        q: qid,
-        t: detail.t,
-        n: name,
-        c: category,
-        k: (category === 'pravek' ? isFamousPrehistoric : rank < settings.known) || isNative || isDomestic ? 1 : 0,
-        d: detail.d,
-        cz: isNative ? 1 : undefined,
-        ...imageFields(detail.im),
-        rm: rangeMap.im,
-        rh: rangeMap.ih,
-        f: compact({
-            lat: detail.lat,
-            cls: classOf(category, ancestors),
-            ord: levelOf(ancestors, RANK.order),
-            fam: levelOf(ancestors, RANK.family),
-            iucn: IUCN[detail.iucn],
-            mass: round(max(detail.mass), 3),
-            len: round(max(detail.len), 3),
-            hgt: round(max(detail.hgt), 3),
-            life: life ? Math.round(life / 31557600) || undefined : undefined,
-            edib: detail.edib ? edibilityLabels.get(detail.edib) : undefined
-        }),
-        // Pro okruhy: vědecká jména předků a domácí zvíře
-        anc: ancestorNames,
-        dom: isDomestic
-    }));
-}
-
-// --- 5. krok: okruhy ---
+// Okruhy (určené už tady, aby je šlo doplnit i druhy nad limit kategorie)
 const under = (...taxa) => (item) => taxa.some(name => item.anc.has(name));
 const BY_NAME = { by: 'name' };
 const COLLECTIONS = [
@@ -346,9 +284,105 @@ const COLLECTIONS = [
     { id: 'jedle-houby', label: 'Jedlé houby', test: item => item.c === 'houby' && /^jedl/u.test(item.f.edib || '') },
     { id: 'jedovate-houby', label: 'Jedovaté houby', test: item => item.c === 'houby' && /jedovat|smrteln/u.test(item.f.edib || '') },
     { id: 'dinosauri', label: 'Dinosauři', test: item => item.c === 'pravek' && under('Dinosauria')(item) },
-    { id: 'ohrozene', label: 'Ohrožené druhy', text: 'Ohrožené a kriticky ohrožené podle IUCN', test: item => ['EN', 'CR', 'EW'].includes(item.f.iucn) },
-    { id: 'vyhynule', label: 'Vyhynulé druhy', text: 'Vyhynulé v posledních staletích (IUCN)', test: item => item.f.iucn === 'EX' }
+    { id: 'ohrozene', label: 'Ohrožené druhy', text: 'Ohrožené a kriticky ohrožené podle IUCN', test: item => ['EN', 'CR'].includes(item.f.iucn) },
+    // Vyhynulé za lidské historie (IUCN) i pravěcí savci a ptáci (mamut); dinosauři mají vlastní kategorii
+    { id: 'vyhynule', label: 'Vyhynulé druhy', text: 'Od dronta a vakovlka po mamuta', min: 60,
+        test: item => item.c !== 'pravek' && (['EX', 'EW'].includes(item.f.iucn) || /^(vyhynul|fosiln)/u.test(item.d || '')) }
 ].map(collection => ({ sort: BY_NAME, ...collection }));
+// --- 4. krok: položky ---
+const categoryOf = (ancestors) => {
+    const names = new Set(ancestors.map(ancestor => ancestor.name));
+    const category = CATEGORIES.find(c => c.roots.some(root => names.has(root)) && !(c.except || []).some(name => names.has(name)));
+    return category ? category.key : null;
+};
+// Třída, řád, čeleď: český název, jinak vědecký
+const levelOf = (ancestors, rank) => {
+    if (rank === RANK.order) {
+        const override = Object.keys(ORDER_OVERRIDES).find(name => ancestors.some(ancestor => ancestor.name === name));
+        if (override) return ORDER_OVERRIDES[override];
+    }
+    const ancestor = ancestors.find(entry => entry.rank === rank);
+    return ancestor ? (ancestor.label || ancestor.name) : undefined;
+};
+// Třída podle školní systematiky: Wikidata řadí ptáky mezi plazy a savce i mezi „ryby“ (nozdraté)
+const classOf = (category, ancestors) => {
+    const has = (name) => ancestors.some(ancestor => ancestor.name === name);
+    if (category === 'savci') return 'savci';
+    if (category === 'ptaci') return 'ptáci';
+    if (category === 'hmyz') return 'hmyz';
+    if (category === 'plazi') return has('Amphibia') ? 'obojživelníci' : 'plazi';
+    if (category === 'ryby') return has('Chondrichthyes') ? 'paryby' : 'paprskoploutví';
+    return levelOf(ancestors, RANK.class);
+};
+const CATEGORY_ONE = { savci: 'savec', ptaci: 'pták', plazi: 'plaz', ryby: 'ryba', hmyz: 'hmyz', bezobratli: 'bezobratlý', rostliny: 'rostlina', houby: 'houba', pravek: 'pravěk' };
+const max = (list) => list && list.length ? Math.max(...list) : undefined;
+const round = (value, digits) => value === undefined ? undefined : Number(value.toPrecision(digits));
+const capitalize = (text) => text.charAt(0).toUpperCase() + text.slice(1);
+
+const items = [];
+const rankByCategory = {};
+const collectionCounts = {};
+const names = new Set();
+for (const qid of ordered) {
+    const detail = details.get(qid);
+    const ancestors = lineage.get(qid) || [];
+    const category = categoryOf(ancestors);
+    if (!category || !detail.t || !detail.n || !detail.im) continue;
+    const genus = (detail.lat || '').split(' ')[0];
+    const isFamousPrehistoric = category === 'pravek' && FAMOUS_PREHISTORIC.has(genus);
+    // Bez českého jména (jen vědecké) nejde o druh, který by Čech znal; pravěcí tvorové se jmenují latinsky i česky
+    if (category !== 'pravek' && detail.lat && detail.n.toLowerCase() === detail.lat.toLowerCase()) continue;
+    let name = capitalize(detail.n);
+    // Stejné jméno u různých organismů (liška obecná šelma i houba): druhý dostane upřesnění
+    if (names.has(name.toLowerCase())) {
+        const other = items.find(item => item.n.toLowerCase() === name.toLowerCase());
+        if (!other || other.c === category) continue;
+        name = `${name} (${CATEGORY_ONE[category]})`;
+    }
+    const settings = CATEGORIES.find(c => c.key === category);
+    const isNative = NATIVE.has(detail.lat);
+    const isDomestic = domestic.has(qid);
+    const rank = rankByCategory[category] || 0;
+    const ancestorNames = new Set(ancestors.map(ancestor => ancestor.name));
+    // Do malého okruhu (vačnatci, orchideje, vyhynulé druhy) se vezmou i druhy nad limit kategorie
+    const probe = { c: category, d: detail.d, cz: isNative ? 1 : undefined, anc: ancestorNames, dom: isDomestic, f: { iucn: IUCN[detail.iucn], edib: edibilityOf(qid) } };
+    const groups = COLLECTIONS.filter(collection => collection.test(probe));
+    const fillsCollection = groups.some(collection => (collectionCounts[collection.id] || 0) < (collection.min || COLLECTION_MIN));
+    if (rank >= settings.limit && !isNative && !isDomestic && !isFamousPrehistoric && !fillsCollection) continue;
+    rankByCategory[category] = rank + 1;
+    for (const collection of groups) collectionCounts[collection.id] = (collectionCounts[collection.id] || 0) + 1;
+    names.add(name.toLowerCase());
+    const life = max(detail.life);
+    const rangeMap = imageFields(detail.rm);
+    items.push(compact({
+        q: qid,
+        t: detail.t,
+        n: name,
+        c: category,
+        k: (category === 'pravek' ? isFamousPrehistoric : rank < settings.known) || isNative || isDomestic ? 1 : 0,
+        d: detail.d,
+        cz: isNative ? 1 : undefined,
+        ...imageFields(detail.im),
+        rm: rangeMap.im,
+        rh: rangeMap.ih,
+        f: compact({
+            lat: detail.lat,
+            cls: classOf(category, ancestors),
+            ord: levelOf(ancestors, RANK.order),
+            fam: levelOf(ancestors, RANK.family),
+            iucn: IUCN[detail.iucn],
+            mass: round(max(detail.mass), 3),
+            len: round(max(detail.len), 3),
+            hgt: round(max(detail.hgt), 3),
+            life: life ? Math.round(life / 31557600) || undefined : undefined,
+            edib: edibilityOf(qid)
+        }),
+        // Pro okruhy: vědecká jména předků a domácí zvíře
+        anc: ancestorNames,
+        dom: isDomestic
+    }));
+}
+
 for (const item of items) {
     const groups = COLLECTIONS.filter(collection => collection.test(item)).map(collection => collection.id);
     if (groups.length) item.g = groups;

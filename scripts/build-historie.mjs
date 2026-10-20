@@ -22,10 +22,10 @@ const POSITION_ORDER = Object.entries(POSITIONS).filter(([key]) => key !== 'fara
 // Funkce bez českého názvu ve Wikidatech
 const LABEL_OVERRIDES = { Q110324075: 'britský král', Q111722535: 'britský král' };
 
-// Rody (P53)
+// Rody (P53); s větvemi, které mají ve Wikidatech vlastní položku (Habsbursko-Lotrinští, Holstein-Gottorp-Romanov, angličtí Stuartovci)
 const DYNASTIES = {
-    premyslovci: 'Q287652', lucemburkove: 'Q122293', habsburkove: 'Q65968', jagellonci: 'Q194355', tudorovci: 'Q101978',
-    windsorove: 'Q81589', stuartovci: 'Q179840', plantageneti: 'Q106151', bourboni: ['Q58389', 'Q3642350'], romanovci: 'Q112707',
+    premyslovci: 'Q287652', lucemburkove: 'Q122293', habsburkove: ['Q65968', 'Q645719', 'Q3624777'], jagellonci: 'Q194355', tudorovci: 'Q101978',
+    windsorove: 'Q81589', stuartovci: ['Q179840', 'Q3973466'], plantageneti: 'Q106151', bourboni: ['Q58389', 'Q3642350'], romanovci: ['Q112707', 'Q870568'],
     hohenzollernove: 'Q83969', juliovsko_claudiovska: 'Q192841', karlovci: 'Q133602', valoisove: 'Q182135'
 };
 const CZECH_DYNASTIES = [DYNASTIES.premyslovci, DYNASTIES.lucemburkove, DYNASTIES.jagellonci];
