@@ -329,7 +329,8 @@
     // Nápovědy otázky: téma je pro svůj druh otázky může určit samo (u století současníci a osa bez letopočtů,
     // u vzorce složení), jinak fotka → obrazová nápověda → čísla a fakta. Nápověda, která nic nepřidá, se vynechá:
     // fotka, která se nenačte, prázdná fakta i fakta, která hráč už vidí v zadání nebo v popisu.
-    const buildHints = (plan, { photoUrl, visibleText }) => {
+    // shared = fakta, která mají stejná všechny nabízené nesprávné možnosti (třída savci u čtyř savců) – mezi nimi nerozhodnou
+    const buildHints = (plan, { photoUrl, visibleText, shared = new Set() }) => {
         const hints = [];
         for (const step of plan) {
             let hint = null;
@@ -338,7 +339,7 @@
                 hint = { kind: 'visual', spec: step.spec, label: Visuals.info(step.spec).name, icon: Visuals.info(step.spec).icon };
             }
             if (step.kind === 'facts') {
-                const facts = dropKnownFacts(step.facts || [], visibleText);
+                const facts = dropKnownFacts(step.facts || [], visibleText).filter(fact => step.label || !shared.has(`${fact.label}\u0000${fact.value}`));
                 // extra = vlastní nápověda tématu; po odpovědi se ukáže i mezi fakty
                 if (facts.length) hint = { kind: 'facts', facts, label: step.label || 'čísla a fakta', icon: step.icon || 'info', extra: Boolean(step.label) };
             }
@@ -382,6 +383,11 @@
         const plan = (topic.hints && topic.hints(item, ctx, question.type))
             || [{ kind: 'photo' }, { kind: 'visual', spec: visual }, { kind: 'facts', facts: topic.facts(item, ctx, question.type) }];
         const visibleText = [question.title, question.showName ? item.n : '', typeLabel, questionText].join(' · ');
+        // Fakt, který mají všechny nesprávné možnosti stejný jako správná, mezi nimi nepomůže vybrat
+        const wrongItems = question.type === 'name' ? question.choices.filter(choice => !choice.correct).map(choice => ctx.byId.get(choice.id)).filter(Boolean) : [];
+        const factKeys = (other) => new Set(topic.facts(other, ctx, question.type).map(fact => `${fact.label}\u0000${fact.value}`));
+        const wrongFacts = wrongItems.map(factKeys);
+        const shared = new Set(wrongFacts.length ? [...factKeys(item)].filter(key => wrongFacts.every(keys => keys.has(key))) : []);
         return {
             topic: topic.id,
             id: item.q,
@@ -397,7 +403,7 @@
             // Ve výsledku už odpověď známe, takže nápověda může ukázat vše (u otázky na století časovou osu)
             resultVisual: topic.visual ? topic.visual(item, ctx, 'result') : null,
             resultFacts: topic.facts(item, ctx, 'result'),
-            hints: buildHints(plan, { photoUrl, visibleText }),
+            hints: buildHints(plan, { photoUrl, visibleText, shared }),
             subtitle: topic.subtitle(item, ctx),
             coords: topic.coords ? topic.coords(item, ctx) : null,
             isCzech: Boolean(topic.isCzech && topic.isCzech(item, ctx)),

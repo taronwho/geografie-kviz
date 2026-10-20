@@ -83,6 +83,8 @@
         ];
     };
 
+    const rangeMapOf = (item) => item.rm && item.rh ? { type: 'image', file: item.rm, hash: item.rh, name: 'mapa rozšíření', icon: 'map' } : null;
+
     // Psaná odpověď: i vědecký název a samotné první slovo, pokud ho nemá žádný jiný druh („lev“, ale ne „sýkora“)
     const firstWords = new WeakMap();
     const firstWordCounts = (items) => {
@@ -181,9 +183,15 @@
             return hide.length ? censorName(text, hide.join(', ')) : text;
         },
 
-        hints: (item, ctx, type) => type === 'taxon' ? taxonHints(item, ctx) : null,
+        // U „Co je to za zvíře?“ navíc jako poslední nápověda vědecký název (v popisu je zakrytý)
+        hints: (item, ctx, type) => {
+            if (type === 'taxon') return taxonHints(item, ctx);
+            const lat = (item.f || {}).lat;
+            return [{ kind: 'photo' }, { kind: 'visual', spec: rangeMapOf(item) }, { kind: 'facts', facts: factsOf(item, type) },
+                { kind: 'facts', label: 'vědecký název', icon: 'microscope', facts: lat ? [{ label: 'Vědecký název', value: lat }] : [] }];
+        },
         // Mapa rozšíření z Wikimedia Commons
-        visual: (item) => item.rm && item.rh ? { type: 'image', file: item.rm, hash: item.rh, name: 'mapa rozšíření', icon: 'map' } : null,
+        visual: (item) => rangeMapOf(item),
         facts: (item, ctx, mode) => factsOf(item, mode),
         subtitle: (item) => {
             const f = item.f || {};

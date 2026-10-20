@@ -693,7 +693,7 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         assert.equal(round.name, 'Lev pustinný');
         assert.equal(round.question.type, 'name');
         assert.equal(await second.tab.textContent('h2'), 'Co je to za zvíře?');
-        assert.deepEqual(hintKeys(round), ['photo', 'visual', 'facts']);
+        assert.deepEqual(hintKeys(round), ['photo', 'visual', 'facts', 'facts-2'], 'poslední nápověda vědecký název');
         await second.tab.click('[data-action="hint"]');
         assert.match(await second.tab.textContent('[data-action="hint"]'), /mapa rozšíření/i);
         await second.tab.click('[data-action="hint"]');
