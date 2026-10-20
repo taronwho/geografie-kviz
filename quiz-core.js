@@ -262,6 +262,8 @@
         const thumb = /\.svg$/i.test(fileName) ? `${name}.png` : name;
         return `https://upload.wikimedia.org/wikipedia/commons/thumb/${hash[0]}/${hash}/${name}/${width}px-${thumb}`;
     };
+    // Původní soubor – když je obrázek menší než požadovaný náhled, Commons ho nezvětší a náhled nevrátí
+    const commonsFileUrl = (fileName, hash) => `https://upload.wikimedia.org/wikipedia/commons/${hash[0]}/${hash}/${encodeURIComponent(fileName.replace(/ /g, '_'))}`;
 
     // --- Položky témat: místa, osobnosti, druhy, prvky… (formát data/<téma>.json) ---
 
@@ -483,6 +485,41 @@
         };
     };
 
+    // --- Periodická tabulka (chemie) ---
+
+    const range = (from, to) => Array.from({ length: to - from + 1 }, (_, i) => from + i);
+    // Skupiny prvků podle protonového čísla (polonium patří k ostatním kovům, astat k halogenům)
+    const ELEMENT_FAMILIES = [
+        ['alkalicke-kovy', 'alkalický kov', [3, 11, 19, 37, 55, 87]],
+        ['kovy-alkalickych-zemin', 'kov alkalických zemin', [4, 12, 20, 38, 56, 88]],
+        ['lanthanoidy', 'lanthanoid', range(57, 71)],
+        ['aktinoidy', 'aktinoid', range(89, 103)],
+        ['halogeny', 'halogen', [9, 17, 35, 53, 85, 117]],
+        ['vzacne-plyny', 'vzácný plyn', [2, 10, 18, 36, 54, 86, 118]],
+        ['polokovy', 'polokov', [5, 14, 32, 33, 51, 52]],
+        ['nekovy', 'nekov', [1, 6, 7, 8, 15, 16, 34]],
+        ['prechodne-kovy', 'přechodný kov', [...range(21, 30), ...range(39, 48), ...range(72, 80), ...range(104, 112)]],
+        ['ostatni-kovy', 'nepřechodný kov', [13, 31, 49, 50, 81, 82, 83, 84, 113, 114, 115, 116]]
+    ];
+    const elementFamily = (z) => {
+        const family = ELEMENT_FAMILIES.find(([, , list]) => list.includes(z));
+        return family ? { key: family[0], label: family[1] } : null;
+    };
+    // Místo prvku v tabulce s 18 sloupci: perioda, sloupec (= skupina) a řádek na obrázku;
+    // lanthanoidy a aktinoidy jsou ve dvou řádcích pod tabulkou (řádek 9 a 10)
+    const PERIOD_ENDS = [2, 10, 18, 36, 54, 86, 118];
+    const periodicPosition = (z) => {
+        const period = PERIOD_ENDS.findIndex(end => z <= end) + 1;
+        if (period < 1) return null;
+        const index = z - (period === 1 ? 1 : PERIOD_ENDS[period - 2] + 1);
+        if (period === 1) return { period, row: 1, col: z === 1 ? 1 : 18 };
+        if (period <= 3) return { period, row: period, col: index < 2 ? index + 1 : index + 11 };
+        if (period <= 5) return { period, row: period, col: index + 1 };
+        if (index < 2) return { period, row: period, col: index + 1 };
+        if (index <= 16) return { period, row: period + 3, col: index + 1, fBlock: true };
+        return { period, row: period, col: index - 13 };
+    };
+
     // Století roku: 1346 → 14, 1300 → 13, −44 → −1 (1. století př. n. l.)
     const centuryOf = (year) => year > 0 ? Math.ceil(year / 100) : -Math.ceil(-year / 100) || -1;
     const centuryLabel = (century) => century > 0 ? `${century}. století` : `${-century}. století př. n. l.`;
@@ -537,8 +574,9 @@
     return {
         UNKNOWN_COUNTRY, INTERNATIONAL_WATERS, CZECHIA_QID, TILE_SIZE, COUNTRIES, CONTINENT_NAMES,
         SATELLITE_TILES, OSM_TILES,
-        escapeHtml, stripBrackets, isRealPhoto, commonsPhotoUrl, displayName, plural, formatPoints,
+        escapeHtml, stripBrackets, isRealPhoto, commonsPhotoUrl, commonsFileUrl, displayName, plural, formatPoints,
         getDayKey, shiftDayKey, formatDayKey, createSeededRandom, pickRandom, shuffle,
+        ELEMENT_FAMILIES, elementFamily, periodicPosition,
         getWordStems, censorName, censorCountry, isKnownCountry, processWikiText, normalizeAnswer, levenshtein, isAnswerMatch,
         inCollection, filterItems, pickItem, sortItems, getCountryNames, getContinent, getCountryAliases,
         buildItemChoices, buildCountryChoices, findAnswerItem, findAnswerCountry, updateMistakes, nameAnswers, countryAnswers,

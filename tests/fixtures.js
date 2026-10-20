@@ -105,6 +105,24 @@ const biologie = {
     ]
 };
 
+const element = (q, n, z, sym, extra = {}) => ({ q, t: n, n, c: 'prvky', k: 1, d: 'chemický prvek', im: `${n}.jpg`, ih: 'aa', f: { z, sym, fam: 'test' }, ...extra });
+const substance = (q, n, formula, extra = {}) => ({ q, t: n, n, c: 'latky', k: 1, d: 'chemická sloučenina', sv: `${n} struktura.svg`, sh: 'bb', f: { formula, plain: formula.replace(/[₀-₉]/g, d => '₀₁₂₃₄₅₆₇₈₉'.indexOf(d)) }, ...extra });
+const chemist = (q, n, born, died, extra = {}) => ({ q, t: n, n, c: 'chemici', k: 1, ty: 'chemik', d: 'chemik', im: `${n}.jpg`, ih: 'cc', f: { born, died, y: born + 35 }, ...extra });
+const chemie = {
+    generated: '2026-10-20',
+    collections: [{ id: 'alkalicke-kovy', label: 'Alkalické kovy', sort: { by: 'z' } }],
+    items: [
+        element('Q556', 'Vodík', 1, 'H'), element('Q560', 'Helium', 2, 'He'), element('Q568', 'Lithium', 3, 'Li', { g: ['alkalicke-kovy'] }),
+        element('Q629', 'Kyslík', 8, 'O'), element('Q658', 'Sodík', 11, 'Na', { g: ['alkalicke-kovy'] }), element('Q677', 'Železo', 26, 'Fe'),
+        element('Q650', 'Fluor', 9, 'F'), element('Q671', 'Francium', 87, 'Fr', { g: ['alkalicke-kovy'] }),
+        substance('Q283', 'Voda', 'H₂O'), substance('Q1997', 'Oxid uhličitý', 'CO₂'), substance('Q37129', 'Methan', 'CH₄'),
+        substance('Q4087', 'Amoniak', 'NH₃'), substance('Q2314', 'Chlorid sodný', 'NaCl'),
+        chemist('Q7186', 'Marie Curie-Skłodowská', 1867, 1934, { f: { born: 1867, died: 1934, y: 1902, nobel: 1 } }),
+        chemist('Q9106', 'Dmitrij Ivanovič Mendělejev', 1834, 1907), chemist('Q156814', 'Jaroslav Heyrovský', 1890, 1967, { cz: 1 }),
+        chemist('Q7224', 'Antoine Lavoisier', 1743, 1794)
+    ]
+};
+
 // Úvody článků z Wikipedie; ostatní položky dostanou obecný text
 const EXTRACTS = {
     'Lev': 'Lev pustinný (Panthera leo) je velká kočkovitá šelma žijící v Africe. Lvi žijí ve smečkách a loví hlavně velké kopytníky. ' +
@@ -126,7 +144,8 @@ module.exports = {
         '/data/countries.json': { generated: '2026-10-19', countries },
         '/data/zemepis.json': zemepis,
         '/data/historie.json': historie,
-        '/data/biologie.json': biologie
+        '/data/biologie.json': biologie,
+        '/data/chemie.json': chemie
     },
     extractFor
 };

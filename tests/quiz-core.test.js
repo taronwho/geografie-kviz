@@ -381,6 +381,9 @@ test('odkaz na náhled fotky z Wikimedia Commons', () => {
     assert.equal(core.commonsPhotoUrl('Charles Bridge, Prague.jpg', hash),
         `https://upload.wikimedia.org/wikipedia/commons/thumb/${hash[0]}/${hash}/Charles_Bridge%2C_Prague.jpg/960px-Charles_Bridge%2C_Prague.jpg`);
     assert.equal(core.commonsPhotoUrl('Karlův most.jpg', 'ab', 500), 'https://upload.wikimedia.org/wikipedia/commons/thumb/a/ab/Karl%C5%AFv_most.jpg/500px-Karl%C5%AFv_most.jpg');
+    // Kresba SVG má náhled PNG; původní soubor bez náhledu (malé obrázky Commons nezvětší)
+    assert.equal(core.commonsPhotoUrl('Mapa.svg', 'cd', 500), 'https://upload.wikimedia.org/wikipedia/commons/thumb/c/cd/Mapa.svg/500px-Mapa.svg.png');
+    assert.equal(core.commonsFileUrl('Malá mapa.png', 'cd'), 'https://upload.wikimedia.org/wikipedia/commons/c/cd/Mal%C3%A1_mapa.png');
 });
 
 test('století: kladná i před naším letopočtem, popisek', () => {

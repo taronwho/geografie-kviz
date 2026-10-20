@@ -277,3 +277,54 @@ test('biologie: okruhy a známé druhy ve skutečných datech', () => {
     // Stejné jméno u šelmy i houby: houba má upřesnění
     assert.ok(data.items.some(item => item.n === 'Liška obecná (houba)'));
 });
+
+// --- Chemie ---
+
+const chemie = TOPICS.find(topic => topic.id === 'chemie');
+
+test('chemie: periodická tabulka, značka prvku, vzorec a zakrytí v popisu', () => {
+    // Rozložení tabulky: každé políčko jednou, lanthanoidy a aktinoidy pod tabulkou
+    const cells = new Set();
+    for (let z = 1; z <= 118; z++) {
+        const position = core.periodicPosition(z);
+        assert.ok(position.col >= 1 && position.col <= 18, `sloupec prvku ${z}`);
+        cells.add(`${position.row}:${position.col}`);
+        assert.ok(core.elementFamily(z), `skupina prvku ${z}`);
+    }
+    assert.equal(cells.size, 118);
+    assert.deepEqual(core.periodicPosition(26), { period: 4, row: 4, col: 8 }, 'železo: 4. perioda, 8. skupina');
+    assert.equal(core.periodicPosition(57).row, 9);
+    assert.equal(core.elementFamily(11).label, 'alkalický kov');
+
+    const data = JSON.parse(fs.readFileSync(path.join(ROOT, 'data', 'chemie.json'), 'utf8'));
+    const ctx = { items: data.items };
+    const iron = data.items.find(item => item.n === 'Železo');
+    const water = data.items.find(item => item.n === 'Voda');
+    assert.ok(iron && iron.k === 1 && iron.f.sym === 'Fe' && iron.f.z === 26);
+    assert.ok(water && water.k === 1 && water.f.formula === 'H₂O');
+    // Značka: matoucí možnosti začínají stejným písmenem
+    const symbol = chemie.specialQuestion(iron, ctx, () => 0.1);
+    assert.equal(symbol.type, 'symbol');
+    assert.ok(symbol.choices.every(choice => choice.label.startsWith('F')), symbol.choices.map(c => c.label).join(' '));
+    assert.deepEqual(symbol.accepted, ['Fe']);
+    assert.ok(!core.isAnswerMatch('F', symbol.accepted), 'u značky se překlep netoleruje');
+    // Vzorec: psaný s obyčejnými číslicemi platí, strukturní vzorec se u té otázky neukáže
+    const formula = chemie.specialQuestion(water, ctx, () => 0.1);
+    assert.equal(formula.type, 'formula');
+    assert.ok(core.isAnswerMatch('H2O', formula.accepted));
+    assert.equal(chemie.visual(water, ctx, 'formula'), null);
+    assert.ok(!chemie.facts(water, ctx, 'formula').some(fact => fact.label === 'Vzorec'));
+    assert.deepEqual(chemie.visual(iron, ctx, 'name'), { type: 'periodic', z: 26 });
+    // Popis: značka ani vzorec nezůstanou, ale česká slova „na“ a „o“ ano
+    const ironText = chemie.censor('name', 'Železo (Fe) je kov. Rez je Fe₂O₃, na vzduchu reaguje s kyslíkem O₂ a mluví se o něm často.', iron, ctx);
+    assert.doesNotMatch(ironText, /Želez|Fe/);
+    assert.match(ironText, / na vzduchu .* o něm/);
+    assert.doesNotMatch(chemie.censor('formula', 'Voda (H₂O) je sloučenina, vzorec H2O.', water, ctx), /H₂O|H2O/);
+    assert.match(chemie.censor('symbol', 'Železo je kov se značkou Fe.', iron, ctx), /Železo je kov se značkou \[\*\*\*\]/);
+    // Okruhy
+    const inCollection = (id) => core.filterItems(data.items, { collection: id }).map(item => item.n);
+    assert.ok(inCollection('alkalicke-kovy').includes('Sodík') && !inCollection('alkalicke-kovy').includes('Vodík'));
+    assert.ok(inCollection('kyseliny').includes('Kyselina sírová'));
+    assert.ok(inCollection('nobelova-cena-chemie').includes('Marie Curie-Skłodowská'));
+    assert.ok(!data.items.some(item => ['Leonardo da Vinci', 'Margaret Thatcherová'].includes(item.n)), 'jen skuteční chemici');
+});

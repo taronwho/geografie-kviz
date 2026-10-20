@@ -446,10 +446,9 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         assert.match(await tab.textContent('#settings-note'), /od další otázky/);
         assert.equal(await tab.getAttribute('#settings-overlay [data-tier="known"]', 'aria-pressed'), 'true');
         await tab.click('#settings-overlay [data-tier="all"]');
-        assert.deepEqual(await readStorage(tab, 'mudrlant.settings'), { tier: 'all', topics: ['zemepis', 'historie', 'biologie'] });
+        assert.deepEqual(await readStorage(tab, 'mudrlant.settings'), { tier: 'all', topics: ['zemepis', 'historie', 'biologie', 'chemie'] });
         // Témata v tréninku: jedno vypnout jde, poslední ne
-        await tab.click('#settings-overlay [data-topic-toggle="historie"]');
-        await tab.click('#settings-overlay [data-topic-toggle="biologie"]');
+        for (const topicId of ['historie', 'biologie', 'chemie']) await tab.click(`#settings-overlay [data-topic-toggle="${topicId}"]`);
         assert.deepEqual((await readStorage(tab, 'mudrlant.settings')).topics, ['zemepis']);
         await tab.click('#settings-overlay [data-topic-toggle="zemepis"]');
         assert.match(await tab.textContent('#settings-note'), /Aspoň jedno téma/);
@@ -603,6 +602,68 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         await second.context.close();
     });
 
+    await t.test('chemie: značka prvku, slepá periodická tabulka, vzorec látky', async () => {
+        const { context, tab, log } = await setup(browser, { variant: 'typed', fixedRandom: true });
+        await tab.goto(`${ORIGIN}/`);
+        await waitForHome(tab);
+
+        // Jakou značku má tento prvek? Psaná značka platí jen přesně
+        await practiceCollection(tab, 'chemie', 'alkalicke-kovy');
+        const symbol = await readRound(tab);
+        assert.equal(symbol.name, 'Lithium');
+        assert.equal(symbol.question.type, 'symbol');
+        assert.equal(await tab.textContent('h2'), 'Jakou značku má tento prvek?');
+        assert.match(await appText(tab), /Název: Lithium/);
+        await tab.fill('#answer-input', 'li');
+        await tab.press('#answer-input', 'Enter');
+        await waitForResult(tab);
+        assert.match(await appText(tab), /Správně!/);
+        assert.match(await appText(tab), /Značka\s*Li/);
+        assert.match(await appText(tab), /Protonové číslo\s*3/);
+        await context.close();
+
+        // Který prvek to je? Nápověda periodická tabulka: 118 políček bez značek, hledané zvýrazněné
+        const second = await setup(browser, { fixedRandom: 0.5 });
+        await second.tab.goto(`${ORIGIN}/`);
+        await waitForHome(second.tab);
+        await practiceCollection(second.tab, 'chemie', 'alkalicke-kovy');
+        const element = await readRound(second.tab);
+        assert.equal(element.question.type, 'name');
+        assert.equal(await second.tab.textContent('h2'), 'Který prvek to je?');
+        assert.deepEqual(element.hints, ['photo', 'visual', 'facts']);
+        await second.tab.click('[data-action="hint"]');
+        assert.match(await second.tab.textContent('[data-action="hint"]'), /periodická tabulka/);
+        await second.tab.click('[data-action="hint"]');
+        await second.tab.waitForSelector('#hint-visual svg rect');
+        assert.equal(await second.tab.locator('#hint-visual svg rect').count(), 118);
+        assert.equal(await second.tab.locator('#hint-visual svg rect.fill-rose-500').count(), 1);
+        assert.equal(await second.tab.locator('#hint-visual svg text').count(), 0, 'značky prvků na tabulce nejsou');
+        await second.tab.click(`[data-action="choice"]:has-text("${element.question.answerLabel}")`);
+        await waitForResult(second.tab);
+        assert.match(await appText(second.tab), /Správně!/);
+        await second.context.close();
+
+        // Jaký vzorec má tato látka? Psaný vzorec s obyčejnými číslicemi platí
+        const third = await setup(browser, { variant: 'typed', fixedRandom: true });
+        await third.tab.goto(`${ORIGIN}/`);
+        await waitForHome(third.tab);
+        await practiceCollection(third.tab, 'chemie', 'c:latky');
+        const formula = await readRound(third.tab);
+        assert.equal(formula.question.type, 'formula');
+        assert.equal(await third.tab.textContent('h2'), 'Jaký vzorec má tato látka?');
+        assert.ok(!formula.facts.some(fact => fact.label === 'Vzorec'));
+        assert.ok(!formula.hints.includes('visual'), 'strukturní vzorec by prozradil odpověď');
+        await third.tab.fill('#answer-input', formula.question.accepted[1]);
+        await third.tab.press('#answer-input', 'Enter');
+        await waitForResult(third.tab);
+        assert.match(await appText(third.tab), /Správně!/);
+        for (const run of [log, second.log, third.log]) {
+            assert.deepEqual(run.errors, []);
+            assert.deepEqual(run.csp, []);
+        }
+        await third.context.close();
+    });
+
     await t.test('první spuštění: výběr varianty hry, pak dnešní otázky', async () => {
         const { context, tab, log } = await setup(browser, { variant: null });
         await tab.goto(`${ORIGIN}/`);
@@ -714,8 +775,10 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         await waitForQuestion(tab);
         const data = await readRound(tab);
         for (let i = 0; i < data.hints.indexOf('visual') + 1; i++) await tab.click('[data-action="hint"]');
-        if (data.hints.includes('visual')) await tab.waitForSelector('#hint-visual svg > *');
-        assert.deepEqual(await tab.evaluate(() => Promise.all(['data/zemepis.json', 'data/historie.json', 'data/world.json'].map(file => fetch(file).then(response => response.status)))), [200, 200, 200]);
+        // Mapa, osa i tabulka se vykreslí i bez sítě; obrázek z Commons ukáže zprávu, že se nenačetl
+        if (data.hints.includes('visual')) await tab.waitForSelector('#hint-visual svg > *, #hint-visual div[class*="bg-contain"], #hint-visual p');
+        const files = ['data/zemepis.json', 'data/historie.json', 'data/biologie.json', 'data/chemie.json', 'data/world.json'];
+        assert.deepEqual(await tab.evaluate(list => Promise.all(list.map(file => fetch(file).then(response => response.status))), files), files.map(() => 200));
         assert.deepEqual(log.errors, []);
         await context.close();
     });
