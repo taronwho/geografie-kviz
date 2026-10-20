@@ -293,14 +293,15 @@
         return country ? country.continent : '';
     };
 
-    const pickDistinct = (names, count, taken, rng) => {
+    // Až count položek s různými názvy (bez diakritiky), které ještě nejsou mezi taken
+    const pickDistinct = (items, count, taken, rng, nameOf = (item) => item) => {
         const picked = [];
-        for (const name of shuffle(names, rng)) {
+        for (const item of shuffle(items, rng)) {
             if (picked.length >= count) break;
-            const key = normalizeAnswer(name);
+            const key = normalizeAnswer(nameOf(item));
             if (!key || taken.has(key)) continue;
             taken.add(key);
-            picked.push(name);
+            picked.push(item);
         }
         return picked;
     };
@@ -319,8 +320,11 @@
             [sameTier, sameContinent], [sameTier], []
         ].map(conditions => sameCategory.filter(other => conditions.every(condition => condition(other))));
         const distractors = [];
-        for (const source of sources) distractors.push(...pickDistinct(source.map(other => other.n), 3 - distractors.length, taken, rng));
-        return shuffle([{ label: place.n, correct: true }, ...distractors.map(label => ({ label, correct: false }))], rng);
+        for (const source of sources) distractors.push(...pickDistinct(source, 3 - distractors.length, taken, rng, other => other.n));
+        return shuffle([
+            { id: place.q, label: place.n, correct: true },
+            ...distractors.map(other => ({ id: other.q, label: other.n, correct: false }))
+        ], rng);
     };
 
     // Nesprávné možnosti státu: jiné státy ze stejného kontinentu
@@ -328,9 +332,32 @@
         const correct = countries[countryId];
         const others = Object.entries(countries).filter(([id]) => id !== countryId);
         const taken = new Set([normalizeAnswer(correct.name)]);
-        const distractors = pickDistinct(others.filter(([, c]) => c.continent === correct.continent).map(([, c]) => c.name), 3, taken, rng);
-        distractors.push(...pickDistinct(others.map(([, c]) => c.name), 3 - distractors.length, taken, rng));
-        return shuffle([{ label: correct.name, correct: true }, ...distractors.map(label => ({ label, correct: false }))], rng);
+        const nameOf = ([, country]) => country.name;
+        const distractors = pickDistinct(others.filter(([, c]) => c.continent === correct.continent), 3, taken, rng, nameOf);
+        distractors.push(...pickDistinct(others, 3 - distractors.length, taken, rng, nameOf));
+        return shuffle([
+            { id: countryId, label: correct.name, correct: true },
+            ...distractors.map(([id, country]) => ({ id, label: country.name, correct: false }))
+        ], rng);
+    };
+
+    // Které jiné místo (u otázky na stát který jiný stát) hráč napsal – ať se o něm může hned dočíst
+    const findAnswerPlace = (answer, round, dataset) => {
+        if (round.quizType === 'location') {
+            const match = Object.entries(dataset.countries)
+                .find(([id, country]) => !(round.countryIds || []).includes(id) && isAnswerMatch(answer, [country.name, ...getCountryAliases([id])]));
+            return match ? match[0] : null;
+        }
+        const others = dataset.places.filter(place => place.q !== round.id);
+        const match = others.filter(place => place.c === round.category).find(place => isAnswerMatch(answer, [place.n]))
+            || others.find(place => isAnswerMatch(answer, [place.n]));
+        return match ? match.q : null;
+    };
+
+    // Místa k zopakování: chyba místo přidá na začátek seznamu, správná odpověď ho odebere
+    const updateMistakes = (mistakes, id, correct, max = 200) => {
+        const rest = mistakes.filter(other => other !== id);
+        return correct ? rest : [id, ...rest].slice(0, max);
     };
 
     // Na stát se ptáme jen u míst v jednom známém státě, ne u států a ne když stát prozradí už název (Česká Lípa)
@@ -369,7 +396,7 @@
         ['elev', 'Nadmořská výška', value => `${formatNumber(value)} m`],
         ['len', 'Délka', value => `${formatNumber(value)} km`],
         ['h', 'Výška', value => `${formatNumber(value)} m`],
-        ['year', 'Vznik', value => value < 0 ? `${-value} př. n. l.` : String(value)],
+        ['year', 'Vznik', value => value < 0 ? `${-value} př. n. l.` : value < 1000 ? `${value} n. l.` : String(value)],
         ['mouth', 'Ústí do', value => value]
     ];
     const buildFacts = (place, countries, quizType) => {
@@ -483,7 +510,7 @@
         escapeHtml, stripBrackets, isRealPhoto, commonsPhotoUrl, displayName, plural, formatPoints,
         getDayKey, shiftDayKey, formatDayKey, createSeededRandom, pickRandom, shuffle, getCategory,
         getWordStems, censorName, censorCountry, isKnownCountry, processWikiText, normalizeAnswer, levenshtein, isAnswerMatch,
-        filterPlaces, pickPlace, getCountryNames, getContinent, buildPlaceChoices, buildCountryChoices, canAskForCountry,
+        filterPlaces, pickPlace, getCountryNames, getContinent, buildPlaceChoices, buildCountryChoices, findAnswerPlace, updateMistakes, canAskForCountry,
         getCountryAliases, getAcceptedAnswers, getHintSteps, pointsFor, buildFacts, getMapSpan, buildBlindMap,
         computeStreak, buildShareText, getTileLayout
     };

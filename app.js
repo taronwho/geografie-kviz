@@ -6,7 +6,7 @@
         CATEGORIES, CONTINENT_NAMES, CZECHIA_QID, SATELLITE_TILES, OSM_TILES,
         escapeHtml, isRealPhoto, commonsPhotoUrl, displayName, formatPoints, getDayKey, formatDayKey, createSeededRandom,
         getCategory, censorName, censorCountry, processWikiText, isAnswerMatch,
-        filterPlaces, pickPlace, getCountryNames, getContinent, buildPlaceChoices, buildCountryChoices, canAskForCountry,
+        filterPlaces, pickPlace, getCountryNames, getContinent, buildPlaceChoices, buildCountryChoices, findAnswerPlace, updateMistakes, canAskForCountry,
         getCountryAliases, getAcceptedAnswers, getHintSteps, pointsFor, buildFacts, getMapSpan, buildBlindMap,
         computeStreak, buildShareText, getTileLayout
     } = window.GeoQuizCore;
@@ -17,6 +17,7 @@
     const VARIANT_STORAGE_KEY = 'geoQuizVariant';
     const FILTERS_STORAGE_KEY = 'geoQuizFilters';
     const HISTORY_STORAGE_KEY = 'geoQuizHistory';
+    const MISTAKES_STORAGE_KEY = 'geoQuizMistakes';
     const STATE_VERSION = 7;
     const SESSION_MAX_AGE = 2 * 60 * 60 * 1000;
     const HISTORY_SIZE = 150;
@@ -41,6 +42,12 @@
     let gameVariant = null;
     // Co hrát v tréninku: kategorie a jestli jen známá místa ('known'), nebo i méně známá ('all')
     let filters = null;
+    // Obrazovka: 'round' (otázka nebo výsledek) nebo 'learn' (učení: atlas míst a chyby k zopakování)
+    let screen = 'round';
+    // Trénink jen z míst, která hráč dřív neuhodl
+    let practiceFromMistakes = false;
+    // Atlas v učení: prohlédnutá místa (kvůli tlačítku Předchozí) a otevřená záložka
+    const learn = { tab: 'atlas', history: [], index: -1 };
 
     class NetworkError extends Error {}
 
@@ -55,6 +62,12 @@
     };
     const writeJson = (key, value) => {
         try { localStorage.setItem(key, JSON.stringify(value)); } catch (e) {}
+    };
+
+    // Místa k zopakování (Wikidata ID), nejnovější chyba první
+    const loadMistakes = () => {
+        const saved = readJson(MISTAKES_STORAGE_KEY);
+        return Array.isArray(saved) ? saved.filter(id => typeof id === 'string') : [];
     };
 
     const loadStats = () => {
@@ -146,15 +159,28 @@
             return promise;
         };
     };
-    const loadDataset = memoize(() => fetchJson('data/places.json'));
+    // Načtená sada je k dispozici i synchronně (vyhledání napsané odpovědi mezi místy)
+    let loadedDataset = null;
+    const loadDataset = memoize(() => fetchJson('data/places.json').then(dataset => {
+        loadedDataset = dataset;
+        return dataset;
+    }));
+    const findPlace = (dataset, id) => dataset.places.find(place => place.q === id);
     const loadWorld = memoize(() => fetchJson('data/world.json'));
 
-    // Úvod článku z české Wikipedie; bez spojení aspoň krátký popis z Wikidat, ať jde hrát dál
+    // Úvod článku z české Wikipedie; bez spojení aspoň krátký popis z Wikidat, ať jde hrát dál.
+    // Úspěšně stažené úvody si pamatujeme, ať se atlas a okno s popisem neptají Wikipedie znovu.
+    const placeTexts = new Map();
     const fetchPlaceText = async (place) => {
+        if (placeTexts.has(place.q)) return placeTexts.get(place.q);
         try {
             const data = await fetchJson(`${WIKI_API}&action=query&prop=extracts&exintro=1&explaintext=1&exchars=1200&redirects=1&titles=${encodeURIComponent(place.t)}`, 2);
             const page = Object.values((data.query && data.query.pages) || {})[0];
-            if (page && page.extract && page.extract.length > 40) return processWikiText(page.extract);
+            if (page && page.extract && page.extract.length > 40) {
+                const text = processWikiText(page.extract);
+                placeTexts.set(place.q, text);
+                return text;
+            }
         } catch (e) {
             console.error(e);
         }
@@ -272,7 +298,7 @@
                 </button>`;
         }).join('');
         return `
-            <h3 class="${SETTINGS_HEADING} mb-1 mt-6">Co hádat v tréninku</h3>
+            <h3 class="${SETTINGS_HEADING} mb-1 mt-6">Co hádat v tréninku a prohlížet v atlasu</h3>
             <p class="mb-3 text-sm text-slate-500 dark:text-slate-400">Dnešní místo je pro všechny stejné – vždy známé místo z kterékoli kategorie.</p>
             <div class="mb-3 grid grid-cols-2 gap-2" role="group" aria-label="Známost míst">${tierButtons}</div>
             <div class="flex flex-wrap gap-2" role="group" aria-label="Kategorie míst">${categoryButtons}</div>`;
@@ -335,7 +361,8 @@
             if (variant === 'choices') {
                 // Na možnosti jde přepnout hned – je to snazší varianta
                 round.variant = 'choices';
-                renderPlace({ keepScroll: true });
+                if (screen === 'round') renderPlace({ keepScroll: true });
+                else persistState();
                 note = 'Uloženo, platí hned pro tuto otázku.';
             } else {
                 // Na psaní (dvojnásobek bodů) až od další otázky – možnosti už tady byly vidět
@@ -348,7 +375,7 @@
     const changeFilters = (change, focusSelector) => {
         filters = { ...filters, ...change };
         writeJson(FILTERS_STORAGE_KEY, filters);
-        openSettings('Uloženo, platí od dalšího místa v tréninku.', focusSelector);
+        openSettings('Uloženo, platí od dalšího místa v tréninku i v atlasu.', focusSelector);
     };
 
     const toggleCategory = (key) => {
@@ -363,33 +390,50 @@
 
     // --- Hlavička ---
 
-    const BUTTON_ACTIVE_DAILY = 'p-2.5 rounded-2xl transition-all bg-emerald-600 text-white shadow-md active:scale-95 border border-emerald-500';
-    const BUTTON_ACTIVE_RANDOM = 'p-2.5 rounded-2xl transition-all bg-sky-600 text-white shadow-md active:scale-95 border border-sky-500';
-    const BUTTON_INACTIVE = 'p-2.5 rounded-2xl transition-all bg-white/90 text-slate-600 hover:text-emerald-600 shadow-md active:scale-95 border border-slate-200/60 dark:bg-slate-800/90 dark:text-slate-300 dark:border-slate-700 dark:hover:text-emerald-400';
+    const BUTTON_ACTIVE_DAILY = 'p-2 rounded-2xl transition-all bg-emerald-600 text-white shadow-md active:scale-95 border border-emerald-500';
+    const BUTTON_ACTIVE_RANDOM = 'p-2 rounded-2xl transition-all bg-sky-600 text-white shadow-md active:scale-95 border border-sky-500';
+    const BUTTON_ACTIVE_LEARN = 'p-2 rounded-2xl transition-all bg-violet-600 text-white shadow-md active:scale-95 border border-violet-500';
+    const BUTTON_INACTIVE = 'p-2 rounded-2xl transition-all bg-white/90 text-slate-600 hover:text-emerald-600 shadow-md active:scale-95 border border-slate-200/60 dark:bg-slate-800/90 dark:text-slate-300 dark:border-slate-700 dark:hover:text-emerald-400';
 
     const updateControlsUI = () => {
         const btnDaily = document.getElementById('btn-daily');
         const btnRandom = document.getElementById('btn-random');
+        const btnLearn = document.getElementById('btn-learn');
         const randomIcon = document.getElementById('random-icon');
+        const isLearning = screen === 'learn';
+        const isDaily = !isLearning && isDailyMode;
+        const isPractice = !isLearning && !isDailyMode;
 
-        btnDaily.className = isDailyMode ? BUTTON_ACTIVE_DAILY : BUTTON_INACTIVE;
-        btnRandom.className = isDailyMode ? BUTTON_INACTIVE : BUTTON_ACTIVE_RANDOM;
-        btnDaily.setAttribute('aria-pressed', String(isDailyMode));
-        btnRandom.setAttribute('aria-pressed', String(!isDailyMode));
+        btnDaily.className = isDaily ? BUTTON_ACTIVE_DAILY : BUTTON_INACTIVE;
+        btnRandom.className = isPractice ? BUTTON_ACTIVE_RANDOM : BUTTON_INACTIVE;
+        btnLearn.className = isLearning ? BUTTON_ACTIVE_LEARN : BUTTON_INACTIVE;
+        btnDaily.setAttribute('aria-pressed', String(isDaily));
+        btnRandom.setAttribute('aria-pressed', String(isPractice));
+        btnLearn.setAttribute('aria-pressed', String(isLearning));
 
-        [btnDaily, btnRandom].forEach(button => {
+        [btnDaily, btnRandom, btnLearn].forEach(button => {
             button.disabled = isLoading;
             button.classList.toggle('opacity-50', isLoading);
         });
         if (randomIcon) randomIcon.classList.toggle('spin', isLoading && !isDailyMode);
 
-        // Štítek vlevo nahoře ukazuje režim: dnešní místo s datem, nebo trénink s body
+        // Štítek vlevo nahoře ukazuje režim: dnešní místo s datem, trénink s body, opakování chyb nebo učení
+        let icon = 'shuffle';
+        let status = `Trénink · ${formatPoints(loadStats().practice.points)}`;
+        if (isLearning) {
+            icon = 'graduation-cap';
+            status = 'Učení';
+        } else if (isDailyMode) {
+            icon = 'calendar-days';
+            status = `Dnešní místo · ${formatDayKey((currentPlace && currentPlace.dailyDate) || getDayKey()).replace(/ \d{4}$/, '')}`;
+        } else if (practiceFromMistakes) {
+            icon = 'repeat';
+            status = `Opakování chyb · ${loadMistakes().length}`;
+        }
         const iconSlot = document.getElementById('status-icon-slot');
-        iconSlot.innerHTML = `<i data-lucide="${isDailyMode ? 'calendar-days' : 'shuffle'}" class="w-5 h-5 text-emerald-600 dark:text-emerald-400"></i>`;
+        iconSlot.innerHTML = `<i data-lucide="${icon}" class="w-5 h-5 text-emerald-600 dark:text-emerald-400"></i>`;
         renderIcons(iconSlot);
-        document.getElementById('status-text').textContent = isDailyMode
-            ? `Dnešní místo · ${formatDayKey((currentPlace && currentPlace.dailyDate) || getDayKey()).replace(/ \d{4}$/, '')}`
-            : `Trénink · ${formatPoints(loadStats().practice.points)}`;
+        document.getElementById('status-text').textContent = status;
     };
 
     const renderLoading = () => {
@@ -618,6 +662,115 @@
         else if (!keepScroll) appContent.scrollTo(0, 0);
     };
 
+    // --- Karta místa: okno s popisem (po odpovědi) a atlas v učení ---
+
+    // Kde místo leží: státy, u států a míst mimo státy kontinent
+    const getPlaceLocation = (place, countries) => {
+        const countryNames = getCountryNames(place, countries);
+        if (place.c !== 'stat' && countryNames.length) return countryNames.join(', ');
+        const continent = getContinent(place, countries);
+        if (continent) return CONTINENT_NAMES[continent];
+        return place.c === 'jezero' ? 'Mezinárodní vody' : 'Mimo území států';
+    };
+
+    const getPlaceMapView = (place, dataset) => ({
+        lat: place.la,
+        lon: place.lo,
+        mapSpan: getMapSpan(place, 'name'),
+        highlightIso: place.c === 'stat' && dataset.countries[place.q] ? dataset.countries[place.q].iso : ''
+    });
+
+    // Stát a kontinent ukazuje karta pod názvem, ve faktech by se opakovaly
+    const LOCATION_FACTS = new Set(['Stát', 'Státy', 'Kontinent']);
+
+    const renderPlaceCard = (place, dataset, { titleId, compact }) => {
+        const category = getCategory(place.c);
+        const hasPhoto = isRealPhoto(place.im) && place.ih;
+        const facts = buildFacts(place, dataset.countries, 'name').filter(fact => !LOCATION_FACTS.has(fact.label));
+        const view = getPlaceMapView(place, dataset);
+        return `
+            ${hasPhoto ? `
+                <div data-card-photo class="relative ${compact ? 'h-44' : 'h-56'} shrink-0 overflow-hidden bg-slate-200 dark:bg-slate-800">
+                    <div data-photo class="absolute inset-0 bg-cover bg-center" aria-hidden="true"></div>
+                </div>
+            ` : ''}
+            <div class="flex flex-col gap-4 p-5">
+                <div class="${compact ? 'pr-10' : ''}">
+                    <div class="mb-2 flex flex-wrap items-center gap-2">
+                        <span class="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-2.5 py-1 text-[10px] font-black uppercase tracking-widest text-white">
+                            <i data-lucide="${category.icon}" class="h-3.5 w-3.5"></i> ${escapeHtml(place.ty || category.one)}
+                        </span>
+                        <span class="rounded-lg bg-slate-100 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:bg-slate-700 dark:text-slate-300">${place.k ? 'Známé místo' : 'Méně známé místo'}</span>
+                    </div>
+                    <h2 id="${titleId}" class="text-2xl font-black leading-tight text-slate-800 dark:text-slate-50">${escapeHtml(place.n)}</h2>
+                    <p class="mt-1 flex items-center gap-1.5 text-sm font-semibold text-slate-500 dark:text-slate-400">
+                        <i data-lucide="navigation" class="h-4 w-4 shrink-0 text-emerald-500"></i> ${escapeHtml(getPlaceLocation(place, dataset.countries))}
+                    </p>
+                </div>
+                <p data-card-text class="text-[15px] leading-relaxed text-slate-400">Načítám popis…</p>
+                <div data-card-map class="relative ${compact ? 'h-40' : 'h-52'} shrink-0 overflow-hidden rounded-2xl border border-sky-200 bg-sky-200 dark:border-slate-700 dark:bg-sky-950" role="img" aria-label="Mapa bez popisků, místo je uprostřed">
+                    <span class="absolute bottom-2 right-2 rounded-lg bg-black/45 px-2 py-0.5 text-[11px] font-bold text-white">↔ ${formatDistance(getMapWidthKm(view))}</span>
+                </div>
+                ${facts.length ? renderFactsList(facts) : ''}
+                <a href="${wikipediaUrl(place.t)}" target="_blank" rel="noopener noreferrer" class="flex items-center justify-center gap-2 rounded-xl bg-slate-100 py-3 text-sm font-bold text-slate-700 transition-colors hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-100 dark:hover:bg-slate-600">
+                    <i data-lucide="book-open" class="h-4 w-4"></i> Více na Wikipedii
+                </a>
+            </div>`;
+    };
+
+    // Fotka, mapa a popis se do karty doplní, až se načtou; fotka, která se nenačte, z karty zmizí
+    const hydratePlaceCard = async (root, place, dataset, photoWidth) => {
+        const photo = root.querySelector('[data-photo]');
+        if (photo) {
+            loadImage(commonsPhotoUrl(place.im, place.ih, photoWidth))
+                .then(url => { if (photo.isConnected) photo.style.backgroundImage = cssUrl(url); })
+                .catch(() => { const box = root.querySelector('[data-card-photo]'); if (box) box.remove(); });
+        }
+        renderBlindMap(root.querySelector('[data-card-map]'), getPlaceMapView(place, dataset));
+        const text = await fetchPlaceText(place);
+        const target = root.querySelector('[data-card-text]');
+        if (!target || !target.isConnected) return;
+        target.textContent = text.description || 'Popis se teď nepodařilo načíst – víc najdeš na Wikipedii.';
+        target.classList.replace('text-slate-400', 'text-slate-700');
+        target.classList.add('dark:text-slate-200');
+    };
+
+    const closePlaceInfo = () => {
+        const overlay = document.getElementById('place-info');
+        if (overlay) overlay.remove();
+    };
+
+    // Malé okno s popisem místa (nebo státu) – po odpovědi se tak hráč dozví, co bylo ve špatné odpovědi
+    const openPlaceInfo = async (id) => {
+        const dataset = await loadDataset().catch(() => null);
+        const place = dataset && findPlace(dataset, id);
+        if (!place) {
+            showToast('O tomto místě teď nic nevím');
+            return;
+        }
+        closePlaceInfo();
+        const overlay = document.createElement('div');
+        overlay.id = 'place-info';
+        overlay.setAttribute('role', 'dialog');
+        overlay.setAttribute('aria-modal', 'true');
+        overlay.setAttribute('aria-labelledby', 'place-info-title');
+        overlay.className = 'fixed inset-0 z-50 flex items-end justify-center bg-slate-900/60 p-4 backdrop-blur-sm sm:items-center';
+        overlay.innerHTML = `
+            <div class="fade-in relative max-h-[88dvh] w-full max-w-md overflow-y-auto rounded-[1.75rem] bg-white shadow-2xl dark:bg-slate-900">
+                <button type="button" data-close aria-label="Zavřít" class="absolute right-3 top-3 z-10 rounded-full bg-slate-900/60 p-2 text-white backdrop-blur-sm hover:bg-slate-900/80">
+                    <i data-lucide="x" class="h-5 w-5"></i>
+                </button>
+                ${renderPlaceCard(place, dataset, { titleId: 'place-info-title', compact: true })}
+            </div>`;
+        overlay.addEventListener('click', (event) => {
+            if (event.target === overlay || event.target.closest('[data-close]')) closePlaceInfo();
+        });
+        document.body.appendChild(overlay);
+        renderIcons(overlay);
+        overlay.querySelector('[data-close]').focus();
+        hydratePlaceCard(overlay, place, dataset, 500);
+    };
+
     // --- Výsledek ---
 
     const renderTiles = (container, lat, lon, zoom, template) => {
@@ -636,6 +789,13 @@
     };
 
     const getCorrectAnswer = (data) => data.quizType === 'name' ? data.name : data.countryNames[0];
+
+    // Při opakování chyb ukáže, kolik jich ještě zbývá
+    const getNextLabel = () => {
+        if (isDailyMode || !practiceFromMistakes) return 'Další místo';
+        const remaining = loadMistakes().length;
+        return remaining ? `Další chyba (zbývá ${remaining})` : 'Hotovo – další místo';
+    };
 
     // Kde místo leží: státy, u států a míst mimo státy kontinent
     const getLocationLabel = (data) => {
@@ -662,8 +822,31 @@
                 <div>
                     <p class="font-black text-rose-800 dark:text-rose-200">${round.gaveUp ? 'Tentokrát bez odpovědi' : 'Bohužel, to není ono'}</p>
                     <p class="text-sm text-rose-700/80 dark:text-rose-300/80">${round.answer ? `Tvoje odpověď: ${escapeHtml(round.answer)} · ` : ''}Správně: ${escapeHtml(getCorrectAnswer(data))}</p>
+                    ${round.answerId ? `
+                        <button type="button" data-action="place-info" data-place="${escapeHtml(round.answerId)}" class="mt-2 inline-flex items-center gap-1.5 rounded-lg bg-white px-2.5 py-1.5 text-xs font-bold text-rose-700 shadow-sm transition-colors hover:bg-rose-100 dark:bg-rose-950 dark:text-rose-200 dark:hover:bg-rose-900">
+                            <i data-lucide="info" class="h-3.5 w-3.5"></i> Co je ${escapeHtml(round.answer)}?
+                        </button>
+                    ` : ''}
                 </div>
             </div>`;
+    };
+
+    // Nabízené možnosti z otázky: co jsou zač, ať se hráč učí i z těch, které nezvolil
+    const renderOtherChoices = (data) => {
+        if (round.variant !== 'choices') return '';
+        const others = (data.choices || []).filter(choice => !choice.correct && choice.id && choice.id !== round.answerId
+            && (!loadedDataset || findPlace(loadedDataset, choice.id)));
+        if (!others.length) return '';
+        return `
+            <section class="${CARD} p-5">
+                <h3 class="${CARD_TITLE} mb-3"><i data-lucide="graduation-cap" class="w-4 h-4 text-emerald-500"></i> ${round.answerId ? 'A ostatní možnosti?' : 'Co byly ostatní možnosti?'}</h3>
+                <div class="flex flex-wrap gap-2">
+                    ${others.map(choice => `
+                        <button type="button" data-action="place-info" data-place="${escapeHtml(choice.id)}" class="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-bold text-slate-700 transition-colors hover:border-emerald-400 hover:bg-emerald-50 dark:border-slate-600 dark:bg-slate-700/60 dark:text-slate-100 dark:hover:border-emerald-500">
+                            <i data-lucide="info" class="h-4 w-4 text-emerald-600 dark:text-emerald-400"></i> ${escapeHtml(choice.label)}
+                        </button>`).join('')}
+                </div>
+            </section>`;
     };
 
     const renderStatsCard = (data) => {
@@ -775,6 +958,7 @@
 
                 <div class="p-6 flex flex-col gap-6 flex-grow bg-slate-50 dark:bg-slate-900 rounded-t-[2.5rem] -mt-6 z-10 relative">
                     ${renderResultBanner(data)}
+                    ${renderOtherChoices(data)}
                     ${renderStatsCard(data)}
                     ${renderMapCard()}
 
@@ -796,7 +980,7 @@
 
                     <div class="flex flex-col gap-3">
                         <button type="button" data-action="next" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-4 rounded-[1.2rem] font-bold text-lg shadow-xl shadow-emerald-600/20 active:scale-95 transition-all flex items-center justify-center gap-2">
-                            Další místo <i data-lucide="arrow-right" class="w-5 h-5"></i>
+                            ${escapeHtml(getNextLabel())} <i data-lucide="arrow-right" class="w-5 h-5"></i>
                         </button>
                         <a href="${wikipediaUrl(data.title)}" target="_blank" rel="noopener noreferrer" class="w-full bg-slate-800 active:bg-slate-700 hover:bg-slate-700 dark:bg-slate-700 dark:hover:bg-slate-600 text-white py-4 rounded-[1.2rem] text-center font-bold text-[16px] shadow-xl flex items-center justify-center gap-2 transition-colors">
                             <i data-lucide="book-open" class="w-5 h-5 text-slate-300"></i>
@@ -820,6 +1004,8 @@
 
     const renderPlace = ({ keepScroll = false } = {}) => {
         if (!currentPlace || !round) return;
+        screen = 'round';
+        closePlaceInfo();
         persistState();
         if (round.answered) renderResult();
         else renderQuestion(keepScroll);
@@ -847,12 +1033,17 @@
             stats.practice.points += round.points;
         }
         writeJson(STATS_STORAGE_KEY, stats);
+        // Neuhodnuté místo jde do seznamu chyb v učení, správně uhodnuté z něj zmizí
+        writeJson(MISTAKES_STORAGE_KEY, updateMistakes(loadMistakes(), currentPlace.id, round.correct));
     };
 
-    const submitAnswer = ({ correct, typed, answer, gaveUp = false }) => {
+    // answerId: místo (nebo stát) ze špatné odpovědi – výsledek k němu nabídne okno s popisem
+    const submitAnswer = ({ correct, typed, answer, answerId = null, gaveUp = false }) => {
         if (!round || round.answered) return;
         const points = correct ? pointsFor(round.hintLevel, getLevelCount(currentPlace), typed) : 0;
-        Object.assign(round, { answered: true, correct, typed, answer, gaveUp, points });
+        // Okno s popisem jen u míst, o kterých sada něco ví
+        const knownAnswer = answerId && !correct && (!loadedDataset || findPlace(loadedDataset, answerId)) ? answerId : null;
+        Object.assign(round, { answered: true, correct, typed, answer, answerId: knownAnswer, gaveUp, points });
         mapZoom = DEFAULT_MAP_ZOOM;
         recordResult();
         renderPlace();
@@ -908,6 +1099,7 @@
                 round = session.round;
                 isDailyMode = session.isDailyMode;
                 renderPlace();
+                loadDataset().catch(() => {});
                 return;
             }
         }
@@ -947,7 +1139,16 @@
                 place = pickPlace(dataset.places.filter(candidate => candidate.k === 1), rng);
             } else {
                 rng = Math.random;
-                const pool = filterPlaces(dataset.places, filters);
+                let pool = filterPlaces(dataset.places, filters);
+                if (practiceFromMistakes) {
+                    const mistakes = new Set(loadMistakes());
+                    const missed = dataset.places.filter(candidate => mistakes.has(candidate.q));
+                    if (missed.length) pool = missed;
+                    else {
+                        practiceFromMistakes = false;
+                        showToast('Všechny chyby máš zopakované');
+                    }
+                }
                 const history = readJson(HISTORY_STORAGE_KEY) || [];
                 place = pickPlace(pool.length ? pool : dataset.places, rng, history);
                 writeJson(HISTORY_STORAGE_KEY, [place.q, ...history.filter(id => id !== place.q)].slice(0, HISTORY_SIZE));
@@ -967,7 +1168,157 @@
 
     const loadDailyLocation = () => startRound(true);
     const loadRandomLocation = () => startRound(false);
-    const retryLoad = () => isDailyMode ? loadDailyLocation() : loadRandomLocation();
+    const retryLoad = () => {
+        if (screen === 'learn') openLearn();
+        else if (isDailyMode) loadDailyLocation();
+        else loadRandomLocation();
+    };
+
+    // Tlačítko tréninku: z učení se vrátí k rozehrané otázce, jinak nové místo podle nastavení
+    const showPractice = () => {
+        practiceFromMistakes = false;
+        if (screen === 'learn' && currentPlace && !currentPlace.dailyDate && round && !round.answered) {
+            renderPlace();
+            return;
+        }
+        loadRandomLocation();
+    };
+
+    const practiceMistakes = () => {
+        practiceFromMistakes = true;
+        loadRandomLocation();
+    };
+
+    // --- Učení: atlas míst bez bodů a seznam chyb k zopakování ---
+
+    const LEARN_TABS = { atlas: { title: 'Atlas míst', icon: 'map' }, mistakes: { title: 'Moje chyby', icon: 'repeat' } };
+
+    const describeFilters = () => {
+        const labels = filters.categories.map(key => getCategory(key).label);
+        const categories = labels.length === CATEGORIES.length ? 'Všechny kategorie' : labels.length <= 2 ? labels.join(' a ') : `${labels.length} kategorie`;
+        return `${categories} · ${filters.tier === 'all' ? 'i méně známá místa' : 'jen známá místa'}`;
+    };
+
+    // Další místo v atlasu podle nastavení tréninku; po kroku zpět se nejdřív projdou už viděná
+    const stepAtlas = (dataset, direction) => {
+        if (direction < 0) {
+            learn.index = Math.max(0, learn.index - 1);
+            return;
+        }
+        if (learn.index < learn.history.length - 1) {
+            learn.index += 1;
+            return;
+        }
+        const pool = filterPlaces(dataset.places, filters);
+        const place = pickPlace(pool.length ? pool : dataset.places, Math.random, learn.history.slice(-100));
+        learn.history.push(place.q);
+        learn.index = learn.history.length - 1;
+    };
+
+    const renderAtlas = (dataset, place) => `
+        <p class="text-center text-xs text-slate-500 dark:text-slate-400">
+            ${escapeHtml(describeFilters())} ·
+            <button type="button" data-action="settings" class="font-bold text-emerald-700 underline underline-offset-2 dark:text-emerald-400">změnit</button>
+        </p>
+        <article id="learn-card" class="${CARD} shrink-0 overflow-hidden">
+            ${renderPlaceCard(place, dataset, { titleId: 'learn-title', compact: false })}
+        </article>
+        <div class="grid grid-cols-2 gap-3">
+            <button type="button" data-action="learn-prev" ${learn.index <= 0 ? 'disabled' : ''} class="flex items-center justify-center gap-1.5 rounded-[1.2rem] border border-slate-200 bg-white py-3.5 font-bold text-slate-700 shadow-sm transition-all active:scale-95 disabled:opacity-40 disabled:active:scale-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200">
+                <i data-lucide="chevron-left" class="h-5 w-5"></i> Předchozí
+            </button>
+            <button type="button" data-action="learn-next" class="flex items-center justify-center gap-1.5 rounded-[1.2rem] bg-emerald-600 py-3.5 font-bold text-white shadow-lg shadow-emerald-600/20 transition-all hover:bg-emerald-700 active:scale-95">
+                Další místo <i data-lucide="chevron-right" class="h-5 w-5"></i>
+            </button>
+        </div>`;
+
+    const renderMistakeList = (dataset, mistakes) => {
+        if (!mistakes.length) {
+            return `
+                <section class="${CARD} flex flex-col items-center gap-2 p-8 text-center">
+                    <i data-lucide="circle-check" class="h-12 w-12 text-emerald-500"></i>
+                    <h3 class="text-lg font-black text-slate-800 dark:text-slate-100">Zatím tu nic není</h3>
+                    <p class="text-sm text-slate-500 dark:text-slate-400">Místa, která v kvízu neuhodneš, se sem uloží. Tady si je pak můžeš prohlédnout a procvičit.</p>
+                </section>`;
+        }
+        const rows = mistakes.map(place => `
+            <li>
+                <button type="button" data-action="place-info" data-place="${escapeHtml(place.q)}" class="flex w-full items-center gap-3 rounded-2xl border border-slate-100 bg-white p-3 text-left shadow-sm transition-colors hover:border-emerald-300 dark:border-slate-700 dark:bg-slate-800 dark:hover:border-emerald-700">
+                    <span class="shrink-0 rounded-xl bg-emerald-100 p-2 text-emerald-700 dark:bg-emerald-900/60 dark:text-emerald-300"><i data-lucide="${getCategory(place.c).icon}" class="h-5 w-5"></i></span>
+                    <span class="min-w-0 flex-1">
+                        <span class="block truncate font-bold text-slate-800 dark:text-slate-100">${escapeHtml(place.n)}</span>
+                        <span class="block truncate text-xs text-slate-500 dark:text-slate-400">${escapeHtml(place.ty || getCategory(place.c).one)} · ${escapeHtml(getPlaceLocation(place, dataset.countries))}</span>
+                    </span>
+                    <i data-lucide="info" class="h-5 w-5 shrink-0 text-slate-400"></i>
+                </button>
+            </li>`).join('');
+        return `
+            <button type="button" data-action="practice-mistakes" class="flex w-full items-center justify-center gap-2 rounded-[1.2rem] bg-emerald-600 py-4 text-lg font-bold text-white shadow-xl shadow-emerald-600/20 transition-all hover:bg-emerald-700 active:scale-95">
+                <i data-lucide="repeat" class="h-5 w-5"></i> Procvičit chyby (${mistakes.length})
+            </button>
+            <p class="-mt-2 text-center text-xs text-slate-500 dark:text-slate-400">Místo, které pak uhodneš, ze seznamu zmizí. Klepnutím si ho prohlédneš.</p>
+            <ul class="flex flex-col gap-2">${rows}</ul>
+            <button type="button" data-action="clear-mistakes" class="mx-auto flex items-center gap-1.5 py-2 text-sm font-semibold text-slate-500 underline-offset-4 hover:underline dark:text-slate-400">
+                <i data-lucide="trash-2" class="h-4 w-4"></i> Vymazat seznam
+            </button>`;
+    };
+
+    const renderLearn = (dataset) => {
+        const mistakes = loadMistakes().map(id => findPlace(dataset, id)).filter(Boolean);
+        const place = learn.tab === 'atlas' ? findPlace(dataset, learn.history[learn.index]) : null;
+        const tabs = Object.entries(LEARN_TABS).map(([key, tab]) => `
+            <button type="button" role="tab" data-action="learn-tab" data-tab="${key}" aria-selected="${learn.tab === key}" class="flex items-center justify-center gap-1.5 rounded-xl py-2.5 text-sm font-bold transition-colors ${learn.tab === key ? 'bg-white text-emerald-700 shadow-sm dark:bg-slate-700 dark:text-emerald-300' : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'}">
+                <i data-lucide="${tab.icon}" class="h-4 w-4"></i> ${tab.title}${key === 'mistakes' && mistakes.length ? ` (${mistakes.length})` : ''}
+            </button>`).join('');
+
+        appContent.innerHTML = `
+            <div class="fade-in flex min-h-full w-full flex-col gap-4 bg-slate-50 p-5 pb-6 dark:bg-slate-900">
+                <div class="text-center">
+                    <h2 class="text-2xl font-black tracking-tight text-slate-800 dark:text-slate-50">Učení</h2>
+                    <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">Bez bodů a bez spěchu: prohlížej místa, nebo si zopakuj ta, která ti nevyšla.</p>
+                </div>
+                <div class="grid grid-cols-2 gap-1 rounded-2xl bg-slate-200/70 p-1 dark:bg-slate-800" role="tablist" aria-label="Učení">${tabs}</div>
+                ${place ? renderAtlas(dataset, place) : renderMistakeList(dataset, mistakes)}
+                <!-- Bezpečnostní mezera pro spodní okraj displeje -->
+                <div class="h-12 w-full shrink-0"></div>
+            </div>`;
+        renderIcons(appContent);
+        if (place) hydratePlaceCard(document.getElementById('learn-card'), place, dataset, 960);
+        updateControlsUI();
+    };
+
+    const openLearn = async (tab = learn.tab) => {
+        if (isLoading) return;
+        screen = 'learn';
+        learn.tab = tab;
+        closePlaceInfo();
+        updateControlsUI();
+        let dataset;
+        try {
+            dataset = await loadDataset();
+        } catch (error) {
+            renderError(error);
+            return;
+        }
+        if (screen !== 'learn') return;
+        if (learn.tab === 'atlas' && learn.index < 0) stepAtlas(dataset, 1);
+        renderLearn(dataset);
+        appContent.scrollTo(0, 0);
+        loadWorld().catch(() => {});
+    };
+
+    const moveAtlas = async (direction) => {
+        const dataset = await loadDataset();
+        stepAtlas(dataset, direction);
+        renderLearn(dataset);
+        appContent.scrollTo(0, 0);
+    };
+
+    const clearMistakes = async () => {
+        if (!window.confirm('Opravdu vymazat seznam chyb?')) return;
+        writeJson(MISTAKES_STORAGE_KEY, []);
+        renderLearn(await loadDataset());
+    };
 
     const renderError = (error) => {
         console.error(error);
@@ -997,6 +1348,12 @@
     const ACTIONS = {
         hint: () => showNextHint(),
         'give-up': () => submitAnswer({ correct: false, typed: false, answer: null, gaveUp: true }),
+        'place-info': (button) => openPlaceInfo(button.dataset.place),
+        'learn-tab': (button) => openLearn(button.dataset.tab),
+        'learn-next': () => moveAtlas(1),
+        'learn-prev': () => moveAtlas(-1),
+        'practice-mistakes': () => practiceMistakes(),
+        'clear-mistakes': () => clearMistakes(),
         next: () => loadRandomLocation(),
         retry: () => retryLoad(),
         share: () => shareResult(),
@@ -1006,7 +1363,7 @@
         choice: (button) => {
             if (!round || round.variant === 'typed') return;
             const choice = currentPlace && (currentPlace.choices || [])[Number(button.dataset.index)];
-            if (choice) submitAnswer({ correct: choice.correct, typed: false, answer: choice.label });
+            if (choice) submitAnswer({ correct: choice.correct, typed: false, answer: choice.label, answerId: choice.id || null });
         }
     };
 
@@ -1026,7 +1383,10 @@
         if (!round || round.variant !== 'typed') return;
         const answer = event.target.elements.answer.value.trim();
         if (!answer || !currentPlace) return;
-        submitAnswer({ correct: isAnswerMatch(answer, getAcceptedAnswers(currentPlace)), typed: true, answer });
+        const correct = isAnswerMatch(answer, getAcceptedAnswers(currentPlace));
+        // Napsal hráč jiné místo ze sady? Pak k němu výsledek nabídne popis
+        const answerId = !correct && loadedDataset ? findAnswerPlace(answer, currentPlace, loadedDataset) : null;
+        submitAnswer({ correct, typed: true, answer, answerId });
     });
 
     // Chyba načtení obrázku (dlaždice mapy) nebublá, zachytíme ji ve fázi capture a obrázek skryjeme
@@ -1035,9 +1395,15 @@
     }, true);
 
     document.getElementById('btn-daily').addEventListener('click', loadDailyLocation);
-    document.getElementById('btn-random').addEventListener('click', loadRandomLocation);
+    document.getElementById('btn-random').addEventListener('click', showPractice);
+    document.getElementById('btn-learn').addEventListener('click', () => openLearn());
     document.getElementById('btn-settings').addEventListener('click', () => openSettings());
-    document.addEventListener('keydown', (event) => { if (event.key === 'Escape') closeSettings(); });
+    // Escape zavře nejdřív okno s popisem místa, pak nastavení
+    document.addEventListener('keydown', (event) => {
+        if (event.key !== 'Escape') return;
+        if (document.getElementById('place-info')) closePlaceInfo();
+        else closeSettings();
+    });
 
     gameVariant = readVariant();
     filters = loadFilters();

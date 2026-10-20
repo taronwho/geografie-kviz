@@ -11,6 +11,13 @@ Nápovědy jdou postupně a každá ubere bod:
 3. **slepá mapa** – obrysy států bez popisků, místo uprostřed (u států je zvýrazněný celý stát),
 4. **čísla a fakta** z Wikidat – stát, kontinent, počet obyvatel, výška, délka, rok vzniku…
 
+Po odpovědi jde rozkliknout okno se stručným popisem místa (nebo státu) ze špatné odpovědi i ostatních nabízených možností – popis z Wikipedie, fotka, mapa a čísla.
+
+Režim **Učení** (tlačítko se čepicí) je bez bodů:
+
+- **Atlas míst** – prohlížení míst podle nastavení kategorií a známosti: fotka, popis, mapa a fakta, tam i zpět,
+- **Moje chyby** – místa, která hráč v kvízu neuhodl (nebo vzdal); jde si je prohlédnout a procvičit, správně uhodnuté místo ze seznamu zmizí.
+
 Statická stránka bez serveru a bez build kroku při nasazení – na Netlify se publikuje kořen repozitáře tak, jak je.
 
 ## Soubory
@@ -18,7 +25,7 @@ Statická stránka bez serveru a bez build kroku při nasazení – na Netlify s
 | Soubor | Co obsahuje |
 | --- | --- |
 | `index.html` | Kostra stránky |
-| `app.js` | Rozhraní: výběr místa, otázka s nápovědami, výsledek, nastavení, ukládání stavu |
+| `app.js` | Rozhraní: výběr místa, otázka s nápovědami, výsledek, okno s popisem místa, učení, nastavení, ukládání stavu |
 | `quiz-core.js` | Čistá logika bez DOM (výběr míst, zakrývání, odpovědi, body, fakta, slepá mapa, série) – testovaná |
 | `data/places.json` | Sada míst z Wikidat (generovaná) |
 | `data/world.json` | Obrysy států pro slepou mapu (generované) |

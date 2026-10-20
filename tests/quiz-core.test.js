@@ -301,6 +301,36 @@ test('možnosti státu: jiné státy ze stejného kontinentu', () => {
     assert.equal(choices.find(c => c.correct).label, 'Německo');
     const european = ['Česko', 'Rakousko', 'Polsko', 'Francie'];
     assert.ok(choices.filter(c => !c.correct).every(c => european.includes(c.label)));
+    // Každá možnost nese ID státu, ať k ní jde ukázat popis
+    assert.ok(choices.every(c => COUNTRIES_TABLE[c.id] && COUNTRIES_TABLE[c.id].name === c.label));
+});
+
+test('možnosti názvu nesou ID míst', () => {
+    const choices = core.buildPlaceChoices(PLACES[0], PLACES, COUNTRIES_TABLE, core.createSeededRandom('a'));
+    assert.ok(choices.every(c => PLACES.find(p => p.q === c.id).n === c.label));
+});
+
+test('napsaná špatná odpověď: které jiné místo nebo stát to je', () => {
+    const dataset = { countries: COUNTRIES_TABLE, places: PLACES };
+    const prague = { quizType: 'name', id: 'Q1085', category: 'mesto' };
+    assert.equal(core.findAnswerPlace('Viden', prague, dataset), 'Q1741');
+    assert.equal(core.findAnswerPlace('fudzi', prague, dataset), 'Q39231', 'i z jiné kategorie');
+    assert.equal(core.findAnswerPlace('Praha', prague, dataset), null, 'správné místo se nehledá');
+    assert.equal(core.findAnswerPlace('Atlantida', prague, dataset), null);
+    const location = { quizType: 'location', id: 'Q1085', countryIds: ['Q213'] };
+    assert.equal(core.findAnswerPlace('USA', location, dataset), 'Q30');
+    assert.equal(core.findAnswerPlace('rakousko', location, dataset), 'Q40');
+    assert.equal(core.findAnswerPlace('Česká republika', location, dataset), null);
+});
+
+test('seznam chyb: chyba na začátek, správná odpověď ho odebere', () => {
+    let mistakes = core.updateMistakes([], 'Q1', false);
+    mistakes = core.updateMistakes(mistakes, 'Q2', false);
+    mistakes = core.updateMistakes(mistakes, 'Q1', false);
+    assert.deepEqual(mistakes, ['Q1', 'Q2']);
+    assert.deepEqual(core.updateMistakes(mistakes, 'Q1', true), ['Q2']);
+    assert.deepEqual(core.updateMistakes(mistakes, 'Q3', true), ['Q1', 'Q2']);
+    assert.equal(core.updateMistakes(Array.from({ length: 200 }, (_, i) => `Q${i}`), 'Q999', false).length, 200);
 });
 
 test('na stát se ptáme jen tam, kde to dává smysl', () => {
@@ -327,6 +357,7 @@ test('fakta: stát u otázky na název, ne u otázky na stát; česká čísla',
     assert.deepEqual(asText(facts('Eiffelova věž', 'location')), ['Kontinent: Evropa', 'Výška: 330 m', 'Vznik: 1889']);
     assert.deepEqual(asText(facts('Česko', 'name')), ['Kontinent: Evropa', 'Hlavní město: Praha', 'Počet obyvatel: 10,9 mil.', 'Rozloha: 78 871 km²']);
     assert.deepEqual(asText(core.buildFacts(place('Q1', 'Ur', 'stavba', 1, [], { f: { year: -3800 } }), COUNTRIES_TABLE, 'name')), ['Vznik: 3800 př. n. l.']);
+    assert.deepEqual(asText(core.buildFacts(place('Q10285', 'Koloseum', 'stavba', 1, [], { f: { year: 82 } }), COUNTRIES_TABLE, 'name')), ['Vznik: 82 n. l.']);
 });
 
 test('šířka slepé mapy podle kategorie a u států podle rozlohy', () => {
