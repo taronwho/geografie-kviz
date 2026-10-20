@@ -123,6 +123,32 @@ const chemie = {
     ]
 };
 
+const physics = (q, n, c, f, extra = {}) => ({ q, t: n, n, c, k: 1, d: `${c} v testovací fyzice`, f, ...extra });
+const fyzika = {
+    generated: '2026-10-20',
+    collections: [{ id: 'zakladni-jednotky-si', label: 'Základní jednotky SI', sort: { by: 'name' } }],
+    items: [
+        physics('Q11402', 'Síla', 'veliciny', { sym: 'F', unit: 'newton', usym: 'N' }),
+        physics('Q11379', 'Energie', 'veliciny', { sym: 'E', unit: 'joule', usym: 'J' }),
+        physics('Q39552', 'Tlak', 'veliciny', { sym: 'p', unit: 'pascal', usym: 'Pa' }),
+        physics('Q25342', 'Výkon', 'veliciny', { sym: 'P', unit: 'watt', usym: 'W' }),
+        physics('Q11423', 'Hmotnost', 'veliciny', { sym: 'm', unit: 'kilogram', usym: 'kg' }),
+        physics('Q11573', 'Metr', 'jednotky', { usym: 'm', measures: 'délka', system: 'základní jednotka SI' }, { g: ['zakladni-jednotky-si'] }),
+        physics('Q11570', 'Kilogram', 'jednotky', { usym: 'kg', measures: 'hmotnost', system: 'základní jednotka SI' }, { g: ['zakladni-jednotky-si'] }),
+        physics('Q11574', 'Sekunda', 'jednotky', { usym: 's', measures: 'čas', system: 'základní jednotka SI' }, { g: ['zakladni-jednotky-si'] }),
+        physics('Q25272', 'Ampér', 'jednotky', { usym: 'A', measures: 'elektrický proud', system: 'základní jednotka SI' }, { g: ['zakladni-jednotky-si'] }),
+        physics('Q11579', 'Kelvin', 'jednotky', { usym: 'K', measures: 'teplota', system: 'základní jednotka SI' }, { g: ['zakladni-jednotky-si'] }),
+        physics('Q2', 'Země', 'vesmir', { kind: 'planeta', parent: 'Slunce', diam: 12742 }, { ty: 'planeta', im: 'Earth.jpg', ih: 'dd' }),
+        physics('Q111', 'Mars', 'vesmir', { kind: 'planeta', parent: 'Slunce', diam: 6779 }, { ty: 'planeta', im: 'Mars.jpg', ih: 'dd' }),
+        physics('Q319', 'Jupiter', 'vesmir', { kind: 'planeta', parent: 'Slunce', diam: 139820 }, { ty: 'planeta', im: 'Jupiter.jpg', ih: 'dd' }),
+        physics('Q193', 'Saturn', 'vesmir', { kind: 'planeta', parent: 'Slunce', diam: 116460 }, { ty: 'planeta', im: 'Saturn.jpg', ih: 'dd' }),
+        physics('Q937', 'Albert Einstein', 'fyzici', { born: 1879, died: 1955, nobel: 1, y: 1914 }, { ty: 'fyzik' }),
+        physics('Q935', 'Isaac Newton', 'fyzici', { born: 1643, died: 1727, y: 1678 }, { ty: 'fyzik' }),
+        physics('Q307', 'Galileo Galilei', 'fyzici', { born: 1564, died: 1642, y: 1599 }, { ty: 'fyzik' }),
+        physics('Q93996', 'Ernst Mach', 'fyzici', { born: 1838, died: 1916, y: 1873 }, { ty: 'fyzik', cz: 1 })
+    ]
+};
+
 // Úvody článků z Wikipedie; ostatní položky dostanou obecný text
 const EXTRACTS = {
     'Lev': 'Lev pustinný (Panthera leo) je velká kočkovitá šelma žijící v Africe. Lvi žijí ve smečkách a loví hlavně velké kopytníky. ' +
@@ -145,7 +171,8 @@ module.exports = {
         '/data/zemepis.json': zemepis,
         '/data/historie.json': historie,
         '/data/biologie.json': biologie,
-        '/data/chemie.json': chemie
+        '/data/chemie.json': chemie,
+        '/data/fyzika.json': fyzika
     },
     extractFor
 };

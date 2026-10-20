@@ -195,7 +195,9 @@ for (const [qid] of compoundCandidates) {
 let chemistRank = 0;
 for (const [qid] of chemistCandidates) {
     const detail = details.get(qid);
-    if (!detail || !detail.n || !detail.t) continue;
+    if (!detail || !detail.t) continue;
+    // Někteří mají jen mezinárodní název (mul) – pak název článku
+    if (!detail.n) detail.n = detail.t.replace(/ \(.*\)$/, '');
     const born = yearOf(detail.born);
     if (born === undefined || chemistRank >= LIMITS.chemici.limit) continue;
     // Povolání „chemik“ mají ve Wikidatech i polyhistoři a politici (Leonardo, Thatcherová) – chemik musí být i v popisu

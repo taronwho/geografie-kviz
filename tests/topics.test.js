@@ -328,3 +328,41 @@ test('chemie: periodická tabulka, značka prvku, vzorec a zakrytí v popisu', (
     assert.ok(inCollection('nobelova-cena-chemie').includes('Marie Curie-Skłodowská'));
     assert.ok(!data.items.some(item => ['Leonardo da Vinci', 'Margaret Thatcherová'].includes(item.n)), 'jen skuteční chemici');
 });
+
+// --- Fyzika ---
+
+const fyzika = TOPICS.find(topic => topic.id === 'fyzika');
+
+test('fyzika: jednotka veličiny, značka a veličina jednotky, zakrytí značek', () => {
+    const data = JSON.parse(fs.readFileSync(path.join(ROOT, 'data', 'fyzika.json'), 'utf8'));
+    const ctx = { items: data.items };
+    const find = (name) => data.items.find(item => item.n === name);
+    for (const name of ['Síla', 'Teplota', 'Elektrický proud', 'Newton', 'Pascal', 'Kelvin', 'Jupiter', 'Měsíc', 'Albert Einstein', 'Isaac Newton']) {
+        assert.ok(find(name) && find(name).k === 1, `chybí známá položka ${name}`);
+    }
+    assert.equal(find('Síla').f.unit, 'newton');
+    assert.equal(find('Kelvin').f.measures, 'teplota');
+    assert.equal(find('Volt').f.system, 'odvozená jednotka SI');
+    assert.ok(!data.items.some(item => item.c === 'jednotky' && /^(Týden|Měsíc|Rok|Procento)$/.test(item.n)), 'kalendářní a jiné nefyzikální jednotky ne');
+    assert.ok(!data.items.some(item => /^(Planeta X|Devátá planeta|Vulkán|Nemesis)$/.test(item.n)), 'hypotetická tělesa ne');
+    // Jednotka veličiny: psaná i značkou, mezi fakty u té otázky jednotka chybí
+    const unit = fyzika.specialQuestion(find('Síla'), ctx, () => 0.1);
+    assert.equal(unit.type, 'unit');
+    assert.equal(unit.answerLabel, 'newton (N)');
+    assert.ok(core.isAnswerMatch('N', unit.accepted) && core.isAnswerMatch('newton', unit.accepted));
+    assert.ok(!fyzika.facts(find('Síla'), ctx, 'unit').some(fact => fact.label === 'Jednotka SI'));
+    // Jednotka: značka (do 0,25), co měří (do 0,45), jinak název
+    assert.equal(fyzika.specialQuestion(find('Pascal'), ctx, () => 0.1).type, 'usymbol');
+    assert.equal(fyzika.specialQuestion(find('Pascal'), ctx, () => 0.3).type, 'measures');
+    assert.equal(fyzika.specialQuestion(find('Pascal'), ctx, () => 0.9), null);
+    // Značky: víceznakové všude, jednoznakové jen za číslem (předložka „V“ zůstane)
+    assert.equal(fyzika.censor('unit', 'Síla se měří v newtonech (N), 1 N je velmi malá síla. V praxi…', find('Síla'), ctx), 'Síla se měří v [***], 1 [***] je velmi malá síla. V praxi…');
+    assert.doesNotMatch(fyzika.censor('name', 'Pascal (Pa) je jednotka tlaku, 100 Pa je málo.', find('Pascal'), ctx), /Pascal|Pa\b/);
+    // Fyzik: časová osa s milníky fyziky, vlastní objev ho neprozradí
+    const einstein = fyzika.visual(find('Albert Einstein'), ctx, 'name');
+    assert.equal(einstein.type, 'timeline');
+    assert.ok(!core.buildTimeline(einstein, 360).anchors.some(anchor => /Einstein/.test(anchor.label)));
+    const inCollection = (id) => core.filterItems(data.items, { collection: id }).map(item => item.n);
+    assert.deepEqual(inCollection('zakladni-jednotky-si').sort(), ['Ampér', 'Kandela', 'Kelvin', 'Kilogram', 'Metr', 'Mol', 'Sekunda']);
+    assert.ok(inCollection('slunecni-soustava').includes('Jupiter') && inCollection('slunecni-soustava').includes('Měsíc'));
+});

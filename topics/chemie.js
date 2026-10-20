@@ -142,7 +142,7 @@
         censor: (type, text, item) => {
             const f = item.f || {};
             const hideFormula = (value) => [f.formula, plainFormula(f.formula)].reduce((result, formula) => result.split(formula).join('[***]'), value);
-            const plain = stripBrackets(text).replace(/\s{2,}/g, ' ');
+            const plain = stripBrackets(text).replace(/\s{2,}/g, ' ').replace(/\s+([,;.?!])/g, '$1');
             if (type === 'symbol') return hideSymbol(plain, f.sym);
             if (type === 'formula') return hideFormula(plain);
             if (type !== 'name' || item.c === 'chemici') return null;

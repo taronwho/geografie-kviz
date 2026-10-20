@@ -12,6 +12,7 @@
     "build:historie": "node scripts/build-historie.mjs",
     "build:biologie": "node scripts/build-biologie.mjs",
     "build:chemie": "node scripts/build-chemie.mjs",
+    "build:fyzika": "node scripts/build-fyzika.mjs",
     "build": "npm run build:icons && npm run build:css",
     "test": "node --test"
   }

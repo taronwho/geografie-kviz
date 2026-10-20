@@ -446,9 +446,9 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         assert.match(await tab.textContent('#settings-note'), /od další otázky/);
         assert.equal(await tab.getAttribute('#settings-overlay [data-tier="known"]', 'aria-pressed'), 'true');
         await tab.click('#settings-overlay [data-tier="all"]');
-        assert.deepEqual(await readStorage(tab, 'mudrlant.settings'), { tier: 'all', topics: ['zemepis', 'historie', 'biologie', 'chemie'] });
+        assert.deepEqual(await readStorage(tab, 'mudrlant.settings'), { tier: 'all', topics: ['zemepis', 'historie', 'biologie', 'chemie', 'fyzika'] });
         // Témata v tréninku: jedno vypnout jde, poslední ne
-        for (const topicId of ['historie', 'biologie', 'chemie']) await tab.click(`#settings-overlay [data-topic-toggle="${topicId}"]`);
+        for (const topicId of ['historie', 'biologie', 'chemie', 'fyzika']) await tab.click(`#settings-overlay [data-topic-toggle="${topicId}"]`);
         assert.deepEqual((await readStorage(tab, 'mudrlant.settings')).topics, ['zemepis']);
         await tab.click('#settings-overlay [data-topic-toggle="zemepis"]');
         assert.match(await tab.textContent('#settings-note'), /Aspoň jedno téma/);
@@ -664,6 +664,48 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         await third.context.close();
     });
 
+    await t.test('fyzika: jednotka veličiny (psaná značka), co měří jednotka, fyzik s časovou osou', async () => {
+        const { context, tab, log } = await setup(browser, { variant: 'typed', fixedRandom: true });
+        await tab.goto(`${ORIGIN}/`);
+        await waitForHome(tab);
+        assert.match(await tab.textContent('[data-action="daily"][data-topic="fyzika"]'), /Fyzika\s*Čeká na tebe/);
+
+        // Jaká je jednotka SI této veličiny? Značka N platí, odpověď ukáže název i značku
+        await practiceCollection(tab, 'fyzika', 'c:veliciny');
+        const unit = await readRound(tab);
+        assert.equal(unit.name, 'Síla');
+        assert.equal(unit.question.type, 'unit');
+        assert.equal(await tab.textContent('h2'), 'Jaká je jednotka SI této veličiny?');
+        assert.ok(!unit.facts.some(fact => fact.label === 'Jednotka SI'));
+        await tab.fill('#answer-input', 'N');
+        await tab.press('#answer-input', 'Enter');
+        await waitForResult(tab);
+        assert.match(await appText(tab), /Správně!/);
+        assert.match(await appText(tab), /Jednotka SI\s*newton \(N\)/);
+        await context.close();
+
+        // Fyzik: časová osa s milníky fyziky, „Kdo je …?“ u špatné odpovědi
+        const second = await setup(browser, { fixedRandom: 0.5 });
+        await second.tab.goto(`${ORIGIN}/`);
+        await waitForHome(second.tab);
+        await practiceCollection(second.tab, 'fyzika', 'c:fyzici');
+        const person = await readRound(second.tab);
+        assert.equal(person.question.type, 'name');
+        assert.equal(await second.tab.textContent('h2'), 'Kdo to je?');
+        await second.tab.click('[data-action="hint"]');
+        await second.tab.waitForSelector('#hint-visual svg rect');
+        assert.match(await second.tab.textContent('#hint-visual svg'), /život/);
+        const wrong = person.question.choices.find(choice => !choice.correct);
+        await second.tab.click(`[data-action="choice"]:has-text("${wrong.label}")`);
+        await waitForResult(second.tab);
+        assert.match(await appText(second.tab), new RegExp(`Kdo je ${wrong.label}\\?`));
+        for (const run of [log, second.log]) {
+            assert.deepEqual(run.errors, []);
+            assert.deepEqual(run.csp, []);
+        }
+        await second.context.close();
+    });
+
     await t.test('první spuštění: výběr varianty hry, pak dnešní otázky', async () => {
         const { context, tab, log } = await setup(browser, { variant: null });
         await tab.goto(`${ORIGIN}/`);
@@ -777,7 +819,7 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         for (let i = 0; i < data.hints.indexOf('visual') + 1; i++) await tab.click('[data-action="hint"]');
         // Mapa, osa i tabulka se vykreslí i bez sítě; obrázek z Commons ukáže zprávu, že se nenačetl
         if (data.hints.includes('visual')) await tab.waitForSelector('#hint-visual svg > *, #hint-visual div[class*="bg-contain"], #hint-visual p');
-        const files = ['data/zemepis.json', 'data/historie.json', 'data/biologie.json', 'data/chemie.json', 'data/world.json'];
+        const files = ['data/zemepis.json', 'data/historie.json', 'data/biologie.json', 'data/chemie.json', 'data/fyzika.json', 'data/world.json'];
         assert.deepEqual(await tab.evaluate(list => Promise.all(list.map(file => fetch(file).then(response => response.status))), files), files.map(() => 200));
         assert.deepEqual(log.errors, []);
         await context.close();
