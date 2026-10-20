@@ -214,6 +214,7 @@ for (const [qid] of chemistCandidates) {
         c: 'chemici',
         k: chemistRank < LIMITS.chemici.known || isCzech ? 1 : 0,
         ty: detail.sex === FEMALE ? 'chemička' : 'chemik',
+        sx: detail.sex === FEMALE ? 'f' : undefined,
         d: detail.d,
         cz: isCzech ? 1 : undefined,
         ...imageFields(detail.im),

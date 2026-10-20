@@ -26,7 +26,7 @@ test('každé téma má vše, co jádro potřebuje, a je zapojené do aplikace',
         assert.equal(`${topic.id}.js`, TOPIC_FILES[index], `${where}: soubor se jmenuje podle ID`);
         for (const key of ['title', 'icon', 'emoji', 'color', 'dataFile']) assert.ok(topic[key], `${where}: chybí ${key}`);
         for (const key of ['question', 'one', 'next', 'atlas', 'placeholder']) assert.ok(topic.words && topic.words[key], `${where}: chybí words.${key}`);
-        for (const key of ['facts', 'subtitle']) assert.equal(typeof topic[key], 'function', `${where}: chybí ${key}()`);
+        for (const key of ['facts', 'subtitle', 'similarity']) assert.equal(typeof topic[key], 'function', `${where}: chybí ${key}()`);
         assert.ok(Array.isArray(topic.categories) && topic.categories.length, `${where}: kategorie`);
         assert.equal(new Set(topic.categories.map(c => c.key)).size, topic.categories.length, `${where}: klíče kategorií`);
         for (const category of topic.categories) {
@@ -78,7 +78,7 @@ for (const topic of TOPICS) {
         // Možnosti odpovědí se dají postavit pro každou kategorii
         for (const key of categoryKeys) {
             const item = data.items.find(candidate => candidate.c === key && candidate.k === 1);
-            const choices = core.buildItemChoices(item, data.items, core.createSeededRandom(key), other => topic.groupOf ? topic.groupOf(other, ctx) : '');
+            const choices = core.buildItemChoices(item, data.items, core.createSeededRandom(key), other => topic.similarity ? topic.similarity(item, other, ctx) : 0);
             assert.equal(choices.length, 4, `${topic.id}/${key}: možnosti`);
         }
     });
@@ -191,6 +191,8 @@ test('historie: časová osa, události z vlastních dějin, otázka na století
     assert.equal(century.answerLabel, '14. století');
     assert.ok(century.accepted.includes('14'));
     assert.equal(century.choices.filter(choice => choice.correct).length, 1);
+    // Nesprávná století jsou ta nejbližší: obě sousední a jedno o dvě dál (12.–16. století u Karla IV.)
+    assert.deepEqual(century.choices.map(choice => Number(choice.id.replace('stoleti-', ''))).sort((a, b) => a - b).filter(c => c !== 14).map(c => Math.abs(c - 14)).sort(), [1, 1, 2]);
     assert.equal(historie.visual(charles, histCtx, 'century'), null);
     assert.ok(historie.facts(charles, histCtx, 'century').every(fact => !/\d/.test(fact.value)));
     assert.doesNotMatch(historie.censor('century', 'Karel IV. vládl od roku 1346 ve 14. století.', charles, histCtx), /\d/);
@@ -365,4 +367,70 @@ test('fyzika: jednotka veličiny, značka a veličina jednotky, zakrytí značek
     const inCollection = (id) => core.filterItems(data.items, { collection: id }).map(item => item.n);
     assert.deepEqual(inCollection('zakladni-jednotky-si').sort(), ['Ampér', 'Kandela', 'Kelvin', 'Kilogram', 'Metr', 'Mol', 'Sekunda']);
     assert.ok(inCollection('slunecni-soustava').includes('Jupiter') && inCollection('slunecni-soustava').includes('Měsíc'));
+});
+
+// --- Nesprávné možnosti jsou logické: podobné správné odpovědi, aby nebyla poznat na první pohled ---
+
+test('nesprávné možnosti ve skutečných datech: stejný druh, blízko, stejně známé', () => {
+    const contexts = Object.fromEntries(TOPICS.map(topic => {
+        const data = JSON.parse(fs.readFileSync(path.join(ROOT, topic.dataFile), 'utf8'));
+        return [topic.id, { topic, items: data.items, collections: data.collections, countries: COUNTRIES }];
+    }));
+    const find = (topicId, name) => contexts[topicId].items.find(item => item.n === name);
+    // Nesprávné možnosti pro několik semínek
+    const wrongOptions = (topicId, name) => {
+        const ctx = contexts[topicId];
+        const item = find(topicId, name);
+        assert.ok(item, `${topicId}: chybí ${name}`);
+        return [0, 1, 2].map(seed => core.buildItemChoices(item, ctx.items, core.createSeededRandom(`${name}${seed}`), other => ctx.topic.similarity(item, other, ctx))
+            .filter(choice => !choice.correct).map(choice => ctx.items.find(other => other.q === choice.id)));
+    };
+    const everyOption = (topicId, name, test, message) => {
+        for (const options of wrongOptions(topicId, name)) assert.ok(options.every(test), `${message}: ${options.map(o => o.n).join(', ')}`);
+    };
+
+    // Zeměpis: k Brnu česká města, k Česku sousedé, u otázky na stát nejbližší státy
+    // K Brnu hlavně česká města (Bratislava poblíž je taky dobrá past)
+    for (const options of wrongOptions('zemepis', 'Brno')) assert.ok(options.filter(o => (o.co || []).includes('Q213')).length >= 2, options.map(o => o.n).join(', '));
+    for (const options of wrongOptions('zemepis', 'Česko')) {
+        assert.ok(options.filter(o => ['Slovensko', 'Rakousko', 'Polsko', 'Německo', 'Maďarsko'].includes(o.n)).length >= 2, options.map(o => o.n).join(', '));
+    }
+    const zemepisCtx = contexts.zemepis;
+    const bridge = find('zemepis', 'Karlův most');
+    const location = zemepisCtx.topic.specialQuestion(bridge, zemepisCtx, (() => { let first = true; const rng = core.createSeededRandom('most'); return () => first ? (first = false, 0.1) : rng(); })());
+    assert.equal(location.type, 'location');
+    assert.ok(location.choices.every(choice => COUNTRIES[choice.id].continent === 'EU'));
+    assert.ok(location.choices.filter(choice => ['Slovensko', 'Rakousko', 'Polsko', 'Německo'].includes(choice.label)).length >= 2, location.choices.map(c => c.label).join(', '));
+
+    // Historie: k panovnici panovnice, k Masarykovi čeští prezidenti, k husitské bitvě husitské bitvy
+    everyOption('historie', 'Alžběta I.', other => other.sx === 'f', 'Alžběta I. – jen ženy');
+    everyOption('historie', 'Tomáš Garrigue Masaryk', other => other.cz === 1, 'Masaryk – české dějiny');
+    everyOption('historie', 'Bitva u Lipan', other => (other.g || []).includes('husitske-valky'), 'Lipany – husitské války');
+
+    // Biologie: ke lvu šelmy, k sýkoře pěvci, k hřibu hřibotvaré
+    everyOption('biologie', 'Lev', other => other.f.ord === 'šelmy', 'Lev – šelmy');
+    everyOption('biologie', 'Sýkora koňadra', other => other.f.ord === 'pěvci', 'Sýkora – pěvci');
+    everyOption('biologie', 'Hřib smrkový', other => other.f.ord === 'hřibotvaré', 'Hřib – hřibotvaré');
+
+    // Chemie: k sodíku alkalické kovy, ke kyselině kyseliny, k chemičce chemičky
+    everyOption('chemie', 'Sodík', other => core.elementFamily(other.f.z).key === 'alkalicke-kovy', 'Sodík – alkalické kovy');
+    everyOption('chemie', 'Kyselina sírová', other => other.n.startsWith('Kyselina'), 'Kyselina sírová – kyseliny');
+    everyOption('chemie', 'Marie Curie-Skłodowská', other => other.sx === 'f', 'Curie – jen ženy');
+
+    // Fyzika: k metru jednotky délky, k síle ne „Tíhová síla“ (obsahuje celý název), k Jupiteru planety
+    everyOption('fyzika', 'Metr', other => other.f.measures === 'délka', 'Metr – jednotky délky');
+    everyOption('fyzika', 'Síla', other => !/síla/i.test(other.n), 'Síla – žádná sporná možnost');
+    everyOption('fyzika', 'Jupiter', other => other.f.kind === 'planeta', 'Jupiter – planety');
+
+    // Ke známé položce i známé možnosti (v každé kategorii, kde je známých dost); výjimkou smí být druh, jehož blízcí
+    // příbuzní jsou jen méně známí (živorodka duhová)
+    for (const [topicId, ctx] of Object.entries(contexts)) {
+        for (const category of ctx.topic.categories) {
+            const known = ctx.items.filter(item => item.c === category.key && item.k === 1);
+            if (known.length < 12) continue;
+            const failures = known.slice(0, 20).filter(item => !core.buildItemChoices(item, ctx.items, core.createSeededRandom(item.q), other => ctx.topic.similarity(item, other, ctx))
+                .some(choice => !choice.correct && ctx.items.find(other => other.q === choice.id).k === 1));
+            assert.ok(failures.length <= 2, `${topicId}/${category.key}: bez známé možnosti ${failures.map(item => item.n).join(', ')}`);
+        }
+    }
 });

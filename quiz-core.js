@@ -306,48 +306,89 @@
         return country ? country.continent : '';
     };
 
-    // Až count položek s různými názvy (bez diakritiky), které ještě nejsou mezi taken
-    const pickDistinct = (items, count, taken, rng, nameOf = (item) => item) => {
+    // --- Nesprávné možnosti: co nejpodobnější správné odpovědi, aby nebyla poznat na první pohled ---
+
+    // Vzdálenost dvou míst ({ la, lo }) v kilometrech
+    const distanceKm = (a, b) => {
+        const rad = Math.PI / 180;
+        const dLat = (b.la - a.la) * rad;
+        const dLon = (b.lo - a.lo) * rad;
+        const h = Math.sin(dLat / 2) ** 2 + Math.cos(a.la * rad) * Math.cos(b.la * rad) * Math.sin(dLon / 2) ** 2;
+        return 2 * 6371 * Math.asin(Math.min(1, Math.sqrt(h)));
+    };
+    // Body za blízkost: čím blíž, tím podobnější (města v okolí); u států jemnější stupně, ať vyhrají sousedé
+    const PLACE_STEPS = [300, 1000, 2500, 6000];
+    const STATE_STEPS = [300, 500, 800, 1200, 2000, 4000];
+    const nearness = (km, steps = PLACE_STEPS) => {
+        const index = steps.findIndex(limit => km < limit);
+        return index === -1 ? 0 : steps.length - index;
+    };
+    // Mají položky společný okruh (šelmy, kyseliny, mechanika…)?
+    const sharesGroup = (a, b) => (a.g || []).some(group => (b.g || []).includes(group));
+    // Blízká doba (rok položky f.y): stejné století 3 body, sousední 2, do tří století 1
+    const eraNearness = (a, b) => {
+        if (a === undefined || b === undefined) return 0;
+        const distance = Math.abs(centuryOf(a) - centuryOf(b));
+        return distance === 0 ? 3 : distance === 1 ? 2 : distance <= 3 ? 1 : 0;
+    };
+    // Osoby: jiné pohlaví skoro vyřadí (jediná žena mezi muži by byla poznat hned), jinak rozhoduje doba
+    const personSimilarity = (item, other) => ((item.sx === 'f') !== (other.sx === 'f') ? -20 : 0)
+        + eraNearness((item.f || {}).y, (other.f || {}).y);
+    // Seřadí kandidáty od nejpodobnějšího; stejně podobné náhodně (semínko), nekonečně záporné skóre vyřadí
+    const rankBySimilarity = (candidates, score, rng) => shuffle(candidates, rng)
+        .map(candidate => ({ candidate, value: score(candidate) }))
+        .filter(entry => entry.value > -Infinity)
+        .sort((a, b) => b.value - a.value)
+        .map(entry => entry.candidate);
+    // Z pořadí vezme první, jejichž název se ještě neobjevil; keyOf určí, co je „stejné“ (u vzorců a značek přesný zápis,
+    // protože bez dolních indexů a horních indexů by H₂O a H₂O₂ i m a m² splynuly)
+    const takeDistinct = (ranked, count, taken, nameOf, keyOf = normalizeAnswer) => {
         const picked = [];
-        for (const item of shuffle(items, rng)) {
+        for (const candidate of ranked) {
             if (picked.length >= count) break;
-            const key = normalizeAnswer(nameOf(item));
+            const key = keyOf(nameOf(candidate));
             if (!key || taken.has(key)) continue;
             taken.add(key);
-            picked.push(item);
+            picked.push(candidate);
         }
         return picked;
     };
 
-    // Nesprávné možnosti názvu: položky stejné kategorie, přednostně stejného typu (k průlivu průlivy, ne jezera),
-    // podobně známé a ze stejné skupiny – co je skupina, určí téma (kontinent, století, třída živočichů…)
-    const buildItemChoices = (item, items, rng, groupOf = () => '') => {
-        const group = groupOf(item);
-        const taken = new Set([normalizeAnswer(item.n)]);
-        const sameCategory = items.filter(other => other.c === item.c && other.q !== item.q);
-        const sameType = (other) => Boolean(item.ty) && other.ty === item.ty;
-        const sameTier = (other) => other.k === item.k;
-        const sameGroup = (other) => Boolean(group) && groupOf(other) === group;
-        const sources = [
-            [sameType, sameTier, sameGroup], [sameType, sameTier], [sameType],
-            [sameTier, sameGroup], [sameTier], []
-        ].map(conditions => sameCategory.filter(other => conditions.every(condition => condition(other))));
-        const distractors = [];
-        for (const source of sources) distractors.push(...pickDistinct(source, 3 - distractors.length, taken, rng, other => other.n));
+    // Je jeden název celý obsažený v druhém (Síla – Tíhová síla, Energie – Vnitřní energie, i se skloněním: Rychlost –
+    // Velikost rychlosti)? Taková možnost by byla sporná, proto má přednost cokoli jiného. Krátká slova a římské číslice
+    // musí sedět přesně (Václav II. a Václav III. sporní nejsou)
+    const isNamePart = (a, b) => {
+        const [shorter, longer] = [normalizeAnswer(a).split(' '), normalizeAnswer(b).split(' ')].sort((x, y) => x.length - y.length);
+        const matches = (word) => longer.some(other => other === word || (word.length >= 5 && other.startsWith(word.slice(0, word.length - 2))));
+        return shorter.length < longer.length && shorter.every(matches);
+    };
+
+    // Nesprávné možnosti názvu: položky stejné kategorie seřazené podle podobnosti. Základ dá jádro – stejně známé
+    // (ke známé odpovědi známé možnosti) a stejného typu (k anglickému králi angličtí králové, k průlivu průlivy);
+    // zbytek přidá téma funkcí similarity(other) – blízká místa, stejné století a pohlaví, stejná čeleď…
+    const buildItemChoices = (item, items, rng, similarity = () => 0) => {
+        // Ke známé odpovědi známá možnost váží víc – jinak by známá odpověď mezi samými neznámými byla nápadná
+        const tier = (other) => other.k !== item.k ? 0 : item.k === 1 ? 3 : 2;
+        const score = (other) => tier(other) + (item.ty && other.ty === item.ty ? 4 : 0) + (similarity(other) || 0)
+            - (isNamePart(item.n, other.n) ? 4 : 0);
+        const ranked = rankBySimilarity(items.filter(other => other.c === item.c && other.q !== item.q), score, rng);
+        const distractors = takeDistinct(ranked, 3, new Set([normalizeAnswer(item.n)]), other => other.n);
         return shuffle([
             { id: item.q, label: item.n, correct: true },
             ...distractors.map(other => ({ id: other.q, label: other.n, correct: false }))
         ], rng);
     };
 
-    // Nesprávné možnosti státu: jiné státy ze stejného kontinentu
-    const buildCountryChoices = (countryId, countries, rng) => {
+    // Nesprávné možnosti státu: nejbližší státy (distanceOf(id) = vzdálenost od hádaného místa v km, když je známá),
+    // jinak státy ze stejného kontinentu
+    const buildCountryChoices = (countryId, countries, rng, distanceOf = () => undefined) => {
         const correct = countries[countryId];
-        const others = Object.entries(countries).filter(([id]) => id !== countryId);
-        const taken = new Set([normalizeAnswer(correct.name)]);
-        const nameOf = ([, country]) => country.name;
-        const distractors = pickDistinct(others.filter(([, c]) => c.continent === correct.continent), 3, taken, rng, nameOf);
-        distractors.push(...pickDistinct(others, 3 - distractors.length, taken, rng, nameOf));
+        const score = ([id, country]) => {
+            const km = distanceOf(id);
+            return (country.continent === correct.continent ? 2 : 0) + (km === undefined ? 0 : nearness(km, STATE_STEPS));
+        };
+        const ranked = rankBySimilarity(Object.entries(countries).filter(([id]) => id !== countryId), score, rng);
+        const distractors = takeDistinct(ranked, 3, new Set([normalizeAnswer(correct.name)]), ([, country]) => country.name);
         return shuffle([
             { id: countryId, label: correct.name, correct: true },
             ...distractors.map(([id, country]) => ({ id, label: country.name, correct: false }))
@@ -579,6 +620,7 @@
         ELEMENT_FAMILIES, elementFamily, periodicPosition,
         getWordStems, censorName, censorCountry, isKnownCountry, processWikiText, normalizeAnswer, levenshtein, isAnswerMatch,
         inCollection, filterItems, pickItem, sortItems, getCountryNames, getContinent, getCountryAliases,
+        distanceKm, nearness, STATE_STEPS, sharesGroup, eraNearness, personSimilarity, rankBySimilarity, takeDistinct,
         buildItemChoices, buildCountryChoices, findAnswerItem, findAnswerCountry, updateMistakes, nameAnswers, countryAnswers,
         getHintSteps, pointsFor, formatNumber, formatPopulation, formatYear, formatFacts, getMapSpan, buildBlindMap,
         buildTimeline, centuryOf, centuryLabel, computeStreak, buildShareText, getTileLayout

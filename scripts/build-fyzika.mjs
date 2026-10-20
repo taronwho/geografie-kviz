@@ -186,7 +186,9 @@ for (const [qid] of candidates.units) {
     const known = quantityItems.find(item => measured.some(label => label.toLowerCase() === item.n.toLowerCase()));
     const measures = MEASURES_OVERRIDES[qid] || (known ? known.n.toLowerCase() : undefined) || measured[0] || (quantityItems.find(item => item.f.unitId === qid) || {}).n?.toLowerCase();
     if (!symbol || !measures) continue;
-    const system = SI_BASE.includes(qid) ? 'základní jednotka SI' : isSI(qid) ? 'odvozená jednotka SI' : 'mimo soustavu SI';
+    // Kilometr, miligram, gram: násobky a díly jednotek SI, ne odvozené jednotky
+    const isMultiple = /^(kilo|mili|centi|mikro|deci|nano|mega|giga|piko|hekto|deka)(?!gram$)|^gram$/iu.test(detail.n) && !SI_BASE.includes(qid);
+    const system = SI_BASE.includes(qid) ? 'základní jednotka SI' : isMultiple ? 'násobek jednotky SI' : isSI(qid) ? 'odvozená jednotka SI' : 'mimo soustavu SI';
     const added = addItem({
         q: qid, t: detail.t, n: capitalize(detail.n), c: 'jednotky', k: rank < LIMITS.jednotky.known || SI_BASE.includes(qid) ? 1 : 0, d: detail.d,
         ...imageFields(detail.im),
@@ -196,13 +198,15 @@ for (const [qid] of candidates.units) {
 }
 
 // Vesmír: druh tělesa podle zdroje a typu
+const PLANETS = ['Q308', 'Q313', 'Q2', 'Q111', 'Q319', 'Q193', 'Q324', 'Q332'];
 const solarKind = (detail) => {
     const types = (detail.type || []).map(en).join(' | ').toLowerCase();
     if (/hypothetical|fictional|myth|legend/.test(types)) return null;
     if (/(^|\| )dwarf planet($| \|)/.test(types)) return 'trpaslicí planeta';
     if (/comet/.test(types)) return 'kometa';
-    if (/planet/.test(types) && !/minor planet|exoplanet/.test(types)) return 'planeta';
-    if (/asteroid|minor planet/.test(types)) return 'planetka';
+    // Planety jsou jen ty skutečné (Varuna nebo Quaoar planety nejsou, i když to typ ve Wikidatech napovídá)
+    if (PLANETS.includes(detail.q)) return 'planeta';
+    if (/asteroid|minor planet|trans-neptunian|cubewano|plutino/.test(types)) return 'planetka';
     return null;
 };
 const KIND_LABELS = { mesic: 'měsíc', hvezda: 'hvězda', galaxie: 'galaxie', souhvezdi: 'souhvězdí' };
@@ -216,7 +220,7 @@ for (const [qid, sl, source] of candidates.space) {
     const types = (detail.type || []).map(en).join(' | ').toLowerCase();
     // Hypotetická tělesa, mlhoviny a černé díry mezi hvězdy nepatří
     if (/hypothetical|fictional|myth|legend|religio|nebula|black hole|radio source/.test(types)) continue;
-    const kind = source === 'solar' ? solarKind(detail) : KIND_LABELS[source];
+    const kind = source === 'solar' ? solarKind({ ...detail, q: qid }) : KIND_LABELS[source];
     if (kind === 'planetka' && sl < 40) continue;
     if (!kind || (kindCounts[kind] || 0) >= KIND_LIMITS[kind]) continue;
     const parent = (detail.parent || []).map(cs).filter(Boolean)[0];
@@ -254,7 +258,7 @@ for (const [qid] of candidates.physicists) {
     const isCzech = (detail.cit || []).some(q => CZECH_STATES.has(q));
     const added = addItem({
         q: qid, t: detail.t, n: detail.n, c: 'fyzici', k: rank < LIMITS.fyzici.known || isCzech ? 1 : 0,
-        ty: detail.sex === FEMALE ? 'fyzička' : 'fyzik', d: detail.d, cz: isCzech ? 1 : undefined,
+        ty: detail.sex === FEMALE ? 'fyzička' : 'fyzik', sx: detail.sex === FEMALE ? 'f' : undefined, d: detail.d, cz: isCzech ? 1 : undefined,
         ...imageFields(detail.im),
         f: { born, died: yearOf(detail.died), land: (detail.cit || []).map(cs).filter(Boolean)[0], nobel: nobel ? 1 : undefined, y: born + 35 }
     });
@@ -271,6 +275,7 @@ const BY_NAME = { by: 'name' };
 const COLLECTIONS = [
     { id: 'zakladni-jednotky-si', label: 'Základní jednotky SI', text: 'Metr, kilogram, sekunda, ampér, kelvin, mol, kandela', test: unit(item => item.f.system === 'základní jednotka SI') },
     { id: 'odvozene-jednotky-si', label: 'Odvozené jednotky SI', test: unit(item => item.f.system === 'odvozená jednotka SI') },
+    { id: 'nasobky-jednotek-si', label: 'Násobky jednotek SI', text: 'Kilometr, centimetr, gram…', test: unit(item => item.f.system === 'násobek jednotky SI') },
     { id: 'jednotky-mimo-si', label: 'Jednotky mimo SI', text: 'Palce, míle, kalorie, světelné roky…', test: unit(item => item.f.system === 'mimo soustavu SI') },
     { id: 'elektrina-magnetismus', label: 'Elektřina a magnetismus', test: item => quantity(q => ELECTRIC_UNITS.test(q.f.unit))(item) || unit(u => ELECTRIC_UNITS.test(u.n))(item) },
     { id: 'teplo', label: 'Teplo a termika', test: item => quantity(q => THERMAL.test(q.n) || THERMAL.test(q.f.unit))(item) },

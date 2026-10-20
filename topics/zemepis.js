@@ -9,7 +9,8 @@
 
     const {
         CONTINENT_NAMES, CZECHIA_QID, getCountryNames, getContinent, getCountryAliases, censorCountry,
-        buildCountryChoices, findAnswerCountry, countryAnswers, formatFacts, formatNumber, formatPopulation, formatYear, getMapSpan
+        buildCountryChoices, findAnswerCountry, countryAnswers, formatFacts, formatNumber, formatPopulation, formatYear, getMapSpan,
+        distanceKm, nearness, STATE_STEPS
     } = core;
 
     // mapSpan = kolik stupňů zeměpisné délky ukáže slepá mapa; sort = pořadí při procházení kategorie v učení
@@ -31,6 +32,17 @@
     const canAskForCountry = (item, countries) => {
         if (item.c === 'stat' || (item.co || []).length !== 1 || !countries[item.co[0]]) return false;
         return !censorCountry(item.n, countries[item.co[0]].name, getCountryAliases(item.co)).includes('[***]');
+    };
+
+    // Hlavní číslo kategorie – podobně velká místa jsou lepší nesprávné možnosti (velkoměsto k velkoměstu)
+    const SIZE_FACT = { stat: 'area', mesto: 'pop', hora: 'elev', reka: 'len', jezero: 'area', ostrov: 'area' };
+    const isComparable = (a, b) => a > 0 && b > 0 && a / b > 0.4 && a / b < 2.5;
+
+    // Střed státu podle položky státu v datech (pro nejbližší státy u otázky „Ve kterém státě to je?“)
+    const centres = new WeakMap();
+    const countryCentres = (items) => {
+        if (!centres.has(items)) centres.set(items, new Map(items.filter(item => item.c === 'stat' && item.la !== undefined).map(item => [item.q, item])));
+        return centres.get(items);
     };
 
     const FACT_FORMATS = [
@@ -72,14 +84,26 @@
         },
         categories: CATEGORIES,
 
-        // Nesprávné možnosti přednostně ze stejného kontinentu
-        groupOf: (item, { countries }) => getContinent(item, countries),
+        // Nesprávné možnosti: místa poblíž, ze stejného státu (jinak kontinentu) a podobně velká
+        similarity: (item, other, { countries }) => {
+            // U států rozhodují hlavně sousedé, velikost jen trochu
+            const isState = item.c === 'stat';
+            let score = item.la !== undefined && other.la !== undefined ? nearness(distanceKm(item, other), isState ? STATE_STEPS : undefined) : 0;
+            const sharesCountry = item.c !== 'stat' && (item.co || []).some(country => (other.co || []).includes(country));
+            const continent = getContinent(item, countries);
+            // Jiný kontinent skoro vyřadí (k Novému Zélandu ne Francie, i když je známá)
+            const otherContinent = getContinent(other, countries);
+            score += sharesCountry ? 2 : continent && continent === otherContinent ? 1 : continent && otherContinent ? -3 : 0;
+            const key = SIZE_FACT[item.c];
+            if (key && isComparable((item.f || {})[key], (other.f || {})[key])) score += isState ? 0.5 : 1;
+            return score;
+        },
 
         // U států platí i jejich běžné zkratky a názvy (USA, ČR…)
         nameAliases: (item) => item.c === 'stat' ? getCountryAliases([item.q]) : [],
 
         // Občas otázka „Ve kterém státě to je?“ – název místa je pak vidět a z popisu zmizí stát, národnost i kontinent
-        specialQuestion: (item, { countries }, rng) => {
+        specialQuestion: (item, { countries, items }, rng) => {
             if (!(rng() < LOCATION_QUIZ_SHARE && canAskForCountry(item, countries))) return null;
             const countryId = item.co[0];
             const countryName = countries[countryId].name;
@@ -87,7 +111,11 @@
                 type: 'location',
                 title: 'Ve kterém státě to je?',
                 showName: true,
-                choices: buildCountryChoices(countryId, countries, rng).map(choice => ({ ...choice, topic: 'zemepis' })),
+                // Nesprávné možnosti: státy nejblíž místu (u Prahy Slovensko, Rakousko, Polsko…)
+                choices: buildCountryChoices(countryId, countries, rng, (id) => {
+                    const centre = item.la !== undefined ? countryCentres(items || []).get(id) : null;
+                    return centre ? distanceKm(item, centre) : undefined;
+                }).map(choice => ({ ...choice, topic: 'zemepis' })),
                 accepted: countryAnswers([countryId], [countryName]),
                 placeholder: 'Napiš stát…',
                 answerLabel: countryName

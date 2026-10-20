@@ -235,6 +235,16 @@ const levelOf = (ancestors, rank) => {
     const ancestor = ancestors.find(entry => entry.rank === rank);
     return ancestor ? (ancestor.label || ancestor.name) : undefined;
 };
+// Třída podle školní systematiky: Wikidata řadí ptáky mezi plazy a savce i mezi „ryby“ (nozdraté)
+const classOf = (category, ancestors) => {
+    const has = (name) => ancestors.some(ancestor => ancestor.name === name);
+    if (category === 'savci') return 'savci';
+    if (category === 'ptaci') return 'ptáci';
+    if (category === 'hmyz') return 'hmyz';
+    if (category === 'plazi') return has('Amphibia') ? 'obojživelníci' : 'plazi';
+    if (category === 'ryby') return has('Chondrichthyes') ? 'paryby' : 'paprskoploutví';
+    return levelOf(ancestors, RANK.class);
+};
 const CATEGORY_ONE = { savci: 'savec', ptaci: 'pták', plazi: 'plaz', ryby: 'ryba', hmyz: 'hmyz', bezobratli: 'bezobratlý', rostliny: 'rostlina', houby: 'houba', pravek: 'pravěk' };
 const max = (list) => list && list.length ? Math.max(...list) : undefined;
 const round = (value, digits) => value === undefined ? undefined : Number(value.toPrecision(digits));
@@ -282,7 +292,7 @@ for (const qid of ordered) {
         rh: rangeMap.ih,
         f: compact({
             lat: detail.lat,
-            cls: levelOf(ancestors, RANK.class),
+            cls: classOf(category, ancestors),
             ord: levelOf(ancestors, RANK.order),
             fam: levelOf(ancestors, RANK.family),
             iucn: IUCN[detail.iucn],

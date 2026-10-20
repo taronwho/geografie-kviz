@@ -267,7 +267,8 @@
             type: 'name',
             title: category.question || topic.words.question,
             showName: false,
-            choices: buildItemChoices(item, items, rng, other => topic.groupOf ? topic.groupOf(other, ctx) : ''),
+            // Nesprávné možnosti co nejpodobnější (podle tématu), aby správná nebyla poznat na první pohled
+            choices: buildItemChoices(item, items, rng, other => topic.similarity ? topic.similarity(item, other, ctx) : 0),
             accepted: nameAnswers(item, topic.nameAliases ? topic.nameAliases(item, ctx) : []),
             placeholder: category.placeholder || topic.words.placeholder,
             answerLabel: item.n

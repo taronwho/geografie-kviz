@@ -7,7 +7,10 @@
 })(typeof self !== 'undefined' ? self : this, (core) => {
     'use strict';
 
-    const { formatFacts, formatNumber, formatYear, centuryOf, censorName, stripBrackets, shuffle } = core;
+    const {
+        formatFacts, formatNumber, formatYear, censorName, stripBrackets, shuffle, normalizeAnswer,
+        personSimilarity, rankBySimilarity, takeDistinct
+    } = core;
 
     const CATEGORIES = [
         { key: 'veliciny', label: 'Fyzikální veličiny', one: 'veličina', icon: 'gauge', question: 'Která veličina to je?', placeholder: 'Napiš název veličiny…', sort: { by: 'name' } },
@@ -72,6 +75,23 @@
         return { type: 'timeline', spans: [{ kind: 'life', from: f.born, to: f.died }], points: [], hide: item.n, anchors: PHYSICS_EVENTS };
     };
 
+    // Obor fyziky (mechanika, elektřina a magnetismus, teplo): u veličiny z jejích okruhů, u jednotky z veličiny, kterou měří
+    const FIELDS = ['mechanika', 'elektrina-magnetismus', 'teplo'];
+    const quantityIndex = new WeakMap();
+    const fieldsOf = (item, ctx) => {
+        const own = (item.g || []).filter(group => FIELDS.includes(group));
+        if (item.c !== 'jednotky' || !ctx || !ctx.items) return own;
+        if (!quantityIndex.has(ctx.items)) {
+            quantityIndex.set(ctx.items, new Map(ctx.items.filter(other => other.c === 'veliciny').map(other => [other.n.toLowerCase(), other])));
+        }
+        const quantity = quantityIndex.get(ctx.items).get(((item.f || {}).measures || '').toLowerCase());
+        return [...new Set([...own, ...(quantity ? (quantity.g || []).filter(group => FIELDS.includes(group)) : [])])];
+    };
+    const sameField = (a, b, ctx) => {
+        const fields = fieldsOf(a, ctx);
+        return fields.length > 0 && fieldsOf(b, ctx).some(field => fields.includes(field));
+    };
+
     // Značka jednotky v textu: víceznaková jako samostatné slovo, jednoznaková (V, N, J) jen za číslem („230 V“), ať nezmizí předložka
     const hideSymbol = (text, symbol) => {
         if (!symbol) return text;
@@ -81,7 +101,6 @@
             : new RegExp(`(?<=\\d\\s?)${escaped}(?![\\p{L}])`, 'gu');
         return text.replace(pattern, '[***]');
     };
-    const pickOthers = (values, correct, rng) => shuffle([...new Set(values.filter(value => value && value !== correct))], rng).slice(0, 3);
 
     return {
         id: 'fyzika',
@@ -101,21 +120,31 @@
         },
         categories: CATEGORIES,
 
-        // Nesprávné možnosti: jednotky ze stejné soustavy, tělesa stejného druhu, fyzici ze stejného století
-        groupOf: (item) => {
+        // Nesprávné možnosti: veličiny se stejnou jednotkou nebo z téhož oboru (energie – práce – teplo), jednotky téže
+        // veličiny (metr – stopa – palec), tělesa téhož druhu kolem téhož tělesa (měsíce Jupiteru), fyzici stejného pohlaví a doby
+        similarity: (item, other, ctx) => {
             const f = item.f || {};
-            if (item.c === 'jednotky') return f.system || '';
-            if (item.c === 'vesmir') return f.kind || '';
-            if (item.c === 'fyzici') return f.y !== undefined ? String(centuryOf(f.y)) : '';
-            return '';
+            const g = other.f || {};
+            if (item.c === 'veliciny') return (f.unit && f.unit === g.unit ? 3 : 0) + (sameField(item, other, ctx) ? 2 : 0);
+            if (item.c === 'jednotky') return (f.measures && f.measures === g.measures ? 4 : 0) + (f.system === g.system ? 1 : 0) + (sameField(item, other, ctx) ? 2 : 0);
+            if (item.c === 'vesmir') return (f.kind === g.kind ? 3 : 0) + (f.parent && f.parent === g.parent ? 3 : 0);
+            return personSimilarity(item, other) + (Boolean(f.nobel) === Boolean(g.nobel) ? 1 : 0);
         },
 
         specialQuestion: (item, ctx, rng) => {
             const f = item.f || {};
             const same = ctx.items.filter(other => other.c === item.c && other.q !== item.q);
+            // Nejpodobnější položky téže kategorie (z téhož oboru), jejich hodnota key jako nesprávné možnosti
+            // Značky se porovnávají přesně (m a m² jsou různé), názvy bez diakritiky a velikosti písmen
+            const rankedValues = (key, correct, extra = () => 0) => {
+                const keyOf = key === 'usym' ? (value) => value : normalizeAnswer;
+                return takeDistinct(rankBySimilarity(same.filter(other => other.f[key]), other => (sameField(item, other, ctx) ? 2 : 0) + extra(other), rng),
+                    3, new Set([keyOf(correct)]), other => other.f[key], keyOf).map(other => other.f[key]);
+            };
             if (item.c === 'veliciny') {
                 if (!(rng() < UNIT_QUIZ_SHARE) || !f.unit) return null;
-                const wrong = pickOthers(same.map(other => other.f.unit), f.unit, rng);
+                // Jednotky z téhož oboru a podobně složené (k newtonu joule, pascal, watt; ne bit za sekundu)
+                const wrong = rankedValues('unit', f.unit, other => (/[/·⋅ ]/.test(other.f.usym || '') === /[/·⋅ ]/.test(f.usym || '') ? 1 : 0));
                 if (wrong.length < 3) return null;
                 const symbols = new Map(same.map(other => [other.f.unit, other.f.usym]));
                 const label = (unit) => unit === f.unit ? unitLabel(f) : symbols.get(unit) ? `${unit} (${symbols.get(unit)})` : unit;
@@ -132,7 +161,8 @@
             if (item.c === 'jednotky') {
                 const roll = rng();
                 if (roll < SYMBOL_QUIZ_SHARE && f.usym) {
-                    const wrong = pickOthers(same.map(other => other.f.usym), f.usym, rng);
+                    // Značky jednotek téže veličiny nebo oboru a stejné soustavy (k Pa: bar, atm, N…)
+                    const wrong = rankedValues('usym', f.usym, other => (other.f.measures === f.measures ? 3 : 0) + (other.f.system === f.system ? 1 : 0));
                     if (wrong.length < 3) return null;
                     return {
                         type: 'usymbol',
@@ -145,7 +175,8 @@
                     };
                 }
                 if (roll < SYMBOL_QUIZ_SHARE + MEASURES_QUIZ_SHARE && f.measures) {
-                    const wrong = pickOthers(same.map(other => other.f.measures), f.measures, rng);
+                    // Veličiny z téhož oboru (k tlaku síla, energie, výkon), ne „počet“ nebo „informace“
+                    const wrong = rankedValues('measures', f.measures, other => (other.f.system === f.system ? 1 : 0));
                     if (wrong.length < 3) return null;
                     return {
                         type: 'measures',

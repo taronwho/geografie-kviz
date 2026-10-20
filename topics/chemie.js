@@ -7,7 +7,10 @@
 })(typeof self !== 'undefined' ? self : this, (core) => {
     'use strict';
 
-    const { formatFacts, formatNumber, formatYear, elementFamily, stripBrackets, censorName, displayName, shuffle } = core;
+    const {
+        formatFacts, formatNumber, formatYear, elementFamily, periodicPosition, stripBrackets, censorName, displayName, shuffle, normalizeAnswer,
+        sharesGroup, personSimilarity, rankBySimilarity, takeDistinct
+    } = core;
 
     const CATEGORIES = [
         { key: 'prvky', label: 'Chemické prvky', one: 'prvek', icon: 'atom', question: 'Který prvek to je?', placeholder: 'Napiš název prvku…', sort: { by: 'z' } },
@@ -24,6 +27,23 @@
     const SUBSCRIPTS = '₀₁₂₃₄₅₆₇₈₉';
     const plainFormula = (formula) => formula.replace(/[₀-₉]/g, digit => String(SUBSCRIPTS.indexOf(digit)));
     const symbolsOf = (formula) => formula.match(/[A-Z][a-z]?/g) || [];
+    const firstWord = (name) => normalizeAnswer(name.split(' ')[0]);
+    // Jak moc se vzorce shodují v prvcích (0 až 1)
+    const elementOverlap = (a, b) => {
+        const left = new Set(symbolsOf(a || ''));
+        const right = new Set(symbolsOf(b || ''));
+        const shared = [...left].filter(symbol => right.has(symbol)).length;
+        return left.size + right.size ? shared / new Set([...left, ...right]).size : 0;
+    };
+    const similarLength = (a, b) => Boolean(a && b) && Math.abs(plainFormula(a).length - plainFormula(b).length) <= 2;
+    // Vzorec v obvyklém zápisu: Wikidata mají u některých látek jen Hillův zápis (ClHO místo HClO, CNNa místo NaCN),
+    // který by mezi možnostmi nápadně trčel
+    const METALS = /^(Li|Na|K|Rb|Cs|Be|Mg|Ca|Sr|Ba|Al|Fe|Cu|Zn|Ag|Au|Hg|Pb|Sn|Mn|Cr|Ni|Co|Ti)$/;
+    const looksUsual = (formula) => {
+        const symbols = symbolsOf(formula);
+        if (symbols.length > 1 && /^(Cl|Br|I|F)$/.test(symbols[0])) return false;
+        return !(symbols.includes('C') && !symbols.includes('H') && symbols.some(symbol => METALS.test(symbol)));
+    };
     const escapeRegExp = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
     const factsOf = (item, mode) => {
@@ -94,18 +114,39 @@
         },
         categories: CATEGORIES,
 
-        // Nesprávné možnosti: prvky ze stejné skupiny, látky se stejným prvním prvkem
-        groupOf: (item) => item.c === 'prvky' ? ((elementFamily(item.f.z) || {}).key || '')
-            : item.c === 'latky' ? (symbolsOf(item.f.formula || '')[0] || '') : '',
+        // Nesprávné možnosti: prvky ze stejné skupiny a z okolí v tabulce, látky stejného druhu (kyselina ke kyselinám)
+        // a podobného složení, chemici stejného pohlaví a doby
+        similarity: (item, other) => {
+            const f = item.f || {};
+            const g = other.f || {};
+            if (item.c === 'prvky') {
+                const a = periodicPosition(f.z);
+                const b = periodicPosition(g.z);
+                return ((elementFamily(f.z) || {}).key === (elementFamily(g.z) || {}).key ? 3 : 0)
+                    + (a && b && a.col === b.col && !a.fBlock ? 2 : 0) + (a && b && a.period === b.period ? 1 : 0) + (Math.abs(f.z - g.z) <= 3 ? 1 : 0);
+            }
+            if (item.c === 'latky') {
+                return (firstWord(item.n) === firstWord(other.n) ? 3 : 0) + Math.round(elementOverlap(f.formula, g.formula) * 3)
+                    + (sharesGroup(item, other) ? 2 : 0) + (similarLength(f.formula, g.formula) ? 2 : 0)
+                    // Stejná koncovka názvu: methan – ethan, propan; ethanol – methanol
+                    + (normalizeAnswer(item.n).slice(-3) === normalizeAnswer(other.n).slice(-3) ? 1 : 0);
+            }
+            return personSimilarity(item, other) + (Boolean(f.nobel) === Boolean(g.nobel) ? 1 : 0);
+        },
 
         specialQuestion: (item, ctx, rng) => {
             const f = item.f || {};
             if (item.c === 'prvky') {
                 if (!(rng() < SYMBOL_QUIZ_SHARE) || !f.sym) return null;
-                // Matoucí možnosti: značky začínající stejným písmenem (Fe – F, Fr, Fm), jinak jakékoli
-                const others = ctx.items.filter(other => other.c === 'prvky' && other.f.sym && other.f.sym !== f.sym).map(other => other.f.sym);
-                const similar = shuffle(others.filter(symbol => symbol[0] === f.sym[0]), rng);
-                const wrong = [...similar, ...shuffle(others.filter(symbol => symbol[0] !== f.sym[0]), rng)].slice(0, 3);
+                // Matoucí možnosti: značky začínající stejným písmenem (Fe – F, Fr, Fm), jinak prvky z okolí v tabulce (W – Mo, Re, Ta)
+                const others = ctx.items.filter(other => other.c === 'prvky' && other.f.sym && other.f.sym !== f.sym);
+                const position = periodicPosition(f.z);
+                const score = (other) => (other.f.sym[0] === f.sym[0] ? 5 : 0) + (other.k === item.k ? 1 : 0) + (() => {
+                    const near = periodicPosition(other.f.z);
+                    return near && position ? (near.col === position.col ? 2 : 0) + (near.period === position.period ? 2 : 0) : 0;
+                })();
+                const wrong = takeDistinct(rankBySimilarity(others, score, rng), 3, new Set([f.sym]), other => other.f.sym, symbol => symbol)
+                    .map(other => other.f.sym);
                 return {
                     type: 'symbol',
                     title: 'Jakou značku má tento prvek?',
@@ -118,13 +159,15 @@
             }
             if (item.c === 'latky') {
                 // Jen jednoduché vzorce (H₂SO₄ ano, C₄₃H₆₆N₁₂O₁₂S₂ ne)
-                if (!(rng() < FORMULA_QUIZ_SHARE) || !f.formula || plainFormula(f.formula).length > 9) return null;
-                const elements = new Set(symbolsOf(f.formula));
-                const others = [...new Set(ctx.items
-                    .filter(other => other.c === 'latky' && other.f.formula && other.f.formula !== f.formula && plainFormula(other.f.formula).length <= 9)
-                    .map(other => other.f.formula))];
-                const sharing = shuffle(others.filter(formula => symbolsOf(formula).some(symbol => elements.has(symbol))), rng);
-                const wrong = [...sharing, ...shuffle(others, rng)].filter((formula, i, list) => list.indexOf(formula) === i).slice(0, 3);
+                if (!(rng() < FORMULA_QUIZ_SHARE) || !f.formula || plainFormula(f.formula).length > 9 || !looksUsual(f.formula)) return null;
+                // Nesprávné vzorce: ze stejných prvků a podobně dlouhé (k H₂SO₄ třeba H₂SO₃, H₂S, SO₃), přednostně látky stejného druhu
+                const candidates = ctx.items.filter(other => other.c === 'latky' && other.f.formula && other.f.formula !== f.formula
+                    && plainFormula(other.f.formula).length <= 9 && looksUsual(other.f.formula));
+                const score = (other) => Math.round(elementOverlap(f.formula, other.f.formula) * 4)
+                    + (similarLength(f.formula, other.f.formula) ? 1 : 0)
+                    + (firstWord(item.n) === firstWord(other.n) || sharesGroup(item, other) ? 1 : 0);
+                const wrong = takeDistinct(rankBySimilarity(candidates, score, rng), 3, new Set([plainFormula(f.formula)]), other => other.f.formula, plainFormula)
+                    .map(other => other.f.formula);
                 if (wrong.length < 3) return null;
                 return {
                     type: 'formula',

@@ -7,7 +7,7 @@
 })(typeof self !== 'undefined' ? self : this, (core) => {
     'use strict';
 
-    const { formatYear, formatFacts, centuryOf, centuryLabel, getCountryNames, shuffle } = core;
+    const { formatYear, formatFacts, centuryOf, centuryLabel, getCountryNames, shuffle, eraNearness, personSimilarity } = core;
 
     const PERSON = { question: 'Kdo to je?', placeholder: 'Napiš jméno…', ask: 'Kdo je', sort: { by: 'y' } };
     const CATEGORIES = [
@@ -128,6 +128,11 @@
         return Object.keys(REGIONS).filter(key => (key === 'cesko' && item.cz === 1) || REGIONS[key].match.test(text)
             || (REGIONS[key].collections || []).some(id => (item.g || []).includes(id)));
     };
+    const regionCache = new WeakMap();
+    const cachedRegions = (item) => {
+        if (!regionCache.has(item)) regionCache.set(item, regionsOf(item));
+        return regionCache.get(item);
+    };
     // Události pro osu kolem let položky (osa sahá nejvýš 300 let na každou stranu)
     const eventsFor = (item, years) => {
         const min = Math.min(...years) - 320;
@@ -195,15 +200,31 @@
         },
         categories: CATEGORIES,
 
-        // Nesprávné možnosti přednostně ze stejného století
-        groupOf: (item) => item.f && item.f.y !== undefined ? String(centuryOf(item.f.y)) : '',
+        // Nesprávné možnosti: stejné pohlaví a podobná doba, stejné dějiny (anglický král k anglickým), rod, válka
+        similarity: (item, other) => {
+            const f = item.f || {};
+            const g = other.f || {};
+            let score = isPerson(item) ? personSimilarity(item, other) : eraNearness(f.y, g.y);
+            if (isPerson(item) && f.dyn && f.dyn === g.dyn) score += 1;
+            if (item.c === 'bitva' && f.war && f.war === g.war) score += 3;
+            const regions = cachedRegions(item);
+            if (regions.length && cachedRegions(other).some(region => regions.includes(region))) score += 2;
+            return score;
+        },
 
         // Občas „Do kterého století to patří?“ – jméno je pak vidět a z popisu zmizí letopočty
         specialQuestion: (item, ctx, rng) => {
             if (!(rng() < CENTURY_QUIZ_SHARE) || !item.f || item.f.y === undefined) return null;
             const century = centuryOf(item.f.y);
-            const neighbours = [-3, -2, -1, 1, 2, 3].map(offset => century + offset).filter(c => c !== 0 && c <= 21);
-            const wrong = shuffle(neighbours, rng).slice(0, 3);
+            // Nesprávná století co nejblíž: obě sousední, pak o dvě dál (u Washingtona 17., 19., 16. – ne 15. nebo 21.)
+            const shift = (offset) => {
+                let result = century + offset;
+                if (century < 0 && result >= 0) result += 1;
+                if (century > 0 && result <= 0) result -= 1;
+                return result;
+            };
+            const wrong = [...shuffle([-1, 1], rng), ...shuffle([-2, 2], rng), ...shuffle([-3, 3], rng)].map(shift)
+                .filter(c => c <= 21 && !(c === 21 && century < 20)).slice(0, 3);
             return {
                 type: 'century',
                 title: 'Do kterého století to patří?',

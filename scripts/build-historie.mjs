@@ -311,6 +311,8 @@ for (const [qid, entry] of ordered) {
         ty: isPope ? 'papež' : kind === 'osoba' ? typeLabelOf(category, detail, main) : typeLabels.find(text => (kind === 'stat' ? STATE_TYPES : EVENT_TYPES).test(text)),
         d: detail.d,
         cz: isCzech ? 1 : undefined,
+        // Pohlaví osoby – u nesprávných možností k panovnici panovnice
+        sx: kind === 'osoba' && detail.sex === FEMALE ? 'f' : undefined,
         la: kind === 'udalost' && point ? point.lat : undefined,
         lo: kind === 'udalost' && point ? point.lon : undefined,
         co: kind === 'udalost' ? (detail.co || []) : undefined,

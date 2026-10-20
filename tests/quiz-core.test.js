@@ -279,8 +279,9 @@ test('náhodná položka: nejdřív kategorie, nedávno hrané se neopakují', (
     assert.equal(a.q, b.q);
 });
 
-test('možnosti názvu: stejná kategorie, přednostně stejná skupina a známost; nesou ID', () => {
-    const choices = core.buildItemChoices(PLACES[0], PLACES, core.createSeededRandom('a'), continentOf);
+test('možnosti názvu: stejná kategorie, nejpodobnější podle tématu a stejně známé; nesou ID', () => {
+    const sameContinent = (item) => (other) => continentOf(other) === continentOf(item) ? 1 : 0;
+    const choices = core.buildItemChoices(PLACES[0], PLACES, core.createSeededRandom('a'), sameContinent(PLACES[0]));
     assert.equal(choices.length, 4);
     assert.equal(choices.filter(c => c.correct).length, 1);
     assert.equal(choices.find(c => c.correct).label, 'Praha');
@@ -288,7 +289,7 @@ test('možnosti názvu: stejná kategorie, přednostně stejná skupina a známo
     assert.deepEqual(choices.filter(c => !c.correct).map(c => c.label).sort(), ['Berlín', 'Krakov', 'Vídeň']);
     assert.ok(choices.every(c => PLACES.find(p => p.q === c.id).n === c.label));
     // Málo položek v kategorii: doplní se z čeho jde a možnosti se neopakují
-    const few = core.buildItemChoices(PLACES[7], PLACES, core.createSeededRandom('b'), continentOf);
+    const few = core.buildItemChoices(PLACES[7], PLACES, core.createSeededRandom('b'), sameContinent(PLACES[7]));
     assert.deepEqual(few.map(c => c.label).sort(), ['Fudži', 'Sněžka']);
 });
 
@@ -301,11 +302,28 @@ test('možnosti názvu: přednost má stejný typ', () => {
         place('Q5', 'Bajkal', 'jezero', 1, ['Q213'], { ty: 'jezero' }),
         place('Q6', 'Lipno', 'jezero', 1, ['Q213'], { ty: 'přehradní nádrž' })
     ];
-    const choices = core.buildItemChoices(water[0], water, core.createSeededRandom('c'), continentOf);
+    const choices = core.buildItemChoices(water[0], water, core.createSeededRandom('c'));
     assert.deepEqual(choices.map(c => c.label).sort(), ['Bospor', 'Dardanely', 'Gibraltarský průliv', 'Lamanšský průliv']);
 });
 
-test('možnosti státu: jiné státy ze stejného kontinentu, s ID', () => {
+test('možnosti názvu: podobnost tématu rozhoduje, stejně podobné náhodně, sporné názvy až nakonec', () => {
+    const items = ['Síla', 'Tíhová síla', 'Práce', 'Energie', 'Výkon', 'Tlak', 'Hustota'].map((n, i) => place(`Q${i + 1}`, n, 'veliciny', 1, []));
+    // Téma řekne, co je podobné: energie, výkon a práce k síle, hustota nikdy
+    const related = { Energie: 2, Výkon: 2, Práce: 2, Tlak: 1, 'Tíhová síla': 5, Hustota: -Infinity };
+    for (let seed = 0; seed < 5; seed++) {
+        const choices = core.buildItemChoices(items[0], items, core.createSeededRandom(`s${seed}`), other => related[other.n] || 0);
+        // Tíhová síla je nejpodobnější, ale obsahuje celý název odpovědi – sporná možnost se vynechá
+        assert.deepEqual(choices.filter(c => !c.correct).map(c => c.label).sort(), ['Energie', 'Práce', 'Výkon']);
+    }
+    // Mezi stejně podobnými vybírá semínko: pořadí se mění, výběr ne
+    const orders = new Set([0, 1, 2, 3, 4].map(seed => core.buildItemChoices(items[0], items, core.createSeededRandom(`o${seed}`), () => 0).map(c => c.label).join()));
+    assert.ok(orders.size > 1);
+});
+
+test('možnosti státu: nejbližší státy (podle vzdálenosti od místa), jinak ze stejného kontinentu, s ID', () => {
+    const distances = { Q40: 250, Q36: 500, Q142: 900, Q213: 300, Q17: 9000 };
+    const near = core.buildCountryChoices('Q183', COUNTRIES_TABLE, core.createSeededRandom('y'), id => distances[id]);
+    assert.deepEqual(near.filter(c => !c.correct).map(c => c.label).sort((a, b) => a.localeCompare(b, 'cs')), ['Česko', 'Polsko', 'Rakousko']);
     const choices = core.buildCountryChoices('Q183', COUNTRIES_TABLE, core.createSeededRandom('x'));
     assert.equal(choices.length, 4);
     assert.equal(choices.find(c => c.correct).label, 'Německo');

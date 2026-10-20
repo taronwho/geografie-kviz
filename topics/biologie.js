@@ -98,8 +98,16 @@
         },
         categories: CATEGORIES,
 
-        // Nesprávné možnosti přednostně ze stejného řádu (šelma k šelmám)
-        groupOf: (item) => (item.f && (item.f.ord || item.f.cls)) || '',
+        // Nesprávné možnosti: nejbližší příbuzní (stejná čeleď, pak řád), podobné jméno (sýkora k sýkorám)
+        // a stejný původ (k naší přírodě naše druhy, k exotickým exotické)
+        similarity: (item, other) => {
+            const f = item.f || {};
+            const g = other.f || {};
+            let score = f.fam && f.fam === g.fam ? 4 : f.ord && f.ord === g.ord ? 2 : f.cls && f.cls === g.cls ? 1 : 0;
+            if (normalizeAnswer(item.n.split(' ')[0]) === normalizeAnswer(other.n.split(' ')[0])) score += 2;
+            if ((item.cz === 1) === (other.cz === 1)) score += 1;
+            return score;
+        },
         nameAliases,
 
         // Občas „Do kterého řádu patří?“ – název je vidět, možnosti jsou jiné řády stejné třídy (u rostlin čeledi stejného řádu či třídy)
@@ -111,11 +119,21 @@
             // Jen české názvy skupin (malým písmenem); vědecké (Pangalliformes) by byly jen hádání
             const isCzechName = (label) => Boolean(label) && /^\p{Ll}/u.test(label);
             if (!isCzechName(answer)) return null;
-            const siblings = (parentKey) => [...new Set(ctx.items
-                .filter(other => other.f && other.f[parentKey] && other.f[parentKey] === f[parentKey] && isCzechName(other.f[level.key]) && other.f[level.key] !== answer)
-                .map(other => other.f[level.key]))].sort();
+            // Sesterské skupiny seřazené podle toho, kolik druhů v nich máme – běžné řády (hlodavci, kytovci), ne vzácné (luskouni)
+            const siblings = (parentKey) => {
+                const counts = new Map();
+                for (const other of ctx.items) {
+                    const label = other.f && other.f[level.key];
+                    const sameParent = !parentKey || (other.f[parentKey] && other.f[parentKey] === f[parentKey]);
+                    if (other.c === item.c && other.f && sameParent && isCzechName(label) && label !== answer) {
+                        counts.set(label, (counts.get(label) || 0) + 1);
+                    }
+                }
+                return [...counts].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'cs')).map(([label]) => label).slice(0, 6);
+            };
             let others = siblings(level.parent);
             if (others.length < 3 && level.parent !== 'cls') others = siblings('cls');
+            if (others.length < 3) others = siblings(null);
             if (others.length < 3) return null;
             const wrong = shuffle(others, rng).slice(0, 3);
             return {
