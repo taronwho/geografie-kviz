@@ -299,7 +299,9 @@
                 title: event.title,
                 showName: true,
                 choices: shuffle([century, ...wrong], rng).map(c => ({ id: `stoleti-${c}`, label: centuryLabel(c), correct: c === century })),
-                accepted: century > 0 ? [String(century), `${century}.`, centuryLabel(century)] : [centuryLabel(century)],
+                match: 'century',
+                century,
+                accepted: [centuryLabel(century)],
                 placeholder: 'Napiš století, třeba 14',
                 answerLabel: centuryLabel(century)
             };

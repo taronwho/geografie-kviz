@@ -229,9 +229,12 @@
     };
 
     // Odpovědi porovnáváme bez diakritiky, velikosti písmen a závorek, s tolerancí drobných překlepů
+    // Bez diakritiky a velikosti písmen; zvláštní písmena přepsaná (Sjælland = sjaelland), jiné abecedy (ω) zůstanou
+    const LETTERS = { æ: 'ae', œ: 'oe', ø: 'o', ß: 'ss', ł: 'l', đ: 'd', ð: 'd', þ: 'th', ı: 'i' };
     const normalizeAnswer = (text) => stripBrackets(String(text ?? ''))
-        .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-        .toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+        .normalize('NFKD').replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase().replace(/[æœøßłđðþı]/g, letter => LETTERS[letter])
+        .replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
 
     const levenshtein = (a, b) => {
         if (a === b) return 0;
@@ -246,15 +249,47 @@
         return previous[b.length];
     };
 
+    // Překlep se toleruje po slovech (v delším slově jeden, v dlouhém dva); čísla a římské číslice musí sedět přesně,
+    // jinak by „Ludvík XV.“ prošel za Ludvíka XIV. a „15. století“ za 14.
+    const isExactToken = (word) => /\d/.test(word) || /^[ivxlcdm]+$/.test(word);
+    const wordTolerance = (word) => isExactToken(word) || word.length <= 4 ? 0 : word.length <= 8 ? 1 : 2;
     const isAnswerMatch = (input, acceptedAnswers) => {
         const given = normalizeAnswer(input);
         if (!given) return false;
+        const givenWords = given.split(' ');
         return acceptedAnswers.some(answer => {
             const expected = normalizeAnswer(answer);
             if (!expected) return false;
-            const tolerance = expected.length <= 4 ? 0 : expected.length <= 8 ? 1 : 2;
-            return levenshtein(given, expected) <= tolerance;
+            if (given === expected) return true;
+            const words = expected.split(' ');
+            if (words.length === givenWords.length) return words.every((word, i) => levenshtein(givenWords[i], word) <= wordTolerance(word));
+            // Chybějící nebo přebývající mezera („Jan Hus“ – „Janhus“) u slov bez čísel
+            return !words.some(isExactToken) && levenshtein(given.replace(/ /g, ''), expected.replace(/ /g, '')) <= Math.min(wordTolerance(expected.replace(/ /g, '')), 1);
         });
+    };
+    // Značka nebo vzorec přesně (m ≠ m², CO ≠ CO₂); horní a dolní indexy jako obyčejné číslice, bez mezer;
+    // velikost písmen jen tam, kde by rozhodovala (m – M)
+    const normalizeSymbol = (text, caseSensitive) => {
+        const plain = String(text ?? '').normalize('NFKC').replace(/\s+/g, '').replace(/[·⋅•*]/g, '.');
+        return caseSensitive ? plain : plain.toLowerCase();
+    };
+    const isSymbolMatch = (input, symbols, caseSensitive = false) => {
+        const given = normalizeSymbol(input, caseSensitive);
+        return Boolean(given) && symbols.some(symbol => normalizeSymbol(symbol, caseSensitive) === given);
+    };
+    // Století: číslo a zda jde o dobu před naším letopočtem („5. století př. n. l.“, „5 pnl“, „-5“)
+    const isCenturyMatch = (input, century) => {
+        const text = normalizeAnswer(input);
+        const number = /\d+/.exec(text);
+        if (!number) return false;
+        const beforeChrist = /(^|\s)(pr|pred|pnl|bc)(\s|$)/.test(text) || /^-/.test(String(input).trim());
+        return Number(number[0]) === Math.abs(century) && beforeChrist === (century < 0);
+    };
+    // Odpověď podle druhu otázky: match = 'century' | 'symbol', jinak názvy s tolerancí překlepů a případně i přesné značky
+    const checkAnswer = (input, question) => {
+        if (question.match === 'century') return isCenturyMatch(input, question.century);
+        if (question.match === 'symbol') return isSymbolMatch(input, question.accepted, question.caseSensitive);
+        return isAnswerMatch(input, question.accepted) || isSymbolMatch(input, question.symbols || [], question.caseSensitive);
     };
 
     // Náhled fotky z Wikimedia Commons přímo z upload.wikimedia.org (bez přesměrování na plné rozlišení);
@@ -285,9 +320,12 @@
         const categoryKeys = [...categoryOrder.filter(key => present.has(key)), ...[...present].filter(key => !categoryOrder.includes(key))];
         const categoryKey = pickRandom(categoryKeys, rng);
         const inCategory = pool.filter(item => item.c === categoryKey);
-        const recent = new Set(recentIds);
+        const recent = new Map(recentIds.map((id, index) => [id, index]));
         const fresh = inCategory.filter(item => !recent.has(item.q));
-        return pickRandom(fresh.length ? fresh : inCategory, rng);
+        if (fresh.length) return pickRandom(fresh, rng);
+        // Všechno už bylo: z polovičky hrané nejdávněji, ať se hned neopakuje právě odehraná otázka
+        const oldestFirst = [...inCategory].sort((a, b) => recent.get(b.q) - recent.get(a.q));
+        return pickRandom(oldestFirst.slice(0, Math.ceil(oldestFirst.length / 2)), rng);
     };
 
     // Řazení pro systematické procházení okruhu: podle názvu, nebo podle faktu (výška, rok…) – položky bez údaje na konec
@@ -653,7 +691,7 @@
         escapeHtml, stripBrackets, isRealPhoto, commonsPhotoUrl, commonsFileUrl, displayName, plural, formatPoints,
         getDayKey, shiftDayKey, formatDayKey, createSeededRandom, pickRandom, shuffle,
         ELEMENT_FAMILIES, elementFamily, periodicPosition,
-        getWordStems, censorName, mergeCensored, censorCountry, isKnownCountry, processWikiText, normalizeAnswer, levenshtein, isAnswerMatch,
+        getWordStems, censorName, mergeCensored, censorCountry, isKnownCountry, processWikiText, normalizeAnswer, levenshtein, isAnswerMatch, isSymbolMatch, isCenturyMatch, checkAnswer,
         inCollection, filterItems, pickItem, sortItems, getCountryNames, getContinent, getCountryAliases,
         distanceKm, nearness, STATE_STEPS, sharesGroup, eraNearness, personSimilarity, rankBySimilarity, takeDistinct,
         buildItemChoices, buildCountryChoices, findAnswerItem, findAnswerCountry, updateMistakes, nameAnswers, countryAnswers,

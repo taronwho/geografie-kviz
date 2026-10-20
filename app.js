@@ -6,9 +6,9 @@
     const {
         SATELLITE_TILES, OSM_TILES,
         escapeHtml, isRealPhoto, commonsPhotoUrl, displayName, formatPoints, getDayKey, formatDayKey, createSeededRandom, pickRandom,
-        censorName, processWikiText, isAnswerMatch, filterItems, pickItem, sortItems,
+        censorName, processWikiText, checkAnswer, normalizeAnswer, filterItems, pickItem, sortItems,
         buildItemChoices, findAnswerItem, updateMistakes, nameAnswers, pointsFor, dropKnownFacts,
-        computeStreak, buildShareText, getTileLayout
+        computeStreak, buildShareText, getTileLayout, shuffle
     } = window.MudrlantCore;
     const Visuals = window.MudrlantVisuals;
     const TOPICS = window.MudrlantTopics || [];
@@ -29,6 +29,7 @@
     const SESSION_MAX_AGE = 2 * 60 * 60 * 1000;
     const HISTORY_SIZE = 200;
     const REQUEST_TIMEOUT = 12000;
+    const WIKI_TIMEOUT = 6000;
     const PHOTO_TIMEOUT = 8000;
     const DEFAULT_MAP_ZOOM = 5;
     const RESULT_SATELLITE_ZOOM = 5;
@@ -202,6 +203,23 @@
         });
     };
 
+    // Tab v otevřeném okně zůstane uvnitř (ovládání klávesnicí a čtečkou obrazovky)
+    const FOCUSABLE = 'button:not([disabled]), a[href], input:not([disabled]), [tabindex]:not([tabindex="-1"])';
+    const trapFocus = (overlay) => overlay.addEventListener('keydown', (event) => {
+        if (event.key !== 'Tab') return;
+        const focusable = [...overlay.querySelectorAll(FOCUSABLE)];
+        if (!focusable.length) return;
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        if (event.shiftKey && document.activeElement === first) {
+            event.preventDefault();
+            last.focus();
+        } else if (!event.shiftKey && (document.activeElement === last || !overlay.contains(document.activeElement))) {
+            event.preventDefault();
+            first.focus();
+        }
+    });
+
     const showToast = (message) => {
         let toast = document.getElementById('toast');
         if (!toast) {
@@ -221,12 +239,12 @@
     // --- Data: témata, tabulka států a obrysy států (vlastní soubory, service worker je drží i bez internetu) ---
 
     // Při výpadku, omezení (429) nebo zaseknutém spojení zkusí dotaz znovu, pak to vzdá jako chybu spojení
-    const fetchJson = async (url, attempts = 3) => {
+    const fetchJson = async (url, attempts = 3, timeout = REQUEST_TIMEOUT) => {
         let lastError = null;
         for (let attempt = 0; attempt < attempts; attempt++) {
             if (attempt > 0) await new Promise(resolve => setTimeout(resolve, 800 * attempt));
             const controller = new AbortController();
-            const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT);
+            const timer = setTimeout(() => controller.abort(), timeout);
             try {
                 const response = await fetch(url, { signal: controller.signal });
                 if (response.ok) return await response.json();
@@ -268,7 +286,8 @@
     const fetchItemText = async (item) => {
         if (itemTexts.has(item.t)) return itemTexts.get(item.t);
         try {
-            const data = await fetchJson(`${WIKI_API}&action=query&prop=extracts&exintro=1&explaintext=1&exchars=1200&redirects=1&titles=${encodeURIComponent(item.t)}`, 2);
+            // Zaseknutá Wikipedie nesmí zdržet otázku dlouho: dva pokusy po 6 s, pak krátký popis z Wikidat
+            const data = await fetchJson(`${WIKI_API}&action=query&prop=extracts&exintro=1&explaintext=1&exchars=1200&redirects=1&titles=${encodeURIComponent(item.t)}`, 2, WIKI_TIMEOUT);
             const page = Object.values((data.query && data.query.pages) || {})[0];
             if (page && page.extract && page.extract.length > 40) {
                 const text = processWikiText(page.extract);
@@ -449,6 +468,7 @@
 
     const openSettings = (note = '', focusSelector = null) => {
         closeSettings();
+        closeChooser();
         const overlay = document.createElement('div');
         overlay.id = 'settings-overlay';
         overlay.setAttribute('role', 'dialog');
@@ -477,6 +497,7 @@
             if (tierButton) changeSettings({ tier: tierButton.dataset.tier }, `[data-tier="${tierButton.dataset.tier}"]`);
         });
         document.body.appendChild(overlay);
+        trapFocus(overlay);
         renderIcons(overlay);
         (overlay.querySelector(focusSelector || '[data-variant][aria-pressed="true"]') || overlay.querySelector('[data-close]')).focus();
     };
@@ -533,7 +554,7 @@
             <span class="min-w-0">${escapeHtml(label)}</span>
         </button>`;
 
-    const renderChooser = (note = '') => {
+    const renderChooser = (note = '', focusSelector = null) => {
         const overlay = document.getElementById('play-chooser');
         if (!overlay || !chooser) return;
         const isMix = chooser.kind === 'mix';
@@ -571,6 +592,8 @@
                 <div class="flex flex-wrap gap-2">${switches}</div>
             </div>`;
         renderIcons(overlay);
+        const focusTarget = focusSelector && overlay.querySelector(focusSelector);
+        if (focusTarget) focusTarget.focus();
     };
 
     const openChooser = (target) => {
@@ -585,21 +608,25 @@
         overlay.className = 'fixed inset-0 z-50 flex items-end justify-center bg-slate-900/60 p-4 backdrop-blur-sm sm:items-center';
         overlay.addEventListener('click', (event) => {
             if (event.target === overlay || event.target.closest('[data-close]')) return closeChooser();
+            // Po překreslení okna zůstane fokus na stejném tlačítku
+            const clicked = event.target.closest('button');
+            const attribute = clicked && [...clicked.attributes].find(attr => attr.name.startsWith('data-chooser') || attr.name === 'data-tier');
+            const refocus = attribute ? `[${attribute.name}${attribute.value ? `="${CSS.escape(attribute.value)}"` : ''}]` : null;
             const topic = chooser && chooser.kind === 'topic' ? TOPIC_BY_ID[chooser.topic] : null;
             const category = event.target.closest('[data-chooser-category]');
             const topicToggle = event.target.closest('[data-chooser-topic]');
             const tier = event.target.closest('[data-tier]');
             const switchTo = event.target.closest('[data-chooser-switch]');
-            if (category && topic) toggleChoice('category', category.dataset.chooserCategory, topic);
-            else if (topicToggle) toggleChoice('topic', topicToggle.dataset.chooserTopic);
-            else if (tier) { saveSettings({ tier: tier.dataset.tier }); renderChooser(); }
+            if (category && topic) toggleChoice('category', category.dataset.chooserCategory, topic, refocus);
+            else if (topicToggle) toggleChoice('topic', topicToggle.dataset.chooserTopic, null, refocus);
+            else if (tier) { saveSettings({ tier: tier.dataset.tier }); renderChooser('', refocus); }
             else if (event.target.closest('[data-chooser-all]')) {
                 if (topic) saveSettings({ categories: { ...settings.categories, [topic.id]: undefined } });
                 else saveSettings({ topics: TOPICS.map(other => other.id) });
-                renderChooser();
+                renderChooser('', refocus);
             } else if (switchTo) {
                 chooser = switchTo.dataset.chooserSwitch === 'mix' ? { kind: 'mix' } : { kind: 'topic', topic: switchTo.dataset.chooserSwitch };
-                renderChooser();
+                renderChooser('', '[data-chooser-play]');
             } else if (event.target.closest('[data-chooser-play]')) {
                 const pick = chooser;
                 closeChooser();
@@ -608,6 +635,7 @@
             }
         });
         document.body.appendChild(overlay);
+        trapFocus(overlay);
         renderChooser();
         overlay.querySelector('[data-chooser-play]').focus();
     };
@@ -623,19 +651,19 @@
     };
 
     // Zapnout či vypnout kategorii tématu nebo téma v mixu; aspoň jedno musí zůstat
-    const toggleChoice = (kind, value, topic) => {
+    const toggleChoice = (kind, value, topic, refocus = null) => {
         if (kind === 'category') {
             const all = topic.categories.map(category => category.key);
             const chosen = selectedCategories(topic);
             const next = chosen.includes(value) ? chosen.filter(key => key !== value) : [...chosen, value];
-            if (!next.length) return renderChooser('Aspoň jedna kategorie musí zůstat vybraná.');
+            if (!next.length) return renderChooser('Aspoň jedna kategorie musí zůstat vybraná.', refocus);
             saveSettings({ categories: { ...settings.categories, [topic.id]: next.length === all.length ? undefined : all.filter(key => next.includes(key)) } });
         } else {
             const next = settings.topics.includes(value) ? settings.topics.filter(id => id !== value) : [...settings.topics, value];
-            if (!next.length) return renderChooser('Aspoň jedno téma musí zůstat vybrané.');
+            if (!next.length) return renderChooser('Aspoň jedno téma musí zůstat vybrané.', refocus);
             saveSettings({ topics: TOPICS.map(other => other.id).filter(id => next.includes(id)) });
         }
-        renderChooser();
+        renderChooser('', refocus);
     };
 
     // Dlaždice tématu: poprvé okno s výběrem, pak rovnou hra s uloženým výběrem; mix vždy s výběrem témat
@@ -658,6 +686,7 @@
 
     // Kde hráč je: štítek vlevo nahoře (ikona, text, téma kvůli barvě; switch = klepnutím jde změnit téma)
     const describePlace = () => {
+        if (isLoading) return { icon: 'hourglass', text: 'Načítám…', topic: mode === 'practice' && pool.kind === 'topic' ? TOPIC_BY_ID[pool.topic] || null : null };
         if (screen === 'learn') {
             const topic = learn.topic && learn.view !== 'home' && learn.view !== 'mistakes' ? TOPIC_BY_ID[learn.topic] : null;
             return { icon: 'graduation-cap', text: topic ? `Učení · ${topic.title}` : 'Učení', topic };
@@ -682,6 +711,9 @@
 
     const updateControlsUI = () => {
         const section = screen === 'learn' ? 'learn' : screen === 'round' ? (mode === 'daily' ? 'home' : 'practice') : 'home';
+        const settingsButton = document.getElementById('btn-settings');
+        settingsButton.disabled = isLoading;
+        settingsButton.classList.toggle('opacity-50', isLoading);
         const buttons = { home: document.getElementById('btn-home'), practice: document.getElementById('btn-practice'), learn: document.getElementById('btn-learn') };
         Object.entries(buttons).forEach(([key, button]) => {
             button.className = section === key ? BUTTON_ACTIVE[key] : BUTTON_INACTIVE;
@@ -859,6 +891,7 @@
             <button type="button" data-close aria-label="Zavřít" class="absolute right-3 top-3 rounded-full bg-white/15 p-2 text-white backdrop-blur-sm"><i data-lucide="x" class="h-6 w-6"></i></button>`;
         overlay.querySelector('[data-zoom-image]').style.backgroundImage = cssUrl(url);
         overlay.addEventListener('click', closePhotoZoom);
+        trapFocus(overlay);
         document.body.appendChild(overlay);
         renderIcons(overlay);
         overlay.querySelector('[data-close]').focus();
@@ -1064,6 +1097,11 @@
         renderIcons(appContent);
         mountPanels();
         if (!keepScroll) appContent.scrollTo(0, 0);
+        // Po nápovědě fokus na její záložku (klávesnice by jinak skončila na začátku stránky)
+        else if (document.activeElement === document.body) {
+            const tab = appContent.querySelector('[data-action="hint-tab"][aria-selected="true"]');
+            if (tab) tab.focus({ preventScroll: true });
+        }
     };
 
     // --- Karta položky: okno s popisem (po odpovědi) a atlas v učení ---
@@ -1151,6 +1189,7 @@
             if (event.target === overlay || event.target.closest('[data-close]')) closePlaceInfo();
         });
         document.body.appendChild(overlay);
+        trapFocus(overlay);
         renderIcons(overlay);
         overlay.querySelector('[data-close]').focus();
         hydrateItemCard(overlay, item, ctx, 500);
@@ -1177,7 +1216,14 @@
     const isKnownRef = (ref) => {
         if (!ref || !ref.id) return false;
         const ctx = loadedTopics.get(ref.topic);
-        return !ctx || ctx.byId.has(ref.id);
+        return Boolean(ctx && ctx.byId.has(ref.id));
+    };
+    // Otázka obnovená z uložení se vykreslí hned; po načtení tématu se výsledek překreslí,
+    // ať se objeví okna s popisem nabízených možností
+    const refreshWhenTopicLoads = (data) => {
+        loadTopic(data.topic).then(() => {
+            if (screen === 'round' && current === data && round && round.answered) renderRound({ keepScroll: true });
+        }).catch(() => {});
     };
     // „Kdo je Richard II.?“ u osob, jinak „Co je …?“ (kategorie to říká v ask)
     const askAbout = (ref) => {
@@ -1190,7 +1236,7 @@
         const levels = `${round.hintLevel}/${getLevelCount(data)}`;
         if (round.correct) {
             return `
-                <div class="flex items-center gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 dark:border-emerald-800 dark:bg-emerald-900/30">
+                <div data-verdict tabindex="-1" class="flex items-center gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 outline-none dark:border-emerald-800 dark:bg-emerald-900/30">
                     <i data-lucide="circle-check" class="h-8 w-8 shrink-0 text-emerald-600 dark:text-emerald-400"></i>
                     <div>
                         <p class="font-black text-emerald-800 dark:text-emerald-200">Správně! +${formatPoints(round.points)}</p>
@@ -1199,7 +1245,7 @@
                 </div>`;
         }
         return `
-            <div class="flex items-center gap-3 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 dark:border-rose-800 dark:bg-rose-900/30">
+            <div data-verdict tabindex="-1" class="flex items-center gap-3 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 outline-none dark:border-rose-800 dark:bg-rose-900/30">
                 <i data-lucide="circle-x" class="h-8 w-8 shrink-0 text-rose-600 dark:text-rose-400"></i>
                 <div>
                     <p class="font-black text-rose-800 dark:text-rose-200">${round.gaveUp ? 'Tentokrát bez odpovědi' : 'Bohužel, to není ono'}</p>
@@ -1393,7 +1439,12 @@
 
         renderIcons(appContent);
         mountPanels();
-        if (!keepScroll) appContent.scrollTo(0, 0);
+        if (!keepScroll) {
+            appContent.scrollTo(0, 0);
+            // Čtečka obrazovky hned přečte verdikt
+            const verdict = appContent.querySelector('[data-verdict]');
+            if (verdict) verdict.focus({ preventScroll: true });
+        }
     };
 
     // --- Průběh hry ---
@@ -1500,12 +1551,21 @@
         // Dnešní otázka z uložené relace platí jen do půlnoci
         const isCurrent = session.mode !== 'daily' || session.data.dailyDate === getDayKey();
         if (!isFresh || !isCurrent) return false;
-        current = upgradeRoundData(session.data);
-        round = session.round;
-        mode = session.mode;
-        pool = session.pool || { kind: 'mix' };
-        renderRound();
-        loadTopic(current.topic).catch(() => {});
+        try {
+            current = upgradeRoundData(session.data);
+            round = session.round;
+            mode = session.mode;
+            pool = session.pool && (session.pool.kind !== 'topic' || TOPIC_BY_ID[session.pool.topic]) ? session.pool : { kind: 'mix' };
+            renderRound();
+        } catch (error) {
+            // Poškozená uložená otázka nesmí zablokovat spuštění
+            console.error(error);
+            try { localStorage.removeItem(KEYS.session); } catch (e) {}
+            current = null;
+            round = null;
+            return false;
+        }
+        refreshWhenTopicLoads(current);
         return true;
     };
 
@@ -1518,11 +1578,17 @@
         }
         isLoading = true;
         screen = 'round';
+        // Předchozí otázka během načítání nesmí jít ovládat (nastavení by ji jinak vykreslilo přes načítání)
+        current = null;
+        round = null;
         closePlaceInfo();
+        closeChooser();
+        closeSettings();
         updateControlsUI();
         renderLoading();
         try {
             const { item, ctx, rng, dailyDate } = await pick();
+            if (!item) throw new Error('Není z čeho vybírat');
             const data = await createRoundData(item, ctx, rng);
             current = dailyDate ? { ...data, dailyDate } : data;
             round = createRound();
@@ -1540,14 +1606,21 @@
 
     // Dnešní otázka tématu: pro všechny stejná, ze známých položek; odehraná zůstane uložená
     const startDaily = (topicId) => {
+        if (isLoading) return;
         const today = getDayKey();
         const saved = (readJson(KEYS.daily) || {})[topicId];
         if (saved && saved.date === today && saved.data) {
-            mode = 'daily';
-            current = upgradeRoundData(saved.data);
-            round = saved.round || createRound();
-            renderRound();
-            return;
+            try {
+                mode = 'daily';
+                current = upgradeRoundData(saved.data);
+                round = saved.round || createRound();
+                renderRound();
+                refreshWhenTopicLoads(current);
+                return;
+            } catch (error) {
+                // Poškozená uložená dnešní otázka: připraví se znovu (výsledek dne už zapsaný zůstane)
+                console.error(error);
+            }
         }
         mode = 'daily';
         runRound(async () => {
@@ -1581,6 +1654,7 @@
 
     // Hra: jedno téma (vybrané kategorie), mix vybraných témat, okruh z učení, nebo chyby
     const startPractice = (nextPool = pool) => {
+        if (isLoading) return;
         pool = nextPool;
         mode = 'practice';
         closeChooser();
@@ -1589,12 +1663,18 @@
             let ctx;
             let item;
             if (pool.kind === 'mistakes') {
-                const keys = loadMistakes();
-                if (keys.length) {
+                // Chyba, jejíž položka v nových datech už není, se ze seznamu vyřadí a zkusí se jiná
+                let keys = loadMistakes();
+                while (keys.length && !item) {
                     const fresh = keys.filter(key => !history.includes(key.split(':')[1]));
-                    const [topicId, id] = pickRandom(fresh.length ? fresh : keys, Math.random).split(':');
+                    const key = pickRandom(fresh.length ? fresh : keys, Math.random);
+                    const [topicId, id] = key.split(':');
                     ctx = await loadTopic(topicId);
                     item = ctx.byId.get(id);
+                    if (!item) {
+                        keys = keys.filter(other => other !== key);
+                        writeJson(KEYS.mistakes, keys);
+                    }
                 }
                 if (!item) {
                     showToast('Všechny chyby máš zopakované');
@@ -1604,12 +1684,17 @@
             if (pool.kind === 'collection') {
                 ctx = await loadTopic(pool.topic);
                 item = pickItem(collectionItems(ctx, pool.collection), Math.random, history, ctx.topic.categories.map(c => c.key));
+                // Okruh, který v nových datech už není (nebo je prázdný): celé téma
+                if (!item) {
+                    showToast('Tenhle okruh teď nic neobsahuje, hraju celé téma');
+                    pool = { kind: 'topic', topic: pool.topic };
+                }
             }
             if (pool.kind === 'topic' || pool.kind === 'mix') {
                 ctx = await loadTopic(pool.kind === 'topic' ? pool.topic : pickRandom(settings.topics, Math.random));
                 item = pickItem(playableItems(ctx), Math.random, history, ctx.topic.categories.map(c => c.key));
             }
-            rememberPlayed(item);
+            if (item) rememberPlayed(item);
             return { item, ctx, rng: Math.random };
         });
     };
@@ -1742,6 +1827,11 @@
         const items = collectionItems(ctx, learn.collection);
         const done = learnedCount(ctx.topic.id, items);
         const collection = ctx.collections.find(c => c.id === learn.collection);
+        if (!items.length) {
+            return `
+                <button type="button" data-action="learn-topic" data-topic="${ctx.topic.id}" class="${BACK_LINK}"><i data-lucide="chevron-left" class="h-4 w-4"></i> ${escapeHtml(ctx.topic.title)}</button>
+                <section class="${CARD} p-6 text-center text-sm text-slate-500 dark:text-slate-400">Tenhle okruh teď nic neobsahuje.</section>`;
+        }
         return `
             <button type="button" data-action="learn-topic" data-topic="${ctx.topic.id}" class="${BACK_LINK}"><i data-lucide="chevron-left" class="h-4 w-4"></i> ${escapeHtml(ctx.topic.title)}</button>
             <section class="${CARD} p-5">
@@ -1782,14 +1872,18 @@
     };
 
     const renderLearnMistakes = (contexts) => {
-        const mistakes = loadMistakes()
-            .map(key => {
-                const [topicId, id] = key.split(':');
-                const ctx = contexts.get(topicId);
-                const item = ctx && ctx.byId.get(id);
-                return item ? { ctx, item } : null;
-            })
-            .filter(Boolean);
+        const keys = loadMistakes();
+        const valid = keys.filter(key => {
+            const [topicId, id] = key.split(':');
+            return contexts.has(topicId) && contexts.get(topicId).byId.has(id);
+        });
+        // Položky, které v nových datech už nejsou, ze seznamu zmizí (jinak by „Moje chyby (N)“ nesedělo)
+        if (valid.length !== keys.length) writeJson(KEYS.mistakes, valid);
+        const mistakes = valid.map(key => {
+            const [topicId, id] = key.split(':');
+            const ctx = contexts.get(topicId);
+            return { ctx, item: ctx.byId.get(id) };
+        });
         const back = `<button type="button" data-action="learn-back" class="${BACK_LINK}"><i data-lucide="chevron-left" class="h-4 w-4"></i> Učení</button>`;
         if (!mistakes.length) {
             return `${back}
@@ -1822,10 +1916,15 @@
             </button>`;
     };
 
+    // Pomalejší načtení starší obrazovky učení nesmí přepsat novější (klepnutí na Zeměpis a hned na Historii)
+    let learnRenderId = 0;
     const renderLearn = async () => {
         screen = 'learn';
         closePlaceInfo();
         updateControlsUI();
+        const renderId = ++learnRenderId;
+        const needsTopic = learn.view !== 'home' && learn.view !== 'mistakes' && learn.topic;
+        if ((needsTopic && !loadedTopics.has(learn.topic)) || learn.view === 'mistakes') renderLoading('Načítám…');
         let body;
         let ctx = null;
         try {
@@ -1840,10 +1939,10 @@
                 body = learn.view === 'atlas' ? renderLearnAtlas(ctx) : learn.view === 'collection' ? renderLearnCollection(ctx) : renderLearnTopic(ctx);
             }
         } catch (error) {
-            renderError(error);
+            if (renderId === learnRenderId && screen === 'learn') renderError(error);
             return;
         }
-        if (screen !== 'learn') return;
+        if (screen !== 'learn' || renderId !== learnRenderId) return;
         appContent.innerHTML = `
             <div class="fade-in flex min-h-full w-full flex-col gap-4 bg-slate-50 p-5 pb-6 dark:bg-slate-900">
                 ${body}
@@ -1872,7 +1971,7 @@
         const ctx = await loadTopic(learn.topic);
         const items = collectionItems(ctx, learn.collection);
         let ordered;
-        if (!learn.collection) ordered = [...items].sort(() => Math.random() - 0.5);
+        if (!learn.collection) ordered = shuffle(items, Math.random);
         else if (learn.collection.startsWith('c:')) ordered = sortItems(items, categoryOf(ctx.topic, learn.collection.slice(2)).sort);
         else ordered = sortItems(items, (ctx.collections.find(c => c.id === learn.collection) || {}).sort);
         learn.order = ordered.map(item => item.q);
@@ -1947,19 +2046,22 @@
         if (!round || round.variant !== 'typed') return;
         const answer = event.target.elements.answer.value.trim();
         if (!answer || !current) return;
-        const correct = isAnswerMatch(answer, current.question.accepted);
+        let correct = checkAnswer(answer, current.question);
         // Napsal hráč jinou položku ze sady (nebo jiný stát)? Pak k ní výsledek nabídne popis
         let answerRef = null;
         const ctx = loadedTopics.get(current.topic);
         const item = ctx && ctx.byId.get(current.id);
-        if (!correct && item) {
+        if (item) {
             answerRef = ctx.topic.findAnswer ? ctx.topic.findAnswer(current.question.type, answer, item, ctx) : null;
             if (!answerRef && current.question.type === 'name') {
                 const id = findAnswerItem(answer, item, ctx.items);
                 answerRef = id ? { topic: current.topic, id } : null;
             }
         }
-        submitAnswer({ correct, typed: true, answer, answerRef });
+        // Přesně název jiné položky (Slovinsko u Slovenska, Vodík u Sodíku) není překlep, ale jiná odpověď
+        const other = answerRef && loadedTopics.get(answerRef.topic) && loadedTopics.get(answerRef.topic).byId.get(answerRef.id);
+        if (correct && other && normalizeAnswer(other.n) === normalizeAnswer(answer)) correct = false;
+        submitAnswer({ correct, typed: true, answer, answerRef: correct ? null : answerRef });
     });
 
     // Chyba načtení obrázku (dlaždice mapy) nebublá, zachytíme ji ve fázi capture a obrázek skryjeme
@@ -1995,13 +2097,19 @@
         else closeSettings();
     });
 
+    // Service worker dřív než první obrazovka – i kdyby spuštění selhalo, aplikace se příště otevře z mezipaměti
+    if ('serviceWorker' in navigator && window.isSecureContext) {
+        navigator.serviceWorker.register('sw.js').catch(error => console.error(error));
+    }
+
     migrateFromGeoQuiz();
     gameVariant = readVariant();
     settings = loadSettings();
     renderIcons(document);
-    showStart();
-
-    if ('serviceWorker' in navigator && window.isSecureContext) {
-        navigator.serviceWorker.register('sw.js').catch(error => console.error(error));
+    try {
+        showStart();
+    } catch (error) {
+        console.error(error);
+        renderHome();
     }
 })();

@@ -130,6 +130,10 @@
         return null;
     };
 
+    // Značka jednotky, která se od jiné liší jen velikostí písmen (m – M), se musí napsat přesně
+    const hasCaseTwin = (symbol, ctx) => Boolean(symbol) && ctx.items.some(other => other.f && other.f.usym
+        && other.f.usym !== symbol && other.f.usym.toLowerCase() === symbol.toLowerCase());
+
     // Značka jednotky v textu: víceznaková jako samostatné slovo, jednoznaková (V, N, J) jen za číslem („230 V“), ať nezmizí předložka
     const hideSymbol = (text, symbol) => {
         if (!symbol) return text;
@@ -191,7 +195,9 @@
                     title: 'Jaká je jednotka SI této veličiny?',
                     showName: true,
                     choices: shuffle([f.unit, ...wrong], rng).map(unit => ({ id: `jednotka-${unit}`, label: label(unit), correct: unit === f.unit })),
-                    accepted: [f.unit, f.usym].filter(Boolean),
+                    accepted: [f.unit],
+                    symbols: [f.usym].filter(Boolean),
+                    caseSensitive: hasCaseTwin(f.usym, ctx),
                     placeholder: 'Napiš jednotku, třeba newton',
                     answerLabel: unitLabel(f)
                 };
@@ -207,7 +213,9 @@
                         title: 'Jakou značku má tato jednotka?',
                         showName: true,
                         choices: shuffle([f.usym, ...wrong], rng).map(symbol => ({ id: `znacka-${symbol}`, label: symbol, correct: symbol === f.usym })),
+                        match: 'symbol',
                         accepted: [f.usym],
+                        caseSensitive: hasCaseTwin(f.usym, ctx),
                         placeholder: 'Napiš značku, třeba Pa',
                         answerLabel: f.usym
                     };

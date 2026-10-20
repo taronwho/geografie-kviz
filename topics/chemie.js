@@ -166,6 +166,7 @@
                     title: 'Jakou značku má tento prvek?',
                     showName: true,
                     choices: shuffle([f.sym, ...wrong], rng).map(symbol => ({ id: `znacka-${symbol}`, label: symbol, correct: symbol === f.sym })),
+                    match: 'symbol',
                     accepted: [f.sym],
                     placeholder: 'Napiš značku, třeba Fe',
                     answerLabel: f.sym
@@ -188,7 +189,8 @@
                     title: 'Jaký vzorec má tato látka?',
                     showName: true,
                     choices: shuffle([f.formula, ...wrong], rng).map(formula => ({ id: `vzorec-${formula}`, label: formula, correct: formula === f.formula })),
-                    accepted: [f.formula, plainFormula(f.formula)],
+                    match: 'symbol',
+                    accepted: [f.formula],
                     placeholder: 'Napiš vzorec, třeba H2O',
                     answerLabel: f.formula
                 };

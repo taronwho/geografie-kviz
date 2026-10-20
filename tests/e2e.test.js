@@ -774,7 +774,8 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         assert.ok(!formula.hints.flatMap(hint => hint.facts || []).some(fact => fact.label === 'Vzorec'));
         assert.ok(!hintKeys(formula).includes('visual'), 'strukturní vzorec by prozradil odpověď');
         assert.ok(formula.hints.some(hint => hint.label === 'složení'), 'nápověda: z jakých prvků látka je');
-        await third.tab.fill('#answer-input', formula.question.accepted[1]);
+        // Vzorec napsaný obyčejnými číslicemi a malými písmeny platí (h2so4 = H₂SO₄)
+        await third.tab.fill('#answer-input', formula.question.accepted[0].replace(/[₀-₉]/g, digit => '₀₁₂₃₄₅₆₇₈₉'.indexOf(digit)).toLowerCase());
         await third.tab.press('#answer-input', 'Enter');
         await waitForResult(third.tab);
         assert.match(await appText(third.tab), /Správně!/);

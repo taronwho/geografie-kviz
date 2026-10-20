@@ -21,21 +21,29 @@ self.addEventListener('activate', (event) => {
 });
 
 // Jen vlastní soubory aplikace; Wikipedie, fotky a mapy jdou přímo na síť
+// Síť má přednost, aby se nová verze projevila hned po nasazení. Bez internetu, nebo když síť visí déle
+// než NETWORK_WAIT (slabý signál), poslouží mezipaměť; čerstvá odpověď ze sítě ji pak stejně aktualizuje.
+const NETWORK_WAIT = 4000;
 self.addEventListener('fetch', (event) => {
     const { request } = event;
     if (request.method !== 'GET' || new URL(request.url).origin !== self.location.origin) return;
 
-    // Síť má přednost, aby se nová verze projevila hned po nasazení; mezipaměť jen bez internetu
-    event.respondWith(
-        fetch(request)
-            .then(response => {
-                if (response.ok) {
-                    const copy = response.clone();
-                    caches.open(CACHE_NAME).then(cache => cache.put(request, copy));
-                }
-                return response;
-            })
-            .catch(() => caches.match(request, { ignoreSearch: true })
-                .then(cached => cached || (request.mode === 'navigate' ? caches.match('index.html') : Response.error())))
-    );
+    // Uložení čerstvé odpovědi do mezipaměti se dokončí, i když stránka mezitím dostala verzi z mezipaměti
+    let saving = Promise.resolve();
+    const fromNetwork = fetch(request).then(response => {
+        if (response.ok) {
+            const copy = response.clone();
+            saving = caches.open(CACHE_NAME).then(cache => cache.put(request, copy));
+        }
+        return response;
+    });
+    event.waitUntil(fromNetwork.then(() => saving).catch(() => {}));
+    const fallback = () => caches.match(request, { ignoreSearch: true })
+        .then(cached => cached || (request.mode === 'navigate' ? caches.match('index.html') : undefined));
+    event.respondWith((async () => {
+        const cached = await fallback();
+        if (!cached) return fromNetwork.catch(() => Response.error());
+        const slow = new Promise(resolve => setTimeout(() => resolve(cached), NETWORK_WAIT));
+        return Promise.race([fromNetwork.catch(() => cached), slow]);
+    })());
 });

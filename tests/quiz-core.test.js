@@ -459,3 +459,28 @@ test('časová osa: pruhy uvnitř šířky, rozumné značky, známé události 
     assert.ok(ancient.ticks.some(tick => /př\. n\. l\./.test(tick.label)));
     assert.ok(!ancient.anchors.some(anchor => anchor.year === -44));
 });
+
+test('psaná odpověď: překlep po slovech, čísla, římské číslice, značky a století přesně', () => {
+    const name = (accepted) => ({ accepted });
+    assert.ok(core.checkAnswer('Napolen Bonaparte', name(['Napoleon Bonaparte'])), 'překlep v delším slově');
+    assert.ok(!core.checkAnswer('Ludvík XV', name(['Ludvík XIV.'])), 'římská číslice přesně');
+    assert.ok(!core.checkAnswer('Alžběta II.', name(['Alžběta I.'])));
+    assert.ok(!core.checkAnswer('Myš domácí', name(['Pes domácí'])), 'krátké slovo bez tolerance');
+    assert.ok(!core.checkAnswer('Messier 106', name(['Messier 100'])), 'číslo přesně');
+    assert.ok(core.checkAnswer('sjaelland', name(['Sjælland'])), 'æ jako ae');
+    const formula = { match: 'symbol', accepted: ['CO₂'] };
+    assert.ok(core.checkAnswer('co2', formula) && !core.checkAnswer('CO', formula));
+    assert.ok(!core.checkAnswer('m', { match: 'symbol', accepted: ['m²'] }));
+    assert.ok(!core.checkAnswer('M', { match: 'symbol', accepted: ['m'], caseSensitive: true }));
+    const bc = { match: 'century', century: -5 };
+    assert.ok(core.checkAnswer('5. století př. n. l.', bc) && !core.checkAnswer('5', bc) && !core.checkAnswer('4. stol. př. n. l.', bc));
+    assert.ok(core.checkAnswer('N', { accepted: ['newton'], symbols: ['N'] }));
+});
+
+test('výběr položky: když už bylo všechno, ne ta právě hraná', () => {
+    const pool = ['Q1', 'Q2', 'Q3', 'Q4'].map(q => ({ q, c: 'a' }));
+    for (let i = 0; i < 20; i++) {
+        const pick = core.pickItem(pool, Math.random, ['Q4', 'Q3', 'Q2', 'Q1']);
+        assert.ok(['Q1', 'Q2'].includes(pick.q), pick.q);
+    }
+});

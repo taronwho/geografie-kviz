@@ -192,7 +192,9 @@ test('historie: časová osa, události z vlastních dějin, otázka na století
     assert.equal(century.type, 'century');
     assert.equal(century.title, 'Ve kterém století začal vládnout?');
     assert.equal(century.answerLabel, '14. století');
-    assert.ok(century.accepted.includes('14'));
+    // Psané století se porovná podle čísla: 14 i „14. století“ platí, sousední 15. ne
+    assert.ok(core.checkAnswer('14', century) && core.checkAnswer('14. stoleti', century));
+    assert.ok(!core.checkAnswer('15. století', century) && !core.checkAnswer('14. století př. n. l.', century));
     assert.equal(century.choices.filter(choice => choice.correct).length, 1);
     // Nesprávná století jsou ta nejbližší: obě sousední a jedno o dvě dál (12.–16. století u Karla IV.)
     assert.deepEqual(century.choices.map(choice => Number(choice.id.replace('stoleti-', ''))).sort((a, b) => a - b).filter(c => c !== 14).map(c => Math.abs(c - 14)).sort(), [1, 1, 2]);
@@ -363,7 +365,7 @@ test('fyzika: jednotka veličiny, značka a veličina jednotky, zakrytí značek
     const unit = fyzika.specialQuestion(find('Síla'), ctx, () => 0.1);
     assert.equal(unit.type, 'unit');
     assert.equal(unit.answerLabel, 'newton (N)');
-    assert.ok(core.isAnswerMatch('N', unit.accepted) && core.isAnswerMatch('newton', unit.accepted));
+    assert.ok(core.checkAnswer('N', unit) && core.checkAnswer('newton', unit) && !core.checkAnswer('J', unit));
     assert.ok(!fyzika.facts(find('Síla'), ctx, 'unit').some(fact => fact.label === 'Jednotka SI'));
     // Jednotka: značka (do 0,25), co měří (do 0,45), jinak název
     assert.equal(fyzika.specialQuestion(find('Pascal'), ctx, () => 0.1).type, 'usymbol');
