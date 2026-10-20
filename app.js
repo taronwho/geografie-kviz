@@ -262,19 +262,19 @@
         const { topic, items } = ctx;
         // Pořadí volání rng je stálé, aby dnešní otázka vyšla všem stejně
         const special = topic.specialQuestion ? topic.specialQuestion(item, ctx, rng) : null;
+        const category = categoryOf(topic, item.c);
         const question = special || {
             type: 'name',
-            title: topic.words.question,
+            title: category.question || topic.words.question,
             showName: false,
             choices: buildItemChoices(item, items, rng, other => topic.groupOf ? topic.groupOf(other, ctx) : ''),
             accepted: nameAnswers(item, topic.nameAliases ? topic.nameAliases(item, ctx) : []),
-            placeholder: topic.words.placeholder,
+            placeholder: category.placeholder || topic.words.placeholder,
             answerLabel: item.n
         };
         const [text, photoUrl] = await Promise.all([fetchItemText(item), probePhoto(photoOf(item, 960))]);
         const visual = topic.visual ? topic.visual(item, ctx, question.type) : null;
         const facts = topic.facts(item, ctx, question.type);
-        const category = categoryOf(topic, item.c);
         // Typ položky („obec ve Španělsku“, „král“) nesmí prozradit odpověď
         const typeLabel = item.ty && !censorFor(question.type, item.ty, item, ctx).includes('[***]') ? item.ty : category.one;
         return {
@@ -289,6 +289,8 @@
             questionText: censorFor(question.type, text.description, item, ctx),
             photoUrl,
             visual,
+            // Ve výsledku už odpověď známe, takže nápověda může ukázat vše (u otázky na století časovou osu)
+            resultVisual: topic.visual ? topic.visual(item, ctx, 'result') : null,
             facts,
             resultFacts: topic.facts(item, ctx, 'result'),
             hints: getHintSteps({ hasPhoto: Boolean(photoUrl), hasVisual: Boolean(visual && Visuals.info(visual)), hasFacts: facts.length > 0 }),
@@ -850,6 +852,12 @@
         const ctx = loadedTopics.get(ref.topic);
         return !ctx || ctx.byId.has(ref.id);
     };
+    // „Kdo je Richard II.?“ u osob, jinak „Co je …?“ (kategorie to říká v ask)
+    const askAbout = (ref) => {
+        const ctx = loadedTopics.get(ref.topic);
+        const item = ctx && ctx.byId.get(ref.id);
+        return (item && categoryOf(ctx.topic, item.c).ask) || 'Co je';
+    };
 
     const renderResultBanner = (data) => {
         const levels = `${round.hintLevel}/${getLevelCount(data)}`;
@@ -871,7 +879,7 @@
                     <p class="text-sm text-rose-700/80 dark:text-rose-300/80">${round.answer ? `Tvoje odpověď: ${escapeHtml(round.answer)} · ` : ''}Správně: ${escapeHtml(data.question.answerLabel)}</p>
                     ${round.answerRef ? `
                         <button type="button" data-action="item-info" data-topic="${escapeHtml(round.answerRef.topic)}" data-id="${escapeHtml(round.answerRef.id)}" class="mt-2 inline-flex items-center gap-1.5 rounded-lg bg-white px-2.5 py-1.5 text-xs font-bold text-rose-700 shadow-sm transition-colors hover:bg-rose-100 dark:bg-rose-950 dark:text-rose-200 dark:hover:bg-rose-900">
-                            <i data-lucide="info" class="h-3.5 w-3.5"></i> Co je ${escapeHtml(round.answer)}?
+                            <i data-lucide="info" class="h-3.5 w-3.5"></i> ${askAbout(round.answerRef)} ${escapeHtml(round.answer)}?
                         </button>
                     ` : ''}
                 </div>
@@ -984,6 +992,8 @@
         const data = current;
         const topic = TOPIC_BY_ID[data.topic];
         const category = categoryOf(topic, data.category);
+        // Rozehraná otázka uložená starší verzí výsledkovou nápovědu nemá
+        const resultVisual = data.resultVisual || data.visual;
 
         const funFactsHtml = data.funFacts.map((fact, i) => `
             <div class="flex items-start gap-4">
@@ -1027,7 +1037,7 @@
                     ${renderResultBanner(data)}
                     ${renderOtherChoices(data)}
                     ${renderStatsCard(data)}
-                    ${data.coords ? renderMapCard() : data.visual && Visuals.info(data.visual) ? renderVisualFrame(data.visual, { id: 'result-visual-hint', height: 'h-52', showLabel: false }) : ''}
+                    ${data.coords ? renderMapCard() : Visuals.info(resultVisual) ? renderVisualFrame(resultVisual, { id: 'result-visual-hint', height: 'h-52', showLabel: false }) : ''}
 
                     ${data.description ? `<div class="text-slate-700 dark:text-slate-200 leading-relaxed text-[16px] font-medium">${escapeHtml(data.description)}</div>` : ''}
 
@@ -1065,7 +1075,7 @@
         showResultVisual();
         renderMap();
         const resultHint = document.getElementById('result-visual-hint');
-        if (resultHint) Visuals.render(resultHint, data.visual, visualDeps);
+        if (resultHint) Visuals.render(resultHint, resultVisual, visualDeps);
         appContent.scrollTo(0, 0);
     };
 

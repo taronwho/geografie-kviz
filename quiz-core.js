@@ -441,6 +441,50 @@
     };
 
 
+    // --- Časová osa (historie, vědci…) ---
+
+    const NICE_STEPS = [1, 2, 5, 10, 20, 25, 50, 100, 200, 250, 500, 1000, 2000];
+    const formatTick = (year) => year < 0 ? `${-year} př. n. l.` : String(year);
+
+    // Rozvržení časové osy na šířku width: dílky s roky, pruhy období, body událostí a nejvýš tři orientační události.
+    // anchors = [[rok, text, blízkost]] dodá téma (čím vyšší blízkost, tím větší přednost; světové události 0);
+    // nevybere se událost, která by prozradila odpověď (hide = jméno, které se nesmí objevit), ani letopočet hádané položky
+    const buildTimeline = ({ spans = [], points = [], hide = '', anchors: events = [] }, width, margin = 24) => {
+        const years = [...spans.flatMap(span => [span.from, span.to ?? span.from]), ...points].filter(Number.isFinite);
+        const min = Math.min(...years);
+        const max = Math.max(...years);
+        // Okolí hádaného období: polovina jeho délky na každou stranu, aspoň 40 a nejvýš 300 let
+        const pad = Math.min(Math.max((max - min) * 0.5, 40), 300);
+        const start = min - pad;
+        // Do budoucnosti osa nesahá dál než pár let za dnešek
+        const end = Math.min(max + pad, Math.max(max + 10, 2030));
+        // Značky na kulatých letech uvnitř osy, nejvýš 5
+        const tickCount = (step) => Math.floor(end / step) - Math.ceil(start / step) + 1;
+        const step = NICE_STEPS.find(candidate => tickCount(candidate) <= 5) || 5000;
+        const x = (year) => Math.round(margin + (year - start) / (end - start) * (width - 2 * margin));
+        const ticks = [];
+        for (let year = Math.ceil(start / step) * step; year <= end; year += step) ticks.push({ x: x(year), year, label: formatTick(year) });
+        const bars = spans.map(span => ({ kind: span.kind, x: x(span.from), width: x(span.to ?? span.from + 1) - x(span.from) }));
+        const own = new Set(years);
+        const candidates = events
+            .filter(([year, text]) => year > start && year < end && !own.has(year) && !(hide && censorName(text, hide).includes('[***]')))
+            .map(([year, text, near]) => ({ x: x(year), year, label: `${formatTick(year)} ${text}`, near: Number(near) || 0 }));
+        // Rozprostřít: nejdřív blízké dějiny, z nich ty nejblíž středu hádaného období, s odstupem aspoň čtvrtiny šířky
+        const center = x((min + max) / 2);
+        const anchors = [];
+        for (const anchor of candidates.sort((a, b) => b.near - a.near || Math.abs(a.x - center) - Math.abs(b.x - center))) {
+            if (anchors.length < 3 && anchors.every(other => Math.abs(other.x - anchor.x) >= width * 0.26)) anchors.push(anchor);
+        }
+        return {
+            start, end, ticks, bars, points: points.map(year => ({ x: x(year), year })),
+            anchors: anchors.sort((a, b) => a.x - b.x).map(({ near, ...anchor }) => anchor)
+        };
+    };
+
+    // Století roku: 1346 → 14, 1300 → 13, −44 → −1 (1. století př. n. l.)
+    const centuryOf = (year) => year > 0 ? Math.ceil(year / 100) : -Math.ceil(-year / 100) || -1;
+    const centuryLabel = (century) => century > 0 ? `${century}. století` : `${-century}. století př. n. l.`;
+
     // Série = počet po sobě jdoucích dní se správnou odpovědí, dnešek se počítá, jen pokud už je odehraný
     const computeStreak = (dailyResults, todayKey) => {
         let day = dailyResults[todayKey] ? todayKey : shiftDayKey(todayKey, -1);
@@ -497,6 +541,6 @@
         inCollection, filterItems, pickItem, sortItems, getCountryNames, getContinent, getCountryAliases,
         buildItemChoices, buildCountryChoices, findAnswerItem, findAnswerCountry, updateMistakes, nameAnswers, countryAnswers,
         getHintSteps, pointsFor, formatNumber, formatPopulation, formatYear, formatFacts, getMapSpan, buildBlindMap,
-        computeStreak, buildShareText, getTileLayout
+        buildTimeline, centuryOf, centuryLabel, computeStreak, buildShareText, getTileLayout
     };
 });

@@ -38,7 +38,7 @@ const startServer = () => new Promise(resolve => {
 });
 
 // options: variant (null = první spuštění), settings, storage (další uložená data), fixedRandom (Math.random vrací 0.1 →
-// první položka a u zeměpisu otázka na stát, kde jde), wikiDown, wikiHangs, dataDown, fakeTimers, colorScheme, origin + serviceWorkers
+// první položka a u zeměpisu otázka na stát, u historie na století, kde jde; číslo = vrací to číslo), wikiDown, wikiHangs, dataDown, fakeTimers, colorScheme, origin + serviceWorkers
 const setup = async (browser, options = {}) => {
     const origin = options.origin || ORIGIN;
     const flags = { ...options };
@@ -53,7 +53,7 @@ const setup = async (browser, options = {}) => {
         sessionStorage.setItem('test-storage-set', '1');
         Object.entries(entries).forEach(([key, value]) => localStorage.setItem(key, value));
     }, storage);
-    if (options.fixedRandom) await context.addInitScript(() => { Math.random = () => 0.1; });
+    if (options.fixedRandom) await context.addInitScript(value => { Math.random = () => value; }, options.fixedRandom === true ? 0.1 : options.fixedRandom);
     const tab = await context.newPage();
     const log = { wiki: [], data: 0, photos: [], tiles: 0, satellite: [], errors: [], csp: [] };
     tab.on('pageerror', error => log.errors.push(error.message));
@@ -446,8 +446,10 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         assert.match(await tab.textContent('#settings-note'), /od další otázky/);
         assert.equal(await tab.getAttribute('#settings-overlay [data-tier="known"]', 'aria-pressed'), 'true');
         await tab.click('#settings-overlay [data-tier="all"]');
-        assert.deepEqual(await readStorage(tab, 'mudrlant.settings'), { tier: 'all', topics: ['zemepis'] });
-        // Jediné téma vypnout nejde
+        assert.deepEqual(await readStorage(tab, 'mudrlant.settings'), { tier: 'all', topics: ['zemepis', 'historie'] });
+        // Témata v tréninku: jedno vypnout jde, poslední ne
+        await tab.click('#settings-overlay [data-topic-toggle="historie"]');
+        assert.deepEqual((await readStorage(tab, 'mudrlant.settings')).topics, ['zemepis']);
         await tab.click('#settings-overlay [data-topic-toggle="zemepis"]');
         assert.match(await tab.textContent('#settings-note'), /Aspoň jedno téma/);
         await tab.click('#settings-overlay [data-close]');
@@ -474,6 +476,73 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         assert.deepEqual(log.errors, []);
         assert.deepEqual(log.csp, []);
         await context.close();
+    });
+
+    await t.test('historie: otázka na osobnost s časovou osou, otázka na století, okruh popořadě', async () => {
+        const { context, tab, log } = await setup(browser, { variant: 'typed', fixedRandom: 0.5 });
+        await tab.goto(`${ORIGIN}/`);
+        await waitForHome(tab);
+        assert.match(await tab.textContent('[data-action="daily"][data-topic="historie"]'), /Historie\s*Čeká na tebe/);
+
+        // Kdo to je? Časová osa s životem a vládou, popis bez jména
+        await practiceCollection(tab, 'historie', 'anglicti-panovnici');
+        const data = await readRound(tab);
+        assert.equal(data.question.type, 'name');
+        assert.equal(await tab.textContent('h2'), 'Kdo to je?');
+        assert.equal(await tab.getAttribute('#answer-input', 'placeholder'), 'Napiš jméno…');
+        assert.deepEqual(data.hints, ['photo', 'visual', 'facts']);
+        assert.ok(!(await tab.textContent('p.italic')).includes(data.name));
+        await tab.click('[data-action="hint"]');
+        assert.match(await tab.textContent('[data-action="hint"]'), /časová osa/);
+        await tab.click('[data-action="hint"]');
+        await tab.waitForSelector('#hint-visual svg rect');
+        const axis = await tab.textContent('#hint-visual svg');
+        assert.match(axis, /život/);
+        assert.match(axis, /vláda/);
+        assert.match(axis, /1[56]\d0/, 'roky na ose');
+        await tab.fill('#answer-input', data.name);
+        await tab.press('#answer-input', 'Enter');
+        await waitForResult(tab);
+        assert.match(await appText(tab), /Správně!/);
+        assert.match(await appText(tab), /Vláda\s*1[56]\d\d–1[56]\d\d/);
+        assert.match(await tab.textContent('#status-text'), /^Historie · Angličtí panovníci/);
+        await context.close();
+
+        // Do kterého století to patří? Jméno je vidět, letopočty z popisu i z nápověd zmizí
+        const second = await setup(browser, { variant: 'typed', fixedRandom: true });
+        await second.tab.goto(`${ORIGIN}/`);
+        await waitForHome(second.tab);
+        await practiceCollection(second.tab, 'historie', 'premyslovci');
+        const century = await readRound(second.tab);
+        assert.equal(century.name, 'Přemysl Otakar II.');
+        assert.equal(century.question.type, 'century');
+        assert.equal(await second.tab.textContent('h2'), 'Do kterého století to patří?');
+        assert.match(await appText(second.tab), /Přemysl Otakar II\./);
+        assert.doesNotMatch(await second.tab.textContent('p.italic'), /\d/);
+        assert.deepEqual(century.hints, ['photo', 'facts'], 'časová osa by prozradila století');
+        assert.ok(century.facts.every(fact => !/\d/.test(fact.value)));
+        await second.tab.fill('#answer-input', '13');
+        await second.tab.press('#answer-input', 'Enter');
+        await waitForResult(second.tab);
+        assert.match(await appText(second.tab), /Správně!/);
+        assert.match(await appText(second.tab), /13\. století/);
+        // Ve výsledku už časová osa je
+        await second.tab.waitForSelector('#result-visual-hint svg rect');
+
+        // Učení: okruh Přemyslovci popořadě podle roku, s časovou osou
+        await openCollection(second.tab, 'historie', 'premyslovci');
+        await second.tab.click('[data-action="learn-browse"]');
+        await second.tab.waitForSelector('#learn-card [role="img"] svg rect');
+        assert.equal(await second.tab.textContent('#learn-card h2'), 'Přemysl Otakar II.');
+        await second.tab.click('[data-action="learn-next"]');
+        assert.equal(await second.tab.textContent('#learn-card h2'), 'Václav II.');
+
+        assert.equal(await second.tab.locator('i[data-lucide]').count(), 0, 'všechny ikony vykreslené');
+        for (const run of [log, second.log]) {
+            assert.deepEqual(run.errors, []);
+            assert.deepEqual(run.csp, []);
+        }
+        await second.context.close();
     });
 
     await t.test('první spuštění: výběr varianty hry, pak dnešní otázky', async () => {
@@ -582,12 +651,13 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         assert.equal(await tab.evaluate(() => getComputedStyle(document.getElementById('app-content')).display), 'flex', 'styly z mezipaměti');
         assert.equal(await tab.evaluate(() => Boolean(navigator.serviceWorker.controller)), true);
 
-        // Nová otázka v tréninku: data tématu i obrysy států z mezipaměti
+        // Nová otázka v tréninku: data témat i obrysy států z mezipaměti
         await tab.click('#btn-practice');
         await waitForQuestion(tab);
         const data = await readRound(tab);
         for (let i = 0; i < data.hints.indexOf('visual') + 1; i++) await tab.click('[data-action="hint"]');
-        await tab.waitForSelector('#hint-visual svg path');
+        if (data.hints.includes('visual')) await tab.waitForSelector('#hint-visual svg > *');
+        assert.deepEqual(await tab.evaluate(() => Promise.all(['data/zemepis.json', 'data/historie.json', 'data/world.json'].map(file => fetch(file).then(response => response.status)))), [200, 200, 200]);
         assert.deepEqual(log.errors, []);
         await context.close();
     });

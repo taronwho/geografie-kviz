@@ -161,3 +161,58 @@ test('zeměpis: okruhy a známá místa ve skutečných datech', () => {
     assert.ok(states.every(item => COUNTRIES[item.q]));
     assert.ok(states.filter(item => outlines.has(COUNTRIES[item.q].iso)).length >= 150);
 });
+
+// --- Historie ---
+
+const historie = TOPICS.find(topic => topic.id === 'historie');
+const histCtx = { countries: COUNTRIES_TABLE, items: [] };
+const person = (n, c, f, extra = {}) => ({ q: 'Q1', t: n, n, c, k: 1, ty: '', f: { y: f.from ?? f.born, ...f }, ...extra });
+const anchorsOf = (item, mode = 'name') => core.buildTimeline(historie.visual(item, histCtx, mode), 360).anchors.map(anchor => anchor.label);
+
+test('historie: časová osa, události z vlastních dějin, otázka na století', () => {
+    const edward = person('Eduard III.', 'panovnik', { born: 1312, died: 1377, from: 1327, to: 1377, dyn: 'Plantageneti', land: 'Anglické království' }, { ty: 'anglický král', g: ['anglicti-panovnici'] });
+    const charles = person('Karel IV.', 'panovnik', { born: 1316, died: 1378, from: 1346, to: 1378, land: 'Svatá říše římská' }, { ty: 'český král', cz: 1 });
+    assert.deepEqual(historie.regionsOf(edward), ['anglie']);
+    assert.deepEqual(historie.regionsOf(charles), ['cesko', 'nemecko'], 'Svatá říše římská není starověký Řím');
+    // Anglický král nemá na ose české události, český král je má a jeho vlastní univerzita ho neprozradí
+    const czech = /Karlovy|Husa|Přemyslovců|Moravském/;
+    assert.ok(!anchorsOf(edward).some(label => czech.test(label)), anchorsOf(edward).join(' / '));
+    assert.ok(anchorsOf(edward).some(label => /stoleté války/.test(label)));
+    assert.ok(anchorsOf(charles).some(label => czech.test(label)));
+    assert.ok(!anchorsOf(charles).some(label => /Karl/.test(label)));
+    // Bez vlastních dějin jen světové události
+    const gandhi = person('Mahátma Gándhí', 'osobnost', { born: 1869, died: 1948 }, { f: { born: 1869, died: 1948, y: 1904 } });
+    assert.deepEqual(historie.regionsOf(gandhi), []);
+    assert.ok(!anchorsOf(gandhi).some(label => czech.test(label) || /Mnichov|Československa/.test(label)));
+
+    // Otázka na století: jméno je vidět, nápověda časovou osou ani roky ve faktech nejsou
+    const century = historie.specialQuestion(charles, histCtx, () => 0.1);
+    assert.equal(century.type, 'century');
+    assert.equal(century.answerLabel, '14. století');
+    assert.ok(century.accepted.includes('14'));
+    assert.equal(century.choices.filter(choice => choice.correct).length, 1);
+    assert.equal(historie.visual(charles, histCtx, 'century'), null);
+    assert.ok(historie.facts(charles, histCtx, 'century').every(fact => !/\d/.test(fact.value)));
+    assert.doesNotMatch(historie.censor('century', 'Karel IV. vládl od roku 1346 ve 14. století.', charles, histCtx), /\d/);
+    assert.equal(historie.specialQuestion(charles, histCtx, () => 0.9), null);
+    // Po odpovědi fakta i se stoletím a rozumně zapsaná období
+    const asLine = (list) => list.map(fact => `${fact.label}: ${fact.value}`);
+    assert.ok(asLine(historie.facts(charles, histCtx, 'result')).includes('Století: 14. století'));
+    assert.equal(historie.subtitle(person('Alfréd Veliký', 'panovnik', { born: 849, died: 899, from: 871, to: 899 }), histCtx), '849–899 n. l.');
+    assert.equal(historie.subtitle(person('Caesar', 'statnik', { born: -100, died: -44 }), histCtx), '100–44 př. n. l.');
+});
+
+test('historie: okruhy a známé osobnosti ve skutečných datech', () => {
+    const data = JSON.parse(fs.readFileSync(path.join(ROOT, 'data', 'historie.json'), 'utf8'));
+    for (const name of ['Karel IV.', 'Napoleon Bonaparte', 'Tomáš Garrigue Masaryk', 'Jindřich VIII. Tudor', 'Bitva u Stalingradu']) {
+        assert.ok(data.items.some(item => item.n === name && item.k === 1), `chybí známá položka ${name}`);
+    }
+    const inCollection = (id) => core.filterItems(data.items, { collection: id }).map(item => item.n);
+    assert.ok(inCollection('premyslovci').includes('Přemysl Otakar II.'));
+    assert.ok(!inCollection('premyslovci').includes('Karel IV.'));
+    assert.ok(inCollection('anglicti-panovnici').includes('Alžběta I.'));
+    assert.ok(inCollection('prezidenti-cr').includes('Václav Havel'));
+    assert.ok(inCollection('druha-svetova').includes('Bitva u Stalingradu'), 'bitva patří k válce i nepřímo');
+    // Herci a filmaři mezi osobnostmi dějin nejsou
+    assert.ok(!data.items.some(item => ['Humphrey Bogart', 'Clark Gable', 'Christopher Lee'].includes(item.n)));
+});

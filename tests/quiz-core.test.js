@@ -382,3 +382,38 @@ test('odkaz na náhled fotky z Wikimedia Commons', () => {
         `https://upload.wikimedia.org/wikipedia/commons/thumb/${hash[0]}/${hash}/Charles_Bridge%2C_Prague.jpg/960px-Charles_Bridge%2C_Prague.jpg`);
     assert.equal(core.commonsPhotoUrl('Karlův most.jpg', 'ab', 500), 'https://upload.wikimedia.org/wikipedia/commons/thumb/a/ab/Karl%C5%AFv_most.jpg/500px-Karl%C5%AFv_most.jpg');
 });
+
+test('století: kladná i před naším letopočtem, popisek', () => {
+    assert.equal(core.centuryOf(1348), 14);
+    assert.equal(core.centuryOf(1400), 14);
+    assert.equal(core.centuryOf(1401), 15);
+    assert.equal(core.centuryOf(1), 1);
+    assert.equal(core.centuryOf(-44), -1);
+    assert.equal(core.centuryOf(-753), -8);
+    assert.equal(core.centuryLabel(14), '14. století');
+    assert.equal(core.centuryLabel(-8), '8. století př. n. l.');
+});
+
+test('časová osa: pruhy uvnitř šířky, rozumné značky, známé události bez vlastních roků a jmen', () => {
+    const anchors = [[1348, 'založení Karlovy univerzity', 1], [1415, 'upálení Jana Husa', 1], [1306, 'vymření Přemyslovců', 1], [1347, 'morová epidemie'], [1453, 'pád Konstantinopole'], [1066, 'bitva u Hastingsu']];
+    const layout = core.buildTimeline({ spans: [{ kind: 'life', from: 1316, to: 1378 }, { kind: 'reign', from: 1346, to: 1378 }], points: [], hide: 'Karel IV.', anchors }, 400);
+    assert.ok(layout.start < 1316 && layout.end > 1378);
+    for (const bar of layout.bars) assert.ok(bar.x >= 0 && bar.x + bar.width <= 400);
+    assert.ok(layout.bars[0].width > layout.bars[1].width);
+    assert.ok(layout.ticks.length >= 2 && layout.ticks.length <= 5);
+    assert.ok(core.buildTimeline({ spans: [], points: [-44] }, 360).ticks.length <= 4);
+    assert.ok(layout.ticks.every(tick => tick.x >= 0 && tick.x <= 400));
+    assert.ok(layout.anchors.length <= 3);
+    assert.ok(layout.anchors.every(anchor => anchor.year < layout.start || anchor.year > layout.end ? false : true));
+    // Založení Karlovy univerzity by prozradilo Karla IV.
+    assert.ok(!layout.anchors.some(anchor => /Karl/.test(anchor.label)));
+    // Blízké dějiny mají přednost před světovými, události mimo osu se nevyberou
+    assert.deepEqual(layout.anchors.map(anchor => anchor.year), [1306, 1415]);
+    assert.deepEqual(core.buildTimeline({ spans: [{ kind: 'reign', from: 1346, to: 1378 }], anchors: [[1347, 'morová epidemie']] }, 400).anchors.map(a => a.label), ['1347 morová epidemie']);
+    assert.deepEqual(core.buildTimeline({ spans: [{ kind: 'reign', from: 1346, to: 1378 }] }, 400).anchors, [], 'bez událostí od tématu žádné');
+    // Bod před naším letopočtem a popisky let
+    const ancient = core.buildTimeline({ spans: [], points: [-44], hide: 'Atentát', anchors: [[-44, 'zavraždění Caesara']] }, 360);
+    assert.equal(ancient.points.length, 1);
+    assert.ok(ancient.ticks.some(tick => /př\. n\. l\./.test(tick.label)));
+    assert.ok(!ancient.anchors.some(anchor => anchor.year === -44));
+});

@@ -5,11 +5,15 @@ import vm from 'node:vm';
 
 const LUCIDE_VERSION = '1.48.0';
 const ICONS = [
-    'arrow-right', 'book-open', 'building-2', 'calendar-days', 'check', 'chevron-left', 'chevron-right', 'circle-check', 'circle-x', 'compass',
-    'droplets', 'external-link', 'eye', 'flag', 'flame', 'globe', 'globe-2', 'graduation-cap', 'house', 'image',
-    'info', 'keyboard', 'landmark', 'layers', 'layout-grid', 'leaf', 'map', 'map-pin', 'minus', 'mountain',
-    'navigation', 'palmtree', 'plus', 'repeat', 'search-x', 'send', 'settings-2', 'share-2', 'shuffle', 'star',
-    'tag', 'target', 'trash-2', 'trophy', 'waves', 'wifi-off', 'x'
+    'arrow-right', 'atom', 'beaker', 'bird', 'book-open', 'bug', 'building-2', 'calendar-days', 'calendar-range', 'castle',
+    'cat', 'check', 'chevron-left', 'chevron-right', 'circle-check', 'circle-x', 'compass', 'crown', 'dna', 'droplets',
+    'external-link', 'eye', 'fish', 'flag', 'flame', 'flask-conical', 'flower-2', 'gauge', 'gem', 'git-branch',
+    'globe', 'globe-2', 'graduation-cap', 'grid-3x3', 'hourglass', 'house', 'image', 'info', 'keyboard', 'landmark',
+    'layers', 'layout-grid', 'leaf', 'magnet', 'map', 'map-pin', 'microscope', 'minus', 'mountain', 'navigation',
+    'network', 'orbit', 'palmtree', 'paw-print', 'plus', 'repeat', 'rocket', 'ruler', 'scale', 'scroll',
+    'search-x', 'send', 'settings-2', 'share-2', 'shell', 'shuffle', 'sigma', 'sprout', 'star', 'swords',
+    'table', 'tag', 'target', 'telescope', 'test-tube', 'thermometer', 'trash-2', 'trees', 'trophy', 'turtle',
+    'user', 'waves', 'wifi-off', 'x', 'zap'
 ];
 
 const toPascalCase = (name) => name.replace(/(^|-)(\w)/g, (_, __, letter) => letter.toUpperCase());

@@ -2,7 +2,7 @@
 (function (root) {
     'use strict';
 
-    const { buildBlindMap, formatNumber } = root.MudrlantCore;
+    const { buildBlindMap, buildTimeline, formatNumber } = root.MudrlantCore;
     const SVG_NS = 'http://www.w3.org/2000/svg';
 
     const svgElement = (tag, attributes) => {
@@ -41,6 +41,59 @@
         container.prepend(svg);
     };
 
+    const svgText = (text, attributes) => {
+        const element = svgElement('text', attributes);
+        element.textContent = text;
+        return element;
+    };
+
+    // Časová osa: roky na ose, život a doba vlády (úřadu, trvání) jako pruhy, událost jako bod
+    // a pro orientaci pár obecně známých událostí v okolí
+    const renderTimeline = async (container, spec) => {
+        const width = Math.round(container.clientWidth) || 360;
+        const height = Math.round(container.clientHeight) || 224;
+        const layout = buildTimeline(spec, width);
+        const svg = svgElement('svg', { viewBox: `0 0 ${width} ${height}`, class: 'absolute inset-0 h-full w-full', 'aria-hidden': 'true' });
+        const axisY = Math.round(height * 0.58);
+        svg.appendChild(svgElement('line', { x1: 12, x2: width - 12, y1: axisY, y2: axisY, 'stroke-width': 2, class: 'stroke-slate-400 dark:stroke-slate-500' }));
+        for (const tick of layout.ticks) {
+            svg.appendChild(svgElement('line', { x1: tick.x, x2: tick.x, y1: axisY - 5, y2: axisY + 5, 'stroke-width': 1.5, class: 'stroke-slate-400 dark:stroke-slate-500' }));
+            // Roky před naším letopočtem ve dvou řádcích, aby se popisky nepřekrývaly
+            const [year, era] = tick.year < 0 ? [String(-tick.year), 'př. n. l.'] : [tick.label, ''];
+            svg.appendChild(svgText(year, { x: tick.x, y: axisY + 20, 'text-anchor': 'middle', 'font-size': 12, 'font-weight': 600, class: 'fill-slate-500 dark:fill-slate-400' }));
+            if (era) svg.appendChild(svgText(era, { x: tick.x, y: axisY + 31, 'text-anchor': 'middle', 'font-size': 9, class: 'fill-slate-500 dark:fill-slate-400' }));
+        }
+        // Souvislé období: život světlý pruh, vláda či úřad tmavší přes něj
+        for (const bar of layout.bars) {
+            const y = bar.kind === 'life' ? axisY - 40 : axisY - 46;
+            const barHeight = bar.kind === 'life' ? 12 : 24;
+            svg.appendChild(svgElement('rect', {
+                x: bar.x, y, width: Math.max(bar.width, 4), height: barHeight, rx: 4,
+                class: bar.kind === 'life' ? 'fill-amber-200 dark:fill-amber-900' : 'fill-amber-500 dark:fill-amber-500'
+            }));
+        }
+        for (const point of layout.points) {
+            svg.appendChild(svgElement('line', { x1: point.x, x2: point.x, y1: axisY - 44, y2: axisY, 'stroke-width': 2, class: 'stroke-amber-500' }));
+            svg.appendChild(svgElement('circle', { cx: point.x, cy: axisY - 44, r: 7, 'stroke-width': 2.5, class: 'fill-amber-500 stroke-white dark:stroke-slate-900' }));
+        }
+        // Známé události v okolí: krátká značka pod osou a popisek
+        layout.anchors.forEach((anchor, index) => {
+            const y = axisY + 46 + (index % 2) * 15;
+            svg.appendChild(svgElement('line', { x1: anchor.x, x2: anchor.x, y1: axisY + 4, y2: y - 11, 'stroke-width': 1, 'stroke-dasharray': '2 2', class: 'stroke-slate-400 dark:stroke-slate-500' }));
+            svg.appendChild(svgText(anchor.label, { x: anchor.x, y, 'text-anchor': anchor.x < width * 0.25 ? 'start' : anchor.x > width * 0.75 ? 'end' : 'middle', 'font-size': 11, class: 'fill-slate-600 dark:fill-slate-300' }));
+        });
+        // Popisky pruhů
+        const legend = [];
+        if (layout.bars.some(bar => bar.kind === 'life')) legend.push(['fill-amber-200 dark:fill-amber-900', 'život']);
+        if (layout.bars.some(bar => bar.kind !== 'life')) legend.push(['fill-amber-500', spec.spanLabel || 'vláda']);
+        legend.forEach(([fill, text], index) => {
+            const x = 14 + index * 78;
+            svg.appendChild(svgElement('rect', { x, y: 12, width: 12, height: 12, rx: 3, class: fill }));
+            svg.appendChild(svgText(text, { x: x + 17, y: 22, 'font-size': 12, 'font-weight': 600, class: 'fill-slate-600 dark:fill-slate-300' }));
+        });
+        container.prepend(svg);
+    };
+
     // name = jak se nápověda jmenuje v tlačítku, frame = pozadí rámečku, corner = údaj v pravém dolním rohu
     const VISUALS = {
         map: {
@@ -50,6 +103,13 @@
             corner: (spec) => `↔ ${formatDistance(mapWidthKm(spec))}`,
             describe: (spec) => `Slepá mapa bez popisků. ${spec.label}, výřez je široký asi ${formatDistance(mapWidthKm(spec))}.`,
             render: renderMap
+        },
+        timeline: {
+            name: 'časová osa',
+            icon: 'calendar-range',
+            frame: 'border-amber-200 bg-amber-50 dark:border-slate-700 dark:bg-slate-800',
+            describe: () => 'Časová osa s roky a s několika známými událostmi pro orientaci.',
+            render: renderTimeline
         }
     };
 
