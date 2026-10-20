@@ -216,3 +216,64 @@ test('historie: okruhy a známé osobnosti ve skutečných datech', () => {
     // Herci a filmaři mezi osobnostmi dějin nejsou
     assert.ok(!data.items.some(item => ['Humphrey Bogart', 'Clark Gable', 'Christopher Lee'].includes(item.n)));
 });
+
+// --- Biologie ---
+
+const biologie = TOPICS.find(topic => topic.id === 'biologie');
+const organism = (q, n, c, f, extra = {}) => ({ q, t: n, n, c, k: 1, f, ...extra });
+
+test('biologie: otázka „Kam patří?“, psaný název, fakta a mapa rozšíření', () => {
+    const items = [
+        organism('Q140', 'Lev', 'savci', { lat: 'Panthera leo', cls: 'savci', ord: 'šelmy', fam: 'kočkovití', iucn: 'VU', mass: 188, len: 2.5, life: 14 }, { rm: 'Lion range.svg', rh: '67' }),
+        organism('Q1', 'Veverka obecná', 'savci', { cls: 'savci', ord: 'hlodavci' }),
+        organism('Q2', 'Šimpanz učenlivý', 'savci', { cls: 'savci', ord: 'primáti' }),
+        organism('Q3', 'Srnec obecný', 'savci', { cls: 'savci', ord: 'sudokopytníci' }),
+        organism('Q4', 'Ptakopysk podivný', 'savci', { cls: 'savci', ord: 'Monotremata' }),
+        organism('Q5', 'Sýkora koňadra', 'ptaci', { cls: 'ptáci', ord: 'pěvci' }),
+        organism('Q6', 'Sýkora modřinka', 'ptaci', { cls: 'ptáci', ord: 'pěvci' }),
+        organism('Q7', 'Dub letní', 'rostliny', { cls: 'vyšší dvouděložné', ord: 'bukotvaré', fam: 'bukovité' })
+    ];
+    const ctx = { items };
+    const lion = items[0];
+    const taxon = biologie.specialQuestion(lion, ctx, () => 0.1);
+    assert.equal(taxon.type, 'taxon');
+    assert.equal(taxon.title, 'Do kterého řádu patří?');
+    assert.deepEqual(taxon.choices.map(choice => choice.label).sort(), ['hlodavci', 'primáti', 'sudokopytníci', 'šelmy'], 'jen české názvy řádů stejné třídy');
+    assert.equal(taxon.answerLabel, 'šelmy');
+    assert.equal(biologie.specialQuestion(lion, ctx, () => 0.9), null);
+    assert.equal(biologie.specialQuestion(items[4], ctx, () => 0.1), null, 'vědecký název řádu se nehádá');
+    assert.equal(biologie.specialQuestion(items[7], ctx, () => 0.1), null, 'málo čeledí na výběr');
+    // Popis bez hledaného řádu, název druhu zůstane; fakta bez řádu a čeledi
+    const text = biologie.censor('taxon', 'Lev je velká kočkovitá šelma. Šelmy jsou masožravci.', lion, ctx);
+    assert.doesNotMatch(text, /šelm|Šelm/);
+    assert.match(text, /Lev/);
+    const asLine = (list) => list.map(fact => `${fact.label}: ${fact.value}`.replace(/ /g, ' '));
+    assert.deepEqual(asLine(biologie.facts(lion, ctx, 'taxon')), ['Třída: savci', 'Ohrožení: zranitelný', 'Hmotnost: až 188 kg', 'Délka: až 2,5 m', 'Dožívá se: až 14 let']);
+    assert.ok(asLine(biologie.facts(lion, ctx, 'name')).includes('Řád: šelmy'));
+    assert.ok(!asLine(biologie.facts(lion, ctx, 'name')).some(line => /Panthera/.test(line)), 'vědecký název až po odpovědi');
+    assert.ok(asLine(biologie.facts(lion, ctx, 'result')).includes('Vědecký název: Panthera leo'));
+    // Psaná odpověď: vědecký název a jedinečné první slovo („veverka“ ano, „sýkora“ ne)
+    assert.deepEqual(biologie.nameAliases(lion, ctx), ['Panthera leo']);
+    assert.deepEqual(biologie.nameAliases(items[1], ctx), ['Veverka']);
+    assert.deepEqual(biologie.nameAliases(items[5], ctx), []);
+    // Mapa rozšíření je obrázek z Commons, kresba SVG jako náhled PNG
+    assert.deepEqual(biologie.visual(lion, ctx, 'name'), { type: 'image', file: 'Lion range.svg', hash: '67', name: 'mapa rozšíření', icon: 'map' });
+    assert.equal(biologie.visual(items[1], ctx, 'name'), null);
+    assert.match(core.commonsPhotoUrl('Lion range.svg', '67', 500), /\/thumb\/6\/67\/Lion_range\.svg\/500px-Lion_range\.svg\.png$/);
+});
+
+test('biologie: okruhy a známé druhy ve skutečných datech', () => {
+    const data = JSON.parse(fs.readFileSync(path.join(ROOT, 'data', 'biologie.json'), 'utf8'));
+    for (const name of ['Lev', 'Pes domácí', 'Liška obecná', 'Sýkora koňadra', 'Hřib smrkový', 'Dub letní', 'Triceratops']) {
+        assert.ok(data.items.some(item => item.n === name && item.k === 1), `chybí známý druh ${name}`);
+    }
+    const inCollection = (id) => core.filterItems(data.items, { collection: id }).map(item => item.n);
+    assert.ok(inCollection('domaci-zvirata').includes('Pes domácí') && inCollection('domaci-zvirata').includes('Kočka domácí'));
+    assert.ok(inCollection('nase-priroda').includes('Liška obecná') && !inCollection('nase-priroda').includes('Lev'));
+    assert.ok(inCollection('selmy').includes('Lev') && !inCollection('selmy').includes('Srnec obecný'));
+    assert.ok(!inCollection('dinosauri').some(name => /^(Sýkora|Kur|Holub)/.test(name)), 'ptáci nejsou mezi dinosaury');
+    // Kytovci jsou řád podle školní systematiky, ne sudokopytníci
+    assert.equal(data.items.find(item => item.n === 'Kosatka dravá').f.ord, 'kytovci');
+    // Stejné jméno u šelmy i houby: houba má upřesnění
+    assert.ok(data.items.some(item => item.n === 'Liška obecná (houba)'));
+});

@@ -1005,7 +1005,7 @@
         `).join('');
 
         const originBadge = data.isCzech
-            ? `<span class="text-[10px] font-bold text-white bg-rose-600/90 backdrop-blur-sm px-3 py-1.5 rounded-lg flex items-center gap-1.5 shadow-sm border border-rose-500"><i data-lucide="map-pin" class="w-3 h-3"></i>Česká stopa</span>`
+            ? `<span class="text-[10px] font-bold text-white bg-rose-600/90 backdrop-blur-sm px-3 py-1.5 rounded-lg flex items-center gap-1.5 shadow-sm border border-rose-500"><i data-lucide="map-pin" class="w-3 h-3"></i>${escapeHtml(topic.words.czechBadge || 'Česká stopa')}</span>`
             : `<span class="text-[10px] font-bold text-white bg-slate-800/60 backdrop-blur-sm px-3 py-1.5 rounded-lg flex items-center gap-1.5 shadow-sm border border-slate-600"><i data-lucide="${data.known ? 'star' : 'compass'}" class="w-3 h-3 text-sky-300"></i>${data.known ? 'Známé' : 'Méně známé'}</span>`;
 
         appContent.innerHTML = `

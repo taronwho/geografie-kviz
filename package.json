@@ -10,6 +10,8 @@
     "build:world": "node scripts/build-world.mjs",
     "build:zemepis": "node scripts/build-zemepis.mjs",
     "build:historie": "node scripts/build-historie.mjs",
+    "build:biologie": "node scripts/build-biologie.mjs",
+    "build:chemie": "node scripts/build-chemie.mjs",
     "build": "npm run build:icons && npm run build:css",
     "test": "node --test"
   }

@@ -3,6 +3,13 @@ import { writeFileSync, mkdirSync, readFileSync, existsSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 
 const ENDPOINT = 'https://query.wikidata.org/sparql';
+// QLever (Univerzita Freiburg) zvládne i dotazy přes celý strom taxonů, na kterých query.wikidata.org vyprší
+const QLEVER = 'https://qlever.dev/api/wikidata';
+const QLEVER_PREFIXES = `PREFIX wd: <http://www.wikidata.org/entity/> PREFIX wdt: <http://www.wikidata.org/prop/direct/>
+PREFIX wikibase: <http://wikiba.se/ontology#> PREFIX schema: <http://schema.org/> PREFIX rdfs: <http://www.w3.org/2000/01/rdf-schema#>
+PREFIX p: <http://www.wikidata.org/prop/> PREFIX ps: <http://www.wikidata.org/prop/statement/> PREFIX psn: <http://www.wikidata.org/prop/statement/value-normalized/>
+PREFIX pq: <http://www.wikidata.org/prop/qualifier/>
+`;
 const USER_AGENT = 'MudrlantBuild/1.0 (https://github.com/taronwho/geografie-kviz)';
 
 export const CZECHIA = 'Q213';
@@ -11,11 +18,11 @@ export const CONTINENTS = { Q46: 'EU', Q48: 'AS', Q15: 'AF', Q49: 'NA', Q18: 'SA
 export const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 // Dotaz SPARQL s opakováním při přetížení (429, 5xx) i výpadku spojení
-export const sparql = async (query) => {
+export const sparql = async (query, endpoint = ENDPOINT) => {
     for (let attempt = 1; attempt <= 6; attempt++) {
         let status;
         try {
-            const response = await fetch(ENDPOINT, {
+            const response = await fetch(endpoint, {
                 method: 'POST',
                 headers: { 'User-Agent': USER_AGENT, 'Accept': 'application/sparql-results+json', 'Content-Type': 'application/x-www-form-urlencoded' },
                 body: new URLSearchParams({ query })
@@ -30,6 +37,7 @@ export const sparql = async (query) => {
     }
     throw new Error('Wikidata neodpovídají');
 };
+export const qlever = (query) => sparql(QLEVER_PREFIXES + query, QLEVER);
 
 export const id = (uri) => uri.split('/').pop();
 export const round = (n, digits = 0) => Math.round(n * 10 ** digits) / 10 ** digits;
@@ -80,9 +88,9 @@ export const cached = async (name, compute) => {
 };
 
 // Po dávkách: dotaz s VALUES pro každou dávku ID, řádky předá funkci onRow
-export const inBatches = async (qids, size, buildQuery, onRow) => {
+export const inBatches = async (qids, size, buildQuery, onRow, run = sparql) => {
     for (let i = 0; i < qids.length; i += size) {
-        const rows = await sparql(buildQuery(qids.slice(i, i + size)));
+        const rows = await run(buildQuery(qids.slice(i, i + size)));
         rows.forEach(onRow);
         process.stdout.write(`  ${Math.min(i + size, qids.length)}/${qids.length}\r`);
         await sleep(500);
@@ -91,7 +99,16 @@ export const inBatches = async (qids, size, buildQuery, onRow) => {
 
 export const readCountries = () => JSON.parse(readFileSync(new URL('../../data/countries.json', import.meta.url), 'utf8')).countries;
 
-export const writeTopic = (topicId, { collections, items }) => {
+// Zapíše data tématu; okruhy s méně než 5 položkami vynechá (i z položek), aby v učení nebyly skoro prázdné
+export const writeTopic = (topicId, { collections: allCollections, items }) => {
+    const sizes = new Map(allCollections.map(collection => [collection.id, items.filter(item => (item.g || []).includes(collection.id)).length]));
+    const collections = allCollections.filter(collection => sizes.get(collection.id) >= 5);
+    const kept = new Set(collections.map(collection => collection.id));
+    for (const item of items) {
+        if (!item.g) continue;
+        item.g = item.g.filter(group => kept.has(group));
+        if (!item.g.length) delete item.g;
+    }
     mkdirSync(new URL('../../data/', import.meta.url), { recursive: true });
     writeFileSync(new URL(`../../data/${topicId}.json`, import.meta.url), JSON.stringify({
         generated: new Date().toISOString().slice(0, 10),

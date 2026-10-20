@@ -1,8 +1,8 @@
-// Obrazové nápovědy témat (vykreslení do stránky): slepá mapa; další druhy přidávají témata, která je potřebují
+// Obrazové nápovědy témat (vykreslení do stránky): slepá mapa, časová osa, obrázek (mapa rozšíření)
 (function (root) {
     'use strict';
 
-    const { buildBlindMap, buildTimeline, formatNumber } = root.MudrlantCore;
+    const { buildBlindMap, buildTimeline, formatNumber, commonsPhotoUrl } = root.MudrlantCore;
     const SVG_NS = 'http://www.w3.org/2000/svg';
 
     const svgElement = (tag, attributes) => {
@@ -94,6 +94,23 @@
         container.prepend(svg);
     };
 
+    // Obrázek z Wikimedia Commons (mapa rozšíření druhu); když se nenačte, ukáže se zpráva jako u jiných nápověd
+    const renderImage = (container, spec) => new Promise((resolve, reject) => {
+        const url = commonsPhotoUrl(spec.file, spec.hash, 500);
+        const probe = new Image();
+        probe.onload = () => {
+            if (container.isConnected) {
+                const picture = document.createElement('div');
+                picture.className = 'absolute inset-2 bg-contain bg-center bg-no-repeat';
+                picture.style.backgroundImage = `url("${url}")`;
+                container.prepend(picture);
+            }
+            resolve();
+        };
+        probe.onerror = () => reject(new Error(`Obrázek se nenačetl: ${url}`));
+        probe.src = url;
+    });
+
     // name = jak se nápověda jmenuje v tlačítku, frame = pozadí rámečku, corner = údaj v pravém dolním rohu
     const VISUALS = {
         map: {
@@ -110,10 +127,22 @@
             frame: 'border-amber-200 bg-amber-50 dark:border-slate-700 dark:bg-slate-800',
             describe: () => 'Časová osa s roky a s několika známými událostmi pro orientaci.',
             render: renderTimeline
+        },
+        // Obrázek si název a ikonu nese ve specifikaci (mapa rozšíření, strukturní vzorec…)
+        image: {
+            name: 'obrázek',
+            icon: 'image',
+            frame: 'border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-100',
+            describe: (spec) => `${spec.name ? spec.name.charAt(0).toUpperCase() + spec.name.slice(1) : 'Obrázek'} z Wikimedia Commons.`,
+            render: renderImage
         }
     };
 
-    const info = (spec) => VISUALS[spec && spec.type] || null;
+    const info = (spec) => {
+        const visual = VISUALS[spec && spec.type];
+        if (!visual) return null;
+        return spec.name || spec.icon ? { ...visual, name: spec.name || visual.name, icon: spec.icon || visual.icon } : visual;
+    };
 
     // Vykreslí nápovědu do kontejneru; když se nepodaří (třeba bez internetu), ukáže v něm krátkou zprávu
     const render = async (container, spec, deps) => {

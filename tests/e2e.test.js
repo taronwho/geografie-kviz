@@ -446,9 +446,10 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         assert.match(await tab.textContent('#settings-note'), /od další otázky/);
         assert.equal(await tab.getAttribute('#settings-overlay [data-tier="known"]', 'aria-pressed'), 'true');
         await tab.click('#settings-overlay [data-tier="all"]');
-        assert.deepEqual(await readStorage(tab, 'mudrlant.settings'), { tier: 'all', topics: ['zemepis', 'historie'] });
+        assert.deepEqual(await readStorage(tab, 'mudrlant.settings'), { tier: 'all', topics: ['zemepis', 'historie', 'biologie'] });
         // Témata v tréninku: jedno vypnout jde, poslední ne
         await tab.click('#settings-overlay [data-topic-toggle="historie"]');
+        await tab.click('#settings-overlay [data-topic-toggle="biologie"]');
         assert.deepEqual((await readStorage(tab, 'mudrlant.settings')).topics, ['zemepis']);
         await tab.click('#settings-overlay [data-topic-toggle="zemepis"]');
         assert.match(await tab.textContent('#settings-note'), /Aspoň jedno téma/);
@@ -538,6 +539,63 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         assert.equal(await second.tab.textContent('#learn-card h2'), 'Václav II.');
 
         assert.equal(await second.tab.locator('i[data-lucide]').count(), 0, 'všechny ikony vykreslené');
+        for (const run of [log, second.log]) {
+            assert.deepEqual(run.errors, []);
+            assert.deepEqual(run.csp, []);
+        }
+        await second.context.close();
+    });
+
+    await t.test('biologie: kam patří (řád), mapa rozšíření, psaný vědecký název', async () => {
+        const { context, tab, log } = await setup(browser, { fixedRandom: true });
+        await tab.goto(`${ORIGIN}/`);
+        await waitForHome(tab);
+        assert.match(await tab.textContent('[data-action="daily"][data-topic="biologie"]'), /Biologie\s*Čeká na tebe/);
+
+        // Do kterého řádu patří? Název je vidět, řád z popisu i faktů zmizí
+        await practiceCollection(tab, 'biologie', 'selmy');
+        const taxon = await readRound(tab);
+        assert.equal(taxon.name, 'Lev pustinný');
+        assert.equal(taxon.question.type, 'taxon');
+        assert.equal(await tab.textContent('h2'), 'Do kterého řádu patří?');
+        assert.deepEqual(taxon.question.choices.map(choice => choice.label).sort(), ['hlodavci', 'primáti', 'sudokopytníci', 'šelmy']);
+        assert.doesNotMatch(await tab.textContent('p.italic'), /šelm/i);
+        assert.match(await tab.textContent('p.italic'), /Lev pustinný/);
+        assert.ok(taxon.facts.every(fact => !/šelm/.test(fact.value)));
+        await tab.click('[data-action="choice"]:has-text("šelmy")');
+        await waitForResult(tab);
+        assert.match(await appText(tab), /Správně!/);
+        assert.match(await appText(tab), /Vědecký název\s*Panthera leo/);
+        await context.close();
+
+        // Co je to za zvíře? Mapa rozšíření z Commons (SVG jako PNG náhled), psaný vědecký název platí
+        const second = await setup(browser, { variant: 'typed', fixedRandom: 0.5 });
+        await second.tab.goto(`${ORIGIN}/`);
+        await waitForHome(second.tab);
+        await openCollection(second.tab, 'biologie', 'selmy');
+        await second.tab.click('[data-action="learn-practice"]');
+        await waitForQuestion(second.tab);
+        let round = await readRound(second.tab);
+        // Okruh popořadě není – dokud nepřijde lev s mapou rozšíření, vzdát a dál
+        for (let i = 0; i < 6 && round.name !== 'Lev pustinný'; i++) {
+            await second.tab.click('[data-action="give-up"]');
+            await waitForResult(second.tab);
+            await second.tab.click('[data-action="next"]');
+            await waitForQuestion(second.tab);
+            round = await readRound(second.tab);
+        }
+        assert.equal(round.name, 'Lev pustinný');
+        assert.equal(round.question.type, 'name');
+        assert.equal(await second.tab.textContent('h2'), 'Co je to za zvíře?');
+        assert.deepEqual(round.hints, ['photo', 'visual', 'facts']);
+        await second.tab.click('[data-action="hint"]');
+        assert.match(await second.tab.textContent('[data-action="hint"]'), /mapa rozšíření/);
+        await second.tab.click('[data-action="hint"]');
+        await second.tab.waitForFunction(() => { const map = document.querySelector('#hint-visual div[class*="bg-contain"]'); return map && map.style.backgroundImage.includes('/thumb/1/12/Lion_range.svg/500px-Lion_range.svg.png'); });
+        await second.tab.fill('#answer-input', 'panthera leo');
+        await second.tab.press('#answer-input', 'Enter');
+        await waitForResult(second.tab);
+        assert.match(await appText(second.tab), /Správně!/);
         for (const run of [log, second.log]) {
             assert.deepEqual(run.errors, []);
             assert.deepEqual(run.csp, []);

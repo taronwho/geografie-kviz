@@ -258,7 +258,9 @@
     // hash = první dva znaky MD5 názvu souboru, spočítané při sestavení sady míst
     const commonsPhotoUrl = (fileName, hash, width = 960) => {
         const name = encodeURIComponent(fileName.replace(/ /g, '_'));
-        return `https://upload.wikimedia.org/wikipedia/commons/thumb/${hash[0]}/${hash}/${name}/${width}px-${name}`;
+        // Náhled kresby SVG (mapy rozšíření) je obrázek PNG
+        const thumb = /\.svg$/i.test(fileName) ? `${name}.png` : name;
+        return `https://upload.wikimedia.org/wikipedia/commons/thumb/${hash[0]}/${hash}/${name}/${width}px-${thumb}`;
     };
 
     // --- Položky témat: místa, osobnosti, druhy, prvky… (formát data/<téma>.json) ---

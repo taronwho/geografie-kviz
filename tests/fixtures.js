@@ -74,8 +74,41 @@ const historie = {
     ]
 };
 
+const organism = (q, n, c, f, extra = {}) => ({ q, t: n, n, c, k: 1, d: `${c} v testovací přírodě`, im: `${n}.jpg`, ih: 'ef', f, ...extra });
+const mammal = (q, n, lat, ord, extra = {}) => organism(q, n, 'savci', { lat, cls: 'savci', ord, fam: `${ord} – čeleď`, iucn: 'LC', mass: 120 }, extra);
+const biologie = {
+    generated: '2026-10-20',
+    collections: [
+        { id: 'selmy', label: 'Šelmy', sort: { by: 'name' } },
+        { id: 'nase-priroda', label: 'Naše příroda', text: 'Zvířata, rostliny a houby, které potkáš v Česku', sort: { by: 'name' } }
+    ],
+    items: [
+        mammal('Q140', 'Lev pustinný', 'Panthera leo', 'šelmy', { t: 'Lev', g: ['selmy'], rm: 'Lion range.svg', rh: '12' }),
+        mammal('Q8332', 'Liška obecná', 'Vulpes vulpes', 'šelmy', { g: ['selmy', 'nase-priroda'], cz: 1 }),
+        mammal('Q18498', 'Vlk obecný', 'Canis lupus', 'šelmy', { g: ['selmy', 'nase-priroda'], cz: 1 }),
+        mammal('Q19939', 'Tygr', 'Panthera tigris', 'šelmy', { g: ['selmy'] }),
+        mammal('Q4388', 'Veverka obecná', 'Sciurus vulgaris', 'hlodavci', { g: ['nase-priroda'], cz: 1 }),
+        mammal('Q36557', 'Šimpanz učenlivý', 'Pan troglodytes', 'primáti'),
+        mammal('Q79794', 'Srnec obecný', 'Capreolus capreolus', 'sudokopytníci', { g: ['nase-priroda'], cz: 1 }),
+        organism('Q25350', 'Sýkora koňadra', 'ptaci', { lat: 'Parus major', cls: 'ptáci', ord: 'pěvci' }, { cz: 1 }),
+        organism('Q25377', 'Sýkora modřinka', 'ptaci', { lat: 'Cyanistes caeruleus', cls: 'ptáci', ord: 'pěvci' }, { cz: 1 }),
+        organism('Q25234', 'Kos černý', 'ptaci', { lat: 'Turdus merula', cls: 'ptáci', ord: 'pěvci' }, { cz: 1 }),
+        organism('Q25352', 'Čáp bílý', 'ptaci', { lat: 'Ciconia ciconia', cls: 'ptáci', ord: 'brodiví' }, { cz: 1 }),
+        organism('Q165145', 'Dub letní', 'rostliny', { lat: 'Quercus robur', cls: 'vyšší dvouděložné', ord: 'bukotvaré', fam: 'bukovité' }),
+        organism('Q156944', 'Buk lesní', 'rostliny', { lat: 'Fagus sylvatica', cls: 'vyšší dvouděložné', ord: 'bukotvaré', fam: 'bukovité' }),
+        organism('Q131113', 'Pampeliška lékařská', 'rostliny', { lat: 'Taraxacum officinale', cls: 'vyšší dvouděložné', ord: 'hvězdnicotvaré', fam: 'hvězdnicovité' }),
+        organism('Q41179', 'Šípková růže', 'rostliny', { lat: 'Rosa canina', cls: 'vyšší dvouděložné', ord: 'růžotvaré', fam: 'růžovité' }),
+        organism('Q184217', 'Hřib smrkový', 'houby', { lat: 'Boletus edulis', cls: 'stopkovýtrusné', ord: 'hřibotvaré', fam: 'hřibovité', edib: 'jedlá houba' }),
+        organism('Q131265', 'Muchomůrka červená', 'houby', { lat: 'Amanita muscaria', cls: 'stopkovýtrusné', ord: 'pečárkotvaré', fam: 'muchomůrkovité', edib: 'jedovatá houba' }),
+        organism('Q216412', 'Bedla vysoká', 'houby', { lat: 'Macrolepiota procera', cls: 'stopkovýtrusné', ord: 'pečárkotvaré', fam: 'pečárkovité', edib: 'jedlá houba' }),
+        organism('Q1468577', 'Liška obecná (houba)', 'houby', { lat: 'Cantharellus cibarius', cls: 'stopkovýtrusné', ord: 'liškotvaré', fam: 'liškovité', edib: 'jedlá houba' })
+    ]
+};
+
 // Úvody článků z Wikipedie; ostatní položky dostanou obecný text
 const EXTRACTS = {
+    'Lev': 'Lev pustinný (Panthera leo) je velká kočkovitá šelma žijící v Africe. Lvi žijí ve smečkách a loví hlavně velké kopytníky. ' +
+        'Patří mezi šelmy a je po tygrovi druhou největší kočkou na světě. Samci mají výraznou hřívu.',
     'Testovací hora': 'Testovací hora je hora v pohoří Alpy ve Švýcarsku, vysoká přibližně tři tisíce metrů. <img src=x onerror=__xss=1> ' +
         'Na vrcholu Testovací hory stojí horská chata, kterou navštěvují turisté z celého světa. Hora je známá svými ledovci a výhledy do údolí. ' +
         'Ve 20. století zde vznikla lanovka vedoucí až na vrchol hory.',
@@ -92,7 +125,8 @@ module.exports = {
     files: {
         '/data/countries.json': { generated: '2026-10-19', countries },
         '/data/zemepis.json': zemepis,
-        '/data/historie.json': historie
+        '/data/historie.json': historie,
+        '/data/biologie.json': biologie
     },
     extractFor
 };
