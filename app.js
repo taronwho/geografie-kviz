@@ -865,53 +865,79 @@
 
     const SECTION_HEADING = 'text-xs font-black uppercase tracking-widest text-slate-500 dark:text-slate-400';
 
+    // Témata na domovské obrazovce a v učení ve skupinách (téma, které v žádné není, přibude do poslední)
+    const TOPIC_GROUPS = [
+        { label: 'Svět a dějiny', ids: ['zemepis', 'vlajky', 'historie', 'mytologie'] },
+        { label: 'Příroda a věda', ids: ['biologie', 'geologie', 'chemie', 'fyzika'] },
+        { label: 'Kultura a sport', ids: ['umeni', 'architektura', 'hudba', 'literatura', 'film', 'sport'] }
+    ];
+    const groupedTopics = () => {
+        const groups = TOPIC_GROUPS.map(group => ({ label: group.label, topics: TOPICS.filter(topic => group.ids.includes(topic.id)) }));
+        const rest = TOPICS.filter(topic => !TOPIC_GROUPS.some(group => group.ids.includes(topic.id)));
+        if (rest.length) groups[groups.length - 1].topics.push(...rest);
+        return groups.filter(group => group.topics.length);
+    };
+
     const renderHome = () => {
         screen = 'home';
         closePlaceInfo();
         const stats = loadStats();
         const today = getDayKey();
+        // Dnešní otázky: ikona tématu a stav, název v popisku (14 témat se vejde do dvou řádků)
         const dailyButtons = TOPICS.map(topic => {
             const status = dailyStatus(topic.id, stats);
             const streak = computeStreak(stats.daily[topic.id] || {}, today);
             return `
-                <button type="button" data-action="daily" data-topic="${topic.id}" title="Dnešní otázka – ${escapeHtml(topic.title)}" class="relative flex min-w-0 flex-col items-center gap-1 rounded-2xl border border-slate-100 bg-white px-1 pb-1.5 pt-2 shadow-sm transition-all active:scale-95 dark:border-slate-700 dark:bg-slate-800">
+                <button type="button" data-action="daily" data-topic="${topic.id}" title="Dnešní otázka – ${escapeHtml(topic.title)}" aria-label="Dnešní otázka – ${escapeHtml(topic.title)}: ${escapeHtml(status.text)}" class="relative flex min-w-0 flex-col items-center gap-1 rounded-2xl border border-slate-100 bg-white px-0.5 pb-1 pt-1.5 shadow-sm transition-all active:scale-95 dark:border-slate-700 dark:bg-slate-800">
                     <span class="rounded-xl p-1.5 ${styleOf(topic).soft}"><i data-lucide="${topic.icon}" class="h-5 w-5"></i></span>
-                    <span class="w-full truncate text-center text-[11px] font-bold text-slate-700 dark:text-slate-200">${escapeHtml(topic.title)}</span>
-                    <span class="flex items-center gap-0.5 text-[10px] font-bold ${status.tone}">${status.icon ? `<i data-lucide="${status.icon}" class="h-3 w-3"></i>` : ''}${status.text}</span>
+                    <span class="flex max-w-full items-center gap-0.5 truncate text-[10px] font-bold ${status.tone}">${status.icon ? `<i data-lucide="${status.icon}" class="h-3 w-3 shrink-0"></i>` : ''}${status.text}</span>
                     ${streak ? `<span class="absolute -right-1 -top-1.5 flex items-center gap-0.5 rounded-lg bg-orange-500 px-1 py-0.5 text-[10px] font-black text-white shadow" title="Série dní"><i data-lucide="flame" class="h-3 w-3"></i>${streak}</span>` : ''}
                 </button>`;
         }).join('');
-        const tile = (action, topic, subtitle, extra = '') => `
-            <button type="button" data-action="${action}" ${topic.id !== 'mix' ? `data-topic="${topic.id}"` : ''} class="relative flex h-[6.5rem] flex-col justify-between overflow-hidden rounded-[1.5rem] bg-gradient-to-br p-4 text-left text-white shadow-lg transition-all active:scale-[0.97] ${styleOf(topic).tile} ${extra}">
-                <i data-lucide="${topic.icon}" class="pointer-events-none absolute -bottom-4 -right-3 h-20 w-20 opacity-20"></i>
-                <i data-lucide="${topic.icon}" class="h-7 w-7"></i>
-                <span>
-                    <span class="block text-lg font-black leading-tight">${escapeHtml(topic.title)}</span>
-                    <span class="block truncate text-[11px] font-semibold text-white/85">${escapeHtml(subtitle)}</span>
-                </span>
-            </button>`;
-        const topicTiles = TOPICS.map(topic => {
+        const answered = TOPICS.filter(topic => (stats.daily[topic.id] || {})[today]).length;
+        const scopeOf = (topic) => {
             const chosen = selectedCategories(topic);
-            const scope = chosen.length === topic.categories.length ? 'Všechny kategorie' : chosen.length === 1
-                ? categoryOf(topic, chosen[0]).label : `${chosen.length} z ${topic.categories.length} kategorií`;
-            return tile('play-topic', topic, scope);
-        }).join('');
-        const mixScope = settings.topics.length === TOPICS.length ? 'Ze všech témat' : `${settings.topics.length} z ${TOPICS.length} témat`;
+            return chosen.length === topic.categories.length ? '' : chosen.length === 1 ? categoryOf(topic, chosen[0]).label : `${chosen.length} z ${topic.categories.length}`;
+        };
+        // Dlaždice tématu: ikona a název, omezený výběr kategorií jako malý štítek
+        const tile = (topic) => {
+            const scope = scopeOf(topic);
+            return `
+                <button type="button" data-action="play-topic" data-topic="${topic.id}" class="relative flex h-[5.25rem] min-w-0 flex-col justify-between overflow-hidden rounded-[1.25rem] bg-gradient-to-br p-2.5 text-left text-white shadow-md transition-all active:scale-[0.97] ${styleOf(topic).tile}">
+                    <i data-lucide="${topic.icon}" class="pointer-events-none absolute -bottom-3 -right-3 h-14 w-14 opacity-20"></i>
+                    <i data-lucide="${topic.icon}" class="h-5 w-5"></i>
+                    <span class="min-w-0">
+                        <span class="block text-[13px] font-black leading-tight [overflow-wrap:anywhere]">${escapeHtml(topic.title)}</span>
+                        ${scope ? `<span class="block truncate text-[10px] font-semibold text-white/85">${escapeHtml(scope)}</span>` : ''}
+                    </span>
+                </button>`;
+        };
+        const mixScope = settings.topics.length === TOPICS.length ? 'Otázky ze všech témat' : `${settings.topics.length} z ${TOPICS.length} témat`;
+        const groups = groupedTopics().map(group => `
+            <div>
+                <h3 class="mb-1.5 px-1 text-[11px] font-bold text-slate-400 dark:text-slate-500">${escapeHtml(group.label)}</h3>
+                <div class="grid grid-cols-3 gap-2">${group.topics.map(tile).join('')}</div>
+            </div>`).join('');
         appContent.innerHTML = `
             <div class="fade-in flex min-h-full w-full flex-col gap-5 bg-slate-50 p-4 pb-6 dark:bg-slate-900">
                 <section>
                     <div class="mb-2 flex items-baseline justify-between px-1">
-                        <h2 class="${SECTION_HEADING}">Dnešní otázky</h2>
+                        <h2 class="${SECTION_HEADING}">Dnešní otázky <span class="font-bold normal-case tracking-normal text-slate-400">${answered}/${TOPICS.length}</span></h2>
                         <span class="text-xs font-semibold text-slate-400">${formatDayKey(today)}</span>
                     </div>
-                    <div class="grid grid-cols-5 gap-1.5">${dailyButtons}</div>
+                    <div class="grid grid-cols-7 gap-1">${dailyButtons}</div>
                 </section>
-                <section>
-                    <h2 class="${SECTION_HEADING} mb-2 px-1">Hrát</h2>
-                    <div class="grid grid-cols-2 gap-3">
-                        ${topicTiles}
-                        ${tile('play-mix', MIX, mixScope)}
-                    </div>
+                <section class="flex flex-col gap-3">
+                    <h2 class="${SECTION_HEADING} -mb-1 px-1">Hrát</h2>
+                    <button type="button" data-action="play-mix" class="relative flex items-center gap-3 overflow-hidden rounded-[1.25rem] bg-gradient-to-br p-3.5 text-left text-white shadow-lg transition-all active:scale-[0.98] ${styleOf(MIX).tile}">
+                        <i data-lucide="${MIX.icon}" class="pointer-events-none absolute -bottom-4 right-2 h-20 w-20 opacity-20"></i>
+                        <span class="rounded-xl bg-white/20 p-2"><i data-lucide="${MIX.icon}" class="h-6 w-6"></i></span>
+                        <span class="min-w-0">
+                            <span class="block text-lg font-black leading-tight">${escapeHtml(MIX.title)}</span>
+                            <span class="block truncate text-xs font-semibold text-white/85">${escapeHtml(mixScope)}</span>
+                        </span>
+                    </button>
+                    ${groups}
                 </section>
                 <button type="button" data-action="open-learn" class="${LEARN_ROW}">
                     <span class="shrink-0 rounded-xl bg-violet-100 p-2 text-violet-700 dark:bg-violet-900/50 dark:text-violet-300"><i data-lucide="graduation-cap" class="h-5 w-5"></i></span>
@@ -1885,17 +1911,22 @@
 
     const renderLearnHome = () => {
         const mistakes = loadMistakes();
-        const cards = TOPICS.map(topic => `
-            <button type="button" data-action="learn-topic" data-topic="${topic.id}" class="flex flex-col items-start gap-2 rounded-[1.5rem] border border-slate-100 bg-white p-4 text-left shadow-sm transition-all hover:border-emerald-300 active:scale-[0.98] dark:border-slate-700 dark:bg-slate-800 dark:hover:border-emerald-700">
-                <span class="rounded-2xl p-2.5 ${styleOf(topic).soft}"><i data-lucide="${topic.icon}" class="h-6 w-6"></i></span>
-                <span class="text-base font-black text-slate-800 dark:text-slate-100">${escapeHtml(topic.title)}</span>
-            </button>`).join('');
+        const card = (topic) => `
+            <button type="button" data-action="learn-topic" data-topic="${topic.id}" class="flex min-w-0 flex-col items-start gap-1.5 rounded-[1.25rem] border border-slate-100 bg-white p-2.5 text-left shadow-sm transition-all hover:border-emerald-300 active:scale-[0.98] dark:border-slate-700 dark:bg-slate-800 dark:hover:border-emerald-700">
+                <span class="rounded-xl p-2 ${styleOf(topic).soft}"><i data-lucide="${topic.icon}" class="h-5 w-5"></i></span>
+                <span class="text-[13px] font-black leading-tight text-slate-800 [overflow-wrap:anywhere] dark:text-slate-100">${escapeHtml(topic.title)}</span>
+            </button>`;
+        const cards = groupedTopics().map(group => `
+            <div>
+                <h3 class="mb-1.5 px-1 text-[11px] font-bold text-slate-400 dark:text-slate-500">${escapeHtml(group.label)}</h3>
+                <div class="grid grid-cols-3 gap-2">${group.topics.map(card).join('')}</div>
+            </div>`).join('');
         return `
             <div class="text-center">
                 <h2 class="text-2xl font-black tracking-tight text-slate-800 dark:text-slate-50">Učení</h2>
                 <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">Vyber téma a okruh: projdi si ho popořadě, pak se z něj nech vyzkoušet. Bez bodů a bez spěchu.</p>
             </div>
-            <div class="grid grid-cols-2 gap-3">${cards}</div>
+            <div class="flex flex-col gap-3">${cards}</div>
             <button type="button" data-action="learn-mistakes" class="${LEARN_ROW}">
                 <span class="shrink-0 rounded-xl bg-rose-100 p-2 text-rose-700 dark:bg-rose-900/50 dark:text-rose-300"><i data-lucide="repeat" class="h-5 w-5"></i></span>
                 <span class="min-w-0 flex-1">

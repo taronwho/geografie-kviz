@@ -1,7 +1,7 @@
 {
     "name": "Mudrlant",
     "short_name": "Mudrlant",
-    "description": "Kvíz ze zeměpisu, historie, biologie, chemie a fyziky – dnešní otázky, trénink a učení po okruzích.",
+    "description": "Vědomostní kvíz ze zeměpisu, historie, přírodních věd, umění, kultury a sportu – dnešní otázky, trénink a učení po okruzích.",
     "lang": "cs",
     "start_url": "./",
     "scope": "./",

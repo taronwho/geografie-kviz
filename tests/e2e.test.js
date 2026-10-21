@@ -122,7 +122,7 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         const { context, tab, log } = await setup(browser);
         await tab.goto(`${ORIGIN}/`);
         await waitForHome(tab);
-        assert.match(await tab.textContent('[data-action="daily"][data-topic="zemepis"]'), /Zeměpis\s*čeká/);
+        assert.match(await tab.textContent('[data-action="daily"][data-topic="zemepis"]'), /čeká/);
         assert.equal(await tab.textContent('#status-text'), 'Mudrlant · 16. 10.');
 
         await tab.click('[data-action="daily"][data-topic="zemepis"]');
@@ -206,7 +206,7 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         // Zpět na dnešní otázky: zeměpis je odehraný a série běží
         await tab.click('[data-action="next"]');
         await waitForHome(tab);
-        assert.match(await tab.textContent('[data-action="daily"][data-topic="zemepis"]'), /Zeměpis\s*1 bod\s*1/);
+        assert.match(await tab.textContent('[data-action="daily"][data-topic="zemepis"]'), /1 bod\s*1/);
 
         // Odehraná dnešní otázka zůstane uložená i po obnovení stránky
         const requestsBefore = log.wiki.length;
@@ -448,7 +448,7 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         const { context, tab, log } = await setup(browser);
         await tab.goto(`${ORIGIN}/`);
         await waitForHome(tab);
-        assert.match(await tab.textContent('[data-action="play-topic"][data-topic="zemepis"]'), /Zeměpis\s*Všechny kategorie/);
+        assert.equal((await tab.textContent('[data-action="play-topic"][data-topic="zemepis"]')).trim(), 'Zeměpis', 'bez omezení kategorií jen název');
 
         // Poprvé okno s výběrem: výchozí všechny kategorie, poslední vypnout nejde
         await tab.click('[data-action="play-topic"][data-topic="zemepis"]');
@@ -496,7 +496,7 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         // Podruhé už dlaždice hraje rovnou s uloženým výběrem
         await tab.click('#btn-home');
         await waitForHome(tab);
-        assert.match(await tab.textContent('[data-action="play-topic"][data-topic="zemepis"]'), /Všechny kategorie/);
+        assert.equal((await tab.textContent('[data-action="play-topic"][data-topic="zemepis"]')).trim(), 'Zeměpis');
         await tab.click('[data-action="play-topic"][data-topic="zemepis"]');
         await waitForQuestion(tab);
         assert.equal(await tab.locator('#play-chooser').count(), 0);
@@ -519,7 +519,7 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         await tab.keyboard.press('Escape');
         assert.equal(await tab.locator('#play-chooser').count(), 0, 'Escape okno zavře');
         assert.deepEqual((await readStorage(tab, 'mudrlant.settings')).topics, ['zemepis']);
-        assert.match(await tab.textContent('[data-action="play-mix"]'), /1 z 5 témat/);
+        assert.match(await tab.textContent('[data-action="play-mix"]'), /1 z \d+ témat/);
 
         await tab.click('[data-action="play-mix"]');
         await tab.click('#play-chooser [data-chooser-play]');
@@ -586,7 +586,7 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         const { context, tab, log } = await setup(browser, { variant: 'typed', fixedRandom: 0.5 });
         await tab.goto(`${ORIGIN}/`);
         await waitForHome(tab);
-        assert.match(await tab.textContent('[data-action="daily"][data-topic="historie"]'), /Historie\s*čeká/);
+        assert.match(await tab.textContent('[data-action="daily"][data-topic="historie"]'), /čeká/);
 
         // Kdo to je? Časová osa s životem a vládou, popis bez jména
         await practiceCollection(tab, 'historie', 'anglicti-panovnici');
@@ -657,7 +657,7 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         const { context, tab, log } = await setup(browser, { fixedRandom: true });
         await tab.goto(`${ORIGIN}/`);
         await waitForHome(tab);
-        assert.match(await tab.textContent('[data-action="daily"][data-topic="biologie"]'), /Biologie\s*čeká/);
+        assert.match(await tab.textContent('[data-action="daily"][data-topic="biologie"]'), /čeká/);
 
         // Do kterého řádu patří? Název je vidět, řád z popisu i faktů zmizí
         await practiceCollection(tab, 'biologie', 'selmy');
@@ -792,7 +792,7 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         const { context, tab, log } = await setup(browser, { variant: 'typed', fixedRandom: true });
         await tab.goto(`${ORIGIN}/`);
         await waitForHome(tab);
-        assert.match(await tab.textContent('[data-action="daily"][data-topic="fyzika"]'), /Fyzika\s*čeká/);
+        assert.match(await tab.textContent('[data-action="daily"][data-topic="fyzika"]'), /čeká/);
 
         // Jaká je jednotka SI této veličiny? Značka N platí, odpověď ukáže název i značku
         await practiceCollection(tab, 'fyzika', 'c:veliciny');
@@ -862,7 +862,7 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         });
         await tab.goto(`${ORIGIN}/`);
         await waitForHome(tab);
-        assert.match(await tab.textContent('[data-action="daily"][data-topic="zemepis"]'), /Zeměpis\s*3 body\s*2/);
+        assert.match(await tab.textContent('[data-action="daily"][data-topic="zemepis"]'), /3 body\s*2/);
         assert.equal(await tab.evaluate(() => localStorage.getItem('mudrlant.variant')), 'typed');
         assert.deepEqual(await readStorage(tab, 'mudrlant.mistakes'), ['zemepis:Q4242']);
         assert.equal((await readStorage(tab, 'mudrlant.settings')).tier, 'all');
