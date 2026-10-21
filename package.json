@@ -2,7 +2,7 @@
   "name": "mudrlant",
   "version": "1.0.0",
   "private": true,
-  "description": "Mudrlant – kvíz ze zeměpisu, historie, biologie, chemie a fyziky s postupnými nápovědami a učením po okruzích",
+  "description": "Mudrlant – vědomostní kvíz ze zeměpisu, historie, přírodních věd, umění, kultury a sportu s postupnými nápovědami a učením po okruzích",
   "scripts": {
     "build:css": "npx --yes tailwindcss@3.4.17 -c tailwind.config.js -i src/input.css -o styles.css --minify",
     "build:icons": "node scripts/build-icons.mjs",
@@ -13,6 +13,15 @@
     "build:biologie": "node scripts/build-biologie.mjs",
     "build:chemie": "node scripts/build-chemie.mjs",
     "build:fyzika": "node scripts/build-fyzika.mjs",
+    "build:vlajky": "node scripts/build-vlajky.mjs",
+    "build:mytologie": "node scripts/build-mytologie.mjs",
+    "build:geologie": "node scripts/build-geologie.mjs",
+    "build:umeni": "node scripts/build-umeni.mjs",
+    "build:architektura": "node scripts/build-architektura.mjs",
+    "build:hudba": "node scripts/build-hudba.mjs",
+    "build:literatura": "node scripts/build-literatura.mjs",
+    "build:film": "node scripts/build-film.mjs",
+    "build:sport": "node scripts/build-sport.mjs",
     "build": "npm run build:icons && npm run build:css",
     "test": "node --test"
   }

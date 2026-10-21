@@ -165,6 +165,43 @@
         container.prepend(svg);
     };
 
+    // Stupnice (tvrdost podle Mohse, geologický čas…): osa od min do max se značkami, hledaná hodnota jako ukazatel;
+    // spec = { min, max, value, ticks: [{ value, label }], valueLabel?, minLabel?, maxLabel?, log? }
+    const renderScale = async (container, spec) => {
+        const width = Math.round(container.clientWidth) || 360;
+        const height = Math.round(container.clientHeight) || 224;
+        const svg = svgElement('svg', { viewBox: `0 0 ${width} ${height}`, class: 'absolute inset-0 h-full w-full', 'aria-hidden': 'true' });
+        const left = 22;
+        const right = width - 22;
+        const axisY = Math.round(height * 0.5);
+        const position = (value) => {
+            const [min, max, v] = spec.log ? [spec.min, spec.max, value].map(x => Math.log10(Math.max(x, 1e-9))) : [spec.min, spec.max, value];
+            return left + (right - left) * Math.min(Math.max((v - min) / (max - min || 1), 0), 1);
+        };
+        svg.appendChild(svgElement('rect', { x: left, y: axisY - 6, width: right - left, height: 12, rx: 6, class: 'fill-slate-200 dark:fill-slate-700' }));
+        // Popisky značek ve dvou řádcích, ať se nepřekrývají
+        (spec.ticks || []).forEach((tick, index) => {
+            const x = position(tick.value);
+            const row = index % 2;
+            svg.appendChild(svgElement('line', { x1: x, x2: x, y1: axisY - 6, y2: axisY + 10 + row * 14, 'stroke-width': 1, class: 'stroke-slate-400 dark:stroke-slate-500' }));
+            svg.appendChild(svgText(tick.label, { x, y: axisY + 22 + row * 14, 'text-anchor': x < left + 20 ? 'start' : x > right - 20 ? 'end' : 'middle', 'font-size': 11, 'font-weight': 600, class: 'fill-slate-600 dark:fill-slate-300' }));
+        });
+        if (spec.minLabel) svg.appendChild(svgText(spec.minLabel, { x: left, y: axisY - 16, 'font-size': 11, class: 'fill-slate-400 dark:fill-slate-500' }));
+        if (spec.maxLabel) svg.appendChild(svgText(spec.maxLabel, { x: right, y: axisY - 16, 'text-anchor': 'end', 'font-size': 11, class: 'fill-slate-400 dark:fill-slate-500' }));
+        if (spec.value !== undefined && spec.value !== null) {
+            const x = position(spec.value);
+            svg.appendChild(svgElement('rect', { x: left, y: axisY - 6, width: Math.max(x - left, 6), height: 12, rx: 6, class: 'fill-amber-400 dark:fill-amber-500' }));
+            svg.appendChild(svgElement('circle', { cx: x, cy: axisY, r: 9, 'stroke-width': 3, class: 'fill-amber-500 stroke-white dark:stroke-slate-900' }));
+            if (spec.valueLabel) {
+                svg.appendChild(svgText(spec.valueLabel, {
+                    x, y: axisY - 34, 'text-anchor': x < left + 40 ? 'start' : x > right - 40 ? 'end' : 'middle', 'font-size': 14, 'font-weight': 800,
+                    'paint-order': 'stroke', 'stroke-width': 3, 'stroke-linejoin': 'round', class: 'fill-slate-800 stroke-white dark:fill-white dark:stroke-slate-800'
+                }));
+            }
+        }
+        container.prepend(svg);
+    };
+
     // name = jak se nápověda jmenuje v tlačítku, frame = pozadí rámečku, corner = údaj v pravém dolním rohu
     const VISUALS = {
         map: {
@@ -188,6 +225,14 @@
             frame: 'border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800',
             describe: () => 'Periodická tabulka bez značek prvků, políčka obarvená podle skupin, hledaný prvek zvýrazněný.',
             render: renderPeriodic
+        },
+        // Název a ikonu si stupnice nese ve specifikaci (tvrdost, stáří…)
+        scale: {
+            name: 'stupnice',
+            icon: 'ruler',
+            frame: 'border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800',
+            describe: (spec) => spec.describe || `Stupnice od ${spec.minLabel || spec.min} do ${spec.maxLabel || spec.max} s vyznačenou hodnotou.`,
+            render: renderScale
         },
         // Obrázek si název a ikonu nese ve specifikaci (mapa rozšíření, strukturní vzorec…)
         image: {

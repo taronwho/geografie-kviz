@@ -150,12 +150,21 @@
         return [...stems].filter(stem => stem.length >= 3 || (stem.length === 2 && word.length <= 3));
     };
 
-    const buildWordsPattern = (words) => {
-        const parts = [];
+    // Písmena s diakritikou, která čeština nemá (Vũng Tàu, São Paulo): text je často píše bez ní (Vung Tau)
+    const FOREIGN_DIACRITICS = /[^\p{L}a-záčďéěíňóřšťúůýž]|[àâãäåæçèêëìîïñòôõöøùûüÿāăąćĉċēĕėęĝğġģĥħĩīĭįıĵķĺļľŀłńņŉŋōŏőœŕŗśŝşţŧũūŭűųŵŷźżǎǐǒǔ]/iu;
+    const withoutDiacritics = (text) => text.normalize('NFD').replace(/\p{M}/gu, '').normalize('NFC');
+    const buildWordsPattern = (words, phrases = []) => {
+        // Celé víceslovné názvy doslova (Si-an, Wu-i – po slovech by byly moc krátké)
+        const parts = phrases.map(phrase => escapeRegExp(phrase));
         for (const word of words) {
             if (word.length < 2 || CENSOR_SKIP_WORDS.has(word.toLowerCase()) || isRomanNumeral(word)) continue;
+            // Slovo samo (Saná – z kmene „San“ by koncovka á nevyšla), dvoupísmenné ne (Si by vzalo i „si“)
+            const forms = word.length >= 3 ? [word] : [];
+            if (FOREIGN_DIACRITICS.test(word)) forms.push(withoutDiacritics(word));
+            for (const form of forms) parts.push(escapeRegExp(form));
             for (const stem of getWordStems(word)) {
                 parts.push(escapeRegExp(stem) + (stem.length >= 4 ? '\\p{L}*' : SHORT_STEM_ENDINGS));
+                if (FOREIGN_DIACRITICS.test(stem)) parts.push(escapeRegExp(withoutDiacritics(stem)) + (stem.length >= 4 ? '\\p{L}*' : SHORT_STEM_ENDINGS));
             }
         }
         if (parts.length === 0) return null;
@@ -168,7 +177,8 @@
     const censorWords = (text, phrase) => {
         const words = stripBrackets(phrase).trim().split(/[\s,\-–]+/);
         const abbreviations = words.filter(word => isAbbreviation(word) && !isRomanNumeral(word));
-        const pattern = buildWordsPattern(words.filter(word => !isAbbreviation(word)));
+        const hyphenated = stripBrackets(phrase).split(',').map(name => name.trim()).filter(name => /\p{L}[\-–]\p{L}/u.test(name));
+        const pattern = buildWordsPattern(words.filter(word => !isAbbreviation(word)), hyphenated);
         let res = pattern ? text.replace(pattern, '[***]') : text;
         if (abbreviations.length) {
             res = res.replace(new RegExp(NOT_LETTER_BEFORE + '(?:' + abbreviations.map(escapeRegExp).join('|') + ')' + NOT_LETTER_AFTER, 'gu'), '[***]');

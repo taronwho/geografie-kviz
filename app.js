@@ -5,7 +5,7 @@
 
     const {
         SATELLITE_TILES, OSM_TILES,
-        escapeHtml, isRealPhoto, commonsPhotoUrl, displayName, formatPoints, getDayKey, formatDayKey, createSeededRandom, pickRandom,
+        escapeHtml, isRealPhoto, commonsPhotoUrl, commonsFileUrl, displayName, formatPoints, getDayKey, formatDayKey, createSeededRandom, pickRandom,
         censorName, processWikiText, checkAnswer, normalizeAnswer, filterItems, pickItem, sortItems,
         buildItemChoices, findAnswerItem, updateMistakes, nameAnswers, pointsFor, dropKnownFacts,
         computeStreak, buildShareText, getTileLayout, shuffle
@@ -96,9 +96,15 @@
 
     // tier = známost, topics = témata v mixu, categories = vybrané kategorie každého tématu (chybí = všechny),
     // seen = témata (a mix), u kterých už hráč viděl okno s výběrem
+    // Témata, která existovala, než si nastavení pamatovalo seznam známých témat (known)
+    const ORIGINAL_TOPICS = ['zemepis', 'historie', 'biologie', 'chemie', 'fyzika'];
     const loadSettings = () => {
         const saved = readJson(KEYS.settings) || {};
-        const topics = Array.isArray(saved.topics) ? saved.topics.filter(id => TOPIC_BY_ID[id]) : [];
+        // Nové téma, které hráč ještě neznal, přibude do mixu samo (odebrané téma zůstane odebrané)
+        const known = Array.isArray(saved.known) ? saved.known : ORIGINAL_TOPICS;
+        const added = TOPICS.map(topic => topic.id).filter(id => !known.includes(id));
+        const topics = Array.isArray(saved.topics) && saved.topics.length
+            ? [...saved.topics.filter(id => TOPIC_BY_ID[id]), ...added.filter(id => !saved.topics.includes(id))] : [];
         const categories = {};
         for (const topic of TOPICS) {
             const keys = topic.categories.map(category => category.key);
@@ -172,6 +178,46 @@
             soft: 'bg-rose-100 text-rose-700 dark:bg-rose-900/50 dark:text-rose-300', solid: 'border-rose-500 bg-rose-700',
             button: 'bg-rose-600 hover:bg-rose-700 shadow-rose-600/25', tile: 'from-rose-500 to-rose-700', text: 'text-rose-600 dark:text-rose-400',
             accent: 'border-rose-500', on: 'border-rose-500 bg-rose-50 text-rose-800 dark:bg-rose-900/30 dark:text-rose-200', tab: 'bg-rose-700 text-white'
+        },
+        pink: {
+            soft: 'bg-pink-100 text-pink-700 dark:bg-pink-900/50 dark:text-pink-300', solid: 'border-pink-500 bg-pink-700',
+            button: 'bg-pink-600 hover:bg-pink-700 shadow-pink-600/25', tile: 'from-pink-500 to-rose-700', text: 'text-pink-600 dark:text-pink-400',
+            accent: 'border-pink-500', on: 'border-pink-500 bg-pink-50 text-pink-800 dark:bg-pink-900/30 dark:text-pink-200', tab: 'bg-pink-700 text-white'
+        },
+        teal: {
+            soft: 'bg-teal-100 text-teal-700 dark:bg-teal-900/50 dark:text-teal-300', solid: 'border-teal-500 bg-teal-700',
+            button: 'bg-teal-600 hover:bg-teal-700 shadow-teal-600/25', tile: 'from-teal-500 to-cyan-700', text: 'text-teal-600 dark:text-teal-400',
+            accent: 'border-teal-500', on: 'border-teal-500 bg-teal-50 text-teal-800 dark:bg-teal-900/30 dark:text-teal-200', tab: 'bg-teal-700 text-white'
+        },
+        orange: {
+            soft: 'bg-orange-100 text-orange-700 dark:bg-orange-900/50 dark:text-orange-300', solid: 'border-orange-500 bg-orange-700',
+            button: 'bg-orange-600 hover:bg-orange-700 shadow-orange-600/25', tile: 'from-orange-500 to-red-700', text: 'text-orange-600 dark:text-orange-400',
+            accent: 'border-orange-500', on: 'border-orange-500 bg-orange-50 text-orange-800 dark:bg-orange-900/30 dark:text-orange-200', tab: 'bg-orange-700 text-white'
+        },
+        blue: {
+            soft: 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300', solid: 'border-blue-500 bg-blue-700',
+            button: 'bg-blue-600 hover:bg-blue-700 shadow-blue-600/25', tile: 'from-blue-500 to-indigo-700', text: 'text-blue-600 dark:text-blue-400',
+            accent: 'border-blue-500', on: 'border-blue-500 bg-blue-50 text-blue-800 dark:bg-blue-900/30 dark:text-blue-200', tab: 'bg-blue-700 text-white'
+        },
+        indigo: {
+            soft: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/50 dark:text-indigo-300', solid: 'border-indigo-500 bg-indigo-700',
+            button: 'bg-indigo-600 hover:bg-indigo-700 shadow-indigo-600/25', tile: 'from-indigo-500 to-violet-800', text: 'text-indigo-600 dark:text-indigo-400',
+            accent: 'border-indigo-500', on: 'border-indigo-500 bg-indigo-50 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-200', tab: 'bg-indigo-700 text-white'
+        },
+        red: {
+            soft: 'bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300', solid: 'border-red-500 bg-red-700',
+            button: 'bg-red-600 hover:bg-red-700 shadow-red-600/25', tile: 'from-red-500 to-red-800', text: 'text-red-600 dark:text-red-400',
+            accent: 'border-red-500', on: 'border-red-500 bg-red-50 text-red-800 dark:bg-red-900/30 dark:text-red-200', tab: 'bg-red-700 text-white'
+        },
+        stone: {
+            soft: 'bg-stone-100 text-stone-700 dark:bg-stone-900/50 dark:text-stone-300', solid: 'border-stone-500 bg-stone-700',
+            button: 'bg-stone-600 hover:bg-stone-700 shadow-stone-600/25', tile: 'from-stone-500 to-stone-700', text: 'text-stone-600 dark:text-stone-300',
+            accent: 'border-stone-500', on: 'border-stone-500 bg-stone-50 text-stone-800 dark:bg-stone-900/30 dark:text-stone-200', tab: 'bg-stone-700 text-white'
+        },
+        yellow: {
+            soft: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-300', solid: 'border-yellow-500 bg-yellow-700',
+            button: 'bg-yellow-700 hover:bg-yellow-800 shadow-yellow-700/25', tile: 'from-yellow-600 to-amber-800', text: 'text-yellow-700 dark:text-yellow-400',
+            accent: 'border-yellow-500', on: 'border-yellow-500 bg-yellow-50 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-200', tab: 'bg-yellow-700 text-white'
         },
         // Mix ze všech témat
         fuchsia: {
@@ -390,6 +436,10 @@
         // Fotka je až nápověda: otázka na ni nečeká déle než PHOTO_WAIT; když se do té doby nenačte, počítá se s ní
         // a načítá se dál (jen fotka, která se prokazatelně nenačetla, z nápověd vypadne)
         const photoProbe = probePhoto(photoOf(item, 960));
+        // Obrázek, na který se otázka ptá (obraz, vlajka, nerost), je vidět hned – bez něj otázka nedává smysl, proto
+        // se na něj počká; když Commons náhled nevrátí (malý původní soubor), použije se původní soubor
+        const shown = topic.questionImage ? topic.questionImage(item, ctx, question.type) : null;
+        const shownUrl = shown ? (await probePhoto(commonsPhotoUrl(shown.file, shown.hash, 960)) || await probePhoto(commonsFileUrl(shown.file, shown.hash))) : null;
         const text = await fetchItemText(item);
         const settled = await Promise.race([photoProbe.then(result => ({ result })), new Promise(resolve => setTimeout(() => resolve(null), PHOTO_WAIT))]);
         const photoUrl = settled ? settled.result : photoOf(item, 960);
@@ -416,11 +466,14 @@
             question,
             questionText,
             photoUrl,
+            // label a icon = záložka obrázku (Obraz, Vlajka…); url null = obrázek se nenačetl
+            questionImage: shown ? { url: shownUrl, label: shown.label || 'Obrázek', icon: shown.icon || 'image', same: shown.file === item.im } : null,
             visual,
             // Ve výsledku už odpověď známe, takže nápověda může ukázat vše (u otázky na století časovou osu)
             resultVisual: topic.visual ? topic.visual(item, ctx, 'result') : null,
             resultFacts: topic.facts(item, ctx, 'result'),
-            hints: buildHints(plan, { photoUrl, visibleText, shared, answers: hintAnswers(question, item) }),
+            // Fotka, kterou otázka ukazuje hned, už nápovědou není
+            hints: buildHints(plan, { photoUrl: shown && shown.file === item.im ? null : photoUrl, visibleText, shared, answers: hintAnswers(question, item) }),
             subtitle: topic.subtitle(item, ctx),
             coords: topic.coords ? topic.coords(item, ctx) : null,
             isCzech: Boolean(topic.isCzech && topic.isCzech(item, ctx)),
@@ -679,7 +732,7 @@
         settings = { ...settings, ...change };
         // Vybrané všechny kategorie = bez omezení
         settings.categories = Object.fromEntries(Object.entries(settings.categories).filter(([, keys]) => Array.isArray(keys)));
-        writeJson(KEYS.settings, settings);
+        writeJson(KEYS.settings, { ...settings, known: TOPICS.map(topic => topic.id) });
     };
     const markSeen = (id) => {
         if (!settings.seen.includes(id)) saveSettings({ seen: [...settings.seen, id] });
@@ -887,8 +940,10 @@
         image.onerror = reject;
         image.src = url;
     });
-    const showPhoto = async (element, url, onFail) => {
+    // alwaysZoom = zvětšení i u fotky, která se vejde (obraz nebo nerost, na který se otázka ptá)
+    const showPhoto = async (element, url, onFail, alwaysZoom = false) => {
         try {
+            if (!url) throw new Error('Fotka chybí');
             const size = await loadImageSize(url);
             if (!element.isConnected) return;
             element.style.backgroundImage = cssUrl(url);
@@ -899,7 +954,7 @@
             const ratio = size.width / size.height;
             const boxRatio = box.width / box.height;
             const zoom = frame.querySelector('[data-photo-zoom]');
-            if (zoom && Math.min(ratio / boxRatio, boxRatio / ratio) < 0.6) {
+            if (zoom && (alwaysZoom || Math.min(ratio / boxRatio, boxRatio / ratio) < 0.6)) {
                 zoom.dataset.url = url;
                 zoom.classList.remove('hidden');
             }
@@ -1030,8 +1085,9 @@
     const questionPanel = (data) => {
         const style = styleOf(TOPIC_BY_ID[data.topic]);
         const unlocked = data.hints.slice(0, round.hintLevel - 1);
-        const panes = [{ key: 'text', label: 'Popis', icon: 'quote', html: textPane(data, style) }, ...hintPanes(unlocked)];
-        return renderTabbedPanel(panes, round.tab || 'text', 'hint-tab', QUESTION_PANEL_HEIGHT);
+        const image = data.questionImage ? [{ key: 'image', label: data.questionImage.label, icon: data.questionImage.icon, html: photoPane('question-image') }] : [];
+        const panes = [...image, { key: 'text', label: 'Popis', icon: 'quote', html: textPane(data, style) }, ...hintPanes(unlocked)];
+        return renderTabbedPanel(panes, round.tab || panes[0].key, 'hint-tab', QUESTION_PANEL_HEIGHT);
     };
     // Tlačítko další nápovědy: co odemkne a za kolik pak bude odpověď
     const nextHintButton = (data) => {
@@ -1076,6 +1132,10 @@
         });
         const hintPhoto = document.getElementById('hint-photo');
         if (hintPhoto) showPhoto(hintPhoto, current.photoUrl);
+        const questionImage = document.getElementById('question-image');
+        if (questionImage) showPhoto(questionImage, current.questionImage.url, null, true);
+        const resultImage = document.getElementById('result-image');
+        if (resultImage) showPhoto(resultImage, current.questionImage.url);
         const hintVisual = document.getElementById('hint-visual');
         const visualHint = current.hints.find(hint => hint.kind === 'visual');
         if (hintVisual && visualHint) Visuals.render(hintVisual, visualHint.spec, visualDeps);
@@ -1387,6 +1447,10 @@
     // Záložky výsledku: fotka, mapa s polohou, bez fotky snímek z družice, obrazová nápověda (časová osa, tabulka…)
     const resultPanes = (data) => {
         const panes = [];
+        // Obrázek z otázky (vlajka, obraz), když to není zároveň fotka položky
+        if (data.questionImage && data.questionImage.url && !(data.questionImage.same && data.photoUrl)) {
+            panes.push({ key: 'image', label: data.questionImage.label, icon: data.questionImage.icon, html: photoPane('result-image') });
+        }
         if (data.photoUrl) panes.push({ key: 'photo', label: 'Fotka', icon: 'image', html: photoPane('result-photo') });
         if (data.coords) {
             panes.push({ key: 'map', label: 'Mapa', icon: 'map-pin', html: mapPane() });

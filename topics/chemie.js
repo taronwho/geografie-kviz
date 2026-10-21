@@ -101,7 +101,6 @@
         return { type: 'timeline', spans: [{ kind: 'life', from: f.born, to: f.died }], points: [], hide: item.n, anchors: CHEMISTRY_EVENTS };
     };
 
-    // Značka do popisu nepatří: dvoupísmenná jako samostatné slovo, jednopísmenná jen ve vzorci (O₂), aby nezmizelo „o“ nebo „C“ ve větě
     // Jednopísmennou značku (N, O) jen ve vzorci (N₂) a hned po slově „značka“, jinak by zmizelo kdejaké písmeno
     const hideSymbol = (text, symbol) => {
         const pattern = symbol.length > 1

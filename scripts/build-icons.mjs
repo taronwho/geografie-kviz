@@ -14,7 +14,13 @@ const ICONS = [
     'network', 'orbit', 'palmtree', 'paw-print', 'plus', 'repeat', 'rocket', 'ruler', 'scale', 'scroll',
     'search-x', 'send', 'settings-2', 'share-2', 'shell', 'shuffle', 'sigma', 'sprout', 'star', 'swords',
     'table', 'tag', 'target', 'telescope', 'test-tube', 'thermometer', 'trash-2', 'trees', 'trophy', 'turtle',
-    'user', 'waves', 'wifi-off', 'x', 'zap'
+    'user', 'waves', 'wifi-off', 'x', 'zap',
+    // Témata kultura, umění, sport, geologie, mytologie a vlajky
+    'music', 'music-2', 'mic-vocal', 'guitar', 'piano', 'disc-3', 'book', 'library', 'feather', 'pen-tool', 'pen-line', 'book-marked',
+    'book-open-text', 'scroll-text', 'clapperboard', 'film', 'popcorn', 'video', 'palette', 'brush', 'frame', 'shield', 'sparkles',
+    'sun', 'moon', 'ghost', 'medal', 'dumbbell', 'bike', 'footprints', 'church', 'building', 'columns-3', 'pickaxe', 'mountain-snow',
+    'hammer', 'clock', 'timer', 'calendar', 'drama', 'person-standing', 'user-round', 'venetian-mask', 'wand-sparkles', 'award', 'goal',
+    'volleyball', 'hexagon', 'diamond', 'sword', 'skull', 'pyramid', 'triangle', 'tent'
 ];
 
 const toPascalCase = (name) => name.replace(/(^|-)(\w)/g, (_, __, letter) => letter.toUpperCase());
