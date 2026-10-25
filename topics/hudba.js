@@ -109,7 +109,8 @@
         const facts = [];
         if (f.year !== undefined && mode !== 'author') facts.push({ label: 'Rok', value: formatYear(f.year) });
         facts.push(...formatFacts(item, [['genre', 'Žánr', v => v], ['land', 'Země', v => v]]));
-        if (mode !== 'author') facts.push(...formatFacts(item, [['by', 'Autor', v => v]]));
+        // Autor, jehož jméno je v názvu, by u otázky na název prozradil odpověď
+        if (mode !== 'author' && (answered || !(f.by && core.isFactVisible(f.by, item.n)))) facts.push(...formatFacts(item, [['by', 'Autor', v => v]]));
         if (answered) facts.push(...relatedOf(item));
         return facts;
     };
