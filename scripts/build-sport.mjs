@@ -457,10 +457,10 @@ const PLAYERS = {
     Q690676: 5, Q1050588: 5, Q946171: 5, Q8099087: 2, Q244700: 7, Q1295867: 9, Q188818: 3
 };
 // Druh sportu podle štítků (první, který sedí)
-const SPORT_KINDS = [['zima', 'zimní sport'], ['styl', 'plavecký způsob'], ['atletika', 'atletická disciplína'], ['boj', 'bojový sport'],
-    ['raketa', 'raketový sport'], ['tym', 'kolektivní sport'], ['voda', 'vodní sport'], ['kolo', 'cyklistický sport'], ['motor', 'motoristický sport'],
-    ['gym', 'gymnastický sport'], ['presnost', 'přesnostní sport'], ['sila', 'silový sport'], ['kun', 'jezdecký sport'], ['vzduch', 'letecký sport'],
-    ['lezeni', 'lezecký sport'], ['tanec', 'taneční sport'], ['prkno', 'sport na prkně'], ['vytrvalost', 'vytrvalostní sport']];
+const SPORT_KINDS = [['vytrvalost', 'vytrvalostní sport'], ['zima', 'zimní sport'], ['styl', 'plavecký způsob'], ['atletika', 'atletická disciplína'],
+    ['boj', 'bojový sport'], ['raketa', 'raketový sport'], ['tym', 'kolektivní sport'], ['voda', 'vodní sport'], ['kolo', 'cyklistický sport'],
+    ['motor', 'motoristický sport'], ['gym', 'gymnastický sport'], ['presnost', 'přesnostní sport'], ['sila', 'silový sport'], ['kun', 'jezdecký sport'],
+    ['vzduch', 'letecký sport'], ['lezeni', 'lezecký sport'], ['tanec', 'taneční sport'], ['prkno', 'sport na prkně']];
 // Sporty, které zná každý (k nim ty s nejvíc články ve Wikipedii)
 const KNOWN_SPORTS = new Set(['Q41466', 'Q206763', 'Q166788', 'Q7718', 'Q179687', 'Q186222', 'Q38108', 'Q192431', 'Q178131', 'Q178108', 'Q185027',
     'Q165704', 'Q170737', 'Q180935', 'Q182570', 'Q164761', 'Q537769', 'Q31874', 'Q159354', 'Q326827', 'Q31920', 'Q3609', 'Q7856', 'Q136851',
@@ -505,7 +505,7 @@ const isCzechAthlete = (qid, detail) => {
     return states.includes('Q33946') && !states.includes('Q214') && birthCountries.get(qid) !== 'Q214';
 };
 // Kluby: bez reprezentací a mládežnických týmů; nejdéle působení první
-const NOT_CLUB = /reprezentac|výběr|národní|olympijsk|do \d+ let|\bU\d+|junio|mládež|rezerv|\bB$|akademie/iu;
+const NOT_CLUB = /reprezentac|výběr|národní|olympijsk|do \d+ let|\bU\d+|junio|mládež|rezerv|\bB$|„B“|akademie/iu;
 // Kluby jen u kolektivních sportů a u automobilových závodů (stáje); atlet „hrající“ za fotbalový klub by mátl
 const CLUB_BUCKETS = new Set(['fotbal', 'hokej', 'basketbal', 'americky', 'baseball', 'hazena', 'volejbal', 'ragby', 'kriket', 'florbal', 'auto']);
 const clubsOf = (detail) => {

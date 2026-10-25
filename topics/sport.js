@@ -26,7 +26,7 @@
 
     // Sporty sportovců: podobné sporty jsou dobré nesprávné možnosti (k biatlonu běh na lyžích, k tenisu badminton)
     const SPORT_GROUPS = {
-        'fotbal': 'mic tym leto', 'lední hokej': 'zima led tym', 'tenis': 'raketa mic leto', 'atletika': 'leto beh', 'basketbal': 'mic tym leto',
+        'fotbal': 'mic tym leto', 'lední hokej': 'zima led tym', 'tenis': 'raketa mic leto', 'atletika': 'leto beh vytrvalost', 'basketbal': 'mic tym leto',
         'cyklistika': 'leto kolo vytrvalost', 'automobilové závody': 'motor', 'motocyklové závody': 'motor', 'plavání': 'voda leto',
         'box': 'boj', 'alpské lyžování': 'zima snih lyze', 'běh na lyžích': 'zima snih lyze vytrvalost', 'skoky na lyžích': 'zima snih lyze',
         'biatlon': 'zima snih lyze', 'rychlobruslení': 'zima led brusle', 'krasobruslení': 'zima led brusle', 'snowboarding': 'zima snih',
@@ -34,7 +34,7 @@
         'šerm': 'boj leto', 'judo': 'boj leto', 'smíšená bojová umění': 'boj', 'zápas': 'boj leto', 'házená': 'mic tym leto', 'volejbal': 'mic tym leto',
         'veslování': 'voda leto lod', 'kanoistika': 'voda leto lod', 'sportovní střelba': 'presnost leto', 'stolní tenis': 'raketa mic',
         'badminton': 'raketa', 'snooker': 'presnost', 'kriket': 'mic tym', 'ragby': 'mic tym', 'sportovní lezení': 'leto', 'jezdectví': 'leto',
-        'triatlon': 'vytrvalost voda leto', 'vzpírání': 'sila leto', 'skoky do vody': 'voda leto', 'jachting': 'voda leto lod', 'florbal': 'tym'
+        'triatlon': 'vytrvalost voda leto beh kolo', 'vzpírání': 'sila leto', 'skoky do vody': 'voda leto', 'jachting': 'voda leto lod', 'florbal': 'tym'
     };
     const groupsOf = (sport) => (SPORT_GROUPS[sport] || '').split(' ').filter(Boolean);
     // Další přijímané psané odpovědi na sport
@@ -121,7 +121,7 @@
         return indexes.get(items);
     };
     const gameLabel = (game) => `${game.f.type === 'L' ? 'LOH' : 'ZOH'} ${game.f.year}`;
-    const gamesOf = (item, ctx, key) => (item.f[key] || []).map(id => (indexOf(ctx).byId.get(id) || {}).item).filter(Boolean);
+    const gamesOf = (item, ctx, key) => (item.f[key] || []).map(id => (indexOf(ctx).byId.get(id) || {}).item).filter(Boolean).sort((a, b) => a.f.year - b.f.year);
 
     // --- Sportovci ---
 
@@ -205,7 +205,7 @@
         const own = item.f.sport;
         const groups = groupsOf(own);
         // Podobné sporty (stejné skupiny), u remízy ty, které mají v datech víc sportovců (známější)
-        const score = ([sport, count]) => 3 * groupsOf(sport).filter(group => groups.includes(group)).length + Math.log10(count + 1);
+        const score = ([sport, count]) => 3 * groupsOf(sport).filter(group => groups.includes(group)).length + 0.5 * Math.log10(count + 1);
         const ranked = rankBySimilarity([...sportCounts.entries()].filter(([sport]) => sport !== own), score, rng);
         const wrong = takeDistinct(ranked, 3, new Set([normalizeAnswer(own)]), ([sport]) => sport).map(([sport]) => sport);
         if (wrong.length < 3) return null;
@@ -241,17 +241,19 @@
 
     // --- Olympijské hry ---
 
-    const hostAnswers = (game) => [game.f.host, ...game.f.names];
+    const hostAnswers = (game) => [...new Set([game.f.host, ...game.f.names])];
+    // Možnost je hlavní pořadatelské město (u Milána a Cortiny jen Milán – dvojice měst by mezi ostatními byla nápadná)
+    const hostLabel = (game) => game.f.names[0];
     // Pořadatelská města jiných her stejného druhu z podobné doby; ne ta, kde se konala i hádaná hra (Cortina 1956 × 2026)
     const hostChoices = (item, ctx, rng) => {
         const own = new Set([...item.f.hosts, ...(item.f.also || [])]);
         const continent = getContinent(item, ctx.countries || {});
         const others = indexOf(ctx).games.filter(game => game.f.type === item.f.type && game.q !== item.q && !game.f.hosts.some(host => own.has(host)));
         const score = (game) => -Math.abs(game.f.year - item.f.year) / 12 + (continent && getContinent(game, ctx.countries || {}) === continent ? 1 : 0);
-        const wrong = takeDistinct(rankBySimilarity(others, score, rng), 3, new Set([normalizeAnswer(item.f.host)]), game => game.f.host);
+        const wrong = takeDistinct(rankBySimilarity(others, score, rng), 3, new Set([normalizeAnswer(hostLabel(item))]), game => hostLabel(game));
         if (wrong.length < 3) return null;
         // Možnost odkazuje na město v zeměpisu (když je tam), ať se o něm dá dočíst
-        return shuffle([item, ...wrong], rng).map(game => ({ id: game.f.hosts[0], topic: 'zemepis', label: game.f.host, correct: game === item }));
+        return shuffle([item, ...wrong], rng).map(game => ({ id: game.f.hosts[0], topic: 'zemepis', label: hostLabel(game), correct: game === item }));
     };
     const neighbours = (item, ctx) => {
         const list = indexOf(ctx).games.filter(game => game.f.type === item.f.type);
