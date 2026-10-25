@@ -9,7 +9,7 @@ const SUN = 'Q525';
 const CURRENCY = 'Q8142';
 const SI_BASE_UNIT = 'Q223662';
 const SI_DERIVED_UNIT = 'Q208469';
-const CZECH_STATES = new Set(['Q213', 'Q33946', 'Q42585', 'Q1131475', 'Q153136', 'Q28513']);
+const CZECH_STATES = new Set(['Q213', 'Q33946', 'Q42585', 'Q152750', 'Q853348', 'Q1998866', 'Q1991965', 'Q39193', 'Q43266']);
 
 const LIMITS = {
     veliciny: { limit: 120, known: 45 },

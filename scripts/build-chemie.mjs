@@ -13,7 +13,7 @@ const ISOMER_GROUP = 'Q15711994';
 const CHEMIST = 'Q593644';
 const NOBEL_CHEMISTRY = 'Q44585';
 const FEMALE = 'Q6581072';
-const CZECH_STATES = new Set(['Q213', 'Q33946', 'Q42585', 'Q1131475', 'Q153136', 'Q28513']);
+const CZECH_STATES = new Set(['Q213', 'Q33946', 'Q42585', 'Q152750', 'Q853348', 'Q1998866', 'Q1991965', 'Q39193', 'Q43266']);
 
 // Prvky, které zná každý (k nim všechny do čísla 38)
 const KNOWN_ELEMENTS = new Set([47, 50, 53, 54, 55, 56, 74, 78, 79, 80, 82, 86, 88, 92, 94]);

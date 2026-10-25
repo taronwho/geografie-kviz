@@ -34,7 +34,7 @@ const CZECH_DYNASTIES = [DYNASTIES.premyslovci, DYNASTIES.lucemburkove, DYNASTIE
 const WARS = { prvni_svetova: 'Q361', druha_svetova: 'Q362', husitske: 'Q478301', tricetileta: 'Q2487', napoleonske: 'Q78994', stoleta: 'Q12551' };
 
 // Státy, které patří k českým dějinám (dnešní Česko, Československo, České království, Protektorát…)
-const CZECH_STATES = new Set(['Q213', 'Q33946', 'Q42585', 'Q1131475', 'Q153136', 'Q1215545', 'Q207320']);
+const CZECH_STATES = new Set(['Q213', 'Q33946', 'Q42585', 'Q152750', 'Q853348', 'Q1998866', 'Q1991965', 'Q39193', 'Q43266', 'Q1215545', 'Q207320']);
 const CZECH_POSITIONS = [POSITIONS.cesky_kral, POSITIONS.cesky_knize, POSITIONS.prezident_csr, POSITIONS.prezident_cr];
 
 // Kategorie: kolik vzít a kolik nejznámějších je „známých“ (czKnown = navíc nejznámější česká)
@@ -246,7 +246,10 @@ const typeLabelOf = (category, detail, main) => {
 const STATE_TYPES = /říše|království|císařství|chalífát|chanát|sultanát|republika|kolonie|knížectví|vévodství|impérium|federace|konfederace|unie|městský stát|loutkový stát/u;
 const EVENT_TYPES = /bitva|válka|obléhání|revoluce|povstání|tažení|operace|vylodění|bombardování|útok/u;
 
-const isCzechItem = (detail, main) => [...(detail.cit || []), ...(detail.co || [])].some(q => CZECH_STATES.has(q))
+// Občanství „habsburská monarchie“ má Komenský i Rakušané – české osobnosti z té doby jmenovitě
+const CZECH_PEOPLE = new Set(['Q12735']);
+const isCzechItem = (detail, main, qid) => CZECH_STATES.has(qid) || CZECH_PEOPLE.has(qid)
+    || [...(detail.cit || []), ...(detail.co || [])].some(q => CZECH_STATES.has(q))
     || (detail.fam || []).some(q => CZECH_DYNASTIES.includes(q))
     || detail.pos.some(position => CZECH_POSITIONS.includes(position.id))
     || Boolean(main && CZECH_POSITIONS.includes(main.id));
@@ -268,14 +271,14 @@ const lifeYears = (rawBorn, rawDied) => {
 // Ze stejně pojmenovaných položek zůstane ta, která má k českým dějinám nejblíž (Anna Jagellonská, česká královna),
 // jinak ta známější
 const nameKeyOf = (detail) => (detail.n || detail.t.replace(/ \(.*\)$/, '')).toLocaleLowerCase('cs');
-const czechScore = (detail) => (isCzechItem(detail, null) ? 2 : 0) + (/česk/u.test(detail.d || '') ? 1 : 0);
+const czechScore = (detail, qid) => (isCzechItem(detail, null, qid) ? 2 : 0) + (/česk/u.test(detail.d || '') ? 1 : 0);
 const preferredByName = new Map();
 for (const [qid] of ordered) {
     const detail = details.get(qid);
     if (!detail || !detail.t) continue;
     const key = nameKeyOf(detail);
     const current = preferredByName.get(key);
-    if (!current || czechScore(detail) > czechScore(details.get(current))) preferredByName.set(key, qid);
+    if (!current || czechScore(detail, qid) > czechScore(details.get(current), current)) preferredByName.set(key, qid);
 }
 
 const items = [];
@@ -344,7 +347,7 @@ for (const [qid, entry] of ordered) {
         facts = { from, to, cap: (detail.cap || []).map(label).filter(Boolean)[0], y: year };
     }
     const settings = CATEGORIES[category];
-    const isCzech = isCzechItem(detail, main);
+    const isCzech = isCzechItem(detail, main, qid);
     // Papežové mají díky robotům články ve spoustě jazyků – známost a limit počítáme zvlášť
     const isPope = isPopeDetail(detail);
     const rankKey = isPope ? 'papez' : category;
