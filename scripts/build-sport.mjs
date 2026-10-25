@@ -615,6 +615,8 @@ for (const { qid, detail, candidate } of athleteRows) {
     if (!life) continue;
     const isCzech = isCzechAthlete(qid, detail);
     const name = detail.n || detail.t.replace(/ \(.*\)$/, '');
+    // Jméno jen z dvoupísmenných slov (Li Na) se v popisu zakrýt nedá – „na“ je i předložka
+    if (!name.split(/\s+/).some(word => word.length >= 3)) continue;
     const rank = rankInBucket[bucketKey] || 0;
     const czRank = czechRankInBucket[bucketKey] || 0;
     if (rank >= bucket.limit && !(isCzech && czRank < bucket.cz)) continue;

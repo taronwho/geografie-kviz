@@ -217,10 +217,10 @@
     // Popis bez sportu: slova sportu, druh sportovce (hokejista), kluby a disciplíny
     const censorSport = (text, item) => {
         const f = item.f;
-        const plain = stripBrackets(text).replace(/\s{2,}/g, ' ');
-        const terms = SPORT_TERMS[f.sport] ? plain.replace(sportPattern(f.sport), '[***]') : plain;
+        // Nejdřív názvy (censorName odstraní závorky, tedy i hotové [***]), potom slova sportu
         const names = [f.sport, item.ty, ...(SPORT_ALIASES[f.sport] || []), ...(f.clubs || []), ...(f.disc ? f.disc.split(', ') : [])].filter(Boolean).join(', ');
-        return mergeCensored(censorName(terms, names));
+        const named = censorName(text, names);
+        return mergeCensored(SPORT_TERMS[f.sport] ? named.replace(sportPattern(f.sport), '[***]') : named);
     };
     const sportHints = (item, ctx) => {
         const f = item.f;
