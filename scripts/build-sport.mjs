@@ -506,21 +506,33 @@ const isCzechAthlete = (qid, detail) => {
 };
 // Kluby: bez reprezentací a mládežnických týmů; nejdéle působení první
 const NOT_CLUB = /reprezentac|výběr|národní|olympijsk|do \d+ let|\bU\d+|junio|mládež|rezerv|\bB$|akademie/iu;
-const yearsOf = (team) => {
-    const start = yearOf(team.start);
-    const end = yearOf(team.end);
-    return { start, end };
-};
-const clubsOf = (detail, careerEnd) => {
+// Kluby jen u kolektivních sportů a u automobilových závodů (stáje); atlet „hrající“ za fotbalový klub by mátl
+const CLUB_BUCKETS = new Set(['fotbal', 'hokej', 'basketbal', 'americky', 'baseball', 'hazena', 'volejbal', 'ragby', 'kriket', 'florbal', 'auto']);
+const clubsOf = (detail) => {
     const tenure = new Map();
     for (const team of detail.teams) {
         const name = label(team.id);
         if (!name || NOT_CLUB.test(name)) continue;
-        const { start, end } = yearsOf(team);
-        const years = start !== undefined ? (end ?? careerEnd ?? start + 1) - start : 0;
-        tenure.set(name, (tenure.get(name) || 0) + Math.max(years, 0) + 0.01 * ((labels.get(team.id) || {}).sl || 0) / 100);
+        const start = yearOf(team.start);
+        const end = yearOf(team.end);
+        // Bez konce počítáme rok – neznámá délka působení nesmí přebít dlouholetý klub
+        const years = start !== undefined ? Math.max((end ?? start + 1) - start, 0) : 0;
+        tenure.set(name, (tenure.get(name) || 0) + years + ((labels.get(team.id) || {}).sl || 0) / 10000);
     }
     return [...tenure.entries()].sort((a, b) => b[1] - a[1]).slice(0, 2).map(([name]) => name);
+};
+// Post jen u kolektivních sportů a jen takový, který k sportu patří (Petr Čech není „hokejový brankář“, Jordan „polař“)
+const POSITION_BUCKETS = new Set(['fotbal', 'hokej', 'basketbal', 'hazena', 'volejbal', 'florbal']);
+const OTHER_SPORT_POSITION = { fotbal: /hokej|basketbal|polař|nadhazovač|pálkař/u, hokej: /fotbal|basketbal|polař|nadhazovač/u };
+const positionOf = (detail, bucketKey) => {
+    if (!POSITION_BUCKETS.has(bucketKey)) return undefined;
+    const wrong = OTHER_SPORT_POSITION[bucketKey] || /hokej|fotbal|polař|nadhazovač|pálkař|chytač|quarterback/u;
+    return (detail.pos || []).map(label).filter(Boolean).find(text => !wrong.test(text));
+};
+// Disciplína, která sport jen opakuje (tenisová dvouhra, rychlobruslení na dlouhé dráze), nic neřekne
+const disciplinesOf = (detail, bucket) => {
+    const stem = bucket.label.split(' ')[0].slice(0, 5);
+    return (detail.disc || []).map(label).filter(text => text && !text.toLocaleLowerCase('cs').includes(stem)).slice(0, 2).join(', ') || undefined;
 };
 // Život bez rozporů: narození v minulosti, úmrtí po narození a ne v budoucnosti
 const lifeOf = (detail) => {
@@ -539,7 +551,10 @@ const careerOf = (detail, life, olympicYears) => {
     if (to === undefined && ends.length && (!starts.length || Math.max(...ends) >= Math.max(...starts))) to = Math.max(...ends);
     if (olympicYears.length) {
         from = Math.min(from ?? Infinity, ...olympicYears);
-        if (to !== undefined) to = Math.max(to, ...olympicYears);
+        const last = Math.max(...olympicYears);
+        if (to !== undefined) to = Math.max(to, last);
+        // Konec kariéry neznámý: nejpozději poslední olympiáda – kromě těch, kdo na hrách byli nedávno (asi pořád závodí)
+        else if (life.died !== undefined || last < THIS_YEAR - 5) to = last;
     }
     if (from !== undefined && (from < life.born + 10 || from > THIS_YEAR)) from = undefined;
     if (to !== undefined && (to > THIS_YEAR || (life.died !== undefined && to > life.died) || from === undefined || to < from)) to = undefined;
@@ -626,11 +641,12 @@ for (const { qid, detail, candidate } of athleteRows) {
             // Jen jeden sport – na „Ve kterém sportu se proslavil?“ je jediná odpověď
             one: buckets.length === 1 && buckets[0] === bucketKey ? 1 : undefined,
             land: countryLabel(detail),
-            pos: (detail.pos || []).map(label).filter(Boolean)[0],
-            disc: (detail.disc || []).map(label).filter(Boolean).slice(0, 2).join(', ') || undefined,
-            clubs: clubsOf(detail, career.to),
+            pos: positionOf(detail, bucketKey),
+            disc: disciplinesOf(detail, bucket),
+            clubs: CLUB_BUCKETS.has(bucketKey) ? clubsOf(detail) : undefined,
             og: olympics.og,
-            gold: olympics.gold, silver: olympics.silver, bronze: olympics.bronze,
+            // Počet zlatých (stříbrné a bronzové Wikidata u řady sportovců neuvádějí úplně)
+            gold: olympics.gold || undefined,
             goldAt: olympics.goldAt,
             y: career.from !== undefined ? Math.round((career.from + (career.to ?? Math.min(career.from + 10, THIS_YEAR))) / 2) : life.born + 25
         }),
