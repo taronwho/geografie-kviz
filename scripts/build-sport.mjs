@@ -43,7 +43,9 @@ const CITY_NAMES = {
 };
 
 // --- Sporty a disciplíny: vybrané sporty s jasnou fotkou; štítky určují podobné sporty (nesprávné možnosti) a okruhy ---
-// mic = míčová hra, tym = kolektivní, raketa, zima, led, snih, boj, voda, lod, atletika, gym, kolo, motor, presnost, sila, kun, venku
+// mic = míčová hra, tym = kolektivní, raketa, zima, led, snih, boj, voda, lod, atletika, gym, kolo, motor, presnost, sila, kun, venku;
+// x… = sporty, které se na fotce dají splést (plavání a kraul, lezení a bouldering) – nikdy nejsou spolu mezi možnostmi.
+// Bez sportů, jejichž fotka sport neukazuje (kendó má jen znaky, štafeta vypadá jako sprint, kickbox jako box)
 const SPORTS = {
     Q2736: 'mic tym branka', Q5372: 'mic tym kos', Q1734: 'mic tym sit', Q8418: 'mic tym branka', Q5378: 'mic tym ovalny', Q41323: 'mic tym ovalny',
     Q5369: 'mic tym palka', Q171038: 'mic tym palka', Q5375: 'mic tym palka', Q7707: 'mic tym branka voda', Q1455: 'mic tym hokejka branka',
@@ -51,28 +53,27 @@ const SPORTS = {
     Q231200: 'mic tym kos', Q50776: 'mic tym ovalny', Q204632: 'mic tym', Q213711: 'mic tym hokejka', Q188818: 'mic sit', Q134211: 'mic tym hokejka kun',
     Q210778: 'mic tym branka', Q690676: 'mic tym voda lod', Q1050588: 'mic sit', Q183018: 'tym hokejka zima led', Q41466: 'tym hokejka zima led branka',
     Q946171: 'tym hokejka branka', Q8099087: 'mic tym kolo', Q244700: 'tym', Q1295867: 'mic tym palka',
-    Q847: 'raketa sit mic', Q3930: 'raketa sit mic', Q7291: 'raketa sit', Q133201: 'raketa mic', Q1582389: 'raketa sit mic', Q866224: 'raketa sit mic',
+    Q847: 'raketa sit mic', Q3930: 'raketa sit mic', Q7291: 'raketa sit', Q133201: 'raketa mic',
     Q186222: 'zima lyze snih', Q179687: 'zima lyze snih', Q7718: 'zima lyze snih', Q166788: 'zima lyze snih', Q178131: 'zima snih',
-    Q189472: 'zima lyze snih', Q1075998: 'zima lyze snih venku', Q38108: 'zima led brusle', Q192431: 'zima led brusle', Q193654: 'zima led brusle',
+    Q189472: 'zima lyze snih', Q38108: 'zima led brusle', Q192431: 'zima led brusle', Q193654: 'zima led brusle',
     Q136851: 'zima led presnost', Q177275: 'zima led draha', Q186190: 'zima led draha', Q273285: 'zima led draha',
-    Q32112: 'boj', Q11420: 'boj', Q11419: 'boj', Q36389: 'boj', Q42486: 'boj', Q40561: 'boj', Q12100: 'boj zbran', Q178678: 'boj', Q114466: 'boj',
-    Q120931: 'boj', Q170931: 'boj zbran', Q106500: 'boj', Q163770: 'boj', Q159452: 'boj',
-    Q31920: 'voda plavani', Q7735: 'voda plavani', Q180692: 'voda plavani', Q159354: 'voda lod', Q31874: 'voda lod', Q1141850: 'voda lod',
-    Q14085739: 'voda lod vitr', Q191051: 'voda vitr prkno', Q159992: 'voda prkno', Q219554: 'voda vitr prkno', Q472827: 'voda prkno',
+    Q32112: 'boj', Q11420: 'boj', Q11419: 'boj', Q36389: 'boj', Q42486: 'boj', Q40561: 'boj', Q12100: 'boj zbran', Q114466: 'boj', Q106500: 'boj',
+    Q31920: 'voda plavani xplav', Q7735: 'voda plavani', Q180692: 'voda plavani', Q159354: 'voda lod', Q31874: 'voda lod', Q1141850: 'voda lod',
+    Q14085739: 'voda lod vitr', Q191051: 'voda vitr prkno', Q159992: 'voda prkno', Q472827: 'voda prkno',
     Q376040: 'voda prkno', Q207238: 'voda lod', Q392409: 'voda plavani',
-    Q828185: 'voda plavani styl', Q326163: 'voda plavani styl', Q245249: 'voda plavani styl', Q275115: 'voda plavani styl',
-    Q164761: 'atletika beh', Q40244: 'atletika beh', Q537769: 'atletika beh', Q202391: 'atletika beh', Q327742: 'atletika beh',
+    Q828185: 'voda plavani styl xplav', Q326163: 'voda plavani styl xplav', Q245249: 'voda plavani styl xplav', Q275115: 'voda plavani styl xplav',
+    Q164761: 'atletika beh xbeh', Q40244: 'atletika beh xbeh', Q537769: 'atletika beh', Q202391: 'atletika beh',
     Q165704: 'atletika skok', Q170737: 'atletika skok', Q185027: 'atletika skok', Q187204: 'atletika skok',
-    Q178108: 'atletika hod', Q180935: 'atletika hod', Q182570: 'atletika hod', Q184865: 'atletika hod', Q10980: 'vytrvalost kolo voda',
-    Q326827: 'gym', Q61465: 'gym', Q465014: 'gym', Q1156722: 'gym',
-    Q3609: 'kolo', Q221635: 'kolo', Q335638: 'kolo', Q215184: 'kolo', Q520611: 'kolo',
+    Q178108: 'atletika hod', Q180935: 'atletika hod', Q182570: 'atletika hod', Q184865: 'atletika hod', Q10980: 'vytrvalost kolo voda xplav xkolo xbeh',
+    Q326827: 'gym', Q61465: 'gym',
+    Q3609: 'kolo xkolo', Q221635: 'kolo', Q335638: 'kolo', Q215184: 'kolo',
     Q1968: 'motor', Q7856: 'motor', Q215862: 'motor', Q750080: 'motor',
-    Q5377: 'presnost mic', Q108429: 'presnost strelba', Q206989: 'presnost strelba', Q172809: 'presnost mic', Q706199: 'presnost mic',
-    Q131471: 'presnost', Q3341285: 'presnost mic', Q189317: 'presnost mic', Q193387: 'presnost mic', Q895471: 'presnost mic', Q754796: 'presnost mic',
-    Q83462: 'sila', Q124100: 'sila', Q213796: 'sila', Q102843: 'sila tym',
+    Q5377: 'presnost mic', Q108429: 'presnost strelba', Q206989: 'presnost strelba', Q172809: 'presnost mic xbowl', Q706199: 'presnost mic xbowl',
+    Q131471: 'presnost', Q3341285: 'presnost mic', Q189317: 'presnost mic xkoule', Q193387: 'presnost mic', Q895471: 'presnost mic xkoule', Q754796: 'presnost mic',
+    Q83462: 'sila xcinka', Q124100: 'sila', Q213796: 'sila xcinka', Q102843: 'sila tym',
     Q187916: 'kun', Q211773: 'kun', Q207703: 'kun',
-    Q1154336: 'venku lezeni', Q1541373: 'venku lezeni', Q852989: 'venku lezeni', Q193210: 'venku vzduch', Q178380: 'venku vzduch',
-    Q193847: 'venku vzduch', Q842284: 'prkno', Q483693: 'venku', Q624161: 'venku vzduch', Q169737: 'tanec', Q61391: 'tanec gym', Q215641: 'gym tanec'
+    Q1154336: 'venku lezeni xlez', Q1541373: 'venku lezeni xlez', Q852989: 'venku lezeni xlez', Q193210: 'venku vzduch', Q178380: 'venku vzduch',
+    Q193847: 'venku vzduch', Q842284: 'prkno', Q483693: 'venku', Q624161: 'venku vzduch', Q169737: 'tanec', Q61391: 'tanec gym'
 };
 const SPORT_IDS = Object.keys(SPORTS);
 
@@ -101,13 +102,12 @@ const BUCKETS = {
     krasobrusleni: { ids: ['Q38108'], label: 'krasobruslení', man: 'krasobruslař', woman: 'krasobruslařka', tags: 'zima led brusle', limit: 12, known: 2, cz: 6 },
     snowboard: { ids: ['Q178131'], label: 'snowboarding', man: 'snowboardista', woman: 'snowboardistka', tags: 'zima snih', limit: 6, known: 1, cz: 4 },
     akrobaticke: { ids: ['Q189472'], label: 'akrobatické lyžování', man: 'akrobatický lyžař', woman: 'akrobatická lyžařka', tags: 'zima snih lyze', limit: 4, known: 0, cz: 2 },
-    sane: { ids: ['Q177275', 'Q186190', 'Q273285'], label: 'bob, skeleton a saně', man: 'jezdec na bobech a saních', woman: 'jezdkyně na bobech a saních', tags: 'zima led', limit: 4, known: 0, cz: 2 },
     gymnastika: { ids: ['Q326827', 'Q43450', 'Q61465', 'Q465014'], label: 'gymnastika', man: 'gymnasta', woman: 'gymnastka', tags: 'gym leto', limit: 22, known: 4, cz: 8 },
     golf: { ids: ['Q5377'], label: 'golf', man: 'golfista', woman: 'golfistka', tags: 'presnost', limit: 10, known: 3, cz: 1 },
     baseball: { ids: ['Q5369'], label: 'baseball', man: 'baseballista', woman: 'baseballistka', tags: 'mic tym palka', limit: 8, known: 2, cz: 0 },
     americky: { ids: ['Q41323'], label: 'americký fotbal', man: 'hráč amerického fotbalu', woman: 'hráčka amerického fotbalu', tags: 'mic tym', limit: 8, known: 2, cz: 0 },
     serm: { ids: ['Q12100'], label: 'šerm', man: 'šermíř', woman: 'šermířka', tags: 'boj', limit: 6, known: 0, cz: 2 },
-    judo: { ids: ['Q11420'], label: 'judo', man: 'judista', woman: 'judistka', tags: 'boj', limit: 6, known: 1, cz: 3 },
+    judo: { ids: ['Q11420'], label: 'judo', man: 'judista', woman: 'judistka', tags: 'boj', limit: 6, known: 0, cz: 3 },
     mma: { ids: ['Q114466'], label: 'smíšená bojová umění', man: 'zápasník MMA', woman: 'zápasnice MMA', tags: 'boj', limit: 6, known: 1, cz: 3 },
     zapas: { ids: ['Q42486', 'Q838089', 'Q389654', 'Q327223'], label: 'zápas', man: 'zápasník', woman: 'zápasnice', tags: 'boj', limit: 5, known: 0, cz: 3 },
     hazena: { ids: ['Q8418'], label: 'házená', man: 'házenkář', woman: 'házenkářka', tags: 'mic tym', limit: 6, known: 0, cz: 5 },
@@ -133,6 +133,56 @@ const ATHLETE_SPORTS = [...BUCKET_OF.keys()];
 
 // Povolání, která sportovce nedělají (trenér, rozhodčí, funkcionář) – kdo má jen je, není sportovec
 const NOT_ATHLETE = /trenér|rozhodčí|funkcionář|manažer|komentátor|novinář|podnikatel|majitel|promotér|zakladatel|šéf|lékař|politik|herec|herečka/u;
+// Povolání kolem sportu, která se při posuzování „hlavně sportovec“ nepočítají (bývalí sportovci často trénují)
+const COACH = /trenér|rozhodčí|funkcionář|manažer|komentátor/u;
+// Obecná sportovní povolání (sportovec, olympionik, atlet)
+const GENERIC_ATHLETE = new Set(['Q2066131', 'Q50995749', 'Q58825429', 'Q11513337']);
+// Slavní hlavně něčím jiným, i když je Wikidata vedou jako sportovce
+const NOT_ATHLETES = new Set(['Ivana Trumpová', 'Charlene, kněžna monacká', 'Joseph Campbell', 'Philip Noel-Baker', 'Enzo Ferrari']);
+// Sport v popisu („česká rychlobruslařka a cyklistka“): platí ten, který popis uvádí první; u shody na stejném místě
+// rozhoduje pořadí (stolní tenis před tenisem, americký fotbal před fotbalem, běžec na lyžích před atletem)
+const DESCRIPTION_SPORTS = [
+    ['stolni', /stolní tenis/u], ['americky', /amerického fotbalu|americký fotbal/u], ['skoky_do_vody', /skok\p{L}* do vody/u],
+    ['skoky', /skok\p{L}* na lyžích/u], ['bezky', /běž\p{L}* na lyžích|běžeck\p{L}* lyžař/u], ['akrobaticke', /akrobatick\p{L}* lyžař/u],
+    ['fotbal', /fotbal/u], ['hokej', /hokej/u], ['tenis', /tenis/u],
+    ['atletika', /atlet|sprint|oštěp|koulař|diskař|kladivář|desetiboj|sedmiboj|maraton|chodec|chodkyně|překážk|tyčkař|výškař|dálkař|trojskok|běž(?:ec|kyně)(?! na lyžích)/u],
+    ['basketbal', /basketbal/u], ['cyklistika', /cyklist/u], ['auto', /automobil|formul|rallye|závodní jezd|pilot/u],
+    ['moto', /motocykl|plochodrážní|motokros/u], ['plavani', /plav/u], ['box', /boxer|boxu|box(?!\p{L})/u],
+    ['alpske', /lyžař|sjezdař|slalom/u], ['biatlon', /biatlon/u], ['rychlobrusleni', /rychlobrusl|short track/u], ['krasobrusleni', /krasobrusl/u],
+    ['snowboard', /snowboard/u], ['sane', /bobist|sáňk|skeleton|saních|bobech/u], ['gymnastika', /gymnast/u], ['golf', /golf/u],
+    ['baseball', /baseball/u], ['serm', /šerm/u], ['judo', /judist|juda|judo/u], ['mma', /MMA|smíšen/u], ['zapas', /zápasn/u],
+    ['hazena', /házen/u], ['volejbal', /volejbal/u], ['veslovani', /vesla[řrř]|veslov/u], ['kanoistika', /kanoist|vodní slalom|kajak|deblkan/u],
+    ['strelba', /střel/u], ['badminton', /badminton/u], ['snooker', /snooker|kulečník/u], ['kriket', /kriket/u], ['ragby', /ragby|rugby/u],
+    ['lezeni', /lezec|lezkyně|lezen/u], ['jezdectvi', /jezdec|jezdkyně|parkur|drezur|žokej/u], ['triatlon', /triatlon/u],
+    ['vzpirani', /vzpěr/u], ['jachting', /jacht/u], ['florbal', /florbal/u]
+];
+// Popis začíná jiným povoláním (herec, spisovatel, politik, trenér) – slavný je hlavně jinak než sportem
+const NOT_SPORT_FAME = /herec|herečka|spisovatel|politi|prezident|premiér|ministr|zpěvák|zpěvačka|podnikatel|král|královna|kníže|princ|filozof|fyzik|vědec|novinář|moderátor|hudebník|houslist|režisér|kosmonaut|astronaut|model(?:ka)?(?!\p{L})|konstruktér|šlechtic|diplomat|voják|generál|malíř|básník|komik|rapper|scenárist|producent|wrestler|trenér|funkcionář|rozhodčí|manažer|komentátor|duchovní|kněz|lékař|právník|inženýr|vynálezce|letec|cestovatel|polárník|zpěv/u;
+const ATHLETE_NOUN = /ist(?:a|ka)(?!\p{L})|hráč|atlet|plav[ec]|plavkyně|běž(?:ec|kyně)|skokan|lyžař|bruslař|závodn|jezd(?:ec|kyně)|boxer|gymnast|šermíř|zápasn|vesla[řr]|kanoist|střel(?:ec|kyně)|pilot|tyčkař|oštěpař|koulař|diskař|kladivář|desetibojař|sedmibojař|vícebojař|kajakář|slalomář|maratonec|maratonkyně|sprinter|lezec|lezkyně|brankář|útočník|obránce|záložník|olympi|sportov|reprezentant|cyklist|mistr|šampion|vítěz|judist|bojovník|vzpěrač|jachtař|žokej/u;
+// Je to sportovec a jaký je jeho hlavní sport (podle popisu, jinak podle počtu údajů)? null = slavný hlavně něčím jiným
+const mainBucket = (description, buckets) => {
+    const text = (description || '').toLocaleLowerCase('cs');
+    const found = DESCRIPTION_SPORTS.map(([key, pattern], order) => ({ key, at: text.search(pattern), order }))
+        .filter(entry => entry.at >= 0)
+        .sort((a, b) => a.at - b.at || a.order - b.order);
+    return found.length ? found[0].key : buckets[0];
+};
+// Popis ho představuje jako sportovce: sportovní povolání v něm je a nepředchází mu jiné (trenér ano – Železný je
+// „trenér atletiky, oštěpař“; čistý trenér bez sportovního povolání v popisu ne)
+const describedAsAthlete = (description) => {
+    const text = (description || '').toLocaleLowerCase('cs');
+    const athleteAt = text.search(ATHLETE_NOUN);
+    const otherAt = text.search(NOT_SPORT_FAME);
+    return athleteAt >= 0 && !(otherAt >= 0 && otherAt < athleteAt && !/^(trenér|funkcionář|rozhodčí|manažer|komentátor)/u.test(text.slice(otherAt)));
+};
+// Sportovec, který je slavný hlavně sportem: popis ho tak představuje a aspoň čtvrtina povolání je sportovních,
+// nebo jsou sportovní aspoň dvě třetiny povolání (Camus, Ivana Trumpová ani Henry Ford sem nepatří)
+const isMainlyAthlete = (detail, sportOccupationIds) => {
+    const occupations = (detail.occ || []).filter(q => !COACH.test(labels.get(q) ? labels.get(q).n : ''));
+    const share = occupations.length ? occupations.filter(q => sportOccupationIds.has(q)).length / occupations.length : 1;
+    if (!detail.d) return share >= 0.5;
+    return (describedAsAthlete(detail.d) && share >= 0.25) || share >= 0.67;
+};
 
 // --- 1. krok: olympijské hry ---
 const gameIds = GAMES.map(([qid]) => qid);
@@ -180,12 +230,7 @@ const hostDetails = new Map(await cached('sport-hosts', async () => {
     }
     return [...result];
 }));
-// Sporty na hrách (fotbal na LOH 1960 → fotbal): kdy byl sport poprvé na olympiádě
-const gamesSports = await cached('sport-games-sports', async () => {
-    const rows = await sparql(`SELECT ?item ?sport WHERE { VALUES ?item { ${values(gameIds)} } ?item wdt:P527 ?part . ?part wdt:P641 ?sport . }`);
-    return rows.map(row => [id(row.item.value), id(row.sport.value)]);
-});
-console.log(`Hry: ${gamesDetails.size}, pořadatelská města: ${hostDetails.size}, sporty na hrách: ${gamesSports.length}`);
+console.log(`Hry: ${gamesDetails.size}, pořadatelská města: ${hostDetails.size}`);
 
 // --- 2. krok: sporty a disciplíny ---
 const sportDetails = new Map(await cached('sport-sports', async () => {
@@ -387,14 +432,24 @@ for (const [qid, year, type, hosts, also = []] of GAMES) {
     });
 }
 
-// Sporty: kdy byly poprvé na olympijských hrách (podle sportů na hrách v tabulce)
 const gameInfo = new Map(GAMES.map(([qid, year, type]) => [qid, { year, type }]));
-const firstOlympics = new Map();
-for (const [game, sport] of gamesSports) {
-    const info = gameInfo.get(game);
-    const current = firstOlympics.get(sport);
-    if (info && (!current || info.year < current.year)) firstOlympics.set(sport, info);
-}
+// Od kdy je sport na olympijských hrách jako soutěžní (Wikidata počítají i ukázkové sporty – baseball 1912,
+// basketbal 1904); jen sporty, které na hrách dodnes jsou
+const OLYMPIC_SINCE = {
+    Q2736: 1900, Q5372: 1936, Q847: 1896, Q32112: 1904, Q1734: 1964, Q5377: 1900, Q11420: 1964, Q7291: 1992, Q8418: 1936, Q36389: 2000,
+    Q3930: 1988, Q42486: 1896, Q41466: 1920, Q12100: 1896, Q108429: 1900, Q159992: 2020, Q1455: 1908, Q7707: 1900, Q83462: 1896, Q136851: 1924,
+    Q38108: 1908, Q166788: 1960, Q159354: 1900, Q7735: 1904, Q4543: 1996, Q10980: 2000, Q186222: 1936, Q7718: 1924, Q177275: 1924,
+    Q178131: 1998, Q206989: 1896, Q179687: 1924, Q31920: 1896, Q326827: 1896, Q61465: 1984, Q186190: 1928, Q180692: 1984, Q273285: 1964,
+    Q192431: 1924, Q193654: 1992, Q842284: 2020, Q189472: 1992, Q1541373: 2020, Q1141850: 1936, Q31874: 1972, Q3609: 1896, Q221635: 1896,
+    Q215184: 2008, Q14085739: 1900, Q40244: 1896, Q164761: 1896, Q165704: 1896, Q170737: 1896, Q185027: 1896, Q187204: 1896, Q180935: 1896,
+    Q182570: 1896, Q178108: 1908, Q184865: 1900, Q537769: 1896, Q202391: 1908, Q211773: 1912, Q191051: 1984
+};
+// Vznik sportu, kde je rok jasný (Wikidata mají u volejbalu rok založení federace)
+const FOUNDED = { Q2736: 1863, Q5372: 1891, Q1734: 1895, Q847: 1873, Q11420: 1882, Q1968: 1950, Q106500: 1938, Q192937: 1902, Q244700: 1968, Q41466: 1875 };
+// Země původu: opravy a vynechání sporných (házená, skok do výšky)
+const ORIGIN = { Q36389: 'Jižní Korea', Q206763: 'Švédsko', Q8418: null, Q165704: null, Q7735: null };
+// Vybavení: bez míst a nejasných názvů („míč na nějaký druh fotbalu“, „paže a předloktí“)
+const NOT_EQUIPMENT = /nějak|paže|předloktí|hřiště|kurt|dvorec|závodiště|bazén|hala|^led$|velodrom|dráha|divoká voda|skalní/u;
 // Počet hráčů jednoho družstva na hřišti (Wikidata míchají celkový počet, soupisku i jedno družstvo)
 const PLAYERS = {
     Q2736: 11, Q5372: 5, Q1734: 6, Q8418: 7, Q41323: 11, Q5369: 9, Q171038: 9, Q5375: 11, Q7707: 7, Q1455: 11, Q4543: 2, Q171401: 5,
@@ -410,12 +465,10 @@ const SPORT_KINDS = [['zima', 'zimní sport'], ['styl', 'plavecký způsob'], ['
 const KNOWN_SPORTS = new Set(['Q41466', 'Q206763', 'Q166788', 'Q7718', 'Q179687', 'Q186222', 'Q38108', 'Q192431', 'Q178131', 'Q178108', 'Q185027',
     'Q165704', 'Q170737', 'Q180935', 'Q182570', 'Q164761', 'Q537769', 'Q31874', 'Q159354', 'Q326827', 'Q31920', 'Q3609', 'Q7856', 'Q136851',
     'Q177275', 'Q273285', 'Q131471', 'Q172809', 'Q828185', 'Q326163', 'Q245249', 'Q275115', 'Q10980', 'Q4543', 'Q187916', 'Q215862']);
-const sportRows = [...sportDetails.entries()].filter(([, detail]) => detail.t && detail.im).sort((a, b) => Number(b[1].sl) - Number(a[1].sl));
+const sportRows = [...sportDetails.entries()].filter(([qid, detail]) => SPORTS[qid] && detail.t && detail.im).sort((a, b) => Number(b[1].sl) - Number(a[1].sl));
 for (const [qid, detail] of sportRows) {
     const tags = SPORTS[qid].split(' ');
     const kind = SPORT_KINDS.find(([tag]) => tags.includes(tag));
-    const olympic = firstOlympics.get(qid);
-    const from = yearOf(detail.from);
     addItem({
         q: qid, t: detail.t, n: capitalize(detail.n || detail.t.replace(/ \(.*\)$/, '')), c: 'sporty',
         k: Number(detail.sl) >= 60 || KNOWN_SPORTS.has(qid) ? 1 : 0,
@@ -425,21 +478,31 @@ for (const [qid, detail] of sportRows) {
         tg: tags,
         f: compact({
             players: PLAYERS[qid],
-            oh: olympic ? olympic.year : undefined,
-            ohType: olympic ? olympic.type : undefined,
-            from: from && from > 1000 && from <= THIS_YEAR ? from : undefined,
-            origin: (detail.origin || [])[0],
-            uses: (detail.uses || []).slice(0, 6)
+            oh: OLYMPIC_SINCE[qid],
+            from: FOUNDED[qid],
+            origin: qid in ORIGIN ? ORIGIN[qid] || undefined : (detail.origin || [])[0],
+            uses: (detail.uses || []).filter(text => !NOT_EQUIPMENT.test(text)).map(text => text.charAt(0).toLowerCase() + text.slice(1)).slice(0, 4)
         })
     });
 }
 
 // Sportovci
 const FEMALE_ID = FEMALE;
-const isCzechAthlete = (detail) => {
+// Českoslovenští sportovci narození na Slovensku (Hingisová, Šťastný, Nepela) patří spíš ke slovenským dějinám
+const czechoslovakOnly = [...athleteDetails.entries()].filter(([, detail]) => {
     const states = [...(detail.cit || []), ...(detail.cfs || [])];
-    // Českoslovenští sportovci se slovenským občanstvím patří spíš ke Slovensku
-    return states.includes('Q213') || states.includes('Q42585') || (states.includes('Q33946') && !states.includes('Q214'));
+    return states.includes('Q33946') && !states.includes('Q213');
+}).map(([qid]) => qid);
+const birthCountries = new Map(await cached('sport-birth-countries', async () => {
+    const result = [];
+    await inBatches(czechoslovakOnly, 200, (qids) => `SELECT ?item ?c WHERE { VALUES ?item { ${values(qids)} } ?item wdt:P19 ?place . ?place wdt:P17 ?c . }`,
+        (row) => result.push([id(row.item.value), id(row.c.value)]));
+    return result;
+}));
+const isCzechAthlete = (qid, detail) => {
+    const states = [...(detail.cit || []), ...(detail.cfs || [])];
+    if (states.includes('Q213') || states.includes('Q42585')) return true;
+    return states.includes('Q33946') && !states.includes('Q214') && birthCountries.get(qid) !== 'Q214';
 };
 // Kluby: bez reprezentací a mládežnických týmů; nejdéle působení první
 const NOT_CLUB = /reprezentac|výběr|národní|olympijsk|do \d+ let|\bU\d+|junio|mládež|rezerv|\bB$|akademie/iu;
@@ -523,23 +586,29 @@ let czechRank = 0;
 for (const { qid, detail, candidate } of athleteRows) {
     if (!detail.t) continue;
     const buckets = bucketsOf(candidate.sports);
-    const bucketKey = buckets[0];
+    const bucketKey = mainBucket(detail.d, buckets);
     const bucket = BUCKETS[bucketKey];
     if (!bucket) continue;
     // Sportovec: aspoň jedno sportovní povolání, které není trenér, rozhodčí ani funkcionář
-    const sportOccupations = Object.values(candidate.sports).flat().filter(via => via !== 'P641').map(label).filter(Boolean);
-    const occupations = (detail.occ || []).map(label).filter(Boolean);
-    const isAthlete = sportOccupations.some(text => !NOT_ATHLETE.test(text))
-        || occupations.some(text => /^(sportovec|sportovkyně|olympionik|atlet|atletka)$/u.test(text));
-    if (!isAthlete) continue;
+    const sportOccupationIds = new Set(Object.values(candidate.sports).flat().filter(via => via !== 'P641' && !NOT_ATHLETE.test(label(via) || '')));
+    // Sportovní je i povolání, které se tak jmenuje (oštěpař, desetibojař), i když ve Wikidatech nemá sport
+    (detail.occ || []).filter(q => GENERIC_ATHLETE.has(q) || (ATHLETE_NOUN.test(label(q) || '') && !NOT_SPORT_FAME.test(label(q) || '')))
+        .forEach(q => sportOccupationIds.add(q));
+    const isAthlete = sportOccupationIds.size > 0 || (detail.sport || []).some(q => BUCKET_OF.has(q));
+    if (!isAthlete || !isMainlyAthlete(detail, sportOccupationIds) || NOT_ATHLETES.has(detail.n)) continue;
     const life = lifeOf(detail);
     if (!life) continue;
-    const isCzech = isCzechAthlete(detail);
+    const isCzech = isCzechAthlete(qid, detail);
     const name = detail.n || detail.t.replace(/ \(.*\)$/, '');
     const rank = rankInBucket[bucketKey] || 0;
     const czRank = czechRankInBucket[bucketKey] || 0;
     if (rank >= bucket.limit && !(isCzech && czRank < bucket.cz)) continue;
     const olympics = olympicsOf(detail);
+    // Čeští hokejisté v Naganu 1998 vyhráli zlato (u týmových turnajů Wikidata medaili často neuvádějí)
+    if (bucketKey === 'hokej' && isCzech && olympics.og.includes('Q9664') && !olympics.goldAt.includes('Q9664')) {
+        olympics.goldAt.push('Q9664');
+        olympics.gold++;
+    }
     const olympicYears = olympics.og.map(game => gameInfo.get(game).year);
     const career = careerOf(detail, life, olympicYears);
     const female = detail.sex === FEMALE_ID;
@@ -555,7 +624,7 @@ for (const { qid, detail, candidate } of athleteRows) {
             born: life.born, died: life.died, from: career.from, to: career.to,
             sport: bucket.label,
             // Jen jeden sport – na „Ve kterém sportu se proslavil?“ je jediná odpověď
-            one: buckets.length === 1 ? 1 : undefined,
+            one: buckets.length === 1 && buckets[0] === bucketKey ? 1 : undefined,
             land: countryLabel(detail),
             pos: (detail.pos || []).map(label).filter(Boolean)[0],
             disc: (detail.disc || []).map(label).filter(Boolean).slice(0, 2).join(', ') || undefined,
