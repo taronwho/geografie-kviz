@@ -362,7 +362,9 @@
         if (item.c === 'olympiady') return (f.type === g.type ? 6 : 0) - Math.abs(f.year - g.year) / 8;
         const tags = tagsOf(item);
         const otherTags = tagsOf(other);
-        if (tags.some(tag => isCrossTag(tag) && otherTags.includes(tag))) return -Infinity;
+        // Plavecké způsoby se mezi sebou splést nedají, s plaváním ano
+        const bothStyles = tags.includes('styl') && otherTags.includes('styl');
+        if (!bothStyles && tags.some(tag => isCrossTag(tag) && otherTags.includes(tag))) return -Infinity;
         // Plavecké způsoby jen mezi sebou, atletické disciplíny taky
         for (const tag of ['styl', 'atletika']) if (tags.includes(tag) !== otherTags.includes(tag)) return -10;
         return 2 * tags.filter(tag => !isCrossTag(tag) && otherTags.includes(tag)).length;
