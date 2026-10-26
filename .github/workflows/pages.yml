@@ -1,0 +1,46 @@
+# Nasazení na GitHub Pages: statický web (bez sestavení) se po každém pushi zkopíruje do větve gh-pages.
+# Jednorázově je potřeba v Settings → Pages zvolit Source „Deploy from a branch“, větev gh-pages a složku / (root).
+name: GitHub Pages
+
+on:
+  push:
+    branches: [main, ccr-1065f6ff-x6y4mz]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Nasazuje se jen kompletní aplikace – každé téma z index.html musí mít modul i data, jinak se nasazení vynechá
+      - name: Kontrola, že jsou všechna témata
+        id: check
+        run: |
+          for topic in $(grep -o 'topics/[a-z]*\.js' index.html | sed 's|topics/||; s|\.js||'); do
+            if [ ! -f "topics/$topic.js" ] || [ ! -f "data/$topic.json" ]; then echo "Chybí téma $topic, nenasazuji"; exit 0; fi
+          done
+          echo "complete=true" >> "$GITHUB_OUTPUT"
+
+      - name: Sestavení webu
+        if: steps.check.outputs.complete == 'true'
+        run: |
+          mkdir _site
+          cp -r index.html app.js quiz-core.js visuals.js icons.js styles.css sw.js manifest.webmanifest icons topics data _site/
+          touch _site/.nojekyll
+
+      - name: Zápis do větve gh-pages
+        if: steps.check.outputs.complete == 'true'
+        working-directory: _site
+        run: |
+          git init -q -b gh-pages
+          git add -A
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" commit -q -m "Nasazení ${GITHUB_SHA::7}"
+          git push -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" gh-pages
