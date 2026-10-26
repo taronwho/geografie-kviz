@@ -4,6 +4,7 @@ const APP_SHELL = [
     './', 'index.html', 'styles.css', 'icons.js', 'quiz-core.js', 'visuals.js', 'app.js', 'manifest.webmanifest',
     'topics/zemepis.js', 'data/zemepis.json', 'topics/historie.js', 'data/historie.json', 'topics/biologie.js', 'data/biologie.json',
     'topics/chemie.js', 'data/chemie.json', 'topics/fyzika.js', 'data/fyzika.json',
+    'topics/vlajky.js', 'data/vlajky.json', 'topics/mytologie.js', 'data/mytologie.json', 'topics/geologie.js', 'data/geologie.json',
     'topics/umeni.js', 'data/umeni.json', 'topics/architektura.js', 'data/architektura.json', 'topics/hudba.js', 'data/hudba.json',
     'topics/literatura.js', 'data/literatura.json', 'topics/film.js', 'data/film.json', 'topics/sport.js', 'data/sport.json',
     'data/countries.json', 'data/world.json',
