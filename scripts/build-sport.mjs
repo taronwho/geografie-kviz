@@ -531,9 +531,11 @@ const positionOf = (detail, bucketKey) => {
     return (detail.pos || []).map(label).filter(Boolean).find(text => !wrong.test(text));
 };
 // Disciplína, která sport jen opakuje (tenisová dvouhra, rychlobruslení na dlouhé dráze), nic neřekne
+// Obecné „disciplíny“ (ženy, sportovní dvojice) nic neřeknou a u Henieové by byly i chybně
+const GENERIC_DISCIPLINE = /^(ženy|muži|sportovní dvojice|jednotlivci|družstva|smíšené družstvo)$/u;
 const disciplinesOf = (detail, bucket) => {
     const stem = bucket.label.split(' ')[0].slice(0, 5);
-    return (detail.disc || []).map(label).filter(text => text && !text.toLocaleLowerCase('cs').includes(stem)).slice(0, 2).join(', ') || undefined;
+    return (detail.disc || []).map(label).filter(text => text && !text.toLocaleLowerCase('cs').includes(stem) && !GENERIC_DISCIPLINE.test(text)).slice(0, 2).join(', ') || undefined;
 };
 // Život bez rozporů: narození v minulosti, úmrtí po narození a ne v budoucnosti
 const lifeOf = (detail) => {
