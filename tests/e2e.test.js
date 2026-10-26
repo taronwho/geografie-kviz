@@ -512,8 +512,10 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         await waitForHome(tab);
         await tab.click('[data-action="play-mix"]');
         await tab.waitForSelector('#play-chooser');
-        assert.equal(await tab.locator('#play-chooser [data-chooser-topic][aria-pressed="true"]').count(), 5);
-        for (const topicId of ['historie', 'biologie', 'chemie', 'fyzika']) await tab.click(`#play-chooser [data-chooser-topic="${topicId}"]`);
+        const allTopics = await tab.$$eval('#play-chooser [data-chooser-topic]', buttons => buttons.map(button => button.dataset.chooserTopic));
+        assert.ok(allTopics.length >= 5);
+        assert.equal(await tab.locator('#play-chooser [data-chooser-topic][aria-pressed="true"]').count(), allTopics.length);
+        for (const topicId of allTopics.filter(id => id !== 'zemepis')) await tab.click(`#play-chooser [data-chooser-topic="${topicId}"]`);
         await tab.click('#play-chooser [data-chooser-topic="zemepis"]');
         assert.match(await tab.textContent('#chooser-note'), /Aspoň jedno téma/);
         await tab.keyboard.press('Escape');
@@ -552,7 +554,10 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         assert.match(await tab.textContent('#settings-note'), /od další otázky/);
         assert.equal(await tab.getAttribute('#settings-overlay [data-tier="known"]', 'aria-pressed'), 'true');
         await tab.click('#settings-overlay [data-tier="all"]');
-        assert.deepEqual(await readStorage(tab, 'mudrlant.settings'), { tier: 'all', topics: ['zemepis', 'historie', 'biologie', 'chemie', 'fyzika'], categories: {}, seen: [] });
+        const saved = await readStorage(tab, 'mudrlant.settings');
+        assert.deepEqual({ ...saved, topics: undefined, known: undefined }, { tier: 'all', topics: undefined, known: undefined, categories: {}, seen: [] });
+        assert.deepEqual(saved.topics, saved.known, 'v mixu všechna témata, nová si nastavení pamatuje');
+        assert.ok(['zemepis', 'historie', 'biologie', 'chemie', 'fyzika'].every(id => saved.topics.includes(id)));
         await tab.click('#settings-overlay [data-close]');
         assert.equal(await tab.locator('#settings-overlay').count(), 0);
         assert.equal(await tab.locator('[data-action="choice"]').count(), 4, 'u rozehrané otázky zůstanou možnosti');

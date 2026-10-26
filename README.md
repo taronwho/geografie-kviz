@@ -1,6 +1,6 @@
 # Mudrlant
 
-Kvízová aplikace s tématy **Zeměpis**, **Historie**, **Biologie**, **Chemie** a **Fyzika**. Všechna témata fungují stejně:
+Kvízová aplikace s tématy **Zeměpis**, **Historie**, **Biologie**, **Chemie**, **Fyzika**, **Výtvarné umění**, **Architektura**, **Hudba**, **Literatura**, **Film** a **Sport**. Všechna témata fungují stejně:
 
 - **Dnešní otázky** – každé téma má jednu otázku denně, pro všechny stejnou (vždy ze známých položek), a vlastní sérii dní; výsledek jde sdílet.
 - **Hraní tématu** – dlaždice tématu na domovské obrazovce; poprvé se otevře okno s výběrem kategorií (výchozí všechny), pak se hraje rovnou. **Mix** míchá otázky z vybraných témat. Každé téma má svou barvu (štítek a okraj hlavičky), klepnutím na štítek jde změnit kategorie nebo téma. Jen známé položky, nebo i méně známé.
@@ -19,6 +19,12 @@ Základní otázka je „Co je to?“ podle kategorie (Který prvek to je?, Kdo 
 | Biologie | Do kterého řádu (u rostlin a hub čeledi) patří? |
 | Chemie | Jakou značku má tento prvek? Jaký vzorec má tato látka? |
 | Fyzika | Jaká je jednotka SI této veličiny? Jakou značku má tato jednotka? Co měří tato jednotka? |
+| Výtvarné umění | Obraz či socha jsou vidět hned: Co je to za obraz? Kdo to namaloval? Ke kterému směru patří? |
+| Architektura | Stavba je vidět hned: Jaký je to sloh? Kdo ji navrhl? |
+| Hudba | Kdo to složil? Do kterého hudebního období patří? |
+| Literatura | Kdo to napsal? Kdo tuto postavu vymyslel? Ve kterém století žil či dílo vzniklo? |
+| Film | Kdo film režíroval? Ve kterém desetiletí měl premiéru? |
+| Sport | Ve kterém sportu se proslavil(a)? Kde se konaly olympijské hry? Které hry to jsou? Co je to za sport (podle fotky)? |
 
 Nápovědy jdou postupně a každá ubere bod: **popis** z české Wikipedie (je vidět hned, odpověď je v něm zakrytá), **fotka**, **obrazová nápověda** tématu a **čísla a fakta** z Wikidat. Obrazové nápovědy:
 
@@ -29,7 +35,7 @@ Nápovědy jdou postupně a každá ubere bod: **popis** z české Wikipedie (je
 
 Popis a odemčené nápovědy jsou záložky jednoho panelu pevné výšky, takže se odpověď při nápovědě neposune a na telefonu není co posouvat. Po odpovědi jsou v záložkách fotka, mapa s polohou, snímek z družice a obrazová nápověda (i ty, které hráč neotevřel), fakta pod nimi a tlačítko **Další otázka** je přilepené dole. Jde rozkliknout i okno s popisem položky ze špatné odpovědi a ostatních nabízených možností.
 
-Statická stránka bez serveru a bez build kroku při nasazení – na Netlify se publikuje kořen repozitáře tak, jak je.
+Statická stránka bez serveru a bez build kroku. Nasazuje se na **GitHub Pages**: workflow `.github/workflows/pages.yml` po každém pushi zkopíruje aplikaci do větve `gh-pages` (v nastavení repozitáře je jednou potřeba zvolit Pages → Deploy from a branch → `gh-pages`).
 
 ## Soubory
 
