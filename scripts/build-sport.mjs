@@ -393,7 +393,7 @@ const addItem = (item) => {
 const largest = (list) => list && list.length ? Math.max(...list) : undefined;
 
 // Olympijské hry: pořadatel, stát (tehdejší), počty sportovců a zemí, kdo hry zahájil a zapálil oheň
-const NOT_GAMES_PHOTO = /poster|plakat|plakát|affiche|logo|emblem|rings|medal|torch|ticket|stamp|mascot|pictogram|\.svg$|\.png$|\.tiff?$/i;
+const NOT_GAMES_PHOTO = /poster|olympiade|plakat|plakát|affiche|logo|emblem|rings|medal|torch|ticket|stamp|mascot|pictogram|\.svg$|\.png$|\.tiff?$/i;
 // Stát v době her (Wikidata uvádějí dnešní)
 const HOST_LAND = { 'Z1984': 'Jugoslávie', 'L1980': 'Sovětský svaz', 'L1972': 'Západní Německo' };
 const cityNames = (qid) => CITY_NAMES[qid] || [hostDetails.get(qid).n];
@@ -403,7 +403,8 @@ for (const [qid, year, type, hosts, also = []] of GAMES) {
     if (!detail || !detail.t || !host) continue;
     const point = parsePoint(host.coord);
     const startYear = yearOf(detail.start);
-    const photo = detail.im && !NOT_GAMES_PHOTO.test(fileName(detail.im)) ? detail.im : undefined;
+    // Fotka s rokem v názvu souboru ho mívá i na sobě (pamětní deska „1932 Olympiad“) – u otázky na rok by ho prozradila
+    const photo = detail.im && !NOT_GAMES_PHOTO.test(fileName(detail.im)) && !fileName(detail.im).includes(String(year)) ? detail.im : undefined;
     addItem({
         q: qid, t: detail.t, n: capitalize(detail.n || detail.t), c: 'olympiady',
         // Známé: poválečné letní hry a zimní od Lake Placid 1980, k tomu první hry obou druhů a Berlín 1936
