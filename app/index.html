@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- GitHub Pages neumí poslat hlavičky – Content-Security-Policy proto i tady (frame-ancestors v meta značce nefunguje) -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' https://upload.wikimedia.org https://gibs.earthdata.nasa.gov https://tile.openstreetmap.org; connect-src 'self' https://cs.wikipedia.org; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
+    <meta name="description" content="Mudrlant – vědomostní kvíz ze zeměpisu, historie, přírodních věd, umění, kultury a sportu. Každý den nové otázky, trénink a učení po okruzích.">
+    <meta name="theme-color" content="#059669" media="(prefers-color-scheme: light)">
+    <meta name="theme-color" content="#0f172a" media="(prefers-color-scheme: dark)">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="Mudrlant">
+
+    <title>Mudrlant</title>
+
+    <link rel="manifest" href="manifest.webmanifest">
+    <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+    <link rel="stylesheet" href="styles.css">
+    <script src="icons.js" defer></script>
+    <script src="quiz-core.js" defer></script>
+    <script src="visuals.js" defer></script>
+    <script src="topics/zemepis.js" defer></script>
+    <script src="topics/vlajky.js" defer></script>
+    <script src="topics/historie.js" defer></script>
+    <script src="topics/mytologie.js" defer></script>
+    <script src="topics/biologie.js" defer></script>
+    <script src="topics/geologie.js" defer></script>
+    <script src="topics/chemie.js" defer></script>
+    <script src="topics/fyzika.js" defer></script>
+    <script src="topics/umeni.js" defer></script>
+    <script src="topics/architektura.js" defer></script>
+    <script src="topics/hudba.js" defer></script>
+    <script src="topics/literatura.js" defer></script>
+    <script src="topics/film.js" defer></script>
+    <script src="topics/sport.js" defer></script>
+    <script src="app.js" defer></script>
+</head>
+<body class="font-sans text-slate-800 dark:text-slate-100 h-[100dvh] flex flex-col overflow-hidden">
+
+    <div class="w-full h-full flex flex-col relative shadow-2xl bg-slate-50 dark:bg-slate-900 max-w-md mx-auto border-x border-slate-200 dark:border-slate-800">
+
+        <!-- Hlavička – samostatná lišta, obsah pod ní neprojíždí; spodní okraj má barvu hraného tématu -->
+        <header id="app-header" class="shrink-0 w-full px-4 pt-4 pb-3 flex justify-between items-center gap-2 z-30 bg-slate-50 dark:bg-slate-900 border-b-4 border-slate-200/70 dark:border-slate-800">
+            <!-- Štítek: kde hráč je; při hraní tématu nebo mixu po klepnutí změna tématu -->
+            <button id="status-badge" type="button" class="min-w-0 bg-white dark:bg-slate-800 px-2.5 py-2 rounded-2xl shadow-sm text-sm font-bold text-slate-700 flex items-center gap-2 transition-colors border border-slate-200/60 dark:border-slate-700">
+                <span id="status-icon-slot" class="flex shrink-0 max-[379px]:hidden"><i data-lucide="calendar-days" class="w-5 h-5 text-slate-600 dark:text-slate-300"></i></span>
+                <span id="status-text" class="truncate uppercase text-[11px] text-slate-700 dark:text-slate-200">Mudrlant</span>
+                <span id="status-switch" class="hidden shrink-0"><i data-lucide="chevron-down" class="w-4 h-4"></i></span>
+            </button>
+
+            <div class="flex shrink-0 gap-1.5">
+                <button id="btn-home" type="button" class="p-2 rounded-2xl transition-all bg-slate-800 text-white shadow-md active:scale-95 border border-slate-700" title="Dnešní otázky" aria-label="Dnešní otázky">
+                    <i data-lucide="house" class="w-5 h-5"></i>
+                </button>
+                <button id="btn-practice" type="button" class="p-2 rounded-2xl transition-all bg-white/90 text-slate-700 shadow-md active:scale-95 border border-slate-200/60" title="Hrát dál" aria-label="Hrát dál">
+                    <i data-lucide="shuffle" class="w-5 h-5" id="practice-icon"></i>
+                </button>
+                <button id="btn-learn" type="button" class="p-2 rounded-2xl transition-all bg-white/90 text-slate-600 hover:text-emerald-600 shadow-md active:scale-95 border border-slate-200/60 dark:bg-slate-800/90 dark:text-slate-300 dark:border-slate-700 dark:hover:text-emerald-400" title="Učení: okruhy, atlas a chyby k zopakování" aria-label="Učení">
+                    <i data-lucide="graduation-cap" class="w-5 h-5"></i>
+                </button>
+                <button id="btn-settings" type="button" class="p-2 rounded-2xl transition-all bg-white/90 text-slate-600 hover:text-emerald-600 shadow-md active:scale-95 border border-slate-200/60 dark:bg-slate-800/90 dark:text-slate-300 dark:border-slate-700 dark:hover:text-emerald-400" title="Nastavení" aria-label="Nastavení">
+                    <i data-lucide="settings-2" class="w-5 h-5"></i>
+                </button>
+            </div>
+        </header>
+
+        <!-- Obsah -->
+        <main id="app-content" class="flex-grow min-h-0 flex flex-col relative w-full overflow-y-auto overscroll-y-contain bg-slate-50 dark:bg-slate-900">
+            <div class="absolute inset-0 z-10 flex flex-col items-center justify-center fade-in bg-slate-50/80 dark:bg-slate-900/80 backdrop-blur-sm">
+                <!-- Rotující glóbus místo mozku -->
+                <i data-lucide="globe" class="w-14 h-14 text-emerald-500 spin mb-5 drop-shadow-md"></i>
+                <p class="text-slate-600 dark:text-slate-300 font-bold tracking-wider text-sm uppercase">Načítám…</p>
+            </div>
+            <noscript>
+                <p class="p-8 text-center text-slate-600">Mudrlant potřebuje zapnutý JavaScript.</p>
+            </noscript>
+        </main>
+    </div>
+</body>
+</html>
