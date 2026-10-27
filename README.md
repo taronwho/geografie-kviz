@@ -1,6 +1,6 @@
 # Mudrlant
 
-Kvízová aplikace s tématy **Zeměpis**, **Historie**, **Biologie**, **Chemie**, **Fyzika**, **Výtvarné umění**, **Architektura**, **Hudba**, **Literatura**, **Film** a **Sport**. Všechna témata fungují stejně:
+Kvízová aplikace s tématy **Zeměpis**, **Historie**, **Biologie**, **Chemie**, **Fyzika**, **Geologie**, **Vlajky a znaky**, **Mytologie**, **Výtvarné umění**, **Architektura**, **Hudba**, **Literatura**, **Film** a **Sport**. Všechna témata fungují stejně:
 
 - **Dnešní otázky** – každé téma má jednu otázku denně, pro všechny stejnou (vždy ze známých položek), a vlastní sérii dní; výsledek jde sdílet.
 - **Hraní tématu** – dlaždice tématu na domovské obrazovce; poprvé se otevře okno s výběrem kategorií (výchozí všechny), pak se hraje rovnou. **Mix** míchá otázky z vybraných témat. Každé téma má svou barvu (štítek a okraj hlavičky), klepnutím na štítek jde změnit kategorie nebo téma. Jen známé položky, nebo i méně známé.
@@ -19,6 +19,9 @@ Základní otázka je „Co je to?“ podle kategorie (Který prvek to je?, Kdo 
 | Biologie | Do kterého řádu (u rostlin a hub čeledi) patří? |
 | Chemie | Jakou značku má tento prvek? Jaký vzorec má tato látka? |
 | Fyzika | Jaká je jednotka SI této veličiny? Jakou značku má tato jednotka? Co měří tato jednotka? |
+| Vlajky a znaky | Vlajka či znak jsou vidět hned: Čí je to vlajka? Čí je to znak? (státy, české kraje a města, organizace) |
+| Mytologie | Jak se jmenuje v římské/řecké mytologii? Ze které mytologie je? |
+| Geologie | Nerost či hornina jsou vidět hned: Jakou má tvrdost podle Mohse? Jaký má vzorec? Do které skupiny hornin patří? Které je to období? |
 | Výtvarné umění | Obraz či socha jsou vidět hned: Co je to za obraz? Kdo to namaloval? Ke kterému směru patří? |
 | Architektura | Stavba je vidět hned: Jaký je to sloh? Kdo ji navrhl? |
 | Hudba | Kdo to složil? Do kterého hudebního období patří? |
