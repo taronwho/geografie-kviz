@@ -1,4 +1,4 @@
-# Nasazení na GitHub Pages: statický web (bez sestavení) se po každém pushi zkopíruje do větve gh-pages.
+# Nasazení na GitHub Pages: statický web (bez sestavení) se po každém pushi zkopíruje do větve gh-pages (aplikace do app/).
 # Jednorázově je potřeba v Settings → Pages zvolit Source „Deploy from a branch“, větev gh-pages a složku / (root).
 name: GitHub Pages
 
@@ -32,8 +32,11 @@ jobs:
       - name: Sestavení webu
         if: steps.check.outputs.complete == 'true'
         run: |
-          mkdir _site
-          cp -r index.html app.js quiz-core.js visuals.js icons.js styles.css sw.js manifest.webmanifest icons topics data _site/
+          # Aplikace je v app/ (vlastní rozsah pro instalaci na plochu), v kořeni přesměrování a starý service worker,
+          # který se sám odregistruje
+          mkdir -p _site/app
+          cp -r index.html app.js quiz-core.js visuals.js icons.js styles.css sw.js manifest.webmanifest icons topics data _site/app/
+          cp pages-root/index.html pages-root/sw.js _site/
           touch _site/.nojekyll
 
       - name: Zápis do větve gh-pages

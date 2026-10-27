@@ -3,7 +3,7 @@
     "short_name": "Mudrlant",
     "description": "Vědomostní kvíz ze zeměpisu, historie, přírodních věd, umění, kultury a sportu – dnešní otázky, trénink a učení po okruzích.",
     "lang": "cs",
-    "id": "/geografie-kviz/?app=mudrlant",
+    "id": "/geografie-kviz/app/",
     "start_url": "./",
     "scope": "./",
     "display": "standalone",
