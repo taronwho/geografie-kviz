@@ -1,5 +1,5 @@
 // Service worker: aplikace se otevře i bez internetu (témata, jejich data i obrysy států jsou v mezipaměti)
-const CACHE_NAME = 'mudrlant-v1';
+const CACHE_NAME = 'mudrlant-v2';
 const APP_SHELL = [
     './', 'index.html', 'styles.css', 'icons.js', 'quiz-core.js', 'visuals.js', 'app.js', 'manifest.webmanifest',
     'topics/zemepis.js', 'data/zemepis.json', 'topics/historie.js', 'data/historie.json', 'topics/biologie.js', 'data/biologie.json',
