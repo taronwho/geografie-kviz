@@ -189,7 +189,9 @@
             if (item.c === 'veliciny') return (f.unit && f.unit === g.unit ? 3 : 0) + (sameField(item, other, ctx) ? 2 : 0);
             if (item.c === 'jednotky') return (f.measures && f.measures === g.measures ? 4 : 0) + (f.system === g.system ? 1 : 0) + (sameField(item, other, ctx) ? 2 : 0);
             if (item.c === 'vesmir') return (f.kind === g.kind ? 3 : 0) + (f.parent && f.parent === g.parent ? 3 : 0);
-            return personSimilarity(item, other) + (Boolean(f.nobel) === Boolean(g.nobel) ? 1 : 0);
+            // Osoby: pohlaví a doba, k tomu stejná země (k Sacharovovi sovětští vědci, ne Descartes) a Čech k Čechům
+            return personSimilarity(item, other) + (Boolean(f.nobel) === Boolean(g.nobel) ? 1 : 0)
+                + (f.land && f.land === g.land ? 3 : 0) + ((item.cz === 1) === (other.cz === 1) ? 0 : -3);
         },
 
         specialQuestion: (item, ctx, rng) => {

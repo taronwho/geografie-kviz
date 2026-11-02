@@ -135,6 +135,12 @@
         // Rody a národy v množném čísle: Přemyslovci → Přemyslovec, přemyslovský; Lucemburkové → Lucemburk, Lucemburků
         if (word.length >= 7 && /ovci$/iu.test(word)) stems.add(word.slice(0, -2));
         if (word.length >= 7 && /ové$/iu.test(word)) stems.add(word.slice(0, -3));
+        // Přídavná jména od míst (kubánský → Kuba, mexický → Mexiko, kanadský → Kanada, africký → Afrika)
+        const place = /^\p{Ll}/u.test(word) && word.length >= 7 && word.match(/^(.{3,}?)(?:ánsk|ansk|ijsk|sk)[ýáéí]$|^(.{3,}c)k[ýáéí]$/u);
+        if (place) {
+            stems.add(place[1] || place[2]);
+            if (place[2]) stems.add(place[2].slice(0, -1) + 'k');
+        }
         for (const stem of [...stems]) {
             for (const [pattern, replacement] of STEM_ALTERNATIONS) {
                 if (pattern.test(stem)) stems.add(stem.replace(pattern, replacement));
@@ -153,6 +159,8 @@
 
     // Písmena s diakritikou, která čeština nemá (Vũng Tàu, São Paulo): text je často píše bez ní (Vung Tau)
     const FOREIGN_DIACRITICS = /[^\p{L}a-záčďéěíňóřšťúůýž]|[àâãäåæçèêëìîïñòôõöøùûüÿāăąćĉċēĕėęĝğġģĥħĩīĭįıĵķĺļľŀłńņŉŋōŏőœŕŗśŝşţŧũūŭűųŵŷźżǎǐǒǔ]/iu;
+    const UMLAUTS = { 'ö': 'oe', 'ü': 'ue', 'ä': 'ae', 'Ö': 'Oe', 'Ü': 'Ue', 'Ä': 'Ae' };
+    const UMLAUTS_BACK = { oe: 'ö', ue: 'ü', ae: 'ä' };
     const withoutDiacritics = (text) => text.normalize('NFD').replace(/\p{M}/gu, '').normalize('NFC');
     const buildWordsPattern = (words, phrases = []) => {
         // Celé víceslovné názvy doslova (Si-an, Wu-i – po slovech by byly moc krátké)
@@ -162,6 +170,10 @@
             // Slovo samo (Saná – z kmene „San“ by koncovka á nevyšla), dvoupísmenné ne (Si by vzalo i „si“)
             const forms = word.length >= 3 ? [word] : [];
             if (FOREIGN_DIACRITICS.test(word)) forms.push(withoutDiacritics(word));
+            // Německý přepis přehlásek: Schönberg = Schoenberg, Müller = Mueller
+            const umlauts = word.replace(/[öüä]/giu, ch => UMLAUTS[ch]);
+            const plain = word.replace(/(?<=\p{L})(oe|ue|ae)/giu, ch => UMLAUTS_BACK[ch.toLowerCase()]);
+            for (const variant of [umlauts, plain]) if (variant !== word && variant.length >= 3) forms.push(variant);
             for (const form of forms) parts.push(escapeRegExp(form));
             for (const stem of getWordStems(word)) {
                 parts.push(escapeRegExp(stem) + (stem.length >= 4 ? '\\p{L}*' : SHORT_STEM_ENDINGS));

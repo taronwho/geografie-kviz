@@ -520,3 +520,10 @@ test('výběr položky: když už bylo všechno, ne ta právě hraná', () => {
         assert.ok(['Q1', 'Q2'].includes(pick.q), pick.q);
     }
 });
+
+test('zakrývání: přídavná jména od míst a německé přehlásky', () => {
+    assert.equal(core.censorName('žije pouze na Kubě a v Mexiku', 'Krokodýl kubánský, Danaus mexický'), 'žije pouze na [***] a v [***]');
+    assert.equal(core.censorName('v Africe', 'Buvol africký'), 'v [***]');
+    assert.equal(core.censorName('Arnold Schönberg', 'Arnold Schoenberg'), '[***]');
+    assert.equal(core.censorName('Mueller', 'Hans Müller'), '[***]');
+});

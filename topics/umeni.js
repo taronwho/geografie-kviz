@@ -237,7 +237,9 @@
             const sameCzech = (item.cz === 1) === (other.cz === 1) ? 1 : -3;
             const land = (f.land && f.land === g.land ? 3 : 0) + (sameWorld(f.land, g.land) ? 1 : 0);
             if (item.c === 'umelci') return artistSimilarity(item, other) + (sameMovement ? 2 : 0) + land + sameCzech;
-            return (f.by && f.by === g.by ? 4 : 0) + (sameMovement ? 3 : 0) + eraNearness(f.y, g.y) + land + sameCzech;
+            // Doba i přes přelom letopočtu (k Apollónovi Belvederskému antické sochy, ne Socha Svobody)
+            const years = f.y !== undefined && g.y !== undefined ? Math.max(0, 4 - Math.abs(f.y - g.y) / 100) : 0;
+            return (f.by && f.by === g.by ? 4 : 0) + (sameMovement ? 3 : 0) + eraNearness(f.y, g.y) + years + land + sameCzech;
         },
         nameAliases: (item, ctx) => item.c === 'umelci' ? artistAliases(item, ctx) : [],
 

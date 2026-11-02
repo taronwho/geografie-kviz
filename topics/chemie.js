@@ -144,7 +144,9 @@
                     // Stejná koncovka názvu: methan – ethan, propan; ethanol – methanol
                     + (normalizeAnswer(item.n).slice(-3) === normalizeAnswer(other.n).slice(-3) ? 1 : 0);
             }
-            return personSimilarity(item, other) + (Boolean(f.nobel) === Boolean(g.nobel) ? 1 : 0);
+            // Osoby: pohlaví a doba, k tomu stejná země (k Sacharovovi sovětští vědci, ne Descartes) a Čech k Čechům
+            return personSimilarity(item, other) + (Boolean(f.nobel) === Boolean(g.nobel) ? 1 : 0)
+                + (f.land && f.land === g.land ? 3 : 0) + ((item.cz === 1) === (other.cz === 1) ? 0 : -3);
         },
 
         specialQuestion: (item, ctx, rng) => {

@@ -319,8 +319,16 @@ for (const qid of characterIds) {
     if (!MUST_CHARACTERS.includes(qid) && typeLabels.some(text => NOT_LITERARY_CHARACTER.test(text)) && !(literary && !typeLabels.some(text => /komiks|mang|anime/u.test(text)))) continue;
     // Dílo: první literární dílo, ve kterém vystupuje (z našich kandidátů); autor z díla, jinak tvůrce postavy
     // Postava musí být i mezi postavami díla, pokud je dílo vypisuje (Pipi ve Wikidatech „vystupuje“ i v Ronje)
-    const workQid = (detail.inWork || []).find(q => workCandidateIds.has(q) && details.get(q) && !isNotLiterature(details.get(q))
-        && (!(details.get(q).characters || []).length || details.get(q).characters.includes(qid)));
+    // Z více děl to nejstarší – první výskyt postavy (Bilbo → Hobit, ne Pán prstenů); dílo se jménem postavy v názvu
+    // přednost, když vyšlo nejvýš 15 let po prvním (Huckleberry Finn → Dobrodružství Huckleberryho Finna, ne Opona u Poirota)
+    const roots = (nameOf(qid) || '').split(/\s+/).filter(word => word.length >= 4).map(word => word.slice(0, 4).toLocaleLowerCase('cs'));
+    const namesCharacter = (q) => (nameOf(q) || '').toLocaleLowerCase('cs').split(/[\s,.:;–-]+/).some(word => roots.some(root => word.startsWith(root)));
+    const inWorks = (detail.inWork || []).filter(q => workCandidateIds.has(q) && details.get(q) && !isNotLiterature(details.get(q))
+        && (!(details.get(q).characters || []).length || details.get(q).characters.includes(qid)))
+        .map(q => ({ q, year: workYearOf(details.get(q)) ?? Infinity }))
+        .sort((a, b) => a.year - b.year);
+    const named = inWorks.find(entry => namesCharacter(entry.q) && inWorks.length && entry.year - inWorks[0].year <= 15);
+    const workQid = (named || inWorks[0] || {}).q;
     const workDetail = workQid ? details.get(workQid) : null;
     const author = ((workDetail && workDetail.author) || []).length === 1 ? workDetail.author[0] : (detail.creator || []).length === 1 ? detail.creator[0] : null;
     // Jen slavné postavy (ne vedlejší postavy Duny nebo Temné věže) a skutečné postavy (ne chór)

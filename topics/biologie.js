@@ -180,7 +180,10 @@
             if (others.length < 3) others = siblings(null);
             if (others.length < 3) return null;
             const wrong = shuffle(others, rng).slice(0, 3);
-            return {
+            // Jednotné číslo řádu: „je brouk“ prozradí brouky, „hlodavec“ hlodavce (kmen z množného čísla „brouc“ ho nenajde)
+    const singularsOf = (name) => name.split(/\s+/).flatMap(word => /ci$/u.test(word) ? [word.slice(0, -2) + 'k', word.slice(0, -2) + 'ec'] : []);
+
+    return {
                 type: 'taxon',
                 title: level.title,
                 showName: true,
@@ -195,7 +198,7 @@
             if (type !== 'taxon') return null;
             const f = item.f || {};
             const hide = (isPlantLike(item) ? [f.fam] : [f.ord, f.fam]).filter(Boolean);
-            return hide.length ? censorName(text, hide.join(', ')) : text;
+            return hide.length ? censorName(text, [...hide, ...hide.flatMap(singularsOf)].join(', ')) : text;
         },
 
         // U „Co je to za zvíře?“ navíc jako poslední nápověda vědecký název (v popisu je zakrytý)

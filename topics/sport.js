@@ -49,7 +49,7 @@
     const SPORT_TERMS = {
         'fotbal': ['fotbal', 'kopan', 'FIFA', 'UEFA', 'Lig\\p{L}* mistrů', 'Zlat\\p{L}* míč', 'gól', 'brank'],
         'lední hokej': ['hokej', 'NHL', 'KHL', 'Stanley', 'puk', 'gól', 'brank'],
-        'tenis': ['tenis', 'Wimbledon', 'grandslam', 'Grand Slam', 'ATP', 'WTA', 'dvouhr', 'čtyřhr', 'Davis', 'Fed Cup', 'Roland', 'US Open', 'Australian Open', 'raket'],
+        'tenis': ['tenis', 'Wimbledon', 'grandslam', 'Grand Slam', 'ATP', 'WTA', 'dvouhr', 'čtyřhr', 'Davis', 'Fed Cup', 'Billie Jean King Cup', 'Roland', 'French Open', 'US Open', 'Australian Open', 'raket'],
         'atletika': ['atlet', 'běž', 'běh', 'sprint', 'oštěp', 'disk', 'koul', 'kladiv', 'skok', 'skáč', 'maraton', 'desetiboj', 'sedmiboj', 'víceboj',
             'tyč', 'překáž', 'chůz', 'chod', 'trojskok', 'výšk', 'dálk', 'IAAF', 'World Athletics'],
         'basketbal': ['basketbal', 'NBA', 'koš', 'pivot', 'rozehráv'],
@@ -322,7 +322,8 @@
     };
     const censorHost = (text, item, ctx) => {
         const country = ((ctx.countries || {})[(item.co || [])[0]] || {}).name;
-        return censorCountry(text, item.f.land, [...hostAnswers(item), country].filter(Boolean));
+        // I zkratky státu („v Atlantě v USA“)
+        return censorCountry(text, item.f.land, [...hostAnswers(item), country, ...((item.co || []).length ? core.getCountryAliases([item.co[0]]) : [])].filter(Boolean));
     };
 
     // --- Sporty a disciplíny ---

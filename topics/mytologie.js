@@ -65,6 +65,20 @@
         return mergeCensored(text.replace(pattern, '[***]'));
     };
     const hide = (text, names) => censorShort(censorName(text, names.join(', ')), names);
+    // Jména dalších postav téže mytologie (u Baldra Ódin, Frigg a Thór) – prozradila by, ze které mytologie je.
+    // Krátká jména (Syn, Hel, Vé) ne, zakryla by běžná slova; i bez diakritiky (Odin = Ódin)
+    const kinIndex = new WeakMap();
+    const kinNames = (item, ctx) => {
+        const side = (item.f || {}).myk;
+        if (!side || !ctx || !ctx.items) return [];
+        if (!kinIndex.has(ctx.items)) kinIndex.set(ctx.items, new Map());
+        const cache = kinIndex.get(ctx.items);
+        if (!cache.has(side)) {
+            const names = ctx.items.filter(other => (other.f || {}).myk === side).map(other => other.n).filter(name => name.length >= 4);
+            cache.set(side, [...new Set([...names, ...names.map(name => name.normalize('NFD').replace(/\p{M}/gu, '').normalize('NFC'))])]);
+        }
+        return cache.get(side).filter(name => name !== item.n);
+    };
 
     // --- Pomocníci nad daty ---
     const indexes = new WeakMap();
@@ -246,9 +260,9 @@
             return a.myk && roll >= 1 - MYTH_QUIZ_SHARE ? mythQuestion(item, rng) : null;
         },
         // U protějšku zmizí protějšek, u mytologie i slova, která ji prozradí; u jména jméno, další tvary a protějšek
-        censor: (type, text, item) => {
+        censor: (type, text, item, ctx) => {
             if (type === 'counterpart') return hide(text, counterpartNames(item));
-            if (type === 'myth') return mergeCensored(hide(text, counterpartNames(item)).replace(MYTH_WORDS, '[***]'));
+            if (type === 'myth') return mergeCensored(hide(text, [...counterpartNames(item), ...kinNames(item, ctx)]).replace(MYTH_WORDS, '[***]'));
             const names = nameList(item);
             return hide(text, [...names, ...names.flatMap(inflections), ...counterpartNames(item)]);
         },

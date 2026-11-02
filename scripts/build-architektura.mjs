@@ -406,9 +406,14 @@ const styleOfArchitect = (q, detail) => {
     const keys = new Set((detail.movement || []).map(styleKeyOf).filter(key => key && key !== 'jiny'));
     return keys.size === 1 ? [...keys][0] : undefined;
 };
+// Země: z občanství nebo místa narození ta, kterou uvádí popis („český architekt“) – pořadí občanství ve Wikidatech
+// je náhodné (Josef Hoffmann by jinak byl ze Spojených států)
 const countryName = (detail) => {
     const list = (detail.cit || []).filter(isQid);
-    const current = list.find(q => countries[q]);
+    const words = (detail.d || '').toLocaleLowerCase('cs').split(/[\s,-]+/);
+    const described = [...list, ...(detail.bornIn || [])].filter(q => countries[q])
+        .find(q => words.some(word => word.startsWith(countries[q].name.slice(0, 4).toLocaleLowerCase('cs'))));
+    const current = described || list.find(q => countries[q]);
     return current ? countries[current].name : list.map(cs).find(Boolean);
 };
 // Známí jinak než stavbami (diplomat Wallenberg, umělec Aj Wej-wej, plavec Hajós, filolog Ventris, Olena Zelenská)

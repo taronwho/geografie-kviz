@@ -123,7 +123,7 @@
         return item.c === 'jezero' ? 'Mezinárodní vody' : 'Mimo území států';
     };
 
-    return {
+    const topic = {
         id: 'zemepis',
         title: 'Zeměpis',
         icon: 'globe-2',
@@ -222,6 +222,12 @@
 
         subtitle,
         coords: (item) => ({ lat: item.la, lon: item.lo }),
-        isCzech: (item) => (item.co || []).includes(CZECHIA_QID)
+        isCzech: (item) => (item.co || []).includes(CZECHIA_QID),
+
+        // U otázky „ve kterém státě“ by slepá mapa odpověď skoro prozradila – proto až po kontinentu a číslech
+        hints: (item, ctx, type) => type === 'location'
+            ? [{ kind: 'photo' }, { kind: 'facts', facts: topic.facts(item, ctx, type) }, { kind: 'visual', spec: topic.visual(item, ctx, type) }]
+            : null
     };
+    return topic;
 });

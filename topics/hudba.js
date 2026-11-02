@@ -300,6 +300,14 @@
     };
     const categoryOne = (item) => (CATEGORIES.find(category => category.key === item.c) || {}).one || '';
 
+    // Píseň vedená jako skladba (Happy Birthday) patří k písním; jevištní díla (opera, opereta, balet, muzikál) zvlášť
+    const workKind = (item) => {
+        const ty = (item.ty || '').toLocaleLowerCase('cs');
+        if (/opera|opereta|balet|muzikál|oratorium/.test(ty)) return 'jeviste';
+        if (/píseň|popěvek|hymna|koleda/.test(ty)) return 'pisen';
+        return (item.f || {}).kind;
+    };
+
     return {
         id: 'hudba',
         title: 'Hudba',
@@ -327,7 +335,8 @@
             if (f.per && f.per === g.per) score += 2;
             if (item.gr && item.gr === other.gr) score += 3;
             score += decadeNearness(f.y, g.y);
-            if (item.c === 'dila') score += (f.byq && f.byq === g.byq ? 4 : 0) + (f.kind === g.kind ? 3 : 0);
+            // Druh díla podle štítku (opereta k operetě a opeře, ne k narozeninové písničce)
+            if (item.c === 'dila') score += (f.byq && f.byq === g.byq ? 4 : 0) + (workKind(item) === workKind(other) ? 3 : -2) + (item.ty && item.ty === other.ty ? 3 : 0);
             score += (item.cz === 1) === (other.cz === 1) ? 2 : -3;
             return score;
         },

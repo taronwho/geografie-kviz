@@ -73,8 +73,14 @@
     };
 
     // Fakta: roky se u otázky na století vynechají (prozradily by odpověď)
-    const factsOf = (item, mode) => {
-        const f = item.f || {};
+    // Místo války, která se vedla ve více státech, nesmí být jen jeden z nich (Válka v Pásmu Gazy → Írán)
+    const placeOf = (item, countries) => {
+        const place = (item.f || {}).place;
+        const names = countries ? getCountryNames(item, countries) : [];
+        return place && names.length > 2 && names.includes(place) ? undefined : place;
+    };
+    const factsOf = (item, mode, countries) => {
+        const f = { ...(item.f || {}), place: placeOf(item, countries) };
         const withYears = mode !== 'century';
         // Po odpovědi a v atlasu i století, ať se dá učit
         const [from, to] = periodOf(item);
@@ -86,7 +92,7 @@
         }
         if (item.c === 'bitva') {
             const facts = withYears ? [{ label: f.end ? 'Doba' : 'Rok', value: range(f.year, f.end) }] : [];
-            return [...facts, ...century, ...formatFacts(item, [['war', 'Součást', v => v], ['place', 'Místo', v => v]])];
+            return [...facts, ...century, ...formatFacts({ ...item, f }, [['war', 'Součást', v => v], ['place', 'Místo', v => v]])];
         }
         const facts = withYears ? [{ label: 'Doba trvání', value: range(f.from, f.to) }] : [];
         return [...facts, ...century, ...formatFacts(item, [['cap', 'Hlavní město', v => v]])];
@@ -199,8 +205,11 @@
         const f = item.f || {};
         if (isPerson(item)) {
             const spans = [];
-            if (f.born !== undefined && f.died !== undefined) spans.push({ kind: 'life', from: f.born, to: f.died });
-            if (f.from !== undefined) spans.push({ kind: 'reign', from: f.from, to: f.to ?? f.died ?? f.from });
+            // Žijící (narozen před méně než 100 lety, bez úmrtí): život i úřad až do dneška
+            const alive = f.died === undefined && f.born !== undefined && f.born > THIS_YEAR - 100;
+            const died = alive ? THIS_YEAR : f.died;
+            if (f.born !== undefined && died !== undefined) spans.push({ kind: 'life', from: f.born, to: died });
+            if (f.from !== undefined) spans.push({ kind: 'reign', from: f.from, to: f.to ?? (alive ? THIS_YEAR : f.died ?? f.from) });
             return spans.length ? { type: 'timeline', spans, points: [], hide: item.n, spanLabel: categoryOf(item).spanLabel } : null;
         }
         if (item.c === 'bitva') {
@@ -228,8 +237,11 @@
             .map(other => ({ other, score: score(other) }))
             .sort((a, b) => b.score - a.score || fameOf(a.other, ctx) - fameOf(b.other, ctx))
             .slice(0, count).map(({ other }) => other.n);
-        const people = pick(ctx.items.filter(other => isPerson(other) && other.f && other.f.born <= year && year <= other.f.died),
-            other => (sameHistory(other) ? 2 : 0), 3);
+        // Současníci, kteří byli tehdy činní (vládli, tvořili), ne jen naživu – ke Si Ťin-pchingovi ne Thatcherová
+        const activeYear = (other) => other.f.from ?? other.f.y ?? other.f.born + 40;
+        const people = pick(ctx.items.filter(other => isPerson(other) && other.f && other.f.born <= year && year <= (other.f.died ?? THIS_YEAR)
+            && Math.abs(activeYear(other) - year) <= 30),
+            other => (sameHistory(other) ? 2 : 0) - Math.abs(activeYear(other) - year) / 15, 3);
         const events = pick(ctx.items.filter(other => other.c === 'bitva' && other.f && Math.abs(other.f.year - year) <= 10),
             other => (item.f.war && other.f.war === item.f.war ? 3 : 0) + (sameHistory(other) ? 1 : 0), 2);
         return [
@@ -251,7 +263,7 @@
             const life = f.born !== undefined ? range(f.born, f.died) : '';
             return [life, f.land].filter(Boolean).join(' · ') || categoryOf(item).one;
         }
-        if (item.c === 'bitva') return [range(f.year, f.end), f.place || getCountryNames(item, countries)[0]].filter(Boolean).join(' · ');
+        if (item.c === 'bitva') return [range(f.year, f.end), placeOf(item, countries) || getCountryNames(item, countries)[0]].filter(Boolean).join(' · ');
         return range(f.from, f.to);
     };
 
@@ -285,6 +297,9 @@
             const g = other.f || {};
             let score = isPerson(item) ? personSimilarity(item, other) : eraNearness(f.y, g.y);
             if (isPerson(item) && f.dyn && f.dyn === g.dyn) score += 1;
+            // Osoby: blízká doba i v rámci století (k Disraelimu Gladstone, ne Sunak) a stejná země
+            if (isPerson(item) && f.y !== undefined && g.y !== undefined) score += Math.max(0, 3 - Math.abs(f.y - g.y) / 30);
+            if (isPerson(item) && f.land && f.land === g.land) score += 2;
             if (item.c === 'bitva' && f.war && f.war === g.war) score += 3;
             const regions = cachedRegions(item);
             if (regions.length && cachedRegions(other).some(region => regions.includes(region))) score += 2;
@@ -333,7 +348,7 @@
 
         visual: visualOf,
         regionsOf,
-        facts: (item, ctx, mode) => factsOf(item, mode),
+        facts: (item, ctx, mode) => factsOf(item, mode, ctx.countries),
         subtitle,
         coords: (item) => item.la !== undefined ? { lat: item.la, lon: item.lo } : null,
         isCzech: (item) => item.cz === 1

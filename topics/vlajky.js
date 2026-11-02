@@ -202,9 +202,15 @@
             return score;
         },
         nameAliases: (item) => aliasesOf(item),
-        censor: (type, text, item) => {
+        censor: (type, text, item, ctx) => {
             if (type !== 'name') return null;
             if (item.c === 'cesko') return czechDescription(item);
+            // U území i stát, ke kterému patří („dánského závislého území“, „federálních států USA“) – je až poslední nápovědou
+            const owner = !isState(item) && ctx && ctx.countries && ctx.countries[(item.co || [])[0]];
+            if (owner) {
+                const own = censorCountry(text, item.n, [...aliasesOf(item), ...(item.cw || [])]);
+                return censorCountry(own, owner.name, getCountryAliases([item.co[0]]));
+            }
             // I hlavní město – úvod článku o vlajce ho občas zmíní
             const capital = isState(item) && item.f && item.f.cap ? item.f.cap.split(', ') : [];
             const nicknames = isState(item) ? NICKNAMES[item.co[0]] || [] : [];
