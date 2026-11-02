@@ -2399,6 +2399,49 @@
         if (zoom && zoom.dataset.url) openPhotoZoom(zoom.dataset.url);
     });
     // Escape zavře nejdřív okno s popisem, pak výběr co hrát, pak nastavení
+    // Tlačítko Zpět na mobilu jako zpět v aplikaci: mimo čistou úvodní obrazovku drží aplikace v historii prohlížeče jeden
+    // krok navíc. Zpět ho spotřebuje a aplikace udělá svůj krok zpět (zavře okno, z otázky domů, v učení o úroveň výš);
+    // teprve na úvodní obrazovce Zpět aplikaci opustí. Krok se doplní či odebere po každé změně obrazovky nebo okna.
+    const OVERLAY_IDS = ['photo-zoom', 'place-info', 'play-chooser', 'settings-overlay'];
+    const atRoot = () => (screen === 'home' || screen === 'welcome') && !OVERLAY_IDS.some(id => document.getElementById(id));
+    let skipNextPop = false;
+    const syncHistory = () => {
+        const guarded = Boolean(history.state && history.state.mudrlantBack);
+        if (!atRoot() && !guarded) history.pushState({ mudrlantBack: true }, '');
+        else if (atRoot() && guarded && !skipNextPop) {
+            skipNextPop = true;
+            history.back();
+        }
+    };
+    const goBack = () => {
+        if (document.getElementById('photo-zoom')) closePhotoZoom();
+        else if (document.getElementById('place-info')) closePlaceInfo();
+        else if (document.getElementById('play-chooser')) closeChooser();
+        else if (document.getElementById('settings-overlay')) closeSettings();
+        else if (isLoading) return;
+        else if (screen === 'round') {
+            const fromLearn = mode === 'practice' && (pool.kind === 'collection' || pool.kind === 'mistakes');
+            if (fromLearn) openLearn(pool.kind === 'mistakes' ? 'mistakes' : learn.view);
+            else renderHome();
+        } else if (screen === 'learn') {
+            const up = { atlas: 'collection', collection: 'topic', topic: 'home', mistakes: 'home' }[learn.view];
+            if (up) openLearn(up);
+            else renderHome();
+        }
+    };
+    window.addEventListener('popstate', () => {
+        if (skipNextPop) {
+            skipNextPop = false;
+            syncHistory();
+            return;
+        }
+        goBack();
+        syncHistory();
+    });
+    const historyObserver = new MutationObserver(() => syncHistory());
+    historyObserver.observe(appContent, { childList: true });
+    historyObserver.observe(document.body, { childList: true });
+
     document.addEventListener('keydown', (event) => {
         if (event.key !== 'Escape') return;
         if (document.getElementById('photo-zoom')) closePhotoZoom();

@@ -1010,6 +1010,42 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         await new Promise(resolve => server.close(resolve));
     });
 
+    await t.test('tlačítko Zpět na mobilu vrací v aplikaci, na úvodní obrazovce ji teprve opustí', async () => {
+        const { context, tab, log } = await setup(browser);
+        await tab.goto(`${ORIGIN}/`);
+        await waitForHome(tab);
+        const guarded = () => tab.evaluate(() => Boolean(history.state && history.state.mudrlantBack));
+        assert.equal(await guarded(), false, 'na úvodní obrazovce žádný krok navíc – Zpět aplikaci zavře');
+
+        // Z otázky zpět domů
+        await tab.click('[data-action="daily"][data-topic="zemepis"]');
+        await waitForQuestion(tab);
+        assert.equal(await guarded(), true);
+        await tab.goBack();
+        await waitForHome(tab);
+        assert.equal(await guarded(), false);
+
+        // Otevřené okno (nastavení) se zavře, obrazovka zůstane
+        await tab.click('#btn-settings');
+        await tab.waitForSelector('#settings-overlay');
+        await tab.goBack();
+        await tab.waitForSelector('#settings-overlay', { state: 'detached' });
+        await waitForHome(tab);
+
+        // Učení: o úroveň výš, pak domů
+        await tab.click('#btn-learn');
+        await tab.waitForSelector('[data-action="learn-topic"][data-topic="zemepis"]');
+        await tab.click('[data-action="learn-topic"][data-topic="zemepis"]');
+        await tab.waitForSelector('[data-action="learn-collection"]');
+        await tab.goBack();
+        await tab.waitForSelector('[data-action="learn-topic"][data-topic="zemepis"]');
+        await tab.goBack();
+        await waitForHome(tab);
+        await tab.waitForFunction(() => !(history.state && history.state.mudrlantBack));
+        assert.deepEqual(log.errors, []);
+        await context.close();
+    });
+
     await t.test('tmavý režim', async () => {
         const { context, tab, log } = await setup(browser, { colorScheme: 'dark' });
         await tab.goto(`${ORIGIN}/`);
