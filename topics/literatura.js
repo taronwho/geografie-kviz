@@ -193,8 +193,9 @@
         const near = (list, score) => list.filter(other => other.q !== item.q && other.k === 1 && !/\d/.test(other.n) && other.q !== f.byq)
             .sort((a, b) => score(b) - score(a) || fame.get(a.q) - fame.get(b.q)).slice(0, 3).map(other => other.n);
         if (item.c === 'spisovatele') {
-            return near(ctx.items.filter(other => other.c === 'spisovatele' && other.f.born <= year && year <= (other.f.died ?? THIS_YEAR)),
-                other => (other.f.land === f.land ? 1 : 0));
+            // Stejná generace (narození do 30 let od sebe), nejdřív ze stejné země a mezi cizími cizí (k Murakamimu ne samí Češi)
+            return near(ctx.items.filter(other => other.c === 'spisovatele' && other.f.born !== undefined && Math.abs(other.f.born - year) <= 30),
+                other => (other.f.land === f.land ? 2 : 0) + ((other.cz === 1) === (item.cz === 1) ? 1 : 0) - Math.abs(other.f.born - year) / 20);
         }
         return near(ctx.items.filter(other => other.c === 'dila' && other.f.year !== undefined && Math.abs(other.f.year - year) <= 15 && other.f.byq !== f.byq),
             other => (other.f.lang === f.lang ? 1 : 0));

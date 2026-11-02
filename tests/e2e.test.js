@@ -129,7 +129,8 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         await waitForQuestion(tab);
         const data = await readRound(tab);
         assert.equal(data.known, true, 'dnešní otázka je ze známých');
-        assert.deepEqual(hintKeys(data), ['photo', 'visual', 'facts']);
+        assert.equal(data.question.type, 'location');
+        assert.deepEqual(hintKeys(data), ['photo', 'facts', 'visual']);
         assert.equal(await tab.textContent('#status-text'), 'Zeměpis · 16. 10.');
         assert.equal(await tab.locator('[data-action="choice"]').count(), 4);
         assert.equal(await tab.locator('#answer-input').count(), 0, 've variantě s možnostmi není pole pro psaní');
@@ -154,17 +155,17 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         const answerTop = await tab.locator('[data-action="choice"]').first().boundingBox();
         assert.equal(await tab.locator('#app-content section img').count(), 0);
 
-        // 2. nápověda: slepá mapa bez popisků s obrysy států
+        // 2. nápověda u otázky na stát: kontinent a čísla (slepá mapa by stát skoro prozradila, je až poslední)
+        await tab.click('[data-action="hint"]');
+        await tab.waitForSelector('[data-action="hint-tab"][data-step="facts"][aria-selected="true"]');
+        assert.match(await appText(tab), /Kontinent/);
+
+        // 3. nápověda: slepá mapa bez popisků s obrysy států, další už není
         await tab.click('[data-action="hint"]');
         await tab.waitForSelector('#hint-visual svg path');
         assert.ok(await tab.locator('#hint-visual svg path').count() >= 3, 'obrysy okolních států');
         assert.equal(await tab.locator('#hint-visual svg text').count(), 0, 'žádné popisky');
         assert.match(await appText(tab), /↔ [\d\s ]+ km/);
-
-        // 3. nápověda: čísla a fakta, další už není
-        await tab.click('[data-action="hint"]');
-        await tab.waitForSelector('[data-action="hint-tab"][data-step="facts"][aria-selected="true"]');
-        assert.match(await appText(tab), /Kontinent/);
         assert.equal(await tab.locator('[data-action="hint"]').count(), 0);
         assert.match(await appText(tab), /Nápovědy 3\/3/);
         assert.equal((await tab.locator('[data-action="choice"]').first().boundingBox()).y, answerTop.y);
@@ -314,7 +315,8 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
             assert.equal(data.name, name);
             assert.equal(data.photoUrl, null);
             assert.match(await appText(tab), /Nápovědy 0\/2/);
-            assert.match(await tab.textContent('[data-action="hint"]'), /slepá mapa/i);
+            // Bez fotky začínají nápovědy mapou, u otázky na stát fakty
+            assert.match(await tab.textContent('[data-action="hint"]'), data.question.type === 'location' ? /čísla a fakta/i : /slepá mapa/i);
             await tab.click('[data-action="give-up"]');
             await waitForResult(tab);
         }

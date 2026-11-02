@@ -90,7 +90,10 @@
     };
 
     // Na stát se ptáme jen u míst v jednom známém státě, ne u států a ne když stát prozradí už název (Česká Lípa, Pražský hrad)
+    const SEA_TYPES = new Set(['oceán', 'moře', 'průliv', 'zátoka']);
     const canAskForCountry = (item, countries, items = []) => {
+        // Moře, zálivy a průlivy omývají víc států (Finský záliv i Estonsko) – otázka by neměla jednu správnou odpověď
+        if (SEA_TYPES.has(item.ty)) return false;
         if (item.c === 'stat' || (item.co || []).length !== 1 || !countries[item.co[0]] || isSharedName(item, items)) return false;
         const countryId = item.co[0];
         if (DISPUTED.has(countryId) || (countryId === ISRAEL && item.la !== undefined && distanceKm(item, JERUSALEM) < 25)) return false;

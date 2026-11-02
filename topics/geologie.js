@@ -239,6 +239,9 @@
         && (item.k === 1 || MOHS.some(([, , name]) => name === item.n));
 
     // --- Zakrytí v popisu ---
+    const dropFormula = (text) => text
+        .replace(/,\s*(?:chemick\p{L}+\s+)?vzorec\s+[^\s,]*\d[^\s,]*,/giu, '')
+        .replace(/(?<![\p{L}])(?:Chemický\s+)?[Vv]zorec\s+(?:je\s+)?[^\s]*\d[^\s]*?\.\s*/gu, '');
     const tidy = (text) => stripBrackets(text).replace(/\s{2,}/g, ' ').replace(/\s+([,;.?!])/g, '$1');
     // U otázky na tvrdost čísla a pořadí ve větách o tvrdosti (kalcit je „třetím“ nerostem stupnice, mastek „nejměkčí“)
     const HARDNESS_SENTENCE = /tvrdost|Mohs|stupnic|nejměkč|nejtvrdš/i;
@@ -386,11 +389,13 @@
             if (item.c === 'horniny') return { file: item.im, hash: item.ih, label: 'Hornina', icon: 'mountain' };
             return null;
         },
+        // Vzorec v úvodu článku přijde bez indexů zkomolený („Al2{SiO42}“, „Cu322“) a je až poslední nápovědou – z popisu zmizí
         censor: (type, text, item) => {
-            if (type === 'hardness') return hideHardness(text);
-            if (type === 'formula') return hideFormula(text, item.f.formula);
-            if (type === 'group') return hideGroup(text);
-            return null;
+            const clean = dropFormula(text);
+            if (type === 'hardness') return hideHardness(clean);
+            if (type === 'formula') return hideFormula(clean, item.f.formula);
+            if (type === 'group') return hideGroup(clean);
+            return censorName(clean, [item.n, ...((item.f || {}).al || [])].join(', '));
         },
         hints: hintsOf,
         visual: visualOf,

@@ -203,7 +203,8 @@
     const mergeCensored = (text) => text.replace(/\[\*\*\*\](?:[\s\-–]+\[\*\*\*\])+/g, '[***]');
 
     const censorName = (text, name) => {
-        const res = stripBrackets(text).replace(/\s{2,}/g, ' ');
+        // Po vypuštěné závorce nezůstane „ ,“ ani „,,“
+        const res = stripBrackets(text).replace(/\s{2,}/g, ' ').replace(/\s+(?=[,.;:])/g, '').replace(/([,;])[,;]+/g, '$1');
         return mergeCensored(censorWords(res, name));
     };
 
@@ -468,8 +469,12 @@
     // Místa státu, který leží na dvou kontinentech nebo má zámoří (Sibiř, Ankara, Réunion, Tahiti), podle polohy;
     // stát sám podle tabulky států (Rusko je evropský stát)
     const getContinent = (item, countries) => {
-        const country = (item.co || []).map(id => countries[id]).find(c => c && c.continent);
-        const continent = country ? country.continent : '';
+        // U více států kontinent většiny (Polynésie: Oceánie, ne Severní Amerika podle USA na prvním místě), bez většiny žádný
+        const known = (item.co || []).map(id => countries[id]).filter(c => c && c.continent);
+        const counts = new Map();
+        for (const c of known) counts.set(c.continent, (counts.get(c.continent) || 0) + 1);
+        const [top, topCount] = [...counts].sort((a, b) => b[1] - a[1])[0] || ['', 0];
+        const continent = known.length <= 1 ? (known[0] ? known[0].continent : '') : (topCount * 2 > known.length || top === known[0].continent && topCount * 2 === known.length ? top : '');
         if (!continent || item.c === 'stat' || item.la === undefined || item.lo === undefined) return continent;
         if (continent === 'EU') return continentAt(item.la, item.lo);
         if (continent === 'AS' && isClearlyEurope(item.la, item.lo)) return 'EU';
