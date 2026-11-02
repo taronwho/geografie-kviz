@@ -548,3 +548,9 @@ test('nápověda nezopakuje vlastní jméno z popisu ani v jiném tvaru (Tolkien
     assert.equal(core.isFactVisible('Mona Lisa, Poslední večeře', 'namaloval Monu Lisu'), false, 'seznam jen když jsou vidět všechny');
     assert.equal(core.isFactVisible('Jižní Amerika', 'žije v Jižní Koreji'), false);
 });
+
+test('zakrývání: iniciály před jménem patří ke jménu (C. S. Lewis, J. R. R. Tolkien)', () => {
+    assert.equal(core.censorName('série Letopisy Narnie C. S. Lewise. Je nejmladší.', 'Clive Staples Lewis'), 'série Letopisy Narnie [***]. Je nejmladší.');
+    assert.equal(core.censorName('spisovatele J. R. R. Tolkiena.', 'John Ronald Reuel Tolkien'), 'spisovatele [***].');
+    assert.equal(core.mergeCensored('Žil v USA. [***] přišel.'), 'Žil v USA. [***] přišel.', 'konec věty není iniciála');
+});

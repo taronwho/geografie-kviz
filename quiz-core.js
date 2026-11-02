@@ -205,7 +205,10 @@
     };
 
     // Sousední zakrytá slova jako jeden blok – podle počtu [***] by šlo poznat, z kolika slov se odpověď skládá
-    const mergeCensored = (text) => text.replace(/\[\*\*\*\](?:[\s\-–]+\[\*\*\*\])+/g, '[***]');
+    // Iniciály těsně před zakrytým jménem (C. S. [***], J. R. R. [***]) by jméno prozradily – patří k němu
+    const mergeCensored = (text) => text
+        .replace(/(?<![\p{L}\d])(?:\p{Lu}\.\s?){1,4}(?=\[\*\*\*\])/gu, '')
+        .replace(/\[\*\*\*\](?:[\s\-–]+\[\*\*\*\])+/g, '[***]');
 
     const censorName = (text, name) => {
         // Po vypuštěné závorce nezůstane „ ,“ ani „,,“
