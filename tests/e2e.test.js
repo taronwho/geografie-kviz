@@ -123,6 +123,7 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         await tab.goto(`${ORIGIN}/`);
         await waitForHome(tab);
         assert.match(await tab.textContent('[data-action="daily"][data-topic="zemepis"]'), /čeká/);
+        assert.match(await tab.textContent('[data-action="play-daily"]'), /Hrát dnešní otázky\s*· zbývá 14/);
         assert.equal(await tab.textContent('#status-text'), 'Mudrlant · 16. 10.');
 
         await tab.click('[data-action="daily"][data-topic="zemepis"]');
@@ -204,10 +205,13 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         const shared = await tab.evaluate(() => navigator.clipboard.readText());
         assert.equal(shared, 'Mudrlant · 🌍 Zeměpis · 16. 10. 2026\n✅ 1 bod · nápovědy 3/3\n🔥 Série: 1\nhttps://geo.test/');
 
-        // Zpět na dnešní otázky: zeměpis je odehraný a série běží
-        await tab.click('[data-action="next"]');
+        // Po dnešní otázce nabízí další dnešní otázku z jiného tématu, nebo návrat do menu
+        assert.match(await tab.textContent('[data-action="next"]'), /Další dnešní: Vlajky a znaky/);
+        await tab.click('[data-action="daily-home"]');
         await waitForHome(tab);
+        // Zeměpis je odehraný a série běží; tlačítko nahoře pokračuje ve zbývajících dnešních otázkách
         assert.match(await tab.textContent('[data-action="daily"][data-topic="zemepis"]'), /1 bod\s*1/);
+        assert.match(await tab.textContent('[data-action="play-daily"]'), /Pokračovat v dnešních otázkách\s*· zbývá 13/);
 
         // Odehraná dnešní otázka zůstane uložená i po obnovení stránky
         const requestsBefore = log.wiki.length;
@@ -954,6 +958,56 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         assert.deepEqual(await tab.evaluate(list => Promise.all(list.map(file => fetch(file).then(response => response.status))), files), files.map(() => 200));
         assert.deepEqual(log.errors, []);
         await context.close();
+    });
+
+    await t.test('nová verze se do otevřené aplikace dostane sama i tlačítkem Aktualizovat', async () => {
+        // Jako GitHub Pages: soubory platí v mezipaměti prohlížeče 10 minut, každé nasazení má jiný service worker a verzi
+        let build = 'aaaaaaa';
+        const server = http.createServer((request, response) => {
+            const pathname = new URL(request.url, 'http://localhost').pathname;
+            let { status, headers, body } = serveFile(pathname);
+            if (pathname === '/version.json') ({ status, headers, body } = { status: 200, headers: { 'content-type': 'application/json' }, body: JSON.stringify({ built: '2026-11-02T18:00:00Z', commit: build }) });
+            if (pathname === '/sw.js') body = String(body).replace("const CACHE_NAME = 'mudrlant-v3';", `const CACHE_NAME = 'mudrlant-${build}';`);
+            if (pathname === '/app.js') body = `${body}\nwindow.__build = '${build}';`;
+            response.writeHead(status, { ...headers, 'cache-control': 'max-age=600' });
+            response.end(body);
+        });
+        await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+        const origin = `http://127.0.0.1:${server.address().port}`;
+        const { context, tab, log } = await setup(browser, { origin, serviceWorkers: 'allow' });
+        await tab.goto(`${origin}/`);
+        await waitForHome(tab);
+        await tab.waitForFunction(() => Boolean(navigator.serviceWorker.controller));
+        assert.equal(await tab.evaluate(() => window.__build), 'aaaaaaa');
+        const versionShown = async () => {
+            await tab.click('#btn-settings');
+            await tab.waitForFunction(() => /·/.test(document.getElementById('app-version').textContent));
+            return tab.textContent('#app-version');
+        };
+        assert.match(await versionShown(), /aaaaaaa/);
+
+        // Nasazení: tlačítko Aktualizovat načte novou verzi, i když prohlížeč má staré soubory ještě 10 minut platné
+        build = 'bbbbbbb';
+        let loads = 0;
+        tab.on('load', () => { loads++; });
+        await Promise.all([tab.waitForEvent('load'), tab.click('[data-update-app]')]);
+        await waitForHome(tab);
+        await tab.waitForFunction(() => window.__build === 'bbbbbbb');
+        await tab.waitForFunction(() => navigator.serviceWorker.controller && navigator.serviceWorker.controller.state === 'activated');
+        await tab.waitForTimeout(500);
+        assert.equal(loads, 1, 'stránka se obnoví jen jednou');
+        assert.match(await versionShown(), /bbbbbbb/);
+
+        // Další nasazení: stačí se do aplikace vrátit (z pozadí) – nový service worker stránku sám obnoví
+        build = 'ccccccc';
+        await tab.click('[data-close]');
+        await Promise.all([tab.waitForEvent('load'), tab.evaluate(() => document.dispatchEvent(new Event('visibilitychange')))]);
+        await waitForHome(tab);
+        await tab.waitForFunction(() => window.__build === 'ccccccc');
+        assert.deepEqual(log.errors, []);
+        await context.close();
+        server.closeAllConnections();
+        await new Promise(resolve => server.close(resolve));
     });
 
     await t.test('tmavý režim', async () => {

@@ -196,6 +196,11 @@
         if (abbreviations.length) {
             res = res.replace(new RegExp(NOT_LETTER_BEFORE + '(?:' + abbreviations.map(escapeRegExp).join('|') + ')' + NOT_LETTER_AFTER, 'gu'), '[***]');
         }
+        // Dvoupísmenné slovo s velkým písmenem (Medvídek Pú, Ang Lee) jako celé slovo a jen s velkým písmenem
+        const shortCapitals = words.filter(word => /^\p{Lu}\p{Ll}$/u.test(word) && !CENSOR_SKIP_WORDS.has(word.toLowerCase()));
+        if (shortCapitals.length) {
+            res = res.replace(new RegExp(NOT_LETTER_BEFORE + '(?:' + shortCapitals.map(escapeRegExp).join('|') + ')' + NOT_LETTER_AFTER, 'gu'), '[***]');
+        }
         return res;
     };
 
@@ -613,6 +618,18 @@
     const isFactVisible = (value, text) => {
         // Rok, který už je v popisu („z roku 1980“ a fakt Rok 1980)
         if (/^\d{3,4}$/.test(String(value).trim())) return new RegExp(`(?<!\\d)${String(value).trim()}(?!\\d)`).test(text);
+        // Číslo s jednotkou, které už je v popisu („Je dlouhá 47 km“ a fakt Délka 47 km; „1 042 km²“ = „1042 km2“)
+        const measure = String(value).trim().match(/^(\d[\d\s\u00a0\u202f]*(?:,\d+)?)\s*([^\d\s].*)?$/u);
+        if (measure) {
+            const joined = (number) => number.replace(/(\d)[\s\u00a0\u202f]+(?=\d{3}(?!\d))/gu, '$1');
+            const number = joined(measure[1].trim());
+            const unit = (measure[2] || '').replace(/[^\p{L}]/gu, '');
+            const plain = joined(text);
+            const after = unit ? `\\s*(?:${unit}(?![\\p{L}])|${unit.slice(0, 1)}\\p{L}*)` : '';
+            if ((unit || number.replace(/\D/g, '').length >= 4)
+                && new RegExp(`(?<![\\d,])${escapeRegExp(number)}(?![\\d]|,\\d)${after}`, 'iu').test(plain)) return true;
+            if (/^[\d\s\u00a0\u202f,]+$/u.test(String(value).trim())) return false;
+        }
         const haystack = normalizeAnswer(text);
         const significant = (word) => word.length >= 4 && !/^\d+$/.test(word);
         const textWords = haystack.split(' ').filter(significant);

@@ -527,3 +527,14 @@ test('zakrývání: přídavná jména od míst a německé přehlásky', () => 
     assert.equal(core.censorName('Arnold Schönberg', 'Arnold Schoenberg'), '[***]');
     assert.equal(core.censorName('Mueller', 'Hans Müller'), '[***]');
 });
+
+test('zakrývání: dvoupísmenné slovo jména (Medvídek Pú) jen s velkým písmenem', () => {
+    assert.equal(core.censorName('Medvídek Pú je postava. Pú je milý.', 'Medvídek Pú'), '[***] je postava. [***] je milý.');
+    assert.equal(core.censorName('Lee natočil film, ale pú ne.', 'Ang Lee'), '[***] natočil film, ale pú ne.');
+});
+
+test('fakt s číslem, které už je v popisu, se jako nápověda vynechá', () => {
+    const text = 'Forth je řeka. Je dlouhá 47 km a její povodí má 1 042 km², žije v něm 178 133 lidí.';
+    for (const value of ['47 km', '1 042 km²', '178 133']) assert.equal(core.isFactVisible(value, text), true, value);
+    for (const value of ['48 km', '2 241 m', 'Asie']) assert.equal(core.isFactVisible(value, text), false, value);
+});

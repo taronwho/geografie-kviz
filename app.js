@@ -370,7 +370,8 @@
         const custom = ctx.topic.censor ? ctx.topic.censor(type, text, item, ctx) : null;
         if (custom !== null && custom !== undefined) return custom;
         const aliases = ctx.topic.nameAliases ? ctx.topic.nameAliases(item, ctx) : [];
-        return hideNicknames(censorName(text, specificWords([item.n, displayName(item.t), ...aliases])), item);
+        const names = [item.n, displayName(item.t), ...aliases];
+        return hideNicknames(mergeCensored(absorbGenericWords(censorName(text, specificWords(names)), names)), item);
     };
     // Obecná slova názvu (poloostrov, národní park, řeka, bitva) v popisu zůstanou – nic neprozradí a bez nich by věta
     // nedávala smysl („Malajský poloostrov je [***] v jihovýchodní Asii“)
@@ -384,6 +385,19 @@
         const kept = words.filter(word => !GENERIC_NAME_WORDS.has(word.toLocaleLowerCase('cs')));
         return kept.length ? kept.join(' ') : name;
     }).join(', ');
+    // Obecné slovo názvu hned vedle zakryté části zmizí s ní („[***] park“ u Jurského parku, „Národní park [***]“) –
+    // samostatně („je národní park v…“) zůstane
+    const escapeRegExp = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const absorbGenericWords = (text, names, mark = '[***]') => {
+        const generic = [...new Set(names.filter(Boolean).flatMap(name => name.split(/\s+/))
+            .filter(word => GENERIC_NAME_WORDS.has(word.toLocaleLowerCase('cs'))))];
+        if (!generic.length || !text.includes(mark)) return text;
+        const stems = generic.map(word => escapeRegExp(word.slice(0, Math.max(3, word.length - 2)))).join('|');
+        const markPattern = escapeRegExp(mark);
+        const after = new RegExp(`${markPattern}(?:\\s+(?:${stems})\\p{L}*(?![\\p{L}]))+`, 'giu');
+        const before = new RegExp(`(?<![\\p{L}])(?:(?:${stems})\\p{L}*\\s+)+${markPattern}`, 'giu');
+        return text.replace(after, mark).replace(before, mark);
+    };
     // Přezdívka nebo rodné jméno, které začíná stejně jako jméno (Bert a Berthold u Bertolta Brechta)
     const hideNicknames = (text, item) => {
         const roots = [item.n, displayName(item.t)].join(' ').split(/[\s\-–,.]+/).filter(word => word.length >= 5)
@@ -396,7 +410,7 @@
         if (!text || question.match) return text;
         if (!ctx.itemNames) ctx.itemNames = new Set(ctx.items.map(other => normalizeAnswer(other.n)));
         const labels = question.choices.filter(choice => !choice.correct && ctx.itemNames.has(normalizeAnswer(choice.label))).map(choice => choice.label);
-        return labels.length ? censorName(text, specificWords(labels)).replaceAll('[***]', CHOICE_MARK) : text;
+        return labels.length ? absorbGenericWords(censorName(text, specificWords(labels)), labels).replaceAll('[***]', CHOICE_MARK) : text;
     };
     // Zajímavost z dalších vět článku jen tehdy, když mluví o hádané položce – věta vytržená z kontextu
     // („Doprovázejí boha Rea…“, „Část odborníků se k tomuto výkladu kloní…“) by nedávala smysl
@@ -599,6 +613,34 @@
             if (element) element.textContent = versionLabel();
         });
 
+    let swReloading = false;
+    const checkForUpdate = () => ('serviceWorker' in navigator && navigator.serviceWorker.getRegistration
+        ? navigator.serviceWorker.getRegistration().then(registration => registration && registration.update()).catch(() => {})
+        : Promise.resolve());
+    // Tlačítko v Nastavení: zeptá se na novou verzi a stránku obnoví (s novým service workerem se obnoví sama)
+    const updateApp = async () => {
+        const button = document.querySelector('[data-update-app]');
+        if (button) {
+            button.disabled = true;
+            button.textContent = 'Aktualizuji…';
+        }
+        const registration = 'serviceWorker' in navigator ? await navigator.serviceWorker.getRegistration().catch(() => null) : null;
+        if (registration) {
+            await Promise.race([registration.update().catch(() => {}), new Promise(resolve => setTimeout(resolve, 5000))]);
+            // Nová verze se instaluje: stránku obnoví převzetí novým service workerem (jen jednou), jinak obnovit hned
+            if (registration.installing || registration.waiting) {
+                await new Promise(resolve => {
+                    navigator.serviceWorker.addEventListener('controllerchange', resolve, { once: true });
+                    setTimeout(resolve, 8000);
+                });
+            }
+        }
+        if (!swReloading) {
+            swReloading = true;
+            window.location.reload();
+        }
+    };
+
     // Už otevřené okno se jen překreslí na místě: bez úvodní animace a na stejném místě posunutí
     const openSettings = (note = '', focusSelector = null) => {
         closeChooser();
@@ -616,7 +658,10 @@
                 <div class="flex flex-col gap-3">${renderVariantCards(gameVariant)}</div>
                 ${renderPracticeSettings()}
                 <p id="settings-note" class="mt-4 min-h-[1.25rem] text-sm font-semibold text-emerald-700 dark:text-emerald-300" role="status">${escapeHtml(note)}</p>
-                <p id="app-version" class="mt-2 text-center text-xs text-slate-400 dark:text-slate-500">${escapeHtml(versionLabel())}</p>
+                <div class="mt-2 flex items-center justify-center gap-2 text-xs text-slate-400 dark:text-slate-500">
+                    <span id="app-version">${escapeHtml(versionLabel())}</span>
+                    <button type="button" data-update-app class="rounded-lg px-2 py-1 font-bold text-slate-600 underline underline-offset-2 hover:bg-slate-200 disabled:no-underline dark:text-slate-300 dark:hover:bg-slate-800">Aktualizovat</button>
+                </div>
             </div>`;
         overlay.firstElementChild.scrollTop = scroll;
         renderIcons(overlay);
@@ -632,6 +677,10 @@
         overlay.addEventListener('click', (event) => {
             if (event.target === overlay || event.target.closest('[data-close]')) {
                 closeSettings();
+                return;
+            }
+            if (event.target.closest('[data-update-app]')) {
+                updateApp();
                 return;
             }
             const variantButton = event.target.closest('[data-variant]');
@@ -921,6 +970,18 @@
             : { text: 'nevyšlo', tone: 'text-rose-500 dark:text-rose-400', icon: 'circle-x' };
     };
 
+    // Další neodehraná dnešní otázka: po tématu `afterTopic` v pořadí témat dokola (bez něj od začátku)
+    const nextDailyTopic = (afterTopic = null) => {
+        const stats = loadStats();
+        const today = getDayKey();
+        const start = afterTopic ? TOPICS.findIndex(topic => topic.id === afterTopic) : -1;
+        for (let step = 1; step <= TOPICS.length; step++) {
+            const topic = TOPICS[(start + step + TOPICS.length) % TOPICS.length];
+            if (topic.id !== afterTopic && !(stats.daily[topic.id] || {})[today]) return topic;
+        }
+        return null;
+    };
+
     const SECTION_HEADING = 'text-xs font-black uppercase tracking-widest text-slate-500 dark:text-slate-400';
 
     // Témata na domovské obrazovce a v učení ve skupinách (téma, které v žádné není, přibude do poslední)
@@ -983,6 +1044,12 @@
                         <h2 class="${SECTION_HEADING}">Dnešní otázky <span class="font-bold normal-case tracking-normal text-slate-400">${answered}/${TOPICS.length}</span></h2>
                         <span class="text-xs font-semibold text-slate-400">${formatDayKey(today)}</span>
                     </div>
+                    ${answered < TOPICS.length ? `
+                        <button type="button" data-action="play-daily" class="mb-2 flex w-full items-center justify-center gap-2 rounded-2xl bg-slate-800 px-4 py-3 text-base font-black text-white shadow-md transition-all active:scale-[0.98] dark:bg-slate-100 dark:text-slate-900">
+                            <i data-lucide="play" class="h-5 w-5"></i> ${answered ? 'Pokračovat v dnešních otázkách' : 'Hrát dnešní otázky'}
+                            <span class="text-sm font-bold opacity-70">· zbývá ${TOPICS.length - answered}</span>
+                        </button>` : `
+                        <p class="mb-2 flex items-center justify-center gap-2 rounded-2xl bg-emerald-50 px-4 py-2.5 text-sm font-bold text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300"><i data-lucide="circle-check" class="h-4 w-4"></i> Všechny dnešní otázky máš hotové</p>`}
                     <div class="grid grid-cols-7 gap-1">${dailyButtons}</div>
                 </section>
                 <section class="flex flex-col gap-3">
@@ -1560,7 +1627,10 @@
 
     // Text hlavního tlačítka pod výsledkem
     const getNextLabel = () => {
-        if (mode === 'daily') return 'Zpět na dnešní otázky';
+        if (mode === 'daily') {
+            const next = nextDailyTopic(current && current.topic);
+            return next ? `Další dnešní: ${next.title}` : 'Hotovo – zpět do menu';
+        }
         if (pool.kind === 'mistakes') {
             const remaining = loadMistakes().length;
             return remaining ? `Další chyba (zbývá ${remaining})` : 'Hotovo – zpět do učení';
@@ -1635,9 +1705,14 @@
                 </div>
 
                 <!-- Tlačítko Další je vždy na očích, bez posouvání dolů -->
-                <div class="sticky bottom-0 z-20 border-t border-slate-200/70 bg-slate-50/95 px-4 pb-4 pt-3 backdrop-blur-sm dark:border-slate-800 dark:bg-slate-900/95">
-                    <button type="button" data-action="next" class="flex w-full items-center justify-center gap-2 rounded-[1.2rem] py-3.5 text-lg font-bold text-white shadow-lg transition-all active:scale-95 ${style.button}">
-                        ${escapeHtml(getNextLabel())} <i data-lucide="arrow-right" class="w-5 h-5"></i>
+                <!-- U dnešní otázky vedle další dnešní otázky (jiné téma) i návrat do menu -->
+                <div class="sticky bottom-0 z-20 flex gap-2 border-t border-slate-200/70 bg-slate-50/95 px-4 pb-4 pt-3 backdrop-blur-sm dark:border-slate-800 dark:bg-slate-900/95">
+                    ${mode === 'daily' && nextDailyTopic(data.topic) ? `
+                        <button type="button" data-action="daily-home" class="flex shrink-0 items-center justify-center gap-1.5 rounded-[1.2rem] bg-slate-200 px-4 py-3.5 text-base font-bold text-slate-700 transition-all active:scale-95 dark:bg-slate-800 dark:text-slate-200">
+                            <i data-lucide="house" class="h-5 w-5"></i> Menu
+                        </button>` : ''}
+                    <button type="button" data-action="next" class="flex min-w-0 flex-1 items-center justify-center gap-2 rounded-[1.2rem] py-3.5 text-lg font-bold text-white shadow-lg transition-all active:scale-95 ${style.button}">
+                        <span class="truncate">${escapeHtml(getNextLabel())}</span> <i data-lucide="arrow-right" class="h-5 w-5 shrink-0"></i>
                     </button>
                 </div>
             </div>
@@ -1837,6 +1912,11 @@
         }, TOPIC_BY_ID[topicId]);
     };
 
+    const startNextDaily = (topicId) => {
+        lastDailyTopic = topicId;
+        startDaily(topicId);
+    };
+
     // Položky okruhu: celé téma a kategorie podle nastavené známosti, zvláštní okruhy celé
     const collectionItems = (ctx, collectionId) => {
         const special = collectionId && !collectionId.startsWith('c:');
@@ -1916,7 +1996,9 @@
 
     const continueAfterResult = () => {
         if (mode === 'daily') {
-            renderHome();
+            const next = nextDailyTopic(current && current.topic);
+            if (next) startNextDaily(next.id);
+            else renderHome();
             return;
         }
         if (pool.kind === 'mistakes' && !loadMistakes().length) {
@@ -2215,6 +2297,8 @@
     // Všechny akce přes delegaci událostí – stránka nepotřebuje inline JavaScript (kvůli CSP)
     const ACTIONS = {
         daily: (button) => { lastDailyTopic = button.dataset.topic; startDaily(button.dataset.topic); },
+        'play-daily': () => { const next = nextDailyTopic(); if (next) startNextDaily(next.id); },
+        'daily-home': () => renderHome(),
         'play-topic': (button) => playTopic(button.dataset.topic),
         'play-mix': () => openChooser({ kind: 'mix' }),
         'open-learn': () => openLearn('home'),
@@ -2324,8 +2408,22 @@
     });
 
     // Service worker dřív než první obrazovka – i kdyby spuštění selhalo, aplikace se příště otevře z mezipaměti
+    // Nová verze: každé nasazení přinese nový service worker. Když převezme stránku, která už nějaký měla, stránka se jednou
+    // obnoví (rozehraná otázka se obnoví z uloženého stavu). Na novou verzi se aplikace ptá i při každém návratu do ní –
+    // nainstalovaná aplikace na mobilu nemá tlačítko pro obnovení a z pozadí se jen probudí
     if ('serviceWorker' in navigator && window.isSecureContext) {
+        const hadController = Boolean(navigator.serviceWorker.controller);
+        navigator.serviceWorker.addEventListener('controllerchange', () => {
+            if (!hadController || swReloading) return;
+            swReloading = true;
+            window.location.reload();
+        });
         navigator.serviceWorker.register('sw.js').catch(error => console.error(error));
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState !== 'visible') return;
+            checkForUpdate();
+            loadVersion();
+        });
     }
 
     migrateFromGeoQuiz();

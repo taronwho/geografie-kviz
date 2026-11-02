@@ -37,6 +37,9 @@ jobs:
           mkdir -p _site/app
           cp -r index.html app.js quiz-core.js visuals.js icons.js styles.css sw.js manifest.webmanifest icons topics data _site/app/
           cp pages-root/index.html pages-root/sw.js _site/
+          # Každé nasazení = nový service worker (jiný název mezipaměti), aby se nainstalované aplikace samy aktualizovaly
+          sed -i "s/const CACHE_NAME = 'mudrlant-v3';/const CACHE_NAME = 'mudrlant-${GITHUB_SHA::7}';/" _site/app/sw.js
+          grep -q "mudrlant-${GITHUB_SHA::7}" _site/app/sw.js
           # Verze pro Nastavení: čas posledního commitu a jeho zkratka
           echo "{\"built\":\"$(git log -1 --format=%cI)\",\"commit\":\"${GITHUB_SHA::7}\"}" > _site/app/version.json
           touch _site/.nojekyll

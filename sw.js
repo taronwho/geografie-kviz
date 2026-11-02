@@ -1,5 +1,7 @@
 // Service worker: aplikace se otevře i bez internetu (témata, jejich data i obrysy států jsou v mezipaměti)
-const CACHE_NAME = 'mudrlant-v2';
+// Nasazení sem dosadí zkratku commitu – každá nová verze je tak nový service worker, který se nainstaluje
+// a otevřenou aplikaci obnoví (jinak by se o nové verzi nedozvěděla)
+const CACHE_NAME = 'mudrlant-v3';
 const APP_SHELL = [
     './', 'index.html', 'styles.css', 'icons.js', 'quiz-core.js', 'visuals.js', 'app.js', 'manifest.webmanifest',
     'topics/zemepis.js', 'data/zemepis.json', 'topics/historie.js', 'data/historie.json', 'topics/biologie.js', 'data/biologie.json',
@@ -12,7 +14,10 @@ const APP_SHELL = [
 ];
 
 self.addEventListener('install', (event) => {
-    event.waitUntil(caches.open(CACHE_NAME).then(cache => cache.addAll(APP_SHELL)).then(() => self.skipWaiting()));
+    // cache: 'reload' – soubory ze sítě, ne z mezipaměti prohlížeče (GitHub Pages je nechává platit 10 minut)
+    event.waitUntil(caches.open(CACHE_NAME)
+        .then(cache => cache.addAll(APP_SHELL.map(url => new Request(url, { cache: 'reload' }))))
+        .then(() => self.skipWaiting()));
 });
 
 self.addEventListener('activate', (event) => {
@@ -33,7 +38,11 @@ self.addEventListener('fetch', (event) => {
 
     // Uložení čerstvé odpovědi do mezipaměti se dokončí, i když stránka mezitím dostala verzi z mezipaměti
     let saving = Promise.resolve();
-    const fromNetwork = fetch(request).then(response => {
+    // Vždy ověřit u serveru (no-cache: nezměněný soubor vrátí jen krátké 304), ne brát z mezipaměti prohlížeče
+    const fresh = request.mode === 'navigate'
+        ? fetch(request.url, { cache: 'no-cache', credentials: 'same-origin' }).then(response => response.redirected ? fetch(request) : response)
+        : fetch(request, { cache: 'no-cache' });
+    const fromNetwork = fresh.then(response => {
         if (response.ok) {
             const copy = response.clone();
             saving = caches.open(CACHE_NAME).then(cache => cache.put(request, copy));
