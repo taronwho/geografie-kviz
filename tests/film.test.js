@@ -116,7 +116,11 @@ test('film: „Ve kterém desetiletí měl premiéru?“ – sousední desetilet
     for (const answer of ['70. léta', 'sedmdesátá léta', '1970', '1959']) assert.ok(!core.checkAnswer(answer, question), answer);
     assert.doesNotMatch(film.censor('decade', 'Film z roku 1966 natočil v 60. letech Jiří Menzel, šedesátá léta byla zlatá.', trains, ctx), /1966|60\.|šedesát/);
     const hints = film.hints(trains, ctx, 'decade');
-    assert.deepEqual(hints.map(hint => hint.label), ['žánr a země', 'hrají', 'režie', 've stejné době']);
+    assert.deepEqual(hints.map(hint => hint.label || (hint.spec && hint.spec.name)), ['žánr a země', 'osa bez letopočtů', 'hrají', 'režie', 've stejné době']);
+    // Osa bez letopočtů: jen názvy událostí před a po filmu
+    const blind = core.buildTimeline(hints[1].spec, 340);
+    assert.equal(blind.ticks.length, 0);
+    assert.ok(blind.anchors.length >= 2 && blind.anchors.every(anchor => !/\d/.test(anchor.label)), blind.anchors.map(anchor => anchor.label).join(' / '));
     assert.ok(hints.every(hint => (hint.facts || []).every(fact => !/\b19\d\d\b/.test(fact.value))), 'nápovědy bez letopočtu');
     // Premiéra na přelomu desetiletí nebo natočení jindy – na desetiletí se neptáme
     const uncertain = data.items.find(item => item.c === 'filmy' && !item.f.dq);

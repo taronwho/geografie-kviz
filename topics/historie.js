@@ -101,9 +101,13 @@
     // Orientační události na časové ose: světové pro všechny, k tomu události ze stejných dějin
     // (u anglického krále anglické, u českého české) – ty mají přednost
     const WORLD_EVENTS = [
-        [-2560, 'pyramidy v Gíze'], [-776, 'první olympijské hry'], [-753, 'založení Říma'], [-44, 'zavraždění Caesara'],
-        [1, 'počátek letopočtu'], [476, 'pád Západořímské říše'], [622, 'počátek islámu'], [800, 'korunovace Karla Velikého'],
-        [1096, 'první křížová výprava'], [1347, 'morová epidemie v Evropě'], [1453, 'pád Konstantinopole'], [1492, 'objevení Ameriky'],
+        [-2560, 'pyramidy v Gíze'], [-1750, 'Chammurapiho zákoník'], [-1550, 'počátek Nové říše v Egyptě'], [-1279, 'nástup Ramesse II.'],
+        [-1200, 'pád Tróje'], [-1000, 'král David v Jeruzalémě'], [-776, 'první olympijské hry'],
+        [-753, 'založení Říma'], [-490, 'bitva u Marathónu'], [-447, 'stavba Parthenónu'], [-399, 'smrt Sókrata'],
+        [-323, 'smrt Alexandra Velikého'], [-221, 'sjednocení Číny'], [-44, 'zavraždění Caesara'], [-27, 'vznik římského císařství'],
+        [1, 'počátek letopočtu'], [79, 'výbuch Vesuvu'], [313, 'Milánský edikt'], [395, 'rozdělení Římské říše'],
+        [476, 'pád Západořímské říše'], [622, 'počátek islámu'], [732, 'bitva u Poitiers'], [800, 'korunovace Karla Velikého'],
+        [962, 'vznik Svaté říše římské'], [1054, 'rozkol církve na západní a východní'], [1066, 'bitva u Hastingsu'], [1096, 'první křížová výprava'], [1215, 'Magna charta'], [1291, 'konec křižáckých států'], [1347, 'morová epidemie v Evropě'], [1453, 'pád Konstantinopole'], [1492, 'objevení Ameriky'],
         [1517, 'počátek reformace'], [1648, 'konec třicetileté války'], [1776, 'nezávislost USA'], [1789, 'Velká francouzská revoluce'],
         [1815, 'bitva u Waterloo'], [1848, 'revoluce v Evropě'], [1914, 'začátek 1. světové války'], [1918, 'konec 1. světové války'],
         [1939, 'začátek 2. světové války'], [1945, 'konec 2. světové války'], [1969, 'přistání na Měsíci'], [1989, 'pád Berlínské zdi'],

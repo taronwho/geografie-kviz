@@ -123,9 +123,11 @@
     // --- Časová osa s milníky filmu ---
     const FILM_EVENTS = [
         [1895, 'první filmové promítání', 1], [1914, 'začátek 1. světové války', 0], [1927, 'nástup zvukového filmu', 1], [1929, 'první Oscary', 1],
-        [1932, 'první festival v Benátkách', 1], [1939, 'začátek 2. světové války', 0], [1945, 'konec 2. světové války', 0], [1946, 'první festival v Cannes', 1],
-        [1969, 'přistání na Měsíci', 0], [1989, 'pád Berlínské zdi', 0], [1995, 'první počítačově animovaný film', 1], [2001, 'útoky 11. září', 0],
-        [2007, 'nástup streamování filmů', 1]
+        [1932, 'první festival v Benátkách', 1], [1935, 'první barevné filmy Technicolor', 1], [1939, 'začátek 2. světové války', 0],
+        [1945, 'konec 2. světové války', 0], [1946, 'první festival v Cannes', 1], [1953, 'nástup širokoúhlého filmu', 1],
+        [1959, 'francouzská nová vlna', 1], [1963, 'atentát na Kennedyho', 0], [1969, 'přistání na Měsíci', 0], [1980, 'nástup videokazet', 1],
+        [1989, 'pád Berlínské zdi', 0], [1995, 'první počítačově animovaný film', 1], [1997, 'nástup DVD', 1], [2001, 'útoky 11. září', 0],
+        [2007, 'nástup streamování filmů', 1], [2009, 'nástup 3D kin', 1], [2020, 'zavřená kina kvůli covidu', 0]
     ];
     const CZECH_EVENTS = [
         [1898, 'první české filmy'], [1918, 'vznik Československa'], [1933, 'otevření ateliérů Barrandov'], [1945, 'znárodnění kinematografie'],
@@ -142,6 +144,14 @@
         if (isFilm(item)) return f.year !== undefined ? { type: 'timeline', spans: [], points: [f.year], hide: item.n, anchors: anchorsFor(item) } : null;
         if (f.born === undefined) return null;
         return { type: 'timeline', spans: [{ kind: 'life', from: f.born, to: f.died ?? Math.min(THIS_YEAR, f.born + 100) }], points: [], hide: item.n, anchors: anchorsFor(item) };
+    };
+
+    // Osa bez letopočtů (u otázky na desetiletí) jen tehdy, když na ní jsou aspoň dvě známé události
+    const blindTimelineOf = (item) => {
+        const spec = timelineOf(item);
+        if (!spec) return null;
+        const blind = { ...spec, blind: true, name: 'osa bez letopočtů', icon: 'calendar-range' };
+        return core.buildTimeline(blind, 340).anchors.length >= 2 ? blind : null;
     };
 
     // --- Nesprávné možnosti ---
@@ -262,6 +272,8 @@
                 const same = contemporaries(item, ctx);
                 return [
                     { kind: 'facts', label: 'žánr a země', icon: 'film', facts: factsOf(item, 'decade').filter(fact => fact.label !== 'Oscar') },
+                    // Osa bez letopočtů: jen známé události před a po filmu
+                    { kind: 'visual', spec: blindTimelineOf(item) },
                     castHint,
                     directionHint,
                     { kind: 'facts', label: 've stejné době', icon: 'calendar-range', facts: same.length ? [{ label: 'Ve stejné době', value: same.join(', ') }] : [] }

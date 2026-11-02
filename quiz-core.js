@@ -830,7 +830,9 @@
         const min = Math.min(...years);
         const max = Math.max(...years);
         // Okolí hádaného období: polovina jeho délky na každou stranu, aspoň 40 (bez letopočtů 100) a nejvýš 300 let
-        const pad = Math.min(Math.max((max - min) * 0.5, blind ? 100 : 40), 300);
+        // Osa bez letopočtů širší okolí – ve starověku a raném středověku jsou známé události řidší
+        const blindPad = min < -500 ? 300 : min < 1000 ? 200 : 100;
+        const pad = Math.min(Math.max((max - min) * 0.5, blind ? blindPad : 40), blind ? Math.max(300, blindPad) : 300);
         const start = min - pad;
         // Do budoucnosti osa nesahá dál než pár let za dnešek
         const end = Math.min(max + pad, Math.max(max + 10, 2030));

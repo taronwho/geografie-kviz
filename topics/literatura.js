@@ -121,7 +121,10 @@
     ];
     const CZECH_EVENTS = [[1348, 'založení Karlovy univerzity'], [1415, 'upálení Jana Husa'], [1620, 'bitva na Bílé hoře'], [1781, 'zrušení nevolnictví'],
         [1918, 'vznik Československa'], [1948, 'komunistický převrat'], [1968, 'pražské jaro'], [1989, 'sametová revoluce']];
-    const WORLD_EVENTS = [[-44, 'zavraždění Caesara'], [476, 'pád Západořímské říše'], [1492, 'objevení Ameriky'], [1618, 'začátek třicetileté války'],
+    const WORLD_EVENTS = [[-776, 'první olympijské hry'], [-753, 'založení Říma'], [-490, 'bitva u Marathónu'], [-447, 'stavba Parthenónu'],
+        [-399, 'smrt Sókrata'], [-323, 'smrt Alexandra Velikého'], [-44, 'zavraždění Caesara'], [-27, 'vznik římského císařství'],
+        [79, 'výbuch Vesuvu'], [313, 'Milánský edikt'], [476, 'pád Západořímské říše'], [800, 'korunovace Karla Velikého'],
+        [1096, 'první křížová výprava'], [1347, 'morová epidemie v Evropě'], [1453, 'pád Konstantinopole'], [1492, 'objevení Ameriky'], [1618, 'začátek třicetileté války'],
         [1789, 'Velká francouzská revoluce'], [1848, 'revoluce v Evropě'], [1914, 'začátek 1. světové války'], [1939, 'začátek 2. světové války'],
         [1945, 'konec 2. světové války'], [1969, 'přistání na Měsíci'], [1989, 'pád Berlínské zdi'], [2001, 'útoky 11. září']];
     const anchorsFor = (item) => [
