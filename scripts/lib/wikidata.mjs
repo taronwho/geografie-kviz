@@ -10,7 +10,7 @@ PREFIX wikibase: <http://wikiba.se/ontology#> PREFIX schema: <http://schema.org/
 PREFIX p: <http://www.wikidata.org/prop/> PREFIX ps: <http://www.wikidata.org/prop/statement/> PREFIX psn: <http://www.wikidata.org/prop/statement/value-normalized/>
 PREFIX pq: <http://www.wikidata.org/prop/qualifier/>
 `;
-const USER_AGENT = 'MudrlantBuild/1.0 (https://github.com/taronwho/geografie-kviz)';
+const USER_AGENT = 'MudrlantBuild/1.0 (https://github.com/taronwho/mudrlant)';
 
 export const CZECHIA = 'Q213';
 export const CONTINENTS = { Q46: 'EU', Q48: 'AS', Q15: 'AF', Q49: 'NA', Q18: 'SA', Q538: 'OC', Q55643: 'OC', Q3960: 'OC', Q51: 'AN' };

@@ -12,7 +12,7 @@ const run = (query) => qlever(query).catch(() => sparql(query));
 
 const countries = readCountries();
 const STATE_IDS = Object.keys(countries);
-const USER_AGENT = 'MudrlantBuild/1.0 (https://github.com/taronwho/geografie-kviz)';
+const USER_AGENT = 'MudrlantBuild/1.0 (https://github.com/taronwho/mudrlant)';
 
 // Kolik nejznámějších vlajek a znaků (podle počtu jazykových verzí článku o státu) patří mezi známé
 const KNOWN_FLAGS = 90;
