@@ -23,6 +23,7 @@
     "build:film": "node scripts/build-film.mjs",
     "build:sport": "node scripts/build-sport.mjs",
     "build": "npm run build:icons && npm run build:css",
-    "test": "node --test"
+    "test": "node --test",
+    "audit:photo-text": "node scripts/photo-text.mjs"
   }
 }

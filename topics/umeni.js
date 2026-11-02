@@ -175,7 +175,7 @@
         const score = (other) => artistSimilarity(author, other) + (sculptor(other) === wantSculptor ? 3 : -2) + (shares(other) ? 2 : 0)
             + (sameWorld(a.land, (other.f || {}).land) ? 2 : 0) + (other.k === author.k ? 1 : 0) + ((other.cz === 1) === (author.cz === 1) ? 1 : 0);
         const candidates = ctx.items.filter(other => other.c === 'umelci' && other.q !== author.q);
-        const wrong = takeDistinct(rankBySimilarity(candidates, score, rng), 3, new Set([normalizeAnswer(author.n)]), other => other.n);
+        const wrong = takeDistinct(rankBySimilarity(candidates, other => score(other) + core.cultureScore(author, other), rng), 3, new Set([normalizeAnswer(author.n)]), other => other.n);
         if (wrong.length < 3) return null;
         const verb = item.c === 'sochy' ? 'Kdo vytvořil tuto sochu?' : item.ty === 'kresba' ? 'Kdo to nakreslil?' : 'Kdo to namaloval?';
         return {

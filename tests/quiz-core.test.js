@@ -538,3 +538,13 @@ test('fakt s číslem, které už je v popisu, se jako nápověda vynechá', () 
     for (const value of ['47 km', '1 042 km²', '178 133']) assert.equal(core.isFactVisible(value, text), true, value);
     for (const value of ['48 km', '2 241 m', 'Asie']) assert.equal(core.isFactVisible(value, text), false, value);
 });
+
+test('nápověda nezopakuje vlastní jméno z popisu ani v jiném tvaru (Tolkien, Čína, americký)', () => {
+    const tolkien = '[***] je postava z fiktivního světa anglického spisovatele J. R. R. Tolkiena.';
+    assert.equal(core.isFactVisible('John Ronald Reuel Tolkien', tolkien), true);
+    assert.equal(core.isFactVisible('Čína', '[***] byl čínský malíř a teoretik umění.'), true);
+    assert.equal(core.isFactVisible('Japonsko', '[***] byl čínský malíř a teoretik umění.'), false);
+    assert.equal(core.isFactVisible('Spojené státy americké', 'byl americký herec'), true);
+    assert.equal(core.isFactVisible('Mona Lisa, Poslední večeře', 'namaloval Monu Lisu'), false, 'seznam jen když jsou vidět všechny');
+    assert.equal(core.isFactVisible('Jižní Amerika', 'žije v Jižní Koreji'), false);
+});

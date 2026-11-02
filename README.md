@@ -66,6 +66,23 @@ Aplikace o tématech nic neví – všechno potřebné popisuje soubor tématu. 
 
 Test `tests/topics.test.js` každé téma zkontroluje automaticky (povinné části, ikony, zapojení do stránky, data, okruhy, možnosti odpovědí). Nový druh obrazové nápovědy se přidá do `visuals.js`.
 
+### Pravidla, která platí pro všechna témata (i budoucí)
+
+Jádro a aplikace je uplatní samy, téma pro ně nemusí nic dělat:
+
+- **Nápověda neopakuje popis.** Fakt, který už je v zadání nebo popisu, se z nápovědy vynechá – i v jiném tvaru
+  (Tolkien × „J. R. R. Tolkiena“, Čína × „čínský malíř“, Délka 47 km × „je dlouhá 47 km“). Kontroluje se stejným
+  strojem, který zakrývá název (`isFactVisible` v `quiz-core.js`).
+- **Nesprávné možnosti ze stejné kultury.** Položka se zemí (`f.land`) dostane možnosti ze stejné kulturní oblasti
+  (Západ, východní / jižní / jihovýchodní / střední Asie, Blízký východ, Afrika); historické státy se převedou na dnešní
+  (`MODERN_LAND`). K Číňanovi tak nejsou nabízeni Nizozemci. Platí v `buildItemChoices`; vlastní žebříčky tématu
+  (autoři, režiséři) přičtou `core.cultureScore(odpověď, kandidát)`. Druh položky (tenista, malířka) je u otázky vidět,
+  proto má ve výběru přednost.
+- **Fotka s napsanou odpovědí** (jméno na dresu, název na plakátu či cedulce) se jako nápověda nenabídne. Najde ji OCR:
+  `npm run audit:photo-text` (potřebuje `tesseract`) přečte fotky všech témat a zapíše `data/photo-text.json`;
+  přečtené texty si pamatuje v `.cache/ocr`, takže po přidání tématu čte jen nové fotky. Po přidání tématu nebo
+  přestavbě dat ho spusťte znovu.
+
 ## Do budoucna: hra více hráčů
 
 Otázka vzniká z položky a generátoru náhodných čísel se semínkem (`createRoundData` v `app.js`, výběr v `pickItem`) a je to samostatný objekt JSON – stejné semínko dá stejnou otázku a hotovou otázku jde poslat dál. Body (`pointsFor`) i kontrola odpovědi (`isAnswerMatch` proti `question.accepted`) jsou čisté funkce v jádře. Zápas 1 na 1 nebo pro více hráčů tak může všem rozeslat stejné semínko nebo rovnou stejné otázky a výsledky porovnat; verzi dat určuje `generated` v `data/<téma>.json`.

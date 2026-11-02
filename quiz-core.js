@@ -511,6 +511,97 @@
         const distance = Math.abs(centuryOf(a) - centuryOf(b));
         return distance === 0 ? 3 : distance === 1 ? 2 : distance <= 3 ? 1 : 0;
     };
+    // --- Kultura nesprávných možností: k Číňanovi Číňané, k Angličanovi Angličané, ne jediný Evropan mezi Asiaty ---
+    // Země osoby či díla (f.land) se převede na dnešní stát (historické státy na nástupce) a z něj kontinent
+    const MODERN_LAND = {
+        'USA': 'Spojené státy americké', 'Československo': 'Česko', 'České království': 'Česko', 'České knížectví': 'Česko', 'Čechy': 'Česko',
+        'Protektorát Čechy a Morava': 'Česko', 'Předlitavsko': 'Rakousko', 'Rakouské císařství': 'Rakousko', 'Rakousko-Uhersko': 'Rakousko',
+        'Habsburská monarchie': 'Rakousko', 'Rakouské arcivévodství': 'Rakousko', 'Rakouské vévodství': 'Rakousko', 'Uhersko': 'Maďarsko',
+        'starověký Řím': 'Itálie', 'Starověký Řím': 'Itálie', 'Západořímská říše': 'Itálie', 'Papežský stát': 'Itálie', 'Italské království': 'Itálie',
+        'Benátská republika': 'Itálie', 'Florentská republika': 'Itálie', 'Janovská republika': 'Itálie', 'Sienská republika': 'Itálie',
+        'Toskánské velkovévodství': 'Itálie', 'Neapolské království': 'Itálie', 'Sicilské království': 'Itálie', 'Sardinské království': 'Itálie',
+        'Milánské vévodství': 'Itálie', 'Savojské vévodství': 'Itálie', 'Italská sociální republika': 'Itálie', 'Syrakusy': 'Itálie',
+        'Starověké Řecko': 'Řecko', 'Athény': 'Řecko', 'Sparta': 'Řecko', 'Théby': 'Řecko', 'Makedonské království': 'Řecko', 'Epiros': 'Řecko',
+        'Byzantská říše': 'Turecko', 'Osmanská říše': 'Turecko', 'Pontské království': 'Turecko', 'Seldžucká říše': 'Turecko',
+        'starověký Egypt': 'Egypt', 'Ptolemaiovský Egypt': 'Egypt', 'Egyptské království': 'Egypt', 'Egyptský ejálet': 'Egypt', 'Nová říše': 'Egypt',
+        'Fátimovský chalífát': 'Egypt', 'starověké Kartágo': 'Tunisko', 'Numidské království': 'Alžírsko',
+        'Anglické království': 'Spojené království', 'Anglie': 'Spojené království', 'Skotsko': 'Spojené království', 'Skotské království': 'Spojené království',
+        'Wales': 'Spojené království', 'Severní Irsko': 'Spojené království', 'Království Velké Británie': 'Spojené království',
+        'Spojené království Velké Británie a Irska': 'Spojené království', 'Britské impérium': 'Spojené království', 'Wessexské království': 'Spojené království',
+        'Northumbrijské království': 'Spojené království', 'Mercijské království': 'Spojené království', 'Kentské království': 'Spojené království',
+        'Gaelské Irsko': 'Irsko', 'Sovětský svaz': 'Rusko', 'Ruské impérium': 'Rusko', 'Ruské carství': 'Rusko', 'Kyjevská Rus': 'Ukrajina',
+        'Ruská sovětská federativní socialistická republika': 'Rusko', 'Moskevské velkoknížectví': 'Rusko', 'Vladimirsko-suzdalské knížectví': 'Rusko',
+        'Svatá říše římská': 'Německo', 'Pruské království': 'Německo', 'Německá říše': 'Německo', 'Německé císařství': 'Německo',
+        'Výmarská republika': 'Německo', 'nacistické Německo': 'Německo', 'Západní Německo': 'Německo', 'Německá demokratická republika': 'Německo',
+        'Bavorské království': 'Německo', 'Bavorské vévodství': 'Německo', 'Württemberské království': 'Německo', 'Saské království': 'Německo',
+        'Saské kurfiřtství': 'Německo', 'Braniborské markrabství': 'Německo', 'Hesenské velkovévodství': 'Německo', 'Hesensko-Kasselsko': 'Německo',
+        'Bádenské velkovévodství': 'Německo', 'Falcké kurfiřtství': 'Německo', 'Kolínské kurfiřtství': 'Německo', 'Nasavské vévodství': 'Německo',
+        'Hamburk': 'Německo', 'Rýnský spolek': 'Německo', 'Franská říše': 'Francie', 'Karolínská říše': 'Francie', 'Západofranská říše': 'Francie',
+        'Francouzské království': 'Francie', 'Lotrinské vévodství': 'Francie', 'Burgundské království': 'Francie', 'druhé Burgundské království': 'Francie',
+        'Flandry': 'Belgie', 'Habsburské Nizozemí': 'Belgie', 'Nizozemské království': 'Nizozemsko', 'Spojené provincie nizozemské': 'Nizozemsko',
+        'Sedmnáct provincií': 'Nizozemsko', 'Dánské království': 'Dánsko', 'Dánsko-Norsko': 'Dánsko', 'Norské království': 'Norsko',
+        'Islandské společenství': 'Island', 'Portugalské království': 'Portugalsko', 'Kastilská koruna': 'Španělsko', 'Kastilské království': 'Španělsko',
+        'Aragonská koruna': 'Španělsko', 'Navarrské království': 'Španělsko', 'Asturské království': 'Španělsko', 'Mallorské království': 'Španělsko',
+        'Granadský emirát': 'Španělsko', 'Španělské impérium': 'Španělsko', 'Vizigóti': 'Španělsko', 'Polsko-litevská unie': 'Polsko',
+        'Polské království': 'Polsko', 'Polské knížectví': 'Polsko', 'Litevské velkoknížectví': 'Litva', 'Jugoslávie': 'Srbsko',
+        'Jugoslávské království': 'Srbsko', 'Socialistická federativní republika Jugoslávie': 'Srbsko', 'Království Srbů, Chorvatů a Slovinců': 'Srbsko',
+        'Srbsko a Černá Hora': 'Srbsko', 'Srbské království': 'Srbsko', 'Rumunské království': 'Rumunsko', 'Valašské knížectví': 'Rumunsko',
+        'Sedmihradské knížectví': 'Rumunsko', 'První bulharská říše': 'Bulharsko', 'Albánská socialistická lidová republika': 'Albánie',
+        'Persie': 'Írán', 'Achaimenovská říše': 'Írán', 'Sásánovská říše': 'Írán', 'Safíovská říše': 'Írán', 'Parthská říše': 'Írán',
+        'Íránské císařství': 'Írán', 'Seleukovská říše': 'Sýrie', 'Umajjovský chalífát': 'Sýrie', 'Abbásovský chalífát': 'Irák', 'Rášidský chalífát': 'Saúdská Arábie',
+        'Babylonie': 'Irák', 'Novobabylonská říše': 'Irák', 'Hidžáz': 'Saúdská Arábie', 'Izraelské království': 'Izrael', 'Judské království': 'Izrael',
+        'Herodovské království': 'Izrael', 'Hasmoneovské království': 'Izrael', 'Jeruzalémské království': 'Izrael', 'Mandátní Palestina': 'Izrael',
+        'Čching': 'Čína', 'Ming': 'Čína', 'Jüan': 'Čína', 'Sung': 'Čína', 'Chan': 'Čína', 'Wej': 'Čína', 'Suej': 'Čína', 'Čou': 'Čína', 'Šang': 'Čína',
+        'Čchin': 'Čína', 'Liou Sung': 'Čína', 'Čínská republika': 'Čína', 'Tibet': 'Čína', 'Mongolská říše': 'Mongolsko', 'Hunská říše': 'Mongolsko',
+        'Britská Indie': 'Indie', 'Maurjovská říše': 'Indie', 'Guptovská říše': 'Indie', 'Mughalská říše': 'Indie', 'Maráthská říše': 'Indie',
+        'Kušánská říše': 'Indie', 'Durránská říše': 'Afghánistán', 'Afghánský islámský stát': 'Afghánistán', 'Dynastie Čoson': 'Jižní Korea',
+        'Silla': 'Jižní Korea', 'Korea': 'Jižní Korea', 'Vietnamská demokratická republika': 'Vietnam', 'Etiopské císařství': 'Etiopie',
+        'Zululand': 'Jihoafrická republika', 'Libyjské království': 'Libye', 'Incká říše': 'Peru', 'Místokrálovství Peru': 'Peru',
+        'Havajské království': 'Spojené státy americké', 'Portoriko': 'Spojené státy americké', 'Urartu': 'Arménie'
+    };
+    let continentByLand = new Map();
+    // Aplikace a testy předají seznam států (data/countries.json), odkud se vezme kontinent
+    const setCountries = (countries) => {
+        continentByLand = new Map(Object.values(countries || {}).filter(country => country && country.name).map(country => [country.name, country.continent]));
+    };
+    const landOf = (item) => {
+        const land = item && item.f && item.f.land;
+        const first = String(Array.isArray(land) ? land[0] || '' : land || '').split(', ')[0];
+        return first ? MODERN_LAND[first] || first : '';
+    };
+    // Kulturní oblasti podle jmen a dějin: Západ (Evropa, Amerika, Austrálie), východní, jižní, jihovýchodní a střední Asie,
+    // Blízký východ, Afrika (Turecko, Írán a Kavkaz k Blízkému východu)
+    const ASIA_REGIONS = {
+        east: ['Čína', 'Japonsko', 'Jižní Korea', 'Severní Korea', 'Mongolsko', 'Tchaj-wan'],
+        south: ['Indie', 'Pákistán', 'Bangladéš', 'Srí Lanka', 'Nepál', 'Bhútán', 'Maledivy', 'Afghánistán'],
+        southeast: ['Indonésie', 'Singapur', 'Východní Timor', 'Kambodža', 'Laos', 'Malajsie', 'Myanmar', 'Thajsko', 'Vietnam', 'Brunej', 'Filipíny'],
+        central: ['Uzbekistán', 'Kazachstán', 'Kyrgyzstán', 'Tádžikistán', 'Turkmenistán']
+    };
+    const regionOfLand = (land) => {
+        const continent = continentByLand.get(land);
+        if (!continent) return '';
+        if (continent === 'AF') return /^(Egypt|Libye|Tunisko|Alžírsko|Maroko)$/.test(land) ? 'mideast' : 'africa';
+        if (continent !== 'AS') return 'west';
+        return Object.keys(ASIA_REGIONS).find(region => ASIA_REGIONS[region].includes(land)) || 'mideast';
+    };
+    // Mírně kladné = stejná kultura (stát +2, oblast +1 – témata mají vlastní váhy země), jiná oblast −8 – víc než shoda doby
+    // či směru, protože jediné čínské jméno mezi nizozemskými je poznat hned. Položka bez země se počítá k Západu (většina dat). Čech mezi cizinci −2.
+    // Jen u položek se zemí (osoby a díla) – místa, druhy, prvky a vlajky mají vlastní pravidla.
+    const cultureScore = (item, other) => {
+        const a = landOf(item);
+        const b = landOf(other);
+        if (!a) return 0;
+        let score = 0;
+        if (a === b) score += 2;
+        else {
+            const ra = regionOfLand(a);
+            const rb = b ? regionOfLand(b) : 'west';
+            if (ra && rb) score += ra === rb ? 1 : -8;
+        }
+        if ((item.cz === 1) !== (other.cz === 1)) score -= 2;
+        return score;
+    };
+
     // Osoby: jiné pohlaví skoro vyřadí (jediná žena mezi muži by byla poznat hned), jinak rozhoduje doba
     const personSimilarity = (item, other) => ((item.sx === 'f') !== (other.sx === 'f') ? -20 : 0)
         + eraNearness((item.f || {}).y, (other.f || {}).y);
@@ -550,7 +641,8 @@
     const buildItemChoices = (item, items, rng, similarity = () => 0) => {
         // Ke známé odpovědi známá možnost váží víc – jinak by známá odpověď mezi samými neznámými byla nápadná
         const tier = (other) => other.k !== item.k ? 0 : item.k === 1 ? 3 : 2;
-        const score = (other) => tier(other) + (item.ty && other.ty === item.ty ? 4 : 0) + (similarity(other) || 0)
+        // Druh (tenista, malířka, hlavní město) je vidět u otázky – nesprávná možnost jiného druhu by byla poznat hned
+        const score = (other) => tier(other) + (item.ty && other.ty === item.ty ? 4 : 0) + (similarity(other) || 0) + cultureScore(item, other)
             - (isNamePart(item.n, other.n) ? 100 : 0);
         const ranked = rankBySimilarity(items.filter(other => other.c === item.c && other.q !== item.q), score, rng);
         const distractors = takeDistinct(ranked, 3, new Set([normalizeAnswer(item.n)]), other => other.n);
@@ -639,8 +731,24 @@
         const seen = (word) => haystack.includes(stemOf(word))
             || textWords.some(other => word.length <= other.length + 6 && rootsOf(other).some(root => root.length >= 3 && word.startsWith(root)))
             || shortWords.some(other => [other, other.replace(/e([^aeiouy])$/, '$1')].some(root => word.startsWith(`${root}ov`)));
-        const words = normalizeAnswer(value).split(' ').filter(significant);
-        return words.length > 0 && words.every(seen);
+        const wordsSeen = (part) => {
+            const words = normalizeAnswer(part).split(' ').filter(significant);
+            return words.length > 0 && words.every(seen);
+        };
+        // Vlastní jméno pozná zakrývací stroj i ve skloňovaném či přídavném tvaru: „J. R. R. Tolkiena“ = John Ronald Reuel
+        // Tolkien (podle příjmení), „čínský malíř“ = Čína. Seznam (Mona Lisa, Poslední večeře) je vidět, když jsou vidět všechny
+        const marks = (part) => (part.match(/\[\*\*\*\]/g) || []).length;
+        const before = marks(text);
+        const keySeen = (part) => {
+            // Klíč: poslední vlastní jméno (příjmení) a poslední slovo (Spojené státy americké → americký)
+            const words = part.split(/\s+/).map(word => word.replace(/[^\p{L}\-]/gu, '')).filter(word => word.length >= 3);
+            const proper = words.filter(word => /^\p{Lu}/u.test(word));
+            // Poslední slovo jen jako přídavné jméno od jména (americké, britský) – obecné slovo (království) by našlo kdeco
+            const last = words[words.length - 1];
+            const keys = [...new Set([proper[proper.length - 1], last && /(?:sk|ck)[ýáéí]$/u.test(last) ? last : null].filter(Boolean))];
+            return keys.some(key => marks(censorName(text, key)) > before);
+        };
+        return String(value).split(/,\s+/).every(part => wordsSeen(part) || keySeen(part));
     };
     const dropKnownFacts = (facts, text) => facts.filter(fact => !isFactVisible(fact.value, text));
 
@@ -851,7 +959,7 @@
         escapeHtml, stripBrackets, isRealPhoto, commonsPhotoUrl, commonsFileUrl, displayName, plural, formatPoints,
         getDayKey, shiftDayKey, formatDayKey, createSeededRandom, pickRandom, shuffle,
         ELEMENT_FAMILIES, elementFamily, periodicPosition,
-        getWordStems, censorName, mergeCensored, censorCountry, isKnownCountry, processWikiText, normalizeAnswer, levenshtein, isAnswerMatch, isSymbolMatch, isCenturyMatch, isFormulaMatch, formulaCounts, checkAnswer,
+        setCountries, landOf, cultureScore, getWordStems, censorName, mergeCensored, censorCountry, isKnownCountry, processWikiText, normalizeAnswer, levenshtein, isAnswerMatch, isSymbolMatch, isCenturyMatch, isFormulaMatch, formulaCounts, checkAnswer,
         inCollection, filterItems, pickItem, sortItems, getCountryNames, getContinent, continentAt, getCountryAliases,
         distanceKm, nearness, STATE_STEPS, sharesGroup, eraNearness, personSimilarity, rankBySimilarity, takeDistinct,
         buildItemChoices, buildCountryChoices, findAnswerItem, findAnswerCountry, updateMistakes, nameAnswers, countryAnswers,

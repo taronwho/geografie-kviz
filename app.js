@@ -7,7 +7,7 @@
         SATELLITE_TILES, OSM_TILES,
         escapeHtml, isRealPhoto, commonsPhotoUrl, commonsFileUrl, displayName, formatPoints, getDayKey, formatDayKey, createSeededRandom, pickRandom,
         censorName, mergeCensored, processWikiText, checkAnswer, normalizeAnswer, filterItems, pickItem, sortItems,
-        buildItemChoices, findAnswerItem, updateMistakes, nameAnswers, pointsFor, dropKnownFacts,
+        buildItemChoices, findAnswerItem, setCountries, updateMistakes, nameAnswers, pointsFor, dropKnownFacts,
         computeStreak, buildShareText, getTileLayout, shuffle
     } = window.MudrlantCore;
     const Visuals = window.MudrlantVisuals;
@@ -315,13 +315,19 @@
     };
     const loadCountries = memoizeBy(() => fetchJson('data/countries.json').then(data => data.countries));
     const loadWorld = memoizeBy(() => fetchJson('data/world.json'));
+    // Fotky, na kterých je napsaná odpověď (jméno na dresu, název na plakátu) – najde je OCR při sestavení dat
+    // (npm run audit:photo-text); bez souboru se hraje dál se všemi fotkami
+    const loadPhotoText = memoizeBy(() => fetchJson('data/photo-text.json').catch(() => ({})));
     // Kontext tématu: definice, položky, okruhy a tabulka států; po načtení dostupný i synchronně
     const loadedTopics = new Map();
     const loadTopic = memoizeBy(async (topicId) => {
         const topic = TOPIC_BY_ID[topicId];
         if (!topic) throw new Error(`Neznámé téma ${topicId}`);
-        const [data, countries] = await Promise.all([fetchJson(topic.dataFile), loadCountries()]);
+        const [data, countries, photoText] = await Promise.all([fetchJson(topic.dataFile), loadCountries(), loadPhotoText()]);
+        // Kontinenty států pro výběr nesprávných možností ze stejné kultury
+        setCountries(countries);
         const ctx = { topic, items: data.items, collections: data.collections || [], countries, byId: new Map(data.items.map(item => [item.q, item])) };
+        ctx.textPhotos = new Set((photoText[topicId] || []).map(id => (ctx.byId.get(id) || {}).im).filter(Boolean));
         loadedTopics.set(topicId, ctx);
         return ctx;
     });
@@ -429,13 +435,15 @@
         const years = [...(spec.points || []), ...(spec.spans || []).flatMap(span => [span.from, span.to])].filter(year => Number.isFinite(year) && year >= 100);
         return years.length > 0 && years.every(year => new RegExp(`(?<!\\d)${year}(?!\\d)`).test(text));
     };
-    const buildHints = (plan, { photoUrl, visibleText, shared = new Set(), answers = '' }) => {
+    const buildHints = (plan, { photoUrl, visibleText, shared = new Set(), answers = '', textPhotos = new Set() }) => {
         const revealsAnswer = (fact) => Boolean(answers) && censorName(String(fact.value), answers).includes('[***]');
         const hints = [];
         for (const step of plan) {
             let hint = null;
             if (step.kind === 'photo' && photoUrl) hint = { kind: 'photo', label: 'fotka', icon: 'image' };
-            if (step.kind === 'visual' && step.spec && Visuals.info(step.spec) && !timelineVisible(step.spec, visibleText)) {
+            // Obrázek s napsanou odpovědí (portrét autora se jménem) nápovědou není
+            const textImage = step.spec && step.spec.type === 'image' && textPhotos.has(step.spec.file);
+            if (step.kind === 'visual' && step.spec && Visuals.info(step.spec) && !timelineVisible(step.spec, visibleText) && !textImage) {
                 hint = { kind: 'visual', spec: step.spec, label: Visuals.info(step.spec).name, icon: Visuals.info(step.spec).icon };
             }
             if (step.kind === 'facts') {
@@ -523,8 +531,9 @@
             // Ve výsledku už odpověď známe, takže nápověda může ukázat vše (u otázky na století časovou osu)
             resultVisual: topic.visual ? topic.visual(item, ctx, 'result') : null,
             resultFacts: topic.facts(item, ctx, 'result'),
-            // Fotka, kterou otázka ukazuje hned, už nápovědou není
-            hints: buildHints(plan, { photoUrl: shown && shown.file === item.im ? null : photoUrl, visibleText, shared, answers: hintAnswers(question, item) }),
+            // Fotka, kterou otázka ukazuje hned, už nápovědou není; fotka s napsanou odpovědí také ne
+            hints: buildHints(plan, { photoUrl: (shown && shown.file === item.im) || (ctx.textPhotos && ctx.textPhotos.has(item.im)) ? null : photoUrl,
+                visibleText, shared, answers: hintAnswers(question, item), textPhotos: ctx.textPhotos || new Set() }),
             subtitle: topic.subtitle(item, ctx),
             coords: topic.coords ? topic.coords(item, ctx) : null,
             isCzech: Boolean(topic.isCzech && topic.isCzech(item, ctx)),

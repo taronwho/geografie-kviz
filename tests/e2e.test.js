@@ -1046,6 +1046,30 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         await context.close();
     });
 
+    await t.test('fotka s napsanou odpovědí (jméno na dresu) se jako nápověda nenabídne', async () => {
+        // Nejdřív zjistit dnešní otázku zeměpisu, pak ji označit v data/photo-text.json jako fotku s textem odpovědi
+        const first = await setup(browser);
+        await first.tab.goto(`${ORIGIN}/`);
+        await waitForHome(first.tab);
+        await first.tab.click('[data-action="daily"][data-topic="zemepis"]');
+        await waitForQuestion(first.tab);
+        const daily = await readRound(first.tab);
+        assert.ok(hintKeys(daily).includes('photo'));
+        await first.context.close();
+
+        const { context, tab, log } = await setup(browser);
+        await context.route('**/data/photo-text.json', route => route.fulfill({ json: { zemepis: [daily.id] } }));
+        await tab.goto(`${ORIGIN}/`);
+        await waitForHome(tab);
+        await tab.click('[data-action="daily"][data-topic="zemepis"]');
+        await waitForQuestion(tab);
+        const data = await readRound(tab);
+        assert.equal(data.id, daily.id);
+        assert.ok(!hintKeys(data).includes('photo'), hintKeys(data).join(', '));
+        assert.deepEqual(log.errors, []);
+        await context.close();
+    });
+
     await t.test('tmavý režim', async () => {
         const { context, tab, log } = await setup(browser, { colorScheme: 'dark' });
         await tab.goto(`${ORIGIN}/`);

@@ -220,7 +220,7 @@
         const excluded = new Set([author.q, ...(item.xa || [])]);
         // Autor, jehož jméno je v názvu (Hamlet × Shakespeare ne, ale „Deník Anne Frankové“ ano), by byl nápadný
         const candidates = ctx.items.filter(other => other.c === 'spisovatele' && !excluded.has(other.q) && !censorName(item.n, other.n).includes('[***]'));
-        const wrong = takeDistinct(rankBySimilarity(candidates, other => authorSimilarity(author, other), rng), 3, new Set([normalizeAnswer(author.n)]), other => other.n);
+        const wrong = takeDistinct(rankBySimilarity(candidates, other => authorSimilarity(author, other) + core.cultureScore(author, other), rng), 3, new Set([normalizeAnswer(author.n)]), other => other.n);
         if (wrong.length < 3 || censorName(item.n, author.n).includes('[***]')) return null;
         return {
             type: 'author',

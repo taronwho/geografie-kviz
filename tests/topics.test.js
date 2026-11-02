@@ -13,6 +13,7 @@ const SERVICE_WORKER = fs.readFileSync(path.join(ROOT, 'sw.js'), 'utf8');
 const ICONS = fs.readFileSync(path.join(ROOT, 'icons.js'), 'utf8');
 const VISUALS = fs.readFileSync(path.join(ROOT, 'visuals.js'), 'utf8');
 const COUNTRIES = JSON.parse(fs.readFileSync(path.join(ROOT, 'data', 'countries.json'), 'utf8')).countries;
+core.setCountries(COUNTRIES);
 const WORLD = JSON.parse(fs.readFileSync(path.join(ROOT, 'data', 'world.json'), 'utf8'));
 
 const hasIcon = (name) => ICONS.includes(`"${name}":`);
@@ -437,14 +438,15 @@ test('nesprávné možnosti ve skutečných datech: stejný druh, blízko, stejn
     everyOption('fyzika', 'Jupiter', other => other.f.kind === 'planeta', 'Jupiter – planety');
 
     // Ke známé položce i známé možnosti (v každé kategorii, kde je známých dost); výjimkou smí být druh, jehož blízcí
-    // příbuzní jsou jen méně známí (živorodka duhová)
+    // příbuzní jsou jen méně známí (živorodka duhová), a osoba, ke které jsou ze stejné kultury jen méně známí
+    // (k Hokusaiovi japonští malíři – známý Evropan mezi nimi by odpověď prozradil víc)
     for (const [topicId, ctx] of Object.entries(contexts)) {
         for (const category of ctx.topic.categories) {
             const known = ctx.items.filter(item => item.c === category.key && item.k === 1);
             if (known.length < 12) continue;
             const failures = known.slice(0, 20).filter(item => !core.buildItemChoices(item, ctx.items, core.createSeededRandom(item.q), other => ctx.topic.similarity(item, other, ctx))
                 .some(choice => !choice.correct && ctx.items.find(other => other.q === choice.id).k === 1));
-            assert.ok(failures.length <= 2, `${topicId}/${category.key}: bez známé možnosti ${failures.map(item => item.n).join(', ')}`);
+            assert.ok(failures.length <= 3, `${topicId}/${category.key}: bez známé možnosti ${failures.map(item => item.n).join(', ')}`);
         }
     }
 });
@@ -472,4 +474,29 @@ test('psané odpovědi: řád v jednotném čísle, jednopísmenná značka v po
     assert.ok(core.checkAnswer('šelma', taxon) && core.checkAnswer('šelmy', taxon));
     const chemie = TOPICS.find(t => t.id === 'chemie');
     assert.ok(!/značka N\b/.test(chemie.censor('symbol', 'Dusík, chemická značka N, je plyn.', { n: 'Dusík', c: 'prvky', f: { sym: 'N' } })));
+});
+
+test('nesprávné možnosti ze stejné kultury: k Číňanovi a Japonci Asiaté, ne Evropané', () => {
+    const check = (topicId, name) => {
+        const topic = TOPICS.find(t => t.id === topicId);
+        const items = JSON.parse(fs.readFileSync(path.join(ROOT, topic.dataFile), 'utf8')).items;
+        const ctx = { topic, items, countries: COUNTRIES, byId: new Map(items.map(item => [item.q, item])) };
+        const item = items.find(other => other.n === name);
+        assert.ok(item, `${topicId}: chybí ${name}`);
+        for (let seed = 0; seed < 3; seed++) {
+            const wrong = core.buildItemChoices(item, items, core.createSeededRandom(`${name}${seed}`), other => topic.similarity(item, other, ctx))
+                .filter(choice => !choice.correct).map(choice => ctx.byId.get(choice.id));
+            assert.ok(wrong.every(other => core.cultureScore(item, other) > -8), `${name}: ${wrong.map(other => `${other.n} (${core.landOf(other)})`).join(', ')}`);
+        }
+    };
+    check('umeni', "Š'-tchao");
+    check('literatura', 'Haruki Murakami');
+    check('hudba', 'BTS');
+    // U jiné kultury (Japonec tenista) má přednost stejný sport – štítek „tenista“ je u otázky vidět
+    const sport = TOPICS.find(t => t.id === 'sport');
+    const sportItems = JSON.parse(fs.readFileSync(path.join(ROOT, sport.dataFile), 'utf8')).items;
+    const kei = sportItems.find(item => item.n === 'Kei Nišikori');
+    const options = core.buildItemChoices(kei, sportItems, core.createSeededRandom('kei'), other => sport.similarity(kei, other, { items: sportItems, countries: COUNTRIES }))
+        .filter(choice => !choice.correct).map(choice => sportItems.find(other => other.q === choice.id));
+    assert.ok(options.every(other => other.f.sport === 'tenis'), options.map(other => other.n).join(', '));
 });

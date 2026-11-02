@@ -159,7 +159,7 @@
     const directorQuestion = (item, ctx, rng) => {
         const director = directorOf(item, ctx);
         if (!director || !ctx.items) return null;
-        const score = (other) => personScore(director, other) + (other.k === director.k ? 1 : 0);
+        const score = (other) => personScore(director, other) + (other.k === director.k ? 1 : 0) + core.cultureScore(director, other);
         const candidates = ctx.items.filter(other => other.c === 'reziseri' && other.q !== director.q);
         const wrong = takeDistinct(rankBySimilarity(candidates, score, rng), 3, new Set([normalizeAnswer(director.n)]), other => other.n);
         if (wrong.length < 3) return null;

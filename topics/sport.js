@@ -358,7 +358,7 @@
         const f = item.f || {};
         const g = other.f || {};
         if (item.c === 'sportovci') {
-            return personSimilarity(item, other) + (f.sport === g.sport ? 3 : 0) + (f.land && f.land === g.land ? 2 : 0)
+            return personSimilarity(item, other) + (f.sport === g.sport ? 8 : -6) + (f.land && f.land === g.land ? 2 : 0)
                 // Čech k Čechům, ne jediný Čech mezi Američany (Zátopek ke Carlu Lewisovi)
                 + ((item.cz === 1) === (other.cz === 1) ? 2 : -3);
         }

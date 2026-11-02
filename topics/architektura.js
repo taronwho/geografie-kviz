@@ -234,7 +234,7 @@
         // Nesprávní architekti: stejné doby a pohlaví, stejného slohu a země
         const candidates = ctx.items.filter(other => other.c === 'architekti' && other.q !== answer.q);
         const score = (other) => personSimilarity(answer, other) + (g.st && other.f.st === g.st ? 2 : 0) + (g.land && other.f.land === g.land ? 1 : 0)
-            + (other.k === answer.k ? 1 : 0);
+            + (other.k === answer.k ? 1 : 0) + core.cultureScore(answer, other);
         const wrong = takeDistinct(rankBySimilarity(candidates, score, rng), 3, new Set([normalizeAnswer(answer.n)]), other => other.n);
         return {
             type: 'architect',
