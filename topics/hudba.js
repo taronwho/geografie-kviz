@@ -323,12 +323,12 @@
             const f = item.f || {};
             const g = other.f || {};
             let score = isPerson(item) ? personSimilarity(item, other) : eraNearness(f.y, g.y);
-            if (f.land && f.land === g.land) score += 2;
+            if (f.land && f.land === g.land) score += 3;
             if (f.per && f.per === g.per) score += 2;
             if (item.gr && item.gr === other.gr) score += 3;
             score += decadeNearness(f.y, g.y);
             if (item.c === 'dila') score += (f.byq && f.byq === g.byq ? 4 : 0) + (f.kind === g.kind ? 3 : 0);
-            if ((item.cz === 1) === (other.cz === 1)) score += 2;
+            score += (item.cz === 1) === (other.cz === 1) ? 2 : -3;
             return score;
         },
         nameAliases,

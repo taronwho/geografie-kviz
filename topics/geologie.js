@@ -246,7 +246,10 @@
         ? sentence.replace(/\d+(?:[,.]\d+)?(?:\s*[-–]\s*\d+(?:[,.]\d+)?)?/g, '[***]')
             .replace(/(?<![\p{L}])(?:nejměkč|nejtvrdš|prvn|druh|třet|čtvrt|pát|šest|sedm|osm|devát|desát)\p{L}*/giu, '[***]')
         : sentence).join(' ');
-    const hideFormula = (text, formula) => [formula, plainFormula(formula)].reduce((result, form) => result.replace(new RegExp(escapeRegExp(form), 'g'), '[***]'), tidy(text));
+    // Vzorec jen jako samostatný zápis (S, S8, FeS₂), ne písmena uvnitř slova („Síra“ by se změnila na „[***]íra“);
+    // s počtem atomů za značkou (S8) zmizí celý
+    const hideFormula = (text, formula) => [formula, plainFormula(formula)].reduce((result, form) => result
+        .replace(new RegExp(`(?<![\\p{L}\\d])${escapeRegExp(form)}[\\d₀-₉]*(?![\\p{Ll}])`, 'gu'), '[***]'), tidy(text));
     const hideGroup = (text) => mergeCensored(tidy(text).replace(GROUP_WORDS, '[***]'));
 
     // --- Nápovědy ---

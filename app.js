@@ -6,7 +6,7 @@
     const {
         SATELLITE_TILES, OSM_TILES,
         escapeHtml, isRealPhoto, commonsPhotoUrl, commonsFileUrl, displayName, formatPoints, getDayKey, formatDayKey, createSeededRandom, pickRandom,
-        censorName, processWikiText, checkAnswer, normalizeAnswer, filterItems, pickItem, sortItems,
+        censorName, mergeCensored, processWikiText, checkAnswer, normalizeAnswer, filterItems, pickItem, sortItems,
         buildItemChoices, findAnswerItem, updateMistakes, nameAnswers, pointsFor, dropKnownFacts,
         computeStreak, buildShareText, getTileLayout, shuffle
     } = window.MudrlantCore;
@@ -370,21 +370,57 @@
         const custom = ctx.topic.censor ? ctx.topic.censor(type, text, item, ctx) : null;
         if (custom !== null && custom !== undefined) return custom;
         const aliases = ctx.topic.nameAliases ? ctx.topic.nameAliases(item, ctx) : [];
-        return censorName(text, [item.n, displayName(item.t), ...aliases].join(', '));
+        return hideNicknames(censorName(text, specificWords([item.n, displayName(item.t), ...aliases])), item);
     };
+    // Obecná slova názvu (poloostrov, národní park, řeka, bitva) v popisu zůstanou – nic neprozradí a bez nich by věta
+    // nedávala smysl („Malajský poloostrov je [***] v jihovýchodní Asii“)
+    const GENERIC_NAME_WORDS = new Set(['národní', 'park', 'přírodní', 'rezervace', 'chráněná', 'krajinná', 'oblast', 'poloostrov', 'ostrov', 'ostrovy',
+        'souostroví', 'moře', 'záliv', 'zátoka', 'jezero', 'řeka', 'hora', 'pohoří', 'vodopád', 'vodopády', 'poušť', 'nížina', 'průliv', 'kanál', 'údolí',
+        'katedrála', 'chrám', 'kostel', 'bazilika', 'hrad', 'zámek', 'palác', 'most', 'věž', 'muzeum', 'náměstí', 'klášter', 'mešita', 'synagoga',
+        'bitva', 'válka', 'obléhání', 'revoluce', 'povstání', 'říše', 'království', 'císařství', 'republika', 'jednotka', 'energie', 'síla', 'kyselina']);
+    const specificWords = (names) => names.filter(Boolean).map(name => {
+        const words = name.split(/\s+/);
+        const kept = words.filter(word => !GENERIC_NAME_WORDS.has(word.toLocaleLowerCase('cs')));
+        return kept.length ? kept.join(' ') : name;
+    }).join(', ');
+    // Přezdívka nebo rodné jméno, které začíná stejně jako jméno (Bert a Berthold u Bertolta Brechta)
+    const hideNicknames = (text, item) => {
+        const roots = [item.n, displayName(item.t)].join(' ').split(/[\s\-–,.]+/).filter(word => word.length >= 5)
+            .map(word => normalizeAnswer(word).slice(0, 4));
+        return mergeCensored(text.replace(/(?<![\p{L}\p{N}])\p{Lu}\p{L}{3,}/gu, word => roots.includes(normalizeAnswer(word).slice(0, 4)) ? '[***]' : word));
+    };
+    // Jména ostatních nabízených možností v popisu (s Iljou Muromcem a Aljošou Popovičem) by je hned vyřadila
+    const CHOICE_MARK = '\uE001';
+    const hideOtherChoices = (text, question, ctx) => {
+        if (!text || question.match) return text;
+        if (!ctx.itemNames) ctx.itemNames = new Set(ctx.items.map(other => normalizeAnswer(other.n)));
+        const labels = question.choices.filter(choice => !choice.correct && ctx.itemNames.has(normalizeAnswer(choice.label))).map(choice => choice.label);
+        return labels.length ? censorName(text, specificWords(labels)).replaceAll('[***]', CHOICE_MARK) : text;
+    };
+    // Zajímavost z dalších vět článku jen tehdy, když mluví o hádané položce – věta vytržená z kontextu
+    // („Doprovázejí boha Rea…“, „Část odborníků se k tomuto výkladu kloní…“) by nedávala smysl
+    const OUT_OF_CONTEXT = /^(?:ten|ta|to|ti|ty|tento|tato|toto|tito|tyto|tomuto|tohoto|této|těchto|tuto|tím|jeho|její|jejich|on|ona|ono|oni|ony|část|ostatní|také|rovněž|dále|však|proto|tam|zde|odtud|později|nicméně|přesto)(?![\p{L}])/iu;
+    const relevantFacts = (facts, item) => (facts || []).filter(fact => !OUT_OF_CONTEXT.test(fact)
+        && censorName(fact, [item.n, displayName(item.t)].join(', ')).includes('[***]'));
 
     // Nápovědy otázky: téma je pro svůj druh otázky může určit samo (u století současníci a osa bez letopočtů,
     // u vzorce složení), jinak fotka → obrazová nápověda → čísla a fakta. Nápověda, která nic nepřidá, se vynechá:
     // fotka, která se nenačte, prázdná fakta i fakta, která hráč už vidí v zadání nebo v popisu.
     // shared = fakta, která mají stejná všechny nabízené nesprávné možnosti (třída savci u čtyř savců) – mezi nimi nerozhodnou
     // answers = odpovědi, které nápověda nesmí prozradit (u otázky na název jméno položky, u řádu řád…)
+    // Časová osa, jejíž roky už jsou v popisu („v roce 1960“), nic nepřidá
+    const timelineVisible = (spec, text) => {
+        if (spec.type !== 'timeline' || spec.blind) return false;
+        const years = [...(spec.points || []), ...(spec.spans || []).flatMap(span => [span.from, span.to])].filter(year => Number.isFinite(year) && year >= 100);
+        return years.length > 0 && years.every(year => new RegExp(`(?<!\\d)${year}(?!\\d)`).test(text));
+    };
     const buildHints = (plan, { photoUrl, visibleText, shared = new Set(), answers = '' }) => {
         const revealsAnswer = (fact) => Boolean(answers) && censorName(String(fact.value), answers).includes('[***]');
         const hints = [];
         for (const step of plan) {
             let hint = null;
             if (step.kind === 'photo' && photoUrl) hint = { kind: 'photo', label: 'fotka', icon: 'image' };
-            if (step.kind === 'visual' && step.spec && Visuals.info(step.spec)) {
+            if (step.kind === 'visual' && step.spec && Visuals.info(step.spec) && !timelineVisible(step.spec, visibleText)) {
                 hint = { kind: 'visual', spec: step.spec, label: Visuals.info(step.spec).name, icon: Visuals.info(step.spec).icon };
             }
             if (step.kind === 'facts') {
@@ -446,7 +482,7 @@
         const visual = topic.visual ? topic.visual(item, ctx, question.type) : null;
         // Typ položky („obec ve Španělsku“, „král“) nesmí prozradit odpověď
         const typeLabel = item.ty && !censorFor(question.type, item.ty, item, ctx).includes('[***]') ? item.ty : category.one;
-        const questionText = censorFor(question.type, text.description, item, ctx);
+        const questionText = mergeCensored(censorFor(question.type, hideOtherChoices(text.description, question, ctx), item, ctx).replaceAll(CHOICE_MARK, '[***]'));
         const plan = (topic.hints && topic.hints(item, ctx, question.type))
             || [{ kind: 'photo' }, { kind: 'visual', spec: visual }, { kind: 'facts', facts: topic.facts(item, ctx, question.type) }];
         const visibleText = [question.title, question.showName ? item.n : '', typeLabel, questionText].join(' · ');
@@ -478,7 +514,7 @@
             coords: topic.coords ? topic.coords(item, ctx) : null,
             isCzech: Boolean(topic.isCzech && topic.isCzech(item, ctx)),
             description: text.description,
-            funFacts: text.funFacts
+            funFacts: relevantFacts(text.funFacts, item)
         };
     };
 

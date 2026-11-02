@@ -345,8 +345,8 @@
                 if (isConflict(f.key, g.key)) return -Infinity;
                 return -Math.round(Math.abs((f.from + f.to) / 2 - (g.from + g.to) / 2) / 120);
             }
-            return personSimilarity(item, other) + (f.st && f.st === g.st ? 2 : 0) + (f.land && f.land === g.land ? 1 : 0)
-                + ((item.cz === 1) === (other.cz === 1) ? 1 : 0);
+            return personSimilarity(item, other) + (f.st && f.st === g.st ? 2 : 0) + (f.land && f.land === g.land ? 4 : 0)
+                + ((item.cz === 1) === (other.cz === 1) ? 1 : -3);
         },
         nameAliases: (item, ctx) => {
             if (item.c === 'slohy') return (STYLE_INFO[item.f.key] || {}).aliases || [];

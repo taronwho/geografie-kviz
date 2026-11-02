@@ -234,8 +234,8 @@
             const f = item.f || {};
             const g = other.f || {};
             const sameMovement = (f.mk || []).some(key => (g.mk || []).includes(key));
-            const sameCzech = (item.cz === 1) === (other.cz === 1) ? 1 : 0;
-            const land = (f.land && f.land === g.land ? 1 : 0) + (sameWorld(f.land, g.land) ? 1 : 0);
+            const sameCzech = (item.cz === 1) === (other.cz === 1) ? 1 : -3;
+            const land = (f.land && f.land === g.land ? 3 : 0) + (sameWorld(f.land, g.land) ? 1 : 0);
             if (item.c === 'umelci') return artistSimilarity(item, other) + (sameMovement ? 2 : 0) + land + sameCzech;
             return (f.by && f.by === g.by ? 4 : 0) + (sameMovement ? 3 : 0) + eraNearness(f.y, g.y) + land + sameCzech;
         },

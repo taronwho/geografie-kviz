@@ -52,7 +52,8 @@
 
     const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch]);
     const escapeRegExp = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const stripBrackets = (text) => text.replace(/[\[\(][^[\]()]*[\]\)]/g, '');
+    // Závorky pryč, zakrytí [***] z předchozího kroku ale zůstane (zakrývá se i ve více krocích po sobě)
+    const stripBrackets = (text) => text.replace(/\[\*\*\*\]|[\[\(][^[\]()]*[\]\)]/g, (match) => match === '[***]' ? match : '');
     // Hlavní obrázek článku bývá i vlajka, znak nebo mapa – jako nápověda se hodí jen skutečná fotka
     const NON_PHOTO_WORDS = new Set([
         'flag', 'flags', 'vlajka', 'coat', 'arms', 'erb', 'znak', 'wappen', 'blason', 'escudo', 'stemma', 'herb', 'logo', 'seal', 'emblem',
@@ -250,6 +251,8 @@
         const KEPT_DOT = '\uE000';
         cleanExtract = cleanExtract
             .replace(/(?<!\p{L})hl\. m\./giu, `hl${KEPT_DOT} m${KEPT_DOT}`)
+            // Iniciály jmen (J. R. R. Tolkien, Arthur C. Clarke) větu nekončí
+            .replace(/(?<![\p{L}])(\p{Lu})\.(?=\s?\p{Lu}\p{Ll})|(?<![\p{L}])(\p{Lu})\.(?=\s?\p{Lu}\.)/gu, (match, a, b) => `${a || b}${KEPT_DOT}`)
             .replace(/(?<!\p{L})(sv|st|č|ul|odd|mt|dr|ing|gen|resp|příp|cca)\.(?=\s)/giu, `$1${KEPT_DOT}`)
             .replace(/\.(?=\s*[\p{Ll}\d,;:])/gu, KEPT_DOT);
 
@@ -591,6 +594,8 @@
     // Slovo je vidět i tehdy, když z některého slova textu vychází (vorvaň → vorvaňovití, hřib → hřibovité,
     // s pohyblivým e: klouzek → klouzkovité, orel → orlovití)
     const isFactVisible = (value, text) => {
+        // Rok, který už je v popisu („z roku 1980“ a fakt Rok 1980)
+        if (/^\d{3,4}$/.test(String(value).trim())) return new RegExp(`(?<!\\d)${String(value).trim()}(?!\\d)`).test(text);
         const haystack = normalizeAnswer(text);
         const significant = (word) => word.length >= 4 && !/^\d+$/.test(word);
         const textWords = haystack.split(' ').filter(significant);

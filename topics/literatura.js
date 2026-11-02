@@ -328,12 +328,13 @@
             const f = item.f || {};
             const g = other.f || {};
             let score = item.c === 'dila' ? eraNearness(f.y, g.y) : personSimilarity(item, other);
-            if (f.land && f.land === g.land) score += 2;
-            if (f.lang && f.lang === g.lang) score += 2;
+            if (f.land && f.land === g.land) score += 3;
+            if (f.lang && f.lang === g.lang) score += 3;
             if (f.genre && f.genre === g.genre) score += 2;
             if (item.c !== 'spisovatele' && f.byq && f.byq === g.byq) score += 4;
             if (item.c === 'postavy' && f.work && f.work === g.work) score += 2;
-            if (item.cz === 1 && other.cz === 1) score += 1;
+            // Česká × cizí mezi možnostmi by správnou prozradila (k Brechtovi Vančura a Havel)
+            score += (item.cz === 1) === (other.cz === 1) ? 1 : -3;
             return score;
         },
         nameAliases,

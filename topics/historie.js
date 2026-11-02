@@ -257,6 +257,9 @@
 
     // Roky a století z textu u otázky na století zmizí
     const hideYears = (text) => text.replace(/(?<![\p{L}\d])\d{1,4}(?!\d)(\.\s*(?:století|stol\.))?/gu, '[***]');
+    // Slova, která dobu prozradí (konflikt studené války, sovětské jednotky, za druhé světové války)
+    const ERA_WORDS = /(?<![\p{L}])(?:studen\p{L}* válk\p{L}*|(?:první|druh\p{L}*|1\.|2\.) světov\p{L}* válk\p{L}*|sovětsk\p{L}*|SSSR|nacist\p{L}*|nacismu|komunist\p{L}*|bolševi\p{L}*|napoleonsk\p{L}*|středověk\p{L}*|novověk\p{L}*|starověk\p{L}*|antick\p{L}*|pravěk\p{L}*|raně novověk\p{L}*)(?![\p{L}])/giu;
+    const hideEra = (text) => core.mergeCensored(hideYears(text).replace(ERA_WORDS, '[***]'));
 
     return {
         id: 'historie',
@@ -294,7 +297,8 @@
             const event = centuryEvent(item);
             // Rok 1300 patří do 13. století, většina lidí by ale řekla 14. – takovou otázku vynecháme;
             // stejně tak, když je letopočet vidět už v názvu („Pád Akkonu (1291)“)
-            if (!event || event.year % 100 === 0 || /\d{3,4}/.test(item.n)) return null;
+            // Doba nesmí být poznat už z názvu (Sovětská válka v Afghánistánu, Druhá světová válka)
+            if (!event || event.year % 100 === 0 || /\d{3,4}/.test(item.n) || new RegExp(ERA_WORDS.source, 'iu').test(item.n)) return null;
             const century = centuryOf(event.year);
             // Nesprávná století co nejblíž: obě sousední, pak o dvě dál (u Washingtona 17., 19., 16. – ne 15. nebo 21.)
             const shift = (offset) => {
@@ -317,7 +321,7 @@
                 answerLabel: centuryLabel(century)
             };
         },
-        censor: (type, text) => type === 'century' ? hideYears(text) : null,
+        censor: (type, text) => type === 'century' ? hideEra(text) : null,
         hints: (item, ctx, type) => {
             if (type !== 'century') return null;
             const event = centuryEvent(item);
