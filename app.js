@@ -579,6 +579,26 @@
         if (overlay) overlay.remove();
     };
 
+    // Verze: version.json zapíše nasazení (čas posledního commitu a jeho zkratka), ať je v Nastavení vidět, jestli už běží
+    // nejnovější verze; načítá se vždy ze sítě, bez internetu ta uložená
+    let appVersion = null;
+    const versionLabel = () => {
+        if (!appVersion) return 'Verze: načítá se…';
+        if (!appVersion.built) return 'Verze: vývojová';
+        const built = new Date(appVersion.built);
+        const date = built.toLocaleDateString('cs-CZ', { day: 'numeric', month: 'numeric', year: 'numeric' });
+        const time = built.toLocaleTimeString('cs-CZ', { hour: '2-digit', minute: '2-digit' });
+        return `Verze z ${date} ${time}${appVersion.commit ? ` · ${appVersion.commit}` : ''}`;
+    };
+    const loadVersion = () => fetch('version.json', { cache: 'no-store' })
+        .then(response => response.ok ? response.json() : {})
+        .catch(() => ({}))
+        .then(data => {
+            appVersion = data && typeof data === 'object' ? data : {};
+            const element = document.getElementById('app-version');
+            if (element) element.textContent = versionLabel();
+        });
+
     // Už otevřené okno se jen překreslí na místě: bez úvodní animace a na stejném místě posunutí
     const openSettings = (note = '', focusSelector = null) => {
         closeChooser();
@@ -596,6 +616,7 @@
                 <div class="flex flex-col gap-3">${renderVariantCards(gameVariant)}</div>
                 ${renderPracticeSettings()}
                 <p id="settings-note" class="mt-4 min-h-[1.25rem] text-sm font-semibold text-emerald-700 dark:text-emerald-300" role="status">${escapeHtml(note)}</p>
+                <p id="app-version" class="mt-2 text-center text-xs text-slate-400 dark:text-slate-500">${escapeHtml(versionLabel())}</p>
             </div>`;
         overlay.firstElementChild.scrollTop = scroll;
         renderIcons(overlay);
@@ -2308,6 +2329,7 @@
     }
 
     migrateFromGeoQuiz();
+    loadVersion();
     gameVariant = readVariant();
     settings = loadSettings();
     renderIcons(document);
