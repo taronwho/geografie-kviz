@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <!-- GitHub Pages neumí poslat hlavičky – Content-Security-Policy proto i tady (frame-ancestors v meta značce nefunguje) -->
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' https://upload.wikimedia.org https://gibs.earthdata.nasa.gov https://tile.openstreetmap.org; connect-src 'self' https://cs.wikipedia.org; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' https://upload.wikimedia.org https://gibs.earthdata.nasa.gov https://tile.openstreetmap.org; connect-src 'self' https://cs.wikipedia.org https://*.supabase.co; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
     <meta name="description" content="Mudrlant – vědomostní kvíz ze zeměpisu, historie, přírodních věd, umění, kultury a sportu. Každý den nové otázky, trénink a učení po okruzích.">
     <meta name="theme-color" content="#059669" media="(prefers-color-scheme: light)">
     <meta name="theme-color" content="#0f172a" media="(prefers-color-scheme: dark)">
@@ -18,6 +18,8 @@
     <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
     <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
     <link rel="stylesheet" href="styles.css">
+    <script src="config.js" defer></script>
+    <script src="auth.js" defer></script>
     <script src="icons.js" defer></script>
     <script src="quiz-core.js" defer></script>
     <script src="visuals.js" defer></script>

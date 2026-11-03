@@ -85,9 +85,12 @@ Jádro a aplikace je uplatní samy, téma pro ně nemusí nic dělat:
   `data/photo-masks.json` – taková fotka se nápovědou ukáže s rozmazaným nápisem (po odpovědi celá). Vynechá se jen
   fotka, u které poloha nápisu známá není. Náhled zakrytí: `PREVIEW=složka npm run audit:photo-masks -- téma`.
 
-## Do budoucna: hra více hráčů
+## Účty a hra více hráčů
 
-Otázka vzniká z položky a generátoru náhodných čísel se semínkem (`createRoundData` v `app.js`, výběr v `pickItem`) a je to samostatný objekt JSON – stejné semínko dá stejnou otázku a hotovou otázku jde poslat dál. Body (`pointsFor`) i kontrola odpovědi (`isAnswerMatch` proti `question.accepted`) jsou čisté funkce v jádře. Zápas 1 na 1 nebo pro více hráčů tak může všem rozeslat stejné semínko nebo rovnou stejné otázky a výsledky porovnat; verzi dat určuje `generated` v `data/<téma>.json`.
+Základ je hotový: přihlášení účtem Google přes Supabase (`auth.js`, `config.js`, část Účet v Nastavení) a databázové
+schéma `supabase/schema.sql` (profily hráčů s pravidly řádků). Dokud není `config.js` vyplněný, přihlášení se
+neukáže a hra běží jako host. Postup nastavení je v `docs/SUPABASE.md`. Další kroky: ukládání postupu k účtu, zápasy
+o stejné otázky (losování podle data už dává všem stejnou otázku) a žebříček.
 
 ## Úpravy
 

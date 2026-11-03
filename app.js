@@ -609,6 +609,22 @@
         if (overlay) overlay.remove();
     };
 
+    // Účet (Supabase, přihlášení Google): bez nastavené config.js se část vůbec neukáže a hraje se jako host
+    const Auth = window.MudrlantAuth;
+    const renderAccount = () => {
+        const state = Auth ? Auth.getState() : { configured: false };
+        if (!state.configured) return '';
+        const body = state.user
+            ? `<div class="flex items-center gap-3">
+                    <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-base font-black text-white" aria-hidden="true">${escapeHtml(state.user.name.charAt(0).toUpperCase())}</span>
+                    <div class="min-w-0 flex-1"><p class="truncate text-sm font-black text-slate-800 dark:text-slate-100">${escapeHtml(state.user.name)}</p><p class="truncate text-xs text-slate-500 dark:text-slate-400">${escapeHtml(state.user.email)}</p></div>
+                    <button type="button" data-auth-logout class="shrink-0 rounded-xl bg-slate-200 px-3 py-2 text-sm font-bold text-slate-700 dark:bg-slate-700 dark:text-slate-200">Odhlásit</button>
+                </div>`
+            : `<p class="mb-3 text-sm text-slate-500 dark:text-slate-400">S účtem se bude ukládat postup a půjde hrát s ostatními. Bez něj hraješ jako host.</p>
+                <button type="button" data-auth-login class="flex w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-base font-bold text-slate-800 shadow-sm active:scale-[0.98] dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"><i data-lucide="log-in" class="h-5 w-5"></i> Přihlásit se přes Google</button>`;
+        return `<h3 class="${SETTINGS_HEADING} mb-3 mt-5">Účet</h3>${body}${state.error ? `<p class="mt-2 text-sm font-semibold text-rose-600 dark:text-rose-400" role="alert">${escapeHtml(state.error)}</p>` : ''}`;
+    };
+
     // Verze: version.json zapíše nasazení (čas posledního commitu a jeho zkratka), ať je v Nastavení vidět, jestli už běží
     // nejnovější verze; načítá se vždy ze sítě, bez internetu ta uložená
     let appVersion = null;
@@ -673,6 +689,7 @@
                 <h3 class="${SETTINGS_HEADING} mb-3">Varianta hry</h3>
                 <div class="flex flex-col gap-3">${renderVariantCards(gameVariant)}</div>
                 ${renderPracticeSettings()}
+                ${renderAccount()}
                 <p id="settings-note" class="mt-4 min-h-[1.25rem] text-sm font-semibold text-emerald-700 dark:text-emerald-300" role="status">${escapeHtml(note)}</p>
                 <div class="mt-2 flex items-center justify-center gap-2 text-xs text-slate-400 dark:text-slate-500">
                     <span id="app-version">${escapeHtml(versionLabel())}</span>
@@ -693,6 +710,14 @@
         overlay.addEventListener('click', (event) => {
             if (event.target === overlay || event.target.closest('[data-close]')) {
                 closeSettings();
+                return;
+            }
+            if (event.target.closest('[data-auth-login]')) {
+                Auth.login();
+                return;
+            }
+            if (event.target.closest('[data-auth-logout]')) {
+                Auth.logout();
                 return;
             }
             if (event.target.closest('[data-update-app]')) {
@@ -2492,6 +2517,11 @@
 
     migrateFromGeoQuiz();
     loadVersion();
+    // Po přihlášení nebo odhlášení se otevřené Nastavení překreslí
+    if (Auth) {
+        Auth.onChange(() => { if (document.getElementById('settings-overlay')) openSettings(); });
+        Auth.init();
+    }
     gameVariant = readVariant();
     settings = loadSettings();
     renderIcons(document);

@@ -1095,6 +1095,81 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         await masked.context.close();
     });
 
+    await t.test('účet: bez nastavení se nic neukáže, s nastavením přihlášení Google, návrat s tokeny, odhlášení', async () => {
+        // Bez nastavení (prázdný config.js) část Účet v Nastavení není
+        const plain = await setup(browser);
+        await plain.tab.goto(`${ORIGIN}/`);
+        await waitForHome(plain.tab);
+        await plain.tab.click('#btn-settings');
+        await plain.tab.waitForSelector('#settings-overlay');
+        assert.equal(await plain.tab.locator('[data-auth-login], [data-auth-logout]').count(), 0);
+        await plain.context.close();
+
+        const calls = [];
+        const configure = async (context) => {
+            await context.route('**/config.js', route => route.fulfill({ contentType: 'text/javascript', body: 'window.MUDRLANT_CONFIG = { supabaseUrl: "https://proj.supabase.co", supabaseAnonKey: "anon-key" };' }));
+            await context.route('https://proj.supabase.co/**', route => {
+                const url = new URL(route.request().url());
+                calls.push(`${route.request().method()} ${url.pathname}${url.search}`);
+                if (url.pathname === '/auth/v1/user') {
+                    return route.fulfill({ json: route.request().headers().authorization === 'Bearer tok-1' ? { id: 'u-1', email: 'jana@example.com', user_metadata: { full_name: 'Jana Nováková' } } : {} , status: route.request().headers().authorization === 'Bearer tok-1' ? 200 : 401 });
+                }
+                if (url.pathname === '/auth/v1/authorize') return route.fulfill({ contentType: 'text/html', body: '<title>Google</title>' });
+                return route.fulfill({ json: {} });
+            });
+        };
+
+        // S nastavením: tlačítko Přihlásit míří na Supabase s Googlem a návratem na tuto stránku
+        const first = await setup(browser);
+        await configure(first.context);
+        await first.tab.goto(`${ORIGIN}/`);
+        await waitForHome(first.tab);
+        await first.tab.click('#btn-settings');
+        await first.tab.waitForSelector('[data-auth-login]');
+        assert.equal(await first.tab.locator('[data-auth-logout]').count(), 0);
+        await Promise.all([first.tab.waitForURL(/proj\.supabase\.co\/auth\/v1\/authorize/), first.tab.click('[data-auth-login]')]);
+        const target = new URL(first.tab.url());
+        assert.equal(target.searchParams.get('provider'), 'google');
+        assert.equal(target.searchParams.get('redirect_to'), `${ORIGIN}/`);
+        await first.context.close();
+
+        // Návrat z přihlášení: tokeny v #hash se uloží, z adresy zmizí a v Nastavení je jméno i odhlášení
+        const back = await setup(browser);
+        await configure(back.context);
+        await back.tab.goto(`${ORIGIN}/#access_token=tok-1&refresh_token=ref-1&expires_in=3600&token_type=bearer`);
+        await waitForHome(back.tab);
+        await back.tab.waitForFunction(() => !location.hash);
+        await back.tab.click('#btn-settings');
+        await back.tab.waitForSelector('[data-auth-logout]');
+        assert.match(await back.tab.textContent('#settings-overlay'), /Jana Nováková/);
+        assert.match(await back.tab.textContent('#settings-overlay'), /jana@example\.com/);
+        assert.ok(calls.some(call => call.startsWith('GET /auth/v1/user')));
+        // Po obnovení stránky zůstane přihlášený
+        await back.tab.reload();
+        await waitForHome(back.tab);
+        await back.tab.click('#btn-settings');
+        await back.tab.waitForSelector('[data-auth-logout]');
+        assert.equal(await back.tab.evaluate(() => JSON.parse(localStorage.getItem('mudrlant.auth')).user.id), 'u-1');
+        // Odhlášení smaže uložený účet a zavolá Supabase
+        await back.tab.click('[data-auth-logout]');
+        await back.tab.waitForSelector('[data-auth-login]');
+        assert.equal(await back.tab.evaluate(() => localStorage.getItem('mudrlant.auth')), null);
+        assert.ok(calls.some(call => call.startsWith('POST /auth/v1/logout')));
+        assert.deepEqual(back.log.errors, []);
+        await back.context.close();
+
+        // Chyba z přihlášení (zrušil na Googlu) se ukáže a nic se neuloží
+        const failed = await setup(browser);
+        await configure(failed.context);
+        await failed.tab.goto(`${ORIGIN}/#error=access_denied&error_description=Přihlášení+zrušeno`);
+        await waitForHome(failed.tab);
+        await failed.tab.click('#btn-settings');
+        await failed.tab.waitForSelector('[data-auth-login]');
+        assert.match(await failed.tab.textContent('#settings-overlay'), /Přihlášení zrušeno/);
+        assert.equal(await failed.tab.evaluate(() => localStorage.getItem('mudrlant.auth')), null);
+        await failed.context.close();
+    });
+
     await t.test('tmavý režim', async () => {
         const { context, tab, log } = await setup(browser, { colorScheme: 'dark' });
         await tab.goto(`${ORIGIN}/`);
