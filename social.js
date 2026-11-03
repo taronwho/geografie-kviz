@@ -100,6 +100,36 @@
         return mine.map(row => ({ ...row, others: others.filter(other => other.challenge_id === row.challenge_id) }));
     };
 
+    // Profil hráče pro cizí oči: počet her, úspěšnost, nejlepší výsledek a (u cizího hráče) vzájemná bilance s přihlášeným
+    // a nastavení poslední společné výzvy, ať jde snadno vyzvat k odvetě. Vše se počítá z uložených výsledků výzev.
+    const playerStats = async (meId, otherId) => {
+        const theirs = await request('GET', `challenge_results?user_id=eq.${encodeURIComponent(otherId)}&select=challenge_id,correct,points,challenge:challenges(id,count)&order=finished_at.desc&limit=100`) || [];
+        const answered = theirs.reduce((sum, row) => sum + (row.challenge ? row.challenge.count : 0), 0);
+        const correct = theirs.reduce((sum, row) => sum + row.correct, 0);
+        const best = theirs.reduce((top, row) => {
+            const count = row.challenge ? row.challenge.count : 0;
+            return count && (!top || row.correct / count > top.correct / top.count) ? { correct: row.correct, count } : top;
+        }, null);
+        const stats = { games: theirs.length, correct, answered, best, versus: null, last: null };
+        if (meId === otherId || !theirs.length) return stats;
+        const ids = theirs.map(row => row.challenge_id).join(',');
+        const mine = await request('GET', `challenge_results?user_id=eq.${encodeURIComponent(meId)}&challenge_id=in.(${ids})&select=challenge_id,correct,points`) || [];
+        const mineById = new Map(mine.map(row => [row.challenge_id, row]));
+        const versus = { wins: 0, losses: 0, draws: 0 };
+        for (const row of theirs) {
+            const own = mineById.get(row.challenge_id);
+            if (!own) continue;
+            const diff = own.correct - row.correct || own.points - row.points;
+            if (diff > 0) versus.wins++; else if (diff < 0) versus.losses++; else versus.draws++;
+        }
+        stats.versus = versus;
+        if (mine.length) {
+            const shared = await request('GET', `challenges?id=in.(${mine.map(row => row.challenge_id).join(',')})&select=id,topic,count,include_hard,categories,variant&order=created_at.desc&limit=1`) || [];
+            stats.last = shared[0] || null;
+        }
+        return stats;
+    };
+
     // Hledání hráčů podle přezdívky (část jména, na velikosti písmen nezáleží), bez mě
     const searchPlayers = async (userId, query) => {
         const term = String(query || '').replace(/[^\p{L}\p{N} _.\-]/gu, '').trim().slice(0, NAME_MAX);
@@ -118,5 +148,5 @@
         return invites.filter(row => !done.has(row.id));
     };
 
-    return { AVATARS, COLORS, COUNTS, NAME_MAX, SocialError, cleanName, isValidName, newCode, parseCode, getProfile, saveProfile, createChallenge, getChallenge, getResults, submitResult, myChallenges, searchPlayers, randomOpponent, incomingChallenges };
+    return { AVATARS, COLORS, COUNTS, NAME_MAX, SocialError, cleanName, isValidName, newCode, parseCode, getProfile, saveProfile, createChallenge, getChallenge, getResults, submitResult, myChallenges, searchPlayers, randomOpponent, incomingChallenges, playerStats };
 });

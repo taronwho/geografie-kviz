@@ -1287,6 +1287,7 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
                         return json([db.challenges[body.id]], 201);
                     }
                     if (url.searchParams.has('invited_id')) return json(Object.values(db.challenges).filter(c => c.invited_id === eq('invited_id')).map(challengeRow));
+                    if (param('id').startsWith('in.')) return json(param('id').slice(4, -1).split(',').map(id => db.challenges[id]).filter(Boolean).sort((a, b) => b.created_at.localeCompare(a.created_at)).slice(0, 1));
                     const found = db.challenges[eq('id')];
                     return json(found ? [challengeRow(found)] : []);
                 }
@@ -1452,6 +1453,29 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         await two.tab.click('[data-ch-play]');
         await waitForQuestion(two.tab);
         assert.equal((await readRound(two.tab)).id, firstId, 'stejná první otázka jako u soupeře');
+        assert.equal(await two.tab.textContent('#status-text'), 'Výzva · 1/5');
+
+        // Klepnutí na obrázek soupeře otevře jeho profil, odtud jde vyzvat k odvetě se stejným nastavením
+        db.results.push({ challenge_id: code, user_id: 'u-2', correct: 3, points: 7, finished_at: '2026-11-03T11:00:00Z' });
+        await two.tab.click('#btn-home');
+        await waitForHome(two.tab);
+        await two.tab.click('[data-action="home-tab"][data-tab="multi"]');
+        await two.tab.click(`#challenges-section [data-action="challenge-open"][data-code="${code}"]`);
+        await two.tab.waitForSelector('#dialog-overlay [data-player-id="u-1"]');
+        await two.tab.click('#dialog-overlay [data-player-id="u-1"]');
+        await two.tab.waitForSelector('#dialog-overlay [data-rematch]');
+        const profileText = await two.tab.textContent('#dialog-overlay');
+        assert.match(profileText, /Janička/);
+        assert.match(profileText, /Vaše bilance/);
+        assert.match(profileText, /1\s*výher/);
+        assert.match(profileText, /Vyzvat k odvetě/);
+        assert.match(profileText, /Zeměpis · 5 otázek/);
+        const before = Object.keys(db.challenges).length;
+        await two.tab.click('[data-rematch]');
+        await waitForQuestion(two.tab);
+        const rematch = Object.values(db.challenges).sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
+        assert.equal(Object.keys(db.challenges).length, before + 1);
+        assert.deepEqual([rematch.creator_id, rematch.invited_id, rematch.topic, rematch.count], ['u-2', 'u-1', 'zemepis', 5]);
         assert.equal(await two.tab.textContent('#status-text'), 'Výzva · 1/5');
         assert.deepEqual(two.log.errors, []);
         await two.context.close();

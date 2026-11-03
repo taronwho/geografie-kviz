@@ -2397,8 +2397,14 @@
     let challengesLoading = false;
     const signedUser = () => (Auth && Auth.getState().user) || null;
     const playerName = (player) => (player && player.display_name) || 'Hráč';
-    const avatarHtml = (player, size = 'h-10 w-10 text-xl') =>
-        `<span class="flex shrink-0 items-center justify-center rounded-full ${size} ${AVATAR_BG[player && player.color] || AVATAR_BG.emerald}" aria-hidden="true">${escapeHtml((player && player.avatar) || '🦊')}</span>`;
+    // Hráči, jejichž obrázek jde klepnout (klepnutí otevře profil); id → údaje o hráči
+    const knownPlayers = new Map();
+    // link = klepnutím na obrázek se otevře profil hráče (klepnutí zachytí společný posluchač dole)
+    const avatarHtml = (player, size = 'h-10 w-10 text-xl', link = false) => {
+        const linked = link && player && player.id;
+        if (linked) knownPlayers.set(player.id, player);
+        return `<span ${linked ? `data-player-id="${escapeHtml(player.id)}" role="button" tabindex="0" aria-label="Profil hráče ${escapeHtml(playerName(player))}"` : 'aria-hidden="true"'} class="flex shrink-0 items-center justify-center rounded-full ${size} ${AVATAR_BG[player && player.color] || AVATAR_BG.emerald}${linked ? ' cursor-pointer' : ''}">${escapeHtml((player && player.avatar) || '🦊')}</span>`;
+    };
     // Téma výzvy: „mix“ (všechna), jedno téma, nebo víc témat oddělených čárkou
     const challengeTopicIds = (topic) => topic === 'mix' ? TOPICS.map(item => item.id) : String(topic).split(',').filter(id => TOPIC_BY_ID[id]);
     const challengeTopicTitle = (topic) => {
@@ -2425,7 +2431,7 @@
         const best = row.others.length ? Math.max(...row.others.map(other => other.correct)) : -1;
         const outcome = !row.others.length ? 'čeká na soupeře' : row.correct > best ? 'vyhráno' : row.correct === best ? 'remíza' : 'prohráno';
         const tone = outcome === 'vyhráno' ? 'text-emerald-600 dark:text-emerald-400' : outcome === 'prohráno' ? 'text-rose-500 dark:text-rose-400' : 'text-slate-400';
-        const rivals = row.others.slice(0, 3).map(other => avatarHtml(other.player, 'h-7 w-7 text-sm ring-2 ring-white dark:ring-slate-800')).join('');
+        const rivals = row.others.slice(0, 3).map(other => avatarHtml(other.player, 'h-7 w-7 text-sm ring-2 ring-white dark:ring-slate-800', true)).join('');
         return `
             <button type="button" data-action="challenge-open" data-code="${escapeHtml(row.challenge_id)}" class="flex w-full items-center gap-3 rounded-2xl bg-white p-2.5 text-left shadow-sm ring-1 ring-slate-200/70 active:scale-[0.99] dark:bg-slate-800/70 dark:ring-slate-700/70">
                 <span class="flex min-w-[1.75rem] -space-x-2">${rivals || `<span class="flex h-7 w-7 items-center justify-center rounded-full bg-slate-100 text-slate-400 dark:bg-slate-700"><i data-lucide="users" class="h-4 w-4"></i></span>`}</span>
@@ -2438,7 +2444,7 @@
     };
     const incomingRow = (invite) => `
         <button type="button" data-action="challenge-open" data-code="${escapeHtml(invite.id)}" class="flex w-full items-center gap-3 rounded-2xl bg-gold-50 p-2.5 text-left ring-1 ring-gold-300/70 active:scale-[0.99] dark:bg-gold-900/20 dark:ring-gold-700/60">
-            ${avatarHtml(invite.creator, 'h-9 w-9 text-lg')}
+            ${avatarHtml(invite.creator, 'h-9 w-9 text-lg', true)}
             <span class="min-w-0 flex-1">
                 <span class="block truncate text-[13px] font-black text-slate-800 dark:text-slate-100">${escapeHtml(playerName(invite.creator))} tě vyzývá</span>
                 <span class="block truncate text-[11px] font-semibold text-slate-500 dark:text-slate-400">${escapeHtml(challengeTopicTitle(invite.topic))} · ${invite.count} otázek</span>
@@ -2894,10 +2900,93 @@
     const rankingRows = (rows, count, meId) => rows.map((row, index) => `
         <li class="flex items-center gap-3 rounded-2xl bg-white p-2.5 shadow-sm dark:bg-slate-800 ${row.user_id === meId ? 'ring-2 ring-brand-600' : ''}">
             <span class="w-5 text-center text-sm font-black text-slate-400">${index === 0 ? '🏆' : index + 1}</span>
-            ${avatarHtml(row.player, 'h-9 w-9 text-lg')}
+            ${avatarHtml(row.player, 'h-9 w-9 text-lg', true)}
             <span class="min-w-0 flex-1 truncate text-sm font-bold text-slate-800 dark:text-slate-100">${escapeHtml(playerName(row.player))}${row.user_id === meId ? ' (ty)' : ''}</span>
             <span class="text-right"><span class="block text-base font-black text-slate-800 dark:text-slate-100">${row.correct}/${count}</span><span class="block text-[10px] font-semibold text-slate-400">${escapeHtml(formatPoints(row.points))}</span></span>
         </li>`).join('');
+
+    // Profil cizího hráče (klepnutí na jeho obrázek): statistiky z výzev, vzájemná bilance a odveta se stejným nastavením
+    const openPlayerProfile = async (playerId) => {
+        const user = signedUser();
+        if (!user || !Social) { openLoginDialog(); return; }
+        if (playerId === user.id) { openProfile(); return; }
+        const player = knownPlayers.get(playerId);
+        if (!player) return;
+        let stats = null;
+        let failed = false;
+        let busy = false;
+        let note = '';
+        const tile = (label, value) => `<div class="rounded-2xl bg-white p-3 text-center shadow-sm dark:bg-slate-800"><p class="text-xl font-black text-slate-800 dark:text-slate-100">${value}</p><p class="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">${label}</p></div>`;
+        const chip = (value, label, tone) => `<span class="rounded-xl px-2.5 py-1.5 text-[13px] font-black ${tone}">${value} ${label}</span>`;
+        const render = () => {
+            let body;
+            if (failed) body = '<p class="text-sm font-semibold text-rose-600 dark:text-rose-400">Profil se nepodařilo načíst. Zkontroluj připojení.</p>';
+            else if (!stats) body = '<p class="text-sm font-semibold text-slate-400">Načítám…</p>';
+            else {
+                const percent = stats.answered ? `${Math.round(stats.correct / stats.answered * 100)} %` : '–';
+                const versus = stats.versus && (stats.versus.wins + stats.versus.draws + stats.versus.losses)
+                    ? `<div class="flex flex-col items-center gap-2"><p class="${CARD_TITLE}">Vaše bilance</p><div class="flex flex-wrap justify-center gap-1.5">${chip(stats.versus.wins, 'výher', 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200')}${chip(stats.versus.draws, 'remíz', 'bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-200')}${chip(stats.versus.losses, 'proher', 'bg-rose-100 text-rose-800 dark:bg-rose-900/40 dark:text-rose-200')}</div></div>`
+                    : '<p class="text-center text-sm text-slate-500 dark:text-slate-400">Ještě jste spolu nehráli.</p>';
+                const same = stats.last ? `${challengeTopicTitle(stats.last.topic)} · ${stats.last.count} otázek` : 'Mix · 10 otázek';
+                body = `
+                    <div class="grid grid-cols-3 gap-2">${tile('Výzvy', stats.games)}${tile('Úspěšnost', percent)}${tile('Nejlepší', stats.best ? `${stats.best.correct}/${stats.best.count}` : '–')}</div>
+                    ${versus}
+                    <div>
+                        <button type="button" data-rematch ${busy ? 'disabled' : ''} class="${PRIMARY_BUTTON}"><i data-lucide="swords" class="h-5 w-5"></i> ${busy ? 'Zakládám…' : stats.last ? 'Vyzvat k odvetě' : 'Vyzvat'}</button>
+                        <p class="mt-1.5 text-center text-xs text-slate-500 dark:text-slate-400">${stats.last ? 'Stejné nastavení jako naposledy' : 'První výzva'}: ${escapeHtml(same)}</p>
+                    </div>`;
+            }
+            showDialog('Profil hráče', `
+                <div class="flex flex-col gap-4">
+                    <div class="flex flex-col items-center gap-2 text-center">${avatarHtml(player, 'h-20 w-20 text-5xl')}<p class="text-xl font-black text-slate-800 dark:text-slate-100">${escapeHtml(playerName(player))}</p></div>
+                    ${body}
+                    ${note ? DIALOG_NOTE(note) : ''}
+                </div>`, {
+                onClick: async (event) => {
+                    if (!event.target.closest('[data-rematch]') || busy || !stats) return;
+                    busy = true;
+                    note = '';
+                    render();
+                    try {
+                        const last = stats.last;
+                        const created = await Social.createChallenge(user.id, {
+                            topic: last ? last.topic : 'mix', count: last ? last.count : 10, invitedId: player.id,
+                            includeHard: Boolean(last && last.include_hard), categories: (last && last.categories) || [], variant: (last && last.variant) || 'choices'
+                        });
+                        closeDialog();
+                        await loadMyProfile();
+                        startChallenge({ ...created, creator: myProfile, invited: player }, 0, []);
+                    } catch (error) {
+                        busy = false;
+                        note = 'Výzvu se nepodařilo založit. Zkontroluj připojení a zkus to znovu.';
+                        render();
+                    }
+                }
+            });
+        };
+        render();
+        try {
+            stats = await Social.playerStats(user.id, playerId);
+        } catch (error) {
+            failed = true;
+        }
+        if (document.getElementById('dialog-overlay')) render();
+    };
+    // Klepnutí na obrázek hráče kdekoli (žebříček, výzvy) otevře jeho profil; zachytí se dřív než klepnutí na řádek kolem něj
+    document.addEventListener('click', (event) => {
+        const target = event.target.closest && event.target.closest('[data-player-id]');
+        if (!target) return;
+        event.preventDefault();
+        event.stopPropagation();
+        openPlayerProfile(target.dataset.playerId);
+    }, true);
+    document.addEventListener('keydown', (event) => {
+        if (event.key !== 'Enter' && event.key !== ' ') return;
+        const target = event.target.closest && event.target.closest('[data-player-id]');
+        if (!target) return;
+        event.preventDefault();
+        openPlayerProfile(target.dataset.playerId);
+    });
 
     const challengeLink = (code) => `${window.location.origin}${window.location.pathname}?vyzva=${code}`;
     const shareChallenge = async (code, text = '') => {
@@ -2947,7 +3036,7 @@
         showDialog(own ? 'Tvoje výzva' : 'Výzva', `
             <div class="flex flex-col gap-4">
                 <div class="flex items-center gap-3">
-                    ${avatarHtml(def.creator, 'h-12 w-12 text-2xl')}
+                    ${avatarHtml(def.creator, 'h-12 w-12 text-2xl', true)}
                     <div class="min-w-0"><p class="truncate text-base font-black text-slate-800 dark:text-slate-100">${escapeHtml(own ? 'Ty' : playerName(def.creator))}${own ? '' : ' tě vyzývá'}</p>
                     <p class="flex items-center gap-1.5 text-sm text-slate-500 dark:text-slate-400"><i data-lucide="${challengeTopicIcon(def.topic)}" class="h-4 w-4"></i> ${escapeHtml(challengeTopicTitle(def.topic))} · ${def.count} otázek</p></div>
                 </div>
