@@ -81,9 +81,11 @@ const imageSize = async (image) => {
 
 // Obdélníky: hledané slovo a sousední slova téhož řádku (celé jméno „VLADIMIR NABOKOV“), s okrajem
 const masksFor = (words, wanted, size) => {
+    // Slovo celé i po částech („OBLOMOB'S“ → oblomob, s), jak ho porovnává i photo-text.mjs
     const hits = words.filter(word => {
-        const key = plain(word.text).replace(/ /g, '');
-        return key.length >= 3 && wanted.some(name => matches(key, name));
+        const parts = plain(word.text).split(' ').filter(part => part.length >= 3);
+        const keys = [plain(word.text).replace(/ /g, ''), ...parts];
+        return keys.some(key => key.length >= 3 && wanted.some(name => matches(key, name)));
     });
     const boxes = [];
     for (const hit of hits) {
