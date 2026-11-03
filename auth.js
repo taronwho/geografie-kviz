@@ -29,7 +29,9 @@
     };
     const now = () => Math.floor(Date.now() / 1000);
 
-    const headers = (token) => ({ apikey: anonKey(), Authorization: `Bearer ${token || anonKey()}`, 'Content-Type': 'application/json' });
+    // Klíč (nový sb_publishable_… i starý anon) jde jen v hlavičce apikey; Authorization je až přihlášeného uživatele
+    // (nový klíč není JWT, takže jako Bearer token by ho Supabase odmítlo)
+    const headers = (token) => ({ apikey: anonKey(), ...(token ? { Authorization: `Bearer ${token}` } : {}), 'Content-Type': 'application/json' });
 
     // Údaje o uživateli z Googlu: jméno, e-mail; id je stálé a patří k němu všechna budoucí data
     const toUser = (raw) => {

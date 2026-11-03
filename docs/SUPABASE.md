@@ -1,31 +1,99 @@
-# Přihlášení účtem Google (Supabase)
+# Přihlášení účtem Google (Supabase) – návod od nuly
 
-Aplikace je statický web, takže účty zajišťuje služba Supabase (zdarma pro tuto velikost). Bez nastavení
-(`config.js` prázdný) se přihlášení v aplikaci vůbec neukáže a hra běží jako host, jako dosud.
+Stav k 3. 11. 2026. Aplikace je statický web, takže účty zajišťuje služba Supabase (zdarma pro tuto velikost).
+Bez nastavení (`config.js` prázdný) se přihlášení v aplikaci vůbec neukáže a hra běží jako host, jako dosud.
+Rozhraní Supabase i Googlu se občas mění; kdyby se menu jmenovalo trochu jinak, hledej podobný název.
 
-## Jednorázové nastavení (asi 15 minut)
+Potřebuješ: účet na GitHubu (máš) a účet Google (stačí běžný Gmail). Platební kartu **nepotřebuješ**.
 
-1. **Projekt.** Na https://supabase.com se přihlas (třeba přes GitHub) → *New project* → název `mudrlant`, region
-   *Frankfurt (eu-central-1)*, vymysli databázové heslo (uložit si ho nemusíš, nepoužívá se).
-2. **Databáze.** V projektu *SQL Editor* → *New query* → vlož obsah souboru `supabase/schema.sql` → *Run*.
-3. **Google přihlášení.**
-   - V Supabase: *Authentication → Providers → Google*, zapnout a opsat si **Callback URL** (vypadá jako
-     `https://XXXX.supabase.co/auth/v1/callback`).
-   - V Google Cloud Console (https://console.cloud.google.com): nový projekt → *APIs & Services → OAuth consent screen*
-     (External, název Mudrlant, tvůj e-mail) → *Credentials → Create credentials → OAuth client ID* → typ
-     **Web application**. Do *Authorized redirect URIs* vlož Callback URL ze Supabase. Vznikne **Client ID** a **Client secret**.
-   - Obojí vlož zpět do Supabase (*Providers → Google*) a ulož.
-4. **Adresy aplikace.** V Supabase *Authentication → URL Configuration*:
-   - *Site URL*: `https://taronwho.github.io/geografie-kviz/app/` (po přejmenování repozitáře `https://taronwho.github.io/mudrlant/app/`)
-   - *Redirect URLs*: totéž s koncovkou `**` a pro zkoušení na počítači `http://localhost:8080/**`.
-5. **Klíče do aplikace.** V Supabase *Project Settings → API* zkopíruj **Project URL** a klíč **anon public**
-   a vlož je do `config.js` (nebo je pošli Claudovi a vloží je). Anon klíč je určený pro prohlížeč a je veřejný;
-   *service_role* klíč **nikdy** nikam nevkládej.
-6. Po nahrání změny se v Nastavení → Účet objeví tlačítko **Přihlásit se přes Google**.
+## Část 1: Projekt v Supabase
+
+1. Otevři https://supabase.com → **Start your project** → přihlas se přes **Continue with GitHub**.
+2. Při prvním přihlášení tě vyzve k vytvoření *organizace*: název třeba `Mudrlant`, typ **Personal**, tarif **Free**.
+3. **New project**:
+   - *Project name*: `mudrlant`
+   - *Database password*: klikni na **Generate a password** (nikam se nezadává, jen si ho ulož, kdyby ses později hodil)
+   - *Region*: **Central EU (Frankfurt)**
+   - **Create new project**. Vytváření trvá 1–2 minuty.
+4. Až projekt naběhne, v adrese prohlížeče uvidíš `supabase.com/dashboard/project/XXXXXXXX`. Ten kód `XXXXXXXX`
+   je tvé *project ref* a adresa projektu je `https://XXXXXXXX.supabase.co` (potřebuješ ji dál).
+
+## Část 2: Databáze (profily hráčů)
+
+1. V levém menu **SQL Editor** → **New query**.
+2. Otevři v repozitáři soubor `supabase/schema.sql` (na GitHubu: `taronwho/geografie-kviz` → `supabase` → `schema.sql`
+   → ikona kopírování), vlož celý obsah do editoru a stiskni **Run**.
+3. Dole má být *Success. No rows returned*. Kdyby Supabase zobrazil varování o „destructive operations“, je to v pořádku
+   (skript jen odstraňuje a zakládá vlastní pravidla), potvrď **Run this query**.
+
+## Část 3: Google Cloud (klíče pro přihlášení)
+
+1. Otevři https://console.cloud.google.com a přihlas se svým Google účtem. Případné podmínky odsouhlas.
+2. Nahoře u názvu projektu klikni na výběr projektu → **New project** → název `Mudrlant` → **Create**. Pak ho nahoře vyber.
+3. V horním vyhledávání napiš **Google Auth Platform** a otevři ho. Tlačítko **Get started** a vyplň:
+   - *App name*: `Mudrlant`, *User support email*: tvůj e-mail → **Next**
+   - *Audience*: **External** → **Next**
+   - *Contact information*: tvůj e-mail → **Next**
+   - zaškrtni souhlas s podmínkami → **Continue** → **Create**
+4. V levém menu **Data Access** (Scopes): ověř, že jsou tam `.../auth/userinfo.email`, `.../auth/userinfo.profile`
+   a `openid`. Kdyby `openid` chyběl, přidej ho přes **Add or remove scopes** a ulož. Nic dalšího nepřidávej.
+5. V levém menu **Audience**: pod *Publishing status* stiskni **Publish app** → potvrdit. Díky tomu se může přihlásit
+   kdokoli s Google účtem. Dokud je aplikace jen v režimu *Testing*, je omezená na výslovně přidané testovací uživatele.
+   Pro samotný e-mail, jméno a `openid` Google žádné ověřování aplikace nevyžaduje.
+6. Teď potřebuješ adresu zpětného volání ze Supabase. Přepni se na záložku Supabase:
+   **Authentication** (ikona dvou lidí) → **Sign In / Providers** (v některých verzích jen **Providers**) → **Google**.
+   Rozbal ho a zkopíruj **Callback URL (for OAuth)**, vypadá jako `https://XXXXXXXX.supabase.co/auth/v1/callback`.
+7. Zpět v Google Auth Platform: **Clients** → **Create client**:
+   - *Application type*: **Web application**, *Name*: `Mudrlant web`
+   - *Authorized JavaScript origins* → **Add URI**: `https://taronwho.github.io`
+   - *Authorized redirect URIs* → **Add URI**: vlož Callback URL ze Supabase z kroku 6
+   - **Create**
+8. Zobrazí se **Client ID** a **Client secret**. Obojí zkopíruj (secret se ukáže jen teď, jinak ho později založíš znovu).
+
+## Část 4: Zapnutí Google v Supabase
+
+1. Supabase → **Authentication** → **Sign In / Providers** → **Google**.
+2. Zapni přepínač **Enable Sign in with Google**, vlož **Client ID** a **Client Secret** z části 3, kroku 8 → **Save**.
+3. Hned pod tím nech zapnuté *Allow new users to sign up* (výchozí).
+4. **Authentication → URL Configuration**:
+   - **Site URL**: `https://taronwho.github.io/geografie-kviz/app/`
+   - **Redirect URLs** → **Add URL**: `https://taronwho.github.io/geografie-kviz/app/` a přidej i
+     `https://taronwho.github.io/mudrlant/app/` (pro případ přejmenování repozitáře) → **Save**.
+   Pokud tato adresa v seznamu není, Supabase po přihlášení vrátí na Site URL a přihlášení „nevyjde“.
+
+## Část 5: Klíče do aplikace
+
+1. Supabase → **Project Settings** (ozubené kolo vlevo dole) → **API Keys**.
+2. Potřebuješ dvě veřejné hodnoty:
+   - **Project URL** (`https://XXXXXXXX.supabase.co`; najdeš ji i v tlačítku **Connect** nahoře)
+   - **Publishable key** (začíná `sb_publishable_`). Starší projekty můžou mít jen klíč **anon** (dlouhý, začíná `eyJ`);
+     ten funguje stejně a stačí jeden z nich.
+3. Pošli mi obě hodnoty do chatu, vložím je do `config.js` a nahraju. Jsou veřejné, patří do repozitáře a v prohlížeči
+   je stejně každý uvidí. Počítač za tebe nic neschová, schovává to Supabase pravidly řádků v databázi.
+4. **Nikdy neposílej a nikam nevkládej** klíč **Secret** (`sb_secret_…`) ani **service_role**. Ten obchází veškerou ochranu.
+
+## Část 6: Vyzkoušení
+
+1. Až ti napíšu, že je nahráno (do minuty se v Nastavení dole objeví verze), otevři hru → **Nastavení** → **Účet** →
+   **Přihlásit se přes Google**.
+2. Vyber svůj Google účet. Při prvním přihlášení Google upozorní, co aplikace uvidí (jméno, e-mail). Potvrď.
+3. Vrátíš se do hry a v Nastavení uvidíš své jméno a e-mail. V Supabase v **Authentication → Users** se objeví tvůj
+   účet a v **Table Editor → profiles** tvůj profil.
+
+## Když to nejde
+
+| Co se stane | Příčina |
+|---|---|
+| Google hlásí `redirect_uri_mismatch` | Callback URL v Google klientu (část 3, krok 7) se nerovná té ze Supabase, i lomítko na konci |
+| Po přihlášení skončíš na jiné stránce nebo na adrese `localhost` | Adresa hry chybí v **Redirect URLs** (část 4, krok 4) |
+| Google hlásí „Access blocked: app has not completed verification“ | Aplikace je jen v *Testing*, udělej **Publish app** (část 3, krok 5) |
+| V Nastavení není část Účet | `config.js` je prázdný nebo se ještě nenačetla nová verze (Nastavení → Aktualizovat) |
+| Přihlášení se vrátí s hlášením o chybě | Zkontroluj Client ID a Secret v Supabase (části 3 a 4) |
+| Projekt po týdnu nečinnosti „usnul“ | Bezplatné projekty Supabase se po delší nečinnosti pozastaví; v dashboardu stiskni **Restore project** |
 
 ## Jak to v aplikaci funguje
 
-- `auth.js` volá Supabase Auth přes REST (bez knihovny, kvůli přísné CSP bez cizích skriptů).
+- `auth.js` volá Supabase Auth přes REST (bez knihovny, kvůli přísné CSP bez cizích skriptů); klíč jde v hlavičce `apikey`.
 - Přihlášení: Nastavení → Přihlásit se přes Google → Google → návrat na stránku s tokeny v adrese, které se hned uloží
   (`localStorage`, klíč `mudrlant.auth`) a z adresy zmizí. Token se obnovuje sám.
 - Pro multiplayer: `MudrlantAuth.accessToken()` vrátí platný token a `MudrlantAuth.getState().user.id` stálé id hráče.
@@ -36,5 +104,5 @@ Aplikace je statický web, takže účty zajišťuje služba Supabase (zdarma pr
 
 1. Ukládání postupu (série, statistiky) k účtu, ať se přenáší mezi telefony.
 2. Tabulky `matches` a `match_players` s RLS a Supabase Realtime pro souboj o stejné otázky (otázka dne se už losuje
-   stejně všem podle data, takže jde stejný základ použít pro zápas).
+   stejně všem podle data).
 3. Žebříček přátel.
