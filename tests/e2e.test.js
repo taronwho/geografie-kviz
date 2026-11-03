@@ -91,7 +91,8 @@ const setup = async (browser, options = {}) => {
     return { context, tab, log, flags };
 };
 
-const waitForHome = (tab) => tab.waitForSelector('text=Dnešní otázky', { timeout: 30000 });
+// Úvodní stránka: dnešní otázky (Jeden hráč), nebo přepínač (i při záložce Více hráčů)
+const waitForHome = (tab) => tab.waitForFunction(() => { const content = document.getElementById('app-content'); return Boolean(content && (content.textContent.includes('Dnešní otázky') || content.querySelector('#home-tabs'))); }, null, { timeout: 30000 });
 const waitForQuestion = (tab) => tab.waitForSelector('[data-action="give-up"]', { timeout: 30000 });
 const waitForResult = (tab) => tab.waitForSelector('h1', { timeout: 30000 });
 // Rozehraná otázka z uloženého stavu – podle ní test ví, co je správná odpověď
@@ -1246,6 +1247,12 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         await backend(one.context);
         await one.tab.goto(`${ORIGIN}/`);
         await waitForHome(one.tab);
+        // Úvodní stránka má přepínač Jeden hráč / Více hráčů; výzvy jsou ve Více hráčů a volba se pamatuje
+        assert.equal(await one.tab.locator('[data-action="home-tab"][aria-selected="true"]').getAttribute('data-tab'), 'single');
+        assert.equal(await one.tab.locator('#challenges-section').count(), 0, 'výzvy jsou až v druhé záložce');
+        await one.tab.click('[data-action="home-tab"][data-tab="multi"]');
+        await one.tab.waitForSelector('#challenges-section [data-action="new-challenge"]');
+        assert.equal(await one.tab.locator('[data-action="daily"]').count(), 0, 'dnešní otázky jsou v záložce Jeden hráč');
         await one.tab.waitForSelector('#btn-profile:not(.hidden) span');
         assert.match(await one.tab.getAttribute('#btn-profile', 'aria-label'), /Jana Nováková/);
         await one.tab.click('#btn-profile');
@@ -1316,9 +1323,12 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         await backend(two.context);
         await two.tab.goto(`${ORIGIN}/`);
         await waitForHome(two.tab);
+        // Čekající výzva je vidět už na záložce Více hráčů jako číslo
+        await two.tab.waitForFunction(() => /Více hráčů\s*2/.test(document.getElementById('home-tabs').textContent));
+        await two.tab.click('[data-action="home-tab"][data-tab="multi"]');
         await two.tab.waitForSelector(`#challenges-section [data-action="challenge-open"][data-code="${code}"]`);
         assert.match(await two.tab.textContent('#challenges-section'), /Janička tě vyzývá/);
-        assert.match(await two.tab.textContent('#challenges-section'), /čekají na tebe/);
+        assert.match(await two.tab.textContent('#challenges-section'), /Čekají na tebe/);
         await two.tab.click(`#challenges-section [data-action="challenge-open"][data-code="${code}"]`);
         await two.tab.waitForSelector('#dialog-overlay [data-ch-play]');
         assert.match(await two.tab.textContent('#dialog-overlay'), /Janička tě vyzývá/);
@@ -1338,6 +1348,31 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         assert.equal(await guest.tab.evaluate(() => JSON.parse(localStorage.getItem('mudrlant.pendingChallenge'))), code);
         assert.equal(new URL(guest.tab.url()).search, '', 'kód zmizí z adresy');
         await guest.context.close();
+    });
+
+    await t.test('dvě obrazové nápovědy (mapa a vlajka u státního znaku): každá karta ukáže svůj obrázek', async () => {
+        const hint = (extra) => ({ icon: 'map', ...extra });
+        const data = {
+            topic: 'vlajky', id: 'Q222', title: 'Albánie', name: 'Albánie', category: 'znak', known: true, typeLabel: 'státní znak',
+            question: { type: 'name', title: 'Čí je to státní znak?', showName: false, choices: [{ id: 'a', label: 'Albánie', correct: true }, { id: 'b', label: 'Rusko' }, { id: 'c', label: 'Polsko' }, { id: 'd', label: 'Slovensko' }], accepted: ['Albánie'], placeholder: '', answerLabel: 'Albánie' },
+            questionText: 'Státní znak [***] je černý dvouhlavý orel.', photoUrl: null, questionImage: null, visual: null, resultVisual: null, resultFacts: [],
+            hints: [
+                hint({ key: 'visual', kind: 'visual', label: 'slepá mapa', spec: { type: 'map', lat: 41, lon: 20, span: 14, highlightIso: '008', label: 'Stát je uprostřed' } }),
+                hint({ key: 'visual-2', kind: 'visual', label: 'vlajka', icon: 'flag', spec: { type: 'image', file: 'Flag of Albania.svg', hash: '36', name: 'vlajka', icon: 'flag' } })
+            ],
+            subtitle: '', coords: null, isCzech: false, description: '', funFacts: []
+        };
+        const session = { version: 8, data, round: { hintLevel: 3, variant: 'choices', answered: false, correct: false, points: 0, typed: false, answer: null, gaveUp: false, tab: 'visual' }, mode: 'practice', pool: { kind: 'topic', topic: 'vlajky' }, challenge: null, timestamp: Date.now() };
+        const { context, tab, log } = await setup(browser, { storage: { 'mudrlant.session': JSON.stringify(session) } });
+        await tab.goto(`${ORIGIN}/`);
+        await waitForQuestion(tab);
+        await tab.waitForSelector('#hint-visual svg path');
+        // Karta Vlajka: vlastní prvek s obrázkem vlajky, ne mapa
+        await tab.click('[data-action="hint-tab"][data-step="visual-2"]');
+        await tab.waitForFunction(() => { const picture = document.querySelector('#hint-visual-2 > div'); return picture && picture.style.backgroundImage.includes('Flag_of_Albania'); });
+        assert.equal(await tab.locator('#hint-visual-2 svg').count(), 0, 've vlajce není mapa');
+        assert.deepEqual(log.errors, []);
+        await context.close();
     });
 
     await t.test('tmavý režim', async () => {

@@ -24,7 +24,8 @@
         history: 'mudrlant.history',
         mistakes: 'mudrlant.mistakes',
         learned: 'mudrlant.learned',
-        pendingChallenge: 'mudrlant.pendingChallenge'
+        pendingChallenge: 'mudrlant.pendingChallenge',
+        homeTab: 'mudrlant.homeTab'
     };
     const STATE_VERSION = 8;
     const SESSION_MAX_AGE = 2 * 60 * 60 * 1000;
@@ -1060,8 +1061,8 @@
             const status = dailyStatus(topic.id, stats);
             const streak = computeStreak(stats.daily[topic.id] || {}, today);
             return `
-                <button type="button" data-action="daily" data-topic="${topic.id}" title="Dnešní otázka – ${escapeHtml(topic.title)}" aria-label="Dnešní otázka – ${escapeHtml(topic.title)}: ${escapeHtml(status.text)}" class="relative flex min-w-0 flex-col items-center gap-0.5 rounded-xl bg-slate-50 px-0.5 pb-1 pt-1.5 ring-1 ring-slate-200/70 transition-all active:scale-95 dark:bg-slate-900/60 dark:ring-slate-700/70">
-                    <span class="rounded-lg p-1.5 ${styleOf(topic).soft}"><i data-lucide="${topic.icon}" class="h-[1.125rem] w-[1.125rem]"></i></span>
+                <button type="button" data-action="daily" data-topic="${topic.id}" title="Dnešní otázka – ${escapeHtml(topic.title)}" aria-label="Dnešní otázka – ${escapeHtml(topic.title)}: ${escapeHtml(status.text)}" class="relative flex min-w-0 flex-col items-center gap-0.5 rounded-xl bg-slate-50 px-0.5 pb-1 pt-1 ring-1 ring-slate-200/70 transition-all active:scale-95 dark:bg-slate-900/60 dark:ring-slate-700/70">
+                    <span class="rounded-lg p-1 ${styleOf(topic).soft}"><i data-lucide="${topic.icon}" class="h-[1.125rem] w-[1.125rem]"></i></span>
                     <span class="flex max-w-full items-center gap-0.5 truncate text-[10px] font-bold ${status.tone}">${status.icon ? `<i data-lucide="${status.icon}" class="h-3 w-3 shrink-0"></i>` : ''}${status.text}</span>
                     ${streak ? `<span class="absolute -right-1 -top-1.5 flex items-center gap-0.5 rounded-lg bg-orange-500 px-1 py-0.5 text-[10px] font-black text-white shadow" title="Série dní"><i data-lucide="flame" class="h-3 w-3"></i>${streak}</span>` : ''}
                 </button>`;
@@ -1075,7 +1076,7 @@
         const tile = (topic) => {
             const scope = scopeOf(topic);
             return `
-                <button type="button" data-action="play-topic" data-topic="${topic.id}"${scope ? ` title="${escapeHtml(`${topic.title} · ${scope}`)}"` : ''} class="relative flex h-[4.5rem] min-w-0 flex-col justify-between overflow-hidden rounded-2xl bg-gradient-to-br p-2 text-left text-white shadow-md ring-1 ring-black/5 transition-all active:scale-[0.97] ${styleOf(topic).tile}">
+                <button type="button" data-action="play-topic" data-topic="${topic.id}"${scope ? ` title="${escapeHtml(`${topic.title} · ${scope}`)}"` : ''} class="relative flex h-16 min-w-0 flex-col justify-between overflow-hidden rounded-2xl bg-gradient-to-br p-2 text-left text-white shadow-md ring-1 ring-black/5 transition-all active:scale-[0.97] ${styleOf(topic).tile}">
                     <i data-lucide="${topic.icon}" class="pointer-events-none absolute -bottom-2 -right-2 h-12 w-12 opacity-20"></i>
                     <i data-lucide="${topic.icon}" class="h-[1.125rem] w-[1.125rem]"></i>
                     <span class="block ${topic.title.length > 10 ? 'text-[10px]' : 'text-[11.5px]'} font-black leading-tight tracking-tight">${escapeHtml(topic.title)}</span>
@@ -1083,7 +1084,7 @@
         };
         const mixScope = settings.topics.length === TOPICS.length ? 'Otázky ze všech témat' : `${settings.topics.length} z ${TOPICS.length} témat`;
         const mixTile = `
-            <button type="button" data-action="play-mix" title="${escapeHtml(`Mix · ${mixScope}`)}" class="relative col-span-2 flex h-[4.5rem] min-w-0 items-center gap-2.5 overflow-hidden rounded-2xl bg-gradient-to-br p-2.5 text-left text-white shadow-md ring-1 ring-black/5 transition-all active:scale-[0.97] ${styleOf(MIX).tile}">
+            <button type="button" data-action="play-mix" title="${escapeHtml(`Mix · ${mixScope}`)}" class="relative col-span-2 flex h-16 min-w-0 items-center gap-2.5 overflow-hidden rounded-2xl bg-gradient-to-br p-2.5 text-left text-white shadow-md ring-1 ring-black/5 transition-all active:scale-[0.97] ${styleOf(MIX).tile}">
                 <i data-lucide="${MIX.icon}" class="pointer-events-none absolute -bottom-3 right-1 h-16 w-16 opacity-20"></i>
                 <span class="shrink-0 rounded-xl bg-white/20 p-2"><i data-lucide="${MIX.icon}" class="h-5 w-5"></i></span>
                 <span class="min-w-0 text-base font-black leading-tight">${escapeHtml(MIX.title)}</span>
@@ -1091,27 +1092,20 @@
         const ordered = groupedTopics().flatMap(group => group.topics);
         const left = TOPICS.length - answered;
         appContent.innerHTML = `
-            <div class="fade-in flex min-h-full w-full flex-col gap-3.5 bg-slate-50 p-3.5 pb-5 dark:bg-slate-900">
-                <section class="rounded-[1.4rem] bg-white p-3 shadow-sm ring-1 ring-slate-200/70 dark:bg-slate-800/70 dark:ring-slate-700/70">
+            <div class="fade-in flex min-h-full w-full flex-col gap-2.5 bg-slate-50 p-3 pb-4 dark:bg-slate-900">
+                ${renderHomeTabs()}
+                ${homeTab() === 'multi' ? renderChallengesSection() : `<section class="rounded-[1.4rem] bg-white p-2.5 shadow-sm ring-1 ring-slate-200/70 dark:bg-slate-800/70 dark:ring-slate-700/70">
                     <div class="mb-2 flex items-center justify-between gap-2">
-                        <div class="min-w-0">
-                            <h2 class="text-[13px] font-black text-slate-800 dark:text-slate-100">Dnešní otázky</h2>
-                            <p class="text-[11px] font-semibold text-slate-400">${formatDayKey(today)} · ${answered}/${TOPICS.length} hotovo</p>
-                        </div>
+                        <h2 class="min-w-0 text-[13px] font-black text-slate-800 dark:text-slate-100">Dnešní otázky <span class="font-bold text-slate-400">${answered}/${TOPICS.length}</span></h2>
                         ${left ? `
                             <button type="button" data-action="play-daily" class="flex shrink-0 items-center gap-1.5 rounded-xl bg-slate-800 px-3 py-2 text-[13px] font-black text-white shadow-md transition-all active:scale-95 dark:bg-slate-100 dark:text-slate-900">
                                 <i data-lucide="play" class="h-4 w-4"></i> ${answered ? 'Pokračovat' : 'Hrát vše'} <span class="font-bold opacity-70">· zbývá ${left}</span>
                             </button>` : `
                             <span class="flex shrink-0 items-center gap-1.5 rounded-xl bg-emerald-50 px-3 py-2 text-[13px] font-bold text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300"><i data-lucide="circle-check" class="h-4 w-4"></i> Vše hotové</span>`}
                     </div>
-                    <div class="mb-2.5">${progressBar(answered, TOPICS.length)}</div>
                     <div class="grid grid-cols-7 gap-1">${dailyButtons}</div>
                 </section>
-                ${renderChallengesSection()}
-                <section>
-                    <h2 class="${SECTION_HEADING} mb-1.5 px-1">Hrát</h2>
-                    <div class="grid grid-cols-4 gap-2">${mixTile}${ordered.map(tile).join('')}</div>
-                </section>
+                <section class="grid grid-cols-4 gap-2">${mixTile}${ordered.map(tile).join('')}</section>`}
             </div>`;
         applyProgress(appContent);
         renderIcons(appContent);
@@ -1271,9 +1265,11 @@
             </section>`;
     };
 
+    // První obrazová nápověda má id hint-visual, další (mapa i vlajka u státního znaku) hint-visual-2…: každá karta vlastní prvek
+    const visualHintId = (hint) => hint.key === 'visual' ? 'hint-visual' : `hint-${hint.key}`;
     const hintPanes = (hints) => {
         return hints.map(hint => {
-            const html = hint.kind === 'visual' ? visualPane('hint-visual', hint.spec)
+            const html = hint.kind === 'visual' ? visualPane(visualHintId(hint), hint.spec)
                 : hint.kind === 'photo' ? photoPane('hint-photo') : factsPane(hint.facts);
             return { key: hint.key, label: tabLabel(hint), icon: hint.icon, html };
         });
@@ -1334,9 +1330,10 @@
         if (questionImage) showPhoto(questionImage, current.questionImage.url, null, true, current.questionImage.masks);
         const resultImage = document.getElementById('result-image');
         if (resultImage) showPhoto(resultImage, current.questionImage.url);
-        const hintVisual = document.getElementById('hint-visual');
-        const visualHint = current.hints.find(hint => hint.kind === 'visual');
-        if (hintVisual && visualHint) Visuals.render(hintVisual, visualHint.spec, visualDeps);
+        current.hints.filter(hint => hint.kind === 'visual').forEach(hint => {
+            const element = document.getElementById(visualHintId(hint));
+            if (element) Visuals.render(element, hint.spec, visualDeps);
+        });
         const resultPhoto = document.getElementById('result-photo');
         if (resultPhoto) showPhoto(resultPhoto, current.photoUrl);
         const satellite = document.getElementById('result-satellite');
@@ -2409,42 +2406,58 @@
             </span>
             <span class="shrink-0 rounded-xl bg-amber-500 px-3 py-1.5 text-[13px] font-black text-white">Hrát</span>
         </button>`;
+    // Přepínač nahoře na úvodní stránce: Jeden hráč (dnešní otázky a témata) / Více hráčů (výzvy); bez Supabase se nezobrazuje
+    const homeTab = () => {
+        if (!(Auth && Auth.isConfigured() && Social)) return 'single';
+        const saved = readJson(KEYS.homeTab);
+        return saved === 'multi' ? 'multi' : 'single';
+    };
+    const renderHomeTabs = () => {
+        if (!(Auth && Auth.isConfigured() && Social)) return '';
+        const tab = homeTab();
+        const waiting = (incomingList || []).length;
+        const option = (id, icon, label, badge = 0) => `
+            <button type="button" role="tab" data-action="home-tab" data-tab="${id}" aria-selected="${tab === id}" class="relative flex flex-1 items-center justify-center gap-2 rounded-xl px-3 py-2 text-[13px] font-black transition-colors ${tab === id ? 'bg-slate-800 text-white shadow-md dark:bg-slate-100 dark:text-slate-900' : 'text-slate-500 dark:text-slate-400'}">
+                <i data-lucide="${icon}" class="h-4 w-4"></i> ${label}${badge ? `<span class="rounded-full bg-amber-500 px-1.5 py-0.5 text-[10px] font-black leading-none text-white">${badge}</span>` : ''}
+            </button>`;
+        return `<div id="home-tabs" role="tablist" class="flex shrink-0 gap-1 rounded-2xl bg-slate-200/70 p-1 dark:bg-slate-800">${option('single', 'user-round', 'Jeden hráč')}${option('multi', 'users', 'Více hráčů', waiting)}</div>`;
+    };
     const challengesInner = () => {
         const user = signedUser();
-        const CARD = 'rounded-[1.4rem] bg-white p-3 shadow-sm ring-1 ring-slate-200/70 dark:bg-slate-800/70 dark:ring-slate-700/70';
+        const LABEL = 'px-1 text-[11px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500';
         if (!user) {
             return `
-                <div class="${CARD} flex items-center gap-3">
-                    <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-rose-500 to-orange-500 text-white shadow"><i data-lucide="swords" class="h-5 w-5"></i></span>
-                    <span class="min-w-0 flex-1"><span class="block text-[13px] font-black text-slate-800 dark:text-slate-100">Výzvy s kamarády</span><span class="block text-[11px] font-semibold text-slate-500 dark:text-slate-400">Přihlas se a porovnej se s ostatními</span></span>
-                    <button type="button" data-action="auth-login" class="shrink-0 rounded-xl bg-slate-800 px-3 py-2 text-[13px] font-black text-white shadow-md active:scale-95 dark:bg-slate-100 dark:text-slate-900">Přihlásit</button>
+                <div class="flex flex-col items-center gap-3 rounded-[1.4rem] bg-white p-5 text-center shadow-sm ring-1 ring-slate-200/70 dark:bg-slate-800/70 dark:ring-slate-700/70">
+                    <span class="flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-rose-500 to-orange-500 text-white shadow-lg"><i data-lucide="swords" class="h-7 w-7"></i></span>
+                    <div><p class="text-base font-black text-slate-800 dark:text-slate-100">Hraj s kamarády</p><p class="mt-1 text-sm text-slate-500 dark:text-slate-400">Přihlas se, vyber si přezdívku a obrázek a vyzvi kamaráda nebo náhodného hráče. Dostanete stejné otázky a porovnáte, kdo je lepší.</p></div>
+                    <button type="button" data-action="auth-login" class="flex w-full items-center justify-center gap-2 rounded-2xl bg-slate-800 px-4 py-3 text-base font-black text-white shadow-md active:scale-[0.98] dark:bg-slate-100 dark:text-slate-900"><i data-lucide="log-in" class="h-5 w-5"></i> Přihlásit se přes Google</button>
                 </div>`;
         }
-        const incoming = (incomingList || []).slice(0, 3);
+        const incoming = incomingList || [];
         const resume = challenge && !challenge.done
-            ? `<button type="button" data-action="challenge-resume" class="flex w-full items-center justify-center gap-2 rounded-2xl bg-amber-500 px-4 py-2.5 text-[14px] font-black text-white shadow-md active:scale-[0.98]"><i data-lucide="play" class="h-4 w-4"></i> Pokračovat ve výzvě (${challenge.index + 1}/${challenge.count})</button>` : '';
+            ? `<button type="button" data-action="challenge-resume" class="flex w-full items-center justify-center gap-2 rounded-2xl bg-amber-500 px-4 py-3 text-[15px] font-black text-white shadow-md active:scale-[0.98]"><i data-lucide="play" class="h-5 w-5"></i> Pokračovat ve výzvě (${challenge.index + 1}/${challenge.count})</button>` : '';
         const recent = myChallenges === null
-            ? ''
-            : myChallenges.filter(row => !incoming.some(invite => invite.id === row.challenge_id)).slice(0, incoming.length ? 1 : 2).map(challengeRow).join('');
+            ? '<p class="px-1 text-xs font-semibold text-slate-400">Načítám výzvy…</p>'
+            : (myChallenges.filter(row => !incoming.some(invite => invite.id === row.challenge_id)).slice(0, 6).map(challengeRow).join('')
+                || '<p class="px-1 text-sm text-slate-400">Zatím žádné výzvy. Založ první tlačítkem Vyzvat.</p>');
         return `
-            <div class="${CARD} flex flex-col gap-2">
-                <div class="flex items-center justify-between px-0.5">
-                    <h2 class="text-[13px] font-black text-slate-800 dark:text-slate-100">Výzvy</h2>
-                    ${incoming.length ? `<span class="rounded-full bg-amber-500 px-2 py-0.5 text-[11px] font-black text-white">${incoming.length} ${incoming.length === 1 ? 'čeká' : 'čekají'} na tebe</span>` : ''}
-                </div>
-                ${incoming.map(incomingRow).join('')}
-                ${resume}
+            <div class="flex flex-col gap-3">
                 <div class="grid grid-cols-2 gap-2">
-                    <button type="button" data-action="new-challenge" class="flex items-center justify-center gap-2 rounded-xl bg-gradient-to-br from-rose-500 to-orange-500 px-3 py-2.5 text-[14px] font-black text-white shadow-md active:scale-[0.98]"><i data-lucide="swords" class="h-4 w-4"></i> Vyzvat</button>
-                    <button type="button" data-action="join-challenge" class="flex items-center justify-center gap-2 rounded-xl bg-slate-100 px-3 py-2.5 text-[14px] font-bold text-slate-800 active:scale-[0.98] dark:bg-slate-700 dark:text-slate-100"><i data-lucide="users" class="h-4 w-4"></i> Mám kód</button>
+                    <button type="button" data-action="new-challenge" class="flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-br from-rose-500 to-orange-500 px-3 py-3.5 text-[15px] font-black text-white shadow-md active:scale-[0.98]"><i data-lucide="swords" class="h-5 w-5"></i> Vyzvat</button>
+                    <button type="button" data-action="join-challenge" class="flex items-center justify-center gap-2 rounded-2xl bg-white px-3 py-3.5 text-[15px] font-bold text-slate-800 shadow-sm ring-1 ring-slate-200/70 active:scale-[0.98] dark:bg-slate-800 dark:text-slate-100 dark:ring-slate-700/70"><i data-lucide="hash" class="h-5 w-5"></i> Zadat kód</button>
                 </div>
-                ${recent}
+                ${resume}
+                ${incoming.length ? `<div class="flex flex-col gap-2"><p class="${LABEL}">Čekají na tebe</p>${incoming.slice(0, 5).map(incomingRow).join('')}</div>` : ''}
+                <div class="flex flex-col gap-2"><p class="${LABEL}">Poslední výzvy</p>${recent}</div>
             </div>`;
     };
     const renderChallengesSection = () => Auth && Auth.isConfigured() && Social ? `<section id="challenges-section">${challengesInner()}</section>` : '';
     const paintChallenges = () => {
+        if (screen !== 'home') return;
+        const tabs = document.getElementById('home-tabs');
+        if (tabs) { tabs.outerHTML = renderHomeTabs(); renderIcons(document.getElementById('home-tabs')); }
         const element = document.getElementById('challenges-section');
-        if (!element || screen !== 'home') return;
+        if (!element) return;
         element.innerHTML = challengesInner();
         renderIcons(element);
     };
@@ -2710,6 +2723,7 @@
         render();
     };
 
+    // Zadání kódu výzvy od kamaráda (nebo celého odkazu)
     const openJoinChallenge = () => {
         if (!signedUser()) return;
         let note = '';
@@ -2889,6 +2903,7 @@
         daily: (button) => { lastDailyTopic = button.dataset.topic; startDaily(button.dataset.topic); },
         'auth-login': () => Auth && Auth.login(),
         'open-profile': () => openProfile(),
+        'home-tab': (button) => { writeJson(KEYS.homeTab, button.dataset.tab === 'multi' ? 'multi' : 'single'); renderHome(); },
         'header-profile': () => (signedUser() ? openProfile() : openLoginDialog()),
         'new-challenge': () => openNewChallenge(),
         'join-challenge': () => openJoinChallenge(),
