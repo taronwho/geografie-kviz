@@ -232,6 +232,13 @@
             accent: 'border-brand-600', on: 'border-brand-600 bg-brand-50 text-brand-800 dark:bg-brand-900/40 dark:text-brand-100', tab: 'bg-brand-700 text-white'
         }
     };
+    // Vlastní ilustrované ikony témat (icons/topics/<téma>.webp); téma bez ní má čárovou ikonu
+    const TOPIC_ART = new Set(['zemepis', 'vlajky', 'historie', 'mytologie']);
+    const topicArt = (topic) => topic && TOPIC_ART.has(topic.id);
+    // Ikona tématu: ilustrace (cls = velikost, např. h-8 w-8) nebo čárová ikona; wrap = obal čárové ikony (barevný čtverec)
+    const topicIcon = (topic, cls, wrap = '', iconCls = cls) => topicArt(topic)
+        ? `<img src="icons/topics/${topic.id}.webp" alt="" class="${cls} shrink-0 object-contain drop-shadow-md">`
+        : `${wrap ? `<span class="${wrap}">` : ''}<i data-lucide="${topic.icon}" class="${iconCls}"></i>${wrap ? '</span>' : ''}`;
     const styleOf = (topic) => TOPIC_STYLES[topic && topic.color] || TOPIC_STYLES.emerald;
     const MIX = { id: 'mix', title: 'Mix', icon: 'shuffle', color: 'brand' };
     const TAB_OFF = 'text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-700';
@@ -817,7 +824,7 @@
         overlay.innerHTML = `
             <div class="${previous ? '' : 'fade-in '}max-h-[92dvh] w-full max-w-md overflow-y-auto rounded-[1.75rem] bg-slate-50 p-5 shadow-2xl dark:bg-slate-900">
                 <div class="mb-4 flex items-center gap-3">
-                    <span class="shrink-0 rounded-2xl bg-gradient-to-br p-2.5 text-white ${style.tile}"><i data-lucide="${topic.icon}" class="h-6 w-6"></i></span>
+                    ${topicIcon(topic, 'h-12 w-12', `shrink-0 rounded-2xl bg-gradient-to-br p-2.5 text-white ${style.tile}`, 'h-6 w-6')}
                     <div class="min-w-0 flex-1">
                         <h2 id="chooser-title" class="text-lg font-black text-slate-800 dark:text-slate-100">${escapeHtml(topic.title)}</h2>
                         <p class="text-sm text-slate-500 dark:text-slate-400">${isMix ? 'Z jakých témat chceš otázky?' : 'Co chceš hrát?'}</p>
@@ -993,6 +1000,7 @@
         iconSlot.className = `flex shrink-0 ${place.logo ? '' : 'max-[430px]:hidden'}`;
         iconSlot.innerHTML = place.logo
             ? '<img src="icons/logo.webp" alt="" class="-my-1 h-11 w-auto drop-shadow-md">'
+            : place.topic && topicArt(place.topic) && place.icon === place.topic.icon ? topicIcon(place.topic, 'h-7 w-7 -my-1')
             : `<i data-lucide="${place.icon}" class="w-5 h-5 ${style ? '' : 'text-slate-600 dark:text-slate-300'}"></i>`;
         renderIcons(iconSlot);
         const text = document.getElementById('status-text');
@@ -1019,7 +1027,7 @@
     const renderLoading = (text = 'Vybírám otázku…', topic = null) => {
         appContent.innerHTML = `
             <div class="absolute inset-0 z-10 flex flex-col items-center justify-center fade-in bg-slate-50/80 backdrop-blur-sm dark:bg-slate-900/80">
-                ${topic ? `<i data-lucide="${topic.icon}" class="w-14 h-14 ${styleOf(topic).text} spin mb-5 drop-shadow-md"></i>` : LOADING_OWL}
+                ${topic ? (topicArt(topic) ? topicIcon(topic, 'bob mb-5 h-20 w-20') : `<i data-lucide="${topic.icon}" class="w-14 h-14 ${styleOf(topic).text} spin mb-5 drop-shadow-md"></i>`) : LOADING_OWL}
                 <p class="text-slate-600 dark:text-slate-300 font-bold tracking-wider text-sm uppercase">${escapeHtml(text)}</p>
             </div>
         `;
@@ -1079,7 +1087,7 @@
             const streak = computeStreak(stats.daily[topic.id] || {}, today);
             return `
                 <button type="button" data-action="daily" data-topic="${topic.id}" title="Dnešní otázka – ${escapeHtml(topic.title)}" aria-label="Dnešní otázka – ${escapeHtml(topic.title)}: ${escapeHtml(status.text)}" class="relative flex min-w-0 flex-col items-center gap-0.5 rounded-xl bg-slate-50 px-0.5 pb-1 pt-1 ring-1 ring-slate-200/70 transition-all active:scale-95 dark:bg-slate-900/60 dark:ring-slate-700/70">
-                    <span class="rounded-lg p-1 ${styleOf(topic).soft}"><i data-lucide="${topic.icon}" class="h-[1.125rem] w-[1.125rem]"></i></span>
+                    ${topicIcon(topic, 'h-7 w-7', `rounded-lg p-1 ${styleOf(topic).soft}`, 'h-[1.125rem] w-[1.125rem]')}
                     <span class="flex max-w-full items-center gap-0.5 truncate text-[10px] font-bold ${status.tone}">${status.icon ? `<i data-lucide="${status.icon}" class="h-3 w-3 shrink-0"></i>` : ''}${status.text}</span>
                     ${streak ? `<span class="absolute -right-1 -top-1.5 flex items-center gap-0.5 rounded-lg bg-orange-500 px-1 py-0.5 text-[10px] font-black text-white shadow" title="Série dní"><i data-lucide="flame" class="h-3 w-3"></i>${streak}</span>` : ''}
                 </button>`;
@@ -1094,8 +1102,8 @@
             const scope = scopeOf(topic);
             return `
                 <button type="button" data-action="play-topic" data-topic="${topic.id}"${scope ? ` title="${escapeHtml(`${topic.title} · ${scope}`)}"` : ''} class="relative flex min-h-[4rem] min-w-0 flex-col justify-between overflow-hidden rounded-2xl bg-gradient-to-br p-2 text-left text-white shadow-md ring-1 ring-black/5 transition-all active:scale-[0.97] ${styleOf(topic).tile}">
-                    <i data-lucide="${topic.icon}" class="pointer-events-none absolute -bottom-2 -right-2 h-12 w-12 opacity-20"></i>
-                    <i data-lucide="${topic.icon}" class="h-[1.125rem] w-[1.125rem]"></i>
+                    ${topicArt(topic) ? topicIcon(topic, 'h-10 w-10') : `<i data-lucide="${topic.icon}" class="pointer-events-none absolute -bottom-2 -right-2 h-12 w-12 opacity-20"></i>
+                    <i data-lucide="${topic.icon}" class="h-[1.125rem] w-[1.125rem]"></i>`}
                     <span class="block ${topic.title.length > 10 ? 'text-[10px]' : 'text-[11.5px]'} font-black leading-tight tracking-tight">${escapeHtml(topic.title)}</span>
                 </button>`;
         };
@@ -2131,7 +2139,7 @@
         const mistakes = loadMistakes();
         const card = (topic) => `
             <button type="button" data-action="learn-topic" data-topic="${topic.id}" class="flex min-h-[4rem] min-w-0 flex-col items-start justify-between gap-1 rounded-2xl border border-slate-100 bg-white p-2 text-left shadow-sm transition-all hover:border-brand-300 active:scale-[0.98] dark:border-slate-700 dark:bg-slate-800 dark:hover:border-brand-600">
-                <span class="rounded-lg p-1.5 ${styleOf(topic).soft}"><i data-lucide="${topic.icon}" class="h-[1.125rem] w-[1.125rem]"></i></span>
+                ${topicIcon(topic, 'h-9 w-9', `rounded-lg p-1.5 ${styleOf(topic).soft}`, 'h-[1.125rem] w-[1.125rem]')}
                 <span class="${topic.title.length > 10 ? 'text-[10px]' : 'text-[11.5px]'} font-black leading-tight text-slate-800 [overflow-wrap:anywhere] dark:text-slate-100">${escapeHtml(topic.title)}</span>
             </button>`;
         // Stejná mřížka jako na úvodu: témata a „Moje chyby“ v posledních dvou políčkách vyplní celou výšku
@@ -2172,7 +2180,7 @@
         return `
             <button type="button" data-action="learn-back" class="${BACK_LINK}"><i data-lucide="chevron-left" class="h-4 w-4"></i> Učení</button>
             <div class="flex items-center gap-3">
-                <span class="rounded-2xl p-3 ${styleOf(topic).soft}"><i data-lucide="${topic.icon}" class="h-7 w-7"></i></span>
+                ${topicIcon(topic, 'h-14 w-14', `rounded-2xl p-3 ${styleOf(topic).soft}`, 'h-7 w-7')}
                 <div>
                     <h2 class="text-2xl font-black tracking-tight text-slate-800 dark:text-slate-50">${escapeHtml(topic.title)}</h2>
                     <p class="text-sm text-slate-500 dark:text-slate-400">${settings.tier === 'all' ? 'Celé téma i se méně známými' : 'Celé téma a kategorie jen se známými'} · <button type="button" data-action="settings" class="-my-2 px-1 py-2 font-bold text-slate-700 underline underline-offset-2 dark:text-slate-200">změnit</button></p>
