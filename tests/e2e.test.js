@@ -1282,6 +1282,9 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         await one.tab.waitForSelector('[data-pick-opp="u-2"]');
         assert.equal(await one.tab.locator('[data-pick-opp]').count(), 1, 'sama sebe nenajde');
         await one.tab.click('[data-pick-opp="u-2"]');
+        // Téma je souhrnný řádek (výchozí: všechna témata), rozbalí se klepnutím; počet otázek je vždy vidět
+        assert.match(await one.tab.textContent('[data-ch-open="topics"]'), /Všechna témata/);
+        await one.tab.click('[data-ch-open="topics"]');
         await one.tab.click('[data-ch-topic="zemepis"]');
         await one.tab.click('[data-ch-count="5"]');
         await one.tab.click('[data-ch-create]');
@@ -1311,13 +1314,16 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         // Nastavení výzvy: Vlajky, jen okruh vlajek států, i těžší otázky, psaní odpovědí – hraje se přesně podle něj
         await one.tab.click('#challenges-section [data-action="new-challenge"]');
         await one.tab.click('[data-ch-who="anyone"]');
+        await one.tab.click('[data-ch-open="topics"]');
         await one.tab.click('[data-ch-topic="vlajky"]');
         for (const key of ['znak', 'uzemi', 'cesko']) await one.tab.click(`[data-ch-cat="${key}"]`);
         assert.equal(await one.tab.locator('[data-ch-cat][aria-pressed="true"]').count(), 1);
         await one.tab.click('[data-ch-cat="vlajka"]');
         assert.equal(await one.tab.locator('[data-ch-cat][aria-pressed="true"]').count(), 1, 'poslední okruh nejde zrušit');
+        await one.tab.click('[data-ch-open="settings"]');
         await one.tab.click('[data-ch-hard="yes"]');
         await one.tab.click('[data-ch-variant="typed"]');
+        assert.match(await one.tab.textContent('[data-ch-open="settings"]'), /I těžší · Psaní/);
         await one.tab.click('[data-ch-count="5"]');
         await one.tab.click('[data-ch-create]');
         await waitForQuestion(one.tab);
@@ -1326,6 +1332,26 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         const customRound = await one.tab.evaluate(() => JSON.parse(localStorage.getItem('mudrlant.session')));
         assert.equal(customRound.data.category, 'vlajka', 'jen vybraný okruh');
         assert.equal(customRound.round.variant, 'typed', 'pevný způsob odpovídání výzvy');
+        await one.tab.click('#btn-home');
+        await waitForHome(one.tab);
+
+        // Víc témat najednou; klepání na témata nehází okno nahoru
+        await one.tab.click('#challenges-section [data-action="new-challenge"]');
+        await one.tab.click('[data-ch-who="anyone"]');
+        await one.tab.click('[data-ch-open="topics"]');
+        await one.tab.click('[data-ch-topic="zemepis"]');
+        await one.tab.click('[data-ch-topic="historie"]');
+        assert.match(await one.tab.textContent('[data-ch-open="topics"]'), /Zeměpis \+ Historie/);
+        await one.tab.evaluate(() => { document.querySelector('#dialog-overlay > div').scrollTop = 120; });
+        await one.tab.click('[data-ch-topic="biologie"]');
+        assert.ok(await one.tab.evaluate(() => document.querySelector('#dialog-overlay > div').scrollTop) >= 100, 'okno po klepnutí zůstane, kde bylo');
+        await one.tab.click('[data-ch-topic="biologie"]');
+        await one.tab.click('[data-ch-count="5"]');
+        await one.tab.click('[data-ch-create]');
+        await waitForQuestion(one.tab);
+        const multi = Object.values(db.challenges).find(c => c.topic.includes(','));
+        assert.equal(multi.topic, 'zemepis,historie');
+        assert.ok(['zemepis', 'historie'].includes((await readRound(one.tab)).topic));
         await one.tab.click('#btn-home');
         await waitForHome(one.tab);
 

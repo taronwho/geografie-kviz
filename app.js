@@ -2376,7 +2376,15 @@
     const playerName = (player) => (player && player.display_name) || 'Hráč';
     const avatarHtml = (player, size = 'h-10 w-10 text-xl') =>
         `<span class="flex shrink-0 items-center justify-center rounded-full ${size} ${AVATAR_BG[player && player.color] || AVATAR_BG.emerald}" aria-hidden="true">${escapeHtml((player && player.avatar) || '🦊')}</span>`;
-    const challengeTopicTitle = (topicId) => topicId === 'mix' ? 'Mix všech témat' : (TOPIC_BY_ID[topicId] || {}).title || topicId;
+    // Téma výzvy: „mix“ (všechna), jedno téma, nebo víc témat oddělených čárkou
+    const challengeTopicIds = (topic) => topic === 'mix' ? TOPICS.map(item => item.id) : String(topic).split(',').filter(id => TOPIC_BY_ID[id]);
+    const challengeTopicTitle = (topic) => {
+        const ids = challengeTopicIds(topic);
+        if (topic === 'mix' || ids.length === TOPICS.length) return 'Mix všech témat';
+        if (ids.length <= 2) return ids.map(id => TOPIC_BY_ID[id].title).join(' + ');
+        return `${ids.length} témat`;
+    };
+    const challengeTopicIcon = (topic) => { const ids = challengeTopicIds(topic); return ids.length === 1 ? TOPIC_BY_ID[ids[0]].icon : MIX.icon; };
 
     const loadMyProfile = async () => {
         const user = signedUser();
@@ -2532,6 +2540,7 @@
         closeChooser();
         closeSettings();
         let overlay = document.getElementById('dialog-overlay');
+        const created = !overlay;
         if (!overlay) {
             overlay = document.createElement('div');
             overlay.id = 'dialog-overlay';
@@ -2552,8 +2561,12 @@
         dialogSubmit = onSubmit;
         dialogInput = onInput;
         const scroll = overlay.firstElementChild ? overlay.firstElementChild.scrollTop : 0;
+        // Překreslení po klepnutí nesmí hodit okno nahoru: zachová se posun i zaměřené pole
+        const activeId = !created && overlay.contains(document.activeElement) ? document.activeElement.id : '';
+        const retitled = overlay.dataset.title !== title;
+        overlay.dataset.title = title;
         overlay.innerHTML = `
-            <div class="max-h-[92dvh] w-full max-w-md overflow-y-auto rounded-[1.75rem] bg-slate-50 p-5 shadow-2xl dark:bg-slate-900">
+            <div class="relative max-h-[92dvh] w-full max-w-md overflow-y-auto rounded-[1.75rem] bg-slate-50 p-5 shadow-2xl dark:bg-slate-900">
                 <div class="mb-4 flex items-center justify-between">
                     <h2 id="dialog-title" class="text-lg font-black text-slate-800 dark:text-slate-100">${escapeHtml(title)}</h2>
                     <button type="button" data-close aria-label="Zavřít" class="rounded-xl p-2 text-slate-500 hover:bg-slate-200 dark:text-slate-400 dark:hover:bg-slate-800"><i data-lucide="x" class="h-5 w-5"></i></button>
@@ -2562,8 +2575,13 @@
             </div>`;
         overlay.firstElementChild.scrollTop = scroll;
         renderIcons(overlay);
-        const focus = overlay.querySelector('[data-autofocus]') || overlay.querySelector('[data-close]');
-        if (focus) focus.focus();
+        if (created || retitled) {
+            const focus = overlay.querySelector('[data-autofocus]') || overlay.querySelector('[data-close]');
+            if (focus) focus.focus({ preventScroll: true });
+        } else if (activeId) {
+            const again = overlay.querySelector(`#${activeId}`);
+            if (again) { again.focus({ preventScroll: true }); if (again.setSelectionRange && again.value) again.setSelectionRange(again.value.length, again.value.length); }
+        }
         return overlay;
     };
     const DIALOG_NOTE = (text, tone = 'text-rose-600 dark:text-rose-400') => `<p class="mt-3 min-h-[1.25rem] text-sm font-semibold ${tone}" role="status">${escapeHtml(text)}</p>`;
@@ -2627,16 +2645,26 @@
         render();
     };
 
-    // Nová výzva: komu (kdokoli s kódem / hráč podle přezdívky / náhodný hráč), téma nebo mix a počet otázek; po založení se rovnou hraje
+    // Nová výzva: komu (konkrétní hráč / náhodný / odkaz), téma (i víc témat), počet otázek a nastavení. Téma a nastavení jsou
+    // souhrnné řádky, které se rozbalí klepnutím; tlačítko Vytvořit a hrát je stále dole na očích.
     const openNewChallenge = () => {
         if (!signedUser()) return;
-        const draft = { topic: 'mix', count: 10, who: 'player', opponent: null, query: '', found: null, hard: false, variant: 'choices', cats: null };
+        const draft = { topics: [], count: 10, who: 'player', opponent: null, query: '', found: null, hard: false, variant: 'choices', cats: null, open: null };
         let busy = false;
         let note = '';
         let searchToken = 0;
         let searchTimer = null;
-        const choice = (attr, value, active, content, extra = '') => `<button type="button" ${attr}="${value}" aria-pressed="${active}" class="rounded-xl border-2 px-2.5 py-2 text-sm font-bold leading-tight active:scale-[0.98] ${extra} ${active ? 'border-emerald-500 bg-emerald-50 text-emerald-900 dark:bg-emerald-900/30 dark:text-emerald-200' : 'border-transparent bg-white text-slate-700 dark:bg-slate-800 dark:text-slate-200'}">${content}</button>`;
-        const tile = (id, icon, label) => choice('data-ch-topic', id, draft.topic === id, `<span class="flex items-center gap-2 text-left"><i data-lucide="${icon}" class="h-4 w-4 shrink-0"></i><span class="min-w-0">${escapeHtml(label)}</span></span>`);
+        const ALL = TOPICS.map(topic => topic.id);
+        const chosenTopics = () => draft.topics.length ? draft.topics : ALL;
+        // Hodnota tématu pro databázi: mix (všechna), nebo vybraná témata v pořadí aplikace
+        const topicValue = () => (draft.topics.length === 0 || draft.topics.length >= ALL.length) ? 'mix' : ALL.filter(id => draft.topics.includes(id)).join(',');
+        const topicSummary = () => draft.topics.length === 0 || draft.topics.length >= ALL.length ? 'Všechna témata' : draft.topics.length <= 2 ? ALL.filter(id => draft.topics.includes(id)).map(id => TOPIC_BY_ID[id].title).join(' + ') : `${draft.topics.length} témat`;
+        // Okruhy jen u jednoho vybraného tématu (třeba jen vlajky států)
+        const topicCategories = () => draft.topics.length === 1 ? TOPIC_BY_ID[draft.topics[0]].categories : [];
+        const selectedCats = () => draft.cats || topicCategories().map(category => category.key);
+        const settingsSummary = () => [draft.hard ? 'I těžší' : 'Známé', draft.variant === 'typed' ? 'Psaní' : 'Možnosti'].join(' · ');
+        const chip = (attr, value, active, content) => `<button type="button" ${attr}="${escapeHtml(String(value))}" aria-pressed="${active}" class="min-w-0 rounded-xl border-2 px-2 py-1.5 text-[13px] font-bold leading-tight active:scale-[0.98] ${active ? 'border-emerald-500 bg-emerald-50 text-emerald-900 dark:bg-emerald-900/30 dark:text-emerald-200' : 'border-transparent bg-white text-slate-600 dark:bg-slate-800 dark:text-slate-300'}">${content}</button>`;
+        const LABEL = 'text-xs font-black uppercase tracking-widest text-slate-500 dark:text-slate-400';
         const foundRows = () => {
             if (draft.found === null) return draft.query.trim().length >= 2 ? '<p class="px-1 text-xs font-semibold text-slate-400">Hledám…</p>' : '<p class="px-1 text-xs text-slate-400">Napiš aspoň 2 znaky přezdívky.</p>';
             if (!draft.found.length) return '<p class="px-1 text-xs font-semibold text-slate-400">Žádný takový hráč. Zkus jinou přezdívku.</p>';
@@ -2656,58 +2684,66 @@
             const active = draft.who === id;
             return `
                 <div>
-                    <button type="button" data-ch-who="${id}" role="radio" aria-checked="${active}" class="flex w-full items-center gap-3 rounded-2xl border-2 p-3 text-left active:scale-[0.99] ${active ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-900/30' : 'border-transparent bg-white dark:bg-slate-800'}">
-                        <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${active ? 'bg-emerald-500 text-white' : 'bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-300'}"><i data-lucide="${icon}" class="h-5 w-5"></i></span>
-                        <span class="min-w-0 flex-1"><span class="block text-[15px] font-black text-slate-800 dark:text-slate-100">${title}</span><span class="block text-xs text-slate-500 dark:text-slate-400">${text}</span></span>
+                    <button type="button" data-ch-who="${id}" role="radio" aria-checked="${active}" class="flex w-full items-center gap-3 rounded-2xl border-2 px-3 py-2 text-left active:scale-[0.99] ${active ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-900/30' : 'border-transparent bg-white dark:bg-slate-800'}">
+                        <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${active ? 'bg-emerald-500 text-white' : 'bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-300'}"><i data-lucide="${icon}" class="h-[1.125rem] w-[1.125rem]"></i></span>
+                        <span class="min-w-0 flex-1"><span class="block text-[14px] font-black leading-tight text-slate-800 dark:text-slate-100">${title}</span><span class="block truncate text-[11px] text-slate-500 dark:text-slate-400">${text}</span></span>
                         <span class="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 ${active ? 'border-emerald-500 bg-emerald-500 text-white' : 'border-slate-300 dark:border-slate-600'}">${active ? '<i data-lucide="check" class="h-3 w-3"></i>' : ''}</span>
                     </button>
                     ${active && id === 'player' ? opponentSearch() : ''}
                 </div>`;
         };
-        // Okruhy vybraného tématu (u mixu žádné): všechny zaškrtnuté, zrušením jde zúžit třeba na vlajky států
-        const topicCategories = () => (TOPIC_BY_ID[draft.topic] || { categories: [] }).categories;
-        const selectedCats = () => draft.cats || topicCategories().map(category => category.key);
-        const categoryBlock = () => {
-            const list = topicCategories();
-            if (draft.topic === 'mix' || list.length < 2) return '';
-            const chosen = selectedCats();
+        // Souhrnný řádek, který se klepnutím rozbalí
+        const accordion = (id, icon, label, summary, body) => {
+            const open = draft.open === id;
             return `
-                <div>
-                    <p class="mb-2 text-xs font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">Okruh</p>
-                    <div class="flex flex-wrap gap-1.5">${list.map(category => `<button type="button" data-ch-cat="${escapeHtml(category.key)}" aria-pressed="${chosen.includes(category.key)}" class="flex items-center gap-1.5 rounded-xl border-2 px-2.5 py-1.5 text-sm font-bold active:scale-[0.98] ${chosen.includes(category.key) ? 'border-emerald-500 bg-emerald-50 text-emerald-900 dark:bg-emerald-900/30 dark:text-emerald-200' : 'border-transparent bg-white text-slate-500 dark:bg-slate-800 dark:text-slate-400'}"><i data-lucide="${chosen.includes(category.key) ? 'check' : 'plus'}" class="h-3.5 w-3.5"></i>${escapeHtml(category.label)}</button>`).join('')}</div>
+                <div class="rounded-2xl bg-white shadow-sm dark:bg-slate-800/70">
+                    <button type="button" data-ch-open="${id}" aria-expanded="${open}" class="flex w-full items-center gap-3 px-3 py-2.5 text-left">
+                        <i data-lucide="${icon}" class="h-5 w-5 shrink-0 text-slate-400"></i>
+                        <span class="min-w-0 flex-1"><span class="block text-[11px] font-black uppercase tracking-widest text-slate-400">${label}</span><span class="block truncate text-[14px] font-bold text-slate-800 dark:text-slate-100">${escapeHtml(summary)}</span></span>
+                        <i data-lucide="${open ? 'chevron-down' : 'chevron-right'}" class="h-5 w-5 shrink-0 text-slate-400"></i>
+                    </button>
+                    ${open ? `<div class="border-t border-slate-100 px-3 pb-3 pt-3 dark:border-slate-700">${body}</div>` : ''}
                 </div>`;
         };
+        const topicBody = () => {
+            const cats = topicCategories();
+            const chosen = selectedCats();
+            const all = draft.topics.length === 0 || draft.topics.length >= ALL.length;
+            return `
+                <div class="grid grid-cols-3 gap-1.5">
+                    <span class="col-span-3">${chip('data-ch-topic', 'all', all, '<span class="flex items-center justify-center gap-1.5"><i data-lucide="shuffle" class="h-3.5 w-3.5"></i> Všechna témata</span>')}</span>
+                    ${TOPICS.map(topic => chip('data-ch-topic', topic.id, !all && draft.topics.includes(topic.id), `<span class="flex flex-col items-center gap-0.5"><i data-lucide="${topic.icon}" class="h-4 w-4"></i><span class="block text-[11px]">${escapeHtml(topic.title)}</span></span>`)).join('')}
+                </div>
+                <p class="mt-2 text-[11px] text-slate-400">Klepnutím vybereš víc témat najednou.</p>
+                ${cats.length > 1 ? `<p class="${LABEL} mb-1.5 mt-3">Okruh</p><div class="flex flex-wrap gap-1.5">${cats.map(category => chip('data-ch-cat', category.key, chosen.includes(category.key), `<span class="flex items-center gap-1.5"><i data-lucide="${chosen.includes(category.key) ? 'check' : 'plus'}" class="h-3.5 w-3.5"></i>${escapeHtml(category.label)}</span>`)).join('')}</div>` : ''}`;
+        };
+        const settingsBody = () => `
+            <p class="${LABEL} mb-1.5">Obtížnost</p>
+            <div class="mb-3 grid grid-cols-2 gap-1.5">${chip('data-ch-hard', 'no', !draft.hard, 'Známé<span class="block text-[11px] font-semibold opacity-70">slavné a běžné věci</span>')}${chip('data-ch-hard', 'yes', draft.hard, 'I těžší<span class="block text-[11px] font-semibold opacity-70">i méně známé věci</span>')}</div>
+            <p class="${LABEL} mb-1.5">Odpovídání (pro všechny stejně)</p>
+            <div class="grid grid-cols-2 gap-1.5">${chip('data-ch-variant', 'choices', draft.variant === 'choices', 'Možnosti<span class="block text-[11px] font-semibold opacity-70">vybíráš ze 4</span>')}${chip('data-ch-variant', 'typed', draft.variant === 'typed', 'Psaní<span class="block text-[11px] font-semibold opacity-70">dvojnásobek bodů</span>')}</div>`;
         const render = () => showDialog('Nová výzva', `
-            <div class="flex flex-col gap-4">
-                <div>
-                    <p class="mb-2 text-xs font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">Koho vyzvat</p>
-                    <div role="radiogroup" aria-label="Koho vyzvat" class="flex flex-col gap-2">
-                        ${whoCard('player', 'user-round', 'Konkrétního hráče', 'Najdeš ho podle přezdívky a výzva se mu ukáže ve hře')}
-                        ${whoCard('random', 'shuffle', 'Náhodného hráče', 'Soupeře vybereme za tebe z ostatních hráčů')}
-                        ${whoCard('anyone', 'share-2', 'Kamaráda přes odkaz', 'Po dohrání pošleš odkaz nebo kód komukoli')}
-                    </div>
+            <div class="flex flex-col gap-2.5">
+                <div role="radiogroup" aria-label="Koho vyzvat" class="flex flex-col gap-1.5">
+                    <p class="${LABEL}">Koho vyzvat</p>
+                    ${whoCard('player', 'user-round', 'Konkrétního hráče', 'Najdeš ho podle přezdívky')}
+                    ${whoCard('random', 'shuffle', 'Náhodného hráče', 'Soupeře vybereme za tebe')}
+                    ${whoCard('anyone', 'share-2', 'Kamaráda přes odkaz', 'Pošleš odkaz nebo kód komukoli')}
                 </div>
-                <div>
-                    <p class="mb-2 text-xs font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">Téma</p>
-                    <div class="grid grid-cols-2 gap-1.5">${tile('mix', MIX.icon, 'Mix všech témat')}${TOPICS.map(topic => tile(topic.id, topic.icon, topic.title)).join('')}</div>
+                ${accordion('topics', challengeTopicIcon(topicValue()), 'Téma', topicSummary(), topicBody())}
+                <div class="flex items-center gap-3 rounded-2xl bg-white px-3 py-2 shadow-sm dark:bg-slate-800/70">
+                    <i data-lucide="hash" class="h-5 w-5 shrink-0 text-slate-400"></i>
+                    <span class="min-w-0 flex-1 text-[11px] font-black uppercase tracking-widest text-slate-400">Počet otázek</span>
+                    <div class="grid grid-cols-3 gap-1">${Social.COUNTS.map(count => chip('data-ch-count', count, draft.count === count, `<span class="px-1.5 font-black">${count}</span>`)).join('')}</div>
                 </div>
-                ${categoryBlock()}
-                <div>
-                    <p class="mb-2 text-xs font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">Obtížnost</p>
-                    <div class="grid grid-cols-2 gap-2">${choice('data-ch-hard', 'no', !draft.hard, '<span class="block">Známé</span><span class="block text-[11px] font-semibold opacity-70">slavné a běžné věci</span>')}${choice('data-ch-hard', 'yes', draft.hard, '<span class="block">I těžší</span><span class="block text-[11px] font-semibold opacity-70">i méně známé věci</span>')}</div>
+                ${accordion('settings', 'pencil', 'Nastavení', settingsSummary(), settingsBody())}
+                <div class="sticky -bottom-5 -mx-5 mt-1 bg-slate-50/95 px-5 pb-5 pt-3 backdrop-blur dark:bg-slate-900/95">
+                    <button type="button" data-ch-create ${busy ? 'disabled' : ''} class="${PRIMARY_BUTTON}"><i data-lucide="swords" class="h-5 w-5"></i> ${busy ? 'Zakládám…' : 'Vytvořit a hrát'}</button>
+                    ${note ? DIALOG_NOTE(note) : ''}
                 </div>
-                <div>
-                    <p class="mb-2 text-xs font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">Odpovídání (pro všechny stejně)</p>
-                    <div class="grid grid-cols-2 gap-2">${choice('data-ch-variant', 'choices', draft.variant === 'choices', '<span class="block">Možnosti</span><span class="block text-[11px] font-semibold opacity-70">vybíráš ze 4</span>')}${choice('data-ch-variant', 'typed', draft.variant === 'typed', '<span class="block">Psaní</span><span class="block text-[11px] font-semibold opacity-70">dvojnásobek bodů</span>')}</div>
-                </div>
-                <div>
-                    <p class="mb-2 text-xs font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">Počet otázek</p>
-                    <div class="grid grid-cols-3 gap-2">${Social.COUNTS.map(count => choice('data-ch-count', count, draft.count === count, String(count), 'text-base font-black')).join('')}</div>
-                </div>
-                <button type="button" data-ch-create ${busy ? 'disabled' : ''} class="${PRIMARY_BUTTON}"><i data-lucide="swords" class="h-5 w-5"></i> ${busy ? 'Zakládám…' : 'Vytvořit a hrát'}</button>
-                ${note ? DIALOG_NOTE(note) : ''}
             </div>`, {
             onClick: async (event) => {
+                const open = event.target.closest('[data-ch-open]');
                 const topic = event.target.closest('[data-ch-topic]');
                 const count = event.target.closest('[data-ch-count]');
                 const who = event.target.closest('[data-ch-who]');
@@ -2715,7 +2751,15 @@
                 const category = event.target.closest('[data-ch-cat]');
                 const hard = event.target.closest('[data-ch-hard]');
                 const variant = event.target.closest('[data-ch-variant]');
-                if (topic) { draft.topic = topic.dataset.chTopic; draft.cats = null; render(); }
+                if (open) { draft.open = draft.open === open.dataset.chOpen ? null : open.dataset.chOpen; render(); }
+                if (topic) {
+                    const id = topic.dataset.chTopic;
+                    if (id === 'all') draft.topics = [];
+                    else if (draft.topics.length === 0 || draft.topics.length >= ALL.length) draft.topics = [id];
+                    else draft.topics = draft.topics.includes(id) ? draft.topics.filter(other => other !== id) : [...draft.topics, id];
+                    draft.cats = null;
+                    render();
+                }
                 if (category) {
                     const chosen = selectedCats();
                     const key = category.dataset.chCat;
@@ -2738,11 +2782,11 @@
                         let opponent = draft.who === 'player' ? draft.opponent : null;
                         if (draft.who === 'random') {
                             opponent = await Social.randomOpponent();
-                            if (!opponent) { busy = false; note = 'Zatím tu nejsou žádní jiní hráči. Zkus „Kdokoli“ a pošli odkaz kamarádovi.'; render(); return; }
+                            if (!opponent) { busy = false; note = 'Zatím tu nejsou žádní jiní hráči. Zkus „Kamaráda přes odkaz“.'; render(); return; }
                         }
                         const all = topicCategories().length;
-                        const cats = draft.topic === 'mix' || !draft.cats || draft.cats.length >= all ? [] : draft.cats;
-                        const created = await Social.createChallenge(signedUser().id, { topic: draft.topic, count: draft.count, invitedId: opponent ? opponent.id : null, includeHard: draft.hard, categories: cats, variant: draft.variant });
+                        const cats = draft.topics.length !== 1 || !draft.cats || draft.cats.length >= all ? [] : draft.cats;
+                        const created = await Social.createChallenge(signedUser().id, { topic: topicValue(), count: draft.count, invitedId: opponent ? opponent.id : null, includeHard: draft.hard, categories: cats, variant: draft.variant });
                         closeDialog();
                         await loadMyProfile();
                         startChallenge({ ...created, creator: myProfile, invited: opponent }, 0, []);
@@ -2852,17 +2896,17 @@
         if (!def) { showDialog('Výzva', DIALOG_NOTE('Výzva s tímhle kódem neexistuje.')); return; }
         const mine = results.find(row => row.user_id === user.id);
         const own = def.creator && def.creator.id === user.id;
-        const topic = def.topic === 'mix' ? MIX : TOPIC_BY_ID[def.topic];
         const text = `${own ? 'Vyzývám tě' : 'Hraju'} v Mudrlantu: ${challengeTopicTitle(def.topic)}, ${def.count} otázek.`;
         showDialog(own ? 'Tvoje výzva' : 'Výzva', `
             <div class="flex flex-col gap-4">
                 <div class="flex items-center gap-3">
                     ${avatarHtml(def.creator, 'h-12 w-12 text-2xl')}
                     <div class="min-w-0"><p class="truncate text-base font-black text-slate-800 dark:text-slate-100">${escapeHtml(own ? 'Ty' : playerName(def.creator))}${own ? '' : ' tě vyzývá'}</p>
-                    <p class="flex items-center gap-1.5 text-sm text-slate-500 dark:text-slate-400"><i data-lucide="${topic ? topic.icon : 'swords'}" class="h-4 w-4"></i> ${escapeHtml(challengeTopicTitle(def.topic))} · ${def.count} otázek</p></div>
+                    <p class="flex items-center gap-1.5 text-sm text-slate-500 dark:text-slate-400"><i data-lucide="${challengeTopicIcon(def.topic)}" class="h-4 w-4"></i> ${escapeHtml(challengeTopicTitle(def.topic))} · ${def.count} otázek</p></div>
                 </div>
                 ${(() => {
-                    const topicDef = TOPIC_BY_ID[def.topic];
+                    const ids = challengeTopicIds(def.topic);
+                    const topicDef = ids.length === 1 ? TOPIC_BY_ID[ids[0]] : null;
                     const tags = [def.include_hard ? 'I těžší otázky' : 'Známé otázky', def.variant === 'typed' ? 'Psaní odpovědí' : def.variant === 'choices' ? 'Výběr z možností' : null,
                         ...(def.categories || []).length && topicDef ? [`Okruh: ${def.categories.map(key => categoryOf(topicDef, key).label).join(', ')}`] : []].filter(Boolean);
                     return `<div class="flex flex-wrap gap-1.5">${tags.map(tag => `<span class="rounded-full bg-slate-200 px-2.5 py-1 text-[11px] font-bold text-slate-600 dark:bg-slate-700 dark:text-slate-300">${escapeHtml(tag)}</span>`).join('')}</div>`;
@@ -2895,20 +2939,21 @@
                 const keys = ctx.topic.categories.map(c => c.key).filter(key => !challenge.categories.length || challenge.categories.includes(key));
                 return pickItem(pool.length ? pool : ctx.items.filter(candidate => candidate.k === 1), rng, history, keys);
             };
+            const ids = challengeTopicIds(challenge.topic);
             const history = [];
-            if (challenge.topic !== 'mix') {
-                const ctx = await loadTopic(challenge.topic);
+            if (ids.length === 1) {
+                const ctx = await loadTopic(ids[0]);
                 for (let before = 0; before < index; before++) {
                     const earlier = pickFor(ctx, createSeededRandom(`${challenge.seed}:${before}`), history);
                     if (earlier) history.push(earlier.q);
                 }
             }
             const rng = createSeededRandom(`${challenge.seed}:${index}`);
-            const topicId = challenge.topic === 'mix' ? pickRandom(TOPICS.map(topic => topic.id), rng) : challenge.topic;
+            const topicId = ids.length > 1 ? pickRandom(ids, rng) : ids[0];
             const ctx = await loadTopic(topicId);
             const item = pickFor(ctx, rng, history);
             return { item, ctx, rng };
-        }, challenge.topic === 'mix' ? MIX : TOPIC_BY_ID[challenge.topic]);
+        }, challengeTopicIds(challenge.topic).length === 1 ? TOPIC_BY_ID[challengeTopicIds(challenge.topic)[0]] : MIX);
     };
 
     const challengeHome = () => {

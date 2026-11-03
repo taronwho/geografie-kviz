@@ -85,13 +85,17 @@ grant execute on function public.random_opponent() to authenticated;
 create table if not exists public.challenges (
     id text primary key check (id ~ '^[A-Z0-9]{6}$'),
     creator_id uuid not null references public.profiles (id) on delete cascade,
-    topic text not null check (char_length(topic) between 1 and 40),
+    topic text not null,
     seed text not null check (char_length(seed) between 1 and 80),
     count integer not null check (count between 3 and 20),
     created_at timestamptz not null default now()
 );
 -- Vyzvaný hráč (podle přezdívky nebo náhodný); prázdné = výzva pro kohokoli s kódem
 alter table public.challenges add column if not exists invited_id uuid references public.profiles (id) on delete set null;
+-- Téma výzvy: „mix“, jedno téma, nebo víc témat oddělených čárkou
+alter table public.challenges drop constraint if exists challenges_topic_check;
+alter table public.challenges drop constraint if exists challenges_topic_len;
+alter table public.challenges add constraint challenges_topic_len check (char_length(topic) between 1 and 200);
 -- Nastavení výzvy: i těžší (méně známé) otázky, vybrané okruhy tématu (prázdné = všechny) a pevný způsob odpovídání
 alter table public.challenges add column if not exists include_hard boolean not null default false;
 alter table public.challenges add column if not exists categories text[] not null default '{}';
