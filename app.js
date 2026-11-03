@@ -2622,7 +2622,7 @@
     // Nová výzva: komu (kdokoli s kódem / hráč podle přezdívky / náhodný hráč), téma nebo mix a počet otázek; po založení se rovnou hraje
     const openNewChallenge = () => {
         if (!signedUser()) return;
-        const draft = { topic: 'mix', count: 10, who: 'anyone', opponent: null, query: '', found: null };
+        const draft = { topic: 'mix', count: 10, who: 'player', opponent: null, query: '', found: null };
         let busy = false;
         let note = '';
         let searchToken = 0;
@@ -2637,21 +2637,34 @@
                     ${avatarHtml(player, 'h-8 w-8 text-base')}<span class="min-w-0 flex-1 truncate text-sm font-bold text-slate-800 dark:text-slate-100">${escapeHtml(playerName(player))}</span>
                 </button>`).join('');
         };
-        const opponentBlock = () => {
-            if (draft.who === 'player') {
-                if (draft.opponent) {
-                    return `<div class="flex items-center gap-3 rounded-xl bg-white p-2 shadow-sm ring-2 ring-emerald-500 dark:bg-slate-800">${avatarHtml(draft.opponent, 'h-8 w-8 text-base')}<span class="min-w-0 flex-1 truncate text-sm font-black text-slate-800 dark:text-slate-100">${escapeHtml(playerName(draft.opponent))}</span><button type="button" data-clear-opp class="rounded-lg px-2 py-1 text-xs font-bold text-slate-500 underline dark:text-slate-400">Změnit</button></div>`;
-                }
-                return `<input id="opp-search" type="text" maxlength="24" autocomplete="off" placeholder="Přezdívka hráče" value="${escapeHtml(draft.query)}" class="w-full rounded-xl border-2 border-slate-200 bg-white px-3 py-2.5 text-base font-bold text-slate-800 focus:border-emerald-500 focus:outline-none dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"><div id="opp-results" class="mt-2 flex flex-col gap-1.5">${foundRows()}</div>`;
+        const opponentSearch = () => {
+            if (draft.opponent) {
+                return `<div class="mt-2 flex items-center gap-3 rounded-xl bg-white p-2 shadow-sm ring-2 ring-emerald-500 dark:bg-slate-800">${avatarHtml(draft.opponent, 'h-8 w-8 text-base')}<span class="min-w-0 flex-1 truncate text-sm font-black text-slate-800 dark:text-slate-100">${escapeHtml(playerName(draft.opponent))}</span><button type="button" data-clear-opp class="rounded-lg px-2 py-1 text-xs font-bold text-slate-500 underline dark:text-slate-400">Změnit</button></div>`;
             }
-            return `<p class="px-1 text-xs text-slate-500 dark:text-slate-400">${draft.who === 'random' ? 'Soupeře vybereme náhodně z ostatních hráčů a výzva se mu objeví na úvodní stránce.' : 'Výzvu si pak pošleš odkazem nebo kódem komukoli.'}</p>`;
+            return `<input id="opp-search" type="text" maxlength="24" autocomplete="off" placeholder="Začni psát přezdívku hráče" value="${escapeHtml(draft.query)}" class="mt-2 w-full rounded-xl border-2 border-slate-200 bg-white px-3 py-2.5 text-base font-bold text-slate-800 focus:border-emerald-500 focus:outline-none dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"><div id="opp-results" class="mt-2 flex flex-col gap-1.5">${foundRows()}</div>`;
+        };
+        // Tři jasně odlišené možnosti: konkrétní hráč (výchozí), náhodný hráč, odkaz pro kohokoli
+        const whoCard = (id, icon, title, text) => {
+            const active = draft.who === id;
+            return `
+                <div>
+                    <button type="button" data-ch-who="${id}" role="radio" aria-checked="${active}" class="flex w-full items-center gap-3 rounded-2xl border-2 p-3 text-left active:scale-[0.99] ${active ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-900/30' : 'border-transparent bg-white dark:bg-slate-800'}">
+                        <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${active ? 'bg-emerald-500 text-white' : 'bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-300'}"><i data-lucide="${icon}" class="h-5 w-5"></i></span>
+                        <span class="min-w-0 flex-1"><span class="block text-[15px] font-black text-slate-800 dark:text-slate-100">${title}</span><span class="block text-xs text-slate-500 dark:text-slate-400">${text}</span></span>
+                        <span class="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 ${active ? 'border-emerald-500 bg-emerald-500 text-white' : 'border-slate-300 dark:border-slate-600'}">${active ? '<i data-lucide="check" class="h-3 w-3"></i>' : ''}</span>
+                    </button>
+                    ${active && id === 'player' ? opponentSearch() : ''}
+                </div>`;
         };
         const render = () => showDialog('Nová výzva', `
             <div class="flex flex-col gap-4">
                 <div>
                     <p class="mb-2 text-xs font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">Koho vyzvat</p>
-                    <div class="mb-2 grid grid-cols-3 gap-1.5">${choice('data-ch-who', 'anyone', draft.who === 'anyone', 'Kdokoli')}${choice('data-ch-who', 'player', draft.who === 'player', 'Hráče')}${choice('data-ch-who', 'random', draft.who === 'random', 'Náhodně')}</div>
-                    ${opponentBlock()}
+                    <div role="radiogroup" aria-label="Koho vyzvat" class="flex flex-col gap-2">
+                        ${whoCard('player', 'user-round', 'Konkrétního hráče', 'Najdeš ho podle přezdívky a výzva se mu ukáže ve hře')}
+                        ${whoCard('random', 'shuffle', 'Náhodného hráče', 'Soupeře vybereme za tebe z ostatních hráčů')}
+                        ${whoCard('anyone', 'share-2', 'Kamaráda přes odkaz', 'Po dohrání pošleš odkaz nebo kód komukoli')}
+                    </div>
                 </div>
                 <div>
                     <p class="mb-2 text-xs font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">Téma</p>
