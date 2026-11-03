@@ -25,7 +25,9 @@
         mistakes: 'mudrlant.mistakes',
         learned: 'mudrlant.learned',
         pendingChallenge: 'mudrlant.pendingChallenge',
-        homeTab: 'mudrlant.homeTab'
+        homeTab: 'mudrlant.homeTab',
+        // 'host' = hráč na úvodu zvolil hraní bez přihlášení, úvod s přihlášením se už neukáže
+        account: 'mudrlant.account'
     };
     const STATE_VERSION = 8;
     const SESSION_MAX_AGE = 2 * 60 * 60 * 1000;
@@ -155,83 +157,83 @@
     const TOPIC_STYLES = {
         emerald: {
             soft: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/60 dark:text-emerald-300', solid: 'border-emerald-500 bg-emerald-700',
-            button: 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-600/25', tile: 'from-emerald-500 to-emerald-700', text: 'text-emerald-600 dark:text-emerald-400',
+            button: 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-600/25', tile: 'from-emerald-600 to-emerald-800', text: 'text-emerald-600 dark:text-emerald-400',
             accent: 'border-emerald-500', on: 'border-emerald-500 bg-emerald-50 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-200', tab: 'bg-emerald-700 text-white'
         },
         amber: {
             soft: 'bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300', solid: 'border-amber-500 bg-amber-700',
-            button: 'bg-amber-600 hover:bg-amber-700 shadow-amber-600/25', tile: 'from-amber-500 to-orange-700', text: 'text-amber-600 dark:text-amber-400',
+            button: 'bg-amber-600 hover:bg-amber-700 shadow-amber-600/25', tile: 'from-amber-600 to-orange-800', text: 'text-amber-600 dark:text-amber-400',
             accent: 'border-amber-500', on: 'border-amber-500 bg-amber-50 text-amber-800 dark:bg-amber-900/30 dark:text-amber-200', tab: 'bg-amber-700 text-white'
         },
         lime: {
             soft: 'bg-lime-100 text-lime-700 dark:bg-lime-900/50 dark:text-lime-300', solid: 'border-lime-500 bg-lime-700',
-            button: 'bg-lime-600 hover:bg-lime-700 shadow-lime-600/25', tile: 'from-lime-500 to-green-700', text: 'text-lime-700 dark:text-lime-400',
+            button: 'bg-lime-600 hover:bg-lime-700 shadow-lime-600/25', tile: 'from-lime-600 to-green-800', text: 'text-lime-700 dark:text-lime-400',
             accent: 'border-lime-500', on: 'border-lime-500 bg-lime-50 text-lime-800 dark:bg-lime-900/30 dark:text-lime-200', tab: 'bg-lime-700 text-white'
         },
         sky: {
             soft: 'bg-sky-100 text-sky-700 dark:bg-sky-900/50 dark:text-sky-300', solid: 'border-sky-500 bg-sky-700',
-            button: 'bg-sky-600 hover:bg-sky-700 shadow-sky-600/25', tile: 'from-sky-500 to-blue-700', text: 'text-sky-600 dark:text-sky-400',
+            button: 'bg-sky-600 hover:bg-sky-700 shadow-sky-600/25', tile: 'from-sky-600 to-blue-800', text: 'text-sky-600 dark:text-sky-400',
             accent: 'border-sky-500', on: 'border-sky-500 bg-sky-50 text-sky-800 dark:bg-sky-900/30 dark:text-sky-200', tab: 'bg-sky-700 text-white'
         },
         violet: {
             soft: 'bg-violet-100 text-violet-700 dark:bg-violet-900/50 dark:text-violet-300', solid: 'border-violet-500 bg-violet-700',
-            button: 'bg-violet-600 hover:bg-violet-700 shadow-violet-600/25', tile: 'from-violet-500 to-purple-700', text: 'text-violet-600 dark:text-violet-400',
+            button: 'bg-violet-600 hover:bg-violet-700 shadow-violet-600/25', tile: 'from-violet-600 to-purple-800', text: 'text-violet-600 dark:text-violet-400',
             accent: 'border-violet-500', on: 'border-violet-500 bg-violet-50 text-violet-800 dark:bg-violet-900/30 dark:text-violet-200', tab: 'bg-violet-700 text-white'
         },
         rose: {
             soft: 'bg-rose-100 text-rose-700 dark:bg-rose-900/50 dark:text-rose-300', solid: 'border-rose-500 bg-rose-700',
-            button: 'bg-rose-600 hover:bg-rose-700 shadow-rose-600/25', tile: 'from-rose-500 to-rose-700', text: 'text-rose-600 dark:text-rose-400',
+            button: 'bg-rose-600 hover:bg-rose-700 shadow-rose-600/25', tile: 'from-rose-600 to-rose-800', text: 'text-rose-600 dark:text-rose-400',
             accent: 'border-rose-500', on: 'border-rose-500 bg-rose-50 text-rose-800 dark:bg-rose-900/30 dark:text-rose-200', tab: 'bg-rose-700 text-white'
         },
         pink: {
             soft: 'bg-pink-100 text-pink-700 dark:bg-pink-900/50 dark:text-pink-300', solid: 'border-pink-500 bg-pink-700',
-            button: 'bg-pink-600 hover:bg-pink-700 shadow-pink-600/25', tile: 'from-pink-500 to-rose-700', text: 'text-pink-600 dark:text-pink-400',
+            button: 'bg-pink-600 hover:bg-pink-700 shadow-pink-600/25', tile: 'from-pink-600 to-rose-800', text: 'text-pink-600 dark:text-pink-400',
             accent: 'border-pink-500', on: 'border-pink-500 bg-pink-50 text-pink-800 dark:bg-pink-900/30 dark:text-pink-200', tab: 'bg-pink-700 text-white'
         },
         teal: {
             soft: 'bg-teal-100 text-teal-700 dark:bg-teal-900/50 dark:text-teal-300', solid: 'border-teal-500 bg-teal-700',
-            button: 'bg-teal-600 hover:bg-teal-700 shadow-teal-600/25', tile: 'from-teal-500 to-cyan-700', text: 'text-teal-600 dark:text-teal-400',
+            button: 'bg-teal-600 hover:bg-teal-700 shadow-teal-600/25', tile: 'from-teal-600 to-cyan-800', text: 'text-teal-600 dark:text-teal-400',
             accent: 'border-teal-500', on: 'border-teal-500 bg-teal-50 text-teal-800 dark:bg-teal-900/30 dark:text-teal-200', tab: 'bg-teal-700 text-white'
         },
         orange: {
             soft: 'bg-orange-100 text-orange-700 dark:bg-orange-900/50 dark:text-orange-300', solid: 'border-orange-500 bg-orange-700',
-            button: 'bg-orange-600 hover:bg-orange-700 shadow-orange-600/25', tile: 'from-orange-500 to-red-700', text: 'text-orange-600 dark:text-orange-400',
+            button: 'bg-orange-600 hover:bg-orange-700 shadow-orange-600/25', tile: 'from-orange-600 to-red-800', text: 'text-orange-600 dark:text-orange-400',
             accent: 'border-orange-500', on: 'border-orange-500 bg-orange-50 text-orange-800 dark:bg-orange-900/30 dark:text-orange-200', tab: 'bg-orange-700 text-white'
         },
         blue: {
             soft: 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300', solid: 'border-blue-500 bg-blue-700',
-            button: 'bg-blue-600 hover:bg-blue-700 shadow-blue-600/25', tile: 'from-blue-500 to-indigo-700', text: 'text-blue-600 dark:text-blue-400',
+            button: 'bg-blue-600 hover:bg-blue-700 shadow-blue-600/25', tile: 'from-blue-600 to-indigo-800', text: 'text-blue-600 dark:text-blue-400',
             accent: 'border-blue-500', on: 'border-blue-500 bg-blue-50 text-blue-800 dark:bg-blue-900/30 dark:text-blue-200', tab: 'bg-blue-700 text-white'
         },
         indigo: {
             soft: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/50 dark:text-indigo-300', solid: 'border-indigo-500 bg-indigo-700',
-            button: 'bg-indigo-600 hover:bg-indigo-700 shadow-indigo-600/25', tile: 'from-indigo-500 to-violet-800', text: 'text-indigo-600 dark:text-indigo-400',
+            button: 'bg-indigo-600 hover:bg-indigo-700 shadow-indigo-600/25', tile: 'from-indigo-600 to-violet-900', text: 'text-indigo-600 dark:text-indigo-400',
             accent: 'border-indigo-500', on: 'border-indigo-500 bg-indigo-50 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-200', tab: 'bg-indigo-700 text-white'
         },
         red: {
             soft: 'bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300', solid: 'border-red-500 bg-red-700',
-            button: 'bg-red-600 hover:bg-red-700 shadow-red-600/25', tile: 'from-red-500 to-red-800', text: 'text-red-600 dark:text-red-400',
+            button: 'bg-red-600 hover:bg-red-700 shadow-red-600/25', tile: 'from-red-600 to-red-900', text: 'text-red-600 dark:text-red-400',
             accent: 'border-red-500', on: 'border-red-500 bg-red-50 text-red-800 dark:bg-red-900/30 dark:text-red-200', tab: 'bg-red-700 text-white'
         },
         stone: {
             soft: 'bg-stone-100 text-stone-700 dark:bg-stone-900/50 dark:text-stone-300', solid: 'border-stone-500 bg-stone-700',
-            button: 'bg-stone-600 hover:bg-stone-700 shadow-stone-600/25', tile: 'from-stone-500 to-stone-700', text: 'text-stone-600 dark:text-stone-300',
+            button: 'bg-stone-600 hover:bg-stone-700 shadow-stone-600/25', tile: 'from-stone-600 to-stone-800', text: 'text-stone-600 dark:text-stone-300',
             accent: 'border-stone-500', on: 'border-stone-500 bg-stone-50 text-stone-800 dark:bg-stone-900/30 dark:text-stone-200', tab: 'bg-stone-700 text-white'
         },
         yellow: {
             soft: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-300', solid: 'border-yellow-500 bg-yellow-700',
-            button: 'bg-yellow-700 hover:bg-yellow-800 shadow-yellow-700/25', tile: 'from-yellow-600 to-amber-800', text: 'text-yellow-700 dark:text-yellow-400',
+            button: 'bg-yellow-700 hover:bg-yellow-800 shadow-yellow-700/25', tile: 'from-yellow-700 to-amber-900', text: 'text-yellow-700 dark:text-yellow-400',
             accent: 'border-yellow-500', on: 'border-yellow-500 bg-yellow-50 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-200', tab: 'bg-yellow-700 text-white'
         },
-        // Mix ze všech témat
-        fuchsia: {
-            soft: 'bg-fuchsia-100 text-fuchsia-700 dark:bg-fuchsia-900/50 dark:text-fuchsia-300', solid: 'border-fuchsia-500 bg-fuchsia-700',
-            button: 'bg-fuchsia-600 hover:bg-fuchsia-700 shadow-fuchsia-600/25', tile: 'from-fuchsia-500 to-indigo-600', text: 'text-fuchsia-600 dark:text-fuchsia-400',
-            accent: 'border-fuchsia-500', on: 'border-fuchsia-500 bg-fuchsia-50 text-fuchsia-800 dark:bg-fuchsia-900/30 dark:text-fuchsia-200', tab: 'bg-fuchsia-700 text-white'
+        // Mix ze všech témat: vínová barva loga
+        brand: {
+            soft: 'bg-brand-100 text-brand-700 dark:bg-brand-900/60 dark:text-brand-200', solid: 'border-brand-500 bg-brand-700',
+            button: 'bg-brand-700 hover:bg-brand-800 shadow-brand-700/25', tile: 'from-brand-600 to-brand-900', text: 'text-brand-700 dark:text-brand-300',
+            accent: 'border-brand-600', on: 'border-brand-600 bg-brand-50 text-brand-800 dark:bg-brand-900/40 dark:text-brand-100', tab: 'bg-brand-700 text-white'
         }
     };
     const styleOf = (topic) => TOPIC_STYLES[topic && topic.color] || TOPIC_STYLES.emerald;
-    const MIX = { id: 'mix', title: 'Mix', icon: 'shuffle', color: 'fuchsia' };
+    const MIX = { id: 'mix', title: 'Mix', icon: 'shuffle', color: 'brand' };
     const TAB_OFF = 'text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-700';
 
     // Ikony: zástupné <i data-lucide="…"> nahradíme SVG z icons.js (podmnožina Lucide)
@@ -568,8 +570,8 @@
     };
 
     const renderVariantCards = (selected) => Object.entries(VARIANTS).map(([key, variant]) => `
-        <button type="button" data-variant="${key}" aria-pressed="${selected === key}" class="flex w-full items-start gap-4 rounded-2xl border-2 p-4 text-left transition-colors active:scale-[0.98] ${selected === key ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-900/30' : 'border-slate-200 bg-white hover:border-emerald-300 dark:border-slate-700 dark:bg-slate-800 dark:hover:border-emerald-700'}">
-            <span class="shrink-0 rounded-xl bg-emerald-100 p-2.5 text-emerald-700 dark:bg-emerald-900/60 dark:text-emerald-300"><i data-lucide="${variant.icon}" class="h-6 w-6"></i></span>
+        <button type="button" data-variant="${key}" aria-pressed="${selected === key}" class="flex w-full items-start gap-4 rounded-2xl border-2 p-4 text-left transition-colors active:scale-[0.98] ${selected === key ? 'border-brand-600 bg-brand-50 dark:bg-brand-900/40' : 'border-slate-200 bg-white hover:border-brand-300 dark:border-slate-700 dark:bg-slate-800 dark:hover:border-brand-600'}">
+            <span class="shrink-0 rounded-xl bg-brand-100 p-2.5 text-brand-700 dark:bg-brand-900/60 dark:text-brand-200"><i data-lucide="${variant.icon}" class="h-6 w-6"></i></span>
             <span>
                 <span class="block font-black text-slate-800 dark:text-slate-100">${variant.title}</span>
                 <span class="mt-1 block text-sm leading-snug text-slate-500 dark:text-slate-400">${variant.text}</span>
@@ -582,7 +584,7 @@
         appContent.innerHTML = `
             <div class="fade-in flex min-h-full flex-col justify-center gap-4 p-6">
                 <div class="mb-2 text-center">
-                    <i data-lucide="graduation-cap" class="mx-auto mb-3 h-12 w-12 text-emerald-500"></i>
+                    <img src="icons/logo.webp" alt="" class="mx-auto mb-3 h-32 w-auto drop-shadow-lg">
                     <h2 class="text-2xl font-black text-slate-800 dark:text-slate-50">Vítej v Mudrlantovi</h2>
                     <p class="mt-2 text-sm text-slate-500 dark:text-slate-400">Kvíz ze zeměpisu a dalších oborů. Jak chceš odpovídat? Změníš to kdykoli v nastavení vpravo nahoře.</p>
                 </div>
@@ -593,8 +595,8 @@
     };
 
     const SETTINGS_HEADING = 'text-xs font-black uppercase tracking-widest text-slate-500 dark:text-slate-400';
-    const TOGGLE_ON = 'border-emerald-500 bg-emerald-50 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-200';
-    const TOGGLE_OFF = 'border-slate-200 bg-white text-slate-600 hover:border-emerald-300 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:border-emerald-700';
+    const TOGGLE_ON = 'border-brand-600 bg-brand-50 text-brand-800 dark:bg-brand-900/40 dark:text-brand-100';
+    const TOGGLE_OFF = 'border-slate-200 bg-white text-slate-600 hover:border-brand-300 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:border-brand-600';
 
     const renderTierButtons = (on = TOGGLE_ON, topic = null) => Object.entries(TIERS).map(([key, tier]) => `
         <button type="button" data-tier="${key}" aria-pressed="${settings.tier === key}" class="rounded-2xl border-2 p-3 text-left transition-colors active:scale-[0.98] ${settings.tier === key ? on : TOGGLE_OFF}">
@@ -620,7 +622,7 @@
         if (!state.configured) return '';
         const body = state.user
             ? `<div class="flex items-center gap-3">
-                    <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-base font-black text-white" aria-hidden="true">${escapeHtml(state.user.name.charAt(0).toUpperCase())}</span>
+                    <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-700 text-base font-black text-white" aria-hidden="true">${escapeHtml(state.user.name.charAt(0).toUpperCase())}</span>
                     <div class="min-w-0 flex-1"><p class="truncate text-sm font-black text-slate-800 dark:text-slate-100">${escapeHtml(state.user.name)}</p><p class="truncate text-xs text-slate-500 dark:text-slate-400">${escapeHtml(state.user.email)}</p></div>
                     <button type="button" data-auth-logout class="shrink-0 rounded-xl bg-slate-200 px-3 py-2 text-sm font-bold text-slate-700 dark:bg-slate-700 dark:text-slate-200">Odhlásit</button>
                 </div>
@@ -921,8 +923,8 @@
     // --- Hlavička ---
 
     const BUTTON_BASE = 'p-2 rounded-2xl transition-all shadow-md active:scale-95 border';
-    // Vybrané tlačítko navigace neutrálně tmavé – barvy patří tématům
-    const BUTTON_SELECTED = `${BUTTON_BASE} bg-slate-800 text-white border-slate-700 dark:bg-slate-100 dark:text-slate-900 dark:border-white`;
+    // Vybrané tlačítko navigace ve vínové barvě loga
+    const BUTTON_SELECTED = `${BUTTON_BASE} bg-brand-700 text-white border-brand-800 dark:border-brand-600`;
     const BUTTON_ACTIVE = { home: BUTTON_SELECTED, practice: BUTTON_SELECTED, learn: BUTTON_SELECTED };
     const BUTTON_INACTIVE = `${BUTTON_BASE} bg-white/90 text-slate-600 hover:text-slate-900 border-slate-200/60 dark:bg-slate-800/90 dark:text-slate-300 dark:border-slate-700 dark:hover:text-white`;
 
@@ -936,7 +938,8 @@
             return { icon: 'graduation-cap', text: topic ? `Učení · ${topic.title}` : 'Učení', topic };
         }
         if (screen === 'challenge-done') return { icon: 'trophy', text: 'Výzva hotová', topic: null };
-        if (screen !== 'round' || !current) return { icon: 'calendar-days', text: `${APP_NAME} · ${shortDay(getDayKey())}`, topic: null };
+        // Úvod: sova z loga, název a dnešní datum
+        if (screen !== 'round' || !current) return { logo: true, text: `${APP_NAME} · ${shortDay(getDayKey())}`, date: shortDay(getDayKey()), topic: null };
         const topic = TOPIC_BY_ID[current.topic];
         if (mode === 'daily') return { icon: topic.icon, text: `${topic.title} · ${shortDay(current.dailyDate || getDayKey())}`, topic };
         if (mode === 'challenge' && challenge) return { icon: 'swords', text: `Výzva · ${challenge.index + 1}/${challenge.count}`, topic };
@@ -954,6 +957,7 @@
 
     const HEADER_BASE = 'shrink-0 w-full px-4 pt-4 pb-3 flex justify-between items-center gap-2 z-30 bg-slate-50 dark:bg-slate-900 border-b-4';
     const BADGE_BASE = 'min-w-0 px-2.5 py-2 rounded-2xl shadow-sm text-sm font-bold flex items-center gap-2 transition-colors border';
+    const BADGE_LOGO = 'min-w-0 flex items-center gap-2 rounded-2xl py-0.5 pr-1 text-left';
 
     const updateControlsUI = () => {
         // Procvičování okruhu nebo chyb patří k učení
@@ -978,17 +982,29 @@
         const style = place.topic ? styleOf(place.topic) : null;
         document.getElementById('app-header').className = `${HEADER_BASE} ${style && screen === 'round' ? style.accent : 'border-slate-200/70 dark:border-slate-800'}`;
         const badge = document.getElementById('status-badge');
-        badge.className = `${BADGE_BASE} ${style ? `${style.soft} border-transparent` : 'bg-white text-slate-700 border-slate-200/60 dark:bg-slate-800 dark:border-slate-700'}`;
+        badge.className = place.logo ? BADGE_LOGO
+            : `${BADGE_BASE} ${style ? `${style.soft} border-transparent` : 'bg-white text-slate-700 border-slate-200/60 dark:bg-slate-800 dark:border-slate-700'}`;
         badge.disabled = !place.switch;
         badge.title = place.switch ? 'Změnit téma nebo co hrát' : '';
         badge.setAttribute('aria-label', place.switch ? `${place.text} – změnit téma` : place.text);
         document.getElementById('status-switch').classList.toggle('hidden', !place.switch);
         const iconSlot = document.getElementById('status-icon-slot');
-        iconSlot.innerHTML = `<i data-lucide="${place.icon}" class="w-5 h-5 ${style ? '' : 'text-slate-600 dark:text-slate-300'}"></i>`;
+        // Ikona na úzkém displeji ustoupí delšímu názvu tématu; sova na úvodu zůstává
+        iconSlot.className = `flex shrink-0 ${place.logo ? '' : 'max-[430px]:hidden'}`;
+        iconSlot.innerHTML = place.logo
+            ? '<img src="icons/logo.webp" alt="" class="-my-1 h-11 w-auto drop-shadow-md">'
+            : `<i data-lucide="${place.icon}" class="w-5 h-5 ${style ? '' : 'text-slate-600 dark:text-slate-300'}"></i>`;
         renderIcons(iconSlot);
         const text = document.getElementById('status-text');
-        text.textContent = place.text;
-        text.className = `line-clamp-2 break-words text-left uppercase leading-tight text-[11px] ${style ? '' : 'text-slate-700 dark:text-slate-200'}`;
+        if (place.logo) {
+            text.innerHTML = `<span class="block text-lg font-black normal-case leading-none tracking-tight text-brand-700 dark:text-cream">${escapeHtml(APP_NAME)}</span>`
+                + `<span class="mt-1 block text-[10px] font-bold tracking-widest text-slate-500 dark:text-slate-400">${escapeHtml(place.date)}</span>`;
+            // Na úzkém displeji (360 px) se vedle pěti tlačítek vejde jen sova
+            text.className = 'text-left max-[370px]:hidden';
+        } else {
+            text.textContent = place.text;
+            text.className = `line-clamp-2 break-words text-left uppercase leading-tight text-[11px] ${style ? '' : 'text-slate-700 dark:text-slate-200'}`;
+        }
     };
 
     // Štítek nahoře: při hraní tématu okno s výběrem kategorií, v mixu výběr témat
@@ -998,11 +1014,12 @@
         openChooser(pool.kind === 'mix' ? { kind: 'mix' } : { kind: 'topic', topic: pool.topic });
     };
 
-    // Načítání v barvě a s ikonou tématu, které se načítá (jinak neutrálně)
+    // Načítání v barvě a s ikonou tématu, které se načítá (jinak pohupující se sova z loga)
+    const LOADING_OWL = '<img src="icons/logo.webp" alt="" class="bob mb-4 h-24 w-auto drop-shadow-lg">';
     const renderLoading = (text = 'Vybírám otázku…', topic = null) => {
         appContent.innerHTML = `
             <div class="absolute inset-0 z-10 flex flex-col items-center justify-center fade-in bg-slate-50/80 backdrop-blur-sm dark:bg-slate-900/80">
-                <i data-lucide="${topic ? topic.icon : 'graduation-cap'}" class="w-14 h-14 ${topic ? styleOf(topic).text : 'text-slate-400'} spin mb-5 drop-shadow-md"></i>
+                ${topic ? `<i data-lucide="${topic.icon}" class="w-14 h-14 ${styleOf(topic).text} spin mb-5 drop-shadow-md"></i>` : LOADING_OWL}
                 <p class="text-slate-600 dark:text-slate-300 font-bold tracking-wider text-sm uppercase">${escapeHtml(text)}</p>
             </div>
         `;
@@ -1098,7 +1115,7 @@
                     <div class="mb-2 flex items-center justify-between gap-2">
                         <h2 class="min-w-0 text-[13px] font-black text-slate-800 dark:text-slate-100">Dnešní otázky <span class="font-bold text-slate-400">${answered}/${TOPICS.length}</span></h2>
                         ${left ? `
-                            <button type="button" data-action="play-daily" class="flex shrink-0 items-center gap-1.5 rounded-xl bg-slate-800 px-3 py-2 text-[13px] font-black text-white shadow-md transition-all active:scale-95 dark:bg-slate-100 dark:text-slate-900">
+                            <button type="button" data-action="play-daily" class="flex shrink-0 items-center gap-1.5 rounded-xl bg-brand-700 px-3 py-2 text-[13px] font-black text-white shadow-md shadow-brand-900/20 transition-all active:scale-95">
                                 <i data-lucide="play" class="h-4 w-4"></i> ${answered ? 'Pokračovat' : 'Hrát vše'} <span class="font-bold opacity-70">· zbývá ${left}</span>
                             </button>` : `
                             <span class="flex shrink-0 items-center gap-1.5 rounded-xl bg-emerald-50 px-3 py-2 text-[13px] font-bold text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300"><i data-lucide="circle-check" class="h-4 w-4"></i> Vše hotové</span>`}
@@ -1595,7 +1612,7 @@
         }
         return `
             <section class="${CARD} flex items-center gap-3 p-4">
-                <i data-lucide="trophy" class="h-8 w-8 shrink-0 text-amber-500"></i>
+                <i data-lucide="trophy" class="h-8 w-8 shrink-0 text-gold-500"></i>
                 <p class="text-sm text-slate-600 dark:text-slate-300">Trénink: <b class="text-slate-800 dark:text-slate-100">${formatPoints(stats.practice.points)}</b> · správně ${stats.practice.correct} z ${stats.practice.played}</p>
             </section>`;
     };
@@ -1620,7 +1637,7 @@
             </div>
             <div class="absolute inset-x-0 bottom-0 flex items-center justify-between gap-2 bg-white/85 px-2.5 py-1 text-[10px] text-slate-600 backdrop-blur-sm dark:bg-slate-900/80 dark:text-slate-300">
                 <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer" class="hover:underline">© přispěvatelé OpenStreetMap</a>
-                <a id="map-open-link" href="#" target="_blank" rel="noopener noreferrer" class="flex items-center gap-1 font-bold text-emerald-700 hover:underline dark:text-emerald-400">Otevřít mapu <i data-lucide="external-link" class="h-3 w-3"></i></a>
+                <a id="map-open-link" href="#" target="_blank" rel="noopener noreferrer" class="flex items-center gap-1 font-bold text-brand-700 hover:underline dark:text-brand-300">Otevřít mapu <i data-lucide="external-link" class="h-3 w-3"></i></a>
             </div>
         </div>`;
 
@@ -2082,7 +2099,7 @@
                 <i data-lucide="${isNetworkError ? 'wifi-off' : 'search-x'}" class="w-16 h-16 text-slate-300 dark:text-slate-600 mb-4"></i>
                 <h2 class="text-xl font-bold text-slate-700 dark:text-slate-200 mb-2">${title}</h2>
                 <p class="text-slate-500 dark:text-slate-400 mb-6">${message}</p>
-                <button type="button" data-action="retry" class="rounded-2xl bg-slate-800 px-6 py-3 font-bold text-white shadow-lg active:scale-95 dark:bg-slate-100 dark:text-slate-900">Zkusit znovu</button>
+                <button type="button" data-action="retry" class="rounded-2xl bg-brand-700 px-6 py-3 font-bold text-white shadow-lg active:scale-95">Zkusit znovu</button>
             </div>`;
         renderIcons(appContent);
         updateControlsUI();
@@ -2096,11 +2113,11 @@
 
     // --- Učení: témata → okruhy → prohlížení a procvičování; chyby napříč tématy ---
 
-    const LEARN_ROW = 'flex w-full items-center gap-3 rounded-2xl border border-slate-100 bg-white p-3.5 text-left shadow-sm transition-colors hover:border-emerald-300 dark:border-slate-700 dark:bg-slate-800 dark:hover:border-emerald-700';
+    const LEARN_ROW = 'flex w-full items-center gap-3 rounded-2xl border border-slate-100 bg-white p-3.5 text-left shadow-sm transition-colors hover:border-brand-300 dark:border-slate-700 dark:bg-slate-800 dark:hover:border-brand-600';
 
     const progressBar = (done, total) => `
         <span class="mt-1.5 block h-1.5 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-700" aria-hidden="true">
-            <span class="block h-full w-0 rounded-full bg-emerald-500" data-progress="${total ? Math.round(done / total * 100) : 0}"></span>
+            <span class="block h-full w-0 rounded-full bg-gold-500" data-progress="${total ? Math.round(done / total * 100) : 0}"></span>
         </span>`;
     // Šířku pruhů nastavíme přes CSSOM (inline styly zakazuje CSP)
     const applyProgress = (root) => root.querySelectorAll('[data-progress]').forEach(bar => { bar.style.width = `${bar.dataset.progress}%`; });
@@ -2113,7 +2130,7 @@
     const renderLearnHome = () => {
         const mistakes = loadMistakes();
         const card = (topic) => `
-            <button type="button" data-action="learn-topic" data-topic="${topic.id}" class="flex min-w-0 flex-col items-start gap-1.5 rounded-[1.25rem] border border-slate-100 bg-white p-2.5 text-left shadow-sm transition-all hover:border-emerald-300 active:scale-[0.98] dark:border-slate-700 dark:bg-slate-800 dark:hover:border-emerald-700">
+            <button type="button" data-action="learn-topic" data-topic="${topic.id}" class="flex min-w-0 flex-col items-start gap-1.5 rounded-[1.25rem] border border-slate-100 bg-white p-2.5 text-left shadow-sm transition-all hover:border-brand-300 active:scale-[0.98] dark:border-slate-700 dark:bg-slate-800 dark:hover:border-brand-600">
                 <span class="rounded-xl p-2 ${styleOf(topic).soft}"><i data-lucide="${topic.icon}" class="h-5 w-5"></i></span>
                 <span class="text-[13px] font-black leading-tight text-slate-800 [overflow-wrap:anywhere] dark:text-slate-100">${escapeHtml(topic.title)}</span>
             </button>`;
@@ -2265,7 +2282,7 @@
             </li>`).join('');
         return `${back}
             <h2 class="text-2xl font-black tracking-tight text-slate-800 dark:text-slate-50">Moje chyby</h2>
-            <button type="button" data-action="practice-mistakes" class="flex w-full items-center justify-center gap-2 rounded-[1.2rem] bg-emerald-600 py-4 text-lg font-bold text-white shadow-xl shadow-emerald-600/20 transition-all hover:bg-emerald-700 active:scale-95">
+            <button type="button" data-action="practice-mistakes" class="flex w-full items-center justify-center gap-2 rounded-[1.2rem] bg-brand-700 py-4 text-lg font-bold text-white shadow-xl shadow-brand-700/20 transition-all hover:bg-brand-800 active:scale-95">
                 <i data-lucide="repeat" class="h-5 w-5"></i> Procvičit chyby (${mistakes.length})
             </button>
             <p class="-mt-2 text-center text-xs text-slate-500 dark:text-slate-400">Co pak uhodneš, ze seznamu zmizí. Klepnutím si to prohlédneš.</p>
@@ -2407,13 +2424,13 @@
             </button>`;
     };
     const incomingRow = (invite) => `
-        <button type="button" data-action="challenge-open" data-code="${escapeHtml(invite.id)}" class="flex w-full items-center gap-3 rounded-2xl bg-amber-50 p-2.5 text-left ring-1 ring-amber-300/70 active:scale-[0.99] dark:bg-amber-900/20 dark:ring-amber-700/60">
+        <button type="button" data-action="challenge-open" data-code="${escapeHtml(invite.id)}" class="flex w-full items-center gap-3 rounded-2xl bg-gold-50 p-2.5 text-left ring-1 ring-gold-300/70 active:scale-[0.99] dark:bg-gold-900/20 dark:ring-gold-700/60">
             ${avatarHtml(invite.creator, 'h-9 w-9 text-lg')}
             <span class="min-w-0 flex-1">
                 <span class="block truncate text-[13px] font-black text-slate-800 dark:text-slate-100">${escapeHtml(playerName(invite.creator))} tě vyzývá</span>
                 <span class="block truncate text-[11px] font-semibold text-slate-500 dark:text-slate-400">${escapeHtml(challengeTopicTitle(invite.topic))} · ${invite.count} otázek</span>
             </span>
-            <span class="shrink-0 rounded-xl bg-amber-500 px-3 py-1.5 text-[13px] font-black text-white">Hrát</span>
+            <span class="shrink-0 rounded-xl bg-gold-500 px-3 py-1.5 text-[13px] font-black text-brand-950">Hrát</span>
         </button>`;
     // Přepínač nahoře na úvodní stránce: Jeden hráč (dnešní otázky a témata) / Více hráčů (výzvy); bez Supabase se nezobrazuje
     const homeTab = () => {
@@ -2426,8 +2443,8 @@
         const tab = homeTab();
         const waiting = (incomingList || []).length;
         const option = (id, icon, label, badge = 0) => `
-            <button type="button" role="tab" data-action="home-tab" data-tab="${id}" aria-selected="${tab === id}" class="relative flex flex-1 items-center justify-center gap-2 rounded-xl px-3 py-2 text-[13px] font-black transition-colors ${tab === id ? 'bg-slate-800 text-white shadow-md dark:bg-slate-100 dark:text-slate-900' : 'text-slate-500 dark:text-slate-400'}">
-                <i data-lucide="${icon}" class="h-4 w-4"></i> ${label}${badge ? `<span class="rounded-full bg-amber-500 px-1.5 py-0.5 text-[10px] font-black leading-none text-white">${badge}</span>` : ''}
+            <button type="button" role="tab" data-action="home-tab" data-tab="${id}" aria-selected="${tab === id}" class="relative flex flex-1 items-center justify-center gap-2 rounded-xl px-3 py-2 text-[13px] font-black transition-colors ${tab === id ? 'bg-brand-700 text-white shadow-md' : 'text-slate-500 dark:text-slate-400'}">
+                <i data-lucide="${icon}" class="h-4 w-4"></i> ${label}${badge ? `<span class="rounded-full bg-gold-500 px-1.5 py-0.5 text-[10px] font-black leading-none text-brand-950">${badge}</span>` : ''}
             </button>`;
         return `<div id="home-tabs" role="tablist" class="flex shrink-0 gap-1 rounded-2xl bg-slate-200/70 p-1 dark:bg-slate-800">${option('single', 'user-round', 'Jeden hráč')}${option('multi', 'users', 'Více hráčů', waiting)}</div>`;
     };
@@ -2437,14 +2454,14 @@
         if (!user) {
             return `
                 <div class="flex flex-col items-center gap-3 rounded-[1.4rem] bg-white p-5 text-center shadow-sm ring-1 ring-slate-200/70 dark:bg-slate-800/70 dark:ring-slate-700/70">
-                    <span class="flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-rose-500 to-orange-500 text-white shadow-lg"><i data-lucide="swords" class="h-7 w-7"></i></span>
+                    <span class="flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-brand-600 to-brand-900 text-white shadow-lg"><i data-lucide="swords" class="h-7 w-7"></i></span>
                     <div><p class="text-base font-black text-slate-800 dark:text-slate-100">Hraj s kamarády</p><p class="mt-1 text-sm text-slate-500 dark:text-slate-400">Přihlas se, vyber si přezdívku a obrázek a vyzvi kamaráda nebo náhodného hráče. Dostanete stejné otázky a porovnáte, kdo je lepší.</p></div>
-                    <button type="button" data-action="auth-login" class="flex w-full items-center justify-center gap-2 rounded-2xl bg-slate-800 px-4 py-3 text-base font-black text-white shadow-md active:scale-[0.98] dark:bg-slate-100 dark:text-slate-900"><i data-lucide="log-in" class="h-5 w-5"></i> Přihlásit se přes Google</button>
+                    <button type="button" data-action="auth-login" class="flex w-full items-center justify-center gap-2 rounded-2xl bg-brand-700 px-4 py-3 text-base font-black text-white shadow-md active:scale-[0.98]"><i data-lucide="log-in" class="h-5 w-5"></i> Přihlásit se přes Google</button>
                 </div>`;
         }
         const incoming = incomingList || [];
         const resume = challenge && !challenge.done
-            ? `<button type="button" data-action="challenge-resume" class="flex w-full items-center justify-center gap-2 rounded-2xl bg-amber-500 px-4 py-3 text-[15px] font-black text-white shadow-md active:scale-[0.98]"><i data-lucide="play" class="h-5 w-5"></i> Pokračovat ve výzvě (${challenge.index + 1}/${challenge.count})</button>` : '';
+            ? `<button type="button" data-action="challenge-resume" class="flex w-full items-center justify-center gap-2 rounded-2xl bg-gold-500 px-4 py-3 text-[15px] font-black text-brand-950 shadow-md active:scale-[0.98]"><i data-lucide="play" class="h-5 w-5"></i> Pokračovat ve výzvě (${challenge.index + 1}/${challenge.count})</button>` : '';
         const recent = myChallenges === null
             ? '<p class="px-1 text-xs font-semibold text-slate-400">Načítám výzvy…</p>'
             : (myChallenges.filter(row => !incoming.some(invite => invite.id === row.challenge_id)).slice(0, 6).map(challengeRow).join('')
@@ -2452,7 +2469,7 @@
         return `
             <div class="flex flex-col gap-3">
                 <div class="grid grid-cols-2 gap-2">
-                    <button type="button" data-action="new-challenge" class="flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-br from-rose-500 to-orange-500 px-3 py-3.5 text-[15px] font-black text-white shadow-md active:scale-[0.98]"><i data-lucide="swords" class="h-5 w-5"></i> Vyzvat</button>
+                    <button type="button" data-action="new-challenge" class="flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-br from-brand-600 to-brand-900 px-3 py-3.5 text-[15px] font-black text-white shadow-md active:scale-[0.98]"><i data-lucide="swords" class="h-5 w-5"></i> Vyzvat</button>
                     <button type="button" data-action="join-challenge" class="flex items-center justify-center gap-2 rounded-2xl bg-white px-3 py-3.5 text-[15px] font-bold text-slate-800 shadow-sm ring-1 ring-slate-200/70 active:scale-[0.98] dark:bg-slate-800 dark:text-slate-100 dark:ring-slate-700/70"><i data-lucide="hash" class="h-5 w-5"></i> Zadat kód</button>
                 </div>
                 ${resume}
@@ -2514,9 +2531,33 @@
     };
     const openLoginDialog = () => showDialog('Účet', `
         <div class="flex flex-col gap-4">
+            <img src="icons/logo.webp" alt="" class="mx-auto h-24 w-auto drop-shadow-lg">
             <p class="text-sm text-slate-600 dark:text-slate-300">S účtem Google si vybereš přezdívku a obrázek, můžeš vyzývat kamarády nebo náhodné hráče a porovnat s nimi výsledky. Hra dál funguje i bez přihlášení.</p>
             <button type="button" data-auth-login-dialog class="${PRIMARY_BUTTON}"><i data-lucide="log-in" class="h-5 w-5"></i> Přihlásit se přes Google</button>
         </div>`, { onClick: (event) => { if (event.target.closest('[data-auth-login-dialog]')) Auth.login(); } });
+
+    // Úvod (jednou, dokud hráč nezvolí): přihlášení přes Google jako hlavní volba, méně výrazně hraní bez účtu
+    const wantsAccountWelcome = () => Boolean(Auth && Auth.isConfigured() && Social) && !Auth.hasSession() && readJson(KEYS.account) !== 'host';
+    const renderAccountWelcome = () => {
+        screen = 'welcome';
+        const error = Auth.getState().error;
+        appContent.innerHTML = `
+            <div id="account-welcome" class="fade-in flex min-h-full flex-col justify-center gap-6 p-6">
+                <div class="text-center">
+                    <img src="icons/logo.webp" alt="" class="mx-auto mb-3 h-36 w-auto drop-shadow-lg">
+                    <h2 class="text-2xl font-black text-slate-800 dark:text-slate-50">Vítej v Mudrlantovi</h2>
+                    <p class="mt-2 text-sm text-slate-500 dark:text-slate-400">Vědomostní kvíz ze zeměpisu, historie, přírody, kultury a sportu. S účtem si vybereš přezdívku a obrázek, můžeš vyzývat kamarády a porovnávat výsledky.</p>
+                </div>
+                ${error ? `<p class="text-center text-sm font-semibold text-rose-600 dark:text-rose-400" role="alert">${escapeHtml(error)}</p>` : ''}
+                <div class="flex flex-col items-center gap-2">
+                    <button type="button" data-action="auth-login" class="${PRIMARY_BUTTON}"><i data-lucide="log-in" class="h-5 w-5"></i> Přihlásit se přes Google</button>
+                    <button type="button" data-action="play-as-host" class="mt-1 rounded-xl px-4 py-2 text-sm font-bold text-slate-500 underline decoration-slate-300 underline-offset-4 hover:text-slate-800 dark:text-slate-400 dark:decoration-slate-600 dark:hover:text-slate-100">Pokračovat bez přihlášení</button>
+                    <p class="text-center text-xs text-slate-400 dark:text-slate-500">Hra funguje i bez účtu, jen bez profilu a výzev. Přihlásit se můžeš kdykoli později.</p>
+                </div>
+            </div>`;
+        renderIcons(appContent);
+        updateControlsUI();
+    };
 
     // Okna (profil, nová výzva, kód, detail výzvy): jedno společné
     let dialogHandler = null;
@@ -2578,7 +2619,7 @@
         return overlay;
     };
     const DIALOG_NOTE = (text, tone = 'text-rose-600 dark:text-rose-400') => `<p class="mt-3 min-h-[1.25rem] text-sm font-semibold ${tone}" role="status">${escapeHtml(text)}</p>`;
-    const PRIMARY_BUTTON = 'flex w-full items-center justify-center gap-2 rounded-2xl bg-slate-800 px-4 py-3 text-base font-black text-white shadow-md active:scale-[0.98] disabled:opacity-50 dark:bg-slate-100 dark:text-slate-900';
+    const PRIMARY_BUTTON = 'flex w-full items-center justify-center gap-2 rounded-2xl bg-brand-700 px-4 py-3 text-base font-black text-white shadow-md shadow-brand-900/20 active:scale-[0.98] disabled:opacity-50';
     const SECONDARY_BUTTON = 'flex w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-base font-bold text-slate-800 shadow-sm active:scale-[0.98] dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100';
 
     // Profil: jméno, emoji a barva obrázku
@@ -2594,12 +2635,12 @@
                 <div class="flex items-center gap-4">
                     ${avatarHtml(draft, 'h-16 w-16 text-4xl')}
                     <label class="min-w-0 flex-1 text-xs font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">Přezdívka
-                        <input id="profile-name" type="text" maxlength="${Social.NAME_MAX}" value="${escapeHtml(draft.name)}" class="mt-1 w-full rounded-xl border-2 border-slate-200 bg-white px-3 py-2 text-base font-bold normal-case tracking-normal text-slate-800 focus:border-emerald-500 focus:outline-none dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100">
+                        <input id="profile-name" type="text" maxlength="${Social.NAME_MAX}" value="${escapeHtml(draft.name)}" class="mt-1 w-full rounded-xl border-2 border-slate-200 bg-white px-3 py-2 text-base font-bold normal-case tracking-normal text-slate-800 focus:border-brand-600 focus:outline-none dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100">
                     </label>
                 </div>
                 <div>
                     <p class="mb-2 text-xs font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">Obrázek</p>
-                    <div class="grid grid-cols-8 gap-1.5">${Social.AVATARS.map(emoji => `<button type="button" data-pick-avatar="${emoji}" aria-label="Obrázek ${emoji}" aria-pressed="${emoji === draft.avatar}" class="flex aspect-square items-center justify-center rounded-xl border-2 text-xl active:scale-95 ${emoji === draft.avatar ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-900/30' : 'border-transparent bg-white dark:bg-slate-800'}">${emoji}</button>`).join('')}</div>
+                    <div class="grid grid-cols-8 gap-1.5">${Social.AVATARS.map(emoji => `<button type="button" data-pick-avatar="${emoji}" aria-label="Obrázek ${emoji}" aria-pressed="${emoji === draft.avatar}" class="flex aspect-square items-center justify-center rounded-xl border-2 text-xl active:scale-95 ${emoji === draft.avatar ? 'border-brand-600 bg-brand-50 dark:bg-brand-900/40' : 'border-transparent bg-white dark:bg-slate-800'}">${emoji}</button>`).join('')}</div>
                 </div>
                 <div>
                     <p class="mb-2 text-xs font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">Barva</p>
@@ -2656,7 +2697,7 @@
         const topicCategories = () => draft.topics.length === 1 ? TOPIC_BY_ID[draft.topics[0]].categories : [];
         const selectedCats = () => draft.cats || topicCategories().map(category => category.key);
         const settingsSummary = () => [draft.hard ? 'I těžší' : 'Známé', draft.variant === 'typed' ? 'Psaní' : 'Možnosti'].join(' · ');
-        const chip = (attr, value, active, content) => `<button type="button" ${attr}="${escapeHtml(String(value))}" aria-pressed="${active}" class="min-w-0 rounded-xl border-2 px-2 py-1.5 text-[13px] font-bold leading-tight active:scale-[0.98] ${active ? 'border-emerald-500 bg-emerald-50 text-emerald-900 dark:bg-emerald-900/30 dark:text-emerald-200' : 'border-transparent bg-white text-slate-600 dark:bg-slate-800 dark:text-slate-300'}">${content}</button>`;
+        const chip = (attr, value, active, content) => `<button type="button" ${attr}="${escapeHtml(String(value))}" aria-pressed="${active}" class="min-w-0 rounded-xl border-2 px-2 py-1.5 text-[13px] font-bold leading-tight active:scale-[0.98] ${active ? 'border-brand-600 bg-brand-50 text-brand-900 dark:bg-brand-900/40 dark:text-brand-100' : 'border-transparent bg-white text-slate-600 dark:bg-slate-800 dark:text-slate-300'}">${content}</button>`;
         const LABEL = 'text-xs font-black uppercase tracking-widest text-slate-500 dark:text-slate-400';
         const foundRows = () => {
             if (draft.found === null) return draft.query.trim().length >= 2 ? '<p class="px-1 text-xs font-semibold text-slate-400">Hledám…</p>' : '<p class="px-1 text-xs text-slate-400">Napiš aspoň 2 znaky přezdívky.</p>';
@@ -2668,19 +2709,19 @@
         };
         const opponentSearch = () => {
             if (draft.opponent) {
-                return `<div class="mt-2 flex items-center gap-3 rounded-xl bg-white p-2 shadow-sm ring-2 ring-emerald-500 dark:bg-slate-800">${avatarHtml(draft.opponent, 'h-8 w-8 text-base')}<span class="min-w-0 flex-1 truncate text-sm font-black text-slate-800 dark:text-slate-100">${escapeHtml(playerName(draft.opponent))}</span><button type="button" data-clear-opp class="rounded-lg px-2 py-1 text-xs font-bold text-slate-500 underline dark:text-slate-400">Změnit</button></div>`;
+                return `<div class="mt-2 flex items-center gap-3 rounded-xl bg-white p-2 shadow-sm ring-2 ring-brand-600 dark:bg-slate-800">${avatarHtml(draft.opponent, 'h-8 w-8 text-base')}<span class="min-w-0 flex-1 truncate text-sm font-black text-slate-800 dark:text-slate-100">${escapeHtml(playerName(draft.opponent))}</span><button type="button" data-clear-opp class="rounded-lg px-2 py-1 text-xs font-bold text-slate-500 underline dark:text-slate-400">Změnit</button></div>`;
             }
-            return `<input id="opp-search" type="text" maxlength="24" autocomplete="off" placeholder="Začni psát přezdívku hráče" value="${escapeHtml(draft.query)}" class="mt-2 w-full rounded-xl border-2 border-slate-200 bg-white px-3 py-2.5 text-base font-bold text-slate-800 focus:border-emerald-500 focus:outline-none dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"><div id="opp-results" class="mt-2 flex flex-col gap-1.5">${foundRows()}</div>`;
+            return `<input id="opp-search" type="text" maxlength="24" autocomplete="off" placeholder="Začni psát přezdívku hráče" value="${escapeHtml(draft.query)}" class="mt-2 w-full rounded-xl border-2 border-slate-200 bg-white px-3 py-2.5 text-base font-bold text-slate-800 focus:border-brand-600 focus:outline-none dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"><div id="opp-results" class="mt-2 flex flex-col gap-1.5">${foundRows()}</div>`;
         };
         // Tři jasně odlišené možnosti: konkrétní hráč (výchozí), náhodný hráč, odkaz pro kohokoli
         const whoCard = (id, icon, title, text) => {
             const active = draft.who === id;
             return `
                 <div>
-                    <button type="button" data-ch-who="${id}" role="radio" aria-checked="${active}" class="flex w-full items-center gap-3 rounded-2xl border-2 px-3 py-2 text-left active:scale-[0.99] ${active ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-900/30' : 'border-transparent bg-white dark:bg-slate-800'}">
-                        <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${active ? 'bg-emerald-500 text-white' : 'bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-300'}"><i data-lucide="${icon}" class="h-[1.125rem] w-[1.125rem]"></i></span>
+                    <button type="button" data-ch-who="${id}" role="radio" aria-checked="${active}" class="flex w-full items-center gap-3 rounded-2xl border-2 px-3 py-2 text-left active:scale-[0.99] ${active ? 'border-brand-600 bg-brand-50 dark:bg-brand-900/40' : 'border-transparent bg-white dark:bg-slate-800'}">
+                        <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${active ? 'bg-brand-600 text-white' : 'bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-300'}"><i data-lucide="${icon}" class="h-[1.125rem] w-[1.125rem]"></i></span>
                         <span class="min-w-0 flex-1"><span class="block text-[14px] font-black leading-tight text-slate-800 dark:text-slate-100">${title}</span><span class="block truncate text-[11px] text-slate-500 dark:text-slate-400">${text}</span></span>
-                        <span class="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 ${active ? 'border-emerald-500 bg-emerald-500 text-white' : 'border-slate-300 dark:border-slate-600'}">${active ? '<i data-lucide="check" class="h-3 w-3"></i>' : ''}</span>
+                        <span class="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 ${active ? 'border-brand-600 bg-brand-600 text-white' : 'border-slate-300 dark:border-slate-600'}">${active ? '<i data-lucide="check" class="h-3 w-3"></i>' : ''}</span>
                     </button>
                     ${active && id === 'player' ? opponentSearch() : ''}
                 </div>`;
@@ -2823,7 +2864,7 @@
         let note = '';
         const render = (value = '') => showDialog('Zadat kód výzvy', `
             <form class="flex flex-col gap-3" autocomplete="off">
-                <input id="challenge-code" data-autofocus type="text" inputmode="text" autocapitalize="characters" maxlength="200" placeholder="Např. K7M2QX" value="${escapeHtml(value)}" class="w-full rounded-xl border-2 border-slate-200 bg-white px-3 py-3 text-center text-xl font-black uppercase tracking-widest text-slate-800 focus:border-emerald-500 focus:outline-none dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100">
+                <input id="challenge-code" data-autofocus type="text" inputmode="text" autocapitalize="characters" maxlength="200" placeholder="Např. K7M2QX" value="${escapeHtml(value)}" class="w-full rounded-xl border-2 border-slate-200 bg-white px-3 py-3 text-center text-xl font-black uppercase tracking-widest text-slate-800 focus:border-brand-600 focus:outline-none dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100">
                 <button type="submit" class="${PRIMARY_BUTTON}">Otevřít výzvu</button>
                 ${note ? DIALOG_NOTE(note) : ''}
             </form>`, {
@@ -2838,7 +2879,7 @@
     };
 
     const rankingRows = (rows, count, meId) => rows.map((row, index) => `
-        <li class="flex items-center gap-3 rounded-2xl bg-white p-2.5 shadow-sm dark:bg-slate-800 ${row.user_id === meId ? 'ring-2 ring-emerald-500' : ''}">
+        <li class="flex items-center gap-3 rounded-2xl bg-white p-2.5 shadow-sm dark:bg-slate-800 ${row.user_id === meId ? 'ring-2 ring-brand-600' : ''}">
             <span class="w-5 text-center text-sm font-black text-slate-400">${index === 0 ? '🏆' : index + 1}</span>
             ${avatarHtml(row.player, 'h-9 w-9 text-lg')}
             <span class="min-w-0 flex-1 truncate text-sm font-bold text-slate-800 dark:text-slate-100">${escapeHtml(playerName(row.player))}${row.user_id === meId ? ' (ty)' : ''}</span>
@@ -2972,7 +3013,7 @@
                     <p class="text-sm text-slate-500 dark:text-slate-400">${results && results.length > 1 ? 'Porovnání s ostatními hráči.' : 'Pošli kód kamarádům, ať ti to oplatí.'}</p>`;
         appContent.innerHTML = `
             <div class="fade-in flex min-h-full w-full flex-col gap-4 bg-slate-50 p-4 pb-6 dark:bg-slate-900">
-                <div class="rounded-[1.5rem] bg-gradient-to-br from-rose-500 to-orange-500 p-5 text-center text-white shadow-lg">
+                <div class="rounded-[1.5rem] bg-gradient-to-br from-brand-600 to-brand-900 p-5 text-center text-white shadow-lg">
                     <p class="text-xs font-black uppercase tracking-widest text-white/80">${escapeHtml(challengeTopicTitle(c.topic))}</p>
                     <p class="mt-1 text-5xl font-black">${correct}/${c.count}</p>
                     <p class="mt-1 text-sm font-bold text-white/90">${escapeHtml(formatPoints(points))}</p>
@@ -3020,6 +3061,10 @@
     const ACTIONS = {
         daily: (button) => { lastDailyTopic = button.dataset.topic; startDaily(button.dataset.topic); },
         'auth-login': () => Auth && Auth.login(),
+        'play-as-host': () => {
+            writeJson(KEYS.account, 'host');
+            showStart();
+        },
         'open-profile': () => openProfile(),
         'home-tab': (button) => { writeJson(KEYS.homeTab, button.dataset.tab === 'multi' ? 'multi' : 'single'); renderHome(); },
         'header-profile': () => (signedUser() ? openProfile() : openLoginDialog()),
@@ -3105,8 +3150,12 @@
         if (event.target instanceof HTMLImageElement) event.target.classList.add('invisible');
     }, true);
 
-    // Bez varianty uvítání, jinak rozehraná otázka, jinak domovská obrazovka s dnešními otázkami
+    // Úvod s přihlášením, bez varianty uvítání, jinak rozehraná otázka, jinak domovská obrazovka s dnešními otázkami
     const showStart = () => {
+        if (wantsAccountWelcome()) {
+            renderAccountWelcome();
+            return;
+        }
         if (!gameVariant) {
             renderVariantWelcome();
             return;
@@ -3215,6 +3264,8 @@
         if (invite) writeJson(KEYS.pendingChallenge, invite);
         Auth.onChange((state) => {
             if (document.getElementById('settings-overlay')) openSettings();
+            // Úvod s přihlášením: po přihlášení dál (k variantě nebo domů), po neúspěchu znovu s chybou
+            if (document.getElementById('account-welcome') && (Auth.hasSession() || state.error)) showStart();
             if (!state.user) { myProfile = null; myChallenges = null; incomingList = null; updateProfileButton(); paintChallenges(); return; }
             // Po přihlášení (i návratu z Googlu) se otevře výzva, na kterou hráč klepl v odkazu
             const pending = readJson(KEYS.pendingChallenge);

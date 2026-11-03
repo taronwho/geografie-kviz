@@ -110,6 +110,8 @@
     };
 
     const getState = () => ({ configured: isConfigured(), user: session && session.user ? session.user : null, error });
+    // Přihlášení uložené nebo právě dokončené (údaje o hráči se ještě můžou načítat) – úvod pak nenabízí přihlášení
+    const hasSession = () => Boolean(session);
     const onChange = (listener) => { listeners.add(listener); return () => listeners.delete(listener); };
-    return { init, login, logout, accessToken, getState, onChange, isConfigured };
+    return { init, login, logout, accessToken, getState, hasSession, onChange, isConfigured };
 });

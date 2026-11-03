@@ -13,7 +13,7 @@ try { ({ chromium } = require('playwright')); } catch (e) {}
 
 const ROOT = path.join(__dirname, '..');
 const ORIGIN = 'https://geo.test';
-const CONTENT_TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png', '.webmanifest': 'application/manifest+json' };
+const CONTENT_TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png', '.webp': 'image/webp', '.webmanifest': 'application/manifest+json' };
 const CSP = fs.readFileSync(path.join(ROOT, '_headers'), 'utf8').match(/Content-Security-Policy: (.+)/)[1];
 const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==', 'base64');
 
@@ -37,7 +37,7 @@ const startServer = () => new Promise(resolve => {
     server.listen(0, '127.0.0.1', () => resolve(server));
 });
 
-// options: variant (null = první spuštění), settings, storage (další uložená data), fixedRandom (Math.random vrací 0.1 →
+// options: variant (null = první spuštění), account (null = úvod s přihlášením ještě nebyl), settings, storage (další uložená data), fixedRandom (Math.random vrací 0.1 →
 // první položka a u zeměpisu otázka na stát, u historie na století, kde jde; číslo = vrací to číslo), wikiDown, wikiHangs, dataDown, fakeTimers, colorScheme, origin + serviceWorkers
 const setup = async (browser, options = {}) => {
     const origin = options.origin || ORIGIN;
@@ -46,6 +46,8 @@ const setup = async (browser, options = {}) => {
     await context.grantPermissions(['clipboard-read', 'clipboard-write'], { origin });
     const storage = { ...(options.storage || {}) };
     if (options.variant !== null) storage['mudrlant.variant'] = options.variant || 'choices';
+    // Úvod s přihlášením jen v testech, které ho chtějí (account: null = hráč ještě nevolil)
+    if (options.account !== null) storage['mudrlant.account'] = JSON.stringify('host');
     if (options.settings) storage['mudrlant.settings'] = JSON.stringify(options.settings);
     // Uložená data jen při prvním načtení, ať test vidí, co s nimi aplikace udělá
     await context.addInitScript(entries => {
@@ -125,7 +127,11 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         await waitForHome(tab);
         assert.match(await tab.textContent('[data-action="daily"][data-topic="zemepis"]'), /čeká/);
         assert.match(await tab.textContent('[data-action="play-daily"]'), /Hrát vše\s*· zbývá 14/);
-        assert.equal(await tab.textContent('#status-text'), 'Mudrlant · 16. 10.');
+        // Úvod: sova z loga, název a datum
+        assert.equal(await tab.textContent('#status-text'), 'Mudrlant16. 10.');
+        assert.equal(await tab.getAttribute('#status-badge', 'aria-label'), 'Mudrlant · 16. 10.');
+        assert.equal(await tab.locator('#status-icon-slot img[src="icons/logo.webp"]').count(), 1);
+        assert.ok(await tab.evaluate(() => document.querySelector('#status-icon-slot img').naturalWidth > 0), 'logo se načte');
 
         await tab.click('[data-action="daily"][data-topic="zemepis"]');
         await waitForQuestion(tab);
@@ -1101,6 +1107,66 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         await masked.context.close();
     });
 
+    await t.test('úvod: přihlášení přes Google, méně výrazně hraní bez přihlášení; přihlášený ani bez nastavení ho nevidí', async () => {
+        const configure = async (context) => {
+            await context.route('**/config.js', route => route.fulfill({ contentType: 'text/javascript', body: 'window.MUDRLANT_CONFIG = { supabaseUrl: "https://proj.supabase.co", supabaseAnonKey: "anon-key" };' }));
+            await context.route('https://proj.supabase.co/**', route => {
+                const url = new URL(route.request().url());
+                if (url.pathname === '/auth/v1/user') return route.fulfill({ json: { id: 'u-1', email: 'jana@example.com', user_metadata: { full_name: 'Jana Nováková' } } });
+                if (url.pathname === '/auth/v1/authorize') return route.fulfill({ contentType: 'text/html', body: '<title>Google</title>' });
+                return route.fulfill({ json: [] });
+            });
+        };
+        // První spuštění: sova, hlavní tlačítko Google a pod ním odkaz bez přihlášení
+        const fresh = await setup(browser, { account: null, variant: null });
+        await configure(fresh.context);
+        await fresh.tab.goto(`${ORIGIN}/`);
+        await fresh.tab.waitForSelector('#account-welcome');
+        assert.equal(await fresh.tab.locator('#account-welcome img[src="icons/logo.webp"]').count(), 1);
+        assert.match(await fresh.tab.textContent('#account-welcome [data-action="auth-login"]'), /Přihlásit se přes Google/);
+        assert.match(await fresh.tab.textContent('#account-welcome [data-action="play-as-host"]'), /Pokračovat bez přihlášení/);
+        await Promise.all([fresh.tab.waitForURL(/proj\.supabase\.co\/auth\/v1\/authorize/), fresh.tab.click('#account-welcome [data-action="auth-login"]')]);
+        assert.equal(new URL(fresh.tab.url()).searchParams.get('provider'), 'google');
+        await fresh.context.close();
+
+        // Bez přihlášení: dál k výběru varianty, volba se pamatuje
+        const host = await setup(browser, { account: null, variant: null });
+        await configure(host.context);
+        await host.tab.goto(`${ORIGIN}/`);
+        await host.tab.click('#account-welcome [data-action="play-as-host"]');
+        await host.tab.waitForSelector('#variant-welcome');
+        await host.tab.click('#variant-welcome [data-variant="choices"]');
+        await waitForHome(host.tab);
+        await host.tab.reload();
+        await waitForHome(host.tab);
+        assert.equal(await host.tab.locator('#account-welcome').count(), 0);
+        assert.deepEqual(host.log.errors, []);
+        await host.context.close();
+
+        // Návrat z Googlu: úvod se přeskočí rovnou na variantu
+        const back = await setup(browser, { account: null, variant: null });
+        await configure(back.context);
+        await back.tab.goto(`${ORIGIN}/#access_token=tok-1&refresh_token=ref-1&expires_in=3600&token_type=bearer`);
+        await back.tab.waitForSelector('#variant-welcome');
+        assert.equal(await back.tab.locator('#account-welcome').count(), 0);
+        await back.context.close();
+
+        // Hráč, který už hraje a není přihlášený, úvod uvidí jednou; bez nastaveného Supabase nikdy
+        const existing = await setup(browser, { account: null });
+        await configure(existing.context);
+        await existing.tab.goto(`${ORIGIN}/`);
+        await existing.tab.waitForSelector('#account-welcome');
+        await existing.tab.click('[data-action="play-as-host"]');
+        await waitForHome(existing.tab);
+        await existing.context.close();
+        const plain = await setup(browser, { account: null });
+        await plain.context.route('**/config.js', route => route.fulfill({ contentType: 'text/javascript', body: 'window.MUDRLANT_CONFIG = { supabaseUrl: "", supabaseAnonKey: "" };' }));
+        await plain.tab.goto(`${ORIGIN}/`);
+        await waitForHome(plain.tab);
+        assert.equal(await plain.tab.locator('#account-welcome').count(), 0);
+        await plain.context.close();
+    });
+
     await t.test('účet: bez nastavení se nic neukáže, s nastavením přihlášení Google, návrat s tokeny, odhlášení', async () => {
         // Bez nastavení (prázdný config.js) část Účet v Nastavení není
         const plain = await setup(browser);
@@ -1427,7 +1493,7 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         await tab.goto(`${ORIGIN}/`);
         await waitForHome(tab);
         const background = await tab.evaluate(() => getComputedStyle(document.getElementById('app-content')).backgroundColor);
-        assert.equal(background, 'rgb(15, 23, 42)');
+        assert.equal(background, 'rgb(33, 35, 38)', 'grafitové pozadí podle loga');
         assert.deepEqual(log.csp, []);
         await context.close();
     });
