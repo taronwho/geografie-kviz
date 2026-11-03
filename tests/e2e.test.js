@@ -123,7 +123,7 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         await tab.goto(`${ORIGIN}/`);
         await waitForHome(tab);
         assert.match(await tab.textContent('[data-action="daily"][data-topic="zemepis"]'), /čeká/);
-        assert.match(await tab.textContent('[data-action="play-daily"]'), /Hrát dnešní otázky\s*· zbývá 14/);
+        assert.match(await tab.textContent('[data-action="play-daily"]'), /Hrát vše\s*· zbývá 14/);
         assert.equal(await tab.textContent('#status-text'), 'Mudrlant · 16. 10.');
 
         await tab.click('[data-action="daily"][data-topic="zemepis"]');
@@ -211,7 +211,7 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         await waitForHome(tab);
         // Zeměpis je odehraný a série běží; tlačítko nahoře pokračuje ve zbývajících dnešních otázkách
         assert.match(await tab.textContent('[data-action="daily"][data-topic="zemepis"]'), /1 bod\s*1/);
-        assert.match(await tab.textContent('[data-action="play-daily"]'), /Pokračovat v dnešních otázkách\s*· zbývá 13/);
+        assert.match(await tab.textContent('[data-action="play-daily"]'), /Pokračovat\s*· zbývá 13/);
 
         // Odehraná dnešní otázka zůstane uložená i po obnovení stránky
         const requestsBefore = log.wiki.length;
@@ -1171,36 +1171,47 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         await failed.context.close();
     });
 
-    await t.test('profil a výzvy: úprava profilu, založení výzvy, stejné otázky pro druhého hráče, žebříček', async () => {
+    await t.test('profil a výzvy: přezdívka a obrázek v záhlaví, výzva hráči podle přezdívky, náhodný soupeř, příchozí výzva, žebříček', async () => {
         // Falešný Supabase v paměti: profily, výzvy a výsledky; každý hráč má svůj token
-        const db = { profiles: {}, challenges: {}, results: [], calls: [] };
+        const db = { profiles: {}, challenges: {}, results: [] };
         const users = { 'tok-u1': { id: 'u-1', name: 'Jana Nováková' }, 'tok-u2': { id: 'u-2', name: 'Petr Svoboda' } };
         const profileOf = (id) => db.profiles[id] || (db.profiles[id] = { id, display_name: Object.values(users).find(user => user.id === id).name, avatar: '🦊', color: 'emerald' });
+        profileOf('u-1');
+        profileOf('u-2');
         const backend = async (context) => {
             await context.route('**/config.js', route => route.fulfill({ contentType: 'text/javascript', body: 'window.MUDRLANT_CONFIG = { supabaseUrl: "https://proj.supabase.co", supabaseAnonKey: "anon-key" };' }));
             await context.route('https://proj.supabase.co/**', route => {
                 const request = route.request();
                 const url = new URL(request.url());
-                const token = (request.headers().authorization || '').replace('Bearer ', '');
-                const me = users[token];
+                const me = users[(request.headers().authorization || '').replace('Bearer ', '')];
                 const json = (body, status = 200) => route.fulfill({ status, json: body });
-                db.calls.push(`${request.method()} ${url.pathname.replace('/rest/v1/', '')}`);
                 if (url.pathname.startsWith('/auth/')) return json({});
                 if (!me) return json({ message: 'no token' }, 401);
-                const eq = (key) => (url.searchParams.get(key) || '').replace(/^eq\./, '');
+                const param = (key) => url.searchParams.get(key) || '';
+                const eq = (key) => param(key).replace(/^eq\./, '');
                 const body = request.postData() ? JSON.parse(request.postData()) : null;
-                const resultRow = (row, extra = {}) => ({ ...row, player: profileOf(row.user_id), ...extra });
-                const challengeRow = (c) => ({ ...c, creator: profileOf(c.creator_id) });
+                const resultRow = (row) => ({ ...row, player: profileOf(row.user_id) });
+                const challengeRow = (c) => ({ ...c, creator: profileOf(c.creator_id), invited: c.invited_id ? profileOf(c.invited_id) : null });
+                if (url.pathname === '/rest/v1/rpc/random_opponent') return json(Object.values(db.profiles).filter(profile => profile.id !== me.id).slice(0, 1));
                 if (url.pathname === '/rest/v1/profiles') {
-                    if (request.method() === 'PATCH') { Object.assign(profileOf(eq('id')), body); return json([profileOf(eq('id'))]); }
+                    if (request.method() === 'PATCH') {
+                        if (Object.values(db.profiles).some(profile => profile.id !== eq('id') && profile.display_name.toLowerCase() === body.display_name.toLowerCase())) return json({ code: '23505' }, 409);
+                        Object.assign(profileOf(eq('id')), body);
+                        return json([profileOf(eq('id'))]);
+                    }
+                    if (param('display_name').startsWith('ilike.')) {
+                        const term = param('display_name').slice(6).replace(/\*/g, '').toLowerCase();
+                        return json(Object.values(db.profiles).filter(profile => profile.id !== me.id && profile.display_name.toLowerCase().includes(term)));
+                    }
                     return json([profileOf(eq('id'))]);
                 }
                 if (url.pathname === '/rest/v1/challenges') {
                     if (request.method() === 'POST') {
                         if (db.challenges[body.id]) return json({}, 409);
-                        db.challenges[body.id] = { ...body, created_at: '2026-11-03T10:00:00Z' };
+                        db.challenges[body.id] = { ...body, created_at: `2026-11-03T10:0${Object.keys(db.challenges).length}:00Z` };
                         return json([db.challenges[body.id]], 201);
                     }
+                    if (url.searchParams.has('invited_id')) return json(Object.values(db.challenges).filter(c => c.invited_id === eq('invited_id')).map(challengeRow));
                     const found = db.challenges[eq('id')];
                     return json(found ? [challengeRow(found)] : []);
                 }
@@ -1209,49 +1220,63 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
                         if (!db.results.some(row => row.challenge_id === body.challenge_id && row.user_id === body.user_id)) db.results.push({ ...body, finished_at: `2026-11-03T10:0${db.results.length}:00Z` });
                         return route.fulfill({ status: 201, body: '' });
                     }
-                    if (url.searchParams.has('user_id') && !url.searchParams.get('user_id').startsWith('neq.')) {
-                        return json(db.results.filter(row => row.user_id === eq('user_id')).map(row => ({ ...row, challenge: challengeRow(db.challenges[row.challenge_id]) })));
+                    if (param('challenge_id').startsWith('in.') && param('user_id').startsWith('eq.')) {
+                        const ids = param('challenge_id').slice(4, -1).split(',');
+                        return json(db.results.filter(row => row.user_id === eq('user_id') && ids.includes(row.challenge_id)));
                     }
-                    if (url.searchParams.get('challenge_id').startsWith('in.')) {
-                        const ids = url.searchParams.get('challenge_id').slice(4, -1).split(',');
-                        return json(db.results.filter(row => ids.includes(row.challenge_id) && row.user_id !== url.searchParams.get('user_id').replace('neq.', '')).map(row => resultRow(row)));
+                    if (param('user_id').startsWith('eq.')) return json(db.results.filter(row => row.user_id === eq('user_id')).map(row => ({ ...row, challenge: challengeRow(db.challenges[row.challenge_id]) })));
+                    if (param('challenge_id').startsWith('in.')) {
+                        const ids = param('challenge_id').slice(4, -1).split(',');
+                        return json(db.results.filter(row => ids.includes(row.challenge_id) && row.user_id !== param('user_id').replace('neq.', '')).map(resultRow));
                     }
-                    return json(db.results.filter(row => row.challenge_id === eq('challenge_id')).map(row => resultRow(row)));
+                    return json(db.results.filter(row => row.challenge_id === eq('challenge_id')).map(resultRow));
                 }
                 return json({});
             });
         };
         const login = (token) => ({ 'mudrlant.auth': JSON.stringify({ access_token: token, refresh_token: 'r', expires_at: 4102444800, user: { id: users[token].id, email: 'x@example.com', name: users[token].name } }) });
 
-        // Hráčka 1: úprava profilu
+        // Hráčka 1: profil v záhlaví, obsazená přezdívka, úprava profilu
         const one = await setup(browser, { storage: login('tok-u1') });
         await backend(one.context);
         await one.tab.goto(`${ORIGIN}/`);
         await waitForHome(one.tab);
-        await one.tab.waitForSelector('#challenges-section [data-action="new-challenge"]');
-        assert.match(await one.tab.textContent('#challenges-section'), /Jana Nováková/);
-        await one.tab.click('#challenges-section [data-action="open-profile"]');
+        await one.tab.waitForSelector('#btn-profile:not(.hidden) span');
+        assert.match(await one.tab.getAttribute('#btn-profile', 'aria-label'), /Jana Nováková/);
+        await one.tab.click('#btn-profile');
         await one.tab.waitForSelector('#profile-name');
+        await one.tab.fill('#profile-name', 'petr svoboda');
+        await one.tab.click('[data-save-profile]');
+        await one.tab.waitForFunction(() => /už má jiný hráč/.test(document.getElementById('dialog-overlay').textContent));
+        await one.tab.fill('#profile-name', 'J');
+        await one.tab.click('[data-save-profile]');
+        await one.tab.waitForFunction(() => /2 až 24 znaků/.test(document.getElementById('dialog-overlay').textContent));
         await one.tab.fill('#profile-name', 'Janička');
         await one.tab.click('[data-pick-avatar="🐼"]');
         await one.tab.click('[data-pick-color="sky"]');
-        assert.equal(await one.tab.inputValue('#profile-name'), 'Janička', 'jméno zůstane po výběru obrázku');
+        assert.equal(await one.tab.inputValue('#profile-name'), 'Janička', 'přezdívka zůstane po výběru obrázku');
         await one.tab.click('[data-save-profile]');
         await one.tab.waitForFunction(() => /Uloženo/.test(document.getElementById('dialog-overlay').textContent));
         assert.deepEqual([db.profiles['u-1'].display_name, db.profiles['u-1'].avatar, db.profiles['u-1'].color], ['Janička', '🐼', 'sky']);
         await one.tab.click('#dialog-overlay [data-close]');
-        await one.tab.waitForFunction(() => document.querySelector('#challenges-section').textContent.includes('Janička'));
-        assert.match(await one.tab.textContent('#challenges-section'), /🐼/);
+        await one.tab.waitForFunction(() => document.getElementById('btn-profile').textContent.includes('🐼'));
 
-        // Nová výzva: zeměpis, 5 otázek; hraje se hned a stav ukazuje číslo otázky
+        // Výzva konkrétnímu hráči: hledání podle přezdívky (Petr), téma zeměpis, 5 otázek
         await one.tab.click('#challenges-section [data-action="new-challenge"]');
+        await one.tab.click('[data-ch-who="player"]');
+        await one.tab.click('[data-ch-create]');
+        await one.tab.waitForFunction(() => /Vyber hráče/.test(document.getElementById('dialog-overlay').textContent));
+        await one.tab.fill('#opp-search', 'pet');
+        await one.tab.waitForSelector('[data-pick-opp="u-2"]');
+        assert.equal(await one.tab.locator('[data-pick-opp]').count(), 1, 'sama sebe nenajde');
+        await one.tab.click('[data-pick-opp="u-2"]');
         await one.tab.click('[data-ch-topic="zemepis"]');
         await one.tab.click('[data-ch-count="5"]');
         await one.tab.click('[data-ch-create]');
         await waitForQuestion(one.tab);
         const [code] = Object.keys(db.challenges);
         assert.match(code, /^[A-Z0-9]{6}$/);
-        assert.deepEqual([db.challenges[code].topic, db.challenges[code].count, db.challenges[code].creator_id], ['zemepis', 5, 'u-1']);
+        assert.deepEqual([db.challenges[code].topic, db.challenges[code].count, db.challenges[code].creator_id, db.challenges[code].invited_id], ['zemepis', 5, 'u-1', 'u-2']);
         assert.equal(await one.tab.textContent('#status-text'), 'Výzva · 1/5');
         const firstId = (await readRound(one.tab)).id;
         for (let i = 0; i < 5; i++) {
@@ -1263,21 +1288,34 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         }
         await one.tab.waitForSelector('[data-action="challenge-home"]');
         assert.match(await one.tab.textContent('#app-content'), /0\/5/);
+        assert.match(await one.tab.textContent('#app-content'), /Petr Svoboda/);
         assert.deepEqual(db.results.map(row => [row.challenge_id, row.user_id, row.correct]), [[code, 'u-1', 0]]);
         assert.equal(Object.keys(JSON.parse(await one.tab.evaluate(() => localStorage.getItem('mudrlant.stats'))).daily).length, 0, 'výzva se nepočítá do dnešních otázek');
         // Tlačítko Zpět z výsledku výzvy vede domů
         await one.tab.goBack();
         await waitForHome(one.tab);
         await one.tab.waitForFunction(() => document.querySelector('#challenges-section').textContent.includes('Zeměpis'));
+
+        // Náhodný soupeř: vybere se jiný hráč (tady jediný další, Petr)
+        await one.tab.click('#challenges-section [data-action="new-challenge"]');
+        await one.tab.click('[data-ch-who="random"]');
+        await one.tab.click('[data-ch-count="5"]');
+        await one.tab.click('[data-ch-create]');
+        await waitForQuestion(one.tab);
+        assert.equal(Object.values(db.challenges).find(c => c.id !== code).invited_id, 'u-2');
         assert.deepEqual(one.log.errors, []);
         await one.context.close();
 
-        // Hráč 2: otevře odkaz, vidí kdo vyzývá a zahraje stejné otázky
+        // Hráč 2: výzva se mu ukáže na úvodní stránce, otevře ji a zahraje stejné otázky
         const two = await setup(browser, { storage: login('tok-u2') });
         await backend(two.context);
-        await two.tab.goto(`${ORIGIN}/?vyzva=${code}`);
+        await two.tab.goto(`${ORIGIN}/`);
+        await waitForHome(two.tab);
+        await two.tab.waitForSelector(`#challenges-section [data-action="challenge-open"][data-code="${code}"]`);
+        assert.match(await two.tab.textContent('#challenges-section'), /Janička tě vyzývá/);
+        assert.match(await two.tab.textContent('#challenges-section'), /čekají na tebe/);
+        await two.tab.click(`#challenges-section [data-action="challenge-open"][data-code="${code}"]`);
         await two.tab.waitForSelector('#dialog-overlay [data-ch-play]');
-        assert.equal(new URL(two.tab.url()).search, '', 'kód zmizí z adresy');
         assert.match(await two.tab.textContent('#dialog-overlay'), /Janička tě vyzývá/);
         assert.match(await two.tab.textContent('#dialog-overlay'), /0\/5/);
         await two.tab.click('[data-ch-play]');
@@ -1287,12 +1325,13 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         assert.deepEqual(two.log.errors, []);
         await two.context.close();
 
-        // Bez přihlášení se kód uloží a nabídne se přihlášení
+        // Odkaz s kódem otevře výzvu; bez přihlášení se kód uloží a nabídne se přihlášení
         const guest = await setup(browser);
         await backend(guest.context);
         await guest.tab.goto(`${ORIGIN}/?vyzva=${code}`);
         await guest.tab.waitForSelector('[data-auth-login-dialog]');
         assert.equal(await guest.tab.evaluate(() => JSON.parse(localStorage.getItem('mudrlant.pendingChallenge'))), code);
+        assert.equal(new URL(guest.tab.url()).search, '', 'kód zmizí z adresy');
         await guest.context.close();
     });
 
