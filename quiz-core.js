@@ -958,7 +958,45 @@
         return tiles;
     };
 
+    // --- Postup hráče: zkušenosti (XP), úrovně, tituly a mistrovství témat ---
+
+    const MAX_LEVEL = 50;
+    // Kolik XP je potřeba celkem na úroveň: pozvolna roste (úroveň 5 ≈ 370 XP, 10 ≈ 1 340, 25 ≈ 6 500, 50 ≈ 20 000)
+    const xpForLevel = (level) => level <= 1 ? 0 : Math.round(40 * Math.pow(level - 1, 1.6));
+    const levelFromXp = (xp) => {
+        let level = 1;
+        while (level < MAX_LEVEL && xp >= xpForLevel(level + 1)) level++;
+        return level;
+    };
+    // level, XP v této úrovni, XP potřebné na další (0 na nejvyšší úrovni) a poměr 0–1 pro ukazatel
+    const levelProgress = (xp) => {
+        const level = levelFromXp(xp);
+        if (level >= MAX_LEVEL) return { level, into: xp - xpForLevel(level), needed: 0, ratio: 1 };
+        const base = xpForLevel(level);
+        const needed = xpForLevel(level + 1) - base;
+        return { level, into: xp - base, needed, ratio: Math.min(1, (xp - base) / needed) };
+    };
+    const LEVEL_TITLES = [
+        { from: 1, title: 'Zvědavec' }, { from: 5, title: 'Učeň' }, { from: 10, title: 'Znalec' },
+        { from: 20, title: 'Učenec' }, { from: 35, title: 'Mudrc' }, { from: 50, title: 'Mudrlant' }
+    ];
+    const titleForLevel = (level) => LEVEL_TITLES.filter(entry => level >= entry.from).pop().title;
+    // Další titul (kdy a jaký), null na konci
+    const nextTitle = (level) => LEVEL_TITLES.find(entry => entry.from > level) || null;
+    // Za odpověď: správná 10 XP a 5 za každý bod (nejvýš 4 body, psaním dvojnásobek), špatná 2 XP za pokus, vzdání nic
+    const answerXp = ({ correct, points = 0, gaveUp = false }) => correct ? 10 + 5 * points : gaveUp ? 0 : 2;
+    const DAILY_XP = 15;
+    const DAILY_ALL_XP = 50;
+    const STREAK_XP_CAP = 10;
+    // Bonus za správnou dnešní otázku podle série dní (2 XP za den série, nejvýš 10 dní)
+    const streakXp = (streak) => 2 * Math.min(Math.max(0, streak), STREAK_XP_CAP);
+    // Mistrovství tématu 0–5 hvězdiček podle počtu různých správně poznaných položek
+    const MASTERY_STEPS = [5, 20, 60, 150, 300];
+    const masteryStars = (known) => MASTERY_STEPS.filter(step => known >= step).length;
+    const nextMastery = (known) => MASTERY_STEPS.find(step => known < step) || 0;
+
     return {
+        MAX_LEVEL, xpForLevel, levelFromXp, levelProgress, LEVEL_TITLES, titleForLevel, nextTitle, answerXp, DAILY_XP, DAILY_ALL_XP, streakXp, MASTERY_STEPS, masteryStars, nextMastery,
         UNKNOWN_COUNTRY, INTERNATIONAL_WATERS, CZECHIA_QID, AFTER_SYMBOL_WORD, TILE_SIZE, COUNTRIES, CONTINENT_NAMES,
         SATELLITE_TILES, OSM_TILES,
         escapeHtml, stripBrackets, isRealPhoto, commonsPhotoUrl, commonsFileUrl, displayName, plural, formatPoints,

@@ -554,3 +554,30 @@ test('zakrývání: iniciály před jménem patří ke jménu (C. S. Lewis, J. R
     assert.equal(core.censorName('spisovatele J. R. R. Tolkiena.', 'John Ronald Reuel Tolkien'), 'spisovatele [***].');
     assert.equal(core.mergeCensored('Žil v USA. [***] přišel.'), 'Žil v USA. [***] přišel.', 'konec věty není iniciála');
 });
+
+test('postup hráče: úrovně rostou pozvolna, tituly, XP za odpověď a mistrovství', () => {
+    assert.equal(core.xpForLevel(1), 0);
+    assert.equal(core.xpForLevel(2), 40);
+    for (let level = 2; level <= core.MAX_LEVEL; level++) assert.ok(core.xpForLevel(level) > core.xpForLevel(level - 1), `úroveň ${level} je dál než předchozí`);
+    assert.equal(core.levelFromXp(0), 1);
+    assert.equal(core.levelFromXp(39), 1);
+    assert.equal(core.levelFromXp(40), 2);
+    assert.equal(core.levelFromXp(10 ** 9), core.MAX_LEVEL);
+    const progress = core.levelProgress(100);
+    assert.equal(progress.level, 2);
+    assert.equal(progress.into, 60);
+    assert.ok(progress.ratio > 0 && progress.ratio < 1);
+    assert.deepEqual(core.levelProgress(10 ** 9), { level: core.MAX_LEVEL, into: 10 ** 9 - core.xpForLevel(core.MAX_LEVEL), needed: 0, ratio: 1 });
+    assert.deepEqual([1, 4, 5, 9, 10, 20, 35, 49, 50].map(core.titleForLevel), ['Zvědavec', 'Zvědavec', 'Učeň', 'Učeň', 'Znalec', 'Učenec', 'Mudrc', 'Mudrc', 'Mudrlant']);
+    assert.deepEqual(core.nextTitle(1), { from: 5, title: 'Učeň' });
+    assert.equal(core.nextTitle(50), null);
+    // Správná odpověď bez nápovědy (4 body) 30 XP, psaná (8 bodů) 50, špatná 2, vzdání 0
+    assert.equal(core.answerXp({ correct: true, points: 4 }), 30);
+    assert.equal(core.answerXp({ correct: true, points: 8 }), 50);
+    assert.equal(core.answerXp({ correct: false }), 2);
+    assert.equal(core.answerXp({ correct: false, gaveUp: true }), 0);
+    assert.deepEqual([0, 1, 5, 10, 30].map(core.streakXp), [0, 2, 10, 20, 20]);
+    assert.deepEqual([0, 4, 5, 19, 20, 299, 300, 999].map(core.masteryStars), [0, 0, 1, 1, 2, 4, 5, 5]);
+    assert.equal(core.nextMastery(5), 20);
+    assert.equal(core.nextMastery(300), 0);
+});

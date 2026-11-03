@@ -128,8 +128,8 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         assert.match(await tab.textContent('[data-action="daily"][data-topic="zemepis"]'), /čeká/);
         assert.match(await tab.textContent('[data-action="play-daily"]'), /Hrát vše\s*· zbývá 14/);
         // Úvod: sova z loga, název a datum
-        assert.equal(await tab.textContent('#status-text'), 'Mudrlant16. 10.');
-        assert.equal(await tab.getAttribute('#status-badge', 'aria-label'), 'Mudrlant · 16. 10.');
+        assert.equal(await tab.textContent('#status-text'), 'MudrlantÚr. 1 · Zvědavec');
+        assert.equal(await tab.getAttribute('#status-badge', 'aria-label'), 'Mudrlant · 16. 10. – můj postup');
         assert.equal(await tab.locator('#status-icon-slot img[src="icons/logo.webp"]').count(), 1);
         assert.ok(await tab.evaluate(() => document.querySelector('#status-icon-slot img').naturalWidth > 0), 'logo se načte');
 
@@ -225,10 +225,21 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         await tab.click('[data-action="daily"][data-topic="zemepis"]');
         await waitForResult(tab);
         assert.equal(log.wiki.length, requestsBefore, 'dnešní otázka z mezipaměti');
+        // Zkušenosti: odpověď a bonus za dnešní otázku se zapíšou, na úvodu je úroveň a okno Můj postup
+        const gained = await tab.evaluate(() => JSON.parse(localStorage.getItem('mudrlant.progress')).xp);
+        assert.ok(gained >= 15, `XP za dnešní otázku (${gained})`);
+        assert.match(await tab.textContent('[data-verdict]'), new RegExp(`\\+${gained} XP`));
         // Po obnovení stránky (třeba po aktualizaci) se zodpovězená otázka znovu neukazuje: začíná se na úvodní stránce
         await tab.reload();
         await waitForHome(tab);
         assert.equal(await tab.locator('h1').count(), 0);
+        await tab.click('#status-badge');
+        await tab.waitForSelector('#dialog-overlay');
+        assert.match(await tab.textContent('#dialog-overlay'), /Můj postup/);
+        assert.match(await tab.textContent('#dialog-overlay'), /Zvědavec/);
+        assert.match(await tab.textContent('#dialog-overlay'), new RegExp(`Celkem ${gained} XP`));
+        assert.equal(await tab.locator('#dialog-overlay li').count(), 14, 'mistrovství všech témat');
+        await tab.keyboard.press('Escape');
         // Výsledek u dnešní otázky je vidět celý (ne zkrácený na „4 bod…“)
         const cut = await tab.evaluate(() => [...document.querySelectorAll('[data-action="daily"] span.truncate')].filter(span => span.scrollWidth > span.clientWidth).map(span => span.textContent));
         assert.deepEqual(cut, []);

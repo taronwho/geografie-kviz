@@ -8,7 +8,8 @@
         escapeHtml, isRealPhoto, commonsPhotoUrl, commonsFileUrl, displayName, formatPoints, getDayKey, formatDayKey, createSeededRandom, pickRandom,
         censorName, mergeCensored, processWikiText, checkAnswer, normalizeAnswer, filterItems, pickItem, sortItems,
         buildItemChoices, findAnswerItem, setCountries, updateMistakes, nameAnswers, pointsFor, dropKnownFacts,
-        computeStreak, buildShareText, getTileLayout, shuffle
+        computeStreak, buildShareText, getTileLayout, shuffle,
+        levelProgress, titleForLevel, nextTitle, answerXp, DAILY_XP, DAILY_ALL_XP, streakXp, MASTERY_STEPS, masteryStars, nextMastery
     } = window.MudrlantCore;
     const Visuals = window.MudrlantVisuals;
     const TOPICS = window.MudrlantTopics || [];
@@ -26,6 +27,7 @@
         learned: 'mudrlant.learned',
         pendingChallenge: 'mudrlant.pendingChallenge',
         homeTab: 'mudrlant.homeTab',
+        progress: 'mudrlant.progress',
         // 'host' = hráč na úvodu zvolil hraní bez přihlášení, úvod s přihlášením se už neukáže
         account: 'mudrlant.account'
     };
@@ -991,9 +993,9 @@
         const badge = document.getElementById('status-badge');
         badge.className = place.logo ? BADGE_LOGO
             : `${BADGE_BASE} ${style ? `${style.soft} border-transparent` : 'bg-white text-slate-700 border-slate-200/60 dark:bg-slate-800 dark:border-slate-700'}`;
-        badge.disabled = !place.switch;
-        badge.title = place.switch ? 'Změnit téma nebo co hrát' : '';
-        badge.setAttribute('aria-label', place.switch ? `${place.text} – změnit téma` : place.text);
+        badge.disabled = !place.switch && !place.logo;
+        badge.title = place.switch ? 'Změnit téma nebo co hrát' : place.logo ? 'Můj postup: úroveň a mistrovství témat' : '';
+        badge.setAttribute('aria-label', place.switch ? `${place.text} – změnit téma` : place.logo ? `${place.text} – můj postup` : place.text);
         document.getElementById('status-switch').classList.toggle('hidden', !place.switch);
         const iconSlot = document.getElementById('status-icon-slot');
         // Ikona na úzkém displeji ustoupí delšímu názvu tématu; sova na úvodu zůstává
@@ -1005,8 +1007,11 @@
         renderIcons(iconSlot);
         const text = document.getElementById('status-text');
         if (place.logo) {
+            const level = levelProgress(loadProgress().xp);
             text.innerHTML = `<span class="block text-lg font-black normal-case leading-none tracking-tight text-brand-700 dark:text-cream">${escapeHtml(APP_NAME)}</span>`
-                + `<span class="mt-1 block text-[10px] font-bold tracking-widest text-slate-500 dark:text-slate-400">${escapeHtml(place.date)}</span>`;
+                + `<span class="mt-1 block text-[10px] font-bold normal-case tracking-wide text-slate-500 dark:text-slate-400">Úr. ${level.level} · ${escapeHtml(titleForLevel(level.level))}</span>`
+                + `<span class="mt-0.5 block h-1 w-full overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700" aria-hidden="true"><span class="block h-full w-0 rounded-full bg-gold-500" data-progress="${Math.round(level.ratio * 100)}"></span></span>`;
+            applyProgress(text);
             // Na úzkém displeji (360 px) se vedle pěti tlačítek vejde jen sova
             text.className = 'text-left max-[370px]:hidden';
         } else {
@@ -1018,6 +1023,7 @@
     // Štítek nahoře: při hraní tématu okno s výběrem kategorií, v mixu výběr témat
     const switchFromBadge = () => {
         const place = describePlace();
+        if (place.logo) { openProgress(); return; }
         if (!place.switch) return;
         openChooser(pool.kind === 'mix' ? { kind: 'mix' } : { kind: 'topic', topic: pool.topic });
     };
@@ -1550,6 +1556,10 @@
             if (screen === 'round' && current === data && round && round.answered) renderRound({ keepScroll: true });
         }).catch(() => {});
     };
+    // Řádek „+30 XP“ s rozpisem (odpověď, dnešní otázka, série…) pod výsledkem
+    const xpLine = (xp, tone) => xp && xp.total
+        ? `<p class="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-xs font-bold ${tone}"><span class="rounded-md bg-gold-500 px-1.5 py-0.5 font-black text-brand-950">+${xp.total} XP</span>${xp.parts.length > 1 ? `<span class="font-semibold opacity-80">${escapeHtml(xp.parts.map(part => `${part.label} ${part.xp}`).join(' · '))}</span>` : ''}</p>` : '';
+
     const renderResultBanner = (data) => {
         // Kolik nápověd hráč použil z kolika, které otázka měla
         const levels = `${round.hintLevel - 1}/${data.hints.length}`;
@@ -1560,6 +1570,7 @@
                     <div>
                         <p class="font-black text-emerald-800 dark:text-emerald-200">Správně! +${formatPoints(round.points)}</p>
                         <p class="text-sm text-emerald-800 dark:text-emerald-300">${round.typed ? 'Napsaná odpověď' : 'Výběr z možností'}${data.hints.length ? ` · nápovědy ${levels}` : ''}</p>
+                        ${xpLine(round.xp, 'text-emerald-800 dark:text-emerald-300')}
                     </div>
                 </div>`;
         }
@@ -1569,6 +1580,7 @@
                 <div>
                     <p class="font-black text-rose-800 dark:text-rose-200">${round.gaveUp ? 'Tentokrát bez odpovědi' : 'Bohužel, to není ono'}</p>
                     <p class="text-sm text-rose-800 dark:text-rose-300">${round.answer ? `Tvoje odpověď: ${escapeHtml(round.answer)} · ` : ''}Správně: ${escapeHtml(data.question.answerLabel)}</p>
+                    ${xpLine(round.xp, 'text-rose-800 dark:text-rose-300')}
                     ${round.answerRef ? `
                         <button type="button" data-action="item-info" data-topic="${escapeHtml(round.answerRef.topic)}" data-id="${escapeHtml(round.answerRef.id)}" class="mt-2 inline-flex items-center gap-1.5 rounded-lg bg-white px-2.5 py-1.5 text-xs font-bold text-rose-700 shadow-sm transition-colors hover:bg-rose-100 dark:bg-rose-950 dark:text-rose-200 dark:hover:bg-rose-900">
                             <i data-lucide="info" class="h-3.5 w-3.5"></i> Ukaž ${escapeHtml(round.answer)}
@@ -1811,10 +1823,40 @@
         }
     };
 
+    // --- Postup: zkušenosti (XP) a úrovně se ukládají na zařízení (po přihlášení se přenesou do účtu) ---
+    const loadProgress = () => {
+        const saved = readJson(KEYS.progress);
+        return { xp: saved && Number.isFinite(saved.xp) && saved.xp > 0 ? Math.floor(saved.xp) : 0 };
+    };
+    // Za odpověď: základ podle bodů, u dnešní otázky bonus a za sérii dní, za všech 14 dnešních bonus navíc.
+    // Vrátí rozpis do výsledku (round.xp) a při nové úrovni ukáže hlášku.
+    const awardXp = (stats) => {
+        const before = loadProgress();
+        const parts = [{ label: 'odpověď', xp: answerXp(round) }];
+        if (mode === 'daily' && current.dailyDate && round.dailyFirst !== false) {
+            parts.push({ label: 'dnešní otázka', xp: DAILY_XP });
+            if (round.correct) {
+                const streak = computeStreak(stats.daily[current.topic] || {}, getDayKey());
+                if (streak > 1) parts.push({ label: `série ${streak} dní`, xp: streakXp(streak) });
+            }
+            const done = TOPICS.filter(topic => (stats.daily[topic.id] || {})[current.dailyDate]).length;
+            if (done === TOPICS.length) parts.push({ label: 'všechny dnešní otázky', xp: DAILY_ALL_XP });
+        }
+        const gained = parts.reduce((sum, part) => sum + part.xp, 0);
+        round.xp = { total: gained, parts: parts.filter(part => part.xp > 0) };
+        if (!gained) return;
+        const after = { xp: before.xp + gained };
+        writeJson(KEYS.progress, after);
+        const was = levelProgress(before.xp).level;
+        const now = levelProgress(after.xp).level;
+        if (now > was) showToast(`Nová úroveň ${now}: ${titleForLevel(now)}!`);
+    };
+
     const recordResult = () => {
         const stats = loadStats();
         if (mode === 'daily' && current.dailyDate) {
             const topicDaily = stats.daily[current.topic] || {};
+            round.dailyFirst = !topicDaily[current.dailyDate];
             if (!topicDaily[current.dailyDate]) {
                 topicDaily[current.dailyDate] = {
                     correct: round.correct, points: round.points, hintLevel: round.hintLevel, levelCount: getLevelCount(current),
@@ -1831,6 +1873,7 @@
             stats.practice.points += round.points;
         }
         writeJson(KEYS.stats, stats);
+        awardXp(stats);
         // Neuhodnutá položka jde do seznamu chyb v učení, správně uhodnutá z něj zmizí a počítá se do postupu v okruzích
         writeJson(KEYS.mistakes, updateMistakes(loadMistakes(), `${current.topic}:${current.id}`, round.correct));
         if (round.correct) {
@@ -2905,6 +2948,45 @@
             <span class="text-right"><span class="block text-base font-black text-slate-800 dark:text-slate-100">${row.correct}/${count}</span><span class="block text-[10px] font-semibold text-slate-400">${escapeHtml(formatPoints(row.points))}</span></span>
         </li>`).join('');
 
+    // Můj postup: úroveň, titul, XP do další úrovně a mistrovství jednotlivých témat (hvězdičky podle poznaných položek)
+    const openProgress = () => {
+        const xp = loadProgress().xp;
+        const level = levelProgress(xp);
+        const next = nextTitle(level.level);
+        const learned = loadLearned();
+        const rows = TOPICS.map(topic => {
+            const known = (learned[topic.id] || []).length;
+            const stars = masteryStars(known);
+            const goal = nextMastery(known);
+            return `
+                <li class="flex items-center gap-3 rounded-2xl bg-white p-2 shadow-sm dark:bg-slate-800">
+                    ${topicIcon(topic, 'h-9 w-9', `rounded-xl p-2 ${styleOf(topic).soft}`, 'h-5 w-5')}
+                    <span class="min-w-0 flex-1">
+                        <span class="block truncate text-[13px] font-bold text-slate-800 dark:text-slate-100">${escapeHtml(topic.title)}</span>
+                        <span class="block text-[11px] font-semibold text-slate-500 dark:text-slate-400">${known} poznaných${goal ? ` · další za ${goal}` : ' · plné mistrovství'}</span>
+                    </span>
+                    <span class="flex shrink-0 gap-0.5" role="img" aria-label="${stars} z ${MASTERY_STEPS.length} hvězd">${MASTERY_STEPS.map((_, index) => `<i data-lucide="star" class="h-4 w-4 ${index < stars ? 'fill-gold-500 text-gold-500' : 'text-slate-300 dark:text-slate-600'}"></i>`).join('')}</span>
+                </li>`;
+        }).join('');
+        showDialog('Můj postup', `
+            <div class="flex flex-col gap-4">
+                <div class="flex items-center gap-4 rounded-2xl bg-gradient-to-br from-brand-700 to-brand-900 p-4 text-white shadow-md">
+                    <span class="flex h-16 w-16 shrink-0 flex-col items-center justify-center rounded-full bg-gold-500 text-brand-950 shadow-inner"><span class="text-[9px] font-black uppercase leading-none">úr.</span><span class="text-2xl font-black leading-none">${level.level}</span></span>
+                    <div class="min-w-0 flex-1">
+                        <p class="text-xl font-black leading-tight">${escapeHtml(titleForLevel(level.level))}</p>
+                        <p class="mt-0.5 text-xs font-semibold text-white/80">${level.needed ? `${level.into} / ${level.needed} XP do úrovně ${level.level + 1}` : 'Nejvyšší úroveň'}${next ? ` · titul ${escapeHtml(next.title)} od úrovně ${next.from}` : ''}</p>
+                        <span class="mt-2 block h-2 overflow-hidden rounded-full bg-white/25" aria-hidden="true"><span class="block h-full w-0 rounded-full bg-gold-400" data-progress="${Math.round(level.ratio * 100)}"></span></span>
+                    </div>
+                </div>
+                <p class="text-xs text-slate-500 dark:text-slate-400">XP získáš za správné odpovědi (víc bez nápověd a psaním), za dnešní otázky, za sérii dní a za dokončení všech dnešních otázek. Celkem ${xp} XP.</p>
+                <div>
+                    <h3 class="${CARD_TITLE} mb-2">Mistrovství témat</h3>
+                    <ul class="flex flex-col gap-1.5">${rows}</ul>
+                </div>
+            </div>`);
+        applyProgress(document.getElementById('dialog-overlay'));
+    };
+
     // Profil cizího hráče (klepnutí na jeho obrázek): statistiky z výzev, vzájemná bilance a odveta se stejným nastavením
     const openPlayerProfile = async (playerId) => {
         const user = signedUser();
@@ -2925,7 +3007,7 @@
             else {
                 const percent = stats.answered ? `${Math.round(stats.correct / stats.answered * 100)} %` : '–';
                 const versus = stats.versus && (stats.versus.wins + stats.versus.draws + stats.versus.losses)
-                    ? `<div class="flex flex-col items-center gap-2"><p class="${CARD_TITLE}">Vaše bilance</p><div class="flex flex-wrap justify-center gap-1.5">${chip(stats.versus.wins, 'výher', 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200')}${chip(stats.versus.draws, 'remíz', 'bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-200')}${chip(stats.versus.losses, 'proher', 'bg-rose-100 text-rose-800 dark:bg-rose-900/40 dark:text-rose-200')}</div></div>`
+                    ? `<div class="flex flex-col items-center gap-2"><p class="${CARD_TITLE}">Vaše bilance</p><div class="flex flex-wrap justify-center gap-1.5">${chip(stats.versus.wins, 'výher', 'bg-emerald-600 text-white')}${chip(stats.versus.draws, 'remíz', 'bg-slate-500 text-white')}${chip(stats.versus.losses, 'proher', 'bg-rose-600 text-white')}</div></div>`
                     : '<p class="text-center text-sm text-slate-500 dark:text-slate-400">Ještě jste spolu nehráli.</p>';
                 const same = stats.last ? `${challengeTopicTitle(stats.last.topic)} · ${stats.last.count} otázek` : 'Mix · 10 otázek';
                 body = `
