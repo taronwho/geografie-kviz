@@ -37,9 +37,9 @@ Potřebuješ: účet na GitHubu (máš) a účet Google (stačí běžný Gmail)
    - zaškrtni souhlas s podmínkami → **Continue** → **Create**
 4. V levém menu **Data Access** (Scopes): ověř, že jsou tam `.../auth/userinfo.email`, `.../auth/userinfo.profile`
    a `openid`. Kdyby `openid` chyběl, přidej ho přes **Add or remove scopes** a ulož. Nic dalšího nepřidávej.
-5. V levém menu **Audience**: pod *Publishing status* stiskni **Publish app** → potvrdit. Díky tomu se může přihlásit
-   kdokoli s Google účtem. Dokud je aplikace jen v režimu *Testing*, je omezená na výslovně přidané testovací uživatele.
-   Pro samotný e-mail, jméno a `openid` Google žádné ověřování aplikace nevyžaduje.
+5. **Publish app dávat nemusíš.** U aplikace, která žádá jen e-mail, jméno a `openid`, Google v režimu *Testing*
+   nevyžaduje seznam testovacích uživatelů, neukazuje varování a přihlášení nevyprší. (Tlačítko **Publish app** je
+   v levém menu pod **Audience**; kdybys někdy přidal další oprávnění, bude ho potřeba.)
 6. Teď potřebuješ adresu zpětného volání ze Supabase. Přepni se na záložku Supabase:
    **Authentication** (ikona dvou lidí) → **Sign In / Providers** (v některých verzích jen **Providers**) → **Google**.
    Rozbal ho a zkopíruj **Callback URL (for OAuth)**, vypadá jako `https://XXXXXXXX.supabase.co/auth/v1/callback`.
@@ -86,7 +86,7 @@ Potřebuješ: účet na GitHubu (máš) a účet Google (stačí běžný Gmail)
 |---|---|
 | Google hlásí `redirect_uri_mismatch` | Callback URL v Google klientu (část 3, krok 7) se nerovná té ze Supabase, i lomítko na konci |
 | Po přihlášení skončíš na jiné stránce nebo na adrese `localhost` | Adresa hry chybí v **Redirect URLs** (část 4, krok 4) |
-| Google hlásí „Access blocked: app has not completed verification“ | Aplikace je jen v *Testing*, udělej **Publish app** (část 3, krok 5) |
+| Google hlásí „Access blocked“ nebo „app not verified“ | V **Audience** zkontroluj, že máš typ **External**; případně klikni na **Publish app** |
 | V Nastavení není část Účet | `config.js` je prázdný nebo se ještě nenačetla nová verze (Nastavení → Aktualizovat) |
 | Přihlášení se vrátí s hlášením o chybě | Zkontroluj Client ID a Secret v Supabase (části 3 a 4) |
 | Projekt po týdnu nečinnosti „usnul“ | Bezplatné projekty Supabase se po delší nečinnosti pozastaví; v dashboardu stiskni **Restore project** |
