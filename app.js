@@ -1122,7 +1122,7 @@
                     </div>
                     <div class="grid grid-cols-7 gap-1">${dailyButtons}</div>
                 </section>
-                <section class="grid flex-1 grid-cols-4 auto-rows-fr gap-2">${mixTile}${ordered.map(tile).join('')}</section>`}
+                <section class="grid max-h-[26rem] flex-1 grid-cols-4 auto-rows-fr gap-2">${mixTile}${ordered.map(tile).join('')}</section>`}
             </div>`;
         applyProgress(appContent);
         renderIcons(appContent);
@@ -2141,7 +2141,7 @@
                 <h2 class="text-xl font-black tracking-tight text-slate-800 dark:text-slate-50">Učení</h2>
                 <p class="text-xs text-slate-500 dark:text-slate-400">Vyber téma, projdi si ho a nech se vyzkoušet. Bez bodů a spěchu.</p>
             </div>
-            <div class="grid flex-1 grid-cols-4 auto-rows-fr gap-2">
+            <div class="grid max-h-[22rem] flex-1 grid-cols-4 auto-rows-fr gap-2">
                 ${tiles}
                 <button type="button" data-action="learn-mistakes" class="col-span-2 flex min-h-[4rem] min-w-0 flex-col items-start justify-between gap-1 rounded-2xl border border-rose-200 bg-rose-50 p-2 text-left shadow-sm transition-all active:scale-[0.98] dark:border-rose-900/60 dark:bg-rose-900/20">
                     <span class="rounded-lg bg-rose-100 p-1.5 text-rose-700 dark:bg-rose-900/50 dark:text-rose-300"><i data-lucide="repeat" class="h-[1.125rem] w-[1.125rem]"></i></span>
