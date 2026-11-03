@@ -218,7 +218,11 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         await tab.click('[data-action="daily"][data-topic="zemepis"]');
         await waitForResult(tab);
         assert.equal(log.wiki.length, requestsBefore, 'dnešní otázka z mezipaměti');
+        // Po obnovení stránky (třeba po aktualizaci) se zodpovězená otázka znovu neukazuje: začíná se na úvodní stránce
         await tab.reload();
+        await waitForHome(tab);
+        assert.equal(await tab.locator('h1').count(), 0);
+        await tab.click('[data-action="daily"][data-topic="zemepis"]');
         await waitForResult(tab);
         assert.equal(await tab.textContent('h1'), data.name);
         assert.equal(log.wiki.length, requestsBefore);
@@ -527,7 +531,8 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         await tab.keyboard.press('Escape');
         assert.equal(await tab.locator('#play-chooser').count(), 0, 'Escape okno zavře');
         assert.deepEqual((await readStorage(tab, 'mudrlant.settings')).topics, ['zemepis']);
-        assert.match(await tab.textContent('[data-action="play-mix"]'), /1 z \d+ témat/);
+        assert.equal((await tab.textContent('[data-action="play-mix"]')).trim(), 'Mix', 'v dlaždici jen název');
+        assert.match(await tab.getAttribute('[data-action="play-mix"]', 'title'), /1 z \d+ témat/, 'výběr témat jako nápověda');
 
         await tab.click('[data-action="play-mix"]');
         await tab.click('#play-chooser [data-chooser-play]');

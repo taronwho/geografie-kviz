@@ -1075,24 +1075,18 @@
         const tile = (topic) => {
             const scope = scopeOf(topic);
             return `
-                <button type="button" data-action="play-topic" data-topic="${topic.id}" class="relative flex h-[4.5rem] min-w-0 flex-col justify-between overflow-hidden rounded-2xl bg-gradient-to-br p-2 text-left text-white shadow-md ring-1 ring-black/5 transition-all active:scale-[0.97] ${styleOf(topic).tile}">
+                <button type="button" data-action="play-topic" data-topic="${topic.id}"${scope ? ` title="${escapeHtml(`${topic.title} · ${scope}`)}"` : ''} class="relative flex h-[4.5rem] min-w-0 flex-col justify-between overflow-hidden rounded-2xl bg-gradient-to-br p-2 text-left text-white shadow-md ring-1 ring-black/5 transition-all active:scale-[0.97] ${styleOf(topic).tile}">
                     <i data-lucide="${topic.icon}" class="pointer-events-none absolute -bottom-2 -right-2 h-12 w-12 opacity-20"></i>
                     <i data-lucide="${topic.icon}" class="h-[1.125rem] w-[1.125rem]"></i>
-                    <span class="min-w-0">
-                        <span class="block ${topic.title.length > 10 ? 'text-[10px]' : 'text-[11.5px]'} font-black leading-tight tracking-tight">${escapeHtml(topic.title)}</span>
-                        ${scope ? `<span class="block truncate text-[9px] font-semibold text-white/85">${escapeHtml(scope)}</span>` : ''}
-                    </span>
+                    <span class="block ${topic.title.length > 10 ? 'text-[10px]' : 'text-[11.5px]'} font-black leading-tight tracking-tight">${escapeHtml(topic.title)}</span>
                 </button>`;
         };
         const mixScope = settings.topics.length === TOPICS.length ? 'Otázky ze všech témat' : `${settings.topics.length} z ${TOPICS.length} témat`;
         const mixTile = `
-            <button type="button" data-action="play-mix" class="relative col-span-2 flex h-[4.5rem] min-w-0 items-center gap-2.5 overflow-hidden rounded-2xl bg-gradient-to-br p-2.5 text-left text-white shadow-md ring-1 ring-black/5 transition-all active:scale-[0.97] ${styleOf(MIX).tile}">
+            <button type="button" data-action="play-mix" title="${escapeHtml(`Mix · ${mixScope}`)}" class="relative col-span-2 flex h-[4.5rem] min-w-0 items-center gap-2.5 overflow-hidden rounded-2xl bg-gradient-to-br p-2.5 text-left text-white shadow-md ring-1 ring-black/5 transition-all active:scale-[0.97] ${styleOf(MIX).tile}">
                 <i data-lucide="${MIX.icon}" class="pointer-events-none absolute -bottom-3 right-1 h-16 w-16 opacity-20"></i>
                 <span class="shrink-0 rounded-xl bg-white/20 p-2"><i data-lucide="${MIX.icon}" class="h-5 w-5"></i></span>
-                <span class="min-w-0">
-                    <span class="block text-base font-black leading-tight">${escapeHtml(MIX.title)}</span>
-                    <span class="block truncate text-[11px] font-semibold text-white/85">${escapeHtml(mixScope)}</span>
-                </span>
+                <span class="min-w-0 text-base font-black leading-tight">${escapeHtml(MIX.title)}</span>
             </button>`;
         const ordered = groupedTopics().flatMap(group => group.topics);
         const left = TOPICS.length - answered;
@@ -1886,6 +1880,12 @@
         const session = readJson(KEYS.session);
         if (!session || session.version !== STATE_VERSION || !session.data || !session.round || !TOPIC_BY_ID[session.data.topic]) return false;
         const isFresh = Date.now() - session.timestamp < SESSION_MAX_AGE;
+        // Zodpovězená otázka se po obnovení stránky (třeba po aktualizaci aplikace) neukazuje znovu: hráč začne na úvodní stránce
+        // (u dnešní otázky je její výsledek dál po ruce přes ikonu tématu, u výzvy se pokračuje tlačítkem na úvodní stránce)
+        if (session.round.answered) {
+            if (session.mode === 'challenge' && session.challenge && !session.challenge.done) challenge = session.challenge;
+            return false;
+        }
         // Dnešní otázka z uložené relace platí jen do půlnoci
         const isCurrent = session.mode !== 'daily' || session.data.dailyDate === getDayKey();
         if (!isFresh || !isCurrent || (session.mode === 'challenge' && !session.challenge)) return false;
