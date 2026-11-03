@@ -13,7 +13,7 @@
     } = core;
 
     const CATEGORIES = [
-        { key: 'sportovci', label: 'Sportovci', one: 'sportovec', icon: 'medal', question: 'Kdo to je?', placeholder: 'Napiš jméno…', ask: 'Kdo je', sort: { by: 'born' } },
+        { key: 'sportovci', label: 'Sportovci', one: 'sportovec', icon: 'medal', question: 'Kdo to je?', placeholder: 'Napiš jméno…', sort: { by: 'born' } },
         { key: 'olympiady', label: 'Olympijské hry', one: 'olympiáda', icon: 'award', question: 'Které olympijské hry to jsou?', placeholder: 'Napiš hry, třeba LOH 1952…', sort: { by: 'year' } },
         { key: 'sporty', label: 'Sporty a disciplíny', one: 'sport', icon: 'volleyball', question: 'Co je to za sport?', placeholder: 'Napiš sport…', sort: { by: 'name' } }
     ];

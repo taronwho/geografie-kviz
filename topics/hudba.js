@@ -12,12 +12,12 @@
         isRealPhoto, nameAnswers, buildTimeline, isAnswerMatch
     } = core;
 
-    const PERSON = { question: 'Kdo to je?', placeholder: 'Napiš jméno…', ask: 'Kdo je', sort: { by: 'y' } };
+    const PERSON = { question: 'Kdo to je?', placeholder: 'Napiš jméno…', sort: { by: 'y' } };
     const CATEGORIES = [
         { key: 'skladatele', label: 'Skladatelé', one: 'skladatel', icon: 'piano', ...PERSON },
         { key: 'hudebnici', label: 'Hudebníci a zpěváci', one: 'hudebník', icon: 'mic-vocal', ...PERSON },
-        { key: 'kapely', label: 'Kapely', one: 'kapela', icon: 'guitar', question: 'Co je to za kapelu?', placeholder: 'Napiš název kapely…', ask: 'Co je', sort: { by: 'y' } },
-        { key: 'dila', label: 'Slavná díla', one: 'dílo', icon: 'music-2', question: 'Které dílo to je?', placeholder: 'Napiš název…', ask: 'Co je', sort: { by: 'y' } }
+        { key: 'kapely', label: 'Kapely', one: 'kapela', icon: 'guitar', question: 'Co je to za kapelu?', placeholder: 'Napiš název kapely…', sort: { by: 'y' } },
+        { key: 'dila', label: 'Slavná díla', one: 'dílo', icon: 'music-2', question: 'Které dílo to je?', placeholder: 'Napiš název…', sort: { by: 'y' } }
     ];
     const isPerson = (item) => item.c === 'skladatele' || item.c === 'hudebnici';
 

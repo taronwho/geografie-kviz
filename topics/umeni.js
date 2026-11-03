@@ -12,7 +12,7 @@
     const CATEGORIES = [
         { key: 'obrazy', label: 'Obrazy', one: 'obraz', icon: 'frame', question: 'Co je to za obraz?', placeholder: 'Napiš název obrazu…', sort: { by: 'y' } },
         { key: 'sochy', label: 'Sochy', one: 'socha', icon: 'person-standing', question: 'Co je to za sochu?', placeholder: 'Napiš název sochy…', sort: { by: 'y' } },
-        { key: 'umelci', label: 'Malíři a sochaři', one: 'umělec', icon: 'brush', question: 'Kdo to je?', placeholder: 'Napiš jméno…', ask: 'Kdo je', sort: { by: 'y' } }
+        { key: 'umelci', label: 'Malíři a sochaři', one: 'umělec', icon: 'brush', question: 'Kdo to je?', placeholder: 'Napiš jméno…', sort: { by: 'y' } }
     ];
     const isWork = (item) => item.c === 'obrazy' || item.c === 'sochy';
 

@@ -271,7 +271,7 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         await waitForResult(tab);
         assert.match(await appText(tab), /Bohužel, to není ono/);
         assert.match(await appText(tab), /správně 1 z 2/);
-        await tab.click('[data-action="item-info"]:has-text("Co je Rakousko?")');
+        await tab.click('[data-action="item-info"]:has-text("Ukaž Rakousko")');
         await tab.waitForSelector('#place-info h2:has-text("Rakousko")');
         await tab.keyboard.press('Escape');
         assert.equal(await tab.locator('#place-info').count(), 0);
@@ -356,7 +356,7 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         assert.match(await appText(tab), new RegExp(`Tvoje odpověď: ${wrong[0].label}`));
 
         // Okno s popisem: název, úvod z Wikipedie, mapa a fakta
-        await tab.click(`[data-action="item-info"]:has-text("Co je ${wrong[0].label}?")`);
+        await tab.click(`[data-action="item-info"]:has-text("Ukaž ${wrong[0].label}")`);
         await tab.waitForSelector('#place-info [role="img"] svg path');
         assert.equal(await tab.textContent('#place-info h2'), wrong[0].label);
         await tab.waitForFunction(() => /o které se píše v testu/.test(document.querySelector('#place-info [data-card-text]').textContent));
@@ -825,7 +825,7 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         assert.match(await appText(tab), /Jednotka SI\s*newton \(N\)/);
         await context.close();
 
-        // Fyzik: časová osa s milníky fyziky, „Kdo je …?“ u špatné odpovědi
+        // Fyzik: časová osa s milníky fyziky, „Ukaž …“ u špatné odpovědi
         const second = await setup(browser, { fixedRandom: 0.5 });
         await second.tab.goto(`${ORIGIN}/`);
         await waitForHome(second.tab);
@@ -839,7 +839,7 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         const wrong = person.question.choices.find(choice => !choice.correct);
         await second.tab.click(`[data-action="choice"]:has-text("${wrong.label}")`);
         await waitForResult(second.tab);
-        assert.match(await appText(second.tab), new RegExp(`Kdo je ${wrong.label}\\?`));
+        assert.match(await appText(second.tab), new RegExp(`Ukaž ${wrong.label}`));
         for (const run of [log, second.log]) {
             assert.deepEqual(run.errors, []);
             assert.deepEqual(run.csp, []);

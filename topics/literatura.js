@@ -13,9 +13,9 @@
     } = core;
 
     const CATEGORIES = [
-        { key: 'spisovatele', label: 'Spisovatelé a básníci', one: 'spisovatel', icon: 'feather', question: 'Kdo to je?', placeholder: 'Napiš jméno…', ask: 'Kdo je', sort: { by: 'y' } },
-        { key: 'dila', label: 'Literární díla', one: 'dílo', icon: 'book', question: 'Které dílo to je?', placeholder: 'Napiš název díla…', ask: 'Co je', sort: { by: 'y' } },
-        { key: 'postavy', label: 'Literární postavy', one: 'postava', icon: 'drama', question: 'Která postava to je?', placeholder: 'Napiš jméno postavy…', ask: 'Kdo je', sort: { by: 'name' } }
+        { key: 'spisovatele', label: 'Spisovatelé a básníci', one: 'spisovatel', icon: 'feather', question: 'Kdo to je?', placeholder: 'Napiš jméno…', sort: { by: 'y' } },
+        { key: 'dila', label: 'Literární díla', one: 'dílo', icon: 'book', question: 'Které dílo to je?', placeholder: 'Napiš název díla…', sort: { by: 'y' } },
+        { key: 'postavy', label: 'Literární postavy', one: 'postava', icon: 'drama', question: 'Která postava to je?', placeholder: 'Napiš jméno postavy…', sort: { by: 'name' } }
     ];
 
     // Jak často se u díla a postavy ptáme na autora a u spisovatele či díla na století

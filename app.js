@@ -1527,13 +1527,6 @@
             if (screen === 'round' && current === data && round && round.answered) renderRound({ keepScroll: true });
         }).catch(() => {});
     };
-    // „Kdo je Richard II.?“ u osob, jinak „Co je …?“ (kategorie to říká v ask)
-    const askAbout = (ref) => {
-        const ctx = loadedTopics.get(ref.topic);
-        const item = ctx && ctx.byId.get(ref.id);
-        return (item && categoryOf(ctx.topic, item.c).ask) || 'Co je';
-    };
-
     const renderResultBanner = (data) => {
         // Kolik nápověd hráč použil z kolika, které otázka měla
         const levels = `${round.hintLevel - 1}/${data.hints.length}`;
@@ -1555,7 +1548,7 @@
                     <p class="text-sm text-rose-800 dark:text-rose-300">${round.answer ? `Tvoje odpověď: ${escapeHtml(round.answer)} · ` : ''}Správně: ${escapeHtml(data.question.answerLabel)}</p>
                     ${round.answerRef ? `
                         <button type="button" data-action="item-info" data-topic="${escapeHtml(round.answerRef.topic)}" data-id="${escapeHtml(round.answerRef.id)}" class="mt-2 inline-flex items-center gap-1.5 rounded-lg bg-white px-2.5 py-1.5 text-xs font-bold text-rose-700 shadow-sm transition-colors hover:bg-rose-100 dark:bg-rose-950 dark:text-rose-200 dark:hover:bg-rose-900">
-                            <i data-lucide="info" class="h-3.5 w-3.5"></i> ${askAbout(round.answerRef)} ${escapeHtml(round.answer)}?
+                            <i data-lucide="info" class="h-3.5 w-3.5"></i> Ukaž ${escapeHtml(round.answer)}
                         </button>
                     ` : ''}
                 </div>

@@ -9,7 +9,7 @@
 
     const { formatYear, censorName, shuffle, normalizeAnswer, rankBySimilarity, takeDistinct } = core;
 
-    const PERSON = { question: 'Kdo to je?', placeholder: 'Napiš jméno…', ask: 'Kdo je', sort: { by: 'y' } };
+    const PERSON = { question: 'Kdo to je?', placeholder: 'Napiš jméno…', sort: { by: 'y' } };
     const CATEGORIES = [
         { key: 'filmy', label: 'Filmy', one: 'film', icon: 'film', question: 'Který film to je?', placeholder: 'Napiš název filmu…', sort: { by: 'y' } },
         { key: 'reziseri', label: 'Režiséři', one: 'režisér', icon: 'video', ...PERSON },

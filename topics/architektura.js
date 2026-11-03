@@ -15,7 +15,7 @@
     const CATEGORIES = [
         { key: 'stavby', label: 'Stavby', one: 'stavba', icon: 'church', question: 'Co je to za stavbu?', placeholder: 'Napiš název stavby…', sort: { by: 'y' } },
         { key: 'slohy', label: 'Slohy', one: 'sloh', icon: 'columns-3', question: 'Který sloh to je?', placeholder: 'Napiš sloh…', sort: { by: 'y' } },
-        { key: 'architekti', label: 'Architekti', one: 'architekt', icon: 'pen-tool', question: 'Kdo to je?', placeholder: 'Napiš jméno…', ask: 'Kdo je', sort: { by: 'y' } }
+        { key: 'architekti', label: 'Architekti', one: 'architekt', icon: 'pen-tool', question: 'Kdo to je?', placeholder: 'Napiš jméno…', sort: { by: 'y' } }
     ];
 
     // U stavby se nejčastěji ptáme na sloh, u stavby se slavným architektem i na autora; název stavby zná i zeměpis

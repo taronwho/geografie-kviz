@@ -10,13 +10,13 @@
 
     const { censorName, displayName, normalizeAnswer, shuffle, isRealPhoto, isAnswerMatch, nameAnswers, mergeCensored } = core;
 
-    const PERSON = { question: 'Kdo je to?', placeholder: 'Napiš jméno…', ask: 'Kdo je', sort: { by: 'name' } };
+    const PERSON = { question: 'Kdo je to?', placeholder: 'Napiš jméno…', sort: { by: 'name' } };
     const CATEGORIES = [
         { key: 'recka', label: 'Řecká a římská mytologie', one: 'postava', icon: 'zap', ...PERSON },
         { key: 'egyptska', label: 'Egyptská mytologie', one: 'postava', icon: 'pyramid', ...PERSON },
         { key: 'severska', label: 'Severská mytologie', one: 'postava', icon: 'sword', ...PERSON },
         { key: 'slovanska', label: 'Slované a české pověsti', one: 'postava', icon: 'castle', ...PERSON },
-        { key: 'bytosti', label: 'Bájné bytosti', one: 'bytost', icon: 'ghost', question: 'Co je to za bytost?', placeholder: 'Napiš název…', ask: 'Co je', sort: { by: 'name' } }
+        { key: 'bytosti', label: 'Bájné bytosti', one: 'bytost', icon: 'ghost', question: 'Co je to za bytost?', placeholder: 'Napiš název…', sort: { by: 'name' } }
     ];
 
     // Mytologie pro otázku „Ze které mytologie je?“: popisek a přijímané psané odpovědi
