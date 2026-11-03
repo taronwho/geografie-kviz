@@ -318,16 +318,20 @@
     // Fotky, na kterých je napsaná odpověď (jméno na dresu, název na plakátu) – najde je OCR při sestavení dat
     // (npm run audit:photo-text); bez souboru se hraje dál se všemi fotkami
     const loadPhotoText = memoizeBy(() => fetchJson('data/photo-text.json').catch(() => ({})));
+    // Kde přesně je odpověď napsaná (npm run audit:photo-masks): taková fotka se ukáže s rozmazaným nápisem
+    let photoMasks = {};
+    const loadPhotoMasks = memoizeBy(() => fetchJson('data/photo-masks.json').catch(() => ({})).then(data => { photoMasks = data || {}; return photoMasks; }));
     // Kontext tématu: definice, položky, okruhy a tabulka států; po načtení dostupný i synchronně
     const loadedTopics = new Map();
     const loadTopic = memoizeBy(async (topicId) => {
         const topic = TOPIC_BY_ID[topicId];
         if (!topic) throw new Error(`Neznámé téma ${topicId}`);
-        const [data, countries, photoText] = await Promise.all([fetchJson(topic.dataFile), loadCountries(), loadPhotoText()]);
+        const [data, countries, photoText] = await Promise.all([fetchJson(topic.dataFile), loadCountries(), loadPhotoText(), loadPhotoMasks()]);
         // Kontinenty států pro výběr nesprávných možností ze stejné kultury
         setCountries(countries);
         const ctx = { topic, items: data.items, collections: data.collections || [], countries, byId: new Map(data.items.map(item => [item.q, item])) };
-        ctx.textPhotos = new Set((photoText[topicId] || []).map(id => (ctx.byId.get(id) || {}).im).filter(Boolean));
+        // Fotka s napsanou odpovědí, kterou neumíme zakrýt (OCR nápis našlo, ale ne jeho polohu), se jako nápověda nenabídne
+        ctx.textPhotos = new Set((photoText[topicId] || []).map(id => (ctx.byId.get(id) || {}).im).filter(file => file && !photoMasks[file]));
         loadedTopics.set(topicId, ctx);
         return ctx;
     });
@@ -444,7 +448,8 @@
             // Obrázek s napsanou odpovědí (portrét autora se jménem) nápovědou není
             const textImage = step.spec && step.spec.type === 'image' && textPhotos.has(step.spec.file);
             if (step.kind === 'visual' && step.spec && Visuals.info(step.spec) && !timelineVisible(step.spec, visibleText) && !textImage) {
-                hint = { kind: 'visual', spec: step.spec, label: Visuals.info(step.spec).name, icon: Visuals.info(step.spec).icon };
+                const masks = step.spec.type === 'image' && photoMasks[step.spec.file];
+                hint = { kind: 'visual', spec: masks ? { ...step.spec, masks } : step.spec, label: Visuals.info(step.spec).name, icon: Visuals.info(step.spec).icon };
             }
             if (step.kind === 'facts') {
                 const facts = dropKnownFacts(step.facts || [], visibleText)
@@ -526,7 +531,9 @@
             questionText,
             photoUrl,
             // label a icon = záložka obrázku (Obraz, Vlajka…); url null = obrázek se nenačetl
-            questionImage: shown ? { url: shownUrl, label: shown.label || 'Obrázek', icon: shown.icon || 'image', same: shown.file === item.im } : null,
+            questionImage: shown ? { url: shownUrl, label: shown.label || 'Obrázek', icon: shown.icon || 'image', same: shown.file === item.im, masks: photoMasks[shown.file] || null } : null,
+            // Rozmazané nápisy s odpovědí na fotce nápovědy (jen před odpovědí)
+            photoMasks: photoMasks[item.im] || null,
             visual,
             // Ve výsledku už odpověď známe, takže nápověda může ukázat vše (u otázky na století časovou osu)
             resultVisual: topic.visual ? topic.visual(item, ctx, 'result') : null,
@@ -1101,12 +1108,13 @@
         image.src = url;
     });
     // alwaysZoom = zvětšení i u fotky, která se vejde (obraz nebo nerost, na který se otázka ptá)
-    const showPhoto = async (element, url, onFail, alwaysZoom = false) => {
+    const showPhoto = async (element, url, onFail, alwaysZoom = false, masks = null) => {
         try {
             if (!url) throw new Error('Fotka chybí');
             const size = await loadImageSize(url);
             if (!element.isConnected) return;
             element.style.backgroundImage = cssUrl(url);
+            Visuals.maskOverlay(element, size.width, size.height, masks);
             const frame = element.parentElement;
             const backdrop = frame.querySelector('[data-photo-backdrop]');
             if (backdrop) backdrop.style.backgroundImage = cssUrl(url);
@@ -1116,6 +1124,8 @@
             const zoom = frame.querySelector('[data-photo-zoom]');
             if (zoom && (alwaysZoom || Math.min(ratio / boxRatio, boxRatio / ratio) < 0.6)) {
                 zoom.dataset.url = url;
+                if (masks && masks.length) zoom.dataset.masks = JSON.stringify(masks);
+                else delete zoom.dataset.masks;
                 zoom.classList.remove('hidden');
             }
         } catch (e) {
@@ -1129,7 +1139,7 @@
         const overlay = document.getElementById('photo-zoom');
         if (overlay) overlay.remove();
     };
-    const openPhotoZoom = (url) => {
+    const openPhotoZoom = (url, masks = null) => {
         closePhotoZoom();
         const overlay = document.createElement('div');
         overlay.id = 'photo-zoom';
@@ -1140,7 +1150,9 @@
         overlay.innerHTML = `
             <div data-zoom-image class="h-full w-full bg-contain bg-center bg-no-repeat" aria-hidden="true"></div>
             <button type="button" data-close aria-label="Zavřít" class="absolute right-3 top-3 rounded-full bg-white/15 p-2 text-white backdrop-blur-sm"><i data-lucide="x" class="h-6 w-6"></i></button>`;
-        overlay.querySelector('[data-zoom-image]').style.backgroundImage = cssUrl(url);
+        const zoomImage = overlay.querySelector('[data-zoom-image]');
+        zoomImage.style.backgroundImage = cssUrl(url);
+        if (masks) loadImageSize(url).then(size => Visuals.maskOverlay(zoomImage, size.width, size.height, masks)).catch(() => {});
         overlay.addEventListener('click', closePhotoZoom);
         trapFocus(overlay);
         document.body.appendChild(overlay);
@@ -1291,9 +1303,9 @@
             if (overflow > 0) list.scrollLeft += overflow + 8;
         });
         const hintPhoto = document.getElementById('hint-photo');
-        if (hintPhoto) showPhoto(hintPhoto, current.photoUrl);
+        if (hintPhoto) showPhoto(hintPhoto, current.photoUrl, null, false, current.photoMasks);
         const questionImage = document.getElementById('question-image');
-        if (questionImage) showPhoto(questionImage, current.questionImage.url, null, true);
+        if (questionImage) showPhoto(questionImage, current.questionImage.url, null, true, current.questionImage.masks);
         const resultImage = document.getElementById('result-image');
         if (resultImage) showPhoto(resultImage, current.questionImage.url);
         const hintVisual = document.getElementById('hint-visual');
@@ -2405,7 +2417,7 @@
     // Zvětšení fotky funguje všude: v nápovědě, ve výsledku, v okně s popisem i v atlasu
     document.addEventListener('click', (event) => {
         const zoom = event.target.closest('[data-photo-zoom]');
-        if (zoom && zoom.dataset.url) openPhotoZoom(zoom.dataset.url);
+        if (zoom && zoom.dataset.url) openPhotoZoom(zoom.dataset.url, zoom.dataset.masks ? JSON.parse(zoom.dataset.masks) : null);
     });
     // Escape zavře nejdřív okno s popisem, pak výběr co hrát, pak nastavení
     // Tlačítko Zpět na mobilu jako zpět v aplikaci: mimo čistou úvodní obrazovku drží aplikace v historii prohlížeče jeden

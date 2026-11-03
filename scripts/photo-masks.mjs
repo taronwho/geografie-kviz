@@ -106,8 +106,8 @@ const masksFor = (words, wanted, size) => {
         const top = Math.min(...sameLine.filter(word => word.left >= left && word.left + word.width <= right).map(word => word.top), hit.top);
         const bottom = Math.max(...sameLine.filter(word => word.left >= left && word.left + word.width <= right).map(word => word.top + word.height), hit.top + hit.height);
         const lineHeight = bottom - top;
-        // Protažení: do stran o 0,8 výšky písma, nahoru a dolů o 0,4
-        const box = [left - lineHeight * 0.8, top - lineHeight * 0.4, right - left + lineHeight * 1.6, lineHeight * 1.8];
+        // Protažení: do stran o 0,8 výšky písma, nahoru o 0,4 a dolů o 0,7 (pod nápisem bývá další řádek názvu)
+        const box = [left - lineHeight * 0.8, top - lineHeight * 0.4, right - left + lineHeight * 1.6, lineHeight * 2.1];
         const clamped = [Math.max(0, box[0]), Math.max(0, box[1])];
         clamped.push(Math.min(size.width, box[0] + box[2]) - clamped[0], Math.min(size.height, box[1] + box[3]) - clamped[1]);
         boxes.push(clamped);
@@ -137,7 +137,7 @@ const renderPreview = async (image, masks, size, out) => {
         const py = Math.round(y * size.height);
         const pw = Math.max(1, Math.round(w * size.width));
         const ph = Math.max(1, Math.round(h * size.height));
-        args.push('(', '+clone', '-crop', `${pw}x${ph}+${px}+${py}`, '+repage', '-blur', '0x14', '-fill', '#0f172a', '-colorize', '55%', ')',
+        args.push('(', '+clone', '-crop', `${pw}x${ph}+${px}+${py}`, '+repage', '-blur', '0x24', '-fill', '#0f172a', '-colorize', '80%', ')',
             '-geometry', `+${px}+${py}`, '-composite');
     }
     args.push('-quality', '88', out);

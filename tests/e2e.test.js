@@ -1068,6 +1068,31 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         assert.ok(!hintKeys(data).includes('photo'), hintKeys(data).join(', '));
         assert.deepEqual(log.errors, []);
         await context.close();
+
+        // Když je známá poloha nápisu, fotka zůstane nápovědou a nápis se rozmaže (jen před odpovědí, i ve zvětšení)
+        const masked = await setup(browser);
+        const file = await (async () => {
+            await masked.tab.goto(`${ORIGIN}/`);
+            return masked.tab.evaluate(async id => (await (await fetch('data/zemepis.json')).json()).items.find(item => item.q === id).im, daily.id);
+        })();
+        await masked.context.route('**/data/photo-text.json', route => route.fulfill({ json: { zemepis: [daily.id] } }));
+        await masked.context.route('**/data/photo-masks.json', route => route.fulfill({ json: { [file]: [[0.1, 0.4, 0.5, 0.15]] } }));
+        await masked.tab.reload();
+        await waitForHome(masked.tab);
+        await masked.tab.click('[data-action="daily"][data-topic="zemepis"]');
+        await waitForQuestion(masked.tab);
+        const round = await readRound(masked.tab);
+        assert.ok(hintKeys(round).includes('photo'), hintKeys(round).join(', '));
+        assert.deepEqual(round.photoMasks, [[0.1, 0.4, 0.5, 0.15]]);
+        await masked.tab.click('[data-action="hint"]');
+        await masked.tab.waitForSelector('#hint-photo [data-photo-mask] > div', { state: 'attached' });
+        const box = await masked.tab.$eval('#hint-photo [data-photo-mask] > div', element => [element.style.left, element.style.top, element.style.width, element.style.height]);
+        assert.deepEqual(box.map(value => parseFloat(value)), [10, 40, 50, 15]);
+        await masked.tab.click('[data-action="give-up"]');
+        await waitForResult(masked.tab);
+        assert.equal(await masked.tab.locator('#result-photo [data-photo-mask]').count(), 0, 'po odpovědi celá fotka');
+        assert.deepEqual(masked.log.errors, []);
+        await masked.context.close();
     });
 
     await t.test('tmavý režim', async () => {

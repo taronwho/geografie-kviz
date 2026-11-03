@@ -111,6 +111,37 @@
         probe.onerror = () => reject(new Error(`Obrázek se nenačetl: ${url}`));
         probe.src = url;
     });
+    // Zakrytí napsané odpovědi (jméno na dresu, název na obalu): rozmazané obdélníky přes fotku zobrazenou jako
+    // background-size: contain. Vrstva má poměr stran fotky a je vycentrovaná přes kontejnerové jednotky, takže sedí
+    // i ve skrytém panelu a po změně velikosti. masks = [[x, y, šířka, výška], …] jako podíl rozměrů fotky.
+    const maskOverlay = (element, width, height, masks) => {
+        element.querySelectorAll('[data-photo-mask]').forEach(old => old.remove());
+        if (!masks || !masks.length || !width || !height) return;
+        const ratio = width / height;
+        element.style.containerType = 'size';
+        const stage = document.createElement('div');
+        stage.dataset.photoMask = '';
+        stage.className = 'pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2';
+        stage.style.width = `min(100cqw, calc(100cqh * ${ratio.toFixed(5)}))`;
+        stage.style.aspectRatio = `${width} / ${height}`;
+        for (const [x, y, w, h] of masks) {
+            const box = document.createElement('div');
+            box.className = 'absolute rounded-md bg-slate-900/80 backdrop-blur-xl';
+            box.style.left = `${(x * 100).toFixed(2)}%`;
+            box.style.top = `${(y * 100).toFixed(2)}%`;
+            box.style.width = `${(w * 100).toFixed(2)}%`;
+            box.style.height = `${(h * 100).toFixed(2)}%`;
+            stage.appendChild(box);
+        }
+        element.appendChild(stage);
+    };
+    const imageSize = (url) => new Promise((resolve, reject) => {
+        const probe = new Image();
+        probe.onload = () => resolve({ width: probe.naturalWidth, height: probe.naturalHeight });
+        probe.onerror = reject;
+        probe.src = url;
+    });
+
     const renderImage = async (container, spec) => {
         const url = await loadImage(commonsPhotoUrl(spec.file, spec.hash, 500)).catch(() => loadImage(commonsFileUrl(spec.file, spec.hash)));
         if (!container.isConnected) return;
@@ -118,6 +149,10 @@
         picture.className = 'absolute inset-2 bg-contain bg-center bg-no-repeat';
         picture.style.backgroundImage = `url("${url}")`;
         container.prepend(picture);
+        if (spec.masks && spec.masks.length) {
+            const size = await imageSize(url).catch(() => null);
+            if (size) maskOverlay(picture, size.width, size.height, spec.masks);
+        }
     };
 
     // Slepá periodická tabulka: políčka bez značek obarvená podle skupin, hledaný prvek zvýrazněný
@@ -265,5 +300,5 @@
         }
     };
 
-    root.MudrlantVisuals = { info, render, register: (type, definition) => { VISUALS[type] = definition; } };
+    root.MudrlantVisuals = { info, render, maskOverlay, register: (type, definition) => { VISUALS[type] = definition; } };
 })(typeof self !== 'undefined' ? self : this);

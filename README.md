@@ -81,7 +81,9 @@ Jádro a aplikace je uplatní samy, téma pro ně nemusí nic dělat:
 - **Fotka s napsanou odpovědí** (jméno na dresu, název na plakátu či cedulce) se jako nápověda nenabídne. Najde ji OCR:
   `npm run audit:photo-text` (potřebuje `tesseract`) přečte fotky všech témat a zapíše `data/photo-text.json`;
   přečtené texty si pamatuje v `.cache/ocr`, takže po přidání tématu čte jen nové fotky. Po přidání tématu nebo
-  přestavbě dat ho spusťte znovu.
+  přestavbě dat ho spusťte znovu. Pak `npm run audit:photo-masks` najde u označených fotek polohu nápisu a zapíše
+  `data/photo-masks.json` – taková fotka se nápovědou ukáže s rozmazaným nápisem (po odpovědi celá). Vynechá se jen
+  fotka, u které poloha nápisu známá není. Náhled zakrytí: `PREVIEW=složka npm run audit:photo-masks -- téma`.
 
 ## Do budoucna: hra více hráčů
 
