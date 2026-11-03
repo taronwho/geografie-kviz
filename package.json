@@ -24,6 +24,7 @@
     "build:sport": "node scripts/build-sport.mjs",
     "build": "npm run build:icons && npm run build:css",
     "test": "node --test",
-    "audit:photo-text": "node scripts/photo-text.mjs"
+    "audit:photo-text": "node scripts/photo-text.mjs",
+    "audit:photo-masks": "node scripts/photo-masks.mjs"
   }
 }
