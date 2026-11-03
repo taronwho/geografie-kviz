@@ -23,7 +23,8 @@
         session: 'mudrlant.session',
         history: 'mudrlant.history',
         mistakes: 'mudrlant.mistakes',
-        learned: 'mudrlant.learned'
+        learned: 'mudrlant.learned',
+        pendingChallenge: 'mudrlant.pendingChallenge'
     };
     const STATE_VERSION = 8;
     const SESSION_MAX_AGE = 2 * 60 * 60 * 1000;
@@ -47,6 +48,8 @@
     let current = null;
     let round = null;
     let mode = 'daily';
+    // Rozehraná výzva (hra více hráčů): { code, topic, seed, count, index, results, creator, done }
+    let challenge = null;
     // Odkud hra bere otázky: { kind: 'topic', topic } (vybrané kategorie tématu), { kind: 'mix' } (vybraná témata),
     // { kind: 'collection', topic, collection } (okruh z učení), { kind: 'mistakes' }
     let pool = { kind: 'mix' };
@@ -619,7 +622,8 @@
                     <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-base font-black text-white" aria-hidden="true">${escapeHtml(state.user.name.charAt(0).toUpperCase())}</span>
                     <div class="min-w-0 flex-1"><p class="truncate text-sm font-black text-slate-800 dark:text-slate-100">${escapeHtml(state.user.name)}</p><p class="truncate text-xs text-slate-500 dark:text-slate-400">${escapeHtml(state.user.email)}</p></div>
                     <button type="button" data-auth-logout class="shrink-0 rounded-xl bg-slate-200 px-3 py-2 text-sm font-bold text-slate-700 dark:bg-slate-700 dark:text-slate-200">Odhlásit</button>
-                </div>`
+                </div>
+                <button type="button" data-open-profile class="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-800 shadow-sm active:scale-[0.98] dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"><i data-lucide="pencil" class="h-4 w-4"></i> Upravit profil a obrázek</button>`
             : `<p class="mb-3 text-sm text-slate-500 dark:text-slate-400">S účtem se bude ukládat postup a půjde hrát s ostatními. Bez něj hraješ jako host.</p>
                 <button type="button" data-auth-login class="flex w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-base font-bold text-slate-800 shadow-sm active:scale-[0.98] dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"><i data-lucide="log-in" class="h-5 w-5"></i> Přihlásit se přes Google</button>`;
         return `<h3 class="${SETTINGS_HEADING} mb-3 mt-5">Účet</h3>${body}${state.error ? `<p class="mt-2 text-sm font-semibold text-rose-600 dark:text-rose-400" role="alert">${escapeHtml(state.error)}</p>` : ''}`;
@@ -714,6 +718,11 @@
             }
             if (event.target.closest('[data-auth-login]')) {
                 Auth.login();
+                return;
+            }
+            if (event.target.closest('[data-open-profile]')) {
+                closeSettings();
+                openProfile();
                 return;
             }
             if (event.target.closest('[data-auth-logout]')) {
@@ -925,9 +934,11 @@
             const topic = learn.topic && learn.view !== 'home' && learn.view !== 'mistakes' ? TOPIC_BY_ID[learn.topic] : null;
             return { icon: 'graduation-cap', text: topic ? `Učení · ${topic.title}` : 'Učení', topic };
         }
+        if (screen === 'challenge-done') return { icon: 'trophy', text: 'Výzva hotová', topic: null };
         if (screen !== 'round' || !current) return { icon: 'calendar-days', text: `${APP_NAME} · ${shortDay(getDayKey())}`, topic: null };
         const topic = TOPIC_BY_ID[current.topic];
         if (mode === 'daily') return { icon: topic.icon, text: `${topic.title} · ${shortDay(current.dailyDate || getDayKey())}`, topic };
+        if (mode === 'challenge' && challenge) return { icon: 'swords', text: `Výzva · ${challenge.index + 1}/${challenge.count}`, topic };
         if (pool.kind === 'mistakes') return { icon: 'repeat', text: `Opakování chyb · ${loadMistakes().length}`, topic };
         if (pool.kind === 'collection') {
             const ctx = loadedTopics.get(pool.topic);
@@ -946,7 +957,7 @@
     const updateControlsUI = () => {
         // Procvičování okruhu nebo chyb patří k učení
         const fromLearn = mode === 'practice' && (pool.kind === 'collection' || pool.kind === 'mistakes');
-        const section = screen === 'learn' ? 'learn' : screen === 'round' ? (mode === 'daily' ? 'home' : fromLearn ? 'learn' : 'practice') : 'home';
+        const section = screen === 'learn' ? 'learn' : screen === 'round' ? (mode === 'daily' || mode === 'challenge' ? 'home' : fromLearn ? 'learn' : 'practice') : 'home';
         const settingsButton = document.getElementById('btn-settings');
         settingsButton.disabled = isLoading;
         settingsButton.classList.toggle('opacity-50', isLoading);
@@ -1093,6 +1104,7 @@
                         <p class="mb-2 flex items-center justify-center gap-2 rounded-2xl bg-emerald-50 px-4 py-2.5 text-sm font-bold text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300"><i data-lucide="circle-check" class="h-4 w-4"></i> Všechny dnešní otázky máš hotové</p>`}
                     <div class="grid grid-cols-7 gap-1">${dailyButtons}</div>
                 </section>
+                ${renderChallengesSection()}
                 <section class="flex flex-col gap-3">
                     <h2 class="${SECTION_HEADING} -mb-1 px-1">Hrát</h2>
                     <button type="button" data-action="play-mix" class="relative flex items-center gap-3 overflow-hidden rounded-[1.25rem] bg-gradient-to-br p-3.5 text-left text-white shadow-lg transition-all active:scale-[0.98] ${styleOf(MIX).tile}">
@@ -1117,6 +1129,7 @@
         renderIcons(appContent);
         appContent.scrollTo(0, 0);
         updateControlsUI();
+        refreshChallenges();
     };
 
     // --- Otázka: popis hned, pak nápovědy fotka → obrazová nápověda tématu → fakta ---
@@ -1673,6 +1686,7 @@
 
     // Text hlavního tlačítka pod výsledkem
     const getNextLabel = () => {
+        if (mode === 'challenge' && challenge) return challenge.index + 1 < challenge.count ? `Další otázka (${challenge.index + 2}/${challenge.count})` : 'Dokončit výzvu';
         if (mode === 'daily') {
             const next = nextDailyTopic(current && current.topic);
             return next ? `Další dnešní: ${next.title}` : 'Hotovo – zpět do menu';
@@ -1743,7 +1757,7 @@
                         </section>
                     ` : ''}
 
-                    ${mode === 'daily' && data.dailyDate ? '' : renderStatsCard(data)}
+                    ${(mode === 'daily' && data.dailyDate) || mode === 'challenge' ? '' : renderStatsCard(data)}
 
                     <a href="${wikipediaUrl(data.title)}" target="_blank" rel="noopener noreferrer" class="flex items-center justify-center gap-2 rounded-xl bg-slate-100 py-3 text-sm font-bold text-slate-700 transition-colors hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700">
                         <i data-lucide="book-open" class="h-4 w-4"></i> Číst na Wikipedii
@@ -1788,7 +1802,7 @@
 
     const persistState = () => {
         if (!current) return;
-        writeJson(KEYS.session, { version: STATE_VERSION, data: current, round, mode, pool, timestamp: Date.now() });
+        writeJson(KEYS.session, { version: STATE_VERSION, data: current, round, mode, pool, challenge: mode === 'challenge' ? challenge : null, timestamp: Date.now() });
         if (mode === 'daily' && current.dailyDate) {
             const daily = readJson(KEYS.daily) || {};
             daily[current.topic] = { date: current.dailyDate, data: current, round };
@@ -1807,6 +1821,9 @@
                 };
             }
             stats.daily[current.topic] = topicDaily;
+        } else if (mode === 'challenge' && challenge) {
+            // Výzva se do běžných statistik nepočítá, jen do svého výsledku
+            challenge.results[challenge.index] = { correct: round.correct, points: round.points };
         } else {
             stats.practice.played += 1;
             stats.practice.correct += round.correct ? 1 : 0;
@@ -1877,11 +1894,12 @@
         const isFresh = Date.now() - session.timestamp < SESSION_MAX_AGE;
         // Dnešní otázka z uložené relace platí jen do půlnoci
         const isCurrent = session.mode !== 'daily' || session.data.dailyDate === getDayKey();
-        if (!isFresh || !isCurrent) return false;
+        if (!isFresh || !isCurrent || (session.mode === 'challenge' && !session.challenge)) return false;
         try {
             current = upgradeRoundData(session.data);
             round = session.round;
             mode = session.mode;
+            challenge = session.mode === 'challenge' ? session.challenge : challenge;
             pool = session.pool && (session.pool.kind !== 'topic' || TOPIC_BY_ID[session.pool.topic]) ? session.pool : { kind: 'mix' };
             renderRound();
         } catch (error) {
@@ -2041,6 +2059,11 @@
     };
 
     const continueAfterResult = () => {
+        if (mode === 'challenge' && challenge) {
+            if (challenge.index + 1 < challenge.count) startChallenge(challenge, challenge.index + 1, challenge.results);
+            else finishChallenge();
+            return;
+        }
         if (mode === 'daily') {
             const next = nextDailyTopic(current && current.topic);
             if (next) startNextDaily(next.id);
@@ -2340,9 +2363,434 @@
         renderMap();
     };
 
+    // --- Profil a výzvy (hra více hráčů) ---
+    // Výzva = téma (nebo mix), semínko a počet otázek. Otázky se z něj losují stejně všem hráčům, takže stačí sdílet kód;
+    // výsledky ukládá Supabase (social.js) a hráči se porovnají v žebříčku výzvy.
+
+    const Social = window.MudrlantSocial;
+    const AVATAR_BG = { emerald: 'bg-emerald-500', sky: 'bg-sky-500', violet: 'bg-violet-500', rose: 'bg-rose-500', amber: 'bg-amber-500', teal: 'bg-teal-500', orange: 'bg-orange-500', indigo: 'bg-indigo-500' };
+    let myProfile = null;
+    let myChallenges = null;
+    let challengesLoading = false;
+    const signedUser = () => (Auth && Auth.getState().user) || null;
+    const playerName = (player) => (player && player.display_name) || 'Hráč';
+    const avatarHtml = (player, size = 'h-10 w-10 text-xl') =>
+        `<span class="flex shrink-0 items-center justify-center rounded-full ${size} ${AVATAR_BG[player && player.color] || AVATAR_BG.emerald}" aria-hidden="true">${escapeHtml((player && player.avatar) || '🦊')}</span>`;
+    const challengeTopicTitle = (topicId) => topicId === 'mix' ? 'Mix všech témat' : (TOPIC_BY_ID[topicId] || {}).title || topicId;
+
+    const loadMyProfile = async () => {
+        const user = signedUser();
+        if (!user) { myProfile = null; return null; }
+        if (myProfile && myProfile.id === user.id) return myProfile;
+        try { myProfile = await Social.getProfile(user.id); } catch (error) { myProfile = null; }
+        if (!myProfile) myProfile = { id: user.id, display_name: user.name, avatar: '🦊', color: 'emerald' };
+        return myProfile;
+    };
+
+    // Část Výzvy na úvodní stránce: bez nastaveného Supabase se neukáže, bez přihlášení láká k přihlášení
+    const challengeRow = (row, meId) => {
+        const mine = row;
+        const count = row.challenge ? row.challenge.count : 0;
+        const best = row.others.length ? Math.max(...row.others.map(other => other.correct)) : -1;
+        const outcome = !row.others.length ? 'čeká na soupeře' : mine.correct > best ? 'vyhráno' : mine.correct === best ? 'remíza' : 'prohráno';
+        const tone = outcome === 'vyhráno' ? 'text-emerald-600 dark:text-emerald-400' : outcome === 'prohráno' ? 'text-rose-500 dark:text-rose-400' : 'text-slate-400';
+        const rivals = row.others.slice(0, 3).map(other => avatarHtml(other.player, 'h-6 w-6 text-xs')).join('');
+        return `
+            <button type="button" data-action="challenge-open" data-code="${escapeHtml(row.challenge_id)}" class="flex w-full items-center gap-3 rounded-2xl border border-slate-100 bg-white p-3 text-left shadow-sm active:scale-[0.99] dark:border-slate-700 dark:bg-slate-800">
+                <span class="flex -space-x-1.5">${rivals || `<i data-lucide="users" class="h-5 w-5 text-slate-300 dark:text-slate-600"></i>`}</span>
+                <span class="min-w-0 flex-1">
+                    <span class="block truncate text-sm font-bold text-slate-800 dark:text-slate-100">${escapeHtml(row.challenge ? challengeTopicTitle(row.challenge.topic) : '')} · ${count} otázek</span>
+                    <span class="block text-xs font-semibold ${tone}">${outcome}</span>
+                </span>
+                <span class="text-right text-base font-black text-slate-800 dark:text-slate-100">${mine.correct}/${count}</span>
+            </button>`;
+    };
+    const challengesInner = () => {
+        const user = signedUser();
+        const heading = `<div class="mb-2 flex items-baseline justify-between px-1"><h2 class="${SECTION_HEADING}">Výzvy</h2></div>`;
+        if (!user) {
+            return `${heading}
+                <div class="rounded-2xl border border-slate-100 bg-white p-3.5 shadow-sm dark:border-slate-700 dark:bg-slate-800">
+                    <p class="mb-3 text-sm text-slate-600 dark:text-slate-300">Vyzvi kamarády: dostanete stejné otázky a porovnáte, kdo je lepší.</p>
+                    <button type="button" data-action="auth-login" class="flex w-full items-center justify-center gap-2 rounded-2xl bg-slate-800 px-4 py-3 text-base font-black text-white shadow-md active:scale-[0.98] dark:bg-slate-100 dark:text-slate-900"><i data-lucide="log-in" class="h-5 w-5"></i> Přihlásit se přes Google</button>
+                </div>`;
+        }
+        const profile = myProfile || { display_name: user.name, avatar: '🦊', color: 'emerald' };
+        const resume = challenge && !challenge.done
+            ? `<button type="button" data-action="challenge-resume" class="flex w-full items-center justify-center gap-2 rounded-2xl bg-amber-500 px-4 py-3 text-base font-black text-white shadow-md active:scale-[0.98]"><i data-lucide="play" class="h-5 w-5"></i> Pokračovat ve výzvě (${challenge.index + 1}/${challenge.count})</button>` : '';
+        const list = myChallenges === null
+            ? '<p class="px-1 text-xs font-semibold text-slate-400">Načítám výzvy…</p>'
+            : myChallenges.map(row => challengeRow(row, user.id)).join('');
+        return `${heading}
+            <div class="flex flex-col gap-2">
+                <button type="button" data-action="open-profile" class="flex w-full items-center gap-3 rounded-2xl border border-slate-100 bg-white p-3 text-left shadow-sm active:scale-[0.99] dark:border-slate-700 dark:bg-slate-800">
+                    ${avatarHtml(profile)}
+                    <span class="min-w-0 flex-1"><span class="block truncate text-sm font-black text-slate-800 dark:text-slate-100">${escapeHtml(playerName(profile))}</span><span class="block text-xs text-slate-500 dark:text-slate-400">Profil a obrázek</span></span>
+                    <i data-lucide="chevron-right" class="h-5 w-5 shrink-0 text-slate-300 dark:text-slate-600"></i>
+                </button>
+                ${resume}
+                <div class="grid grid-cols-2 gap-2">
+                    <button type="button" data-action="new-challenge" class="flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-br from-rose-500 to-orange-500 px-3 py-3 text-base font-black text-white shadow-md active:scale-[0.98]"><i data-lucide="swords" class="h-5 w-5"></i> Vyzvat</button>
+                    <button type="button" data-action="join-challenge" class="flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-3 text-base font-bold text-slate-800 shadow-sm active:scale-[0.98] dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"><i data-lucide="users" class="h-5 w-5"></i> Mám kód</button>
+                </div>
+                ${list}
+            </div>`;
+    };
+    const renderChallengesSection = () => Auth && Auth.isConfigured() && Social ? `<section id="challenges-section">${challengesInner()}</section>` : '';
+    const paintChallenges = () => {
+        const element = document.getElementById('challenges-section');
+        if (!element || screen !== 'home') return;
+        element.innerHTML = challengesInner();
+        renderIcons(element);
+    };
+    const refreshChallenges = async () => {
+        const user = signedUser();
+        if (!user || !Social || challengesLoading) return;
+        challengesLoading = true;
+        try {
+            await loadMyProfile();
+            paintChallenges();
+            try { myChallenges = await Social.myChallenges(user.id); } catch (error) { myChallenges = []; }
+            paintChallenges();
+        } finally {
+            challengesLoading = false;
+        }
+    };
+
+    // Okna (profil, nová výzva, kód, detail výzvy): jedno společné
+    let dialogHandler = null;
+    let dialogSubmit = null;
+    const closeDialog = () => {
+        const overlay = document.getElementById('dialog-overlay');
+        if (overlay) overlay.remove();
+        dialogHandler = null;
+        dialogSubmit = null;
+    };
+    const showDialog = (title, body, { onClick = null, onSubmit = null } = {}) => {
+        closeChooser();
+        closeSettings();
+        let overlay = document.getElementById('dialog-overlay');
+        if (!overlay) {
+            overlay = document.createElement('div');
+            overlay.id = 'dialog-overlay';
+            overlay.setAttribute('role', 'dialog');
+            overlay.setAttribute('aria-modal', 'true');
+            overlay.setAttribute('aria-labelledby', 'dialog-title');
+            overlay.className = 'fixed inset-0 z-50 flex items-end justify-center bg-slate-900/60 p-4 backdrop-blur-sm sm:items-center';
+            overlay.addEventListener('click', (event) => {
+                if (event.target === overlay || event.target.closest('[data-close]')) { closeDialog(); return; }
+                if (dialogHandler) dialogHandler(event);
+            });
+            overlay.addEventListener('submit', (event) => { event.preventDefault(); if (dialogSubmit) dialogSubmit(event); });
+            document.body.appendChild(overlay);
+            trapFocus(overlay);
+        }
+        dialogHandler = onClick;
+        dialogSubmit = onSubmit;
+        const scroll = overlay.firstElementChild ? overlay.firstElementChild.scrollTop : 0;
+        overlay.innerHTML = `
+            <div class="max-h-[92dvh] w-full max-w-md overflow-y-auto rounded-[1.75rem] bg-slate-50 p-5 shadow-2xl dark:bg-slate-900">
+                <div class="mb-4 flex items-center justify-between">
+                    <h2 id="dialog-title" class="text-lg font-black text-slate-800 dark:text-slate-100">${escapeHtml(title)}</h2>
+                    <button type="button" data-close aria-label="Zavřít" class="rounded-xl p-2 text-slate-500 hover:bg-slate-200 dark:text-slate-400 dark:hover:bg-slate-800"><i data-lucide="x" class="h-5 w-5"></i></button>
+                </div>
+                ${body}
+            </div>`;
+        overlay.firstElementChild.scrollTop = scroll;
+        renderIcons(overlay);
+        const focus = overlay.querySelector('[data-autofocus]') || overlay.querySelector('[data-close]');
+        if (focus) focus.focus();
+        return overlay;
+    };
+    const DIALOG_NOTE = (text, tone = 'text-rose-600 dark:text-rose-400') => `<p class="mt-3 min-h-[1.25rem] text-sm font-semibold ${tone}" role="status">${escapeHtml(text)}</p>`;
+    const PRIMARY_BUTTON = 'flex w-full items-center justify-center gap-2 rounded-2xl bg-slate-800 px-4 py-3 text-base font-black text-white shadow-md active:scale-[0.98] disabled:opacity-50 dark:bg-slate-100 dark:text-slate-900';
+    const SECONDARY_BUTTON = 'flex w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-base font-bold text-slate-800 shadow-sm active:scale-[0.98] dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100';
+
+    // Profil: jméno, emoji a barva obrázku
+    const openProfile = async () => {
+        const user = signedUser();
+        if (!user || !Social) return;
+        await loadMyProfile();
+        const draft = { name: myProfile.display_name, avatar: myProfile.avatar, color: myProfile.color };
+        let note = '';
+        const stats = loadStats();
+        const render = () => showDialog('Profil', `
+            <form class="flex flex-col gap-4" autocomplete="off">
+                <div class="flex items-center gap-4">
+                    ${avatarHtml(draft, 'h-16 w-16 text-4xl')}
+                    <label class="min-w-0 flex-1 text-xs font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">Jméno
+                        <input id="profile-name" type="text" maxlength="${Social.NAME_MAX}" value="${escapeHtml(draft.name)}" class="mt-1 w-full rounded-xl border-2 border-slate-200 bg-white px-3 py-2 text-base font-bold normal-case tracking-normal text-slate-800 focus:border-emerald-500 focus:outline-none dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100">
+                    </label>
+                </div>
+                <div>
+                    <p class="mb-2 text-xs font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">Obrázek</p>
+                    <div class="grid grid-cols-8 gap-1.5">${Social.AVATARS.map(emoji => `<button type="button" data-pick-avatar="${emoji}" aria-label="Obrázek ${emoji}" aria-pressed="${emoji === draft.avatar}" class="flex aspect-square items-center justify-center rounded-xl border-2 text-xl active:scale-95 ${emoji === draft.avatar ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-900/30' : 'border-transparent bg-white dark:bg-slate-800'}">${emoji}</button>`).join('')}</div>
+                </div>
+                <div>
+                    <p class="mb-2 text-xs font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">Barva</p>
+                    <div class="flex flex-wrap gap-2">${Social.COLORS.map(color => `<button type="button" data-pick-color="${color}" aria-label="Barva ${color}" aria-pressed="${color === draft.color}" class="h-9 w-9 rounded-full ${AVATAR_BG[color]} ${color === draft.color ? 'ring-4 ring-slate-800/70 ring-offset-2 dark:ring-white/80 dark:ring-offset-slate-900' : ''} active:scale-95"></button>`).join('')}</div>
+                </div>
+                <p class="text-sm text-slate-500 dark:text-slate-400">Procvičeno otázek: <b>${stats.practice.played}</b> · správně <b>${stats.practice.correct}</b></p>
+                <button type="submit" data-save-profile class="${PRIMARY_BUTTON}"><i data-lucide="check" class="h-5 w-5"></i> Uložit</button>
+                <p class="min-h-[1.25rem] text-center text-xs text-slate-400">${escapeHtml(user.email)}</p>
+                ${note ? DIALOG_NOTE(note, note.startsWith('Uloženo') ? 'text-emerald-700 dark:text-emerald-300' : undefined) : ''}
+                <button type="button" data-auth-logout-dialog class="${SECONDARY_BUTTON}"><i data-lucide="log-out" class="h-5 w-5"></i> Odhlásit</button>
+            </form>`, {
+            onClick: (event) => {
+                const avatar = event.target.closest('[data-pick-avatar]');
+                const color = event.target.closest('[data-pick-color]');
+                const input = document.getElementById('profile-name');
+                if (input) draft.name = input.value;
+                if (avatar) { draft.avatar = avatar.dataset.pickAvatar; note = ''; render(); }
+                if (color) { draft.color = color.dataset.pickColor; note = ''; render(); }
+                if (event.target.closest('[data-auth-logout-dialog]')) { closeDialog(); Auth.logout(); }
+            },
+            onSubmit: async () => {
+                const input = document.getElementById('profile-name');
+                if (input) draft.name = input.value;
+                try {
+                    myProfile = await Social.saveProfile(user.id, draft);
+                    note = 'Uloženo.';
+                    paintChallenges();
+                } catch (error) {
+                    note = error.status === 400 ? error.message : 'Uložení se nepodařilo, zkus to znovu.';
+                }
+                render();
+            }
+        });
+        render();
+    };
+
+    // Nová výzva: téma (nebo mix) a počet otázek; po založení se rovnou hraje
+    const openNewChallenge = () => {
+        if (!signedUser()) return;
+        const draft = { topic: 'mix', count: 10 };
+        let busy = false;
+        let note = '';
+        const tile = (id, icon, label) => `<button type="button" data-ch-topic="${id}" aria-pressed="${draft.topic === id}" class="flex items-center gap-2 rounded-xl border-2 px-2.5 py-2 text-left text-sm font-bold leading-tight active:scale-[0.98] ${draft.topic === id ? 'border-emerald-500 bg-emerald-50 text-emerald-900 dark:bg-emerald-900/30 dark:text-emerald-200' : 'border-transparent bg-white text-slate-700 dark:bg-slate-800 dark:text-slate-200'}"><i data-lucide="${icon}" class="h-4 w-4 shrink-0"></i><span class="min-w-0">${escapeHtml(label)}</span></button>`;
+        const render = () => showDialog('Nová výzva', `
+            <div class="flex flex-col gap-4">
+                <div>
+                    <p class="mb-2 text-xs font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">Téma</p>
+                    <div class="grid grid-cols-2 gap-1.5">${tile('mix', MIX.icon, 'Mix všech témat')}${TOPICS.map(topic => tile(topic.id, topic.icon, topic.title)).join('')}</div>
+                </div>
+                <div>
+                    <p class="mb-2 text-xs font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">Počet otázek</p>
+                    <div class="grid grid-cols-3 gap-2">${Social.COUNTS.map(count => `<button type="button" data-ch-count="${count}" aria-pressed="${draft.count === count}" class="rounded-xl border-2 px-3 py-2 text-base font-black active:scale-[0.98] ${draft.count === count ? 'border-emerald-500 bg-emerald-50 text-emerald-900 dark:bg-emerald-900/30 dark:text-emerald-200' : 'border-transparent bg-white text-slate-700 dark:bg-slate-800 dark:text-slate-200'}">${count}</button>`).join('')}</div>
+                </div>
+                <button type="button" data-ch-create ${busy ? 'disabled' : ''} class="${PRIMARY_BUTTON}"><i data-lucide="swords" class="h-5 w-5"></i> ${busy ? 'Zakládám…' : 'Vytvořit a hrát'}</button>
+                <p class="text-xs text-slate-500 dark:text-slate-400">Po dohrání dostaneš kód a odkaz. Kdokoli, komu ho pošleš, dostane stejné otázky.</p>
+                ${note ? DIALOG_NOTE(note) : ''}
+            </div>`, {
+            onClick: async (event) => {
+                const topic = event.target.closest('[data-ch-topic]');
+                const count = event.target.closest('[data-ch-count]');
+                if (topic) { draft.topic = topic.dataset.chTopic; render(); }
+                if (count) { draft.count = Number(count.dataset.chCount); render(); }
+                if (event.target.closest('[data-ch-create]') && !busy) {
+                    busy = true;
+                    note = '';
+                    render();
+                    try {
+                        const created = await Social.createChallenge(signedUser().id, draft);
+                        closeDialog();
+                        await loadMyProfile();
+                        startChallenge({ ...created, creator: myProfile }, 0, []);
+                    } catch (error) {
+                        busy = false;
+                        note = 'Výzvu se nepodařilo založit. Zkontroluj připojení a zkus to znovu.';
+                        render();
+                    }
+                }
+            }
+        });
+        render();
+    };
+
+    const openJoinChallenge = () => {
+        if (!signedUser()) return;
+        let note = '';
+        const render = (value = '') => showDialog('Zadat kód výzvy', `
+            <form class="flex flex-col gap-3" autocomplete="off">
+                <input id="challenge-code" data-autofocus type="text" inputmode="text" autocapitalize="characters" maxlength="200" placeholder="Např. K7M2QX" value="${escapeHtml(value)}" class="w-full rounded-xl border-2 border-slate-200 bg-white px-3 py-3 text-center text-xl font-black uppercase tracking-widest text-slate-800 focus:border-emerald-500 focus:outline-none dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100">
+                <button type="submit" class="${PRIMARY_BUTTON}">Otevřít výzvu</button>
+                ${note ? DIALOG_NOTE(note) : ''}
+            </form>`, {
+            onSubmit: () => {
+                const input = document.getElementById('challenge-code');
+                const code = Social.parseCode(input ? input.value : '');
+                if (!code) { note = 'Kód má 6 znaků, třeba K7M2QX. Můžeš vložit i celý odkaz.'; render(input ? input.value : ''); return; }
+                openChallenge(code);
+            }
+        });
+        render();
+    };
+
+    const rankingRows = (rows, count, meId) => rows.map((row, index) => `
+        <li class="flex items-center gap-3 rounded-2xl bg-white p-2.5 shadow-sm dark:bg-slate-800 ${row.user_id === meId ? 'ring-2 ring-emerald-500' : ''}">
+            <span class="w-5 text-center text-sm font-black text-slate-400">${index === 0 ? '🏆' : index + 1}</span>
+            ${avatarHtml(row.player, 'h-9 w-9 text-lg')}
+            <span class="min-w-0 flex-1 truncate text-sm font-bold text-slate-800 dark:text-slate-100">${escapeHtml(playerName(row.player))}${row.user_id === meId ? ' (ty)' : ''}</span>
+            <span class="text-right"><span class="block text-base font-black text-slate-800 dark:text-slate-100">${row.correct}/${count}</span><span class="block text-[10px] font-semibold text-slate-400">${escapeHtml(formatPoints(row.points))}</span></span>
+        </li>`).join('');
+
+    const challengeLink = (code) => `${window.location.origin}${window.location.pathname}?vyzva=${code}`;
+    const shareChallenge = async (code, text = '') => {
+        const message = `${text || 'Vyzývám tě v Mudrlantu!'}\nKód výzvy: ${code}`;
+        try {
+            if (navigator.share) {
+                await navigator.share({ title: 'Výzva v Mudrlantu', text: message, url: challengeLink(code) });
+                return;
+            }
+        } catch (error) {
+            if (error && error.name === 'AbortError') return;
+        }
+        try {
+            await navigator.clipboard.writeText(`${message}\n${challengeLink(code)}`);
+            showToast('Odkaz na výzvu zkopírován');
+        } catch (error) {
+            showToast('Kopírování se nepodařilo');
+        }
+    };
+
+    // Detail výzvy podle kódu: kdo vyzývá, o co jde, žebříček; hrát jde, dokud hráč nemá výsledek
+    const openChallenge = async (rawCode) => {
+        const code = Social ? Social.parseCode(rawCode) : '';
+        if (!code) { showDialog('Výzva', DIALOG_NOTE('Tenhle kód výzvy není platný.')); return; }
+        const user = signedUser();
+        if (!user) {
+            writeJson(KEYS.pendingChallenge, code);
+            showDialog('Výzva', `
+                <p class="mb-4 text-sm text-slate-600 dark:text-slate-300">Někdo tě vyzval. Pro hru výzvy se nejdřív přihlas, hned potom se výzva otevře.</p>
+                <button type="button" data-auth-login-dialog class="${PRIMARY_BUTTON}"><i data-lucide="log-in" class="h-5 w-5"></i> Přihlásit se přes Google</button>`,
+            { onClick: (event) => { if (event.target.closest('[data-auth-login-dialog]')) Auth.login(); } });
+            return;
+        }
+        showDialog('Výzva', '<p class="py-6 text-center text-sm font-semibold text-slate-500">Načítám výzvu…</p>');
+        let def;
+        let results;
+        try {
+            [def, results] = await Promise.all([Social.getChallenge(code), Social.getResults(code)]);
+        } catch (error) {
+            showDialog('Výzva', DIALOG_NOTE('Výzvu se nepodařilo načíst. Zkontroluj připojení a zkus to znovu.'));
+            return;
+        }
+        if (!def) { showDialog('Výzva', DIALOG_NOTE('Výzva s tímhle kódem neexistuje.')); return; }
+        const mine = results.find(row => row.user_id === user.id);
+        const own = def.creator && def.creator.id === user.id;
+        const topic = def.topic === 'mix' ? MIX : TOPIC_BY_ID[def.topic];
+        const text = `${own ? 'Vyzývám tě' : 'Hraju'} v Mudrlantu: ${challengeTopicTitle(def.topic)}, ${def.count} otázek.`;
+        showDialog(own ? 'Tvoje výzva' : 'Výzva', `
+            <div class="flex flex-col gap-4">
+                <div class="flex items-center gap-3">
+                    ${avatarHtml(def.creator, 'h-12 w-12 text-2xl')}
+                    <div class="min-w-0"><p class="truncate text-base font-black text-slate-800 dark:text-slate-100">${escapeHtml(own ? 'Ty' : playerName(def.creator))}${own ? '' : ' tě vyzývá'}</p>
+                    <p class="flex items-center gap-1.5 text-sm text-slate-500 dark:text-slate-400"><i data-lucide="${topic ? topic.icon : 'swords'}" class="h-4 w-4"></i> ${escapeHtml(challengeTopicTitle(def.topic))} · ${def.count} otázek</p></div>
+                </div>
+                ${results.length ? `<ol class="flex flex-col gap-1.5">${rankingRows(results, def.count, user.id)}</ol>` : '<p class="text-sm text-slate-500 dark:text-slate-400">Zatím nikdo nehrál.</p>'}
+                ${mine ? '' : `<button type="button" data-ch-play class="${PRIMARY_BUTTON}"><i data-lucide="play" class="h-5 w-5"></i> Hrát výzvu</button>`}
+                <button type="button" data-ch-share class="${SECONDARY_BUTTON}"><i data-lucide="share-2" class="h-5 w-5"></i> Sdílet výzvu · ${code}</button>
+            </div>`, {
+            onClick: (event) => {
+                if (event.target.closest('[data-ch-share]')) shareChallenge(code, text);
+                if (event.target.closest('[data-ch-play]')) { closeDialog(); startChallenge(def, 0, []); }
+            }
+        });
+    };
+
+    // Průběh výzvy: otázky z pevného semínka, stejné pro všechny; bez běžných statistik a řad
+    const startChallenge = (def, index = 0, results = []) => {
+        if (isLoading) return;
+        challenge = { code: def.code || def.id, topic: def.topic, seed: def.seed, count: def.count, index, results, creator: def.creator || null, done: false };
+        mode = 'challenge';
+        closeDialog();
+        runRound(async () => {
+            const rng = createSeededRandom(`${challenge.seed}:${index}`);
+            const topicId = challenge.topic === 'mix' ? pickRandom(TOPICS.map(topic => topic.id), rng) : challenge.topic;
+            const ctx = await loadTopic(topicId);
+            const item = pickItem(ctx.items.filter(candidate => candidate.k === 1), rng, [], ctx.topic.categories.map(c => c.key));
+            return { item, ctx, rng };
+        }, challenge.topic === 'mix' ? MIX : TOPIC_BY_ID[challenge.topic]);
+    };
+
+    const challengeHome = () => {
+        challenge = null;
+        mode = 'daily';
+        myChallenges = null;
+        renderHome();
+    };
+
+    const renderChallengeDone = (results = null, state = 'ok') => {
+        const c = challenge;
+        if (!c) return;
+        screen = 'challenge-done';
+        closePlaceInfo();
+        const user = signedUser();
+        const correct = c.results.filter(row => row && row.correct).length;
+        const points = c.results.reduce((sum, row) => sum + (row ? row.points : 0), 0);
+        const body = state === 'sending'
+            ? '<p class="py-4 text-center text-sm font-semibold text-slate-500">Ukládám výsledek…</p>'
+            : state === 'error'
+                ? `<div class="flex flex-col gap-2"><p class="text-sm font-semibold text-rose-600 dark:text-rose-400">Výsledek se nepodařilo uložit. Zkontroluj připojení.</p><button type="button" data-action="challenge-retry" class="${PRIMARY_BUTTON}">Zkusit znovu</button></div>`
+                : `<ol class="flex flex-col gap-1.5">${results && results.length ? rankingRows(results, c.count, user && user.id) : ''}</ol>
+                    <p class="text-sm text-slate-500 dark:text-slate-400">${results && results.length > 1 ? 'Porovnání s ostatními hráči.' : 'Pošli kód kamarádům, ať ti to oplatí.'}</p>`;
+        appContent.innerHTML = `
+            <div class="fade-in flex min-h-full w-full flex-col gap-4 bg-slate-50 p-4 pb-6 dark:bg-slate-900">
+                <div class="rounded-[1.5rem] bg-gradient-to-br from-rose-500 to-orange-500 p-5 text-center text-white shadow-lg">
+                    <p class="text-xs font-black uppercase tracking-widest text-white/80">${escapeHtml(challengeTopicTitle(c.topic))}</p>
+                    <p class="mt-1 text-5xl font-black">${correct}/${c.count}</p>
+                    <p class="mt-1 text-sm font-bold text-white/90">${escapeHtml(formatPoints(points))}</p>
+                </div>
+                ${body}
+                <button type="button" data-action="challenge-share" data-code="${escapeHtml(c.code)}" data-text="Zahrál jsem výzvu v Mudrlantu: ${correct}/${c.count}. Zvládneš to líp?" class="${SECONDARY_BUTTON}"><i data-lucide="share-2" class="h-5 w-5"></i> Sdílet výzvu · ${escapeHtml(c.code)}</button>
+                <button type="button" data-action="challenge-home" class="${PRIMARY_BUTTON}">Zpět domů</button>
+            </div>`;
+        renderIcons(appContent);
+        appContent.scrollTo(0, 0);
+        updateControlsUI();
+    };
+
+    // Po poslední otázce: zapíše výsledek (první platí) a ukáže žebříček výzvy
+    const finishChallenge = async (retry = false) => {
+        const c = challenge;
+        const user = signedUser();
+        if (!c || !user) return;
+        c.done = true;
+        renderChallengeDone(null, 'sending');
+        const correct = c.results.filter(row => row && row.correct).length;
+        const points = c.results.reduce((sum, row) => sum + (row ? row.points : 0), 0);
+        try {
+            await Social.submitResult(user.id, c.code, { correct, points });
+            const results = await Social.getResults(c.code);
+            if (challenge === c) renderChallengeDone(results);
+        } catch (error) {
+            if (challenge === c) renderChallengeDone(null, 'error');
+        }
+    };
+
+    // Odkaz s ?vyzva=KÓD: kód se z adresy hned odstraní
+    function takeInviteCode() {
+        const params = new URLSearchParams(window.location.search);
+        if (!params.has('vyzva')) return '';
+        const code = Social ? Social.parseCode(params.get('vyzva')) : '';
+        params.delete('vyzva');
+        const query = params.toString();
+        try { window.history.replaceState(window.history.state, '', window.location.pathname + (query ? `?${query}` : '') + window.location.hash); } catch (error) { /* adresa zůstane */ }
+        return code;
+    }
+
     // Všechny akce přes delegaci událostí – stránka nepotřebuje inline JavaScript (kvůli CSP)
     const ACTIONS = {
         daily: (button) => { lastDailyTopic = button.dataset.topic; startDaily(button.dataset.topic); },
+        'auth-login': () => Auth && Auth.login(),
+        'open-profile': () => openProfile(),
+        'new-challenge': () => openNewChallenge(),
+        'join-challenge': () => openJoinChallenge(),
+        'challenge-open': (button) => openChallenge(button.dataset.code),
+        'challenge-resume': () => challenge && !challenge.done && startChallenge(challenge, challenge.index, challenge.results),
+        'challenge-share': (button) => shareChallenge(button.dataset.code, button.dataset.text || ''),
+        'challenge-retry': () => finishChallenge(true),
+        'challenge-home': () => challengeHome(),
         'play-daily': () => { const next = nextDailyTopic(); if (next) startNextDaily(next.id); },
         'daily-home': () => renderHome(),
         'play-topic': (button) => playTopic(button.dataset.topic),
@@ -2448,7 +2896,7 @@
     // Tlačítko Zpět na mobilu jako zpět v aplikaci: mimo čistou úvodní obrazovku drží aplikace v historii prohlížeče jeden
     // krok navíc. Zpět ho spotřebuje a aplikace udělá svůj krok zpět (zavře okno, z otázky domů, v učení o úroveň výš);
     // teprve na úvodní obrazovce Zpět aplikaci opustí. Krok se doplní či odebere po každé změně obrazovky nebo okna.
-    const OVERLAY_IDS = ['photo-zoom', 'place-info', 'play-chooser', 'settings-overlay'];
+    const OVERLAY_IDS = ['photo-zoom', 'place-info', 'play-chooser', 'settings-overlay', 'dialog-overlay'];
     const atRoot = () => (screen === 'home' || screen === 'welcome') && !OVERLAY_IDS.some(id => document.getElementById(id));
     let skipNextPop = false;
     const syncHistory = () => {
@@ -2460,7 +2908,8 @@
         }
     };
     const goBack = () => {
-        if (document.getElementById('photo-zoom')) closePhotoZoom();
+        if (document.getElementById('dialog-overlay')) closeDialog();
+        else if (document.getElementById('photo-zoom')) closePhotoZoom();
         else if (document.getElementById('place-info')) closePlaceInfo();
         else if (document.getElementById('play-chooser')) closeChooser();
         else if (document.getElementById('settings-overlay')) closeSettings();
@@ -2469,6 +2918,8 @@
             const fromLearn = mode === 'practice' && (pool.kind === 'collection' || pool.kind === 'mistakes');
             if (fromLearn) openLearn(pool.kind === 'mistakes' ? 'mistakes' : learn.view);
             else renderHome();
+        } else if (screen === 'challenge-done') {
+            challengeHome();
         } else if (screen === 'learn') {
             const up = { atlas: 'collection', collection: 'topic', topic: 'home', mistakes: 'home' }[learn.view];
             if (up) openLearn(up);
@@ -2490,7 +2941,8 @@
 
     document.addEventListener('keydown', (event) => {
         if (event.key !== 'Escape') return;
-        if (document.getElementById('photo-zoom')) closePhotoZoom();
+        if (document.getElementById('dialog-overlay')) closeDialog();
+        else if (document.getElementById('photo-zoom')) closePhotoZoom();
         else if (document.getElementById('place-info')) closePlaceInfo();
         else if (document.getElementById('play-chooser')) closeChooser();
         else closeSettings();
@@ -2519,8 +2971,20 @@
     loadVersion();
     // Po přihlášení nebo odhlášení se otevřené Nastavení překreslí
     if (Auth) {
-        Auth.onChange(() => { if (document.getElementById('settings-overlay')) openSettings(); });
-        Auth.init();
+        const invite = takeInviteCode();
+        if (invite) writeJson(KEYS.pendingChallenge, invite);
+        Auth.onChange((state) => {
+            if (document.getElementById('settings-overlay')) openSettings();
+            if (!state.user) { myProfile = null; myChallenges = null; paintChallenges(); return; }
+            // Po přihlášení (i návratu z Googlu) se otevře výzva, na kterou hráč klepl v odkazu
+            const pending = readJson(KEYS.pendingChallenge);
+            if (pending) {
+                try { localStorage.removeItem(KEYS.pendingChallenge); } catch (e) { /* bez úložiště se kód nepamatuje */ }
+                openChallenge(pending);
+            }
+            refreshChallenges();
+        });
+        Auth.init().then(state => { if (!state.user && invite) openChallenge(invite); });
     }
     gameVariant = readVariant();
     settings = loadSettings();

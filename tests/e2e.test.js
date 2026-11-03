@@ -1098,6 +1098,7 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
     await t.test('účet: bez nastavení se nic neukáže, s nastavením přihlášení Google, návrat s tokeny, odhlášení', async () => {
         // Bez nastavení (prázdný config.js) část Účet v Nastavení není
         const plain = await setup(browser);
+        await plain.context.route('**/config.js', route => route.fulfill({ contentType: 'text/javascript', body: 'window.MUDRLANT_CONFIG = { supabaseUrl: "", supabaseAnonKey: "" };' }));
         await plain.tab.goto(`${ORIGIN}/`);
         await waitForHome(plain.tab);
         await plain.tab.click('#btn-settings');
@@ -1168,6 +1169,131 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         assert.match(await failed.tab.textContent('#settings-overlay'), /Přihlášení zrušeno/);
         assert.equal(await failed.tab.evaluate(() => localStorage.getItem('mudrlant.auth')), null);
         await failed.context.close();
+    });
+
+    await t.test('profil a výzvy: úprava profilu, založení výzvy, stejné otázky pro druhého hráče, žebříček', async () => {
+        // Falešný Supabase v paměti: profily, výzvy a výsledky; každý hráč má svůj token
+        const db = { profiles: {}, challenges: {}, results: [], calls: [] };
+        const users = { 'tok-u1': { id: 'u-1', name: 'Jana Nováková' }, 'tok-u2': { id: 'u-2', name: 'Petr Svoboda' } };
+        const profileOf = (id) => db.profiles[id] || (db.profiles[id] = { id, display_name: Object.values(users).find(user => user.id === id).name, avatar: '🦊', color: 'emerald' });
+        const backend = async (context) => {
+            await context.route('**/config.js', route => route.fulfill({ contentType: 'text/javascript', body: 'window.MUDRLANT_CONFIG = { supabaseUrl: "https://proj.supabase.co", supabaseAnonKey: "anon-key" };' }));
+            await context.route('https://proj.supabase.co/**', route => {
+                const request = route.request();
+                const url = new URL(request.url());
+                const token = (request.headers().authorization || '').replace('Bearer ', '');
+                const me = users[token];
+                const json = (body, status = 200) => route.fulfill({ status, json: body });
+                db.calls.push(`${request.method()} ${url.pathname.replace('/rest/v1/', '')}`);
+                if (url.pathname.startsWith('/auth/')) return json({});
+                if (!me) return json({ message: 'no token' }, 401);
+                const eq = (key) => (url.searchParams.get(key) || '').replace(/^eq\./, '');
+                const body = request.postData() ? JSON.parse(request.postData()) : null;
+                const resultRow = (row, extra = {}) => ({ ...row, player: profileOf(row.user_id), ...extra });
+                const challengeRow = (c) => ({ ...c, creator: profileOf(c.creator_id) });
+                if (url.pathname === '/rest/v1/profiles') {
+                    if (request.method() === 'PATCH') { Object.assign(profileOf(eq('id')), body); return json([profileOf(eq('id'))]); }
+                    return json([profileOf(eq('id'))]);
+                }
+                if (url.pathname === '/rest/v1/challenges') {
+                    if (request.method() === 'POST') {
+                        if (db.challenges[body.id]) return json({}, 409);
+                        db.challenges[body.id] = { ...body, created_at: '2026-11-03T10:00:00Z' };
+                        return json([db.challenges[body.id]], 201);
+                    }
+                    const found = db.challenges[eq('id')];
+                    return json(found ? [challengeRow(found)] : []);
+                }
+                if (url.pathname === '/rest/v1/challenge_results') {
+                    if (request.method() === 'POST') {
+                        if (!db.results.some(row => row.challenge_id === body.challenge_id && row.user_id === body.user_id)) db.results.push({ ...body, finished_at: `2026-11-03T10:0${db.results.length}:00Z` });
+                        return route.fulfill({ status: 201, body: '' });
+                    }
+                    if (url.searchParams.has('user_id') && !url.searchParams.get('user_id').startsWith('neq.')) {
+                        return json(db.results.filter(row => row.user_id === eq('user_id')).map(row => ({ ...row, challenge: challengeRow(db.challenges[row.challenge_id]) })));
+                    }
+                    if (url.searchParams.get('challenge_id').startsWith('in.')) {
+                        const ids = url.searchParams.get('challenge_id').slice(4, -1).split(',');
+                        return json(db.results.filter(row => ids.includes(row.challenge_id) && row.user_id !== url.searchParams.get('user_id').replace('neq.', '')).map(row => resultRow(row)));
+                    }
+                    return json(db.results.filter(row => row.challenge_id === eq('challenge_id')).map(row => resultRow(row)));
+                }
+                return json({});
+            });
+        };
+        const login = (token) => ({ 'mudrlant.auth': JSON.stringify({ access_token: token, refresh_token: 'r', expires_at: 4102444800, user: { id: users[token].id, email: 'x@example.com', name: users[token].name } }) });
+
+        // Hráčka 1: úprava profilu
+        const one = await setup(browser, { storage: login('tok-u1') });
+        await backend(one.context);
+        await one.tab.goto(`${ORIGIN}/`);
+        await waitForHome(one.tab);
+        await one.tab.waitForSelector('#challenges-section [data-action="new-challenge"]');
+        assert.match(await one.tab.textContent('#challenges-section'), /Jana Nováková/);
+        await one.tab.click('#challenges-section [data-action="open-profile"]');
+        await one.tab.waitForSelector('#profile-name');
+        await one.tab.fill('#profile-name', 'Janička');
+        await one.tab.click('[data-pick-avatar="🐼"]');
+        await one.tab.click('[data-pick-color="sky"]');
+        assert.equal(await one.tab.inputValue('#profile-name'), 'Janička', 'jméno zůstane po výběru obrázku');
+        await one.tab.click('[data-save-profile]');
+        await one.tab.waitForFunction(() => /Uloženo/.test(document.getElementById('dialog-overlay').textContent));
+        assert.deepEqual([db.profiles['u-1'].display_name, db.profiles['u-1'].avatar, db.profiles['u-1'].color], ['Janička', '🐼', 'sky']);
+        await one.tab.click('#dialog-overlay [data-close]');
+        await one.tab.waitForFunction(() => document.querySelector('#challenges-section').textContent.includes('Janička'));
+        assert.match(await one.tab.textContent('#challenges-section'), /🐼/);
+
+        // Nová výzva: zeměpis, 5 otázek; hraje se hned a stav ukazuje číslo otázky
+        await one.tab.click('#challenges-section [data-action="new-challenge"]');
+        await one.tab.click('[data-ch-topic="zemepis"]');
+        await one.tab.click('[data-ch-count="5"]');
+        await one.tab.click('[data-ch-create]');
+        await waitForQuestion(one.tab);
+        const [code] = Object.keys(db.challenges);
+        assert.match(code, /^[A-Z0-9]{6}$/);
+        assert.deepEqual([db.challenges[code].topic, db.challenges[code].count, db.challenges[code].creator_id], ['zemepis', 5, 'u-1']);
+        assert.equal(await one.tab.textContent('#status-text'), 'Výzva · 1/5');
+        const firstId = (await readRound(one.tab)).id;
+        for (let i = 0; i < 5; i++) {
+            await one.tab.click('[data-action="give-up"]');
+            await waitForResult(one.tab);
+            assert.match(await one.tab.textContent('[data-action="next"]'), i < 4 ? new RegExp(`Další otázka \\(${i + 2}/5\\)`) : /Dokončit výzvu/);
+            await one.tab.click('[data-action="next"]');
+            if (i < 4) await waitForQuestion(one.tab);
+        }
+        await one.tab.waitForSelector('[data-action="challenge-home"]');
+        assert.match(await one.tab.textContent('#app-content'), /0\/5/);
+        assert.deepEqual(db.results.map(row => [row.challenge_id, row.user_id, row.correct]), [[code, 'u-1', 0]]);
+        assert.equal(Object.keys(JSON.parse(await one.tab.evaluate(() => localStorage.getItem('mudrlant.stats'))).daily).length, 0, 'výzva se nepočítá do dnešních otázek');
+        // Tlačítko Zpět z výsledku výzvy vede domů
+        await one.tab.goBack();
+        await waitForHome(one.tab);
+        await one.tab.waitForFunction(() => document.querySelector('#challenges-section').textContent.includes('Zeměpis'));
+        assert.deepEqual(one.log.errors, []);
+        await one.context.close();
+
+        // Hráč 2: otevře odkaz, vidí kdo vyzývá a zahraje stejné otázky
+        const two = await setup(browser, { storage: login('tok-u2') });
+        await backend(two.context);
+        await two.tab.goto(`${ORIGIN}/?vyzva=${code}`);
+        await two.tab.waitForSelector('#dialog-overlay [data-ch-play]');
+        assert.equal(new URL(two.tab.url()).search, '', 'kód zmizí z adresy');
+        assert.match(await two.tab.textContent('#dialog-overlay'), /Janička tě vyzývá/);
+        assert.match(await two.tab.textContent('#dialog-overlay'), /0\/5/);
+        await two.tab.click('[data-ch-play]');
+        await waitForQuestion(two.tab);
+        assert.equal((await readRound(two.tab)).id, firstId, 'stejná první otázka jako u soupeře');
+        assert.equal(await two.tab.textContent('#status-text'), 'Výzva · 1/5');
+        assert.deepEqual(two.log.errors, []);
+        await two.context.close();
+
+        // Bez přihlášení se kód uloží a nabídne se přihlášení
+        const guest = await setup(browser);
+        await backend(guest.context);
+        await guest.tab.goto(`${ORIGIN}/?vyzva=${code}`);
+        await guest.tab.waitForSelector('[data-auth-login-dialog]');
+        assert.equal(await guest.tab.evaluate(() => JSON.parse(localStorage.getItem('mudrlant.pendingChallenge'))), code);
+        await guest.context.close();
     });
 
     await t.test('tmavý režim', async () => {

@@ -87,7 +87,9 @@ Jádro a aplikace je uplatní samy, téma pro ně nemusí nic dělat:
 
 ## Účty a hra více hráčů
 
-Základ je hotový: přihlášení účtem Google přes Supabase (`auth.js`, `config.js`, část Účet v Nastavení) a databázové
+Hotovo: přihlášení účtem Google přes Supabase, profil hráče (jméno, emoji a barva) a **výzvy** (stejné otázky pro víc
+hráčů: kód nebo odkaz `?vyzva=KÓD`, žebříček výzvy; `social.js`, tabulky `challenges` a `challenge_results`).
+Původně: přihlášení účtem Google přes Supabase (`auth.js`, `config.js`, část Účet v Nastavení) a databázové
 schéma `supabase/schema.sql` (profily hráčů s pravidly řádků). Dokud není `config.js` vyplněný, přihlášení se
 neukáže a hra běží jako host. Postup nastavení je v `docs/SUPABASE.md`. Další kroky: ukládání postupu k účtu, zápasy
 o stejné otázky (losování podle data už dává všem stejnou otázku) a žebříček.

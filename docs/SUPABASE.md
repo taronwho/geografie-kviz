@@ -91,6 +91,12 @@ Potřebuješ: účet na GitHubu (máš) a účet Google (stačí běžný Gmail)
 | Přihlášení se vrátí s hlášením o chybě | Zkontroluj Client ID a Secret v Supabase (části 3 a 4) |
 | Projekt po týdnu nečinnosti „usnul“ | Bezplatné projekty Supabase se po delší nečinnosti pozastaví; v dashboardu stiskni **Restore project** |
 
+## Aktualizace databáze (profily a výzvy)
+
+Soubor `supabase/schema.sql` se rozšiřuje (obrázky profilů, výzvy, výsledky). **Po každé jeho změně ho spusť znovu celý**
+(SQL Editor → New query → vložit → Run); je napsaný tak, aby šel pouštět opakovaně a nic nesmazal.
+Bez nejnovější verze přihlášení funguje, ale profil a výzvy hlásí chybu.
+
 ## Jak to v aplikaci funguje
 
 - `auth.js` volá Supabase Auth přes REST (bez knihovny, kvůli přísné CSP bez cizích skriptů); klíč jde v hlavičce `apikey`.
