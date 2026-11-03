@@ -604,7 +604,7 @@
 
     const renderPracticeSettings = () => `
         <h3 class="${SETTINGS_HEADING} mb-1 mt-6">Známost</h3>
-        <p class="mb-3 text-sm text-slate-500 dark:text-slate-400">Pro hraní témat, mix i prohlížení. Dnešní otázky jsou vždy ze známých.</p>
+        <p class="mb-3 text-sm text-slate-500 dark:text-slate-400">Pro hraní témat, mix i prohlížení. Dnešní otázky jsou ze známých, jen tu a tam (asi desetina) z těžších.</p>
         <div class="grid grid-cols-2 gap-2" role="group" aria-label="Známost">${renderTierButtons()}</div>
         <p class="mt-4 text-sm text-slate-500 dark:text-slate-400">Co z tématu hrát, vybereš na jeho dlaždici nebo klepnutím na název tématu nahoře během hry.</p>`;
 
@@ -754,7 +754,7 @@
             return;
         }
         let note = 'Uloženo, platí od další otázky.';
-        if (round && !round.answered && round.variant !== variant) {
+        if (round && !round.answered && round.variant !== variant && !(mode === 'challenge' && challenge && challenge.variant)) {
             if (variant === 'choices') {
                 // Na možnosti jde přepnout hned – je to snazší varianta
                 round.variant = 'choices';
@@ -1928,6 +1928,8 @@
             const data = await createRoundData(item, ctx, rng);
             current = dailyDate ? { ...data, dailyDate } : data;
             round = createRound();
+            // Výzva má pevný způsob odpovídání pro všechny hráče
+            if (mode === 'challenge' && challenge && challenge.variant) round.variant = challenge.variant;
             isLoading = false;
             renderRound();
             // Obrysy států pro slepou mapu stáhneme dopředu, ať je nápověda hned po ruce
@@ -1938,9 +1940,11 @@
         }
     };
 
+    // Podíl dnešních otázek, které jsou z těžších (méně známých) položek
+    const DAILY_HARD_SHARE = 0.1;
     const dailySeed = (topic, dayKey) => `${topic.dailySeed || `mudrlant-${topic.id}-`}${dayKey}`;
 
-    // Dnešní otázka tématu: pro všechny stejná, ze známých položek; odehraná zůstane uložená
+    // Dnešní otázka tématu: pro všechny stejná, ze známých položek (asi desetina z těžších); odehraná zůstane uložená
     const startDaily = (topicId) => {
         if (isLoading) return;
         const today = getDayKey();
@@ -1962,7 +1966,11 @@
         runRound(async () => {
             const ctx = await loadTopic(topicId);
             const rng = createSeededRandom(dailySeed(ctx.topic, today));
-            const item = pickItem(ctx.items.filter(candidate => candidate.k === 1), rng, [], ctx.topic.categories.map(c => c.key));
+            // Tu a tam (DAILY_HARD_SHARE) je dnešní otázka z těžších, méně známých; los má vlastní semínko, takže ostatních 90 %
+            // dnešních otázek zůstává stejných a pro všechny hráče platí stejně
+            const hard = createSeededRandom(`${dailySeed(ctx.topic, today)}:tezka`)() < DAILY_HARD_SHARE;
+            const harder = hard ? ctx.items.filter(candidate => candidate.k !== 1) : [];
+            const item = pickItem(harder.length ? harder : ctx.items.filter(candidate => candidate.k === 1), rng, [], ctx.topic.categories.map(c => c.key));
             return { item, ctx, rng, dailyDate: today };
         }, TOPIC_BY_ID[topicId]);
     };
@@ -2622,7 +2630,7 @@
     // Nová výzva: komu (kdokoli s kódem / hráč podle přezdívky / náhodný hráč), téma nebo mix a počet otázek; po založení se rovnou hraje
     const openNewChallenge = () => {
         if (!signedUser()) return;
-        const draft = { topic: 'mix', count: 10, who: 'player', opponent: null, query: '', found: null };
+        const draft = { topic: 'mix', count: 10, who: 'player', opponent: null, query: '', found: null, hard: false, variant: 'choices', cats: null };
         let busy = false;
         let note = '';
         let searchToken = 0;
@@ -2656,6 +2664,19 @@
                     ${active && id === 'player' ? opponentSearch() : ''}
                 </div>`;
         };
+        // Okruhy vybraného tématu (u mixu žádné): všechny zaškrtnuté, zrušením jde zúžit třeba na vlajky států
+        const topicCategories = () => (TOPIC_BY_ID[draft.topic] || { categories: [] }).categories;
+        const selectedCats = () => draft.cats || topicCategories().map(category => category.key);
+        const categoryBlock = () => {
+            const list = topicCategories();
+            if (draft.topic === 'mix' || list.length < 2) return '';
+            const chosen = selectedCats();
+            return `
+                <div>
+                    <p class="mb-2 text-xs font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">Okruh</p>
+                    <div class="flex flex-wrap gap-1.5">${list.map(category => `<button type="button" data-ch-cat="${escapeHtml(category.key)}" aria-pressed="${chosen.includes(category.key)}" class="flex items-center gap-1.5 rounded-xl border-2 px-2.5 py-1.5 text-sm font-bold active:scale-[0.98] ${chosen.includes(category.key) ? 'border-emerald-500 bg-emerald-50 text-emerald-900 dark:bg-emerald-900/30 dark:text-emerald-200' : 'border-transparent bg-white text-slate-500 dark:bg-slate-800 dark:text-slate-400'}"><i data-lucide="${chosen.includes(category.key) ? 'check' : 'plus'}" class="h-3.5 w-3.5"></i>${escapeHtml(category.label)}</button>`).join('')}</div>
+                </div>`;
+        };
         const render = () => showDialog('Nová výzva', `
             <div class="flex flex-col gap-4">
                 <div>
@@ -2670,6 +2691,15 @@
                     <p class="mb-2 text-xs font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">Téma</p>
                     <div class="grid grid-cols-2 gap-1.5">${tile('mix', MIX.icon, 'Mix všech témat')}${TOPICS.map(topic => tile(topic.id, topic.icon, topic.title)).join('')}</div>
                 </div>
+                ${categoryBlock()}
+                <div>
+                    <p class="mb-2 text-xs font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">Obtížnost</p>
+                    <div class="grid grid-cols-2 gap-2">${choice('data-ch-hard', 'no', !draft.hard, '<span class="block">Známé</span><span class="block text-[11px] font-semibold opacity-70">slavné a běžné věci</span>')}${choice('data-ch-hard', 'yes', draft.hard, '<span class="block">I těžší</span><span class="block text-[11px] font-semibold opacity-70">i méně známé věci</span>')}</div>
+                </div>
+                <div>
+                    <p class="mb-2 text-xs font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">Odpovídání (pro všechny stejně)</p>
+                    <div class="grid grid-cols-2 gap-2">${choice('data-ch-variant', 'choices', draft.variant === 'choices', '<span class="block">Možnosti</span><span class="block text-[11px] font-semibold opacity-70">vybíráš ze 4</span>')}${choice('data-ch-variant', 'typed', draft.variant === 'typed', '<span class="block">Psaní</span><span class="block text-[11px] font-semibold opacity-70">dvojnásobek bodů</span>')}</div>
+                </div>
                 <div>
                     <p class="mb-2 text-xs font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">Počet otázek</p>
                     <div class="grid grid-cols-3 gap-2">${Social.COUNTS.map(count => choice('data-ch-count', count, draft.count === count, String(count), 'text-base font-black')).join('')}</div>
@@ -2682,7 +2712,19 @@
                 const count = event.target.closest('[data-ch-count]');
                 const who = event.target.closest('[data-ch-who]');
                 const pick = event.target.closest('[data-pick-opp]');
-                if (topic) { draft.topic = topic.dataset.chTopic; render(); }
+                const category = event.target.closest('[data-ch-cat]');
+                const hard = event.target.closest('[data-ch-hard]');
+                const variant = event.target.closest('[data-ch-variant]');
+                if (topic) { draft.topic = topic.dataset.chTopic; draft.cats = null; render(); }
+                if (category) {
+                    const chosen = selectedCats();
+                    const key = category.dataset.chCat;
+                    // Aspoň jeden okruh musí zůstat
+                    draft.cats = chosen.includes(key) ? (chosen.length > 1 ? chosen.filter(other => other !== key) : chosen) : [...chosen, key];
+                    render();
+                }
+                if (hard) { draft.hard = hard.dataset.chHard === 'yes'; render(); }
+                if (variant) { draft.variant = variant.dataset.chVariant; render(); }
                 if (count) { draft.count = Number(count.dataset.chCount); render(); }
                 if (who) { draft.who = who.dataset.chWho; note = ''; render(); }
                 if (pick) { draft.opponent = draft.found.find(player => player.id === pick.dataset.pickOpp) || null; note = ''; render(); }
@@ -2698,7 +2740,9 @@
                             opponent = await Social.randomOpponent();
                             if (!opponent) { busy = false; note = 'Zatím tu nejsou žádní jiní hráči. Zkus „Kdokoli“ a pošli odkaz kamarádovi.'; render(); return; }
                         }
-                        const created = await Social.createChallenge(signedUser().id, { topic: draft.topic, count: draft.count, invitedId: opponent ? opponent.id : null });
+                        const all = topicCategories().length;
+                        const cats = draft.topic === 'mix' || !draft.cats || draft.cats.length >= all ? [] : draft.cats;
+                        const created = await Social.createChallenge(signedUser().id, { topic: draft.topic, count: draft.count, invitedId: opponent ? opponent.id : null, includeHard: draft.hard, categories: cats, variant: draft.variant });
                         closeDialog();
                         await loadMyProfile();
                         startChallenge({ ...created, creator: myProfile, invited: opponent }, 0, []);
@@ -2817,6 +2861,12 @@
                     <div class="min-w-0"><p class="truncate text-base font-black text-slate-800 dark:text-slate-100">${escapeHtml(own ? 'Ty' : playerName(def.creator))}${own ? '' : ' tě vyzývá'}</p>
                     <p class="flex items-center gap-1.5 text-sm text-slate-500 dark:text-slate-400"><i data-lucide="${topic ? topic.icon : 'swords'}" class="h-4 w-4"></i> ${escapeHtml(challengeTopicTitle(def.topic))} · ${def.count} otázek</p></div>
                 </div>
+                ${(() => {
+                    const topicDef = TOPIC_BY_ID[def.topic];
+                    const tags = [def.include_hard ? 'I těžší otázky' : 'Známé otázky', def.variant === 'typed' ? 'Psaní odpovědí' : def.variant === 'choices' ? 'Výběr z možností' : null,
+                        ...(def.categories || []).length && topicDef ? [`Okruh: ${def.categories.map(key => categoryOf(topicDef, key).label).join(', ')}`] : []].filter(Boolean);
+                    return `<div class="flex flex-wrap gap-1.5">${tags.map(tag => `<span class="rounded-full bg-slate-200 px-2.5 py-1 text-[11px] font-bold text-slate-600 dark:bg-slate-700 dark:text-slate-300">${escapeHtml(tag)}</span>`).join('')}</div>`;
+                })()}
                 ${def.invited ? `<p class="flex items-center gap-2 text-sm font-semibold text-slate-600 dark:text-slate-300">Vyzvaný hráč: ${avatarHtml(def.invited, 'h-6 w-6 text-sm')} <b>${escapeHtml(def.invited.id === user.id ? 'ty' : playerName(def.invited))}</b></p>` : ''}
                 ${results.length ? `<ol class="flex flex-col gap-1.5">${rankingRows(results, def.count, user.id)}</ol>` : '<p class="text-sm text-slate-500 dark:text-slate-400">Zatím nikdo nehrál.</p>'}
                 ${mine ? '' : `<button type="button" data-ch-play class="${PRIMARY_BUTTON}"><i data-lucide="play" class="h-5 w-5"></i> Hrát výzvu</button>`}
@@ -2832,14 +2882,31 @@
     // Průběh výzvy: otázky z pevného semínka, stejné pro všechny; bez běžných statistik a řad
     const startChallenge = (def, index = 0, results = []) => {
         if (isLoading) return;
-        challenge = { code: def.code || def.id, topic: def.topic, seed: def.seed, count: def.count, index, results, creator: def.creator || null, invited: def.invited || null, done: false };
+        challenge = {
+            code: def.code || def.id, topic: def.topic, seed: def.seed, count: def.count, index, results, creator: def.creator || null, invited: def.invited || null, done: false,
+            hard: Boolean(def.hard ?? def.include_hard), categories: def.categories || [], variant: def.variant || null
+        };
         mode = 'challenge';
         closeDialog();
         runRound(async () => {
+            // Stejná otázka pro všechny: položku určuje semínko výzvy a pořadí; u jednoho tématu se dřívější otázky nezopakují
+            const pickFor = (ctx, rng, history) => {
+                const pool = ctx.items.filter(candidate => (challenge.hard || candidate.k === 1) && (!challenge.categories.length || challenge.categories.includes(candidate.c)));
+                const keys = ctx.topic.categories.map(c => c.key).filter(key => !challenge.categories.length || challenge.categories.includes(key));
+                return pickItem(pool.length ? pool : ctx.items.filter(candidate => candidate.k === 1), rng, history, keys);
+            };
+            const history = [];
+            if (challenge.topic !== 'mix') {
+                const ctx = await loadTopic(challenge.topic);
+                for (let before = 0; before < index; before++) {
+                    const earlier = pickFor(ctx, createSeededRandom(`${challenge.seed}:${before}`), history);
+                    if (earlier) history.push(earlier.q);
+                }
+            }
             const rng = createSeededRandom(`${challenge.seed}:${index}`);
             const topicId = challenge.topic === 'mix' ? pickRandom(TOPICS.map(topic => topic.id), rng) : challenge.topic;
             const ctx = await loadTopic(topicId);
-            const item = pickItem(ctx.items.filter(candidate => candidate.k === 1), rng, [], ctx.topic.categories.map(c => c.key));
+            const item = pickFor(ctx, rng, history);
             return { item, ctx, rng };
         }, challenge.topic === 'mix' ? MIX : TOPIC_BY_ID[challenge.topic]);
     };

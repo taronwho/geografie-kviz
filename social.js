@@ -68,12 +68,12 @@
     };
 
     // Založí výzvu a vrátí ji (kód vybírá klient; při srážce s existujícím kódem zkusí jiný)
-    const createChallenge = async (userId, { topic, count, invitedId = null }) => {
+    const createChallenge = async (userId, { topic, count, invitedId = null, includeHard = false, categories = [], variant = null }) => {
         if (!COUNTS.includes(count)) throw new SocialError('Neplatný počet otázek.', 400);
         for (let attempt = 0; attempt < 4; attempt++) {
             const id = newCode();
             try {
-                const rows = await request('POST', 'challenges', { body: { id, creator_id: userId, topic, seed: `vyzva-${id}-${Date.now().toString(36)}`, count, invited_id: invitedId }, prefer: 'return=representation' });
+                const rows = await request('POST', 'challenges', { body: { id, creator_id: userId, topic, seed: `vyzva-${id}-${Date.now().toString(36)}`, count, invited_id: invitedId, include_hard: Boolean(includeHard), categories: (categories || []).slice(0, 20), variant: variant === 'typed' || variant === 'choices' ? variant : null }, prefer: 'return=representation' });
                 return rows[0];
             } catch (error) {
                 if (error.status !== 409) throw error;
@@ -81,7 +81,7 @@
         }
         throw new SocialError('Výzvu se nepodařilo založit.', 409);
     };
-    const getChallenge = async (code) => (await request('GET', `challenges?id=eq.${encodeURIComponent(code)}&select=id,topic,seed,count,created_at,creator:profiles!creator_id(${PROFILE_FIELDS}),invited:profiles!invited_id(${PROFILE_FIELDS})`) || [])[0] || null;
+    const getChallenge = async (code) => (await request('GET', `challenges?id=eq.${encodeURIComponent(code)}&select=id,topic,seed,count,created_at,include_hard,categories,variant,creator:profiles!creator_id(${PROFILE_FIELDS}),invited:profiles!invited_id(${PROFILE_FIELDS})`) || [])[0] || null;
     // Výsledky hráčů ve výzvě, nejlepší první (víc správných, pak víc bodů, pak dřív hotové)
     const getResults = async (code) => {
         const rows = await request('GET', `challenge_results?challenge_id=eq.${encodeURIComponent(code)}&select=correct,points,finished_at,user_id,player:profiles!user_id(${PROFILE_FIELDS})`) || [];

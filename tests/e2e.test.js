@@ -1308,13 +1308,34 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         await waitForHome(one.tab);
         await one.tab.waitForFunction(() => document.querySelector('#challenges-section').textContent.includes('Zeměpis'));
 
+        // Nastavení výzvy: Vlajky, jen okruh vlajek států, i těžší otázky, psaní odpovědí – hraje se přesně podle něj
+        await one.tab.click('#challenges-section [data-action="new-challenge"]');
+        await one.tab.click('[data-ch-who="anyone"]');
+        await one.tab.click('[data-ch-topic="vlajky"]');
+        for (const key of ['znak', 'uzemi', 'cesko']) await one.tab.click(`[data-ch-cat="${key}"]`);
+        assert.equal(await one.tab.locator('[data-ch-cat][aria-pressed="true"]').count(), 1);
+        await one.tab.click('[data-ch-cat="vlajka"]');
+        assert.equal(await one.tab.locator('[data-ch-cat][aria-pressed="true"]').count(), 1, 'poslední okruh nejde zrušit');
+        await one.tab.click('[data-ch-hard="yes"]');
+        await one.tab.click('[data-ch-variant="typed"]');
+        await one.tab.click('[data-ch-count="5"]');
+        await one.tab.click('[data-ch-create]');
+        await waitForQuestion(one.tab);
+        const custom = Object.values(db.challenges).find(c => c.topic === 'vlajky');
+        assert.deepEqual([custom.categories, custom.include_hard, custom.variant, custom.invited_id], [['vlajka'], true, 'typed', null]);
+        const customRound = await one.tab.evaluate(() => JSON.parse(localStorage.getItem('mudrlant.session')));
+        assert.equal(customRound.data.category, 'vlajka', 'jen vybraný okruh');
+        assert.equal(customRound.round.variant, 'typed', 'pevný způsob odpovídání výzvy');
+        await one.tab.click('#btn-home');
+        await waitForHome(one.tab);
+
         // Náhodný soupeř: vybere se jiný hráč (tady jediný další, Petr)
         await one.tab.click('#challenges-section [data-action="new-challenge"]');
         await one.tab.click('[data-ch-who="random"]');
         await one.tab.click('[data-ch-count="5"]');
         await one.tab.click('[data-ch-create]');
         await waitForQuestion(one.tab);
-        assert.equal(Object.values(db.challenges).find(c => c.id !== code).invited_id, 'u-2');
+        assert.equal(Object.values(db.challenges).find(c => c.topic === 'mix').invited_id, 'u-2');
         assert.deepEqual(one.log.errors, []);
         await one.context.close();
 

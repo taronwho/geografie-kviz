@@ -92,6 +92,14 @@ create table if not exists public.challenges (
 );
 -- Vyzvaný hráč (podle přezdívky nebo náhodný); prázdné = výzva pro kohokoli s kódem
 alter table public.challenges add column if not exists invited_id uuid references public.profiles (id) on delete set null;
+-- Nastavení výzvy: i těžší (méně známé) otázky, vybrané okruhy tématu (prázdné = všechny) a pevný způsob odpovídání
+alter table public.challenges add column if not exists include_hard boolean not null default false;
+alter table public.challenges add column if not exists categories text[] not null default '{}';
+alter table public.challenges add column if not exists variant text;
+alter table public.challenges drop constraint if exists challenges_variant_list;
+alter table public.challenges add constraint challenges_variant_list check (variant is null or variant in ('choices', 'typed'));
+alter table public.challenges drop constraint if exists challenges_categories_len;
+alter table public.challenges add constraint challenges_categories_len check (cardinality(categories) <= 20);
 create index if not exists challenges_invited_idx on public.challenges (invited_id, created_at desc);
 alter table public.challenges enable row level security;
 -- Kód výzvy stačí k jejímu otevření; číst ji smí každý přihlášený, zakládat jen vlastní
