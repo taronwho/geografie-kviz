@@ -1093,7 +1093,7 @@
         const tile = (topic) => {
             const scope = scopeOf(topic);
             return `
-                <button type="button" data-action="play-topic" data-topic="${topic.id}"${scope ? ` title="${escapeHtml(`${topic.title} · ${scope}`)}"` : ''} class="relative flex h-16 min-w-0 flex-col justify-between overflow-hidden rounded-2xl bg-gradient-to-br p-2 text-left text-white shadow-md ring-1 ring-black/5 transition-all active:scale-[0.97] ${styleOf(topic).tile}">
+                <button type="button" data-action="play-topic" data-topic="${topic.id}"${scope ? ` title="${escapeHtml(`${topic.title} · ${scope}`)}"` : ''} class="relative flex min-h-[4rem] min-w-0 flex-col justify-between overflow-hidden rounded-2xl bg-gradient-to-br p-2 text-left text-white shadow-md ring-1 ring-black/5 transition-all active:scale-[0.97] ${styleOf(topic).tile}">
                     <i data-lucide="${topic.icon}" class="pointer-events-none absolute -bottom-2 -right-2 h-12 w-12 opacity-20"></i>
                     <i data-lucide="${topic.icon}" class="h-[1.125rem] w-[1.125rem]"></i>
                     <span class="block ${topic.title.length > 10 ? 'text-[10px]' : 'text-[11.5px]'} font-black leading-tight tracking-tight">${escapeHtml(topic.title)}</span>
@@ -1101,7 +1101,7 @@
         };
         const mixScope = settings.topics.length === TOPICS.length ? 'Otázky ze všech témat' : `${settings.topics.length} z ${TOPICS.length} témat`;
         const mixTile = `
-            <button type="button" data-action="play-mix" title="${escapeHtml(`Mix · ${mixScope}`)}" class="relative col-span-2 flex h-16 min-w-0 items-center gap-2.5 overflow-hidden rounded-2xl bg-gradient-to-br p-2.5 text-left text-white shadow-md ring-1 ring-black/5 transition-all active:scale-[0.97] ${styleOf(MIX).tile}">
+            <button type="button" data-action="play-mix" title="${escapeHtml(`Mix · ${mixScope}`)}" class="relative col-span-2 flex min-h-[4rem] min-w-0 items-center gap-2.5 overflow-hidden rounded-2xl bg-gradient-to-br p-2.5 text-left text-white shadow-md ring-1 ring-black/5 transition-all active:scale-[0.97] ${styleOf(MIX).tile}">
                 <i data-lucide="${MIX.icon}" class="pointer-events-none absolute -bottom-3 right-1 h-16 w-16 opacity-20"></i>
                 <span class="shrink-0 rounded-xl bg-white/20 p-2"><i data-lucide="${MIX.icon}" class="h-5 w-5"></i></span>
                 <span class="min-w-0 text-base font-black leading-tight">${escapeHtml(MIX.title)}</span>
@@ -1122,7 +1122,7 @@
                     </div>
                     <div class="grid grid-cols-7 gap-1">${dailyButtons}</div>
                 </section>
-                <section class="grid grid-cols-4 gap-2">${mixTile}${ordered.map(tile).join('')}</section>`}
+                <section class="grid flex-1 grid-cols-4 auto-rows-fr gap-2">${mixTile}${ordered.map(tile).join('')}</section>`}
             </div>`;
         applyProgress(appContent);
         renderIcons(appContent);
@@ -2130,29 +2130,24 @@
     const renderLearnHome = () => {
         const mistakes = loadMistakes();
         const card = (topic) => `
-            <button type="button" data-action="learn-topic" data-topic="${topic.id}" class="flex min-w-0 flex-col items-start gap-1.5 rounded-[1.25rem] border border-slate-100 bg-white p-2.5 text-left shadow-sm transition-all hover:border-brand-300 active:scale-[0.98] dark:border-slate-700 dark:bg-slate-800 dark:hover:border-brand-600">
-                <span class="rounded-xl p-2 ${styleOf(topic).soft}"><i data-lucide="${topic.icon}" class="h-5 w-5"></i></span>
-                <span class="text-[13px] font-black leading-tight text-slate-800 [overflow-wrap:anywhere] dark:text-slate-100">${escapeHtml(topic.title)}</span>
+            <button type="button" data-action="learn-topic" data-topic="${topic.id}" class="flex min-h-[4rem] min-w-0 flex-col items-start justify-between gap-1 rounded-2xl border border-slate-100 bg-white p-2 text-left shadow-sm transition-all hover:border-brand-300 active:scale-[0.98] dark:border-slate-700 dark:bg-slate-800 dark:hover:border-brand-600">
+                <span class="rounded-lg p-1.5 ${styleOf(topic).soft}"><i data-lucide="${topic.icon}" class="h-[1.125rem] w-[1.125rem]"></i></span>
+                <span class="${topic.title.length > 10 ? 'text-[10px]' : 'text-[11.5px]'} font-black leading-tight text-slate-800 [overflow-wrap:anywhere] dark:text-slate-100">${escapeHtml(topic.title)}</span>
             </button>`;
-        const cards = groupedTopics().map(group => `
-            <div>
-                <h3 class="mb-1.5 px-1 text-[11px] font-bold text-slate-400 dark:text-slate-500">${escapeHtml(group.label)}</h3>
-                <div class="grid grid-cols-3 gap-2">${group.topics.map(card).join('')}</div>
-            </div>`).join('');
+        // Stejná mřížka jako na úvodu: témata a „Moje chyby“ v posledních dvou políčkách vyplní celou výšku
+        const tiles = groupedTopics().flatMap(group => group.topics).map(card).join('');
         return `
             <div class="text-center">
-                <h2 class="text-2xl font-black tracking-tight text-slate-800 dark:text-slate-50">Učení</h2>
-                <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">Vyber téma a okruh: projdi si ho popořadě, pak se z něj nech vyzkoušet. Bez bodů a bez spěchu.</p>
+                <h2 class="text-xl font-black tracking-tight text-slate-800 dark:text-slate-50">Učení</h2>
+                <p class="text-xs text-slate-500 dark:text-slate-400">Vyber téma, projdi si ho a nech se vyzkoušet. Bez bodů a spěchu.</p>
             </div>
-            <div class="flex flex-col gap-3">${cards}</div>
-            <button type="button" data-action="learn-mistakes" class="${LEARN_ROW}">
-                <span class="shrink-0 rounded-xl bg-rose-100 p-2 text-rose-700 dark:bg-rose-900/50 dark:text-rose-300"><i data-lucide="repeat" class="h-5 w-5"></i></span>
-                <span class="min-w-0 flex-1">
-                    <span class="block font-bold text-slate-800 dark:text-slate-100">Moje chyby${mistakes.length ? ` (${mistakes.length})` : ''}</span>
-                    <span class="block text-xs text-slate-500 dark:text-slate-400">Co ti v kvízu nevyšlo – ze všech témat</span>
-                </span>
-                <i data-lucide="chevron-right" class="h-5 w-5 shrink-0 text-slate-300 dark:text-slate-600"></i>
-            </button>`;
+            <div class="grid flex-1 grid-cols-4 auto-rows-fr gap-2">
+                ${tiles}
+                <button type="button" data-action="learn-mistakes" class="col-span-2 flex min-h-[4rem] min-w-0 flex-col items-start justify-between gap-1 rounded-2xl border border-rose-200 bg-rose-50 p-2 text-left shadow-sm transition-all active:scale-[0.98] dark:border-rose-900/60 dark:bg-rose-900/20">
+                    <span class="rounded-lg bg-rose-100 p-1.5 text-rose-700 dark:bg-rose-900/50 dark:text-rose-300"><i data-lucide="repeat" class="h-[1.125rem] w-[1.125rem]"></i></span>
+                    <span class="text-[11.5px] font-black leading-tight text-slate-800 dark:text-slate-100">Moje chyby${mistakes.length ? ` (${mistakes.length})` : ''}<span class="block text-[10px] font-semibold text-slate-500 dark:text-slate-400">Co ti nevyšlo, ze všech témat</span></span>
+                </button>
+            </div>`;
     };
 
     const collectionRow = (ctx, collectionId, label, text, icon) => {
@@ -2321,10 +2316,11 @@
         if (screen !== 'learn' || renderId !== learnRenderId) return;
         // V atlasu je dole přilepená lišta s listováním, mezera pod obsahem by pod ní jen překážela
         const atlas = learn.view === 'atlas';
+        const learnHome = learn.view === 'home' || (!learn.topic && learn.view !== 'mistakes');
         appContent.innerHTML = `
-            <div class="fade-in flex min-h-full w-full flex-col gap-4 bg-slate-50 p-5 ${atlas ? 'pb-0' : 'pb-6'} dark:bg-slate-900">
+            <div class="fade-in flex min-h-full w-full flex-col ${learnHome ? 'gap-2.5 p-3' : `gap-4 p-5 ${atlas ? 'pb-0' : 'pb-6'}`} bg-slate-50 dark:bg-slate-900">
                 ${body}
-                ${atlas ? '' : '<!-- Bezpečnostní mezera pro spodní okraj displeje --><div class="h-12 w-full shrink-0"></div>'}
+                ${atlas || learnHome ? '' : '<!-- Bezpečnostní mezera pro spodní okraj displeje --><div class="h-12 w-full shrink-0"></div>'}
             </div>`;
         renderIcons(appContent);
         applyProgress(appContent);
