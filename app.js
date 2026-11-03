@@ -1045,8 +1045,8 @@
         const result = (stats.daily[topicId] || {})[getDayKey()];
         if (!result) return { text: 'čeká', tone: 'text-slate-400', icon: '' };
         return result.correct
-            ? { text: formatPoints(result.points), tone: 'text-emerald-600 dark:text-emerald-400', icon: 'circle-check' }
-            : { text: 'nevyšlo', tone: 'text-rose-500 dark:text-rose-400', icon: 'circle-x' };
+            ? { text: formatPoints(result.points), tone: 'text-emerald-600 dark:text-emerald-400', icon: '' }
+            : { text: 'nevyšlo', tone: 'text-rose-500 dark:text-rose-400', icon: '' };
     };
 
     // Další neodehraná dnešní otázka: po tématu `afterTopic` v pořadí témat dokola (bez něj od začátku)
@@ -1889,7 +1889,9 @@
         }
     };
 
-    const restoreSession = () => {
+    // Obnovení rozehrané otázky z uložené relace. Aplikace ho při běžném startu nepoužívá (vždy začíná úvodní stránkou);
+    // zapíná ho jen adresa s #obnovit (ladění a testy).
+    const resumeSession = () => {
         const session = readJson(KEYS.session);
         if (!session || session.version !== STATE_VERSION || !session.data || !session.round || !TOPIC_BY_ID[session.data.topic]) return false;
         const isFresh = Date.now() - session.timestamp < SESSION_MAX_AGE;
@@ -1919,6 +1921,15 @@
         }
         refreshWhenTopicLoads(current);
         return true;
+    };
+
+    // Po spuštění i po aktualizaci aplikace se vždy začíná na úvodní stránce, rozehraná otázka se neobnovuje.
+    // Rozehraná výzva se jen zapamatuje a pokračuje se v ní tlačítkem na úvodní stránce (otázka se pak vybere znovu ze stejných).
+    const restoreSession = () => {
+        const session = readJson(KEYS.session);
+        if (session && session.version === STATE_VERSION && session.mode === 'challenge' && session.challenge && !session.challenge.done
+            && Date.now() - session.timestamp < SESSION_MAX_AGE) challenge = session.challenge;
+        return false;
     };
 
     // Průběh načtení otázky: vybrat položku, dotáhnout popis a fotku, zobrazit
@@ -3162,7 +3173,9 @@
             renderVariantWelcome();
             return;
         }
-        if (!restoreSession()) renderHome();
+        if (location.hash === '#obnovit' && resumeSession()) return;
+        restoreSession();
+        renderHome();
     };
 
     document.getElementById('btn-home').addEventListener('click', () => renderHome());

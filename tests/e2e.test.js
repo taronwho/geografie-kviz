@@ -229,6 +229,9 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         await tab.reload();
         await waitForHome(tab);
         assert.equal(await tab.locator('h1').count(), 0);
+        // Výsledek u dnešní otázky je vidět celý (ne zkrácený na „4 bod…“)
+        const cut = await tab.evaluate(() => [...document.querySelectorAll('[data-action="daily"] span.truncate')].filter(span => span.scrollWidth > span.clientWidth).map(span => span.textContent));
+        assert.deepEqual(cut, []);
         await tab.click('[data-action="daily"][data-topic="zemepis"]');
         await waitForResult(tab);
         assert.equal(await tab.textContent('h1'), data.name);
@@ -954,7 +957,7 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         server.closeAllConnections();
         await new Promise(resolve => server.close(resolve));
         await tab.reload();
-        await waitForQuestion(tab);
+        await waitForHome(tab);
         assert.equal(await tab.locator('i[data-lucide]').count(), 0, 'ikony z mezipaměti');
         assert.equal(await tab.evaluate(() => getComputedStyle(document.getElementById('app-content')).display), 'flex', 'styly z mezipaměti');
         assert.equal(await tab.evaluate(() => Boolean(navigator.serviceWorker.controller)), true);
@@ -1477,7 +1480,7 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         };
         const session = { version: 8, data, round: { hintLevel: 3, variant: 'choices', answered: false, correct: false, points: 0, typed: false, answer: null, gaveUp: false, tab: 'visual' }, mode: 'practice', pool: { kind: 'topic', topic: 'vlajky' }, challenge: null, timestamp: Date.now() };
         const { context, tab, log } = await setup(browser, { storage: { 'mudrlant.session': JSON.stringify(session) } });
-        await tab.goto(`${ORIGIN}/`);
+        await tab.goto(`${ORIGIN}/#obnovit`);
         await waitForQuestion(tab);
         await tab.waitForSelector('#hint-visual svg path');
         // Karta Vlajka: vlastní prvek s obrázkem vlajky, ne mapa
