@@ -987,7 +987,7 @@
         renderIcons(iconSlot);
         const text = document.getElementById('status-text');
         text.textContent = place.text;
-        text.className = `truncate uppercase text-[11px] ${style ? '' : 'text-slate-700 dark:text-slate-200'}`;
+        text.className = `line-clamp-2 break-words text-left uppercase leading-tight text-[11px] ${style ? '' : 'text-slate-700 dark:text-slate-200'}`;
     };
 
     // Štítek nahoře: při hraní tématu okno s výběrem kategorií, v mixu výběr témat
