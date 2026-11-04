@@ -244,7 +244,7 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         await tab.waitForSelector('#dialog-overlay');
         assert.match(await tab.textContent('#dialog-overlay'), /Můj postup/);
         assert.match(await tab.textContent('#dialog-overlay'), /Zvědavec/);
-        assert.match(await tab.textContent('#dialog-overlay'), new RegExp(`Celkem ${gained} XP`));
+        assert.match(await tab.textContent('#dialog-overlay'), new RegExp(`celkem ${gained} XP`));
         assert.equal(await tab.locator('#dialog-overlay li').count(), 14 + 3, 'mistrovství všech témat a tři nejbližší odznaky');
         assert.match(await tab.textContent('#dialog-overlay'), /Všechny odznaky\s*1 \/ \d{3}/);
         // Okno se všemi odznaky: skupiny se stupni, klepnutím na medaili podrobnosti
