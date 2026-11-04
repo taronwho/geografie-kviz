@@ -72,3 +72,23 @@
     }
     .btn-3d:disabled, .btn-3d-light:disabled { transform: none; }
 }
+
+/* Rámečky profilu kolem obrázku hráče (look-frames.js): kroužek z přechodu je mimo obrázek, takže se emoji nezmění ani nezmenší.
+   Tloušťka se přizpůsobí velikosti písma obrázku (h-7 až h-20). */
+.frame { position: relative; --fr: max(2px, 0.1em); }
+.frame::before {
+    content: ''; position: absolute; inset: calc(var(--fr) * -1); border-radius: 9999px; pointer-events: none; background: var(--frame-bg);
+    -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - var(--fr)), #000 calc(100% - var(--fr) + 0.5px));
+    mask: radial-gradient(farthest-side, transparent calc(100% - var(--fr)), #000 calc(100% - var(--fr) + 0.5px));
+}
+.frame-bronz { --frame-bg: conic-gradient(from 30deg, #a8652a, #f0b27a, #8c5a2b, #e0a066, #a8652a); }
+.frame-stribro { --frame-bg: conic-gradient(from 30deg, #8d98a8, #f4f7fb, #6f7b8c, #e2e8f0, #8d98a8); }
+.frame-zlato { --frame-bg: conic-gradient(from 30deg, #b07a08, #ffe066, #c9971c, #fff3b0, #b07a08); }
+.frame-vavrin { --frame-bg: conic-gradient(from 30deg, #2c6e34, #8bc34a, #3f8f45, #b5dd6b, #2c6e34); }
+.frame-vavrin::after { content: '🌿'; position: absolute; left: 50%; bottom: calc(var(--fr) * -1 - 0.2em); transform: translateX(-50%); font-size: 0.4em; line-height: 1; pointer-events: none; }
+.frame-plamen { --frame-bg: conic-gradient(from 0deg, #ea580c, #fbbf24, #dc2626, #fb923c, #ea580c); filter: drop-shadow(0 0 0.18em rgb(249 115 22 / 0.7)); }
+.frame-diamant { --frame-bg: conic-gradient(from 0deg, #67e8f9, #ffffff, #a78bfa, #e0f2fe, #38bdf8, #ffffff, #67e8f9); filter: drop-shadow(0 0 0.18em rgb(103 232 249 / 0.75)); }
+@media (prefers-reduced-motion: no-preference) {
+    .frame-plamen::before { animation: frameGlow 2.2s ease-in-out infinite; }
+}
+@keyframes frameGlow { 0%, 100% { opacity: 1; } 50% { opacity: 0.78; } }

@@ -739,7 +739,7 @@
     const lookContext = () => {
         const progress = loadProgress();
         const user = Auth && Auth.isConfigured() && Social ? signedUser() : null;
-        return { level: levelProgress(progress.xp).level, badges: progress.badges, user, profile: user ? myProfile : null, prefs: Look ? Look.prefs({ level: levelProgress(progress.xp).level, badges: progress.badges }) : {} };
+        return { level: levelProgress(progress.xp).level, badges: progress.badges, user, profile: user ? myProfile : null, avatarHtml, prefs: Look ? Look.prefs({ level: levelProgress(progress.xp).level, badges: progress.badges }) : {} };
     };
     const applyLook = () => { if (Look) Look.apply(lookContext()); };
     const lookBody = () => {
@@ -750,6 +750,12 @@
                 <h3 class="${ME_HEADING} mb-2">${escapeHtml(section.title)}</h3>
                 ${section.render(ctx)}
             </section>`).join('')}</div>`;
+    };
+    // Zamčený obrázek hráče (odemyká se úrovní): položka katalogu, nebo null, když je k dispozici (základní, odemčený nebo už uložený v profilu)
+    const avatarLock = (emoji) => {
+        const item = Look ? Look.find('avatars', emoji) : null;
+        if (!item || Social.AVATARS.includes(emoji) || (myProfile && myProfile.avatar === emoji) || Look.isUnlocked(item, lookContext())) return null;
+        return item;
     };
     const openSettings = (note = '', focusSelector = null, tab = null) => {
         closeChooser();
@@ -795,7 +801,11 @@
                 </label>
                 <div>
                     <p class="${ME_HEADING} mb-1.5">Obrázek</p>
-                    <div class="grid grid-cols-12 gap-1">${Social.AVATARS.map(emoji => `<button type="button" data-pick-avatar="${emoji}" aria-label="Obrázek ${emoji}" aria-pressed="${emoji === meDraft.avatar}" class="flex aspect-square items-center justify-center rounded-lg border-2 text-base active:scale-95 ${emoji === meDraft.avatar ? 'border-brand-600 bg-brand-50 dark:bg-brand-900/40' : 'border-transparent bg-white dark:bg-slate-800'}">${emoji}</button>`).join('')}</div>
+                    <div class="grid grid-cols-12 gap-1">${Social.allAvatars().map(emoji => {
+                        const lock = avatarLock(emoji);
+                        if (lock) return `<button type="button" data-locked-avatar="${emoji}" aria-disabled="true" aria-label="Obrázek ${emoji} je zamčený: Úroveň ${lock.level}" title="Úroveň ${lock.level}" class="flex aspect-square items-center justify-center rounded-lg border-2 border-transparent bg-white text-base opacity-40 grayscale dark:bg-slate-800">${emoji}</button>`;
+                        return `<button type="button" data-pick-avatar="${emoji}" aria-label="Obrázek ${emoji}" aria-pressed="${emoji === meDraft.avatar}" class="flex aspect-square items-center justify-center rounded-lg border-2 text-base active:scale-95 ${emoji === meDraft.avatar ? 'border-brand-600 bg-brand-50 dark:bg-brand-900/40' : 'border-transparent bg-white dark:bg-slate-800'}">${emoji}</button>`;
+                    }).join('')}</div>
                 </div>
                 <div>
                     <p class="${ME_HEADING} mb-1.5">Barva</p>
@@ -880,6 +890,14 @@
             if (event.target.closest('[data-open-accept]')) { closeSettings(); openAccepted(); return; }
             const devButton = event.target.closest('[data-dev]');
             if (devButton) { devApply(devButton.dataset.dev); updateControlsUI(); openSettings(`Hotovo: ${devButton.textContent.trim()}`, `[data-dev="${devButton.dataset.dev}"]`); return; }
+            const locked = event.target.closest('[data-locked-avatar]');
+            if (locked) {
+                const input = document.getElementById('profile-name');
+                if (input && meDraft) meDraft.name = input.value;
+                const item = Look.find('avatars', locked.dataset.lockedAvatar);
+                openSettings(`${item.title} se odemkne na úrovni ${item.level}.`);
+                return;
+            }
             const avatar = event.target.closest('[data-pick-avatar]');
             const color = event.target.closest('[data-pick-color]');
             if (avatar || color) {
@@ -896,6 +914,12 @@
             if (variantButton) changeVariant(variantButton.dataset.variant);
             const tierButton = event.target.closest('[data-tier]');
             if (tierButton) changeSettings({ tier: tierButton.dataset.tier }, `[data-tier="${tierButton.dataset.tier}"]`);
+        });
+        // Výběry ve Vzhledu (např. titul u jména)
+        overlay.addEventListener('change', (event) => {
+            const lookEl = event.target.closest('[data-look]');
+            const section = lookEl && Look ? Look.getSections().find(entry => entry.id === lookEl.dataset.look) : null;
+            if (section && section.change && section.change(event, lookContext())) { updateControlsUI(); openSettings('', null, 'look'); }
         });
         overlay.addEventListener('submit', (event) => {
             if (event.target.id !== 'profile-form') return;
@@ -2719,7 +2743,8 @@
     const avatarHtml = (player, size = 'h-10 w-10 text-xl', link = false) => {
         const linked = link && player && player.id;
         if (linked) knownPlayers.set(player.id, player);
-        return `<span ${linked ? `data-player-id="${escapeHtml(player.id)}" role="button" tabindex="0" aria-label="Profil hráče ${escapeHtml(playerName(player))}"` : 'aria-hidden="true"'} class="flex shrink-0 items-center justify-center rounded-full ${size} ${AVATAR_BG[player && player.color] || AVATAR_BG.emerald}${linked ? ' cursor-pointer' : ''}">${escapeHtml((player && player.avatar) || '🦊')}</span>`;
+        const frame = window.MudrlantLookFrames ? window.MudrlantLookFrames.frameClass(player && player.frame) : '';
+        return `<span ${linked ? `data-player-id="${escapeHtml(player.id)}" role="button" tabindex="0" aria-label="Profil hráče ${escapeHtml(playerName(player))}"` : 'aria-hidden="true"'} class="flex shrink-0 items-center justify-center rounded-full ${size} ${AVATAR_BG[player && player.color] || AVATAR_BG.emerald}${frame}${linked ? ' cursor-pointer' : ''}">${escapeHtml((player && player.avatar) || '🦊')}</span>`;
     };
     // Téma výzvy: „mix“ (všechna), jedno téma, nebo víc témat oddělených čárkou
     const challengeTopicIds = (topic) => topic === 'mix' ? TOPICS.map(item => item.id) : String(topic).split(',').filter(id => TOPIC_BY_ID[id]);
@@ -2791,12 +2816,41 @@
         render();
         if (myBlocked === null) { const accepts = await Social.getAccepts(user.id); myBlocked = accepts.blocked; myAcceptsMix = accepts.mix; if (document.getElementById('dialog-overlay')) render(); }
     };
+    // Rámeček a titul u jména se ukládají do účtu, ať je vidí ostatní. Po změně ve Vzhledu se pošlou; po načtení profilu se na novém zařízení
+    // (kde je volba výchozí) převezme volba z účtu a jinou zvolenou volbu zařízení se do účtu nahraje.
+    let adoptingLook = false;
+    const accountLook = (prefs) => ({ frame: prefs.frame === 'zadny' ? null : prefs.frame, title_pref: prefs.title === 'level' ? null : prefs.title });
+    const saveLookToAccount = (prefs) => {
+        const user = signedUser();
+        if (!user || !Social || !myProfile || myProfile.id !== user.id || devActive()) return;
+        const next = accountLook(prefs);
+        myProfile = { ...myProfile, ...next };
+        updateProfileButton();
+        paintChallenges();
+        Social.saveLook(user.id, { frame: next.frame, title: next.title_pref }).catch(() => {});
+    };
+    const syncLookWithAccount = () => {
+        if (!Look || !myProfile || devActive()) return;
+        const ctx = lookContext();
+        adoptingLook = true;
+        try {
+            if (ctx.prefs.frame === 'zadny' && myProfile.frame) Look.setPref('frame', myProfile.frame, ctx);
+            if (ctx.prefs.title === 'level' && myProfile.title_pref) Look.setPref('title', myProfile.title_pref, ctx);
+        } finally { adoptingLook = false; }
+        const now = Look.prefs(ctx);
+        const pushFrame = now.frame !== 'zadny' && now.frame !== (myProfile.frame || 'zadny');
+        const pushTitle = now.title !== 'level' && now.title !== (myProfile.title_pref || 'level');
+        if (pushFrame || pushTitle) saveLookToAccount({ frame: pushFrame ? now.frame : (myProfile.frame || 'zadny'), title: pushTitle ? now.title : (myProfile.title_pref || 'level') });
+        updateControlsUI();
+    };
+    if (Look) Look.onChange((prefs, key) => { if (!adoptingLook && (key === 'frame' || key === 'title')) saveLookToAccount(prefs); });
     const loadMyProfile = async () => {
         const user = signedUser();
         if (!user) { myProfile = null; return null; }
         if (myProfile && myProfile.id === user.id) return myProfile;
         try { myProfile = await Social.getProfile(user.id); } catch (error) { myProfile = null; }
         if (!myProfile) myProfile = { id: user.id, display_name: user.name, avatar: '🦊', color: 'emerald' };
+        syncLookWithAccount();
         updateProfileButton();
         syncProgress();
         if (myBlocked === null) Social.getAccepts(user.id).then(accepts => { myBlocked = accepts.blocked; myAcceptsMix = accepts.mix; paintChallenges(); });
@@ -3443,7 +3497,12 @@
         let note = '';
         const levelAndBadges = (value) => {
             const level = levelProgress(value.xp || 0).level;
-            const earned = compactBadges(expandBadges((value.badges || []).filter(id => BADGE_BY_ID[id]))).map(id => BADGE_BY_ID[id]).slice(0, 14);
+            const owned = expandBadges((value.badges || []).filter(id => BADGE_BY_ID[id]));
+            const earned = compactBadges(owned).map(id => BADGE_BY_ID[id]).slice(0, 14);
+            // Titul u jména podle volby hráče: úroveň (výchozí), nic, nebo jeden ze získaných odznaků
+            const pref = Social.cleanTitlePref(value.title_pref) || 'level';
+            if (pref === 'none') return '';
+            if (pref !== 'level' && owned.includes(pref)) return `<p class="flex items-center justify-center gap-1.5 text-sm font-bold text-brand-700 dark:text-cream">${medalHtml(BADGE_BY_ID[pref], true, 'h-7 w-7', 'h-3.5 w-3.5')} ${escapeHtml(BADGE_BY_ID[pref].title)}</p>`;
             return `<p class="text-sm font-bold text-brand-700 dark:text-cream">Úr. ${level} · ${escapeHtml(titleForLevel(level))}</p>`
                 + (earned.length ? `<div class="mt-1 flex flex-wrap justify-center gap-1.5" aria-label="Odznaky">${earned.map(badge => `<span title="${escapeHtml(`${badge.title}: ${badge.text}`)}">${medalHtml(badge, true, 'h-8 w-8', 'h-4 w-4')}</span>`).join('')}</div>` : '');
         };
