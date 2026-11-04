@@ -29,6 +29,7 @@
     <script src="look-themes.js" defer></script>
     <script src="look-robes.js" defer></script>
     <script src="look-frames.js" defer></script>
+    <script src="rating.js" defer></script>
     <script src="topics/zemepis.js" defer></script>
     <script src="topics/vlajky.js" defer></script>
     <script src="topics/historie.js" defer></script>
@@ -56,6 +57,12 @@
                 <span id="status-icon-slot" class="flex shrink-0"><img src="icons/logo.webp" alt="" class="-my-1 h-11 w-auto drop-shadow-md"></span>
                 <span id="status-text" class="line-clamp-2 break-words text-left uppercase leading-tight text-[11px] text-slate-700 dark:text-slate-200">Mudrlant</span>
                 <span id="status-switch" class="hidden shrink-0"><i data-lucide="chevron-down" class="w-4 h-4"></i></span>
+            </button>
+
+            <!-- Sova chce něco říct: malá bublinka u loga, po klepnutí dnešní zajímavost (ukazuje se jen když zajímavost existuje) -->
+            <button id="fact-hint" type="button" class="hidden absolute left-[0.9rem] top-[-0.2rem] z-10 h-10 w-10 items-center justify-center active:scale-95" title="Sova ti chce říct dnešní zajímavost" aria-label="Dnešní zajímavost">
+                <span aria-hidden="true" class="pointer-events-none absolute inset-1 rounded-full bg-gold-300/70 blur-md motion-safe:animate-pulse"></span>
+                <img src="icons/topics/napoveda.webp" alt="" class="fact-bulb relative h-9 w-9 -rotate-12 object-contain drop-shadow-[0_0_6px_rgba(239,197,92,0.9)]">
             </button>
 
             <div class="flex shrink-0 gap-1.5">

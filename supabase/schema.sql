@@ -177,3 +177,129 @@ create policy "výsledky: zapisuje hráč sám" on public.challenge_results for 
         and points <= 4 * (select c.count from public.challenges c where c.id = challenge_id)
     );
 create index if not exists challenge_results_user_idx on public.challenge_results (user_id, finished_at desc);
+
+-- ===== Rating (ELO), ligy a týdenní žebříček =====
+-- Rating je oddělený od úrovně (XP): mění se jen výsledky výzev proti jinému hráči, nikdy sólovou hrou.
+-- Počítá ho databáze sama (trigger níže), klient do sloupce rating psát nemůže.
+alter table public.profiles add column if not exists rating integer not null default 1000;
+alter table public.profiles add column if not exists rated_games integer not null default 0;
+alter table public.profiles drop constraint if exists profiles_rating_range;
+alter table public.profiles add constraint profiles_rating_range check (rating between 100 and 5000);
+
+-- Liga podle ratingu (stejné hranice jako v rating.js): bronz, stribro, zlato, platina, diamant, mistr
+create or replace function public.rating_league(r integer) returns text
+language sql immutable as $$
+    select case
+        when r >= 1700 then 'mistr'
+        when r >= 1550 then 'diamant'
+        when r >= 1400 then 'platina'
+        when r >= 1250 then 'zlato'
+        when r >= 1100 then 'stribro'
+        else 'bronz'
+    end;
+$$;
+
+-- Záznam jednoho hráče o jedné ohodnocené výzvě; (výzva, hráč) je jedinečné, takže se výzva nikdy nepočítá dvakrát
+create table if not exists public.rating_history (
+    challenge_id text not null references public.challenges (id) on delete cascade,
+    user_id uuid not null references public.profiles (id) on delete cascade,
+    opponent_id uuid references public.profiles (id) on delete set null,
+    outcome text not null check (outcome in ('win', 'loss', 'draw')),
+    delta integer not null,
+    rating_after integer not null,
+    capped boolean not null default false,
+    created_at timestamptz not null default now(),
+    primary key (challenge_id, user_id)
+);
+create index if not exists rating_history_week_idx on public.rating_history (created_at desc);
+create index if not exists rating_history_pair_idx on public.rating_history (user_id, opponent_id, created_at desc);
+alter table public.rating_history enable row level security;
+drop policy if exists "rating: čtení pro přihlášené" on public.rating_history;
+create policy "rating: čtení pro přihlášené" on public.rating_history for select to authenticated using (true);
+-- zápis jen přes trigger (security definer); klientovi žádná politika pro zápis nepatří
+revoke insert, update, delete on public.rating_history from anon, authenticated;
+
+-- Klient rating přepsat nesmí: při změně z role authenticated/anon se hodnota vrátí zpět
+create or replace function public.protect_rating() returns trigger
+language plpgsql as $$
+begin
+    if current_user in ('authenticated', 'anon') then
+        new.rating := old.rating;
+        new.rated_games := old.rated_games;
+    end if;
+    return new;
+end;
+$$;
+drop trigger if exists profiles_protect_rating on public.profiles;
+create trigger profiles_protect_rating before update on public.profiles for each row execute function public.protect_rating();
+
+-- Ohodnocení výzvy: jakmile mají výsledek přesně dva hráči (tvůrce a soupeř), spočítá se ELO (K = 24).
+-- Vítěz je ten s víc správnými, při shodě s víc body; shoda obojího = remíza. Třetí a další hráč s kódem už rating nemění.
+-- Tytéž dva hráči si za 7 dní započítají nejvýš 3 výzvy (jinak se výzva zapíše se změnou 0), aby se rating nedal „farmit“.
+create or replace function public.rate_challenge() returns trigger
+language plpgsql security definer set search_path = public as $$
+declare
+    other public.challenge_results%rowtype;
+    a_id uuid; b_id uuid;
+    ra integer; rb integer;
+    score_a numeric; expected_a numeric;
+    da integer; out_a text; out_b text;
+    is_capped boolean;
+begin
+    perform pg_advisory_xact_lock(hashtext('rating:' || new.challenge_id));
+    if (select count(*) from public.challenge_results where challenge_id = new.challenge_id) <> 2 then return null; end if;
+    if exists (select 1 from public.rating_history where challenge_id = new.challenge_id) then return null; end if;
+    select * into other from public.challenge_results where challenge_id = new.challenge_id and user_id <> new.user_id;
+    if not found then return null; end if;
+    -- A = ten, kdo výzvu dohrál první (stabilní pořadí), B = ten, kdo ji právě dohrál
+    a_id := other.user_id; b_id := new.user_id;
+    perform 1 from public.profiles where id in (a_id, b_id) order by id for update;
+    select rating into ra from public.profiles where id = a_id;
+    select rating into rb from public.profiles where id = b_id;
+    if ra is null or rb is null then return null; end if;
+    if other.correct <> new.correct then score_a := case when other.correct > new.correct then 1 else 0 end;
+    elsif other.points <> new.points then score_a := case when other.points > new.points then 1 else 0 end;
+    else score_a := 0.5; end if;
+    is_capped := (select count(*) from public.rating_history where user_id = a_id and opponent_id = b_id and created_at > now() - interval '7 days') >= 3;
+    expected_a := 1 / (1 + power(10::numeric, (rb - ra)::numeric / 400));
+    da := case when is_capped then 0 else round(24 * (score_a - expected_a))::integer end;
+    -- součet změn je nulový; rating neklesne pod 100
+    da := greatest(da, 100 - ra);
+    da := least(da, rb - 100);
+    out_a := case when score_a = 1 then 'win' when score_a = 0 then 'loss' else 'draw' end;
+    out_b := case when score_a = 1 then 'loss' when score_a = 0 then 'win' else 'draw' end;
+    update public.profiles set rating = ra + da, rated_games = rated_games + 1 where id = a_id;
+    update public.profiles set rating = rb - da, rated_games = rated_games + 1 where id = b_id;
+    insert into public.rating_history (challenge_id, user_id, opponent_id, outcome, delta, rating_after, capped)
+    values (new.challenge_id, a_id, b_id, out_a, da, ra + da, is_capped),
+           (new.challenge_id, b_id, a_id, out_b, -da, rb - da, is_capped)
+    on conflict do nothing;
+    return null;
+end;
+$$;
+drop trigger if exists challenge_results_rate on public.challenge_results;
+create trigger challenge_results_rate after insert on public.challenge_results for each row execute function public.rate_challenge();
+revoke all on function public.rate_challenge() from public, anon, authenticated;
+
+-- Týdenní žebříček: top 20 podle součtu změn ratingu od pondělí 00:00 (Praha); při shodě víc výher, pak vyšší rating.
+-- Vrací jen veřejné údaje hráče.
+drop function if exists public.weekly_leaderboard();
+create or replace function public.weekly_leaderboard() returns table (
+    id uuid, display_name text, avatar text, color text, frame text, title_pref text, xp integer,
+    rating integer, league text, week_delta integer, week_wins integer, week_games integer
+)
+language sql stable security definer set search_path = public as $$
+    with week as (
+        select h.user_id, sum(h.delta)::integer as delta, (count(*) filter (where h.outcome = 'win'))::integer as wins, count(*)::integer as games
+        from public.rating_history h
+        where h.created_at >= (date_trunc('week', now() at time zone 'Europe/Prague') at time zone 'Europe/Prague')
+        group by h.user_id
+    )
+    select p.id, p.display_name, p.avatar, p.color, p.frame, p.title_pref, p.xp, p.rating, public.rating_league(p.rating), w.delta, w.wins, w.games
+    from week w join public.profiles p on p.id = w.user_id
+    where auth.uid() is not null
+    order by w.delta desc, w.wins desc, p.rating desc, p.display_name
+    limit 20;
+$$;
+revoke all on function public.weekly_leaderboard() from public, anon;
+grant execute on function public.weekly_leaderboard() to authenticated;

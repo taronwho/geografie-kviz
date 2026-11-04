@@ -1,6 +1,7 @@
 // Téma Fyzika: data/fyzika.json z Wikidat (přes QLever) – fyzikální veličiny, jednotky, vesmír, fyzici
 // Spuštění: npm run build:fyzika (s BUILD_CACHE=složka jde pravidla ladit bez opakovaného stahování)
 import { qlever, id, values, imageFields, yearOf, compact, cached, inBatches, writeTopic } from './lib/wikidata.mjs';
+import { landByDescription } from './lib/nationality.mjs';
 
 const PHYSICIST = 'Q169470';
 const NOBEL_PHYSICS = 'Q38104';
@@ -275,7 +276,7 @@ for (const [qid] of candidates.physicists) {
         q: qid, t: detail.t, n: detail.n, c: 'fyzici', k: rank < LIMITS.fyzici.known || isCzech ? 1 : 0,
         ty: detail.sex === FEMALE ? 'fyzička' : 'fyzik', sx: detail.sex === FEMALE ? 'f' : undefined, d: detail.d, cz: isCzech ? 1 : undefined,
         ...imageFields(detail.im),
-        f: { born, died: yearOf(detail.died), land: (detail.cit || []).map(cs).filter(Boolean)[0], nobel: nobel ? 1 : undefined, y: born + 35 }
+        f: { born, died: yearOf(detail.died), land: landByDescription(detail.d, (detail.cit || []).map(cs)), nobel: nobel ? 1 : undefined, y: born + 35 }
     });
     if (added) rank++;
 }

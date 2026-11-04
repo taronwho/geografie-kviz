@@ -130,11 +130,19 @@
     // Kmeny slova pro skloňované tvary a odvozená přídavná jména:
     // Praha → Prah/Praz/Praž (Praze, pražský), Korea → Kore/Kor (Koreji), Itálie → Itál/Ital (italský),
     // Sněžka → Sněžk/Sněžc, Hradec → Hradc, Plzeň → Plzn
+    // Přídavná jména, která se z názvu nedají odvodit pravidlem (Kypr → kyperský, Bosna → bosenský)
+    const SPECIAL_STEMS = { kypr: ['Kyper'], bosna: ['Bosen'], mauritius: ['Mauricij', 'Mauric'], 'srí': ['Srílan'], lanka: ['Lansk'] };
     const getWordStems = (word) => {
         const stems = new Set([word.replace(/[aeiouyáéěíóúůý]$/iu, ''), word.replace(/[aeiouyáéěíóúůý]+$/iu, '')]);
         // Rody a národy v množném čísle: Přemyslovci → Přemyslovec, přemyslovský; Lucemburkové → Lucemburk, Lucemburků
         if (word.length >= 7 && /ovci$/iu.test(word)) stems.add(word.slice(0, -2));
         if (word.length >= 7 && /ové$/iu.test(word)) stems.add(word.slice(0, -3));
+        // Kyrgyzstán → kyrgyzský, Tádžikistán → tádžický: bez koncovky -stán; Jamajka → jamajský
+        if (word.length >= 8 && /stán$/iu.test(word)) stems.add(word.replace(/i?stán$/iu, ''));
+        if (word.length >= 6 && /jka$/iu.test(word)) stems.add(word.slice(0, -2));
+        (SPECIAL_STEMS[word.toLowerCase()] || []).forEach(stem => stems.add(stem));
+        // Litva → litevský, Moldava → moldavský: souhláska + va se v přídavném jménu rozšíří na -ev- (Litev…)
+        if (word.length >= 4 && /[^aeiouyáéěíóúůý]va$/iu.test(word)) stems.add(`${word.slice(0, -2)}ev`);
         // Přídavná jména od míst (kubánský → Kuba, mexický → Mexiko, kanadský → Kanada, africký → Afrika)
         const place = /^\p{Ll}/u.test(word) && word.length >= 7 && word.match(/^(.{3,}?)(?:ánsk|ansk|ijsk|sk)[ýáéí]$|^(.{3,}c)k[ýáéí]$/u);
         if (place) {
@@ -290,8 +298,39 @@
         const description = descriptionParts.join(' ') || cleanExtract.replaceAll(KEPT_DOT, '.').trim().slice(0, 300);
         // Bez zajímavostí se sekce prostě nezobrazí (výplňová věta by se tvářila jako zajímavost)
         const funFacts = sentences.slice(index).filter(s => s.length > 30).slice(0, 3);
+        // Další věty úvodu hned za popisem (nejvýš tři, do ~420 znaků): pozdější nápověda s víc textem k hádání
+        const moreParts = [];
+        for (const sentence of sentences.slice(index)) {
+            if (moreParts.length >= 3 || moreParts.join(' ').length + sentence.length > 420) break;
+            moreParts.push(sentence);
+        }
+        const more = moreParts.join(' ');
 
-        return { description, funFacts };
+        return { description, funFacts, more };
+    };
+
+    // Věty textu, které říkají totéž co nápověda „Fakta“ (hlavní město, počet obyvatel, rozloha, rok…): z nápovědy s dalšími
+    // větami se vyřadí, ať hráč nedostane fakta dřív, než si o ně řekne. Čísla se porovnávají jen přítomností (text je často
+    // zaokrouhluje jinak: 208 000 km² × 207 597 km²), slova podle prvních pěti písmen.
+    const stripFactSentences = (text, facts) => {
+        const values = (facts || []).map(fact => String(fact.value));
+        const hasNumbers = values.some(value => /\d/.test(value));
+        const words = new Set(values.flatMap(value => (value.match(/\p{L}{4,}/gu) || []).map(word => word.toLowerCase().slice(0, 5))));
+        return String(text || '').split(/(?<=[.!?])\s+(?=\p{Lu}|\[)/u).filter(sentence => {
+            if (hasNumbers && /\d/.test(sentence)) return false;
+            return !(sentence.match(/\p{L}{4,}/gu) || []).some(word => words.has(word.toLowerCase().slice(0, 5)));
+        }).join(' ');
+    };
+
+    // Chudá otázka, kterou se nepodařilo vyměnit: první fakta (rok, země, obor) se ukážou hned v okně, ne až po nápovědě
+    const LEAD_FACTS = 3;
+    const takeLeadFacts = (hints) => {
+        const index = hints.findIndex(hint => hint.kind === 'facts' && !hint.extra);
+        if (index < 0) return { hints, leadFacts: [] };
+        const leadFacts = hints[index].facts.slice(0, LEAD_FACTS);
+        const rest = hints[index].facts.slice(LEAD_FACTS);
+        const next = rest.length ? hints.map((hint, i) => i === index ? { ...hint, facts: rest } : hint) : hints.filter((_, i) => i !== index);
+        return { hints: next, leadFacts };
     };
 
     // Odpovědi porovnáváme bez diakritiky, velikosti písmen a závorek, s tolerancí drobných překlepů
@@ -1123,7 +1162,7 @@
         escapeHtml, stripBrackets, isRealPhoto, commonsPhotoUrl, commonsFileUrl, displayName, plural, formatPoints,
         getDayKey, shiftDayKey, formatDayKey, createSeededRandom, pickRandom, shuffle,
         ELEMENT_FAMILIES, elementFamily, periodicPosition,
-        setCountries, landOf, cultureScore, getWordStems, censorName, mergeCensored, censorCountry, isKnownCountry, processWikiText, normalizeAnswer, levenshtein, isAnswerMatch, isSymbolMatch, isCenturyMatch, isFormulaMatch, formulaCounts, checkAnswer,
+        setCountries, landOf, cultureScore, getWordStems, censorName, mergeCensored, censorCountry, isKnownCountry, processWikiText, stripFactSentences, takeLeadFacts, normalizeAnswer, levenshtein, isAnswerMatch, isSymbolMatch, isCenturyMatch, isFormulaMatch, formulaCounts, checkAnswer,
         inCollection, filterItems, pickItem, sortItems, getCountryNames, getContinent, continentAt, getCountryAliases,
         distanceKm, nearness, STATE_STEPS, sharesGroup, eraNearness, personSimilarity, rankBySimilarity, takeDistinct,
         buildItemChoices, buildCountryChoices, findAnswerItem, findAnswerCountry, updateMistakes, nameAnswers, countryAnswers,

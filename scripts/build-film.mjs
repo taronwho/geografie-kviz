@@ -1,6 +1,7 @@
 // Téma Film: data/film.json z Wikidat – filmy, režiséři, herci a herečky
 // Spuštění: npm run build:film (s BUILD_CACHE=složka jde pravidla ladit bez opakovaného stahování)
 import { sparql, id, values, imageFields, yearOf, compact, cached, inBatches, writeTopic } from './lib/wikidata.mjs';
+import { landsByDescription } from './lib/nationality.mjs';
 
 const HUMAN = 'Q5';
 const FEMALE = 'Q6581072';
@@ -279,8 +280,8 @@ for (const [qid, links] of candidates.films) {
             year,
             dq: sure ? 1 : undefined,
             gen: genres.filter(genre => genre !== 'animovaný film').slice(0, 2),
-            // Česko a Československo první (Tři oříšky pro Popelku jsou i německé)
-            land: [...countries].sort((a, b) => (CZECH_FILM_STATES.has(b) ? 1 : 0) - (CZECH_FILM_STATES.has(a) ? 1 : 0)).map(cs).filter(Boolean).slice(0, 2),
+            // Napřed země z popisu („britský film“; Wikidata je řadí náhodně), pak Česko a Československo (Tři oříšky pro Popelku jsou i německé)
+            land: landsByDescription(detail.d, [...countries].sort((a, b) => (CZECH_FILM_STATES.has(b) ? 1 : 0) - (CZECH_FILM_STATES.has(a) ? 1 : 0)).map(cs).filter(Boolean)).slice(0, 2),
             dir: directorIds.slice(0, 2).map(personName),
             dq1: directorIds.length === 1 ? directorIds[0] : undefined,
             cast: cast.slice(0, 4).map(personName),

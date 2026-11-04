@@ -619,3 +619,42 @@ test('odznaky: skupiny se stupni, podmínky podle počítadel a postupu', () => 
     assert.deepEqual([...core.expandBadges(compact)].sort(), [...many].sort());
     assert.deepEqual(core.expandBadges(['stovka']).sort(), ['odpovedi-10', 'odpovedi-50', 'prvni-krok', 'stovka'].sort());
 });
+
+test('processWikiText: další věty úvodu jdou stranou jako pozdější nápověda', () => {
+    const { description, more } = core.processWikiText('Jan Novák byl český politik a spisovatel, který dlouho působil ve veřejném životě a byl znám po celé zemi i v zahraničí. Narodil se ve středních Čechách. Studoval práva v Praze. Po válce vstoupil do vlády. Zemřel v Brně.');
+    assert.match(description, /^Jan Novák byl český politik.*zahraničí\.$/);
+    assert.ok(!more.includes('politik a spisovatel'));
+    assert.match(more, /^Narodil se/);
+    assert.ok(!core.processWikiText('Krátký popis jedné věci.').more);
+});
+
+test('takeLeadFacts: první fakta chudé otázky se přesunou z nápovědy do okna', () => {
+    const facts = [{ label: 'Narozen', value: '1950' }, { label: 'Země', value: 'Polsko' }, { label: 'Obor', value: 'chemie' }, { label: 'Zemřel', value: '2010' }];
+    const hints = [{ kind: 'photo' }, { kind: 'facts', facts, label: 'čísla a fakta' }];
+    const result = core.takeLeadFacts(hints);
+    assert.deepEqual(result.leadFacts, facts.slice(0, 3));
+    assert.deepEqual(result.hints[1].facts, [facts[3]]);
+    assert.deepEqual(hints[1].facts, facts, 'původní nápovědy se nemění');
+    // Zbyla-li jen tři fakta, nápověda zmizí; vlastní nápověda tématu (extra) a plán bez faktů se nechají být
+    assert.deepEqual(core.takeLeadFacts([{ kind: 'facts', facts: facts.slice(0, 2) }]), { hints: [], leadFacts: facts.slice(0, 2) });
+    const extra = [{ kind: 'facts', facts, extra: true }];
+    assert.deepEqual(core.takeLeadFacts(extra), { hints: extra, leadFacts: [] });
+});
+
+test('zakrývání: Litva se zakryje i v přídavném jménu (Litevská republika)', () => {
+    const text = 'Litva, plným názvem Litevská republika, je pobaltský stát v Evropě.';
+    const hidden = core.censorName(text, 'Litva');
+    assert.doesNotMatch(hidden, /Lit/);
+    assert.match(hidden, /pobaltský stát/);
+    assert.doesNotMatch(core.censorName('Litevští králové vládli v Litvě.', 'Litva'), /Lit/);
+    for (const [name, adjective] of [['Bosna a Hercegovina', 'Bosenská'], ['Kyrgyzstán', 'Kyrgyzská'], ['Tádžikistán', 'Tádžická'], ['Uzbekistán', 'Uzbecká'], ['Jamajka', 'Jamajská'], ['Kypr', 'Kyperská'], ['Mauritius', 'Mauricijská'], ['Srí Lanka', 'Srílanská']]) {
+        assert.doesNotMatch(core.censorName(`Stát ${adjective} republika leží.`, name), new RegExp(adjective.slice(0, 5)), `${name}: ${adjective}`);
+    }
+});
+
+test('další věty nápovědy neříkají totéž co nápověda Fakta (hlavní město, počet obyvatel, rozloha)', () => {
+    const facts = [{ label: 'Hlavní město', value: 'Minsk' }, { label: 'Počet obyvatel', value: '9,1 mil.' }, { label: 'Rozloha', value: '207 597 km²' }];
+    const text = 'Je to relativně rovinatý stát s rozsáhlými bažinatými oblastmi. Země se dělí na šest oblastí, na ploše asi 208 000 km² žije 9,2 milionu obyvatel. Hlavním a největším městem je Minsk.';
+    assert.equal(core.stripFactSentences(text, facts), 'Je to relativně rovinatý stát s rozsáhlými bažinatými oblastmi.');
+    assert.equal(core.stripFactSentences('Text bez čísel a jmen.', []), 'Text bez čísel a jmen.');
+});

@@ -3,7 +3,7 @@
 // a otevřenou aplikaci obnoví (jinak by se o nové verzi nedozvěděla)
 const CACHE_NAME = 'mudrlant-v3';
 const APP_SHELL = [
-    './', 'index.html', 'styles.css', 'config.js', 'auth.js', 'social.js', 'icons.js', 'quiz-core.js', 'visuals.js', 'look.js', 'look-themes.js', 'look-robes.js', 'look-frames.js', 'app.js', 'manifest.webmanifest',
+    './', 'index.html', 'styles.css', 'config.js', 'auth.js', 'social.js', 'icons.js', 'quiz-core.js', 'visuals.js', 'look.js', 'look-themes.js', 'look-robes.js', 'look-frames.js', 'rating.js', 'app.js', 'manifest.webmanifest',
     'topics/zemepis.js', 'data/zemepis.json', 'topics/historie.js', 'data/historie.json', 'topics/biologie.js', 'data/biologie.json',
     'topics/chemie.js', 'data/chemie.json', 'topics/fyzika.js', 'data/fyzika.json',
     'topics/vlajky.js', 'data/vlajky.json', 'topics/mytologie.js', 'data/mytologie.json', 'topics/geologie.js', 'data/geologie.json',

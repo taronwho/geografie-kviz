@@ -218,7 +218,7 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         assert.equal(shared, 'Mudrlant · 🌍 Zeměpis · 16. 10. 2026\n✅ 1 bod · nápovědy 3/3\n🔥 Série: 1\nhttps://geo.test/');
 
         // Po dnešní otázce nabízí další dnešní otázku z jiného tématu, nebo návrat do menu
-        assert.match(await tab.textContent('[data-action="next"]'), /Další dnešní: Vlajky a znaky/);
+        assert.match(await tab.textContent('[data-action="next"]'), /Další dnešní: (?!Zeměpis)\S/, 'další dnešní téma je jiné než odehrané');
         await tab.click('[data-action="daily-home"]');
         await waitForHome(tab);
         // Zeměpis je odehraný a série běží; tlačítko nahoře pokračuje ve zbývajících dnešních otázkách
@@ -334,7 +334,11 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         const data = await readRound(tab);
         assert.equal(data.name, 'Švýcarsko');
         assert.equal(data.question.type, 'name');
-        assert.deepEqual(hintKeys(data), ['visual', 'facts'], 'stát bez fotky');
+        assert.deepEqual(hintKeys(data), ['excerpt', 'visual', 'facts'], 'stát bez fotky');
+        assert.doesNotMatch(await tab.textContent('p.italic'), /Švýcar|švýcar/);
+        // Nejdřív další věty článku (bez jména), pak slepá mapa
+        assert.match(await tab.textContent('[data-action="hint"]'), /Další věty[\s\S]*pak \d+ bod/);
+        await tab.click('[data-action="hint"]');
         assert.doesNotMatch(await tab.textContent('p.italic'), /Švýcar|švýcar/);
         await tab.click('[data-action="hint"]');
         await tab.waitForSelector('#hint-visual path.fill-emerald-400');
@@ -347,8 +351,8 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         await tab.fill('#answer-input', 'svycarsko');
         await tab.press('#answer-input', 'Enter');
         await waitForResult(tab);
-        // Dvě nápovědy z 4 bodů ubraly 2, psaná odpověď dvojnásobek
-        assert.match(await appText(tab), /Správně! \+4 body/);
+        // Tři nápovědy (další věty, mapa, fakta) z 4 bodů ubraly 3, psaná odpověď dvojnásobek
+        assert.match(await appText(tab), /Správně! \+2 body/);
         assert.match(await appText(tab), /Evropa/);
         assert.deepEqual(log.errors, []);
         assert.deepEqual(log.csp, []);
@@ -656,8 +660,9 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         assert.equal(data.question.type, 'name');
         assert.equal(await tab.textContent('h2'), 'Kdo to je?');
         assert.equal(await tab.getAttribute('#answer-input', 'placeholder'), 'Napiš jméno…');
-        assert.deepEqual(hintKeys(data), ['photo', 'visual', 'facts']);
+        assert.deepEqual(hintKeys(data), ['excerpt', 'photo', 'visual', 'facts']);
         assert.ok(!(await tab.textContent('p.italic')).includes(data.name));
+        await tab.click('[data-action="hint"]');
         await tab.click('[data-action="hint"]');
         assert.match(await tab.textContent('[data-action="hint"]'), /časová osa/i);
         await tab.click('[data-action="hint"]');
@@ -814,7 +819,8 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         const element = await readRound(second.tab);
         assert.equal(element.question.type, 'name');
         assert.equal(await second.tab.textContent('h2'), 'Který prvek to je?');
-        assert.deepEqual(hintKeys(element), ['photo', 'visual', 'facts']);
+        assert.deepEqual(hintKeys(element), ['excerpt', 'photo', 'visual', 'facts']);
+        await second.tab.click('[data-action="hint"]');
         await second.tab.click('[data-action="hint"]');
         assert.match(await second.tab.textContent('[data-action="hint"]'), /periodická tabulka/i);
         await second.tab.click('[data-action="hint"]');
@@ -878,7 +884,7 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         const person = await readRound(second.tab);
         assert.equal(person.question.type, 'name');
         assert.equal(await second.tab.textContent('h2'), 'Kdo to je?');
-        await second.tab.click('[data-action="hint"]');
+        for (let i = 0; i < hintKeys(person).indexOf('visual') + 1; i++) await second.tab.click('[data-action="hint"]');
         await second.tab.waitForSelector('#hint-visual svg rect');
         assert.match(await second.tab.textContent('#hint-visual svg'), /život/);
         const wrong = person.question.choices.find(choice => !choice.correct);
