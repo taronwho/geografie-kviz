@@ -140,12 +140,28 @@
         // Kyrgyzstán → kyrgyzský, Tádžikistán → tádžický: bez koncovky -stán; Jamajka → jamajský
         if (word.length >= 8 && /stán$/iu.test(word)) stems.add(word.replace(/i?stán$/iu, ''));
         if (word.length >= 6 && /jka$/iu.test(word)) stems.add(word.slice(0, -2));
+        // Zápolský → Zápolští, Nasavská → Nasavští, Německý → Němečtí: množné číslo rodu na -ský/-cký mění sk → št, ck → čt
+        if (word.length >= 6 && /[sc]k[ýáé]$/iu.test(word)) stems.add(`${word.slice(0, -3)}${/c/iu.test(word.slice(-3, -2)) ? 'čt' : 'št'}`);
+        // Přemyslovna → Přemyslovci (rod), Meitnerová → Meitner (příjmení bez ženské přípony)
+        if (word.length >= 8 && /ovna$/iu.test(word)) stems.add(word.slice(0, -2));
+        if (word.length >= 7 && /ová$/iu.test(word)) stems.add(word.slice(0, -3));
         (SPECIAL_STEMS[word.toLowerCase()] || []).forEach(stem => stems.add(stem));
         // Litva → litevský, Moldava → moldavský: souhláska + va se v přídavném jménu rozšíří na -ev- (Litev…)
         if (word.length >= 4 && /[^aeiouyáéěíóúůý]va$/iu.test(word)) stems.add(`${word.slice(0, -2)}ev`);
+        // Krátké jméno zakončené samohláskou (Frey, Búri, Peru) se skloňuje od celého slova: Freyem, Búriho, Peruánec
+        if (word.length >= 4 && word.length <= 5 && /^\p{Lu}/u.test(word) && /[aeiouyáéěíóúůý]$/iu.test(word) && word.replace(/[aeiouyáéěíóúůý]+$/iu, '').length < 4) stems.add(word);
+        // Přídavné jméno od podstatného: stříbrný → stříbr(a), dusičná → dusič(nan); podstatné na -ec/-ek: vápenec → vápen(atý),
+        // prachovec → prachov(á), pazourek → pazour(ový). Jen delší slova a kmen aspoň o pěti písmenech, ať se nezakrývají běžná slova.
+        if (word.length >= 7 && /[^aeiouyáéíóúůýě]n[ýáé]$/iu.test(word)) stems.add(word.slice(0, -2));
+        if (word.length >= 7 && /[^aeiouyáéíóúůýě](?:ec|ek)$/iu.test(word) && !/(?:ec|ek)$/u.test(word.slice(0, -2))) stems.add(word.slice(0, -2));
+        // Řecká jména na -os/-us se skloňují od kmene s -ov-: Fobos → Fobovi, Fobovým
+        if (word.length >= 5 && word.length <= 8 && /^\p{Lu}.*(?:os|us)$/u.test(word)) { stems.add(`${word.slice(0, -2)}ov`); stems.add(word.slice(0, -2)); }
+        // Latinské a řecké koncovky: Carcharodontosaurus → Carcharodontosauridae, Aepyceros → Aepycerotinae, Hippolytos → Hippolyta
+        if (word.length >= 8 && /(?:us|um|os|is)$/iu.test(word)) stems.add(word.slice(0, -2));
         // Přídavná jména od míst (kubánský → Kuba, mexický → Mexiko, kanadský → Kanada, africký → Afrika)
-        const place = /^\p{Ll}/u.test(word) && word.length >= 7 && word.match(/^(.{3,}?)(?:ánsk|ansk|ijsk|sk)[ýáéí]$|^(.{3,}c)k[ýáéí]$/u);
-        if (place) {
+        // i velkým písmenem na začátku názvu (Malajský poloostrov → Malajsie, Bavorský → Bavorsko), jen s kmenem aspoň 4 písmena
+        const place = word.length >= 7 && word.match(/^(.{3,}?)(?:ánsk|ansk|ijsk|sk)[ýáéí]$|^(.{3,}c)k[ýáéí]$/u);
+        if (place && (/^\p{Ll}/u.test(word) || (place[1] || place[2]).length >= 4)) {
             stems.add(place[1] || place[2]);
             if (place[2]) stems.add(place[2].slice(0, -1) + 'k');
         }
@@ -170,6 +186,12 @@
     const UMLAUTS = { 'ö': 'oe', 'ü': 'ue', 'ä': 'ae', 'Ö': 'Oe', 'Ü': 'Ue', 'Ä': 'Ae' };
     const UMLAUTS_BACK = { oe: 'ö', ue: 'ü', ae: 'ä' };
     const withoutDiacritics = (text) => text.normalize('NFD').replace(/\p{M}/gu, '').normalize('NFC');
+    // Delší kmen se najde i s jinou čárkou nebo háčkem v samohlásce: Babylonie × Babylón, Valentinianus × valentiniánská
+    const VOWEL_VARIANTS = { a: 'aáà', e: 'eéěè', i: 'iíì', o: 'oóô', u: 'uúůù', y: 'yý' };
+    const accentTolerant = (stem) => [...stem].map(letter => {
+        const base = letter.normalize('NFD')[0].toLowerCase();
+        return VOWEL_VARIANTS[base] && !/[ăâîôûäöü]/iu.test(letter) ? `[${VOWEL_VARIANTS[base]}]` : escapeRegExp(letter);
+    }).join('');
     const buildWordsPattern = (words, phrases = []) => {
         // Celé víceslovné názvy doslova (Si-an, Wu-i – po slovech by byly moc krátké)
         const parts = phrases.map(phrase => escapeRegExp(phrase));
@@ -184,7 +206,7 @@
             for (const variant of [umlauts, plain]) if (variant !== word && variant.length >= 3) forms.push(variant);
             for (const form of forms) parts.push(escapeRegExp(form));
             for (const stem of getWordStems(word)) {
-                parts.push(escapeRegExp(stem) + (stem.length >= 4 ? '\\p{L}*' : SHORT_STEM_ENDINGS));
+                parts.push((stem.length >= 6 ? accentTolerant(stem) : escapeRegExp(stem)) + (stem.length >= 4 ? '\\p{L}*' : SHORT_STEM_ENDINGS));
                 if (FOREIGN_DIACRITICS.test(stem)) parts.push(escapeRegExp(withoutDiacritics(stem)) + (stem.length >= 4 ? '\\p{L}*' : SHORT_STEM_ENDINGS));
             }
         }
@@ -196,7 +218,8 @@
     const isAbbreviation = (word) => /^\p{Lu}{2,4}$/u.test(word);
 
     const censorWords = (text, phrase) => {
-        const words = stripBrackets(phrase).trim().split(/[\s,\-–]+/);
+        // Dvojtečka, středník a uvozovky ve slovech neruší (Pán prstenů: Návrat krále – „prstenů:“ jinak kmen nenajde)
+        const words = stripBrackets(phrase).trim().split(/[\s,\-–:;!?„“”"…\/]+/).filter(Boolean);
         const abbreviations = words.filter(word => isAbbreviation(word) && !isRomanNumeral(word));
         const hyphenated = stripBrackets(phrase).split(',').map(name => name.trim()).filter(name => /\p{L}[\-–]\p{L}/u.test(name));
         const pattern = buildWordsPattern(words.filter(word => !isAbbreviation(word)), hyphenated);
@@ -216,6 +239,8 @@
     // Iniciály těsně před zakrytým jménem (C. S. [***], J. R. R. [***]) by jméno prozradily – patří k němu
     const mergeCensored = (text) => text
         .replace(/(?<![\p{L}\d])(?:\p{Lu}\.\s?){1,4}(?=\[\*\*\*\])/gu, '')
+        // Saint, Sankt, San, St. těsně před zakrytým jménem (Saint [***] u St. Louis) je jeho součást
+        .replace(/(?<![\p{L}\d])(?:Saint|Sankt|Santa|Santo|San|São|St\.|Sv\.)\s+(?=\[\*\*\*\])/gu, '')
         .replace(/\[\*\*\*\](?:[\s\-–]+\[\*\*\*\])+/g, '[***]');
 
     const censorName = (text, name) => {
@@ -322,6 +347,43 @@
         }).join(' ');
     };
 
+    // Podíl zakrytých míst ve slovech textu: věta jako „[***] práci konanou [***] silou“ (zakryté víc než ~30 %) nedává smysl
+    const MAX_CENSORED_SHARE = 0.3;
+    const countRealWords = (text) => String(text || '').replace(/\[\*\*\*\]/g, ' ').split(/\s+/).filter(word => /\p{L}/u.test(word)).length;
+    const censoredShare = (text) => {
+        const marks = (String(text || '').match(/\[\*\*\*\]/g) || []).length;
+        const total = marks + countRealWords(text);
+        return total ? marks / total : 0;
+    };
+    // Popis, jehož zakrytá verze je skoro samá mezera, nahradí následující věty úvodu, které se zakrývají méně
+    // (a mají aspoň minWords skutečných slov); přeskočená věta i použité věty z dalších vět zmizí.
+    // censor = zakrytí textu tak, jak ho uvidí hráč; startOk = smí věta začínat popis (ne „Jeho…“, „Ten…“)?
+    const splitSentences = (text) => String(text || '').split(/(?<=[.!?])\s+(?=\p{Lu}|\d)/u).filter(Boolean);
+    // Kolik slov psaných malým písmenem ze zadání zakrytí odstranilo (běžné slovo v názvu, např. „práci“ a „silou“ u Mechanické práce);
+    // zakrytý výčet jmen (Marie Salomea [***], rozená [***]) smysl neztrácí, běžná slova ano
+    const maskedCommonWords = (original, censored) => {
+        const lowercase = (text) => (String(text).match(/(?<![\p{L}\p{N}])\p{Ll}[\p{L}\p{N}'’]*/gu) || []).map(normalizeAnswer);
+        const left = new Map();
+        for (const word of lowercase(censored)) left.set(word, (left.get(word) || 0) + 1);
+        return lowercase(original).filter(word => (left.get(word) || 0) > 0 ? (left.set(word, left.get(word) - 1), false) : true).length;
+    };
+    const isNonsense = (original, censored, maxShare) => censoredShare(censored) > maxShare && maskedCommonWords(original, censored) >= 1;
+    const chooseDescription = (description, more, censor, { maxShare = MAX_CENSORED_SHARE, minWords = 14, startOk = () => true } = {}) => {
+        if (!description || !more || !isNonsense(description, censor(description), maxShare)) return { description, more };
+        const sentences = splitSentences(`${description} ${more}`);
+        for (let start = 1; start < sentences.length; start++) {
+            if (!startOk(sentences[start])) continue;
+            for (let end = start + 1; end <= Math.min(sentences.length, start + 3); end++) {
+                const window = sentences.slice(start, end).join(' ');
+                const censored = censor(window);
+                if (!isNonsense(window, censored, maxShare) && censoredShare(censored) <= maxShare && countRealWords(censored) >= minWords) {
+                    return { description: window, more: sentences.slice(end).join(' ') };
+                }
+            }
+        }
+        return { description, more };
+    };
+
     // Chudá otázka, kterou se nepodařilo vyměnit: první fakta (rok, země, obor) se ukážou hned v okně, ne až po nápovědě
     const LEAD_FACTS = 3;
     const takeLeadFacts = (hints) => {
@@ -358,18 +420,54 @@
     // jinak by „Ludvík XV.“ prošel za Ludvíka XIV. a „15. století“ za 14.
     const isExactToken = (word) => /\d/.test(word) || /^[ivxlcdm]+$/.test(word);
     const wordTolerance = (word) => isExactToken(word) || word.length <= 4 ? 0 : word.length <= 8 ? 1 : 2;
+    // Římské číslice (Karel IV., Ludvík XIV.) a řadové číslovky (První světová válka) lze napsat i číslem: Karel 4, 1. světová válka.
+    // Obě strany se převedou na arabská čísla a porovnají se i tak.
+    const ROMAN_PATTERN = /^(?=[IVX])X{0,3}(?:IX|IV|V?I{0,3})$/;
+    const ROMAN_VALUES = { i: 1, v: 5, x: 10, l: 50, c: 100 };
+    const romanToNumber = (text) => {
+        let total = 0;
+        for (let i = 0; i < text.length; i++) {
+            const value = ROMAN_VALUES[text[i]];
+            const next = ROMAN_VALUES[text[i + 1]] || 0;
+            total += value < next ? -value : value;
+        }
+        return total;
+    };
+    const ORDINAL_WORDS = [[/^prvni$/, 1], [/^druh[yae]$/, 2], [/^treti$/, 3], [/^ctvrt[yae]$/, 4], [/^pat[yae]$/, 5], [/^sest[yae]$/, 6],
+        [/^sedm[yae]$/, 7], [/^osm[yae]$/, 8], [/^devat[yae]$/, 9], [/^desat[yae]$/, 10]];
+    const withArabicNumbers = (text) => normalizeAnswer(String(text ?? '').replace(/(?<![\p{L}\d])([IVXivx]+)\.?(?![\p{L}\d])/gu,
+        (match, roman) => (roman.length > 1 || roman === roman.toUpperCase()) && ROMAN_PATTERN.test(roman.toUpperCase()) ? String(romanToNumber(roman.toLowerCase())) : match))
+        .split(' ').map(word => { const ordinal = ORDINAL_WORDS.find(([pattern]) => pattern.test(word)); return ordinal ? String(ordinal[1]) : word; }).join(' ');
+    // Slova v libovolném pořadí (Hus Jan = Jan Hus): každé slovo očekávané odpovědi najde vlastní slovo zadané odpovědi
+    const matchesAnyOrder = (givenWords, words) => {
+        if (givenWords.length !== words.length || words.length < 2 || words.length > 6) return false;
+        const free = [...givenWords];
+        // Napřed přesné shody, potom ty s překlepem – jinak by překlep „ukradl“ cizí slovo
+        const rest = words.filter(word => { const i = free.indexOf(word); if (i < 0) return true; free.splice(i, 1); return false; });
+        return rest.every(word => { const i = free.findIndex(other => levenshtein(other, word) <= wordTolerance(word)); if (i < 0) return false; free.splice(i, 1); return true; });
+    };
+    const matchesOne = (given, expected) => {
+        if (!given || !expected) return false;
+        if (given === expected) return true;
+        const givenWords = given.split(' ');
+        const words = expected.split(' ');
+        if (words.length === givenWords.length) {
+            if (words.every((word, i) => levenshtein(givenWords[i], word) <= wordTolerance(word))) return true;
+            if (matchesAnyOrder(givenWords, words)) return true;
+        }
+        // Chybějící nebo přebývající mezera („Jan Hus“ – „Janhus“) u slov bez čísel
+        return words.length !== givenWords.length && !words.some(isExactToken)
+            && levenshtein(given.replace(/ /g, ''), expected.replace(/ /g, '')) <= Math.min(wordTolerance(expected.replace(/ /g, '')), 1);
+    };
     const isAnswerMatch = (input, acceptedAnswers) => {
         const given = normalizeAnswer(input);
         if (!given) return false;
-        const givenWords = given.split(' ');
+        const givenForms = [...new Set([given, withArabicNumbers(input)])];
         return acceptedAnswers.some(answer => {
             const expected = normalizeAnswer(answer);
             if (!expected) return false;
-            if (given === expected) return true;
-            const words = expected.split(' ');
-            if (words.length === givenWords.length) return words.every((word, i) => levenshtein(givenWords[i], word) <= wordTolerance(word));
-            // Chybějící nebo přebývající mezera („Jan Hus“ – „Janhus“) u slov bez čísel
-            return !words.some(isExactToken) && levenshtein(given.replace(/ /g, ''), expected.replace(/ /g, '')) <= Math.min(wordTolerance(expected.replace(/ /g, '')), 1);
+            const expectedForms = [...new Set([expected, withArabicNumbers(answer)])];
+            return givenForms.some(form => expectedForms.some(other => matchesOne(form, other)));
         });
     };
     // Značka nebo vzorec přesně (m ≠ m², CO ≠ CO₂); horní a dolní indexy jako obyčejné číslice, bez mezer;
@@ -420,16 +518,6 @@
     const isFormulaMatch = (input, formulas) => isSymbolMatch(input, formulas)
         || formulas.some(formula => sameCounts(formulaCounts(input), formulaCounts(formula)));
 
-    const ROMAN_VALUES = { i: 1, v: 5, x: 10, l: 50, c: 100 };
-    const romanToNumber = (text) => {
-        let total = 0;
-        for (let i = 0; i < text.length; i++) {
-            const value = ROMAN_VALUES[text[i]];
-            const next = ROMAN_VALUES[text[i + 1]] || 0;
-            total += value < next ? -value : value;
-        }
-        return total;
-    };
     // Století: číslo (i římské – XIV. století) a zda jde o dobu před naším letopočtem („5. století př. n. l.“, „5 pnl“, „-5“)
     const isCenturyMatch = (input, century) => {
         const text = normalizeAnswer(input);
@@ -732,7 +820,21 @@
 
     const getCountryAliases = (countryIds = []) => COUNTRIES.filter(c => countryIds.includes(c.id)).flatMap(c => c.aliases);
     // Přijímané psané odpovědi: název, titulek článku i bez upřesnění v závorce, případně další názvy z tématu
-    const nameAnswers = (item, extra = []) => [item.n, item.t, displayName(item.t || ''), ...extra].filter(Boolean);
+    // Osobnost (má rok narození) se dá napsat i samým příjmením (Einstein, da Vinci) nebo s iniciálou (A. Einstein).
+    // Panovníci s číslem a přízviskem (Karel IV., Alexandr Veliký) a názvy s tečkou či číslem příjmení nemají
+    const NAME_PARTICLES = new Set(['z', 'ze', 'de', 'da', 'di', 'del', 'della', 'van', 'von', 'der', 'den', 'ten', 'ter', 'la', 'le', 'al', 'el', 'bin', 'ibn', 'ben', 'af', 'zu', 'dos', 'du']);
+    const surnameAnswers = (item) => {
+        if (!item || !item.n || !item.f || item.f.born === undefined || item.c === 'panovnik') return [];
+        const words = item.n.split(/\s+/);
+        if (words.length < 2 || words.length > 4 || /[\d.]/.test(item.n)) return [];
+        let start = words.length - 1;
+        while (start > 1 && NAME_PARTICLES.has(words[start - 1].toLowerCase())) start--;
+        const surname = words.slice(start).join(' ');
+        if (surname.length < 3 || CENSOR_SKIP_WORDS.has(surname.toLowerCase())) return [];
+        const last = words[words.length - 1];
+        return [...new Set([surname, last, `${words[0].charAt(0)}. ${surname}`])];
+    };
+    const nameAnswers = (item, extra = []) => [item.n, item.t, displayName(item.t || ''), ...surnameAnswers(item), ...extra].filter(Boolean);
     const countryAnswers = (countryIds, countryNames) => [
         ...countryNames,
         ...COUNTRIES.filter(c => countryIds.includes(c.id)).flatMap(c => [c.name, ...c.aliases])
@@ -793,6 +895,33 @@
         return String(value).split(/,\s+/).every(part => wordsSeen(part) || keySeen(part));
     };
     const dropKnownFacts = (facts, text) => facts.filter(fact => !isFactVisible(fact.value, text));
+
+    // Jméno nesprávné možnosti ve faktu (u Kerberose „Sourozenci: Chiméra, Hydra“, u Dia „Děti: Athéna, Apollón“) by ji
+    // vyřadilo – kdo bere sourozence, ten je mezi možnostmi nehledá. Ze seznamu hodnot (čárka, „a“) se taková jména
+    // vypustí, fakt bez zbytku zmizí. Porovnává se celé jméno bez diakritiky, nejen začátek.
+    const SINGULAR_LABELS = { 'Rodiče': 'Rodič', Sourozenci: 'Sourozenec', Partneři: 'Partner', Partnerky: 'Partnerka', Děti: 'Dítě', Synové: 'Syn', Dcery: 'Dcera' };
+    const dropChoiceNames = (facts, labels) => {
+        const hidden = new Set((labels || []).map(normalizeAnswer).filter(Boolean));
+        if (!hidden.size) return facts;
+        const result = [];
+        for (const fact of facts) {
+            const value = String(fact.value);
+            const parts = value.split(/,\s+|\s+a\s+/);
+            const kept = parts.filter(part => !hidden.has(normalizeAnswer(part)));
+            if (!kept.length) continue;
+            result.push(kept.length === parts.length ? fact : { ...fact, label: kept.length === 1 ? SINGULAR_LABELS[fact.label] || fact.label : fact.label, value: kept.join(', ') });
+        }
+        return result;
+    };
+
+    // Slovo nápovědy a slovo odpovědi začínají stejně (antimon × antimonit, Babylón × Babylonie, valentiniánská × Valentinianus):
+    // aspoň 4 shodná písmena a víc než ~65 % kratšího slova. Hodí se pro fakta u otázky na název – prozradila by kořen jména.
+    const sharesWordRoot = (text, names) => {
+        const nameWords = [...new Set(normalizeAnswer(names).split(' ').filter(word => word.length >= 5))];
+        const textWords = normalizeAnswer(text).split(' ').filter(word => word.length >= 4 && !/\d/.test(word));
+        const common = (a, b) => { let i = 0; while (i < a.length && i < b.length && a[i] === b[i]) i++; return i; };
+        return textWords.some(word => nameWords.some(other => { const length = common(word, other); return length >= 4 && length >= Math.min(word.length, other.length) * 0.65; }));
+    };
 
     // Fakta na konec: čísla z Wikidat v češtině
     const formatNumber = (value) => Number(value).toLocaleString('cs-CZ');
@@ -1166,7 +1295,7 @@
         inCollection, filterItems, pickItem, sortItems, getCountryNames, getContinent, continentAt, getCountryAliases,
         distanceKm, nearness, STATE_STEPS, sharesGroup, eraNearness, personSimilarity, rankBySimilarity, takeDistinct,
         buildItemChoices, buildCountryChoices, findAnswerItem, findAnswerCountry, updateMistakes, nameAnswers, countryAnswers,
-        pointsFor, dropKnownFacts, isFactVisible, formatNumber, formatPopulation, formatYear, formatFacts, getMapSpan, buildBlindMap,
+        pointsFor, dropKnownFacts, dropChoiceNames, sharesWordRoot, chooseDescription, censoredShare, MAX_CENSORED_SHARE, isFactVisible, formatNumber, formatPopulation, formatYear, formatFacts, getMapSpan, buildBlindMap,
         buildTimeline, centuryOf, centuryLabel, computeStreak, buildShareText, getTileLayout
     };
 });

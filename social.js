@@ -24,14 +24,16 @@
         constructor(message, status) { super(message); this.status = status; }
     }
 
-    const request = async (method, path, { body, prefer } = {}) => {
-        const token = await auth().accessToken();
+    const request = async (method, path, { body, prefer } = {}, retried = false) => {
+        const token = await auth().accessToken(retried);
         if (!token) throw new SocialError('Nejsi přihlášený.', 401);
         const response = await fetch(`${baseUrl()}/rest/v1/${path}`, {
             method,
             headers: { apikey: config().supabaseAnonKey, Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', ...(prefer ? { Prefer: prefer } : {}) },
             body: body === undefined ? undefined : JSON.stringify(body)
         });
+        // Server token odmítl (vypršel nebo byl zneplatněn): jednou se obnoví a požadavek se zopakuje
+        if (response.status === 401 && !retried) return request(method, path, { body, prefer }, true);
         if (!response.ok) {
             // Zpráva z databáze (např. od kontroly témat výzvy), když ji server pošle
             let detail = '';
@@ -125,8 +127,10 @@
         return rows.sort((a, b) => b.correct - a.correct || b.points - a.points || String(a.finished_at).localeCompare(String(b.finished_at)));
     };
     // První výsledek platí (ignoruje se opakovaný zápis), ať si nejde skóre vylepšit hraním znovu
+    // Celé číslo v rozsahu 0..max (NaN, záporné a nesmyslně velké hodnoty by databáze stejně odmítla a výsledek by se ztratil)
+    const wholeNumber = (value, max) => Number.isFinite(Number(value)) ? Math.max(0, Math.min(max, Math.floor(Number(value)))) : 0;
     const submitResult = (userId, code, { correct, points }) => request('POST', 'challenge_results?on_conflict=challenge_id,user_id', {
-        body: { challenge_id: code, user_id: userId, correct, points }, prefer: 'resolution=ignore-duplicates,return=minimal'
+        body: { challenge_id: code, user_id: userId, correct: wholeNumber(correct, 20), points: wholeNumber(points, 80) }, prefer: 'resolution=ignore-duplicates,return=minimal'
     });
     // Moje výzvy, nejnovější první, s mým výsledkem a výsledky ostatních
     const myChallenges = async (userId, limit = 8) => {
@@ -140,7 +144,7 @@
     // Úroveň (XP) a odznaky v účtu; sloupce přibyly pozdější verzí schématu, bez nich volající chybu ignoruje
     const getProgress = async (userId) => (await withExtras(extras => request('GET', `profiles?id=eq.${encodeURIComponent(userId)}&select=xp,badges${extras ? ',title_pref' : ''}`)) || [])[0] || null;
     const saveProgress = (userId, { xp, badges }) => request('PATCH', `profiles?id=eq.${encodeURIComponent(userId)}`, {
-        body: { xp: Math.max(0, Math.min(1000000, Math.floor(xp))), badges: badges.slice(0, 60) }, prefer: 'return=minimal'
+        body: { xp: wholeNumber(xp, 500000), badges: badges.filter(id => typeof id === 'string' && /^[a-z0-9-]{1,40}$/.test(id)).slice(0, 200) }, prefer: 'return=minimal'
     });
 
     // Rating (ELO) a týdenní žebříček: sloupec a funkce přibyly pozdější verzí schématu. Dokud je databáze nemá (404/400),

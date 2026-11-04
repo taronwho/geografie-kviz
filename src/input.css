@@ -16,6 +16,12 @@
     [data-theme="legenda"] { --brand-50: 253 242 241; --brand-100: 251 226 225; --brand-200: 247 194 192; --brand-300: 240 146 143; --brand-400: 228 93 88; --brand-500: 208 54 48; --brand-600: 181 33 28; --brand-700: 155 20 15; --brand-800: 129 16 12; --brand-900: 105 16 13; --brand-950: 64 3 1; }
     * { -webkit-tap-highlight-color: transparent; }
     html { touch-action: manipulation; }
+    /* Výška aplikace: starší prohlížeče bez dvh dostanou výšku viditelné plochy (ne 100vh, které sahá pod lištu prohlížeče), novější dynamickou */
+    html, body { height: 100%; }
+    @supports (height: 100dvh) { body { height: 100dvh; } }
+    /* Zaměření z klávesnice: výrazný obrys v barvě tématu (světlý i tmavý režim), myš a dotyk ho neukazují */
+    :focus-visible { outline: 3px solid rgb(var(--brand-600)); outline-offset: 2px; }
+    @media (prefers-color-scheme: dark) { :focus-visible { outline-color: rgb(var(--brand-300)); } }
     ::-webkit-scrollbar { display: none; }
     body {
         -ms-overflow-style: none; scrollbar-width: none; overscroll-behavior-y: none;
@@ -35,6 +41,8 @@
 @media (prefers-reduced-motion: no-preference) {
     .fade-in { animation: fadeIn 0.5s ease-out; }
 }
+/* Okna zarovnaná ke spodku: tlačítka nesmí zajet pod systémovou lištu telefonu (iPhone, gesta Androidu) */
+#settings-overlay, #play-chooser, #place-info, #dialog-overlay { padding-bottom: max(1rem, env(safe-area-inset-bottom)); }
 @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 .spin { animation: spin 1.5s linear infinite; }
 @keyframes spin { 100% { transform: rotate(360deg); } }
@@ -105,9 +113,9 @@
 .league-platina { background: linear-gradient(135deg, #5eead4, #0f766e); color: #f0fdfa; }
 .league-diamant { background: linear-gradient(135deg, #7dd3fc, #6366f1); color: #fff; }
 .league-mistr { background: linear-gradient(135deg, #f472b6, #7c3aed); color: #fff; }
-.league-fg-bronz { color: #a8652a; }
-.league-fg-stribro { color: #64748b; }
-.league-fg-zlato { color: #b07a08; }
+.league-fg-bronz { color: #96571f; }
+.league-fg-stribro { color: #566274; }
+.league-fg-zlato { color: #8f6200; }
 .league-fg-platina { color: #0f766e; }
 .league-fg-diamant { color: #4f46e5; }
 .league-fg-mistr { color: #9333ea; }
