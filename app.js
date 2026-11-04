@@ -1278,7 +1278,7 @@
     // Panel se záložkami a jednou plochou pevné výšky – nápovědy se nepřidávají pod sebe, takže se nic neposouvá
     // panes = [{ key, label, icon, html }], action = akce záložky, extra = tlačítko za záložkami
     // Výška panelu: na vysokém telefonu víc místa pro fotku a mapu, na malém aspoň 11 rem (bez posouvání)
-    const QUESTION_PANEL_HEIGHT = 'h-[clamp(11rem,calc(100dvh_-_30.5rem),24rem)]';
+    const QUESTION_PANEL_HEIGHT = 'h-[clamp(10rem,calc(100dvh_-_34rem),18rem)]';
     const RESULT_PANEL_HEIGHT = 'h-[clamp(13rem,42dvh,24rem)]';
     // Vybraná záložka s názvem, ostatní jen ikonou (s popiskem pro čtečku) – vejdou se i na úzký displej;
     // jediná plocha záložky nepotřebuje, jen nadpis
@@ -1295,7 +1295,7 @@
                         </button>`;
                 }).join('')}
             </div>` : `
-            <h3 class="${CARD_TITLE} border-b border-slate-100 px-4 py-2.5 dark:border-slate-700"><i data-lucide="${pane.icon}" class="h-4 w-4 ${style.text}"></i> ${escapeHtml(pane.label)}</h3>`;
+            <h3 class="${CARD_TITLE} min-h-[3.25rem] border-b border-slate-100 px-4 dark:border-slate-700"><i data-lucide="${pane.icon}" class="h-4 w-4 ${style.text}"></i> ${escapeHtml(pane.label)}</h3>`;
         return `
             <section id="${action}-panel" class="${CARD} shrink-0 overflow-hidden">
                 ${tabs}
@@ -1321,15 +1321,21 @@
         const panes = [...image, { key: 'text', label: 'Popis', icon: 'quote', html: textPane(data, style) }, ...hintPanes(unlocked)];
         return renderTabbedPanel(panes, round.tab || panes[0].key, 'hint-tab', QUESTION_PANEL_HEIGHT);
     };
-    // Tlačítko další nápovědy: co odemkne a za kolik pak bude odpověď
+    // Tlačítko další nápovědy přes celou šířku pod popisem: co odemkne a za kolik pak bude odpověď
     const nextHintButton = (data) => {
         const next = data.hints[round.hintLevel - 1];
-        if (!next) return '';
-        const style = styleOf(TOPIC_BY_ID[data.topic]);
+        if (!data.hints.length) return '';
+        // Všechny nápovědy odemčené: stejně vysoký klidný pruh, ať se odpovědi nic neposune
+        if (!next) return `<div class="flex h-14 shrink-0 items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-slate-300 text-xs font-bold text-slate-500 dark:border-slate-600 dark:text-slate-400"><i data-lucide="lightbulb" class="h-4 w-4"></i> Všechny nápovědy jsou odemčené</div>`;
         const nextCost = formatPoints(pointsFor(round.hintLevel + 1, round.variant === 'typed'));
         return `
-            <button type="button" data-action="hint" title="Nápověda: ${escapeHtml(next.label)} – odpověď pak za ${nextCost}" class="flex min-h-[2.5rem] min-w-0 items-center gap-1.5 rounded-xl border-2 border-dashed border-slate-300 px-3 py-1.5 text-xs font-bold transition-colors active:scale-95 hover:bg-slate-100 dark:border-slate-600 dark:hover:bg-slate-700 ${style.text}">
-                <i data-lucide="${next.icon}" class="h-4 w-4 shrink-0"></i><span class="truncate">${escapeHtml(capitalize(next.label))}</span><span class="shrink-0 font-semibold text-slate-500 dark:text-slate-400">· pak ${nextCost}</span>
+            <button type="button" data-action="hint" title="Nápověda: ${escapeHtml(next.label)} – odpověď pak za ${nextCost}" class="btn-3d flex h-14 w-full shrink-0 items-center gap-3 rounded-2xl bg-gradient-to-b from-gold-400 to-gold-600 px-3 text-left text-brand-950">
+                <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/40"><i data-lucide="lightbulb" class="h-5 w-5"></i></span>
+                <span class="min-w-0 flex-1">
+                    <span class="block text-[11px] font-black uppercase tracking-wider opacity-70">Nápověda ${round.hintLevel}/${data.hints.length + 1}</span>
+                    <span class="flex items-baseline gap-1.5 text-sm font-black leading-tight"><span class="truncate">${escapeHtml(capitalize(next.label))}</span><span class="shrink-0 text-xs font-bold opacity-80">· pak ${nextCost}</span></span>
+                </span>
+                <i data-lucide="${next.icon}" class="h-5 w-5 shrink-0 opacity-70"></i>
             </button>`;
     };
 
@@ -1405,26 +1411,25 @@
         const category = categoryOf(topic, data.category);
         const answerCard = `
             <section class="${CARD} p-4">
-                <div class="mb-3 flex min-h-[2.5rem] items-center justify-between gap-2">
+                <div class="mb-3 flex items-center justify-between gap-2">
                     <h3 class="${CARD_TITLE} shrink-0"><i data-lucide="target" class="w-4 h-4 ${style.text}"></i> Za ${formatPoints(pointsFor(level, typed))}</h3>
-                    ${nextHintButton(data)}
+                    ${data.hints.length ? `<span class="flex items-center gap-1.5 text-[11px] font-bold text-slate-500 dark:text-slate-400" title="Použité nápovědy">Nápovědy ${level - 1}/${data.hints.length}<span class="flex gap-1" aria-hidden="true">${data.hints.map((_, index) => `<span class="h-2 w-2 rounded-full ${index < level - 1 ? 'bg-gold-500' : 'bg-slate-300 dark:bg-slate-600'}"></span>`).join('')}</span></span>` : ''}
                 </div>
                 ${renderAnswerInput(data)}
             </section>`;
 
         // Při psaní je pole nahoře: otevřená klávesnice by ho jinak zakryla
         appContent.innerHTML = `
-            <div class="${keepScroll ? '' : 'fade-in '}flex min-h-full w-full flex-col gap-3 bg-slate-50 p-4 pb-6 dark:bg-slate-900">
-                <div class="flex flex-col items-center gap-2 text-center">
+            <div class="${keepScroll ? '' : 'fade-in '}flex min-h-full w-full flex-col gap-2.5 bg-slate-50 p-3 pb-5 dark:bg-slate-900">
+                <div class="flex flex-col items-center gap-1.5 text-center">
                     <h2 class="text-xl font-black leading-tight tracking-tight text-slate-800 dark:text-slate-50">${escapeHtml(data.question.title)}</h2>
                     <div class="flex flex-wrap items-center justify-center gap-2">
                         <span class="inline-flex items-center gap-1.5 rounded-xl border px-2.5 py-1 text-[11px] font-bold uppercase tracking-widest text-white shadow-sm ${style.solid}">
                             <i data-lucide="${category.icon}" class="h-3.5 w-3.5"></i> ${escapeHtml(data.typeLabel)}
                         </span>
-                        ${data.hints.length ? `<span class="rounded-lg px-2 py-1 text-xs font-black ${style.soft}" title="Použité nápovědy">Nápovědy ${level - 1}/${data.hints.length}</span>` : ''}
                     </div>
                 </div>
-                ${typed ? `${answerCard}${questionPanel(data)}` : `${questionPanel(data)}${answerCard}`}
+                ${typed ? `${answerCard}${questionPanel(data)}${nextHintButton(data)}` : `${questionPanel(data)}${nextHintButton(data)}${answerCard}`}
                 <button type="button" data-action="give-up" class="mx-auto flex min-h-[2.5rem] items-center gap-2 px-3 text-sm font-semibold text-slate-500 underline-offset-4 hover:underline dark:text-slate-400">
                     <i data-lucide="eye" class="w-4 h-4"></i> Nevím, ukázat odpověď
                 </button>

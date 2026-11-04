@@ -158,7 +158,7 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         assert.match(await appText(tab), /Za 4 body/);
         // Dokud není odemčená nápověda, je v panelu jen popis (bez záložek); tlačítko nápovědy říká, co odemkne
         assert.equal(await tab.locator('[role="tablist"]').count(), 0);
-        assert.match(await tab.textContent('[data-action="hint"]'), /Fotka\s*· pak 3 body/);
+        assert.match(await tab.textContent('[data-action="hint"]'), /Fotka[\s\S]*pak 3 body/);
 
         // 1. nápověda: skutečná fotka jako pozadí prvku (ne <img>)
         await tab.click('[data-action="hint"]');
