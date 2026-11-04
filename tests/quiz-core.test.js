@@ -578,9 +578,9 @@ test('postup hráče: úrovně rostou pozvolna, tituly, XP za odpověď a mistro
     assert.equal(progress.into, 30);
     assert.ok(progress.ratio > 0 && progress.ratio < 1);
     assert.deepEqual(core.levelProgress(10 ** 9), { level: core.MAX_LEVEL, into: 10 ** 9 - core.xpForLevel(core.MAX_LEVEL), needed: 0, ratio: 1 });
-    assert.equal(core.LEVEL_TITLES.length, 18);
-    assert.deepEqual([1, 3, 4, 10, 18, 60, 99, 100].map(core.titleForLevel), ['Zvědavec', 'Zvědavec', 'Čtenář', 'Žák', 'Znalec', 'Mudrc', 'Orákulum', 'Mudrlant']);
-    assert.deepEqual(core.nextTitle(1), { from: 4, title: 'Čtenář' });
+    assert.equal(core.LEVEL_TITLES.length, 31);
+    assert.deepEqual([1, 2, 3, 9, 18, 60, 95, 99, 100].map(core.titleForLevel), ['Zvědavec', 'Zvědavec', 'Čtenář', 'Žák', 'Znalec', 'Profesor', 'Orákulum', 'Archimudrc', 'Mudrlant']);
+    assert.deepEqual(core.nextTitle(1), { from: 3, title: 'Čtenář' });
     assert.equal(core.nextTitle(100), null);
     // Správná odpověď bez nápovědy (4 body) 30 XP, psaná (8 bodů) 50, špatná 2, vzdání 0
     assert.equal(core.answerXp({ correct: true, points: 4 }), 30);

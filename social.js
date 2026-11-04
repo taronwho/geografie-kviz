@@ -29,7 +29,12 @@
             headers: { apikey: config().supabaseAnonKey, Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', ...(prefer ? { Prefer: prefer } : {}) },
             body: body === undefined ? undefined : JSON.stringify(body)
         });
-        if (!response.ok) throw new SocialError(`Server odpověděl ${response.status}`, response.status);
+        if (!response.ok) {
+            // Zpráva z databáze (např. od kontroly témat výzvy), když ji server pošle
+            let detail = '';
+            try { detail = String((await response.json()).message || ''); } catch (e) { /* bez těla odpovědi */ }
+            throw new SocialError(detail || `Server odpověděl ${response.status}`, response.status);
+        }
         const text = await response.text();
         return text ? JSON.parse(text) : null;
     };
@@ -143,7 +148,27 @@
         return await request('GET', `profiles?display_name=ilike.${encodeURIComponent(`*${term}*`)}&id=neq.${encodeURIComponent(userId)}&select=${PROFILE_FIELDS}&order=display_name&limit=8`) || [];
     };
     // Náhodný jiný hráč (funkce v databázi); null, když tu zatím nikdo další není
-    const randomOpponent = async () => (await request('POST', 'rpc/random_opponent', { body: {} }) || [])[0] || null;
+    // wanted = témata výzvy (hráč, který je nepřijímá, se přeskočí); starší databáze bez parametru volá funkci bez něj
+    const randomOpponent = async (wanted = []) => {
+        let rows;
+        try {
+            rows = await request('POST', 'rpc/random_opponent', { body: { wanted } });
+        } catch (error) {
+            if (error.status !== 404 && error.status !== 400) throw error;
+            rows = await request('POST', 'rpc/random_opponent', { body: {} });
+        }
+        return (rows || [])[0] || null;
+    };
+    // Témata, ze kterých hráč nepřijímá výzvy; bez sloupce v databázi (starší schéma) nic nebrání
+    const getBlocked = async (userId) => {
+        try {
+            const row = (await request('GET', `profiles?id=eq.${encodeURIComponent(userId)}&select=blocked_topics`) || [])[0];
+            return row && Array.isArray(row.blocked_topics) ? row.blocked_topics : [];
+        } catch (error) {
+            return [];
+        }
+    };
+    const saveBlocked = (userId, topics) => request('PATCH', `profiles?id=eq.${encodeURIComponent(userId)}`, { body: { blocked_topics: [...new Set(topics)].slice(0, 30) }, prefer: 'return=minimal' });
     // Výzvy pro mě, které jsem ještě nehrál, nejnovější první
     const incomingChallenges = async (userId, limit = 10) => {
         const invites = await request('GET', `challenges?invited_id=eq.${encodeURIComponent(userId)}&select=id,topic,count,created_at,creator:profiles!creator_id(${PROFILE_FIELDS})&order=created_at.desc&limit=${limit}`) || [];
@@ -154,5 +179,5 @@
         return invites.filter(row => !done.has(row.id));
     };
 
-    return { AVATARS, COLORS, COUNTS, NAME_MAX, SocialError, cleanName, isValidName, newCode, parseCode, getProfile, saveProfile, createChallenge, getChallenge, getResults, submitResult, myChallenges, searchPlayers, randomOpponent, incomingChallenges, playerStats, getProgress, saveProgress };
+    return { AVATARS, COLORS, COUNTS, NAME_MAX, SocialError, cleanName, isValidName, newCode, parseCode, getProfile, saveProfile, createChallenge, getChallenge, getResults, submitResult, myChallenges, searchPlayers, randomOpponent, incomingChallenges, playerStats, getProgress, saveProgress, getBlocked, saveBlocked };
 });

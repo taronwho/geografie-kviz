@@ -773,18 +773,18 @@
             ${renderDevPanel()}`;
         const profileBody = user && Social && meDraft ? `
             <form id="profile-form" class="flex flex-col gap-3" autocomplete="off">
-                <label class="${ME_HEADING}">Přezdívka
+                <label class="${ME_HEADING}">Přezdívka <span class="font-semibold normal-case tracking-normal">(podle ní tě ostatní najdou, musí být jedinečná)</span>
                     <input id="profile-name" type="text" maxlength="${Social.NAME_MAX}" value="${escapeHtml(meDraft.name)}" class="mt-1 w-full rounded-xl border-2 border-slate-200 bg-white px-3 py-2 text-base font-bold normal-case tracking-normal text-slate-800 focus:border-brand-600 focus:outline-none dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100">
                 </label>
                 <div>
                     <p class="${ME_HEADING} mb-1.5">Obrázek</p>
-                    <div class="grid grid-cols-8 gap-1">${Social.AVATARS.map(emoji => `<button type="button" data-pick-avatar="${emoji}" aria-label="Obrázek ${emoji}" aria-pressed="${emoji === meDraft.avatar}" class="flex aspect-square items-center justify-center rounded-lg border-2 text-lg active:scale-95 ${emoji === meDraft.avatar ? 'border-brand-600 bg-brand-50 dark:bg-brand-900/40' : 'border-transparent bg-white dark:bg-slate-800'}">${emoji}</button>`).join('')}</div>
+                    <div class="grid grid-cols-12 gap-1">${Social.AVATARS.map(emoji => `<button type="button" data-pick-avatar="${emoji}" aria-label="Obrázek ${emoji}" aria-pressed="${emoji === meDraft.avatar}" class="flex aspect-square items-center justify-center rounded-lg border-2 text-base active:scale-95 ${emoji === meDraft.avatar ? 'border-brand-600 bg-brand-50 dark:bg-brand-900/40' : 'border-transparent bg-white dark:bg-slate-800'}">${emoji}</button>`).join('')}</div>
                 </div>
                 <div>
                     <p class="${ME_HEADING} mb-1.5">Barva</p>
                     <div class="flex justify-between px-1">${Social.COLORS.map(color => `<button type="button" data-pick-color="${color}" aria-label="Barva ${color}" aria-pressed="${color === meDraft.color}" class="h-7 w-7 rounded-full ${AVATAR_BG[color]} ${color === meDraft.color ? 'ring-2 ring-slate-800/70 ring-offset-2 dark:ring-white/80 dark:ring-offset-slate-900' : ''} active:scale-95"></button>`).join('')}</div>
                 </div>
-                <p class="text-[11px] leading-snug text-slate-500 dark:text-slate-400">Podle přezdívky tě ostatní najdou a vyzvou, musí být jedinečná.</p>
+                <button type="button" data-open-accept class="btn-3d-light flex w-full items-center gap-2 rounded-2xl bg-white px-3 py-2 text-left dark:bg-slate-800"><i data-lucide="shield-check" class="h-5 w-5 shrink-0 text-brand-700 dark:text-brand-300"></i><span class="min-w-0 flex-1 truncate text-[13px] font-black text-slate-800 dark:text-slate-100">Přijímané výzvy <span class="font-semibold text-slate-500 dark:text-slate-400">· ${escapeHtml(acceptSummary())}</span></span><i data-lucide="chevron-right" class="h-4 w-4 shrink-0 text-slate-400"></i></button>
                 <div class="grid grid-cols-2 gap-2">
                     <button type="submit" data-save-profile class="${PRIMARY_BUTTON}"><i data-lucide="check" class="h-5 w-5"></i> Uložit</button>
                     <button type="button" data-auth-logout class="${SECONDARY_BUTTON}"><i data-lucide="log-out" class="h-5 w-5"></i> Odhlásit</button>
@@ -854,6 +854,7 @@
             if (event.target.closest('[data-auth-logout]')) { closeSettings(); Auth.logout(); return; }
             if (event.target.closest('[data-update-app]')) { updateApp(); return; }
             if (event.target.closest('[data-open-progress]')) { closeSettings(); openProgress(); return; }
+            if (event.target.closest('[data-open-accept]')) { closeSettings(); openAccepted(); return; }
             const devButton = event.target.closest('[data-dev]');
             if (devButton) { devApply(devButton.dataset.dev); updateControlsUI(); openSettings(`Hotovo: ${devButton.textContent.trim()}`, `[data-dev="${devButton.dataset.dev}"]`); return; }
             const avatar = event.target.closest('[data-pick-avatar]');
@@ -2701,6 +2702,56 @@
     };
     const challengeTopicIcon = (topic) => { const ids = challengeTopicIds(topic); return ids.length === 1 ? TOPIC_BY_ID[ids[0]].icon : MIX.icon; };
 
+    // Témata, ze kterých hráč nepřijímá výzvy (null = ještě se nenačetla)
+    let myBlocked = null;
+    const acceptSummary = () => !myBlocked ? 'nastavit' : myBlocked.length ? `${TOPICS.length - myBlocked.length} z ${TOPICS.length} témat` : 'všechna témata';
+    // Okno „Přijímané výzvy“: každé téma jde vypnout; ukládá se hned po klepnutí
+    const openAccepted = async () => {
+        const user = signedUser();
+        if (!user || !Social) { openLoginDialog(); return; }
+        let note = '';
+        const render = () => {
+            const blocked = myBlocked || [];
+            showDialog('Přijímané výzvy', `
+                <div class="flex flex-col gap-3">
+                    <p class="text-xs leading-snug text-slate-500 dark:text-slate-400">Vyber, z jakých témat tě ostatní můžou vyzývat. U <b class="text-slate-700 dark:text-slate-200">vypnutých</b> témat ti výzvu nezadají a náhodný soupeř tě v nich nedostane. Třeba když historii vůbec neznáš.</p>
+                    <ul class="grid grid-cols-2 gap-1.5">${TOPICS.map(topic => {
+                        const off = blocked.includes(topic.id);
+                        return `<li><button type="button" data-accept-topic="${topic.id}" role="switch" aria-checked="${!off}" class="btn-3d-light flex w-full items-center gap-2 rounded-xl p-2 text-left ${off ? 'bg-slate-100 opacity-70 dark:bg-slate-800/60' : 'bg-white dark:bg-slate-800'}">
+                            ${topicIcon(topic, 'h-8 w-8', `rounded-lg p-1.5 ${styleOf(topic).soft}`, 'h-5 w-5')}
+                            <span class="min-w-0 flex-1 text-[11.5px] font-black leading-tight ${off ? 'text-slate-500 line-through dark:text-slate-400' : 'text-slate-800 dark:text-slate-100'}">${escapeHtml(topic.title)}</span>
+                            <span class="flex h-5 w-5 shrink-0 items-center justify-center rounded-full ${off ? 'bg-slate-300 text-white dark:bg-slate-600' : 'bg-emerald-500 text-white'}"><i data-lucide="${off ? 'ban' : 'check'}" class="h-3 w-3"></i></span>
+                        </button></li>`;
+                    }).join('')}</ul>
+                    <div class="flex items-center justify-between gap-2">
+                        <p class="text-xs font-bold text-slate-600 dark:text-slate-300">Přijímáš: ${escapeHtml(acceptSummary())}</p>
+                        ${blocked.length ? '<button type="button" data-accept-all class="rounded-lg bg-slate-200 px-2.5 py-1.5 text-xs font-black text-slate-700 dark:bg-slate-700 dark:text-slate-200">Zapnout vše</button>' : ''}
+                    </div>
+                    <p class="min-h-[1rem] text-xs font-semibold ${note.startsWith('Uloženo') ? 'text-emerald-700 dark:text-emerald-300' : 'text-rose-600 dark:text-rose-400'}" role="status">${escapeHtml(note)}</p>
+                </div>`, {
+                onClick: async (event) => {
+                    const toggle = event.target.closest('[data-accept-topic]');
+                    const all = event.target.closest('[data-accept-all]');
+                    if (!toggle && !all) return;
+                    const before = myBlocked || [];
+                    myBlocked = all ? [] : before.includes(toggle.dataset.acceptTopic) ? before.filter(id => id !== toggle.dataset.acceptTopic) : [...before, toggle.dataset.acceptTopic];
+                    note = '';
+                    render();
+                    try {
+                        await Social.saveBlocked(user.id, myBlocked);
+                        note = 'Uloženo.';
+                        paintChallenges();
+                    } catch (error) {
+                        myBlocked = before;
+                        note = 'Uložení se nepodařilo. Zkontroluj připojení a že je v databázi nejnovější SQL.';
+                    }
+                    render();
+                }
+            });
+        };
+        render();
+        if (myBlocked === null) { myBlocked = await Social.getBlocked(user.id); if (document.getElementById('dialog-overlay')) render(); }
+    };
     const loadMyProfile = async () => {
         const user = signedUser();
         if (!user) { myProfile = null; return null; }
@@ -2709,6 +2760,7 @@
         if (!myProfile) myProfile = { id: user.id, display_name: user.name, avatar: '🦊', color: 'emerald' };
         updateProfileButton();
         syncProgress();
+        if (myBlocked === null) Social.getBlocked(user.id).then(list => { myBlocked = list; paintChallenges(); });
         return myProfile;
     };
 
@@ -2778,6 +2830,7 @@
                     <button type="button" data-action="new-challenge" class="flex items-center justify-center gap-2 rounded-2xl btn-3d bg-brand-700 px-3 py-3.5 text-[15px] font-black text-white">${uiArt('vyzva', 'h-7 w-7')} Vyzvat</button>
                     <button type="button" data-action="join-challenge" class="flex items-center justify-center gap-2 rounded-2xl bg-white px-3 py-3.5 text-[15px] font-bold text-slate-800 shadow-sm ring-1 ring-slate-200/70 active:scale-[0.98] dark:bg-slate-800 dark:text-slate-100 dark:ring-slate-700/70"><i data-lucide="hash" class="h-5 w-5"></i> Zadat kód</button>
                 </div>
+                <button type="button" data-action="open-accept" class="flex w-full items-center gap-2 rounded-xl bg-slate-200/60 px-3 py-2 text-left text-xs dark:bg-slate-800/70"><i data-lucide="shield-check" class="h-4 w-4 shrink-0 text-brand-700 dark:text-brand-300"></i><span class="min-w-0 flex-1 truncate font-bold text-slate-600 dark:text-slate-300">Přijímám výzvy z: <b class="text-slate-800 dark:text-slate-100">${escapeHtml(acceptSummary())}</b></span><span class="shrink-0 font-black text-brand-700 dark:text-cream">Změnit</span></button>
                 ${resume}
                 ${incoming.length ? `<div class="flex flex-col gap-2"><p class="${LABEL}">Čekají na tebe</p>${incoming.slice(0, 5).map(incomingRow).join('')}</div>` : ''}
                 <div class="flex flex-col gap-2"><p class="${LABEL}">Poslední výzvy</p>${recent}</div>
@@ -2934,7 +2987,7 @@
     // souhrnné řádky, které se rozbalí klepnutím; tlačítko Vytvořit a hrát je stále dole na očích.
     const openNewChallenge = () => {
         if (!signedUser()) return;
-        const draft = { topics: [], count: 10, who: 'player', opponent: null, query: '', found: null, hard: false, variant: 'choices', cats: null, open: null };
+        const draft = { topics: [], count: 10, who: 'player', opponent: null, blocked: null, query: '', found: null, hard: false, variant: 'choices', cats: null, open: null };
         let busy = false;
         let note = '';
         let searchToken = 0;
@@ -2958,9 +3011,30 @@
                     ${avatarHtml(player, 'h-8 w-8 text-base')}<span class="min-w-0 flex-1 truncate text-sm font-bold text-slate-800 dark:text-slate-100">${escapeHtml(playerName(player))}</span>
                 </button>`).join('');
         };
+        // Výzva podle témat, která soupeř nepřijímá (blocked): Mix se zúží o jeho zakázaná témata, výslovně vybrané téma zakázané nejde
+        const resolveTopics = (blocked) => {
+            const list = blocked || [];
+            const isMix = draft.topics.length === 0 || draft.topics.length >= ALL.length;
+            const hit = chosenTopics().filter(id => list.includes(id));
+            if (!hit.length) return { value: topicValue(), hit: [], removed: [], error: false };
+            if (isMix) {
+                const rest = ALL.filter(id => !list.includes(id));
+                return rest.length ? { value: rest.join(','), hit: [], removed: hit, error: false } : { value: '', hit, removed: [], error: true };
+            }
+            return { value: '', hit, removed: [], error: true };
+        };
+        const titles = (ids) => ids.map(id => TOPIC_BY_ID[id].title).join(', ');
+        const blockNote = () => {
+            if (!draft.opponent || !draft.blocked || !draft.blocked.length) return '';
+            const result = resolveTopics(draft.blocked);
+            const name = escapeHtml(playerName(draft.opponent));
+            if (result.error) return `<p class="mt-1.5 flex items-start gap-1.5 rounded-lg bg-rose-50 px-2 py-1.5 text-[11px] font-bold leading-snug text-rose-700 dark:bg-rose-900/30 dark:text-rose-200"><i data-lucide="ban" class="mt-px h-3.5 w-3.5 shrink-0"></i><span>${name} nechce hrát: ${escapeHtml(titles(result.hit))}. Vyber jiné téma.</span></p>`;
+            if (result.removed.length) return `<p class="mt-1.5 flex items-start gap-1.5 rounded-lg bg-amber-50 px-2 py-1.5 text-[11px] font-bold leading-snug text-amber-800 dark:bg-amber-900/30 dark:text-amber-200"><i data-lucide="info" class="mt-px h-3.5 w-3.5 shrink-0"></i><span>Mix bez: ${escapeHtml(titles(result.removed))} (${name} je nepřijímá).</span></p>`;
+            return '';
+        };
         const opponentSearch = () => {
             if (draft.opponent) {
-                return `<div class="mt-2 flex items-center gap-3 rounded-xl bg-white p-2 shadow-sm ring-2 ring-brand-600 dark:bg-slate-800">${avatarHtml(draft.opponent, 'h-8 w-8 text-base')}<span class="min-w-0 flex-1 truncate text-sm font-black text-slate-800 dark:text-slate-100">${escapeHtml(playerName(draft.opponent))}</span><button type="button" data-clear-opp class="rounded-lg px-2 py-1 text-xs font-bold text-slate-500 underline dark:text-slate-400">Změnit</button></div>`;
+                return `<div class="mt-2"><div class="flex items-center gap-3 rounded-xl bg-white p-2 shadow-sm ring-2 ring-brand-600 dark:bg-slate-800">${avatarHtml(draft.opponent, 'h-8 w-8 text-base')}<span class="min-w-0 flex-1 truncate text-sm font-black text-slate-800 dark:text-slate-100">${escapeHtml(playerName(draft.opponent))}</span><button type="button" data-clear-opp class="rounded-lg px-2 py-1 text-xs font-bold text-slate-500 underline dark:text-slate-400">Změnit</button></div>${blockNote()}</div>`;
             }
             return `<input id="opp-search" type="text" maxlength="24" autocomplete="off" placeholder="Začni psát přezdívku hráče" value="${escapeHtml(draft.query)}" class="mt-2 w-full rounded-xl border-2 border-slate-200 bg-white px-3 py-2.5 text-base font-bold text-slate-800 focus:border-brand-600 focus:outline-none dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"><div id="opp-results" class="mt-2 flex flex-col gap-1.5">${foundRows()}</div>`;
         };
@@ -3056,8 +3130,15 @@
                 if (variant) { draft.variant = variant.dataset.chVariant; render(); }
                 if (count) { draft.count = Number(count.dataset.chCount); render(); }
                 if (who) { draft.who = who.dataset.chWho; note = ''; render(); }
-                if (pick) { draft.opponent = draft.found.find(player => player.id === pick.dataset.pickOpp) || null; note = ''; render(); }
-                if (event.target.closest('[data-clear-opp]')) { draft.opponent = null; render(); }
+                if (pick) {
+                    draft.opponent = draft.found.find(player => player.id === pick.dataset.pickOpp) || null;
+                    draft.blocked = null;
+                    note = '';
+                    render();
+                    // Zakázaná témata vybraného hráče se dotáhnou hned, ať se upozornění ukáže před založením výzvy
+                    if (draft.opponent) { const id = draft.opponent.id; Social.getBlocked(id).then(list => { if (draft.opponent && draft.opponent.id === id) { draft.blocked = list; render(); } }); }
+                }
+                if (event.target.closest('[data-clear-opp]')) { draft.opponent = null; draft.blocked = null; render(); }
                 if (event.target.closest('[data-ch-create]') && !busy) {
                     if (draft.who === 'player' && !draft.opponent) { note = 'Vyber hráče, kterého chceš vyzvat.'; render(); return; }
                     busy = true;
@@ -3065,19 +3146,32 @@
                     render();
                     try {
                         let opponent = draft.who === 'player' ? draft.opponent : null;
+                        let blocked = draft.blocked;
+                        if (opponent && !blocked) blocked = await Social.getBlocked(opponent.id);
                         if (draft.who === 'random') {
-                            opponent = await Social.randomOpponent();
-                            if (!opponent) { busy = false; note = 'Zatím tu nejsou žádní jiní hráči. Zkus „Kamaráda přes odkaz“.'; render(); return; }
+                            // Náhodný soupeř přeskočí hráče, kteří nepřijímají vybraná témata (u Mixu se zúží výzva)
+                            const explicit = draft.topics.length && draft.topics.length < ALL.length ? draft.topics : [];
+                            opponent = await Social.randomOpponent(explicit);
+                            if (!opponent) { busy = false; note = explicit.length ? 'Nikdo, kdo přijímá tato témata, teď není k dispozici. Zkus jiné téma nebo „Kamaráda přes odkaz“.' : 'Zatím tu nejsou žádní jiní hráči. Zkus „Kamaráda přes odkaz“.'; render(); return; }
+                            blocked = Array.isArray(opponent.blocked_topics) ? opponent.blocked_topics : [];
+                        }
+                        const resolved = resolveTopics(blocked);
+                        if (resolved.error) {
+                            busy = false;
+                            draft.blocked = blocked;
+                            note = `${playerName(opponent)} nechce hrát: ${titles(resolved.hit)}. Vyber jiné téma.`;
+                            render();
+                            return;
                         }
                         const all = topicCategories().length;
                         const cats = draft.topics.length !== 1 || !draft.cats || draft.cats.length >= all ? [] : draft.cats;
-                        const created = await Social.createChallenge(signedUser().id, { topic: topicValue(), count: draft.count, invitedId: opponent ? opponent.id : null, includeHard: draft.hard, categories: cats, variant: draft.variant });
+                        const created = await Social.createChallenge(signedUser().id, { topic: resolved.value, count: draft.count, invitedId: opponent ? opponent.id : null, includeHard: draft.hard, categories: cats, variant: draft.variant });
                         closeDialog();
                         await loadMyProfile();
                         startChallenge({ ...created, creator: myProfile, invited: opponent, fresh: true }, 0, []);
                     } catch (error) {
                         busy = false;
-                        note = 'Výzvu se nepodařilo založit. Zkontroluj připojení a zkus to znovu.';
+                        note = error && error.status === 400 && /nepřijímá/.test(String(error.message || '')) ? 'Tenhle hráč mezitím vypnul některé z vybraných témat. Zkus jiné.' : 'Výzvu se nepodařilo založit. Zkontroluj připojení a zkus to znovu.';
                         render();
                     }
                 }
@@ -3210,19 +3304,27 @@
         const xp = loadProgress().xp;
         const current = levelProgress(xp).level;
         const starts = new Map(LEVEL_TITLES.map(entry => [entry.from, entry.title]));
-        const cells = Array.from({ length: MAX_LEVEL }, (_, index) => {
-            const level = index + 1;
-            const reached = level <= current;
-            const title = starts.get(level);
-            return `<li class="flex items-baseline justify-between gap-1 rounded-md px-1.5 py-[3px] text-[10.5px] leading-none ${level === current ? 'bg-brand-700 text-white ring-2 ring-gold-400' : title ? 'bg-gold-100 text-brand-950 dark:bg-gold-900/40 dark:text-gold-100' : reached ? 'bg-slate-200/80 text-slate-600 dark:bg-slate-700/70 dark:text-slate-300' : 'bg-white text-slate-700 dark:bg-slate-800 dark:text-slate-300'}" title="${escapeHtml(`Úroveň ${level}${title ? ` – titul ${title}` : ''}: ${formatXp(xpForLevel(level))} XP, asi ${formatXp(questionsForLevel(level))} otázek`)}"><b class="text-[11px]">${level}</b><span class="font-semibold">${formatXp(xpForLevel(level))}</span></li>`;
-        }).join('');
-        showDialog('Úrovně', `
-            <div class="flex flex-col gap-2">
-                <p class="text-xs leading-snug text-slate-500 dark:text-slate-400">Potřebné XP celkem; další úrovně trvají čím dál déle (úr. ${MAX_LEVEL} ≈ ${formatXp(questionsForLevel(MAX_LEVEL))} otázek). Máš <b class="text-slate-700 dark:text-slate-200">${formatXp(xp)} XP</b> (úr. ${current}).</p>
-                <ul class="grid grid-cols-4 gap-1">${cells}</ul>
-                <p class="flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] font-semibold text-slate-500 dark:text-slate-400"><span class="flex items-center gap-1"><i class="h-2.5 w-2.5 rounded bg-brand-700"></i>tvoje úroveň</span><span class="flex items-center gap-1"><i class="h-2.5 w-2.5 rounded bg-gold-200"></i>nový titul</span></p>
-                <p class="text-[10px] leading-snug text-slate-500 dark:text-slate-400"><b class="font-black">Tituly:</b> ${LEVEL_TITLES.map(entry => `${escapeHtml(entry.title)} (${entry.from})`).join(' · ')}</p>
-            </div>`);
+        let selected = current;
+        const render = () => {
+            const cells = Array.from({ length: MAX_LEVEL }, (_, index) => {
+                const level = index + 1;
+                const reached = level <= current;
+                const title = starts.get(level);
+                return `<li><button type="button" data-level="${level}" aria-label="${escapeHtml(`Úroveň ${level}${title ? `, titul ${title}` : ''}`)}" class="flex w-full items-baseline justify-between gap-1 rounded-md px-1.5 py-[3px] text-[10.5px] leading-none ${level === selected ? 'ring-2 ring-brand-600 dark:ring-gold-400' : ''} ${level === current ? 'bg-brand-700 text-white ring-2 ring-gold-400' : title ? 'bg-gold-100 text-brand-950 dark:bg-gold-900/40 dark:text-gold-100' : reached ? 'bg-slate-200/80 text-slate-600 dark:bg-slate-700/70 dark:text-slate-300' : 'bg-white text-slate-700 dark:bg-slate-800 dark:text-slate-300'}"><b class="text-[11px]">${level}</b><span class="font-semibold">${formatXp(xpForLevel(level))}</span></button></li>`;
+            }).join('');
+            const titleOf = titleForLevel(selected);
+            const need = Math.max(0, xpForLevel(selected) - xp);
+            showDialog('Úrovně', `
+                <div class="flex flex-col gap-2">
+                    <div class="rounded-xl bg-white p-2.5 shadow-sm dark:bg-slate-800">
+                        <p class="text-sm font-black text-slate-800 dark:text-slate-100">Úroveň ${selected} · ${escapeHtml(titleOf)}${starts.has(selected) ? ' <span class="text-[11px] font-bold text-gold-600 dark:text-gold-400">nový titul</span>' : ''}</p>
+                        <p class="text-xs text-slate-500 dark:text-slate-400">${formatXp(xpForLevel(selected))} XP celkem, asi ${formatXp(questionsForLevel(selected))} otázek${need ? ` · chybí ti ${formatXp(need)} XP` : ' · máš splněno'}</p>
+                    </div>
+                    <ul class="grid grid-cols-4 gap-1">${cells}</ul>
+                    <p class="flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] font-semibold text-slate-500 dark:text-slate-400"><span class="flex items-center gap-1"><i class="h-2.5 w-2.5 rounded bg-brand-700"></i>tvoje úroveň (${formatXp(xp)} XP)</span><span class="flex items-center gap-1"><i class="h-2.5 w-2.5 rounded bg-gold-200"></i>nový titul (${LEVEL_TITLES.length})</span><span>klepni na úroveň</span></p>
+                </div>`, { onClick: (event) => { const cell = event.target.closest('[data-level]'); if (cell) { selected = Number(cell.dataset.level); render(); } } });
+        };
+        render();
     };
 
     // Můj postup: úroveň, titul, XP do další úrovně a mistrovství jednotlivých témat (hvězdičky podle poznaných položek)
@@ -3332,7 +3434,7 @@
                         startChallenge({ ...created, creator: myProfile, invited: player, fresh: true }, 0, []);
                     } catch (error) {
                         busy = false;
-                        note = 'Výzvu se nepodařilo založit. Zkontroluj připojení a zkus to znovu.';
+                        note = error && error.status === 400 && /nepřijímá/.test(String(error.message || '')) ? 'Tenhle hráč mezitím vypnul některé z vybraných témat. Zkus jiné.' : 'Výzvu se nepodařilo založit. Zkontroluj připojení a zkus to znovu.';
                         render();
                     }
                 }
@@ -3574,6 +3676,7 @@
             showStart();
         },
         'open-profile': () => openProfile(),
+        'open-accept': () => openAccepted(),
         'home-tab': (button) => { writeJson(KEYS.homeTab, button.dataset.tab === 'multi' ? 'multi' : 'single'); renderHome(); },
         'new-challenge': () => openNewChallenge(),
         'join-challenge': () => openJoinChallenge(),
@@ -3785,7 +3888,7 @@
             if (document.getElementById('settings-overlay')) openSettings();
             // Úvod s přihlášením: po přihlášení dál (k variantě nebo domů), po neúspěchu znovu s chybou
             if (document.getElementById('account-welcome') && (Auth.hasSession() || state.error)) showStart();
-            if (!state.user) { myProfile = null; myChallenges = null; incomingList = null; updateProfileButton(); paintChallenges(); return; }
+            if (!state.user) { myProfile = null; myBlocked = null; myChallenges = null; incomingList = null; updateProfileButton(); paintChallenges(); return; }
             // Po přihlášení (i návratu z Googlu) se otevře výzva, na kterou hráč klepl v odkazu
             const pending = readJson(KEYS.pendingChallenge);
             if (pending) {

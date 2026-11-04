@@ -12,7 +12,7 @@ const ICONS = [
     'globe', 'globe-2', 'graduation-cap', 'grid-3x3', 'hourglass', 'house', 'image', 'info', 'keyboard', 'landmark',
     'layers', 'layout-grid', 'leaf', 'magnet', 'map', 'map-pin', 'microscope', 'minus', 'mountain', 'navigation',
     'network', 'orbit', 'palmtree', 'paw-print', 'plus', 'repeat', 'rocket', 'ruler', 'scale', 'scroll',
-    'search-x', 'send', 'settings-2', 'share-2', 'shell', 'shuffle', 'sigma', 'sprout', 'star', 'swords', 'lightbulb', 'gamepad-2', 'crosshair', 'eye-off', 'calendar-check', 'book-open-check',
+    'search-x', 'send', 'settings-2', 'share-2', 'shell', 'shuffle', 'sigma', 'sprout', 'star', 'swords', 'lightbulb', 'gamepad-2', 'ban', 'shield-check', 'crosshair', 'eye-off', 'calendar-check', 'book-open-check',
     'table', 'tag', 'target', 'telescope', 'test-tube', 'thermometer', 'trash-2', 'trees', 'trophy', 'turtle',
     'user', 'waves', 'wifi-off', 'x', 'zap',
     // Témata kultura, umění, sport, geologie, mytologie a vlajky

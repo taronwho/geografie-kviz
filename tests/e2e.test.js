@@ -248,7 +248,9 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         // Klepnutí na úroveň otevře tabulku všech úrovní (čtyři sloupce, 100 úrovní)
         await tab.click('[data-open-levels]');
         await tab.waitForSelector('#dialog-overlay ul li');
-        assert.equal(await tab.locator('#dialog-overlay ul li').count(), 100);
+        assert.equal(await tab.locator('#dialog-overlay [data-level]').count(), 100);
+        await tab.click('#dialog-overlay [data-level="18"]');
+        assert.match(await tab.textContent('#dialog-overlay'), /Úroveň 18 · Znalec/);
         assert.match(await tab.textContent('#dialog-overlay'), new RegExp(`${gained}\\s*XP`));
         await tab.keyboard.press('Escape');
         await tab.click('#status-badge');
@@ -1321,7 +1323,10 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
                 const body = request.postData() ? JSON.parse(request.postData()) : null;
                 const resultRow = (row) => ({ ...row, player: profileOf(row.user_id) });
                 const challengeRow = (c) => ({ ...c, creator: profileOf(c.creator_id), invited: c.invited_id ? profileOf(c.invited_id) : null });
-                if (url.pathname === '/rest/v1/rpc/random_opponent') return json(Object.values(db.profiles).filter(profile => profile.id !== me.id).slice(0, 1));
+                if (url.pathname === '/rest/v1/rpc/random_opponent') {
+                    const wanted = (body && body.wanted) || [];
+                    return json(Object.values(db.profiles).filter(profile => profile.id !== me.id && !(profile.blocked_topics || []).some(topic => wanted.includes(topic))).slice(0, 1));
+                }
                 if (url.pathname === '/rest/v1/profiles') {
                     if (request.method() === 'PATCH') {
                         if (body.display_name && Object.values(db.profiles).some(profile => profile.id !== eq('id') && profile.display_name.toLowerCase() === body.display_name.toLowerCase())) return json({ code: '23505' }, 409);
@@ -1337,6 +1342,9 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
                 if (url.pathname === '/rest/v1/challenges') {
                     if (request.method() === 'POST') {
                         if (db.challenges[body.id]) return json({}, 409);
+                        // Kontrola v databázi: pozvaný hráč nepřijímá některé z témat výzvy
+                        const invitedBlocked = body.invited_id ? (db.profiles[body.invited_id].blocked_topics || []) : [];
+                        if (invitedBlocked.length && (body.topic === 'mix' || body.topic.split(',').some(topic => invitedBlocked.includes(topic)))) return json({ message: 'Tenhle hráč nepřijímá výzvy z některého z vybraných témat.' }, 400);
                         db.challenges[body.id] = { ...body, created_at: `2026-11-03T10:0${Object.keys(db.challenges).length}:00Z` };
                         return json([db.challenges[body.id]], 201);
                     }
@@ -1400,6 +1408,23 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         assert.deepEqual([db.profiles['u-1'].display_name, db.profiles['u-1'].avatar, db.profiles['u-1'].color], ['Janička', '🐼', 'sky']);
         await one.tab.click('#settings-overlay [data-close]');
         await one.tab.waitForFunction(() => document.getElementById('btn-settings').textContent.includes('🐼'));
+
+        // Přijímané výzvy: z profilu i ze záložky Více hráčů; vypnuté téma se uloží, Zapnout vše je vrátí
+        await one.tab.click('#btn-settings');
+        await one.tab.click('[data-me-tab="profile"]');
+        await one.tab.click('[data-open-accept]');
+        await one.tab.waitForSelector('[data-accept-topic="vlajky"]');
+        assert.equal(await one.tab.getAttribute('[data-accept-topic="vlajky"]', 'aria-checked'), 'true');
+        await one.tab.click('[data-accept-topic="vlajky"]');
+        await one.tab.waitForFunction(() => /Uloženo/.test(document.getElementById('dialog-overlay').textContent));
+        assert.deepEqual(db.profiles['u-1'].blocked_topics, ['vlajky']);
+        assert.equal(await one.tab.getAttribute('[data-accept-topic="vlajky"]', 'aria-checked'), 'false');
+        assert.match(await one.tab.textContent('#dialog-overlay'), /Přijímáš: 13 z 14 témat/);
+        await one.tab.click('[data-accept-all]');
+        await one.tab.waitForFunction(() => !document.querySelector('[data-accept-all]'));
+        assert.deepEqual(db.profiles['u-1'].blocked_topics, []);
+        await one.tab.click('#dialog-overlay [data-close]');
+        assert.match(await one.tab.textContent('#challenges-section'), /Přijímám výzvy z:\s*všechna témata/);
 
         // Výzva konkrétnímu hráči: hledání podle přezdívky (Petr), téma zeměpis, 5 otázek
         await one.tab.click('#challenges-section [data-action="new-challenge"]');
@@ -1486,6 +1511,39 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         assert.ok(['zemepis', 'historie'].includes((await readRound(one.tab)).topic));
         await one.tab.click('#btn-home');
         await waitForHome(one.tab);
+
+        // Petr nepřijímá zeměpis: výslovně vybrané téma se mu zadat nedá, Mix se zúží, náhodný soupeř ho v zeměpisu přeskočí
+        db.profiles['u-2'].blocked_topics = ['zemepis'];
+        await one.tab.click('#challenges-section [data-action="new-challenge"]');
+        await one.tab.click('[data-ch-who="player"]');
+        await one.tab.fill('#opp-search', 'pet');
+        await one.tab.click('[data-pick-opp="u-2"]');
+        await one.tab.click('[data-ch-open="topics"]');
+        await one.tab.click('[data-ch-topic="zemepis"]');
+        await one.tab.waitForFunction(() => /nechce hrát: Zeměpis/.test(document.getElementById('dialog-overlay').textContent));
+        await one.tab.click('[data-ch-count="5"]');
+        await one.tab.click('[data-ch-create]');
+        await one.tab.waitForFunction(() => /Vyber jiné téma/.test(document.getElementById('dialog-overlay').textContent));
+        const countBlocked = Object.keys(db.challenges).length;
+        assert.equal(Object.keys(db.challenges).length, countBlocked, 'nic se nezaložilo');
+        await one.tab.click('[data-ch-topic="zemepis"]');
+        await one.tab.waitForFunction(() => /Mix bez: Zeměpis/.test(document.getElementById('dialog-overlay').textContent));
+        await one.tab.click('[data-ch-create]');
+        await waitForQuestion(one.tab);
+        const trimmed = Object.values(db.challenges).find(c => c.invited_id === 'u-2' && c.topic.includes(',') && !c.topic.includes('zemepis') && c.count === 5);
+        assert.ok(trimmed, 'Mix bez zeměpisu');
+        assert.equal(trimmed.topic.split(',').length, 13);
+        delete db.challenges[trimmed.id];
+        await one.tab.click('#btn-home');
+        await waitForHome(one.tab);
+        await one.tab.click('#challenges-section [data-action="new-challenge"]');
+        await one.tab.click('[data-ch-who="random"]');
+        await one.tab.click('[data-ch-open="topics"]');
+        await one.tab.click('[data-ch-topic="zemepis"]');
+        await one.tab.click('[data-ch-create]');
+        await one.tab.waitForFunction(() => /Nikdo, kdo přijímá tato témata/.test(document.getElementById('dialog-overlay').textContent));
+        await one.tab.click('#dialog-overlay [data-close]');
+        db.profiles['u-2'].blocked_topics = [];
 
         // Náhodný soupeř: vybere se jiný hráč (tady jediný další, Petr)
         await one.tab.click('#challenges-section [data-action="new-challenge"]');

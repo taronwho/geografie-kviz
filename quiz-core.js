@@ -989,14 +989,14 @@
         const needed = xpForLevel(level + 1) - base;
         return { level, into: xp - base, needed, ratio: Math.min(1, (xp - base) / needed) };
     };
-    // 18 titulů na 100 úrovní: nový titul zhruba každých 5–8 úrovní
+    // 31 titulů na 100 úrovní: nový titul zhruba každé 3–4 úrovně
     const LEVEL_TITLES = [
-        { from: 1, title: 'Zvědavec' }, { from: 4, title: 'Čtenář' }, { from: 7, title: 'Učeň' }, { from: 10, title: 'Žák' },
-        { from: 14, title: 'Student' }, { from: 18, title: 'Znalec' }, { from: 23, title: 'Badatel' }, { from: 28, title: 'Učenec' },
-        { from: 34, title: 'Erudit' }, { from: 40, title: 'Odborník' }, { from: 46, title: 'Mistr' }, { from: 53, title: 'Profesor' },
-        { from: 60, title: 'Mudrc' }, { from: 68, title: 'Vševěd' }, { from: 76, title: 'Velemistr' }, { from: 84, title: 'Legenda' },
-        { from: 92, title: 'Orákulum' }, { from: 100, title: 'Mudrlant' }
-    ];
+        [1, 'Zvědavec'], [3, 'Čtenář'], [5, 'Posluchač'], [7, 'Učeň'], [9, 'Žák'], [12, 'Student'], [15, 'Zasvěcenec'], [18, 'Znalec'],
+        [21, 'Badatel'], [24, 'Zkoumatel'], [27, 'Učenec'], [30, 'Vzdělanec'], [33, 'Erudit'], [36, 'Odborník'], [39, 'Specialista'],
+        [42, 'Expert'], [45, 'Mistr'], [48, 'Magistr'], [52, 'Doktor'], [56, 'Docent'], [60, 'Profesor'], [64, 'Akademik'],
+        [68, 'Mudrc'], [72, 'Vševěd'], [76, 'Velemistr'], [80, 'Polyhistor'], [84, 'Legenda'], [88, 'Strážce vědění'], [92, 'Orákulum'],
+        [96, 'Archimudrc'], [100, 'Mudrlant']
+    ].map(([from, title]) => ({ from, title }));
     const titleForLevel = (level) => LEVEL_TITLES.filter(entry => level >= entry.from).pop().title;
     // Další titul (kdy a jaký), null na konci
     const nextTitle = (level) => LEVEL_TITLES.find(entry => entry.from > level) || null;
