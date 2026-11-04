@@ -79,13 +79,13 @@ test('denní zajímavost', { skip: !chromium && 'Playwright není nainstalovaný
         await tab.waitForTimeout(600);
         assert.equal(await tab.evaluate(() => { const box = document.getElementById('app-content'); return box.scrollHeight <= box.clientHeight; }), true, 'úvod bez posouvání');
         await tab.click('#fact-hint');
-        await tab.waitForSelector('#dialog-overlay [data-fact-link]');
-        assert.match(await tab.textContent('#dialog-overlay'), /Howard Carter/);
+        await tab.waitForSelector('#fact-overlay [data-fact-link]');
+        assert.match(await tab.textContent('#fact-overlay'), /Howard Carter/);
         assert.equal(await tab.getAttribute('[data-fact-link]', 'href'), 'https://cs.wikipedia.org/wiki/Tutanchamon');
         assert.equal(await tab.getAttribute('[data-fact-link]', 'target'), '_blank');
         assert.match(await tab.getAttribute('[data-fact-link]', 'rel'), /noopener/);
         await tab.keyboard.press('Escape');
-        await tab.waitForSelector('#dialog-overlay', { state: 'detached' });
+        await tab.waitForSelector('#fact-overlay', { state: 'detached' });
         assert.equal(await tab.isVisible('#fact-hint'), false, 'po přečtení žárovka zmizí');
         await tab.reload();
         await tab.waitForSelector('[data-action="play-topic"]');
@@ -93,9 +93,9 @@ test('denní zajímavost', { skip: !chromium && 'Playwright není nainstalovaný
         assert.equal(await tab.isVisible('#fact-hint'), false, 'přečtení se pamatuje');
         // Zajímavost jde otevřít i po přečtení klepnutím na sovu; klepnutí na text vedle sovy otevře postup
         await tab.click('#status-icon-slot');
-        await tab.waitForSelector('#dialog-overlay [data-fact-link]');
-        await tab.keyboard.press('Escape');
-        await tab.waitForSelector('#dialog-overlay', { state: 'detached' });
+        await tab.waitForSelector('#fact-overlay [data-fact-link]');
+        await tab.click('[data-fact-close]');
+        await tab.waitForSelector('#fact-overlay', { state: 'detached' });
         await tab.click('#status-text');
         await tab.waitForSelector('#dialog-overlay');
         assert.doesNotMatch(await tab.textContent('#dialog-overlay'), /Howard Carter/, 'text vedle sovy otevře postup, ne zajímavost');

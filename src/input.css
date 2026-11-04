@@ -42,6 +42,11 @@
 @media (prefers-reduced-motion: no-preference) {
     .bob { animation: bob 1.4s ease-in-out infinite; transform-origin: 50% 90%; }
 }
+/* Zajímavost se rozevře z rohu u sovy v hlavičce */
+@media (prefers-reduced-motion: no-preference) {
+    .fact-pop { transform-origin: 2.5rem 0; animation: factPop 0.32s cubic-bezier(0.2, 0.9, 0.3, 1.2); }
+}
+@keyframes factPop { from { opacity: 0; transform: scale(0.2) translateY(-0.5rem); } to { opacity: 1; transform: scale(1) translateY(0); } }
 @keyframes bob { 0%, 100% { transform: translateY(0) rotate(-3deg); } 50% { transform: translateY(-8px) rotate(3deg); } }
 
 /* Tlačítka ve stylu loga (samolepka): tmavší spodní hrana jako tloušťka, lehký odlesk nahoře; při stisku se tlačítko zmáčkne */
