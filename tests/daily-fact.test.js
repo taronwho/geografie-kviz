@@ -39,20 +39,11 @@ test('denní zajímavost: pražské datum a výběr kandidátů jen se stránkou
     assert.deepEqual(candidatesFor(FEED, '2026-11-04'), list, 'stejný den = stejné pořadí');
 });
 
-test('denní zajímavost: vážné události (války, vraždy) se přeskočí, když je z čeho vybrat', async () => {
-    const { candidatesFor, isHeavy } = await load();
-    assert.equal(isHeavy('Soldiers killed hundreds during the battle.'), true);
-    assert.equal(isHeavy('The first public library opened in the city.'), false);
-    const page = (title) => [{ type: 'standard', title }];
-    const feed = { selected: [
-        { text: 'A massacre took place.', year: 1900, pages: page('A') },
-        { text: 'A museum opened.', year: 1901, pages: page('B') },
-        { text: 'A bridge was completed.', year: 1902, pages: page('C') },
-        { text: 'A garden was founded.', year: 1903, pages: page('D') }
-    ] };
-    assert.deepEqual(candidatesFor(feed, '2026-11-04').map(item => item.title).sort(), ['B', 'C', 'D']);
-    const few = { selected: feed.selected.slice(0, 2) };
-    assert.equal(candidatesFor(few, '2026-11-04').length, 2, 'bez dost lehkých se vezme i vážná');
+test('denní zajímavost: kategorie se střídají po dnech', async () => {
+    const { categoryFor, CATEGORIES } = await load();
+    const seen = new Set(Array.from({ length: 7 }, (_, i) => categoryFor(`2026-11-${String(i + 1).padStart(2, '0')}`)));
+    assert.equal(seen.size, CATEGORIES.length, 'za týden se vystřídají všechny kategorie');
+    assert.notEqual(categoryFor('2026-11-04'), categoryFor('2026-11-05'));
 });
 
 test('denní zajímavost: kontrola odpovědi odmítne vymyšlená čísla, adresy a špatnou délku', async () => {
@@ -69,14 +60,15 @@ test('denní zajímavost: sestaví výsledek s odkazem na českou Wikipedii a p�
     const { buildFact } = await load();
     const calls = [];
     const logs = [];
-    const fact = await buildFact({ day: '2026-11-04', key: 'klíč', fetchImpl: makeFetch([{ title: 'Špatné', text: 'V roce 1999 se stalo cokoli.'.repeat(6) }, GOOD], calls), log: (line) => logs.push(line) });
+    const fact = await buildFact({ day: '2026-11-04', key: 'klíč', fetchImpl: makeFetch([{ index: 0 }, { title: 'Špatné', text: 'V roce 1999 se stalo cokoli.'.repeat(6) }, GOOD], calls), log: (line) => logs.push(line) });
     assert.equal(fact.date, '2026-11-04');
     assert.equal(fact.year, 1922);
     assert.equal(fact.title, GOOD.title);
     assert.equal(fact.url, 'https://cs.wikipedia.org/wiki/Tutanchamon');
     assert.equal(fact.source, 'Wikipedie');
     assert.ok(logs.some(line => /čísla mimo zdroje/.test(line)), 'první odpověď se zahodila');
-    assert.equal(calls.filter(url => url.includes('generativelanguage')).length, 2);
+    assert.equal(calls.filter(url => url.includes('generativelanguage')).length, 3, 'výběr + dva pokusy o text');
+    assert.ok(fact.category, 'uloží se kategorie dne');
 });
 
 test('denní zajímavost: bez použitelné odpovědi skončí chybou, ne vymyšleným faktem', async () => {

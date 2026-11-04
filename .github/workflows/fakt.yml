@@ -7,6 +7,11 @@ on:
   schedule:
     - cron: '17 22,23 * * *'   # 22:17 a 23:17 UTC = po půlnoci v Praze v létě i v zimě; jedno z nich je vždy po půlnoci, druhé hotový den přeskočí
   workflow_dispatch:
+    inputs:
+      force:
+        description: 'Vytvořit znovu, i když dnešní už existuje (true)'
+        required: false
+        default: 'false'
 
 permissions:
   contents: write
@@ -31,7 +36,7 @@ jobs:
           set -e
           day=$(TZ=Europe/Prague date +%F)
           git fetch -q --depth 1 origin gh-pages || true
-          if git show FETCH_HEAD:app/data/fakt.json 2>/dev/null | grep -q "\"date\": \"$day\""; then echo "Zajímavost pro $day už existuje."; exit 0; fi
+          if [ "${{ github.event.inputs.force }}" != "true" ] && git show FETCH_HEAD:app/data/fakt.json 2>/dev/null | grep -q "\"date\": \"$day\""; then echo "Zajímavost pro $day už existuje."; exit 0; fi
           node scripts/daily-fact.mjs "$day" "$RUNNER_TEMP/fakt.json"
           echo "ready=true" >> "$GITHUB_OUTPUT"
 
