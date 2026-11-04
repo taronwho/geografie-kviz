@@ -58,6 +58,12 @@
                 <span id="status-switch" class="hidden shrink-0"><i data-lucide="chevron-down" class="w-4 h-4"></i></span>
             </button>
 
+            <!-- Sova chce něco říct: malá bublinka u loga, po klepnutí dnešní zajímavost (ukazuje se jen když zajímavost existuje) -->
+            <button id="fact-hint" type="button" class="hidden absolute left-[1.5rem] top-0.5 z-10 h-5 w-6 items-center justify-center rounded-xl rounded-bl-sm border border-gold-400 bg-white text-gold-600 shadow-md active:scale-95 dark:bg-slate-800 dark:text-gold-400" title="Sova ti chce říct dnešní zajímavost" aria-label="Dnešní zajímavost">
+                <i data-lucide="lightbulb" class="h-3 w-3"></i>
+                <span id="fact-dot" class="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full bg-brand-600 ring-2 ring-white motion-safe:animate-pulse dark:ring-slate-800"></span>
+            </button>
+
             <div class="flex shrink-0 gap-1.5">
                 <button id="btn-home" type="button" class="p-2 rounded-2xl btn-3d bg-brand-700 text-white" title="Dnešní otázky" aria-label="Dnešní otázky">
                     <i data-lucide="house" class="w-5 h-5"></i>

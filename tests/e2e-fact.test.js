@@ -62,23 +62,23 @@ test('denní zajímavost', { skip: !chromium && 'Playwright není nainstalovaný
         fact = null;
         let page = await open();
         await page.tab.waitForTimeout(500);
-        assert.equal(await page.tab.locator('[data-action="open-fact"]').count(), 0);
+        assert.equal(await page.tab.isVisible('#fact-hint'), false);
         await page.context.close();
         fact = factFor('2020-01-01');
         page = await open();
         await page.tab.waitForTimeout(500);
-        assert.equal(await page.tab.locator('[data-action="open-fact"]').count(), 0, 'včerejší zajímavost se neukazuje');
+        assert.equal(await page.tab.isVisible('#fact-hint'), false, 'včerejší zajímavost se neukazuje');
         await page.context.close();
     });
 
     await t.test('bublina nabídne zajímavost, okno má text a odkaz na Wikipedii, po přečtení zůstane titulek', async () => {
         fact = factFor(dayKey());
         const { context, tab, problems } = await open();
-        await tab.waitForSelector('[data-action="open-fact"]');
-        assert.match(await tab.textContent('[data-action="open-fact"]'), /Chceš slyšet dnešní zajímavost\?/);
+        await tab.waitForSelector('#fact-hint:not(.hidden)');
+        assert.equal(await tab.isVisible('#fact-dot'), true, 'nepřečtená má tečku');
         await tab.waitForTimeout(600);
         assert.equal(await tab.evaluate(() => { const box = document.getElementById('app-content'); return box.scrollHeight <= box.clientHeight; }), true, 'úvod bez posouvání');
-        await tab.click('[data-action="open-fact"]');
+        await tab.click('#fact-hint');
         await tab.waitForSelector('#dialog-overlay [data-fact-link]');
         assert.match(await tab.textContent('#dialog-overlay'), /Howard Carter/);
         assert.equal(await tab.getAttribute('[data-fact-link]', 'href'), 'https://cs.wikipedia.org/wiki/Tutanchamon');
@@ -86,10 +86,11 @@ test('denní zajímavost', { skip: !chromium && 'Playwright není nainstalovaný
         assert.match(await tab.getAttribute('[data-fact-link]', 'rel'), /noopener/);
         await tab.keyboard.press('Escape');
         await tab.waitForSelector('#dialog-overlay', { state: 'detached' });
-        assert.match(await tab.textContent('[data-action="open-fact"]'), /Dnešní zajímavost: Objev hrobky Tutanchamona/);
+        assert.equal(await tab.isVisible('#fact-dot'), false, 'po přečtení tečka zmizí');
+        assert.equal(await tab.isVisible('#fact-hint'), true, 'bublinka zůstane k opětovnému přečtení');
         await tab.reload();
-        await tab.waitForSelector('[data-action="open-fact"]');
-        assert.match(await tab.textContent('[data-action="open-fact"]'), /Dnešní zajímavost:/, 'přečtení se pamatuje');
+        await tab.waitForSelector('#fact-hint:not(.hidden)');
+        assert.equal(await tab.isVisible('#fact-dot'), false, 'přečtení se pamatuje');
         assert.deepEqual(problems, []);
         await context.close();
     });
@@ -98,7 +99,7 @@ test('denní zajímavost', { skip: !chromium && 'Playwright není nainstalovaný
         fact = { ...factFor(dayKey()), url: 'https://example.com/x' };
         const { context, tab } = await open();
         await tab.waitForTimeout(500);
-        assert.equal(await tab.locator('[data-action="open-fact"]').count(), 0);
+        assert.equal(await tab.isVisible('#fact-hint'), false);
         await context.close();
     });
 });

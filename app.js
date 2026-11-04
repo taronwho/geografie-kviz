@@ -1141,7 +1141,7 @@
         return { icon: topic.icon, text: `${topic.title}${scope}`, topic, switch: true };
     };
 
-    const HEADER_BASE = 'shrink-0 w-full px-4 pt-4 pb-3 flex justify-between items-center gap-2 z-30 bg-slate-50 dark:bg-slate-900 border-b-4';
+    const HEADER_BASE = 'relative shrink-0 w-full px-4 pt-4 pb-3 flex justify-between items-center gap-2 z-30 bg-slate-50 dark:bg-slate-900 border-b-4';
     const BADGE_BASE = 'min-w-0 px-2.5 py-2 rounded-2xl shadow-sm text-sm font-bold flex items-center gap-2 transition-colors border';
     const BADGE_LOGO = 'min-w-0 flex items-center gap-2 rounded-2xl py-0.5 pr-1 text-left';
 
@@ -1166,6 +1166,7 @@
         // Při hraní je téma poznat na první pohled: barevný štítek a barevný spodní okraj hlavičky
         const place = describePlace();
         const style = place.topic ? styleOf(place.topic) : null;
+        updateFactHint();
         document.getElementById('app-header').className = `${HEADER_BASE} ${style && screen === 'round' ? style.accent : 'border-slate-200/70 dark:border-slate-800'}`;
         const badge = document.getElementById('status-badge');
         badge.className = place.logo ? BADGE_LOGO
@@ -1275,18 +1276,15 @@
             if (screen === 'home') renderHome();
         } catch (error) { /* bez zajímavosti se úvod prostě ukáže bez bubliny */ }
     };
-    // Bublina sovy nad dnešními otázkami; po přečtení zůstane tenký řádek s titulkem
-    const factBubble = () => {
-        if (!dailyFact) return '';
-        const read = factRead();
-        // Bublina vychází ze sovy v hlavičce (ocásek míří vlevo nahoru), druhá sova se nekreslí
-        return `
-            <button type="button" data-action="open-fact" class="relative mt-1.5 flex shrink-0 items-center gap-2 rounded-2xl bg-white px-3 py-2 text-left shadow-sm ring-1 ring-slate-200/70 active:scale-[0.99] dark:bg-slate-800 dark:ring-slate-700/70">
-                <span aria-hidden="true" class="absolute -top-1.5 left-6 h-3 w-3 rotate-45 border-l border-t border-slate-200/70 bg-white dark:border-slate-700/70 dark:bg-slate-800"></span>
-                <i data-lucide="lightbulb" class="h-5 w-5 shrink-0 text-gold-600 dark:text-gold-400"></i>
-                <span class="min-w-0 flex-1 truncate text-[13px] font-black leading-tight text-slate-800 dark:text-slate-100">${read ? `<span class="font-bold text-slate-500 dark:text-slate-400">Dnešní zajímavost:</span> ${escapeHtml(dailyFact.title)}` : 'Chceš slyšet dnešní zajímavost?'}</span>
-                <i data-lucide="${read ? 'book-open' : 'chevron-right'}" class="h-4 w-4 shrink-0 text-brand-700 dark:text-brand-300"></i>
-            </button>`;
+    // Bublinka u sovy v hlavičce: ukáže se na úvodu, dokud je co říct; tečka zmizí po přečtení
+    const updateFactHint = () => {
+        const hint = document.getElementById('fact-hint');
+        if (!hint) return;
+        const show = Boolean(dailyFact) && screen === 'home';
+        hint.classList.toggle('hidden', !show);
+        hint.classList.toggle('flex', show);
+        document.getElementById('fact-dot').classList.toggle('hidden', factRead());
+        if (show) renderIcons(hint);
     };
     const openFact = () => {
         if (!dailyFact) return;
@@ -1343,7 +1341,7 @@
         appContent.innerHTML = `
             <div class="fade-in flex min-h-full w-full flex-col gap-2.5 bg-slate-50 p-3 pb-4 dark:bg-slate-900">
                 ${renderHomeTabs()}
-                ${homeTab() === 'multi' ? renderChallengesSection() : `${factBubble()}<section class="rounded-[1.4rem] bg-white p-2.5 shadow-sm ring-1 ring-slate-200/70 dark:bg-slate-800/70 dark:ring-slate-700/70">
+                ${homeTab() === 'multi' ? renderChallengesSection() : `<section class="rounded-[1.4rem] bg-white p-2.5 shadow-sm ring-1 ring-slate-200/70 dark:bg-slate-800/70 dark:ring-slate-700/70">
                     <div class="mb-2 flex items-center justify-between gap-2">
                         <h2 class="flex min-w-0 items-center gap-2 whitespace-nowrap text-slate-800 dark:text-slate-100">${uiArt('dnes', 'h-8 w-8')}<span class="min-w-0"><span class="block text-[13px] font-black leading-tight">Dnešní otázky</span><span class="block text-[11px] font-bold leading-tight text-slate-400">${answered}/${TOPICS.length} splněno</span></span></h2>
                         ${left ? `
@@ -3951,6 +3949,7 @@
     });
     document.getElementById('btn-settings').addEventListener('click', () => openSettings());
     document.getElementById('status-badge').addEventListener('click', () => switchFromBadge());
+    document.getElementById('fact-hint').addEventListener('click', () => openFact());
     // Zvětšení fotky funguje všude: v nápovědě, ve výsledku, v okně s popisem i v atlasu
     document.addEventListener('click', (event) => {
         const zoom = event.target.closest('[data-photo-zoom]');
