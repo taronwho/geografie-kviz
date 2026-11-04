@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 
 const UA = 'Mudrlant/1.0 (https://github.com/taronwho/geografie-kviz; denní zajímavost)';
 const MODEL = process.env.GEMINI_MODEL || 'gemini-3.8-flash';
-// Když zvolený model u API neexistuje (404), zkusí se starší, ať denní zajímavost nevypadne
+// Když zvolený model nejde použít (neexistuje, je přetížený), zkusí se starší, ať denní zajímavost nevypadne
 const FALLBACK_MODEL = 'gemini-2.5-flash';
 const TEXT_MIN = 120;
 const TEXT_MAX = 650;
@@ -34,18 +34,20 @@ const getJson = async (fetchImpl, url, init = {}, tries = 3) => {
 // Kandidáti na dnešní den: vybrané události, ostatní události a narození; každý má rok, text a anglickou stránku
 export const candidatesFor = (feed, day) => {
     const seen = new Set();
-    const out = [];
+    const groups = [];
     for (const kind of ['selected', 'events', 'births']) {
+        const group = [];
         for (const item of feed[kind] || []) {
             const page = (item.pages || []).find(entry => entry && entry.title && entry.type === 'standard');
             if (!page || !item.text || !Number.isInteger(item.year) || seen.has(page.title)) continue;
             seen.add(page.title);
-            out.push({ kind, year: item.year, text: item.text, title: page.title });
+            group.push({ kind, year: item.year, text: item.text, title: page.title });
         }
+        // Pořadí podle data, ať je výběr stejný při opakování, ale každý den jiný; skupiny jdou od nejznámějších
+        const start = group.length ? hash(day + kind) % group.length : 0;
+        groups.push(group.slice(start).concat(group.slice(0, start)));
     }
-    // Pořadí podle data, ať je výběr stejný při opakování, ale každý den jiný
-    const start = out.length ? hash(day) % out.length : 0;
-    return out.slice(start).concat(out.slice(0, start));
+    return groups.flat();
 };
 
 // České heslo a úvod k anglické stránce; bez české stránky se kandidát nepoužije (odkaz vede na českou Wikipedii)
@@ -101,10 +103,11 @@ const askGemini = async (fetchImpl, key, text) => {
             responseSchema: { type: 'OBJECT', properties: { title: { type: 'STRING' }, text: { type: 'STRING' } }, required: ['title', 'text'] }
         }
     };
-    const call = (model) => getJson(fetchImpl, `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key }, body: JSON.stringify(body) }, 1);
+    const call = (model) => getJson(fetchImpl, `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key }, body: JSON.stringify(body) }, 2);
     let data;
     try { data = await call(MODEL); } catch (error) {
-        if (!/^404 /.test(error.message) || MODEL === FALLBACK_MODEL) throw error;
+        // Model neexistuje nebo je přetížený: zkusí se starší, ať denní zajímavost nevypadne
+        if (MODEL === FALLBACK_MODEL) throw error;
         data = await call(FALLBACK_MODEL);
     }
     const raw = data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts && data.candidates[0].content.parts.map(part => part.text || '').join('');
