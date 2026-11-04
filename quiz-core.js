@@ -961,8 +961,21 @@
     // --- Postup hráče: zkušenosti (XP), úrovně, tituly a mistrovství témat ---
 
     const MAX_LEVEL = 100;
-    // Kolik XP je potřeba celkem na úroveň: pozvolna roste (úroveň 5 ≈ 370 XP, 10 ≈ 1 340, 25 ≈ 6 500, 50 ≈ 20 000, 100 ≈ 62 000)
-    const xpForLevel = (level) => level <= 1 ? 0 : Math.round(40 * Math.pow(level - 1, 1.6));
+    // Kolik XP je potřeba celkem na každou úroveň. Zpočátku to jde rychle (úroveň 2 po pár otázkách), pak čím dál pomaleji:
+    // celkem 330 000 XP na úroveň 100 = asi 15 000 otázek při průměru ~22 XP na otázku. Hodnoty jsou zaokrouhlené
+    // (na 10, 50, 100, 500, 1 000 XP podle velikosti), ať se v tabulce dobře čtou.
+    const LEVEL_XP_TOTAL = 330000;
+    const niceXp = (value) => value < 500 ? Math.round(value / 10) * 10 : value < 2000 ? Math.round(value / 50) * 50
+        : value < 10000 ? Math.round(value / 100) * 100 : value < 50000 ? Math.round(value / 500) * 500 : Math.round(value / 1000) * 1000;
+    const LEVEL_XP = (() => {
+        const linear = 60;
+        const quad = (LEVEL_XP_TOTAL - linear * (MAX_LEVEL - 1)) / ((MAX_LEVEL - 1) * (MAX_LEVEL - 1));
+        return Array.from({ length: MAX_LEVEL }, (_, index) => index === 0 ? 0 : niceXp(linear * index + quad * index * index));
+    })();
+    const AVERAGE_XP_PER_QUESTION = 22;
+    const xpForLevel = (level) => LEVEL_XP[Math.min(MAX_LEVEL, Math.max(1, level)) - 1];
+    // Zhruba kolik otázek je třeba odehrát na danou úroveň (podle průměrných XP)
+    const questionsForLevel = (level) => Math.round(xpForLevel(level) / AVERAGE_XP_PER_QUESTION);
     const levelFromXp = (xp) => {
         let level = 1;
         while (level < MAX_LEVEL && xp >= xpForLevel(level + 1)) level++;
@@ -1104,7 +1117,7 @@
 
     return {
         EMPTY_COUNTERS, BADGES, BADGE_GROUPS, BADGE_BY_ID, earnedBadgeIds, compactBadges, expandBadges, normalizeCounters,
-        MAX_LEVEL, xpForLevel, levelFromXp, levelProgress, LEVEL_TITLES, titleForLevel, nextTitle, answerXp, DAILY_XP, DAILY_ALL_XP, streakXp, MASTERY_STEPS, masteryStars, nextMastery,
+        MAX_LEVEL, LEVEL_XP, questionsForLevel, xpForLevel, levelFromXp, levelProgress, LEVEL_TITLES, titleForLevel, nextTitle, answerXp, DAILY_XP, DAILY_ALL_XP, streakXp, MASTERY_STEPS, masteryStars, nextMastery,
         UNKNOWN_COUNTRY, INTERNATIONAL_WATERS, CZECHIA_QID, AFTER_SYMBOL_WORD, TILE_SIZE, COUNTRIES, CONTINENT_NAMES,
         SATELLITE_TILES, OSM_TILES,
         escapeHtml, stripBrackets, isRealPhoto, commonsPhotoUrl, commonsFileUrl, displayName, plural, formatPoints,

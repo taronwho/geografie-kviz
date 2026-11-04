@@ -9,6 +9,7 @@
         censorName, mergeCensored, processWikiText, checkAnswer, normalizeAnswer, filterItems, pickItem, sortItems,
         buildItemChoices, findAnswerItem, setCountries, updateMistakes, nameAnswers, pointsFor, dropKnownFacts,
         computeStreak, buildShareText, getTileLayout, shuffle,
+        LEVEL_XP, questionsForLevel, xpForLevel, MAX_LEVEL, LEVEL_TITLES,
         BADGES, BADGE_GROUPS, BADGE_BY_ID, earnedBadgeIds, compactBadges, expandBadges, normalizeCounters,
         levelProgress, titleForLevel, nextTitle, answerXp, DAILY_XP, DAILY_ALL_XP, streakXp, MASTERY_STEPS, masteryStars, nextMastery
     } = window.MudrlantCore;
@@ -690,6 +691,42 @@
     let meDraft = null;
     let meDirty = false;
     let meNote = '';
+    // Vývojářský režim: ?vyvojar v adrese ho zapne (a uloží); v Nastavení pak jdou nastavit úroveň a odznaky, ať je vidět, jak vypadá
+    // hra s nimi. Původní postup se zazálohuje, vrací se tlačítkem a při vývojářském postupu se nic neukládá do účtu.
+    const DEV_KEY = 'mudrlant.dev';
+    const DEV_BACKUP = 'mudrlant.dev.backup';
+    const devOn = () => { try { return localStorage.getItem(DEV_KEY) === '1'; } catch (e) { return false; } };
+    const devActive = () => { try { return localStorage.getItem(DEV_BACKUP) !== null; } catch (e) { return false; } };
+    const devApply = (kind) => {
+        try {
+            if (kind === 'restore') {
+                const backup = localStorage.getItem(DEV_BACKUP);
+                if (backup !== null) { if (backup === 'null') localStorage.removeItem(KEYS.progress); else localStorage.setItem(KEYS.progress, backup); localStorage.removeItem(DEV_BACKUP); }
+                return;
+            }
+            if (localStorage.getItem(DEV_BACKUP) === null) localStorage.setItem(DEV_BACKUP, localStorage.getItem(KEYS.progress) ?? 'null');
+            const progress = loadProgress();
+            const today = getDayKey();
+            const allBadges = () => Object.fromEntries(BADGES.map(badge => [badge.id, today]));
+            const topics = Object.fromEntries(TOPICS.map(topic => [topic.id, 400]));
+            if (kind === 'max') {
+                Object.assign(progress, { xp: xpForLevel(MAX_LEVEL), badges: allBadges() });
+                progress.counters = normalizeCounters({ answered: 15000, correct: 12000, typedCorrect: 800, noHint: 1000, hardCorrect: 300, bestRun: 120, bestStreak: 400, perfectDays: 40, dailyCorrect: 400, fixed: 300,
+                    challenges: 150, wins: 120, bestWinRun: 12, created: 60, perfectChallenges: 30, days: 400, lastDay: today, topics });
+                const learned = {};
+                TOPICS.forEach(topic => { learned[topic.id] = Array.from({ length: 320 }, (_, i) => `dev${i}`); });
+                writeJson(KEYS.learned, learned);
+            } else if (kind === 'badges') progress.badges = allBadges();
+            else if (kind === 'nobadges') progress.badges = {};
+            else if (kind.startsWith('level:')) progress.xp = xpForLevel(Number(kind.slice(6)));
+            saveProgress(progress);
+        } catch (e) { console.error(e); }
+    };
+    const renderDevPanel = () => !devOn() ? '' : `
+        <div class="mt-3 rounded-2xl border-2 border-dashed border-amber-400/70 p-2.5">
+            <p class="mb-1.5 flex items-center justify-between text-[11px] font-black uppercase tracking-widest text-amber-700 dark:text-amber-400"><span>Vývojářský režim</span><span class="font-bold normal-case tracking-normal">${devActive() ? 'zkušební postup' : 'tvůj postup'}</span></p>
+            <div class="flex flex-wrap gap-1">${[['max', 'Vše (úr. 100)'], ['level:10', 'Úr. 10'], ['level:25', 'Úr. 25'], ['level:50', 'Úr. 50'], ['level:75', 'Úr. 75'], ['badges', 'Všechny odznaky'], ['nobadges', 'Žádné odznaky']].map(([kind, label]) => `<button type="button" data-dev="${kind}" class="rounded-lg bg-slate-200 px-2 py-1 text-[11px] font-bold text-slate-700 active:scale-95 dark:bg-slate-700 dark:text-slate-200">${label}</button>`).join('')}${devActive() ? '<button type="button" data-dev="restore" class="rounded-lg bg-amber-500 px-2 py-1 text-[11px] font-black text-white active:scale-95">Vrátit můj postup</button>' : ''}</div>
+        </div>`;
     const ME_HEADING = 'text-[11px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400';
     const VARIANT_BRIEF = { choices: { short: 'Možnosti', text: '4 možnosti, až 4 body' }, typed: { short: 'Psaní', text: 'Těžší, dvojnásobek bodů' } };
     const renderVariantCompact = (selected) => Object.entries(VARIANTS).map(([key, variant]) => `
@@ -732,7 +769,8 @@
                     <p class="text-xs text-slate-500 dark:text-slate-400">S účtem se ukládá postup, získáš profil a půjde hrát výzvy s ostatními. Bez něj hraješ jako host.</p>
                     <button type="button" data-auth-login class="${PRIMARY_BUTTON} mt-2"><i data-lucide="log-in" class="h-5 w-5"></i> Přihlásit se přes Google</button>
                     ${state.error ? `<p class="mt-2 text-xs font-semibold text-rose-600 dark:text-rose-400" role="alert">${escapeHtml(state.error)}</p>` : ''}
-                </div>` : ''}`;
+                </div>` : ''}
+            ${renderDevPanel()}`;
         const profileBody = user && Social && meDraft ? `
             <form id="profile-form" class="flex flex-col gap-3" autocomplete="off">
                 <label class="${ME_HEADING}">Přezdívka
@@ -816,6 +854,8 @@
             if (event.target.closest('[data-auth-logout]')) { closeSettings(); Auth.logout(); return; }
             if (event.target.closest('[data-update-app]')) { updateApp(); return; }
             if (event.target.closest('[data-open-progress]')) { closeSettings(); openProgress(); return; }
+            const devButton = event.target.closest('[data-dev]');
+            if (devButton) { devApply(devButton.dataset.dev); updateControlsUI(); openSettings(`Hotovo: ${devButton.textContent.trim()}`, `[data-dev="${devButton.dataset.dev}"]`); return; }
             const avatar = event.target.closest('[data-pick-avatar]');
             const color = event.target.closest('[data-pick-color]');
             if (avatar || color) {
@@ -1985,7 +2025,7 @@
     let syncingProgress = false;
     const syncProgress = async () => {
         const user = signedUser();
-        if (!user || !Social || syncingProgress) return;
+        if (!user || !Social || syncingProgress || devActive()) return;
         syncingProgress = true;
         try {
             const local = loadProgress();
@@ -3163,6 +3203,28 @@
         render();
     };
 
+    // XP s mezerou po tisících („12 500“); nedělitelná mezera, ať se číslo nezalomí
+    const formatXp = (value) => String(Math.round(value)).replace(/\B(?=(\d{3})+(?!\d))/g, '\u00a0');
+    // Tabulka úrovní: požadované XP (celkem) na každou úroveň ve čtyřech sloupcích; zlatě je úroveň, na které hráč dostane nový titul
+    const openLevels = () => {
+        const xp = loadProgress().xp;
+        const current = levelProgress(xp).level;
+        const starts = new Map(LEVEL_TITLES.map(entry => [entry.from, entry.title]));
+        const cells = Array.from({ length: MAX_LEVEL }, (_, index) => {
+            const level = index + 1;
+            const reached = level <= current;
+            const title = starts.get(level);
+            return `<li class="flex items-baseline justify-between gap-1 rounded-md px-1.5 py-[3px] text-[10.5px] leading-none ${level === current ? 'bg-brand-700 text-white ring-2 ring-gold-400' : title ? 'bg-gold-100 text-brand-950 dark:bg-gold-900/40 dark:text-gold-100' : reached ? 'bg-slate-200/80 text-slate-600 dark:bg-slate-700/70 dark:text-slate-300' : 'bg-white text-slate-700 dark:bg-slate-800 dark:text-slate-300'}" title="${escapeHtml(`Úroveň ${level}${title ? ` – titul ${title}` : ''}: ${formatXp(xpForLevel(level))} XP, asi ${formatXp(questionsForLevel(level))} otázek`)}"><b class="text-[11px]">${level}</b><span class="font-semibold">${formatXp(xpForLevel(level))}</span></li>`;
+        }).join('');
+        showDialog('Úrovně', `
+            <div class="flex flex-col gap-2">
+                <p class="text-xs leading-snug text-slate-500 dark:text-slate-400">Potřebné XP celkem; další úrovně trvají čím dál déle (úr. ${MAX_LEVEL} ≈ ${formatXp(questionsForLevel(MAX_LEVEL))} otázek). Máš <b class="text-slate-700 dark:text-slate-200">${formatXp(xp)} XP</b> (úr. ${current}).</p>
+                <ul class="grid grid-cols-4 gap-1">${cells}</ul>
+                <p class="flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] font-semibold text-slate-500 dark:text-slate-400"><span class="flex items-center gap-1"><i class="h-2.5 w-2.5 rounded bg-brand-700"></i>tvoje úroveň</span><span class="flex items-center gap-1"><i class="h-2.5 w-2.5 rounded bg-gold-200"></i>nový titul</span></p>
+                <p class="text-[10px] leading-snug text-slate-500 dark:text-slate-400"><b class="font-black">Tituly:</b> ${LEVEL_TITLES.map(entry => `${escapeHtml(entry.title)} (${entry.from})`).join(' · ')}</p>
+            </div>`);
+    };
+
     // Můj postup: úroveň, titul, XP do další úrovně a mistrovství jednotlivých témat (hvězdičky podle poznaných položek)
     const openProgress = () => {
         const progress = loadProgress();
@@ -3187,14 +3249,16 @@
         }).join('');
         showDialog('Můj postup', `
             <div class="flex flex-col gap-3">
-                <div class="flex items-center gap-4 rounded-2xl bg-gradient-to-br from-brand-700 to-brand-900 p-3 text-white shadow-md">
+                <button type="button" data-open-levels class="btn-3d flex w-full items-center gap-4 rounded-2xl bg-gradient-to-br from-brand-700 to-brand-900 p-3 text-left text-white" aria-label="Tabulka úrovní">
                     <span class="flex h-16 w-16 shrink-0 flex-col items-center justify-center rounded-full bg-gold-500 text-brand-950 shadow-inner"><span class="text-[9px] font-black uppercase leading-none">úr.</span><span class="text-2xl font-black leading-none">${level.level}</span></span>
-                    <div class="min-w-0 flex-1">
-                        <p class="text-xl font-black leading-tight">${escapeHtml(titleForLevel(level.level))}</p>
-                        <p class="mt-0.5 text-xs font-semibold text-white/80">${level.needed ? `${level.into} / ${level.needed} XP do úrovně ${level.level + 1}` : 'Nejvyšší úroveň'} · celkem ${xp} XP${next ? ` · titul ${escapeHtml(next.title)} od úrovně ${next.from}` : ''}</p>
-                        <span class="mt-2 block h-2 overflow-hidden rounded-full bg-white/25" aria-hidden="true"><span class="block h-full w-0 rounded-full bg-gold-400" data-progress="${Math.round(level.ratio * 100)}"></span></span>
-                    </div>
-                </div>
+                    <span class="min-w-0 flex-1">
+                        <span class="block text-xl font-black leading-tight">${escapeHtml(titleForLevel(level.level))}</span>
+                        <span class="mt-1.5 block h-2 overflow-hidden rounded-full bg-white/25" aria-hidden="true"><span class="block h-full w-0 rounded-full bg-gold-400" data-progress="${Math.round(level.ratio * 100)}"></span></span>
+                        <span class="mt-1 flex items-center justify-between gap-2 text-xs font-bold text-white/85"><span>${level.needed ? `${formatXp(level.into)} / ${formatXp(level.needed)} XP` : 'Nejvyšší úroveň'}</span>${level.needed ? `<span>do úr. ${level.level + 1}</span>` : ''}</span>
+                        ${next ? `<span class="mt-0.5 block text-[11px] font-semibold text-gold-300">Další titul: ${escapeHtml(next.title)} (úr. ${next.from})</span>` : ''}
+                    </span>
+                    <i data-lucide="chevron-right" class="h-5 w-5 shrink-0 text-white/60"></i>
+                </button>
                 <div>
                     <h3 class="${CARD_TITLE} mb-2">Nejbližší odznaky</h3>
                     <ul class="flex flex-col gap-1.5">${goals.map(goal => `<li class="flex items-center gap-2.5 rounded-2xl bg-white p-2 shadow-sm dark:bg-slate-800">${medalHtml(goal.badge, false, 'h-10 w-10', 'h-[1.125rem] w-[1.125rem]')}<span class="min-w-0 flex-1"><span class="flex items-baseline justify-between gap-2"><span class="truncate text-[12px] font-black text-slate-800 dark:text-slate-100">${escapeHtml(goal.badge.title)}</span><span class="shrink-0 text-[11px] font-bold text-slate-400">${goal.value} / ${goal.badge.goal}</span></span><span class="block truncate text-[10px] font-semibold text-slate-500 dark:text-slate-400">${escapeHtml(goal.badge.text)}</span>${goalBar(goal.ratio)}</span></li>`).join('')}</ul>
@@ -3204,7 +3268,7 @@
                     <h3 class="${CARD_TITLE} mb-2">Mistrovství témat</h3>
                     <ul class="grid grid-cols-2 gap-1">${rows}</ul>
                 </div>
-            </div>`, { onClick: (event) => { if (event.target.closest('[data-open-badges]')) openBadges(); } });
+            </div>`, { onClick: (event) => { if (event.target.closest('[data-open-badges]')) openBadges(); if (event.target.closest('[data-open-levels]')) openLevels(); } });
         applyProgress(document.getElementById('dialog-overlay'));
     };
 
@@ -3700,6 +3764,17 @@
         });
     }
 
+    // ?vyvojar zapne vývojářský režim (zkušební úroveň a odznaky v Nastavení), ?vyvojar=0 ho vypne
+    try {
+        const devParam = new URLSearchParams(window.location.search).get('vyvojar');
+        if (devParam !== null) {
+            if (devParam === '0') { devApply('restore'); localStorage.removeItem(DEV_KEY); } else localStorage.setItem(DEV_KEY, '1');
+            const params = new URLSearchParams(window.location.search);
+            params.delete('vyvojar');
+            const query = params.toString();
+            window.history.replaceState(window.history.state, '', window.location.pathname + (query ? `?${query}` : '') + window.location.hash);
+        }
+    } catch (e) { /* bez úložiště se vývojářský režim nezapne */ }
     migrateFromGeoQuiz();
     loadVersion();
     // Po přihlášení nebo odhlášení se otevřené Nastavení překreslí

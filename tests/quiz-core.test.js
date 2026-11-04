@@ -558,15 +558,24 @@ test('zakrývání: iniciály před jménem patří ke jménu (C. S. Lewis, J. R
 test('postup hráče: úrovně rostou pozvolna, tituly, XP za odpověď a mistrovství', () => {
     assert.equal(core.MAX_LEVEL, 100);
     assert.equal(core.xpForLevel(1), 0);
-    assert.equal(core.xpForLevel(2), 40);
+    assert.equal(core.xpForLevel(100), 330000, 'úroveň 100 = 330 000 XP (asi 15 000 otázek)');
     for (let level = 2; level <= core.MAX_LEVEL; level++) assert.ok(core.xpForLevel(level) > core.xpForLevel(level - 1), `úroveň ${level} je dál než předchozí`);
+    // Každá další úroveň trvá déle: mezery rostou (jen zaokrouhlení smí jednotlivé krok o kousek zkrátit)
+    const gap = (level) => core.xpForLevel(level) - core.xpForLevel(level - 1);
+    assert.ok(gap(2) < 200 && gap(100) > 5000, `mezera první ${gap(2)}, poslední ${gap(100)}`);
+    for (let level = 20; level <= core.MAX_LEVEL; level += 8) assert.ok(gap(level) > gap(level - 16), `mezera ${level} je větší než ${level - 16}`);
+    assert.ok(core.questionsForLevel(100) >= 14000 && core.questionsForLevel(100) <= 16000, `otázek na úroveň 100: ${core.questionsForLevel(100)}`);
+    assert.ok(core.questionsForLevel(10) < 200 && core.questionsForLevel(25) < 1200, 'začátek jde rychle');
+    // Zaokrouhlené hodnoty
+    for (let level = 2; level <= core.MAX_LEVEL; level++) assert.equal(core.xpForLevel(level) % 10, 0);
+    const first = core.xpForLevel(2);
     assert.equal(core.levelFromXp(0), 1);
-    assert.equal(core.levelFromXp(39), 1);
-    assert.equal(core.levelFromXp(40), 2);
+    assert.equal(core.levelFromXp(first - 1), 1);
+    assert.equal(core.levelFromXp(first), 2);
     assert.equal(core.levelFromXp(10 ** 9), core.MAX_LEVEL);
-    const progress = core.levelProgress(100);
+    const progress = core.levelProgress(first + 30);
     assert.equal(progress.level, 2);
-    assert.equal(progress.into, 60);
+    assert.equal(progress.into, 30);
     assert.ok(progress.ratio > 0 && progress.ratio < 1);
     assert.deepEqual(core.levelProgress(10 ** 9), { level: core.MAX_LEVEL, into: 10 ** 9 - core.xpForLevel(core.MAX_LEVEL), needed: 0, ratio: 1 });
     assert.equal(core.LEVEL_TITLES.length, 18);

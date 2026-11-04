@@ -244,7 +244,15 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         await tab.waitForSelector('#dialog-overlay');
         assert.match(await tab.textContent('#dialog-overlay'), /Můj postup/);
         assert.match(await tab.textContent('#dialog-overlay'), /Zvědavec/);
-        assert.match(await tab.textContent('#dialog-overlay'), new RegExp(`celkem ${gained} XP`));
+        assert.match(await tab.textContent('#dialog-overlay'), /XP\s*do úr\. 2/);
+        // Klepnutí na úroveň otevře tabulku všech úrovní (čtyři sloupce, 100 úrovní)
+        await tab.click('[data-open-levels]');
+        await tab.waitForSelector('#dialog-overlay ul li');
+        assert.equal(await tab.locator('#dialog-overlay ul li').count(), 100);
+        assert.match(await tab.textContent('#dialog-overlay'), new RegExp(`${gained}\\s*XP`));
+        await tab.keyboard.press('Escape');
+        await tab.click('#status-badge');
+        await tab.waitForSelector('#dialog-overlay');
         assert.equal(await tab.locator('#dialog-overlay li').count(), 14 + 2, 'mistrovství všech témat a dva nejbližší odznaky');
         assert.match(await tab.textContent('#dialog-overlay'), /Všechny odznaky\s*1 \/ \d{3}/);
         // Okno se všemi odznaky: skupiny se stupni, klepnutím na medaili podrobnosti
@@ -1565,6 +1573,28 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         await tab.click('[data-action="hint-tab"][data-step="visual-2"]');
         await tab.waitForFunction(() => { const picture = document.querySelector('#hint-visual-2 > div'); return picture && picture.style.backgroundImage.includes('Flag_of_Albania'); });
         assert.equal(await tab.locator('#hint-visual-2 svg').count(), 0, 've vlajce není mapa');
+        assert.deepEqual(log.errors, []);
+        await context.close();
+    });
+
+    await t.test('vývojářský režim: zkušební úroveň 100 a všechny odznaky, návrat původního postupu, nic se neukládá do účtu', async () => {
+        const { context, tab, log } = await setup(browser);
+        await tab.goto(`${ORIGIN}/?vyvojar`);
+        await waitForHome(tab);
+        assert.equal(new URL(tab.url()).search, '', 'parametr zmizí z adresy');
+        await tab.click('#btn-settings');
+        await tab.waitForSelector('[data-dev="max"]');
+        await tab.click('[data-dev="max"]');
+        await tab.waitForSelector('[data-dev="restore"]');
+        const progress = await tab.evaluate(() => JSON.parse(localStorage.getItem('mudrlant.progress')));
+        assert.equal(progress.xp, 330000);
+        assert.ok(Object.keys(progress.badges).length >= 120, 'všechny odznaky');
+        await tab.keyboard.press('Escape');
+        assert.match(await tab.textContent('#status-text'), /Úr\. 100 · Mudrlant/);
+        await tab.click('#btn-settings');
+        await tab.click('[data-dev="restore"]');
+        await tab.waitForFunction(() => !document.querySelector('[data-dev="restore"]'));
+        assert.equal(await tab.evaluate(() => localStorage.getItem('mudrlant.progress')), null, 'původní (prázdný) postup je zpět');
         assert.deepEqual(log.errors, []);
         await context.close();
     });
