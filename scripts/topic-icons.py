@@ -18,6 +18,18 @@ def cut(path):
     dark = Image.fromarray(((dist < 40) * 255).astype(np.uint8)).copy()
     ImageDraw.floodfill(dark, (3, 3), 128)
     outside = np.asarray(dark) == 128
+    # Uzavřené mezery uvnitř ikony (mezi drahami elektronů, uvnitř ucha…) mají také barvu pozadí a s okrajem nesouvisí:
+    # i ty jsou průhledné, ale jen dostatečně velké a opravdu barvy pozadí (drobné tmavé detaily kresby zůstanou)
+    near = (dist < 22) & ~outside
+    near_img = Image.fromarray((near * 255).astype(np.uint8))
+    core = np.asarray(near_img.filter(ImageFilter.MinFilter(5))) > 0
+    holes = Image.fromarray((near * 255).astype(np.uint8)).copy()
+    remaining = core.copy()
+    while remaining.any():
+        y, x = np.unravel_index(np.argmax(remaining), remaining.shape)
+        ImageDraw.floodfill(holes, (int(x), int(y)), 100)
+        remaining &= ~(np.asarray(holes) == 100)
+    outside = outside | (np.asarray(holes) == 100)
     out_img = Image.fromarray((outside * 255).astype(np.uint8))
     ring = np.asarray(out_img.filter(ImageFilter.MaxFilter(7))) > 0
     band = (np.asarray(out_img.filter(ImageFilter.MaxFilter(21))) > 0) & ~ring
