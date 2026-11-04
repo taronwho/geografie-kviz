@@ -75,7 +75,7 @@ test('denní zajímavost', { skip: !chromium && 'Playwright není nainstalovaný
         fact = factFor(dayKey());
         const { context, tab, problems } = await open();
         await tab.waitForSelector('#fact-hint:not(.hidden)');
-        assert.equal(await tab.isVisible('#fact-dot'), true, 'nepřečtená má tečku');
+        assert.equal(await tab.isVisible('#fact-hint'), true, 'nepřečtená má žárovku');
         await tab.waitForTimeout(600);
         assert.equal(await tab.evaluate(() => { const box = document.getElementById('app-content'); return box.scrollHeight <= box.clientHeight; }), true, 'úvod bez posouvání');
         await tab.click('#fact-hint');
@@ -86,11 +86,19 @@ test('denní zajímavost', { skip: !chromium && 'Playwright není nainstalovaný
         assert.match(await tab.getAttribute('[data-fact-link]', 'rel'), /noopener/);
         await tab.keyboard.press('Escape');
         await tab.waitForSelector('#dialog-overlay', { state: 'detached' });
-        assert.equal(await tab.isVisible('#fact-dot'), false, 'po přečtení tečka zmizí');
-        assert.equal(await tab.isVisible('#fact-hint'), true, 'bublinka zůstane k opětovnému přečtení');
+        assert.equal(await tab.isVisible('#fact-hint'), false, 'po přečtení žárovka zmizí');
         await tab.reload();
-        await tab.waitForSelector('#fact-hint:not(.hidden)');
-        assert.equal(await tab.isVisible('#fact-dot'), false, 'přečtení se pamatuje');
+        await tab.waitForSelector('[data-action="play-topic"]');
+        await tab.waitForTimeout(500);
+        assert.equal(await tab.isVisible('#fact-hint'), false, 'přečtení se pamatuje');
+        // Zajímavost jde otevřít i po přečtení klepnutím na sovu; klepnutí na text vedle sovy otevře postup
+        await tab.click('#status-icon-slot');
+        await tab.waitForSelector('#dialog-overlay [data-fact-link]');
+        await tab.keyboard.press('Escape');
+        await tab.waitForSelector('#dialog-overlay', { state: 'detached' });
+        await tab.click('#status-text');
+        await tab.waitForSelector('#dialog-overlay');
+        assert.doesNotMatch(await tab.textContent('#dialog-overlay'), /Howard Carter/, 'text vedle sovy otevře postup, ne zajímavost');
         assert.deepEqual(problems, []);
         await context.close();
     });

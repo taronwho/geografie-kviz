@@ -1172,7 +1172,7 @@
         badge.className = place.logo ? BADGE_LOGO
             : `${BADGE_BASE} ${style ? `${style.soft} border-transparent` : 'bg-white text-slate-700 border-slate-200/60 dark:bg-slate-800 dark:border-slate-700'}`;
         badge.disabled = !place.switch && !place.logo;
-        badge.title = place.switch ? 'Změnit téma nebo co hrát' : place.logo ? 'Můj postup: úroveň a mistrovství témat' : '';
+        badge.title = place.switch ? 'Změnit téma nebo co hrát' : place.logo ? (dailyFact ? 'Sova: dnešní zajímavost · text: můj postup' : 'Můj postup: úroveň a mistrovství témat') : '';
         badge.setAttribute('aria-label', place.switch ? `${place.text} – změnit téma` : place.logo ? `${place.text} – můj postup` : place.text);
         document.getElementById('status-switch').classList.toggle('hidden', !place.switch);
         const iconSlot = document.getElementById('status-icon-slot');
@@ -1199,8 +1199,10 @@
     };
 
     // Štítek nahoře: při hraní tématu okno s výběrem kategorií, v mixu výběr témat
-    const switchFromBadge = () => {
+    const switchFromBadge = (event) => {
         const place = describePlace();
+        // Klepnutí na sovu otevře dnešní zajímavost (před přečtením i po něm), klepnutí na text vedle ní můj postup
+        if (place.logo && dailyFact && event && event.target.closest('#status-icon-slot')) { openFact(); return; }
         if (place.logo) { openProgress(); return; }
         if (!place.switch) return;
         openChooser(pool.kind === 'mix' ? { kind: 'mix' } : { kind: 'topic', topic: pool.topic });
@@ -1280,10 +1282,9 @@
     const updateFactHint = () => {
         const hint = document.getElementById('fact-hint');
         if (!hint) return;
-        const show = Boolean(dailyFact) && screen === 'home';
+        const show = Boolean(dailyFact) && screen === 'home' && !factRead();
         hint.classList.toggle('hidden', !show);
         hint.classList.toggle('flex', show);
-        document.getElementById('fact-dot').classList.toggle('hidden', factRead());
         if (show) renderIcons(hint);
     };
     const openFact = () => {
@@ -3948,7 +3949,7 @@
         else openLearn('home');
     });
     document.getElementById('btn-settings').addEventListener('click', () => openSettings());
-    document.getElementById('status-badge').addEventListener('click', () => switchFromBadge());
+    document.getElementById('status-badge').addEventListener('click', (event) => switchFromBadge(event));
     document.getElementById('fact-hint').addEventListener('click', () => openFact());
     // Zvětšení fotky funguje všude: v nápovědě, ve výsledku, v okně s popisem i v atlasu
     document.addEventListener('click', (event) => {
