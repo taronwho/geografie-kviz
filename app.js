@@ -9,6 +9,7 @@
         censorName, mergeCensored, processWikiText, checkAnswer, normalizeAnswer, filterItems, pickItem, sortItems,
         buildItemChoices, findAnswerItem, setCountries, updateMistakes, nameAnswers, pointsFor, dropKnownFacts,
         computeStreak, buildShareText, getTileLayout, shuffle,
+        EMPTY_COUNTERS, BADGES, BADGE_BY_ID, earnedBadgeIds,
         levelProgress, titleForLevel, nextTitle, answerXp, DAILY_XP, DAILY_ALL_XP, streakXp, MASTERY_STEPS, masteryStars, nextMastery
     } = window.MudrlantCore;
     const Visuals = window.MudrlantVisuals;
@@ -1557,8 +1558,8 @@
         }).catch(() => {});
     };
     // Řádek „+30 XP“ s rozpisem (odpověď, dnešní otázka, série…) pod výsledkem
-    const xpLine = (xp, tone) => xp && xp.total
-        ? `<p class="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-xs font-bold ${tone}"><span class="rounded-md bg-gold-500 px-1.5 py-0.5 font-black text-brand-950">+${xp.total} XP</span>${xp.parts.length > 1 ? `<span class="font-semibold opacity-80">${escapeHtml(xp.parts.map(part => `${part.label} ${part.xp}`).join(' · '))}</span>` : ''}</p>` : '';
+    const xpLine = (xp, tone) => xp && (xp.total || (xp.badges && xp.badges.length))
+        ? `<p class="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs font-bold ${tone}">${xp.total ? `<span class="rounded-md bg-gold-500 px-1.5 py-0.5 font-black text-brand-950">+${xp.total} XP</span>` : ''}${xp.parts.length > 1 ? `<span class="font-semibold opacity-80">${escapeHtml(xp.parts.map(part => `${part.label} ${part.xp}`).join(' · '))}</span>` : ''}${(xp.badges || []).map(title => `<span class="inline-flex items-center gap-1 rounded-md bg-brand-700 px-1.5 py-0.5 font-black text-white"><i data-lucide="award" class="h-3 w-3"></i>${escapeHtml(title)}</span>`).join('')}</p>` : '';
 
     const renderResultBanner = (data) => {
         // Kolik nápověd hráč použil z kolika, které otázka měla
@@ -1825,13 +1826,65 @@
 
     // --- Postup: zkušenosti (XP) a úrovně se ukládají na zařízení (po přihlášení se přenesou do účtu) ---
     const loadProgress = () => {
-        const saved = readJson(KEYS.progress);
-        return { xp: saved && Number.isFinite(saved.xp) && saved.xp > 0 ? Math.floor(saved.xp) : 0 };
+        const saved = readJson(KEYS.progress) || {};
+        return {
+            xp: Number.isFinite(saved.xp) && saved.xp > 0 ? Math.floor(saved.xp) : 0,
+            counters: { ...EMPTY_COUNTERS, ...(saved.counters || {}), topics: { ...((saved.counters && saved.counters.topics) || {}) } },
+            badges: saved.badges && typeof saved.badges === 'object' && !Array.isArray(saved.badges) ? saved.badges : {}
+        };
+    };
+    const saveProgress = (progress) => writeJson(KEYS.progress, progress);
+    // Nejvyšší mistrovství v některém tématu (hvězdičky podle poznaných položek)
+    const bestMastery = () => Math.max(0, ...TOPICS.map(topic => masteryStars((loadLearned()[topic.id] || []).length)));
+    // Získané odznaky podle počítadel; vrátí názvy nově získaných (a uloží je s dnešním dnem)
+    const grantBadges = (progress) => {
+        const level = levelProgress(progress.xp).level;
+        const fresh = earnedBadgeIds(progress.counters, { level, mastery: bestMastery(), topicCount: TOPICS.length }).filter(id => !progress.badges[id]);
+        fresh.forEach(id => { progress.badges[id] = getDayKey(); });
+        return fresh.map(id => BADGE_BY_ID[id].title);
+    };
+    const announce = (levelBefore, levelNow, badgeTitles) => {
+        const parts = [];
+        if (levelNow > levelBefore) parts.push(`Nová úroveň ${levelNow}: ${titleForLevel(levelNow)}!`);
+        badgeTitles.forEach(title => parts.push(`Nový odznak: ${title}!`));
+        if (parts.length) showToast(parts.join(' · '));
+    };
+    // Úroveň a odznaky se po přihlášení ukládají i do účtu (viditelné ostatním, platí na všech zařízeních); chyba spojení nevadí
+    let syncingProgress = false;
+    const syncProgress = async () => {
+        const user = signedUser();
+        if (!user || !Social || syncingProgress) return;
+        syncingProgress = true;
+        try {
+            const local = loadProgress();
+            let remote = null;
+            try { remote = await Social.getProgress(user.id); } catch (error) { return; }
+            if (!remote) return;
+            // Větší XP a sjednocení odznaků: na novém zařízení se postup načte z účtu, na starém se do účtu nahraje
+            const merged = { ...local, xp: Math.max(local.xp, remote.xp || 0), badges: { ...local.badges } };
+            (remote.badges || []).filter(id => BADGE_BY_ID[id]).forEach(id => { if (!merged.badges[id]) merged.badges[id] = getDayKey(); });
+            const ids = Object.keys(merged.badges);
+            const changedLocal = merged.xp !== local.xp || ids.length !== Object.keys(local.badges).length;
+            if (changedLocal) { saveProgress(merged); updateControlsUI(); }
+            const sameRemote = (remote.xp || 0) === merged.xp && (remote.badges || []).length === ids.length;
+            if (!sameRemote) await Social.saveProgress(user.id, { xp: merged.xp, badges: ids });
+        } catch (error) { /* bez účtu nebo bez nových sloupců se postup jen drží v zařízení */ } finally { syncingProgress = false; }
     };
     // Za odpověď: základ podle bodů, u dnešní otázky bonus a za sérii dní, za všech 14 dnešních bonus navíc.
     // Vrátí rozpis do výsledku (round.xp) a při nové úrovni ukáže hlášku.
     const awardXp = (stats) => {
         const before = loadProgress();
+        const counters = before.counters;
+        counters.answered += 1;
+        if (round.correct) {
+            counters.correct += 1;
+            counters.run += 1;
+            counters.bestRun = Math.max(counters.bestRun, counters.run);
+            if (round.typed) counters.typedCorrect += 1;
+            if (round.hintLevel === 1) counters.noHint += 1;
+            if (current.known === false) counters.hardCorrect += 1;
+            counters.topics[current.topic] = 1;
+        } else counters.run = 0;
         const parts = [{ label: 'odpověď', xp: answerXp(round) }];
         if (mode === 'daily' && current.dailyDate && round.dailyFirst !== false) {
             parts.push({ label: 'dnešní otázka', xp: DAILY_XP });
@@ -1839,17 +1892,17 @@
                 const streak = computeStreak(stats.daily[current.topic] || {}, getDayKey());
                 if (streak > 1) parts.push({ label: `série ${streak} dní`, xp: streakXp(streak) });
             }
+            counters.bestStreak = Math.max(counters.bestStreak, computeStreak(stats.daily[current.topic] || {}, getDayKey()));
             const done = TOPICS.filter(topic => (stats.daily[topic.id] || {})[current.dailyDate]).length;
-            if (done === TOPICS.length) parts.push({ label: 'všechny dnešní otázky', xp: DAILY_ALL_XP });
+            if (done === TOPICS.length) { parts.push({ label: 'všechny dnešní otázky', xp: DAILY_ALL_XP }); counters.perfectDays += 1; }
         }
         const gained = parts.reduce((sum, part) => sum + part.xp, 0);
-        round.xp = { total: gained, parts: parts.filter(part => part.xp > 0) };
-        if (!gained) return;
-        const after = { xp: before.xp + gained };
-        writeJson(KEYS.progress, after);
-        const was = levelProgress(before.xp).level;
-        const now = levelProgress(after.xp).level;
-        if (now > was) showToast(`Nová úroveň ${now}: ${titleForLevel(now)}!`);
+        const progress = { ...before, xp: before.xp + gained };
+        const badgeTitles = grantBadges(progress);
+        round.xp = { total: gained, parts: parts.filter(part => part.xp > 0), badges: badgeTitles };
+        saveProgress(progress);
+        announce(levelProgress(before.xp).level, levelProgress(progress.xp).level, badgeTitles);
+        syncProgress();
     };
 
     const recordResult = () => {
@@ -1873,7 +1926,6 @@
             stats.practice.points += round.points;
         }
         writeJson(KEYS.stats, stats);
-        awardXp(stats);
         // Neuhodnutá položka jde do seznamu chyb v učení, správně uhodnutá z něj zmizí a počítá se do postupu v okruzích
         writeJson(KEYS.mistakes, updateMistakes(loadMistakes(), `${current.topic}:${current.id}`, round.correct));
         if (round.correct) {
@@ -1883,6 +1935,7 @@
             learned[current.topic] = [...ids];
             writeJson(KEYS.learned, learned);
         }
+        awardXp(stats);
     };
 
     // answerRef: položka (nebo stát) ze špatné odpovědi – výsledek k ní nabídne okno s popisem
@@ -2465,6 +2518,7 @@
         try { myProfile = await Social.getProfile(user.id); } catch (error) { myProfile = null; }
         if (!myProfile) myProfile = { id: user.id, display_name: user.name, avatar: '🦊', color: 'emerald' };
         updateProfileButton();
+        syncProgress();
         return myProfile;
     };
 
@@ -2948,9 +3002,17 @@
             <span class="text-right"><span class="block text-base font-black text-slate-800 dark:text-slate-100">${row.correct}/${count}</span><span class="block text-[10px] font-semibold text-slate-400">${escapeHtml(formatPoints(row.points))}</span></span>
         </li>`).join('');
 
+    // Odznak jako medaile ve stylu hry: získaný zlatý nebo vínový se ikonou, nezískaný šedý
+    const medalHtml = (badge, earned, size = 'h-11 w-11', iconSize = 'h-5 w-5') => `
+        <span class="flex ${size} shrink-0 items-center justify-center rounded-full ring-2 ${earned
+            ? (badge.tone === 'brand' ? 'bg-gradient-to-br from-brand-500 to-brand-800 text-gold-200 ring-gold-400' : 'bg-gradient-to-br from-gold-300 to-gold-600 text-brand-950 ring-cream')
+            : 'bg-slate-200 text-slate-400 ring-slate-300 dark:bg-slate-700 dark:text-slate-500 dark:ring-slate-600'} shadow-sm"><i data-lucide="${earned ? badge.icon : 'lock'}" class="${iconSize}"></i></span>`;
+
     // Můj postup: úroveň, titul, XP do další úrovně a mistrovství jednotlivých témat (hvězdičky podle poznaných položek)
     const openProgress = () => {
-        const xp = loadProgress().xp;
+        const progress = loadProgress();
+        const xp = progress.xp;
+        const earnedCount = BADGES.filter(badge => progress.badges[badge.id]).length;
         const level = levelProgress(xp);
         const next = nextTitle(level.level);
         const learned = loadLearned();
@@ -2980,6 +3042,13 @@
                 </div>
                 <p class="text-xs text-slate-500 dark:text-slate-400">XP získáš za správné odpovědi (víc bez nápověd a psaním), za dnešní otázky, za sérii dní a za dokončení všech dnešních otázek. Celkem ${xp} XP.</p>
                 <div>
+                    <h3 class="${CARD_TITLE} mb-2">Odznaky <span class="font-bold text-slate-400">${earnedCount} / ${BADGES.length}</span></h3>
+                    <ul class="grid grid-cols-2 gap-1.5">${BADGES.map(badge => {
+                        const earned = Boolean(progress.badges[badge.id]);
+                        return `<li class="flex items-center gap-2 rounded-2xl bg-white p-2 shadow-sm dark:bg-slate-800 ${earned ? '' : 'opacity-70'}">${medalHtml(badge, earned)}<span class="min-w-0"><span class="block text-[12px] font-black leading-tight text-slate-800 dark:text-slate-100">${escapeHtml(badge.title)}</span><span class="block text-[10px] font-semibold leading-tight text-slate-500 dark:text-slate-400">${escapeHtml(badge.text)}</span></span></li>`;
+                    }).join('')}</ul>
+                </div>
+                <div>
                     <h3 class="${CARD_TITLE} mb-2">Mistrovství témat</h3>
                     <ul class="flex flex-col gap-1.5">${rows}</ul>
                 </div>
@@ -2995,9 +3064,16 @@
         const player = knownPlayers.get(playerId);
         if (!player) return;
         let stats = null;
+        let theirProgress = null;
         let failed = false;
         let busy = false;
         let note = '';
+        const levelAndBadges = (value) => {
+            const level = levelProgress(value.xp || 0).level;
+            const earned = BADGES.filter(badge => (value.badges || []).includes(badge.id));
+            return `<p class="text-sm font-bold text-brand-700 dark:text-cream">Úr. ${level} · ${escapeHtml(titleForLevel(level))}</p>`
+                + (earned.length ? `<div class="mt-1 flex flex-wrap justify-center gap-1.5" aria-label="Odznaky">${earned.map(badge => `<span title="${escapeHtml(`${badge.title}: ${badge.text}`)}">${medalHtml(badge, true, 'h-8 w-8', 'h-4 w-4')}</span>`).join('')}</div>` : '');
+        };
         const tile = (label, value) => `<div class="rounded-2xl bg-white p-3 text-center shadow-sm dark:bg-slate-800"><p class="text-xl font-black text-slate-800 dark:text-slate-100">${value}</p><p class="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">${label}</p></div>`;
         const chip = (value, label, tone) => `<span class="rounded-xl px-2.5 py-1.5 text-[13px] font-black ${tone}">${value} ${label}</span>`;
         const render = () => {
@@ -3020,7 +3096,7 @@
             }
             showDialog('Profil hráče', `
                 <div class="flex flex-col gap-4">
-                    <div class="flex flex-col items-center gap-2 text-center">${avatarHtml(player, 'h-20 w-20 text-5xl')}<p class="text-xl font-black text-slate-800 dark:text-slate-100">${escapeHtml(playerName(player))}</p></div>
+                    <div class="flex flex-col items-center gap-2 text-center">${avatarHtml(player, 'h-20 w-20 text-5xl')}<p class="text-xl font-black text-slate-800 dark:text-slate-100">${escapeHtml(playerName(player))}</p>${theirProgress ? levelAndBadges(theirProgress) : ''}</div>
                     ${body}
                     ${note ? DIALOG_NOTE(note) : ''}
                 </div>`, {
@@ -3047,6 +3123,8 @@
             });
         };
         render();
+        // Úroveň a odznaky hráče (bez nových sloupců v databázi se prostě nezobrazí)
+        Social.getProgress(playerId).then(value => { theirProgress = value; if (stats && document.getElementById('dialog-overlay')) render(); }).catch(() => {});
         try {
             stats = await Social.playerStats(user.id, playerId);
         } catch (error) {
@@ -3224,6 +3302,18 @@
         try {
             await Social.submitResult(user.id, c.code, { correct, points });
             const results = await Social.getResults(c.code);
+            if (!c.counted) {
+                c.counted = true;
+                const rivals = results.filter(row => row.user_id !== user.id);
+                const won = rivals.length > 0 && rivals.every(row => correct > row.correct || (correct === row.correct && points > row.points));
+                const progress = loadProgress();
+                progress.counters.challenges += 1;
+                if (won) progress.counters.wins += 1;
+                const titles = grantBadges(progress);
+                saveProgress(progress);
+                announce(1, 1, titles);
+                syncProgress();
+            }
             if (challenge === c) renderChallengeDone(results);
         } catch (error) {
             if (challenge === c) renderChallengeDone(null, 'error');

@@ -995,7 +995,36 @@
     const masteryStars = (known) => MASTERY_STEPS.filter(step => known >= step).length;
     const nextMastery = (known) => MASTERY_STEPS.find(step => known < step) || 0;
 
+    // --- Odznaky: počítadla se ukládají s postupem, odznak se získá, když splní podmínku (u každého: icon = ikona, tone = barva) ---
+    const EMPTY_COUNTERS = { answered: 0, correct: 0, typedCorrect: 0, noHint: 0, hardCorrect: 0, run: 0, bestRun: 0, bestStreak: 0, perfectDays: 0, challenges: 0, wins: 0, topics: {} };
+    // x = { level, mastery (nejvyšší počet hvězd v tématu), topicCount (kolik je témat) }
+    const BADGES = [
+        { id: 'prvni-krok', icon: 'footprints', tone: 'gold', title: 'První krok', text: 'Odpověz na první otázku.', test: (c) => c.answered >= 1 },
+        { id: 'stovka', icon: 'target', tone: 'gold', title: 'Stovka', text: '100 správných odpovědí.', test: (c) => c.correct >= 100 },
+        { id: 'tisicovka', icon: 'medal', tone: 'brand', title: 'Tisícovka', text: '1 000 správných odpovědí.', test: (c) => c.correct >= 1000 },
+        { id: 'strelec', icon: 'zap', tone: 'gold', title: 'Střelec', text: '10 správných v řadě.', test: (c) => c.bestRun >= 10 },
+        { id: 'neomylny', icon: 'crosshair', tone: 'brand', title: 'Neomylný', text: '25 správných v řadě.', test: (c) => c.bestRun >= 25 },
+        { id: 'bez-napovedy', icon: 'eye-off', tone: 'gold', title: 'Bez nápovědy', text: '25 správných odpovědí bez jediné nápovědy.', test: (c) => c.noHint >= 25 },
+        { id: 'pisatel', icon: 'keyboard', tone: 'gold', title: 'Pisatel', text: '25 správných odpovědí napsaných ručně.', test: (c) => c.typedCorrect >= 25 },
+        { id: 'do-hloubky', icon: 'pickaxe', tone: 'brand', title: 'Do hloubky', text: '10 správných u těžších, méně známých otázek.', test: (c) => c.hardCorrect >= 10 },
+        { id: 'tyden', icon: 'flame', tone: 'gold', title: 'Týden s Mudrlantem', text: 'Série 7 dní dnešních otázek.', test: (c) => c.bestStreak >= 7 },
+        { id: 'mesic', icon: 'calendar-check', tone: 'brand', title: 'Věrný měsíc', text: 'Série 30 dní dnešních otázek.', test: (c) => c.bestStreak >= 30 },
+        { id: 'dokonaly-den', icon: 'sun', tone: 'gold', title: 'Dokonalý den', text: 'Všechny dnešní otázky v jednom dni.', test: (c) => c.perfectDays >= 1 },
+        { id: 'vsestranny', icon: 'globe', tone: 'gold', title: 'Všestranný', text: 'Správná odpověď v každém tématu.', test: (c, x) => Object.keys(c.topics).length >= x.topicCount },
+        { id: 'hvezdar', icon: 'star', tone: 'gold', title: 'Hvězdář', text: 'Tři hvězdy mistrovství v některém tématu.', test: (c, x) => x.mastery >= 3 },
+        { id: 'mistr-oboru', icon: 'crown', tone: 'brand', title: 'Mistr oboru', text: 'Pět hvězd mistrovství v některém tématu.', test: (c, x) => x.mastery >= 5 },
+        { id: 'znalec', icon: 'graduation-cap', tone: 'gold', title: 'Znalec', text: 'Dosáhni úrovně 10.', test: (c, x) => x.level >= 10 },
+        { id: 'mudrc', icon: 'book-open-check', tone: 'brand', title: 'Mudrc', text: 'Dosáhni úrovně 35.', test: (c, x) => x.level >= 35 },
+        { id: 'soupere', icon: 'swords', tone: 'gold', title: 'Soupeř', text: 'Dohraj první výzvu.', test: (c) => c.challenges >= 1 },
+        { id: 'vitez', icon: 'trophy', tone: 'gold', title: 'Vítěz', text: 'Vyhraj výzvu proti jinému hráči.', test: (c) => c.wins >= 1 },
+        { id: 'gladiator', icon: 'shield', tone: 'brand', title: 'Gladiátor', text: 'Vyhraj 10 výzev.', test: (c) => c.wins >= 10 }
+    ];
+    const BADGE_BY_ID = Object.fromEntries(BADGES.map(badge => [badge.id, badge]));
+    // Odznaky, které podle počítadel a postupu hráč splnil (ids), v pořadí definice
+    const earnedBadgeIds = (counters, x) => BADGES.filter(badge => badge.test({ ...EMPTY_COUNTERS, ...counters, topics: (counters && counters.topics) || {} }, x)).map(badge => badge.id);
+
     return {
+        EMPTY_COUNTERS, BADGES, BADGE_BY_ID, earnedBadgeIds,
         MAX_LEVEL, xpForLevel, levelFromXp, levelProgress, LEVEL_TITLES, titleForLevel, nextTitle, answerXp, DAILY_XP, DAILY_ALL_XP, streakXp, MASTERY_STEPS, masteryStars, nextMastery,
         UNKNOWN_COUNTRY, INTERNATIONAL_WATERS, CZECHIA_QID, AFTER_SYMBOL_WORD, TILE_SIZE, COUNTRIES, CONTINENT_NAMES,
         SATELLITE_TILES, OSM_TILES,

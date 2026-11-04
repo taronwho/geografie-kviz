@@ -11,6 +11,13 @@ create table if not exists public.profiles (
 alter table public.profiles add column if not exists avatar text not null default '🦊';
 alter table public.profiles add column if not exists color text not null default 'emerald';
 update public.profiles set display_name = left(display_name, 24) where char_length(display_name) > 24;
+-- Postup hráče: úroveň (XP) a získané odznaky; aplikace je po přihlášení ukládá sem, ať jsou vidět ostatním a platí na všech zařízeních
+alter table public.profiles add column if not exists xp integer not null default 0;
+alter table public.profiles add column if not exists badges text[] not null default '{}';
+alter table public.profiles drop constraint if exists profiles_xp_range;
+alter table public.profiles add constraint profiles_xp_range check (xp between 0 and 1000000);
+alter table public.profiles drop constraint if exists profiles_badges_len;
+alter table public.profiles add constraint profiles_badges_len check (cardinality(badges) <= 60);
 alter table public.profiles drop constraint if exists profiles_display_name_len;
 alter table public.profiles add constraint profiles_display_name_len check (char_length(btrim(display_name)) between 2 and 24);
 alter table public.profiles drop constraint if exists profiles_avatar_len;
