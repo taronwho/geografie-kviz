@@ -2807,6 +2807,7 @@
     const AVATAR_BG = { emerald: 'bg-emerald-500', sky: 'bg-sky-500', violet: 'bg-violet-500', rose: 'bg-rose-500', amber: 'bg-amber-500', teal: 'bg-teal-500', orange: 'bg-orange-500', indigo: 'bg-indigo-500' };
     let myProfile = null;
     let myChallenges = null;
+    let myRating = null;
     let incomingList = null;
     let challengesLoading = false;
     const signedUser = () => (Auth && Auth.getState().user) || null;
@@ -2963,6 +2964,62 @@
             </span>
             <span class="shrink-0 rounded-xl bg-gold-500 px-3 py-1.5 text-[13px] font-black text-brand-950">Hrát</span>
         </button>`;
+    // Rating a ligy (rating.js; počítá je databáze po dohrání výzvy proti jinému hráči). Barvy lig jsou třídy .league-* v src/input.css.
+    const Rating = window.MudrlantRating;
+    const BAR_WIDTHS = ['w-0', 'w-[10%]', 'w-[20%]', 'w-[30%]', 'w-[40%]', 'w-[50%]', 'w-[60%]', 'w-[70%]', 'w-[80%]', 'w-[90%]', 'w-full'];
+    const leagueBubble = (league, size = 'h-11 w-11', iconSize = 'h-5 w-5') => `<span class="league-${league.id} flex ${size} shrink-0 items-center justify-center rounded-full shadow-sm ring-2 ring-white/70 dark:ring-slate-700" title="Liga ${escapeHtml(league.name)}"><i data-lucide="${league.icon}" class="${iconSize}"></i></span>`;
+    // Malý popisek „ikona Liga · rating“ pro profil soupeře a žebříček
+    const leagueChip = (rating) => {
+        if (!Rating || rating === null || rating === undefined) return '';
+        const league = Rating.leagueFor(rating);
+        return `<span class="league-fg-${league.id} inline-flex items-center gap-1 text-xs font-black"><i data-lucide="${league.icon}" class="h-3.5 w-3.5"></i>${escapeHtml(league.name)} · ${Rating.cleanRating(rating)}</span>`;
+    };
+    // Karta „Moje liga“ na záložce Více hráčů: ikona ligy, rating, ukazatel do další ligy a tlačítko týdenního žebříčku
+    const leagueCard = () => {
+        if (!Rating || !myRating) return '';
+        const progress = Rating.leagueProgress(myRating.rating);
+        const hint = progress.next ? `Do ligy ${progress.next.name} ještě ${progress.toNext}` : 'Nejvyšší liga';
+        return `
+            <div id="league-card" class="flex items-center gap-2.5 rounded-2xl bg-white p-2.5 shadow-sm ring-1 ring-slate-200/70 dark:bg-slate-800/70 dark:ring-slate-700/70">
+                ${leagueBubble(progress.league)}
+                <div class="min-w-0 flex-1">
+                    <p class="truncate text-[15px] font-black leading-tight text-slate-800 dark:text-slate-100"><span class="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500">Moje liga</span> ${escapeHtml(progress.league.name)} · ${myRating.rating}</p>
+                    <div class="mt-1 h-1.5 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${progress.percent}" aria-label="Postup do další ligy"><div class="league-${progress.league.id} h-full rounded-full ${BAR_WIDTHS[Math.round(progress.percent / 10)]}"></div></div>
+                    <p class="mt-0.5 truncate text-[10.5px] font-semibold text-slate-500 dark:text-slate-400">${myRating.games ? hint : 'Rating se mění výzvami proti jinému hráči'}</p>
+                </div>
+                <button type="button" data-action="weekly-board" class="flex shrink-0 items-center gap-1.5 rounded-xl bg-gold-50 px-2.5 py-2 text-[12px] font-black text-brand-950 ring-1 ring-gold-300/70 active:scale-[0.97] dark:bg-gold-900/20 dark:text-gold-200 dark:ring-gold-700/60"><i data-lucide="trophy" class="h-4 w-4"></i> Týden</button>
+            </div>`;
+    };
+    // Okno Týdenní žebříček: top hráči týdne podle součtu změn ratingu (server vrací jen veřejné údaje)
+    const openWeeklyBoard = async () => {
+        const user = signedUser();
+        if (!user || !Social || !Rating) { openLoginDialog(); return; }
+        const head = `<p class="text-xs font-semibold leading-snug text-slate-500 dark:text-slate-400">Týden ${escapeHtml(Rating.weekLabel())} · řazeno podle změny ratingu ve výzvách proti jiným hráčům. V pondělí se počítá znovu.</p>`;
+        showDialog('Týdenní žebříček', `<div class="flex flex-col gap-3">${head}<p class="py-4 text-center text-sm font-semibold text-slate-400">Načítám…</p></div>`);
+        let rows;
+        try { rows = await Social.weeklyLeaderboard(); } catch (error) { rows = undefined; }
+        if (!document.getElementById('dialog-overlay')) return;
+        let body;
+        if (rows === undefined) body = '<p class="text-sm font-semibold text-rose-600 dark:text-rose-400">Žebříček se nepodařilo načíst. Zkontroluj připojení.</p>';
+        else if (rows === null) body = '<p class="text-sm font-semibold text-slate-500 dark:text-slate-400">Žebříček zatím není k dispozici.</p>';
+        else if (!rows.length) body = '<p class="text-sm text-slate-500 dark:text-slate-400">Tenhle týden zatím nikdo nedohrál výzvu proti jinému hráči. Buď první!</p>';
+        else {
+            const mineIn = rows.some(row => row.id === user.id);
+            body = `<ol id="weekly-list" class="flex flex-col gap-1.5">${rows.map((row, index) => `
+                <li ${row.id === user.id ? 'data-me' : ''} class="flex items-center gap-2.5 rounded-2xl bg-white p-2 shadow-sm dark:bg-slate-800 ${row.id === user.id ? 'ring-2 ring-brand-600' : ''}">
+                    <span class="w-5 shrink-0 text-center text-sm font-black text-slate-400">${index === 0 ? '🏆' : index + 1}</span>
+                    ${avatarHtml(row, 'h-9 w-9 text-lg', true)}
+                    <span class="min-w-0 flex-1">
+                        <span class="block truncate text-[13px] font-black leading-tight text-slate-800 dark:text-slate-100">${escapeHtml(playerName(row))}${row.id === user.id ? ' (ty)' : ''}</span>
+                        <span class="flex items-center gap-1.5 truncate text-[11px] font-semibold text-slate-500 dark:text-slate-400">Úr. ${levelProgress(row.xp || 0).level} · ${leagueChip(row.rating)}</span>
+                    </span>
+                    <span class="shrink-0 text-right"><span class="block text-base font-black ${row.week_delta >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}">${Rating.formatDelta(row.week_delta)}</span><span class="block text-[10px] font-semibold text-slate-400">${row.week_wins}/${row.week_games} výher</span></span>
+                </li>`).join('')}</ol>
+                ${mineIn ? '' : '<p class="text-xs text-slate-500 dark:text-slate-400">Ty tu zatím nejsi: zahraj tenhle týden výzvu proti jinému hráči.</p>'}`;
+        }
+        showDialog('Týdenní žebříček', `<div class="flex flex-col gap-3">${head}${body}</div>`);
+        renderIcons(document.getElementById('dialog-overlay'));
+    };
     // Přepínač nahoře na úvodní stránce: Jeden hráč (dnešní otázky a témata) / Více hráčů (výzvy); bez Supabase se nezobrazuje
     const homeTab = () => {
         if (!(Auth && Auth.isConfigured() && Social)) return 'single';
@@ -3004,6 +3061,7 @@
                     <button type="button" data-action="join-challenge" class="flex items-center justify-center gap-2 rounded-2xl bg-white px-3 py-3.5 text-[15px] font-bold text-slate-800 shadow-sm ring-1 ring-slate-200/70 active:scale-[0.98] dark:bg-slate-800 dark:text-slate-100 dark:ring-slate-700/70"><i data-lucide="hash" class="h-5 w-5"></i> Zadat kód</button>
                 </div>
                 <button type="button" data-action="open-accept" class="flex w-full items-center gap-2 rounded-xl bg-slate-200/60 px-3 py-2 text-left text-xs dark:bg-slate-800/70"><i data-lucide="shield-check" class="h-4 w-4 shrink-0 text-brand-700 dark:text-brand-300"></i><span class="min-w-0 flex-1 truncate font-bold text-slate-600 dark:text-slate-300">Přijímám výzvy z: <b class="text-slate-800 dark:text-slate-100">${escapeHtml(acceptSummary())}</b></span><span class="shrink-0 font-black text-brand-700 dark:text-cream">Změnit</span></button>
+                ${leagueCard()}
                 ${resume}
                 ${incoming.length ? `<div class="flex flex-col gap-2"><p class="${LABEL}">Čekají na tebe</p>${incoming.slice(0, 5).map(incomingRow).join('')}</div>` : ''}
                 <div class="flex flex-col gap-2"><p class="${LABEL}">Poslední výzvy</p>${recent}</div>
@@ -3027,11 +3085,13 @@
             await loadMyProfile();
             updateProfileButton();
             paintChallenges();
-            const [mine, incoming] = await Promise.all([
+            const [mine, incoming, rating] = await Promise.all([
                 Social.myChallenges(user.id).catch(() => []),
-                Social.incomingChallenges(user.id).catch(() => [])
+                Social.incomingChallenges(user.id).catch(() => []),
+                Social.getRating(user.id).catch(() => null)
             ]);
             myChallenges = mine;
+            myRating = rating;
             incomingList = incoming;
             paintChallenges();
         } finally {
@@ -3572,6 +3632,7 @@
         if (!player) return;
         let stats = null;
         let theirProgress = null;
+        let theirRating = null;
         let failed = false;
         let busy = false;
         let note = '';
@@ -3608,7 +3669,7 @@
             }
             showDialog('Profil hráče', `
                 <div class="flex flex-col gap-4">
-                    <div class="flex flex-col items-center gap-2 text-center">${avatarHtml(player, 'h-20 w-20 text-5xl')}<p class="text-xl font-black text-slate-800 dark:text-slate-100">${escapeHtml(playerName(player))}</p>${theirProgress ? levelAndBadges(theirProgress) : ''}</div>
+                    <div class="flex flex-col items-center gap-2 text-center">${avatarHtml(player, 'h-20 w-20 text-5xl')}<p class="text-xl font-black text-slate-800 dark:text-slate-100">${escapeHtml(playerName(player))}</p>${theirProgress ? levelAndBadges(theirProgress) : ''}${theirRating ? `<p id="player-league">${leagueChip(theirRating.rating)}</p>` : ''}</div>
                     ${body}
                     ${note ? DIALOG_NOTE(note) : ''}
                 </div>`, {
@@ -3636,6 +3697,7 @@
         };
         render();
         // Úroveň a odznaky hráče (bez nových sloupců v databázi se prostě nezobrazí)
+        if (Rating) Social.getRating(playerId).then(value => { theirRating = value; if (document.getElementById('dialog-overlay')) render(); }).catch(() => {});
         Social.getProgress(playerId).then(value => { theirProgress = value; if (stats && document.getElementById('dialog-overlay')) render(); }).catch(() => {});
         try {
             stats = await Social.playerStats(user.id, playerId);
@@ -3703,6 +3765,7 @@
         }
         if (!def) { showDialog('Výzva', DIALOG_NOTE('Výzva s tímhle kódem neexistuje.')); return; }
         const mine = results.find(row => row.user_id === user.id);
+        const myChange = mine && Rating && results.length > 1 ? await Social.getRatingChange(user.id, code).catch(() => null) : null;
         const own = def.creator && def.creator.id === user.id;
         const text = `${own ? 'Vyzývám tě' : 'Hraju'} v Mudrlantu: ${challengeTopicTitle(def.topic)}, ${def.count} otázek.`;
         showDialog(own ? 'Tvoje výzva' : 'Výzva', `
@@ -3721,6 +3784,7 @@
                 })()}
                 ${def.invited ? `<p class="flex items-center gap-2 text-sm font-semibold text-slate-600 dark:text-slate-300">Vyzvaný hráč: ${avatarHtml(def.invited, 'h-6 w-6 text-sm')} <b>${escapeHtml(def.invited.id === user.id ? 'ty' : playerName(def.invited))}</b></p>` : ''}
                 ${results.length ? `<ol class="flex flex-col gap-1.5">${rankingRows(results, def.count, user.id)}</ol>` : '<p class="text-sm text-slate-500 dark:text-slate-400">Zatím nikdo nehrál.</p>'}
+                ${myChange ? `<p class="text-sm font-bold text-slate-600 dark:text-slate-300">Tvůj rating: <b class="${myChange.delta > 0 ? 'text-emerald-600 dark:text-emerald-400' : myChange.delta < 0 ? 'text-rose-600 dark:text-rose-400' : ''}">${Rating.formatDelta(myChange.delta)}</b> (${myChange.after})</p>` : ''}
                 ${mine ? '' : `<button type="button" data-ch-play class="${PRIMARY_BUTTON}"><i data-lucide="play" class="h-5 w-5"></i> Hrát výzvu</button>`}
                 <button type="button" data-ch-share class="${SECONDARY_BUTTON}"><i data-lucide="share-2" class="h-5 w-5"></i> Sdílet výzvu · ${code}</button>
             </div>`, {
@@ -3779,6 +3843,14 @@
         renderHome();
     };
 
+    // Změna ratingu po výzvě pod výsledkem (+12 · Stříbro 1012); první hráč se dozví, že se rating spočítá po soupeři
+    const ratingNote = (c, results) => {
+        if (!Rating || !myRating || !results) return '';
+        const change = c.ratingChange;
+        if (!change) return results.length > 1 ? '' : '<p class="mt-2 text-xs font-semibold text-white/80">Rating se spočítá, až výzvu dohraje soupeř.</p>';
+        const league = Rating.leagueFor(change.after || myRating.rating);
+        return `<p id="rating-change" class="mt-2 inline-flex items-center gap-1.5 rounded-full bg-black/20 px-3 py-1 text-sm font-black text-white"><span class="${change.delta > 0 ? 'text-emerald-300' : change.delta < 0 ? 'text-rose-300' : 'text-white/80'}">${Rating.formatDelta(change.delta)}</span> rating <i data-lucide="${league.icon}" class="h-4 w-4"></i> ${escapeHtml(league.name)} ${change.after || myRating.rating}</p>${change.capped ? '<p class="mt-1 text-[11px] font-semibold text-white/70">S tímhle hráčem už tento týden rating nestoupá (max. 3 výzvy).</p>' : ''}`;
+    };
     const renderChallengeDone = (results = null, state = 'ok') => {
         const c = challenge;
         if (!c) return;
@@ -3806,6 +3878,7 @@
                     <p class="text-xs font-black uppercase tracking-widest text-white/80">${escapeHtml(challengeTopicTitle(c.topic))}</p>
                     <p class="mt-1 text-5xl font-black">${correct}/${c.count}</p>
                     <p class="mt-1 text-sm font-bold text-white/90">${escapeHtml(formatPoints(points))}</p>
+                    ${ratingNote(c, results)}
                 </div>
                 ${body}
                 ${c.invited ? `<p class="flex items-center justify-center gap-2 text-sm font-semibold text-slate-600 dark:text-slate-300">Vyzvaný hráč: ${avatarHtml(c.invited, 'h-6 w-6 text-sm')} <b>${escapeHtml(playerName(c.invited))}</b> uvidí výzvu na úvodní stránce</p>` : ''}
@@ -3829,6 +3902,11 @@
         try {
             await Social.submitResult(user.id, c.code, { correct, points });
             const results = await Social.getResults(c.code);
+            // Rating po výzvě počítá databáze; změnu (a nový rating do karty ligy) načteme, ať ji hráč vidí hned
+            if (Rating && results.length > 1 && !c.ratingChange) {
+                c.ratingChange = await Social.getRatingChange(user.id, c.code).catch(() => null);
+                if (c.ratingChange) myRating = await Social.getRating(user.id).catch(() => myRating);
+            }
             if (!c.counted) {
                 c.counted = true;
                 const rivals = results.filter(row => row.user_id !== user.id);
@@ -3871,6 +3949,7 @@
         },
         'open-profile': () => openProfile(),
         'open-accept': () => openAccepted(),
+        'weekly-board': () => openWeeklyBoard(),
         'home-tab': (button) => { writeJson(KEYS.homeTab, button.dataset.tab === 'multi' ? 'multi' : 'single'); renderHome(); },
         'new-challenge': () => openNewChallenge(),
         'join-challenge': () => openJoinChallenge(),
@@ -4086,7 +4165,7 @@
             if (document.getElementById('settings-overlay')) openSettings();
             // Úvod s přihlášením: po přihlášení dál (k variantě nebo domů), po neúspěchu znovu s chybou
             if (document.getElementById('account-welcome') && (Auth.hasSession() || state.error)) showStart();
-            if (!state.user) { myProfile = null; myBlocked = null; myAcceptsMix = true; myChallenges = null; incomingList = null; updateProfileButton(); paintChallenges(); return; }
+            if (!state.user) { myProfile = null; myBlocked = null; myAcceptsMix = true; myChallenges = null; myRating = null; incomingList = null; updateProfileButton(); paintChallenges(); return; }
             // Po přihlášení (i návratu z Googlu) se otevře výzva, na kterou hráč klepl v odkazu
             const pending = readJson(KEYS.pendingChallenge);
             if (pending) {

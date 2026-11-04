@@ -97,3 +97,25 @@
     .frame-plamen::before { animation: frameGlow 2.2s ease-in-out infinite; }
 }
 @keyframes frameGlow { 0%, 100% { opacity: 1; } 50% { opacity: 0.78; } }
+
+/* Ligy (rating.js): barevný kroužek s ikonou (.league-*) a barva textu (.league-fg-*); světlé i tmavé pozadí */
+.league-bronz { background: linear-gradient(135deg, #d9924f, #8c5a2b); color: #fff7ed; }
+.league-stribro { background: linear-gradient(135deg, #e2e8f0, #8d98a8); color: #1e293b; }
+.league-zlato { background: linear-gradient(135deg, #ffe066, #c9971c); color: #422006; }
+.league-platina { background: linear-gradient(135deg, #5eead4, #0f766e); color: #f0fdfa; }
+.league-diamant { background: linear-gradient(135deg, #7dd3fc, #6366f1); color: #fff; }
+.league-mistr { background: linear-gradient(135deg, #f472b6, #7c3aed); color: #fff; }
+.league-fg-bronz { color: #a8652a; }
+.league-fg-stribro { color: #64748b; }
+.league-fg-zlato { color: #b07a08; }
+.league-fg-platina { color: #0f766e; }
+.league-fg-diamant { color: #4f46e5; }
+.league-fg-mistr { color: #9333ea; }
+@media (prefers-color-scheme: dark) {
+    .league-fg-bronz { color: #e0a066; }
+    .league-fg-stribro { color: #cbd5e1; }
+    .league-fg-zlato { color: #ffd84d; }
+    .league-fg-platina { color: #5eead4; }
+    .league-fg-diamant { color: #a5b4fc; }
+    .league-fg-mistr { color: #d8b4fe; }
+}
