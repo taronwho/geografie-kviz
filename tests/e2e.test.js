@@ -1250,6 +1250,9 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         await waitForHome(back.tab);
         await back.tab.waitForFunction(() => !location.hash);
         await back.tab.click('#btn-settings');
+        await back.tab.waitForSelector('[data-me-tab="profile"]');
+        assert.equal(await back.tab.locator('[data-auth-logout]').count(), 0, 'odhlášení je až v záložce Profil');
+        await back.tab.click('[data-me-tab="profile"]');
         await back.tab.waitForSelector('[data-auth-logout]');
         assert.match(await back.tab.textContent('#settings-overlay'), /Jana Nováková/);
         assert.match(await back.tab.textContent('#settings-overlay'), /jana@example\.com/);
@@ -1258,10 +1261,13 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         await back.tab.reload();
         await waitForHome(back.tab);
         await back.tab.click('#btn-settings');
+        await back.tab.click('[data-me-tab="profile"]');
         await back.tab.waitForSelector('[data-auth-logout]');
         assert.equal(await back.tab.evaluate(() => JSON.parse(localStorage.getItem('mudrlant.auth')).user.id), 'u-1');
         // Odhlášení smaže uložený účet a zavolá Supabase
         await back.tab.click('[data-auth-logout]');
+        await back.tab.waitForSelector('#settings-overlay', { state: 'detached' });
+        await back.tab.click('#btn-settings');
         await back.tab.waitForSelector('[data-auth-login]');
         assert.equal(await back.tab.evaluate(() => localStorage.getItem('mudrlant.auth')), null);
         assert.ok(calls.some(call => call.startsWith('POST /auth/v1/logout')));
@@ -1357,25 +1363,29 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         await one.tab.click('[data-action="home-tab"][data-tab="multi"]');
         await one.tab.waitForSelector('#challenges-section [data-action="new-challenge"]');
         assert.equal(await one.tab.locator('[data-action="daily"]').count(), 0, 'dnešní otázky jsou v záložce Jeden hráč');
-        await one.tab.waitForSelector('#btn-profile:not(.hidden) span');
-        assert.match(await one.tab.getAttribute('#btn-profile', 'aria-label'), /Jana Nováková/);
-        await one.tab.click('#btn-profile');
+        await one.tab.waitForSelector('#btn-settings span');
+        assert.match(await one.tab.getAttribute('#btn-settings', 'aria-label'), /Jana Nováková/);
+        assert.equal(await one.tab.locator('#btn-profile').count(), 0, 'nastavení a profil jsou jedno tlačítko');
+        await one.tab.click('#btn-settings');
+        await one.tab.click('[data-me-tab="profile"]');
         await one.tab.waitForSelector('#profile-name');
+        // Okno se vejde bez posouvání
+        assert.equal(await one.tab.evaluate(() => { const box = document.querySelector('#settings-overlay > div'); return box.scrollHeight <= box.clientHeight; }), true, 'okno bez posouvání');
         await one.tab.fill('#profile-name', 'petr svoboda');
         await one.tab.click('[data-save-profile]');
-        await one.tab.waitForFunction(() => /už má jiný hráč/.test(document.getElementById('dialog-overlay').textContent));
+        await one.tab.waitForFunction(() => /už má jiný hráč/.test(document.getElementById('settings-overlay').textContent));
         await one.tab.fill('#profile-name', 'J');
         await one.tab.click('[data-save-profile]');
-        await one.tab.waitForFunction(() => /2 až 24 znaků/.test(document.getElementById('dialog-overlay').textContent));
+        await one.tab.waitForFunction(() => /2 až 24 znaků/.test(document.getElementById('settings-overlay').textContent));
         await one.tab.fill('#profile-name', 'Janička');
         await one.tab.click('[data-pick-avatar="🐼"]');
         await one.tab.click('[data-pick-color="sky"]');
         assert.equal(await one.tab.inputValue('#profile-name'), 'Janička', 'přezdívka zůstane po výběru obrázku');
         await one.tab.click('[data-save-profile]');
-        await one.tab.waitForFunction(() => /Uloženo/.test(document.getElementById('dialog-overlay').textContent));
+        await one.tab.waitForFunction(() => /Uloženo/.test(document.getElementById('settings-overlay').textContent));
         assert.deepEqual([db.profiles['u-1'].display_name, db.profiles['u-1'].avatar, db.profiles['u-1'].color], ['Janička', '🐼', 'sky']);
-        await one.tab.click('#dialog-overlay [data-close]');
-        await one.tab.waitForFunction(() => document.getElementById('btn-profile').textContent.includes('🐼'));
+        await one.tab.click('#settings-overlay [data-close]');
+        await one.tab.waitForFunction(() => document.getElementById('btn-settings').textContent.includes('🐼'));
 
         // Výzva konkrétnímu hráči: hledání podle přezdívky (Petr), téma zeměpis, 5 otázek
         await one.tab.click('#challenges-section [data-action="new-challenge"]');

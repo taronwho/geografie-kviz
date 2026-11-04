@@ -624,33 +624,16 @@
             <span class="mt-0.5 block text-xs leading-snug opacity-80">${key === 'known' && topic && topic.words && topic.words.tierKnown ? escapeHtml(topic.words.tierKnown) : tier.text}</span>
         </button>`).join('');
 
-    const renderPracticeSettings = () => `
-        <h3 class="${SETTINGS_HEADING} mb-1 mt-6">Známost</h3>
-        <p class="mb-3 text-sm text-slate-500 dark:text-slate-400">Pro hraní témat, mix i prohlížení. Dnešní otázky jsou ze známých, jen tu a tam (asi desetina) z těžších.</p>
-        <div class="grid grid-cols-2 gap-2" role="group" aria-label="Známost">${renderTierButtons()}</div>
-        <p class="mt-4 text-sm text-slate-500 dark:text-slate-400">Co z tématu hrát, vybereš na jeho dlaždici nebo klepnutím na název tématu nahoře během hry.</p>`;
-
     const closeSettings = () => {
         const overlay = document.getElementById('settings-overlay');
         if (overlay) overlay.remove();
+        meDraft = null;
+        meDirty = false;
+        meNote = '';
     };
 
-    // Účet (Supabase, přihlášení Google): bez nastavené config.js se část vůbec neukáže a hraje se jako host
+    // Účet (Supabase, přihlášení Google): bez nastavené config.js se přihlášení vůbec nenabízí a hraje se jako host
     const Auth = window.MudrlantAuth;
-    const renderAccount = () => {
-        const state = Auth ? Auth.getState() : { configured: false };
-        if (!state.configured) return '';
-        const body = state.user
-            ? `<div class="flex items-center gap-3">
-                    <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-700 text-base font-black text-white" aria-hidden="true">${escapeHtml(state.user.name.charAt(0).toUpperCase())}</span>
-                    <div class="min-w-0 flex-1"><p class="truncate text-sm font-black text-slate-800 dark:text-slate-100">${escapeHtml(state.user.name)}</p><p class="truncate text-xs text-slate-500 dark:text-slate-400">${escapeHtml(state.user.email)}</p></div>
-                    <button type="button" data-auth-logout class="shrink-0 rounded-xl bg-slate-200 px-3 py-2 text-sm font-bold text-slate-700 dark:bg-slate-700 dark:text-slate-200">Odhlásit</button>
-                </div>
-                <button type="button" data-open-profile class="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-800 shadow-sm active:scale-[0.98] dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"><i data-lucide="pencil" class="h-4 w-4"></i> Upravit profil a obrázek</button>`
-            : `<p class="mb-3 text-sm text-slate-500 dark:text-slate-400">S účtem se bude ukládat postup a půjde hrát s ostatními. Bez něj hraješ jako host.</p>
-                <button type="button" data-auth-login class="flex w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-base font-bold text-slate-800 shadow-sm active:scale-[0.98] dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"><i data-lucide="log-in" class="h-5 w-5"></i> Přihlásit se přes Google</button>`;
-        return `<h3 class="${SETTINGS_HEADING} mb-3 mt-5">Účet</h3>${body}${state.error ? `<p class="mt-2 text-sm font-semibold text-rose-600 dark:text-rose-400" role="alert">${escapeHtml(state.error)}</p>` : ''}`;
-    };
 
     // Verze: version.json zapíše nasazení (čas posledního commitu a jeho zkratka), ať je v Nastavení vidět, jestli už běží
     // nejnovější verze; načítá se vždy ze sítě, bez internetu ta uložená
@@ -701,31 +684,113 @@
     };
 
     // Už otevřené okno se jen překreslí na místě: bez úvodní animace a na stejném místě posunutí
-    const openSettings = (note = '', focusSelector = null) => {
+    // Jedno okno „Já“: nahoře hráč (obrázek, přezdívka, úroveň), pod tím záložky Hra (varianta, známost) a Profil (přezdívka,
+    // obrázek, barva, odhlášení); bez přihlášení jen Hra a nabídka přihlášení. Vše se vejde bez posouvání.
+    let meTab = 'game';
+    let meDraft = null;
+    let meDirty = false;
+    let meNote = '';
+    const ME_HEADING = 'text-[11px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400';
+    const VARIANT_BRIEF = { choices: { short: 'Možnosti', text: '4 možnosti, až 4 body' }, typed: { short: 'Psaní', text: 'Těžší, dvojnásobek bodů' } };
+    const renderVariantCompact = (selected) => Object.entries(VARIANTS).map(([key, variant]) => `
+        <button type="button" data-variant="${key}" aria-pressed="${selected === key}" title="${escapeHtml(variant.text)}" class="btn-3d-light flex min-w-0 flex-col items-start gap-1 rounded-2xl p-3 text-left ${selected === key ? 'bg-brand-50 ring-2 ring-brand-600 dark:bg-brand-900/40' : 'bg-white dark:bg-slate-800'}">
+            <span class="flex items-center gap-2"><span class="rounded-lg bg-brand-100 p-1.5 text-brand-700 dark:bg-brand-900/60 dark:text-brand-200"><i data-lucide="${variant.icon}" class="h-4 w-4"></i></span><span class="text-sm font-black text-slate-800 dark:text-slate-100">${VARIANT_BRIEF[key].short}</span></span>
+            <span class="text-[11px] font-semibold leading-snug text-slate-500 dark:text-slate-400">${VARIANT_BRIEF[key].text}</span>
+        </button>`).join('');
+    const openSettings = (note = '', focusSelector = null, tab = null) => {
         closeChooser();
+        const user = signedUser();
+        if (tab) meTab = tab;
+        if (!user || !Social) meTab = 'game';
+        if (user && Social && !meDraft) {
+            const base = myProfile || { display_name: user.name, avatar: '🦊', color: 'emerald' };
+            meDraft = { name: base.display_name, avatar: base.avatar, color: base.color };
+            if (!myProfile) loadMyProfile().then(() => { if (!meDirty && document.getElementById('settings-overlay')) { meDraft = null; openSettings(meNote); } });
+        }
         let overlay = document.getElementById('settings-overlay');
         const reopened = Boolean(overlay);
         const scroll = reopened && overlay.firstElementChild ? overlay.firstElementChild.scrollTop : 0;
         if (!overlay) overlay = createSettingsOverlay();
-        overlay.innerHTML = `
-            <div class="${reopened ? '' : 'fade-in '}max-h-[92dvh] w-full max-w-md overflow-y-auto rounded-[1.75rem] bg-slate-50 p-5 shadow-2xl dark:bg-slate-900">
-                <div class="mb-4 flex items-center justify-between">
-                    <h2 id="settings-title" class="text-lg font-black text-slate-800 dark:text-slate-100">Nastavení</h2>
-                    <button type="button" data-close aria-label="Zavřít" class="rounded-xl p-2 text-slate-500 hover:bg-slate-200 dark:text-slate-400 dark:hover:bg-slate-800"><i data-lucide="x" class="h-5 w-5"></i></button>
+        const state = Auth ? Auth.getState() : { configured: false };
+        const profile = user ? (myProfile || { display_name: user.name, avatar: '🦊', color: 'emerald' }) : null;
+        const shown = profile && meTab === 'profile' && meDraft ? { ...profile, ...{ avatar: meDraft.avatar, color: meDraft.color } } : profile;
+        const level = levelProgress(loadProgress().xp);
+        const noteText = note || meNote;
+        const tabs = user && Social ? `
+            <div role="tablist" class="mt-3 flex gap-1 rounded-2xl bg-slate-200/70 p-1 dark:bg-slate-800">
+                ${[['game', 'gamepad-2', 'Hra'], ['profile', 'user-round', 'Profil']].map(([id, icon, label]) => `
+                    <button type="button" role="tab" data-me-tab="${id}" aria-selected="${meTab === id}" class="flex flex-1 items-center justify-center gap-1.5 rounded-xl px-3 py-2 text-[13px] font-black ${meTab === id ? 'btn-3d bg-brand-700 text-white' : 'text-slate-500 dark:text-slate-400'}"><i data-lucide="${icon}" class="h-4 w-4"></i> ${label}</button>`).join('')}
+            </div>` : '';
+        const gameBody = `
+            <h3 class="${ME_HEADING} mb-2">Varianta hry</h3>
+            <div class="grid grid-cols-2 gap-2">${renderVariantCompact(gameVariant)}</div>
+            <h3 class="${ME_HEADING} mb-2 mt-4">Známost otázek</h3>
+            <div class="grid grid-cols-2 gap-2" role="group" aria-label="Známost">${renderTierButtons()}</div>
+            <p class="mt-2 text-[11px] leading-snug text-slate-500 dark:text-slate-400">Pro hraní témat, mix i prohlížení. Dnešní otázky jsou ze známých, jen tu a tam (asi desetina) z těžších. Co z tématu hrát, vybereš na jeho dlaždici.</p>
+            ${state.configured && !user ? `
+                <div class="mt-3 rounded-2xl bg-white p-3 shadow-sm dark:bg-slate-800">
+                    <p class="text-xs text-slate-500 dark:text-slate-400">S účtem se ukládá postup, získáš profil a půjde hrát výzvy s ostatními. Bez něj hraješ jako host.</p>
+                    <button type="button" data-auth-login class="${PRIMARY_BUTTON} mt-2"><i data-lucide="log-in" class="h-5 w-5"></i> Přihlásit se přes Google</button>
+                    ${state.error ? `<p class="mt-2 text-xs font-semibold text-rose-600 dark:text-rose-400" role="alert">${escapeHtml(state.error)}</p>` : ''}
+                </div>` : ''}`;
+        const profileBody = user && Social && meDraft ? `
+            <form id="profile-form" class="flex flex-col gap-3" autocomplete="off">
+                <label class="${ME_HEADING}">Přezdívka
+                    <input id="profile-name" type="text" maxlength="${Social.NAME_MAX}" value="${escapeHtml(meDraft.name)}" class="mt-1 w-full rounded-xl border-2 border-slate-200 bg-white px-3 py-2 text-base font-bold normal-case tracking-normal text-slate-800 focus:border-brand-600 focus:outline-none dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100">
+                </label>
+                <div>
+                    <p class="${ME_HEADING} mb-1.5">Obrázek</p>
+                    <div class="grid grid-cols-8 gap-1">${Social.AVATARS.map(emoji => `<button type="button" data-pick-avatar="${emoji}" aria-label="Obrázek ${emoji}" aria-pressed="${emoji === meDraft.avatar}" class="flex aspect-square items-center justify-center rounded-lg border-2 text-lg active:scale-95 ${emoji === meDraft.avatar ? 'border-brand-600 bg-brand-50 dark:bg-brand-900/40' : 'border-transparent bg-white dark:bg-slate-800'}">${emoji}</button>`).join('')}</div>
                 </div>
-                <h3 class="${SETTINGS_HEADING} mb-3">Varianta hry</h3>
-                <div class="flex flex-col gap-3">${renderVariantCards(gameVariant)}</div>
-                ${renderPracticeSettings()}
-                ${renderAccount()}
-                <p id="settings-note" class="mt-4 min-h-[1.25rem] text-sm font-semibold text-emerald-700 dark:text-emerald-300" role="status">${escapeHtml(note)}</p>
-                <div class="mt-2 flex items-center justify-center gap-2 text-xs text-slate-400 dark:text-slate-500">
+                <div>
+                    <p class="${ME_HEADING} mb-1.5">Barva</p>
+                    <div class="flex justify-between px-1">${Social.COLORS.map(color => `<button type="button" data-pick-color="${color}" aria-label="Barva ${color}" aria-pressed="${color === meDraft.color}" class="h-7 w-7 rounded-full ${AVATAR_BG[color]} ${color === meDraft.color ? 'ring-2 ring-slate-800/70 ring-offset-2 dark:ring-white/80 dark:ring-offset-slate-900' : ''} active:scale-95"></button>`).join('')}</div>
+                </div>
+                <p class="text-[11px] leading-snug text-slate-500 dark:text-slate-400">Podle přezdívky tě ostatní najdou a vyzvou, musí být jedinečná.</p>
+                <div class="grid grid-cols-2 gap-2">
+                    <button type="submit" data-save-profile class="${PRIMARY_BUTTON}"><i data-lucide="check" class="h-5 w-5"></i> Uložit</button>
+                    <button type="button" data-auth-logout class="${SECONDARY_BUTTON}"><i data-lucide="log-out" class="h-5 w-5"></i> Odhlásit</button>
+                </div>
+            </form>` : '';
+        overlay.innerHTML = `
+            <div class="${reopened ? '' : 'fade-in '}max-h-[94dvh] w-full max-w-md overflow-y-auto rounded-[1.75rem] bg-slate-50 p-4 shadow-2xl dark:bg-slate-900">
+                <div class="flex items-center gap-3">
+                    ${shown ? avatarHtml(shown, 'h-14 w-14 text-3xl') : '<img src="icons/logo.webp" alt="" class="h-14 w-auto shrink-0 drop-shadow-md">'}
+                    <div class="min-w-0 flex-1">
+                        <h2 id="settings-title" class="truncate text-lg font-black leading-tight text-slate-800 dark:text-slate-100">${user ? escapeHtml(playerName(profile)) : 'Nastavení'}</h2>
+                        <p class="truncate text-xs text-slate-500 dark:text-slate-400">${user ? escapeHtml(user.email || user.name) : 'Hraješ bez účtu'}</p>
+                        <button type="button" data-open-progress class="mt-0.5 flex items-center gap-1 text-[11px] font-black text-brand-700 dark:text-cream">Úr. ${level.level} · ${escapeHtml(titleForLevel(level.level))} <i data-lucide="chevron-right" class="h-3 w-3"></i></button>
+                    </div>
+                    <button type="button" data-close aria-label="Zavřít" class="self-start rounded-xl p-2 text-slate-500 hover:bg-slate-200 dark:text-slate-400 dark:hover:bg-slate-800"><i data-lucide="x" class="h-5 w-5"></i></button>
+                </div>
+                ${tabs}
+                <div class="mt-3">${meTab === 'profile' && profileBody ? profileBody : gameBody}</div>
+                <p id="settings-note" class="mt-2 min-h-[1.1rem] text-xs font-semibold ${noteText.startsWith('Uloženo') || !meNote ? 'text-emerald-700 dark:text-emerald-300' : 'text-rose-600 dark:text-rose-400'}" role="status">${escapeHtml(noteText)}</p>
+                <div class="flex items-center justify-center gap-2 text-xs text-slate-400 dark:text-slate-500">
                     <span id="app-version">${escapeHtml(versionLabel())}</span>
                     <button type="button" data-update-app class="rounded-lg px-2 py-1 font-bold text-slate-600 underline underline-offset-2 hover:bg-slate-200 disabled:no-underline dark:text-slate-300 dark:hover:bg-slate-800">Aktualizovat</button>
                 </div>
             </div>`;
         overlay.firstElementChild.scrollTop = scroll;
         renderIcons(overlay);
-        (overlay.querySelector(focusSelector || '[data-variant][aria-pressed="true"]') || overlay.querySelector('[data-close]')).focus();
+        const target = focusSelector ? overlay.querySelector(focusSelector) : (meTab === 'profile' ? overlay.querySelector('#profile-name') : overlay.querySelector('[data-variant][aria-pressed="true"]'));
+        (target || overlay.querySelector('[data-close]')).focus({ preventScroll: true });
+    };
+    const saveMeProfile = async () => {
+        const user = signedUser();
+        if (!user || !Social || !meDraft) return;
+        const input = document.getElementById('profile-name');
+        if (input) meDraft.name = input.value;
+        try {
+            myProfile = await Social.saveProfile(user.id, meDraft);
+            meNote = 'Uloženo.';
+            meDirty = false;
+            updateProfileButton();
+            paintChallenges();
+        } catch (error) {
+            meNote = error.status === 400 || error.status === 409 ? error.message : 'Uložení se nepodařilo, zkus to znovu.';
+        }
+        if (document.getElementById('settings-overlay')) openSettings(meNote, '#profile-name');
     };
     const createSettingsOverlay = () => {
         const overlay = document.createElement('div');
@@ -733,27 +798,34 @@
         overlay.setAttribute('role', 'dialog');
         overlay.setAttribute('aria-modal', 'true');
         overlay.setAttribute('aria-labelledby', 'settings-title');
-        overlay.className = 'fixed inset-0 z-50 flex items-end justify-center bg-slate-900/60 p-4 backdrop-blur-sm sm:items-center';
+        overlay.className = 'fixed inset-0 z-50 flex items-end justify-center bg-slate-900/60 p-3 backdrop-blur-sm sm:items-center';
         overlay.addEventListener('click', (event) => {
             if (event.target === overlay || event.target.closest('[data-close]')) {
                 closeSettings();
                 return;
             }
-            if (event.target.closest('[data-auth-login]')) {
-                Auth.login();
+            const tabButton = event.target.closest('[data-me-tab]');
+            if (tabButton) {
+                const input = document.getElementById('profile-name');
+                if (input && meDraft) meDraft.name = input.value;
+                meNote = '';
+                openSettings('', null, tabButton.dataset.meTab);
                 return;
             }
-            if (event.target.closest('[data-open-profile]')) {
-                closeSettings();
-                openProfile();
-                return;
-            }
-            if (event.target.closest('[data-auth-logout]')) {
-                Auth.logout();
-                return;
-            }
-            if (event.target.closest('[data-update-app]')) {
-                updateApp();
+            if (event.target.closest('[data-auth-login]')) { Auth.login(); return; }
+            if (event.target.closest('[data-auth-logout]')) { closeSettings(); Auth.logout(); return; }
+            if (event.target.closest('[data-update-app]')) { updateApp(); return; }
+            if (event.target.closest('[data-open-progress]')) { closeSettings(); openProgress(); return; }
+            const avatar = event.target.closest('[data-pick-avatar]');
+            const color = event.target.closest('[data-pick-color]');
+            if (avatar || color) {
+                const input = document.getElementById('profile-name');
+                if (input && meDraft) meDraft.name = input.value;
+                if (avatar) meDraft.avatar = avatar.dataset.pickAvatar;
+                if (color) meDraft.color = color.dataset.pickColor;
+                meDirty = true;
+                meNote = '';
+                openSettings('', avatar ? `[data-pick-avatar="${meDraft.avatar}"]` : `[data-pick-color="${meDraft.color}"]`);
                 return;
             }
             const variantButton = event.target.closest('[data-variant]');
@@ -761,6 +833,12 @@
             const tierButton = event.target.closest('[data-tier]');
             if (tierButton) changeSettings({ tier: tierButton.dataset.tier }, `[data-tier="${tierButton.dataset.tier}"]`);
         });
+        overlay.addEventListener('submit', (event) => {
+            if (event.target.id !== 'profile-form') return;
+            event.preventDefault();
+            saveMeProfile();
+        });
+        overlay.addEventListener('input', (event) => { if (event.target.id === 'profile-name') meDirty = true; });
         document.body.appendChild(overlay);
         trapFocus(overlay);
         return overlay;
@@ -2649,24 +2727,22 @@
     };
 
     // Profil v záhlaví: obrázek hráče, bez přihlášení tlačítko k přihlášení; bez nastaveného Supabase se neukáže
+    // Jediné tlačítko vpravo nahoře: po přihlášení obrázek hráče, jinak ozubené kolečko; otevře okno Nastavení s profilem
     const updateProfileButton = () => {
-        const button = document.getElementById('btn-profile');
+        const button = document.getElementById('btn-settings');
         if (!button) return;
-        const show = Boolean(Auth && Auth.isConfigured() && Social);
-        button.classList.toggle('hidden', !show);
-        if (!show) return;
-        const user = signedUser();
+        const user = Auth && Auth.isConfigured() && Social ? signedUser() : null;
         if (user) {
             const profile = myProfile || { display_name: user.name, avatar: '🦊', color: 'emerald' };
             button.className = 'shrink-0 rounded-full shadow-md ring-2 ring-white transition-all active:scale-95 dark:ring-slate-700';
-            button.innerHTML = avatarHtml(profile, 'h-9 w-9 text-xl');
-            button.setAttribute('aria-label', `Profil: ${playerName(profile)}`);
-            button.title = `Profil: ${playerName(profile)}`;
+            button.innerHTML = avatarHtml(profile, 'h-10 w-10 text-xl');
+            button.setAttribute('aria-label', `Nastavení a profil: ${playerName(profile)}`);
+            button.title = `Nastavení a profil: ${playerName(profile)}`;
         } else {
             button.className = BUTTON_INACTIVE;
-            button.innerHTML = '<i data-lucide="user-round" class="h-5 w-5"></i>';
-            button.setAttribute('aria-label', 'Přihlásit se');
-            button.title = 'Přihlásit se';
+            button.innerHTML = '<i data-lucide="settings-2" class="h-5 w-5"></i>';
+            button.setAttribute('aria-label', 'Nastavení');
+            button.title = 'Nastavení';
             renderIcons(button);
         }
     };
@@ -2764,61 +2840,8 @@
     const SECONDARY_BUTTON = 'flex w-full items-center justify-center gap-2 rounded-2xl btn-3d-light bg-white px-4 py-3 text-base font-bold text-slate-800 dark:bg-slate-800 dark:text-slate-100';
 
     // Profil: jméno, emoji a barva obrázku
-    const openProfile = async () => {
-        const user = signedUser();
-        if (!user || !Social) return;
-        await loadMyProfile();
-        const draft = { name: myProfile.display_name, avatar: myProfile.avatar, color: myProfile.color };
-        let note = '';
-        const stats = loadStats();
-        const render = () => showDialog('Profil', `
-            <form class="flex flex-col gap-4" autocomplete="off">
-                <div class="flex items-center gap-4">
-                    ${avatarHtml(draft, 'h-16 w-16 text-4xl')}
-                    <label class="min-w-0 flex-1 text-xs font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">Přezdívka
-                        <input id="profile-name" type="text" maxlength="${Social.NAME_MAX}" value="${escapeHtml(draft.name)}" class="mt-1 w-full rounded-xl border-2 border-slate-200 bg-white px-3 py-2 text-base font-bold normal-case tracking-normal text-slate-800 focus:border-brand-600 focus:outline-none dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100">
-                    </label>
-                </div>
-                <div>
-                    <p class="mb-2 text-xs font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">Obrázek</p>
-                    <div class="grid grid-cols-8 gap-1.5">${Social.AVATARS.map(emoji => `<button type="button" data-pick-avatar="${emoji}" aria-label="Obrázek ${emoji}" aria-pressed="${emoji === draft.avatar}" class="flex aspect-square items-center justify-center rounded-xl border-2 text-xl active:scale-95 ${emoji === draft.avatar ? 'border-brand-600 bg-brand-50 dark:bg-brand-900/40' : 'border-transparent bg-white dark:bg-slate-800'}">${emoji}</button>`).join('')}</div>
-                </div>
-                <div>
-                    <p class="mb-2 text-xs font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">Barva</p>
-                    <div class="flex flex-wrap gap-2">${Social.COLORS.map(color => `<button type="button" data-pick-color="${color}" aria-label="Barva ${color}" aria-pressed="${color === draft.color}" class="h-9 w-9 rounded-full ${AVATAR_BG[color]} ${color === draft.color ? 'ring-4 ring-slate-800/70 ring-offset-2 dark:ring-white/80 dark:ring-offset-slate-900' : ''} active:scale-95"></button>`).join('')}</div>
-                </div>
-                <p class="text-xs text-slate-500 dark:text-slate-400">Podle přezdívky tě ostatní najdou a vyzvou. Musí být jedinečná.</p>
-                <p class="text-sm text-slate-500 dark:text-slate-400">Procvičeno otázek: <b>${stats.practice.played}</b> · správně <b>${stats.practice.correct}</b></p>
-                <button type="submit" data-save-profile class="${PRIMARY_BUTTON}"><i data-lucide="check" class="h-5 w-5"></i> Uložit</button>
-                <p class="min-h-[1.25rem] text-center text-xs text-slate-400">${escapeHtml(user.email)}</p>
-                ${note ? DIALOG_NOTE(note, note.startsWith('Uloženo') ? 'text-emerald-700 dark:text-emerald-300' : undefined) : ''}
-                <button type="button" data-auth-logout-dialog class="${SECONDARY_BUTTON}"><i data-lucide="log-out" class="h-5 w-5"></i> Odhlásit</button>
-            </form>`, {
-            onClick: (event) => {
-                const avatar = event.target.closest('[data-pick-avatar]');
-                const color = event.target.closest('[data-pick-color]');
-                const input = document.getElementById('profile-name');
-                if (input) draft.name = input.value;
-                if (avatar) { draft.avatar = avatar.dataset.pickAvatar; note = ''; render(); }
-                if (color) { draft.color = color.dataset.pickColor; note = ''; render(); }
-                if (event.target.closest('[data-auth-logout-dialog]')) { closeDialog(); Auth.logout(); }
-            },
-            onSubmit: async () => {
-                const input = document.getElementById('profile-name');
-                if (input) draft.name = input.value;
-                try {
-                    myProfile = await Social.saveProfile(user.id, draft);
-                    note = 'Uloženo.';
-                    updateProfileButton();
-                    paintChallenges();
-                } catch (error) {
-                    note = error.status === 400 || error.status === 409 ? error.message : 'Uložení se nepodařilo, zkus to znovu.';
-                }
-                render();
-            }
-        });
-        render();
-    };
+    // Vlastní profil se upravuje v okně Nastavení (záložka Profil)
+    const openProfile = () => openSettings('', null, 'profile');
 
     // Nová výzva: komu (konkrétní hráč / náhodný / odkaz), téma (i víc témat), počet otázek a nastavení. Téma a nastavení jsou
     // souhrnné řádky, které se rozbalí klepnutím; tlačítko Vytvořit a hrát je stále dole na očích.
@@ -3366,7 +3389,6 @@
         },
         'open-profile': () => openProfile(),
         'home-tab': (button) => { writeJson(KEYS.homeTab, button.dataset.tab === 'multi' ? 'multi' : 'single'); renderHome(); },
-        'header-profile': () => (signedUser() ? openProfile() : openLoginDialog()),
         'new-challenge': () => openNewChallenge(),
         'join-challenge': () => openJoinChallenge(),
         'challenge-open': (button) => openChallenge(button.dataset.code),
@@ -3475,7 +3497,6 @@
         else openLearn('home');
     });
     document.getElementById('btn-settings').addEventListener('click', () => openSettings());
-    document.getElementById('btn-profile').addEventListener('click', () => (signedUser() ? openProfile() : openLoginDialog()));
     document.getElementById('status-badge').addEventListener('click', () => switchFromBadge());
     // Zvětšení fotky funguje všude: v nápovědě, ve výsledku, v okně s popisem i v atlasu
     document.addEventListener('click', (event) => {
