@@ -218,7 +218,7 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         assert.equal(shared, 'Mudrlant · 🌍 Zeměpis · 16. 10. 2026\n✅ 1 bod · nápovědy 3/3\n🔥 Série: 1\nhttps://geo.test/');
 
         // Po dnešní otázce nabízí další dnešní otázku z jiného tématu, nebo návrat do menu
-        assert.match(await tab.textContent('[data-action="next"]'), /Další dnešní: Vlajky a znaky/);
+        assert.match(await tab.textContent('[data-action="next"]'), /Další dnešní: (?!Zeměpis)\S/, 'další dnešní téma je jiné než odehrané');
         await tab.click('[data-action="daily-home"]');
         await waitForHome(tab);
         // Zeměpis je odehraný a série běží; tlačítko nahoře pokračuje ve zbývajících dnešních otázkách

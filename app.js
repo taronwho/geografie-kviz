@@ -1245,15 +1245,17 @@
     };
 
     // Další neodehraná dnešní otázka: po tématu `afterTopic` v pořadí témat dokola (bez něj od začátku)
+    // Další dnešní otázka: náhodné téma z těch, na které se dnes ještě neodpovídalo (ne vždy to stejné pořadí).
+    // Volba se drží, dokud se stav dne nezmění, ať tlačítko a následné spuštění nabídnou totéž téma.
+    let dailyPick = null;
     const nextDailyTopic = (afterTopic = null) => {
         const stats = loadStats();
         const today = getDayKey();
-        const start = afterTopic ? TOPICS.findIndex(topic => topic.id === afterTopic) : -1;
-        for (let step = 1; step <= TOPICS.length; step++) {
-            const topic = TOPICS[(start + step + TOPICS.length) % TOPICS.length];
-            if (topic.id !== afterTopic && !(stats.daily[topic.id] || {})[today]) return topic;
-        }
-        return null;
+        const open = TOPICS.filter(topic => topic.id !== afterTopic && !(stats.daily[topic.id] || {})[today]);
+        if (!open.length) return null;
+        const key = `${today}|${afterTopic}|${open.map(topic => topic.id).join(',')}`;
+        if (!dailyPick || dailyPick.key !== key) dailyPick = { key, id: open[Math.floor(Math.random() * open.length)].id };
+        return TOPIC_BY_ID[dailyPick.id];
     };
 
     const SECTION_HEADING = 'text-xs font-black uppercase tracking-widest text-slate-500 dark:text-slate-400';
