@@ -40,15 +40,15 @@
         id: 'robes', title: 'Barva obleku sovy', order: 20,
         render: (ctx) => {
             const chosen = ctx.prefs.robe;
-            return `<div class="grid grid-cols-4 gap-1.5">${Look.ROBES.map(item => {
+            return `<div class="grid grid-cols-7 gap-1">${Look.ROBES.map(item => {
                 const open = Look.isUnlocked(item, ctx);
                 const selected = item.id === chosen;
                 const art = owlSrc('icons/topics/sova-vitej.webp', item.id);
                 return `<button type="button" data-robe-pick="${item.id}" ${open ? '' : 'aria-disabled="true"'} aria-pressed="${selected}" aria-label="${esc(item.title)}${open ? '' : `, zamčeno: ${esc(Look.unlockText(item))}`}"
-                    class="flex flex-col items-center rounded-xl border-2 px-1 py-1 text-center ${selected ? 'border-brand-500 bg-brand-50 dark:bg-brand-950' : 'border-transparent bg-slate-50 dark:bg-slate-700/50'} ${open ? '' : 'cursor-not-allowed'}">
-                    <img src="${art}" alt="" data-keep class="h-12 w-12 object-contain ${open ? '' : 'opacity-40 grayscale'}">
-                    <span class="mt-0.5 text-[11px] font-bold leading-tight ${open ? 'text-slate-700 dark:text-slate-200' : 'text-slate-400 dark:text-slate-500'}">${esc(item.title.replace(' talár', ''))}</span>
-                    ${open ? '' : `<span class="text-[10px] leading-tight text-slate-400 dark:text-slate-500">${esc(Look.unlockText(item))}</span>`}
+                    class="flex flex-col items-center rounded-xl border-2 px-0 py-1 text-center ${selected ? 'border-brand-500 bg-brand-50 dark:bg-brand-950' : 'border-transparent bg-slate-50 dark:bg-slate-700/50'} ${open ? '' : 'cursor-not-allowed'}">
+                    <img src="${art}" alt="" data-keep class="h-10 w-10 object-contain ${open ? '' : 'opacity-40 grayscale'}">
+                    <span class="mt-0.5 text-[10px] font-bold leading-tight ${open ? 'text-slate-700 dark:text-slate-200' : 'text-slate-400 dark:text-slate-500'}">${esc(item.title.replace(' talár', ''))}</span>
+                    ${open ? '' : `<span class="text-[10px] leading-tight text-slate-400 dark:text-slate-500">${esc(Look.unlockText(item).replace('Úroveň', 'Úr.'))}</span>`}
                 </button>`;
             }).join('')}</div>`;
         },

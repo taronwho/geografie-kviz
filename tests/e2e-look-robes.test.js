@@ -68,7 +68,7 @@ test('barva obleku sovy', { skip: !chromium && 'Playwright není nainstalovaný'
         assert.deepEqual(tiles.map(tile => tile.id), ['vinova', 'zelena', 'modra', 'ruzova', 'fialova', 'cerna', 'zlata']);
         assert.deepEqual(tiles.filter(tile => tile.locked).map(tile => tile.id), ['ruzova', 'fialova', 'cerna', 'zlata'], 'na 12. úrovni jsou zamčené růžová a výš');
         assert.equal(tiles.find(tile => tile.selected).id, 'vinova');
-        assert.match(await tab.textContent('[data-robe-pick="ruzova"]'), /Úroveň 20/);
+        assert.match(await tab.textContent('[data-robe-pick="ruzova"]'), /Úr\. 20/);
 
         // Zamčená barva se nevybere
         await tab.click('[data-robe-pick="cerna"]', { force: true });

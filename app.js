@@ -745,9 +745,9 @@
     const lookBody = () => {
         if (!Look) return '';
         const ctx = lookContext();
-        return `<div class="flex flex-col gap-3">${Look.getSections().map(section => `
-            <section data-look="${section.id}" class="rounded-2xl bg-white p-3 shadow-sm dark:bg-slate-800">
-                <h3 class="${ME_HEADING} mb-2">${escapeHtml(section.title)}</h3>
+        return `<div class="flex flex-col gap-2">${Look.getSections().map(section => `
+            <section data-look="${section.id}" class="rounded-2xl bg-white p-2.5 shadow-sm dark:bg-slate-800">
+                <h3 class="${ME_HEADING} mb-1.5">${escapeHtml(section.title)}</h3>
                 ${section.render(ctx)}
             </section>`).join('')}</div>`;
     };

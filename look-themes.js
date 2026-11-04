@@ -13,10 +13,10 @@
             const open = Look.isUnlocked(theme, ctx);
             const on = open && theme.id === selected;
             const dot = open
-                ? `<span data-theme="${theme.id}" class="block h-8 w-8 rounded-full bg-gradient-to-br from-brand-400 to-brand-800 shadow-inner ring-1 ring-black/10"></span>`
-                : '<span class="block h-8 w-8 rounded-full bg-slate-300 ring-1 ring-black/10 dark:bg-slate-600"></span>';
+                ? `<span data-theme="${theme.id}" class="block h-6 w-6 rounded-full bg-gradient-to-br from-brand-400 to-brand-800 shadow-inner ring-1 ring-black/10"></span>`
+                : '<span class="block h-6 w-6 rounded-full bg-slate-300 ring-1 ring-black/10 dark:bg-slate-600"></span>';
             const tile = on ? 'bg-brand-50 ring-2 ring-brand-600 dark:bg-brand-900/40' : open ? 'bg-slate-100 active:scale-95 dark:bg-slate-700/60' : 'bg-slate-100 opacity-70 dark:bg-slate-700/40';
-            return `<button type="button" data-theme-pick="${theme.id}" aria-pressed="${on}"${open ? '' : ' aria-disabled="true"'} class="flex min-w-0 flex-col items-center gap-1 rounded-xl px-1 py-2 ${tile}">
+            return `<button type="button" data-theme-pick="${theme.id}" aria-pressed="${on}"${open ? '' : ' aria-disabled="true"'} class="flex min-w-0 flex-col items-center gap-0.5 rounded-xl px-1 py-1.5 ${tile}">
                 ${dot}
                 <span class="w-full truncate text-center text-[11px] font-bold leading-tight ${open ? 'text-slate-800 dark:text-slate-100' : 'text-slate-600 dark:text-slate-300'}">${theme.title}</span>
                 ${open ? '' : `<span class="w-full truncate text-center text-[10px] font-semibold leading-none text-slate-600 dark:text-slate-300">${Look.unlockText(theme)}</span>`}

@@ -48,7 +48,7 @@
         }).join('');
         const shown = hint || frameHint(Look.find('frames', selected), ctx, badgeTitle);
         return `<div class="grid grid-cols-7 gap-1" role="group" aria-label="Rámeček profilu">${tiles}</div>
-            <p class="mt-1.5 text-[11px] leading-snug text-slate-500 dark:text-slate-400" role="status">${escapeHtml(shown)}${ctx.user ? '' : ' · Rámeček uvidí ostatní hráči po přihlášení.'}</p>`;
+            <p class="mt-1.5 text-[11px] leading-snug text-slate-500 dark:text-slate-400" role="status">${escapeHtml(shown)}${ctx.user ? '' : ' · uvidí ho hráči po přihlášení'}</p>`;
     };
     const clickFrames = (event, ctx) => {
         const button = event.target.closest('[data-frame]');
@@ -77,8 +77,7 @@
                     ${optionHtml(options[0])}${optionHtml(options[1])}
                     ${options.length > 2 ? `<optgroup label="Získané odznaky">${options.slice(2).map(optionHtml).join('')}</optgroup>` : ''}
                 </select>
-            </label>
-            <p class="mt-1.5 text-[11px] leading-snug text-slate-500 dark:text-slate-400">Co ostatní uvidí u tvého jména v tvém profilu. Odznaky se získávají hraním.</p>`;
+            </label>`;
     };
     const changeTitle = (event, ctx) => {
         const select = event.target.closest('[data-title-select]');
