@@ -247,11 +247,12 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         assert.match(await tab.textContent('#dialog-overlay'), /XP\s*do úr\. 2/);
         // Klepnutí na úroveň otevře tabulku všech úrovní (čtyři sloupce, 100 úrovní)
         await tab.click('[data-open-levels]');
-        await tab.waitForSelector('#dialog-overlay ul li');
-        assert.equal(await tab.locator('#dialog-overlay [data-level]').count(), 100);
-        await tab.click('#dialog-overlay [data-level="18"]');
-        assert.match(await tab.textContent('#dialog-overlay'), /Úroveň 18 · Znalec/);
+        await tab.waitForSelector('#dialog-overlay [data-title-row]');
+        assert.equal(await tab.locator('#dialog-overlay [data-title-row]').count(), 31, 'řádek na každý titul');
+        assert.equal(await tab.locator('#dialog-overlay [data-here]').count(), 1, 'označený tvůj titul');
+        assert.match(await tab.textContent('#dialog-overlay'), /Znalec/);
         assert.match(await tab.textContent('#dialog-overlay'), new RegExp(`${gained}\\s*XP`));
+        assert.ok(await tab.locator('#dialog-overlay [data-title-row] img.grayscale').count() > 20, 'nedosažené tituly zešedlé');
         await tab.keyboard.press('Escape');
         await tab.click('#status-badge');
         await tab.waitForSelector('#dialog-overlay');

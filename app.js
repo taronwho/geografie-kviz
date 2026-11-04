@@ -3299,32 +3299,35 @@
 
     // XP s mezerou po tisících („12 500“); nedělitelná mezera, ať se číslo nezalomí
     const formatXp = (value) => String(Math.round(value)).replace(/\B(?=(\d{3})+(?!\d))/g, '\u00a0');
-    // Tabulka úrovní: požadované XP (celkem) na každou úroveň ve čtyřech sloupcích; zlatě je úroveň, na které hráč dostane nový titul
+    // Obrázek titulu: zatím sova v pózách od spící (první tituly) po vítěze (poslední); dosažené barevně, ostatní zešedlé
+    const TITLE_OWLS = ['spi', 'smutek', 'premysleni', 'vitej', 'vyzva', 'radost', 'serie', 'prohra', 'oslava', 'vitez'];
+    const titleOwl = (index) => TITLE_OWLS[Math.min(TITLE_OWLS.length - 1, Math.floor(index * TITLE_OWLS.length / LEVEL_TITLES.length))];
+    // Přehled úrovní: posouvací seznam titulů; u každého obrázek (nedosažené zešedlé), název, rozsah úrovní a XP potřebné na jednotlivé úrovně
     const openLevels = () => {
         const xp = loadProgress().xp;
         const current = levelProgress(xp).level;
-        const starts = new Map(LEVEL_TITLES.map(entry => [entry.from, entry.title]));
-        let selected = current;
-        const render = () => {
-            const cells = Array.from({ length: MAX_LEVEL }, (_, index) => {
-                const level = index + 1;
-                const reached = level <= current;
-                const title = starts.get(level);
-                return `<li><button type="button" data-level="${level}" aria-label="${escapeHtml(`Úroveň ${level}${title ? `, titul ${title}` : ''}`)}" class="flex w-full items-baseline justify-between gap-1 rounded-md px-1.5 py-[3px] text-[10.5px] leading-none ${level === selected ? 'ring-2 ring-brand-600 dark:ring-gold-400' : ''} ${level === current ? 'bg-brand-700 text-white ring-2 ring-gold-400' : title ? 'bg-gold-100 text-brand-950 dark:bg-gold-900/40 dark:text-gold-100' : reached ? 'bg-slate-200/80 text-slate-600 dark:bg-slate-700/70 dark:text-slate-300' : 'bg-white text-slate-700 dark:bg-slate-800 dark:text-slate-300'}"><b class="text-[11px]">${level}</b><span class="font-semibold">${formatXp(xpForLevel(level))}</span></button></li>`;
-            }).join('');
-            const titleOf = titleForLevel(selected);
-            const need = Math.max(0, xpForLevel(selected) - xp);
-            showDialog('Úrovně', `
-                <div class="flex flex-col gap-2">
-                    <div class="rounded-xl bg-white p-2.5 shadow-sm dark:bg-slate-800">
-                        <p class="text-sm font-black text-slate-800 dark:text-slate-100">Úroveň ${selected} · ${escapeHtml(titleOf)}${starts.has(selected) ? ' <span class="text-[11px] font-bold text-gold-600 dark:text-gold-400">nový titul</span>' : ''}</p>
-                        <p class="text-xs text-slate-500 dark:text-slate-400">${formatXp(xpForLevel(selected))} XP celkem, asi ${formatXp(questionsForLevel(selected))} otázek${need ? ` · chybí ti ${formatXp(need)} XP` : ' · máš splněno'}</p>
+        const rows = LEVEL_TITLES.map((entry, index) => {
+            const last = index + 1 < LEVEL_TITLES.length ? LEVEL_TITLES[index + 1].from - 1 : MAX_LEVEL;
+            const reached = current >= entry.from;
+            const here = current >= entry.from && current <= last;
+            const levels = Array.from({ length: last - entry.from + 1 }, (_, i) => entry.from + i);
+            return `
+                <li data-title-row="${entry.from}"${here ? ' data-here' : ''} class="flex items-center gap-3 rounded-2xl p-2 shadow-sm ${here ? 'bg-brand-700 text-white ring-2 ring-gold-400' : reached ? 'bg-white dark:bg-slate-800' : 'bg-white/60 dark:bg-slate-800/50'}">
+                    ${uiArt(`sova-${titleOwl(index)}`, `h-14 w-14 ${reached ? '' : 'opacity-40 grayscale'}`)}
+                    <div class="min-w-0 flex-1">
+                        <p class="flex items-baseline justify-between gap-2"><span class="truncate text-[15px] font-black leading-tight ${here ? '' : reached ? 'text-slate-800 dark:text-slate-100' : 'text-slate-400 dark:text-slate-500'}">${escapeHtml(entry.title)}</span><span class="shrink-0 text-[11px] font-bold ${here ? 'text-gold-300' : 'text-slate-400'}">úr. ${entry.from === last ? entry.from : `${entry.from}–${last}`}</span></p>
+                        <p class="mt-0.5 text-[11px] font-semibold leading-snug ${here ? 'text-white/85' : 'text-slate-500 dark:text-slate-400'}">od ${formatXp(xpForLevel(entry.from))} XP · asi ${formatXp(questionsForLevel(entry.from))} otázek</p>
+                        ${levels.length > 1 ? `<p class="mt-0.5 text-[10px] leading-snug ${here ? 'text-white/70' : 'text-slate-400 dark:text-slate-500'}">${levels.map(level => `<span class="${level === current ? 'font-black underline' : ''}">${level}: ${formatXp(xpForLevel(level))}</span>`).join(' · ')}</p>` : ''}
                     </div>
-                    <ul class="grid grid-cols-4 gap-1">${cells}</ul>
-                    <p class="flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] font-semibold text-slate-500 dark:text-slate-400"><span class="flex items-center gap-1"><i class="h-2.5 w-2.5 rounded bg-brand-700"></i>tvoje úroveň (${formatXp(xp)} XP)</span><span class="flex items-center gap-1"><i class="h-2.5 w-2.5 rounded bg-gold-200"></i>nový titul (${LEVEL_TITLES.length})</span><span>klepni na úroveň</span></p>
-                </div>`, { onClick: (event) => { const cell = event.target.closest('[data-level]'); if (cell) { selected = Number(cell.dataset.level); render(); } } });
-        };
-        render();
+                </li>`;
+        }).join('');
+        showDialog('Úrovně a tituly', `
+            <div class="flex flex-col gap-2">
+                <p class="text-xs leading-snug text-slate-500 dark:text-slate-400">Máš <b class="text-slate-700 dark:text-slate-200">${formatXp(xp)} XP</b> (úroveň ${current}, ${escapeHtml(titleForLevel(current))}). Čím výš, tím víc XP na další úroveň; úroveň ${MAX_LEVEL} je asi ${formatXp(questionsForLevel(MAX_LEVEL))} otázek.</p>
+                <ul class="flex flex-col gap-1.5">${rows}</ul>
+            </div>`);
+        const here = document.querySelector('#dialog-overlay [data-here]');
+        if (here) here.scrollIntoView({ block: 'center' });
     };
 
     // Můj postup: úroveň, titul, XP do další úrovně a mistrovství jednotlivých témat (hvězdičky podle poznaných položek)
