@@ -2002,9 +2002,11 @@
         };
     };
     // Získané odznaky podle počítadel; vrátí názvy nově získaných (a uloží je s dnešním dnem)
+    let freshBadgeIds = [];
     const grantBadges = (progress) => {
         const fresh = earnedBadgeIds(progress.counters, badgeContext(progress)).filter(id => !progress.badges[id]);
         fresh.forEach(id => { progress.badges[id] = getDayKey(); });
+        freshBadgeIds = fresh;
         return fresh.map(id => BADGE_BY_ID[id].title);
     };
     // Oslava (nová úroveň, titul, odznak, série): karta se sovou nad tlačítkem Další; víc oslav jde po sobě, klepnutím se zavře
@@ -2037,6 +2039,9 @@
         }
         badgeTitles.slice(0, 3).forEach(title => showCelebration('oslava', 'Nový odznak', title));
         if (badgeTitles.length > 3) showCelebration('oslava', 'Další odznaky', `a ještě ${badgeTitles.length - 3}`);
+        const kinds = { themes: 'barevné téma', robes: 'talár sovy', frames: 'rámeček', avatars: 'obrázek hráče' };
+        Look.newRewards(levelBefore, levelNow, freshBadgeIds).forEach(({ category, item }) => showCelebration('vitez', 'Nová odměna', `${item.title} (${kinds[category]}) – vyber si ji v Nastavení → Vzhled`));
+        freshBadgeIds = [];
     };
     // Po delší pauze sova uvítá hráče zpátky (jednou za spuštění)
     const welcomeBack = () => {
@@ -3343,6 +3348,12 @@
     const TITLE_OWLS = ['spi', 'smutek', 'premysleni', 'vitej', 'vyzva', 'radost', 'serie', 'prohra', 'oslava', 'vitez'];
     const titleOwl = (index) => TITLE_OWLS[Math.min(TITLE_OWLS.length - 1, Math.floor(index * TITLE_OWLS.length / LEVEL_TITLES.length))];
     // Přehled úrovní: posouvací seznam titulů; u každého obrázek (nedosažené zešedlé), název, rozsah úrovní a XP potřebné na jednotlivé úrovně
+    // Odměny odemykané v rozsahu úrovní řádku (drobné štítky)
+    const rewardChips = (from, last, here) => {
+        const items = [];
+        for (let level = from; level <= last; level++) Look.rewardsAtLevel(level).forEach(({ item }) => items.push(item.title));
+        return items.length ? `<p class="mt-0.5 flex flex-wrap gap-1">${items.map(title => `<span class="rounded-full px-1.5 text-[10px] font-bold ${here ? 'bg-white/20 text-white' : 'bg-gold-100 text-gold-800 dark:bg-slate-700 dark:text-gold-300'}">🎁 ${escapeHtml(title)}</span>`).join('')}</p>` : '';
+    };
     const openLevels = () => {
         const xp = loadProgress().xp;
         const current = levelProgress(xp).level;
@@ -3357,6 +3368,7 @@
                     <div class="min-w-0 flex-1">
                         <p class="flex items-baseline justify-between gap-2"><span class="truncate text-[15px] font-black leading-tight ${here ? '' : reached ? 'text-slate-800 dark:text-slate-100' : 'text-slate-400 dark:text-slate-500'}">${escapeHtml(entry.title)}</span><span class="shrink-0 text-[11px] font-bold ${here ? 'text-gold-300' : 'text-slate-400'}">úr. ${entry.from === last ? entry.from : `${entry.from}–${last}`}</span></p>
                         <p class="mt-0.5 text-[11px] font-semibold leading-snug ${here ? 'text-white/85' : 'text-slate-500 dark:text-slate-400'}">od ${formatXp(xpForLevel(entry.from))} XP · asi ${formatXp(questionsForLevel(entry.from))} otázek</p>
+                        ${rewardChips(entry.from, last, here)}
                         ${levels.length > 1 ? `<p class="mt-0.5 text-[10px] leading-snug ${here ? 'text-white/70' : 'text-slate-400 dark:text-slate-500'}">${levels.map(level => `<span class="${level === current ? 'font-black underline' : ''}">${level}: ${formatXp(xpForLevel(level))}</span>`).join(' · ')}</p>` : ''}
                     </div>
                 </li>`;
