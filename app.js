@@ -745,6 +745,7 @@
         </button>`).join('');
     // --- Vzhled: odměny (barevná témata, barva obleku sovy, rámečky, obrázky, titul) – části dodávají look-*.js přes MudrlantLook ---
     const Look = window.MudrlantLook;
+    const Tutorial = window.MudrlantTutorial;
     const lookContext = () => {
         const progress = loadProgress();
         const user = Auth && Auth.isConfigured() && Social ? signedUser() : null;
@@ -802,6 +803,7 @@
                     <button type="button" data-auth-login class="${PRIMARY_BUTTON} mt-2"><i data-lucide="log-in" class="h-5 w-5"></i> Přihlásit se přes Google</button>
                     ${state.error ? `<p class="mt-2 text-xs font-semibold text-rose-600 dark:text-rose-400" role="alert">${escapeHtml(state.error)}</p>` : ''}
                 </div>` : ''}
+            <button type="button" data-tutorial-restart class="btn-3d-light mt-3 flex w-full items-center gap-2 rounded-2xl bg-white px-3 py-2 text-left dark:bg-slate-800"><i data-lucide="info" class="h-5 w-5 shrink-0 text-brand-700 dark:text-brand-300"></i><span class="min-w-0 flex-1 truncate text-[13px] font-black text-slate-800 dark:text-slate-100">Projít znovu tutoriál</span><i data-lucide="chevron-right" class="h-4 w-4 shrink-0 text-slate-400"></i></button>
             ${renderDevPanel()}`;
         const profileBody = user && Social && meDraft ? `
             <form id="profile-form" class="flex flex-col gap-3" autocomplete="off">
@@ -895,6 +897,7 @@
             if (event.target.closest('[data-auth-login]')) { Auth.login(); return; }
             if (event.target.closest('[data-auth-logout]')) { closeSettings(); Auth.logout(); return; }
             if (event.target.closest('[data-update-app]')) { updateApp(); return; }
+            if (event.target.closest('[data-tutorial-restart]')) { closeSettings(); renderHome(); if (Tutorial) Tutorial.restart(); return; }
             if (event.target.closest('[data-open-progress]')) { closeSettings(); openProgress(); return; }
             if (event.target.closest('[data-open-accept]')) { closeSettings(); openAccepted(); return; }
             const devButton = event.target.closest('[data-dev]');
@@ -1279,6 +1282,7 @@
     const factRead = () => readJson(FACT_KEY) === getDayKey();
     const validFact = (fact) => Boolean(fact) && fact.date === getDayKey() && typeof fact.title === 'string' && typeof fact.text === 'string'
         && typeof fact.url === 'string' && /^https:\/\/[a-z]+\.wikipedia\.org\//.test(fact.url);
+    let factLoading = null;
     const loadDailyFact = async () => {
         try {
             const response = await fetch('data/fakt.json', { cache: 'no-cache' });
@@ -1388,6 +1392,7 @@
         appContent.scrollTo(0, 0);
         updateControlsUI();
         refreshChallenges();
+        if (Tutorial) Tutorial.maybeStart({ ready: factLoading });
     };
 
     // --- Otázka: popis hned, pak nápovědy fotka → obrazová nápověda tématu → fakta ---
@@ -4182,7 +4187,7 @@
     settings = loadSettings();
     applyLook();
     renderIcons(document);
-    loadDailyFact();
+    factLoading = loadDailyFact();
     try {
         showStart();
         welcomeBack();
