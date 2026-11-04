@@ -119,7 +119,7 @@ test('robustnost v prohlížeči', { skip: !chromium && 'Playwright není nainst
     });
 
     await t.test('denní zajímavost s nepřátelským textem se nikdy nevykoná', async () => {
-        fact = { date: dayKey(), year: 1922, title: '<img src=x onerror="window.__xss=1">Titulek', text: '<script>window.__xss=2</script>"><svg onload=window.__xss=3>', url: 'https://cs.wikipedia.org/wiki/X" onclick="window.__xss=4', page: '<b>p</b>', source: '<i>s</i>', category: '<u>c</u>' };
+        fact = { date: dayKey(), year: 1922, title: '<img src=x onerror="window.__xss=1">Titulek', text: '<script>window.__xss=2</script>"><svg onload=window.__xss=3>', url: 'https://cs.wikipedia.org/wiki/X?a=1&b=<2>'.replace(/[<>]/g, ''), page: '<b>p</b>', source: '<i>s</i>', category: '<u>c</u>' };
         const { context, tab, problems } = await open(`(() => { if (sessionStorage.getItem('seeded')) return; sessionStorage.setItem('seeded', '1'); localStorage.setItem('mudrlant.account', '"host"'); localStorage.setItem('mudrlant.tutorial', '{"how":"done"}'); localStorage.setItem('mudrlant.variant', 'choices'); })()`);
         await tab.waitForSelector('#fact-hint:not(.hidden)');
         await tab.click('#fact-hint');
@@ -132,7 +132,7 @@ test('robustnost v prohlížeči', { skip: !chromium && 'Playwright není nainst
         assert.equal(await tab.getAttribute('[data-fact-link]', 'onclick'), null);
         assert.deepEqual(problems, []);
         await context.close();
-        for (const url of ['javascript:alert(1)', 'http://cs.wikipedia.org/wiki/X', 'https://cs.wikipedia.org.evil.example/wiki/X', 'https://evil.example/cs.wikipedia.org/']) {
+        for (const url of ['javascript:alert(1)', 'http://cs.wikipedia.org/wiki/X', 'https://cs.wikipedia.org.evil.example/wiki/X', 'https://evil.example/cs.wikipedia.org/', 'https://cs.wikipedia.org/wiki/X" onclick="window.__xss=4']) {
             fact = { ...fact, title: 'T', text: 't', url };
             const page = await open(`(() => { if (sessionStorage.getItem('seeded')) return; sessionStorage.setItem('seeded', '1'); localStorage.setItem('mudrlant.account', '"host"'); localStorage.setItem('mudrlant.tutorial', '{"how":"done"}'); localStorage.setItem('mudrlant.variant', 'choices'); })()`);
             await page.tab.waitForTimeout(400);
