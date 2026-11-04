@@ -631,7 +631,7 @@
     const renderTierButtons = (on = TOGGLE_ON, topic = null) => Object.entries(TIERS).map(([key, tier]) => `
         <button type="button" data-tier="${key}" aria-pressed="${settings.tier === key}" class="rounded-2xl border-2 p-3 text-left transition-colors active:scale-[0.98] ${settings.tier === key ? on : TOGGLE_OFF}">
             <span class="block text-sm font-black">${tier.title}</span>
-            <span class="mt-0.5 block text-xs leading-snug opacity-80">${key === 'known' && topic && topic.words && topic.words.tierKnown ? escapeHtml(topic.words.tierKnown) : tier.text}</span>
+            <span class="mt-0.5 block text-xs leading-snug opacity-90">${key === 'known' && topic && topic.words && topic.words.tierKnown ? escapeHtml(topic.words.tierKnown) : tier.text}</span>
         </button>`).join('');
 
     const closeSettings = () => {
@@ -1379,7 +1379,7 @@
                         <h2 class="flex min-w-0 items-center gap-2 whitespace-nowrap text-slate-800 dark:text-slate-100">${uiArt('dnes', 'h-8 w-8')}<span class="min-w-0"><span class="block text-[13px] font-black leading-tight">Dnešní otázky</span><span class="block text-[11px] font-bold leading-tight text-slate-500 dark:text-slate-400">${answered}/${TOPICS.length} splněno</span></span></h2>
                         ${left ? `
                             <button type="button" data-action="play-daily" class="flex shrink-0 items-center gap-1.5 rounded-xl btn-3d bg-brand-700 px-3 py-2 text-[13px] font-black text-white">
-                                <i data-lucide="play" class="h-4 w-4"></i> ${answered ? 'Pokračovat' : 'Hrát vše'} <span class="font-bold opacity-70">· zbývá ${left}</span>
+                                <i data-lucide="play" class="h-4 w-4"></i> ${answered ? 'Pokračovat' : 'Hrát vše'} <span class="font-bold opacity-90">· zbývá ${left}</span>
                             </button>` : `
                             <span class="flex shrink-0 items-center gap-1.5 rounded-xl bg-emerald-50 px-3 py-2 text-[13px] font-bold text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300"><i data-lucide="circle-check" class="h-4 w-4"></i> Vše hotové</span>`}
                     </div>
@@ -1583,8 +1583,8 @@
             <button type="button" data-action="hint" title="Nápověda: ${escapeHtml(next.label)} – odpověď pak za ${nextCost}" class="btn-3d flex h-12 w-full shrink-0 items-center gap-3 rounded-2xl bg-gradient-to-b from-gold-400 to-gold-600 px-3 text-left text-brand-950">
                 ${uiArt('napoveda', 'h-9 w-9 -my-1')}
                 <span class="min-w-0 flex-1">
-                    <span class="block text-[11px] font-black uppercase tracking-wider opacity-70">Nápověda ${round.hintLevel}/${data.hints.length + 1}</span>
-                    <span class="flex items-baseline gap-1.5 text-sm font-black leading-tight"><span class="truncate">${escapeHtml(capitalize(next.label))}</span><span class="shrink-0 text-xs font-bold opacity-80">· pak ${nextCost}</span></span>
+                    <span class="block text-[11px] font-black uppercase tracking-wider opacity-90">Nápověda ${round.hintLevel}/${data.hints.length + 1}</span>
+                    <span class="flex items-baseline gap-1.5 text-sm font-black leading-tight"><span class="truncate">${escapeHtml(capitalize(next.label))}</span><span class="shrink-0 text-xs font-bold opacity-90">· pak ${nextCost}</span></span>
                 </span>
                 <i data-lucide="${next.icon}" class="h-5 w-5 shrink-0 opacity-70"></i>
             </button>`;
@@ -2127,7 +2127,7 @@
         const card = document.createElement('div');
         card.id = 'celebration';
         card.setAttribute('role', 'status');
-        card.className = 'fade-in fixed inset-x-3 bottom-24 z-[60] mx-auto flex max-w-sm cursor-pointer items-center gap-3 rounded-3xl bg-gradient-to-br from-brand-700 to-brand-900 p-3 pr-4 text-white shadow-2xl ring-2 ring-gold-400';
+        card.className = 'fade-in fixed inset-x-3 bottom-24 z-[60] mx-auto flex max-w-sm cursor-pointer items-center gap-3 rounded-3xl bg-gradient-to-br from-brand-800 to-brand-950 p-3 pr-4 text-white shadow-2xl ring-2 ring-gold-400';
         card.innerHTML = `${uiArt(`sova-${item.owl}`, 'h-20 w-20 -my-4 drop-shadow-lg')}<div class="min-w-0 flex-1"><p class="text-[11px] font-black uppercase tracking-widest text-gold-300">${escapeHtml(item.title)}</p><p class="text-base font-black leading-tight">${escapeHtml(item.text)}</p></div>`;
         document.body.appendChild(card);
         const done = () => { if (!card.isConnected) return; card.remove(); setTimeout(nextCelebration, 250); };
