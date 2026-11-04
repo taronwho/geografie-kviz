@@ -9,7 +9,7 @@
         censorName, mergeCensored, processWikiText, checkAnswer, normalizeAnswer, filterItems, pickItem, sortItems,
         buildItemChoices, findAnswerItem, setCountries, updateMistakes, nameAnswers, pointsFor, dropKnownFacts,
         computeStreak, buildShareText, getTileLayout, shuffle,
-        EMPTY_COUNTERS, BADGES, BADGE_BY_ID, earnedBadgeIds,
+        BADGES, BADGE_GROUPS, BADGE_BY_ID, earnedBadgeIds, compactBadges, expandBadges, normalizeCounters,
         levelProgress, titleForLevel, nextTitle, answerXp, DAILY_XP, DAILY_ALL_XP, streakXp, MASTERY_STEPS, masteryStars, nextMastery
     } = window.MudrlantCore;
     const Visuals = window.MudrlantVisuals;
@@ -604,7 +604,7 @@
         appContent.innerHTML = `
             <div class="fade-in flex min-h-full flex-col justify-center gap-4 p-6">
                 <div class="mb-2 text-center">
-                    <img src="icons/logo.webp" alt="" class="mx-auto mb-3 h-32 w-auto drop-shadow-lg">
+                    <img src="icons/topics/sova-premysleni.webp" alt="" class="mx-auto mb-3 h-36 w-36 object-contain drop-shadow-lg">
                     <h2 class="text-2xl font-black text-slate-800 dark:text-slate-50">Vítej v Mudrlantovi</h2>
                     <p class="mt-2 text-sm text-slate-500 dark:text-slate-400">Kvíz ze zeměpisu a dalších oborů. Jak chceš odpovídat? Změníš to kdykoli v nastavení vpravo nahoře.</p>
                 </div>
@@ -1118,7 +1118,7 @@
     };
 
     // Načítání v barvě a s ikonou tématu, které se načítá (jinak pohupující se sova z loga)
-    const LOADING_OWL = '<img src="icons/logo.webp" alt="" class="bob mb-4 h-24 w-auto drop-shadow-lg">';
+    const LOADING_OWL = '<img src="icons/topics/sova-premysleni.webp" alt="" class="bob mb-3 h-32 w-32 object-contain drop-shadow-lg">';
     const renderLoading = (text = 'Vybírám otázku…', topic = null) => {
         appContent.innerHTML = `
             <div class="absolute inset-0 z-10 flex flex-col items-center justify-center fade-in bg-slate-50/80 backdrop-blur-sm dark:bg-slate-900/80">
@@ -1660,7 +1660,7 @@
         if (round.correct) {
             return `
                 <div data-verdict tabindex="-1" class="flex items-center gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 outline-none dark:border-emerald-800 dark:bg-emerald-900/30">
-                    <i data-lucide="circle-check" class="h-8 w-8 shrink-0 text-emerald-600 dark:text-emerald-400"></i>
+                    ${uiArt('sova-radost', 'h-[4.5rem] w-[4.5rem] -my-3')}
                     <div>
                         <p class="font-black text-emerald-800 dark:text-emerald-200">Správně! +${formatPoints(round.points)}</p>
                         <p class="text-sm text-emerald-800 dark:text-emerald-300">${round.typed ? 'Napsaná odpověď' : 'Výběr z možností'}${data.hints.length ? ` · nápovědy ${levels}` : ''}</p>
@@ -1670,7 +1670,7 @@
         }
         return `
             <div data-verdict tabindex="-1" class="flex items-center gap-3 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 outline-none dark:border-rose-800 dark:bg-rose-900/30">
-                <i data-lucide="circle-x" class="h-8 w-8 shrink-0 text-rose-600 dark:text-rose-400"></i>
+                ${uiArt('sova-smutek', 'h-[4.5rem] w-[4.5rem] -my-3')}
                 <div>
                     <p class="font-black text-rose-800 dark:text-rose-200">${round.gaveUp ? 'Tentokrát bez odpovědi' : 'Bohužel, to není ono'}</p>
                     <p class="text-sm text-rose-800 dark:text-rose-300">${round.answer ? `Tvoje odpověď: ${escapeHtml(round.answer)} · ` : ''}Správně: ${escapeHtml(data.question.answerLabel)}</p>
@@ -1922,25 +1922,64 @@
         const saved = readJson(KEYS.progress) || {};
         return {
             xp: Number.isFinite(saved.xp) && saved.xp > 0 ? Math.floor(saved.xp) : 0,
-            counters: { ...EMPTY_COUNTERS, ...(saved.counters || {}), topics: { ...((saved.counters && saved.counters.topics) || {}) } },
+            counters: normalizeCounters(saved.counters),
             badges: saved.badges && typeof saved.badges === 'object' && !Array.isArray(saved.badges) ? saved.badges : {}
         };
     };
     const saveProgress = (progress) => writeJson(KEYS.progress, progress);
-    // Nejvyšší mistrovství v některém tématu (hvězdičky podle poznaných položek)
-    const bestMastery = () => Math.max(0, ...TOPICS.map(topic => masteryStars((loadLearned()[topic.id] || []).length)));
+    // Souvislosti pro odznaky: úroveň, kolik položek hráč poznal a hvězdy mistrovství v tématech
+    const badgeContext = (progress) => {
+        const learnedMap = loadLearned();
+        return {
+            level: levelProgress(progress.xp).level,
+            learned: TOPICS.reduce((sum, topic) => sum + (learnedMap[topic.id] || []).length, 0),
+            topicStars: Object.fromEntries(TOPICS.map(topic => [topic.id, masteryStars((learnedMap[topic.id] || []).length)])),
+            topicCount: TOPICS.length
+        };
+    };
     // Získané odznaky podle počítadel; vrátí názvy nově získaných (a uloží je s dnešním dnem)
     const grantBadges = (progress) => {
-        const level = levelProgress(progress.xp).level;
-        const fresh = earnedBadgeIds(progress.counters, { level, mastery: bestMastery(), topicCount: TOPICS.length }).filter(id => !progress.badges[id]);
+        const fresh = earnedBadgeIds(progress.counters, badgeContext(progress)).filter(id => !progress.badges[id]);
         fresh.forEach(id => { progress.badges[id] = getDayKey(); });
         return fresh.map(id => BADGE_BY_ID[id].title);
     };
+    // Oslava (nová úroveň, titul, odznak, série): karta se sovou nad tlačítkem Další; víc oslav jde po sobě, klepnutím se zavře
+    const celebrationQueue = [];
+    let celebrating = false;
+    const nextCelebration = () => {
+        const item = celebrationQueue.shift();
+        if (!item) { celebrating = false; return; }
+        celebrating = true;
+        const old = document.getElementById('celebration');
+        if (old) old.remove();
+        const card = document.createElement('div');
+        card.id = 'celebration';
+        card.setAttribute('role', 'status');
+        card.className = 'fade-in fixed inset-x-3 bottom-24 z-[60] mx-auto flex max-w-sm cursor-pointer items-center gap-3 rounded-3xl bg-gradient-to-br from-brand-700 to-brand-900 p-3 pr-4 text-white shadow-2xl ring-2 ring-gold-400';
+        card.innerHTML = `${uiArt(`sova-${item.owl}`, 'h-20 w-20 -my-4 drop-shadow-lg')}<div class="min-w-0 flex-1"><p class="text-[11px] font-black uppercase tracking-widest text-gold-300">${escapeHtml(item.title)}</p><p class="text-base font-black leading-tight">${escapeHtml(item.text)}</p></div>`;
+        document.body.appendChild(card);
+        const done = () => { if (!card.isConnected) return; card.remove(); setTimeout(nextCelebration, 250); };
+        card.addEventListener('click', done);
+        setTimeout(done, 4500);
+    };
+    const showCelebration = (owl, title, text) => {
+        celebrationQueue.push({ owl, title, text });
+        if (!celebrating) nextCelebration();
+    };
     const announce = (levelBefore, levelNow, badgeTitles) => {
-        const parts = [];
-        if (levelNow > levelBefore) parts.push(`Nová úroveň ${levelNow}: ${titleForLevel(levelNow)}!`);
-        badgeTitles.forEach(title => parts.push(`Nový odznak: ${title}!`));
-        if (parts.length) showToast(parts.join(' · '));
+        if (levelNow > levelBefore) {
+            const newTitle = titleForLevel(levelNow) !== titleForLevel(levelBefore);
+            showCelebration(newTitle ? 'vitez' : 'oslava', newTitle ? 'Nový titul' : `Úroveň ${levelNow}`, newTitle ? `${titleForLevel(levelNow)} (úroveň ${levelNow})` : titleForLevel(levelNow));
+        }
+        badgeTitles.slice(0, 3).forEach(title => showCelebration('oslava', 'Nový odznak', title));
+        if (badgeTitles.length > 3) showCelebration('oslava', 'Další odznaky', `a ještě ${badgeTitles.length - 3}`);
+    };
+    // Po delší pauze sova uvítá hráče zpátky (jednou za spuštění)
+    const welcomeBack = () => {
+        const last = loadProgress().counters.lastDay;
+        if (!last) return;
+        const gap = Math.round((Date.parse(`${getDayKey()}T12:00:00`) - Date.parse(`${last}T12:00:00`)) / 86400000);
+        if (gap >= 3) showCelebration('spi', 'Sova na tebe čekala', `Naposledy jsi hrál před ${gap} dny. Zahraj si dnešní otázky!`);
     };
     // Úroveň a odznaky se po přihlášení ukládají i do účtu (viditelné ostatním, platí na všech zařízeních); chyba spojení nevadí
     let syncingProgress = false;
@@ -1954,13 +1993,15 @@
             try { remote = await Social.getProgress(user.id); } catch (error) { return; }
             if (!remote) return;
             // Větší XP a sjednocení odznaků: na novém zařízení se postup načte z účtu, na starém se do účtu nahraje
+            // (do účtu jde jen nejvyšší stupeň každé skupiny, nižší se dopočítají)
             const merged = { ...local, xp: Math.max(local.xp, remote.xp || 0), badges: { ...local.badges } };
-            (remote.badges || []).filter(id => BADGE_BY_ID[id]).forEach(id => { if (!merged.badges[id]) merged.badges[id] = getDayKey(); });
-            const ids = Object.keys(merged.badges);
-            const changedLocal = merged.xp !== local.xp || ids.length !== Object.keys(local.badges).length;
+            const remoteIds = expandBadges((remote.badges || []).filter(id => BADGE_BY_ID[id]));
+            remoteIds.forEach(id => { if (!merged.badges[id]) merged.badges[id] = getDayKey(); });
+            const changedLocal = merged.xp !== local.xp || Object.keys(merged.badges).length !== Object.keys(local.badges).length;
             if (changedLocal) { saveProgress(merged); updateControlsUI(); }
-            const sameRemote = (remote.xp || 0) === merged.xp && (remote.badges || []).length === ids.length;
-            if (!sameRemote) await Social.saveProgress(user.id, { xp: merged.xp, badges: ids });
+            const compact = compactBadges(Object.keys(merged.badges));
+            const sameRemote = (remote.xp || 0) === merged.xp && [...compact].sort().join() === [...(remote.badges || [])].filter(id => BADGE_BY_ID[id]).sort().join();
+            if (!sameRemote) await Social.saveProgress(user.id, { xp: merged.xp, badges: compact });
         } catch (error) { /* bez účtu nebo bez nových sloupců se postup jen drží v zařízení */ } finally { syncingProgress = false; }
     };
     // Za odpověď: základ podle bodů, u dnešní otázky bonus a za sérii dní, za všech 14 dnešních bonus navíc.
@@ -1969,6 +2010,7 @@
         const before = loadProgress();
         const counters = before.counters;
         counters.answered += 1;
+        if (counters.lastDay !== getDayKey()) { counters.days += 1; counters.lastDay = getDayKey(); }
         if (round.correct) {
             counters.correct += 1;
             counters.run += 1;
@@ -1976,7 +2018,9 @@
             if (round.typed) counters.typedCorrect += 1;
             if (round.hintLevel === 1) counters.noHint += 1;
             if (current.known === false) counters.hardCorrect += 1;
-            counters.topics[current.topic] = 1;
+            if (round.wasMistake) counters.fixed += 1;
+            if (mode === 'daily' && current.dailyDate && round.dailyFirst !== false) counters.dailyCorrect += 1;
+            counters.topics[current.topic] = (counters.topics[current.topic] || 0) + 1;
         } else counters.run = 0;
         const parts = [{ label: 'odpověď', xp: answerXp(round) }];
         if (mode === 'daily' && current.dailyDate && round.dailyFirst !== false) {
@@ -1985,7 +2029,9 @@
                 const streak = computeStreak(stats.daily[current.topic] || {}, getDayKey());
                 if (streak > 1) parts.push({ label: `série ${streak} dní`, xp: streakXp(streak) });
             }
-            counters.bestStreak = Math.max(counters.bestStreak, computeStreak(stats.daily[current.topic] || {}, getDayKey()));
+            const dayStreak = computeStreak(stats.daily[current.topic] || {}, getDayKey());
+            counters.bestStreak = Math.max(counters.bestStreak, dayStreak);
+            if (round.correct && [3, 7, 14, 30, 60, 100, 200, 365].includes(dayStreak)) showCelebration('serie', `Série ${dayStreak} dní`, 'Dnešní otázky ti jdou! Jen tak dál.');
             const done = TOPICS.filter(topic => (stats.daily[topic.id] || {})[current.dailyDate]).length;
             if (done === TOPICS.length) { parts.push({ label: 'všechny dnešní otázky', xp: DAILY_ALL_XP }); counters.perfectDays += 1; }
         }
@@ -2020,6 +2066,7 @@
         }
         writeJson(KEYS.stats, stats);
         // Neuhodnutá položka jde do seznamu chyb v učení, správně uhodnutá z něj zmizí a počítá se do postupu v okruzích
+        round.wasMistake = loadMistakes().includes(`${current.topic}:${current.id}`);
         writeJson(KEYS.mistakes, updateMistakes(loadMistakes(), `${current.topic}:${current.id}`, round.correct));
         if (round.correct) {
             const learned = loadLearned();
@@ -2673,7 +2720,7 @@
         if (!user) {
             return `
                 <div class="flex flex-col items-center gap-3 rounded-[1.4rem] bg-white p-5 text-center shadow-sm ring-1 ring-slate-200/70 dark:bg-slate-800/70 dark:ring-slate-700/70">
-                    ${uiArt('vyzva', 'h-16 w-16')}
+                    ${uiArt('sova-vyzva', 'h-24 w-24')}
                     <div><p class="text-base font-black text-slate-800 dark:text-slate-100">Hraj s kamarády</p><p class="mt-1 text-sm text-slate-500 dark:text-slate-400">Přihlas se, vyber si přezdívku a obrázek a vyzvi kamaráda nebo náhodného hráče. Dostanete stejné otázky a porovnáte, kdo je lepší.</p></div>
                     <button type="button" data-action="auth-login" class="flex w-full items-center justify-center gap-2 rounded-2xl bg-brand-700 px-4 py-3 text-base font-black text-white shadow-md active:scale-[0.98]"><i data-lucide="log-in" class="h-5 w-5"></i> Přihlásit se přes Google</button>
                 </div>`;
@@ -2761,7 +2808,7 @@
         appContent.innerHTML = `
             <div id="account-welcome" class="fade-in flex min-h-full flex-col justify-center gap-6 p-6">
                 <div class="text-center">
-                    <img src="icons/logo.webp" alt="" class="mx-auto mb-3 h-36 w-auto drop-shadow-lg">
+                    <img src="icons/topics/sova-vitej.webp" alt="" class="mx-auto mb-3 h-44 w-44 object-contain drop-shadow-lg">
                     <h2 class="text-2xl font-black text-slate-800 dark:text-slate-50">Vítej v Mudrlantovi</h2>
                     <p class="mt-2 text-sm text-slate-500 dark:text-slate-400">Vědomostní kvíz ze zeměpisu, historie, přírody, kultury a sportu. S účtem si vybereš přezdívku a obrázek, můžeš vyzývat kamarády a porovnávat výsledky.</p>
                 </div>
@@ -2987,7 +3034,7 @@
                         const created = await Social.createChallenge(signedUser().id, { topic: topicValue(), count: draft.count, invitedId: opponent ? opponent.id : null, includeHard: draft.hard, categories: cats, variant: draft.variant });
                         closeDialog();
                         await loadMyProfile();
-                        startChallenge({ ...created, creator: myProfile, invited: opponent }, 0, []);
+                        startChallenge({ ...created, creator: myProfile, invited: opponent, fresh: true }, 0, []);
                     } catch (error) {
                         busy = false;
                         note = 'Výzvu se nepodařilo založit. Zkontroluj připojení a zkus to znovu.';
@@ -3051,16 +3098,77 @@
         </li>`).join('');
 
     // Odznak jako medaile ve stylu hry: získaný zlatý nebo vínový se ikonou, nezískaný šedý
+    const MEDAL_TONES = {
+        bronze: 'bg-gradient-to-br from-amber-600 to-amber-800 text-amber-100 ring-amber-300',
+        silver: 'bg-gradient-to-br from-slate-200 to-slate-400 text-slate-800 ring-white',
+        gold: 'bg-gradient-to-br from-gold-300 to-gold-600 text-brand-950 ring-cream',
+        brand: 'bg-gradient-to-br from-brand-500 to-brand-800 text-gold-200 ring-gold-400',
+        diamond: 'bg-gradient-to-br from-sky-300 to-indigo-500 text-white ring-cyan-100'
+    };
     const medalHtml = (badge, earned, size = 'h-11 w-11', iconSize = 'h-5 w-5') => `
         <span class="flex ${size} shrink-0 items-center justify-center rounded-full ring-2 ${earned
-            ? (badge.tone === 'brand' ? 'bg-gradient-to-br from-brand-500 to-brand-800 text-gold-200 ring-gold-400' : 'bg-gradient-to-br from-gold-300 to-gold-600 text-brand-950 ring-cream')
-            : 'bg-slate-200 text-slate-400 ring-slate-300 dark:bg-slate-700 dark:text-slate-500 dark:ring-slate-600'} shadow-sm"><i data-lucide="${earned ? badge.icon : 'lock'}" class="${iconSize}"></i></span>`;
+            ? (MEDAL_TONES[badge.tone] || MEDAL_TONES.gold)
+            : 'bg-slate-200 text-slate-400 ring-slate-300 dark:bg-slate-700 dark:text-slate-500 dark:ring-slate-600'} shadow-sm">${earned && badge.topic && topicArt({ id: badge.topic })
+                ? `<img src="icons/topics/${badge.topic}.webp" alt="" class="h-[72%] w-[72%] object-contain">`
+                : `<i data-lucide="${earned ? badge.icon : 'lock'}" class="${iconSize}"></i>`}</span>`;
+    // Další (nejbližší nezískaný) stupeň každé skupiny s postupem; nejbližší cíle nahoře
+    const badgeGoals = (progress) => {
+        const c = normalizeCounters(progress.counters);
+        const x = badgeContext(progress);
+        return BADGE_GROUPS.flatMap(group => {
+            const next = group.badges.find(badge => !progress.badges[badge.id]);
+            if (!next) return [];
+            const value = Math.min(next.value(c, x), next.goal);
+            return [{ badge: next, value, ratio: value / next.goal }];
+        }).sort((a, b) => b.ratio - a.ratio);
+    };
+    const goalBar = (ratio) => `<span class="mt-1 block h-1.5 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700" aria-hidden="true"><span class="block h-full w-0 rounded-full bg-gold-500" data-progress="${Math.round(ratio * 100)}"></span></span>`;
+    // Všechny odznaky po skupinách: řada medailí (získané barevné, další šedé), klepnutím na medaili podrobnosti
+    const openBadges = () => {
+        let selected = null;
+        const render = () => {
+            const progress = loadProgress();
+            const c = normalizeCounters(progress.counters);
+            const x = badgeContext(progress);
+            const total = BADGES.length;
+            const have = BADGES.filter(badge => progress.badges[badge.id]).length;
+            const detail = selected ? BADGE_BY_ID[selected] : null;
+            const detailHtml = detail ? (() => {
+                const earned = progress.badges[detail.id];
+                const value = Math.min(detail.value(c, x), detail.goal);
+                return `<div class="flex items-center gap-3 rounded-2xl bg-white p-3 shadow-sm ring-2 ring-brand-600 dark:bg-slate-800">${medalHtml(detail, Boolean(earned), 'h-14 w-14', 'h-6 w-6')}
+                    <div class="min-w-0 flex-1"><p class="text-sm font-black text-slate-800 dark:text-slate-100">${escapeHtml(detail.title)}</p><p class="text-xs text-slate-500 dark:text-slate-400">${escapeHtml(detail.text)}</p>
+                    <p class="mt-0.5 text-[11px] font-bold ${earned ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-500 dark:text-slate-400'}">${earned ? 'Získáno' : `${value} / ${detail.goal}`}</p>${earned ? '' : goalBar(value / detail.goal)}</div></div>`;
+            })() : '<p class="text-center text-xs text-slate-500 dark:text-slate-400">Klepni na medaili a uvidíš, jak ji získat.</p>';
+            const sections = BADGE_GROUPS.map(group => {
+                const earned = group.badges.filter(badge => progress.badges[badge.id]).length;
+                return `<section class="rounded-2xl bg-white p-2.5 shadow-sm dark:bg-slate-800">
+                    <div class="mb-1.5 flex items-center justify-between gap-2"><h4 class="truncate text-[12px] font-black text-slate-800 dark:text-slate-100">${escapeHtml(group.title)}</h4><span class="shrink-0 text-[11px] font-bold text-slate-400">${earned}/${group.badges.length}</span></div>
+                    <div class="flex flex-wrap gap-1.5">${group.badges.map(badge => `<button type="button" data-badge="${badge.id}" aria-label="${escapeHtml(badge.title)}" title="${escapeHtml(`${badge.title}: ${badge.text}`)}" class="rounded-full ${selected === badge.id ? 'ring-2 ring-brand-600 ring-offset-2 dark:ring-offset-slate-800' : ''}">${medalHtml(badge, Boolean(progress.badges[badge.id]), 'h-9 w-9', 'h-4 w-4')}</button>`).join('')}</div>
+                </section>`;
+            }).join('');
+            showDialog('Odznaky', `
+                <div class="flex flex-col gap-3">
+                    <p class="text-sm font-black text-slate-800 dark:text-slate-100">${have} / ${total} <span class="font-semibold text-slate-500 dark:text-slate-400">získaných odznaků</span></p>
+                    <div class="sticky top-0 z-10 -mx-1 bg-slate-50 px-1 pb-2 dark:bg-slate-900">${detailHtml}</div>
+                    <div class="grid grid-cols-2 gap-1.5">${sections}</div>
+                </div>`, {
+                onClick: (event) => {
+                    const medal = event.target.closest('[data-badge]');
+                    if (medal) { selected = medal.dataset.badge; render(); }
+                }
+            });
+            applyProgress(document.getElementById('dialog-overlay'));
+        };
+        render();
+    };
 
     // Můj postup: úroveň, titul, XP do další úrovně a mistrovství jednotlivých témat (hvězdičky podle poznaných položek)
     const openProgress = () => {
         const progress = loadProgress();
         const xp = progress.xp;
         const earnedCount = BADGES.filter(badge => progress.badges[badge.id]).length;
+        const goals = badgeGoals(progress).slice(0, 2);
         const level = levelProgress(xp);
         const next = nextTitle(level.level);
         const learned = loadLearned();
@@ -3069,38 +3177,34 @@
             const stars = masteryStars(known);
             const goal = nextMastery(known);
             return `
-                <li class="flex items-center gap-3 rounded-2xl bg-white p-2 shadow-sm dark:bg-slate-800">
-                    ${topicIcon(topic, 'h-9 w-9', `rounded-xl p-2 ${styleOf(topic).soft}`, 'h-5 w-5')}
+                <li class="flex items-center gap-2 rounded-xl bg-white p-1 shadow-sm dark:bg-slate-800" title="${known} poznaných${goal ? ` · další hvězda za ${goal}` : ' · plné mistrovství'}">
+                    ${topicIcon(topic, 'h-8 w-8', `rounded-lg p-1.5 ${styleOf(topic).soft}`, 'h-5 w-5')}
                     <span class="min-w-0 flex-1">
-                        <span class="block truncate text-[13px] font-bold text-slate-800 dark:text-slate-100">${escapeHtml(topic.title)}</span>
-                        <span class="block text-[11px] font-semibold text-slate-500 dark:text-slate-400">${known} poznaných${goal ? ` · další za ${goal}` : ' · plné mistrovství'}</span>
+                        <span class="block truncate text-[11px] font-black leading-tight text-slate-800 dark:text-slate-100">${escapeHtml(topic.title)}</span>
+                        <span class="flex gap-0.5" role="img" aria-label="${stars} z ${MASTERY_STEPS.length} hvězd">${MASTERY_STEPS.map((_, index) => `<i data-lucide="star" class="h-3 w-3 ${index < stars ? 'fill-gold-500 text-gold-500' : 'text-slate-300 dark:text-slate-600'}"></i>`).join('')}</span>
                     </span>
-                    <span class="flex shrink-0 gap-0.5" role="img" aria-label="${stars} z ${MASTERY_STEPS.length} hvězd">${MASTERY_STEPS.map((_, index) => `<i data-lucide="star" class="h-4 w-4 ${index < stars ? 'fill-gold-500 text-gold-500' : 'text-slate-300 dark:text-slate-600'}"></i>`).join('')}</span>
                 </li>`;
         }).join('');
         showDialog('Můj postup', `
-            <div class="flex flex-col gap-4">
-                <div class="flex items-center gap-4 rounded-2xl bg-gradient-to-br from-brand-700 to-brand-900 p-4 text-white shadow-md">
+            <div class="flex flex-col gap-3">
+                <div class="flex items-center gap-4 rounded-2xl bg-gradient-to-br from-brand-700 to-brand-900 p-3 text-white shadow-md">
                     <span class="flex h-16 w-16 shrink-0 flex-col items-center justify-center rounded-full bg-gold-500 text-brand-950 shadow-inner"><span class="text-[9px] font-black uppercase leading-none">úr.</span><span class="text-2xl font-black leading-none">${level.level}</span></span>
                     <div class="min-w-0 flex-1">
                         <p class="text-xl font-black leading-tight">${escapeHtml(titleForLevel(level.level))}</p>
-                        <p class="mt-0.5 text-xs font-semibold text-white/80">${level.needed ? `${level.into} / ${level.needed} XP do úrovně ${level.level + 1}` : 'Nejvyšší úroveň'}${next ? ` · titul ${escapeHtml(next.title)} od úrovně ${next.from}` : ''}</p>
+                        <p class="mt-0.5 text-xs font-semibold text-white/80">${level.needed ? `${level.into} / ${level.needed} XP do úrovně ${level.level + 1}` : 'Nejvyšší úroveň'} · celkem ${xp} XP${next ? ` · titul ${escapeHtml(next.title)} od úrovně ${next.from}` : ''}</p>
                         <span class="mt-2 block h-2 overflow-hidden rounded-full bg-white/25" aria-hidden="true"><span class="block h-full w-0 rounded-full bg-gold-400" data-progress="${Math.round(level.ratio * 100)}"></span></span>
                     </div>
                 </div>
-                <p class="text-xs text-slate-500 dark:text-slate-400">XP získáš za správné odpovědi (víc bez nápověd a psaním), za dnešní otázky, za sérii dní a za dokončení všech dnešních otázek. Celkem ${xp} XP.</p>
                 <div>
-                    <h3 class="${CARD_TITLE} mb-2">Odznaky <span class="font-bold text-slate-400">${earnedCount} / ${BADGES.length}</span></h3>
-                    <ul class="grid grid-cols-2 gap-1.5">${BADGES.map(badge => {
-                        const earned = Boolean(progress.badges[badge.id]);
-                        return `<li class="flex items-center gap-2 rounded-2xl bg-white p-2 shadow-sm dark:bg-slate-800 ${earned ? '' : 'opacity-70'}">${medalHtml(badge, earned)}<span class="min-w-0"><span class="block text-[12px] font-black leading-tight text-slate-800 dark:text-slate-100">${escapeHtml(badge.title)}</span><span class="block text-[10px] font-semibold leading-tight text-slate-500 dark:text-slate-400">${escapeHtml(badge.text)}</span></span></li>`;
-                    }).join('')}</ul>
+                    <h3 class="${CARD_TITLE} mb-2">Nejbližší odznaky</h3>
+                    <ul class="flex flex-col gap-1.5">${goals.map(goal => `<li class="flex items-center gap-2.5 rounded-2xl bg-white p-2 shadow-sm dark:bg-slate-800">${medalHtml(goal.badge, false, 'h-10 w-10', 'h-[1.125rem] w-[1.125rem]')}<span class="min-w-0 flex-1"><span class="flex items-baseline justify-between gap-2"><span class="truncate text-[12px] font-black text-slate-800 dark:text-slate-100">${escapeHtml(goal.badge.title)}</span><span class="shrink-0 text-[11px] font-bold text-slate-400">${goal.value} / ${goal.badge.goal}</span></span><span class="block truncate text-[10px] font-semibold text-slate-500 dark:text-slate-400">${escapeHtml(goal.badge.text)}</span>${goalBar(goal.ratio)}</span></li>`).join('')}</ul>
+                    <button type="button" data-open-badges class="${SECONDARY_BUTTON} mt-2 !py-2.5 text-sm"><i data-lucide="medal" class="h-4 w-4"></i> Všechny odznaky ${earnedCount} / ${BADGES.length}</button>
                 </div>
                 <div>
                     <h3 class="${CARD_TITLE} mb-2">Mistrovství témat</h3>
-                    <ul class="flex flex-col gap-1.5">${rows}</ul>
+                    <ul class="grid grid-cols-2 gap-1">${rows}</ul>
                 </div>
-            </div>`);
+            </div>`, { onClick: (event) => { if (event.target.closest('[data-open-badges]')) openBadges(); } });
         applyProgress(document.getElementById('dialog-overlay'));
     };
 
@@ -3118,7 +3222,7 @@
         let note = '';
         const levelAndBadges = (value) => {
             const level = levelProgress(value.xp || 0).level;
-            const earned = BADGES.filter(badge => (value.badges || []).includes(badge.id));
+            const earned = compactBadges(expandBadges((value.badges || []).filter(id => BADGE_BY_ID[id]))).map(id => BADGE_BY_ID[id]).slice(0, 14);
             return `<p class="text-sm font-bold text-brand-700 dark:text-cream">Úr. ${level} · ${escapeHtml(titleForLevel(level))}</p>`
                 + (earned.length ? `<div class="mt-1 flex flex-wrap justify-center gap-1.5" aria-label="Odznaky">${earned.map(badge => `<span title="${escapeHtml(`${badge.title}: ${badge.text}`)}">${medalHtml(badge, true, 'h-8 w-8', 'h-4 w-4')}</span>`).join('')}</div>` : '');
         };
@@ -3161,7 +3265,7 @@
                         });
                         closeDialog();
                         await loadMyProfile();
-                        startChallenge({ ...created, creator: myProfile, invited: player }, 0, []);
+                        startChallenge({ ...created, creator: myProfile, invited: player, fresh: true }, 0, []);
                     } catch (error) {
                         busy = false;
                         note = 'Výzvu se nepodařilo založit. Zkontroluj připojení a zkus to znovu.';
@@ -3270,6 +3374,14 @@
     // Průběh výzvy: otázky z pevného semínka, stejné pro všechny; bez běžných statistik a řad
     const startChallenge = (def, index = 0, results = []) => {
         if (isLoading) return;
+        // Právě založená výzva se počítá do odznaků za založené výzvy
+        if (def.fresh) {
+            const progress = loadProgress();
+            progress.counters.created += 1;
+            const titles = grantBadges(progress);
+            saveProgress(progress);
+            announce(1, 1, titles);
+        }
         challenge = {
             code: def.code || def.id, topic: def.topic, seed: def.seed, count: def.count, index, results, creator: def.creator || null, invited: def.invited || null, done: false,
             hard: Boolean(def.hard ?? def.include_hard), categories: def.categories || [], variant: def.variant || null
@@ -3315,6 +3427,12 @@
         const user = signedUser();
         const correct = c.results.filter(row => row && row.correct).length;
         const points = c.results.reduce((sum, row) => sum + (row ? row.points : 0), 0);
+        // Sova podle výsledku: vítěz s pohárem, poražený s „dobrá hra“, remíza s radostí, sám s oslavou
+        const rivals = user && results ? results.filter(row => row.user_id !== user.id) : [];
+        const bestRival = rivals.reduce((top, row) => !top || row.correct > top.correct || (row.correct === top.correct && row.points > top.points) ? row : top, null);
+        const outcomeOwl = state !== 'ok' || !bestRival ? 'oslava'
+            : correct > bestRival.correct || (correct === bestRival.correct && points > bestRival.points) ? 'vitez'
+                : correct === bestRival.correct && points === bestRival.points ? 'radost' : 'prohra';
         const body = state === 'sending'
             ? '<p class="py-4 text-center text-sm font-semibold text-slate-500">Ukládám výsledek…</p>'
             : state === 'error'
@@ -3324,6 +3442,7 @@
         appContent.innerHTML = `
             <div class="fade-in flex min-h-full w-full flex-col gap-4 bg-slate-50 p-4 pb-6 dark:bg-slate-900">
                 <div class="rounded-[1.5rem] bg-gradient-to-br from-brand-600 to-brand-900 p-5 text-center text-white shadow-lg">
+                    ${uiArt(`sova-${outcomeOwl}`, 'mx-auto -mt-1 mb-1 h-28 w-28')}
                     <p class="text-xs font-black uppercase tracking-widest text-white/80">${escapeHtml(challengeTopicTitle(c.topic))}</p>
                     <p class="mt-1 text-5xl font-black">${correct}/${c.count}</p>
                     <p class="mt-1 text-sm font-bold text-white/90">${escapeHtml(formatPoints(points))}</p>
@@ -3355,8 +3474,11 @@
                 const rivals = results.filter(row => row.user_id !== user.id);
                 const won = rivals.length > 0 && rivals.every(row => correct > row.correct || (correct === row.correct && points > row.points));
                 const progress = loadProgress();
-                progress.counters.challenges += 1;
-                if (won) progress.counters.wins += 1;
+                const counters = progress.counters;
+                counters.challenges += 1;
+                if (won) { counters.wins += 1; counters.winRun += 1; counters.bestWinRun = Math.max(counters.bestWinRun, counters.winRun); }
+                else if (rivals.length) counters.winRun = 0;
+                if (correct === c.count) counters.perfectChallenges += 1;
                 const titles = grantBadges(progress);
                 saveProgress(progress);
                 announce(1, 1, titles);
@@ -3604,6 +3726,7 @@
     renderIcons(document);
     try {
         showStart();
+        welcomeBack();
     } catch (error) {
         console.error(error);
         renderHome();

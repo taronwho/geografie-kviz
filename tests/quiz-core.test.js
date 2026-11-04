@@ -556,6 +556,7 @@ test('zakrývání: iniciály před jménem patří ke jménu (C. S. Lewis, J. R
 });
 
 test('postup hráče: úrovně rostou pozvolna, tituly, XP za odpověď a mistrovství', () => {
+    assert.equal(core.MAX_LEVEL, 100);
     assert.equal(core.xpForLevel(1), 0);
     assert.equal(core.xpForLevel(2), 40);
     for (let level = 2; level <= core.MAX_LEVEL; level++) assert.ok(core.xpForLevel(level) > core.xpForLevel(level - 1), `úroveň ${level} je dál než předchozí`);
@@ -568,9 +569,10 @@ test('postup hráče: úrovně rostou pozvolna, tituly, XP za odpověď a mistro
     assert.equal(progress.into, 60);
     assert.ok(progress.ratio > 0 && progress.ratio < 1);
     assert.deepEqual(core.levelProgress(10 ** 9), { level: core.MAX_LEVEL, into: 10 ** 9 - core.xpForLevel(core.MAX_LEVEL), needed: 0, ratio: 1 });
-    assert.deepEqual([1, 4, 5, 9, 10, 20, 35, 49, 50].map(core.titleForLevel), ['Zvědavec', 'Zvědavec', 'Učeň', 'Učeň', 'Znalec', 'Učenec', 'Mudrc', 'Mudrc', 'Mudrlant']);
-    assert.deepEqual(core.nextTitle(1), { from: 5, title: 'Učeň' });
-    assert.equal(core.nextTitle(50), null);
+    assert.equal(core.LEVEL_TITLES.length, 18);
+    assert.deepEqual([1, 3, 4, 10, 18, 60, 99, 100].map(core.titleForLevel), ['Zvědavec', 'Zvědavec', 'Čtenář', 'Žák', 'Znalec', 'Mudrc', 'Orákulum', 'Mudrlant']);
+    assert.deepEqual(core.nextTitle(1), { from: 4, title: 'Čtenář' });
+    assert.equal(core.nextTitle(100), null);
     // Správná odpověď bez nápovědy (4 body) 30 XP, psaná (8 bodů) 50, špatná 2, vzdání 0
     assert.equal(core.answerXp({ correct: true, points: 4 }), 30);
     assert.equal(core.answerXp({ correct: true, points: 8 }), 50);
@@ -582,13 +584,29 @@ test('postup hráče: úrovně rostou pozvolna, tituly, XP za odpověď a mistro
     assert.equal(core.nextMastery(300), 0);
 });
 
-test('odznaky: podmínky podle počítadel a postupu', () => {
-    const x = { level: 1, mastery: 0, topicCount: 14 };
-    assert.deepEqual(core.earnedBadgeIds({}, x), []);
-    assert.deepEqual(core.earnedBadgeIds({ answered: 1 }, x), ['prvni-krok']);
-    const many = core.earnedBadgeIds({ answered: 2000, correct: 1000, typedCorrect: 25, noHint: 25, hardCorrect: 10, bestRun: 25, bestStreak: 30, perfectDays: 1, challenges: 3, wins: 10, topics: Object.fromEntries(Array.from({ length: 14 }, (_, i) => [i, 1])) }, { level: 35, mastery: 5, topicCount: 14 });
-    assert.equal(many.length, core.BADGES.length, 'všechny odznaky jdou získat');
+test('odznaky: skupiny se stupni, podmínky podle počítadel a postupu', () => {
+    const x = { level: 1, learned: 0, topicStars: {}, topicCount: 14 };
+    assert.ok(core.BADGES.length >= 120, `odznaků je ${core.BADGES.length}`);
     assert.equal(new Set(core.BADGES.map(badge => badge.id)).size, core.BADGES.length, 'jedinečná id');
-    assert.ok(core.BADGES.every(badge => badge.title && badge.text && badge.icon && ['gold', 'brand'].includes(badge.tone)));
+    assert.ok(core.BADGES.every(badge => badge.title && badge.text && badge.icon && ['bronze', 'silver', 'gold', 'brand', 'diamond'].includes(badge.tone) && badge.goal > 0));
+    for (const group of core.BADGE_GROUPS) {
+        const goals = group.badges.map(badge => badge.goal);
+        assert.deepEqual(goals, [...goals].sort((a, b) => a - b), `stupně ${group.id} rostou`);
+    }
+    assert.deepEqual(core.earnedBadgeIds({}, x), []);
+    assert.deepEqual(core.earnedBadgeIds({ answered: 1, correct: 1 }, x), ['prvni-krok']);
+    // Vyšší stupeň zahrnuje nižší
+    const some = core.earnedBadgeIds({ correct: 120 }, x);
+    assert.deepEqual(some, ['prvni-krok', 'odpovedi-10', 'odpovedi-50', 'stovka']);
+    const topics = Object.fromEntries(['zemepis', 'vlajky', 'historie', 'mytologie', 'biologie', 'geologie', 'chemie', 'fyzika', 'umeni', 'architektura', 'hudba', 'literatura', 'film', 'sport'].map(id => [id, 300]));
+    const stars = Object.fromEntries(Object.keys(topics).map(id => [id, 5]));
+    const many = core.earnedBadgeIds({ correct: 10000, bestRun: 100, bestStreak: 365, days: 365, perfectDays: 30, dailyCorrect: 250, noHint: 500, typedCorrect: 500, hardCorrect: 200, fixed: 200, challenges: 100, wins: 100, bestWinRun: 10, created: 50, perfectChallenges: 25, topics }, { level: 100, learned: 3000, topicStars: stars, topicCount: 14 });
+    assert.equal(many.length, core.BADGES.length, 'všechny odznaky jdou získat');
     assert.ok(!core.earnedBadgeIds({ topics: { a: 1 } }, x).includes('vsestranny'));
+    // Do účtu jen nejvyšší stupně a zpět
+    const compact = core.compactBadges(many);
+    assert.equal(compact.length, core.BADGE_GROUPS.length);
+    assert.ok(compact.length <= 60, 'vejde se do limitu databáze');
+    assert.deepEqual([...core.expandBadges(compact)].sort(), [...many].sort());
+    assert.deepEqual(core.expandBadges(['stovka']).sort(), ['odpovedi-10', 'odpovedi-50', 'prvni-krok', 'stovka'].sort());
 });

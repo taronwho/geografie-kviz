@@ -960,8 +960,8 @@
 
     // --- Postup hráče: zkušenosti (XP), úrovně, tituly a mistrovství témat ---
 
-    const MAX_LEVEL = 50;
-    // Kolik XP je potřeba celkem na úroveň: pozvolna roste (úroveň 5 ≈ 370 XP, 10 ≈ 1 340, 25 ≈ 6 500, 50 ≈ 20 000)
+    const MAX_LEVEL = 100;
+    // Kolik XP je potřeba celkem na úroveň: pozvolna roste (úroveň 5 ≈ 370 XP, 10 ≈ 1 340, 25 ≈ 6 500, 50 ≈ 20 000, 100 ≈ 62 000)
     const xpForLevel = (level) => level <= 1 ? 0 : Math.round(40 * Math.pow(level - 1, 1.6));
     const levelFromXp = (xp) => {
         let level = 1;
@@ -976,9 +976,13 @@
         const needed = xpForLevel(level + 1) - base;
         return { level, into: xp - base, needed, ratio: Math.min(1, (xp - base) / needed) };
     };
+    // 18 titulů na 100 úrovní: nový titul zhruba každých 5–8 úrovní
     const LEVEL_TITLES = [
-        { from: 1, title: 'Zvědavec' }, { from: 5, title: 'Učeň' }, { from: 10, title: 'Znalec' },
-        { from: 20, title: 'Učenec' }, { from: 35, title: 'Mudrc' }, { from: 50, title: 'Mudrlant' }
+        { from: 1, title: 'Zvědavec' }, { from: 4, title: 'Čtenář' }, { from: 7, title: 'Učeň' }, { from: 10, title: 'Žák' },
+        { from: 14, title: 'Student' }, { from: 18, title: 'Znalec' }, { from: 23, title: 'Badatel' }, { from: 28, title: 'Učenec' },
+        { from: 34, title: 'Erudit' }, { from: 40, title: 'Odborník' }, { from: 46, title: 'Mistr' }, { from: 53, title: 'Profesor' },
+        { from: 60, title: 'Mudrc' }, { from: 68, title: 'Vševěd' }, { from: 76, title: 'Velemistr' }, { from: 84, title: 'Legenda' },
+        { from: 92, title: 'Orákulum' }, { from: 100, title: 'Mudrlant' }
     ];
     const titleForLevel = (level) => LEVEL_TITLES.filter(entry => level >= entry.from).pop().title;
     // Další titul (kdy a jaký), null na konci
@@ -995,36 +999,111 @@
     const masteryStars = (known) => MASTERY_STEPS.filter(step => known >= step).length;
     const nextMastery = (known) => MASTERY_STEPS.find(step => known < step) || 0;
 
-    // --- Odznaky: počítadla se ukládají s postupem, odznak se získá, když splní podmínku (u každého: icon = ikona, tone = barva) ---
-    const EMPTY_COUNTERS = { answered: 0, correct: 0, typedCorrect: 0, noHint: 0, hardCorrect: 0, run: 0, bestRun: 0, bestStreak: 0, perfectDays: 0, challenges: 0, wins: 0, topics: {} };
-    // x = { level, mastery (nejvyšší počet hvězd v tématu), topicCount (kolik je témat) }
-    const BADGES = [
-        { id: 'prvni-krok', icon: 'footprints', tone: 'gold', title: 'První krok', text: 'Odpověz na první otázku.', test: (c) => c.answered >= 1 },
-        { id: 'stovka', icon: 'target', tone: 'gold', title: 'Stovka', text: '100 správných odpovědí.', test: (c) => c.correct >= 100 },
-        { id: 'tisicovka', icon: 'medal', tone: 'brand', title: 'Tisícovka', text: '1 000 správných odpovědí.', test: (c) => c.correct >= 1000 },
-        { id: 'strelec', icon: 'zap', tone: 'gold', title: 'Střelec', text: '10 správných v řadě.', test: (c) => c.bestRun >= 10 },
-        { id: 'neomylny', icon: 'crosshair', tone: 'brand', title: 'Neomylný', text: '25 správných v řadě.', test: (c) => c.bestRun >= 25 },
-        { id: 'bez-napovedy', icon: 'eye-off', tone: 'gold', title: 'Bez nápovědy', text: '25 správných odpovědí bez jediné nápovědy.', test: (c) => c.noHint >= 25 },
-        { id: 'pisatel', icon: 'keyboard', tone: 'gold', title: 'Pisatel', text: '25 správných odpovědí napsaných ručně.', test: (c) => c.typedCorrect >= 25 },
-        { id: 'do-hloubky', icon: 'pickaxe', tone: 'brand', title: 'Do hloubky', text: '10 správných u těžších, méně známých otázek.', test: (c) => c.hardCorrect >= 10 },
-        { id: 'tyden', icon: 'flame', tone: 'gold', title: 'Týden s Mudrlantem', text: 'Série 7 dní dnešních otázek.', test: (c) => c.bestStreak >= 7 },
-        { id: 'mesic', icon: 'calendar-check', tone: 'brand', title: 'Věrný měsíc', text: 'Série 30 dní dnešních otázek.', test: (c) => c.bestStreak >= 30 },
-        { id: 'dokonaly-den', icon: 'sun', tone: 'gold', title: 'Dokonalý den', text: 'Všechny dnešní otázky v jednom dni.', test: (c) => c.perfectDays >= 1 },
-        { id: 'vsestranny', icon: 'globe', tone: 'gold', title: 'Všestranný', text: 'Správná odpověď v každém tématu.', test: (c, x) => Object.keys(c.topics).length >= x.topicCount },
-        { id: 'hvezdar', icon: 'star', tone: 'gold', title: 'Hvězdář', text: 'Tři hvězdy mistrovství v některém tématu.', test: (c, x) => x.mastery >= 3 },
-        { id: 'mistr-oboru', icon: 'crown', tone: 'brand', title: 'Mistr oboru', text: 'Pět hvězd mistrovství v některém tématu.', test: (c, x) => x.mastery >= 5 },
-        { id: 'znalec', icon: 'graduation-cap', tone: 'gold', title: 'Znalec', text: 'Dosáhni úrovně 10.', test: (c, x) => x.level >= 10 },
-        { id: 'mudrc', icon: 'book-open-check', tone: 'brand', title: 'Mudrc', text: 'Dosáhni úrovně 35.', test: (c, x) => x.level >= 35 },
-        { id: 'soupere', icon: 'swords', tone: 'gold', title: 'Soupeř', text: 'Dohraj první výzvu.', test: (c) => c.challenges >= 1 },
-        { id: 'vitez', icon: 'trophy', tone: 'gold', title: 'Vítěz', text: 'Vyhraj výzvu proti jinému hráči.', test: (c) => c.wins >= 1 },
-        { id: 'gladiator', icon: 'shield', tone: 'brand', title: 'Gladiátor', text: 'Vyhraj 10 výzev.', test: (c) => c.wins >= 10 }
+    // --- Odznaky: počítadla se ukládají s postupem. Odznak = skupina + stupeň (cíl); kdo splní vyšší stupeň, má i nižší.
+    // value(c, x) je aktuální hodnota pro ukazatel „87 / 100“. x = { level, learned, topicStars: { téma: hvězdy }, topicCount } ---
+    const EMPTY_COUNTERS = {
+        answered: 0, correct: 0, typedCorrect: 0, noHint: 0, hardCorrect: 0, run: 0, bestRun: 0, bestStreak: 0, perfectDays: 0,
+        challenges: 0, wins: 0, winRun: 0, bestWinRun: 0, created: 0, perfectChallenges: 0, dailyCorrect: 0, fixed: 0, days: 0, lastDay: '', topics: {}
+    };
+    const number = (value) => Number.isFinite(value) ? value : 0;
+    // Barva medaile podle stupně ve skupině: bronz, stříbro, zlato, vínová a nejvyšší diamantová
+    const toneFor = (index, count) => count >= 4 && index === count - 1 ? 'diamond' : count >= 4 && index === count - 2 ? 'brand'
+        : index < count / 3 ? 'bronze' : index < count * 2 / 3 ? 'silver' : 'gold';
+    const BADGE_GROUPS = [];
+    const BADGES = [];
+    // tiers: [{ goal, title, id? }]; text(goal) = popis podle cíle
+    const addGroup = (id, title, icon, value, text, tiers, extra = {}) => {
+        const group = { id, title, icon, badges: [], topic: extra.topic || null };
+        tiers.forEach((tier, index) => {
+            const badge = {
+                id: tier.id || `${id}-${tier.goal}`, group: id, icon, tone: toneFor(index, tiers.length), title: tier.title, text: text(tier.goal),
+                goal: tier.goal, value: (c, x) => number(value(c, x)), topic: extra.topic || null
+            };
+            badge.test = (c, x) => badge.value(c, x) >= badge.goal;
+            group.badges.push(badge);
+            BADGES.push(badge);
+        });
+        BADGE_GROUPS.push(group);
+    };
+    const T = (goal, title, id) => ({ goal, title, id });
+    addGroup('odpovedi', 'Správné odpovědi', 'target', (c) => c.correct, (g) => `${g} správných odpovědí.`,
+        [T(1, 'První krok', 'prvni-krok'), T(10, 'Rozjezd'), T(50, 'Pětapadesátka'), T(100, 'Stovka', 'stovka'), T(250, 'Čtvrt tisíce'), T(500, 'Pětistovka'),
+            T(1000, 'Tisícovka', 'tisicovka'), T(2500, 'Dva a půl tisíce'), T(5000, 'Pět tisíc'), T(10000, 'Deset tisíc')]);
+    addGroup('rada', 'Správně v řadě', 'zap', (c) => c.bestRun, (g) => `${g} správných odpovědí v řadě.`,
+        [T(5, 'Rozcvička'), T(10, 'Střelec', 'strelec'), T(25, 'Neomylný', 'neomylny'), T(50, 'Bez chyby'), T(100, 'Stroj')]);
+    addGroup('serie', 'Série dní', 'flame', (c) => c.bestStreak, (g) => `Série ${g} dní dnešních otázek.`,
+        [T(3, 'Tři dny'), T(7, 'Týden s Mudrlantem', 'tyden'), T(14, 'Dva týdny'), T(30, 'Věrný měsíc', 'mesic'), T(60, 'Dva měsíce'), T(100, 'Stovka dní'), T(200, 'Dvě stě dní'), T(365, 'Celý rok')]);
+    addGroup('dny', 'Dny ve hře', 'calendar-check', (c) => c.days, (g) => `Hrál jsi ${g} různých dní.`,
+        [T(5, 'Stálý host'), T(15, 'Pravidelný'), T(30, 'Měsíc ve hře'), T(60, 'Ostřílený'), T(100, 'Sto her'), T(200, 'Veterán'), T(365, 'Rok s Mudrlantem')]);
+    addGroup('dokonale', 'Dokonalé dny', 'sun', (c) => c.perfectDays, (g) => g === 1 ? 'Všechny dnešní otázky v jednom dni.' : `${g}× všechny dnešní otázky v jednom dni.`,
+        [T(1, 'Dokonalý den', 'dokonaly-den'), T(3, 'Trojka dokonalých'), T(7, 'Týden dokonalosti'), T(14, 'Dva týdny dokonalosti'), T(30, 'Mistr dne')]);
+    addGroup('dnes', 'Dnešní otázky', 'calendar-days', (c) => c.dailyCorrect, (g) => `${g} správných dnešních otázek.`,
+        [T(10, 'Denní rutina'), T(50, 'Padesát dnů'), T(100, 'Sto dnešních'), T(250, 'Čtvrt tisíce dnešních')]);
+    addGroup('bez-napovedy', 'Bez nápovědy', 'eye-off', (c) => c.noHint, (g) => `${g} správných odpovědí bez jediné nápovědy.`,
+        [T(10, 'Čistá hlava'), T(25, 'Bez nápovědy', 'bez-napovedy'), T(100, 'Sebejistý'), T(500, 'Neprůstřelný')]);
+    addGroup('psani', 'Psaní odpovědí', 'keyboard', (c) => c.typedCorrect, (g) => `${g} správných odpovědí napsaných ručně.`,
+        [T(10, 'Písmák'), T(25, 'Pisatel', 'pisatel'), T(100, 'Mistr pera'), T(500, 'Kaligraf')]);
+    addGroup('tezke', 'Těžké otázky', 'pickaxe', (c) => c.hardCorrect, (g) => `${g} správných u těžších, méně známých otázek.`,
+        [T(10, 'Do hloubky', 'do-hloubky'), T(50, 'Hlubinný průzkum'), T(200, 'Král hlubin')]);
+    addGroup('chyby', 'Opravené chyby', 'repeat', (c) => c.fixed, (g) => `Opravil jsi ${g} dřívějších chyb.`,
+        [T(10, 'Poučený'), T(50, 'Pracant na sobě'), T(200, 'Z chyb se člověk učí')]);
+    addGroup('vyzvy', 'Výzvy', 'swords', (c) => c.challenges, (g) => g === 1 ? 'Dohraj první výzvu.' : `Dohraj ${g} výzev.`,
+        [T(1, 'Soupeř', 'soupere'), T(5, 'Pravidelný soupeř'), T(25, 'Zkušený bojovník'), T(100, 'Stovka výzev')]);
+    addGroup('vyhry', 'Výhry ve výzvách', 'trophy', (c) => c.wins, (g) => g === 1 ? 'Vyhraj výzvu proti jinému hráči.' : `Vyhraj ${g} výzev.`,
+        [T(1, 'Vítěz', 'vitez'), T(5, 'Pětkrát nejlepší'), T(10, 'Gladiátor', 'gladiator'), T(25, 'Šampion'), T(50, 'Dobyvatel'), T(100, 'Nepřemožitelný')]);
+    addGroup('vyhry-v-rade', 'Výhry v řadě', 'crown', (c) => c.bestWinRun, (g) => `${g} výher ve výzvách v řadě.`,
+        [T(3, 'Hattrick'), T(5, 'Pětka v řadě'), T(10, 'Neporazitelný')]);
+    addGroup('zalozene', 'Založené výzvy', 'users', (c) => c.created, (g) => `Založ ${g} ${g === 1 ? 'výzvu' : g < 5 ? 'výzvy' : 'výzev'}.`,
+        [T(1, 'Vyzyvatel'), T(10, 'Organizátor'), T(50, 'Pán turnajů')]);
+    addGroup('perfektni-vyzvy', 'Dokonalé výzvy', 'star', (c) => c.perfectChallenges, (g) => g === 1 ? 'Všechny otázky ve výzvě správně.' : `${g}× všechny otázky ve výzvě správně.`,
+        [T(1, 'Bezchybný'), T(5, 'Pětkrát bezchybný'), T(25, 'Dokonalost sama')]);
+    addGroup('uroven', 'Úrovně', 'graduation-cap', (c, x) => x.level, (g) => `Dosáhni úrovně ${g}.`,
+        [T(5, 'Úroveň 5'), T(10, 'Úroveň 10', 'znalec'), T(20, 'Úroveň 20'), T(35, 'Úroveň 35', 'mudrc'), T(50, 'Úroveň 50'), T(65, 'Úroveň 65'), T(80, 'Úroveň 80'), T(100, 'Úroveň 100')]);
+    addGroup('poznane', 'Poznané položky', 'book-open', (c, x) => x.learned, (g) => `Poznal jsi ${g} různých položek.`,
+        [T(100, 'Sto poznaných'), T(500, 'Pět set poznaných'), T(1000, 'Tisíc poznaných'), T(3000, 'Tři tisíce poznaných')]);
+    // Všestrannost: tři hvězdy / pět hvězd mistrovství v nějakém tématu, ve všech tématech
+    addGroup('vsestrannost', 'Všestrannost', 'globe', (c) => Object.keys(c.topics || {}).length, (g, x) => `Správná odpověď ve všech ${g} tématech.`,
+        [T(14, 'Všestranný', 'vsestranny')]);
+    addGroup('hvezdy', 'Hvězdy mistrovství', 'star', (c, x) => Math.max(0, ...Object.values(x.topicStars || {})), (g) => `${g} hvězdy mistrovství v některém tématu.`,
+        [T(3, 'Hvězdář', 'hvezdar'), T(5, 'Mistr oboru', 'mistr-oboru')]);
+    addGroup('vsechna-temata', 'Mistr všech témat', 'crown', (c, x) => { const stars = Object.values(x.topicStars || {}); return x.topicCount && stars.length >= x.topicCount ? Math.min(...stars) : 0; }, (g) => `${g} hvězdy mistrovství ve všech tématech.`,
+        [T(1, 'Všude začátečník'), T(3, 'Všude hvězdář'), T(5, 'Mistr všeho')]);
+    // Za každé téma tři stupně podle počtu správných odpovědí v něm (medaile má ilustraci tématu)
+    const TOPIC_BADGES = [
+        ['zemepis', 'Zeměpis', ['Poutník', 'Cestovatel', 'Objevitel']], ['vlajky', 'Vlajky a znaky', ['Praporečník', 'Vlajkonoš', 'Heraldik']],
+        ['historie', 'Historie', ['Kronikář', 'Dějepisec', 'Pán času']], ['mytologie', 'Mytologie', ['Pověrčivý', 'Bájeslovec', 'Zasvěcenec']],
+        ['biologie', 'Biologie', ['Přírodovědec', 'Biolog', 'Pán přírody']], ['geologie', 'Geologie', ['Sběratel', 'Geolog', 'Pán kamenů']],
+        ['chemie', 'Chemie', ['Laborant', 'Chemik', 'Alchymista']], ['fyzika', 'Fyzika', ['Experimentátor', 'Fyzik', 'Pán energie']],
+        ['umeni', 'Výtvarné umění', ['Divák galerie', 'Znalec umění', 'Mecenáš']], ['architektura', 'Architektura', ['Stavitel', 'Architekt', 'Pán katedrál']],
+        ['hudba', 'Hudba', ['Posluchač', 'Hudebník', 'Mistr tónů']], ['literatura', 'Literatura', ['Čtenář', 'Knihomol', 'Literát']],
+        ['film', 'Film', ['Divák', 'Filmař', 'Režisér']], ['sport', 'Sport', ['Fanoušek', 'Sportovec', 'Šampion sportu']]
     ];
+    TOPIC_BADGES.forEach(([topic, label, names]) => addGroup(`tema-${topic}`, label, 'medal', (c) => (c.topics || {})[topic] || 0,
+        (g) => `${g} správných odpovědí v tématu ${label}.`, [T(25, names[0]), T(100, names[1]), T(300, names[2])], { topic }));
     const BADGE_BY_ID = Object.fromEntries(BADGES.map(badge => [badge.id, badge]));
+    const normalizeCounters = (counters) => ({ ...EMPTY_COUNTERS, ...(counters || {}), topics: { ...((counters && counters.topics) || {}) } });
     // Odznaky, které podle počítadel a postupu hráč splnil (ids), v pořadí definice
-    const earnedBadgeIds = (counters, x) => BADGES.filter(badge => badge.test({ ...EMPTY_COUNTERS, ...counters, topics: (counters && counters.topics) || {} }, x)).map(badge => badge.id);
+    const earnedBadgeIds = (counters, x) => {
+        const c = normalizeCounters(counters);
+        return BADGES.filter(badge => badge.test(c, x)).map(badge => badge.id);
+    };
+    // Do účtu se ukládá jen nejvyšší získaný stupeň každé skupiny (méně dat); po načtení se nižší stupně dopočítají
+    const compactBadges = (ids) => {
+        const have = new Set(ids);
+        return BADGE_GROUPS.flatMap(group => { const owned = group.badges.filter(badge => have.has(badge.id)); return owned.length ? [owned[owned.length - 1].id] : []; });
+    };
+    const expandBadges = (ids) => {
+        const have = new Set(ids);
+        const result = new Set();
+        BADGE_GROUPS.forEach(group => {
+            const top = group.badges.map(badge => badge.id).reduce((index, id, i) => have.has(id) ? i : index, -1);
+            for (let i = 0; i <= top; i++) result.add(group.badges[i].id);
+        });
+        return [...result];
+    };
 
     return {
-        EMPTY_COUNTERS, BADGES, BADGE_BY_ID, earnedBadgeIds,
+        EMPTY_COUNTERS, BADGES, BADGE_GROUPS, BADGE_BY_ID, earnedBadgeIds, compactBadges, expandBadges, normalizeCounters,
         MAX_LEVEL, xpForLevel, levelFromXp, levelProgress, LEVEL_TITLES, titleForLevel, nextTitle, answerXp, DAILY_XP, DAILY_ALL_XP, streakXp, MASTERY_STEPS, masteryStars, nextMastery,
         UNKNOWN_COUNTRY, INTERNATIONAL_WATERS, CZECHIA_QID, AFTER_SYMBOL_WORD, TILE_SIZE, COUNTRIES, CONTINENT_NAMES,
         SATELLITE_TILES, OSM_TILES,

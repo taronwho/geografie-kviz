@@ -50,11 +50,12 @@ for path in sorted(glob.glob(os.path.join(root, 'branding', 'ikony', '*.png'))):
     name = os.path.splitext(os.path.basename(path))[0]
     if wanted and name not in wanted: continue
     im = cut(path)
-    inner = SIZE - 8
+    size = 320 if name.startswith('sova-') else SIZE  # sova v pózách je větší (zobrazuje se velká)
+    inner = size - 8
     scale = inner / max(im.size)
     im = im.resize((max(1, round(im.width * scale)), max(1, round(im.height * scale))), Image.LANCZOS)
-    canvas = Image.new('RGBA', (SIZE, SIZE), (0, 0, 0, 0))
-    canvas.paste(im, ((SIZE - im.width) // 2, (SIZE - im.height) // 2), im)
+    canvas = Image.new('RGBA', (size, size), (0, 0, 0, 0))
+    canvas.paste(im, ((size - im.width) // 2, (size - im.height) // 2), im)
     out = os.path.join(root, 'icons', 'topics', name + '.webp')
     canvas.save(out, 'WEBP', quality=90, method=6)
     print(name, os.path.getsize(out), 'B')

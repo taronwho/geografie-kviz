@@ -245,8 +245,14 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         assert.match(await tab.textContent('#dialog-overlay'), /Můj postup/);
         assert.match(await tab.textContent('#dialog-overlay'), /Zvědavec/);
         assert.match(await tab.textContent('#dialog-overlay'), new RegExp(`Celkem ${gained} XP`));
-        assert.equal(await tab.locator('#dialog-overlay li').count(), 14 + 19, 'odznaky a mistrovství všech témat');
-        assert.match(await tab.textContent('#dialog-overlay'), /Odznaky\s*1 \/ 19/);
+        assert.equal(await tab.locator('#dialog-overlay li').count(), 14 + 3, 'mistrovství všech témat a tři nejbližší odznaky');
+        assert.match(await tab.textContent('#dialog-overlay'), /Všechny odznaky\s*1 \/ \d{3}/);
+        // Okno se všemi odznaky: skupiny se stupni, klepnutím na medaili podrobnosti
+        await tab.click('[data-open-badges]');
+        await tab.waitForSelector('[data-badge="prvni-krok"]');
+        assert.ok(await tab.locator('[data-badge]').count() >= 120, 'všechny odznaky');
+        await tab.click('[data-badge="stovka"]');
+        assert.match(await tab.textContent('#dialog-overlay'), /100 správných odpovědí\./);
         await tab.keyboard.press('Escape');
         // Výsledek u dnešní otázky je vidět celý (ne zkrácený na „4 bod…“)
         const cut = await tab.evaluate(() => [...document.querySelectorAll('[data-action="daily"] span.truncate')].filter(span => span.scrollWidth > span.clientWidth).map(span => span.textContent));
@@ -1159,7 +1165,7 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         await configure(fresh.context);
         await fresh.tab.goto(`${ORIGIN}/`);
         await fresh.tab.waitForSelector('#account-welcome');
-        assert.equal(await fresh.tab.locator('#account-welcome img[src="icons/logo.webp"]').count(), 1);
+        assert.equal(await fresh.tab.locator('#account-welcome img[src="icons/topics/sova-vitej.webp"]').count(), 1);
         assert.match(await fresh.tab.textContent('#account-welcome [data-action="auth-login"]'), /Přihlásit se přes Google/);
         assert.match(await fresh.tab.textContent('#account-welcome [data-action="play-as-host"]'), /Pokračovat bez přihlášení/);
         await Promise.all([fresh.tab.waitForURL(/proj\.supabase\.co\/auth\/v1\/authorize/), fresh.tab.click('#account-welcome [data-action="auth-login"]')]);
@@ -1421,7 +1427,7 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         assert.deepEqual(db.results.map(row => [row.challenge_id, row.user_id, row.correct]), [[code, 'u-1', 0]]);
         // Odznaky a úroveň se uloží i do účtu (viditelné ostatním)
         for (let i = 0; i < 50 && !(db.profiles['u-1'].badges || []).includes('soupere'); i++) await new Promise(resolve => setTimeout(resolve, 100));
-        assert.ok(db.profiles['u-1'].badges.includes('soupere') && db.profiles['u-1'].badges.includes('prvni-krok'), `odznaky v účtu: ${db.profiles['u-1'].badges}`);
+        assert.ok(db.profiles['u-1'].badges.includes('soupere') && db.profiles['u-1'].badges.includes('zalozene-1'), `odznaky v účtu (nejvyšší stupně): ${db.profiles['u-1'].badges}`);
         assert.equal(typeof db.profiles['u-1'].xp, 'number');
         assert.equal(Object.keys(JSON.parse(await one.tab.evaluate(() => localStorage.getItem('mudrlant.stats'))).daily).length, 0, 'výzva se nepočítá do dnešních otázek');
         // Tlačítko Zpět z výsledku výzvy vede domů
