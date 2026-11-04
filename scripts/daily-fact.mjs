@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 const UA = 'Mudrlant/1.0 (https://github.com/taronwho/geografie-kviz; denní zajímavost)';
 const MODEL = process.env.GEMINI_MODEL || 'gemini-3.8-flash';
 // Když zvolený model nejde použít (neexistuje, je přetížený), zkusí se starší, ať denní zajímavost nevypadne
-const FALLBACK_MODEL = 'gemini-2.5-flash';
+const FALLBACK_MODELS = ['gemini-flash-latest', 'gemini-2.5-flash'];
 const TEXT_MIN = 120;
 const TEXT_MAX = 650;
 
@@ -21,9 +21,10 @@ const getJson = async (fetchImpl, url, init = {}, tries = 3) => {
     let last = null;
     for (let attempt = 0; attempt < tries; attempt++) {
         try {
-            const response = await fetchImpl(url, { ...init, headers: { 'User-Agent': UA, 'Api-User-Agent': UA, ...(init.headers || {}) } });
+            const response = await fetchImpl(url, { signal: AbortSignal.timeout(45000), ...init, headers: { 'User-Agent': UA, 'Api-User-Agent': UA, ...(init.headers || {}) } });
             if (response.ok) return await response.json();
-            last = new Error(`${response.status} ${url.split('?')[0]}`);
+            const detail = await response.text().then(text => text.replace(/\s+/g, ' ').slice(0, 200)).catch(() => '');
+            last = new Error(`${response.status} ${url.split('?')[0]} ${detail}`.trim());
             if (response.status !== 429 && response.status < 500) break;
         } catch (error) { last = error; }
         await new Promise(resolve => setTimeout(resolve, 1500 * (attempt + 1)));
@@ -98,6 +99,9 @@ export const validateFact = (fact, sources) => {
     return null;
 };
 
+// Model, který už odpověděl, se zkouší první; model, který selhal, se v dalších voláních přeskočí
+let preferred = null;
+const failedModels = new Set();
 const askGemini = async (fetchImpl, key, text, properties = { title: { type: 'STRING' }, text: { type: 'STRING' } }) => {
     const body = {
         contents: [{ role: 'user', parts: [{ text }] }],
@@ -108,12 +112,13 @@ const askGemini = async (fetchImpl, key, text, properties = { title: { type: 'ST
         }
     };
     const call = (model) => getJson(fetchImpl, `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key }, body: JSON.stringify(body) }, 2);
-    let data;
-    try { data = await call(MODEL); } catch (error) {
-        // Model neexistuje nebo je přetížený: zkusí se starší, ať denní zajímavost nevypadne
-        if (MODEL === FALLBACK_MODEL) throw error;
-        data = await call(FALLBACK_MODEL);
+    // Zvolený model, pak záložní (alias nejnovějšího Flash a 2.5): první, který odpoví
+    let data = null;
+    let lastError = null;
+    for (const model of [...new Set([preferred, MODEL, ...FALLBACK_MODELS])].filter(name => name && !failedModels.has(name))) {
+        try { data = await call(model); preferred = model; break; } catch (error) { lastError = error; failedModels.add(model); console.error(`Model ${model}: ${error.message}`); }
     }
+    if (!data) throw lastError;
     const raw = data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts && data.candidates[0].content.parts.map(part => part.text || '').join('');
     if (!raw) throw new Error('Gemini nevrátilo text');
     return JSON.parse(raw);
