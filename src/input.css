@@ -4,6 +4,16 @@
 @tailwind utilities;
 
 @layer base {
+    /* Hlavní barva brand-* z proměnných (kanály RGB); téma = atribut data-theme na <html> (look-themes.js), výchozí vínové jako dřív */
+    :root,
+    [data-theme="vinova"] { --brand-50: 251 243 246; --brand-100: 247 229 236; --brand-200: 239 200 214; --brand-300: 226 157 180; --brand-400: 208 108 141; --brand-500: 185 71 108; --brand-600: 159 50 86; --brand-700: 135 35 63; --brand-800: 112 29 53; --brand-900: 92 26 47; --brand-950: 55 10 24; }
+    [data-theme="les"] { --brand-50: 243 251 247; --brand-100: 229 247 239; --brand-200: 200 239 221; --brand-300: 157 226 194; --brand-400: 61 192 131; --brand-500: 56 148 105; --brand-600: 40 127 87; --brand-700: 28 108 71; --brand-800: 23 90 59; --brand-900: 21 74 49; --brand-950: 8 44 27; }
+    [data-theme="ocean"] { --brand-50: 242 247 252; --brand-100: 228 239 248; --brand-200: 197 221 242; --brand-300: 152 194 231; --brand-400: 101 162 216; --brand-500: 62 132 194; --brand-600: 42 109 167; --brand-700: 28 89 143; --brand-800: 23 74 118; --brand-900: 21 62 97; --brand-950: 7 34 58; }
+    [data-theme="zapad"] { --brand-50: 252 246 242; --brand-100: 249 235 227; --brand-200: 244 213 195; --brand-300: 235 180 148; --brand-400: 221 141 96; --brand-500: 199 109 57; --brand-600: 173 86 36; --brand-700: 147 68 23; --brand-800: 122 57 19; --brand-900: 100 48 18; --brand-950: 61 25 4; }
+    [data-theme="fialova"] { --brand-50: 248 243 251; --brand-100: 239 229 247; --brand-200: 222 201 238; --brand-300: 196 159 224; --brand-400: 164 111 206; --brand-500: 135 74 182; --brand-600: 111 53 156; --brand-700: 91 38 133; --brand-800: 76 31 110; --brand-900: 63 28 90; --brand-950: 35 11 54; }
+    [data-theme="zlata"] { --brand-50: 252 249 242; --brand-100: 250 243 226; --brand-200: 245 230 194; --brand-300: 236 209 147; --brand-400: 211 160 42; --brand-500: 162 126 43; --brand-600: 140 106 27; --brand-700: 120 89 16; --brand-800: 100 74 13; --brand-900: 82 61 13; --brand-950: 49 35 3; }
+    [data-theme="diamant"] { --brand-50: 242 251 252; --brand-100: 227 247 249; --brand-200: 196 238 243; --brand-300: 150 225 233; --brand-400: 48 189 205; --brand-500: 47 147 158; --brand-600: 31 125 136; --brand-700: 20 106 116; --brand-800: 17 88 96; --brand-900: 16 73 79; --brand-950: 4 43 48; }
+    [data-theme="legenda"] { --brand-50: 253 242 241; --brand-100: 251 226 225; --brand-200: 247 194 192; --brand-300: 240 146 143; --brand-400: 228 93 88; --brand-500: 208 54 48; --brand-600: 181 33 28; --brand-700: 155 20 15; --brand-800: 129 16 12; --brand-900: 105 16 13; --brand-950: 64 3 1; }
     * { -webkit-tap-highlight-color: transparent; }
     html { touch-action: manipulation; }
     ::-webkit-scrollbar { display: none; }
