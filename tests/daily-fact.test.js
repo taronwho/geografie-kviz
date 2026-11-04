@@ -39,6 +39,22 @@ test('denní zajímavost: pražské datum a výběr kandidátů jen se stránkou
     assert.deepEqual(candidatesFor(FEED, '2026-11-04'), list, 'stejný den = stejné pořadí');
 });
 
+test('denní zajímavost: vážné události (války, vraždy) se přeskočí, když je z čeho vybrat', async () => {
+    const { candidatesFor, isHeavy } = await load();
+    assert.equal(isHeavy('Soldiers killed hundreds during the battle.'), true);
+    assert.equal(isHeavy('The first public library opened in the city.'), false);
+    const page = (title) => [{ type: 'standard', title }];
+    const feed = { selected: [
+        { text: 'A massacre took place.', year: 1900, pages: page('A') },
+        { text: 'A museum opened.', year: 1901, pages: page('B') },
+        { text: 'A bridge was completed.', year: 1902, pages: page('C') },
+        { text: 'A garden was founded.', year: 1903, pages: page('D') }
+    ] };
+    assert.deepEqual(candidatesFor(feed, '2026-11-04').map(item => item.title).sort(), ['B', 'C', 'D']);
+    const few = { selected: feed.selected.slice(0, 2) };
+    assert.equal(candidatesFor(few, '2026-11-04').length, 2, 'bez dost lehkých se vezme i vážná');
+});
+
 test('denní zajímavost: kontrola odpovědi odmítne vymyšlená čísla, adresy a špatnou délku', async () => {
     const { validateFact } = await load();
     const sources = `${EXTRACT} 1922`;

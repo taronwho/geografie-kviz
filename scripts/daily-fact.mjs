@@ -32,6 +32,10 @@ const getJson = async (fetchImpl, url, init = {}, tries = 3) => {
 };
 
 // Kandidáti na dnešní den: vybrané události, ostatní události a narození; každý má rok, text a anglickou stránku
+// Vážná témata (války, vraždy, deportace…) se pro lehkou denní zajímavost nevybírají, pokud je z čeho vybrat
+const HEAVY = /\b(war|wars|battle|killed|kills|killing|massacre|murder|murdered|assassinat\w*|execut\w*|deport\w*|genocide|holocaust|bomb\w*|attack\w*|terror\w*|invad\w*|invasion|shot|shooting|hostage\w*|crash\w*|disaster|sinks?|sank|famine|epidemic|plague|nazi\w*|concentration camp\w*|pogrom\w*|suicide|riot\w*|coup|died|dies|death|dead)\b/i;
+export const isHeavy = (text) => HEAVY.test(String(text));
+
 export const candidatesFor = (feed, day) => {
     const seen = new Set();
     const groups = [];
@@ -47,7 +51,9 @@ export const candidatesFor = (feed, day) => {
         const start = group.length ? hash(day + kind) % group.length : 0;
         groups.push(group.slice(start).concat(group.slice(0, start)));
     }
-    return groups.flat();
+    const all = groups.flat();
+    const light = all.filter(item => !isHeavy(item.text));
+    return light.length >= 3 ? light : all;
 };
 
 // České heslo a úvod k anglické stránce; bez české stránky se kandidát nepoužije (odkaz vede na českou Wikipedii)

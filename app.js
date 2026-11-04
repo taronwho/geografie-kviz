@@ -1279,9 +1279,11 @@
     const factBubble = () => {
         if (!dailyFact) return '';
         const read = factRead();
+        // Bublina vychází ze sovy v hlavičce (ocásek míří vlevo nahoru), druhá sova se nekreslí
         return `
-            <button type="button" data-action="open-fact" class="flex shrink-0 items-center gap-2 rounded-2xl bg-white py-1 pl-1 pr-3 text-left shadow-sm ring-1 ring-slate-200/70 active:scale-[0.99] dark:bg-slate-800/70 dark:ring-slate-700/70">
-                ${uiArt('sova-premysleni', 'h-11 w-11 shrink-0')}
+            <button type="button" data-action="open-fact" class="relative mt-1.5 flex shrink-0 items-center gap-2 rounded-2xl bg-white px-3 py-2 text-left shadow-sm ring-1 ring-slate-200/70 active:scale-[0.99] dark:bg-slate-800 dark:ring-slate-700/70">
+                <span aria-hidden="true" class="absolute -top-1.5 left-6 h-3 w-3 rotate-45 border-l border-t border-slate-200/70 bg-white dark:border-slate-700/70 dark:bg-slate-800"></span>
+                <i data-lucide="lightbulb" class="h-5 w-5 shrink-0 text-gold-600 dark:text-gold-400"></i>
                 <span class="min-w-0 flex-1 truncate text-[13px] font-black leading-tight text-slate-800 dark:text-slate-100">${read ? `<span class="font-bold text-slate-500 dark:text-slate-400">Dnešní zajímavost:</span> ${escapeHtml(dailyFact.title)}` : 'Chceš slyšet dnešní zajímavost?'}</span>
                 <i data-lucide="${read ? 'book-open' : 'chevron-right'}" class="h-4 w-4 shrink-0 text-brand-700 dark:text-brand-300"></i>
             </button>`;
