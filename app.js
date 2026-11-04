@@ -1181,7 +1181,7 @@
         badge.className = place.logo ? BADGE_LOGO
             : `${BADGE_BASE} ${style ? `${style.soft} border-transparent` : 'bg-white text-slate-700 border-slate-200/60 dark:bg-slate-800 dark:border-slate-700'}`;
         badge.disabled = !place.switch && !place.logo;
-        badge.title = place.switch ? 'Změnit téma nebo co hrát' : place.logo ? (dailyFact ? 'Sova: dnešní zajímavost · text: můj postup' : 'Můj postup: úroveň a mistrovství témat') : '';
+        badge.title = place.switch ? 'Změnit téma nebo co hrát' : place.logo ? (dailyFact ? 'Sova: tento den v dějinách · text: můj postup' : 'Můj postup: úroveň a mistrovství témat') : '';
         badge.setAttribute('aria-label', place.switch ? `${place.text} – změnit téma` : place.logo ? `${place.text} – můj postup` : place.text);
         document.getElementById('status-switch').classList.toggle('hidden', !place.switch);
         const iconSlot = document.getElementById('status-icon-slot');
@@ -1315,11 +1315,11 @@
                 <span aria-hidden="true" class="absolute -top-2 left-9 h-4 w-4 rotate-45 rounded-sm bg-white dark:bg-slate-800"></span>
                 <div class="relative max-h-[calc(100dvh-6rem)] overflow-y-auto rounded-3xl bg-white p-4 shadow-2xl ring-2 ring-gold-400 dark:bg-slate-800">
                     <button type="button" data-fact-close aria-label="Zavřít" class="absolute right-2 top-2 rounded-full p-1.5 text-slate-400 active:scale-95"><i data-lucide="x" class="h-5 w-5"></i></button>
-                    <p class="flex items-center gap-1.5 pr-8 text-[11px] font-black uppercase tracking-widest text-gold-700 dark:text-gold-400"><img src="icons/topics/napoveda.webp" alt="" class="-my-1 -rotate-12 h-7 w-7 object-contain drop-shadow-[0_0_4px_rgba(239,197,92,0.8)]"> Dnešní zajímavost · ${escapeHtml(shortDay(getDayKey()))}${Number.isInteger(dailyFact.year) ? ` · rok ${dailyFact.year}` : ''}</p>
+                    <p class="flex items-center gap-1.5 pr-8 text-[11px] font-black uppercase tracking-widest text-gold-700 dark:text-gold-400"><img src="icons/topics/napoveda.webp" alt="" class="-my-1 -rotate-12 h-7 w-7 object-contain drop-shadow-[0_0_4px_rgba(239,197,92,0.8)]"> Tento den v dějinách · ${escapeHtml(shortDay(getDayKey()))}${Number.isInteger(dailyFact.year) ? ` · rok ${dailyFact.year}` : ''}</p>
                     <h2 id="fact-title" class="mt-1.5 text-xl font-black leading-tight text-slate-800 dark:text-slate-100">${escapeHtml(dailyFact.title)}</h2>
                     <p class="mt-2 text-[15px] leading-relaxed text-slate-700 dark:text-slate-200">${escapeHtml(dailyFact.text)}</p>
                     <a data-fact-link href="${escapeHtml(dailyFact.url)}" target="_blank" rel="noopener noreferrer" class="mt-3 flex items-center justify-center gap-2 rounded-2xl btn-3d bg-brand-700 px-4 py-3 text-[15px] font-black text-white"><i data-lucide="external-link" class="h-5 w-5"></i> Číst víc na Wikipedii</a>
-                    <p class="mt-2 text-center text-[11px] text-slate-400 dark:text-slate-500">Zdroj: ${escapeHtml(dailyFact.source || 'Wikipedie')}${dailyFact.page ? ` – ${escapeHtml(dailyFact.page)}` : ''}. Text shrnula umělá inteligence.</p>
+                    <p class="mt-2 text-center text-[11px] text-slate-400 dark:text-slate-500">Zdroj: ${escapeHtml(dailyFact.source || 'Wikipedie')}${dailyFact.page ? ` – ${escapeHtml(dailyFact.page)}` : ''}. Text shrnula umělá inteligence.${dailyFact.category ? ` Dnešní téma: ${escapeHtml(dailyFact.category)}.` : ''}</p>
                 </div>
             </div>`;
         overlay.addEventListener('click', (event) => { if (event.target === overlay || event.target.closest('[data-fact-close]') || event.target.closest('.fact-pop') === null) closeFact(); });

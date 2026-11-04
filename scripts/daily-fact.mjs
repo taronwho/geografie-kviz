@@ -32,10 +32,6 @@ const getJson = async (fetchImpl, url, init = {}, tries = 3) => {
 };
 
 // Kandidáti na dnešní den: vybrané události, ostatní události a narození; každý má rok, text a anglickou stránku
-// Vážná témata (války, vraždy, deportace…) se pro lehkou denní zajímavost nevybírají, pokud je z čeho vybrat
-const HEAVY = /\b(war|wars|battle|killed|kills|killing|massacre|murder|murdered|assassinat\w*|execut\w*|deport\w*|genocide|holocaust|bomb\w*|attack\w*|terror\w*|invad\w*|invasion|shot|shooting|hostage\w*|crash\w*|disaster|sinks?|sank|famine|epidemic|plague|nazi\w*|concentration camp\w*|pogrom\w*|suicide|riot\w*|coup|died|dies|death|dead)\b/i;
-export const isHeavy = (text) => HEAVY.test(String(text));
-
 export const candidatesFor = (feed, day) => {
     const seen = new Set();
     const groups = [];
@@ -51,10 +47,12 @@ export const candidatesFor = (feed, day) => {
         const start = group.length ? hash(day + kind) % group.length : 0;
         groups.push(group.slice(start).concat(group.slice(0, start)));
     }
-    const all = groups.flat();
-    const light = all.filter(item => !isHeavy(item.text));
-    return light.length >= 3 ? light : all;
+    return groups.flat();
 };
+
+// Kategorie se střídají podle dne, ať jsou dny různorodé (věda, kultura, sport, příroda, politika, osobnosti, společnost)
+export const CATEGORIES = ['věda a technika', 'kultura a umění', 'sport', 'příroda a objevy', 'politika a státy', 'významné osobnosti', 'společnost a každodenní život'];
+export const categoryFor = (day) => CATEGORIES[Math.floor(Date.parse(`${day}T00:00:00Z`) / 86400000) % CATEGORIES.length];
 
 // České heslo a úvod k anglické stránce; bez české stránky se kandidát nepoužije (odkaz vede na českou Wikipedii)
 const czechArticle = async (fetchImpl, enTitle) => {
@@ -71,12 +69,12 @@ const czechArticle = async (fetchImpl, enTitle) => {
 
 const yearsAgo = (day, candidate) => Number(day.slice(0, 4)) - candidate.year;
 
-const prompt = (day, candidate, article) => `Jsi redaktor české vzdělávací aplikace. Napiš krátkou zajímavost ke dni ${day.slice(8)}. ${Number(day.slice(5, 7))}. podle zdrojů níže.
+const prompt = (day, candidate, article) => `Jsi redaktor české vzdělávací aplikace. Napiš krátký text o události, která se stala přesně v tento den (${Number(day.slice(8))}. ${Number(day.slice(5, 7))}.), podle zdrojů níže.
 
 Pravidla:
 - Piš česky, stručně a poutavě, jedním odstavcem o 2 až 4 větách (asi 250 až 450 znaků).
 - Použij POUZE fakta ze zdrojů. Nic nepřidávej z paměti, žádná jiná čísla ani jména, než jsou ve zdrojích.
-- Zajímavost je ke dni ${Number(day.slice(8))}. ${Number(day.slice(5, 7))}.: v první větě zmiň, že se to stalo přesně v tento den, a rok (je to ${yearsAgo(day, candidate)} let zpět, můžeš napsat „přesně před ${yearsAgo(day, candidate)} lety“). Žádné markdown, odrážky, emoji ani odkazy.
+- Událost je ke dni ${Number(day.slice(8))}. ${Number(day.slice(5, 7))}.: v první větě zmiň, že se to stalo přesně v tento den, a rok (je to ${yearsAgo(day, candidate)} let zpět, můžeš napsat „přesně před ${yearsAgo(day, candidate)} lety“). Žádné markdown, odrážky, emoji ani odkazy.
 - Přidej krátký titulek (nejvýše 60 znaků) bez tečky na konci.
 Vrať JSON {"title": "...", "text": "..."}.
 
@@ -100,13 +98,13 @@ export const validateFact = (fact, sources) => {
     return null;
 };
 
-const askGemini = async (fetchImpl, key, text) => {
+const askGemini = async (fetchImpl, key, text, properties = { title: { type: 'STRING' }, text: { type: 'STRING' } }) => {
     const body = {
         contents: [{ role: 'user', parts: [{ text }] }],
         generationConfig: {
             temperature: 0.4,
             responseMimeType: 'application/json',
-            responseSchema: { type: 'OBJECT', properties: { title: { type: 'STRING' }, text: { type: 'STRING' } }, required: ['title', 'text'] }
+            responseSchema: { type: 'OBJECT', properties, required: Object.keys(properties) }
         }
     };
     const call = (model) => getJson(fetchImpl, `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key }, body: JSON.stringify(body) }, 2);
@@ -121,27 +119,49 @@ const askGemini = async (fetchImpl, key, text) => {
     return JSON.parse(raw);
 };
 
+const pickPrompt = (category, list) => `Z očíslovaných událostí vyber jednu, která nejlépe patří do kategorie „${category}“ a bude zajímavá pro širokou veřejnost (ne příliš úzce odborná). Když žádná do kategorie nepatří, vyber nejzajímavější.
+Vrať JSON {"index": číslo}.
+
+${list.map((item, index) => `${index}. (${item.year}) ${item.text}`).join('\n')}`;
+
 export const buildFact = async ({ day, key, fetchImpl = fetch, log = () => {} }) => {
     const [, month, date] = day.split('-');
     const feed = await getJson(fetchImpl, `https://en.wikipedia.org/api/rest_v1/feed/onthisday/all/${month}/${date}`);
     const candidates = candidatesFor(feed, day);
     if (!candidates.length) throw new Error('Wikipedie nevrátila žádné události');
-    let tried = 0;
+    // Kandidáti, ke kterým je česká stránka (odkaz vede na českou Wikipedii)
+    const usable = [];
+    let checked = 0;
     for (const candidate of candidates) {
-        if (tried >= 12) break;
-        let article;
-        try { article = await czechArticle(fetchImpl, candidate.title); } catch (error) { log(`${candidate.title}: ${error.message}`); continue; }
-        if (!article) { log(`${candidate.title}: bez české stránky`); continue; }
+        if (usable.length >= 15 || checked >= 30) break;
+        checked += 1;
+        try {
+            const article = await czechArticle(fetchImpl, candidate.title);
+            if (article) usable.push({ ...candidate, article }); else log(`${candidate.title}: bez české stránky`);
+        } catch (error) { log(`${candidate.title}: ${error.message}`); }
+    }
+    if (!usable.length) throw new Error('Žádná událost nemá českou stránku');
+    // Kategorie dne: Gemini vybere z kandidátů tu, která se do ní hodí; při chybě se vezme první
+    const category = categoryFor(day);
+    let ordered = usable;
+    try {
+        const answer = await askGemini(fetchImpl, key, pickPrompt(category, usable), { index: { type: 'INTEGER' } });
+        if (Number.isInteger(answer.index) && usable[answer.index]) ordered = [usable[answer.index], ...usable.filter((_, i) => i !== answer.index)];
+    } catch (error) { log(`Výběr kategorie: ${error.message}`); }
+    let tried = 0;
+    for (const candidate of ordered) {
+        if (tried >= 8) break;
         tried += 1;
+        const article = candidate.article;
         for (let attempt = 0; attempt < 2; attempt++) {
             let fact;
             try { fact = await askGemini(fetchImpl, key, prompt(day, candidate, article)); } catch (error) { log(`Gemini: ${error.message}`); continue; }
             const problem = validateFact(fact, `${candidate.text} ${article.extract} ${candidate.year} ${day} ${yearsAgo(day, candidate)}`);
-            if (!problem) return { date: day, year: candidate.year, title: fact.title.trim(), text: fact.text.trim(), url: article.url, page: article.title, source: 'Wikipedie' };
+            if (!problem) return { date: day, year: candidate.year, title: fact.title.trim(), text: fact.text.trim(), url: article.url, page: article.title, category, source: 'Wikipedie' };
             log(`${candidate.title}: ${problem}`);
         }
     }
-    throw new Error('Nepodařilo se vytvořit zajímavost');
+    throw new Error('Nepodařilo se vytvořit text události');
 };
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
