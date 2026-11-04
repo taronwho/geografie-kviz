@@ -33,3 +33,32 @@
     .bob { animation: bob 1.4s ease-in-out infinite; transform-origin: 50% 90%; }
 }
 @keyframes bob { 0%, 100% { transform: translateY(0) rotate(-3deg); } 50% { transform: translateY(-8px) rotate(3deg); } }
+
+/* Tlačítka ve stylu loga (samolepka): tmavší spodní hrana jako tloušťka, lehký odlesk nahoře; při stisku se tlačítko zmáčkne */
+@layer components {
+    .btn-3d, .btn-3d-light {
+        border-bottom-width: 4px;
+        transition: transform 80ms ease, border-bottom-width 80ms ease, box-shadow 80ms ease;
+    }
+    .btn-3d {
+        border-bottom-style: solid;
+        border-bottom-color: rgb(0 0 0 / 0.32);
+        background-image: linear-gradient(to bottom, rgb(255 255 255 / 0.16), rgb(255 255 255 / 0) 55%);
+        box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.28), 0 6px 12px -8px rgb(0 0 0 / 0.55);
+    }
+    .btn-3d-light {
+        border-style: solid;
+        border-width: 1px 1px 4px;
+        border-color: #e1dfda #e1dfda #c9c6c0;
+        box-shadow: 0 6px 12px -9px rgb(0 0 0 / 0.4);
+    }
+    @media (prefers-color-scheme: dark) {
+        .btn-3d-light { border-color: #41454a #41454a #14151a; }
+    }
+    .btn-3d:active:not(:disabled), .btn-3d-light:active:not(:disabled) {
+        transform: translateY(3px);
+        border-bottom-width: 1px;
+        box-shadow: none;
+    }
+    .btn-3d:disabled, .btn-3d-light:disabled { transform: none; }
+}
