@@ -161,67 +161,67 @@
     const TOPIC_STYLES = {
         emerald: {
             soft: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/60 dark:text-emerald-300', solid: 'border-emerald-500 bg-emerald-700',
-            button: 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-600/25', tile: 'from-emerald-600 to-emerald-800', text: 'text-emerald-600 dark:text-emerald-400',
+            button: 'bg-emerald-700 hover:bg-emerald-800 shadow-emerald-700/25', tile: 'from-emerald-700 to-emerald-800', text: 'text-emerald-700 dark:text-emerald-400',
             accent: 'border-emerald-500', on: 'border-emerald-500 bg-emerald-50 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-200', tab: 'bg-emerald-700 text-white'
         },
         amber: {
             soft: 'bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300', solid: 'border-amber-500 bg-amber-700',
-            button: 'bg-amber-600 hover:bg-amber-700 shadow-amber-600/25', tile: 'from-amber-600 to-orange-800', text: 'text-amber-600 dark:text-amber-400',
+            button: 'bg-amber-700 hover:bg-amber-800 shadow-amber-700/25', tile: 'from-amber-700 to-orange-800', text: 'text-amber-700 dark:text-amber-400',
             accent: 'border-amber-500', on: 'border-amber-500 bg-amber-50 text-amber-800 dark:bg-amber-900/30 dark:text-amber-200', tab: 'bg-amber-700 text-white'
         },
         lime: {
             soft: 'bg-lime-100 text-lime-700 dark:bg-lime-900/50 dark:text-lime-300', solid: 'border-lime-500 bg-lime-700',
-            button: 'bg-lime-600 hover:bg-lime-700 shadow-lime-600/25', tile: 'from-lime-600 to-green-800', text: 'text-lime-700 dark:text-lime-400',
+            button: 'bg-lime-700 hover:bg-lime-800 shadow-lime-700/25', tile: 'from-lime-700 to-green-800', text: 'text-lime-700 dark:text-lime-400',
             accent: 'border-lime-500', on: 'border-lime-500 bg-lime-50 text-lime-800 dark:bg-lime-900/30 dark:text-lime-200', tab: 'bg-lime-700 text-white'
         },
         sky: {
             soft: 'bg-sky-100 text-sky-700 dark:bg-sky-900/50 dark:text-sky-300', solid: 'border-sky-500 bg-sky-700',
-            button: 'bg-sky-600 hover:bg-sky-700 shadow-sky-600/25', tile: 'from-sky-600 to-blue-800', text: 'text-sky-600 dark:text-sky-400',
+            button: 'bg-sky-700 hover:bg-sky-800 shadow-sky-700/25', tile: 'from-sky-700 to-blue-800', text: 'text-sky-700 dark:text-sky-400',
             accent: 'border-sky-500', on: 'border-sky-500 bg-sky-50 text-sky-800 dark:bg-sky-900/30 dark:text-sky-200', tab: 'bg-sky-700 text-white'
         },
         violet: {
             soft: 'bg-violet-100 text-violet-700 dark:bg-violet-900/50 dark:text-violet-300', solid: 'border-violet-500 bg-violet-700',
-            button: 'bg-violet-600 hover:bg-violet-700 shadow-violet-600/25', tile: 'from-violet-600 to-purple-800', text: 'text-violet-600 dark:text-violet-400',
+            button: 'bg-violet-700 hover:bg-violet-800 shadow-violet-700/25', tile: 'from-violet-700 to-purple-800', text: 'text-violet-700 dark:text-violet-400',
             accent: 'border-violet-500', on: 'border-violet-500 bg-violet-50 text-violet-800 dark:bg-violet-900/30 dark:text-violet-200', tab: 'bg-violet-700 text-white'
         },
         rose: {
             soft: 'bg-rose-100 text-rose-700 dark:bg-rose-900/50 dark:text-rose-300', solid: 'border-rose-500 bg-rose-700',
-            button: 'bg-rose-600 hover:bg-rose-700 shadow-rose-600/25', tile: 'from-rose-600 to-rose-800', text: 'text-rose-600 dark:text-rose-400',
+            button: 'bg-rose-700 hover:bg-rose-800 shadow-rose-700/25', tile: 'from-rose-700 to-rose-800', text: 'text-rose-700 dark:text-rose-400',
             accent: 'border-rose-500', on: 'border-rose-500 bg-rose-50 text-rose-800 dark:bg-rose-900/30 dark:text-rose-200', tab: 'bg-rose-700 text-white'
         },
         pink: {
             soft: 'bg-pink-100 text-pink-700 dark:bg-pink-900/50 dark:text-pink-300', solid: 'border-pink-500 bg-pink-700',
-            button: 'bg-pink-600 hover:bg-pink-700 shadow-pink-600/25', tile: 'from-pink-600 to-rose-800', text: 'text-pink-600 dark:text-pink-400',
+            button: 'bg-pink-700 hover:bg-pink-800 shadow-pink-700/25', tile: 'from-pink-700 to-rose-800', text: 'text-pink-700 dark:text-pink-400',
             accent: 'border-pink-500', on: 'border-pink-500 bg-pink-50 text-pink-800 dark:bg-pink-900/30 dark:text-pink-200', tab: 'bg-pink-700 text-white'
         },
         teal: {
             soft: 'bg-teal-100 text-teal-700 dark:bg-teal-900/50 dark:text-teal-300', solid: 'border-teal-500 bg-teal-700',
-            button: 'bg-teal-600 hover:bg-teal-700 shadow-teal-600/25', tile: 'from-teal-600 to-cyan-800', text: 'text-teal-600 dark:text-teal-400',
+            button: 'bg-teal-700 hover:bg-teal-800 shadow-teal-700/25', tile: 'from-teal-700 to-cyan-800', text: 'text-teal-700 dark:text-teal-400',
             accent: 'border-teal-500', on: 'border-teal-500 bg-teal-50 text-teal-800 dark:bg-teal-900/30 dark:text-teal-200', tab: 'bg-teal-700 text-white'
         },
         orange: {
             soft: 'bg-orange-100 text-orange-700 dark:bg-orange-900/50 dark:text-orange-300', solid: 'border-orange-500 bg-orange-700',
-            button: 'bg-orange-600 hover:bg-orange-700 shadow-orange-600/25', tile: 'from-orange-600 to-red-800', text: 'text-orange-600 dark:text-orange-400',
+            button: 'bg-orange-700 hover:bg-orange-800 shadow-orange-700/25', tile: 'from-orange-700 to-red-800', text: 'text-orange-700 dark:text-orange-400',
             accent: 'border-orange-500', on: 'border-orange-500 bg-orange-50 text-orange-800 dark:bg-orange-900/30 dark:text-orange-200', tab: 'bg-orange-700 text-white'
         },
         blue: {
             soft: 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300', solid: 'border-blue-500 bg-blue-700',
-            button: 'bg-blue-600 hover:bg-blue-700 shadow-blue-600/25', tile: 'from-blue-600 to-indigo-800', text: 'text-blue-600 dark:text-blue-400',
+            button: 'bg-blue-700 hover:bg-blue-800 shadow-blue-700/25', tile: 'from-blue-700 to-indigo-800', text: 'text-blue-700 dark:text-blue-400',
             accent: 'border-blue-500', on: 'border-blue-500 bg-blue-50 text-blue-800 dark:bg-blue-900/30 dark:text-blue-200', tab: 'bg-blue-700 text-white'
         },
         indigo: {
             soft: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/50 dark:text-indigo-300', solid: 'border-indigo-500 bg-indigo-700',
-            button: 'bg-indigo-600 hover:bg-indigo-700 shadow-indigo-600/25', tile: 'from-indigo-600 to-violet-900', text: 'text-indigo-600 dark:text-indigo-400',
+            button: 'bg-indigo-700 hover:bg-indigo-800 shadow-indigo-700/25', tile: 'from-indigo-700 to-violet-900', text: 'text-indigo-700 dark:text-indigo-400',
             accent: 'border-indigo-500', on: 'border-indigo-500 bg-indigo-50 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-200', tab: 'bg-indigo-700 text-white'
         },
         red: {
             soft: 'bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300', solid: 'border-red-500 bg-red-700',
-            button: 'bg-red-600 hover:bg-red-700 shadow-red-600/25', tile: 'from-red-600 to-red-900', text: 'text-red-600 dark:text-red-400',
+            button: 'bg-red-700 hover:bg-red-800 shadow-red-700/25', tile: 'from-red-700 to-red-900', text: 'text-red-700 dark:text-red-400',
             accent: 'border-red-500', on: 'border-red-500 bg-red-50 text-red-800 dark:bg-red-900/30 dark:text-red-200', tab: 'bg-red-700 text-white'
         },
         stone: {
             soft: 'bg-stone-100 text-stone-700 dark:bg-stone-900/50 dark:text-stone-300', solid: 'border-stone-500 bg-stone-700',
-            button: 'bg-stone-600 hover:bg-stone-700 shadow-stone-600/25', tile: 'from-stone-600 to-stone-800', text: 'text-stone-600 dark:text-stone-300',
+            button: 'bg-stone-700 hover:bg-stone-800 shadow-stone-700/25', tile: 'from-stone-700 to-stone-800', text: 'text-stone-700 dark:text-stone-300',
             accent: 'border-stone-500', on: 'border-stone-500 bg-stone-50 text-stone-800 dark:bg-stone-900/30 dark:text-stone-200', tab: 'bg-stone-700 text-white'
         },
         yellow: {
@@ -232,7 +232,7 @@
         // Mix ze všech témat: vínová barva loga
         brand: {
             soft: 'bg-brand-100 text-brand-700 dark:bg-brand-900/60 dark:text-brand-200', solid: 'border-brand-500 bg-brand-700',
-            button: 'bg-brand-700 hover:bg-brand-800 shadow-brand-700/25', tile: 'from-brand-600 to-brand-900', text: 'text-brand-700 dark:text-brand-300',
+            button: 'bg-brand-700 hover:bg-brand-800 shadow-brand-700/25', tile: 'from-brand-700 to-brand-900', text: 'text-brand-700 dark:text-brand-300',
             accent: 'border-brand-600', on: 'border-brand-600 bg-brand-50 text-brand-800 dark:bg-brand-900/40 dark:text-brand-100', tab: 'bg-brand-700 text-white'
         }
     };
@@ -789,7 +789,7 @@
         const tabs = `
             <div role="tablist" class="mt-3 flex gap-1 rounded-2xl bg-slate-200/70 p-1 dark:bg-slate-800">
                 ${[['game', 'gamepad-2', 'Hra'], ...(user && Social ? [['profile', 'user-round', 'Profil']] : []), ['look', 'palette', 'Vzhled']].map(([id, icon, label]) => `
-                    <button type="button" role="tab" data-me-tab="${id}" aria-selected="${meTab === id}" class="flex flex-1 items-center justify-center gap-1.5 rounded-xl px-2 py-2 text-[13px] font-black ${meTab === id ? 'btn-3d bg-brand-700 text-white' : 'text-slate-500 dark:text-slate-400'}"><i data-lucide="${icon}" class="h-4 w-4"></i> ${label}</button>`).join('')}
+                    <button type="button" role="tab" data-me-tab="${id}" aria-selected="${meTab === id}" class="flex flex-1 items-center justify-center gap-1.5 rounded-xl min-h-[2.75rem] px-2 text-[13px] font-black ${meTab === id ? 'btn-3d bg-brand-700 text-white' : 'text-slate-600 dark:text-slate-400'}"><i data-lucide="${icon}" class="h-4 w-4"></i> ${label}</button>`).join('')}
             </div>`;
         const gameBody = `
             <h3 class="${ME_HEADING} mb-2">Varianta hry</h3>
@@ -801,9 +801,9 @@
                 <div class="mt-3 rounded-2xl bg-white p-3 shadow-sm dark:bg-slate-800">
                     <p class="text-xs text-slate-500 dark:text-slate-400">S účtem se ukládá postup, získáš profil a půjde hrát výzvy s ostatními. Bez něj hraješ jako host.</p>
                     <button type="button" data-auth-login class="${PRIMARY_BUTTON} mt-2"><i data-lucide="log-in" class="h-5 w-5"></i> Přihlásit se přes Google</button>
-                    ${state.error ? `<p class="mt-2 text-xs font-semibold text-rose-600 dark:text-rose-400" role="alert">${escapeHtml(state.error)}</p>` : ''}
+                    ${state.error ? `<p class="mt-2 text-xs font-semibold text-rose-700 dark:text-rose-400" role="alert">${escapeHtml(state.error)}</p>` : ''}
                 </div>` : ''}
-            <button type="button" data-tutorial-restart class="btn-3d-light mt-3 flex w-full items-center gap-2 rounded-2xl bg-white px-3 py-2 text-left dark:bg-slate-800"><i data-lucide="info" class="h-5 w-5 shrink-0 text-brand-700 dark:text-brand-300"></i><span class="min-w-0 flex-1 truncate text-[13px] font-black text-slate-800 dark:text-slate-100">Projít znovu tutoriál</span><i data-lucide="chevron-right" class="h-4 w-4 shrink-0 text-slate-400"></i></button>
+            <button type="button" data-tutorial-restart class="btn-3d-light mt-3 flex w-full items-center gap-2 rounded-2xl bg-white px-3 py-2 text-left dark:bg-slate-800"><i data-lucide="info" class="h-5 w-5 shrink-0 text-brand-700 dark:text-brand-300"></i><span class="min-w-0 flex-1 truncate text-[13px] font-black text-slate-800 dark:text-slate-100">Projít znovu tutoriál</span><i data-lucide="chevron-right" class="h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400"></i></button>
             ${renderDevPanel()}`;
         const profileBody = user && Social && meDraft ? `
             <form id="profile-form" class="flex flex-col gap-3" autocomplete="off">
@@ -822,7 +822,7 @@
                     <p class="${ME_HEADING} mb-1.5">Barva</p>
                     <div class="flex justify-between px-1">${Social.COLORS.map(color => `<button type="button" data-pick-color="${color}" aria-label="Barva ${color}" aria-pressed="${color === meDraft.color}" class="h-7 w-7 rounded-full ${AVATAR_BG[color]} ${color === meDraft.color ? 'ring-2 ring-slate-800/70 ring-offset-2 dark:ring-white/80 dark:ring-offset-slate-900' : ''} active:scale-95"></button>`).join('')}</div>
                 </div>
-                <button type="button" data-open-accept class="btn-3d-light flex w-full items-center gap-2 rounded-2xl bg-white px-3 py-2 text-left dark:bg-slate-800"><i data-lucide="shield-check" class="h-5 w-5 shrink-0 text-brand-700 dark:text-brand-300"></i><span class="min-w-0 flex-1 truncate text-[13px] font-black text-slate-800 dark:text-slate-100">Přijímané výzvy <span class="font-semibold text-slate-500 dark:text-slate-400">· ${escapeHtml(acceptSummary())}</span></span><i data-lucide="chevron-right" class="h-4 w-4 shrink-0 text-slate-400"></i></button>
+                <button type="button" data-open-accept class="btn-3d-light flex w-full items-center gap-2 rounded-2xl bg-white px-3 py-2 text-left dark:bg-slate-800"><i data-lucide="shield-check" class="h-5 w-5 shrink-0 text-brand-700 dark:text-brand-300"></i><span class="min-w-0 flex-1 truncate text-[13px] font-black text-slate-800 dark:text-slate-100">Přijímané výzvy <span class="font-semibold text-slate-500 dark:text-slate-400">· ${escapeHtml(acceptSummary())}</span></span><i data-lucide="chevron-right" class="h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400"></i></button>
                 <div class="grid grid-cols-2 gap-2">
                     <button type="submit" data-save-profile class="${PRIMARY_BUTTON}"><i data-lucide="check" class="h-5 w-5"></i> Uložit</button>
                     <button type="button" data-auth-logout class="${SECONDARY_BUTTON}"><i data-lucide="log-out" class="h-5 w-5"></i> Odhlásit</button>
@@ -841,8 +841,8 @@
                 </div>
                 ${tabs}
                 <div class="mt-3">${meTab === 'profile' && profileBody ? profileBody : meTab === 'look' ? lookBody() : gameBody}</div>
-                <p id="settings-note" class="mt-2 min-h-[1.1rem] text-xs font-semibold ${noteText.startsWith('Uloženo') || !meNote ? 'text-emerald-700 dark:text-emerald-300' : 'text-rose-600 dark:text-rose-400'}" role="status">${escapeHtml(noteText)}</p>
-                <div class="flex items-center justify-center gap-2 text-xs text-slate-400 dark:text-slate-500">
+                <p id="settings-note" class="mt-2 min-h-[1.1rem] text-xs font-semibold ${noteText.startsWith('Uloženo') || !meNote ? 'text-emerald-700 dark:text-emerald-300' : 'text-rose-700 dark:text-rose-400'}" role="status">${escapeHtml(noteText)}</p>
+                <div class="flex items-center justify-center gap-2 text-xs text-slate-500 dark:text-slate-400">
                     <span id="app-version">${escapeHtml(versionLabel())}</span>
                     <button type="button" data-update-app class="rounded-lg px-2 py-1 font-bold text-slate-600 underline underline-offset-2 hover:bg-slate-200 disabled:no-underline dark:text-slate-300 dark:hover:bg-slate-800">Aktualizovat</button>
                 </div>
@@ -1029,7 +1029,7 @@
                 <div class="grid grid-cols-2 gap-2" role="group" aria-label="${isMix ? 'Témata' : 'Kategorie'}">${options}</div>
                 <h3 class="${SETTINGS_HEADING} mb-2 mt-5">Známost</h3>
                 <div class="grid grid-cols-2 gap-2" role="group" aria-label="Známost">${renderTierButtons(style.on, isMix ? null : topic)}</div>
-                <p id="chooser-note" class="mt-3 min-h-[1.25rem] text-sm font-semibold text-rose-600 dark:text-rose-400" role="status">${escapeHtml(note)}</p>
+                <p id="chooser-note" class="mt-3 min-h-[1.25rem] text-sm font-semibold text-rose-700 dark:text-rose-400" role="status">${escapeHtml(note)}</p>
                 <button type="button" data-chooser-play class="mt-1 flex w-full items-center justify-center gap-2 rounded-[1.2rem] py-4 text-lg font-black text-white shadow-lg transition-all active:scale-95 ${style.button} btn-3d">
                     <i data-lucide="play" class="h-5 w-5"></i> Hrát
                 </button>
@@ -1120,7 +1120,7 @@
 
     // --- Hlavička ---
 
-    const BUTTON_BASE = 'p-2 rounded-2xl';
+    const BUTTON_BASE = 'flex h-11 w-11 items-center justify-center rounded-2xl';
     // Vybrané tlačítko navigace ve vínové barvě loga
     const BUTTON_SELECTED = `${BUTTON_BASE} btn-3d bg-brand-700 text-white`;
     const BUTTON_ACTIVE = { home: BUTTON_SELECTED, practice: BUTTON_SELECTED, learn: BUTTON_SELECTED };
@@ -1153,9 +1153,9 @@
         return { icon: topic.icon, text: `${topic.title}${scope}`, topic, switch: true };
     };
 
-    const HEADER_BASE = 'relative shrink-0 w-full px-4 pt-4 pb-3 flex justify-between items-center gap-2 z-30 bg-slate-50 dark:bg-slate-900 border-b-4';
-    const BADGE_BASE = 'min-w-0 px-2.5 py-2 rounded-2xl shadow-sm text-sm font-bold flex items-center gap-2 transition-colors border';
-    const BADGE_LOGO = 'min-w-0 flex items-center gap-2 rounded-2xl py-0.5 pr-1 text-left';
+    const HEADER_BASE = 'relative shrink-0 w-full px-4 pt-[max(1rem,env(safe-area-inset-top))] pb-3 flex justify-between items-center gap-2 z-30 bg-slate-50 dark:bg-slate-900 border-b-4';
+    const BADGE_BASE = 'min-h-[2.75rem] min-w-0 px-2.5 py-2 rounded-2xl shadow-sm text-sm font-bold flex items-center gap-2 transition-colors border';
+    const BADGE_LOGO = 'min-h-[2.75rem] min-w-[2.75rem] flex items-center gap-2 rounded-2xl py-0.5 pr-1 text-left';
 
     const updateControlsUI = () => {
         // Procvičování okruhu nebo chyb patří k učení
@@ -1235,16 +1235,16 @@
     const CARD = 'bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-[1.5rem] shadow-sm';
     const CARD_TITLE = 'text-xs font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest flex items-center gap-2';
     const HINT_CHIP = 'mb-4 text-sm text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-900/60 p-3 rounded-xl border border-slate-100 dark:border-slate-700 inline-flex items-center gap-2';
-    const BACK_LINK = 'flex min-h-[2.5rem] w-fit items-center gap-1 rounded-lg pr-3 text-sm font-bold text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white';
+    const BACK_LINK = 'flex min-h-[2.75rem] w-fit items-center gap-1 rounded-lg pr-3 text-sm font-bold text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white';
 
     // --- Domů: dnešní otázky (malá tlačítka), dlaždice témat a mixu, učení ---
 
     const dailyStatus = (topicId, stats) => {
         const result = (stats.daily[topicId] || {})[getDayKey()];
-        if (!result) return { text: 'čeká', tone: 'text-slate-400', icon: '' };
+        if (!result) return { text: 'čeká', tone: 'text-slate-500 dark:text-slate-400', icon: '' };
         return result.correct
-            ? { text: formatPoints(result.points), tone: 'text-emerald-600 dark:text-emerald-400', icon: '' }
-            : { text: 'nevyšlo', tone: 'text-rose-500 dark:text-rose-400', icon: '' };
+            ? { text: formatPoints(result.points), tone: 'text-emerald-700 dark:text-emerald-400', icon: '' }
+            : { text: 'nevyšlo', tone: 'text-rose-700 dark:text-rose-400', icon: '' };
     };
 
     // Další neodehraná dnešní otázka: po tématu `afterTopic` v pořadí témat dokola (bez něj od začátku)
@@ -1318,12 +1318,12 @@
             <div class="fact-pop absolute inset-x-3 top-[4.6rem] mx-auto max-w-md">
                 <span aria-hidden="true" class="absolute -top-2 left-9 h-4 w-4 rotate-45 rounded-sm bg-white dark:bg-slate-800"></span>
                 <div class="relative max-h-[calc(100dvh-6rem)] overflow-y-auto rounded-3xl bg-white p-4 shadow-2xl ring-2 ring-gold-400 dark:bg-slate-800">
-                    <button type="button" data-fact-close aria-label="Zavřít" class="absolute right-2 top-2 rounded-full p-1.5 text-slate-400 active:scale-95"><i data-lucide="x" class="h-5 w-5"></i></button>
+                    <button type="button" data-fact-close aria-label="Zavřít" class="absolute right-2 top-2 rounded-full p-1.5 text-slate-500 dark:text-slate-400 active:scale-95"><i data-lucide="x" class="h-5 w-5"></i></button>
                     <p class="flex items-center gap-1.5 pr-8 text-[11px] font-black uppercase tracking-widest text-gold-700 dark:text-gold-400"><img src="icons/topics/napoveda.webp" alt="" class="-my-1 -rotate-12 h-7 w-7 object-contain drop-shadow-[0_0_4px_rgba(239,197,92,0.8)]"> Tento den v dějinách · ${escapeHtml(shortDay(getDayKey()))}${Number.isInteger(dailyFact.year) ? ` · rok ${dailyFact.year}` : ''}</p>
                     <h2 id="fact-title" class="mt-1.5 text-xl font-black leading-tight text-slate-800 dark:text-slate-100">${escapeHtml(dailyFact.title)}</h2>
                     <p class="mt-2 text-[15px] leading-relaxed text-slate-700 dark:text-slate-200">${escapeHtml(dailyFact.text)}</p>
                     <a data-fact-link href="${escapeHtml(dailyFact.url)}" target="_blank" rel="noopener noreferrer" class="mt-3 flex items-center justify-center gap-2 rounded-2xl btn-3d bg-brand-700 px-4 py-3 text-[15px] font-black text-white"><i data-lucide="external-link" class="h-5 w-5"></i> Číst víc na Wikipedii</a>
-                    <p class="mt-2 text-center text-[11px] text-slate-400 dark:text-slate-500">Zdroj: ${escapeHtml(dailyFact.source || 'Wikipedie')}${dailyFact.page ? ` – ${escapeHtml(dailyFact.page)}` : ''}. Text shrnula umělá inteligence.${dailyFact.category ? ` Dnešní téma: ${escapeHtml(dailyFact.category)}.` : ''}</p>
+                    <p class="mt-2 text-center text-[11px] text-slate-500 dark:text-slate-400">Zdroj: ${escapeHtml(dailyFact.source || 'Wikipedie')}${dailyFact.page ? ` – ${escapeHtml(dailyFact.page)}` : ''}. Text shrnula umělá inteligence.${dailyFact.category ? ` Dnešní téma: ${escapeHtml(dailyFact.category)}.` : ''}</p>
                 </div>
             </div>`;
         overlay.addEventListener('click', (event) => { if (event.target === overlay || event.target.closest('[data-fact-close]') || event.target.closest('.fact-pop') === null) closeFact(); });
@@ -1376,7 +1376,7 @@
                 ${renderHomeTabs()}
                 ${homeTab() === 'multi' ? renderChallengesSection() : `<section class="rounded-[1.4rem] bg-white p-2.5 shadow-sm ring-1 ring-slate-200/70 dark:bg-slate-800/70 dark:ring-slate-700/70">
                     <div class="mb-2 flex items-center justify-between gap-2">
-                        <h2 class="flex min-w-0 items-center gap-2 whitespace-nowrap text-slate-800 dark:text-slate-100">${uiArt('dnes', 'h-8 w-8')}<span class="min-w-0"><span class="block text-[13px] font-black leading-tight">Dnešní otázky</span><span class="block text-[11px] font-bold leading-tight text-slate-400">${answered}/${TOPICS.length} splněno</span></span></h2>
+                        <h2 class="flex min-w-0 items-center gap-2 whitespace-nowrap text-slate-800 dark:text-slate-100">${uiArt('dnes', 'h-8 w-8')}<span class="min-w-0"><span class="block text-[13px] font-black leading-tight">Dnešní otázky</span><span class="block text-[11px] font-bold leading-tight text-slate-500 dark:text-slate-400">${answered}/${TOPICS.length} splněno</span></span></h2>
                         ${left ? `
                             <button type="button" data-action="play-daily" class="flex shrink-0 items-center gap-1.5 rounded-xl btn-3d bg-brand-700 px-3 py-2 text-[13px] font-black text-white">
                                 <i data-lucide="play" class="h-4 w-4"></i> ${answered ? 'Pokračovat' : 'Hrát vše'} <span class="font-bold opacity-70">· zbývá ${left}</span>
@@ -1462,11 +1462,11 @@
     };
     // Rámeček fotky: zástupná ikona, rozmazané pozadí, celá fotka a skryté tlačítko na zvětšení
     const photoFrame = (attributes) => `
-        <div class="absolute inset-0 flex items-center justify-center bg-slate-200 text-slate-400 dark:bg-slate-800 dark:text-slate-600"><i data-lucide="image" class="h-10 w-10"></i></div>
-        <p data-photo-failed class="hidden absolute inset-x-0 top-1/2 mt-8 text-center text-sm text-slate-500">Fotku se nepodařilo načíst</p>
+        <div class="absolute inset-0 flex items-center justify-center bg-slate-200 text-slate-500 dark:bg-slate-800 dark:text-slate-600"><i data-lucide="image" class="h-10 w-10"></i></div>
+        <p data-photo-failed class="hidden absolute inset-x-0 top-1/2 mt-8 text-center text-sm text-slate-500 dark:text-slate-400">Fotku se nepodařilo načíst</p>
         <div data-photo-backdrop class="absolute inset-0 scale-110 bg-cover bg-center opacity-50 blur-xl" aria-hidden="true"></div>
         <div ${attributes} class="absolute inset-0 bg-contain bg-center bg-no-repeat" aria-hidden="true"></div>
-        <button type="button" data-photo-zoom aria-label="Zvětšit fotku" class="hidden absolute bottom-2 right-2 rounded-xl bg-black/55 p-2 text-white shadow backdrop-blur-sm"><i data-lucide="expand" class="h-4 w-4"></i></button>`;
+        <button type="button" data-photo-zoom aria-label="Zvětšit fotku" class="hidden absolute bottom-2 right-2 rounded-xl bg-black/65 p-3 text-white shadow backdrop-blur-sm"><i data-lucide="expand" class="h-4 w-4"></i></button>`;
 
     const capitalize = (text) => text.charAt(0).toUpperCase() + text.slice(1);
     // Záložka nápovědy: „Fakta“ místo dlouhého „Čísla a fakta“, jinak název nápovědy
@@ -1490,7 +1490,7 @@
             ${caption ? `<h3 class="${CARD_TITLE} -mb-2"><i data-lucide="${visual.icon}" class="h-4 w-4"></i> ${escapeHtml(capitalize(visual.name))}</h3>` : ''}
             <section class="relative ${height} shrink-0 overflow-hidden border ${rounded} ${visual.frame}">
                 <div ${id ? `id="${id}"` : 'data-visual'} class="absolute inset-0" role="img" aria-label="${escapeHtml(visual.describe(spec))}"></div>
-                ${corner ? `<span class="absolute bottom-2 right-2 rounded-lg bg-black/45 px-2 py-1 text-[11px] font-bold text-white">${escapeHtml(corner)}</span>` : ''}
+                ${corner ? `<span class="absolute bottom-2 right-2 rounded-lg bg-black/65 px-2 py-1 text-[11px] font-bold text-white">${escapeHtml(corner)}</span>` : ''}
             </section>`;
     };
 
@@ -1502,7 +1502,7 @@
         return `
             <div class="absolute inset-0 ${visual.frame}">
                 <div id="${id}" class="absolute inset-0" role="img" aria-label="${escapeHtml(visual.describe(spec))}"></div>
-                ${corner ? `<span class="absolute bottom-2 right-2 rounded-lg bg-black/45 px-2 py-1 text-[11px] font-bold text-white">${escapeHtml(corner)}</span>` : ''}
+                ${corner ? `<span class="absolute bottom-2 right-2 rounded-lg bg-black/65 px-2 py-1 text-[11px] font-bold text-white">${escapeHtml(corner)}</span>` : ''}
             </div>`;
     };
     const factsPane = (facts) => `<div class="absolute inset-0 overflow-y-auto p-2.5"><h3 class="sr-only">Čísla a fakta</h3>${renderFactsList(facts)}</div>`;
@@ -1596,7 +1596,7 @@
             return `
                 <form id="answer-form" class="flex gap-2" autocomplete="off">
                     <label for="answer-input" class="sr-only">Odpověď</label>
-                    <input id="answer-input" name="answer" type="text" enterkeyhint="send" placeholder="${escapeHtml(data.question.placeholder)}" class="min-w-0 flex-1 rounded-xl border border-slate-200 bg-white px-4 py-3 text-[16px] text-slate-800 placeholder:text-slate-400 focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-400/30 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100">
+                    <input id="answer-input" name="answer" type="text" enterkeyhint="send" placeholder="${escapeHtml(data.question.placeholder)}" class="min-w-0 flex-1 rounded-xl border border-slate-200 bg-white px-4 py-3 text-[16px] text-slate-800 placeholder:text-slate-500 dark:placeholder:text-slate-400 focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-400/30 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100">
                     <button type="submit" aria-label="Odeslat odpověď" class="flex items-center justify-center rounded-xl px-4 text-white shadow-md transition-all active:scale-95 ${style.button} btn-3d">
                         <i data-lucide="send" class="w-5 h-5"></i>
                     </button>
@@ -1679,7 +1679,7 @@
                     <h2 class="text-[22px] font-black leading-tight tracking-tight text-slate-800 dark:text-slate-50">${escapeHtml(data.question.title)}</h2>
                 </div>
                 ${typed ? `${answerCard}${questionPanel(data)}${nextHintButton(data)}` : `${questionPanel(data)}${nextHintButton(data)}${answerCard}`}
-                <button type="button" data-action="give-up" class="mx-auto flex min-h-[2.5rem] items-center gap-2 px-3 text-sm font-semibold text-slate-500 underline-offset-4 hover:underline dark:text-slate-400">
+                <button type="button" data-action="give-up" class="mx-auto flex min-h-[2.75rem] items-center gap-2 px-3 text-sm font-semibold text-slate-500 underline-offset-4 hover:underline dark:text-slate-400">
                     <i data-lucide="eye" class="w-4 h-4"></i> Nevím, ukázat odpověď
                 </button>
             </div>
@@ -1724,7 +1724,7 @@
                         <i data-lucide="${topic.subtitleIcon || 'navigation'}" class="h-4 w-4 shrink-0 ${styleOf(topic).text}"></i> ${escapeHtml(topic.subtitle(item, ctx))}
                     </p>
                 </div>
-                <p data-card-text class="text-[15px] leading-relaxed text-slate-400">Načítám popis…</p>
+                <p data-card-text class="text-[15px] leading-relaxed text-slate-500 dark:text-slate-400">Načítám popis…</p>
                 ${visual && Visuals.info(visual) ? renderVisualFrame(visual, { height: compact ? 'h-40' : 'h-52', caption: true }) : ''}
                 ${facts.length ? renderFactsList(facts) : ''}
                 <a href="${wikipediaUrl(item.t)}" target="_blank" rel="noopener noreferrer" class="flex items-center justify-center gap-2 rounded-xl bg-slate-100 py-3 text-sm font-bold text-slate-700 transition-colors hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-100 dark:hover:bg-slate-600">
@@ -1745,7 +1745,8 @@
         const target = root.querySelector('[data-card-text]');
         if (!target || !target.isConnected) return;
         target.textContent = text.description || 'Popis se teď nepodařilo načíst – víc najdeš na Wikipedii.';
-        target.classList.replace('text-slate-400', 'text-slate-700');
+        target.classList.remove('text-slate-500', 'dark:text-slate-400');
+        target.classList.add('text-slate-700');
         target.classList.add('dark:text-slate-200');
     };
 
@@ -1904,7 +1905,7 @@
             <div class="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-full drop-shadow-md">
                 <i data-lucide="map-pin" class="h-10 w-10 fill-rose-500 stroke-white"></i>
             </div>
-            <p class="absolute inset-x-0 bottom-0 bg-black/45 px-2.5 py-1 text-[10px] text-white/90">Snímek: NASA Worldview (GIBS)</p>
+            <p class="absolute inset-x-0 bottom-0 bg-black/65 px-2.5 py-1 text-[10px] text-white/90">Snímek: NASA Worldview (GIBS)</p>
         </div>`;
     const mapPane = () => `
         <div class="absolute inset-0 bg-slate-200 dark:bg-slate-700">
@@ -2045,9 +2046,9 @@
                 <div class="sticky bottom-0 z-20 flex gap-2 border-t border-slate-200/70 bg-slate-50/95 px-4 pb-4 pt-3 backdrop-blur-sm dark:border-slate-800 dark:bg-slate-900/95">
                     ${mode === 'daily' && nextDailyTopic(data.topic) ? `
                         <button type="button" data-action="daily-home" class="flex shrink-0 items-center justify-center gap-1.5 rounded-[1.2rem] bg-slate-200 px-4 py-3.5 text-base font-bold text-slate-700 transition-all active:scale-95 dark:bg-slate-800 dark:text-slate-200">
-                            <i data-lucide="house" class="h-5 w-5"></i> Menu
+                            <i data-lucide="house" class="h-5 w-5"></i> <span class="max-[389px]:sr-only">Menu</span>
                         </button>` : ''}
-                    <button type="button" data-action="next" class="flex min-w-0 flex-1 items-center justify-center gap-2 rounded-[1.2rem] py-3.5 text-lg font-bold text-white shadow-lg transition-all active:scale-95 ${style.button} btn-3d">
+                    <button type="button" data-action="next" class="flex min-w-0 flex-1 items-center justify-center gap-2 rounded-[1.2rem] py-3.5 text-lg max-[389px]:text-base font-bold text-white shadow-lg transition-all active:scale-95 ${style.button} btn-3d">
                         <span class="truncate">${escapeHtml(getNextLabel())}</span> <i data-lucide="arrow-right" class="h-5 w-5 shrink-0"></i>
                     </button>
                 </div>
@@ -2597,7 +2598,7 @@
                 <span class="min-w-0 flex-1">
                     <span class="flex items-baseline justify-between gap-2">
                         <span class="truncate font-bold text-slate-800 dark:text-slate-100">${escapeHtml(label)}</span>
-                        <span class="shrink-0 text-xs font-semibold text-slate-400">${done ? `${done} / ` : ''}${items.length}</span>
+                        <span class="shrink-0 text-xs font-semibold text-slate-500 dark:text-slate-400">${done ? `${done} / ` : ''}${items.length}</span>
                     </span>
                     ${text ? `<span class="block truncate text-xs text-slate-500 dark:text-slate-400">${escapeHtml(text)}</span>` : ''}
                     ${progressBar(done, items.length)}
@@ -2660,7 +2661,7 @@
         return `
             <div class="flex items-center justify-between gap-2">
                 <button type="button" data-action="learn-collection" data-collection="${escapeHtml(learn.collection || '')}" class="${BACK_LINK}"><i data-lucide="chevron-left" class="h-4 w-4"></i> ${escapeHtml(collectionLabel(ctx, learn.collection))}</button>
-                <span class="text-sm font-bold text-slate-400">${learn.index + 1} / ${learn.order.length}</span>
+                <span class="text-sm font-bold text-slate-500 dark:text-slate-400">${learn.index + 1} / ${learn.order.length}</span>
             </div>
             <article id="learn-card" class="${CARD} shrink-0 overflow-hidden">
                 ${renderItemCard(item, ctx, { titleId: 'learn-title', compact: false })}
@@ -2710,7 +2711,7 @@
                         <span class="block truncate font-bold text-slate-800 dark:text-slate-100">${escapeHtml(item.n)}</span>
                         <span class="block truncate text-xs text-slate-500 dark:text-slate-400">${escapeHtml(ctx.topic.title)} · ${escapeHtml(ctx.topic.subtitle(item, ctx))}</span>
                     </span>
-                    <i data-lucide="info" class="h-5 w-5 shrink-0 text-slate-400"></i>
+                    <i data-lucide="info" class="h-5 w-5 shrink-0 text-slate-500 dark:text-slate-400"></i>
                 </button>
             </li>`).join('');
         return `${back}
@@ -2720,7 +2721,7 @@
             </button>
             <p class="-mt-2 text-center text-xs text-slate-500 dark:text-slate-400">Co pak uhodneš, ze seznamu zmizí. Klepnutím si to prohlédneš.</p>
             <ul class="flex flex-col gap-2">${rows}</ul>
-            <button type="button" data-action="clear-mistakes" class="mx-auto flex items-center gap-1.5 py-2 text-sm font-semibold text-slate-500 underline-offset-4 hover:underline dark:text-slate-400">
+            <button type="button" data-action="clear-mistakes" class="mx-auto flex min-h-[2.75rem] items-center gap-1.5 py-2 text-sm font-semibold text-slate-500 underline-offset-4 hover:underline dark:text-slate-400">
                 <i data-lucide="trash-2" class="h-4 w-4"></i> Vymazat seznam
             </button>`;
     };
@@ -2872,7 +2873,7 @@
                         <p class="text-xs font-bold text-slate-600 dark:text-slate-300">Přijímáš: ${escapeHtml(acceptSummary())}</p>
                         ${blocked.length ? '<button type="button" data-accept-all class="rounded-lg bg-slate-200 px-2.5 py-1.5 text-xs font-black text-slate-700 dark:bg-slate-700 dark:text-slate-200">Zapnout vše</button>' : ''}
                     </div>
-                    <p class="min-h-[1rem] text-xs font-semibold ${note.startsWith('Uloženo') ? 'text-emerald-700 dark:text-emerald-300' : 'text-rose-600 dark:text-rose-400'}" role="status">${escapeHtml(note)}</p>
+                    <p class="min-h-[1rem] text-xs font-semibold ${note.startsWith('Uloženo') ? 'text-emerald-700 dark:text-emerald-300' : 'text-rose-700 dark:text-rose-400'}" role="status">${escapeHtml(note)}</p>
                 </div>`, {
                 onClick: async (event) => {
                     const toggle = event.target.closest('[data-accept-topic]');
@@ -2950,11 +2951,11 @@
         const count = row.challenge ? row.challenge.count : 0;
         const best = row.others.length ? Math.max(...row.others.map(other => other.correct)) : -1;
         const outcome = !row.others.length ? 'čeká na soupeře' : row.correct > best ? 'vyhráno' : row.correct === best ? 'remíza' : 'prohráno';
-        const tone = outcome === 'vyhráno' ? 'text-emerald-600 dark:text-emerald-400' : outcome === 'prohráno' ? 'text-rose-500 dark:text-rose-400' : 'text-slate-400';
+        const tone = outcome === 'vyhráno' ? 'text-emerald-700 dark:text-emerald-400' : outcome === 'prohráno' ? 'text-rose-700 dark:text-rose-400' : 'text-slate-500 dark:text-slate-400';
         const rivals = row.others.slice(0, 3).map(other => avatarHtml(other.player, 'h-7 w-7 text-sm ring-2 ring-white dark:ring-slate-800', true)).join('');
         return `
             <button type="button" data-action="challenge-open" data-code="${escapeHtml(row.challenge_id)}" class="flex w-full items-center gap-3 rounded-2xl bg-white p-2.5 text-left shadow-sm ring-1 ring-slate-200/70 active:scale-[0.99] dark:bg-slate-800/70 dark:ring-slate-700/70">
-                <span class="flex min-w-[1.75rem] -space-x-2">${rivals || `<span class="flex h-7 w-7 items-center justify-center rounded-full bg-slate-100 text-slate-400 dark:bg-slate-700"><i data-lucide="users" class="h-4 w-4"></i></span>`}</span>
+                <span class="flex min-w-[1.75rem] -space-x-2">${rivals || `<span class="flex h-7 w-7 items-center justify-center rounded-full bg-slate-100 text-slate-500 dark:text-slate-400 dark:bg-slate-700"><i data-lucide="users" class="h-4 w-4"></i></span>`}</span>
                 <span class="min-w-0 flex-1">
                     <span class="block truncate text-[13px] font-bold text-slate-800 dark:text-slate-100">${escapeHtml(row.challenge ? challengeTopicTitle(row.challenge.topic) : '')} · ${count} otázek</span>
                     <span class="block text-[11px] font-semibold ${tone}">${outcome}</span>
@@ -2990,7 +2991,7 @@
             <div id="league-card" class="flex items-center gap-2.5 rounded-2xl bg-white p-2.5 shadow-sm ring-1 ring-slate-200/70 dark:bg-slate-800/70 dark:ring-slate-700/70">
                 ${leagueBubble(progress.league)}
                 <div class="min-w-0 flex-1">
-                    <p class="truncate text-[15px] font-black leading-tight text-slate-800 dark:text-slate-100"><span class="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500">Moje liga</span> ${escapeHtml(progress.league.name)} · ${myRating.rating}</p>
+                    <p class="truncate text-[15px] font-black leading-tight text-slate-800 dark:text-slate-100"><span class="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">Moje liga</span> ${escapeHtml(progress.league.name)} · ${myRating.rating}</p>
                     <div class="mt-1 h-1.5 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${progress.percent}" aria-label="Postup do další ligy"><div class="league-${progress.league.id} h-full rounded-full ${BAR_WIDTHS[Math.round(progress.percent / 10)]}"></div></div>
                     <p class="mt-0.5 truncate text-[10.5px] font-semibold text-slate-500 dark:text-slate-400">${myRating.games ? hint : 'Rating se mění výzvami proti jinému hráči'}</p>
                 </div>
@@ -3002,25 +3003,25 @@
         const user = signedUser();
         if (!user || !Social || !Rating) { openLoginDialog(); return; }
         const head = `<p class="text-xs font-semibold leading-snug text-slate-500 dark:text-slate-400">Týden ${escapeHtml(Rating.weekLabel())} · řazeno podle změny ratingu ve výzvách proti jiným hráčům. V pondělí se počítá znovu.</p>`;
-        showDialog('Týdenní žebříček', `<div class="flex flex-col gap-3">${head}<p class="py-4 text-center text-sm font-semibold text-slate-400">Načítám…</p></div>`);
+        showDialog('Týdenní žebříček', `<div class="flex flex-col gap-3">${head}<p class="py-4 text-center text-sm font-semibold text-slate-500 dark:text-slate-400">Načítám…</p></div>`);
         let rows;
         try { rows = await Social.weeklyLeaderboard(); } catch (error) { rows = undefined; }
         if (!document.getElementById('dialog-overlay')) return;
         let body;
-        if (rows === undefined) body = '<p class="text-sm font-semibold text-rose-600 dark:text-rose-400">Žebříček se nepodařilo načíst. Zkontroluj připojení.</p>';
+        if (rows === undefined) body = '<p class="text-sm font-semibold text-rose-700 dark:text-rose-400">Žebříček se nepodařilo načíst. Zkontroluj připojení.</p>';
         else if (rows === null) body = '<p class="text-sm font-semibold text-slate-500 dark:text-slate-400">Žebříček zatím není k dispozici.</p>';
         else if (!rows.length) body = '<p class="text-sm text-slate-500 dark:text-slate-400">Tenhle týden zatím nikdo nedohrál výzvu proti jinému hráči. Buď první!</p>';
         else {
             const mineIn = rows.some(row => row.id === user.id);
             body = `<ol id="weekly-list" class="flex flex-col gap-1.5">${rows.map((row, index) => `
                 <li ${row.id === user.id ? 'data-me' : ''} class="flex items-center gap-2.5 rounded-2xl bg-white p-2 shadow-sm dark:bg-slate-800 ${row.id === user.id ? 'ring-2 ring-brand-600' : ''}">
-                    <span class="w-5 shrink-0 text-center text-sm font-black text-slate-400">${index === 0 ? '🏆' : index + 1}</span>
+                    <span class="w-5 shrink-0 text-center text-sm font-black text-slate-500 dark:text-slate-400">${index === 0 ? '🏆' : index + 1}</span>
                     ${avatarHtml(row, 'h-9 w-9 text-lg', true)}
                     <span class="min-w-0 flex-1">
                         <span class="block truncate text-[13px] font-black leading-tight text-slate-800 dark:text-slate-100">${escapeHtml(playerName(row))}${row.id === user.id ? ' (ty)' : ''}</span>
                         <span class="flex items-center gap-1.5 truncate text-[11px] font-semibold text-slate-500 dark:text-slate-400">Úr. ${levelProgress(row.xp || 0).level} · ${leagueChip(row.rating)}</span>
                     </span>
-                    <span class="shrink-0 text-right"><span class="block text-base font-black ${row.week_delta >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}">${Rating.formatDelta(row.week_delta)}</span><span class="block text-[10px] font-semibold text-slate-400">${row.week_wins}/${row.week_games} výher</span></span>
+                    <span class="shrink-0 text-right"><span class="block text-base font-black ${row.week_delta >= 0 ? 'text-emerald-700 dark:text-emerald-400' : 'text-rose-700 dark:text-rose-400'}">${Rating.formatDelta(row.week_delta)}</span><span class="block text-[10px] font-semibold text-slate-500 dark:text-slate-400">${row.week_wins}/${row.week_games} výher</span></span>
                 </li>`).join('')}</ol>
                 ${mineIn ? '' : '<p class="text-xs text-slate-500 dark:text-slate-400">Ty tu zatím nejsi: zahraj tenhle týden výzvu proti jinému hráči.</p>'}`;
         }
@@ -3038,14 +3039,14 @@
         const tab = homeTab();
         const waiting = (incomingList || []).length;
         const option = (id, icon, label, badge = 0) => `
-            <button type="button" role="tab" data-action="home-tab" data-tab="${id}" aria-selected="${tab === id}" class="relative flex flex-1 items-center justify-center gap-2 rounded-xl px-3 py-2 text-[13px] font-black transition-colors ${tab === id ? 'btn-3d bg-brand-700 text-white' : 'text-slate-500 dark:text-slate-400'}">
+            <button type="button" role="tab" data-action="home-tab" data-tab="${id}" aria-selected="${tab === id}" class="relative flex flex-1 items-center justify-center gap-2 rounded-xl min-h-[2.75rem] px-3 text-[13px] font-black transition-colors ${tab === id ? 'btn-3d bg-brand-700 text-white' : 'text-slate-600 dark:text-slate-400'}">
                 <i data-lucide="${icon}" class="h-4 w-4"></i> ${label}${badge ? `<span class="rounded-full bg-gold-500 px-1.5 py-0.5 text-[10px] font-black leading-none text-brand-950">${badge}</span>` : ''}
             </button>`;
         return `<div id="home-tabs" role="tablist" class="flex shrink-0 gap-1 rounded-2xl bg-slate-200/70 p-1 dark:bg-slate-800">${option('single', 'user-round', 'Jeden hráč')}${option('multi', 'users', 'Více hráčů', waiting)}</div>`;
     };
     const challengesInner = () => {
         const user = signedUser();
-        const LABEL = 'px-1 text-[11px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500';
+        const LABEL = 'px-1 text-[11px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400';
         if (!user) {
             return `
                 <div class="flex flex-col items-center gap-3 rounded-[1.4rem] bg-white p-5 text-center shadow-sm ring-1 ring-slate-200/70 dark:bg-slate-800/70 dark:ring-slate-700/70">
@@ -3058,9 +3059,9 @@
         const resume = challenge && !challenge.done
             ? `<button type="button" data-action="challenge-resume" class="flex w-full items-center justify-center gap-2 rounded-2xl btn-3d bg-gradient-to-b from-gold-400 to-gold-600 px-4 py-3 text-[15px] font-black text-brand-950"><i data-lucide="play" class="h-5 w-5"></i> Pokračovat ve výzvě (${challenge.index + 1}/${challenge.count})</button>` : '';
         const recent = myChallenges === null
-            ? '<p class="px-1 text-xs font-semibold text-slate-400">Načítám výzvy…</p>'
+            ? '<p class="px-1 text-xs font-semibold text-slate-500 dark:text-slate-400">Načítám výzvy…</p>'
             : (myChallenges.filter(row => !incoming.some(invite => invite.id === row.challenge_id)).slice(0, 6).map(challengeRow).join('')
-                || '<p class="px-1 text-sm text-slate-400">Zatím žádné výzvy. Založ první tlačítkem Vyzvat.</p>');
+                || '<p class="px-1 text-sm text-slate-500 dark:text-slate-400">Zatím žádné výzvy. Založ první tlačítkem Vyzvat.</p>');
         return `
             <div class="flex flex-col gap-3">
                 <div class="grid grid-cols-2 gap-2">
@@ -3115,7 +3116,7 @@
         if (user) {
             const profile = myProfile || { display_name: user.name, avatar: '🦊', color: 'emerald' };
             button.className = 'shrink-0 rounded-full shadow-md ring-2 ring-white transition-all active:scale-95 dark:ring-slate-700';
-            button.innerHTML = avatarHtml(profile, 'h-10 w-10 text-xl');
+            button.innerHTML = avatarHtml(profile, 'h-11 w-11 text-2xl');
             button.setAttribute('aria-label', `Nastavení a profil: ${playerName(profile)}`);
             button.title = `Nastavení a profil: ${playerName(profile)}`;
         } else {
@@ -3145,11 +3146,11 @@
                     <h2 class="text-2xl font-black text-slate-800 dark:text-slate-50">Vítej v Mudrlantovi</h2>
                     <p class="mt-2 text-sm text-slate-500 dark:text-slate-400">Vědomostní kvíz ze zeměpisu, historie, přírody, kultury a sportu. S účtem si vybereš přezdívku a obrázek, můžeš vyzývat kamarády a porovnávat výsledky.</p>
                 </div>
-                ${error ? `<p class="text-center text-sm font-semibold text-rose-600 dark:text-rose-400" role="alert">${escapeHtml(error)}</p>` : ''}
+                ${error ? `<p class="text-center text-sm font-semibold text-rose-700 dark:text-rose-400" role="alert">${escapeHtml(error)}</p>` : ''}
                 <div class="flex flex-col items-center gap-2">
                     <button type="button" data-action="auth-login" class="${PRIMARY_BUTTON}"><i data-lucide="log-in" class="h-5 w-5"></i> Přihlásit se přes Google</button>
                     <button type="button" data-action="play-as-host" class="mt-1 rounded-xl px-4 py-2 text-sm font-bold text-slate-500 underline decoration-slate-300 underline-offset-4 hover:text-slate-800 dark:text-slate-400 dark:decoration-slate-600 dark:hover:text-slate-100">Pokračovat bez přihlášení</button>
-                    <p class="text-center text-xs text-slate-400 dark:text-slate-500">Hra funguje i bez účtu, jen bez profilu a výzev. Přihlásit se můžeš kdykoli později.</p>
+                    <p class="text-center text-xs text-slate-500 dark:text-slate-400">Hra funguje i bez účtu, jen bez profilu a výzev. Přihlásit se můžeš kdykoli později.</p>
                 </div>
             </div>`;
         renderIcons(appContent);
@@ -3215,7 +3216,7 @@
         }
         return overlay;
     };
-    const DIALOG_NOTE = (text, tone = 'text-rose-600 dark:text-rose-400') => `<p class="mt-3 min-h-[1.25rem] text-sm font-semibold ${tone}" role="status">${escapeHtml(text)}</p>`;
+    const DIALOG_NOTE = (text, tone = 'text-rose-700 dark:text-rose-400') => `<p class="mt-3 min-h-[1.25rem] text-sm font-semibold ${tone}" role="status">${escapeHtml(text)}</p>`;
     const PRIMARY_BUTTON = 'flex w-full items-center justify-center gap-2 rounded-2xl btn-3d bg-brand-700 px-4 py-3 text-base font-black text-white disabled:opacity-50';
     const SECONDARY_BUTTON = 'flex w-full items-center justify-center gap-2 rounded-2xl btn-3d-light bg-white px-4 py-3 text-base font-bold text-slate-800 dark:bg-slate-800 dark:text-slate-100';
 
@@ -3244,8 +3245,8 @@
         const chip = (attr, value, active, content) => `<button type="button" ${attr}="${escapeHtml(String(value))}" aria-pressed="${active}" class="min-w-0 rounded-xl border-2 px-2 py-1.5 text-[13px] font-bold leading-tight active:scale-[0.98] ${active ? 'border-brand-600 bg-brand-50 text-brand-900 dark:bg-brand-900/40 dark:text-brand-100' : 'border-transparent bg-white text-slate-600 dark:bg-slate-800 dark:text-slate-300'}">${content}</button>`;
         const LABEL = 'text-xs font-black uppercase tracking-widest text-slate-500 dark:text-slate-400';
         const foundRows = () => {
-            if (draft.found === null) return draft.query.trim().length >= 2 ? '<p class="px-1 text-xs font-semibold text-slate-400">Hledám…</p>' : '<p class="px-1 text-xs text-slate-400">Napiš aspoň 2 znaky přezdívky.</p>';
-            if (!draft.found.length) return '<p class="px-1 text-xs font-semibold text-slate-400">Žádný takový hráč. Zkus jinou přezdívku.</p>';
+            if (draft.found === null) return draft.query.trim().length >= 2 ? '<p class="px-1 text-xs font-semibold text-slate-500 dark:text-slate-400">Hledám…</p>' : '<p class="px-1 text-xs text-slate-500 dark:text-slate-400">Napiš aspoň 2 znaky přezdívky.</p>';
+            if (!draft.found.length) return '<p class="px-1 text-xs font-semibold text-slate-500 dark:text-slate-400">Žádný takový hráč. Zkus jinou přezdívku.</p>';
             return draft.found.map(player => `
                 <button type="button" data-pick-opp="${escapeHtml(player.id)}" class="flex w-full items-center gap-3 rounded-xl bg-white p-2 text-left shadow-sm active:scale-[0.99] dark:bg-slate-800">
                     ${avatarHtml(player, 'h-8 w-8 text-base')}<span class="min-w-0 flex-1 truncate text-sm font-bold text-slate-800 dark:text-slate-100">${escapeHtml(playerName(player))}</span>
@@ -3299,9 +3300,9 @@
             return `
                 <div class="rounded-2xl bg-white shadow-sm dark:bg-slate-800/70">
                     <button type="button" data-ch-open="${id}" aria-expanded="${open}" class="flex w-full items-center gap-3 px-3 py-2.5 text-left">
-                        <i data-lucide="${icon}" class="h-5 w-5 shrink-0 text-slate-400"></i>
-                        <span class="min-w-0 flex-1"><span class="block text-[11px] font-black uppercase tracking-widest text-slate-400">${label}</span><span class="block truncate text-[14px] font-bold text-slate-800 dark:text-slate-100">${escapeHtml(summary)}</span></span>
-                        <i data-lucide="${open ? 'chevron-down' : 'chevron-right'}" class="h-5 w-5 shrink-0 text-slate-400"></i>
+                        <i data-lucide="${icon}" class="h-5 w-5 shrink-0 text-slate-500 dark:text-slate-400"></i>
+                        <span class="min-w-0 flex-1"><span class="block text-[11px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">${label}</span><span class="block truncate text-[14px] font-bold text-slate-800 dark:text-slate-100">${escapeHtml(summary)}</span></span>
+                        <i data-lucide="${open ? 'chevron-down' : 'chevron-right'}" class="h-5 w-5 shrink-0 text-slate-500 dark:text-slate-400"></i>
                     </button>
                     ${open ? `<div class="border-t border-slate-100 px-3 pb-3 pt-3 dark:border-slate-700">${body}</div>` : ''}
                 </div>`;
@@ -3315,7 +3316,7 @@
                     <span class="col-span-3">${chip('data-ch-topic', 'all', all, '<span class="flex items-center justify-center gap-1.5"><i data-lucide="shuffle" class="h-3.5 w-3.5"></i> Všechna témata</span>')}</span>
                     ${TOPICS.map(topic => chip('data-ch-topic', topic.id, !all && draft.topics.includes(topic.id), `<span class="flex flex-col items-center gap-0.5"><i data-lucide="${topic.icon}" class="h-4 w-4"></i><span class="block text-[11px]">${escapeHtml(topic.title)}</span></span>`)).join('')}
                 </div>
-                <p class="mt-2 text-[11px] text-slate-400">Klepnutím vybereš víc témat najednou.</p>
+                <p class="mt-2 text-[11px] text-slate-500 dark:text-slate-400">Klepnutím vybereš víc témat najednou.</p>
                 ${cats.length > 1 ? `<p class="${LABEL} mb-1.5 mt-3">Okruh</p><div class="flex flex-wrap gap-1.5">${cats.map(category => chip('data-ch-cat', category.key, chosen.includes(category.key), `<span class="flex items-center gap-1.5"><i data-lucide="${chosen.includes(category.key) ? 'check' : 'plus'}" class="h-3.5 w-3.5"></i>${escapeHtml(category.label)}</span>`)).join('')}</div>` : ''}`;
         };
         const settingsBody = () => `
@@ -3333,8 +3334,8 @@
                 </div>
                 ${accordion('topics', challengeTopicIcon(topicValue()), 'Téma', topicSummary(), topicBody())}
                 <div class="flex items-center gap-3 rounded-2xl bg-white px-3 py-2 shadow-sm dark:bg-slate-800/70">
-                    <i data-lucide="hash" class="h-5 w-5 shrink-0 text-slate-400"></i>
-                    <span class="min-w-0 flex-1 text-[11px] font-black uppercase tracking-widest text-slate-400">Počet otázek</span>
+                    <i data-lucide="hash" class="h-5 w-5 shrink-0 text-slate-500 dark:text-slate-400"></i>
+                    <span class="min-w-0 flex-1 text-[11px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">Počet otázek</span>
                     <div class="grid grid-cols-3 gap-1">${Social.COUNTS.map(count => chip('data-ch-count', count, draft.count === count, `<span class="px-1.5 font-black">${count}</span>`)).join('')}</div>
                 </div>
                 ${accordion('settings', 'pencil', 'Nastavení', settingsSummary(), settingsBody())}
@@ -3471,10 +3472,10 @@
 
     const rankingRows = (rows, count, meId) => rows.map((row, index) => `
         <li class="flex items-center gap-3 rounded-2xl bg-white p-2.5 shadow-sm dark:bg-slate-800 ${row.user_id === meId ? 'ring-2 ring-brand-600' : ''}">
-            <span class="w-5 text-center text-sm font-black text-slate-400">${index === 0 ? '🏆' : index + 1}</span>
+            <span class="w-5 text-center text-sm font-black text-slate-500 dark:text-slate-400">${index === 0 ? '🏆' : index + 1}</span>
             ${avatarHtml(row.player, 'h-9 w-9 text-lg', true)}
             <span class="min-w-0 flex-1 truncate text-sm font-bold text-slate-800 dark:text-slate-100">${escapeHtml(playerName(row.player))}${row.user_id === meId ? ' (ty)' : ''}</span>
-            <span class="text-right"><span class="block text-base font-black text-slate-800 dark:text-slate-100">${row.correct}/${count}</span><span class="block text-[10px] font-semibold text-slate-400">${escapeHtml(formatPoints(row.points))}</span></span>
+            <span class="text-right"><span class="block text-base font-black text-slate-800 dark:text-slate-100">${row.correct}/${count}</span><span class="block text-[10px] font-semibold text-slate-500 dark:text-slate-400">${escapeHtml(formatPoints(row.points))}</span></span>
         </li>`).join('');
 
     // Odznak jako medaile ve stylu hry: získaný zlatý nebo vínový se ikonou, nezískaný šedý
@@ -3488,7 +3489,7 @@
     const medalHtml = (badge, earned, size = 'h-11 w-11', iconSize = 'h-5 w-5') => `
         <span class="flex ${size} shrink-0 items-center justify-center rounded-full ring-2 ${earned
             ? (MEDAL_TONES[badge.tone] || MEDAL_TONES.gold)
-            : 'bg-slate-200 text-slate-400 ring-slate-300 dark:bg-slate-700 dark:text-slate-500 dark:ring-slate-600'} shadow-sm">${earned && badge.topic && topicArt({ id: badge.topic })
+            : 'bg-slate-200 text-slate-500 ring-slate-300 dark:bg-slate-700 dark:text-slate-400 dark:ring-slate-600'} shadow-sm">${earned && badge.topic && topicArt({ id: badge.topic })
                 ? `<img src="icons/topics/${badge.topic}.webp" alt="" class="h-[72%] w-[72%] object-contain">`
                 : `<i data-lucide="${earned ? badge.icon : 'lock'}" class="${iconSize}"></i>`}</span>`;
     // Další (nejbližší nezískaný) stupeň každé skupiny s postupem; nejbližší cíle nahoře
@@ -3518,12 +3519,12 @@
                 const value = Math.min(detail.value(c, x), detail.goal);
                 return `<div class="flex items-center gap-3 rounded-2xl bg-white p-3 shadow-sm ring-2 ring-brand-600 dark:bg-slate-800">${medalHtml(detail, Boolean(earned), 'h-14 w-14', 'h-6 w-6')}
                     <div class="min-w-0 flex-1"><p class="text-sm font-black text-slate-800 dark:text-slate-100">${escapeHtml(detail.title)}</p><p class="text-xs text-slate-500 dark:text-slate-400">${escapeHtml(detail.text)}</p>
-                    <p class="mt-0.5 text-[11px] font-bold ${earned ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-500 dark:text-slate-400'}">${earned ? 'Získáno' : `${value} / ${detail.goal}`}</p>${earned ? '' : goalBar(value / detail.goal)}</div></div>`;
+                    <p class="mt-0.5 text-[11px] font-bold ${earned ? 'text-emerald-700 dark:text-emerald-400' : 'text-slate-500 dark:text-slate-400'}">${earned ? 'Získáno' : `${value} / ${detail.goal}`}</p>${earned ? '' : goalBar(value / detail.goal)}</div></div>`;
             })() : '<p class="text-center text-xs text-slate-500 dark:text-slate-400">Klepni na medaili a uvidíš, jak ji získat.</p>';
             const sections = BADGE_GROUPS.map(group => {
                 const earned = group.badges.filter(badge => progress.badges[badge.id]).length;
                 return `<section class="rounded-2xl bg-white p-2.5 shadow-sm dark:bg-slate-800">
-                    <div class="mb-1.5 flex items-center justify-between gap-2"><h4 class="truncate text-[12px] font-black text-slate-800 dark:text-slate-100">${escapeHtml(group.title)}</h4><span class="shrink-0 text-[11px] font-bold text-slate-400">${earned}/${group.badges.length}</span></div>
+                    <div class="mb-1.5 flex items-center justify-between gap-2"><h4 class="truncate text-[12px] font-black text-slate-800 dark:text-slate-100">${escapeHtml(group.title)}</h4><span class="shrink-0 text-[11px] font-bold text-slate-500 dark:text-slate-400">${earned}/${group.badges.length}</span></div>
                     <div class="flex flex-wrap gap-1.5">${group.badges.map(badge => `<button type="button" data-badge="${badge.id}" aria-label="${escapeHtml(badge.title)}" title="${escapeHtml(`${badge.title}: ${badge.text}`)}" class="rounded-full ${selected === badge.id ? 'ring-2 ring-brand-600 ring-offset-2 dark:ring-offset-slate-800' : ''}">${medalHtml(badge, Boolean(progress.badges[badge.id]), 'h-9 w-9', 'h-4 w-4')}</button>`).join('')}</div>
                 </section>`;
             }).join('');
@@ -3567,10 +3568,10 @@
                 <li data-title-row="${entry.from}"${here ? ' data-here' : ''} class="flex items-center gap-3 rounded-2xl p-2 shadow-sm ${here ? 'bg-brand-700 text-white ring-2 ring-gold-400' : reached ? 'bg-white dark:bg-slate-800' : 'bg-white/60 dark:bg-slate-800/50'}">
                     ${uiArt(`sova-${titleOwl(index)}`, `h-14 w-14 ${reached ? '' : 'opacity-40 grayscale'}`)}
                     <div class="min-w-0 flex-1">
-                        <p class="flex items-baseline justify-between gap-2"><span class="truncate text-[15px] font-black leading-tight ${here ? '' : reached ? 'text-slate-800 dark:text-slate-100' : 'text-slate-400 dark:text-slate-500'}">${escapeHtml(entry.title)}</span><span class="shrink-0 text-[11px] font-bold ${here ? 'text-gold-300' : 'text-slate-400'}">úr. ${entry.from === last ? entry.from : `${entry.from}–${last}`}</span></p>
+                        <p class="flex items-baseline justify-between gap-2"><span class="truncate text-[15px] font-black leading-tight ${here ? '' : reached ? 'text-slate-800 dark:text-slate-100' : 'text-slate-500 dark:text-slate-400'}">${escapeHtml(entry.title)}</span><span class="shrink-0 text-[11px] font-bold ${here ? 'text-gold-300' : 'text-slate-500 dark:text-slate-400'}">úr. ${entry.from === last ? entry.from : `${entry.from}–${last}`}</span></p>
                         <p class="mt-0.5 text-[11px] font-semibold leading-snug ${here ? 'text-white/85' : 'text-slate-500 dark:text-slate-400'}">od ${formatXp(xpForLevel(entry.from))} XP · asi ${formatXp(questionsForLevel(entry.from))} otázek</p>
                         ${rewardChips(entry.from, last, here)}
-                        ${levels.length > 1 ? `<p class="mt-0.5 text-[10px] leading-snug ${here ? 'text-white/70' : 'text-slate-400 dark:text-slate-500'}">${levels.map(level => `<span class="${level === current ? 'font-black underline' : ''}">${level}: ${formatXp(xpForLevel(level))}</span>`).join(' · ')}</p>` : ''}
+                        ${levels.length > 1 ? `<p class="mt-0.5 text-[10px] leading-snug ${here ? 'text-white/70' : 'text-slate-500 dark:text-slate-400'}">${levels.map(level => `<span class="${level === current ? 'font-black underline' : ''}">${level}: ${formatXp(xpForLevel(level))}</span>`).join(' · ')}</p>` : ''}
                     </div>
                 </li>`;
         }).join('');
@@ -3619,7 +3620,7 @@
                 </button>
                 <div>
                     <h3 class="${CARD_TITLE} mb-2">Nejbližší odznaky</h3>
-                    <ul class="flex flex-col gap-1.5">${goals.map(goal => `<li class="flex items-center gap-2.5 rounded-2xl bg-white p-2 shadow-sm dark:bg-slate-800">${medalHtml(goal.badge, false, 'h-10 w-10', 'h-[1.125rem] w-[1.125rem]')}<span class="min-w-0 flex-1"><span class="flex items-baseline justify-between gap-2"><span class="truncate text-[12px] font-black text-slate-800 dark:text-slate-100">${escapeHtml(goal.badge.title)}</span><span class="shrink-0 text-[11px] font-bold text-slate-400">${goal.value} / ${goal.badge.goal}</span></span><span class="block truncate text-[10px] font-semibold text-slate-500 dark:text-slate-400">${escapeHtml(goal.badge.text)}</span>${goalBar(goal.ratio)}</span></li>`).join('')}</ul>
+                    <ul class="flex flex-col gap-1.5">${goals.map(goal => `<li class="flex items-center gap-2.5 rounded-2xl bg-white p-2 shadow-sm dark:bg-slate-800">${medalHtml(goal.badge, false, 'h-10 w-10', 'h-[1.125rem] w-[1.125rem]')}<span class="min-w-0 flex-1"><span class="flex items-baseline justify-between gap-2"><span class="truncate text-[12px] font-black text-slate-800 dark:text-slate-100">${escapeHtml(goal.badge.title)}</span><span class="shrink-0 text-[11px] font-bold text-slate-500 dark:text-slate-400">${goal.value} / ${goal.badge.goal}</span></span><span class="block truncate text-[10px] font-semibold text-slate-500 dark:text-slate-400">${escapeHtml(goal.badge.text)}</span>${goalBar(goal.ratio)}</span></li>`).join('')}</ul>
                     <button type="button" data-open-badges class="${SECONDARY_BUTTON} mt-2 !py-2.5 text-sm"><i data-lucide="medal" class="h-4 w-4"></i> Všechny odznaky ${earnedCount} / ${BADGES.length}</button>
                 </div>
                 <div>
@@ -3658,8 +3659,8 @@
         const chip = (value, label, tone) => `<span class="rounded-xl px-2.5 py-1.5 text-[13px] font-black ${tone}">${value} ${label}</span>`;
         const render = () => {
             let body;
-            if (failed) body = '<p class="text-sm font-semibold text-rose-600 dark:text-rose-400">Profil se nepodařilo načíst. Zkontroluj připojení.</p>';
-            else if (!stats) body = '<p class="text-sm font-semibold text-slate-400">Načítám…</p>';
+            if (failed) body = '<p class="text-sm font-semibold text-rose-700 dark:text-rose-400">Profil se nepodařilo načíst. Zkontroluj připojení.</p>';
+            else if (!stats) body = '<p class="text-sm font-semibold text-slate-500 dark:text-slate-400">Načítám…</p>';
             else {
                 const percent = stats.answered ? `${Math.round(stats.correct / stats.answered * 100)} %` : '–';
                 const versus = stats.versus && (stats.versus.wins + stats.versus.draws + stats.versus.losses)
@@ -3761,7 +3762,7 @@
             { onClick: (event) => { if (event.target.closest('[data-auth-login-dialog]')) Auth.login(); } });
             return;
         }
-        showDialog('Výzva', '<p class="py-6 text-center text-sm font-semibold text-slate-500">Načítám výzvu…</p>');
+        showDialog('Výzva', '<p class="py-6 text-center text-sm font-semibold text-slate-500 dark:text-slate-400">Načítám výzvu…</p>');
         let def;
         let results;
         try {
@@ -3791,7 +3792,7 @@
                 })()}
                 ${def.invited ? `<p class="flex items-center gap-2 text-sm font-semibold text-slate-600 dark:text-slate-300">Vyzvaný hráč: ${avatarHtml(def.invited, 'h-6 w-6 text-sm')} <b>${escapeHtml(def.invited.id === user.id ? 'ty' : playerName(def.invited))}</b></p>` : ''}
                 ${results.length ? `<ol class="flex flex-col gap-1.5">${rankingRows(results, def.count, user.id)}</ol>` : '<p class="text-sm text-slate-500 dark:text-slate-400">Zatím nikdo nehrál.</p>'}
-                ${myChange ? `<p class="text-sm font-bold text-slate-600 dark:text-slate-300">Tvůj rating: <b class="${myChange.delta > 0 ? 'text-emerald-600 dark:text-emerald-400' : myChange.delta < 0 ? 'text-rose-600 dark:text-rose-400' : ''}">${Rating.formatDelta(myChange.delta)}</b> (${myChange.after})</p>` : ''}
+                ${myChange ? `<p class="text-sm font-bold text-slate-600 dark:text-slate-300">Tvůj rating: <b class="${myChange.delta > 0 ? 'text-emerald-700 dark:text-emerald-400' : myChange.delta < 0 ? 'text-rose-700 dark:text-rose-400' : ''}">${Rating.formatDelta(myChange.delta)}</b> (${myChange.after})</p>` : ''}
                 ${mine ? '' : `<button type="button" data-ch-play class="${PRIMARY_BUTTON}"><i data-lucide="play" class="h-5 w-5"></i> Hrát výzvu</button>`}
                 <button type="button" data-ch-share class="${SECONDARY_BUTTON}"><i data-lucide="share-2" class="h-5 w-5"></i> Sdílet výzvu · ${code}</button>
             </div>`, {
@@ -3873,9 +3874,9 @@
             : correct > bestRival.correct || (correct === bestRival.correct && points > bestRival.points) ? 'vitez'
                 : correct === bestRival.correct && points === bestRival.points ? 'radost' : 'prohra';
         const body = state === 'sending'
-            ? '<p class="py-4 text-center text-sm font-semibold text-slate-500">Ukládám výsledek…</p>'
+            ? '<p class="py-4 text-center text-sm font-semibold text-slate-500 dark:text-slate-400">Ukládám výsledek…</p>'
             : state === 'error'
-                ? `<div class="flex flex-col gap-2"><p class="text-sm font-semibold text-rose-600 dark:text-rose-400">Výsledek se nepodařilo uložit. Zkontroluj připojení.</p><button type="button" data-action="challenge-retry" class="${PRIMARY_BUTTON}">Zkusit znovu</button></div>`
+                ? `<div class="flex flex-col gap-2"><p class="text-sm font-semibold text-rose-700 dark:text-rose-400">Výsledek se nepodařilo uložit. Zkontroluj připojení.</p><button type="button" data-action="challenge-retry" class="${PRIMARY_BUTTON}">Zkusit znovu</button></div>`
                 : `<ol class="flex flex-col gap-1.5">${results && results.length ? rankingRows(results, c.count, user && user.id) : ''}</ol>
                     <p class="text-sm text-slate-500 dark:text-slate-400">${results && results.length > 1 ? 'Porovnání s ostatními hráči.' : 'Pošli kód kamarádům, ať ti to oplatí.'}</p>`;
         appContent.innerHTML = `

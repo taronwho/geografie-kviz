@@ -73,7 +73,7 @@
         const optionHtml = (option) => `<option value="${escapeHtml(option.value)}"${option.value === ctx.prefs.title ? ' selected' : ''}>${escapeHtml(option.label)}</option>`;
         return `<label class="block">
                 <span class="sr-only">Co se zobrazí u tvého jména</span>
-                <select data-title-select class="w-full rounded-xl border-2 border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-800 focus:border-brand-600 focus:outline-none dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100">
+                <select data-title-select class="min-h-[2.75rem] w-full rounded-xl border-2 border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-800 focus:border-brand-600 focus:outline-none dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100">
                     ${optionHtml(options[0])}${optionHtml(options[1])}
                     ${options.length > 2 ? `<optgroup label="Získané odznaky">${options.slice(2).map(optionHtml).join('')}</optgroup>` : ''}
                 </select>
