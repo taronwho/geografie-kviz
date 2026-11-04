@@ -18,6 +18,14 @@ alter table public.profiles add column if not exists badges text[] not null defa
 alter table public.profiles add column if not exists blocked_topics text[] not null default '{}';
 -- Přijímá hráč výzvy z Mixu všech témat? (výchozí ano; Mix se pak zúží o témata, která má vypnutá)
 alter table public.profiles add column if not exists accepts_mix boolean not null default true;
+-- Odměny na profilu: zvolený rámeček kolem obrázku a titul u jména ('level', 'none' nebo id odznaku); vidí je i ostatní hráči.
+-- Odemčení hlídá jen aplikace (server hodnotu jen tvarově zkontroluje).
+alter table public.profiles add column if not exists frame text;
+alter table public.profiles add column if not exists title_pref text;
+alter table public.profiles drop constraint if exists profiles_frame_format;
+alter table public.profiles add constraint profiles_frame_format check (frame is null or frame ~ '^[a-z0-9-]{1,24}$');
+alter table public.profiles drop constraint if exists profiles_title_pref_format;
+alter table public.profiles add constraint profiles_title_pref_format check (title_pref is null or title_pref ~ '^[a-z0-9-]{1,40}$');
 alter table public.profiles drop constraint if exists profiles_blocked_len;
 alter table public.profiles add constraint profiles_blocked_len check (cardinality(blocked_topics) <= 30);
 alter table public.profiles drop constraint if exists profiles_xp_range;

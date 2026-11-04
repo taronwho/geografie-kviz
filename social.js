@@ -7,7 +7,10 @@
 })(typeof self !== 'undefined' ? self : this, (root) => {
     'use strict';
     // Obrázek profilu: emoji a barva (bez nahrávání fotek – bez moderace a bez cizích adres v CSP)
-    const AVATARS = ['🦊', '🐼', '🐸', '🦉', '🐙', '🦄', '🐯', '🐵', '🦁', '🐨', '🐧', '🦋', '🐢', '🐬', '🦖', '🐝', '🦔', '🐺', '🦅', '🐳', '🐰', '🐱', '🐶', '🦦'];
+    // Základní obrázky (pro každého); další se odemykají úrovní (MudrlantLook.AVATARS, look.js se načítá až po tomto souboru, proto se čte až při použití)
+    const AVATARS = ['🦊', '🐼', '🐸', '🦉', '🐙', '🦄', '🐯', '🐵', '🐨', '🐧', '🦋', '🐢', '🐬', '🐝', '🦔', '🐳', '🐰', '🐱', '🐶', '🦦'];
+    const unlockableAvatars = () => { const look = root.MudrlantLook || globalThis.MudrlantLook; return look && look.AVATARS ? look.AVATARS.map(item => item.id) : []; };
+    const allAvatars = () => [...AVATARS, ...unlockableAvatars().filter(id => !AVATARS.includes(id))];
     const COLORS = ['emerald', 'sky', 'violet', 'rose', 'amber', 'teal', 'orange', 'indigo'];
     const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
     const COUNTS = [5, 10, 15];
@@ -56,10 +59,39 @@
         return /^[A-Z0-9]{6}$/.test(code) && [...code].every(char => CODE_ALPHABET.includes(char)) ? code : '';
     };
 
-    const PROFILE_FIELDS = 'id,display_name,avatar,color';
-    const getProfile = async (userId) => (await request('GET', `profiles?id=eq.${encodeURIComponent(userId)}&select=${PROFILE_FIELDS}`) || [])[0] || null;
+    // Sloupce frame (rámeček) a title_pref (titul u jména) přibyly pozdější verzí schématu. Dokud je databáze nemá, požadavek s nimi
+    // skončí chybou 400 – pak se zopakuje bez nich a dál se už o ně nežádá (po novém načtení stránky se zkusí znovu).
+    let extrasMissing = false;
+    const withExtras = async (run) => {
+        if (!extrasMissing) {
+            try { return await run(true); } catch (error) {
+                if (error.status !== 400) throw error;
+            }
+            const result = await run(false);
+            extrasMissing = true;
+            return result;
+        }
+        return run(false);
+    };
+    const profileFields = (extras) => extras ? 'id,display_name,avatar,color,frame,title_pref' : 'id,display_name,avatar,color';
+    // Rámeček a titul z cizího řádku: jen tvarově platné hodnoty (znáte-li katalog, jen jeho položky)
+    const cleanFrame = (value, known = null) => typeof value === 'string' && /^[a-z0-9-]{1,24}$/.test(value) && (!known || known.includes(value)) ? value : null;
+    const cleanTitlePref = (value) => typeof value === 'string' && /^[a-z0-9-]{1,40}$/.test(value) ? value : null;
+    const getProfile = async (userId) => (await withExtras(extras => request('GET', `profiles?id=eq.${encodeURIComponent(userId)}&select=${profileFields(extras)}`)) || [])[0] || null;
+    // Rámeček a titul u jména do účtu; bez nových sloupců v databázi se potichu nic neuloží
+    const saveLook = async (userId, { frame, title }) => {
+        if (extrasMissing) return false;
+        try {
+            await request('PATCH', `profiles?id=eq.${encodeURIComponent(userId)}`, { body: { frame: cleanFrame(frame), title_pref: cleanTitlePref(title) }, prefer: 'return=minimal' });
+            return true;
+        } catch (error) {
+            if (error.status !== 400) throw error;
+            extrasMissing = true;
+            return false;
+        }
+    };
     const saveProfile = async (userId, { name, avatar, color }) => {
-        const patch = { display_name: cleanName(name), avatar: AVATARS.includes(avatar) ? avatar : AVATARS[0], color: COLORS.includes(color) ? color : COLORS[0] };
+        const patch = { display_name: cleanName(name), avatar: allAvatars().includes(avatar) ? avatar : AVATARS[0], color: COLORS.includes(color) ? color : COLORS[0] };
         if (!isValidName(patch.display_name)) throw new SocialError('Přezdívka má mít 2 až 24 znaků: písmena, číslice, mezeru, tečku, podtržítko nebo pomlčku.', 400);
         let rows;
         try {
@@ -86,10 +118,10 @@
         }
         throw new SocialError('Výzvu se nepodařilo založit.', 409);
     };
-    const getChallenge = async (code) => (await request('GET', `challenges?id=eq.${encodeURIComponent(code)}&select=id,topic,seed,count,created_at,include_hard,categories,variant,creator:profiles!creator_id(${PROFILE_FIELDS}),invited:profiles!invited_id(${PROFILE_FIELDS})`) || [])[0] || null;
+    const getChallenge = async (code) => (await withExtras(extras => request('GET', `challenges?id=eq.${encodeURIComponent(code)}&select=id,topic,seed,count,created_at,include_hard,categories,variant,creator:profiles!creator_id(${profileFields(extras)}),invited:profiles!invited_id(${profileFields(extras)})`)) || [])[0] || null;
     // Výsledky hráčů ve výzvě, nejlepší první (víc správných, pak víc bodů, pak dřív hotové)
     const getResults = async (code) => {
-        const rows = await request('GET', `challenge_results?challenge_id=eq.${encodeURIComponent(code)}&select=correct,points,finished_at,user_id,player:profiles!user_id(${PROFILE_FIELDS})`) || [];
+        const rows = await withExtras(extras => request('GET', `challenge_results?challenge_id=eq.${encodeURIComponent(code)}&select=correct,points,finished_at,user_id,player:profiles!user_id(${profileFields(extras)})`)) || [];
         return rows.sort((a, b) => b.correct - a.correct || b.points - a.points || String(a.finished_at).localeCompare(String(b.finished_at)));
     };
     // První výsledek platí (ignoruje se opakovaný zápis), ať si nejde skóre vylepšit hraním znovu
@@ -98,15 +130,15 @@
     });
     // Moje výzvy, nejnovější první, s mým výsledkem a výsledky ostatních
     const myChallenges = async (userId, limit = 8) => {
-        const mine = await request('GET', `challenge_results?user_id=eq.${encodeURIComponent(userId)}&select=challenge_id,correct,points,finished_at,challenge:challenges(id,topic,count,creator:profiles!creator_id(${PROFILE_FIELDS}))&order=finished_at.desc&limit=${limit}`) || [];
+        const mine = await withExtras(extras => request('GET', `challenge_results?user_id=eq.${encodeURIComponent(userId)}&select=challenge_id,correct,points,finished_at,challenge:challenges(id,topic,count,creator:profiles!creator_id(${profileFields(extras)}))&order=finished_at.desc&limit=${limit}`)) || [];
         if (!mine.length) return [];
         const ids = mine.map(row => row.challenge_id).join(',');
-        const others = await request('GET', `challenge_results?challenge_id=in.(${ids})&user_id=neq.${encodeURIComponent(userId)}&select=challenge_id,correct,points,player:profiles!user_id(${PROFILE_FIELDS})`) || [];
+        const others = await withExtras(extras => request('GET', `challenge_results?challenge_id=in.(${ids})&user_id=neq.${encodeURIComponent(userId)}&select=challenge_id,correct,points,player:profiles!user_id(${profileFields(extras)})`)) || [];
         return mine.map(row => ({ ...row, others: others.filter(other => other.challenge_id === row.challenge_id) }));
     };
 
     // Úroveň (XP) a odznaky v účtu; sloupce přibyly pozdější verzí schématu, bez nich volající chybu ignoruje
-    const getProgress = async (userId) => (await request('GET', `profiles?id=eq.${encodeURIComponent(userId)}&select=xp,badges`) || [])[0] || null;
+    const getProgress = async (userId) => (await withExtras(extras => request('GET', `profiles?id=eq.${encodeURIComponent(userId)}&select=xp,badges${extras ? ',title_pref' : ''}`)) || [])[0] || null;
     const saveProgress = (userId, { xp, badges }) => request('PATCH', `profiles?id=eq.${encodeURIComponent(userId)}`, {
         body: { xp: Math.max(0, Math.min(1000000, Math.floor(xp))), badges: badges.slice(0, 60) }, prefer: 'return=minimal'
     });
@@ -145,7 +177,7 @@
     const searchPlayers = async (userId, query) => {
         const term = String(query || '').replace(/[^\p{L}\p{N} _.\-]/gu, '').trim().slice(0, NAME_MAX);
         if (term.length < 2) return [];
-        return await request('GET', `profiles?display_name=ilike.${encodeURIComponent(`*${term}*`)}&id=neq.${encodeURIComponent(userId)}&select=${PROFILE_FIELDS}&order=display_name&limit=8`) || [];
+        return await withExtras(extras => request('GET', `profiles?display_name=ilike.${encodeURIComponent(`*${term}*`)}&id=neq.${encodeURIComponent(userId)}&select=${profileFields(extras)}&order=display_name&limit=8`)) || [];
     };
     // Náhodný jiný hráč (funkce v databázi); null, když tu zatím nikdo další není
     // wanted = témata výzvy (hráč, který je nepřijímá, se přeskočí), wantsMix = výzva je Mix (přeskočí hráče bez Mixu);
@@ -175,7 +207,7 @@
     const saveAccepts = (userId, { blocked, mix }) => request('PATCH', `profiles?id=eq.${encodeURIComponent(userId)}`, { body: { blocked_topics: [...new Set(blocked)].slice(0, 30), accepts_mix: Boolean(mix) }, prefer: 'return=minimal' });
     // Výzvy pro mě, které jsem ještě nehrál, nejnovější první
     const incomingChallenges = async (userId, limit = 10) => {
-        const invites = await request('GET', `challenges?invited_id=eq.${encodeURIComponent(userId)}&select=id,topic,count,created_at,creator:profiles!creator_id(${PROFILE_FIELDS})&order=created_at.desc&limit=${limit}`) || [];
+        const invites = await withExtras(extras => request('GET', `challenges?invited_id=eq.${encodeURIComponent(userId)}&select=id,topic,count,created_at,creator:profiles!creator_id(${profileFields(extras)})&order=created_at.desc&limit=${limit}`)) || [];
         if (!invites.length) return [];
         const ids = invites.map(row => row.id).join(',');
         const played = await request('GET', `challenge_results?user_id=eq.${encodeURIComponent(userId)}&challenge_id=in.(${ids})&select=challenge_id`) || [];
@@ -183,5 +215,5 @@
         return invites.filter(row => !done.has(row.id));
     };
 
-    return { AVATARS, COLORS, COUNTS, NAME_MAX, SocialError, cleanName, isValidName, newCode, parseCode, getProfile, saveProfile, createChallenge, getChallenge, getResults, submitResult, myChallenges, searchPlayers, randomOpponent, incomingChallenges, playerStats, getProgress, saveProgress, getAccepts, saveAccepts };
+    return { AVATARS, allAvatars, cleanFrame, cleanTitlePref, saveLook, COLORS, COUNTS, NAME_MAX, SocialError, cleanName, isValidName, newCode, parseCode, getProfile, saveProfile, createChallenge, getChallenge, getResults, submitResult, myChallenges, searchPlayers, randomOpponent, incomingChallenges, playerStats, getProgress, saveProgress, getAccepts, saveAccepts };
 });
