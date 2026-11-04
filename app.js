@@ -838,7 +838,7 @@
             </div>`;
         overlay.firstElementChild.scrollTop = scroll;
         renderIcons(overlay);
-        const target = focusSelector ? overlay.querySelector(focusSelector) : (meTab === 'profile' ? overlay.querySelector('#profile-name') : overlay.querySelector('[data-variant][aria-pressed="true"]'));
+        const target = focusSelector ? overlay.querySelector(focusSelector) : (meTab === 'profile' ? null : overlay.querySelector('[data-variant][aria-pressed="true"]'));
         (target || overlay.querySelector('[data-close]')).focus({ preventScroll: true });
     };
     const saveMeProfile = async () => {
@@ -2743,7 +2743,10 @@
     const avatarHtml = (player, size = 'h-10 w-10 text-xl', link = false) => {
         const linked = link && player && player.id;
         if (linked) knownPlayers.set(player.id, player);
-        const frame = window.MudrlantLookFrames ? window.MudrlantLookFrames.frameClass(player && player.frame) : '';
+        // Vlastní rámeček se bere z lokální volby (platí hned i ve vývojářské verzi, kde se do účtu neukládá)
+        const me = signedUser();
+        const ownFrame = Look && me && player && player.id === me.id ? Look.prefs(lookContext()).frame : null;
+        const frame = window.MudrlantLookFrames ? window.MudrlantLookFrames.frameClass(ownFrame ? (ownFrame === 'zadny' ? null : ownFrame) : (player && player.frame)) : '';
         return `<span ${linked ? `data-player-id="${escapeHtml(player.id)}" role="button" tabindex="0" aria-label="Profil hráče ${escapeHtml(playerName(player))}"` : 'aria-hidden="true"'} class="flex shrink-0 items-center justify-center rounded-full ${size} ${AVATAR_BG[player && player.color] || AVATAR_BG.emerald}${frame}${linked ? ' cursor-pointer' : ''}">${escapeHtml((player && player.avatar) || '🦊')}</span>`;
     };
     // Téma výzvy: „mix“ (všechna), jedno téma, nebo víc témat oddělených čárkou
@@ -2843,7 +2846,10 @@
         if (pushFrame || pushTitle) saveLookToAccount({ frame: pushFrame ? now.frame : (myProfile.frame || 'zadny'), title: pushTitle ? now.title : (myProfile.title_pref || 'level') });
         updateControlsUI();
     };
-    if (Look) Look.onChange((prefs, key) => { if (!adoptingLook && (key === 'frame' || key === 'title')) saveLookToAccount(prefs); });
+    if (Look) Look.onChange((prefs, key) => {
+        if (key === 'frame' && myProfile) { updateProfileButton(); paintChallenges(); }
+        if (!adoptingLook && (key === 'frame' || key === 'title')) saveLookToAccount(prefs);
+    });
     const loadMyProfile = async () => {
         const user = signedUser();
         if (!user) { myProfile = null; return null; }

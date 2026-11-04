@@ -42,7 +42,7 @@
             const label = unlocked || item.id === 'zadny' ? SHORT[item.id] : (item.badge ? 'Odznak' : `Úr. ${item.level}`);
             const text = unlocked ? item.title : `${item.title}: ${Look.unlockText(item, item.badge ? badgeTitle(item.badge) : null)}`;
             return `<button type="button" data-frame="${item.id}" aria-pressed="${item.id === selected}" aria-label="${escapeHtml(unlocked ? item.title : `${text} (zamčeno)`)}" title="${escapeHtml(text)}" class="flex min-w-0 flex-col items-center gap-1 rounded-xl border-2 px-0.5 pb-1 pt-2 active:scale-95 ${item.id === selected ? 'border-brand-600 bg-brand-50 dark:bg-brand-900/40' : 'border-transparent bg-slate-100 dark:bg-slate-700/60'} ${unlocked ? '' : 'opacity-50 grayscale'}">
-                ${ctx.avatarHtml ? ctx.avatarHtml({ ...player, frame: item.id }, 'h-8 w-8 text-base') : ''}
+                ${ctx.avatarHtml ? ctx.avatarHtml({ ...player, id: null, frame: item.id }, 'h-8 w-8 text-base') : ''}
                 <span class="max-w-full truncate text-[10px] font-bold leading-none text-slate-600 dark:text-slate-300">${escapeHtml(label)}</span>
             </button>`;
         }).join('');
