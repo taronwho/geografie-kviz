@@ -242,6 +242,8 @@
     const topicIcon = (topic, cls, wrap = '', iconCls = cls) => topicArt(topic)
         ? `<img src="icons/topics/${topic.id}.webp" alt="" class="${cls} shrink-0 object-contain drop-shadow-md">`
         : `${wrap ? `<span class="${wrap}">` : ''}<i data-lucide="${topic.icon}" class="${iconCls}"></i>${wrap ? '</span>' : ''}`;
+    // Ilustrace ovládacích prvků (icons/topics/<název>.webp): chyby, dnes, vyzva, napoveda, stopky
+    const uiArt = (name, cls) => `<img src="icons/topics/${name}.webp" alt="" class="${cls} shrink-0 object-contain drop-shadow-sm">`;
     const styleOf = (topic) => TOPIC_STYLES[topic && topic.color] || TOPIC_STYLES.emerald;
     const MIX = { id: 'mix', title: 'Mix', icon: 'shuffle', color: 'brand' };
     const TAB_OFF = 'text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-700';
@@ -1104,7 +1106,7 @@
                 <button type="button" data-action="daily" data-topic="${topic.id}" title="Dnešní otázka – ${escapeHtml(topic.title)}" aria-label="Dnešní otázka – ${escapeHtml(topic.title)}: ${escapeHtml(status.text)}" class="relative flex min-w-0 flex-col items-center gap-0.5 rounded-xl bg-slate-50 px-0.5 pb-1 pt-1 ring-1 ring-slate-200/70 transition-all active:scale-95 dark:bg-slate-900/60 dark:ring-slate-700/70">
                     ${topicIcon(topic, 'h-7 w-7', `rounded-lg p-1 ${styleOf(topic).soft}`, 'h-[1.125rem] w-[1.125rem]')}
                     <span class="flex max-w-full items-center gap-0.5 truncate text-[10px] font-bold ${status.tone}">${status.icon ? `<i data-lucide="${status.icon}" class="h-3 w-3 shrink-0"></i>` : ''}${status.text}</span>
-                    ${streak ? `<span class="absolute -right-1 -top-1.5 flex items-center gap-0.5 rounded-lg bg-orange-500 px-1 py-0.5 text-[10px] font-black text-white shadow" title="Série dní"><i data-lucide="flame" class="h-3 w-3"></i>${streak}</span>` : ''}
+                    ${streak ? `<span class="absolute -right-1.5 -top-2 flex items-center rounded-lg bg-slate-900/85 py-px pl-0 pr-1.5 text-[10px] font-black text-white shadow ring-1 ring-white/20" title="Série dní">${uiArt('serie', 'h-4 w-4')}${streak}</span>` : ''}
                 </button>`;
         }).join('');
         const answered = TOPICS.filter(topic => (stats.daily[topic.id] || {})[today]).length;
@@ -1134,7 +1136,7 @@
                 ${renderHomeTabs()}
                 ${homeTab() === 'multi' ? renderChallengesSection() : `<section class="rounded-[1.4rem] bg-white p-2.5 shadow-sm ring-1 ring-slate-200/70 dark:bg-slate-800/70 dark:ring-slate-700/70">
                     <div class="mb-2 flex items-center justify-between gap-2">
-                        <h2 class="min-w-0 text-[13px] font-black text-slate-800 dark:text-slate-100">Dnešní otázky <span class="font-bold text-slate-400">${answered}/${TOPICS.length}</span></h2>
+                        <h2 class="flex min-w-0 items-center gap-2 whitespace-nowrap text-slate-800 dark:text-slate-100">${uiArt('dnes', 'h-8 w-8')}<span class="min-w-0"><span class="block text-[13px] font-black leading-tight">Dnešní otázky</span><span class="block text-[11px] font-bold leading-tight text-slate-400">${answered}/${TOPICS.length} splněno</span></span></h2>
                         ${left ? `
                             <button type="button" data-action="play-daily" class="flex shrink-0 items-center gap-1.5 rounded-xl btn-3d bg-brand-700 px-3 py-2 text-[13px] font-black text-white">
                                 <i data-lucide="play" class="h-4 w-4"></i> ${answered ? 'Pokračovat' : 'Hrát vše'} <span class="font-bold opacity-70">· zbývá ${left}</span>
@@ -1330,7 +1332,7 @@
         const nextCost = formatPoints(pointsFor(round.hintLevel + 1, round.variant === 'typed'));
         return `
             <button type="button" data-action="hint" title="Nápověda: ${escapeHtml(next.label)} – odpověď pak za ${nextCost}" class="btn-3d flex h-14 w-full shrink-0 items-center gap-3 rounded-2xl bg-gradient-to-b from-gold-400 to-gold-600 px-3 text-left text-brand-950">
-                <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/40"><i data-lucide="lightbulb" class="h-5 w-5"></i></span>
+                ${uiArt('napoveda', 'h-10 w-10 -my-1')}
                 <span class="min-w-0 flex-1">
                     <span class="block text-[11px] font-black uppercase tracking-wider opacity-70">Nápověda ${round.hintLevel}/${data.hints.length + 1}</span>
                     <span class="flex items-baseline gap-1.5 text-sm font-black leading-tight"><span class="truncate">${escapeHtml(capitalize(next.label))}</span><span class="shrink-0 text-xs font-bold opacity-80">· pak ${nextCost}</span></span>
@@ -1633,7 +1635,7 @@
             return `
                 <section class="${CARD} flex items-center gap-2 p-3">
                     <div class="grid flex-1 grid-cols-3 gap-1 text-center">
-                        <div><p class="text-xl font-black text-slate-800 dark:text-slate-100">${computeStreak(stats.daily[data.topic] || {}, getDayKey())}</p><p class="flex items-center justify-center gap-1 ${label}"><i data-lucide="flame" class="h-3 w-3 text-orange-500"></i>Série</p></div>
+                        <div><p class="text-xl font-black text-slate-800 dark:text-slate-100">${computeStreak(stats.daily[data.topic] || {}, getDayKey())}</p><p class="flex items-center justify-center gap-1 ${label}">${uiArt('serie', 'h-5 w-5')}Série</p></div>
                         <div><p class="text-xl font-black text-slate-800 dark:text-slate-100">${results.length}</p><p class="${label}">Hráno</p></div>
                         <div><p class="text-xl font-black text-slate-800 dark:text-slate-100">${wins}</p><p class="${label}">Uhodnuto</p></div>
                     </div>
@@ -2280,7 +2282,7 @@
             <div class="grid max-h-[22rem] flex-1 grid-cols-4 auto-rows-fr gap-2">
                 ${tiles}
                 <button type="button" data-action="learn-mistakes" class="col-span-2 flex min-h-[4rem] min-w-0 flex-col items-center justify-center gap-1 rounded-2xl border border-rose-200 bg-rose-50 p-2 text-center shadow-sm transition-all active:scale-[0.98] dark:border-rose-900/60 dark:bg-rose-900/20">
-                    <span class="rounded-xl bg-rose-100 p-2 text-rose-700 dark:bg-rose-900/50 dark:text-rose-300"><i data-lucide="repeat" class="h-[1.375rem] w-[1.375rem]"></i></span>
+                    ${uiArt('chyby', 'h-11 w-11')}
                     <span class="text-[11.5px] font-black leading-tight text-slate-800 dark:text-slate-100">Moje chyby${mistakes.length ? ` (${mistakes.length})` : ''}<span class="block text-[10px] font-semibold text-slate-500 dark:text-slate-400">Co ti nevyšlo, ze všech témat</span></span>
                 </button>
             </div>`;
@@ -2414,7 +2416,7 @@
         return `${back}
             <h2 class="text-2xl font-black tracking-tight text-slate-800 dark:text-slate-50">Moje chyby</h2>
             <button type="button" data-action="practice-mistakes" class="flex w-full items-center justify-center gap-2 rounded-[1.2rem] bg-brand-700 py-4 text-lg font-bold text-white shadow-xl shadow-brand-700/20 transition-all hover:bg-brand-800 active:scale-95">
-                <i data-lucide="repeat" class="h-5 w-5"></i> Procvičit chyby (${mistakes.length})
+                ${uiArt('chyby', 'h-6 w-6')} Procvičit chyby (${mistakes.length})
             </button>
             <p class="-mt-2 text-center text-xs text-slate-500 dark:text-slate-400">Co pak uhodneš, ze seznamu zmizí. Klepnutím si to prohlédneš.</p>
             <ul class="flex flex-col gap-2">${rows}</ul>
@@ -2593,7 +2595,7 @@
         if (!user) {
             return `
                 <div class="flex flex-col items-center gap-3 rounded-[1.4rem] bg-white p-5 text-center shadow-sm ring-1 ring-slate-200/70 dark:bg-slate-800/70 dark:ring-slate-700/70">
-                    <span class="flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-brand-600 to-brand-900 text-white shadow-lg"><i data-lucide="swords" class="h-7 w-7"></i></span>
+                    ${uiArt('vyzva', 'h-16 w-16')}
                     <div><p class="text-base font-black text-slate-800 dark:text-slate-100">Hraj s kamarády</p><p class="mt-1 text-sm text-slate-500 dark:text-slate-400">Přihlas se, vyber si přezdívku a obrázek a vyzvi kamaráda nebo náhodného hráče. Dostanete stejné otázky a porovnáte, kdo je lepší.</p></div>
                     <button type="button" data-action="auth-login" class="flex w-full items-center justify-center gap-2 rounded-2xl bg-brand-700 px-4 py-3 text-base font-black text-white shadow-md active:scale-[0.98]"><i data-lucide="log-in" class="h-5 w-5"></i> Přihlásit se přes Google</button>
                 </div>`;
@@ -2608,7 +2610,7 @@
         return `
             <div class="flex flex-col gap-3">
                 <div class="grid grid-cols-2 gap-2">
-                    <button type="button" data-action="new-challenge" class="flex items-center justify-center gap-2 rounded-2xl btn-3d bg-brand-700 px-3 py-3.5 text-[15px] font-black text-white"><i data-lucide="swords" class="h-5 w-5"></i> Vyzvat</button>
+                    <button type="button" data-action="new-challenge" class="flex items-center justify-center gap-2 rounded-2xl btn-3d bg-brand-700 px-3 py-3.5 text-[15px] font-black text-white">${uiArt('vyzva', 'h-7 w-7')} Vyzvat</button>
                     <button type="button" data-action="join-challenge" class="flex items-center justify-center gap-2 rounded-2xl bg-white px-3 py-3.5 text-[15px] font-bold text-slate-800 shadow-sm ring-1 ring-slate-200/70 active:scale-[0.98] dark:bg-slate-800 dark:text-slate-100 dark:ring-slate-700/70"><i data-lucide="hash" class="h-5 w-5"></i> Zadat kód</button>
                 </div>
                 ${resume}
@@ -2911,7 +2913,7 @@
                 </div>
                 ${accordion('settings', 'pencil', 'Nastavení', settingsSummary(), settingsBody())}
                 <div class="sticky -bottom-5 -mx-5 mt-1 bg-slate-50/95 px-5 pb-5 pt-3 backdrop-blur dark:bg-slate-900/95">
-                    <button type="button" data-ch-create ${busy ? 'disabled' : ''} class="${PRIMARY_BUTTON}"><i data-lucide="swords" class="h-5 w-5"></i> ${busy ? 'Zakládám…' : 'Vytvořit a hrát'}</button>
+                    <button type="button" data-ch-create ${busy ? 'disabled' : ''} class="${PRIMARY_BUTTON}">${uiArt('vyzva', 'h-7 w-7')} ${busy ? 'Zakládám…' : 'Vytvořit a hrát'}</button>
                     ${note ? DIALOG_NOTE(note) : ''}
                 </div>
             </div>`, {
@@ -3113,7 +3115,7 @@
                     <div class="grid grid-cols-3 gap-2">${tile('Výzvy', stats.games)}${tile('Úspěšnost', percent)}${tile('Nejlepší', stats.best ? `${stats.best.correct}/${stats.best.count}` : '–')}</div>
                     ${versus}
                     <div>
-                        <button type="button" data-rematch ${busy ? 'disabled' : ''} class="${PRIMARY_BUTTON}"><i data-lucide="swords" class="h-5 w-5"></i> ${busy ? 'Zakládám…' : stats.last ? 'Vyzvat k odvetě' : 'Vyzvat'}</button>
+                        <button type="button" data-rematch ${busy ? 'disabled' : ''} class="${PRIMARY_BUTTON}">${uiArt('vyzva', 'h-7 w-7')} ${busy ? 'Zakládám…' : stats.last ? 'Vyzvat k odvetě' : 'Vyzvat'}</button>
                         <p class="mt-1.5 text-center text-xs text-slate-500 dark:text-slate-400">${stats.last ? 'Stejné nastavení jako naposledy' : 'První výzva'}: ${escapeHtml(same)}</p>
                     </div>`;
             }
