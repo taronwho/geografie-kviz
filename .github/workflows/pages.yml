@@ -1,0 +1,56 @@
+# Nasazení na GitHub Pages: statický web (bez sestavení) se po každém pushi zkopíruje do větve gh-pages (aplikace do app/).
+# Jednorázově je potřeba v Settings → Pages zvolit Source „Deploy from a branch“, větev gh-pages a složku / (root).
+name: GitHub Pages
+
+on:
+  push:
+    branches: [main, ccr-1065f6ff-x6y4mz]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Nasazuje se jen kompletní aplikace – každé téma z index.html musí mít modul i data, jinak se nasazení vynechá
+      - name: Kontrola, že jsou všechna témata
+        id: check
+        run: |
+          for topic in $(grep -o 'topics/[a-z]*\.js' index.html | sed 's|topics/||; s|\.js||'); do
+            if [ ! -f "topics/$topic.js" ] || [ ! -f "data/$topic.json" ]; then echo "Chybí téma $topic, nenasazuji"; exit 0; fi
+          done
+          echo "complete=true" >> "$GITHUB_OUTPUT"
+
+      - name: Sestavení webu
+        if: steps.check.outputs.complete == 'true'
+        run: |
+          # Aplikace je v app/ (vlastní rozsah pro instalaci na plochu), v kořeni přesměrování a starý service worker,
+          # který se sám odregistruje
+          mkdir -p _site/app
+          cp -r index.html config.js auth.js social.js app.js quiz-core.js visuals.js look.js look-themes.js look-robes.js look-frames.js icons.js styles.css sw.js manifest.webmanifest icons topics data _site/app/
+          cp pages-root/index.html pages-root/sw.js _site/
+          # Denní zajímavost vzniká zvlášť (fakt.yml) a leží jen v gh-pages; nové nasazení ji zachová
+          if git fetch -q --depth 1 origin gh-pages && git show FETCH_HEAD:app/data/fakt.json > "$RUNNER_TEMP/fakt.json" 2>/dev/null; then cp "$RUNNER_TEMP/fakt.json" _site/app/data/fakt.json; fi
+          # Každé nasazení = nový service worker (jiný název mezipaměti), aby se nainstalované aplikace samy aktualizovaly
+          sed -i "s/const CACHE_NAME = 'mudrlant-v3';/const CACHE_NAME = 'mudrlant-${GITHUB_SHA::7}';/" _site/app/sw.js
+          grep -q "mudrlant-${GITHUB_SHA::7}" _site/app/sw.js
+          # Verze pro Nastavení: čas posledního commitu a jeho zkratka
+          echo "{\"built\":\"$(git log -1 --format=%cI)\",\"commit\":\"${GITHUB_SHA::7}\"}" > _site/app/version.json
+          touch _site/.nojekyll
+
+      - name: Zápis do větve gh-pages
+        if: steps.check.outputs.complete == 'true'
+        working-directory: _site
+        run: |
+          git init -q -b gh-pages
+          git add -A
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" commit -q -m "Nasazení ${GITHUB_SHA::7}"
+          git push -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" gh-pages

@@ -1,0 +1,219 @@
+// Profil hráče a výzvy (Supabase REST přes pravidla řádků). Všechno vyžaduje přihlášení (auth.js).
+// Výzva = téma (nebo mix), semínko a počet otázek; otázky se z něj losují stejně všem hráčům, takže stačí sdílet kód.
+(function (root, factory) {
+    const api = factory(root);
+    if (typeof module === 'object' && module.exports) module.exports = api;
+    else root.MudrlantSocial = api;
+})(typeof self !== 'undefined' ? self : this, (root) => {
+    'use strict';
+    // Obrázek profilu: emoji a barva (bez nahrávání fotek – bez moderace a bez cizích adres v CSP)
+    // Základní obrázky (pro každého); další se odemykají úrovní (MudrlantLook.AVATARS, look.js se načítá až po tomto souboru, proto se čte až při použití)
+    const AVATARS = ['🦊', '🐼', '🐸', '🦉', '🐙', '🦄', '🐯', '🐵', '🐨', '🐧', '🦋', '🐢', '🐬', '🐝', '🦔', '🐳', '🐰', '🐱', '🐶', '🦦'];
+    const unlockableAvatars = () => { const look = root.MudrlantLook || globalThis.MudrlantLook; return look && look.AVATARS ? look.AVATARS.map(item => item.id) : []; };
+    const allAvatars = () => [...AVATARS, ...unlockableAvatars().filter(id => !AVATARS.includes(id))];
+    const COLORS = ['emerald', 'sky', 'violet', 'rose', 'amber', 'teal', 'orange', 'indigo'];
+    const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+    const COUNTS = [5, 10, 15];
+    const NAME_MAX = 24;
+
+    const config = () => root.MUDRLANT_CONFIG || {};
+    const baseUrl = () => String(config().supabaseUrl || '').replace(/\/+$/, '');
+    const auth = () => root.MudrlantAuth;
+
+    class SocialError extends Error {
+        constructor(message, status) { super(message); this.status = status; }
+    }
+
+    const request = async (method, path, { body, prefer } = {}) => {
+        const token = await auth().accessToken();
+        if (!token) throw new SocialError('Nejsi přihlášený.', 401);
+        const response = await fetch(`${baseUrl()}/rest/v1/${path}`, {
+            method,
+            headers: { apikey: config().supabaseAnonKey, Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', ...(prefer ? { Prefer: prefer } : {}) },
+            body: body === undefined ? undefined : JSON.stringify(body)
+        });
+        if (!response.ok) {
+            // Zpráva z databáze (např. od kontroly témat výzvy), když ji server pošle
+            let detail = '';
+            try { detail = String((await response.json()).message || ''); } catch (e) { /* bez těla odpovědi */ }
+            throw new SocialError(detail || `Server odpověděl ${response.status}`, response.status);
+        }
+        const text = await response.text();
+        return text ? JSON.parse(text) : null;
+    };
+
+    const cleanName = (name) => String(name || '').replace(/\s+/g, ' ').trim().slice(0, NAME_MAX);
+    // Přezdívka: 2–24 znaků, písmena (i s diakritikou), číslice, mezera, tečka, podtržítko a pomlčka
+    const NAME_PATTERN = /^[\p{L}\p{N} _.\-]{2,24}$/u;
+    const isValidName = (name) => NAME_PATTERN.test(cleanName(name));
+    const newCode = () => {
+        const bytes = new Uint8Array(6);
+        (root.crypto || require('node:crypto').webcrypto).getRandomValues(bytes);
+        return Array.from(bytes, byte => CODE_ALPHABET[byte % CODE_ALPHABET.length]).join('');
+    };
+    // Kód z textu nebo z odkazu (…?vyzva=ABC234); malá písmena, mezery a zaměnitelné znaky (0/O, 1/I) se opraví
+    const parseCode = (text) => {
+        const raw = String(text || '');
+        const fromLink = raw.match(/[?&#]vyzva=([A-Za-z0-9]+)/);
+        const code = (fromLink ? fromLink[1] : raw).toUpperCase().replace(/[^A-Z0-9]/g, '');
+        return /^[A-Z0-9]{6}$/.test(code) && [...code].every(char => CODE_ALPHABET.includes(char)) ? code : '';
+    };
+
+    // Sloupce frame (rámeček) a title_pref (titul u jména) přibyly pozdější verzí schématu. Dokud je databáze nemá, požadavek s nimi
+    // skončí chybou 400 – pak se zopakuje bez nich a dál se už o ně nežádá (po novém načtení stránky se zkusí znovu).
+    let extrasMissing = false;
+    const withExtras = async (run) => {
+        if (!extrasMissing) {
+            try { return await run(true); } catch (error) {
+                if (error.status !== 400) throw error;
+            }
+            const result = await run(false);
+            extrasMissing = true;
+            return result;
+        }
+        return run(false);
+    };
+    const profileFields = (extras) => extras ? 'id,display_name,avatar,color,frame,title_pref' : 'id,display_name,avatar,color';
+    // Rámeček a titul z cizího řádku: jen tvarově platné hodnoty (znáte-li katalog, jen jeho položky)
+    const cleanFrame = (value, known = null) => typeof value === 'string' && /^[a-z0-9-]{1,24}$/.test(value) && (!known || known.includes(value)) ? value : null;
+    const cleanTitlePref = (value) => typeof value === 'string' && /^[a-z0-9-]{1,40}$/.test(value) ? value : null;
+    const getProfile = async (userId) => (await withExtras(extras => request('GET', `profiles?id=eq.${encodeURIComponent(userId)}&select=${profileFields(extras)}`)) || [])[0] || null;
+    // Rámeček a titul u jména do účtu; bez nových sloupců v databázi se potichu nic neuloží
+    const saveLook = async (userId, { frame, title }) => {
+        if (extrasMissing) return false;
+        try {
+            await request('PATCH', `profiles?id=eq.${encodeURIComponent(userId)}`, { body: { frame: cleanFrame(frame), title_pref: cleanTitlePref(title) }, prefer: 'return=minimal' });
+            return true;
+        } catch (error) {
+            if (error.status !== 400) throw error;
+            extrasMissing = true;
+            return false;
+        }
+    };
+    const saveProfile = async (userId, { name, avatar, color }) => {
+        const patch = { display_name: cleanName(name), avatar: allAvatars().includes(avatar) ? avatar : AVATARS[0], color: COLORS.includes(color) ? color : COLORS[0] };
+        if (!isValidName(patch.display_name)) throw new SocialError('Přezdívka má mít 2 až 24 znaků: písmena, číslice, mezeru, tečku, podtržítko nebo pomlčku.', 400);
+        let rows;
+        try {
+            rows = await request('PATCH', `profiles?id=eq.${encodeURIComponent(userId)}`, { body: patch, prefer: 'return=representation' });
+        } catch (error) {
+            // Přezdívka je jedinečná: databáze odmítne tu, kterou už někdo má
+            if (error.status === 409) throw new SocialError('Tuhle přezdívku už má jiný hráč.', 409);
+            throw error;
+        }
+        return rows && rows[0] ? rows[0] : { id: userId, ...patch };
+    };
+
+    // Založí výzvu a vrátí ji (kód vybírá klient; při srážce s existujícím kódem zkusí jiný)
+    const createChallenge = async (userId, { topic, count, invitedId = null, includeHard = false, categories = [], variant = null }) => {
+        if (!COUNTS.includes(count)) throw new SocialError('Neplatný počet otázek.', 400);
+        for (let attempt = 0; attempt < 4; attempt++) {
+            const id = newCode();
+            try {
+                const rows = await request('POST', 'challenges', { body: { id, creator_id: userId, topic, seed: `vyzva-${id}-${Date.now().toString(36)}`, count, invited_id: invitedId, include_hard: Boolean(includeHard), categories: (categories || []).slice(0, 20), variant: variant === 'typed' || variant === 'choices' ? variant : null }, prefer: 'return=representation' });
+                return rows[0];
+            } catch (error) {
+                if (error.status !== 409) throw error;
+            }
+        }
+        throw new SocialError('Výzvu se nepodařilo založit.', 409);
+    };
+    const getChallenge = async (code) => (await withExtras(extras => request('GET', `challenges?id=eq.${encodeURIComponent(code)}&select=id,topic,seed,count,created_at,include_hard,categories,variant,creator:profiles!creator_id(${profileFields(extras)}),invited:profiles!invited_id(${profileFields(extras)})`)) || [])[0] || null;
+    // Výsledky hráčů ve výzvě, nejlepší první (víc správných, pak víc bodů, pak dřív hotové)
+    const getResults = async (code) => {
+        const rows = await withExtras(extras => request('GET', `challenge_results?challenge_id=eq.${encodeURIComponent(code)}&select=correct,points,finished_at,user_id,player:profiles!user_id(${profileFields(extras)})`)) || [];
+        return rows.sort((a, b) => b.correct - a.correct || b.points - a.points || String(a.finished_at).localeCompare(String(b.finished_at)));
+    };
+    // První výsledek platí (ignoruje se opakovaný zápis), ať si nejde skóre vylepšit hraním znovu
+    const submitResult = (userId, code, { correct, points }) => request('POST', 'challenge_results?on_conflict=challenge_id,user_id', {
+        body: { challenge_id: code, user_id: userId, correct, points }, prefer: 'resolution=ignore-duplicates,return=minimal'
+    });
+    // Moje výzvy, nejnovější první, s mým výsledkem a výsledky ostatních
+    const myChallenges = async (userId, limit = 8) => {
+        const mine = await withExtras(extras => request('GET', `challenge_results?user_id=eq.${encodeURIComponent(userId)}&select=challenge_id,correct,points,finished_at,challenge:challenges(id,topic,count,creator:profiles!creator_id(${profileFields(extras)}))&order=finished_at.desc&limit=${limit}`)) || [];
+        if (!mine.length) return [];
+        const ids = mine.map(row => row.challenge_id).join(',');
+        const others = await withExtras(extras => request('GET', `challenge_results?challenge_id=in.(${ids})&user_id=neq.${encodeURIComponent(userId)}&select=challenge_id,correct,points,player:profiles!user_id(${profileFields(extras)})`)) || [];
+        return mine.map(row => ({ ...row, others: others.filter(other => other.challenge_id === row.challenge_id) }));
+    };
+
+    // Úroveň (XP) a odznaky v účtu; sloupce přibyly pozdější verzí schématu, bez nich volající chybu ignoruje
+    const getProgress = async (userId) => (await withExtras(extras => request('GET', `profiles?id=eq.${encodeURIComponent(userId)}&select=xp,badges${extras ? ',title_pref' : ''}`)) || [])[0] || null;
+    const saveProgress = (userId, { xp, badges }) => request('PATCH', `profiles?id=eq.${encodeURIComponent(userId)}`, {
+        body: { xp: Math.max(0, Math.min(1000000, Math.floor(xp))), badges: badges.slice(0, 60) }, prefer: 'return=minimal'
+    });
+
+    // Profil hráče pro cizí oči: počet her, úspěšnost, nejlepší výsledek a (u cizího hráče) vzájemná bilance s přihlášeným
+    // a nastavení poslední společné výzvy, ať jde snadno vyzvat k odvetě. Vše se počítá z uložených výsledků výzev.
+    const playerStats = async (meId, otherId) => {
+        const theirs = await request('GET', `challenge_results?user_id=eq.${encodeURIComponent(otherId)}&select=challenge_id,correct,points,challenge:challenges(id,count)&order=finished_at.desc&limit=100`) || [];
+        const answered = theirs.reduce((sum, row) => sum + (row.challenge ? row.challenge.count : 0), 0);
+        const correct = theirs.reduce((sum, row) => sum + row.correct, 0);
+        const best = theirs.reduce((top, row) => {
+            const count = row.challenge ? row.challenge.count : 0;
+            return count && (!top || row.correct / count > top.correct / top.count) ? { correct: row.correct, count } : top;
+        }, null);
+        const stats = { games: theirs.length, correct, answered, best, versus: null, last: null };
+        if (meId === otherId || !theirs.length) return stats;
+        const ids = theirs.map(row => row.challenge_id).join(',');
+        const mine = await request('GET', `challenge_results?user_id=eq.${encodeURIComponent(meId)}&challenge_id=in.(${ids})&select=challenge_id,correct,points`) || [];
+        const mineById = new Map(mine.map(row => [row.challenge_id, row]));
+        const versus = { wins: 0, losses: 0, draws: 0 };
+        for (const row of theirs) {
+            const own = mineById.get(row.challenge_id);
+            if (!own) continue;
+            const diff = own.correct - row.correct || own.points - row.points;
+            if (diff > 0) versus.wins++; else if (diff < 0) versus.losses++; else versus.draws++;
+        }
+        stats.versus = versus;
+        if (mine.length) {
+            const shared = await request('GET', `challenges?id=in.(${mine.map(row => row.challenge_id).join(',')})&select=id,topic,count,include_hard,categories,variant&order=created_at.desc&limit=1`) || [];
+            stats.last = shared[0] || null;
+        }
+        return stats;
+    };
+
+    // Hledání hráčů podle přezdívky (část jména, na velikosti písmen nezáleží), bez mě
+    const searchPlayers = async (userId, query) => {
+        const term = String(query || '').replace(/[^\p{L}\p{N} _.\-]/gu, '').trim().slice(0, NAME_MAX);
+        if (term.length < 2) return [];
+        return await withExtras(extras => request('GET', `profiles?display_name=ilike.${encodeURIComponent(`*${term}*`)}&id=neq.${encodeURIComponent(userId)}&select=${profileFields(extras)}&order=display_name&limit=8`)) || [];
+    };
+    // Náhodný jiný hráč (funkce v databázi); null, když tu zatím nikdo další není
+    // wanted = témata výzvy (hráč, který je nepřijímá, se přeskočí), wantsMix = výzva je Mix (přeskočí hráče bez Mixu);
+    // starší databáze bez parametrů volá funkci s menší výbavou
+    const randomOpponent = async (wanted = [], wantsMix = false) => {
+        const attempts = [{ wanted, wants_mix: wantsMix }, { wanted }, {}];
+        let rows;
+        for (let i = 0; i < attempts.length; i++) {
+            try {
+                rows = await request('POST', 'rpc/random_opponent', { body: attempts[i] });
+                break;
+            } catch (error) {
+                if ((error.status !== 404 && error.status !== 400) || i === attempts.length - 1) throw error;
+            }
+        }
+        return (rows || [])[0] || null;
+    };
+    // Co hráč přijímá: témata, ze kterých výzvy nepřijímá, a zda přijímá Mix všech témat; bez sloupců (starší schéma) přijímá vše
+    const getAccepts = async (userId) => {
+        try {
+            const row = (await request('GET', `profiles?id=eq.${encodeURIComponent(userId)}&select=blocked_topics,accepts_mix`) || [])[0];
+            return { blocked: row && Array.isArray(row.blocked_topics) ? row.blocked_topics : [], mix: !row || row.accepts_mix !== false };
+        } catch (error) {
+            return { blocked: [], mix: true };
+        }
+    };
+    const saveAccepts = (userId, { blocked, mix }) => request('PATCH', `profiles?id=eq.${encodeURIComponent(userId)}`, { body: { blocked_topics: [...new Set(blocked)].slice(0, 30), accepts_mix: Boolean(mix) }, prefer: 'return=minimal' });
+    // Výzvy pro mě, které jsem ještě nehrál, nejnovější první
+    const incomingChallenges = async (userId, limit = 10) => {
+        const invites = await withExtras(extras => request('GET', `challenges?invited_id=eq.${encodeURIComponent(userId)}&select=id,topic,count,created_at,creator:profiles!creator_id(${profileFields(extras)})&order=created_at.desc&limit=${limit}`)) || [];
+        if (!invites.length) return [];
+        const ids = invites.map(row => row.id).join(',');
+        const played = await request('GET', `challenge_results?user_id=eq.${encodeURIComponent(userId)}&challenge_id=in.(${ids})&select=challenge_id`) || [];
+        const done = new Set(played.map(row => row.challenge_id));
+        return invites.filter(row => !done.has(row.id));
+    };
+
+    return { AVATARS, allAvatars, cleanFrame, cleanTitlePref, saveLook, COLORS, COUNTS, NAME_MAX, SocialError, cleanName, isValidName, newCode, parseCode, getProfile, saveProfile, createChallenge, getChallenge, getResults, submitResult, myChallenges, searchPlayers, randomOpponent, incomingChallenges, playerStats, getProgress, saveProgress, getAccepts, saveAccepts };
+});

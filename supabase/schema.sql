@@ -1,0 +1,179 @@
+-- Databáze pro účty, profily a výzvy hráčů. Spustit v Supabase: SQL Editor → New query → vložit → Run.
+-- Lze pouštět opakovaně (po každé aktualizaci tohoto souboru znovu celé). Pravidla řádků (RLS) jsou zapnutá:
+-- veřejný klíč z config.js sám nic nepřečte ani nezapíše, dokud to pravidlo nedovolí.
+
+-- ===== Profil hráče: jméno a obrázek (emoji + barva), které vidí ostatní =====
+create table if not exists public.profiles (
+    id uuid primary key references auth.users (id) on delete cascade,
+    display_name text not null default 'Hráč',
+    created_at timestamptz not null default now()
+);
+alter table public.profiles add column if not exists avatar text not null default '🦊';
+alter table public.profiles add column if not exists color text not null default 'emerald';
+update public.profiles set display_name = left(display_name, 24) where char_length(display_name) > 24;
+-- Postup hráče: úroveň (XP) a získané odznaky; aplikace je po přihlášení ukládá sem, ať jsou vidět ostatním a platí na všech zařízeních
+alter table public.profiles add column if not exists xp integer not null default 0;
+alter table public.profiles add column if not exists badges text[] not null default '{}';
+-- Témata, ze kterých hráč nepřijímá výzvy (ostatní ho v nich nevyzvou a náhodný soupeř ho přeskočí)
+alter table public.profiles add column if not exists blocked_topics text[] not null default '{}';
+-- Přijímá hráč výzvy z Mixu všech témat? (výchozí ano; Mix se pak zúží o témata, která má vypnutá)
+alter table public.profiles add column if not exists accepts_mix boolean not null default true;
+-- Odměny na profilu: zvolený rámeček kolem obrázku a titul u jména ('level', 'none' nebo id odznaku); vidí je i ostatní hráči.
+-- Odemčení hlídá jen aplikace (server hodnotu jen tvarově zkontroluje).
+alter table public.profiles add column if not exists frame text;
+alter table public.profiles add column if not exists title_pref text;
+alter table public.profiles drop constraint if exists profiles_frame_format;
+alter table public.profiles add constraint profiles_frame_format check (frame is null or frame ~ '^[a-z0-9-]{1,24}$');
+alter table public.profiles drop constraint if exists profiles_title_pref_format;
+alter table public.profiles add constraint profiles_title_pref_format check (title_pref is null or title_pref ~ '^[a-z0-9-]{1,40}$');
+alter table public.profiles drop constraint if exists profiles_blocked_len;
+alter table public.profiles add constraint profiles_blocked_len check (cardinality(blocked_topics) <= 30);
+alter table public.profiles drop constraint if exists profiles_xp_range;
+alter table public.profiles add constraint profiles_xp_range check (xp between 0 and 1000000);
+alter table public.profiles drop constraint if exists profiles_badges_len;
+alter table public.profiles add constraint profiles_badges_len check (cardinality(badges) <= 60);
+alter table public.profiles drop constraint if exists profiles_display_name_len;
+alter table public.profiles add constraint profiles_display_name_len check (char_length(btrim(display_name)) between 2 and 24);
+alter table public.profiles drop constraint if exists profiles_avatar_len;
+alter table public.profiles add constraint profiles_avatar_len check (char_length(avatar) between 1 and 8);
+alter table public.profiles drop constraint if exists profiles_color_list;
+alter table public.profiles add constraint profiles_color_list check (color in ('emerald', 'sky', 'violet', 'rose', 'amber', 'teal', 'orange', 'indigo'));
+
+-- Přezdívka je jedinečná (bez ohledu na velikost písmen), podle ní se hráči hledají. Stejná jména od Googlu se rozliší číslem.
+with dup as (
+    select id, display_name, row_number() over (partition by lower(display_name) order by created_at, id) as rn from public.profiles
+)
+update public.profiles p set display_name = left(d.display_name, 20) || ' ' || d.rn from dup d where p.id = d.id and d.rn > 1;
+create unique index if not exists profiles_display_name_lower on public.profiles (lower(display_name));
+
+create or replace function public.unique_display_name(base text) returns text
+language plpgsql as $$
+declare
+    cleaned text := left(btrim(coalesce(nullif(btrim(base), ''), 'Hráč')), 24);
+    candidate text := cleaned;
+    attempt integer := 0;
+begin
+    if char_length(candidate) < 2 then candidate := 'Hráč'; cleaned := candidate; end if;
+    while exists (select 1 from public.profiles where lower(display_name) = lower(candidate)) and attempt < 50 loop
+        attempt := attempt + 1;
+        candidate := left(cleaned, 20) || ' ' || (100 + floor(random() * 900))::int;
+    end loop;
+    return candidate;
+end;
+$$;
+
+alter table public.profiles enable row level security;
+
+drop policy if exists "profiles: čtení pro přihlášené" on public.profiles;
+create policy "profiles: čtení pro přihlášené" on public.profiles for select to authenticated using (true);
+drop policy if exists "profiles: vlastní změna" on public.profiles;
+create policy "profiles: vlastní změna" on public.profiles for update to authenticated using (auth.uid() = id) with check (auth.uid() = id);
+
+-- Při registraci nového účtu se profil založí z jména od Googlu (s jedinečnou přezdívkou)
+create or replace function public.handle_new_user() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+    insert into public.profiles (id, display_name)
+    values (new.id, public.unique_display_name(coalesce(new.raw_user_meta_data ->> 'full_name', new.raw_user_meta_data ->> 'name', split_part(new.email, '@', 1))))
+    on conflict (id) do nothing;
+    return new;
+end;
+$$;
+drop trigger if exists on_auth_user_created on auth.users;
+create trigger on_auth_user_created after insert on auth.users for each row execute function public.handle_new_user();
+
+-- Účtům, které profil ještě nemají, ho doplnit
+do $$
+declare account record;
+begin
+    for account in select id, raw_user_meta_data, email from auth.users u where not exists (select 1 from public.profiles p where p.id = u.id) loop
+        insert into public.profiles (id, display_name)
+        values (account.id, public.unique_display_name(coalesce(account.raw_user_meta_data ->> 'full_name', account.raw_user_meta_data ->> 'name', split_part(account.email, '@', 1))))
+        on conflict (id) do nothing;
+    end loop;
+end;
+$$;
+
+-- Náhodný soupeř: jiný hráč než já (jména a obrázky vidí přihlášení stejně, funkce jen vybírá)
+-- Náhodný soupeř, který přijímá výzvy z daných témat (wanted = témata výzvy; prázdné = bez omezení; wants_mix = výzva je Mix)
+drop function if exists public.random_opponent();
+drop function if exists public.random_opponent(text[]);
+create or replace function public.random_opponent(wanted text[] default '{}', wants_mix boolean default false) returns setof public.profiles
+language sql stable security definer set search_path = public as $$
+    select * from public.profiles
+    where id <> auth.uid() and not (blocked_topics && coalesce(wanted, '{}')) and (not coalesce(wants_mix, false) or accepts_mix)
+    order by random() limit 1;
+$$;
+revoke all on function public.random_opponent(text[], boolean) from public, anon;
+grant execute on function public.random_opponent(text[], boolean) to authenticated;
+
+-- ===== Výzvy: stejné otázky pro víc hráčů (otázky se losují ze zadaného semínka, takže je každý dostane stejné) =====
+create table if not exists public.challenges (
+    id text primary key check (id ~ '^[A-Z0-9]{6}$'),
+    creator_id uuid not null references public.profiles (id) on delete cascade,
+    topic text not null,
+    seed text not null check (char_length(seed) between 1 and 80),
+    count integer not null check (count between 3 and 20),
+    created_at timestamptz not null default now()
+);
+-- Vyzvaný hráč (podle přezdívky nebo náhodný); prázdné = výzva pro kohokoli s kódem
+alter table public.challenges add column if not exists invited_id uuid references public.profiles (id) on delete set null;
+-- Téma výzvy: „mix“, jedno téma, nebo víc témat oddělených čárkou
+alter table public.challenges drop constraint if exists challenges_topic_check;
+alter table public.challenges drop constraint if exists challenges_topic_len;
+alter table public.challenges add constraint challenges_topic_len check (char_length(topic) between 1 and 200);
+
+-- Výzvu konkrétnímu hráči nejde založit v tématu, které nepřijímá („mix“ = všechna témata, tak ho aplikace pošle jako seznam bez nich)
+create or replace function public.check_challenge_topics() returns trigger
+language plpgsql security definer set search_path = public as $$
+declare
+    blocked text[];
+    mix_ok boolean;
+begin
+    if new.invited_id is null then return new; end if;
+    select blocked_topics, accepts_mix into blocked, mix_ok from public.profiles where id = new.invited_id;
+    if blocked is null then return new; end if;
+    if (new.topic = 'mix' and (not mix_ok or cardinality(blocked) > 0)) or (cardinality(blocked) > 0 and string_to_array(new.topic, ',') && blocked) then
+        raise exception 'Tenhle hráč nepřijímá výzvy z některého z vybraných témat.' using errcode = 'P0001';
+    end if;
+    return new;
+end;
+$$;
+drop trigger if exists challenges_check_topics on public.challenges;
+create trigger challenges_check_topics before insert on public.challenges for each row execute function public.check_challenge_topics();
+-- Nastavení výzvy: i těžší (méně známé) otázky, vybrané okruhy tématu (prázdné = všechny) a pevný způsob odpovídání
+alter table public.challenges add column if not exists include_hard boolean not null default false;
+alter table public.challenges add column if not exists categories text[] not null default '{}';
+alter table public.challenges add column if not exists variant text;
+alter table public.challenges drop constraint if exists challenges_variant_list;
+alter table public.challenges add constraint challenges_variant_list check (variant is null or variant in ('choices', 'typed'));
+alter table public.challenges drop constraint if exists challenges_categories_len;
+alter table public.challenges add constraint challenges_categories_len check (cardinality(categories) <= 20);
+create index if not exists challenges_invited_idx on public.challenges (invited_id, created_at desc);
+alter table public.challenges enable row level security;
+-- Kód výzvy stačí k jejímu otevření; číst ji smí každý přihlášený, zakládat jen vlastní
+drop policy if exists "challenges: čtení pro přihlášené" on public.challenges;
+create policy "challenges: čtení pro přihlášené" on public.challenges for select to authenticated using (true);
+drop policy if exists "challenges: zakládá vlastník" on public.challenges;
+create policy "challenges: zakládá vlastník" on public.challenges for insert to authenticated with check (creator_id = auth.uid() and (invited_id is null or invited_id <> auth.uid()));
+
+-- Výsledek jednoho hráče ve výzvě; zapsat jde jen jednou (nejde si zahrát znovu a přepsat si skóre)
+create table if not exists public.challenge_results (
+    challenge_id text not null references public.challenges (id) on delete cascade,
+    user_id uuid not null references public.profiles (id) on delete cascade,
+    correct integer not null check (correct >= 0),
+    points integer not null check (points >= 0),
+    finished_at timestamptz not null default now(),
+    primary key (challenge_id, user_id)
+);
+alter table public.challenge_results enable row level security;
+drop policy if exists "výsledky: čtení pro přihlášené" on public.challenge_results;
+create policy "výsledky: čtení pro přihlášené" on public.challenge_results for select to authenticated using (true);
+drop policy if exists "výsledky: zapisuje hráč sám" on public.challenge_results;
+create policy "výsledky: zapisuje hráč sám" on public.challenge_results for insert to authenticated
+    with check (
+        user_id = auth.uid()
+        and correct <= (select c.count from public.challenges c where c.id = challenge_id)
+        and points <= 4 * (select c.count from public.challenges c where c.id = challenge_id)
+    );
+create index if not exists challenge_results_user_idx on public.challenge_results (user_id, finished_at desc);

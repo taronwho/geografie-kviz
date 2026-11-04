@@ -1,0 +1,621 @@
+// Testy obecného jádra (quiz-core.js). Spuštění: npm test (stačí Node 20+, žádné závislosti)
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const core = require('../quiz-core.js');
+
+test('zakrytí názvu včetně diakritiky a skloňování', () => {
+    const cases = [
+        ['Aš je město na západě Čech. V Aši žije 13 tisíc lidí.', 'Aš', /Aš/i],
+        ['Řím je město, římský císař, v Římě.', 'Řím', /Řím/i],
+        ['Praha je hlavní město. V Praze žije přes milion lidí, Prahou teče Vltava.', 'Praha', /Prah|Praz/i],
+        ['Hradec Králové je město. V Hradci sídlí univerzita.', 'Hradec Králové', /Hradc|Hradec/i],
+        ['Plzeň je město. V Plzni se vaří pivo, plzeňský kraj.', 'Plzeň', /Plz/i],
+        ['Sněžka je hora. Na Sněžce je bouda.', 'Sněžka', /Sněž/i],
+        ['Labe je řeka. Na Labi leží Děčín.', 'Labe (řeka)', /Lab/i],
+        ['St. Moritz je středisko.', 'St. Moritz (C++)', /Moritz/]
+    ];
+    for (const [text, name, leak] of cases) {
+        assert.doesNotMatch(core.censorName(text, name), leak, `${name}: ${core.censorName(text, name)}`);
+    }
+});
+
+test('zakrytí státu nezakryje nesouvisející slova', () => {
+    const peru = core.censorCountry('Machu Picchu je pevnost v Peru, nejlépe zachovalá. Těží se tu perla.', 'Peru');
+    assert.doesNotMatch(peru, /Peru /);
+    assert.match(peru, /pevnost/);
+    assert.match(peru, /nejlépe/);
+    assert.match(peru, /perla/);
+
+    const mali = core.censorCountry('Jezero v Mali má velkou rozlohu, mapa Mali.', 'Mali');
+    assert.doesNotMatch(mali, /Mali/);
+    assert.match(mali, /má velkou/);
+
+    assert.doesNotMatch(core.censorCountry('Leží v Číně, čínského původu.', 'Čína'), /Čín|čín/);
+    assert.doesNotMatch(core.censorCountry('Leží v Indii, indický stát, Indie je velká.', 'Indie'), /Indi|indi/);
+    assert.doesNotMatch(core.censorCountry('Alpy leží v Rakousku, Švýcarsku a Itálii.', 'Rakousko, Švýcarsko, Itálie'), /Rakous|Švýcar|Itál/);
+    assert.doesNotMatch(core.censorCountry('Hora leží ve střední Evropě, nedaleko Antarktidě.', 'Rakousko'), /Evrop|Antarktid/);
+    assert.doesNotMatch(core.censorCountry('Nejvyšší hora v Česku, české hory, Českého ráje.', 'Česko'), /Česk|česk/);
+    assert.equal(core.censorCountry('Text bez země a jezero.', core.UNKNOWN_COUNTRY), 'Text bez země a jezero.');
+});
+
+test('dělení na věty nerozbije zkratky a řadové číslovky', () => {
+    const { description, funFacts } = core.processWikiText(
+        'Sněžka je nejvyšší hora Česka s výškou 1603 m n. m. a leží v Krkonoších na hranici s Polskem. ' +
+        'Ve 20. století zde byla postavena meteorologická observatoř na vrcholu hory. ' +
+        'Na vrchol vede lanovka z Pece pod Sněžkou, která byla postavena roku 1949. ' +
+        'Hlavní město je hl. m. Praha, kde stojí sv. Václav ve velkém počtu soch. ' +
+        'Jezero má hloubku 3.5 metru a mnoho ryb v sobě.'
+    );
+    assert.match(description, /1603 m n\. m\. a leží v Krkonoších/);
+    assert.match(description, / Ve 20\. století zde byla postavena/);
+    assert.ok(funFacts.some(fact => fact.includes('hl. m. Praha') && fact.includes('sv. Václav')));
+});
+
+test('úvod jen z krátkých vět dá neprázdný popis', () => {
+    const { description } = core.processWikiText('Kozí hřbet je hora. Leží v Krkonoších. Je vysoká 1422 m. Vede tam značená cesta. Je to oblíbené místo.');
+    assert.ok(description.length >= 50, description);
+    assert.match(description, /^Kozí hřbet je hora\./);
+});
+
+test('generátor se semínkem je opakovatelný', () => {
+    const a = core.createSeededRandom('geo-kviz-2026-10-16');
+    const b = core.createSeededRandom('geo-kviz-2026-10-16');
+    const c = core.createSeededRandom('geo-kviz-2026-10-17');
+    const first = [a(), a(), a()];
+    assert.deepEqual(first, [b(), b(), b()]);
+    assert.notDeepEqual(first, [c(), c(), c()]);
+    assert.ok(first.every(value => value >= 0 && value < 1));
+});
+
+test('escapeHtml', () => {
+    assert.equal(core.escapeHtml('<img src=x onerror="a()">&\''), '&lt;img src=x onerror=&quot;a()&quot;&gt;&amp;&#39;');
+});
+
+test('psaná odpověď toleruje diakritiku, velikost písmen a drobný překlep', () => {
+    assert.ok(core.isAnswerMatch('snezka', ['Sněžka']));
+    assert.ok(core.isAnswerMatch('Kilimandzaro', ['Kilimandžáro']));
+    assert.ok(core.isAnswerMatch('Kilimanžaro', ['Kilimandžáro']));
+    assert.ok(core.isAnswerMatch('labe', ['Labe (řeka)']));
+    assert.ok(!core.isAnswerMatch('Lipno', ['Labe']));
+    assert.ok(!core.isAnswerMatch('', ['Labe']));
+    assert.ok(!core.isAnswerMatch('Brno', ['Brod']));
+});
+
+test('přijímané odpovědi: název i titulek článku, u státu i běžné názvy', () => {
+    const accepted = core.countryAnswers(['Q30'], ['Spojené státy americké']);
+    assert.ok(core.isAnswerMatch('USA', accepted));
+    assert.ok(core.isAnswerMatch('spojene staty americke', accepted));
+    assert.ok(core.isAnswerMatch('Česká republika', core.countryAnswers(['Q213'], ['Česko'])));
+    const bridge = core.nameAnswers({ n: 'Karlův most', t: 'Karlův most' });
+    assert.ok(core.isAnswerMatch('karluv most', bridge));
+    assert.ok(!core.isAnswerMatch('USA', bridge));
+    // Titulek s upřesněním v závorce i bez něj, další názvy z tématu
+    const labe = core.nameAnswers({ n: 'Labe', t: 'Labe (řeka)' }, ['Elbe']);
+    assert.ok(core.isAnswerMatch('labe', labe) && core.isAnswerMatch('Elbe', labe));
+});
+
+test('body podle nápověd a napsané odpovědi', () => {
+    // Bez nápovědy 4 body, každá nápověda o bod méně (level = 1 + použité nápovědy), aspoň 1; psaná odpověď dvojnásobek
+    assert.deepEqual([1, 2, 3, 4, 5].map(level => core.pointsFor(level, false)), [4, 3, 2, 1, 1]);
+    assert.deepEqual([1, 2, 3, 4].map(level => core.pointsFor(level, true)), [8, 6, 4, 2]);
+    assert.equal(core.formatPoints(1), '1 bod');
+    assert.equal(core.formatPoints(3), '3 body');
+    assert.equal(core.formatPoints(6), '6 bodů');
+    assert.equal(core.formatPoints(0), '0 bodů');
+});
+
+test('série dní', () => {
+    const results = {
+        '2026-10-13': { correct: true },
+        '2026-10-14': { correct: true },
+        '2026-10-15': { correct: true },
+        '2026-10-11': { correct: true }
+    };
+    assert.equal(core.computeStreak(results, '2026-10-16'), 3); // dnešek ještě neodehraný
+    assert.equal(core.computeStreak({ ...results, '2026-10-16': { correct: true } }, '2026-10-16'), 4);
+    assert.equal(core.computeStreak({ ...results, '2026-10-16': { correct: false } }, '2026-10-16'), 0);
+    assert.equal(core.computeStreak({ '2026-02-28': { correct: true }, '2026-03-01': { correct: true } }, '2026-03-01'), 2);
+});
+
+test('text pro sdílení', () => {
+    const topic = { title: 'Zeměpis', emoji: '🌍' };
+    const text = core.buildShareText({
+        appName: 'Mudrlant', topic, dayKey: '2026-10-16',
+        result: { correct: true, points: 8, hintLevel: 1, levelCount: 4, typed: true }, streak: 4, url: 'https://example.org/'
+    });
+    assert.equal(text, 'Mudrlant · 🌍 Zeměpis · 16. 10. 2026\n✅ 8 bodů · nápovědy 0/3 · napsáno\n🔥 Série: 4\nhttps://example.org/');
+    const lost = core.buildShareText({ appName: 'Mudrlant', topic, dayKey: '2026-10-16', result: { correct: false, points: 0, hintLevel: 3, levelCount: 3 }, streak: 0, url: '' });
+    assert.equal(lost, 'Mudrlant · 🌍 Zeměpis · 16. 10. 2026\n❌ tentokrát ne · nápovědy 2/2\n🔥 Série: 0');
+});
+
+test('dlaždice mapy pokryjí výřez a bod je uprostřed', () => {
+    const tiles = core.getTileLayout(50.087, 14.421, 5, 400, 224);
+    assert.ok(tiles.length >= 2 && tiles.length <= 6);
+    for (const tile of tiles) assert.match(tile.url, /^https:\/\/tile\.openstreetmap\.org\/5\/\d+\/\d+\.png$/);
+    // Praha na zoomu 5 je v dlaždici x=17, y=10
+    assert.ok(tiles.some(tile => tile.url.endsWith('/5/17/10.png')));
+    const covered = (x, y) => tiles.some(t => x >= t.left && x < t.left + 256 && y >= t.top && y < t.top + 256);
+    assert.ok(covered(0, 0) && covered(399, 223) && covered(200, 112));
+    // Přes 180. poledník se čísla dlaždic přetočí
+    const wrapped = core.getTileLayout(0, 179.9, 2, 600, 200);
+    assert.ok(wrapped.some(tile => tile.url.startsWith('https://tile.openstreetmap.org/2/0/')));
+});
+
+test('seznam států odpovídá Wikidatům: unikátní ID a názvy', () => {
+    assert.equal(new Set(core.COUNTRIES.map(c => c.id)).size, core.COUNTRIES.length);
+    assert.equal(new Set(core.COUNTRIES.map(c => c.name)).size, core.COUNTRIES.length);
+    assert.ok(core.COUNTRIES.every(c => /^Q\d+$/.test(c.id) && ['EU', 'AS', 'AF', 'NA', 'SA', 'OC'].includes(c.continent)));
+});
+
+test('jako fotka projde jen skutečná fotka, ne vlajka, znak nebo mapa', () => {
+    for (const name of ['Matterhorn_from_Zermatt.jpg', 'Sněžka_(2016).JPG', 'Plana_nad_Lužnicí.jpg', 'Malta_satellite_image.jpg']) {
+        assert.equal(core.isRealPhoto(name), true, name);
+    }
+    for (const name of ['Flag_of_Greece.svg', 'Coat_of_arms_of_Prague.jpg', 'Greece_location_map.jpg', 'Karte_Bayern.jpg', 'Erb_Brna.png', 'EU-Greece.svg', undefined, '']) {
+        assert.equal(core.isRealPhoto(name), false, String(name));
+    }
+});
+
+// Věty ve stylu úvodů české Wikipedie: [ID státu, věta, co nesmí zůstat, co musí zůstat]
+const COUNTRY_CASES = [
+    ['Q884', 'Mandžanggul je jeskyně nacházející se v Jižní Koreji na ostrově Čedžu mezi městy Gimnyeong-ri a Gujwaeup.', /korej|koreji|jižní/i, /jeskyně/],
+    ['Q884', 'Soul je hlavní město Jižní Koreje a leží na Korejském poloostrově.', /kore/i, /hlavní město/],
+    ['Q884', 'Ostrov je největším jihokorejským ostrovem a oblíbeným cílem turistů.', /korej/i, /ostrov/],
+    ['Q30', 'Yellowstone je národní park ve Spojených státech amerických, převážně ve státě Wyoming.', /spojen|americk|wyoming/i, /národní park/],
+    ['Q30', 'Je to nejvyšší hora v USA a jedna z nejznámějších hor Severní Ameriky.', /\bUSA\b|ameri/i, /nejvyšší hora/],
+    ['Q30', 'Řeka protéká severoamerickým kontinentem a vlévá se do Mexického zálivu.', /americk/i, /protéká/],
+    ['Q145', 'Ben Nevis je nejvyšší hora Spojeného království a leží ve Skotsku ve Velké Británii.', /spojen|královst|británi/i, /nejvyšší hora/],
+    ['Q183', 'Zugspitze je nejvyšší hora Německa, leží ve spolkové zemi Bavorsko na hranici s Rakouskem.', /němec|německ|bavorsk/i, /Rakouskem/],
+    ['Q38', 'Etna je činná sopka na Sicílii v Itálii, nejvyšší činná sopka italského území.', /itál|ital/i, /činná sopka/],
+    ['Q142', 'Lazurové pobřeží je pobřeží ve Francii, francouzská riviéra je známá letovisky.', /franc/i, /pobřeží/],
+    ['Q41', 'Olymp je nejvyšší hora Řecka a podle řecké mytologie sídlo bohů.', /řeck|řeck/i, /mytologie/],
+    ['Q148', "Jang-c'-ťiang je nejdelší řeka Číny a Čínské lidové republiky, protéká celou ČLR.", /čín|ČLR/i, /nejdelší řeka/],
+    ['Q17', 'Fudži je nejvyšší hora Japonska a symbol japonské kultury.', /japon/i, /symbol/],
+    ['Q668', 'Ganga je řeka v Indii, posvátná pro indické hinduisty.', /indi/i, /posvátná/],
+    ['Q159', 'Bajkal je jezero na Sibiři v Rusku, nejhlubší jezero Ruské federace.', /rusk/i, /nejhlubší jezero/],
+    ['Q96', 'Popocatépetl je činná sopka v Mexiku, druhá nejvyšší hora mexického území.', /mexi/i, /činná sopka/],
+    ['Q16', 'Banff je národní park v Kanadě v provincii Alberta, nejstarší kanadský park.', /kanad|alberta/i, /národní park/],
+    ['Q408', 'Uluru je skalní útvar v Austrálii, posvátný pro australské domorodce.', /austral|austrál/i, /skalní útvar/],
+    ['Q155', 'Cukrová homole je hora v Brazílii a symbol brazilského města Rio.', /brazil|brazíl/i, /symbol/],
+    ['Q79', 'Sinaj je poloostrov v Egyptě mezi Středozemním a Rudým mořem, patří egyptské vládě.', /egypt/i, /poloostrov/],
+    ['Q1028', 'Atlas je pohoří v Maroku, nejvyšší vrchol marockého pohoří je Toubkal.', /marok|marock/i, /nejvyšší vrchol/],
+    ['Q43', 'Ararat je hora na východě Turecka, nejvyšší hora tureckého území.', /turec/i, /nejvyšší hora/],
+    ['Q664', 'Milford Sound je fjord na Novém Zélandu, nejznámější novozélandský fjord.', /zéland|zeland/i, /fjord/],
+    ['Q298', 'Atacama je poušť v Chile, nejsušší místo chilského území.', /chil/i, /poušť/],
+    ['Q419', 'Titicaca je jezero na hranici Peru a Bolívie, posvátné pro peruánské Inky.', /\bperu|peruán/i, /jezero.*pro /],
+    ['Q213', 'Sněžka je nejvyšší hora Česka a České republiky, leží na hranici ČR s Polskem.', /česk|ČR/i, /Polskem/],
+    ['Q252', 'Krakatoa je sopka v Indonésii, nejznámější indonéská sopka.', /indonés/i, /sopka/],
+    ['Q881', 'Halong je záliv ve Vietnamu, symbol vietnamské krajiny.', /vietnam/i, /záliv/],
+    ['Q924', 'Kilimandžáro leží v Tanzanii nedaleko hranice s Keňou.', /tanzan/i, /Keňou/],
+    ['Q20', 'Geirangerfjord je fjord v Norsku, jeden z nejkrásnějších norských fjordů.', /norsk/i, /fjord/]
+];
+
+test('otázka na stát: v popisu nezůstane název ani přídavné jméno státu', () => {
+    for (const [id, text, forbidden, required] of COUNTRY_CASES) {
+        const country = core.COUNTRIES.find(c => c.id === id);
+        const out = core.censorCountry(text, country.name, core.getCountryAliases([id]));
+        assert.doesNotMatch(out, forbidden, `${country.name}: ${out}`);
+        assert.match(out, required, `${country.name}: zakryto navíc: ${out}`);
+    }
+});
+
+test('otázka na název: zakryje i odvozená přídavná jména', () => {
+    const cases = [
+        ['Praha', 'Praha je hlavní město. V Praze žije přes milion lidí, pražský hrad je dominantou.', /prah|praz|praž/i, /hlavní město/],
+        ['Brno', 'Brno je druhé největší město, brněnská přehrada je oblíbená.', /brn/i, /přehrada/],
+        ['Ústí nad Labem', 'Ústí nad Labem je statutární město, ústecký kraj leží na severu.', /úst|labem/i, /statutární město/],
+        ['České Budějovice', 'České Budějovice jsou krajské město, budějovický pivovar je známý.', /budějovic|česk/i, /krajské město/],
+        ['Peru', 'Peru je stát v Jižní Americe, peruánská kuchyně je pestrá a je známá pro ceviche.', /peru/i, / pro ceviche/]
+    ];
+    for (const [name, text, forbidden, required] of cases) {
+        const out = core.censorName(text, name);
+        assert.doesNotMatch(out, forbidden, `${name}: ${out}`);
+        assert.match(out, required, `${name}: zakryto navíc: ${out}`);
+    }
+});
+
+// Malá sada položek ve formátu data/<téma>.json (zde místa ze zeměpisu)
+const COUNTRIES_TABLE = {
+    Q213: { name: 'Česko', continent: 'EU', iso: '203' },
+    Q183: { name: 'Německo', continent: 'EU', iso: '276' },
+    Q40: { name: 'Rakousko', continent: 'EU', iso: '040' },
+    Q36: { name: 'Polsko', continent: 'EU', iso: '616' },
+    Q142: { name: 'Francie', continent: 'EU', iso: '250' },
+    Q17: { name: 'Japonsko', continent: 'AS', iso: '392' },
+    Q30: { name: 'Spojené státy americké', continent: 'NA', iso: '840' }
+};
+const place = (q, n, c, k, co, extra = {}) => ({ q, t: n, n, c, k, la: 50, lo: 15, ty: '', co, f: {}, ...extra });
+const PLACES = [
+    place('Q1085', 'Praha', 'mesto', 1, ['Q213'], { f: { pop: 1384732 }, g: ['cesko'] }),
+    place('Q64', 'Berlín', 'mesto', 1, ['Q183'], { f: { pop: 3700000 } }),
+    place('Q1741', 'Vídeň', 'mesto', 1, ['Q40'], { f: { pop: 1900000 } }),
+    place('Q31487', 'Krakov', 'mesto', 1, ['Q36']),
+    place('Q1490', 'Tokio', 'mesto', 1, ['Q17'], { f: { pop: 14000000 } }),
+    place('Q14960', 'Brno', 'mesto', 0, ['Q213'], { f: { pop: 400000 }, g: ['cesko'] }),
+    place('Q170424', 'Sněžka', 'hora', 1, ['Q213', 'Q36'], { f: { elev: 1603 }, g: ['cesko'] }),
+    place('Q39231', 'Fudži', 'hora', 1, ['Q17'], { f: { elev: 3776 } }),
+    place('Q243', 'Eiffelova věž', 'stavba', 1, ['Q142'], { f: { h: 330, year: 1889 } }),
+    place('Q1288', 'Česká Lípa', 'mesto', 0, ['Q213'], { g: ['cesko'] }),
+    place('Q213', 'Česko', 'stat', 1, ['Q213'], { f: { cap: 'Praha', area: 78871, pop: 10900555 }, g: ['cesko'] })
+];
+const continentOf = (item) => core.getContinent(item, COUNTRIES_TABLE);
+
+test('okruhy: celé téma, kategorie a zvláštní okruhy; známost', () => {
+    assert.equal(core.filterItems(PLACES).length, PLACES.length);
+    assert.deepEqual(core.filterItems(PLACES, { tier: 'known', collection: 'c:mesto' }).map(p => p.n), ['Praha', 'Berlín', 'Vídeň', 'Krakov', 'Tokio']);
+    assert.deepEqual(core.filterItems(PLACES, { collection: 'cesko' }).map(p => p.n), ['Praha', 'Brno', 'Sněžka', 'Česká Lípa', 'Česko']);
+    assert.deepEqual(core.filterItems(PLACES, { tier: 'known', collection: 'cesko' }).map(p => p.n), ['Praha', 'Sněžka', 'Česko']);
+    assert.equal(core.inCollection(PLACES[0], null), true);
+    assert.equal(core.inCollection(PLACES[0], 'c:hora'), false);
+});
+
+test('řazení okruhu: podle názvu česky, nebo podle faktu; bez údaje na konec', () => {
+    assert.deepEqual(core.sortItems(PLACES.filter(p => p.c === 'mesto')).map(p => p.n), ['Berlín', 'Brno', 'Česká Lípa', 'Krakov', 'Praha', 'Tokio', 'Vídeň']);
+    assert.deepEqual(core.sortItems(PLACES.filter(p => p.c === 'mesto'), { by: 'pop', desc: true }).map(p => p.n),
+        ['Tokio', 'Berlín', 'Vídeň', 'Praha', 'Brno', 'Česká Lípa', 'Krakov']);
+    assert.deepEqual(core.sortItems(PLACES.filter(p => p.c === 'hora'), { by: 'elev' }).map(p => p.n), ['Sněžka', 'Fudži']);
+});
+
+test('náhodná položka: nejdřív kategorie, nedávno hrané se neopakují', () => {
+    const rng = core.createSeededRandom('vyber');
+    const counts = {};
+    for (let i = 0; i < 400; i++) {
+        const picked = core.pickItem(PLACES, rng);
+        counts[picked.c] = (counts[picked.c] || 0) + 1;
+    }
+    // Čtyři kategorie zhruba stejně často, i když měst je v sadě nejvíc
+    assert.deepEqual(Object.keys(counts).sort(), ['hora', 'mesto', 'stat', 'stavba']);
+    assert.ok(Object.values(counts).every(count => count > 60), JSON.stringify(counts));
+    // Nedávno hrané se přeskočí, dokud je z čeho vybírat
+    const mountains = PLACES.filter(p => p.c === 'hora');
+    for (let i = 0; i < 20; i++) assert.equal(core.pickItem(mountains, rng, ['Q170424']).n, 'Fudži');
+    assert.ok(['Sněžka', 'Fudži'].includes(core.pickItem(mountains, rng, ['Q170424', 'Q39231']).n));
+    // Stejné semínko a pořadí kategorií = stejná dnešní otázka pro všechny
+    const order = ['stat', 'mesto', 'hora', 'stavba'];
+    const a = core.pickItem(PLACES, core.createSeededRandom('geo-kviz-2026-10-19'), [], order);
+    const b = core.pickItem(PLACES, core.createSeededRandom('geo-kviz-2026-10-19'), [], order);
+    assert.equal(a.q, b.q);
+});
+
+test('možnosti názvu: stejná kategorie, nejpodobnější podle tématu a stejně známé; nesou ID', () => {
+    const sameContinent = (item) => (other) => continentOf(other) === continentOf(item) ? 1 : 0;
+    const choices = core.buildItemChoices(PLACES[0], PLACES, core.createSeededRandom('a'), sameContinent(PLACES[0]));
+    assert.equal(choices.length, 4);
+    assert.equal(choices.filter(c => c.correct).length, 1);
+    assert.equal(choices.find(c => c.correct).label, 'Praha');
+    // Známá evropská města, ne Tokio, Brno ani hora
+    assert.deepEqual(choices.filter(c => !c.correct).map(c => c.label).sort(), ['Berlín', 'Krakov', 'Vídeň']);
+    assert.ok(choices.every(c => PLACES.find(p => p.q === c.id).n === c.label));
+    // Málo položek v kategorii: doplní se z čeho jde a možnosti se neopakují
+    const few = core.buildItemChoices(PLACES[7], PLACES, core.createSeededRandom('b'), sameContinent(PLACES[7]));
+    assert.deepEqual(few.map(c => c.label).sort(), ['Fudži', 'Sněžka']);
+});
+
+test('možnosti názvu: přednost má stejný typ', () => {
+    const water = [
+        place('Q1', 'Bospor', 'jezero', 1, ['Q213'], { ty: 'průliv' }),
+        place('Q2', 'Dardanely', 'jezero', 1, [], { ty: 'průliv' }),
+        place('Q3', 'Gibraltarský průliv', 'jezero', 0, [], { ty: 'průliv' }),
+        place('Q4', 'Lamanšský průliv', 'jezero', 1, ['Q142'], { ty: 'průliv' }),
+        place('Q5', 'Bajkal', 'jezero', 1, ['Q213'], { ty: 'jezero' }),
+        place('Q6', 'Lipno', 'jezero', 1, ['Q213'], { ty: 'přehradní nádrž' })
+    ];
+    const choices = core.buildItemChoices(water[0], water, core.createSeededRandom('c'));
+    assert.deepEqual(choices.map(c => c.label).sort(), ['Bospor', 'Dardanely', 'Gibraltarský průliv', 'Lamanšský průliv']);
+});
+
+test('možnosti názvu: podobnost tématu rozhoduje, stejně podobné náhodně, sporné názvy až nakonec', () => {
+    const items = ['Síla', 'Tíhová síla', 'Práce', 'Energie', 'Výkon', 'Tlak', 'Hustota'].map((n, i) => place(`Q${i + 1}`, n, 'veliciny', 1, []));
+    // Téma řekne, co je podobné: energie, výkon a práce k síle, hustota nikdy
+    const related = { Energie: 2, Výkon: 2, Práce: 2, Tlak: 1, 'Tíhová síla': 5, Hustota: -Infinity };
+    for (let seed = 0; seed < 5; seed++) {
+        const choices = core.buildItemChoices(items[0], items, core.createSeededRandom(`s${seed}`), other => related[other.n] || 0);
+        // Tíhová síla je nejpodobnější, ale obsahuje celý název odpovědi – sporná možnost se vynechá
+        assert.deepEqual(choices.filter(c => !c.correct).map(c => c.label).sort(), ['Energie', 'Práce', 'Výkon']);
+    }
+    // Mezi stejně podobnými vybírá semínko: pořadí se mění, výběr ne
+    const orders = new Set([0, 1, 2, 3, 4].map(seed => core.buildItemChoices(items[0], items, core.createSeededRandom(`o${seed}`), () => 0).map(c => c.label).join()));
+    assert.ok(orders.size > 1);
+});
+
+test('možnosti státu: nejbližší státy (podle vzdálenosti od místa), jinak ze stejného kontinentu, s ID', () => {
+    const distances = { Q40: 250, Q36: 500, Q142: 900, Q213: 300, Q17: 9000 };
+    const near = core.buildCountryChoices('Q183', COUNTRIES_TABLE, core.createSeededRandom('y'), id => distances[id]);
+    assert.deepEqual(near.filter(c => !c.correct).map(c => c.label).sort((a, b) => a.localeCompare(b, 'cs')), ['Česko', 'Polsko', 'Rakousko']);
+    const choices = core.buildCountryChoices('Q183', COUNTRIES_TABLE, core.createSeededRandom('x'));
+    assert.equal(choices.length, 4);
+    assert.equal(choices.find(c => c.correct).label, 'Německo');
+    const european = ['Česko', 'Rakousko', 'Polsko', 'Francie'];
+    assert.ok(choices.filter(c => !c.correct).every(c => european.includes(c.label)));
+    assert.ok(choices.every(c => COUNTRIES_TABLE[c.id] && COUNTRIES_TABLE[c.id].name === c.label));
+});
+
+test('napsaná špatná odpověď: která jiná položka nebo stát to je', () => {
+    const prague = PLACES[0];
+    assert.equal(core.findAnswerItem('Viden', prague, PLACES), 'Q1741');
+    assert.equal(core.findAnswerItem('fudzi', prague, PLACES), 'Q39231', 'i z jiné kategorie');
+    assert.equal(core.findAnswerItem('Praha', prague, PLACES), null, 'správná položka se nehledá');
+    assert.equal(core.findAnswerItem('Atlantida', prague, PLACES), null);
+    assert.equal(core.findAnswerCountry('USA', ['Q213'], COUNTRIES_TABLE), 'Q30');
+    assert.equal(core.findAnswerCountry('rakousko', ['Q213'], COUNTRIES_TABLE), 'Q40');
+    assert.equal(core.findAnswerCountry('Česká republika', ['Q213'], COUNTRIES_TABLE), null);
+});
+
+test('seznam chyb: chyba na začátek, správná odpověď ho odebere', () => {
+    let mistakes = core.updateMistakes([], 'zemepis:Q1', false);
+    mistakes = core.updateMistakes(mistakes, 'historie:Q2', false);
+    mistakes = core.updateMistakes(mistakes, 'zemepis:Q1', false);
+    assert.deepEqual(mistakes, ['zemepis:Q1', 'historie:Q2']);
+    assert.deepEqual(core.updateMistakes(mistakes, 'zemepis:Q1', true), ['historie:Q2']);
+    assert.deepEqual(core.updateMistakes(mistakes, 'zemepis:Q3', true), ['zemepis:Q1', 'historie:Q2']);
+    assert.equal(core.updateMistakes(Array.from({ length: 300 }, (_, i) => `zemepis:Q${i}`), 'zemepis:Q999', false).length, 300);
+});
+
+test('nápověda nesmí opakovat, co hráč vidí v zadání nebo popisu', () => {
+    const facts = [{ label: 'Místo', value: 'Sudoměř' }, { label: 'Součást', value: 'husitské války' }, { label: 'Rok', value: '1420' }];
+    const shown = core.dropKnownFacts(facts, 'Bitva u Sudoměře · byla jednou z prvních bitev husitských válek').map(fact => fact.label);
+    assert.ok(!shown.includes('Místo'), 'Sudoměř je vidět v názvu (v jiném pádě)');
+    assert.ok(shown.includes('Rok'), 'čísla se neporovnávají');
+    // Skupina odvozená ze jména (vorvaň → vorvaňovití, hřib → hřibovité) je vidět, nesouvisející ne
+    assert.equal(core.isFactVisible('vorvaňovití', 'Vorvaň obrovský'), true);
+    assert.equal(core.isFactVisible('hřibovité', 'Hřib smrkový'), true);
+    assert.equal(core.isFactVisible('šelmy', 'Liška obecná'), false);
+    assert.equal(core.isFactVisible('Anglické království', 'vládl v království'), false);
+});
+
+test('osa bez letopočtů: žádné roky na ose ani u událostí, širší okolí', () => {
+    const spec = { spans: [], points: [1420], anchors: [[1348, 'založení Karlovy univerzity', 1], [1415, 'upálení Jana Husa', 1], [1492, 'objevení Ameriky']] };
+    const blind = core.buildTimeline({ ...spec, blind: true }, 340);
+    assert.equal(blind.ticks.length, 0);
+    assert.ok(blind.anchors.length >= 2);
+    assert.ok(blind.anchors.every(anchor => !/\d/.test(anchor.label)), blind.anchors.map(anchor => anchor.label).join(' / '));
+    assert.ok(core.buildTimeline(spec, 340).anchors.every(anchor => /\d/.test(anchor.label)), 'běžná osa roky má');
+});
+
+test('fakta: české formátování, chybějící údaje se vynechají, rok i před naším letopočtem', () => {
+    const formats = [['pop', 'Počet obyvatel', core.formatPopulation], ['h', 'Výška', v => `${core.formatNumber(v)} m`], ['year', 'Vznik', core.formatYear]];
+    const asText = (list) => list.map(fact => `${fact.label}: ${fact.value}`.replace(/\u00a0/g, ' '));
+    assert.deepEqual(asText(core.formatFacts({ f: { pop: 10900555, h: 0, year: 1889 } }, formats)), ['Počet obyvatel: 10,9 mil.', 'Vznik: 1889']);
+    assert.deepEqual(asText(core.formatFacts({ f: { pop: 15200, year: -3800 } }, formats)), ['Počet obyvatel: 15 200', 'Vznik: 3800 př. n. l.']);
+    assert.deepEqual(asText(core.formatFacts({ f: { year: 82 } }, formats)), ['Vznik: 82 n. l.']);
+});
+
+test('šířka slepé mapy: základ, nebo podle rozlohy či délky', () => {
+    assert.equal(core.getMapSpan({}, 24), 24);
+    assert.equal(core.getMapSpan({ area: 78871 }, 14), 15);
+    assert.equal(core.getMapSpan({ area: 17098246 }, 14), 120);
+    assert.equal(core.getMapSpan({ area: 316 }, 14), 14);
+    assert.equal(core.getMapSpan({ area: 165250000 }, 30), 120);
+    assert.equal(core.getMapSpan({ len: 6400 }, 24), 46);
+    assert.equal(core.getMapSpan({ len: 430 }, 24), 24);
+});
+
+test('slepá mapa: místo uprostřed, mimo výřez nic, zvýraznění státu, přes 180. poledník', () => {
+    const square = (id, lon, lat, size) => ({ id, r: [[lon, lat, lon + size, lat, lon + size, lat + size, lon, lat + size].map(v => v * 10)] });
+    const world = { countries: [square('203', 12, 48, 6), square('392', 130, 30, 10), square('242', 178, -18, 3)] };
+    const view = { lat: 51, lon: 15, spanLon: 24, width: 400, height: 240, highlightIso: '203' };
+    const shapes = core.buildBlindMap(world, view);
+    assert.deepEqual(shapes.map(s => s.id), ['203']);
+    assert.equal(shapes[0].highlight, true);
+    // Obdélník 12–18° E je souměrně kolem středu 15° E: x od 150 do 250
+    const xs = [...shapes[0].d.matchAll(/[ML](-?[\d.]+) (-?[\d.]+)/g)].map(m => Number(m[1]));
+    assert.deepEqual([Math.min(...xs), Math.max(...xs)], [150, 250]);
+    // Fidži u 180. poledníku se ukáže i při pohledu z druhé strany
+    const pacific = core.buildBlindMap(world, { lat: -17, lon: -179, spanLon: 30, width: 300, height: 200 });
+    assert.deepEqual(pacific.map(s => s.id), ['242']);
+    assert.equal(pacific[0].highlight, false);
+});
+
+test('odkaz na náhled fotky z Wikimedia Commons', () => {
+    // Hash je MD5 názvu souboru s podtržítky (počítá ho skript sady míst)
+    const hash = require('node:crypto').createHash('md5').update('Charles_Bridge,_Prague.jpg').digest('hex').slice(0, 2);
+    assert.equal(core.commonsPhotoUrl('Charles Bridge, Prague.jpg', hash),
+        `https://upload.wikimedia.org/wikipedia/commons/thumb/${hash[0]}/${hash}/Charles_Bridge%2C_Prague.jpg/960px-Charles_Bridge%2C_Prague.jpg`);
+    assert.equal(core.commonsPhotoUrl('Karlův most.jpg', 'ab', 500), 'https://upload.wikimedia.org/wikipedia/commons/thumb/a/ab/Karl%C5%AFv_most.jpg/500px-Karl%C5%AFv_most.jpg');
+    // Kresba SVG má náhled PNG; původní soubor bez náhledu (malé obrázky Commons nezvětší)
+    assert.equal(core.commonsPhotoUrl('Mapa.svg', 'cd', 500), 'https://upload.wikimedia.org/wikipedia/commons/thumb/c/cd/Mapa.svg/500px-Mapa.svg.png');
+    assert.equal(core.commonsFileUrl('Malá mapa.png', 'cd'), 'https://upload.wikimedia.org/wikipedia/commons/c/cd/Mal%C3%A1_mapa.png');
+});
+
+test('století: kladná i před naším letopočtem, popisek', () => {
+    assert.equal(core.centuryOf(1348), 14);
+    assert.equal(core.centuryOf(1400), 14);
+    assert.equal(core.centuryOf(1401), 15);
+    assert.equal(core.centuryOf(1), 1);
+    assert.equal(core.centuryOf(-44), -1);
+    assert.equal(core.centuryOf(-753), -8);
+    assert.equal(core.centuryLabel(14), '14. století');
+    assert.equal(core.centuryLabel(-8), '8. století př. n. l.');
+});
+
+test('časová osa: pruhy uvnitř šířky, rozumné značky, známé události bez vlastních roků a jmen', () => {
+    const anchors = [[1348, 'založení Karlovy univerzity', 1], [1415, 'upálení Jana Husa', 1], [1306, 'vymření Přemyslovců', 1], [1347, 'morová epidemie'], [1453, 'pád Konstantinopole'], [1066, 'bitva u Hastingsu']];
+    const layout = core.buildTimeline({ spans: [{ kind: 'life', from: 1316, to: 1378 }, { kind: 'reign', from: 1346, to: 1378 }], points: [], hide: 'Karel IV.', anchors }, 400);
+    assert.ok(layout.start < 1316 && layout.end > 1378);
+    for (const bar of layout.bars) assert.ok(bar.x >= 0 && bar.x + bar.width <= 400);
+    assert.ok(layout.bars[0].width > layout.bars[1].width);
+    assert.ok(layout.ticks.length >= 2 && layout.ticks.length <= 5);
+    assert.ok(core.buildTimeline({ spans: [], points: [-44] }, 360).ticks.length <= 4);
+    assert.ok(layout.ticks.every(tick => tick.x >= 0 && tick.x <= 400));
+    assert.ok(layout.anchors.length <= 3);
+    assert.ok(layout.anchors.every(anchor => anchor.year < layout.start || anchor.year > layout.end ? false : true));
+    // Založení Karlovy univerzity by prozradilo Karla IV.
+    assert.ok(!layout.anchors.some(anchor => /Karl/.test(anchor.label)));
+    // Blízké dějiny mají přednost, světové doplní volné místo (popisky ve dvou řádcích se nepřekrývají), události mimo osu se nevyberou
+    assert.deepEqual(layout.anchors.map(anchor => anchor.year), [1306, 1347, 1415]);
+    for (const row of [0, 1]) {
+        const inRow = layout.anchors.filter(anchor => anchor.row === row);
+        const spans = inRow.map(anchor => {
+            const width = anchor.label.length * 5.6;
+            return anchor.align === 'start' ? [anchor.x, anchor.x + width] : anchor.align === 'end' ? [anchor.x - width, anchor.x] : [anchor.x - width / 2, anchor.x + width / 2];
+        });
+        spans.forEach((span, i) => spans.slice(i + 1).forEach(other => assert.ok(span[1] <= other[0] || other[1] <= span[0], 'popisky se nepřekrývají')));
+    }
+    assert.deepEqual(core.buildTimeline({ spans: [{ kind: 'reign', from: 1346, to: 1378 }], anchors: [[1347, 'morová epidemie']] }, 400).anchors.map(a => a.label), ['1347 morová epidemie']);
+    assert.deepEqual(core.buildTimeline({ spans: [{ kind: 'reign', from: 1346, to: 1378 }] }, 400).anchors, [], 'bez událostí od tématu žádné');
+    // Bod před naším letopočtem a popisky let
+    const ancient = core.buildTimeline({ spans: [], points: [-44], hide: 'Atentát', anchors: [[-44, 'zavraždění Caesara']] }, 360);
+    assert.equal(ancient.points.length, 1);
+    assert.ok(ancient.ticks.some(tick => /př\. n\. l\./.test(tick.label)));
+    assert.ok(!ancient.anchors.some(anchor => anchor.year === -44));
+});
+
+test('psaná odpověď: překlep po slovech, čísla, římské číslice, značky a století přesně', () => {
+    const name = (accepted) => ({ accepted });
+    assert.ok(core.checkAnswer('Napolen Bonaparte', name(['Napoleon Bonaparte'])), 'překlep v delším slově');
+    assert.ok(!core.checkAnswer('Ludvík XV', name(['Ludvík XIV.'])), 'římská číslice přesně');
+    assert.ok(!core.checkAnswer('Alžběta II.', name(['Alžběta I.'])));
+    assert.ok(!core.checkAnswer('Myš domácí', name(['Pes domácí'])), 'krátké slovo bez tolerance');
+    assert.ok(!core.checkAnswer('Messier 106', name(['Messier 100'])), 'číslo přesně');
+    assert.ok(core.checkAnswer('sjaelland', name(['Sjælland'])), 'æ jako ae');
+    const formula = { match: 'symbol', accepted: ['CO₂'] };
+    assert.ok(core.checkAnswer('co2', formula) && !core.checkAnswer('CO', formula));
+    assert.ok(!core.checkAnswer('m', { match: 'symbol', accepted: ['m²'] }));
+    assert.ok(!core.checkAnswer('M', { match: 'symbol', accepted: ['m'], caseSensitive: true }));
+    const bc = { match: 'century', century: -5 };
+    assert.ok(core.checkAnswer('5. století př. n. l.', bc) && !core.checkAnswer('5', bc) && !core.checkAnswer('4. stol. př. n. l.', bc));
+    assert.ok(core.checkAnswer('N', { accepted: ['newton'], symbols: ['N'] }));
+    // Římské století, oddělovače ve značkách, vzorec stejného složení
+    const century = { match: 'century', century: 14 };
+    assert.ok(core.checkAnswer('XIV. století', century) && core.checkAnswer('ve XIV století', century) && !core.checkAnswer('XV. století', century));
+    assert.ok(core.checkAnswer('V. stol. př. n. l.', bc));
+    assert.ok(core.checkAnswer('N m', { match: 'symbol', accepted: ['N·m'] }) && core.checkAnswer('ly', { match: 'symbol', accepted: ['l.y.'] }));
+    const ethanol = { match: 'formula', accepted: ['C₂H₅OH'] };
+    assert.ok(core.checkAnswer('C2H5OH', ethanol) && core.checkAnswer('C2H6O', ethanol) && !core.checkAnswer('C2H4O', ethanol));
+    assert.ok(core.checkAnswer('C2H4O2', { match: 'formula', accepted: ['CH₃COOH'] }));
+    assert.deepEqual([...core.formulaCounts('CuSO4·5H2O')].sort(), [['Cu', 1], ['H', 10], ['O', 9], ['S', 1]]);
+    assert.deepEqual([...core.formulaCounts('Ca(OH)2')].sort(), [['Ca', 1], ['H', 2], ['O', 2]]);
+});
+
+test('kontinent místa: zámoří a státy na dvou kontinentech podle polohy', () => {
+    const countries = { Q159: { continent: 'EU' }, Q142: { continent: 'EU' }, Q43: { continent: 'AS' }, Q230: { continent: 'EU' }, Q29: { continent: 'EU' } };
+    const at = (co, la, lo) => core.getContinent({ c: 'mesto', co: [co], la, lo }, countries);
+    assert.equal(at('Q159', 55.75, 37.6), 'EU', 'Moskva');
+    assert.equal(at('Q159', 55.0, 82.9), 'AS', 'Novosibirsk');
+    assert.equal(at('Q159', 43.35, 42.44), 'EU', 'Elbrus');
+    assert.equal(at('Q159', 46.35, 48.0), 'EU', 'Astrachaň u ústí Volhy');
+    assert.equal(at('Q142', -21.1, 55.5), 'AF', 'Réunion');
+    assert.equal(at('Q142', -17.6, -149.4), 'OC', 'Tahiti');
+    assert.equal(at('Q142', 14.6, -61.0), 'NA', 'Martinik');
+    assert.equal(at('Q142', 4.9, -52.3), 'SA', 'Cayenne');
+    assert.equal(at('Q29', 28.3, -16.6), 'AF', 'Tenerife');
+    assert.equal(at('Q43', 41.01, 28.97), 'EU', 'Istanbul');
+    assert.equal(at('Q43', 39.93, 32.85), 'AS', 'Ankara');
+    assert.equal(at('Q230', 41.7, 44.8), 'EU', 'Tbilisi jako stát Gruzie');
+    assert.equal(core.getContinent({ c: 'stat', q: 'Q159', co: ['Q159'], la: 60, lo: 90 }, countries), 'EU', 'stát podle tabulky');
+});
+
+test('zakrývání: římské číslice a členy zůstanou, rody v množném čísle, značka po slově „značka“, vzorce z Wikipedie', () => {
+    assert.equal(core.censorName('Karel IV. byl otec Václava IV.', 'Karel IV.'), '[***] IV. byl otec Václava IV.');
+    assert.equal(core.censorName('Ale vůdce al-Káidy', 'Abú Bakr al-Bagdádí'), 'Ale vůdce al-Káidy');
+    assert.equal(core.censorName('Přemyslovec Václav z přemyslovského rodu', 'Přemyslovci'), '[***] Václav z [***] rodu');
+    assert.ok(!core.processWikiText('Energie {\\displaystyle E=mc^{2}} je veličina. Další věta je tady.').description.includes('displaystyle'));
+    assert.ok(core.isFactVisible('klouzkovité', 'klouzek sličný') && core.isFactVisible('psovití', 'pes domácí') && !core.isFactVisible('pstruhovití', 'pes domácí'));
+});
+
+test('výběr položky: když už bylo všechno, ne ta právě hraná', () => {
+    const pool = ['Q1', 'Q2', 'Q3', 'Q4'].map(q => ({ q, c: 'a' }));
+    for (let i = 0; i < 20; i++) {
+        const pick = core.pickItem(pool, Math.random, ['Q4', 'Q3', 'Q2', 'Q1']);
+        assert.ok(['Q1', 'Q2'].includes(pick.q), pick.q);
+    }
+});
+
+test('zakrývání: přídavná jména od míst a německé přehlásky', () => {
+    assert.equal(core.censorName('žije pouze na Kubě a v Mexiku', 'Krokodýl kubánský, Danaus mexický'), 'žije pouze na [***] a v [***]');
+    assert.equal(core.censorName('v Africe', 'Buvol africký'), 'v [***]');
+    assert.equal(core.censorName('Arnold Schönberg', 'Arnold Schoenberg'), '[***]');
+    assert.equal(core.censorName('Mueller', 'Hans Müller'), '[***]');
+});
+
+test('zakrývání: dvoupísmenné slovo jména (Medvídek Pú) jen s velkým písmenem', () => {
+    assert.equal(core.censorName('Medvídek Pú je postava. Pú je milý.', 'Medvídek Pú'), '[***] je postava. [***] je milý.');
+    assert.equal(core.censorName('Lee natočil film, ale pú ne.', 'Ang Lee'), '[***] natočil film, ale pú ne.');
+});
+
+test('fakt s číslem, které už je v popisu, se jako nápověda vynechá', () => {
+    const text = 'Forth je řeka. Je dlouhá 47 km a její povodí má 1 042 km², žije v něm 178 133 lidí.';
+    for (const value of ['47 km', '1 042 km²', '178 133']) assert.equal(core.isFactVisible(value, text), true, value);
+    for (const value of ['48 km', '2 241 m', 'Asie']) assert.equal(core.isFactVisible(value, text), false, value);
+});
+
+test('nápověda nezopakuje vlastní jméno z popisu ani v jiném tvaru (Tolkien, Čína, americký)', () => {
+    const tolkien = '[***] je postava z fiktivního světa anglického spisovatele J. R. R. Tolkiena.';
+    assert.equal(core.isFactVisible('John Ronald Reuel Tolkien', tolkien), true);
+    assert.equal(core.isFactVisible('Čína', '[***] byl čínský malíř a teoretik umění.'), true);
+    assert.equal(core.isFactVisible('Japonsko', '[***] byl čínský malíř a teoretik umění.'), false);
+    assert.equal(core.isFactVisible('Spojené státy americké', 'byl americký herec'), true);
+    assert.equal(core.isFactVisible('Mona Lisa, Poslední večeře', 'namaloval Monu Lisu'), false, 'seznam jen když jsou vidět všechny');
+    assert.equal(core.isFactVisible('Jižní Amerika', 'žije v Jižní Koreji'), false);
+});
+
+test('zakrývání: iniciály před jménem patří ke jménu (C. S. Lewis, J. R. R. Tolkien)', () => {
+    assert.equal(core.censorName('série Letopisy Narnie C. S. Lewise. Je nejmladší.', 'Clive Staples Lewis'), 'série Letopisy Narnie [***]. Je nejmladší.');
+    assert.equal(core.censorName('spisovatele J. R. R. Tolkiena.', 'John Ronald Reuel Tolkien'), 'spisovatele [***].');
+    assert.equal(core.mergeCensored('Žil v USA. [***] přišel.'), 'Žil v USA. [***] přišel.', 'konec věty není iniciála');
+});
+
+test('postup hráče: úrovně rostou pozvolna, tituly, XP za odpověď a mistrovství', () => {
+    assert.equal(core.MAX_LEVEL, 100);
+    assert.equal(core.xpForLevel(1), 0);
+    assert.equal(core.xpForLevel(100), 330000, 'úroveň 100 = 330 000 XP (asi 15 000 otázek)');
+    for (let level = 2; level <= core.MAX_LEVEL; level++) assert.ok(core.xpForLevel(level) > core.xpForLevel(level - 1), `úroveň ${level} je dál než předchozí`);
+    // Každá další úroveň trvá déle: mezery rostou (jen zaokrouhlení smí jednotlivé krok o kousek zkrátit)
+    const gap = (level) => core.xpForLevel(level) - core.xpForLevel(level - 1);
+    assert.ok(gap(2) < 200 && gap(100) > 5000, `mezera první ${gap(2)}, poslední ${gap(100)}`);
+    for (let level = 20; level <= core.MAX_LEVEL; level += 8) assert.ok(gap(level) > gap(level - 16), `mezera ${level} je větší než ${level - 16}`);
+    assert.ok(core.questionsForLevel(100) >= 14000 && core.questionsForLevel(100) <= 16000, `otázek na úroveň 100: ${core.questionsForLevel(100)}`);
+    assert.ok(core.questionsForLevel(10) < 200 && core.questionsForLevel(25) < 1200, 'začátek jde rychle');
+    // Zaokrouhlené hodnoty
+    for (let level = 2; level <= core.MAX_LEVEL; level++) assert.equal(core.xpForLevel(level) % 10, 0);
+    const first = core.xpForLevel(2);
+    assert.equal(core.levelFromXp(0), 1);
+    assert.equal(core.levelFromXp(first - 1), 1);
+    assert.equal(core.levelFromXp(first), 2);
+    assert.equal(core.levelFromXp(10 ** 9), core.MAX_LEVEL);
+    const progress = core.levelProgress(first + 30);
+    assert.equal(progress.level, 2);
+    assert.equal(progress.into, 30);
+    assert.ok(progress.ratio > 0 && progress.ratio < 1);
+    assert.deepEqual(core.levelProgress(10 ** 9), { level: core.MAX_LEVEL, into: 10 ** 9 - core.xpForLevel(core.MAX_LEVEL), needed: 0, ratio: 1 });
+    assert.equal(core.LEVEL_TITLES.length, 31);
+    assert.deepEqual([1, 2, 3, 9, 18, 60, 95, 99, 100].map(core.titleForLevel), ['Zvědavec', 'Zvědavec', 'Čtenář', 'Žák', 'Znalec', 'Profesor', 'Orákulum', 'Archimudrc', 'Mudrlant']);
+    assert.deepEqual(core.nextTitle(1), { from: 3, title: 'Čtenář' });
+    assert.equal(core.nextTitle(100), null);
+    // Správná odpověď bez nápovědy (4 body) 30 XP, psaná (8 bodů) 50, špatná 2, vzdání 0
+    assert.equal(core.answerXp({ correct: true, points: 4 }), 30);
+    assert.equal(core.answerXp({ correct: true, points: 8 }), 50);
+    assert.equal(core.answerXp({ correct: false }), 2);
+    assert.equal(core.answerXp({ correct: false, gaveUp: true }), 0);
+    assert.deepEqual([0, 1, 5, 10, 30].map(core.streakXp), [0, 2, 10, 20, 20]);
+    assert.deepEqual([0, 4, 5, 19, 20, 299, 300, 999].map(core.masteryStars), [0, 0, 1, 1, 2, 4, 5, 5]);
+    assert.equal(core.nextMastery(5), 20);
+    assert.equal(core.nextMastery(300), 0);
+});
+
+test('odznaky: skupiny se stupni, podmínky podle počítadel a postupu', () => {
+    const x = { level: 1, learned: 0, topicStars: {}, topicCount: 14 };
+    assert.ok(core.BADGES.length >= 120, `odznaků je ${core.BADGES.length}`);
+    assert.equal(new Set(core.BADGES.map(badge => badge.id)).size, core.BADGES.length, 'jedinečná id');
+    assert.ok(core.BADGES.every(badge => badge.title && badge.text && badge.icon && ['bronze', 'silver', 'gold', 'brand', 'diamond'].includes(badge.tone) && badge.goal > 0));
+    for (const group of core.BADGE_GROUPS) {
+        const goals = group.badges.map(badge => badge.goal);
+        assert.deepEqual(goals, [...goals].sort((a, b) => a - b), `stupně ${group.id} rostou`);
+    }
+    assert.deepEqual(core.earnedBadgeIds({}, x), []);
+    assert.deepEqual(core.earnedBadgeIds({ answered: 1, correct: 1 }, x), ['prvni-krok']);
+    // Vyšší stupeň zahrnuje nižší
+    const some = core.earnedBadgeIds({ correct: 120 }, x);
+    assert.deepEqual(some, ['prvni-krok', 'odpovedi-10', 'odpovedi-50', 'stovka']);
+    const topics = Object.fromEntries(['zemepis', 'vlajky', 'historie', 'mytologie', 'biologie', 'geologie', 'chemie', 'fyzika', 'umeni', 'architektura', 'hudba', 'literatura', 'film', 'sport'].map(id => [id, 300]));
+    const stars = Object.fromEntries(Object.keys(topics).map(id => [id, 5]));
+    const many = core.earnedBadgeIds({ correct: 10000, bestRun: 100, bestStreak: 365, days: 365, perfectDays: 30, dailyCorrect: 250, noHint: 500, typedCorrect: 500, hardCorrect: 200, fixed: 200, challenges: 100, wins: 100, bestWinRun: 10, created: 50, perfectChallenges: 25, topics }, { level: 100, learned: 3000, topicStars: stars, topicCount: 14 });
+    assert.equal(many.length, core.BADGES.length, 'všechny odznaky jdou získat');
+    assert.ok(!core.earnedBadgeIds({ topics: { a: 1 } }, x).includes('vsestranny'));
+    // Do účtu jen nejvyšší stupně a zpět
+    const compact = core.compactBadges(many);
+    assert.equal(compact.length, core.BADGE_GROUPS.length);
+    assert.ok(compact.length <= 60, 'vejde se do limitu databáze');
+    assert.deepEqual([...core.expandBadges(compact)].sort(), [...many].sort());
+    assert.deepEqual(core.expandBadges(['stovka']).sort(), ['odpovedi-10', 'odpovedi-50', 'prvni-krok', 'stovka'].sort());
+});

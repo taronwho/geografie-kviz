@@ -1,0 +1,94 @@
+/* Zdroj pro styles.css – po změně tříd v index.html nebo app.js spusť: npm run build:css */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+    /* Hlavní barva brand-* z proměnných (kanály RGB); téma = atribut data-theme na <html> (look-themes.js), výchozí vínové jako dřív */
+    :root,
+    [data-theme="vinova"] { --brand-50: 251 243 246; --brand-100: 247 229 236; --brand-200: 239 200 214; --brand-300: 226 157 180; --brand-400: 208 108 141; --brand-500: 185 71 108; --brand-600: 159 50 86; --brand-700: 135 35 63; --brand-800: 112 29 53; --brand-900: 92 26 47; --brand-950: 55 10 24; }
+    [data-theme="les"] { --brand-50: 243 251 247; --brand-100: 229 247 239; --brand-200: 200 239 221; --brand-300: 157 226 194; --brand-400: 61 192 131; --brand-500: 56 148 105; --brand-600: 40 127 87; --brand-700: 28 108 71; --brand-800: 23 90 59; --brand-900: 21 74 49; --brand-950: 8 44 27; }
+    [data-theme="ocean"] { --brand-50: 242 247 252; --brand-100: 228 239 248; --brand-200: 197 221 242; --brand-300: 152 194 231; --brand-400: 101 162 216; --brand-500: 62 132 194; --brand-600: 42 109 167; --brand-700: 28 89 143; --brand-800: 23 74 118; --brand-900: 21 62 97; --brand-950: 7 34 58; }
+    [data-theme="zapad"] { --brand-50: 252 246 242; --brand-100: 249 235 227; --brand-200: 244 213 195; --brand-300: 235 180 148; --brand-400: 221 141 96; --brand-500: 199 109 57; --brand-600: 173 86 36; --brand-700: 147 68 23; --brand-800: 122 57 19; --brand-900: 100 48 18; --brand-950: 61 25 4; }
+    [data-theme="fialova"] { --brand-50: 248 243 251; --brand-100: 239 229 247; --brand-200: 222 201 238; --brand-300: 196 159 224; --brand-400: 164 111 206; --brand-500: 135 74 182; --brand-600: 111 53 156; --brand-700: 91 38 133; --brand-800: 76 31 110; --brand-900: 63 28 90; --brand-950: 35 11 54; }
+    [data-theme="zlata"] { --brand-50: 252 249 242; --brand-100: 250 243 226; --brand-200: 245 230 194; --brand-300: 236 209 147; --brand-400: 211 160 42; --brand-500: 162 126 43; --brand-600: 140 106 27; --brand-700: 120 89 16; --brand-800: 100 74 13; --brand-900: 82 61 13; --brand-950: 49 35 3; }
+    [data-theme="diamant"] { --brand-50: 242 251 252; --brand-100: 227 247 249; --brand-200: 196 238 243; --brand-300: 150 225 233; --brand-400: 48 189 205; --brand-500: 47 147 158; --brand-600: 31 125 136; --brand-700: 20 106 116; --brand-800: 17 88 96; --brand-900: 16 73 79; --brand-950: 4 43 48; }
+    [data-theme="legenda"] { --brand-50: 253 242 241; --brand-100: 251 226 225; --brand-200: 247 194 192; --brand-300: 240 146 143; --brand-400: 228 93 88; --brand-500: 208 54 48; --brand-600: 181 33 28; --brand-700: 155 20 15; --brand-800: 129 16 12; --brand-900: 105 16 13; --brand-950: 64 3 1; }
+    * { -webkit-tap-highlight-color: transparent; }
+    html { touch-action: manipulation; }
+    ::-webkit-scrollbar { display: none; }
+    body {
+        -ms-overflow-style: none; scrollbar-width: none; overscroll-behavior-y: none;
+        /* Jemný topografický nádech na pozadí */
+        background-color: #eeece8;
+        background-image: radial-gradient(#e1dfda 1px, transparent 1px);
+        background-size: 20px 20px;
+    }
+    @media (prefers-color-scheme: dark) {
+        body {
+            background-color: #161719;
+            background-image: radial-gradient(#2d3034 1px, transparent 1px);
+        }
+    }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+    .fade-in { animation: fadeIn 0.5s ease-out; }
+}
+@keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+.spin { animation: spin 1.5s linear infinite; }
+@keyframes spin { 100% { transform: rotate(360deg); } }
+/* Sova při načítání: pohupuje se a kývá hlavou */
+@media (prefers-reduced-motion: no-preference) {
+    .bob { animation: bob 1.4s ease-in-out infinite; transform-origin: 50% 90%; }
+}
+@keyframes bob { 0%, 100% { transform: translateY(0) rotate(-3deg); } 50% { transform: translateY(-8px) rotate(3deg); } }
+
+/* Tlačítka ve stylu loga (samolepka): tmavší spodní hrana jako tloušťka, lehký odlesk nahoře; při stisku se tlačítko zmáčkne */
+@layer components {
+    .btn-3d, .btn-3d-light {
+        border-bottom-width: 4px;
+        transition: transform 80ms ease, border-bottom-width 80ms ease, box-shadow 80ms ease;
+    }
+    .btn-3d {
+        border-bottom-style: solid;
+        border-bottom-color: rgb(0 0 0 / 0.32);
+        background-image: linear-gradient(to bottom, rgb(255 255 255 / 0.16), rgb(255 255 255 / 0) 55%);
+        box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.28), 0 6px 12px -8px rgb(0 0 0 / 0.55);
+    }
+    .btn-3d-light {
+        border-style: solid;
+        border-width: 1px 1px 4px;
+        border-color: #e1dfda #e1dfda #c9c6c0;
+        box-shadow: 0 6px 12px -9px rgb(0 0 0 / 0.4);
+    }
+    @media (prefers-color-scheme: dark) {
+        .btn-3d-light { border-color: #41454a #41454a #14151a; }
+    }
+    .btn-3d:active:not(:disabled), .btn-3d-light:active:not(:disabled) {
+        transform: translateY(3px);
+        border-bottom-width: 1px;
+        box-shadow: none;
+    }
+    .btn-3d:disabled, .btn-3d-light:disabled { transform: none; }
+}
+
+/* Rámečky profilu kolem obrázku hráče (look-frames.js): kroužek z přechodu je mimo obrázek, takže se emoji nezmění ani nezmenší.
+   Tloušťka se přizpůsobí velikosti písma obrázku (h-7 až h-20). */
+.frame { position: relative; --fr: max(2px, 0.1em); }
+.frame::before {
+    content: ''; position: absolute; inset: calc(var(--fr) * -1); border-radius: 9999px; pointer-events: none; background: var(--frame-bg);
+    -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - var(--fr)), #000 calc(100% - var(--fr) + 0.5px));
+    mask: radial-gradient(farthest-side, transparent calc(100% - var(--fr)), #000 calc(100% - var(--fr) + 0.5px));
+}
+.frame-bronz { --frame-bg: conic-gradient(from 30deg, #a8652a, #f0b27a, #8c5a2b, #e0a066, #a8652a); }
+.frame-stribro { --frame-bg: conic-gradient(from 30deg, #8d98a8, #f4f7fb, #6f7b8c, #e2e8f0, #8d98a8); }
+.frame-zlato { --frame-bg: conic-gradient(from 30deg, #b07a08, #ffe066, #c9971c, #fff3b0, #b07a08); }
+.frame-vavrin { --frame-bg: conic-gradient(from 30deg, #2c6e34, #8bc34a, #3f8f45, #b5dd6b, #2c6e34); }
+.frame-vavrin::after { content: '🌿'; position: absolute; left: 50%; bottom: calc(var(--fr) * -1 - 0.2em); transform: translateX(-50%); font-size: 0.4em; line-height: 1; pointer-events: none; }
+.frame-plamen { --frame-bg: conic-gradient(from 0deg, #ea580c, #fbbf24, #dc2626, #fb923c, #ea580c); filter: drop-shadow(0 0 0.18em rgb(249 115 22 / 0.7)); }
+.frame-diamant { --frame-bg: conic-gradient(from 0deg, #67e8f9, #ffffff, #a78bfa, #e0f2fe, #38bdf8, #ffffff, #67e8f9); filter: drop-shadow(0 0 0.18em rgb(103 232 249 / 0.75)); }
+@media (prefers-reduced-motion: no-preference) {
+    .frame-plamen::before { animation: frameGlow 2.2s ease-in-out infinite; }
+}
+@keyframes frameGlow { 0%, 100% { opacity: 1; } 50% { opacity: 0.78; } }
