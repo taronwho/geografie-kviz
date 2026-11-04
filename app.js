@@ -6,7 +6,7 @@
     const {
         SATELLITE_TILES, OSM_TILES,
         escapeHtml, isRealPhoto, commonsPhotoUrl, commonsFileUrl, displayName, formatPoints, getDayKey, formatDayKey, createSeededRandom, pickRandom,
-        censorName, mergeCensored, processWikiText, takeLeadFacts, checkAnswer, normalizeAnswer, filterItems, pickItem, sortItems,
+        censorName, mergeCensored, processWikiText, stripFactSentences, takeLeadFacts, checkAnswer, normalizeAnswer, filterItems, pickItem, sortItems,
         buildItemChoices, findAnswerItem, setCountries, updateMistakes, nameAnswers, pointsFor, dropKnownFacts,
         computeStreak, buildShareText, getTileLayout, shuffle,
         LEVEL_XP, questionsForLevel, xpForLevel, MAX_LEVEL, LEVEL_TITLES,
@@ -542,7 +542,7 @@
         const basePlan = (topic.hints && topic.hints(item, ctx, question.type))
             || [{ kind: 'photo' }, { kind: 'visual', spec: visual }, { kind: 'facts', facts: topic.facts(item, ctx, question.type) }];
         // Pokračování úvodu článku (zakryté stejně jako popis) je první, nejlevnější nápověda; bez dost skutečných slov se vynechá
-        const moreText = special || !text.more ? '' : mergeCensored(censorFor(question.type, hideOtherChoices(text.more, question, ctx), item, ctx).replaceAll(CHOICE_MARK, '[***]'));
+        const moreText = special || !text.more ? '' : mergeCensored(censorFor(question.type, hideOtherChoices(stripFactSentences(text.more, topic.facts(item, ctx, question.type)), question, ctx), item, ctx).replaceAll(CHOICE_MARK, '[***]'));
         const plan = realWords(moreText) >= MIN_EXCERPT_WORDS ? [{ kind: 'excerpt', text: moreText }, ...basePlan] : basePlan;
         const visibleText = [question.title, question.showName ? item.n : '', typeLabel, questionText].join(' · ');
         // Fakt, který mají všechny nesprávné možnosti stejný jako správná, mezi nimi nepomůže vybrat

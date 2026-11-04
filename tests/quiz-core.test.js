@@ -651,3 +651,10 @@ test('zakrývání: Litva se zakryje i v přídavném jménu (Litevská republik
         assert.doesNotMatch(core.censorName(`Stát ${adjective} republika leží.`, name), new RegExp(adjective.slice(0, 5)), `${name}: ${adjective}`);
     }
 });
+
+test('další věty nápovědy neříkají totéž co nápověda Fakta (hlavní město, počet obyvatel, rozloha)', () => {
+    const facts = [{ label: 'Hlavní město', value: 'Minsk' }, { label: 'Počet obyvatel', value: '9,1 mil.' }, { label: 'Rozloha', value: '207 597 km²' }];
+    const text = 'Je to relativně rovinatý stát s rozsáhlými bažinatými oblastmi. Země se dělí na šest oblastí, na ploše asi 208 000 km² žije 9,2 milionu obyvatel. Hlavním a největším městem je Minsk.';
+    assert.equal(core.stripFactSentences(text, facts), 'Je to relativně rovinatý stát s rozsáhlými bažinatými oblastmi.');
+    assert.equal(core.stripFactSentences('Text bez čísel a jmen.', []), 'Text bez čísel a jmen.');
+});

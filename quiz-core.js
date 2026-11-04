@@ -309,6 +309,19 @@
         return { description, funFacts, more };
     };
 
+    // Věty textu, které říkají totéž co nápověda „Fakta“ (hlavní město, počet obyvatel, rozloha, rok…): z nápovědy s dalšími
+    // větami se vyřadí, ať hráč nedostane fakta dřív, než si o ně řekne. Čísla se porovnávají jen přítomností (text je často
+    // zaokrouhluje jinak: 208 000 km² × 207 597 km²), slova podle prvních pěti písmen.
+    const stripFactSentences = (text, facts) => {
+        const values = (facts || []).map(fact => String(fact.value));
+        const hasNumbers = values.some(value => /\d/.test(value));
+        const words = new Set(values.flatMap(value => (value.match(/\p{L}{4,}/gu) || []).map(word => word.toLowerCase().slice(0, 5))));
+        return String(text || '').split(/(?<=[.!?])\s+(?=\p{Lu}|\[)/u).filter(sentence => {
+            if (hasNumbers && /\d/.test(sentence)) return false;
+            return !(sentence.match(/\p{L}{4,}/gu) || []).some(word => words.has(word.toLowerCase().slice(0, 5)));
+        }).join(' ');
+    };
+
     // Chudá otázka, kterou se nepodařilo vyměnit: první fakta (rok, země, obor) se ukážou hned v okně, ne až po nápovědě
     const LEAD_FACTS = 3;
     const takeLeadFacts = (hints) => {
@@ -1149,7 +1162,7 @@
         escapeHtml, stripBrackets, isRealPhoto, commonsPhotoUrl, commonsFileUrl, displayName, plural, formatPoints,
         getDayKey, shiftDayKey, formatDayKey, createSeededRandom, pickRandom, shuffle,
         ELEMENT_FAMILIES, elementFamily, periodicPosition,
-        setCountries, landOf, cultureScore, getWordStems, censorName, mergeCensored, censorCountry, isKnownCountry, processWikiText, takeLeadFacts, normalizeAnswer, levenshtein, isAnswerMatch, isSymbolMatch, isCenturyMatch, isFormulaMatch, formulaCounts, checkAnswer,
+        setCountries, landOf, cultureScore, getWordStems, censorName, mergeCensored, censorCountry, isKnownCountry, processWikiText, stripFactSentences, takeLeadFacts, normalizeAnswer, levenshtein, isAnswerMatch, isSymbolMatch, isCenturyMatch, isFormulaMatch, formulaCounts, checkAnswer,
         inCollection, filterItems, pickItem, sortItems, getCountryNames, getContinent, continentAt, getCountryAliases,
         distanceKm, nearness, STATE_STEPS, sharesGroup, eraNearness, personSimilarity, rankBySimilarity, takeDistinct,
         buildItemChoices, buildCountryChoices, findAnswerItem, findAnswerCountry, updateMistakes, nameAnswers, countryAnswers,
