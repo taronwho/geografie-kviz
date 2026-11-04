@@ -37,6 +37,8 @@ jobs:
           mkdir -p _site/app
           cp -r index.html config.js auth.js social.js app.js quiz-core.js visuals.js look.js look-themes.js look-robes.js look-frames.js icons.js styles.css sw.js manifest.webmanifest icons topics data _site/app/
           cp pages-root/index.html pages-root/sw.js _site/
+          # Denní zajímavost vzniká zvlášť (fakt.yml) a leží jen v gh-pages; nové nasazení ji zachová
+          if git fetch -q --depth 1 origin gh-pages && git show FETCH_HEAD:app/data/fakt.json > "$RUNNER_TEMP/fakt.json" 2>/dev/null; then cp "$RUNNER_TEMP/fakt.json" _site/app/data/fakt.json; fi
           # Každé nasazení = nový service worker (jiný název mezipaměti), aby se nainstalované aplikace samy aktualizovaly
           sed -i "s/const CACHE_NAME = 'mudrlant-v3';/const CACHE_NAME = 'mudrlant-${GITHUB_SHA::7}';/" _site/app/sw.js
           grep -q "mudrlant-${GITHUB_SHA::7}" _site/app/sw.js

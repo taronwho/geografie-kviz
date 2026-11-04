@@ -1,0 +1,54 @@
+# Denní zajímavost: každý den po půlnoci (pražského času) vybere událost z Wikipedie, Gemini ji přepíše do krátkého odstavce
+# a výsledek uloží přímo do větve gh-pages (app/data/fakt.json), takže se nemusí znovu nasazovat celý web.
+# Potřebuje tajný klíč GEMINI_API_KEY (Settings → Secrets and variables → Actions). Plánované spouštění funguje jen z výchozí větve.
+name: Denní zajímavost
+
+on:
+  schedule:
+    - cron: '17 22,23 * * *'   # 22:17 a 23:17 UTC = po půlnoci v Praze v létě i v zimě; jedno z nich je vždy po půlnoci, druhé hotový den přeskočí
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: fakt
+
+jobs:
+  fact:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Dnešní zajímavost
+        id: fact
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          set -e
+          day=$(TZ=Europe/Prague date +%F)
+          git fetch -q --depth 1 origin gh-pages || true
+          if git show FETCH_HEAD:app/data/fakt.json 2>/dev/null | grep -q "\"date\": \"$day\""; then echo "Zajímavost pro $day už existuje."; exit 0; fi
+          node scripts/daily-fact.mjs "$day" "$RUNNER_TEMP/fakt.json"
+          echo "ready=true" >> "$GITHUB_OUTPUT"
+
+      - name: Zápis do gh-pages
+        if: steps.fact.outputs.ready == 'true'
+        run: |
+          set -e
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          for try in 1 2 3; do
+            git fetch -q --depth 1 origin gh-pages
+            git checkout -q -B gh-pages FETCH_HEAD
+            mkdir -p app/data
+            cp "$RUNNER_TEMP/fakt.json" app/data/fakt.json
+            git add app/data/fakt.json
+            git commit -q -m "Denní zajímavost"
+            if git push -q origin gh-pages; then exit 0; fi
+            sleep 5
+          done
+          exit 1

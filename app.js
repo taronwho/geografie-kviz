@@ -1259,6 +1259,47 @@
         return groups.filter(group => group.topics.length);
     };
 
+    // --- Denní zajímavost: text a odkaz vzniká denně mimo aplikaci (data/fakt.json), pro všechny hráče stejný ---
+    const FACT_KEY = 'mudrlant.fakt';
+    let dailyFact = null;
+    const factRead = () => readJson(FACT_KEY) === getDayKey();
+    const validFact = (fact) => Boolean(fact) && fact.date === getDayKey() && typeof fact.title === 'string' && typeof fact.text === 'string'
+        && typeof fact.url === 'string' && /^https:\/\/[a-z]+\.wikipedia\.org\//.test(fact.url);
+    const loadDailyFact = async () => {
+        try {
+            const response = await fetch('data/fakt.json', { cache: 'no-cache' });
+            if (!response.ok) return;
+            const fact = await response.json();
+            if (!validFact(fact)) return;
+            dailyFact = fact;
+            if (screen === 'home') renderHome();
+        } catch (error) { /* bez zajímavosti se úvod prostě ukáže bez bubliny */ }
+    };
+    // Bublina sovy nad dnešními otázkami; po přečtení zůstane tenký řádek s titulkem
+    const factBubble = () => {
+        if (!dailyFact) return '';
+        const read = factRead();
+        return `
+            <button type="button" data-action="open-fact" class="flex shrink-0 items-center gap-2 rounded-2xl bg-white py-1 pl-1 pr-3 text-left shadow-sm ring-1 ring-slate-200/70 active:scale-[0.99] dark:bg-slate-800/70 dark:ring-slate-700/70">
+                ${uiArt('sova-premysleni', 'h-11 w-11 shrink-0')}
+                <span class="min-w-0 flex-1 truncate text-[13px] font-black leading-tight text-slate-800 dark:text-slate-100">${read ? `<span class="font-bold text-slate-500 dark:text-slate-400">Dnešní zajímavost:</span> ${escapeHtml(dailyFact.title)}` : 'Chceš slyšet dnešní zajímavost?'}</span>
+                <i data-lucide="${read ? 'book-open' : 'chevron-right'}" class="h-4 w-4 shrink-0 text-brand-700 dark:text-brand-300"></i>
+            </button>`;
+    };
+    const openFact = () => {
+        if (!dailyFact) return;
+        writeJson(FACT_KEY, getDayKey());
+        showDialog('Dnešní zajímavost', `
+            <div class="flex flex-col gap-3">
+                <div class="flex items-center gap-3">${uiArt('sova-premysleni', 'h-16 w-16 shrink-0')}<div class="min-w-0"><p class="text-[11px] font-black uppercase tracking-widest text-brand-700 dark:text-brand-300">${escapeHtml(shortDay(getDayKey()))}${Number.isInteger(dailyFact.year) ? ` · rok ${dailyFact.year}` : ''}</p><p class="text-lg font-black leading-tight text-slate-800 dark:text-slate-100">${escapeHtml(dailyFact.title)}</p></div></div>
+                <p class="text-[15px] leading-relaxed text-slate-700 dark:text-slate-200">${escapeHtml(dailyFact.text)}</p>
+                <a data-fact-link href="${escapeHtml(dailyFact.url)}" target="_blank" rel="noopener noreferrer" class="flex items-center justify-center gap-2 rounded-2xl btn-3d bg-brand-700 px-4 py-3 text-[15px] font-black text-white"><i data-lucide="external-link" class="h-5 w-5"></i> Číst víc na Wikipedii</a>
+                <p class="text-center text-[11px] text-slate-400 dark:text-slate-500">Zdroj: ${escapeHtml(dailyFact.source || 'Wikipedie')}${dailyFact.page ? ` – ${escapeHtml(dailyFact.page)}` : ''}. Text shrnula umělá inteligence.</p>
+            </div>`);
+        renderIcons(document.getElementById('dialog-overlay'));
+        if (screen === 'home') renderHome();
+    };
+
     const renderHome = () => {
         screen = 'home';
         closePlaceInfo();
@@ -1300,7 +1341,7 @@
         appContent.innerHTML = `
             <div class="fade-in flex min-h-full w-full flex-col gap-2.5 bg-slate-50 p-3 pb-4 dark:bg-slate-900">
                 ${renderHomeTabs()}
-                ${homeTab() === 'multi' ? renderChallengesSection() : `<section class="rounded-[1.4rem] bg-white p-2.5 shadow-sm ring-1 ring-slate-200/70 dark:bg-slate-800/70 dark:ring-slate-700/70">
+                ${homeTab() === 'multi' ? renderChallengesSection() : `${factBubble()}<section class="rounded-[1.4rem] bg-white p-2.5 shadow-sm ring-1 ring-slate-200/70 dark:bg-slate-800/70 dark:ring-slate-700/70">
                     <div class="mb-2 flex items-center justify-between gap-2">
                         <h2 class="flex min-w-0 items-center gap-2 whitespace-nowrap text-slate-800 dark:text-slate-100">${uiArt('dnes', 'h-8 w-8')}<span class="min-w-0"><span class="block text-[13px] font-black leading-tight">Dnešní otázky</span><span class="block text-[11px] font-bold leading-tight text-slate-400">${answered}/${TOPICS.length} splněno</span></span></h2>
                         ${left ? `
@@ -3809,6 +3850,7 @@
         'daily-home': () => renderHome(),
         'play-topic': (button) => playTopic(button.dataset.topic),
         'play-mix': () => openChooser({ kind: 'mix' }),
+        'open-fact': () => openFact(),
         'open-learn': () => openLearn('home'),
         hint: () => showNextHint(),
         'hint-tab': (button) => switchTab('hint-tab', button.dataset.step),
@@ -4023,6 +4065,7 @@
     settings = loadSettings();
     applyLook();
     renderIcons(document);
+    loadDailyFact();
     try {
         showStart();
         welcomeBack();
