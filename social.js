@@ -143,6 +143,34 @@
         body: { xp: Math.max(0, Math.min(1000000, Math.floor(xp))), badges: badges.slice(0, 60) }, prefer: 'return=minimal'
     });
 
+    // Rating (ELO) a týdenní žebříček: sloupec a funkce přibyly pozdější verzí schématu. Dokud je databáze nemá (404/400),
+    // vrací se prázdný výsledek a dál se o ně nežádá (po novém načtení stránky se zkusí znovu); jiné chyby (síť) se vyhodí.
+    let ratingMissing = false;
+    const guardRating = async (run, empty) => {
+        if (ratingMissing) return empty;
+        try { return await run(); } catch (error) {
+            if (error.status === 400 || error.status === 404) { ratingMissing = true; return empty; }
+            throw error;
+        }
+    };
+    const cleanRatingNumber = (value) => Number.isFinite(Number(value)) ? Math.max(100, Math.min(5000, Math.floor(Number(value)))) : null;
+    // Rating a počet ohodnocených výzev hráče; null, když rating v databázi ještě není
+    const getRating = (userId) => guardRating(async () => {
+        const row = (await request('GET', `profiles?id=eq.${encodeURIComponent(userId)}&select=rating,rated_games`) || [])[0];
+        const rating = row ? cleanRatingNumber(row.rating) : null;
+        return rating === null ? null : { rating, games: Math.max(0, Math.floor(Number(row.rated_games) || 0)) };
+    }, null);
+    // Změna ratingu hráče po výzvě (zapsal ji server po dohrání obou hráčů); null = výzva se nehodnotila (sám, třetí hráč…)
+    const getRatingChange = (userId, code) => guardRating(async () => {
+        const row = (await request('GET', `rating_history?challenge_id=eq.${encodeURIComponent(code)}&user_id=eq.${encodeURIComponent(userId)}&select=delta,rating_after,outcome,capped`) || [])[0];
+        return row ? { delta: Math.floor(Number(row.delta) || 0), after: cleanRatingNumber(row.rating_after), outcome: row.outcome, capped: Boolean(row.capped) } : null;
+    }, null);
+    // Top hráči aktuálního týdne (veřejné údaje); null, když funkce v databázi ještě není
+    const weeklyLeaderboard = () => guardRating(async () => {
+        const rows = await request('POST', 'rpc/weekly_leaderboard', { body: {} }) || [];
+        return rows.map(row => ({ ...row, frame: cleanFrame(row.frame), title_pref: cleanTitlePref(row.title_pref), rating: cleanRatingNumber(row.rating) || 1000, week_delta: Math.floor(Number(row.week_delta) || 0), week_wins: Math.floor(Number(row.week_wins) || 0), week_games: Math.floor(Number(row.week_games) || 0) }));
+    }, null);
+
     // Profil hráče pro cizí oči: počet her, úspěšnost, nejlepší výsledek a (u cizího hráče) vzájemná bilance s přihlášeným
     // a nastavení poslední společné výzvy, ať jde snadno vyzvat k odvetě. Vše se počítá z uložených výsledků výzev.
     const playerStats = async (meId, otherId) => {
@@ -215,5 +243,5 @@
         return invites.filter(row => !done.has(row.id));
     };
 
-    return { AVATARS, allAvatars, cleanFrame, cleanTitlePref, saveLook, COLORS, COUNTS, NAME_MAX, SocialError, cleanName, isValidName, newCode, parseCode, getProfile, saveProfile, createChallenge, getChallenge, getResults, submitResult, myChallenges, searchPlayers, randomOpponent, incomingChallenges, playerStats, getProgress, saveProgress, getAccepts, saveAccepts };
+    return { AVATARS, allAvatars, cleanFrame, cleanTitlePref, saveLook, COLORS, COUNTS, NAME_MAX, SocialError, cleanName, isValidName, newCode, parseCode, getProfile, saveProfile, createChallenge, getChallenge, getResults, submitResult, myChallenges, searchPlayers, randomOpponent, incomingChallenges, playerStats, getProgress, saveProgress, getRating, getRatingChange, weeklyLeaderboard, getAccepts, saveAccepts };
 });
