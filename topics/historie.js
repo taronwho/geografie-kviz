@@ -18,6 +18,8 @@
         { key: 'rise', label: 'Říše a státy minulosti', one: 'stát', icon: 'castle', question: 'Který stát to je?', placeholder: 'Napiš název státu…', sort: { by: 'y' } }
     ];
     const isPerson = (item) => item.c === 'panovnik' || item.c === 'statnik' || item.c === 'osobnost';
+    // Událost je součástí jiné (f.war: Říjnová revoluce → Ruská revoluce, bitva u Azincourtu → stoletá válka)
+    const isPartOf = (part, whole) => Boolean((part.f || {}).war) && part.f.war.toLocaleLowerCase('cs') === whole.n.toLocaleLowerCase('cs');
     const categoryOf = (item) => CATEGORIES.find(category => category.key === item.c) || CATEGORIES[0];
 
     // Jak často se místo „Kdo to je?“ ptáme na století
@@ -299,6 +301,8 @@
         similarity: (item, other) => {
             const f = item.f || {};
             const g = other.f || {};
+            // Část a celek (Říjnová revoluce a Ruská revoluce, bitva u Azincourtu a stoletá válka) by byly dvě správné odpovědi
+            if (isPartOf(item, other) || isPartOf(other, item)) return -100;
             let score = isPerson(item) ? personSimilarity(item, other) : eraNearness(f.y, g.y);
             if (isPerson(item) && f.dyn && f.dyn === g.dyn) score += 1;
             // Osoby: blízká doba i v rámci století (k Disraelimu Gladstone, ne Sunak) a stejná země

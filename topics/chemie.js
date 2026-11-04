@@ -24,7 +24,8 @@
 
     const celsius = (value) => `${formatNumber(value)} °C`;
     // Hustota plynů je tisíckrát menší (vodík 0,00009 g/cm³) – zaokrouhlením by z ní byla nula
-    const density = (value) => `${formatNumber(value >= 0.01 ? value : Number(value.toPrecision(2)))} g/cm³`;
+    // (formatNumber zaokrouhluje na tři desetinná místa, vodík by byl „0 g/cm³“ a chlorid amonný „0,002“)
+    const density = (value) => `${value >= 0.01 ? formatNumber(value) : Number(value.toPrecision(2)).toLocaleString('cs-CZ', { maximumFractionDigits: 6 })} g/cm³`;
     const SUBSCRIPTS = '₀₁₂₃₄₅₆₇₈₉';
     const plainFormula = (formula) => formula.replace(/[₀-₉]/g, digit => String(SUBSCRIPTS.indexOf(digit)));
     const symbolsOf = (formula) => formula.match(/[A-Z][a-z]?/g) || [];

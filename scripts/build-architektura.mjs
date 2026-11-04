@@ -2,6 +2,7 @@
 // Spuštění: npm run build:architektura (s BUILD_CACHE=složka jde pravidla ladit bez opakovaného stahování;
 // potřebuje data/countries.json a data/zemepis.json – z měst zeměpisu se bere město stavby)
 import { readFileSync } from 'node:fs';
+import { landByDescription } from './lib/nationality.mjs';
 import { qlever, id, values, parsePoint, imageFields, yearOf, compact, cached, inBatches, writeTopic, readCountries, CZECHIA } from './lib/wikidata.mjs';
 
 const ARCHITECT = 'Q42973';
@@ -59,6 +60,10 @@ const VAGUE_STYLES = new Set(['Q245188', 'Q878985', 'Q1349760', 'Q4198718', 'Q18
 const OTHER_STYLES = new Set(['Q74156', 'Q1077702', 'Q2860353']);
 // Slavné stavby, u nichž Wikidata uvádějí vedle hlavního slohu i vedlejší: Sagrada Família je dílo katalánské secese
 // (s novogotickými prvky), dům U Černé Matky Boží učebnicová ukázka kubismu (se secesním zábradlím)
+// Rok vzniku, který Wikidata uvádějí chybně (bazilika Saint-Denis 1101 místo gotické přestavby 1144, liberecké divadlo 1801 místo 1883)
+// a okresy místo měst (Hooverova přehrada: Clark County)
+const YEAR_FIXES = { Q184407: 1144, Q11812411: 1883, Q856462: 1982 };
+const NO_CITY = new Set(['Q172822', 'Q731635']);
 const STYLE_OVERRIDES = { Q48435: 'secese', Q2717859: 'kubismus' };
 // Dvojice „původní sloh – jeho napodobení“: stavba dostavěná ve stejném duchu (katedrála sv. Víta) patří k původnímu slohu,
 // u ostatních dvojic rozhoduje užší sloh (empír, rokoko, novogotika místo historismu)
@@ -373,11 +378,11 @@ for (const entry of kept) {
         ...imageFields(detail.im),
         f: compact({
             st: key,
-            y: year,
+            y: YEAR_FIXES[qid] ?? year,
             // Autoři jen celí (bez nepojmenovaných), jediný autor i s odkazem na položku
             arch: authorNames.length && authorNames.length === authors.length ? authorNames.join(', ') : undefined,
             aq: authors.length === 1 && authorNames.length === 1 ? authors[0] : undefined,
-            city: cityOf(detail, point),
+            city: NO_CITY.has(qid) ? undefined : cityOf(detail, point),
             unesco: (detail.her || []).includes(WORLD_HERITAGE_SITE) ? 1 : undefined,
             // Vedlejší slohy (Sagrada Família má i novogotické prvky) – mezi nesprávnými možnostmi nesmí být
             no: STYLE_OVERRIDES[qid] ? [...new Set((detail.style || []).map(styleKeyOf).filter(other => other && other !== 'jiny' && other !== key))] : undefined
@@ -414,7 +419,8 @@ const countryName = (detail) => {
     const described = [...list, ...(detail.bornIn || [])].filter(q => countries[q])
         .find(q => words.some(word => word.startsWith(countries[q].name.slice(0, 4).toLocaleLowerCase('cs'))));
     const current = described || list.find(q => countries[q]);
-    return current ? countries[current].name : list.map(cs).find(Boolean);
+    // Příslušnost podle popisu (Richard Meier ve Wikidatech: Německo, Renzo Piano: Francie)
+    return landByDescription(detail.d, [current ? countries[current].name : list.map(cs).find(Boolean)]);
 };
 // Známí jinak než stavbami (diplomat Wallenberg, umělec Aj Wej-wej, plavec Hajós, filolog Ventris, Olena Zelenská)
 const NOT_ARCHITECTS = new Set(['Q59321885', 'Q160115', 'Q152850', 'Q313443', 'Q92601', 'Q259378']);
