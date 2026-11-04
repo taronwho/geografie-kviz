@@ -619,3 +619,24 @@ test('odznaky: skupiny se stupni, podmínky podle počítadel a postupu', () => 
     assert.deepEqual([...core.expandBadges(compact)].sort(), [...many].sort());
     assert.deepEqual(core.expandBadges(['stovka']).sort(), ['odpovedi-10', 'odpovedi-50', 'prvni-krok', 'stovka'].sort());
 });
+
+test('processWikiText: další věty úvodu jdou stranou jako pozdější nápověda', () => {
+    const { description, more } = core.processWikiText('Jan Novák byl český politik a spisovatel, který dlouho působil ve veřejném životě a byl znám po celé zemi i v zahraničí. Narodil se ve středních Čechách. Studoval práva v Praze. Po válce vstoupil do vlády. Zemřel v Brně.');
+    assert.match(description, /^Jan Novák byl český politik.*zahraničí\.$/);
+    assert.ok(!more.includes('politik a spisovatel'));
+    assert.match(more, /^Narodil se/);
+    assert.ok(!core.processWikiText('Krátký popis jedné věci.').more);
+});
+
+test('takeLeadFacts: první fakta chudé otázky se přesunou z nápovědy do okna', () => {
+    const facts = [{ label: 'Narozen', value: '1950' }, { label: 'Země', value: 'Polsko' }, { label: 'Obor', value: 'chemie' }, { label: 'Zemřel', value: '2010' }];
+    const hints = [{ kind: 'photo' }, { kind: 'facts', facts, label: 'čísla a fakta' }];
+    const result = core.takeLeadFacts(hints);
+    assert.deepEqual(result.leadFacts, facts.slice(0, 3));
+    assert.deepEqual(result.hints[1].facts, [facts[3]]);
+    assert.deepEqual(hints[1].facts, facts, 'původní nápovědy se nemění');
+    // Zbyla-li jen tři fakta, nápověda zmizí; vlastní nápověda tématu (extra) a plán bez faktů se nechají být
+    assert.deepEqual(core.takeLeadFacts([{ kind: 'facts', facts: facts.slice(0, 2) }]), { hints: [], leadFacts: facts.slice(0, 2) });
+    const extra = [{ kind: 'facts', facts, extra: true }];
+    assert.deepEqual(core.takeLeadFacts(extra), { hints: extra, leadFacts: [] });
+});

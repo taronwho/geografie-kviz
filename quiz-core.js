@@ -290,8 +290,26 @@
         const description = descriptionParts.join(' ') || cleanExtract.replaceAll(KEPT_DOT, '.').trim().slice(0, 300);
         // Bez zajímavostí se sekce prostě nezobrazí (výplňová věta by se tvářila jako zajímavost)
         const funFacts = sentences.slice(index).filter(s => s.length > 30).slice(0, 3);
+        // Další věty úvodu hned za popisem (nejvýš tři, do ~420 znaků): pozdější nápověda s víc textem k hádání
+        const moreParts = [];
+        for (const sentence of sentences.slice(index)) {
+            if (moreParts.length >= 3 || moreParts.join(' ').length + sentence.length > 420) break;
+            moreParts.push(sentence);
+        }
+        const more = moreParts.join(' ');
 
-        return { description, funFacts };
+        return { description, funFacts, more };
+    };
+
+    // Chudá otázka, kterou se nepodařilo vyměnit: první fakta (rok, země, obor) se ukážou hned v okně, ne až po nápovědě
+    const LEAD_FACTS = 3;
+    const takeLeadFacts = (hints) => {
+        const index = hints.findIndex(hint => hint.kind === 'facts' && !hint.extra);
+        if (index < 0) return { hints, leadFacts: [] };
+        const leadFacts = hints[index].facts.slice(0, LEAD_FACTS);
+        const rest = hints[index].facts.slice(LEAD_FACTS);
+        const next = rest.length ? hints.map((hint, i) => i === index ? { ...hint, facts: rest } : hint) : hints.filter((_, i) => i !== index);
+        return { hints: next, leadFacts };
     };
 
     // Odpovědi porovnáváme bez diakritiky, velikosti písmen a závorek, s tolerancí drobných překlepů
@@ -1123,7 +1141,7 @@
         escapeHtml, stripBrackets, isRealPhoto, commonsPhotoUrl, commonsFileUrl, displayName, plural, formatPoints,
         getDayKey, shiftDayKey, formatDayKey, createSeededRandom, pickRandom, shuffle,
         ELEMENT_FAMILIES, elementFamily, periodicPosition,
-        setCountries, landOf, cultureScore, getWordStems, censorName, mergeCensored, censorCountry, isKnownCountry, processWikiText, normalizeAnswer, levenshtein, isAnswerMatch, isSymbolMatch, isCenturyMatch, isFormulaMatch, formulaCounts, checkAnswer,
+        setCountries, landOf, cultureScore, getWordStems, censorName, mergeCensored, censorCountry, isKnownCountry, processWikiText, takeLeadFacts, normalizeAnswer, levenshtein, isAnswerMatch, isSymbolMatch, isCenturyMatch, isFormulaMatch, formulaCounts, checkAnswer,
         inCollection, filterItems, pickItem, sortItems, getCountryNames, getContinent, continentAt, getCountryAliases,
         distanceKm, nearness, STATE_STEPS, sharesGroup, eraNearness, personSimilarity, rankBySimilarity, takeDistinct,
         buildItemChoices, buildCountryChoices, findAnswerItem, findAnswerCountry, updateMistakes, nameAnswers, countryAnswers,
