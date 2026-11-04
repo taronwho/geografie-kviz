@@ -76,6 +76,11 @@ const setup = async (browser, options = {}) => {
             if (flags.wikiDown) return route.fulfill({ status: 503, body: '' });
             if (flags.wikiHangs) return; // odpověď nikdy nepřijde
             const title = url.searchParams.get('titles');
+            // wikiThinFirst: první popis je příliš krátký (stub), další jsou běžné
+            if (flags.wikiThinFirst && !flags.thinServed) {
+                flags.thinServed = title;
+                return route.fulfill({ json: { query: { pages: { 7: { pageid: 7, title, extract: 'Krátký popis jedné osoby ve zkušebním světě. Nic dalšího.' } } } } });
+            }
             return route.fulfill({ json: { query: { pages: { 7: { pageid: 7, title, extract: fixtures.extractFor(title) } } } } });
         }
         if (url.hostname === 'upload.wikimedia.org') {
@@ -923,6 +928,21 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         await tab.click('[data-action="give-up"]');
         await waitForResult(tab);
         assert.doesNotMatch(await appText(tab), /Zajímavosti/);
+        assert.deepEqual(log.errors, []);
+        await context.close();
+    });
+
+    await t.test('příliš chudý popis (stub z Wikipedie): otázka se vymění za jinou s dostatečným popisem', async () => {
+        const { context, tab, log, flags } = await setup(browser, { wikiThinFirst: true });
+        await tab.goto(`${ORIGIN}/`);
+        await waitForHome(tab);
+        await tab.click('[data-action="daily"][data-topic="historie"]');
+        await waitForQuestion(tab);
+        const data = await readRound(tab);
+        assert.ok(flags.thinServed, 'stub se opravdu vrátil');
+        assert.notEqual(data.title, flags.thinServed, 'chudá otázka se nezobrazí');
+        assert.ok(data.questionText.replace(/\[\*\*\*\]/g, ' ').split(/\s+/).filter(word => /\p{L}/u.test(word)).length >= 14, 'popis má dost slov');
+        assert.ok(log.wiki.length >= 2, 'popis se hledal znovu');
         assert.deepEqual(log.errors, []);
         await context.close();
     });

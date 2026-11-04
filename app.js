@@ -371,7 +371,7 @@
             console.error(e);
         }
         const shortDescription = item.d ? `${item.d.charAt(0).toUpperCase()}${item.d.slice(1)}.` : '';
-        return { description: shortDescription, funFacts: [] };
+        return { description: shortDescription, funFacts: [], fallback: true };
     };
 
     const loadImage = (url) => new Promise((resolve, reject) => {
@@ -498,6 +498,11 @@
     };
 
     // Data jedné otázky – vše, co se uloží a po obnovení stránky zobrazí znovu
+    // Kolik slov skutečného textu (bez zakrytých míst) má popis mít, aby z něj šla odpověď poznat nebo aspoň odhadnout
+    const MIN_DESCRIPTION_WORDS = 14;
+    const realWords = (text) => String(text || '').replace(/\[\*\*\*\]/g, ' ').split(/\s+/).filter(word => /\p{L}/u.test(word)).length;
+    const MAX_THIN_RETRIES = 3;
+
     const createRoundData = async (item, ctx, rng) => {
         const { topic, items } = ctx;
         // Pořadí volání rng je stálé, aby dnešní otázka vyšla všem stejně
@@ -527,6 +532,8 @@
         // Typ položky („obec ve Španělsku“, „král“) nesmí prozradit odpověď
         const typeLabel = item.ty && !censorFor(question.type, item.ty, item, ctx).includes('[***]') ? item.ty : category.one;
         const questionText = mergeCensored(censorFor(question.type, hideOtherChoices(text.description, question, ctx), item, ctx).replaceAll(CHOICE_MARK, '[***]'));
+        // Příliš chudý popis („Zimbabwský politik.“) nestačí k odpovědi: když je popis jediná opora otázky, je „thin“
+        const thin = !shown && !special && (text.fallback || realWords(questionText) < MIN_DESCRIPTION_WORDS);
         const plan = (topic.hints && topic.hints(item, ctx, question.type))
             || [{ kind: 'photo' }, { kind: 'visual', spec: visual }, { kind: 'facts', facts: topic.facts(item, ctx, question.type) }];
         const visibleText = [question.title, question.showName ? item.n : '', typeLabel, questionText].join(' · ');
@@ -561,6 +568,7 @@
             coords: topic.coords ? topic.coords(item, ctx) : null,
             isCzech: Boolean(topic.isCzech && topic.isCzech(item, ctx)),
             description: text.description,
+            thin,
             funFacts: relevantFacts(text.funFacts, item)
         };
     };
@@ -2046,9 +2054,19 @@
         updateControlsUI();
         renderLoading('Vybírám otázku…', loadingTopic);
         try {
-            const { item, ctx, rng, dailyDate } = await pick();
-            if (!item) throw new Error('Není z čeho vybírat');
-            const data = await createRoundData(item, ctx, rng);
+            let picked = await pick(0);
+            if (!picked.item) throw new Error('Není z čeho vybírat');
+            let data = await createRoundData(picked.item, picked.ctx, picked.rng);
+            // Chudý popis: vybere se jiná otázka (u dnešní otázky další určená položka), nejvýš třikrát; pak se vezme, co je
+            // (výzva ne: všichni hráči musí dostat stejné otázky, i když se někomu Wikipedie nenačte)
+            for (let attempt = 1; data.thin && mode !== 'challenge' && attempt <= MAX_THIN_RETRIES; attempt++) {
+                const next = await pick(attempt);
+                if (!next.item) break;
+                const candidate = await createRoundData(next.item, next.ctx, next.rng);
+                picked = next;
+                data = candidate;
+            }
+            const { dailyDate } = picked;
             current = dailyDate ? { ...data, dailyDate } : data;
             round = createRound();
             // Výzva má pevný způsob odpovídání pro všechny hráče
@@ -2086,9 +2104,9 @@
             }
         }
         mode = 'daily';
-        runRound(async () => {
+        runRound(async (attempt = 0) => {
             const ctx = await loadTopic(topicId);
-            const rng = createSeededRandom(dailySeed(ctx.topic, today));
+            const rng = createSeededRandom(attempt ? `${dailySeed(ctx.topic, today)}:r${attempt}` : dailySeed(ctx.topic, today));
             // Tu a tam (DAILY_HARD_SHARE) je dnešní otázka z těžších, méně známých; los má vlastní semínko, takže ostatních 90 %
             // dnešních otázek zůstává stejných a pro všechny hráče platí stejně
             const hard = createSeededRandom(`${dailySeed(ctx.topic, today)}:tezka`)() < DAILY_HARD_SHARE;
