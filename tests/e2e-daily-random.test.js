@@ -42,6 +42,7 @@ test('další dnešní téma je náhodné z neodehraných', { skip: !chromium &&
             sessionStorage.setItem('seeded', '1');
             localStorage.setItem('mudrlant.account', JSON.stringify('host'));
             localStorage.setItem('mudrlant.variant', 'choices');
+            localStorage.setItem('mudrlant.tutorial', JSON.stringify({ how: 'done' }));
         }, random);
         const tab = await context.newPage();
         await tab.goto(`${origin}/`);

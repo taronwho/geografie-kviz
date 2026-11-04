@@ -32,7 +32,7 @@ const open = async (browser, { level, storage = {} }) => {
         if (sessionStorage.getItem('test-storage-set')) return;
         sessionStorage.setItem('test-storage-set', '1');
         Object.entries(values).forEach(([key, value]) => localStorage.setItem(key, value));
-    }, entries);
+    }, { 'mudrlant.tutorial': JSON.stringify({ how: 'done' }), ...entries });
     const tab = await context.newPage();
     const problems = [];
     tab.on('pageerror', error => problems.push(error.message));
