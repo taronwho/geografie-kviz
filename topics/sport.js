@@ -336,7 +336,9 @@
         'Smíšená bojová umění': ['MMA'], 'Maratonský běh': ['maraton'], 'Synchronizované plavání': ['umělecké plavání'], 'Kulečník': ['biliár'],
         'Plážový volejbal': ['beachvolejbal', 'beach volejbal'], 'Snowboarding': ['snowboard'], 'Skateboarding': ['skateboard'], 'Bobování': ['boby', 'bob'],
         'Saně': ['sáňkování'], 'Parkurové skákání': ['parkur', 'skoky na koni'], 'Dostihový sport': ['dostihy'], 'Běh na 100 m': ['sprint', 'stovka'],
-        'Sportovní lezení': ['lezení'], 'Kraul': ['volný způsob'], 'Bandy': ['bandy hokej'], 'Sportovní gymnastika': ['sportovní gymnastika']
+        'Sportovní lezení': ['lezení'], 'Kraul': ['volný způsob'], 'Bandy': ['bandy hokej'], 'Sportovní gymnastika': ['sportovní gymnastika'],
+        // Jiný zápis či zkrácený název, který by v popisu odpověď prozradil („česky též košíková, zkráceně basket“, „rugby union“, „džudo“)
+        'Ragby': ['rugby'], 'Basketbal': ['basket', 'košíková'], 'Judo': ['džudo']
     };
     const sportFacts = (item) => {
         const f = item.f;

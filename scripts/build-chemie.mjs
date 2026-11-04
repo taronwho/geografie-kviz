@@ -2,9 +2,22 @@
 // Spuštění: npm run build:chemie (s BUILD_CACHE=složka jde pravidla ladit bez opakovaného stahování)
 import { createRequire } from 'node:module';
 import { qlever, id, values, imageFields, yearOf, compact, cached, inBatches, writeTopic } from './lib/wikidata.mjs';
+import { landByDescription } from './lib/nationality.mjs';
 
 // Skupiny prvků a jejich místo v tabulce zná jádro aplikace – stejná pravidla pro data i nápovědu
 const { elementFamily } = createRequire(import.meta.url)('../quiz-core.js');
+// Vzorce, které Wikidata uvádí jen v Hillově zápisu (BaO₄S, ClH₄N) nebo s překlepem (KCIO₃ s velkým I místo l)
+const FORMULA_FIXES = {
+    'Síran amonný': '(NH₄)₂SO₄', 'Síran barnatý': 'BaSO₄', 'Síran železnatý': 'FeSO₄', 'Síran hlinitý': 'Al₂(SO₄)₃', 'Oxid sírový': 'SO₃', 'Fluorid sírový': 'SF₆',
+    'Oxid fosforečný': 'P₄O₁₀', 'Dusičnan olovnatý': 'Pb(NO₃)₂', 'Dusičnan vápenatý': 'Ca(NO₃)₂', 'Bromovodík': 'HBr', 'Fluorovodík': 'HF', 'Chlorid amonný': 'NH₄Cl',
+    'Chlorid měďnatý': 'CuCl₂', 'Hydroxid-oxid hlinitý': 'AlO(OH)', 'Uhličitan draselný': 'K₂CO₃', 'Uhličitan hořečnatý': 'MgCO₃', 'Uhličitan amonný': '(NH₄)₂CO₃',
+    'Kyanid sodný': 'NaCN', 'Fosgen': 'COCl₂', 'Chlorečnan draselný': 'KClO₃', 'Kyselina chlorečná': 'HClO₃', 'Kyselina chlorná': 'HClO', 'Kyselina chromová': 'H₂CrO₄',
+    'Močovina': 'CO(NH₂)₂', 'Octan sodný': 'CH₃COONa'
+};
+// Hustota pevné látky a kapaliny, kterou Wikidata uvádějí tisíckrát menší (chlorid amonný 1,527 g/cm³, ne 0,0015)
+const DENSITY_FIXES = { 'Chlorid amonný': 1.527, 'Kyselina kyanovodíková': 0.687 };
+// Wolfram není pojmenován po vlku (Wikidata uvádějí vlka obecného kvůli německému „Wolf Rahm“)
+const NOT_NAMED_AFTER = new Set(['Wolfram']);
 
 const ELEMENT = 'Q11344';
 const CHEMICAL_ENTITY = 'Q113145171';
@@ -220,7 +233,7 @@ for (const element of elements) {
             fam: familyOf(element.z),
             year: yearOf(firstValue(detail.found)),
             disc: discoverer.slice(0, 2).join(', ') || undefined,
-            named: (detail.named || []).map(cs).filter(Boolean)[0],
+            named: NOT_NAMED_AFTER.has(capitalize(detail.n)) ? undefined : (detail.named || []).map(cs).filter(Boolean)[0],
             ...phaseTemperatures(detail),
             // Hustota v g/cm³ (Wikidata ji normalizují na kg/m³)
             dens: detail.dens ? round(max(detail.dens) / 1000, 4) : undefined
@@ -305,7 +318,7 @@ for (const [qid] of compoundCandidates) {
     if (!detail || !detail.n || !detail.t) continue;
     const name = capitalize(detail.n);
     const curated = isVitamin(detail.n) || isHormone(detail.n);
-    let formula = pickFormula(detail.formula) || (curated ? pickFormula(detail.formula, true) : undefined);
+    let formula = FORMULA_FIXES[name] || pickFormula(detail.formula) || (curated ? pickFormula(detail.formula, true) : undefined);
     // Bez vzorce jen skupiny vitamínů (vitamín A je víc látek)
     if (!formula && !curated) continue;
     if (formula && /^hydroxid/iu.test(name)) {
@@ -337,7 +350,7 @@ for (const [qid] of compoundCandidates) {
             plain: formula ? toPlain(formula) : undefined,
             molar: formula ? molarMassOf(formula) : undefined,
             ...phaseTemperatures(detail),
-            dens: detail.dens ? round(max(detail.dens) / 1000, 4) : undefined
+            dens: DENSITY_FIXES[name] ?? (detail.dens ? round(max(detail.dens) / 1000, 4) : undefined)
         }),
         kinds: kindsOf(detail)
     }));
@@ -373,7 +386,8 @@ for (const [qid] of chemistCandidates) {
         f: compact({
             born,
             died: yearOf(detail.died),
-            land: (detail.cit || []).map(cs).filter(Boolean)[0],
+            // Příslušnost podle popisu (Boris Johnson ve Wikidatech: USA)
+            land: landByDescription(detail.d, (detail.cit || []).map(cs)),
             nobel: nobel ? 1 : undefined,
             y: born + 35
         })

@@ -1,6 +1,7 @@
 // Téma Historie: data/historie.json z Wikidat – panovníci, státníci, osobnosti, bitvy a války, říše minulosti
 // Spuštění: npm run build:historie (s BUILD_CACHE=složka jde pravidla ladit bez opakovaného stahování)
 import { sparql, id, values, parsePoint, imageFields, yearOf, compact, cached, inBatches, writeTopic, sleep } from './lib/wikidata.mjs';
+import { landByDescription } from './lib/nationality.mjs';
 
 const HUMAN = 'Q5';
 const FEMALE = 'Q6581072';
@@ -283,6 +284,8 @@ for (const [qid] of ordered) {
 
 const items = [];
 const rankByCategory = {};
+// Panovníci, kterým Wikidata dala cizí příslušnost (Kateřina II. Veliká: Pruské království, Karel X.: Španělsko, Michal I.: Švýcarsko)
+const RULER_LAND = { 'Kateřina II. Veliká': 'Rusko', 'Karel X.': 'Francie', 'Michal I.': 'Rumunsko' };
 const czechRankByCategory = {};
 for (const [qid, entry] of ordered) {
     const detail = details.get(qid);
@@ -317,7 +320,8 @@ for (const [qid, entry] of ordered) {
         facts = {
             born, died, from, to,
             dyn: (detail.fam || []).map(label).filter(Boolean)[0],
-            land: (detail.cit || []).map(label).filter(Boolean)[0],
+            // Příslušnost podle popisu (Willy Brandt ve Wikidatech: Norsko); panovníkovi zůstává země původu (česká královna ze Španělska)
+            land: RULER_LAND[detail.t] || (category === 'panovnik' ? (detail.cit || []).map(label).filter(Boolean)[0] : landByDescription(detail.d, (detail.cit || []).map(label))),
             y: year
         };
     } else if (kind === 'udalost') {
