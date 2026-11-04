@@ -146,3 +146,122 @@ test('architektura: roky a města stavem odpovídají skutečnosti', () => {
     assert.equal(find(data, 'Mount Vernon').f.city, undefined);
     for (const item of data.items) assert.doesNotMatch((item.f || {}).city || '', /\bCounty\b/, item.n);
 });
+
+// --- Audit prozrazování odpovědi a psaných odpovědí (úkol #43) ---
+
+test('psaná odpověď: pořadí slov, římské číslice a řadové číslovky číslem', () => {
+    assert.ok(core.isAnswerMatch('Hus Jan', ['Jan Hus']));
+    assert.ok(core.isAnswerMatch('korea jizni', ['Jižní Korea']));
+    assert.ok(core.isAnswerMatch('Karel 4', ['Karel IV.']));
+    assert.ok(core.isAnswerMatch('karel iv', ['Karel IV.']));
+    assert.ok(core.isAnswerMatch('Ludvík 14', ['Ludvík XIV.']));
+    assert.ok(core.isAnswerMatch('1. světová válka', ['První světová válka']));
+    assert.ok(core.isAnswerMatch('2. světová válka', ['Druhá světová válka']));
+    // Číslo musí sedět přesně, i s jiným pořadím slov se jiný člověk nepřijme
+    assert.ok(!core.isAnswerMatch('Karel 14', ['Karel IV.']));
+    assert.ok(!core.isAnswerMatch('Ludvík XIV', ['Ludvík XV.']));
+    assert.ok(!core.isAnswerMatch('Václav 2', ['Václav III.']));
+    assert.ok(!core.isAnswerMatch('Jan', ['Jan Hus']));
+    assert.ok(!core.isAnswerMatch('Jan Hos', ['Jan Hus']));
+    assert.ok(!core.isAnswerMatch('Severní Korea', ['Jižní Korea']));
+});
+
+test('psaná odpověď: osobnost stačí příjmením nebo iniciálou, panovník s číslem ne', () => {
+    const answers = (topic, name) => core.nameAnswers(find(load(topic), name));
+    assert.ok(core.isAnswerMatch('Hus', answers('historie', 'Jan Hus')));
+    assert.ok(core.isAnswerMatch('einstein', answers('fyzika', 'Albert Einstein')));
+    assert.ok(core.isAnswerMatch('A. Einstein', answers('fyzika', 'Albert Einstein')));
+    assert.ok(core.isAnswerMatch('da Vinci', answers('umeni', 'Leonardo da Vinci')));
+    assert.ok(!core.isAnswerMatch('Newton', answers('fyzika', 'Albert Einstein')));
+    assert.ok(!core.isAnswerMatch('Karel', answers('historie', 'Karel IV.')));
+    assert.ok(!core.isAnswerMatch('Veliký', answers('historie', 'Alexandr Veliký')));
+    // Místo, které není osobnost, příjmení nemá
+    assert.ok(!core.isAnswerMatch('Králové', core.nameAnswers({ n: 'Hradec Králové', t: 'Hradec Králové' })));
+});
+
+test('nápovědy: jméno nesprávné možnosti ve faktu ji nevyřadí (Kerberos: Sourozenci Chiméra, Hydra)', () => {
+    const facts = [{ label: 'Rodiče', value: 'Týfón a Echidna' }, { label: 'Sourozenci', value: 'Chiméra, Hydra' }, { label: 'Sourozenci', value: 'Nemejský lev, Orthos, Hydra' }];
+    const shown = core.dropChoiceNames(facts, ['Echidna', 'Chiméra', 'Hydra']);
+    assert.deepEqual(shown, [{ label: 'Rodič', value: 'Týfón' }, { label: 'Sourozenci', value: 'Nemejský lev, Orthos' }]);
+    assert.deepEqual(core.dropChoiceNames(facts, []), facts);
+    // Bez diakritiky a velikosti písmen
+    assert.deepEqual(core.dropChoiceNames([{ label: 'Sourozenci', value: 'Chiméra' }], ['chimera']), []);
+});
+
+test('zakrytí: tvary jména v popisu (Zápolští, Přemyslovci, stříbra, vápenatý, Aepycerotinae, Fobovým)', () => {
+    const hidden = (text, name) => core.censorName(text, name);
+    // Množné číslo na -ští/-čtí a ženský rod rodu (Přemyslovna – Přemyslovci)
+    assert.doesNotMatch(hidden('Rod: Zápolští a Zápolský', 'Jan Zápolský'), /Zápol/);
+    assert.doesNotMatch(hidden('Rod Nasavští', 'Žofie Nasavská'), /Nasav/);
+    assert.doesNotMatch(hidden('z rodu Přemyslovců', 'Doubravka Přemyslovna'), /Přemysl/);
+    assert.doesNotMatch(hidden('Meitnerium nese jméno po Meitner', 'Lise Meitnerová'), /Meitner/);
+    // Přídavné jméno od podstatného a podstatné na -ec: stříbrný – stříbra, vápenec – vápenatý, prachovec – prachová
+    assert.doesNotMatch(hidden('Je jednou ze solí stříbra.', 'Dusičnan stříbrný'), /stříbr/);
+    assert.doesNotMatch(hidden('Složena z uhličitanu vápenatého.', 'Vápenec'), /vápen/);
+    assert.doesNotMatch(hidden('prachová zrna křemene', 'Prachovec'), /prachov/);
+    // Latinské koncovky: čeleď i podčeleď jména
+    assert.doesNotMatch(hidden('z čeledi Carcharodontosauridae', 'Carcharodontosaurus'), /Carcharodontosaur/);
+    assert.doesNotMatch(hidden('podčeledi Aepycerotinae', 'Aepyceros melampus'), /Aepycer/);
+    assert.doesNotMatch(hidden('Rodiče: Théseus a Hippolyta', 'Hippolytos'), /Hippolyt/);
+    // Řecká jména na -os a krátká jména na samohlásku
+    assert.doesNotMatch(hidden('bratr Fobovým a Fobem', 'Fobos'), /Fob/);
+    assert.doesNotMatch(hidden('Freyem a Freyou', 'Frey'), /Frey/);
+    assert.doesNotMatch(hidden('syn Búriho', 'Búri'), /Búri/);
+    // Přídavné jméno v názvu a země v textu (Malajský poloostrov – Malajsie)
+    assert.doesNotMatch(hidden('Stát: Malajsie', 'Malajský poloostrov'), /Malajs/);
+    // Jiná čárka v samohlásce (Babylón × Babylonie) a lomítko v názvu (9P/Tempel)
+    assert.doesNotMatch(hidden('Hlavní město: Babylón', 'Babylonie'), /Babyl/);
+    assert.doesNotMatch(hidden('Objevitel: Ernst Tempel', '9P/Tempel'), /Tempel/);
+    // Dvojtečka v názvu filmu („prstenů:“ jinak kmen nenajde)
+    assert.doesNotMatch(hidden('třetí díl Pána prstenů', 'Pán prstenů: Návrat krále'), /prsten/);
+    // Saint před zakrytým jménem patří k němu
+    assert.equal(hidden('v Saint Louis v Missouri', 'Louis'), 'v [***] v Missouri');
+    // Běžná slova zůstanou
+    assert.equal(hidden('Hradec Králové a hrad', 'Hradec Králové'), '[***] a hrad');
+});
+
+test('nápovědy: fakt se stejným kořenem jako jméno odpovědi se pozná (Těží se z něj: antimon u Antimonitu)', () => {
+    assert.ok(core.sharesWordRoot('Těží se z něj: antimon', 'Antimonit'));
+    assert.ok(core.sharesWordRoot('Hlavní město: Ciudad de México', 'Mexiko'));
+    assert.ok(core.sharesWordRoot('Rod: valentiniánská dynastie', 'Valentinianus I.'));
+    assert.ok(!core.sharesWordRoot('Hlavní město: Praha', 'Brno'));
+    assert.ok(!core.sharesWordRoot('Sourozenci: Hydra', 'Kerberos'));
+});
+
+test('popis: příliš zakrytá věta s běžnými slovy se nahradí další větou, výčet jmen zůstane', () => {
+    const censorWork = (text) => core.censorName(text, 'Mechanická práce');
+    const description = 'Mechanická práce je fyzikální veličina. Práce je určena silou a dráhou, po které síla působí na těleso.';
+    const more = 'Jednotkou je joule, který se používá pro měření energie a tepla ve všech oborech fyziky a techniky.';
+    const chosen = core.chooseDescription('Práci koná síla, práci konanou silou počítáme.', `${description} ${more}`, censorWork);
+    assert.ok(core.censoredShare(censorWork(chosen.description)) <= core.MAX_CENSORED_SHARE, chosen.description);
+    // Výčet jmen (Marie Salomea [***], rozená [***]) smysl neztrácí, popis se nemění
+    const censorPerson = (text) => core.censorName(text, 'Marie Curie-Skłodowská');
+    const person = 'Maria Salomea Skłodowská-Curieová, rozená Skłodowska, známá též jako Marie Curie, byla polská vědkyně.';
+    assert.deepEqual(core.chooseDescription(person, 'Získala dvě Nobelovy ceny za fyziku a chemii, jako první člověk na světě.', censorPerson), { description: person, more: 'Získala dvě Nobelovy ceny za fyziku a chemii, jako první člověk na světě.' });
+    // Dobrý popis se nemění
+    assert.deepEqual(core.chooseDescription('Praha je hlavní město Česka.', 'Leží na Vltavě.', (text) => core.censorName(text, 'Praha')), { description: 'Praha je hlavní město Česka.', more: 'Leží na Vltavě.' });
+});
+
+test('chemie: „Pojmenován po“ ze stejného kořene jako prvek odpověď neprozradí', () => {
+    const data = load('chemie');
+    const ctx = { items: data.items, countries: {} };
+    const named = (name) => chemie.facts(find(data, name), ctx, 'name').find(fact => fact.label === 'Pojmenován po');
+    for (const element of ['Plutonium', 'Americium', 'Rutherfordium', 'Uran', 'Titan', 'Fluor', 'Vodík', 'Uhlík', 'Curium']) assert.equal(named(element), undefined, element);
+    assert.equal(named('Selen').value, 'Měsíc');
+    assert.equal(named('Rtuť').value, 'Merkur');
+    assert.ok(core.isAnswerMatch('glukosa', core.nameAnswers(find(data, 'Glukóza'), chemie.nameAliases(find(data, 'Glukóza'), ctx))));
+});
+
+test('data: popis z Wikidat nemá rozbité závorky ani dvojité mezery', () => {
+    for (const topic of ['zemepis', 'historie', 'biologie', 'chemie', 'fyzika', 'geologie', 'architektura', 'umeni', 'hudba', 'film', 'literatura', 'sport', 'mytologie', 'vlajky']) {
+        for (const item of load(topic).items) {
+            for (const key of ['d', 'ty']) {
+                const value = item[key];
+                if (!value) continue;
+                assert.doesNotMatch(value, /[\[\]]/, `${topic}/${item.n}: ${key}`);
+                assert.equal((value.match(/\(/g) || []).length, (value.match(/\)/g) || []).length, `${topic}/${item.n}: ${key} má nevyvážené závorky`);
+                assert.doesNotMatch(value, /\s{2,}/, `${topic}/${item.n}: ${key}`);
+            }
+        }
+    }
+});

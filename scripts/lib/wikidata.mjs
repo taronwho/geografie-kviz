@@ -99,6 +99,16 @@ export const inBatches = async (qids, size, buildQuery, onRow, run = sparql) => 
 
 export const readCountries = () => JSON.parse(readFileSync(new URL('../../data/countries.json', import.meta.url), 'utf8')).countries;
 
+// Popis z Wikidat s rozbitou závorkou („[od 1939 v muzeu)“, „(50 let]]“) – zlomek v nesprávné závorce se vypustí
+export const cleanDescription = (text) => typeof text !== 'string' ? text : text
+    .replace(/\s*\[[^\[\]()]*\)+/g, '')
+    .replace(/\s*\([^\[\]()]*\]+/g, '')
+    .replace(/\s*[\[\]]+/g, '')
+    .replace(/\s*\([^)]*$/, '')
+    .replace(/\s{2,}/g, ' ')
+    .replace(/[\s,;]+$/, '')
+    .trim();
+
 // Zapíše data tématu; okruhy s méně než 5 položkami vynechá (i z položek), aby v učení nebyly skoro prázdné
 export const writeTopic = (topicId, { collections: allCollections, items }) => {
     const sizes = new Map(allCollections.map(collection => [collection.id, items.filter(item => (item.g || []).includes(collection.id)).length]));
@@ -108,6 +118,10 @@ export const writeTopic = (topicId, { collections: allCollections, items }) => {
         if (!item.g) continue;
         item.g = item.g.filter(group => kept.has(group));
         if (!item.g.length) delete item.g;
+    }
+    for (const item of items) {
+        if (item.d) item.d = cleanDescription(item.d);
+        if (item.ty) item.ty = cleanDescription(item.ty);
     }
     mkdirSync(new URL('../../data/', import.meta.url), { recursive: true });
     writeFileSync(new URL(`../../data/${topicId}.json`, import.meta.url), JSON.stringify({

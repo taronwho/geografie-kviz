@@ -58,6 +58,14 @@
         return [...new Set(symbolsOf(formula || ''))].map(symbol => elementNames.get(ctx.items).get(symbol)).filter(Boolean);
     };
 
+    // „Pojmenován po“ ze stejného kořene jako prvek (Pluto – plutonium, Amerika – americium, Rutherford – rutherfordium,
+    // uhlí – uhlík, titán – titan) odpověď prozradí; stačí společný začátek o třech písmenech (Evropa – europium zvlášť)
+    const rootForm = (text) => normalizeAnswer(text).replace(/oe/g, 'o').replace(/^evr/, 'eur');
+    const namedAfterGivesAway = (name, source) => {
+        const own = rootForm(name).split(' ');
+        return rootForm(source).split(' ').some(word => word.length >= 3 && own.some(other => other.length >= 3 && (other.startsWith(word.slice(0, 3)) || word.includes(other.slice(0, 3)) || (word.length >= 5 && other.includes(word)))));
+    };
+
     const factsOf = (item, mode) => {
         const f = item.f || {};
         const answered = mode === 'result' || mode === 'card';
@@ -69,8 +77,8 @@
             if (answered && f.ar) facts.push({ label: 'Atomová hmotnost', value: formatNumber(f.ar) });
             if (family) facts.push({ label: 'Skupina prvků', value: family.label });
             if (f.year !== undefined) facts.push({ label: 'Objeven', value: f.year < 1000 ? 'známý od starověku' : String(f.year) });
-            return [...facts, ...formatFacts(item, [['disc', 'Objevitel', v => v], ['named', 'Pojmenován po', v => v],
-                ['melt', 'Teplota tání', celsius], ['boil', 'Teplota varu', celsius], ['dens', 'Hustota', density]])];
+            return [...facts, ...formatFacts(item, [['disc', 'Objevitel', v => v], ['named', 'Pojmenován po', v => namedAfterGivesAway(item.n, v) ? '' : v],
+                ['melt', 'Teplota tání', celsius], ['boil', 'Teplota varu', celsius], ['dens', 'Hustota', density]]).filter(fact => fact.value !== '')];
         }
         if (item.c === 'latky') {
             // Vzorec je nejsilnější nápověda – mezi fakty až na konci, u otázky na vzorec vůbec
@@ -127,6 +135,15 @@
             tierKnown: 'Běžné prvky a látky, slavní chemici'
         },
         categories: CATEGORIES,
+
+        // Jiný zápis názvu látky: cukry na -osa (glukosa), glycerin; platí jako psaná odpověď i se zakryje v popisu
+        nameAliases: (item) => {
+            if (item.c !== 'latky') return [];
+            const aliases = /óza$/u.test(item.n) ? [item.n.replace(/óza$/u, 'osa')] : [];
+            if (item.n === 'Glycerol') aliases.push('Glycerin');
+            if (item.n === 'Kofein') aliases.push('Koffein');
+            return aliases;
+        },
 
         // Nesprávné možnosti: prvky ze stejné skupiny a z okolí v tabulce, látky stejného druhu (kyselina ke kyselinám)
         // a podobného složení, chemici stejného pohlaví a doby
