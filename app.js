@@ -6,7 +6,7 @@
     const {
         SATELLITE_TILES, OSM_TILES,
         escapeHtml, isRealPhoto, commonsPhotoUrl, commonsFileUrl, displayName, formatPoints, getDayKey, formatDayKey, createSeededRandom, pickRandom,
-        censorName, mergeCensored, processWikiText, checkAnswer, normalizeAnswer, filterItems, pickItem, sortItems,
+        censorName, mergeCensored, processWikiText, takeLeadFacts, checkAnswer, normalizeAnswer, filterItems, pickItem, sortItems,
         buildItemChoices, findAnswerItem, setCountries, updateMistakes, nameAnswers, pointsFor, dropKnownFacts,
         computeStreak, buildShareText, getTileLayout, shuffle,
         LEVEL_XP, questionsForLevel, xpForLevel, MAX_LEVEL, LEVEL_TITLES,
@@ -374,7 +374,7 @@
             console.error(e);
         }
         const shortDescription = item.d ? `${item.d.charAt(0).toUpperCase()}${item.d.slice(1)}.` : '';
-        return { description: shortDescription, funFacts: [], fallback: true };
+        return { description: shortDescription, funFacts: [], more: '', fallback: true };
     };
 
     const loadImage = (url) => new Promise((resolve, reject) => {
@@ -464,6 +464,8 @@
         for (const step of plan) {
             let hint = null;
             if (step.kind === 'photo' && photoUrl) hint = { kind: 'photo', label: 'fotka', icon: 'image' };
+            // Další věty z úvodu článku (bez jména), když je popis zkrácený a text má pokračování
+            if (step.kind === 'excerpt' && step.text) hint = { kind: 'excerpt', text: step.text, label: 'další věty', icon: 'book-open' };
             // Obrázek s napsanou odpovědí (portrét autora se jménem) nápovědou není
             const textImage = step.spec && step.spec.type === 'image' && textPhotos.has(step.spec.file);
             if (step.kind === 'visual' && step.spec && Visuals.info(step.spec) && !timelineVisible(step.spec, visibleText) && !textImage) {
@@ -505,8 +507,8 @@
     const MIN_DESCRIPTION_WORDS = 14;
     const realWords = (text) => String(text || '').replace(/\[\*\*\*\]/g, ' ').split(/\s+/).filter(word => /\p{L}/u.test(word)).length;
     const MAX_THIN_RETRIES = 3;
-
-    const createRoundData = async (item, ctx, rng) => {
+    const MIN_EXCERPT_WORDS = 8;
+        const createRoundData = async (item, ctx, rng) => {
         const { topic, items } = ctx;
         // Pořadí volání rng je stálé, aby dnešní otázka vyšla všem stejně
         const special = topic.specialQuestion ? topic.specialQuestion(item, ctx, rng) : null;
@@ -537,14 +539,21 @@
         const questionText = mergeCensored(censorFor(question.type, hideOtherChoices(text.description, question, ctx), item, ctx).replaceAll(CHOICE_MARK, '[***]'));
         // Příliš chudý popis („Zimbabwský politik.“) nestačí k odpovědi: když je popis jediná opora otázky, je „thin“
         const thin = !shown && !special && (text.fallback || realWords(questionText) < MIN_DESCRIPTION_WORDS);
-        const plan = (topic.hints && topic.hints(item, ctx, question.type))
+        const basePlan = (topic.hints && topic.hints(item, ctx, question.type))
             || [{ kind: 'photo' }, { kind: 'visual', spec: visual }, { kind: 'facts', facts: topic.facts(item, ctx, question.type) }];
+        // Pokračování úvodu článku (zakryté stejně jako popis) je první, nejlevnější nápověda; bez dost skutečných slov se vynechá
+        const moreText = special || !text.more ? '' : mergeCensored(censorFor(question.type, hideOtherChoices(text.more, question, ctx), item, ctx).replaceAll(CHOICE_MARK, '[***]'));
+        const plan = realWords(moreText) >= MIN_EXCERPT_WORDS ? [{ kind: 'excerpt', text: moreText }, ...basePlan] : basePlan;
         const visibleText = [question.title, question.showName ? item.n : '', typeLabel, questionText].join(' · ');
         // Fakt, který mají všechny nesprávné možnosti stejný jako správná, mezi nimi nepomůže vybrat
         const wrongItems = question.type === 'name' ? question.choices.filter(choice => !choice.correct).map(choice => ctx.byId.get(choice.id)).filter(Boolean) : [];
         const factKeys = (other) => new Set(topic.facts(other, ctx, question.type).map(fact => `${fact.label}\u0000${fact.value}`));
         const wrongFacts = wrongItems.map(factKeys);
         const shared = new Set(wrongFacts.length ? [...factKeys(item)].filter(key => wrongFacts.every(keys => keys.has(key))) : []);
+        let hints = buildHints(plan, { photoUrl: (shown && shown.file === item.im) || (ctx.textPhotos && ctx.textPhotos.has(item.im)) ? null : photoUrl,
+            visibleText, shared, answers: hintAnswers(question, item), textPhotos: ctx.textPhotos || new Set() });
+        let leadFacts = [];
+        if (thin) ({ hints, leadFacts } = takeLeadFacts(hints));
         return {
             topic: topic.id,
             id: item.q,
@@ -565,8 +574,8 @@
             resultVisual: topic.visual ? topic.visual(item, ctx, 'result') : null,
             resultFacts: topic.facts(item, ctx, 'result'),
             // Fotka, kterou otázka ukazuje hned, už nápovědou není; fotka s napsanou odpovědí také ne
-            hints: buildHints(plan, { photoUrl: (shown && shown.file === item.im) || (ctx.textPhotos && ctx.textPhotos.has(item.im)) ? null : photoUrl,
-                visibleText, shared, answers: hintAnswers(question, item), textPhotos: ctx.textPhotos || new Set() }),
+            hints,
+            leadFacts,
             subtitle: topic.subtitle(item, ctx),
             coords: topic.coords ? topic.coords(item, ctx) : null,
             isCzech: Boolean(topic.isCzech && topic.isCzech(item, ctx)),
@@ -1475,21 +1484,29 @@
     };
     const factsPane = (facts) => `<div class="absolute inset-0 overflow-y-auto p-2.5"><h3 class="sr-only">Čísla a fakta</h3>${renderFactsList(facts)}</div>`;
     const textPane = (data, style) => `
-        <div class="absolute inset-0 overflow-y-auto overscroll-contain p-4">
+        <div class="absolute inset-0 overflow-y-auto overscroll-contain p-3.5">
             ${data.question.showName ? `
                 <div class="${HINT_CHIP}">
                     <i data-lucide="tag" class="w-4 h-4 ${style.text}"></i>
                     <span class="font-medium">Název:</span> <b class="text-slate-800 dark:text-slate-100">${escapeHtml(data.name)}</b>
                 </div>` : ''}
             ${data.questionText
-                ? `<p class="text-[15px] font-medium italic leading-relaxed text-slate-700 dark:text-slate-200">„${escapeHtml(data.questionText)}“</p>`
+                ? `<p class="text-[15px] font-medium italic leading-snug text-slate-700 dark:text-slate-200">„${escapeHtml(data.questionText)}“</p>`
                 : '<p class="text-sm text-slate-500 dark:text-slate-400">Popis se teď nepodařilo načíst z Wikipedie – pomůžou nápovědy.</p>'}
+            ${(data.leadFacts || []).length ? `
+                <dl class="mt-2.5 flex flex-wrap gap-1.5" aria-label="Co o tom víme">
+                    ${data.leadFacts.map(fact => `<div class="rounded-lg bg-slate-100 px-2 py-1 text-xs dark:bg-slate-900/60"><dt class="inline font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">${escapeHtml(fact.label)}:</dt> <dd class="inline font-bold text-slate-800 dark:text-slate-100">${escapeHtml(fact.value)}</dd></div>`).join('')}
+                </dl>` : ''}
+        </div>`;
+    const excerptPane = (hint) => `
+        <div class="absolute inset-0 overflow-y-auto overscroll-contain p-3.5">
+            <p class="text-[15px] font-medium italic leading-snug text-slate-700 dark:text-slate-200">„${escapeHtml(hint.text)}“</p>
         </div>`;
 
     // Panel se záložkami a jednou plochou pevné výšky – nápovědy se nepřidávají pod sebe, takže se nic neposouvá
     // panes = [{ key, label, icon, html }], action = akce záložky, extra = tlačítko za záložkami
     // Výška panelu: na vysokém telefonu víc místa pro fotku a mapu, na malém aspoň 11 rem (bez posouvání)
-    const QUESTION_PANEL_HEIGHT = 'h-[clamp(10rem,calc(100dvh_-_34rem),18rem)]';
+    const QUESTION_PANEL_HEIGHT = 'h-[clamp(8.5rem,calc(100dvh_-_35rem),18rem)]';
     const RESULT_PANEL_HEIGHT = 'h-[clamp(13rem,42dvh,24rem)]';
     // Vybraná záložka s názvem, ostatní jen ikonou (s popiskem pro čtečku) – vejdou se i na úzký displej;
     // jediná plocha záložky nepotřebuje, jen nadpis
@@ -1501,12 +1518,12 @@
                 ${panes.map(candidate => {
                     const selected = candidate.key === pane.key;
                     return `
-                        <button type="button" role="tab" aria-selected="${selected}" aria-label="${escapeHtml(candidate.label)}" title="${escapeHtml(candidate.label)}" data-action="${action}" data-step="${candidate.key}" class="flex min-h-[2.5rem] shrink-0 items-center justify-center gap-1.5 rounded-xl text-xs font-bold transition-colors ${selected ? `px-3 ${style.tab}` : `min-w-[2.75rem] px-2.5 ${TAB_OFF}`}">
+                        <button type="button" role="tab" aria-selected="${selected}" aria-label="${escapeHtml(candidate.label)}" title="${escapeHtml(candidate.label)}" data-action="${action}" data-step="${candidate.key}" class="flex min-h-[2.25rem] shrink-0 items-center justify-center gap-1.5 rounded-xl text-xs font-bold transition-colors ${selected ? `px-3 ${style.tab}` : `min-w-[2.75rem] px-2.5 ${TAB_OFF}`}">
                             <i data-lucide="${candidate.icon}" class="h-4 w-4"></i>${selected ? escapeHtml(candidate.label) : ''}
                         </button>`;
                 }).join('')}
             </div>` : `
-            <h3 class="${CARD_TITLE} min-h-[3.25rem] border-b border-slate-100 px-4 dark:border-slate-700"><i data-lucide="${pane.icon}" class="h-4 w-4 ${style.text}"></i> ${escapeHtml(pane.label)}</h3>`;
+            <h3 class="${CARD_TITLE} min-h-[2.75rem] border-b border-slate-100 px-4 dark:border-slate-700"><i data-lucide="${pane.icon}" class="h-4 w-4 ${style.text}"></i> ${escapeHtml(pane.label)}</h3>`;
         return `
             <section id="${action}-panel" class="${CARD} shrink-0 overflow-hidden">
                 ${tabs}
@@ -1519,7 +1536,7 @@
     const hintPanes = (hints) => {
         return hints.map(hint => {
             const html = hint.kind === 'visual' ? visualPane(visualHintId(hint), hint.spec)
-                : hint.kind === 'photo' ? photoPane('hint-photo') : factsPane(hint.facts);
+                : hint.kind === 'photo' ? photoPane('hint-photo') : hint.kind === 'excerpt' ? excerptPane(hint) : factsPane(hint.facts);
             return { key: hint.key, label: tabLabel(hint), icon: hint.icon, html };
         });
     };
@@ -1537,11 +1554,11 @@
         const next = data.hints[round.hintLevel - 1];
         if (!data.hints.length) return '';
         // Všechny nápovědy odemčené: stejně vysoký klidný pruh, ať se odpovědi nic neposune
-        if (!next) return `<div class="flex h-14 shrink-0 items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-slate-300 text-xs font-bold text-slate-500 dark:border-slate-600 dark:text-slate-400"><i data-lucide="lightbulb" class="h-4 w-4"></i> Všechny nápovědy jsou odemčené</div>`;
+        if (!next) return `<div class="flex h-12 shrink-0 items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-slate-300 text-xs font-bold text-slate-500 dark:border-slate-600 dark:text-slate-400"><i data-lucide="lightbulb" class="h-4 w-4"></i> Všechny nápovědy jsou odemčené</div>`;
         const nextCost = formatPoints(pointsFor(round.hintLevel + 1, round.variant === 'typed'));
         return `
-            <button type="button" data-action="hint" title="Nápověda: ${escapeHtml(next.label)} – odpověď pak za ${nextCost}" class="btn-3d flex h-14 w-full shrink-0 items-center gap-3 rounded-2xl bg-gradient-to-b from-gold-400 to-gold-600 px-3 text-left text-brand-950">
-                ${uiArt('napoveda', 'h-10 w-10 -my-1')}
+            <button type="button" data-action="hint" title="Nápověda: ${escapeHtml(next.label)} – odpověď pak za ${nextCost}" class="btn-3d flex h-12 w-full shrink-0 items-center gap-3 rounded-2xl bg-gradient-to-b from-gold-400 to-gold-600 px-3 text-left text-brand-950">
+                ${uiArt('napoveda', 'h-9 w-9 -my-1')}
                 <span class="min-w-0 flex-1">
                     <span class="block text-[11px] font-black uppercase tracking-wider opacity-70">Nápověda ${round.hintLevel}/${data.hints.length + 1}</span>
                     <span class="flex items-baseline gap-1.5 text-sm font-black leading-tight"><span class="truncate">${escapeHtml(capitalize(next.label))}</span><span class="shrink-0 text-xs font-bold opacity-80">· pak ${nextCost}</span></span>
@@ -1563,7 +1580,7 @@
                 </form>`;
         }
         const choicesHtml = data.question.choices.map((choice, index) => `
-            <button type="button" data-action="choice" data-index="${index}" class="btn-3d-light min-h-[3.25rem] rounded-xl bg-white px-3 py-2.5 text-sm font-bold leading-tight text-slate-700 dark:bg-slate-700 dark:text-slate-100">
+            <button type="button" data-action="choice" data-index="${index}" class="btn-3d-light min-h-[3rem] rounded-xl bg-white px-3 py-1.5 text-sm font-bold leading-tight text-slate-700 dark:bg-slate-700 dark:text-slate-100">
                 ${escapeHtml(choice.label)}
             </button>
         `).join('');
@@ -1621,8 +1638,8 @@
         const typed = round.variant === 'typed';
         const category = categoryOf(topic, data.category);
         const answerCard = `
-            <section class="${CARD} p-4">
-                <div class="mb-3 flex items-center justify-between gap-2">
+            <section class="${CARD} p-3">
+                <div class="mb-2 flex items-center justify-between gap-2">
                     <h3 class="${CARD_TITLE} shrink-0"><i data-lucide="target" class="w-4 h-4 ${style.text}"></i> Za ${formatPoints(pointsFor(level, typed))}</h3>
                     ${data.hints.length ? `<span class="flex items-center gap-1.5 text-[11px] font-bold text-slate-500 dark:text-slate-400" title="Použité nápovědy">Nápovědy ${level - 1}/${data.hints.length}<span class="flex gap-1" aria-hidden="true">${data.hints.map((_, index) => `<span class="h-2 w-2 rounded-full ${index < level - 1 ? 'bg-gold-500' : 'bg-slate-300 dark:bg-slate-600'}"></span>`).join('')}</span></span>` : ''}
                 </div>
@@ -1631,14 +1648,12 @@
 
         // Při psaní je pole nahoře: otevřená klávesnice by ho jinak zakryla
         appContent.innerHTML = `
-            <div class="${keepScroll ? '' : 'fade-in '}flex min-h-full w-full flex-col gap-2.5 bg-slate-50 p-3 pb-5 dark:bg-slate-900">
-                <div class="flex flex-col items-center gap-1.5 text-center">
-                    <h2 class="text-xl font-black leading-tight tracking-tight text-slate-800 dark:text-slate-50">${escapeHtml(data.question.title)}</h2>
-                    <div class="flex flex-wrap items-center justify-center gap-2">
-                        <span class="inline-flex items-center gap-1.5 rounded-xl border px-2.5 py-1 text-[11px] font-bold uppercase tracking-widest text-white shadow-sm ${style.solid}">
-                            <i data-lucide="${category.icon}" class="h-3.5 w-3.5"></i> ${escapeHtml(data.typeLabel)}
-                        </span>
-                    </div>
+            <div class="${keepScroll ? '' : 'fade-in '}flex min-h-full w-full flex-col gap-2.5 bg-slate-50 p-3 pb-3 dark:bg-slate-900">
+                <div class="flex flex-col items-center gap-1 text-center">
+                    <span class="inline-flex items-center gap-1.5 rounded-lg border px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest text-white shadow-sm ${style.solid}">
+                        <i data-lucide="${category.icon}" class="h-3 w-3"></i> ${escapeHtml(data.typeLabel)}
+                    </span>
+                    <h2 class="text-[22px] font-black leading-tight tracking-tight text-slate-800 dark:text-slate-50">${escapeHtml(data.question.title)}</h2>
                 </div>
                 ${typed ? `${answerCard}${questionPanel(data)}${nextHintButton(data)}` : `${questionPanel(data)}${nextHintButton(data)}${answerCard}`}
                 <button type="button" data-action="give-up" class="mx-auto flex min-h-[2.5rem] items-center gap-2 px-3 text-sm font-semibold text-slate-500 underline-offset-4 hover:underline dark:text-slate-400">
