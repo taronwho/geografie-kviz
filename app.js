@@ -494,7 +494,7 @@
             }
             if (step.kind === 'facts') {
                 // omit = jména nesprávných možností (Sourozenci: Chiméra, Hydra u Kerberose by je vyřadili)
-                const facts = dropChoiceNames(dropKnownFacts(step.facts || [], `${visibleText} · ${shownBefore}`), omit)
+                const facts = dropChoiceNames(dropKnownFacts(step.facts || [], step.label ? visibleText : `${visibleText} · ${shownBefore}`), omit)
                     .filter(fact => (step.label || !shared.has(`${fact.label}\u0000${fact.value}`)) && !revealsAnswer(fact));
                 // extra = vlastní nápověda tématu; po odpovědi se ukáže i mezi fakty
                 if (facts.length) hint = { kind: 'facts', facts, label: step.label || 'čísla a fakta', icon: step.icon || 'info', extra: Boolean(step.label) };
