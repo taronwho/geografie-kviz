@@ -48,7 +48,10 @@ test('SQL: rating, ligy a žebříček', { skip: !available && 'PostgreSQL není
     });
 
     await t.test('klient rating zapsat nemůže', () => {
-        const r = asUser(ids[0], `update profiles set rating = 4000, rated_games = 99, display_name = 'Přejmenován' where id = '${ids[0]}'`);
+        // sloupec rating nemá klient oprávnění měnit (a kdyby měl, vrátí ho trigger zpět)
+        const denied = asUser(ids[0], `update profiles set rating = 4000, rated_games = 99 where id = '${ids[0]}'`);
+        assert.notEqual(denied.status, 0);
+        const r = asUser(ids[0], `update profiles set display_name = 'Přejmenován' where id = '${ids[0]}'`);
         assert.equal(r.status, 0, r.stderr);
         assert.equal(rating(ids[0]), 1000);
         assert.equal(q(`select rated_games from profiles where id = '${ids[0]}'`), '0');

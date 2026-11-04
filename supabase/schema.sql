@@ -27,11 +27,11 @@ alter table public.profiles add constraint profiles_frame_format check (frame is
 alter table public.profiles drop constraint if exists profiles_title_pref_format;
 alter table public.profiles add constraint profiles_title_pref_format check (title_pref is null or title_pref ~ '^[a-z0-9-]{1,40}$');
 alter table public.profiles drop constraint if exists profiles_blocked_len;
-alter table public.profiles add constraint profiles_blocked_len check (cardinality(blocked_topics) <= 30);
+alter table public.profiles add constraint profiles_blocked_len check (cardinality(blocked_topics) <= 30 and char_length(array_to_string(blocked_topics, ',')) <= 400) not valid;
 alter table public.profiles drop constraint if exists profiles_xp_range;
-alter table public.profiles add constraint profiles_xp_range check (xp between 0 and 1000000);
+alter table public.profiles add constraint profiles_xp_range check (xp between 0 and 500000);
 alter table public.profiles drop constraint if exists profiles_badges_len;
-alter table public.profiles add constraint profiles_badges_len check (cardinality(badges) <= 60);
+alter table public.profiles add constraint profiles_badges_len check (cardinality(badges) <= 200 and char_length(array_to_string(badges, ',')) <= 4000) not valid;
 alter table public.profiles drop constraint if exists profiles_display_name_len;
 alter table public.profiles add constraint profiles_display_name_len check (char_length(btrim(display_name)) between 2 and 24);
 alter table public.profiles drop constraint if exists profiles_avatar_len;
@@ -47,9 +47,9 @@ update public.profiles p set display_name = left(d.display_name, 20) || ' ' || d
 create unique index if not exists profiles_display_name_lower on public.profiles (lower(display_name));
 
 create or replace function public.unique_display_name(base text) returns text
-language plpgsql as $$
+language plpgsql set search_path = public as $$
 declare
-    cleaned text := left(btrim(coalesce(nullif(btrim(base), ''), 'Hráč')), 24);
+    cleaned text := left(btrim(coalesce(nullif(btrim(regexp_replace(coalesce(base, ''), '[[:cntrl:]<>&"''`\\]', '', 'g')), ''), 'Hráč')), 24);
     candidate text := cleaned;
     attempt integer := 0;
 begin
@@ -73,9 +73,14 @@ create policy "profiles: vlastní změna" on public.profiles for update to authe
 create or replace function public.handle_new_user() returns trigger
 language plpgsql security definer set search_path = public as $$
 begin
-    insert into public.profiles (id, display_name)
-    values (new.id, public.unique_display_name(coalesce(new.raw_user_meta_data ->> 'full_name', new.raw_user_meta_data ->> 'name', split_part(new.email, '@', 1))))
-    on conflict (id) do nothing;
+    begin
+        insert into public.profiles (id, display_name)
+        values (new.id, public.unique_display_name(coalesce(new.raw_user_meta_data ->> 'full_name', new.raw_user_meta_data ->> 'name', split_part(new.email, '@', 1))))
+        on conflict (id) do nothing;
+    exception when unique_violation then
+        -- souběžná registrace stejného jména: náhodná přezdívka, registrace se nikdy nezablokuje
+        insert into public.profiles (id, display_name) values (new.id, 'Hráč ' || substr(md5(new.id::text), 1, 8)) on conflict (id) do nothing;
+    end;
     return new;
 end;
 $$;
@@ -121,7 +126,7 @@ alter table public.challenges add column if not exists invited_id uuid reference
 -- Téma výzvy: „mix“, jedno téma, nebo víc témat oddělených čárkou
 alter table public.challenges drop constraint if exists challenges_topic_check;
 alter table public.challenges drop constraint if exists challenges_topic_len;
-alter table public.challenges add constraint challenges_topic_len check (char_length(topic) between 1 and 200);
+alter table public.challenges add constraint challenges_topic_len check (char_length(topic) between 1 and 200 and topic ~ '^[a-z0-9,]+$') not valid;
 
 -- Výzvu konkrétnímu hráči nejde založit v tématu, které nepřijímá („mix“ = všechna témata, tak ho aplikace pošle jako seznam bez nich)
 create or replace function public.check_challenge_topics() returns trigger
@@ -141,6 +146,19 @@ end;
 $$;
 drop trigger if exists challenges_check_topics on public.challenges;
 create trigger challenges_check_topics before insert on public.challenges for each row execute function public.check_challenge_topics();
+-- Zakládání výzev: čas určuje server a jeden hráč jich za hodinu založí nejvýš 30 (jinak by šla tabulka zaplavit)
+create or replace function public.limit_challenges() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+    new.created_at := now();
+    if (select count(*) from public.challenges where creator_id = new.creator_id and created_at > now() - interval '1 hour') >= 30 then
+        raise exception 'Založil jsi příliš mnoho výzev, zkus to za chvíli.' using errcode = 'P0001';
+    end if;
+    return new;
+end;
+$$;
+drop trigger if exists challenges_limit on public.challenges;
+create trigger challenges_limit before insert on public.challenges for each row execute function public.limit_challenges();
 -- Nastavení výzvy: i těžší (méně známé) otázky, vybrané okruhy tématu (prázdné = všechny) a pevný způsob odpovídání
 alter table public.challenges add column if not exists include_hard boolean not null default false;
 alter table public.challenges add column if not exists categories text[] not null default '{}';
@@ -148,7 +166,9 @@ alter table public.challenges add column if not exists variant text;
 alter table public.challenges drop constraint if exists challenges_variant_list;
 alter table public.challenges add constraint challenges_variant_list check (variant is null or variant in ('choices', 'typed'));
 alter table public.challenges drop constraint if exists challenges_categories_len;
-alter table public.challenges add constraint challenges_categories_len check (cardinality(categories) <= 20);
+alter table public.challenges add constraint challenges_categories_len check (cardinality(categories) <= 20 and char_length(array_to_string(categories, ',')) <= 400) not valid;
+alter table public.challenges drop constraint if exists challenges_seed_format;
+alter table public.challenges add constraint challenges_seed_format check (seed ~ '^[A-Za-z0-9._-]{1,80}$') not valid;
 create index if not exists challenges_invited_idx on public.challenges (invited_id, created_at desc);
 alter table public.challenges enable row level security;
 -- Kód výzvy stačí k jejímu otevření; číst ji smí každý přihlášený, zakládat jen vlastní
@@ -173,9 +193,20 @@ drop policy if exists "výsledky: zapisuje hráč sám" on public.challenge_resu
 create policy "výsledky: zapisuje hráč sám" on public.challenge_results for insert to authenticated
     with check (
         user_id = auth.uid()
+        and exists (select 1 from public.challenges c where c.id = challenge_id and (c.invited_id is null or c.invited_id = auth.uid() or c.creator_id = auth.uid()))
         and correct <= (select c.count from public.challenges c where c.id = challenge_id)
         and points <= 4 * (select c.count from public.challenges c where c.id = challenge_id)
     );
+-- Čas dohrání určuje server (klient si ho nemůže zpětně upravit)
+create or replace function public.stamp_result() returns trigger
+language plpgsql as $$
+begin
+    new.finished_at := now();
+    return new;
+end;
+$$;
+drop trigger if exists challenge_results_stamp on public.challenge_results;
+create trigger challenge_results_stamp before insert on public.challenge_results for each row execute function public.stamp_result();
 create index if not exists challenge_results_user_idx on public.challenge_results (user_id, finished_at desc);
 
 -- ===== Rating (ELO), ligy a týdenní žebříček =====
@@ -219,13 +250,44 @@ create policy "rating: čtení pro přihlášené" on public.rating_history for 
 -- zápis jen přes trigger (security definer); klientovi žádná politika pro zápis nepatří
 revoke insert, update, delete on public.rating_history from anon, authenticated;
 
--- Klient rating přepsat nesmí: při změně z role authenticated/anon se hodnota vrátí zpět
+-- Katalog odznaků (musí odpovídat BADGES v quiz-core.js; hlídá to tests/sql-security.test.js). Do účtu se uloží jen odznak z katalogu.
+create or replace function public.badge_catalog() returns text[]
+language sql immutable set search_path = public as $$
+    select array[
+        'prvni-krok', 'odpovedi-10', 'odpovedi-50', 'stovka', 'odpovedi-250', 'odpovedi-500', 'tisicovka', 'odpovedi-2500',
+        'odpovedi-5000', 'odpovedi-10000', 'rada-5', 'strelec', 'neomylny', 'rada-50', 'rada-100', 'serie-3', 'tyden',
+        'serie-14', 'mesic', 'serie-60', 'serie-100', 'serie-200', 'serie-365', 'dny-5', 'dny-15', 'dny-30', 'dny-60',
+        'dny-100', 'dny-200', 'dny-365', 'dokonaly-den', 'dokonale-3', 'dokonale-7', 'dokonale-14', 'dokonale-30', 'dnes-10',
+        'dnes-50', 'dnes-100', 'dnes-250', 'bez-napovedy-10', 'bez-napovedy', 'bez-napovedy-100', 'bez-napovedy-500',
+        'psani-10', 'pisatel', 'psani-100', 'psani-500', 'do-hloubky', 'tezke-50', 'tezke-200', 'chyby-10', 'chyby-50',
+        'chyby-200', 'soupere', 'vyzvy-5', 'vyzvy-25', 'vyzvy-100', 'vitez', 'vyhry-5', 'gladiator', 'vyhry-25', 'vyhry-50',
+        'vyhry-100', 'vyhry-v-rade-3', 'vyhry-v-rade-5', 'vyhry-v-rade-10', 'zalozene-1', 'zalozene-10', 'zalozene-50',
+        'perfektni-vyzvy-1', 'perfektni-vyzvy-5', 'perfektni-vyzvy-25', 'uroven-5', 'znalec', 'uroven-20', 'mudrc',
+        'uroven-50', 'uroven-65', 'uroven-80', 'uroven-100', 'poznane-100', 'poznane-500', 'poznane-1000', 'poznane-3000',
+        'vsestranny', 'hvezdar', 'mistr-oboru', 'vsechna-temata-1', 'vsechna-temata-3', 'vsechna-temata-5', 'tema-zemepis-25',
+        'tema-zemepis-100', 'tema-zemepis-300', 'tema-vlajky-25', 'tema-vlajky-100', 'tema-vlajky-300', 'tema-historie-25',
+        'tema-historie-100', 'tema-historie-300', 'tema-mytologie-25', 'tema-mytologie-100', 'tema-mytologie-300',
+        'tema-biologie-25', 'tema-biologie-100', 'tema-biologie-300', 'tema-geologie-25', 'tema-geologie-100',
+        'tema-geologie-300', 'tema-chemie-25', 'tema-chemie-100', 'tema-chemie-300', 'tema-fyzika-25', 'tema-fyzika-100',
+        'tema-fyzika-300', 'tema-umeni-25', 'tema-umeni-100', 'tema-umeni-300', 'tema-architektura-25',
+        'tema-architektura-100', 'tema-architektura-300', 'tema-hudba-25', 'tema-hudba-100', 'tema-hudba-300',
+        'tema-literatura-25', 'tema-literatura-100', 'tema-literatura-300', 'tema-film-25', 'tema-film-100', 'tema-film-300',
+        'tema-sport-25', 'tema-sport-100', 'tema-sport-300'
+    ]::text[];
+$$;
+
+-- Klient nesmí přepsat rating ani počet ohodnocených her, měnit id a čas založení; XP jen roste (a má strop),
+-- odznaky jen přibývají a jen z katalogu. Role postgres/service_role (triggery, správce) se tím neřídí.
 create or replace function public.protect_rating() returns trigger
-language plpgsql as $$
+language plpgsql set search_path = public as $$
 begin
     if current_user in ('authenticated', 'anon') then
+        new.id := old.id;
+        new.created_at := old.created_at;
         new.rating := old.rating;
         new.rated_games := old.rated_games;
+        new.xp := greatest(old.xp, least(new.xp, 500000));
+        new.badges := coalesce((select array_agg(b order by b) from (select distinct b from unnest(old.badges || new.badges) b where b = any (public.badge_catalog())) kept), '{}');
     end if;
     return new;
 end;
@@ -303,3 +365,13 @@ language sql stable security definer set search_path = public as $$
 $$;
 revoke all on function public.weekly_leaderboard() from public, anon;
 grant execute on function public.weekly_leaderboard() to authenticated;
+
+-- ===== Oprávnění: jen to, co aplikace skutečně dělá =====
+-- Pravidla řádků (RLS) hlídají řádky, ale ne TRUNCATE ani sloupce, proto se oprávnění zužují i tady.
+revoke all on public.profiles, public.challenges, public.challenge_results, public.rating_history from anon, authenticated;
+grant select on public.profiles, public.challenges, public.challenge_results, public.rating_history to authenticated;
+grant update (display_name, avatar, color, xp, badges, blocked_topics, accepts_mix, frame, title_pref) on public.profiles to authenticated;
+grant insert on public.challenges, public.challenge_results to authenticated;
+-- Pomocné funkce a triggerové funkce se přes API volat nemají
+revoke all on function public.unique_display_name(text), public.handle_new_user(), public.check_challenge_topics(), public.limit_challenges(),
+    public.stamp_result(), public.protect_rating() from public, anon, authenticated;

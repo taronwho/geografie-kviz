@@ -43,7 +43,10 @@ self.addEventListener('fetch', (event) => {
         ? fetch(request.url, { cache: 'no-cache', credentials: 'same-origin' }).then(response => response.redirected ? fetch(request) : response)
         : fetch(request, { cache: 'no-cache' });
     const fromNetwork = fresh.then(response => {
-        if (response.ok) {
+        // Do mezipaměti jen skutečný soubor: přihlašovací stránka Wi-Fi (HTML místo skriptu nebo dat) by ji jinak otrávila
+        const type = response.headers.get('content-type') || '';
+        const wrongType = request.mode !== 'navigate' && /text\/html/i.test(type) && !/\.html?$/i.test(new URL(request.url).pathname);
+        if (response.ok && !wrongType) {
             const copy = response.clone();
             saving = caches.open(CACHE_NAME).then(cache => cache.put(request, copy));
         }

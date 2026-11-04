@@ -22,6 +22,7 @@ concurrency:
 jobs:
   fact:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -32,11 +33,12 @@ jobs:
         id: fact
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          FORCE: ${{ github.event.inputs.force }}
         run: |
           set -e
           day=$(TZ=Europe/Prague date +%F)
           git fetch -q --depth 1 origin gh-pages || true
-          if [ "${{ github.event.inputs.force }}" != "true" ] && git show FETCH_HEAD:app/data/fakt.json 2>/dev/null | grep -q "\"date\": \"$day\""; then echo "Zajímavost pro $day už existuje."; exit 0; fi
+          if [ "$FORCE" != "true" ] && git show FETCH_HEAD:app/data/fakt.json 2>/dev/null | grep -q "\"date\": \"$day\""; then echo "Zajímavost pro $day už existuje."; exit 0; fi
           node scripts/daily-fact.mjs "$day" "$RUNNER_TEMP/fakt.json"
           echo "ready=true" >> "$GITHUB_OUTPUT"
 

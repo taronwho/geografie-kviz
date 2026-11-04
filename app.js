@@ -1280,8 +1280,8 @@
     const FACT_KEY = 'mudrlant.fakt';
     let dailyFact = null;
     const factRead = () => readJson(FACT_KEY) === getDayKey();
-    const validFact = (fact) => Boolean(fact) && fact.date === getDayKey() && typeof fact.title === 'string' && typeof fact.text === 'string'
-        && typeof fact.url === 'string' && /^https:\/\/[a-z]+\.wikipedia\.org\//.test(fact.url);
+    const validFact = (fact) => Boolean(fact) && fact.date === getDayKey() && typeof fact.title === 'string' && fact.title.length <= 200 && typeof fact.text === 'string' && fact.text.length <= 2000
+        && typeof fact.url === 'string' && fact.url.length <= 300 && /^https:\/\/[a-z]+\.wikipedia\.org\/[^\s"'<>]*$/.test(fact.url);
     let factLoading = null;
     const loadDailyFact = async () => {
         try {
@@ -2811,7 +2811,7 @@
     // výsledky ukládá Supabase (social.js) a hráči se porovnají v žebříčku výzvy.
 
     const Social = window.MudrlantSocial;
-    const AVATAR_BG = { emerald: 'bg-emerald-500', sky: 'bg-sky-500', violet: 'bg-violet-500', rose: 'bg-rose-500', amber: 'bg-amber-500', teal: 'bg-teal-500', orange: 'bg-orange-500', indigo: 'bg-indigo-500' };
+    const AVATAR_BG = { __proto__: null, emerald: 'bg-emerald-500', sky: 'bg-sky-500', violet: 'bg-violet-500', rose: 'bg-rose-500', amber: 'bg-amber-500', teal: 'bg-teal-500', orange: 'bg-orange-500', indigo: 'bg-indigo-500' };
     let myProfile = null;
     let myChallenges = null;
     let myRating = null;
@@ -2936,12 +2936,16 @@
         const user = signedUser();
         if (!user) { myProfile = null; return null; }
         if (myProfile && myProfile.id === user.id) return myProfile;
-        try { myProfile = await Social.getProfile(user.id); } catch (error) { myProfile = null; }
+        let loaded = null;
+        try { loaded = await Social.getProfile(user.id); } catch (error) { loaded = null; }
+        // Mezitím se hráč odhlásil nebo přihlásil jiný účet: pozdní odpověď cizího profilu se zahodí
+        if (!signedUser() || signedUser().id !== user.id) return null;
+        myProfile = loaded;
         if (!myProfile) myProfile = { id: user.id, display_name: user.name, avatar: '🦊', color: 'emerald' };
         syncLookWithAccount();
         updateProfileButton();
         syncProgress();
-        if (myBlocked === null) Social.getAccepts(user.id).then(accepts => { myBlocked = accepts.blocked; myAcceptsMix = accepts.mix; paintChallenges(); });
+        if (myBlocked === null) Social.getAccepts(user.id).then(accepts => { if (!signedUser() || signedUser().id !== user.id) return; myBlocked = accepts.blocked; myAcceptsMix = accepts.mix; paintChallenges(); });
         return myProfile;
     };
 
@@ -3097,6 +3101,7 @@
                 Social.incomingChallenges(user.id).catch(() => []),
                 Social.getRating(user.id).catch(() => null)
             ]);
+            if (!signedUser() || signedUser().id !== user.id) return;
             myChallenges = mine;
             myRating = rating;
             incomingList = incoming;
@@ -3901,7 +3906,9 @@
     const finishChallenge = async (retry = false) => {
         const c = challenge;
         const user = signedUser();
-        if (!c || !user) return;
+        // Dvojité klepnutí nebo rychlé „Zkusit znovu“: odeslání už běží, druhé se nespouští
+        if (!c || !user || c.sending) return;
+        c.sending = true;
         c.done = true;
         renderChallengeDone(null, 'sending');
         const correct = c.results.filter(row => row && row.correct).length;
@@ -3932,6 +3939,8 @@
             if (challenge === c) renderChallengeDone(results);
         } catch (error) {
             if (challenge === c) renderChallengeDone(null, 'error');
+        } finally {
+            c.sending = false;
         }
     };
 
@@ -4150,6 +4159,16 @@
             loadVersion();
         });
     }
+
+    // Aplikace nechaná otevřená přes půlnoc (nebo probuzená z pozadí v nový den): nový den = nové dnešní otázky, série a zajímavost
+    let shownDay = getDayKey();
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState !== 'visible' || getDayKey() === shownDay) return;
+        shownDay = getDayKey();
+        dailyFact = null;
+        factLoading = loadDailyFact();
+        if (screen === 'home') renderHome();
+    });
 
     // ?vyvojar zapne vývojářský režim (zkušební úroveň a odznaky v Nastavení), ?vyvojar=0 ho vypne
     try {
