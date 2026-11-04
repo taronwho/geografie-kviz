@@ -734,11 +734,28 @@
             <span class="flex items-center gap-2"><span class="rounded-lg bg-brand-100 p-1.5 text-brand-700 dark:bg-brand-900/60 dark:text-brand-200"><i data-lucide="${variant.icon}" class="h-4 w-4"></i></span><span class="text-sm font-black text-slate-800 dark:text-slate-100">${VARIANT_BRIEF[key].short}</span></span>
             <span class="text-[11px] font-semibold leading-snug text-slate-500 dark:text-slate-400">${VARIANT_BRIEF[key].text}</span>
         </button>`).join('');
+    // --- Vzhled: odměny (barevná témata, barva obleku sovy, rámečky, obrázky, titul) – části dodávají look-*.js přes MudrlantLook ---
+    const Look = window.MudrlantLook;
+    const lookContext = () => {
+        const progress = loadProgress();
+        const user = Auth && Auth.isConfigured() && Social ? signedUser() : null;
+        return { level: levelProgress(progress.xp).level, badges: progress.badges, user, profile: user ? myProfile : null, prefs: Look ? Look.prefs({ level: levelProgress(progress.xp).level, badges: progress.badges }) : {} };
+    };
+    const applyLook = () => { if (Look) Look.apply(lookContext()); };
+    const lookBody = () => {
+        if (!Look) return '';
+        const ctx = lookContext();
+        return `<div class="flex flex-col gap-3">${Look.getSections().map(section => `
+            <section data-look="${section.id}" class="rounded-2xl bg-white p-3 shadow-sm dark:bg-slate-800">
+                <h3 class="${ME_HEADING} mb-2">${escapeHtml(section.title)}</h3>
+                ${section.render(ctx)}
+            </section>`).join('')}</div>`;
+    };
     const openSettings = (note = '', focusSelector = null, tab = null) => {
         closeChooser();
         const user = signedUser();
         if (tab) meTab = tab;
-        if (!user || !Social) meTab = 'game';
+        if ((!user || !Social) && meTab === 'profile') meTab = 'game';
         if (user && Social && !meDraft) {
             const base = myProfile || { display_name: user.name, avatar: '🦊', color: 'emerald' };
             meDraft = { name: base.display_name, avatar: base.avatar, color: base.color };
@@ -753,11 +770,11 @@
         const shown = profile && meTab === 'profile' && meDraft ? { ...profile, ...{ avatar: meDraft.avatar, color: meDraft.color } } : profile;
         const level = levelProgress(loadProgress().xp);
         const noteText = note || meNote;
-        const tabs = user && Social ? `
+        const tabs = `
             <div role="tablist" class="mt-3 flex gap-1 rounded-2xl bg-slate-200/70 p-1 dark:bg-slate-800">
-                ${[['game', 'gamepad-2', 'Hra'], ['profile', 'user-round', 'Profil']].map(([id, icon, label]) => `
-                    <button type="button" role="tab" data-me-tab="${id}" aria-selected="${meTab === id}" class="flex flex-1 items-center justify-center gap-1.5 rounded-xl px-3 py-2 text-[13px] font-black ${meTab === id ? 'btn-3d bg-brand-700 text-white' : 'text-slate-500 dark:text-slate-400'}"><i data-lucide="${icon}" class="h-4 w-4"></i> ${label}</button>`).join('')}
-            </div>` : '';
+                ${[['game', 'gamepad-2', 'Hra'], ...(user && Social ? [['profile', 'user-round', 'Profil']] : []), ['look', 'palette', 'Vzhled']].map(([id, icon, label]) => `
+                    <button type="button" role="tab" data-me-tab="${id}" aria-selected="${meTab === id}" class="flex flex-1 items-center justify-center gap-1.5 rounded-xl px-2 py-2 text-[13px] font-black ${meTab === id ? 'btn-3d bg-brand-700 text-white' : 'text-slate-500 dark:text-slate-400'}"><i data-lucide="${icon}" class="h-4 w-4"></i> ${label}</button>`).join('')}
+            </div>`;
         const gameBody = `
             <h3 class="${ME_HEADING} mb-2">Varianta hry</h3>
             <div class="grid grid-cols-2 gap-2">${renderVariantCompact(gameVariant)}</div>
@@ -802,7 +819,7 @@
                     <button type="button" data-close aria-label="Zavřít" class="self-start rounded-xl p-2 text-slate-500 hover:bg-slate-200 dark:text-slate-400 dark:hover:bg-slate-800"><i data-lucide="x" class="h-5 w-5"></i></button>
                 </div>
                 ${tabs}
-                <div class="mt-3">${meTab === 'profile' && profileBody ? profileBody : gameBody}</div>
+                <div class="mt-3">${meTab === 'profile' && profileBody ? profileBody : meTab === 'look' ? lookBody() : gameBody}</div>
                 <p id="settings-note" class="mt-2 min-h-[1.1rem] text-xs font-semibold ${noteText.startsWith('Uloženo') || !meNote ? 'text-emerald-700 dark:text-emerald-300' : 'text-rose-600 dark:text-rose-400'}" role="status">${escapeHtml(noteText)}</p>
                 <div class="flex items-center justify-center gap-2 text-xs text-slate-400 dark:text-slate-500">
                     <span id="app-version">${escapeHtml(versionLabel())}</span>
@@ -840,6 +857,12 @@
         overlay.addEventListener('click', (event) => {
             if (event.target === overlay || event.target.closest('[data-close]')) {
                 closeSettings();
+                return;
+            }
+            const lookEl = event.target.closest('[data-look]');
+            if (lookEl && Look) {
+                const section = Look.getSections().find(entry => entry.id === lookEl.dataset.look);
+                if (section && section.click && section.click(event, lookContext())) { updateControlsUI(); openSettings('', null, 'look'); }
                 return;
             }
             const tabButton = event.target.closest('[data-me-tab]');
@@ -2082,6 +2105,7 @@
         round.xp = { total: gained, parts: parts.filter(part => part.xp > 0), badges: badgeTitles };
         saveProgress(progress);
         announce(levelProgress(before.xp).level, levelProgress(progress.xp).level, badgeTitles);
+        applyLook();
         syncProgress();
     };
 
@@ -3920,6 +3944,7 @@
     }
     gameVariant = readVariant();
     settings = loadSettings();
+    applyLook();
     renderIcons(document);
     try {
         showStart();

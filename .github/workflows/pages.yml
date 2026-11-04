@@ -35,7 +35,7 @@ jobs:
           # Aplikace je v app/ (vlastní rozsah pro instalaci na plochu), v kořeni přesměrování a starý service worker,
           # který se sám odregistruje
           mkdir -p _site/app
-          cp -r index.html config.js auth.js social.js app.js quiz-core.js visuals.js icons.js styles.css sw.js manifest.webmanifest icons topics data _site/app/
+          cp -r index.html config.js auth.js social.js app.js quiz-core.js visuals.js look.js look-themes.js look-robes.js look-frames.js icons.js styles.css sw.js manifest.webmanifest icons topics data _site/app/
           cp pages-root/index.html pages-root/sw.js _site/
           # Každé nasazení = nový service worker (jiný název mezipaměti), aby se nainstalované aplikace samy aktualizovaly
           sed -i "s/const CACHE_NAME = 'mudrlant-v3';/const CACHE_NAME = 'mudrlant-${GITHUB_SHA::7}';/" _site/app/sw.js
