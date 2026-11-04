@@ -101,7 +101,12 @@ export const validateFact = (fact, sources) => {
 
 // Model, který už odpověděl, se zkouší první; model, který selhal, se v dalších voláních přeskočí
 let preferred = null;
+let lastModelError = null;
 const failedModels = new Set();
+// Bezplatný limit API bývá nízký (desítky volání za den), proto jeden běh udělá nejvýš pár volání a při překročení limitu hned skončí
+const MAX_CALLS = 4;
+let calls = 0;
+export const resetBudget = () => { calls = 0; preferred = null; lastModelError = null; failedModels.clear(); };
 const askGemini = async (fetchImpl, key, text, properties = { title: { type: 'STRING' }, text: { type: 'STRING' } }) => {
     const body = {
         contents: [{ role: 'user', parts: [{ text }] }],
@@ -112,13 +117,15 @@ const askGemini = async (fetchImpl, key, text, properties = { title: { type: 'ST
         }
     };
     const call = (model) => getJson(fetchImpl, `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key }, body: JSON.stringify(body) }, 2);
+    if (calls >= MAX_CALLS) throw new Error('Vyčerpán počet volání Gemini pro jeden běh');
+    calls += 1;
     // Zvolený model, pak záložní (alias nejnovějšího Flash a 2.5): první, který odpoví
     let data = null;
     let lastError = null;
     for (const model of [...new Set([preferred, MODEL, ...FALLBACK_MODELS])].filter(name => name && !failedModels.has(name))) {
-        try { data = await call(model); preferred = model; break; } catch (error) { lastError = error; failedModels.add(model); console.error(`Model ${model}: ${error.message}`); }
+        try { data = await call(model); preferred = model; break; } catch (error) { lastError = lastModelError = error; if (/^429 /.test(error.message)) throw new Error(`Limit Gemini API vyčerpán (429): ${error.message.slice(0, 160)}`); failedModels.add(model); console.error(`Model ${model}: ${error.message}`); }
     }
-    if (!data) throw lastError;
+    if (!data) throw lastError || lastModelError || new Error('Žádný model Gemini není dostupný');
     const raw = data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts && data.candidates[0].content.parts.map(part => part.text || '').join('');
     if (!raw) throw new Error('Gemini nevrátilo text');
     return JSON.parse(raw);

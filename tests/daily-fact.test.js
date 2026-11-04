@@ -57,7 +57,8 @@ test('denní zajímavost: kontrola odpovědi odmítne vymyšlená čísla, adres
 });
 
 test('denní zajímavost: sestaví výsledek s odkazem na českou Wikipedii a při špatné odpovědi to zkusí znovu', async () => {
-    const { buildFact } = await load();
+    const { buildFact, resetBudget } = await load();
+    resetBudget();
     const calls = [];
     const logs = [];
     const fact = await buildFact({ day: '2026-11-04', key: 'klíč', fetchImpl: makeFetch([{ index: 0 }, { title: 'Špatné', text: 'V roce 1999 se stalo cokoli.'.repeat(6) }, GOOD], calls), log: (line) => logs.push(line) });
@@ -72,7 +73,8 @@ test('denní zajímavost: sestaví výsledek s odkazem na českou Wikipedii a p�
 });
 
 test('denní zajímavost: bez použitelné odpovědi skončí chybou, ne vymyšleným faktem', async () => {
-    const { buildFact } = await load();
+    const { buildFact, resetBudget } = await load();
+    resetBudget();
     const bad = { title: 'Nic', text: 'x' };
-    await assert.rejects(buildFact({ day: '2026-11-04', key: 'klíč', fetchImpl: makeFetch(Array.from({ length: 10 }, () => bad)) }), /Nepodařilo se/);
+    await assert.rejects(buildFact({ day: '2026-11-04', key: 'klíč', fetchImpl: makeFetch(Array.from({ length: 10 }, () => bad)) }), /Nepodařilo se|Vyčerpán/);
 });
