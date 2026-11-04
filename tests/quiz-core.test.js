@@ -640,3 +640,14 @@ test('takeLeadFacts: první fakta chudé otázky se přesunou z nápovědy do ok
     const extra = [{ kind: 'facts', facts, extra: true }];
     assert.deepEqual(core.takeLeadFacts(extra), { hints: extra, leadFacts: [] });
 });
+
+test('zakrývání: Litva se zakryje i v přídavném jménu (Litevská republika)', () => {
+    const text = 'Litva, plným názvem Litevská republika, je pobaltský stát v Evropě.';
+    const hidden = core.censorName(text, 'Litva');
+    assert.doesNotMatch(hidden, /Lit/);
+    assert.match(hidden, /pobaltský stát/);
+    assert.doesNotMatch(core.censorName('Litevští králové vládli v Litvě.', 'Litva'), /Lit/);
+    for (const [name, adjective] of [['Bosna a Hercegovina', 'Bosenská'], ['Kyrgyzstán', 'Kyrgyzská'], ['Tádžikistán', 'Tádžická'], ['Uzbekistán', 'Uzbecká'], ['Jamajka', 'Jamajská'], ['Kypr', 'Kyperská'], ['Mauritius', 'Mauricijská'], ['Srí Lanka', 'Srílanská']]) {
+        assert.doesNotMatch(core.censorName(`Stát ${adjective} republika leží.`, name), new RegExp(adjective.slice(0, 5)), `${name}: ${adjective}`);
+    }
+});

@@ -130,11 +130,19 @@
     // Kmeny slova pro skloňované tvary a odvozená přídavná jména:
     // Praha → Prah/Praz/Praž (Praze, pražský), Korea → Kore/Kor (Koreji), Itálie → Itál/Ital (italský),
     // Sněžka → Sněžk/Sněžc, Hradec → Hradc, Plzeň → Plzn
+    // Přídavná jména, která se z názvu nedají odvodit pravidlem (Kypr → kyperský, Bosna → bosenský)
+    const SPECIAL_STEMS = { kypr: ['Kyper'], bosna: ['Bosen'], mauritius: ['Mauricij', 'Mauric'], 'srí': ['Srílan'], lanka: ['Lansk'] };
     const getWordStems = (word) => {
         const stems = new Set([word.replace(/[aeiouyáéěíóúůý]$/iu, ''), word.replace(/[aeiouyáéěíóúůý]+$/iu, '')]);
         // Rody a národy v množném čísle: Přemyslovci → Přemyslovec, přemyslovský; Lucemburkové → Lucemburk, Lucemburků
         if (word.length >= 7 && /ovci$/iu.test(word)) stems.add(word.slice(0, -2));
         if (word.length >= 7 && /ové$/iu.test(word)) stems.add(word.slice(0, -3));
+        // Kyrgyzstán → kyrgyzský, Tádžikistán → tádžický: bez koncovky -stán; Jamajka → jamajský
+        if (word.length >= 8 && /stán$/iu.test(word)) stems.add(word.replace(/i?stán$/iu, ''));
+        if (word.length >= 6 && /jka$/iu.test(word)) stems.add(word.slice(0, -2));
+        (SPECIAL_STEMS[word.toLowerCase()] || []).forEach(stem => stems.add(stem));
+        // Litva → litevský, Moldava → moldavský: souhláska + va se v přídavném jménu rozšíří na -ev- (Litev…)
+        if (word.length >= 4 && /[^aeiouyáéěíóúůý]va$/iu.test(word)) stems.add(`${word.slice(0, -2)}ev`);
         // Přídavná jména od míst (kubánský → Kuba, mexický → Mexiko, kanadský → Kanada, africký → Afrika)
         const place = /^\p{Ll}/u.test(word) && word.length >= 7 && word.match(/^(.{3,}?)(?:ánsk|ansk|ijsk|sk)[ýáéí]$|^(.{3,}c)k[ýáéí]$/u);
         if (place) {
