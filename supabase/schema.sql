@@ -16,6 +16,8 @@ alter table public.profiles add column if not exists xp integer not null default
 alter table public.profiles add column if not exists badges text[] not null default '{}';
 -- Témata, ze kterých hráč nepřijímá výzvy (ostatní ho v nich nevyzvou a náhodný soupeř ho přeskočí)
 alter table public.profiles add column if not exists blocked_topics text[] not null default '{}';
+-- Přijímá hráč výzvy z Mixu všech témat? (výchozí ano; Mix se pak zúží o témata, která má vypnutá)
+alter table public.profiles add column if not exists accepts_mix boolean not null default true;
 alter table public.profiles drop constraint if exists profiles_blocked_len;
 alter table public.profiles add constraint profiles_blocked_len check (cardinality(blocked_topics) <= 30);
 alter table public.profiles drop constraint if exists profiles_xp_range;
@@ -85,14 +87,17 @@ end;
 $$;
 
 -- Náhodný soupeř: jiný hráč než já (jména a obrázky vidí přihlášení stejně, funkce jen vybírá)
--- Náhodný soupeř, který přijímá výzvy z daných témat (wanted = témata výzvy; prázdné = bez omezení)
+-- Náhodný soupeř, který přijímá výzvy z daných témat (wanted = témata výzvy; prázdné = bez omezení; wants_mix = výzva je Mix)
 drop function if exists public.random_opponent();
-create or replace function public.random_opponent(wanted text[] default '{}') returns setof public.profiles
+drop function if exists public.random_opponent(text[]);
+create or replace function public.random_opponent(wanted text[] default '{}', wants_mix boolean default false) returns setof public.profiles
 language sql stable security definer set search_path = public as $$
-    select * from public.profiles where id <> auth.uid() and not (blocked_topics && coalesce(wanted, '{}')) order by random() limit 1;
+    select * from public.profiles
+    where id <> auth.uid() and not (blocked_topics && coalesce(wanted, '{}')) and (not coalesce(wants_mix, false) or accepts_mix)
+    order by random() limit 1;
 $$;
-revoke all on function public.random_opponent(text[]) from public, anon;
-grant execute on function public.random_opponent(text[]) to authenticated;
+revoke all on function public.random_opponent(text[], boolean) from public, anon;
+grant execute on function public.random_opponent(text[], boolean) to authenticated;
 
 -- ===== Výzvy: stejné otázky pro víc hráčů (otázky se losují ze zadaného semínka, takže je každý dostane stejné) =====
 create table if not exists public.challenges (
@@ -115,10 +120,12 @@ create or replace function public.check_challenge_topics() returns trigger
 language plpgsql security definer set search_path = public as $$
 declare
     blocked text[];
+    mix_ok boolean;
 begin
     if new.invited_id is null then return new; end if;
-    select blocked_topics into blocked from public.profiles where id = new.invited_id;
-    if blocked is not null and cardinality(blocked) > 0 and (new.topic = 'mix' or string_to_array(new.topic, ',') && blocked) then
+    select blocked_topics, accepts_mix into blocked, mix_ok from public.profiles where id = new.invited_id;
+    if blocked is null then return new; end if;
+    if (new.topic = 'mix' and (not mix_ok or cardinality(blocked) > 0)) or (cardinality(blocked) > 0 and string_to_array(new.topic, ',') && blocked) then
         raise exception 'Tenhle hráč nepřijímá výzvy z některého z vybraných témat.' using errcode = 'P0001';
     end if;
     return new;

@@ -2704,7 +2704,8 @@
 
     // Témata, ze kterých hráč nepřijímá výzvy (null = ještě se nenačetla)
     let myBlocked = null;
-    const acceptSummary = () => !myBlocked ? 'nastavit' : myBlocked.length ? `${TOPICS.length - myBlocked.length} z ${TOPICS.length} témat` : 'všechna témata';
+    let myAcceptsMix = true;
+    const acceptSummary = () => !myBlocked ? 'nastavit' : `${myBlocked.length ? `${TOPICS.length - myBlocked.length} z ${TOPICS.length} témat` : 'všechna témata'}${myAcceptsMix ? '' : ', bez Mixu'}`;
     // Okno „Přijímané výzvy“: každé téma jde vypnout; ukládá se hned po klepnutí
     const openAccepted = async () => {
         const user = signedUser();
@@ -2715,6 +2716,11 @@
             showDialog('Přijímané výzvy', `
                 <div class="flex flex-col gap-3">
                     <p class="text-xs leading-snug text-slate-500 dark:text-slate-400">Vyber, z jakých témat tě ostatní můžou vyzývat. U <b class="text-slate-700 dark:text-slate-200">vypnutých</b> témat ti výzvu nezadají a náhodný soupeř tě v nich nedostane. Třeba když historii vůbec neznáš.</p>
+                    <button type="button" data-accept-mix role="switch" aria-checked="${myAcceptsMix}" class="btn-3d-light flex w-full items-center gap-2.5 rounded-2xl p-2.5 text-left ${myAcceptsMix ? 'bg-white dark:bg-slate-800' : 'bg-slate-100 dark:bg-slate-800/60'}">
+                        ${uiArt('mix', 'h-9 w-9')}
+                        <span class="min-w-0 flex-1"><span class="block text-[13px] font-black leading-tight text-slate-800 dark:text-slate-100">Mix všech témat</span><span class="block text-[11px] font-semibold leading-snug text-slate-500 dark:text-slate-400">${myAcceptsMix ? (TOPICS.length - blocked.length > 0 ? `Dostaneš ho jen z tvých ${TOPICS.length - blocked.length} zapnutých témat.` : 'Nemáš zapnuté žádné téma.') : 'Vypnuto: přijímáš jen výzvy z konkrétních témat.'}</span></span>
+                        <span class="flex h-6 w-11 shrink-0 items-center rounded-full p-0.5 ${myAcceptsMix ? 'justify-end bg-emerald-500' : 'justify-start bg-slate-300 dark:bg-slate-600'}"><span class="h-5 w-5 rounded-full bg-white shadow"></span></span>
+                    </button>
                     <ul class="grid grid-cols-2 gap-1.5">${TOPICS.map(topic => {
                         const off = blocked.includes(topic.id);
                         return `<li><button type="button" data-accept-topic="${topic.id}" role="switch" aria-checked="${!off}" class="btn-3d-light flex w-full items-center gap-2 rounded-xl p-2 text-left ${off ? 'bg-slate-100 opacity-70 dark:bg-slate-800/60' : 'bg-white dark:bg-slate-800'}">
@@ -2732,17 +2738,21 @@
                 onClick: async (event) => {
                     const toggle = event.target.closest('[data-accept-topic]');
                     const all = event.target.closest('[data-accept-all]');
-                    if (!toggle && !all) return;
+                    const mixSwitch = event.target.closest('[data-accept-mix]');
+                    if (!toggle && !all && !mixSwitch) return;
                     const before = myBlocked || [];
-                    myBlocked = all ? [] : before.includes(toggle.dataset.acceptTopic) ? before.filter(id => id !== toggle.dataset.acceptTopic) : [...before, toggle.dataset.acceptTopic];
+                    const beforeMix = myAcceptsMix;
+                    if (mixSwitch) myAcceptsMix = !myAcceptsMix;
+                    else myBlocked = all ? [] : before.includes(toggle.dataset.acceptTopic) ? before.filter(id => id !== toggle.dataset.acceptTopic) : [...before, toggle.dataset.acceptTopic];
                     note = '';
                     render();
                     try {
-                        await Social.saveBlocked(user.id, myBlocked);
+                        await Social.saveAccepts(user.id, { blocked: myBlocked, mix: myAcceptsMix });
                         note = 'Uloženo.';
                         paintChallenges();
                     } catch (error) {
                         myBlocked = before;
+                        myAcceptsMix = beforeMix;
                         note = 'Uložení se nepodařilo. Zkontroluj připojení a že je v databázi nejnovější SQL.';
                     }
                     render();
@@ -2750,7 +2760,7 @@
             });
         };
         render();
-        if (myBlocked === null) { myBlocked = await Social.getBlocked(user.id); if (document.getElementById('dialog-overlay')) render(); }
+        if (myBlocked === null) { const accepts = await Social.getAccepts(user.id); myBlocked = accepts.blocked; myAcceptsMix = accepts.mix; if (document.getElementById('dialog-overlay')) render(); }
     };
     const loadMyProfile = async () => {
         const user = signedUser();
@@ -2760,7 +2770,7 @@
         if (!myProfile) myProfile = { id: user.id, display_name: user.name, avatar: '🦊', color: 'emerald' };
         updateProfileButton();
         syncProgress();
-        if (myBlocked === null) Social.getBlocked(user.id).then(list => { myBlocked = list; paintChallenges(); });
+        if (myBlocked === null) Social.getAccepts(user.id).then(accepts => { myBlocked = accepts.blocked; myAcceptsMix = accepts.mix; paintChallenges(); });
         return myProfile;
     };
 
@@ -2987,7 +2997,7 @@
     // souhrnné řádky, které se rozbalí klepnutím; tlačítko Vytvořit a hrát je stále dole na očích.
     const openNewChallenge = () => {
         if (!signedUser()) return;
-        const draft = { topics: [], count: 10, who: 'player', opponent: null, blocked: null, query: '', found: null, hard: false, variant: 'choices', cats: null, open: null };
+        const draft = { topics: [], count: 10, who: 'player', opponent: null, blocked: null, mixOk: true, query: '', found: null, hard: false, variant: 'choices', cats: null, open: null };
         let busy = false;
         let note = '';
         let searchToken = 0;
@@ -3012,9 +3022,10 @@
                 </button>`).join('');
         };
         // Výzva podle témat, která soupeř nepřijímá (blocked): Mix se zúží o jeho zakázaná témata, výslovně vybrané téma zakázané nejde
-        const resolveTopics = (blocked) => {
+        const resolveTopics = (blocked, mixOk = true) => {
             const list = blocked || [];
             const isMix = draft.topics.length === 0 || draft.topics.length >= ALL.length;
+            if (isMix && !mixOk) return { value: '', hit: [], removed: [], error: true, mixOff: true };
             const hit = chosenTopics().filter(id => list.includes(id));
             if (!hit.length) return { value: topicValue(), hit: [], removed: [], error: false };
             if (isMix) {
@@ -3025,9 +3036,10 @@
         };
         const titles = (ids) => ids.map(id => TOPIC_BY_ID[id].title).join(', ');
         const blockNote = () => {
-            if (!draft.opponent || !draft.blocked || !draft.blocked.length) return '';
-            const result = resolveTopics(draft.blocked);
+            if (!draft.opponent || !draft.blocked || (!draft.blocked.length && draft.mixOk)) return '';
+            const result = resolveTopics(draft.blocked, draft.mixOk);
             const name = escapeHtml(playerName(draft.opponent));
+            if (result.mixOff) return `<p class="mt-1.5 flex items-start gap-1.5 rounded-lg bg-rose-50 px-2 py-1.5 text-[11px] font-bold leading-snug text-rose-700 dark:bg-rose-900/30 dark:text-rose-200"><i data-lucide="ban" class="mt-px h-3.5 w-3.5 shrink-0"></i><span>${name} nepřijímá Mix. Vyber konkrétní téma.</span></p>`;
             if (result.error) return `<p class="mt-1.5 flex items-start gap-1.5 rounded-lg bg-rose-50 px-2 py-1.5 text-[11px] font-bold leading-snug text-rose-700 dark:bg-rose-900/30 dark:text-rose-200"><i data-lucide="ban" class="mt-px h-3.5 w-3.5 shrink-0"></i><span>${name} nechce hrát: ${escapeHtml(titles(result.hit))}. Vyber jiné téma.</span></p>`;
             if (result.removed.length) return `<p class="mt-1.5 flex items-start gap-1.5 rounded-lg bg-amber-50 px-2 py-1.5 text-[11px] font-bold leading-snug text-amber-800 dark:bg-amber-900/30 dark:text-amber-200"><i data-lucide="info" class="mt-px h-3.5 w-3.5 shrink-0"></i><span>Mix bez: ${escapeHtml(titles(result.removed))} (${name} je nepřijímá).</span></p>`;
             return '';
@@ -3133,12 +3145,13 @@
                 if (pick) {
                     draft.opponent = draft.found.find(player => player.id === pick.dataset.pickOpp) || null;
                     draft.blocked = null;
+                    draft.mixOk = true;
                     note = '';
                     render();
-                    // Zakázaná témata vybraného hráče se dotáhnou hned, ať se upozornění ukáže před založením výzvy
-                    if (draft.opponent) { const id = draft.opponent.id; Social.getBlocked(id).then(list => { if (draft.opponent && draft.opponent.id === id) { draft.blocked = list; render(); } }); }
+                    // Zakázaná témata a Mix vybraného hráče se dotáhnou hned, ať se upozornění ukáže před založením výzvy
+                    if (draft.opponent) { const id = draft.opponent.id; Social.getAccepts(id).then(accepts => { if (draft.opponent && draft.opponent.id === id) { draft.blocked = accepts.blocked; draft.mixOk = accepts.mix; render(); } }); }
                 }
-                if (event.target.closest('[data-clear-opp]')) { draft.opponent = null; draft.blocked = null; render(); }
+                if (event.target.closest('[data-clear-opp]')) { draft.opponent = null; draft.blocked = null; draft.mixOk = true; render(); }
                 if (event.target.closest('[data-ch-create]') && !busy) {
                     if (draft.who === 'player' && !draft.opponent) { note = 'Vyber hráče, kterého chceš vyzvat.'; render(); return; }
                     busy = true;
@@ -3147,19 +3160,22 @@
                     try {
                         let opponent = draft.who === 'player' ? draft.opponent : null;
                         let blocked = draft.blocked;
-                        if (opponent && !blocked) blocked = await Social.getBlocked(opponent.id);
+                        let mixOk = draft.mixOk;
+                        if (opponent && !blocked) { const accepts = await Social.getAccepts(opponent.id); blocked = accepts.blocked; mixOk = accepts.mix; }
                         if (draft.who === 'random') {
                             // Náhodný soupeř přeskočí hráče, kteří nepřijímají vybraná témata (u Mixu se zúží výzva)
                             const explicit = draft.topics.length && draft.topics.length < ALL.length ? draft.topics : [];
-                            opponent = await Social.randomOpponent(explicit);
+                            opponent = await Social.randomOpponent(explicit, !explicit.length);
                             if (!opponent) { busy = false; note = explicit.length ? 'Nikdo, kdo přijímá tato témata, teď není k dispozici. Zkus jiné téma nebo „Kamaráda přes odkaz“.' : 'Zatím tu nejsou žádní jiní hráči. Zkus „Kamaráda přes odkaz“.'; render(); return; }
                             blocked = Array.isArray(opponent.blocked_topics) ? opponent.blocked_topics : [];
+                            mixOk = opponent.accepts_mix !== false;
                         }
-                        const resolved = resolveTopics(blocked);
+                        const resolved = resolveTopics(blocked, mixOk);
                         if (resolved.error) {
                             busy = false;
                             draft.blocked = blocked;
-                            note = `${playerName(opponent)} nechce hrát: ${titles(resolved.hit)}. Vyber jiné téma.`;
+                            draft.mixOk = mixOk;
+                            note = resolved.mixOff ? `${playerName(opponent)} nepřijímá Mix. Vyber konkrétní téma.` : `${playerName(opponent)} nechce hrát: ${titles(resolved.hit)}. Vyber jiné téma.`;
                             render();
                             return;
                         }
@@ -3891,7 +3907,7 @@
             if (document.getElementById('settings-overlay')) openSettings();
             // Úvod s přihlášením: po přihlášení dál (k variantě nebo domů), po neúspěchu znovu s chybou
             if (document.getElementById('account-welcome') && (Auth.hasSession() || state.error)) showStart();
-            if (!state.user) { myProfile = null; myBlocked = null; myChallenges = null; incomingList = null; updateProfileButton(); paintChallenges(); return; }
+            if (!state.user) { myProfile = null; myBlocked = null; myAcceptsMix = true; myChallenges = null; incomingList = null; updateProfileButton(); paintChallenges(); return; }
             // Po přihlášení (i návratu z Googlu) se otevře výzva, na kterou hráč klepl v odkazu
             const pending = readJson(KEYS.pendingChallenge);
             if (pending) {

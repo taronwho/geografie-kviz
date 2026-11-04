@@ -148,27 +148,31 @@
         return await request('GET', `profiles?display_name=ilike.${encodeURIComponent(`*${term}*`)}&id=neq.${encodeURIComponent(userId)}&select=${PROFILE_FIELDS}&order=display_name&limit=8`) || [];
     };
     // Náhodný jiný hráč (funkce v databázi); null, když tu zatím nikdo další není
-    // wanted = témata výzvy (hráč, který je nepřijímá, se přeskočí); starší databáze bez parametru volá funkci bez něj
-    const randomOpponent = async (wanted = []) => {
+    // wanted = témata výzvy (hráč, který je nepřijímá, se přeskočí), wantsMix = výzva je Mix (přeskočí hráče bez Mixu);
+    // starší databáze bez parametrů volá funkci s menší výbavou
+    const randomOpponent = async (wanted = [], wantsMix = false) => {
+        const attempts = [{ wanted, wants_mix: wantsMix }, { wanted }, {}];
         let rows;
-        try {
-            rows = await request('POST', 'rpc/random_opponent', { body: { wanted } });
-        } catch (error) {
-            if (error.status !== 404 && error.status !== 400) throw error;
-            rows = await request('POST', 'rpc/random_opponent', { body: {} });
+        for (let i = 0; i < attempts.length; i++) {
+            try {
+                rows = await request('POST', 'rpc/random_opponent', { body: attempts[i] });
+                break;
+            } catch (error) {
+                if ((error.status !== 404 && error.status !== 400) || i === attempts.length - 1) throw error;
+            }
         }
         return (rows || [])[0] || null;
     };
-    // Témata, ze kterých hráč nepřijímá výzvy; bez sloupce v databázi (starší schéma) nic nebrání
-    const getBlocked = async (userId) => {
+    // Co hráč přijímá: témata, ze kterých výzvy nepřijímá, a zda přijímá Mix všech témat; bez sloupců (starší schéma) přijímá vše
+    const getAccepts = async (userId) => {
         try {
-            const row = (await request('GET', `profiles?id=eq.${encodeURIComponent(userId)}&select=blocked_topics`) || [])[0];
-            return row && Array.isArray(row.blocked_topics) ? row.blocked_topics : [];
+            const row = (await request('GET', `profiles?id=eq.${encodeURIComponent(userId)}&select=blocked_topics,accepts_mix`) || [])[0];
+            return { blocked: row && Array.isArray(row.blocked_topics) ? row.blocked_topics : [], mix: !row || row.accepts_mix !== false };
         } catch (error) {
-            return [];
+            return { blocked: [], mix: true };
         }
     };
-    const saveBlocked = (userId, topics) => request('PATCH', `profiles?id=eq.${encodeURIComponent(userId)}`, { body: { blocked_topics: [...new Set(topics)].slice(0, 30) }, prefer: 'return=minimal' });
+    const saveAccepts = (userId, { blocked, mix }) => request('PATCH', `profiles?id=eq.${encodeURIComponent(userId)}`, { body: { blocked_topics: [...new Set(blocked)].slice(0, 30), accepts_mix: Boolean(mix) }, prefer: 'return=minimal' });
     // Výzvy pro mě, které jsem ještě nehrál, nejnovější první
     const incomingChallenges = async (userId, limit = 10) => {
         const invites = await request('GET', `challenges?invited_id=eq.${encodeURIComponent(userId)}&select=id,topic,count,created_at,creator:profiles!creator_id(${PROFILE_FIELDS})&order=created_at.desc&limit=${limit}`) || [];
@@ -179,5 +183,5 @@
         return invites.filter(row => !done.has(row.id));
     };
 
-    return { AVATARS, COLORS, COUNTS, NAME_MAX, SocialError, cleanName, isValidName, newCode, parseCode, getProfile, saveProfile, createChallenge, getChallenge, getResults, submitResult, myChallenges, searchPlayers, randomOpponent, incomingChallenges, playerStats, getProgress, saveProgress, getBlocked, saveBlocked };
+    return { AVATARS, COLORS, COUNTS, NAME_MAX, SocialError, cleanName, isValidName, newCode, parseCode, getProfile, saveProfile, createChallenge, getChallenge, getResults, submitResult, myChallenges, searchPlayers, randomOpponent, incomingChallenges, playerStats, getProgress, saveProgress, getAccepts, saveAccepts };
 });
