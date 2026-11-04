@@ -6,7 +6,9 @@ import { writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 const UA = 'Mudrlant/1.0 (https://github.com/taronwho/geografie-kviz; denní zajímavost)';
-const MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+const MODEL = process.env.GEMINI_MODEL || 'gemini-3.8-flash';
+// Když zvolený model u API neexistuje (404), zkusí se starší, ať denní zajímavost nevypadne
+const FALLBACK_MODEL = 'gemini-2.5-flash';
 const TEXT_MIN = 120;
 const TEXT_MAX = 650;
 
@@ -99,7 +101,12 @@ const askGemini = async (fetchImpl, key, text) => {
             responseSchema: { type: 'OBJECT', properties: { title: { type: 'STRING' }, text: { type: 'STRING' } }, required: ['title', 'text'] }
         }
     };
-    const data = await getJson(fetchImpl, `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key }, body: JSON.stringify(body) });
+    const call = (model) => getJson(fetchImpl, `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key }, body: JSON.stringify(body) }, 1);
+    let data;
+    try { data = await call(MODEL); } catch (error) {
+        if (!/^404 /.test(error.message) || MODEL === FALLBACK_MODEL) throw error;
+        data = await call(FALLBACK_MODEL);
+    }
     const raw = data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts && data.candidates[0].content.parts.map(part => part.text || '').join('');
     if (!raw) throw new Error('Gemini nevrátilo text');
     return JSON.parse(raw);
