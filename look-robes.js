@@ -47,8 +47,8 @@
                 return `<button type="button" data-robe-pick="${item.id}" ${open ? '' : 'aria-disabled="true"'} aria-pressed="${selected}" aria-label="${esc(item.title)}${open ? '' : `, zamčeno: ${esc(Look.unlockText(item))}`}"
                     class="flex flex-col items-center rounded-xl border-2 px-0 py-1 text-center ${selected ? 'border-brand-500 bg-brand-50 dark:bg-brand-950' : 'border-transparent bg-slate-50 dark:bg-slate-700/50'} ${open ? '' : 'cursor-not-allowed'}">
                     <img src="${art}" alt="" data-keep class="h-10 w-10 object-contain ${open ? '' : 'opacity-40 grayscale'}">
-                    <span class="mt-0.5 text-[10px] font-bold leading-tight ${open ? 'text-slate-700 dark:text-slate-200' : 'text-slate-400 dark:text-slate-500'}">${esc(item.title.replace(' talár', ''))}</span>
-                    ${open ? '' : `<span class="text-[10px] leading-tight text-slate-400 dark:text-slate-500">${esc(Look.unlockText(item).replace('Úroveň', 'Úr.'))}</span>`}
+                    <span class="mt-0.5 text-[10px] font-bold leading-tight ${open ? 'text-slate-700 dark:text-slate-200' : 'text-slate-500 dark:text-slate-400'}">${esc(item.title.replace(' talár', ''))}</span>
+                    ${open ? '' : `<span class="text-[10px] leading-tight text-slate-500 dark:text-slate-400">${esc(Look.unlockText(item).replace('Úroveň', 'Úr.'))}</span>`}
                 </button>`;
             }).join('')}</div>`;
         },

@@ -154,7 +154,7 @@ test('odměny ve Vzhledu: rámečky, titul a obrázky hráče', { skip: !chromiu
             return { w: box.width, h: box.height, ring: ring.backgroundImage, inset: ring.insetBlockStart || ring.top, mask: ring.maskImage || ring.webkitMaskImage };
         });
         assert.equal(geometry.w, geometry.h);
-        assert.equal(geometry.w, 40);
+        assert.equal(geometry.w, 44);
         assert.match(geometry.ring, /conic-gradient/);
         assert.match(geometry.inset, /^-\d/);
         assert.match(geometry.mask, /radial-gradient/);

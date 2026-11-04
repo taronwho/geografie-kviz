@@ -294,7 +294,7 @@
         } catch (error) {
             console.error(error);
             const failure = document.createElement('p');
-            failure.className = 'absolute inset-0 flex items-center justify-center text-sm text-slate-500';
+            failure.className = 'absolute inset-0 flex items-center justify-center text-sm text-slate-500 dark:text-slate-400';
             failure.textContent = 'Nápovědu se nepodařilo načíst';
             container.appendChild(failure);
         }
