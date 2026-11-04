@@ -48,6 +48,7 @@ test('okno otázky: nápovědy z úvodu článku a vzhled na malých telefonech'
             sessionStorage.setItem('seeded', '1');
             localStorage.setItem('mudrlant.account', JSON.stringify('host'));
             localStorage.setItem('mudrlant.variant', 'choices');
+            localStorage.setItem('mudrlant.tutorial', JSON.stringify({ how: 'done' }));
         });
         await context.route(/^https:\/\//, route => {
             const url = new URL(route.request().url());

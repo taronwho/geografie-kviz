@@ -45,7 +45,7 @@ test('barevná témata ve Vzhledu', { skip: !chromium && 'Playwright není nains
             if (sessionStorage.getItem('seeded')) return;
             sessionStorage.setItem('seeded', '1');
             Object.entries(entries).forEach(([key, value]) => localStorage.setItem(key, value));
-        }, { 'mudrlant.account': JSON.stringify('host'), 'mudrlant.variant': 'choices', ...(options.progress === false ? {} : { 'mudrlant.progress': PROGRESS }), ...(options.storage || {}) });
+        }, { 'mudrlant.tutorial': JSON.stringify({ how: 'done' }), 'mudrlant.account': JSON.stringify('host'), 'mudrlant.variant': 'choices', ...(options.progress === false ? {} : { 'mudrlant.progress': PROGRESS }), ...(options.storage || {}) });
         const tab = await context.newPage();
         const problems = [];
         tab.on('pageerror', error => problems.push(error.message));
