@@ -177,11 +177,140 @@
     // Výhry, za které patří XP: moje vyhrané zápasy, kde hrál aspoň vítěz (nehrálo-li se, „dřívější přihlášený“ XP nedává)
     const xpMatches = (matches, userId) => matches.filter(match => match.winner === userId && match.decided_by !== 'earlier').map(match => match.id);
 
+    // --- Celé pořadí ---
+    const IN_GAME = ['playing', 'out', 'finished'];
+    const entryName = (entry) => (entry.player && entry.player.display_name) || 'Hráč';
+    const byName = (a, b) => entryName(a).localeCompare(entryName(b), 'cs');
+    // Rozmezí míst skupiny vypadlých: skupina o `count` hráčích, která začíná na místě `place` (5.–8.); jediný hráč má jen „3. místo“
+    const placeRange = (place, count = 1) => {
+        const from = Math.floor(Number(place));
+        const to = from + Math.max(1, Math.floor(Number(count) || 1)) - 1;
+        return { from, to, label: to > from ? `${from}.–${to}. místo` : placeLabel(from) };
+    };
+    // Kolo, ve kterém vypadl hráč s tímto místem (v databázi (velikost >> kolo) + 1); místa 1.–4. patří finálovému kolu
+    const roundOfPlace = (size, place) => {
+        if (!(size >= 2) || !(place >= 1)) return null;
+        if (place <= 4) return { round: Math.round(Math.log2(size)), third: place >= 3 };
+        const round = Math.round(Math.log2(size / (place - 1)));
+        return round >= 1 ? { round, third: false } : null;
+    };
+    // Pořadí všech hráčů turnaje: { playing: [{ entry, label }] (ještě hrají, nahoře), groups: [{ key, from, to, label, roundName, rows: [{ entry, place, label }] }], total }
+    // První skupina „top“ má místa 1.–4. po jednom, další vypadlí po kolech (stejné místo v databázi = jedna skupina). Přihlášení a vyloučení v pořadí nejsou.
+    const standings = (entries, tournament, matches = []) => {
+        const inGame = entries.filter(entry => IN_GAME.includes(entry.status));
+        const roundLabel = (info) => info ? tournamentRoundName(tournament, info.round, info.third) : '';
+        const playing = inGame.filter(entry => !entry.place && entry.status === 'playing').sort(byName).map(entry => {
+            const match = myMatch(matches, entry.user_id);
+            return { entry, label: match ? tournamentRoundName(tournament, match.round, match.third) : '' };
+        });
+        const placed = inGame.filter(entry => entry.place >= 1);
+        const unplaced = inGame.filter(entry => !(entry.place >= 1) && !playing.some(row => row.entry === entry)).sort(byName);
+        const groups = [];
+        const top = placed.filter(entry => entry.place <= 4).sort((a, b) => a.place - b.place || byName(a, b));
+        if (top.length) {
+            groups.push({ key: 'top', from: 1, to: 4, label: '1.–4. místo', roundName: '', individual: true, rows: top.map(entry => ({ entry, place: entry.place, label: entry.place === 1 ? 'Vítěz' : roundLabel(roundOfPlace(tournament.size, entry.place)) })) });
+        }
+        const byPlace = new Map();
+        placed.filter(entry => entry.place > 4).forEach(entry => { if (!byPlace.has(entry.place)) byPlace.set(entry.place, []); byPlace.get(entry.place).push(entry); });
+        [...byPlace.keys()].sort((a, b) => a - b).forEach(place => {
+            const list = byPlace.get(place).sort(byName);
+            const range = placeRange(place, list.length);
+            const name = roundLabel(roundOfPlace(tournament.size, place));
+            groups.push({ key: `p${place}`, from: range.from, to: range.to, label: range.label, roundName: name, individual: false, rows: list.map(entry => ({ entry, place, label: name })) });
+        });
+        if (unplaced.length) groups.push({ key: 'none', from: null, to: null, label: 'Bez umístění', roundName: '', individual: false, rows: unplaced.map(entry => ({ entry, place: null, label: '' })) });
+        return { playing, groups, total: inGame.length };
+    };
+
+    // --- Pavouk (sloupce kol) ---
+    // První kolo, ve kterém zbývá nejvýš 16 hráčů (osmifinále a dál); u malých turnajů 1
+    const bracketStartRound = (tournament) => {
+        for (let round = 1; round <= tournament.rounds; round++) if (playersInRound(tournament.size, round) <= 16) return round;
+        return 1;
+    };
+    // Co z karty zápasu jde říct o hráči: { won, lost } (vítěz / poražený, dokud se nerozhodne, nic)
+    const sideOf = (card, id) => ({ id, won: Boolean(card.winner && card.winner === id), lost: Boolean(card.winner && id && card.winner !== id) });
+    // Sloupce kola po kole se všemi kartami zápasů, i těmi, které ještě nejsou (jen pozice v pavouku, hráči z rozhodnutých zápasů před nimi).
+    // Karty jsou podle pozice (slot): sourozenci 2s−1 a 2s se potkají v kartě s na stejné úrovni, takže vítěz postupuje „doprostřed“.
+    // Vrací { columns: [{ round, name, day, players, current, cards }], third (karta o 3. místo | null), champion (id | null), focusRound }.
+    const bracketColumns = (matches, tournament, me = '') => {
+        const size = Number(tournament.size) || 0;
+        const rounds = Number(tournament.rounds) || (size >= 2 ? Math.round(Math.log2(size)) : 0);
+        if (!(size >= 2) || !(rounds >= 1)) return { columns: [], third: null, champion: null, focusRound: 0 };
+        const real = new Map(matches.map(match => [`${match.round}-${match.slot}${match.third ? 't' : ''}`, match]));
+        const current = tournament.status === 'running' ? currentRound(matches) : 0;
+        const make = (round, slot, third, p1, p2) => {
+            const match = real.get(`${round}-${slot}${third ? 't' : ''}`);
+            const card = match
+                ? { key: third ? 'third' : `${round}-${slot}`, id: match.id, round, slot, third, exists: true, p1: match.p1 || null, p2: match.p2 || null, winner: match.winner || null, decidedBy: match.decided_by || null, results: match.results || [] }
+                : { key: third ? 'third' : `${round}-${slot}`, id: '', round, slot, third, exists: false, p1: p1 || null, p2: p2 || null, winner: null, decidedBy: null, results: [] };
+            card.sides = [card.p1, card.p2].map(id => {
+                const result = id ? card.results.find(row => row.user_id === id && row.finished_at) : null;
+                return { ...sideOf(card, id), correct: result ? result.correct : null };
+            });
+            card.mine = Boolean(me && (card.p1 === me || card.p2 === me));
+            card.waits = false;
+            return card;
+        };
+        const columns = [];
+        let previous = null;
+        for (let round = 1; round <= rounds; round++) {
+            const count = Math.max(1, size >> round);
+            const cards = [];
+            for (let slot = 1; slot <= count; slot++) {
+                const feeders = previous ? [previous.cards[2 * slot - 2], previous.cards[2 * slot - 1]] : [];
+                const card = make(round, slot, false, feeders[0] && feeders[0].winner, feeders[1] && feeders[1].winner);
+                // Karta, která čeká na mě: zápas před ní jsem ještě nedohrál
+                card.waits = Boolean(me && !card.mine && feeders.some(feeder => feeder && feeder.mine && feeder.exists && !feeder.winner));
+                cards.push(card);
+            }
+            const column = { round, name: tournamentRoundName(tournament, round), day: roundDay(tournament, round), players: playersInRound(size, round), current: round === current, cards };
+            columns.push(column);
+            previous = column;
+        }
+        // Zápas o 3. místo: poražení semifinalisté
+        let third = null;
+        if (rounds >= 2) {
+            const semis = columns[rounds - 2].cards;
+            const loser = (card) => card && card.winner ? (card.winner === card.p1 ? card.p2 : card.p1) : null;
+            third = make(rounds, 1, true, loser(semis[0]), loser(semis[1]));
+        }
+        const final = columns[rounds - 1].cards[0];
+        const focusRound = (() => {
+            const mine = columns.flatMap(column => column.cards).filter(card => card.mine && !card.third);
+            return mine.length ? Math.max(...mine.map(card => card.round)) : Math.max(1, currentRound(matches));
+        })();
+        return { columns, third, champion: final && final.winner ? final.winner : null, focusRound };
+    };
+    // Cesta hráče pavoukem: klíče karet, ve kterých hrál (keys), a těch, které vyhrál (won)
+    const playerPath = (bracket, userId) => {
+        const keys = new Set();
+        const won = new Set();
+        if (!userId) return { keys, won };
+        const cards = bracket.columns.flatMap(column => column.cards).concat(bracket.third ? [bracket.third] : []);
+        cards.forEach(card => {
+            if (card.p1 !== userId && card.p2 !== userId) return;
+            keys.add(card.key);
+            if (card.winner === userId) won.add(card.key);
+        });
+        return { keys, won };
+    };
+    // Krátký den kola do záhlaví sloupce: „dnes“, „zítra“, „po 9. 11.“
+    const DAY_SHORT = ['ne', 'po', 'út', 'st', 'čt', 'pá', 'so'];
+    const dayShort = (day, today) => {
+        const gap = diffDays(day, today);
+        if (gap === 0) return 'dnes';
+        if (gap === 1) return 'zítra';
+        const date = parseDay(day);
+        return date ? `${DAY_SHORT[date.getUTCDay()]} ${formatDay(day)}` : '';
+    };
+
     return {
         QUESTIONS, MIN_PLAYERS, MAX_PLAYERS, WIN_XP, RULES,
         parseDay, addDays, diffDays, pragueToday, formatDay, weekdayName, dayWord, weekLabel,
         roundName, playersInRound, tournamentRoundName, roundDay, plural, playersWord, placeLabel, eliminatedLabel,
         groupRounds, currentRound, decided, involves, opponentOf, myMatch, resultOf, winnerPlace,
-        cardState, statusText, noticeText, podium, nameMap, xpMatches
+        cardState, statusText, noticeText, podium, nameMap, xpMatches,
+        placeRange, roundOfPlace, standings, bracketStartRound, bracketColumns, playerPath, dayShort
     };
 });

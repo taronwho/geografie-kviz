@@ -4222,6 +4222,10 @@
     let tournamentStarting = false;
     let tournamentDialogId = '';
     let tournamentQuery = '';
+    let tournamentMode = 'bracket'; // pohled v okně turnaje: 'bracket' (pavouk) nebo 'rounds' (seznam kol)
+    let bracketFull = null; // null = podle toho, kde jsem (vypadl jsem před osmifinále → celý pavouk); jinak volba hráče
+    let bracketFocus = ''; // hráč, jehož cesta pavoukem je zvýrazněná (klepnutí na hráče)
+    let bracketReset = true; // po otevření a změně pohledu se pavouk posune na moje kolo, při dalším překreslení zůstane, kde je
     const resetTournaments = () => { tournamentOffer = null; tournamentView = null; tournamentTickAt = 0; tournamentStatsAt = 0; tournamentBusy = ''; tournamentAgain = null; };
     const plainText = (text) => String(text || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
@@ -4486,6 +4490,132 @@
             </details>`;
         }).join('');
     };
+    // --- Celé pořadí: místa 1.–4., pak skupiny podle kola vyřazení (za běhu nahoře ti, kdo ještě hrají) ---
+    const rankingHtml = (view, meId) => {
+        const { tournament, entries, matches } = view;
+        const result = Tournament.standings(entries, tournament, matches);
+        if (!result.total) return '';
+        const row = ({ entry, place, label }, individual) => {
+            const mine = entry.user_id === meId;
+            const name = plainText(playerName(entry.player));
+            return `<li data-rank data-names="${escapeHtml(name)}" ${mine ? 'data-me' : ''} class="flex items-center gap-2 rounded-xl px-2 py-1 ${mine ? 'bg-brand-50 ring-2 ring-brand-600 dark:bg-brand-900/40' : 'bg-white dark:bg-slate-800'}">
+                ${individual && place ? `<span class="w-6 shrink-0 text-center text-[12px] font-black ${place === 1 ? 'text-gold-600 dark:text-gold-300' : 'text-slate-500 dark:text-slate-400'}">${place}.</span>` : ''}
+                ${avatarHtml(entry.player, 'h-7 w-7 text-sm')}
+                <span class="min-w-0 flex-1 truncate text-[12.5px] ${mine ? 'font-black' : 'font-bold'} text-slate-800 dark:text-slate-100">${escapeHtml(playerName(entry.player))}${mine ? ' (ty)' : ''}</span>
+                ${individual && label ? `<span class="shrink-0 text-[10.5px] font-semibold text-slate-500 dark:text-slate-400">${escapeHtml(label)}</span>` : ''}
+            </li>`;
+        };
+        const section = (key, title, note, rows, showLabel) => `<section data-rgroup="${key}" class="flex flex-col gap-1">
+            <h3 class="sticky top-0 z-[1] flex items-baseline justify-between gap-2 rounded-lg bg-slate-200 px-2 py-1 text-[11px] font-black uppercase tracking-wide text-slate-700 dark:bg-slate-700 dark:text-slate-200"><span>${escapeHtml(title)}</span><span class="text-[10.5px] font-bold normal-case tracking-normal text-slate-500 dark:text-slate-300">${escapeHtml(note)}</span></h3>
+            <ol class="flex flex-col gap-1">${rows.map(item => row(item, showLabel)).join('')}</ol>
+        </section>`;
+        const parts = [];
+        if (result.playing.length) parts.push(section('playing', 'Ještě hrají', String(result.playing.length), result.playing, true));
+        result.groups.forEach(group => parts.push(section(group.key, group.label, group.individual ? '' : `${group.roundName ? `${group.roundName} · ` : ''}${group.rows.length}`, group.rows, group.individual)));
+        return `
+            <details data-keep="ranking" class="group rounded-2xl bg-slate-100/70 p-1.5 dark:bg-slate-800/50">
+                <summary data-ranking class="flex cursor-pointer list-none items-center gap-2 rounded-xl px-1.5 py-1 text-[13px] font-black text-slate-800 dark:text-slate-100 [&::-webkit-details-marker]:hidden"><i data-lucide="medal" class="h-4 w-4 shrink-0 text-gold-600 dark:text-gold-300"></i><span class="flex-1">Celé pořadí (${escapeHtml(Tournament.playersWord(result.total))})</span><i data-lucide="chevron-down" class="h-4 w-4 shrink-0 text-slate-500 transition-transform group-open:rotate-180 dark:text-slate-400"></i></summary>
+                <div id="tournament-ranking" class="mt-1.5 flex flex-col gap-2">${parts.join('')}</div>
+            </details>`;
+    };
+
+    // --- Pavouk jako v NHL playoff: sloupce kol zleva doprava, kompaktní karty se dvěma řádky, spojnice, vítěz vpravo ---
+    const BRACKET_CHECK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="h-3 w-3 shrink-0 text-emerald-600 dark:text-emerald-400"><path d="M5 13l4 4L19 7"/></svg>';
+    const bracketRowHtml = (card, index, ctx) => {
+        const side = card.sides[index];
+        if (!side.id) return '<div class="flex h-5 items-center gap-1 px-1.5"><span class="h-4 w-4 shrink-0 rounded-full border border-dashed border-slate-300 dark:border-slate-600"></span><span class="text-[11px] font-semibold text-slate-400 dark:text-slate-500">—</span></div>';
+        const entry = ctx.players.get(side.id);
+        const name = playerName(entry ? entry.player : null);
+        const mine = side.id === ctx.me;
+        const tone = side.won ? 'font-black text-slate-900 dark:text-white' : side.lost ? 'font-semibold text-slate-400 dark:text-slate-500' : mine ? 'font-black text-brand-700 dark:text-brand-200' : 'font-bold text-slate-700 dark:text-slate-200';
+        const score = side.correct != null ? `${side.correct}/${Tournament.QUESTIONS}` : '—';
+        return `<button type="button" data-bp="${escapeHtml(side.id)}" data-bk="${card.key}" aria-pressed="${ctx.focus === side.id}" aria-label="${escapeHtml(`${name}${mine ? ' (ty)' : ''}: ${side.won ? 'vítěz, ' : ''}zvýraznit cestu pavoukem`)}" class="flex h-5 w-full items-center gap-1 px-1.5 text-left ${ctx.focus === side.id ? 'bg-gold-100 dark:bg-gold-900/40' : ''}">
+            ${avatarHtml(entry ? entry.player : null, 'h-4 w-4 text-[10px]')}
+            <span class="min-w-0 flex-1 truncate text-[11px] leading-none ${tone}">${escapeHtml(name)}</span>
+            <span class="shrink-0 text-[10px] leading-none tabular-nums ${side.won ? 'font-black text-slate-700 dark:text-slate-200' : 'font-semibold text-slate-400 dark:text-slate-500'}">${score}</span>
+            <span class="flex h-3 w-3 shrink-0 items-center justify-center">${side.won ? BRACKET_CHECK : ''}</span>
+        </button>`;
+    };
+    const bracketCardHtml = (card, ctx) => {
+        const onPath = ctx.path.keys.has(card.key);
+        const ring = onPath ? (ctx.focus ? 'ring-2 ring-gold-500' : 'ring-2 ring-brand-600 dark:ring-brand-400') : card.waits && !ctx.focus ? 'ring-2 ring-brand-400/70 dark:ring-brand-500/70' : 'ring-1 ring-slate-200 dark:ring-slate-700';
+        const names = plainText([card.p1, card.p2].map(id => playerName((ctx.players.get(id) || {}).player)).join(' '));
+        return `<div data-bcard ${onPath ? 'data-onpath' : ''} data-names="${escapeHtml(names)}" ${card.id ? `data-match="${escapeHtml(card.id)}"` : ''} class="overflow-hidden rounded-lg shadow-sm ${card.exists ? 'bg-white dark:bg-slate-800' : 'bg-slate-100/80 dark:bg-slate-800/50'} ${ring}">${bracketRowHtml(card, 0, ctx)}<div class="h-px bg-slate-200 dark:bg-slate-700"></div>${bracketRowHtml(card, 1, ctx)}</div>`;
+    };
+    const bracketHtml = (view, meId, today) => {
+        const { tournament, entries, matches } = view;
+        const bracket = Tournament.bracketColumns(matches, tournament, meId);
+        if (!bracket.columns.length) return '';
+        const players = new Map(entries.map(entry => [entry.user_id, entry]));
+        const playing = entries.some(entry => entry.user_id === meId && ['playing', 'out', 'finished'].includes(entry.status));
+        const start = Tournament.bracketStartRound(tournament);
+        const full = bracketFull === null ? Boolean(playing && bracket.focusRound < start) : bracketFull;
+        const from = full ? 1 : start;
+        const path = Tournament.playerPath(bracket, bracketFocus || meId);
+        const ctx = { players, me: meId, focus: bracketFocus, path };
+        const lit = ctx.focus ? 'border-gold-500' : 'border-brand-600 dark:border-brand-400';
+        const line = (on) => on ? lit : 'border-slate-300 dark:border-slate-600';
+        const last = bracket.columns.length;
+        const focusRound = Math.max(from, bracket.focusRound);
+        const cell = (card, pair) => {
+            const odd = card.slot % 2 === 1;
+            const dim = ctx.focus && !path.keys.has(card.key) ? 'opacity-40' : '';
+            const hook = pair ? `<span class="pointer-events-none absolute -right-2 w-2 border-r-2 ${odd ? 'top-1/2 bottom-0 rounded-tr border-t-2' : 'top-0 bottom-1/2 rounded-br border-b-2'} ${line(path.won.has(card.key))}"></span>` : `<span class="pointer-events-none absolute -right-4 top-1/2 w-4 border-t-2 ${line(path.won.has(card.key))}"></span>`;
+            const third = !pair && bracket.third ? `<div class="absolute inset-x-0 top-full mt-3 ${ctx.focus && !path.keys.has('third') ? 'opacity-40' : ''}"><p class="mb-0.5 text-[10px] font-black uppercase tracking-wide text-slate-500 dark:text-slate-400">O 3. místo · ${escapeHtml(Tournament.dayShort(Tournament.roundDay(tournament, last), today))}</p>${bracketCardHtml(bracket.third, ctx)}</div>` : '';
+            const focusHere = card.round === bracket.focusRound && card.mine;
+            return `<div data-bcell="${card.key}" ${focusHere ? 'data-bfocus' : ''} class="relative flex flex-1 items-center py-[3px]"><div class="relative w-full ${dim} motion-safe:transition-opacity">${bracketCardHtml(card, ctx)}${third}</div>${hook}</div>`;
+        };
+        const columns = bracket.columns.filter(column => column.round >= from).map(column => {
+            const body = column.round === last
+                ? column.cards.map(card => cell(card, false)).join('')
+                : column.cards.reduce((pairs, card, index) => { if (index % 2 === 0) pairs.push([card]); else pairs[pairs.length - 1].push(card); return pairs; }, [])
+                    .map(pair => `<div class="relative flex flex-1 flex-col">${pair.map(card => cell(card, true)).join('')}<span class="pointer-events-none absolute -right-4 top-1/2 w-2 border-t-2 ${line(pair.some(card => path.won.has(card.key)))}"></span></div>`).join('');
+            const sub = column.current ? 'běží' : Tournament.dayShort(column.day, today);
+            return `<div data-bcol="${column.round}" class="flex w-[176px] shrink-0 snap-start flex-col pr-4">
+                <div class="sticky top-0 z-10 bg-slate-50 pb-1 dark:bg-slate-900"><p class="truncate text-[11px] font-black leading-tight text-slate-800 dark:text-slate-100">${escapeHtml(column.name)}</p><p class="truncate text-[10px] font-bold leading-tight ${column.current ? 'text-gold-700 dark:text-gold-300' : 'text-slate-500 dark:text-slate-400'}">${escapeHtml(sub)}${column.cards.length > 1 ? ` · ${column.cards.length} zápasů` : ''}</p></div>
+                <div class="flex flex-1 flex-col">${body}</div>
+            </div>`;
+        }).join('');
+        const champion = bracket.champion ? players.get(bracket.champion) : null;
+        const cup = `<div data-bcol="cup" class="flex w-[84px] shrink-0 snap-start flex-col">
+            <div class="sticky top-0 z-10 bg-slate-50 pb-1 dark:bg-slate-900"><p class="truncate text-[11px] font-black leading-tight text-slate-800 dark:text-slate-100">Vítěz</p><p class="truncate text-[10px] font-bold leading-tight text-slate-500 dark:text-slate-400">turnaje</p></div>
+            <div class="flex flex-1 flex-col items-center justify-center gap-1 text-center">
+                <span class="flex h-11 w-11 items-center justify-center rounded-full ${champion ? 'bg-gradient-to-br from-gold-300 to-gold-600 text-brand-950 shadow-md ring-2 ring-white/70 dark:ring-slate-700' : 'bg-slate-200 text-slate-400 dark:bg-slate-800 dark:text-slate-600'}"><i data-lucide="trophy" class="h-6 w-6"></i></span>
+                ${champion ? `<button type="button" data-bp="${escapeHtml(bracket.champion)}" data-bk="cup" aria-pressed="${ctx.focus === bracket.champion}" aria-label="${escapeHtml(`${playerName(champion.player)}: vítěz turnaje, zvýraznit cestu pavoukem`)}" class="flex w-full flex-col items-center gap-0.5 rounded-lg px-0.5 py-0.5 ${ctx.focus === bracket.champion ? 'bg-gold-100 dark:bg-gold-900/40' : ''}">${avatarHtml(champion.player, 'h-7 w-7 text-sm')}<span class="line-clamp-2 break-words text-[11px] font-black leading-tight text-slate-800 dark:text-slate-100">${escapeHtml(playerName(champion.player))}</span></button>` : '<span class="text-[10px] font-bold text-slate-400 dark:text-slate-500">zatím nikdo</span>'}
+            </div>
+        </div>`;
+        const chip = 'flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-black ring-1 active:scale-95';
+        const off = 'bg-white text-slate-700 ring-slate-300 dark:bg-slate-800 dark:text-slate-200 dark:ring-slate-600';
+        const on = 'bg-brand-700 text-white ring-brand-700 dark:bg-brand-600 dark:ring-brand-500';
+        const controls = `<div class="flex flex-wrap items-center gap-1.5">
+            ${start > 1 ? `<button type="button" data-b-full aria-pressed="${full}" class="${chip} ${full ? on : off}"><i data-lucide="network" class="h-3.5 w-3.5"></i>Celý pavouk</button>` : ''}
+            ${playing ? `<button type="button" data-b-me class="${chip} ${off}"><i data-lucide="crosshair" class="h-3.5 w-3.5"></i>Moje místo</button>` : ''}
+            ${bracketFocus ? `<button type="button" data-b-clear class="${chip} bg-gold-100 text-gold-900 ring-gold-400 dark:bg-gold-900/40 dark:text-gold-100 dark:ring-gold-600"><i data-lucide="x" class="h-3.5 w-3.5"></i><span class="max-w-[9rem] truncate">${escapeHtml(playerName((players.get(bracketFocus) || {}).player))}</span></button>` : ''}
+        </div>`;
+        return `${controls}
+            <div id="bracket-scroll" tabindex="0" role="region" aria-label="Pavouk turnaje, posouvej do stran" data-from="${from}" data-focus-round="${focusRound}" class="-mx-5 max-h-[60dvh] snap-x snap-mandatory scroll-pl-5 overflow-auto overscroll-x-contain">
+                <div class="flex w-max items-stretch px-5 pb-1">${columns}${cup}</div>
+            </div>
+            <p class="text-[11px] font-semibold leading-snug text-slate-500 dark:text-slate-400">Klepni na hráče a ukáže se jeho cesta pavoukem, znovu a zruší se.</p>`;
+    };
+    // Posun pavouku: sloupec s kartou doleva, karta svisle doprostřed (jen v kontejneru, ne celá stránka)
+    const reducedMotion = () => Boolean(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+    const scrollBracketTo = (target, behavior = 'auto') => {
+        const box = document.getElementById('bracket-scroll');
+        if (!box || !target) return;
+        const column = target.closest('[data-bcol]') || target;
+        const boxRect = box.getBoundingClientRect();
+        const left = box.scrollLeft + column.getBoundingClientRect().left - boxRect.left - 20;
+        const rect = target.getBoundingClientRect();
+        const top = box.scrollTop + rect.top - boxRect.top - (box.clientHeight - rect.height) / 2;
+        box.scrollTo({ left: Math.max(0, left), top: Math.max(0, top), behavior: behavior === 'smooth' && reducedMotion() ? 'auto' : behavior });
+    };
+    const positionBracket = (overlay) => {
+        const box = overlay.querySelector('#bracket-scroll');
+        if (!box) return false;
+        scrollBracketTo(box.querySelector('[data-bfocus]') || box.querySelector(`[data-bcol="${box.dataset.focusRound}"] [data-bcell]`) || box.querySelector('[data-bcol]'));
+        return true;
+    };
     const renderTournamentDialog = () => {
         const user = signedUser();
         const view = findTournament(tournamentDialogId);
@@ -4510,33 +4640,64 @@
         } else {
             const status = Tournament.statusText(state, names, today);
             const podium = state.phase === 'finished' ? Tournament.podium(entries) : [];
+            const hasBracket = Boolean(matches.length && tournament.size >= 2);
+            const bracketOn = hasBracket && tournamentMode === 'bracket';
             const medals = ['text-gold-600 dark:text-gold-300', 'text-slate-500 dark:text-slate-300', 'text-amber-700 dark:text-amber-500', 'text-slate-500 dark:text-slate-400'];
             body = `
                 <p class="text-xs font-semibold leading-snug text-slate-500 dark:text-slate-400">Týden ${escapeHtml(Tournament.weekLabel(tournament.week_start))} · ${tournament.size ? `${Tournament.playersWord(tournament.size)}` : ''} · Mix všech témat, ${Tournament.QUESTIONS} otázek v kole</p>
                 ${state.role === 'player' || (state.phase === 'finished' && state.playing) ? `<div id="tournament-status" class="flex items-center gap-2.5 rounded-2xl bg-gold-50 p-2.5 ring-1 ring-gold-300/70 dark:bg-gold-900/20 dark:ring-gold-700/60"><p class="min-w-0 flex-1 text-[13px] font-bold leading-snug text-slate-800 dark:text-slate-100">${state.roundName ? `<span class="font-black">${escapeHtml(state.roundName)}:</span> ` : ''}${escapeHtml(status)}</p>${state.step === 'play' ? '<button type="button" data-t-play class="shrink-0 rounded-xl bg-gold-500 px-3.5 py-2 text-[13px] font-black text-brand-950 shadow-sm active:scale-[0.97]">Hrát</button>' : ''}</div>` : `<p id="tournament-status" class="text-sm font-semibold text-slate-600 dark:text-slate-300">${escapeHtml(status)}</p>`}
                 ${podium.length ? `<ol id="tournament-podium" class="flex flex-col gap-1">${podium.map(entry => `<li class="flex items-center gap-2 rounded-xl bg-white px-2.5 py-1.5 shadow-sm dark:bg-slate-800 ${entry.user_id === user.id ? 'ring-2 ring-brand-600' : 'ring-1 ring-slate-200/70 dark:ring-slate-700/70'}"><span class="flex w-8 shrink-0 items-center justify-center gap-0.5 text-sm font-black ${medals[entry.place - 1]}">${entry.place}.${entry.place === 1 ? '<i data-lucide="trophy" class="h-3.5 w-3.5"></i>' : ''}</span>${avatarHtml(entry.player, 'h-8 w-8 text-base')}<span class="min-w-0 flex-1 truncate text-[13px] font-black text-slate-800 dark:text-slate-100">${escapeHtml(playerName(entry.player))}${entry.user_id === user.id ? ' (ty)' : ''}</span></li>`).join('')}</ol>` : ''}
+                ${rankingHtml(view, user.id)}
+                ${hasBracket ? `<div role="group" aria-label="Pohled na turnaj" class="grid grid-cols-2 gap-1 rounded-xl bg-slate-200/70 p-1 dark:bg-slate-800">${[['rounds', 'Seznam kol'], ['bracket', 'Pavouk']].map(([mode, title]) => `<button type="button" data-t-mode="${mode}" aria-pressed="${(mode === 'bracket') === bracketOn}" class="rounded-lg px-2 py-1.5 text-[13px] font-black ${(mode === 'bracket') === bracketOn ? 'bg-white text-brand-700 shadow-sm dark:bg-slate-700 dark:text-white' : 'text-slate-600 dark:text-slate-300'}">${title}</button>`).join('')}</div>` : ''}
                 ${tournament.size >= 16 ? `<input id="tournament-search" type="search" value="${escapeHtml(tournamentQuery)}" placeholder="Najít hráče…" autocomplete="off" maxlength="24" aria-label="Najít hráče v pavouku" class="w-full rounded-xl bg-white px-3 py-2 text-sm font-semibold text-slate-800 ring-1 ring-slate-300 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-600 dark:bg-slate-800 dark:text-slate-100 dark:ring-slate-600">` : ''}
-                <div id="tournament-rounds" class="flex flex-col gap-1.5">${matches.length ? tournamentRoundsHtml(view, user.id, today) : '<p class="text-sm text-slate-500 dark:text-slate-400">Zápasy zatím nejsou.</p>'}</div>
+                ${bracketOn ? `<div id="tournament-bracket" class="flex flex-col gap-2">${bracketHtml(view, user.id, today)}</div>` : `<div id="tournament-rounds" class="flex flex-col gap-1.5">${matches.length ? tournamentRoundsHtml(view, user.id, today) : '<p class="text-sm text-slate-500 dark:text-slate-400">Zápasy zatím nejsou.</p>'}</div>`}
                 <p id="tournament-empty" class="hidden text-sm text-slate-500 dark:text-slate-400">Takový hráč tu není.</p>
                 ${rules}`;
         }
-        // Překreslení po načtení nových dat nesmí sbalit kola, která hráč rozbalil
+        // Překreslení po načtení nových dat nesmí sbalit kola, která hráč rozbalil ani posunout pavouk
         const before = document.getElementById('dialog-overlay');
-        const opened = before && before.dataset.title === TOUR_DIALOG ? Object.fromEntries([...before.querySelectorAll('details[data-keep]')].map(item => [item.dataset.keep, item.open])) : {};
+        const sameDialog = Boolean(before && before.dataset.title === TOUR_DIALOG);
+        const opened = sameDialog ? Object.fromEntries([...before.querySelectorAll('details[data-keep]')].map(item => [item.dataset.keep, item.open])) : {};
+        const oldBox = sameDialog ? before.querySelector('#bracket-scroll') : null;
+        const oldScroll = oldBox ? { left: oldBox.scrollLeft, top: oldBox.scrollTop } : null;
+        const oldFocus = sameDialog && before.contains(document.activeElement) && document.activeElement.dataset.bp ? { bp: document.activeElement.dataset.bp, bk: document.activeElement.dataset.bk } : null;
+        const rerender = () => renderTournamentDialog();
         const overlay = showDialog(TOUR_DIALOG, `<div class="flex flex-col gap-3">${body}</div>`, {
             onClick: (event) => {
-                if (event.target.closest('[data-t-join]')) changeTournamentEntry(tournamentDialogId, true);
-                else if (event.target.closest('[data-t-leave]')) changeTournamentEntry(tournamentDialogId, false);
-                else if (event.target.closest('[data-t-play]')) playTournament(tournamentDialogId);
-                else if (event.target.closest('[data-t-help]')) openTournamentHelp(true);
+                const target = event.target;
+                if (target.closest('[data-t-join]')) changeTournamentEntry(tournamentDialogId, true);
+                else if (target.closest('[data-t-leave]')) changeTournamentEntry(tournamentDialogId, false);
+                else if (target.closest('[data-t-play]')) playTournament(tournamentDialogId);
+                else if (target.closest('[data-t-help]')) openTournamentHelp(true);
+                else if (target.closest('[data-t-mode]')) { tournamentMode = target.closest('[data-t-mode]').dataset.tMode === 'rounds' ? 'rounds' : 'bracket'; bracketReset = true; rerender(); }
+                else if (target.closest('[data-b-full]')) { bracketFull = target.closest('[data-b-full]').getAttribute('aria-pressed') !== 'true'; bracketReset = true; rerender(); }
+                else if (target.closest('[data-b-me]')) { const box = document.getElementById('bracket-scroll'); scrollBracketTo(box && box.querySelector('[data-bfocus]'), 'smooth'); }
+                else if (target.closest('[data-b-clear]')) { bracketFocus = ''; rerender(); }
+                else if (target.closest('[data-bp]')) {
+                    const row = target.closest('[data-bp]');
+                    bracketFocus = bracketFocus === row.dataset.bp ? '' : row.dataset.bp;
+                    rerender();
+                    const again = [...document.querySelectorAll('#bracket-scroll [data-bp]')].find(item => item.dataset.bp === row.dataset.bp && item.dataset.bk === row.dataset.bk);
+                    if (again) again.focus({ preventScroll: true });
+                } else if (target.closest('summary[data-ranking]')) {
+                    // Po rozbalení pořadí skoč na můj řádek
+                    const details = target.closest('details');
+                    if (details && !details.open) requestAnimationFrame(() => { const mine = document.querySelector('#tournament-ranking [data-me]'); if (mine) mine.scrollIntoView({ block: 'center', behavior: reducedMotion() ? 'auto' : 'smooth' }); });
+                }
             },
             onInput: (event) => { if (event.target.id === 'tournament-search') filterTournament(event.target.value); }
         });
         overlay.querySelectorAll('details[data-keep]').forEach(item => { if (item.dataset.keep in opened) item.open = opened[item.dataset.keep]; });
+        const box = overlay.querySelector('#bracket-scroll');
+        if (box) {
+            if (bracketReset || !oldScroll) { positionBracket(overlay); bracketReset = false; } else box.scrollTo({ left: oldScroll.left, top: oldScroll.top, behavior: 'auto' });
+            if (oldFocus) { const again = [...box.querySelectorAll('[data-bp]')].find(item => item.dataset.bp === oldFocus.bp && item.dataset.bk === oldFocus.bk); if (again) again.focus({ preventScroll: true }); }
+        }
         if (tournamentQuery) filterTournament(tournamentQuery);
         return overlay;
     };
-    // Hledání hráče v pavouku bez překreslení (zachová se zaměřené pole): schová nevyhovující zápasy a rozbalí kola s nálezem
+    // Hledání hráče bez překreslení (zachová se zaměřené pole): v seznamu kol schová nevyhovující zápasy a rozbalí kola s nálezem,
+    // v pavouku ztlumí ostatní karty, v celém pořadí schová ostatní řádky (a pořadí na chvíli rozbalí)
     const filterTournament = (query) => {
         tournamentQuery = String(query || '').slice(0, 24);
         const needle = plainText(tournamentQuery).trim();
@@ -4554,6 +4715,30 @@
             details.classList.toggle('hidden', Boolean(needle) && !shown);
             details.open = needle ? shown > 0 : details.dataset.open === '1';
         });
+        let firstCard = null;
+        overlay.querySelectorAll('#bracket-scroll [data-bcard]').forEach(card => {
+            const hit = !needle || card.dataset.names.includes(needle);
+            card.classList.toggle('opacity-25', !hit);
+            if (hit && needle) { total++; if (!firstCard) firstCard = card; }
+        });
+        if (firstCard) scrollBracketTo(firstCard);
+        const ranking = overlay.querySelector('details[data-keep="ranking"]');
+        if (ranking) {
+            let rows = 0;
+            ranking.querySelectorAll('section[data-rgroup]').forEach(group => {
+                let shown = 0;
+                group.querySelectorAll('li[data-rank]').forEach(item => {
+                    const hit = !needle || item.dataset.names.includes(needle);
+                    item.classList.toggle('hidden', !hit);
+                    if (hit) shown++;
+                });
+                group.classList.toggle('hidden', !shown);
+                rows += shown;
+            });
+            total += needle ? rows : 0;
+            if (needle && rows && !ranking.open) { ranking.open = true; ranking.dataset.auto = '1'; }
+            else if ((!needle || !rows) && ranking.dataset.auto) { ranking.open = false; delete ranking.dataset.auto; }
+        }
         const empty = overlay.querySelector('#tournament-empty');
         if (empty) empty.classList.toggle('hidden', !needle || total > 0);
     };
@@ -4561,6 +4746,10 @@
         if (!signedUser() || !Tournament) return;
         tournamentDialogId = tid;
         tournamentQuery = '';
+        tournamentMode = 'bracket';
+        bracketFull = null;
+        bracketFocus = '';
+        bracketReset = true;
         renderTournamentDialog();
         refreshTournaments({ force: true });
     };
@@ -4570,7 +4759,7 @@
                 <ul id="tournament-rules" class="flex flex-col gap-2">${Tournament.RULES.map(rule => `<li class="flex gap-2 text-sm leading-snug text-slate-700 dark:text-slate-200"><i data-lucide="check" class="mt-0.5 h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400"></i><span>${escapeHtml(rule)}</span></li>`).join('')}</ul>
                 <p class="text-xs leading-snug text-slate-500 dark:text-slate-400">Názvy kol podle počtu hráčů v kole: 128 hráčů 1. kolo, 64 2. kolo, 32 šestnáctifinále, 16 osmifinále, 8 čtvrtfinále, 4 semifinále, 2 finále a zápas o 3. místo.</p>
                 ${back && findTournament(tournamentDialogId) ? `<button type="button" data-t-back class="${SECONDARY_BUTTON}">Zpět na turnaj</button>` : ''}
-            </div>`, { onClick: (event) => { if (event.target.closest('[data-t-back]')) renderTournamentDialog(); } });
+            </div>`, { onClick: (event) => { if (event.target.closest('[data-t-back]')) { bracketReset = true; renderTournamentDialog(); } } });
     };
 
     // Přihlášení a odhlášení: hlášku (i chybu) ukáže toast, pak se turnaje načtou znovu
