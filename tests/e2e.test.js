@@ -1491,6 +1491,16 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         await one.tab.waitForFunction(() => document.querySelector('#challenges-section'));
         assert.equal(await one.tab.locator('[data-action="challenge-resume"]').count(), 0, 'ani po obnovení stránky');
         assert.ok((await one.tab.evaluate(() => localStorage.getItem('mudrlant.finishedChallenges')) || '').includes(code), 'kód dohrané výzvy je zapamatovaný');
+        // „Projít znovu tutoriál“ z jiné záložky úvodu (Více hráčů): vrátí se na Jeden hráč a tutoriál začne od začátku, ne posledním krokem
+        await one.tab.click('[data-action="home-tab"][data-tab="multi"]');
+        await one.tab.click('#btn-settings');
+        await one.tab.click('[data-tutorial-restart]');
+        await one.tab.waitForFunction(() => /Krok \d z 8/.test((document.querySelector('[data-tut-count]') || {}).textContent || ''));
+        const stepText = await one.tab.textContent('[data-tut-count]');
+        assert.ok(/Krok [12] z 8/.test(stepText), `tutoriál začíná od začátku (${stepText})`);
+        assert.equal(await one.tab.locator('[data-action="home-tab"][aria-selected="true"]').getAttribute('data-tab'), 'single');
+        await one.tab.click('[data-tut-skip]');
+        await one.tab.click('[data-action="home-tab"][data-tab="multi"]');
 
         // Nastavení výzvy: Vlajky, jen okruh vlajek států, i těžší otázky, psaní odpovědí – hraje se přesně podle něj
         await one.tab.click('#challenges-section [data-action="new-challenge"]');

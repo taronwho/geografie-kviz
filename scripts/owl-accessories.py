@@ -186,7 +186,7 @@ def main(ids):
         mask, diff = extract(base, warped, fill=name in FILL)
         out = layer(base, warped, mask, frame)
         save_webp(out, os.path.join(OUT, name + '.webp'))
-        save_webp(icon_of(out), os.path.join(OUT, name + '-ikona.webp'))
+        # ikony do výběru (<id>-ikona.webp) dělá scripts/owl-accessory-icons.py z vlastních obrázků doplňků
         for color, (hue, sat_mul, val_mul) in COLORS.items():
             save_webp(recolor(out, hue, sat_mul, val_mul), os.path.join(OUT, f'{name}-{color}.webp'))
         covered = int(mask.sum())
