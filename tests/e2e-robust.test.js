@@ -121,6 +121,20 @@ test('robustnost v prohlížeči', { skip: !chromium && 'Playwright není nainst
         await context.close();
     });
 
+    await t.test('vývojářský režim: „Vše“ dá hvězdy, „Vymazat hvězdičky“ je smaže a „Vrátit“ je nevrátí', async () => {
+        const { context, tab, problems } = await open(`(() => { if (sessionStorage.getItem('seeded')) return; sessionStorage.setItem('seeded', '1'); localStorage.setItem('mudrlant.account', '"host"'); localStorage.setItem('mudrlant.tutorial', '{"how":"done"}'); localStorage.setItem('mudrlant.variant', 'choices'); localStorage.setItem('mudrlant.dev', '1'); localStorage.removeItem('mudrlant.dev.backup'); })()`);
+        await tab.click('#btn-settings');
+        await tab.click('[data-dev="max"]');
+        const count = () => tab.evaluate(() => Object.values(JSON.parse(localStorage.getItem('mudrlant.learned') || '{}')).reduce((sum, ids) => sum + ids.length, 0));
+        assert.ok(await count() > 0, 'po „Vše“ jsou poznané položky');
+        await tab.click('[data-dev="nostars"]');
+        assert.equal(await count(), 0);
+        await tab.click('[data-dev="restore"]');
+        assert.equal(await count(), 0, 'po vrácení postupu se hvězdy nevrátí');
+        assert.deepEqual(problems, []);
+        await context.close();
+    });
+
     await t.test('localStorage vyhazuje chyby (zakázaný, plný): aplikace se načte a jde hrát', async () => {
         const { context, tab, problems } = await open(`(() => { const fail = () => { throw new DOMException('plno', 'QuotaExceededError'); };
             Storage.prototype.setItem = fail; Storage.prototype.getItem = fail; Storage.prototype.removeItem = fail; })()`, '#app-content *');
