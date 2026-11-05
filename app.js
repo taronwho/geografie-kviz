@@ -798,6 +798,13 @@
         const user = Auth && Auth.isConfigured() && Social ? signedUser() : null;
         return { level: levelProgress(progress.xp).level, badges: progress.badges, user, profile: user ? myProfile : null, avatarHtml, prefs: Look ? Look.prefs({ level: levelProgress(progress.xp).level, badges: progress.badges }) : {} };
     };
+    // Titul u mého jména podle volby ve Vzhledu: úroveň a její titul (výchozí), nic, nebo název získaného odznaku
+    const ownTitleText = (level) => {
+        const pick = Look ? Look.prefs(lookContext()).title : 'level';
+        if (pick === 'none') return 'Můj postup';
+        if (pick && pick !== 'level' && BADGE_BY_ID[pick]) return BADGE_BY_ID[pick].title;
+        return `Úr. ${level} · ${titleForLevel(level)}`;
+    };
     const applyLook = () => { if (Look) Look.apply(lookContext()); };
     const lookBody = (tab = 'look') => {
         if (!Look) return '';
@@ -883,7 +890,7 @@
                     <div class="min-w-0 flex-1">
                         <h2 id="settings-title" class="truncate text-lg font-black leading-tight text-slate-800 dark:text-slate-100">${user ? escapeHtml(playerName(profile)) : 'Nastavení'}</h2>
                         <p class="truncate text-xs text-slate-500 dark:text-slate-400">${user ? escapeHtml(user.email || user.name) : 'Hraješ bez účtu'}</p>
-                        <button type="button" data-open-progress class="mt-0.5 flex items-center gap-1 text-[11px] font-black text-brand-700 dark:text-cream">Úr. ${level.level} · ${escapeHtml(titleForLevel(level.level))} <i data-lucide="chevron-right" class="h-3 w-3"></i></button>
+                        <button type="button" data-open-progress class="mt-0.5 flex items-center gap-1 text-[11px] font-black text-brand-700 dark:text-cream">${escapeHtml(ownTitleText(level.level))} <i data-lucide="chevron-right" class="h-3 w-3"></i></button>
                     </div>
                     <button type="button" data-close aria-label="Zavřít" class="self-start rounded-xl p-2 text-slate-500 hover:bg-slate-200 dark:text-slate-400 dark:hover:bg-slate-800"><i data-lucide="x" class="h-5 w-5"></i></button>
                 </div>
@@ -2278,7 +2285,9 @@
             if (round.wasMistake) counters.fixed += 1;
             if (mode === 'daily' && current.dailyDate && round.dailyFirst !== false) counters.dailyCorrect += 1;
             counters.topics[current.topic] = (counters.topics[current.topic] || 0) + 1;
-        } else counters.run = 0;
+            counters.topicRun[current.topic] = (counters.topicRun[current.topic] || 0) + 1;
+            counters.topicBest[current.topic] = Math.max(counters.topicBest[current.topic] || 0, counters.topicRun[current.topic]);
+        } else { counters.run = 0; counters.topicRun[current.topic] = 0; }
         const parts = [{ label: 'odpověď', xp: answerXp(round) }];
         if (mode === 'daily' && current.dailyDate && round.dailyFirst !== false) {
             parts.push({ label: 'dnešní otázka', xp: DAILY_XP });
@@ -2999,7 +3008,7 @@
     const accountLook = (prefs) => ({ frame: prefs.frame === 'zadny' ? null : prefs.frame, title_pref: prefs.title === 'level' ? null : prefs.title });
     const saveLookToAccount = (prefs) => {
         const user = signedUser();
-        if (!user || !Social || !myProfile || myProfile.id !== user.id || devActive()) return;
+        if (!user || !Social || !myProfile || myProfile.id !== user.id) return; // i ve vývojářském režimu: rámeček a titul jsou jen vzhled, ať jdou vyzkoušet s druhým hráčem
         const next = accountLook(prefs);
         myProfile = { ...myProfile, ...next };
         updateProfileButton();
@@ -3766,7 +3775,7 @@
             // Titul u jména podle volby hráče: úroveň (výchozí), nic, nebo jeden ze získaných odznaků
             const pref = Social.cleanTitlePref(value.title_pref) || 'level';
             if (pref === 'none') return '';
-            if (pref !== 'level' && owned.includes(pref)) return `<p class="flex items-center justify-center gap-1.5 text-sm font-bold text-brand-700 dark:text-cream">${medalHtml(BADGE_BY_ID[pref], true, 'h-7 w-7', 'h-3.5 w-3.5')} ${escapeHtml(BADGE_BY_ID[pref].title)}</p>`;
+            if (pref !== 'level' && BADGE_BY_ID[pref]) return `<p class="flex items-center justify-center gap-1.5 text-sm font-bold text-brand-700 dark:text-cream">${medalHtml(BADGE_BY_ID[pref], true, 'h-7 w-7', 'h-3.5 w-3.5')} ${escapeHtml(BADGE_BY_ID[pref].title)}</p>`;
             return `<p class="text-sm font-bold text-brand-700 dark:text-cream">Úr. ${level} · ${escapeHtml(titleForLevel(level))}</p>`
                 + (earned.length ? `<div class="mt-1 flex flex-wrap justify-center gap-1.5" aria-label="Odznaky">${earned.map(badge => `<span title="${escapeHtml(`${badge.title}: ${badge.text}`)}">${medalHtml(badge, true, 'h-8 w-8', 'h-4 w-4')}</span>`).join('')}</div>` : '');
         };

@@ -14,9 +14,11 @@ BASE = os.path.join(ROOT, 'branding', 'sova-original.jpg')
 CUT = os.path.join(ROOT, 'branding', 'sova.png')
 LOGO_SIZE = (258, 320)
 # Vrstva má rám loga rozšířený o okraje (koruna, sluchátka a lupa přesahují obrys sovy): podíl šířky/výšky loga
-PAD = {'l': 0.14, 'r': 0.14, 't': 0.26, 'b': 0.05}
+PAD = {'l': 0.34, 'r': 0.22, 't': 0.26, 'b': 0.12}
 # Doplňky v obličeji zakrývají i oči a monokl pod sebou, proto se jejich plocha vyplní celá (bez děr)
-FILL = {'bryle', 'slunecni-bryle', 'koruna'}
+FILL = {'bryle', 'slunecni-bryle', 'koruna', 'lab-bryle', '3d-bryle', 'helma', 'prilba', 'baret'}
+# Doplňky v ruce posunou na obrázku celou sovu (obdélník sovy zahrnuje i předmět): zarovná se podle čepice a hlavy
+HAND = {'vlajka', 'svitek', 'brk', 'sitka'}
 # Doplněk zlaté barvy na zlatém podkladu (koruna přes knoflík čepice, stuha medaile přes zlatý límec) se od původní sovy skoro neliší:
 # silnější uzavření masky, ať se přebarví celý a nezůstanou zlaté kusy. Poloměr v pixelech původního obrázku.
 # Doplňky, které sedí na zlatém knoflíku čepice: knoflík se do masky přidá (jinak by prosvítal zlatý uprostřed přebarveného doplňku)
@@ -55,7 +57,19 @@ def logo_frame(base_rgb):
     return x0, y0, w, h
 
 
-def align(base, img, border=BORDER):
+def hat_box(a):
+    """Obdélník čepice (vínová barva v pásu hlavy); vrací x0, x1 (šířka čepice) a y0 (její vršek)."""
+    h = a.shape[0]
+    y0w, y1w = int(h * 0.15), int(h * 0.36)
+    win = a[y0w:y1w].astype(np.int16)
+    r, g, b = win[..., 0], win[..., 1], win[..., 2]
+    m = (r > 90) & (r < 190) & (g < 70) & (b > 40) & (b < 120) & (r - g > 60)
+    m = cv2.morphologyEx(m.astype(np.uint8), cv2.MORPH_OPEN, np.ones((9, 9), np.uint8))
+    ys, xs = np.nonzero(m)
+    return xs.min(), xs.max(), ys.min() + y0w
+
+
+def align(base, img, border=BORDER, hat=False):
     """Zarovná img (2048²) na souřadnice base; vrátí obraz o rozměru base."""
     bx0, by0, bx1, by1, _ = owl_bbox(base)
     ix0, iy0, ix1, iy1, ibg = owl_bbox(img)
@@ -66,6 +80,12 @@ def align(base, img, border=BORDER):
     cx_b, cy_b = (bx0 + bx1) / 2, (by0 + by1) / 2
     cx_i, cy_i = (ix0 + ix1) / 2, (iy0 + iy1) / 2
     warp = np.array([[s, 0, cx_b - s * cx_i], [0, s, cy_b - s * cy_i]], np.float32)
+    if hat:
+        # podle čepice: její šířka dává měřítko, její levý okraj a vršek posun
+        bx_a, bx_b, by_a = hat_box(base)
+        ix_a, ix_b, iy_a = hat_box(img)
+        s = (bx_b - bx_a) / (ix_b - ix_a)
+        warp = np.array([[s, 0, bx_a - s * ix_a], [0, s, by_a - s * iy_a]], np.float32)
     # ECC pracuje v souřadnicích šablony (base) → img: potřebujeme zobrazení base → img, tedy inverzi
     inv = cv2.invertAffineTransform(warp)
     g_base = cv2.GaussianBlur(cv2.cvtColor(base, cv2.COLOR_RGB2GRAY), (0, 0), 2).astype(np.float32)
@@ -79,7 +99,12 @@ def align(base, img, border=BORDER):
     inv_small[:, 2] = inv[:, 2] * k
     crit = (cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 200, 1e-7)
     try:
-        _, inv_small = cv2.findTransformECC(gb, gi, inv_small, cv2.MOTION_AFFINE, crit, None, 5)
+        mask_small = None
+        if hat:
+            # jen hlava a čepice (střed obrazu): předmět v ruce s původní sovou nesouvisí
+            mask_small = np.zeros(gi.shape, np.uint8)
+            mask_small[:, int(gi.shape[1] * 0.30):int(gi.shape[1] * 0.80)] = 1
+        _, inv_small = cv2.findTransformECC(gb, gi, inv_small, cv2.MOTION_AFFINE, crit, mask_small, 5)
     except cv2.error as error:
         print('  ECC selhalo, použit odhad:', error)
     refined = inv_small.copy()
@@ -137,6 +162,7 @@ def layer(base, warped, mask, frame, border=BORDER):
     m = cv2.dilate(mask, np.ones((3, 3), np.uint8))
     alpha = cv2.GaussianBlur(m.astype(np.float32), (0, 0), 1.0)
     alpha = np.clip(alpha * 1.4, 0, 1)
+    alpha = np.where(alpha < 0.16, 0, alpha)  # slabé zbytky rozdílu (stíny, obrys původní čepice) se zahodí
     rgba = np.dstack([warped.astype(np.float32), alpha * 255]).astype(np.uint8)
     crop = rgba[y0 - t:y0 + h + b, x0 - l:x0 + w + r]
     img = Image.fromarray(crop, 'RGBA')
@@ -201,7 +227,7 @@ def main(ids):
         if ids and name not in ids:
             continue
         img = np.asarray(Image.open(f).convert('RGB'))
-        warped = align(base, img)
+        warped = align(base, img, hat=name in HAND)
         mask, diff = extract(base, warped, fill=name in FILL, close=CLOSE.get(name, 9), knob=name in KNOB)
         out = layer(base, warped, mask, frame)
         save_webp(out, os.path.join(OUT, name + '.webp'))

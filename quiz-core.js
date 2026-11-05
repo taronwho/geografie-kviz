@@ -1195,7 +1195,7 @@
     // value(c, x) je aktuální hodnota pro ukazatel „87 / 100“. x = { level, learned, topicStars: { téma: hvězdy }, topicCount } ---
     const EMPTY_COUNTERS = {
         answered: 0, correct: 0, typedCorrect: 0, noHint: 0, hardCorrect: 0, run: 0, bestRun: 0, bestStreak: 0, perfectDays: 0,
-        challenges: 0, wins: 0, winRun: 0, bestWinRun: 0, created: 0, perfectChallenges: 0, dailyCorrect: 0, fixed: 0, days: 0, lastDay: '', topics: {}
+        challenges: 0, wins: 0, winRun: 0, bestWinRun: 0, created: 0, perfectChallenges: 0, dailyCorrect: 0, fixed: 0, days: 0, lastDay: '', topics: {}, topicRun: {}, topicBest: {}
     };
     const number = (value) => Number.isFinite(value) ? value : 0;
     // Barva medaile podle stupně ve skupině: bronz, stříbro, zlato, vínová a nejvyšší diamantová
@@ -1272,8 +1272,21 @@
     ];
     TOPIC_BADGES.forEach(([topic, label, names]) => addGroup(`tema-${topic}`, label, 'medal', (c) => (c.topics || {})[topic] || 0,
         (g) => `${g} správných odpovědí v tématu ${label}.`, [T(25, names[0]), T(100, names[1]), T(300, names[2])], { topic }));
+    // Zběhlost v tématu (odměna: vtipný doplněk Mudrlanta): 12 správných odpovědí v tématu v řadě, nebo 3 hvězdy mistrovství v něm
+    const SKILL_RUN = 12;
+    const SKILL_STARS = 3;
+    const SKILL_TITLES = {
+        zemepis: 'Navigátor', vlajky: 'Praporečník', historie: 'Pamětník', mytologie: 'Posel bohů', biologie: 'Lovec motýlů', geologie: 'Havíř',
+        chemie: 'Pyrotechnik', fyzika: 'Geniální šílenec', umeni: 'Malíř', architektura: 'Stavbyvedoucí', hudba: 'Pěvecká hvězda',
+        literatura: 'Básník', film: 'Kinomaniak', sport: 'Olympionik'
+    };
+    TOPIC_BADGES.forEach(([topic, label]) => addGroup(`zbehly-${topic}`, `Zběhlost: ${label}`, 'medal',
+        (c, x) => Math.max(((c.topicBest || {})[topic]) || 0, (((x && x.topicStars) || {})[topic] || 0) >= SKILL_STARS ? SKILL_RUN : 0),
+        (g) => `${g} správných odpovědí v řadě v tématu ${label} nebo ${SKILL_STARS} hvězdy mistrovství v něm. Odměna: doplněk Mudrlanta.`,
+        [T(SKILL_RUN, SKILL_TITLES[topic], `zbehly-${topic}`)], { topic }));
     const BADGE_BY_ID = Object.fromEntries(BADGES.map(badge => [badge.id, badge]));
-    const normalizeCounters = (counters) => ({ ...EMPTY_COUNTERS, ...(counters || {}), topics: { ...((counters && counters.topics) || {}) } });
+    const normalizeCounters = (counters) => ({ ...EMPTY_COUNTERS, ...(counters || {}), topics: { ...((counters && counters.topics) || {}) },
+        topicRun: { ...((counters && counters.topicRun) || {}) }, topicBest: { ...((counters && counters.topicBest) || {}) } });
     // Odznaky, které podle počítadel a postupu hráč splnil (ids), v pořadí definice
     const earnedBadgeIds = (counters, x) => {
         const c = normalizeCounters(counters);

@@ -9,8 +9,8 @@
 })(typeof self !== 'undefined' ? self : this, (Look, Core) => {
     'use strict';
     // Okraje vrstvy v podílu rozměrů loga (musí odpovídat PAD ve scripts/owl-accessories.py)
-    const PAD = { l: 0.14, r: 0.14, t: 0.26, b: 0.05 };
-    const LAYER_CLASS = 'pointer-events-none absolute left-[-14%] top-[-26%] w-[128%] max-w-none select-none';
+    const PAD = { l: 0.34, r: 0.22, t: 0.26, b: 0.12 };
+    const LAYER_CLASS = 'pointer-events-none absolute left-[-34%] top-[-26%] w-[156%] max-w-none select-none';
     // Pořadí kreslení: krk dole, pak obličej, hlava a ruka nahoře
     const ORDER = ['neck', 'face', 'head', 'hand'];
     // Vlastní barva z palety: původní obrázek doplňku se přebarví otočením odstínu (CSS filtr). Třídy jsou vypsané celé, ať je Tailwind najde.
@@ -94,13 +94,16 @@
         const parsed = parseOwl(parsedOrText);
         if (!parsed) return '';
         const src = `icons/logo${parsed.robe === 'vinova' ? '' : `-${parsed.robe}`}.webp`;
-        return `<span class="relative inline-flex shrink-0 ${wrapClass}"><img data-keep src="${src}" alt="" class="${imgClass}">${layersHtml(parsed.acc, 'data-keep')}</span>`;
+        return `<span class="relative inline-flex shrink-0 ${wrapClass}${hatClass(parsed.acc)}"><img data-keep src="${src}" alt="" class="${imgClass}">${layersHtml(parsed.acc, 'data-keep')}</span>`;
     };
 
     const currentAcc = () => (Look ? Look.prefs().acc : null) || {};
     // Logo sovy s vybranými doplňky; wrapClass patří obalu (okraje), imgClass samotné sově
+    // Doplněk na hlavě, který nahrazuje čepici (helma, přilba, baret): výchozí čepice se z loga maskou skryje (třída owl-nohat, src/input.css)
+    const hidesHat = (acc) => { const id = acc && acc.head && acc.head.id; const item = id && Look ? Look.find('accessories', id) : null; return Boolean(item && item.hidesHat); };
+    const hatClass = (acc) => hidesHat(acc) ? ' owl-nohat' : '';
     const logoHtml = (wrapClass, imgClass, acc = currentAcc()) =>
-        `<span data-owl class="relative inline-flex shrink-0 ${wrapClass}"><img src="icons/logo.webp" alt="" class="${imgClass}">${layersHtml(acc)}</span>`;
+        `<span data-owl class="relative inline-flex shrink-0 ${wrapClass}${hatClass(acc)}"><img src="icons/logo.webp" alt="" class="${imgClass}">${layersHtml(acc)}</span>`;
 
     // Po změně voleb se vrstvy všech sov na stránce přepíší na místě
     const refresh = (acc) => {
@@ -108,6 +111,7 @@
         document.querySelectorAll('[data-owl]').forEach(wrapper => {
             wrapper.querySelectorAll('[data-owl-layer]').forEach(layer => layer.remove());
             wrapper.insertAdjacentHTML('beforeend', layersHtml(acc));
+            wrapper.classList.toggle('owl-nohat', hidesHat(acc));
         });
     };
 
@@ -119,11 +123,11 @@
         const open = Look.isUnlocked(item, ctx);
         const label = open ? item.title : `${item.title}: ${Look.unlockText(item, item.badge ? badgeTitle(item.badge) : null)}`;
         return `<button type="button" data-owl-pick="${item.slot}:${item.id}" aria-pressed="${selected}" ${open ? '' : 'aria-disabled="true"'} title="${escapeHtml(label)}" aria-label="${escapeHtml(label)}"
-            class="flex h-10 w-full items-center justify-center rounded-xl border-2 ${selected ? 'border-brand-500 bg-brand-50 dark:bg-brand-950' : 'border-transparent bg-slate-50 dark:bg-slate-700/50'} ${open ? '' : 'cursor-not-allowed'}">
-            <img src="icons/doplnky/${item.id}-ikona.webp" alt="" class="h-8 w-8 object-contain ${open ? '' : 'opacity-40 grayscale'}"></button>`;
+            class="flex h-9 w-full items-center justify-center rounded-xl border-2 ${selected ? 'border-brand-500 bg-brand-50 dark:bg-brand-950' : 'border-transparent bg-slate-50 dark:bg-slate-700/50'} ${open ? '' : 'cursor-not-allowed'}">
+            <img src="icons/doplnky/${item.id}-ikona.webp" alt="" class="h-7 w-7 object-contain ${open ? '' : 'opacity-40 grayscale'}"></button>`;
     };
     const noneTile = (slot, selected) => `<button type="button" data-owl-pick="${slot}:none" aria-pressed="${selected}" title="Bez doplňku" aria-label="Bez doplňku"
-        class="flex h-10 w-full items-center justify-center rounded-xl border-2 text-lg font-black text-slate-400 ${selected ? 'border-brand-500 bg-brand-50 dark:bg-brand-950' : 'border-transparent bg-slate-50 dark:bg-slate-700/50'}">–</button>`;
+        class="flex h-9 w-full items-center justify-center rounded-xl border-2 text-lg font-black text-slate-400 ${selected ? 'border-brand-500 bg-brand-50 dark:bg-brand-950' : 'border-transparent bg-slate-50 dark:bg-slate-700/50'}">–</button>`;
 
     const render = (ctx) => {
         const acc = ctx.prefs.acc || {};
@@ -132,7 +136,7 @@
             const items = Look.ACCESSORIES.filter(item => item.slot === slot.id);
             // Štítek místa nad řádkem a pravidelná mřížka o šesti sloupcích: první dlaždice je vždy „bez doplňku“, další doplňky se jen řadí dál
             return `<div class="flex flex-col gap-1"><p class="text-[11px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">${slot.title}</p>
-                <div class="grid grid-cols-6 gap-1.5">${noneTile(slot.id, chosen === 'none')}${items.map(item => tile(item, ctx, chosen === item.id)).join('')}</div></div>`;
+                <div class="grid grid-cols-9 gap-1">${noneTile(slot.id, chosen === 'none')}${items.map(item => tile(item, ctx, chosen === item.id)).join('')}</div></div>`;
         }).join('');
         // Barva patří doplňku, který hráč naposledy vybral (nebo prvnímu nasazenému)
         const target = activeSlot && acc[activeSlot] ? activeSlot : Look.SLOTS.map(slot => slot.id).find(id => acc[id]);

@@ -48,8 +48,35 @@ def icon(img):
     return sq.resize((SIZE, SIZE), Image.LANCZOS)
 
 
+def drop_specks(img):
+    """Z vrstvy se pro ikonu odstraní drobné kousky (zbytky rozdílu proti původní sově)."""
+    a = np.asarray(img).copy()
+    mask = (a[..., 3] > 40).astype(np.uint8)
+    n, labels, stats, _ = cv2.connectedComponentsWithStats(mask, 8)
+    if n > 2:
+        biggest = stats[1:, cv2.CC_STAT_AREA].max()
+        for i in range(1, n):
+            if stats[i, cv2.CC_STAT_AREA] < biggest * 0.04:
+                a[labels == i, 3] = 0
+    return Image.fromarray(a, 'RGBA')
+
+
+def layer_ids():
+    """Doplňky bez vlastního obrázku ikony (téma doplňky): ikona se vyrobí přímo z vrstvy icons/doplnky/<id>.webp."""
+    colors = ('cervena', 'oranzova', 'zluta', 'zelena', 'modra', 'fialova', 'ruzova', 'ikona')
+    names = {os.path.splitext(os.path.basename(p))[0] for p in glob.glob(os.path.join(OUT, '*.webp'))}
+    have = {os.path.splitext(os.path.basename(p))[0] for p in glob.glob(os.path.join(SRC, '*.jpg'))}
+    return sorted(n for n in names if not n.endswith(tuple('-' + c for c in colors)) and n not in have)
+
+
 def main(ids):
     os.makedirs(OUT, exist_ok=True)
+    for name in layer_ids():
+        if ids and name not in ids:
+            continue
+        out = icon(drop_specks(Image.open(os.path.join(OUT, name + '.webp')).convert('RGBA')))
+        out.save(os.path.join(OUT, f'{name}-ikona.webp'), 'WEBP', quality=92, alpha_quality=100, method=6)
+        print(name, 'ok (z vrstvy)')
     for path in sorted(glob.glob(os.path.join(SRC, '*.jpg'))):
         name = os.path.splitext(os.path.basename(path))[0]
         if ids and name not in ids:
