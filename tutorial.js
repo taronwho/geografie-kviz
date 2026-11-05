@@ -28,6 +28,7 @@
         { id: 'badge', phase: 'tour', owl: 'sova-vitej', mode: 'info', target: '#status-badge', title: 'Úroveň a XP', text: 'Za správné odpovědi sbíráš XP, rosteš v úrovních a za výkony dostaneš odznaky. Klepnutí na sovu otevře událost dne, klepnutí na text tvůj postup.', intro: 'Ahoj, jsem Mudrlant! Za správné odpovědi sbíráš XP, rosteš v úrovních a za výkony dostaneš odznaky. Klepnutí na sovu otevře událost dne, klepnutí na text tvůj postup.', wait: 'Chvilku…', waitLong: TOUR_WAIT },
         { id: 'daily', phase: 'tour', owl: 'sova-vitej', mode: 'info', target: '[data-action="daily"]', area: 'parent', title: 'Dnešní otázky', text: 'Každý den tu najdeš otázku z každého tématu. Splněné se označí, další čekají do zítřka.', intro: 'Ahoj, jsem Mudrlant! Každý den tu najdeš otázku z každého tématu. Splněné se označí, další čekají do zítřka.', wait: 'Chvilku…', waitLong: TOUR_WAIT },
         { id: 'topics', phase: 'tour', owl: 'sova-vitej', mode: 'info', target: '[data-action="play-topic"]', area: 'parent', title: 'Témata a Mix', text: 'Dlaždice jsou témata, vyber si, co chceš hrát. Mix míchá otázky ze všech témat.', wait: 'Chvilku…', waitLong: TOUR_WAIT },
+        { id: 'multi', phase: 'tour', owl: 'sova-vyzva', mode: 'info', target: '[data-action="home-tab"][data-tab="multi"]', title: 'Více hráčů', text: 'Na téhle záložce vyzveš kamaráda kódem nebo přezdívkou a dáš si odvetu. Z výher roste tvůj rating a liga, je tu i týdenní žebříček a turnaj. Chce to přihlášení přes Google.', wait: TOUR_WAIT, waitLong: TOUR_WAIT, skippable: true },
         { id: 'settings', phase: 'tour', owl: 'sova-vitej', mode: 'info', target: '#btn-settings', title: 'Nastavení', text: 'Tady upravíš Vzhled, Sovu a přihlásíš se, abys mohl hrát výzvy s kamarády.', wait: 'Chvilku…', waitLong: TOUR_WAIT },
         { id: 'try', phase: 'try', owl: 'sova-vitej', mode: 'tap', target: '[data-action="daily"]', area: 'parent', hit: '[data-action="daily"]', title: 'Teď si to zkusíme doopravdy', text: 'Klepni na libovolnou dnešní otázku. Je skutečná, získané XP se ti započítají.', wait: 'Chvilku…', waitLong: 'Vrať se na úvodní obrazovku a klepni na dnešní otázku, nebo tento krok přeskoč.' },
         { id: 'hint', phase: 'try', owl: 'sova-premysleni', mode: 'tap', soft: true, softLabel: 'Bez nápovědy', skippable: true, target: '[data-action="hint"]', title: 'Nápověda', text: 'Nevíš si rady? Klepni na nápovědu. Čím víc nápověd použiješ, tím méně bodů za správnou odpověď dostaneš.', wait: 'Načítám otázku…', waitLong: QUESTION_LOST },
@@ -128,7 +129,8 @@
     };
     const present = (step) => Boolean(holeOf(step));
     const external = () => Boolean(doc.querySelector(EXTERNAL));
-    const hidden = () => (state && state.noFact ? ['fact'] : []);
+    // Krok Více hráčů se nepočítá, když záložka není (hra bez Supabase)
+    const hidden = () => [...(state && state.noFact ? ['fact'] : []), ...(doc.querySelector('[data-action="home-tab"][data-tab="multi"]') ? [] : ['multi'])];
 
     const build = () => {
         const el = doc.createElement('div');
