@@ -142,7 +142,7 @@ const backend = async (context, db) => {
                 return json(db.tournaments.filter(item => allowed.includes(item.status)).sort((a, b) => b.week_start.localeCompare(a.week_start)));
             }
             if (url.pathname === '/rest/v1/tournament_entries') {
-                const rows = db.entries.filter(entry => entry.tournament_id === eq('tournament_id')).sort((a, b) => a.joined_at.localeCompare(b.joined_at));
+                const rows = db.entries.filter(entry => entry.tournament_id === eq('tournament_id') && (!eq('user_id') || entry.user_id === eq('user_id'))).sort((a, b) => a.joined_at.localeCompare(b.joined_at));
                 return json(rows.map(entry => ({ user_id: entry.user_id, joined_at: entry.joined_at, status: entry.status, place: entry.place, player: profile(entry.user_id) })));
             }
             if (url.pathname === '/rest/v1/tournament_matches') {
@@ -285,6 +285,86 @@ test('týdenní turnaje', { skip: !chromium && 'Playwright není nainstalovaný'
         await page.tab.waitForFunction(() => document.querySelector('[data-tournament-count]').textContent.trim() === '8/8');
         assert.equal(await page.tab.locator('[data-action="tournament-leave"]').count(), 1);
         await page.context.close();
+    });
+
+    await t.test('pozvánka: každé druhé spuštění malé okno na záložce Více hráčů, přihlášení z něj', async () => {
+        const db = newDb({ today: '2026-11-11' });
+        openTournament(db, 40);
+        // Sudé spuštění (uložené jedno předchozí): okno vyskočí po přepnutí na Více hráčů
+        const { context, tab, log } = await start(db, { now: '2026-11-11T10:00:00Z' }, { ...login('tok-u1'), 'mudrlant.homeTab': JSON.stringify('single'), 'mudrlant.tourPromo': JSON.stringify({ launches: 1, day: '2026-11-11', bulbs: 0 }) });
+        assert.equal(await tab.locator('#tournament-offer').count(), 0, 'v singlu okno nevyskočí');
+        await tab.click('[data-action="home-tab"][data-tab="multi"]');
+        await tab.waitForSelector('#tournament-offer');
+        assert.match(await tab.textContent('#tournament-offer'), /Přihlášky do týdenního turnaje jsou otevřené/);
+        assert.match(await tab.textContent('#tournament-offer'), /pondělí 16\. 11\./);
+        assert.equal(await tab.evaluate(() => document.querySelector('#dialog-overlay > div').classList.contains('offer-panel')), true, 'okno svítí');
+        assert.match(await tab.evaluate(() => getComputedStyle(document.querySelector('#dialog-overlay > div')).boxShadow), /rgb\(52, 211, 153\)|rgba\(52, 211, 153/, 'zelená záře');
+        await tab.click('#tournament-offer [data-close]');
+        await tab.waitForFunction(() => !document.getElementById('tournament-offer'));
+        // Po zavření se ve stejném spuštění už nevrací
+        await tab.click('[data-action="home-tab"][data-tab="single"]');
+        await tab.click('[data-action="home-tab"][data-tab="multi"]');
+        await tab.waitForTimeout(600);
+        assert.equal(await tab.locator('#tournament-offer').count(), 0);
+        assert.deepEqual(log.errors, []);
+        assert.deepEqual(log.csp, []);
+        await context.close();
+
+        // Z okna jde rovnou přihlásit
+        const joinDb = newDb({ today: '2026-11-11' });
+        openTournament(joinDb, 40);
+        const second = await start(joinDb, { now: '2026-11-11T10:00:00Z' }, { ...login('tok-u1'), 'mudrlant.homeTab': JSON.stringify('multi'), 'mudrlant.tourPromo': JSON.stringify({ launches: 3, day: '2026-11-11', bulbs: 2 }) });
+        await second.tab.waitForSelector('#tournament-offer');
+        await second.tab.click('[data-offer-join]');
+        await second.tab.waitForFunction(() => /Jsi přihlášen/.test(document.getElementById('tournament-card') ? document.getElementById('tournament-card').textContent : ''));
+        assert.equal(joinDb.entries.filter(entry => entry.tournament_id === T_OPEN && entry.user_id === 'u-1').length, 1);
+        assert.deepEqual(second.log.errors, []);
+        await second.context.close();
+
+        // Liché spuštění: okno nevyskočí; přihlášený hráč ho nedostane nikdy
+        const odd = await start(db, { now: '2026-11-11T10:00:00Z' }, { ...login('tok-u1'), 'mudrlant.homeTab': JSON.stringify('multi'), 'mudrlant.tourPromo': JSON.stringify({ launches: 0, day: '2026-11-11', bulbs: 0 }) });
+        await odd.tab.waitForSelector('#tournament-card');
+        await odd.tab.waitForTimeout(600);
+        assert.equal(await odd.tab.locator('#tournament-offer').count(), 0);
+        await odd.context.close();
+        const mineDb = newDb({ today: '2026-11-11' });
+        openTournament(mineDb, 40, { mine: true });
+        const mine = await start(mineDb, { now: '2026-11-11T10:00:00Z' }, { ...login('tok-u1'), 'mudrlant.homeTab': JSON.stringify('multi'), 'mudrlant.tourPromo': JSON.stringify({ launches: 1, day: '2026-11-11', bulbs: 0 }) });
+        await mine.tab.waitForSelector('#tournament-card');
+        await mine.tab.waitForTimeout(600);
+        assert.equal(await mine.tab.locator('#tournament-offer').count(), 0, 'přihlášený okno nedostane');
+        assert.equal(await mine.tab.locator('#fact-hint:not(.hidden)').count(), 0, 'ani žárovku');
+        await mine.context.close();
+    });
+
+    await t.test('žárovka u sovy zve do turnaje i v singlu, nejvýš ve dvou spuštěních za den', async () => {
+        const db = newDb({ today: '2026-11-11' });
+        openTournament(db, 40);
+        const single = { ...login('tok-u1'), 'mudrlant.homeTab': JSON.stringify('single') };
+        const first = await start(db, { now: '2026-11-11T10:00:00Z' }, { ...single, 'mudrlant.tourPromo': JSON.stringify({ launches: 0, day: '2026-11-11', bulbs: 0 }) });
+        await first.tab.waitForSelector('#fact-hint:not(.hidden)');
+        assert.match(await first.tab.getAttribute('#fact-hint', 'aria-label'), /Týdenní turnaj/);
+        await first.tab.click('#fact-hint');
+        await first.tab.waitForSelector('#tournament-offer');
+        await first.tab.click('#tournament-offer [data-close]');
+        await first.tab.waitForFunction(() => !document.getElementById('tournament-offer'));
+        assert.equal(await first.tab.locator('#fact-hint:not(.hidden)').count(), 0, 'po klepnutí žárovka zmizí');
+        assert.equal(JSON.parse(await first.tab.evaluate(() => localStorage.getItem('mudrlant.tourPromo'))).bulbs, 1);
+        assert.deepEqual(first.log.errors, []);
+        await first.context.close();
+        // Druhé spuštění ten den ještě ano, třetí už ne
+        const second = await start(db, { now: '2026-11-11T12:00:00Z' }, { ...single, 'mudrlant.tourPromo': JSON.stringify({ launches: 2, day: '2026-11-11', bulbs: 1 }) });
+        await second.tab.waitForSelector('#fact-hint:not(.hidden)');
+        await second.context.close();
+        const third = await start(db, { now: '2026-11-11T14:00:00Z' }, { ...single, 'mudrlant.tourPromo': JSON.stringify({ launches: 4, day: '2026-11-11', bulbs: 2 }) });
+        await third.tab.waitForSelector('#challenges-section, #app-content');
+        await third.tab.waitForTimeout(800);
+        assert.equal(await third.tab.locator('#fact-hint:not(.hidden)').count(), 0);
+        await third.context.close();
+        // Nový den: počítadlo se nuluje
+        const nextDay = await start(db, { now: '2026-11-12T10:00:00Z' }, { ...single, 'mudrlant.tourPromo': JSON.stringify({ launches: 5, day: '2026-11-11', bulbs: 2 }) });
+        await nextDay.tab.waitForSelector('#fact-hint:not(.hidden)');
+        await nextDay.context.close();
     });
 
     await t.test('běžící turnaj: karta, Hrát, hra do výsledku (výhra, postup, XP, odznaky), bez prozrazení soupeře', async () => {

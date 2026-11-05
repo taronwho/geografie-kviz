@@ -1387,7 +1387,13 @@
     const updateFactHint = () => {
         const hint = document.getElementById('fact-hint');
         if (!hint) return;
-        const show = Boolean(dailyFact) && screen === 'home' && !factRead();
+        const factDue = Boolean(dailyFact) && !factRead();
+        const offerDue = tournamentBulbDue();
+        const show = screen === 'home' && (factDue || offerDue);
+        // Bez nové zajímavosti žárovka zve do turnaje (jinak se tlačítko jmenuje podle zajímavosti)
+        const title = factDue || !offerDue ? 'Mudrlant ti chce říct, co se stalo tento den' : 'Mudrlant tě zve do týdenního turnaje';
+        hint.title = title;
+        hint.setAttribute('aria-label', factDue || !offerDue ? 'Tento den v dějinách' : 'Týdenní turnaj: přihlášky jsou otevřené');
         hint.classList.toggle('hidden', !show);
         hint.classList.toggle('flex', show);
         if (show) renderIcons(hint);
@@ -4157,7 +4163,7 @@
     let tournamentStarting = false;
     let tournamentDialogId = '';
     let tournamentQuery = '';
-    const resetTournaments = () => { tournamentView = null; tournamentTickAt = 0; tournamentStatsAt = 0; tournamentBusy = ''; tournamentAgain = null; };
+    const resetTournaments = () => { tournamentOffer = null; tournamentView = null; tournamentTickAt = 0; tournamentStatsAt = 0; tournamentBusy = ''; tournamentAgain = null; };
     const plainText = (text) => String(text || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
     // Za vyhraný zápas XP; vyplacené zápasy se pamatují v zařízení (jednou za zápas) a počítadla pro odznaky se doplní z účtu (maximum s lokální hodnotou)
@@ -4211,6 +4217,74 @@
         });
     };
 
+    // --- Pozvánka do turnaje: malé okno při přepnutí na Více hráčů při každém druhém spuštění aplikace; žárovka u sovy i v singlu nejvýš 2× denně ---
+    const PROMO_KEY = 'mudrlant.tourPromo';
+    const readPromo = () => {
+        const saved = readJson(PROMO_KEY);
+        const value = saved && typeof saved === 'object' && !Array.isArray(saved) ? saved : {};
+        const today = getDayKey();
+        return { launches: Number.isFinite(value.launches) ? Math.max(0, Math.floor(value.launches)) : 0, day: today, bulbs: value.day === today && Number.isFinite(value.bulbs) ? Math.max(0, Math.floor(value.bulbs)) : 0 };
+    };
+    const promoLaunches = (() => { const promo = readPromo(); promo.launches += 1; writeJson(PROMO_KEY, promo); return promo.launches; })();
+    let tournamentOffer = null; // otevřený turnaj, do kterého ještě nejsem přihlášený ({ tournament })
+    let tournamentOfferAt = 0;
+    let promoPopupShown = false;
+    let promoBulbSession = false;
+    let promoBulbDone = false;
+    // Žárovka s pozvánkou: nejvýš ve dvou spuštěních za den (počítá se při prvním ukázání v dané relaci), po klepnutí zmizí
+    const tournamentBulbDue = () => {
+        if (!tournamentOffer || promoBulbDone) return false;
+        if (promoBulbSession) return true;
+        const promo = readPromo();
+        if (promo.bulbs >= 2) return false;
+        promoBulbSession = true;
+        writeJson(PROMO_KEY, { ...promo, bulbs: promo.bulbs + 1 });
+        return true;
+    };
+    const closeTournamentOffer = () => { if (document.getElementById('tournament-offer')) closeDialog(); };
+    const openTournamentOffer = (source) => {
+        if (!tournamentOffer || document.getElementById('dialog-overlay')) return;
+        const { tournament } = tournamentOffer;
+        if (source === 'bulb') { promoBulbDone = true; updateFactHint(); }
+        const when = `${Tournament.weekdayName(tournament.week_start)} ${Tournament.formatDay(tournament.week_start)}`;
+        showDialog(TOUR_DIALOG, `
+            <div id="tournament-offer" class="flex flex-col gap-3">
+                <div class="flex items-center gap-3"><span class="${TOUR_BUBBLE}"><i data-lucide="trophy" class="h-5 w-5"></i></span>
+                    <p class="text-sm font-semibold leading-snug text-slate-700 dark:text-slate-200">Přihlášky do týdenního turnaje jsou otevřené. Začíná <b>${escapeHtml(when)}</b>, každý den jedno kolo (10 otázek), vítěz postupuje dál až do finále.</p></div>
+                <button type="button" data-offer-join="${escapeHtml(tournament.id)}" class="flex w-full items-center justify-center gap-2 rounded-2xl btn-3d bg-emerald-600 px-4 py-3 text-base font-black text-white active:scale-[0.98]"><i data-lucide="trophy" class="h-5 w-5"></i> Přihlásit se</button>
+                <div class="flex items-center justify-between gap-2"><button type="button" data-offer-rules class="${TOUR_LINK}">Jak turnaje fungují</button><button type="button" data-close class="rounded-xl px-3 py-2 text-[13px] font-bold text-slate-500 underline underline-offset-2 dark:text-slate-400">Teď ne</button></div>
+            </div>`, {
+            onClick: (event) => {
+                const join = event.target.closest('[data-offer-join]');
+                if (join) { closeDialog(); changeTournamentEntry(join.dataset.offerJoin, true); return; }
+                if (event.target.closest('[data-offer-rules]')) { closeDialog(); openTournamentHelp(); }
+            }
+        });
+        // Zeleně svítící a pulzující okno, ať si pozvánky hned všimnou všichni (src/input.css .offer-panel)
+        const panel = document.querySelector('#dialog-overlay > div');
+        if (panel) panel.classList.add('offer-panel');
+        if (screen === 'home') renderIcons(document.getElementById('dialog-overlay'));
+    };
+    // Zjistí, jestli je otevřený turnaj, do kterého nejsem přihlášený; z toho žárovka a pozvánka
+    const updateTournamentOffer = async (user, list) => {
+        const today = Tournament.pragueToday();
+        const open = (list || []).find(item => item.status === 'open' && Tournament.diffDays(item.week_start, today) > 0);
+        if (!open) { tournamentOffer = null; updateFactHint(); return; }
+        if (!tournamentOffer || tournamentOffer.tournament.id !== open.id || Date.now() - tournamentOfferAt > 60000) {
+            let joined = null;
+            try { joined = await Social.inTournament(open.id, user.id); } catch (error) { joined = null; }
+            if (!signedUser() || signedUser().id !== user.id) return;
+            tournamentOfferAt = Date.now();
+            tournamentOffer = joined === false ? { tournament: open } : null;
+        }
+        updateFactHint();
+        // Při každém druhém spuštění vyskočí malé okno, jakmile hráč přepne na Více hráčů (jednou za spuštění)
+        if (tournamentOffer && homeTab() === 'multi' && screen === 'home' && !promoPopupShown && promoLaunches % 2 === 0 && !document.getElementById('dialog-overlay')) {
+            promoPopupShown = true;
+            openTournamentOffer('popup');
+        }
+    };
+
     // Načte turnaje: nejdřív je posune (tick), pak seznam, zprávy a (na záložce Více hráčů nebo s force) přihlášky a zápasy. Chyba spojení nic nepřepíše.
     const refreshTournaments = async ({ force = false } = {}) => {
         const user = signedUser();
@@ -4227,6 +4301,7 @@
             if (!signedUser() || signedUser().id !== user.id) return;
             if (list === null) { tournamentView = null; paintChallenges(); return; }
             await showTournamentNotices(user).catch(() => {});
+            await updateTournamentOffer(user, list).catch(() => {});
             if (!force && homeTab() !== 'multi') return;
             const today = Tournament.pragueToday();
             const running = list.filter(item => item.status === 'running');
@@ -4693,7 +4768,12 @@
     });
     document.getElementById('btn-settings').addEventListener('click', () => openSettings());
     document.getElementById('status-badge').addEventListener('click', (event) => switchFromBadge(event));
-    document.getElementById('fact-hint').addEventListener('click', () => openFact());
+    // Žárovka: nejdřív zajímavost dne (když je nepřečtená), jinak pozvánka do turnaje
+    document.getElementById('fact-hint').addEventListener('click', () => {
+        if (dailyFact && !factRead()) openFact();
+        else if (tournamentBulbDue()) openTournamentOffer('bulb');
+        else openFact();
+    });
     // Zvětšení fotky funguje všude: v nápovědě, ve výsledku, v okně s popisem i v atlasu
     document.addEventListener('click', (event) => {
         const zoom = event.target.closest('[data-photo-zoom]');

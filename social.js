@@ -267,6 +267,11 @@
         const rows = await withExtras(extras => request('GET', `tournament_entries?tournament_id=eq.${encodeURIComponent(needTournamentId(tid))}&order=joined_at.asc&limit=300&select=user_id,joined_at,status,place,player:profiles!user_id(${profileFields(extras)})`)) || [];
         return rows.map(row => ({ ...row, place: wholeOrNull(row.place) }));
     }, []);
+    // Jsem přihlášený do turnaje? (levný dotaz na jeden řádek; null = databáze turnaje nemá)
+    const inTournament = (tid, userId) => guardTournaments(async () => {
+        const rows = await request('GET', `tournament_entries?tournament_id=eq.${encodeURIComponent(needTournamentId(tid))}&user_id=eq.${encodeURIComponent(userId)}&select=user_id&limit=1`);
+        return Array.isArray(rows) && rows.length > 0;
+    }, null);
     // Zápasy turnaje s výsledky (cizí výsledek ukáže server až po rozhodnutí zápasu)
     const getTournamentMatches = (tid) => guardTournaments(async () => {
         const rows = await request('GET', `tournament_matches?tournament_id=eq.${encodeURIComponent(needTournamentId(tid))}&order=round.asc,slot.asc&limit=300&select=id,round,slot,third,p1,p2,winner,decided_by,results:tournament_results(user_id,started_at,finished_at,correct,points,time_ms)`) || [];
@@ -366,5 +371,5 @@
     };
 
     return { AVATARS, allAvatars, cleanColor, customHue, nearestColor, cleanFrame, cleanOwl, saveOwl, cleanTitlePref, saveLook, COLORS, COUNTS, NAME_MAX, SocialError, cleanName, isValidName, newCode, parseCode, getProfile, saveProfile, createChallenge, getChallenge, getResults, submitResult, myChallenges, searchPlayers, randomOpponent, incomingChallenges, playerStats, getProgress, saveProgress, getRating, getRatingChange, weeklyLeaderboard, getAccepts, saveAccepts,
-        tournamentTick, getTournaments, getTournamentEntries, getTournamentMatches, joinTournament, leaveTournament, startTournamentMatch, finishTournamentMatch, myTournamentStats, tournamentNotices, tournamentNoticesSeen };
+        tournamentTick, getTournaments, inTournament, getTournamentEntries, getTournamentMatches, joinTournament, leaveTournament, startTournamentMatch, finishTournamentMatch, myTournamentStats, tournamentNotices, tournamentNoticesSeen };
 });
