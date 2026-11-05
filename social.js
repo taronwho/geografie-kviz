@@ -224,6 +224,75 @@
         return rows.map(row => ({ ...row, frame: cleanFrame(row.frame), title_pref: cleanTitlePref(row.title_pref), owl: cleanOwl(row.owl), rating: cleanRatingNumber(row.rating) || 1000, week_delta: Math.floor(Number(row.week_delta) || 0), week_wins: Math.floor(Number(row.week_wins) || 0), week_games: Math.floor(Number(row.week_games) || 0) }));
     }, null);
 
+    // Týdenní turnaje (tabulky a funkce přibyly pozdější verzí schématu). Dokud je databáze nemá (404), vracejí se prázdné výsledky
+    // (karta turnaje se neukáže) a dál se o ně nežádá (po novém načtení stránky se zkusí znovu); jiné chyby (síť) se vyhodí.
+    let tournamentsMissing = false;
+    const guardTournaments = async (run, empty) => {
+        if (tournamentsMissing) return empty;
+        try { return await run(); } catch (error) {
+            if (error.status === 404) { tournamentsMissing = true; return empty; }
+            throw error;
+        }
+    };
+    const isTournamentId = (value) => typeof value === 'string' && /^[0-9a-fA-F-]{32,36}$/.test(value);
+    const needTournamentId = (value, what = 'turnaj') => { if (!isTournamentId(value)) throw new SocialError(`Neplatný ${what}.`, 400); return value; };
+    // Hlášky serveru jsou česky; cokoli jiného (síť, 500, anglická hláška databáze) se nahradí srozumitelným textem
+    const CZECH_MESSAGE = /[ěščřžýáíéúůďťňĚŠČŘŽÝÁÍÉÚŮĎŤŇ]|^(Kolo|Turnaj|Zápas)\b/;
+    const tournamentCall = async (name, body, fallback) => {
+        if (tournamentsMissing) throw new SocialError('Turnaje zatím nejsou k dispozici.', 404);
+        try {
+            return await request('POST', `rpc/${name}`, { body });
+        } catch (error) {
+            if (error instanceof SocialError && error.status === 404) { tournamentsMissing = true; throw new SocialError('Turnaje zatím nejsou k dispozici.', 404); }
+            if (error instanceof SocialError && error.status === 401) throw new SocialError('Nejsi přihlášený.', 401);
+            if (error instanceof SocialError && error.status < 500 && CZECH_MESSAGE.test(error.message)) throw error;
+            throw new SocialError(fallback, error && error.status);
+        }
+    };
+    const wholeOrNull = (value) => { const number = Math.floor(Number(value)); return Number.isFinite(number) ? number : null; };
+    const cleanTournament = (row) => ({
+        id: String(row.id), topic: String(row.topic || 'mix'), week_start: String(row.week_start || '').slice(0, 10), started_on: row.started_on ? String(row.started_on).slice(0, 10) : null,
+        capacity: wholeOrNull(row.capacity) || 128, status: ['open', 'running', 'finished', 'cancelled'].includes(row.status) ? row.status : 'finished',
+        size: wholeOrNull(row.size), rounds: wholeOrNull(row.rounds), seed: String(row.seed || '')
+    });
+    // Posune turnaje (přihlášky na příští týden, start v pondělí, další kolo); true, když turnaje v databázi jsou, jinak null
+    const tournamentTick = () => guardTournaments(async () => { await request('POST', 'rpc/tournament_tick', { body: {} }); return true; }, null);
+    // Otevřené, běžící a poslední skončené turnaje, nejnovější první; null = databáze turnaje nemá
+    const getTournaments = () => guardTournaments(async () => {
+        const rows = await request('GET', 'tournaments?status=in.(open,running,finished)&order=week_start.desc&limit=6&select=id,topic,week_start,started_on,capacity,status,size,rounds,seed') || [];
+        return rows.map(cleanTournament);
+    }, null);
+    // Přihlášky s profilem hráče, v pořadí přihlášení
+    const getTournamentEntries = (tid) => guardTournaments(async () => {
+        const rows = await withExtras(extras => request('GET', `tournament_entries?tournament_id=eq.${encodeURIComponent(needTournamentId(tid))}&order=joined_at.asc&limit=300&select=user_id,joined_at,status,place,player:profiles!user_id(${profileFields(extras)})`)) || [];
+        return rows.map(row => ({ ...row, place: wholeOrNull(row.place) }));
+    }, []);
+    // Zápasy turnaje s výsledky (cizí výsledek ukáže server až po rozhodnutí zápasu)
+    const getTournamentMatches = (tid) => guardTournaments(async () => {
+        const rows = await request('GET', `tournament_matches?tournament_id=eq.${encodeURIComponent(needTournamentId(tid))}&order=round.asc,slot.asc&limit=300&select=id,round,slot,third,p1,p2,winner,decided_by,results:tournament_results(user_id,started_at,finished_at,correct,points,time_ms)`) || [];
+        return rows.map(row => ({ ...row, third: Boolean(row.third), results: Array.isArray(row.results) ? row.results : [] }));
+    }, []);
+    const joinTournament = (tid) => tournamentCall('tournament_join', { tid: needTournamentId(tid) }, 'Přihlášení se nepodařilo. Zkus to znovu.');
+    const leaveTournament = (tid) => tournamentCall('tournament_leave', { tid: needTournamentId(tid) }, 'Odhlášení se nepodařilo. Zkus to znovu.');
+    // Server od teď měří čas zápasu; až po úspěchu se smí hrát
+    const startTournamentMatch = (mid) => tournamentCall('tournament_start_match', { mid: needTournamentId(mid, 'zápas') }, 'Zápas se nepodařilo zahájit. Zkontroluj připojení a zkus to znovu.');
+    const finishTournamentMatch = (mid, correct, points) => tournamentCall('tournament_finish_match', { mid: needTournamentId(mid, 'zápas'), correct_count: wholeNumber(correct, 10), point_count: wholeNumber(points, 100) }, 'Výsledek se nepodařilo odeslat. Zkontroluj připojení.');
+    // Moje turnajové údaje do odznaků: { best, wins, played }; null, když turnaje v databázi nejsou
+    const myTournamentStats = () => guardTournaments(async () => {
+        const result = await request('POST', 'rpc/my_tournament_stats', { body: {} });
+        const row = Array.isArray(result) ? result[0] : result;
+        return row ? { best: wholeNumber(row.best, 6), wins: wholeNumber(row.wins, 100000), played: wholeNumber(row.played, 100000) } : { best: 0, wins: 0, played: 0 };
+    }, null);
+    // Nepřečtené zprávy o turnajích (nejstarší první)
+    const tournamentNotices = (userId) => guardTournaments(async () => {
+        const rows = await request('GET', `tournament_notices?user_id=eq.${encodeURIComponent(userId)}&seen=eq.false&order=created_at.asc,id.asc&limit=20&select=id,tournament_id,kind,detail,created_at`) || [];
+        return rows.filter(row => Number.isFinite(Number(row.id)));
+    }, []);
+    const tournamentNoticesSeen = (ids) => guardTournaments(async () => {
+        const clean = ids.map(Number).filter(Number.isFinite);
+        if (clean.length) await request('POST', 'rpc/tournament_notices_seen', { body: { ids: clean } });
+    }, undefined);
+
     // Profil hráče pro cizí oči: počet her, úspěšnost, nejlepší výsledek a (u cizího hráče) vzájemná bilance s přihlášeným
     // a nastavení poslední společné výzvy, ať jde snadno vyzvat k odvetě. Vše se počítá z uložených výsledků výzev.
     const playerStats = async (meId, otherId) => {
@@ -296,5 +365,6 @@
         return invites.filter(row => !done.has(row.id));
     };
 
-    return { AVATARS, allAvatars, cleanColor, customHue, nearestColor, cleanFrame, cleanOwl, saveOwl, cleanTitlePref, saveLook, COLORS, COUNTS, NAME_MAX, SocialError, cleanName, isValidName, newCode, parseCode, getProfile, saveProfile, createChallenge, getChallenge, getResults, submitResult, myChallenges, searchPlayers, randomOpponent, incomingChallenges, playerStats, getProgress, saveProgress, getRating, getRatingChange, weeklyLeaderboard, getAccepts, saveAccepts };
+    return { AVATARS, allAvatars, cleanColor, customHue, nearestColor, cleanFrame, cleanOwl, saveOwl, cleanTitlePref, saveLook, COLORS, COUNTS, NAME_MAX, SocialError, cleanName, isValidName, newCode, parseCode, getProfile, saveProfile, createChallenge, getChallenge, getResults, submitResult, myChallenges, searchPlayers, randomOpponent, incomingChallenges, playerStats, getProgress, saveProgress, getRating, getRatingChange, weeklyLeaderboard, getAccepts, saveAccepts,
+        tournamentTick, getTournaments, getTournamentEntries, getTournamentMatches, joinTournament, leaveTournament, startTournamentMatch, finishTournamentMatch, myTournamentStats, tournamentNotices, tournamentNoticesSeen };
 });
