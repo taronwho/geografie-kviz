@@ -27,11 +27,60 @@
         const known = Look.ACC_COLORS.some(entry => entry.id === color) ? color : 'original';
         return `icons/doplnky/${item.id}${known === 'original' ? '' : `-${known}`}.webp`;
     };
-    const layersHtml = (acc) => ORDER.map(slot => {
+    // attrs: u živé sovy 'data-owl-layer' (přepisuje se podle voleb), u cizí sovy 'data-keep' (nechá se, jak je)
+    const layersHtml = (acc, attrs = 'data-owl-layer') => ORDER.map(slot => {
         const entry = acc && acc[slot];
         const src = entry ? layerSrc(entry.id, entry.color) : null;
-        return src ? `<img data-owl-layer src="${src}" alt="" class="${LAYER_CLASS}">` : '';
+        return src ? `<img ${attrs} src="${src}" alt="" class="${LAYER_CLASS}">` : '';
     }).join('');
+
+    // --- Sova jako obrázek profilu: zápis voleb do textu (sloupec profiles.owl), např. 'robe=zelena;head=koruna.modra;face=bryle.original' ---
+    // Platnost se kontroluje proti katalogu (ne proti odemčení – hráč má sovu, kterou si ostatní prohlížejí); neznámé části se zahodí.
+    const OWL_MAX = 200;
+    const encodeOwl = (prefs) => {
+        const parsed = parseOwl(prefs);
+        const parts = [`robe=${parsed ? parsed.robe : 'vinova'}`];
+        if (parsed) for (const slot of ORDER) if (parsed.acc[slot]) parts.push(`${slot}=${parsed.acc[slot].id}.${parsed.acc[slot].color}`);
+        return parts.join(';').slice(0, OWL_MAX);
+    };
+    // Vstup: text, nebo objekt { robe, acc } (třeba Look.prefs()); výstup { robe, acc } nebo null, když nejde o platnou sovu
+    function parseOwl(input) {
+        if (!Look) return null;
+        let robe = 'vinova';
+        const acc = {};
+        let known = false;
+        const takeRobe = (id) => { if (Look.find('robes', id)) { robe = id; known = true; } };
+        const takeAcc = (slot, id, color) => {
+            const item = Look.find('accessories', id);
+            if (!item || item.slot !== slot || acc[slot]) return;
+            acc[slot] = { id, color: Look.ACC_COLORS.some(entry => entry.id === color) ? color : 'original' };
+            known = true;
+        };
+        if (typeof input === 'string') {
+            if (!input || input.length > OWL_MAX) return null;
+            for (const part of input.split(';')) {
+                const eq = part.indexOf('=');
+                if (eq < 1) continue;
+                const key = part.slice(0, eq);
+                const value = part.slice(eq + 1);
+                if (key === 'robe') takeRobe(value);
+                else if (Look.SLOTS.some(slot => slot.id === key)) { const dot = value.indexOf('.'); takeAcc(key, dot < 0 ? value : value.slice(0, dot), dot < 0 ? 'original' : value.slice(dot + 1)); }
+            }
+        } else if (input && typeof input === 'object') {
+            takeRobe(input.robe);
+            const source = input.acc && typeof input.acc === 'object' ? input.acc : {};
+            for (const slot of Look.SLOTS) { const entry = source[slot.id]; if (entry && typeof entry === 'object') takeAcc(slot.id, entry.id, entry.color); }
+            known = true;
+        } else return null;
+        return known ? { robe, acc } : null;
+    }
+    // Sova z dané konfigurace (ne z mých voleb): data-keep ji ochrání před přebarvením pozorovatelem z look-robes.js
+    const owlAvatarHtml = (parsedOrText, imgClass = 'h-full w-auto', wrapClass = 'h-[88%]') => {
+        const parsed = parseOwl(parsedOrText);
+        if (!parsed) return '';
+        const src = `icons/logo${parsed.robe === 'vinova' ? '' : `-${parsed.robe}`}.webp`;
+        return `<span class="relative inline-flex shrink-0 ${wrapClass}"><img data-keep src="${src}" alt="" class="${imgClass}">${layersHtml(parsed.acc, 'data-keep')}</span>`;
+    };
 
     const currentAcc = () => (Look ? Look.prefs().acc : null) || {};
     // Logo sovy s vybranými doplňky; wrapClass patří obalu (okraje), imgClass samotné sově
@@ -114,5 +163,5 @@
     };
 
     if (Look) Look.register({ id: 'owl', tab: 'owl', title: 'Doplňky sovy', noTitle: true, order: 5, render, click, apply: (prefs) => refresh(prefs.acc || {}) });
-    return { logoHtml, layersHtml, layerSrc, refresh, PAD, slotOf };
+    return { logoHtml, layersHtml, layerSrc, refresh, PAD, slotOf, encodeOwl, parseOwl, owlAvatarHtml, OWL_MAX };
 });

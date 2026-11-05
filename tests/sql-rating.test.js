@@ -117,6 +117,8 @@ test('SQL: rating, ligy a žebříček', { skip: !available && 'PostgreSQL není
         assert.ok(rows.length >= 3);
         const deltas = rows.map(row => Number(row.split('|')[2]));
         assert.deepEqual(deltas, [...deltas].sort((a, b) => b - a));
+        q(`update profiles set owl = 'robe=zelena' where id = '${ids[0]}'`);
+        assert.match(asUser(ids[0], `select owl from weekly_leaderboard() where id = '${ids[0]}'`).stdout, /robe=zelena/, 'žebříček vrací i sovu');
         const anon = psql(dbName, `begin; set local role anon; select * from weekly_leaderboard(); commit;`);
         assert.notEqual(anon.status, 0);
     });

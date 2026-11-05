@@ -809,7 +809,7 @@
         if ((!user || !Social) && meTab === 'profile') meTab = 'game';
         if (user && Social && !meDraft) {
             const base = myProfile || { display_name: user.name, avatar: '🦊', color: 'emerald' };
-            meDraft = { name: base.display_name, avatar: base.avatar, color: base.color };
+            meDraft = { name: base.display_name, avatar: base.avatar, color: base.color, owl: Boolean(base.owl && Owl) };
             if (!myProfile) loadMyProfile().then(() => { if (!meDirty && document.getElementById('settings-overlay')) { meDraft = null; openSettings(meNote); } });
         }
         let overlay = document.getElementById('settings-overlay');
@@ -818,7 +818,7 @@
         if (!overlay) overlay = createSettingsOverlay();
         const state = Auth ? Auth.getState() : { configured: false };
         const profile = user ? (myProfile || { display_name: user.name, avatar: '🦊', color: 'emerald' }) : null;
-        const shown = profile && meTab === 'profile' && meDraft ? { ...profile, ...{ avatar: meDraft.avatar, color: meDraft.color } } : profile;
+        const shown = profile && meTab === 'profile' && meDraft ? { ...profile, ...{ avatar: meDraft.avatar, color: meDraft.color, owl: meDraft.owl ? myOwlText() : null } } : profile;
         const level = levelProgress(loadProgress().xp);
         const noteText = note || meNote;
         const tabs = `
@@ -847,10 +847,10 @@
                 </label>
                 <div>
                     <p class="${ME_HEADING} mb-1.5">Obrázek</p>
-                    <div class="grid grid-cols-12 gap-1">${Social.allAvatars().map(emoji => {
+                    <div class="grid grid-cols-12 gap-1">${Owl && Owl.owlAvatarHtml ? `<button type="button" data-pick-owl aria-label="Moje sova" title="Moje sova" aria-pressed="${meDraft.owl}" class="flex aspect-square items-center justify-center rounded-lg border-2 active:scale-95 ${meDraft.owl ? 'border-brand-600 bg-brand-50 dark:bg-brand-900/40' : 'border-transparent bg-white dark:bg-slate-800'}">${Owl.owlAvatarHtml(myOwlText(), 'h-full w-auto', 'h-[88%]')}</button>` : ''}${Social.allAvatars().map(emoji => {
                         const lock = avatarLock(emoji);
                         if (lock) return `<button type="button" data-locked-avatar="${emoji}" aria-disabled="true" aria-label="Obrázek ${emoji} je zamčený: Úroveň ${lock.level}" title="Úroveň ${lock.level}" class="flex aspect-square items-center justify-center rounded-lg border-2 border-transparent bg-white text-base opacity-40 grayscale dark:bg-slate-800">${emoji}</button>`;
-                        return `<button type="button" data-pick-avatar="${emoji}" aria-label="Obrázek ${emoji}" aria-pressed="${emoji === meDraft.avatar}" class="flex aspect-square items-center justify-center rounded-lg border-2 text-base active:scale-95 ${emoji === meDraft.avatar ? 'border-brand-600 bg-brand-50 dark:bg-brand-900/40' : 'border-transparent bg-white dark:bg-slate-800'}">${emoji}</button>`;
+                        return `<button type="button" data-pick-avatar="${emoji}" aria-label="Obrázek ${emoji}" aria-pressed="${emoji === meDraft.avatar && !meDraft.owl}" class="flex aspect-square items-center justify-center rounded-lg border-2 text-base active:scale-95 ${emoji === meDraft.avatar && !meDraft.owl ? 'border-brand-600 bg-brand-50 dark:bg-brand-900/40' : 'border-transparent bg-white dark:bg-slate-800'}">${emoji}</button>`;
                     }).join('')}</div>
                 </div>
                 <div>
@@ -893,7 +893,7 @@
         const input = document.getElementById('profile-name');
         if (input) meDraft.name = input.value;
         try {
-            myProfile = await Social.saveProfile(user.id, meDraft);
+            myProfile = await Social.saveProfile(user.id, { ...meDraft, owl: meDraft.owl ? myOwlText() : null });
             meNote = 'Uloženo.';
             meDirty = false;
             updateProfileButton();
@@ -961,14 +961,16 @@
             }
             const avatar = event.target.closest('[data-pick-avatar]');
             const color = event.target.closest('[data-pick-color]');
-            if (avatar || color) {
+            const pickOwl = event.target.closest('[data-pick-owl]');
+            if (avatar || color || pickOwl) {
                 const input = document.getElementById('profile-name');
                 if (input && meDraft) meDraft.name = input.value;
-                if (avatar) meDraft.avatar = avatar.dataset.pickAvatar;
+                if (pickOwl) { meDraft.owl = true; meDraft.avatar = '🦉'; }
+                if (avatar) { meDraft.avatar = avatar.dataset.pickAvatar; meDraft.owl = false; }
                 if (color) meDraft.color = color.dataset.pickColor;
                 meDirty = true;
                 meNote = '';
-                openSettings('', avatar ? `[data-pick-avatar="${meDraft.avatar}"]` : `[data-pick-color="${meDraft.color}"]`);
+                openSettings('', pickOwl ? '[data-pick-owl]' : avatar ? `[data-pick-avatar="${meDraft.avatar}"]` : `[data-pick-color="${meDraft.color}"]`);
                 return;
             }
             const variantButton = event.target.closest('[data-variant]');
@@ -2871,6 +2873,8 @@
     const playerName = (player) => (player && player.display_name) || 'Hráč';
     // Hráči, jejichž obrázek jde klepnout (klepnutí otevře profil); id → údaje o hráči
     const knownPlayers = new Map();
+    // Moje sova (barva obleku + doplňky z lokální volby) jako text pro profil
+    const myOwlText = () => Owl && Owl.encodeOwl && Look ? Owl.encodeOwl(Look.prefs(lookContext())) : '';
     // link = klepnutím na obrázek se otevře profil hráče (klepnutí zachytí společný posluchač dole)
     const avatarHtml = (player, size = 'h-10 w-10 text-xl', link = false) => {
         const linked = link && player && player.id;
@@ -2879,7 +2883,10 @@
         const me = signedUser();
         const ownFrame = Look && me && player && player.id === me.id ? Look.prefs(lookContext()).frame : null;
         const frame = window.MudrlantLookFrames ? window.MudrlantLookFrames.frameClass(ownFrame ? (ownFrame === 'zadny' ? null : ownFrame) : (player && player.frame)) : '';
-        return `<span ${linked ? `data-player-id="${escapeHtml(player.id)}" role="button" tabindex="0" aria-label="Profil hráče ${escapeHtml(playerName(player))}"` : 'aria-hidden="true"'} class="flex shrink-0 items-center justify-center rounded-full ${size} ${AVATAR_BG[player && player.color] || AVATAR_BG.emerald}${frame}${linked ? ' cursor-pointer' : ''}">${escapeHtml((player && player.avatar) || '🦊')}</span>`;
+        // Sova jako obrázek profilu: vlastní se bere z lokální volby (doplňky a barva obleku platí hned), cizí z profilu hráče
+        const isMe = Boolean(me && player && player.id === me.id);
+        const owlHtml = player && player.owl && Owl && Owl.owlAvatarHtml ? Owl.owlAvatarHtml(isMe && Look ? myOwlText() : player.owl) : '';
+        return `<span ${linked ? `data-player-id="${escapeHtml(player.id)}" role="button" tabindex="0" aria-label="Profil hráče ${escapeHtml(playerName(player))}"` : 'aria-hidden="true"'} class="flex shrink-0 items-center justify-center rounded-full ${size} ${AVATAR_BG[player && player.color] || AVATAR_BG.emerald}${frame}${linked ? ' cursor-pointer' : ''}">${owlHtml || escapeHtml((player && player.avatar) || '🦊')}</span>`;
     };
     // Téma výzvy: „mix“ (všechna), jedno téma, nebo víc témat oddělených čárkou
     const challengeTopicIds = (topic) => topic === 'mix' ? TOPICS.map(item => item.id) : String(topic).split(',').filter(id => TOPIC_BY_ID[id]);
@@ -2978,7 +2985,23 @@
         if (pushFrame || pushTitle) saveLookToAccount({ frame: pushFrame ? now.frame : (myProfile.frame || 'zadny'), title: pushTitle ? now.title : (myProfile.title_pref || 'level') });
         updateControlsUI();
     };
+    // Sova jako obrázek profilu: po změně doplňků nebo barvy obleku se profil sám přeuloží (se zpožděním, ať se nepošle každé klepnutí)
+    let owlSaveTimer = null;
+    const saveOwlToAccount = () => {
+        const user = signedUser();
+        if (!user || !Social || !myProfile || myProfile.id !== user.id || !myProfile.owl || devActive()) return;
+        const owl = myOwlText();
+        if (!owl || owl === myProfile.owl) return;
+        myProfile = { ...myProfile, owl };
+        Social.saveOwl(user.id, owl).catch(() => {});
+    };
     if (Look) Look.onChange((prefs, key) => {
+        if ((key === 'acc' || key === 'robe') && myProfile && myProfile.owl) {
+            updateProfileButton();
+            paintChallenges();
+            clearTimeout(owlSaveTimer);
+            owlSaveTimer = setTimeout(saveOwlToAccount, 800);
+        }
         if (key === 'frame' && myProfile) { updateProfileButton(); paintChallenges(); }
         if (!adoptingLook && (key === 'frame' || key === 'title')) saveLookToAccount(prefs);
     });

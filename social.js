@@ -75,9 +75,11 @@
         }
         return run(false);
     };
-    const profileFields = (extras) => extras ? 'id,display_name,avatar,color,frame,title_pref' : 'id,display_name,avatar,color';
+    const profileFields = (extras) => extras ? 'id,display_name,avatar,color,frame,title_pref,owl' : 'id,display_name,avatar,color';
     // Rámeček a titul z cizího řádku: jen tvarově platné hodnoty (znáte-li katalog, jen jeho položky)
     const cleanFrame = (value, known = null) => typeof value === 'string' && /^[a-z0-9-]{1,24}$/.test(value) && (!known || known.includes(value)) ? value : null;
+    // Sova jako obrázek: jen tvarově platný text (id z katalogu zkontroluje až vykreslení, MudrlantOwl.parseOwl)
+    const cleanOwl = (value) => typeof value === 'string' && /^[a-z0-9=.;-]{1,200}$/.test(value) ? value : null;
     const cleanTitlePref = (value) => typeof value === 'string' && /^[a-z0-9-]{1,40}$/.test(value) ? value : null;
     const getProfile = async (userId) => (await withExtras(extras => request('GET', `profiles?id=eq.${encodeURIComponent(userId)}&select=${profileFields(extras)}`)) || [])[0] || null;
     // Rámeček a titul u jména do účtu; bez nových sloupců v databázi se potichu nic neuloží
@@ -92,18 +94,41 @@
             return false;
         }
     };
-    const saveProfile = async (userId, { name, avatar, color }) => {
+    // Jen sova (po změně doplňků nebo barvy obleku se obrázek profilu přeuloží sám); bez sloupce v databázi se potichu nic neuloží
+    const saveOwl = async (userId, owl) => {
+        if (extrasMissing) return false;
+        try {
+            await request('PATCH', `profiles?id=eq.${encodeURIComponent(userId)}`, { body: { owl: cleanOwl(owl) }, prefer: 'return=minimal' });
+            return true;
+        } catch (error) {
+            if (error.status !== 400) throw error;
+            extrasMissing = true;
+            return false;
+        }
+    };
+    const saveProfile = async (userId, { name, avatar, color, owl }) => {
         const patch = { display_name: cleanName(name), avatar: allAvatars().includes(avatar) ? avatar : AVATARS[0], color: COLORS.includes(color) ? color : COLORS[0] };
+        // Sova (sloupec owl) je v pozdější verzi schématu: nejdřív s ní, při 400 (sloupec chybí) bez ní; obrázek avatar zůstává jako záloha
+        const cleanedOwl = cleanOwl(owl);
+        if (cleanedOwl) patch.avatar = AVATARS.includes('🦉') ? '🦉' : patch.avatar;
         if (!isValidName(patch.display_name)) throw new SocialError('Přezdívka má mít 2 až 24 znaků: písmena, číslice, mezeru, tečku, podtržítko nebo pomlčku.', 400);
+        const send = (body) => request('PATCH', `profiles?id=eq.${encodeURIComponent(userId)}`, { body, prefer: 'return=representation' });
         let rows;
         try {
-            rows = await request('PATCH', `profiles?id=eq.${encodeURIComponent(userId)}`, { body: patch, prefer: 'return=representation' });
+            try {
+                rows = await send(extrasMissing ? patch : { ...patch, owl: cleanedOwl });
+            } catch (error) {
+                if (error.status !== 400 || extrasMissing) throw error;
+                // 400 může být i špatná přezdívka: zkusí se bez nových sloupců, a jen když projde, ví se, že sloupec chybí
+                rows = await send(patch);
+                extrasMissing = true;
+            }
         } catch (error) {
             // Přezdívka je jedinečná: databáze odmítne tu, kterou už někdo má
             if (error.status === 409) throw new SocialError('Tuhle přezdívku už má jiný hráč.', 409);
             throw error;
         }
-        return rows && rows[0] ? rows[0] : { id: userId, ...patch };
+        return rows && rows[0] ? rows[0] : { id: userId, ...patch, owl: extrasMissing ? null : cleanedOwl };
     };
 
     // Založí výzvu a vrátí ji (kód vybírá klient; při srážce s existujícím kódem zkusí jiný)
@@ -172,7 +197,7 @@
     // Top hráči aktuálního týdne (veřejné údaje); null, když funkce v databázi ještě není
     const weeklyLeaderboard = () => guardRating(async () => {
         const rows = await request('POST', 'rpc/weekly_leaderboard', { body: {} }) || [];
-        return rows.map(row => ({ ...row, frame: cleanFrame(row.frame), title_pref: cleanTitlePref(row.title_pref), rating: cleanRatingNumber(row.rating) || 1000, week_delta: Math.floor(Number(row.week_delta) || 0), week_wins: Math.floor(Number(row.week_wins) || 0), week_games: Math.floor(Number(row.week_games) || 0) }));
+        return rows.map(row => ({ ...row, frame: cleanFrame(row.frame), title_pref: cleanTitlePref(row.title_pref), owl: cleanOwl(row.owl), rating: cleanRatingNumber(row.rating) || 1000, week_delta: Math.floor(Number(row.week_delta) || 0), week_wins: Math.floor(Number(row.week_wins) || 0), week_games: Math.floor(Number(row.week_games) || 0) }));
     }, null);
 
     // Profil hráče pro cizí oči: počet her, úspěšnost, nejlepší výsledek a (u cizího hráče) vzájemná bilance s přihlášeným
@@ -247,5 +272,5 @@
         return invites.filter(row => !done.has(row.id));
     };
 
-    return { AVATARS, allAvatars, cleanFrame, cleanTitlePref, saveLook, COLORS, COUNTS, NAME_MAX, SocialError, cleanName, isValidName, newCode, parseCode, getProfile, saveProfile, createChallenge, getChallenge, getResults, submitResult, myChallenges, searchPlayers, randomOpponent, incomingChallenges, playerStats, getProgress, saveProgress, getRating, getRatingChange, weeklyLeaderboard, getAccepts, saveAccepts };
+    return { AVATARS, allAvatars, cleanFrame, cleanOwl, saveOwl, cleanTitlePref, saveLook, COLORS, COUNTS, NAME_MAX, SocialError, cleanName, isValidName, newCode, parseCode, getProfile, saveProfile, createChallenge, getChallenge, getResults, submitResult, myChallenges, searchPlayers, randomOpponent, incomingChallenges, playerStats, getProgress, saveProgress, getRating, getRatingChange, weeklyLeaderboard, getAccepts, saveAccepts };
 });
