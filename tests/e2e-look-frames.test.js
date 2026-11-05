@@ -212,7 +212,10 @@ test('odměny ve Vzhledu: rámečky, titul a obrázky hráče', { skip: !chromiu
         await tab.selectOption('[data-title-select]', 'vitez');
         await until(() => db.profiles['u-1'].title_pref === 'vitez', 'odznak jako titul v účtu');
         assert.equal(await tab.inputValue('[data-title-select]'), 'vitez');
+        // Zvolený titul je vidět i u mého jména v hlavičce Nastavení
+        await tab.waitForFunction(() => /Vítěz/.test(document.querySelector('[data-open-progress]').textContent));
         await tab.selectOption('[data-title-select]', 'level');
+        await tab.waitForFunction(() => /Úr\. 20 · /.test(document.querySelector('[data-open-progress]').textContent));
         await until(() => db.profiles['u-1'].title_pref === null, 'úroveň (výchozí) v účtu');
         await tab.selectOption('[data-title-select]', 'none');
         await until(() => db.profiles['u-1'].title_pref === 'none', 'titul Nic v účtu podruhé');
@@ -237,10 +240,15 @@ test('odměny ve Vzhledu: rámečky, titul a obrázky hráče', { skip: !chromiu
         await tab.waitForTimeout(400);
         assert.doesNotMatch(await tab.textContent('#dialog-overlay'), /Úr\. 30|Vítěz/);
         await tab.click('#dialog-overlay [data-close]');
-        db.profiles['u-2'].title_pref = 'gladiator';
+        db.profiles['u-2'].title_pref = 'neexistuje';
         await tab.click('#challenges-section [data-player-id="u-2"]');
         await tab.waitForFunction(() => /Úr\. 30/.test((document.getElementById('dialog-overlay') || {}).textContent || ''));
-        assert.doesNotMatch(await tab.textContent('#dialog-overlay'), /Gladiátor/, 'neplatný nebo neziskaný titul se neukáže');
+        assert.doesNotMatch(await tab.textContent('#dialog-overlay'), /neexistuje/, 'neznámý titul se neukáže');
+        await tab.click('#dialog-overlay [data-close]');
+        // Titul je jen vzhled: vybraný odznak se ukáže, i když ho v uloženém postupu hráče ještě není (třeba při zkoušení ve vývojářském režimu)
+        db.profiles['u-2'].title_pref = 'gladiator';
+        await tab.click('#challenges-section [data-player-id="u-2"]');
+        await tab.waitForFunction(() => /Gladiátor/.test((document.getElementById('dialog-overlay') || {}).textContent || ''));
         assert.deepEqual(log.errors, []);
         assert.deepEqual(log.csp, []);
         await context.close();

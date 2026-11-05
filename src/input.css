@@ -144,3 +144,6 @@
     .league-fg-diamant { color: #a5b4fc; }
     .league-fg-mistr { color: #d8b4fe; }
 }
+
+/* Výchozí čepice sovy se skryje, když doplněk na hlavě čepici nahrazuje (maska scripts/owl-hat-mask.py) */
+.owl-nohat > img:first-child { -webkit-mask-image: url(icons/logo-maska.webp); mask-image: url(icons/logo-maska.webp); -webkit-mask-size: 100% 100%; mask-size: 100% 100%; }

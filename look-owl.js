@@ -94,13 +94,16 @@
         const parsed = parseOwl(parsedOrText);
         if (!parsed) return '';
         const src = `icons/logo${parsed.robe === 'vinova' ? '' : `-${parsed.robe}`}.webp`;
-        return `<span class="relative inline-flex shrink-0 ${wrapClass}"><img data-keep src="${src}" alt="" class="${imgClass}">${layersHtml(parsed.acc, 'data-keep')}</span>`;
+        return `<span class="relative inline-flex shrink-0 ${wrapClass}${hatClass(parsed.acc)}"><img data-keep src="${src}" alt="" class="${imgClass}">${layersHtml(parsed.acc, 'data-keep')}</span>`;
     };
 
     const currentAcc = () => (Look ? Look.prefs().acc : null) || {};
     // Logo sovy s vybranými doplňky; wrapClass patří obalu (okraje), imgClass samotné sově
+    // Doplněk na hlavě, který nahrazuje čepici (helma, přilba, baret): výchozí čepice se z loga maskou skryje (třída owl-nohat, src/input.css)
+    const hidesHat = (acc) => { const id = acc && acc.head && acc.head.id; const item = id && Look ? Look.find('accessories', id) : null; return Boolean(item && item.hidesHat); };
+    const hatClass = (acc) => hidesHat(acc) ? ' owl-nohat' : '';
     const logoHtml = (wrapClass, imgClass, acc = currentAcc()) =>
-        `<span data-owl class="relative inline-flex shrink-0 ${wrapClass}"><img src="icons/logo.webp" alt="" class="${imgClass}">${layersHtml(acc)}</span>`;
+        `<span data-owl class="relative inline-flex shrink-0 ${wrapClass}${hatClass(acc)}"><img src="icons/logo.webp" alt="" class="${imgClass}">${layersHtml(acc)}</span>`;
 
     // Po změně voleb se vrstvy všech sov na stránce přepíší na místě
     const refresh = (acc) => {
@@ -108,6 +111,7 @@
         document.querySelectorAll('[data-owl]').forEach(wrapper => {
             wrapper.querySelectorAll('[data-owl-layer]').forEach(layer => layer.remove());
             wrapper.insertAdjacentHTML('beforeend', layersHtml(acc));
+            wrapper.classList.toggle('owl-nohat', hidesHat(acc));
         });
     };
 

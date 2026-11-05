@@ -163,6 +163,13 @@ test('doplňky sovy v Nastavení', { skip: !chromium && 'Playwright není nainst
         const sources = await layers(tab);
         // Pořadí vrstev: obličej, hlava, ruka; ruka vždy navrch
         assert.deepEqual(sources.map(src => src.replace('icons/doplnky/', '').replace('.webp', '')), ['lab-bryle', 'prilba', 'sitka']);
+        // Přilba nahrazuje čepici: výchozí čepice se z loga maskou skryje a s jiným doplňkem na hlavě je zase vidět
+        assert.equal(await tab.evaluate(() => document.querySelector('#status-icon-slot [data-owl]').classList.contains('owl-nohat')), true);
+        assert.match(await tab.evaluate(() => getComputedStyle(document.querySelector('#status-icon-slot [data-owl] > img')).maskImage || getComputedStyle(document.querySelector('#status-icon-slot [data-owl] > img')).webkitMaskImage), /logo-maska\.webp/);
+        await tab.click('[data-owl-pick="head:none"]');
+        await tab.waitForFunction(() => !document.querySelector('#status-icon-slot [data-owl]').classList.contains('owl-nohat'));
+        await tab.click('[data-owl-pick="head:prilba"]');
+        await tab.waitForFunction(() => document.querySelector('#status-icon-slot [data-owl]').classList.contains('owl-nohat'));
         // Zamčený doplněk se klepnutím nevybere
         await tab.click('[data-owl-pick="head:helma"]', { force: true });
         assert.equal((await layers(tab)).length, 3);

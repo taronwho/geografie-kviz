@@ -16,7 +16,7 @@ LOGO_SIZE = (258, 320)
 # Vrstva má rám loga rozšířený o okraje (koruna, sluchátka a lupa přesahují obrys sovy): podíl šířky/výšky loga
 PAD = {'l': 0.34, 'r': 0.22, 't': 0.26, 'b': 0.12}
 # Doplňky v obličeji zakrývají i oči a monokl pod sebou, proto se jejich plocha vyplní celá (bez děr)
-FILL = {'bryle', 'slunecni-bryle', 'koruna', 'lab-bryle', '3d-bryle'}
+FILL = {'bryle', 'slunecni-bryle', 'koruna', 'lab-bryle', '3d-bryle', 'helma', 'prilba', 'baret'}
 # Doplňky v ruce posunou na obrázku celou sovu (obdélník sovy zahrnuje i předmět): zarovná se podle čepice a hlavy
 HAND = {'vlajka', 'svitek', 'brk', 'sitka'}
 # Doplněk zlaté barvy na zlatém podkladu (koruna přes knoflík čepice, stuha medaile přes zlatý límec) se od původní sovy skoro neliší:
@@ -162,6 +162,7 @@ def layer(base, warped, mask, frame, border=BORDER):
     m = cv2.dilate(mask, np.ones((3, 3), np.uint8))
     alpha = cv2.GaussianBlur(m.astype(np.float32), (0, 0), 1.0)
     alpha = np.clip(alpha * 1.4, 0, 1)
+    alpha = np.where(alpha < 0.16, 0, alpha)  # slabé zbytky rozdílu (stíny, obrys původní čepice) se zahodí
     rgba = np.dstack([warped.astype(np.float32), alpha * 255]).astype(np.uint8)
     crop = rgba[y0 - t:y0 + h + b, x0 - l:x0 + w + r]
     img = Image.fromarray(crop, 'RGBA')
