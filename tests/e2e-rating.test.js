@@ -201,6 +201,22 @@ test('rating, ligy a týdenní žebříček', { skip: !chromium && 'Playwright n
         await context.close();
     });
 
+    await t.test('žebříček: můj řádek má moji sovu, i když ji databáze (starší schéma) nevrací', async () => {
+        const db = newDb();
+        const { context, tab, log } = await setup(browser, { ...login('tok-u1'), 'mudrlant.owlAvatar': 'true', 'mudrlant.look': JSON.stringify({ robe: 'zelena' }) });
+        await backend(context, db);
+        await tab.goto(`${ORIGIN}/`);
+        await waitForHome(tab);
+        await tab.waitForSelector('#league-card');
+        await tab.click('#league-card [data-action="weekly-board"]');
+        await tab.waitForSelector('#weekly-list');
+        assert.equal(await tab.locator('#weekly-list li[data-me] img[data-keep]').count() > 0, true, 'můj řádek ukazuje sovu, ne emoji');
+        assert.equal(await tab.locator('#weekly-list li:not([data-me]) img[data-keep]').count(), 0, 'cizí řádky bez sovy zůstanou s emoji');
+        assert.deepEqual(log.errors, []);
+        assert.deepEqual(log.csp, []);
+        await context.close();
+    });
+
     await t.test('databáze bez ratingu: aplikace nespadne, karta ligy se neukáže', async () => {
         const db = newDb();
         const { context, tab, log } = await setup(browser, login('tok-u1'));

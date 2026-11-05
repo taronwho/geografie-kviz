@@ -2929,7 +2929,9 @@
         const frame = window.MudrlantLookFrames ? window.MudrlantLookFrames.frameClass(ownFrame ? (ownFrame === 'zadny' ? null : ownFrame) : (player && player.frame)) : '';
         // Sova jako obrázek profilu: vlastní se bere z lokální volby (doplňky a barva obleku platí hned), cizí z profilu hráče
         const isMe = Boolean(me && player && player.id === me.id);
-        const owlHtml = player && player.owl && Owl && Owl.owlAvatarHtml ? Owl.owlAvatarHtml(isMe && Look ? myOwlText() : player.owl) : '';
+        // Můj vlastní řádek (žebříček, výzvy) nemusí mít sovu z databáze (starší schéma): bere se z mého profilu / zařízení
+        const showsOwl = Boolean(player && (player.owl || (isMe && myProfile && myProfile.owl)));
+        const owlHtml = showsOwl && Owl && Owl.owlAvatarHtml ? Owl.owlAvatarHtml(isMe && Look ? myOwlText() : player.owl) : '';
         return `<span ${linked ? `data-player-id="${escapeHtml(player.id)}" role="button" tabindex="0" aria-label="Profil hráče ${escapeHtml(playerName(player))}"` : 'aria-hidden="true"'} class="flex shrink-0 items-center justify-center rounded-full ${size} ${avatarBg(player && player.color)}${frame}${linked ? ' cursor-pointer' : ''}">${owlHtml || escapeHtml((player && player.avatar) || '🦊')}</span>`;
     };
     // Téma výzvy: „mix“ (všechna), jedno téma, nebo víc témat oddělených čárkou
