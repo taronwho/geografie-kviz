@@ -896,6 +896,17 @@
     };
     const dropKnownFacts = (facts, text) => facts.filter(fact => !isFactVisible(fact.value, text));
 
+    // Osa (stáří období, tvrdost…), jejíž hodnotu už říká text otázky („před 251,9 až 201,4 miliony let“), nic nepřidá: poznáme ji podle čísel
+    // v popisku hodnoty (desetinná čísla a čísla od tří číslic; jednociferná by se v textu našla náhodou). Tisíce se píšou s mezerou (11 700).
+    const scaleKnown = (spec, text) => {
+        if (!spec || spec.type !== 'scale') return false;
+        const normalize = (value) => String(value).replace(/(\d)[ \u00a0](?=\d{3}(?!\d))/g, '$1').replace(/(\d)\.(?=\d)/g, '$1,');
+        const tokens = (normalize(spec.valueLabel || '').match(/\d+(?:,\d+)?/g) || []).filter(token => token.includes(',') || token.length >= 3);
+        if (!tokens.length) return false;
+        const haystack = normalize(text);
+        return tokens.every(token => new RegExp(`(?<![\\d,])${token}(?![\\d]|,\\d)`).test(haystack));
+    };
+
     // Jméno nesprávné možnosti ve faktu (u Kerberose „Sourozenci: Chiméra, Hydra“, u Dia „Děti: Athéna, Apollón“) by ji
     // vyřadilo – kdo bere sourozence, ten je mezi možnostmi nehledá. Ze seznamu hodnot (čárka, „a“) se taková jména
     // vypustí, fakt bez zbytku zmizí. Porovnává se celé jméno bez diakritiky, nejen začátek.
@@ -1295,7 +1306,7 @@
         inCollection, filterItems, pickItem, sortItems, getCountryNames, getContinent, continentAt, getCountryAliases,
         distanceKm, nearness, STATE_STEPS, sharesGroup, eraNearness, personSimilarity, rankBySimilarity, takeDistinct,
         buildItemChoices, buildCountryChoices, findAnswerItem, findAnswerCountry, updateMistakes, nameAnswers, countryAnswers,
-        pointsFor, dropKnownFacts, dropChoiceNames, sharesWordRoot, chooseDescription, censoredShare, MAX_CENSORED_SHARE, isFactVisible, formatNumber, formatPopulation, formatYear, formatFacts, getMapSpan, buildBlindMap,
+        pointsFor, dropKnownFacts, scaleKnown, dropChoiceNames, sharesWordRoot, chooseDescription, censoredShare, MAX_CENSORED_SHARE, isFactVisible, formatNumber, formatPopulation, formatYear, formatFacts, getMapSpan, buildBlindMap,
         buildTimeline, centuryOf, centuryLabel, computeStreak, buildShareText, getTileLayout
     };
 });

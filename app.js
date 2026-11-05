@@ -7,7 +7,7 @@
         SATELLITE_TILES, OSM_TILES,
         escapeHtml, isRealPhoto, commonsPhotoUrl, commonsFileUrl, displayName, formatPoints, getDayKey, formatDayKey, createSeededRandom, pickRandom,
         censorName, mergeCensored, processWikiText, stripFactSentences, takeLeadFacts, checkAnswer, normalizeAnswer, filterItems, pickItem, sortItems,
-        buildItemChoices, findAnswerItem, setCountries, updateMistakes, nameAnswers, pointsFor, dropKnownFacts, dropChoiceNames, sharesWordRoot, chooseDescription,
+        buildItemChoices, findAnswerItem, setCountries, updateMistakes, nameAnswers, pointsFor, dropKnownFacts, scaleKnown, dropChoiceNames, sharesWordRoot, chooseDescription,
         computeStreak, buildShareText, getTileLayout, shuffle,
         LEVEL_XP, questionsForLevel, xpForLevel, MAX_LEVEL, LEVEL_TITLES,
         BADGES, BADGE_GROUPS, BADGE_BY_ID, earnedBadgeIds, compactBadges, expandBadges, normalizeCounters,
@@ -488,7 +488,7 @@
             if (step.kind === 'excerpt' && step.text) hint = { kind: 'excerpt', text: step.text, label: 'další věty', icon: 'book-open' };
             // Obrázek s napsanou odpovědí (portrét autora se jménem) nápovědou není
             const textImage = step.spec && step.spec.type === 'image' && textPhotos.has(step.spec.file);
-            if (step.kind === 'visual' && step.spec && Visuals.info(step.spec) && !timelineVisible(step.spec, visibleText) && !textImage) {
+            if (step.kind === 'visual' && step.spec && Visuals.info(step.spec) && !timelineVisible(step.spec, visibleText) && !scaleKnown(step.spec, visibleText) && !textImage) {
                 const masks = step.spec.type === 'image' && photoMasks[step.spec.file];
                 hint = { kind: 'visual', spec: masks ? { ...step.spec, masks } : step.spec, label: Visuals.info(step.spec).name, icon: Visuals.info(step.spec).icon };
             }
