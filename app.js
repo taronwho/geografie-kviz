@@ -2954,6 +2954,7 @@
     let myChallenges = null;
     let myRating = null;
     let incomingList = null;
+    let recentExpanded = false; // Poslední výzvy: rozbalené všechny (jinak jen tři nejnovější)
     let challengesLoading = false;
     const signedUser = () => (Auth && Auth.getState().user) || null;
     const playerName = (player) => (player && player.display_name) || 'Hráč';
@@ -3117,27 +3118,30 @@
     const challengeRow = (row) => {
         const count = row.challenge ? row.challenge.count : 0;
         const best = row.others.length ? Math.max(...row.others.map(other => other.correct)) : -1;
-        const outcome = !row.others.length ? 'čeká na soupeře' : row.correct > best ? 'vyhráno' : row.correct === best ? 'remíza' : 'prohráno';
-        const tone = outcome === 'vyhráno' ? 'text-emerald-700 dark:text-emerald-400' : outcome === 'prohráno' ? 'text-rose-700 dark:text-rose-400' : 'text-slate-500 dark:text-slate-400';
-        const rivals = row.others.slice(0, 3).map(other => avatarHtml(other.player, 'h-7 w-7 text-sm ring-2 ring-white dark:ring-slate-800', true)).join('');
+        const outcome = !row.others.length ? 'čeká' : row.correct > best ? 'vyhráno' : row.correct === best ? 'remíza' : 'prohráno';
+        // Barevný proužek vlevo a štítek: vyhráno zelená, prohráno červená, remíza zlatá, čeká šedá
+        const look = outcome === 'vyhráno' ? ['bg-emerald-500', 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300']
+            : outcome === 'prohráno' ? ['bg-rose-500', 'bg-rose-100 text-rose-800 dark:bg-rose-900/40 dark:text-rose-300']
+            : outcome === 'remíza' ? ['bg-gold-500', 'bg-gold-100 text-gold-800 dark:bg-gold-900/40 dark:text-gold-200']
+            : ['bg-slate-300 dark:bg-slate-600', 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300'];
+        const rivals = row.others.slice(0, 2).map(other => avatarHtml(other.player, 'h-7 w-7 text-sm ring-2 ring-white dark:ring-slate-800', true)).join('');
         return `
-            <button type="button" data-action="challenge-open" data-code="${escapeHtml(row.challenge_id)}" class="flex w-full items-center gap-3 rounded-2xl bg-white p-2.5 text-left shadow-sm ring-1 ring-slate-200/70 active:scale-[0.99] dark:bg-slate-800/70 dark:ring-slate-700/70">
-                <span class="flex min-w-[1.75rem] -space-x-2">${rivals || `<span class="flex h-7 w-7 items-center justify-center rounded-full bg-slate-100 text-slate-500 dark:text-slate-400 dark:bg-slate-700"><i data-lucide="users" class="h-4 w-4"></i></span>`}</span>
-                <span class="min-w-0 flex-1">
-                    <span class="block truncate text-[13px] font-bold text-slate-800 dark:text-slate-100">${escapeHtml(row.challenge ? challengeTopicTitle(row.challenge.topic) : '')} · ${count} otázek</span>
-                    <span class="block text-[11px] font-semibold ${tone}">${outcome}</span>
-                </span>
-                <span class="text-right text-base font-black text-slate-800 dark:text-slate-100">${row.correct}/${count}</span>
+            <button type="button" data-action="challenge-open" data-code="${escapeHtml(row.challenge_id)}" class="relative flex min-h-[2.75rem] w-full items-center gap-2 overflow-hidden rounded-xl bg-white py-1.5 pl-3.5 pr-2.5 text-left shadow-sm ring-1 ring-slate-200/70 active:scale-[0.98] dark:bg-slate-800/70 dark:ring-slate-700/70">
+                <span aria-hidden="true" class="absolute inset-y-0 left-0 w-1.5 ${look[0]}"></span>
+                <span class="flex shrink-0 -space-x-2">${rivals || `<span class="flex h-7 w-7 items-center justify-center rounded-full bg-slate-100 text-slate-500 dark:text-slate-400 dark:bg-slate-700"><i data-lucide="users" class="h-4 w-4"></i></span>`}</span>
+                <span class="min-w-0 flex-1 truncate text-[13px] font-bold text-slate-800 dark:text-slate-100">${escapeHtml(row.challenge ? challengeTopicTitle(row.challenge.topic) : '')}</span>
+                <span class="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-black ${look[1]}">${outcome}</span>
+                <span class="w-11 shrink-0 text-right text-[15px] font-black tabular-nums text-slate-800 dark:text-slate-100">${row.correct}/${count}</span>
             </button>`;
     };
     const incomingRow = (invite) => `
-        <button type="button" data-action="challenge-open" data-code="${escapeHtml(invite.id)}" class="flex w-full items-center gap-3 rounded-2xl bg-gold-50 p-2.5 text-left ring-1 ring-gold-300/70 active:scale-[0.99] dark:bg-gold-900/20 dark:ring-gold-700/60">
-            ${avatarHtml(invite.creator, 'h-9 w-9 text-lg', true)}
+        <button type="button" data-action="challenge-open" data-code="${escapeHtml(invite.id)}" class="flex w-full items-center gap-2.5 rounded-2xl bg-gold-50 p-2 text-left shadow-sm ring-1 ring-gold-300/70 active:scale-[0.98] dark:bg-gold-900/20 dark:ring-gold-700/60">
+            ${avatarHtml(invite.creator, 'h-10 w-10 text-xl', true)}
             <span class="min-w-0 flex-1">
                 <span class="block truncate text-[13px] font-black text-slate-800 dark:text-slate-100">${escapeHtml(playerName(invite.creator))} tě vyzývá</span>
-                <span class="block truncate text-[11px] font-semibold text-slate-500 dark:text-slate-400">${escapeHtml(challengeTopicTitle(invite.topic))} · ${invite.count} otázek</span>
+                <span class="block truncate text-[11px] font-semibold text-slate-600 dark:text-slate-400">${escapeHtml(challengeTopicTitle(invite.topic))} · ${invite.count} otázek</span>
             </span>
-            <span class="shrink-0 rounded-xl bg-gold-500 px-3 py-1.5 text-[13px] font-black text-brand-950">Hrát</span>
+            <span class="flex shrink-0 items-center gap-1 rounded-xl bg-gold-500 px-3.5 py-2 text-[13px] font-black text-brand-950 shadow-sm"><i data-lucide="play" class="h-3.5 w-3.5"></i>Hrát</span>
         </button>`;
     // Rating a ligy (rating.js; počítá je databáze po dohrání výzvy proti jinému hráči). Barvy lig jsou třídy .league-* v src/input.css.
     const Rating = window.MudrlantRating;
@@ -3155,17 +3159,15 @@
         const progress = Rating.leagueProgress(myRating.rating);
         const hint = progress.next ? `Do ligy ${progress.next.name} ještě ${progress.toNext}` : 'Nejvyšší liga';
         return `
-            <div id="league-card" class="flex items-center gap-2.5 rounded-2xl bg-white p-2.5 shadow-sm ring-1 ring-slate-200/70 dark:bg-slate-800/70 dark:ring-slate-700/70">
-                ${leagueBubble(progress.league)}
+            <div id="league-card" class="flex items-center gap-2.5 rounded-2xl bg-white p-2 shadow-sm ring-1 ring-slate-200/70 dark:bg-slate-800/70 dark:ring-slate-700/70">
+                ${leagueBubble(progress.league, 'h-10 w-10')}
                 <div class="min-w-0 flex-1">
-                    <p class="truncate text-[15px] font-black leading-tight text-slate-800 dark:text-slate-100"><span class="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">Moje liga</span> ${escapeHtml(progress.league.name)} · ${myRating.rating}</p>
+                    <p class="truncate text-[15px] font-black leading-tight text-slate-800 dark:text-slate-100"><span class="sr-only">Moje liga </span>${escapeHtml(progress.league.name)} · ${myRating.rating}</p>
                     <div class="mt-1 h-1.5 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${progress.percent}" aria-label="Postup do další ligy"><div class="league-${progress.league.id} h-full rounded-full ${BAR_WIDTHS[Math.round(progress.percent / 10)]}"></div></div>
-                    <p class="mt-0.5 truncate text-[10.5px] font-semibold text-slate-500 dark:text-slate-400">${myRating.games ? hint : 'Rating se mění výzvami proti jinému hráči'}</p>
+                    <p class="mt-0.5 truncate text-[10.5px] font-semibold text-slate-500 dark:text-slate-400">${myRating.games ? hint : 'Rating se mění výzvami'}</p>
                 </div>
-                <div class="flex shrink-0 flex-col items-stretch gap-0.5">
-                    <button type="button" data-action="weekly-board" class="flex items-center justify-center gap-1.5 rounded-xl bg-gold-50 px-2.5 py-1.5 text-[12px] font-black text-brand-950 ring-1 ring-gold-300/70 active:scale-[0.97] dark:bg-gold-900/20 dark:text-gold-200 dark:ring-gold-700/60"><i data-lucide="trophy" class="h-4 w-4"></i> Týden</button>
-                    <button type="button" data-action="league-help" class="whitespace-nowrap rounded-lg px-0.5 py-1 text-[10px] font-black text-brand-700 underline underline-offset-2 active:scale-95 dark:text-brand-300">Jak to funguje?</button>
-                </div>
+                <button type="button" data-action="weekly-board" class="flex h-10 shrink-0 items-center justify-center gap-1.5 rounded-xl bg-gold-50 px-3 text-[12px] font-black text-brand-950 ring-1 ring-gold-300/70 active:scale-95 dark:bg-gold-900/20 dark:text-gold-200 dark:ring-gold-700/60"><i data-lucide="trophy" class="h-4 w-4"></i> Týden</button>
+                <button type="button" data-action="league-help" aria-label="Jak fungují ligy" title="Jak to funguje?" class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-100 text-[13px] font-black text-brand-700 active:scale-95 dark:bg-slate-700 dark:text-cream">?</button>
             </div>`;
     };
     // Vysvětlení ratingu a lig (z karty ligy i z týdenního žebříčku). Hranice a vzhled lig se čtou z rating.js. fromBoard = tlačítko Zpět na žebříček.
@@ -3248,6 +3250,31 @@
             </button>`;
         return `<div id="home-tabs" role="tablist" class="flex shrink-0 gap-1 rounded-2xl bg-slate-200/70 p-1 dark:bg-slate-800">${option('single', 'user-round', 'Jeden hráč')}${option('multi', 'users', 'Více hráčů', waiting)}</div>`;
     };
+    // Rychlé akce: tři dlaždice (Vyzvat, Náhodný soupeř, Zadat kód) a pod nimi drobný čip s nastavením přijímaných výzev
+    const QUICK_TILE = 'flex min-h-[4.5rem] min-w-0 flex-col items-center justify-center gap-1 rounded-2xl px-1 py-2 text-center text-[12px] font-black leading-tight';
+    const QUICK_LIGHT = 'bg-white text-slate-800 shadow-sm ring-1 ring-slate-200/70 active:scale-95 dark:bg-slate-800 dark:text-slate-100 dark:ring-slate-700/70';
+    const quickActions = () => `
+        <div class="flex flex-col gap-1.5">
+            <div class="grid grid-cols-3 gap-2">
+                <button type="button" data-action="new-challenge" class="${QUICK_TILE} btn-3d bg-brand-700 text-white">${uiArt('vyzva', 'h-9 w-9')}Vyzvat</button>
+                <button type="button" data-action="random-challenge" class="${QUICK_TILE} ${QUICK_LIGHT}"><span class="flex h-9 w-9 items-center justify-center rounded-full bg-brand-100 text-brand-700 dark:bg-brand-900/50 dark:text-brand-200"><i data-lucide="shuffle" class="h-5 w-5"></i></span>Náhodný soupeř</button>
+                <button type="button" data-action="join-challenge" class="${QUICK_TILE} ${QUICK_LIGHT}"><span class="flex h-9 w-9 items-center justify-center rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300"><i data-lucide="hash" class="h-5 w-5"></i></span>Zadat kód</button>
+            </div>
+            <button type="button" data-action="open-accept" title="Změnit, z jakých témat přijímám výzvy" class="flex min-h-[2rem] max-w-full items-center gap-1.5 self-center rounded-full bg-slate-200/60 px-3 py-1 text-[11.5px] font-bold text-slate-600 active:scale-95 dark:bg-slate-800/80 dark:text-slate-300"><i data-lucide="shield-check" class="h-3.5 w-3.5 shrink-0 text-brand-700 dark:text-brand-300"></i><span class="min-w-0 truncate">Přijímám výzvy z: <b class="text-slate-800 dark:text-slate-100">${escapeHtml(acceptSummary())}</b></span><i data-lucide="pencil" class="h-3 w-3 shrink-0 text-brand-700 dark:text-cream"></i></button>
+        </div>`;
+    // Poslední výzvy: jen tři nejnovější, Zobrazit vše rozbalí zbytek
+    const recentSection = (incoming) => {
+        const LABEL = 'px-1 text-[11px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400';
+        const rows = myChallenges === null ? [] : myChallenges.filter(row => !incoming.some(invite => invite.id === row.challenge_id)).slice(0, 6);
+        const more = rows.length > 3;
+        const toggle = more ? `<button type="button" data-action="recent-more" aria-expanded="${recentExpanded}" class="flex min-h-[2rem] items-center gap-1 rounded-lg px-1.5 text-[11px] font-black text-brand-700 active:scale-95 dark:text-cream">${recentExpanded ? 'Méně' : `Zobrazit vše (${rows.length})`}<i data-lucide="chevron-down" class="h-3.5 w-3.5 ${recentExpanded ? 'rotate-180' : ''}"></i></button>` : '';
+        const body = myChallenges === null
+            ? '<p class="px-1 text-xs font-semibold text-slate-500 dark:text-slate-400">Načítám výzvy…</p>'
+            : rows.length ? `<div class="flex flex-col gap-1.5">${(recentExpanded ? rows : rows.slice(0, 3)).map(challengeRow).join('')}</div>`
+                : `<div class="flex items-center gap-3 rounded-2xl bg-white p-2.5 shadow-sm ring-1 ring-slate-200/70 dark:bg-slate-800/70 dark:ring-slate-700/70">${uiArt('sova-vyzva', 'h-10 w-10')}<p class="text-sm text-slate-600 dark:text-slate-300">Zatím žádné výzvy. Založ první tlačítkem Vyzvat.</p></div>`;
+        return `<div class="flex flex-col gap-1"><div class="flex min-h-[2rem] items-center justify-between gap-2"><p class="${LABEL}">Poslední výzvy</p>${toggle}</div>${body}</div>`;
+    };
+    // Pořadí podle důležitosti: co čeká na hráče (rozehraná výzva, zápas turnaje dnes, pozvánky), turnaj, rychlé akce, liga, poslední výzvy
     const challengesInner = () => {
         const user = signedUser();
         const LABEL = 'px-1 text-[11px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400';
@@ -3261,23 +3288,19 @@
         }
         const incoming = incomingList || [];
         const resume = challenge && !challenge.done
-            ? `<button type="button" data-action="challenge-resume" class="flex w-full items-center justify-center gap-2 rounded-2xl btn-3d bg-gradient-to-b from-gold-400 to-gold-600 px-4 py-3 text-[15px] font-black text-brand-950"><i data-lucide="play" class="h-5 w-5"></i> Pokračovat ve výzvě (${challenge.index + 1}/${challenge.count})</button>` : '';
-        const recent = myChallenges === null
-            ? '<p class="px-1 text-xs font-semibold text-slate-500 dark:text-slate-400">Načítám výzvy…</p>'
-            : (myChallenges.filter(row => !incoming.some(invite => invite.id === row.challenge_id)).slice(0, 6).map(challengeRow).join('')
-                || '<p class="px-1 text-sm text-slate-500 dark:text-slate-400">Zatím žádné výzvy. Založ první tlačítkem Vyzvat.</p>');
+            ? `<button type="button" data-action="challenge-resume" class="flex w-full items-center justify-center gap-2 rounded-2xl btn-3d bg-gradient-to-b from-gold-400 to-gold-600 px-4 py-2.5 text-[15px] font-black text-brand-950"><i data-lucide="play" class="h-5 w-5"></i> Pokračovat ve výzvě (${challenge.index + 1}/${challenge.count})</button>` : '';
+        const waiting = incoming.length ? `<div class="flex flex-col gap-1.5"><p class="flex items-center gap-1.5 ${LABEL}"><span class="h-2 w-2 rounded-full bg-gold-500"></span>Čekají na tebe</p>${incoming.slice(0, 5).map(incomingRow).join('')}</div>` : '';
+        // Zápas turnaje, který se hraje dnes, je mezi tím, co čeká: karta turnaje se zlatým Hrát jde nahoru
+        const tournamentFirst = tournamentWaits();
         return `
-            <div class="flex flex-col gap-3">
-                <div class="grid grid-cols-2 gap-2">
-                    <button type="button" data-action="new-challenge" class="flex items-center justify-center gap-2 rounded-2xl btn-3d bg-brand-700 px-3 py-3.5 text-[15px] font-black text-white">${uiArt('vyzva', 'h-7 w-7')} Vyzvat</button>
-                    <button type="button" data-action="join-challenge" class="flex items-center justify-center gap-2 rounded-2xl bg-white px-3 py-3.5 text-[15px] font-bold text-slate-800 shadow-sm ring-1 ring-slate-200/70 active:scale-[0.98] dark:bg-slate-800 dark:text-slate-100 dark:ring-slate-700/70"><i data-lucide="hash" class="h-5 w-5"></i> Zadat kód</button>
-                </div>
-                <button type="button" data-action="open-accept" class="flex w-full items-center gap-2 rounded-xl bg-slate-200/60 px-3 py-2 text-left text-xs dark:bg-slate-800/70"><i data-lucide="shield-check" class="h-4 w-4 shrink-0 text-brand-700 dark:text-brand-300"></i><span class="min-w-0 flex-1 truncate font-bold text-slate-600 dark:text-slate-300">Přijímám výzvy z: <b class="text-slate-800 dark:text-slate-100">${escapeHtml(acceptSummary())}</b></span><span class="shrink-0 font-black text-brand-700 dark:text-cream">Změnit</span></button>
-                ${leagueCard()}
-                ${tournamentCard()}
+            <div class="flex flex-col gap-2.5">
                 ${resume}
-                ${incoming.length ? `<div class="flex flex-col gap-2"><p class="${LABEL}">Čekají na tebe</p>${incoming.slice(0, 5).map(incomingRow).join('')}</div>` : ''}
-                <div class="flex flex-col gap-2"><p class="${LABEL}">Poslední výzvy</p>${recent}</div>
+                ${tournamentFirst ? tournamentCard() : ''}
+                ${waiting}
+                ${tournamentFirst ? '' : tournamentCard()}
+                ${quickActions()}
+                ${leagueCard()}
+                ${recentSection(incoming)}
             </div>`;
     };
     const renderChallengesSection = () => Auth && Auth.isConfigured() && Social ? `<section id="challenges-section">${challengesInner()}</section>` : '';
@@ -3433,7 +3456,7 @@
 
     // Nová výzva: komu (konkrétní hráč / náhodný / odkaz), téma (i víc témat), počet otázek a nastavení. Téma a nastavení jsou
     // souhrnné řádky, které se rozbalí klepnutím; tlačítko Vytvořit a hrát je stále dole na očích.
-    // preset = { opponent, last }: výzva se předvyplní nastavením z poslední hry s tímto hráčem (úprava před odvetou)
+    // preset = { opponent, last }: výzva se předvyplní nastavením z poslední hry s tímto hráčem (úprava před odvetou); { who: 'random' }: rovnou náhodný soupeř
     const openNewChallenge = (preset = null) => {
         if (!signedUser()) return;
         const draft = { topics: [], count: 10, who: 'player', opponent: null, blocked: null, mixOk: true, query: '', found: null, hard: false, variant: 'choices', cats: null, open: null };
@@ -3655,6 +3678,7 @@
                 }, 280);
             }
         });
+        if (preset && preset.who === 'random') draft.who = 'random';
         if (preset && preset.opponent) {
             const last = preset.last;
             if (last) {
@@ -4364,13 +4388,15 @@
 
     // --- Karta na záložce Více hráčů ---
     const TOUR_BUBBLE = 'flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-gold-300 to-gold-600 text-brand-950 shadow-sm ring-2 ring-white/70 dark:ring-slate-700';
+    const TOUR_ICON = 'flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-gold-300 to-gold-600 text-brand-950 shadow-sm ring-2 ring-white/80 dark:ring-slate-700';
     const TOUR_LINK = 'rounded px-1 py-0.5 text-[11px] font-black text-brand-700 underline decoration-brand-700/40 underline-offset-2 dark:text-cream dark:decoration-cream/40';
-    const fillBar = (percent, count) => `<span class="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${percent}" aria-label="Naplnění turnaje"><span class="block h-full rounded-full bg-gradient-to-r from-gold-400 to-gold-600 ${BAR_WIDTHS[count ? Math.max(1, Math.round(percent / 10)) : 0]}"></span></span>`;
+    const TOUR_SMALL = 'flex shrink-0 items-center justify-center gap-1 rounded-xl bg-white/70 text-[11px] font-black text-slate-700 ring-1 ring-slate-300/70 active:scale-95 disabled:opacity-50 dark:bg-slate-900/40 dark:text-slate-200 dark:ring-slate-600';
+    const fillBar = (percent, count) => `<span class="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-white/80 dark:bg-slate-700" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${percent}" aria-label="Naplnění turnaje"><span class="block h-full rounded-full bg-gradient-to-r from-gold-400 to-gold-600 ${BAR_WIDTHS[count ? Math.max(1, Math.round(percent / 10)) : 0]}"></span></span>`;
     const entryButton = (state, id) => {
         const busy = tournamentBusy === id;
-        if (state.joined) return state.canLeave ? `<button type="button" data-action="tournament-leave" data-tid="${escapeHtml(id)}" ${busy ? 'disabled' : ''} class="shrink-0 rounded-xl bg-slate-200 px-3 py-2 text-[12px] font-black text-slate-700 active:scale-[0.97] disabled:opacity-50 dark:bg-slate-700 dark:text-slate-200">Odhlásit se</button>` : '';
-        if (state.canJoin) return `<button type="button" data-action="tournament-join" data-tid="${escapeHtml(id)}" ${busy ? 'disabled' : ''} class="shrink-0 rounded-xl btn-3d bg-brand-700 px-3 py-2 text-[12px] font-black text-white disabled:opacity-50">Přihlásit se</button>`;
-        return state.full && !state.closed ? '<span class="shrink-0 rounded-xl bg-slate-200 px-3 py-2 text-[12px] font-black text-slate-500 dark:bg-slate-700 dark:text-slate-400">Plno</span>' : '';
+        if (state.joined) return state.canLeave ? `<button type="button" data-action="tournament-leave" data-tid="${escapeHtml(id)}" ${busy ? 'disabled' : ''} class="${TOUR_SMALL} px-2.5 py-2">Odhlásit se</button>` : '';
+        if (state.canJoin) return `<button type="button" data-action="tournament-join" data-tid="${escapeHtml(id)}" ${busy ? 'disabled' : ''} class="flex shrink-0 items-center gap-1.5 rounded-2xl btn-3d bg-emerald-600 px-3.5 py-2.5 text-[14px] font-black text-white disabled:opacity-50"><span class="hidden min-[380px]:flex"><i data-lucide="trophy" class="h-4 w-4"></i></span>Přihlásit se</button>`;
+        return state.full && !state.closed ? '<span class="shrink-0 rounded-xl bg-white/70 px-3 py-2 text-[12px] font-black text-slate-600 dark:bg-slate-900/40 dark:text-slate-300">Plno</span>' : '';
     };
     const tournamentRow = (view) => {
         const { tournament, state, entries } = view;
@@ -4379,10 +4405,10 @@
         if (state.phase === 'open') {
             return `
                 <div data-tournament-row="open" class="flex items-center gap-2.5 py-2 first:pt-0 last:pb-0">
-                    <span class="${TOUR_BUBBLE}"><i data-lucide="users" class="h-4 w-4"></i></span>
+                    <span class="${TOUR_ICON}"><i data-lucide="users" class="h-5 w-5"></i></span>
                     <button type="button" data-action="tournament-open" data-tid="${id}" class="min-w-0 flex-1 text-left" aria-label="Přihlášení hráči">
-                        <span class="block truncate text-[13px] font-black leading-tight text-slate-800 dark:text-slate-100">Přihlášky otevřené</span>
-                        <span class="block truncate text-[11px] font-semibold text-slate-500 dark:text-slate-400">${state.closed ? 'Přihlášky jsou zavřené' : state.joined ? `Jsi přihlášen · ${escapeHtml(Tournament.formatDay(state.start))}` : `Začíná ${escapeHtml(Tournament.weekdayName(state.start))} ${escapeHtml(Tournament.formatDay(state.start))}`}</span>
+                        <span class="block truncate text-[14px] font-black leading-tight text-slate-800 dark:text-slate-100">Přihlášky otevřené</span>
+                        <span class="flex items-center gap-1 truncate text-[11px] font-semibold text-slate-600 dark:text-slate-300">${state.joined ? '<i data-lucide="circle-check" class="h-3.5 w-3.5 shrink-0 text-emerald-600 dark:text-emerald-400"></i>' : ''}<span class="truncate">${state.closed ? 'Přihlášky jsou zavřené' : state.joined ? `Jsi přihlášen · ${escapeHtml(Tournament.formatDay(state.start))}` : `Začíná ${escapeHtml(Tournament.weekdayName(state.start))} ${escapeHtml(Tournament.formatDay(state.start))}`}</span></span>
                         <span class="mt-1 flex items-center gap-2">${fillBar(state.percent, state.count)}<span data-tournament-count class="text-[11px] font-black tabular-nums text-slate-700 dark:text-slate-200">${state.count}/${state.capacity}</span></span>
                     </button>
                     ${entryButton(state, tournament.id)}
@@ -4391,27 +4417,34 @@
         const names = Tournament.nameMap(entries);
         const text = Tournament.statusText(state, names, today);
         const title = state.phase === 'running' ? `Běží${state.roundName ? ` · ${state.roundName}` : ''}` : state.phase === 'finished' ? 'Poslední turnaj' : 'Turnaj';
-        const play = state.step === 'play' ? `<button type="button" data-action="tournament-play" data-tid="${id}" class="rounded-xl bg-gold-500 px-3.5 py-2 text-[13px] font-black text-brand-950 shadow-sm active:scale-[0.97]"><i data-lucide="play" class="mr-1 inline h-3.5 w-3.5"></i>Hrát</button>` : '';
+        const playing = state.step === 'play';
+        const play = playing ? `<button type="button" data-action="tournament-play" data-tid="${id}" class="flex shrink-0 items-center gap-1.5 rounded-2xl btn-3d bg-gradient-to-b from-gold-400 to-gold-600 px-4 py-2.5 text-[14px] font-black text-brand-950"><i data-lucide="play" class="h-4 w-4"></i>Hrát</button>` : '';
+        const bracket = state.phase === 'finished' ? ['award', 'Výsledky'] : ['git-branch', 'Pavouk'];
+        // S velkým tlačítkem Hrát je pavouk jen malá ikona, jinak ikona s popiskem
+        const open = `<button type="button" data-action="tournament-open" data-tid="${id}" ${playing ? `aria-label="${bracket[1]}" title="${bracket[1]}"` : ''} class="${TOUR_SMALL} ${playing ? 'h-10 w-10' : 'px-2.5 py-2'}"><i data-lucide="${bracket[0]}" class="h-4 w-4"></i>${playing ? '' : bracket[1]}</button>`;
         const opponent = state.opponent && view.entries.find(entry => entry.user_id === state.opponent);
         return `
             <div data-tournament-row="${state.phase}" ${state.step ? `data-step="${state.step}"` : ''} class="flex items-center gap-2.5 py-2 first:pt-0 last:pb-0">
-                <span class="${TOUR_BUBBLE}"><i data-lucide="trophy" class="h-4 w-4"></i></span>
+                <span class="${TOUR_ICON}"><i data-lucide="trophy" class="h-5 w-5"></i></span>
                 <div class="min-w-0 flex-1">
-                    <p class="truncate text-[13px] font-black leading-tight text-slate-800 dark:text-slate-100">${escapeHtml(title)}</p>
-                    <p data-tournament-text class="flex flex-wrap items-center gap-x-1 text-[11px] font-semibold leading-snug text-slate-500 dark:text-slate-400">${state.step === 'play' && opponent ? `<span>Dnes hraješ proti</span> <span class="inline-flex items-center gap-1">${avatarHtml(opponent.player, 'h-4 w-4 text-[10px]')}<b class="text-slate-700 dark:text-slate-200">${escapeHtml(playerName(opponent.player))}</b></span>` : escapeHtml(text)}</p>
+                    <p class="truncate text-[14px] font-black leading-tight text-slate-800 dark:text-slate-100">${escapeHtml(title)}</p>
+                    <p data-tournament-text class="flex flex-wrap items-center gap-x-1 text-[11px] font-semibold leading-snug text-slate-600 dark:text-slate-300">${playing && opponent ? `<span>Dnes hraješ proti</span> <span class="inline-flex items-center gap-1">${avatarHtml(opponent.player, 'h-4 w-4 text-[10px]')}<b class="text-slate-800 dark:text-slate-100">${escapeHtml(playerName(opponent.player))}</b></span>` : escapeHtml(text)}</p>
                 </div>
-                <div class="flex shrink-0 flex-col items-end gap-0.5">${play}<button type="button" data-action="tournament-open" data-tid="${id}" class="${TOUR_LINK}">${state.phase === 'finished' ? 'Výsledky' : 'Pavouk'}</button></div>
+                <div class="flex shrink-0 items-center gap-1.5">${playing ? open + play : open}</div>
             </div>`;
     };
+    // Hráč má dnes odehrát zápas turnaje (karta jde v záložce nahoru) / turnaj je otevřený a hráč se ještě nepřihlásil (karta jemně zeleně svítí)
+    const tournamentWaits = () => Boolean(Tournament && tournamentView && tournamentView.some(view => view.state.step === 'play'));
     const tournamentCard = () => {
         if (!Tournament || !tournamentView || !tournamentView.length) return '';
+        const invite = tournamentView.some(view => view.state.phase === 'open' && view.state.canJoin);
         return `
-            <div id="tournament-card" class="rounded-2xl bg-white p-2.5 shadow-sm ring-1 ring-slate-200/70 dark:bg-slate-800/70 dark:ring-slate-700/70">
-                <div class="mb-1.5 flex items-center justify-between gap-2">
-                    <p class="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">Týdenní turnaj</p>
-                    <button type="button" data-action="tournament-help" class="${TOUR_LINK}">Jak to funguje</button>
+            <div id="tournament-card" class="relative overflow-hidden rounded-2xl bg-gradient-to-br from-gold-100 via-gold-50 to-emerald-100 p-2.5 shadow-md ring-1 ring-gold-300/80 dark:from-gold-900/50 dark:via-slate-800 dark:to-emerald-900/40 dark:ring-gold-700/60 ${invite ? 'tour-glow' : ''}">
+                <div class="relative mb-1.5 flex items-center justify-between gap-2">
+                    <p class="flex items-center gap-1.5 text-[11px] font-black uppercase tracking-widest text-gold-800 dark:text-gold-200"><i data-lucide="trophy" class="h-3.5 w-3.5"></i>Týdenní turnaj</p>
+                    <button type="button" data-action="tournament-help" aria-label="Jak to funguje" title="Jak to funguje" class="flex h-7 w-7 items-center justify-center rounded-full bg-white/70 text-[13px] font-black text-brand-700 ring-1 ring-gold-300/70 active:scale-95 dark:bg-slate-900/40 dark:text-gold-200 dark:ring-gold-700/60">?</button>
                 </div>
-                <div class="flex flex-col divide-y divide-slate-200 dark:divide-slate-700/70">${tournamentView.map(tournamentRow).join('')}</div>
+                <div class="relative flex flex-col divide-y divide-gold-300/50 dark:divide-slate-700">${tournamentView.map(tournamentRow).join('')}</div>
             </div>`;
     };
 
@@ -4689,6 +4722,8 @@
         'home-tab': (button) => { writeJson(KEYS.homeTab, button.dataset.tab === 'multi' ? 'multi' : 'single'); renderHome(); refreshTournaments(); },
         ...tournamentActions,
         'new-challenge': () => openNewChallenge(),
+        'random-challenge': () => openNewChallenge({ who: 'random' }),
+        'recent-more': () => { recentExpanded = !recentExpanded; paintChallenges(); },
         'join-challenge': () => openJoinChallenge(),
         'challenge-open': (button) => openChallenge(button.dataset.code),
         'challenge-resume': () => {
