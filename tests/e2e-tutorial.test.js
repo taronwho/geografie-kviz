@@ -109,6 +109,16 @@ test('tutorial při prvním spuštění', { skip: !chromium && 'Playwright není
         await shot(tab, `${prefix}6-zkusime`);
     };
     // Zkoušení po otevření otázky: nápověda (přeskočí se), odpověď, výsledek, konec přes Menu / Další
+    // Pulzující rámeček je vystředěný na zvýrazněném prvku (i po dokončení animací prvku)
+    const ringCentered = async (tab, selector) => {
+        await tab.waitForTimeout(1500);
+        const [ring, box] = await tab.evaluate((sel) => {
+            const r = document.querySelector('[data-tut-ring]').getBoundingClientRect(), b = document.querySelector(sel).getBoundingClientRect();
+            return [r, b].map(x => ({ cx: x.left + x.width / 2, cy: x.top + x.height / 2, w: x.width, h: x.height }));
+        }, selector);
+        assert.ok(Math.abs(ring.cx - box.cx) <= 1.5 && Math.abs(ring.cy - box.cy) <= 1.5, `rámeček je vystředěný: ${JSON.stringify([ring, box])}`);
+        assert.ok(ring.w - box.w <= 12 && ring.h - box.h <= 12, 'rámeček je těsně kolem prvku');
+    };
     const finishTrial = async (tab, { typed = false } = {}) => {
         await waitTitle(tab, 'Nápověda');
         await tab.waitForTimeout(450);
@@ -119,6 +129,7 @@ test('tutorial při prvním spuštění', { skip: !chromium && 'Playwright není
             await tab.press('#answer-input', 'Enter');
         } else await tab.click('[data-action="choice"]');
         await waitTitle(tab, 'Výsledek');
+        await ringCentered(tab, '[data-verdict]');
         await next(tab);
         await waitTitle(tab, 'Dál');
         await tab.click('[data-action="daily-home"], [data-action="next"]');
