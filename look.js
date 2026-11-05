@@ -45,8 +45,32 @@
         { id: '🦩', title: 'Plameňák', level: 44 }, { id: '🐅', title: 'Tygr', level: 55 }, { id: '🦁', title: 'Lev', level: 65 },
         { id: '👑', title: 'Koruna', level: 80 }
     ];
-    const CATALOG = { themes: THEMES, robes: ROBES, frames: FRAMES, avatars: AVATARS };
-    const DEFAULTS = { theme: 'vinova', robe: 'vinova', frame: 'zadny', title: 'level' };
+    // Doplňky sovy: každý patří do jednoho místa (slot), v každém místě je nejvýš jeden; ke každému hráč zvolí barvu
+    const SLOTS = [
+        { id: 'head', title: 'Hlava' },
+        { id: 'face', title: 'Obličej' },
+        { id: 'neck', title: 'Krk' },
+        { id: 'hand', title: 'Ruka' }
+    ];
+    const ACCESSORIES = [
+        { id: 'bryle', title: 'Kulaté brýle', slot: 'face', level: 4 },
+        { id: 'motylek', title: 'Motýlek', slot: 'neck', level: 9 },
+        { id: 'sala', title: 'Šála', slot: 'neck', level: 14 },
+        { id: 'slunecni-bryle', title: 'Sluneční brýle', slot: 'face', level: 18 },
+        { id: 'lupa', title: 'Lupa', slot: 'hand', level: 24 },
+        { id: 'kvetina', title: 'Květina', slot: 'head', level: 32 },
+        { id: 'koruna', title: 'Koruna', slot: 'head', level: 42 },
+        { id: 'sluchatka', title: 'Sluchátka', slot: 'head', level: 50 },
+        { id: 'medaile', title: 'Medaile', slot: 'neck', level: 58 },
+        { id: 'vavrin', title: 'Vavřínový věnec', slot: 'head', badge: 'vitez' }
+    ];
+    // Barvy doplňků (první je původní barva z obrázku)
+    const ACC_COLORS = [
+        { id: 'original', title: 'Původní' }, { id: 'cervena', title: 'Červená' }, { id: 'oranzova', title: 'Oranžová' }, { id: 'zluta', title: 'Žlutá' },
+        { id: 'zelena', title: 'Zelená' }, { id: 'modra', title: 'Modrá' }, { id: 'fialova', title: 'Fialová' }, { id: 'ruzova', title: 'Růžová' }
+    ];
+    const CATALOG = { themes: THEMES, robes: ROBES, frames: FRAMES, avatars: AVATARS, accessories: ACCESSORIES };
+    const DEFAULTS = { theme: 'vinova', robe: 'vinova', frame: 'zadny', title: 'level', acc: {} };
 
     // ctx = { level, badges } (badges: objekt id → datum nebo true)
     const isUnlocked = (item, ctx) => {
@@ -67,6 +91,16 @@
             const item = find(category, source[key]);
             if (item && (!ctx || isUnlocked(item, ctx))) value[key] = item.id;
         }
+        // Doplňky: { místo: { id, color } }, jen odemčené a ve svém místě
+        value.acc = {};
+        const accSource = source.acc && typeof source.acc === 'object' ? source.acc : {};
+        for (const slot of SLOTS) {
+            const entry = accSource[slot.id];
+            const item = entry && typeof entry === 'object' ? find('accessories', entry.id) : null;
+            if (item && item.slot === slot.id && (!ctx || isUnlocked(item, ctx))) {
+                value.acc[slot.id] = { id: item.id, color: ACC_COLORS.some(color => color.id === entry.color) ? entry.color : 'original' };
+            }
+        }
         if (source.title === 'none' || source.title === 'level') value.title = source.title;
         else if (typeof source.title === 'string' && (!ctx || (ctx.badges && ctx.badges[source.title]))) value.title = source.title;
         return value;
@@ -78,7 +112,7 @@
     // Nastaví volbu (jen odemčenou), uloží ji a oznámí změnu
     const setPref = (key, value, ctx) => {
         const next = normalize({ ...prefs(ctx), [key]: value }, ctx);
-        if (next[key] !== value) return false;
+        if (JSON.stringify(next[key]) !== JSON.stringify(value)) return false;
         current = next;
         try { root.localStorage.setItem(KEY, JSON.stringify(current)); } catch (e) { /* bez úložiště se volba jen nepamatuje */ }
         listeners.forEach(listener => { try { listener(prefs(ctx), key); } catch (e) { console.error(e); } });
@@ -109,5 +143,5 @@
     // Odměny odemknuté na dané úrovni (pro přehled úrovní)
     const rewardsAtLevel = (level) => Object.entries(CATALOG).flatMap(([category, items]) => items.filter(item => !item.badge && item.level === level).map(item => ({ category, item })));
 
-    return { CATALOG, THEMES, ROBES, FRAMES, AVATARS, DEFAULTS, isUnlocked, unlockText, find, normalize, prefs, setPref, onChange, register, getSections, apply, newRewards, rewardsAtLevel };
+    return { CATALOG, THEMES, ROBES, FRAMES, AVATARS, ACCESSORIES, SLOTS, ACC_COLORS, DEFAULTS, isUnlocked, unlockText, find, normalize, prefs, setPref, onChange, register, getSections, apply, newRewards, rewardsAtLevel };
 });

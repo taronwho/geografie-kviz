@@ -778,18 +778,21 @@
     // --- Vzhled: odměny (barevná témata, barva obleku sovy, rámečky, obrázky, titul) – části dodávají look-*.js přes MudrlantLook ---
     const Look = window.MudrlantLook;
     const Tutorial = window.MudrlantTutorial;
+    const Owl = window.MudrlantOwl;
+    // Logo sovy s vybranými doplňky (bez modulu jen obrázek)
+    const owlLogo = (wrapClass, imgClass) => Owl ? Owl.logoHtml(wrapClass, imgClass) : `<img src="icons/logo.webp" alt="" class="${wrapClass} ${imgClass}">`;
     const lookContext = () => {
         const progress = loadProgress();
         const user = Auth && Auth.isConfigured() && Social ? signedUser() : null;
         return { level: levelProgress(progress.xp).level, badges: progress.badges, user, profile: user ? myProfile : null, avatarHtml, prefs: Look ? Look.prefs({ level: levelProgress(progress.xp).level, badges: progress.badges }) : {} };
     };
     const applyLook = () => { if (Look) Look.apply(lookContext()); };
-    const lookBody = () => {
+    const lookBody = (tab = 'look') => {
         if (!Look) return '';
         const ctx = lookContext();
-        return `<div class="flex flex-col gap-2">${Look.getSections().map(section => `
+        return `<div class="flex flex-col gap-2">${Look.getSections().filter(section => (section.tab || 'look') === tab).map(section => `
             <section data-look="${section.id}" class="rounded-2xl bg-white p-2.5 shadow-sm dark:bg-slate-800">
-                <h3 class="${ME_HEADING} mb-1.5">${escapeHtml(section.title)}</h3>
+                ${section.noTitle ? '' : `<h3 class="${ME_HEADING} mb-1.5">${escapeHtml(section.title)}</h3>`}
                 ${section.render(ctx)}
             </section>`).join('')}</div>`;
     };
@@ -820,7 +823,7 @@
         const noteText = note || meNote;
         const tabs = `
             <div role="tablist" class="mt-3 flex gap-1 rounded-2xl bg-slate-200/70 p-1 dark:bg-slate-800">
-                ${[['game', 'gamepad-2', 'Hra'], ...(user && Social ? [['profile', 'user-round', 'Profil']] : []), ['look', 'palette', 'Vzhled']].map(([id, icon, label]) => `
+                ${[['game', 'gamepad-2', 'Hra'], ...(user && Social ? [['profile', 'user-round', 'Profil']] : []), ['look', 'palette', 'Vzhled'], ...(Owl ? [['owl', 'sparkles', 'Sova']] : [])].map(([id, icon, label]) => `
                     <button type="button" role="tab" data-me-tab="${id}" aria-selected="${meTab === id}" class="flex flex-1 items-center justify-center gap-1.5 rounded-xl min-h-[2.75rem] px-2 text-[13px] font-black ${meTab === id ? 'btn-3d bg-brand-700 text-white' : 'text-slate-600 dark:text-slate-400'}"><i data-lucide="${icon}" class="h-4 w-4"></i> ${label}</button>`).join('')}
             </div>`;
         const gameBody = `
@@ -863,7 +866,7 @@
         overlay.innerHTML = `
             <div class="${reopened ? '' : 'fade-in '}max-h-[94dvh] w-full max-w-md overflow-y-auto rounded-[1.75rem] bg-slate-50 p-4 shadow-2xl dark:bg-slate-900">
                 <div class="flex items-center gap-3">
-                    ${shown ? avatarHtml(shown, 'h-14 w-14 text-3xl') : '<img src="icons/logo.webp" alt="" class="h-14 w-auto shrink-0 drop-shadow-md">'}
+                    ${shown ? avatarHtml(shown, 'h-14 w-14 text-3xl') : owlLogo('shrink-0 mt-1', 'h-14 w-auto drop-shadow-md')}
                     <div class="min-w-0 flex-1">
                         <h2 id="settings-title" class="truncate text-lg font-black leading-tight text-slate-800 dark:text-slate-100">${user ? escapeHtml(playerName(profile)) : 'Nastavení'}</h2>
                         <p class="truncate text-xs text-slate-500 dark:text-slate-400">${user ? escapeHtml(user.email || user.name) : 'Hraješ bez účtu'}</p>
@@ -872,7 +875,7 @@
                     <button type="button" data-close aria-label="Zavřít" class="self-start rounded-xl p-2 text-slate-500 hover:bg-slate-200 dark:text-slate-400 dark:hover:bg-slate-800"><i data-lucide="x" class="h-5 w-5"></i></button>
                 </div>
                 ${tabs}
-                <div class="mt-3">${meTab === 'profile' && profileBody ? profileBody : meTab === 'look' ? lookBody() : gameBody}</div>
+                <div class="mt-3">${meTab === 'profile' && profileBody ? profileBody : meTab === 'look' ? lookBody('look') : meTab === 'owl' ? lookBody('owl') : gameBody}</div>
                 <p id="settings-note" class="mt-2 min-h-[1.1rem] text-xs font-semibold ${noteText.startsWith('Uloženo') || !meNote ? 'text-emerald-700 dark:text-emerald-300' : 'text-rose-700 dark:text-rose-400'}" role="status">${escapeHtml(noteText)}</p>
                 <div class="flex items-center justify-center gap-2 text-xs text-slate-500 dark:text-slate-400">
                     <span id="app-version">${escapeHtml(versionLabel())}</span>
@@ -915,7 +918,7 @@
             const lookEl = event.target.closest('[data-look]');
             if (lookEl && Look) {
                 const section = Look.getSections().find(entry => entry.id === lookEl.dataset.look);
-                if (section && section.click && section.click(event, lookContext())) { updateControlsUI(); openSettings('', null, 'look'); }
+                if (section && section.click && section.click(event, lookContext())) { updateControlsUI(); openSettings('', null, meTab); }
                 return;
             }
             const tabButton = event.target.closest('[data-me-tab]');
@@ -963,7 +966,7 @@
         overlay.addEventListener('change', (event) => {
             const lookEl = event.target.closest('[data-look]');
             const section = lookEl && Look ? Look.getSections().find(entry => entry.id === lookEl.dataset.look) : null;
-            if (section && section.change && section.change(event, lookContext())) { updateControlsUI(); openSettings('', null, 'look'); }
+            if (section && section.change && section.change(event, lookContext())) { updateControlsUI(); openSettings('', null, meTab); }
         });
         overlay.addEventListener('submit', (event) => {
             if (event.target.id !== 'profile-form') return;
@@ -1223,7 +1226,7 @@
         // Ikona na úzkém displeji ustoupí delšímu názvu tématu; sova na úvodu zůstává
         iconSlot.className = `flex shrink-0 ${place.logo ? '' : 'max-[430px]:hidden'}`;
         iconSlot.innerHTML = place.logo
-            ? '<img src="icons/logo.webp" alt="" class="-my-1 h-11 w-auto drop-shadow-md">'
+            ? owlLogo('-my-1', 'h-11 w-auto drop-shadow-md')
             : place.topic && topicArt(place.topic) && place.icon === place.topic.icon ? topicIcon(place.topic, 'h-7 w-7 -my-1')
             : `<i data-lucide="${place.icon}" class="w-5 h-5 ${style ? '' : 'text-slate-600 dark:text-slate-300'}"></i>`;
         renderIcons(iconSlot);
@@ -2177,7 +2180,7 @@
         }
         badgeTitles.slice(0, 3).forEach(title => showCelebration('oslava', 'Nový odznak', title));
         if (badgeTitles.length > 3) showCelebration('oslava', 'Další odznaky', `a ještě ${badgeTitles.length - 3}`);
-        const kinds = { themes: 'barevné téma', robes: 'talár sovy', frames: 'rámeček', avatars: 'obrázek hráče' };
+        const kinds = { themes: 'barevné téma', robes: 'talár sovy', frames: 'rámeček', avatars: 'obrázek hráče', accessories: 'doplněk sovy' };
         Look.newRewards(levelBefore, levelNow, freshBadgeIds).forEach(({ category, item }) => showCelebration('vitez', 'Nová odměna', `${item.title} (${kinds[category]}) – vyber si ji v Nastavení → Vzhled`));
         freshBadgeIds = [];
     };
@@ -3166,7 +3169,7 @@
     };
     const openLoginDialog = () => showDialog('Účet', `
         <div class="flex flex-col gap-4">
-            <img src="icons/logo.webp" alt="" class="mx-auto h-24 w-auto drop-shadow-lg">
+            ${owlLogo('mx-auto flex', 'h-24 w-auto drop-shadow-lg')}
             <p class="text-sm text-slate-600 dark:text-slate-300">S účtem Google si vybereš přezdívku a obrázek, můžeš vyzývat kamarády nebo náhodné hráče a porovnat s nimi výsledky. Hra dál funguje i bez přihlášení.</p>
             <button type="button" data-auth-login-dialog class="${PRIMARY_BUTTON}"><i data-lucide="log-in" class="h-5 w-5"></i> Přihlásit se přes Google</button>
         </div>`, { onClick: (event) => { if (event.target.closest('[data-auth-login-dialog]')) Auth.login(); } });
