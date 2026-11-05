@@ -64,5 +64,92 @@
         const end = new Date(start.getFullYear(), start.getMonth(), start.getDate() + 6);
         return `${start.getDate()}. ${start.getMonth() + 1}. – ${end.getDate()}. ${end.getMonth() + 1}.`;
     };
-    return { START, MIN, K, LEAGUES, cleanRating, leagueIndex, leagueFor, leagueById, leagueProgress, expectedScore, duelScore, ratingChange, formatDelta, weekStart, weekLabel };
+
+    // --- Závěrečná obrazovka výzvy: výsledek slovy a hláška (stejná pro tutéž výzvu, ať se po překreslení nemění) ---
+    // Výsledek proti nejlepšímu soupeři: víc správných odpovědí, při shodě víc bodů, jinak remíza. Bez soupeře = čekání.
+    const outcomeOf = (mine, rival) => {
+        if (!rival) return 'cekani';
+        if (mine.correct !== rival.correct) return mine.correct > rival.correct ? 'vyhra' : 'prohra';
+        if (mine.points !== rival.points) return mine.points > rival.points ? 'vyhra' : 'prohra';
+        return 'remiza';
+    };
+    const HEADLINES = { vyhra: 'Vyhrál jsi!', prohra: 'Tentokrát prohra', remiza: 'Remíza!', cekani: 'Hotovo, čeká se na soupeře' };
+    const QUIPS = {
+        vyhra: [
+            'Sova smekla čepici. Doslova.',
+            'Soupeř právě googluje, jak se to stalo.',
+            'Tohle si zaslouží zlatou hvězdičku. A možná dvě.',
+            'Mozek na plný plyn, soupeř na volnoběh.',
+            'Vítězství s monoklem a s klidem.',
+            'Takhle se to dělá. Zápis do síně slávy.',
+            'Kdyby se kvíz dal sníst, byl bys dnes sytý.',
+            'Soupeř si říká, že měl vypnout notifikace.',
+            'Hladce, jako když sova letí nocí.',
+            'Znalosti 1, náhoda 0.',
+            'Na tuhle výzvu se bude vzpomínat. Alespoň tady.',
+            'Sova je pyšná. Tiše, ale moc.',
+            'Říkej si klidně profesore.',
+            'Další takový výkon a bude se o tobě učit v dějepisu.',
+            'Tohle nebylo štěstí, tohle byla chytrost.',
+            'Vítěz bere vše. Aspoň čest a pár bodů.'
+        ],
+        prohra: [
+            'I sovy občas zahoukají vedle. Příště to vyjde.',
+            'Prohra je jen vítězství, které se zdrželo.',
+            'Soupeř měl dnes štěstí. A možná i trochu znalostí.',
+            'Chyby jsou nejlepší učitel. Lekce zaplacená.',
+            'Sova tě stejně obdivuje. Zatím tajně.',
+            'Odveta je vždycky na stole.',
+            'Nevadí, aspoň už víš, co příště nehádat.',
+            'Tohle kolo ne, ale celý kvíz zdaleka není u konce.',
+            'Dnes prohra, zítra legenda.',
+            'I Einstein začínal s jedničkou z fyziky. Možná.',
+            'Sova prohru neřeší, sova plánuje odvetu.',
+            'Zlatou medaili si necháme na příště.',
+            'Zvedni zobák, odveta čeká.',
+            'Teď víš o jedné otázce víc než dřív.',
+            'Soupeř vyhrál bitvu, válka teprve začíná.',
+            'Dobrý hráč se pozná podle toho, že hned chce odvetu.'
+        ],
+        remiza: [
+            'Remíza! Dvě sovy, jedna hlava.',
+            'Nikdo nevyhrál, nikdo neprohrál, oba jste chytří.',
+            'Přesně stejně? To je skoro podezřelé.',
+            'Souboj titánů skončil nerozhodně. Sova je ohromená.',
+            'Vyrovnaný soupeř je nejlepší soupeř.',
+            'Půl vítězství pro každého a půl bonbonu pro sovu.',
+            'Remíza: když se dva geniální mozky potkají.',
+            'Rozhodl by až rozstřel. Dáte odvetu?',
+            'Tohle se nepoštěstí často. Vážně.',
+            'Stejně dobří. Stejně vychytralí. Stejně líní na odvetu?',
+            'Váha spravedlnosti se ani nehnula.',
+            'Nerozhodně, ale s hlavou vztyčenou.',
+            'Sova říká: oba jste vyhráli, jen trochu méně.',
+            'Žádný vítěz, žádný poražený, jen dva zdatní hráči.',
+            'Pat! Šachisté by byli pyšní.',
+            'Remíza je vlastně dvojité vítězství. Tak nějak.'
+        ],
+        cekani: [
+            'Tvůj výsledek je v tahu, teď je řada na soupeři.',
+            'Sova drží palce, aby soupeř stihl dohrát.',
+            'Pošli kód kamarádovi a ať se snaží.',
+            'Hotovo! Teď už jen napjaté čekání.',
+            'Výzva je venku. Soupeř, tvůj tah.',
+            'Zatím jsi první. Vydrží to?',
+            'Sova nervózně přešlapuje na bidýlku.',
+            'Čekání na soupeře: nejtěžší disciplína kvízu.',
+            'Tvůj výsledek je v bezpečí. Výsledek soupeře zatím tajemství.',
+            'Mezitím můžeš zahrát dnešní otázky.',
+            'Až soupeř dohraje, uvidíš, kdo vyhrál.',
+            'Odvedl jsi svoje. Zbytek je na soupeři.',
+            'Výzva rozeslána, sova hlídá hnízdo.',
+            'Dobrá práce. Teď trpělivost.',
+            'Výsledek se spočítá, jakmile soupeř zahraje.',
+            'Napětí stoupá. Sova okusuje pírko.'
+        ]
+    };
+    const hashOf = (text) => { let h = 2166136261; for (const ch of String(text)) { h ^= ch.charCodeAt(0); h = Math.imul(h, 16777619); } return h >>> 0; };
+    const quipFor = (outcome, seed) => { const list = QUIPS[outcome] || QUIPS.cekani; return list[hashOf(`${outcome}|${seed}`) % list.length]; };
+    
+    return { outcomeOf, HEADLINES, QUIPS, quipFor, START, MIN, K, LEAGUES, cleanRating, leagueIndex, leagueFor, leagueById, leagueProgress, expectedScore, duelScore, ratingChange, formatDelta, weekStart, weekLabel };
 });

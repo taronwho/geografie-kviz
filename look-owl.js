@@ -55,26 +55,27 @@
         const open = Look.isUnlocked(item, ctx);
         const label = open ? item.title : `${item.title}: ${Look.unlockText(item, item.badge ? badgeTitle(item.badge) : null)}`;
         return `<button type="button" data-owl-pick="${item.slot}:${item.id}" aria-pressed="${selected}" ${open ? '' : 'aria-disabled="true"'} title="${escapeHtml(label)}" aria-label="${escapeHtml(label)}"
-            class="flex h-11 w-11 items-center justify-center rounded-xl border-2 ${selected ? 'border-brand-500 bg-brand-50 dark:bg-brand-950' : 'border-transparent bg-slate-50 dark:bg-slate-700/50'} ${open ? '' : 'cursor-not-allowed'}">
-            <img src="icons/doplnky/${item.id}-ikona.webp" alt="" class="h-9 w-9 object-contain ${open ? '' : 'opacity-40 grayscale'}"></button>`;
+            class="flex h-10 w-full items-center justify-center rounded-xl border-2 ${selected ? 'border-brand-500 bg-brand-50 dark:bg-brand-950' : 'border-transparent bg-slate-50 dark:bg-slate-700/50'} ${open ? '' : 'cursor-not-allowed'}">
+            <img src="icons/doplnky/${item.id}-ikona.webp" alt="" class="h-8 w-8 object-contain ${open ? '' : 'opacity-40 grayscale'}"></button>`;
     };
     const noneTile = (slot, selected) => `<button type="button" data-owl-pick="${slot}:none" aria-pressed="${selected}" title="Bez doplňku" aria-label="Bez doplňku"
-        class="flex h-11 w-11 items-center justify-center rounded-xl border-2 text-lg font-black text-slate-400 ${selected ? 'border-brand-500 bg-brand-50 dark:bg-brand-950' : 'border-transparent bg-slate-50 dark:bg-slate-700/50'}">–</button>`;
+        class="flex h-10 w-full items-center justify-center rounded-xl border-2 text-lg font-black text-slate-400 ${selected ? 'border-brand-500 bg-brand-50 dark:bg-brand-950' : 'border-transparent bg-slate-50 dark:bg-slate-700/50'}">–</button>`;
 
     const render = (ctx) => {
         const acc = ctx.prefs.acc || {};
         const slots = Look.SLOTS.map(slot => {
             const chosen = acc[slot.id] ? acc[slot.id].id : 'none';
             const items = Look.ACCESSORIES.filter(item => item.slot === slot.id);
-            return `<div class="flex items-center gap-2"><span class="w-14 shrink-0 text-[11px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">${slot.title}</span>
-                <div class="flex flex-wrap gap-1.5">${noneTile(slot.id, chosen === 'none')}${items.map(item => tile(item, ctx, chosen === item.id)).join('')}</div></div>`;
+            // Štítek místa nad řádkem a pravidelná mřížka o šesti sloupcích: první dlaždice je vždy „bez doplňku“, další doplňky se jen řadí dál
+            return `<div class="flex flex-col gap-1"><p class="text-[11px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">${slot.title}</p>
+                <div class="grid grid-cols-6 gap-1.5">${noneTile(slot.id, chosen === 'none')}${items.map(item => tile(item, ctx, chosen === item.id)).join('')}</div></div>`;
         }).join('');
         // Barva patří doplňku, který hráč naposledy vybral (nebo prvnímu nasazenému)
         const target = activeSlot && acc[activeSlot] ? activeSlot : Look.SLOTS.map(slot => slot.id).find(id => acc[id]);
         const targetItem = target ? Look.find('accessories', acc[target].id) : null;
         const colors = targetItem ? `
             <div class="flex flex-col gap-1.5"><p class="text-[11px] font-bold text-slate-500 dark:text-slate-400">Barva: <b class="text-slate-700 dark:text-slate-200">${escapeHtml(targetItem.title)}</b></p>
-            <div class="flex flex-wrap gap-2" role="group" aria-label="Barva doplňku">${Look.ACC_COLORS.map(color => `<button type="button" data-owl-color="${target}:${color.id}" aria-pressed="${acc[target].color === color.id}" title="${color.title}" aria-label="${color.title}"
+            <div class="grid grid-cols-8 justify-items-center gap-1.5" role="group" aria-label="Barva doplňku">${Look.ACC_COLORS.map(color => `<button type="button" data-owl-color="${target}:${color.id}" aria-pressed="${acc[target].color === color.id}" title="${color.title}" aria-label="${color.title}"
                 class="h-8 w-8 rounded-full ${COLOR_DOT[color.id] || ''} ${acc[target].color === color.id ? 'ring-2 ring-slate-800/70 ring-offset-2 dark:ring-white/80 dark:ring-offset-slate-800' : ''} active:scale-95"></button>`).join('')}</div></div>`
             : '<p class="text-[11px] font-semibold text-slate-500 dark:text-slate-400">Vyber doplněk a pak jeho barvu.</p>';
         return `<div class="flex flex-col gap-2.5">

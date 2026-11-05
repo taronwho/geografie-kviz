@@ -3924,9 +3924,13 @@
         // Sova podle výsledku: vítěz s pohárem, poražený s „dobrá hra“, remíza s radostí, sám s oslavou
         const rivals = user && results ? results.filter(row => row.user_id !== user.id) : [];
         const bestRival = rivals.reduce((top, row) => !top || row.correct > top.correct || (row.correct === top.correct && row.points > top.points) ? row : top, null);
-        const outcomeOwl = state !== 'ok' || !bestRival ? 'oslava'
-            : correct > bestRival.correct || (correct === bestRival.correct && points > bestRival.points) ? 'vitez'
-                : correct === bestRival.correct && points === bestRival.points ? 'radost' : 'prohra';
+        // Výsledek slovy a hláška (stejná pro tutéž výzvu); bez soupeře se čeká, až dohraje
+        const outcome = Rating && state === 'ok' ? Rating.outcomeOf({ correct, points }, bestRival) : null;
+        const outcomeOwl = !outcome || outcome === 'cekani' ? 'oslava' : outcome === 'vyhra' ? 'vitez' : outcome === 'remiza' ? 'radost' : 'prohra';
+        const verdictTone = { vyhra: 'text-gold-300', prohra: 'text-white', remiza: 'text-white', cekani: 'text-white' };
+        const verdictHtml = outcome ? `
+                    <p data-challenge-outcome="${outcome}" class="mt-1 text-xl font-black leading-tight ${verdictTone[outcome]}">${escapeHtml(Rating.HEADLINES[outcome])}</p>
+                    <p data-challenge-quip class="mx-auto mt-0.5 max-w-[17rem] text-[13px] font-semibold italic leading-snug text-white/85">${escapeHtml(Rating.quipFor(outcome, c.code))}</p>` : '';
         const body = state === 'sending'
             ? '<p class="py-4 text-center text-sm font-semibold text-slate-500 dark:text-slate-400">Ukládám výsledek…</p>'
             : state === 'error'
@@ -3936,9 +3940,9 @@
         appContent.innerHTML = `
             <div class="fade-in flex min-h-full w-full flex-col gap-4 bg-slate-50 p-4 pb-6 dark:bg-slate-900">
                 <div class="rounded-[1.5rem] bg-gradient-to-br from-brand-600 to-brand-900 p-5 text-center text-white shadow-lg">
-                    ${uiArt(`sova-${outcomeOwl}`, 'mx-auto -mt-1 mb-1 h-28 w-28')}
-                    <p class="text-xs font-black uppercase tracking-widest text-white/80">${escapeHtml(challengeTopicTitle(c.topic))}</p>
-                    <p class="mt-1 text-5xl font-black">${correct}/${c.count}</p>
+                    ${uiArt(`sova-${outcomeOwl}`, 'mx-auto -mt-1 mb-1 h-24 w-24')}${verdictHtml}
+                    <p class="mt-2 text-xs font-black uppercase tracking-widest text-white/80">${escapeHtml(challengeTopicTitle(c.topic))}</p>
+                    <p class="mt-0.5 text-4xl font-black">${correct}/${c.count}</p>
                     <p class="mt-1 text-sm font-bold text-white/90">${escapeHtml(formatPoints(points))}</p>
                     ${ratingNote(c, results)}
                 </div>
