@@ -81,6 +81,24 @@ test('SQL: zneužití (RLS, oprávnění, XP, odznaky, limity)', { skip: !availa
         assert.equal(q(`select display_name || avatar || color from profiles where id = '${A}'`), 'Alena K🐼sky');
     });
 
+    await t.test('sova jako obrázek profilu: vlastní řádek, jen platný tvar, jde i smazat', () => {
+        const owl = 'robe=zelena;head=koruna.modra;face=bryle.original;neck=sala.ruzova;hand=lupa.zelena';
+        ok(asUser(A, `update profiles set avatar = '🦉', owl = '${owl}' where id = '${A}'`));
+        assert.equal(q(`select owl from profiles where id = '${A}'`), owl);
+        // cizí řádek se nezmění
+        assert.equal(last(asUser(A, `with u as (update profiles set owl = 'robe=cerna' where id = '${B}' returning 1) select count(*) from u`)), '0');
+        assert.equal(q(`select coalesce(owl, '-') from profiles where id = '${B}'`), '-');
+        // špatný tvar: velká písmena, mezera, HTML, uvozovky, prázdné, příliš dlouhé
+        for (const bad of ['Robe=zelena', 'robe=zelena;head=a b', '<script>', `robe='x'`, '', 'a'.repeat(201)]) denied(asUser(A, `update profiles set owl = '${bad.replace(/'/g, "''")}' where id = '${A}'`), bad);
+        ok(asUser(A, `update profiles set owl = '${'a'.repeat(200)}' where id = '${A}'`));
+        ok(asUser(A, `update profiles set owl = null where id = '${A}'`));
+        assert.equal(q(`select coalesce(owl, '-') from profiles where id = '${A}'`), '-');
+        // ostatní hráči sovu čtou
+        q(`update profiles set owl = '${owl}' where id = '${A}'`);
+        assert.equal(last(asUser(B, `select owl from profiles where id = '${A}'`)), owl);
+        q(`update profiles set owl = null where id = '${A}'`);
+    });
+
     await t.test('XP jen roste a má strop; odznaky jen přibývají a jen z katalogu', () => {
         ok(asUser(A, `update profiles set xp = 1200 where id = '${A}'`));
         assert.equal(q(`select xp from profiles where id = '${A}'`), '1200');

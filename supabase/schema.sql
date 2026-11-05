@@ -26,6 +26,11 @@ alter table public.profiles drop constraint if exists profiles_frame_format;
 alter table public.profiles add constraint profiles_frame_format check (frame is null or frame ~ '^[a-z0-9-]{1,24}$');
 alter table public.profiles drop constraint if exists profiles_title_pref_format;
 alter table public.profiles add constraint profiles_title_pref_format check (title_pref is null or title_pref ~ '^[a-z0-9-]{1,40}$');
+-- Upravená sova jako obrázek profilu (barva obleku + doplňky), např. 'robe=zelena;head=koruna.modra;face=bryle.original'; vidí ji i ostatní.
+-- Sloupec avatar zůstává (záložka '🦉' pro starší aplikaci); tvar hlídá jen kontrola, platnost id a odemčení aplikace.
+alter table public.profiles add column if not exists owl text;
+alter table public.profiles drop constraint if exists profiles_owl_format;
+alter table public.profiles add constraint profiles_owl_format check (owl is null or owl ~ '^[a-z0-9=.;-]{1,200}$') not valid;
 alter table public.profiles drop constraint if exists profiles_blocked_len;
 alter table public.profiles add constraint profiles_blocked_len check (cardinality(blocked_topics) <= 30 and char_length(array_to_string(blocked_topics, ',')) <= 400) not valid;
 alter table public.profiles drop constraint if exists profiles_xp_range;
@@ -348,7 +353,7 @@ revoke all on function public.rate_challenge() from public, anon, authenticated;
 drop function if exists public.weekly_leaderboard();
 create or replace function public.weekly_leaderboard() returns table (
     id uuid, display_name text, avatar text, color text, frame text, title_pref text, xp integer,
-    rating integer, league text, week_delta integer, week_wins integer, week_games integer
+    rating integer, league text, week_delta integer, week_wins integer, week_games integer, owl text
 )
 language sql stable security definer set search_path = public as $$
     with week as (
@@ -357,7 +362,7 @@ language sql stable security definer set search_path = public as $$
         where h.created_at >= (date_trunc('week', now() at time zone 'Europe/Prague') at time zone 'Europe/Prague')
         group by h.user_id
     )
-    select p.id, p.display_name, p.avatar, p.color, p.frame, p.title_pref, p.xp, p.rating, public.rating_league(p.rating), w.delta, w.wins, w.games
+    select p.id, p.display_name, p.avatar, p.color, p.frame, p.title_pref, p.xp, p.rating, public.rating_league(p.rating), w.delta, w.wins, w.games, p.owl
     from week w join public.profiles p on p.id = w.user_id
     where auth.uid() is not null
     order by w.delta desc, w.wins desc, p.rating desc, p.display_name
@@ -370,7 +375,7 @@ grant execute on function public.weekly_leaderboard() to authenticated;
 -- Pravidla řádků (RLS) hlídají řádky, ale ne TRUNCATE ani sloupce, proto se oprávnění zužují i tady.
 revoke all on public.profiles, public.challenges, public.challenge_results, public.rating_history from anon, authenticated;
 grant select on public.profiles, public.challenges, public.challenge_results, public.rating_history to authenticated;
-grant update (display_name, avatar, color, xp, badges, blocked_topics, accepts_mix, frame, title_pref) on public.profiles to authenticated;
+grant update (display_name, avatar, color, xp, badges, blocked_topics, accepts_mix, frame, title_pref, owl) on public.profiles to authenticated;
 grant insert on public.challenges, public.challenge_results to authenticated;
 -- Pomocné funkce a triggerové funkce se přes API volat nemají
 revoke all on function public.unique_display_name(text), public.handle_new_user(), public.check_challenge_topics(), public.limit_challenges(),

@@ -53,25 +53,36 @@
         { id: 'hand', title: 'Ruka' }
     ];
     const ACCESSORIES = [
-        { id: 'bryle', title: 'Kulaté brýle', slot: 'face', level: 4 },
-        { id: 'motylek', title: 'Motýlek', slot: 'neck', level: 9 },
-        { id: 'sala', title: 'Šála', slot: 'neck', level: 14 },
-        { id: 'slunecni-bryle', title: 'Sluneční brýle', slot: 'face', level: 18 },
-        { id: 'lupa', title: 'Lupa', slot: 'hand', level: 24 },
-        { id: 'kvetina', title: 'Květina', slot: 'head', level: 32 },
-        { id: 'koruna', title: 'Koruna', slot: 'head', level: 42 },
-        { id: 'sluchatka', title: 'Sluchátka', slot: 'head', level: 50 },
-        { id: 'medaile', title: 'Medaile', slot: 'neck', level: 58 },
-        { id: 'vavrin', title: 'Vavřínový věnec', slot: 'head', badge: 'vitez' }
+        { id: 'bryle', title: 'Kulaté brýle', slot: 'face', hue: 225, level: 4 },
+        { id: 'motylek', title: 'Motýlek', slot: 'neck', hue: 220, level: 9 },
+        { id: 'sala', title: 'Šála', slot: 'neck', hue: 105, level: 14 },
+        { id: 'slunecni-bryle', title: 'Sluneční brýle', slot: 'face', hue: 355, level: 18 },
+        { id: 'lupa', title: 'Lupa', slot: 'hand', hue: 22, level: 24 },
+        { id: 'kvetina', title: 'Květina', slot: 'head', hue: 345, level: 32 },
+        { id: 'koruna', title: 'Koruna', slot: 'head', hue: 40, level: 42 },
+        { id: 'sluchatka', title: 'Sluchátka', slot: 'head', hue: 358, level: 50 },
+        { id: 'medaile', title: 'Medaile', slot: 'neck', hue: 40, level: 58 },
+        { id: 'vavrin', title: 'Vavřínový věnec', slot: 'head', hue: 95, badge: 'vitez' }
     ];
-    // Barvy doplňků (první je původní barva z obrázku)
+    // Barvy doplňků (původní je barva z obrázku); každá se odemyká úrovní. „Vlastní barva“ je paleta: hráč si zvolí libovolný odstín
+    // (uloží se jako h<stupně>, např. h210), doplněk se přebarví z původního obrázku otočením odstínu.
     const ACC_COLORS = [
-        { id: 'original', title: 'Původní' }, { id: 'cervena', title: 'Červená' }, { id: 'oranzova', title: 'Oranžová' }, { id: 'zluta', title: 'Žlutá' },
-        { id: 'zelena', title: 'Zelená' }, { id: 'modra', title: 'Modrá' }, { id: 'fialova', title: 'Fialová' }, { id: 'ruzova', title: 'Růžová' }
+        { id: 'original', title: 'Původní', level: 1 }, { id: 'cervena', title: 'Červená', level: 1 }, { id: 'modra', title: 'Modrá', level: 1 },
+        { id: 'zelena', title: 'Zelená', level: 8 }, { id: 'oranzova', title: 'Oranžová', level: 16 }, { id: 'zluta', title: 'Žlutá', level: 26 },
+        { id: 'ruzova', title: 'Růžová', level: 38 }, { id: 'fialova', title: 'Fialová', level: 52 }, { id: 'vlastni', title: 'Vlastní barva (paleta)', level: 80 }
     ];
-    const CATALOG = { themes: THEMES, robes: ROBES, frames: FRAMES, avatars: AVATARS, accessories: ACCESSORIES };
+    const CUSTOM_HUE = /^h(\d{1,3})$/;
+    // Odstín vlastní barvy (násobek 5, 0–355) nebo null
+    const customHue = (color) => { const match = CUSTOM_HUE.exec(String(color)); const hue = match ? Number(match[1]) : NaN; return hue >= 0 && hue <= 355 && hue % 5 === 0 ? hue : null; };
+    const CATALOG = { themes: THEMES, robes: ROBES, frames: FRAMES, avatars: AVATARS, accessories: ACCESSORIES, colors: ACC_COLORS.filter(color => color.level > 1) };
     const DEFAULTS = { theme: 'vinova', robe: 'vinova', frame: 'zadny', title: 'level', acc: {} };
 
+    // Barva doplňku: z katalogu (odemčená) nebo vlastní odstín z palety (když je paleta odemčená)
+    const colorOk = (color, ctx) => {
+        const item = ACC_COLORS.find(entry => entry.id === color && entry.id !== 'vlastni');
+        if (item) return !ctx || isUnlocked(item, ctx);
+        return customHue(color) !== null && (!ctx || isUnlocked(ACC_COLORS.find(entry => entry.id === 'vlastni'), ctx));
+    };
     // ctx = { level, badges } (badges: objekt id → datum nebo true)
     const isUnlocked = (item, ctx) => {
         if (!item) return false;
@@ -98,7 +109,7 @@
             const entry = accSource[slot.id];
             const item = entry && typeof entry === 'object' ? find('accessories', entry.id) : null;
             if (item && item.slot === slot.id && (!ctx || isUnlocked(item, ctx))) {
-                value.acc[slot.id] = { id: item.id, color: ACC_COLORS.some(color => color.id === entry.color) ? entry.color : 'original' };
+                value.acc[slot.id] = { id: item.id, color: colorOk(entry.color, ctx) ? entry.color : 'original' };
             }
         }
         if (source.title === 'none' || source.title === 'level') value.title = source.title;
@@ -145,5 +156,5 @@
     // Odměny odemknuté na dané úrovni (pro přehled úrovní)
     const rewardsAtLevel = (level) => Object.entries(CATALOG).flatMap(([category, items]) => items.filter(item => !item.badge && item.level === level).map(item => ({ category, item })));
 
-    return { CATALOG, THEMES, ROBES, FRAMES, AVATARS, ACCESSORIES, SLOTS, ACC_COLORS, DEFAULTS, isUnlocked, unlockText, find, normalize, prefs, setPref, onChange, register, getSections, apply, newRewards, rewardsAtLevel };
+    return { CATALOG, THEMES, ROBES, FRAMES, AVATARS, ACCESSORIES, SLOTS, ACC_COLORS, customHue, colorOk, DEFAULTS, isUnlocked, unlockText, find, normalize, prefs, setPref, onChange, register, getSections, apply, newRewards, rewardsAtLevel };
 });
