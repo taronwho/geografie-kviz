@@ -13,9 +13,14 @@
     const LAYER_CLASS = 'pointer-events-none absolute left-[-14%] top-[-26%] w-[128%] max-w-none select-none';
     // Pořadí kreslení: krk dole, pak obličej, hlava a ruka nahoře
     const ORDER = ['neck', 'face', 'head', 'hand'];
+    // Vlastní barva z palety: původní obrázek doplňku se přebarví otočením odstínu (CSS filtr). Třídy jsou vypsané celé, ať je Tailwind najde.
+    const HUE_CLASSES = { 5: 'hue-rotate-[5deg]', 10: 'hue-rotate-[10deg]', 15: 'hue-rotate-[15deg]', 20: 'hue-rotate-[20deg]', 25: 'hue-rotate-[25deg]', 30: 'hue-rotate-[30deg]', 35: 'hue-rotate-[35deg]', 40: 'hue-rotate-[40deg]', 45: 'hue-rotate-[45deg]', 50: 'hue-rotate-[50deg]', 55: 'hue-rotate-[55deg]', 60: 'hue-rotate-[60deg]', 65: 'hue-rotate-[65deg]', 70: 'hue-rotate-[70deg]', 75: 'hue-rotate-[75deg]', 80: 'hue-rotate-[80deg]', 85: 'hue-rotate-[85deg]', 90: 'hue-rotate-[90deg]', 95: 'hue-rotate-[95deg]', 100: 'hue-rotate-[100deg]', 105: 'hue-rotate-[105deg]', 110: 'hue-rotate-[110deg]', 115: 'hue-rotate-[115deg]', 120: 'hue-rotate-[120deg]', 125: 'hue-rotate-[125deg]', 130: 'hue-rotate-[130deg]', 135: 'hue-rotate-[135deg]', 140: 'hue-rotate-[140deg]', 145: 'hue-rotate-[145deg]', 150: 'hue-rotate-[150deg]', 155: 'hue-rotate-[155deg]', 160: 'hue-rotate-[160deg]', 165: 'hue-rotate-[165deg]', 170: 'hue-rotate-[170deg]', 175: 'hue-rotate-[175deg]', 180: 'hue-rotate-[180deg]', 185: 'hue-rotate-[185deg]', 190: 'hue-rotate-[190deg]', 195: 'hue-rotate-[195deg]', 200: 'hue-rotate-[200deg]', 205: 'hue-rotate-[205deg]', 210: 'hue-rotate-[210deg]', 215: 'hue-rotate-[215deg]', 220: 'hue-rotate-[220deg]', 225: 'hue-rotate-[225deg]', 230: 'hue-rotate-[230deg]', 235: 'hue-rotate-[235deg]', 240: 'hue-rotate-[240deg]', 245: 'hue-rotate-[245deg]', 250: 'hue-rotate-[250deg]', 255: 'hue-rotate-[255deg]', 260: 'hue-rotate-[260deg]', 265: 'hue-rotate-[265deg]', 270: 'hue-rotate-[270deg]', 275: 'hue-rotate-[275deg]', 280: 'hue-rotate-[280deg]', 285: 'hue-rotate-[285deg]', 290: 'hue-rotate-[290deg]', 295: 'hue-rotate-[295deg]', 300: 'hue-rotate-[300deg]', 305: 'hue-rotate-[305deg]', 310: 'hue-rotate-[310deg]', 315: 'hue-rotate-[315deg]', 320: 'hue-rotate-[320deg]', 325: 'hue-rotate-[325deg]', 330: 'hue-rotate-[330deg]', 335: 'hue-rotate-[335deg]', 340: 'hue-rotate-[340deg]', 345: 'hue-rotate-[345deg]', 350: 'hue-rotate-[350deg]', 355: 'hue-rotate-[355deg]' };
+    // Pruh s duhou pod posuvníkem odstínu (třída musí být celá, ať ji Tailwind najde)
+    const HUE_BAR = 'appearance-none rounded-full bg-[linear-gradient(90deg,#f00,#ff0,#0f0,#0ff,#00f,#f0f,#f00)]';
     const COLOR_DOT = {
         original: 'bg-gradient-to-br from-amber-300 via-rose-400 to-sky-500', cervena: 'bg-red-600', oranzova: 'bg-orange-500', zluta: 'bg-yellow-400',
-        zelena: 'bg-green-600', modra: 'bg-blue-600', fialova: 'bg-purple-600', ruzova: 'bg-pink-400'
+        zelena: 'bg-green-600', modra: 'bg-blue-600', fialova: 'bg-purple-600', ruzova: 'bg-pink-400',
+        vlastni: 'bg-[conic-gradient(#f00,#ff0,#0f0,#0ff,#00f,#f0f,#f00)]'
     };
     const escapeHtml = (text) => Core && Core.escapeHtml ? Core.escapeHtml(text) : String(text).replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
     const badgeTitle = (id) => (Core && Core.BADGE_BY_ID && Core.BADGE_BY_ID[id] ? Core.BADGE_BY_ID[id].title : id);
@@ -24,13 +29,21 @@
     const layerSrc = (id, color) => {
         const item = Look ? Look.find('accessories', id) : null;
         if (!item) return null;
-        const known = Look.ACC_COLORS.some(entry => entry.id === color) ? color : 'original';
+        const known = Look.ACC_COLORS.some(entry => entry.id === color && entry.id !== 'vlastni') ? color : 'original';
         return `icons/doplnky/${item.id}${known === 'original' ? '' : `-${known}`}.webp`;
+    };
+    // Třída přebarvení pro vlastní odstín (o kolik se má otočit odstín původního obrázku doplňku)
+    const hueClass = (id, color) => {
+        const item = Look ? Look.find('accessories', id) : null;
+        const hue = Look ? Look.customHue(color) : null;
+        if (!item || hue === null) return '';
+        const turn = (((hue - (item.hue || 0)) % 360) + 360) % 360;
+        return HUE_CLASSES[Math.round(turn / 5) * 5 % 360] || '';
     };
     const layersHtml = (acc) => ORDER.map(slot => {
         const entry = acc && acc[slot];
         const src = entry ? layerSrc(entry.id, entry.color) : null;
-        return src ? `<img data-owl-layer src="${src}" alt="" class="${LAYER_CLASS}">` : '';
+        return src ? `<img data-owl-layer src="${src}" alt="" class="${LAYER_CLASS} ${hueClass(entry.id, entry.color)}">` : '';
     }).join('');
 
     const currentAcc = () => (Look ? Look.prefs().acc : null) || {};
@@ -73,10 +86,22 @@
         // Barva patří doplňku, který hráč naposledy vybral (nebo prvnímu nasazenému)
         const target = activeSlot && acc[activeSlot] ? activeSlot : Look.SLOTS.map(slot => slot.id).find(id => acc[id]);
         const targetItem = target ? Look.find('accessories', acc[target].id) : null;
+        const current = target ? acc[target].color : null;
+        const custom = current !== null && Look.customHue(current) !== null;
+        const customOpen = Look.ACC_COLORS.find(color => color.id === 'vlastni');
+        const dot = (color) => {
+            const open = Look.isUnlocked(color, ctx);
+            const selected = color.id === 'vlastni' ? custom : current === color.id;
+            const label = open ? color.title : `${color.title}: ${Look.unlockText(color)}`;
+            return `<button type="button" data-owl-color="${target}:${color.id}" aria-pressed="${selected}" ${open ? '' : 'aria-disabled="true"'} title="${escapeHtml(label)}" aria-label="${escapeHtml(label)}"
+                class="h-8 w-8 rounded-full ${COLOR_DOT[color.id] || ''} ${selected ? 'ring-2 ring-slate-800/70 ring-offset-2 dark:ring-white/80 dark:ring-offset-slate-800' : ''} ${open ? '' : 'opacity-35 grayscale'} active:scale-95"></button>`;
+        };
+        const slider = custom && Look.isUnlocked(customOpen, ctx) ? `
+            <label class="flex flex-col gap-1 text-[11px] font-bold text-slate-500 dark:text-slate-400">Odstín
+                <input type="range" min="0" max="355" step="5" value="${Look.customHue(current)}" data-owl-hue aria-label="Odstín vlastní barvy" class="h-6 w-full cursor-pointer ${HUE_BAR}"></label>` : '';
         const colors = targetItem ? `
             <div class="flex flex-col gap-1.5"><p class="text-[11px] font-bold text-slate-500 dark:text-slate-400">Barva: <b class="text-slate-700 dark:text-slate-200">${escapeHtml(targetItem.title)}</b></p>
-            <div class="grid grid-cols-8 justify-items-center gap-1.5" role="group" aria-label="Barva doplňku">${Look.ACC_COLORS.map(color => `<button type="button" data-owl-color="${target}:${color.id}" aria-pressed="${acc[target].color === color.id}" title="${color.title}" aria-label="${color.title}"
-                class="h-8 w-8 rounded-full ${COLOR_DOT[color.id] || ''} ${acc[target].color === color.id ? 'ring-2 ring-slate-800/70 ring-offset-2 dark:ring-white/80 dark:ring-offset-slate-800' : ''} active:scale-95"></button>`).join('')}</div></div>`
+            <div class="grid grid-cols-9 justify-items-center gap-1" role="group" aria-label="Barva doplňku">${Look.ACC_COLORS.map(dot).join('')}</div>${slider}</div>`
             : '<p class="text-[11px] font-semibold text-slate-500 dark:text-slate-400">Vyber doplněk a pak jeho barvu.</p>';
         return `<div class="flex flex-col gap-2.5">
             <div class="flex justify-center py-1">${logoHtml('mt-6', 'h-24 w-auto drop-shadow-lg [@media(max-height:700px)]:h-16', acc)}</div>
@@ -106,14 +131,29 @@
         if (color) {
             const [slot, id] = color.dataset.owlColor.split(':');
             if (!acc[slot]) return false;
-            acc[slot] = { ...acc[slot], color: id };
+            const item = Look.ACC_COLORS.find(entry => entry.id === id);
+            if (!item) return false;
             activeSlot = slot;
+            if (!Look.isUnlocked(item, ctx)) { note = `${item.title}: ${Look.unlockText(item)}`; return true; }
             note = '';
+            // Paleta začíná od odstínu, který už doplněk má, jinak od modré
+            const start = Look.customHue(acc[slot].color) !== null ? acc[slot].color : 'h210';
+            acc[slot] = { ...acc[slot], color: id === 'vlastni' ? start : id };
             return Look.setPref('acc', acc, ctx);
         }
         return false;
     };
+    // Posuvník odstínu vlastní barvy (uloží se po puštění)
+    const change = (event, ctx) => {
+        const range = event.target.closest('[data-owl-hue]');
+        if (!range) return false;
+        const slot = activeSlot;
+        const acc = { ...(ctx.prefs.acc || {}) };
+        if (!slot || !acc[slot]) return false;
+        acc[slot] = { ...acc[slot], color: `h${Math.round(Number(range.value) / 5) * 5 % 360}` };
+        return Look.setPref('acc', acc, ctx);
+    };
 
-    if (Look) Look.register({ id: 'owl', tab: 'owl', title: 'Doplňky sovy', noTitle: true, order: 5, render, click, apply: (prefs) => refresh(prefs.acc || {}) });
+    if (Look) Look.register({ id: 'owl', tab: 'owl', title: 'Doplňky sovy', noTitle: true, order: 5, render, click, change, apply: (prefs) => refresh(prefs.acc || {}) });
     return { logoHtml, layersHtml, layerSrc, refresh, PAD, slotOf };
 });

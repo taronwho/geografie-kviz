@@ -71,9 +71,15 @@ test('doplňky sovy v Nastavení', { skip: !chromium && 'Playwright není nainst
         await tab.waitForSelector('[data-owl-pick="neck:sala"][aria-pressed="true"]');
         assert.deepEqual(await layers(tab), ['icons/doplnky/sala.webp', 'icons/doplnky/bryle.webp']);
         // Barva patří naposledy vybranému doplňku
-        await tab.click('[data-owl-color^="neck:ruzova"]');
-        await tab.waitForSelector('[data-owl-color="neck:ruzova"][aria-pressed="true"]');
-        assert.deepEqual(await layers(tab), ['icons/doplnky/sala-ruzova.webp', 'icons/doplnky/bryle.webp']);
+        await tab.click('[data-owl-color="neck:modra"]');
+        await tab.waitForSelector('[data-owl-color="neck:modra"][aria-pressed="true"]');
+        assert.deepEqual(await layers(tab), ['icons/doplnky/sala-modra.webp', 'icons/doplnky/bryle.webp']);
+        // Barvy se odemykají úrovní (zelená od úr. 8 je odemčená, růžová od úr. 38 a paleta od úr. 80 ne)
+        await tab.click('[data-owl-color="neck:ruzova"]', { force: true });
+        await tab.waitForFunction(() => /Růžová: Úroveň 38/.test(document.querySelector('[data-look="owl"]').textContent));
+        await tab.click('[data-owl-color="neck:vlastni"]', { force: true });
+        await tab.waitForFunction(() => /Vlastní barva \(paleta\): Úroveň 80/.test(document.querySelector('[data-look="owl"]').textContent));
+        assert.deepEqual(await layers(tab), ['icons/doplnky/sala-modra.webp', 'icons/doplnky/bryle.webp'], 'zamčená barva se nenasadí');
         // V jednom místě je nejvýš jeden doplněk: sluneční brýle nahradí kulaté
         await tab.click('[data-owl-pick="face:slunecni-bryle"]');
         await tab.waitForSelector('[data-owl-pick="face:slunecni-bryle"][aria-pressed="true"]');
@@ -82,10 +88,10 @@ test('doplňky sovy v Nastavení', { skip: !chromium && 'Playwright není nainst
         assert.equal(await tab.evaluate(() => { const box = document.querySelector('#settings-overlay > div'); return box.scrollHeight <= box.clientHeight; }), true, 'okno bez posouvání');
         await tab.click('[data-close]');
         await tab.waitForSelector('#settings-overlay', { state: 'detached' });
-        assert.deepEqual(await layers(tab), ['icons/doplnky/sala-ruzova.webp', 'icons/doplnky/slunecni-bryle.webp']);
+        assert.deepEqual(await layers(tab), ['icons/doplnky/sala-modra.webp', 'icons/doplnky/slunecni-bryle.webp']);
         await tab.reload();
         await tab.waitForSelector('#status-icon-slot [data-owl-layer]');
-        assert.deepEqual(await layers(tab), ['icons/doplnky/sala-ruzova.webp', 'icons/doplnky/slunecni-bryle.webp'], 'volba přežije načtení');
+        assert.deepEqual(await layers(tab), ['icons/doplnky/sala-modra.webp', 'icons/doplnky/slunecni-bryle.webp'], 'volba přežije načtení');
         // „Bez doplňku“ ho sundá
         await tab.click('#btn-settings');
         await tab.click('[data-me-tab="owl"]');
@@ -110,6 +116,32 @@ test('doplňky sovy v Nastavení', { skip: !chromium && 'Playwright není nainst
         await tab.click('[data-owl-pick="face:bryle"]');
         await tab.waitForSelector('[data-owl-pick="face:bryle"][aria-pressed="true"]');
         assert.deepEqual(await layers(tab), ['icons/doplnky/motylek.webp', 'icons/doplnky/bryle.webp', 'icons/doplnky/kvetina.webp', 'icons/doplnky/lupa.webp']);
+        assert.deepEqual(problems, []);
+        await context.close();
+    });
+
+    await t.test('nejlepší odměna: vlastní barva z palety přebarví doplněk z původního obrázku', async () => {
+        const { context, tab, problems } = await open(JSON.stringify({ xp: 238000, counters: {}, badges: {} }));
+        await tab.click('#btn-settings');
+        await tab.click('[data-me-tab="owl"]');
+        await tab.waitForSelector('[data-owl-pick]');
+        await tab.click('[data-owl-pick="head:koruna"]');
+        await tab.waitForSelector('[data-owl-pick="head:koruna"][aria-pressed="true"]');
+        assert.equal(await tab.locator('[data-owl-hue]').count(), 0, 'posuvník je jen u vlastní barvy');
+        await tab.click('[data-owl-color="head:vlastni"]');
+        await tab.waitForSelector('[data-owl-hue]');
+        // Posuvník odstínu: koruna je zlatá (odstín 40), zvolený odstín 120 = otočení o 80°
+        await tab.$eval('[data-owl-hue]', range => { range.value = '120'; range.dispatchEvent(new Event('change', { bubbles: true })); });
+        await tab.waitForFunction(() => document.querySelector('#status-icon-slot [data-owl-layer]'));
+        const layer = await tab.$eval('#status-icon-slot [data-owl-layer]', node => [node.getAttribute('src'), node.className]);
+        assert.equal(layer[0], 'icons/doplnky/koruna.webp');
+        assert.match(layer[1], /hue-rotate-\[80deg\]/);
+        assert.equal(await tab.inputValue('[data-owl-hue]'), '120', 'posuvník drží zvolený odstín');
+        assert.equal(await tab.evaluate(() => getComputedStyle(document.querySelector('#status-icon-slot [data-owl-layer]')).filter.includes('hue-rotate')), true, 'filtr se skutečně použije');
+        // Po načtení zůstane
+        await tab.reload();
+        await tab.waitForSelector('#status-icon-slot [data-owl-layer]');
+        assert.match(await tab.$eval('#status-icon-slot [data-owl-layer]', node => node.className), /hue-rotate-\[80deg\]/);
         assert.deepEqual(problems, []);
         await context.close();
     });

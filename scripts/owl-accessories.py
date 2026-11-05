@@ -16,7 +16,12 @@ LOGO_SIZE = (258, 320)
 # Vrstva má rám loga rozšířený o okraje (koruna, sluchátka a lupa přesahují obrys sovy): podíl šířky/výšky loga
 PAD = {'l': 0.14, 'r': 0.14, 't': 0.26, 'b': 0.05}
 # Doplňky v obličeji zakrývají i oči a monokl pod sebou, proto se jejich plocha vyplní celá (bez děr)
-FILL = {'bryle', 'slunecni-bryle'}
+FILL = {'bryle', 'slunecni-bryle', 'koruna'}
+# Doplněk zlaté barvy na zlatém podkladu (koruna přes knoflík čepice, stuha medaile přes zlatý límec) se od původní sovy skoro neliší:
+# silnější uzavření masky, ať se přebarví celý a nezůstanou zlaté kusy. Poloměr v pixelech původního obrázku.
+# Doplňky, které sedí na zlatém knoflíku čepice: knoflík se do masky přidá (jinak by prosvítal zlatý uprostřed přebarveného doplňku)
+KNOB = {'koruna'}
+CLOSE = {'koruna': 45, 'medaile': 41, 'kvetina': 21, 'sala': 25}
 BORDER = 360  # okraj plátna při zarovnání, aby se vešlo i to, co přesahuje původní obrázek
 
 
@@ -87,19 +92,33 @@ def align(base, img, border=BORDER):
     return warped
 
 
-def extract(base, warped, fill=False, border=BORDER):
+def extract(base, warped, fill=False, border=BORDER, close=9, knob=False):
     base = cv2.copyMakeBorder(base, border, border, border, border, cv2.BORDER_REPLICATE)
     diff = np.abs(warped.astype(np.int16) - base.astype(np.int16)).max(axis=2).astype(np.uint8)
     diff = cv2.GaussianBlur(diff, (0, 0), 1.2)
     mask = (diff > 38).astype(np.uint8)
     mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, np.ones((5, 5), np.uint8))
-    mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, np.ones((9, 9), np.uint8))
+    mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (close, close)))
     # nejvýš tři největší souvislé plochy větší než šum
     n, labels, stats, _ = cv2.connectedComponentsWithStats(mask, 8)
     keep = np.zeros_like(mask)
     for i in range(1, n):
         if stats[i, cv2.CC_STAT_AREA] >= 600:
             keep[labels == i] = 1
+    if knob:
+        # zlatý knoflík čepice (nahoře uprostřed sovy): sytě žlutá až oranžová místa v horní části
+        hsv = cv2.cvtColor(base, cv2.COLOR_RGB2HSV).astype(np.float32)
+        x0, y0, x1, y1, _ = owl_bbox(base)
+        zone = np.zeros(base.shape[:2], bool)
+        zone[y0:y0 + int((y1 - y0) * 0.14), x0:x1] = True
+        gold = zone & (hsv[..., 0] >= 15) & (hsv[..., 0] <= 28) & (hsv[..., 1] > 130) & (hsv[..., 2] > 140)
+        gold = cv2.dilate(gold.astype(np.uint8), np.ones((9, 9), np.uint8))
+        keep = np.maximum(keep, gold)
+    # tam, kde je v obrázku doplňku jen pozadí, doplněk není (nic se nepřekrývá tmavou barvou pozadí)
+    border_px = np.concatenate([warped[:8].reshape(-1, 3), warped[-8:].reshape(-1, 3), warped[:, :8].reshape(-1, 3), warped[:, -8:].reshape(-1, 3)])
+    bgc = np.median(border_px.reshape(-1, 3), axis=0)
+    away = np.sqrt(((warped.astype(np.float32) - bgc) ** 2).sum(axis=2))
+    keep = np.where(away < 28, 0, keep).astype(np.uint8)
     if fill:
         # vyplnění děr: co není vnějšek, je doplněk
         inv = (1 - keep).astype(np.uint8)
@@ -183,7 +202,7 @@ def main(ids):
             continue
         img = np.asarray(Image.open(f).convert('RGB'))
         warped = align(base, img)
-        mask, diff = extract(base, warped, fill=name in FILL)
+        mask, diff = extract(base, warped, fill=name in FILL, close=CLOSE.get(name, 9), knob=name in KNOB)
         out = layer(base, warped, mask, frame)
         save_webp(out, os.path.join(OUT, name + '.webp'))
         # ikony do výběru (<id>-ikona.webp) dělá scripts/owl-accessory-icons.py z vlastních obrázků doplňků

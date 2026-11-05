@@ -12,7 +12,7 @@ test('doplňky sovy: katalog má 10 doplňků ve čtyřech místech a každý m�
         assert.ok(Look.SLOTS.some(slot => slot.id === item.slot), item.id);
         assert.ok(fs.existsSync(path.join(__dirname, '..', 'icons', 'doplnky', `${item.id}.webp`)), `${item.id} vrstva`);
         assert.ok(fs.existsSync(path.join(__dirname, '..', 'icons', 'doplnky', `${item.id}-ikona.webp`)), `${item.id} ikona`);
-        for (const color of Look.ACC_COLORS.filter(entry => entry.id !== 'original')) {
+        for (const color of Look.ACC_COLORS.filter(entry => entry.id !== 'original' && entry.id !== 'vlastni')) {
             assert.ok(fs.existsSync(path.join(__dirname, '..', 'icons', 'doplnky', `${item.id}-${color.id}.webp`)), `${item.id}-${color.id}`);
         }
     }
@@ -65,4 +65,28 @@ test('doplňky sovy: doplňky jdou přidávat v libovolném pořadí (i nejdří
     assert.deepEqual(Object.keys(Look.prefs(ctx).acc), ['head', 'face', 'neck', 'hand']);
     assert.equal(Look.setPref('acc', {}, ctx), true);
     delete global.localStorage;
+});
+
+test('barvy doplňků: odemykají se úrovní a nejlepší odměna je vlastní barva z palety (odstín po 5°)', () => {
+    const open = (level) => Look.ACC_COLORS.filter(color => Look.isUnlocked(color, { level, badges: {} })).map(color => color.id);
+    assert.deepEqual(open(1), ['original', 'cervena', 'modra']);
+    assert.ok(open(52).includes('fialova') && !open(52).includes('vlastni'));
+    assert.ok(open(80).includes('vlastni'));
+    const ctx = (level) => ({ level, badges: {} });
+    assert.deepEqual(Look.normalize({ acc: { head: { id: 'koruna', color: 'h210' } } }, ctx(80)).acc, { head: { id: 'koruna', color: 'h210' } });
+    assert.equal(Look.normalize({ acc: { head: { id: 'koruna', color: 'h210' } } }, ctx(79)).acc.head.color, 'original', 'bez odemčené palety se vlastní barva zahodí');
+    assert.equal(Look.normalize({ acc: { head: { id: 'koruna', color: 'h212' } } }, ctx(90)).acc.head.color, 'original', 'odstín jen po 5°');
+    assert.equal(Look.normalize({ acc: { head: { id: 'koruna', color: 'h400' } } }, ctx(90)).acc.head.color, 'original');
+    assert.equal(Look.normalize({ acc: { face: { id: 'bryle', color: 'zluta' } } }, ctx(20)).acc.face.color, 'original', 'žlutá je až od úrovně 26');
+    // Nové barvy se hlásí jako odměny
+    assert.deepEqual(Look.newRewards(7, 8, []).filter(entry => entry.category === 'colors').map(entry => entry.item.id), ['zelena']);
+    assert.ok(Look.rewardsAtLevel(80).some(entry => entry.category === 'colors' && entry.item.id === 'vlastni'));
+});
+
+test('vlastní barva doplňku: obrázek zůstane původní a barvu dá otočení odstínu podle původního odstínu doplňku', () => {
+    // Koruna je zlatá (odstín 40), cíl 210 (modrá) → otočit o 170°; sluchátka jsou červená (358), cíl 120 → 122°
+    assert.match(Owl.layersHtml({ head: { id: 'koruna', color: 'h210' } }), /src="icons\/doplnky\/koruna\.webp"[^>]*hue-rotate-\[170deg\]/);
+    assert.match(Owl.layersHtml({ head: { id: 'sluchatka', color: 'h120' } }), /hue-rotate-\[120deg\]/);
+    assert.doesNotMatch(Owl.layersHtml({ head: { id: 'koruna', color: 'h40' } }), /hue-rotate/, 'stejný odstín = bez otočení');
+    assert.doesNotMatch(Owl.layersHtml({ head: { id: 'koruna', color: 'modra' } }), /hue-rotate/);
 });
