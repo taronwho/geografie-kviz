@@ -5,7 +5,7 @@ name: Denní zajímavost
 
 on:
   schedule:
-    - cron: '17 22,23 * * *'   # 22:17 a 23:17 UTC = po půlnoci v Praze v létě i v zimě; jedno z nich je vždy po půlnoci, druhé hotový den přeskočí
+    - cron: '17 22,23,4,7 * * *'   # 22:17 a 23:17 UTC = po půlnoci v Praze v létě i v zimě; 04:17 a 07:17 UTC jsou opakování, kdyby ráno chybělo (hotový den se přeskočí)
   workflow_dispatch:
     inputs:
       force:

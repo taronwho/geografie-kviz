@@ -22,6 +22,7 @@ const makeFetch = (geminiReplies, calls = []) => async (url, init) => {
         return url.includes('Tutankhamun') ? json({ query: { pages: { 1: { langlinks: [{ lang: 'cs', '*': 'Tutanchamon' }] } } } }) : json({ query: { pages: { 2: {} } } });
     }
     if (url.includes('cs.wikipedia.org')) return json({ title: 'Tutanchamon', extract: EXTRACT, content_urls: { desktop: { page: 'https://cs.wikipedia.org/wiki/Tutanchamon' } } });
+    if (url.includes('generativelanguage') && url.includes('/v1beta/models?')) return json({ models: [{ name: 'models/gemini-3.5-flash-lite', supportedGenerationMethods: ['generateContent'] }, { name: 'models/gemini-3.5-flash-lite-tts', supportedGenerationMethods: ['generateContent'] }] });
     if (url.includes('generativelanguage')) {
         assert.equal(init.headers['x-goog-api-key'], 'klíč');
         const reply = geminiReplies.shift();
@@ -68,7 +69,7 @@ test('denní zajímavost: sestaví výsledek s odkazem na českou Wikipedii a p�
     assert.equal(fact.url, 'https://cs.wikipedia.org/wiki/Tutanchamon');
     assert.equal(fact.source, 'Wikipedie');
     assert.ok(logs.some(line => /čísla mimo zdroje/.test(line)), 'první odpověď se zahodila');
-    assert.equal(calls.filter(url => url.includes('generativelanguage')).length, 3, 'výběr + dva pokusy o text');
+    assert.equal(calls.filter(url => url.includes('generativelanguage') && url.includes(':generateContent')).length, 3, 'výběr + dva pokusy o text');
     assert.ok(fact.category, 'uloží se kategorie dne');
 });
 
@@ -77,4 +78,25 @@ test('denní zajímavost: bez použitelné odpovědi skončí chybou, ne vymyšl
     resetBudget();
     const bad = { title: 'Nic', text: 'x' };
     await assert.rejects(buildFact({ day: '2026-11-04', key: 'klíč', fetchImpl: makeFetch(Array.from({ length: 10 }, () => bad)) }), /Nepodařilo se|Vyčerpán/);
+});
+
+test('denní zajímavost: pořadí modelů – nejnovější flash-lite, pak flash, bez TTS a obrázkových', async () => {
+    const { rankModels } = await load();
+    const order = rankModels(['models/gemini-3.1-flash-lite', 'models/gemini-3.5-flash-lite', 'models/gemini-3.5-flash-lite-tts', 'models/gemini-3.8-flash', 'models/gemini-2.5-flash', 'models/gemini-3-pro-image', 'models/gemini-embedding-1', 'models/text-bison']);
+    assert.deepEqual(order, ['gemini-3.5-flash-lite', 'gemini-3.1-flash-lite', 'gemini-3.8-flash', 'gemini-2.5-flash']);
+});
+
+test('denní zajímavost: při 429 prvního modelu se zkusí další (každý má vlastní limit)', async () => {
+    const { buildFact, resetBudget } = await load();
+    resetBudget();
+    let tried = [];
+    const base = makeFetch([{ index: 0 }, GOOD]);
+    const fetchImpl = async (url, init) => {
+        const model = (url.match(/models\/([^:/?]+):generateContent/) || [])[1];
+        if (model) { tried.push(model); if (model === 'gemini-3.5-flash-lite') return { ok: false, status: 429, text: async () => 'quota', json: async () => ({}) }; }
+        return base(url, init);
+    };
+    const fact = await buildFact({ day: '2026-11-04', key: 'klíč', fetchImpl });
+    assert.equal(fact.title, GOOD.title);
+    assert.ok(tried.includes('gemini-3.5-flash-lite') && tried.some(model => model !== 'gemini-3.5-flash-lite'), `zkoušené modely: ${tried}`);
 });
