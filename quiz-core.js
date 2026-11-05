@@ -1195,7 +1195,7 @@
     // value(c, x) je aktuální hodnota pro ukazatel „87 / 100“. x = { level, learned, topicStars: { téma: hvězdy }, topicCount } ---
     const EMPTY_COUNTERS = {
         answered: 0, correct: 0, typedCorrect: 0, noHint: 0, hardCorrect: 0, run: 0, bestRun: 0, bestStreak: 0, perfectDays: 0,
-        challenges: 0, wins: 0, winRun: 0, bestWinRun: 0, created: 0, perfectChallenges: 0, dailyCorrect: 0, fixed: 0, days: 0, lastDay: '', topics: {}, topicRun: {}, topicBest: {}
+        challenges: 0, wins: 0, winRun: 0, bestWinRun: 0, created: 0, perfectChallenges: 0, dailyCorrect: 0, fixed: 0, days: 0, lastDay: '', topics: {}, topicRun: {}, topicBest: {}, tourBest: 0, tourWins: 0
     };
     const number = (value) => Number.isFinite(value) ? value : 0;
     // Barva medaile podle stupně ve skupině: bronz, stříbro, zlato, vínová a nejvyšší diamantová
@@ -1284,6 +1284,11 @@
         (c, x) => Math.max(((c.topicBest || {})[topic]) || 0, (((x && x.topicStars) || {})[topic] || 0) >= SKILL_STARS ? SKILL_RUN : 0),
         (g) => `${g} správných odpovědí v řadě v tématu ${label} nebo ${SKILL_STARS} hvězdy mistrovství v něm. Odměna: doplněk Mudrlanta.`,
         [T(SKILL_RUN, SKILL_TITLES[topic], `zbehly-${topic}`)], { topic }));
+    // Turnaje: nejlepší umístění (1 = hrál, 2 = čtvrtfinále, 3 = semifinále, 4 = bronz, 5 = stříbro, 6 = vítěz) a vyhrané zápasy; počítadla dosazuje aplikace z databáze
+    addGroup('turnaje', 'Turnaje', 'trophy', (c) => c.tourBest, (g) => ({ 1: 'Odehraj týdenní turnaj.', 2: 'Dostaň se v turnaji do čtvrtfinále.', 3: 'Dostaň se v turnaji do semifinále.', 4: 'Získej v turnaji bronz.', 5: 'Získej v turnaji stříbro.', 6: 'Vyhraj týdenní turnaj.' }[g]),
+        [T(1, 'Turnajový hráč', 'turnaj-ucast'), T(2, 'Čtvrtfinalista', 'turnaj-ctvrtfinale'), T(3, 'Semifinalista', 'turnaj-semifinale'), T(4, 'Bronz z turnaje', 'turnaj-bronz'), T(5, 'Stříbro z turnaje', 'turnaj-stribro'), T(6, 'Mistr turnaje', 'turnaj-zlato')]);
+    addGroup('turnaj-postupy', 'Vyhrané zápasy v turnajích', 'swords', (c) => c.tourWins, (g) => `${g} ${g === 1 ? 'vyhraný zápas' : 'vyhraných zápasů'} v turnajích.`,
+        [T(1, 'První postup'), T(5, 'Pětkrát dál'), T(15, 'Turnajový matador')]);
     const BADGE_BY_ID = Object.fromEntries(BADGES.map(badge => [badge.id, badge]));
     const normalizeCounters = (counters) => ({ ...EMPTY_COUNTERS, ...(counters || {}), topics: { ...((counters && counters.topics) || {}) },
         topicRun: { ...((counters && counters.topicRun) || {}) }, topicBest: { ...((counters && counters.topicBest) || {}) } });
