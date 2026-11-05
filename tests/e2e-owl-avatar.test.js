@@ -59,6 +59,8 @@ test('sova jako obrázek profilu', { skip: !chromium && 'Playwright není nainst
             const eq = (key) => (url.searchParams.get(key) || '').replace(/^eq\./, '');
             const body = request.postData() ? JSON.parse(request.postData()) : null;
             if (url.pathname === '/rest/v1/profiles') {
+                // Databáze, ve které ještě nebylo znovu spuštěno schema.sql: sloupec owl neexistuje
+                if (db.noOwlColumn && ((body && 'owl' in body) || /\bowl\b/.test(url.searchParams.get('select') || ''))) return json({ message: 'column profiles.owl does not exist' }, 400);
                 if (request.method() === 'PATCH') {
                     if (eq('id') !== me.id) return json([]);
                     db.writes.push(body);
@@ -160,6 +162,26 @@ test('sova jako obrázek profilu', { skip: !chromium && 'Playwright není nainst
         assert.deepEqual(Object.keys(db.writes[db.writes.length - 1]), ['owl'], 'přeuložení posílá jen sovu');
         assert.deepEqual(one.problems, []);
         await one.context.close();
+    });
+
+    await t.test('databáze bez sloupce owl: sova se přesto ukáže v zařízení a po načtení zůstane', async () => {
+        db.noOwlColumn = true;
+        db.profiles['u-1'].owl = undefined;
+        const { context, tab, problems } = await open('tok-u1', { extra: { 'mudrlant.look': JSON.stringify({ robe: 'zelena' }) } });
+        await tab.click('#btn-settings');
+        await tab.click('[data-me-tab="profile"]');
+        await tab.waitForSelector('[data-pick-owl]');
+        await tab.click('[data-pick-owl]');
+        await tab.waitForSelector('[data-pick-owl][aria-pressed="true"]');
+        await tab.click('[data-save-profile]');
+        await tab.waitForFunction(() => /Uloženo/.test(document.querySelector('#settings-overlay').textContent));
+        await tab.click('[data-close]');
+        await tab.waitForSelector('#btn-settings img[src="icons/logo-zelena.webp"]');
+        await tab.reload();
+        await tab.waitForSelector('#btn-settings img[src="icons/logo-zelena.webp"]');
+        assert.deepEqual(problems, []);
+        await context.close();
+        db.noOwlColumn = false;
     });
 
     await t.test('emoji zruší sovu; tmavý režim; profil se vejde na malém telefonu', async () => {
