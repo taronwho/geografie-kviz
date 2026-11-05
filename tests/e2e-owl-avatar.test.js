@@ -112,7 +112,7 @@ test('sova jako obrázek profilu', { skip: !chromium && 'Playwright není nainst
         await one.tab.click('[data-me-tab="profile"]');
         await one.tab.waitForSelector('[data-pick-owl]');
         assert.equal(await one.tab.evaluate(() => document.querySelector('[data-pick-avatar]').previousElementSibling === document.querySelector('[data-pick-owl]')), true, 'dlaždice je první');
-        assert.equal(await one.tab.getAttribute('[data-pick-owl]', 'aria-label'), 'Moje sova');
+        assert.equal(await one.tab.getAttribute('[data-pick-owl]', 'aria-label'), 'Sova Mudrlant');
         assert.equal(await one.tab.getAttribute('[data-pick-owl]', 'aria-pressed'), 'false');
         assert.equal(await one.tab.getAttribute('[data-pick-owl] img[data-keep]', 'src'), 'icons/logo-zelena.webp');
         assert.ok(await one.tab.locator('[data-pick-owl] img[src="icons/doplnky/bryle.webp"]').count(), 'náhled má brýle');

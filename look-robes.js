@@ -37,7 +37,7 @@
     };
 
     Look.register({
-        id: 'robes', title: 'Barva obleku sovy', order: 20,
+        id: 'robes', title: 'Barva obleku Mudrlanta', order: 20,
         render: (ctx) => {
             const chosen = ctx.prefs.robe;
             return `<div class="grid grid-cols-7 gap-1">${Look.ROBES.map(item => {

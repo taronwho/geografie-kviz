@@ -823,7 +823,7 @@
         const noteText = note || meNote;
         const tabs = `
             <div role="tablist" class="mt-3 flex gap-1 rounded-2xl bg-slate-200/70 p-1 dark:bg-slate-800">
-                ${[['game', 'gamepad-2', 'Hra'], ...(user && Social ? [['profile', 'user-round', 'Profil']] : []), ['look', 'palette', 'Vzhled'], ...(Owl ? [['owl', 'sparkles', 'Sova']] : [])].map(([id, icon, label]) => `
+                ${[['game', 'gamepad-2', 'Hra'], ...(user && Social ? [['profile', 'user-round', 'Profil']] : []), ['look', 'palette', 'Vzhled'], ...(Owl ? [['owl', 'sparkles', 'Mudrlant']] : [])].map(([id, icon, label]) => `
                     <button type="button" role="tab" data-me-tab="${id}" aria-selected="${meTab === id}" class="flex flex-1 items-center justify-center gap-1.5 rounded-xl min-h-[2.75rem] px-2 text-[13px] font-black ${meTab === id ? 'btn-3d bg-brand-700 text-white' : 'text-slate-600 dark:text-slate-400'}"><i data-lucide="${icon}" class="h-4 w-4"></i> ${label}</button>`).join('')}
             </div>`;
         const gameBody = `
@@ -847,7 +847,7 @@
                 </label>
                 <div>
                     <p class="${ME_HEADING} mb-1.5">Obrázek</p>
-                    <div class="grid grid-cols-12 gap-1">${Owl && Owl.owlAvatarHtml ? `<button type="button" data-pick-owl aria-label="Moje sova" title="Moje sova" aria-pressed="${meDraft.owl}" class="flex aspect-square items-center justify-center rounded-lg border-2 active:scale-95 ${meDraft.owl ? 'border-brand-600 bg-brand-50 dark:bg-brand-900/40' : 'border-transparent bg-white dark:bg-slate-800'}">${Owl.owlAvatarHtml(myOwlText(), 'h-full w-auto', 'h-[88%]')}</button>` : ''}${Social.allAvatars().map(emoji => {
+                    <div class="grid grid-cols-12 gap-1">${Owl && Owl.owlAvatarHtml ? `<button type="button" data-pick-owl aria-label="Sova Mudrlant" title="Sova Mudrlant" aria-pressed="${meDraft.owl}" class="flex aspect-square items-center justify-center rounded-lg border-2 active:scale-95 ${meDraft.owl ? 'border-brand-600 bg-brand-50 dark:bg-brand-900/40' : 'border-transparent bg-white dark:bg-slate-800'}">${Owl.owlAvatarHtml(myOwlText(), 'h-full w-auto', 'h-[88%]')}</button>` : ''}${Social.allAvatars().map(emoji => {
                         const lock = avatarLock(emoji);
                         if (lock) return `<button type="button" data-locked-avatar="${emoji}" aria-disabled="true" aria-label="Obrázek ${emoji} je zamčený: Úroveň ${lock.level}" title="Úroveň ${lock.level}" class="flex aspect-square items-center justify-center rounded-lg border-2 border-transparent bg-white text-base opacity-40 grayscale dark:bg-slate-800">${emoji}</button>`;
                         return `<button type="button" data-pick-avatar="${emoji}" aria-label="Obrázek ${emoji}" aria-pressed="${emoji === meDraft.avatar && !meDraft.owl}" class="flex aspect-square items-center justify-center rounded-lg border-2 text-base active:scale-95 ${emoji === meDraft.avatar && !meDraft.owl ? 'border-brand-600 bg-brand-50 dark:bg-brand-900/40' : 'border-transparent bg-white dark:bg-slate-800'}">${emoji}</button>`;
@@ -1240,7 +1240,7 @@
         badge.className = place.logo ? BADGE_LOGO
             : `${BADGE_BASE} ${style ? `${style.soft} border-transparent` : 'bg-white text-slate-700 border-slate-200/60 dark:bg-slate-800 dark:border-slate-700'}`;
         badge.disabled = !place.switch && !place.logo;
-        badge.title = place.switch ? 'Změnit téma nebo co hrát' : place.logo ? (dailyFact ? 'Sova: tento den v dějinách · text: můj postup' : 'Můj postup: úroveň a mistrovství témat') : '';
+        badge.title = place.switch ? 'Změnit téma nebo co hrát' : place.logo ? (dailyFact ? 'Mudrlant: tento den v dějinách · text: můj postup' : 'Můj postup: úroveň a mistrovství témat') : '';
         badge.setAttribute('aria-label', place.switch ? `${place.text} – změnit téma` : place.logo ? `${place.text} – můj postup` : place.text);
         document.getElementById('status-switch').classList.toggle('hidden', !place.switch);
         const iconSlot = document.getElementById('status-icon-slot');
@@ -2201,7 +2201,7 @@
         }
         badgeTitles.slice(0, 3).forEach(title => showCelebration('oslava', 'Nový odznak', title));
         if (badgeTitles.length > 3) showCelebration('oslava', 'Další odznaky', `a ještě ${badgeTitles.length - 3}`);
-        const kinds = { themes: 'barevné téma', robes: 'talár sovy', frames: 'rámeček', avatars: 'obrázek hráče', accessories: 'doplněk sovy' };
+        const kinds = { themes: 'barevné téma', robes: 'talár Mudrlanta', frames: 'rámeček', avatars: 'obrázek hráče', accessories: 'doplněk Mudrlanta' };
         Look.newRewards(levelBefore, levelNow, freshBadgeIds).forEach(({ category, item }) => showCelebration('vitez', 'Nová odměna', `${item.title} (${kinds[category]}) – vyber si ji v Nastavení → Vzhled`));
         freshBadgeIds = [];
     };
@@ -2210,7 +2210,7 @@
         const last = loadProgress().counters.lastDay;
         if (!last) return;
         const gap = Math.round((Date.parse(`${getDayKey()}T12:00:00`) - Date.parse(`${last}T12:00:00`)) / 86400000);
-        if (gap >= 3) showCelebration('spi', 'Sova na tebe čekala', `Naposledy jsi hrál před ${gap} dny. Zahraj si dnešní otázky!`);
+        if (gap >= 3) showCelebration('spi', 'Mudrlant na tebe čekal', `Naposledy jsi hrál před ${gap} dny. Zahraj si dnešní otázky!`);
     };
     // Úroveň a odznaky se po přihlášení ukládají i do účtu (viditelné ostatním, platí na všech zařízeních); chyba spojení nevadí
     let syncingProgress = false;
