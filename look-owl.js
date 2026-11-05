@@ -3,14 +3,22 @@
 // Hráč si v Nastavení → Sova vybere doplněk v každém místě (hlava, obličej, krk, ruka) a jeho barvu. Používá MudrlantLook (look.js).
 (function (root, factory) {
     const isNode = typeof module === 'object' && module.exports;
-    const api = factory(root.MudrlantLook || (isNode ? require('./look.js') : null), root.MudrlantCore || (isNode ? require('./quiz-core.js') : null));
+    const api = factory(root.MudrlantLook || (isNode ? require('./look.js') : null), root.MudrlantCore || (isNode ? require('./quiz-core.js') : null), root.MudrlantFlags || (isNode ? require('./look-flags.js') : null));
     if (isNode) module.exports = api;
     else root.MudrlantOwl = api;
-})(typeof self !== 'undefined' ? self : this, (Look, Core) => {
+})(typeof self !== 'undefined' ? self : this, (Look, Core, Flags) => {
     'use strict';
     // Okraje vrstvy v podílu rozměrů loga (musí odpovídat PAD ve scripts/owl-accessories.py)
     const PAD = { l: 0.34, r: 0.22, t: 0.26, b: 0.12 };
     const LAYER_CLASS = 'pointer-events-none absolute left-[-34%] top-[-26%] w-[156%] max-w-none select-none';
+    // Vlajka státu na plátně vlaječky (doplněk s flags: true): kontejner stejné velikosti jako vrstva, který maskou (třída owl-flag v src/input.css,
+    // icons/doplnky/vlajka-maska.webp) ořízne obrázek vlajky na tvar plátna; vlajka je roztažená přes ohraničení plátna a přes ni se násobí stínování
+    // (vlnění látky). Rozměry rámu a ohraničení vypisuje scripts/owl-accessories.py (třídy musí být vypsané celé, ať je Tailwind najde).
+    // Kontejner je průhledný, dokud se vlajka nenačte (offline zůstane modré plátno).
+    const FLAG_BOX_CLASS = 'pointer-events-none absolute left-[-34%] top-[-26%] w-[156%] aspect-[402/443] max-w-none select-none owl-flag opacity-0';
+    const FLAG_IMG_CLASS = 'absolute max-w-none select-none object-fill left-[12.44%] top-[32.28%] w-[17.41%] h-[16.48%]';
+    const FLAG_SHADE_CLASS = 'absolute inset-0 h-full w-full max-w-none select-none mix-blend-multiply';
+    const FLAG_THUMB_WIDTH = 120;
     // Pořadí kreslení: krk dole, pak obličej, hlava a ruka nahoře
     const ORDER = ['neck', 'face', 'head', 'hand'];
     // Vlastní barva z palety: původní obrázek doplňku se přebarví otočením odstínu (CSS filtr). Třídy jsou vypsané celé, ať je Tailwind najde.
@@ -40,16 +48,31 @@
         const turn = (((hue - (item.hue || 0)) % 360) + 360) % 360;
         return HUE_CLASSES[Math.round(turn / 5) * 5 % 360] || '';
     };
+    // Adresa miniatury vlajky státu (stejným způsobem jako fotky v kvízu); neznámá vlajka = null
+    const flagSrc = (flag) => {
+        const found = Flags && Look && Look.flagOk(flag) ? Flags.find(flag) : null;
+        return found && Core && Core.commonsPhotoUrl ? Core.commonsPhotoUrl(found.file, found.hash, FLAG_THUMB_WIDTH) : null;
+    };
     // attrs: u živé sovy 'data-owl-layer' (přepisuje se podle voleb), u cizí sovy 'data-keep' (nechá se, jak je)
     const layersHtml = (acc, attrs = 'data-owl-layer') => ORDER.map(slot => {
         const entry = acc && acc[slot];
-        const src = entry ? layerSrc(entry.id, entry.color) : null;
+        const item = entry && Look ? Look.find('accessories', entry.id) : null;
+        const flag = item && item.flags && entry.flag ? flagSrc(entry.flag) : null;
+        // S vlajkou státu je plátno vždy původní (modré, vidět je jen jeho obrys) a barva se neuplatní
+        const src = entry ? layerSrc(entry.id, flag ? 'original' : entry.color) : null;
         if (!src) return '';
-        const item = Look.find('accessories', entry.id);
         // Pevná část doplňku (třeba tyčka vlajky) se nepřebarvuje: samostatná vrstva nad barevnou
-        return `<img ${attrs} src="${src}" alt="" class="${LAYER_CLASS} ${hueClass(entry.id, entry.color)}">`
-            + (item && item.fixed ? `<img ${attrs} src="icons/doplnky/${item.id}-zaklad.webp" alt="" class="${LAYER_CLASS}">` : '');
+        return `<img ${attrs} src="${src}" alt="" class="${LAYER_CLASS} ${flag ? '' : hueClass(entry.id, entry.color)}">`
+            + (flag ? `<div ${attrs} class="${FLAG_BOX_CLASS}"><img ${attrs} data-owl-flag-img src="${escapeHtml(flag)}" alt="" class="${FLAG_IMG_CLASS}"><img ${attrs} src="icons/doplnky/${item.id}-stin.webp" alt="" class="${FLAG_SHADE_CLASS}"></div>` : '')
+            + (item.fixed ? `<img ${attrs} src="icons/doplnky/${item.id}-zaklad.webp" alt="" class="${LAYER_CLASS}">` : '');
     }).join('');
+    // Vlajka se ukáže, až se načte (a při chybě nebo bez sítě zůstane modré plátno); CSP zakazuje obslužné funkce v atributech, proto zachycení na dokumentu
+    if (typeof document !== 'undefined') {
+        document.addEventListener('load', (event) => {
+            const image = event.target;
+            if (image && image.tagName === 'IMG' && image.hasAttribute('data-owl-flag-img') && image.parentElement) image.parentElement.classList.remove('opacity-0');
+        }, true);
+    }
 
     // --- Sova jako obrázek profilu: zápis voleb do textu (sloupec profiles.owl), např. 'robe=zelena;head=koruna.modra;face=bryle.original' ---
     // Platnost se kontroluje proti katalogu (ne proti odemčení – hráč má sovu, kterou si ostatní prohlížejí); neznámé části se zahodí.
@@ -57,10 +80,11 @@
     const encodeOwl = (prefs) => {
         const parsed = parseOwl(prefs);
         const parts = [`robe=${parsed ? parsed.robe : 'vinova'}`];
-        if (parsed) for (const slot of ORDER) if (parsed.acc[slot]) parts.push(`${slot}=${parsed.acc[slot].id}.${parsed.acc[slot].color}`);
+        if (parsed) for (const slot of ORDER) if (parsed.acc[slot]) parts.push(`${slot}=${parsed.acc[slot].id}.${parsed.acc[slot].color}${parsed.acc[slot].flag ? `.${parsed.acc[slot].flag}` : ''}`);
         return parts.join(';').slice(0, OWL_MAX);
     };
     // Vstup: text, nebo objekt { robe, acc } (třeba Look.prefs()); výstup { robe, acc } nebo null, když nejde o platnou sovu
+    // Vlajka státu na vlaječce je třetí část zápisu: 'hand=vlajka.original.q101472'; starší zápis bez ní platí dál
     // Barva doplňku v zápisu: z katalogu, nebo vlastní odstín h<stupně> (platnost se kontroluje bez ohledu na odemčení)
     const validColor = (color) => Look.ACC_COLORS.some(entry => entry.id === color && entry.id !== 'vlastni') || Look.customHue(color) !== null;
     function parseOwl(input) {
@@ -69,10 +93,11 @@
         const acc = {};
         let known = false;
         const takeRobe = (id) => { if (Look.find('robes', id)) { robe = id; known = true; } };
-        const takeAcc = (slot, id, color) => {
+        const takeAcc = (slot, id, color, flag) => {
             const item = Look.find('accessories', id);
             if (!item || item.slot !== slot || acc[slot]) return;
             acc[slot] = { id, color: validColor(color) ? color : 'original' };
+            if (item.flags && Look.flagOk(flag)) acc[slot].flag = flag;
             known = true;
         };
         if (typeof input === 'string') {
@@ -83,12 +108,12 @@
                 const key = part.slice(0, eq);
                 const value = part.slice(eq + 1);
                 if (key === 'robe') takeRobe(value);
-                else if (Look.SLOTS.some(slot => slot.id === key)) { const dot = value.indexOf('.'); takeAcc(key, dot < 0 ? value : value.slice(0, dot), dot < 0 ? 'original' : value.slice(dot + 1)); }
+                else if (Look.SLOTS.some(slot => slot.id === key)) { const [id, color, flag] = value.split('.'); takeAcc(key, id, color === undefined ? 'original' : color, flag); }
             }
         } else if (input && typeof input === 'object') {
             takeRobe(input.robe);
             const source = input.acc && typeof input.acc === 'object' ? input.acc : {};
-            for (const slot of Look.SLOTS) { const entry = source[slot.id]; if (entry && typeof entry === 'object') takeAcc(slot.id, entry.id, entry.color); }
+            for (const slot of Look.SLOTS) { const entry = source[slot.id]; if (entry && typeof entry === 'object') takeAcc(slot.id, entry.id, entry.color, entry.flag); }
             known = true;
         } else return null;
         return known ? { robe, acc } : null;
@@ -158,13 +183,21 @@
         const slider = custom && Look.isUnlocked(customOpen, ctx) ? `
             <label class="flex flex-col gap-1 text-[11px] font-bold text-slate-500 dark:text-slate-400">Odstín
                 <input type="range" min="0" max="355" step="5" value="${Look.customHue(current)}" data-owl-hue aria-label="Odstín vlastní barvy" class="h-6 w-full cursor-pointer ${HUE_BAR}"></label>` : '';
-        const colors = targetItem ? `
+        // Vlajka státu na vlaječce: výběr se ukáže pod barvami; s vlajkou se barva plátna neuplatní, proto se paleta skryje
+        const flagSlot = Look.SLOTS.map(slot => slot.id).find(id => acc[id] && (Look.find('accessories', acc[id].id) || {}).flags);
+        const flagChosen = flagSlot ? acc[flagSlot].flag || '' : '';
+        const flagPicker = flagSlot ? `
+            <label class="flex items-center gap-2 text-[11px] font-bold text-slate-500 dark:text-slate-400"><span class="shrink-0">Vlajka</span>
+                <select data-owl-flag="${flagSlot}" aria-label="Vlajka státu na vlaječce" class="h-8 min-w-0 flex-1 rounded-lg border-2 border-slate-200 bg-white px-2 text-sm font-bold text-slate-800 focus:border-brand-600 focus:outline-none dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100">
+                    <option value=""${flagChosen ? '' : ' selected'}>Modré plátno (výchozí)</option>${Flags ? Flags.list().map(flag => `<option value="${flag.id}"${flag.id === flagChosen ? ' selected' : ''}>${escapeHtml(flag.name)}</option>`).join('') : ''}
+                </select></label>` : '';
+        const colors = targetItem && flagChosen && target === flagSlot ? '' : targetItem ? `
             <div class="flex flex-col gap-1.5"><p class="text-[11px] font-bold text-slate-500 dark:text-slate-400">Barva: <b class="text-slate-700 dark:text-slate-200">${escapeHtml(targetItem.title)}</b></p>
             <div class="grid grid-cols-9 justify-items-center gap-1" role="group" aria-label="Barva doplňku">${Look.ACC_COLORS.map(dot).join('')}</div>${slider}</div>`
             : '<p class="text-[11px] font-semibold text-slate-500 dark:text-slate-400">Vyber doplněk a pak jeho barvu.</p>';
-        return `<div class="flex flex-col gap-2.5">
+        return `<div class="flex flex-col gap-2">
             <div class="flex justify-center py-1">${logoHtml('mt-6', 'h-24 w-auto drop-shadow-lg [@media(max-height:700px)]:h-16', acc)}</div>
-            ${slots}${colors}
+            ${slots}<div class="flex flex-col gap-1.5">${colors}${flagPicker}</div>
             ${note ? `<p role="status" class="text-[11px] font-bold text-brand-700 dark:text-brand-300">${escapeHtml(note)}</p>` : ''}
         </div>`;
     };
@@ -182,7 +215,7 @@
                 const item = Look.find('accessories', id);
                 if (!item || item.slot !== slot) return false;
                 if (!Look.isUnlocked(item, ctx)) { note = `${item.title}: ${Look.unlockText(item, item.badge ? badgeTitle(item.badge) : null)}`; return true; }
-                acc[slot] = { id, color: acc[slot] && acc[slot].id === id ? acc[slot].color : 'original' };
+                acc[slot] = acc[slot] && acc[slot].id === id ? acc[slot] : { id, color: 'original' };
                 activeSlot = slot;
             }
             return Look.setPref('acc', acc, ctx) || Boolean(note);
@@ -202,8 +235,18 @@
         }
         return false;
     };
-    // Posuvník odstínu vlastní barvy (uloží se po puštění)
+    // Posuvník odstínu vlastní barvy (uloží se po puštění) a výběr vlajky státu
     const change = (event, ctx) => {
+        const select = event.target.closest('[data-owl-flag]');
+        if (select) {
+            const slot = select.dataset.owlFlag;
+            const acc = { ...(ctx.prefs.acc || {}) };
+            if (!acc[slot]) return false;
+            const { flag, ...rest } = acc[slot];
+            acc[slot] = Look.flagOk(select.value) ? { ...rest, flag: select.value } : rest;
+            activeSlot = slot;
+            return Look.setPref('acc', acc, ctx);
+        }
         const range = event.target.closest('[data-owl-hue]');
         if (!range) return false;
         const slot = activeSlot;
@@ -214,5 +257,5 @@
     };
 
     if (Look) Look.register({ id: 'owl', tab: 'owl', title: 'Doplňky Mudrlanta', noTitle: true, order: 5, render, click, change, apply: (prefs) => refresh(prefs.acc || {}) });
-    return { logoHtml, layersHtml, layerSrc, refresh, PAD, slotOf, encodeOwl, parseOwl, owlAvatarHtml, OWL_MAX };
+    return { logoHtml, layersHtml, layerSrc, flagSrc, refresh, PAD, slotOf, encodeOwl, parseOwl, owlAvatarHtml, OWL_MAX };
 });
