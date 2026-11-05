@@ -205,6 +205,6 @@
         return Look.setPref('acc', acc, ctx);
     };
 
-    if (Look) Look.register({ id: 'owl', tab: 'owl', title: 'Doplňky sovy', noTitle: true, order: 5, render, click, change, apply: (prefs) => refresh(prefs.acc || {}) });
+    if (Look) Look.register({ id: 'owl', tab: 'owl', title: 'Doplňky Mudrlanta', noTitle: true, order: 5, render, click, change, apply: (prefs) => refresh(prefs.acc || {}) });
     return { logoHtml, layersHtml, layerSrc, refresh, PAD, slotOf, encodeOwl, parseOwl, owlAvatarHtml, OWL_MAX };
 });
