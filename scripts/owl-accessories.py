@@ -22,6 +22,8 @@ FILL = {'bryle', 'slunecni-bryle', 'koruna', 'lab-bryle', '3d-bryle', 'helma', '
 HATS = {'helma', 'prilba', 'baret'}
 # Doplňky s pevnou částí: barvu mění jen plátno (modrá plocha), zbytek (tyčka, ruka) je v samostatné vrstvě <id>-zaklad.webp, která se nikdy nepřebarvuje
 SPLIT = {'vlajka'}
+# Nejtmavší místo stínování vlajky státu (1 = bez stínu): stín nesmí vlajku příliš ztmavit
+SHADE_MIN = 0.62
 HAND = {'vlajka', 'svitek', 'brk', 'sitka'}
 # Doplněk zlaté barvy na zlatém podkladu (koruna přes knoflík čepice, stuha medaile přes zlatý límec) se od původní sovy skoro neliší:
 # silnější uzavření masky, ať se přebarví celý a nezůstanou zlaté kusy. Poloměr v pixelech původního obrázku.
@@ -187,7 +189,8 @@ def layer(base, warped, mask, frame, border=BORDER):
 
 
 def split_cloth(img):
-    """Rozdělí vrstvu na barevné plátno (největší modrá plocha s obrysem) a pevný zbytek."""
+    """Rozdělí vrstvu na barevné plátno (největší modrá plocha s obrysem) a pevný zbytek.
+    Vrací i vnitřek plátna (bez obrysu, bez děr) pro masku a stínování vlajky státu: plátno, pevná část, vnitřek."""
     a = np.asarray(img.convert('RGBA')).copy()
     hsv = cv2.cvtColor(a[..., :3], cv2.COLOR_RGB2HSV).astype(np.int32)
     blue = ((hsv[..., 0] >= 95) & (hsv[..., 0] <= 130) & (hsv[..., 1] > 90) & (hsv[..., 2] > 90) & (a[..., 3] > 128)).astype(np.uint8)
@@ -195,11 +198,38 @@ def split_cloth(img):
     n, labels, stats, _ = cv2.connectedComponentsWithStats(blue, 8)
     biggest = 1 + int(np.argmax(stats[1:, cv2.CC_STAT_AREA]))
     cloth = (labels == biggest).astype(np.uint8)
+    # vnitřek plátna: modrá plocha bez děr (tmavší vlnky uvnitř)
+    contours, _ = cv2.findContours(cloth, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+    inner = np.zeros_like(cloth)
+    cv2.drawContours(inner, contours, -1, 1, cv2.FILLED)
     cloth = cv2.dilate(cloth, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (9, 9)))
     cloth_a, base_a = a.copy(), a.copy()
     cloth_a[..., 3] = np.where(cloth > 0, a[..., 3], 0)
     base_a[..., 3] = np.where(cloth > 0, 0, a[..., 3])
-    return Image.fromarray(cloth_a, 'RGBA'), Image.fromarray(base_a, 'RGBA')
+    return Image.fromarray(cloth_a, 'RGBA'), Image.fromarray(base_a, 'RGBA'), inner
+
+
+def flag_layers(cloth_img, inner):
+    """Maska a stínování pro vlajku státu na plátně (vlajka-maska.webp, vlajka-stin.webp; stejný rám jako ostatní vrstvy).
+    Maska = vnitřek plátna (alfa), obrys zůstane z barevné vrstvy. Stínování = odstíny šedi z jasu původního modrého plátna
+    (vlnění látky), které se na vlajku násobí (mix-blend-multiply): nejsvětlejší místo je bez změny, nejtmavší se ztmaví jen mírně.
+    Vrací obrázky a ohraničení vnitřku (x, y, šířka, výška) v pixelech vrstvy."""
+    alpha = cv2.GaussianBlur(inner.astype(np.float32), (0, 0), 0.8)
+    alpha = np.clip(alpha, 0, 1)
+    rgb = np.asarray(cloth_img.convert('RGB')).astype(np.float32) / 255.0
+    luma = 0.299 * rgb[..., 0] + 0.587 * rgb[..., 1] + 0.114 * rgb[..., 2]
+    inside = inner > 0
+    lo, hi = np.percentile(luma[inside], [3, 80])
+    level = np.clip((luma - lo) / max(hi - lo, 1e-3), 0, 1)
+    level = cv2.GaussianBlur(level, (0, 0), 1.0)
+    shade = SHADE_MIN + (1 - SHADE_MIN) * level
+    gray = np.clip(shade * 255, 0, 255).astype(np.uint8)
+    stin = np.dstack([gray, gray, gray, (alpha * 255).astype(np.uint8)])
+    maska = np.dstack([np.full_like(gray, 255)] * 3 + [(alpha * 255).astype(np.uint8)])
+    ys, xs = np.nonzero(inside)
+    # obdélník o pixel širší na každé straně: měkký okraj masky se nesmí o obrázek vlajky opřít
+    box = (int(xs.min()) - 1, int(ys.min()) - 1, int(xs.max() - xs.min() + 3), int(ys.max() - ys.min() + 3))
+    return Image.fromarray(maska, 'RGBA'), Image.fromarray(stin, 'RGBA'), box
 
 
 # Barevné varianty doplňku: id → (cílový odstín 0–360, násobek sytosti, násobek jasu). Přebarví se jen sytá místa; obrys, krémová a šedá zůstanou.
@@ -263,8 +293,15 @@ def main(ids):
         mask, diff = extract(base, warped, fill=name in FILL, close=CLOSE.get(name, 9), knob=name in KNOB, zone=hat_zone(frame, warped.shape) if name in HATS else None)
         out = layer(base, warped, mask, frame)
         if name in SPLIT:
-            out, fixed = split_cloth(out)
+            out, fixed, inner = split_cloth(out)
             save_webp(fixed, os.path.join(OUT, name + '-zaklad.webp'))
+            # vlajka státu: maska plátna a stínování (look-owl.js je kreslí přes plátno, třídy s ohraničením jsou v LAYER/FLAG v look-owl.js)
+            maska, stin, (bx, by, bw, bh) = flag_layers(out, inner)
+            maska.save(os.path.join(OUT, name + '-maska.webp'), 'WEBP', lossless=True, method=6)
+            stin.save(os.path.join(OUT, name + '-stin.webp'), 'WEBP', lossless=True, method=6)
+            fw, fh = out.size
+            pct = lambda v, total: round(v / total * 100, 2)
+            print(f'{name}: rám {fw}×{fh}, vnitřek plátna x={bx} y={by} w={bw} h={bh} → left-[{pct(bx, fw)}%] top-[{pct(by, fh)}%] w-[{pct(bw, fw)}%] h-[{pct(bh, fh)}%], aspect-[{fw}/{fh}]')
         save_webp(out, os.path.join(OUT, name + '.webp'))
         # ikony do výběru (<id>-ikona.webp) dělá scripts/owl-accessory-icons.py z vlastních obrázků doplňků
         for color, (hue, sat_mul, val_mul) in COLORS.items():

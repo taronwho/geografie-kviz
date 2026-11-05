@@ -2,10 +2,12 @@
 // jejich odemykání podle úrovně nebo odznaku a uložené volby hráče. Samotné části (výběry a jejich vykreslení) se do okna
 // Nastavení → Vzhled přidávají z vlastních souborů přes Look.register(...): look-themes.js, look-robes.js, look-frames.js.
 (function (root, factory) {
-    const api = factory(root);
-    if (typeof module === 'object' && module.exports) module.exports = api;
+    const isNode = typeof module === 'object' && module.exports;
+    // Vlajky států pro vlaječku (look-flags.js, v prohlížeči se načítá před tímto souborem)
+    const api = factory(root, root.MudrlantFlags || (isNode ? require('./look-flags.js') : null));
+    if (isNode) module.exports = api;
     else root.MudrlantLook = api;
-})(typeof self !== 'undefined' ? self : this, (root) => {
+})(typeof self !== 'undefined' ? self : this, (root, Flags) => {
     'use strict';
     const KEY = 'mudrlant.look';
 
@@ -68,7 +70,7 @@
         { id: 'medaile', title: 'Medaile', slot: 'neck', hue: 40, level: 58 },
         { id: 'vavrin', title: 'Vavřínový věnec', slot: 'head', hue: 95, badge: 'vitez' },
         { id: 'kompas', title: 'Kompas', slot: 'neck', hue: 30, badge: 'zbehly-zemepis' },
-        { id: 'vlajka', fixed: true, title: 'Vlaječka', slot: 'hand', hue: 215, badge: 'zbehly-vlajky' },
+        { id: 'vlajka', fixed: true, flags: true, title: 'Vlaječka', slot: 'hand', hue: 215, badge: 'zbehly-vlajky' },
         { id: 'svitek', title: 'Svitek s pečetí', slot: 'hand', hue: 40, badge: 'zbehly-historie' },
         { id: 'helma', hidesHat: true, title: 'Okřídlená helma', slot: 'head', hue: 30, badge: 'zbehly-mytologie' },
         { id: 'sitka', title: 'Síťka na motýly', slot: 'hand', hue: 35, badge: 'zbehly-biologie' },
@@ -92,6 +94,8 @@
     const CUSTOM_HUE = /^h(\d{1,3})$/;
     // Odstín vlastní barvy (násobek 5, 0–355) nebo null
     const customHue = (color) => { const match = CUSTOM_HUE.exec(String(color)); const hue = match ? Number(match[1]) : NaN; return hue >= 0 && hue <= 355 && hue % 5 === 0 ? hue : null; };
+    // Vlajka státu na vlaječce: id z look-flags.js (malé q Wikidat, např. q101472); cokoli jiného se zahodí
+    const flagOk = (flag) => typeof flag === 'string' && /^q\d{1,9}$/.test(flag) && Boolean(Flags) && Flags.has(flag);
     const CATALOG = { themes: THEMES, robes: ROBES, frames: FRAMES, avatars: AVATARS, accessories: ACCESSORIES, colors: ACC_COLORS.filter(color => color.level > 1) };
     const DEFAULTS = { theme: 'vinova', robe: 'vinova', frame: 'zadny', title: 'level', acc: {} };
 
@@ -128,6 +132,7 @@
             const item = entry && typeof entry === 'object' ? find('accessories', entry.id) : null;
             if (item && item.slot === slot.id && (!ctx || isUnlocked(item, ctx))) {
                 value.acc[slot.id] = { id: item.id, color: colorOk(entry.color, ctx) ? entry.color : 'original' };
+                if (item.flags && flagOk(entry.flag)) value.acc[slot.id].flag = entry.flag;
             }
         }
         if (source.title === 'none' || source.title === 'level') value.title = source.title;
@@ -174,5 +179,5 @@
     // Odměny odemknuté na dané úrovni (pro přehled úrovní)
     const rewardsAtLevel = (level) => Object.entries(CATALOG).flatMap(([category, items]) => items.filter(item => !item.badge && item.level === level).map(item => ({ category, item })));
 
-    return { CATALOG, THEMES, ROBES, FRAMES, AVATARS, ACCESSORIES, SLOTS, ACC_COLORS, customHue, colorOk, DEFAULTS, isUnlocked, unlockText, find, normalize, prefs, setPref, onChange, register, getSections, apply, newRewards, rewardsAtLevel };
+    return { CATALOG, THEMES, ROBES, FRAMES, AVATARS, ACCESSORIES, SLOTS, ACC_COLORS, customHue, colorOk, flagOk, DEFAULTS, isUnlocked, unlockText, find, normalize, prefs, setPref, onChange, register, getSections, apply, newRewards, rewardsAtLevel };
 });
