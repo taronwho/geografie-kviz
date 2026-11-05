@@ -816,6 +816,7 @@
             </section>`).join('')}</div>`;
     };
     // Zamčený obrázek hráče (odemyká se úrovní): položka katalogu, nebo null, když je k dispozici (základní, odemčený nebo už uložený v profilu)
+    const avatarUnlockText = (item) => item.badge ? `Odznak: ${(BADGE_BY_ID[item.badge] || {}).title || item.badge}` : `Úroveň ${item.level}`;
     const avatarLock = (emoji) => {
         const item = Look ? Look.find('avatars', emoji) : null;
         if (!item || Social.AVATARS.includes(emoji) || (myProfile && myProfile.avatar === emoji) || Look.isUnlocked(item, lookContext())) return null;
@@ -868,7 +869,7 @@
                     <p class="${ME_HEADING} mb-1.5">Obrázek</p>
                     <div class="grid grid-cols-12 gap-1">${Owl && Owl.owlAvatarHtml ? `<button type="button" data-pick-owl aria-label="Sova Mudrlant" title="Sova Mudrlant" aria-pressed="${meDraft.owl}" class="flex aspect-square items-center justify-center rounded-lg border-2 active:scale-95 ${meDraft.owl ? 'border-brand-600 bg-brand-50 dark:bg-brand-900/40' : 'border-transparent bg-white dark:bg-slate-800'}">${Owl.owlAvatarHtml(myOwlText(), 'h-full w-auto', 'h-[88%]')}</button>` : ''}${Social.allAvatars().map(emoji => {
                         const lock = avatarLock(emoji);
-                        if (lock) return `<button type="button" data-locked-avatar="${emoji}" aria-disabled="true" aria-label="Obrázek ${emoji} je zamčený: Úroveň ${lock.level}" title="Úroveň ${lock.level}" class="flex aspect-square items-center justify-center rounded-lg border-2 border-transparent bg-white text-base opacity-40 grayscale dark:bg-slate-800">${emoji}</button>`;
+                        if (lock) return `<button type="button" data-locked-avatar="${emoji}" aria-disabled="true" aria-label="Obrázek ${emoji} je zamčený: ${avatarUnlockText(lock)}" title="${avatarUnlockText(lock)}" class="flex aspect-square items-center justify-center rounded-lg border-2 border-transparent bg-white text-base opacity-40 grayscale dark:bg-slate-800">${emoji}</button>`;
                         return `<button type="button" data-pick-avatar="${emoji}" aria-label="Obrázek ${emoji}" aria-pressed="${emoji === meDraft.avatar && !meDraft.owl}" class="flex aspect-square items-center justify-center rounded-lg border-2 text-base active:scale-95 ${emoji === meDraft.avatar && !meDraft.owl ? 'border-brand-600 bg-brand-50 dark:bg-brand-900/40' : 'border-transparent bg-white dark:bg-slate-800'}">${emoji}</button>`;
                     }).join('')}</div>
                 </div>
@@ -984,7 +985,7 @@
                 const input = document.getElementById('profile-name');
                 if (input && meDraft) meDraft.name = input.value;
                 const item = Look.find('avatars', locked.dataset.lockedAvatar);
-                openSettings(`${item.title} se odemkne na úrovni ${item.level}.`);
+                openSettings(item.badge ? `${item.title} se odemkne odznakem „${(BADGE_BY_ID[item.badge] || {}).title || item.badge}“.` : `${item.title} se odemkne na úrovni ${item.level}.`);
                 return;
             }
             const avatar = event.target.closest('[data-pick-avatar]');
@@ -2932,7 +2933,7 @@
         // Můj vlastní řádek (žebříček, výzvy) nemusí mít sovu z databáze (starší schéma): bere se z mého profilu / zařízení
         const showsOwl = Boolean(player && (player.owl || (isMe && !player.draft && myProfile && myProfile.owl)));
         const owlHtml = showsOwl && Owl && Owl.owlAvatarHtml ? Owl.owlAvatarHtml(isMe && Look ? myOwlText() : player.owl) : '';
-        return `<span ${linked ? `data-player-id="${escapeHtml(player.id)}" role="button" tabindex="0" aria-label="Profil hráče ${escapeHtml(playerName(player))}"` : 'aria-hidden="true"'} class="flex shrink-0 items-center justify-center rounded-full ${size} ${avatarBg(player && player.color)}${frame}${linked ? ' cursor-pointer' : ''}">${owlHtml || escapeHtml((player && player.avatar) || '🦊')}</span>`;
+        return `<span ${linked ? `data-player-id="${escapeHtml(player.id)}" role="button" tabindex="0" aria-label="Profil hráče ${escapeHtml(playerName(player))}"` : 'aria-hidden="true"'} class="flex shrink-0 items-center justify-center rounded-full ${size} ${avatarBg(isMe && !player.draft && myProfile && myProfile.color ? myProfile.color : player && player.color)}${frame}${linked ? ' cursor-pointer' : ''}">${owlHtml || escapeHtml((player && player.avatar) || '🦊')}</span>`;
     };
     // Téma výzvy: „mix“ (všechna), jedno téma, nebo víc témat oddělených čárkou
     const challengeTopicIds = (topic) => topic === 'mix' ? TOPICS.map(item => item.id) : String(topic).split(',').filter(id => TOPIC_BY_ID[id]);

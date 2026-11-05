@@ -12,6 +12,7 @@ test('doplňky sovy: katalog má 24 doplňků ve čtyřech místech a každý m�
         assert.ok(Look.SLOTS.some(slot => slot.id === item.slot), item.id);
         assert.ok(fs.existsSync(path.join(__dirname, '..', 'icons', 'doplnky', `${item.id}.webp`)), `${item.id} vrstva`);
         assert.ok(fs.existsSync(path.join(__dirname, '..', 'icons', 'doplnky', `${item.id}-ikona.webp`)), `${item.id} ikona`);
+        if (item.fixed) assert.ok(fs.existsSync(path.join(__dirname, '..', 'icons', 'doplnky', `${item.id}-zaklad.webp`)), `${item.id} pevná část`);
         for (const color of Look.ACC_COLORS.filter(entry => entry.id !== 'original' && entry.id !== 'vlastni')) {
             assert.ok(fs.existsSync(path.join(__dirname, '..', 'icons', 'doplnky', `${item.id}-${color.id}.webp`)), `${item.id}-${color.id}`);
         }
@@ -114,4 +115,16 @@ test('doplňky za zběhlost: každé téma má doplněk vázaný na odznak, kter
     assert.equal(Look.isUnlocked(item, { level: 100, badges: {} }), false);
     assert.equal(Look.isUnlocked(item, { level: 1, badges: { 'zbehly-zemepis': '2026-11-05' } }), true);
     assert.deepEqual(Look.newRewards(1, 1, ['zbehly-zemepis']).map(entry => entry.item.id), ['kompas']);
+});
+
+test('vlajka: barvu mění jen plátno, tyčka je samostatná vrstva nad ním a barvu nemění', () => {
+    const html = Owl.layersHtml({ hand: { id: 'vlajka', color: 'h300' } });
+    const imgs = html.match(/<img [^>]*>/g);
+    assert.equal(imgs.length, 2);
+    assert.match(imgs[0], /src="icons\/doplnky\/vlajka\.webp"/);
+    assert.match(imgs[0], /hue-rotate-/, 'plátno se přebarví');
+    assert.match(imgs[1], /src="icons\/doplnky\/vlajka-zaklad\.webp"/);
+    assert.doesNotMatch(imgs[1], /hue-rotate-/, 'tyčka zůstává');
+    assert.match(Owl.layersHtml({ hand: { id: 'vlajka', color: 'zelena' } }), /vlajka-zelena\.webp.*vlajka-zaklad\.webp/);
+    assert.equal(Owl.layersHtml({ hand: { id: 'lupa', color: 'zelena' } }).match(/<img /g).length, 1, 'ostatní doplňky mají jednu vrstvu');
 });

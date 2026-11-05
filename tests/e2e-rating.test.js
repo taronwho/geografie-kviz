@@ -203,7 +203,7 @@ test('rating, ligy a týdenní žebříček', { skip: !chromium && 'Playwright n
 
     await t.test('žebříček: můj řádek má moji sovu, i když ji databáze (starší schéma) nevrací', async () => {
         const db = newDb();
-        const { context, tab, log } = await setup(browser, { ...login('tok-u1'), 'mudrlant.owlAvatar': 'true', 'mudrlant.look': JSON.stringify({ robe: 'zelena' }) });
+        const { context, tab, log } = await setup(browser, { ...login('tok-u1'), 'mudrlant.owlAvatar': 'true', 'mudrlant.avatarColor': '"h160"', 'mudrlant.look': JSON.stringify({ robe: 'zelena' }) });
         await backend(context, db);
         await tab.goto(`${ORIGIN}/`);
         await waitForHome(tab);
@@ -212,6 +212,7 @@ test('rating, ligy a týdenní žebříček', { skip: !chromium && 'Playwright n
         await tab.waitForSelector('#weekly-list');
         assert.equal(await tab.locator('#weekly-list li[data-me] img[data-keep]').count() > 0, true, 'můj řádek ukazuje sovu, ne emoji');
         assert.equal(await tab.locator('#weekly-list li:not([data-me]) img[data-keep]').count(), 0, 'cizí řádky bez sovy zůstanou s emoji');
+        assert.match(await tab.getAttribute('#weekly-list li[data-me] span.rounded-full', 'class'), /hsl\(160deg/, 'můj řádek má můj vlastní odstín pozadí, ne nejbližší pojmenovanou barvu');
         assert.deepEqual(log.errors, []);
         assert.deepEqual(log.csp, []);
         await context.close();

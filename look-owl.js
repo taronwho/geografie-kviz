@@ -44,7 +44,11 @@
     const layersHtml = (acc, attrs = 'data-owl-layer') => ORDER.map(slot => {
         const entry = acc && acc[slot];
         const src = entry ? layerSrc(entry.id, entry.color) : null;
-        return src ? `<img ${attrs} src="${src}" alt="" class="${LAYER_CLASS} ${hueClass(entry.id, entry.color)}">` : '';
+        if (!src) return '';
+        const item = Look.find('accessories', entry.id);
+        // Pevná část doplňku (třeba tyčka vlajky) se nepřebarvuje: samostatná vrstva nad barevnou
+        return `<img ${attrs} src="${src}" alt="" class="${LAYER_CLASS} ${hueClass(entry.id, entry.color)}">`
+            + (item && item.fixed ? `<img ${attrs} src="icons/doplnky/${item.id}-zaklad.webp" alt="" class="${LAYER_CLASS}">` : '');
     }).join('');
 
     // --- Sova jako obrázek profilu: zápis voleb do textu (sloupec profiles.owl), např. 'robe=zelena;head=koruna.modra;face=bryle.original' ---

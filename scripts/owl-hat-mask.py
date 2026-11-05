@@ -27,12 +27,27 @@ def build():
     biggest = 1 + int(np.argmax(stats[1:, cv2.CC_STAT_AREA]))
     hat = (labels == biggest).astype(np.uint8)
     hat = cv2.morphologyEx(hat, cv2.MORPH_CLOSE, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (15, 15)))
-    # obrys čepice (tmavý, těsně u ní) a světlý okraj nálepky kolem ní; hlava sovy (zlatá, krémová pod čepicí) zůstává
+    # Čepice sahá v každém sloupci jen po svůj spodní okraj: pod ním je hlava sovy (obočí, obrys), ta zůstává
+    h_, w_ = hat.shape
+    bottom = np.full(w_, -1, np.int32)
+    for x in range(w_):
+        col = np.nonzero(hat[:, x])[0]
+        if col.size:
+            bottom[x] = col.max()
+    # sloupce bez čepice vedle ní (okraj nálepky): spodní okraj se převezme od nejbližšího sloupce s čepicí
+    cols = np.nonzero(bottom >= 0)[0]
+    for x in range(w_):
+        if bottom[x] < 0 and cols.size:
+            nearest = cols[np.argmin(np.abs(cols - x))]
+            if abs(nearest - x) <= 14:
+                bottom[x] = bottom[nearest] - abs(nearest - x) // 2
+    below_hat = ys > (bottom[None, :] + 2)
     dark = (v < 120) & (alpha > 128)
     cream = (v > 190) & (s < 140) & (alpha > 128) & (ys < 100)
     outline = cv2.dilate(hat, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (9, 9))) & dark.astype(np.uint8)
-    border = cv2.dilate(hat, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (21, 21))) & cream.astype(np.uint8)
+    border = cv2.dilate(hat, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (23, 23))) & cream.astype(np.uint8)
     zone = np.maximum(np.maximum(hat, outline), border)
+    zone = np.where(below_hat, 0, zone).astype(np.uint8)
     zone = cv2.morphologyEx(zone, cv2.MORPH_CLOSE, np.ones((3, 3), np.uint8))
     # zlatý knoflík nahoře uprostřed (s obrysem a okrajem)
     gold = ((h >= 12) & (h <= 30) & (s > 120) & (v > 120) & (alpha > 128)).astype(np.uint8)
@@ -42,8 +57,12 @@ def build():
     knob = np.maximum(gold, knob)
     knob[50:, :] = 0
     cut = np.maximum(zone, knob)
-    cut = cv2.GaussianBlur(cut.astype(np.float32), (0, 0), 0.7)
-    mask = np.clip((1.0 - cut * 1.8 - 0.3) / 0.4, 0, 1)
+    # Tenké zbytky obrysu čepice: cokoli neprůhledného těsně u odstraněné plochy (nad spodním okrajem čepice) se odstraní také
+    near = cv2.dilate(cut, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7, 7)))
+    fringe = (near > 0) & (alpha > 0) & (~below_hat)
+    cut = np.maximum(cut, fringe.astype(np.uint8))
+    cut = cv2.GaussianBlur(cut.astype(np.float32), (0, 0), 0.6)
+    mask = np.clip(1.0 - cut * 3.0, 0, 1)
     out = np.zeros((rgba.shape[0], rgba.shape[1], 4), np.uint8)
     out[..., :3] = 255
     out[..., 3] = (mask * 255).astype(np.uint8)

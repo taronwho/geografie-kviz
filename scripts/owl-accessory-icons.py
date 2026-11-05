@@ -66,7 +66,7 @@ def layer_ids():
     colors = ('cervena', 'oranzova', 'zluta', 'zelena', 'modra', 'fialova', 'ruzova', 'ikona')
     names = {os.path.splitext(os.path.basename(p))[0] for p in glob.glob(os.path.join(OUT, '*.webp'))}
     have = {os.path.splitext(os.path.basename(p))[0] for p in glob.glob(os.path.join(SRC, '*.jpg'))}
-    return sorted(n for n in names if not n.endswith(tuple('-' + c for c in colors)) and n not in have)
+    return sorted(n for n in names if not n.endswith(tuple('-' + c for c in colors + ('zaklad',))) and n not in have)
 
 
 def main(ids):
@@ -74,7 +74,11 @@ def main(ids):
     for name in layer_ids():
         if ids and name not in ids:
             continue
-        out = icon(drop_specks(Image.open(os.path.join(OUT, name + '.webp')).convert('RGBA')))
+        layer = Image.open(os.path.join(OUT, name + '.webp')).convert('RGBA')
+        fixed = os.path.join(OUT, name + '-zaklad.webp')
+        if os.path.exists(fixed):
+            layer.alpha_composite(Image.open(fixed).convert('RGBA'))  # pevná část (tyčka) nad barevnou, jako v aplikaci
+        out = icon(drop_specks(layer))
         out.save(os.path.join(OUT, f'{name}-ikona.webp'), 'WEBP', quality=92, alpha_quality=100, method=6)
         print(name, 'ok (z vrstvy)')
     for path in sorted(glob.glob(os.path.join(SRC, '*.jpg'))):

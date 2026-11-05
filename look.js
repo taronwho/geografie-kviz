@@ -36,14 +36,18 @@
         { id: 'zlato', title: 'Zlatý', level: 25 },
         { id: 'vavrin', title: 'Vavřínový', badge: 'vitez' },
         { id: 'plamen', title: 'Plamenný', badge: 'serie-30' },
-        { id: 'diamant', title: 'Diamantový', level: 60 }
+        { id: 'diamant', title: 'Diamantový', level: 60 },
+        { id: 'medailista', title: 'Medailista turnaje', badge: 'turnaj-bronz' },
+        { id: 'mistr-turnaje', title: 'Mistr turnaje', badge: 'turnaj-zlato' }
     ];
     // Další obrázky hráče (k emoji ze social.js AVATARS), odemykané úrovní
     const AVATARS = [
         { id: '🦅', title: 'Orel', level: 3 }, { id: '🐺', title: 'Vlk', level: 8 }, { id: '🦈', title: 'Žralok', level: 13 },
         { id: '🐉', title: 'Drak', level: 20 }, { id: '🦖', title: 'T-Rex', level: 28 }, { id: '🦚', title: 'Páv', level: 36 },
         { id: '🦩', title: 'Plameňák', level: 44 }, { id: '🐅', title: 'Tygr', level: 55 }, { id: '🦁', title: 'Lev', level: 65 },
-        { id: '👑', title: 'Koruna', level: 80 }
+        { id: '👑', title: 'Koruna', level: 80 },
+        { id: '🏅', title: 'Turnajový hráč', badge: 'turnaj-ucast' }, { id: '🥉', title: 'Bronz z turnaje', badge: 'turnaj-bronz' },
+        { id: '🥈', title: 'Stříbro z turnaje', badge: 'turnaj-stribro' }, { id: '🏆', title: 'Mistr turnaje', badge: 'turnaj-zlato' }
     ];
     // Doplňky sovy: každý patří do jednoho místa (slot), v každém místě je nejvýš jeden; ke každému hráč zvolí barvu
     const SLOTS = [
@@ -64,7 +68,7 @@
         { id: 'medaile', title: 'Medaile', slot: 'neck', hue: 40, level: 58 },
         { id: 'vavrin', title: 'Vavřínový věnec', slot: 'head', hue: 95, badge: 'vitez' },
         { id: 'kompas', title: 'Kompas', slot: 'neck', hue: 30, badge: 'zbehly-zemepis' },
-        { id: 'vlajka', title: 'Vlaječka', slot: 'hand', hue: 215, badge: 'zbehly-vlajky' },
+        { id: 'vlajka', fixed: true, title: 'Vlaječka', slot: 'hand', hue: 215, badge: 'zbehly-vlajky' },
         { id: 'svitek', title: 'Svitek s pečetí', slot: 'hand', hue: 40, badge: 'zbehly-historie' },
         { id: 'helma', hidesHat: true, title: 'Okřídlená helma', slot: 'head', hue: 30, badge: 'zbehly-mytologie' },
         { id: 'sitka', title: 'Síťka na motýly', slot: 'hand', hue: 35, badge: 'zbehly-biologie' },
