@@ -775,10 +775,44 @@
             saveProgress(progress);
         } catch (e) { console.error(e); }
     };
+    // Vývojářské nástroje turnajů: boti, okamžitý start, skok o kolo, mazání botů (databáze je pustí jen účtu v dev_admins)
+    const devTournamentAction = async (kind) => {
+        if (!Social || !signedUser()) { showToast('Nejdřív se přihlas.'); return; }
+        try {
+            await Social.tournamentTick();
+            const list = (await Social.getTournaments()) || [];
+            const open = list.find(item => item.status === 'open');
+            const running = list.find(item => item.status === 'running');
+            let message = '';
+            if (kind === 'tour-bots') {
+                if (!open) throw new Error('Žádný turnaj s otevřenými přihláškami není.');
+                const made = await Social.devTournament('dev_tournament_add_bots', { tid: open.id, how_many: 31 });
+                message = `Přidáno botů: ${Number(made) || 0}`;
+            } else if (kind === 'tour-start') {
+                if (!open) throw new Error('Žádný turnaj s otevřenými přihláškami není.');
+                await Social.devTournament('dev_tournament_start_now', { tid: open.id });
+                message = 'Turnaj běží, boti odehráli 1. kolo';
+            } else if (kind === 'tour-next') {
+                if (!running) throw new Error('Žádný turnaj neběží.');
+                await Social.devTournament('dev_tournament_next_round', { tid: running.id });
+                message = 'Posun o kolo, boti odehráli';
+            } else if (kind === 'tour-clear') {
+                const removed = await Social.devTournament('dev_tournament_clear_bots', {});
+                resetTournaments();
+                message = `Smazáno botů: ${Number(removed) || 0}`;
+            }
+            showToast(message);
+        } catch (error) {
+            showToast(error && error.message ? error.message : 'Nástroj turnajů selhal.');
+        }
+        refreshTournaments({ force: true });
+    };
     const renderDevPanel = () => !devOn() ? '' : `
         <div class="mt-3 rounded-2xl border-2 border-dashed border-amber-400/70 p-2.5">
             <p class="mb-1.5 flex items-center justify-between text-[11px] font-black uppercase tracking-widest text-amber-700 dark:text-amber-400"><span>Vývojářský režim</span><span class="font-bold normal-case tracking-normal">${devActive() ? 'zkušební postup' : 'tvůj postup'}</span></p>
             <div class="flex flex-wrap gap-1">${[['max', 'Vše (úr. 100)'], ['level:10', 'Úr. 10'], ['level:25', 'Úr. 25'], ['level:50', 'Úr. 50'], ['level:75', 'Úr. 75'], ['badges', 'Všechny odznaky'], ['nobadges', 'Žádné odznaky'], ['nostars', 'Vymazat hvězdičky'], ['bulb', 'Vrátit žárovku']].map(([kind, label]) => `<button type="button" data-dev="${kind}" class="rounded-lg bg-slate-200 px-2 py-1 text-[11px] font-bold text-slate-700 active:scale-95 dark:bg-slate-700 dark:text-slate-200">${label}</button>`).join('')}${devActive() ? '<button type="button" data-dev="restore" class="rounded-lg bg-amber-500 px-2 py-1 text-[11px] font-black text-white active:scale-95">Vrátit můj postup</button>' : ''}</div>
+            ${Social ? `<p class="mb-1 mt-2 text-[11px] font-black uppercase tracking-widest text-amber-700 dark:text-amber-400">Turnaj (boti)</p>
+            <div class="flex flex-wrap gap-1">${[['tour-bots', '+31 botů'], ['tour-start', 'Spustit hned'], ['tour-next', 'Další kolo'], ['tour-clear', 'Smazat boty']].map(([kind, label]) => `<button type="button" data-dev="${kind}" class="rounded-lg bg-emerald-100 px-2 py-1 text-[11px] font-bold text-emerald-900 active:scale-95 dark:bg-emerald-900/50 dark:text-emerald-100">${label}</button>`).join('')}</div>` : ''}
         </div>`;
     const ME_HEADING = 'text-[11px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400';
     const VARIANT_BRIEF = { choices: { short: 'Možnosti', text: '4 možnosti, až 4 body' }, typed: { short: 'Psaní', text: 'Těžší, dvojnásobek bodů' } };
@@ -972,6 +1006,7 @@
             if (event.target.closest('[data-open-progress]')) { closeSettings(); openProgress(); return; }
             if (event.target.closest('[data-open-accept]')) { closeSettings(); openAccepted(); return; }
             const devButton = event.target.closest('[data-dev]');
+            if (devButton && devButton.dataset.dev.startsWith('tour-')) { devTournamentAction(devButton.dataset.dev); return; }
             if (devButton && devButton.dataset.dev === 'bulb') {
                 // Vrátí žárovku u sovy: zapomene, že dnešní událost už hráč přečetl
                 try { localStorage.removeItem(FACT_KEY); } catch (e) { /* bez úložiště se nic nevrací */ }

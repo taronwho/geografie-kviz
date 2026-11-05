@@ -282,6 +282,16 @@
     // Server od teď měří čas zápasu; až po úspěchu se smí hrát
     const startTournamentMatch = (mid) => tournamentCall('tournament_start_match', { mid: needTournamentId(mid, 'zápas') }, 'Zápas se nepodařilo zahájit. Zkontroluj připojení a zkus to znovu.');
     const finishTournamentMatch = (mid, correct, points) => tournamentCall('tournament_finish_match', { mid: needTournamentId(mid, 'zápas'), correct_count: wholeNumber(correct, 10), point_count: wholeNumber(points, 100) }, 'Výsledek se nepodařilo odeslat. Zkontroluj připojení.');
+    // Vývojářské nástroje turnajů (boti): jen pro účet zapsaný v dev_admins; chyba serveru se předá tak, jak je
+    const devTournament = async (name, body = {}) => {
+        const allowed = ['dev_tournament_add_bots', 'dev_tournament_start_now', 'dev_tournament_next_round', 'dev_tournament_clear_bots'];
+        if (!allowed.includes(name)) throw new SocialError('Neznámý nástroj.', 400);
+        try { return await request('POST', `rpc/${name}`, { body }); } catch (error) {
+            if (error.status === 404) throw new SocialError('Vývojářské nástroje turnajů v databázi chybí: spusť znovu supabase/schema.sql.', 404);
+            if (error.status === 401 || error.status === 403 || /dev_admins/.test(String(error.message))) throw new SocialError('Tenhle účet není v dev_admins (návod v docs/SUPABASE.md).', 403);
+            throw error;
+        }
+    };
     // Moje turnajové údaje do odznaků: { best, wins, played }; null, když turnaje v databázi nejsou
     const myTournamentStats = () => guardTournaments(async () => {
         const result = await request('POST', 'rpc/my_tournament_stats', { body: {} });
@@ -371,5 +381,5 @@
     };
 
     return { AVATARS, allAvatars, cleanColor, customHue, nearestColor, cleanFrame, cleanOwl, saveOwl, cleanTitlePref, saveLook, COLORS, COUNTS, NAME_MAX, SocialError, cleanName, isValidName, newCode, parseCode, getProfile, saveProfile, createChallenge, getChallenge, getResults, submitResult, myChallenges, searchPlayers, randomOpponent, incomingChallenges, playerStats, getProgress, saveProgress, getRating, getRatingChange, weeklyLeaderboard, getAccepts, saveAccepts,
-        tournamentTick, getTournaments, inTournament, getTournamentEntries, getTournamentMatches, joinTournament, leaveTournament, startTournamentMatch, finishTournamentMatch, myTournamentStats, tournamentNotices, tournamentNoticesSeen };
+        tournamentTick, getTournaments, inTournament, devTournament, getTournamentEntries, getTournamentMatches, joinTournament, leaveTournament, startTournamentMatch, finishTournamentMatch, myTournamentStats, tournamentNotices, tournamentNoticesSeen };
 });

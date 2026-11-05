@@ -117,6 +117,11 @@ Bez něj se karta turnaje v aplikaci prostě neukáže.
 - Kola posouvá funkce `tournament_tick()`: volá ji aplikace při otevření (nic jiného není potřeba). Pokud chceš, aby se kola posouvala o půlnoci i bez návštěvníků,
   zapni v Supabase rozšíření **pg_cron** (Database → Extensions) a spusť jednou v SQL Editoru:
   `select cron.schedule('turnaje', '5 22,23 * * *', $$select public.tournament_tick()$$);` (22:05 a 23:05 UTC pokryje půlnoc v Praze v zimě i v létě; funkce je idempotentní).
+- **Vývojářské nástroje (boti):** pro zkoušení turnaje bez 32 lidí. V Nastavení v režimu vývojáře (`?vyvojar` v adrese) je oddíl „Turnaj (boti)“:
+  **+31 botů** (do otevřeného turnaje), **Spustit hned** (turnaj začne dnes a boti odehrají 1. kolo), **Další kolo** (boti odehrají kolo, den kola uplyne, vznikne další) a **Smazat boty**
+  (smaže i turnaje, ve kterých boti hráli). Boti hrají na střední úrovni (úspěšnost 45–80 %). Databáze tyto funkce pustí jen účtu zapsanému v `dev_admins`; zapiš se jednou v SQL Editoru
+  (přezdívku nahraď svou): `insert into public.dev_admins (user_id) select id from public.profiles where lower(display_name) = lower('Taron');`
+  Boti jsou řádky v `auth.users` s e-mailem `bot-…@bots.invalid`; ostrý provoz s nimi nepočítej a po zkoušce je smaž.
 - Odznaky za turnaje (`turnaj-*`) a za zběhlost v tématech (`zbehly-*`) jsou v `badge_catalog()`; přibude-li další odznak, přidej ho i tam.
 
 ## Jak to v aplikaci funguje

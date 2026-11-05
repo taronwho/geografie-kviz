@@ -84,6 +84,11 @@ const backend = async (context, db) => {
         const tournament = (id) => db.tournaments.find(item => item.id === id);
         const matchRow = (id) => db.matches.find(item => item.id === id);
         const rpc = /^\/rest\/v1\/rpc\/(.+)$/.exec(url.pathname);
+        if (rpc && /^dev_tournament_/.test(rpc[1])) {
+            db.calls.push({ name: rpc[1], body });
+            if (db.devDenied) return json({ code: '42501', message: 'Vývojářské nástroje turnajů nejsou pro tento účet zapnuté (viz docs/SUPABASE.md, dev_admins).' }, 403);
+            return json(rpc[1] === 'dev_tournament_add_bots' ? 31 : rpc[1] === 'dev_tournament_clear_bots' ? 31 : null);
+        }
         if (rpc && /^(tournament_|my_tournament)/.test(rpc[1])) {
             if (db.missing) return json({ code: 'PGRST202', message: 'Could not find the function' }, 404);
             db.calls.push({ name: rpc[1], body });
@@ -365,6 +370,38 @@ test('týdenní turnaje', { skip: !chromium && 'Playwright není nainstalovaný'
         const nextDay = await start(db, { now: '2026-11-12T10:00:00Z' }, { ...single, 'mudrlant.tourPromo': JSON.stringify({ launches: 5, day: '2026-11-11', bulbs: 2 }) });
         await nextDay.tab.waitForSelector('#fact-hint:not(.hidden)');
         await nextDay.context.close();
+    });
+
+    await t.test('vývojářský režim: nástroje turnaje volají databázi (boti, spustit hned, další kolo, smazat) a hlásí chybu bez dev_admins', async () => {
+        const db = newDb({ today: '2026-11-11' });
+        openTournament(db, 3);
+        const { context, tab, log } = await start(db, { now: '2026-11-11T10:00:00Z' }, { ...login('tok-u1'), 'mudrlant.dev': '1' });
+        await tab.click('#btn-settings');
+        await tab.waitForSelector('[data-dev="tour-bots"]');
+        const toast = () => tab.evaluate(() => (document.getElementById('toast') || {}).textContent || '');
+        await tab.click('[data-dev="tour-bots"]');
+        await tab.waitForFunction(() => /Přidáno botů: 31/.test((document.getElementById('toast') || {}).textContent || ''));
+        const add = db.calls.find(call => call.name === 'dev_tournament_add_bots');
+        assert.deepEqual(add.body, { tid: T_OPEN, how_many: 31 });
+        await tab.click('[data-dev="tour-start"]');
+        await tab.waitForFunction(() => /boti odehráli 1\. kolo/.test((document.getElementById('toast') || {}).textContent || ''));
+        assert.deepEqual(db.calls.find(call => call.name === 'dev_tournament_start_now').body, { tid: T_OPEN });
+        // „Další kolo“ potřebuje běžící turnaj: bez něj hláška
+        await tab.click('[data-dev="tour-next"]');
+        await tab.waitForFunction(() => /Žádný turnaj neběží/.test((document.getElementById('toast') || {}).textContent || ''));
+        db.tournaments.push({ id: T_RUN, topic: 'mix', week_start: MON, started_on: MON, capacity: 128, status: 'running', size: 8, rounds: 3, seed: 'seed-abc' });
+        await tab.click('[data-dev="tour-next"]');
+        await tab.waitForFunction(() => /Posun o kolo/.test((document.getElementById('toast') || {}).textContent || ''));
+        assert.deepEqual(db.calls.find(call => call.name === 'dev_tournament_next_round').body, { tid: T_RUN });
+        await tab.click('[data-dev="tour-clear"]');
+        await tab.waitForFunction(() => /Smazáno botů: 31/.test((document.getElementById('toast') || {}).textContent || ''));
+        // Účet bez zápisu v dev_admins
+        db.devDenied = true;
+        await tab.click('[data-dev="tour-bots"]');
+        await tab.waitForFunction(() => /dev_admins/.test((document.getElementById('toast') || {}).textContent || ''));
+        assert.deepEqual(log.errors, []);
+        assert.deepEqual(log.csp, []);
+        await context.close();
     });
 
     await t.test('běžící turnaj: karta, Hrát, hra do výsledku (výhra, postup, XP, odznaky), bez prozrazení soupeře', async () => {

@@ -585,7 +585,8 @@ end;
 $$;
 
 -- Spustí turnaj: vybere nejvyšší mocninu dvou přihlášených (v pořadí přihlášení), ostatním pošle zprávu; pod 8 přihlášených turnaj ruší
-create or replace function public.tournament_start(tid uuid) returns void
+drop function if exists public.tournament_start(uuid);
+create or replace function public.tournament_start(tid uuid, force boolean default false) returns void
 language plpgsql security definer set search_path = public as $$
 declare
     t public.tournaments; n integer; s integer := 8; k integer := 3; e record; i integer;
@@ -608,7 +609,7 @@ begin
         perform public.tournament_notice(e.user_id, tid, 'excluded_full', s::text);
     end loop;
     update public.tournament_entries set status = 'excluded' where tournament_id = tid and status = 'registered';
-    update public.tournaments set status = 'running', size = s, rounds = k, started_on = greatest(t.week_start, public.tournament_today()) where id = tid;
+    update public.tournaments set status = 'running', size = s, rounds = k, started_on = case when force then public.tournament_today() else greatest(t.week_start, public.tournament_today()) end where id = tid;
     -- náhodné nasazení do pavouka (podle id hráče a semínka turnaje)
     select array_agg(user_id order by md5(user_id::text || t.seed)) into ids from public.tournament_entries where tournament_id = tid and status = 'playing';
     for i in 1 .. s / 2 loop
@@ -708,8 +709,115 @@ $$;
 revoke all on public.tournaments, public.tournament_entries, public.tournament_matches, public.tournament_results, public.tournament_notices from anon, authenticated;
 grant select on public.tournaments, public.tournament_entries, public.tournament_matches, public.tournament_results, public.tournament_notices to authenticated;
 revoke all on function public.tournament_today(), public.tournament_notice(uuid, uuid, text, text), public.tournament_pick_winner(public.tournament_matches, boolean),
-    public.tournament_progress(uuid), public.tournament_start(uuid) from public, anon, authenticated;
+    public.tournament_progress(uuid), public.tournament_start(uuid, boolean) from public, anon, authenticated;
 revoke all on function public.tournament_tick(), public.tournament_join(uuid), public.tournament_leave(uuid), public.tournament_start_match(uuid),
     public.tournament_finish_match(uuid, integer, integer), public.my_tournament_stats(), public.tournament_notices_seen(bigint[]) from public, anon;
 grant execute on function public.tournament_tick(), public.tournament_join(uuid), public.tournament_leave(uuid), public.tournament_start_match(uuid),
     public.tournament_finish_match(uuid, integer, integer), public.my_tournament_stats(), public.tournament_notices_seen(bigint[]) to authenticated;
+
+-- ===== Vývojářské nástroje turnajů (boti) =====
+-- Smí je volat jen hráč zapsaný v dev_admins (zapíše se ručně v SQL Editoru, viz docs/SUPABASE.md); boti jsou skutečné řádky v auth.users s e-mailem bot-…@bots.invalid.
+create table if not exists public.dev_admins (user_id uuid primary key references public.profiles (id) on delete cascade);
+alter table public.dev_admins enable row level security;
+revoke all on public.dev_admins from anon, authenticated;
+
+create or replace function public.dev_check() returns void
+language plpgsql security definer set search_path = public as $$
+begin
+    if auth.uid() is null or not exists (select 1 from public.dev_admins where user_id = auth.uid()) then
+        raise exception 'Vývojářské nástroje turnajů nejsou pro tento účet zapnuté (viz docs/SUPABASE.md, dev_admins).' using errcode = '42501';
+    end if;
+end;
+$$;
+
+create or replace function public.dev_is_bot(uid uuid) returns boolean
+language sql stable security definer set search_path = public as $$
+    select exists (select 1 from auth.users u where u.id = uid and u.email like 'bot-%@bots.invalid');
+$$;
+
+-- Boti odehrají rozehraná kola: střední úroveň (každý bot má vlastní úspěšnost 45–80 %, 10 otázek, čas 30–90 s)
+create or replace function public.dev_bots_play(tid uuid) returns void
+language plpgsql security definer set search_path = public as $$
+declare cur integer; m public.tournament_matches; uid uuid; p numeric; c integer; t public.tournaments;
+begin
+    select * into t from public.tournaments where id = tid;
+    select max(round) into cur from public.tournament_matches where tournament_id = tid;
+    -- boti hrají jen kolo, jehož den už nastal (další kolo čeká na svůj den)
+    if cur is null or t.started_on + (cur - 1) > public.tournament_today() then return; end if;
+    for m in select * from public.tournament_matches where tournament_id = tid and round = cur and winner is null loop
+        foreach uid in array array[m.p1, m.p2] loop
+            if public.dev_is_bot(uid) and not exists (select 1 from public.tournament_results where match_id = m.id and user_id = uid and finished_at is not null) then
+                p := 0.45 + 0.35 * (('x' || substr(md5(uid::text), 1, 6))::bit(24)::integer % 1000) / 1000.0;
+                select count(*)::integer into c from generate_series(1, 10) where random() < p;
+                insert into public.tournament_results (match_id, user_id, started_at, finished_at, correct, points, time_ms)
+                    values (m.id, uid, now(), now(), c, least(100, c * 3 + (random() * 4)::integer), 30000 + (random() * 60000)::integer)
+                    on conflict (match_id, user_id) do update set finished_at = now(), correct = excluded.correct, points = excluded.points, time_ms = excluded.time_ms;
+            end if;
+        end loop;
+    end loop;
+    perform public.tournament_progress(tid);
+end;
+$$;
+
+create or replace function public.dev_tournament_add_bots(tid uuid, how_many integer default 31) returns integer
+language plpgsql security definer set search_path = public as $$
+declare t public.tournaments; n integer; i integer; uid uuid; made integer := 0;
+    names text[] := array['Adam', 'Barbora', 'Cyril', 'Dana', 'Emil', 'Fanda', 'Gita', 'Honza', 'Ivana', 'Jirka', 'Klára', 'Libor', 'Marta', 'Nikola', 'Ondra', 'Petra', 'Radek', 'Soňa', 'Tomáš', 'Uršula', 'Viktor', 'Wanda', 'Xaver', 'Yvona', 'Zdeněk', 'Alena', 'Bořek', 'Cecílie', 'David', 'Eliška', 'Filip', 'Gabriela', 'Hugo', 'Irena', 'Jakub', 'Kamila'];
+    colors text[] := array['emerald', 'sky', 'violet', 'rose', 'amber', 'teal', 'orange', 'indigo'];
+begin
+    perform public.dev_check();
+    select * into t from public.tournaments where id = tid for update;
+    if t.id is null or t.status <> 'open' then raise exception 'Boti jdou přidat jen do turnaje s otevřenými přihláškami.' using errcode = '22023'; end if;
+    select count(*) into n from public.tournament_entries where tournament_id = tid;
+    how_many := least(greatest(how_many, 0), t.capacity - n, 127);
+    for i in 1 .. how_many loop
+        uid := gen_random_uuid();
+        insert into auth.users (id, email, raw_user_meta_data) values (uid, 'bot-' || uid || '@bots.invalid', jsonb_build_object('full_name', 'Bot ' || names[1 + (random() * (array_length(names, 1) - 1))::integer]));
+        update public.profiles set avatar = '🤖', color = colors[1 + (random() * 7)::integer] where id = uid;
+        insert into public.tournament_entries (tournament_id, user_id, joined_at) values (tid, uid, now() + i * interval '1 millisecond');
+        made := made + 1;
+    end loop;
+    return made;
+end;
+$$;
+
+create or replace function public.dev_tournament_start_now(tid uuid) returns void
+language plpgsql security definer set search_path = public as $$
+begin
+    perform public.dev_check();
+    perform public.tournament_start(tid, true);
+    perform public.dev_bots_play(tid);
+end;
+$$;
+
+-- Skok na další kolo: boti dohrají kolo, termín kola uplyne (nehrající dostane kontumaci), vznikne další kolo a boti ho hned odehrají
+create or replace function public.dev_tournament_next_round(tid uuid) returns void
+language plpgsql security definer set search_path = public as $$
+declare t public.tournaments;
+begin
+    perform public.dev_check();
+    select * into t from public.tournaments where id = tid for update;
+    if t.id is null or t.status <> 'running' then raise exception 'Turnaj neběží.' using errcode = '22023'; end if;
+    perform public.dev_bots_play(tid);
+    update public.tournaments set started_on = started_on - 1 where id = tid;
+    perform public.tournament_progress(tid);
+    perform public.dev_bots_play(tid);
+end;
+$$;
+
+-- Smaže všechny boty; turnaje, které už běžely nebo skončily s boty, se smažou celé (jejich pavouk by bez botů nedával smysl), otevřené turnaje přijdou jen o boty
+create or replace function public.dev_tournament_clear_bots() returns integer
+language plpgsql security definer set search_path = public as $$
+declare removed integer;
+begin
+    perform public.dev_check();
+    delete from public.tournaments where status <> 'open' and id in (select e.tournament_id from public.tournament_entries e where public.dev_is_bot(e.user_id));
+    delete from auth.users where email like 'bot-%@bots.invalid';
+    get diagnostics removed = row_count;
+    return removed;
+end;
+$$;
+
+revoke all on function public.dev_check(), public.dev_is_bot(uuid), public.dev_bots_play(uuid) from public, anon, authenticated;
+revoke all on function public.dev_tournament_add_bots(uuid, integer), public.dev_tournament_start_now(uuid), public.dev_tournament_next_round(uuid), public.dev_tournament_clear_bots() from public, anon;
+grant execute on function public.dev_tournament_add_bots(uuid, integer), public.dev_tournament_start_now(uuid), public.dev_tournament_next_round(uuid), public.dev_tournament_clear_bots() to authenticated;
