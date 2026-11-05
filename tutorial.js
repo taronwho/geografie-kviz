@@ -23,6 +23,7 @@
         { id: 'result', owl: 'sova-radost', mode: 'info', target: '[data-verdict]', title: 'Výsledek', text: 'Tady vidíš, jak jsi dopadl, a kolik XP jsi získal. Z XP roste tvoje úroveň (ukazuje ji hlavička na úvodu) a za výkony dostaneš odznaky.' },
         { id: 'menu', owl: 'sova-vitej', mode: 'tap', target: '[data-action="daily-home"], [data-action="next"]', title: 'Dál', text: 'Tlačítko Menu tě vrátí na úvod, tlačítko vedle něj ti dá další dnešní otázku. Klepni na Menu.' },
         { id: 'home', owl: 'sova-vitej', mode: 'info', target: '[data-action="play-topic"]', area: 'parent', title: 'Témata a Mix', text: 'Dlaždice jsou témata, vyber si, co chceš hrát. Mix míchá otázky ze všech témat.' },
+        { id: 'multi', owl: 'sova-vyzva', mode: 'info', target: '[data-action="home-tab"][data-tab="multi"]', title: 'Více hráčů', text: 'Na téhle záložce vyzveš kamaráda kódem nebo přezdívkou a dáš si odvetu. Z výher roste tvůj rating a liga, je tu i týdenní žebříček. Chce to přihlášení přes Google.' },
         { id: 'settings', owl: 'sova-vitej', mode: 'tap', target: '#btn-settings', title: 'Nastavení', text: 'Tady upravíš Vzhled sovy a aplikace a přihlásíš se, abys mohl hrát výzvy s kamarády. Klepni na kolečko.' }
     ];
 

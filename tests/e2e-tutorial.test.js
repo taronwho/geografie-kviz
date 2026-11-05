@@ -76,11 +76,11 @@ test('tutorial při prvním spuštění', { skip: !chromium && 'Playwright není
         return Boolean(hit && hit.closest('#tutorial'));
     }, selector);
 
-    await t.test('celý průchod: žárovka, dnešní otázka, nápověda, odpověď, výsledek, menu, témata, nastavení', async () => {
+    await t.test('celý průchod: žárovka, dnešní otázka, nápověda, odpověď, výsledek, menu, témata, více hráčů, nastavení', async () => {
         fact = factFor(dayKey());
         const { context, tab, problems } = await open();
         await waitTitle(tab, 'Ahoj, jsem Sova!');
-        assert.match(await tab.textContent('[data-tut-count]'), /Krok 1 z 8/);
+        assert.match(await tab.textContent('[data-tut-count]'), /Krok 1 z 9/);
         assert.equal(await tab.evaluate(() => document.activeElement && document.activeElement.hasAttribute('data-tut-skip')), true, 'focus na Přeskočit');
         assert.equal(await tab.getAttribute('[data-tut-bubble]', 'role'), 'dialog');
         assert.equal(await tab.getAttribute('[data-tut-bubble] [aria-live]', 'aria-live'), 'polite');
@@ -120,8 +120,22 @@ test('tutorial při prvním spuštění', { skip: !chromium && 'Playwright není
         await waitTitle(tab, 'Témata a Mix');
         await shot(tab, '7-temata');
         await tab.click('[data-tut-next]');
+        await waitTitle(tab, 'Více hráčů');
+        assert.match(await tab.textContent('[data-tut-count]'), /Krok 8 z 9/);
+        assert.match(await tab.textContent('[data-tut-text]'), /kód.*přezdívk.*odvet.*rating.*lig.*týdenní žebříček.*Google/s);
+        assert.equal(await blocked(tab, '[data-action="home-tab"][data-tab="multi"]'), true, 'krok je jen informační, záložka je zablokovaná');
+        assert.equal(await tab.getAttribute('[data-tut-ring]', 'class').then(c => c.includes('ring-gold-400')), true);
+        assert.equal(await tab.evaluate(() => {
+            const ring = document.querySelector('[data-tut-ring]').getBoundingClientRect();
+            const target = document.querySelector('[data-action="home-tab"][data-tab="multi"]').getBoundingClientRect();
+            return Math.abs(ring.left - (target.left - 4)) <= 1 && Math.abs(ring.top - (target.top - 4)) <= 1 && Math.abs(ring.width - (target.width + 8)) <= 2;
+        }), true, 'zvýrazněná je záložka Více hráčů');
+        assert.equal(await tab.getAttribute('[data-action="home-tab"][aria-selected="true"]', 'data-tab'), 'single', 'záložka se nepřepíná');
+        assert.equal(await noScroll(tab), true, 'krok nepřidá posouvání okna');
+        await shot(tab, '8-multi');
+        await tab.click('[data-tut-next]');
         await waitTitle(tab, 'Nastavení');
-        await shot(tab, '8-nastaveni');
+        await shot(tab, '9-nastaveni');
         assert.equal(await blocked(tab, '#btn-settings'), false);
         await tab.click('#btn-settings');
         await tab.waitForSelector('#tutorial', { state: 'detached' });
@@ -161,7 +175,7 @@ test('tutorial při prvním spuštění', { skip: !chromium && 'Playwright není
         const { context, tab } = await open();
         await waitTitle(tab, 'Dnešní otázky');
         assert.match(await tab.textContent('[data-tut-text]'), /Ahoj, jsem Sova/);
-        assert.match(await tab.textContent('[data-tut-count]'), /Krok 2 z 8/);
+        assert.match(await tab.textContent('[data-tut-count]'), /Krok 2 z 9/);
         await context.close();
     });
 
@@ -210,6 +224,20 @@ test('tutorial při prvním spuštění', { skip: !chromium && 'Playwright není
             assert.equal(await inside(), true);
             await shot(tab, `v-${viewport.width}-${scheme}-5`);
             assert.equal(await noScroll(tab), true);
+            await tab.click('[data-tut-next]');
+            await waitTitle(tab, 'Dál');
+            await tab.click('[data-action="daily-home"]');
+            await waitTitle(tab, 'Témata a Mix');
+            await tab.click('[data-tut-next]');
+            await waitTitle(tab, 'Více hráčů');
+            assert.equal(await inside(), true, 'bublina kroku o multiplayeru se vejde');
+            assert.equal(await tab.evaluate(() => {
+                const bubble = document.querySelector('[data-tut-bubble]').getBoundingClientRect();
+                const target = document.querySelector('[data-action="home-tab"][data-tab="multi"]').getBoundingClientRect();
+                return bubble.bottom <= target.top || bubble.top >= target.bottom;
+            }), true, 'bublina nezakrývá záložku');
+            await shot(tab, `v-${viewport.width}-${scheme}-8`);
+            assert.equal(await noScroll(tab), true, 'ani nový krok nepřidá posouvání');
             await context.close();
         });
     }

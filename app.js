@@ -3077,18 +3077,55 @@
                     <div class="mt-1 h-1.5 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${progress.percent}" aria-label="Postup do další ligy"><div class="league-${progress.league.id} h-full rounded-full ${BAR_WIDTHS[Math.round(progress.percent / 10)]}"></div></div>
                     <p class="mt-0.5 truncate text-[10.5px] font-semibold text-slate-500 dark:text-slate-400">${myRating.games ? hint : 'Rating se mění výzvami proti jinému hráči'}</p>
                 </div>
-                <button type="button" data-action="weekly-board" class="flex shrink-0 items-center gap-1.5 rounded-xl bg-gold-50 px-2.5 py-2 text-[12px] font-black text-brand-950 ring-1 ring-gold-300/70 active:scale-[0.97] dark:bg-gold-900/20 dark:text-gold-200 dark:ring-gold-700/60"><i data-lucide="trophy" class="h-4 w-4"></i> Týden</button>
+                <div class="flex shrink-0 flex-col items-stretch gap-0.5">
+                    <button type="button" data-action="weekly-board" class="flex items-center justify-center gap-1.5 rounded-xl bg-gold-50 px-2.5 py-1.5 text-[12px] font-black text-brand-950 ring-1 ring-gold-300/70 active:scale-[0.97] dark:bg-gold-900/20 dark:text-gold-200 dark:ring-gold-700/60"><i data-lucide="trophy" class="h-4 w-4"></i> Týden</button>
+                    <button type="button" data-action="league-help" class="whitespace-nowrap rounded-lg px-0.5 py-1 text-[10px] font-black text-brand-700 underline underline-offset-2 active:scale-95 dark:text-brand-300">Jak to funguje?</button>
+                </div>
             </div>`;
+    };
+    // Vysvětlení ratingu a lig (z karty ligy i z týdenního žebříčku). Hranice a vzhled lig se čtou z rating.js. fromBoard = tlačítko Zpět na žebříček.
+    const openLeagueHelp = (fromBoard = false) => {
+        if (!Rating) return;
+        const mine = myRating ? Rating.leagueFor(myRating.rating) : null;
+        const range = (league, index) => {
+            const next = Rating.LEAGUES[index + 1];
+            if (!next) return `od ${league.from}`;
+            return index === 0 ? `do ${next.from - 1}` : `${league.from}–${next.from - 1}`;
+        };
+        const leagues = Rating.LEAGUES.map((league, index) => `
+            <li data-league="${league.id}" class="flex items-center gap-2 rounded-xl bg-white p-1.5 shadow-sm dark:bg-slate-800 ${mine && mine.id === league.id ? 'ring-2 ring-brand-600' : ''}">
+                ${leagueBubble(league, 'h-8 w-8', 'h-4 w-4')}
+                <span class="min-w-0 flex-1"><span class="block truncate text-[13px] font-black leading-tight text-slate-800 dark:text-slate-100">${escapeHtml(league.name)}${mine && mine.id === league.id ? ' (ty)' : ''}</span><span class="block truncate text-[11px] font-semibold text-slate-500 dark:text-slate-400">${range(league, index)}</span></span>
+            </li>`).join('');
+        const POINT = 'flex gap-2 text-[13px] leading-snug text-slate-600 dark:text-slate-300';
+        const DOT = '<span class="mt-[7px] h-1.5 w-1.5 shrink-0 rounded-full bg-gold-500"></span>';
+        showDialog('Jak fungují ligy', `
+            <div id="league-help" class="flex flex-col gap-3">
+                <ul class="flex flex-col gap-1.5">
+                    <li class="${POINT}">${DOT}<span><b class="text-slate-800 dark:text-slate-100">Rating</b> začíná na ${Rating.START} a mění se jen ve výzvách proti jiným hráčům.</span></li>
+                    <li class="${POINT}">${DOT}<span>Výhra rating zvedá, prohra snižuje. Silnější soupeř znamená víc bodů.</span></li>
+                    <li class="${POINT}">${DOT}<span>Remíza rating skoro nemění.</span></li>
+                </ul>
+                <div>
+                    <p class="mb-1 px-0.5 text-[11px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">Ligy podle ratingu</p>
+                    <ol class="grid grid-cols-2 gap-1.5">${leagues}</ol>
+                </div>
+                <p class="${POINT}">${DOT}<span><b class="text-slate-800 dark:text-slate-100">Týdenní žebříček</b> řadí hráče podle změny ratingu za týden. V pondělí se počítá znovu od nuly.</span></p>
+                ${fromBoard ? '<button type="button" data-help-back class="flex w-full items-center justify-center gap-2 rounded-2xl btn-3d bg-brand-700 px-4 py-2.5 text-sm font-black text-white"><i data-lucide="chevron-left" class="h-4 w-4"></i> Zpět na žebříček</button>' : ''}
+            </div>`, { onClick: (event) => { if (event.target.closest('[data-help-back]')) openWeeklyBoard(); } });
+        renderIcons(document.getElementById('dialog-overlay'));
     };
     // Okno Týdenní žebříček: top hráči týdne podle součtu změn ratingu (server vrací jen veřejné údaje)
     const openWeeklyBoard = async () => {
         const user = signedUser();
         if (!user || !Social || !Rating) { openLoginDialog(); return; }
-        const head = `<p class="text-xs font-semibold leading-snug text-slate-500 dark:text-slate-400">Týden ${escapeHtml(Rating.weekLabel())} · řazeno podle změny ratingu ve výzvách proti jiným hráčům. V pondělí se počítá znovu.</p>`;
-        showDialog('Týdenní žebříček', `<div class="flex flex-col gap-3">${head}<p class="py-4 text-center text-sm font-semibold text-slate-500 dark:text-slate-400">Načítám…</p></div>`);
+        const head = `<div class="flex items-start gap-2"><p class="min-w-0 flex-1 text-xs font-semibold leading-snug text-slate-500 dark:text-slate-400">Týden ${escapeHtml(Rating.weekLabel())} · řazeno podle změny ratingu ve výzvách proti jiným hráčům. V pondělí se počítá znovu.</p><button type="button" data-league-help aria-label="Jak fungují ligy" title="Jak to funguje?" class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gold-50 text-base font-black text-brand-950 ring-1 ring-gold-300/70 active:scale-95 dark:bg-gold-900/20 dark:text-gold-200 dark:ring-gold-700/60">?</button></div>`;
+        const onClick = (event) => { if (event.target.closest('[data-league-help]')) openLeagueHelp(true); };
+        showDialog('Týdenní žebříček', `<div class="flex flex-col gap-3">${head}<p class="py-4 text-center text-sm font-semibold text-slate-500 dark:text-slate-400">Načítám…</p></div>`, { onClick });
         let rows;
         try { rows = await Social.weeklyLeaderboard(); } catch (error) { rows = undefined; }
-        if (!document.getElementById('dialog-overlay')) return;
+        const open = document.getElementById('dialog-overlay');
+        if (!open || open.dataset.title !== 'Týdenní žebříček') return;
         let body;
         if (rows === undefined) body = '<p class="text-sm font-semibold text-rose-700 dark:text-rose-400">Žebříček se nepodařilo načíst. Zkontroluj připojení.</p>';
         else if (rows === null) body = '<p class="text-sm font-semibold text-slate-500 dark:text-slate-400">Žebříček zatím není k dispozici.</p>';
@@ -3107,7 +3144,7 @@
                 </li>`).join('')}</ol>
                 ${mineIn ? '' : '<p class="text-xs text-slate-500 dark:text-slate-400">Ty tu zatím nejsi: zahraj tenhle týden výzvu proti jinému hráči.</p>'}`;
         }
-        showDialog('Týdenní žebříček', `<div class="flex flex-col gap-3">${head}${body}</div>`);
+        showDialog('Týdenní žebříček', `<div class="flex flex-col gap-3">${head}${body}</div>`, { onClick });
         renderIcons(document.getElementById('dialog-overlay'));
     };
     // Přepínač nahoře na úvodní stránce: Jeden hráč (dnešní otázky a témata) / Více hráčů (výzvy); bez Supabase se nezobrazuje
@@ -4059,6 +4096,7 @@
         'open-profile': () => openProfile(),
         'open-accept': () => openAccepted(),
         'weekly-board': () => openWeeklyBoard(),
+        'league-help': () => openLeagueHelp(),
         'home-tab': (button) => { writeJson(KEYS.homeTab, button.dataset.tab === 'multi' ? 'multi' : 'single'); renderHome(); },
         'new-challenge': () => openNewChallenge(),
         'join-challenge': () => openJoinChallenge(),

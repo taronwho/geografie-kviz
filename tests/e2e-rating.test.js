@@ -201,6 +201,71 @@ test('rating, ligy a týdenní žebříček', { skip: !chromium && 'Playwright n
         await context.close();
     });
 
+    for (const viewport of [{ width: 360, height: 640 }, { width: 390, height: 780 }]) {
+        await t.test(`vysvětlení lig z karty i z týdenního žebříčku (${viewport.width}x${viewport.height})`, async () => {
+            const db = newDb();
+            const { context, tab, log } = await setup(browser, login('tok-u1'), viewport);
+            await backend(context, db);
+            await tab.goto(`${ORIGIN}/`);
+            await waitForHome(tab);
+            await tab.waitForSelector('#league-card');
+            assert.ok(await tab.evaluate(() => document.getElementById('league-card').getBoundingClientRect().height) < 80, 'karta zůstává nízká');
+            assert.equal(await tab.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true, 'karta nepřetéká');
+            await shot(tab, `liga-karta-${viewport.width}`);
+
+            // Z karty: dialog s pravidly, všemi ligami z Rating.LEAGUES (název a hranice) a týdenním žebříčkem
+            await tab.click('#league-card [data-action="league-help"]');
+            await tab.waitForSelector('#league-help');
+            const help = await tab.textContent('#dialog-overlay');
+            assert.match(help, /Jak fungují ligy/);
+            assert.match(help, new RegExp(`začíná na ${Rating.START}`));
+            assert.match(help, /jen ve výzvách proti jiným hráčům/);
+            assert.match(help, /Silnější soupeř/);
+            assert.match(help, /Remíza rating skoro nemění/);
+            assert.match(help, /Týdenní žebříček/);
+            assert.match(help, /V pondělí se počítá znovu/);
+            assert.equal(await tab.locator('#league-help [data-league]').count(), Rating.LEAGUES.length);
+            const expectedRange = (index) => {
+                const league = Rating.LEAGUES[index];
+                const next = Rating.LEAGUES[index + 1];
+                return !next ? `od ${league.from}` : index === 0 ? `do ${next.from - 1}` : `${league.from}–${next.from - 1}`;
+            };
+            for (const [index, league] of Rating.LEAGUES.entries()) {
+                const text = (await tab.textContent(`#league-help [data-league="${league.id}"]`)).replace(/\s+/g, ' ');
+                assert.ok(text.includes(league.name), text);
+                assert.ok(text.includes(expectedRange(index)), `${league.name}: ${text}`);
+                assert.equal(await tab.locator(`#league-help [data-league="${league.id}"] .${league.css}`).count(), 1, 'barva a ikona jako na kartě');
+                assert.equal(await tab.locator(`#league-help [data-league="${league.id}"] svg`).count(), 1, 'ikona ligy');
+            }
+            assert.match(await tab.textContent('#league-help [data-league="stribro"]'), /\(ty\)/, 'moje liga je označená');
+            assert.equal(await tab.locator('#league-help [data-help-back]').count(), 0, 'z karty tlačítko Zpět není');
+            const fit = await tab.evaluate(() => { const box = document.querySelector('#dialog-overlay > div'); return { scroll: box.scrollHeight - box.clientHeight, bottom: box.getBoundingClientRect().bottom, height: window.innerHeight }; });
+            assert.ok(fit.scroll <= 1, `dialog se vejde bez posouvání (přesah ${fit.scroll}px)`);
+            assert.ok(fit.bottom <= fit.height, 'dialog je celý na obrazovce');
+            await shot(tab, `liga-vysvetleni-${viewport.width}`);
+            await tab.keyboard.press('Escape');
+            await tab.waitForFunction(() => !document.getElementById('dialog-overlay'));
+
+            // Z týdenního žebříčku: tlačítko ?, a Zpět na žebříček
+            await tab.click('#league-card [data-action="weekly-board"]');
+            await tab.waitForSelector('#weekly-list');
+            await shot(tab, `liga-zebricek-${viewport.width}`);
+            await tab.click('#dialog-overlay [data-league-help]');
+            await tab.waitForSelector('#league-help');
+            assert.equal(await tab.locator('#league-help [data-league]').count(), Rating.LEAGUES.length);
+            assert.equal(await tab.evaluate(() => { const box = document.querySelector('#dialog-overlay > div'); return box.scrollHeight - box.clientHeight <= 1; }), true, 'i se tlačítkem Zpět se vejde');
+            await shot(tab, `liga-vysvetleni-zpet-${viewport.width}`);
+            await tab.click('#dialog-overlay [data-help-back]');
+            await tab.waitForSelector('#weekly-list');
+            assert.match(await tab.textContent('#dialog-overlay'), /Týdenní žebříček/);
+            await tab.keyboard.press('Escape');
+            await tab.waitForFunction(() => !document.getElementById('dialog-overlay'));
+            assert.deepEqual(log.errors, []);
+            assert.deepEqual(log.csp, []);
+            await context.close();
+        });
+    }
+
     await t.test('databáze bez ratingu: aplikace nespadne, karta ligy se neukáže', async () => {
         const db = newDb();
         const { context, tab, log } = await setup(browser, login('tok-u1'));

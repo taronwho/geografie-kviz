@@ -13,7 +13,7 @@ const ids = Tutorial.STEPS.map(step => step.id);
 const presentIds = (...list) => (step) => list.includes(step.id);
 
 test('kroky: pořadí, jedinečná id, texty česky a zvýraznění přesně jednoho prvku', () => {
-    assert.deepEqual(ids, ['fact', 'daily', 'hint', 'choice', 'result', 'menu', 'home', 'settings']);
+    assert.deepEqual(ids, ['fact', 'daily', 'hint', 'choice', 'result', 'menu', 'home', 'multi', 'settings']);
     assert.equal(new Set(ids).size, ids.length);
     for (const step of Tutorial.STEPS) {
         assert.ok(step.target && step.title && step.text, step.id);
@@ -26,6 +26,13 @@ test('kroky: pořadí, jedinečná id, texty česky a zvýraznění přesně jed
     assert.match(Tutorial.STEPS.find(step => step.id === 'daily').target, /data-action="daily"/);
     assert.match(Tutorial.STEPS.find(step => step.id === 'hint').target, /data-action="hint"/);
     assert.match(Tutorial.STEPS.find(step => step.id === 'choice').target, /data-action="choice"/);
+    // Krok o multiplayeru: jen informační, zvýrazní záložku Více hráčů, zmiňuje výzvy, odvetu, rating, ligy, týdenní žebříček a přihlášení
+    const multi = Tutorial.STEPS.find(step => step.id === 'multi');
+    assert.equal(multi.mode, 'info');
+    assert.equal(multi.target, '[data-action="home-tab"][data-tab="multi"]');
+    assert.ok(!multi.area && !multi.soft, 'nic se neklepe');
+    for (const word of [/kód/, /přezdívk/, /odvet/, /rating/, /lig/, /týdenní žebříček/, /přihlášení/, /Google/]) assert.match(multi.text, word);
+    assert.ok(ids.indexOf('multi') > ids.indexOf('home') && ids.indexOf('multi') < ids.indexOf('settings'), 'po tématech, před nastavením');
 });
 
 test('další krok: přeskočí kroky bez prvku, po klepnutí čeká na přesně následující', () => {
@@ -35,9 +42,11 @@ test('další krok: přeskočí kroky bez prvku, po klepnutí čeká na přesně
     assert.deepEqual(Tutorial.plan(steps, 2, presentIds('home', 'settings'), true), { state: 'wait', index: 2 }, 'otázka se ještě načítá');
     assert.deepEqual(Tutorial.plan(steps, 2, presentIds('hint'), true), { state: 'show', index: 2 });
     assert.deepEqual(Tutorial.plan(steps, 2, presentIds('home', 'settings'), false), { state: 'show', index: 6 }, 'po čekání se přeskočí');
+    assert.deepEqual(Tutorial.plan(steps, 7, presentIds('settings'), false), { state: 'show', index: 8 }, 'bez záložky Více hráčů (bez přihlašování) se krok přeskočí');
+    assert.deepEqual(Tutorial.plan(steps, 7, presentIds('multi', 'settings'), true), { state: 'show', index: 7 });
     assert.deepEqual(Tutorial.plan(steps, 3, presentIds('hint'), false), { state: 'wait', index: 3 }, 'dál není žádný prvek: čeká se, nekončí');
-    assert.deepEqual(Tutorial.plan(steps, 8, () => true, false), { state: 'finished', index: 8 });
-    assert.equal(Tutorial.plan(steps, 7, presentIds(), false).state, 'wait');
+    assert.deepEqual(Tutorial.plan(steps, steps.length, () => true, false), { state: 'finished', index: steps.length });
+    assert.equal(Tutorial.plan(steps, steps.length - 1, presentIds(), false).state, 'wait');
 });
 
 test('stav: spouští se jednou, hotový nebo přeskočený se nevrací, hráč s postupem ho nedostane', () => {
