@@ -50,6 +50,23 @@
 @media (prefers-reduced-motion: no-preference) {
     .bob { animation: bob 1.4s ease-in-out infinite; transform-origin: 50% 90%; }
 }
+/* Žárovka u sovy: dýchá (zvětšuje se a září), občas zakývá a od ní se rozbíhá zlatý kruh; bez animací při „omezit pohyb“ */
+.fact-bulb { transform: rotate(-12deg); filter: drop-shadow(0 0 5px rgba(239, 197, 92, 0.85)); }
+.fact-ripple { opacity: 0; }
+@media (prefers-reduced-motion: no-preference) {
+    .fact-bulb { animation: bulbBreath 2.6s ease-in-out infinite; }
+    .fact-ripple { animation: bulbRipple 2.6s ease-out infinite; }
+}
+@keyframes bulbBreath {
+    0%, 100% { transform: rotate(-12deg) scale(1); filter: drop-shadow(0 0 4px rgba(239, 197, 92, 0.7)); }
+    45% { transform: rotate(-4deg) scale(1.16); filter: drop-shadow(0 0 11px rgba(247, 208, 90, 1)); }
+    60% { transform: rotate(-16deg) scale(1.1); }
+    75% { transform: rotate(-9deg) scale(1.04); }
+}
+@keyframes bulbRipple {
+    0% { opacity: 0.65; transform: translate(-50%, -50%) scale(0.7); }
+    70%, 100% { opacity: 0; transform: translate(-50%, -50%) scale(2); }
+}
 /* Zajímavost se rozevře z rohu u sovy v hlavičce */
 @media (prefers-reduced-motion: no-preference) {
     .fact-pop { transform-origin: 2.5rem 0; animation: factPop 0.32s cubic-bezier(0.2, 0.9, 0.3, 1.2); }
