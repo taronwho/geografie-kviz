@@ -1484,6 +1484,13 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         await one.tab.goBack();
         await waitForHome(one.tab);
         await one.tab.waitForFunction(() => document.querySelector('#challenges-section').textContent.includes('Zeměpis'));
+        // Dohraná výzva se po obnovení stránky nenabízí k pokračování (poslední otázka dokola)
+        assert.equal(await one.tab.locator('[data-action="challenge-resume"]').count(), 0, 'po dohrání bez pokračování');
+        await one.tab.reload();
+        await waitForHome(one.tab);
+        await one.tab.waitForFunction(() => document.querySelector('#challenges-section'));
+        assert.equal(await one.tab.locator('[data-action="challenge-resume"]').count(), 0, 'ani po obnovení stránky');
+        assert.ok((await one.tab.evaluate(() => localStorage.getItem('mudrlant.finishedChallenges')) || '').includes(code), 'kód dohrané výzvy je zapamatovaný');
 
         // Nastavení výzvy: Vlajky, jen okruh vlajek států, i těžší otázky, psaní odpovědí – hraje se přesně podle něj
         await one.tab.click('#challenges-section [data-action="new-challenge"]');

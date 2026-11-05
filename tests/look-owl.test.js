@@ -53,3 +53,16 @@ test('doplňky sovy: logo je obal s vrstvami a odměny doplňků se hlásí při
     const rewards = Look.newRewards(3, 4, []);
     assert.deepEqual(rewards.map(entry => `${entry.category}:${entry.item.id}`), ['accessories:bryle']);
 });
+
+test('doplňky sovy: doplňky jdou přidávat v libovolném pořadí (i nejdřív spodní místo, pak horní)', () => {
+    const store = {};
+    global.localStorage = { getItem: (key) => store[key] ?? null, setItem: (key, value) => { store[key] = value; } };
+    const ctx = { level: 100, badges: {} };
+    // Look používá root.localStorage; v Node se bere z globálního objektu
+    assert.equal(Look.setPref('acc', { neck: { id: 'sala', color: 'original' } }, ctx), true);
+    assert.equal(Look.setPref('acc', { neck: { id: 'sala', color: 'original' }, head: { id: 'koruna', color: 'original' } }, ctx), true, 'horní místo po spodním');
+    assert.equal(Look.setPref('acc', { neck: { id: 'sala', color: 'original' }, head: { id: 'koruna', color: 'original' }, hand: { id: 'lupa', color: 'zelena' }, face: { id: 'bryle', color: 'original' } }, ctx), true);
+    assert.deepEqual(Object.keys(Look.prefs(ctx).acc), ['head', 'face', 'neck', 'hand']);
+    assert.equal(Look.setPref('acc', {}, ctx), true);
+    delete global.localStorage;
+});

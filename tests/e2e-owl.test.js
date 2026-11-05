@@ -35,13 +35,13 @@ test('doplňky sovy v Nastavení', { skip: !chromium && 'Playwright není nainst
     const browser = await chromium.launch(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {});
     t.after(async () => { await browser.close(); server.close(); });
 
-    const open = async () => {
+    const open = async (progress = PROGRESS) => {
         const context = await browser.newContext({ serviceWorkers: 'block', viewport: { width: 390, height: 780 } });
         await context.addInitScript(entries => {
             if (sessionStorage.getItem('seeded')) return;
             sessionStorage.setItem('seeded', '1');
             Object.entries(entries).forEach(([key, value]) => localStorage.setItem(key, value));
-        }, { 'mudrlant.account': JSON.stringify('host'), 'mudrlant.variant': 'choices', 'mudrlant.progress': PROGRESS, 'mudrlant.tutorial': JSON.stringify({ how: 'done' }) });
+        }, { 'mudrlant.account': JSON.stringify('host'), 'mudrlant.variant': 'choices', 'mudrlant.progress': progress, 'mudrlant.tutorial': JSON.stringify({ how: 'done' }) });
         const tab = await context.newPage();
         const problems = [];
         tab.on('pageerror', error => problems.push(error.message));
@@ -92,6 +92,24 @@ test('doplňky sovy v Nastavení', { skip: !chromium && 'Playwright není nainst
         await tab.click('[data-owl-pick="neck:none"]');
         await tab.waitForSelector('[data-owl-pick="neck:none"][aria-pressed="true"]');
         assert.deepEqual(await layers(tab), ['icons/doplnky/slunecni-bryle.webp']);
+        assert.deepEqual(problems, []);
+        await context.close();
+    });
+
+    await t.test('doplňky jdou přidávat v libovolném pořadí: nejdřív spodní místo, pak horní', async () => {
+        const { context, tab, problems } = await open(JSON.stringify({ xp: 82000, counters: {}, badges: {} }));
+        await tab.click('#btn-settings');
+        await tab.click('[data-me-tab="owl"]');
+        await tab.waitForSelector('[data-owl-pick]');
+        await tab.click('[data-owl-pick="hand:lupa"]');
+        await tab.waitForSelector('[data-owl-pick="hand:lupa"][aria-pressed="true"]');
+        await tab.click('[data-owl-pick="neck:motylek"]');
+        await tab.waitForSelector('[data-owl-pick="neck:motylek"][aria-pressed="true"]');
+        await tab.click('[data-owl-pick="head:kvetina"]');
+        await tab.waitForSelector('[data-owl-pick="head:kvetina"][aria-pressed="true"]');
+        await tab.click('[data-owl-pick="face:bryle"]');
+        await tab.waitForSelector('[data-owl-pick="face:bryle"][aria-pressed="true"]');
+        assert.deepEqual(await layers(tab), ['icons/doplnky/motylek.webp', 'icons/doplnky/bryle.webp', 'icons/doplnky/kvetina.webp', 'icons/doplnky/lupa.webp']);
         assert.deepEqual(problems, []);
         await context.close();
     });

@@ -109,10 +109,12 @@
     const listeners = new Set();
     const sections = [];
     const prefs = (ctx) => { current = normalize(current || readRaw(), ctx); return { ...current }; };
+    // Porovnání hodnot bez ohledu na pořadí klíčů (doplňky se po úpravě řadí podle míst, ne podle toho, co hráč vybral dřív)
+    const stable = (value) => JSON.stringify(value, (key, item) => item && typeof item === 'object' && !Array.isArray(item) ? Object.fromEntries(Object.entries(item).sort(([a], [b]) => a.localeCompare(b))) : item);
     // Nastaví volbu (jen odemčenou), uloží ji a oznámí změnu
     const setPref = (key, value, ctx) => {
         const next = normalize({ ...prefs(ctx), [key]: value }, ctx);
-        if (JSON.stringify(next[key]) !== JSON.stringify(value)) return false;
+        if (stable(next[key]) !== stable(value)) return false;
         current = next;
         try { root.localStorage.setItem(KEY, JSON.stringify(current)); } catch (e) { /* bez úložiště se volba jen nepamatuje */ }
         listeners.forEach(listener => { try { listener(prefs(ctx), key); } catch (e) { console.error(e); } });

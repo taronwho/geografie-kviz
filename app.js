@@ -2345,7 +2345,7 @@
         // Zodpovězená otázka se po obnovení stránky (třeba po aktualizaci aplikace) neukazuje znovu: hráč začne na úvodní stránce
         // (u dnešní otázky je její výsledek dál po ruce přes ikonu tématu, u výzvy se pokračuje tlačítkem na úvodní stránce)
         if (session.round.answered) {
-            if (session.mode === 'challenge' && session.challenge && !session.challenge.done) challenge = session.challenge;
+            if (session.mode === 'challenge' && session.challenge && !session.challenge.done && !finishedChallenges().includes(session.challenge.code)) challenge = session.challenge;
             return false;
         }
         // Dnešní otázka z uložené relace platí jen do půlnoci
@@ -2375,7 +2375,7 @@
     const restoreSession = () => {
         const session = readJson(KEYS.session);
         if (session && session.version === STATE_VERSION && session.mode === 'challenge' && session.challenge && !session.challenge.done
-            && Date.now() - session.timestamp < SESSION_MAX_AGE) challenge = session.challenge;
+            && !finishedChallenges().includes(session.challenge.code) && Date.now() - session.timestamp < SESSION_MAX_AGE) challenge = session.challenge;
         return false;
     };
 
@@ -3939,6 +3939,15 @@
     };
 
     // Po poslední otázce: zapíše výsledek (první platí) a ukáže žebříček výzvy
+    // Dohraná výzva se zapamatuje (kód) a uložená relace se označí jako hotová, ať ji úvod po dalším spuštění nenabízí k pokračování
+    const FINISHED_KEY = 'mudrlant.finishedChallenges';
+    const finishedChallenges = () => { const list = readJson(FINISHED_KEY); return Array.isArray(list) ? list.filter(code => typeof code === 'string') : []; };
+    const markChallengeFinished = (code) => {
+        if (!code) return;
+        writeJson(FINISHED_KEY, [...new Set([...finishedChallenges(), code])].slice(-60));
+        const session = readJson(KEYS.session);
+        if (session && session.challenge && session.challenge.code === code) { session.challenge.done = true; writeJson(KEYS.session, session); }
+    };
     const finishChallenge = async (retry = false) => {
         const c = challenge;
         const user = signedUser();
@@ -3946,6 +3955,7 @@
         if (!c || !user || c.sending) return;
         c.sending = true;
         c.done = true;
+        markChallengeFinished(c.code);
         renderChallengeDone(null, 'sending');
         const correct = c.results.filter(row => row && row.correct).length;
         const points = c.results.reduce((sum, row) => sum + (row ? row.points : 0), 0);
@@ -4006,7 +4016,12 @@
         'new-challenge': () => openNewChallenge(),
         'join-challenge': () => openJoinChallenge(),
         'challenge-open': (button) => openChallenge(button.dataset.code),
-        'challenge-resume': () => challenge && !challenge.done && startChallenge(challenge, challenge.index, challenge.results),
+        'challenge-resume': () => {
+            if (!challenge || challenge.done) return;
+            // Všechny otázky už jsou zodpovězené (aplikace se zavřela před odesláním): nic se nehraje znovu, výzva se rovnou odešle
+            if (challenge.results.filter(Boolean).length >= challenge.count) { finishChallenge(); return; }
+            startChallenge(challenge, challenge.index, challenge.results);
+        },
         'challenge-share': (button) => shareChallenge(button.dataset.code, button.dataset.text || ''),
         'challenge-retry': () => finishChallenge(true),
         'challenge-home': () => challengeHome(),
