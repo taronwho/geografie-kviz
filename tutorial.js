@@ -1,5 +1,7 @@
-// Tutorial při prvním spuštění: sova provede hráče skutečnou dnešní otázkou. Jeden krok = jeden zvýrazněný prvek, zbytek obrazovky
-// je ztlumený (čtyři panely kolem prvku, ten sám zůstává klikatelný). Čistá logika kroků a uloženého stavu je nahoře a testuje se
+// Tutorial při prvním spuštění: sova nejdřív ukáže, co je na úvodní obrazovce co (prohlídka, každý krok jen vysvětlení s tlačítkem
+// Dál), pak si hráč zkusí skutečnou dnešní otázku. Jeden krok = jeden zvýrazněný prvek, zbytek obrazovky je ztlumený (čtyři panely
+// kolem prvku, ten sám zůstává klikatelný). Běžící tutoriál se ukládá po každém kroku, takže přežije obnovení stránky i hraní
+// mezi kroky; zmizí jen po Přeskočit nebo po posledním kroku. Čistá logika kroků a uloženého stavu je nahoře a testuje se
 // v Node (tests/tutorial.test.js); vykreslení a napojení na stránku je dole a běží jen v prohlížeči.
 (function (root, factory) {
     const api = factory(root);
@@ -10,52 +12,89 @@
     const KEY = 'mudrlant.tutorial';
     // Hráč, který už hrál (před vznikem tutoriálu), ho při prvním otevření nové verze nedostane
     const PLAYED_KEYS = ['mudrlant.stats', 'mudrlant.progress', 'mudrlant.history'];
-    const SETTLE_MS = 3500;
+    // Jak dlouho se čeká na cílový prvek, než bublina nabídne Přeskočit krok
+    const WAIT_MS = 8000;
+    // Krátká prodleva po klepnutí: obrazovka se ještě přepíná, nesmí se hned vracet
+    const GRACE_MS = 900;
 
     // target = prvek, který se zvýrazní; area 'parent' = zvýrazní se celý jeho rodič (řada dlaždic, mřížka odpovědí);
     // hit = na co se musí klepnout (výchozí target); mode 'tap' = klepnutí na prvek posune dál, 'info' = jen vysvětlení a tlačítko Dál;
-    // soft = klepnutí je nepovinné, bublina má i tlačítko Dál
+    // soft = klepnutí je nepovinné, bublina má i tlačítko Dál; skippable = chybí-li prvek, ale některý z dalších je vidět, krok se
+    // vynechá (jinak se na prvek vždy čeká); phase 'tour' = prohlídka, 'try' = zkoušení; wait = text při čekání na prvek
+    const TOUR_WAIT = 'Vrať se na úvodní obrazovku, tam ti vše ukážu.';
+    const QUESTION_LOST = 'Otázka se nenačetla. Zkus ji otevřít znovu z úvodní obrazovky, nebo tento krok přeskoč.';
     const STEPS = [
-        { id: 'fact', owl: 'sova-vitej', mode: 'tap', target: '#fact-hint:not(.hidden)', title: 'Ahoj, jsem Sova!', text: 'Klepni na žárovku u loga, povím ti, co se stalo tento den v dějinách.' },
-        { id: 'daily', owl: 'sova-vitej', mode: 'tap', target: '[data-action="daily"]', area: 'parent', title: 'Dnešní otázky', text: 'Každý den tu najdeš otázku z každého tématu. Klepni na libovolné a zkusíme si ji doopravdy.', intro: 'Ahoj, jsem Sova! Každý den tu najdeš otázku z každého tématu. Klepni na libovolné a zkusíme si ji doopravdy.' },
-        { id: 'hint', owl: 'sova-premysleni', mode: 'tap', soft: true, softLabel: 'Bez nápovědy', target: '[data-action="hint"]', title: 'Nápověda', text: 'Nevíš si rady? Klepni na nápovědu. Čím víc nápověd použiješ, tím méně bodů za správnou odpověď dostaneš.' },
-        { id: 'choice', owl: 'sova-premysleni', mode: 'tap', target: '[data-action="choice"]', area: 'parent', title: 'Tvoje odpověď', text: 'Vyber odpověď. Je to skutečná otázka, získané XP se ti započítají.' },
-        { id: 'result', owl: 'sova-radost', mode: 'info', target: '[data-verdict]', title: 'Výsledek', text: 'Tady vidíš, jak jsi dopadl, a kolik XP jsi získal. Z XP roste tvoje úroveň (ukazuje ji hlavička na úvodu) a za výkony dostaneš odznaky.' },
-        { id: 'menu', owl: 'sova-vitej', mode: 'tap', target: '[data-action="daily-home"], [data-action="next"]', title: 'Dál', text: 'Tlačítko Menu tě vrátí na úvod, tlačítko vedle něj ti dá další dnešní otázku. Klepni na Menu.' },
-        { id: 'home', owl: 'sova-vitej', mode: 'info', target: '[data-action="play-topic"]', area: 'parent', title: 'Témata a Mix', text: 'Dlaždice jsou témata, vyber si, co chceš hrát. Mix míchá otázky ze všech témat.' },
-        { id: 'settings', owl: 'sova-vitej', mode: 'tap', target: '#btn-settings', title: 'Nastavení', text: 'Tady upravíš Vzhled sovy a aplikace a přihlásíš se, abys mohl hrát výzvy s kamarády. Klepni na kolečko.' }
+        { id: 'fact', phase: 'tour', owl: 'sova-vitej', mode: 'tap', soft: true, softLabel: 'Dál', skippable: true, target: '#fact-hint:not(.hidden)', hit: '#fact-hint', title: 'Ahoj, jsem Mudrlant!', text: 'Žárovka u mého loga ukazuje, co se tento den stalo v dějinách. Můžeš na ni klepnout, nebo pokračovat tlačítkem Dál.', wait: 'Hledám žárovku…', waitLong: TOUR_WAIT },
+        { id: 'badge', phase: 'tour', owl: 'sova-vitej', mode: 'info', target: '#status-badge', title: 'Úroveň a XP', text: 'Za správné odpovědi sbíráš XP, rosteš v úrovních a za výkony dostaneš odznaky. Klepnutí na sovu otevře událost dne, klepnutí na text tvůj postup.', intro: 'Ahoj, jsem Mudrlant! Za správné odpovědi sbíráš XP, rosteš v úrovních a za výkony dostaneš odznaky. Klepnutí na sovu otevře událost dne, klepnutí na text tvůj postup.', wait: 'Chvilku…', waitLong: TOUR_WAIT },
+        { id: 'daily', phase: 'tour', owl: 'sova-vitej', mode: 'info', target: '[data-action="daily"]', area: 'parent', title: 'Dnešní otázky', text: 'Každý den tu najdeš otázku z každého tématu. Splněné se označí, další čekají do zítřka.', intro: 'Ahoj, jsem Mudrlant! Každý den tu najdeš otázku z každého tématu. Splněné se označí, další čekají do zítřka.', wait: 'Chvilku…', waitLong: TOUR_WAIT },
+        { id: 'topics', phase: 'tour', owl: 'sova-vitej', mode: 'info', target: '[data-action="play-topic"]', area: 'parent', title: 'Témata a Mix', text: 'Dlaždice jsou témata, vyber si, co chceš hrát. Mix míchá otázky ze všech témat.', wait: 'Chvilku…', waitLong: TOUR_WAIT },
+        { id: 'settings', phase: 'tour', owl: 'sova-vitej', mode: 'info', target: '#btn-settings', title: 'Nastavení', text: 'Tady upravíš Vzhled, Sovu a přihlásíš se, abys mohl hrát výzvy s kamarády.', wait: 'Chvilku…', waitLong: TOUR_WAIT },
+        { id: 'try', phase: 'try', owl: 'sova-vitej', mode: 'tap', target: '[data-action="daily"]', area: 'parent', hit: '[data-action="daily"]', title: 'Teď si to zkusíme doopravdy', text: 'Klepni na libovolnou dnešní otázku. Je skutečná, získané XP se ti započítají.', wait: 'Chvilku…', waitLong: 'Vrať se na úvodní obrazovku a klepni na dnešní otázku, nebo tento krok přeskoč.' },
+        { id: 'hint', phase: 'try', owl: 'sova-premysleni', mode: 'tap', soft: true, softLabel: 'Bez nápovědy', skippable: true, target: '[data-action="hint"]', title: 'Nápověda', text: 'Nevíš si rady? Klepni na nápovědu. Čím víc nápověd použiješ, tím méně bodů za správnou odpověď dostaneš.', wait: 'Načítám otázku…', waitLong: QUESTION_LOST },
+        { id: 'choice', phase: 'try', owl: 'sova-premysleni', mode: 'tap', skippable: true, target: '[data-action="choice"], #answer-form', area: 'parent', hit: '[data-action="choice"], #answer-form button[type="submit"]', title: 'Tvoje odpověď', text: 'Odpověz: vyber možnost, nebo ji napiš. Je to skutečná otázka, získané XP se ti započítají.', wait: 'Načítám otázku…', waitLong: QUESTION_LOST },
+        { id: 'result', phase: 'try', owl: 'sova-radost', mode: 'info', target: '[data-verdict]', title: 'Výsledek', text: 'Tady vidíš, jak jsi dopadl, a kolik XP jsi získal. Z XP roste tvoje úroveň (ukazuje ji hlavička na úvodu) a za výkony dostaneš odznaky.', wait: 'Chvilku…', waitLong: 'Výsledek se neukázal. Odpověz na otázku, nebo tento krok přeskoč.' },
+        { id: 'menu', phase: 'try', owl: 'sova-vitej', mode: 'tap', target: '[data-action="daily-home"], [data-action="next"]', area: 'parent', hit: '[data-action="daily-home"], [data-action="next"]', title: 'Dál', text: 'Tlačítko Menu tě vrátí na úvod, tlačítko vedle něj ti dá další dnešní otázku. Klepni na jedno z nich a tím tutoriál končí.', wait: 'Chvilku…', waitLong: 'Tlačítko se neukázalo. Vrať se na úvod, nebo tento krok přeskoč.' }
     ];
+    const TRY_INDEX = STEPS.findIndex(step => step.id === 'try');
 
-    // Úložiště může chybět nebo házet výjimky
+    // Uložený stav: {how:'running', step:n} = běží, {how:'done'|'skipped'} = hotovo. Úložiště může chybět nebo házet výjimky
     const read = (storage) => {
-        try { return storage && storage.getItem(KEY); } catch (e) { return null; }
+        try { return storage ? storage.getItem(KEY) : null; } catch (e) { return null; }
     };
-    const isDone = (storage) => Boolean(read(storage));
+    const parse = (storage) => {
+        const raw = read(storage);
+        if (!raw) return null;
+        let value = null;
+        try { value = JSON.parse(raw); } catch (e) { /* starý či cizí zápis: bráno jako hotovo */ }
+        if (value && value.how === 'running') {
+            const step = Number.isInteger(value.step) ? Math.min(Math.max(value.step, 0), STEPS.length - 1) : 0;
+            return { how: 'running', step, noFact: value.noFact === true };
+        }
+        return { how: value && value.how === 'skipped' ? 'skipped' : 'done' };
+    };
+    const isRunning = (storage) => { const saved = parse(storage); return Boolean(saved) && saved.how === 'running'; };
+    const isDone = (storage) => { const saved = parse(storage); return Boolean(saved) && saved.how !== 'running'; };
     const hasPlayed = (storage) => {
         try { return PLAYED_KEYS.some(key => storage && storage.getItem(key)); } catch (e) { return false; }
     };
-    const shouldStart = (storage) => !isDone(storage) && !hasPlayed(storage);
-    const markDone = (storage, how) => {
-        try { if (storage) storage.setItem(KEY, JSON.stringify({ how: how === 'skipped' ? 'skipped' : 'done' })); } catch (e) { /* bez úložiště se tutoriál ukáže znovu */ }
+    // Běžící tutoriál pokračuje, i když hráč mezitím hrál; nový se ukáže jen tomu, kdo ještě nehrál
+    const shouldStart = (storage) => isRunning(storage) || (!isDone(storage) && !hasPlayed(storage));
+    const resumeStep = (storage) => { const saved = parse(storage); return saved && saved.how === 'running' ? saved.step : 0; };
+    const write = (storage, value) => {
+        try { if (storage) storage.setItem(KEY, JSON.stringify(value)); } catch (e) { /* bez úložiště se tutoriál ukáže znovu */ }
     };
+    // noFact = žárovka u sovy nebyla, krok s ní se nepočítá (pamatuje se, ať počítadlo po obnovení sedí)
+    const markRunning = (storage, step, noFact) => write(storage, noFact ? { how: 'running', step, noFact: true } : { how: 'running', step });
+    const resumeNoFact = (storage) => { const saved = parse(storage); return Boolean(saved && saved.how === 'running' && saved.noFact); };
+    const markDone = (storage, how) => write(storage, { how: how === 'skipped' ? 'skipped' : 'done' });
     const reset = (storage) => {
         try { if (storage) storage.removeItem(KEY); } catch (e) { /* nic */ }
     };
 
-    // Který krok je na řadě. present(krok) říká, jestli jeho cílový prvek je na obrazovce. Hned po klepnutí (strict) se čeká
-    // na přesně následující krok (obrazovka se ještě načítá); jinak se kroky bez prvku přeskočí. Bez dalšího prvku se čeká.
-    const plan = (steps, index, present, strict) => {
+    // Který krok je na řadě. present(krok) říká, jestli jeho cílový prvek je na obrazovce. Chybí-li prvek, čeká se na něj;
+    // jen nepovinné kroky (skippable) se vynechají, když je vidět některý z dalších. Po posledním kroku konec.
+    const plan = (steps, index, present) => {
         if (index >= steps.length) return { state: 'finished', index: steps.length };
         if (present(steps[index])) return { state: 'show', index };
-        if (strict) return { state: 'wait', index };
-        for (let next = index + 1; next < steps.length; next += 1) if (present(steps[next])) return { state: 'show', index: next };
+        if (steps[index].skippable) {
+            for (let next = index + 1; next < steps.length; next += 1) {
+                if (present(steps[next])) return { state: 'show', index: next };
+                if (!steps[next].skippable) break;
+            }
+        }
         return { state: 'wait', index };
     };
-    // První ukázaný krok se představí (když žárovka není, uvítání nese krok s dnešními otázkami)
+    // Kolikátý krok z kolika; žárovka (hidden = ['fact']) se nepočítá, když u sovy není
+    const position = (steps, index, hidden = []) => {
+        const active = steps.filter(step => !hidden.includes(step.id));
+        const at = active.indexOf(steps[index]);
+        return { n: at < 0 ? 0 : at + 1, total: active.length };
+    };
+    // První ukázaný krok se představí (když žárovka není, uvítání nese první krok prohlídky)
     const textFor = (step, first) => (first && step.intro ? step.intro : step.text);
-    const owlFor = (step, first) => (first && step.id !== 'fact' ? 'sova-vitej' : step.owl);
+    const owlFor = (step, first) => (first && step.id !== 'fact' && step.phase === 'tour' ? 'sova-vitej' : step.owl);
 
-    const api = { KEY, STEPS, SETTLE_MS, isDone, hasPlayed, shouldStart, markDone, reset, plan, textFor, owlFor };
+    const api = { KEY, STEPS, TRY_INDEX, WAIT_MS, GRACE_MS, isDone, isRunning, hasPlayed, shouldStart, resumeStep, resumeNoFact, markRunning, markDone, reset, plan, position, textFor, owlFor };
     if (!root || !root.document) return api;
 
     // --- Prohlížeč ---
@@ -66,7 +105,7 @@
     let observer = null;
     let state = null;
     let frame = 0;
-    let timer = 0;
+    let waitTimer = 0;
 
     const setBox = (el, left, top, width, height) => {
         el.style.left = `${Math.round(left)}px`;
@@ -86,6 +125,7 @@
     };
     const present = (step) => Boolean(holeOf(step));
     const external = () => Boolean(doc.querySelector(EXTERNAL));
+    const hidden = () => (state && state.noFact ? ['fact'] : []);
 
     const build = () => {
         const el = doc.createElement('div');
@@ -108,14 +148,20 @@
                 </div>
                 <div class="mt-2 flex items-center justify-between gap-2">
                     <button type="button" data-tut-skip class="rounded-xl px-3 py-2 text-[13px] font-bold text-slate-500 underline underline-offset-2 active:scale-95 dark:text-slate-400">Přeskočit</button>
+                    <button type="button" data-tut-skipstep class="hidden rounded-xl btn-3d bg-slate-200 px-4 py-2 text-[13px] font-black text-slate-700 active:scale-95 dark:bg-slate-700 dark:text-slate-100">Přeskočit krok</button>
                     <button type="button" data-tut-next class="hidden rounded-xl btn-3d bg-brand-700 px-4 py-2 text-[13px] font-black text-white active:scale-95">Dál</button>
                 </div>
             </div>`;
         doc.body.appendChild(el);
         const q = (selector) => el.querySelector(selector);
-        ui = { root: el, panels: [...el.querySelectorAll('[data-tut-panel]')], cover: q('[data-tut-cover]'), ring: q('[data-tut-ring]'), group: q('[data-tut-panels]'), bubble: q('[data-tut-bubble]'), owl: q('[data-tut-owl]'), count: q('[data-tut-count]'), title: q('[data-tut-title]'), text: q('[data-tut-text]'), skip: q('[data-tut-skip]'), next: q('[data-tut-next]') };
+        ui = { root: el, panels: [...el.querySelectorAll('[data-tut-panel]')], cover: q('[data-tut-cover]'), ring: q('[data-tut-ring]'), group: q('[data-tut-panels]'), bubble: q('[data-tut-bubble]'), owl: q('[data-tut-owl]'), count: q('[data-tut-count]'), title: q('[data-tut-title]'), text: q('[data-tut-text]'), skip: q('[data-tut-skip]'), skipStep: q('[data-tut-skipstep]'), next: q('[data-tut-next]') };
         ui.skip.addEventListener('click', () => finish('skipped'));
-        ui.next.addEventListener('click', () => advance());
+        ui.next.addEventListener('click', () => {
+            // Rychlé dvojité klepnutí nesmí přeskočit celý další krok
+            if (!state || state.painted === null || Date.now() - state.paintedAt < 350) return;
+            advance(state.index);
+        });
+        ui.skipStep.addEventListener('click', () => { if (state) advance(state.index); });
     };
 
     const placeBubble = (box) => {
@@ -131,23 +177,33 @@
         else bubble.style.top = `${Math.max(8, box.top - room + 2)}px`;
     };
 
-    const paint = (step, hole, waiting) => {
-        const first = state.shown === 0 || (state.firstId === step.id);
-        const waitingText = state.strictUntil > Date.now() ? 'Chvilku…' : 'Dohraj otázku, sova se ukáže zase.';
-        ui.group.classList.toggle('hidden', waiting);
-        ui.next.classList.toggle('hidden', waiting || !(step.mode === 'info' || step.soft));
+    const counter = (step) => {
+        const { n, total } = position(STEPS, STEPS.indexOf(step), hidden());
+        return `Krok ${n} z ${total}`;
+    };
+
+    // Čekání na prvek: skupina ztlumení se skryje (hráč může stránku ovládat), bublina říká, na co se čeká
+    const paintWaiting = (step) => {
+        const long = Date.now() - state.waitSince >= WAIT_MS;
+        ui.group.classList.add('hidden');
+        ui.next.classList.add('hidden');
+        ui.skipStep.classList.toggle('hidden', !long);
+        if (!ui.owl.src.endsWith('sova-premysleni.webp')) ui.owl.src = 'icons/topics/sova-premysleni.webp';
+        ui.count.textContent = counter(step);
+        ui.title.textContent = step.title;
+        ui.text.textContent = long ? step.waitLong || step.wait : step.wait;
+        placeBubble(null);
+    };
+
+    const paint = (step, hole) => {
+        const first = state.fromStart && state.firstId === step.id;
+        ui.group.classList.remove('hidden');
+        ui.skipStep.classList.add('hidden');
+        ui.next.classList.toggle('hidden', !(step.mode === 'info' || step.soft));
         ui.next.textContent = step.soft && step.mode === 'tap' ? step.softLabel || 'Dál' : 'Dál';
-        if (waiting) {
-            ui.owl.src = 'icons/topics/sova-premysleni.webp';
-            ui.count.textContent = '';
-            ui.title.textContent = '';
-            ui.text.textContent = waitingText;
-            placeBubble(null);
-            return;
-        }
         const wanted = `icons/topics/${owlFor(step, first)}.webp`;
         if (!ui.owl.src.endsWith(wanted)) ui.owl.src = wanted;
-        ui.count.textContent = `Krok ${STEPS.indexOf(step) + 1} z ${STEPS.length}`;
+        ui.count.textContent = counter(step);
         ui.title.textContent = step.title;
         ui.text.textContent = textFor(step, first);
         const rect = hole.getBoundingClientRect();
@@ -167,42 +223,55 @@
         placeBubble({ top, bottom });
     };
 
+    const persist = () => { if (state) markRunning(root.localStorage, state.index, state.noFact); };
+
     const layout = () => {
         frame = 0;
         if (!state || !ui) return;
         if (external()) { ui.root.classList.add('hidden'); return; }
-        const strict = state.strictUntil > Date.now();
-        const result = plan(STEPS, state.index, present, strict);
+        let result = plan(STEPS, state.index, present);
         if (result.state === 'finished') { finish('done'); return; }
-        const fresh = state.painted !== result.index;
-        state.index = result.index;
+        // Uprostřed zkoušení jsme zase na úvodu (Zpět, nová otázka se nenačetla): vrátí se na výběr dnešní otázky
+        if (result.state === 'wait' && result.index > TRY_INDEX && state.graceUntil <= Date.now() && present(STEPS[TRY_INDEX])) {
+            result = { state: 'show', index: TRY_INDEX };
+        }
         ui.root.classList.remove('hidden');
+        if (result.index !== state.index) { state.index = result.index; persist(); }
+        const step = STEPS[state.index];
         if (result.state === 'wait') {
-            state.painted = null;
-            paint(STEPS[state.index], null, true);
+            if (state.painted !== null || !state.waitSince) { state.painted = null; state.waitSince = Date.now(); }
+            root.clearTimeout(waitTimer);
+            const left = WAIT_MS - (Date.now() - state.waitSince);
+            if (left > 0) waitTimer = root.setTimeout(refresh, left + 50);
+            paintWaiting(step);
             return;
         }
-        const step = STEPS[state.index];
+        root.clearTimeout(waitTimer);
+        state.waitSince = 0;
         if (state.firstId === null) state.firstId = step.id;
         const hole = holeOf(step);
+        const fresh = state.painted !== state.index;
         if (fresh) {
             state.painted = state.index;
+            state.paintedAt = Date.now();
+            state.tapped = -1;
             if (hole && hole.scrollIntoView) hole.scrollIntoView({ block: 'nearest', inline: 'nearest' });
         }
-        paint(step, hole, false);
-        if (fresh) ui.skip.focus({ preventScroll: true });
+        paint(step, hole);
+        if (fresh) (ui.next.classList.contains('hidden') ? ui.skip : ui.next).focus({ preventScroll: true });
     };
     const refresh = () => { if (state && !frame) frame = root.requestAnimationFrame(layout); };
 
-    const advance = () => {
-        if (!state) return;
+    // Posun o krok dál (from = krok, ze kterého se jde; opožděné či zdvojené klepnutí tak nic nepřeskočí)
+    const advance = (from) => {
+        if (!state || (from !== undefined && from !== state.index)) return;
         state.index += 1;
         state.painted = null;
-        state.shown += 1;
-        state.strictUntil = Date.now() + SETTLE_MS;
-        root.clearTimeout(timer);
-        timer = root.setTimeout(refresh, SETTLE_MS + 50);
+        state.waitSince = 0;
+        state.graceUntil = Date.now() + GRACE_MS;
         if (state.index >= STEPS.length) { finish('done'); return; }
+        persist();
+        root.setTimeout(refresh, GRACE_MS + 50);
         refresh();
     };
 
@@ -210,7 +279,7 @@
         if (!state) return;
         markDone(root.localStorage, how);
         state = null;
-        root.clearTimeout(timer);
+        root.clearTimeout(waitTimer);
         if (observer) { observer.disconnect(); observer = null; }
         doc.removeEventListener('click', onClick, true);
         doc.removeEventListener('keydown', onKey, true);
@@ -225,19 +294,13 @@
         if (!state || !ui || ui.root.classList.contains('hidden') || state.painted === null) return;
         const step = STEPS[state.index];
         if (step.mode !== 'tap' || !event.target.closest || ui.root.contains(event.target)) return;
+        if (state.tapped === state.index) return;
         const hole = holeOf(step);
         const hit = event.target.closest(step.hit || step.target);
         if (!hit || !hole || !hole.contains(hit)) return;
-        const last = step.id === 'settings';
-        root.setTimeout(() => {
-            if (!state) return;
-            if (last) {
-                // Nastavení se jen ukáže a hned zavře
-                const close = doc.querySelector('#settings-overlay [data-close]');
-                if (close) close.click();
-            }
-            advance();
-        }, 0);
+        const from = state.index;
+        state.tapped = from;
+        root.setTimeout(() => advance(from), 0);
     };
     const onKey = (event) => {
         if (event.key !== 'Escape' || !state || external()) return;
@@ -247,8 +310,12 @@
 
     const begin = (fromStep) => {
         if (state || !doc.body) return;
-        state = { index: fromStep || 0, painted: null, shown: 0, firstId: null, strictUntil: 0 };
+        const start = fromStep || 0;
+        state = { index: start, painted: null, paintedAt: 0, tapped: -1, firstId: null, fromStart: start === 0, graceUntil: 0, waitSince: 0, noFact: false };
+        // Bez žárovky u sovy se krok s ní nepočítá ani nečeká
+        if (start === 0 ? !present(STEPS[0]) : resumeNoFact(root.localStorage)) state.noFact = true;
         if (!ui) build();
+        persist();
         doc.addEventListener('click', onClick, true);
         doc.addEventListener('keydown', onKey, true);
         root.addEventListener('resize', refresh);
@@ -263,10 +330,15 @@
         refresh();
     };
 
-    // Po prvním zobrazení domovské obrazovky: ukáže se, jen když tutoriál ještě nebyl a hráč ještě nehrál. ready = čekání na žárovku.
+    // Spuštění po zobrazení úvodu (nebo po načtení aplikace): běžící tutoriál pokračuje od uloženého kroku, nový se ukáže jen
+    // tomu, kdo ještě nehrál. ready = čekání na žárovku.
     api.maybeStart = (options = {}) => {
         if (state || !shouldStart(root.localStorage)) return;
-        const run = () => { if (!state && shouldStart(root.localStorage) && doc.querySelector('[data-action="daily"]')) begin(0); };
+        const run = () => {
+            if (state || !shouldStart(root.localStorage)) return;
+            if (isRunning(root.localStorage)) begin(resumeStep(root.localStorage));
+            else if (doc.querySelector('[data-action="daily"]')) begin(0);
+        };
         if (options.ready && options.ready.then) options.ready.then(run, run); else run();
     };
     // Tlačítko v Nastavení: znovu od začátku (musí se zavolat na domovské obrazovce)

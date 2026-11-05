@@ -109,6 +109,18 @@ test('robustnost v prohlížeči', { skip: !chromium && 'Playwright není nainst
         });
     }
 
+    await t.test('vymyšlené poznané položky vývojářského režimu se mimo něj nepočítají (hvězdy mistrovství)', async () => {
+        const { context, tab, problems } = await open(`(() => { if (sessionStorage.getItem('seeded')) return; sessionStorage.setItem('seeded', '1'); localStorage.setItem('mudrlant.account', '"host"'); localStorage.setItem('mudrlant.tutorial', '{"how":"done"}'); localStorage.setItem('mudrlant.variant', 'choices');
+            localStorage.removeItem('mudrlant.dev'); localStorage.removeItem('mudrlant.dev.backup');
+            localStorage.setItem('mudrlant.learned', JSON.stringify({ zemepis: Array.from({ length: 320 }, (_, i) => 'dev' + i) })); })()`);
+        await tab.waitForTimeout(400);
+        await tab.click('#status-badge');
+        await tab.waitForSelector('text=Mistrovství témat');
+        assert.equal(await tab.locator('[aria-label$="z 5 hvězd"]').evaluateAll(list => list.filter(el => !/^0 z/.test(el.getAttribute('aria-label'))).length), 0, 'žádné téma nemá hvězdy');
+        assert.deepEqual(problems, []);
+        await context.close();
+    });
+
     await t.test('localStorage vyhazuje chyby (zakázaný, plný): aplikace se načte a jde hrát', async () => {
         const { context, tab, problems } = await open(`(() => { const fail = () => { throw new DOMException('plno', 'QuotaExceededError'); };
             Storage.prototype.setItem = fail; Storage.prototype.getItem = fail; Storage.prototype.removeItem = fail; })()`, '#app-content *');

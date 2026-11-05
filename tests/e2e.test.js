@@ -1498,9 +1498,9 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         await one.tab.click('[data-action="home-tab"][data-tab="multi"]');
         await one.tab.click('#btn-settings');
         await one.tab.click('[data-tutorial-restart]');
-        await one.tab.waitForFunction(() => /Krok \d z 8/.test((document.querySelector('[data-tut-count]') || {}).textContent || ''));
+        await one.tab.waitForFunction(() => /Krok \d z (9|10)/.test((document.querySelector('[data-tut-count]') || {}).textContent || ''));
         const stepText = await one.tab.textContent('[data-tut-count]');
-        assert.ok(/Krok [12] z 8/.test(stepText), `tutoriál začíná od začátku (${stepText})`);
+        assert.ok(/Krok [12] z (9|10)/.test(stepText), `tutoriál začíná od začátku (${stepText})`);
         assert.equal(await one.tab.locator('[data-action="home-tab"][aria-selected="true"]').getAttribute('data-tab'), 'single');
         await one.tab.click('[data-tut-skip]');
         await one.tab.click('[data-action="home-tab"][data-tab="multi"]');
