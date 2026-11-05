@@ -4312,4 +4312,6 @@
         console.error(error);
         renderHome();
     }
+    // Rozběhnutý tutoriál pokračuje od uloženého kroku, i když se aplikace otevřela rovnou do rozehrané otázky
+    if (Tutorial) Tutorial.maybeStart({ ready: factLoading });
 })();
