@@ -43,6 +43,8 @@ test('okno otázky: nápovědy z úvodu článku a vzhled na malých telefonech'
 
     const open = async ({ extract, width, height, colorScheme, topic = 'historie' }) => {
         const context = await browser.newContext({ serviceWorkers: 'block', viewport: { width, height }, colorScheme });
+        // Denní otázka se losuje podle data: pevný den dělá test stálý (jinak by záleželo na tom, jaká položka dnes vyjde)
+        await context.clock.setFixedTime(new Date('2026-11-04T12:00:00'));
         await context.addInitScript(() => {
             if (sessionStorage.getItem('seeded')) return;
             sessionStorage.setItem('seeded', '1');
