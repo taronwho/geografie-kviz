@@ -13,7 +13,7 @@ const ids = Tutorial.STEPS.map(step => step.id);
 const presentIds = (...list) => (step) => list.includes(step.id);
 
 test('kroky: prohlídka a pak zkoušení, jedinečná id, texty česky a zvýraznění přesně jednoho prvku', () => {
-    assert.deepEqual(ids, ['fact', 'badge', 'daily', 'topics', 'settings', 'try', 'hint', 'choice', 'result', 'menu']);
+    assert.deepEqual(ids, ['fact', 'badge', 'daily', 'topics', 'multi', 'settings', 'try', 'hint', 'choice', 'result', 'menu']);
     assert.equal(new Set(ids).size, ids.length);
     for (const step of Tutorial.STEPS) {
         assert.ok(step.target && step.title && step.text && step.wait, step.id);
@@ -23,7 +23,7 @@ test('kroky: prohlídka a pak zkoušení, jedinečná id, texty česky a zvýraz
         assert.doesNotMatch(step.target + step.text, /<|style=/, step.id);
     }
     const phases = Tutorial.STEPS.map(step => step.phase);
-    assert.deepEqual(phases, ['tour', 'tour', 'tour', 'tour', 'tour', 'try', 'try', 'try', 'try', 'try']);
+    assert.deepEqual(phases, ['tour', 'tour', 'tour', 'tour', 'tour', 'tour', 'try', 'try', 'try', 'try', 'try']);
     for (const step of Tutorial.STEPS.filter(step => step.phase === 'tour' && step.id !== 'fact')) assert.equal(step.mode, 'info', `prohlídka jen vysvětluje: ${step.id}`);
     assert.equal(Tutorial.STEPS[Tutorial.TRY_INDEX].id, 'try');
     assert.equal(Tutorial.STEPS.find(step => step.id === 'fact').target, '#fact-hint:not(.hidden)');
@@ -61,9 +61,10 @@ test('další krok: na chybějící prvek se čeká, přeskakují se jen nepovin
 
 test('počítadlo kroků podle skutečného počtu', () => {
     const steps = Tutorial.STEPS;
-    assert.deepEqual(Tutorial.position(steps, 0), { n: 1, total: 10 });
-    assert.deepEqual(Tutorial.position(steps, ids.indexOf('badge'), ['fact']), { n: 1, total: 9 }, 'bez žárovky o krok méně');
-    assert.deepEqual(Tutorial.position(steps, ids.indexOf('menu')), { n: 10, total: 10 });
+    assert.deepEqual(Tutorial.position(steps, 0), { n: 1, total: 11 });
+    assert.deepEqual(Tutorial.position(steps, ids.indexOf('badge'), ['fact']), { n: 1, total: 10 }, 'bez žárovky o krok méně');
+    assert.deepEqual(Tutorial.position(steps, ids.indexOf('badge'), ['fact', 'multi']), { n: 1, total: 9 }, 'bez záložky Více hráčů (hra bez Supabase) o krok méně');
+    assert.deepEqual(Tutorial.position(steps, ids.indexOf('menu')), { n: 11, total: 11 });
 });
 
 test('stav: spouští se jednou, hotový nebo přeskočený se nevrací, hráč s postupem ho nedostane', () => {

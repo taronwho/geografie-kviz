@@ -18,6 +18,10 @@ PAD = {'l': 0.34, 'r': 0.22, 't': 0.26, 'b': 0.12}
 # Doplňky v obličeji zakrývají i oči a monokl pod sebou, proto se jejich plocha vyplní celá (bez děr)
 FILL = {'bryle', 'slunecni-bryle', 'koruna', 'lab-bryle', '3d-bryle', 'helma', 'prilba', 'baret'}
 # Doplňky v ruce posunou na obrázku celou sovu (obdélník sovy zahrnuje i předmět): zarovná se podle čepice a hlavy
+# Doplňky, které nahrazují čepici: v místě, kde byla výchozí čepice (icons/logo-maska.webp, scripts/owl-hat-mask.py), se přebírá i hlava sovy z obrázku doplňku
+HATS = {'helma', 'prilba', 'baret'}
+# Doplňky s pevnou částí: barvu mění jen plátno (modrá plocha), zbytek (tyčka, ruka) je v samostatné vrstvě <id>-zaklad.webp, která se nikdy nepřebarvuje
+SPLIT = {'vlajka'}
 HAND = {'vlajka', 'svitek', 'brk', 'sitka'}
 # Doplněk zlaté barvy na zlatém podkladu (koruna přes knoflík čepice, stuha medaile přes zlatý límec) se od původní sovy skoro neliší:
 # silnější uzavření masky, ať se přebarví celý a nezůstanou zlaté kusy. Poloměr v pixelech původního obrázku.
@@ -117,7 +121,16 @@ def align(base, img, border=BORDER, hat=False):
     return warped
 
 
-def extract(base, warped, fill=False, border=BORDER, close=9, knob=False):
+def hat_zone(frame, shape, border=BORDER):
+    """Plocha výchozí čepice v souřadnicích rozšířeného plátna (z masky loga)."""
+    x0, y0, w, h = frame
+    m = np.asarray(Image.open(os.path.join(ROOT, 'icons', 'logo-maska.webp')).convert('RGBA').getchannel('A').resize((w, h), Image.LANCZOS))
+    zone = np.zeros(shape[:2], np.uint8)
+    zone[y0 + border:y0 + border + h, x0 + border:x0 + border + w] = (m < 128).astype(np.uint8)
+    return zone
+
+
+def extract(base, warped, fill=False, border=BORDER, close=9, knob=False, zone=None):
     base = cv2.copyMakeBorder(base, border, border, border, border, cv2.BORDER_REPLICATE)
     diff = np.abs(warped.astype(np.int16) - base.astype(np.int16)).max(axis=2).astype(np.uint8)
     diff = cv2.GaussianBlur(diff, (0, 0), 1.2)
@@ -144,6 +157,9 @@ def extract(base, warped, fill=False, border=BORDER, close=9, knob=False):
     bgc = np.median(border_px.reshape(-1, 3), axis=0)
     away = np.sqrt(((warped.astype(np.float32) - bgc) ** 2).sum(axis=2))
     keep = np.where(away < 28, 0, keep).astype(np.uint8)
+    if zone is not None:
+        # místo čepice: vše, co obrázek doplňku v této ploše kreslí (hlava sovy, helma), se převezme; mimo ni jen rozdíl
+        keep = np.where((zone > 0) & (away >= 28), 1, keep).astype(np.uint8)
     if fill:
         # vyplnění děr: co není vnějšek, je doplněk
         inv = (1 - keep).astype(np.uint8)
@@ -168,6 +184,22 @@ def layer(base, warped, mask, frame, border=BORDER):
     img = Image.fromarray(crop, 'RGBA')
     k = LOGO_SIZE[0] / w
     return img.resize((round(crop.shape[1] * k), round(crop.shape[0] * k)), Image.LANCZOS)
+
+
+def split_cloth(img):
+    """Rozdělí vrstvu na barevné plátno (největší modrá plocha s obrysem) a pevný zbytek."""
+    a = np.asarray(img.convert('RGBA')).copy()
+    hsv = cv2.cvtColor(a[..., :3], cv2.COLOR_RGB2HSV).astype(np.int32)
+    blue = ((hsv[..., 0] >= 95) & (hsv[..., 0] <= 130) & (hsv[..., 1] > 90) & (hsv[..., 2] > 90) & (a[..., 3] > 128)).astype(np.uint8)
+    blue = cv2.morphologyEx(blue, cv2.MORPH_CLOSE, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7, 7)))
+    n, labels, stats, _ = cv2.connectedComponentsWithStats(blue, 8)
+    biggest = 1 + int(np.argmax(stats[1:, cv2.CC_STAT_AREA]))
+    cloth = (labels == biggest).astype(np.uint8)
+    cloth = cv2.dilate(cloth, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (9, 9)))
+    cloth_a, base_a = a.copy(), a.copy()
+    cloth_a[..., 3] = np.where(cloth > 0, a[..., 3], 0)
+    base_a[..., 3] = np.where(cloth > 0, 0, a[..., 3])
+    return Image.fromarray(cloth_a, 'RGBA'), Image.fromarray(base_a, 'RGBA')
 
 
 # Barevné varianty doplňku: id → (cílový odstín 0–360, násobek sytosti, násobek jasu). Přebarví se jen sytá místa; obrys, krémová a šedá zůstanou.
@@ -228,8 +260,11 @@ def main(ids):
             continue
         img = np.asarray(Image.open(f).convert('RGB'))
         warped = align(base, img, hat=name in HAND)
-        mask, diff = extract(base, warped, fill=name in FILL, close=CLOSE.get(name, 9), knob=name in KNOB)
+        mask, diff = extract(base, warped, fill=name in FILL, close=CLOSE.get(name, 9), knob=name in KNOB, zone=hat_zone(frame, warped.shape) if name in HATS else None)
         out = layer(base, warped, mask, frame)
+        if name in SPLIT:
+            out, fixed = split_cloth(out)
+            save_webp(fixed, os.path.join(OUT, name + '-zaklad.webp'))
         save_webp(out, os.path.join(OUT, name + '.webp'))
         # ikony do výběru (<id>-ikona.webp) dělá scripts/owl-accessory-icons.py z vlastních obrázků doplňků
         for color, (hue, sat_mul, val_mul) in COLORS.items():

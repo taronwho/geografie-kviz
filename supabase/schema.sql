@@ -277,7 +277,9 @@ language sql immutable set search_path = public as $$
         'tema-fyzika-300', 'tema-umeni-25', 'tema-umeni-100', 'tema-umeni-300', 'tema-architektura-25',
         'tema-architektura-100', 'tema-architektura-300', 'tema-hudba-25', 'tema-hudba-100', 'tema-hudba-300',
         'tema-literatura-25', 'tema-literatura-100', 'tema-literatura-300', 'tema-film-25', 'tema-film-100', 'tema-film-300',
-        'tema-sport-25', 'tema-sport-100', 'tema-sport-300'
+        'tema-sport-25', 'tema-sport-100', 'tema-sport-300',
+        'zbehly-zemepis', 'zbehly-vlajky', 'zbehly-historie', 'zbehly-mytologie', 'zbehly-biologie', 'zbehly-geologie', 'zbehly-chemie', 'zbehly-fyzika', 'zbehly-umeni', 'zbehly-architektura', 'zbehly-hudba', 'zbehly-literatura', 'zbehly-film', 'zbehly-sport',
+        'turnaj-ucast', 'turnaj-ctvrtfinale', 'turnaj-semifinale', 'turnaj-bronz', 'turnaj-stribro', 'turnaj-zlato', 'turnaj-postupy-1', 'turnaj-postupy-5', 'turnaj-postupy-15'
     ]::text[];
 $$;
 
@@ -380,3 +382,334 @@ grant insert on public.challenges, public.challenge_results to authenticated;
 -- Pomocné funkce a triggerové funkce se přes API volat nemají
 revoke all on function public.unique_display_name(text), public.handle_new_user(), public.check_challenge_topics(), public.limit_challenges(),
     public.stamp_result(), public.protect_rating() from public, anon, authenticated;
+
+-- ===== Týdenní turnaje (vyřazovací pavouk, kolo = jeden den) =====
+-- Turnaj se hraje od pondělí; mocnina dvou nejlepších přihlášených (max. 128, min. 8) hraje, ostatní dostanou zprávu. Každé kolo má jeden den (Praha),
+-- ve dvojici postoupí ten s více správnými odpověďmi, pak s více body, pak s rychlejším časem; kdo kolo neodehraje, prohrává kontumačně,
+-- a když neodehraje nikdo, postupuje dřívější přihlášený. Kola posouvá tournament_tick() (volá ji aplikace při otevření; volitelně i plánovač pg_cron).
+create table if not exists public.tournaments (
+    id uuid primary key default gen_random_uuid(),
+    topic text not null default 'mix',
+    week_start date not null,
+    started_on date,
+    capacity integer not null default 128,
+    status text not null default 'open',
+    size integer,
+    rounds integer,
+    seed text not null default substr(md5(random()::text), 1, 12),
+    created_at timestamptz not null default now(),
+    unique (topic, week_start)
+);
+alter table public.tournaments drop constraint if exists tournaments_status_list;
+alter table public.tournaments add constraint tournaments_status_list check (status in ('open', 'running', 'finished', 'cancelled'));
+alter table public.tournaments drop constraint if exists tournaments_capacity_range;
+alter table public.tournaments add constraint tournaments_capacity_range check (capacity between 8 and 128);
+alter table public.tournaments drop constraint if exists tournaments_topic_format;
+alter table public.tournaments add constraint tournaments_topic_format check (topic ~ '^[a-z0-9,]{1,200}$');
+
+create table if not exists public.tournament_entries (
+    tournament_id uuid not null references public.tournaments (id) on delete cascade,
+    user_id uuid not null references public.profiles (id) on delete cascade,
+    joined_at timestamptz not null default now(),
+    status text not null default 'registered',
+    place integer,
+    primary key (tournament_id, user_id)
+);
+alter table public.tournament_entries drop constraint if exists tournament_entries_status_list;
+alter table public.tournament_entries add constraint tournament_entries_status_list check (status in ('registered', 'playing', 'out', 'excluded', 'finished'));
+create index if not exists tournament_entries_user_idx on public.tournament_entries (user_id, joined_at desc);
+
+create table if not exists public.tournament_matches (
+    id uuid primary key default gen_random_uuid(),
+    tournament_id uuid not null references public.tournaments (id) on delete cascade,
+    round integer not null,
+    slot integer not null,
+    third boolean not null default false,
+    p1 uuid not null references public.profiles (id) on delete cascade,
+    p2 uuid not null references public.profiles (id) on delete cascade,
+    winner uuid references public.profiles (id) on delete set null,
+    decided_by text,
+    unique (tournament_id, round, slot, third)
+);
+alter table public.tournament_matches drop constraint if exists tournament_matches_decided_list;
+alter table public.tournament_matches add constraint tournament_matches_decided_list check (decided_by is null or decided_by in ('played', 'walkover', 'earlier'));
+create index if not exists tournament_matches_user_idx on public.tournament_matches (p1, p2);
+
+create table if not exists public.tournament_results (
+    match_id uuid not null references public.tournament_matches (id) on delete cascade,
+    user_id uuid not null references public.profiles (id) on delete cascade,
+    started_at timestamptz not null default now(),
+    finished_at timestamptz,
+    correct integer,
+    points integer,
+    time_ms integer,
+    primary key (match_id, user_id)
+);
+
+create table if not exists public.tournament_notices (
+    id bigint generated always as identity primary key,
+    user_id uuid not null references public.profiles (id) on delete cascade,
+    tournament_id uuid references public.tournaments (id) on delete cascade,
+    kind text not null,
+    detail text,
+    created_at timestamptz not null default now(),
+    seen boolean not null default false
+);
+create index if not exists tournament_notices_user_idx on public.tournament_notices (user_id, seen, created_at desc);
+
+alter table public.tournaments enable row level security;
+alter table public.tournament_entries enable row level security;
+alter table public.tournament_matches enable row level security;
+alter table public.tournament_results enable row level security;
+alter table public.tournament_notices enable row level security;
+drop policy if exists "turnaje: čtení pro přihlášené" on public.tournaments;
+create policy "turnaje: čtení pro přihlášené" on public.tournaments for select to authenticated using (true);
+drop policy if exists "turnaje: přihlášky vidí přihlášení" on public.tournament_entries;
+create policy "turnaje: přihlášky vidí přihlášení" on public.tournament_entries for select to authenticated using (true);
+drop policy if exists "turnaje: zápasy vidí přihlášení" on public.tournament_matches;
+create policy "turnaje: zápasy vidí přihlášení" on public.tournament_matches for select to authenticated using (true);
+-- Výsledek soupeře se nesmí ukázat dřív, než je zápas rozhodnutý (jinak by druhý hráč věděl, kolik má překonat)
+drop policy if exists "turnaje: výsledky" on public.tournament_results;
+create policy "turnaje: výsledky" on public.tournament_results for select to authenticated using (
+    user_id = auth.uid() or exists (select 1 from public.tournament_matches m where m.id = match_id and m.winner is not null));
+drop policy if exists "turnaje: vlastní zprávy" on public.tournament_notices;
+create policy "turnaje: vlastní zprávy" on public.tournament_notices for select to authenticated using (user_id = auth.uid());
+
+-- Den kola (Praha)
+-- (nastavení mudrlant.test_today používají jen testy; z API ho klient nastavit nemůže)
+create or replace function public.tournament_today() returns date
+language sql stable set search_path = public as $$
+    select coalesce(nullif(current_setting('mudrlant.test_today', true), '')::date, (now() at time zone 'Europe/Prague')::date)
+$$;
+
+create or replace function public.tournament_notice(uid uuid, tid uuid, notice_kind text, notice_detail text default null) returns void
+language sql security definer set search_path = public as $$
+    insert into public.tournament_notices (user_id, tournament_id, kind, detail) values (uid, tid, notice_kind, notice_detail);
+$$;
+
+-- Vítěz zápasu: víc správných, víc bodů, rychlejší čas, dřívější přihlášení
+create or replace function public.tournament_pick_winner(m public.tournament_matches, force boolean) returns uuid
+language plpgsql security definer set search_path = public as $$
+declare
+    r1 public.tournament_results; r2 public.tournament_results;
+    d1 boolean; d2 boolean; j1 timestamptz; j2 timestamptz; win uuid; how text;
+begin
+    select * into r1 from public.tournament_results where match_id = m.id and user_id = m.p1 and finished_at is not null;
+    select * into r2 from public.tournament_results where match_id = m.id and user_id = m.p2 and finished_at is not null;
+    d1 := r1.match_id is not null; d2 := r2.match_id is not null;
+    select joined_at into j1 from public.tournament_entries where tournament_id = m.tournament_id and user_id = m.p1;
+    select joined_at into j2 from public.tournament_entries where tournament_id = m.tournament_id and user_id = m.p2;
+    if d1 and d2 then
+        how := 'played';
+        win := case
+            when r1.correct <> r2.correct then case when r1.correct > r2.correct then m.p1 else m.p2 end
+            when r1.points <> r2.points then case when r1.points > r2.points then m.p1 else m.p2 end
+            when r1.time_ms <> r2.time_ms then case when r1.time_ms < r2.time_ms then m.p1 else m.p2 end
+            else case when j1 <= j2 then m.p1 else m.p2 end end;
+    elsif force and (d1 or d2) then
+        how := 'walkover'; win := case when d1 then m.p1 else m.p2 end;
+    elsif force then
+        how := 'earlier'; win := case when j1 <= j2 then m.p1 else m.p2 end;
+    else
+        return null;
+    end if;
+    update public.tournament_matches set winner = win, decided_by = how where id = m.id;
+    if how <> 'played' then
+        perform public.tournament_notice(case when win = m.p1 then m.p2 else m.p1 end, m.tournament_id, 'eliminated_noplay', null);
+    end if;
+    return win;
+end;
+$$;
+
+-- Posune turnaj: rozhodne zápasy po termínu, založí další kolo, nebo turnaj uzavře (smyčka dožene i vynechané dny)
+create or replace function public.tournament_progress(tid uuid) returns void
+language plpgsql security definer set search_path = public as $$
+declare
+    t public.tournaments; cur integer; m public.tournament_matches; today date := public.tournament_today(); changed boolean := true;
+    pending integer; w1 uuid; w2 uuid; l1 uuid; l2 uuid; slot_no integer; e record;
+begin
+    select * into t from public.tournaments where id = tid for update;
+    if t.status <> 'running' then return; end if;
+    while changed loop
+        changed := false;
+        select max(round) into cur from public.tournament_matches where tournament_id = tid;
+        -- po termínu (konec dne kola) se zápasy rozhodnou i bez odehrání
+        for m in select * from public.tournament_matches where tournament_id = tid and round = cur and winner is null loop
+            if t.started_on + (cur - 1) < today then
+                perform public.tournament_pick_winner(m, true); changed := true;
+            else
+                perform public.tournament_pick_winner(m, false);
+            end if;
+        end loop;
+        select count(*) into pending from public.tournament_matches where tournament_id = tid and round = cur and winner is null;
+        if pending > 0 then exit; end if;
+        -- poražení vypadávají (místo podle kola); semifinalisté hrají o bronz
+        for m in select * from public.tournament_matches where tournament_id = tid and round = cur loop
+            if cur < t.rounds - 1 then
+                update public.tournament_entries set status = 'out', place = (t.size >> cur) + 1
+                    where tournament_id = tid and user_id = (case when m.winner = m.p1 then m.p2 else m.p1 end);
+            end if;
+        end loop;
+        if cur < t.rounds then
+            if cur = t.rounds - 1 then
+                -- semifinále: vítězové do finále, poražení do zápasu o 3. místo
+                select winner into w1 from public.tournament_matches where tournament_id = tid and round = cur and slot = 1 and not third;
+                select winner into w2 from public.tournament_matches where tournament_id = tid and round = cur and slot = 2 and not third;
+                select case when winner = p1 then p2 else p1 end into l1 from public.tournament_matches where tournament_id = tid and round = cur and slot = 1 and not third;
+                select case when winner = p1 then p2 else p1 end into l2 from public.tournament_matches where tournament_id = tid and round = cur and slot = 2 and not third;
+                insert into public.tournament_matches (tournament_id, round, slot, third, p1, p2) values (tid, cur + 1, 1, false, w1, w2), (tid, cur + 1, 1, true, l1, l2);
+            else
+                for slot_no in 1 .. (t.size >> (cur + 1)) loop
+                    select winner into w1 from public.tournament_matches where tournament_id = tid and round = cur and slot = 2 * slot_no - 1 and not third;
+                    select winner into w2 from public.tournament_matches where tournament_id = tid and round = cur and slot = 2 * slot_no and not third;
+                    insert into public.tournament_matches (tournament_id, round, slot, third, p1, p2) values (tid, cur + 1, slot_no, false, w1, w2);
+                end loop;
+            end if;
+            changed := true;
+        else
+            -- konec: pořadí 1. až 4., ostatní už mají místo z vypadnutí
+            for e in select m2.winner as w, case when m2.winner = m2.p1 then m2.p2 else m2.p1 end as l, m2.third
+                    from public.tournament_matches m2 where m2.tournament_id = tid and m2.round = cur loop
+                update public.tournament_entries set place = case when e.third then 3 else 1 end where tournament_id = tid and user_id = e.w;
+                update public.tournament_entries set place = case when e.third then 4 else 2 end where tournament_id = tid and user_id = e.l;
+            end loop;
+            update public.tournament_entries set status = 'finished' where tournament_id = tid and status in ('playing', 'out');
+            update public.tournaments set status = 'finished' where id = tid;
+            for e in select user_id, place from public.tournament_entries where tournament_id = tid and place is not null loop
+                perform public.tournament_notice(e.user_id, tid, 'result', e.place::text);
+            end loop;
+            exit;
+        end if;
+    end loop;
+end;
+$$;
+
+-- Spustí turnaj: vybere nejvyšší mocninu dvou přihlášených (v pořadí přihlášení), ostatním pošle zprávu; pod 8 přihlášených turnaj ruší
+create or replace function public.tournament_start(tid uuid) returns void
+language plpgsql security definer set search_path = public as $$
+declare
+    t public.tournaments; n integer; s integer := 8; k integer := 3; e record; i integer;
+    ids uuid[];
+begin
+    select * into t from public.tournaments where id = tid for update;
+    if t.status <> 'open' then return; end if;
+    select count(*) into n from public.tournament_entries where tournament_id = tid;
+    if n < 8 then
+        update public.tournaments set status = 'cancelled' where id = tid;
+        for e in select user_id from public.tournament_entries where tournament_id = tid loop
+            perform public.tournament_notice(e.user_id, tid, 'cancelled', n::text);
+        end loop;
+        return;
+    end if;
+    while s * 2 <= least(n, t.capacity) loop s := s * 2; k := k + 1; end loop;
+    update public.tournament_entries set status = 'playing'
+        where tournament_id = tid and user_id in (select user_id from public.tournament_entries where tournament_id = tid order by joined_at, user_id limit s);
+    for e in select user_id from public.tournament_entries where tournament_id = tid and status = 'registered' loop
+        perform public.tournament_notice(e.user_id, tid, 'excluded_full', s::text);
+    end loop;
+    update public.tournament_entries set status = 'excluded' where tournament_id = tid and status = 'registered';
+    update public.tournaments set status = 'running', size = s, rounds = k, started_on = greatest(t.week_start, public.tournament_today()) where id = tid;
+    -- náhodné nasazení do pavouka (podle id hráče a semínka turnaje)
+    select array_agg(user_id order by md5(user_id::text || t.seed)) into ids from public.tournament_entries where tournament_id = tid and status = 'playing';
+    for i in 1 .. s / 2 loop
+        insert into public.tournament_matches (tournament_id, round, slot, p1, p2) values (tid, 1, i, ids[2 * i - 1], ids[2 * i]);
+    end loop;
+end;
+$$;
+
+-- Volá ji aplikace (při otevření) i plánovač: otevře přihlášky na další týden, spustí turnaje, jejichž týden začal, a posune běžící
+create or replace function public.tournament_tick() returns void
+language plpgsql security definer set search_path = public as $$
+declare today date := public.tournament_today(); next_monday date; t record;
+begin
+    perform pg_advisory_xact_lock(74610);
+    next_monday := today + (8 - extract(isodow from today)::integer);
+    insert into public.tournaments (topic, week_start) values ('mix', next_monday) on conflict (topic, week_start) do nothing;
+    for t in select id from public.tournaments where status = 'open' and week_start <= today order by week_start loop
+        perform public.tournament_start(t.id);
+    end loop;
+    for t in select id from public.tournaments where status = 'running' loop
+        perform public.tournament_progress(t.id);
+    end loop;
+end;
+$$;
+
+create or replace function public.tournament_join(tid uuid) returns void
+language plpgsql security definer set search_path = public as $$
+declare t public.tournaments; n integer;
+begin
+    if auth.uid() is null then raise exception 'Přihlas se.' using errcode = '42501'; end if;
+    perform public.tournament_tick();
+    select * into t from public.tournaments where id = tid for update;
+    if t.id is null or t.status <> 'open' or t.week_start <= public.tournament_today() then raise exception 'Přihlášky do tohoto turnaje jsou zavřené.' using errcode = '22023'; end if;
+    select count(*) into n from public.tournament_entries where tournament_id = tid;
+    if exists (select 1 from public.tournament_entries where tournament_id = tid and user_id = auth.uid()) then return; end if;
+    if n >= t.capacity then raise exception 'Turnaj je plný.' using errcode = '22023'; end if;
+    insert into public.tournament_entries (tournament_id, user_id) values (tid, auth.uid());
+end;
+$$;
+
+create or replace function public.tournament_leave(tid uuid) returns void
+language plpgsql security definer set search_path = public as $$
+begin
+    if auth.uid() is null then raise exception 'Přihlas se.' using errcode = '42501'; end if;
+    delete from public.tournament_entries e using public.tournaments t
+        where e.tournament_id = tid and e.user_id = auth.uid() and t.id = e.tournament_id and t.status = 'open';
+end;
+$$;
+
+-- Začátek zápasu: jen účastník, jen v den kola, jen jednou (čas se měří na serveru od tohoto okamžiku)
+create or replace function public.tournament_start_match(mid uuid) returns void
+language plpgsql security definer set search_path = public as $$
+declare m public.tournament_matches; t public.tournaments;
+begin
+    if auth.uid() is null then raise exception 'Přihlas se.' using errcode = '42501'; end if;
+    perform public.tournament_tick();
+    select * into m from public.tournament_matches where id = mid;
+    if m.id is null or auth.uid() not in (m.p1, m.p2) then raise exception 'Tohle není tvůj zápas.' using errcode = '42501'; end if;
+    select * into t from public.tournaments where id = m.tournament_id;
+    if m.winner is not null or t.status <> 'running' then raise exception 'Zápas už je rozhodnutý.' using errcode = '22023'; end if;
+    if t.started_on + (m.round - 1) <> public.tournament_today() then raise exception 'Kolo se dnes nehraje.' using errcode = '22023'; end if;
+    if exists (select 1 from public.tournament_results where match_id = mid and user_id = auth.uid()) then raise exception 'Kolo jsi už začal.' using errcode = '22023'; end if;
+    insert into public.tournament_results (match_id, user_id) values (mid, auth.uid());
+end;
+$$;
+
+create or replace function public.tournament_finish_match(mid uuid, correct_count integer, point_count integer) returns void
+language plpgsql security definer set search_path = public as $$
+declare m public.tournament_matches; r public.tournament_results;
+begin
+    if auth.uid() is null then raise exception 'Přihlas se.' using errcode = '42501'; end if;
+    select * into m from public.tournament_matches where id = mid;
+    select * into r from public.tournament_results where match_id = mid and user_id = auth.uid() for update;
+    if m.id is null or r.match_id is null or r.finished_at is not null or m.winner is not null then raise exception 'Výsledek jde zapsat jen jednou.' using errcode = '22023'; end if;
+    update public.tournament_results set finished_at = now(), correct = greatest(0, least(correct_count, 10)), points = greatest(0, least(point_count, 100)),
+        time_ms = greatest(0, least(extract(epoch from now() - started_at) * 1000, 3600000))::integer
+        where match_id = mid and user_id = auth.uid();
+    perform public.tournament_progress(m.tournament_id);
+end;
+$$;
+
+-- Moje turnajové údaje do odznaků: nejlepší umístění (1 = hrál, 2 = čtvrtfinále, 3 = semifinále, 4 = bronz, 5 = stříbro, 6 = vítěz) a počet vyhraných zápasů
+create or replace function public.my_tournament_stats() returns table (best integer, wins integer, played integer)
+language sql stable security definer set search_path = public as $$
+    select coalesce(max(case when e.place = 1 then 6 when e.place = 2 then 5 when e.place = 3 then 4 when e.place <= 4 then 3 when e.place <= 8 then 2 else 1 end), 0)::integer,
+        (select count(*) from public.tournament_matches m where m.winner = auth.uid())::integer,
+        count(*)::integer
+    from public.tournament_entries e join public.tournaments t on t.id = e.tournament_id
+    where e.user_id = auth.uid() and e.status in ('playing', 'out', 'finished') and t.status in ('running', 'finished');
+$$;
+
+create or replace function public.tournament_notices_seen(ids bigint[]) returns void
+language sql security definer set search_path = public as $$
+    update public.tournament_notices set seen = true where user_id = auth.uid() and id = any (ids);
+$$;
+
+revoke all on public.tournaments, public.tournament_entries, public.tournament_matches, public.tournament_results, public.tournament_notices from anon, authenticated;
+grant select on public.tournaments, public.tournament_entries, public.tournament_matches, public.tournament_results, public.tournament_notices to authenticated;
+revoke all on function public.tournament_today(), public.tournament_notice(uuid, uuid, text, text), public.tournament_pick_winner(public.tournament_matches, boolean),
+    public.tournament_progress(uuid), public.tournament_start(uuid) from public, anon, authenticated;
+revoke all on function public.tournament_tick(), public.tournament_join(uuid), public.tournament_leave(uuid), public.tournament_start_match(uuid),
+    public.tournament_finish_match(uuid, integer, integer), public.my_tournament_stats(), public.tournament_notices_seen(bigint[]) from public, anon;
+grant execute on function public.tournament_tick(), public.tournament_join(uuid), public.tournament_leave(uuid), public.tournament_start_match(uuid),
+    public.tournament_finish_match(uuid, integer, integer), public.my_tournament_stats(), public.tournament_notices_seen(bigint[]) to authenticated;

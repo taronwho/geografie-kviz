@@ -47,7 +47,7 @@
             </button>`;
         }).join('');
         const shown = hint || frameHint(Look.find('frames', selected), ctx, badgeTitle);
-        return `<div class="grid grid-cols-7 gap-1" role="group" aria-label="Rámeček profilu">${tiles}</div>
+        return `<div class="grid grid-cols-9 gap-1" role="group" aria-label="Rámeček profilu">${tiles}</div>
             <p class="mt-1.5 text-[11px] leading-snug text-slate-500 dark:text-slate-400" role="status">${escapeHtml(shown)}${ctx.user ? '' : ' · uvidí ho hráči po přihlášení'}</p>`;
     };
     const clickFrames = (event, ctx) => {

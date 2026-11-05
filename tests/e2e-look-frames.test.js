@@ -122,8 +122,8 @@ test('odměny ve Vzhledu: rámečky, titul a obrázky hráče', { skip: !chromiu
         assert.doesNotMatch(await tab.getAttribute('#btn-settings span', 'class'), /frame/, 'na začátku bez rámečku');
         await openLook(tab);
 
-        // Řada sedmi rámečků; zamčené jsou šedé s podmínkou v popisku
-        assert.equal(await tab.locator('[data-frame]').count(), 7);
+        // Řada devíti rámečků; zamčené jsou šedé s podmínkou v popisku
+        assert.equal(await tab.locator('[data-frame]').count(), 9);
         assert.equal(await tab.getAttribute('[data-frame="zadny"]', 'aria-pressed'), 'true');
         assert.match(await tab.getAttribute('[data-frame="zlato"]', 'aria-label'), /Zlatý: Úroveň 25 \(zamčeno\)/);
         assert.match(await tab.getAttribute('[data-frame="plamen"]', 'title'), /Odznak: .+/);
@@ -269,7 +269,7 @@ test('odměny ve Vzhledu: rámečky, titul a obrázky hráče', { skip: !chromiu
         assert.match(await tab.getAttribute('[data-locked-avatar="🦖"]', 'aria-label'), /zamčený: Úroveň 28/);
         assert.equal(await tab.getAttribute('[data-locked-avatar="🦖"]', 'title'), 'Úroveň 28');
         assert.match(await tab.getAttribute('[data-locked-avatar="🦖"]', 'class'), /grayscale/);
-        assert.equal(await tab.locator('[data-pick-avatar], [data-locked-avatar]').count(), 30);
+        assert.equal(await tab.locator('[data-pick-avatar], [data-locked-avatar]').count(), 34);
         assert.equal(await tab.evaluate(() => { const box = document.querySelector('#settings-overlay > div'); return box.scrollHeight <= box.clientHeight; }), true, 'okno bez posouvání');
         await tab.click('[data-locked-avatar="🦖"]', { force: true });
         await tab.waitForFunction(() => /T-Rex se odemkne na úrovni 28/.test(document.getElementById('settings-note').textContent));
