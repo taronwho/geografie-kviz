@@ -887,6 +887,7 @@
         const target = focusSelector ? overlay.querySelector(focusSelector) : (meTab === 'profile' ? null : overlay.querySelector('[data-variant][aria-pressed="true"]'));
         (target || overlay.querySelector('[data-close]')).focus({ preventScroll: true });
     };
+    const OWL_AVATAR_KEY = 'mudrlant.owlAvatar';
     const saveMeProfile = async () => {
         const user = signedUser();
         if (!user || !Social || !meDraft) return;
@@ -894,6 +895,10 @@
         if (input) meDraft.name = input.value;
         try {
             myProfile = await Social.saveProfile(user.id, { ...meDraft, owl: meDraft.owl ? myOwlText() : null });
+            // Volba sovy se pamatuje i v zařízení: v databázi bez sloupce owl (schema.sql ještě nebylo znovu spuštěno) by se jinak ztratila
+            // a profilovka by zůstala emoji. Ostatní hráči ji uvidí až po spuštění schematu.
+            writeJson(OWL_AVATAR_KEY, Boolean(meDraft.owl));
+            if (meDraft.owl && !myProfile.owl) myProfile = { ...myProfile, owl: myOwlText() };
             meNote = 'Uloženo.';
             meDirty = false;
             updateProfileButton();
@@ -3015,6 +3020,7 @@
         if (!signedUser() || signedUser().id !== user.id) return null;
         myProfile = loaded;
         if (!myProfile) myProfile = { id: user.id, display_name: user.name, avatar: '🦊', color: 'emerald' };
+        if (readJson(OWL_AVATAR_KEY) === true && !myProfile.owl && Owl) myProfile = { ...myProfile, owl: myOwlText() };
         syncLookWithAccount();
         updateProfileButton();
         syncProgress();
