@@ -100,6 +100,9 @@
     // --- Prohlížeč ---
     const doc = root.document;
     const EXTERNAL = '#fact-overlay, #settings-overlay, #dialog-overlay, #photo-zoom, #place-info, #play-chooser';
+    // Kroky při zkoušení otázky: hráč musí otázku číst, proto je bublina menší (bez sovy), pozadí světlejší a bublina radši pod otázkou
+    const READ_IDS = ['hint', 'choice'];
+    const SHORT = { hint: 'Nevíš? Klepni na nápovědu.', choice: 'Vyber odpověď, nebo ji napiš. XP se počítají.' };
     const PANEL = 'pointer-events-auto fixed bg-slate-900/70 dark:bg-black/75';
     let ui = null;
     let observer = null;
@@ -188,7 +191,10 @@
         ui.group.classList.add('hidden');
         ui.next.classList.add('hidden');
         ui.skipStep.classList.toggle('hidden', !long);
+        ui.owl.classList.remove('hidden');
+        ui.panels.forEach(panel => { panel.style.opacity = ''; });
         if (!ui.owl.src.endsWith('sova-premysleni.webp')) ui.owl.src = 'icons/topics/sova-premysleni.webp';
+        ui.count.classList.remove('hidden');
         ui.count.textContent = counter(step);
         ui.title.textContent = step.title;
         ui.text.textContent = long ? step.waitLong || step.wait : step.wait;
@@ -201,11 +207,15 @@
         ui.skipStep.classList.add('hidden');
         ui.next.classList.toggle('hidden', !(step.mode === 'info' || step.soft));
         ui.next.textContent = step.soft && step.mode === 'tap' ? step.softLabel || 'Dál' : 'Dál';
+        const read = READ_IDS.includes(step.id);
+        ui.owl.classList.toggle('hidden', read);
+        ui.panels.forEach(panel => { panel.style.opacity = read ? '0.4' : ''; });
         const wanted = `icons/topics/${owlFor(step, first)}.webp`;
         if (!ui.owl.src.endsWith(wanted)) ui.owl.src = wanted;
         ui.count.textContent = counter(step);
         ui.title.textContent = step.title;
-        ui.text.textContent = textFor(step, first);
+        ui.text.textContent = read && SHORT[step.id] ? SHORT[step.id] : textFor(step, first);
+        ui.count.classList.toggle('hidden', read);
         const rect = hole.getBoundingClientRect();
         const pad = 4;
         const left = Math.max(0, rect.left - pad);
@@ -258,6 +268,7 @@
             if (hole && hole.scrollIntoView) hole.scrollIntoView({ block: 'nearest', inline: 'nearest' });
         }
         paint(step, hole);
+        if (fresh) { root.setTimeout(refresh, 500); root.setTimeout(refresh, 1200); }
         if (fresh) (ui.next.classList.contains('hidden') ? ui.skip : ui.next).focus({ preventScroll: true });
     };
     const refresh = () => { if (state && !frame) frame = root.requestAnimationFrame(layout); };
@@ -286,6 +297,8 @@
         root.removeEventListener('resize', refresh);
         root.removeEventListener('orientationchange', refresh);
         doc.removeEventListener('scroll', refresh, true);
+        doc.removeEventListener('animationend', refresh, true);
+        doc.removeEventListener('transitionend', refresh, true);
         if (ui) { ui.root.remove(); ui = null; }
     };
 
@@ -321,6 +334,9 @@
         root.addEventListener('resize', refresh);
         root.addEventListener('orientationchange', refresh);
         doc.addEventListener('scroll', refresh, true);
+        // Prvky se při objevení pohybují (animace): rámeček se přeměří, až skončí
+        doc.addEventListener('animationend', refresh, true);
+        doc.addEventListener('transitionend', refresh, true);
         const content = doc.getElementById('app-content');
         observer = new root.MutationObserver(refresh);
         if (content) observer.observe(content, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'disabled'] });
