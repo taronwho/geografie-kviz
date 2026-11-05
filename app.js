@@ -766,7 +766,7 @@
     const renderDevPanel = () => !devOn() ? '' : `
         <div class="mt-3 rounded-2xl border-2 border-dashed border-amber-400/70 p-2.5">
             <p class="mb-1.5 flex items-center justify-between text-[11px] font-black uppercase tracking-widest text-amber-700 dark:text-amber-400"><span>Vývojářský režim</span><span class="font-bold normal-case tracking-normal">${devActive() ? 'zkušební postup' : 'tvůj postup'}</span></p>
-            <div class="flex flex-wrap gap-1">${[['max', 'Vše (úr. 100)'], ['level:10', 'Úr. 10'], ['level:25', 'Úr. 25'], ['level:50', 'Úr. 50'], ['level:75', 'Úr. 75'], ['badges', 'Všechny odznaky'], ['nobadges', 'Žádné odznaky']].map(([kind, label]) => `<button type="button" data-dev="${kind}" class="rounded-lg bg-slate-200 px-2 py-1 text-[11px] font-bold text-slate-700 active:scale-95 dark:bg-slate-700 dark:text-slate-200">${label}</button>`).join('')}${devActive() ? '<button type="button" data-dev="restore" class="rounded-lg bg-amber-500 px-2 py-1 text-[11px] font-black text-white active:scale-95">Vrátit můj postup</button>' : ''}</div>
+            <div class="flex flex-wrap gap-1">${[['max', 'Vše (úr. 100)'], ['level:10', 'Úr. 10'], ['level:25', 'Úr. 25'], ['level:50', 'Úr. 50'], ['level:75', 'Úr. 75'], ['badges', 'Všechny odznaky'], ['nobadges', 'Žádné odznaky'], ['bulb', 'Vrátit žárovku']].map(([kind, label]) => `<button type="button" data-dev="${kind}" class="rounded-lg bg-slate-200 px-2 py-1 text-[11px] font-bold text-slate-700 active:scale-95 dark:bg-slate-700 dark:text-slate-200">${label}</button>`).join('')}${devActive() ? '<button type="button" data-dev="restore" class="rounded-lg bg-amber-500 px-2 py-1 text-[11px] font-black text-white active:scale-95">Vrátit můj postup</button>' : ''}</div>
         </div>`;
     const ME_HEADING = 'text-[11px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400';
     const VARIANT_BRIEF = { choices: { short: 'Možnosti', text: '4 možnosti, až 4 body' }, typed: { short: 'Psaní', text: 'Těžší, dvojnásobek bodů' } };
@@ -936,6 +936,13 @@
             if (event.target.closest('[data-open-progress]')) { closeSettings(); openProgress(); return; }
             if (event.target.closest('[data-open-accept]')) { closeSettings(); openAccepted(); return; }
             const devButton = event.target.closest('[data-dev]');
+            if (devButton && devButton.dataset.dev === 'bulb') {
+                // Vrátí žárovku u sovy: zapomene, že dnešní událost už hráč přečetl
+                try { localStorage.removeItem(FACT_KEY); } catch (e) { /* bez úložiště se nic nevrací */ }
+                updateControlsUI();
+                openSettings(dailyFact ? 'Hotovo: žárovka je zpátky' : 'Dnes žádná událost není (žárovka se neukáže)', '[data-dev="bulb"]');
+                return;
+            }
             if (devButton) { devApply(devButton.dataset.dev); updateControlsUI(); openSettings(`Hotovo: ${devButton.textContent.trim()}`, `[data-dev="${devButton.dataset.dev}"]`); return; }
             const locked = event.target.closest('[data-locked-avatar]');
             if (locked) {

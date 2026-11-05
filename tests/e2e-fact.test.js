@@ -104,6 +104,27 @@ test('denní zajímavost', { skip: !chromium && 'Playwright není nainstalovaný
         await context.close();
     });
 
+    await t.test('ve vývojářském režimu jde žárovku vrátit i po přečtení', async () => {
+        fact = factFor(dayKey());
+        const { context, tab, problems } = await open();
+        await tab.evaluate(() => localStorage.setItem('mudrlant.dev', '1'));
+        await tab.reload();
+        await tab.waitForSelector('#fact-hint:not(.hidden)');
+        await tab.click('#fact-hint');
+        await tab.waitForSelector('#fact-overlay [data-fact-link]');
+        await tab.click('[data-fact-close]');
+        await tab.waitForSelector('#fact-overlay', { state: 'detached' });
+        assert.equal(await tab.isVisible('#fact-hint'), false, 'po přečtení žárovka zmizí');
+        await tab.click('#btn-settings');
+        await tab.click('[data-dev="bulb"]');
+        await tab.waitForSelector('#settings-overlay');
+        await tab.click('[data-close]');
+        await tab.waitForSelector('#fact-hint:not(.hidden)');
+        assert.equal(await tab.isVisible('#fact-hint'), true, 'žárovka je zpátky');
+        assert.deepEqual(problems, []);
+        await context.close();
+    });
+
     await t.test('podezřelý odkaz (mimo Wikipedii) se nepřijme', async () => {
         fact = { ...factFor(dayKey()), url: 'https://example.com/x' };
         const { context, tab } = await open();
