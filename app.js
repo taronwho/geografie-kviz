@@ -142,7 +142,13 @@
         return Array.isArray(saved) ? saved.filter(key => typeof key === 'string' && TOPIC_BY_ID[key.split(':')[0]]) : [];
     };
     // Co hráč aspoň jednou uhodl – ukazuje se jako postup v okruzích
-    const loadLearned = () => readJson(KEYS.learned) || {};
+    // Poznané položky; vymyšlené položky vývojářského režimu (dev0, dev1…) se mimo něj nepočítají
+    const loadLearned = () => {
+        const learned = readJson(KEYS.learned) || {};
+        let dev = false;
+        try { dev = localStorage.getItem('mudrlant.dev.backup') !== null; } catch (e) { /* bez úložiště */ }
+        return dev ? learned : Object.fromEntries(Object.entries(learned).map(([topic, ids]) => [topic, (Array.isArray(ids) ? ids : []).filter(id => !/^dev\d+$/.test(id))]));
+    };
 
     const createRound = () => ({ hintLevel: 1, variant: gameVariant || 'choices', answered: false, correct: false, points: 0, typed: false, answer: null, gaveUp: false });
     const getLevelCount = (data) => 1 + data.hints.length;
@@ -736,6 +742,7 @@
     // hra s nimi. Původní postup se zazálohuje, vrací se tlačítkem a při vývojářském postupu se nic neukládá do účtu.
     const DEV_KEY = 'mudrlant.dev';
     const DEV_BACKUP = 'mudrlant.dev.backup';
+    const DEV_LEARNED_BACKUP = 'mudrlant.dev.backup.learned';
     const devOn = () => { try { return localStorage.getItem(DEV_KEY) === '1'; } catch (e) { return false; } };
     const devActive = () => { try { return localStorage.getItem(DEV_BACKUP) !== null; } catch (e) { return false; } };
     const devApply = (kind) => {
@@ -743,9 +750,13 @@
             if (kind === 'restore') {
                 const backup = localStorage.getItem(DEV_BACKUP);
                 if (backup !== null) { if (backup === 'null') localStorage.removeItem(KEYS.progress); else localStorage.setItem(KEYS.progress, backup); localStorage.removeItem(DEV_BACKUP); }
+                // Poznané položky se vrátí také (vývojářské „Vše“ je přepisuje); bez zálohy se vymyšlené jen odstraní
+                const learnedBackup = localStorage.getItem(DEV_LEARNED_BACKUP);
+                if (learnedBackup !== null) { if (learnedBackup === 'null') localStorage.removeItem(KEYS.learned); else localStorage.setItem(KEYS.learned, learnedBackup); localStorage.removeItem(DEV_LEARNED_BACKUP); }
+                else writeJson(KEYS.learned, loadLearned());
                 return;
             }
-            if (localStorage.getItem(DEV_BACKUP) === null) localStorage.setItem(DEV_BACKUP, localStorage.getItem(KEYS.progress) ?? 'null');
+            if (localStorage.getItem(DEV_BACKUP) === null) { localStorage.setItem(DEV_BACKUP, localStorage.getItem(KEYS.progress) ?? 'null'); localStorage.setItem(DEV_LEARNED_BACKUP, localStorage.getItem(KEYS.learned) ?? 'null'); }
             const progress = loadProgress();
             const today = getDayKey();
             const allBadges = () => Object.fromEntries(BADGES.map(badge => [badge.id, today]));

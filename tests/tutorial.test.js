@@ -121,12 +121,12 @@ test('úložiště, které chybí nebo vyhazuje výjimky, tutoriál nerozbije', 
 test('první ukázaný krok se představí sovou; bez žárovky nese uvítání hlavička', () => {
     const badge = Tutorial.STEPS.find(step => step.id === 'badge');
     const hint = Tutorial.STEPS.find(step => step.id === 'hint');
-    assert.match(Tutorial.textFor(badge, true), /Ahoj, jsem Sova/);
+    assert.match(Tutorial.textFor(badge, true), /Ahoj, jsem Mudrlant/);
     assert.equal(Tutorial.textFor(badge, false), badge.text);
     assert.equal(Tutorial.owlFor(badge, true), 'sova-vitej');
     assert.equal(Tutorial.owlFor(hint, false), 'sova-premysleni');
     assert.equal(Tutorial.textFor(hint, true), hint.text);
-    assert.match(Tutorial.STEPS[0].title, /Ahoj, jsem Sova/);
+    assert.match(Tutorial.STEPS[0].title, /Ahoj, jsem Mudrlant/);
 });
 
 test('tutorial.js je zapojený: index.html, service worker, nasazení a Tailwind', () => {

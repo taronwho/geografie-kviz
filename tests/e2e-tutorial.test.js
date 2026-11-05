@@ -129,7 +129,7 @@ test('tutorial při prvním spuštění', { skip: !chromium && 'Playwright není
     await t.test('celý průchod: prohlídka (žárovka, hlavička, otázky, témata, nastavení), pak zkoušení otázky', async () => {
         fact = factFor(dayKey());
         const { context, tab, problems } = await open();
-        await waitTitle(tab, 'Ahoj, jsem Sova!');
+        await waitTitle(tab, 'Ahoj, jsem Mudrlant!');
         assert.match(await tab.textContent('[data-tut-count]'), /Krok 1 z 10/);
         assert.deepEqual(JSON.parse(await stored(tab)), { how: 'running', step: 0 });
         assert.equal(await tab.evaluate(() => document.activeElement && document.activeElement.hasAttribute('data-tut-next')), true, 'focus na Dál');
@@ -191,7 +191,7 @@ test('tutorial při prvním spuštění', { skip: !chromium && 'Playwright není
     await t.test('Přeskočit kdykoli ukončí celý tutoriál a uloží stav; platí i Escape', async () => {
         fact = factFor(dayKey());
         let page = await open();
-        await waitTitle(page.tab, 'Ahoj, jsem Sova!');
+        await waitTitle(page.tab, 'Ahoj, jsem Mudrlant!');
         await page.tab.click('[data-tut-skip]');
         await page.tab.waitForSelector('#tutorial', { state: 'detached' });
         assert.deepEqual(JSON.parse(await stored(page.tab)), { how: 'skipped' });
@@ -200,7 +200,7 @@ test('tutorial při prvním spuštění', { skip: !chromium && 'Playwright není
         assert.deepEqual(page.problems, []);
         await page.context.close();
         page = await open();
-        await waitTitle(page.tab, 'Ahoj, jsem Sova!');
+        await waitTitle(page.tab, 'Ahoj, jsem Mudrlant!');
         await page.tab.keyboard.press('Escape');
         await page.tab.waitForSelector('#tutorial', { state: 'detached' });
         assert.deepEqual(JSON.parse(await stored(page.tab)), { how: 'skipped' });
@@ -211,7 +211,7 @@ test('tutorial při prvním spuštění', { skip: !chromium && 'Playwright není
         fact = null;
         const { context, tab } = await open();
         await waitTitle(tab, 'Úroveň a XP');
-        assert.match(await tab.textContent('[data-tut-text]'), /Ahoj, jsem Sova/);
+        assert.match(await tab.textContent('[data-tut-text]'), /Ahoj, jsem Mudrlant/);
         assert.match(await tab.textContent('[data-tut-count]'), /Krok 1 z 9/);
         await next(tab);
         await waitTitle(tab, 'Dnešní otázky');
@@ -229,7 +229,7 @@ test('tutorial při prvním spuštění', { skip: !chromium && 'Playwright není
         await shot(tab, '11-nastaveni-tlacitko');
         await tab.click('[data-tutorial-restart]');
         await tab.waitForSelector('#settings-overlay', { state: 'detached' });
-        await waitTitle(tab, 'Ahoj, jsem Sova!');
+        await waitTitle(tab, 'Ahoj, jsem Mudrlant!');
         assert.deepEqual(JSON.parse(await stored(tab)), { how: 'running', step: 0 });
         await tab.keyboard.press('Escape');
         await tab.waitForSelector('#tutorial', { state: 'detached' });
@@ -242,7 +242,7 @@ test('tutorial při prvním spuštění', { skip: !chromium && 'Playwright není
             fact = factFor(dayKey());
             const { context, tab, problems } = await open({ viewport, scheme });
             const prefix = `v-${viewport.width}-${scheme}-`;
-            await waitTitle(tab, 'Ahoj, jsem Sova!');
+            await waitTitle(tab, 'Ahoj, jsem Mudrlant!');
             assert.equal(await inside(tab), true);
             await shot(tab, `${prefix}1-zarovka`);
             await next(tab);
