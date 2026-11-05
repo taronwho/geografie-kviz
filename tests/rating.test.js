@@ -76,3 +76,24 @@ test('formát změny a týden (pondělí až neděle)', () => {
     assert.equal(Rating.weekLabel(new Date(2026, 10, 9)), '9. 11. – 15. 11.');
     assert.equal(Rating.weekStart(new Date(2026, 10, 4)).getDay(), 1);
 });
+
+test('závěrečná obrazovka výzvy: výsledek slovy a hlášky (15+ pro každou situaci)', () => {
+    assert.equal(Rating.outcomeOf({ correct: 7, points: 20 }, null), 'cekani');
+    assert.equal(Rating.outcomeOf({ correct: 7, points: 20 }, { correct: 6, points: 99 }), 'vyhra');
+    assert.equal(Rating.outcomeOf({ correct: 6, points: 99 }, { correct: 7, points: 1 }), 'prohra');
+    assert.equal(Rating.outcomeOf({ correct: 5, points: 21 }, { correct: 5, points: 20 }), 'vyhra', 'při shodě rozhodují body');
+    assert.equal(Rating.outcomeOf({ correct: 5, points: 20 }, { correct: 5, points: 21 }), 'prohra');
+    assert.equal(Rating.outcomeOf({ correct: 5, points: 20 }, { correct: 5, points: 20 }), 'remiza');
+    for (const situation of ['vyhra', 'prohra', 'remiza', 'cekani']) {
+        const list = Rating.QUIPS[situation];
+        assert.ok(list.length >= 15, `${situation}: ${list.length} hlášek`);
+        assert.equal(new Set(list).size, list.length, `${situation}: bez duplicit`);
+        assert.ok(list.every(line => line.length >= 12 && line.length <= 90), `${situation}: rozumná délka`);
+        assert.ok(Rating.HEADLINES[situation], `${situation}: nadpis`);
+        // Stejná výzva = stejná hláška, jiná výzva může mít jinou
+        assert.equal(Rating.quipFor(situation, 'ABC123'), Rating.quipFor(situation, 'ABC123'));
+    }
+    const seen = new Set(Array.from({ length: 200 }, (_, i) => Rating.quipFor('vyhra', `K${i}`)));
+    assert.ok(seen.size >= 12, `hlášky se střídají (${seen.size})`);
+    assert.match(Rating.quipFor('neznámá', 'x'), /\S/, 'neznámá situace nespadne');
+});

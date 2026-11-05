@@ -1474,6 +1474,9 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         await one.tab.waitForSelector('[data-action="challenge-home"]');
         assert.match(await one.tab.textContent('#app-content'), /0\/5/);
         assert.match(await one.tab.textContent('#app-content'), /Petr Svoboda/);
+        assert.equal(await one.tab.getAttribute('[data-challenge-outcome]', 'data-challenge-outcome'), 'cekani', 'soupeř ještě nehrál: výsledek se čeká');
+        assert.match(await one.tab.textContent('[data-challenge-outcome]'), /čeká se na soupeře/);
+        assert.match(await one.tab.textContent('[data-challenge-quip]'), /\S{3}/);
         assert.deepEqual(db.results.map(row => [row.challenge_id, row.user_id, row.correct]), [[code, 'u-1', 0]]);
         // Odznaky a úroveň se uloží i do účtu (viditelné ostatním)
         for (let i = 0; i < 50 && !(db.profiles['u-1'].badges || []).includes('soupere'); i++) await new Promise(resolve => setTimeout(resolve, 100));
