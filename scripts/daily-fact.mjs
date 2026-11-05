@@ -6,9 +6,31 @@ import { writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 const UA = 'Mudrlant/1.0 (https://github.com/taronwho/geografie-kviz; denní zajímavost)';
-const MODEL = process.env.GEMINI_MODEL || 'gemini-3.8-flash';
+// Pořadí modelů: GEMINI_MODEL, pak nejnovější „flash-lite“ (v bezplatné úrovni má ~500 požadavků denně), pak nejnovější „flash“
+const MODEL = process.env.GEMINI_MODEL || '';
 // Když zvolený model nejde použít (neexistuje, je přetížený), zkusí se starší, ať denní zajímavost nevypadne
-const FALLBACK_MODELS = ['gemini-flash-latest', 'gemini-2.5-flash'];
+const STATIC_MODELS = ['gemini-3.5-flash-lite', 'gemini-3.1-flash-lite', 'gemini-3.8-flash', 'gemini-flash-latest'];
+const SKIP_MODEL = /(tts|image|live|embedding|audio|transcribe|robotics|computer|agent|research|vision|aqa|imagen|veo|nano|banana|omni|antigravity|argon)/i;
+const versionOf = (id) => (id.match(/gemini-(\d+(?:\.\d+)?)/) || [0, '0'])[1] * 1;
+// Modely dostupné pro klíč (dotaz na seznam se do denního limitu nepočítá); při chybě se použije pevný seznam
+export const rankModels = (ids) => {
+    const usable = ids.map(id => id.replace(/^models\//, '')).filter(id => /^gemini-/.test(id) && !SKIP_MODEL.test(id));
+    const byVersion = (list) => list.sort((a, b) => versionOf(b) - versionOf(a) || a.localeCompare(b));
+    const lite = byVersion(usable.filter(id => /flash-lite/.test(id)));
+    const flash = byVersion(usable.filter(id => /flash$/.test(id) || /flash-latest/.test(id)));
+    return [...new Set([...lite, ...flash])];
+};
+let modelOrder = null;
+const discoverModels = async (fetchImpl, key) => {
+    if (modelOrder) return modelOrder;
+    let found = [];
+    try {
+        const data = await getJson(fetchImpl, 'https://generativelanguage.googleapis.com/v1beta/models?pageSize=200', { headers: { 'x-goog-api-key': key } }, 1);
+        found = rankModels((data.models || []).filter(model => (model.supportedGenerationMethods || []).includes('generateContent')).map(model => model.name));
+    } catch (error) { console.error(`Seznam modelů: ${String(error.message).split(key).join('***')}`); }
+    modelOrder = [...new Set([MODEL, ...found, ...STATIC_MODELS])].filter(Boolean);
+    return modelOrder;
+};
 const TEXT_MIN = 120;
 const TEXT_MAX = 650;
 
@@ -120,7 +142,7 @@ const failedModels = new Set();
 // Bezplatný limit API bývá nízký (desítky volání za den), proto jeden běh udělá nejvýš pár volání a při překročení limitu hned skončí
 const MAX_CALLS = 4;
 let calls = 0;
-export const resetBudget = () => { calls = 0; preferred = null; lastModelError = null; failedModels.clear(); };
+export const resetBudget = () => { calls = 0; preferred = null; lastModelError = null; modelOrder = null; failedModels.clear(); };
 const askGemini = async (fetchImpl, key, text, properties = { title: { type: 'STRING' }, text: { type: 'STRING' } }) => {
     const body = {
         contents: [{ role: 'user', parts: [{ text }] }],
@@ -130,14 +152,16 @@ const askGemini = async (fetchImpl, key, text, properties = { title: { type: 'ST
             responseSchema: { type: 'OBJECT', properties, required: Object.keys(properties) }
         }
     };
-    const call = (model) => getJson(fetchImpl, `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key }, body: JSON.stringify(body) }, 2);
+    const call = (model) => getJson(fetchImpl, `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key }, body: JSON.stringify(body) }, 1);
     if (calls >= MAX_CALLS) throw new Error('Vyčerpán počet volání Gemini pro jeden běh');
     calls += 1;
     // Zvolený model, pak záložní (alias nejnovějšího Flash a 2.5): první, který odpoví
     let data = null;
     let lastError = null;
-    for (const model of [...new Set([preferred, MODEL, ...FALLBACK_MODELS])].filter(name => name && !failedModels.has(name))) {
-        try { data = await call(model); preferred = model; break; } catch (error) { lastError = lastModelError = error; if (/^429 /.test(error.message)) throw new Error(`Limit Gemini API vyčerpán (429): ${error.message.slice(0, 160)}`); failedModels.add(model); console.error(`Model ${model}: ${String(error.message).split(key).join('***')}`); }
+    const order = await discoverModels(fetchImpl, key);
+    for (const model of [...new Set([preferred, ...order])].filter(name => name && !failedModels.has(name)).slice(0, 5)) {
+        // Každý model má vlastní limit: při 429 (vyčerpaný limit), 404 nebo 503 se zkusí další
+        try { data = await call(model); preferred = model; break; } catch (error) { lastError = lastModelError = error; failedModels.add(model); console.error(`Model ${model}: ${String(error.message).split(key).join('***')}`); }
     }
     if (!data) throw lastError || lastModelError || new Error('Žádný model Gemini není dostupný');
     const raw = data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts && data.candidates[0].content.parts.map(part => part.text || '').join('');
