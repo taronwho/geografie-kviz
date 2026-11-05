@@ -68,6 +68,50 @@ const openTournament = (db, count, { capacity = 128, mine = false } = {}) => {
     if (mine) addEntry(db, T_OPEN, 'u-1');
 };
 
+// Velký pavouk (size hráčů, první `done` kol rozhodnutých, další kolo běží; finished = celý turnaj hotový). Já (u-1) vyhrávám všechno až do kola meOut,
+// kde prohrávám; ostatní vyhrává ten, kdo je dřív v seznamu přihlášených. Místa vypadlých jako v databázi: (velikost >> kolo) + 1.
+const bigTournament = (db, { size, done, finished = false, meOut = 0 }) => {
+    const rounds = Math.round(Math.log2(size));
+    db.tournaments.push({ id: T_RUN, topic: 'mix', week_start: MON, started_on: MON, capacity: 128, status: finished ? 'finished' : 'running', size, rounds, seed: `seed-${size}` });
+    const ids = ['u-1', 'u-2', ...addPlayers(db, size - 2)];
+    ids.forEach(id => addEntry(db, T_RUN, id, finished ? 'finished' : 'playing'));
+    const entryOf = (id) => db.entries.find(entry => entry.tournament_id === T_RUN && entry.user_id === id);
+    let alive = ids;
+    let count = 0;
+    for (let round = 1; round <= (finished ? rounds : done + 1); round++) {
+        const decided = round <= done || finished;
+        const next = [];
+        const losers = [];
+        for (let slot = 1; slot <= alive.length / 2; slot++) {
+            const [a, b] = [alive[2 * slot - 2], alive[2 * slot - 1]];
+            const forced = round === meOut && (a === 'u-1' || b === 'u-1');
+            const winner = !decided ? null : forced ? (a === 'u-1' ? b : a) : ids.indexOf(a) < ids.indexOf(b) ? a : b;
+            const match = { id: uuid(1000 + count++), tournament_id: T_RUN, round, slot, third: false, p1: a, p2: b, winner, decided_by: decided ? 'played' : null };
+            db.matches.push(match);
+            if (decided) {
+                db.results.push({ match_id: match.id, user_id: winner, started_at: 'x', finished_at: 'y', correct: 6 + (count % 5), points: 12, time_ms: 9000 });
+                db.results.push({ match_id: match.id, user_id: winner === a ? b : a, started_at: 'x', finished_at: 'y', correct: 1 + (count % 5), points: 4, time_ms: 11000 });
+                next.push(winner);
+                losers.push(winner === a ? b : a);
+            } else next.push(null);
+        }
+        if (decided && round < rounds - 1) losers.forEach(id => Object.assign(entryOf(id), { status: 'out', place: (size >> round) + 1 }));
+        if (decided && round === rounds - 1) {
+            const third = { id: uuid(1000 + count++), tournament_id: T_RUN, round: rounds, slot: 1, third: true, p1: losers[0], p2: losers[1], winner: finished ? losers[0] : null, decided_by: finished ? 'played' : null };
+            db.matches.push(third);
+            if (finished) db.results.push({ match_id: third.id, user_id: losers[0], started_at: 'x', finished_at: 'y', correct: 7, points: 12, time_ms: 9000 }, { match_id: third.id, user_id: losers[1], started_at: 'x', finished_at: 'y', correct: 5, points: 8, time_ms: 9000 });
+        }
+        alive = next;
+    }
+    if (finished) {
+        const final = db.matches.find(match => match.round === rounds && !match.third);
+        const bronze = db.matches.find(match => match.third);
+        const other = (match) => match.winner === match.p1 ? match.p2 : match.p1;
+        [[final.winner, 1], [other(final), 2], [bronze.winner, 3], [other(bronze), 4]].forEach(([id, place]) => { entryOf(id).place = place; });
+    }
+    return ids;
+};
+
 const backend = async (context, db) => {
     await context.route('**/config.js', route => route.fulfill({ contentType: 'text/javascript', body: CONFIG }));
     await context.route('https://proj.supabase.co/**', route => {
@@ -170,7 +214,7 @@ const backend = async (context, db) => {
 };
 
 const setup = async (browser, storage, { viewport = { width: 400, height: 800 }, colorScheme = 'light', now = `${MON}T10:00:00Z` } = {}) => {
-    const context = await browser.newContext({ serviceWorkers: 'block', colorScheme, viewport });
+    const context = await browser.newContext({ serviceWorkers: 'block', colorScheme, viewport, deviceScaleFactor: SHOTS ? 2 : 1 });
     await context.addInitScript(entries => {
         if (sessionStorage.getItem('test-storage-set')) return;
         sessionStorage.setItem('test-storage-set', '1');
@@ -458,6 +502,9 @@ test('týdenní turnaje', { skip: !chromium && 'Playwright není nainstalovaný'
 
         // Zpět na turnaj: okno ukáže kola, můj zápas je zvýrazněný a Hrát už nejde
         await tab.click('[data-action="tournament-back"]');
+        await tab.waitForSelector('#tournament-bracket');
+        assert.equal(await tab.locator('#tournament-bracket [data-bcard]').count() > 0, true, 'výchozí pohled je pavouk');
+        await tab.click('[data-t-mode="rounds"]');
         await tab.waitForSelector('#tournament-rounds');
         assert.equal(await tab.locator('#tournament-rounds [data-mine]').count(), 1);
         assert.equal(await tab.locator('[data-t-play]').count(), 0);
@@ -585,6 +632,8 @@ test('týdenní turnaje', { skip: !chromium && 'Playwright není nainstalovaný'
         await tab.waitForSelector('#tournament-card');
         assert.match((await tab.textContent('#tournament-card')).replace(/\s+/g, ' '), /Běží · Čtvrtfinále/);
         await tab.click('#tournament-card [data-action="tournament-open"]');
+        await tab.waitForSelector('#tournament-bracket');
+        await tab.click('[data-t-mode="rounds"]');
         await tab.waitForSelector('#tournament-rounds');
         const rounds = await tab.locator('#tournament-rounds details[data-round]').evaluateAll(list => list.map(item => ({ key: item.dataset.round, open: item.open, name: item.querySelector('summary').innerText.replace(/\s+/g, ' ').trim() })));
         assert.deepEqual(rounds.map(round => round.key), ['2', '1']);
@@ -644,6 +693,7 @@ test('týdenní turnaje', { skip: !chromium && 'Playwright není nainstalovaný'
         assert.equal(podium.length, 4);
         assert.match(podium[0], /^1\..*Petr Svoboda/);
         assert.match(podium[2], /^3\..*Jana Nováková \(ty\)/);
+        await page.tab.click('[data-t-mode="rounds"]');
         const groups = await page.tab.locator('#tournament-rounds details[data-round]').evaluateAll(list => list.map(item => item.dataset.round));
         assert.deepEqual(groups, ['3t', '3']);
         assert.match(await page.tab.textContent('#tournament-rounds'), /O 3\. místo/);
@@ -715,6 +765,218 @@ test('týdenní turnaje', { skip: !chromium && 'Playwright není nainstalovaný'
         await context.close();
     });
 
+    // Pavouk a celé pořadí ve velkých turnajích
+    const openDialog = async (tab) => {
+        await tab.waitForSelector('#tournament-card');
+        await tab.click('#tournament-card [data-action="tournament-open"]');
+        await tab.waitForSelector('#tournament-bracket [data-bcard]');
+    };
+    const columnsOf = (tab) => tab.locator('#bracket-scroll [data-bcol]').evaluateAll(list => list.map(item => item.dataset.bcol));
+    const cardsIn = (tab, round) => tab.locator(`#bracket-scroll [data-bcol="${round}"] [data-bcard]`).count();
+    const showBracket = (tab) => tab.evaluate(() => { document.getElementById('tournament-bracket').scrollIntoView({ block: 'start' }); });
+    const rankingRows = (tab) => tab.locator('#tournament-ranking li[data-rank]').evaluateAll(list => list.map(item => item.dataset.names));
+    const groupTitles = (tab) => tab.locator('#tournament-ranking section[data-rgroup] h3 > span:first-child').allTextContents();
+
+    await t.test('pavouk 32 hráčů uprostřed: od osmifinále, celý pavouk, cesta hráče, celé pořadí', async () => {
+        const db = newDb({ today: '2026-11-12' });
+        const ids = bigTournament(db, { size: 32, done: 3 });
+        const { context, tab, log } = await start(db, { now: '2026-11-12T10:00:00Z', viewport: { width: 360, height: 640 } });
+        await tab.waitForSelector('#tournament-card');
+        assert.match((await tab.textContent('#tournament-card')).replace(/\s+/g, ' '), /Běží · Semifinále/);
+        await openDialog(tab);
+        // Výchozí pohled: od osmifinále (zbývá 16 hráčů), pohár a vítěz vpravo
+        assert.deepEqual(await columnsOf(tab), ['2', '3', '4', '5', 'cup']);
+        assert.deepEqual([await cardsIn(tab, 2), await cardsIn(tab, 3), await cardsIn(tab, 4), await cardsIn(tab, 5)], [8, 4, 2, 2], 've finálovém sloupci i zápas o 3. místo');
+        const heads = (await tab.locator('#bracket-scroll [data-bcol] > div:first-child').allInnerTexts()).map(text => text.replace(/\s+/g, ' ').trim());
+        assert.match(heads[0], /^Osmifinále út 10\. 11\. · 8 zápasů/);
+        assert.match(heads[2], /^Semifinále běží · 2 zápasů/);
+        assert.match(heads[3], /^Finále zítra$/);
+        assert.match(heads[4], /^Vítěz/);
+        assert.equal(await tab.locator('#tournament-bracket button[data-b-full]').getAttribute('aria-pressed'), 'false');
+        // Karta má dva řádky: avatar, jméno, skóre x/10; vítěz s fajfkou, poražený ztlumený; nehraný zápas „—“
+        const first = tab.locator('#bracket-scroll [data-bcell="2-1"] [data-bcard]');
+        const text = (await first.innerText()).replace(/\s+/g, ' ');
+        assert.match(text, /Jana Nováková \d\/10.*Adam 1 \d\/10/);
+        assert.equal(await first.locator('svg path[d="M5 13l4 4L19 7"]').count(), 1, 'jedna fajfka u vítěze');
+        assert.equal(await first.locator('button').count(), 2);
+        const box = await first.boundingBox();
+        assert.ok(box.height >= 38 && box.height <= 46, `kompaktní karta (${box.height})`);
+        const semi = (await tab.locator('#bracket-scroll [data-bcell="4-1"] [data-bcard]').innerText()).replace(/\s+/g, ' ');
+        assert.match(semi.trim(), /Jana Nováková — .+ —$/, 'zápas bez výsledku');
+        // Moje větev: moje karty a ta, která na mě čeká; předvybraný posun na moje kolo (semifinále)
+        assert.ok(await tab.locator('#bracket-scroll [data-bcard][data-onpath]').count() >= 3);
+        await tab.waitForFunction(() => document.getElementById('bracket-scroll').scrollLeft > 100);
+        // Bez vodorovného posouvání stránky; posouvá se jen kontejner, se scroll-snap po kolech
+        await showBracket(tab);
+        const geometry = await tab.evaluate(() => { const box = document.getElementById('bracket-scroll'); return { wide: box.scrollWidth > box.clientWidth + 50, snap: getComputedStyle(box).scrollSnapType, overflowX: getComputedStyle(box).overflowX, max: getComputedStyle(box).maxHeight }; });
+        assert.equal(geometry.wide, true);
+        assert.match(geometry.snap, /x/);
+        assert.equal(geometry.overflowX, 'auto');
+        assert.deepEqual(await noHorizontalScroll(tab), { page: 0, content: 0, dialog: 0 });
+        await tab.evaluate(() => document.getElementById('bracket-scroll').scrollTo({ left: 0 }));
+        assert.equal(await tab.evaluate(() => document.getElementById('bracket-scroll').scrollLeft), 0);
+        assert.deepEqual(await noHorizontalScroll(tab), { page: 0, content: 0, dialog: 0 });
+        await shot(tab, 'pavouk-32-osmifinale-360');
+        // Celý pavouk: všechna kola
+        await tab.click('[data-b-full]');
+        await tab.waitForSelector('#bracket-scroll [data-bcol="1"]');
+        assert.deepEqual(await columnsOf(tab), ['1', '2', '3', '4', '5', 'cup']);
+        assert.equal(await cardsIn(tab, 1), 16);
+        assert.equal(await tab.locator('#tournament-bracket button[data-b-full]').getAttribute('aria-pressed'), 'true');
+        await showBracket(tab);
+        await tab.evaluate(() => document.getElementById('bracket-scroll').scrollTo({ left: 0, top: 0 }));
+        await shot(tab, 'pavouk-32-cely-360');
+        assert.deepEqual(await noHorizontalScroll(tab), { page: 0, content: 0, dialog: 0 });
+        await tab.click('[data-b-full]');
+        await tab.waitForFunction(() => document.querySelector('#bracket-scroll').dataset.from === '2');
+        // Klepnutí na hráče zvýrazní jeho cestu, ostatní zmizí do pozadí, druhé klepnutí zruší
+        const target = ids[8];
+        const beforePath = await tab.locator('#bracket-scroll [data-bcard][data-onpath]').count();
+        assert.equal(beforePath, 3, 'moje větev: osmifinále, čtvrtfinále, semifinále');
+        await tab.locator(`#bracket-scroll [data-bp="${target}"]`).first().click();
+        await tab.waitForSelector('[data-b-clear]');
+        const path = await tab.locator('#bracket-scroll [data-bcard][data-onpath]').evaluateAll(list => list.map(item => item.closest('[data-bcell]').dataset.bcell));
+        assert.deepEqual(path, ['2-3', '3-2', '4-1'], 'jen karty jeho cesty');
+        assert.ok(await tab.locator('#bracket-scroll .opacity-40').count() > 5, 'ostatní ztlumené');
+        assert.equal(await tab.locator(`#bracket-scroll [data-bp="${target}"][aria-pressed="true"]`).count() >= 3, true);
+        await shot(tab, 'pavouk-32-cesta-360');
+        await tab.locator(`#bracket-scroll [data-bp="${target}"]`).first().click();
+        await tab.waitForFunction(() => !document.querySelector('[data-b-clear]'));
+        assert.equal(await tab.locator('#bracket-scroll .opacity-40').count(), 0);
+        assert.equal(await tab.locator('#bracket-scroll [data-bcard][data-onpath]').count(), beforePath, 'zpět moje větev');
+
+        // Celé pořadí: místa 1.–4. nejsou, nahoře ještě hrají, pak vypadlí po kolech; můj řádek je vidět
+        await tab.click('summary[data-ranking]');
+        await tab.waitForSelector('#tournament-ranking li[data-me]');
+        assert.match(await tab.locator('summary[data-ranking]').innerText(), /Celé pořadí \(32 hráčů\)/);
+        assert.deepEqual(await groupTitles(tab), ['Ještě hrají', '5.–8. místo', '9.–16. místo', '17.–32. místo']);
+        const rows = await rankingRows(tab);
+        assert.equal(rows.length, 32);
+        assert.equal(new Set(rows).size, 32, 'bez duplicit');
+        await tab.waitForFunction(() => { const row = document.querySelector('#tournament-ranking li[data-me]'); const rect = row.getBoundingClientRect(); const panel = document.querySelector('#dialog-overlay > div').getBoundingClientRect(); return rect.top >= panel.top && rect.bottom <= panel.bottom; });
+        assert.match((await tab.locator('#tournament-ranking li[data-me]').innerText()).replace(/\s+/g, ' '), /Jana Nováková \(ty\) Semifinále/);
+        await shot(tab, 'poradi-32-360');
+        // Hledání funguje i v pořadí a v pavouku
+        await tab.fill('#tournament-search', 'petr s');
+        assert.deepEqual((await tab.locator('#tournament-ranking li[data-rank]:not(.hidden)').allInnerTexts()).map(item => item.replace(/\s+/g, ' ').trim().replace(/^\S+ /, '')), ['Petr Svoboda']);
+        assert.equal(await tab.locator('#tournament-ranking section:not(.hidden)').count(), 1);
+        await tab.fill('#tournament-search', 'zzz');
+        assert.equal(await tab.locator('#tournament-empty:not(.hidden)').count(), 1);
+        await tab.fill('#tournament-search', '');
+        assert.equal(await tab.locator('#tournament-ranking li[data-rank]:not(.hidden)').count(), 32);
+        assert.equal(await tab.locator('#tournament-empty:not(.hidden)').count(), 0);
+        // Seznam kol je pořád k dispozici
+        await tab.click('[data-t-mode="rounds"]');
+        await tab.waitForSelector('#tournament-rounds details[data-round]');
+        assert.equal(await tab.locator('#tournament-bracket').count(), 0);
+        await tab.click('[data-t-mode="bracket"]');
+        await tab.waitForSelector('#tournament-bracket [data-bcard]');
+        assert.deepEqual(log.errors, []);
+        assert.deepEqual(log.csp, []);
+        await context.close();
+    });
+
+    await t.test('skončený turnaj 128 hráčů: celé pořadí bez duplicit, pavouk od osmifinále i celý', async () => {
+        const db = newDb({ today: '2026-11-16' });
+        const ids = bigTournament(db, { size: 128, done: 7, finished: true, meOut: 5 });
+        assert.equal(new Set(ids).size, 128);
+        const { context, tab, log } = await start(db, { now: '2026-11-16T10:00:00Z', viewport: { width: 390, height: 780 } });
+        await openDialog(tab);
+        assert.deepEqual(await columnsOf(tab), ['4', '5', '6', '7', 'cup'], 'od osmifinále (zbývá 16 hráčů)');
+        assert.deepEqual([await cardsIn(tab, 4), await cardsIn(tab, 5), await cardsIn(tab, 6), await cardsIn(tab, 7)], [8, 4, 2, 2]);
+        // Vítěz a pódium
+        const final = db.matches.find(match => match.round === 7 && !match.third);
+        assert.ok((await tab.locator('#bracket-scroll [data-bcol="cup"]').innerText()).includes(db.profiles[final.winner].display_name), 'vítěz vpravo');
+        assert.equal(await tab.locator('#tournament-podium li').count(), 4);
+        // Celé pořadí
+        await tab.click('summary[data-ranking]');
+        await tab.waitForSelector('#tournament-ranking li[data-me]');
+        assert.match(await tab.locator('summary[data-ranking]').innerText(), /Celé pořadí \(128 hráčů\)/);
+        assert.deepEqual(await groupTitles(tab), ['1.–4. místo', '5.–8. místo', '9.–16. místo', '17.–32. místo', '33.–64. místo', '65.–128. místo']);
+        const rows = await rankingRows(tab);
+        assert.equal(rows.length, 128);
+        assert.equal(new Set(rows).size, 128, 'bez duplicit');
+        const notes = (await tab.locator('#tournament-ranking section[data-rgroup] h3 > span:last-child').allTextContents());
+        assert.deepEqual(notes, ['', 'Čtvrtfinále · 4', 'Osmifinále · 8', 'Šestnáctifinále · 16', '2. kolo · 32', '1. kolo · 64']);
+        const mine = tab.locator('#tournament-ranking li[data-me]');
+        assert.equal(await mine.count(), 1);
+        assert.equal(await mine.evaluate(item => item.closest('section').dataset.rgroup), 'p5', 'vypadl jsem ve čtvrtfinále: 5.–8. místo');
+        await tab.waitForFunction(() => { const row = document.querySelector('#tournament-ranking li[data-me]'); const rect = row.getBoundingClientRect(); const panel = document.querySelector('#dialog-overlay > div').getBoundingClientRect(); return rect.top >= panel.top && rect.bottom <= panel.bottom; });
+        await shot(tab, 'poradi-128-390');
+        assert.deepEqual(await noHorizontalScroll(tab), { page: 0, content: 0, dialog: 0 });
+        // Pavouk celý: sedm sloupců, 64 karet v prvním, svislé posouvání uvnitř kontejneru
+        await tab.click('summary[data-ranking]');
+        await tab.click('[data-b-full]');
+        await tab.waitForSelector('#bracket-scroll [data-bcol="1"]');
+        assert.deepEqual(await columnsOf(tab), ['1', '2', '3', '4', '5', '6', '7', 'cup']);
+        assert.equal(await cardsIn(tab, 1), 64);
+        const size = await tab.evaluate(() => { const box = document.getElementById('bracket-scroll'); return { tall: box.scrollHeight > box.clientHeight + 200, limit: box.clientHeight <= window.innerHeight * 0.6 + 1, card: document.querySelector('#bracket-scroll [data-bcol="1"] [data-bcard]').getBoundingClientRect().height }; });
+        assert.equal(size.tall, true, 'svislé posouvání uvnitř kontejneru');
+        assert.equal(size.limit, true, 'max 60dvh');
+        assert.ok(size.card <= 46, `kompaktní karta (${size.card})`);
+        await showBracket(tab);
+        await tab.evaluate(() => document.getElementById('bracket-scroll').scrollTo({ left: 0, top: 0 }));
+        await shot(tab, 'pavouk-128-cely-390');
+        await tab.click('[data-b-me]');
+        await tab.waitForTimeout(700);
+        assert.equal(await tab.evaluate(() => { const rect = document.querySelector('#bracket-scroll [data-bfocus] [data-bcard]').getBoundingClientRect(); const box = document.getElementById('bracket-scroll').getBoundingClientRect(); return rect.left >= box.left && rect.right <= box.right && rect.top >= box.top && rect.bottom <= box.bottom; }), true, 'Moje místo ukáže mou kartu');
+        await shot(tab, 'pavouk-128-moje-390');
+        assert.deepEqual(await noHorizontalScroll(tab), { page: 0, content: 0, dialog: 0 });
+        assert.deepEqual(log.errors, []);
+        assert.deepEqual(log.csp, []);
+        await context.close();
+    });
+
+    await t.test('vypadl jsem v prvním kole: pavouk se hned ukáže celý, 64 hráčů', async () => {
+        const db = newDb({ today: '2026-11-16' });
+        bigTournament(db, { size: 64, done: 6, finished: true, meOut: 1 });
+        const { context, tab, log } = await start(db, { now: '2026-11-16T10:00:00Z' });
+        await openDialog(tab);
+        assert.deepEqual(await columnsOf(tab), ['1', '2', '3', '4', '5', '6', 'cup']);
+        assert.equal(await tab.locator('#bracket-scroll').getAttribute('data-from'), '1');
+        await tab.click('summary[data-ranking]');
+        await tab.waitForSelector('#tournament-ranking li[data-me]');
+        assert.equal(await tab.locator('#tournament-ranking li[data-me]').evaluate(item => item.closest('section').dataset.rgroup), 'p33');
+        assert.ok((await groupTitles(tab)).includes('33.–64. místo'));
+        assert.deepEqual(log.errors, []);
+        assert.deepEqual(log.csp, []);
+        await context.close();
+    });
+
+    for (const [width, height] of [[360, 640], [390, 780]]) {
+        for (const colorScheme of ['light', 'dark']) {
+            await t.test(`pavouk a pořadí ${width}×${height}, ${colorScheme === 'dark' ? 'tmavý' : 'světlý'} režim: bez vodorovného posouvání stránky`, async () => {
+                for (const finished of [false, true]) {
+                    const db = newDb({ today: finished ? '2026-11-16' : '2026-11-12' });
+                    bigTournament(db, finished ? { size: 128, done: 7, finished: true, meOut: 5 } : { size: 32, done: 3 });
+                    const { context, tab, log } = await start(db, { now: finished ? '2026-11-16T10:00:00Z' : '2026-11-12T10:00:00Z', viewport: { width, height }, colorScheme });
+                    await openDialog(tab);
+                    const name = `${finished ? '128' : '32'}-${width}-${colorScheme}`;
+                    assert.deepEqual(await noHorizontalScroll(tab), { page: 0, content: 0, dialog: 0 });
+                    await showBracket(tab);
+                    await shot(tab, `pavouk-${name}`);
+                    await tab.evaluate(() => { const box = document.getElementById('bracket-scroll'); box.scrollTo({ left: box.scrollWidth, top: 0 }); });
+                    assert.deepEqual(await noHorizontalScroll(tab), { page: 0, content: 0, dialog: 0 });
+                    await shot(tab, `pavouk-konec-${name}`);
+                    await tab.click('[data-b-full]');
+                    await tab.waitForSelector('#bracket-scroll [data-bcol="1"]');
+                    await showBracket(tab);
+                    await tab.evaluate(() => document.getElementById('bracket-scroll').scrollTo({ left: 0, top: 0 }));
+                    assert.deepEqual(await noHorizontalScroll(tab), { page: 0, content: 0, dialog: 0 });
+                    await shot(tab, `pavouk-cely-${name}`);
+                    await tab.click('summary[data-ranking]');
+                    await tab.waitForSelector('#tournament-ranking li[data-me]');
+                    await tab.waitForTimeout(600);
+                    assert.deepEqual(await noHorizontalScroll(tab), { page: 0, content: 0, dialog: 0 });
+                    await shot(tab, `poradi-${name}`);
+                    assert.deepEqual(log.errors, []);
+                    assert.deepEqual(log.csp, []);
+                    await context.close();
+                }
+            });
+        }
+    }
+
     for (const [width, height] of [[360, 640], [390, 780]]) {
         for (const colorScheme of ['light', 'dark']) {
             await t.test(`vzhled ${width}×${height}, ${colorScheme === 'dark' ? 'tmavý' : 'světlý'} režim: bez vodorovného posouvání`, async () => {
@@ -731,7 +993,7 @@ test('týdenní turnaje', { skip: !chromium && 'Playwright není nainstalovaný'
                 assert.ok(box.height < 190, `karta je kompaktní (${box.height})`);
                 // Okno turnaje a pravidla
                 await tab.click('#tournament-card [data-action="tournament-open"][data-tid="' + T_RUN + '"]');
-                await tab.waitForSelector('#tournament-rounds');
+                await tab.waitForSelector('#tournament-bracket');
                 assert.deepEqual(await noHorizontalScroll(tab), { page: 0, content: 0, dialog: 0 });
                 await shot(tab, `turnaj-okno-${width}-${colorScheme}`);
                 await tab.click('[data-t-help]');
