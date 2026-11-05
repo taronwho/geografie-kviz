@@ -837,7 +837,7 @@
         if (!overlay) overlay = createSettingsOverlay();
         const state = Auth ? Auth.getState() : { configured: false };
         const profile = user ? (myProfile || { display_name: user.name, avatar: '🦊', color: 'emerald' }) : null;
-        const shown = profile && meTab === 'profile' && meDraft ? { ...profile, ...{ avatar: meDraft.avatar, color: meDraft.color, owl: meDraft.owl ? myOwlText() : null } } : profile;
+        const shown = profile && meTab === 'profile' && meDraft ? { ...profile, ...{ avatar: meDraft.avatar, color: meDraft.color, owl: meDraft.owl ? myOwlText() : null, draft: true } } : profile;
         const level = levelProgress(loadProgress().xp);
         const noteText = note || meNote;
         const tabs = `
@@ -2929,7 +2929,9 @@
         const frame = window.MudrlantLookFrames ? window.MudrlantLookFrames.frameClass(ownFrame ? (ownFrame === 'zadny' ? null : ownFrame) : (player && player.frame)) : '';
         // Sova jako obrázek profilu: vlastní se bere z lokální volby (doplňky a barva obleku platí hned), cizí z profilu hráče
         const isMe = Boolean(me && player && player.id === me.id);
-        const owlHtml = player && player.owl && Owl && Owl.owlAvatarHtml ? Owl.owlAvatarHtml(isMe && Look ? myOwlText() : player.owl) : '';
+        // Můj vlastní řádek (žebříček, výzvy) nemusí mít sovu z databáze (starší schéma): bere se z mého profilu / zařízení
+        const showsOwl = Boolean(player && (player.owl || (isMe && !player.draft && myProfile && myProfile.owl)));
+        const owlHtml = showsOwl && Owl && Owl.owlAvatarHtml ? Owl.owlAvatarHtml(isMe && Look ? myOwlText() : player.owl) : '';
         return `<span ${linked ? `data-player-id="${escapeHtml(player.id)}" role="button" tabindex="0" aria-label="Profil hráče ${escapeHtml(playerName(player))}"` : 'aria-hidden="true"'} class="flex shrink-0 items-center justify-center rounded-full ${size} ${avatarBg(player && player.color)}${frame}${linked ? ' cursor-pointer' : ''}">${owlHtml || escapeHtml((player && player.avatar) || '🦊')}</span>`;
     };
     // Téma výzvy: „mix“ (všechna), jedno téma, nebo víc témat oddělených čárkou
@@ -3350,7 +3352,8 @@
 
     // Nová výzva: komu (konkrétní hráč / náhodný / odkaz), téma (i víc témat), počet otázek a nastavení. Téma a nastavení jsou
     // souhrnné řádky, které se rozbalí klepnutím; tlačítko Vytvořit a hrát je stále dole na očích.
-    const openNewChallenge = () => {
+    // preset = { opponent, last }: výzva se předvyplní nastavením z poslední hry s tímto hráčem (úprava před odvetou)
+    const openNewChallenge = (preset = null) => {
         if (!signedUser()) return;
         const draft = { topics: [], count: 10, who: 'player', opponent: null, blocked: null, mixOk: true, query: '', found: null, hard: false, variant: 'choices', cats: null, open: null };
         let busy = false;
@@ -3571,6 +3574,20 @@
                 }, 280);
             }
         });
+        if (preset && preset.opponent) {
+            const last = preset.last;
+            if (last) {
+                draft.topics = last.topic === 'mix' ? [] : challengeTopicIds(last.topic);
+                draft.count = [5, 10, 15, 20].includes(last.count) ? last.count : draft.count;
+                draft.hard = Boolean(last.include_hard);
+                draft.variant = last.variant === 'typed' ? 'typed' : 'choices';
+                draft.cats = Array.isArray(last.categories) && last.categories.length ? last.categories : null;
+            }
+            draft.who = 'player';
+            draft.opponent = preset.opponent;
+            const id = preset.opponent.id;
+            Social.getAccepts(id).then(accepts => { if (draft.opponent && draft.opponent.id === id) { draft.blocked = accepts.blocked; draft.mixOk = accepts.mix; render(); } }).catch(() => {});
+        }
         render();
     };
 
@@ -3797,6 +3814,7 @@
                     <div>
                         <button type="button" data-rematch ${busy ? 'disabled' : ''} class="${PRIMARY_BUTTON}">${uiArt('vyzva', 'h-7 w-7')} ${busy ? 'Zakládám…' : stats.last ? 'Vyzvat k odvetě' : 'Vyzvat'}</button>
                         <p class="mt-1.5 text-center text-xs text-slate-500 dark:text-slate-400">${stats.last ? 'Stejné nastavení jako naposledy' : 'První výzva'}: ${escapeHtml(same)}</p>
+                        <button type="button" data-edit-challenge ${busy ? 'disabled' : ''} class="btn-3d-light mt-2 flex w-full items-center justify-center gap-1.5 rounded-2xl bg-white px-4 py-2.5 text-sm font-black text-slate-700 dark:bg-slate-800 dark:text-slate-200"><i data-lucide="settings-2" class="h-4 w-4"></i> Upravit nastavení výzvy</button>
                     </div>`;
             }
             showDialog('Profil hráče', `
@@ -3806,6 +3824,11 @@
                     ${note ? DIALOG_NOTE(note) : ''}
                 </div>`, {
                 onClick: async (event) => {
+                    if (event.target.closest('[data-edit-challenge]') && !busy && stats) {
+                        closeDialog();
+                        openNewChallenge({ opponent: player, last: stats.last });
+                        return;
+                    }
                     if (!event.target.closest('[data-rematch]') || busy || !stats) return;
                     busy = true;
                     note = '';

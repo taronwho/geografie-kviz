@@ -1642,6 +1642,18 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         assert.match(profileText, /1\s*výher/);
         assert.match(profileText, /Vyzvat k odvetě/);
         assert.match(profileText, /Zeměpis · 5 otázek/);
+        // Pod odvetou je „Upravit nastavení výzvy“: otevře se formulář nové výzvy předvyplněný soupeřem a nastavením z poslední hry
+        assert.match(profileText, /Upravit nastavení výzvy/);
+        await two.tab.click('[data-edit-challenge]');
+        await two.tab.waitForSelector('[data-ch-create]');
+        assert.match(await two.tab.textContent('[data-ch-open="topics"]'), /Zeměpis/, 'téma z poslední hry');
+        assert.equal(await two.tab.getAttribute('[data-ch-count="5"]', 'aria-pressed'), 'true', 'počet otázek z poslední hry');
+        assert.match(await two.tab.textContent('#dialog-overlay'), /Janička/, 'soupeř je už vybraný');
+        await two.tab.click('[data-close]');
+        await two.tab.click(`#challenges-section [data-action="challenge-open"][data-code="${code}"]`);
+        await two.tab.waitForSelector('#dialog-overlay [data-player-id="u-1"]');
+        await two.tab.click('#dialog-overlay [data-player-id="u-1"]');
+        await two.tab.waitForSelector('#dialog-overlay [data-rematch]');
         const before = Object.keys(db.challenges).length;
         await two.tab.click('[data-rematch]');
         await waitForQuestion(two.tab);
