@@ -867,7 +867,8 @@
                 </div>
                 <div>
                     <p class="${ME_HEADING} mb-1.5">Barva</p>
-                    <div class="flex justify-between px-1">${Social.COLORS.map(color => `<button type="button" data-pick-color="${color}" aria-label="Barva ${color}" aria-pressed="${color === meDraft.color}" class="h-7 w-7 rounded-full ${AVATAR_BG[color]} ${color === meDraft.color ? 'ring-2 ring-slate-800/70 ring-offset-2 dark:ring-white/80 dark:ring-offset-slate-900' : ''} active:scale-95"></button>`).join('')}</div>
+                    <div class="flex justify-between px-1">${Social.COLORS.map(color => `<button type="button" data-pick-color="${color}" aria-label="Barva ${color}" aria-pressed="${color === meDraft.color}" class="h-7 w-7 rounded-full ${avatarBg(color)} ${color === meDraft.color ? 'ring-2 ring-slate-800/70 ring-offset-2 dark:ring-white/80 dark:ring-offset-slate-900' : ''} active:scale-95"></button>`).join('')}</div>
+                    <input type="range" min="0" max="355" step="5" value="${Social.customHue(meDraft.color) ?? Social.customHue('h' + ({ emerald: 160, sky: 200, violet: 260, rose: 350, amber: 40, teal: 175, orange: 25, indigo: 240 }[meDraft.color] || 160))}" data-pick-hue aria-label="Všechny barvy: odstín pozadí profilovky" class="mt-2 h-6 w-full cursor-pointer appearance-none rounded-full bg-[linear-gradient(90deg,#f00,#ff0,#0f0,#0ff,#00f,#f0f,#f00)]">
                 </div>
                 <button type="button" data-open-accept class="btn-3d-light flex w-full items-center gap-2 rounded-2xl bg-white px-3 py-2 text-left dark:bg-slate-800"><i data-lucide="shield-check" class="h-5 w-5 shrink-0 text-brand-700 dark:text-brand-300"></i><span class="min-w-0 flex-1 truncate text-[13px] font-black text-slate-800 dark:text-slate-100">Přijímané výzvy <span class="font-semibold text-slate-500 dark:text-slate-400">· ${escapeHtml(acceptSummary())}</span></span><i data-lucide="chevron-right" class="h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400"></i></button>
                 <div class="grid grid-cols-2 gap-2">
@@ -910,6 +911,9 @@
             // Volba sovy se pamatuje i v zařízení: v databázi bez sloupce owl (schema.sql ještě nebylo znovu spuštěno) by se jinak ztratila
             // a profilovka by zůstala emoji. Ostatní hráči ji uvidí až po spuštění schematu.
             writeJson(OWL_AVATAR_KEY, Boolean(meDraft.owl));
+            // Vlastní odstín se pamatuje i v zařízení (starší schéma ho do databáze neuloží, tam jde nejbližší pojmenovaná barva)
+            writeJson(AVATAR_COLOR_KEY, Social.customHue(meDraft.color) !== null ? meDraft.color : null);
+            if (Social.customHue(meDraft.color) !== null && myProfile.color !== meDraft.color) myProfile = { ...myProfile, color: meDraft.color };
             if (meDraft.owl && !myProfile.owl) myProfile = { ...myProfile, owl: myOwlText() };
             meNote = 'Uloženo.';
             meDirty = false;
@@ -997,6 +1001,16 @@
         });
         // Výběry ve Vzhledu (např. titul u jména)
         overlay.addEventListener('change', (event) => {
+            const hueRange = event.target.closest('[data-pick-hue]');
+            if (hueRange && meDraft) {
+                const input = document.getElementById('profile-name');
+                if (input) meDraft.name = input.value;
+                meDraft.color = `h${Math.round(Number(hueRange.value) / 5) * 5 % 360}`;
+                meDirty = true;
+                meNote = '';
+                openSettings('', '[data-pick-hue]');
+                return;
+            }
             const lookEl = event.target.closest('[data-look]');
             const section = lookEl && Look ? Look.getSections().find(entry => entry.id === lookEl.dataset.look) : null;
             if (section && section.change && section.change(event, lookContext())) { updateControlsUI(); openSettings('', null, meTab); }
@@ -2881,6 +2895,10 @@
 
     const Social = window.MudrlantSocial;
     const AVATAR_BG = { __proto__: null, emerald: 'bg-emerald-500', sky: 'bg-sky-500', violet: 'bg-violet-500', rose: 'bg-rose-500', amber: 'bg-amber-500', teal: 'bg-teal-500', orange: 'bg-orange-500', indigo: 'bg-indigo-500' };
+    // Vlastní odstín pozadí profilovky (h<stupně>): třídy po 5°, ať stačí pevný CSS (CSP nepustí styl v atributu)
+    const HUE_BG = { 0: 'bg-[hsl(0deg_75%_50%)]', 5: 'bg-[hsl(5deg_75%_50%)]', 10: 'bg-[hsl(10deg_75%_50%)]', 15: 'bg-[hsl(15deg_75%_50%)]', 20: 'bg-[hsl(20deg_75%_50%)]', 25: 'bg-[hsl(25deg_75%_50%)]', 30: 'bg-[hsl(30deg_75%_50%)]', 35: 'bg-[hsl(35deg_75%_50%)]', 40: 'bg-[hsl(40deg_75%_50%)]', 45: 'bg-[hsl(45deg_75%_50%)]', 50: 'bg-[hsl(50deg_75%_50%)]', 55: 'bg-[hsl(55deg_75%_50%)]', 60: 'bg-[hsl(60deg_75%_50%)]', 65: 'bg-[hsl(65deg_75%_50%)]', 70: 'bg-[hsl(70deg_75%_50%)]', 75: 'bg-[hsl(75deg_75%_50%)]', 80: 'bg-[hsl(80deg_75%_50%)]', 85: 'bg-[hsl(85deg_75%_50%)]', 90: 'bg-[hsl(90deg_75%_50%)]', 95: 'bg-[hsl(95deg_75%_50%)]', 100: 'bg-[hsl(100deg_75%_50%)]', 105: 'bg-[hsl(105deg_75%_50%)]', 110: 'bg-[hsl(110deg_75%_50%)]', 115: 'bg-[hsl(115deg_75%_50%)]', 120: 'bg-[hsl(120deg_75%_50%)]', 125: 'bg-[hsl(125deg_75%_50%)]', 130: 'bg-[hsl(130deg_75%_50%)]', 135: 'bg-[hsl(135deg_75%_50%)]', 140: 'bg-[hsl(140deg_75%_50%)]', 145: 'bg-[hsl(145deg_75%_50%)]', 150: 'bg-[hsl(150deg_75%_50%)]', 155: 'bg-[hsl(155deg_75%_50%)]', 160: 'bg-[hsl(160deg_75%_50%)]', 165: 'bg-[hsl(165deg_75%_50%)]', 170: 'bg-[hsl(170deg_75%_50%)]', 175: 'bg-[hsl(175deg_75%_50%)]', 180: 'bg-[hsl(180deg_75%_50%)]', 185: 'bg-[hsl(185deg_75%_50%)]', 190: 'bg-[hsl(190deg_75%_50%)]', 195: 'bg-[hsl(195deg_75%_50%)]', 200: 'bg-[hsl(200deg_75%_50%)]', 205: 'bg-[hsl(205deg_75%_50%)]', 210: 'bg-[hsl(210deg_75%_50%)]', 215: 'bg-[hsl(215deg_75%_50%)]', 220: 'bg-[hsl(220deg_75%_50%)]', 225: 'bg-[hsl(225deg_75%_50%)]', 230: 'bg-[hsl(230deg_75%_50%)]', 235: 'bg-[hsl(235deg_75%_50%)]', 240: 'bg-[hsl(240deg_75%_50%)]', 245: 'bg-[hsl(245deg_75%_50%)]', 250: 'bg-[hsl(250deg_75%_50%)]', 255: 'bg-[hsl(255deg_75%_50%)]', 260: 'bg-[hsl(260deg_75%_50%)]', 265: 'bg-[hsl(265deg_75%_50%)]', 270: 'bg-[hsl(270deg_75%_50%)]', 275: 'bg-[hsl(275deg_75%_50%)]', 280: 'bg-[hsl(280deg_75%_50%)]', 285: 'bg-[hsl(285deg_75%_50%)]', 290: 'bg-[hsl(290deg_75%_50%)]', 295: 'bg-[hsl(295deg_75%_50%)]', 300: 'bg-[hsl(300deg_75%_50%)]', 305: 'bg-[hsl(305deg_75%_50%)]', 310: 'bg-[hsl(310deg_75%_50%)]', 315: 'bg-[hsl(315deg_75%_50%)]', 320: 'bg-[hsl(320deg_75%_50%)]', 325: 'bg-[hsl(325deg_75%_50%)]', 330: 'bg-[hsl(330deg_75%_50%)]', 335: 'bg-[hsl(335deg_75%_50%)]', 340: 'bg-[hsl(340deg_75%_50%)]', 345: 'bg-[hsl(345deg_75%_50%)]', 350: 'bg-[hsl(350deg_75%_50%)]', 355: 'bg-[hsl(355deg_75%_50%)]' };
+    const avatarBg = (color) => AVATAR_BG[color] || (Social && Social.customHue(color) !== null ? HUE_BG[Social.customHue(color)] : AVATAR_BG.emerald);
+    const AVATAR_COLOR_KEY = 'mudrlant.avatarColor';
     let myProfile = null;
     let myChallenges = null;
     let myRating = null;
@@ -2903,7 +2921,7 @@
         // Sova jako obrázek profilu: vlastní se bere z lokální volby (doplňky a barva obleku platí hned), cizí z profilu hráče
         const isMe = Boolean(me && player && player.id === me.id);
         const owlHtml = player && player.owl && Owl && Owl.owlAvatarHtml ? Owl.owlAvatarHtml(isMe && Look ? myOwlText() : player.owl) : '';
-        return `<span ${linked ? `data-player-id="${escapeHtml(player.id)}" role="button" tabindex="0" aria-label="Profil hráče ${escapeHtml(playerName(player))}"` : 'aria-hidden="true"'} class="flex shrink-0 items-center justify-center rounded-full ${size} ${AVATAR_BG[player && player.color] || AVATAR_BG.emerald}${frame}${linked ? ' cursor-pointer' : ''}">${owlHtml || escapeHtml((player && player.avatar) || '🦊')}</span>`;
+        return `<span ${linked ? `data-player-id="${escapeHtml(player.id)}" role="button" tabindex="0" aria-label="Profil hráče ${escapeHtml(playerName(player))}"` : 'aria-hidden="true"'} class="flex shrink-0 items-center justify-center rounded-full ${size} ${avatarBg(player && player.color)}${frame}${linked ? ' cursor-pointer' : ''}">${owlHtml || escapeHtml((player && player.avatar) || '🦊')}</span>`;
     };
     // Téma výzvy: „mix“ (všechna), jedno téma, nebo víc témat oddělených čárkou
     const challengeTopicIds = (topic) => topic === 'mix' ? TOPICS.map(item => item.id) : String(topic).split(',').filter(id => TOPIC_BY_ID[id]);
@@ -3032,6 +3050,8 @@
         if (!signedUser() || signedUser().id !== user.id) return null;
         myProfile = loaded;
         if (!myProfile) myProfile = { id: user.id, display_name: user.name, avatar: '🦊', color: 'emerald' };
+        const savedColor = readJson(AVATAR_COLOR_KEY);
+        if (Social.customHue(savedColor) !== null && Social.nearestColor(savedColor) === myProfile.color) myProfile = { ...myProfile, color: savedColor };
         if (readJson(OWL_AVATAR_KEY) === true && !myProfile.owl && Owl) myProfile = { ...myProfile, owl: myOwlText() };
         syncLookWithAccount();
         updateProfileButton();

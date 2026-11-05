@@ -79,6 +79,17 @@
     // Rámeček a titul z cizího řádku: jen tvarově platné hodnoty (znáte-li katalog, jen jeho položky)
     const cleanFrame = (value, known = null) => typeof value === 'string' && /^[a-z0-9-]{1,24}$/.test(value) && (!known || known.includes(value)) ? value : null;
     // Sova jako obrázek: jen tvarově platný text (id z katalogu zkontroluje až vykreslení, MudrlantOwl.parseOwl)
+    // Barva pozadí profilovky: jedna z pojmenovaných, nebo vlastní odstín h<stupně> (násobek 5, 0–355) z posuvníku
+    const NAMED_HUE = { emerald: 160, sky: 200, violet: 262, rose: 350, amber: 40, teal: 175, orange: 25, indigo: 240 };
+    const customHue = (value) => { const m = typeof value === 'string' && /^h(\d{1,3})$/.exec(value); const hue = m ? Number(m[1]) : NaN; return hue >= 0 && hue <= 355 && hue % 5 === 0 ? hue : null; };
+    const cleanColor = (value) => COLORS.includes(value) || customHue(value) !== null ? value : COLORS[0];
+    // Nejbližší pojmenovaná barva (databáze ze starého schématu vlastní odstíny nepřijme)
+    const nearestColor = (value) => {
+        const hue = customHue(value);
+        if (hue === null) return COLORS.includes(value) ? value : COLORS[0];
+        const gap = (a, b) => Math.min(Math.abs(a - b), 360 - Math.abs(a - b));
+        return COLORS.reduce((best, name) => gap(NAMED_HUE[name], hue) < gap(NAMED_HUE[best], hue) ? name : best, COLORS[0]);
+    };
     const cleanOwl = (value) => typeof value === 'string' && /^[a-z0-9=.;-]{1,200}$/.test(value) ? value : null;
     const cleanTitlePref = (value) => typeof value === 'string' && /^[a-z0-9-]{1,40}$/.test(value) ? value : null;
     const getProfile = async (userId) => (await withExtras(extras => request('GET', `profiles?id=eq.${encodeURIComponent(userId)}&select=${profileFields(extras)}`)) || [])[0] || null;
@@ -107,7 +118,7 @@
         }
     };
     const saveProfile = async (userId, { name, avatar, color, owl }) => {
-        const patch = { display_name: cleanName(name), avatar: allAvatars().includes(avatar) ? avatar : AVATARS[0], color: COLORS.includes(color) ? color : COLORS[0] };
+        const patch = { display_name: cleanName(name), avatar: allAvatars().includes(avatar) ? avatar : AVATARS[0], color: cleanColor(color) };
         // Sova (sloupec owl) je v pozdější verzi schématu: nejdřív s ní, při 400 (sloupec chybí) bez ní; obrázek avatar zůstává jako záloha
         const cleanedOwl = cleanOwl(owl);
         if (cleanedOwl) patch.avatar = AVATARS.includes('🦉') ? '🦉' : patch.avatar;
@@ -118,10 +129,23 @@
             try {
                 rows = await send(extrasMissing ? patch : { ...patch, owl: cleanedOwl });
             } catch (error) {
-                if (error.status !== 400 || extrasMissing) throw error;
-                // 400 může být i špatná přezdívka: zkusí se bez nových sloupců, a jen když projde, ví se, že sloupec chybí
-                rows = await send(patch);
-                extrasMissing = true;
+                if (error.status !== 400) throw error;
+                // Starší schéma neumí vlastní odstín barvy: uloží se nejbližší pojmenovaná
+                const fallback = { ...patch, color: nearestColor(patch.color) };
+                const custom = fallback.color !== patch.color;
+                if (extrasMissing) {
+                    if (!custom) throw error;
+                    rows = await send(fallback);
+                } else {
+                    // 400 může být i špatná přezdívka: zkusí se bez nových sloupců, a jen když projde, ví se, že sloupec chybí
+                    try {
+                        rows = await send(patch);
+                        extrasMissing = true;
+                    } catch (second) {
+                        if (second.status !== 400 || !custom) throw second;
+                        rows = await send({ ...fallback, owl: cleanedOwl });
+                    }
+                }
             }
         } catch (error) {
             // Přezdívka je jedinečná: databáze odmítne tu, kterou už někdo má
@@ -272,5 +296,5 @@
         return invites.filter(row => !done.has(row.id));
     };
 
-    return { AVATARS, allAvatars, cleanFrame, cleanOwl, saveOwl, cleanTitlePref, saveLook, COLORS, COUNTS, NAME_MAX, SocialError, cleanName, isValidName, newCode, parseCode, getProfile, saveProfile, createChallenge, getChallenge, getResults, submitResult, myChallenges, searchPlayers, randomOpponent, incomingChallenges, playerStats, getProgress, saveProgress, getRating, getRatingChange, weeklyLeaderboard, getAccepts, saveAccepts };
+    return { AVATARS, allAvatars, cleanColor, customHue, nearestColor, cleanFrame, cleanOwl, saveOwl, cleanTitlePref, saveLook, COLORS, COUNTS, NAME_MAX, SocialError, cleanName, isValidName, newCode, parseCode, getProfile, saveProfile, createChallenge, getChallenge, getResults, submitResult, myChallenges, searchPlayers, randomOpponent, incomingChallenges, playerStats, getProgress, saveProgress, getRating, getRatingChange, weeklyLeaderboard, getAccepts, saveAccepts };
 });
