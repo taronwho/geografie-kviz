@@ -159,6 +159,15 @@
 @media (prefers-reduced-motion: no-preference) {
     .offer-panel { animation: offerPulse 1.7s ease-in-out infinite; }
 }
+/* Karta turnaje na záložce Více hráčů, když jsou přihlášky otevřené a hráč se nepřihlásil: stejné zelené svícení, jen jemnější (při omezeném pohybu bez pulzu) */
+.tour-glow { box-shadow: 0 0 0 2px rgb(52 211 153 / 0.8), 0 0 18px rgb(52 211 153 / 0.4); }
+@media (prefers-reduced-motion: no-preference) {
+    .tour-glow { animation: tourGlow 3.4s ease-in-out infinite; }
+}
+@keyframes tourGlow {
+    0%, 100% { box-shadow: 0 0 0 2px rgb(52 211 153 / 0.8), 0 0 14px rgb(52 211 153 / 0.3); }
+    50% { box-shadow: 0 0 0 2px rgb(110 231 183 / 0.95), 0 0 24px rgb(52 211 153 / 0.55); }
+}
 @keyframes offerPulse {
     0%, 100% { box-shadow: 0 0 0 3px rgb(52 211 153 / 0.95), 0 0 18px rgb(52 211 153 / 0.45); }
     50% { box-shadow: 0 0 0 5px rgb(110 231 183 / 1), 0 0 42px rgb(52 211 153 / 0.9); }
