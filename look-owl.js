@@ -56,7 +56,7 @@
         const label = open ? item.title : `${item.title}: ${Look.unlockText(item, item.badge ? badgeTitle(item.badge) : null)}`;
         return `<button type="button" data-owl-pick="${item.slot}:${item.id}" aria-pressed="${selected}" ${open ? '' : 'aria-disabled="true"'} title="${escapeHtml(label)}" aria-label="${escapeHtml(label)}"
             class="flex h-11 w-11 items-center justify-center rounded-xl border-2 ${selected ? 'border-brand-500 bg-brand-50 dark:bg-brand-950' : 'border-transparent bg-slate-50 dark:bg-slate-700/50'} ${open ? '' : 'cursor-not-allowed'}">
-            <img src="icons/doplnky/${item.id}-ikona.webp" alt="" class="h-8 w-8 object-contain ${open ? '' : 'opacity-40 grayscale'}"></button>`;
+            <img src="icons/doplnky/${item.id}-ikona.webp" alt="" class="h-9 w-9 object-contain ${open ? '' : 'opacity-40 grayscale'}"></button>`;
     };
     const noneTile = (slot, selected) => `<button type="button" data-owl-pick="${slot}:none" aria-pressed="${selected}" title="Bez doplňku" aria-label="Bez doplňku"
         class="flex h-11 w-11 items-center justify-center rounded-xl border-2 text-lg font-black text-slate-400 ${selected ? 'border-brand-500 bg-brand-50 dark:bg-brand-950' : 'border-transparent bg-slate-50 dark:bg-slate-700/50'}">–</button>`;
