@@ -63,6 +63,8 @@ test('sova jako obrázek profilu', { skip: !chromium && 'Playwright není nainst
                 if (db.noOwlColumn && ((body && 'owl' in body) || /\bowl\b/.test(url.searchParams.get('select') || ''))) return json({ message: 'column profiles.owl does not exist' }, 400);
                 if (request.method() === 'PATCH') {
                     if (eq('id') !== me.id) return json([]);
+                    // Starší schéma: vlastní odstín barvy porušuje omezení color
+                    if (db.oldColorCheck && body && /^h\d+$/.test(body.color || '')) return json({ message: 'violates check constraint profiles_color_list' }, 400);
                     db.writes.push(body);
                     Object.assign(db.profiles[me.id], body);
                     return json([db.profiles[me.id]]);
@@ -182,6 +184,32 @@ test('sova jako obrázek profilu', { skip: !chromium && 'Playwright není nainst
         assert.deepEqual(problems, []);
         await context.close();
         db.noOwlColumn = false;
+    });
+
+    await t.test('posuvník všech barev: vlastní odstín se uloží, ukáže hned i po načtení; starší schéma dostane nejbližší pojmenovanou', async () => {
+        for (const old of [false, true]) {
+            db.oldColorCheck = old;
+            db.profiles['u-1'].color = 'emerald';
+            const { context, tab, problems } = await open('tok-u1');
+            await tab.click('#btn-settings');
+            await tab.click('[data-me-tab="profile"]');
+            await tab.waitForSelector('[data-pick-hue]');
+            await tab.locator('[data-pick-hue]').evaluate((el) => { el.value = '210'; el.dispatchEvent(new Event('change', { bubbles: true })); });
+            await tab.waitForSelector('[data-pick-hue]');
+            assert.equal(await tab.inputValue('[data-pick-hue]'), '210');
+            assert.ok(await tab.locator('#settings-overlay span.rounded-full[class*="hsl(210deg"]').count() > 0, 'náhled má vlastní barvu');
+            await tab.click('[data-save-profile]');
+            await tab.waitForFunction(() => /Uloženo/.test(document.querySelector('#settings-overlay').textContent));
+            assert.equal(db.profiles['u-1'].color, old ? 'sky' : 'h210');
+            await tab.click('[data-close]');
+            await tab.reload();
+            await tab.waitForSelector('#btn-settings');
+            assert.ok(await tab.locator('#btn-settings span[class*="hsl(210deg"], #btn-settings [class*="hsl(210deg"]').count() > 0, 'po načtení zůstane vlastní barva');
+            assert.deepEqual(problems, []);
+            await context.close();
+        }
+        db.oldColorCheck = false;
+        db.profiles['u-1'].color = 'emerald';
     });
 
     await t.test('emoji zruší sovu; tmavý režim; profil se vejde na malém telefonu', async () => {
