@@ -658,3 +658,14 @@ test('další věty nápovědy neříkají totéž co nápověda Fakta (hlavní 
     assert.equal(core.stripFactSentences(text, facts), 'Je to relativně rovinatý stát s rozsáhlými bažinatými oblastmi.');
     assert.equal(core.stripFactSentences('Text bez čísel a jmen.', []), 'Text bez čísel a jmen.');
 });
+
+test('osa stáří, jejíž hodnotu už říká popis, se jako nápověda nenabízí', () => {
+    const spec = { type: 'scale', valueLabel: 'začátek před 251,9 mil. let' };
+    assert.equal(core.scaleKnown(spec, 'Trias je perioda druhohor, která trvala před 251,9 až 201,4 miliony let.'), true);
+    assert.equal(core.scaleKnown(spec, 'Trias je perioda druhohor, která začala před 251.9 miliony let.'), true, 'tečka místo čárky');
+    assert.equal(core.scaleKnown(spec, 'Trias je perioda druhohor.'), false);
+    assert.equal(core.scaleKnown(spec, 'Před 1251,95 miliony let.'), false, 'jiné číslo, které jen obsahuje stejné cifry');
+    assert.equal(core.scaleKnown({ type: 'scale', valueLabel: 'před 11 700 let' }, 'Holocén začal před 11\u00a0700 lety.'), true, 'tisíce s pevnou mezerou');
+    assert.equal(core.scaleKnown({ type: 'scale', valueLabel: 'tvrdost 6' }, 'Mohsova tvrdost 6.'), false, 'jednociferné číslo se nehodnotí (našlo by se náhodou)');
+    assert.equal(core.scaleKnown({ type: 'timeline' }, '251,9'), false);
+});
