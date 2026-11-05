@@ -5,8 +5,8 @@ const path = require('node:path');
 const Look = require('../look.js');
 const Owl = require('../look-owl.js');
 
-test('doplňky sovy: katalog má 10 doplňků ve čtyřech místech a každý má obrázky ve všech barvách', () => {
-    assert.equal(Look.ACCESSORIES.length, 10);
+test('doplňky sovy: katalog má 24 doplňků ve čtyřech místech a každý má obrázky ve všech barvách', () => {
+    assert.equal(Look.ACCESSORIES.length, 24);
     assert.deepEqual(Look.SLOTS.map(slot => slot.id), ['head', 'face', 'neck', 'hand']);
     for (const item of Look.ACCESSORIES) {
         assert.ok(Look.SLOTS.some(slot => slot.id === item.slot), item.id);
@@ -89,4 +89,29 @@ test('vlastní barva doplňku: obrázek zůstane původní a barvu dá otočení
     assert.match(Owl.layersHtml({ head: { id: 'sluchatka', color: 'h120' } }), /hue-rotate-\[120deg\]/);
     assert.doesNotMatch(Owl.layersHtml({ head: { id: 'koruna', color: 'h40' } }), /hue-rotate/, 'stejný odstín = bez otočení');
     assert.doesNotMatch(Owl.layersHtml({ head: { id: 'koruna', color: 'modra' } }), /hue-rotate/);
+});
+
+test('doplňky za zběhlost: každé téma má doplněk vázaný na odznak, který dá 12 v řadě nebo 3 hvězdy', () => {
+    const Core = require('../quiz-core.js');
+    const topics = ['zemepis', 'vlajky', 'historie', 'mytologie', 'biologie', 'geologie', 'chemie', 'fyzika', 'umeni', 'architektura', 'hudba', 'literatura', 'film', 'sport'];
+    const bySlot = {};
+    for (const topic of topics) {
+        const items = Look.ACCESSORIES.filter(item => item.badge === `zbehly-${topic}`);
+        assert.equal(items.length, 1, topic);
+        bySlot[items[0].slot] = (bySlot[items[0].slot] || 0) + 1;
+        const badge = Core.BADGES.find(entry => entry.id === `zbehly-${topic}`);
+        assert.ok(badge, `odznak ${topic}`);
+        const base = { ...Core.normalizeCounters({}) };
+        assert.equal(Core.earnedBadgeIds(base, { level: 1, topicStars: {} }).includes(badge.id), false);
+        assert.ok(Core.earnedBadgeIds({ ...base, topicBest: { [topic]: 12 } }, { level: 1, topicStars: {} }).includes(badge.id), 'série 12');
+        assert.equal(Core.earnedBadgeIds({ ...base, topicBest: { [topic]: 11 } }, { level: 1, topicStars: {} }).includes(badge.id), false, 'série 11 nestačí');
+        assert.ok(Core.earnedBadgeIds(base, { level: 1, topicStars: { [topic]: 3 } }).includes(badge.id), '3 hvězdy');
+        assert.equal(Core.earnedBadgeIds(base, { level: 1, topicStars: { [topic]: 2 } }).includes(badge.id), false, '2 hvězdy nestačí');
+    }
+    assert.deepEqual(bySlot, { neck: 2, hand: 5, head: 4, face: 3 });
+    // Doplněk se odemkne odznakem a oslava se hlásí při jeho získání
+    const item = Look.ACCESSORIES.find(entry => entry.id === 'kompas');
+    assert.equal(Look.isUnlocked(item, { level: 100, badges: {} }), false);
+    assert.equal(Look.isUnlocked(item, { level: 1, badges: { 'zbehly-zemepis': '2026-11-05' } }), true);
+    assert.deepEqual(Look.newRewards(1, 1, ['zbehly-zemepis']).map(entry => entry.item.id), ['kompas']);
 });

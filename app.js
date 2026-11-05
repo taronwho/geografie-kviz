@@ -2278,7 +2278,9 @@
             if (round.wasMistake) counters.fixed += 1;
             if (mode === 'daily' && current.dailyDate && round.dailyFirst !== false) counters.dailyCorrect += 1;
             counters.topics[current.topic] = (counters.topics[current.topic] || 0) + 1;
-        } else counters.run = 0;
+            counters.topicRun[current.topic] = (counters.topicRun[current.topic] || 0) + 1;
+            counters.topicBest[current.topic] = Math.max(counters.topicBest[current.topic] || 0, counters.topicRun[current.topic]);
+        } else { counters.run = 0; counters.topicRun[current.topic] = 0; }
         const parts = [{ label: 'odpověď', xp: answerXp(round) }];
         if (mode === 'daily' && current.dailyDate && round.dailyFirst !== false) {
             parts.push({ label: 'dnešní otázka', xp: DAILY_XP });

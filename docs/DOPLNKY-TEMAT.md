@@ -60,7 +60,13 @@ Poznámky pro výběr obrázku:
 - Ruka znamená křídlo na pravé straně sovy (z pohledu diváka vlevo). Stávající lupa je jako vzor.
 - Zvlášť vyřízněte i obrázky ikon (`branding/doplnky-ikony/<id>.jpg`, doplněk na tmavém pozadí) stejně jako dosud.
 
-## Co udělám v kódu, až budou obrázky
+## Stav
+
+Hotovo: 14 doplňků má vrstvy a ikony (`scripts/owl-accessories.py`, `scripts/owl-accessory-icons.py`), jsou v katalogu `look.js` a odemykají se odznakem
+`zbehly-<téma>` (`quiz-core.js`: 12 správných v řadě v tématu, nebo 3 hvězdy mistrovství). Série v tématu se počítá v `counters.topicRun` / `topicBest`.
+Barvy a vlastní odstín fungují jen na barevných částech (bílý knír, šedý mikrofon a podobně se téměř nezmění).
+
+## Původní plán (pro zajímavost)
 
 1. Přidat 14 záznamů do `ACCESSORIES` v `look.js` (nová podmínka odemknutí `topic: { id, stars: 3, streak: 12 }`).
 2. Počítadlo série správných odpovědí po tématech v `progress.counters` a text „Zbývá …“ u zamčeného doplňku.

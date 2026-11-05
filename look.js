@@ -62,7 +62,21 @@
         { id: 'koruna', title: 'Koruna', slot: 'head', hue: 40, level: 42 },
         { id: 'sluchatka', title: 'Sluchátka', slot: 'head', hue: 358, level: 50 },
         { id: 'medaile', title: 'Medaile', slot: 'neck', hue: 40, level: 58 },
-        { id: 'vavrin', title: 'Vavřínový věnec', slot: 'head', hue: 95, badge: 'vitez' }
+        { id: 'vavrin', title: 'Vavřínový věnec', slot: 'head', hue: 95, badge: 'vitez' },
+        { id: 'kompas', title: 'Kompas', slot: 'neck', hue: 30, badge: 'zbehly-zemepis' },
+        { id: 'vlajka', title: 'Vlaječka', slot: 'hand', hue: 215, badge: 'zbehly-vlajky' },
+        { id: 'svitek', title: 'Svitek s pečetí', slot: 'hand', hue: 40, badge: 'zbehly-historie' },
+        { id: 'helma', title: 'Okřídlená helma', slot: 'head', hue: 30, badge: 'zbehly-mytologie' },
+        { id: 'sitka', title: 'Síťka na motýly', slot: 'hand', hue: 35, badge: 'zbehly-biologie' },
+        { id: 'prilba', title: 'Horolezecká přilba', slot: 'head', hue: 50, badge: 'zbehly-geologie' },
+        { id: 'lab-bryle', title: 'Laboratorní brýle', slot: 'face', hue: 120, badge: 'zbehly-chemie' },
+        { id: 'knir', title: 'Einsteinův knír', slot: 'face', hue: 0, badge: 'zbehly-fyzika' },
+        { id: 'baret', title: 'Malířský baret', slot: 'head', hue: 225, badge: 'zbehly-umeni' },
+        { id: 'metr', title: 'Svinovací metr', slot: 'neck', hue: 50, badge: 'zbehly-architektura' },
+        { id: 'mikrofon', title: 'Mikrofon', slot: 'hand', hue: 0, badge: 'zbehly-hudba' },
+        { id: 'brk', title: 'Brk a kalamář', slot: 'hand', hue: 40, badge: 'zbehly-literatura' },
+        { id: '3d-bryle', title: '3D brýle', slot: 'face', hue: 0, badge: 'zbehly-film' },
+        { id: 'celenka', title: 'Sportovní čelenka', slot: 'head', hue: 215, badge: 'zbehly-sport' }
     ];
     // Barvy doplňků (původní je barva z obrázku); každá se odemyká úrovní. „Vlastní barva“ je paleta: hráč si zvolí libovolný odstín
     // (uloží se jako h<stupně>, např. h210), doplněk se přebarví z původního obrázku otočením odstínu.

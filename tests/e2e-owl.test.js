@@ -58,7 +58,7 @@ test('doplňky sovy v Nastavení', { skip: !chromium && 'Playwright není nainst
         await tab.click('#btn-settings');
         await tab.click('[data-me-tab="owl"]');
         await tab.waitForSelector('[data-owl-pick]');
-        assert.equal(await tab.locator('[data-owl-pick]').count(), 14, '4 × „bez doplňku“ + 10 doplňků');
+        assert.equal(await tab.locator('[data-owl-pick]').count(), 28, '4 × „bez doplňku“ + 24 doplňků');
         // Zamčený doplněk se nenasadí a ukáže, jak se odemkne
         await tab.click('[data-owl-pick="hand:lupa"]', { force: true });
         await tab.waitForFunction(() => /Lupa: Úroveň 24/.test(document.querySelector('[data-look="owl"]').textContent));
@@ -142,6 +142,30 @@ test('doplňky sovy v Nastavení', { skip: !chromium && 'Playwright není nainst
         await tab.reload();
         await tab.waitForSelector('#status-icon-slot [data-owl-layer]');
         assert.match(await tab.$eval('#status-icon-slot [data-owl-layer]', node => node.className), /hue-rotate-\[80deg\]/);
+        assert.deepEqual(problems, []);
+        await context.close();
+    });
+
+    await t.test('doplňky za zběhlost v tématech: zamčené bez odznaku, s odznaky jdou zkombinovat (přilba + laboratorní brýle + síťka)', async () => {
+        const badges = Object.fromEntries(['biologie', 'geologie', 'chemie'].map(topic => [`zbehly-${topic}`, '2026-11-01']));
+        const { context, tab, problems } = await open(JSON.stringify({ xp: 11000, counters: {}, badges }));
+        await tab.click('#btn-settings');
+        await tab.click('[data-me-tab="owl"]');
+        await tab.waitForSelector('[data-owl-pick]');
+        // Bez odznaku (Mytologie) je helma zamčená a říká, co pro ni udělat
+        assert.equal(await tab.getAttribute('[data-owl-pick="head:helma"]', 'aria-disabled'), 'true');
+        assert.match(await tab.getAttribute('[data-owl-pick="head:helma"]', 'title'), /Odznak: Posel bohů/);
+        for (const pick of ['head:prilba', 'face:lab-bryle', 'hand:sitka']) {
+            assert.equal(await tab.getAttribute(`[data-owl-pick="${pick}"]`, 'aria-disabled'), null, `${pick} je odemčený`);
+            await tab.click(`[data-owl-pick="${pick}"]`);
+        }
+        await tab.waitForFunction(() => document.querySelectorAll('#status-icon-slot [data-owl-layer]').length === 3);
+        const sources = await layers(tab);
+        // Pořadí vrstev: obličej, hlava, ruka; ruka vždy navrch
+        assert.deepEqual(sources.map(src => src.replace('icons/doplnky/', '').replace('.webp', '')), ['lab-bryle', 'prilba', 'sitka']);
+        // Zamčený doplněk se klepnutím nevybere
+        await tab.click('[data-owl-pick="head:helma"]', { force: true });
+        assert.equal((await layers(tab)).length, 3);
         assert.deepEqual(problems, []);
         await context.close();
     });
