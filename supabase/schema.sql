@@ -279,7 +279,8 @@ language sql immutable set search_path = public as $$
         'tema-literatura-25', 'tema-literatura-100', 'tema-literatura-300', 'tema-film-25', 'tema-film-100', 'tema-film-300',
         'tema-sport-25', 'tema-sport-100', 'tema-sport-300',
         'zbehly-zemepis', 'zbehly-vlajky', 'zbehly-historie', 'zbehly-mytologie', 'zbehly-biologie', 'zbehly-geologie', 'zbehly-chemie', 'zbehly-fyzika', 'zbehly-umeni', 'zbehly-architektura', 'zbehly-hudba', 'zbehly-literatura', 'zbehly-film', 'zbehly-sport',
-        'turnaj-ucast', 'turnaj-ctvrtfinale', 'turnaj-semifinale', 'turnaj-bronz', 'turnaj-stribro', 'turnaj-zlato', 'turnaj-postupy-1', 'turnaj-postupy-5', 'turnaj-postupy-15'
+        'turnaj-ucast', 'turnaj-ctvrtfinale', 'turnaj-semifinale', 'turnaj-bronz', 'turnaj-stribro', 'turnaj-zlato', 'turnaj-postupy-1', 'turnaj-postupy-5', 'turnaj-postupy-15',
+        'tydenni-cile', 'tydenni-cile-5', 'tydenni-cile-20'
     ]::text[];
 $$;
 

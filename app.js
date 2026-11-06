@@ -14,6 +14,9 @@
         levelProgress, titleForLevel, nextTitle, answerXp, DAILY_XP, DAILY_ALL_XP, streakXp, MASTERY_STEPS, masteryStars, nextMastery
     } = window.MudrlantCore;
     const Visuals = window.MudrlantVisuals;
+    // Opakování karet (review.js) a týdenní cíle (goals.js); bez skriptu se jen nezobrazí
+    const Review = window.MudrlantReview || null;
+    const Goals = window.MudrlantGoals || null;
     const TOPICS = window.MudrlantTopics || [];
     const TOPIC_BY_ID = Object.fromEntries(TOPICS.map(topic => [topic.id, topic]));
     const APP_NAME = 'Mudrlant';
@@ -30,6 +33,9 @@
         pendingChallenge: 'mudrlant.pendingChallenge',
         homeTab: 'mudrlant.homeTab',
         progress: 'mudrlant.progress',
+        // Karty opakování s rozestupy a stav týdenních cílů – jen v zařízení, do účtu se nesynchronizují
+        review: 'mudrlant.review',
+        goals: 'mudrlant.goals',
         // 'host' = hráč na úvodu zvolil hraní bez přihlášení, úvod s přihlášením se už neukáže
         account: 'mudrlant.account'
     };
@@ -150,7 +156,15 @@
         return dev ? learned : Object.fromEntries(Object.entries(learned).map(([topic, ids]) => [topic, (Array.isArray(ids) ? ids : []).filter(id => !/^dev\d+$/.test(id))]));
     };
 
-    const createRound = () => ({ hintLevel: 1, variant: gameVariant || 'choices', answered: false, correct: false, points: 0, typed: false, answer: null, gaveUp: false });
+    // Karty opakování (review.js): dřívější chyby ze seznamu „Moje chyby“ se přidají jako karty na dnes
+    const loadReview = () => Review ? Review.importMistakes(Review.parse(readJson(KEYS.review)), loadMistakes(), getDayKey()) : [];
+    const saveReview = (cards) => writeJson(KEYS.review, cards);
+    const reviewDueCount = () => Review ? Review.dueCount(loadReview(), getDayKey()) : 0;
+    // Souhrn posledního dokončeného opakování (ukáže se v učení), null = žádný
+    let reviewSummary = null;
+
+    // review = otázka z opakování karet (poloviční XP)
+    const createRound = () => ({ hintLevel: 1, variant: gameVariant || 'choices', answered: false, correct: false, points: 0, typed: false, answer: null, gaveUp: false, review: mode === 'practice' && pool.kind === 'review' });
     const getLevelCount = (data) => 1 + data.hints.length;
 
     const VARIANTS = {
@@ -1271,6 +1285,7 @@
         if (mode === 'daily') return { icon: topic.icon, text: `${topic.title} · ${shortDay(current.dailyDate || getDayKey())}`, topic };
         if (mode === 'challenge' && challenge) return { icon: challenge.tournament ? 'trophy' : 'swords', text: `${challenge.tournament ? 'Turnaj' : 'Výzva'} · ${challenge.index + 1}/${challenge.count}`, topic };
         if (pool.kind === 'mistakes') return { icon: 'repeat', text: `Opakování chyb · ${loadMistakes().length}`, topic };
+        if (pool.kind === 'review') return { icon: 'repeat', text: `Opakování · ${Math.min(pool.done + 1, pool.total)}/${pool.total}`, topic };
         if (pool.kind === 'collection') {
             const ctx = loadedTopics.get(pool.topic);
             return { icon: 'layers', text: ctx ? `${ctx.topic.title} · ${collectionLabel(ctx, pool.collection)}` : 'Procvičování', topic };
@@ -1288,7 +1303,7 @@
 
     const updateControlsUI = () => {
         // Procvičování okruhu nebo chyb patří k učení
-        const fromLearn = mode === 'practice' && (pool.kind === 'collection' || pool.kind === 'mistakes');
+        const fromLearn = mode === 'practice' && (pool.kind === 'collection' || pool.kind === 'mistakes' || pool.kind === 'review');
         const section = screen === 'learn' ? 'learn' : screen === 'round' ? (mode === 'daily' || mode === 'challenge' ? 'home' : fromLearn ? 'learn' : 'practice') : 'home';
         updateProfileButton();
         const settingsButton = document.getElementById('btn-settings');
@@ -1303,6 +1318,21 @@
         });
         const practiceIcon = document.getElementById('practice-icon');
         if (practiceIcon) practiceIcon.classList.toggle('spin', isLoading && mode === 'practice');
+        // Čip u Učení: kolik karet opakování je dnes na řadě (jen když nějaká je)
+        const due = reviewDueCount();
+        let chip = buttons.learn.querySelector('[data-review-due]');
+        if (due) {
+            if (!chip) {
+                chip = document.createElement('span');
+                chip.dataset.reviewDue = '';
+                chip.className = 'absolute -right-1.5 -top-1.5 flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-gold-500 px-1 text-[10px] font-black leading-none text-brand-950 ring-2 ring-slate-50 dark:ring-slate-900';
+                buttons.learn.appendChild(chip);
+            }
+            chip.innerHTML = `<span class="sr-only">K opakování: </span>${due}`;
+            chip.title = `K opakování: ${due}`;
+        } else if (chip) chip.remove();
+        buttons.learn.classList.add('relative');
+        buttons.learn.setAttribute('aria-label', due ? `Učení – k opakování: ${due}` : 'Učení');
 
         // Při hraní je téma poznat na první pohled: barevný štítek a barevný spodní okraj hlavičky
         const place = describePlace();
@@ -1471,6 +1501,7 @@
     const renderHome = () => {
         screen = 'home';
         closePlaceInfo();
+        settleGoals();
         const stats = loadStats();
         const today = getDayKey();
         // Dnešní otázky: ikona tématu a stav, název v popisku (14 témat se vejde do dvou řádků)
@@ -1520,6 +1551,7 @@
                     </div>
                     <div class="grid grid-cols-7 gap-1">${dailyButtons}</div>
                 </section>
+                ${renderGoalsCard()}
                 <section class="grid max-h-[26rem] flex-1 grid-cols-4 auto-rows-fr gap-2">${mixTile}${ordered.map(tile).join('')}</section>`}
             </div>`;
         applyProgress(appContent);
@@ -2107,6 +2139,7 @@
             const remaining = loadMistakes().length;
             return remaining ? `Další chyba (zbývá ${remaining})` : 'Hotovo – zpět do učení';
         }
+        if (pool.kind === 'review') return pool.keys.length ? `Další karta (zbývá ${pool.keys.length})` : 'Hotovo – souhrn opakování';
         return pool.kind === 'collection' ? 'Další z okruhu' : 'Další otázka';
     };
 
@@ -2314,12 +2347,76 @@
             if (!sameRemote) await Social.saveProgress(user.id, { xp: merged.xp, badges: compact });
         } catch (error) { /* bez účtu nebo bez nových sloupců se postup jen drží v zařízení */ } finally { syncingProgress = false; }
     };
+    // --- Týdenní cíle (goals.js): tři cíle na týden, postup z počítadel rozdílem od snímku na začátku týdne ---
+    const goalMetrics = (progress) => {
+        const learnedMap = loadLearned();
+        return { ...normalizeCounters(progress.counters), learned: TOPICS.reduce((sum, topic) => sum + (learnedMap[topic.id] || []).length, 0) };
+    };
+    const currentGoals = (week) => Goals.weeklyGoals(week, { topics: TOPICS.map(topic => ({ id: topic.id, title: topic.title })), multiplayer: Boolean(Auth && Auth.isConfigured() && Social) });
+    // Stav týdne; nový týden začne novým snímkem (uloží se hned, ať se postup počítá od teď)
+    const loadGoalsState = (progress = loadProgress()) => {
+        const week = Goals.weekKey();
+        const saved = readJson(KEYS.goals);
+        const state = Goals.ensureState(saved, week, goalMetrics(progress));
+        if (!saved || saved.week !== week) writeJson(KEYS.goals, state);
+        return state;
+    };
+    // Splněné cíle: XP a oslava jen jednou; za všechny tři bonus a odznak (počítadlo weeksDone)
+    const settleGoals = () => {
+        if (!Goals || devActive()) return;
+        try {
+            const progress = loadProgress();
+            const state = loadGoalsState(progress);
+            const result = Goals.settle(state, currentGoals(state.week), goalMetrics(progress));
+            if (!result.awards.length && !result.bonus) return;
+            const levelBefore = levelProgress(progress.xp).level;
+            progress.xp += result.xp;
+            if (result.bonus) progress.counters.weeksDone = (progress.counters.weeksDone || 0) + 1;
+            const titles = grantBadges(progress);
+            saveProgress(progress);
+            writeJson(KEYS.goals, result.state);
+            result.awards.forEach(award => showCelebration('oslava', 'Cíl týdne splněn', `${award.title} · +${award.xp} XP`));
+            if (result.bonus) showCelebration('vitez', 'Všechny cíle týdne', `Bonus +${result.bonus} XP`);
+            announce(levelBefore, levelProgress(progress.xp).level, titles);
+            applyLook();
+            updateControlsUI();
+            syncProgress();
+        } catch (error) { console.error(error); }
+    };
+    // Kompaktní karta „Cíle týdne“ na záložce Jeden hráč: tři řádky s ukazatelem a odměnou, splněný zeleně s fajfkou
+    const renderGoalsCard = () => {
+        if (!Goals) return '';
+        const progress = loadProgress();
+        const state = loadGoalsState(progress);
+        const rows = Goals.progress(currentGoals(state.week), state, goalMetrics(progress));
+        const done = rows.filter(row => row.done).length;
+        const left = Goals.daysLeft();
+        const leftText = left === 1 ? 'poslední den' : left <= 4 ? `zbývají ${left} dny` : `zbývá ${left} dní`;
+        const row = ({ goal, value, done }) => `
+            <li title="${escapeHtml(goal.title)}" class="flex h-[1.375rem] items-center gap-1.5 text-[11px] ${done ? 'text-emerald-700 dark:text-emerald-300' : 'text-slate-700 dark:text-slate-200'}">
+                <i data-lucide="${done ? 'circle-check' : goal.icon}" class="h-3.5 w-3.5 shrink-0 ${done ? '' : 'text-slate-400 dark:text-slate-500'}"></i>
+                <span class="min-w-0 flex-1 truncate font-bold">${escapeHtml(goal.title)}</span>
+                ${done ? '' : `<span class="h-1 w-10 shrink-0 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700" aria-hidden="true"><span class="block h-full w-0 rounded-full bg-gold-500" data-progress="${Math.round(value / goal.target * 100)}"></span></span>`}
+                <span class="w-9 shrink-0 text-right text-[10px] font-bold tabular-nums ${done ? '' : 'text-slate-500 dark:text-slate-400'}">${done ? 'Hotovo' : `${value}/${goal.target}`}</span>
+                <span class="w-12 shrink-0 rounded-md px-1 py-0.5 text-center text-[10px] font-black ${done ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200' : 'bg-gold-100 text-gold-800 dark:bg-gold-900/40 dark:text-gold-200'}">+${goal.xp} XP</span>
+            </li>`;
+        return `
+            <section id="weekly-goals" aria-label="Cíle týdne" class="rounded-[1.4rem] bg-white px-2.5 py-2 shadow-sm ring-1 ring-slate-200/70 dark:bg-slate-800/70 dark:ring-slate-700/70">
+                <div class="mb-1 flex items-center justify-between gap-2 text-[11px] font-black">
+                    <span class="flex items-center gap-1.5 text-slate-800 dark:text-slate-100"><i data-lucide="goal" class="h-3.5 w-3.5 text-brand-700 dark:text-cream"></i> Cíle týdne <span class="font-bold text-slate-500 dark:text-slate-400">${done}/${rows.length}</span></span>
+                    <span class="truncate font-bold text-slate-500 dark:text-slate-400">${state.bonus ? `Bonus +${Goals.BONUS_XP} XP získán` : `vše +${Goals.BONUS_XP} XP · ${leftText}`}</span>
+                </div>
+                <ul class="flex flex-col gap-0.5">${rows.map(row).join('')}</ul>
+            </section>`;
+    };
+
     // Za odpověď: základ podle bodů, u dnešní otázky bonus a za sérii dní, za všech 14 dnešních bonus navíc.
     // Vrátí rozpis do výsledku (round.xp) a při nové úrovni ukáže hlášku.
     const awardXp = (stats) => {
         const before = loadProgress();
         const counters = before.counters;
         counters.answered += 1;
+        if (round.review) counters.reviewed += 1;
         if (counters.lastDay !== getDayKey()) { counters.days += 1; counters.lastDay = getDayKey(); }
         if (round.correct) {
             counters.correct += 1;
@@ -2353,6 +2450,7 @@
         round.xp = { total: gained, parts: parts.filter(part => part.xp > 0), badges: badgeTitles };
         saveProgress(progress);
         announce(levelProgress(before.xp).level, levelProgress(progress.xp).level, badgeTitles);
+        settleGoals();
         applyLook();
         syncProgress();
     };
@@ -2381,6 +2479,13 @@
         // Neuhodnutá položka jde do seznamu chyb v učení, správně uhodnutá z něj zmizí a počítá se do postupu v okruzích
         round.wasMistake = loadMistakes().includes(`${current.topic}:${current.id}`);
         writeJson(KEYS.mistakes, updateMistakes(loadMistakes(), `${current.topic}:${current.id}`, round.correct));
+        // Karta opakování: špatná odpověď kartu založí nebo vrátí na začátek, správná ji posune (v opakování vždy, jinak jen když je na řadě)
+        if (Review) saveReview(Review.onAnswer(loadReview(), `${current.topic}:${current.id}`, round.correct, getDayKey(), { force: Boolean(round.review) }));
+        if (round.review && pool.kind === 'review') {
+            pool.keys = pool.keys.filter(key => key !== `${current.topic}:${current.id}`);
+            pool.done += 1;
+            if (round.correct) pool.mastered += 1;
+        }
         if (round.correct) {
             const learned = loadLearned();
             const ids = new Set(learned[current.topic] || []);
@@ -2500,6 +2605,7 @@
         renderLoading('Vybírám otázku…', loadingTopic);
         try {
             let picked = await pick(0);
+            if (picked.abort) { isLoading = false; picked.abort(); return; }
             if (!picked.item) throw new Error('Není z čeho vybírat');
             let data = await createRoundData(picked.item, picked.ctx, picked.rng);
             // Chudý popis: vybere se jiná otázka (u dnešní otázky další určená položka), nejvýš třikrát; pak se vezme, co je
@@ -2616,6 +2722,25 @@
                     pool = { kind: 'mix' };
                 }
             }
+            if (pool.kind === 'review') {
+                // Karty popořadě; karta, jejíž položka v nových datech už není, se vyřadí a vezme se další
+                let cards = loadReview();
+                while (pool.keys.length && !item) {
+                    const key = pool.keys[0];
+                    const [topicId, id] = key.split(':');
+                    if (TOPIC_BY_ID[topicId]) {
+                        ctx = await loadTopic(topicId);
+                        item = ctx.byId.get(id);
+                    }
+                    if (!item) {
+                        pool.keys = pool.keys.slice(1);
+                        pool.total = Math.max(pool.done, pool.total - 1);
+                        cards = Review.removeCard(cards, key);
+                        saveReview(cards);
+                    }
+                }
+                if (!item) return { abort: finishReview };
+            }
             if (pool.kind === 'collection') {
                 ctx = await loadTopic(pool.topic);
                 item = pickItem(collectionItems(ctx, pool.collection), Math.random, history, ctx.topic.categories.map(c => c.key));
@@ -2632,6 +2757,22 @@
             if (item) rememberPlayed(item);
             return { item, ctx, rng: Math.random };
         }, pool.kind === 'topic' || pool.kind === 'collection' ? TOPIC_BY_ID[pool.topic] : pool.kind === 'mix' ? MIX : null);
+    };
+
+    // Opakování karet, které jsou dnes na řadě (review.js): hra s pevným seznamem položek, po dohrání souhrn v učení
+    const startReview = () => {
+        if (!Review || isLoading) return;
+        const keys = Review.dueCards(loadReview(), getDayKey()).map(Review.keyOf);
+        if (!keys.length) { showToast('Dnes není co opakovat'); return; }
+        reviewSummary = null;
+        startPractice({ kind: 'review', keys, total: keys.length, done: 0, mastered: 0 });
+    };
+    const finishReview = () => {
+        const mastered = pool.mastered || 0;
+        const total = pool.total || 0;
+        reviewSummary = total && Review ? { mastered, total, text: Review.summaryText({ mastered, total }, loadReview(), getDayKey()) } : null;
+        pool = { kind: 'mix' };
+        openLearn('home');
     };
 
     // Tlačítko „Hrát dál“: rozehraná otázka, jinak další otázka z naposledy hraného tématu či mixu
@@ -2653,6 +2794,10 @@
             const next = nextDailyTopic(current && current.topic);
             if (next) startNextDaily(next.id);
             else renderHome();
+            return;
+        }
+        if (pool.kind === 'review' && !pool.keys.length) {
+            finishReview();
             return;
         }
         if (pool.kind === 'mistakes' && !loadMistakes().length) {
@@ -2712,11 +2857,27 @@
             </button>`;
         // Stejná mřížka jako na úvodu: témata a „Moje chyby“ v posledních dvou políčkách vyplní celou výšku
         const tiles = groupedTopics().flatMap(group => group.topics).map(card).join('');
+        // Opakování s rozestupy: kolik karet je dnes na řadě; po dohrání souhrn, bez karet kdy přijde další
+        const cards = loadReview();
+        const today = getDayKey();
+        const due = Review ? Review.dueCount(cards, today) : 0;
+        const next = Review ? Review.nextDueText(cards, today) : '';
+        const reviewText = reviewSummary ? reviewSummary.text : due ? 'Chyby se vrací po 1, 3, 7, 14 a 30 dnech' : next ? `Nic na řadě, ${next}` : 'Co v kvízu spleteš, sem přijde k opakování';
+        const reviewSection = Review ? `
+            <section data-review-section class="flex items-center gap-3 rounded-2xl border border-slate-100 bg-white p-3 shadow-sm dark:border-slate-700 dark:bg-slate-800">
+                <span class="shrink-0 rounded-xl bg-gold-100 p-2 text-gold-700 dark:bg-gold-900/40 dark:text-gold-300"><i data-lucide="repeat" class="h-5 w-5"></i></span>
+                <span class="min-w-0 flex-1">
+                    <span class="block text-sm font-black leading-tight text-slate-800 dark:text-slate-100">K opakování dnes (${due})</span>
+                    <span class="block text-[11px] font-semibold leading-tight text-slate-500 dark:text-slate-400">${escapeHtml(reviewText)}</span>
+                </span>
+                ${due ? `<button type="button" data-action="review-start" class="flex shrink-0 items-center gap-1.5 rounded-xl btn-3d bg-brand-700 px-3 py-2.5 text-[13px] font-black text-white"><i data-lucide="play" class="h-4 w-4"></i> Opakovat</button>` : ''}
+            </section>` : '';
         return `
             <div class="text-center">
                 <h2 class="text-xl font-black tracking-tight text-slate-800 dark:text-slate-50">Učení</h2>
                 <p class="text-xs text-slate-500 dark:text-slate-400">Vyber téma, projdi si ho a nech se vyzkoušet. Bez bodů a spěchu.</p>
             </div>
+            ${reviewSection}
             <div class="grid max-h-[22rem] flex-1 grid-cols-4 auto-rows-fr gap-2">
                 ${tiles}
                 <button type="button" data-action="learn-mistakes" class="col-span-2 flex min-h-[4rem] min-w-0 flex-col items-center justify-center gap-1 rounded-2xl border border-rose-200 bg-rose-50 p-2 text-center shadow-sm transition-all active:scale-[0.98] dark:border-rose-900/60 dark:bg-rose-900/20">
@@ -4201,6 +4362,7 @@
                 const titles = grantBadges(progress);
                 saveProgress(progress);
                 announce(1, 1, titles);
+                settleGoals();
                 syncProgress();
             }
             if (challenge === c) renderChallengeDone(results);
@@ -4827,6 +4989,8 @@
                 // Odpověď se ztratila a výsledek už na serveru je: pokračuje se k výsledku zápasu
                 if (!/jen jednou/.test(error.message)) throw error;
             }
+            // Odehraný zápas turnaje do počítadel (týdenní cíl); umístění a odznaky doplní refreshTournaments
+            if (!c.counted) { c.counted = true; const progress = loadProgress(); progress.counters.tourPlayed += 1; saveProgress(progress); settleGoals(); }
             await refreshTournaments({ force: true });
             if (challenge === c) renderTournamentDone('ok');
         } catch (error) {
@@ -4958,6 +5122,7 @@
         'learn-next': () => moveAtlas(1),
         'learn-prev': () => moveAtlas(-1),
         'practice-mistakes': () => startPractice({ kind: 'mistakes' }),
+        'review-start': () => startReview(),
         'clear-mistakes': () => clearMistakes(),
         choice: (button) => {
             if (!round || round.variant === 'typed') return;
@@ -5070,8 +5235,8 @@
         else if (document.getElementById('settings-overlay')) closeSettings();
         else if (isLoading) return;
         else if (screen === 'round') {
-            const fromLearn = mode === 'practice' && (pool.kind === 'collection' || pool.kind === 'mistakes');
-            if (fromLearn) openLearn(pool.kind === 'mistakes' ? 'mistakes' : learn.view);
+            const fromLearn = mode === 'practice' && (pool.kind === 'collection' || pool.kind === 'mistakes' || pool.kind === 'review');
+            if (fromLearn) openLearn(pool.kind === 'mistakes' ? 'mistakes' : pool.kind === 'review' ? 'home' : learn.view);
             else renderHome();
         } else if (screen === 'challenge-done') {
             challengeHome();

@@ -610,7 +610,7 @@ test('odznaky: skupiny se stupni, podmínky podle počítadel a postupu', () => 
     const topics = Object.fromEntries(['zemepis', 'vlajky', 'historie', 'mytologie', 'biologie', 'geologie', 'chemie', 'fyzika', 'umeni', 'architektura', 'hudba', 'literatura', 'film', 'sport'].map(id => [id, 300]));
     const stars = Object.fromEntries(Object.keys(topics).map(id => [id, 5]));
     const topics12 = Object.fromEntries(Object.keys(topics).map(id => [id, 12]));
-    const many = core.earnedBadgeIds({ tourBest: 6, tourWins: 15, topicBest: topics12, correct: 10000, bestRun: 100, bestStreak: 365, days: 365, perfectDays: 30, dailyCorrect: 250, noHint: 500, typedCorrect: 500, hardCorrect: 200, fixed: 200, challenges: 100, wins: 100, bestWinRun: 10, created: 50, perfectChallenges: 25, topics }, { level: 100, learned: 3000, topicStars: stars, topicCount: 14 });
+    const many = core.earnedBadgeIds({ tourBest: 6, tourWins: 15, weeksDone: 20, topicBest: topics12, correct: 10000, bestRun: 100, bestStreak: 365, days: 365, perfectDays: 30, dailyCorrect: 250, noHint: 500, typedCorrect: 500, hardCorrect: 200, fixed: 200, challenges: 100, wins: 100, bestWinRun: 10, created: 50, perfectChallenges: 25, topics }, { level: 100, learned: 3000, topicStars: stars, topicCount: 14 });
     assert.equal(many.length, core.BADGES.length, 'všechny odznaky jdou získat');
     assert.ok(!core.earnedBadgeIds({ topics: { a: 1 } }, x).includes('vsestranny'));
     // Do účtu jen nejvyšší stupně a zpět
