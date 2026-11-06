@@ -180,6 +180,20 @@
     // --- Celé pořadí ---
     const IN_GAME = ['playing', 'out', 'finished'];
     const entryName = (entry) => (entry.player && entry.player.display_name) || 'Hráč';
+    // Součet bodů a času hráče ze všech jeho dohraných zápasů turnaje (výsledky soupeřů jsou vidět až po rozhodnutí zápasu, v pořadí skončeného turnaje tedy všechny)
+    const totalsOf = (matches, userId) => {
+        let points = 0; let timeMs = 0; let played = 0;
+        (matches || []).forEach(match => {
+            const row = resultOf(match, userId);
+            if (row && row.finished_at) { points += Number(row.points) || 0; timeMs += Number(row.time_ms) || 0; played += 1; }
+        });
+        return { points, timeMs, played };
+    };
+    const formatDuration = (ms) => { const total = Math.max(0, Math.round((Number(ms) || 0) / 1000)); return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`; };
+    // Přesné pořadí ve skupině vypadlých: víc bodů celkem, při shodě menší celkový čas, pak dřívější přihlášení
+    const byTotals = (totals) => (a, b) => (totals.get(b.user_id).points - totals.get(a.user_id).points)
+        || (totals.get(a.user_id).timeMs - totals.get(b.user_id).timeMs)
+        || String(a.joined_at || '').localeCompare(String(b.joined_at || '')) || byName(a, b);
     const byName = (a, b) => entryName(a).localeCompare(entryName(b), 'cs');
     // Rozmezí míst skupiny vypadlých: skupina o `count` hráčích, která začíná na místě `place` (5.–8.); jediný hráč má jen „3. místo“
     const placeRange = (place, count = 1) => {
@@ -206,17 +220,20 @@
         const placed = inGame.filter(entry => entry.place >= 1);
         const unplaced = inGame.filter(entry => !(entry.place >= 1) && !playing.some(row => row.entry === entry)).sort(byName);
         const groups = [];
+        const totals = new Map(inGame.map(entry => [entry.user_id, totalsOf(matches, entry.user_id)]));
+        const withTotals = (entry, place, label) => ({ entry, place, label, points: totals.get(entry.user_id).points, timeMs: totals.get(entry.user_id).timeMs });
         const top = placed.filter(entry => entry.place <= 4).sort((a, b) => a.place - b.place || byName(a, b));
         if (top.length) {
-            groups.push({ key: 'top', from: 1, to: 4, label: '1.–4. místo', roundName: '', individual: true, rows: top.map(entry => ({ entry, place: entry.place, label: entry.place === 1 ? 'Vítěz' : roundLabel(roundOfPlace(tournament.size, entry.place)) })) });
+            groups.push({ key: 'top', from: 1, to: 4, label: '1.–4. místo', roundName: '', individual: true, rows: top.map(entry => withTotals(entry, entry.place, entry.place === 1 ? 'Vítěz' : roundLabel(roundOfPlace(tournament.size, entry.place)))) });
         }
         const byPlace = new Map();
         placed.filter(entry => entry.place > 4).forEach(entry => { if (!byPlace.has(entry.place)) byPlace.set(entry.place, []); byPlace.get(entry.place).push(entry); });
         [...byPlace.keys()].sort((a, b) => a - b).forEach(place => {
-            const list = byPlace.get(place).sort(byName);
+            const list = byPlace.get(place).sort(byTotals(totals));
             const range = placeRange(place, list.length);
             const name = roundLabel(roundOfPlace(tournament.size, place));
-            groups.push({ key: `p${place}`, from: range.from, to: range.to, label: range.label, roundName: name, individual: false, rows: list.map(entry => ({ entry, place, label: name })) });
+            // přesná místa uvnitř skupiny podle celkových bodů a času
+            groups.push({ key: `p${place}`, from: range.from, to: range.to, label: range.label, roundName: name, individual: true, rows: list.map((entry, index) => withTotals(entry, range.from + index, name)) });
         });
         if (unplaced.length) groups.push({ key: 'none', from: null, to: null, label: 'Bez umístění', roundName: '', individual: false, rows: unplaced.map(entry => ({ entry, place: null, label: '' })) });
         return { playing, groups, total: inGame.length };
@@ -307,7 +324,7 @@
 
     return {
         QUESTIONS, MIN_PLAYERS, MAX_PLAYERS, WIN_XP, RULES,
-        parseDay, addDays, diffDays, pragueToday, formatDay, weekdayName, dayWord, weekLabel,
+        parseDay, addDays, totalsOf, formatDuration, diffDays, pragueToday, formatDay, weekdayName, dayWord, weekLabel,
         roundName, playersInRound, tournamentRoundName, roundDay, plural, playersWord, placeLabel, eliminatedLabel,
         groupRounds, currentRound, decided, involves, opponentOf, myMatch, resultOf, winnerPlace,
         cardState, statusText, noticeText, podium, nameMap, xpMatches,

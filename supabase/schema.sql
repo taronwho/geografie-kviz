@@ -573,6 +573,19 @@ begin
                 update public.tournament_entries set place = case when e.third then 3 else 1 end where tournament_id = tid and user_id = e.w;
                 update public.tournament_entries set place = case when e.third then 4 else 2 end where tournament_id = tid and user_id = e.l;
             end loop;
+            -- přesná místa uvnitř skupiny vypadlých: víc bodů celkem, při shodě menší celkový čas, pak dřívější přihlášení
+            with totals as (
+                select te.user_id, te.place as base, te.joined_at, coalesce(sum(tr.points), 0) as pts, coalesce(sum(tr.time_ms), 0) as tms
+                from public.tournament_entries te
+                left join public.tournament_matches tm on tm.tournament_id = te.tournament_id and te.user_id in (tm.p1, tm.p2)
+                left join public.tournament_results tr on tr.match_id = tm.id and tr.user_id = te.user_id and tr.finished_at is not null
+                where te.tournament_id = tid and te.status in ('playing', 'out') and te.place > 4
+                group by te.user_id, te.place, te.joined_at
+            ), ranked as (
+                select user_id, base + (row_number() over (partition by base order by pts desc, tms asc, joined_at asc, user_id) - 1)::integer as exact
+                from totals
+            )
+            update public.tournament_entries ue set place = ranked.exact from ranked where ue.tournament_id = tid and ue.user_id = ranked.user_id;
             update public.tournament_entries set status = 'finished' where tournament_id = tid and status in ('playing', 'out');
             update public.tournaments set status = 'finished' where id = tid;
             for e in select user_id, place from public.tournament_entries where tournament_id = tid and place is not null loop
