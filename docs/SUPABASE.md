@@ -122,6 +122,9 @@ Bez něj se karta turnaje v aplikaci prostě neukáže.
   (smaže i turnaje, ve kterých boti hráli). Boti hrají na střední úrovni (úspěšnost 45–80 %). Databáze tyto funkce pustí jen účtu zapsanému v `dev_admins`; zapiš se jednou v SQL Editoru
   (přezdívku nahraď svou): `insert into public.dev_admins (user_id) select id from public.profiles where lower(display_name) = lower('Taron');`
   Boti jsou řádky v `auth.users` s e-mailem `bot-…@bots.invalid`; ostrý provoz s nimi nepočítej a po zkoušce je smaž.
+- **Rozehraný zápas turnaje:** aplikace ukládá postup zápasu do `localStorage`; po zavření nebo ztrátě spojení nabídne karta turnaje v den kola **Pokračovat** od další otázky. Server o začátku zná (`tournament_start_match`) a čas měří od něj, nic se tím nezastavuje; po půlnoci dne kola se zápas nabízet přestane a hráč dostane hlášku, že vypršel.
+- **Chyby z provozu:** `monitor.js` posílá neodchycené chyby (nejvýš 5 za relaci a 20 za den a zařízení) do tabulky `client_errors` (zpráva, zkrácený zásobník, adresa bez parametrů, prohlížeč, verze aplikace; žádné osobní údaje). Zapisovat smí kdokoli s veřejným klíčem, číst jen `dev_admins` (Nastavení → vývojářský režim → Chyby z provozu, `dev_client_errors()`). Server pustí nejvýš 100 řádků za hodinu a 500 za den.
+- **Verze schématu:** `schema_version()` na konci `schema.sql` se zvyšuje při každé změně souboru spolu s `REQUIRED_SCHEMA` v `app.js` (hlídá `tests/sql-monitor.test.js`). Je-li databáze novější než aplikace, hráč uvidí „Aktualizuj stránku“; je-li starší (funkce chybí nebo má nižší číslo), uvidí jednou denně „Databáze není aktuální“ a správce v Nastavení návod spustit `schema.sql` znovu.
 - Odznaky za turnaje (`turnaj-*`) a za zběhlost v tématech (`zbehly-*`) jsou v `badge_catalog()`; přibude-li další odznak, přidej ho i tam.
 
 ## Jak to v aplikaci funguje

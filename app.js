@@ -836,27 +836,50 @@
             </li>`).join('')}</ul>` : '<p id="client-errors" class="text-sm text-slate-500 dark:text-slate-400">Žádné hlášené chyby.</p>';
         showDialog('Chyby z provozu', `<div class="flex flex-col gap-2"><p class="text-xs text-slate-500 dark:text-slate-400">Posledních 50 chyb z aplikací hráčů, seskupených podle stejné zprávy a zásobníku. Bez osobních údajů.</p>${list}</div>`);
     };
-    // Zastaralé schéma databáze: správce (dev_admins nebo vývojářský režim) vidí v Nastavení jednou za den nenápadný řádek; běžným hráčům nic
+    // Verze schématu: aplikace starší než databáze („Aktualizuj stránku“, hlásí se každému) a databáze starší než aplikace („Databáze není aktuální“:
+    // upozornění dostane každý jednou denně, správce (dev_admins nebo vývojářský režim) navíc v Nastavení návod, co spustit)
     const SCHEMA_SEEN_KEY = 'mudrlant.schemaSeen';
     let schemaOutdated = null; // { have, need } nebo null
-    let schemaBannerShown = false;
+    let schemaNoticeClosed = false;
+    const SCHEMA_NOTICE = {
+        client: { text: 'Aplikace je starší než databáze. Aktualizuj stránku, ať všechno funguje.', action: 'schema-update', label: 'Aktualizovat' },
+        database: { text: 'Databáze není aktuální, některé funkce teď nemusí fungovat. Správce ji brzy aktualizuje.', action: 'schema-close', label: 'Rozumím' }
+    };
+    const showSchemaNotice = (kind) => {
+        const notice = SCHEMA_NOTICE[kind];
+        if (!notice || schemaNoticeClosed || document.getElementById('schema-notice')) return;
+        const element = document.createElement('div');
+        element.id = 'schema-notice';
+        element.dataset.kind = kind;
+        element.setAttribute('role', 'alert');
+        element.className = 'fixed inset-x-3 top-[max(0.5rem,env(safe-area-inset-top))] z-[60] mx-auto flex max-w-md items-center gap-2 rounded-2xl bg-amber-50 px-3 py-2 text-[12px] font-semibold leading-snug text-amber-900 shadow-lg ring-1 ring-amber-300/80 dark:bg-amber-900 dark:text-amber-50 dark:ring-amber-600/70';
+        element.innerHTML = `<p class="min-w-0 flex-1">${escapeHtml(notice.text)}</p><button type="button" data-action="${notice.action}" class="shrink-0 rounded-xl bg-amber-500 px-3 py-1.5 text-[12px] font-black text-white active:scale-95">${escapeHtml(notice.label)}</button>${notice.action === 'schema-close' ? '' : '<button type="button" data-action="schema-close" class="shrink-0 rounded-xl px-2 py-1.5 text-[12px] font-bold underline underline-offset-2">Později</button>'}`;
+        element.addEventListener('click', (event) => {
+            const button = event.target.closest('[data-action]');
+            if (!button) return;
+            closeSchemaNotice();
+            if (button.dataset.action === 'schema-update') updateApp();
+        });
+        document.body.appendChild(element);
+    };
+    const closeSchemaNotice = () => { schemaNoticeClosed = true; const element = document.getElementById('schema-notice'); if (element) element.remove(); };
     const checkSchemaVersion = async (user) => {
         if (!Social || !user) return;
         try {
+            const have = await Social.schemaVersion();
+            if (have === undefined || !signedUser() || signedUser().id !== user.id) return;
+            if (have !== null && have > REQUIRED_SCHEMA) { schemaOutdated = null; showSchemaNotice('client'); return; }
+            if (have === REQUIRED_SCHEMA) { schemaOutdated = null; return; }
+            if (readJson(SCHEMA_SEEN_KEY) !== getDayKey()) { writeJson(SCHEMA_SEEN_KEY, getDayKey()); showSchemaNotice('database'); }
             const admin = devOn() || await Social.isDevAdmin();
             if (!admin || !signedUser() || signedUser().id !== user.id) return;
-            const have = await Social.schemaVersion();
-            schemaOutdated = have === null || have < REQUIRED_SCHEMA ? { have, need: REQUIRED_SCHEMA } : null;
-            const banner = document.getElementById('schema-banner');
-            if (schemaOutdated && document.getElementById('settings-overlay') && !banner) openSettings(meNote);
+            schemaOutdated = { have, need: REQUIRED_SCHEMA };
+            if (document.getElementById('settings-overlay') && !document.getElementById('schema-banner')) openSettings(meNote);
         } catch (error) { /* bez spojení se nic neukazuje */ }
     };
-    const schemaBannerDue = () => Boolean(schemaOutdated) && (schemaBannerShown || readJson(SCHEMA_SEEN_KEY) !== getDayKey());
     const renderSchemaBanner = () => {
-        if (!schemaBannerDue()) return '';
-        schemaBannerShown = true;
-        writeJson(SCHEMA_SEEN_KEY, getDayKey());
-        return `<p id="schema-banner" class="mt-2 rounded-xl bg-amber-50 px-3 py-2 text-[11px] font-semibold leading-snug text-amber-900 ring-1 ring-amber-300/70 dark:bg-amber-900/30 dark:text-amber-100 dark:ring-amber-700/60" role="status">Databáze je zastaralá: spusť znovu supabase/schema.sql (verze ${schemaOutdated.have === null ? 'bez čísla' : schemaOutdated.have}, aplikace potřebuje ${schemaOutdated.need}).</p>`;
+        if (!schemaOutdated) return '';
+        return `<p id="schema-banner" class="mt-2 rounded-xl bg-amber-50 px-3 py-2 text-[11px] font-semibold leading-snug text-amber-900 ring-1 ring-amber-300/70 dark:bg-amber-900/30 dark:text-amber-100 dark:ring-amber-700/60" role="status">Databáze není aktuální: spusť znovu supabase/schema.sql (verze ${schemaOutdated.have === null ? 'bez čísla' : schemaOutdated.have}, aplikace potřebuje ${schemaOutdated.need}).</p>`;
     };
     const renderDevPanel = () => !devOn() ? '' : `
         <div class="mt-3 rounded-2xl border-2 border-dashed border-amber-400/70 p-2.5">
@@ -4891,12 +4914,24 @@
     };
     // Pokračování rozehraného zápasu (uložená relace tohoto zařízení) od první nezodpovězené otázky; server měří čas od začátku zápasu.
     // Když jsou všechny otázky zodpovězené (aplikace se zavřela před odesláním), výsledek se rovnou odešle.
-    const resumeTournament = (tid) => {
+    const resumeTournament = async (tid) => {
+        if (!findTournament(tid) || !Social || tournamentStarting || isLoading) return;
+        tournamentStarting = true;
+        // Server rozhoduje: před pokračováním se stav zápasu načte znovu (mezitím mohl skončit den kola nebo se zápas rozhodl)
+        try { await refreshTournaments({ force: true }); } catch (error) { /* bez spojení se pokračuje podle posledního známého stavu */ }
+        tournamentStarting = false;
         const view = findTournament(tid);
-        if (!view || !Social || tournamentStarting || isLoading) return;
+        if (!view) return;
         syncTournamentStates();
         const saved = savedTournamentChallenge();
-        if (view.state.step !== 'resume' || !saved || saved.mid !== view.state.matchId) { refreshTournaments({ force: true }); return; }
+        if (view.state.step !== 'resume' || !saved || saved.mid !== view.state.matchId) {
+            if (saved && view.state.matchId === saved.mid) markTournamentFinished(saved.mid);
+            const expired = view.state.step === 'counting' || view.state.step === 'lost' || view.state.step === 'won';
+            if (document.getElementById('dialog-overlay')) closeDialog();
+            showToast(expired ? 'Tenhle zápas už vypršel, kolo skončilo.' : 'Tenhle zápas už nejde dohrát.');
+            paintChallenges();
+            return;
+        }
         const def = saved.challenge;
         const results = Array.from({ length: def.count }, (_, index) => def.results[index] || null);
         const next = results.findIndex(row => !row);

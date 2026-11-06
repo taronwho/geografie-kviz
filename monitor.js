@@ -1,7 +1,7 @@
 // Sběr chyb z provozu: neodchycené chyby (window error, unhandledrejection) jdou po dávkách do tabulky client_errors v Supabase
 // (REST insert s veřejným klíčem; pravidla řádků pustí jen zápis, čte je správce v Nastavení přes dev_client_errors()).
 // Bez osobních údajů: jen zpráva, zkrácený zásobník volání (adresy bez parametrů), adresa stránky bez parametrů, prohlížeč, verze aplikace a čas.
-// Nejvýš 5 chyb za relaci, stejná chyba (zpráva + zásobník) jen jednou. Bez nastaveného Supabase (config.js) nic nedělá.
+// Nejvýš 5 chyb za relaci a 20 za den a zařízení, stejná chyba (zpráva + zásobník) jen jednou. Bez nastaveného Supabase (config.js) nic nedělá.
 // Načítá se hned po config.js, ať chytí i chyby při startu ostatních skriptů.
 (function (root, factory) {
     const api = factory(root);
@@ -10,6 +10,8 @@
 })(typeof self !== 'undefined' ? self : this, (root) => {
     'use strict';
     const MAX_PER_SESSION = 5;
+    const MAX_PER_DAY = 20;
+    const DAY_KEY = 'mudrlant.errors';
     const MAX_MESSAGE = 500;
     const MAX_STACK = 1000;
     const MAX_URL = 300;
@@ -35,7 +37,7 @@
     // Z chyby (Error, text, cokoli) zpráva a zásobník
     const describe = (error, fallback = '') => {
         if (error && typeof error === 'object') {
-            const message = typeof error.message === 'string' && error.message ? error.message : fallback || String(error);
+            const message = typeof error.message === 'string' && error.message ? error.message : fallback || (() => { try { return JSON.stringify(error); } catch (e) { return String(error); } })();
             const name = typeof error.name === 'string' && error.name && error.name !== 'Error' && !message.startsWith(error.name) ? `${error.name}: ` : '';
             return { message: cut(`${name}${message}`, MAX_MESSAGE) || 'Neznámá chyba', stack: cleanStack(error.stack) };
         }
@@ -44,7 +46,7 @@
     };
 
     // Sběrač: report() zařadí chybu, flush() odešle dávku. Závislosti jdou podstrčit (testy).
-    const createMonitor = ({ config = {}, fetch = null, agent = '', href = '', now = () => new Date(), schedule = null, cancel = null } = {}) => {
+    const createMonitor = ({ config = {}, fetch = null, agent = '', href = '', now = () => new Date(), schedule = null, cancel = null, storage = null } = {}) => {
         const url = String(config.supabaseUrl || '').replace(/\/+$/, '');
         const key = String(config.supabaseAnonKey || '');
         const enabled = Boolean(url && key && typeof fetch === 'function');
@@ -53,6 +55,15 @@
         let sent = 0;
         let version = '';
         let timer = null;
+        // Denní limit na zařízení (localStorage může chybět nebo selhat: pak platí jen limit relace)
+        const dayOf = () => now().toISOString().slice(0, 10);
+        const dayCount = () => {
+            try {
+                const saved = JSON.parse(storage.getItem(DAY_KEY) || 'null');
+                return saved && saved.day === dayOf() ? Math.max(0, Number(saved.count) || 0) : 0;
+            } catch (error) { return 0; }
+        };
+        const addDay = () => { try { storage.setItem(DAY_KEY, JSON.stringify({ day: dayOf(), count: dayCount() + 1 })); } catch (error) { /* bez úložiště */ } };
         const flush = () => {
             if (timer !== null && cancel) cancel(timer);
             timer = null;
@@ -69,12 +80,13 @@
         };
         // Vrací true, když se chyba zařadila k odeslání (nová a limit relace nevyčerpaný)
         const report = (kind, error, fallback = '') => {
-            if (!enabled || sent >= MAX_PER_SESSION) return false;
+            if (!enabled || sent >= MAX_PER_SESSION || (storage && dayCount() >= MAX_PER_DAY)) return false;
             const { message, stack } = describe(error, fallback);
             const hash = hashOf(`${message}\n${stack}`);
             if (seen.has(hash)) return false;
             seen.add(hash);
             sent += 1;
+            if (storage) addDay();
             queue.push({ kind: cut(kind, 20) || 'error', message, stack: stack || null, url: cleanUrl(href) || null, user_agent: cut(agent, MAX_AGENT) || null, hash, happened_at: now().toISOString() });
             if (schedule && timer === null) timer = schedule(flush, FLUSH_DELAY);
             else if (!schedule) flush();
@@ -92,6 +104,7 @@
             fetch: typeof win.fetch === 'function' ? win.fetch.bind(win) : null,
             agent: win.navigator ? win.navigator.userAgent : '',
             href: win.location ? win.location.href : '',
+            storage: (() => { try { return win.localStorage; } catch (error) { return null; } })(),
             schedule: (run, delay) => win.setTimeout(run, delay),
             cancel: (id) => win.clearTimeout(id)
         });
@@ -110,7 +123,7 @@
         return monitor;
     };
 
-    const api = { MAX_PER_SESSION, MAX_STACK, hashOf, cleanUrl, cleanStack, describe, createMonitor, install, instance: null, setVersion: (text) => { if (api.instance) api.instance.setVersion(text); } };
+    const api = { MAX_PER_SESSION, MAX_PER_DAY, MAX_STACK, hashOf, cleanUrl, cleanStack, describe, createMonitor, install, instance: null, setVersion: (text) => { if (api.instance) api.instance.setVersion(text); } };
     // V prohlížeči se zapojí hned (modul v Node jen vrací funkce)
     if (root && typeof root.document !== 'undefined' && !(typeof module === 'object' && module.exports)) api.instance = install(root);
     return api;

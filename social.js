@@ -307,11 +307,12 @@
             throw error;
         }
     };
-    // Verze schématu v databázi (schema_version() na konci supabase/schema.sql); null = databáze funkci nemá (schéma je starší než verze 1)
+    // Verze schématu v databázi (schema_version() na konci supabase/schema.sql); null = databáze funkci nemá (schéma je starší než verze 1),
+    // undefined = odpověď nejde přečíst (nic se nehlásí)
     const schemaVersion = async () => {
         try {
             const value = Math.floor(Number(await request('POST', 'rpc/schema_version', { body: {} })));
-            return Number.isFinite(value) ? value : null;
+            return Number.isFinite(value) ? value : undefined;
         } catch (error) {
             if (error.status === 404) return null;
             throw error;

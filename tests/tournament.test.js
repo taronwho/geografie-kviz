@@ -124,6 +124,8 @@ test('stav karty: rozehraný zápas s uloženou relací jde dohrát jen v den ko
     // po půlnoci dne kola se obnova nenabízí
     card = T.cardState({ tournament: running, entries: [entry(ME), entry(OTHER)], matches: [match({ results: started })], me: ME, today: '2026-11-10', savedMatch: 'm1' });
     assert.equal(card.step, 'counting');
+    assert.equal(card.expired, true);
+    assert.match(T.statusText(card, {}, '2026-11-10'), /Čas na zápas vypršel/);
     // dohraný zápas má přednost
     card = T.cardState({ tournament: running, entries: [entry(ME), entry(OTHER)], matches: [match({ results: [{ user_id: ME, started_at: 'x', finished_at: 'y', correct: 4, points: 9 }] })], me: ME, today: '2026-11-09', savedMatch: 'm1' });
     assert.equal(card.step, 'waiting');

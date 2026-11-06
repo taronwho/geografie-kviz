@@ -116,7 +116,8 @@
         }
         const gap = diffDays(day, today);
         if (gap > 0) return { ...out, step: 'later' };
-        if (gap < 0) return { ...out, step: 'counting' };
+        // Den kola skončil: rozehraný a nedohraný zápas vypršel (expired), jinak se jen dopočítává
+        if (gap < 0) return { ...out, step: 'counting', expired: Boolean(own && !own.finished_at) };
         if (own && own.finished_at) return { ...out, step: 'waiting' };
         // Rozehraný zápas: server zná začátek a toto zařízení má uloženou relaci, pokračuje se od další otázky (čas běží od začátku).
         // Bez uložené relace (jiné zařízení, smazaná data) se kolo počítá jako neodehrané.
@@ -141,7 +142,7 @@
         case 'resume': return 'Zápas máš rozehraný, dohraj ho. Čas běží od začátku zápasu.';
         case 'waiting': return `Odehráno ${state.correct}/${QUESTIONS}, čekáš na soupeře.`;
         case 'later': return `Další kolo hraješ ${dayWord(state.day, today)} proti ${opponent}.`;
-        case 'counting': return 'Kolo skončilo, výsledek se právě počítá.';
+        case 'counting': return state.expired ? 'Čas na zápas vypršel, kolo skončilo dřív, než jsi ho dohrál. Počítá se jako neodehrané.' : 'Kolo skončilo, výsledek se právě počítá.';
         case 'won': return state.final ? (state.third ? 'Vyhrál jsi zápas o 3. místo.' : 'Vyhrál jsi finále!') : `Postoupil jsi, další kolo je ${dayWord(state.nextDay, today)}.`;
         case 'lost': return state.label ? `Vypadl jsi: ${state.label}.` : 'Vypadl jsi z turnaje.';
         default: return 'Čeká se na další kolo.';

@@ -851,7 +851,8 @@ grant execute on function public.dev_tournament_add_bots(uuid, integer), public.
 -- ===== Chyby z provozu (monitor.js) =====
 -- Aplikace sem po dávkách posílá neodchycené chyby z prohlížeče: jen zprávu, zkrácený zásobník volání (adresy bez parametrů), adresu stránky bez parametrů,
 -- prohlížeč, verzi aplikace a čas; žádné osobní údaje ani id hráče. Zapsat smí kdokoli s veřejným klíčem (i nepřihlášený), číst jen správce
--- v dev_admins přes dev_client_errors() (Nastavení → vývojářský režim → Chyby z provozu). Celkem nejvýš 100 řádků za hodinu (trigger).
+-- v dev_admins přes dev_client_errors() (Nastavení → vývojářský režim → Chyby z provozu). Celkem nejvýš 100 řádků za hodinu a 500 za den (trigger);
+-- aplikace sama pošle nejvýš 5 chyb za relaci a 20 za den a zařízení.
 create table if not exists public.client_errors (
     id bigint generated always as identity primary key,
     created_at timestamptz not null default now(),
@@ -875,12 +876,13 @@ drop policy if exists "chyby: zapisuje kdokoli" on public.client_errors;
 create policy "chyby: zapisuje kdokoli" on public.client_errors for insert to anon, authenticated with check (true);
 -- žádná politika pro čtení: přes API nikdo, jen dev_client_errors()
 
--- Čas zápisu určuje server; celkem nejvýš 100 chyb za hodinu (zaplavení tabulky z jednoho zařízení nebo skriptem)
+-- Čas zápisu určuje server; celkem nejvýš 100 chyb za hodinu a 500 za den (zaplavení tabulky z jednoho zařízení nebo skriptem)
 create or replace function public.limit_client_errors() returns trigger
 language plpgsql security definer set search_path = public as $$
 begin
-    if (select count(*) from public.client_errors where created_at > now() - interval '1 hour') >= 100 then
-        raise exception 'Příliš mnoho hlášených chyb za hodinu.' using errcode = '22023';
+    if (select count(*) from public.client_errors where created_at > now() - interval '1 hour') >= 100
+        or (select count(*) from public.client_errors where created_at > now() - interval '1 day') >= 500 then
+        raise exception 'Příliš mnoho hlášených chyb.' using errcode = '22023';
     end if;
     new.created_at := now();
     return new;
