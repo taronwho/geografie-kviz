@@ -1334,6 +1334,10 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
                     const wanted = (body && body.wanted) || [];
                     return json(Object.values(db.profiles).filter(profile => profile.id !== me.id && !(profile.blocked_topics || []).some(topic => wanted.includes(topic)) && !(body && body.wants_mix && profile.accepts_mix === false)).slice(0, 1));
                 }
+                if (url.pathname === '/rest/v1/rpc/search_players') {
+                    const term = String((body && body.term) || '').toLowerCase();
+                    return json(Object.values(db.profiles).filter(profile => profile.id !== me.id && profile.display_name.toLowerCase().includes(term)).slice(0, 8));
+                }
                 if (url.pathname === '/rest/v1/profiles') {
                     if (request.method() === 'PATCH') {
                         if (body.display_name && Object.values(db.profiles).some(profile => profile.id !== eq('id') && profile.display_name.toLowerCase() === body.display_name.toLowerCase())) return json({ code: '23505' }, 409);

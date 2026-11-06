@@ -913,6 +913,8 @@
             <div class="flex flex-wrap gap-1"><button type="button" data-dev="errors" class="rounded-lg bg-rose-100 px-2 py-1 text-[11px] font-bold text-rose-900 active:scale-95 dark:bg-rose-900/50 dark:text-rose-100">Chyby z provozu</button></div>` : ''}
             ${Social ? `<p class="mb-1 mt-2 text-[11px] font-black uppercase tracking-widest text-amber-700 dark:text-amber-400">Hlášení otázek</p>
             <div class="flex flex-wrap gap-1"><button type="button" data-dev="reports" class="rounded-lg bg-emerald-100 px-2 py-1 text-[11px] font-bold text-emerald-900 active:scale-95 dark:bg-emerald-900/50 dark:text-emerald-100">Seznam hlášení</button></div>` : ''}
+            ${Social ? `<p class="mb-1 mt-2 text-[11px] font-black uppercase tracking-widest text-amber-700 dark:text-amber-400">Moderace</p>
+            <div class="flex flex-wrap gap-1"><button type="button" data-dev="player-reports" class="rounded-lg bg-rose-100 px-2 py-1 text-[11px] font-bold text-rose-900 active:scale-95 dark:bg-rose-900/50 dark:text-rose-100">Nahlášení hráči</button></div>` : ''}
         </div>`;
     const ME_HEADING = 'text-[11px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400';
     const VARIANT_BRIEF = { choices: { short: 'Možnosti', text: '4 možnosti, až 4 body' }, typed: { short: 'Psaní', text: 'Těžší, dvojnásobek bodů' } };
@@ -1072,7 +1074,10 @@
                     <div class="flex justify-between px-1">${Social.COLORS.map(color => `<button type="button" data-pick-color="${color}" aria-label="Barva ${color}" aria-pressed="${color === meDraft.color}" class="h-7 w-7 rounded-full ${avatarBg(color)} ${color === meDraft.color ? 'ring-2 ring-slate-800/70 ring-offset-2 dark:ring-white/80 dark:ring-offset-slate-900' : ''} active:scale-95"></button>`).join('')}</div>
                     <input type="range" min="0" max="355" step="5" value="${Social.customHue(meDraft.color) ?? Social.customHue('h' + ({ emerald: 160, sky: 200, violet: 260, rose: 350, amber: 40, teal: 175, orange: 25, indigo: 240 }[meDraft.color] || 160))}" data-pick-hue aria-label="Všechny barvy: odstín pozadí profilovky" class="mt-2 h-6 w-full cursor-pointer appearance-none rounded-full bg-[linear-gradient(90deg,#f00,#ff0,#0f0,#0ff,#00f,#f0f,#f00)]">
                 </div>
-                <button type="button" data-open-accept class="btn-3d-light flex w-full items-center gap-2 rounded-2xl bg-white px-3 py-2 text-left dark:bg-slate-800"><i data-lucide="shield-check" class="h-5 w-5 shrink-0 text-brand-700 dark:text-brand-300"></i><span class="min-w-0 flex-1 truncate text-[13px] font-black text-slate-800 dark:text-slate-100">Přijímané výzvy <span class="font-semibold text-slate-500 dark:text-slate-400">· ${escapeHtml(acceptSummary())}</span></span><i data-lucide="chevron-right" class="h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400"></i></button>
+                <div class="flex gap-2">
+                    <button type="button" data-open-accept class="btn-3d-light flex min-w-0 flex-1 items-center gap-2 rounded-2xl bg-white px-3 py-2 text-left dark:bg-slate-800"><i data-lucide="shield-check" class="h-5 w-5 shrink-0 text-brand-700 dark:text-brand-300"></i><span class="min-w-0 flex-1 truncate text-[13px] font-black text-slate-800 dark:text-slate-100">Přijímané výzvy <span class="font-semibold text-slate-500 dark:text-slate-400">· ${escapeHtml(acceptSummary())}</span></span><i data-lucide="chevron-right" class="h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400"></i></button>
+                    ${Friends ? `<button type="button" data-open-blocked aria-label="Zablokovaní hráči: ${myBlocks ? myBlocks.length : 'načítám'}" title="Zablokovaní hráči" class="btn-3d-light relative flex h-auto w-11 shrink-0 items-center justify-center rounded-2xl bg-white text-brand-700 dark:bg-slate-800 dark:text-brand-300"><i data-lucide="ban" class="h-5 w-5"></i>${myBlocks && myBlocks.length ? `<span class="absolute -right-1 -top-1 flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-rose-600 px-1 text-[10px] font-black text-white">${myBlocks.length}</span>` : ''}</button>` : ''}
+                </div>
                 <div class="grid grid-cols-2 gap-2">
                     <button type="submit" data-save-profile class="${PRIMARY_BUTTON}"><i data-lucide="check" class="h-5 w-5"></i> Uložit</button>
                     <button type="button" data-auth-logout class="${SECONDARY_BUTTON}"><i data-lucide="log-out" class="h-5 w-5"></i> Odhlásit</button>
@@ -1271,10 +1276,12 @@
             }
             if (event.target.closest('[data-open-progress]')) { closeSettings(); openProgress(); return; }
             if (event.target.closest('[data-open-accept]')) { closeSettings(); openAccepted(); return; }
+            if (event.target.closest('[data-open-blocked]')) { closeSettings(); openBlockedList(); return; }
             const devButton = event.target.closest('[data-dev]');
             if (devButton && devButton.dataset.dev.startsWith('tour-')) { devTournamentAction(devButton.dataset.dev); return; }
             if (devButton && devButton.dataset.dev === 'errors') { closeSettings(); openClientErrors(); return; }
             if (devButton && devButton.dataset.dev === 'reports') { openQuestionReports(); return; }
+            if (devButton && devButton.dataset.dev === 'player-reports') { closeSettings(); openDevReports(); return; }
             if (devButton && devButton.dataset.dev === 'bulb') {
                 // Vrátí žárovku u sovy: zapomene, že dnešní událost už hráč přečetl
                 try { localStorage.removeItem(FACT_KEY); } catch (e) { /* bez úložiště se nic nevrací */ }
@@ -3432,6 +3439,11 @@
     let myChallenges = null;
     let myRating = null;
     let incomingList = null;
+    // Přátelé (friends.js): řádky z friends_list (null = nenačtené nebo databáze přátele nemá), reakce k posledním výzvám, moji zablokovaní (null = nenačtení)
+    const Friends = window.MudrlantFriends;
+    let friendRows = null;
+    let recentReactions = [];
+    let myBlocks = null;
     let recentExpanded = false; // Poslední výzvy: rozbalené všechny (jinak jen tři nejnovější)
     let challengesLoading = false;
     const signedUser = () => (Auth && Auth.getState().user) || null;
@@ -3609,6 +3621,7 @@
                 <span aria-hidden="true" class="absolute inset-y-0 left-0 w-1.5 ${look[0]}"></span>
                 <span class="flex shrink-0 -space-x-2">${rivals || `<span class="flex h-7 w-7 items-center justify-center rounded-full bg-slate-100 text-slate-500 dark:text-slate-400 dark:bg-slate-700"><i data-lucide="users" class="h-4 w-4"></i></span>`}</span>
                 <span class="min-w-0 flex-1 truncate text-[13px] font-bold text-slate-800 dark:text-slate-100">${escapeHtml(row.challenge ? challengeTopicTitle(row.challenge.topic) : '')}</span>
+                ${Friends && signedUser() ? Friends.reactionBadge(Friends.reactionFor(recentReactions, row.challenge_id, signedUser().id), row.others[0] ? playerName(row.others[0].player) : '') : ''}
                 <span class="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-black ${look[1]}">${outcome}</span>
                 <span class="w-11 shrink-0 text-right text-[15px] font-black tabular-nums text-slate-800 dark:text-slate-100">${row.correct}/${count}</span>
             </button>`;
@@ -3768,7 +3781,11 @@
         const incoming = incomingList || [];
         const resume = challenge && !challenge.done && !challenge.tournament
             ? `<button type="button" data-action="challenge-resume" class="flex w-full items-center justify-center gap-2 rounded-2xl btn-3d bg-gradient-to-b from-gold-400 to-gold-600 px-4 py-2.5 text-[15px] font-black text-brand-950"><i data-lucide="play" class="h-5 w-5"></i> Pokračovat ve výzvě (${challenge.index + 1}/${challenge.count})</button>` : '';
-        const waiting = incoming.length ? `<div class="flex flex-col gap-1.5"><p class="flex items-center gap-1.5 ${LABEL}"><span class="h-2 w-2 rounded-full bg-gold-500"></span>Čekají na tebe</p>${incoming.slice(0, 5).map(incomingRow).join('')}</div>` : '';
+        // Přátelé (friends.js): žádosti o přátelství mezi tím, co čeká; pás přátel pod rychlými akcemi (jen když nějací jsou)
+        const social = Friends ? Friends.split(friendRows) : { friends: [], incoming: [] };
+        const requests = Friends ? Friends.requestRows(social.incoming, friendsHelpers()) : '';
+        const waiting = incoming.length || requests ? `<div class="flex flex-col gap-1.5"><p class="flex items-center gap-1.5 ${LABEL}"><span class="h-2 w-2 rounded-full bg-gold-500"></span>Čekají na tebe</p>${incoming.slice(0, 5).map(incomingRow).join('')}${requests}</div>` : '';
+        const friendsStrip = Friends ? Friends.friendsStrip(social.friends, friendsHelpers()) : '';
         // Zápas turnaje, který se hraje dnes, je mezi tím, co čeká: karta turnaje se zlatým Hrát jde nahoru
         const tournamentFirst = tournamentWaits();
         return `
@@ -3778,9 +3795,41 @@
                 ${waiting}
                 ${tournamentFirst ? '' : tournamentCard()}
                 ${quickActions()}
+                ${friendsStrip}
                 ${leagueCard()}
                 ${recentSection(incoming)}
             </div>`;
+    };
+    // Pomocné funkce pro friends.js: obrázek hráče a zápis hráče mezi známé (klepnutí na něj otevře profil)
+    const friendsHelpers = () => ({ avatarHtml, escapeHtml, register: (player) => { if (player && player.id) knownPlayers.set(player.id, player); } });
+    const friendById = (id) => (friendRows || []).find(row => row.id === id) || null;
+    // Načte přátele a reakce k posledním výzvám (databáze bez nich vrátí null / prázdno; sekce se pak neukážou)
+    const loadFriends = async (user) => {
+        if (!Friends) return;
+        const [rows, reactions, blocks] = await Promise.all([
+            Social.friendsList().catch(() => null),
+            Social.reactionsFor({ challengeIds: (myChallenges || []).map(row => row.challenge_id) }).catch(() => []),
+            myBlocks === null ? Social.blockedPlayers(user.id).catch(() => null) : Promise.resolve(myBlocks)
+        ]);
+        if (!signedUser() || signedUser().id !== user.id) return;
+        friendRows = rows;
+        recentReactions = reactions;
+        myBlocks = blocks;
+    };
+    // Žádost o přátelství z řádku „Čekají na tebe“: přijmout / odmítnout (odmítnutí žádost smaže)
+    const answerFriendRequest = async (otherId, accept) => {
+        const user = signedUser();
+        if (!user || !Friends) return;
+        const row = document.querySelector(`[data-friend-request="${otherId}"]`);
+        if (row) row.querySelectorAll('button').forEach(button => { button.disabled = true; });
+        try {
+            if (accept) await Social.acceptFriend(user.id, otherId); else await Social.removeFriend(user.id, otherId);
+            friendRows = (friendRows || []).map(item => item.id === otherId ? (accept ? { ...item, status: 'accepted' } : null) : item).filter(Boolean);
+            showToast(accept ? `${playerName(friendById(otherId) || knownPlayers.get(otherId))} je teď tvůj přítel.` : 'Žádost odmítnuta.');
+        } catch (error) {
+            showToast(error && error.message ? error.message : 'Nepodařilo se. Zkus to znovu.');
+        }
+        paintChallenges();
     };
     const renderChallengesSection = () => Auth && Auth.isConfigured() && Social ? `<section id="challenges-section">${challengesInner()}</section>` : '';
     const paintChallenges = () => {
@@ -3810,6 +3859,10 @@
             myChallenges = mine;
             myRating = rating;
             incomingList = incoming;
+            paintChallenges();
+            // Přátelé a reakce až po hlavním obsahu (záložka se vykreslí dřív); poslední aktivita se zapíše nejvýš jednou za 5 minut
+            if (Friends) Social.touchSeen().catch(() => {});
+            await loadFriends(user);
             paintChallenges();
         } finally {
             challengesLoading = false;
@@ -4083,7 +4136,9 @@
             if (draft.opponent) {
                 return `<div class="mt-2"><div class="flex items-center gap-3 rounded-xl bg-white p-2 shadow-sm ring-2 ring-brand-600 dark:bg-slate-800">${avatarHtml(draft.opponent, 'h-8 w-8 text-base')}<span class="min-w-0 flex-1 truncate text-sm font-black text-slate-800 dark:text-slate-100">${escapeHtml(playerName(draft.opponent))}</span><button type="button" data-clear-opp class="rounded-lg px-2 py-1 text-xs font-bold text-slate-500 underline dark:text-slate-400">Změnit</button></div>${blockNote()}</div>`;
             }
-            return `<input id="opp-search" type="text" maxlength="24" autocomplete="off" placeholder="Začni psát přezdívku hráče" value="${escapeHtml(draft.query)}" class="mt-2 w-full rounded-xl border-2 border-slate-200 bg-white px-3 py-2.5 text-base font-bold text-slate-800 focus:border-brand-600 focus:outline-none dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"><div id="opp-results" class="mt-2 flex flex-col gap-1.5">${foundRows()}</div>`;
+            // Přátelé k rychlému výběru (friends.js) nad hledáním podle přezdívky
+            const quick = Friends ? Friends.quickFriends(Friends.split(friendRows).friends, friendsHelpers()) : '';
+            return `${quick}<input id="opp-search" type="text" maxlength="24" autocomplete="off" placeholder="${quick ? 'Nebo začni psát přezdívku hráče' : 'Začni psát přezdívku hráče'}" value="${escapeHtml(draft.query)}" class="mt-2 w-full rounded-xl border-2 border-slate-200 bg-white px-3 py-2.5 text-base font-bold text-slate-800 focus:border-brand-600 focus:outline-none dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"><div id="opp-results" class="mt-2 flex flex-col gap-1.5">${foundRows()}</div>`;
         };
         // Tři jasně odlišené možnosti: konkrétní hráč (výchozí), náhodný hráč, odkaz pro kohokoli
         const whoCard = (id, icon, title, text) => {
@@ -4178,7 +4233,8 @@
                 if (count) { draft.count = Number(count.dataset.chCount); render(); }
                 if (who) { draft.who = who.dataset.chWho; note = ''; render(); }
                 if (pick) {
-                    draft.opponent = draft.found.find(player => player.id === pick.dataset.pickOpp) || null;
+                    // Z výsledků hledání, nebo z rychlého výběru přátel
+                    draft.opponent = (draft.found || []).find(player => player.id === pick.dataset.pickOpp) || friendById(pick.dataset.pickOpp) || null;
                     draft.blocked = null;
                     draft.mixOk = true;
                     note = '';
@@ -4463,6 +4519,89 @@
         let failed = false;
         let busy = false;
         let note = '';
+        // Přátelé a moderace (friends.js): tlačítko přátelství, menu ⋯ (Nahlásit, Zablokovat), poslední reakce od hráče
+        let friendBusy = false;
+        let menuOpen = false;
+        let view = 'profile'; // 'profile' | 'block' (potvrzení) | 'report' (formulář)
+        let reportReason = null;
+        let reportNote = '';
+        let reportBusy = false;
+        let lastReaction = null;
+        const isBlocked = () => Boolean(myBlocks && myBlocks.some(row => row.id === playerId));
+        const socialRow = () => {
+            if (!Friends || !signedUser()) return '';
+            if (view === 'block') return Friends.blockConfirm(playerName(player), friendBusy);
+            const relation = Friends.relation(friendRows, playerId);
+            // Bez tabulky přátel v databázi (friendRows === null) se tlačítko neukáže; menu ⋯ zůstává
+            const button = friendRows === null ? '' : Friends.friendButton(relation, { busy: friendBusy, blocked: isBlocked() });
+            const friend = friendById(playerId);
+            const balance = friend && friend.status === 'accepted' ? Friends.balanceText(friend) : '';
+            const act = friend ? Friends.activity(friend.last_seen) : { text: '' };
+            return `<div class="flex items-center gap-2">${isBlocked() ? `<div class="min-w-0 flex-1">${Friends.blockedNote(playerName(player))}</div>` : button}${Friends.moreButton(menuOpen)}</div>
+                ${menuOpen ? Friends.moreMenu(isBlocked()) : ''}
+                ${friend && friend.status === 'accepted' && (act.text || balance) ? `<p class="text-center text-[11px] font-semibold text-slate-500 dark:text-slate-400">${[act.text ? `Přítel · ${escapeHtml(act.text)}` : 'Přítel', balance ? `bilance ${escapeHtml(balance)}` : ''].filter(Boolean).join(' · ')}</p>` : ''}
+                ${lastReaction && lastReaction.emoji ? `<p class="flex items-center justify-center gap-1.5 text-[12px] font-semibold text-slate-600 dark:text-slate-300">Poslední reakce od ${escapeHtml(playerName(player))}: ${Friends.reactionBadge(lastReaction.emoji, playerName(player))} ${escapeHtml(Friends.REACTION_LABELS[lastReaction.emoji] || '')}</p>` : ''}`;
+        };
+        const friendAction = async (action) => {
+            if (friendBusy || !Friends) return;
+            friendBusy = true;
+            note = '';
+            render();
+            try {
+                if (action === 'add') await Social.addFriend(user.id, playerId);
+                else if (action === 'accept') await Social.acceptFriend(user.id, playerId);
+                else await Social.removeFriend(user.id, playerId);
+                friendRows = (await Social.friendsList().catch(() => friendRows)) || friendRows;
+                const now = Friends.relation(friendRows, playerId);
+                if (action === 'add' || action === 'accept') note = now === 'friend' ? `${playerName(player)} je teď tvůj přítel.` : 'Žádost odeslána.';
+                paintChallenges();
+            } catch (error) {
+                note = error && error.message ? error.message : 'Nepodařilo se. Zkus to znovu.';
+            }
+            friendBusy = false;
+            render();
+        };
+        const toggleBlock = async () => {
+            if (friendBusy) return;
+            friendBusy = true;
+            note = '';
+            render();
+            try {
+                if (isBlocked()) {
+                    await Social.unblockPlayer(user.id, playerId);
+                    myBlocks = (myBlocks || []).filter(row => row.id !== playerId);
+                    note = `${playerName(player)} je odblokovaný.`;
+                } else {
+                    await Social.blockPlayer(user.id, playerId);
+                    myBlocks = [...(myBlocks || []), { id: playerId, created_at: new Date().toISOString(), player }];
+                    friendRows = (friendRows || []).filter(row => row.id !== playerId);
+                    note = `${playerName(player)} je zablokovaný.`;
+                    paintChallenges();
+                }
+            } catch (error) {
+                note = error && error.message ? error.message : 'Nepodařilo se. Zkus to znovu.';
+            }
+            friendBusy = false;
+            menuOpen = false;
+            view = 'profile';
+            render();
+        };
+        const sendReport = async () => {
+            if (reportBusy || !reportReason) return;
+            const field = document.getElementById('report-note');
+            if (field) reportNote = field.value;
+            reportBusy = true;
+            render();
+            try {
+                await Social.reportPlayer(user.id, playerId, reportReason, reportNote);
+                view = 'profile';
+                note = 'Díky, nahlášení jsme přijali. Správce se na to podívá.';
+            } catch (error) {
+                note = error && error.message ? error.message : 'Nahlášení se nepodařilo odeslat. Zkus to znovu.';
+            }
+            reportBusy = false;
+            render();
+        };
         const levelAndBadges = (value) => {
             const level = levelProgress(value.xp || 0).level;
             const owned = expandBadges((value.badges || []).filter(id => BADGE_BY_ID[id]));
@@ -4495,13 +4634,30 @@
                         <button type="button" data-edit-challenge ${busy ? 'disabled' : ''} class="btn-3d-light mt-2 flex w-full items-center justify-center gap-1.5 rounded-2xl bg-white px-4 py-2.5 text-sm font-black text-slate-700 dark:bg-slate-800 dark:text-slate-200"><i data-lucide="settings-2" class="h-4 w-4"></i> Upravit nastavení výzvy</button>
                     </div>`;
             }
-            showDialog('Profil hráče', `
+            if (view === 'report' && Friends) {
+                body = Friends.reportBody(Social.REPORT_REASONS, reportReason, reportNote, { busy: reportBusy }) + `<button type="button" data-report-back class="mt-2 flex w-full items-center justify-center gap-1.5 rounded-2xl px-3 py-2 text-[13px] font-black text-slate-600 dark:text-slate-300"><i data-lucide="chevron-left" class="h-4 w-4"></i> Zpět na profil</button>`;
+            }
+            showDialog(view === 'report' ? 'Nahlásit hráče' : 'Profil hráče', `
                 <div class="flex flex-col gap-4">
                     <div class="flex flex-col items-center gap-2 text-center">${avatarHtml(player, 'h-20 w-20 text-5xl')}<p class="text-xl font-black text-slate-800 dark:text-slate-100">${escapeHtml(playerName(player))}</p>${theirProgress ? levelAndBadges(theirProgress) : ''}${theirRating ? `<p id="player-league">${leagueChip(theirRating.rating)}</p>` : ''}</div>
-                    ${body}
-                    ${note ? DIALOG_NOTE(note) : ''}
+                    ${view === 'report' ? '' : socialRow()}
+                    ${isBlocked() && view !== 'report' ? '' : body}
+                    ${note ? DIALOG_NOTE(note, /přijali|přítel|odeslána|odblokovaný|zablokovaný/.test(note) ? 'text-emerald-700 dark:text-emerald-300' : undefined) : ''}
                 </div>`, {
+                onSubmit: (event) => { if (event.target.id === 'report-form') sendReport(); },
+                onInput: (event) => { if (event.target.id === 'report-note') reportNote = event.target.value; },
                 onClick: async (event) => {
+                    const friendButton = event.target.closest('[data-friend]');
+                    if (friendButton) { friendAction(friendButton.dataset.friend); return; }
+                    if (event.target.closest('[data-more]')) { menuOpen = !menuOpen; render(); return; }
+                    if (event.target.closest('[data-report]')) { view = 'report'; menuOpen = false; note = ''; render(); return; }
+                    if (event.target.closest('[data-report-back]')) { view = 'profile'; render(); return; }
+                    const reason = event.target.closest('[data-reason]');
+                    if (reason) { reportReason = reason.dataset.reason; const field = document.getElementById('report-note'); if (field) reportNote = field.value; render(); return; }
+                    const block = event.target.closest('[data-block]');
+                    if (block) { if (block.dataset.block === 'off') toggleBlock(); else { view = 'block'; menuOpen = false; render(); } return; }
+                    if (event.target.closest('[data-block-cancel]')) { view = 'profile'; render(); return; }
+                    if (event.target.closest('[data-block-go]')) { toggleBlock(); return; }
                     if (event.target.closest('[data-edit-challenge]') && !busy && stats) {
                         closeDialog();
                         openNewChallenge({ opponent: player, last: stats.last });
@@ -4529,6 +4685,13 @@
             });
         };
         render();
+        // Přátelé, moji zablokovaní a poslední reakce od hráče (databáze bez nich vrátí null, nic se neukáže)
+        if (Friends) {
+            const open = () => { const overlay = document.getElementById('dialog-overlay'); return Boolean(overlay && /^(Profil hráče|Nahlásit hráče)$/.test(overlay.dataset.title)); };
+            if (friendRows === null) Social.friendsList().then(rows => { if (rows) { friendRows = rows; if (open()) render(); } }).catch(() => {});
+            if (myBlocks === null) Social.blockedPlayers(user.id).then(rows => { if (rows) { myBlocks = rows; if (open()) render(); } }).catch(() => {});
+            Social.lastReactionFrom(user.id, playerId).then(row => { if (row) { lastReaction = row; if (open()) render(); } }).catch(() => {});
+        }
         // Úroveň a odznaky hráče (bez nových sloupců v databázi se prostě nezobrazí)
         if (Rating) Social.getRating(playerId).then(value => { theirRating = value; if (document.getElementById('dialog-overlay')) render(); }).catch(() => {});
         Social.getProgress(playerId).then(value => { theirProgress = value; if (stats && document.getElementById('dialog-overlay')) render(); }).catch(() => {});
@@ -4538,6 +4701,70 @@
             failed = true;
         }
         if (document.getElementById('dialog-overlay')) render();
+    };
+    // Nastavení → Profil: seznam zablokovaných hráčů s odblokováním (friends.js)
+    const openBlockedList = async () => {
+        const user = signedUser();
+        if (!user || !Social || !Friends) return;
+        let busyId = null;
+        let note = '';
+        const render = () => showDialog('Zablokovaní hráči', `
+            <div class="flex flex-col gap-3">
+                <p class="text-xs leading-snug text-slate-500 dark:text-slate-400">Zablokovaný hráč tě nenajde v hledání, nevyzve tě a nevybere se ti jako náhodný soupeř. V žebříčku zůstává.</p>
+                ${myBlocks === undefined ? '<p class="text-sm font-semibold text-slate-500 dark:text-slate-400">Načítám…</p>' : Friends.blockedList(myBlocks, friendsHelpers())}
+                ${note ? DIALOG_NOTE(note) : ''}
+            </div>`, {
+            onClick: async (event) => {
+                const button = event.target.closest('[data-unblock]');
+                if (!button || busyId) return;
+                busyId = button.dataset.unblock;
+                button.disabled = true;
+                try {
+                    await Social.unblockPlayer(user.id, busyId);
+                    myBlocks = (myBlocks || []).filter(row => row.id !== busyId);
+                    note = '';
+                } catch (error) {
+                    note = error && error.message ? error.message : 'Odblokování se nepodařilo. Zkus to znovu.';
+                }
+                busyId = null;
+                render();
+            }
+        });
+        // Seznam ještě nebyl načtený: okno se ukáže hned (Načítám…) a po načtení se překreslí; jinak rovnou
+        const needsLoad = myBlocks === null;
+        if (needsLoad) myBlocks = undefined;
+        render();
+        if (needsLoad) {
+            try { myBlocks = await Social.blockedPlayers(user.id); } catch (error) { myBlocks = null; note = 'Seznam se nepodařilo načíst. Zkontroluj připojení.'; }
+            if (document.getElementById('dialog-overlay') && document.getElementById('dialog-overlay').dataset.title === 'Zablokovaní hráči') render();
+        }
+    };
+    // Dev panel: nahlášení hráči (jen účet v dev_admins), tlačítko Vyřešeno
+    const openDevReports = async () => {
+        if (!signedUser() || !Social || !Friends) { showToast('Nejdřív se přihlas.'); return; }
+        let rows = null;
+        let note = '';
+        const render = () => showDialog('Nahlášení hráči', `
+            <div class="flex flex-col gap-3">
+                ${rows === null ? '<p class="text-sm font-semibold text-slate-500 dark:text-slate-400">Načítám…</p>' : Friends.devReports(rows, Social.REPORT_REASONS, friendsHelpers())}
+                ${note ? DIALOG_NOTE(note) : ''}
+            </div>`, {
+            onClick: async (event) => {
+                const button = event.target.closest('[data-resolve]');
+                if (!button) return;
+                button.disabled = true;
+                try {
+                    await Social.devResolveReport(button.dataset.resolve);
+                    rows = (rows || []).map(row => String(row.id) === button.dataset.resolve ? { ...row, resolved_at: new Date().toISOString() } : row);
+                } catch (error) {
+                    note = error && error.message ? error.message : 'Nepodařilo se. Zkus to znovu.';
+                }
+                render();
+            }
+        });
+        render();
+        try { rows = await Social.devReports(); } catch (error) { rows = []; note = error && error.message ? error.message : 'Nahlášení se nepodařilo načíst.'; }
+        if (document.getElementById('dialog-overlay') && document.getElementById('dialog-overlay').dataset.title === 'Nahlášení hráči') render();
     };
     // Klepnutí na obrázek hráče kdekoli (žebříček, výzvy) otevře jeho profil; zachytí se dřív než klepnutí na řádek kolem něj
     document.addEventListener('click', (event) => {
@@ -4716,7 +4943,9 @@
             : state === 'error'
                 ? `<div class="flex flex-col gap-2"><p class="text-sm font-semibold text-rose-700 dark:text-rose-400">Výsledek se nepodařilo uložit. Zkontroluj připojení.</p><button type="button" data-action="challenge-retry" class="${PRIMARY_BUTTON}">Zkusit znovu</button></div>`
                 : `<ol class="flex flex-col gap-1.5">${results && results.length ? rankingRows(results, c.count, user && user.id) : ''}</ol>
+                    ${Friends && bestRival && bestRival.user_id ? Friends.reactionBar(bestRival.user_id, c.reaction || null, { busy: Boolean(c.reacting), name: playerName(bestRival.player) }) : ''}
                     <p class="text-sm text-slate-500 dark:text-slate-400">${results && results.length > 1 ? 'Porovnání s ostatními hráči.' : 'Pošli kód kamarádům, ať ti to oplatí.'}</p>`;
+        if (state === 'ok') c.lastResults = results;
         appContent.innerHTML = `
             <div class="fade-in flex min-h-full w-full flex-col gap-4 bg-slate-50 p-4 pb-6 dark:bg-slate-900">
                 <div class="rounded-[1.5rem] bg-gradient-to-br from-brand-600 to-brand-900 p-5 text-center text-white shadow-lg">
@@ -5504,6 +5733,7 @@
                 ? `<div class="flex flex-col gap-2"><p class="text-sm font-semibold text-rose-700 dark:text-rose-400" role="alert">${escapeHtml(message || 'Výsledek se nepodařilo uložit. Zkontroluj připojení.')}</p><button type="button" data-action="challenge-retry" class="${PRIMARY_BUTTON}">Zkusit znovu</button></div>`
                 : `<p data-tournament-outcome class="text-center text-sm font-semibold leading-snug text-slate-700 dark:text-slate-200">${escapeHtml(text)}</p>
                     ${match && view ? `<ul class="flex flex-col gap-1.5">${tournamentMatchHtml(match, new Map(view.entries.map(entry => [entry.user_id, entry])), user && user.id)}</ul>` : ''}
+                    ${Friends && match && user ? Friends.reactionBar(match.p1 === user.id ? match.p2 : match.p1, c.reaction || null, { busy: Boolean(c.reacting) }) : ''}
                     ${info && info.step === 'won' && match && match.decided_by !== 'earlier' ? `<p class="text-center text-sm font-black text-emerald-700 dark:text-emerald-400">+${Tournament.winXp(match.round)} XP za vyhraný zápas</p>` : ''}`;
         appContent.innerHTML = `
             <div class="fade-in flex min-h-full w-full flex-col gap-4 bg-slate-50 p-4 pb-6 dark:bg-slate-900">
@@ -5521,6 +5751,23 @@
         renderIcons(appContent);
         appContent.scrollTo(0, 0);
         updateControlsUI();
+    };
+    // Reakce po zápase (👍 🔥 😅 🤝) na obrazovce výsledku výzvy nebo zápasu turnaje; opakovaná reakce tu první přepíše
+    const sendReaction = async (emoji, toId) => {
+        const c = challenge;
+        const user = signedUser();
+        if (!c || !user || !Friends || c.reacting || !toId) return;
+        const repaint = () => { if (challenge !== c) return; if (c.tournament) renderTournamentDone('ok'); else renderChallengeDone(c.lastResults || null); };
+        c.reacting = true;
+        repaint();
+        try {
+            await Social.react(user.id, c.tournament ? { matchId: c.tournament.mid } : { challengeId: c.code }, toId, emoji);
+            c.reaction = emoji;
+        } catch (error) {
+            showToast(error && error.message ? error.message : 'Reakci se nepodařilo poslat.');
+        }
+        c.reacting = false;
+        repaint();
     };
     const tournamentActions = {
         'tournament-open': (button) => openTournament(button.dataset.tid),
@@ -5569,6 +5816,10 @@
         },
         'open-profile': () => openProfile(),
         'open-accept': () => openAccepted(),
+        // Přátelé a reakce (friends.js)
+        'friend-accept': (button) => answerFriendRequest(button.dataset.id, true),
+        'friend-decline': (button) => answerFriendRequest(button.dataset.id, false),
+        react: (button) => sendReaction(button.dataset.emoji, button.dataset.to),
         'weekly-board': () => openWeeklyBoard(),
         'league-help': () => openLeagueHelp(),
         'home-tab': (button) => { writeJson(KEYS.homeTab, button.dataset.tab === 'multi' ? 'multi' : 'single'); renderHome(); refreshTournaments(); },
@@ -5817,7 +6068,7 @@
             if (document.getElementById('settings-overlay')) openSettings();
             // Úvod s přihlášením: po přihlášení dál (k variantě nebo domů), po neúspěchu znovu s chybou
             if (document.getElementById('account-welcome') && (Auth.hasSession() || state.error)) showStart();
-            if (!state.user) { myProfile = null; myBlocked = null; myAcceptsMix = true; myChallenges = null; myRating = null; incomingList = null; resetTournaments(); updateProfileButton(); paintChallenges(); return; }
+            if (!state.user) { myProfile = null; myBlocked = null; myAcceptsMix = true; myChallenges = null; myRating = null; incomingList = null; friendRows = null; recentReactions = []; myBlocks = null; resetTournaments(); updateProfileButton(); paintChallenges(); return; }
             // Po přihlášení (i návratu z Googlu) se otevře výzva, na kterou hráč klepl v odkazu
             const pending = readJson(KEYS.pendingChallenge);
             if (pending) {

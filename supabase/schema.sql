@@ -1228,3 +1228,284 @@ $$;
 
 revoke all on function public.export_my_data(), public.delete_my_account() from public, anon;
 grant execute on function public.export_my_data(), public.delete_my_account() to authenticated;
+-- ===== Sociální vrstva: přátelé, reakce po zápase, blokování a nahlášení =====
+-- Kdy byl hráč naposled v aplikaci (touch_seen() nejvýš jednou za 5 minut; klient sloupec psát nemůže). Přátelé vidí „aktivní dnes / před 3 dny“.
+alter table public.profiles add column if not exists last_seen timestamptz;
+create or replace function public.touch_seen() returns void
+language sql security definer set search_path = public as $$
+    update public.profiles set last_seen = now() where id = auth.uid() and (last_seen is null or last_seen < now() - interval '5 minutes');
+$$;
+
+-- Blokování: zablokovaný hráč mě nenajde v hledání, nevyzve mě, nevybere se mi jako náhodný soupeř (a naopak); v žebříčku zůstává (veřejný)
+create table if not exists public.player_blocks (
+    blocker uuid not null references public.profiles (id) on delete cascade,
+    blocked uuid not null references public.profiles (id) on delete cascade,
+    created_at timestamptz not null default now(),
+    primary key (blocker, blocked),
+    check (blocker <> blocked)
+);
+create index if not exists player_blocks_blocked_idx on public.player_blocks (blocked);
+alter table public.player_blocks enable row level security;
+drop policy if exists "bloky: vlastní" on public.player_blocks;
+create policy "bloky: vlastní" on public.player_blocks for all to authenticated using (blocker = auth.uid()) with check (blocker = auth.uid());
+-- Je mezi dvěma hráči blok (kterýmkoli směrem)?
+create or replace function public.is_blocked(a uuid, b uuid) returns boolean
+language sql stable security definer set search_path = public as $$
+    select exists (select 1 from public.player_blocks where (blocker = a and blocked = b) or (blocker = b and blocked = a));
+$$;
+
+-- Přátelství: řádek (kdo žádá, koho) se stavem pending → accepted; přijímá jen oslovený, ruší kdokoli z dvojice
+create table if not exists public.friendships (
+    user_id uuid not null references public.profiles (id) on delete cascade,
+    friend_id uuid not null references public.profiles (id) on delete cascade,
+    status text not null default 'pending',
+    created_at timestamptz not null default now(),
+    primary key (user_id, friend_id),
+    check (user_id <> friend_id)
+);
+alter table public.friendships drop constraint if exists friendships_status_list;
+alter table public.friendships add constraint friendships_status_list check (status in ('pending', 'accepted'));
+create index if not exists friendships_friend_idx on public.friendships (friend_id, status);
+alter table public.friendships enable row level security;
+drop policy if exists "přátelé: vidí obě strany" on public.friendships;
+create policy "přátelé: vidí obě strany" on public.friendships for select to authenticated using (auth.uid() in (user_id, friend_id));
+drop policy if exists "přátelé: žádost posílá hráč sám" on public.friendships;
+create policy "přátelé: žádost posílá hráč sám" on public.friendships for insert to authenticated with check (user_id = auth.uid() and status = 'pending');
+drop policy if exists "přátelé: přijímá oslovený" on public.friendships;
+create policy "přátelé: přijímá oslovený" on public.friendships for update to authenticated using (friend_id = auth.uid()) with check (friend_id = auth.uid() and status = 'accepted');
+drop policy if exists "přátelé: ruší kdokoli z dvojice" on public.friendships;
+create policy "přátelé: ruší kdokoli z dvojice" on public.friendships for delete to authenticated using (auth.uid() in (user_id, friend_id));
+
+-- Blok: nejvýš 500 na hráče, čas určuje server a přátelství s blokovaným končí
+create or replace function public.on_block() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+    new.created_at := now();
+    if (select count(*) from public.player_blocks where blocker = new.blocker) >= 500 then
+        raise exception 'Máš zablokováno příliš mnoho hráčů.' using errcode = 'P0001';
+    end if;
+    delete from public.friendships where (user_id = new.blocker and friend_id = new.blocked) or (user_id = new.blocked and friend_id = new.blocker);
+    return new;
+end;
+$$;
+drop trigger if exists player_blocks_on_block on public.player_blocks;
+create trigger player_blocks_on_block before insert on public.player_blocks for each row execute function public.on_block();
+
+-- Počet přátel a čekajících žádostí hráče (limit 200)
+create or replace function public.friend_count(uid uuid) returns integer
+language sql stable security definer set search_path = public as $$
+    select count(*)::integer from public.friendships where uid in (user_id, friend_id);
+$$;
+-- Žádost o přátelství: ne blokovanému, nejvýš 200 přátel, nejvýš 30 žádostí za hodinu; opačná čekající žádost se rovnou přijme (nový řádek nevznikne)
+create or replace function public.on_friend_request() returns trigger
+language plpgsql security definer set search_path = public as $$
+declare reverse_status text;
+begin
+    new.created_at := now();
+    new.status := 'pending';
+    if public.is_blocked(new.user_id, new.friend_id) then raise exception 'Tohoto hráče nejde přidat do přátel.' using errcode = 'P0001'; end if;
+    select status into reverse_status from public.friendships where user_id = new.friend_id and friend_id = new.user_id;
+    if reverse_status = 'accepted' then return null; end if;
+    if reverse_status = 'pending' then
+        update public.friendships set status = 'accepted' where user_id = new.friend_id and friend_id = new.user_id;
+        return null;
+    end if;
+    if public.friend_count(new.user_id) >= 200 then raise exception 'Máš už 200 přátel, víc se nevejde.' using errcode = 'P0001'; end if;
+    if (select count(*) from public.friendships where user_id = new.user_id and created_at > now() - interval '1 hour') >= 30 then
+        raise exception 'Poslal jsi příliš mnoho žádostí, zkus to za chvíli.' using errcode = 'P0001';
+    end if;
+    return new;
+end;
+$$;
+drop trigger if exists friendships_request on public.friendships;
+create trigger friendships_request before insert on public.friendships for each row execute function public.on_friend_request();
+-- Přijetí: mění se jen stav (ne dvojice ani čas), zpět na čekající to nejde, přijímající má také nejvýš 200 přátel
+create or replace function public.on_friend_accept() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+    new.user_id := old.user_id;
+    new.friend_id := old.friend_id;
+    new.created_at := old.created_at;
+    if old.status = 'accepted' and new.status <> 'accepted' then raise exception 'Přátelství jde jen zrušit.' using errcode = 'P0001'; end if;
+    if old.status = 'pending' and new.status = 'accepted' and (select count(*) from public.friendships where new.friend_id in (user_id, friend_id) and status = 'accepted') >= 200 then
+        raise exception 'Máš už 200 přátel, víc se nevejde.' using errcode = 'P0001';
+    end if;
+    return new;
+end;
+$$;
+drop trigger if exists friendships_accept on public.friendships;
+create trigger friendships_accept before update on public.friendships for each row execute function public.on_friend_accept();
+
+-- Moji přátelé a žádosti (oběma směry) s profilem, poslední aktivitou a vzájemnou bilancí z výzev (víc správných, pak víc bodů)
+drop function if exists public.friends_list();
+create or replace function public.friends_list() returns table (
+    id uuid, display_name text, avatar text, color text, frame text, title_pref text, owl text, rating integer, last_seen timestamptz,
+    status text, direction text, since timestamptz, wins integer, losses integer, draws integer
+)
+language sql stable security definer set search_path = public as $$
+    with mine as (
+        select case when f.user_id = auth.uid() then f.friend_id else f.user_id end as other, f.status,
+            case when f.user_id = auth.uid() then 'out' else 'in' end as direction, f.created_at
+        from public.friendships f where auth.uid() is not null and auth.uid() in (f.user_id, f.friend_id)
+    ), duel as (
+        select o.user_id as other,
+            (count(*) filter (where m.correct > o.correct or (m.correct = o.correct and m.points > o.points)))::integer as wins,
+            (count(*) filter (where m.correct < o.correct or (m.correct = o.correct and m.points < o.points)))::integer as losses,
+            (count(*) filter (where m.correct = o.correct and m.points = o.points))::integer as draws
+        from public.challenge_results m join public.challenge_results o on o.challenge_id = m.challenge_id and o.user_id <> m.user_id
+        where m.user_id = auth.uid() and o.user_id in (select other from mine)
+        group by o.user_id
+    )
+    select p.id, p.display_name, p.avatar, p.color, p.frame, p.title_pref, p.owl, p.rating, p.last_seen, mine.status, mine.direction, mine.created_at,
+        coalesce(d.wins, 0), coalesce(d.losses, 0), coalesce(d.draws, 0)
+    from mine join public.profiles p on p.id = mine.other left join duel d on d.other = mine.other
+    order by (mine.status = 'pending' and mine.direction = 'in') desc, p.last_seen desc nulls last, p.display_name
+    limit 400;
+$$;
+
+-- Hledání hráčů podle části přezdívky bez blokovaných (oběma směry) a bez mě
+create or replace function public.search_players(term text) returns setof public.profiles
+language sql stable security definer set search_path = public as $$
+    select * from public.profiles p
+    where auth.uid() is not null and p.id <> auth.uid() and char_length(btrim(coalesce(term, ''))) >= 2
+        and p.display_name ilike '%' || replace(replace(replace(left(btrim(term), 24), '\', '\\'), '%', '\%'), '_', '\_') || '%'
+        and not public.is_blocked(auth.uid(), p.id)
+    order by p.display_name limit 8;
+$$;
+-- Náhodný soupeř také bez blokovaných
+create or replace function public.random_opponent(wanted text[] default '{}', wants_mix boolean default false) returns setof public.profiles
+language sql stable security definer set search_path = public as $$
+    select * from public.profiles
+    where id <> auth.uid() and not (blocked_topics && coalesce(wanted, '{}')) and (not coalesce(wants_mix, false) or accepts_mix)
+        and not public.is_blocked(auth.uid(), id)
+    order by random() limit 1;
+$$;
+-- Výzva konkrétnímu hráči nejde přes blok (kterýmkoli směrem)
+create or replace function public.check_challenge_blocks() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+    if new.invited_id is not null and public.is_blocked(new.creator_id, new.invited_id) then
+        raise exception 'Tohoto hráče nejde vyzvat.' using errcode = 'P0001';
+    end if;
+    return new;
+end;
+$$;
+drop trigger if exists challenges_check_blocks on public.challenges;
+create trigger challenges_check_blocks before insert on public.challenges for each row execute function public.check_challenge_blocks();
+
+-- Reakce po zápase (👍 🔥 😅 🤝): jedna na výzvu nebo zápas turnaje od hráče, jen mezi účastníky, soupeř ji vidí
+create table if not exists public.match_reactions (
+    id bigint generated always as identity primary key,
+    challenge_id text references public.challenges (id) on delete cascade,
+    match_id uuid references public.tournament_matches (id) on delete cascade,
+    from_id uuid not null references public.profiles (id) on delete cascade,
+    to_id uuid not null references public.profiles (id) on delete cascade,
+    emoji text not null,
+    created_at timestamptz not null default now(),
+    check ((challenge_id is null) <> (match_id is null)),
+    check (from_id <> to_id),
+    unique nulls not distinct (challenge_id, match_id, from_id)
+);
+alter table public.match_reactions drop constraint if exists match_reactions_emoji_list;
+alter table public.match_reactions add constraint match_reactions_emoji_list check (emoji in ('👍', '🔥', '😅', '🤝'));
+create index if not exists match_reactions_to_idx on public.match_reactions (to_id, created_at desc);
+alter table public.match_reactions enable row level security;
+drop policy if exists "reakce: vidí obě strany" on public.match_reactions;
+create policy "reakce: vidí obě strany" on public.match_reactions for select to authenticated using (auth.uid() in (from_id, to_id));
+drop policy if exists "reakce: posílá hráč sám" on public.match_reactions;
+create policy "reakce: posílá hráč sám" on public.match_reactions for insert to authenticated with check (from_id = auth.uid());
+drop policy if exists "reakce: mění hráč sám" on public.match_reactions;
+create policy "reakce: mění hráč sám" on public.match_reactions for update to authenticated using (from_id = auth.uid()) with check (from_id = auth.uid());
+-- Reagovat jde jen na zápas, který oba hráli (výzva: oba mají výsledek; turnaj: oba jsou v zápase), ne přes blok
+create or replace function public.check_reaction() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+    new.created_at := now();
+    if tg_op = 'UPDATE' then
+        new.challenge_id := old.challenge_id; new.match_id := old.match_id; new.from_id := old.from_id; new.to_id := old.to_id;
+        return new;
+    end if;
+    if public.is_blocked(new.from_id, new.to_id) then raise exception 'Reakci nejde poslat.' using errcode = 'P0001'; end if;
+    if new.challenge_id is not null and (
+        not exists (select 1 from public.challenge_results where challenge_id = new.challenge_id and user_id = new.from_id)
+        or not exists (select 1 from public.challenge_results where challenge_id = new.challenge_id and user_id = new.to_id)) then
+        raise exception 'Reagovat jde jen na výzvu, kterou jste oba dohráli.' using errcode = 'P0001';
+    end if;
+    if new.match_id is not null and not exists (select 1 from public.tournament_matches m where m.id = new.match_id and new.from_id in (m.p1, m.p2) and new.to_id in (m.p1, m.p2)) then
+        raise exception 'Reagovat jde jen na vlastní zápas.' using errcode = 'P0001';
+    end if;
+    return new;
+end;
+$$;
+drop trigger if exists match_reactions_check on public.match_reactions;
+create trigger match_reactions_check before insert or update on public.match_reactions for each row execute function public.check_reaction();
+
+-- Nahlášení hráče (důvod: prezdivka, obrazek, podvadeni, obtezovani, jine; poznámka do 300 znaků), nejvýš 10 za den; řeší správce (dev_admins)
+create table if not exists public.player_reports (
+    id bigint generated always as identity primary key,
+    reporter uuid not null references public.profiles (id) on delete cascade,
+    reported uuid not null references public.profiles (id) on delete cascade,
+    reason text not null,
+    note text,
+    created_at timestamptz not null default now(),
+    resolved_at timestamptz,
+    check (reporter <> reported)
+);
+alter table public.player_reports drop constraint if exists player_reports_reason_list;
+alter table public.player_reports add constraint player_reports_reason_list check (reason in ('prezdivka', 'obrazek', 'podvadeni', 'obtezovani', 'jine'));
+alter table public.player_reports drop constraint if exists player_reports_note_len;
+alter table public.player_reports add constraint player_reports_note_len check (note is null or char_length(note) <= 300);
+create index if not exists player_reports_open_idx on public.player_reports (resolved_at, created_at desc);
+alter table public.player_reports enable row level security;
+drop policy if exists "nahlášení: vlastní" on public.player_reports;
+create policy "nahlášení: vlastní" on public.player_reports for select to authenticated using (reporter = auth.uid());
+drop policy if exists "nahlášení: posílá hráč sám" on public.player_reports;
+create policy "nahlášení: posílá hráč sám" on public.player_reports for insert to authenticated with check (reporter = auth.uid());
+create or replace function public.on_report() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+    new.created_at := now();
+    new.resolved_at := null;
+    new.note := nullif(btrim(regexp_replace(coalesce(new.note, ''), '[[:cntrl:]]', ' ', 'g')), '');
+    if (select count(*) from public.player_reports where reporter = new.reporter and created_at > now() - interval '1 day') >= 10 then
+        raise exception 'Dnes už jsi nahlásil příliš mnoho hráčů.' using errcode = 'P0001';
+    end if;
+    return new;
+end;
+$$;
+drop trigger if exists player_reports_limit on public.player_reports;
+create trigger player_reports_limit before insert on public.player_reports for each row execute function public.on_report();
+-- Správce (dev_admins): seznam nahlášení (nevyřešená první) a označení za vyřešené
+drop function if exists public.dev_player_reports();
+create or replace function public.dev_player_reports() returns table (
+    id bigint, reporter_id uuid, reporter_name text, reported_id uuid, reported_name text, reported_avatar text, reported_color text,
+    reason text, note text, created_at timestamptz, resolved_at timestamptz
+)
+language plpgsql security definer set search_path = public as $$
+begin
+    perform public.dev_check();
+    return query select r.id, r.reporter, a.display_name, r.reported, b.display_name, b.avatar, b.color, r.reason, r.note, r.created_at, r.resolved_at
+        from public.player_reports r join public.profiles a on a.id = r.reporter join public.profiles b on b.id = r.reported
+        order by (r.resolved_at is null) desc, r.created_at desc limit 200;
+end;
+$$;
+create or replace function public.dev_report_resolve(rid bigint) returns void
+language plpgsql security definer set search_path = public as $$
+begin
+    perform public.dev_check();
+    update public.player_reports set resolved_at = now() where id = rid;
+end;
+$$;
+
+revoke all on public.friendships, public.player_blocks, public.match_reactions, public.player_reports from anon, authenticated;
+grant select, insert, delete on public.friendships to authenticated;
+grant update (status) on public.friendships to authenticated;
+grant select, insert, delete on public.player_blocks to authenticated;
+grant select, insert on public.match_reactions to authenticated;
+-- PostgREST přepisuje reakci upsertem se všemi sloupci, proto jsou povolené všechny; kdo/komu/kam pevně drží trigger check_reaction()
+grant update (challenge_id, match_id, from_id, to_id, emoji) on public.match_reactions to authenticated;
+grant select, insert on public.player_reports to authenticated;
+revoke all on function public.on_block(), public.on_friend_request(), public.on_friend_accept(),
+    public.friend_count(uuid), public.check_challenge_blocks(), public.check_reaction(), public.on_report(), public.is_blocked(uuid, uuid) from public, anon, authenticated;
+revoke all on function public.touch_seen(), public.friends_list(), public.search_players(text), public.dev_player_reports(), public.dev_report_resolve(bigint) from public, anon;
+grant execute on function public.touch_seen(), public.friends_list(), public.search_players(text), public.dev_player_reports(), public.dev_report_resolve(bigint) to authenticated;
