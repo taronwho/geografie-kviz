@@ -1,5 +1,6 @@
 // Téma Sport: data/sport.json z Wikidat – sportovci, olympijské hry, sporty a disciplíny
 // Spuštění: npm run build:sport (s BUILD_CACHE=složka jde pravidla ladit bez opakovaného stahování)
+import { buildExtra } from './lib/sport-extra.mjs';
 import { sparql, qlever, id, values, parsePoint, fileName, imageFields, yearOf, compact, cached, inBatches, writeTopic } from './lib/wikidata.mjs';
 
 const HUMAN = 'Q5';
@@ -90,7 +91,7 @@ const BUCKETS = {
     },
     basketbal: { ids: ['Q5372'], label: 'basketbal', man: 'basketbalista', woman: 'basketbalistka', tags: 'mic tym', limit: 35, known: 8, cz: 6 },
     cyklistika: { ids: ['Q2215841', 'Q3609', 'Q221635', 'Q520611', 'Q335638', 'Q53121'], label: 'cyklistika', man: 'cyklista', woman: 'cyklistka', tags: 'leto kolo', limit: 30, known: 5, cz: 8 },
-    auto: { ids: ['Q5386', 'Q1968', 'Q7856', 'Q9340418'], label: 'automobilové závody', man: 'automobilový závodník', woman: 'automobilová závodnice', tags: 'motor', limit: 35, known: 9, cz: 5 },
+    auto: { ids: ['Q5386', 'Q1968', 'Q7856', 'Q9340418'], label: 'automobilové závody', man: 'automobilový závodník', woman: 'automobilová závodnice', tags: 'motor', limit: 45, known: 9, cz: 5 },
     moto: { ids: ['Q328716', 'Q215862', 'Q750080'], label: 'motocyklové závody', man: 'motocyklový závodník', woman: 'motocyklová závodnice', tags: 'motor', limit: 8, known: 1, cz: 3 },
     plavani: { ids: ['Q31920'], label: 'plavání', man: 'plavec', woman: 'plavkyně', tags: 'voda leto', limit: 30, known: 6, cz: 4 },
     box: { ids: ['Q32112'], label: 'box', man: 'boxer', woman: 'boxerka', tags: 'boj', limit: 22, known: 7, cz: 2 },
@@ -157,7 +158,7 @@ const DESCRIPTION_SPORTS = [
     ['vzpirani', /vzpěr/u], ['jachting', /jacht/u], ['florbal', /florbal/u]
 ];
 // Popis začíná jiným povoláním (herec, spisovatel, politik, trenér) – slavný je hlavně jinak než sportem
-const NOT_SPORT_FAME = /herec|herečka|spisovatel|politi|prezident|premiér|ministr|zpěvák|zpěvačka|podnikatel|král|královna|kníže|princ|filozof|fyzik|vědec|novinář|moderátor|hudebník|houslist|režisér|kosmonaut|astronaut|model(?:ka)?(?!\p{L})|konstruktér|šlechtic|diplomat|voják|generál|malíř|básník|komik|rapper|scenárist|producent|wrestler|trenér|funkcionář|rozhodčí|manažer|komentátor|duchovní|kněz|lékař|právník|inženýr|vynálezce|letec|cestovatel|polárník|zpěv/u;
+const NOT_SPORT_FAME = /herec|herečka|spisovatel|politi|prezident|premiér|ministr|zpěvák|zpěvačka|podnikatel|král|královna|kníže|princ|filozof|fyzik|vědec|novinář|moderátor|hudebník|houslist|režisér|kosmonaut|astronaut|model(?:ka)?(?!\p{L})|konstruktér|šlechtic|diplomat|voják|generál|malíř|básník|komik|rapper|scenárist|producent|wrestler|influenc\p{L}*|youtuber|streamer|trenér|funkcionář|rozhodčí|manažer|komentátor|duchovní|kněz|lékař|právník|inženýr|vynálezce|letec|cestovatel|polárník|zpěv/u;
 const ATHLETE_NOUN = /ist(?:a|ka)(?!\p{L})|hráč|atlet|plav[ec]|plavkyně|běž(?:ec|kyně)|skokan|lyžař|bruslař|závodn|jezd(?:ec|kyně)|boxer|gymnast|šermíř|zápasn|vesla[řr]|kanoist|střel(?:ec|kyně)|pilot|tyčkař|oštěpař|koulař|diskař|kladivář|desetibojař|sedmibojař|vícebojař|kajakář|slalomář|maratonec|maratonkyně|sprinter|lezec|lezkyně|brankář|útočník|obránce|záložník|olympi|sportov|reprezentant|cyklist|mistr|šampion|vítěz|judist|bojovník|vzpěrač|jachtař|žokej/u;
 // Je to sportovec a jaký je jeho hlavní sport (podle popisu, jinak podle počtu údajů)? null = slavný hlavně něčím jiným
 const mainBucket = (description, buckets) => {
@@ -303,19 +304,23 @@ const bucketsOf = (sports) => {
 };
 // Výběr s rezervou (část kandidátů vypadne kvůli chybějícím údajům): nejznámější v každém sportu a k nim nejznámější Češi
 const RESERVE = 1.6;
+// Nejznámější sportovci světa se berou bez ohledu na počet za sport (aspoň tolik článků ve Wikipedii); od druhé hranice jsou „známí“
+const ATHLETE_FLOOR = 75;
+const ATHLETE_KNOWN = 90;
 const candidateMap = new Map(athleteCandidates);
 const selected = new Set();
 for (const key of bucketKeys) {
     const inBucket = athleteCandidates.filter(([, entry]) => bucketsOf(entry.sports)[0] === key).sort((a, b) => b[1].sl - a[1].sl);
     inBucket.slice(0, Math.ceil(BUCKETS[key].limit * RESERVE)).forEach(([qid]) => selected.add(qid));
     inBucket.filter(([, entry]) => entry.cz).slice(0, Math.ceil(BUCKETS[key].cz * RESERVE)).forEach(([qid]) => selected.add(qid));
+    inBucket.filter(([, entry]) => entry.sl >= ATHLETE_FLOOR).forEach(([qid]) => selected.add(qid));
 }
 const selectedIds = [...selected];
 console.log(`Vybráno ${selectedIds.length} sportovců k podrobnostem…`);
 
 // --- 4. krok: podrobnosti o sportovcích ---
 const PERSON_SINGLE = { t: 1, n: 1, d: 1, im: 1, born: 1, died: 1, sex: 1, ws: 1, we: 1 };
-const athleteDetails = new Map(await cached('sport-athlete-details', async () => {
+const athleteDetails = new Map(await cached('sport-athlete-details-v2', async () => {
     const result = new Map(selectedIds.map(qid => [qid, { teams: [], oly: [] }]));
     await inBatches(selectedIds, 60, (qids) => `SELECT ?item ?p ?v ?start ?end ?medal WHERE {
   VALUES ?item { ${values(qids)} }
@@ -352,7 +357,7 @@ const athleteDetails = new Map(await cached('sport-athlete-details', async () =>
 // Události, kterých se sportovci účastnili (P1344): ke kterým hrám patří (finále 5000 m → atletika na LOH 1952 → LOH 1952)
 const gameSet = new Set(gameIds);
 const eventIds = [...new Set([...athleteDetails.values()].flatMap(detail => detail.oly.map(entry => entry.id)))].filter(q => /^Q\d+$/.test(q));
-const eventGames = new Map(await cached('sport-event-games', async () => {
+const eventGames = new Map(await cached('sport-event-games-v2', async () => {
     const result = [];
     await inBatches(eventIds.filter(q => !gameSet.has(q)), 300, (qids) => `SELECT ?e ?g WHERE {
   VALUES ?e { ${values(qids)} } VALUES ?g { ${values(gameIds)} } ?e wdt:P361* ?g . }`,
@@ -369,7 +374,7 @@ for (const detail of athleteDetails.values()) {
     detail.teams.forEach(team => referenced.add(team.id));
 }
 for (const q of referenced) if (!/^Q\d+$/.test(q)) referenced.delete(q);
-const labels = new Map(await cached('sport-labels', async () => {
+const labels = new Map(await cached('sport-labels-v2', async () => {
     const result = [];
     await inBatches([...referenced], 400, (qids) => `SELECT ?item ?label ?sl WHERE { VALUES ?item { ${values(qids)} }
   ?item rdfs:label ?label FILTER(LANG(?label) = "cs") OPTIONAL { ?item wikibase:sitelinks ?sl } }`,
@@ -494,7 +499,7 @@ const czechoslovakOnly = [...athleteDetails.entries()].filter(([, detail]) => {
     const states = [...(detail.cit || []), ...(detail.cfs || [])];
     return states.includes('Q33946') && !states.includes('Q213');
 }).map(([qid]) => qid);
-const birthCountries = new Map(await cached('sport-birth-countries', async () => {
+const birthCountries = new Map(await cached('sport-birth-countries-v2', async () => {
     const result = [];
     await inBatches(czechoslovakOnly, 200, (qids) => `SELECT ?item ?c WHERE { VALUES ?item { ${values(qids)} } ?item wdt:P19 ?place . ?place wdt:P17 ?c . }`,
         (row) => result.push([id(row.item.value), id(row.c.value)]));
@@ -622,7 +627,7 @@ for (const { qid, detail, candidate } of athleteRows) {
     if (!name.split(/\s+/).some(word => word.length >= 3)) continue;
     const rank = rankInBucket[bucketKey] || 0;
     const czRank = czechRankInBucket[bucketKey] || 0;
-    if (rank >= bucket.limit && !(isCzech && czRank < bucket.cz)) continue;
+    if (rank >= bucket.limit && !(isCzech && czRank < bucket.cz) && candidate.sl < ATHLETE_FLOOR) continue;
     const olympics = olympicsOf(detail);
     // Čeští hokejisté v Naganu 1998 vyhráli zlato (u týmových turnajů Wikidata medaili často neuvádějí)
     if (bucketKey === 'hokej' && isCzech && olympics.og.includes('Q9664') && !olympics.goldAt.includes('Q9664')) {
@@ -632,7 +637,7 @@ for (const { qid, detail, candidate } of athleteRows) {
     const olympicYears = olympics.og.map(game => gameInfo.get(game).year);
     const career = careerOf(detail, life, olympicYears);
     const female = detail.sex === FEMALE_ID;
-    const known = rank < bucket.known || (isCzech && (CZECH_KNOWN.has(name) || czechRank < 25));
+    const known = rank < bucket.known || candidate.sl >= ATHLETE_KNOWN || (isCzech && (CZECH_KNOWN.has(name) || czechRank < 25));
     const added = addItem({
         q: qid, t: detail.t, n: name, c: 'sportovci', k: known ? 1 : 0,
         ty: female ? bucket.woman : bucket.man,
@@ -666,7 +671,10 @@ for (const { qid, detail, candidate } of athleteRows) {
     }
 }
 
-// --- 6. krok: okruhy pro systematické učení ---
+// --- 6. krok: kluby, sportoviště a soutěže (scripts/lib/sport-extra.mjs) ---
+for (const item of await buildExtra({ thisYear: THIS_YEAR })) addItem(item);
+
+// --- 7. krok: okruhy pro systematické učení ---
 const winterBuckets = new Set(Object.entries(BUCKETS).filter(([, bucket]) => bucket.tags.includes('zima')).map(([key]) => key));
 const BY_BORN = { by: 'born' };
 const athleteIn = (...keys) => (item) => item.c === 'sportovci' && keys.includes(item.sk);
@@ -686,7 +694,16 @@ const COLLECTIONS = [
     { id: 'micove-hry', label: 'Míčové hry', sort: { by: 'name' }, test: sportTagged('mic') },
     { id: 'bojove-sporty', label: 'Bojové sporty', sort: BY_BORN, test: item => athleteIn('box', 'judo', 'mma', 'zapas', 'serm')(item) || sportTagged('boj')(item) },
     { id: 'vodni-sporty', label: 'Vodní sporty', sort: BY_BORN, test: item => athleteIn('plavani', 'veslovani', 'kanoistika', 'skoky_do_vody', 'jachting')(item) || sportTagged('voda')(item) },
-    { id: 'motorsport', label: 'Motorsport', text: 'Formule 1, rallye a motocykly', sort: BY_BORN, test: item => athleteIn('auto', 'moto')(item) || sportTagged('motor')(item) },
+    { id: 'motorsport', label: 'Motorsport', text: 'Formule 1, rallye a motocykly', sort: BY_BORN,
+        test: item => athleteIn('auto', 'moto')(item) || sportTagged('motor')(item) || item.ty === 'závodní okruh'
+            || (['kluby', 'souteze'].includes(item.c) && ['automobilové závody', 'motocyklové závody'].includes(item.f.sport)) },
+    { id: 'ceske-kluby', label: 'České kluby a stadiony', text: 'Kluby, stadiony a haly z Česka', sort: { by: 'name' }, test: item => ['kluby', 'sportoviste'].includes(item.c) && item.cz },
+    { id: 'fotbalove-kluby', label: 'Fotbalové kluby', sort: { by: 'name' }, test: item => item.c === 'kluby' && item.f.sport === 'fotbal' },
+    { id: 'severoamericke-ligy', label: 'Kluby NHL, NBA, NFL a MLB', text: 'Týmy z Ameriky a Kanady', sort: { by: 'name' },
+        test: item => item.c === 'kluby' && ['lední hokej', 'basketbal', 'americký fotbal', 'baseball'].includes(item.f.sport) && ['Spojené státy americké', 'Kanada'].includes(item.f.land) },
+    { id: 'stadiony-a-haly', label: 'Stadiony a haly', sort: { by: 'name' }, test: item => item.c === 'sportoviste' && ['stadion', 'aréna'].includes(item.ty) },
+    { id: 'okruhy', label: 'Závodní okruhy', text: 'Okruhy Formule 1 a dalších závodů', sort: { by: 'name' }, test: item => item.c === 'sportoviste' && item.ty === 'závodní okruh' },
+    { id: 'souteze', label: 'Soutěže a turnaje', text: 'Ligy, mistrovství a slavné závody', sort: { by: 'name' }, test: item => item.c === 'souteze' },
     { id: 'letni-oh', label: 'Letní olympijské hry', sort: { by: 'year' }, test: item => item.c === 'olympiady' && item.f.type === 'L' },
     { id: 'zimni-oh', label: 'Zimní olympijské hry', sort: { by: 'year' }, test: item => item.c === 'olympiady' && item.f.type === 'Z' }
 ];
@@ -698,7 +715,7 @@ const collections = COLLECTIONS.map(({ test, ...collection }) => collection);
 // Pomocné údaje pro výběr už v datech nejsou potřeba
 for (const item of items) { delete item.sk; delete item.sl; }
 
-for (const category of ['sportovci', 'olympiady', 'sporty']) {
+for (const category of ['sportovci', 'olympiady', 'sporty', 'kluby', 'sportoviste', 'souteze']) {
     const inCategory = items.filter(item => item.c === category);
     console.log(`${category}: ${inCategory.length} (${inCategory.filter(item => item.k).length} známých, ${inCategory.filter(item => item.cz).length} českých)`);
 }
