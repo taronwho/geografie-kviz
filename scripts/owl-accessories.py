@@ -23,7 +23,19 @@ HATS = {'helma', 'prilba', 'baret'}
 # Doplňky s pevnou částí: barvu mění jen plátno (modrá plocha), zbytek (tyčka, ruka) je v samostatné vrstvě <id>-zaklad.webp, která se nikdy nepřebarvuje
 SPLIT = {'vlajka'}
 # Nejtmavší místo stínování vlajky státu (1 = bez stínu): stín nesmí vlajku příliš ztmavit
-SHADE_MIN = 0.62
+SHADE_MIN = 0.55
+# Vlajka státu: do tolika pixelů od kraje masky stínování ztmavne až na FLAG_EDGE_MIN (okraj vlajky splyne s tmavým obrysem plátna,
+# i když prohlížeč masku při zmenšení převzorkuje); obrázek vlajky přesahuje masku aspoň o tento podíl své velikosti na každé straně
+# (vlnění posouvá body, vlajka musí masku všude vyplnit)
+FLAG_EDGE = 2.0
+FLAG_EDGE_MIN = 0.3
+FLAG_OVERSCAN = 0.06
+# Vlnění: mapa posunutí vlajka-vlna.webp pro SVG filtr feDisplacementMap v index.html (feImage roztažená přes obrázek vlajky).
+# Zelený kanál = svislý posun: vlajka sleduje střednici plátna (sloupec po sloupci střed mezi horním a dolním okrajem masky),
+# takže pruhy a znaky vlajky se vlní s látkou. FLAG_WAVE = podíl zakřivení střednice (1 = přesně po plátně), FLAG_WAVE_SCALE musí být
+# stejná jako atribut scale filtru (v podílu výšky obrázku vlajky): posun v px = (G − 0,5) · scale · výška obrázku.
+FLAG_WAVE = 1.0
+FLAG_WAVE_SCALE = 0.5
 HAND = {'vlajka', 'svitek', 'brk', 'sitka'}
 # Doplněk zlaté barvy na zlatém podkladu (koruna přes knoflík čepice, stuha medaile přes zlatý límec) se od původní sovy skoro neliší:
 # silnější uzavření masky, ať se přebarví celý a nezůstanou zlaté kusy. Poloměr v pixelech původního obrázku.
@@ -188,6 +200,18 @@ def layer(base, warped, mask, frame, border=BORDER):
     return img.resize((round(crop.shape[1] * k), round(crop.shape[0] * k)), Image.LANCZOS)
 
 
+def fill_outline(a, cloth):
+    """Tmavý obrys plátna se od tmavého pozadí původního obrázku skoro neliší, proto ho rozdíl proti sově místy vynechal
+    (díry a průhledné proužky v alfě mezi krémovým okrajem a modrou). V okolí plátna se úzké mezery v neprůhledné ploše
+    zaplní (morfologické uzavření) barvou, kterou mají v původním obrázku."""
+    zone = cv2.dilate(cloth, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (15, 15)))
+    solid = ((a[..., 3] >= 128) & (zone > 0)).astype(np.uint8)
+    closed = cv2.morphologyEx(solid, cv2.MORPH_CLOSE, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7, 7)))
+    holes = (closed > 0) & (zone > 0) & (a[..., 3] < 255)
+    a[holes, 3] = 255
+    return int(holes.sum())
+
+
 def split_cloth(img):
     """Rozdělí vrstvu na barevné plátno (největší modrá plocha s obrysem) a pevný zbytek.
     Vrací i vnitřek plátna (bez obrysu, bez děr) pro masku a stínování vlajky státu: plátno, pevná část, vnitřek."""
@@ -202,6 +226,7 @@ def split_cloth(img):
     contours, _ = cv2.findContours(cloth, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
     inner = np.zeros_like(cloth)
     cv2.drawContours(inner, contours, -1, 1, cv2.FILLED)
+    print(f'obrys plátna: doplněno {fill_outline(a, cloth)} px')
     cloth = cv2.dilate(cloth, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (9, 9)))
     cloth_a, base_a = a.copy(), a.copy()
     cloth_a[..., 3] = np.where(cloth > 0, a[..., 3], 0)
@@ -210,11 +235,15 @@ def split_cloth(img):
 
 
 def flag_layers(cloth_img, inner):
-    """Maska a stínování pro vlajku státu na plátně (vlajka-maska.webp, vlajka-stin.webp; stejný rám jako ostatní vrstvy).
-    Maska = vnitřek plátna (alfa), obrys zůstane z barevné vrstvy. Stínování = odstíny šedi z jasu původního modrého plátna
-    (vlnění látky), které se na vlajku násobí (mix-blend-multiply): nejsvětlejší místo je bez změny, nejtmavší se ztmaví jen mírně.
-    Vrací obrázky a ohraničení vnitřku (x, y, šířka, výška) v pixelech vrstvy."""
-    alpha = cv2.GaussianBlur(inner.astype(np.float32), (0, 0), 0.8)
+    """Maska, stínování a mapa vlnění pro vlajku státu na plátně (vlajka-maska.webp, vlajka-stin.webp, vlajka-vlna.webp; maska
+    a stínování mají stejný rám jako ostatní vrstvy). Maska = vnitřek plátna (modrá plocha bez obrysu) s měkkým okrajem 1 px (alfa);
+    tmavý obrys a krémový okraj zůstanou z barevné vrstvy vidět kolem vlajky. Stínování = odstíny šedi z jasu původního modrého plátna
+    (záhyby látky), které se na vlajku násobí (mix-blend-multiply): nejsvětlejší místo je bez změny, nejtmavší se ztmaví na SHADE_MIN;
+    u kraje masky ztmavne až na FLAG_EDGE_MIN, ať okraj vlajky splyne s obrysem. Vrací masku, stínování, mapu vlnění a ohraničení
+    obrázku vlajky (x, y, šířka, výška) v pixelech vrstvy: obdélník masky zvětšený na každé straně aspoň o FLAG_OVERSCAN a svisle
+    o největší posun vlnění (vlajka musí masku přesahovat i po posunutí)."""
+    core = inner.astype(np.uint8)
+    alpha = cv2.GaussianBlur(core.astype(np.float32), (0, 0), 0.7)
     alpha = np.clip(alpha, 0, 1)
     rgb = np.asarray(cloth_img.convert('RGB')).astype(np.float32) / 255.0
     luma = 0.299 * rgb[..., 0] + 0.587 * rgb[..., 1] + 0.114 * rgb[..., 2]
@@ -223,13 +252,45 @@ def flag_layers(cloth_img, inner):
     level = np.clip((luma - lo) / max(hi - lo, 1e-3), 0, 1)
     level = cv2.GaussianBlur(level, (0, 0), 1.0)
     shade = SHADE_MIN + (1 - SHADE_MIN) * level
+    # ztmavení u kraje masky: vzdálenost od jejího okraje v pixelech
+    dist = cv2.distanceTransform(core, cv2.DIST_L2, 5)
+    edge = np.clip(dist / FLAG_EDGE, 0, 1)
+    shade = shade * (FLAG_EDGE_MIN + (1 - FLAG_EDGE_MIN) * edge)
     gray = np.clip(shade * 255, 0, 255).astype(np.uint8)
     stin = np.dstack([gray, gray, gray, (alpha * 255).astype(np.uint8)])
     maska = np.dstack([np.full_like(gray, 255)] * 3 + [(alpha * 255).astype(np.uint8)])
-    ys, xs = np.nonzero(inside)
-    # obdélník o pixel širší na každé straně: měkký okraj masky se nesmí o obrázek vlajky opřít
-    box = (int(xs.min()) - 1, int(ys.min()) - 1, int(xs.max() - xs.min() + 3), int(ys.max() - ys.min() + 3))
-    return Image.fromarray(maska, 'RGBA'), Image.fromarray(stin, 'RGBA'), box
+    ys, xs = np.nonzero(alpha > 0)
+    x0, y0, x1, y1 = int(xs.min()), int(ys.min()), int(xs.max()) + 1, int(ys.max()) + 1
+    # střednice plátna po sloupcích (jen tam, kde je plátno dost vysoké – špičky rohů by ji strhly), vyhlazená; mimo plátno drží kraj
+    tops = np.full(x1 - x0, np.nan)
+    bottoms = np.full(x1 - x0, np.nan)
+    for i in range(x1 - x0):
+        rows = np.nonzero(alpha[:, x0 + i] > 0.5)[0]
+        if len(rows):
+            tops[i], bottoms[i] = rows.min(), rows.max()
+    heights = bottoms - tops
+    good = np.nonzero(heights >= 0.6 * np.nanmax(heights))[0]
+    centre = np.full(x1 - x0, np.nan)
+    centre[good] = (tops[good] + bottoms[good]) / 2
+    centre[:good[0]] = centre[good[0]]
+    centre[good[-1]:] = centre[good[-1]]
+    centre = np.interp(np.arange(x1 - x0), np.nonzero(~np.isnan(centre))[0], centre[~np.isnan(centre)])
+    centre = cv2.GaussianBlur(centre.reshape(1, -1).astype(np.float32), (0, 0), 3, borderType=cv2.BORDER_REPLICATE).ravel()
+    shift = FLAG_WAVE * (centre - centre[good].mean())
+    mx = max(int(np.ceil((x1 - x0) * FLAG_OVERSCAN)), 2)
+    my = max(int(np.ceil((y1 - y0) * FLAG_OVERSCAN)), int(np.ceil(np.abs(shift).max())) + 2)
+    box = (x0 - mx, y0 - my, x1 - x0 + 2 * mx, y1 - y0 + 2 * my)
+    full = np.concatenate([np.full(mx, shift[0]), shift, np.full(mx, shift[-1])])
+    green = 0.5 - full / (FLAG_WAVE_SCALE * box[3])
+    if green.min() < 0 or green.max() > 1:
+        print(f'POZOR: posun vlnění {np.abs(shift).max():.1f} px se nevejde do scale={FLAG_WAVE_SCALE}')
+    green = np.clip(np.round(green * 255), 0, 255).astype(np.uint8)
+    vlna = np.zeros((box[3], box[2], 4), np.uint8)
+    vlna[..., 0] = 128
+    vlna[..., 1] = green[None, :]
+    vlna[..., 3] = 255
+    print(f'vlnění: střednice ±{np.abs(shift).max():.1f} px, mapa {box[2]}×{box[3]}')
+    return Image.fromarray(maska, 'RGBA'), Image.fromarray(stin, 'RGBA'), Image.fromarray(vlna, 'RGBA'), box
 
 
 # Barevné varianty doplňku: id → (cílový odstín 0–360, násobek sytosti, násobek jasu). Přebarví se jen sytá místa; obrys, krémová a šedá zůstanou.
@@ -297,12 +358,13 @@ def main(ids):
             out, fixed, inner = split_cloth(out)
             save_webp(fixed, os.path.join(OUT, name + '-zaklad.webp'))
             # vlajka státu: maska plátna a stínování (look-owl.js je kreslí přes plátno, třídy s ohraničením jsou v LAYER/FLAG v look-owl.js)
-            maska, stin, (bx, by, bw, bh) = flag_layers(out, inner)
+            maska, stin, vlna, (bx, by, bw, bh) = flag_layers(out, inner)
             maska.save(os.path.join(OUT, name + '-maska.webp'), 'WEBP', lossless=True, method=6)
             stin.save(os.path.join(OUT, name + '-stin.webp'), 'WEBP', lossless=True, method=6)
+            vlna.save(os.path.join(OUT, name + '-vlna.webp'), 'WEBP', lossless=True, method=6)
             fw, fh = out.size
             pct = lambda v, total: round(v / total * 100, 2)
-            print(f'{name}: rám {fw}×{fh}, vnitřek plátna x={bx} y={by} w={bw} h={bh} → left-[{pct(bx, fw)}%] top-[{pct(by, fh)}%] w-[{pct(bw, fw)}%] h-[{pct(bh, fh)}%], aspect-[{fw}/{fh}]')
+            print(f'{name}: rám {fw}×{fh}, obrázek vlajky x={bx} y={by} w={bw} h={bh} → left-[{pct(bx, fw)}%] top-[{pct(by, fh)}%] w-[{pct(bw, fw)}%] h-[{pct(bh, fh)}%], aspect-[{fw}/{fh}]')
         save_webp(out, os.path.join(OUT, name + '.webp'))
         # ikony do výběru (<id>-ikona.webp) dělá scripts/owl-accessory-icons.py z vlastních obrázků doplňků
         for color, (hue, sat_mul, val_mul) in COLORS.items():
