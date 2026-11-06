@@ -15,7 +15,10 @@
     const CATEGORIES = [
         { key: 'sportovci', label: 'Sportovci', one: 'sportovec', icon: 'medal', question: 'Kdo to je?', placeholder: 'Napiš jméno…', sort: { by: 'born' } },
         { key: 'olympiady', label: 'Olympijské hry', one: 'olympiáda', icon: 'award', question: 'Které olympijské hry to jsou?', placeholder: 'Napiš hry, třeba LOH 1952…', sort: { by: 'year' } },
-        { key: 'sporty', label: 'Sporty a disciplíny', one: 'sport', icon: 'volleyball', question: 'Co je to za sport?', placeholder: 'Napiš sport…', sort: { by: 'name' } }
+        { key: 'sporty', label: 'Sporty a disciplíny', one: 'sport', icon: 'volleyball', question: 'Co je to za sport?', placeholder: 'Napiš sport…', sort: { by: 'name' } },
+        { key: 'kluby', label: 'Kluby a týmy', one: 'klub', icon: 'users', question: 'Který klub nebo tým to je?', placeholder: 'Napiš klub nebo tým…', sort: { by: 'name' } },
+        { key: 'sportoviste', label: 'Stadiony, haly a okruhy', one: 'sportoviště', icon: 'building-2', question: 'Které sportoviště to je?', placeholder: 'Napiš stadion, halu nebo okruh…', sort: { by: 'name' } },
+        { key: 'souteze', label: 'Soutěže a turnaje', one: 'soutěž', icon: 'trophy', question: 'Která soutěž to je?', placeholder: 'Napiš soutěž nebo turnaj…', sort: { by: 'name' } }
     ];
     const categoryOf = (item) => CATEGORIES.find(category => category.key === item.c) || CATEGORIES[0];
 
@@ -116,7 +119,13 @@
                 for (const word of new Set(athlete.n.split(/\s+/).slice(1))) words.set(normalizeAnswer(word), (words.get(normalizeAnswer(word)) || 0) + 1);
             }
             const fullNames = new Set(items.map(item => normalizeAnswer(item.n)));
-            indexes.set(items, { byId, athletes, games, sportCounts, sportItems, champions, words, fullNames });
+            // Zkrácené názvy klubů (Barcelona bez FC): přijmou se jen jednoznačné
+            const shortNames = new Map();
+            for (const club of items.filter(item => item.c === 'kluby')) {
+                const key = normalizeAnswer(shortClubName(club.n));
+                shortNames.set(key, (shortNames.get(key) || 0) + 1);
+            }
+            indexes.set(items, { byId, athletes, games, sportCounts, sportItems, champions, words, fullNames, shortNames });
         }
         return indexes.get(items);
     };
@@ -352,6 +361,82 @@
     // Vybavení bez názvu sportu (tenisová raketa by prozradila tenis)
     const equipmentOf = (item) => (item.f.uses || []).filter(use => !censorName(use, [item.n, ...(SPORT_NAME_ALIASES[item.n] || [])].join(', ')).includes('[***]'));
 
+    // --- Kluby, sportoviště a soutěže ---
+
+    // Zkratky právní formy a klubů před nebo za jménem (FC Barcelona, Real Madrid CF): bez nich se klub běžně jmenuje
+    const CLUB_TAGS = new Set(['fc', 'ac', 'as', 'sc', 'sk', 'fk', 'cf', 'ssc', 'hc', 'bk', 'bc', 'tj', 'afc', 'ca', 'cd', 'ud', 'rc', 'ks', 'kk', 'hk', 'fbc', 'fotbalový', 'klub', 'club', 'football', 'calcio']);
+    const shortClubName = (name) => {
+        const words = name.split(/\s+/);
+        while (words.length > 1 && CLUB_TAGS.has(normalizeAnswer(words[0]))) words.shift();
+        while (words.length > 1 && CLUB_TAGS.has(normalizeAnswer(words[words.length - 1]))) words.pop();
+        return words.join(' ');
+    };
+    const clubFacts = (item, mode) => {
+        const f = item.f;
+        const full = mode === 'result' || mode === 'card';
+        return [
+            full ? { label: 'Sport', value: f.sport } : null,
+            f.land ? { label: 'Země', value: f.land } : null,
+            full && f.city ? { label: 'Město', value: f.city } : null,
+            f.from ? { label: 'Založen', value: String(f.from) } : null,
+            f.arena ? { label: 'Domácí aréna', value: f.arena } : null,
+            f.league ? { label: 'Soutěž', value: f.league } : null
+        ].filter(Boolean);
+    };
+    // Domácí tým, který nese jméno sportoviště (Ōita Stadium – Óita Trinita, Anfield Road – Anfield), jméno prozradí
+    const nameWords = (text) => normalizeAnswer(text).split(' ').filter(word => word.length >= 4);
+    const sharesName = (a, b) => nameWords(a).some(word => nameWords(b).some(other => other.slice(0, 4) === word.slice(0, 4)));
+    const venueFacts = (item, mode) => {
+        const f = item.f;
+        const full = mode === 'result' || mode === 'card';
+        const tenants = (f.tenants || []).filter(tenant => !sharesName(tenant, item.n));
+        return [
+            f.land ? { label: 'Země', value: f.land } : null,
+            full && f.loc ? { label: 'Umístění', value: f.loc } : null,
+            f.opened ? { label: 'Otevřeno', value: String(f.opened) } : null,
+            f.capacity ? { label: 'Kapacita', value: `${formatNumber(f.capacity)} diváků` } : null,
+            tenants.length ? { label: tenants.length > 1 ? 'Domácí týmy' : 'Domácí tým', value: tenants.join(', ') } : null,
+            (f.sports || []).length ? { label: 'Sport', value: f.sports.join(', ') } : null
+        ].filter(Boolean);
+    };
+    const competitionFacts = (item) => {
+        const f = item.f;
+        return [
+            { label: 'Sport', value: f.sport },
+            f.land ? { label: 'Země', value: f.land } : null,
+            f.from ? { label: 'Od roku', value: String(f.from) } : null,
+            f.organizer ? { label: 'Pořadatel', value: f.organizer } : null
+        ].filter(Boolean);
+    };
+    // Mapa místa klubu či sportoviště
+    const placeMap = (item, span) => item.la === undefined ? null
+        : { type: 'map', lat: item.la, lon: item.lo, span, highlightIso: '', label: item.c === 'kluby' ? 'Sídlo klubu je uprostřed' : 'Sportoviště je uprostřed' };
+    const placeHints = (item) => placeHintList(item).filter(hint => hint.kind !== 'visual' || hint.spec);
+    const placeHintList = (item) => {
+        const f = item.f;
+        if (item.c === 'kluby') {
+            return [
+                { kind: 'facts', label: 'o klubu', icon: 'flag', facts: [f.land ? { label: 'Země', value: f.land } : null, f.from ? { label: 'Založen', value: String(f.from) } : null].filter(Boolean) },
+                { kind: 'visual', spec: placeMap(item, 30) },
+                { kind: 'facts', label: 'aréna a soutěž', icon: 'building-2', facts: [f.city ? { label: 'Město', value: f.city } : null, f.arena ? { label: 'Domácí aréna', value: f.arena } : null, f.league ? { label: 'Soutěž', value: f.league } : null].filter(Boolean) },
+                { kind: 'photo' }
+            ];
+        }
+        return [
+            { kind: 'facts', label: 'o sportovišti', icon: 'flag', facts: [f.land ? { label: 'Země', value: f.land } : null, f.opened ? { label: 'Otevřeno', value: String(f.opened) } : null].filter(Boolean) },
+            { kind: 'visual', spec: placeMap(item, 30) },
+            { kind: 'facts', label: 'kapacita a týmy', icon: 'users', facts: venueFacts(item, 'name').filter(fact => ['Kapacita', 'Domácí tým', 'Domácí týmy', 'Sport'].includes(fact.label)) },
+            { kind: 'photo' }
+        ];
+    };
+    const competitionHints = (item) => [
+        { kind: 'facts', label: 'sport', icon: 'trophy', facts: [{ label: 'Sport', value: item.f.sport }] },
+        { kind: 'facts', label: 'původ', icon: 'flag', facts: competitionFacts(item).filter(fact => fact.label !== 'Sport') },
+        { kind: 'photo' }
+    ];
+    // Kapacita se porovnává v řádech (hala na 10 000 diváků k halám, ne k obřímu stadionu)
+    const capacityNearness = (a, b) => a && b ? -Math.abs(Math.log10(a / b)) * 3 : 0;
+
     // --- Společné ---
 
     // Nesprávné možnosti: sportovci stejného pohlaví, doby a sportu (k Čechovi Češi); hry stejného druhu a podobné doby;
@@ -366,6 +451,18 @@
                 + ((item.cz === 1) === (other.cz === 1) ? 2 : -3);
         }
         if (item.c === 'olympiady') return (f.type === g.type ? 6 : 0) - Math.abs(f.year - g.year) / 8;
+        if (item.c === 'kluby') {
+            // Týž sport (jiný sport je vidět ze druhu klubu), potom stejná soutěž a doba vzniku
+            return (f.sport === g.sport ? 14 : -14) + (f.league && f.league === g.league ? 3 : 0) + (f.land && f.land === g.land ? 2 : 0)
+                + (f.y && g.y ? -Math.min(Math.abs(f.y - g.y), 90) / 30 : 0);
+        }
+        if (item.c === 'sportoviste') {
+            // Druh je u otázky vidět: okruh mezi stadiony (nebo naopak) by byl poznat hned; stadion a aréna se pletou méně
+            const kindGap = item.ty === other.ty ? 0 : ['stadion', 'aréna'].includes(item.ty) && ['stadion', 'aréna'].includes(other.ty) ? -3 : -30;
+            return kindGap + (f.land && f.land === g.land ? 2 : 0) + capacityNearness(f.capacity, g.capacity) + (f.y && g.y ? -Math.min(Math.abs(f.y - g.y), 90) / 30 : 0)
+                + ((f.sports || [])[0] && (f.sports || [])[0] === (g.sports || [])[0] ? 3 : 0);
+        }
+        if (item.c === 'souteze') return (f.sport === g.sport ? 12 : -4) + (f.land && f.land === g.land ? 2 : 0);
         const tags = tagsOf(item);
         const otherTags = tagsOf(other);
         // Plavecké způsoby se mezi sebou splést nedají, s plaváním ano
@@ -379,6 +476,9 @@
     const factsOf = (item, ctx, mode) => {
         if (item.c === 'sportovci') return athleteFacts(item, ctx, mode);
         if (item.c === 'olympiady') return gamesFacts(item, ctx, mode);
+        if (item.c === 'kluby') return clubFacts(item, mode);
+        if (item.c === 'sportoviste') return venueFacts(item, mode);
+        if (item.c === 'souteze') return competitionFacts(item);
         const facts = sportFacts(item);
         const equipment = equipmentOf(item);
         if ((mode === 'result' || mode === 'card') && equipment.length) facts.push({ label: 'Vybavení', value: equipment.join(', ') });
@@ -421,6 +521,11 @@
             if (item.c === 'olympiady') {
                 const year = item.f.year;
                 return [gameLabel(item), ...hostAnswers(item).map(city => `${city} ${year}`)];
+            }
+            if (item.c === 'kluby') {
+                const short = shortClubName(item.n);
+                const { shortNames } = indexOf(ctx);
+                return short !== item.n && short.length >= 4 && shortNames.get(normalizeAnswer(short)) === 1 ? [short] : [];
             }
             return SPORT_NAME_ALIASES[item.n] || [];
         },
@@ -496,6 +601,8 @@
                 return [{ kind: 'visual', spec: athleteTimeline(item) }, { kind: 'facts', facts: athleteFacts(item, ctx, type) }, { kind: 'photo' }];
             }
             if (item.c === 'olympiady') return type === 'host' ? hostHints(item, ctx) : gamesNameHints(item, ctx);
+            if (item.c === 'kluby' || item.c === 'sportoviste') return placeHints(item);
+            if (item.c === 'souteze') return competitionHints(item);
             const equipment = equipmentOf(item);
             return [
                 { kind: 'facts', facts: sportFacts(item) },
@@ -505,6 +612,7 @@
         visual: (item, ctx, mode) => {
             if (item.c === 'sportovci') return mode === 'sport' ? null : athleteTimeline(item);
             if (item.c === 'olympiady') return mode === 'name' ? null : gamesMap(item, mode === 'host' ? 36 : 24);
+            if (item.c === 'kluby' || item.c === 'sportoviste') return mode === 'name' ? null : placeMap(item, 12);
             return null;
         },
         facts: factsOf,
@@ -512,9 +620,12 @@
             const f = item.f || {};
             if (item.c === 'sportovci') return [lifeRange(f), f.sport, f.land].filter(Boolean).join(' · ');
             if (item.c === 'olympiady') return [f.host, f.land].filter(Boolean).join(' · ');
+            if (item.c === 'kluby') return [f.sport, f.land, f.from ? `od ${f.from}` : ''].filter(Boolean).join(' · ');
+            if (item.c === 'sportoviste') return [item.ty, f.loc, f.land].filter(Boolean).join(' · ');
+            if (item.c === 'souteze') return [item.ty, f.sport].filter(Boolean).join(' · ');
             return [item.ty, f.oh ? `na olympiádě od ${formatYear(f.oh)}` : ''].filter(Boolean).join(' · ');
         },
-        coords: (item) => item.c === 'olympiady' && item.la !== undefined ? { lat: item.la, lon: item.lo } : null,
+        coords: (item) => item.la !== undefined && item.c !== 'sportovci' && item.c !== 'sporty' ? { lat: item.la, lon: item.lo } : null,
         isCzech: (item) => item.cz === 1
     };
 });

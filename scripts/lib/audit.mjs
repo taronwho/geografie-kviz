@@ -337,7 +337,10 @@ const findSymbolLeak = (text, question) => {
 // Odpovědi otázky pro hlídače: u názvu jméno, titulek a další názvy (bez vědeckého názvu – ten je schválně poslední nápovědou)
 const detectorAnswers = (question, item, ctx) => {
     if (question.type === 'name') {
-        const aliases = ctx.topic.nameAliases ? ctx.topic.nameAliases(item, ctx) : [];
+        // Slova, která téma v popisu schválně ponechá (pořadatelské město olympiády), nejsou prozrazením, i když jsou v aliasech („Paříž 1924“)
+        const kept = new Set((ctx.topic.keepWords ? ctx.topic.keepWords('name', item, ctx) : []).filter(Boolean).flatMap(text => String(text).split(/\s+/)).map(core.normalizeAnswer));
+        const withoutKept = (alias) => kept.size ? alias.split(/\s+/).filter(word => !kept.has(core.normalizeAnswer(word))).join(' ') : alias;
+        const aliases = (ctx.topic.nameAliases ? ctx.topic.nameAliases(item, ctx) : []).map(withoutKept);
         return [item.n, displayName(item.t || ''), ...aliases.filter(alias => alias !== (item.f || {}).lat)].filter(Boolean);
     }
     if (question.match) return [];

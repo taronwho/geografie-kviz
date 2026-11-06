@@ -155,7 +155,7 @@ test('sport: sporty – obrázek v otázce, plavecké způsoby a disciplíny jen
 });
 
 test('sport: okruhy ve skutečných datech', () => {
-    assert.ok(data.collections.length >= 8 && data.collections.length <= 20);
+    assert.ok(data.collections.length >= 8 && data.collections.length <= 24);
     assert.ok(inCollection('nagano').includes('Jaromír Jágr') && inCollection('nagano').includes('Dominik Hašek'));
     assert.ok(inCollection('cesti-olympijsti-vitezove').includes('Emil Zátopek') && inCollection('cesti-olympijsti-vitezove').includes('Věra Čáslavská'));
     assert.ok(!inCollection('cesti-sportovci').includes('Pelé'));
@@ -163,4 +163,62 @@ test('sport: okruhy ve skutečných datech', () => {
     assert.ok(!inCollection('zimni-sporty').includes('Pavel Nedvěd'));
     assert.equal(inCollection('letni-oh').length, 30);
     assert.ok(inCollection('atletika').includes('Skok o tyči') && inCollection('atletika').includes('Jan Železný'));
+});
+
+test('sport: kluby, sportoviště a soutěže – známé položky, fakta, nápovědy a nesprávné možnosti', () => {
+    const byCategory = (key) => data.items.filter(item => item.c === key);
+    const clubs = byCategory('kluby');
+    const venues = byCategory('sportoviste');
+    const competitions = byCategory('souteze');
+    assert.ok(clubs.length >= 250 && venues.length >= 350 && competitions.length >= 60, `${clubs.length}/${venues.length}/${competitions.length}`);
+    for (const name of ['Real Madrid CF', 'AC Sparta Praha', 'Camp Nou', 'Old Trafford', 'Wimbledon', 'Tour de France', 'Liga mistrů UEFA']) {
+        assert.ok(find(name) && find(name).k === 1, `chybí známá položka ${name}`);
+    }
+    // Známé jsou jen vybrané kluby a sportoviště (počet článků na známost nestačí), ale pořád je jich dost
+    assert.ok(clubs.filter(item => item.k).length >= 60 && venues.filter(item => item.k).length >= 25);
+    assert.equal(find('AC Sparta Praha').cz, 1);
+    assert.equal(find('Real Madrid CF').cz, undefined);
+    // Každá položka má popis, zemi a sport (soutěž i sportoviště, klub), sportoviště fotku a souřadnice
+    for (const item of [...clubs, ...venues]) {
+        assert.ok(item.f.land, item.n);
+        assert.ok(item.t && item.ty, item.n);
+    }
+    for (const item of clubs) assert.ok(item.f.sport, item.n);
+    for (const item of venues) assert.ok(item.im && item.la !== undefined && item.lo !== undefined, item.n);
+    for (const item of competitions) assert.ok(item.f.sport && item.ty, item.n);
+    // Nesprávné možnosti klubu: týž sport (druh klubu je u otázky vidět) a k české Spartě české a slovenské kluby
+    const sparta = find('AC Sparta Praha');
+    for (const seed of ['a', 'b', 'c', 'd', 'e']) {
+        const wrong = core.buildItemChoices(sparta, data.items, core.createSeededRandom(seed), other => sport.similarity(sparta, other, ctx), core.cultureLandsFor(sport, ctx)).filter(choice => !choice.correct);
+        const others = wrong.map(choice => data.items.find(item => item.q === choice.id));
+        assert.ok(others.every(other => other.c === 'kluby' && other.f.sport === 'fotbal'), others.map(other => other.n).join(', '));
+        assert.ok(others.filter(other => ['Česko', 'Slovensko'].includes(other.f.land)).length >= 2, others.map(other => `${other.n} (${other.f.land})`).join(', '));
+    }
+    // Nesprávné možnosti sportoviště: stejný druh (stadion, aréna, okruh)
+    const monza = venues.find(item => item.ty === 'závodní okruh' && item.k);
+    for (const seed of ['a', 'b', 'c']) {
+        const wrong = core.buildItemChoices(monza, data.items, core.createSeededRandom(seed), other => sport.similarity(monza, other, ctx), core.cultureLandsFor(sport, ctx)).filter(choice => !choice.correct);
+        assert.ok(wrong.every(choice => data.items.find(item => item.q === choice.id).ty === 'závodní okruh'), wrong.map(choice => choice.label).join(', '));
+    }
+    // Nápovědy: klub – země, mapa, aréna, fotka; sportoviště – země, mapa, kapacita, fotka; soutěž – sport, původ
+    const barcelona = find('FC Barcelona');
+    assert.deepEqual(sport.hints(barcelona, ctx, 'name').map(hint => hint.kind), ['facts', 'visual', 'facts', 'photo']);
+    assert.equal(sport.visual(barcelona, ctx, 'name'), null);
+    assert.ok(sport.visual(barcelona, ctx, 'result').type === 'map');
+    const campNou = find('Camp Nou');
+    const venueHints = sport.hints(campNou, ctx, 'name');
+    assert.deepEqual(venueHints.map(hint => hint.kind), ['facts', 'visual', 'facts', 'photo']);
+    assert.ok(venueHints[2].facts.some(fact => fact.label === 'Kapacita'));
+    assert.deepEqual(sport.hints(find('Wimbledon'), ctx, 'name').map(hint => hint.kind), ['facts', 'facts', 'photo']);
+    // Domácí tým, který nese jméno sportoviště, jméno neprozradí
+    const oita = venues.find(item => /Ōita/.test(item.n));
+    if (oita) assert.ok(!sport.facts(oita, ctx, 'name').some(fact => /Óita|Oita/.test(fact.value)));
+    // Psaná odpověď: klub bez zkratky právní formy (Barcelona), jen když je jednoznačná
+    assert.ok(core.isAnswerMatch('Barcelona', [barcelona.n, ...sport.nameAliases(barcelona, ctx)]));
+    // Okruhy
+    assert.ok(inCollection('fotbalove-kluby').includes('FC Barcelona') && inCollection('ceske-kluby').includes('AC Sparta Praha'));
+    assert.ok(inCollection('stadiony-a-haly').includes('Camp Nou') && inCollection('souteze').includes('Tour de France'));
+    assert.ok(inCollection('okruhy').every(name => venues.some(item => item.n === name && item.ty === 'závodní okruh')));
+    assert.ok(inCollection('motorsport').includes('Scuderia Ferrari'));
+    assert.ok(!inCollection('severoamericke-ligy').includes('FC Barcelona') && inCollection('severoamericke-ligy').includes('Los Angeles Lakers'));
 });

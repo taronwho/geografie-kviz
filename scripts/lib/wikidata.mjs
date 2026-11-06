@@ -46,7 +46,7 @@ export const values = (qids) => qids.map(q => 'wd:' + q).join(' ');
 // Souřadnice na jiném tělese (Olympus Mons na Marsu) mají před bodem odkaz na glóbus – ty vynecháme
 export const parsePoint = (wkt) => {
     if (!wkt || wkt.trim().startsWith('<')) return null;
-    const match = /Point\(([-\d.eE]+) ([-\d.eE]+)\)/.exec(wkt);
+    const match = /Point\(([-\d.eE]+) ([-\d.eE]+)\)/i.exec(wkt);
     return match ? { lon: round(Number(match[1]), 3), lat: round(Number(match[2]), 3) } : null;
 };
 

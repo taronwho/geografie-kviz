@@ -7,10 +7,10 @@ vyžadují jen uvedení autora a licence – to dělá stránka Zdroje a licence
 
 ## Souhrn
 
-- souborů celkem: **19751**, s načtenými metadaty: **19751**, zatím nestaženo: **0**
-- problémových: **6**
+- souborů celkem: **20354**, s načtenými metadaty: **20354**, zatím nestaženo: **0**
+- problémových: **5**
   - bez uvedené licence: 2
-  - soubor na Commons neexistuje: 4
+  - soubor na Commons neexistuje: 3
 
 ## Počty podle témat
 
@@ -26,7 +26,7 @@ vyžadují jen uvedení autora a licence – to dělá stránka Zdroje a licence
 | hudba | 1231 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | literatura | 1304 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | mytologie | 751 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| sport | 1080 | 1 | 0 | 0 | 0 | 0 | 0 | 1 |
+| sport | 1695 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | umeni | 1476 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | vlajky | 462 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | zemepis | 4431 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
@@ -40,11 +40,10 @@ vyžadují jen uvedení autora a licence – to dělá stránka Zdroje a licence
 | [PIA18317-SaturnMoon-Tethys-Cassini-20150411.jpg](https://commons.wikimedia.org/wiki/File:PIA18317-SaturnMoon-Tethys-Cassini-20150411.jpg) | fyzika | – | NASA/JPL-Caltech/Space Science Institute |
 | [PIA24168-Asteroid-99942Apophis-RadarImages-20210326.jpg](https://commons.wikimedia.org/wiki/File:PIA24168-Asteroid-99942Apophis-RadarImages-20210326.jpg) | fyzika | – | NASA/JPL-Caltech and NSF/AUI/GBO |
 
-### soubor na Commons neexistuje (4)
+### soubor na Commons neexistuje (3)
 
 | Soubor | Témata | Licence | Autor |
 | --- | --- | --- | --- |
 | [Bundesarchiv B 145 Bild-F078072-0004, Konrad Adenauer.jpg](https://commons.wikimedia.org/wiki/File:Bundesarchiv_B_145_Bild-F078072-0004%2C_Konrad_Adenauer.jpg) | historie | – | – |
-| [Karim Benzema Pick.jpg](https://commons.wikimedia.org/wiki/File:Karim_Benzema_Pick.jpg) | sport | – | – |
 | [Parus atricapillus 2 (Marek Szczepanek).jpg](https://commons.wikimedia.org/wiki/File:Parus_atricapillus_2_(Marek_Szczepanek).jpg) | biologie | – | – |
 | [Slobodan Milosevic in French delegation 2000.png](https://commons.wikimedia.org/wiki/File:Slobodan_Milosevic_in_French_delegation_2000.png) | historie | – | – |

@@ -91,8 +91,10 @@ const save = () => {
 for (const topic of wanted) {
     const file = path.join(ROOT, 'data', `${topic}.json`);
     if (!fs.existsSync(file)) continue;
-    const items = (JSON.parse(fs.readFileSync(file, 'utf8')).items || []).filter(item => item.im && item.ih && core.isRealPhoto(item.im));
-    const flagged = new Set();
+    // OCR_SKIP=starý-soubor.json: položky, které v něm už byly (a jsou přečtené), se nečtou znovu a jejich dosavadní výsledek zůstane
+    const skip = process.env.OCR_SKIP ? new Set((JSON.parse(fs.readFileSync(process.env.OCR_SKIP, 'utf8')).items || []).map(item => item.q)) : new Set();
+    const items = (JSON.parse(fs.readFileSync(file, 'utf8')).items || []).filter(item => item.im && item.ih && core.isRealPhoto(item.im) && !skip.has(item.q));
+    const flagged = new Set((result[topic] || []).filter(qid => skip.has(qid)));
     let done = 0;
     let missing = 0;
     const queue = [...items];
