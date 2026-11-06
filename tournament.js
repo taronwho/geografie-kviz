@@ -80,9 +80,10 @@
     const winnerPlace = (tournament, match) => match.third ? 3 : match.round === tournament.rounds ? 1 : null;
 
     // --- Stav karty turnaje ---
-    // tournament: řádek tournaments; entries: přihlášky (user_id, status, place); matches: zápasy s výsledky; today: den (Praha)
+    // tournament: řádek tournaments; entries: přihlášky (user_id, status, place); matches: zápasy s výsledky; today: den (Praha);
+    // savedMatch: id zápasu, který má toto zařízení rozehraný v uložené relaci (null = žádný)
     // Vrací popis, ze kterého se karta vykreslí: { phase, ... }.
-    const cardState = ({ tournament, entries = [], matches = [], me, today }) => {
+    const cardState = ({ tournament, entries = [], matches = [], me, today, savedMatch = null }) => {
         const mine = entries.find(entry => entry.user_id === me) || null;
         const base = { id: tournament.id, status: tournament.status, week: tournament.week_start };
         if (tournament.status === 'open') {
@@ -117,6 +118,9 @@
         if (gap > 0) return { ...out, step: 'later' };
         if (gap < 0) return { ...out, step: 'counting' };
         if (own && own.finished_at) return { ...out, step: 'waiting' };
+        // Rozehraný zápas: server zná začátek a toto zařízení má uloženou relaci, pokračuje se od další otázky (čas běží od začátku).
+        // Bez uložené relace (jiné zařízení, smazaná data) se kolo počítá jako neodehrané.
+        if (own && savedMatch && savedMatch === match.id) return { ...out, step: 'resume', canResume: true };
         if (own) return { ...out, step: 'unfinished' };
         return { ...out, step: 'play', canPlay: true };
     };
@@ -134,6 +138,7 @@
         switch (state.step) {
         case 'play': return `Dnes hraješ proti ${opponent}.`;
         case 'unfinished': return 'Kolo jsi začal a nedokončil, počítá se jako neodehrané.';
+        case 'resume': return 'Zápas máš rozehraný, dohraj ho. Čas běží od začátku zápasu.';
         case 'waiting': return `Odehráno ${state.correct}/${QUESTIONS}, čekáš na soupeře.`;
         case 'later': return `Další kolo hraješ ${dayWord(state.day, today)} proti ${opponent}.`;
         case 'counting': return 'Kolo skončilo, výsledek se právě počítá.';

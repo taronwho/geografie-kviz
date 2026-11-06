@@ -35,6 +35,9 @@
     };
     const STATE_VERSION = 8;
     const SESSION_MAX_AGE = 2 * 60 * 60 * 1000;
+    // Verze databázového schématu, kterou aplikace potřebuje: zvyšuje se spolu s schema_version() na konci supabase/schema.sql
+    // (tests/sql-security.test.js hlídá shodu). Správce (dev_admins nebo vývojářský režim) uvidí v Nastavení, že má schéma spustit znovu.
+    const REQUIRED_SCHEMA = 1;
     const HISTORY_SIZE = 200;
     const REQUEST_TIMEOUT = 12000;
     const WIKI_TIMEOUT = 6000;
@@ -699,6 +702,8 @@
         .catch(() => ({}))
         .then(data => {
             appVersion = data && typeof data === 'object' ? data : {};
+            // Hlášení chyb z provozu nese verzi aplikace (zkratku commitu)
+            if (window.MudrlantMonitor) window.MudrlantMonitor.setVersion(appVersion.commit || (appVersion.built ? 'bez-commitu' : 'vyvojova'));
             const element = document.getElementById('app-version');
             if (element) element.textContent = versionLabel();
         });
@@ -811,12 +816,56 @@
         }
         refreshTournaments({ force: true });
     };
+    // Chyby z provozu (monitor.js → client_errors): posledních 50 seskupených podle otisku, jen pro účet v dev_admins
+    const openClientErrors = async () => {
+        if (!Social || !signedUser()) { showToast('Nejdřív se přihlas.'); return; }
+        showDialog('Chyby z provozu', '<p class="py-4 text-center text-sm font-semibold text-slate-500 dark:text-slate-400">Načítám…</p>');
+        let rows = [];
+        try { rows = await Social.devClientErrors(); } catch (error) {
+            if (document.getElementById('dialog-overlay')) showDialog('Chyby z provozu', `<p class="text-sm font-semibold text-rose-700 dark:text-rose-400" role="alert">${escapeHtml(error && error.message ? error.message : 'Načtení se nepodařilo.')}</p>`);
+            return;
+        }
+        if (!document.getElementById('dialog-overlay')) return;
+        const when = (text) => { const date = new Date(text); return Number.isNaN(date.getTime()) ? '' : `${date.toLocaleDateString('cs-CZ')} ${date.toLocaleTimeString('cs-CZ', { hour: '2-digit', minute: '2-digit' })}`; };
+        const list = rows.length ? `<ul id="client-errors" class="flex max-h-[60dvh] flex-col gap-2 overflow-y-auto">${rows.map(row => `
+            <li data-error-hash="${escapeHtml(row.hash)}" class="rounded-xl bg-white p-2.5 text-[12px] shadow-sm ring-1 ring-slate-200/70 dark:bg-slate-800 dark:ring-slate-700/70">
+                <p class="flex items-center justify-between gap-2"><span class="rounded-full bg-rose-100 px-2 py-0.5 text-[11px] font-black text-rose-800 dark:bg-rose-900/40 dark:text-rose-200">${Number(row.count) || 1}×</span><span class="truncate text-[11px] font-semibold text-slate-500 dark:text-slate-400">${escapeHtml(when(row.last_at))}${row.app_version ? ` · ${escapeHtml(row.app_version)}` : ''}${row.kind === 'rejection' ? ' · promise' : ''}</span></p>
+                <p class="mt-1 break-words font-bold text-slate-800 dark:text-slate-100">${escapeHtml(row.message || '')}</p>
+                ${row.stack ? `<pre class="mt-1 max-h-32 overflow-auto whitespace-pre-wrap break-all text-[10px] leading-snug text-slate-600 dark:text-slate-300">${escapeHtml(row.stack)}</pre>` : ''}
+                <p class="mt-1 break-all text-[10px] text-slate-500 dark:text-slate-400">${escapeHtml(row.url || '')}${row.user_agent ? `<br>${escapeHtml(row.user_agent)}` : ''}</p>
+            </li>`).join('')}</ul>` : '<p id="client-errors" class="text-sm text-slate-500 dark:text-slate-400">Žádné hlášené chyby.</p>';
+        showDialog('Chyby z provozu', `<div class="flex flex-col gap-2"><p class="text-xs text-slate-500 dark:text-slate-400">Posledních 50 chyb z aplikací hráčů, seskupených podle stejné zprávy a zásobníku. Bez osobních údajů.</p>${list}</div>`);
+    };
+    // Zastaralé schéma databáze: správce (dev_admins nebo vývojářský režim) vidí v Nastavení jednou za den nenápadný řádek; běžným hráčům nic
+    const SCHEMA_SEEN_KEY = 'mudrlant.schemaSeen';
+    let schemaOutdated = null; // { have, need } nebo null
+    let schemaBannerShown = false;
+    const checkSchemaVersion = async (user) => {
+        if (!Social || !user) return;
+        try {
+            const admin = devOn() || await Social.isDevAdmin();
+            if (!admin || !signedUser() || signedUser().id !== user.id) return;
+            const have = await Social.schemaVersion();
+            schemaOutdated = have === null || have < REQUIRED_SCHEMA ? { have, need: REQUIRED_SCHEMA } : null;
+            const banner = document.getElementById('schema-banner');
+            if (schemaOutdated && document.getElementById('settings-overlay') && !banner) openSettings(meNote);
+        } catch (error) { /* bez spojení se nic neukazuje */ }
+    };
+    const schemaBannerDue = () => Boolean(schemaOutdated) && (schemaBannerShown || readJson(SCHEMA_SEEN_KEY) !== getDayKey());
+    const renderSchemaBanner = () => {
+        if (!schemaBannerDue()) return '';
+        schemaBannerShown = true;
+        writeJson(SCHEMA_SEEN_KEY, getDayKey());
+        return `<p id="schema-banner" class="mt-2 rounded-xl bg-amber-50 px-3 py-2 text-[11px] font-semibold leading-snug text-amber-900 ring-1 ring-amber-300/70 dark:bg-amber-900/30 dark:text-amber-100 dark:ring-amber-700/60" role="status">Databáze je zastaralá: spusť znovu supabase/schema.sql (verze ${schemaOutdated.have === null ? 'bez čísla' : schemaOutdated.have}, aplikace potřebuje ${schemaOutdated.need}).</p>`;
+    };
     const renderDevPanel = () => !devOn() ? '' : `
         <div class="mt-3 rounded-2xl border-2 border-dashed border-amber-400/70 p-2.5">
             <p class="mb-1.5 flex items-center justify-between text-[11px] font-black uppercase tracking-widest text-amber-700 dark:text-amber-400"><span>Vývojářský režim</span><span class="font-bold normal-case tracking-normal">${devActive() ? 'zkušební postup' : 'tvůj postup'}</span></p>
             <div class="flex flex-wrap gap-1">${[['max', 'Vše (úr. 100)'], ['level:10', 'Úr. 10'], ['level:25', 'Úr. 25'], ['level:50', 'Úr. 50'], ['level:75', 'Úr. 75'], ['badges', 'Všechny odznaky'], ['nobadges', 'Žádné odznaky'], ['nostars', 'Vymazat hvězdičky'], ['bulb', 'Vrátit žárovku']].map(([kind, label]) => `<button type="button" data-dev="${kind}" class="rounded-lg bg-slate-200 px-2 py-1 text-[11px] font-bold text-slate-700 active:scale-95 dark:bg-slate-700 dark:text-slate-200">${label}</button>`).join('')}${devActive() ? '<button type="button" data-dev="restore" class="rounded-lg bg-amber-500 px-2 py-1 text-[11px] font-black text-white active:scale-95">Vrátit můj postup</button>' : ''}</div>
             ${Social ? `<p class="mb-1 mt-2 text-[11px] font-black uppercase tracking-widest text-amber-700 dark:text-amber-400">Turnaj (boti)</p>
-            <div class="flex flex-wrap gap-1">${[['tour-bots', '+31 botů'], ['tour-start', 'Spustit hned'], ['tour-next', 'Další kolo'], ['tour-reset', 'Smazat odehraný turnaj'], ['tour-clear', 'Smazat boty']].map(([kind, label]) => `<button type="button" data-dev="${kind}" class="rounded-lg bg-emerald-100 px-2 py-1 text-[11px] font-bold text-emerald-900 active:scale-95 dark:bg-emerald-900/50 dark:text-emerald-100">${label}</button>`).join('')}</div>` : ''}
+            <div class="flex flex-wrap gap-1">${[['tour-bots', '+31 botů'], ['tour-start', 'Spustit hned'], ['tour-next', 'Další kolo'], ['tour-reset', 'Smazat odehraný turnaj'], ['tour-clear', 'Smazat boty']].map(([kind, label]) => `<button type="button" data-dev="${kind}" class="rounded-lg bg-emerald-100 px-2 py-1 text-[11px] font-bold text-emerald-900 active:scale-95 dark:bg-emerald-900/50 dark:text-emerald-100">${label}</button>`).join('')}</div>
+            <p class="mb-1 mt-2 text-[11px] font-black uppercase tracking-widest text-amber-700 dark:text-amber-400">Provoz</p>
+            <div class="flex flex-wrap gap-1"><button type="button" data-dev="errors" class="rounded-lg bg-rose-100 px-2 py-1 text-[11px] font-bold text-rose-900 active:scale-95 dark:bg-rose-900/50 dark:text-rose-100">Chyby z provozu</button></div>` : ''}
         </div>`;
     const ME_HEADING = 'text-[11px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400';
     const VARIANT_BRIEF = { choices: { short: 'Možnosti', text: '4 možnosti, až 4 body' }, typed: { short: 'Psaní', text: 'Těžší, dvojnásobek bodů' } };
@@ -936,6 +985,7 @@
                 ${tabs}
                 <div class="mt-3">${meTab === 'profile' && profileBody ? profileBody : meTab === 'look' ? lookBody('look') : meTab === 'owl' ? lookBody('owl') : gameBody}</div>
                 <p id="settings-note" class="mt-2 min-h-[1.1rem] text-xs font-semibold ${noteText.startsWith('Uloženo') || !meNote ? 'text-emerald-700 dark:text-emerald-300' : 'text-rose-700 dark:text-rose-400'}" role="status">${escapeHtml(noteText)}</p>
+                ${renderSchemaBanner()}
                 <div class="flex items-center justify-center gap-2 text-xs text-slate-500 dark:text-slate-400">
                     <span id="app-version">${escapeHtml(versionLabel())}</span>
                     <button type="button" data-update-app class="rounded-lg px-2 py-1 font-bold text-slate-600 underline underline-offset-2 hover:bg-slate-200 disabled:no-underline dark:text-slate-300 dark:hover:bg-slate-800">Aktualizovat</button>
@@ -1011,6 +1061,7 @@
             if (event.target.closest('[data-open-accept]')) { closeSettings(); openAccepted(); return; }
             const devButton = event.target.closest('[data-dev]');
             if (devButton && devButton.dataset.dev.startsWith('tour-')) { devTournamentAction(devButton.dataset.dev); return; }
+            if (devButton && devButton.dataset.dev === 'errors') { closeSettings(); openClientErrors(); return; }
             if (devButton && devButton.dataset.dev === 'bulb') {
                 // Vrátí žárovku u sovy: zapomene, že dnešní událost už hráč přečetl
                 try { localStorage.removeItem(FACT_KEY); } catch (e) { /* bez úložiště se nic nevrací */ }
@@ -2214,7 +2265,8 @@
 
     const persistState = () => {
         if (!current) return;
-        writeJson(KEYS.session, { version: STATE_VERSION, data: current, round, mode, pool, challenge: mode === 'challenge' && !(challenge && challenge.tournament) ? challenge : null, timestamp: Date.now() });
+        // Rozehraný zápas turnaje se ukládá také: po návratu v den kola nabídne karta turnaje Pokračovat (od další otázky)
+        writeJson(KEYS.session, { version: STATE_VERSION, data: current, round, mode, pool, challenge: mode === 'challenge' ? challenge : null, timestamp: Date.now() });
         if (mode === 'daily' && current.dailyDate) {
             const daily = readJson(KEYS.daily) || {};
             daily[current.topic] = { date: current.dailyDate, data: current, round };
@@ -2447,7 +2499,7 @@
         // Zodpovězená otázka se po obnovení stránky (třeba po aktualizaci aplikace) neukazuje znovu: hráč začne na úvodní stránce
         // (u dnešní otázky je její výsledek dál po ruce přes ikonu tématu, u výzvy se pokračuje tlačítkem na úvodní stránce)
         if (session.round.answered) {
-            if (session.mode === 'challenge' && session.challenge && !session.challenge.done && !finishedChallenges().includes(session.challenge.code)) challenge = session.challenge;
+            if (session.mode === 'challenge' && session.challenge && !session.challenge.done && !session.challenge.tournament && !finishedChallenges().includes(session.challenge.code)) challenge = session.challenge;
             return false;
         }
         // Dnešní otázka z uložené relace platí jen do půlnoci
@@ -2474,12 +2526,22 @@
 
     // Po spuštění i po aktualizaci aplikace se vždy začíná na úvodní stránce, rozehraná otázka se neobnovuje.
     // Rozehraná výzva se jen zapamatuje a pokračuje se v ní tlačítkem na úvodní stránce (otázka se pak vybere znovu ze stejných).
+    // Rozehraný zápas turnaje nabízí k pokračování karta turnaje (jen v den kola), sem se nebere.
     const restoreSession = () => {
         const session = readJson(KEYS.session);
-        if (session && session.version === STATE_VERSION && session.mode === 'challenge' && session.challenge && !session.challenge.done
+        if (session && session.version === STATE_VERSION && session.mode === 'challenge' && session.challenge && !session.challenge.done && !session.challenge.tournament
             && !finishedChallenges().includes(session.challenge.code) && Date.now() - session.timestamp < SESSION_MAX_AGE) challenge = session.challenge;
         return false;
     };
+    // Rozehraný zápas turnaje: z paměti (právě hraný), jinak z uložené relace; { mid, challenge } nebo null
+    const savedTournamentChallenge = () => {
+        if (challenge && challenge.tournament && !challenge.done) return { mid: challenge.tournament.mid, challenge };
+        const session = readJson(KEYS.session);
+        const saved = session && session.version === STATE_VERSION && session.mode === 'challenge' ? session.challenge : null;
+        if (!saved || saved.done || !saved.tournament || !saved.tournament.mid || !Array.isArray(saved.results)) return null;
+        return { mid: saved.tournament.mid, challenge: saved };
+    };
+    const savedTournamentMatch = () => { const saved = savedTournamentChallenge(); return saved ? saved.mid : null; };
 
     // Průběh načtení otázky: vybrat položku, dotáhnout popis a fotku, zobrazit
     const runRound = async (pick, loadingTopic = null) => {
@@ -3114,6 +3176,7 @@
         syncLookWithAccount();
         updateProfileButton();
         syncProgress();
+        checkSchemaVersion(user);
         if (myBlocked === null) Social.getAccepts(user.id).then(accepts => { if (!signedUser() || signedUser().id !== user.id) return; myBlocked = accepts.blocked; myAcceptsMix = accepts.mix; paintChallenges(); });
         return myProfile;
     };
@@ -3291,7 +3354,7 @@
                 </div>`;
         }
         const incoming = incomingList || [];
-        const resume = challenge && !challenge.done
+        const resume = challenge && !challenge.done && !challenge.tournament
             ? `<button type="button" data-action="challenge-resume" class="flex w-full items-center justify-center gap-2 rounded-2xl btn-3d bg-gradient-to-b from-gold-400 to-gold-600 px-4 py-2.5 text-[15px] font-black text-brand-950"><i data-lucide="play" class="h-5 w-5"></i> Pokračovat ve výzvě (${challenge.index + 1}/${challenge.count})</button>` : '';
         const waiting = incoming.length ? `<div class="flex flex-col gap-1.5"><p class="flex items-center gap-1.5 ${LABEL}"><span class="h-2 w-2 rounded-full bg-gold-500"></span>Čekají na tebe</p>${incoming.slice(0, 5).map(incomingRow).join('')}</div>` : '';
         // Zápas turnaje, který se hraje dnes, je mezi tím, co čeká: karta turnaje se zlatým Hrát jde nahoru
@@ -4375,7 +4438,7 @@
             const shown = [...running, ...list.filter(item => item.status === 'open'), ...(running.length ? [] : list.filter(item => item.status === 'finished' && Tournament.diffDays(today, item.week_start) <= 13).slice(0, 1))];
             const views = await Promise.all(shown.map(async (tournament) => {
                 const [entries, matches] = await Promise.all([Social.getTournamentEntries(tournament.id), tournament.status === 'open' ? [] : Social.getTournamentMatches(tournament.id)]);
-                return { tournament, entries, matches, state: Tournament.cardState({ tournament, entries, matches, me: user.id, today }) };
+                return { tournament, entries, matches, state: tournamentStateOf({ tournament, entries, matches }, user.id, today) };
             }));
             if (!signedUser() || signedUser().id !== user.id) return;
             tournamentView = views.filter(view => view.tournament.status !== 'finished' || view.state.playing);
@@ -4393,6 +4456,15 @@
         }
     };
     const findTournament = (tid) => (tournamentView || []).find(view => view.tournament.id === tid) || null;
+    // Stav karty z toho, co spočítal server, plus rozehraný zápas tohoto zařízení (uložená relace → krok 'resume')
+    const tournamentStateOf = (view, meId, today = Tournament.pragueToday()) => Tournament.cardState({ tournament: view.tournament, entries: view.entries, matches: view.matches, me: meId, today, savedMatch: savedTournamentMatch() });
+    // Před vykreslením se stavy přepočítají: uložená relace se mezitím mohla změnit (zápas začal, dohrál se), server ne
+    const syncTournamentStates = () => {
+        const user = signedUser();
+        if (!user || !Tournament || !tournamentView) return;
+        const today = Tournament.pragueToday();
+        tournamentView.forEach(view => { view.state = tournamentStateOf(view, user.id, today); });
+    };
 
     // --- Karta na záložce Více hráčů ---
     const TOUR_BUBBLE = 'flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-gold-300 to-gold-600 text-brand-950 shadow-sm ring-2 ring-white/70 dark:ring-slate-700';
@@ -4425,8 +4497,8 @@
         const names = Tournament.nameMap(entries);
         const text = Tournament.statusText(state, names, today);
         const title = state.phase === 'running' ? `Běží${state.roundName ? ` · ${state.roundName}` : ''}` : state.phase === 'finished' ? 'Poslední turnaj' : 'Turnaj';
-        const playing = state.step === 'play';
-        const play = playing ? `<button type="button" data-action="tournament-play" data-tid="${id}" class="flex shrink-0 items-center gap-1.5 rounded-2xl btn-3d bg-gradient-to-b from-gold-400 to-gold-600 px-4 py-2.5 text-[14px] font-black text-brand-950"><i data-lucide="play" class="h-4 w-4"></i>Hrát</button>` : '';
+        const playing = state.step === 'play' || state.step === 'resume';
+        const play = playing ? `<button type="button" data-action="${state.step === 'resume' ? 'tournament-resume' : 'tournament-play'}" data-tid="${id}" class="flex shrink-0 items-center gap-1.5 rounded-2xl btn-3d bg-gradient-to-b from-gold-400 to-gold-600 px-4 py-2.5 text-[14px] font-black text-brand-950"><i data-lucide="play" class="h-4 w-4"></i>${state.step === 'resume' ? 'Pokračovat' : 'Hrát'}</button>` : '';
         const bracket = state.phase === 'finished' ? ['award', 'Výsledky'] : ['git-branch', 'Pavouk'];
         // S velkým tlačítkem Hrát je pavouk jen malá ikona, jinak ikona s popiskem
         const open = `<button type="button" data-action="tournament-open" data-tid="${id}" ${playing ? `aria-label="${bracket[1]}" title="${bracket[1]}"` : ''} class="${TOUR_SMALL} ${playing ? 'h-10 w-10' : 'px-2.5 py-2'}"><i data-lucide="${bracket[0]}" class="h-4 w-4"></i>${playing ? '' : bracket[1]}</button>`;
@@ -4436,15 +4508,16 @@
                 <span class="${TOUR_ICON}"><i data-lucide="trophy" class="h-5 w-5"></i></span>
                 <div class="min-w-0 flex-1">
                     <p class="truncate text-[14px] font-black leading-tight text-slate-800 dark:text-slate-100">${escapeHtml(title)}</p>
-                    <p data-tournament-text class="flex flex-wrap items-center gap-x-1 text-[11px] font-semibold leading-snug text-slate-600 dark:text-slate-300">${playing && opponent ? `<span>Dnes hraješ proti</span> <span class="inline-flex items-center gap-1">${avatarHtml(opponent.player, 'h-4 w-4 text-[10px]')}<b class="text-slate-800 dark:text-slate-100">${escapeHtml(playerName(opponent.player))}</b></span>` : escapeHtml(text)}</p>
+                    <p data-tournament-text class="flex flex-wrap items-center gap-x-1 text-[11px] font-semibold leading-snug text-slate-600 dark:text-slate-300">${state.step === 'play' && opponent ? `<span>Dnes hraješ proti</span> <span class="inline-flex items-center gap-1">${avatarHtml(opponent.player, 'h-4 w-4 text-[10px]')}<b class="text-slate-800 dark:text-slate-100">${escapeHtml(playerName(opponent.player))}</b></span>` : escapeHtml(text)}</p>
                 </div>
                 <div class="flex shrink-0 items-center gap-1.5">${playing ? open + play : open}</div>
             </div>`;
     };
     // Hráč má dnes odehrát zápas turnaje (karta jde v záložce nahoru) / turnaj je otevřený a hráč se ještě nepřihlásil (karta jemně zeleně svítí)
-    const tournamentWaits = () => Boolean(Tournament && tournamentView && tournamentView.some(view => view.state.step === 'play'));
+    const tournamentWaits = () => { syncTournamentStates(); return Boolean(Tournament && tournamentView && tournamentView.some(view => view.state.step === 'play' || view.state.step === 'resume')); };
     const tournamentCard = () => {
         if (!Tournament || !tournamentView || !tournamentView.length) return '';
+        syncTournamentStates();
         const invite = tournamentView.some(view => view.state.phase === 'open' && view.state.canJoin);
         return `
             <div id="tournament-card" class="relative overflow-hidden rounded-2xl bg-gradient-to-br from-gold-100 via-gold-50 to-emerald-100 p-2.5 shadow-md ring-1 ring-gold-300/80 dark:from-gold-900/50 dark:via-slate-800 dark:to-emerald-900/40 dark:ring-gold-700/60 ${invite ? 'tour-glow' : ''}">
@@ -4653,7 +4726,7 @@
             const medals = ['text-gold-600 dark:text-gold-300', 'text-slate-500 dark:text-slate-300', 'text-amber-700 dark:text-amber-500', 'text-slate-500 dark:text-slate-400'];
             body = `
                 <p class="text-xs font-semibold leading-snug text-slate-500 dark:text-slate-400">Týden ${escapeHtml(Tournament.weekLabel(tournament.week_start))} · ${tournament.size ? `${Tournament.playersWord(tournament.size)}` : ''} · Mix všech témat, ${Tournament.QUESTIONS} otázek v kole</p>
-                ${state.role === 'player' || (state.phase === 'finished' && state.playing) ? `<div id="tournament-status" class="flex items-center gap-2.5 rounded-2xl bg-gold-50 p-2.5 ring-1 ring-gold-300/70 dark:bg-gold-900/20 dark:ring-gold-700/60"><p class="min-w-0 flex-1 text-[13px] font-bold leading-snug text-slate-800 dark:text-slate-100">${state.roundName ? `<span class="font-black">${escapeHtml(state.roundName)}:</span> ` : ''}${escapeHtml(status)}</p>${state.step === 'play' ? '<button type="button" data-t-play class="shrink-0 rounded-xl bg-gold-500 px-3.5 py-2 text-[13px] font-black text-brand-950 shadow-sm active:scale-[0.97]">Hrát</button>' : ''}</div>` : `<p id="tournament-status" class="text-sm font-semibold text-slate-600 dark:text-slate-300">${escapeHtml(status)}</p>`}
+                ${state.role === 'player' || (state.phase === 'finished' && state.playing) ? `<div id="tournament-status" class="flex items-center gap-2.5 rounded-2xl bg-gold-50 p-2.5 ring-1 ring-gold-300/70 dark:bg-gold-900/20 dark:ring-gold-700/60"><p class="min-w-0 flex-1 text-[13px] font-bold leading-snug text-slate-800 dark:text-slate-100">${state.roundName ? `<span class="font-black">${escapeHtml(state.roundName)}:</span> ` : ''}${escapeHtml(status)}</p>${state.step === 'play' || state.step === 'resume' ? `<button type="button" data-t-play class="shrink-0 rounded-xl bg-gold-500 px-3.5 py-2 text-[13px] font-black text-brand-950 shadow-sm active:scale-[0.97]">${state.step === 'resume' ? 'Pokračovat' : 'Hrát'}</button>` : ''}</div>` : `<p id="tournament-status" class="text-sm font-semibold text-slate-600 dark:text-slate-300">${escapeHtml(status)}</p>`}
                 ${podium.length ? `<ol id="tournament-podium" class="flex flex-col gap-1">${podium.map(entry => `<li class="flex items-center gap-2 rounded-xl bg-white px-2.5 py-1.5 shadow-sm dark:bg-slate-800 ${entry.user_id === user.id ? 'ring-2 ring-brand-600' : 'ring-1 ring-slate-200/70 dark:ring-slate-700/70'}"><span class="flex w-8 shrink-0 items-center justify-center gap-0.5 text-sm font-black ${medals[entry.place - 1]}">${entry.place}.${entry.place === 1 ? '<i data-lucide="trophy" class="h-3.5 w-3.5"></i>' : ''}</span>${avatarHtml(entry.player, 'h-8 w-8 text-base')}<span class="min-w-0 flex-1 truncate text-[13px] font-black text-slate-800 dark:text-slate-100">${escapeHtml(playerName(entry.player))}${entry.user_id === user.id ? ' (ty)' : ''}</span></li>`).join('')}</ol>` : ''}
                 ${rankingHtml(view, user.id)}
                 ${hasBracket ? `<div role="group" aria-label="Pohled na turnaj" class="grid grid-cols-2 gap-1 rounded-xl bg-slate-200/70 p-1 dark:bg-slate-800">${[['rounds', 'Seznam kol'], ['bracket', 'Pavouk']].map(([mode, title]) => `<button type="button" data-t-mode="${mode}" aria-pressed="${(mode === 'bracket') === bracketOn}" class="rounded-lg px-2 py-1.5 text-[13px] font-black ${(mode === 'bracket') === bracketOn ? 'bg-white text-brand-700 shadow-sm dark:bg-slate-700 dark:text-white' : 'text-slate-600 dark:text-slate-300'}">${title}</button>`).join('')}</div>` : ''}
@@ -4675,7 +4748,7 @@
                 const target = event.target;
                 if (target.closest('[data-t-join]')) changeTournamentEntry(tournamentDialogId, true);
                 else if (target.closest('[data-t-leave]')) changeTournamentEntry(tournamentDialogId, false);
-                else if (target.closest('[data-t-play]')) playTournament(tournamentDialogId);
+                else if (target.closest('[data-t-play]')) { const view = findTournament(tournamentDialogId); if (view && view.state.step === 'resume') resumeTournament(tournamentDialogId); else playTournament(tournamentDialogId); }
                 else if (target.closest('[data-t-help]')) openTournamentHelp(true);
                 else if (target.closest('[data-t-mode]')) { tournamentMode = target.closest('[data-t-mode]').dataset.tMode === 'rounds' ? 'rounds' : 'bracket'; bracketReset = true; rerender(); }
                 else if (target.closest('[data-b-full]')) { bracketFull = target.closest('[data-b-full]').getAttribute('aria-pressed') !== 'true'; bracketReset = true; rerender(); }
@@ -4805,10 +4878,42 @@
         }
         tournamentStarting = false;
         tournamentTickAt = 0;
+        // Karta ví o začátku hned (bez čekání na server): z „Hrát“ je „Pokračovat“, dokud se zápas nedohraje
+        const user = signedUser();
+        if (user && view.matches) {
+            const match = view.matches.find(item => item.id === state.matchId);
+            if (match && !Tournament.resultOf(match, user.id)) match.results = [...(match.results || []), { user_id: user.id, started_at: new Date().toISOString(), finished_at: null, correct: null, points: null, time_ms: null }];
+        }
         startChallenge({
             code: 'turnaj', topic: tournament.topic, seed: `${tournament.seed}-r${state.round}`, count: Tournament.QUESTIONS, variant: 'choices', include_hard: false,
             tournament: { tid: tournament.id, mid: state.matchId, round: state.round, name: state.roundName }
         }, 0, []);
+    };
+    // Pokračování rozehraného zápasu (uložená relace tohoto zařízení) od první nezodpovězené otázky; server měří čas od začátku zápasu.
+    // Když jsou všechny otázky zodpovězené (aplikace se zavřela před odesláním), výsledek se rovnou odešle.
+    const resumeTournament = (tid) => {
+        const view = findTournament(tid);
+        if (!view || !Social || tournamentStarting || isLoading) return;
+        syncTournamentStates();
+        const saved = savedTournamentChallenge();
+        if (view.state.step !== 'resume' || !saved || saved.mid !== view.state.matchId) { refreshTournaments({ force: true }); return; }
+        const def = saved.challenge;
+        const results = Array.from({ length: def.count }, (_, index) => def.results[index] || null);
+        const next = results.findIndex(row => !row);
+        showToast('Čas běží od začátku zápasu');
+        if (next < 0) {
+            challenge = { ...def, results, index: def.count - 1, done: false };
+            mode = 'challenge';
+            closeDialog();
+            finishTournamentMatch();
+            return;
+        }
+        startChallenge(def, next, results);
+    };
+    // Dohraný zápas se v uložené relaci označí jako hotový, ať ho karta po dalším spuštění nenabízí k pokračování
+    const markTournamentFinished = (mid) => {
+        const session = readJson(KEYS.session);
+        if (session && session.challenge && session.challenge.tournament && session.challenge.tournament.mid === mid && !session.challenge.done) { session.challenge.done = true; writeJson(KEYS.session, session); }
     };
 
     // Po poslední otázce: výsledek jde na server, potom se ukáže, jak zápas dopadl (soupeřův výsledek ukáže server až po rozhodnutí)
@@ -4827,6 +4932,8 @@
                 // Odpověď se ztratila a výsledek už na serveru je: pokračuje se k výsledku zápasu
                 if (!/jen jednou/.test(error.message)) throw error;
             }
+            // Výsledek je na serveru: uložená relace se označí jako hotová, ať karta zápas po dalším spuštění nenabízí k pokračování
+            markTournamentFinished(c.tournament.mid);
             await refreshTournaments({ force: true });
             if (challenge === c) renderTournamentDone('ok');
         } catch (error) {
@@ -4890,6 +4997,7 @@
         'tournament-join': (button) => changeTournamentEntry(button.dataset.tid, true),
         'tournament-leave': (button) => changeTournamentEntry(button.dataset.tid, false),
         'tournament-play': (button) => playTournament(button.dataset.tid),
+        'tournament-resume': (button) => resumeTournament(button.dataset.tid),
         'tournament-back': () => { const tid = challenge && challenge.tournament ? challenge.tournament.tid : ''; challengeHome(); if (tid) openTournament(tid); }
     };
 

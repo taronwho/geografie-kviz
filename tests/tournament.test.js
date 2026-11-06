@@ -104,6 +104,30 @@ test('stav karty: běžící turnaj a moje kolo', () => {
     assert.equal(card.step, 'counting');
 });
 
+test('stav karty: rozehraný zápas s uloženou relací jde dohrát jen v den kola', () => {
+    const started = [{ user_id: ME, started_at: 'x', finished_at: null }];
+    // server zná začátek a zařízení má uloženou relaci tohoto zápasu: Pokračovat
+    let card = T.cardState({ tournament: running, entries: [entry(ME), entry(OTHER)], matches: [match({ results: started })], me: ME, today: '2026-11-09', savedMatch: 'm1' });
+    assert.equal(card.step, 'resume');
+    assert.equal(card.canResume, true);
+    assert.equal(card.canPlay, undefined);
+    assert.equal(card.matchId, 'm1');
+    assert.match(T.statusText(card, {}, '2026-11-09'), /Čas běží od začátku zápasu/);
+    // uložená relace patří jinému zápasu (nebo chybí – jiné zařízení): začal a nedokončil
+    card = T.cardState({ tournament: running, entries: [entry(ME), entry(OTHER)], matches: [match({ results: started })], me: ME, today: '2026-11-09', savedMatch: 'jiny' });
+    assert.equal(card.step, 'unfinished');
+    card = T.cardState({ tournament: running, entries: [entry(ME), entry(OTHER)], matches: [match({ results: started })], me: ME, today: '2026-11-09', savedMatch: null });
+    assert.equal(card.step, 'unfinished');
+    // uložená relace bez začátku na serveru nic neobnovuje (zápas se hraje od začátku)
+    card = T.cardState({ tournament: running, entries: [entry(ME), entry(OTHER)], matches: [match()], me: ME, today: '2026-11-09', savedMatch: 'm1' });
+    assert.equal(card.step, 'play');
+    // po půlnoci dne kola se obnova nenabízí
+    card = T.cardState({ tournament: running, entries: [entry(ME), entry(OTHER)], matches: [match({ results: started })], me: ME, today: '2026-11-10', savedMatch: 'm1' });
+    assert.equal(card.step, 'counting');
+    // dohraný zápas má přednost
+    card = T.cardState({ tournament: running, entries: [entry(ME), entry(OTHER)], matches: [match({ results: [{ user_id: ME, started_at: 'x', finished_at: 'y', correct: 4, points: 9 }] })], me: ME, today: '2026-11-09', savedMatch: 'm1' });
+    assert.equal(card.step, 'waiting');
+});
 test('stav karty: postoupil, vypadl, finále, bronz, divák', () => {
     let card = state([match({ winner: ME, decided_by: 'played' })], '2026-11-09');
     assert.equal(card.step, 'won');

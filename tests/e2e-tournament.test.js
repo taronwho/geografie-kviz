@@ -1,5 +1,5 @@
 // Týdenní turnaje v prohlížeči s falešným Supabase v paměti (stav turnaje „spočítaný serverem“, jako v tests/e2e-rating.test.js):
-// přihlášky a kapacita, běžící turnaj a tlačítko Hrát, zápas až do výsledku, zprávy, dialog pavouka, starší databáze bez turnajů,
+// přihlášky a kapacita, běžící turnaj a tlačítko Hrát, zápas až do výsledku (i pokračování rozehraného po zavření aplikace), zprávy, dialog pavouka, starší databáze bez turnajů,
 // CSP bez chyb, 360×640 a 390×780 bez vodorovného posouvání, tmavý režim. Potřebuje Playwright (viz tests/e2e.test.js), jinak se přeskočí.
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -569,23 +569,72 @@ test('týdenní turnaje', { skip: !chromium && 'Playwright není nainstalovaný'
         await context.close();
     });
 
-    await t.test('začal jsem a nedokončil: neodehráno, nejde hrát znovu, rozehraný zápas se neobnovuje', async () => {
+    await t.test('rozehraný zápas: po zavření aplikace karta nabídne Pokračovat, hraje se od další otázky a výsledek jde na server jednou', async () => {
         const db = newDb();
         runningEight(db);
         const { context, tab, log } = await start(db);
         await tab.click('[data-action="tournament-play"]');
+        // tři otázky zodpovězené, čtvrtá rozehraná
+        await playMatch(tab, 3);
         await tab.waitForSelector('[data-action="give-up"]');
-        await tab.click('[data-action="give-up"]');
-        await tab.waitForSelector('h1');
+        assert.match(await tab.textContent('#status-badge'), /Turnaj · 4\/10/);
+        const session = await tab.evaluate(() => JSON.parse(localStorage.getItem('mudrlant.session')));
+        assert.equal(session.challenge.tournament.mid, uuid(101), 'rozehraný zápas je v uložené relaci');
+        assert.equal(session.challenge.results.filter(Boolean).length, 3);
         // Aplikace se zavře uprostřed zápasu
         await tab.reload();
         await waitForHome(tab);
+        await tab.waitForSelector('#tournament-card [data-action="tournament-resume"]');
+        const card = (await tab.textContent('#tournament-card')).replace(/\s+/g, ' ');
+        assert.match(card, /Zápas máš rozehraný/);
+        assert.match(card, /Čas běží od začátku zápasu/);
+        assert.doesNotMatch(card, /začal a nedokončil/);
+        assert.equal(await tab.locator('[data-action="tournament-play"]').count(), 0);
+        assert.equal(await tab.locator('[data-action="challenge-resume"]').count(), 0, 'rozehraný zápas nenabízí tlačítko výzvy, jen karta turnaje');
+        assert.equal(await tab.getAttribute('#tournament-card [data-tournament-row="running"]', 'data-step'), 'resume');
+        await shot(tab, 'turnaj-pokracovat');
+        // Okno turnaje nabízí Pokračovat také
+        await tab.click('[data-action="tournament-open"][data-tid]');
+        await tab.waitForSelector('#tournament-status');
+        assert.equal((await tab.textContent('#tournament-status [data-t-play]')).trim(), 'Pokračovat');
+        await tab.keyboard.press('Escape');
+        await tab.waitForFunction(() => !document.getElementById('dialog-overlay'));
+
+        const startCalls = db.calls.filter(call => call.name === 'tournament_start_match').length;
+        await tab.click('[data-action="tournament-resume"]');
+        await tab.waitForSelector('[data-action="give-up"]');
+        assert.match(await tab.textContent('#status-badge'), /Turnaj · 4\/10/, 'pokračuje se od čtvrté otázky');
+        assert.match(await tab.textContent('#toast'), /Čas běží od začátku zápasu/);
+        assert.equal(db.calls.filter(call => call.name === 'tournament_start_match').length, startCalls, 'začátek se serveru nehlásí znovu');
+        await playMatch(tab, 7);
+        await tab.waitForSelector('[data-tournament-outcome]');
+        assert.equal(db.calls.filter(call => call.name === 'tournament_finish_match').length, 1, 'výsledek se odešle jednou');
+        assert.deepEqual(db.calls.find(call => call.name === 'tournament_finish_match').body, { mid: uuid(101), correct_count: 0, point_count: 0 });
+        assert.match((await tab.textContent('#app-content')).replace(/\s+/g, ' '), /Odehráno!/);
+        // Dohraný zápas se už nenabízí k pokračování (uložená relace je hotová)
+        await tab.reload();
+        await waitForHome(tab);
+        await tab.waitForSelector('#tournament-card');
+        assert.equal(await tab.locator('[data-action="tournament-resume"]').count(), 0);
+        assert.match(await tab.textContent('#tournament-card'), /Odehráno 0\/10, čekáš na soupeře/);
+        assert.deepEqual(log.errors, []);
+        assert.deepEqual(log.csp, []);
+        await context.close();
+    });
+
+    await t.test('rozehraný zápas bez uložené relace (jiné zařízení) a po půlnoci: pokračovat nejde', async () => {
+        // Server začátek zná, zařízení relaci nemá: neodehráno, nejde hrát znovu
+        const db = newDb();
+        runningEight(db, { myStarted: true });
+        const { context, tab, log } = await start(db);
         await tab.waitForSelector('#tournament-card');
         assert.match((await tab.textContent('#tournament-card')).replace(/\s+/g, ' '), /Kolo jsi začal a nedokončil, počítá se jako neodehrané/);
         assert.equal(await tab.locator('[data-action="tournament-play"]').count(), 0);
+        assert.equal(await tab.locator('[data-action="tournament-resume"]').count(), 0);
         assert.equal(await tab.locator('[data-action="challenge-resume"]').count(), 0);
+        assert.deepEqual(log.errors, []);
         await context.close();
-        // Server zápas už zná (druhé zařízení): hláška serveru se ukáže a hra se nespustí
+        // Druhé zařízení: server zápas už zná, hláška serveru se ukáže a hra se nespustí
         const second = newDb();
         runningEight(second);
         const page = await start(second);
@@ -595,8 +644,19 @@ test('týdenní turnaje', { skip: !chromium && 'Playwright není nainstalovaný'
         await page.tab.waitForFunction(() => /Kolo jsi už začal\./.test(document.getElementById('toast') ? document.getElementById('toast').textContent : ''));
         assert.equal(await page.tab.locator('[data-action="give-up"]').count(), 0);
         assert.deepEqual(page.log.errors, []);
-        assert.deepEqual(log.errors, []);
         await page.context.close();
+        // Uložená relace je z dneška, ale den kola už skončil: obnova se nenabízí
+        const third = newDb();
+        runningEight(third, { myStarted: true });
+        const saved = { version: 8, mode: 'challenge', data: { topic: 'zemepis' }, round: { answered: true }, pool: { kind: 'mix' }, timestamp: Date.parse('2026-11-09T23:50:00Z'),
+            challenge: { code: 'turnaj', topic: 'mix', seed: 'seed-abc-r1', count: 10, index: 2, results: [{ correct: true, points: 3 }, { correct: false, points: 0 }, { correct: true, points: 2 }], hard: false, categories: [], variant: 'choices', done: false, tournament: { tid: T_RUN, mid: uuid(101), round: 1, name: 'Čtvrtfinále' } } };
+        const late = await start(third, { now: '2026-11-10T07:00:00Z' }, { ...login('tok-u1'), 'mudrlant.session': JSON.stringify(saved) });
+        await late.tab.waitForSelector('#tournament-card');
+        assert.equal(await late.tab.locator('[data-action="tournament-resume"]').count(), 0);
+        assert.equal(await late.tab.locator('[data-action="challenge-resume"]').count(), 0);
+        assert.match((await late.tab.textContent('#tournament-card')).replace(/\s+/g, ' '), /Kolo skončilo, výsledek se právě počítá/);
+        assert.deepEqual(late.log.errors, []);
+        await late.context.close();
     });
 
     await t.test('kolo se dnes nehraje: karta ukáže, kdy hraju, a tlačítko Hrát chybí', async () => {
