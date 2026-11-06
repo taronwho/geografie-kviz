@@ -124,6 +124,35 @@ Bez něj se karta turnaje v aplikaci prostě neukáže.
   Boti jsou řádky v `auth.users` s e-mailem `bot-…@bots.invalid`; ostrý provoz s nimi nepočítej a po zkoušce je smaž.
 - Odznaky za turnaje (`turnaj-*`) a za zběhlost v tématech (`zbehly-*`) jsou v `badge_catalog()`; přibude-li další odznak, přidej ho i tam.
 
+## Moje data: export a smazání účtu (zveřejnění, Google Play)
+
+Nastavení → dole **Moje data** (jen přihlášený hráč) → **Stáhnout moje data (JSON)** a **Smazat účet a data** (s potvrzením). Potřebují aktuální `supabase/schema.sql`
+(spustit celé znovu v SQL Editoru); bez něj aplikace ukáže „Tato funkce na serveru zatím není zapnutá“ a export stáhne aspoň data ze zařízení.
+
+- `export_my_data()` vrátí jako JSON jen řádky přihlášeného hráče (`auth.uid()`): účet (id, e-mail, časy), profil, založené výzvy, výsledky,
+  historii ratingu, přihlášky/zápasy/výsledky/zprávy turnajů.
+- `delete_my_account()` (security definer, vlastník `postgres`) smaže řádek v `profiles` – ostatní tabulky na něj navazují přes `ON DELETE CASCADE`
+  – a pak i řádek v `auth.users` (stejně jako vývojářská funkce `dev_tournament_clear_bots`). Nepoužívá se žádný klíč `service_role`,
+  klient volá funkci jen s tokenem přihlášeného hráče (grant jen pro `authenticated`).
+  Aplikace po úspěchu odhlásí hráče, vymaže `mudrlant.*` z `localStorage` a načte se znovu.
+- **Omezení:**
+  - Kdyby role vlastníka funkce neměla právo mazat v `auth.users` (v běžném Supabase projektu ho má), funkce vrátí `false`: data v `public` jsou smazaná,
+    profil je vrácen na prázdný výchozí a aplikace hráči řekne, že přihlašovací záznam smaže provozovatel (Authentication → Users → … → Delete user).
+  - Hráč, který je ještě ve hře (`status = 'playing'`) v běžícím turnaji, účet smazat nemůže (smazané zápasy by rozbily pavouk soupeřů) – funkce
+    skončí hláškou „Právě hraješ turnaj…“. Po vypadnutí nebo konci turnaje to jde.
+  - Společné záznamy se mažou celé: výzva založená smazaným hráčem zmizí i s výsledky soupeřů a historií ratingu v ní, zápasy turnajů smazaného hráče zmizí z historie
+    turnaje. Aktuální rating soupeřů (`profiles.rating`) se nemění; týdenní žebříček ale ztratí změny z nich.
+  - Zálohy Supabase (podle tarifu) mohou kopii dat držet ještě krátce; uveď to v zásadách (`soukromi.html`, zvýrazněná místa `[DOPLNIT …]`).
+- Test: `tests/sql-account.test.js` (PostgreSQL 16, viz `tests/sql-rating.test.js`).
+
+## Právní stránky (`soukromi.html`, `licence.html`)
+
+- `soukromi.html` obsahuje zvýrazněná místa **[DOPLNIT …]** (provozovatel, e-mail, datum, region databáze, lhůty). Před zveřejněním je vyplň a text nech zkontrolovat;
+  stejnou adresu zásad zadej do Google Play Console (Obsah aplikace → Zásady ochrany osobních údajů) a návod ke smazání účtu odkazuje na `soukromi.html#smazani`.
+- `licence.html` + `licence.js` čtou `data/licenses.json` (autor a licence každého obrázku z Wikimedia Commons). Soubor sestavuje `node scripts/build-licenses.mjs`
+  (nebo GitHub Action **Licence obrázků**, Run workflow – commitne `data/licenses.json` a `reports/licence-problemy.md`). Po přidání nových položek s obrázky spusť znovu.
+  `reports/licence-problemy.md` vypisuje soubory s licencí NC/ND, „fair use“ nebo bez licence, které je před komerčním vydáním potřeba nahradit.
+
 ## Jak to v aplikaci funguje
 
 - `auth.js` volá Supabase Auth přes REST (bez knihovny, kvůli přísné CSP bez cizích skriptů); klíč jde v hlavičce `apikey`.

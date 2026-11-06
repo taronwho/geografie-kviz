@@ -657,6 +657,7 @@
                     <p class="mt-2 text-sm text-slate-500 dark:text-slate-400">Kvíz ze zeměpisu a dalších oborů. Jak chceš odpovídat? Změníš to kdykoli v nastavení vpravo nahoře.</p>
                 </div>
                 <div id="variant-welcome" class="flex flex-col gap-3">${renderVariantCards(null)}</div>
+                <p class="mt-2 text-center text-xs text-slate-500 dark:text-slate-400"><a href="soukromi.html" class="rounded-lg px-1.5 py-2 font-bold underline underline-offset-2">Ochrana osobních údajů</a> · <a href="licence.html" class="rounded-lg px-1.5 py-2 font-bold underline underline-offset-2">Zdroje a licence</a></p>
             </div>`;
         renderIcons(appContent);
         updateControlsUI();
@@ -738,6 +739,8 @@
     let meDraft = null;
     let meDirty = false;
     let meNote = '';
+    // Okno Moje data a soukromí: '' (nabídka), 'confirm' (čeká na potvrzení smazání), 'busy' (probíhá)
+    let privacyState = '';
     // Vývojářský režim: ?vyvojar v adrese ho zapne (a uloží); v Nastavení pak jdou nastavit úroveň a odznaky, ať je vidět, jak vypadá
     // hra s nimi. Původní postup se zazálohuje, vrací se tlačítkem a při vývojářském postupu se nic neukládá do účtu.
     const DEV_KEY = 'mudrlant.dev';
@@ -940,6 +943,11 @@
                     <span id="app-version">${escapeHtml(versionLabel())}</span>
                     <button type="button" data-update-app class="rounded-lg px-2 py-1 font-bold text-slate-600 underline underline-offset-2 hover:bg-slate-200 disabled:no-underline dark:text-slate-300 dark:hover:bg-slate-800">Aktualizovat</button>
                 </div>
+                <div class="mt-1 flex flex-wrap items-center justify-center gap-x-1 text-xs text-slate-500 dark:text-slate-400">
+                    <a href="soukromi.html" class="rounded-lg px-2 py-1 font-bold underline underline-offset-2">Ochrana osobních údajů</a>
+                    <a href="licence.html" class="rounded-lg px-2 py-1 font-bold underline underline-offset-2">Zdroje a licence</a>
+                    ${user && Social ? '<button type="button" data-open-privacy class="rounded-lg px-2 py-1 font-bold underline underline-offset-2">Moje data</button>' : ''}
+                </div>
             </div>`;
         overlay.firstElementChild.scrollTop = scroll;
         renderIcons(overlay);
@@ -970,6 +978,96 @@
         }
         if (document.getElementById('settings-overlay')) openSettings(meNote, '#profile-name');
     };
+    // --- Moje data: export a smazání účtu (Nastavení → Profil) ---
+    const DELETED_FLAG = 'mudrlant.accountDeleted';
+    // Data uložená v zařízení (bez přihlašovacích tokenů) pro export
+    const localDataSnapshot = () => {
+        const out = {};
+        try {
+            Object.keys(localStorage).filter(key => key.startsWith('mudrlant.') && key !== 'mudrlant.auth' && !key.startsWith('mudrlant.dev')).sort().forEach(key => {
+                const raw = localStorage.getItem(key);
+                try { out[key] = JSON.parse(raw); } catch (e) { out[key] = raw; }
+            });
+        } catch (e) { /* bez úložiště nic není */ }
+        return out;
+    };
+    const downloadJson = (name, data) => {
+        const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }));
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = name;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 2000);
+    };
+    const DANGER_BUTTON = 'flex w-full items-center justify-center gap-2 rounded-2xl btn-3d-light bg-white px-4 py-3 text-base font-bold text-rose-700 dark:bg-slate-800 dark:text-rose-400';
+    // Okno Moje data a soukromí (Nastavení → Moje data): odkazy, export a smazání účtu s potvrzením
+    const openPrivacy = (note = '', focusSelector = null) => {
+        if (!Social || !signedUser()) return;
+        const busy = privacyState === 'busy';
+        const body = `
+            <p class="text-sm text-slate-600 dark:text-slate-300">Co o tobě aplikace ukládá, najdeš v <a href="soukromi.html" class="font-bold underline">Zásadách ochrany osobních údajů</a>.</p>
+            ${privacyState ? `
+            <div class="mt-3 rounded-xl border-2 border-rose-300 bg-rose-50 p-3 dark:border-rose-800 dark:bg-rose-950/40" role="alertdialog" aria-labelledby="del-title" aria-describedby="del-text">
+                <p id="del-title" class="text-sm font-black text-rose-800 dark:text-rose-200">Opravdu smazat účet?</p>
+                <p id="del-text" class="mt-1 text-xs leading-snug text-rose-900 dark:text-rose-100">Smaže se profil, úroveň, odznaky, rating, výzvy, výsledky a účast v turnajích. Zmizí i postup uložený v tomto zařízení a skončíš odhlášený. Nejde to vrátit. Chceš si předtím data stáhnout, použij „Stáhnout moje data“.</p>
+                <div class="mt-3 grid grid-cols-2 gap-2">
+                    <button type="button" data-delete-cancel ${busy ? 'disabled' : ''} class="${SECONDARY_BUTTON} !py-2 text-sm">Zrušit</button>
+                    <button type="button" data-delete-confirm ${busy ? 'disabled' : ''} class="flex w-full items-center justify-center gap-2 rounded-2xl btn-3d bg-rose-700 px-3 py-2 text-sm font-black text-white disabled:opacity-50">${busy ? 'Mažu…' : 'Ano, smazat navždy'}</button>
+                </div>
+            </div>` : `
+            <div class="mt-3 grid gap-2">
+                <button type="button" data-export-data class="${SECONDARY_BUTTON}"><i data-lucide="download" class="h-5 w-5"></i> Stáhnout moje data (JSON)</button>
+                <button type="button" data-delete-account class="${DANGER_BUTTON}"><i data-lucide="trash-2" class="h-5 w-5"></i> Smazat účet a data</button>
+            </div>`}
+            <p id="privacy-note" class="mt-2 min-h-[1.1rem] text-xs font-semibold text-slate-600 dark:text-slate-300" role="status">${escapeHtml(note)}</p>`;
+        showDialog('Moje data a soukromí', body, { onClick: (event) => {
+            if (event.target.closest('[data-export-data]')) { exportMyData(); return; }
+            if (event.target.closest('[data-delete-account]')) { privacyState = 'confirm'; openPrivacy('', '[data-delete-cancel]'); return; }
+            if (event.target.closest('[data-delete-cancel]')) { if (privacyState !== 'busy') { privacyState = ''; openPrivacy('', '[data-delete-account]'); } return; }
+            if (event.target.closest('[data-delete-confirm]')) deleteMyAccount();
+        } });
+        if (focusSelector) { const target = document.querySelector(`#dialog-overlay ${focusSelector}`); if (target) target.focus({ preventScroll: true }); }
+    };
+    const exportMyData = async () => {
+        if (!Social || !signedUser()) return;
+        let server = null;
+        let note = 'Data jsou stažena do souboru.';
+        try { server = await Social.exportMyData(); } catch (error) { note = `Stáhla se jen data z tohoto zařízení: ${error.message}`; }
+        downloadJson(`mudrlant-moje-data-${getDayKey()}.json`, { aplikace: 'Mudrlant', stazeno: new Date().toISOString(), server, zarizeni: localDataSnapshot() });
+        if (document.getElementById('dialog-overlay') && document.getElementById('privacy-note')) openPrivacy(note, '[data-export-data]');
+    };
+    const wipeLocalData = () => {
+        try { Object.keys(localStorage).filter(key => key.startsWith('mudrlant.') || key.startsWith('geoQuiz') || key === 'geoSessionState').forEach(key => localStorage.removeItem(key)); } catch (e) { /* bez úložiště není co mazat */ }
+    };
+    const deleteMyAccount = async () => {
+        if (!Social || !signedUser() || privacyState === 'busy') return;
+        privacyState = 'busy';
+        openPrivacy();
+        let complete;
+        try {
+            complete = await Social.deleteMyAccount();
+        } catch (error) {
+            privacyState = '';
+            if (document.getElementById('privacy-note')) openPrivacy(error.message || 'Účet se nepodařilo smazat, zkus to znovu.', '[data-delete-account]');
+            return;
+        }
+        // Server je smazaný: odhlásit, vymazat data zařízení a načíst aplikaci znovu (čistý start); o výsledku řekne okno po načtení
+        try { await Auth.logout(); } catch (e) { /* odhlášení v zařízení se vymaže stejně */ }
+        wipeLocalData();
+        try { sessionStorage.setItem(DELETED_FLAG, complete ? 'full' : 'partial'); } catch (e) { /* bez úložiště se okno neukáže */ }
+        window.location.reload();
+    };
+    // Po smazání účtu: jednorázové okno s potvrzením
+    const announceDeletion = () => {
+        let flag = null;
+        try { flag = sessionStorage.getItem(DELETED_FLAG); sessionStorage.removeItem(DELETED_FLAG); } catch (e) { return; }
+        if (!flag) return;
+        showDialog('Účet je smazaný', `
+            <p class="text-sm text-slate-600 dark:text-slate-300">${flag === 'full' ? 'Tvůj účet a všechna data k němu jsou smazaná a data v tomto zařízení vymazaná.' : 'Data tvého účtu jsou smazaná a data v tomto zařízení vymazaná. Přihlašovací záznam u poskytovatele přihlášení je potřeba smazat ručně: napiš na kontakt v Zásadách ochrany osobních údajů.'}</p>
+            <button type="button" data-close class="${PRIMARY_BUTTON} mt-4">Rozumím</button>`, { onClick: (event) => { if (event.target.closest('[data-close]')) closeDialog(); } });
+    };
     const createSettingsOverlay = () => {
         const overlay = document.createElement('div');
         overlay.id = 'settings-overlay';
@@ -999,6 +1097,7 @@
             if (event.target.closest('[data-auth-login]')) { Auth.login(); return; }
             if (event.target.closest('[data-auth-logout]')) { closeSettings(); Auth.logout(); return; }
             if (event.target.closest('[data-update-app]')) { updateApp(); return; }
+            if (event.target.closest('[data-open-privacy]')) { if (privacyState !== 'busy') privacyState = ''; openPrivacy(); return; }
             if (event.target.closest('[data-tutorial-restart]')) {
                 // Tutoriál začíná na záložce Jeden hráč (dnešní otázky a dlaždice témat); jinak by se ukázal jen poslední krok
                 writeJson(KEYS.homeTab, 'single');
@@ -3386,6 +3485,7 @@
                     <button type="button" data-action="play-as-host" class="mt-1 rounded-xl px-4 py-2 text-sm font-bold text-slate-500 underline decoration-slate-300 underline-offset-4 hover:text-slate-800 dark:text-slate-400 dark:decoration-slate-600 dark:hover:text-slate-100">Pokračovat bez přihlášení</button>
                     <p class="text-center text-xs text-slate-500 dark:text-slate-400">Hra funguje i bez účtu, jen bez profilu a výzev. Přihlásit se můžeš kdykoli později.</p>
                 </div>
+                <p class="mt-2 text-center text-xs text-slate-500 dark:text-slate-400"><a href="soukromi.html" class="rounded-lg px-1.5 py-2 font-bold underline underline-offset-2">Ochrana osobních údajů</a> · <a href="licence.html" class="rounded-lg px-1.5 py-2 font-bold underline underline-offset-2">Zdroje a licence</a></p>
             </div>`;
         renderIcons(appContent);
         updateControlsUI();
@@ -5173,6 +5273,7 @@
     try {
         showStart();
         welcomeBack();
+        announceDeletion();
     } catch (error) {
         console.error(error);
         renderHome();

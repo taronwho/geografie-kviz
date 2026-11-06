@@ -23,7 +23,7 @@ export const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 // Název souboru tak, jak ho Commons normalizuje: podtržítka na mezery, první písmeno velké, bez předpony File:
 export const normalizeName = (name) => {
-    const plain = String(name || '').replace(/^(?:File|Soubor):/i, '').replace(/_/g, ' ').replace(/\s+/g, ' ').trim();
+    const plain = String(name || '').trim().replace(/^(?:File|Soubor):/i, '').replace(/_/g, ' ').replace(/\s+/g, ' ').trim();
     return plain ? plain[0].toUpperCase() + plain.slice(1) : '';
 };
 export const toTitle = (name) => `File:${normalizeName(name)}`;
@@ -160,7 +160,8 @@ export const fetchBatch = async (names, { fetchImpl = fetch, attempts = 8, log =
         let status;
         let wait = Math.min(15000 * attempt, 120000);
         try {
-            const response = await fetchImpl(`${API}?${params}`, { headers: { 'User-Agent': USER_AGENT, 'Api-User-Agent': USER_AGENT, Accept: 'application/json' } });
+            // POST: dávka dlouhých názvů by v adrese překročila limit délky (HTTP 414)
+            const response = await fetchImpl(API, { method: 'POST', headers: { 'User-Agent': USER_AGENT, 'Api-User-Agent': USER_AGENT, Accept: 'application/json', 'Content-Type': 'application/x-www-form-urlencoded' }, body: params.toString() });
             if (response.ok) {
                 const data = await response.json();
                 if (data && data.error && data.error.code === 'maxlag') { status = 'maxlag'; }

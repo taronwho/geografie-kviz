@@ -30,13 +30,15 @@
                 <p class="text-xs font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">Obsah</p>
                 <ul class="mt-1 list-none pl-0">
                     <li><a href="#udaje">Ochrana osobních údajů</a></li>
-                    <li><a href="#smazani">Jak smazat účet</a></li>
+                    <li><a href="#smazani">Jak smazat účet a stáhnout data</a></li>
                     <li><a href="#podminky">Podmínky použití</a></li>
                     <li><a href="#kontakt">Kontakt</a></li>
                 </ul>
             </nav>
 
-            <p class="text-xs text-slate-500 dark:text-slate-400">Platí od <span class="doplnit">[DOPLNIT datum]</span>. Provozovatel aplikace Mudrlant (dále „my“): <span class="doplnit">[DOPLNIT jméno / název a adresu provozovatele]</span>.</p>
+            <p class="rounded-xl border-2 border-amber-300 bg-amber-50 p-3 text-sm text-amber-950 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-100"><strong>Poznámka pro provozovatele:</strong> údaje zvýrazněné <span class="doplnit">[DOPLNIT …]</span> (kontakt, datum, region, lhůty) je potřeba před zveřejněním aplikace vyplnit. Do té doby tento text není úplný. Zásady popisují, co aplikace dělá; po doplnění je vhodné je nechat zkontrolovat.</p>
+
+            <p class="mt-3 text-xs text-slate-500 dark:text-slate-400">Platí od <span class="doplnit">[DOPLNIT datum]</span>. Provozovatel aplikace Mudrlant (dále „my“): <span class="doplnit">[DOPLNIT jméno / název a adresu provozovatele]</span>.</p>
 
             <h2 id="udaje">Ochrana osobních údajů</h2>
             <p>Mudrlant je kvíz, který jde hrát i úplně bez účtu. Snažíme se pracovat s co nejméně údaji. Tady je upřímně a bez právničiny popsáno, co aplikace dělá.</p>
@@ -55,12 +57,13 @@
 
             <h3>Co ukládáme na serveru, když máš účet</h3>
             <ul>
-                <li><strong>Profil:</strong> přezdívka, zvolený obrázek a barva (emoji nebo upravená sova), úroveň a zkušenosti (XP), odznaky, rámeček a titul, nastavení přijímaných výzev. <em>Přezdívku, obrázek, úroveň, odznaky, rámeček, titul, rating a ligu vidí ostatní přihlášení hráči</em> (v výzvách, žebříčku a turnajích).</li>
+                <li><strong>Profil:</strong> přezdívka, zvolený obrázek a barva (emoji nebo upravená sova včetně zvolených doplňků), úroveň a zkušenosti (XP), odznaky, rámeček a titul, nastavení přijímaných výzev (vypnutá témata, Mix). <em>Přezdívku, obrázek, úroveň, odznaky, rámeček, titul, rating a ligu vidí ostatní přihlášení hráči</em> (v výzvách, žebříčku a turnajích).</li>
                 <li><strong>Výzvy a výsledky:</strong> které výzvy jsi založil/a nebo hrál/a, počet správných odpovědí a bodů, čas dokončení; s kým jsi hrál/a.</li>
                 <li><strong>Rating a jeho historie:</strong> změny ratingu po výzvách, liga, týdenní žebříček.</li>
                 <li><strong>Turnaje:</strong> přihlášení do turnaje, zápasy, výsledky a oznámení.</li>
                 <li><strong>Technické údaje:</strong> čas vytvoření účtu a čas posledního přihlášení (ukládá Supabase).</li>
             </ul>
+            <p>Aplikace <strong>neposílá push oznámení</strong> a žádné předplatné oznámení neukládá. Postup v jednotlivých tématech (které otázky umíš, série, chyby k zopakování) se na server neukládá, zůstává jen v zařízení.</p>
             <p>Údaje slouží výhradně k fungování hry (ukládání postupu na všech zařízeních, hra s ostatními). Neprodáváme je, nepředáváme je k reklamním účelům a neprofilujeme tě.</p>
 
             <h3>Kde data leží</h3>
@@ -82,10 +85,10 @@
             <p>Aplikace <strong>nemá reklamy, analytiku ani sledovací nástroje</strong> a nepoužívá sledovací cookies. Přihlášení se pamatuje v úložišti prohlížeče (localStorage), ne v cookies. Google si při přihlášení na svých stránkách může nastavit vlastní cookies podle svých zásad.</p>
 
             <h3>Jak dlouho údaje uchováváme</h3>
-            <p>Údaje účtu uchováváme, dokud účet existuje. Když účet smažeš, odstraní se profil i všechny výsledky, rating, výzvy a účast v turnajích; u společných záznamů (výzva se soupeřem, zápas v turnaji) zůstane soupeři jen jeho vlastní výsledek bez tvého jména. Zálohy databáze poskytovatele mohou kopii dat uchovat ještě po omezenou dobu po smazání (<span class="doplnit">[DOPLNIT podle tarifu Supabase, zpravidla do 30 dnů]</span>). Nepoužívané účty můžeme po <span class="doplnit">[DOPLNIT, např. 24 měsících]</span> nečinnosti smazat.</p>
+            <p>Údaje účtu uchováváme, dokud účet existuje. Když účet smažeš, odstraní se profil i všechny tvé výsledky, rating, výzvy a účast v turnajích. U společných záznamů se smažou celé: výzva, kterou jsi založil/a, zmizí i s výsledky soupeřů v ní, a zápasy turnajů, ve kterých jsi hrál/a, zmizí z historie turnaje. Ratingy soupeřů se tím nemění. Zálohy databáze poskytovatele mohou kopii dat uchovat ještě po omezenou dobu po smazání (<span class="doplnit">[DOPLNIT podle tarifu Supabase]</span>). Nepoužívané účty můžeme po <span class="doplnit">[DOPLNIT, např. 24 měsících]</span> nečinnosti smazat.</p>
 
             <h3>Tvá práva</h3>
-            <p>Máš právo na přístup ke svým údajům, jejich opravu (přezdívku a obrázek upravíš v Nastavení → Profil), výmaz (viz níže), omezení zpracování, přenositelnost a právo podat stížnost u <a href="https://uoou.gov.cz" target="_blank" rel="noopener noreferrer">Úřadu pro ochranu osobních údajů</a>. Právním základem zpracování je plnění smlouvy (poskytování hry s účtem, čl. 6 odst. 1 písm. b GDPR). Ozvi se na kontakt níže.</p>
+            <p>Máš právo na přístup ke svým údajům, jejich opravu (přezdívku a obrázek upravíš v Nastavení → Profil), výmaz (viz níže), omezení zpracování, přenositelnost a právo podat stížnost u <a href="https://uoou.gov.cz" target="_blank" rel="noopener noreferrer">Úřadu pro ochranu osobních údajů</a>. Údaje zpracováváme proto, abychom ti mohli poskytovat hru s účtem. Většinu práv uplatníš přímo v aplikaci (Nastavení → <strong>Moje data</strong> → <strong>Stáhnout moje data</strong> a <strong>Smazat účet a data</strong>), ostatní na kontaktu níže.</p>
 
             <h3>Děti a věk</h3>
             <p>Hra bez účtu je vhodná pro všechny věkové kategorie, protože neshromažďuje žádné údaje. Účet (přihlášení přes Google) si může založit jen osoba starší <span class="doplnit">[DOPLNIT 13 / 15]</span> let; mladší hráči mohou hrát bez účtu, nebo s účtem se souhlasem rodiče či zákonného zástupce. Pokud zjistíme, že účet založilo dítě bez souhlasu, účet smažeme.</p>
@@ -93,10 +96,11 @@
             <h2 id="smazani">Jak smazat účet</h2>
             <p>Účet i všechna data k němu můžeš smazat kdykoli, bez udání důvodu:</p>
             <ol>
-                <li><strong>V aplikaci:</strong> Nastavení (ozubené kolo vpravo nahoře) → záložka <strong>Profil</strong> → dole tlačítko <strong>Smazat účet</strong> → dvakrát potvrdit. Účet se smaže okamžitě, aplikace tě odhlásí a vymaže i data uložená v zařízení.</li>
-                <li><strong>E-mailem:</strong> napiš z e-mailu, kterým se přihlašuješ, na <span class="doplnit">[DOPLNIT e-mail]</span> s předmětem „Smazání účtu Mudrlant“. Účet smažeme do 30 dnů a potvrdíme ti to.</li>
+                <li><strong>V aplikaci:</strong> Nastavení (ozubené kolo vpravo nahoře) → dole <strong>Moje data</strong> → <strong>Smazat účet a data</strong> → potvrdit v okně „Opravdu smazat účet?“. Účet se smaže okamžitě, aplikace tě odhlásí a vymaže i data uložená v zařízení. Tlačítko je dostupné jen přihlášenému hráči.</li>
+                <li><strong>E-mailem:</strong> napiš z e-mailu, kterým se přihlašuješ, na <span class="doplnit">[DOPLNIT e-mail]</span> s předmětem „Smazání účtu Mudrlant“. Účet smažeme do <span class="doplnit">[DOPLNIT lhůtu, např. 30 dnů]</span> a potvrdíme ti to.</li>
             </ol>
-            <p>Smazání je nevratné: zmizí přezdívka, úroveň, odznaky, rating, výsledky i účast v turnajích. Hrát bez účtu můžeš dál.</p>
+            <p>Smazání je nevratné: zmizí přezdívka, úroveň, odznaky, rating, výsledky i účast v turnajích. Před smazáním si můžeš všechna data stáhnout (Nastavení → <strong>Moje data</strong> → <strong>Stáhnout moje data</strong>): dostaneš soubor JSON s údaji ze serveru i ze zařízení. Hrát bez účtu můžeš dál.</p>
+            <p><strong>Omezení:</strong> dokud jsi ještě ve hře v běžícím turnaji, smazat účet v aplikaci nejde (zmizely by zápasy tvých soupeřů); jde to po tvém vypadnutí nebo po skončení turnaje, nebo e-mailem. Kdyby se nepodařilo smazat i přihlašovací záznam u poskytovatele přihlášení, aplikace to po smazání oznámí a záznam smažeme na tvou žádost.</p>
 
             <h2 id="podminky">Podmínky použití</h2>
             <h3>Hra a obsah</h3>
@@ -116,7 +120,7 @@
             <p>Řídí se právem České republiky.</p>
 
             <h2 id="kontakt">Kontakt</h2>
-            <p>Provozovatel: <span class="doplnit">[DOPLNIT jméno / název a adresu]</span><br>E-mail: <span class="doplnit">[DOPLNIT e-mail]</span><br>Odpovíme nejpozději do 30 dnů.</p>
+            <p>Provozovatel: <span class="doplnit">[DOPLNIT jméno / název a adresu]</span><br>E-mail: <span class="doplnit">[DOPLNIT e-mail]</span><br>Odpovíme nejpozději do <span class="doplnit">[DOPLNIT lhůtu, např. 30 dnů]</span>.</p>
 
             <footer class="mt-8 border-t border-slate-200 pt-4 text-xs text-slate-500 dark:border-slate-800 dark:text-slate-400">
                 <p><a href="licence.html">Zdroje a licence</a> · <a href="./">Zpět do hry</a></p>

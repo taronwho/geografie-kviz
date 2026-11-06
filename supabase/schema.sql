@@ -847,3 +847,55 @@ $$;
 revoke all on function public.dev_check(), public.dev_is_bot(uuid), public.dev_bots_play(uuid) from public, anon, authenticated;
 revoke all on function public.dev_tournament_add_bots(uuid, integer), public.dev_tournament_start_now(uuid), public.dev_tournament_next_round(uuid), public.dev_tournament_clear_bots(), public.dev_tournament_reset() from public, anon;
 grant execute on function public.dev_tournament_add_bots(uuid, integer), public.dev_tournament_start_now(uuid), public.dev_tournament_next_round(uuid), public.dev_tournament_clear_bots(), public.dev_tournament_reset() to authenticated;
+
+-- ===== Moje data: export a smazání účtu (zásady ochrany osobních údajů, soukromi.html) =====
+-- Obě funkce pracují jen s účtem volajícího (auth.uid()); běží s právy vlastníka, protože musí číst/mazat i řádky, které RLS jinak hlídá.
+
+-- Export: všechna data hráče na serveru jako jeden JSON (aplikace ho nabídne ke stažení)
+create or replace function public.export_my_data() returns jsonb
+language plpgsql stable security definer set search_path = public as $$
+declare uid uuid := auth.uid(); result jsonb;
+begin
+    if uid is null then raise exception 'Přihlas se.' using errcode = '42501'; end if;
+    select jsonb_build_object(
+        'vytvoreno', now(),
+        'ucet', (select jsonb_build_object('id', u.id, 'email', u.email, 'vytvoren', u.created_at, 'posledni_prihlaseni', u.last_sign_in_at) from auth.users u where u.id = uid),
+        'profil', (select to_jsonb(p) from public.profiles p where p.id = uid),
+        'vyzvy_zalozene', coalesce((select jsonb_agg(to_jsonb(c) order by c.created_at) from public.challenges c where c.creator_id = uid), '[]'::jsonb),
+        'vyzvy_vysledky', coalesce((select jsonb_agg(to_jsonb(r) order by r.finished_at) from public.challenge_results r where r.user_id = uid), '[]'::jsonb),
+        'rating_historie', coalesce((select jsonb_agg(to_jsonb(h) order by h.created_at) from public.rating_history h where h.user_id = uid), '[]'::jsonb),
+        'turnaje_prihlasky', coalesce((select jsonb_agg(to_jsonb(e) order by e.joined_at) from public.tournament_entries e where e.user_id = uid), '[]'::jsonb),
+        'turnaje_zapasy', coalesce((select jsonb_agg(to_jsonb(m)) from public.tournament_matches m where uid in (m.p1, m.p2)), '[]'::jsonb),
+        'turnaje_vysledky', coalesce((select jsonb_agg(to_jsonb(t) order by t.started_at) from public.tournament_results t where t.user_id = uid), '[]'::jsonb),
+        'turnaje_zpravy', coalesce((select jsonb_agg(to_jsonb(n) order by n.created_at) from public.tournament_notices n where n.user_id = uid), '[]'::jsonb)
+    ) into result;
+    return result;
+end;
+$$;
+
+-- Smazání účtu: smaže profil a s ním (ON DELETE CASCADE) výzvy, výsledky, rating, přihlášky a zprávy turnajů a nakonec i řádek v auth.users.
+-- Vrací true, když zmizel i přihlašovací záznam; false, když ho role vlastníka funkce nesmí smazat (data jsou pak smazaná a profil vrácen na prázdný výchozí,
+-- přihlašovací záznam smaže správce v Supabase → Authentication → Users). Bez nastavení klíčů service_role se funkce nikdy nevolá zvenčí jinak než přihlášeným hráčem.
+-- Hráč, který je ještě ve hře v běžícím turnaji, smazat účet nemůže (smazané zápasy by rozbily pavouk soupeřů); po vypadnutí nebo konci turnaje to jde.
+create or replace function public.delete_my_account() returns boolean
+language plpgsql security definer set search_path = public as $$
+declare uid uuid := auth.uid(); auth_removed boolean := true;
+begin
+    if uid is null then raise exception 'Přihlas se.' using errcode = '42501'; end if;
+    if exists (select 1 from public.tournament_entries e join public.tournaments t on t.id = e.tournament_id
+               where e.user_id = uid and t.status = 'running' and e.status = 'playing') then
+        raise exception 'Právě hraješ turnaj. Účet půjde smazat, až z turnaje vypadneš nebo skončí.';
+    end if;
+    delete from public.profiles where id = uid;
+    begin
+        delete from auth.users where id = uid;
+    exception when insufficient_privilege then
+        auth_removed := false;
+        insert into public.profiles (id, display_name) values (uid, 'Hráč ' || substr(md5(uid::text), 1, 8)) on conflict (id) do nothing;
+    end;
+    return auth_removed;
+end;
+$$;
+
+revoke all on function public.export_my_data(), public.delete_my_account() from public, anon;
+grant execute on function public.export_my_data(), public.delete_my_account() to authenticated;
