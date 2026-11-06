@@ -534,6 +534,6 @@
     const devResolveReport = (id) => request('POST', 'rpc/dev_report_resolve', { body: { rid: wholeNumber(id, Number.MAX_SAFE_INTEGER) } });
 
     return { AVATARS, allAvatars, cleanColor, customHue, nearestColor, cleanFrame, cleanOwl, saveOwl, cleanTitlePref, saveLook, COLORS, COUNTS, NAME_MAX, SocialError, cleanName, isValidName, newCode, parseCode, getProfile, saveProfile, createChallenge, getChallenge, getResults, submitResult, myChallenges, searchPlayers, randomOpponent, incomingChallenges, playerStats, getProgress, saveProgress, getRating, getRatingChange, weeklyLeaderboard, getAccepts, saveAccepts,
-        tournamentTick, getTournaments, inTournament, devTournament, reportQuestion, getQuestionReports, deleteQuestionReport, exportMyData, deleteMyAccount, getTournamentEntries, getTournamentMatches, joinTournament, leaveTournament, startTournamentMatch, finishTournamentMatch, myTournamentStats, tournamentNotices, tournamentNoticesSeen,
+        tournamentTick, getTournaments, inTournament, devTournament, devClientErrors, isDevAdmin, schemaVersion, reportQuestion, getQuestionReports, deleteQuestionReport, exportMyData, deleteMyAccount, getTournamentEntries, getTournamentMatches, joinTournament, leaveTournament, startTournamentMatch, finishTournamentMatch, myTournamentStats, tournamentNotices, tournamentNoticesSeen,
         touchSeen, friendsList, addFriend, acceptFriend, removeFriend, REACTIONS, react, reactionsFor, lastReactionFrom, blockedPlayers, blockPlayer, unblockPlayer, REPORT_REASONS, reportPlayer, devReports, devResolveReport };
 });

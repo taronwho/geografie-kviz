@@ -1102,11 +1102,11 @@
                     <span id="app-version">${escapeHtml(versionLabel())}</span>
                     <button type="button" data-update-app class="rounded-lg px-2 py-1 font-bold text-slate-600 underline underline-offset-2 hover:bg-slate-200 disabled:no-underline dark:text-slate-300 dark:hover:bg-slate-800">Aktualizovat</button>
                 </div>
-                <div class="mt-1 flex flex-wrap items-center justify-center gap-x-1 text-xs text-slate-500 dark:text-slate-400">
+                ${meTab === 'game' ? `<div class="mt-1 flex flex-wrap items-center justify-center gap-x-1 text-xs text-slate-500 dark:text-slate-400">
                     <a href="soukromi.html" class="rounded-lg px-2 py-1 font-bold underline underline-offset-2">Ochrana osobních údajů</a>
                     <a href="licence.html" class="rounded-lg px-2 py-1 font-bold underline underline-offset-2">Zdroje a licence</a>
                     ${user && Social ? '<button type="button" data-open-privacy class="rounded-lg px-2 py-1 font-bold underline underline-offset-2">Moje data</button>' : ''}
-                </div>
+                </div>` : ''}
             </div>`;
         overlay.firstElementChild.scrollTop = scroll;
         renderIcons(overlay);

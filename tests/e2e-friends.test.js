@@ -288,12 +288,12 @@ test('přátelé, reakce, blokování a nahlášení', { skip: !chromium && 'Pla
         await waitForHome(page.tab);
         const { tab, log, context } = page;
         await tab.click('#btn-settings');
-        await tab.click('[data-dev="reports"]');
+        await tab.click('[data-dev="player-reports"]');
         await tab.waitForFunction(() => /dev_admins/.test(document.getElementById('dialog-overlay').textContent));
         await closeDialog(tab);
         db.devAdmin = true;
         await tab.click('#btn-settings');
-        await tab.click('[data-dev="reports"]');
+        await tab.click('[data-dev="player-reports"]');
         await tab.waitForSelector('#dev-reports');
         assert.match(await compact(tab, '#dev-reports'), /Lenka Dvořáková · Podvádění ?od Jana Nováková.*Podezřelé časy/);
         assert.deepEqual(await noHorizontalScroll(tab), { page: 0, content: 0, dialog: 0 });
