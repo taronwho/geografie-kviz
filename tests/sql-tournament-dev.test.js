@@ -91,6 +91,20 @@ test('SQL: vývojářské nástroje turnajů (boti)', { skip: !available && 'Pos
         denied(as(id(1), WED, `select dev_tournament_next_round('${tid}');`), 'skončený turnaj dál nejde');
     });
 
+    await t.test('smazání odehraného turnaje znovu otevře přihlášky', () => {
+        // Po dev startu žádný turnaj s otevřenými přihláškami není (běžící blokuje týden); po smazání vznikne nový otevřený
+        assert.equal(q(`select count(*) from tournaments where status = 'open'`), '0');
+        denied(as(id(2), WED, `select dev_tournament_reset();`), 'jen dev_admins');
+        assert.equal(as(id(1), WED, `select dev_tournament_reset();`).stdout.trim().split('\n').pop(), '1');
+        assert.equal(q(`select count(*) from tournaments where status = 'finished' or status = 'running'`), '0');
+        assert.equal(q(`select count(*) from tournaments where status = 'open'`), '1', 'přihlášky se znovu otevřely');
+        assert.equal(q(`select count(*) from tournament_matches`), '0');
+        assert.equal(q(`select count(*) from tournament_entries`), '0');
+        // otevřený turnaj reset nesmaže
+        assert.equal(as(id(1), WED, `select dev_tournament_reset();`).stdout.trim().split('\n').pop(), '0');
+        assert.equal(q(`select count(*) from tournaments where status = 'open'`), '1');
+    });
+
     await t.test('mazání botů: pryč boti i turnaje, ve kterých hráli; lidé zůstanou', () => {
         assert.equal(as(id(1), WED, `select dev_tournament_clear_bots();`).stdout.trim().split('\n').pop(), '31');
         assert.equal(q(`select count(*) from auth.users where email like 'bot-%@bots.invalid'`), '0');

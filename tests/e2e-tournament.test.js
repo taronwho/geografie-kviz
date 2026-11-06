@@ -131,7 +131,7 @@ const backend = async (context, db) => {
         if (rpc && /^dev_tournament_/.test(rpc[1])) {
             db.calls.push({ name: rpc[1], body });
             if (db.devDenied) return json({ code: '42501', message: 'Vývojářské nástroje turnajů nejsou pro tento účet zapnuté (viz docs/SUPABASE.md, dev_admins).' }, 403);
-            return json(rpc[1] === 'dev_tournament_add_bots' ? 31 : rpc[1] === 'dev_tournament_clear_bots' ? 31 : null);
+            return json(rpc[1] === 'dev_tournament_add_bots' ? 31 : rpc[1] === 'dev_tournament_clear_bots' ? 31 : rpc[1] === 'dev_tournament_reset' ? 2 : null);
         }
         if (rpc && /^(tournament_|my_tournament)/.test(rpc[1])) {
             if (db.missing) return json({ code: 'PGRST202', message: 'Could not find the function' }, 404);
@@ -437,6 +437,9 @@ test('týdenní turnaje', { skip: !chromium && 'Playwright není nainstalovaný'
         await tab.click('[data-dev="tour-next"]');
         await tab.waitForFunction(() => /Posun o kolo/.test((document.getElementById('toast') || {}).textContent || ''));
         assert.deepEqual(db.calls.find(call => call.name === 'dev_tournament_next_round').body, { tid: T_RUN });
+        await tab.click('[data-dev="tour-reset"]');
+        await tab.waitForFunction(() => /Smazáno turnajů: 2, přihlášky jsou znovu otevřené/.test((document.getElementById('toast') || {}).textContent || ''));
+        assert.ok(db.calls.some(call => call.name === 'dev_tournament_reset'));
         await tab.click('[data-dev="tour-clear"]');
         await tab.waitForFunction(() => /Smazáno botů: 31/.test((document.getElementById('toast') || {}).textContent || ''));
         // Účet bez zápisu v dev_admins
