@@ -1179,8 +1179,12 @@
     const titleForLevel = (level) => LEVEL_TITLES.filter(entry => level >= entry.from).pop().title;
     // Další titul (kdy a jaký), null na konci
     const nextTitle = (level) => LEVEL_TITLES.find(entry => entry.from > level) || null;
-    // Za odpověď: správná 10 XP a 5 za každý bod (nejvýš 4 body, psaním dvojnásobek), špatná 2 XP za pokus, vzdání nic
-    const answerXp = ({ correct, points = 0, gaveUp = false }) => correct ? 10 + 5 * points : gaveUp ? 0 : 2;
+    // Za odpověď: správná 10 XP a 5 za každý bod (nejvýš 4 body, psaním dvojnásobek), špatná 2 XP za pokus, vzdání nic;
+    // za otázku v opakování karet (review) polovina
+    const answerXp = ({ correct, points = 0, gaveUp = false, review = false }) => {
+        const xp = correct ? 10 + 5 * points : gaveUp ? 0 : 2;
+        return review ? Math.ceil(xp / 2) : xp;
+    };
     const DAILY_XP = 15;
     const DAILY_ALL_XP = 50;
     const STREAK_XP_CAP = 10;
@@ -1195,7 +1199,9 @@
     // value(c, x) je aktuální hodnota pro ukazatel „87 / 100“. x = { level, learned, topicStars: { téma: hvězdy }, topicCount } ---
     const EMPTY_COUNTERS = {
         answered: 0, correct: 0, typedCorrect: 0, noHint: 0, hardCorrect: 0, run: 0, bestRun: 0, bestStreak: 0, perfectDays: 0,
-        challenges: 0, wins: 0, winRun: 0, bestWinRun: 0, created: 0, perfectChallenges: 0, dailyCorrect: 0, fixed: 0, days: 0, lastDay: '', topics: {}, topicRun: {}, topicBest: {}, tourBest: 0, tourWins: 0
+        challenges: 0, wins: 0, winRun: 0, bestWinRun: 0, created: 0, perfectChallenges: 0, dailyCorrect: 0, fixed: 0, days: 0, lastDay: '', topics: {}, topicRun: {}, topicBest: {}, tourBest: 0, tourWins: 0,
+        // Odehrané zápasy turnajů, zopakované karty (review.js) a týdny se všemi splněnými cíli (goals.js)
+        tourPlayed: 0, reviewed: 0, weeksDone: 0
     };
     const number = (value) => Number.isFinite(value) ? value : 0;
     // Barva medaile podle stupně ve skupině: bronz, stříbro, zlato, vínová a nejvyšší diamantová
@@ -1289,6 +1295,9 @@
         [T(1, 'Turnajový hráč', 'turnaj-ucast'), T(2, 'Čtvrtfinalista', 'turnaj-ctvrtfinale'), T(3, 'Semifinalista', 'turnaj-semifinale'), T(4, 'Bronz z turnaje', 'turnaj-bronz'), T(5, 'Stříbro z turnaje', 'turnaj-stribro'), T(6, 'Mistr turnaje', 'turnaj-zlato')]);
     addGroup('turnaj-postupy', 'Vyhrané zápasy v turnajích', 'swords', (c) => c.tourWins, (g) => `${g} ${g === 1 ? 'vyhraný zápas' : 'vyhraných zápasů'} v turnajích.`,
         [T(1, 'První postup'), T(5, 'Pětkrát dál'), T(15, 'Turnajový matador')]);
+    // Týdenní cíle (goals.js): týdny, ve kterých hráč splnil všechny tři cíle
+    addGroup('tydenni-cile', 'Týdenní cíle', 'goal', (c) => c.weeksDone, (g) => g === 1 ? 'Splň všechny tři cíle jednoho týdne.' : `${g} týdnů se všemi třemi splněnými cíli.`,
+        [T(1, 'Cílevědomý', 'tydenni-cile'), T(5, 'Pět týdnů cílů'), T(20, 'Dvacet týdnů cílů')]);
     const BADGE_BY_ID = Object.fromEntries(BADGES.map(badge => [badge.id, badge]));
     const normalizeCounters = (counters) => ({ ...EMPTY_COUNTERS, ...(counters || {}), topics: { ...((counters && counters.topics) || {}) },
         topicRun: { ...((counters && counters.topicRun) || {}) }, topicBest: { ...((counters && counters.topicBest) || {}) } });
