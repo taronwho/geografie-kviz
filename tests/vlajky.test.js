@@ -32,7 +32,7 @@ test('vlajky: státy, známé vlajky a česká stopa', () => {
     for (const name of ['Praha', 'Brno', 'Ostrava', 'Plzeň', 'Čechy', 'Morava']) assert.ok(find(name, 'cesko').k === 1 && find(name, 'cesko').cz === 1, name);
     assert.ok(data.items.filter(item => item.c === 'cesko' && item.ty === 'kraj').length >= 12, 'kraje');
     // Stát je v datech jen jednou v každé kategorii, a když má článek o vlajce, je mezi vlajkami
-    for (const category of ['vlajka', 'znak', 'cesko', 'uzemi']) {
+    for (const category of ['vlajka', 'znak', 'cesko', 'uzemi', 'regiony', 'mesta', 'historie']) {
         const names = data.items.filter(item => item.c === category).map(item => item.n.toLocaleLowerCase('cs'));
         assert.equal(new Set(names).size, names.length, `${category}: stejné jméno dvakrát`);
     }
@@ -43,10 +43,10 @@ test('vlajky: jen dnešní vlajka a znak, každý obrázek jen u jedné položky
     assert.equal(find('Česko').im, 'Flag of the Czech Republic.svg');
     for (const item of data.items) {
         assert.ok(item.im && /^[0-9a-f]{2}$/.test(item.ih), `${item.n}: obrázek`);
-        assert.doesNotMatch(item.im, /\(\d{4}[–-]\d{4}\)/, `${item.n}: historická vlajka ${item.im}`);
+        if (item.c !== 'historie') assert.doesNotMatch(item.im, /\(\d{4}[–-]\d{4}\)/, `${item.n}: historická vlajka ${item.im}`);
     }
     // Dvě položky se stejným obrázkem by otázka nerozlišila
-    for (const category of ['vlajka', 'znak', 'cesko', 'uzemi']) {
+    for (const category of ['vlajka', 'znak', 'cesko', 'uzemi', 'regiony', 'mesta', 'historie']) {
         const files = data.items.filter(item => item.c === category).map(item => item.im);
         assert.equal(new Set(files).size, files.length, `${category}: stejný obrázek dvakrát`);
     }
@@ -111,7 +111,7 @@ test('vlajky: nápovědy – kontinent, slepá mapa, hlavní město (u znaku vla
 });
 
 test('vlajky: okruhy pro učení', () => {
-    assert.ok(data.collections.length >= 8 && data.collections.length <= 20, data.collections.map(c => c.label).join(', '));
+    assert.ok(data.collections.length >= 8 && data.collections.length <= 40, data.collections.map(c => c.label).join(', '));
     const europe = inCollection('vlajky-evropy');
     assert.ok(europe.includes('Česko') && europe.includes('Francie') && !europe.includes('Japonsko'));
     const tricolours = inCollection('trikolory');

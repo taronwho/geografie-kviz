@@ -1543,7 +1543,7 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         await one.tab.click('[data-ch-who="anyone"]');
         await one.tab.click('[data-ch-open="topics"]');
         await one.tab.click('[data-ch-topic="vlajky"]');
-        for (const key of ['znak', 'uzemi', 'cesko']) await one.tab.click(`[data-ch-cat="${key}"]`);
+        for (const key of ['znak', 'uzemi', 'cesko', 'regiony', 'mesta', 'historie']) await one.tab.click(`[data-ch-cat="${key}"]`);
         assert.equal(await one.tab.locator('[data-ch-cat][aria-pressed="true"]').count(), 1);
         await one.tab.click('[data-ch-cat="vlajka"]');
         assert.equal(await one.tab.locator('[data-ch-cat][aria-pressed="true"]').count(), 1, 'poslední okruh nejde zrušit');

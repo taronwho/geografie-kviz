@@ -17,9 +17,9 @@ Základní otázka je „Co je to?“ podle kategorie (Který prvek to je?, Kdo 
 | Zeměpis | Ve kterém státě to je? |
 | Historie | Ve kterém století začal vládnout? (narodila se, nastoupil do úřadu, odehrálo se, vznikl) – vždy jeden okamžik, ať na přelomu století nejsou správně dvě odpovědi |
 | Biologie | Do kterého řádu (u rostlin a hub čeledi) patří? |
-| Chemie | Jakou značku má tento prvek? Jaký vzorec má tato látka? |
+| Chemie | Jakou značku má tento prvek? Jaký vzorec má tato látka? Jaká reakce, pojem či metoda to je? (prvky, látky, reakce a procesy, pojmy a metody, chemici) |
 | Fyzika | Jaká je jednotka SI této veličiny? Jakou značku má tato jednotka? Co měří tato jednotka? |
-| Vlajky a znaky | Vlajka či znak jsou vidět hned: Čí je to vlajka? Čí je to znak? (státy, české kraje a města, organizace) |
+| Vlajky a znaky | Vlajka či znak jsou vidět hned: Čí je to vlajka? Čí je to znak? (státy, české kraje, města a obce, regiony států, velká města světa, zaniklé státy, území a organizace) |
 | Mytologie | Jak se jmenuje v římské/řecké mytologii? Ze které mytologie je? |
 | Geologie | Nerost či hornina jsou vidět hned: Jakou má tvrdost podle Mohse? Jaký má vzorec? Do které skupiny hornin patří? Které je to období? |
 | Výtvarné umění | Obraz či socha jsou vidět hned: Co je to za obraz? Kdo to namaloval? Ke kterému směru patří? |

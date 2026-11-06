@@ -3,10 +3,13 @@
 import { createRequire } from 'node:module';
 import { qlever, id, values, imageFields, yearOf, compact, cached, inBatches, writeTopic } from './lib/wikidata.mjs';
 import { landByDescription } from './lib/nationality.mjs';
+import { CONCEPT_CLASSES, CONCEPT_TITLES, GROUP_CATEGORY } from './lib/chemie-concepts.mjs';
 
 // Skupiny prvků a jejich místo v tabulce zná jádro aplikace – stejná pravidla pro data i nápovědu
 const { elementFamily } = createRequire(import.meta.url)('../quiz-core.js');
 // Vzorce, které Wikidata uvádí jen v Hillově zápisu (BaO₄S, ClH₄N) nebo s překlepem (KCIO₃ s velkým I místo l)
+// Názvy, jejichž krátký popis prozrazuje odpověď jinou podobou slova (modrá – modř, polymerizační – polymerizace); mezi otázky nepatří
+const LEAKY_NAMES = new Set(['Aniontová adiční polymerizace', 'Pařížská modř']);
 const FORMULA_FIXES = {
     'Síran amonný': '(NH₄)₂SO₄', 'Síran barnatý': 'BaSO₄', 'Síran železnatý': 'FeSO₄', 'Síran hlinitý': 'Al₂(SO₄)₃', 'Oxid sírový': 'SO₃', 'Fluorid sírový': 'SF₆',
     'Oxid fosforečný': 'P₄O₁₀', 'Dusičnan olovnatý': 'Pb(NO₃)₂', 'Dusičnan vápenatý': 'Ca(NO₃)₂', 'Bromovodík': 'HBr', 'Fluorovodík': 'HF', 'Chlorid amonný': 'NH₄Cl',
@@ -30,7 +33,10 @@ const CZECH_STATES = new Set(['Q213', 'Q33946', 'Q42585', 'Q152750', 'Q853348', 
 
 // Prvky, které zná každý (k nim všechny do čísla 38)
 const KNOWN_ELEMENTS = new Set([47, 50, 53, 54, 55, 56, 74, 78, 79, 80, 82, 86, 88, 92, 94]);
-const LIMITS = { latky: { limit: 400, known: 110 }, chemici: { limit: 200, known: 60 } };
+const LIMITS = { latky: { limit: 800, known: 160 }, chemici: { limit: 400, known: 90 }, reakce: { limit: 220, known: 25 }, pojmy: { limit: 520, known: 75 } };
+// Od tohoto pořadí (podle počtu jazykových verzí) musí mít látka a chemik aspoň fotku či strukturní vzorec – dál už jsou méně známí
+// a obrázek je jediné, co otázku oživí
+const IMAGE_FROM = { latky: 400, chemici: 200 };
 // Okruh látek má mít aspoň tolik položek – chybějící doplní i méně známé látky nad limit
 const COLLECTION_MIN = 20;
 // Vitamíny a hormony podle českých názvů: třídy ve Wikidatech jsou u nich nespolehlivé (kumarin „vitamín“, testosteron ne „hormon“)
@@ -143,16 +149,42 @@ compoundCandidates.sort((a, b) => b[1] - a[1]);
 console.log(`Látky (kandidáti): ${compoundCandidates.length}`);
 
 // --- Chemici: povoláním chemik, s českým článkem ---
-const chemistCandidates = await cached('chemie-chemists', async () => {
-    const rows = await qlever(`SELECT DISTINCT ?p ?sl WHERE { ?p wdt:P106 wd:${CHEMIST} .
+// a nositelé Nobelovy ceny za chemii (i biochemici a fyzici, kteří chemik ve Wikidatech nejsou)
+const chemistCandidates = await cached('chemie-chemists-1000', async () => {
+    const rows = await qlever(`SELECT DISTINCT ?p ?sl WHERE { { ?p wdt:P106 wd:${CHEMIST} } UNION { ?p wdt:P166 wd:${NOBEL_CHEMISTRY} } .
   ?a schema:about ?p . ?a schema:isPartOf <https://cs.wikipedia.org/> . ?p wikibase:sitelinks ?sl }`);
-    return rows.map(row => [id(row.p.value), Number(row.sl.value)]).sort((a, b) => b[1] - a[1]).slice(0, 400);
+    return rows.map(row => [id(row.p.value), Number(row.sl.value)]).sort((a, b) => b[1] - a[1]).slice(0, 1000);
 });
 console.log(`Chemici (kandidáti): ${chemistCandidates.length}`);
 
+// --- Reakce, procesy a pojmy (lib/chemie-concepts.mjs): podle druhu ve Wikidatech a ručního seznamu názvů článků ---
+const DISAMBIGUATION = 'Q4167410';
+const TITLE_GROUP = new Map(Object.entries(CONCEPT_TITLES).flatMap(([group, titles]) => titles.map(title => [title, group])));
+const conceptList = await cached('chemie-concepts', async () => {
+    const found = new Map();
+    const add = (qid, sl, group) => { if (!found.has(qid) || found.get(qid)[1] < sl) found.set(qid, [qid, sl, group]); };
+    for (const [cls, min, group] of CONCEPT_CLASSES) {
+        const rows = await qlever(`SELECT DISTINCT ?i ?sl WHERE { ?i wdt:P31 wd:${cls} . ?i wikibase:sitelinks ?sl FILTER(?sl >= ${min}) .
+  ?a schema:about ?i . ?a schema:isPartOf <https://cs.wikipedia.org/> }`);
+        for (const row of rows) add(id(row.i.value), Number(row.sl.value), group);
+    }
+    // Izotopy: Uran-235, Uhlík-14, deuterium
+    const isotopes = await qlever(`SELECT DISTINCT ?i ?sl ?t WHERE { ?i wdt:P31 wd:Q25276 . ?i wikibase:sitelinks ?sl FILTER(?sl >= 8) .
+  ?a schema:about ?i . ?a schema:isPartOf <https://cs.wikipedia.org/> . ?a schema:name ?t }`);
+    for (const row of isotopes) if (/^\p{Lu}\p{Ll}+-\d+$|^(Deuterium|Tritium)$/u.test(row.t.value)) add(id(row.i.value), Number(row.sl.value), 'izotopy');
+    const titles = [...TITLE_GROUP.keys()];
+    for (let i = 0; i < titles.length; i += 100) {
+        const rows = await qlever(`SELECT DISTINCT ?i ?sl ?t WHERE { VALUES ?t { ${titles.slice(i, i + 100).map(title => `"${title}"@cs`).join(' ')} }
+  ?a schema:name ?t . ?a schema:isPartOf <https://cs.wikipedia.org/> . ?a schema:about ?i . ?i wikibase:sitelinks ?sl }`);
+        for (const row of rows) add(id(row.i.value), Number(row.sl.value), TITLE_GROUP.get(row.t.value));
+    }
+    return [...found.values()].sort((a, b) => b[1] - a[1]);
+});
+console.log(`Reakce a pojmy (kandidáti): ${conceptList.length}`);
+
 // --- Podrobnosti ---
 const SINGLE = { t: 1, n: 1, d: 1, im: 1, st: 1, born: 1, died: 1, sex: 1 };
-const allIds = [...elements.map(element => element.q), ...compoundCandidates.map(([q]) => q), ...chemistCandidates.map(([q]) => q)];
+const allIds = [...elements.map(element => element.q), ...compoundCandidates.map(([q]) => q), ...chemistCandidates.map(([q]) => q), ...conceptList.map(([q]) => q)];
 const fetchDetails = async (list) => {
     const result = new Map(list.map(qid => [qid, {}]));
     await inBatches(list, 150, (qids) => `SELECT ?item ?p ?v WHERE {
@@ -306,6 +338,15 @@ const COLLECTIONS = [
         || (/hormone|neurotransmitter/.test(item.kinds) && !/plant hormone|antagonist|antiprogest/.test(item.kinds))) },
     { id: 'leciva', label: 'Léčiva', sort: BY_NAME, test: compound(item => /medication|analgesic|antibiotic|antiviral|anti-inflammatory|anticonvulsant|benzodiazepine/.test(item.kinds)
         && !/neurotransmitter|hormone|chemical weapon|recreational|psychoactive|stimulant|narcotic|opioid|poison|explosive/.test(item.kinds)) },
+    { id: 'jmenne-reakce', label: 'Jmenné reakce', text: 'Grignardova, Dielsova–Alderova…', sort: BY_NAME, test: item => item.grp === 'jmenne-reakce' },
+    { id: 'typy-reakci', label: 'Typy reakcí a děje', text: 'Oxidace, hoření, koroze, neutralizace…', sort: BY_NAME, test: item => item.grp === 'typy-reakci' },
+    { id: 'prumyslove-procesy', label: 'Průmyslové procesy', text: 'Haber–Bosch, Solvay, krakování…', sort: BY_NAME, test: item => item.grp === 'prumyslove-procesy' },
+    { id: 'zakladni-pojmy', label: 'Základní pojmy', text: 'Mol, pH, vazby, elektronegativita…', sort: BY_NAME, test: item => item.grp === 'zakladni-pojmy' },
+    { id: 'skupiny-latek', label: 'Skupiny látek', text: 'Alkany, estery, steroidy, soli…', sort: BY_NAME, test: item => item.grp === 'skupiny-latek' },
+    { id: 'slitiny-smesi', label: 'Slitiny, směsi a materiály', text: 'Ocel, bronz, sklo, benzín…', sort: BY_NAME, test: item => item.grp === 'slitiny-smesi' },
+    { id: 'metody', label: 'Metody a laboratorní pomůcky', text: 'Destilace, titrace, byreta, kahan…', sort: BY_NAME, test: item => item.grp === 'metody' },
+    { id: 'zakony', label: 'Zákony a pravidla', text: 'Avogadro, Boyle, Hess, Le Chatelier…', sort: BY_NAME, test: item => item.grp === 'zakony' },
+    { id: 'izotopy', label: 'Izotopy', text: 'Uran-235, uhlík-14, deuterium…', sort: BY_NAME, test: item => item.grp === 'izotopy' },
     { id: 'nobelova-cena-chemie', label: 'Nositelé Nobelovy ceny za chemii', sort: { by: 'y' }, test: item => item.c === 'chemici' && item.f.nobel === 1 }
 ];
 // Okruhy látek podle názvu, vzorce a druhu (anglické názvy tříd a rolí z Wikidat)
@@ -327,6 +368,7 @@ for (const [qid] of compoundCandidates) {
         formula = hydroxideFormula(formula);
     }
     if (names.has(name.toLowerCase())) continue;
+    if (LEAKY_NAMES.has(name) || (compoundRank >= IMAGE_FROM.latky && !detail.im && !detail.st)) continue;
     // Částice, směsi a ionty sem nepatří (alfa částice má „vzorec“ He)
     if (/částice|iont|kation|anion|radikál/iu.test(detail.d || '') && !/látka|sloučenina/iu.test(detail.d || '')) continue;
     // Nad limit jen látky do okruhu, který je zatím malý (vitamíny, cukry, alkoholy)
@@ -365,6 +407,7 @@ for (const [qid] of chemistCandidates) {
     if (!detail.n) detail.n = detail.t.replace(/ \(.*\)$/, '');
     const born = yearOf(detail.born);
     if (born === undefined || chemistRank >= LIMITS.chemici.limit) continue;
+    if (chemistRank >= IMAGE_FROM.chemici && !detail.im) continue;
     // Povolání „chemik“ mají ve Wikidatech i polyhistoři a politici (Leonardo, Thatcherová) – chemik musí být i v popisu
     const nobel = (detail.award || []).includes(NOBEL_CHEMISTRY);
     if (!nobel && !/chemi(k|čk)/iu.test(detail.d || '')) continue;
@@ -395,6 +438,34 @@ for (const [qid] of chemistCandidates) {
     chemistRank++;
 }
 
+// Reakce a pojmy: kategorie podle okruhu; položky bez českého článku, rozcestníky a to, co už je prvkem či látkou, se vynechají
+// Položky, jejichž popis prozrazuje název jinou podobou slova (modrá – modř, polymerizační – polymerizace)
+const CONCEPT_SKIP = LEAKY_NAMES;
+const usedImages = new Set(items.map(item => item.im).filter(Boolean));
+const conceptCounts = { reakce: 0, pojmy: 0 };
+for (const [qid, , group] of conceptList) {
+    const detail = details.get(qid);
+    const category = GROUP_CATEGORY[group];
+    if (!detail || !detail.n || !detail.t || (detail.type || []).includes(DISAMBIGUATION) || CONCEPT_SKIP.has(capitalize(detail.n))) continue;
+    if (conceptCounts[category] >= LIMITS[category].limit) continue;
+    const name = capitalize(detail.n);
+    if (names.has(name.toLowerCase())) continue;
+    names.add(name.toLowerCase());
+    items.push(compact({
+        q: qid,
+        t: detail.t,
+        n: name,
+        c: category,
+        k: conceptCounts[category] < LIMITS[category].known ? 1 : 0,
+        d: detail.d,
+        ...imageFields(detail.im && !usedImages.has(detail.im) ? detail.im : undefined),
+        f: {},
+        grp: group,
+        kinds: kindsOf(detail)
+    }));
+    conceptCounts[category]++;
+}
+
 for (const item of items) {
     const groups = COLLECTIONS.filter(collection => collection.test(item)).map(collection => collection.id);
     if (groups.length) item.g = groups;
@@ -402,9 +473,9 @@ for (const item of items) {
 const collections = COLLECTIONS
     .map(({ test, ...collection }) => collection)
     .filter(collection => items.filter(item => (item.g || []).includes(collection.id)).length >= 5);
-for (const item of items) delete item.kinds;
+for (const item of items) { delete item.kinds; delete item.grp; }
 
-for (const category of ['prvky', 'latky', 'chemici']) {
+for (const category of ['prvky', 'latky', 'reakce', 'pojmy', 'chemici']) {
     const inCategory = items.filter(item => item.c === category);
     console.log(`${category}: ${inCategory.length} (${inCategory.filter(item => item.k).length} známých, ${inCategory.filter(item => item.im).length} s fotkou)`);
 }
