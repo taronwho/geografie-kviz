@@ -641,7 +641,7 @@ test('týdenní turnaje', { skip: !chromium && 'Playwright není nainstalovaný'
         const rounds = await tab.locator('#tournament-rounds details[data-round]').evaluateAll(list => list.map(item => ({ key: item.dataset.round, open: item.open, name: item.querySelector('summary').innerText.replace(/\s+/g, ' ').trim() })));
         assert.deepEqual(rounds.map(round => round.key), ['2', '1']);
         assert.equal(rounds[0].open, true, 'aktuální kolo je rozbalené');
-        assert.equal(rounds[1].open, false, 'dřívější kolo je sbalené');
+        assert.equal(rounds[1].open, true, 'poslední dohrané kolo je rozbalené, ať jsou vidět jeho výsledky');
         assert.match(rounds[0].name, /Čtvrtfinále dnes · 0\/4 rozhodnuto/);
         assert.match(rounds[1].name, /Osmifinále pondělí 9\. 11\. · 8\/8 rozhodnuto/);
         assert.equal(await tab.locator('#tournament-rounds li').count(), 12);
@@ -876,6 +876,26 @@ test('týdenní turnaje', { skip: !chromium && 'Playwright není nainstalovaný'
         await tab.waitForSelector('#tournament-bracket [data-bcard]');
         assert.deepEqual(log.errors, []);
         assert.deepEqual(log.csp, []);
+        await context.close();
+    });
+
+    await t.test('po odehrání 1. kola jsou jeho výsledky vidět: pavouk začíná posledním dohraným kolem a seznam kol ho má rozbalené', async () => {
+        const db = newDb({ today: '2026-11-10' });
+        bigTournament(db, { size: 32, done: 1 });
+        const { context, tab, log } = await start(db, { now: '2026-11-10T10:00:00Z', viewport: { width: 390, height: 780 } });
+        await tab.waitForSelector('#tournament-card');
+        await openDialog(tab);
+        // Osmifinále ještě není odehrané, ale 1. kolo (šestnáctifinále) s výsledky je v pavouku jako první sloupec
+        assert.deepEqual((await columnsOf(tab)).slice(0, 2), ['1', '2']);
+        assert.equal(await cardsIn(tab, 1), 16);
+        assert.match((await tab.locator('#bracket-scroll [data-bcell="1-1"] [data-bcard]').innerText()).replace(/\s+/g, ' '), /\d+\/10/, 'skóre z 1. kola je vidět');
+        // Seznam kol: rozbalené je aktuální i poslední dohrané kolo
+        await tab.click('#tournament-bracket button[data-b-full]').catch(() => {});
+        await tab.click('button:has-text("Seznam kol")');
+        await tab.waitForSelector('details[data-round]');
+        const open = await tab.locator('details[data-round][open]').count();
+        assert.ok(open >= 2, `rozbalená jsou aspoň dvě kola (${open})`);
+        assert.deepEqual(log.errors, []);
         await context.close();
     });
 

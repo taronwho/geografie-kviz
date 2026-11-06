@@ -343,3 +343,10 @@ test('přesné pořadí vypadlých: víc bodů celkem, při shodě menší celko
     const tied = T.standings(entries, tournament, tie).groups.find(g => g.key === 'p5').rows.map(r => r.entry.user_id);
     assert.deepEqual(tied.slice(0, 2), ['e', 'f']);
 });
+
+test('lastDecidedRound: poslední kolo, ve kterém jsou všechny hlavní zápasy rozhodnuté', () => {
+    const matches = [{ round: 1, slot: 1, winner: 'a' }, { round: 1, slot: 2, winner: 'b' }, { round: 2, slot: 1, winner: null }, { round: 2, slot: 2, winner: 'c' }, { round: 3, slot: 1, third: true, winner: 'x' }];
+    assert.equal(T.lastDecidedRound(matches), 1);
+    assert.equal(T.lastDecidedRound([]), 0);
+    assert.equal(T.lastDecidedRound(matches.map(match => ({ ...match, winner: match.winner || 'z' }))), 2, 'zápas o 3. místo se nepočítá');
+});

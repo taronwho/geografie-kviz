@@ -4481,9 +4481,10 @@
         const { tournament, entries, matches } = view;
         const players = new Map(entries.map(entry => [entry.user_id, entry]));
         const latest = Tournament.currentRound(matches);
+        const lastDecided = Tournament.lastDecidedRound(matches);
         const groups = Tournament.groupRounds(tournament, matches).reverse();
         return groups.map(group => {
-            const open = group.round === latest;
+            const open = group.round === latest || (group.round === lastDecided && !group.third);
             const decidedCount = group.matches.filter(Tournament.decided).length;
             return `<details data-round="${group.key}" data-keep="${group.key}" data-open="${open ? 1 : 0}" ${open ? 'open' : ''} class="group rounded-2xl bg-slate-100/70 p-1.5 dark:bg-slate-800/50">
                 <summary class="flex cursor-pointer list-none items-center gap-2 rounded-xl px-1.5 py-1 [&::-webkit-details-marker]:hidden">
@@ -4554,8 +4555,10 @@
         const players = new Map(entries.map(entry => [entry.user_id, entry]));
         const playing = entries.some(entry => entry.user_id === meId && ['playing', 'out', 'finished'].includes(entry.status));
         const start = Tournament.bracketStartRound(tournament);
+        // Poslední dohrané kolo je vždy vidět (jinak by po odehrání kola nebylo kde najít výsledky), i když je před výchozím osmifinále
+        const lastDone = Tournament.lastDecidedRound(matches);
         const full = bracketFull === null ? Boolean(playing && bracket.focusRound < start) : bracketFull;
-        const from = full ? 1 : start;
+        const from = full ? 1 : Math.max(1, Math.min(start, lastDone || start));
         const path = Tournament.playerPath(bracket, bracketFocus || meId);
         const ctx = { players, me: meId, focus: bracketFocus, path };
         const lit = ctx.focus ? 'border-gold-500' : 'border-brand-600 dark:border-brand-400';

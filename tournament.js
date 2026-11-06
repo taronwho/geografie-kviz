@@ -245,6 +245,14 @@
         for (let round = 1; round <= tournament.rounds; round++) if (playersInRound(tournament.size, round) <= 16) return round;
         return 1;
     };
+    // Poslední kolo, ve kterém jsou všechny (hlavní) zápasy rozhodnuté; 0, když žádné
+    const lastDecidedRound = (matches) => {
+        const byRound = new Map();
+        (matches || []).filter(match => !match.third).forEach(match => { if (!byRound.has(match.round)) byRound.set(match.round, []); byRound.get(match.round).push(match); });
+        let last = 0;
+        [...byRound.keys()].sort((a, b) => a - b).forEach(round => { if (byRound.get(round).every(match => match.winner)) last = round; });
+        return last;
+    };
     // Co z karty zápasu jde říct o hráči: { won, lost } (vítěz / poražený, dokud se nerozhodne, nic)
     const sideOf = (card, id) => ({ id, won: Boolean(card.winner && card.winner === id), lost: Boolean(card.winner && id && card.winner !== id) });
     // Sloupce kola po kole se všemi kartami zápasů, i těmi, které ještě nejsou (jen pozice v pavouku, hráči z rozhodnutých zápasů před nimi).
@@ -328,6 +336,6 @@
         roundName, playersInRound, tournamentRoundName, roundDay, plural, playersWord, placeLabel, eliminatedLabel,
         groupRounds, currentRound, decided, involves, opponentOf, myMatch, resultOf, winnerPlace,
         cardState, statusText, noticeText, podium, nameMap, xpMatches,
-        placeRange, roundOfPlace, standings, bracketStartRound, bracketColumns, playerPath, dayShort
+        placeRange, roundOfPlace, standings, bracketStartRound, lastDecidedRound, bracketColumns, playerPath, dayShort
     };
 });
