@@ -12,9 +12,14 @@
     const CATEGORIES = [
         { key: 'obrazy', label: 'Obrazy', one: 'obraz', icon: 'frame', question: 'Co je to za obraz?', placeholder: 'Napiš název obrazu…', sort: { by: 'y' } },
         { key: 'sochy', label: 'Sochy', one: 'socha', icon: 'person-standing', question: 'Co je to za sochu?', placeholder: 'Napiš název sochy…', sort: { by: 'y' } },
-        { key: 'umelci', label: 'Malíři a sochaři', one: 'umělec', icon: 'brush', question: 'Kdo to je?', placeholder: 'Napiš jméno…', sort: { by: 'y' } }
+        { key: 'umelci', label: 'Malíři a sochaři', one: 'umělec', icon: 'brush', question: 'Kdo to je?', placeholder: 'Napiš jméno…', sort: { by: 'y' } },
+        { key: 'smery', label: 'Umělecké směry', one: 'směr', icon: 'layers', question: 'Jaký je to umělecký směr?', placeholder: 'Napiš název směru…', sort: { by: 'y' } },
+        { key: 'fotografove', label: 'Fotografové', one: 'fotograf', icon: 'image', question: 'Kdo to je?', placeholder: 'Napiš jméno…', sort: { by: 'y' } },
+        { key: 'ilustratori', label: 'Ilustrátoři a karikaturisté', one: 'ilustrátor', icon: 'pencil', question: 'Kdo to je?', placeholder: 'Napiš jméno…', sort: { by: 'y' } }
     ];
     const isWork = (item) => item.c === 'obrazy' || item.c === 'sochy';
+    // Lidé: malíři a sochaři, fotografové, ilustrátoři a karikaturisté
+    const isPerson = (item) => item.c === 'umelci' || item.c === 'fotografove' || item.c === 'ilustratori';
 
     // Jak často se u díla ptáme na autora a na umělecký směr (jinak na název)
     const AUTHOR_QUIZ_SHARE = 0.3;
@@ -87,7 +92,7 @@
     const aliasCache = new WeakMap();
     const safeSurnames = (items) => {
         if (!aliasCache.has(items)) {
-            const surnames = items.filter(other => other.c === 'umelci').map(other => [other.q, surnameOf(other.n)]).filter(([, surname]) => surname);
+            const surnames = items.filter(isPerson).map(other => [other.q, surnameOf(other.n)]).filter(([, surname]) => surname);
             aliasCache.set(items, new Set(surnames.filter(([qid, surname]) => surname.length >= 3
                 && !surnames.some(([other, name]) => other !== qid && core.isAnswerMatch(name, [surname]))).map(([qid]) => qid)));
         }
@@ -118,6 +123,13 @@
             }
             return [...facts, ...formatFacts(item, [['tech', item.c === 'sochy' ? 'Materiál' : 'Technika', v => v], ['coll', 'Sbírka', v => v]])];
         }
+        if (item.c === 'smery') {
+            const facts = [];
+            if (f.land) facts.push({ label: 'Země', value: f.land });
+            if (answered && f.from !== undefined) facts.push({ label: 'Vznik', value: f.to !== undefined ? `${formatYear(f.from)}–${formatYear(f.to)}` : `od ${formatYear(f.from)}` });
+            if (f.reps && f.reps.length) facts.push({ label: 'Představitelé', value: f.reps.join(', ') });
+            return facts;
+        }
         const facts = answered ? formatFacts(item, [['born', 'Narození', formatYear], ['died', 'Úmrtí', formatYear]], ['born', 'died']) : [];
         if (f.land) facts.push({ label: 'Země', value: f.land });
         const movements = movementsOf(f);
@@ -141,10 +153,10 @@
         [1945, 'konec 2. světové války', 0], [1969, 'přistání na Měsíci', 0], [1989, 'pád Berlínské zdi', 0], [2001, 'útoky 11. září', 0]
     ];
     const CZECH_EVENTS = [
-        [1348, 'založení Karlovy univerzity'], [1357, 'začátek stavby Karlova mostu'], [1415, 'upálení Jana Husa'], [1583, 'Rudolf II. sídlí v Praze'],
-        [1620, 'bitva na Bílé hoře'], [1781, 'zrušení nevolnictví'], [1796, 'založení pražské obrazárny'], [1881, 'otevření Národního divadla'],
+        [1348, 'založení Karlovy univerzity'], [1357, 'začátek stavby Karlova mostu'], [1415, 'upálení Jana Husa'], [1583, 'Rudolf II. přesídlil dvůr z Vídně'],
+        [1620, 'bitva na Bílé hoře'], [1781, 'zrušení nevolnictví'], [1796, 'založení obrazárny Společnosti vlasteneckých přátel umění'], [1881, 'otevření Národního divadla'],
         [1887, 'založení Spolku Mánes'], [1907, 'první výstava Osmy'], [1918, 'vznik Československa'], [1938, 'Mnichovská dohoda'],
-        [1948, 'komunistický převrat'], [1968, 'pražské jaro'], [1989, 'sametová revoluce']
+        [1948, 'komunistický převrat'], [1968, 'invaze vojsk Varšavské smlouvy'], [1989, 'sametová revoluce']
     ];
     // U českých položek mají přednost české události; u otázky na směr jen události, které směr nejmenují
     const anchorsFor = (item, withStyles = true) => {
@@ -157,6 +169,12 @@
         if (isWork(item)) {
             if (f.year === undefined || f.year < -3000) return null;
             return { type: 'timeline', spans: [], points: [f.year], hide: item.n, anchors: anchorsFor(item, mode !== 'style') };
+        }
+        if (item.c === 'smery') {
+            if (f.y === undefined) return null;
+            return f.from !== undefined && f.to !== undefined
+                ? { type: 'timeline', spans: [{ kind: 'period', from: f.from, to: f.to }], points: [], spanLabel: 'období', hide: item.n, anchors: anchorsFor(item, false) }
+                : { type: 'timeline', spans: [], points: [f.y], hide: item.n, anchors: anchorsFor(item, false) };
         }
         if (f.born === undefined) return null;
         const to = f.died ?? Math.min(THIS_YEAR, f.born + 100);
@@ -236,12 +254,13 @@
             const sameMovement = (f.mk || []).some(key => (g.mk || []).includes(key));
             const sameCzech = (item.cz === 1) === (other.cz === 1) ? 1 : -3;
             const land = (f.land && f.land === g.land ? 3 : 0) + (sameWorld(f.land, g.land) ? 1 : 0);
-            if (item.c === 'umelci') return artistSimilarity(item, other) + (sameMovement ? 2 : 0) + land + sameCzech;
+            if (item.c === 'smery') return eraNearness(f.y, g.y) + (f.land && f.land === g.land ? 2 : 0);
+            if (isPerson(item)) return artistSimilarity(item, other) + (sameMovement ? 2 : 0) + land + sameCzech;
             // Doba i přes přelom letopočtu (k Apollónovi Belvederskému antické sochy, ne Socha Svobody)
             const years = f.y !== undefined && g.y !== undefined ? Math.max(0, 4 - Math.abs(f.y - g.y) / 100) : 0;
             return (f.by && f.by === g.by ? 4 : 0) + (sameMovement ? 3 : 0) + eraNearness(f.y, g.y) + years + land + sameCzech;
         },
-        nameAliases: (item, ctx) => item.c === 'umelci' ? artistAliases(item, ctx) : [],
+        nameAliases: (item, ctx) => isPerson(item) ? artistAliases(item, ctx) : [],
 
         // U díla občas „Kdo to namaloval?“ (jen u jistého autora z dat) nebo „Ke kterému směru patří?“ (jen u jasného směru)
         specialQuestion: (item, ctx, rng) => {
@@ -303,6 +322,7 @@
         subtitle: (item) => {
             const f = item.f || {};
             if (isWork(item)) return [f.by, yearText(f)].filter(Boolean).join(' · ') || (CATEGORIES.find(c => c.key === item.c) || {}).one;
+            if (item.c === 'smery') return [f.land, f.from !== undefined ? (f.to !== undefined ? `${formatYear(f.from)}–${formatYear(f.to)}` : `od ${formatYear(f.from)}`) : null].filter(Boolean).join(' · ') || item.ty;
             return [life(f), f.land].filter(Boolean).join(' · ') || item.ty || 'umělec';
         },
         isCzech: (item) => item.cz === 1
