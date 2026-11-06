@@ -292,6 +292,32 @@
             throw error;
         }
     };
+    // Chyby z provozu (monitor.js → tabulka client_errors): posledních 50 seskupených podle otisku; jen pro účet v dev_admins
+    const devClientErrors = async () => {
+        try { return (await request('POST', 'rpc/dev_client_errors', { body: {} })) || []; } catch (error) {
+            if (error.status === 404) throw new SocialError('Sběr chyb v databázi chybí: spusť znovu supabase/schema.sql.', 404);
+            if (error.status === 401 || error.status === 403 || /dev_admins/.test(String(error.message))) throw new SocialError('Tenhle účet není v dev_admins (návod v docs/SUPABASE.md).', 403);
+            throw error;
+        }
+    };
+    // Je přihlášený hráč správce (dev_admins)? Starší databáze bez funkce: false
+    const isDevAdmin = async () => {
+        try { return (await request('POST', 'rpc/dev_is_admin', { body: {} })) === true; } catch (error) {
+            if (error.status === 404) return false;
+            throw error;
+        }
+    };
+    // Verze schématu v databázi (schema_version() na konci supabase/schema.sql); null = databáze funkci nemá (schéma je starší než verze 1),
+    // undefined = odpověď nejde přečíst (nic se nehlásí)
+    const schemaVersion = async () => {
+        try {
+            const value = Math.floor(Number(await request('POST', 'rpc/schema_version', { body: {} })));
+            return Number.isFinite(value) ? value : undefined;
+        } catch (error) {
+            if (error.status === 404) return null;
+            throw error;
+        }
+    };
     // Moje turnajové údaje do odznaků: { best, wins, played }; null, když turnaje v databázi nejsou
     const myTournamentStats = () => guardTournaments(async () => {
         const result = await request('POST', 'rpc/my_tournament_stats', { body: {} });
@@ -338,10 +364,21 @@
         return stats;
     };
 
-    // Hledání hráčů podle přezdívky (část jména, na velikosti písmen nezáleží), bez mě
+    // Hledání hráčů podle přezdívky (část jména, na velikosti písmen nezáleží), bez mě a bez blokovaných (funkce search_players v databázi;
+    // starší databáze bez ní hledá přímo v profilech)
+    let searchRpcMissing = false;
     const searchPlayers = async (userId, query) => {
         const term = String(query || '').replace(/[^\p{L}\p{N} _.\-]/gu, '').trim().slice(0, NAME_MAX);
         if (term.length < 2) return [];
+        if (!searchRpcMissing) {
+            try {
+                const rows = await request('POST', 'rpc/search_players', { body: { term } });
+                return (Array.isArray(rows) ? rows : []).map(row => ({ id: row.id, display_name: row.display_name, avatar: row.avatar, color: row.color, frame: cleanFrame(row.frame), title_pref: cleanTitlePref(row.title_pref), owl: cleanOwl(row.owl) }));
+            } catch (error) {
+                if (error.status !== 404) throw error;
+                searchRpcMissing = true;
+            }
+        }
         return await withExtras(extras => request('GET', `profiles?display_name=ilike.${encodeURIComponent(`*${term}*`)}&id=neq.${encodeURIComponent(userId)}&select=${profileFields(extras)}&order=display_name&limit=8`)) || [];
     };
     // Náhodný jiný hráč (funkce v databázi); null, když tu zatím nikdo další není
@@ -380,6 +417,123 @@
         return invites.filter(row => !done.has(row.id));
     };
 
+    // Hlášení chyb v otázkách: hráč pošle vlastní (databáze hlídá délku a denní limit), čtou a mažou je jen dev_admins
+    const reportQuestion = (userId, report) => request('POST', 'question_reports', { body: { ...report, user_id: userId }, prefer: 'return=minimal' });
+    const getQuestionReports = async (limit = 100) => {
+        try {
+            return await request('GET', `question_reports?select=id,user_id,topic,item_id,question_type,reason,note,title,answer,created_at,author:profiles!user_id(display_name)&order=created_at.desc&limit=${Math.max(1, Math.min(200, Number(limit) || 100))}`) || [];
+        } catch (error) {
+            if (error.status === 404) throw new SocialError('Hlášení otázek v databázi chybí: spusť znovu supabase/schema.sql.', 404);
+            throw error;
+        }
+    };
+    const deleteQuestionReport = (id) => request('DELETE', `question_reports?id=eq.${encodeURIComponent(Number(id))}`);
+
+    // Moje data: export všeho, co o hráči leží na serveru (JSON), a smazání účtu (profil i přihlašovací záznam).
+    // Hlášky serveru jsou česky (turnaj); chybějící funkce (schema.sql ještě nespuštěno) dostane srozumitelný text.
+    const accountCall = async (name, fallback) => {
+        try {
+            return await request('POST', `rpc/${name}`, { body: {} });
+        } catch (error) {
+            if (error instanceof SocialError && error.status === 404) throw new SocialError('Tato funkce na serveru zatím není zapnutá. Napiš provozovateli (kontakt v Zásadách ochrany osobních údajů).', 404);
+            if (error instanceof SocialError && error.status === 401) throw new SocialError('Nejsi přihlášený.', 401);
+            if (error instanceof SocialError && error.status < 500 && /hraješ turnaj/.test(error.message)) throw error;
+            throw new SocialError(fallback, error && error.status);
+        }
+    };
+    const exportMyData = () => accountCall('export_my_data', 'Data se nepodařilo stáhnout, zkus to znovu.');
+    // true = smazáno úplně; false = data smazána, ale přihlašovací záznam u poskytovatele zůstal (smaže ho správce)
+    const deleteMyAccount = async () => (await accountCall('delete_my_account', 'Účet se nepodařilo smazat, zkus to znovu.')) !== false;
+
+    // ===== Sociální vrstva: přátelé, reakce po zápase, blokování a nahlášení (tabulky a funkce přibyly pozdější verzí schématu) =====
+    // Dokud je databáze nemá (404), vrací se prázdný výsledek / null a dál se o ně nežádá (po novém načtení stránky se zkusí znovu); jiné chyby se vyhodí.
+    let socialMissing = false;
+    const guardSocial = async (run, empty) => {
+        if (socialMissing) return empty;
+        try { return await run(); } catch (error) {
+            if (error.status === 404) { socialMissing = true; return empty; }
+            throw error;
+        }
+    };
+    // Hlášky databáze jsou česky (triggery); cokoli jiného se nahradí srozumitelným textem
+    const socialCall = async (run, fallback) => {
+        if (socialMissing) throw new SocialError('Tahle část zatím není k dispozici (databáze potřebuje nejnovější schema.sql).', 404);
+        try { return await run(); } catch (error) {
+            if (error instanceof SocialError && error.status === 404) { socialMissing = true; throw new SocialError('Tahle část zatím není k dispozici (databáze potřebuje nejnovější schema.sql).', 404); }
+            if (error instanceof SocialError && error.status === 401) throw new SocialError('Nejsi přihlášený.', 401);
+            if (error instanceof SocialError && error.status < 500 && CZECH_MESSAGE.test(error.message)) throw error;
+            throw new SocialError(fallback, error && error.status);
+        }
+    };
+    const isUuid = (value) => typeof value === 'string' && /^[0-9a-zA-Z-]{1,40}$/.test(value);
+    const needId = (value) => { if (!isUuid(value)) throw new SocialError('Neplatný hráč.', 400); return value; };
+    // Poslední aktivita: nejvýš jednou za 5 minut z klienta (server si to hlídá taky)
+    let seenAt = 0;
+    const touchSeen = () => {
+        if (Date.now() - seenAt < 5 * 60 * 1000) return Promise.resolve(false);
+        seenAt = Date.now();
+        return guardSocial(async () => { await request('POST', 'rpc/touch_seen', { body: {} }); return true; }, null);
+    };
+    const cleanFriend = (row) => ({
+        id: String(row.id), display_name: String(row.display_name || 'Hráč'), avatar: row.avatar, color: row.color, frame: cleanFrame(row.frame), title_pref: cleanTitlePref(row.title_pref), owl: cleanOwl(row.owl),
+        rating: cleanRatingNumber(row.rating), last_seen: row.last_seen ? String(row.last_seen) : null, status: row.status === 'accepted' ? 'accepted' : 'pending', direction: row.direction === 'in' ? 'in' : 'out',
+        since: row.since ? String(row.since) : null, wins: wholeNumber(row.wins, 100000), losses: wholeNumber(row.losses, 100000), draws: wholeNumber(row.draws, 100000)
+    });
+    // Přátelé a žádosti oběma směry; null = databáze přátele nemá
+    const friendsList = () => guardSocial(async () => ((await request('POST', 'rpc/friends_list', { body: {} })) || []).map(cleanFriend), null);
+    const addFriend = (userId, otherId) => socialCall(() => request('POST', 'friendships', { body: { user_id: userId, friend_id: needId(otherId), status: 'pending' }, prefer: 'return=minimal,resolution=ignore-duplicates' }), 'Žádost se nepodařilo odeslat. Zkus to znovu.');
+    const acceptFriend = (userId, otherId) => socialCall(() => request('PATCH', `friendships?user_id=eq.${encodeURIComponent(needId(otherId))}&friend_id=eq.${encodeURIComponent(userId)}`, { body: { status: 'accepted' }, prefer: 'return=minimal' }), 'Přijetí se nepodařilo. Zkus to znovu.');
+    const removeFriend = (userId, otherId) => socialCall(() => request('DELETE', `friendships?or=(and(user_id.eq.${encodeURIComponent(userId)},friend_id.eq.${encodeURIComponent(needId(otherId))}),and(user_id.eq.${encodeURIComponent(otherId)},friend_id.eq.${encodeURIComponent(userId)}))`, { prefer: 'return=minimal' }), 'Zrušení se nepodařilo. Zkus to znovu.');
+    // Reakce po zápase: target = { challengeId } nebo { matchId }; opakovaná reakce tu první přepíše
+    const REACTIONS = ['👍', '🔥', '😅', '🤝'];
+    const react = (userId, target, toId, emoji) => socialCall(() => {
+        if (!REACTIONS.includes(emoji)) throw new SocialError('Neznámá reakce.', 400);
+        const body = { from_id: userId, to_id: needId(toId), emoji, challenge_id: target.challengeId ? parseCode(target.challengeId) || null : null, match_id: target.matchId ? needTournamentId(target.matchId, 'zápas') : null };
+        if (!body.challenge_id && !body.match_id) throw new SocialError('Neplatný zápas.', 400);
+        return request('POST', 'match_reactions?on_conflict=challenge_id,match_id,from_id', { body, prefer: 'return=minimal,resolution=merge-duplicates' });
+    }, 'Reakci se nepodařilo poslat. Zkus to znovu.');
+    const cleanReaction = (row) => ({ id: row.id, challenge_id: row.challenge_id || null, match_id: row.match_id || null, from_id: String(row.from_id), to_id: String(row.to_id), emoji: REACTIONS.includes(row.emoji) ? row.emoji : null, created_at: String(row.created_at || '') });
+    // Reakce k zápasům (poslané i přijaté); challengeIds = kódy výzev, matchIds = zápasy turnaje
+    const reactionsFor = ({ challengeIds = [], matchIds = [] }) => guardSocial(async () => {
+        const codes = challengeIds.map(parseCode).filter(Boolean);
+        const mids = matchIds.filter(isTournamentId);
+        if (!codes.length && !mids.length) return [];
+        const filter = codes.length && mids.length ? `or=(challenge_id.in.(${codes.join(',')}),match_id.in.(${mids.join(',')}))` : codes.length ? `challenge_id=in.(${codes.join(',')})` : `match_id=in.(${mids.join(',')})`;
+        return ((await request('GET', `match_reactions?${filter}&select=id,challenge_id,match_id,from_id,to_id,emoji,created_at&limit=200`)) || []).map(cleanReaction);
+    }, []);
+    // Poslední reakce, kterou mi hráč poslal; null = žádná (nebo databáze reakce nemá)
+    const lastReactionFrom = (userId, otherId) => guardSocial(async () => {
+        const rows = (await request('GET', `match_reactions?from_id=eq.${encodeURIComponent(needId(otherId))}&to_id=eq.${encodeURIComponent(userId)}&select=id,challenge_id,match_id,from_id,to_id,emoji,created_at&order=created_at.desc&limit=1`)) || [];
+        return rows[0] ? cleanReaction(rows[0]) : null;
+    }, null);
+    // Blokování: zablokovaní hráči s profilem; null = databáze bloky nemá
+    const blockedPlayers = (userId) => guardSocial(async () => {
+        const rows = await withExtras(extras => request('GET', `player_blocks?blocker=eq.${encodeURIComponent(userId)}&select=blocked,created_at,player:profiles!blocked(${profileFields(extras)})&order=created_at.desc&limit=500`)) || [];
+        return rows.filter(row => row.player).map(row => ({ id: String(row.blocked), created_at: String(row.created_at || ''), player: row.player }));
+    }, null);
+    const blockPlayer = (userId, otherId) => socialCall(() => request('POST', 'player_blocks', { body: { blocker: userId, blocked: needId(otherId) }, prefer: 'return=minimal,resolution=ignore-duplicates' }), 'Zablokování se nepodařilo. Zkus to znovu.');
+    const unblockPlayer = (userId, otherId) => socialCall(() => request('DELETE', `player_blocks?blocker=eq.${encodeURIComponent(userId)}&blocked=eq.${encodeURIComponent(needId(otherId))}`, { prefer: 'return=minimal' }), 'Odblokování se nepodařilo. Zkus to znovu.');
+    // Nahlášení hráče: důvod z REPORT_REASONS, poznámka nejvýš 300 znaků
+    const REPORT_REASONS = [
+        { id: 'prezdivka', label: 'Nevhodná přezdívka' }, { id: 'obrazek', label: 'Nevhodný obrázek' }, { id: 'podvadeni', label: 'Podvádění' },
+        { id: 'obtezovani', label: 'Obtěžování' }, { id: 'jine', label: 'Jiné' }
+    ];
+    const reportPlayer = (userId, otherId, reason, note = '') => socialCall(() => {
+        if (!REPORT_REASONS.some(item => item.id === reason)) throw new SocialError('Vyber důvod nahlášení.', 400);
+        const text = String(note || '').replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 300);
+        return request('POST', 'player_reports', { body: { reporter: userId, reported: needId(otherId), reason, note: text || null }, prefer: 'return=minimal' });
+    }, 'Nahlášení se nepodařilo odeslat. Zkus to znovu.');
+    // Správce (dev_admins): seznam nahlášení a označení za vyřešené; chyba serveru se předá tak, jak je
+    const devReports = async () => {
+        try { return ((await request('POST', 'rpc/dev_player_reports', { body: {} })) || []).map(row => ({ ...row, id: Number(row.id), reason: REPORT_REASONS.some(item => item.id === row.reason) ? row.reason : 'jine' })); } catch (error) {
+            if (error.status === 404) throw new SocialError('Nahlášení v databázi chybí: spusť znovu supabase/schema.sql.', 404);
+            if (error.status === 401 || error.status === 403 || /dev_admins/.test(String(error.message))) throw new SocialError('Tenhle účet není v dev_admins (návod v docs/SUPABASE.md).', 403);
+            throw error;
+        }
+    };
+    const devResolveReport = (id) => request('POST', 'rpc/dev_report_resolve', { body: { rid: wholeNumber(id, Number.MAX_SAFE_INTEGER) } });
+
     return { AVATARS, allAvatars, cleanColor, customHue, nearestColor, cleanFrame, cleanOwl, saveOwl, cleanTitlePref, saveLook, COLORS, COUNTS, NAME_MAX, SocialError, cleanName, isValidName, newCode, parseCode, getProfile, saveProfile, createChallenge, getChallenge, getResults, submitResult, myChallenges, searchPlayers, randomOpponent, incomingChallenges, playerStats, getProgress, saveProgress, getRating, getRatingChange, weeklyLeaderboard, getAccepts, saveAccepts,
-        tournamentTick, getTournaments, inTournament, devTournament, getTournamentEntries, getTournamentMatches, joinTournament, leaveTournament, startTournamentMatch, finishTournamentMatch, myTournamentStats, tournamentNotices, tournamentNoticesSeen };
+        tournamentTick, getTournaments, inTournament, devTournament, devClientErrors, isDevAdmin, schemaVersion, reportQuestion, getQuestionReports, deleteQuestionReport, exportMyData, deleteMyAccount, getTournamentEntries, getTournamentMatches, joinTournament, leaveTournament, startTournamentMatch, finishTournamentMatch, myTournamentStats, tournamentNotices, tournamentNoticesSeen,
+        touchSeen, friendsList, addFriend, acceptFriend, removeFriend, REACTIONS, react, reactionsFor, lastReactionFrom, blockedPlayers, blockPlayer, unblockPlayer, REPORT_REASONS, reportPlayer, devReports, devResolveReport };
 });

@@ -104,6 +104,32 @@ test('stav karty: běžící turnaj a moje kolo', () => {
     assert.equal(card.step, 'counting');
 });
 
+test('stav karty: rozehraný zápas s uloženou relací jde dohrát jen v den kola', () => {
+    const started = [{ user_id: ME, started_at: 'x', finished_at: null }];
+    // server zná začátek a zařízení má uloženou relaci tohoto zápasu: Pokračovat
+    let card = T.cardState({ tournament: running, entries: [entry(ME), entry(OTHER)], matches: [match({ results: started })], me: ME, today: '2026-11-09', savedMatch: 'm1' });
+    assert.equal(card.step, 'resume');
+    assert.equal(card.canResume, true);
+    assert.equal(card.canPlay, undefined);
+    assert.equal(card.matchId, 'm1');
+    assert.match(T.statusText(card, {}, '2026-11-09'), /Čas běží od začátku zápasu/);
+    // uložená relace patří jinému zápasu (nebo chybí – jiné zařízení): začal a nedokončil
+    card = T.cardState({ tournament: running, entries: [entry(ME), entry(OTHER)], matches: [match({ results: started })], me: ME, today: '2026-11-09', savedMatch: 'jiny' });
+    assert.equal(card.step, 'unfinished');
+    card = T.cardState({ tournament: running, entries: [entry(ME), entry(OTHER)], matches: [match({ results: started })], me: ME, today: '2026-11-09', savedMatch: null });
+    assert.equal(card.step, 'unfinished');
+    // uložená relace bez začátku na serveru nic neobnovuje (zápas se hraje od začátku)
+    card = T.cardState({ tournament: running, entries: [entry(ME), entry(OTHER)], matches: [match()], me: ME, today: '2026-11-09', savedMatch: 'm1' });
+    assert.equal(card.step, 'play');
+    // po půlnoci dne kola se obnova nenabízí
+    card = T.cardState({ tournament: running, entries: [entry(ME), entry(OTHER)], matches: [match({ results: started })], me: ME, today: '2026-11-10', savedMatch: 'm1' });
+    assert.equal(card.step, 'counting');
+    assert.equal(card.expired, true);
+    assert.match(T.statusText(card, {}, '2026-11-10'), /Čas na zápas vypršel/);
+    // dohraný zápas má přednost
+    card = T.cardState({ tournament: running, entries: [entry(ME), entry(OTHER)], matches: [match({ results: [{ user_id: ME, started_at: 'x', finished_at: 'y', correct: 4, points: 9 }] })], me: ME, today: '2026-11-09', savedMatch: 'm1' });
+    assert.equal(card.step, 'waiting');
+});
 test('stav karty: postoupil, vypadl, finále, bronz, divák', () => {
     let card = state([match({ winner: ME, decided_by: 'played' })], '2026-11-09');
     assert.equal(card.step, 'won');
@@ -159,6 +185,10 @@ test('zápasy po kolech: seřazené, finále a bronz, výhry za XP', () => {
     assert.equal(groups[1].day, '2026-11-10');
     assert.equal(T.currentRound(matches), 2);
     assert.deepEqual(T.xpMatches(matches.concat({ id: 'e', winner: 'a', decided_by: 'earlier' }), 'a'), ['a']);
+    // XP za vyhraný zápas roste s kolem: 20, 30, 40…
+    assert.deepEqual([1, 2, 3, 7].map(T.winXp), [20, 30, 40, 80]);
+    assert.deepEqual(T.xpRounds(matches.concat({ id: 'e', winner: 'a', decided_by: 'earlier', round: 2 }), 'a'), Object.fromEntries(matches.filter(match => match.winner === 'a').map(match => [match.id, match.round])));
+    assert.ok(T.RULES.every(rule => !/letos|server/i.test(rule)), 'v pravidlech není „letos“ ani zmínka o serveru');
     assert.deepEqual(T.podium([{ user_id: 'x', status: 'finished', place: 2 }, { user_id: 'y', status: 'finished', place: 1 }, { user_id: 'z', status: 'out', place: 7 }]).map(entry => entry.user_id), ['y', 'x']);
 });
 

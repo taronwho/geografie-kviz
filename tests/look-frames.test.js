@@ -41,7 +41,7 @@ test('titul u jména: výchozí úroveň, nic, jen získaný odznak', () => {
 test('katalog: unikátní rámečky vázané na odznaky, žádný odemykatelný obrázek není zároveň základní', () => {
     assert.equal(new Set(Look.FRAMES.map(item => item.id)).size, Look.FRAMES.length);
     assert.equal(Look.FRAMES.find(item => item.id === 'vavrin').badge, 'vitez');
-    assert.equal(Look.FRAMES.find(item => item.id === 'plamen').badge, 'serie-30');
+    assert.equal(Look.FRAMES.find(item => item.id === 'plamen').badge, 'mesic');
     for (const item of Look.AVATARS) assert.ok(!Social.AVATARS.includes(item.id), `${item.id} je zároveň základní`);
 });
 

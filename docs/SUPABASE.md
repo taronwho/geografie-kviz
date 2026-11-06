@@ -104,6 +104,7 @@ a týdenní žebříček (`weekly_leaderboard`) se po novém spuštění `schema
 Verze po bezpečnostním auditu navíc zužuje oprávnění tabulek (klient smí měnit jen své sloupce), hlídá, že XP jen roste a odznaky
 jsou z katalogu, omezuje zakládání výzev (30 za hodinu) a vyzvaný hráč smí hrát jen výzvu určenou jemu. Přibude-li v aplikaci nový
 odznak, přidej jeho id i do funkce `badge_catalog()` v `schema.sql` (test `tests/sql-security.test.js` hlídá, že se shodují) a spusť schéma znovu.
+Odznaků je přes 270 (skupiny mají 5 až 10 stupňů), proto je limit sloupce `profiles.badges` 500 položek a 12 000 znaků; po aktualizaci aplikace je třeba schéma spustit znovu, jinak by hráč s mnoha odznaky nešel uložit.
 
 ## Týdenní turnaje
 
@@ -122,7 +123,72 @@ Bez něj se karta turnaje v aplikaci prostě neukáže.
   (smaže i turnaje, ve kterých boti hráli). Boti hrají na střední úrovni (úspěšnost 45–80 %). Databáze tyto funkce pustí jen účtu zapsanému v `dev_admins`; zapiš se jednou v SQL Editoru
   (přezdívku nahraď svou): `insert into public.dev_admins (user_id) select id from public.profiles where lower(display_name) = lower('Taron');`
   Boti jsou řádky v `auth.users` s e-mailem `bot-…@bots.invalid`; ostrý provoz s nimi nepočítej a po zkoušce je smaž.
+- **Rozehraný zápas turnaje:** aplikace ukládá postup zápasu do `localStorage`; po zavření nebo ztrátě spojení nabídne karta turnaje v den kola **Pokračovat** od další otázky. Server o začátku zná (`tournament_start_match`) a čas měří od něj, nic se tím nezastavuje; po půlnoci dne kola se zápas nabízet přestane a hráč dostane hlášku, že vypršel.
+- **Chyby z provozu:** `monitor.js` posílá neodchycené chyby (nejvýš 5 za relaci a 20 za den a zařízení) do tabulky `client_errors` (zpráva, zkrácený zásobník, adresa bez parametrů, prohlížeč, verze aplikace; žádné osobní údaje). Zapisovat smí kdokoli s veřejným klíčem, číst jen `dev_admins` (Nastavení → vývojářský režim → Chyby z provozu, `dev_client_errors()`). Server pustí nejvýš 100 řádků za hodinu a 500 za den.
+- **Verze schématu:** `schema_version()` na konci `schema.sql` se zvyšuje při každé změně souboru spolu s `REQUIRED_SCHEMA` v `app.js` (hlídá `tests/sql-monitor.test.js`). Je-li databáze novější než aplikace, hráč uvidí „Aktualizuj stránku“; je-li starší (funkce chybí nebo má nižší číslo), uvidí jednou denně „Databáze není aktuální“ a správce v Nastavení návod spustit `schema.sql` znovu.
+- **Hlášení chyb v otázkách:** tlačítko „Nahlásit chybu“ (vlajka) v okně otázky a po odpovědi uloží hlášení do tabulky `question_reports` (důvod + volitelný text, nejvýš 20 za 24 hodin na hráče, délky hlídá databáze). Bez připojení se hlášení uloží v zařízení a odešle později; bez účtu hra hráči přátelsky poradí přihlášení. Číst a mazat hlášení smí jen účet v `dev_admins`: v Nastavení v režimu vývojáře (`?vyvojar`) je oddíl „Hlášení otázek“ se seznamem a tlačítkem Vyřízeno. Po aktualizaci spusť znovu celé `supabase/schema.sql` (přibyla tabulka `question_reports`, funkce `is_dev_admin()` a spoušť s denním limitem).
+- **Přátelé, reakce, blokování a nahlášení:** tabulky `friendships`, `player_blocks`, `match_reactions`, `player_reports` a funkce `friends_list`, `search_players`, `touch_seen`
+  jsou na konci `schema.sql` (spusť soubor znovu celý, je idempotentní). Starší databáze bez nich nic nerozbije, aplikace jen sekce neukáže.
+  Žádost o přátelství vidí jen obě strany, přijímá ji oslovený (opačná čekající žádost se přijme sama), limit 200 přátel a 30 žádostí za hodinu. Blokovaný hráč (oběma směry)
+  nejde najít, vyzvat ani nevyjde jako náhodný soupeř a přátelství s ním skončí. Reagovat (👍 🔥 😅 🤝) jde jen na zápas, který oba odehráli. Nahlášení (důvod + poznámka do 300 znaků,
+  nejvýš 10 za den) čte jen správce: V Nastavení v režimu vývojáře je „Nahlášení hráči“ (jen účet v `dev_admins`) s tlačítkem Vyřešeno.
 - Odznaky za turnaje (`turnaj-*`) a za zběhlost v tématech (`zbehly-*`) jsou v `badge_catalog()`; přibude-li další odznak, přidej ho i tam.
+
+## Upozornění (web push)
+
+Aplikace umí poslat upozornění: **začíná tvůj turnajový zápas** (dnes hraješ kolo, večer podruhé), **nová výzva od hráče**, **soupeř odehrál tvoji výzvu** a **zpráva o turnaji** (nepřijat, zrušen, vypadl jsi, výsledek).
+Supabase nemá plánovač, proto odesílá GitHub Actions (`.github/workflows/push.yml`, jednou za hodinu mezi 7:00 a 21:00 pražského času). Nepoužívá se žádný klíč `service_role` ani `sb_secret_…`:
+odesílač volá v databázi funkce `push_due` a `push_mark` s veřejným klíčem z `config.js` a vlastním tajemstvím, které leží jen v tabulce `app_secrets` (přes API ji nejde ani přečíst) a v GitHub secrets.
+Bez níže popsaného nastavení se v aplikaci tlačítko „Zapnout upozornění“ vůbec neukáže a nic se neposílá.
+
+**Souhlas a odhlášení:** upozornění vzniknou až po klepnutí na **Nastavení → Hra → Zapnout upozornění** a po souhlasu v prohlížeči. Tamtéž jdou vypnout (smaže se předplatné v prohlížeči i v databázi)
+a jdou odděleně zapnout/vypnout turnaje a výzvy. **Odhlášení z účtu** předplatné na tom zařízení také smaže, takže jiný hráč na sdíleném telefonu nic cizího nedostane. Předplatné vidí a maže jen jeho vlastník (RLS);
+odběry, které prohlížeč zrušil (odpověď 404/410), nebo které třikrát selhaly, server smaže sám. Zpráva o stejné věci se pošle nejvýš jednou, od každého druhu nejvýš jedna za hodinu.
+
+Jednorázové nastavení:
+
+1. **Databáze:** spusť znovu celý `supabase/schema.sql` (přibyly tabulky `push_subscriptions`, `app_secrets`, `push_sent`, sloupce `profiles.push_tournament` a `push_challenge` a funkce `push_*`).
+2. **Klíče VAPID** (na svém počítači, potřebuješ Node.js): `npx web-push generate-vapid-keys`. Vypíše *Public Key* a *Private Key*.
+3. **Veřejný klíč** vlož do `config.js` jako `vapidPublicKey: '…'` (je veřejný, patří do repozitáře) a změnu nasaď.
+4. **Tajemství pro odesílače:** vymysli dlouhý náhodný řetězec (16 až 200 znaků, např. `openssl rand -hex 32`) a vlož ho do Supabase SQL Editoru (nahraď `TAJEMSTVI`):
+   `insert into public.app_secrets (name, value) values ('push_cron', 'TAJEMSTVI') on conflict (name) do update set value = excluded.value;`
+5. **GitHub secrets** (repozitář → Settings → Secrets and variables → Actions → *New repository secret*):
+   - `VAPID_PRIVATE_KEY`: *Private Key* z kroku 2 (nikam jinam ho nevkládej),
+   - `PUSH_CRON_SECRET`: stejné tajemství jako v kroku 4.
+   Volitelně v záložce *Variables* proměnná `VAPID_SUBJECT` (kontakt provozovatele, `mailto:tvuj@email.cz`); výchozí je adresa aplikace.
+6. **Vyzkoušení:** Actions → *Upozornění* → **Run workflow** (s `dry_run` = `true` jen vypíše, co by poslal). Plánované spouštění funguje jen z výchozí větve (`main`).
+   V aplikaci zapni upozornění a zkus založit výzvu ze druhého účtu; upozornění přijde nejpozději při dalším hodinovém běhu.
+
+Poznámky: na iPhonu fungují upozornění jen v aplikaci přidané na plochu (iOS 16.4 a novější). Výměna klíčů VAPID zneplatní všechna předplatná, hráči si upozornění zapnou znovu.
+Chceš-li odesílat častěji než po hodině, uprav `cron` v `push.yml` (GitHub plánované běhy občas zpožďuje o několik minut).
+## Moje data: export a smazání účtu (zveřejnění, Google Play)
+
+Nastavení → dole **Moje data** (jen přihlášený hráč) → **Stáhnout moje data (JSON)** a **Smazat účet a data** (s potvrzením). Potřebují aktuální `supabase/schema.sql`
+(spustit celé znovu v SQL Editoru); bez něj aplikace ukáže „Tato funkce na serveru zatím není zapnutá“ a export stáhne aspoň data ze zařízení.
+
+- `export_my_data()` vrátí jako JSON jen řádky přihlášeného hráče (`auth.uid()`): účet (id, e-mail, časy), profil, založené výzvy, výsledky,
+  historii ratingu, přihlášky/zápasy/výsledky/zprávy turnajů.
+- `delete_my_account()` (security definer, vlastník `postgres`) smaže řádek v `profiles` – ostatní tabulky na něj navazují přes `ON DELETE CASCADE`
+  – a pak i řádek v `auth.users` (stejně jako vývojářská funkce `dev_tournament_clear_bots`). Nepoužívá se žádný klíč `service_role`,
+  klient volá funkci jen s tokenem přihlášeného hráče (grant jen pro `authenticated`).
+  Aplikace po úspěchu odhlásí hráče, vymaže `mudrlant.*` z `localStorage` a načte se znovu.
+- **Omezení:**
+  - Kdyby role vlastníka funkce neměla právo mazat v `auth.users` (v běžném Supabase projektu ho má), funkce vrátí `false`: data v `public` jsou smazaná,
+    profil je vrácen na prázdný výchozí a aplikace hráči řekne, že přihlašovací záznam smaže provozovatel (Authentication → Users → … → Delete user).
+  - Hráč, který je ještě ve hře (`status = 'playing'`) v běžícím turnaji, účet smazat nemůže (smazané zápasy by rozbily pavouk soupeřů) – funkce
+    skončí hláškou „Právě hraješ turnaj…“. Po vypadnutí nebo konci turnaje to jde.
+  - Společné záznamy se mažou celé: výzva založená smazaným hráčem zmizí i s výsledky soupeřů a historií ratingu v ní, zápasy turnajů smazaného hráče zmizí z historie
+    turnaje. Aktuální rating soupeřů (`profiles.rating`) se nemění; týdenní žebříček ale ztratí změny z nich.
+  - Zálohy Supabase (podle tarifu) mohou kopii dat držet ještě krátce; uveď to v zásadách (`soukromi.html`, zvýrazněná místa `[DOPLNIT …]`).
+- Test: `tests/sql-account.test.js` (PostgreSQL 16, viz `tests/sql-rating.test.js`).
+
+## Právní stránky (`soukromi.html`, `licence.html`)
+
+- `soukromi.html` obsahuje zvýrazněná místa **[DOPLNIT …]** (provozovatel, e-mail, datum, region databáze, lhůty). Před zveřejněním je vyplň a text nech zkontrolovat;
+  stejnou adresu zásad zadej do Google Play Console (Obsah aplikace → Zásady ochrany osobních údajů) a návod ke smazání účtu odkazuje na `soukromi.html#smazani`.
+- `licence.html` + `licence.js` čtou `data/licenses.json` (autor a licence každého obrázku z Wikimedia Commons). Soubor sestavuje `node scripts/build-licenses.mjs`
+  (nebo GitHub Action **Licence obrázků**, Run workflow – commitne `data/licenses.json` a `reports/licence-problemy.md`). Po přidání nových položek s obrázky spusť znovu.
+  `reports/licence-problemy.md` vypisuje soubory s licencí NC/ND, „fair use“ nebo bez licence, které je před komerčním vydáním potřeba nahradit.
 
 ## Jak to v aplikaci funguje
 

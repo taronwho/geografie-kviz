@@ -156,7 +156,7 @@
 
     // --- Nesprávné možnosti ---
     const AMERICA = new Set(['USA', 'Kanada', 'Spojené státy americké']);
-    const bornCloseness = (a, b) => Math.max(0, 6 - Math.abs(((a.f || {}).born ?? Infinity) - ((b.f || {}).born ?? -Infinity)) / 15);
+    const bornCloseness = (a, b) => Math.max(0, 6 - Math.abs(((a.f || {}).born ?? Infinity) - ((b.f || {}).born ?? -Infinity)) / 10);
     const personScore = (item, other) => ((item.sx === 'f') !== (other.sx === 'f') ? -20 : 0) + bornCloseness(item, other)
         + ((item.f || {}).land && item.f.land === (other.f || {}).land ? 2 : 0)
         + (AMERICA.has((item.f || {}).land) === AMERICA.has((other.f || {}).land) ? 1 : 0) + ((item.cz === 1) === (other.cz === 1) ? 2 : 0);

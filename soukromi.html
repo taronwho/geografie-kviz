@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <!-- Stejná CSP jako index.html (GitHub Pages hlavičky neposílá) -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' https://upload.wikimedia.org https://gibs.earthdata.nasa.gov https://tile.openstreetmap.org; connect-src 'self' https://cs.wikipedia.org https://*.supabase.co; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
+    <meta name="description" content="Mudrlant – ochrana osobních údajů a podmínky použití.">
+    <meta name="theme-color" content="#f7f6f3" media="(prefers-color-scheme: light)">
+    <meta name="theme-color" content="#212326" media="(prefers-color-scheme: dark)">
+    <title>Ochrana osobních údajů a podmínky použití – Mudrlant</title>
+    <link rel="icon" href="icons/favicon-32.png" sizes="32x32" type="image/png">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body class="legal-page font-sans text-slate-800 dark:text-slate-100">
+    <div class="mx-auto min-h-full w-full max-w-md border-x border-slate-200 bg-slate-50 shadow-2xl dark:border-slate-800 dark:bg-slate-900">
+        <header class="sticky top-0 z-10 flex items-center gap-3 border-b-4 border-slate-200/70 bg-slate-50 px-4 pb-3 pt-[max(1rem,env(safe-area-inset-top))] dark:border-slate-800 dark:bg-slate-900">
+            <a href="./" class="btn-3d-light flex h-11 shrink-0 items-center gap-2 rounded-2xl bg-white px-3 text-sm font-black text-slate-700 dark:bg-slate-800 dark:text-slate-200">
+                <svg aria-hidden="true" viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg>
+                Zpět do hry
+            </a>
+            <div class="min-w-0">
+                <h1 class="truncate text-lg font-black leading-tight">Soukromí a podmínky</h1>
+                <p class="truncate text-xs text-slate-500 dark:text-slate-400">Ochrana osobních údajů a podmínky použití</p>
+            </div>
+        </header>
+
+        <main class="legal-body px-4 pb-[max(2rem,env(safe-area-inset-bottom))] pt-4">
+            <nav class="mb-4 rounded-2xl bg-white p-3 text-sm shadow-sm dark:bg-slate-800" aria-label="Obsah">
+                <p class="text-xs font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">Obsah</p>
+                <ul class="mt-1 list-none pl-0">
+                    <li><a href="#udaje">Ochrana osobních údajů</a></li>
+                    <li><a href="#smazani">Jak smazat účet a stáhnout data</a></li>
+                    <li><a href="#podminky">Podmínky použití</a></li>
+                    <li><a href="#kontakt">Kontakt</a></li>
+                </ul>
+            </nav>
+
+            <p class="rounded-xl border-2 border-amber-300 bg-amber-50 p-3 text-sm text-amber-950 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-100"><strong>Poznámka pro provozovatele:</strong> údaje zvýrazněné <span class="doplnit">[DOPLNIT …]</span> (kontakt, datum, region, lhůty) je potřeba před zveřejněním aplikace vyplnit. Do té doby tento text není úplný. Zásady popisují, co aplikace dělá; po doplnění je vhodné je nechat zkontrolovat.</p>
+
+            <p class="mt-3 text-xs text-slate-500 dark:text-slate-400">Platí od <span class="doplnit">[DOPLNIT datum]</span>. Provozovatel aplikace Mudrlant (dále „my“): <span class="doplnit">[DOPLNIT jméno / název a adresu provozovatele]</span>.</p>
+
+            <h2 id="udaje">Ochrana osobních údajů</h2>
+            <p>Mudrlant je kvíz, který jde hrát i úplně bez účtu. Snažíme se pracovat s co nejméně údaji. Tady je upřímně a bez právničiny popsáno, co aplikace dělá.</p>
+
+            <h3>Hra bez účtu</h3>
+            <p>Když se nepřihlásíš, neposíláme na náš server žádné údaje o tobě. Všechno (nastavení, postup, výsledky, série, chyby k zopakování) se ukládá jen <strong>v úložišti tvého prohlížeče nebo zařízení</strong> (tzv. localStorage) a nikam neodchází. Smažeš to vymazáním dat webu v prohlížeči nebo odinstalováním aplikace.</p>
+
+            <h3>Přihlášení účtem Google</h3>
+            <p>Účet slouží k profilu, výzvám a turnajům s ostatními hráči. Přihlášení zajišťuje služba <a href="https://supabase.com/privacy" target="_blank" rel="noopener noreferrer">Supabase</a> (Supabase Inc.) s poskytovatelem přihlášení Google. Při přihlášení nám Google předá a Supabase uloží:</p>
+            <ul>
+                <li><strong>identifikátor účtu Google</strong> (stálé číslo, podle kterého k tobě patří data),</li>
+                <li><strong>e-mailovou adresu</strong> (vidíš ji jen ty v Nastavení; ostatním hráčům se nikdy neukazuje),</li>
+                <li><strong>jméno</strong> z účtu Google (použije se jako výchozí přezdívka, kterou si můžeš změnit) a případně adresu profilového obrázku Google (aplikace ji nepoužívá).</li>
+            </ul>
+            <p>Heslo k Googlu nikdy nevidíme ani neukládáme.</p>
+
+            <h3>Co ukládáme na serveru, když máš účet</h3>
+            <ul>
+                <li><strong>Profil:</strong> přezdívka, zvolený obrázek a barva (emoji nebo upravená sova včetně zvolených doplňků), úroveň a zkušenosti (XP), odznaky, rámeček a titul, nastavení přijímaných výzev (vypnutá témata, Mix). <em>Přezdívku, obrázek, úroveň, odznaky, rámeček, titul, rating a ligu vidí ostatní přihlášení hráči</em> (v výzvách, žebříčku a turnajích).</li>
+                <li><strong>Výzvy a výsledky:</strong> které výzvy jsi založil/a nebo hrál/a, počet správných odpovědí a bodů, čas dokončení; s kým jsi hrál/a.</li>
+                <li><strong>Rating a jeho historie:</strong> změny ratingu po výzvách, liga, týdenní žebříček.</li>
+                <li><strong>Turnaje:</strong> přihlášení do turnaje, zápasy, výsledky a oznámení.</li>
+                <li><strong>Technické údaje:</strong> čas vytvoření účtu a čas posledního přihlášení (ukládá Supabase).</li>
+            </ul>
+            <p>Aplikace <strong>neposílá push oznámení</strong> a žádné předplatné oznámení neukládá. Postup v jednotlivých tématech (které otázky umíš, série, chyby k zopakování) se na server neukládá, zůstává jen v zařízení.</p>
+            <p>Údaje slouží výhradně k fungování hry (ukládání postupu na všech zařízeních, hra s ostatními). Neprodáváme je, nepředáváme je k reklamním účelům a neprofilujeme tě.</p>
+
+            <h3>Kde data leží</h3>
+            <p>Databáze běží u společnosti Supabase Inc. v datovém centru, které určuje nastavení našeho projektu: <span class="doplnit">[DOPLNIT region – podle návodu byl projekt zakládán v regionu Central EU (Frankfurt), ověř v Supabase → Project Settings → General]</span>. Supabase používá k provozu infrastrukturu Amazon Web Services. Statické soubory aplikace (stránka, data kvízu) jsou na <a href="https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement" target="_blank" rel="noopener noreferrer">GitHub Pages</a> (GitHub, Inc., USA); při každém načtení aplikace GitHub vidí tvou IP adresu, jak je u každého webu.</p>
+
+            <h3>Co odchází třetím stranám během hry</h3>
+            <p>Aplikace si při hře stahuje obsah z těchto služeb. Při každém takovém stažení dostane daná služba tvou <strong>IP adresu</strong> a běžné technické údaje prohlížeče (jako každý web, který otevřeš); žádné další údaje o tobě jim neposíláme:</p>
+            <ul>
+                <li><a href="https://foundation.wikimedia.org/wiki/Policy:Privacy_policy" target="_blank" rel="noopener noreferrer">Wikimedia Foundation</a> – popisy položek z české Wikipedie (cs.wikipedia.org) a obrázky z Wikimedia Commons (upload.wikimedia.org),</li>
+                <li><a href="https://www.earthdata.nasa.gov/engage/open-data-services-software-policies/data-user-privacy" target="_blank" rel="noopener noreferrer">NASA</a> – snímky Země pro nápovědu z družice (gibs.earthdata.nasa.gov),</li>
+                <li><a href="https://wiki.osmfoundation.org/wiki/Privacy_Policy" target="_blank" rel="noopener noreferrer">OpenStreetMap Foundation</a> – mapové dlaždice (tile.openstreetmap.org),</li>
+                <li>Supabase a Google – jen při přihlášení a při používání účtu (viz výše).</li>
+            </ul>
+
+            <h3>Denní zajímavost a umělá inteligence</h3>
+            <p>Zajímavost „Tento den v dějinách“ připravujeme jednou denně na našem serveru (GitHub Actions): z článku Wikipedie ji přepíše jazykový model Google Gemini a hotový text se uloží do souboru, který si aplikace stáhne. <strong>Do modelu neposíláme žádné údaje o hráčích</strong> – jen text z Wikipedie. Z tvého zařízení ke Google Gemini nic neodchází.</p>
+
+            <h3>Reklamy, sledování a cookies</h3>
+            <p>Aplikace <strong>nemá reklamy, analytiku ani sledovací nástroje</strong> a nepoužívá sledovací cookies. Přihlášení se pamatuje v úložišti prohlížeče (localStorage), ne v cookies. Google si při přihlášení na svých stránkách může nastavit vlastní cookies podle svých zásad.</p>
+
+            <h3>Jak dlouho údaje uchováváme</h3>
+            <p>Údaje účtu uchováváme, dokud účet existuje. Když účet smažeš, odstraní se profil i všechny tvé výsledky, rating, výzvy a účast v turnajích. U společných záznamů se smažou celé: výzva, kterou jsi založil/a, zmizí i s výsledky soupeřů v ní, a zápasy turnajů, ve kterých jsi hrál/a, zmizí z historie turnaje. Ratingy soupeřů se tím nemění. Zálohy databáze poskytovatele mohou kopii dat uchovat ještě po omezenou dobu po smazání (<span class="doplnit">[DOPLNIT podle tarifu Supabase]</span>). Nepoužívané účty můžeme po <span class="doplnit">[DOPLNIT, např. 24 měsících]</span> nečinnosti smazat.</p>
+
+            <h3>Tvá práva</h3>
+            <p>Máš právo na přístup ke svým údajům, jejich opravu (přezdívku a obrázek upravíš v Nastavení → Profil), výmaz (viz níže), omezení zpracování, přenositelnost a právo podat stížnost u <a href="https://uoou.gov.cz" target="_blank" rel="noopener noreferrer">Úřadu pro ochranu osobních údajů</a>. Údaje zpracováváme proto, abychom ti mohli poskytovat hru s účtem. Většinu práv uplatníš přímo v aplikaci (Nastavení → <strong>Moje data</strong> → <strong>Stáhnout moje data</strong> a <strong>Smazat účet a data</strong>), ostatní na kontaktu níže.</p>
+
+            <h3>Děti a věk</h3>
+            <p>Hra bez účtu je vhodná pro všechny věkové kategorie, protože neshromažďuje žádné údaje. Účet (přihlášení přes Google) si může založit jen osoba starší <span class="doplnit">[DOPLNIT 13 / 15]</span> let; mladší hráči mohou hrát bez účtu, nebo s účtem se souhlasem rodiče či zákonného zástupce. Pokud zjistíme, že účet založilo dítě bez souhlasu, účet smažeme.</p>
+
+            <h2 id="smazani">Jak smazat účet</h2>
+            <p>Účet i všechna data k němu můžeš smazat kdykoli, bez udání důvodu:</p>
+            <ol>
+                <li><strong>V aplikaci:</strong> Nastavení (ozubené kolo vpravo nahoře) → dole <strong>Moje data</strong> → <strong>Smazat účet a data</strong> → potvrdit v okně „Opravdu smazat účet?“. Účet se smaže okamžitě, aplikace tě odhlásí a vymaže i data uložená v zařízení. Tlačítko je dostupné jen přihlášenému hráči.</li>
+                <li><strong>E-mailem:</strong> napiš z e-mailu, kterým se přihlašuješ, na <span class="doplnit">[DOPLNIT e-mail]</span> s předmětem „Smazání účtu Mudrlant“. Účet smažeme do <span class="doplnit">[DOPLNIT lhůtu, např. 30 dnů]</span> a potvrdíme ti to.</li>
+            </ol>
+            <p>Smazání je nevratné: zmizí přezdívka, úroveň, odznaky, rating, výsledky i účast v turnajích. Před smazáním si můžeš všechna data stáhnout (Nastavení → <strong>Moje data</strong> → <strong>Stáhnout moje data</strong>): dostaneš soubor JSON s údaji ze serveru i ze zařízení. Hrát bez účtu můžeš dál.</p>
+            <p><strong>Omezení:</strong> dokud jsi ještě ve hře v běžícím turnaji, smazat účet v aplikaci nejde (zmizely by zápasy tvých soupeřů); jde to po tvém vypadnutí nebo po skončení turnaje, nebo e-mailem. Kdyby se nepodařilo smazat i přihlašovací záznam u poskytovatele přihlášení, aplikace to po smazání oznámí a záznam smažeme na tvou žádost.</p>
+
+            <h2 id="podminky">Podmínky použití</h2>
+            <h3>Hra a obsah</h3>
+            <p>Mudrlant je vědomostní kvíz poskytovaný tak, jak je, bez záruky nepřetržitého provozu. Otázky vznikají automaticky z otevřených dat (Wikidata, Wikipedie, Wikimedia Commons) a mohou obsahovat chyby; chybu můžeš nahlásit na kontakt níže. Zdroje a licence obsahu jsou uvedené na stránce <a href="licence.html">Zdroje a licence</a>. Grafika, ilustrace sovy a název Mudrlant jsou dílem provozovatele.</p>
+            <h3>Účet a chování</h3>
+            <ul>
+                <li>Účet je osobní; používej ho sám/sama a jen jeden.</li>
+                <li><strong>Přezdívka a obrázek profilu</strong> nesmí být vulgární, urážlivé, nenávistné, sexuální ani nesmí napodobovat jinou osobu, značku nebo správce hry. Přezdívku nevhodnou nebo zavádějící můžeme změnit.</li>
+                <li>Nepodváděj: neobcházej pravidla hry, nezneužívej chyby, neposílej automatizované požadavky a nepokoušej se získat cizí data.</li>
+                <li>Vůči ostatním hráčům se chovej slušně. Pokud ti vadí jiný hráč (přezdívka, chování ve výzvách), napiš nám na kontakt níže; výzvy od ostatních můžeš také vypnout v Nastavení → Profil → Přijímané výzvy.</li>
+            </ul>
+            <h3>Ukončení účtu</h3>
+            <p>Při porušení těchto pravidel můžeme účet omezit nebo smazat, a to i bez předchozího upozornění, je-li porušení závažné (nenávistný obsah, podvody, útoky na službu). Sám/sama můžeš účet kdykoli smazat (viz výše).</p>
+            <h3>Změny</h3>
+            <p>Tyto podmínky i zásady ochrany soukromí můžeme upravit, když se změní aplikace nebo předpisy. Novou verzi zveřejníme na této stránce s datem platnosti; při podstatné změně na ni upozorníme v aplikaci.</p>
+            <h3>Rozhodné právo</h3>
+            <p>Řídí se právem České republiky.</p>
+
+            <h2 id="kontakt">Kontakt</h2>
+            <p>Provozovatel: <span class="doplnit">[DOPLNIT jméno / název a adresu]</span><br>E-mail: <span class="doplnit">[DOPLNIT e-mail]</span><br>Odpovíme nejpozději do <span class="doplnit">[DOPLNIT lhůtu, např. 30 dnů]</span>.</p>
+
+            <footer class="mt-8 border-t border-slate-200 pt-4 text-xs text-slate-500 dark:border-slate-800 dark:text-slate-400">
+                <p><a href="licence.html">Zdroje a licence</a> · <a href="./">Zpět do hry</a></p>
+            </footer>
+        </main>
+    </div>
+</body>
+</html>

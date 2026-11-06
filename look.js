@@ -37,7 +37,7 @@
         { id: 'stribro', title: 'Stříbrný', level: 15 },
         { id: 'zlato', title: 'Zlatý', level: 25 },
         { id: 'vavrin', title: 'Vavřínový', badge: 'vitez' },
-        { id: 'plamen', title: 'Plamenný', badge: 'serie-30' },
+        { id: 'plamen', title: 'Plamenný', badge: 'mesic' },
         { id: 'diamant', title: 'Diamantový', level: 60 },
         { id: 'medailista', title: 'Medailista turnaje', badge: 'turnaj-bronz' },
         { id: 'mistr-turnaje', title: 'Mistr turnaje', badge: 'turnaj-zlato' }
@@ -176,8 +176,17 @@
         }
         return result;
     };
+    // Jak se druh odměny jmenuje v textech pro hráče
+    const REWARD_KINDS = { themes: 'barevné téma', robes: 'talár Mudrlanta', frames: 'rámeček', avatars: 'obrázek hráče', accessories: 'doplněk Mudrlanta', colors: 'barva doplňků' };
+    // Odměny, které odemkne konkrétní odznak: [{ category, item }] (prázdné, když odznak dává jen slávu)
+    const rewardsForBadge = (badgeId) => Object.entries(CATALOG).flatMap(([category, items]) => items.filter(item => item.badge === badgeId).map(item => ({ category, item })));
+    // Věta o odměně za odznak: „Odměna: Kompas (doplněk Mudrlanta)“, bez odměny „Odměna: sláva“
+    const badgeRewardText = (badgeId) => {
+        const rewards = rewardsForBadge(badgeId);
+        return `Odměna: ${rewards.length ? rewards.map(({ category, item }) => `${item.title} (${REWARD_KINDS[category]})`).join(', ') : 'sláva'}`;
+    };
     // Odměny odemknuté na dané úrovni (pro přehled úrovní)
     const rewardsAtLevel = (level) => Object.entries(CATALOG).flatMap(([category, items]) => items.filter(item => !item.badge && item.level === level).map(item => ({ category, item })));
 
-    return { CATALOG, THEMES, ROBES, FRAMES, AVATARS, ACCESSORIES, SLOTS, ACC_COLORS, customHue, colorOk, flagOk, DEFAULTS, isUnlocked, unlockText, find, normalize, prefs, setPref, onChange, register, getSections, apply, newRewards, rewardsAtLevel };
+    return { CATALOG, THEMES, ROBES, FRAMES, AVATARS, ACCESSORIES, SLOTS, ACC_COLORS, customHue, colorOk, flagOk, DEFAULTS, isUnlocked, unlockText, find, normalize, prefs, setPref, onChange, register, getSections, apply, newRewards, rewardsAtLevel, REWARD_KINDS, rewardsForBadge, badgeRewardText };
 });

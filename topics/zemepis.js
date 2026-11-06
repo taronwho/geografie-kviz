@@ -145,6 +145,9 @@
         },
         categories: CATEGORIES,
 
+        // Místa mají vlastní pravidla podle vzdálenosti, ne kulturu jmen osob
+        culture: () => [],
+
         // Nesprávné možnosti: místa poblíž, ze stejného státu (jinak kontinentu) a podobně velká
         similarity: (item, other, { countries }) => {
             // U států rozhodují hlavně sousedé, velikost jen trochu

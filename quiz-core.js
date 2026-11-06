@@ -240,7 +240,7 @@
     const mergeCensored = (text) => text
         .replace(/(?<![\p{L}\d])(?:\p{Lu}\.\s?){1,4}(?=\[\*\*\*\])/gu, '')
         // Saint, Sankt, San, St. těsně před zakrytým jménem (Saint [***] u St. Louis) je jeho součást
-        .replace(/(?<![\p{L}\d])(?:Saint|Sankt|Santa|Santo|San|São|St\.|Sv\.)\s+(?=\[\*\*\*\])/gu, '')
+        .replace(/(?<![\p{L}\d])(?:Saint|Sankt|Santa|Santo|San|São|St\.|Sv\.)[\s\-–]+(?=\[\*\*\*\])/gu, '')
         .replace(/\[\*\*\*\](?:[\s\-–]+\[\*\*\*\])+/g, '[***]');
 
     const censorName = (text, name) => {
@@ -548,6 +548,243 @@
     // Původní soubor – když je obrázek menší než požadovaný náhled, Commons ho nezvětší a náhled nevrátí
     const commonsFileUrl = (fileName, hash) => `https://upload.wikimedia.org/wikipedia/commons/${hash[0]}/${hash}/${encodeURIComponent(fileName.replace(/ /g, '_'))}`;
 
+    // --- Ochrana před prozrazením odpovědi ---
+    // Zakrytí názvu (censorName) zná skloňování a odvozená přídavná jména, ne však všechno: skloněné krátké příjmení (Poea),
+    // přepisy jmen (Beneš = Beneș = Benesch), rodná jména a další tvary jména přímo v textu. Proto text po zakrytí projde ještě
+    // jednou jedinou společnou funkcí (maskLeaks): každé slovo, které se tvarem podobá některému slovu odpovědi (po odstranění
+    // diakritiky a sjednocení přepisů), se zakryje. Používají ji všechna témata a všechny druhy otázek – popis, další věty
+    // úvodu i fakta v nápovědách – a to s odpovědí otázky, ne jen s názvem položky (u „Kdo to napsal?“ se zakrývá autor).
+
+    const FOLD_LETTERS = { æ: 'ae', œ: 'oe', ø: 'o', ß: 'ss', ł: 'l', đ: 'd', ð: 'd', þ: 'th', ı: 'i', ħ: 'h' };
+    // Slovo bez diakritiky a velikosti písmen, s přepisy hlásek, které se v jménech střídají: Beneš = Beneș = Benes = Benesch,
+    // Čajkovskij = Tchaikovsky, Dvořák = Dvorak, Schönberg = Schoenberg, Wagner = Vagner
+    const foldPlain = (word) => word.toLowerCase().normalize('NFD').replace(/\p{M}/gu, '').replace(/[æœøßłđðþıħ]/g, letter => FOLD_LETTERS[letter]);
+    const phonetic = (folded) => folded
+        .replace(/tsch|tch|cz|cs/g, 'c').replace(/sch|sh|sz/g, 's').replace(/zh/g, 'z').replace(/ph/g, 'f').replace(/ck/g, 'k')
+        .replace(/w/g, 'v').replace(/[yj]/g, 'i').replace(/(.)\1+/g, '$1');
+    const foldKeys = (word) => {
+        const plain = foldPlain(word);
+        const keys = new Set([phonetic(plain)]);
+        // Německý přepis přehlásky po souhlásce: Mueller = Müller (ale Poe zůstane Poe)
+        const collapsed = plain.replace(/(?<=[^aeiouy])(oe|ue|ae)/g, match => match[0]);
+        if (collapsed !== plain && collapsed.length >= 4) keys.add(phonetic(collapsed));
+        return [...keys];
+    };
+    // Krátké jméno (Poe, Li, Pú) se skloňuje i tvoří přivlastňovací tvary: Poea, Poeovi, Poeova, Poeovský
+    const SHORT_NAME_TAIL = /^(?:[aeiouy]|em|ou|um|uv|ovi|ove|ova|ovy|ovu|ovo|ovym|ovou|ovych|ovsky|ovska|ovske)?$/;
+    const commonPrefixLength = (a, b) => { let i = 0; while (i < a.length && i < b.length && a[i] === b[i]) i++; return i; };
+    // Souvisí slovo textu (a) se slovem odpovědi (t)? Obojí už je ve složené podobě foldKeys.
+    // capital = slovo textu je velkým písmenem, proper = slovo odpovědi je vlastní jméno (velké písmeno): obecná slova odpovědi
+    // (architektura, domácí) se hledají jen v téže podobě, ne podle kmene – jinak by se zakryla příbuzná slova (architekti)
+    const keysRelated = (a, t, capital, proper) => {
+        if (a === t) return true;
+        if (!proper) return false;
+        // Tři písmena a méně: jen jako jméno velkým písmenem a s běžnou koncovkou, ať se nezakryjí běžná slova
+        if (t.length <= 3) return capital && a.length > t.length && a.startsWith(t) && SHORT_NAME_TAIL.test(a.slice(t.length));
+        if (a.length < 3) return false;
+        const shorter = Math.min(a.length, t.length);
+        // Společný kmen (skloňování, přivlastňování, odvozená slova): Kafka – Kafkovi, Beneš – Benešova; slovo textu nejvýš o tři
+        // písmena kratší než slovo odpovědi (Antimonit – antimon), jinak by jméno zakrylo i své základní slovo (Pepřovník – pepř)
+        const common = commonPrefixLength(a, t);
+        if (common >= 4 && common >= shorter * 0.7 && t.length - a.length <= 3) return true;
+        // Jiný zápis nebo překlep: o jedno písmeno u pěti a víc, o dvě u osmi a víc
+        const limit = shorter >= 8 ? 2 : shorter >= 5 ? 1 : 0;
+        return limit > 0 && levenshtein(a, t) <= limit;
+    };
+
+    // Slova odpovědi, podle kterých se hledá (jen taková, která jméno opravdu prozradí): bez předložek, členů, římských číslic
+    // a obecných slov názvu (park, řeka, bitva – isGeneric), ta ve větě zůstávají
+    const answerTokens = (names, isGeneric = () => false) => {
+        const tokens = new Map();
+        for (const name of names) {
+            const words = stripBrackets(String(name || '')).split(/[^\p{L}\p{M}]+/u).filter(Boolean);
+            const specific = words.filter(word => !isGeneric(word));
+            for (const word of (specific.length ? specific : words)) {
+                if (CENSOR_SKIP_WORDS.has(word.toLowerCase()) || isRomanNumeral(word)) continue;
+                // Malé slovo ve víceslovném názvu (hudební romantismus, Jahodník obecný) je jen přívlastek: zakrývá ho případně až zakrytí názvu,
+                // tady by zbytečně rušilo běžný text; jednoslovný název malým písmenem (romantismus, secesní) se hledá celý
+                if (words.length > 1 && !/^\p{Lu}/u.test(word)) continue;
+                const keys = foldKeys(word);
+                if (keys[0].length < 3) continue;
+                if (!tokens.has(keys[0])) tokens.set(keys[0], { keys, proper: /^\p{Lu}/u.test(word) });
+            }
+        }
+        return [...tokens.values()];
+    };
+    const wordKeySet = (texts) => new Set(texts.flatMap(text => (String(text || '').match(/[\p{L}\p{M}]+/gu) || []).map(word => foldKeys(word)[0])));
+    const LETTER_RUN = /[\p{L}\p{M}]+/gu;
+    const relatesToAnswer = (word, tokens, keepKeys) => {
+        if (word.length < 3 || keepKeys.has(foldKeys(word)[0])) return false;
+        const keys = foldKeys(word);
+        const capital = /^\p{Lu}/u.test(word);
+        return tokens.some(token => token.keys.some(t => keys.some(a => keysRelated(a, t, capital, token.proper))));
+    };
+    // Slova textu, která prozrazují odpověď (pro testy a statistiky): [{ word, index }]
+    const findLeaks = (text, names, { isGeneric = () => false, keep = [] } = {}) => {
+        const tokens = answerTokens(names, isGeneric);
+        const keepKeys = wordKeySet(keep);
+        const found = [];
+        for (const match of String(text || '').matchAll(LETTER_RUN)) if (relatesToAnswer(match[0], tokens, keepKeys)) found.push({ word: match[0], index: match.index });
+        return found;
+    };
+    // Jiné tvary jména přímo v textu: „rodným jménem Karl Böhnich“, „německy Brünn“, „též Beneș“ – za značkou následuje jméno
+    const VARIANT_WORDS = ['rodným jménem', 'vlastním jménem', 'původním jménem', 'občanským jménem', 'uměleckým jménem', 'rozen\\p{L}*', 'též',
+        'anglicky', 'německy', 'latinsky', 'řecky', 'rusky', 'polsky', 'italsky', 'španělsky', 'francouzsky', 'rumunsky', 'maďarsky', 'slovensky', 'hebrejsky',
+        'arabsky', 'čínsky', 'japonsky', 'korejsky', 'turecky', 'nizozemsky', 'švédsky', 'norsky', 'dánsky', 'finsky', 'portugalsky', 'ukrajinsky', 'persky',
+        'hindsky', 'bulharsky', 'srbsky', 'chorvatsky', 'slovinsky'];
+    // Značka může být i na začátku věty (Též, Německy), ale jméno za ní musí být velkým písmenem – proto bez příznaku i
+    const VARIANT_MARKERS = `(?:${VARIANT_WORDS.map(word => `[${word[0].toUpperCase()}${word[0]}]${word.slice(1)}`).join('|')})`;
+    const NAME_WORD = '(?:\\[\\*\\*\\*\\]|\\p{Lu}\\.|\\p{Lu}[\\p{L}\'’\\-]+)';
+    const NAME_RUN = `${NAME_WORD}(?:[ \\u00a0]+${NAME_WORD})*`;
+    const VARIANT_PATTERN = new RegExp(`(?<![\\p{L}])(${VARIANT_MARKERS})(\\s*:?\\s+)(${NAME_RUN})`, 'gu');
+    // Přivlastňovací a přídavná jména velkým písmenem (Nobelovu cenu, Americký) nejsou součást jména
+    // Tituly a druhy děl na začátku věty (Prezident [***], Kniha [***]) nejsou součást jména
+    const NOT_NAME_START = /^(?:Prezident|Král|Královna|Císař|Papež|Sir|Lord|Lady|Doktor|Dr|Profesor|Pan|Paní|Hrabě|Kníže|Car|Generál|Kapitán|Kniha|Román|Film|Báseň|Bitva|Skladatel|Spisovatel|Malíř|Herec|Režisér|Chemik|Fyzik|Architekt|Zpěvák|Sv|St|Svatý|Svatá|Saint|Sankt|Santa|San|Rod|Rodina|Skupina|Kapela)$/u;
+    const ADJECTIVE_LIKE = /(?:ov[áaéeuúyoůí]|ův|[sc]k[ýáéíou]|ní|ný|ná|né)$/u;
+    // Je odpověď jméno osoby (dvě až čtyři slova velkým písmenem, případně s předložkou: Edgar Allan Poe, Leonardo da Vinci)?
+    const isPersonName = (name) => {
+        const words = stripBrackets(String(name || '')).trim().split(/\s+/);
+        return words.length >= 2 && words.length <= 4 && !/\d/.test(name)
+            && words.every(word => /^\p{Lu}/u.test(word) || NAME_PARTICLES_LOWER.has(word.toLowerCase()));
+    };
+    const NAME_PARTICLES_LOWER = new Set(['z', 'ze', 'de', 'da', 'di', 'del', 'della', 'van', 'von', 'der', 'den', 'ten', 'ter', 'la', 'le', 'al', 'el', 'bin', 'ibn', 'ben', 'af', 'zu', 'dos', 'du', 'y']);
+
+    // Zakrytí všeho, co se podobá odpovědi: slova textu podobná slovu odpovědi, jiné tvary jména za značkou (rodné jméno, přepis
+    // v cizím jazyce) a – u osob – sousední jména velkým písmenem (Karl [***] Böhnich). keep = slova, která hráč vidí v zadání
+    // (název díla u „Kdo to napsal?“) a zakrýt se nemají.
+    const maskLeaks = (text, names, { isGeneric = () => false, keep = [], runs = null } = {}) => {
+        if (!text) return text;
+        const tokens = answerTokens(names, isGeneric);
+        if (!tokens.length) return text;
+        const keepKeys = wordKeySet(keep);
+        let result = text.replace(LETTER_RUN, word => relatesToAnswer(word, tokens, keepKeys) ? '[***]' : word);
+        // Jiný tvar jména za značkou jen tehdy, když věta jméno odpovědi už zakryla (Poe, rodným jménem Edgar Poe): značka u jiné věci
+        // (francouzsky Cathédrale u slohu, který je odpovědí) žádnou odpověď neprozrazuje
+        result = result.replace(VARIANT_PATTERN, (match, marker, gap, run, offset, whole) => {
+            const sentence = whole.slice(0, offset).split(/[.!?]\s/).pop();
+            return !sentence.includes('[***]') ? match : `${marker}${gap}${run.replace(LETTER_RUN, word => word.length >= 2 && !isRomanNumeral(word) && !keepKeys.has(foldKeys(word)[0]) ? '[***]' : word)}`;
+        });
+        // Věta, která začíná jménem osoby, je o předmětu otázky: jména velkým písmenem v řadě, ve které je zakrytá část, patří
+        // k odpovědi (Karl [***] Böhnich se narodil…). Jména uprostřed věty (název série vedle autora) a tituly se nezakrývají.
+        const person = runs === null ? names.some(isPersonName) : runs;
+        if (person && result.includes('[***]')) {
+            // Zakrytá část mezi dvěma jmény velkým písmenem (Karl [***] Böhnich) je prostřední část jména
+            const looksLikeName = (word) => !isRomanNumeral(word) && !ADJECTIVE_LIKE.test(word) && !NOT_NAME_START.test(word) && !keepKeys.has(foldKeys(word)[0]);
+            result = result.replace(/(?<![\p{L}\p{N}])(\p{Lu}[\p{L}'’\-]+)([ \u00a0]+\[\*\*\*\][ \u00a0]+)(\p{Lu}[\p{L}'’\-]+)(?![\p{L}\p{N}])/gu,
+                (match, before, middle, after) => looksLikeName(before) && looksLikeName(after) ? `[***]${middle}[***]` : match);
+            result = result.replace(/(^|[.!?]\s+)((?:(?:\[\*\*\*\]|\p{Lu}[\p{L}'’.\-]*|de|da|di|del|della|van|von|der|le|la|bin|ibn)(?:[  ]+|(?=,)))+)/gu, (match, start, head) => {
+                if (!head.includes('[***]')) return match;
+                return start + head.replace(LETTER_RUN, word => /^\p{Lu}/u.test(word) && word.length >= 2 && !isRomanNumeral(word) && !ADJECTIVE_LIKE.test(word) && !NOT_NAME_START.test(word)
+                    && !keepKeys.has(foldKeys(word)[0]) ? '[***]' : word);
+            });
+        }
+        return mergeCensored(result);
+    };
+
+    // --- Společné zakrývání popisu: jedna cesta pro všechna témata a druhy otázek ---
+
+    // Obecná slova názvu (poloostrov, národní park, řeka, bitva) v popisu zůstanou – nic neprozradí a bez nich by věta
+    // nedávala smysl („Malajský poloostrov je [***] v jihovýchodní Asii“)
+    const GENERIC_NAME_WORDS = new Set(['národní', 'park', 'přírodní', 'rezervace', 'chráněná', 'krajinná', 'oblast', 'poloostrov', 'ostrov', 'ostrovy',
+        'souostroví', 'moře', 'záliv', 'zátoka', 'jezero', 'řeka', 'hora', 'pohoří', 'vodopád', 'vodopády', 'poušť', 'nížina', 'průliv', 'kanál', 'údolí',
+        'katedrála', 'chrám', 'kostel', 'bazilika', 'hrad', 'zámek', 'palác', 'most', 'věž', 'muzeum', 'náměstí', 'klášter', 'mešita', 'synagoga',
+        'bitva', 'válka', 'obléhání', 'revoluce', 'povstání', 'říše', 'království', 'císařství', 'republika', 'jednotka', 'energie', 'síla', 'kyselina', 'kyseliny',
+        'socha', 'pomník', 'busta', 'obraz', 'portrét', 'album', 'opera', 'symfonie', 'koncert', 'píseň', 'film', 'román', 'povídka', 'báseň']);
+    // Běžná slova, která se v názvech tématu opakují (teplota v Curieova, Néelova, Debyeova teplota; sodný v názvech solí):
+    // sama o sobě odpověď neprozradí a zakrytá by z věty udělala nesmysl („[***], při které se materiály stávají…“)
+    const genericWordsOf = (ctx) => {
+        if (!ctx.genericWords) {
+            const counts = new Map();
+            for (const other of ctx.items) {
+                for (const word of new Set(other.n.split(/\s+/).slice(1).filter(word => /^\p{Ll}{4,}$/u.test(word)).map(word => word.toLocaleLowerCase('cs')))) counts.set(word, (counts.get(word) || 0) + 1);
+            }
+            ctx.genericWords = new Set([...counts].filter(([, count]) => count >= 4).map(([word]) => word));
+        }
+        return ctx.genericWords;
+    };
+    const isGenericWord = (word, extra) => GENERIC_NAME_WORDS.has(word.toLocaleLowerCase('cs')) || Boolean(extra && extra.has(word.toLocaleLowerCase('cs')));
+    const specificWords = (names, extra = null) => names.filter(Boolean).map(name => {
+        const words = name.split(/\s+/);
+        const kept = words.filter(word => !isGenericWord(word, extra));
+        return kept.length ? kept.join(' ') : name;
+    }).join(', ');
+    // Obecné slovo názvu hned vedle zakryté části zmizí s ní („[***] park“ u Jurského parku, „Národní park [***]“) –
+    // samostatně („je národní park v…“) zůstane
+    const absorbGenericWords = (text, names, mark = '[***]', extra = null) => {
+        const generic = [...new Set(names.filter(Boolean).flatMap(name => name.split(/\s+/))
+            .filter(word => isGenericWord(word, extra)))];
+        if (!generic.length || !text.includes(mark)) return text;
+        const stems = generic.map(word => escapeRegExp(word.slice(0, Math.max(3, word.length - 2)))).join('|');
+        const markPattern = escapeRegExp(mark);
+        const after = new RegExp(`${markPattern}(?:\\s+(?:${stems})\\p{L}*(?![\\p{L}]))+`, 'giu');
+        const before = new RegExp(`(?<![\\p{L}])(?:(?:${stems})\\p{L}*\\s+)+${markPattern}`, 'giu');
+        return text.replace(after, mark).replace(before, mark);
+    };
+    // Přezdívka nebo rodné jméno, které začíná stejně jako jméno (Bert a Berthold u Bertolta Brechta)
+    const hideNicknames = (text, item) => {
+        const roots = [item.n, displayName(item.t)].join(' ').split(/[\s\-–,.]+/).filter(word => word.length >= 5)
+            .map(word => normalizeAnswer(word).slice(0, 4));
+        return mergeCensored(text.replace(/(?<![\p{L}\p{N}])\p{Lu}\p{L}{3,}/gu, word => roots.includes(normalizeAnswer(word).slice(0, 4)) ? '[***]' : word));
+    };
+    // Jména ostatních nabízených možností v popisu (s Iljou Muromcem a Aljošou Popovičem) by je hned vyřadila
+    const CHOICE_MARK = '';
+    const hideOtherChoices = (text, question, ctx) => {
+        if (!text || question.match) return text;
+        if (!ctx.itemNames) ctx.itemNames = new Set(ctx.items.map(other => normalizeAnswer(other.n)));
+        const labels = question.choices.filter(choice => !choice.correct && ctx.itemNames.has(normalizeAnswer(choice.label))).map(choice => choice.label);
+        const extra = genericWordsOf(ctx);
+        return labels.length ? absorbGenericWords(censorName(text, specificWords(labels, extra)), labels, '[***]', extra).replaceAll('[***]', CHOICE_MARK) : text;
+    };
+    // Popis bez odpovědi: téma může zakrývat po svém (u otázky na stát stát), jinak se zakryje název položky
+    const censorForItem = (type, text, item, ctx) => {
+        if (!text) return '';
+        const custom = ctx.topic.censor ? ctx.topic.censor(type, text, item, ctx) : null;
+        if (custom !== null && custom !== undefined) return custom;
+        const aliases = ctx.topic.nameAliases ? ctx.topic.nameAliases(item, ctx) : [];
+        const names = [item.n, displayName(item.t), ...aliases];
+        const extra = genericWordsOf(ctx);
+        return hideNicknames(mergeCensored(absorbGenericWords(censorName(text, specificWords(names, extra)), names, '[***]', extra)), item);
+    };
+    // Co je odpověď na otázku: u otázky na název název položky, jeho titulek a další názvy (vědecký název druhu je schválně
+    // poslední nápovědou), u ostatních druhů všechny přijímané odpovědi (autor, režisér, stát…); století, značky a vzorce
+    // se nekontrolují (krátká značka by „našla“ kdeco)
+    const answerNamesOf = (question, item, aliases = []) => {
+        if (question.match) return [];
+        if (question.type === 'name') return [item.n, displayName(item.t || ''), ...aliases.filter(alias => alias !== (item.f || {}).lat)].filter(Boolean);
+        return [...(question.accepted || []), question.answerLabel].filter(Boolean);
+    };
+    const answerNamesFor = (question, item, ctx) => answerNamesOf(question, item, ctx.topic.nameAliases ? ctx.topic.nameAliases(item, ctx) : []);
+    // Text pro hráče bez odpovědi: zakrytí názvu (téma nebo jádro), potom kontrola všech tvarů jména (maskLeaks)
+    const hideAnswer = (text, question, item, ctx, { keep = [] } = {}) => {
+        if (!text) return '';
+        const hidden = hideOtherChoices(text, question, ctx);
+        const censored = mergeCensored(censorForItem(question.type, hidden, item, ctx).replaceAll(CHOICE_MARK, '[***]'));
+        return maskLeaks(censored, answerNamesFor(question, item, ctx), { isGeneric: (word) => isGenericWord(word, genericWordsOf(ctx)), keep: [question.title, question.showName ? item.n : '', item.ty, ...(ctx.topic.keepWords ? ctx.topic.keepWords(question.type, item, ctx) : []), ...keep] });
+    };
+
+    // Věta vytržená z kontextu („Doprovázejí boha Rea…“, „Část odborníků se k tomuto výkladu kloní…“) nedává smysl
+    const OUT_OF_CONTEXT = /^(?:ten|ta|to|ti|ty|tento|tato|toto|tito|tyto|tomuto|tohoto|této|těchto|tuto|tím|jeho|její|jejich|on|ona|ono|oni|ony|část|ostatní|také|rovněž|dále|však|proto|tam|zde|odtud|později|nicméně|přesto)(?![\p{L}])/iu;
+    // Popis, který se po zakrytí skoro celý skládá z [***], hráči nic neřekne a skrývá podezřelé zbytky jmen: zahodí se
+    // a otázku nesou ostatní nápovědy (fakta, fotka, osa)
+    const MAX_USABLE_CENSORED_SHARE = 0.5;
+    // Popis a další věty úvodu tak, jak je uvidí hráč. fetched = { description, more, fallback } z processWikiText;
+    // special = otázka zvláštního druhu (další věty se pak nepoužijí)
+    const buildQuestionTexts = (item, ctx, question, fetched, { special = false } = {}) => {
+        const censorText = (value) => hideAnswer(value, question, item, ctx);
+        const text = fetched.fallback ? fetched
+            : { ...fetched, ...chooseDescription(fetched.description, fetched.more, censorText, { startOk: sentence => !OUT_OF_CONTEXT.test(sentence) }) };
+        let questionText = censorText(text.description);
+        if (!fetched.fallback && censoredShare(questionText) > MAX_USABLE_CENSORED_SHARE) questionText = '';
+        const moreText = special || !text.more ? '' : censorText(stripFactSentences(text.more, ctx.topic.facts(item, ctx, question.type)));
+        return { text, questionText, moreText };
+    };
+    // Prozrazuje fakt odpověď (nebo začíná stejným kořenem jako ona)? Takový fakt se jako nápověda nenabídne.
+    const factRevealsAnswer = (fact, names, { isGeneric = () => false, rootNames = '' } = {}) => {
+        const value = String(fact.value);
+        return names.length > 0 && (findLeaks(value, names, { isGeneric }).length > 0 || censorName(value, names.join(', ')).includes('[***]')
+            || (Boolean(rootNames) && sharesWordRoot(value, rootNames)));
+    };
+
     // --- Položky témat: místa, osobnosti, druhy, prvky… (formát data/<téma>.json) ---
 
     // Okruh: null = celé téma, „c:klíč“ = kategorie, jinak zvláštní okruh z dat (pole g u položky)
@@ -694,43 +931,133 @@
     const setCountries = (countries) => {
         continentByLand = new Map(Object.values(countries || {}).filter(country => country && country.name).map(country => [country.name, country.continent]));
     };
-    const landOf = (item) => {
-        const land = item && item.f && item.f.land;
-        const first = String(Array.isArray(land) ? land[0] || '' : land || '').split(', ')[0];
-        return first ? MODERN_LAND[first] || first : '';
+    // Přídavná jména národností v popisu („český a rakouský dirigent“, „anglická rocková skupina“): když položka nemá zemi
+    // v datech, je to záložní zdroj. Kmen přídavného jména → dnešní stát.
+    const DEMONYMS = [
+        ['americk', 'Spojené státy americké'], ['britsk', 'Spojené království'], ['anglick', 'Spojené království'], ['skotsk', 'Spojené království'],
+        ['velšsk', 'Spojené království'], ['irsk', 'Irsko'], ['francouzsk', 'Francie'], ['německ', 'Německo'], ['rakousk', 'Rakousko'], ['italsk', 'Itálie'],
+        ['španělsk', 'Španělsko'], ['portugalsk', 'Portugalsko'], ['nizozemsk', 'Nizozemsko'], ['holandsk', 'Nizozemsko'], ['belgick', 'Belgie'],
+        ['švýcarsk', 'Švýcarsko'], ['švédsk', 'Švédsko'], ['norsk', 'Norsko'], ['dánsk', 'Dánsko'], ['finsk', 'Finsko'], ['islandsk', 'Island'],
+        ['polsk', 'Polsko'], ['maďarsk', 'Maďarsko'], ['rumunsk', 'Rumunsko'], ['bulharsk', 'Bulharsko'], ['řeck', 'Řecko'], ['rusk', 'Rusko'],
+        ['sovětsk', 'Rusko'], ['ukrajinsk', 'Ukrajina'], ['bělorus', 'Bělorusko'], ['česk', 'Česko'], ['československ', 'Česko'], ['slovensk', 'Slovensko'],
+        ['chorvatsk', 'Chorvatsko'], ['srbsk', 'Srbsko'], ['slovinsk', 'Slovinsko'], ['bosensk', 'Bosna a Hercegovina'], ['litevsk', 'Litva'],
+        ['lotyšsk', 'Lotyšsko'], ['estonsk', 'Estonsko'], ['turecký', 'Turecko'], ['tureck', 'Turecko'], ['čínsk', 'Čína'], ['japonsk', 'Japonsko'],
+        ['jihokorejsk', 'Jižní Korea'], ['severokorejsk', 'Severní Korea'], ['korejsk', 'Jižní Korea'], ['tchajwansk', 'Tchaj-wan'], ['mongolsk', 'Mongolsko'],
+        ['indick', 'Indie'], ['pákistánsk', 'Pákistán'], ['íránsk', 'Írán'], ['persk', 'Írán'], ['izraelsk', 'Izrael'], ['egyptsk', 'Egypt'],
+        ['kanadsk', 'Kanada'], ['mexick', 'Mexiko'], ['brazilsk', 'Brazílie'], ['argentinsk', 'Argentina'], ['chilsk', 'Chile'], ['kubánsk', 'Kuba'],
+        ['kolumbijsk', 'Kolumbie'], ['peruánsk', 'Peru'], ['venezuelsk', 'Venezuela'], ['uruguayjsk', 'Uruguay'], ['australsk', 'Austrálie'],
+        ['novozélandsk', 'Nový Zéland'], ['jihoafrick', 'Jihoafrická republika'], ['nigerijsk', 'Nigérie'], ['keňsk', 'Keňa'], ['etiopsk', 'Etiopie'],
+        ['arménsk', 'Arménie'], ['gruzínsk', 'Gruzie'], ['thajsk', 'Thajsko'], ['vietnamsk', 'Vietnam'], ['filipínsk', 'Filipíny'], ['indonésk', 'Indonésie'],
+        ['saúdskoarabsk', 'Saúdská Arábie'], ['irack', 'Irák'], ['syrsk', 'Sýrie'], ['libanonsk', 'Libanon'], ['marock', 'Maroko'],
+        ['alžírsk', 'Alžírsko'], ['tunisk', 'Tunisko'], ['jamajsk', 'Jamajka']
+    ];
+    const landFromDescription = (description) => {
+        const words = String(description || '').replace(/\([^)]*\)/g, ' ').toLocaleLowerCase('cs').split(/[\s,;]+/).filter(Boolean);
+        for (const word of words) {
+            if (/^(?:a|i)$/u.test(word)) continue;
+            // Přídavné jméno národnosti na začátku popisu; první slovo, které jím není (herec, skupina), řadu ukončí
+            const part = word.split('-')[0];
+            const found = /(?:ský|cký|ská|cká|ské|cké)$/u.test(word) ? DEMONYMS.filter(([stem]) => part.startsWith(stem)).sort((a, b) => b[0].length - a[0].length)[0] : undefined;
+            if (!found) return '';
+            return found[1];
+        }
+        return '';
     };
-    // Kulturní oblasti podle jmen a dějin: Západ (Evropa, Amerika, Austrálie), východní, jižní, jihovýchodní a střední Asie,
-    // Blízký východ, Afrika (Turecko, Írán a Kavkaz k Blízkému východu)
-    const ASIA_REGIONS = {
-        east: ['Čína', 'Japonsko', 'Jižní Korea', 'Severní Korea', 'Mongolsko', 'Tchaj-wan'],
-        south: ['Indie', 'Pákistán', 'Bangladéš', 'Srí Lanka', 'Nepál', 'Bhútán', 'Maledivy', 'Afghánistán'],
-        southeast: ['Indonésie', 'Singapur', 'Východní Timor', 'Kambodža', 'Laos', 'Malajsie', 'Myanmar', 'Thajsko', 'Vietnam', 'Brunej', 'Filipíny'],
-        central: ['Uzbekistán', 'Kazachstán', 'Kyrgyzstán', 'Tádžikistán', 'Turkmenistán']
+    const landCache = new WeakMap();
+    // Dnešní stát (a případné další) osoby či díla: země z dat, jinak česká stopa (cz), jinak národnost z popisu
+    const landsOf = (item) => {
+        if (!item) return [];
+        let lands = landCache.get(item);
+        if (!lands) {
+            const land = item.f && item.f.land;
+            const list = (Array.isArray(land) ? land : String(land || '').split(', ')).map(name => MODERN_LAND[name] || name).filter(Boolean);
+            // Česká stopa a národnost z popisu jen u osob a děl (mají rok narození, vzniku nebo autora); u druhů, prvků a míst by byly zavádějící
+            const origin = item.f && (item.f.born !== undefined || item.f.by !== undefined || item.f.year !== undefined || item.f.from !== undefined);
+            lands = [...new Set(list.length ? list.slice(0, 3) : origin ? [landFromDescription(item.d) || (item.cz === 1 ? 'Česko' : '')].filter(Boolean) : [])];
+            landCache.set(item, lands);
+        }
+        return lands;
     };
-    const regionOfLand = (land) => {
-        const continent = continentByLand.get(land);
-        if (!continent) return '';
-        if (continent === 'AF') return /^(Egypt|Libye|Tunisko|Alžírsko|Maroko)$/.test(land) ? 'mideast' : 'africa';
-        if (continent !== 'AS') return 'west';
-        return Object.keys(ASIA_REGIONS).find(region => ASIA_REGIONS[region].includes(land)) || 'mideast';
+    const landOf = (item) => landsOf(item)[0] || '';
+    // Kultura jmen: skupiny států s podobnými jmény a oblasti, do kterých skupiny patří. Nesprávné možnosti se hledají napřed ve
+    // stejném státě, potom v téže skupině (k Fellinimu Italové a další románské jazyky), oblasti, na kontinentu a až nakonec jinde.
+    const CULTURE_GROUPS = {
+        anglo: ['Spojené státy americké', 'Spojené království', 'Irsko', 'Kanada', 'Austrálie', 'Nový Zéland', 'Jihoafrická republika', 'Jamajka', 'Barbados', 'Bermudy', 'Svatá Lucie', 'Zimbabwe'],
+        german: ['Německo', 'Rakousko', 'Švýcarsko', 'Lichtenštejnsko'],
+        lowlands: ['Nizozemsko', 'Belgie', 'Lucembursko'],
+        nordic: ['Švédsko', 'Norsko', 'Dánsko', 'Finsko', 'Island'],
+        romance: ['Francie', 'Itálie', 'Španělsko', 'Portugalsko', 'Rumunsko', 'Vatikán', 'Monako', 'Malta', 'Moldavsko'],
+        westslavic: ['Česko', 'Slovensko', 'Polsko'],
+        eastslavic: ['Rusko', 'Ukrajina', 'Bělorusko'],
+        southslavic: ['Srbsko', 'Chorvatsko', 'Slovinsko', 'Bulharsko', 'Bosna a Hercegovina', 'Černá Hora', 'Severní Makedonie', 'Kosovo'],
+        hungarian: ['Maďarsko'],
+        baltic: ['Litva', 'Lotyšsko', 'Estonsko'],
+        greek: ['Řecko', 'Kypr', 'Albánie'],
+        latam: ['Mexiko', 'Brazílie', 'Argentina', 'Chile', 'Peru', 'Kolumbie', 'Venezuela', 'Kuba', 'Ekvádor', 'Bolívie', 'Uruguay', 'Paraguay', 'Guatemala', 'Nikaragua', 'Haiti', 'Dominikánská republika', 'Kostarika', 'Panama'],
+        eastasia: ['Čína', 'Japonsko', 'Jižní Korea', 'Severní Korea', 'Tchaj-wan', 'Mongolsko'],
+        southeastasia: ['Thajsko', 'Vietnam', 'Filipíny', 'Malajsie', 'Indonésie', 'Myanmar', 'Kambodža', 'Singapur', 'Laos', 'Východní Timor', 'Brunej'],
+        southasia: ['Indie', 'Pákistán', 'Bangladéš', 'Srí Lanka', 'Nepál', 'Bhútán', 'Maledivy'],
+        arab: ['Egypt', 'Libye', 'Tunisko', 'Alžírsko', 'Maroko', 'Súdán', 'Sýrie', 'Irák', 'Saúdská Arábie', 'Libanon', 'Jordánsko', 'Kuvajt', 'Katar', 'Stát Palestina', 'Spojené arabské emiráty', 'Omán', 'Jemen', 'Bahrajn'],
+        persian: ['Írán', 'Afghánistán', 'Tádžikistán'],
+        turkic: ['Turecko', 'Ázerbájdžán', 'Kazachstán', 'Kyrgyzstán', 'Uzbekistán', 'Turkmenistán'],
+        caucasus: ['Gruzie', 'Arménie'],
+        hebrew: ['Izrael'],
+        africa: ['Nigérie', 'Keňa', 'Etiopie', 'Ghana', 'Senegal', 'Kamerun', 'Uganda', 'Pobřeží slonoviny', 'Libérie', 'Burkina Faso', 'Tanzanie', 'Mali', 'Mosambik', 'Angola', 'Alžírsko', 'Svazijsko', 'Kapverdy', 'Madagaskar', 'Mauricius'],
+        oceania: ['Tonga', 'Nauru', 'Samoa', 'Fidži', 'Papua Nová Guinea']
     };
-    // Mírně kladné = stejná kultura (stát +2, oblast +1 – témata mají vlastní váhy země), jiná oblast −8 – víc než shoda doby
-    // či směru, protože jediné čínské jméno mezi nizozemskými je poznat hned. Položka bez země se počítá k Západu (většina dat). Čech mezi cizinci −2.
-    // Jen u položek se zemí (osoby a díla) – místa, druhy, prvky a vlajky mají vlastní pravidla.
-    const cultureScore = (item, other) => {
-        const a = landOf(item);
-        const b = landOf(other);
-        if (!a) return 0;
+    const CULTURE_AREAS = {
+        west: ['anglo', 'german', 'lowlands', 'nordic', 'romance', 'westslavic', 'eastslavic', 'southslavic', 'hungarian', 'baltic', 'greek', 'latam'],
+        asia: ['eastasia', 'southeastasia', 'southasia'],
+        mideast: ['arab', 'persian', 'turkic', 'caucasus', 'hebrew'],
+        africa: ['africa'],
+        oceania: ['oceania']
+    };
+    // Dvě kultury mimo Evropu a Ameriku sousedí s Asií (Blízký východ, Střední Asie) – k japonskému jménu spíš korejské než švédské
+    const CULTURE_NEIGHBOURS = { asia: ['mideast'], mideast: ['asia', 'africa'], africa: ['mideast'] };
+    const cultureOfLand = new Map();
+    for (const [group, lands] of Object.entries(CULTURE_GROUPS)) {
+        const area = Object.keys(CULTURE_AREAS).find(key => CULTURE_AREAS[key].includes(group));
+        for (const land of lands) if (!cultureOfLand.has(land)) cultureOfLand.set(land, { group, area });
+    }
+    // Stát mimo tabulku skupin se zařadí aspoň podle kontinentu z tabulky států (oblast bez skupiny)
+    const CONTINENT_AREA = { EU: 'west', NA: 'west', SA: 'west', AS: 'asia', AF: 'africa', OC: 'oceania' };
+    const cultureInfo = (land) => cultureOfLand.get(land) || (CONTINENT_AREA[continentByLand.get(land)] ? { group: `kontinent:${continentByLand.get(land)}`, area: CONTINENT_AREA[continentByLand.get(land)] } : null);
+    // Vzdálenost dvou států: 0 stejný stát, 1 stejná skupina, 2 stejná oblast, 3 sousední oblast, 4 jiná (neznámý stát: neutrální 2,5)
+    const cultureDistance = (a, b) => {
+        if (a === b) return 0;
+        const ca = cultureInfo(a);
+        const cb = cultureInfo(b);
+        if (!ca || !cb) return 2.5;
+        if (ca.group === cb.group) return 1;
+        if (ca.area === cb.area) return 2;
+        return (CULTURE_NEIGHBOURS[ca.area] || []).includes(cb.area) ? 3 : 4;
+    };
+    const CULTURE_POINTS = [10, 5, 1, -3, -8];
+    // Kulturní blízkost položek (osoby a díla se zemí): stát +10, skupina +5, oblast +1, sousední oblast −3, jiná −8 – víc než shoda doby
+    // či směru, protože jediné čínské jméno mezi nizozemskými je poznat hned. Položka bez země nic neříká (0). Čech mezi cizinci −2.
+    // Jen u položek se zemí (osoby a díla) – místa, druhy, prvky a vlajky mají vlastní pravidla. landFn = jak se zjistí země
+    // (téma může místo původu osoby dosadit zemi místa: bitva, stavba).
+    const cultureScore = (item, other, landFn = landsOf) => {
+        const a = landFn(item);
+        if (!a || !a.length) return 0;
+        const b = landFn(other);
         let score = 0;
-        if (a === b) score += 2;
-        else {
-            const ra = regionOfLand(a);
-            const rb = b ? regionOfLand(b) : 'west';
-            if (ra && rb) score += ra === rb ? 1 : -8;
+        if (b && b.length) {
+            const distance = Math.min(...a.map(x => Math.min(...b.map(y => cultureDistance(x, y)))));
+            const lower = Math.floor(distance);
+            score += lower === distance ? CULTURE_POINTS[distance] : (CULTURE_POINTS[lower] + CULTURE_POINTS[lower + 1]) / 2;
         }
         if ((item.cz === 1) !== (other.cz === 1)) score -= 2;
         return score;
     };
+
+    // Země položek pro výběr podle kultury: téma může položku vyjmout (culture(item, ctx) vrátí [] – místa a vlajky mají vlastní
+    // pravidla, olympiády by podle pořadatele nabízely sporné hry téhož města) nebo dosadit jinou zemi (stát místa bitvy a stavby);
+    // undefined = země osoby či díla (landsOf)
+    const cultureLandsFor = (topic, ctx) => topic.culture ? (item) => {
+        const lands = topic.culture(item, ctx);
+        return lands === undefined ? landsOf(item) : [].concat(lands || []).filter(Boolean);
+    } : landsOf;
 
     // Osoby: jiné pohlaví skoro vyřadí (jediná žena mezi muži by byla poznat hned), jinak rozhoduje doba
     const personSimilarity = (item, other) => ((item.sx === 'f') !== (other.sx === 'f') ? -20 : 0)
@@ -768,14 +1095,33 @@
     // Nesprávné možnosti názvu: položky stejné kategorie seřazené podle podobnosti. Základ dá jádro – stejně známé
     // (ke známé odpovědi známé možnosti) a stejného typu (k anglickému králi angličtí králové, k průlivu průlivy);
     // zbytek přidá téma funkcí similarity(other) – blízká místa, stejné století a pohlaví, stejná čeleď…
-    const buildItemChoices = (item, items, rng, similarity = () => 0) => {
+    // Náhoda ve výběru: z podobně dobrých kandidátů se losuje, ať se u téže položky možnosti střídají; menší než nejmenší
+    // rozdíl vah (stejný typ +4 proti známosti 3), takže los nepřehlasuje podobnost
+    const CHOICE_JITTER = 0.9;
+    // culture(item) = země položky pro výběr podle kultury (výchozí landsOf; téma může zvolit jinou, např. zemi místa bitvy)
+    const buildItemChoices = (item, items, rng, similarity = () => 0, culture = landsOf) => {
         // Ke známé odpovědi známá možnost váží víc – jinak by známá odpověď mezi samými neznámými byla nápadná
         const tier = (other) => other.k !== item.k ? 0 : item.k === 1 ? 3 : 2;
+        // Společné okruhy (stejná doba, země, žánr): drobný bonus za každý, nejvýš tři
+        const groupBonus = (other) => Math.min(3, (item.g || []).filter(group => (other.g || []).includes(group)).length) * 0.8;
         // Druh (tenista, malířka, hlavní město) je vidět u otázky – nesprávná možnost jiného druhu by byla poznat hned
-        const score = (other) => tier(other) + (item.ty && other.ty === item.ty ? 4 : 0) + (similarity(other) || 0) + cultureScore(item, other)
-            - (isNamePart(item.n, other.n) ? 100 : 0);
-        const ranked = rankBySimilarity(items.filter(other => other.c === item.c && other.q !== item.q), score, rng);
-        const distractors = takeDistinct(ranked, 3, new Set([normalizeAnswer(item.n)]), other => other.n);
+        const score = (other) => tier(other) + (item.ty && other.ty === item.ty ? 4 : 0) + (similarity(other) || 0) + cultureScore(item, other, culture) + groupBonus(other)
+            - (isNamePart(item.n, other.n) ? 100 : 0) + rng() * CHOICE_JITTER;
+        const entries = shuffle(items.filter(other => other.c === item.c && other.q !== item.q), rng)
+            .map(candidate => ({ candidate, value: score(candidate) }))
+            .filter(entry => entry.value > -Infinity)
+            .sort((a, b) => b.value - a.value);
+        const taken = new Set([normalizeAnswer(item.n)]);
+        let distractors = takeDistinct(entries.map(entry => entry.candidate), 3, taken, other => other.n);
+        // Ke známé položce aspoň jedna známá možnost, i když ze stejné země jsou jen méně známé (jinak by známá odpověď mezi
+        // samými neznámými byla nápadná): nahradí nejhorší z vybraných nejlepší známou ze stejné oblasti kultury
+        if (item.k === 1 && distractors.length === 3 && !distractors.some(other => other.k === 1)) {
+            const own = culture(item) || [];
+            const sameArea = (other) => !own.length || Math.min(...own.map(x => Math.min(...((culture(other) || []).map(y => cultureDistance(x, y)).concat([2.5]))))) <= 2;
+            const known = entries.find(entry => entry.candidate.k === 1 && !distractors.includes(entry.candidate) && sameArea(entry.candidate)
+                && !taken.has(normalizeAnswer(entry.candidate.n)));
+            if (known) distractors = [...distractors.slice(0, 2), known.candidate];
+        }
         return shuffle([
             { id: item.q, label: item.n, correct: true },
             ...distractors.map(other => ({ id: other.q, label: other.n, correct: false }))
@@ -1179,8 +1525,12 @@
     const titleForLevel = (level) => LEVEL_TITLES.filter(entry => level >= entry.from).pop().title;
     // Další titul (kdy a jaký), null na konci
     const nextTitle = (level) => LEVEL_TITLES.find(entry => entry.from > level) || null;
-    // Za odpověď: správná 10 XP a 5 za každý bod (nejvýš 4 body, psaním dvojnásobek), špatná 2 XP za pokus, vzdání nic
-    const answerXp = ({ correct, points = 0, gaveUp = false }) => correct ? 10 + 5 * points : gaveUp ? 0 : 2;
+    // Za odpověď: správná 10 XP a 5 za každý bod (nejvýš 4 body, psaním dvojnásobek), špatná 2 XP za pokus, vzdání nic;
+    // za otázku v opakování karet (review) polovina
+    const answerXp = ({ correct, points = 0, gaveUp = false, review = false }) => {
+        const xp = correct ? 10 + 5 * points : gaveUp ? 0 : 2;
+        return review ? Math.ceil(xp / 2) : xp;
+    };
     const DAILY_XP = 15;
     const DAILY_ALL_XP = 50;
     const STREAK_XP_CAP = 10;
@@ -1195,7 +1545,9 @@
     // value(c, x) je aktuální hodnota pro ukazatel „87 / 100“. x = { level, learned, topicStars: { téma: hvězdy }, topicCount } ---
     const EMPTY_COUNTERS = {
         answered: 0, correct: 0, typedCorrect: 0, noHint: 0, hardCorrect: 0, run: 0, bestRun: 0, bestStreak: 0, perfectDays: 0,
-        challenges: 0, wins: 0, winRun: 0, bestWinRun: 0, created: 0, perfectChallenges: 0, dailyCorrect: 0, fixed: 0, days: 0, lastDay: '', topics: {}, topicRun: {}, topicBest: {}, tourBest: 0, tourWins: 0
+        challenges: 0, wins: 0, winRun: 0, bestWinRun: 0, created: 0, perfectChallenges: 0, dailyCorrect: 0, fixed: 0, days: 0, lastDay: '', topics: {}, topicRun: {}, topicBest: {}, tourBest: 0, tourWins: 0,
+        // Odehrané zápasy turnajů, zopakované karty (review.js) a týdny se všemi splněnými cíli (goals.js)
+        tourPlayed: 0, reviewed: 0, weeksDone: 0
     };
     const number = (value) => Number.isFinite(value) ? value : 0;
     // Barva medaile podle stupně ve skupině: bronz, stříbro, zlato, vínová a nejvyšší diamantová
@@ -1222,57 +1574,59 @@
         [T(1, 'První krok', 'prvni-krok'), T(10, 'Rozjezd'), T(50, 'Pětapadesátka'), T(100, 'Stovka', 'stovka'), T(250, 'Čtvrt tisíce'), T(500, 'Pětistovka'),
             T(1000, 'Tisícovka', 'tisicovka'), T(2500, 'Dva a půl tisíce'), T(5000, 'Pět tisíc'), T(10000, 'Deset tisíc')]);
     addGroup('rada', 'Správně v řadě', 'zap', (c) => c.bestRun, (g) => `${g} správných odpovědí v řadě.`,
-        [T(5, 'Rozcvička'), T(10, 'Střelec', 'strelec'), T(25, 'Neomylný', 'neomylny'), T(50, 'Bez chyby'), T(100, 'Stroj')]);
+        [T(5, 'Rozcvička'), T(10, 'Střelec', 'strelec'), T(25, 'Neomylný', 'neomylny'), T(50, 'Bez chyby'), T(100, 'Stroj'), T(200, 'Nekonečná řada')]);
     addGroup('serie', 'Série dní', 'flame', (c) => c.bestStreak, (g) => `Série ${g} dní dnešních otázek.`,
         [T(3, 'Tři dny'), T(7, 'Týden s Mudrlantem', 'tyden'), T(14, 'Dva týdny'), T(30, 'Věrný měsíc', 'mesic'), T(60, 'Dva měsíce'), T(100, 'Stovka dní'), T(200, 'Dvě stě dní'), T(365, 'Celý rok')]);
     addGroup('dny', 'Dny ve hře', 'calendar-check', (c) => c.days, (g) => `Hrál jsi ${g} různých dní.`,
         [T(5, 'Stálý host'), T(15, 'Pravidelný'), T(30, 'Měsíc ve hře'), T(60, 'Ostřílený'), T(100, 'Sto her'), T(200, 'Veterán'), T(365, 'Rok s Mudrlantem')]);
     addGroup('dokonale', 'Dokonalé dny', 'sun', (c) => c.perfectDays, (g) => g === 1 ? 'Všechny dnešní otázky v jednom dni.' : `${g}× všechny dnešní otázky v jednom dni.`,
-        [T(1, 'Dokonalý den', 'dokonaly-den'), T(3, 'Trojka dokonalých'), T(7, 'Týden dokonalosti'), T(14, 'Dva týdny dokonalosti'), T(30, 'Mistr dne')]);
+        [T(1, 'Dokonalý den', 'dokonaly-den'), T(3, 'Trojka dokonalých'), T(7, 'Týden dokonalosti'), T(14, 'Dva týdny dokonalosti'), T(30, 'Mistr dne'), T(60, 'Perfekcionista')]);
     addGroup('dnes', 'Dnešní otázky', 'calendar-days', (c) => c.dailyCorrect, (g) => `${g} správných dnešních otázek.`,
-        [T(10, 'Denní rutina'), T(50, 'Padesát dnů'), T(100, 'Sto dnešních'), T(250, 'Čtvrt tisíce dnešních')]);
+        [T(10, 'Denní rutina'), T(50, 'Padesát dnů'), T(100, 'Sto dnešních'), T(250, 'Čtvrt tisíce dnešních'), T(500, 'Pět set dnešních'), T(1000, 'Tisíc dnešních')]);
     addGroup('bez-napovedy', 'Bez nápovědy', 'eye-off', (c) => c.noHint, (g) => `${g} správných odpovědí bez jediné nápovědy.`,
-        [T(10, 'Čistá hlava'), T(25, 'Bez nápovědy', 'bez-napovedy'), T(100, 'Sebejistý'), T(500, 'Neprůstřelný')]);
+        [T(10, 'Čistá hlava'), T(25, 'Bez nápovědy', 'bez-napovedy'), T(100, 'Sebejistý'), T(500, 'Neprůstřelný'), T(1000, 'Jasnozřivý'), T(2500, 'Jasnovidec')]);
     addGroup('psani', 'Psaní odpovědí', 'keyboard', (c) => c.typedCorrect, (g) => `${g} správných odpovědí napsaných ručně.`,
-        [T(10, 'Písmák'), T(25, 'Pisatel', 'pisatel'), T(100, 'Mistr pera'), T(500, 'Kaligraf')]);
+        [T(10, 'Písmák'), T(25, 'Pisatel', 'pisatel'), T(100, 'Mistr pera'), T(500, 'Kaligraf'), T(1000, 'Strojopisec'), T(2500, 'Mistr klávesnice')]);
     addGroup('tezke', 'Těžké otázky', 'pickaxe', (c) => c.hardCorrect, (g) => `${g} správných u těžších, méně známých otázek.`,
-        [T(10, 'Do hloubky', 'do-hloubky'), T(50, 'Hlubinný průzkum'), T(200, 'Král hlubin')]);
+        [T(10, 'Do hloubky', 'do-hloubky'), T(50, 'Hlubinný průzkum'), T(200, 'Král hlubin'), T(500, 'Císař hlubin'), T(1000, 'Hlubinný velmistr')]);
     addGroup('chyby', 'Opravené chyby', 'repeat', (c) => c.fixed, (g) => `Opravil jsi ${g} dřívějších chyb.`,
-        [T(10, 'Poučený'), T(50, 'Pracant na sobě'), T(200, 'Z chyb se člověk učí')]);
+        [T(10, 'Poučený'), T(50, 'Pracant na sobě'), T(200, 'Z chyb se člověk učí'), T(500, 'Věčný student'), T(1000, 'Mistr nápravy')]);
     addGroup('vyzvy', 'Výzvy', 'swords', (c) => c.challenges, (g) => g === 1 ? 'Dohraj první výzvu.' : `Dohraj ${g} výzev.`,
-        [T(1, 'Soupeř', 'soupere'), T(5, 'Pravidelný soupeř'), T(25, 'Zkušený bojovník'), T(100, 'Stovka výzev')]);
+        [T(1, 'Soupeř', 'soupere'), T(5, 'Pravidelný soupeř'), T(25, 'Zkušený bojovník'), T(100, 'Stovka výzev'), T(250, 'Matador výzev'), T(500, 'Legenda arény')]);
     addGroup('vyhry', 'Výhry ve výzvách', 'trophy', (c) => c.wins, (g) => g === 1 ? 'Vyhraj výzvu proti jinému hráči.' : `Vyhraj ${g} výzev.`,
         [T(1, 'Vítěz', 'vitez'), T(5, 'Pětkrát nejlepší'), T(10, 'Gladiátor', 'gladiator'), T(25, 'Šampion'), T(50, 'Dobyvatel'), T(100, 'Nepřemožitelný')]);
     addGroup('vyhry-v-rade', 'Výhry v řadě', 'crown', (c) => c.bestWinRun, (g) => `${g} výher ve výzvách v řadě.`,
-        [T(3, 'Hattrick'), T(5, 'Pětka v řadě'), T(10, 'Neporazitelný')]);
+        [T(3, 'Hattrick'), T(5, 'Pětka v řadě'), T(10, 'Neporazitelný'), T(15, 'Nezastavitelný'), T(25, 'Nedotknutelný')]);
     addGroup('zalozene', 'Založené výzvy', 'users', (c) => c.created, (g) => `Založ ${g} ${g === 1 ? 'výzvu' : g < 5 ? 'výzvy' : 'výzev'}.`,
-        [T(1, 'Vyzyvatel'), T(10, 'Organizátor'), T(50, 'Pán turnajů')]);
+        [T(1, 'Vyzyvatel'), T(10, 'Organizátor'), T(50, 'Pán turnajů'), T(100, 'Mistr ceremonií'), T(250, 'Velkoorganizátor')]);
     addGroup('perfektni-vyzvy', 'Dokonalé výzvy', 'star', (c) => c.perfectChallenges, (g) => g === 1 ? 'Všechny otázky ve výzvě správně.' : `${g}× všechny otázky ve výzvě správně.`,
-        [T(1, 'Bezchybný'), T(5, 'Pětkrát bezchybný'), T(25, 'Dokonalost sama')]);
+        [T(1, 'Bezchybný'), T(5, 'Pětkrát bezchybný'), T(25, 'Dokonalost sama'), T(50, 'Bezchybný mistr'), T(100, 'Stovka bez chyby')]);
     addGroup('uroven', 'Úrovně', 'graduation-cap', (c, x) => x.level, (g) => `Dosáhni úrovně ${g}.`,
         [T(5, 'Úroveň 5'), T(10, 'Úroveň 10', 'znalec'), T(20, 'Úroveň 20'), T(35, 'Úroveň 35', 'mudrc'), T(50, 'Úroveň 50'), T(65, 'Úroveň 65'), T(80, 'Úroveň 80'), T(100, 'Úroveň 100')]);
     addGroup('poznane', 'Poznané položky', 'book-open', (c, x) => x.learned, (g) => `Poznal jsi ${g} různých položek.`,
-        [T(100, 'Sto poznaných'), T(500, 'Pět set poznaných'), T(1000, 'Tisíc poznaných'), T(3000, 'Tři tisíce poznaných')]);
-    // Všestrannost: tři hvězdy / pět hvězd mistrovství v nějakém tématu, ve všech tématech
-    addGroup('vsestrannost', 'Všestrannost', 'globe', (c) => Object.keys(c.topics || {}).length, (g, x) => `Správná odpověď ve všech ${g} tématech.`,
-        [T(14, 'Všestranný', 'vsestranny')]);
-    addGroup('hvezdy', 'Hvězdy mistrovství', 'star', (c, x) => Math.max(0, ...Object.values(x.topicStars || {})), (g) => `${g} hvězdy mistrovství v některém tématu.`,
-        [T(3, 'Hvězdář', 'hvezdar'), T(5, 'Mistr oboru', 'mistr-oboru')]);
-    addGroup('vsechna-temata', 'Mistr všech témat', 'crown', (c, x) => { const stars = Object.values(x.topicStars || {}); return x.topicCount && stars.length >= x.topicCount ? Math.min(...stars) : 0; }, (g) => `${g} hvězdy mistrovství ve všech tématech.`,
-        [T(1, 'Všude začátečník'), T(3, 'Všude hvězdář'), T(5, 'Mistr všeho')]);
-    // Za každé téma tři stupně podle počtu správných odpovědí v něm (medaile má ilustraci tématu)
+        [T(100, 'Sto poznaných'), T(500, 'Pět set poznaných'), T(1000, 'Tisíc poznaných'), T(3000, 'Tři tisíce poznaných'), T(5000, 'Pět tisíc poznaných'), T(10000, 'Deset tisíc poznaných')]);
+    // Všestrannost: v kolika různých tématech hráč už správně odpověděl; hvězdy mistrovství v nějakém tématu a ve všech tématech
+    const starsText = (g) => `${g} ${g === 1 ? 'hvězdu' : g < 5 ? 'hvězdy' : 'hvězd'}`;
+    addGroup('vsestrannost', 'Všestrannost', 'globe', (c) => Object.keys(c.topics || {}).length, (g) => g >= 14 ? `Správná odpověď ve všech ${g} tématech.` : `Správná odpověď v ${g} různých tématech.`,
+        [T(3, 'Rozhlížející se'), T(6, 'Všímavý'), T(9, 'Rozhledný'), T(12, 'Znalec mnoha oborů'), T(14, 'Všestranný', 'vsestranny')]);
+    addGroup('hvezdy', 'Hvězdy mistrovství', 'star', (c, x) => Math.max(0, ...Object.values(x.topicStars || {})), (g) => `Získej ${starsText(g)} mistrovství v některém tématu.`,
+        [T(1, 'První hvězda'), T(2, 'Dvě hvězdy'), T(3, 'Hvězdář', 'hvezdar'), T(4, 'Hvězda první velikosti'), T(5, 'Mistr oboru', 'mistr-oboru')]);
+    addGroup('vsechna-temata', 'Mistr všech témat', 'crown', (c, x) => { const stars = Object.values(x.topicStars || {}); return x.topicCount && stars.length >= x.topicCount ? Math.min(...stars) : 0; }, (g) => `Získej ${starsText(g)} mistrovství ve všech tématech.`,
+        [T(1, 'Všude začátečník'), T(2, 'Všude učeň'), T(3, 'Všude hvězdář'), T(4, 'Všude znalec'), T(5, 'Mistr všeho')]);
+    // Za každé téma pět stupňů podle počtu správných odpovědí v něm (medaile má ilustraci tématu)
     const TOPIC_BADGES = [
-        ['zemepis', 'Zeměpis', ['Poutník', 'Cestovatel', 'Objevitel']], ['vlajky', 'Vlajky a znaky', ['Praporečník', 'Vlajkonoš', 'Heraldik']],
-        ['historie', 'Historie', ['Kronikář', 'Dějepisec', 'Pán času']], ['mytologie', 'Mytologie', ['Pověrčivý', 'Bájeslovec', 'Zasvěcenec']],
-        ['biologie', 'Biologie', ['Přírodovědec', 'Biolog', 'Pán přírody']], ['geologie', 'Geologie', ['Sběratel', 'Geolog', 'Pán kamenů']],
-        ['chemie', 'Chemie', ['Laborant', 'Chemik', 'Alchymista']], ['fyzika', 'Fyzika', ['Experimentátor', 'Fyzik', 'Pán energie']],
-        ['umeni', 'Výtvarné umění', ['Divák galerie', 'Znalec umění', 'Mecenáš']], ['architektura', 'Architektura', ['Stavitel', 'Architekt', 'Pán katedrál']],
-        ['hudba', 'Hudba', ['Posluchač', 'Hudebník', 'Mistr tónů']], ['literatura', 'Literatura', ['Čtenář', 'Knihomol', 'Literát']],
-        ['film', 'Film', ['Divák', 'Filmař', 'Režisér']], ['sport', 'Sport', ['Fanoušek', 'Sportovec', 'Šampion sportu']]
+        ['zemepis', 'Zeměpis', ['Poutník', 'Cestovatel', 'Objevitel', 'Světoběžník', 'Pán zeměkoule']], ['vlajky', 'Vlajky a znaky', ['Praporečník', 'Vlajkonoš', 'Heraldik', 'Vexilolog', 'Pán vlajek']],
+        ['historie', 'Historie', ['Kronikář', 'Dějepisec', 'Pán času', 'Historik', 'Pán dějin']], ['mytologie', 'Mytologie', ['Pověrčivý', 'Bájeslovec', 'Zasvěcenec', 'Znalec bohů', 'Pán Olympu']],
+        ['biologie', 'Biologie', ['Přírodovědec', 'Biolog', 'Pán přírody', 'Ekolog', 'Pán života']], ['geologie', 'Geologie', ['Sběratel', 'Geolog', 'Pán kamenů', 'Paleontolog', 'Pán země']],
+        ['chemie', 'Chemie', ['Laborant', 'Chemik', 'Alchymista', 'Profesor chemie', 'Pán prvků']], ['fyzika', 'Fyzika', ['Experimentátor', 'Fyzik', 'Pán energie', 'Astrofyzik', 'Pán vesmíru']],
+        ['umeni', 'Výtvarné umění', ['Divák galerie', 'Znalec umění', 'Mecenáš', 'Kurátor', 'Pán galerií']], ['architektura', 'Architektura', ['Stavitel', 'Architekt', 'Pán katedrál', 'Urbanista', 'Pán měst']],
+        ['hudba', 'Hudba', ['Posluchač', 'Hudebník', 'Mistr tónů', 'Skladatel', 'Pán symfonií']], ['literatura', 'Literatura', ['Čtenář', 'Knihomol', 'Literát', 'Redaktor', 'Pán knihovny']],
+        ['film', 'Film', ['Divák', 'Filmař', 'Režisér', 'Producent', 'Pán Hollywoodu']], ['sport', 'Sport', ['Fanoušek', 'Sportovec', 'Šampion sportu', 'Trenér', 'Pán stadionů']]
     ];
     TOPIC_BADGES.forEach(([topic, label, names]) => addGroup(`tema-${topic}`, label, 'medal', (c) => (c.topics || {})[topic] || 0,
-        (g) => `${g} správných odpovědí v tématu ${label}.`, [T(25, names[0]), T(100, names[1]), T(300, names[2])], { topic }));
-    // Zběhlost v tématu (odměna: vtipný doplněk Mudrlanta): 12 správných odpovědí v tématu v řadě, nebo 3 hvězdy mistrovství v něm
+        (g) => `${g} správných odpovědí v tématu ${label}.`, [T(25, names[0]), T(100, names[1]), T(300, names[2]), T(600, names[3]), T(1000, names[4])], { topic }));
+    // Zběhlost v tématu: série správných odpovědí v něm. Stupeň 12 (nebo 3 hvězdy mistrovství v tématu) odemyká vtipný doplněk Mudrlanta,
+    // ostatní stupně jsou další cíle
     const SKILL_RUN = 12;
     const SKILL_STARS = 3;
     const SKILL_TITLES = {
@@ -1280,15 +1634,27 @@
         chemie: 'Pyrotechnik', fyzika: 'Geniální šílenec', umeni: 'Malíř', architektura: 'Stavbyvedoucí', hudba: 'Pěvecká hvězda',
         literatura: 'Básník', film: 'Kinomaniak', sport: 'Olympionik'
     };
+    const SKILL_RANKS = {
+        zemepis: ['Mapař', 'Kapitán', 'Admirál', 'Magellan'], vlajky: ['Stožárník', 'Standartonoš', 'Praporní mistr', 'Velitel praporů'],
+        historie: ['Letopisec', 'Archivář', 'Kustod', 'Pán věků'], mytologie: ['Vypravěč', 'Věštec', 'Polobůh', 'Olympan'],
+        biologie: ['Pozorovatel', 'Entomolog', 'Zoolog', 'Pán džungle'], geologie: ['Kutil', 'Zlatokop', 'Mineralog', 'Pán podzemí'],
+        chemie: ['Míchač', 'Destilatér', 'Nobelista', 'Mendělejev'], fyzika: ['Měřič', 'Teoretik', 'Newton', 'Einstein'],
+        umeni: ['Skicář', 'Impresionista', 'Mistr štětce', 'Velikán umění'], architektura: ['Zedník', 'Projektant', 'Hlavní architekt', 'Pán věží'],
+        hudba: ['Zpěvák', 'Kapelník', 'Virtuos', 'Maestro'], literatura: ['Rýmovník', 'Spisovatel', 'Dramatik', 'Laureát'],
+        film: ['Komparzista', 'Herec', 'Scenárista', 'Oscarový'], sport: ['Běžec', 'Závodník', 'Medailista', 'Legenda sportu']
+    };
     TOPIC_BADGES.forEach(([topic, label]) => addGroup(`zbehly-${topic}`, `Zběhlost: ${label}`, 'medal',
         (c, x) => Math.max(((c.topicBest || {})[topic]) || 0, (((x && x.topicStars) || {})[topic] || 0) >= SKILL_STARS ? SKILL_RUN : 0),
-        (g) => `${g} správných odpovědí v řadě v tématu ${label} nebo ${SKILL_STARS} hvězdy mistrovství v něm. Odměna: doplněk Mudrlanta.`,
-        [T(SKILL_RUN, SKILL_TITLES[topic], `zbehly-${topic}`)], { topic }));
+        (g) => g === SKILL_RUN ? `${g} správných odpovědí v řadě v tématu ${label} nebo ${SKILL_STARS} hvězdy mistrovství v něm.` : `${g} správných odpovědí v řadě v tématu ${label}.`,
+        [T(5, SKILL_RANKS[topic][0]), T(SKILL_RUN, SKILL_TITLES[topic], `zbehly-${topic}`), T(25, SKILL_RANKS[topic][1]), T(50, SKILL_RANKS[topic][2]), T(100, SKILL_RANKS[topic][3])], { topic }));
     // Turnaje: nejlepší umístění (1 = hrál, 2 = čtvrtfinále, 3 = semifinále, 4 = bronz, 5 = stříbro, 6 = vítěz) a vyhrané zápasy; počítadla dosazuje aplikace z databáze
     addGroup('turnaje', 'Turnaje', 'trophy', (c) => c.tourBest, (g) => ({ 1: 'Odehraj týdenní turnaj.', 2: 'Dostaň se v turnaji do čtvrtfinále.', 3: 'Dostaň se v turnaji do semifinále.', 4: 'Získej v turnaji bronz.', 5: 'Získej v turnaji stříbro.', 6: 'Vyhraj týdenní turnaj.' }[g]),
         [T(1, 'Turnajový hráč', 'turnaj-ucast'), T(2, 'Čtvrtfinalista', 'turnaj-ctvrtfinale'), T(3, 'Semifinalista', 'turnaj-semifinale'), T(4, 'Bronz z turnaje', 'turnaj-bronz'), T(5, 'Stříbro z turnaje', 'turnaj-stribro'), T(6, 'Mistr turnaje', 'turnaj-zlato')]);
     addGroup('turnaj-postupy', 'Vyhrané zápasy v turnajích', 'swords', (c) => c.tourWins, (g) => `${g} ${g === 1 ? 'vyhraný zápas' : 'vyhraných zápasů'} v turnajích.`,
-        [T(1, 'První postup'), T(5, 'Pětkrát dál'), T(15, 'Turnajový matador')]);
+        [T(1, 'První postup'), T(5, 'Pětkrát dál'), T(15, 'Turnajový matador'), T(30, 'Turnajový stratég'), T(60, 'Pán pavouka')]);
+    // Týdenní cíle (goals.js): týdny, ve kterých hráč splnil všechny tři cíle
+    addGroup('tydenni-cile', 'Týdenní cíle', 'goal', (c) => c.weeksDone, (g) => g === 1 ? 'Splň všechny tři cíle jednoho týdne.' : `${g} týdnů se všemi třemi splněnými cíli.`,
+        [T(1, 'Cílevědomý', 'tydenni-cile'), T(5, 'Pět týdnů cílů'), T(10, 'Deset týdnů cílů'), T(20, 'Dvacet týdnů cílů'), T(52, 'Rok cílů')]);
     const BADGE_BY_ID = Object.fromEntries(BADGES.map(badge => [badge.id, badge]));
     const normalizeCounters = (counters) => ({ ...EMPTY_COUNTERS, ...(counters || {}), topics: { ...((counters && counters.topics) || {}) },
         topicRun: { ...((counters && counters.topicRun) || {}) }, topicBest: { ...((counters && counters.topicBest) || {}) } });
@@ -1320,7 +1686,9 @@
         escapeHtml, stripBrackets, isRealPhoto, commonsPhotoUrl, commonsFileUrl, displayName, plural, formatPoints,
         getDayKey, shiftDayKey, formatDayKey, createSeededRandom, pickRandom, shuffle,
         ELEMENT_FAMILIES, elementFamily, periodicPosition,
-        setCountries, landOf, cultureScore, getWordStems, censorName, mergeCensored, censorCountry, isKnownCountry, processWikiText, stripFactSentences, takeLeadFacts, normalizeAnswer, levenshtein, isAnswerMatch, isSymbolMatch, isCenturyMatch, isFormulaMatch, formulaCounts, checkAnswer,
+        maskLeaks, findLeaks, answerTokens, foldKeys, isPersonName, genericWordsOf, isGenericWord, specificWords, absorbGenericWords, hideNicknames, CHOICE_MARK, hideOtherChoices,
+        censorForItem, answerNamesOf, answerNamesFor, hideAnswer, OUT_OF_CONTEXT, buildQuestionTexts, factRevealsAnswer, GENERIC_NAME_WORDS,
+        setCountries, landOf, landsOf, landFromDescription, cultureDistance, CULTURE_GROUPS, cultureScore, cultureLandsFor, getWordStems, censorName, mergeCensored, censorCountry, isKnownCountry, processWikiText, stripFactSentences, takeLeadFacts, normalizeAnswer, levenshtein, isAnswerMatch, isSymbolMatch, isCenturyMatch, isFormulaMatch, formulaCounts, checkAnswer,
         inCollection, filterItems, pickItem, sortItems, getCountryNames, getContinent, continentAt, getCountryAliases,
         distanceKm, nearness, STATE_STEPS, sharesGroup, eraNearness, personSimilarity, rankBySimilarity, takeDistinct,
         buildItemChoices, buildCountryChoices, findAnswerItem, findAnswerCountry, updateMistakes, nameAnswers, countryAnswers,

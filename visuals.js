@@ -201,7 +201,7 @@
     };
 
     // Stupnice (tvrdost podle Mohse, geologický čas…): osa od min do max se značkami, hledaná hodnota jako ukazatel;
-    // spec = { min, max, value, ticks: [{ value, label }], valueLabel?, minLabel?, maxLabel?, log? }
+    // spec = { min, max, value, ticks: [{ value, label }], valueLabel?, minLabel?, maxLabel?, log?, reverse? }
     const renderScale = async (container, spec) => {
         const width = Math.round(container.clientWidth) || 360;
         const height = Math.round(container.clientHeight) || 224;
@@ -211,7 +211,9 @@
         const axisY = Math.round(height * 0.5);
         const position = (value) => {
             const [min, max, v] = spec.log ? [spec.min, spec.max, value].map(x => Math.log10(Math.max(x, 1e-9))) : [spec.min, spec.max, value];
-            return left + (right - left) * Math.min(Math.max((v - min) / (max - min || 1), 0), 1);
+            const share = Math.min(Math.max((v - min) / (max - min || 1), 0), 1);
+            // reverse: největší hodnota vlevo, nejmenší vpravo (geologický čas: dávná minulost vlevo, dnešek vpravo)
+            return left + (right - left) * (spec.reverse ? 1 - share : share);
         };
         svg.appendChild(svgElement('rect', { x: left, y: axisY - 6, width: right - left, height: 12, rx: 6, class: 'fill-slate-200 dark:fill-slate-700' }));
         // Popisky značek ve dvou řádcích, ať se nepřekrývají
@@ -221,11 +223,13 @@
             svg.appendChild(svgElement('line', { x1: x, x2: x, y1: axisY - 6, y2: axisY + 10 + row * 14, 'stroke-width': 1, class: 'stroke-slate-400 dark:stroke-slate-500' }));
             svg.appendChild(svgText(tick.label, { x, y: axisY + 22 + row * 14, 'text-anchor': x < left + 20 ? 'start' : x > right - 20 ? 'end' : 'middle', 'font-size': 11, 'font-weight': 600, class: 'fill-slate-600 dark:fill-slate-300' }));
         });
-        if (spec.minLabel) svg.appendChild(svgText(spec.minLabel, { x: left, y: axisY - 16, 'font-size': 11, class: 'fill-slate-400 dark:fill-slate-500' }));
-        if (spec.maxLabel) svg.appendChild(svgText(spec.maxLabel, { x: right, y: axisY - 16, 'text-anchor': 'end', 'font-size': 11, class: 'fill-slate-400 dark:fill-slate-500' }));
+        const [leftLabel, rightLabel] = spec.reverse ? [spec.maxLabel, spec.minLabel] : [spec.minLabel, spec.maxLabel];
+        if (leftLabel) svg.appendChild(svgText(leftLabel, { x: left, y: axisY - 16, 'font-size': 11, class: 'fill-slate-400 dark:fill-slate-500' }));
+        if (rightLabel) svg.appendChild(svgText(rightLabel, { x: right, y: axisY - 16, 'text-anchor': 'end', 'font-size': 11, class: 'fill-slate-400 dark:fill-slate-500' }));
         if (spec.value !== undefined && spec.value !== null) {
             const x = position(spec.value);
-            svg.appendChild(svgElement('rect', { x: left, y: axisY - 6, width: Math.max(x - left, 6), height: 12, rx: 6, class: 'fill-amber-400 dark:fill-amber-500' }));
+            const barX = spec.reverse ? Math.min(x, right - 6) : left;
+            svg.appendChild(svgElement('rect', { x: barX, y: axisY - 6, width: Math.max(spec.reverse ? right - x : x - left, 6), height: 12, rx: 6, class: 'fill-amber-400 dark:fill-amber-500' }));
             svg.appendChild(svgElement('circle', { cx: x, cy: axisY, r: 9, 'stroke-width': 3, class: 'fill-amber-500 stroke-white dark:stroke-slate-900' }));
             if (spec.valueLabel) {
                 svg.appendChild(svgText(spec.valueLabel, {

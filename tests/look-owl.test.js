@@ -19,6 +19,41 @@ test('doplňky sovy: katalog má 24 doplňků ve čtyřech místech a každý m�
     }
 });
 
+// Rozměry obrázku webp z hlavičky (VP8X, VP8L i VP8); bez závislostí
+const webpSize = (file) => {
+    const b = fs.readFileSync(file);
+    assert.equal(b.toString('ascii', 0, 4), 'RIFF', file);
+    const kind = b.toString('ascii', 12, 16);
+    if (kind === 'VP8X') return [1 + b.readUIntLE(24, 3), 1 + b.readUIntLE(27, 3)];
+    if (kind === 'VP8L') { const bits = b.readUInt32LE(21); return [1 + (bits & 0x3fff), 1 + ((bits >> 14) & 0x3fff)]; }
+    return [b.readUInt16LE(26) & 0x3fff, b.readUInt16LE(28) & 0x3fff];
+};
+
+test('doplňky sovy: barevné varianty mají stejný rám jako vrstva a skutečně se od ní liší (volba barvy je znatelná)', () => {
+    const dir = path.join(__dirname, '..', 'icons', 'doplnky');
+    for (const item of Look.ACCESSORIES) {
+        const original = path.join(dir, `${item.id}.webp`);
+        const [width, height] = webpSize(original);
+        assert.equal(width, 402, `${item.id} šířka rámu`);
+        for (const color of Look.ACC_COLORS.filter(entry => entry.id !== 'original' && entry.id !== 'vlastni')) {
+            const file = path.join(dir, `${item.id}-${color.id}.webp`);
+            assert.deepEqual(webpSize(file), [width, height], `${item.id}-${color.id} rám`);
+            assert.ok(!fs.readFileSync(file).equals(fs.readFileSync(original)), `${item.id}-${color.id} se od původní vrstvy neliší`);
+        }
+    }
+});
+
+test('doplňky sovy: výchozí čepici skrývá jen doplněk, který ji nahrazuje (helma, přilba, baret); koruna a síťka sedí na čepici nebo vedle ní', () => {
+    const hiding = Look.ACCESSORIES.filter(item => item.hidesHat).map(item => item.id).sort();
+    assert.deepEqual(hiding, ['baret', 'helma', 'prilba']);
+    for (const id of ['koruna', 'sitka', 'kvetina', 'vavrin', 'sluchatka', 'celenka']) assert.ok(!Look.find('accessories', id).hidesHat, id);
+    assert.match(Owl.logoHtml('', '', { head: { id: 'helma', color: 'cerna' } }), /data-owl class="[^"]*owl-nohat/);
+    assert.doesNotMatch(Owl.logoHtml('', '', { head: { id: 'koruna', color: 'cerna' } }), /owl-nohat/);
+    // síťka v ruce nic nemění: čepici skrývá dál baret na hlavě
+    assert.match(Owl.logoHtml('', '', { head: { id: 'baret', color: 'cerna' }, hand: { id: 'sitka', color: 'modra' } }), /owl-nohat/);
+    assert.doesNotMatch(Owl.logoHtml('', '', { hand: { id: 'sitka', color: 'modra' } }), /owl-nohat/);
+});
+
 test('doplňky sovy: uložená volba se očistí (zamčené, špatné místo, neznámé id a barva)', () => {
     const ctx = { level: 10, badges: {} };
     const value = Look.normalize({ acc: {
@@ -127,4 +162,16 @@ test('vlajka: barvu mění jen plátno, tyčka je samostatná vrstva nad ním a 
     assert.doesNotMatch(imgs[1], /hue-rotate-/, 'tyčka zůstává');
     assert.match(Owl.layersHtml({ hand: { id: 'vlajka', color: 'zelena' } }), /vlajka-zelena\.webp.*vlajka-zaklad\.webp/);
     assert.equal(Owl.layersHtml({ hand: { id: 'lupa', color: 'zelena' } }).match(/<img /g).length, 1, 'ostatní doplňky mají jednu vrstvu');
+});
+
+test('odměna za odznak: Look řekne, co přesně odznak odemkne (nebo že dává jen slávu)', () => {
+    const Core = require('../quiz-core.js');
+    assert.deepEqual(Look.rewardsForBadge('vitez').map(entry => `${entry.category}:${entry.item.id}`).sort(), ['accessories:vavrin', 'frames:vavrin']);
+    assert.equal(Look.badgeRewardText('vitez'), 'Odměna: Vavřínový (rámeček), Vavřínový věnec (doplněk Mudrlanta)');
+    assert.equal(Look.badgeRewardText('zbehly-zemepis'), 'Odměna: Kompas (doplněk Mudrlanta)');
+    assert.equal(Look.badgeRewardText('turnaj-bronz'), 'Odměna: Medailista turnaje (rámeček), Bronz z turnaje (obrázek hráče)');
+    assert.equal(Look.badgeRewardText('stovka'), 'Odměna: sláva');
+    assert.equal(Look.badgeRewardText('zbehly-zemepis-25'), 'Odměna: sláva', 'další stupně zběhlosti doplněk nedávají');
+    // Každý odznak z katalogu odměn skutečně existuje
+    for (const items of Object.values(Look.CATALOG)) for (const item of items.filter(entry => entry.badge)) assert.ok(Core.BADGE_BY_ID[item.badge], item.badge);
 });

@@ -607,10 +607,10 @@ test('odznaky: skupiny se stupni, podmínky podle počítadel a postupu', () => 
     // Vyšší stupeň zahrnuje nižší
     const some = core.earnedBadgeIds({ correct: 120 }, x);
     assert.deepEqual(some, ['prvni-krok', 'odpovedi-10', 'odpovedi-50', 'stovka']);
-    const topics = Object.fromEntries(['zemepis', 'vlajky', 'historie', 'mytologie', 'biologie', 'geologie', 'chemie', 'fyzika', 'umeni', 'architektura', 'hudba', 'literatura', 'film', 'sport'].map(id => [id, 300]));
+    const topics = Object.fromEntries(['zemepis', 'vlajky', 'historie', 'mytologie', 'biologie', 'geologie', 'chemie', 'fyzika', 'umeni', 'architektura', 'hudba', 'literatura', 'film', 'sport'].map(id => [id, 1000]));
     const stars = Object.fromEntries(Object.keys(topics).map(id => [id, 5]));
-    const topics12 = Object.fromEntries(Object.keys(topics).map(id => [id, 12]));
-    const many = core.earnedBadgeIds({ tourBest: 6, tourWins: 15, topicBest: topics12, correct: 10000, bestRun: 100, bestStreak: 365, days: 365, perfectDays: 30, dailyCorrect: 250, noHint: 500, typedCorrect: 500, hardCorrect: 200, fixed: 200, challenges: 100, wins: 100, bestWinRun: 10, created: 50, perfectChallenges: 25, topics }, { level: 100, learned: 3000, topicStars: stars, topicCount: 14 });
+    const topics12 = Object.fromEntries(Object.keys(topics).map(id => [id, 100]));
+    const many = core.earnedBadgeIds({ tourBest: 6, tourWins: 60, weeksDone: 52, topicBest: topics12, correct: 10000, bestRun: 200, bestStreak: 365, days: 365, perfectDays: 60, dailyCorrect: 1000, noHint: 2500, typedCorrect: 2500, hardCorrect: 1000, fixed: 1000, challenges: 500, wins: 100, bestWinRun: 25, created: 250, perfectChallenges: 100, topics }, { level: 100, learned: 10000, topicStars: stars, topicCount: 14 });
     assert.equal(many.length, core.BADGES.length, 'všechny odznaky jdou získat');
     assert.ok(!core.earnedBadgeIds({ topics: { a: 1 } }, x).includes('vsestranny'));
     // Do účtu jen nejvyšší stupně a zpět
@@ -619,6 +619,33 @@ test('odznaky: skupiny se stupni, podmínky podle počítadel a postupu', () => 
     assert.ok(compact.length <= 60, 'vejde se do limitu databáze');
     assert.deepEqual([...core.expandBadges(compact)].sort(), [...many].sort());
     assert.deepEqual(core.expandBadges(['stovka']).sort(), ['odpovedi-10', 'odpovedi-50', 'prvni-krok', 'stovka'].sort());
+});
+
+test('odznaky: skupiny jsou vyvážené (5 až 10 stupňů) a dřívější odznaky zůstaly se stejným id', () => {
+    for (const group of core.BADGE_GROUPS) {
+        assert.ok(group.badges.length >= 5 && group.badges.length <= 10, `${group.id}: ${group.badges.length} stupňů`);
+    }
+    // Id odznaků, které hráči mohli získat před vyvážením; žádné nesmí zmizet
+    const OLD = ['prvni-krok', 'stovka', 'tisicovka', 'odpovedi-10000', 'strelec', 'neomylny', 'rada-100', 'tyden', 'mesic', 'serie-365', 'dny-365', 'dokonaly-den', 'dokonale-30',
+        'dnes-250', 'bez-napovedy', 'bez-napovedy-500', 'pisatel', 'psani-500', 'do-hloubky', 'tezke-200', 'chyby-200', 'soupere', 'vyzvy-100', 'vitez', 'gladiator', 'vyhry-100',
+        'vyhry-v-rade-10', 'zalozene-50', 'perfektni-vyzvy-25', 'znalec', 'mudrc', 'uroven-100', 'poznane-3000', 'vsestranny', 'hvezdar', 'mistr-oboru', 'vsechna-temata-1',
+        'vsechna-temata-3', 'vsechna-temata-5', 'tema-zemepis-25', 'tema-sport-300', 'zbehly-zemepis', 'zbehly-sport', 'turnaj-ucast', 'turnaj-zlato', 'turnaj-postupy-15', 'tydenni-cile', 'tydenni-cile-20'];
+    for (const id of OLD) assert.ok(core.BADGE_BY_ID[id], `odznak ${id} zůstal`);
+    // Hráč, který měl v účtu uložený dřívější nejvyšší stupeň, o nižší stupně nepřijde
+    assert.ok(core.expandBadges(['zbehly-zemepis']).includes('zbehly-zemepis-5'));
+    assert.ok(core.expandBadges(['zbehly-zemepis']).includes('zbehly-zemepis'));
+    assert.ok(!core.expandBadges(['zbehly-zemepis']).includes('zbehly-zemepis-25'));
+    assert.deepEqual(core.compactBadges(['hvezdar', 'hvezdy-1', 'hvezdy-2']), ['hvezdar']);
+    assert.ok(core.expandBadges(['hvezdar']).includes('hvezdy-2'));
+    // Stupně přidané při vyvážení se získávají podle stejných počítadel
+    const x = { level: 1, learned: 0, topicStars: { zemepis: 4 }, topicCount: 14 };
+    assert.deepEqual(core.earnedBadgeIds({}, x), ['hvezdy-1', 'hvezdy-2', 'hvezdar', 'hvezdy-4', 'zbehly-zemepis-5', 'zbehly-zemepis'], 'čtyři hvězdy v zeměpisu: hvězdy a zběhlost 12');
+    assert.ok(core.earnedBadgeIds({ topicBest: { sport: 25 } }, { level: 1, topicStars: {}, topicCount: 14 }).includes('zbehly-sport-25'));
+    assert.ok(!core.earnedBadgeIds({ topicBest: { sport: 24 } }, { level: 1, topicStars: {}, topicCount: 14 }).includes('zbehly-sport-25'));
+    assert.ok(core.earnedBadgeIds({ topics: { a: 1, b: 1, c: 1 } }, x).includes('vsestrannost-3'));
+    assert.match(core.BADGE_BY_ID['hvezdy-1'].text, /1 hvězdu/);
+    assert.match(core.BADGE_BY_ID['mistr-oboru'].text, /5 hvězd /);
+    assert.match(core.BADGE_BY_ID['vsestrannost-6'].text, /v 6 různých tématech/);
 });
 
 test('processWikiText: další věty úvodu jdou stranou jako pozdější nápověda', () => {

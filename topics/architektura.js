@@ -332,6 +332,9 @@
         },
         categories: CATEGORIES,
 
+        // Stavby se řadí podle státu, kde stojí (architekti podle země původu)
+        culture: (item, ctx) => item.c === 'stavby' ? core.getCountryNames(item, (ctx && ctx.countries) || {}).slice(0, 3) : undefined,
+
         // Nesprávné možnosti: stavby stejného slohu, druhu a země (k Notre-Dame gotické katedrály), slohy z blízké doby
         // (nikdy sporná dvojice), architekti stejné doby, slohu a země
         similarity: (item, other) => {

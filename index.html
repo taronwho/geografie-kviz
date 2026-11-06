@@ -20,8 +20,10 @@
     <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
     <link rel="stylesheet" href="styles.css">
     <script src="config.js" defer></script>
+    <script src="monitor.js" defer></script>
     <script src="auth.js" defer></script>
     <script src="social.js" defer></script>
+    <script src="question-report.js" defer></script>
     <script src="icons.js" defer></script>
     <script src="quiz-core.js" defer></script>
     <script src="visuals.js" defer></script>
@@ -33,7 +35,11 @@
     <script src="look-owl.js" defer></script>
     <script src="rating.js" defer></script>
     <script src="tournament.js" defer></script>
+    <script src="review.js" defer></script>
+    <script src="goals.js" defer></script>
+    <script src="friends.js" defer></script>
     <script src="tutorial.js" defer></script>
+    <script src="push.js" defer></script>
     <script src="topics/zemepis.js" defer></script>
     <script src="topics/vlajky.js" defer></script>
     <script src="topics/historie.js" defer></script>
@@ -51,6 +57,13 @@
     <script src="app.js" defer></script>
 </head>
 <body class="font-sans text-slate-800 dark:text-slate-100 flex flex-col overflow-hidden pb-[env(safe-area-inset-bottom)]">
+    <!-- Vlnění vlajky státu na vlaječce sovy (třída owl-flag-img v src/input.css); mapa posunutí je icons/doplnky/vlajka-vlna.webp, scale musí odpovídat FLAG_WAVE_SCALE v scripts/owl-accessories.py -->
+    <svg width="0" height="0" class="absolute" aria-hidden="true" focusable="false"><defs>
+        <filter id="owl-flag-wave" x="0" y="0" width="1" height="1" primitiveUnits="objectBoundingBox" color-interpolation-filters="sRGB">
+            <feImage href="icons/doplnky/vlajka-vlna.webp" x="0" y="0" width="1" height="1" preserveAspectRatio="none" result="map"/>
+            <feDisplacementMap in="SourceGraphic" in2="map" scale="0.5" xChannelSelector="R" yChannelSelector="G"/>
+        </filter>
+    </defs></svg>
 
     <div class="w-full h-full flex flex-col relative shadow-2xl bg-slate-50 dark:bg-slate-900 max-w-md mx-auto border-x border-slate-200 dark:border-slate-800">
 

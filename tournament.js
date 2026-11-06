@@ -9,7 +9,10 @@
     const QUESTIONS = 10;
     const MIN_PLAYERS = 8;
     const MAX_PLAYERS = 128;
+    // XP za vyhraný zápas: v 1. kole 20, s každým dalším kolem o 10 víc
     const WIN_XP = 20;
+    const WIN_XP_STEP = 10;
+    const winXp = (round) => WIN_XP + WIN_XP_STEP * Math.max(0, (Number(round) || 1) - 1);
     const WEEKDAYS = ['neděle', 'pondělí', 'úterý', 'středa', 'čtvrtek', 'pátek', 'sobota'];
 
     // --- Dny (Praha) ---
@@ -80,9 +83,10 @@
     const winnerPlace = (tournament, match) => match.third ? 3 : match.round === tournament.rounds ? 1 : null;
 
     // --- Stav karty turnaje ---
-    // tournament: řádek tournaments; entries: přihlášky (user_id, status, place); matches: zápasy s výsledky; today: den (Praha)
+    // tournament: řádek tournaments; entries: přihlášky (user_id, status, place); matches: zápasy s výsledky; today: den (Praha);
+    // savedMatch: id zápasu, který má toto zařízení rozehraný v uložené relaci (null = žádný)
     // Vrací popis, ze kterého se karta vykreslí: { phase, ... }.
-    const cardState = ({ tournament, entries = [], matches = [], me, today }) => {
+    const cardState = ({ tournament, entries = [], matches = [], me, today, savedMatch = null }) => {
         const mine = entries.find(entry => entry.user_id === me) || null;
         const base = { id: tournament.id, status: tournament.status, week: tournament.week_start };
         if (tournament.status === 'open') {
@@ -115,8 +119,12 @@
         }
         const gap = diffDays(day, today);
         if (gap > 0) return { ...out, step: 'later' };
-        if (gap < 0) return { ...out, step: 'counting' };
+        // Den kola skončil: rozehraný a nedohraný zápas vypršel (expired), jinak se jen dopočítává
+        if (gap < 0) return { ...out, step: 'counting', expired: Boolean(own && !own.finished_at) };
         if (own && own.finished_at) return { ...out, step: 'waiting' };
+        // Rozehraný zápas: server zná začátek a toto zařízení má uloženou relaci, pokračuje se od další otázky (čas běží od začátku).
+        // Bez uložené relace (jiné zařízení, smazaná data) se kolo počítá jako neodehrané.
+        if (own && savedMatch && savedMatch === match.id) return { ...out, step: 'resume', canResume: true };
         if (own) return { ...out, step: 'unfinished' };
         return { ...out, step: 'play', canPlay: true };
     };
@@ -134,9 +142,10 @@
         switch (state.step) {
         case 'play': return `Dnes hraješ proti ${opponent}.`;
         case 'unfinished': return 'Kolo jsi začal a nedokončil, počítá se jako neodehrané.';
+        case 'resume': return 'Zápas máš rozehraný, dohraj ho. Čas běží od začátku zápasu.';
         case 'waiting': return `Odehráno ${state.correct}/${QUESTIONS}, čekáš na soupeře.`;
         case 'later': return `Další kolo hraješ ${dayWord(state.day, today)} proti ${opponent}.`;
-        case 'counting': return 'Kolo skončilo, výsledek se právě počítá.';
+        case 'counting': return state.expired ? 'Čas na zápas vypršel, kolo skončilo dřív, než jsi ho dohrál. Počítá se jako neodehrané.' : 'Kolo skončilo, výsledek se právě počítá.';
         case 'won': return state.final ? (state.third ? 'Vyhrál jsi zápas o 3. místo.' : 'Vyhrál jsi finále!') : `Postoupil jsi, další kolo je ${dayWord(state.nextDay, today)}.`;
         case 'lost': return state.label ? `Vypadl jsi: ${state.label}.` : 'Vypadl jsi z turnaje.';
         default: return 'Čeká se na další kolo.';
@@ -162,12 +171,12 @@
     // Návod „Jak turnaje fungují“ (krátké body)
     const RULES = [
         'Každý týden se hraje turnaj v Mixu všech témat, začíná v pondělí. Přihlášky se otevírají hned po začátku předchozího turnaje.',
-        `Hraje nejvyšší mocnina dvou nejdřív přihlášených hráčů (nejvýš ${MAX_PLAYERS}, nejméně ${MIN_PLAYERS}). Ostatní letos nehrají. Když se přihlásí méně než ${MIN_PLAYERS}, turnaj se ruší.`,
+        `Hraje nejvyšší mocnina dvou nejdřív přihlášených hráčů (nejvýš ${MAX_PLAYERS}, nejméně ${MIN_PLAYERS}). Ostatní nehrají. Když se přihlásí méně než ${MIN_PLAYERS}, turnaj se ruší.`,
         `Pavouk je vyřazovací. Jedno kolo trvá jeden den: dvojice mají ${QUESTIONS} stejných otázek z Mixu (jen ze známějších) a každý je odehraje kdykoli během dne, jen jednou.`,
-        'Vyhraje ten, kdo má víc správných odpovědí, pak víc bodů, pak je rychlejší (čas měří server) a nakonec toho, kdo se přihlásil dřív.',
+        'Vyhraje ten, kdo má víc správných odpovědí, pak víc bodů, pak ten, kdo je rychlejší, a nakonec toho, kdo se přihlásil dřív.',
         'Kdo kolo neodehraje, prohrává kontumačně a vypadává; soupeř, který odehrál, postupuje. Když neodehraje nikdo, postupuje dřívější přihlášený.',
         'Poražení semifinalisté hrají o 3. místo v den finále.',
-        'Za každý vyhraný zápas dostaneš 20 XP a za umístění v turnajích odznaky.'
+        `Za každý vyhraný zápas dostaneš XP: ${WIN_XP} v 1. kole a s každým dalším kolem o ${WIN_XP_STEP} víc. Za umístění v turnajích jsou odznaky.`
     ];
 
     // Nejvýš čtyři první místa (1.–4.) po skončení: seřazená podle místa
@@ -175,6 +184,8 @@
     // Mapa id → přezdívka z přihlášek
     const nameMap = (entries) => Object.fromEntries(entries.map(entry => [entry.user_id, (entry.player && entry.player.display_name) || 'Hráč']));
     // Výhry, za které patří XP: moje vyhrané zápasy, kde hrál aspoň vítěz (nehrálo-li se, „dřívější přihlášený“ XP nedává)
+    // Totéž s kolem zápasu: { id: kolo }, ať se XP spočítá podle kola
+    const xpRounds = (matches, userId) => Object.fromEntries(matches.filter(match => match.winner === userId && match.decided_by !== 'earlier').map(match => [match.id, match.round]));
     const xpMatches = (matches, userId) => matches.filter(match => match.winner === userId && match.decided_by !== 'earlier').map(match => match.id);
 
     // --- Celé pořadí ---
@@ -331,11 +342,11 @@
     };
 
     return {
-        QUESTIONS, MIN_PLAYERS, MAX_PLAYERS, WIN_XP, RULES,
+        QUESTIONS, MIN_PLAYERS, MAX_PLAYERS, WIN_XP, WIN_XP_STEP, winXp, RULES,
         parseDay, addDays, totalsOf, formatDuration, diffDays, pragueToday, formatDay, weekdayName, dayWord, weekLabel,
         roundName, playersInRound, tournamentRoundName, roundDay, plural, playersWord, placeLabel, eliminatedLabel,
         groupRounds, currentRound, decided, involves, opponentOf, myMatch, resultOf, winnerPlace,
-        cardState, statusText, noticeText, podium, nameMap, xpMatches,
+        cardState, statusText, noticeText, podium, nameMap, xpMatches, xpRounds,
         placeRange, roundOfPlace, standings, bracketStartRound, lastDecidedRound, bracketColumns, playerPath, dayShort
     };
 });

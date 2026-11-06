@@ -13,7 +13,7 @@ Dvě cesty, platí ta, která přijde dřív:
 Proč tak: 3 hvězdy je dosažitelné v každém tématu (5. hvězda je za 300 položek a ne každé téma je tak velké),
 a série dává možnost i hráči, který nehraje dlouho, ale umí. Doplněk je tedy odměna za zběhlost, ne za čas strávený hraním.
 Odznaky a XP za série v tématu (5 / 10 / 20 v řadě) by šly navázat na stejné počítadlo.
-Pátá hvězda (plné mistrovství) může odemknout jen zlatou variantu doplňku (barva „Zlatá“), aby bylo kam růst.
+Pátá hvězda (plné mistrovství) zatím dává jen odznak Mistr oboru (zlatá varianta doplňku není hotová a hra ji neslibuje).
 
 ## Rozdělení do míst (vyváženo spolu s existujícími doplňky)
 
@@ -72,3 +72,6 @@ Barvy a vlastní odstín fungují jen na barevných částech (bílý knír, še
 2. Počítadlo série správných odpovědí po tématech v `progress.counters` a text „Zbývá …“ u zamčeného doplňku.
 3. Vrstvy a ikony skriptem (`scripts/owl-accessories.py`, `scripts/owl-accessory-icons.py`), barevné varianty a seznam v `sw.js` / `pages.yml`.
 4. Testy: katalog (každý doplněk má obrázky), odemykání hvězdami i sérií, e2e výběr v Nastavení.
+
+Skupina Zběhlost má od vyvážení odznaků pět stupňů (5, 12, 25, 50 a 100 správných v řadě v tématu); doplněk dává jen stupeň 12 (id `zbehly-<téma>`),
+ostatní stupně (`zbehly-<téma>-5`, `-25`, `-50`, `-100`) odměnu nemají.

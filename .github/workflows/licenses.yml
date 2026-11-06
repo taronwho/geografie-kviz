@@ -1,0 +1,59 @@
+# Licence obrázků: stáhne z Wikimedia Commons autora a licenci každého obrázku ze všech data/*.json (scripts/build-licenses.mjs),
+# zapíše data/licenses.json (seznam pro stránku Zdroje a licence) a reports/licence-problemy.md (soubory NC/ND/bez licence
+# k nahrazení před komerčním vydáním) a commitne je do větve, ze které byla akce spuštěna. Spouští se ručně (Actions → Licence obrázků → Run workflow),
+# případně po přidání nových položek. Commons API omezuje počet požadavků; skript čeká podle Retry-After a průběžně ukládá, takže
+# při přerušení stačí akci spustit znovu (stáhne jen chybějící).
+name: Licence obrázků
+
+on:
+  workflow_dispatch:
+    inputs:
+      force:
+        description: 'Stáhnout znovu i soubory, které už jsou v data/licenses.json (true)'
+        required: false
+        default: 'false'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: licenses
+
+jobs:
+  licenses:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Stažení licencí z Wikimedia Commons
+        env:
+          FORCE: ${{ github.event.inputs.force }}
+        run: |
+          set +e
+          if [ "$FORCE" = "true" ]; then node scripts/build-licenses.mjs --force; else node scripts/build-licenses.mjs; fi
+          status=$?
+          # 2 = část souborů zůstala bez metadat (omezení API) – výsledek se přesto uloží, další spuštění doplní zbytek
+          if [ "$status" -ne 0 ] && [ "$status" -ne 2 ]; then exit "$status"; fi
+          if [ "$status" -eq 2 ]; then echo "::warning::Část souborů zůstala bez metadat, spusť akci znovu."; fi
+
+      - name: Test parsování licencí
+        run: node --test tests/licenses.test.js
+
+      - name: Commit výsledku
+        run: |
+          set -e
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/licenses.json reports/licence-problemy.md
+          if git diff --cached --quiet; then echo "Beze změny."; exit 0; fi
+          git commit -q -m "Licence obrázků z Wikimedia Commons"
+          for try in 1 2 3; do
+            if git push -q origin "HEAD:${GITHUB_REF_NAME}"; then exit 0; fi
+            git pull -q --rebase origin "${GITHUB_REF_NAME}" || true
+            sleep 5
+          done
+          exit 1
