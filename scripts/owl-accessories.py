@@ -302,6 +302,7 @@ COLORS = {
     'modra': (215, 1.0, 1.0),
     'fialova': (275, 0.95, 1.0),
     'ruzova': (330, 0.85, 1.25),
+    'cerna': (0, 0.0, 0.3),  # bez sytosti, tmavá: stínování zůstane
 }
 
 

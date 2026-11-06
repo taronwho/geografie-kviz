@@ -9,7 +9,7 @@ const Owl = require('../look-owl.js');
 const Core = require('../quiz-core.js');
 const Social = require('../social.js');
 
-const tagsOf = (html) => html.match(/<(?:img|div)[^>]*>/g) || [];
+const tagsOf = (html) => html.match(/<(?:img|span)[^>]*>/g) || [];
 
 test('vlajky států: look-flags.js odpovídá data/vlajky.json (jen vlajky států, česky podle abecedy) a hodnoty jsou tvarově platné', () => {
     const data = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'data', 'vlajky.json'), 'utf8'));
@@ -63,11 +63,12 @@ test('vlajka státu: vykreslení – plátno, vlajka oříznutá maskou, stínov
     assert.equal(tags.length, 5, 'plátno, kontejner s maskou, vlajka, stínování, tyčka');
     assert.match(tags[0], /src="icons\/doplnky\/vlajka\.webp"/, 's vlajkou je plátno vždy původní (barva se neuplatní)');
     assert.doesNotMatch(tags[0], /hue-rotate/);
-    assert.match(tags[1], /^<div data-owl-layer class="[^"]*\bowl-flag\b/);
+    assert.match(tags[1], /^<span data-owl-layer class="[^"]*\bowl-flag\b/);
+    assert.doesNotMatch(Owl.layersHtml({ hand: { id: 'vlajka', color: 'zelena', flag: 'q127155' } }), /<div/, 'žádný <div>: sova bývá v odstavci a div by ho rozbil');
     assert.ok(tags[1].includes('aspect-[402/443]') && tags[1].includes('opacity-0'), 'poměr stran rámu, skrytá do načtení vlajky');
     assert.ok(tags[1].includes('left-[-34%]') && tags[1].includes('top-[-26%]') && tags[1].includes('w-[156%]'), 'stejná poloha a šířka jako vrstva');
     assert.match(tags[2], /data-owl-flag-img src="https:\/\/upload\.wikimedia\.org\/wikipedia\/commons\/thumb\/c\/cb\/Flag_of_the_Czech_Republic\.svg\/120px-Flag_of_the_Czech_Republic\.svg\.png"/);
-    assert.match(tags[2], /object-fill/);
+    assert.match(tags[2], /object-cover/);
     assert.match(tags[2], /left-\[[\d.]+%\] top-\[[\d.]+%\] w-\[[\d.]+%\] h-\[[\d.]+%\]/);
     assert.match(tags[3], /src="icons\/doplnky\/vlajka-stin\.webp"[^>]*mix-blend-multiply/);
     assert.match(tags[4], /src="icons\/doplnky\/vlajka-zaklad\.webp"/);
@@ -104,8 +105,15 @@ test('vlajka státu: rám ve třídách odpovídá obrázkům vlajka-maska.webp 
     assert.deepEqual(size('vlajka-stin.webp'), [w, h], 'maska a stínování mají stejný rám');
     assert.ok(fs.readFileSync(path.join(__dirname, '..', 'look-owl.js'), 'utf8').includes(`aspect-[${w}/${h}]`), `poměr stran rámu ${w}/${h}`);
     const css = fs.readFileSync(path.join(__dirname, '..', 'styles.css'), 'utf8');
-    for (const cls of ['owl-flag', 'mix-blend-multiply', 'object-fill', 'aspect-\\[402\\/443\\]', 'left-\\[12\\.44\\%\\]', 'h-\\[16\\.48\\%\\]']) assert.ok(css.includes(cls), `styles.css: ${cls}`);
+    for (const cls of ['owl-flag', 'mix-blend-multiply', 'object-cover', 'owl-flag-img', 'aspect-\\[402\\/443\\]', 'left-\\[10\\.7\\%\\]', 'h-\\[19\\.64\\%\\]']) assert.ok(css.includes(cls), `styles.css: ${cls}`);
     assert.match(css, /\.owl-flag\{[^}]*mask-image:url\(icons\/doplnky\/vlajka-maska\.webp\)/);
+    assert.match(css, /\.owl-flag-img\{[^}]*filter:url\(#owl-flag-wave\)/);
+    // Filtr vlnění je inline v index.html (CSP style-src 'self' inline <svg> neomezuje) a čte mapu posunutí ze stejného původu
+    const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
+    assert.match(html, /<filter id="owl-flag-wave"[^>]*color-interpolation-filters="sRGB"/);
+    assert.match(html, /<feImage href="icons\/doplnky\/vlajka-vlna\.webp"/);
+    assert.ok(fs.existsSync(path.join(dir, 'vlajka-vlna.webp')));
+    assert.doesNotMatch(html, /<[a-z]+[^>]*\sstyle=/i, 'žádné inline styly');
 });
 
 test('sova jako profilovka: vlajka státu na vlaječce se zapíše (hand=vlajka.original.q101472), přečte a vykreslí cizí sově', () => {
@@ -124,7 +132,7 @@ test('sova jako profilovka: vlajka státu na vlaječce se zapíše (hand=vlajka.
     const html = Owl.owlAvatarHtml(text);
     assert.ok(html.includes('upload.wikimedia.org') && html.includes('Flag_of_Indonesia.svg'));
     const tags = tagsOf(html).slice(1);
-    assert.equal(tags.length, 5);
+    assert.equal(tags.length, 6);
     assert.ok(tags.every(tag => tag.includes('data-keep') && !tag.includes('data-owl-layer')));
     // Starší texty bez vlajky fungují dál
     assert.deepEqual(Owl.parseOwl('robe=zelena;hand=vlajka.original'), { robe: 'zelena', acc: { hand: { id: 'vlajka', color: 'original' } } });

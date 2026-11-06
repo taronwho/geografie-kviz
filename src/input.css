@@ -153,6 +153,8 @@
 
 /* Vlajka státu na vlaječce sovy se maskou ořízne na tvar plátna (vnitřek bez obrysu, scripts/owl-accessories.py) */
 .owl-flag { -webkit-mask-image: url(icons/doplnky/vlajka-maska.webp); mask-image: url(icons/doplnky/vlajka-maska.webp); -webkit-mask-size: 100% 100%; mask-size: 100% 100%; }
+/* Vlnění vlajky: SVG filtr #owl-flag-wave (inline <svg> v index.html) posune obrázek vlajky podle mapy icons/doplnky/vlajka-vlna.webp, takže pruhy a znaky sledují střednici plátna. Bez podpory filtru zůstane vlajka rovná (vždy oříznutá maskou). */
+.owl-flag-img { filter: url(#owl-flag-wave); }
 
 /* Pozvánka do turnaje: okno svítí zeleně a jemně pulzuje (při omezeném pohybu jen svítí) */
 .offer-panel { box-shadow: 0 0 0 3px rgb(52 211 153 / 0.95), 0 0 26px rgb(52 211 153 / 0.6); }
