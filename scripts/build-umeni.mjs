@@ -13,6 +13,19 @@ const SCULPTURE_TYPES = ['Q179700', 'Q860861', 'Q2293362', 'Q350268', 'Q928357',
     'Q1066288', 'Q248726', 'Q1051606', 'Q245117', 'Q28890616', 'Q29168168'];
 // Povolání: malíř, sochař, grafik, rytec, kreslíř
 const ARTIST_OCCUPATIONS = ['Q1028181', 'Q1281618', 'Q1925963', 'Q329439', 'Q15296811'];
+// Fotograf, fotoreportér; ilustrátor, karikaturista, autor komiksů, kreslíř
+const PHOTOGRAPHER_OCCUPATIONS = ['Q33231'];
+const ILLUSTRATOR_OCCUPATIONS = ['Q644687', 'Q1114448', 'Q715301', 'Q15296811'];
+// Umělecké směry, slohy a školy výtvarného umění (ručně: Wikidata pod „umělecké hnutí“ vedou i hudbu, literaturu a film), podle známosti
+const ART_MOVEMENTS = ['Q4692', 'Q37068', 'Q37853', 'Q39427', 'Q40415', 'Q42934', 'Q6034', 'Q46825', 'Q80113', 'Q34636', 'Q131221', 'Q128115',
+    'Q170292', 'Q124354', 'Q102932', 'Q164800', 'Q134147', 'Q10857409', 'Q166713', 'Q173436', 'Q131808', 'Q173782', 'Q166593', 'Q46805',
+    'Q185905', 'Q180902', 'Q191970', 'Q186030', 'Q177725', 'Q184814', 'Q38166', 'Q189458', 'Q207103', 'Q200034', 'Q203209', 'Q207445',
+    'Q182331', 'Q326478', 'Q150091', 'Q154432', 'Q17516', 'Q281108', 'Q108908', 'Q143357', 'Q152778', 'Q594150', 'Q503708', 'Q751880',
+    'Q939559', 'Q372600', 'Q848365', 'Q943853', 'Q212611', 'Q2352880', 'Q422681', 'Q915841', 'Q610877', 'Q443153', 'Q610687', 'Q519443',
+    'Q851869', 'Q589655', 'Q576913', 'Q217213', 'Q847847', 'Q1332178', 'Q708807', 'Q55995', 'Q889525', 'Q62506', 'Q753683', 'Q938864',
+    'Q252801', 'Q1133329', 'Q277466', 'Q224885', 'Q1066218', 'Q768100', 'Q680559', 'Q584084', 'Q941875', 'Q1054254', 'Q1401605', 'Q273506',
+    'Q845421', 'Q1578378', 'Q3357314', 'Q587691', 'Q891532', 'Q1351977', 'Q1407578', 'Q1399604', 'Q695830', 'Q2344569', 'Q1382662',
+    'Q1633309', 'Q3272569', 'Q3108623', 'Q979160', 'Q858436', 'Q1086353', 'Q540807', 'Q1886249', 'Q208208', 'Q1683337'];
 // Státy českých dějin (Rakousko-Uhersko ne – patřil by sem i Klimt)
 const CZECH_STATES = new Set(['Q213', 'Q33946', 'Q42585', 'Q153136']);
 
@@ -31,7 +44,19 @@ const candidates = await cached('umeni-candidates', async () => {
     // Čeští umělci i méně známí (stačí pár jazyků)
     const czechArtists = fromRows(await qlever(`SELECT DISTINCT ?x ?sl WHERE { VALUES ?occ { ${values(ARTIST_OCCUPATIONS)} } VALUES ?state { ${values([...CZECH_STATES])} }
   ?x wdt:P106 ?occ ; wdt:P27 ?state ; wdt:P31 wd:${HUMAN} . ${csArticle('?x')} FILTER(?sl >= 4) }`));
-    return { paintings, sculptures, artists: [...new Map([...artists, ...czechArtists])].sort((a, b) => b[1] - a[1]) };
+    // Fotografové, ilustrátoři a karikaturisté (povolání mimo malíře a sochaře) – opět i čeští méně známí
+    const byOccupation = async (occupations, minLinks, czechMinLinks) => {
+        const world = fromRows(await qlever(`SELECT DISTINCT ?x ?sl WHERE { VALUES ?occ { ${values(occupations)} } ?x wdt:P106 ?occ ; wdt:P31 wd:${HUMAN} .
+  ${csArticle('?x')} FILTER(?sl >= ${minLinks}) }`));
+        const czech = fromRows(await qlever(`SELECT DISTINCT ?x ?sl WHERE { VALUES ?occ { ${values(occupations)} } VALUES ?state { ${values([...CZECH_STATES])} }
+  ?x wdt:P106 ?occ ; wdt:P27 ?state ; wdt:P31 wd:${HUMAN} . ${csArticle('?x')} FILTER(?sl >= ${czechMinLinks}) }`));
+        return [...new Map([...world, ...czech])].sort((a, b) => b[1] - a[1]);
+    };
+    const photographers = await byOccupation(PHOTOGRAPHER_OCCUPATIONS, 15, 5);
+    const illustrators = await byOccupation(ILLUSTRATOR_OCCUPATIONS, 12, 4);
+    // Umělecké směry, slohy a hnutí (bez obrázku – ptáme se na popis)
+    const movements = fromRows(await qlever(`SELECT DISTINCT ?x ?sl WHERE { VALUES ?x { ${values(ART_MOVEMENTS)} } ${csArticle('?x')} }`));
+    return { paintings, sculptures, photographers, illustrators, movements, artists: [...new Map([...artists, ...czechArtists])].sort((a, b) => b[1] - a[1]) };
 });
 // Čeští umělci 19. století mají ve Wikidatech často jen Rakouské císařství, Předlitavsko nebo Svatou říši římskou –
 // zda jsou čeští, rozhodne až popis
@@ -100,17 +125,45 @@ const workIds = [...candidates.paintings, ...candidates.sculptures].map(([qid]) 
 const works = new Map(await cached('umeni-works', () => fetchDetails(workIds, workDetails, 60)));
 // Autoři děl patří k umělcům, i když sami nejsou mezi kandidáty (nápověda a možnosti u otázky „Kdo to vytvořil?“)
 const creatorIds = [...new Set([...works.values()].flatMap(work => (work.cr || []).map(creator => creator.id)))].filter(q => /^Q\d+$/.test(q));
-const personIds = [...new Set([...candidates.artists.map(([qid]) => qid), ...creatorIds])];
+const personIds = [...new Set([...candidates.artists, ...candidates.photographers, ...candidates.illustrators].map(([qid]) => qid).concat(creatorIds))];
 const people = new Map(await cached('umeni-people', () => fetchDetails(personIds, personDetails, 100)));
 // Kandidáti přidaní po uložení mezipaměti se dočtou zvlášť
 const missingPeople = personIds.filter(qid => !people.has(qid));
 for (const [qid, detail] of await cached('umeni-people-extra', () => fetchDetails(missingPeople, personDetails, 100))) people.set(qid, detail);
 console.log(`Podrobnosti: ${works.size} děl, ${people.size} osob`);
 
+// Směry: popis, vznik a zánik, země a nejznámější představitelé (lidé, kteří se k směru hlásí – P135)
+const movementDetails = new Map(await cached('umeni-movements', async () => {
+    const result = new Map(candidates.movements.map(([qid]) => [qid, {}]));
+    await inBatches(candidates.movements.map(([qid]) => qid), 80, (qids) => `SELECT ?item ?p ?v WHERE {
+  VALUES ?item { ${values(qids)} }
+  { ?a schema:about ?item ; schema:isPartOf <https://cs.wikipedia.org/> ; schema:name ?v . BIND("t" AS ?p) }
+  UNION { ?item rdfs:label ?v FILTER(LANG(?v) = "cs") BIND("n" AS ?p) }
+  UNION { ?item schema:description ?v FILTER(LANG(?v) = "cs") BIND("d" AS ?p) }
+  UNION { ?item schema:description ?v FILTER(LANG(?v) = "en") BIND("en" AS ?p) }
+  UNION { ?item wdt:P571|wdt:P580 ?v BIND("from" AS ?p) }
+  UNION { ?item wdt:P576|wdt:P582 ?v BIND("to" AS ?p) }
+  UNION { ?item wdt:P495 ?v BIND("co" AS ?p) }
+  UNION { ?item wdt:P31 ?v BIND("type" AS ?p) }
+  UNION { ?item wdt:P279 ?v BIND("sub" AS ?p) }
+}`, collect(result));
+    // Představitelé: nejznámější lidé s tímto směrem, kteří mají český článek
+    const reps = new Map();
+    await inBatches(candidates.movements.map(([qid]) => qid), 40, (qids) => `SELECT DISTINCT ?item ?v ?sl ?born ?name WHERE { VALUES ?item { ${values(qids)} }
+  VALUES ?occ { ${values([...ARTIST_OCCUPATIONS, ...PHOTOGRAPHER_OCCUPATIONS, 'Q42973'])} } ?v wdt:P135 ?item ; wdt:P106 ?occ ; wdt:P31 wd:${HUMAN} . ?a schema:about ?v ; schema:isPartOf <https://cs.wikipedia.org/> ; schema:name ?name . ?v wikibase:sitelinks ?sl .
+  OPTIONAL { ?v wdt:P569 ?born } FILTER(?sl >= 25) }`, (row) => {
+        const key = id(row.item.value);
+        reps.set(key, [...(reps.get(key) || []), { q: id(row.v.value), n: row.name.value.replace(/ \(.*\)$/, ''), sl: Number(row.sl.value), born: row.born ? row.born.value : undefined }]);
+    });
+    for (const [qid, list] of reps) result.get(qid).reps = list.sort((a, b) => b.sl - a.sl).slice(0, 12);
+    return [...result];
+}));
+
 // České (a anglické) názvy odkazovaných položek: směry, sbírky, místa, materiály, žánry, země, druhy
 const referenced = new Set();
 for (const work of works.values()) for (const key of ['mov', 'coll', 'loc', 'mat', 'genre', 'co', 'land', 'type', 'attr']) (work[key] || []).forEach(q => referenced.add(q));
 for (const person of people.values()) for (const key of ['cit', 'mov', 'works', 'occ']) (person[key] || []).forEach(q => referenced.add(q));
+for (const detail of movementDetails.values()) for (const key of ['co', 'type', 'sub']) (detail[key] || []).forEach(q => referenced.add(q));
 for (const q of referenced) if (!/^Q\d+$/.test(q)) referenced.delete(q);
 const labels = new Map(await cached('umeni-labels', async () => {
     const result = [];
@@ -327,6 +380,7 @@ const NOT_ARTISTS = new Set(['Q47737', 'Q48246', 'Q102711', 'Q131405']);
 
 // Roky: úmrtí před narozením nebo věk přes 105 let je chyba v datech, budoucnost taky
 const THIS_YEAR = new Date().getFullYear();
+const formatYearText = (year) => year < 0 ? `${-year} př. n. l.` : String(year);
 const lifeYears = (detail) => {
     let born = yearOf(detail.born);
     let died = yearOf(detail.died);
@@ -361,9 +415,12 @@ const sureCreator = (detail) => {
 // Kolik vzít, kolik nejznámějších je „známých“, od kolika jazykových verzí; české položky navíc až do czLimit
 // (czKnown = nejznámější české, které jsou známé)
 const LIMITS = {
-    obrazy: { limit: 320, known: 60, czLimit: 30, czKnown: 4, minLinks: 8, czMinLinks: 3 },
-    sochy: { limit: 170, known: 22, czLimit: 25, czKnown: 7, minLinks: 7, czMinLinks: 4 },
-    umelci: { limit: 420, known: 80, czLimit: 110, czKnown: 25 }
+    obrazy: { limit: 360, known: 90, czLimit: 40, czKnown: 6, minLinks: 5, czMinLinks: 3 },
+    sochy: { limit: 230, known: 40, czLimit: 30, czKnown: 7, minLinks: 5, czMinLinks: 3 },
+    umelci: { limit: 650, known: 200, czLimit: 130, czKnown: 25 },
+    fotografove: { limit: 220, known: 40, czLimit: 45, czKnown: 8 },
+    ilustratori: { limit: 150, known: 30, czLimit: 40, czKnown: 8 },
+    smery: { limit: 120, known: 40, czLimit: 0, czKnown: 0 }
 };
 // Sbírka chebské galerie; stát díla jen dnešní Česko (Československo by vzalo i sochy na Slovensku)
 const CZECH_PLACES = new Set(['Q101017512', 'Q44385654']);
@@ -394,6 +451,8 @@ const artistIds = new Set();
 for (const [qid] of candidates.artists) {
     const detail = people.get(qid);
     if (!detail || !detail.t || !nameOf(detail) || NOT_ARTISTS.has(qid) || !(detail.type || []).includes(HUMAN) || !isArtist(detail)) continue;
+    // Ilustrátor, karikaturista či autor komiksů bez malířství a sochařství patří do vlastního okruhu
+    if (/(?<!\p{L})(ilustrátor|karikaturist|komiks)/iu.test(detail.d || '') && !/(?<!\p{L})(malíř|sochař|výtvarn|grafi[kč]|rytec)/iu.test(detail.d || '')) continue;
     const { born, died } = lifeYears(detail);
     if (born === undefined) continue;
     artistIds.add(qid);
@@ -499,6 +558,105 @@ for (const [qid] of candidates.artists) {
     const isKnown = (position) => isCzech ? CZECH_KNOWN.includes(item.n) : position < LIMITS.umelci.known && Boolean(item.f.mk || item.f.works);
     if (!add('umelci', item, isCzech, isKnown)) artistIds.delete(qid);
 }
+// Fotografové a ilustrátoři: stejné údaje jako u umělců, obor podle popisu (kdo je hlavně něco jiného, vypadne)
+const PERSON_CATEGORIES = [
+    { category: 'fotografove', list: candidates.photographers, word: /(?<!\p{L})(fotograf|fotoreportér|fotožurnalist)/iu, english: /\bphotograph(er|y)\b/i,
+        roles: [[/fotograf|fotoreportér|fotožurnalist/iu, 'fotograf', 'fotografka']] },
+    { category: 'ilustratori', list: candidates.illustrators, word: /(?<!\p{L})(ilustrátor|karikaturist|kreslíř|komiks|autor kreslených)/iu,
+        english: /\b(illustrator|cartoonist|comics artist|caricaturist)\b/i,
+        roles: [[/karikaturist/iu, 'karikaturista', 'karikaturistka'], [/komiks/iu, 'autor komiksů', 'autorka komiksů'], [/ilustrátor/iu, 'ilustrátor', 'ilustrátorka'],
+            [/kreslíř/iu, 'kreslíř', 'kreslířka']] }
+];
+// Fotograf či ilustrátor musí být hlavně tím: bez jiného povolání v popisu (spisovatel, horolezec, scenárista, politik…) a ilustrátor i bez malíře
+// či sochaře (ti patří mezi umělce); bez českého popisu nejde poznat, kdo to je
+const OTHER_PERSON = /(?<!\p{L})(cestopis|horolez|scenárist|geograf|letec|voják|lékař|reportér a spisovatel|zakladatel|aktivist|bojovník|pilot)/iu;
+const FINE_ARTIST = /(?<!\p{L})(malíř|sochař|výtvarn|grafi[kč]|rytec|umělec|umělkyn)/iu;
+const inPrimaryRole = (detail, { word, category }) => {
+    const text = detail.d || '';
+    if (!text || OTHER_PERSON.test(text)) return false;
+    const own = text.search(word);
+    const other = text.search(OTHER_WORD);
+    return own >= 0 && (other < 0 || own < other) && (category !== 'ilustratori' || !FINE_ARTIST.test(text));
+};
+// Fotografové, kteří do kvízu nepatří (propagandista, obvinění, politik s fotografií v popisu)
+const NOT_PHOTOGRAPHERS = new Set(['Heinrich Hoffmann', 'Terry Richardson', 'Volen Siderov', 'Giovanni Verga', 'Len Deighton', 'Andy Goldsworthy', 'Nicolas Hulot']);
+const NOT_KNOWN_PEOPLE = new Set(['Manuel Rivera-Ortiz', 'Curt O. Schaller', 'Augusto De Luca']);
+const personRole = (detail, { word, roles }) => {
+    const text = detail.d || '';
+    const found = roles.map(([pattern, male, female]) => ({ at: text.search(pattern), male, female })).filter(role => role.at >= 0).sort((a, b) => a.at - b.at)[0] || { male: roles[0][1], female: roles[0][2] };
+    return detail.sex === FEMALE ? found.female : found.male;
+};
+// Nejznámější čeští fotografové a ilustrátoři (ostatní podle počtu jazykových verzí)
+const CZECH_KNOWN_EXTRA = ['Josef Sudek', 'František Drtikol', 'Jan Saudek', 'Josef Koudelka', 'Jaromír Funke', 'Zdeněk Miler', 'Jiří Trnka', 'Ondřej Sekora',
+    'Vladimír Renčín', 'Květa Pacovská', 'Helena Zmatlíková', 'Jiří Šalamoun', 'Hermína Týrlová', 'Vojtěch Preissig', 'Jindřich Štyrský', 'Kája Saudek'];
+const usedPeople = new Set(items.filter(item => item.c === 'umelci').map(item => item.q));
+for (const kind of PERSON_CATEGORIES) {
+    for (const [qid] of kind.list) {
+        const detail = people.get(qid);
+        if (!detail || usedPeople.has(qid) || !detail.t || !nameOf(detail) || NOT_ARTISTS.has(qid) || !(detail.type || []).includes(HUMAN) || !inPrimaryRole(detail, kind) || NOT_PHOTOGRAPHERS.has(nameOf(detail))) continue;
+        const { born, died } = lifeYears(detail);
+        if (born === undefined) continue;
+        const item = {
+            q: qid,
+            t: detail.t,
+            n: nameOf(detail),
+            ty: personRole(detail, kind),
+            d: detail.d,
+            sx: detail.sex === FEMALE ? 'f' : undefined,
+            ...imageFields(detail.im),
+            f: compact({
+                born,
+                died,
+                land: landOf(detail),
+                mov: (detail.mov || []).map(cs).filter(Boolean).slice(0, 2),
+                works: (detail.works || []).map(cs).filter(name => name && name.length <= 40).slice(0, 3),
+                y: born + 35
+            })
+        };
+        const isCzech = isCzechPerson(detail);
+        const isKnown = (position) => isCzech ? CZECH_KNOWN_EXTRA.includes(item.n) : position < LIMITS[kind.category].known && !NOT_KNOWN_PEOPLE.has(item.n);
+        if (add(kind.category, item, isCzech, isKnown)) usedPeople.add(qid);
+    }
+}
+
+// Umělecké směry: vznik a zánik, země a nejznámější představitelé; bez obrázku (ptáme se na popis)
+const movementYear = (values = []) => {
+    const years = values.map(yearOf).filter(year => year !== undefined && year <= THIS_YEAR);
+    return years.length ? Math.min(...years) : undefined;
+};
+const MOVEMENT_KINDS = [[/škola|school/iu, 'umělecká škola'], [/skupina|sdružení|spolek|group|collective/iu, 'umělecká skupina'], [/sloh|styl|style/iu, 'umělecký styl'], [/hnutí|movement/iu, 'umělecké hnutí']];
+for (const [qid] of candidates.movements) {
+    const detail = movementDetails.get(qid);
+    if (!detail || !detail.t || !nameOf(detail)) continue;
+    const from = movementYear(detail.from);
+    const to = movementYear(detail.to);
+    const reps = (detail.reps || []).filter((rep, index, all) => rep.n && all.findIndex(other => other.q === rep.q || other.n === rep.n) === index);
+    const bornYears = reps.map(rep => yearOf(rep.born)).filter(year => year !== undefined).sort((a, b) => a - b);
+    const middle = bornYears.length >= 2 ? bornYears[Math.floor(bornYears.length / 2)] + 30 : undefined;
+    const start = from ?? middle;
+    if (start === undefined) continue;
+    const span = from !== undefined && to !== undefined && to > from && to - from <= 600;
+    const type = (detail.d || '') + ' ' + (detail.en || '');
+    const kind = (MOVEMENT_KINDS.find(([pattern]) => pattern.test(type)) || [null, 'umělecký směr'])[1];
+    const years = span ? `${formatYearText(from)}–${formatYearText(to)}` : from !== undefined ? `od ${formatYearText(from)}` : undefined;
+    // Popis z Wikidat; bez něj jen druh a doba (Fauvismus, Postimpresionismus Wikidata česky nepopisují)
+    const description = detail.d ? detail.d : [kind, years].filter(Boolean).join(', ');
+    const item = {
+        q: qid,
+        t: detail.t,
+        n: nameOf(detail).replace(/ \((umění|výtvarné umění|tendence umění|výtvarná škola|sdružení)\)$/u, ''),
+        ty: kind,
+        d: description,
+        f: compact({
+            from: span || from !== undefined ? from : undefined,
+            to: span ? to : undefined,
+            reps: reps.slice(0, 3).map(rep => rep.n),
+            y: start
+        })
+    };
+    add('smery', item, false, (position) => position < LIMITS.smery.known);
+}
+
 // Autor díla, který se do umělců nevešel, odkaz nemá
 for (const work of workItems) if (work.f.bq && !items.some(item => item.q === work.f.bq)) delete work.f.bq;
 
@@ -506,8 +664,8 @@ for (const work of workItems) if (work.f.bq && !items.some(item => item.q === wo
 const hasMovement = (...keys) => (item) => (item.f.mk || []).some(key => keys.includes(key));
 const BY_YEAR = { by: 'y' };
 const COLLECTIONS = [
-    { id: 'ceske-umeni', label: 'České umění', text: 'Čeští malíři a sochaři a jejich díla', sort: BY_YEAR, test: item => item.cz },
-    { id: 'pravek-starovek', label: 'Pravěk a starověk', text: 'Pravěké venuše a antické sochy', sort: BY_YEAR, test: item => item.c !== 'umelci' && item.f.y < 500 },
+    { id: 'ceske-umeni', label: 'České umění', text: 'Čeští výtvarníci, fotografové a jejich díla', sort: BY_YEAR, test: item => item.cz },
+    { id: 'pravek-starovek', label: 'Pravěk a starověk', text: 'Pravěké venuše a antické sochy', sort: BY_YEAR, test: item => (item.c === 'obrazy' || item.c === 'sochy') && item.f.y < 500 },
     { id: 'gotika', label: 'Gotika', sort: BY_YEAR, test: hasMovement('gotika') },
     { id: 'renesance', label: 'Renesance', text: 'I manýrismus', sort: BY_YEAR, test: hasMovement('renesance', 'manyrismus') },
     { id: 'baroko', label: 'Baroko a rokoko', sort: BY_YEAR, test: hasMovement('baroko', 'rokoko') },
@@ -518,7 +676,7 @@ const COLLECTIONS = [
     { id: 'moderni-umeni', label: 'Moderní umění', text: 'Expresionismus, kubismus, surrealismus, abstrakce, pop-art', sort: BY_YEAR,
         test: hasMovement('expresionismus', 'kubismus', 'avantgarda', 'surrealismus', 'abstrakce', 'popart') },
     { id: 'nizozemsti-mistri', label: 'Nizozemští a vlámští mistři', sort: BY_YEAR, test: item => ['Nizozemsko', 'Flandry', 'Belgie'].includes(item.f.land) && item.f.y < 1750 },
-    { id: 'malirky-a-socharky', label: 'Malířky a sochařky', sort: BY_YEAR, test: item => item.sx === 'f' },
+    { id: 'malirky-a-socharky', label: 'Umělkyně', sort: BY_YEAR, test: item => item.sx === 'f' },
     ...Object.entries(MUSEUMS).map(([key, museum]) => ({ id: key, label: museum.label, text: 'Díla ve sbírce', sort: BY_YEAR, test: item => item.museum === key }))
 ];
 for (const item of items) {
@@ -542,4 +700,9 @@ for (const category of Object.keys(LIMITS)) {
 }
 for (const collection of collections) console.log(`okruh ${collection.label}: ${sizeOf(collection)}`);
 
+// Popisy, které by prozradily odpověď (Manneken Pis = „chlapeček“, Kubištův Svatý Šebestián = „kubistický“ ~ Kubišta)
+for (const item of items) {
+    if (item.n === 'Manneken Pis') item.d = 'bronzová socha močící postavy v Bruselu';
+    if (item.n === 'Svatý Šebestián' && /Kubišt/u.test(item.f.by || '')) item.d = 'obraz Bohumila Kubišty z roku 1912';
+}
 writeTopic('umeni', { collections, items });

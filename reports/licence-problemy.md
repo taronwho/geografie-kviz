@@ -7,7 +7,7 @@ vyžadují jen uvedení autora a licence – to dělá stránka Zdroje a licence
 
 ## Souhrn
 
-- souborů celkem: **18298**, s načtenými metadaty: **18298**, zatím nestaženo: **0**
+- souborů celkem: **19160**, s načtenými metadaty: **19160**, zatím nestaženo: **0**
 - problémových: **6**
   - bez uvedené licence: 2
   - soubor na Commons neexistuje: 4
@@ -24,10 +24,10 @@ vyžadují jen uvedení autora a licence – to dělá stránka Zdroje a licence
 | geologie | 234 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | historie | 2890 | 2 | 0 | 0 | 0 | 0 | 0 | 2 |
 | hudba | 1075 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| literatura | 994 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| literatura | 1304 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | mytologie | 471 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | sport | 1080 | 1 | 0 | 0 | 0 | 0 | 0 | 1 |
-| umeni | 905 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| umeni | 1476 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | vlajky | 462 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | zemepis | 4431 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 

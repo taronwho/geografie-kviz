@@ -22,7 +22,7 @@ Základní otázka je „Co je to?“ podle kategorie (Který prvek to je?, Kdo 
 | Vlajky a znaky | Vlajka či znak jsou vidět hned: Čí je to vlajka? Čí je to znak? (státy, české kraje a města, organizace) |
 | Mytologie | Jak se jmenuje v římské/řecké mytologii? Ze které mytologie je? |
 | Geologie | Nerost či hornina jsou vidět hned: Jakou má tvrdost podle Mohse? Jaký má vzorec? Do které skupiny hornin patří? Které je to období? |
-| Výtvarné umění | Obraz či socha jsou vidět hned: Co je to za obraz? Kdo to namaloval? Ke kterému směru patří? |
+| Výtvarné umění | Obraz či socha jsou vidět hned: Co je to za obraz? Kdo to namaloval? Ke kterému směru patří? Dále umělci, fotografové, ilustrátoři a umělecké směry |
 | Architektura | Stavba je vidět hned: Jaký je to sloh? Kdo ji navrhl? |
 | Hudba | Kdo to složil? Do kterého hudebního období patří? |
 | Literatura | Kdo to napsal? Kdo tuto postavu vymyslel? Ve kterém století žil či dílo vzniklo? |
