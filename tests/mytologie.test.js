@@ -45,11 +45,19 @@ test('mytologie: známé položky, kategorie, česká stopa a okruhy', () => {
     assert.ok(inCollection('egyptsti-bohove').includes('Anubis'));
     assert.ok(inCollection('recti-hrdinove').includes('Héraklés') && inCollection('trojska-valka').includes('Hektór'));
     assert.ok(inCollection('recke-bytosti').includes('Pegas') && inCollection('slovanske-bytosti').includes('Vodník'));
-    assert.ok(data.collections.length >= 8 && data.collections.length <= 20);
+    assert.ok(data.collections.length >= 8 && data.collections.length <= 30);
     // Egyptští bohové pod známými jmény, Usir a Eset jako další psané odpovědi
     assert.ok(find('Osiris').al.includes('Usir') && find('Isis').al.includes('Eset'));
-    // Šárka má na Wikipedii jen článek o jménu – v tématu není; ani místa a předměty
-    assert.ok(!data.items.some(item => ['Šárka', 'Yggdrasil', 'Midgard', 'Mjöllnir', 'Lucifer', 'Romulus a Remus'].includes(item.n)));
+    // Šárka má na Wikipedii jen článek o jménu – v tématu není
+    assert.ok(!data.items.some(item => ['Šárka', 'Lucifer', 'Nymfy', 'Semiramis'].includes(item.n)));
+    // Další mytologie a bájná místa a předměty mají vlastní kategorie
+    const newer = { indicka: ['Šiva', 'Ganéša', 'Kálí'], keltska: ['Lugh', 'Merlin'], vychod: ['Amaterasu', 'Nefritový císař'], orient: ['Marduk', 'Inanna', 'Gilgameš'],
+        amerika: ['Quetzalcoatl', 'Tlaloc'], predmety: ['Atlantida', 'Excalibur', 'Yggdrasil', 'Valhalla'], bytosti: ['Michael', 'Satan', 'Banshee', 'Kappa'] };
+    for (const [category, names] of Object.entries(newer)) for (const name of names) assert.equal(find(name)?.c, category, `${name}: kategorie`);
+    for (const name of ['Šiva', 'Višnu', 'Amaterasu', 'Quetzalcoatl', 'Atlantida']) assert.equal(find(name).k, 1, `${name} je známý`);
+    assert.equal(find('Marduk').f.myk, 'mezopotamska');
+    assert.equal(find('Merlin').f.myk, undefined);
+    assert.ok(inCollection('indicti-bohove').includes('Šiva') && inCollection('bajna-mista').includes('Excalibur') && inCollection('andele-a-demoni').includes('Gabriel'));
 });
 
 test('mytologie: data bez rozporů – jedinečná jména a další názvy, opravené pohlaví', () => {

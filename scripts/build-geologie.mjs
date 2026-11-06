@@ -7,6 +7,7 @@
 // níže z mineralogických a geologických příruček.
 import { createRequire } from 'node:module';
 import { qlever, id, values, imageFields, compact, cached, inBatches, writeTopic } from './lib/wikidata.mjs';
+import { FORMS, FORM_GROUPS, KNOWN_FORMS, FOSSILS, KNOWN_FOSSILS, MORE_ROCKS, MORE_PERIODS, MORE_CONFLICTS } from './lib/geologie-sources.mjs';
 
 // Vzorec se ověří stejně, jako ho pak porovná aplikace
 const { formulaCounts, isRealPhoto } = createRequire(import.meta.url)('../quiz-core.js');
@@ -117,6 +118,8 @@ const ROCKS = {
     'Greisen': ['sporna', 'křemen, slídy, topaz', 'vzniká působením horkých roztoků na žulu'],
     'Kontaktní rohovec': ['premenena', 'jemnozrnný křemen, slídy, živce', 'tvrdá a celistvá; vzniká z jílovců vedle tělesa žuly']
 };
+// Další horniny z lib/geologie-sources.mjs
+Object.assign(ROCKS, MORE_ROCKS);
 const GROUP_LABELS = { hlubinna: 'hlubinná vyvřelina', vylevna: 'výlevná vyvřelina', zilna: 'žilná vyvřelina', usazena: 'usazená hornina', premenena: 'přeměněná hornina' };
 // Kámen ze staveb a soch, k čemu se hornina používá
 const ROCK_USES = {
@@ -244,7 +247,8 @@ const KNOWN = new Set(['Křemen', 'Kalcit', 'Sádrovec', 'Halit', 'Mastek', 'Gra
 // Názvy, které nejsou nerostem pro kvíz: skupiny nerostů (slída, živce – na fotce by šlo i o muskovit či ortoklas), odrůdy
 // (selenit = sádrovec), slavné diamanty, směsi a syntetické látky; forsterit a lazurit by se pletly s olivínem a lapis lazuli
 const NOT_MINERALS = /^(drahokam|polodrahokam|křemičitany|karbonáty|fylosilikát|prvek|horninotvorný minerál|jílové minerály|azbest|slída|živce|amfibol|pyroxeny|zeolit|plagioklas|draselný živec|alkalický živec|mafity|foidy|sericit|smektit|koh-i-noor|hope|cullinan|orlov|darya-i-noor|lesedi la rona|krvavý diamant|syntetický diamant|briliant|kryptonit|adnr|himálajská sůl|islandský kalcit|selenit|gema|arcikam|spinelid|ametrín|morion|prasiolit|sardonyx|heliotrop|bixbit|tsavorit|rhodolit|kočičí oko|skupina .*|černobylit|elektrum|osmiridium|yttrito-hlinitý granát|lonsdaleit|tranquillityit|greigit|cohenit|forsterit|lazurit|monazit|organolity|český granát|adulár|illit|abelsonit|urea|acetamid|elbait|skoryl|dravit|tetraboritan sodný)$/i;
-const SITELINKS_MIN = 24;
+// Nerosty od 16 jazykových verzí (dřív 24); jen s fotkou a se vzorcem nebo tvrdostí, k=1 jen podle seznamu KNOWN
+const SITELINKS_MIN = 16;
 
 // --- Geologická období (mil. let; Mezinárodní chronostratigrafická tabulka) ---
 // level: eon, éra, perioda, epocha; parent = nadřazená jednotka; life = co se tehdy dělo se životem
@@ -270,6 +274,7 @@ const PERIODS = [
     { title: 'Pleistocén', name: 'Pleistocén', level: 'epocha', parent: 'Čtvrtohory', from: 2.58, to: 0.0117, life: 'doby ledové, mamuti, neandrtálci a moderní člověk' },
     { title: 'Holocén', name: 'Holocén', level: 'epocha', parent: 'Čtvrtohory', from: 0.0117, to: 0, life: 'současnost po poslední době ledové: zemědělství, města' }
 ];
+for (const [title, name, level, parent, from, to, life] of MORE_PERIODS) PERIODS.push({ title, name, level, ...(parent ? { parent } : {}), from, to, ...(life ? { life } : {}) });
 const KNOWN_PERIODS = new Set(['Prvohory', 'Druhohory', 'Třetihory', 'Čtvrtohory', 'Kambrium', 'Karbon', 'Trias', 'Jura', 'Křída']);
 // Položky, které se podle štítku najdou špatně (Svor = obec, Devon = rozcestník, Křída = perioda i hornina – hornina vypadne)
 const QID_OVERRIDES = { 'svor': 'Q3856092', 'období:Devon (geologie)': 'Q65955' };
@@ -291,7 +296,7 @@ const FORMULAS = {
 const ORTHOCLASE = { q: 'Q3811879', image: 'http://commons.wikimedia.org/wiki/Special:FilePath/OrthoclaseBresil.jpg', strunz: ['9.FA.30'], sys: 'jednoklonná', dens: 2.6 };
 // Nerosty, které by na fotce mohly být jedno i druhé (ortoklas, mikroklin i sanidin jsou draselné živce)
 const CONFLICTS = [...GEM_CONFLICTS, ['Ortoklas', 'Mikroklin'], ['Ortoklas', 'Sanidin'], ['Mikroklin', 'Sanidin'], ['Pyrit', 'Markazit'],
-    ['Hematit', 'Limonit'], ['Limonit', 'Goethit'], ['Anatas', 'Brookit']];
+    ['Hematit', 'Limonit'], ['Limonit', 'Goethit'], ['Anatas', 'Brookit'], ...MORE_CONFLICTS];
 const conflictsOf = (name) => CONFLICTS.filter(pair => pair.includes(name)).map(pair => pair.find(other => other !== name));
 // Zápisy s prázdnou pozicí (☐), rozpětím (1.3-2.0) nebo složenými závorkami by hráči nic neřekly – takový vzorec vynecháme
 const cleanFormula = (formula) => {
@@ -385,6 +390,17 @@ Object.assign(details.get(ORTHOCLASE.q), { im: ORTHOCLASE.image, strunz: ORTHOCL
 const mineralTitles = new Map([...mineralCandidates.map(([q]) => q), ...extraMinerals.values()].filter(q => details.has(q) && details.get(q).t)
     .map(q => [displayTitle(details.get(q).t), q]));
 const mineralQid = (name) => extraMinerals.get(name) || mineralTitles.get(name) || qidOf(name);
+
+// Útvary, jevy a zkameněliny (lib/geologie-sources.mjs) podle názvu článku
+const extraTitles = [...Object.keys(FORMS), ...Object.keys(FOSSILS)];
+const extraByTitle = new Map(await cached('geologie-by-title2', async () => {
+    const result = [];
+    await inBatches(extraTitles, 100, (list) => `SELECT ?x ?l WHERE { VALUES ?l { ${list.map(name => `"${name}"@cs`).join(' ')} }
+  ?a schema:name ?l . ?a schema:isPartOf <https://cs.wikipedia.org/> . ?a schema:about ?x }`, (row) => result.push([row.l.value, id(row.x.value)]), qlever);
+    return result;
+}));
+const missingExtra = [...extraByTitle.values()].filter(q => !details.has(q));
+for (const [q, detail] of await cached('geologie-details-extra2', async () => [...await fetchDetails(missingExtra)])) details.set(q, detail);
 
 // --- 3. krok: vlastnosti nerostů (krystalová soustava, hustota) ---
 const mineralIds = [...new Set([...candidateIds, ...czechNamedIds, ...MUST_MINERALS.map(mineralQid), ...Object.keys(GEMS).map(qidOf)].filter(q => q && isQid(q)))];
@@ -504,7 +520,7 @@ for (const [name, [group, composition, origin]] of Object.entries(ROCKS)) {
     const photo = photoOf(image).im ? photoOf(image) : /\.png$/i.test(fileOf(image.im)) ? imageFields(image.im) : {};
     // Bez fotky jen česká hornina (opuka), ostatní by bez obrázku nedávaly smysl
     if (!photo.im && !CZECH_LOCALITIES[name]) { console.log(`  hornina bez fotky ${name}`); continue; }
-    const f = compact({ grp: group, comp: composition, orig: origin, use: ROCK_USES[name], czl: CZECH_LOCALITIES[name], al: ALIASES[name] });
+    const f = compact({ grp: group, comp: composition, orig: origin, use: ROCK_USES[name], czl: CZECH_LOCALITIES[name], al: ALIASES[name], cf: conflictsOf(name) });
     add(compact({ q, t: detail.t, n: name, c: 'horniny', k: KNOWN.has(name) ? 1 : 0, d: descriptionOf(detail), cz: f.czl ? 1 : undefined, ...photo, f }));
 }
 
@@ -520,6 +536,26 @@ for (const period of PERIODS) {
     // Fotka jen skutečná (trilobit u prvohor), ne mapa ani dnešní glóbus
     const photo = !isPaleoMap && !/Mollweide/i.test(file) ? photoOf(detail) : {};
     add(compact({ q, t: detail.t, n: period.name, c: 'obdobi', k: KNOWN_PERIODS.has(period.name) ? 1 : 0, d: /rozcestník/.test(detail.d || '') ? undefined : detail.d, ...photo, f }));
+}
+
+// Geologické útvary a jevy (fotka je podstata otázky – bez skutečné fotky se vynechají)
+for (const [title, [group, example]] of Object.entries(FORMS)) {
+    const q = extraByTitle.get(title);
+    const detail = details.get(q);
+    if (!detail || !detail.t || /rozcestník/.test(detail.d || '')) { console.log(`  vynechán útvar ${title}`); continue; }
+    const photo = photoOf(detail);
+    if (!photo.im) { console.log(`  útvar bez fotky ${title}`); continue; }
+    add(compact({ q, t: detail.t, n: displayTitle(title), c: 'utvary', k: KNOWN_FORMS.has(title) ? 1 : 0, d: descriptionOf(detail), ...photo, f: compact({ grp: group, ex: example, cf: conflictsOf(displayTitle(title)) }) }));
+}
+
+// Zkameněliny a vyhynulé organismy bez obratlovců (ti jsou v tématu Biologie)
+for (const [title, [group, period, note]] of Object.entries(FOSSILS)) {
+    const q = extraByTitle.get(title);
+    const detail = details.get(q);
+    if (!detail || !detail.t || /rozcestník/.test(detail.d || '')) { console.log(`  vynechána zkamenělina ${title}`); continue; }
+    const photo = photoOf(detail);
+    if (!photo.im) { console.log(`  zkamenělina bez fotky ${title}`); continue; }
+    add(compact({ q, t: detail.t, n: displayTitle(title), c: 'zkameneliny', k: KNOWN_FOSSILS.has(title) ? 1 : 0, d: descriptionOf(detail), ...photo, f: compact({ grp: group, per: period, note, cf: conflictsOf(displayTitle(title)) }) }));
 }
 
 // --- Okruhy ---
@@ -538,6 +574,19 @@ const COLLECTIONS = [
     { id: 'usazene', label: 'Usazené horniny', test: item => ROCK_GROUPS.usazene.includes(item.f.grp) },
     { id: 'premenene', label: 'Přeměněné horniny', test: item => ROCK_GROUPS.premenene.includes(item.f.grp) },
     { id: 'stavebni-kamen', label: 'Stavební a sochařský kámen', test: item => item.c === 'horniny' && BUILDING_STONES.has(item.n) },
+    { id: 'epochy', label: 'Epochy třetihor a čtvrtohor', text: 'Paleocén, eocén, miocén, pleistocén…', test: item => item.c === 'obdobi' && item.f.lvl === 'epocha' },
+    { id: 'veky', label: 'Věky druhohor', text: 'Cenoman, turon, bajok, tithon…', test: item => item.c === 'obdobi' && item.f.lvl === 'věk' },
+    { id: 'sopecne-utvary', label: 'Sopečné útvary a jevy', text: 'Kaldera, maar, gejzír, lahar…', test: item => item.c === 'utvary' && item.f.grp === 'sopecne' },
+    { id: 'ledovcove-utvary', label: 'Ledovce a jejich stopy', text: 'Fjord, kar, moréna, drumlin…', test: item => item.c === 'utvary' && item.f.grp === 'ledovcove' },
+    { id: 'rdecni-utvary', label: 'Řeky, moře a pobřeží', text: 'Kaňon, meandr, delta, laguna…', test: item => item.c === 'utvary' && item.f.grp === 'vodni' },
+    { id: 'pousteni-utvary', label: 'Poušť a skalní útvary', test: item => item.c === 'utvary' && item.f.grp === 'pousteni' },
+    { id: 'krasove-utvary', label: 'Kras a jeskyně', text: 'Stalaktit, stalagmit, závrt, polje…', test: item => item.c === 'utvary' && item.f.grp === 'krasove' },
+    { id: 'tektonika', label: 'Tektonika a stavba Země', text: 'Zlom, subdukce, rift, kraton…', test: item => item.c === 'utvary' && item.f.grp === 'tektonicke' },
+    { id: 'telesa', label: 'Horninová tělesa', text: 'Batolit, lakolit, žíla, geoda…', test: item => item.c === 'utvary' && item.f.grp === 'magmaticke' },
+    { id: 'impakty', label: 'Dopady těles a meteority', text: 'Impaktní kráter, meteorit, chondrit…', test: item => item.c === 'utvary' && item.f.grp === 'impaktni' },
+    { id: 'prvohorni-zivot', label: 'Život prvohor', text: 'Trilobiti, graptoliti, lepidodendron…', test: item => item.c === 'zkameneliny' && /kambrium|ordovik|silur|devon|karbon|perm/.test(item.f.per) },
+    { id: 'zacatky-zivota', label: 'Počátky života', text: 'Stromatolity, ediakarská fauna, kambrická explozivní fauna', test: item => item.c === 'zkameneliny' && /ediakara|archaik|kambrium$/.test(item.f.per) || item.n === 'Stromatolit' },
+    { id: 'rostlinne-zkameneliny', label: 'Zkamenělé rostliny', test: item => item.c === 'zkameneliny' && item.f.grp === 'rostliny' },
     ...CLASS_COLLECTIONS.map(([collectionId, label, cls, text]) => ({ id: collectionId, label, ...(text ? { text } : {}),
         test: item => item.c === 'nerosty' && item.f.cls === cls }))
 ];
@@ -547,7 +596,7 @@ for (const item of items) {
 }
 
 // Pořadí: známé napřed, pak podle kategorie
-const order = { kameny: 0, nerosty: 1, horniny: 2, obdobi: 3 };
+const order = { kameny: 0, nerosty: 1, horniny: 2, obdobi: 3, utvary: 4, zkameneliny: 5 };
 items.sort((a, b) => b.k - a.k || order[a.c] - order[b.c]);
 const collections = COLLECTIONS.map(({ test, ...collection }) => collection);
 for (const category of Object.keys(order)) {

@@ -175,7 +175,7 @@ test('geologie: nesprávné možnosti, psané odpovědi a okruhy', () => {
     assert.ok(accepts('Pyrop', 'český granát') && accepts('Druhohory', 'mezozoikum') && accepts('Ortoklas', 'draselný živec'));
     assert.ok(!accepts('Kalcit', 'aragonit'));
     // Okruhy
-    assert.ok(data.collections.length >= 8 && data.collections.length <= 20);
+    assert.ok(data.collections.length >= 8 && data.collections.length <= 40);
     assert.ok(inCollection('cesko').includes('Vltavín') && inCollection('cesko').includes('Opuka') && !inCollection('cesko').includes('Diamant'));
     assert.ok(inCollection('rudy').includes('Galenit') && inCollection('rudy').includes('Kasiterit') && !inCollection('rudy').includes('Křemen'));
     assert.ok(inCollection('vyvrele').includes('Čedič') && inCollection('usazene').includes('Pískovec') && inCollection('premenene').includes('Rula'));
@@ -183,4 +183,25 @@ test('geologie: nesprávné možnosti, psané odpovědi a okruhy', () => {
     assert.equal(geologie.subtitle(find('Ametyst'), ctx), 'odrůda křemene · SiO₂');
     assert.equal(geologie.subtitle(find('Pyrit'), ctx), 'sulfidy · FeS₂');
     assert.equal(geologie.subtitle(find('Žula'), ctx), 'hlubinná vyvřelina');
+});
+
+test('geologie: útvary a jevy, zkameněliny, epochy a věky', () => {
+    for (const name of ['Fjord', 'Gejzír', 'Stalaktit', 'Moréna', 'Impaktní kráter']) assert.equal(find(name).c, 'utvary', name);
+    for (const name of ['Trilobiti', 'Amoniti', 'Belemniti', 'Lepidodendron']) assert.equal(find(name).c, 'zkameneliny', name);
+    for (const name of ['Miocén', 'Cenoman', 'Ediakara']) assert.equal(find(name).c, 'obdobi', name);
+    for (const name of ['Fjord', 'Trilobiti', 'Amoniti']) assert.equal(find(name).k, 1, `${name} je známý`);
+    for (const item of data.items.filter(other => ['utvary', 'zkameneliny'].includes(other.c))) {
+        assert.ok(item.im && item.ih, `${item.n}: fotka je podstata otázky`);
+        assert.ok(item.f.grp, `${item.n}: skupina`);
+        const facts = geologie.facts(item, ctx, 'name');
+        assert.ok(facts.length >= 1, `${item.n}: fakta`);
+        // Nápověda název neprozradí
+        for (const fact of facts) assert.ok(!core.censorName(fact.value, item.n).includes('[***]'), `${item.n}: ${fact.value}`);
+    }
+    // K moréně jiné ledovcové útvary
+    for (const options of wrongOptions('Moréna')) assert.ok(options.filter(name => find(name).f.grp === 'ledovcove').length >= 2, options.join(', '));
+    assert.ok(inCollection('ledovcove-utvary').includes('Fjord') && inCollection('prvohorni-zivot').includes('Trilobiti'));
+    // Věk křídy leží v křídě
+    assert.equal(find('Cenoman').f.par, 'Křída');
+    assert.ok(find('Cenoman').f.from < find('Křída').f.from && find('Cenoman').f.to >= find('Křída').f.to);
 });
