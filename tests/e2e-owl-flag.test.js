@@ -100,7 +100,7 @@ test('vlajka státu na vlaječce sovy', { skip: !chromium && 'Playwright není n
         assert.deepEqual(options.slice(1), [...options.slice(1)].sort(new Intl.Collator('cs').compare), 'abecedně');
         assert.ok(options.includes('Česko') && options.includes('Japonsko') && options.includes('Brazílie'));
         assert.equal(await tab.locator('#status-icon-slot [data-owl-flag-img]').count(), 0, 'bez vlajky jen modré plátno');
-        assert.equal(await tab.locator('[data-owl-color]').count(), 9, 'bez vlajky jsou barvy plátna');
+        assert.equal(await tab.locator('[data-owl-color]').count(), 10, 'bez vlajky jsou barvy plátna');
         assert.equal(await fits(tab), true, 'okno se vejde bez posouvání (vlaječka bez vlajky)');
 
         await tab.selectOption('[data-owl-flag]', 'q127155');
@@ -134,7 +134,7 @@ test('vlajka státu na vlaječce sovy', { skip: !chromium && 'Playwright není n
         await tab.waitForFunction(() => document.querySelector('#status-icon-slot [data-owl-flag-img]')?.getAttribute('src').includes('Flag_of_Japan'));
         await tab.selectOption('[data-owl-flag]', '');
         await tab.waitForFunction(() => !document.querySelector('#status-icon-slot [data-owl-flag-img]'));
-        assert.equal(await tab.locator('[data-owl-color]').count(), 9);
+        assert.equal(await tab.locator('[data-owl-color]').count(), 10);
         assert.equal(await tab.locator('#status-icon-slot [data-owl-layer][src="icons/doplnky/vlajka.webp"]').count(), 1);
         assert.deepEqual(JSON.parse(await tab.evaluate(() => localStorage.getItem('mudrlant.look'))).acc.hand, { id: 'vlajka', color: 'original' });
         assert.ok(wikimedia.length > 0 && wikimedia.every(url => WIKIMEDIA.test(url)), 'jen miniatury z upload.wikimedia.org');
@@ -203,7 +203,7 @@ test('vlajka státu na vlaječce sovy', { skip: !chromium && 'Playwright není n
     await t.test('cizí hráč s vlajkou v profilu: druhý hráč ji vidí u jeho sovy (data-keep), vlajku ostatních doplňků a obleku nepřebarví', async () => {
         const db = { profiles: {
             'u-1': { id: 'u-1', display_name: 'Jana', avatar: '🦊', color: 'emerald', owl: 'robe=zelena;face=bryle.original;hand=vlajka.original.q101472' },
-            'u-2': { id: 'u-2', display_name: 'Petr', avatar: '🐸', color: 'sky', owl: null }
+            'u-2': { id: 'u-2', display_name: 'Petr', avatar: '🐸', color: 'sky', owl: 'robe=modra;hand=vlajka.original.q101472' }
         }, challenges: { ABC234: { id: 'ABC234', topic: 'zemepis', seed: 's', count: 5, creator_id: 'u-1', invited_id: 'u-2', created_at: '2026-11-03T10:00:00Z' } } };
         const backend = async (context) => {
             await context.route('**/config.js', route => route.fulfill({ contentType: 'text/javascript', body: 'window.MUDRLANT_CONFIG = { supabaseUrl: "https://proj.supabase.co", supabaseAnonKey: "anon-key" };' }));
@@ -215,6 +215,9 @@ test('vlajka státu na vlaječce sovy', { skip: !chromium && 'Playwright není n
                 if (request.headers().authorization !== 'Bearer tok-u2') return json({ message: 'no token' }, 401);
                 const eq = (key) => (url.searchParams.get(key) || '').replace(/^eq\./, '');
                 if (url.pathname === '/rest/v1/profiles') return json([db.profiles[eq('id')]].filter(Boolean));
+                if (url.pathname === '/rest/v1/challenges' && url.searchParams.has('id')) {
+                    return json(Object.values(db.challenges).filter(c => c.id === eq('id')).map(c => ({ ...c, creator: db.profiles[c.creator_id], invited: db.profiles[c.invited_id] })));
+                }
                 if (url.pathname === '/rest/v1/challenges' && url.searchParams.has('invited_id')) {
                     return json(Object.values(db.challenges).filter(c => c.invited_id === eq('invited_id')).map(c => ({ ...c, creator: db.profiles[c.creator_id], invited: db.profiles[c.invited_id] })));
                 }
@@ -222,10 +225,11 @@ test('vlajka státu na vlaječce sovy', { skip: !chromium && 'Playwright není n
             });
         };
         const login = { 'mudrlant.auth': JSON.stringify({ access_token: 'tok-u2', refresh_token: 'r', expires_at: 4102444800, user: { id: 'u-2', email: 'x@example.com', name: 'Petr' } }) };
-        const { context, tab, problems } = await open({ backend, extra: { ...login, 'mudrlant.look': JSON.stringify({ robe: 'modra' }) } });
+        const { context, tab, problems } = await open({ backend, extra: { ...login, 'mudrlant.look': JSON.stringify({ robe: 'modra', acc: { hand: { id: 'vlajka', color: 'original', flag: 'q101472' } } }), 'mudrlant.progress': JSON.stringify({ xp: 5000, counters: {}, badges: { 'zbehly-vlajky': '2026-11-01' } }) } });
         await tab.click('[data-action="home-tab"][data-tab="multi"]');
         await tab.waitForSelector('#challenges-section [data-player-id="u-1"] [data-owl-flag-img]');
         await tab.waitForFunction(() => { const image = document.querySelector('#challenges-section [data-player-id="u-1"] [data-owl-flag-img]'); return image && image.complete && image.naturalWidth > 0; });
+        await tab.waitForFunction(() => { const box = document.querySelector('#challenges-section [data-player-id="u-1"] .owl-flag'); return box && getComputedStyle(box).opacity === '1'; });
         const seen = await flagState(tab, '#challenges-section [data-player-id="u-1"]');
         assert.ok(seen.src.includes('Flag_of_Indonesia.svg/120px-Flag_of_Indonesia.svg.png'));
         assert.equal(seen.opacity, '1');
@@ -233,8 +237,24 @@ test('vlajka státu na vlaječce sovy', { skip: !chromium && 'Playwright není n
         assert.equal(await tab.locator('#challenges-section [data-player-id="u-1"] [data-owl-flag-img][data-keep]').count(), 1);
         await tab.waitForTimeout(300);
         assert.equal(await tab.locator('#challenges-section [data-player-id="u-1"] img[data-keep]').first().getAttribute('src'), 'icons/logo-zelena.webp', 'oblek cizí sovy se nepřebarvil');
-        assert.equal(await tab.locator('#status-icon-slot [data-owl-flag-img]').count(), 0, 'můj Mudrlant vlajku nemá');
+        assert.equal(await tab.locator('#status-icon-slot [data-owl-flag-img]').count(), 1, 'můj Mudrlant má vlajku z lokální volby');
         await shot(tab, 'flag-cizi-hrac.png');
+        // Okno výzvy: sova s vlajkou zůstane v kolečku avataru (vrstvy nejsou větší než pár násobků avataru)
+        await tab.click('#challenges-section [data-action="challenge-open"][data-code="ABC234"]');
+        await tab.waitForTimeout(800);
+        await tab.waitForSelector('#dialog-overlay [data-owl-flag-img]');
+        const sizes = await tab.evaluate(() => [...document.querySelectorAll('#dialog-overlay span.rounded-full')].filter(el => el.querySelector('[data-owl-flag-img]')).map(el => {
+            const avatar = el.getBoundingClientRect();
+            const layers = [...el.querySelectorAll('img[data-keep]')].map(img => { const r = img.getBoundingClientRect(); return [Math.round(r.width), Math.round(r.height)]; });
+            return { avatar: [Math.round(avatar.width), Math.round(avatar.height)], layers };
+        }));
+        assert.ok(sizes.length > 0, 'v okně výzvy je avatar s vlajkou');
+        sizes.forEach(item => item.layers.forEach(([w, h]) => assert.ok(w <= item.avatar[0] * 3 && h <= item.avatar[1] * 3, `vrstva ${w}×${h} je mnohem větší než avatar ${item.avatar}`)));
+        // Všechny vrstvy sovy s vlajkou jsou uvnitř jejího obalu (kontejner vlajky nesmí rozbít HTML odstavce: dřív se vrstvy rozpadly a vlajka byla přes celé okno)
+        const stray = await tab.evaluate(() => [...document.querySelectorAll('#dialog-overlay img[src*="vlajka"], #dialog-overlay .owl-flag')].filter(node => !node.closest('span.relative.inline-flex')).length);
+        assert.equal(stray, 0, 'vrstvy vlajky mimo obal sovy');
+        const big = await tab.evaluate(() => [...document.querySelectorAll('#dialog-overlay .owl-flag, #dialog-overlay img[src*="vlajka"]')].filter(node => node.getBoundingClientRect().width > 150).length);
+        assert.equal(big, 0, 'žádná vrstva vlajky není obří');
         assert.deepEqual(problems, []);
         await context.close();
     });
