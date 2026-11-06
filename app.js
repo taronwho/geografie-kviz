@@ -825,7 +825,8 @@
             // Zastaralou databázi umí opravit jen správce, proto se hlásí jen jemu (běžný hráč s tím nic nenadělá)
             const admin = devOn() || await Social.isDevAdmin();
             if (!admin || !signedUser() || signedUser().id !== user.id) return;
-            if (readJson(SCHEMA_SEEN_KEY) !== getDayKey()) { writeJson(SCHEMA_SEEN_KEY, getDayKey()); showSchemaNotice('database'); }
+            // Ve vývojářském režimu stačí návod v Nastavení, plovoucí hláška by zakrývala tlačítka v hlavičce
+            if (!devOn() && readJson(SCHEMA_SEEN_KEY) !== getDayKey()) { writeJson(SCHEMA_SEEN_KEY, getDayKey()); showSchemaNotice('database'); }
             schemaOutdated = { have, need: REQUIRED_SCHEMA };
             if (document.getElementById('settings-overlay') && !document.getElementById('schema-banner')) openSettings(meNote);
         } catch (error) { /* bez spojení se nic neukazuje */ }
