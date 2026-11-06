@@ -297,6 +297,9 @@
         },
         categories: CATEGORIES,
 
+        // Bitvy se řadí podle státu, kde se odehrály (osoby podle země, ze které pocházejí)
+        culture: (item, ctx) => item.c === 'bitva' ? core.getCountryNames(item, (ctx && ctx.countries) || {}).slice(0, 3) : undefined,
+
         // Nesprávné možnosti: stejné pohlaví a podobná doba, stejné dějiny (anglický král k anglickým), rod, válka
         similarity: (item, other) => {
             const f = item.f || {};

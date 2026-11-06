@@ -60,7 +60,7 @@ Statická stránka bez serveru a bez build kroku. Nasazuje se na **GitHub Pages*
 
 Aplikace o tématech nic neví – všechno potřebné popisuje soubor tématu. Nové téma (třeba Umění) potřebuje:
 
-1. `topics/umeni.js` – stejný tvar jako ostatní témata: `id`, `title`, `icon`, `color`, `dataFile`, `words`, `categories` a funkce `facts`, `subtitle`, volitelně `visual`, `specialQuestion`, `censor`, `groupOf`, `nameAliases`, `isCzech`;
+1. `topics/umeni.js` – stejný tvar jako ostatní témata: `id`, `title`, `icon`, `color`, `dataFile`, `words`, `categories` a funkce `facts`, `subtitle`, volitelně `visual`, `specialQuestion`, `censor`, `keepWords`, `culture`, `groupOf`, `nameAliases`, `isCzech`;
 2. `scripts/build-umeni.mjs` – sestaví `data/umeni.json` (položky `{ q, t, n, c, k, d, im, ih, f, g }` a okruhy `{ id, label, text, sort }`); pomocníci pro Wikidata jsou ve `scripts/lib/wikidata.mjs`;
 3. řádek `<script src="topics/umeni.js" defer></script>` v `index.html` a oba soubory v `APP_SHELL` v `sw.js`.
 
@@ -73,11 +73,24 @@ Jádro a aplikace je uplatní samy, téma pro ně nemusí nic dělat:
 - **Nápověda neopakuje popis.** Fakt, který už je v zadání nebo popisu, se z nápovědy vynechá – i v jiném tvaru
   (Tolkien × „J. R. R. Tolkiena“, Čína × „čínský malíř“, Délka 47 km × „je dlouhá 47 km“). Kontroluje se stejným
   strojem, který zakrývá název (`isFactVisible` v `quiz-core.js`).
-- **Nesprávné možnosti ze stejné kultury.** Položka se zemí (`f.land`) dostane možnosti ze stejné kulturní oblasti
-  (Západ, východní / jižní / jihovýchodní / střední Asie, Blízký východ, Afrika); historické státy se převedou na dnešní
-  (`MODERN_LAND`). K Číňanovi tak nejsou nabízeni Nizozemci. Platí v `buildItemChoices`; vlastní žebříčky tématu
-  (autoři, režiséři) přičtou `core.cultureScore(odpověď, kandidát)`. Druh položky (tenista, malířka) je u otázky vidět,
-  proto má ve výběru přednost.
+- **Odpověď se v textu neprozradí v žádném tvaru.** Po zakrytí názvu (téma může zakrývat po svém) projde popis, další věty
+  úvodu i fakta v nápovědách ještě jednou společnou funkcí `maskLeaks` (`quiz-core.js`), která zakryje každé slovo podobné
+  slovu odpovědi: skloněné krátké příjmení (Poe → Poea, Poeovi), přepisy a diakritiku (Beneš = Beneș = Benesch,
+  Müller = Mueller), další tvary jména za „rodným jménem“ či „německy“ a jména velkým písmenem vedle zakryté části
+  (Karl [***] Böhnich). Odpovědí je to, na co se otázka ptá (`answerNamesFor`): u „Kdo to napsal?“ autor, ne dílo.
+  Téma může slova, která mají zůstat vidět, vyjmenovat ve volitelné funkci `keepWords`. Popis, který je po zakrytí skoro
+  samá mezera, se zahodí a otázku nesou ostatní nápovědy. Test `tests/answer-leak.test.js` hlídá, že na skutečných datech
+  všech témat (vzorek úvodů v `tests/wiki-intros.json`) v textu nezůstane žádné slovo odpovědi.
+- **Nesprávné možnosti jsou co nejpodobnější správné.** `buildItemChoices` skóruje kandidáty ze stejné kategorie: stejný
+  druh (štítek u otázky) a podobnost, kterou určuje téma (doba, žánr, třída, skupina prvků…), a hlavně **kultura jmen**.
+  Země osoby či díla (`f.land`, jinak česká stopa, jinak národnost z popisu; historické státy se převedou na dnešní,
+  `landsOf`) určí vzdálenost: stejný stát (+10) → stejná skupina (Italové, jiné románské jazyky; Japonci, Korejci, Číňané)
+  (+5) → stejná oblast (+1) → sousední oblast (−3) → jiná (−8). Když stejné země není dost, podobnost klesá postupně
+  (k jedinému japonskému režiséru Korejci a Číňané, ne Švédové), takže správná odpověď není jediná „typová“. K tomu drobný
+  los (`CHOICE_JITTER`), ať se možnosti u téže položky střídají. Téma může zemi určit jinak nebo kulturu vypnout funkcí
+  `culture(item, ctx)` (bitvy a stavby podle státu, místa a vlajky podle vzdálenosti). Vlastní žebříčky tématu (autoři,
+  režiséři) přičtou `core.cultureScore(odpověď, kandidát)`. Test `tests/distractors.test.js` měří na skutečných datech podíl
+  možností ze stejné země a doby.
 - **Fotka s napsanou odpovědí** (jméno na dresu, název na plakátu či cedulce) se jako nápověda nenabídne. Najde ji OCR:
   `npm run audit:photo-text` (potřebuje `tesseract`) přečte fotky všech témat a zapíše `data/photo-text.json`;
   přečtené texty si pamatuje v `.cache/ocr`, takže po přidání tématu čte jen nové fotky. Po přidání tématu nebo
