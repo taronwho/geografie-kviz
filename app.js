@@ -17,6 +17,8 @@
     const Visuals = window.MudrlantVisuals;
     // Opakování karet (review.js) a týdenní cíle (goals.js); bez skriptu se jen nezobrazí
     const Review = window.MudrlantReview || null;
+    // Tipy od Mudrlanta (tips.js): žárovka u sovy, když má hráč na co upozornit; bez skriptu se jen nezobrazí
+    const Tips = window.MudrlantTips || null;
     const Goals = window.MudrlantGoals || null;
     const TOPICS = window.MudrlantTopics || [];
     const TOPIC_BY_ID = Object.fromEntries(TOPICS.map(topic => [topic.id, topic]));
@@ -37,6 +39,7 @@
         // Karty opakování s rozestupy a stav týdenních cílů – jen v zařízení, do účtu se nesynchronizují
         review: 'mudrlant.review',
         reviewOn: 'mudrlant.reviewOn',
+        tips: 'mudrlant.tips',
         goals: 'mudrlant.goals',
         // 'host' = hráč na úvodu zvolil hraní bez přihlášení, úvod s přihlášením se už neukáže
         account: 'mudrlant.account'
@@ -838,7 +841,7 @@
     const renderDevPanel = () => !devOn() ? '' : `
         <div class="mt-3 rounded-2xl border-2 border-dashed border-amber-400/70 p-2.5">
             <p class="mb-1.5 flex items-center justify-between text-[11px] font-black uppercase tracking-widest text-amber-700 dark:text-amber-400"><span>Vývojářský režim</span><span class="font-bold normal-case tracking-normal">${devActive() ? 'zkušební postup' : 'tvůj postup'}</span></p>
-            <div class="flex flex-wrap gap-1">${[['max', 'Vše (úr. 100)'], ['level:10', 'Úr. 10'], ['level:25', 'Úr. 25'], ['level:50', 'Úr. 50'], ['level:75', 'Úr. 75'], ['badges', 'Všechny odznaky'], ['nobadges', 'Žádné odznaky'], ['nostars', 'Vymazat hvězdičky'], ['bulb', 'Vrátit žárovku']].map(([kind, label]) => `<button type="button" data-dev="${kind}" class="rounded-lg bg-slate-200 px-2 py-1 text-[11px] font-bold text-slate-700 active:scale-95 dark:bg-slate-700 dark:text-slate-200">${label}</button>`).join('')}${devActive() ? '<button type="button" data-dev="restore" class="rounded-lg bg-amber-500 px-2 py-1 text-[11px] font-black text-white active:scale-95">Vrátit můj postup</button>' : ''}</div>
+            <div class="flex flex-wrap gap-1">${[['max', 'Vše (úr. 100)'], ['level:10', 'Úr. 10'], ['level:25', 'Úr. 25'], ['level:50', 'Úr. 50'], ['level:75', 'Úr. 75'], ['badges', 'Všechny odznaky'], ['nobadges', 'Žádné odznaky'], ['nostars', 'Vymazat hvězdičky'], ['bulb', 'Vrátit žárovku'], ['tips', 'Obnovit tipy']].map(([kind, label]) => `<button type="button" data-dev="${kind}" class="rounded-lg bg-slate-200 px-2 py-1 text-[11px] font-bold text-slate-700 active:scale-95 dark:bg-slate-700 dark:text-slate-200">${label}</button>`).join('')}${devActive() ? '<button type="button" data-dev="restore" class="rounded-lg bg-amber-500 px-2 py-1 text-[11px] font-black text-white active:scale-95">Vrátit můj postup</button>' : ''}</div>
             ${Social ? `<p class="mb-1 mt-2 text-[11px] font-black uppercase tracking-widest text-amber-700 dark:text-amber-400">Turnaj (boti)</p>
             <div class="flex flex-wrap gap-1">${[['tour-bots', '+31 botů'], ['tour-start', 'Spustit hned'], ['tour-next', 'Další kolo'], ['tour-reset', 'Smazat odehraný turnaj'], ['tour-clear', 'Smazat boty']].map(([kind, label]) => `<button type="button" data-dev="${kind}" class="rounded-lg bg-emerald-100 px-2 py-1 text-[11px] font-bold text-emerald-900 active:scale-95 dark:bg-emerald-900/50 dark:text-emerald-100">${label}</button>`).join('')}</div>
             <p class="mb-1 mt-2 text-[11px] font-black uppercase tracking-widest text-amber-700 dark:text-amber-400">Provoz</p>
@@ -952,6 +955,7 @@
         closeChooser();
         const user = signedUser();
         if (tab) meTab = tab;
+        if (meTab === 'look' || meTab === 'owl') touchTip('look');
         if ((!user || !Social) && meTab === 'profile') meTab = 'game';
         if (user && Social && !meDraft) {
             const base = myProfile || { display_name: user.name, avatar: '🦊', color: 'emerald' };
@@ -986,6 +990,7 @@
                     ${state.error ? `<p class="mt-2 text-xs font-semibold text-rose-700 dark:text-rose-400" role="alert">${escapeHtml(state.error)}</p>` : ''}
                 </div>` : ''}
             ${Review ? `<button type="button" data-review-toggle role="switch" aria-checked="${reviewEnabled()}" class="mt-3 flex w-full items-center gap-3 rounded-2xl border-2 px-3 py-2 text-left transition-colors active:scale-[0.99] ${reviewEnabled() ? TOGGLE_ON : TOGGLE_OFF}"><i data-lucide="repeat" class="h-5 w-5 shrink-0"></i><span class="min-w-0 flex-1"><span class="block text-sm font-black">Procvičování špatných odpovědí</span><span class="block text-[11px] font-semibold leading-snug opacity-80">${reviewEnabled() ? 'Zapnuto: špatné odpovědi se ti vrací po 1, 3, 7, 14 a 30 dnech' : 'Vypnuto: nic se nevrací a nic nečeká'}</span></span><span class="shrink-0 text-xs font-black">${reviewEnabled() ? 'Zapnuto' : 'Vypnuto'}</span></button>` : ''}
+            ${Tips ? `<button type="button" data-tips-toggle role="switch" aria-checked="${tipsOn()}" class="mt-3 flex w-full items-center gap-3 rounded-2xl border-2 px-3 py-2 text-left transition-colors active:scale-[0.99] ${tipsOn() ? TOGGLE_ON : TOGGLE_OFF}"><i data-lucide="lightbulb" class="h-5 w-5 shrink-0"></i><span class="min-w-0 flex-1"><span class="block text-sm font-black">Tipy od Mudrlanta</span><span class="block text-[11px] font-semibold leading-snug opacity-80">${tipsOn() ? 'Zapnuto: žárovka u sovy tě občas upozorní na funkci hry' : 'Vypnuto: žárovka ukazuje jen zajímavost dne'}</span></span><span class="shrink-0 text-xs font-black">${tipsOn() ? 'Zapnuto' : 'Vypnuto'}</span></button>` : ''}
             ${pushPanel()}
             <button type="button" data-tutorial-restart class="btn-3d-light mt-3 flex w-full items-center gap-2 rounded-2xl bg-white px-3 py-2 text-left dark:bg-slate-800"><i data-lucide="info" class="h-5 w-5 shrink-0 text-brand-700 dark:text-brand-300"></i><span class="min-w-0 flex-1 truncate text-[13px] font-black text-slate-800 dark:text-slate-100">Projít znovu tutoriál</span><i data-lucide="chevron-right" class="h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400"></i></button>
             ${renderDevPanel()}`;
@@ -1193,6 +1198,12 @@
                 (Push ? Push.disable().catch(() => {}) : Promise.resolve()).then(() => Auth.logout());
                 return;
             }
+            if (event.target.closest('[data-tips-toggle]')) {
+                writeTipsState(Tips.setOff(readTipsState(), tipsOn()));
+                updateFactHint();
+                openSettings(tipsOn() ? 'Tipy od Mudrlanta jsou zapnuté.' : 'Tipy od Mudrlanta jsou vypnuté.', '[data-tips-toggle]');
+                return;
+            }
             if (event.target.closest('[data-review-toggle]')) {
                 writeJson(KEYS.reviewOn, !reviewEnabled());
                 updateControlsUI();
@@ -1221,6 +1232,12 @@
             if (devButton && devButton.dataset.dev === 'errors') { closeSettings(); openClientErrors(); return; }
             if (devButton && devButton.dataset.dev === 'reports') { openQuestionReports(); return; }
             if (devButton && devButton.dataset.dev === 'player-reports') { closeSettings(); openDevReports(); return; }
+            if (devButton && devButton.dataset.dev === 'tips') {
+                if (Tips) writeTipsState(Tips.reset(readTipsState()));
+                updateFactHint();
+                openSettings('Hotovo: tipy se ukážou znovu (od prvního)', '[data-dev="tips"]');
+                return;
+            }
             if (devButton && devButton.dataset.dev === 'bulb') {
                 // Vrátí žárovku u sovy: zapomene, že dnešní událost už hráč přečetl
                 try { localStorage.removeItem(FACT_KEY); } catch (e) { /* bez úložiště se nic nevrací */ }
@@ -1654,11 +1671,12 @@
         if (!hint) return;
         const factDue = Boolean(dailyFact) && !factRead();
         const offerDue = tournamentBulbDue();
-        const show = screen === 'home' && (factDue || offerDue);
+        const tipDue = !factDue && !offerDue && Boolean(nextTip());
+        const show = screen === 'home' && (factDue || offerDue || tipDue);
         // Bez nové zajímavosti žárovka zve do turnaje (jinak se tlačítko jmenuje podle zajímavosti)
-        const title = factDue || !offerDue ? 'Mudrlant ti chce říct, co se stalo tento den' : 'Mudrlant tě zve do týdenního turnaje';
+        const title = tipDue ? 'Mudrlant má pro tebe tip' : factDue || !offerDue ? 'Mudrlant ti chce říct, co se stalo tento den' : 'Mudrlant tě zve do týdenního turnaje';
         hint.title = title;
-        hint.setAttribute('aria-label', factDue || !offerDue ? 'Tento den v dějinách' : 'Týdenní turnaj: přihlášky jsou otevřené');
+        hint.setAttribute('aria-label', tipDue ? 'Tip od Mudrlanta' : factDue || !offerDue ? 'Tento den v dějinách' : 'Týdenní turnaj: přihlášky jsou otevřené');
         hint.classList.toggle('hidden', !show);
         hint.classList.toggle('flex', show);
         if (show) renderIcons(hint);
@@ -3329,6 +3347,7 @@
 
     const openLearn = (view = learn.view, topicId = learn.topic) => {
         if (isLoading) return;
+        touchTip('learn');
         closeChooser();
         learn.view = view;
         learn.topic = topicId;
@@ -4409,6 +4428,7 @@
 
     // Můj postup: úroveň, titul, XP do další úrovně a mistrovství jednotlivých témat (hvězdičky podle poznaných položek)
     const openProgress = () => {
+        touchTip('progress');
         const progress = loadProgress();
         const xp = progress.xp;
         const earnedCount = BADGES.filter(badge => progress.badges[badge.id]).length;
@@ -5105,6 +5125,54 @@
         promoBulbSession = true;
         writeJson(PROMO_KEY, { ...promo, bulbs: promo.bulbs + 1 });
         return true;
+    };
+    // --- Tipy od Mudrlanta: žárovka s vysvětlením jedné funkce hry (výběr a pravidla v tips.js) ---
+    const readTipsState = () => Tips.parse(readJson(KEYS.tips));
+    const writeTipsState = (value) => writeJson(KEYS.tips, value);
+    const tipsOn = () => Boolean(Tips) && !readTipsState().off;
+    const touchTip = (feature) => {
+        if (!Tips) return;
+        const before = readTipsState();
+        const after = Tips.touch(before, feature);
+        if (after !== before && JSON.stringify(after.visited) !== JSON.stringify(before.visited)) writeTipsState(after);
+    };
+    // Další tip k ukázání (jen na úvodu, po tutoriálu); null = žádný
+    const nextTip = () => {
+        if (!Tips || screen !== 'home') return null;
+        try { if (Tutorial && !Tutorial.isDone(window.localStorage)) return null; } catch (error) { return null; }
+        return Tips.pick(readTipsState(), {
+            counters: loadProgress().counters, today: getDayKey(), now: Date.now(), launches: promoLaunches,
+            signedIn: Boolean(signedUser()), multiAvailable: Boolean(Auth && Auth.isConfigured() && Social), reviewOn: reviewEnabled()
+        });
+    };
+    const TIP_ACTIONS = {
+        settings: () => { closeDialog(); openSettings(); },
+        learn: () => { closeDialog(); openLearn('home'); },
+        progress: () => { closeDialog(); openProgress(); },
+        multi: () => { closeDialog(); openHomeTabFromPush('multi'); },
+        single: () => { closeDialog(); openHomeTabFromPush('single'); }
+    };
+    const openTip = (tip) => {
+        if (!tip || document.getElementById('dialog-overlay')) return;
+        writeTipsState(Tips.markShown(readTipsState(), tip.id, getDayKey(), Date.now()));
+        updateFactHint();
+        showDialog('Tip od Mudrlanta', `
+            <div id="tip-dialog" data-tip="${escapeHtml(tip.id)}" class="flex flex-col gap-3">
+                <div class="flex items-start gap-3">
+                    <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gold-100 text-gold-700 dark:bg-gold-900/40 dark:text-gold-300"><i data-lucide="${escapeHtml(tip.icon)}" class="h-6 w-6"></i></span>
+                    <div class="min-w-0"><p class="text-base font-black leading-tight text-slate-800 dark:text-slate-100">${escapeHtml(tip.title)}</p>
+                        <p class="mt-1 text-sm font-semibold leading-snug text-slate-600 dark:text-slate-300">${escapeHtml(Tips.textFor(tip, Boolean(signedUser())))}</p></div>
+                </div>
+                ${tip.action ? `<button type="button" data-tip-go="${escapeHtml(tip.action.kind)}" class="${PRIMARY_BUTTON}">${escapeHtml(tip.action.label)}</button>` : ''}
+                <div class="flex items-center justify-between gap-2"><button type="button" data-tip-off class="${TOUR_LINK}">Tipy už nechci</button><button type="button" data-close class="rounded-xl px-3 py-2 text-[13px] font-bold text-slate-600 dark:text-slate-300">Rozumím</button></div>
+            </div>`, {
+            onClick: (event) => {
+                const go = event.target.closest('[data-tip-go]');
+                if (go && TIP_ACTIONS[go.dataset.tipGo]) { TIP_ACTIONS[go.dataset.tipGo](); return; }
+                if (event.target.closest('[data-tip-off]')) { writeTipsState(Tips.setOff(readTipsState(), true)); closeDialog(); updateFactHint(); showToast('Tipy jsou vypnuté. Zapneš je v Nastavení.'); }
+            }
+        });
+        renderIcons(document.getElementById('dialog-overlay'));
     };
     const closeTournamentOffer = () => { if (document.getElementById('tournament-offer')) closeDialog(); };
     const openTournamentOffer = (source) => {
@@ -5938,6 +6006,7 @@
     document.getElementById('fact-hint').addEventListener('click', () => {
         if (dailyFact && !factRead()) openFact();
         else if (tournamentBulbDue()) openTournamentOffer('bulb');
+        else if (nextTip()) openTip(nextTip());
         else openFact();
     });
     // Zvětšení fotky funguje všude: v nápovědě, ve výsledku, v okně s popisem i v atlasu
