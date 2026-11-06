@@ -89,7 +89,7 @@
     const ACC_COLORS = [
         { id: 'original', title: 'Původní', level: 1 }, { id: 'cervena', title: 'Červená', level: 1 }, { id: 'modra', title: 'Modrá', level: 1 },
         { id: 'zelena', title: 'Zelená', level: 8 }, { id: 'oranzova', title: 'Oranžová', level: 16 }, { id: 'zluta', title: 'Žlutá', level: 26 },
-        { id: 'ruzova', title: 'Růžová', level: 38 }, { id: 'fialova', title: 'Fialová', level: 52 }, { id: 'vlastni', title: 'Vlastní barva (paleta)', level: 80 }
+        { id: 'ruzova', title: 'Růžová', level: 38 }, { id: 'fialova', title: 'Fialová', level: 52 }, { id: 'cerna', title: 'Černá', level: 60 }, { id: 'vlastni', title: 'Vlastní barva (paleta)', level: 80 }
     ];
     const CUSTOM_HUE = /^h(\d{1,3})$/;
     // Odstín vlastní barvy (násobek 5, 0–355) nebo null

@@ -74,6 +74,7 @@ test('SQL: zneužití (RLS, oprávnění, XP, odznaky, limity)', { skip: !availa
         // délky a tvar
         denied(asUser(A, `update profiles set display_name = '${'x'.repeat(25)}' where id = '${A}'`));
         denied(asUser(A, `update profiles set color = 'javascript' where id = '${A}'`));
+        ok(asUser(A, `update profiles set color = 'cerna' where id = '${A}'`));
         ok(asUser(A, `update profiles set color = 'h210' where id = '${A}'`));
         ok(asUser(A, `update profiles set color = 'h355' where id = '${A}'`));
         denied(asUser(A, `update profiles set color = 'h212' where id = '${A}'`));
