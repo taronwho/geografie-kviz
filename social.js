@@ -418,6 +418,22 @@
     };
     const deleteQuestionReport = (id) => request('DELETE', `question_reports?id=eq.${encodeURIComponent(Number(id))}`);
 
+    // Moje data: export všeho, co o hráči leží na serveru (JSON), a smazání účtu (profil i přihlašovací záznam).
+    // Hlášky serveru jsou česky (turnaj); chybějící funkce (schema.sql ještě nespuštěno) dostane srozumitelný text.
+    const accountCall = async (name, fallback) => {
+        try {
+            return await request('POST', `rpc/${name}`, { body: {} });
+        } catch (error) {
+            if (error instanceof SocialError && error.status === 404) throw new SocialError('Tato funkce na serveru zatím není zapnutá. Napiš provozovateli (kontakt v Zásadách ochrany osobních údajů).', 404);
+            if (error instanceof SocialError && error.status === 401) throw new SocialError('Nejsi přihlášený.', 401);
+            if (error instanceof SocialError && error.status < 500 && /hraješ turnaj/.test(error.message)) throw error;
+            throw new SocialError(fallback, error && error.status);
+        }
+    };
+    const exportMyData = () => accountCall('export_my_data', 'Data se nepodařilo stáhnout, zkus to znovu.');
+    // true = smazáno úplně; false = data smazána, ale přihlašovací záznam u poskytovatele zůstal (smaže ho správce)
+    const deleteMyAccount = async () => (await accountCall('delete_my_account', 'Účet se nepodařilo smazat, zkus to znovu.')) !== false;
+
     return { AVATARS, allAvatars, cleanColor, customHue, nearestColor, cleanFrame, cleanOwl, saveOwl, cleanTitlePref, saveLook, COLORS, COUNTS, NAME_MAX, SocialError, cleanName, isValidName, newCode, parseCode, getProfile, saveProfile, createChallenge, getChallenge, getResults, submitResult, myChallenges, searchPlayers, randomOpponent, incomingChallenges, playerStats, getProgress, saveProgress, getRating, getRatingChange, weeklyLeaderboard, getAccepts, saveAccepts,
-        tournamentTick, getTournaments, inTournament, devTournament, reportQuestion, getQuestionReports, deleteQuestionReport, getTournamentEntries, getTournamentMatches, joinTournament, leaveTournament, startTournamentMatch, finishTournamentMatch, myTournamentStats, tournamentNotices, tournamentNoticesSeen, devClientErrors, isDevAdmin, schemaVersion };
+        tournamentTick, getTournaments, inTournament, devTournament, exportMyData, deleteMyAccount, reportQuestion, getQuestionReports, deleteQuestionReport, getTournamentEntries, getTournamentMatches, joinTournament, leaveTournament, startTournamentMatch, finishTournamentMatch, myTournamentStats, tournamentNotices, tournamentNoticesSeen, devClientErrors, isDevAdmin, schemaVersion };
 });
