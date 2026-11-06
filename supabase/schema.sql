@@ -42,7 +42,7 @@ alter table public.profiles add constraint profiles_display_name_len check (char
 alter table public.profiles drop constraint if exists profiles_avatar_len;
 alter table public.profiles add constraint profiles_avatar_len check (char_length(avatar) between 1 and 8);
 alter table public.profiles drop constraint if exists profiles_color_list;
-alter table public.profiles add constraint profiles_color_list check (color in ('emerald', 'sky', 'violet', 'rose', 'amber', 'teal', 'orange', 'indigo') or color ~ '^h([0-9]?[05]|[12][0-9][05]|3[0-4][05]|35[05])$');
+alter table public.profiles add constraint profiles_color_list check (color in ('emerald', 'sky', 'violet', 'rose', 'amber', 'teal', 'orange', 'indigo', 'cerna') or color ~ '^h([0-9]?[05]|[12][0-9][05]|3[0-4][05]|35[05])$');
 
 -- Přezdívka je jedinečná (bez ohledu na velikost písmen), podle ní se hráči hledají. Stejná jména od Googlu se rozliší číslem.
 with dup as (
