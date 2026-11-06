@@ -15,6 +15,8 @@
     const CATEGORIES = [
         { key: 'prvky', label: 'Chemické prvky', one: 'prvek', icon: 'grid-3x3', question: 'Který prvek to je?', placeholder: 'Napiš název prvku…', sort: { by: 'z' } },
         { key: 'latky', label: 'Sloučeniny a látky', one: 'látka', icon: 'beaker', question: 'Co je to za látku?', placeholder: 'Napiš název látky…', sort: { by: 'name' } },
+        { key: 'reakce', label: 'Reakce a procesy', one: 'reakce', icon: 'zap', question: 'Jaká reakce nebo proces to je?', placeholder: 'Napiš název…', sort: { by: 'name' } },
+        { key: 'pojmy', label: 'Pojmy a metody', one: 'pojem', icon: 'lightbulb', question: 'Jaký pojem nebo metoda to je?', placeholder: 'Napiš název…', sort: { by: 'name' } },
         { key: 'chemici', label: 'Chemici', one: 'chemik', icon: 'user', question: 'Kdo to je?', placeholder: 'Napiš jméno…', sort: { by: 'y' } }
     ];
 
@@ -86,6 +88,8 @@
             return formatFacts(item, [['molar', 'Molární hmotnost', v => `${formatNumber(v)} g/mol`], ['melt', 'Teplota tání', celsius],
                 ['boil', 'Teplota varu', celsius], ['dens', 'Hustota', density], ...formula]);
         }
+        // Reakce a pojmy mají jen popis z Wikipedie
+        if (item.c === 'reakce' || item.c === 'pojmy') return [];
         const facts = formatFacts(item, [['born', 'Narození', formatYear], ['died', 'Úmrtí', formatYear], ['land', 'Země', v => v]], ['born', 'died']);
         if (f.nobel) facts.push({ label: 'Nobelova cena', value: 'za chemii' });
         return facts;
@@ -162,6 +166,12 @@
                     // Stejná koncovka názvu: methan – ethan, propan; ethanol – methanol
                     + (normalizeAnswer(item.n).slice(-3) === normalizeAnswer(other.n).slice(-3) ? 1 : 0);
             }
+            // Reakce a pojmy: stejný okruh, společné slovo v názvu (Dielsova–Alderova reakce, Grignardova reakce) a stejná koncovka
+            if (item.c === 'reakce' || item.c === 'pojmy') {
+                return (item.c === other.c ? 2 : 0) + (sharesGroup(item, other) ? 3 : 0)
+                    + (normalizeAnswer(item.n).split(' ').pop() === normalizeAnswer(other.n).split(' ').pop() ? 2 : 0)
+                    + (normalizeAnswer(item.n).slice(-3) === normalizeAnswer(other.n).slice(-3) ? 1 : 0);
+            }
             // Osoby: pohlaví a doba, k tomu stejná země (k Sacharovovi sovětští vědci, ne Descartes) a Čech k Čechům
             return personSimilarity(item, other) + (Boolean(f.nobel) === Boolean(g.nobel) ? 1 : 0)
                 + (f.land && f.land === g.land ? 3 : 0) + ((item.cz === 1) === (other.cz === 1) ? 0 : -3);
@@ -222,6 +232,15 @@
         // fotka bílého prášku ani teplota tání by tu nepomohly
         hints: (item, ctx, type) => {
             const f = item.f || {};
+            // Reakce a pojmy: okruh (Jmenné reakce, Metody a laboratorní pomůcky…) a počet slov názvu
+            if (type === 'name' && (item.c === 'reakce' || item.c === 'pojmy')) {
+                const group = (item.g || []).map(id => (ctx.collections || []).find(collection => collection.id === id)).find(Boolean);
+                const words = item.n.split(/\s+/).length;
+                return [
+                    { kind: 'facts', label: 'okruh', icon: 'tag', facts: group ? [{ label: 'Okruh', value: group.label }] : [] },
+                    { kind: 'facts', label: 'délka názvu', icon: 'type', facts: [{ label: 'Název má', value: `${words} ${words === 1 ? 'slovo' : words < 5 ? 'slova' : 'slov'}` }] }
+                ];
+            }
             if (type === 'symbol') {
                 const latin = f.lat && normalizeAnswer(f.lat) !== normalizeAnswer(item.n) ? capitalize(f.lat) : null;
                 return [{ kind: 'facts', label: 'latinský název', icon: 'scroll', facts: latin ? [{ label: 'Latinsky', value: latin }] : [] }];
@@ -236,8 +255,12 @@
             return null;
         },
         // Popis: u otázky na značku zmizí značka, u otázky na vzorec vzorec; u otázky na název k tomu i název
-        censor: (type, text, item) => {
+        censor: (type, text, item, ctx) => {
             const f = item.f || {};
+            // Reakce a pojmy: obecná slova názvu (reakce, zákon, kyselina) se nezakrývají – zůstala by z věty kostra
+            if (type === 'name' && (item.c === 'reakce' || item.c === 'pojmy') && ctx) {
+                return censorName(text, core.specificWords([item.n, displayName(item.t || '')], core.genericWordsOf(ctx)));
+            }
             // Skupiny vitamínů (vitamín A) vzorec nemají
             const hideFormula = (value) => f.formula ? [f.formula, plainFormula(f.formula)].reduce((result, formula) => result.split(formula).join('[***]'), value) : value;
             const plain = stripBrackets(text).replace(/\s{2,}/g, ' ').replace(/\s+([,;.?!])/g, '$1');
@@ -254,6 +277,7 @@
             const f = item.f || {};
             if (item.c === 'prvky') return `${f.sym} · protonové číslo ${f.z}`;
             if (item.c === 'latky') return f.formula || '';
+            if (item.c === 'reakce' || item.c === 'pojmy') return '';
             return [f.born !== undefined ? `${formatYear(f.born)}–${f.died !== undefined ? formatYear(f.died) : ''}` : '', f.land].filter(Boolean).join(' · ');
         },
         isCzech: (item) => item.cz === 1

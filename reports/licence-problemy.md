@@ -7,7 +7,7 @@ vyžadují jen uvedení autora a licence – to dělá stránka Zdroje a licence
 
 ## Souhrn
 
-- souborů celkem: **21735**, s načtenými metadaty: **21735**, zatím nestaženo: **0**
+- souborů celkem: **23628**, s načtenými metadaty: **23628**, zatím nestaženo: **0**
 - problémových: **5**
   - bez uvedené licence: 2
   - soubor na Commons neexistuje: 3
@@ -18,7 +18,7 @@ vyžadují jen uvedení autora a licence – to dělá stránka Zdroje a licence
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | architektura | 1668 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | biologie | 3319 | 1 | 0 | 0 | 0 | 0 | 0 | 1 |
-| chemie | 463 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| chemie | 961 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | film | 719 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | fyzika | 1493 | 2 | 0 | 0 | 0 | 0 | 2 | 0 |
 | geologie | 389 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
@@ -28,7 +28,7 @@ vyžadují jen uvedení autora a licence – to dělá stránka Zdroje a licence
 | mytologie | 751 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | sport | 1695 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | umeni | 1476 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| vlajky | 462 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| vlajky | 1889 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | zemepis | 4431 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 
 ## Seznam souborů

@@ -18,8 +18,8 @@ export const CONTINENTS = { Q46: 'EU', Q48: 'AS', Q15: 'AF', Q49: 'NA', Q18: 'SA
 export const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 // Dotaz SPARQL s opakováním při přetížení (429, 5xx) i výpadku spojení
-export const sparql = async (query, endpoint = ENDPOINT) => {
-    for (let attempt = 1; attempt <= 6; attempt++) {
+export const sparql = async (query, endpoint = ENDPOINT, attempts = 6) => {
+    for (let attempt = 1; attempt <= attempts; attempt++) {
         let status;
         try {
             const response = await fetch(endpoint, {
@@ -32,12 +32,12 @@ export const sparql = async (query, endpoint = ENDPOINT) => {
         } catch (error) {
             status = error.message;
         }
-        console.warn(`  ${status}, zkouším znovu (${attempt}/6)`);
+        console.warn(`  ${status}, zkouším znovu (${attempt}/${attempts})`);
         await sleep(15000 * attempt);
     }
     throw new Error('Wikidata neodpovídají');
 };
-export const qlever = (query) => sparql(QLEVER_PREFIXES + query, QLEVER);
+export const qlever = (query, attempts) => sparql(QLEVER_PREFIXES + query, QLEVER, attempts);
 
 export const id = (uri) => uri.split('/').pop();
 export const round = (n, digits = 0) => Math.round(n * 10 ** digits) / 10 ** digits;
