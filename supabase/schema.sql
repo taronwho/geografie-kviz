@@ -847,3 +847,190 @@ $$;
 revoke all on function public.dev_check(), public.dev_is_bot(uuid), public.dev_bots_play(uuid) from public, anon, authenticated;
 revoke all on function public.dev_tournament_add_bots(uuid, integer), public.dev_tournament_start_now(uuid), public.dev_tournament_next_round(uuid), public.dev_tournament_clear_bots(), public.dev_tournament_reset() from public, anon;
 grant execute on function public.dev_tournament_add_bots(uuid, integer), public.dev_tournament_start_now(uuid), public.dev_tournament_next_round(uuid), public.dev_tournament_clear_bots(), public.dev_tournament_reset() to authenticated;
+
+-- ===== Web push: upozornění na turnaje a výzvy =====
+-- Odběr (endpoint + klíče) si uloží prohlížeč hráče (push.js); odesílá GitHub Actions (scripts/send-push.mjs) jednou za hodinu: zavolá push_due(secret),
+-- pošle notifikace a zapíše push_mark(...). Tajemství push_cron leží jen v app_secrets (žádný přístup přes API), takže veřejný klíč z config.js nic nevyčte.
+create table if not exists public.push_subscriptions (
+    endpoint text primary key,
+    user_id uuid not null references public.profiles (id) on delete cascade,
+    p256dh text not null,
+    auth text not null,
+    created_at timestamptz not null default now(),
+    last_ok timestamptz,
+    fails integer not null default 0
+);
+alter table public.push_subscriptions drop constraint if exists push_subscriptions_endpoint_format;
+alter table public.push_subscriptions add constraint push_subscriptions_endpoint_format check (char_length(endpoint) between 16 and 1500 and endpoint ~ '^https://[^\s"''<>\\]+$');
+alter table public.push_subscriptions drop constraint if exists push_subscriptions_keys_format;
+alter table public.push_subscriptions add constraint push_subscriptions_keys_format check (p256dh ~ '^[A-Za-z0-9_=-]{60,200}$' and auth ~ '^[A-Za-z0-9_=-]{16,64}$');
+alter table public.push_subscriptions drop constraint if exists push_subscriptions_fails_range;
+alter table public.push_subscriptions add constraint push_subscriptions_fails_range check (fails between 0 and 100);
+create index if not exists push_subscriptions_user_idx on public.push_subscriptions (user_id);
+alter table public.push_subscriptions enable row level security;
+drop policy if exists "push: vlastní odběry" on public.push_subscriptions;
+create policy "push: vlastní odběry" on public.push_subscriptions for select to authenticated using (user_id = auth.uid());
+drop policy if exists "push: vlastní zápis" on public.push_subscriptions;
+create policy "push: vlastní zápis" on public.push_subscriptions for insert to authenticated with check (user_id = auth.uid());
+drop policy if exists "push: vlastní smazání" on public.push_subscriptions;
+create policy "push: vlastní smazání" on public.push_subscriptions for delete to authenticated using (user_id = auth.uid());
+revoke all on public.push_subscriptions from anon, authenticated;
+grant select, insert, delete on public.push_subscriptions to authenticated;
+
+-- Co hráč chce dostávat (výchozí všechno); vypnutí odběru v aplikaci maže řádky push_subscriptions, tyhle sloupce jsou jemnější volba
+alter table public.profiles add column if not exists push_tournament boolean not null default true;
+alter table public.profiles add column if not exists push_challenge boolean not null default true;
+grant update (push_tournament, push_challenge) on public.profiles to authenticated;
+
+-- Odběr přes funkci: stejný endpoint (totéž zařízení) přejde na právě přihlášeného hráče a počítadlo chyb se vynuluje; nejvýš 10 zařízení na hráče
+drop function if exists public.push_subscribe(text, text, text);
+create or replace function public.push_subscribe(endpoint_url text, key_p256dh text, key_auth text) returns void
+language plpgsql security definer set search_path = public as $$
+begin
+    if auth.uid() is null then raise exception 'Přihlas se.' using errcode = '42501'; end if;
+    if (select count(*) from public.push_subscriptions s where s.user_id = auth.uid() and s.endpoint <> endpoint_url) >= 10 then
+        delete from public.push_subscriptions s where s.endpoint in (select s2.endpoint from public.push_subscriptions s2 where s2.user_id = auth.uid() order by coalesce(s2.last_ok, s2.created_at) limit 1);
+    end if;
+    insert into public.push_subscriptions as s (endpoint, user_id, p256dh, auth) values (endpoint_url, auth.uid(), key_p256dh, key_auth)
+    on conflict (endpoint) do update set user_id = excluded.user_id, p256dh = excluded.p256dh, auth = excluded.auth, fails = 0, created_at = now();
+end;
+$$;
+
+-- Tajemství pro odesílatele (GitHub Actions). Jediný řádek 'push_cron' vložíš ručně v SQL Editoru (docs/SUPABASE.md); přes API se tabulka nedá ani číst.
+create table if not exists public.app_secrets (
+    name text primary key check (name ~ '^[a-z_]{1,40}$'),
+    value text not null check (char_length(value) between 16 and 200)
+);
+alter table public.app_secrets enable row level security;
+revoke all on public.app_secrets from public, anon, authenticated;
+
+-- Odeslané notifikace (klíč = druh:id:hráč[:den:část dne]); push_due už odeslané nevrací, staré řádky maže push_mark
+create table if not exists public.push_sent (
+    dedupe_key text primary key,
+    user_id uuid,
+    kind text,
+    sent_at timestamptz not null default now()
+);
+create index if not exists push_sent_user_idx on public.push_sent (user_id, kind, sent_at desc);
+alter table public.push_sent enable row level security;
+revoke all on public.push_sent from public, anon, authenticated;
+
+-- Ověření tajemství: porovnávají se otisky (md5) obou hodnot, takže shoda prvních znaků nic neprozradí
+create or replace function public.push_check_secret(secret text) returns void
+language plpgsql security definer set search_path = public as $$
+declare stored text;
+begin
+    select value into stored from public.app_secrets where name = 'push_cron';
+    if stored is null then raise exception 'Tajemství push_cron v app_secrets chybí (viz docs/SUPABASE.md).' using errcode = '42501'; end if;
+    if secret is null or md5(coalesce(secret, '')) <> md5(stored) then
+        raise exception 'Neplatné tajemství.' using errcode = '42501';
+    end if;
+end;
+$$;
+
+-- Část dne (Praha): 'rano' do 17:00, pak 'vecer' – turnajová připomínka přijde nejvýš dvakrát denně. (mudrlant.test_hour používají jen testy.)
+create or replace function public.push_day_part() returns text
+language sql stable set search_path = public as $$
+    select case when coalesce(nullif(current_setting('mudrlant.test_hour', true), '')::integer, extract(hour from now() at time zone 'Europe/Prague')::integer) < 17 then 'rano' else 'vecer' end
+$$;
+
+-- Název kola podle počtu hráčů v kole (jako tournament.js)
+create or replace function public.push_round_name(size integer, round integer, third boolean) returns text
+language sql immutable as $$
+    select case when third then 'zápas o 3. místo' else
+        case greatest(2, coalesce(size, 2) >> greatest(coalesce(round, 1) - 1, 0))
+            when 128 then '1. kolo' when 64 then '2. kolo' when 32 then 'šestnáctifinále' when 16 then 'osmifinále'
+            when 8 then 'čtvrtfinále' when 4 then 'semifinále' when 2 then 'finále' else 'kolo' end end
+$$;
+
+-- Co poslat: (a) dnešní neodehraný turnajový zápas, (b) nevyřízená příchozí výzva mladší než 3 dny, (c) nepřečtená zpráva o turnaji.
+-- Jeden řádek na odběr (zařízení); z každého druhu nejvýš jedna věc na hráče a běh a nic, co téhož druhu dostal v poslední hodině.
+drop function if exists public.push_due(text);
+create or replace function public.push_due(secret text) returns table (
+    user_id uuid, endpoint text, p256dh text, auth text, kind text, title text, body text, url text, dedupe_key text
+)
+language plpgsql security definer set search_path = public as $$
+declare today date; part text;
+begin
+    perform public.push_check_secret(secret);
+    perform public.tournament_tick();
+    today := public.tournament_today();
+    part := public.push_day_part();
+    return query
+    with items as (
+        select m.p as user_id, 'tournament'::text as kind,
+            'Turnaj: dnes hraješ ' || public.push_round_name(t.size, m.round, m.third) as title,
+            'Soupeř: ' || coalesce(op.display_name, 'Hráč') || '. Kolo musíš odehrát do půlnoci.' as body,
+            './?tab=multi'::text as url,
+            'tour:' || m.id || ':' || m.p || ':' || today || ':' || part as dedupe_key, m.id::text as sort_at
+        from (
+            select mm.id, mm.tournament_id, mm.round, mm.third, mm.p1 as p, mm.p2 as other from public.tournament_matches mm where mm.winner is null
+            union all
+            select mm.id, mm.tournament_id, mm.round, mm.third, mm.p2, mm.p1 from public.tournament_matches mm where mm.winner is null
+        ) m
+        join public.tournaments t on t.id = m.tournament_id and t.status = 'running' and t.started_on + (m.round - 1) = today
+        join public.profiles me on me.id = m.p and me.push_tournament
+        left join public.profiles op on op.id = m.other
+        where not exists (select 1 from public.tournament_results r where r.match_id = m.id and r.user_id = m.p)
+        union all
+        select c.invited_id, 'challenge', coalesce(cr.display_name, 'Hráč') || ' tě vyzývá',
+            'Výzva na ' || c.count || ' otázek čeká v aplikaci. Zahraj si ji, než vyprší.', './?tab=multi',
+            'chal:' || c.id || ':' || c.invited_id, c.created_at::text
+        from public.challenges c
+        join public.profiles me on me.id = c.invited_id and me.push_challenge
+        left join public.profiles cr on cr.id = c.creator_id
+        where c.invited_id is not null and c.created_at > now() - interval '3 days'
+            and not exists (select 1 from public.challenge_results r where r.challenge_id = c.id and r.user_id = c.invited_id)
+        union all
+        select n.user_id, 'notice',
+            case n.kind when 'excluded_full' then 'Turnaj bez tebe' when 'cancelled' then 'Turnaj se zrušil' when 'eliminated_noplay' then 'Vypadl jsi z turnaje' else 'Turnaj skončil' end,
+            case n.kind
+                when 'excluded_full' then 'Hrají jen nejdřív přihlášení' || case when n.detail ~ '^\d{1,3}$' then ' (' || n.detail || ' hráčů)' else '' end || ', tentokrát nehraješ. Do příštího se přihlas hned při otevření přihlášek.'
+                when 'cancelled' then 'Přihlásilo se ' || case when n.detail ~ '^\d{1,3}$' then 'jen ' || n.detail else 'málo' end || ' hráčů, potřeba je aspoň 8. Přihlas se do dalšího turnaje.'
+                when 'eliminated_noplay' then 'Své kolo jsi neodehrál, prohráváš kontumačně. Příště si ho zahraj v den kola.'
+                else case when n.detail ~ '^\d{1,3}$' then 'Skončil jsi na ' || n.detail || '. místě.' || case when n.detail::integer <= 3 then ' Gratulace!' else '' end else 'Podívej se na konečné pořadí.' end end,
+            './?tab=multi', 'notice:' || n.id || ':' || n.user_id, n.created_at::text
+        from public.tournament_notices n
+        join public.profiles me on me.id = n.user_id and me.push_tournament
+        where not n.seen and n.created_at > now() - interval '7 days' and n.kind in ('excluded_full', 'cancelled', 'eliminated_noplay', 'result')
+    ), fresh as (
+        select i.*, row_number() over (partition by i.user_id, i.kind order by i.sort_at, i.dedupe_key) as rn
+        from items i
+        where not exists (select 1 from public.push_sent s where s.dedupe_key = i.dedupe_key)
+            and not exists (select 1 from public.push_sent s where s.user_id = i.user_id and s.kind = i.kind and s.sent_at > now() - interval '55 minutes')
+    )
+    select f.user_id, s.endpoint, s.p256dh, s.auth, f.kind, f.title, f.body, f.url, f.dedupe_key
+    from fresh f join public.push_subscriptions s on s.user_id = f.user_id and s.fails < 3
+    where f.rn = 1
+    order by f.user_id, f.kind, s.endpoint;
+end;
+$$;
+
+-- Zápis po odeslání: klíče do push_sent (hráč a druh z klíče kvůli hodinovému limitu), úspěšné odběry dostanou last_ok, neúspěšné +1 chyba
+-- (po třech chybách odběr mizí), odběry s odpovědí 404/410 (gone) se smažou hned. Staré záznamy push_sent (14 dní) se uklidí. Vrací počet smazaných odběrů.
+drop function if exists public.push_mark(text, text[], text[]);
+create or replace function public.push_mark(secret text, keys text[], ok_endpoints text[] default '{}', failed_endpoints text[] default '{}', gone_endpoints text[] default '{}') returns integer
+language plpgsql security definer set search_path = public as $$
+declare removed integer := 0;
+begin
+    perform public.push_check_secret(secret);
+    insert into public.push_sent (dedupe_key, user_id, kind)
+    select k, case when split_part(k, ':', 3) ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then split_part(k, ':', 3)::uuid end,
+        case split_part(k, ':', 1) when 'tour' then 'tournament' when 'chal' then 'challenge' when 'notice' then 'notice' end
+    from unnest(coalesce(keys, '{}')) k where char_length(k) between 1 and 200
+    on conflict (dedupe_key) do nothing;
+    update public.push_subscriptions set last_ok = now(), fails = 0 where endpoint = any (coalesce(ok_endpoints, '{}'));
+    update public.push_subscriptions set fails = least(fails + 1, 100) where endpoint = any (coalesce(failed_endpoints, '{}'));
+    delete from public.push_subscriptions where endpoint = any (coalesce(gone_endpoints, '{}')) or fails >= 3;
+    get diagnostics removed = row_count;
+    delete from public.push_sent where sent_at < now() - interval '14 days';
+    return removed;
+end;
+$$;
+
+revoke all on function public.push_check_secret(text), public.push_day_part(), public.push_round_name(integer, integer, boolean) from public, anon, authenticated;
+revoke all on function public.push_subscribe(text, text, text) from public, anon;
+grant execute on function public.push_subscribe(text, text, text) to authenticated;
+-- Odesílatel se hlásí veřejným klíčem (role anon) a prokazuje se tajemstvím
+revoke all on function public.push_due(text), public.push_mark(text, text[], text[], text[], text[]) from public;
+grant execute on function public.push_due(text), public.push_mark(text, text[], text[], text[], text[]) to anon, authenticated;
