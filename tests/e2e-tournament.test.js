@@ -858,7 +858,7 @@ test('týdenní turnaje', { skip: !chromium && 'Playwright není nainstalovaný'
         await shot(tab, 'poradi-32-360');
         // Hledání funguje i v pořadí a v pavouku
         await tab.fill('#tournament-search', 'petr s');
-        assert.deepEqual((await tab.locator('#tournament-ranking li[data-rank]:not(.hidden)').allInnerTexts()).map(item => item.replace(/\s+/g, ' ').trim().replace(/^\S+ /, '')), ['Petr Svoboda']);
+        assert.deepEqual((await tab.locator('#tournament-ranking li[data-rank]:not(.hidden)').allInnerTexts()).map(item => item.replace(/\s+/g, ' ').trim().replace(/^\d+\. /, '').replace(/^\S+ /, '').replace(/ \d+ b · \d+:\d\d$/, '')), ['Petr Svoboda']);
         assert.equal(await tab.locator('#tournament-ranking section:not(.hidden)').count(), 1);
         await tab.fill('#tournament-search', 'zzz');
         assert.equal(await tab.locator('#tournament-empty:not(.hidden)').count(), 1);

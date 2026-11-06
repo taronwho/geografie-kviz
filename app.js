@@ -4495,7 +4495,7 @@
         const { tournament, entries, matches } = view;
         const result = Tournament.standings(entries, tournament, matches);
         if (!result.total) return '';
-        const row = ({ entry, place, label }, individual) => {
+        const row = ({ entry, place, label, points, timeMs }, individual) => {
             const mine = entry.user_id === meId;
             const name = plainText(playerName(entry.player));
             return `<li data-rank data-names="${escapeHtml(name)}" ${mine ? 'data-me' : ''} class="flex items-center gap-2 rounded-xl px-2 py-1 ${mine ? 'bg-brand-50 ring-2 ring-brand-600 dark:bg-brand-900/40' : 'bg-white dark:bg-slate-800'}">
@@ -4503,6 +4503,7 @@
                 ${avatarHtml(entry.player, 'h-7 w-7 text-sm')}
                 <span class="min-w-0 flex-1 truncate text-[12.5px] ${mine ? 'font-black' : 'font-bold'} text-slate-800 dark:text-slate-100">${escapeHtml(playerName(entry.player))}${mine ? ' (ty)' : ''}</span>
                 ${individual && label ? `<span class="shrink-0 text-[10.5px] font-semibold text-slate-500 dark:text-slate-400">${escapeHtml(label)}</span>` : ''}
+                ${individual && points != null ? `<span data-rank-total class="shrink-0 text-right text-[10.5px] font-black tabular-nums text-slate-700 dark:text-slate-200" title="Body celkem · celkový čas">${points} b · ${Tournament.formatDuration(timeMs)}</span>` : ''}
             </li>`;
         };
         const section = (key, title, note, rows, showLabel) => `<section data-rgroup="${key}" class="flex flex-col gap-1">
@@ -4511,7 +4512,7 @@
         </section>`;
         const parts = [];
         if (result.playing.length) parts.push(section('playing', 'Ještě hrají', String(result.playing.length), result.playing, true));
-        result.groups.forEach(group => parts.push(section(group.key, group.label, group.individual ? '' : `${group.roundName ? `${group.roundName} · ` : ''}${group.rows.length}`, group.rows, group.individual)));
+        result.groups.forEach(group => parts.push(section(group.key, group.label, group.key === 'top' ? '' : `${group.roundName ? `${group.roundName} · ` : ''}${group.rows.length}`, group.rows.map(item => group.key === 'top' || group.key === 'none' ? item : { ...item, label: '' }), group.individual)));
         return `
             <details data-keep="ranking" class="group rounded-2xl bg-slate-100/70 p-1.5 dark:bg-slate-800/50">
                 <summary data-ranking class="flex cursor-pointer list-none items-center gap-2 rounded-xl px-1.5 py-1 text-[13px] font-black text-slate-800 dark:text-slate-100 [&::-webkit-details-marker]:hidden"><i data-lucide="medal" class="h-4 w-4 shrink-0 text-gold-600 dark:text-gold-300"></i><span class="flex-1">Celé pořadí (${escapeHtml(Tournament.playersWord(result.total))})</span><i data-lucide="chevron-down" class="h-4 w-4 shrink-0 text-slate-500 transition-transform group-open:rotate-180 dark:text-slate-400"></i></summary>

@@ -145,7 +145,11 @@ test('SQL: týdenní turnaje', { skip: !available && 'PostgreSQL není dostupný
         assert.equal(q(`select status from tournaments where id = '${tid}'`), 'finished');
         assert.equal(q(`select place from tournament_entries where tournament_id = '${tid}' and user_id = '${fin[0][1]}'`), '1');
         assert.equal(q(`select place from tournament_entries where tournament_id = '${tid}' and user_id = '${fin[0][2]}'`), '2');
-        assert.equal(q(`select string_agg(place::text, ',' order by place) from tournament_entries where tournament_id = '${tid}' and place is not null`), '1,2,3,4,5,5,5,5');
+        // Místa 5.–8. jsou přesná: každé jednou, seřazená podle celkových bodů (při shodě menší celkový čas)
+        assert.equal(q(`select string_agg(place::text, ',' order by place) from tournament_entries where tournament_id = '${tid}' and place is not null`), '1,2,3,4,5,6,7,8');
+        const ordered = q(`select string_agg(e.user_id::text, ',' order by e.place) from tournament_entries e where e.tournament_id = '${tid}' and e.place between 5 and 8`).split(',');
+        const totals = ordered.map(user => q(`select coalesce(sum(r.points), 0) || '/' || coalesce(sum(r.time_ms), 0) from tournament_results r join tournament_matches m on m.id = r.match_id where m.tournament_id = '${tid}' and r.user_id = '${user}' and r.finished_at is not null`).split('/').map(Number));
+        for (let i = 1; i < totals.length; i++) assert.ok(totals[i - 1][0] > totals[i][0] || (totals[i - 1][0] === totals[i][0] && totals[i - 1][1] <= totals[i][1]), `pořadí ${i}: ${JSON.stringify(totals)}`);
         assert.equal(q(`select count(*) from tournament_notices where kind = 'result'`), '8');
     });
 

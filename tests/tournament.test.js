@@ -323,3 +323,23 @@ test('pavouk: od kdy se ukazuje (zbývá 16 hráčů) a zkrácené dny', () => {
     assert.equal(T.dayShort('2026-11-13', '2026-11-10'), 'pá 13. 11.');
     assert.deepEqual(T.bracketColumns([], { size: null, rounds: null }), { columns: [], third: null, champion: null, focusRound: 0 });
 });
+
+test('přesné pořadí vypadlých: víc bodů celkem, při shodě menší celkový čas, pak dřívější přihlášení', () => {
+    const tournament = { id: 't', size: 8, rounds: 3, status: 'finished', seed: 's', started_on: '2026-11-09' };
+    const ids = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
+    const place = { a: 1, b: 2, c: 3, d: 4, e: 5, f: 5, g: 5, h: 5 };
+    const entries = ids.map((id, i) => ({ user_id: id, status: 'finished', place: place[id], joined_at: `2026-11-02T08:0${i}:00Z`, player: { display_name: id.toUpperCase() } }));
+    const done = (round, slot, p1, p2, r1, r2, third = false) => ({ id: `${round}-${slot}`, round, slot, third, p1, p2, winner: p1, results: [
+        { user_id: p1, finished_at: 'x', points: r1[0], time_ms: r1[1], correct: 5 }, { user_id: p2, finished_at: 'x', points: r2[0], time_ms: r2[1], correct: 4 }] });
+    // čtvrtfinále: e–a, f–b, g–c, h–d; poražení e, f, g, h mají body 20, 24, 24, 22 a časy 50 s, 80 s, 60 s, 40 s
+    const matches = [done(1, 1, 'a', 'e', [30, 40000], [20, 50000]), done(1, 2, 'b', 'f', [30, 40000], [24, 80000]), done(1, 3, 'c', 'g', [30, 40000], [24, 60000]), done(1, 4, 'd', 'h', [30, 40000], [22, 40000])];
+    const result = T.standings(entries, tournament, matches);
+    const group = result.groups.find(g => g.key === 'p5');
+    assert.deepEqual(group.rows.map(r => [r.entry.user_id, r.place, r.points]), [['g', 5, 24], ['f', 6, 24], ['h', 7, 22], ['e', 8, 20]], 'body, při shodě čas (g 60 s před f 80 s)');
+    assert.equal(group.individual, true);
+    assert.equal(T.formatDuration(group.rows[0].timeMs), '1:00');
+    // při úplné shodě rozhoduje dřívější přihlášení
+    const tie = [done(1, 1, 'a', 'e', [30, 1], [20, 5000]), done(1, 2, 'b', 'f', [30, 1], [20, 5000])];
+    const tied = T.standings(entries, tournament, tie).groups.find(g => g.key === 'p5').rows.map(r => r.entry.user_id);
+    assert.deepEqual(tied.slice(0, 2), ['e', 'f']);
+});
