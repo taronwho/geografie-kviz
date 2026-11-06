@@ -26,5 +26,8 @@
     "test": "node --test",
     "audit:photo-text": "node scripts/photo-text.mjs",
     "audit:photo-masks": "node scripts/photo-masks.mjs"
+  },
+  "devDependencies": {
+    "web-push": "^3.6.7"
   }
 }

@@ -749,6 +749,11 @@
     // Jedno okno „Já“: nahoře hráč (obrázek, přezdívka, úroveň), pod tím záložky Hra (varianta, známost) a Profil (přezdívka,
     // obrázek, barva, odhlášení); bez přihlášení jen Hra a nabídka přihlášení. Vše se vejde bez posouvání.
     let meTab = 'game';
+    // Upozornění (push.js): stav tohoto zařízení a volby, co posílat; zjišťují se při otevření Nastavení
+    const Push = window.MudrlantPush;
+    let pushState = null;
+    let pushPrefs = null;
+    let pushBusy = false;
     let meDraft = null;
     let meDirty = false;
     let meNote = '';
@@ -874,6 +879,64 @@
         if (!item || Social.AVATARS.includes(emoji) || (myProfile && myProfile.avatar === emoji) || Look.isUnlocked(item, lookContext())) return null;
         return item;
     };
+    const refreshPush = async () => {
+        const user = signedUser();
+        if (!Push || !user) { pushState = null; pushPrefs = null; return; }
+        const before = JSON.stringify([pushState, pushPrefs]);
+        try {
+            pushState = await Push.state();
+            pushPrefs = pushState.kind === 'on' ? await Push.getPrefs(user.id) : null;
+        } catch (error) { pushState = null; pushPrefs = null; }
+        if (before !== JSON.stringify([pushState, pushPrefs]) && document.getElementById('settings-overlay') && !pushBusy) openSettings(meNote);
+    };
+    const PUSH_TEXTS = {
+        off: 'Dostaneš upozornění, když začne tvůj turnajový zápas nebo ti někdo pošle výzvu. Vypnout je můžeš kdykoli.',
+        on: 'Upozornění jsou zapnutá na tomhle zařízení. Přijde jen to, co si níže necháš zapnuté.',
+        denied: 'Upozornění jsou v prohlížeči zakázaná. Povol je v nastavení webu (ikona u adresy) a zkus to znovu.',
+        unsupported: 'Tenhle prohlížeč upozornění neumí.',
+        iphone: 'Na iPhonu nejdřív přidej aplikaci na plochu (Sdílet, Přidat na plochu) a otevři ji odtamtud.'
+    };
+    const pushPanel = () => {
+        if (!Push || !signedUser() || !pushState || pushState.kind === 'hidden') return '';
+        const { kind } = pushState;
+        const text = kind === 'unsupported' && pushState.ios ? PUSH_TEXTS.iphone : PUSH_TEXTS[kind];
+        const pref = (key, label) => `<button type="button" data-push-pref="${key}" aria-pressed="${Boolean(pushPrefs[key])}" class="rounded-2xl border-2 px-3 py-2 text-left text-xs font-black transition-colors active:scale-[0.98] ${pushPrefs[key] ? TOGGLE_ON : TOGGLE_OFF}">${label}</button>`;
+        return `
+            <div class="mt-3 rounded-2xl bg-white p-3 shadow-sm dark:bg-slate-800">
+                <h3 class="${ME_HEADING} mb-1">Upozornění</h3>
+                <p class="text-xs text-slate-500 dark:text-slate-400">${text}</p>
+                ${kind === 'off' || kind === 'denied' ? `<button type="button" data-push-toggle="on" ${pushBusy ? 'disabled' : ''} class="${PRIMARY_BUTTON} mt-2"><i data-lucide="bell" class="h-5 w-5"></i> Zapnout upozornění</button>` : ''}
+                ${kind === 'on' ? `
+                    ${pushPrefs ? `<div class="mt-2 grid grid-cols-2 gap-2" role="group" aria-label="Co posílat">${pref('tournament', 'Turnaje: kola a zprávy')}${pref('challenge', 'Výzvy od hráčů')}</div>` : ''}
+                    <button type="button" data-push-toggle="off" ${pushBusy ? 'disabled' : ''} class="${SECONDARY_BUTTON} mt-2"><i data-lucide="bell-off" class="h-5 w-5"></i> Vypnout upozornění</button>` : ''}
+            </div>`;
+    };
+    const togglePush = async (turnOn) => {
+        if (!Push || pushBusy) return;
+        pushBusy = true;
+        meNote = '';
+        // Povolení se žádá hned v klepnutí (jinak ho Safari odmítne), překreslení až po odpovědi
+        const work = turnOn ? Push.enable() : Push.disable();
+        try {
+            const result = await work;
+            if (turnOn) meNote = result.ok ? 'Uloženo: upozornění jsou zapnutá.' : result.reason === 'denied' ? 'Upozornění jsou v prohlížeči zakázaná.' : 'Upozornění zůstala vypnutá.';
+            else meNote = result.ok ? 'Uloženo: upozornění jsou vypnutá.' : 'Upozornění jsou na tomhle zařízení vypnutá, na serveru se ale odběr nepodařilo smazat.';
+        } catch (error) {
+            meNote = 'Upozornění se nepodařilo zapnout, zkus to znovu.';
+        }
+        pushBusy = false;
+        pushState = null;
+        pushPrefs = null;
+        await refreshPush();
+        if (document.getElementById('settings-overlay')) openSettings(meNote, '[data-push-toggle]');
+    };
+    const changePushPref = async (key) => {
+        const user = signedUser();
+        if (!Push || !user || !pushPrefs) return;
+        const next = { ...pushPrefs, [key]: !pushPrefs[key] };
+        try { pushPrefs = await Push.savePrefs(user.id, next); meNote = 'Uloženo.'; } catch (error) { meNote = 'Uložení se nepodařilo, zkus to znovu.'; }
+        openSettings(meNote, `[data-push-pref="${key}"]`);
+    };
     const openSettings = (note = '', focusSelector = null, tab = null) => {
         closeChooser();
         const user = signedUser();
@@ -886,6 +949,7 @@
         }
         let overlay = document.getElementById('settings-overlay');
         const reopened = Boolean(overlay);
+        if (!reopened) refreshPush();
         const scroll = reopened && overlay.firstElementChild ? overlay.firstElementChild.scrollTop : 0;
         if (!overlay) overlay = createSettingsOverlay();
         const state = Auth ? Auth.getState() : { configured: false };
@@ -910,6 +974,7 @@
                     <button type="button" data-auth-login class="${PRIMARY_BUTTON} mt-2"><i data-lucide="log-in" class="h-5 w-5"></i> Přihlásit se přes Google</button>
                     ${state.error ? `<p class="mt-2 text-xs font-semibold text-rose-700 dark:text-rose-400" role="alert">${escapeHtml(state.error)}</p>` : ''}
                 </div>` : ''}
+            ${pushPanel()}
             <button type="button" data-tutorial-restart class="btn-3d-light mt-3 flex w-full items-center gap-2 rounded-2xl bg-white px-3 py-2 text-left dark:bg-slate-800"><i data-lucide="info" class="h-5 w-5 shrink-0 text-brand-700 dark:text-brand-300"></i><span class="min-w-0 flex-1 truncate text-[13px] font-black text-slate-800 dark:text-slate-100">Projít znovu tutoriál</span><i data-lucide="chevron-right" class="h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400"></i></button>
             ${renderDevPanel()}`;
         const profileBody = user && Social && meDraft ? `
@@ -1011,7 +1076,16 @@
                 return;
             }
             if (event.target.closest('[data-auth-login]')) { Auth.login(); return; }
-            if (event.target.closest('[data-auth-logout]')) { closeSettings(); Auth.logout(); return; }
+            if (event.target.closest('[data-auth-logout]')) {
+                // Odhlášený hráč nesmí na tomhle zařízení dál dostávat upozornění: odběr se smaže ještě za přihlášení
+                closeSettings();
+                (Push ? Push.disable().catch(() => {}) : Promise.resolve()).then(() => Auth.logout());
+                return;
+            }
+            const pushToggle = event.target.closest('[data-push-toggle]');
+            if (pushToggle) { togglePush(pushToggle.dataset.pushToggle === 'on'); return; }
+            const pushPref = event.target.closest('[data-push-pref]');
+            if (pushPref) { changePushPref(pushPref.dataset.pushPref); return; }
             if (event.target.closest('[data-update-app]')) { updateApp(); return; }
             if (event.target.closest('[data-tutorial-restart]')) {
                 // Tutoriál začíná na záložce Jeden hráč (dnešní otázky a dlaždice témat); jinak by se ukázal jen poslední krok
@@ -5110,6 +5184,22 @@
         'tournament-back': () => { const tid = challenge && challenge.tournament ? challenge.tournament.tid : ''; challengeHome(); if (tid) openTournament(tid); }
     };
 
+    // Klepnutí na upozornění: ?tab=multi v adrese (aplikace byla zavřená) nebo zpráva od service workeru (běžela) otevře záložku Více hráčů
+    const openHomeTabFromPush = (tab) => {
+        if (tab !== 'multi' && tab !== 'single') return;
+        writeJson(KEYS.homeTab, tab);
+        if (screen === 'home') { renderHome(); refreshTournaments(); }
+    };
+    function takeTabParam() {
+        const params = new URLSearchParams(window.location.search);
+        if (!params.has('tab')) return '';
+        const tab = params.get('tab');
+        params.delete('tab');
+        const query = params.toString();
+        try { window.history.replaceState(window.history.state, '', window.location.pathname + (query ? `?${query}` : '') + window.location.hash); } catch (error) { /* adresa zůstane */ }
+        return tab;
+    }
+
     // Odkaz s ?vyzva=KÓD: kód se z adresy hned odstraní
     function takeInviteCode() {
         const params = new URLSearchParams(window.location.search);
@@ -5335,6 +5425,9 @@
             window.location.reload();
         });
         navigator.serviceWorker.register('sw.js').catch(error => console.error(error));
+        navigator.serviceWorker.addEventListener('message', (event) => {
+            if (event.data && event.data.type === 'push-open') openHomeTabFromPush(String(event.data.tab || ''));
+        });
         document.addEventListener('visibilitychange', () => {
             if (document.visibilityState !== 'visible') return;
             checkForUpdate();
@@ -5365,6 +5458,8 @@
     } catch (e) { /* bez úložiště se vývojářský režim nezapne */ }
     migrateFromGeoQuiz();
     loadVersion();
+    const pushTab = takeTabParam();
+    if (pushTab === 'multi' || pushTab === 'single') writeJson(KEYS.homeTab, pushTab);
     // Po přihlášení nebo odhlášení se otevřené Nastavení překreslí
     if (Auth) {
         const invite = takeInviteCode();
