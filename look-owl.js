@@ -14,8 +14,9 @@
     // Vlajka státu na plátně vlaječky (doplněk s flags: true): kontejner stejné velikosti jako vrstva, který maskou (třída owl-flag v src/input.css,
     // icons/doplnky/vlajka-maska.webp) ořízne obrázek vlajky na tvar plátna; vlajka je roztažená přes ohraničení plátna a přes ni se násobí stínování
     // (vlnění látky). Rozměry rámu a ohraničení vypisuje scripts/owl-accessories.py (třídy musí být vypsané celé, ať je Tailwind najde).
+    // Kontejner je <span> (ne <div>): sova bývá uvnitř <p> nebo <button> a <div> by parser z odstavce vyhodil, takže by se vrstvy rozpadly mimo obal sovy.
     // Kontejner je průhledný, dokud se vlajka nenačte (offline zůstane modré plátno).
-    const FLAG_BOX_CLASS = 'pointer-events-none absolute left-[-34%] top-[-26%] w-[156%] aspect-[402/443] max-w-none select-none owl-flag opacity-0';
+    const FLAG_BOX_CLASS = 'block pointer-events-none absolute left-[-34%] top-[-26%] w-[156%] aspect-[402/443] max-w-none select-none owl-flag opacity-0';
     const FLAG_IMG_CLASS = 'absolute max-w-none select-none object-fill left-[12.44%] top-[32.28%] w-[17.41%] h-[16.48%]';
     const FLAG_SHADE_CLASS = 'absolute inset-0 h-full w-full max-w-none select-none mix-blend-multiply';
     const FLAG_THUMB_WIDTH = 120;
@@ -27,7 +28,7 @@
     const HUE_BAR = 'appearance-none rounded-full bg-[linear-gradient(90deg,#f00,#ff0,#0f0,#0ff,#00f,#f0f,#f00)]';
     const COLOR_DOT = {
         original: 'bg-gradient-to-br from-amber-300 via-rose-400 to-sky-500', cervena: 'bg-red-600', oranzova: 'bg-orange-500', zluta: 'bg-yellow-400',
-        zelena: 'bg-green-600', modra: 'bg-blue-600', fialova: 'bg-purple-600', ruzova: 'bg-pink-400',
+        zelena: 'bg-green-600', modra: 'bg-blue-600', fialova: 'bg-purple-600', ruzova: 'bg-pink-400', cerna: 'bg-neutral-900 ring-1 ring-white/40',
         vlastni: 'bg-[conic-gradient(#f00,#ff0,#0f0,#0ff,#00f,#f0f,#f00)]'
     };
     const escapeHtml = (text) => Core && Core.escapeHtml ? Core.escapeHtml(text) : String(text).replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
@@ -63,7 +64,7 @@
         if (!src) return '';
         // Pevná část doplňku (třeba tyčka vlajky) se nepřebarvuje: samostatná vrstva nad barevnou
         return `<img ${attrs} src="${src}" alt="" class="${LAYER_CLASS} ${flag ? '' : hueClass(entry.id, entry.color)}">`
-            + (flag ? `<div ${attrs} class="${FLAG_BOX_CLASS}"><img ${attrs} data-owl-flag-img src="${escapeHtml(flag)}" alt="" class="${FLAG_IMG_CLASS}"><img ${attrs} src="icons/doplnky/${item.id}-stin.webp" alt="" class="${FLAG_SHADE_CLASS}"></div>` : '')
+            + (flag ? `<span ${attrs} class="${FLAG_BOX_CLASS}"><img ${attrs} data-owl-flag-img src="${escapeHtml(flag)}" alt="" class="${FLAG_IMG_CLASS}"><img ${attrs} src="icons/doplnky/${item.id}-stin.webp" alt="" class="${FLAG_SHADE_CLASS}"></span>` : '')
             + (item.fixed ? `<img ${attrs} src="icons/doplnky/${item.id}-zaklad.webp" alt="" class="${LAYER_CLASS}">` : '');
     }).join('');
     // Vlajka se ukáže, až se načte (a při chybě nebo bez sítě zůstane modré plátno); CSP zakazuje obslužné funkce v atributech, proto zachycení na dokumentu
@@ -193,7 +194,7 @@
                 </select></label>` : '';
         const colors = targetItem && flagChosen && target === flagSlot ? '' : targetItem ? `
             <div class="flex flex-col gap-1.5"><p class="text-[11px] font-bold text-slate-500 dark:text-slate-400">Barva: <b class="text-slate-700 dark:text-slate-200">${escapeHtml(targetItem.title)}</b></p>
-            <div class="grid grid-cols-9 justify-items-center gap-1" role="group" aria-label="Barva doplňku">${Look.ACC_COLORS.map(dot).join('')}</div>${slider}</div>`
+            <div class="grid grid-cols-10 justify-items-center gap-1" role="group" aria-label="Barva doplňku">${Look.ACC_COLORS.map(dot).join('')}</div>${slider}</div>`
             : '<p class="text-[11px] font-semibold text-slate-500 dark:text-slate-400">Vyber doplněk a pak jeho barvu.</p>';
         return `<div class="flex flex-col gap-2">
             <div class="flex justify-center py-1">${logoHtml('mt-6', 'h-24 w-auto drop-shadow-lg [@media(max-height:700px)]:h-16', acc)}</div>
