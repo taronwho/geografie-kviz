@@ -97,6 +97,9 @@ const fetchDetails = async (list, query, size) => {
     return [...result];
 };
 const filmMap = new Map(await cached('film-films', () => fetchDetails(filmIds, filmDetails, 25)));
+// Popisy z Wikidat, které někdo hromadně přepsal chybně („americký film“ u italského westernu)
+const DESCRIPTION_FIXES = { Q76479: 'italský spaghetti western z roku 1964 od Sergioa Leoneho' };
+for (const [qid, description] of Object.entries(DESCRIPTION_FIXES)) if (filmMap.has(qid)) filmMap.get(qid).d = description;
 // Osoby: kandidáti a navíc režiséři vybraných filmů (i méně známí – jejich jméno je v nápovědě)
 const filmDirectors = [...new Set([...filmMap.values()].flatMap(film => film.dir || []))].filter(qid => /^Q\d+$/.test(qid));
 const personIds = [...new Set([...candidates.people.filter(([qid], index) => index < PEOPLE_DETAILS || czechPeopleIds.has(qid)).map(([qid]) => qid), ...filmDirectors])];
@@ -213,11 +216,17 @@ const CZECH_KNOWN = new Set(['Ostře sledované vlaky', 'Kolja', 'Pelíšky', 'O
     'Tatiana Vilhelmová', 'Jiří Macháček', 'Jan Tříska', 'Josef Somr', 'Václav Neckář', 'Karel Höger', 'Radoslav Brzobohatý', 'Jiří Kodet',
     'Jana Preissová', 'Petr Nárožný', 'Ondřej Vetchý', 'Vlasta Chramostová', 'Miloš Kopecký', 'Ladislav Pešek', 'Theodor Pištěk', 'Eduard Cupák']);
 
+// Světoví filmaři a herci, které zná každý, i když v datech mají jen jeden film (podle počtu jazykových verzí vycházejí hned za limitem známých)
+const FILM_KNOWN = new Set(['Sergej Michajlovič Ejzenštejn', 'Andrej Arseňjevič Tarkovskij', 'François Truffaut', 'Jean-Luc Godard', 'Pedro Almodóvar', 'John Ford',
+    'Frank Capra', 'Bernardo Bertolucci', 'Judy Garlandová', 'Katharine Hepburnová', 'Ingrid Bergmanová', 'Greta Garbo', 'Mel Gibson', 'Jennifer Anistonová',
+    'Whoopi Goldbergová', 'Salma Hayeková', 'Antonio Banderas', 'Gérard Depardieu', 'Sidney Poitier', 'Kirk Douglas', 'Cary Grant', 'Gene Wilder', 'Joan Crawfordová',
+    'Reese Witherspoonová', 'Chuck Norris', 'Werner Herzog', 'Fritz Lang', 'Sofia Coppola', 'David Fincher', 'Wes Anderson', 'Darren Aronofsky', 'Paul Verhoeven']);
+
 // --- 4. krok: položky ---
 const LIMITS = {
-    filmy: { limit: 650, known: 130, czLimit: 200, czKnown: 12, animatedLimit: 70, animatedKnown: 25 },
-    reziseri: { limit: 170, known: 45, czLimit: 40 },
-    herci: { limit: 420, known: 110, czLimit: 110 }
+    filmy: { limit: 650, known: 150, czLimit: 200, czKnown: 12, animatedLimit: 70, animatedKnown: 35 },
+    reziseri: { limit: 170, known: 65, czLimit: 40 },
+    herci: { limit: 420, known: 150, czLimit: 110 }
 };
 const names = new Set();
 const nameKey = (name) => name.toLocaleLowerCase('cs');
@@ -250,7 +259,8 @@ let animatedCount = 0;
 const personName = (qid) => people.has(qid) && people.get(qid).n ? nameOf(people.get(qid)) : undefined;
 for (const [qid, links] of candidates.films) {
     const detail = filmMap.get(qid);
-    if (!detail || !detail.t || !detail.n) continue;
+    // Český štítek ve Wikidatech občas chybí (Avatar) – název pak vychází z názvu článku
+    if (!detail || !detail.t) continue;
     const types = (detail.type || []).map(type => `${cs(type) || ''} ${en(type)}`).join(' | ');
     if (/seriál|minisérie|series|krátký|short/iu.test(types) || (detail.genre || []).includes(DOCUMENTARY) && !(detail.genre || []).some(genre => GENRES.some(([q]) => q === genre))) continue;
     const { year, sure } = filmYear(detail);
@@ -316,7 +326,7 @@ const personCandidates = [...new Set([...candidates.people.map(([qid]) => qid), 
     .filter(qid => people.has(qid)).sort((a, b) => (sitelinks.get(b) || 0) - (sitelinks.get(a) || 0));
 for (const qid of personCandidates) {
     const detail = people.get(qid);
-    if (!detail.t || !detail.n || !(detail.type || []).includes(HUMAN)) continue;
+    if (!detail.t || !(detail.type || []).includes(HUMAN)) continue;
     const ownDirected = directed.get(qid) || [];
     const ownStarred = starred.get(qid) || [];
     const category = roleOf(detail, ownDirected.length + ownStarred.length);
@@ -347,7 +357,7 @@ for (const qid of personCandidates) {
         filmCount: own.length
     };
     // Známí: z nejznámějších ti s aspoň dvěma filmy v datech (jinak by mezi známé pronikly hvězdy indické televize); z Čechů ti nejznámější
-    const known = (position) => isCzech ? CZECH_KNOWN.has(item.n) : position < LIMITS[category].known && own.length >= 2;
+    const known = (position) => isCzech ? CZECH_KNOWN.has(item.n) : FILM_KNOWN.has(item.n) || position < LIMITS[category].known && own.length >= 2;
     // Osoba má přednost před filmem stejného jména (herečka Lída Baarová, ne životopisný film o ní)
     const sameFilm = filmItems.find(film => nameKey(film.n) === nameKey(item.n));
     if (sameFilm) {
@@ -373,6 +383,7 @@ const COLLECTIONS = [
     { id: 'cesky-film', label: 'Český film', text: 'České a československé filmy, režiséři a herci', sort: BY_YEAR, test: item => item.cz },
     { id: 'ceska-klasika', label: 'Česká filmová klasika', text: 'České a československé filmy do roku 1989', sort: BY_YEAR, test: item => item.c === 'filmy' && item.cz && item.f.year < 1990 },
     { id: 'zlata-sedesata', label: 'Zlatá šedesátá', text: 'Česká nová vlna a filmy 60. let', sort: BY_YEAR, test: item => item.c === 'filmy' && item.cz && item.f.year >= 1960 && item.f.year < 1970 },
+    { id: 'slovensky-film', label: 'Slovenský film', text: 'Slovenské filmy, režiséři a herci', sort: BY_YEAR, test: item => [].concat(item.f.land || []).includes('Slovensko') },
     { id: 'pohadky', label: 'Filmové pohádky', sort: BY_YEAR, test: hasGenre('Q1957385', 'Q699') },
     { id: 'oscar-film', label: 'Oscar za nejlepší film', sort: BY_YEAR, test: item => item.c === 'filmy' && item.f.osc },
     { id: 'drzitele-oscara', label: 'Držitelé Oscara', text: 'Režiséři, herci a herečky s Oscarem', sort: BY_YEAR, test: item => item.c !== 'filmy' && item.f.osc },

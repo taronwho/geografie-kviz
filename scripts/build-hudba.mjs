@@ -1,5 +1,6 @@
 // Téma Hudba: data/hudba.json z Wikidat (přes QLever) – skladatelé, hudebníci a zpěváci, kapely a slavná díla
 // Spuštění: npm run build:hudba (s BUILD_CACHE=složka jde pravidla ladit bez opakovaného stahování)
+import { writeFileSync } from 'node:fs';
 import { qlever, id, values, imageFields, yearOf, compact, cached, inBatches, writeTopic, readCountries } from './lib/wikidata.mjs';
 
 const HUMAN = 'Q5';
@@ -20,21 +21,21 @@ const csArticle = (variable) => `?a schema:about ${variable} . ?a schema:isPartO
 const fromRows = (rows, key = 'x') => rows.map(row => [id(row[key].value), Number(row.sl.value)]).sort((a, b) => b[1] - a[1]);
 
 // --- 1. krok: kandidáti ---
-const candidates = await cached('hudba-candidates', async () => {
-    const people = fromRows(await qlever(`SELECT DISTINCT ?x ?sl WHERE { VALUES ?o { ${values(MUSIC_OCCUPATIONS)} } ?x wdt:P106 ?o . ?x wdt:P31 wd:${HUMAN} . ${csArticle('?x')} FILTER(?sl >= 12) }`));
+const candidates = await cached('hudba-candidates-2', async () => {
+    const people = fromRows(await qlever(`SELECT DISTINCT ?x ?sl WHERE { VALUES ?o { ${values(MUSIC_OCCUPATIONS)} } ?x wdt:P106 ?o . ?x wdt:P31 wd:${HUMAN} . ${csArticle('?x')} FILTER(?sl >= 9) }`));
     // Česká stopa: občanství nebo narození v Česku – i méně známí
     const czechPeople = fromRows(await qlever(`SELECT DISTINCT ?x ?sl WHERE { VALUES ?o { ${values(MUSIC_OCCUPATIONS)} } ?x wdt:P106 ?o . ?x wdt:P31 wd:${HUMAN} .
   { ?x wdt:P27 ?c . VALUES ?c { ${values([...CZECH_STATES])} } } UNION { ?x wdt:P19/wdt:P17 wd:Q213 } ${csArticle('?x')} FILTER(?sl >= 4) }`));
-    const groups = fromRows(await qlever(`SELECT DISTINCT ?x ?sl WHERE { ?x wdt:P31/wdt:P279* wd:${MUSICAL_GROUP} . ${csArticle('?x')} FILTER(?sl >= 8) }`));
+    const groups = fromRows(await qlever(`SELECT DISTINCT ?x ?sl WHERE { ?x wdt:P31/wdt:P279* wd:${MUSICAL_GROUP} . ${csArticle('?x')} FILTER(?sl >= 6) }`));
     const czechGroups = fromRows(await qlever(`SELECT DISTINCT ?x ?sl WHERE { ?x wdt:P31/wdt:P279* wd:${MUSICAL_GROUP} .
   { ?x wdt:P495 ?c } UNION { ?x wdt:P17 ?c } UNION { ?x wdt:P740/wdt:P17 ?c } VALUES ?c { ${values([...CZECH_STATES])} } ${csArticle('?x')} }`));
-    const works = fromRows(await qlever(`SELECT DISTINCT ?x ?sl WHERE { ?x wdt:P31/wdt:P279* wd:${MUSICAL_WORK} . { ?x wdt:P86 [] } UNION { ?x wdt:P175 [] } ${csArticle('?x')} FILTER(?sl >= 8) }`));
-    const albums = fromRows(await qlever(`SELECT DISTINCT ?x ?sl WHERE { ?x wdt:P31/wdt:P279* wd:${ALBUM} . ?x wdt:P175 [] . ${csArticle('?x')} FILTER(?sl >= 8) }`));
+    const works = fromRows(await qlever(`SELECT DISTINCT ?x ?sl WHERE { ?x wdt:P31/wdt:P279* wd:${MUSICAL_WORK} . { ?x wdt:P86 [] } UNION { ?x wdt:P175 [] } ${csArticle('?x')} FILTER(?sl >= 6) }`));
+    const albums = fromRows(await qlever(`SELECT DISTINCT ?x ?sl WHERE { ?x wdt:P31/wdt:P279* wd:${ALBUM} . ?x wdt:P175 [] . ${csArticle('?x')} FILTER(?sl >= 6) }`));
     return {
-        people: [...new Map([...people.slice(0, 3500), ...czechPeople])].sort((a, b) => b[1] - a[1]),
-        groups: [...new Map([...groups.slice(0, 1500), ...czechGroups])].sort((a, b) => b[1] - a[1]),
-        works: works.slice(0, 1500),
-        albums: albums.slice(0, 900)
+        people: [...new Map([...people.slice(0, 5500), ...czechPeople])].sort((a, b) => b[1] - a[1]),
+        groups: [...new Map([...groups.slice(0, 2500), ...czechGroups])].sort((a, b) => b[1] - a[1]),
+        works: works.slice(0, 3000),
+        albums: albums.slice(0, 2500)
     };
 });
 console.log(`Kandidáti: ${candidates.people.length} osob, ${candidates.groups.length} skupin, ${candidates.works.length} skladeb, ${candidates.albums.length} alb`);
@@ -73,7 +74,11 @@ const fetchDetails = async (list) => {
 };
 const details = new Map(await cached('hudba-details', async () => [...await fetchDetails(allIds)]));
 const missingDetails = allIds.filter(qid => !details.has(qid));
-if (missingDetails.length) for (const [qid, detail] of await fetchDetails(missingDetails)) details.set(qid, detail);
+if (missingDetails.length) {
+    for (const [qid, detail] of await fetchDetails(missingDetails)) details.set(qid, detail);
+    // Dostažené podrobnosti se doplní do mezipaměti, ať se při dalším ladění nestahují znovu
+    if (process.env.BUILD_CACHE) writeFileSync(`${process.env.BUILD_CACHE}/hudba-details.json`, JSON.stringify([...details]));
+}
 
 // České a anglické názvy odkazovaných položek (žánry, nástroje, země, typy, autoři, členové)
 const REFERENCED_KEYS = ['cit', 'occ', 'genre', 'mov', 'origin', 'country', 'formed', 'members', 'memberOf', 'notable', 'composer',
@@ -85,7 +90,7 @@ const fetchLabels = async (list) => {
         (row) => result.push([`${row.lang.value}:${id(row.item.value)}`, row.l.value]), qlever);
     return result;
 };
-const labels = new Map(await cached('hudba-labels', () => fetchLabels(referenced)));
+const labels = new Map(await cached('hudba-labels-2', () => fetchLabels(referenced)));
 const cs = (qid) => labels.get(`cs:${qid}`);
 const en = (qid) => labels.get(`en:${qid}`) || '';
 
@@ -223,7 +228,8 @@ const CZECH_KNOWN = new Set(['Bedřich Smetana', 'Antonín Dvořák', 'Leoš Jan
 const NOT_KNOWN = new Set(['Basshunter', 'Valerij Jakovlevič Leonťjev', 'Anggun', 'Agnez Mo', 'Hebe Camargová', 'Umm Kulthum', 'Lila Downs', 'Lordi', 'Twice',
     'EXO', 'Girls\' Generation', 'Momoiro Clover Z', 'Kara', 'Wanna One', 'Red Velvet', 'BigBang', 'AKB48', 'Buranovské babičky', 'Clannad', 'Lacuna Coil',
     'Stefanija Turkevyč-Lukijanovyč', 'Ičiró Mizuki', 'Alla Borisovna Pugačovová', 'Anna Netrebko', 'James Peace', 'Rafael Orozco Maestre', 'Selena', 'Jolin Tsai',
-    'Lata Mangeškar', 'Miriam Makeba', 'Zendaya', 'Natalia Oreiro', 'Joakim Brodén', 'Filip Bandžak', 'Paramore']);
+    'Lata Mangeškar', 'Miriam Makeba', 'Zendaya', 'Natalia Oreiro', 'Joakim Brodén', 'Filip Bandžak', 'Paramore', 'Victoria Beckham', 'Weird Al Yankovic', 'R. Kelly', 'Nelly Furtado', 'Ravi Šankar', 'Vladimir Vysockij',
+    'Pussycat Dolls', 'Jonas Brothers', 'Sum 41', 'OneRepublic', 'Avenged Sevenfold', 'Alice in Chains', 'Evanescence', 'Soundgarden', 'Alla Pugačova']);
 // Díla, která zná skoro každý (u děl počet jazykových verzí nic neříká – vedou alba Lordi a písně z Eurovize)
 const KNOWN_WORKS = new Set(['Kouzelná flétna', 'Don Giovanni', 'Figarova svatba', 'Carmen', 'La traviata', 'Aida', 'Nabucco', 'Rigoletto', 'Madam Butterfly',
     'Tosca', 'Turandot', 'Bohéma', 'Labutí jezero', 'Louskáček', 'Šípková Růženka', 'Čtvero ročních dob', 'Symfonie č. 9 d moll', 'Symfonie č. 5 „Osudová“',
@@ -237,6 +243,33 @@ const KNOWN_WORKS = new Set(['Kouzelná flétna', 'Don Giovanni', 'Figarova svat
     "(I Can't Get No) Satisfaction", 'Another Brick in the Wall', 'My Heart Will Go On', 'Let It Go', 'Gangnam Style', 'Despacito', 'Bad Romance',
     'Shape of You', 'Purple Rain', 'Like a Prayer', 'Internacionála', 'Happy Birthday to You', 'Jingle Bells', 'Over the Rainbow', 'What a Wonderful World',
     'My Way', 'Kaťuša', 'Hallelujah']);
+// Další slavná alba, písně, opery, baletní a orchestrální díla a muzikály (vzali se jen ti, kteří mezi kandidáty jsou)
+const MORE_KNOWN_WORKS = ['Wish You Were Here', 'A Night at the Opera', 'Led Zeppelin IV', 'Bad', 'Off the Wall', 'Revolver', 'Rubber Soul', 'Help!',
+    'Let It Be', 'Born to Run', 'Born in the U.S.A.', 'Appetite for Destruction', 'Highway to Hell', 'Paranoid', 'Machine Head', 'The Joshua Tree', 'Achtung Baby',
+    'OK Computer', 'Kid A', 'Dookie', 'American Idiot', 'Californication', 'Brothers in Arms', 'Tapestry', 'Pet Sounds', 'Purple Rain', 'Like a Virgin', 'Ray of Light',
+    'Master of Puppets', 'Kill \'Em All', 'Hybrid Theory', 'Meteora', 'Back to Black', '21', '25', '1989', 'Lemonade', 'Random Access Memories', 'Discovery',
+    'The Marshall Mathers LP', 'Illmatic', 'Kind of Blue', 'Sticky Fingers', 'Exile on Main St.', 'Tommy', 'Quadrophenia', 'Tubular Bells', 'Bat Out of Hell',
+    'A Kind of Magic', 'News of the World', 'Innuendo', 'Definitely Maybe', "(What's the Story) Morning Glory?", 'The Bends', 'In Utero', 'Animals',
+    'Hey Jude', 'Come Together', 'Here Comes the Sun', 'Eleanor Rigby', 'Penny Lane', 'Strawberry Fields Forever', 'Yellow Submarine', 'All You Need Is Love', 'Get Back',
+    'Twist and Shout', 'Paint It Black', 'Sympathy for the Devil', 'Start Me Up', 'Wonderwall', "Don't Look Back in Anger", 'Creep', 'Karma Police', 'Losing My Religion',
+    'With or Without You', 'One', 'Sultans of Swing', 'Every Breath You Take', 'Roxanne', "Don't Stop Believin'", "Sweet Child o' Mine", 'Welcome to the Jungle', 'November Rain',
+    "Knockin' on Heaven's Door", 'Thunderstruck', 'Enter Sandman', 'Nothing Else Matters', 'Seven Nation Army', 'Come as You Are', 'Respect', 'I Will Always Love You',
+    'Rolling in the Deep', 'Someone Like You', 'Skyfall', 'Uptown Funk', 'Happy', 'Blinding Lights', 'Poker Face', 'Just Dance', 'Born This Way', 'Vogue', 'Material Girl',
+    'Hung Up', 'Toxic', 'Wannabe', 'Wake Me Up Before You Go-Go', 'Last Christmas', 'Careless Whisper', 'Take on Me', 'Africa', 'Girls Just Want to Have Fun', 'Time After Time',
+    'Total Eclipse of the Heart', "Livin' on a Prayer", 'Smooth Criminal', 'Beat It', 'Black or White', 'Man in the Mirror', "Stayin' Alive", 'Mamma Mia',
+    'Money, Money, Money', 'The Winner Takes It All', 'Fernando', 'Chiquitita', 'Whole Lotta Love', 'Kashmir', 'Comfortably Numb', 'Money', 'Another One Bites the Dust',
+    "Don't Stop Me Now", 'Killer Queen', 'Somebody to Love', 'I Want to Break Free', 'Radio Ga Ga', 'Under Pressure', 'The Show Must Go On', 'Crazy in Love', 'Single Ladies',
+    'Umbrella', 'Halo', 'Evžen Oněgin', 'Pikovaná dáma', 'Boris Godunov', 'Parsifal', 'Tristan a Isolda', 'Lohengrin', 'Tannhäuser', 'Valkýra', 'Rusalka', 'Dalibor', 'Libuše',
+    'Čert a Káča', 'Così fan tutte', 'Čarostřelec', 'Trubadúr', 'Otello', 'Falstaff', 'Don Carlos', 'Hoffmannovy povídky',
+    'Cavalleria rusticana', 'Komedianti', 'Gianni Schicchi', 'Manon Lescaut', 'Jupiterská symfonie', 'Árie na struně G', 'Gymnopédie', 'Clair de lune', 'Sen noci svatojánské',
+    'Orfeus v podsvětí', 'Zlatý věk', 'Romeo a Julie', 'Spartakus', 'Chicago', 'Cabaret', 'Hair', 'Pomáda', 'Evita', 'Starci na chmelu',
+    'Lví král', 'Za zvuků hudby', 'My Fair Lady', 'Hello, Dolly!', 'Oliver!', 'Notre-Dame de Paris', 'Lady Carneval', 'Hlídač krav', 'Vlak do Prahy'];
+for (const name of MORE_KNOWN_WORKS) KNOWN_WORKS.add(name);
+// Další česká a slovenská jména, která zná skoro každý
+for (const name of ['Petra Černocká', 'Daniel Landa', 'Elán', 'Richard Müller', 'Jiří Suchý', 'Jiří Šlitr', 'Spirituál kvintet', 'Věra Špinarová', 'Vladimír Mišík',
+    'Ivan Hlas', 'Lenka Dusilová', 'Aneta Langerová', 'Richard Krajčo', 'Janek Ledecký', 'Karel Plíhal', 'Jaroslav Uhlíř', 'Felix Slováček', 'Daniel Hůlka',
+    'Support Lesbiens', 'Lucie Vondráčková', 'Dan Bárta', 'Vlasta Redl', 'Pavel Žalman Lohonka', 'Cargo', 'Bijou', 'Kamil Střihavka', 'Marek Ztracený', 'Tomáš Klus',
+    'Xindl X', 'Ewa Farna', 'Vojtěch Dyk', 'Monika Absolonová', 'Miro Žbirka', 'Marika Gombitová', 'Karel Hašler']) CZECH_KNOWN.add(name);
 // Herci a spisovatelé, které Wikidata vedou i jako hudebníky (Max Brod patří do literatury)
 const EXCLUDED = new Set(['Max Brod', 'Keanu Reeves']);
 
@@ -327,7 +360,12 @@ for (const [qid] of [...candidates.works, ...candidates.albums]) {
     const typed = workKindOf(detail);
     const described = (DESCRIBED_KINDS.find(([, pattern]) => pattern.test(detail.d || '')) || [])[0];
     const performers = detail.performer || [];
-    const composers = detail.composer || [];
+    let composers = detail.composer || [];
+    // Dva skladatelé ve Wikidatech, ale popis uvádí jen jednoho („opera Bedřicha Smetany“, druhý je třeba chybný zápis nebo orchestrátor): platí ten z popisu
+    if (composers.length === 2) {
+        const named = composers.filter(composer => { const last = (nameOf(composer) || '').split(' ').pop(); return last.length >= 5 && (detail.d || '').toLowerCase().includes(last.slice(0, -2).toLowerCase()); });
+        if (named.length === 1) composers = named;
+    }
     const pub = minYear(detail.pub);
     const premiere = minYear(detail.premiere);
     const inception = minYear(detail.from);
@@ -356,10 +394,10 @@ for (const [qid] of [...candidates.works, ...candidates.albums]) {
 // --- 4. krok: výběr a známost ---
 // Kategorie: kolik vzít a kolik nejznámějších je „známých“ (czLimit = kolik českých nad limit)
 const LIMITS = {
-    skladatele: { limit: 200, known: 55, czLimit: 40 },
-    hudebnici: { limit: 380, known: 95, czLimit: 70 },
-    kapely: { limit: 240, known: 80, czLimit: 45 },
-    dila: { limit: 360, known: 75, czLimit: 30 }
+    skladatele: { limit: 215, known: 60, czLimit: 45 },
+    hudebnici: { limit: 430, known: 90, czLimit: 80 },
+    kapely: { limit: 280, known: 85, czLimit: 55 },
+    dila: { limit: 540, known: 75, czLimit: 60 }
 };
 // Pořadí: nejdřív slavná česká jména, potom podle počtu jazykových verzí
 const byFame = (list) => list.sort((a, b) => Number(CZECH_KNOWN.has(b.name)) - Number(CZECH_KNOWN.has(a.name)) || b.detail.sl - a.detail.sl);
@@ -372,6 +410,7 @@ const selected = [];
 const isCzechPerson = (detail) => isCzechDetail(detail, 'cit', 'bornIn', 'origin', 'country');
 for (const list of [byFame(people.filter(p => p.category === 'skladatele')), byFame(people.filter(p => p.category === 'hudebnici')), byFame(bands), byFame(works)]) {
     const counts = { all: 0, cz: 0, known: 0 };
+    console.log(`  k výběru: ${list.length} (${list[0] ? list[0].category : ''})`);
     for (const entry of list) {
         const { detail, category, name } = entry;
         const settings = LIMITS[category];
@@ -491,7 +530,7 @@ for (const item of items) {
 
 // Autoři stejnojmenných děl (Rusalka – Dvořák i Dargomyžskij, Othello – Verdi i Rossini): u otázky na autora nesmí být mezi možnostmi
 const workNames = [...new Set(items.filter(item => item.c === 'dila').flatMap(item => [item.n, titleName(item.t)]))];
-const namesakeAuthors = new Map(await cached('hudba-namesakes', async () => {
+const namesakeAuthors = new Map(await cached('hudba-namesakes-2', async () => {
     const result = [];
     await inBatches(workNames, 150, (names) => `SELECT ?l ?au WHERE { VALUES ?l { ${names.map(name => JSON.stringify(name) + '@cs').join(' ')} }
   ?w rdfs:label ?l . { ?w wdt:P86 ?au } UNION { ?w wdt:P175 ?au } UNION { ?w wdt:P50 ?au } }`,
@@ -516,6 +555,7 @@ const decade = (from) => (item) => isPerformer(item) && !isClassical(item) && it
 const COLLECTIONS = [
     { id: 'cesti-skladatele', label: 'Čeští skladatelé', sort: BY_YEAR, test: item => item.c === 'skladatele' && isCzechLand(item) },
     { id: 'ceska-popularni', label: 'Česká populární hudba', text: 'Zpěváci, hudebníci a kapely', sort: BY_YEAR, test: item => isPerformer(item) && isCzechLand(item) && !isClassical(item) },
+    { id: 'slovenska-hudba', label: 'Slovenská hudba', text: 'Slovenští skladatelé, zpěváci, kapely a díla', sort: BY_YEAR, test: item => item.f.land === 'Slovensko' },
     { id: 'ceska-dila', label: 'Česká hudební díla', sort: BY_YEAR, test: item => item.c === 'dila' && item.cz === 1 },
     { id: 'renesance', label: 'Renesance', text: 'Skladatelé 15. a 16. století', sort: BY_YEAR, test: item => item.f.per === 'renesance' },
     { id: 'baroko', label: 'Baroko', text: 'Skladatelé zhruba 1600–1750', sort: BY_YEAR, test: item => item.f.per === 'baroko' },

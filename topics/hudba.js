@@ -233,7 +233,7 @@
     };
 
     // Z popisu u otázky na období zmizí období, směry a letopočty (prozradily by odpověď)
-    const PERIOD_WORDS = /(?<![\p{L}])(?:renesan|barok|klasicis|klasicist|romanti|modern|impresionis|expresionis|neoklasic|avantgard|vídeňsk)\p{L}*/giu;
+    const PERIOD_WORDS = /(?<![\p{L}])(?:renesan|barok|klasicis|klasicist|romanti|modern|impresionis|expresionis|neoklasic|avantgard|vídeňsk|hudb)\p{L}*/giu;
     const hideYears = (text) => text.replace(/(?<![\p{L}\d])\d{1,4}(?!\d)(\.\s*(?:století|stol\.))?/gu, '[***]');
 
     // --- Nápovědy podle druhu otázky ---
