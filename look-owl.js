@@ -16,7 +16,7 @@
     // (vlnění látky). Rozměry rámu a ohraničení vypisuje scripts/owl-accessories.py (třídy musí být vypsané celé, ať je Tailwind najde).
     // Kontejner je průhledný, dokud se vlajka nenačte (offline zůstane modré plátno).
     const FLAG_BOX_CLASS = 'pointer-events-none absolute left-[-34%] top-[-26%] w-[156%] aspect-[402/443] max-w-none select-none owl-flag opacity-0';
-    const FLAG_IMG_CLASS = 'absolute max-w-none select-none object-fill left-[12.44%] top-[32.28%] w-[17.41%] h-[16.48%]';
+    const FLAG_IMG_CLASS = 'absolute max-w-none select-none object-cover owl-flag-img left-[10.7%] top-[30.7%] w-[20.9%] h-[19.64%]';
     const FLAG_SHADE_CLASS = 'absolute inset-0 h-full w-full max-w-none select-none mix-blend-multiply';
     const FLAG_THUMB_WIDTH = 120;
     // Pořadí kreslení: krk dole, pak obličej, hlava a ruka nahoře
