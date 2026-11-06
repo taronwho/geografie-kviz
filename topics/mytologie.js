@@ -16,7 +16,13 @@
         { key: 'egyptska', label: 'Egyptská mytologie', one: 'postava', icon: 'pyramid', ...PERSON },
         { key: 'severska', label: 'Severská mytologie', one: 'postava', icon: 'sword', ...PERSON },
         { key: 'slovanska', label: 'Slované a české pověsti', one: 'postava', icon: 'castle', ...PERSON },
-        { key: 'bytosti', label: 'Bájné bytosti', one: 'bytost', icon: 'ghost', question: 'Co je to za bytost?', placeholder: 'Napiš název…', sort: { by: 'name' } }
+        { key: 'indicka', label: 'Indická mytologie', one: 'postava', icon: 'flame', ...PERSON },
+        { key: 'keltska', label: 'Keltská mytologie a král Artuš', one: 'postava', icon: 'trees', ...PERSON },
+        { key: 'vychod', label: 'Japonská a čínská mytologie', one: 'postava', icon: 'sun', ...PERSON },
+        { key: 'orient', label: 'Mezopotámie a starověký Orient', one: 'postava', icon: 'landmark', ...PERSON },
+        { key: 'amerika', label: 'Aztékové, Mayové a Inkové', one: 'postava', icon: 'triangle', ...PERSON },
+        { key: 'bytosti', label: 'Bájné bytosti', one: 'bytost', icon: 'ghost', question: 'Co je to za bytost?', placeholder: 'Napiš název…', sort: { by: 'name' } },
+        { key: 'predmety', label: 'Bájná místa a předměty', one: 'místo či předmět', icon: 'compass', question: 'Co je to?', placeholder: 'Napiš název…', sort: { by: 'name' } }
     ];
 
     // Mytologie pro otázku „Ze které mytologie je?“: popisek a přijímané psané odpovědi
@@ -25,10 +31,27 @@
         rimska: { label: 'římská', accepted: ['římská', 'římská mytologie', 'Řím', 'římské', 'starořímská'] },
         egyptska: { label: 'egyptská', accepted: ['egyptská', 'egyptská mytologie', 'Egypt', 'egyptské', 'staroegyptská'] },
         severska: { label: 'severská', accepted: ['severská', 'severská mytologie', 'nordická', 'germánská', 'skandinávská', 'vikingská'] },
-        slovanska: { label: 'slovanská', accepted: ['slovanská', 'slovanská mytologie', 'Slované', 'slovanské', 'praslovanská'] }
+        slovanska: { label: 'slovanská', accepted: ['slovanská', 'slovanská mytologie', 'Slované', 'slovanské', 'praslovanská'] },
+        indicka: { label: 'indická', accepted: ['indická', 'indická mytologie', 'hinduistická', 'hinduistická mytologie', 'hinduismus', 'Indie', 'indické', 'védská'] },
+        keltska: { label: 'keltská', accepted: ['keltská', 'keltská mytologie', 'Keltové', 'keltské', 'irská', 'irská mytologie', 'velšská', 'galská'] },
+        japonska: { label: 'japonská', accepted: ['japonská', 'japonská mytologie', 'Japonsko', 'japonské', 'šintoistická', 'šintoismus'] },
+        cinska: { label: 'čínská', accepted: ['čínská', 'čínská mytologie', 'Čína', 'čínské', 'taoistická'] },
+        mezopotamska: { label: 'mezopotámská', accepted: ['mezopotámská', 'mezopotámská mytologie', 'Mezopotámie', 'sumerská', 'sumerská mytologie', 'babylonská', 'babylónská', 'akkadská', 'asyrská'] },
+        kanaanska: { label: 'kanaánská', accepted: ['kanaánská', 'kanaánská mytologie', 'Kanaán', 'fénická', 'ugaritská'] },
+        perska: { label: 'perská', accepted: ['perská', 'perská mytologie', 'Persie', 'perské', 'íránská', 'zoroastrijská'] },
+        aztecka: { label: 'aztécká', accepted: ['aztécká', 'aztécká mytologie', 'Aztékové', 'aztécké', 'aztec'] },
+        mayska: { label: 'mayská', accepted: ['mayská', 'mayská mytologie', 'Mayové', 'mayské', 'májská'] },
+        incka: { label: 'incká', accepted: ['incká', 'incká mytologie', 'Inkové', 'incké', 'andská'] },
+        biblicka: { label: 'židovsko-křesťanská', accepted: ['židovsko-křesťanská', 'biblická', 'křesťanská', 'židovská', 'abrahámovská', 'Bible', 'biblické', 'křesťanství', 'judaismus'] }
+    };
+    // Blízké mytologie, které se u otázky „Ze které mytologie je?“ nesejdou (Quetzalcoatl je aztécký i mayský Kukulkán)
+    const CLOSE = {
+        aztecka: ['mayska', 'incka'], mayska: ['aztecka', 'incka'], incka: ['aztecka', 'mayska'], kanaanska: ['mezopotamska', 'biblicka'],
+        mezopotamska: ['kanaanska', 'perska', 'biblicka'], perska: ['mezopotamska', 'biblicka'], cinska: ['japonska'], japonska: ['cinska'],
+        keltska: ['severska'], severska: ['keltska'], biblicka: ['kanaanska', 'mezopotamska', 'perska']
     };
     // Slova, která v popisu prozradí mytologii (řecký, Olymp, faraon, Edda, Slované…)
-    const MYTH_WORDS = /(?<![\p{L}\d])(?:staro|pra)?(?:řeck|římsk|helén|antick|egypt|severs|germán|skandináv|nordick|norsk|islandsk|vikin|slovan|olymp|Řím|Řek(?:ové|ů|ům)|Egypt|Edd|Ásgard|Ás[ouy]|Vanov|faraon|Slovan|Nil|Thé[bv]|Memfi|Heliopol|Valhal|Walhal|Ragnar|Ygg|Midgard|Atén|Athén|Trój|Homér|Hésiod|Ovid|Vergil)\p{L}*/giu;
+    const MYTH_WORDS = /(?<![\p{L}\d])(?:staro|pra)?(?:řeck|římsk|helén|antick|egypt|severs|germán|skandináv|nordick|norsk|islandsk|vikin|slovan|olymp|Řím|Řek(?:ové|ů|ům)|Egypt|Edd|Ásgard|Ás[ouy]|Vanov|faraon|Slovan|Nil|Thé[bv]|Memfi|Heliopol|Valhal|Walhal|Ragnar|Ygg|Midgard|Atén|Athén|Trój|Homér|Hésiod|Ovid|Vergil|indick|Indi[eiíe]|hinduis|védsk|keltsk|Kelt|irsk|Irsk|velšsk|artuš|Artuš|Camelot|japonsk|Japonsk|šintoi|čínsk|Čín|taoi|mezopotám|sumer|akkad|babylon|babylón|asyrsk|aztéc|Azték|Aztéc|mayš|maysk|májsk|Maj(?:ové|ů)|inck|Ink(?:ové|ů|a|y|ou)|persk|perš|Persi|zoroastr|kanaán|Kanaán|fénick|biblick|Bibl|křesťan|židovsk|abrahám|islám|Jeruzalém|Eden|judais|kabal|džinis|buddh|muslim|konfuci|galsk|Gal(?:ové|ů)|Galie|íránsk|Írán|ugarit|hebrej|Izrael|izraelsk|sumersk|Babylón|Asýri|Ninive|Uruk|Ur\b|Andy|andsk|Peru|Mexik|Tenochtitl|Yucatán|Tibet|tibetsk|Nepál|Srí|Kambodž|Angkor)\p{L}*/giu;
 
     // Jak často se místo „Kdo je to?“ ptáme na protějšek (u klasických dvojic) nebo na mytologii
     const COUNTERPART_QUIZ_SHARE = 0.35;
@@ -152,7 +175,7 @@
     const mythChoices = (item, rng) => {
         const key = f(item).myk;
         const twin = key === 'recka' ? 'rimska' : key === 'rimska' ? 'recka' : null;
-        const others = Object.keys(MYTHS).filter(other => other !== key && other !== twin);
+        const others = Object.keys(MYTHS).filter(other => other !== key && other !== twin && !(CLOSE[key] || []).includes(other));
         const wrong = twin && (f(item).cp || key === 'rimska') ? [twin, ...shuffle(others, rng).slice(0, 2)] : shuffle(others, rng).slice(0, 3);
         return shuffle([key, ...wrong], rng).map(other => ({ id: `mytologie-${other}`, label: MYTHS[other].label, correct: other === key }));
     };
@@ -211,6 +234,7 @@
         const my = f(item).my;
         if (!my) return item.ty || 'bájná bytost';
         if (my === 'české pověsti') return 'České pověsti';
+        if (/legendy$/u.test(my)) return `${my.charAt(0).toUpperCase()}${my.slice(1)}`;
         return `${my.charAt(0).toUpperCase()}${my.slice(1)} mytologie`;
     };
 

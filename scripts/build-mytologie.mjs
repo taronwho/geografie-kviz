@@ -2,6 +2,7 @@
 // mytologie, postavy Starých pověstí českých a bájné bytosti
 // Spuštění: npm run build:mytologie (s BUILD_CACHE=složka jde pravidla ladit bez opakovaného stahování)
 import { qlever, sparql, id, values, imageFields, compact, cached, inBatches, writeTopic } from './lib/wikidata.mjs';
+import { categoryMembers, FORCED_SOURCES, FORCED_EXCLUDE, FORCED_LISTS, FORCED_CREATURES, FORCED_OBJECTS } from './lib/mytologie-sources.mjs';
 
 // QLever, a když je přetížený, query.wikidata.org
 const run = (query) => qlever(query).catch(() => sparql(query));
@@ -17,7 +18,20 @@ const MYTHOLOGIES = {
     rimska: { label: 'římská', ids: ['Q122173', 'Q337547'], classes: ['Q11688446'] },
     egyptska: { label: 'egyptská', ids: ['Q205740'], classes: ['Q146083'] },
     severska: { label: 'severská', ids: ['Q128285', 'Q121617'], classes: ['Q16513881', ...JOTUNN] },
-    slovanska: { label: 'slovanská', ids: ['Q201571'], classes: ['Q4436935'] }
+    slovanska: { label: 'slovanská', ids: ['Q201571'], classes: ['Q4436935'] },
+    // Další mytologie vybírají kategorie české Wikipedie a ruční seznamy (lib/mytologie-sources.mjs), ne třídy z Wikidat
+    indicka: { label: 'indická', ids: [], classes: [] },
+    keltska: { label: 'keltská', ids: [], classes: [] },
+    artus: { label: 'artušovské legendy', ids: [], classes: [] },
+    japonska: { label: 'japonská', ids: [], classes: [] },
+    cinska: { label: 'čínská', ids: [], classes: [] },
+    mezopotamska: { label: 'mezopotámská', ids: [], classes: [] },
+    kanaanska: { label: 'kanaánská', ids: [], classes: [] },
+    perska: { label: 'perská', ids: [], classes: [] },
+    aztecka: { label: 'aztécká', ids: [], classes: [] },
+    mayska: { label: 'mayská', ids: [], classes: [] },
+    incka: { label: 'incká', ids: [], classes: [] },
+    biblicka: { label: 'židovsko-křesťanská', ids: [], classes: [] }
 };
 const DEITY_CLASSES = ['Q22989102', 'Q11688446', 'Q146083', 'Q16513881', 'Q4436935', 'Q178885', OLYMPIAN_CLASS];
 const TITAN = 'Q45713';
@@ -127,6 +141,25 @@ const extraList = await cached('mytologie-extra', async () => (await run(titleQu
 const candidates = new Map();
 for (const [qid, entry] of [...candidateList, ...extraList]) candidates.set(qid, { ...(candidates.get(qid) || {}), ...entry });
 
+// Kategorie české Wikipedie a ruční seznamy: postavy a bytosti dalších mytologií i méně známé řecké, římské a egyptské.
+// Přebírá se jen to, co ještě není mezi kandidáty z Wikidat (jejich mytologie a druh se nemění)
+const forcedList = await cached('mytologie-forced', async () => {
+    const wanted = new Map();
+    const want = (title, entry) => { if (!wanted.has(title) && !FORCED_EXCLUDE.has(title) && !/^Seznam /u.test(title)) wanted.set(title, entry); };
+    // Ruční seznamy mají přednost před kategoriemi (Epona je keltská, ne řecká) a platí i pro kandidáty z Wikidat
+    for (const list of FORCED_LISTS) for (const title of list.titles) want(title, { myths: list.myths, kind: 'figure', deity: list.deity, manual: true });
+    for (const [title, [type, myths]] of Object.entries(FORCED_CREATURES)) want(title, { myths, kind: 'creature', type, manual: true });
+    for (const [title, [type, myths]] of Object.entries(FORCED_OBJECTS)) want(title, { myths, kind: 'object', type, manual: true });
+    for (const source of FORCED_SOURCES) {
+        for (const title of await categoryMembers(source.cat)) want(title, { myths: source.myths, kind: 'figure', deity: source.deity, female: source.female });
+    }
+    const rows = [];
+    const titles = [...wanted.keys()];
+    for (let i = 0; i < titles.length; i += 100) rows.push(...await run(titleQuery(titles.slice(i, i + 100))));
+    return rows.map(row => [id(row.item.value), { sl: Number(row.sl.value), title: row.t.value, forced: wanted.get(row.t.value) }]);
+});
+for (const [qid, entry] of forcedList) if (entry.forced.manual || !candidates.has(qid)) candidates.set(qid, { ...(candidates.get(qid) || {}), ...entry });
+
 // --- 2. krok: podrobnosti ---
 const SINGLE = new Set(['t', 'n', 'd', 'im', 'sex', 'sl']);
 const fetchDetails = async (qids) => {
@@ -159,7 +192,8 @@ SELECT ?item ?p ?v WHERE {
 };
 const details = new Map([
     ...await cached('mytologie-details', () => fetchDetails(candidateList.map(([qid]) => qid).filter((qid, i, all) => all.indexOf(qid) === i))),
-    ...await cached('mytologie-extra-details', () => fetchDetails(extraList.map(([qid]) => qid)))
+    ...await cached('mytologie-extra-details', () => fetchDetails(extraList.map(([qid]) => qid))),
+    ...await cached('mytologie-forced-details', () => fetchDetails(forcedList.map(([qid]) => qid).filter(qid => candidates.get(qid).forced && !candidateList.some(([other]) => other === qid))))
 ]);
 
 // Ikonografické symboly (P4185: blesk, orel, sova…) – česky
@@ -207,8 +241,11 @@ for (const [qid, candidate] of candidates) {
     const isCreatureTitle = CREATURE_TITLES.has(title);
     const curated = isCzechLegend || isCreatureTitle || title in CURATED_MYTHOLOGY;
     const olympian = (detail.myth || []).includes(OLYMPIANS) || classes.includes(OLYMPIAN_CLASS);
+    const forced = candidate.forced;
+    // Z kategorií a seznamů jen to, co má fotku a skutečný popis (ne rozcestník, jméno nebo skupinu)
+    if (forced && (!detail.im || /rozcestník|křestní jméno|příjmení|moučník|hudební skupina|skupina/u.test(`${detail.d || ''} ${classNames.join(' ')}`))) continue;
     // Jen postavy a bytosti (ne místa, události, předměty a skupiny), lidé jen z pověstí
-    if (!curated && !olympian && !FORCE_FIGURE.has(title) && !classes.some(q => JOTUNN.includes(q))) {
+    if (!forced && !curated && !olympian && !FORCE_FIGURE.has(title) && !classes.some(q => JOTUNN.includes(q))) {
         if (classes.includes(HUMAN)) continue;
         if (!classNames.some(name => FIGURE.test(name)) || classNames.some(name => NOT_FIGURE.test(name) || /skupin/u.test(name))) continue;
     }
@@ -219,13 +256,14 @@ for (const [qid, candidate] of candidates) {
     if (olympian) myths.add('recka');
     if (CURATED_MYTHOLOGY[title]) { myths.clear(); CURATED_MYTHOLOGY[title].forEach(key => myths.add(key)); }
     if (isCzechLegend) myths.clear();
-    if (!isCzechLegend && !myths.size && !isCreatureTitle) continue;
-    const isDeity = olympian || classes.some(q => DEITY_CLASSES.includes(q)) || classNames.some(name => /božstv|^bůh$|^bohyně$/u.test(name)) || SLAVIC_GODS.includes(title);
-    const isCreature = isCreatureTitle || (!isDeity && !isCzechLegend && classNames.some(name => CREATURE.test(name)) && !classes.some(q => JOTUNN.includes(q)));
+    if (forced) { myths.clear(); forced.myths.forEach(key => myths.add(key)); }
+    if (!forced && !isCzechLegend && !myths.size && !isCreatureTitle) continue;
+    const isDeity = (forced && forced.kind === 'figure' && forced.deity) || olympian || classes.some(q => DEITY_CLASSES.includes(q)) || classNames.some(name => /božstv|^bůh$|^bohyně$/u.test(name)) || SLAVIC_GODS.includes(title);
+    const isCreature = (forced && forced.kind === 'creature') || (!forced && isCreatureTitle) || (!(forced && forced.kind === 'object') && !isDeity && !isCzechLegend && classNames.some(name => CREATURE.test(name)) && !classes.some(q => JOTUNN.includes(q)) && title !== 'Sun Wu-kchung');
     // Kurátorované bytosti pod názvem článku (Domovoj, ne „Dědek“; Lešij, ne „Lesní mužík“)
-    let name = isCreatureTitle || isCzechLegend ? clean(title) : clean(detail.n || title);
-    const female = detail.sex === FEMALE && !MALE.has(name);
-    if (EXCLUDED.has(name) || EXCLUDED.has(title)) continue;
+    let name = isCreatureTitle || isCzechLegend || forced ? clean(title) : clean(detail.n || title);
+    const female = (detail.sex === FEMALE || (forced && forced.female && !detail.sex)) && !MALE.has(name);
+    if (!forced && (EXCLUDED.has(name) || EXCLUDED.has(title))) continue;
     const aliases = (detail.al || []).filter(alias => /^\p{Lu}/u.test(alias) && alias.split(' ').length <= 2 && alias.length >= 2);
     if (detail.n && clean(detail.n) !== name) aliases.push(clean(detail.n));
     if (EGYPTIAN_NAMES[name] && myths.has('egyptska')) {
@@ -239,17 +277,24 @@ for (const [qid, candidate] of candidates) {
         name = pair[1];
     }
     let category;
-    if (isCreature) category = 'bytosti';
+    if (forced && forced.kind === 'object') category = 'predmety';
+    else if (isCreature) category = 'bytosti';
+    else if (myths.has('indicka')) category = 'indicka';
+    else if (myths.has('keltska') || myths.has('artus')) category = 'keltska';
+    else if (myths.has('japonska') || myths.has('cinska')) category = 'vychod';
+    else if (myths.has('mezopotamska') || myths.has('kanaanska') || myths.has('perska')) category = 'orient';
+    else if (myths.has('aztecka') || myths.has('mayska') || myths.has('incka')) category = 'amerika';
     else if (isCzechLegend || myths.has('slovanska')) category = 'slovanska';
     else if (myths.has('recka') || myths.has('rimska')) category = 'recka';
     else if (myths.has('egyptska')) category = 'egyptska';
     else if (myths.has('severska')) category = 'severska';
     else continue;
     const isMuse = (detail.myth || []).includes(MUSES);
-    const type = isCzechLegend ? 'postava pověstí'
+    const type = forced && forced.type ? forced.type
+        : isCzechLegend ? 'postava pověstí'
         : isCreature ? 'bájná bytost'
         : classes.includes(TITAN) ? (female ? 'titánka' : 'titán')
-        : isDeity ? (female ? 'bohyně' : 'bůh')
+        : isDeity ? (female ? 'bohyně' : forced && !detail.sex && !MALE.has(name) ? 'božstvo' : 'bůh')
         : isMuse ? 'múza'
         : classes.some(q => JOTUNN.includes(q)) ? (female ? 'obryně' : 'obr')
         : classNames.some(name => /nymf/u.test(name)) ? 'nymfa'
@@ -266,7 +311,7 @@ for (const [qid, candidate] of candidates) {
         return roman ? roman[1] : plain;
     };
     const family = (list) => [...new Set((list || []).map(familyName))].filter(other => other !== name).slice(0, 4);
-    const isGod = /bůh|bohyně|titán/u.test(type);
+    const isGod = /bůh|bohyně|titán|božstvo/u.test(type);
     items.push(compact({
         q: qid, t: title, n: name, c: category,
         sl: Number(detail.sl) || candidate.sl || 0,
@@ -278,7 +323,7 @@ for (const [qid, candidate] of candidates) {
         al: aliases,
         f: compact({
             my: isCzechLegend ? 'české pověsti' : [...myths].map(key => MYTHOLOGIES[key].label).join(' a ') || undefined,
-            myk: isCzechLegend || SHARED_CREATURES.has(title) || myths.size !== 1 ? undefined : [...myths][0],
+            myk: isCzechLegend || SHARED_CREATURES.has(title) || myths.size !== 1 || myths.has('artus') ? undefined : [...myths][0],
             dom: (detail.dom || []).slice(0, 4),
             sym: (symbols.get(qid) || []).filter(symbol => symbol.length <= 30).slice(0, 4),
             // Otec a matka jen jednoznační – víc otců či matek znamená různé verze bájí (Dionýsos: Semelé i Démétér)
@@ -294,6 +339,7 @@ for (const [qid, candidate] of candidates) {
             // Klasická dvojice (Zeus – Jupiter): jen na ty se ptáme „Jak se jmenuje v římské mytologii?“
             cpm: hasCounterpart && counterpart.major ? 1 : undefined
         }),
+        fc: forced ? 1 : undefined,
         olymp: OLYMPIAN_NAMES.has(name) ? 1 : undefined,
         obscure: OBSCURE_CZECH.has(title) ? 1 : undefined
     }));
@@ -327,15 +373,20 @@ for (const item of unique) {
 }
 
 // Známost: nejznámější podle počtu jazykových verzí v každé kategorii, české pověsti a česká stvoření (bez bájných knížat)
-const KNOWN = { recka: 72, egyptska: 14, severska: 11, slovanska: 10, bytosti: 30 };
-const MIN_SITELINKS = { recka: 22, egyptska: 18, severska: 18, slovanska: 0, bytosti: 0 };
+const KNOWN = { recka: 80, egyptska: 16, severska: 12, slovanska: 10, bytosti: 40, indicka: 14, keltska: 8, vychod: 8, orient: 10, amerika: 4, predmety: 8 };
+const MIN_SITELINKS = { recka: 22, egyptska: 18, severska: 18, slovanska: 0, bytosti: 0, indicka: 0, keltska: 0, vychod: 0, orient: 0, amerika: 0, predmety: 0 };
+// Postavy z kategorií a seznamů (méně známé) se berou od 16 jazykových verzí; známá jména mají víc
+const FORCED_MIN_SITELINKS = { recka: 20, egyptska: 20, severska: 20 };
+const FORCED_MIN_DEFAULT = 14;
 // Řeckých a římských postav je ve Wikidatech přes čtyři sta – jen ty známější (a všechny s protějškem)
-const LIMIT = { recka: 240 };
+const LIMIT = { recka: 340 };
 const ranks = {};
 const counts = {};
 unique = unique.filter(item => {
     counts[item.c] = (counts[item.c] || 0) + 1;
-    return (item.sl >= MIN_SITELINKS[item.c] && counts[item.c] <= (LIMIT[item.c] || Infinity)) || item.cz || item.f.cp;
+    // Řecké postavy bez obrázku jen mezi prvními 240 (jako dřív), další už s obrázkem
+    if (item.c === 'recka' && !item.im && counts[item.c] > 240 && !item.f.cp) return false;
+    return (item.sl >= (item.fc ? FORCED_MIN_SITELINKS[item.c] ?? FORCED_MIN_DEFAULT : MIN_SITELINKS[item.c]) && counts[item.c] <= (LIMIT[item.c] || Infinity)) || item.cz || item.f.cp;
 });
 for (const item of unique) {
     const rank = ranks[item.c] || 0;
@@ -344,7 +395,7 @@ for (const item of unique) {
 }
 
 // --- 4. krok: okruhy ---
-const isGodType = (item) => /bůh|bohyně|titán/u.test(item.ty);
+const isGodType = (item) => /bůh|bohyně|titán|božstvo/u.test(item.ty);
 const COLLECTIONS = [
     { id: 'olympsti-bohove', label: 'Olympští bohové', text: 'Zeus, Athéna, Poseidón, Afrodíté…', test: item => item.olymp },
     { id: 'recti-bohove', label: 'Řečtí bohové a titáni', test: item => item.c === 'recka' && item.f.myk === 'recka' && isGodType(item) },
@@ -361,16 +412,25 @@ const COLLECTIONS = [
     { id: 'slovansti-bohove', label: 'Slovanští bohové', text: 'Perun, Veles, Mokoš, Svarog…', test: item => item.c === 'slovanska' && !item.cz && isGodType(item) },
     { id: 'ceske-povesti', label: 'Staré pověsti české', text: 'Praotec Čech, Libuše, Bivoj, Horymír…', test: item => item.f.my === 'české pověsti' },
     { id: 'slovanske-bytosti', label: 'Strašidla a slovanské bytosti', text: 'Vodník, polednice, rusalka…', test: item => item.c === 'bytosti' && (item.cz || item.f.my === 'slovanská') },
+    { id: 'indicti-bohove', label: 'Hinduistická božstva a hrdinové', text: 'Šiva, Višnu, Ganéša, Kálí, Hanumán…', test: item => item.c === 'indicka' },
+    { id: 'keltska-mytologie', label: 'Keltská mytologie', text: 'Lugh, Morrígan, Cernunnos, leprikón…', test: item => item.f.myk === 'keltska' },
+    { id: 'artusovske-legendy', label: 'Legendy o králi Artušovi', text: 'Artuš, Merlin, Lancelot, Excalibur…', test: item => item.f.my === 'artušovské legendy' },
+    { id: 'japonska-mytologie', label: 'Japonská mytologie', text: 'Amaterasu, Susanoo, kappa, kicune…', test: item => item.f.myk === 'japonska' },
+    { id: 'cinska-mytologie', label: 'Čínská mytologie', text: 'Nefritový císař, Sun Wu-kchung, Čchi-lin…', test: item => item.f.myk === 'cinska' },
+    { id: 'mezopotamie', label: 'Mezopotámie a starověký Orient', text: 'Marduk, Inanna, Gilgameš, Baal…', test: item => item.c === 'orient' || ['mezopotamska', 'kanaanska', 'perska'].includes(item.f.myk) },
+    { id: 'amerika', label: 'Aztékové, Mayové a Inkové', text: 'Quetzalcoatl, Tlaloc, Chaac, Pačamama…', test: item => item.c === 'amerika' },
+    { id: 'andele-a-demoni', label: 'Andělé a démoni', text: 'Michael, Gabriel, Satan, Lilith…', test: item => item.f.myk === 'biblicka' },
+    { id: 'bajna-mista', label: 'Bájná místa a předměty', text: 'Atlantida, Excalibur, Valhalla, zlaté rouno…', test: item => item.c === 'predmety' },
     { id: 'recke-bytosti', label: 'Řecké nestvůry a bytosti', text: 'Pegas, Kerberos, Medúsa…', test: item => item.c === 'bytosti' && /řecká|římská/u.test(item.f.my || '') }
 ];
 for (const item of unique) {
     const groups = COLLECTIONS.filter(collection => collection.test(item)).map(collection => collection.id);
     if (groups.length) item.g = groups;
-    delete item.olymp; delete item.obscure; delete item.sl;
+    delete item.olymp; delete item.obscure; delete item.sl; delete item.fc;
 }
 const collections = COLLECTIONS.map(({ test, ...collection }) => collection);
 
-for (const category of ['recka', 'egyptska', 'severska', 'slovanska', 'bytosti']) {
+for (const category of ['recka', 'egyptska', 'severska', 'slovanska', 'bytosti', 'indicka', 'keltska', 'vychod', 'orient', 'amerika', 'predmety']) {
     const inCategory = unique.filter(item => item.c === category);
     console.log(`${category}: ${inCategory.length} (${inCategory.filter(item => item.k).length} známých)`);
 }
