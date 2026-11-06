@@ -1,4 +1,4 @@
-// Téma Fyzika: fyzikální veličiny, jednotky, vesmír a fyzici (data/fyzika.json)
+// Téma Fyzika: fyzikální veličiny, jednotky, zákony a jevy, částice, vesmír, kosmické mise a přístroje, fyzici a astronomové (data/fyzika.json)
 (function (root, factory) {
     const isNode = typeof module === 'object' && module.exports;
     const topic = factory(isNode ? require('../quiz-core.js') : root.MudrlantCore);
@@ -9,14 +9,18 @@
 
     const {
         formatFacts, formatNumber, formatYear, censorName, stripBrackets, shuffle, normalizeAnswer,
-        personSimilarity, rankBySimilarity, takeDistinct
+        personSimilarity, rankBySimilarity, takeDistinct, eraNearness
     } = core;
 
     const CATEGORIES = [
         { key: 'veliciny', label: 'Fyzikální veličiny', one: 'veličina', icon: 'gauge', question: 'Která veličina to je?', placeholder: 'Napiš název veličiny…', sort: { by: 'name' } },
         { key: 'jednotky', label: 'Jednotky', one: 'jednotka', icon: 'ruler', question: 'Která jednotka to je?', placeholder: 'Napiš název jednotky…', sort: { by: 'name' } },
+        { key: 'pojmy', label: 'Zákony a jevy', one: 'pojem', icon: 'scale', question: 'Který zákon, jev nebo pojem to je?', placeholder: 'Napiš název…', sort: { by: 'name' } },
+        { key: 'castice', label: 'Částice', one: 'částice', icon: 'atom', question: 'Která částice to je?', placeholder: 'Napiš název částice…', sort: { by: 'name' } },
         { key: 'vesmir', label: 'Vesmír', one: 'vesmírné těleso', icon: 'orbit', question: 'Co je to za těleso?', placeholder: 'Napiš název…', sort: { by: 'name' } },
-        { key: 'fyzici', label: 'Fyzici', one: 'fyzik', icon: 'user', question: 'Kdo to je?', placeholder: 'Napiš jméno…', sort: { by: 'y' } }
+        { key: 'mise', label: 'Mise a přístroje', one: 'sonda či přístroj', icon: 'rocket', question: 'Co je to za sondu nebo přístroj?', placeholder: 'Napiš název…', sort: { by: 'name' } },
+        { key: 'fyzici', label: 'Fyzici', one: 'fyzik', icon: 'user', question: 'Kdo to je?', placeholder: 'Napiš jméno…', sort: { by: 'y' } },
+        { key: 'astronomove', label: 'Astronomové a kosmonauti', one: 'astronom', icon: 'telescope', question: 'Kdo to je?', placeholder: 'Napiš jméno…', sort: { by: 'y' } }
     ];
 
     // Jak často se u veličiny ptáme na jednotku a u jednotky na značku nebo na to, co měří
@@ -35,6 +39,11 @@
     const days = (value) => value >= 730 ? `${formatNumber(Math.round(value / 365.25 * 10) / 10)} let` : `${formatNumber(Math.round(value * 10) / 10)} dní`;
     const unitLabel = (f) => f.usym ? `${f.unit} (${f.usym})` : f.unit;
 
+    // Jméno osoby v názvu pojmu (Ohm v Ohmově zákonu): společný začátek aspoň tří písmen
+    const namedInName = (item) => {
+        const words = normalizeAnswer(item.n).split(' ');
+        return ((item.f || {}).named || '').split(/\s+/).map(normalizeAnswer).filter(word => word.length >= 3).some(word => words.some(other => other.startsWith(word.slice(0, 3))));
+    };
     const factsOf = (item, mode, ctx) => {
         const f = item.f || {};
         if (item.c === 'veliciny') {
@@ -50,8 +59,15 @@
                 ...(mode === 'result' || mode === 'card' ? [['named', 'Pojmenována po', v => v]] : [])
             ]);
         }
+        // Po kom je pojem pojmenován, prozradí už jeho název (Ohmův zákon – Georg Ohm): před odpovědí se neukáže
+        if (item.c === 'pojmy') {
+            return formatFacts(item, [['named', 'Pojmenováno po', v => v], ['year', 'Rok', formatYear]])
+                .filter(fact => fact.label !== 'Pojmenováno po' || ['result', 'card'].includes(mode) || !namedInName(item));
+        }
+        if (item.c === 'castice') return formatFacts(item, [['group', 'Skupina', v => v]]);
+        if (item.c === 'mise') return formatFacts(item, [['year', 'Rok', formatYear], ['op', 'Provozovatel', v => v]]);
         if (item.c === 'vesmir') {
-            return formatFacts(item, [['parent', 'Obíhá kolem', v => v], ['diam', 'Průměr', v => `${scientific(v)} km`], ['mass', 'Hmotnost', v => `${scientific(v)} kg`],
+            return formatFacts(item, [['parent', 'Obíhá kolem', v => v], ['const', 'Souhvězdí', v => v], ['diam', 'Průměr', v => `${scientific(v)} km`], ['mass', 'Hmotnost', v => `${scientific(v)} kg`],
                 ['ly', 'Vzdálenost', v => `${scientific(v)} světelných let`], ['period', 'Oběžná doba', days], ['year', 'Objeveno', formatYear], ['disc', 'Objevitel', v => v]]);
         }
         const facts = formatFacts(item, [['born', 'Narození', formatYear], ['died', 'Úmrtí', formatYear], ['land', 'Země', v => v]], ['born', 'died']);
@@ -72,7 +88,7 @@
     ];
     const visualOf = (item) => {
         const f = item.f || {};
-        if (item.c !== 'fyzici' || f.born === undefined || f.died === undefined) return null;
+        if (!['fyzici', 'astronomove'].includes(item.c) || f.born === undefined || f.died === undefined) return null;
         return { type: 'timeline', spans: [{ kind: 'life', from: f.born, to: f.died }], points: [], hide: item.n, anchors: PHYSICS_EVENTS };
     };
 
@@ -163,6 +179,8 @@
         return text.replace(pattern, '[***]');
     };
 
+    const EXTRA_MASK = { Q13082: ['Jádro'], Q11429: ['Jádro'], Q206037: ['Otáčení'], Q11412: ['Gravitační'], Q172858: ['Rezonanční'], Q181465: ['Indukce', 'Indukční'] };
+
     return {
         id: 'fyzika',
         title: 'Fyzika',
@@ -177,7 +195,7 @@
             next: 'Další otázka',
             atlas: 'Atlas fyziky',
             placeholder: 'Napiš odpověď…',
-            tierKnown: 'Základní veličiny a jednotky, známá tělesa a fyzici'
+            tierKnown: 'Základní veličiny a jednotky, známé zákony a částice, tělesa, mise a vědci'
         },
         categories: CATEGORIES,
 
@@ -188,9 +206,13 @@
             const g = other.f || {};
             if (item.c === 'veliciny') return (f.unit && f.unit === g.unit ? 3 : 0) + (sameField(item, other, ctx) ? 2 : 0);
             if (item.c === 'jednotky') return (f.measures && f.measures === g.measures ? 4 : 0) + (f.system === g.system ? 1 : 0) + (sameField(item, other, ctx) ? 2 : 0);
-            if (item.c === 'vesmir') return (f.kind === g.kind ? 3 : 0) + (f.parent && f.parent === g.parent ? 3 : 0);
+            if (item.c === 'vesmir') return (f.kind === g.kind ? 3 : 0) + (f.parent && f.parent === g.parent ? 3 : 0) + (f.const && f.const === g.const ? 1 : 0);
+            // Zákony, jevy a konstanty podle druhu; částice podle skupiny; sondy a přístroje podle druhu a doby
+            if (item.c === 'pojmy') return item.ty === other.ty ? 3 : 0;
+            if (item.c === 'castice') return f.group && f.group === g.group ? 3 : 0;
+            if (item.c === 'mise') return (item.ty === other.ty ? 3 : 0) + eraNearness(f.year, g.year);
             // Osoby: pohlaví a doba, k tomu stejná země (k Sacharovovi sovětští vědci, ne Descartes) a Čech k Čechům
-            return personSimilarity(item, other) + (Boolean(f.nobel) === Boolean(g.nobel) ? 1 : 0)
+            return personSimilarity(item, other) + (item.ty === other.ty ? 2 : 0) + (Boolean(f.nobel) === Boolean(g.nobel) ? 1 : 0)
                 + (f.land && f.land === g.land ? 3 : 0) + ((item.cz === 1) === (other.cz === 1) ? 0 : -3);
         },
 
@@ -268,6 +290,16 @@
         censor: (type, text, item) => {
             const f = item.f || {};
             const plain = stripBrackets(text).replace(/\s{2,}/g, ' ').replace(/\s+([,;.?!])/g, '$1');
+            // Slova popisu odvozená od názvu jinak, než zakrytí tvarů pozná (jádra u Jaderné fúze, otáčení u Otáček za minutu)
+            if (type === 'name' && EXTRA_MASK[item.q]) {
+                const masked = core.maskLeaks(censorName(plain, [item.n, item.t].join(', ')), [item.n, item.t, ...EXTRA_MASK[item.q]]);
+                return item.c === 'jednotky' ? hideSymbol(masked, f.usym) : masked;
+            }
+            // Pojem pojmenovaný po osobě: v popisu nesmí zůstat ani ona (Georg Ohm u Ohmova zákona)
+            if (type === 'name' && item.c === 'pojmy' && f.named) {
+                const names = [item.n, item.t, f.named];
+                return core.maskLeaks(censorName(plain, names.join(', ')), names);
+            }
             if (type === 'unit') return hideSymbol(censorName(plain, f.unit), f.usym);
             if (type === 'usymbol') return hideSymbol(plain, f.usym);
             if (type === 'measures') return censorName(plain, f.measures);
@@ -283,7 +315,10 @@
             const f = item.f || {};
             if (item.c === 'veliciny') return [f.sym ? `značka ${f.sym}` : '', f.unit ? `jednotka ${f.usym || f.unit}` : ''].filter(Boolean).join(' · ');
             if (item.c === 'jednotky') return [f.usym, f.measures].filter(Boolean).join(' · ');
-            if (item.c === 'vesmir') return [f.kind, f.parent ? `obíhá kolem: ${f.parent}` : ''].filter(Boolean).join(' · ');
+            if (item.c === 'vesmir') return [f.kind, f.parent ? `obíhá kolem: ${f.parent}` : f.const ? `souhvězdí ${f.const}` : ''].filter(Boolean).join(' · ');
+            if (item.c === 'pojmy') return [item.ty, f.named ? `po: ${f.named}` : ''].filter(Boolean).join(' · ');
+            if (item.c === 'castice') return f.group || 'částice';
+            if (item.c === 'mise') return [item.ty, f.year !== undefined ? formatYear(f.year) : ''].filter(Boolean).join(' · ');
             return [f.born !== undefined ? `${formatYear(f.born)}–${f.died !== undefined ? formatYear(f.died) : ''}` : '', f.land].filter(Boolean).join(' · ');
         },
         isCzech: (item) => item.cz === 1

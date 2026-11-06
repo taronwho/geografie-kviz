@@ -1,4 +1,4 @@
-// Téma Architektura: stavby s jasným slohem, architektonické slohy a architekti (data/architektura.json)
+// Téma Architektura: slavné stavby (s jasným slohem i bez něj: mosty, věže, muzea…), architektonické slohy, prvky a architekti (data/architektura.json)
 (function (root, factory) {
     const isNode = typeof module === 'object' && module.exports;
     const topic = factory(isNode ? require('../quiz-core.js') : root.MudrlantCore);
@@ -14,6 +14,7 @@
 
     const CATEGORIES = [
         { key: 'stavby', label: 'Stavby', one: 'stavba', icon: 'church', question: 'Co je to za stavbu?', placeholder: 'Napiš název stavby…', sort: { by: 'y' } },
+        { key: 'prvky', label: 'Prvky', one: 'architektonický prvek', icon: 'building', question: 'Který architektonický prvek to je?', placeholder: 'Napiš název prvku…', sort: { by: 'name' } },
         { key: 'slohy', label: 'Slohy', one: 'sloh', icon: 'columns-3', question: 'Který sloh to je?', placeholder: 'Napiš sloh…', sort: { by: 'y' } },
         { key: 'architekti', label: 'Architekti', one: 'architekt', icon: 'pen-tool', question: 'Kdo to je?', placeholder: 'Napiš jméno…', sort: { by: 'y' } }
     ];
@@ -25,8 +26,8 @@
     // Slohy: slova, která sloh v popisu prozradí (začátky slov, i novogotický, rokokový…), další přijímané odpovědi
     // a slohy, které se s ním nesmí sejít mezi možnostmi (gotika × novogotika – na fotce by šlo o obojí)
     const STYLE_INFO = {
-        recko: { words: ['řeck', 'antick', 'antik', 'helén'], aliases: ['řecká architektura', 'antická architektura', 'antika', 'řecký sloh', 'starověké Řecko'] },
-        rim: { words: ['řím', 'antick', 'antik'], aliases: ['římská architektura', 'antická architektura', 'antika', 'římský sloh', 'starověký Řím'] },
+        recko: { words: ['řeck', 'antick', 'antik', 'helén', 'starověk'], aliases: ['řecká architektura', 'antická architektura', 'antika', 'řecký sloh', 'starověké Řecko'] },
+        rim: { words: ['řím', 'antick', 'antik', 'starověk'], aliases: ['římská architektura', 'antická architektura', 'antika', 'římský sloh', 'starověký Řím'] },
         byzantsky: { words: ['byzan', 'novobyzan', 'neobyzan'], aliases: ['byzantská architektura', 'byzantský', 'Byzanc'] },
         islamska: { words: ['islám', 'maursk', 'mudéjar', 'mughal', 'mughál', 'mogul', 'osmansk', 'seldžu'], aliases: ['islámský sloh', 'islámská', 'maurský sloh', 'osmanská architektura', 'mughalská architektura'] },
         romansky: { words: ['román', 'romanik', 'novorom', 'neorom'], aliases: ['románská architektura', 'romanika', 'románský', 'románský styl'] },
@@ -45,7 +46,7 @@
         novobaroko: { words: ['novobarok', 'neobarok', 'barok', 'historis'], aliases: ['novobarokní', 'neobaroko', 'novobarokní sloh'] },
         novobyzantsky: { words: ['novobyzan', 'neobyzan', 'byzan', 'historis', 'rusk'], aliases: ['novobyzantský', 'neobyzantský sloh', 'rusko-byzantský sloh'] },
         secese: { words: ['secesn', 'secese', 'secesi', 'art nouveau', 'jugendstil', 'modernism', 'modernist'], aliases: ['secesní', 'secesní sloh', 'art nouveau', 'katalánský modernismus', 'jugendstil'] },
-        kubismus: { words: ['kubis', 'rondokubis'], aliases: ['kubistický', 'český kubismus', 'rondokubismus', 'kubistický sloh'] },
+        kubismus: { words: ['kubis', 'rondokubis'], aliases: ['kubistický', 'rondokubismus', 'kubistický sloh'] },
         artdeco: { words: ['art deco', 'art-deco', 'artdeco', 'rondokubis'], aliases: ['artdeco', 'art-deco'] },
         funkcionalismus: { words: ['funkcional', 'internacionál', 'mezinárodní sloh', 'mezinárodní styl', 'bauhaus'], aliases: ['funkcionalistický', 'mezinárodní sloh', 'internacionální styl', 'funkcionalistický sloh'] },
         socrealismus: { words: ['socialistick', 'socrealis', 'sorel', 'stalinsk'], aliases: ['sorela', 'socrealismus', 'stalinský empír', 'socialistický klasicismus'] },
@@ -125,6 +126,17 @@
         const surname = surnameOf(item.n);
         return [...new Set([surname, surname.split('-')[0]])].filter(form => form && form.length >= 4 && counts.get(normalizeAnswer(form)) === 1);
     };
+    // Upřesnění v závorce („Kostel svatého Michala (Olomouc)“) je součástí odpovědi: nabízené možnosti se liší jen jím,
+    // a proto ho nesmí prozradit popis ani nápověda s místem (stejně jako zbytek názvu)
+    const qualifierOf = (item) => {
+        const match = item.c === 'stavby' ? /\(([^()]+)\)\s*$/.exec(item.n) : null;
+        return match ? match[1] : '';
+    };
+    const answerWords = (item) => [item.n, qualifierOf(item)].filter(Boolean);
+    // Fakt o místě, který prozrazuje název stavby (Město: Sibiu u „Katedrála Nejsvětější Trojice (Sibiu)“, Země: Česko u „… (Český Krumlov)“)
+    const placeFact = (label, value, item) => core.factRevealsAnswer({ value }, answerWords(item)) ? null : { label, value };
+    // Štítek „Město“ by prozradil slovo města v názvu (Městská spořitelna, Nové Město)
+    const cityLabel = (item) => /měst/iu.test(item.n) ? 'Místo' : 'Město';
     const styleAnswers = (style) => [style.n, ...((STYLE_INFO[style.f.key] || {}).aliases || [])];
 
     // --- Časová osa: rok stavby, období slohu, život architekta – se světovými (u českých položek českými) událostmi ---
@@ -175,11 +187,12 @@
             const facts = [];
             if (mode !== 'style' && styleName(f.st, ctx)) facts.push({ label: 'Sloh', value: styleName(f.st, ctx) });
             if (f.y !== undefined) facts.push({ label: 'Vznik', value: formatYear(f.y) });
-            if (mode !== 'architect' && f.arch) facts.push({ label: f.arch.includes(',') ? 'Architekti' : 'Architekt', value: f.arch });
+            if (mode !== 'architect' && f.arch) facts.push((mode === 'name' ? placeFact : (label, value) => ({ label, value }))(f.arch.includes(',') ? 'Architekti' : 'Architekt', f.arch, item));
             const countryNames = getCountryNames(item, countries);
-            if (countryNames.length) facts.push({ label: 'Země', value: countryNames.join(', ') });
-            if (f.city) facts.push({ label: 'Město', value: f.city });
-            return facts;
+            const place = (label, value) => mode === 'name' ? placeFact(label, value, item) : { label, value };
+            if (countryNames.length) facts.push(place('Země', countryNames.join(', ')));
+            if (f.city) facts.push(place(cityLabel(item), f.city));
+            return facts.filter(Boolean);
         }
         if (item.c === 'slohy') {
             const facts = [{ label: 'Období', value: f.per }];
@@ -192,6 +205,7 @@
             }
             return facts;
         }
+        if (item.c === 'prvky') return [];
         return [
             ...formatFacts(item, [['born', 'Narození', formatYear], ['died', 'Úmrtí', formatYear], ['land', 'Země', v => v]], ['born', 'died']),
             ...(styleName(f.st, ctx) ? [{ label: 'Sloh', value: styleName(f.st, ctx) }] : []),
@@ -251,10 +265,11 @@
     const hintsOf = (item, ctx, type) => {
         const f = item.f || {};
         const countries = ctx.countries || {};
+        const placeOf = (label, value) => type === 'name' ? placeFact(label, value, item) : { label, value };
         const place = [
-            ...(getCountryNames(item, countries).length ? [{ label: 'Země', value: getCountryNames(item, countries).join(', ') }] : []),
-            ...(f.city ? [{ label: 'Město', value: f.city }] : [])
-        ];
+            ...(getCountryNames(item, countries).length ? [placeOf('Země', getCountryNames(item, countries).join(', '))] : []),
+            ...(f.city ? [placeOf(cityLabel(item), f.city)] : [])
+        ].filter(Boolean);
         if (item.c === 'stavby' && type === 'style') {
             // Kde stavba stojí, kdo ji navrhl, kdy vznikla (doba sloh skoro prozradí) a nakonec slavné stavby stejného slohu
             // U české stavby přednostně české (k Obecnímu domu Hlavní nádraží, ne Casa Milà)
@@ -276,7 +291,7 @@
                     ...(f.y !== undefined ? [{ label: 'Vznik', value: formatYear(f.y) }] : [])
                 ] },
                 { kind: 'facts', label: 'architekt', icon: 'user', facts: architect ? [
-                    ...(architect.f.land ? [{ label: 'Země architekta', value: architect.f.land }] : []),
+                    ...(architect.f.land ? [{ label: 'Země původu', value: architect.f.land }] : []),
                     ...(lifeRange(architect.f) ? [{ label: architect.sx === 'f' ? 'Žila' : 'Žil', value: lifeRange(architect.f) }] : [])
                 ] : [] },
                 { kind: 'facts', label: 'další stavba', icon: 'church', facts: other.length ? [{ label: architect.sx === 'f' ? 'Navrhla také' : 'Navrhl také', value: other.join(', ') }] : [] }
@@ -288,7 +303,7 @@
                 { kind: 'facts', facts: factsOf(item, ctx, type).filter(fact => fact.label === 'Sloh' || fact.label === 'Vznik') },
                 { kind: 'visual', spec: visualOf(item, ctx, 'name') },
                 { kind: 'facts', label: 'místo', icon: 'map-pin', facts: place },
-                { kind: 'facts', label: 'architekt', icon: 'pen-tool', facts: f.arch ? [{ label: f.arch.includes(',') ? 'Architekti' : 'Architekt', value: f.arch }] : [] }
+                { kind: 'facts', label: 'architekt', icon: 'pen-tool', facts: f.arch ? [placeFact(f.arch.includes(',') ? 'Architekti' : 'Architekt', f.arch, item)].filter(Boolean) : [] }
             ];
         }
         if (item.c === 'slohy') {
@@ -310,6 +325,7 @@
             return [styleName(f.st, ctx), f.y !== undefined ? formatYear(f.y) : '', f.city || getCountryNames(item, ctx.countries || {})[0]].filter(Boolean).join(' · ');
         }
         if (item.c === 'slohy') return f.per || '';
+        if (item.c === 'prvky') return item.ty || '';
         return [lifeRange(f), f.land].filter(Boolean).join(' · ') || item.ty || '';
     };
 
@@ -341,9 +357,10 @@
             const f = item.f || {};
             const g = other.f || {};
             if (item.c === 'stavby') {
-                return (f.st === g.st ? 3 : isConflict(f.st, g.st) ? -2 : 0) + eraNearness(f.y, g.y)
+                return (f.st && f.st === g.st ? 3 : f.st && g.st && isConflict(f.st, g.st) ? -2 : 0) + (item.ty && item.ty === other.ty ? 2 : 0) + eraNearness(f.y, g.y)
                     + ((item.co || []).some(country => (other.co || []).includes(country)) ? 1 : 0) + ((item.cz === 1) === (other.cz === 1) ? 1 : 0);
             }
+            if (item.c === 'prvky') return 0;
             if (item.c === 'slohy') {
                 if (isConflict(f.key, g.key)) return -Infinity;
                 return -Math.round(Math.abs((f.from + f.to) / 2 - (g.from + g.to) / 2) / 120);
@@ -370,6 +387,7 @@
             if (!item.im || !item.ih) return null;
             if (item.c === 'stavby') return { file: item.im, hash: item.ih, label: 'Stavba', icon: 'church' };
             if (item.c === 'slohy') return { file: item.im, hash: item.ih, label: 'Ukázka', icon: 'columns-3' };
+            if (item.c === 'prvky') return { file: item.im, hash: item.ih, label: 'Prvek', icon: 'building' };
             return null;
         },
         censor: (type, text, item, ctx) => {
@@ -379,6 +397,15 @@
                 return architect ? censorName(text, [architect.n, ...architectAliases(architect, ctx)].join(', ')) : null;
             }
             if (type === 'name' && item.c === 'slohy') return hideStyle(censorName(text, styleAnswers(item).join(', ')), item.f.key);
+            if (type === 'name' && (qualifierOf(item) || item.c === 'prvky')) {
+                // Jako běžné zakrytí názvu, k tomu místo v závorce (Kostel v [***]) a odvozená slova (schodišťový u prvku Schodiště)
+                const names = [item.n, core.displayName(item.t || '')];
+                const generic = core.genericWordsOf(ctx);
+                const qualifier = qualifierOf(item);
+                const hidden = qualifier ? core.maskLeaks(core.censorName(text, qualifier), [qualifier]) : text;
+                const censored = core.hideNicknames(core.mergeCensored(core.absorbGenericWords(core.censorName(hidden, core.specificWords(names, generic)), names, '[***]', generic)), item);
+                return core.maskLeaks(censored, names);
+            }
             return null;
         },
         findAnswer: (type, answer, item, ctx) => {
