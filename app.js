@@ -4159,13 +4159,14 @@
                 render();
             }
         });
-        if (myBlocks === null) {
-            const loaded = myBlocks;
-            myBlocks = undefined;
-            render();
-            try { myBlocks = await Social.blockedPlayers(user.id); } catch (error) { myBlocks = loaded; note = 'Seznam se nepodařilo načíst. Zkontroluj připojení.'; }
+        // Seznam ještě nebyl načtený: okno se ukáže hned (Načítám…) a po načtení se překreslí; jinak rovnou
+        const needsLoad = myBlocks === null;
+        if (needsLoad) myBlocks = undefined;
+        render();
+        if (needsLoad) {
+            try { myBlocks = await Social.blockedPlayers(user.id); } catch (error) { myBlocks = null; note = 'Seznam se nepodařilo načíst. Zkontroluj připojení.'; }
+            if (document.getElementById('dialog-overlay') && document.getElementById('dialog-overlay').dataset.title === 'Zablokovaní hráči') render();
         }
-        if (document.getElementById('dialog-overlay') && document.getElementById('dialog-overlay').dataset.title === 'Zablokovaní hráči') render();
     };
     // Dev panel: nahlášení hráči (jen účet v dev_admins), tlačítko Vyřešeno
     const openDevReports = async () => {

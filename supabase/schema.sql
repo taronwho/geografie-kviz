@@ -856,54 +856,6 @@ language sql security definer set search_path = public as $$
     update public.profiles set last_seen = now() where id = auth.uid() and (last_seen is null or last_seen < now() - interval '5 minutes');
 $$;
 
--- Základní filtr sprostých slov pro přezdívky (celá slova, cz/en; stejný seznam má social.js, hlídá to tests/sql-social.test.js)
-create or replace function public.bad_words() returns text[]
-language sql immutable as $$
-    select array[
-        'kurva', 'kurvy', 'kurvo', 'pica', 'píča', 'piča', 'pico', 'píčo', 'pičo', 'curak', 'čurák', 'čurak', 'curaku', 'čuráku', 'zmrd', 'zmrde', 'zmrdi',
-        'debil', 'debile', 'debilove', 'debilové', 'hovno', 'sracka', 'sračka', 'kokot', 'kokote', 'kokoti', 'prdel', 'mrdat', 'mrdka', 'hajzl', 'hajzle',
-        'svine', 'svině', 'buzna', 'buzerant', 'sukat', 'šukat', 'negr', 'negři', 'negri', 'hitler', 'nazi',
-        'fuck', 'fucker', 'fucking', 'shit', 'bitch', 'asshole', 'cunt', 'nigger', 'nigga', 'whore', 'slut', 'pussy', 'faggot', 'retard'
-    ]::text[];
-$$;
--- Přezdívka je povolená, když žádné její slovo (oddělené čímkoli kromě písmen a číslic) není v seznamu
-create or replace function public.name_allowed(name text) returns boolean
-language sql immutable as $$
-    select not exists (
-        select 1 from unnest(regexp_split_to_array(lower(coalesce(name, '')), '[^[:alpha:][:digit:]]+')) w
-        where w = any (public.bad_words())
-    );
-$$;
--- Jméno od Googlu se sprostým slovem dostane výchozí přezdívku
-create or replace function public.unique_display_name(base text) returns text
-language plpgsql set search_path = public as $$
-declare
-    cleaned text := left(btrim(coalesce(nullif(btrim(regexp_replace(coalesce(base, ''), '[[:cntrl:]<>&"''`\\]', '', 'g')), ''), 'Hráč')), 24);
-    candidate text;
-    attempt integer := 0;
-begin
-    if char_length(cleaned) < 2 or not public.name_allowed(cleaned) then cleaned := 'Hráč'; end if;
-    candidate := cleaned;
-    while exists (select 1 from public.profiles where lower(display_name) = lower(candidate)) and attempt < 50 loop
-        attempt := attempt + 1;
-        candidate := left(cleaned, 20) || ' ' || (100 + floor(random() * 900))::int;
-    end loop;
-    return candidate;
-end;
-$$;
--- Klient si sprostou přezdívku nenastaví (správce a triggery se tím neřídí)
-create or replace function public.check_display_name() returns trigger
-language plpgsql set search_path = public as $$
-begin
-    if current_user in ('authenticated', 'anon') and new.display_name is distinct from old.display_name and not public.name_allowed(new.display_name) then
-        raise exception 'Tahle přezdívka není povolená.' using errcode = 'P0001';
-    end if;
-    return new;
-end;
-$$;
-drop trigger if exists profiles_check_display_name on public.profiles;
-create trigger profiles_check_display_name before update on public.profiles for each row execute function public.check_display_name();
-
 -- Blokování: zablokovaný hráč mě nenajde v hledání, nevyzve mě, nevybere se mi jako náhodný soupeř (a naopak); v žebříčku zůstává (veřejný)
 create table if not exists public.player_blocks (
     blocker uuid not null references public.profiles (id) on delete cascade,
@@ -1170,9 +1122,10 @@ grant select, insert, delete on public.friendships to authenticated;
 grant update (status) on public.friendships to authenticated;
 grant select, insert, delete on public.player_blocks to authenticated;
 grant select, insert on public.match_reactions to authenticated;
-grant update (emoji) on public.match_reactions to authenticated;
+-- PostgREST přepisuje reakci upsertem se všemi sloupci, proto jsou povolené všechny; kdo/komu/kam pevně drží trigger check_reaction()
+grant update (challenge_id, match_id, from_id, to_id, emoji) on public.match_reactions to authenticated;
 grant select, insert on public.player_reports to authenticated;
-revoke all on function public.bad_words(), public.name_allowed(text), public.check_display_name(), public.on_block(), public.on_friend_request(), public.on_friend_accept(),
+revoke all on function public.on_block(), public.on_friend_request(), public.on_friend_accept(),
     public.friend_count(uuid), public.check_challenge_blocks(), public.check_reaction(), public.on_report(), public.is_blocked(uuid, uuid) from public, anon, authenticated;
 revoke all on function public.touch_seen(), public.friends_list(), public.search_players(text), public.dev_player_reports(), public.dev_report_resolve(bigint) from public, anon;
 grant execute on function public.touch_seen(), public.friends_list(), public.search_players(text), public.dev_player_reports(), public.dev_report_resolve(bigint) to authenticated;

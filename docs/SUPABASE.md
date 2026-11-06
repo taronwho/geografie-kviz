@@ -122,6 +122,11 @@ Bez něj se karta turnaje v aplikaci prostě neukáže.
   (smaže i turnaje, ve kterých boti hráli). Boti hrají na střední úrovni (úspěšnost 45–80 %). Databáze tyto funkce pustí jen účtu zapsanému v `dev_admins`; zapiš se jednou v SQL Editoru
   (přezdívku nahraď svou): `insert into public.dev_admins (user_id) select id from public.profiles where lower(display_name) = lower('Taron');`
   Boti jsou řádky v `auth.users` s e-mailem `bot-…@bots.invalid`; ostrý provoz s nimi nepočítej a po zkoušce je smaž.
+- **Přátelé, reakce, blokování a nahlášení:** tabulky `friendships`, `player_blocks`, `match_reactions`, `player_reports` a funkce `friends_list`, `search_players`, `touch_seen`
+  jsou na konci `schema.sql` (spusť soubor znovu celý, je idempotentní). Starší databáze bez nich nic nerozbije, aplikace jen sekce neukáže.
+  Žádost o přátelství vidí jen obě strany, přijímá ji oslovený (opačná čekající žádost se přijme sama), limit 200 přátel a 30 žádostí za hodinu. Blokovaný hráč (oběma směry)
+  nejde najít, vyzvat ani nevyjde jako náhodný soupeř a přátelství s ním skončí. Reagovat (👍 🔥 😅 🤝) jde jen na zápas, který oba odehráli. Nahlášení (důvod + poznámka do 300 znaků,
+  nejvýš 10 za den) čte jen správce: V Nastavení v režimu vývojáře je „Nahlášení hráči“ (jen účet v `dev_admins`) s tlačítkem Vyřešeno.
 - Odznaky za turnaje (`turnaj-*`) a za zběhlost v tématech (`zbehly-*`) jsou v `badge_catalog()`; přibude-li další odznak, přidej ho i tam.
 
 ## Jak to v aplikaci funguje

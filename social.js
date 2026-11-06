@@ -48,15 +48,6 @@
     // Přezdívka: 2–24 znaků, písmena (i s diakritikou), číslice, mezera, tečka, podtržítko a pomlčka
     const NAME_PATTERN = /^[\p{L}\p{N} _.\-]{2,24}$/u;
     const isValidName = (name) => NAME_PATTERN.test(cleanName(name));
-    // Základní filtr sprostých slov (celá slova, cz/en); stejný seznam má funkce bad_words() v supabase/schema.sql (hlídá to tests/sql-social.test.js)
-    const BAD_WORDS = [
-        'kurva', 'kurvy', 'kurvo', 'pica', 'píča', 'piča', 'pico', 'píčo', 'pičo', 'curak', 'čurák', 'čurak', 'curaku', 'čuráku', 'zmrd', 'zmrde', 'zmrdi',
-        'debil', 'debile', 'debilove', 'debilové', 'hovno', 'sracka', 'sračka', 'kokot', 'kokote', 'kokoti', 'prdel', 'mrdat', 'mrdka', 'hajzl', 'hajzle',
-        'svine', 'svině', 'buzna', 'buzerant', 'sukat', 'šukat', 'negr', 'negři', 'negri', 'hitler', 'nazi',
-        'fuck', 'fucker', 'fucking', 'shit', 'bitch', 'asshole', 'cunt', 'nigger', 'nigga', 'whore', 'slut', 'pussy', 'faggot', 'retard'
-    ];
-    const NAME_BLOCKED_MESSAGE = 'Tahle přezdívka není povolená.';
-    const isNameAllowed = (name) => !String(name || '').toLowerCase().split(/[^\p{L}\p{N}]+/u).some(word => word && BAD_WORDS.includes(word));
     const newCode = () => {
         const bytes = new Uint8Array(6);
         (root.crypto || require('node:crypto').webcrypto).getRandomValues(bytes);
@@ -132,7 +123,6 @@
         const cleanedOwl = cleanOwl(owl);
         if (cleanedOwl) patch.avatar = AVATARS.includes('🦉') ? '🦉' : patch.avatar;
         if (!isValidName(patch.display_name)) throw new SocialError('Přezdívka má mít 2 až 24 znaků: písmena, číslice, mezeru, tečku, podtržítko nebo pomlčku.', 400);
-        if (!isNameAllowed(patch.display_name)) throw new SocialError(NAME_BLOCKED_MESSAGE, 400);
         const send = (body) => request('PATCH', `profiles?id=eq.${encodeURIComponent(userId)}`, { body, prefer: 'return=representation' });
         let rows;
         try {
@@ -489,7 +479,7 @@
     };
     const devResolveReport = (id) => request('POST', 'rpc/dev_report_resolve', { body: { rid: wholeNumber(id, Number.MAX_SAFE_INTEGER) } });
 
-    return { AVATARS, allAvatars, cleanColor, customHue, nearestColor, cleanFrame, cleanOwl, saveOwl, cleanTitlePref, saveLook, COLORS, COUNTS, NAME_MAX, SocialError, cleanName, isValidName, BAD_WORDS, isNameAllowed, NAME_BLOCKED_MESSAGE, newCode, parseCode, getProfile, saveProfile, createChallenge, getChallenge, getResults, submitResult, myChallenges, searchPlayers, randomOpponent, incomingChallenges, playerStats, getProgress, saveProgress, getRating, getRatingChange, weeklyLeaderboard, getAccepts, saveAccepts,
+    return { AVATARS, allAvatars, cleanColor, customHue, nearestColor, cleanFrame, cleanOwl, saveOwl, cleanTitlePref, saveLook, COLORS, COUNTS, NAME_MAX, SocialError, cleanName, isValidName, newCode, parseCode, getProfile, saveProfile, createChallenge, getChallenge, getResults, submitResult, myChallenges, searchPlayers, randomOpponent, incomingChallenges, playerStats, getProgress, saveProgress, getRating, getRatingChange, weeklyLeaderboard, getAccepts, saveAccepts,
         tournamentTick, getTournaments, inTournament, devTournament, getTournamentEntries, getTournamentMatches, joinTournament, leaveTournament, startTournamentMatch, finishTournamentMatch, myTournamentStats, tournamentNotices, tournamentNoticesSeen,
         touchSeen, friendsList, addFriend, acceptFriend, removeFriend, REACTIONS, react, reactionsFor, lastReactionFrom, blockedPlayers, blockPlayer, unblockPlayer, REPORT_REASONS, reportPlayer, devReports, devResolveReport };
 });
