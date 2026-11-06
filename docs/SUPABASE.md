@@ -104,6 +104,7 @@ a týdenní žebříček (`weekly_leaderboard`) se po novém spuštění `schema
 Verze po bezpečnostním auditu navíc zužuje oprávnění tabulek (klient smí měnit jen své sloupce), hlídá, že XP jen roste a odznaky
 jsou z katalogu, omezuje zakládání výzev (30 za hodinu) a vyzvaný hráč smí hrát jen výzvu určenou jemu. Přibude-li v aplikaci nový
 odznak, přidej jeho id i do funkce `badge_catalog()` v `schema.sql` (test `tests/sql-security.test.js` hlídá, že se shodují) a spusť schéma znovu.
+Odznaků je přes 270 (skupiny mají 5 až 10 stupňů), proto je limit sloupce `profiles.badges` 500 položek a 12 000 znaků; po aktualizaci aplikace je třeba schéma spustit znovu, jinak by hráč s mnoha odznaky nešel uložit.
 
 ## Týdenní turnaje
 

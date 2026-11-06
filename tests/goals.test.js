@@ -114,10 +114,10 @@ test('odměna za splněný cíl jen jednou, za všechny tři bonus 200 XP jednou
     assert.equal(Goals.settle(Goals.ensureState(null, '2026-11-02', {}), [], {}).bonus, 0);
 });
 
-test('odznak Týdenní cíle podle počítadla weeksDone, stupně 1/5/20', () => {
+test('odznak Týdenní cíle podle počítadla weeksDone, stupně 1/5/10/20/52', () => {
     const group = core.BADGE_GROUPS.find(entry => entry.id === 'tydenni-cile');
     assert.ok(group, 'skupina odznaků existuje');
-    assert.deepEqual(group.badges.map(badge => [badge.id, badge.goal]), [['tydenni-cile', 1], ['tydenni-cile-5', 5], ['tydenni-cile-20', 20]]);
+    assert.deepEqual(group.badges.map(badge => [badge.id, badge.goal]), [['tydenni-cile', 1], ['tydenni-cile-5', 5], ['tydenni-cile-10', 10], ['tydenni-cile-20', 20], ['tydenni-cile-52', 52]]);
     assert.equal(core.EMPTY_COUNTERS.weeksDone, 0);
     assert.equal(core.EMPTY_COUNTERS.reviewed, 0);
     assert.equal(core.EMPTY_COUNTERS.tourPlayed, 0);

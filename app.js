@@ -5,12 +5,12 @@
 
     const {
         SATELLITE_TILES, OSM_TILES,
-        escapeHtml, isRealPhoto, commonsPhotoUrl, commonsFileUrl, displayName, formatPoints, getDayKey, formatDayKey, createSeededRandom, pickRandom,
+        escapeHtml, plural, isRealPhoto, commonsPhotoUrl, commonsFileUrl, displayName, formatPoints, getDayKey, formatDayKey, createSeededRandom, pickRandom,
         censorName, hideAnswer, buildQuestionTexts, factRevealsAnswer, answerNamesFor, genericWordsOf, specificWords, isGenericWord, OUT_OF_CONTEXT,
         processWikiText, takeLeadFacts, checkAnswer, normalizeAnswer, filterItems, pickItem, sortItems,
         buildItemChoices, cultureLandsFor, findAnswerItem, setCountries, updateMistakes, nameAnswers, pointsFor, dropKnownFacts, scaleKnown, dropChoiceNames,
         computeStreak, buildShareText, getTileLayout, shuffle,
-        LEVEL_XP, questionsForLevel, xpForLevel, MAX_LEVEL, LEVEL_TITLES,
+        LEVEL_XP, xpForLevel, MAX_LEVEL, LEVEL_TITLES,
         BADGES, BADGE_GROUPS, BADGE_BY_ID, earnedBadgeIds, compactBadges, expandBadges, normalizeCounters,
         levelProgress, titleForLevel, nextTitle, answerXp, DAILY_XP, DAILY_ALL_XP, streakXp, MASTERY_STEPS, masteryStars, nextMastery
     } = window.MudrlantCore;
@@ -2536,7 +2536,7 @@
         }
         badgeTitles.slice(0, 3).forEach(title => showCelebration('oslava', 'Nový odznak', title));
         if (badgeTitles.length > 3) showCelebration('oslava', 'Další odznaky', `a ještě ${badgeTitles.length - 3}`);
-        const kinds = { themes: 'barevné téma', robes: 'talár Mudrlanta', frames: 'rámeček', avatars: 'obrázek hráče', accessories: 'doplněk Mudrlanta' };
+        const kinds = Look.REWARD_KINDS;
         Look.newRewards(levelBefore, levelNow, freshBadgeIds).forEach(({ category, item }) => showCelebration('vitez', 'Nová odměna', `${item.title} (${kinds[category]}) – vyber si ji v Nastavení → Vzhled`));
         freshBadgeIds = [];
     };
@@ -4299,12 +4299,19 @@
         brand: 'bg-gradient-to-br from-brand-500 to-brand-800 text-gold-200 ring-gold-400',
         diamond: 'bg-gradient-to-br from-sky-300 to-indigo-500 text-white ring-cyan-100'
     };
-    const medalHtml = (badge, earned, size = 'h-11 w-11', iconSize = 'h-5 w-5') => `
-        <span class="flex ${size} shrink-0 items-center justify-center rounded-full ring-2 ${earned
+    // Nezískaný odznak ukazuje svou ikonu zašedlou a ztlumenou, přes ni malý zámek v rohu
+    const medalHtml = (badge, earned, size = 'h-11 w-11', iconSize = 'h-5 w-5') => {
+        const dim = earned ? '' : ' opacity-50 grayscale';
+        const art = badge.topic && topicArt({ id: badge.topic })
+            ? `<img src="icons/topics/${badge.topic}.webp" alt="" class="h-[72%] w-[72%] object-contain${dim}">`
+            : `<i data-lucide="${badge.icon}" class="${iconSize}${dim}"></i>`;
+        const lock = earned ? '' : '<span class="absolute -bottom-0.5 -right-0.5 flex h-[46%] w-[46%] items-center justify-center rounded-full bg-slate-600 text-white ring-1 ring-white dark:bg-slate-300 dark:text-slate-900 dark:ring-slate-800" data-medal-lock><i data-lucide="lock" class="h-[62%] w-[62%]"></i></span>';
+        return `<span class="relative flex ${size} shrink-0 items-center justify-center rounded-full ring-2 ${earned
             ? (MEDAL_TONES[badge.tone] || MEDAL_TONES.gold)
-            : 'bg-slate-200 text-slate-500 ring-slate-300 dark:bg-slate-700 dark:text-slate-400 dark:ring-slate-600'} shadow-sm">${earned && badge.topic && topicArt({ id: badge.topic })
-                ? `<img src="icons/topics/${badge.topic}.webp" alt="" class="h-[72%] w-[72%] object-contain">`
-                : `<i data-lucide="${earned ? badge.icon : 'lock'}" class="${iconSize}"></i>`}</span>`;
+            : 'bg-slate-200 text-slate-500 ring-slate-300 dark:bg-slate-700 dark:text-slate-400 dark:ring-slate-600'} shadow-sm">${art}${lock}</span>`;
+    };
+    // Co hráč za odznak dostane: „Odměna: Kompas (doplněk Mudrlanta)“, bez odměny „Odměna: sláva“
+    const badgeReward = (badge) => Look ? Look.badgeRewardText(badge.id) : 'Odměna: sláva';
     // Další (nejbližší nezískaný) stupeň každé skupiny s postupem; nejbližší cíle nahoře
     const badgeGoals = (progress) => {
         const c = normalizeCounters(progress.counters);
@@ -4332,13 +4339,14 @@
                 const value = Math.min(detail.value(c, x), detail.goal);
                 return `<div class="flex items-center gap-3 rounded-2xl bg-white p-3 shadow-sm ring-2 ring-brand-600 dark:bg-slate-800">${medalHtml(detail, Boolean(earned), 'h-14 w-14', 'h-6 w-6')}
                     <div class="min-w-0 flex-1"><p class="text-sm font-black text-slate-800 dark:text-slate-100">${escapeHtml(detail.title)}</p><p class="text-xs text-slate-500 dark:text-slate-400">${escapeHtml(detail.text)}</p>
+                    <p class="mt-0.5 text-[11px] font-bold leading-snug text-gold-800 dark:text-gold-300" data-badge-reward>${escapeHtml(badgeReward(detail))}</p>${earned && compactBadges(BADGES.filter(badge => progress.badges[badge.id]).map(badge => badge.id)).includes(detail.id) ? '<p class="text-[11px] leading-snug text-slate-500 dark:text-slate-400">Můžeš ho mít jako titul u svého jména (Nastavení → Vzhled).</p>' : ''}
                     <p class="mt-0.5 text-[11px] font-bold ${earned ? 'text-emerald-700 dark:text-emerald-400' : 'text-slate-500 dark:text-slate-400'}">${earned ? 'Získáno' : `${value} / ${detail.goal}`}</p>${earned ? '' : goalBar(value / detail.goal)}</div></div>`;
             })() : '<p class="text-center text-xs text-slate-500 dark:text-slate-400">Klepni na medaili a uvidíš, jak ji získat.</p>';
             const sections = BADGE_GROUPS.map(group => {
                 const earned = group.badges.filter(badge => progress.badges[badge.id]).length;
                 return `<section class="rounded-2xl bg-white p-2.5 shadow-sm dark:bg-slate-800">
                     <div class="mb-1.5 flex items-center justify-between gap-2"><h4 class="truncate text-[12px] font-black text-slate-800 dark:text-slate-100">${escapeHtml(group.title)}</h4><span class="shrink-0 text-[11px] font-bold text-slate-500 dark:text-slate-400">${earned}/${group.badges.length}</span></div>
-                    <div class="flex flex-wrap gap-1.5">${group.badges.map(badge => `<button type="button" data-badge="${badge.id}" aria-label="${escapeHtml(badge.title)}" title="${escapeHtml(`${badge.title}: ${badge.text}`)}" class="rounded-full ${selected === badge.id ? 'ring-2 ring-brand-600 ring-offset-2 dark:ring-offset-slate-800' : ''}">${medalHtml(badge, Boolean(progress.badges[badge.id]), 'h-9 w-9', 'h-4 w-4')}</button>`).join('')}</div>
+                    <div class="flex flex-wrap gap-1.5">${group.badges.map(badge => `<button type="button" data-badge="${badge.id}" aria-label="${escapeHtml(badge.title)}" title="${escapeHtml(`${badge.title}: ${badge.text} ${badgeReward(badge)}`)}" class="rounded-full ${selected === badge.id ? 'ring-2 ring-brand-600 ring-offset-2 dark:ring-offset-slate-800' : ''}">${medalHtml(badge, Boolean(progress.badges[badge.id]), 'h-9 w-9', 'h-4 w-4')}</button>`).join('')}</div>
                 </section>`;
             }).join('');
             showDialog('Odznaky', `
@@ -4382,7 +4390,7 @@
                     ${uiArt(`sova-${titleOwl(index)}`, `h-14 w-14 ${reached ? '' : 'opacity-40 grayscale'}`)}
                     <div class="min-w-0 flex-1">
                         <p class="flex items-baseline justify-between gap-2"><span class="truncate text-[15px] font-black leading-tight ${here ? '' : reached ? 'text-slate-800 dark:text-slate-100' : 'text-slate-500 dark:text-slate-400'}">${escapeHtml(entry.title)}</span><span class="shrink-0 text-[11px] font-bold ${here ? 'text-gold-300' : 'text-slate-500 dark:text-slate-400'}">úr. ${entry.from === last ? entry.from : `${entry.from}–${last}`}</span></p>
-                        <p class="mt-0.5 text-[11px] font-semibold leading-snug ${here ? 'text-white/85' : 'text-slate-500 dark:text-slate-400'}">od ${formatXp(xpForLevel(entry.from))} XP · asi ${formatXp(questionsForLevel(entry.from))} otázek</p>
+                        <p class="mt-0.5 text-[11px] font-semibold leading-snug ${here ? 'text-white/85' : 'text-slate-500 dark:text-slate-400'}">od ${formatXp(xpForLevel(entry.from))} XP</p>
                         ${rewardChips(entry.from, last, here)}
                         ${levels.length > 1 ? `<p class="mt-0.5 text-[10px] leading-snug ${here ? 'text-white/70' : 'text-slate-500 dark:text-slate-400'}">${levels.map(level => `<span class="${level === current ? 'font-black underline' : ''}">${level}: ${formatXp(xpForLevel(level))}</span>`).join(' · ')}</p>` : ''}
                     </div>
@@ -4390,7 +4398,8 @@
         }).join('');
         showDialog('Úrovně a tituly', `
             <div class="flex flex-col gap-2">
-                <p class="text-xs leading-snug text-slate-500 dark:text-slate-400">Máš <b class="text-slate-700 dark:text-slate-200">${formatXp(xp)} XP</b> (úroveň ${current}, ${escapeHtml(titleForLevel(current))}). Čím výš, tím víc XP na další úroveň; úroveň ${MAX_LEVEL} je asi ${formatXp(questionsForLevel(MAX_LEVEL))} otázek.</p>
+                <p class="text-xs leading-snug text-slate-600 dark:text-slate-300">Za správné odpovědi sbíráš body zkušeností (XP) a stoupáš o úrovně. Každých pár úrovní dostaneš nový titul a odměny: doplňky, rámečky nebo barvy.</p>
+                <p class="text-[11px] font-semibold leading-snug text-slate-500 dark:text-slate-400" data-my-xp>Tvoje XP: <b class="text-slate-700 dark:text-slate-200">${formatXp(xp)} XP</b> · úroveň ${current} · ${escapeHtml(titleForLevel(current))}</p>
                 <ul class="flex flex-col gap-1.5">${rows}</ul>
             </div>`);
         const here = document.querySelector('#dialog-overlay [data-here]');
@@ -4411,12 +4420,14 @@
             const stars = masteryStars(known);
             const goal = nextMastery(known);
             return `
-                <li class="flex items-center gap-2 rounded-xl bg-white p-1 shadow-sm dark:bg-slate-800" title="${known} poznaných${goal ? ` · další hvězda za ${goal}` : ' · plné mistrovství'}">
-                    ${topicIcon(topic, 'h-8 w-8', `rounded-lg p-1.5 ${styleOf(topic).soft}`, 'h-5 w-5')}
-                    <span class="min-w-0 flex-1">
-                        <span class="block truncate text-[11px] font-black leading-tight text-slate-800 dark:text-slate-100">${escapeHtml(topic.title)}</span>
-                        <span class="flex gap-0.5" role="img" aria-label="${stars} z ${MASTERY_STEPS.length} hvězd">${MASTERY_STEPS.map((_, index) => `<i data-lucide="star" class="h-3 w-3 ${index < stars ? 'fill-gold-500 text-gold-500' : 'text-slate-300 dark:text-slate-600'}"></i>`).join('')}</span>
-                    </span>
+                <li class="rounded-xl bg-white shadow-sm dark:bg-slate-800">
+                    <button type="button" data-mastery="${topic.id}" class="flex w-full items-center gap-2 rounded-xl p-1 text-left" title="${known} poznaných${goal ? ` · další hvězda za ${goal}` : ' · plné mistrovství'}" aria-label="${escapeHtml(topic.title)}: ${stars} z ${MASTERY_STEPS.length} hvězd, klepnutím se dozvíš víc">
+                        ${topicIcon(topic, 'h-8 w-8', `rounded-lg p-1.5 ${styleOf(topic).soft}`, 'h-5 w-5')}
+                        <span class="min-w-0 flex-1">
+                            <span class="block truncate text-[11px] font-black leading-tight text-slate-800 dark:text-slate-100">${escapeHtml(topic.title)}</span>
+                            <span class="flex gap-0.5" aria-hidden="true">${MASTERY_STEPS.map((_, index) => `<i data-lucide="star" class="h-3 w-3 ${index < stars ? 'fill-gold-500 text-gold-500' : 'text-slate-300 dark:text-slate-600'}"></i>`).join('')}</span>
+                        </span>
+                    </button>
                 </li>`;
         }).join('');
         showDialog('Můj postup', `
@@ -4433,14 +4444,54 @@
                 </button>
                 <div>
                     <h3 class="${CARD_TITLE} mb-2">Nejbližší odznaky</h3>
-                    <ul class="flex flex-col gap-1.5">${goals.map(goal => `<li class="flex items-center gap-2.5 rounded-2xl bg-white p-2 shadow-sm dark:bg-slate-800">${medalHtml(goal.badge, false, 'h-10 w-10', 'h-[1.125rem] w-[1.125rem]')}<span class="min-w-0 flex-1"><span class="flex items-baseline justify-between gap-2"><span class="truncate text-[12px] font-black text-slate-800 dark:text-slate-100">${escapeHtml(goal.badge.title)}</span><span class="shrink-0 text-[11px] font-bold text-slate-500 dark:text-slate-400">${goal.value} / ${goal.badge.goal}</span></span><span class="block truncate text-[10px] font-semibold text-slate-500 dark:text-slate-400">${escapeHtml(goal.badge.text)}</span>${goalBar(goal.ratio)}</span></li>`).join('')}</ul>
+                    <ul class="flex flex-col gap-1.5">${goals.map(goal => `<li class="flex items-center gap-2.5 rounded-2xl bg-white p-2 shadow-sm dark:bg-slate-800">${medalHtml(goal.badge, false, 'h-10 w-10', 'h-[1.125rem] w-[1.125rem]')}<span class="min-w-0 flex-1"><span class="flex items-baseline justify-between gap-2"><span class="truncate text-[12px] font-black text-slate-800 dark:text-slate-100">${escapeHtml(goal.badge.title)}</span><span class="shrink-0 text-[11px] font-bold text-slate-500 dark:text-slate-400">${goal.value} / ${goal.badge.goal}</span></span><span class="block truncate text-[10px] font-semibold text-slate-500 dark:text-slate-400">${escapeHtml(goal.badge.text)}</span><span class="block text-[10px] font-bold leading-snug text-gold-800 dark:text-gold-300" data-badge-reward>${escapeHtml(badgeReward(goal.badge))}</span>${goalBar(goal.ratio)}</span></li>`).join('')}</ul>
                     <button type="button" data-open-badges class="${SECONDARY_BUTTON} mt-2 !py-2.5 text-sm"><i data-lucide="medal" class="h-4 w-4"></i> Všechny odznaky ${earnedCount} / ${BADGES.length}</button>
                 </div>
                 <div>
-                    <h3 class="${CARD_TITLE} mb-2">Mistrovství témat</h3>
+                    <h3 class="${CARD_TITLE} mb-1">Mistrovství témat</h3>
+                    <p class="mb-2 text-[11px] leading-snug text-slate-500 dark:text-slate-400">Klepni na téma a uvidíš, jak hvězdičky získat.</p>
                     <ul class="grid grid-cols-2 gap-1">${rows}</ul>
                 </div>
-            </div>`, { onClick: (event) => { if (event.target.closest('[data-open-badges]')) openBadges(); if (event.target.closest('[data-open-levels]')) openLevels(); } });
+            </div>`, { onClick: (event) => {
+            if (event.target.closest('[data-open-badges]')) openBadges();
+            if (event.target.closest('[data-open-levels]')) openLevels();
+            const mastery = event.target.closest('[data-mastery]');
+            if (mastery) openMastery(mastery.dataset.mastery);
+        } });
+        applyProgress(document.getElementById('dialog-overlay'));
+    };
+
+    // Mistrovství jednoho tématu: co to je, kolik už hráč poznal, kolik chybí do další hvězdičky a co hvězdičky přinášejí (jen to, co hra opravdu dává)
+    const openMastery = (topicId) => {
+        const topic = TOPIC_BY_ID[topicId];
+        if (!topic) return;
+        const known = (loadLearned()[topic.id] || []).length;
+        const stars = masteryStars(known);
+        const goal = nextMastery(known);
+        const before = MASTERY_STEPS[stars - 1] || 0;
+        const skill = BADGE_BY_ID[`zbehly-${topic.id}`];
+        const accessory = Look ? Look.ACCESSORIES.find(item => item.badge === `zbehly-${topic.id}`) : null;
+        const master = BADGE_BY_ID['mistr-oboru'];
+        const star = (filled) => `<i data-lucide="star" class="h-4 w-4 ${filled ? 'fill-gold-500 text-gold-500' : 'text-slate-300 dark:text-slate-600'}"></i>`;
+        const reward = (needed, html) => `<li class="flex items-start gap-2 text-[12px] leading-snug text-slate-700 dark:text-slate-200"><i data-lucide="${stars >= needed ? 'circle-check' : 'star'}" class="mt-0.5 h-4 w-4 shrink-0 ${stars >= needed ? 'text-emerald-600 dark:text-emerald-400' : 'text-gold-600 dark:text-gold-400'}"></i><span><b>${needed} ${needed < 5 ? 'hvězdičky' : 'hvězdiček'}:</b> ${html}</span></li>`;
+        showDialog(`Mistrovství: ${topic.title}`, `
+            <div class="flex flex-col gap-3" data-mastery-info>
+                <div class="flex items-center gap-3">
+                    ${topicIcon(topic, 'h-12 w-12', `rounded-xl p-2 ${styleOf(topic).soft}`, 'h-8 w-8')}
+                    <div class="min-w-0 flex-1">
+                        <span class="flex gap-0.5" role="img" aria-label="${stars} z ${MASTERY_STEPS.length} hvězdiček">${MASTERY_STEPS.map((_, index) => star(index < stars)).join('')}</span>
+                        <p class="text-sm font-black text-slate-800 dark:text-slate-100">Poznáno ${plural(known, 'položka', 'položky', 'položek')}</p>
+                        <p class="text-[12px] font-semibold text-slate-600 dark:text-slate-300">${goal ? `Do další hvězdičky chybí ${plural(goal - known, 'položka', 'položky', 'položek')}.` : 'Máš plné mistrovství, všech 5 hvězdiček!'}</p>
+                    </div>
+                </div>
+                ${goal ? goalBar((known - before) / (goal - before)) : ''}
+                <p class="text-[12px] leading-snug text-slate-600 dark:text-slate-300">Mistrovství ukazuje, kolik různých položek tématu jsi už aspoň jednou správně poznal (každá se počítá jen jednou). Hvězdičky přibývají za ${MASTERY_STEPS.join(', ')} poznaných položek.</p>
+                <ul class="flex flex-col gap-1.5" aria-label="Co hvězdičky přinášejí">
+                    ${reward(3, `odznak ${skill ? `„${escapeHtml(skill.title)}“` : 'Zběhlost'}${accessory ? ` a doplněk pro Mudrlanta: ${escapeHtml(accessory.title)}` : ''}. Doplněk získáš i tak, že v tématu 12× správně odpovíš za sebou.`)}
+                    ${reward(5, `odznak${master ? ` „${escapeHtml(master.title)}“` : ''}, nejvyšší mistrovství v oboru.`)}
+                </ul>
+                <button type="button" data-back-progress class="${SECONDARY_BUTTON} !py-2.5 text-sm"><i data-lucide="chevron-left" class="h-4 w-4"></i> Zpět na Můj postup</button>
+            </div>`, { onClick: (event) => { if (event.target.closest('[data-back-progress]')) openProgress(); } });
         applyProgress(document.getElementById('dialog-overlay'));
     };
 

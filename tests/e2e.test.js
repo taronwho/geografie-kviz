@@ -252,18 +252,47 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         assert.equal(await tab.locator('#dialog-overlay [data-here]').count(), 1, 'označený tvůj titul');
         assert.match(await tab.textContent('#dialog-overlay'), /Znalec/);
         assert.match(await tab.textContent('#dialog-overlay'), new RegExp(`${gained}\\s*XP`));
+        // Text pro hráče, ne pro vývojáře: bez „asi N otázek“, u řádků jen „od N XP“
+        assert.match(await tab.textContent('#dialog-overlay'), /Za správné odpovědi sbíráš/);
+        assert.doesNotMatch(await tab.textContent('#dialog-overlay'), /otázek/);
+        assert.match(await tab.textContent('#dialog-overlay [data-title-row="1"]'), /od 0 XP/);
         assert.ok(await tab.locator('#dialog-overlay [data-title-row] img.grayscale').count() > 20, 'nedosažené tituly zešedlé');
         await tab.keyboard.press('Escape');
         await tab.click('#status-badge');
         await tab.waitForSelector('#dialog-overlay');
         assert.equal(await tab.locator('#dialog-overlay li').count(), 14 + 2, 'mistrovství všech témat a dva nejbližší odznaky');
         assert.match(await tab.textContent('#dialog-overlay'), /Všechny odznaky\s*1 \/ \d{3}/);
+        // Nejbližší odznaky říkají, co za ně hráč dostane
+        assert.equal(await tab.locator('#dialog-overlay [data-badge-reward]').count(), 2);
+        assert.match(await tab.textContent('#dialog-overlay [data-badge-reward]'), /^Odměna: /);
+        // Mistrovství tématu: klepnutí na téma vysvětlí hvězdičky a vrátí se zpět
+        await tab.click('[data-mastery="zemepis"]');
+        await tab.waitForSelector('#dialog-overlay [data-mastery-info]');
+        const mastery = await tab.textContent('#dialog-overlay');
+        assert.match(mastery, /Mistrovství: Zeměpis/);
+        assert.match(mastery, /Poznáno \d+ polož/);
+        assert.match(mastery, /Do další hvězdičky chybí \d+ polož/);
+        assert.match(mastery, /3 hvězdičky:.*Navigátor.*Kompas/);
+        assert.match(mastery, /5 hvězdiček:.*Mistr oboru/);
+        await tab.click('[data-back-progress]');
+        await tab.waitForSelector('[data-open-badges]');
         // Okno se všemi odznaky: skupiny se stupni, klepnutím na medaili podrobnosti
         await tab.click('[data-open-badges]');
         await tab.waitForSelector('[data-badge="prvni-krok"]');
         assert.ok(await tab.locator('[data-badge]').count() >= 120, 'všechny odznaky');
+        // Zamčený odznak ukazuje svou zašedlou ikonu a přes ni zámek; získaný je barevný bez zámku
+        assert.equal(await tab.locator('[data-badge="stovka"] svg.lucide-target.grayscale').count(), 1);
+        assert.equal(await tab.locator('[data-badge="stovka"] [data-medal-lock] svg.lucide-lock').count(), 1);
+        assert.equal(await tab.locator('[data-badge="prvni-krok"] [data-medal-lock]').count(), 0);
+        assert.equal(await tab.locator('[data-badge="tema-zemepis-25"] img.grayscale').count(), 1, 'zamčená medaile tématu: zašedlá ilustrace');
         await tab.click('[data-badge="stovka"]');
         assert.match(await tab.textContent('#dialog-overlay'), /100 správných odpovědí\./);
+        assert.match(await tab.textContent('#dialog-overlay [data-badge-reward]'), /Odměna: sláva/);
+        await tab.click('[data-badge="zbehly-zemepis"]');
+        assert.match(await tab.textContent('#dialog-overlay [data-badge-reward]'), /Odměna: Kompas \(doplněk Mudrlanta\)/);
+        await tab.click('[data-badge="vitez"]');
+        assert.match(await tab.textContent('#dialog-overlay [data-badge-reward]'), /Vavřínový \(rámeček\), Vavřínový věnec \(doplněk Mudrlanta\)/);
+        await tab.click('[data-badge="stovka"]');
         await tab.keyboard.press('Escape');
         // Výsledek u dnešní otázky je vidět celý (ne zkrácený na „4 bod…“)
         const cut = await tab.evaluate(() => [...document.querySelectorAll('[data-action="daily"] span.truncate')].filter(span => span.scrollWidth > span.clientWidth).map(span => span.textContent));

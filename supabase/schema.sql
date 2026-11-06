@@ -36,7 +36,7 @@ alter table public.profiles add constraint profiles_blocked_len check (cardinali
 alter table public.profiles drop constraint if exists profiles_xp_range;
 alter table public.profiles add constraint profiles_xp_range check (xp between 0 and 500000);
 alter table public.profiles drop constraint if exists profiles_badges_len;
-alter table public.profiles add constraint profiles_badges_len check (cardinality(badges) <= 200 and char_length(array_to_string(badges, ',')) <= 4000) not valid;
+alter table public.profiles add constraint profiles_badges_len check (cardinality(badges) <= 500 and char_length(array_to_string(badges, ',')) <= 12000) not valid;
 alter table public.profiles drop constraint if exists profiles_display_name_len;
 alter table public.profiles add constraint profiles_display_name_len check (char_length(btrim(display_name)) between 2 and 24);
 alter table public.profiles drop constraint if exists profiles_avatar_len;
@@ -259,28 +259,57 @@ revoke insert, update, delete on public.rating_history from anon, authenticated;
 create or replace function public.badge_catalog() returns text[]
 language sql immutable set search_path = public as $$
     select array[
-        'prvni-krok', 'odpovedi-10', 'odpovedi-50', 'stovka', 'odpovedi-250', 'odpovedi-500', 'tisicovka', 'odpovedi-2500',
-        'odpovedi-5000', 'odpovedi-10000', 'rada-5', 'strelec', 'neomylny', 'rada-50', 'rada-100', 'serie-3', 'tyden',
-        'serie-14', 'mesic', 'serie-60', 'serie-100', 'serie-200', 'serie-365', 'dny-5', 'dny-15', 'dny-30', 'dny-60',
-        'dny-100', 'dny-200', 'dny-365', 'dokonaly-den', 'dokonale-3', 'dokonale-7', 'dokonale-14', 'dokonale-30', 'dnes-10',
-        'dnes-50', 'dnes-100', 'dnes-250', 'bez-napovedy-10', 'bez-napovedy', 'bez-napovedy-100', 'bez-napovedy-500',
-        'psani-10', 'pisatel', 'psani-100', 'psani-500', 'do-hloubky', 'tezke-50', 'tezke-200', 'chyby-10', 'chyby-50',
-        'chyby-200', 'soupere', 'vyzvy-5', 'vyzvy-25', 'vyzvy-100', 'vitez', 'vyhry-5', 'gladiator', 'vyhry-25', 'vyhry-50',
-        'vyhry-100', 'vyhry-v-rade-3', 'vyhry-v-rade-5', 'vyhry-v-rade-10', 'zalozene-1', 'zalozene-10', 'zalozene-50',
-        'perfektni-vyzvy-1', 'perfektni-vyzvy-5', 'perfektni-vyzvy-25', 'uroven-5', 'znalec', 'uroven-20', 'mudrc',
-        'uroven-50', 'uroven-65', 'uroven-80', 'uroven-100', 'poznane-100', 'poznane-500', 'poznane-1000', 'poznane-3000',
-        'vsestranny', 'hvezdar', 'mistr-oboru', 'vsechna-temata-1', 'vsechna-temata-3', 'vsechna-temata-5', 'tema-zemepis-25',
-        'tema-zemepis-100', 'tema-zemepis-300', 'tema-vlajky-25', 'tema-vlajky-100', 'tema-vlajky-300', 'tema-historie-25',
-        'tema-historie-100', 'tema-historie-300', 'tema-mytologie-25', 'tema-mytologie-100', 'tema-mytologie-300',
-        'tema-biologie-25', 'tema-biologie-100', 'tema-biologie-300', 'tema-geologie-25', 'tema-geologie-100',
-        'tema-geologie-300', 'tema-chemie-25', 'tema-chemie-100', 'tema-chemie-300', 'tema-fyzika-25', 'tema-fyzika-100',
-        'tema-fyzika-300', 'tema-umeni-25', 'tema-umeni-100', 'tema-umeni-300', 'tema-architektura-25',
-        'tema-architektura-100', 'tema-architektura-300', 'tema-hudba-25', 'tema-hudba-100', 'tema-hudba-300',
-        'tema-literatura-25', 'tema-literatura-100', 'tema-literatura-300', 'tema-film-25', 'tema-film-100', 'tema-film-300',
-        'tema-sport-25', 'tema-sport-100', 'tema-sport-300',
-        'zbehly-zemepis', 'zbehly-vlajky', 'zbehly-historie', 'zbehly-mytologie', 'zbehly-biologie', 'zbehly-geologie', 'zbehly-chemie', 'zbehly-fyzika', 'zbehly-umeni', 'zbehly-architektura', 'zbehly-hudba', 'zbehly-literatura', 'zbehly-film', 'zbehly-sport',
-        'turnaj-ucast', 'turnaj-ctvrtfinale', 'turnaj-semifinale', 'turnaj-bronz', 'turnaj-stribro', 'turnaj-zlato', 'turnaj-postupy-1', 'turnaj-postupy-5', 'turnaj-postupy-15',
-        'tydenni-cile', 'tydenni-cile-5', 'tydenni-cile-20'
+        'prvni-krok', 'odpovedi-10', 'odpovedi-50', 'stovka', 'odpovedi-250', 'odpovedi-500', 'tisicovka', 'odpovedi-2500', 'odpovedi-5000', 'odpovedi-10000',
+        'rada-5', 'strelec', 'neomylny', 'rada-50', 'rada-100', 'rada-200',
+        'serie-3', 'tyden', 'serie-14', 'mesic', 'serie-60', 'serie-100', 'serie-200', 'serie-365',
+        'dny-5', 'dny-15', 'dny-30', 'dny-60', 'dny-100', 'dny-200', 'dny-365',
+        'dokonaly-den', 'dokonale-3', 'dokonale-7', 'dokonale-14', 'dokonale-30', 'dokonale-60',
+        'dnes-10', 'dnes-50', 'dnes-100', 'dnes-250', 'dnes-500', 'dnes-1000',
+        'bez-napovedy-10', 'bez-napovedy', 'bez-napovedy-100', 'bez-napovedy-500', 'bez-napovedy-1000', 'bez-napovedy-2500',
+        'psani-10', 'pisatel', 'psani-100', 'psani-500', 'psani-1000', 'psani-2500',
+        'do-hloubky', 'tezke-50', 'tezke-200', 'tezke-500', 'tezke-1000',
+        'chyby-10', 'chyby-50', 'chyby-200', 'chyby-500', 'chyby-1000',
+        'soupere', 'vyzvy-5', 'vyzvy-25', 'vyzvy-100', 'vyzvy-250', 'vyzvy-500',
+        'vitez', 'vyhry-5', 'gladiator', 'vyhry-25', 'vyhry-50', 'vyhry-100',
+        'vyhry-v-rade-3', 'vyhry-v-rade-5', 'vyhry-v-rade-10', 'vyhry-v-rade-15', 'vyhry-v-rade-25',
+        'zalozene-1', 'zalozene-10', 'zalozene-50', 'zalozene-100', 'zalozene-250',
+        'perfektni-vyzvy-1', 'perfektni-vyzvy-5', 'perfektni-vyzvy-25', 'perfektni-vyzvy-50', 'perfektni-vyzvy-100',
+        'uroven-5', 'znalec', 'uroven-20', 'mudrc', 'uroven-50', 'uroven-65', 'uroven-80', 'uroven-100',
+        'poznane-100', 'poznane-500', 'poznane-1000', 'poznane-3000', 'poznane-5000', 'poznane-10000',
+        'vsestrannost-3', 'vsestrannost-6', 'vsestrannost-9', 'vsestrannost-12', 'vsestranny',
+        'hvezdy-1', 'hvezdy-2', 'hvezdar', 'hvezdy-4', 'mistr-oboru',
+        'vsechna-temata-1', 'vsechna-temata-2', 'vsechna-temata-3', 'vsechna-temata-4', 'vsechna-temata-5',
+        'tema-zemepis-25', 'tema-zemepis-100', 'tema-zemepis-300', 'tema-zemepis-600', 'tema-zemepis-1000',
+        'tema-vlajky-25', 'tema-vlajky-100', 'tema-vlajky-300', 'tema-vlajky-600', 'tema-vlajky-1000',
+        'tema-historie-25', 'tema-historie-100', 'tema-historie-300', 'tema-historie-600', 'tema-historie-1000',
+        'tema-mytologie-25', 'tema-mytologie-100', 'tema-mytologie-300', 'tema-mytologie-600', 'tema-mytologie-1000',
+        'tema-biologie-25', 'tema-biologie-100', 'tema-biologie-300', 'tema-biologie-600', 'tema-biologie-1000',
+        'tema-geologie-25', 'tema-geologie-100', 'tema-geologie-300', 'tema-geologie-600', 'tema-geologie-1000',
+        'tema-chemie-25', 'tema-chemie-100', 'tema-chemie-300', 'tema-chemie-600', 'tema-chemie-1000',
+        'tema-fyzika-25', 'tema-fyzika-100', 'tema-fyzika-300', 'tema-fyzika-600', 'tema-fyzika-1000',
+        'tema-umeni-25', 'tema-umeni-100', 'tema-umeni-300', 'tema-umeni-600', 'tema-umeni-1000',
+        'tema-architektura-25', 'tema-architektura-100', 'tema-architektura-300', 'tema-architektura-600', 'tema-architektura-1000',
+        'tema-hudba-25', 'tema-hudba-100', 'tema-hudba-300', 'tema-hudba-600', 'tema-hudba-1000',
+        'tema-literatura-25', 'tema-literatura-100', 'tema-literatura-300', 'tema-literatura-600', 'tema-literatura-1000',
+        'tema-film-25', 'tema-film-100', 'tema-film-300', 'tema-film-600', 'tema-film-1000',
+        'tema-sport-25', 'tema-sport-100', 'tema-sport-300', 'tema-sport-600', 'tema-sport-1000',
+        'zbehly-zemepis-5', 'zbehly-zemepis', 'zbehly-zemepis-25', 'zbehly-zemepis-50', 'zbehly-zemepis-100',
+        'zbehly-vlajky-5', 'zbehly-vlajky', 'zbehly-vlajky-25', 'zbehly-vlajky-50', 'zbehly-vlajky-100',
+        'zbehly-historie-5', 'zbehly-historie', 'zbehly-historie-25', 'zbehly-historie-50', 'zbehly-historie-100',
+        'zbehly-mytologie-5', 'zbehly-mytologie', 'zbehly-mytologie-25', 'zbehly-mytologie-50', 'zbehly-mytologie-100',
+        'zbehly-biologie-5', 'zbehly-biologie', 'zbehly-biologie-25', 'zbehly-biologie-50', 'zbehly-biologie-100',
+        'zbehly-geologie-5', 'zbehly-geologie', 'zbehly-geologie-25', 'zbehly-geologie-50', 'zbehly-geologie-100',
+        'zbehly-chemie-5', 'zbehly-chemie', 'zbehly-chemie-25', 'zbehly-chemie-50', 'zbehly-chemie-100',
+        'zbehly-fyzika-5', 'zbehly-fyzika', 'zbehly-fyzika-25', 'zbehly-fyzika-50', 'zbehly-fyzika-100',
+        'zbehly-umeni-5', 'zbehly-umeni', 'zbehly-umeni-25', 'zbehly-umeni-50', 'zbehly-umeni-100',
+        'zbehly-architektura-5', 'zbehly-architektura', 'zbehly-architektura-25', 'zbehly-architektura-50', 'zbehly-architektura-100',
+        'zbehly-hudba-5', 'zbehly-hudba', 'zbehly-hudba-25', 'zbehly-hudba-50', 'zbehly-hudba-100',
+        'zbehly-literatura-5', 'zbehly-literatura', 'zbehly-literatura-25', 'zbehly-literatura-50', 'zbehly-literatura-100',
+        'zbehly-film-5', 'zbehly-film', 'zbehly-film-25', 'zbehly-film-50', 'zbehly-film-100',
+        'zbehly-sport-5', 'zbehly-sport', 'zbehly-sport-25', 'zbehly-sport-50', 'zbehly-sport-100',
+        'turnaj-ucast', 'turnaj-ctvrtfinale', 'turnaj-semifinale', 'turnaj-bronz', 'turnaj-stribro', 'turnaj-zlato',
+        'turnaj-postupy-1', 'turnaj-postupy-5', 'turnaj-postupy-15', 'turnaj-postupy-30', 'turnaj-postupy-60',
+        'tydenni-cile', 'tydenni-cile-5', 'tydenni-cile-10', 'tydenni-cile-20', 'tydenni-cile-52'
     ]::text[];
 $$;
 

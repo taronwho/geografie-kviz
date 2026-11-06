@@ -163,3 +163,15 @@ test('vlajka: barvu mění jen plátno, tyčka je samostatná vrstva nad ním a 
     assert.match(Owl.layersHtml({ hand: { id: 'vlajka', color: 'zelena' } }), /vlajka-zelena\.webp.*vlajka-zaklad\.webp/);
     assert.equal(Owl.layersHtml({ hand: { id: 'lupa', color: 'zelena' } }).match(/<img /g).length, 1, 'ostatní doplňky mají jednu vrstvu');
 });
+
+test('odměna za odznak: Look řekne, co přesně odznak odemkne (nebo že dává jen slávu)', () => {
+    const Core = require('../quiz-core.js');
+    assert.deepEqual(Look.rewardsForBadge('vitez').map(entry => `${entry.category}:${entry.item.id}`).sort(), ['accessories:vavrin', 'frames:vavrin']);
+    assert.equal(Look.badgeRewardText('vitez'), 'Odměna: Vavřínový (rámeček), Vavřínový věnec (doplněk Mudrlanta)');
+    assert.equal(Look.badgeRewardText('zbehly-zemepis'), 'Odměna: Kompas (doplněk Mudrlanta)');
+    assert.equal(Look.badgeRewardText('turnaj-bronz'), 'Odměna: Medailista turnaje (rámeček), Bronz z turnaje (obrázek hráče)');
+    assert.equal(Look.badgeRewardText('stovka'), 'Odměna: sláva');
+    assert.equal(Look.badgeRewardText('zbehly-zemepis-25'), 'Odměna: sláva', 'další stupně zběhlosti doplněk nedávají');
+    // Každý odznak z katalogu odměn skutečně existuje
+    for (const items of Object.values(Look.CATALOG)) for (const item of items.filter(entry => entry.badge)) assert.ok(Core.BADGE_BY_ID[item.badge], item.badge);
+});
