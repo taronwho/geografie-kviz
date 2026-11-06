@@ -35,6 +35,7 @@
         progress: 'mudrlant.progress',
         // Karty opakování s rozestupy a stav týdenních cílů – jen v zařízení, do účtu se nesynchronizují
         review: 'mudrlant.review',
+        reviewOn: 'mudrlant.reviewOn',
         goals: 'mudrlant.goals',
         // 'host' = hráč na úvodu zvolil hraní bez přihlášení, úvod s přihlášením se už neukáže
         account: 'mudrlant.account'
@@ -162,7 +163,9 @@
     // Karty opakování (review.js): dřívější chyby ze seznamu „Moje chyby“ se přidají jako karty na dnes
     const loadReview = () => Review ? Review.importMistakes(Review.parse(readJson(KEYS.review)), loadMistakes(), getDayKey()) : [];
     const saveReview = (cards) => writeJson(KEYS.review, cards);
-    const reviewDueCount = () => Review ? Review.dueCount(loadReview(), getDayKey()) : 0;
+    // Opakování s rozestupy jde vypnout v Nastavení (ve výchozím stavu zapnuté); vypnuté nezakládá karty, neukazuje čip ani dlaždici a nedává týdenní cíl na opakování
+    const reviewEnabled = () => Boolean(Review) && readJson(KEYS.reviewOn) !== false;
+    const reviewDueCount = () => reviewEnabled() ? Review.dueCount(loadReview(), getDayKey()) : 0;
     // Souhrn posledního dokončeného opakování (ukáže se v učení), null = žádný
     let reviewSummary = null;
 
@@ -1053,6 +1056,7 @@
                     <button type="button" data-auth-login class="${PRIMARY_BUTTON} mt-2"><i data-lucide="log-in" class="h-5 w-5"></i> Přihlásit se přes Google</button>
                     ${state.error ? `<p class="mt-2 text-xs font-semibold text-rose-700 dark:text-rose-400" role="alert">${escapeHtml(state.error)}</p>` : ''}
                 </div>` : ''}
+            ${Review ? `<button type="button" data-review-toggle role="switch" aria-checked="${reviewEnabled()}" class="mt-3 flex w-full items-center gap-3 rounded-2xl border-2 px-3 py-2 text-left transition-colors active:scale-[0.99] ${reviewEnabled() ? TOGGLE_ON : TOGGLE_OFF}"><i data-lucide="repeat" class="h-5 w-5 shrink-0"></i><span class="min-w-0 flex-1"><span class="block text-sm font-black">Opakování chyb</span><span class="block text-[11px] font-semibold leading-snug opacity-80">${reviewEnabled() ? 'Zapnuto: chyby se ti vrací po 1, 3, 7, 14 a 30 dnech' : 'Vypnuto: nic se nevrací a nic nečeká'}</span></span><span class="shrink-0 text-xs font-black">${reviewEnabled() ? 'Zapnuto' : 'Vypnuto'}</span></button>` : ''}
             ${pushPanel()}
             <button type="button" data-tutorial-restart class="btn-3d-light mt-3 flex w-full items-center gap-2 rounded-2xl bg-white px-3 py-2 text-left dark:bg-slate-800"><i data-lucide="info" class="h-5 w-5 shrink-0 text-brand-700 dark:text-brand-300"></i><span class="min-w-0 flex-1 truncate text-[13px] font-black text-slate-800 dark:text-slate-100">Projít znovu tutoriál</span><i data-lucide="chevron-right" class="h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400"></i></button>
             ${renderDevPanel()}`;
@@ -1258,6 +1262,12 @@
                 // Odhlášený hráč nesmí na tomhle zařízení dál dostávat upozornění: odběr se smaže ještě za přihlášení
                 closeSettings();
                 (Push ? Push.disable().catch(() => {}) : Promise.resolve()).then(() => Auth.logout());
+                return;
+            }
+            if (event.target.closest('[data-review-toggle]')) {
+                writeJson(KEYS.reviewOn, !reviewEnabled());
+                updateControlsUI();
+                openSettings(reviewEnabled() ? 'Opakování chyb je zapnuté.' : 'Opakování chyb je vypnuté.', '[data-review-toggle]');
                 return;
             }
             const pushToggle = event.target.closest('[data-push-toggle]');
@@ -2637,7 +2647,7 @@
         const learnedMap = loadLearned();
         return { ...normalizeCounters(progress.counters), learned: TOPICS.reduce((sum, topic) => sum + (learnedMap[topic.id] || []).length, 0) };
     };
-    const currentGoals = (week) => Goals.weeklyGoals(week, { topics: TOPICS.map(topic => ({ id: topic.id, title: topic.title })), multiplayer: Boolean(Auth && Auth.isConfigured() && Social) });
+    const currentGoals = (week) => Goals.weeklyGoals(week, { topics: TOPICS.map(topic => ({ id: topic.id, title: topic.title })), multiplayer: Boolean(Auth && Auth.isConfigured() && Social), skip: reviewEnabled() ? [] : ['opakovani'] });
     // Stav týdne; nový týden začne novým snímkem (uloží se hned, ať se postup počítá od teď)
     const loadGoalsState = (progress = loadProgress()) => {
         const week = Goals.weekKey();
@@ -2790,7 +2800,7 @@
         round.wasMistake = loadMistakes().includes(`${current.topic}:${current.id}`);
         writeJson(KEYS.mistakes, updateMistakes(loadMistakes(), `${current.topic}:${current.id}`, round.correct));
         // Karta opakování: špatná odpověď kartu založí nebo vrátí na začátek, správná ji posune (v opakování vždy, jinak jen když je na řadě)
-        if (Review) saveReview(Review.onAnswer(loadReview(), `${current.topic}:${current.id}`, round.correct, getDayKey(), { force: Boolean(round.review) }));
+        if (reviewEnabled()) saveReview(Review.onAnswer(loadReview(), `${current.topic}:${current.id}`, round.correct, getDayKey(), { force: Boolean(round.review) }));
         if (round.review && pool.kind === 'review') {
             pool.keys = pool.keys.filter(key => key !== `${current.topic}:${current.id}`);
             pool.done += 1;
@@ -3183,7 +3193,7 @@
         const due = Review ? Review.dueCount(cards, today) : 0;
         const next = Review ? Review.nextDueText(cards, today) : '';
         const reviewText = reviewSummary ? reviewSummary.text : due ? 'Chyby se vrací po 1, 3, 7, 14 a 30 dnech' : next ? `Nic na řadě, ${next}` : 'Co v kvízu spleteš, sem přijde k opakování';
-        const reviewSection = Review ? `
+        const reviewSection = reviewEnabled() ? `
             <section data-review-section class="flex items-center gap-3 rounded-2xl border border-slate-100 bg-white p-3 shadow-sm dark:border-slate-700 dark:bg-slate-800">
                 <span class="shrink-0 rounded-xl bg-gold-100 p-2 text-gold-700 dark:bg-gold-900/40 dark:text-gold-300"><i data-lucide="repeat" class="h-5 w-5"></i></span>
                 <span class="min-w-0 flex-1">

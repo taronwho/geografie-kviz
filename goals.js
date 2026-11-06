@@ -68,9 +68,9 @@
         { id: 'turnaj', icon: 'trophy', target: 1, xp: 150, multi: true, metric: 'tourPlayed', title: () => 'Odehraj turnajové kolo' }
     ];
     // Tři různé cíle týdne; stejné semínko (týden, témata, hra více hráčů) = stejné cíle, seřazené od nejlehčího
-    const weeklyGoals = (week, { topics = [], multiplayer = false } = {}) => {
+    const weeklyGoals = (week, { topics = [], multiplayer = false, skip = [] } = {}) => {
         const rng = seededRandom(`mudrlant-cile-${week}`);
-        const pool = KINDS.filter(kind => (multiplayer || !kind.multi) && (!kind.topic || topics.length));
+        const pool = KINDS.filter(kind => (multiplayer || !kind.multi) && (!kind.topic || topics.length) && !skip.includes(kind.id));
         for (let i = pool.length - 1; i > 0; i--) { const j = Math.floor(rng() * (i + 1)); [pool[i], pool[j]] = [pool[j], pool[i]]; }
         const chosen = pool.slice(0, COUNT).map(kind => {
             const topic = kind.topic ? topics[Math.floor(rng() * topics.length)] : null;

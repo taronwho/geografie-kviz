@@ -105,4 +105,28 @@ test('opakování s rozestupy a týdenní cíle', { skip: !chromium && 'Playwrig
         assert.deepEqual(problems, []);
         await context.close();
     });
+
+    await t.test('opakování jde v Nastavení vypnout: zmizí čip i dlaždice a nezakládají se karty; zapnout jde zpět', async () => {
+        const { context, tab, problems } = await open({ mistakes: ['zemepis:Q4242', 'zemepis:Q39'] });
+        await tab.waitForSelector('[data-review-due]');
+        await tab.click('#btn-settings');
+        await tab.waitForSelector('[data-review-toggle]');
+        assert.equal(await tab.getAttribute('[data-review-toggle]', 'aria-checked'), 'true', 've výchozím stavu zapnuto');
+        await tab.click('[data-review-toggle]');
+        await tab.waitForFunction(() => document.querySelector('[data-review-toggle]').getAttribute('aria-checked') === 'false');
+        assert.equal(await tab.evaluate(() => JSON.parse(localStorage.getItem('mudrlant.reviewOn'))), false);
+        assert.equal(await tab.locator('[data-review-due]').count(), 0, 'čip zmizel');
+        await tab.click('[data-close]');
+        await tab.click('#btn-learn');
+        await tab.waitForSelector('[data-action="learn-topic"], #app-content');
+        await tab.waitForTimeout(300);
+        assert.equal(await tab.locator('[data-review-section]').count(), 0, 'dlaždice opakování zmizela');
+        await tab.click('#btn-settings');
+        await tab.click('[data-review-toggle]');
+        await tab.waitForFunction(() => document.querySelector('[data-review-toggle]').getAttribute('aria-checked') === 'true');
+        await tab.click('[data-close]');
+        await tab.waitForSelector('[data-review-due]');
+        assert.deepEqual(problems, []);
+        await context.close();
+    });
 });

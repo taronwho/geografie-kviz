@@ -144,3 +144,13 @@ test('goals.js je v index.html, v service workeru a v nasazení', () => {
     assert.match(fs.readFileSync(path.join(root, 'sw.js'), 'utf8'), /'goals\.js'/);
     assert.match(fs.readFileSync(path.join(root, '.github', 'workflows', 'pages.yml'), 'utf8'), /\bgoals\.js\b/);
 });
+
+test('vypnuté opakování: týdenní cíl na opakování karet se nikdy nevylosuje', () => {
+    const G = require('../goals.js');
+    for (let week = 0; week < 60; week++) {
+        const key = `2026-W${String(week).padStart(2, '0')}`;
+        const goals = G.weeklyGoals(key, { topics: [{ id: 'zemepis', title: 'Zeměpis' }], multiplayer: true, skip: ['opakovani'] });
+        assert.ok(goals.every(goal => goal.id !== 'opakovani'), key);
+        assert.equal(goals.length, 3);
+    }
+});
