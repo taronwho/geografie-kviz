@@ -75,18 +75,54 @@ const MAIN_OF_PAIR = [
 // Rok vzniku musí sedět k období slohu (s rezervou) – jinak je chybný rok nebo sloh, nebo jde o přestavbu
 const STYLE_MARGIN = (style) => style.from < 1000 ? 150 : style.from >= 1890 ? 10 : 60;
 
-const LIMITS = { stavby: { limit: 700, known: 110, czKnown: 35 }, architekti: { limit: 170, known: 50, czLimit: 80, czKnown: 20 } };
+const LIMITS = { stavby: { limit: 700, known: 110, czKnown: 35 }, architekti: { limit: 260, known: 80, czLimit: 110, czKnown: 28 } };
+
+// Stavby bez jasného slohu (mosty, věže, mrakodrapy, muzea, divadla, přehrady…): třídy Wikidat a nejmenší počet jazykových verzí článku.
+// Sloh u nich nemusí být ve Wikidatech (nebo jich je víc), ptáme se jen na název; u české stavby stačí méně jazykových verzí.
+const OTHER_CLASSES = [['Q12280', 25], ['Q12518', 25], ['Q11303', 25], ['Q23413', 30], ['Q16560', 30], ['Q751876', 30], ['Q16970', 30], ['Q2977', 30],
+    ['Q32815', 30], ['Q44539', 30], ['Q34627', 20], ['Q44613', 30], ['Q33506', 35], ['Q24354', 25], ['Q153562', 25], ['Q7075', 30], ['Q543654', 20],
+    ['Q82117', 20], ['Q173387', 20], ['Q12323', 25], ['Q39715', 15], ['Q483110', 50], ['Q1021645', 40]];
+const OTHER_CZECH_MIN = 8;
+// Kolik staveb bez slohu (celkem ze světa, z Česka a jednoho druhu) – nejznámější z každého druhu, ať nepřevládnou kostely
+const OTHER_WORLD_LIMIT = 360;
+const OTHER_CZECH_LIMIT = 110;
+const OTHER_TYPE_LIMIT = { most: 50, 'věž': 40, mrakodrap: 50, muzeum: 45, divadlo: 40, stadion: 14, kostel: 35, katedrála: 30, mešita: 25, chrám: 25,
+    hrad: 30, 'zámek': 30, 'palác': 35, synagoga: 12, 'klášter': 25 };
+const OTHER_TYPE_DEFAULT = 22;
+// Stavby bez slohu jsou známé, když mají aspoň tolik jazykových verzí (ze zeměpisu a české nejznámější navíc)
+const OTHER_KNOWN_SL = 66;
+const OTHER_CZECH_KNOWN_SL = 32;
+// Typy ve Wikidatech, podle kterých položka není stavba (mýtické místo, město, loď, archeologické sídliště)
+const ODD_TYPE = /mytick|fiktiv|loď|křižník|malé město|starověké město|vesnice|hradiště|^obec$|vojenská akademie|univerzit/iu;
+// Název druhu stavby: holý název místa (Stirling) se u staveb bez slohu nahradí názvem článku (Stirlingský hrad)
+const TYPE_WORD = /hrad|zámek|palác|most|věž|kostel|katedrál|mešit|chrám|muze|klášter|bazilik|divadl|knihovn|radnic|brán|hrobk|synagog|pevnost|opera|pagod|přehrad|maják/iu;
+// Druhy staveb, které sem nepatří (nádraží, letiště a stanice jsou dopravní uzly, ne architektura)
+const NOT_OTHER_TYPES = new Set(['nádraží', 'stadion', 'stavba', 'budova', 'vila', 'škola', 'nemocnice', 'hotel', 'kancelářská budova', 'obchodní dům']);
+// Architektonické prvky: české názvy článků, na které se ptáme (třída „architektonický prvek“ ve Wikidatech obsahuje i místnosti a koberce)
+const ELEMENTS = ['oblouk', 'kupole', 'sloup', 'schodiště', 'komín', 'balkon', 'dolmen', 'mihráb', 'apsida', 'fasáda', 'hlavice', 'klenba', 'minbar', 'hlavní loď',
+    'vlys', 'atrium', 'vítězný oblouk', 'bastion', 'architráv', 'křížová chodba', 'pilastr', 'portikus', 'kladí', 'fronton', 'rozeta', 'arkáda', 'sakristie',
+    'ikonostas', 'karyatida', 'chrlič', 'chór', 'nádvoří', 'abakus', 'římsa', 'konzola', 'mansarda', 'transept', 'veranda', 'rotunda', 'vikýř', 'narthex',
+    'lodžie', 'triglyf', 'tympanon', 'torii', 'portál', 'pylon', 'pilíř', 'výklenek', 'překlad', 'voluta', 'svorník', 'peristyl', 'pendentiv', 'akrotérion',
+    'sgrafito', 'refektář', 'kanelura', 'propyleje', 'arkýř', 'archivolta', 'lektorium', 'cella', 'luneta', 'akant', 'fiála', 'rizalit', 'atlant', 'atika',
+    'balustráda', 'cimbuří', 'báň', 'trompa', 'tambur', 'kartuš', 'edikula', 'kazeta', 'triforium', 'kružba', 'maskaron', 'lizéna', 'lucerna', 'exedra',
+    'klenák', 'zubořez', 'kampanila', 'lomený oblouk', 'křížová klenba', 'žebrová klenba', 'valená klenba', 'kapitulní síň', 'hypokaust', 'střílna',
+    'kasematy', 'baldachýn', 'křtitelnice', 'pyramidion', 'geodetická kopule', 'valbová střecha', 'sedlová střecha', 'hypogeum', 'poterna', 'krov',
+    'piano nobile', 'padací mříž', 'žebro', 'kyma', 'zvonice', 'ochoz', 'věžička', 'portál (architektura)', 'predella', 'pastofórium', 'koruna'];
+// Prvky známé každému (podle počtu jazykových verzí článku)
+const ELEMENT_KNOWN_SL = 46;
+const ELEMENT_MIN_SL = 24;
 
 // Druh stavby podle českých názvů typů (P31): první pravidlo v pořadí, které některý typ splní
 const BUILDING_TYPES = [
     [/katedrál/, 'katedrála'], [/bazilik|basilica/, 'bazilika'], [/mešit/, 'mešita'], [/synagog/, 'synagoga'],
     [/klášter|monastýr|opatství|lávra/, 'klášter'], [/kapl/, 'kaple'], [/kostel|cerkev|kostelík/, 'kostel'], [/chrám/, 'chrám'],
+    [/přehrad/, 'přehrada'], [/most|viadukt|akvadukt/, 'most'],
     [/hrad|pevnost|fort/, 'hrad'], [/zámek|letohrádek|rezidence/, 'zámek'], [/palác/, 'palác'], [/radnic/, 'radnice'], [/parlament/, 'budova parlamentu'],
-    [/amfiteátr|divadl|opera|odeon|koncertní sál/, 'divadlo'], [/stadion|aréna/, 'stadion'], [/most|viadukt/, 'most'],
+    [/amfiteátr|divadl|opera|odeon|koncertní sál/, 'divadlo'], [/stadion|aréna/, 'stadion'],
     [/mrakodrap|výšková budova/, 'mrakodrap'], [/věž|rozhledna|vysílač|maják/, 'věž'], [/nádraží|stanice/, 'nádraží'],
     [/vítězný oblouk|brán/, 'brána'], [/mauzoleum|hrobka|krematori/, 'hrobka'], [/hradb/, 'hradby'], [/vila/, 'vila'], [/muze|galeri/, 'muzeum'],
     [/knihovn/, 'knihovna'], [/univerzit|škol|akademi/, 'škola'], [/nemocnic/, 'nemocnice'], [/hotel/, 'hotel'],
-    [/přehrad/, 'přehrada'], [/obchodní dům|obchodní centrum|bazar|tržnic/, 'obchodní dům'], [/kancelář|administrativní/, 'kancelářská budova'],
+    [/obchodní dům|obchodní centrum|bazar|tržnic/, 'obchodní dům'], [/kancelář|administrativní/, 'kancelářská budova'],
     [/dům|budova/, 'budova']
 ];
 // Co není stavba se slohem: socha, obelisk, člověk vždy; náměstí, ulice, zeď či pomník jen tehdy, když není zároveň budovou
@@ -134,6 +170,23 @@ const extraCandidates = await cached('architektura-candidates-extra', async () =
 });
 const knownCandidates = new Set(buildingCandidates.map(([q]) => q));
 buildingCandidates.push(...extraCandidates.filter(([q]) => !knownCandidates.has(q)));
+// Stavby bez uvedeného slohu: po třídách Wikidat, jen s fotkou a českým článkem
+const otherCandidates = await cached('architektura-candidates-other', async () => {
+    const found = new Map();
+    for (const [cls, minLinks] of OTHER_CLASSES) {
+        const rows = await qlever(`SELECT ?b (MAX(?links) AS ?sl) (MAX(?inCz) AS ?cz) WHERE { ?b wdt:P31/wdt:P279* wd:${cls} . ?b wdt:P18 ?im .
+  ?a schema:about ?b . ?a schema:isPartOf <https://cs.wikipedia.org/> . ?b wikibase:sitelinks ?links .
+  BIND(IF(EXISTS { ?b wdt:P17 wd:${CZECHIA} }, 1, 0) AS ?inCz) FILTER(?links >= ${minLinks} || (?inCz = 1 && ?links >= ${OTHER_CZECH_MIN})) } GROUP BY ?b`);
+        for (const row of rows) found.set(id(row.b.value), [id(row.b.value), Number(row.sl.value), Number(row.cz.value)]);
+    }
+    return [...found.values()];
+});
+const OTHER_IDS = new Set();
+for (const candidate of otherCandidates) {
+    if (knownCandidates.has(candidate[0])) continue;
+    OTHER_IDS.add(candidate[0]);
+    buildingCandidates.push(candidate);
+}
 buildingCandidates.sort((a, b) => b[1] - a[1]);
 console.log(`Stavby (kandidáti): ${buildingCandidates.length}`);
 
@@ -229,7 +282,9 @@ const architectCandidates = await cached('architektura-architects', async () => 
     return rows.map(row => [id(row.p.value), Number(row.sl.value)]).sort((a, b) => b[1] - a[1]);
 });
 const isQid = (q) => /^Q\d+$/.test(q);
-const authorIds = [...new Set([...buildingDetails.values()].flatMap(detail => detail.arch || []))].filter(isQid);
+// Autoři jen u staveb, které se mohou dostat do výběru (nejvíc jazykových verzí nebo české) – podrobnosti o autorech všech kandidátů by byly pomalé
+const authorSource = buildingCandidates.filter(([, sl, inCz]) => sl >= 25 || inCz === 1).map(([q]) => buildingDetails.get(q)).filter(Boolean);
+const authorIds = [...new Set(authorSource.flatMap(detail => detail.arch || []))].filter(isQid);
 const personIds = [...new Set([...architectCandidates.map(([q]) => q), ...authorIds])];
 const PERSON_DETAILS = `
   UNION { ?item wdt:P569 ?v BIND("born" AS ?p) }
@@ -237,8 +292,6 @@ const PERSON_DETAILS = `
   UNION { ?item wdt:P21 ?v BIND("sex" AS ?p) }
   UNION { ?item wdt:P27 ?v BIND("cit" AS ?p) }
   UNION { ?item wdt:P19/wdt:P17 ?v BIND("bornIn" AS ?p) }
-  UNION { ?item wdt:P106 ?v BIND("occ" AS ?p) }
-  UNION { ?item wdt:P800 ?v BIND("work" AS ?p) }
   UNION { ?item wdt:P135 ?v BIND("movement" AS ?p) }`;
 const personDetails = new Map(await cached('architektura-people', async () => [...await fetchDetails(personIds, PERSON_DETAILS)]));
 
@@ -247,7 +300,7 @@ const styleDetails = new Map(await cached('architektura-styles', async () => [..
 const referenced = [...new Set([
     ...[...buildingDetails.values()].flatMap(detail => [...(detail.loc || []), ...(detail.type || [])]),
     ...[...parentsOf.values()].flat(),
-    ...[...personDetails.values()].flatMap(detail => [...(detail.cit || []), ...(detail.work || [])])
+    ...[...personDetails.values()].flatMap(detail => detail.cit || [])
 ])].filter(isQid);
 const labels = new Map(await cached('architektura-labels', async () => {
     const result = [];
@@ -318,20 +371,31 @@ const cityOf = (detail, point) => {
 
 const bareName = (detail) => capitalize(detail.n || detail.t.replace(/ \(.*\)$/, ''));
 const kept = [];
+// Stavba bez slohu: ruiny se vynechají jako u novodobých slohů, rok je rok vzniku (jinak otevření)
+const UNSTYLED = { from: 1500, to: THIS_YEAR };
 for (const [qid, sl] of buildingCandidates) {
     const detail = buildingDetails.get(qid);
     if (!detail || !detail.t || !detail.im || detail.gone || !structures.has(qid) || EXCLUDED.has(qid)) continue;
     const key = mainStyleOf(qid, detail);
-    if (!key || !isBuilding(detail, STYLE_BY_KEY.get(key))) continue;
-    const year = yearFor(detail, STYLE_BY_KEY.get(key));
-    if (year === null) continue;
-    kept.push({ qid, sl, detail, key, year, cz: (detail.co || []).includes(CZECHIA) });
+    if (key) {
+        if (!isBuilding(detail, STYLE_BY_KEY.get(key))) continue;
+        const year = yearFor(detail, STYLE_BY_KEY.get(key));
+        if (year === null) continue;
+        kept.push({ qid, sl, detail, key, year, cz: (detail.co || []).includes(CZECHIA) });
+        continue;
+    }
+    // Bez jednoznačného slohu: jen rozpoznaný druh stavby (most, věž, muzeum…), který sem patří
+    const type = typeOf(detail);
+    if (NOT_OTHER_TYPES.has(type) || !isBuilding(detail, UNSTYLED) || typeLabels(detail).some(label => ODD_TYPE.test(label))) continue;
+    const year = minYear(detail.year) ?? minYear(detail.open);
+    if (year !== undefined && (year > THIS_YEAR || year < -3000)) continue;
+    kept.push({ qid, sl, detail, key: null, year, cz: (detail.co || []).includes(CZECHIA), type });
 }
 const bareCounts = new Map();
-for (const { detail } of kept) bareCounts.set(normalize(bareName(detail)), (bareCounts.get(normalize(bareName(detail))) || 0) + 1);
+for (const { detail } of kept.filter(entry => entry.key)) bareCounts.set(normalize(bareName(detail)), (bareCounts.get(normalize(bareName(detail))) || 0) + 1);
 // Ze světa ty nejznámější, z Česka i méně známé; malé slohy (kubismus, antika) celé
 const styleCounts = {};
-for (const entry of kept) styleCounts[entry.key] = (styleCounts[entry.key] || 0) + 1;
+for (const entry of kept.filter(entry => entry.key)) styleCounts[entry.key] = (styleCounts[entry.key] || 0) + 1;
 const WORLD_LIMIT = 430;
 const CZECH_LIMIT = 270;
 const SMALL_STYLE = 25;
@@ -340,23 +404,35 @@ const CZECH_STYLE_LIMIT = 55;
 const czechPerStyle = {};
 let worldRank = 0;
 let czechRank = 0;
+let otherWorldRank = 0;
+let otherCzechRank = 0;
+const otherPerType = {};
 const names = new Set();
 const buildings = [];
 const zemepisKnown = new Set(zemepis.items.filter(item => item.k === 1).map(item => item.q));
-for (const entry of kept) {
+// Nejdřív stavby se slohem (jejich názvy zůstanou), potom ostatní
+for (const entry of [...kept.filter(other => other.key), ...kept.filter(other => !other.key)]) {
     const { qid, detail, key, year, cz } = entry;
-    const small = styleCounts[key] <= SMALL_STYLE;
-    if ((cz ? czechRank >= CZECH_LIMIT || (czechPerStyle[key] || 0) >= CZECH_STYLE_LIMIT : worldRank >= WORLD_LIMIT) && !small) continue;
+    const unstyled = !key;
+    const small = !unstyled && styleCounts[key] <= SMALL_STYLE;
+    if (unstyled) {
+        if (cz ? otherCzechRank >= OTHER_CZECH_LIMIT : otherWorldRank >= OTHER_WORLD_LIMIT) continue;
+        if ((otherPerType[entry.type] || 0) >= (OTHER_TYPE_LIMIT[entry.type] ?? OTHER_TYPE_DEFAULT)) continue;
+    } else if ((cz ? czechRank >= CZECH_LIMIT || (czechPerStyle[key] || 0) >= CZECH_STYLE_LIMIT : worldRank >= WORLD_LIMIT) && !small) continue;
+    // Stavby bez slohu se společnou fotkou (dvě věže na jednom snímku) se na obrázku nepoznají
+    if (unstyled && buildings.some(other => other.im === imageFields(detail.im).im)) continue;
     // Jedna položka na název: stavby stejného jména (Pantheon, kostel Všech svatých) dostanou název článku s upřesněním
     let name = bareName(detail);
     if (/^Q\d+$/.test(name)) continue;
+    if (unstyled && detail.t && !TYPE_WORD.test(name) && TYPE_WORD.test(detail.t) && normalize(detail.t).includes(normalize(name))) name = detail.t.replace(/ \(.*\)$/, '');
     if (bareCounts.get(normalize(name)) > 1 && /\(.+\)$/.test(detail.t)) name = detail.t;
     else if (names.has(normalize(name))) name = detail.t;
     if (names.has(name.toLowerCase())) continue;
     names.add(normalize(name));
     names.add(name.toLowerCase());
-    const rank = cz ? czechRank++ : worldRank++;
-    if (cz) czechPerStyle[key] = (czechPerStyle[key] || 0) + 1;
+    const rank = unstyled ? (cz ? otherCzechRank++ : otherWorldRank++) : cz ? czechRank++ : worldRank++;
+    if (unstyled) otherPerType[entry.type] = (otherPerType[entry.type] || 0) + 1;
+    else if (cz) czechPerStyle[key] = (czechPerStyle[key] || 0) + 1;
     // QLever píše „POINT(…)“ velkými písmeny
     const point = parsePoint((detail.coord || '').replace(/^POINT/i, 'Point'));
     const authors = (detail.arch || []).filter(isQid);
@@ -367,7 +443,8 @@ for (const entry of kept) {
         n: name,
         c: 'stavby',
         // Známé: známé památky zeměpisu, nejznámější ze světa a z Česka a dvě nejznámější české stavby každého slohu (kubistický dům U Černé Matky Boží)
-        k: zemepisKnown.has(qid) || (cz ? rank < LIMITS.stavby.czKnown || (czechPerStyle[key] <= 2 && entry.sl >= 8) : rank < LIMITS.stavby.known) ? 1 : 0,
+        k: zemepisKnown.has(qid) || (unstyled ? entry.sl >= (cz ? OTHER_CZECH_KNOWN_SL : OTHER_KNOWN_SL)
+            : cz ? rank < LIMITS.stavby.czKnown || (czechPerStyle[key] <= 2 && entry.sl >= 8) : rank < LIMITS.stavby.known) ? 1 : 0,
         // Obecné „stavba“ nic neřekne (a mezi možnostmi by spojovalo nesouvisející stavby)
         ty: typeOf(detail) === 'stavba' ? undefined : typeOf(detail),
         d: detail.d,
@@ -377,7 +454,7 @@ for (const entry of kept) {
         co: (detail.co || []).filter(q => countries[q]),
         ...imageFields(detail.im),
         f: compact({
-            st: key,
+            st: key || undefined,
             y: YEAR_FIXES[qid] ?? year,
             // Autoři jen celí (bez nepojmenovaných), jediný autor i s odkazem na položku
             arch: authorNames.length && authorNames.length === authors.length ? authorNames.join(', ') : undefined,
@@ -405,7 +482,7 @@ const isCzechPerson = (q, detail) => (detail.cit || []).some(c => CZECH_STATES.h
 const styleOfArchitect = (q, detail) => {
     const counts = {};
     // Jen stavby, které navrhl sám (restaurátor gotické katedrály není gotický architekt)
-    for (const building of (designed.get(q) || []).filter(other => other.f.aq === q)) counts[building.f.st] = (counts[building.f.st] || 0) + 1;
+    for (const building of (designed.get(q) || []).filter(other => other.f.aq === q && other.f.st)) counts[building.f.st] = (counts[building.f.st] || 0) + 1;
     const ranked = Object.entries(counts).sort((a, b) => b[1] - a[1]);
     if (ranked.length) return ranked.length === 1 || ranked[0][1] > ranked[1][1] ? ranked[0][0] : undefined;
     const keys = new Set((detail.movement || []).map(styleKeyOf).filter(key => key && key !== 'jiny'));
@@ -423,9 +500,11 @@ const countryName = (detail) => {
     return landByDescription(detail.d, [current ? countries[current].name : list.map(cs).find(Boolean)]);
 };
 // Známí jinak než stavbami (diplomat Wallenberg, umělec Aj Wej-wej, plavec Hajós, filolog Ventris, Olena Zelenská)
-const NOT_ARCHITECTS = new Set(['Q59321885', 'Q160115', 'Q152850', 'Q313443', 'Q92601', 'Q259378']);
+const NOT_ARCHITECTS = new Set(['Q59321885', 'Q160115', 'Q152850', 'Q313443', 'Q92601', 'Q259378', 'Q121878254']);
 // Cizí architekti, kteří navrhli slavné stavby v Česku (Plečnik: úpravy Pražského hradu, kostel Nejsvětějšího Srdce Páně)
 const CZECH_WORK = new Set(['Q314886']);
+// Bez českého názvu ve Wikidatech (Leon Battista Alberti) se vezme název článku
+for (const detail of personDetails.values()) if (!detail.n && detail.t) detail.n = detail.t.replace(/ \(.*\)$/, '');
 const people = [...personDetails]
     .map(([q, detail]) => ({ q, detail, sl: detail.sl || 0, cz: isCzechPerson(q, detail) }))
     // Povolání „architekt“ mají ve Wikidatech i malíři a politici (Washington, Jefferson, Wallenberg) – architektem musí být
@@ -440,7 +519,7 @@ for (const { q, detail, sl, cz } of people) {
     const died = yearOf(detail.died);
     // Data narození a úmrtí bez rozporů, žádná budoucnost
     if (born > THIS_YEAR - 20 || (died !== undefined && (died <= born || died > THIS_YEAR || died - born > 110))) continue;
-    const famous = cz ? sl >= 6 || designed.has(q) : sl >= 25 || knownBuildingAuthors.has(q) || (designed.get(q) || []).length >= 2;
+    const famous = cz ? sl >= 6 || designed.has(q) : sl >= 18 || knownBuildingAuthors.has(q) || (designed.get(q) || []).length >= 2;
     const full = cz ? czechArchitectRank >= LIMITS.architekti.czLimit : architects.length - czechArchitectRank >= LIMITS.architekti.limit;
     if (!famous || full || names.has(normalize(detail.n))) continue;
     names.add(normalize(detail.n));
@@ -460,13 +539,33 @@ for (const { q, detail, sl, cz } of people) {
         ...imageFields(detail.im),
         f: compact({
             born, died, land: countryName(detail), st: styleOfArchitect(q, detail),
-            work: own.length ? own[0].n : undefined, y: born + 35
+            work: own.length ? own[0].n : undefined, y: Math.min(born + 35, THIS_YEAR)
         })
     });
 }
 // Otázka „Kdo ji navrhl?“ jen u architekta, který je mezi položkami
 const architectIds = new Set(architects.map(item => item.q));
 for (const building of buildings) if (building.f.aq && !architectIds.has(building.f.aq)) delete building.f.aq;
+
+// --- Architektonické prvky (oblouk, klenba, kupole, apsida…): z třídy Wikidat jen ty, které jsou v ručním seznamu ELEMENTS ---
+const elementCandidates = await cached('architektura-elements', async () => {
+    const rows = await qlever(`SELECT DISTINCT ?x ?sl WHERE { ?x wdt:P279+ wd:Q391414 . ?a schema:about ?x . ?a schema:isPartOf <https://cs.wikipedia.org/> .
+  ?x wikibase:sitelinks ?sl FILTER(?sl >= ${ELEMENT_MIN_SL}) }`);
+    return rows.map(row => [id(row.x.value), Number(row.sl.value)]).sort((a, b) => b[1] - a[1]);
+});
+const elementDetails = new Map(await cached('architektura-element-details', async () => [...await fetchDetails(elementCandidates.map(([q]) => q))]));
+const elements = [];
+for (const [qid, sl] of elementCandidates) {
+    const detail = elementDetails.get(qid);
+    if (!detail || !detail.t || !detail.im) continue;
+    const name = capitalize((detail.n || detail.t).replace(/ \(.*\)$/, ''));
+    if (!ELEMENTS.includes(name.toLowerCase()) || names.has(normalize(name))) continue;
+    names.add(normalize(name));
+    elements.push({
+        q: qid, t: detail.t, n: name, c: 'prvky', k: sl >= ELEMENT_KNOWN_SL ? 1 : 0, ty: 'architektonický prvek', d: detail.d,
+        ...imageFields(detail.im), sl
+    });
+}
 
 // --- Slohy: ukázkou je nejznámější stavba slohu ---
 const styles = [];
@@ -489,15 +588,15 @@ for (const style of STYLES) {
     });
 }
 const styleKeys = new Set(styles.map(style => style.f.key));
-const items = [...styles, ...buildings.filter(building => styleKeys.has(building.f.st)), ...architects];
+const items = [...styles, ...buildings.filter(building => !building.f.st || styleKeys.has(building.f.st)), ...elements, ...architects];
 for (const item of items) {
     delete item.sl;
-    if (item.f.st && !styleKeys.has(item.f.st)) delete item.f.st;
+    if (item.f && item.f.st && !styleKeys.has(item.f.st)) delete item.f.st;
 }
 
 // --- Okruhy ---
 const IN_PRAGUE = (item) => item.la >= 49.94 && item.la <= 50.18 && item.lo >= 14.22 && item.lo <= 14.71;
-const styleOf = (item) => item.c === 'slohy' ? item.f.key : item.f.st;
+const styleOf = (item) => item.c === 'slohy' ? item.f.key : (item.f || {}).st;
 const byStyles = (...keys) => (item) => keys.includes(styleOf(item));
 const BY_YEAR = { by: 'y' };
 const COLLECTIONS = [
@@ -508,6 +607,11 @@ const COLLECTIONS = [
     { id: 'hrady-zamky', label: 'Hrady, zámky a paláce', sort: BY_YEAR, test: item => item.c === 'stavby' && CASTLE_TYPES.has(item.ty) },
     { id: 'chramy', label: 'Kostely, kláštery a mešity', sort: BY_YEAR,
         test: item => item.c === 'stavby' && (CHURCH_TYPES.has(item.ty) || ['mešita', 'synagoga'].includes(item.ty)) },
+    { id: 'mosty', label: 'Mosty a přehrady', text: 'Karlův most, Golden Gate, Tower Bridge…', sort: BY_YEAR, test: item => item.c === 'stavby' && ['most', 'přehrada'].includes(item.ty) },
+    { id: 'veze', label: 'Věže a mrakodrapy', text: 'Eiffelova věž, Burdž Chalífa, Empire State Building…', sort: BY_YEAR, test: item => item.c === 'stavby' && ['věž', 'mrakodrap', 'maják'].includes(item.ty) },
+    { id: 'muzea-divadla', label: 'Muzea, divadla a veřejné budovy', text: 'Louvre, opera, knihovny, radnice, stadiony', sort: BY_YEAR,
+        test: item => item.c === 'stavby' && ['muzeum', 'divadlo', 'knihovna', 'stadion', 'radnice', 'budova parlamentu'].includes(item.ty) },
+    { id: 'prvky', label: 'Architektonické prvky', text: 'Oblouk, klenba, kupole, sloup, apsida…', sort: { by: 'name' }, test: item => item.c === 'prvky' },
     { id: 'starovek', label: 'Antika a Byzanc', text: 'Řecká a římská antika, byzantský sloh', sort: BY_YEAR, test: byStyles('recko', 'rim', 'byzantsky') },
     { id: 'islamska', label: 'Islámská architektura', sort: BY_YEAR, test: byStyles('islamska') },
     { id: 'romansky', label: 'Románský sloh', sort: BY_YEAR, test: byStyles('romansky') },
@@ -529,14 +633,17 @@ for (const item of items) {
 }
 const collections = COLLECTIONS.map(({ test, ...collection }) => collection);
 
-for (const category of ['slohy', 'stavby', 'architekti']) {
+for (const category of ['slohy', 'stavby', 'prvky', 'architekti']) {
     const inCategory = items.filter(item => item.c === category);
     console.log(`${category}: ${inCategory.length} (${inCategory.filter(item => item.k).length} známých, ${inCategory.filter(item => item.cz).length} českých)`);
 }
 const perStyle = {};
-for (const item of items.filter(item => item.c === 'stavby')) perStyle[item.f.st] = (perStyle[item.f.st] || 0) + 1;
+for (const item of items.filter(item => item.c === 'stavby')) perStyle[item.f.st || 'bez slohu'] = (perStyle[item.f.st || 'bez slohu'] || 0) + 1;
+const perType = {};
+for (const item of items.filter(item => item.c === 'stavby' && !item.f.st)) perType[item.ty || '-'] = (perType[item.ty || '-'] || 0) + 1;
+console.log('stavby bez slohu podle druhu:', JSON.stringify(perType));
 console.log('stavby podle slohu:', JSON.stringify(perStyle));
-console.log(`otázka na architekta možná u ${items.filter(item => item.f.aq).length} staveb`);
+console.log(`otázka na architekta možná u ${items.filter(item => item.f && item.f.aq).length} staveb`);
 for (const collection of collections) console.log(`okruh ${collection.label}: ${items.filter(item => (item.g || []).includes(collection.id)).length}`);
 
 writeTopic('architektura', { collections, items });

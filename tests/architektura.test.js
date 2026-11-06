@@ -47,7 +47,7 @@ test('architektura: slavné a české stavby, slohy a architekti v datech', () =
         if (f.died !== undefined) assert.ok(f.born < f.died && f.died <= year, `${item.n}: život`);
     }
     // Rok stavby sedí k období slohu
-    for (const item of data.items.filter(other => other.c === 'stavby' && other.f.y !== undefined)) {
+    for (const item of data.items.filter(other => other.c === 'stavby' && other.f.st && other.f.y !== undefined)) {
         const style = data.items.find(other => other.c === 'slohy' && other.f.key === item.f.st);
         assert.ok(item.f.y >= style.f.from - 150 && item.f.y <= style.f.to + 60, `${item.n}: ${item.f.y} × ${style.n}`);
     }
@@ -133,4 +133,50 @@ test('architektura: sloh jako otázka, architekti, psané odpovědi', () => {
     // K české stavbě i české události na časové ose
     const anchors = core.buildTimeline(topic.visual(find('Karlův most'), ctx, 'result'), 360).anchors.map(anchor => anchor.label).join(' ');
     assert.ok(anchors.length > 0);
+});
+
+test('architektura: stavby bez slohu (mosty, věže, muzea) a architektonické prvky', () => {
+    const known = data.items.filter(item => item.k === 1).length;
+    assert.ok(data.items.length >= 1500 && known >= 400, `${data.items.length} položek, ${known} známých`);
+    for (const name of ['Eiffelova věž', 'Golden Gate Bridge', 'Louvre', 'Angkor Vat']) {
+        const item = find(name);
+        assert.ok(item && item.c === 'stavby' && item.k === 1 && !item.f.st && item.im, `chybí známá stavba bez slohu ${name}`);
+    }
+    // Stavba bez slohu: na sloh se neptáme, sloh mezi fakty ani na časové ose není
+    const tower = find('Eiffelova věž');
+    for (const seed of ['a', 'b', 'c', 'd', 'e']) assert.notEqual((topic.specialQuestion(tower, ctx, firstThen(0.5, seed)) || {}).type, 'style');
+    assert.ok(!topic.facts(tower, ctx, 'name').some(fact => fact.label === 'Sloh'));
+    assert.equal(topic.visual(tower, ctx, 'name').type, 'map');
+    assert.ok(topic.visual(tower, ctx, 'result').points.length > 0);
+    const collection = (id) => core.filterItems(data.items, { collection: id }).map(item => item.n);
+    assert.ok(collection('mosty').includes('Golden Gate Bridge') && collection('veze').includes('Eiffelova věž'), 'okruhy mostů a věží');
+    assert.ok(collection('muzea-divadla').includes('Louvre'));
+    // Prvky: fotka je v otázce, název se v popisu zakryje
+    const prvky = data.items.filter(item => item.c === 'prvky');
+    assert.ok(prvky.length >= 60 && prvky.every(item => item.im && item.ih), 'prvky s fotkou');
+    const dome = find('Kupole');
+    assert.equal(dome.k, 1);
+    assert.equal(topic.questionImage(dome, ctx, 'name').label, 'Prvek');
+    assert.equal(collection('prvky').length, prvky.length);
+    assert.doesNotMatch(core.hideAnswer('Kupole je architektonický prvek ve tvaru polokoule, kupolovitá střecha.', { type: 'name', title: '', choices: [] }, dome, ctx), /kupol/i);
+    // Stadiony a nádraží bez slohu sem nepatří
+    assert.ok(!data.items.some(item => item.c === 'stavby' && ['stadion', 'nádraží'].includes(item.ty) && !item.f.st));
+});
+
+test('architektura: upřesnění v závorce (město, stát) neprozradí popis ani nápověda', () => {
+    const items = data.items.filter(item => item.c === 'stavby' && /\(([^()]+)\)$/.test(item.n));
+    assert.ok(items.length > 20);
+    for (const item of items) {
+        const qualifier = /\(([^()]+)\)$/.exec(item.n)[1];
+        const censored = topic.censor('name', `Stavba v ${qualifier} a okolí, ${qualifier.toLowerCase()}.`, item, ctx);
+        assert.ok(censored.includes('[***]'), `${item.n}: ${censored}`);
+        for (const fact of topic.facts(item, ctx, 'name').filter(fact => ['Země', 'Město', 'Místo'].includes(fact.label))) {
+            assert.ok(!core.factRevealsAnswer(fact, [item.n, qualifier]), `${item.n}: ${fact.label} ${fact.value}`);
+        }
+    }
+    const notre = find('Katedrála Notre-Dame (Paříž)');
+    if (notre) assert.doesNotMatch(topic.censor('name', 'Gotická katedrála v Paříži na ostrově Cité, nejznámější pařížský chrám.', notre, ctx), /Paříž|Paříži|pařížsk/i);
+    // Štítek „Město“ by prozradil slovo města v názvu
+    const spor = data.items.find(item => item.c === 'stavby' && /Městská/.test(item.n) && item.f.city);
+    if (spor) assert.ok(!topic.facts(spor, ctx, 'name').some(fact => fact.label === 'Město'));
 });
