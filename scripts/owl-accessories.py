@@ -1,7 +1,10 @@
 # Doplňky sovy: z obrázků sovy s doplňky (branding/doplnky/<id>.jpg, generátor je překreslil na plátno 2048×2048 vždy trochu jinak)
 # vyrobí průhledné vrstvy icons/doplnky/<id>.webp ve stejném rámu jako icons/logo.webp (258×320), které se v aplikaci skládají
 # přes sovu. Postup: obrázek se zarovná na původní sovu (affinní ECC), rozdíl proti původní sově je doplněk, ten se vyřízne.
+# Pokrývky hlavy (helma, přilba, baret) a koruna se vyřezávají po plochách ohraničených obrysem (head_object, crown_object), síťka má horní část
+# jako konvexní obal (hull_top); přebarvení (recolor_layer) pracuje v Lab a zachovává stínování. Vlajka má vlastní postup (split_cloth, recolor).
 # Spuštění: python3 scripts/owl-accessories.py [id ...]   (Pillow, numpy, opencv-python-headless)
+# Ladění: WARP_CACHE=<složka> uloží zarovnání obrázků (pomalé) pro další běhy, DEBUG_DIR=<složka> uloží masky.
 import os, sys, glob, json
 import numpy as np
 import cv2
@@ -29,7 +32,11 @@ HAND = {'vlajka', 'svitek', 'brk', 'sitka'}
 # silnější uzavření masky, ať se přebarví celý a nezůstanou zlaté kusy. Poloměr v pixelech původního obrázku.
 # Doplňky, které sedí na zlatém knoflíku čepice: knoflík se do masky přidá (jinak by prosvítal zlatý uprostřed přebarveného doplňku)
 KNOB = {'koruna'}
-CLOSE = {'koruna': 45, 'medaile': 41, 'kvetina': 21, 'sala': 25}
+# Doplňky vyřezané po plochách (ne jen rozdílem proti sově): pokrývky hlavy po plochách ohraničených obrysem, koruna jen zlatá část
+MODE = {'helma': 'hat', 'prilba': 'hat', 'baret': 'hat', 'koruna': 'crown'}
+# Síťka: horní část (obruč a síť) se nahradí konvexním obalem, protože na čepici je rozdíl proti sově roztřepený
+HULL = {'sitka': 0.6}
+CLOSE = {'koruna': 45, 'medaile': 77, 'kvetina': 21, 'sala': 25}
 BORDER = 360  # okraj plátna při zarovnání, aby se vešlo i to, co přesahuje původní obrázek
 
 
@@ -132,7 +139,125 @@ def hat_zone(frame, shape, border=BORDER):
     return zone
 
 
-def extract(base, warped, fill=False, border=BORDER, close=9, knob=False, zone=None):
+def background_of(warped):
+    """Barva pozadí obrázku doplňku (medián okraje) a vzdálenost každého pixelu od ní."""
+    border_px = np.concatenate([warped[:8].reshape(-1, 3), warped[-8:].reshape(-1, 3), warped[:, :8].reshape(-1, 3), warped[:, -8:].reshape(-1, 3)])
+    bgc = np.median(border_px.reshape(-1, 3), axis=0)
+    return np.sqrt(((warped.astype(np.float32) - bgc) ** 2).sum(axis=2))
+
+
+def regions_of(base, warped, away):
+    """Rozdělení obrázku doplňku na plochy ohraničené tmavým obrysem a hlasování, čí která plocha je.
+    Rozdíl proti původní sově sám o sobě nestačí: doplněk podobné barvy jako peří sovy (zlatá helma na zlatém peří) se tím vyřízne s dírami
+    a naopak obočí a oušky sovy, které AI obrázek nakreslil o pár pixelů jinak, se do vrstvy dostanou jako „rozdíl“ a pak se přebarví s doplňkem.
+    Plocha, jejíž většina (po odečtení posunu o pár pixelů) se od původní sovy liší, patří doplňku; plocha, která s ní splývá, je sova.
+    Vrací: popisky ploch, příznak „liší se“ po pixelech, podíl odlišných pixelů v ploše, velikost plochy, plochy dotýkající se pozadí (nálepkový okraj)."""
+    hsv = cv2.cvtColor(warped, cv2.COLOR_RGB2HSV)
+    bg = away < 28
+    outline = ((hsv[..., 2] < 95) & ~bg).astype(np.uint8)
+    outline = cv2.dilate(outline, np.ones((3, 3), np.uint8))
+    free = ((outline == 0) & ~bg).astype(np.uint8)
+    n, labels = cv2.connectedComponents(free, connectivity=4)
+    diff = np.abs(warped.astype(np.int16) - base.astype(np.int16)).max(axis=2).astype(np.uint8)
+    diff = cv2.GaussianBlur(diff, (0, 0), 1.2)
+    differs = cv2.erode(diff, np.ones((9, 9), np.uint8)) > 38  # nejmenší rozdíl v okolí: posun o pár pixelů nevadí
+    flat = labels.ravel()
+    count = np.bincount(flat, minlength=n)
+    dif = np.bincount(flat, weights=differs.ravel().astype(np.float32), minlength=n)
+    frac = dif / np.maximum(count, 1)
+    near_bg = cv2.dilate(bg.astype(np.uint8), cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (15, 15))) > 0
+    touching = np.bincount(labels[near_bg & (labels > 0)], minlength=n) > 0
+    return labels, differs, frac, count, touching, outline > 0, hsv
+
+
+def head_object(base, warped, away, zone):
+    """Pokrývka hlavy (helma, přilba, baret) jako celek ploch: vrací masku doplňku a masku „sova“ (plochy sovy uvnitř masky, které se nesmí přebarvit).
+    Doplněk = plochy, které se liší od sovy, jejich obrys a nálepkový okraj kolem nich; v ploše výchozí čepice (zone) se navíc převezme vše,
+    protože výchozí čepice se tam skrývá maskou a hlava sovy se musí vzít z tohoto obrázku."""
+    labels, differs, frac, count, touching, outline, hsv = regions_of(base, warped, away)
+    bg = away < 28
+    acc_label = (frac > 0.5) & (count >= 12) & ~touching  # plocha dotýkající se pozadí je nálepkový okraj kolem všeho (i sovy): o něm rozhoduje halo níže
+    acc_label[0] = False
+    owl_label = (frac <= 0.5) & ~touching & (count >= 12)
+    owl_label[0] = False
+    body = acc_label[labels]
+    owl = owl_label[labels]
+    # obrys doplňku: tmavé pixely těsně u jeho ploch (obrys sovy uvnitř ploch sovy se nebere)
+    near_body = cv2.dilate(body.astype(np.uint8), cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (19, 19))) > 0
+    line = outline & near_body & ~bg
+    # nálepkový okraj: odlišné pixely v okolí doplňku, které nepatří ploše sovy
+    ring = cv2.dilate((body | line).astype(np.uint8), cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (41, 41))) > 0
+    halo = ring & differs & ~bg & ~owl & (hsv[..., 2] > 150)  # světlé (krémové) pixely; ztmavlý lem na přechodu do pozadí se nebere
+    keep = body | line | halo
+    if zone is not None:
+        keep |= (zone > 0) & ~bg
+    keep = keep.astype(np.uint8)
+    keep = cv2.morphologyEx(keep, cv2.MORPH_CLOSE, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (9, 9)))
+    owl = owl & (keep > 0)
+    return keep, owl.astype(np.uint8)
+
+
+def crown_object(base, warped, away):
+    """Koruna: jen zlaté plochy, které se liší od sovy (tělo a kuličky koruny), jejich obrys a okraj. Čepice pod korunou zůstává ta výchozí
+    (koruna sedí na ní), proto se vínová čepice z obrázku koruny do vrstvy nikdy nedostane; zlatý knoflík čepice se přikryje korunou."""
+    labels, differs, frac, count, touching, outline, hsv = regions_of(base, warped, away)
+    h, s, v = hsv[..., 0].astype(np.int16), hsv[..., 1].astype(np.int16), hsv[..., 2].astype(np.int16)
+    gold = ((h >= 12) & (h <= 34) & (s > 110) & (v > 130)).astype(np.float32)
+    # zlatý knoflík výchozí čepice (nahoře uprostřed sovy): zlatá koruna na něm sedí a od něj se téměř neliší, proto se o ní nerozhoduje podle rozdílu
+    hsv_b = cv2.cvtColor(base, cv2.COLOR_RGB2HSV)
+    x0, y0, x1, y1, _ = owl_bbox(base)
+    top = np.zeros(base.shape[:2], bool)
+    top[y0:y0 + int((y1 - y0) * 0.14), x0:x1] = True
+    knob = top & (hsv_b[..., 0] >= 15) & (hsv_b[..., 0] <= 28) & (hsv_b[..., 1] > 130) & (hsv_b[..., 2] > 140)
+    knob = cv2.dilate(knob.astype(np.uint8), np.ones((9, 9), np.uint8)) > 0
+    flat = labels.ravel()
+    count_gold = np.bincount(flat, weights=gold.ravel(), minlength=len(count))
+    on_knob = np.bincount(flat, weights=knob.ravel().astype(np.float32), minlength=len(count)) > 20
+    gold_label = (count_gold / np.maximum(count, 1) > 0.5) & ((frac > 0.5) | on_knob) & (count >= 40)
+    gold_label[0] = False
+    body = gold_label[labels]
+    bg = away < 28
+    maroon = ((h >= 160) | (h <= 8)) & (s > 110) & (v < 200)
+    near_body = cv2.dilate(body.astype(np.uint8), cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (19, 19))) > 0
+    line = outline & near_body & ~bg
+    ring = cv2.dilate((body | line).astype(np.uint8), cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (41, 41))) > 0
+    # nálepkový okraj koruny: krémové pixely kolem ní (vínová čepice a její obrys se nebere)
+    cream = (v > 170) & (s < 150)
+    halo = ring & cream & ~bg & ~maroon
+    keep = (body | line | halo)
+    # knoflík pod korunou se přikryje pixely z obrázku (vínová čepice se nepřebarvuje, viz protect)
+    keep = (keep | knob) & ~bg
+    keep = cv2.morphologyEx(keep.astype(np.uint8), cv2.MORPH_CLOSE, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (9, 9)))
+    protect = (keep > 0) & maroon
+    return keep, protect.astype(np.uint8)
+
+
+def hull_top(keep, away, warped, top=0.6):
+    """Síťka: obruč a síť jsou elipsa, kterou doplněk překrývá čepici, takže rozdíl proti sově je na jejím okraji roztřepený (díry v oku sítě).
+    Horní část největší plochy (podíl `top` její výšky) se proto nahradí konvexním obalem (bez vínových pixelů čepice, které obal zachytí);
+    dolní část (tyčka) se uzavře svisle, protože zlatá tyčka na zlatém peří sovy se od ní skoro neliší a vyřez je děravý."""
+    n, labels, stats, _ = cv2.connectedComponentsWithStats(keep, 8)
+    biggest = 1 + int(np.argmax(stats[1:, cv2.CC_STAT_AREA]))
+    comp = labels == biggest
+    ys, xs = np.nonzero(comp)
+    ycut = ys.min() + int((ys.max() - ys.min()) * top)
+    sel = ys <= ycut
+    pts = np.stack([xs[sel], ys[sel]], axis=1).astype(np.int32)
+    hull = np.zeros_like(keep)
+    cv2.fillConvexPoly(hull, cv2.convexHull(pts), 1)
+    hull[ycut:, :] = 0
+    hsv = cv2.cvtColor(warped, cv2.COLOR_RGB2HSV).astype(np.int16)
+    maroon = ((hsv[..., 0] >= 160) | (hsv[..., 0] <= 8)) & (hsv[..., 1] > 110) & (hsv[..., 2] >= 100) & (hsv[..., 2] < 200)  # plochy čepice; tmavý obrys obruče zůstává
+    out = np.where((hull > 0) & (away >= 28) & ~maroon, 1, keep).astype(np.uint8)
+    lower = out.copy()
+    lower[:ycut, :] = 0
+    lower = cv2.morphologyEx(lower, cv2.MORPH_CLOSE, cv2.getStructuringElement(cv2.MORPH_RECT, (7, 121)))
+    lower = np.where(away >= 28, lower, 0)
+    out[ycut:, :] = lower[ycut:, :]
+    return out
+
+
+def extract(base, warped, fill=False, border=BORDER, close=9, knob=False, zone=None, hull=None, mode=None):
     base = cv2.copyMakeBorder(base, border, border, border, border, cv2.BORDER_REPLICATE)
     diff = np.abs(warped.astype(np.int16) - base.astype(np.int16)).max(axis=2).astype(np.uint8)
     diff = cv2.GaussianBlur(diff, (0, 0), 1.2)
@@ -155,13 +280,18 @@ def extract(base, warped, fill=False, border=BORDER, close=9, knob=False, zone=N
         gold = cv2.dilate(gold.astype(np.uint8), np.ones((9, 9), np.uint8))
         keep = np.maximum(keep, gold)
     # tam, kde je v obrázku doplňku jen pozadí, doplněk není (nic se nepřekrývá tmavou barvou pozadí)
-    border_px = np.concatenate([warped[:8].reshape(-1, 3), warped[-8:].reshape(-1, 3), warped[:, :8].reshape(-1, 3), warped[:, -8:].reshape(-1, 3)])
-    bgc = np.median(border_px.reshape(-1, 3), axis=0)
-    away = np.sqrt(((warped.astype(np.float32) - bgc) ** 2).sum(axis=2))
+    away = background_of(warped)
     keep = np.where(away < 28, 0, keep).astype(np.uint8)
-    if zone is not None:
+    protect = np.zeros_like(keep)
+    if mode == 'hat':
+        keep, protect = head_object(base, warped, away, zone)
+    elif mode == 'crown':
+        keep, protect = crown_object(base, warped, away)
+    elif zone is not None:
         # místo čepice: vše, co obrázek doplňku v této ploše kreslí (hlava sovy, helma), se převezme; mimo ni jen rozdíl
         keep = np.where((zone > 0) & (away >= 28), 1, keep).astype(np.uint8)
+    if hull is not None:
+        keep = hull_top(keep, away, warped, hull)
     if fill:
         # vyplnění děr: co není vnějšek, je doplněk
         inv = (1 - keep).astype(np.uint8)
@@ -170,10 +300,24 @@ def extract(base, warped, fill=False, border=BORDER, close=9, knob=False, zone=N
         ff = np.zeros((h + 2, w + 2), np.uint8)
         cv2.floodFill(flood, ff, (0, 0), 2)
         keep = ((flood != 2)).astype(np.uint8)
-    return keep, diff
+    return keep, diff, protect
 
 
-def layer(base, warped, mask, frame, border=BORDER):
+def bleed_colors(rgb, mask, reach=5):
+    """Pixely těsně vně masky dostanou barvu nejbližšího pixelu uvnitř: měkký okraj průhlednosti pak nemíchá barvu doplňku s tmavým pozadím obrázku
+    (jinak by kolem doplňku zůstal tmavý až šedý lem, který se při přebarvení ukáže)."""
+    inside = mask > 0
+    dist, labels = cv2.distanceTransformWithLabels((~inside).astype(np.uint8), cv2.DIST_L2, 5, labelType=cv2.DIST_LABEL_PIXEL)
+    ys, xs = np.nonzero(inside)
+    out = rgb.copy()
+    fix = (~inside) & (dist <= reach)
+    idx = labels[fix] - 1
+    out[fix] = rgb[ys[idx], xs[idx]]
+    return out
+
+
+def layer(base, warped, mask, frame, border=BORDER, protect=None, bleed=False):
+    """Vrstva doplňku v rámu loga. S `protect` (plochy sovy ve vrstvě, které se nesmí přebarvit) vrací i jeho výřez stejné velikosti (0–255)."""
     x0, y0, w, h = frame
     l, r, t, b = (int(round(PAD[k] * (w if k in 'lr' else h))) for k in 'lrtb')
     x0, y0 = x0 + border, y0 + border
@@ -181,11 +325,22 @@ def layer(base, warped, mask, frame, border=BORDER):
     alpha = cv2.GaussianBlur(m.astype(np.float32), (0, 0), 1.0)
     alpha = np.clip(alpha * 1.4, 0, 1)
     alpha = np.where(alpha < 0.16, 0, alpha)  # slabé zbytky rozdílu (stíny, obrys původní čepice) se zahodí
-    rgba = np.dstack([warped.astype(np.float32), alpha * 255]).astype(np.uint8)
+    color = warped
+    if bleed:
+        sl = (slice(y0 - t, y0 + h + b), slice(x0 - l, x0 + w + r))
+        color = warped.copy()
+        color[sl] = bleed_colors(warped[sl], mask[sl])
+    rgba = np.dstack([color.astype(np.float32), alpha * 255]).astype(np.uint8)
     crop = rgba[y0 - t:y0 + h + b, x0 - l:x0 + w + r]
     img = Image.fromarray(crop, 'RGBA')
     k = LOGO_SIZE[0] / w
-    return img.resize((round(crop.shape[1] * k), round(crop.shape[0] * k)), Image.LANCZOS)
+    size = (round(crop.shape[1] * k), round(crop.shape[0] * k))
+    img = img.resize(size, Image.LANCZOS)
+    if protect is None:
+        return img
+    pr = cv2.GaussianBlur(protect.astype(np.float32), (0, 0), 1.0)
+    pcrop = (np.clip(pr * 255, 0, 255).astype(np.uint8))[y0 - t:y0 + h + b, x0 - l:x0 + w + r]
+    return img, np.asarray(Image.fromarray(pcrop, 'L').resize(size, Image.LANCZOS))
 
 
 def split_cloth(img):
@@ -265,6 +420,116 @@ def recolor(img, hue, sat_mul, val_mul):
     return Image.fromarray(np.clip(out, 0, 255).astype(np.uint8), 'RGBA')
 
 
+# Přebarvení vrstev doplňků (vše mimo vlajku, která má vlastní plátno a používá recolor výše). Pracuje v prostoru Lab: zachová světlost (stínování,
+# lesk), změní odstín a chroma celé škály doplňku (ne jen úzkého pásma původního odstínu, takže nezůstanou zbytky původní barvy ve stínech a světlech).
+# Neutrální plochy (bílá, šedá, krémová) se kolorují jen u doplňků ve slovníku TINT (síla 0–1), ať je volba barvy znatelná i u bílého kníru,
+# šedého mikrofonu a krémového papíru; tmavý obrys a krémový nálepkový okraj kolem doplňku zůstávají vždy.
+# id → (odstín v Lab 0–360, násobek chroma, posun světlosti, násobek světlosti)
+LAB_COLORS = {
+    'cervena': (38, 1.2, 0, 0.84),
+    'oranzova': (68, 1.05, 0, 0.95),
+    'zluta': (90, 1.1, 14, 1.08),
+    'zelena': (142, 1.0, 0, 0.92),
+    'modra': (268, 1.05, 0, 0.95),
+    'fialova': (312, 1.0, 0, 0.95),
+    'ruzova': (350, 0.85, 10, 1.0),
+    'cerna': None,  # bez chroma a tmavší: stínování zůstane
+}
+TINT = {'knir': 1.0, 'mikrofon': 1.0, 'metr': 0.7, 'brk': 1.2, 'svitek': 0.6, 'kompas': 0.65, 'sitka': 0.5, 'lab-bryle': 0.9}
+# Z nich krémový papír, brk a síť se koloruje celý (krémová je jejich plocha); u ostatních zůstává krémová vždy (nálepkový okraj, bílá nenasycená)
+CREAM_TINT = {'brk', 'svitek', 'kompas', 'sitka', 'lab-bryle'}
+TINT_DEFAULT = 0.0
+# Doplňky s tmavou výplní (inkoust v kalamáři): tlustá tmavá plocha (ne tenký obrys) se přebarví také
+DARKFILL = {'brk'}
+
+
+def smooth(x, a, b):
+    t = np.clip((x - a) / (b - a), 0, 1)
+    return t * t * (3 - 2 * t)
+
+
+def border_zone(lab, alpha):
+    """Krémový nálepkový okraj kolem doplňku: světlé nenasycené pixely, které souvisí s vnějškem do vzdálenosti několika pixelů
+    (tmavý obrys za ním leží). Včetně přechodu k obrysu (rozpité pixely by se jinak přebarvily na šedomodrý lem)."""
+    L, a, b = lab[..., 0], lab[..., 1], lab[..., 2]
+    C = np.hypot(a, b)
+    cand = (L > 78) & (C < 46)
+    reach = (alpha < 0.08).astype(np.uint8)
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
+    for _ in range(7):
+        reach = cv2.dilate(reach, kernel) & (cand | (alpha < 0.08)).astype(np.uint8)
+    zone = (reach > 0) & cand
+    zone = cv2.dilate(zone.astype(np.uint8), cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5)))
+    return cv2.GaussianBlur(zone.astype(np.float32), (0, 0), 0.8)
+
+
+def gamut_clip(L, C, hue_rad, active=None):
+    """Lab (L, chroma, odstín) → RGB 0–1; chroma se u pixelů mimo gamut zmenšuje, dokud se nevejdou (odstín a světlost zůstanou).
+    Počítá se jen v místech `active` (zbytek je černý), ať je přebarvení rychlé."""
+    shape = L.shape
+    act = np.ones(shape, bool) if active is None else active
+    Lf, Cf, Hf = L[act], C[act], hue_rad[act]
+    out = np.zeros((Lf.size, 3), np.float32)
+    done = np.zeros(Lf.size, bool)
+    for f in (1.0, 0.85, 0.7, 0.55, 0.4, 0.25, 0.1, 0.0):
+        lab = np.stack([Lf, Cf * f * np.cos(Hf), Cf * f * np.sin(Hf)], axis=-1).astype(np.float32).reshape(-1, 1, 3)
+        rgb = cv2.cvtColor(lab, cv2.COLOR_Lab2RGB).reshape(-1, 3)
+        ok = (rgb.min(-1) >= -0.003) & (rgb.max(-1) <= 1.003) & ~done
+        out[ok] = rgb[ok]
+        done |= ok
+    full = np.zeros(shape + (3,), np.float32)
+    full[act] = np.clip(out, 0, 1)
+    return full
+
+
+def recolor_layer(img, name, color, protect=None):
+    a = np.asarray(img.convert('RGBA')).astype(np.float32)
+    alpha = a[..., 3] / 255.0
+    rgb = a[..., :3] / 255.0
+    lab = cv2.cvtColor(rgb.astype(np.float32), cv2.COLOR_RGB2Lab)
+    L, A, B = lab[..., 0], lab[..., 1], lab[..., 2]
+    C = np.hypot(A, B)
+    keep_out = border_zone(lab, alpha) if name not in CREAM_TINT else np.zeros_like(L)  # krémový papír, brk a síť se koloruje celý, i s okrajem
+    if protect is not None:
+        keep_out = np.maximum(keep_out, protect.astype(np.float32) / 255.0)
+    free = 1 - keep_out
+    tint = TINT.get(name, TINT_DEFAULT)
+    # barevná místa: kdekoli je znatelné chroma; tmavý obrys (L pod ~20) a krémová/bílá (světlá, málo chroma) ne
+    cream = smooth(L, 76, 84) * smooth(C, 10, 16) * (1 - smooth(C, 40, 50))
+    colored = smooth(C, 13, 28) * smooth(L, 14, 25) * (1 - cream * (name not in CREAM_TINT)) * free
+    # neutrální a krémové plochy (bílá, šedá, papír): kolorují se jen u doplňků v TINT (síla nad 1 přidává i na chroma)
+    neutral = (1 - colored) * smooth(L, 26, 42) * free * min(1.0, tint) * (1 - cream * (name not in CREAM_TINT))
+    Lm = L
+    if name in DARKFILL:
+        # tlustá tmavá plocha (inkoust): po otevření zůstane jen výplň, tenký obrys zmizí
+        dark = (L < 34).astype(np.uint8)
+        fill = cv2.morphologyEx(dark, cv2.MORPH_OPEN, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (9, 9)))
+        fill = cv2.GaussianBlur(fill.astype(np.float32), (0, 0), 1.2) * free
+        neutral = np.maximum(neutral, fill * (1 - colored))
+        Lm = L + fill * 16
+    act = (colored + neutral) > 0.003
+    if LAB_COLORS[color] is None:
+        # černá: bez chroma, tmavší; bílé a krémové plochy kolorovaných doplňků ztmavnou na šedou (bílý knír → šedý, ale stále s leskem)
+        col_rgb = gamut_clip(5 + 0.52 * Lm, C * 0.0, 0 * L, act)
+        neu_rgb = gamut_clip(8 + 0.5 * Lm + 14 * smooth(Lm, 75, 95), C * 0.0, 0 * L, act)
+    else:
+        hue, gain, d_l, m_l = LAB_COLORS[color]
+        h = np.full_like(L, np.deg2rad(hue))
+        hi = smooth(Lm, 70, 95)  # světla (lesk) se neztmavují
+        # tmavé barvy (tmavě modrý obrys brýlí, hnědý řemínek) se mírně zesvětlí, ať je v nich barva vidět
+        new_L = np.clip(Lm * m_l + (Lm - Lm * m_l) * hi + d_l * smooth(Lm, 20, 60) * (1 - hi) + 9 * (1 - smooth(Lm, 22, 52)) * smooth(Lm, 14, 24), 0, 100)
+        # nenasycené barvy (šedomodrý motýlek) dostanou aspoň střední chroma, ať je zvolená barva vždy znatelná
+        floor = 34 * (0.55 + 0.45 * smooth(Lm, 28, 60)) * min(gain, 1.0)
+        col_rgb = gamut_clip(new_L, np.maximum(C * gain, floor), h, act)
+        # neutrální plochy: pastelová až středně sytá barva podle světlosti (bílá jen jemně, šedá výrazněji)
+        ct = (20 + 30 * np.clip((92 - Lm) / 50, 0, 1)) * gain * max(1.0, tint)
+        neu_rgb = gamut_clip(new_L, ct, h, act)
+    out = rgb * (1 - colored[..., None]) + col_rgb * colored[..., None]
+    out = out * (1 - neutral[..., None]) + neu_rgb * neutral[..., None]
+    res = np.dstack([np.clip(out * 255, 0, 255), a[..., 3]]).astype(np.uint8)
+    return Image.fromarray(res, 'RGBA')
+
+
 def save_webp(img, path):
     img.save(path, 'WEBP', quality=90, alpha_quality=100, method=6)
 
@@ -290,9 +555,17 @@ def main(ids):
         if ids and name not in ids:
             continue
         img = np.asarray(Image.open(f).convert('RGB'))
-        warped = align(base, img, hat=name in HAND)
-        mask, diff = extract(base, warped, fill=name in FILL, close=CLOSE.get(name, 9), knob=name in KNOB, zone=hat_zone(frame, warped.shape) if name in HATS else None)
-        out = layer(base, warped, mask, frame)
+        cache = os.path.join(os.environ['WARP_CACHE'], name + '.npy') if os.environ.get('WARP_CACHE') else None  # jen pro ladění: zarovnání je pomalé
+        if cache and os.path.exists(cache):
+            warped = np.load(cache)
+        else:
+            warped = align(base, img, hat=name in HAND)
+            if cache:
+                os.makedirs(os.path.dirname(cache), exist_ok=True)
+                np.save(cache, warped)
+        mask, diff, protect = extract(base, warped, fill=name in FILL, close=CLOSE.get(name, 9), knob=name in KNOB, zone=hat_zone(frame, warped.shape) if name in HATS else None,
+                                      hull=HULL.get(name), mode=MODE.get(name))
+        out, protect_layer = layer(base, warped, mask, frame, protect=protect, bleed=name not in SPLIT)
         if name in SPLIT:
             out, fixed, inner = split_cloth(out)
             save_webp(fixed, os.path.join(OUT, name + '-zaklad.webp'))
@@ -306,13 +579,15 @@ def main(ids):
         save_webp(out, os.path.join(OUT, name + '.webp'))
         # ikony do výběru (<id>-ikona.webp) dělá scripts/owl-accessory-icons.py z vlastních obrázků doplňků
         for color, (hue, sat_mul, val_mul) in COLORS.items():
-            save_webp(recolor(out, hue, sat_mul, val_mul), os.path.join(OUT, f'{name}-{color}.webp'))
+            recolored = recolor(out, hue, sat_mul, val_mul) if name in SPLIT else recolor_layer(out, name, color, protect_layer)
+            save_webp(recolored, os.path.join(OUT, f'{name}-{color}.webp'))
         covered = int(mask.sum())
         print(f'{name}: plocha doplňku {covered} px')
         if os.environ.get('DEBUG_DIR'):
             os.makedirs(os.environ['DEBUG_DIR'], exist_ok=True)
             Image.fromarray(warped).save(os.path.join(os.environ['DEBUG_DIR'], name + '-warped.jpg'))
             Image.fromarray((mask * 255).astype(np.uint8)).save(os.path.join(os.environ['DEBUG_DIR'], name + '-mask.png'))
+            Image.fromarray(protect_layer).save(os.path.join(os.environ['DEBUG_DIR'], name + '-protect.png'))
 
 
 if __name__ == '__main__':
