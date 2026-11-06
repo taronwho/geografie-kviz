@@ -7,7 +7,7 @@ vyžadují jen uvedení autora a licence – to dělá stránka Zdroje a licence
 
 ## Souhrn
 
-- souborů celkem: **19160**, s načtenými metadaty: **19160**, zatím nestaženo: **0**
+- souborů celkem: **19595**, s načtenými metadaty: **19595**, zatím nestaženo: **0**
 - problémových: **6**
   - bez uvedené licence: 2
   - soubor na Commons neexistuje: 4
@@ -21,11 +21,11 @@ vyžadují jen uvedení autora a licence – to dělá stránka Zdroje a licence
 | chemie | 463 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | film | 719 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | fyzika | 534 | 2 | 0 | 0 | 0 | 0 | 2 | 0 |
-| geologie | 234 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| geologie | 389 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | historie | 2890 | 2 | 0 | 0 | 0 | 0 | 0 | 2 |
 | hudba | 1075 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | literatura | 1304 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| mytologie | 471 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| mytologie | 751 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | sport | 1080 | 1 | 0 | 0 | 0 | 0 | 0 | 1 |
 | umeni | 1476 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | vlajky | 462 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
