@@ -95,7 +95,7 @@ test('robustnost v prohlížeči', { skip: !chromium && 'Playwright není nainst
         await t.test(`poškozená data v localStorage (${label}) aplikaci nerozbijí`, async () => {
             const { context, tab, problems } = await open(`(() => { if (sessionStorage.getItem('seeded')) return; sessionStorage.setItem('seeded', '1');
                 for (const key of ${JSON.stringify(KEYS)}) localStorage.setItem('mudrlant.' + key, ${JSON.stringify(garbage)});
-                localStorage.setItem('mudrlant.account', '"host"'); localStorage.setItem('mudrlant.tutorial', '{"how":"done"}'); localStorage.setItem('mudrlant.variant', 'choices'); localStorage.removeItem('mudrlant.dev'); localStorage.removeItem('mudrlant.dev.backup'); })()`);
+                localStorage.setItem('mudrlant.account', '"host"'); localStorage.setItem('mudrlant.tutorial', '{"how":"done"}'); localStorage.setItem('mudrlant.tips', '{"off":true}'); localStorage.setItem('mudrlant.variant', 'choices'); localStorage.removeItem('mudrlant.dev'); localStorage.removeItem('mudrlant.dev.backup'); })()`);
             await tab.waitForTimeout(400);
             assert.ok(await tab.isVisible('[data-action="play-topic"]'));
             // hra jde spustit a odpovědět
@@ -110,7 +110,7 @@ test('robustnost v prohlížeči', { skip: !chromium && 'Playwright není nainst
     }
 
     await t.test('vymyšlené poznané položky vývojářského režimu se mimo něj nepočítají (hvězdy mistrovství)', async () => {
-        const { context, tab, problems } = await open(`(() => { if (sessionStorage.getItem('seeded')) return; sessionStorage.setItem('seeded', '1'); localStorage.setItem('mudrlant.account', '"host"'); localStorage.setItem('mudrlant.tutorial', '{"how":"done"}'); localStorage.setItem('mudrlant.variant', 'choices');
+        const { context, tab, problems } = await open(`(() => { if (sessionStorage.getItem('seeded')) return; sessionStorage.setItem('seeded', '1'); localStorage.setItem('mudrlant.account', '"host"'); localStorage.setItem('mudrlant.tutorial', '{"how":"done"}'); localStorage.setItem('mudrlant.tips', '{"off":true}'); localStorage.setItem('mudrlant.variant', 'choices');
             localStorage.removeItem('mudrlant.dev'); localStorage.removeItem('mudrlant.dev.backup');
             localStorage.setItem('mudrlant.learned', JSON.stringify({ zemepis: Array.from({ length: 320 }, (_, i) => 'dev' + i) })); })()`);
         await tab.waitForTimeout(400);
@@ -122,7 +122,7 @@ test('robustnost v prohlížeči', { skip: !chromium && 'Playwright není nainst
     });
 
     await t.test('vývojářský režim: „Vše“ dá hvězdy, „Vymazat hvězdičky“ je smaže a „Vrátit“ je nevrátí', async () => {
-        const { context, tab, problems } = await open(`(() => { if (sessionStorage.getItem('seeded')) return; sessionStorage.setItem('seeded', '1'); localStorage.setItem('mudrlant.account', '"host"'); localStorage.setItem('mudrlant.tutorial', '{"how":"done"}'); localStorage.setItem('mudrlant.variant', 'choices'); localStorage.setItem('mudrlant.dev', '1'); localStorage.removeItem('mudrlant.dev.backup'); })()`);
+        const { context, tab, problems } = await open(`(() => { if (sessionStorage.getItem('seeded')) return; sessionStorage.setItem('seeded', '1'); localStorage.setItem('mudrlant.account', '"host"'); localStorage.setItem('mudrlant.tutorial', '{"how":"done"}'); localStorage.setItem('mudrlant.tips', '{"off":true}'); localStorage.setItem('mudrlant.variant', 'choices'); localStorage.setItem('mudrlant.dev', '1'); localStorage.removeItem('mudrlant.dev.backup'); })()`);
         await tab.click('#btn-settings');
         await tab.click('[data-dev="max"]');
         const count = () => tab.evaluate(() => Object.values(JSON.parse(localStorage.getItem('mudrlant.learned') || '{}')).reduce((sum, ids) => sum + ids.length, 0));
@@ -146,7 +146,7 @@ test('robustnost v prohlížeči', { skip: !chromium && 'Playwright není nainst
 
     await t.test('denní zajímavost s nepřátelským textem se nikdy nevykoná', async () => {
         fact = { date: dayKey(), year: 1922, title: '<img src=x onerror="window.__xss=1">Titulek', text: '<script>window.__xss=2</script>"><svg onload=window.__xss=3>', url: 'https://cs.wikipedia.org/wiki/X?a=1&b=<2>'.replace(/[<>]/g, ''), page: '<b>p</b>', source: '<i>s</i>', category: '<u>c</u>' };
-        const { context, tab, problems } = await open(`(() => { if (sessionStorage.getItem('seeded')) return; sessionStorage.setItem('seeded', '1'); localStorage.setItem('mudrlant.account', '"host"'); localStorage.setItem('mudrlant.tutorial', '{"how":"done"}'); localStorage.setItem('mudrlant.variant', 'choices'); })()`);
+        const { context, tab, problems } = await open(`(() => { if (sessionStorage.getItem('seeded')) return; sessionStorage.setItem('seeded', '1'); localStorage.setItem('mudrlant.account', '"host"'); localStorage.setItem('mudrlant.tutorial', '{"how":"done"}'); localStorage.setItem('mudrlant.tips', '{"off":true}'); localStorage.setItem('mudrlant.variant', 'choices'); })()`);
         await tab.waitForSelector('#fact-hint:not(.hidden)');
         await tab.click('#fact-hint');
         await tab.waitForSelector('#fact-overlay');
@@ -160,7 +160,7 @@ test('robustnost v prohlížeči', { skip: !chromium && 'Playwright není nainst
         await context.close();
         for (const url of ['javascript:alert(1)', 'http://cs.wikipedia.org/wiki/X', 'https://cs.wikipedia.org.evil.example/wiki/X', 'https://evil.example/cs.wikipedia.org/', 'https://cs.wikipedia.org/wiki/X" onclick="window.__xss=4']) {
             fact = { ...fact, title: 'T', text: 't', url };
-            const page = await open(`(() => { if (sessionStorage.getItem('seeded')) return; sessionStorage.setItem('seeded', '1'); localStorage.setItem('mudrlant.account', '"host"'); localStorage.setItem('mudrlant.tutorial', '{"how":"done"}'); localStorage.setItem('mudrlant.variant', 'choices'); })()`);
+            const page = await open(`(() => { if (sessionStorage.getItem('seeded')) return; sessionStorage.setItem('seeded', '1'); localStorage.setItem('mudrlant.account', '"host"'); localStorage.setItem('mudrlant.tutorial', '{"how":"done"}'); localStorage.setItem('mudrlant.tips', '{"off":true}'); localStorage.setItem('mudrlant.variant', 'choices'); })()`);
             await page.tab.waitForTimeout(400);
             assert.equal(await page.tab.isVisible('#fact-hint'), false, `odkaz ${url} se nesmí přijmout`);
             await page.context.close();

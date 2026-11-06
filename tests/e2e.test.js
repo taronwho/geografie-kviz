@@ -54,7 +54,7 @@ const setup = async (browser, options = {}) => {
         if (sessionStorage.getItem('test-storage-set')) return;
         sessionStorage.setItem('test-storage-set', '1');
         Object.entries(entries).forEach(([key, value]) => localStorage.setItem(key, value));
-    }, { 'mudrlant.tutorial': JSON.stringify({ how: 'done' }), ...storage });
+    }, { 'mudrlant.tutorial': JSON.stringify({ how: 'done' }), 'mudrlant.tips': JSON.stringify({ off: true }), ...storage });
     if (options.fixedRandom) await context.addInitScript(value => { Math.random = () => value; }, options.fixedRandom === true ? 0.1 : options.fixedRandom);
     const tab = await context.newPage();
     const log = { wiki: [], data: 0, photos: [], tiles: 0, satellite: [], errors: [], csp: [] };
