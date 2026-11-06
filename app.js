@@ -908,6 +908,8 @@
             <div class="flex flex-wrap gap-1">${[['tour-bots', '+31 botů'], ['tour-start', 'Spustit hned'], ['tour-next', 'Další kolo'], ['tour-reset', 'Smazat odehraný turnaj'], ['tour-clear', 'Smazat boty']].map(([kind, label]) => `<button type="button" data-dev="${kind}" class="rounded-lg bg-emerald-100 px-2 py-1 text-[11px] font-bold text-emerald-900 active:scale-95 dark:bg-emerald-900/50 dark:text-emerald-100">${label}</button>`).join('')}</div>
             <p class="mb-1 mt-2 text-[11px] font-black uppercase tracking-widest text-amber-700 dark:text-amber-400">Provoz</p>
             <div class="flex flex-wrap gap-1"><button type="button" data-dev="errors" class="rounded-lg bg-rose-100 px-2 py-1 text-[11px] font-bold text-rose-900 active:scale-95 dark:bg-rose-900/50 dark:text-rose-100">Chyby z provozu</button></div>` : ''}
+            ${Social ? `<p class="mb-1 mt-2 text-[11px] font-black uppercase tracking-widest text-amber-700 dark:text-amber-400">Hlášení otázek</p>
+            <div class="flex flex-wrap gap-1"><button type="button" data-dev="reports" class="rounded-lg bg-emerald-100 px-2 py-1 text-[11px] font-bold text-emerald-900 active:scale-95 dark:bg-emerald-900/50 dark:text-emerald-100">Seznam hlášení</button></div>` : ''}
         </div>`;
     const ME_HEADING = 'text-[11px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400';
     const VARIANT_BRIEF = { choices: { short: 'Možnosti', text: '4 možnosti, až 4 body' }, typed: { short: 'Psaní', text: 'Těžší, dvojnásobek bodů' } };
@@ -1173,6 +1175,7 @@
             const devButton = event.target.closest('[data-dev]');
             if (devButton && devButton.dataset.dev.startsWith('tour-')) { devTournamentAction(devButton.dataset.dev); return; }
             if (devButton && devButton.dataset.dev === 'errors') { closeSettings(); openClientErrors(); return; }
+            if (devButton && devButton.dataset.dev === 'reports') { openQuestionReports(); return; }
             if (devButton && devButton.dataset.dev === 'bulb') {
                 // Vrátí žárovku u sovy: zapomene, že dnešní událost už hráč přečetl
                 try { localStorage.removeItem(FACT_KEY); } catch (e) { /* bez úložiště se nic nevrací */ }
@@ -1981,6 +1984,9 @@
         tick();
         tourTimer = setInterval(tick, 500);
     };
+    // Tlačítko „Nahlásit chybu v otázce“ (okno otázky: jen ikona vedle „Nevím“, výsledek: s textem vedle Wikipedie); okno je openReportDialog
+    const REPORT_ICON_BUTTON = '<button type="button" data-action="report-question" class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-slate-500 hover:bg-slate-200 dark:text-slate-400 dark:hover:bg-slate-800" title="Nahlásit chybu v otázce" aria-label="Nahlásit chybu v otázce"><i data-lucide="flag" class="h-4 w-4"></i></button>';
+    const REPORT_TEXT_BUTTON = '<button type="button" data-action="report-question" class="flex shrink-0 items-center justify-center gap-1.5 rounded-xl bg-slate-100 px-3 py-3 text-sm font-bold text-slate-700 transition-colors hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700" aria-label="Nahlásit chybu v otázce"><i data-lucide="flag" class="h-4 w-4"></i> Nahlásit chybu</button>';
     const renderQuestion = (keepScroll) => {
         const data = current;
         const topic = TOPIC_BY_ID[data.topic];
@@ -2008,9 +2014,12 @@
                     <h2 class="text-[22px] font-black leading-tight tracking-tight text-slate-800 dark:text-slate-50">${escapeHtml(data.question.title)}</h2>
                 </div>
                 ${typed ? `${answerCard}${questionPanel(data)}${nextHintButton(data)}` : `${questionPanel(data)}${nextHintButton(data)}${answerCard}`}
-                <button type="button" data-action="give-up" class="mx-auto flex min-h-[2.75rem] items-center gap-2 px-3 text-sm font-semibold text-slate-500 underline-offset-4 hover:underline dark:text-slate-400">
-                    <i data-lucide="eye" class="w-4 h-4"></i> Nevím, ukázat odpověď
-                </button>
+                <div class="flex items-center justify-center gap-1">
+                    <button type="button" data-action="give-up" class="flex min-h-[2.75rem] items-center gap-2 px-3 text-sm font-semibold text-slate-500 underline-offset-4 hover:underline dark:text-slate-400">
+                        <i data-lucide="eye" class="w-4 h-4"></i> Nevím, ukázat odpověď
+                    </button>
+                    ${canReport() && mode !== 'challenge' ? REPORT_ICON_BUTTON : ''}
+                </div>
             </div>
         `;
 
@@ -2370,9 +2379,12 @@
 
                     ${(mode === 'daily' && data.dailyDate) || mode === 'challenge' ? '' : renderStatsCard(data)}
 
-                    <a href="${wikipediaUrl(data.title)}" target="_blank" rel="noopener noreferrer" class="flex items-center justify-center gap-2 rounded-xl bg-slate-100 py-3 text-sm font-bold text-slate-700 transition-colors hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700">
+                    <div class="flex gap-2">
+                        <a href="${wikipediaUrl(data.title)}" target="_blank" rel="noopener noreferrer" class="flex min-w-0 flex-1 items-center justify-center gap-2 rounded-xl bg-slate-100 py-3 text-sm font-bold text-slate-700 transition-colors hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700">
                         <i data-lucide="book-open" class="h-4 w-4"></i> Číst na Wikipedii
                     </a>
+                        ${canReport() ? REPORT_TEXT_BUTTON : ''}
+                    </div>
                 </div>
 
                 <!-- Tlačítko Další je vždy na očích, bez posouvání dolů -->
@@ -3817,6 +3829,99 @@
     const DIALOG_NOTE = (text, tone = 'text-rose-700 dark:text-rose-400') => `<p class="mt-3 min-h-[1.25rem] text-sm font-semibold ${tone}" role="status">${escapeHtml(text)}</p>`;
     const PRIMARY_BUTTON = 'flex w-full items-center justify-center gap-2 rounded-2xl btn-3d bg-brand-700 px-4 py-3 text-base font-black text-white disabled:opacity-50';
     const SECONDARY_BUTTON = 'flex w-full items-center justify-center gap-2 rounded-2xl btn-3d-light bg-white px-4 py-3 text-base font-bold text-slate-800 dark:bg-slate-800 dark:text-slate-100';
+
+    // --- Nahlásit chybu v otázce ---
+    // Důvod (4 tlačítka) + volitelný text; bez účtu se hlášení přátelsky odmítne, bez sítě se uloží do fronty a odešle později (question-report.js)
+    const Report = window.MudrlantReport;
+    const canReport = () => Boolean(Report && current);
+    const reportStorage = () => { try { return window.localStorage; } catch (e) { return null; } };
+    const reportSender = () => {
+        const user = Auth && Auth.isConfigured() && Social ? signedUser() : null;
+        return { user: user ? user.id : null, send: user ? (report) => Social.reportQuestion(user.id, report) : null, storage: reportStorage() || { getItem: () => null, setItem: () => {} } };
+    };
+    const flushReports = () => { if (Report && navigator.onLine !== false) Report.flush(reportSender()).catch(() => {}); };
+    const openReportDialog = () => {
+        if (!canReport()) return;
+        const context = { topic: current.topic, itemId: current.id, questionType: current.question.type, title: current.question.title, answer: current.question.answerLabel };
+        const draft = { reason: '', note: '', busy: false, message: '', done: false };
+        const render = () => {
+            if (draft.done) {
+                showDialog('Nahlásit chybu v otázce', `
+                    <div class="flex flex-col items-center gap-3 py-2 text-center">
+                        <span class="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300"><i data-lucide="check" class="h-6 w-6"></i></span>
+                        <p class="text-[15px] font-semibold text-slate-700 dark:text-slate-200" role="status">${escapeHtml(draft.message)}</p>
+                        <button type="button" data-close data-autofocus class="${PRIMARY_BUTTON}">Zavřít</button>
+                    </div>`);
+                return;
+            }
+            showDialog('Nahlásit chybu v otázce', `
+                <form id="report-form" autocomplete="off">
+                    <p class="mb-2 text-sm font-semibold text-slate-600 dark:text-slate-300">Co je na otázce špatně?</p>
+                    <div class="grid grid-cols-2 gap-2" role="group" aria-label="Důvod hlášení">${Report.REASONS.map(reason => `
+                        <button type="button" id="report-reason-${reason.id}" data-reason="${reason.id}" aria-pressed="${draft.reason === reason.id}" class="flex min-h-[2.75rem] items-center justify-center gap-1.5 rounded-xl border-2 px-2 py-2 text-sm font-bold transition-colors ${draft.reason === reason.id ? 'border-brand-700 bg-brand-700 text-white' : 'border-slate-200 bg-white text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100'}">
+                            <i data-lucide="${reason.icon}" class="h-4 w-4 shrink-0"></i> ${reason.label}
+                        </button>`).join('')}
+                    </div>
+                    <label for="report-note" class="mb-1 mt-3 block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Poznámka (nepovinná)</label>
+                    <textarea id="report-note" rows="3" maxlength="${Report.NOTE_MAX}" placeholder="Co je správně, nebo co ti vadí" class="w-full resize-none rounded-xl border-2 border-slate-200 bg-white px-3 py-2 text-[15px] text-slate-800 outline-none focus:border-brand-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100">${escapeHtml(draft.note)}</textarea>
+                    ${DIALOG_NOTE(draft.message)}
+                    <button type="submit" class="${PRIMARY_BUTTON}"${draft.reason && !draft.busy ? '' : ' disabled'}><i data-lucide="send" class="h-5 w-5"></i> ${draft.busy ? 'Odesílám…' : 'Odeslat hlášení'}</button>
+                </form>`, {
+                onClick: (event) => {
+                    const button = event.target.closest('[data-reason]');
+                    if (!button || draft.busy) return;
+                    draft.reason = button.dataset.reason;
+                    draft.message = '';
+                    render();
+                },
+                onInput: (event) => { if (event.target.id === 'report-note') draft.note = event.target.value; },
+                onSubmit: async () => {
+                    if (draft.busy) return;
+                    const report = Report.buildReport(context, draft.reason, draft.note);
+                    if (!report) { draft.message = 'Vyber, co je špatně.'; render(); return; }
+                    draft.busy = true;
+                    render();
+                    const sender = reportSender();
+                    const result = await Report.submit(report, { ...sender, online: navigator.onLine !== false });
+                    draft.busy = false;
+                    draft.message = result.message;
+                    draft.done = result.state !== 'refused';
+                    if (document.getElementById('dialog-overlay')) render();
+                }
+            });
+        };
+        render();
+    };
+    // Dev panel: seznam hlášení (databáze ho pustí jen účtu v dev_admins)
+    const openQuestionReports = async () => {
+        const user = Auth && Auth.isConfigured() && Social ? signedUser() : null;
+        if (!user) { showToast('Hlášení vidí přihlášený účet z dev_admins.'); return; }
+        const draw = (body) => showDialog('Hlášení otázek', body, {
+            onClick: async (event) => {
+                const button = event.target.closest('[data-report-done]');
+                if (!button) return;
+                button.disabled = true;
+                try { await Social.deleteQuestionReport(button.dataset.reportDone); } catch (error) { showToast('Hlášení se nepodařilo vyřídit.'); }
+                openQuestionReports();
+            }
+        });
+        draw('<p class="py-6 text-center text-sm font-semibold text-slate-500 dark:text-slate-400" role="status">Načítám hlášení…</p>');
+        let rows;
+        try { rows = await Social.getQuestionReports(100); } catch (error) {
+            draw(DIALOG_NOTE(error.status === 401 || error.status === 403 ? 'Tenhle účet není v dev_admins (návod v docs/SUPABASE.md).' : (error.message || 'Hlášení se nepodařilo načíst.')));
+            return;
+        }
+        draw(rows.length ? `<ul class="flex flex-col gap-2">${rows.map(row => `
+            <li class="rounded-xl border border-slate-200 bg-white p-3 text-sm dark:border-slate-700 dark:bg-slate-800">
+                <p class="flex flex-wrap items-center gap-x-2 text-[11px] font-black uppercase tracking-wider text-rose-700 dark:text-rose-300"><span>${escapeHtml(Report.reasonLabel(row.reason))}</span><span class="font-bold normal-case tracking-normal text-slate-500 dark:text-slate-400">${escapeHtml(row.topic)} · ${escapeHtml(row.item_id)}${row.question_type ? ` · ${escapeHtml(row.question_type)}` : ''}</span></p>
+                ${row.title ? `<p class="mt-1 font-semibold text-slate-800 dark:text-slate-100">${escapeHtml(row.title)}${row.answer ? ` → ${escapeHtml(row.answer)}` : ''}</p>` : ''}
+                ${row.note ? `<p class="mt-1 whitespace-pre-line text-slate-700 dark:text-slate-200">${escapeHtml(row.note)}</p>` : ''}
+                <div class="mt-2 flex items-center justify-between gap-2 text-[11px] text-slate-500 dark:text-slate-400">
+                    <span>${escapeHtml((row.author && row.author.display_name) || 'Hráč')} · ${escapeHtml(String(row.created_at || '').slice(0, 10))}</span>
+                    <button type="button" data-report-done="${Number(row.id)}" class="flex min-h-[2.25rem] items-center gap-1 rounded-lg bg-emerald-100 px-2.5 py-1 text-xs font-bold text-emerald-900 disabled:opacity-50 dark:bg-emerald-900/50 dark:text-emerald-100"><i data-lucide="check" class="h-3.5 w-3.5"></i> Vyřízeno</button>
+                </div>
+            </li>`).join('')}</ul>` : '<p class="py-6 text-center text-sm font-semibold text-slate-500 dark:text-slate-400" role="status">Zatím žádná hlášení.</p>');
+    };
 
     // Profil: jméno, emoji a barva obrázku
     // Vlastní profil se upravuje v okně Nastavení (záložka Profil)
@@ -5392,6 +5497,7 @@
         'hint-tab': (button) => switchTab('hint-tab', button.dataset.step),
         'result-tab': (button) => switchTab('result-tab', button.dataset.step),
         'give-up': () => submitAnswer({ correct: false, typed: false, answer: null, gaveUp: true }),
+        'report-question': () => openReportDialog(),
         'item-info': (button) => openItemInfo(button.dataset.topic, button.dataset.id),
         next: () => continueAfterResult(),
         retry: () => retry(),
@@ -5619,7 +5725,9 @@
                 openChallenge(pending);
             }
             refreshChallenges();
+            if (state.user) flushReports();
         });
+        window.addEventListener('online', flushReports);
         Auth.init().then(state => { if (!state.user && invite) openChallenge(invite); });
     }
     gameVariant = readVariant();
