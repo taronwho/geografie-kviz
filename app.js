@@ -1524,7 +1524,7 @@
         const tile = (topic) => {
             const scope = scopeOf(topic);
             return `
-                <button type="button" data-action="play-topic" data-topic="${topic.id}"${scope ? ` title="${escapeHtml(`${topic.title} · ${scope}`)}"` : ''} class="relative flex min-h-[4rem] min-w-0 flex-col items-center justify-center gap-1 overflow-hidden rounded-2xl bg-gradient-to-br p-2 text-center text-white shadow-md ring-1 ring-black/5 transition-all active:scale-[0.97] ${styleOf(topic).tile}">
+                <button type="button" data-action="play-topic" data-topic="${topic.id}"${scope ? ` title="${escapeHtml(`${topic.title} · ${scope}`)}"` : ''} class="relative flex min-h-[4rem] min-w-0 flex-col items-center justify-center gap-1 overflow-hidden rounded-2xl bg-gradient-to-br p-1.5 text-center text-white shadow-md ring-1 ring-black/5 transition-all active:scale-[0.97] ${styleOf(topic).tile}">
                     ${topicArt(topic) ? topicIcon(topic, 'h-11 w-11') : `<i data-lucide="${topic.icon}" class="h-[1.625rem] w-[1.625rem]"></i>`}
                     <span class="block ${topic.title.length > 10 ? 'text-[10px]' : 'text-[11.5px]'} font-black leading-tight tracking-tight">${escapeHtml(topic.title)}</span>
                 </button>`;
@@ -2383,31 +2383,56 @@
             syncProgress();
         } catch (error) { console.error(error); }
     };
-    // Kompaktní karta „Cíle týdne“ na záložce Jeden hráč: tři řádky s ukazatelem a odměnou, splněný zeleně s fajfkou
-    const renderGoalsCard = () => {
-        if (!Goals) return '';
+    // Cíle týdne na úvodu: jeden úzký pruh (ikona cíle, počet splněných a tři malé ukazatele), podrobnosti v okně po klepnutí
+    const goalRows = () => {
         const progress = loadProgress();
         const state = loadGoalsState(progress);
-        const rows = Goals.progress(currentGoals(state.week), state, goalMetrics(progress));
-        const done = rows.filter(row => row.done).length;
+        return { state, rows: Goals.progress(currentGoals(state.week), state, goalMetrics(progress)) };
+    };
+    const goalsLeftText = () => {
         const left = Goals.daysLeft();
-        const leftText = left === 1 ? 'poslední den' : left <= 4 ? `zbývají ${left} dny` : `zbývá ${left} dní`;
-        const row = ({ goal, value, done }) => `
-            <li title="${escapeHtml(goal.title)}" class="flex h-[1.375rem] items-center gap-1.5 text-[11px] ${done ? 'text-emerald-700 dark:text-emerald-300' : 'text-slate-700 dark:text-slate-200'}">
-                <i data-lucide="${done ? 'circle-check' : goal.icon}" class="h-3.5 w-3.5 shrink-0 ${done ? '' : 'text-slate-400 dark:text-slate-500'}"></i>
-                <span class="min-w-0 flex-1 truncate font-bold">${escapeHtml(goal.title)}</span>
-                ${done ? '' : `<span class="h-1 w-10 shrink-0 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700" aria-hidden="true"><span class="block h-full w-0 rounded-full bg-gold-500" data-progress="${Math.round(value / goal.target * 100)}"></span></span>`}
-                <span class="w-9 shrink-0 text-right text-[10px] font-bold tabular-nums ${done ? '' : 'text-slate-500 dark:text-slate-400'}">${done ? 'Hotovo' : `${value}/${goal.target}`}</span>
-                <span class="w-12 shrink-0 rounded-md px-1 py-0.5 text-center text-[10px] font-black ${done ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200' : 'bg-gold-100 text-gold-800 dark:bg-gold-900/40 dark:text-gold-200'}">+${goal.xp} XP</span>
-            </li>`;
+        return left === 1 ? 'poslední den' : left <= 4 ? `zbývají ${left} dny` : `zbývá ${left} dní`;
+    };
+    const renderGoalsCard = () => {
+        if (!Goals) return '';
+        const { state, rows } = goalRows();
+        const done = rows.filter(row => row.done).length;
+        const chip = ({ goal, value, done }) => `
+            <span data-goal="${escapeHtml(goal.id)}" class="relative flex min-w-0 flex-1 items-center justify-center gap-1 overflow-hidden rounded-lg px-1 py-1 text-[10.5px] font-black tabular-nums ${done ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200' : 'bg-slate-100 text-slate-600 dark:bg-slate-700/70 dark:text-slate-200'}">
+                <i data-lucide="${done ? 'circle-check' : goal.icon}" class="h-3 w-3 shrink-0"></i>
+                <span class="truncate">${done ? 'Hotovo' : `${value}/${goal.target}`}</span>
+                ${done ? '' : `<span class="absolute inset-x-0 bottom-0 h-[3px] bg-slate-200 dark:bg-slate-600" aria-hidden="true"><span class="block h-full w-0 bg-gold-500" data-progress="${Math.round(value / goal.target * 100)}"></span></span>`}
+            </span>`;
+        const label = `Cíle týdne: splněno ${done} ze ${rows.length}, ${goalsLeftText()}. Zobrazit podrobnosti`;
         return `
-            <section id="weekly-goals" aria-label="Cíle týdne" class="rounded-[1.4rem] bg-white px-2.5 py-2 shadow-sm ring-1 ring-slate-200/70 dark:bg-slate-800/70 dark:ring-slate-700/70">
-                <div class="mb-1 flex items-center justify-between gap-2 text-[11px] font-black">
-                    <span class="flex items-center gap-1.5 text-slate-800 dark:text-slate-100"><i data-lucide="goal" class="h-3.5 w-3.5 text-brand-700 dark:text-cream"></i> Cíle týdne <span class="font-bold text-slate-500 dark:text-slate-400">${done}/${rows.length}</span></span>
-                    <span class="truncate font-bold text-slate-500 dark:text-slate-400">${state.bonus ? `Bonus +${Goals.BONUS_XP} XP získán` : `vše +${Goals.BONUS_XP} XP · ${leftText}`}</span>
+            <button type="button" id="weekly-goals" data-action="goals-open" aria-label="${escapeHtml(label)}" title="${escapeHtml(rows.map(row => row.goal.title).join('\n'))}" class="flex w-full items-center gap-1.5 rounded-2xl bg-white px-2.5 py-1.5 text-left shadow-sm ring-1 ring-slate-200/70 transition-all active:scale-[0.98] dark:bg-slate-800/70 dark:ring-slate-700/70">
+                <i data-lucide="goal" class="h-4 w-4 shrink-0 text-brand-700 dark:text-cream"></i>
+                <span class="shrink-0 whitespace-nowrap text-[11px] font-black text-slate-800 dark:text-slate-100">Cíle týdne <span class="${state.bonus ? 'text-emerald-600 dark:text-emerald-300' : 'text-slate-500 dark:text-slate-400'}">${done}/${rows.length}</span></span>
+                <span class="flex min-w-0 flex-1 gap-1">${rows.map(chip).join('')}</span>
+                <i data-lucide="chevron-right" class="h-3.5 w-3.5 shrink-0 text-slate-400"></i>
+            </button>`;
+    };
+    // Okno s cíli týdne: celé zadání, ukazatel a odměna u každého, bonus za všechny tři
+    const openGoals = () => {
+        if (!Goals) return;
+        const { state, rows } = goalRows();
+        const row = ({ goal, value, done }) => `
+            <li data-goal-row="${escapeHtml(goal.id)}" class="rounded-2xl bg-white p-3 shadow-sm ring-1 ${done ? 'ring-emerald-300 dark:ring-emerald-700' : 'ring-slate-200/70 dark:ring-slate-700/70'} dark:bg-slate-800">
+                <div class="flex items-start gap-2.5">
+                    <span class="mt-0.5 shrink-0 rounded-xl p-1.5 ${done ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300' : 'bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-300'}"><i data-lucide="${done ? 'circle-check' : goal.icon}" class="h-4 w-4"></i></span>
+                    <span class="min-w-0 flex-1 text-[13px] font-bold leading-snug text-slate-800 dark:text-slate-100">${escapeHtml(goal.title)}</span>
+                    <span class="shrink-0 rounded-md px-1.5 py-0.5 text-[11px] font-black ${done ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200' : 'bg-gold-100 text-gold-800 dark:bg-gold-900/40 dark:text-gold-200'}">+${goal.xp} XP</span>
                 </div>
-                <ul class="flex flex-col gap-0.5">${rows.map(row).join('')}</ul>
-            </section>`;
+                <div class="mt-2 flex items-center gap-2">
+                    <span class="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700" aria-hidden="true"><span class="block h-full w-0 rounded-full ${done ? 'bg-emerald-500' : 'bg-gold-500'}" data-progress="${Math.round(value / goal.target * 100)}"></span></span>
+                    <span class="text-[11px] font-bold tabular-nums text-slate-500 dark:text-slate-400">${done ? 'Splněno' : `${value} / ${goal.target}`}</span>
+                </div>
+            </li>`;
+        showDialog('Cíle týdne', `
+            <p class="-mt-2 mb-3 text-xs text-slate-500 dark:text-slate-400">${escapeHtml(Goals.weekLabel(state.week))} · ${goalsLeftText()}</p>
+            <ul class="flex flex-col gap-2">${rows.map(row).join('')}</ul>
+            <p class="mt-3 flex items-center gap-2 rounded-2xl ${state.bonus ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200' : 'bg-gold-100 text-gold-800 dark:bg-gold-900/40 dark:text-gold-200'} px-3 py-2 text-xs font-bold"><i data-lucide="trophy" class="h-4 w-4 shrink-0"></i>${state.bonus ? `Všechny cíle splněny: bonus +${Goals.BONUS_XP} XP získán` : `Za všechny tři cíle bonus +${Goals.BONUS_XP} XP a odznak Týdenní cíle`}</p>`);
+        applyProgress(document.getElementById('dialog-overlay'));
     };
 
     // Za odpověď: základ podle bodů, u dnešní otázky bonus a za sérii dní, za všech 14 dnešních bonus navíc.
@@ -5123,6 +5148,7 @@
         'learn-prev': () => moveAtlas(-1),
         'practice-mistakes': () => startPractice({ kind: 'mistakes' }),
         'review-start': () => startReview(),
+        'goals-open': () => openGoals(),
         'clear-mistakes': () => clearMistakes(),
         choice: (button) => {
             if (!round || round.variant === 'typed') return;
