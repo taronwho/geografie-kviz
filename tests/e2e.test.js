@@ -519,7 +519,7 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         await waitForQuestion(tab);
         const again = await readRound(tab);
         assert.equal(again.id, daily.id);
-        assert.equal(await tab.textContent('#status-text'), 'Opakování chyb · 1');
+        assert.equal(await tab.textContent('#status-text'), 'Procvičování chyb · 1');
         await tab.click(`[data-action="choice"]:has-text("${again.question.answerLabel}")`);
         await waitForResult(tab);
         assert.match(await tab.textContent('[data-action="next"]'), /Hotovo – zpět do učení/);

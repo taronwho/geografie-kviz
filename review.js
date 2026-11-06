@@ -87,11 +87,11 @@
         return future.length ? future[0] : null;
     };
     const inDays = (days) => days <= 0 ? 'dnes' : days === 1 ? 'zítra' : days < 5 ? `za ${days} dny` : `za ${days} dní`;
-    // „další opakování zítra“ / „za 3 dny“ / „“ (nic nečeká)
+    // „další procvičení zítra“ / „za 3 dny“ / „“ (nic nečeká)
     const nextDueText = (cards, today) => {
-        if (dueCount(cards, today)) return 'další opakování dnes';
+        if (dueCount(cards, today)) return 'další procvičení dnes';
         const due = nextDue(cards, today);
-        return due ? `další opakování ${inDays(diffDays(due, today))}` : '';
+        return due ? `další procvičení ${inDays(diffDays(due, today))}` : '';
     };
     const plural = (count, one, few, many) => `${count} ${count === 1 ? one : count >= 2 && count <= 4 ? few : many}`;
     // Souhrn po dohrání: „Zvládnuto 3 z 5, další opakování zítra“

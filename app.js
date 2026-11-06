@@ -985,7 +985,7 @@
                     <button type="button" data-auth-login class="${PRIMARY_BUTTON} mt-2"><i data-lucide="log-in" class="h-5 w-5"></i> Přihlásit se přes Google</button>
                     ${state.error ? `<p class="mt-2 text-xs font-semibold text-rose-700 dark:text-rose-400" role="alert">${escapeHtml(state.error)}</p>` : ''}
                 </div>` : ''}
-            ${Review ? `<button type="button" data-review-toggle role="switch" aria-checked="${reviewEnabled()}" class="mt-3 flex w-full items-center gap-3 rounded-2xl border-2 px-3 py-2 text-left transition-colors active:scale-[0.99] ${reviewEnabled() ? TOGGLE_ON : TOGGLE_OFF}"><i data-lucide="repeat" class="h-5 w-5 shrink-0"></i><span class="min-w-0 flex-1"><span class="block text-sm font-black">Opakování chyb</span><span class="block text-[11px] font-semibold leading-snug opacity-80">${reviewEnabled() ? 'Zapnuto: chyby se ti vrací po 1, 3, 7, 14 a 30 dnech' : 'Vypnuto: nic se nevrací a nic nečeká'}</span></span><span class="shrink-0 text-xs font-black">${reviewEnabled() ? 'Zapnuto' : 'Vypnuto'}</span></button>` : ''}
+            ${Review ? `<button type="button" data-review-toggle role="switch" aria-checked="${reviewEnabled()}" class="mt-3 flex w-full items-center gap-3 rounded-2xl border-2 px-3 py-2 text-left transition-colors active:scale-[0.99] ${reviewEnabled() ? TOGGLE_ON : TOGGLE_OFF}"><i data-lucide="repeat" class="h-5 w-5 shrink-0"></i><span class="min-w-0 flex-1"><span class="block text-sm font-black">Procvičování špatných odpovědí</span><span class="block text-[11px] font-semibold leading-snug opacity-80">${reviewEnabled() ? 'Zapnuto: špatné odpovědi se ti vrací po 1, 3, 7, 14 a 30 dnech' : 'Vypnuto: nic se nevrací a nic nečeká'}</span></span><span class="shrink-0 text-xs font-black">${reviewEnabled() ? 'Zapnuto' : 'Vypnuto'}</span></button>` : ''}
             ${pushPanel()}
             <button type="button" data-tutorial-restart class="btn-3d-light mt-3 flex w-full items-center gap-2 rounded-2xl bg-white px-3 py-2 text-left dark:bg-slate-800"><i data-lucide="info" class="h-5 w-5 shrink-0 text-brand-700 dark:text-brand-300"></i><span class="min-w-0 flex-1 truncate text-[13px] font-black text-slate-800 dark:text-slate-100">Projít znovu tutoriál</span><i data-lucide="chevron-right" class="h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400"></i></button>
             ${renderDevPanel()}`;
@@ -1196,7 +1196,7 @@
             if (event.target.closest('[data-review-toggle]')) {
                 writeJson(KEYS.reviewOn, !reviewEnabled());
                 updateControlsUI();
-                openSettings(reviewEnabled() ? 'Opakování chyb je zapnuté.' : 'Opakování chyb je vypnuté.', '[data-review-toggle]');
+                openSettings(reviewEnabled() ? 'Procvičování špatných odpovědí je zapnuté.' : 'Procvičování špatných odpovědí je vypnuté.', '[data-review-toggle]');
                 return;
             }
             const pushToggle = event.target.closest('[data-push-toggle]');
@@ -1480,8 +1480,8 @@
         const topic = TOPIC_BY_ID[current.topic];
         if (mode === 'daily') return { icon: topic.icon, text: `${topic.title} · ${shortDay(current.dailyDate || getDayKey())}`, topic };
         if (mode === 'challenge' && challenge) return { icon: challenge.tournament ? 'trophy' : 'swords', text: `${challenge.tournament ? 'Turnaj' : 'Výzva'} · ${challenge.index + 1}/${challenge.count}`, topic };
-        if (pool.kind === 'mistakes') return { icon: 'repeat', text: `Opakování chyb · ${loadMistakes().length}`, topic };
-        if (pool.kind === 'review') return { icon: 'repeat', text: `Opakování · ${Math.min(pool.done + 1, pool.total)}/${pool.total}`, topic };
+        if (pool.kind === 'mistakes') return { icon: 'repeat', text: `Procvičování chyb · ${loadMistakes().length}`, topic };
+        if (pool.kind === 'review') return { icon: 'repeat', text: `Procvičování · ${Math.min(pool.done + 1, pool.total)}/${pool.total}`, topic };
         if (pool.kind === 'collection') {
             const ctx = loadedTopics.get(pool.topic);
             return { icon: 'layers', text: ctx ? `${ctx.topic.title} · ${collectionLabel(ctx, pool.collection)}` : 'Procvičování', topic };
@@ -1524,11 +1524,11 @@
                 chip.className = 'absolute -right-1.5 -top-1.5 flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-gold-500 px-1 text-[10px] font-black leading-none text-brand-950 ring-2 ring-slate-50 dark:ring-slate-900';
                 buttons.learn.appendChild(chip);
             }
-            chip.innerHTML = `<span class="sr-only">K opakování: </span>${due}`;
-            chip.title = `K opakování: ${due}`;
+            chip.innerHTML = `<span class="sr-only">K procvičení: </span>${due}`;
+            chip.title = `K procvičení: ${due}`;
         } else if (chip) chip.remove();
         buttons.learn.classList.add('relative');
-        buttons.learn.setAttribute('aria-label', due ? `Učení – k opakování: ${due}` : 'Učení');
+        buttons.learn.setAttribute('aria-label', due ? `Učení – k procvičení: ${due}` : 'Učení');
 
         // Při hraní je téma poznat na první pohled: barevný štítek a barevný spodní okraj hlavičky
         const place = describePlace();
@@ -2359,7 +2359,7 @@
             const remaining = loadMistakes().length;
             return remaining ? `Další chyba (zbývá ${remaining})` : 'Hotovo – zpět do učení';
         }
-        if (pool.kind === 'review') return pool.keys.length ? `Další karta (zbývá ${pool.keys.length})` : 'Hotovo – souhrn opakování';
+        if (pool.kind === 'review') return pool.keys.length ? `Další karta (zbývá ${pool.keys.length})` : 'Hotovo – souhrn procvičování';
         return pool.kind === 'collection' ? 'Další z okruhu' : 'Další otázka';
     };
 
@@ -3121,15 +3121,15 @@
         const today = getDayKey();
         const due = Review ? Review.dueCount(cards, today) : 0;
         const next = Review ? Review.nextDueText(cards, today) : '';
-        const reviewText = reviewSummary ? reviewSummary.text : due ? 'Chyby se vrací po 1, 3, 7, 14 a 30 dnech' : next ? `Nic na řadě, ${next}` : 'Co v kvízu spleteš, sem přijde k opakování';
+        const reviewText = reviewSummary ? reviewSummary.text : due ? 'Špatné odpovědi se vrací po 1, 3, 7, 14 a 30 dnech' : next ? `Nic na řadě, ${next}` : 'Co v kvízu spleteš, sem přijde k procvičení';
         const reviewSection = reviewEnabled() ? `
             <section data-review-section class="flex items-center gap-3 rounded-2xl border border-slate-100 bg-white p-3 shadow-sm dark:border-slate-700 dark:bg-slate-800">
                 <span class="shrink-0 rounded-xl bg-gold-100 p-2 text-gold-700 dark:bg-gold-900/40 dark:text-gold-300"><i data-lucide="repeat" class="h-5 w-5"></i></span>
                 <span class="min-w-0 flex-1">
-                    <span class="block text-sm font-black leading-tight text-slate-800 dark:text-slate-100">K opakování dnes (${due})</span>
+                    <span class="block text-sm font-black leading-tight text-slate-800 dark:text-slate-100">K procvičení dnes (${due})</span>
                     <span class="block text-[11px] font-semibold leading-tight text-slate-500 dark:text-slate-400">${escapeHtml(reviewText)}</span>
                 </span>
-                ${due ? `<button type="button" data-action="review-start" class="flex shrink-0 items-center gap-1.5 rounded-xl btn-3d bg-brand-700 px-3 py-2.5 text-[13px] font-black text-white"><i data-lucide="play" class="h-4 w-4"></i> Opakovat</button>` : ''}
+                ${due ? `<button type="button" data-action="review-start" class="flex shrink-0 items-center gap-1.5 rounded-xl btn-3d bg-brand-700 px-3 py-2.5 text-[13px] font-black text-white"><i data-lucide="play" class="h-4 w-4"></i> Procvičit</button>` : ''}
             </section>` : '';
         return `
             <div class="text-center">
