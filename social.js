@@ -292,6 +292,32 @@
             throw error;
         }
     };
+    // Chyby z provozu (monitor.js → tabulka client_errors): posledních 50 seskupených podle otisku; jen pro účet v dev_admins
+    const devClientErrors = async () => {
+        try { return (await request('POST', 'rpc/dev_client_errors', { body: {} })) || []; } catch (error) {
+            if (error.status === 404) throw new SocialError('Sběr chyb v databázi chybí: spusť znovu supabase/schema.sql.', 404);
+            if (error.status === 401 || error.status === 403 || /dev_admins/.test(String(error.message))) throw new SocialError('Tenhle účet není v dev_admins (návod v docs/SUPABASE.md).', 403);
+            throw error;
+        }
+    };
+    // Je přihlášený hráč správce (dev_admins)? Starší databáze bez funkce: false
+    const isDevAdmin = async () => {
+        try { return (await request('POST', 'rpc/dev_is_admin', { body: {} })) === true; } catch (error) {
+            if (error.status === 404) return false;
+            throw error;
+        }
+    };
+    // Verze schématu v databázi (schema_version() na konci supabase/schema.sql); null = databáze funkci nemá (schéma je starší než verze 1),
+    // undefined = odpověď nejde přečíst (nic se nehlásí)
+    const schemaVersion = async () => {
+        try {
+            const value = Math.floor(Number(await request('POST', 'rpc/schema_version', { body: {} })));
+            return Number.isFinite(value) ? value : undefined;
+        } catch (error) {
+            if (error.status === 404) return null;
+            throw error;
+        }
+    };
     // Moje turnajové údaje do odznaků: { best, wins, played }; null, když turnaje v databázi nejsou
     const myTournamentStats = () => guardTournaments(async () => {
         const result = await request('POST', 'rpc/my_tournament_stats', { body: {} });
@@ -381,5 +407,5 @@
     };
 
     return { AVATARS, allAvatars, cleanColor, customHue, nearestColor, cleanFrame, cleanOwl, saveOwl, cleanTitlePref, saveLook, COLORS, COUNTS, NAME_MAX, SocialError, cleanName, isValidName, newCode, parseCode, getProfile, saveProfile, createChallenge, getChallenge, getResults, submitResult, myChallenges, searchPlayers, randomOpponent, incomingChallenges, playerStats, getProgress, saveProgress, getRating, getRatingChange, weeklyLeaderboard, getAccepts, saveAccepts,
-        tournamentTick, getTournaments, inTournament, devTournament, getTournamentEntries, getTournamentMatches, joinTournament, leaveTournament, startTournamentMatch, finishTournamentMatch, myTournamentStats, tournamentNotices, tournamentNoticesSeen };
+        tournamentTick, getTournaments, inTournament, devTournament, getTournamentEntries, getTournamentMatches, joinTournament, leaveTournament, startTournamentMatch, finishTournamentMatch, myTournamentStats, tournamentNotices, tournamentNoticesSeen, devClientErrors, isDevAdmin, schemaVersion };
 });

@@ -1044,3 +1044,80 @@ grant execute on function public.push_subscribe(text, text, text) to authenticat
 -- Odesílatel se hlásí veřejným klíčem (role anon) a prokazuje se tajemstvím
 revoke all on function public.push_due(text), public.push_mark(text, text[], text[], text[], text[]) from public;
 grant execute on function public.push_due(text), public.push_mark(text, text[], text[], text[], text[]) to anon, authenticated;
+-- ===== Chyby z provozu (monitor.js) =====
+-- Aplikace sem po dávkách posílá neodchycené chyby z prohlížeče: jen zprávu, zkrácený zásobník volání (adresy bez parametrů), adresu stránky bez parametrů,
+-- prohlížeč, verzi aplikace a čas; žádné osobní údaje ani id hráče. Zapsat smí kdokoli s veřejným klíčem (i nepřihlášený), číst jen správce
+-- v dev_admins přes dev_client_errors() (Nastavení → vývojářský režim → Chyby z provozu). Celkem nejvýš 100 řádků za hodinu a 500 za den (trigger);
+-- aplikace sama pošle nejvýš 5 chyb za relaci a 20 za den a zařízení.
+create table if not exists public.client_errors (
+    id bigint generated always as identity primary key,
+    created_at timestamptz not null default now(),
+    happened_at timestamptz,
+    kind text not null default 'error',
+    message text not null,
+    stack text,
+    url text,
+    user_agent text,
+    app_version text,
+    hash text not null
+);
+alter table public.client_errors drop constraint if exists client_errors_sizes;
+alter table public.client_errors add constraint client_errors_sizes check (
+    char_length(kind) between 1 and 20 and char_length(message) between 1 and 500 and coalesce(char_length(stack), 0) <= 1000
+    and coalesce(char_length(url), 0) <= 300 and coalesce(char_length(user_agent), 0) <= 300 and coalesce(char_length(app_version), 0) <= 40
+    and char_length(hash) between 1 and 32);
+create index if not exists client_errors_created_idx on public.client_errors (created_at desc);
+alter table public.client_errors enable row level security;
+drop policy if exists "chyby: zapisuje kdokoli" on public.client_errors;
+create policy "chyby: zapisuje kdokoli" on public.client_errors for insert to anon, authenticated with check (true);
+-- žádná politika pro čtení: přes API nikdo, jen dev_client_errors()
+
+-- Čas zápisu určuje server; celkem nejvýš 100 chyb za hodinu a 500 za den (zaplavení tabulky z jednoho zařízení nebo skriptem)
+create or replace function public.limit_client_errors() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+    if (select count(*) from public.client_errors where created_at > now() - interval '1 hour') >= 100
+        or (select count(*) from public.client_errors where created_at > now() - interval '1 day') >= 500 then
+        raise exception 'Příliš mnoho hlášených chyb.' using errcode = '22023';
+    end if;
+    new.created_at := now();
+    return new;
+end;
+$$;
+drop trigger if exists client_errors_limit on public.client_errors;
+create trigger client_errors_limit before insert on public.client_errors for each row execute function public.limit_client_errors();
+
+-- Posledních 50 chyb seskupených podle otisku (stejná zpráva a zásobník), nejnovější skupina první; jen dev_admins
+create or replace function public.dev_client_errors() returns table (hash text, count bigint, last_at timestamptz, kind text, message text, stack text, url text, user_agent text, app_version text)
+language plpgsql security definer set search_path = public as $$
+begin
+    perform public.dev_check();
+    return query
+        with recent as (select * from public.client_errors e order by e.created_at desc, e.id desc limit 50)
+        select r.hash, count(*)::bigint, max(r.created_at),
+            (array_agg(r.kind order by r.created_at desc, r.id desc))[1], (array_agg(r.message order by r.created_at desc, r.id desc))[1],
+            (array_agg(r.stack order by r.created_at desc, r.id desc))[1], (array_agg(r.url order by r.created_at desc, r.id desc))[1],
+            (array_agg(r.user_agent order by r.created_at desc, r.id desc))[1], (array_agg(r.app_version order by r.created_at desc, r.id desc))[1]
+        from recent r group by r.hash order by max(r.created_at) desc;
+end;
+$$;
+-- Je přihlášený hráč správce (dev_admins)? Aplikace podle toho ukáže upozornění na zastaralé schéma
+create or replace function public.dev_is_admin() returns boolean
+language sql stable security definer set search_path = public as $$
+    select exists (select 1 from public.dev_admins where user_id = auth.uid());
+$$;
+
+revoke all on public.client_errors from anon, authenticated;
+grant insert (kind, message, stack, url, user_agent, app_version, hash, happened_at) on public.client_errors to anon, authenticated;
+revoke all on function public.limit_client_errors() from public, anon, authenticated;
+revoke all on function public.dev_client_errors(), public.dev_is_admin() from public, anon;
+grant execute on function public.dev_client_errors(), public.dev_is_admin() to authenticated;
+
+-- ===== Verze schématu =====
+-- Číslo se zvyšuje při KAŽDÉ změně tohoto souboru (tabulka, sloupec, funkce, pravidlo) a zároveň konstanta REQUIRED_SCHEMA v app.js.
+-- Aplikace ho po přihlášení porovná a správci (dev_admins nebo vývojářský režim) ukáže v Nastavení, že má schéma spustit znovu;
+-- tests/sql-security.test.js hlídá, že se obě čísla shodují. Funkce patří na konec souboru.
+create or replace function public.schema_version() returns integer
+language sql immutable as $$ select 1 $$;
+revoke all on function public.schema_version() from public, anon;
+grant execute on function public.schema_version() to authenticated;
