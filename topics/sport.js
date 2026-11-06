@@ -360,7 +360,8 @@
         const f = item.f || {};
         const g = other.f || {};
         if (item.c === 'sportovci') {
-            return personSimilarity(item, other) + (f.sport === g.sport ? 8 : -6) + (f.land && f.land === g.land ? 2 : 0)
+            // Sport je u otázky vidět („tenista“): přednost před zemí, ta řadí až sportovce téhož sportu
+            return personSimilarity(item, other) + (f.sport === g.sport ? 14 : -14) + (f.land && f.land === g.land ? 2 : 0)
                 // Čech k Čechům, ne jediný Čech mezi Američany (Zátopek ke Carlu Lewisovi)
                 + ((item.cz === 1) === (other.cz === 1) ? 2 : -3);
         }
@@ -404,6 +405,11 @@
         categories: CATEGORIES,
 
         similarity,
+        // Olympijské hry se podle pořadatelské země nepárují (dvoje hry téhož města by byly dvě správné odpovědi)
+        culture: (item) => item.c === 'olympiady' ? [] : undefined,
+
+        // Slova, která v popisu zůstávají vidět, i když jsou mezi přijímanými odpověďmi: u her pořadatelské město je vodítko
+        keepWords: (type, item) => type === 'name' && item.c === 'olympiady' ? [item.f.host, ...(item.f.names || []), item.f.land] : [],
 
         // Psané odpovědi: příjmení sportovce (jen jednoznačné), u her „LOH 1952“ i „Helsinky 1952“, u sportů běžné názvy
         nameAliases: (item, ctx) => {

@@ -6,8 +6,9 @@
     const {
         SATELLITE_TILES, OSM_TILES,
         escapeHtml, isRealPhoto, commonsPhotoUrl, commonsFileUrl, displayName, formatPoints, getDayKey, formatDayKey, createSeededRandom, pickRandom,
-        censorName, mergeCensored, processWikiText, stripFactSentences, takeLeadFacts, checkAnswer, normalizeAnswer, filterItems, pickItem, sortItems,
-        buildItemChoices, findAnswerItem, setCountries, updateMistakes, nameAnswers, pointsFor, dropKnownFacts, scaleKnown, dropChoiceNames, sharesWordRoot, chooseDescription,
+        censorName, hideAnswer, buildQuestionTexts, factRevealsAnswer, answerNamesFor, genericWordsOf, specificWords, isGenericWord, OUT_OF_CONTEXT,
+        processWikiText, takeLeadFacts, checkAnswer, normalizeAnswer, filterItems, pickItem, sortItems,
+        buildItemChoices, cultureLandsFor, findAnswerItem, setCountries, updateMistakes, nameAnswers, pointsFor, dropKnownFacts, scaleKnown, dropChoiceNames,
         computeStreak, buildShareText, getTileLayout, shuffle,
         LEVEL_XP, questionsForLevel, xpForLevel, MAX_LEVEL, LEVEL_TITLES,
         BADGES, BADGE_GROUPS, BADGE_BY_ID, earnedBadgeIds, compactBadges, expandBadges, normalizeCounters,
@@ -399,72 +400,8 @@
 
     const categoryOf = (topic, key) => topic.categories.find(category => category.key === key) || { key, label: key, one: topic.words.one, icon: topic.icon };
 
-    // Popis bez odpovědi: téma může zakrývat po svém (u otázky na stát stát), jinak se zakryje název položky
-    const censorFor = (type, text, item, ctx) => {
-        if (!text) return '';
-        const custom = ctx.topic.censor ? ctx.topic.censor(type, text, item, ctx) : null;
-        if (custom !== null && custom !== undefined) return custom;
-        const aliases = ctx.topic.nameAliases ? ctx.topic.nameAliases(item, ctx) : [];
-        const names = [item.n, displayName(item.t), ...aliases];
-        const extra = genericWordsOf(ctx);
-        return hideNicknames(mergeCensored(absorbGenericWords(censorName(text, specificWords(names, extra)), names, '[***]', extra)), item);
-    };
-    // Obecná slova názvu (poloostrov, národní park, řeka, bitva) v popisu zůstanou – nic neprozradí a bez nich by věta
-    // nedávala smysl („Malajský poloostrov je [***] v jihovýchodní Asii“)
-    const GENERIC_NAME_WORDS = new Set(['národní', 'park', 'přírodní', 'rezervace', 'chráněná', 'krajinná', 'oblast', 'poloostrov', 'ostrov', 'ostrovy',
-        'souostroví', 'moře', 'záliv', 'zátoka', 'jezero', 'řeka', 'hora', 'pohoří', 'vodopád', 'vodopády', 'poušť', 'nížina', 'průliv', 'kanál', 'údolí',
-        'katedrála', 'chrám', 'kostel', 'bazilika', 'hrad', 'zámek', 'palác', 'most', 'věž', 'muzeum', 'náměstí', 'klášter', 'mešita', 'synagoga',
-        'bitva', 'válka', 'obléhání', 'revoluce', 'povstání', 'říše', 'království', 'císařství', 'republika', 'jednotka', 'energie', 'síla', 'kyselina', 'kyseliny',
-        'socha', 'pomník', 'busta', 'obraz', 'portrét', 'album', 'opera', 'symfonie', 'koncert', 'píseň', 'film', 'román', 'povídka', 'báseň']);
-    // Běžná slova, která se v názvech tématu opakují (teplota v Curieova, Néelova, Debyeova teplota; sodný v názvech solí):
-    // sama o sobě odpověď neprozradí a zakrytá by z věty udělala nesmysl („[***], při které se materiály stávají…“)
-    const genericWordsOf = (ctx) => {
-        if (!ctx.genericWords) {
-            const counts = new Map();
-            for (const other of ctx.items) {
-                for (const word of new Set(other.n.split(/\s+/).slice(1).filter(word => /^\p{Ll}{4,}$/u.test(word)).map(word => word.toLocaleLowerCase('cs')))) counts.set(word, (counts.get(word) || 0) + 1);
-            }
-            ctx.genericWords = new Set([...counts].filter(([, count]) => count >= 4).map(([word]) => word));
-        }
-        return ctx.genericWords;
-    };
-    const isGenericWord = (word, extra) => GENERIC_NAME_WORDS.has(word.toLocaleLowerCase('cs')) || Boolean(extra && extra.has(word.toLocaleLowerCase('cs')));
-    const specificWords = (names, extra = null) => names.filter(Boolean).map(name => {
-        const words = name.split(/\s+/);
-        const kept = words.filter(word => !isGenericWord(word, extra));
-        return kept.length ? kept.join(' ') : name;
-    }).join(', ');
-    // Obecné slovo názvu hned vedle zakryté části zmizí s ní („[***] park“ u Jurského parku, „Národní park [***]“) –
-    // samostatně („je národní park v…“) zůstane
-    const escapeRegExp = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const absorbGenericWords = (text, names, mark = '[***]', extra = null) => {
-        const generic = [...new Set(names.filter(Boolean).flatMap(name => name.split(/\s+/))
-            .filter(word => isGenericWord(word, extra)))];
-        if (!generic.length || !text.includes(mark)) return text;
-        const stems = generic.map(word => escapeRegExp(word.slice(0, Math.max(3, word.length - 2)))).join('|');
-        const markPattern = escapeRegExp(mark);
-        const after = new RegExp(`${markPattern}(?:\\s+(?:${stems})\\p{L}*(?![\\p{L}]))+`, 'giu');
-        const before = new RegExp(`(?<![\\p{L}])(?:(?:${stems})\\p{L}*\\s+)+${markPattern}`, 'giu');
-        return text.replace(after, mark).replace(before, mark);
-    };
-    // Přezdívka nebo rodné jméno, které začíná stejně jako jméno (Bert a Berthold u Bertolta Brechta)
-    const hideNicknames = (text, item) => {
-        const roots = [item.n, displayName(item.t)].join(' ').split(/[\s\-–,.]+/).filter(word => word.length >= 5)
-            .map(word => normalizeAnswer(word).slice(0, 4));
-        return mergeCensored(text.replace(/(?<![\p{L}\p{N}])\p{Lu}\p{L}{3,}/gu, word => roots.includes(normalizeAnswer(word).slice(0, 4)) ? '[***]' : word));
-    };
-    // Jména ostatních nabízených možností v popisu (s Iljou Muromcem a Aljošou Popovičem) by je hned vyřadila
-    const CHOICE_MARK = '\uE001';
-    const hideOtherChoices = (text, question, ctx) => {
-        if (!text || question.match) return text;
-        if (!ctx.itemNames) ctx.itemNames = new Set(ctx.items.map(other => normalizeAnswer(other.n)));
-        const labels = question.choices.filter(choice => !choice.correct && ctx.itemNames.has(normalizeAnswer(choice.label))).map(choice => choice.label);
-        const extra = genericWordsOf(ctx);
-        return labels.length ? absorbGenericWords(censorName(text, specificWords(labels, extra)), labels, '[***]', extra).replaceAll('[***]', CHOICE_MARK) : text;
-    };
     // Zajímavost z dalších vět článku jen tehdy, když mluví o hádané položce – věta vytržená z kontextu
     // („Doprovázejí boha Rea…“, „Část odborníků se k tomuto výkladu kloní…“) by nedávala smysl
-    const OUT_OF_CONTEXT = /^(?:ten|ta|to|ti|ty|tento|tato|toto|tito|tyto|tomuto|tohoto|této|těchto|tuto|tím|jeho|její|jejich|on|ona|ono|oni|ony|část|ostatní|také|rovněž|dále|však|proto|tam|zde|odtud|později|nicméně|přesto)(?![\p{L}])/iu;
     const relevantFacts = (facts, item) => (facts || []).filter(fact => !OUT_OF_CONTEXT.test(fact)
         && censorName(fact, [item.n, displayName(item.t)].join(', ')).includes('[***]'));
 
@@ -479,11 +416,11 @@
         const years = [...(spec.points || []), ...(spec.spans || []).flatMap(span => [span.from, span.to])].filter(year => Number.isFinite(year) && year >= 100);
         return years.length > 0 && years.every(year => new RegExp(`(?<!\\d)${year}(?!\\d)`).test(text));
     };
-    const buildHints = (plan, { photoUrl, visibleText, shared = new Set(), answers = '', textPhotos = new Set(), omit = [], rootCheck = false, extraGeneric = null }) => {
-        // Fakt prozradí odpověď i tehdy, když začíná stejným kořenem jako jméno (Těží se z něj: antimon u Antimonitu)
-        const rootNames = rootCheck && answers ? specificWords(answers.split(', '), extraGeneric) : '';
-        const revealsAnswer = (fact) => Boolean(answers) && (censorName(String(fact.value), answers).includes('[***]')
-            || (Boolean(rootNames) && sharesWordRoot(String(fact.value), rootNames)));
+    const buildHints = (plan, { photoUrl, visibleText, shared = new Set(), answers = [], textPhotos = new Set(), omit = [], rootCheck = false, extraGeneric = null }) => {
+        // Fakt prozradí odpověď i tehdy, když obsahuje kterýkoli její tvar nebo začíná stejným kořenem jako jméno
+        // (Těží se z něj: antimon u Antimonitu); společná kontrola s popisem (factRevealsAnswer)
+        const rootNames = rootCheck && answers.length ? specificWords(answers, extraGeneric) : '';
+        const revealsAnswer = (fact) => factRevealsAnswer(fact, answers, { isGeneric: (word) => isGenericWord(word, extraGeneric), rootNames });
         const hints = [];
         // Co už dřívější nápovědy řekly (roky na časové ose, hodnoty faktů): další krok to nesmí opakovat
         let shownBefore = '';
@@ -496,7 +433,9 @@
             const textImage = step.spec && step.spec.type === 'image' && textPhotos.has(step.spec.file);
             if (step.kind === 'visual' && step.spec && Visuals.info(step.spec) && !timelineVisible(step.spec, visibleText) && !scaleKnown(step.spec, visibleText) && !textImage) {
                 const masks = step.spec.type === 'image' && photoMasks[step.spec.file];
-                hint = { kind: 'visual', spec: masks ? { ...step.spec, masks } : step.spec, label: Visuals.info(step.spec).name, icon: Visuals.info(step.spec).icon };
+                // Událost na časové ose se jménem odpovědi (autor, režisér) by ji prozradila: vynechá se jako události s hádanou položkou
+                const spec = step.spec.type === 'timeline' && answers.length ? { ...step.spec, hide: [step.spec.hide, ...answers].filter(Boolean).join(', ') } : step.spec;
+                hint = { kind: 'visual', spec: masks ? { ...spec, masks } : spec, label: Visuals.info(step.spec).name, icon: Visuals.info(step.spec).icon };
             }
             if (step.kind === 'facts') {
                 // omit = jména nesprávných možností (Sourozenci: Chiméra, Hydra u Kerberose by je vyřadili)
@@ -525,15 +464,6 @@
         return data;
     };
 
-    // Co nápověda nesmí obsahovat: u otázky na název jméno položky (vědecký název je naopak schválně poslední nápovědou),
-    // u řádu, jednotky či veličiny samotnou odpověď; u století, značek a vzorců se nekontroluje (krátká značka by „našla“ kdeco)
-    const hintAnswers = (question, item, aliases = []) => {
-        if (question.match) return '';
-        // Další názvy téže věci (kasiterit = cínovec) hráči odpověď prozradí stejně; vědecký název druhu je schválně poslední nápovědou
-        if (question.type === 'name') return [item.n, displayName(item.t), ...aliases.filter(alias => alias !== (item.f || {}).lat)].join(', ');
-        return question.accepted.join(', ');
-    };
-
     // Data jedné otázky – vše, co se uloží a po obnovení stránky zobrazí znovu
     // Kolik slov skutečného textu (bez zakrytých míst) má popis mít, aby z něj šla odpověď poznat nebo aspoň odhadnout
     const MIN_DESCRIPTION_WORDS = 14;
@@ -550,7 +480,7 @@
             title: category.question || topic.words.question,
             showName: false,
             // Nesprávné možnosti co nejpodobnější (podle tématu), aby správná nebyla poznat na první pohled
-            choices: buildItemChoices(item, items, rng, other => topic.similarity ? topic.similarity(item, other, ctx) : 0),
+            choices: buildItemChoices(item, items, rng, other => topic.similarity ? topic.similarity(item, other, ctx) : 0, cultureLandsFor(topic, ctx)),
             accepted: nameAnswers(item, topic.nameAliases ? topic.nameAliases(item, ctx) : []),
             placeholder: category.placeholder || topic.words.placeholder,
             answerLabel: item.n
@@ -563,22 +493,19 @@
         const shown = topic.questionImage ? topic.questionImage(item, ctx, question.type) : null;
         const shownUrl = shown ? (await probePhoto(commonsPhotoUrl(shown.file, shown.hash, 960)) || await probePhoto(commonsFileUrl(shown.file, shown.hash))) : null;
         const fetchedText = await fetchItemText(item);
-        // Popis, který je po zakrytí skoro samá mezera („[***] práci konanou [***] silou“), nahradí další věty úvodu
-        const censorText = (value) => mergeCensored(censorFor(question.type, hideOtherChoices(value, question, ctx), item, ctx).replaceAll(CHOICE_MARK, '[***]'));
-        const text = fetchedText.fallback ? fetchedText
-            : { ...fetchedText, ...chooseDescription(fetchedText.description, fetchedText.more, censorText, { startOk: sentence => !OUT_OF_CONTEXT.test(sentence) }) };
+        // Popis i další věty úvodu bez odpovědi (společné zakrytí všech tvarů jména); popis, který je po zakrytí skoro samá mezera
+        // („[***] práci konanou [***] silou“), nahradí další věty úvodu, a když nic nezbude, vypadne
+        const { text, questionText, moreText } = buildQuestionTexts(item, ctx, question, fetchedText, { special: Boolean(special) });
         const settled = await Promise.race([photoProbe.then(result => ({ result })), new Promise(resolve => setTimeout(() => resolve(null), PHOTO_WAIT))]);
         const photoUrl = settled ? settled.result : photoOf(item, 960);
         const visual = topic.visual ? topic.visual(item, ctx, question.type) : null;
         // Typ položky („obec ve Španělsku“, „král“) nesmí prozradit odpověď
-        const typeLabel = item.ty && !censorFor(question.type, item.ty, item, ctx).includes('[***]') ? item.ty : category.one;
-        const questionText = mergeCensored(censorFor(question.type, hideOtherChoices(text.description, question, ctx), item, ctx).replaceAll(CHOICE_MARK, '[***]'));
+        const typeLabel = item.ty && !hideAnswer(item.ty, question, { ...item, ty: '' }, ctx).includes('[***]') ? item.ty : category.one;
         // Příliš chudý popis („Zimbabwský politik.“) nestačí k odpovědi: když je popis jediná opora otázky, je „thin“
         const thin = !shown && !special && (text.fallback || realWords(questionText) < MIN_DESCRIPTION_WORDS);
         const basePlan = (topic.hints && topic.hints(item, ctx, question.type))
             || [{ kind: 'photo' }, { kind: 'visual', spec: visual }, { kind: 'facts', facts: topic.facts(item, ctx, question.type) }];
         // Pokračování úvodu článku (zakryté stejně jako popis) je první, nejlevnější nápověda; bez dost skutečných slov se vynechá
-        const moreText = special || !text.more ? '' : mergeCensored(censorFor(question.type, hideOtherChoices(stripFactSentences(text.more, topic.facts(item, ctx, question.type)), question, ctx), item, ctx).replaceAll(CHOICE_MARK, '[***]'));
         const plan = realWords(moreText) >= MIN_EXCERPT_WORDS ? [{ kind: 'excerpt', text: moreText }, ...basePlan] : basePlan;
         const visibleText = [question.title, question.showName ? item.n : '', typeLabel, questionText, realWords(moreText) >= MIN_EXCERPT_WORDS ? moreText : ''].join(' · ');
         // Fakt, který mají všechny nesprávné možnosti stejný jako správná, mezi nimi nepomůže vybrat
@@ -587,7 +514,7 @@
         const wrongFacts = wrongItems.map(factKeys);
         const shared = new Set(wrongFacts.length ? [...factKeys(item)].filter(key => wrongFacts.every(keys => keys.has(key))) : []);
         let hints = buildHints(plan, { photoUrl: (shown && shown.file === item.im) || (ctx.textPhotos && ctx.textPhotos.has(item.im)) ? null : photoUrl,
-            visibleText, shared, answers: hintAnswers(question, item, topic.nameAliases ? topic.nameAliases(item, ctx) : []), textPhotos: ctx.textPhotos || new Set(),
+            visibleText, shared, answers: answerNamesFor(question, item, ctx), textPhotos: ctx.textPhotos || new Set(),
             rootCheck: question.type === 'name', extraGeneric: genericWordsOf(ctx),
             omit: question.match ? [] : (question.choices || []).filter(choice => !choice.correct).map(choice => choice.label) });
         let leadFacts = [];

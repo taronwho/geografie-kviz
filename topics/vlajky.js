@@ -191,6 +191,9 @@
         },
         categories: CATEGORIES,
 
+        // Vlajky mají vlastní pravidla (podobný vzhled, sousedé), ne kulturu jmen osob
+        culture: () => [],
+
         // Nesprávné možnosti: hlavně podobně vypadající vlajky a znaky, k tomu sousedé a stejný kontinent
         similarity: (item, other, ctx) => {
             if (isTwin(item, other)) return -Infinity;
