@@ -346,8 +346,8 @@
         if (term.length < 2) return [];
         if (!searchRpcMissing) {
             try {
-                const rows = await request('POST', 'rpc/search_players', { body: { term } }) || [];
-                return rows.map(row => ({ id: row.id, display_name: row.display_name, avatar: row.avatar, color: row.color, frame: cleanFrame(row.frame), title_pref: cleanTitlePref(row.title_pref), owl: cleanOwl(row.owl) }));
+                const rows = await request('POST', 'rpc/search_players', { body: { term } });
+                return (Array.isArray(rows) ? rows : []).map(row => ({ id: row.id, display_name: row.display_name, avatar: row.avatar, color: row.color, frame: cleanFrame(row.frame), title_pref: cleanTitlePref(row.title_pref), owl: cleanOwl(row.owl) }));
             } catch (error) {
                 if (error.status !== 404) throw error;
                 searchRpcMissing = true;
