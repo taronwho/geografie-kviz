@@ -912,7 +912,7 @@
                     }).join('')}</div>
                 </div>
                 <div>
-                    <p class="${ME_HEADING} mb-1.5">Barva</p>
+                    <p class="${ME_HEADING} mb-1.5">Barva pozadí</p>
                     <div class="flex justify-between px-1">${Social.COLORS.map(color => `<button type="button" data-pick-color="${color}" aria-label="Barva ${color}" aria-pressed="${color === meDraft.color}" class="h-7 w-7 rounded-full ${avatarBg(color)} ${color === meDraft.color ? 'ring-2 ring-slate-800/70 ring-offset-2 dark:ring-white/80 dark:ring-offset-slate-900' : ''} active:scale-95"></button>`).join('')}</div>
                     <input type="range" min="0" max="355" step="5" value="${Social.customHue(meDraft.color) ?? Social.customHue('h' + ({ emerald: 160, sky: 200, violet: 260, rose: 350, amber: 40, teal: 175, orange: 25, indigo: 240 }[meDraft.color] || 160))}" data-pick-hue aria-label="Všechny barvy: odstín pozadí profilovky" class="mt-2 h-6 w-full cursor-pointer appearance-none rounded-full bg-[linear-gradient(90deg,#f00,#ff0,#0f0,#0ff,#00f,#f0f,#f00)]">
                 </div>
@@ -968,7 +968,7 @@
         } catch (error) {
             meNote = error.status === 400 || error.status === 409 ? error.message : 'Uložení se nepodařilo, zkus to znovu.';
         }
-        if (document.getElementById('settings-overlay')) openSettings(meNote, '#profile-name');
+        if (document.getElementById('settings-overlay')) openSettings(meNote, '[data-save-profile]');
     };
     const createSettingsOverlay = () => {
         const overlay = document.createElement('div');
@@ -1788,6 +1788,19 @@
         mountPanels();
     };
 
+    // Turnaj: živý čas u každé otázky (rozhoduje při shodě správných odpovědí i bodů), přestane se počítat po odpovědi
+    let tourTimer = null;
+    const formatQuestionTime = (ms) => { const seconds = Math.max(0, Math.floor(ms / 1000)); return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`; };
+    const startTourTimer = (startedAt) => {
+        clearInterval(tourTimer);
+        const tick = () => {
+            const el = document.querySelector('[data-tour-timer]');
+            if (!el) { clearInterval(tourTimer); return; }
+            el.textContent = formatQuestionTime(Date.now() - startedAt);
+        };
+        tick();
+        tourTimer = setInterval(tick, 500);
+    };
     const renderQuestion = (keepScroll) => {
         const data = current;
         const topic = TOPIC_BY_ID[data.topic];
@@ -1807,7 +1820,8 @@
         // Při psaní je pole nahoře: otevřená klávesnice by ho jinak zakryla
         appContent.innerHTML = `
             <div class="${keepScroll ? '' : 'fade-in '}flex min-h-full w-full flex-col gap-2.5 bg-slate-50 p-3 pb-3 dark:bg-slate-900">
-                <div class="flex flex-col items-center gap-1 text-center">
+                <div class="relative flex flex-col items-center gap-1 text-center">
+                    ${mode === 'challenge' && challenge && challenge.tournament ? `<span class="absolute right-0 top-0 inline-flex items-center gap-1 rounded-lg bg-slate-200 px-2 py-0.5 text-xs font-black tabular-nums text-slate-700 dark:bg-slate-700 dark:text-slate-100" title="Čas na tuto otázku: při shodě rozhoduje rychlejší hráč"><i data-lucide="timer" class="h-3.5 w-3.5"></i><span data-tour-timer>0:00</span></span>` : ''}
                     <span class="inline-flex items-center gap-1.5 rounded-lg border px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest text-white shadow-sm ${style.solid}">
                         <i data-lucide="${category.icon}" class="h-3 w-3"></i> ${escapeHtml(data.typeLabel)}
                     </span>
@@ -1822,6 +1836,10 @@
 
         renderIcons(appContent);
         mountPanels();
+        if (appContent.querySelector('[data-tour-timer]')) {
+            if (!round.timerStart) round.timerStart = Date.now();
+            startTourTimer(round.timerStart);
+        } else clearInterval(tourTimer);
         if (!keepScroll) appContent.scrollTo(0, 0);
         // Po nápovědě fokus na její záložku (klávesnice by jinak skončila na začátku stránky)
         else if (document.activeElement === document.body) {
@@ -1957,7 +1975,7 @@
     };
     // Řádek „+30 XP“ s rozpisem (odpověď, dnešní otázka, série…) pod výsledkem
     const xpLine = (xp, tone) => xp && (xp.total || (xp.badges && xp.badges.length))
-        ? `<p class="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs font-bold ${tone}">${xp.total ? `<span class="rounded-md bg-gold-500 px-1.5 py-0.5 font-black text-brand-950">+${xp.total} XP</span>` : ''}${xp.parts.length > 1 ? `<span class="font-semibold opacity-80">${escapeHtml(xp.parts.map(part => `${part.label} ${part.xp}`).join(' · '))}</span>` : ''}${(xp.badges || []).map(title => `<span class="inline-flex items-center gap-1 rounded-md bg-brand-700 px-1.5 py-0.5 font-black text-white"><i data-lucide="award" class="h-3 w-3"></i>${escapeHtml(title)}</span>`).join('')}</p>` : '';
+        ? `<div class="mt-0.5 text-xs font-bold ${tone}">${xp.total ? `<span class="inline-block rounded-md bg-gold-500 px-1.5 py-0.5 font-black text-brand-950">+${xp.total} XP</span>` : ''}${(xp.badges || []).map(title => `<span class="ml-1 inline-flex items-center gap-1 rounded-md bg-brand-700 px-1.5 py-0.5 font-black text-white"><i data-lucide="award" class="h-3 w-3"></i>${escapeHtml(title)}</span>`).join('')}${xp.parts.length ? `<ul class="mt-1 space-y-0.5 font-semibold opacity-90">${xp.parts.map(part => `<li>+${part.xp} XP ${escapeHtml(part.label)}</li>`).join('')}</ul>` : ''}</div>` : '';
 
     const renderResultBanner = (data) => {
         // Kolik nápověd hráč použil z kolika, které otázka měla
@@ -2334,18 +2352,18 @@
             counters.topicRun[current.topic] = (counters.topicRun[current.topic] || 0) + 1;
             counters.topicBest[current.topic] = Math.max(counters.topicBest[current.topic] || 0, counters.topicRun[current.topic]);
         } else { counters.run = 0; counters.topicRun[current.topic] = 0; }
-        const parts = [{ label: 'odpověď', xp: answerXp(round) }];
+        const parts = [{ label: round.correct ? 'za správnou odpověď' : 'za pokus o odpověď', xp: answerXp(round) }];
         if (mode === 'daily' && current.dailyDate && round.dailyFirst !== false) {
-            parts.push({ label: 'dnešní otázka', xp: DAILY_XP });
+            parts.push({ label: 'za dnešní otázku tématu', xp: DAILY_XP });
             if (round.correct) {
                 const streak = computeStreak(stats.daily[current.topic] || {}, getDayKey());
-                if (streak > 1) parts.push({ label: `série ${streak} dní`, xp: streakXp(streak) });
+                if (streak > 1) parts.push({ label: `za sérii ${streak} dní v řadě`, xp: streakXp(streak) });
             }
             const dayStreak = computeStreak(stats.daily[current.topic] || {}, getDayKey());
             counters.bestStreak = Math.max(counters.bestStreak, dayStreak);
             if (round.correct && [3, 7, 14, 30, 60, 100, 200, 365].includes(dayStreak)) showCelebration('serie', `Série ${dayStreak} dní`, 'Dnešní otázky ti jdou! Jen tak dál.');
             const done = TOPICS.filter(topic => (stats.daily[topic.id] || {})[current.dailyDate]).length;
-            if (done === TOPICS.length) { parts.push({ label: 'všechny dnešní otázky', xp: DAILY_ALL_XP }); counters.perfectDays += 1; }
+            if (done === TOPICS.length) { parts.push({ label: 'za dnešní otázky ze všech témat', xp: DAILY_ALL_XP }); counters.perfectDays += 1; }
         }
         const gained = parts.reduce((sum, part) => sum + part.xp, 0);
         const progress = { ...before, xp: before.xp + gained };
@@ -4084,18 +4102,27 @@
                 return pickItem(pool.length ? pool : ctx.items.filter(candidate => candidate.k === 1), rng, history, keys);
             };
             const ids = challengeTopicIds(challenge.topic);
-            const history = [];
-            if (ids.length === 1) {
-                const ctx = await loadTopic(ids[0]);
-                for (let before = 0; before < index; before++) {
-                    const earlier = pickFor(ctx, createSeededRandom(`${challenge.seed}:${before}`), history);
-                    if (earlier) history.push(earlier.q);
-                }
+            // Dřívější otázky se přehrají se stejným semínkem (i u Mixu a turnaje, kde se téma losuje), takže se žádná položka v rámci výzvy nezopakuje
+            const histories = new Map();
+            const historyOf = (topicId) => { if (!histories.has(topicId)) histories.set(topicId, []); return histories.get(topicId); };
+            // Turnaj: otázky se nesmí zopakovat ani v dřívějších kolech (každé kolo má semínko `<turnaj>-r<kolo>`)
+            const earlierSeeds = [];
+            const tour = challenge.tournament;
+            if (tour && tour.seedBase && tour.round > 1) {
+                for (let round = 1; round < tour.round; round++) for (let before = 0; before < challenge.count; before++) earlierSeeds.push(`${tour.seedBase}-r${round}:${before}`);
+            }
+            for (let before = 0; before < index; before++) earlierSeeds.push(`${challenge.seed}:${before}`);
+            for (const earlierSeed of earlierSeeds) {
+                const earlierRng = createSeededRandom(earlierSeed);
+                const earlierTopic = ids.length > 1 ? pickRandom(ids, earlierRng) : ids[0];
+                const earlierCtx = await loadTopic(earlierTopic);
+                const earlier = pickFor(earlierCtx, earlierRng, historyOf(earlierTopic));
+                if (earlier) historyOf(earlierTopic).push(earlier.q);
             }
             const rng = createSeededRandom(`${challenge.seed}:${index}`);
             const topicId = ids.length > 1 ? pickRandom(ids, rng) : ids[0];
             const ctx = await loadTopic(topicId);
-            const item = pickFor(ctx, rng, history);
+            const item = pickFor(ctx, rng, historyOf(topicId));
             return { item, ctx, rng };
         }, challengeTopicIds(challenge.topic).length === 1 ? TOPIC_BY_ID[challengeTopicIds(challenge.topic)[0]] : MIX);
     };
@@ -4234,7 +4261,7 @@
     const plainText = (text) => String(text || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
     // Za vyhraný zápas XP; vyplacené zápasy se pamatují v zařízení (jednou za zápas) a počítadla pro odznaky se doplní z účtu (maximum s lokální hodnotou)
-    const applyTournamentProgress = async ({ wonIds = [], stats = false } = {}) => {
+    const applyTournamentProgress = async ({ wonIds = [], wonRounds = {}, stats = false } = {}) => {
         const claimed = readJson(TOUR_XP_KEY);
         const known = Array.isArray(claimed) ? claimed.filter(id => typeof id === 'string') : [];
         const fresh = [...new Set(wonIds)].filter(id => !known.includes(id));
@@ -4247,7 +4274,7 @@
         if (!fresh.length && !remote) return;
         const progress = loadProgress();
         const levelBefore = levelProgress(progress.xp).level;
-        progress.xp += fresh.length * Tournament.WIN_XP;
+        progress.xp += fresh.reduce((sum, id) => sum + Tournament.winXp(wonRounds[id]), 0);
         if (remote) {
             progress.counters.tourBest = Math.max(progress.counters.tourBest || 0, remote.best);
             progress.counters.tourWins = Math.max(progress.counters.tourWins || 0, remote.wins);
@@ -4379,8 +4406,9 @@
             }));
             if (!signedUser() || signedUser().id !== user.id) return;
             tournamentView = views.filter(view => view.tournament.status !== 'finished' || view.state.playing);
-            const wonIds = views.flatMap(view => Tournament.xpMatches(view.matches, user.id));
-            afterNotices(() => applyTournamentProgress({ wonIds, stats: force || Date.now() - tournamentStatsAt > 600000 }));
+            const wonRounds = Object.assign({}, ...views.map(view => Tournament.xpRounds(view.matches, user.id)));
+            const wonIds = Object.keys(wonRounds);
+            afterNotices(() => applyTournamentProgress({ wonIds, wonRounds, stats: force || Date.now() - tournamentStatsAt > 600000 }));
             paintChallenges();
             if (tournamentDialogId && document.getElementById('dialog-overlay') && document.getElementById('dialog-overlay').dataset.title === TOUR_DIALOG) renderTournamentDialog();
         } catch (error) {
@@ -4807,7 +4835,7 @@
         tournamentTickAt = 0;
         startChallenge({
             code: 'turnaj', topic: tournament.topic, seed: `${tournament.seed}-r${state.round}`, count: Tournament.QUESTIONS, variant: 'choices', include_hard: false,
-            tournament: { tid: tournament.id, mid: state.matchId, round: state.round, name: state.roundName }
+            tournament: { tid: tournament.id, mid: state.matchId, round: state.round, name: state.roundName, seedBase: tournament.seed }
         }, 0, []);
     };
 
@@ -4866,7 +4894,7 @@
                 ? `<div class="flex flex-col gap-2"><p class="text-sm font-semibold text-rose-700 dark:text-rose-400" role="alert">${escapeHtml(message || 'Výsledek se nepodařilo uložit. Zkontroluj připojení.')}</p><button type="button" data-action="challenge-retry" class="${PRIMARY_BUTTON}">Zkusit znovu</button></div>`
                 : `<p data-tournament-outcome class="text-center text-sm font-semibold leading-snug text-slate-700 dark:text-slate-200">${escapeHtml(text)}</p>
                     ${match && view ? `<ul class="flex flex-col gap-1.5">${tournamentMatchHtml(match, new Map(view.entries.map(entry => [entry.user_id, entry])), user && user.id)}</ul>` : ''}
-                    ${info && info.step === 'won' && match && match.decided_by !== 'earlier' ? `<p class="text-center text-sm font-black text-emerald-700 dark:text-emerald-400">+${Tournament.WIN_XP} XP za vyhraný zápas</p>` : ''}`;
+                    ${info && info.step === 'won' && match && match.decided_by !== 'earlier' ? `<p class="text-center text-sm font-black text-emerald-700 dark:text-emerald-400">+${Tournament.winXp(match.round)} XP za vyhraný zápas</p>` : ''}`;
         appContent.innerHTML = `
             <div class="fade-in flex min-h-full w-full flex-col gap-4 bg-slate-50 p-4 pb-6 dark:bg-slate-900">
                 <div class="rounded-[1.5rem] bg-gradient-to-br from-brand-600 to-brand-900 p-5 text-center text-white shadow-lg">

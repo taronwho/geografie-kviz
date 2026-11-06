@@ -134,12 +134,13 @@
         min: 0.01,
         max: 4600,
         log: true,
+        reverse: true,
         value: Math.max(item.f.from, 0.01),
         valueLabel: `začátek před ${ago(item.f.from)}`,
         ticks: [{ value: 0.01, label: '10 tis.' }, { value: 1, label: '1 mil.' }, { value: 100, label: '100 mil.' }, { value: 1000, label: '1 mld.' }, { value: 4600, label: '4,6 mld.' }],
         minLabel: 'dnes',
         maxLabel: 'vznik Země',
-        describe: `Logaritmická osa stáří od dneška po vznik Země; období začalo před ${ago(item.f.from)}.`
+        describe: `Logaritmická osa stáří od vzniku Země (vlevo) po dnešek (vpravo); období začalo před ${ago(item.f.from)}.`
     });
     const paleoMap = (item) => item.f.map && item.f.mh ? { type: 'image', file: item.f.map, hash: item.f.mh, name: 'mapa světa v té době', icon: 'globe' } : null;
 

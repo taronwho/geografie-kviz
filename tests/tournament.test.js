@@ -159,6 +159,10 @@ test('zápasy po kolech: seřazené, finále a bronz, výhry za XP', () => {
     assert.equal(groups[1].day, '2026-11-10');
     assert.equal(T.currentRound(matches), 2);
     assert.deepEqual(T.xpMatches(matches.concat({ id: 'e', winner: 'a', decided_by: 'earlier' }), 'a'), ['a']);
+    // XP za vyhraný zápas roste s kolem: 20, 30, 40…
+    assert.deepEqual([1, 2, 3, 7].map(T.winXp), [20, 30, 40, 80]);
+    assert.deepEqual(T.xpRounds(matches.concat({ id: 'e', winner: 'a', decided_by: 'earlier', round: 2 }), 'a'), Object.fromEntries(matches.filter(match => match.winner === 'a').map(match => [match.id, match.round])));
+    assert.ok(T.RULES.every(rule => !/letos|server/i.test(rule)), 'v pravidlech není „letos“ ani zmínka o serveru');
     assert.deepEqual(T.podium([{ user_id: 'x', status: 'finished', place: 2 }, { user_id: 'y', status: 'finished', place: 1 }, { user_id: 'z', status: 'out', place: 7 }]).map(entry => entry.user_id), ['y', 'x']);
 });
 

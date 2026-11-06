@@ -474,6 +474,8 @@ test('týdenní turnaje', { skip: !chromium && 'Playwright není nainstalovaný'
         assert.ok(db.results.some(row => row.match_id === uuid(101) && row.user_id === 'u-1' && !row.finished_at), 'server zná začátek zápasu');
         assert.ok(db.calls.findIndex(call => call.name === 'tournament_start_match') >= 0);
         assert.match(await tab.textContent('#status-badge'), /Turnaj · 1\/10/);
+        assert.equal(await tab.locator('[data-tour-timer]').count(), 1, 'u otázky turnaje běží čas');
+        assert.match(await tab.textContent('[data-tour-timer]'), /^\d+:\d{2}$/);
         assert.ok(await tab.locator('[data-action="choice"]').count() >= 2, 'varianta s výběrem z možností');
         assert.equal(await tab.locator('#answer-form').count(), 0);
         await shot(tab, 'turnaj-hra');

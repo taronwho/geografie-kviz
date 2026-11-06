@@ -9,7 +9,10 @@
     const QUESTIONS = 10;
     const MIN_PLAYERS = 8;
     const MAX_PLAYERS = 128;
+    // XP za vyhraný zápas: v 1. kole 20, s každým dalším kolem o 10 víc
     const WIN_XP = 20;
+    const WIN_XP_STEP = 10;
+    const winXp = (round) => WIN_XP + WIN_XP_STEP * Math.max(0, (Number(round) || 1) - 1);
     const WEEKDAYS = ['neděle', 'pondělí', 'úterý', 'středa', 'čtvrtek', 'pátek', 'sobota'];
 
     // --- Dny (Praha) ---
@@ -162,12 +165,12 @@
     // Návod „Jak turnaje fungují“ (krátké body)
     const RULES = [
         'Každý týden se hraje turnaj v Mixu všech témat, začíná v pondělí. Přihlášky se otevírají hned po začátku předchozího turnaje.',
-        `Hraje nejvyšší mocnina dvou nejdřív přihlášených hráčů (nejvýš ${MAX_PLAYERS}, nejméně ${MIN_PLAYERS}). Ostatní letos nehrají. Když se přihlásí méně než ${MIN_PLAYERS}, turnaj se ruší.`,
+        `Hraje nejvyšší mocnina dvou nejdřív přihlášených hráčů (nejvýš ${MAX_PLAYERS}, nejméně ${MIN_PLAYERS}). Ostatní nehrají. Když se přihlásí méně než ${MIN_PLAYERS}, turnaj se ruší.`,
         `Pavouk je vyřazovací. Jedno kolo trvá jeden den: dvojice mají ${QUESTIONS} stejných otázek z Mixu (jen ze známějších) a každý je odehraje kdykoli během dne, jen jednou.`,
-        'Vyhraje ten, kdo má víc správných odpovědí, pak víc bodů, pak je rychlejší (čas měří server) a nakonec toho, kdo se přihlásil dřív.',
+        'Vyhraje ten, kdo má víc správných odpovědí, pak víc bodů, pak ten, kdo je rychlejší, a nakonec toho, kdo se přihlásil dřív.',
         'Kdo kolo neodehraje, prohrává kontumačně a vypadává; soupeř, který odehrál, postupuje. Když neodehraje nikdo, postupuje dřívější přihlášený.',
         'Poražení semifinalisté hrají o 3. místo v den finále.',
-        'Za každý vyhraný zápas dostaneš 20 XP a za umístění v turnajích odznaky.'
+        `Za každý vyhraný zápas dostaneš XP: ${WIN_XP} v 1. kole a s každým dalším kolem o ${WIN_XP_STEP} víc. Za umístění v turnajích jsou odznaky.`
     ];
 
     // Nejvýš čtyři první místa (1.–4.) po skončení: seřazená podle místa
@@ -175,6 +178,8 @@
     // Mapa id → přezdívka z přihlášek
     const nameMap = (entries) => Object.fromEntries(entries.map(entry => [entry.user_id, (entry.player && entry.player.display_name) || 'Hráč']));
     // Výhry, za které patří XP: moje vyhrané zápasy, kde hrál aspoň vítěz (nehrálo-li se, „dřívější přihlášený“ XP nedává)
+    // Totéž s kolem zápasu: { id: kolo }, ať se XP spočítá podle kola
+    const xpRounds = (matches, userId) => Object.fromEntries(matches.filter(match => match.winner === userId && match.decided_by !== 'earlier').map(match => [match.id, match.round]));
     const xpMatches = (matches, userId) => matches.filter(match => match.winner === userId && match.decided_by !== 'earlier').map(match => match.id);
 
     // --- Celé pořadí ---
@@ -331,11 +336,11 @@
     };
 
     return {
-        QUESTIONS, MIN_PLAYERS, MAX_PLAYERS, WIN_XP, RULES,
+        QUESTIONS, MIN_PLAYERS, MAX_PLAYERS, WIN_XP, WIN_XP_STEP, winXp, RULES,
         parseDay, addDays, totalsOf, formatDuration, diffDays, pragueToday, formatDay, weekdayName, dayWord, weekLabel,
         roundName, playersInRound, tournamentRoundName, roundDay, plural, playersWord, placeLabel, eliminatedLabel,
         groupRounds, currentRound, decided, involves, opponentOf, myMatch, resultOf, winnerPlace,
-        cardState, statusText, noticeText, podium, nameMap, xpMatches,
+        cardState, statusText, noticeText, podium, nameMap, xpMatches, xpRounds,
         placeRange, roundOfPlace, standings, bracketStartRound, lastDecidedRound, bracketColumns, playerPath, dayShort
     };
 });
