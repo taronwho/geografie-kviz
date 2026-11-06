@@ -831,6 +831,19 @@ begin
 end;
 $$;
 
+-- Smaže odehrané (běžící, skončené, zrušené) turnaje, ať jde zkoušet znovu; tick hned založí turnaj s otevřenými přihláškami na příští pondělí
+create or replace function public.dev_tournament_reset() returns integer
+language plpgsql security definer set search_path = public as $$
+declare removed integer;
+begin
+    perform public.dev_check();
+    delete from public.tournaments where status <> 'open';
+    get diagnostics removed = row_count;
+    perform public.tournament_tick();
+    return removed;
+end;
+$$;
+
 revoke all on function public.dev_check(), public.dev_is_bot(uuid), public.dev_bots_play(uuid) from public, anon, authenticated;
-revoke all on function public.dev_tournament_add_bots(uuid, integer), public.dev_tournament_start_now(uuid), public.dev_tournament_next_round(uuid), public.dev_tournament_clear_bots() from public, anon;
-grant execute on function public.dev_tournament_add_bots(uuid, integer), public.dev_tournament_start_now(uuid), public.dev_tournament_next_round(uuid), public.dev_tournament_clear_bots() to authenticated;
+revoke all on function public.dev_tournament_add_bots(uuid, integer), public.dev_tournament_start_now(uuid), public.dev_tournament_next_round(uuid), public.dev_tournament_clear_bots(), public.dev_tournament_reset() from public, anon;
+grant execute on function public.dev_tournament_add_bots(uuid, integer), public.dev_tournament_start_now(uuid), public.dev_tournament_next_round(uuid), public.dev_tournament_clear_bots(), public.dev_tournament_reset() to authenticated;
