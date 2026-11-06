@@ -710,17 +710,13 @@ test('týdenní turnaje', { skip: !chromium && 'Playwright není nainstalovaný'
         assert.deepEqual(page.log.errors, []);
         assert.deepEqual(page.log.csp, []);
         await page.context.close();
-        // databáze je starší než aplikace (funkce schema_version chybí): hráč dostane srozumitelnou hlášku jednou denně, správce v Nastavení i návod
+        // databáze je starší než aplikace (funkce schema_version chybí): běžný hráč s tím nic nenadělá, proto nevidí nic; správce hlášku a návod
         db = newDb();
         db.schema = null;
         page = await start(db);
-        await page.tab.waitForSelector('#schema-notice[data-kind="database"]');
-        assert.match((await page.tab.textContent('#schema-notice')).replace(/\s+/g, ' '), /Databáze není aktuální/);
-        await page.tab.click('#schema-notice [data-action="schema-close"]');
-        await page.tab.reload();
-        await waitForHome(page.tab);
+        await page.tab.waitForSelector('#tournament-card, #home-tabs');
         await page.tab.waitForTimeout(500);
-        assert.equal(await page.tab.locator('#schema-notice').count(), 0, 'dnes už se neukazuje znovu');
+        assert.equal(await page.tab.locator('#schema-notice').count(), 0, 'běžný hráč o staré databázi neví');
         assert.deepEqual(page.log.errors, []);
         await page.context.close();
         db = newDb();
