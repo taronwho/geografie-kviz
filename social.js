@@ -380,6 +380,18 @@
         return invites.filter(row => !done.has(row.id));
     };
 
+    // Hlášení chyb v otázkách: hráč pošle vlastní (databáze hlídá délku a denní limit), čtou a mažou je jen dev_admins
+    const reportQuestion = (userId, report) => request('POST', 'question_reports', { body: { ...report, user_id: userId }, prefer: 'return=minimal' });
+    const getQuestionReports = async (limit = 100) => {
+        try {
+            return await request('GET', `question_reports?select=id,user_id,topic,item_id,question_type,reason,note,title,answer,created_at,author:profiles!user_id(display_name)&order=created_at.desc&limit=${Math.max(1, Math.min(200, Number(limit) || 100))}`) || [];
+        } catch (error) {
+            if (error.status === 404) throw new SocialError('Hlášení otázek v databázi chybí: spusť znovu supabase/schema.sql.', 404);
+            throw error;
+        }
+    };
+    const deleteQuestionReport = (id) => request('DELETE', `question_reports?id=eq.${encodeURIComponent(Number(id))}`);
+
     return { AVATARS, allAvatars, cleanColor, customHue, nearestColor, cleanFrame, cleanOwl, saveOwl, cleanTitlePref, saveLook, COLORS, COUNTS, NAME_MAX, SocialError, cleanName, isValidName, newCode, parseCode, getProfile, saveProfile, createChallenge, getChallenge, getResults, submitResult, myChallenges, searchPlayers, randomOpponent, incomingChallenges, playerStats, getProgress, saveProgress, getRating, getRatingChange, weeklyLeaderboard, getAccepts, saveAccepts,
-        tournamentTick, getTournaments, inTournament, devTournament, getTournamentEntries, getTournamentMatches, joinTournament, leaveTournament, startTournamentMatch, finishTournamentMatch, myTournamentStats, tournamentNotices, tournamentNoticesSeen };
+        tournamentTick, getTournaments, inTournament, devTournament, reportQuestion, getQuestionReports, deleteQuestionReport, getTournamentEntries, getTournamentMatches, joinTournament, leaveTournament, startTournamentMatch, finishTournamentMatch, myTournamentStats, tournamentNotices, tournamentNoticesSeen };
 });

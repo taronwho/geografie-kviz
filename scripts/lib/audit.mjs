@@ -10,6 +10,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
+import crypto from 'node:crypto';
 
 const require = createRequire(import.meta.url);
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
@@ -17,7 +18,7 @@ export const core = require(path.join(ROOT, 'quiz-core.js'));
 const {
     isRealPhoto, commonsPhotoUrl, displayName, createSeededRandom, censorName, mergeCensored, processWikiText, stripFactSentences,
     takeLeadFacts, normalizeAnswer, buildItemChoices, nameAnswers, dropKnownFacts, scaleKnown, dropChoiceNames, sharesWordRoot,
-    chooseDescription, getWordStems, isAnswerMatch, centuryOf, setCountries
+    chooseDescription, getWordStems, isAnswerMatch, centuryOf, setCountries, levenshtein
 } = core;
 
 // --- Načtení témat a dat ---
@@ -243,7 +244,7 @@ export const assembleRound = (item, ctx, variant, text) => {
 
 // --- Hlídač prozrazení: přísnější než zakrytí ve hře (bez diakritiky, s odvozenými přídavnými jmény a čísly) ---
 const SKIP_WORDS = new Set(['nad', 'pod', 'na', 've', 'de', 'la', 'le', 'les', 'des', 'du', 'di', 'da', 'del', 'der', 'die', 'das', 'am', 'an', 'im', 'of', 'the', 'and', 'et', 'san', 'saint', 'sankt',
-    'al', 'el', 'ad', 'as', 'ar', 'az', 'ibn', 'bin', 'ben', 'von', 'van', 'zu', 'den', 'ten', 'ter', 'dos', 'do', 'y', 'století', 'stoleti', 'léta', 'leta', 'mytologie', 'hornina', 'vyvřelina', 'vyvrelina']);
+    'al', 'el', 'ad', 'as', 'ar', 'az', 'ibn', 'bin', 'ben', 'von', 'van', 'zu', 'den', 'ten', 'ter', 'dos', 'do', 'y', 'století', 'stoleti', 'stát', 'státy', 'státu', 'států', 'státní', 'stat', 'staty', 'statu', 'statu', 'statni', 'léta', 'leta', 'mytologie', 'hornina', 'vyvřelina', 'vyvrelina']);
 const isRomanNumeral = (word) => /^[IVXLC]+\.?$/.test(word);
 const splitWords = (text) => String(text || '').split(/[\s,\-–:;!?„“”"…\/()]+/).filter(Boolean);
 const textWordsOf = (text) => normalizeAnswer(String(text || '').replace(/\[\*\*\*\]/g, ' ')).split(' ').filter(Boolean);
@@ -256,12 +257,23 @@ export const detectorStems = (word) => {
     return [...stems].map(stem => stem.trim()).filter(stem => stem.length >= 4);
 };
 // Slova odpovědi, podle kterých se pozná: bez předložek, čísel, obecných slov a slov společných s nesprávnými možnostmi
-export const distinguishingWords = (answers, wrongLabels, extra = null) => {
+// Slova, která se opakují v mnoha názvech tématu („Státní“ ve „Státní znak …“, „vlajka“): sama nic neprozradí, jen pojmenují druh věci
+export const commonTitleWordsOf = (ctx) => {
+    if (!ctx.commonTitleWords) {
+        const counts = new Map();
+        for (const other of ctx.items) {
+            for (const word of new Set([other.n, other.t].filter(Boolean).flatMap(name => splitWords(name)).map(word => normalizeAnswer(word)).filter(word => word.length >= 4))) counts.set(word, (counts.get(word) || 0) + 1);
+        }
+        ctx.commonTitleWords = new Set([...counts].filter(([, count]) => count >= 15).map(([word]) => word));
+    }
+    return ctx.commonTitleWords;
+};
+export const distinguishingWords = (answers, wrongLabels, extra = null, common = null) => {
     const wrongStems = new Set(wrongLabels.flatMap(label => splitWords(label).flatMap(word => detectorStems(word))));
     const words = [];
     for (const answer of answers) {
         for (const word of splitWords(answer)) {
-            if (word.length < 4 || isRomanNumeral(word) || /^\d/.test(word) || SKIP_WORDS.has(word.toLowerCase()) || isGenericWord(word, extra)) continue;
+            if (word.length < 4 || isRomanNumeral(word) || /^\d/.test(word) || SKIP_WORDS.has(word.toLowerCase()) || isGenericWord(word, extra) || (common && common.has(normalizeAnswer(word)))) continue;
             const stems = detectorStems(word).filter(stem => !wrongStems.has(stem));
             if (stems.length) words.push({ word, stems });
         }
@@ -282,11 +294,12 @@ export const findLeak = (text, words) => {
     return null;
 };
 // Číselná odpověď (století, desetiletí, rok, tvrdost): číslo v textu, které ji prozradí
-const findNumberLeak = (text, question) => {
+const findNumberLeak = (text, question, item) => {
     const plain = String(text || '');
     if (question.match === 'century' && Number.isFinite(question.century)) {
         const years = plain.match(/(?<![\d,])\d{3,4}(?![\d,])/g) || [];
-        const year = years.find(value => centuryOf(Number(value)) === question.century);
+        const titleNumbers = new Set(`${item.n} ${item.t || ''}`.match(/\d+/g) || []);
+        const year = years.find(value => centuryOf(Number(value)) === question.century && !titleNumbers.has(value));
         if (year) return { word: question.answerLabel, found: year };
         const mentioned = new RegExp(`(?<![\\d])${Math.abs(question.century)}\\.\\s*stol`, 'u').exec(plain);
         return mentioned ? { word: question.answerLabel, found: mentioned[0] } : null;
@@ -346,18 +359,18 @@ export const isRepeated = (value, text) => {
 
 // --- Kontroly jedné sestavené otázky ---
 const snippet = (text, limit = 90) => { const plain = String(text || '').replace(/\s+/g, ' ').trim(); return plain.length > limit ? `${plain.slice(0, limit - 1)}…` : plain; };
-const CRITICAL = new Set(['prozrazeno', 'moznosti']);
+const CRITICAL = new Set(['prozrazeno', 'moznosti', 'obrazek']);
 export const isCritical = (finding) => CRITICAL.has(finding.kind);
 export const auditRound = (item, ctx, round) => {
     const findings = [];
     const { question } = round;
     const add = (kind, problem, text) => findings.push({ kind, problem, snippet: snippet(text), type: question.type });
     const wrongLabels = (question.choices || []).filter(choice => !choice.correct).map(choice => choice.label);
-    const words = distinguishingWords(detectorAnswers(question, item, ctx), wrongLabels, genericWordsOf(ctx));
+    const words = distinguishingWords(detectorAnswers(question, item, ctx), wrongLabels, genericWordsOf(ctx), commonTitleWordsOf(ctx));
 
     // (1) Odpověď v popisu, štítku druhu nebo v nápovědě před odhalením
-    const leakIn = (text, where) => {
-        const leak = findLeak(text, words) || findNumberLeak(text, question) || findSymbolLeak(text, question);
+    const leakIn = (text, where, numbers = true) => {
+        const leak = findLeak(text, words) || (numbers && findNumberLeak(text, question, item)) || findSymbolLeak(text, question);
         if (leak) add('prozrazeno', `${where}: „${leak.found}“ prozrazuje odpověď (${leak.word})`, text);
         return Boolean(leak);
     };
@@ -374,7 +387,7 @@ export const auditRound = (item, ctx, round) => {
             if (spec.type === 'timeline' && Array.isArray(spec.anchors)) {
                 // Na ose se ukážou jen vybrané události; stejně jako hra vyřadíme ty se jménem (hide)
                 const shown = core.buildTimeline(spec, 340).anchors.map(anchor => anchor.label);
-                leakIn(shown.join(' · '), `nápověda „${hint.label}“`);
+                leakIn(shown.join(' · '), `nápověda „${hint.label}“`, false); // názvy děl s číslem v titulu (román 1984) osu neprozradí
             } else if (texts.length) leakIn(texts.join(' · '), `nápověda „${hint.label}“`);
         }
     }
@@ -406,13 +419,38 @@ export const auditRound = (item, ctx, round) => {
     for (const choice of choices) {
         if (choice.correct || !choice.label) continue;
         if (question.match === 'century' || question.match === 'symbol' || question.match === 'formula') continue;
-        if (isAnswerMatch(choice.label, question.accepted)) add('moznosti', `nesprávná možnost „${choice.label}“ platí jako správná odpověď`, question.accepted.join(', '));
+        // Přesná shoda s přijímanou odpovědí je jistá chyba (dvě správné možnosti). Tolerantní shoda (Slovinsko ~ Slovensko) u psané odpovědi
+        // dopadne dobře – hra odmítne přesný název jiné položky –, jde jen o příliš podobné možnosti, které se hlásí bez pádu auditu.
+        if (question.accepted.some(answer => normalizeAnswer(answer) === normalizeAnswer(choice.label))) add('moznosti', `nesprávná možnost „${choice.label}“ je přesně přijímaná odpověď`, question.accepted.join(', '));
+        else if (isAnswerMatch(choice.label, question.accepted) || levenshtein(normalizeAnswer(choice.label), normalizeAnswer(question.answerLabel || '')) <= 1) add('moznosti-podobne', `nesprávná možnost „${choice.label}“ se od správné odpovědi liší jen drobností`, `${question.answerLabel} ~ ${choice.label}`);
     }
+    findings.push(...auditChoiceFit(item, ctx, question).map(found => ({ ...found, type: question.type })));
     if (choices.length && choices.length < 4) add('moznosti-malo', `jen ${choices.length} možnosti`, choices.map(choice => choice.label).join(' | '));
 
     // (4b) Otázka bez jediné nápovědy (chudý popis se hodnotí za položku, viz auditItemData)
     if (!round.hints.length && !round.questionImage && !round.leadFacts.length) add('bez-napovedy', 'otázka nemá žádnou nápovědu ani obrázek', round.questionText);
     return findings;
+};
+// Nesprávné možnosti jiné země nebo doby než správná odpověď: hráč je vyřadí podle země či století, ne podle znalosti (jen hlášení, možnosti
+// generuje a ladí jiná část kódu). Země je f.land (u filmu pole), doba první číselný údaj z born/year/y.
+const landsOfItem = (other) => [].concat(other && other.f && other.f.land ? other.f.land : []).filter(land => typeof land === 'string');
+const eraOfItem = (other) => {
+    const f = (other && other.f) || {};
+    return [f.born, f.year, f.y].find(value => Number.isFinite(value)) ?? null;
+};
+const FIT_TOPICS = new Set(['historie', 'hudba', 'literatura', 'film', 'sport', 'umeni']);
+const ERA_GAP = 200;
+export const auditChoiceFit = (item, ctx, question) => {
+    if (!FIT_TOPICS.has(ctx.topic.id) || question.type !== 'name' || question.match) return [];
+    const wrong = (question.choices || []).filter(choice => !choice.correct).map(choice => ctx.byId.get(choice.id)).filter(Boolean);
+    const lands = landsOfItem(item);
+    const era = eraOfItem(item);
+    const otherLand = lands.length ? wrong.filter(other => landsOfItem(other).length && !landsOfItem(other).some(land => lands.includes(land))) : [];
+    const otherEra = Number.isFinite(era) ? wrong.filter(other => Number.isFinite(eraOfItem(other)) && Math.abs(eraOfItem(other) - era) > ERA_GAP) : [];
+    const found = [];
+    if (otherLand.length) found.push({ kind: 'moznosti-zeme', problem: `${otherLand.length} z ${wrong.length} nesprávných možností je z jiné země než správná (${lands.join(', ')})`, snippet: otherLand.map(other => `${other.n} (${landsOfItem(other).join(', ')})`).join(' | ') });
+    if (otherEra.length) found.push({ kind: 'moznosti-doba', problem: `${otherEra.length} z ${wrong.length} nesprávných možností je o víc než ${ERA_GAP} let jinde než správná (${era})`, snippet: otherEra.map(other => `${other.n} (${eraOfItem(other)})`).join(' | ') });
+    return found;
 };
 // (4) Chudý popis: krátký popis z Wikidat nebo jen název kategorie – bez Wikipedie k odpovědi nestačí
 export const isThinDescription = (item, ctx, text) => {
@@ -423,11 +461,15 @@ export const isThinDescription = (item, ctx, text) => {
 
 // --- Rozbitá data položky (nezávisle na druhu otázky) ---
 const HTML_LIKE = /<\/?[a-z][^>]*>|&(?:amp|lt|gt|quot|nbsp|#\d+);|\{\\displaystyle|\[\*\*\*\]/i;
+export const commonsHash = (file) => crypto.createHash('md5').update(String(file).replace(/ /g, '_')).digest('hex').slice(0, 2);
 export const auditItemData = (item, ctx) => {
     const findings = [];
     const add = (problem, text) => findings.push({ kind: 'data', problem, snippet: snippet(text), type: '-' });
     if (item.im && !/^[0-9a-f]{2}$/.test(item.ih || '')) add('fotka bez hashe (ih)', item.im);
     if (!item.im && item.ih) add('hash fotky bez souboru (im)', item.ih);
+    // Adresa na Commons je odvozená z hashe názvu souboru; nesouhlasící hash = jistě rozbitý obrázek
+    if (item.im && /^[0-9a-f]{2}$/.test(item.ih || '') && commonsHash(item.im) !== item.ih) findings.push({ kind: 'obrazek', problem: `hash fotky nesouhlasí s názvem souboru (má být ${commonsHash(item.im)})`, snippet: `${item.im} (${item.ih})`, type: '-' });
+    if (item.im && /[<>|\\]|^\s|\s$/.test(item.im)) findings.push({ kind: 'obrazek', problem: 'název souboru fotky obsahuje nepřípustný znak nebo okrajové mezery', snippet: item.im, type: '-' });
     const wantsImage = ctx.topic.questionImage && ctx.topic.questionImage({ ...item, im: 'x.jpg', ih: 'ab' }, ctx, 'name');
     if (wantsImage && !(item.im && item.ih)) add('položka se spoléhá na obrázek v otázce, ale fotku nemá', item.n);
     for (const [key, value] of Object.entries({ n: item.n, t: item.t, d: item.d, ty: item.ty })) {
@@ -459,16 +501,61 @@ export const auditItem = (item, ctx, wiki = null) => {
     results.push(...auditItemData(item, ctx));
     return results.map(finding => ({ topic: ctx.topic.id, q: item.q, name: item.n, ...finding }));
 };
-export const auditTopic = (id, { limit = Infinity, wiki = null, onProgress = null } = {}) => {
+// limit = nejvýše tolik položek, sample = rovnoměrný vzorek asi tolika položek přes celé téma (každá n-tá), step = přímo ten krok
+export const auditTopic = (id, { limit = Infinity, sample = 0, step = 1, wiki = null, onProgress = null } = {}) => {
     const ctx = loadContext(id);
+    if (sample) step = Math.max(1, Math.ceil(ctx.items.length / sample));
     const findings = [];
     let count = 0;
-    for (const item of ctx.items) {
-        if (count++ >= limit) break;
-        findings.push(...auditItem(item, ctx, wiki));
+    for (let index = 0; index < ctx.items.length; index += step) {
+        if (count++ >= limit) { count--; break; }
+        findings.push(...auditItem(ctx.items[index], ctx, wiki));
         if (onProgress && count % 500 === 0) onProgress(count, ctx.items.length);
     }
-    return { topic: ctx.topic, items: Math.min(count, ctx.items.length), findings };
+    if (limit === Infinity && step === 1) findings.push(...auditTopicData(ctx));
+    return { topic: ctx.topic, items: count, total: ctx.items.length, findings };
+};
+
+// Kontroly celého tématu (ne jedné otázky): nejednoznačná psaná odpověď a odkazy z data/photo-*.json
+export const auditTopicData = (ctx) => {
+    const findings = [];
+    const add = (item, kind, problem, text) => findings.push({ topic: ctx.topic.id, q: item ? item.q : '-', name: item ? item.n : '-', kind, problem, snippet: snippet(text), type: 'name' });
+    // Stejná psaná odpověď (název, titul, příjmení, alias) platí u dvou položek: která z nich se myslí?
+    const owners = new Map();
+    for (const item of ctx.items) {
+        const aliases = ctx.topic.nameAliases ? ctx.topic.nameAliases(item, ctx) : [];
+        for (const answer of new Set(nameAnswers(item, aliases).map(normalizeAnswer).filter(answer => answer.length >= 3))) {
+            if (!owners.has(answer)) owners.set(answer, []);
+            owners.get(answer).push(item);
+        }
+    }
+    for (const [answer, list] of owners) {
+        const distinct = list.filter((item, index) => list.findIndex(other => other.q === item.q) === index);
+        if (distinct.length < 2) continue;
+        const categories = new Set(distinct.map(item => item.c));
+        add(distinct[0], 'aliasy', `odpověď „${answer}“ platí pro ${distinct.length} položek${categories.size > 1 ? ' z různých okruhů' : ''}`, distinct.slice(0, 4).map(item => `${item.n} [${item.q}]`).join(' | '));
+    }
+    const ids = new Set();
+    for (const item of ctx.items) {
+        if (ids.has(item.q)) add(item, 'data', 'duplicitní identifikátor položky (q)', item.q);
+        ids.add(item.q);
+    }
+    // Stejná fotka u dvou položek téže kategorie: buď duplicitní položka (stejný druh dvakrát), nebo fotka patří jen jedné z nich (nejisté, jen hlášení)
+    const byPhoto = new Map();
+    for (const item of ctx.items) if (item.im) byPhoto.set(`${item.c}|${item.im}`, [...(byPhoto.get(`${item.c}|${item.im}`) || []), item]);
+    for (const list of byPhoto.values()) {
+        if (list.length > 1) add(list[0], 'obrazek-sdileny', `stejnou fotku mají i další položky okruhu (${list.length}×)`, list.map(item => `${item.n} [${item.q}]`).join(' | '));
+    }
+    for (const qid of safeJson('data/photo-text.json', {})[ctx.topic.id] || []) {
+        const item = ctx.byId.get(qid);
+        if (!item) add(null, 'obrazek', `photo-text.json odkazuje na neexistující položku ${qid}`, qid);
+        else if (!item.im) add(item, 'obrazek', 'photo-text.json označuje položku bez fotky', qid);
+    }
+    for (const item of ctx.items) {
+        const masks = item.im && (ctx.photoMasks || {})[item.im];
+        if (masks && !(Array.isArray(masks) && masks.every(box => Array.isArray(box) && box.length === 4 && box.every(Number.isFinite) && box[0] >= 0 && box[1] >= 0 && box[2] > 0 && box[3] > 0 && box[0] + box[2] <= 1.001 && box[1] + box[3] <= 1.001))) add(item, 'obrazek', 'rozbitý rámeček v photo-masks.json (čekáno [x, y, šířka, výška] jako podíl fotky)', JSON.stringify(masks));
+    }
+    return findings;
 };
 
 // --- Výjimky: odůvodněný seznam známých nálezů, které se nepočítají jako kritické (scripts/audit-allowlist.json) ---

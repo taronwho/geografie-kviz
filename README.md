@@ -84,6 +84,11 @@ Jádro a aplikace je uplatní samy, téma pro ně nemusí nic dělat:
   přestavbě dat ho spusťte znovu. Pak `npm run audit:photo-masks` najde u označených fotek polohu nápisu a zapíše
   `data/photo-masks.json` – taková fotka se nápovědou ukáže s rozmazaným nápisem (po odpovědi celá). Vynechá se jen
   fotka, u které poloha nápisu známá není. Náhled zakrytí: `PREVIEW=složka npm run audit:photo-masks -- téma`.
+- **Audit otázek:** `npm run audit:questions` (volitelně `-- --sample=300`, `--topic=historie,hudba`, `--all`) projde témata a sestaví otázky jako hra
+  (`scripts/lib/audit.mjs`). Hlásí odpověď prozrazenou v popisu či nápovědách, nápovědy opakující popis, dvě správné či příliš podobné možnosti,
+  nesprávné možnosti jiné země/doby, chudé popisy, rozbité odkazy na obrázky (hash souboru na Commons) a nejednoznačné psané odpovědi (aliasy).
+  Zapíše `reports/audit-otazek.md` (souhrn) a `reports/audit-otazek.json` (vše); exit kód je nenulový jen u jistých chyb, které nejsou
+  v `scripts/audit-allowlist.json`.
 
 ## Účty a hra více hráčů
 

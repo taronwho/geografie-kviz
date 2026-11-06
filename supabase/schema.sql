@@ -847,3 +847,60 @@ $$;
 revoke all on function public.dev_check(), public.dev_is_bot(uuid), public.dev_bots_play(uuid) from public, anon, authenticated;
 revoke all on function public.dev_tournament_add_bots(uuid, integer), public.dev_tournament_start_now(uuid), public.dev_tournament_next_round(uuid), public.dev_tournament_clear_bots(), public.dev_tournament_reset() from public, anon;
 grant execute on function public.dev_tournament_add_bots(uuid, integer), public.dev_tournament_start_now(uuid), public.dev_tournament_next_round(uuid), public.dev_tournament_clear_bots(), public.dev_tournament_reset() to authenticated;
+
+-- ===== Hlášení chyb v otázkách =====
+-- Hráč v okně otázky nahlásí chybu (špatná odpověď, nejasné zadání, špatný obrázek, jiné) s volitelným textem. Vložit smí jen vlastní
+-- hlášení (omezená délka, nejvýš 20 za 24 hodin), číst a mazat je smí jen dev_admins (seznam ve vývojářském panelu v Nastavení).
+create table if not exists public.question_reports (
+    id bigint generated always as identity primary key,
+    user_id uuid not null references public.profiles (id) on delete cascade,
+    topic text not null,
+    item_id text not null,
+    question_type text not null default '',
+    reason text not null,
+    note text not null default '',
+    title text not null default '',
+    answer text not null default '',
+    created_at timestamptz not null default now(),
+    constraint question_reports_topic_format check (topic ~ '^[a-z0-9-]{1,24}$'),
+    constraint question_reports_item_format check (item_id ~ '^[A-Za-z0-9_.:-]{1,40}$'),
+    constraint question_reports_type_len check (char_length(question_type) <= 24),
+    constraint question_reports_reason_values check (reason in ('spatna-odpoved', 'nejasne-zadani', 'spatny-obrazek', 'jine')),
+    constraint question_reports_note_len check (char_length(note) <= 500),
+    constraint question_reports_title_len check (char_length(title) <= 200),
+    constraint question_reports_answer_len check (char_length(answer) <= 200)
+);
+create index if not exists question_reports_user_created_idx on public.question_reports (user_id, created_at desc);
+create index if not exists question_reports_created_idx on public.question_reports (created_at desc);
+alter table public.question_reports enable row level security;
+
+-- Je přihlášený hráč v dev_admins? (dev_admins samo hráči čtení nedovolí, proto funkce s právy vlastníka)
+create or replace function public.is_dev_admin() returns boolean
+language sql stable security definer set search_path = public as $$
+    select auth.uid() is not null and exists (select 1 from public.dev_admins where user_id = auth.uid());
+$$;
+revoke all on function public.is_dev_admin() from public, anon;
+grant execute on function public.is_dev_admin() to authenticated;
+
+-- Denní limit hlášení: jeden hráč nejvýš 20 za posledních 24 hodin (zpráva se hráči ukáže tak, jak je)
+create or replace function public.question_reports_limit() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+    if (select count(*) from public.question_reports where user_id = new.user_id and created_at > now() - interval '24 hours') >= 20 then
+        raise exception 'Dnes už jsi poslal hodně hlášení, zkus to zítra.' using errcode = 'P0001';
+    end if;
+    return new;
+end;
+$$;
+drop trigger if exists question_reports_limit on public.question_reports;
+create trigger question_reports_limit before insert on public.question_reports for each row execute function public.question_reports_limit();
+
+drop policy if exists "hlášení otázek: vkládá hráč sám" on public.question_reports;
+create policy "hlášení otázek: vkládá hráč sám" on public.question_reports for insert to authenticated with check (user_id = auth.uid());
+drop policy if exists "hlášení otázek: čtou dev_admins" on public.question_reports;
+create policy "hlášení otázek: čtou dev_admins" on public.question_reports for select to authenticated using (public.is_dev_admin());
+drop policy if exists "hlášení otázek: mažou dev_admins" on public.question_reports;
+create policy "hlášení otázek: mažou dev_admins" on public.question_reports for delete to authenticated using (public.is_dev_admin());
+revoke all on public.question_reports from anon, authenticated;
+grant select, insert, delete on public.question_reports to authenticated;
+revoke all on function public.question_reports_limit() from public, anon, authenticated;

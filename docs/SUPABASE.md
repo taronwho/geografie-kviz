@@ -122,6 +122,7 @@ Bez něj se karta turnaje v aplikaci prostě neukáže.
   (smaže i turnaje, ve kterých boti hráli). Boti hrají na střední úrovni (úspěšnost 45–80 %). Databáze tyto funkce pustí jen účtu zapsanému v `dev_admins`; zapiš se jednou v SQL Editoru
   (přezdívku nahraď svou): `insert into public.dev_admins (user_id) select id from public.profiles where lower(display_name) = lower('Taron');`
   Boti jsou řádky v `auth.users` s e-mailem `bot-…@bots.invalid`; ostrý provoz s nimi nepočítej a po zkoušce je smaž.
+- **Hlášení chyb v otázkách:** tlačítko „Nahlásit chybu“ (vlajka) v okně otázky a po odpovědi uloží hlášení do tabulky `question_reports` (důvod + volitelný text, nejvýš 20 za 24 hodin na hráče, délky hlídá databáze). Bez připojení se hlášení uloží v zařízení a odešle později; bez účtu hra hráči přátelsky poradí přihlášení. Číst a mazat hlášení smí jen účet v `dev_admins`: v Nastavení v režimu vývojáře (`?vyvojar`) je oddíl „Hlášení otázek“ se seznamem a tlačítkem Vyřízeno. Po aktualizaci spusť znovu celé `supabase/schema.sql` (přibyla tabulka `question_reports`, funkce `is_dev_admin()` a spoušť s denním limitem).
 - Odznaky za turnaje (`turnaj-*`) a za zběhlost v tématech (`zbehly-*`) jsou v `badge_catalog()`; přibude-li další odznak, přidej ho i tam.
 
 ## Jak to v aplikaci funguje
