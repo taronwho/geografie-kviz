@@ -1,0 +1,40 @@
+# Upozornění (web push): jednou za hodinu zavolá v databázi funkci push_due (kdo má co dostat: nový zápas turnaje, výzva, výsledek výzvy)
+# a pošle je přes knihovnu web-push. Bez service_role klíče: databáze se prokazuje veřejným klíčem z config.js a tajemstvím PUSH_CRON_SECRET.
+# Potřebuje secrets VAPID_PRIVATE_KEY a PUSH_CRON_SECRET (Settings → Secrets and variables → Actions, viz docs/SUPABASE.md).
+# Plánované spouštění funguje jen z výchozí větve; bez secrets se běh jen zapíše do logu a skončí bez chyby.
+name: Upozornění
+
+on:
+  schedule:
+    - cron: '23 5-20 * * *'   # každou hodinu od 5 do 20 UTC; skript sám neposílá mimo 7:00 až 21:00 pražského času
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Jen vypsat, co by se poslalo (true)'
+        required: false
+        default: 'false'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: push
+
+jobs:
+  push:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Knihovna web-push
+        run: npm install --no-save --no-audit --no-fund web-push@3.6.7
+      - name: Odeslání
+        env:
+          VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
+          PUSH_CRON_SECRET: ${{ secrets.PUSH_CRON_SECRET }}
+          VAPID_SUBJECT: ${{ vars.VAPID_SUBJECT }}
+          DRY_RUN: ${{ github.event.inputs.dry_run }}
+        run: node scripts/send-push.mjs

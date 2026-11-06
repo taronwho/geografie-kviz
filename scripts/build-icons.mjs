@@ -20,7 +20,7 @@ const ICONS = [
     'book-open-text', 'scroll-text', 'clapperboard', 'film', 'popcorn', 'video', 'palette', 'brush', 'frame', 'shield', 'sparkles',
     'sun', 'moon', 'ghost', 'medal', 'dumbbell', 'bike', 'footprints', 'church', 'building', 'columns-3', 'pickaxe', 'mountain-snow',
     'hammer', 'clock', 'timer', 'calendar', 'drama', 'person-standing', 'user-round', 'venetian-mask', 'wand-sparkles', 'award', 'goal',
-    'volleyball', 'hexagon', 'diamond', 'sword', 'skull', 'pyramid', 'triangle', 'tent'
+    'volleyball', 'hexagon', 'diamond', 'sword', 'skull', 'pyramid', 'triangle', 'tent', 'bell', 'bell-off'
 ];
 
 const toPascalCase = (name) => name.replace(/(^|-)(\w)/g, (_, __, letter) => letter.toUpperCase());

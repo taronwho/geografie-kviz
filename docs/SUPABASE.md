@@ -124,6 +124,34 @@ Bez něj se karta turnaje v aplikaci prostě neukáže.
   Boti jsou řádky v `auth.users` s e-mailem `bot-…@bots.invalid`; ostrý provoz s nimi nepočítej a po zkoušce je smaž.
 - Odznaky za turnaje (`turnaj-*`) a za zběhlost v tématech (`zbehly-*`) jsou v `badge_catalog()`; přibude-li další odznak, přidej ho i tam.
 
+## Upozornění (web push)
+
+Aplikace umí poslat upozornění: **začíná tvůj turnajový zápas** (dnes hraješ kolo, večer podruhé), **nová výzva od hráče**, **soupeř odehrál tvoji výzvu** a **zpráva o turnaji** (nepřijat, zrušen, vypadl jsi, výsledek).
+Supabase nemá plánovač, proto odesílá GitHub Actions (`.github/workflows/push.yml`, jednou za hodinu mezi 7:00 a 21:00 pražského času). Nepoužívá se žádný klíč `service_role` ani `sb_secret_…`:
+odesílač volá v databázi funkce `push_due` a `push_mark` s veřejným klíčem z `config.js` a vlastním tajemstvím, které leží jen v tabulce `app_secrets` (přes API ji nejde ani přečíst) a v GitHub secrets.
+Bez níže popsaného nastavení se v aplikaci tlačítko „Zapnout upozornění“ vůbec neukáže a nic se neposílá.
+
+**Souhlas a odhlášení:** upozornění vzniknou až po klepnutí na **Nastavení → Hra → Zapnout upozornění** a po souhlasu v prohlížeči. Tamtéž jdou vypnout (smaže se předplatné v prohlížeči i v databázi)
+a jdou odděleně zapnout/vypnout turnaje a výzvy. **Odhlášení z účtu** předplatné na tom zařízení také smaže, takže jiný hráč na sdíleném telefonu nic cizího nedostane. Předplatné vidí a maže jen jeho vlastník (RLS);
+odběry, které prohlížeč zrušil (odpověď 404/410), nebo které třikrát selhaly, server smaže sám. Zpráva o stejné věci se pošle nejvýš jednou, od každého druhu nejvýš jedna za hodinu.
+
+Jednorázové nastavení:
+
+1. **Databáze:** spusť znovu celý `supabase/schema.sql` (přibyly tabulky `push_subscriptions`, `app_secrets`, `push_sent`, sloupce `profiles.push_tournament` a `push_challenge` a funkce `push_*`).
+2. **Klíče VAPID** (na svém počítači, potřebuješ Node.js): `npx web-push generate-vapid-keys`. Vypíše *Public Key* a *Private Key*.
+3. **Veřejný klíč** vlož do `config.js` jako `vapidPublicKey: '…'` (je veřejný, patří do repozitáře) a změnu nasaď.
+4. **Tajemství pro odesílače:** vymysli dlouhý náhodný řetězec (16 až 200 znaků, např. `openssl rand -hex 32`) a vlož ho do Supabase SQL Editoru (nahraď `TAJEMSTVI`):
+   `insert into public.app_secrets (name, value) values ('push_cron', 'TAJEMSTVI') on conflict (name) do update set value = excluded.value;`
+5. **GitHub secrets** (repozitář → Settings → Secrets and variables → Actions → *New repository secret*):
+   - `VAPID_PRIVATE_KEY`: *Private Key* z kroku 2 (nikam jinam ho nevkládej),
+   - `PUSH_CRON_SECRET`: stejné tajemství jako v kroku 4.
+   Volitelně v záložce *Variables* proměnná `VAPID_SUBJECT` (kontakt provozovatele, `mailto:tvuj@email.cz`); výchozí je adresa aplikace.
+6. **Vyzkoušení:** Actions → *Upozornění* → **Run workflow** (s `dry_run` = `true` jen vypíše, co by poslal). Plánované spouštění funguje jen z výchozí větve (`main`).
+   V aplikaci zapni upozornění a zkus založit výzvu ze druhého účtu; upozornění přijde nejpozději při dalším hodinovém běhu.
+
+Poznámky: na iPhonu fungují upozornění jen v aplikaci přidané na plochu (iOS 16.4 a novější). Výměna klíčů VAPID zneplatní všechna předplatná, hráči si upozornění zapnou znovu.
+Chceš-li odesílat častěji než po hodině, uprav `cron` v `push.yml` (GitHub plánované běhy občas zpožďuje o několik minut).
+
 ## Jak to v aplikaci funguje
 
 - `auth.js` volá Supabase Auth přes REST (bez knihovny, kvůli přísné CSP bez cizích skriptů); klíč jde v hlavičce `apikey`.

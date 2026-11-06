@@ -3,7 +3,7 @@
 // a otevřenou aplikaci obnoví (jinak by se o nové verzi nedozvěděla)
 const CACHE_NAME = 'mudrlant-v3';
 const APP_SHELL = [
-    './', 'index.html', 'styles.css', 'config.js', 'auth.js', 'social.js', 'icons.js', 'quiz-core.js', 'visuals.js', 'look-flags.js', 'look.js', 'look-themes.js', 'look-robes.js', 'look-frames.js', 'look-owl.js', 'rating.js', 'tournament.js', 'tutorial.js', 'app.js', 'manifest.webmanifest',
+    './', 'index.html', 'styles.css', 'config.js', 'auth.js', 'social.js', 'icons.js', 'quiz-core.js', 'visuals.js', 'look-flags.js', 'look.js', 'look-themes.js', 'look-robes.js', 'look-frames.js', 'look-owl.js', 'rating.js', 'tournament.js', 'tutorial.js', 'push.js', 'app.js', 'manifest.webmanifest',
     'topics/zemepis.js', 'data/zemepis.json', 'topics/historie.js', 'data/historie.json', 'topics/biologie.js', 'data/biologie.json',
     'topics/chemie.js', 'data/chemie.json', 'topics/fyzika.js', 'data/fyzika.json',
     'topics/vlajky.js', 'data/vlajky.json', 'topics/mytologie.js', 'data/mytologie.json', 'topics/geologie.js', 'data/geologie.json',
@@ -60,5 +60,32 @@ self.addEventListener('fetch', (event) => {
         if (!cached) return fromNetwork.catch(() => Response.error());
         const slow = new Promise(resolve => setTimeout(() => resolve(cached), NETWORK_WAIT));
         return Promise.race([fromNetwork.catch(() => cached), slow]);
+    })());
+});
+
+// Web push (odesílá GitHub Actions, viz docs/SUPABASE.md): ukáže upozornění a po klepnutí otevře aplikaci na záložce Více hráčů
+const pushText = (value, max, fallback) => (typeof value === 'string' && value.trim() ? value.trim().slice(0, max) : fallback);
+self.addEventListener('push', (event) => {
+    let data = {};
+    try { data = event.data ? event.data.json() : {}; } catch (error) { data = {}; }
+    if (!data || typeof data !== 'object') data = {};
+    event.waitUntil(self.registration.showNotification(pushText(data.title, 80, 'Mudrlant'), {
+        body: pushText(data.body, 200, ''), icon: 'icons/icon-192.png', tag: pushText(data.kind, 30, 'mudrlant'), data: { url: pushText(data.url, 200, './') }
+    }));
+});
+self.addEventListener('notificationclick', (event) => {
+    event.notification.close();
+    const scope = new URL(self.registration.scope);
+    let target = new URL((event.notification.data && event.notification.data.url) || './', scope);
+    if (target.origin !== scope.origin) target = scope;
+    event.waitUntil((async () => {
+        const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+        const open = windows.find(client => new URL(client.url).origin === scope.origin);
+        if (open) {
+            await open.focus();
+            open.postMessage({ type: 'push-open', tab: target.searchParams.get('tab') || '' });
+        } else {
+            await self.clients.openWindow(target.href);
+        }
     })());
 });

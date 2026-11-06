@@ -226,6 +226,30 @@ test('SQL: web push (odběry, tajemství, push_due, push_mark)', { skip: !availa
         q(`delete from push_sent`);
     });
 
+    await t.test('výsledek výzvy: zakladatel se dozví, že vyzvaný odehrál; jednou, jen se souhlasem, ne u vlastní výzvy', () => {
+        q(`delete from push_sent`);
+        ok(as(id(3), TUE, `select push_subscribe('${endpointOf(33)}', '${P256DH}', '${AUTH}');`));
+        const mine = () => dueRows(TUE, 9).filter(row => row.kind === 'challenge' && row.user === id(3));
+        assert.equal(mine().length, 0, 'bez výsledku nic');
+        ok(as(id(1), TUE, `insert into challenge_results (challenge_id, user_id, correct, points) values ('ABCDE3', '${id(1)}', 7, 20);`));
+        const rows = mine();
+        assert.equal(rows.length, 1);
+        assert.equal(rows[0].title, 'Hráč 1 odehrál tvoji výzvu');
+        assert.equal(rows[0].body, 'Dal 7 z 10 správně. Podívej se, jak jsi na tom ty.');
+        assert.equal(rows[0].key, `chalr:ABCDE3:${id(3)}`);
+        // výsledek zakladatele samotného nic nespouští
+        ok(as(id(3), TUE, `insert into challenge_results (challenge_id, user_id, correct, points) values ('ABCDE3', '${id(3)}', 4, 8);`));
+        assert.equal(mine().length, 1);
+        mark([rows[0].key], { okEndpoints: [rows[0].endpoint] });
+        assert.equal(mine().length, 0, 'odeslané se neopakuje');
+        assert.equal(q(`select kind from push_sent where dedupe_key = '${rows[0].key}'`), 'challenge');
+        q(`delete from push_sent`);
+        ok(as(id(3), TUE, `update profiles set push_challenge = false where id = '${id(3)}';`));
+        assert.equal(mine().length, 0, 'vypnuté výzvy');
+        ok(as(id(3), TUE, `update profiles set push_challenge = true where id = '${id(3)}';`));
+        q(`delete from challenge_results where challenge_id = 'ABCDE3'; delete from push_subscriptions where endpoint = '${endpointOf(33)}'; delete from push_sent;`);
+    });
+
     await t.test('push_mark: chyby se počítají, po třech odběr mizí, 404/410 maže hned, úspěch nuluje; staré push_sent se uklidí', () => {
         ok(as(id(1), TUE, `select push_subscribe('${endpointOf(5)}', '${P256DH}', '${AUTH}');`));
         mark(['chal:ABCDE3:' + id(1)], { failed: [endpointOf(5)] });

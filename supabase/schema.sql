@@ -943,7 +943,7 @@ language sql immutable as $$
             when 8 then 'čtvrtfinále' when 4 then 'semifinále' when 2 then 'finále' else 'kolo' end end
 $$;
 
--- Co poslat: (a) dnešní neodehraný turnajový zápas, (b) nevyřízená příchozí výzva mladší než 3 dny, (c) nepřečtená zpráva o turnaji.
+-- Co poslat: (a) dnešní neodehraný turnajový zápas, (b) nevyřízená příchozí výzva mladší než 3 dny a výsledek výzvy, kterou hráč založil, (c) nepřečtená zpráva o turnaji.
 -- Jeden řádek na odběr (zařízení); z každého druhu nejvýš jedna věc na hráče a běh a nic, co téhož druhu dostal v poslední hodině.
 drop function if exists public.push_due(text);
 create or replace function public.push_due(secret text) returns table (
@@ -982,6 +982,15 @@ begin
         where c.invited_id is not null and c.created_at > now() - interval '3 days'
             and not exists (select 1 from public.challenge_results r where r.challenge_id = c.id and r.user_id = c.invited_id)
         union all
+        select c.creator_id, 'challenge', coalesce(op.display_name, 'Hráč') || ' odehrál tvoji výzvu',
+            'Dal ' || r.correct || ' z ' || c.count || ' správně. Podívej se, jak jsi na tom ty.', './?tab=multi',
+            'chalr:' || c.id || ':' || c.creator_id, r.finished_at::text
+        from public.challenges c
+        join public.challenge_results r on r.challenge_id = c.id and r.user_id = c.invited_id
+        join public.profiles me on me.id = c.creator_id and me.push_challenge
+        left join public.profiles op on op.id = c.invited_id
+        where c.invited_id is not null and c.invited_id <> c.creator_id and r.finished_at > now() - interval '3 days'
+        union all
         select n.user_id, 'notice',
             case n.kind when 'excluded_full' then 'Turnaj bez tebe' when 'cancelled' then 'Turnaj se zrušil' when 'eliminated_noplay' then 'Vypadl jsi z turnaje' else 'Turnaj skončil' end,
             case n.kind
@@ -1016,7 +1025,7 @@ begin
     perform public.push_check_secret(secret);
     insert into public.push_sent (dedupe_key, user_id, kind)
     select k, case when split_part(k, ':', 3) ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then split_part(k, ':', 3)::uuid end,
-        case split_part(k, ':', 1) when 'tour' then 'tournament' when 'chal' then 'challenge' when 'notice' then 'notice' end
+        case split_part(k, ':', 1) when 'tour' then 'tournament' when 'chal' then 'challenge' when 'chalr' then 'challenge' when 'notice' then 'notice' end
     from unnest(coalesce(keys, '{}')) k where char_length(k) between 1 and 200
     on conflict (dedupe_key) do nothing;
     update public.push_subscriptions set last_ok = now(), fails = 0 where endpoint = any (coalesce(ok_endpoints, '{}'));
