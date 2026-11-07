@@ -11,6 +11,8 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { createRequire } from 'node:module';
 
+import { QUESTION_IMAGE_TOPICS, fileNameWords } from './lib/photo-words.mjs';
+
 const require = createRequire(import.meta.url);
 const core = require('../quiz-core.js');
 const run = promisify(execFile);
@@ -29,8 +31,8 @@ if (PREVIEW) fs.mkdirSync(PREVIEW, { recursive: true });
 const GENERIC = new Set(['národní', 'park', 'hrad', 'zámek', 'most', 'kostel', 'katedrála', 'chrám', 'palác', 'věž', 'ostrov', 'řeka', 'hora',
     'jezero', 'moře', 'válka', 'bitva', 'socha', 'obraz', 'film', 'album', 'opera', 'symfonie', 'svatý', 'svatého', 'saint', 'the', 'and', 'von', 'van', 'der', 'della']);
 const plain = (text) => core.normalizeAnswer(text).replace(/[^a-z0-9]+/g, ' ').trim();
-const nameWords = (item) => {
-    const words = new Set();
+const nameWords = (item, topic = '') => {
+    const words = new Set(QUESTION_IMAGE_TOPICS.has(topic) ? fileNameWords(item.im, plain) : []);
     for (const name of [item.n, core.displayName(item.t || ''), ...(item.al || [])].filter(Boolean)) {
         for (const word of name.split(/[\s,.:;!?()'"–-]+/)) {
             const key = plain(word);
@@ -162,7 +164,7 @@ for (const topic of topics) {
         fs.writeFileSync(image, body);
         try {
             const size = await imageSize(image);
-            const masks = masksFor(await readWords(item, image), nameWords(item), size);
+            const masks = masksFor(await readWords(item, image), nameWords(item, topic), size);
             if (masks.length) {
                 result[item.im] = masks;
                 masked++;

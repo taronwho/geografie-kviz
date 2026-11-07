@@ -194,6 +194,20 @@ test('psaná odpověď: přízvisko není příjmení („mladší“ neplatí z
     assert.ok(!core.isAnswerMatch('Čong-un', core.nameAnswers(find(historie, 'Kim Čong-un'))));
 });
 
+test('vlajky: nápis s odpovědí na vlajce či znaku (CALIFORNIA REPUBLIC, FIFA) se na obrázku otázky rozmaže', async () => {
+    const photoText = JSON.parse(fs.readFileSync(path.join(P.ROOT, 'data', 'photo-text.json'), 'utf8'));
+    const photoMasks = JSON.parse(fs.readFileSync(path.join(P.ROOT, 'data', 'photo-masks.json'), 'utf8'));
+    const ctx = P.loadContext('vlajky');
+    const flagged = (photoText.vlajky || []).map(id => ctx.byId.get(id)).filter(Boolean);
+    for (const name of ['Kalifornie', 'Kansas', 'FIFA', 'Oregon']) assert.ok(flagged.some(item => item.n === name), name);
+    // Obrázek otázky je u vlajek celý vidět hned: každý označený musí mít známou polohu nápisu
+    assert.deepEqual(flagged.filter(item => !photoMasks[item.im]).map(item => item.n), []);
+    const { fileNameWords } = await import('../scripts/lib/photo-words.mjs');
+    const plain = (text) => core.normalizeAnswer(text).replace(/[^a-z0-9]+/g, ' ').trim();
+    assert.deepEqual(fileNameWords('Flag of California.svg', plain), ['california']);
+    assert.deepEqual(fileNameWords('Emblem of Astana (latin).svg', plain), ['astana']);
+});
+
 test('popis: víceslovný region za „ve státě“ se zakryje celý (ne „[***] York“)', () => {
     assert.equal(core.censorCountry('v Lake Placid ve státě New York v USA.', 'Spojené státy americké', []), 'v Lake Placid [***] v USA.');
 });

@@ -11,6 +11,8 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { createRequire } from 'node:module';
 
+import { QUESTION_IMAGE_TOPICS, fileNameWords } from './lib/photo-words.mjs';
+
 const require = createRequire(import.meta.url);
 const core = require('../quiz-core.js');
 const run = promisify(execFile);
@@ -32,9 +34,9 @@ const wanted = process.argv.slice(2).length ? process.argv.slice(2) : [...ORDER.
 const GENERIC = new Set(['národní', 'park', 'hrad', 'zámek', 'most', 'kostel', 'katedrála', 'chrám', 'palác', 'věž', 'ostrov', 'řeka', 'hora',
     'jezero', 'moře', 'válka', 'bitva', 'socha', 'obraz', 'film', 'album', 'opera', 'symfonie', 'svatý', 'svatého', 'saint', 'the', 'and', 'von', 'van', 'der', 'della']);
 const plain = (text) => core.normalizeAnswer(text).replace(/[^a-z0-9]+/g, ' ').trim();
-const nameWords = (item) => {
+const nameWords = (item, topic = '') => {
     const names = [item.n, core.displayName(item.t || ''), ...(item.al || [])].filter(Boolean);
-    const words = new Set();
+    const words = new Set(QUESTION_IMAGE_TOPICS.has(topic) ? fileNameWords(item.im, plain) : []);
     for (const name of names) {
         for (const word of name.split(/[\s,.:;!?()'"–-]+/)) {
             const key = plain(word);
@@ -93,7 +95,8 @@ for (const topic of wanted) {
     if (!fs.existsSync(file)) continue;
     // OCR_SKIP=starý-soubor.json: položky, které v něm už byly (a jsou přečtené), se nečtou znovu a jejich dosavadní výsledek zůstane
     const skip = process.env.OCR_SKIP ? new Set((JSON.parse(fs.readFileSync(process.env.OCR_SKIP, 'utf8')).items || []).map(item => item.q)) : new Set();
-    const items = (JSON.parse(fs.readFileSync(file, 'utf8')).items || []).filter(item => item.im && item.ih && core.isRealPhoto(item.im) && !skip.has(item.q));
+    // U témat, kde je obrázek přímo otázkou (vlajky, znaky), i kresby – nápis na nich prozradí odpověď hned
+    const items = (JSON.parse(fs.readFileSync(file, 'utf8')).items || []).filter(item => item.im && item.ih && (core.isRealPhoto(item.im) || QUESTION_IMAGE_TOPICS.has(topic)) && !skip.has(item.q));
     const flagged = new Set((result[topic] || []).filter(qid => skip.has(qid)));
     let done = 0;
     let missing = 0;
@@ -104,7 +107,7 @@ for (const topic of wanted) {
             const text = await readText(item);
             if (text === null) missing++;
             const tokens = plain(text || '').split(' ').filter(Boolean);
-            const words = nameWords(item);
+            const words = nameWords(item, topic);
             if (words.length && words.some(word => found(tokens, word))) flagged.add(item.q);
             if (++done % 100 === 0) console.log(`${topic}: ${done}/${items.length}, s textem odpovědi ${flagged.size}`);
         }
