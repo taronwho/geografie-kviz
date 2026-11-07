@@ -152,7 +152,7 @@
                     </div>
                 </div>
                 <div class="mt-2 flex items-center justify-between gap-2">
-                    <button type="button" data-tut-skip class="rounded-xl px-3 py-2 text-[13px] font-bold text-slate-500 underline underline-offset-2 active:scale-95 dark:text-slate-400">Přeskočit</button>
+                    <button type="button" data-tut-skip class="rounded-xl px-3 py-2.5 text-[13px] font-bold text-slate-500 underline underline-offset-2 active:scale-95 dark:text-slate-400">Přeskočit</button>
                     <button type="button" data-tut-skipstep class="hidden rounded-xl btn-3d bg-slate-200 px-4 py-2 text-[13px] font-black text-slate-700 active:scale-95 dark:bg-slate-700 dark:text-slate-100">Přeskočit krok</button>
                     <button type="button" data-tut-next class="hidden rounded-xl btn-3d bg-brand-700 px-4 py-2 text-[13px] font-black text-white active:scale-95">Dál</button>
                 </div>

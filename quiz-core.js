@@ -1570,7 +1570,7 @@
         BADGE_GROUPS.push(group);
     };
     const T = (goal, title, id) => ({ goal, title, id });
-    addGroup('odpovedi', 'Správné odpovědi', 'target', (c) => c.correct, (g) => `${g} správných odpovědí.`,
+    addGroup('odpovedi', 'Správné odpovědi', 'target', (c) => c.correct, (g) => g === 1 ? 'První správná odpověď.' : `${g} správných odpovědí.`,
         [T(1, 'První krok', 'prvni-krok'), T(10, 'Rozjezd'), T(50, 'Pětapadesátka'), T(100, 'Stovka', 'stovka'), T(250, 'Čtvrt tisíce'), T(500, 'Pětistovka'),
             T(1000, 'Tisícovka', 'tisicovka'), T(2500, 'Dva a půl tisíce'), T(5000, 'Pět tisíc'), T(10000, 'Deset tisíc')]);
     addGroup('rada', 'Správně v řadě', 'zap', (c) => c.bestRun, (g) => `${g} správných odpovědí v řadě.`,

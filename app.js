@@ -602,12 +602,12 @@
         appContent.innerHTML = `
             <div class="fade-in flex min-h-full flex-col justify-center gap-4 p-6">
                 <div class="mb-2 text-center">
-                    <img src="icons/topics/sova-premysleni.webp" alt="" class="mx-auto mb-3 h-36 w-36 object-contain drop-shadow-lg">
+                    <img src="icons/topics/sova-premysleni.webp" alt="" class="mx-auto mb-3 h-36 w-36 object-contain drop-shadow-lg [@media(max-height:700px)]:h-28 [@media(max-height:700px)]:w-28">
                     <h2 class="text-2xl font-black text-slate-800 dark:text-slate-50">Vítej v Mudrlantovi</h2>
                     <p class="mt-2 text-sm text-slate-500 dark:text-slate-400">Kvíz ze zeměpisu a dalších oborů. Jak chceš odpovídat? Změníš to kdykoli v nastavení vpravo nahoře.</p>
                 </div>
                 <div id="variant-welcome" class="flex flex-col gap-3">${renderVariantCards(null)}</div>
-                <p class="mt-2 text-center text-xs text-slate-500 dark:text-slate-400"><a href="soukromi.html" class="rounded-lg px-1.5 py-2 font-bold underline underline-offset-2">Ochrana osobních údajů</a> · <a href="licence.html" class="rounded-lg px-1.5 py-2 font-bold underline underline-offset-2">Zdroje a licence</a></p>
+                <p class="mt-2 text-center text-xs text-slate-500 dark:text-slate-400"><a href="soukromi.html" class="inline-block rounded-lg px-1.5 py-3 font-bold underline underline-offset-2">Ochrana osobních údajů</a> · <a href="licence.html" class="inline-block rounded-lg px-1.5 py-3 font-bold underline underline-offset-2">Zdroje a licence</a></p>
             </div>`;
         renderIcons(appContent);
         updateControlsUI();
@@ -841,7 +841,7 @@
     const renderDevPanel = () => !devOn() ? '' : `
         <div class="mt-3 rounded-2xl border-2 border-dashed border-amber-400/70 p-2.5">
             <p class="mb-1.5 flex items-center justify-between text-[11px] font-black uppercase tracking-widest text-amber-700 dark:text-amber-400"><span>Vývojářský režim</span><span class="font-bold normal-case tracking-normal">${devActive() ? 'zkušební postup' : 'tvůj postup'}</span></p>
-            <div class="flex flex-wrap gap-1">${[['max', 'Vše (úr. 100)'], ['level:10', 'Úr. 10'], ['level:25', 'Úr. 25'], ['level:50', 'Úr. 50'], ['level:75', 'Úr. 75'], ['badges', 'Všechny odznaky'], ['nobadges', 'Žádné odznaky'], ['nostars', 'Vymazat hvězdičky'], ['bulb', 'Vrátit žárovku'], ['tips', 'Obnovit tipy']].map(([kind, label]) => `<button type="button" data-dev="${kind}" class="rounded-lg bg-slate-200 px-2 py-1 text-[11px] font-bold text-slate-700 active:scale-95 dark:bg-slate-700 dark:text-slate-200">${label}</button>`).join('')}${devActive() ? '<button type="button" data-dev="restore" class="rounded-lg bg-amber-500 px-2 py-1 text-[11px] font-black text-white active:scale-95">Vrátit můj postup</button>' : ''}</div>
+            <div class="flex flex-wrap gap-1">${[['max', 'Vše (úr. 100)'], ['level:10', 'Úr. 10'], ['level:25', 'Úr. 25'], ['level:50', 'Úr. 50'], ['level:75', 'Úr. 75'], ['badges', 'Všechny odznaky'], ['nobadges', 'Žádné odznaky'], ['nostars', 'Vymazat hvězdičky'], ['bulb', 'Vrátit žárovku'], ['tips', 'Obnovit tipy']].map(([kind, label]) => `<button type="button" data-dev="${kind}" class="rounded-lg bg-slate-200 px-2 py-1 text-[11px] font-bold text-slate-700 active:scale-95 dark:bg-slate-700 dark:text-slate-200">${label}</button>`).join('')}${devActive() ? '<button type="button" data-dev="restore" class="rounded-lg bg-amber-700 px-2 py-1 text-[11px] font-black text-white active:scale-95">Vrátit můj postup</button>' : ''}</div>
             ${Social ? `<p class="mb-1 mt-2 text-[11px] font-black uppercase tracking-widest text-amber-700 dark:text-amber-400">Turnaj (boti)</p>
             <div class="flex flex-wrap gap-1">${[['tour-bots', '+31 botů'], ['tour-start', 'Spustit hned'], ['tour-next', 'Další kolo'], ['tour-reset', 'Smazat odehraný turnaj'], ['tour-clear', 'Smazat boty']].map(([kind, label]) => `<button type="button" data-dev="${kind}" class="rounded-lg bg-emerald-100 px-2 py-1 text-[11px] font-bold text-emerald-900 active:scale-95 dark:bg-emerald-900/50 dark:text-emerald-100">${label}</button>`).join('')}</div>
             <p class="mb-1 mt-2 text-[11px] font-black uppercase tracking-widest text-amber-700 dark:text-amber-400">Provoz</p>
@@ -1030,7 +1030,7 @@
                         <p class="truncate text-xs text-slate-500 dark:text-slate-400">${user ? escapeHtml(user.email || user.name) : 'Hraješ bez účtu'}</p>
                         <button type="button" data-open-progress class="mt-0.5 flex items-center gap-1 text-[11px] font-black text-brand-700 dark:text-cream">${escapeHtml(ownTitleText(level.level))} <i data-lucide="chevron-right" class="h-3 w-3"></i></button>
                     </div>
-                    <button type="button" data-close aria-label="Zavřít" class="self-start rounded-xl p-2 text-slate-500 hover:bg-slate-200 dark:text-slate-400 dark:hover:bg-slate-800"><i data-lucide="x" class="h-5 w-5"></i></button>
+                    <button type="button" data-close aria-label="Zavřít" class="-m-0.5 self-start rounded-xl p-2.5 text-slate-500 hover:bg-slate-200 dark:text-slate-400 dark:hover:bg-slate-800"><i data-lucide="x" class="h-5 w-5"></i></button>
                 </div>
                 ${tabs}
                 <div class="mt-3">${meTab === 'profile' && profileBody ? profileBody : meTab === 'look' ? lookBody('look') : meTab === 'owl' ? lookBody('owl') : gameBody}</div>
@@ -1038,12 +1038,12 @@
                 ${renderSchemaBanner()}
                 <div class="flex items-center justify-center gap-2 text-xs text-slate-500 dark:text-slate-400">
                     <span id="app-version">${escapeHtml(versionLabel())}</span>
-                    <button type="button" data-update-app class="rounded-lg px-2 py-1 font-bold text-slate-600 underline underline-offset-2 hover:bg-slate-200 disabled:no-underline dark:text-slate-300 dark:hover:bg-slate-800">Aktualizovat</button>
+                    <button type="button" data-update-app class="-my-2 inline-flex min-h-[2.5rem] items-center rounded-lg px-2 font-bold text-slate-600 underline underline-offset-2 hover:bg-slate-200 disabled:no-underline dark:text-slate-300 dark:hover:bg-slate-800">Aktualizovat</button>
                 </div>
                 ${meTab === 'game' ? `<div class="mt-1 flex flex-wrap items-center justify-center gap-x-1 text-xs text-slate-500 dark:text-slate-400">
-                    <a href="soukromi.html" class="rounded-lg px-2 py-1 font-bold underline underline-offset-2">Ochrana osobních údajů</a>
-                    <a href="licence.html" class="rounded-lg px-2 py-1 font-bold underline underline-offset-2">Zdroje a licence</a>
-                    ${user && Social ? '<button type="button" data-open-privacy class="rounded-lg px-2 py-1 font-bold underline underline-offset-2">Moje data</button>' : ''}
+                    <a href="soukromi.html" class="-my-2 inline-flex min-h-[2.5rem] items-center rounded-lg px-2 font-bold underline underline-offset-2">Ochrana osobních údajů</a>
+                    <a href="licence.html" class="-my-2 inline-flex min-h-[2.5rem] items-center rounded-lg px-2 font-bold underline underline-offset-2">Zdroje a licence</a>
+                    ${user && Social ? '<button type="button" data-open-privacy class="-my-2 inline-flex min-h-[2.5rem] items-center rounded-lg px-2 font-bold underline underline-offset-2">Moje data</button>' : ''}
                 </div>` : ''}
             </div>`;
         overlay.firstElementChild.scrollTop = scroll;
@@ -1346,7 +1346,7 @@
     };
 
     const chooserToggle = (attribute, value, isOn, icon, label, on) => `
-        <button type="button" ${attribute}="${escapeHtml(value)}" aria-pressed="${isOn}" class="flex items-center gap-2 rounded-xl border-2 px-2.5 py-2 text-left text-sm font-bold leading-tight transition-colors active:scale-[0.98] ${isOn ? on : TOGGLE_OFF}">
+        <button type="button" ${attribute}="${escapeHtml(value)}" aria-pressed="${isOn}" class="flex min-h-[2.5rem] items-center gap-2 rounded-xl border-2 px-2.5 py-2 text-left text-sm font-bold leading-tight transition-colors active:scale-[0.98] ${isOn ? on : TOGGLE_OFF}">
             <i data-lucide="${isOn ? 'square-check-big' : 'square'}" class="h-4 w-4 shrink-0"></i>
             <i data-lucide="${icon}" class="h-4 w-4 shrink-0 opacity-70"></i>
             <span class="min-w-0">${escapeHtml(label)}</span>
@@ -1362,7 +1362,7 @@
             ? TOPICS.map(other => chooserToggle('data-chooser-topic', other.id, settings.topics.includes(other.id), other.icon, other.title, styleOf(other).on)).join('')
             : topic.categories.map(category => chooserToggle('data-chooser-category', category.key, selectedCategories(topic).includes(category.key), category.icon, category.label, style.on)).join('');
         const switches = [...TOPICS, MIX].filter(other => other.id !== topic.id).map(other => `
-            <button type="button" data-chooser-switch="${other.id}" class="flex shrink-0 items-center gap-1.5 rounded-xl px-2.5 py-1.5 text-xs font-bold ${styleOf(other).soft}">
+            <button type="button" data-chooser-switch="${other.id}" class="flex min-h-[2.5rem] shrink-0 items-center gap-1.5 rounded-xl px-2.5 py-1.5 text-xs font-bold ${styleOf(other).soft}">
                 <i data-lucide="${other.icon}" class="h-3.5 w-3.5"></i> ${escapeHtml(other.title)}
             </button>`).join('');
         // Překreslení po klepnutí bez úvodní animace a se stejným posunutím
@@ -1376,11 +1376,11 @@
                         <h2 id="chooser-title" class="text-lg font-black text-slate-800 dark:text-slate-100">${escapeHtml(topic.title)}</h2>
                         <p class="text-sm text-slate-500 dark:text-slate-400">${isMix ? 'Z jakých témat chceš otázky?' : 'Co chceš hrát?'}</p>
                     </div>
-                    <button type="button" data-close aria-label="Zavřít" class="rounded-xl p-2 text-slate-500 hover:bg-slate-200 dark:text-slate-400 dark:hover:bg-slate-800"><i data-lucide="x" class="h-5 w-5"></i></button>
+                    <button type="button" data-close aria-label="Zavřít" class="-m-0.5 rounded-xl p-2.5 text-slate-500 hover:bg-slate-200 dark:text-slate-400 dark:hover:bg-slate-800"><i data-lucide="x" class="h-5 w-5"></i></button>
                 </div>
                 <div class="mb-2 flex items-center justify-between">
                     <h3 class="${SETTINGS_HEADING}">${isMix ? 'Témata' : 'Kategorie'}</h3>
-                    <button type="button" data-chooser-all class="-my-2 rounded-lg px-2 py-2 text-xs font-bold ${style.text} underline-offset-2 hover:underline">Vybrat vše</button>
+                    <button type="button" data-chooser-all class="-my-3 rounded-lg px-2 py-3 text-xs font-bold ${style.text} underline-offset-2 hover:underline">Vybrat vše</button>
                 </div>
                 <div class="grid grid-cols-2 gap-2" role="group" aria-label="${isMix ? 'Témata' : 'Kategorie'}">${options}</div>
                 <h3 class="${SETTINGS_HEADING} mb-2 mt-5">Známost</h3>
@@ -1570,15 +1570,17 @@
         const text = document.getElementById('status-text');
         if (place.logo) {
             const level = levelProgress(loadProgress().xp);
-            text.innerHTML = `<span class="block text-lg font-black normal-case leading-none tracking-tight text-brand-700 dark:text-cream">${escapeHtml(APP_NAME)}</span>`
-                + `<span class="mt-1 block text-[10px] font-bold normal-case tracking-wide text-slate-500 dark:text-slate-400">Úr. ${level.level} · ${escapeHtml(titleForLevel(level.level))}</span>`
+            text.innerHTML = `<span class="block text-lg font-black normal-case leading-none tracking-tight text-brand-700 dark:text-cream max-[370px]:hidden">${escapeHtml(APP_NAME)}</span>`
+                + `<span class="mt-1 block whitespace-nowrap text-[10px] font-bold normal-case tracking-wide text-slate-500 dark:text-slate-400 max-[370px]:mt-0 max-[370px]:text-[11px]">Úr. ${level.level}<span class="max-[370px]:hidden"> · ${escapeHtml(titleForLevel(level.level))}</span></span>`
                 + `<span class="mt-0.5 block h-1 w-full overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700" aria-hidden="true"><span class="block h-full w-0 rounded-full bg-gold-500" data-progress="${Math.round(level.ratio * 100)}"></span></span>`;
             applyProgress(text);
-            // Na úzkém displeji (360 px) se vedle pěti tlačítek vejde jen sova
-            text.className = 'text-left max-[370px]:hidden';
+            // Na úzkém displeji (360 px) se vedle čtyř tlačítek vejde sova a jen úroveň s pruhem (text vede do Mého postupu i tam, sova otevírá zajímavost)
+            text.className = 'text-left';
         } else {
             text.textContent = place.text;
-            text.className = `line-clamp-2 break-words text-left uppercase leading-tight text-[11px] ${style ? '' : 'text-slate-700 dark:text-slate-200'}`;
+            // Dlouhé slovo (ARCHITEKTURA) se nesmí zlomit uprostřed: menší písmo, zlom až jako poslední možnost
+            const longest = Math.max(0, ...String(place.text).split(/\s+/).map(word => word.length));
+            text.className = `line-clamp-2 break-words text-left uppercase leading-tight ${longest > 10 ? 'text-[10px] tracking-tight' : 'text-[11px]'} ${style ? '' : 'text-slate-700 dark:text-slate-200'}`;
         }
     };
 
@@ -1697,7 +1699,7 @@
             <div class="fact-pop absolute inset-x-3 top-[4.6rem] mx-auto max-w-md">
                 <span aria-hidden="true" class="absolute -top-2 left-9 h-4 w-4 rotate-45 rounded-sm bg-white dark:bg-slate-800"></span>
                 <div class="relative max-h-[calc(100dvh-6rem)] overflow-y-auto rounded-3xl bg-white p-4 shadow-2xl ring-2 ring-gold-400 dark:bg-slate-800">
-                    <button type="button" data-fact-close aria-label="Zavřít" class="absolute right-2 top-2 rounded-full p-1.5 text-slate-500 dark:text-slate-400 active:scale-95"><i data-lucide="x" class="h-5 w-5"></i></button>
+                    <button type="button" data-fact-close aria-label="Zavřít" class="absolute right-1 top-1 rounded-full p-2.5 text-slate-500 dark:text-slate-400 active:scale-95"><i data-lucide="x" class="h-5 w-5"></i></button>
                     <p class="flex items-center gap-1.5 whitespace-nowrap pr-8 text-[10px] font-black uppercase tracking-wide text-gold-700 min-[400px]:text-[11px] dark:text-gold-400"><img src="icons/topics/napoveda.webp" alt="" class="-my-1 h-7 w-7 shrink-0 -rotate-12 object-contain drop-shadow-[0_0_4px_rgba(239,197,92,0.8)]"><span class="min-w-0 truncate">Tento den v dějinách · ${escapeHtml(shortDay(getDayKey()))}${Number.isInteger(dailyFact.year) ? ` ${dailyFact.year}` : ''}</span></p>
                     <h2 id="fact-title" class="mt-1.5 text-xl font-black leading-tight text-slate-800 dark:text-slate-100">${escapeHtml(dailyFact.title)}</h2>
                     <p class="mt-2 text-[15px] leading-relaxed text-slate-700 dark:text-slate-200">${escapeHtml(dailyFact.text)}</p>
@@ -1909,8 +1911,9 @@
 
     // Panel se záložkami a jednou plochou pevné výšky – nápovědy se nepřidávají pod sebe, takže se nic neposouvá
     // panes = [{ key, label, icon, html }], action = akce záložky, extra = tlačítko za záložkami
-    // Výška panelu: na vysokém telefonu víc místa pro fotku a mapu, na malém aspoň 11 rem (bez posouvání)
-    const QUESTION_PANEL_HEIGHT = 'h-[clamp(8.5rem,calc(100dvh_-_35rem),18rem)]';
+    // Výška panelu otázky: vyplní místo, které na obrazovce zbude (dvouřádková otázka nebo delší možnosti ho zmenší, ať se nic
+    // neposouvá), nejvýš asi 18 rem plochy, na malém telefonu aspoň 7 rem. Výsledek má pevnou výšku podle obrazovky.
+    const QUESTION_PANEL_HEIGHT = 'fill';
     const RESULT_PANEL_HEIGHT = 'h-[clamp(13rem,42dvh,24rem)]';
     // Vybraná záložka s názvem, ostatní jen ikonou (s popiskem pro čtečku) – vejdou se i na úzký displej;
     // jediná plocha záložky nepotřebuje, jen nadpis
@@ -1922,16 +1925,16 @@
                 ${panes.map(candidate => {
                     const selected = candidate.key === pane.key;
                     return `
-                        <button type="button" role="tab" aria-selected="${selected}" aria-label="${escapeHtml(candidate.label)}" title="${escapeHtml(candidate.label)}" data-action="${action}" data-step="${candidate.key}" class="flex min-h-[2.25rem] shrink-0 items-center justify-center gap-1.5 rounded-xl text-xs font-bold transition-colors ${selected ? `px-3 ${style.tab}` : `min-w-[2.75rem] px-2.5 ${TAB_OFF}`}">
+                        <button type="button" role="tab" aria-selected="${selected}" aria-label="${escapeHtml(candidate.label)}" title="${escapeHtml(candidate.label)}" data-action="${action}" data-step="${candidate.key}" class="flex min-h-[2.5rem] shrink-0 items-center justify-center gap-1.5 rounded-xl text-xs font-bold transition-colors ${selected ? `px-3 ${style.tab}` : `min-w-[2.75rem] px-2.5 ${TAB_OFF}`}">
                             <i data-lucide="${candidate.icon}" class="h-4 w-4"></i>${selected ? escapeHtml(candidate.label) : ''}
                         </button>`;
                 }).join('')}
             </div>` : `
             <h3 class="${CARD_TITLE} min-h-[2.75rem] border-b border-slate-100 px-4 dark:border-slate-700"><i data-lucide="${pane.icon}" class="h-4 w-4 ${style.text}"></i> ${escapeHtml(pane.label)}</h3>`;
         return `
-            <section id="${action}-panel" class="${CARD} shrink-0 overflow-hidden">
+            <section id="${action}-panel" class="${CARD} ${height === 'fill' ? 'flex max-h-[21rem] flex-1 flex-col' : 'shrink-0'} overflow-hidden">
                 ${tabs}
-                <div class="relative ${height} overflow-hidden" role="tabpanel">${pane.html}</div>
+                <div class="relative ${height === 'fill' ? 'min-h-[7rem] flex-1' : height} overflow-hidden" role="tabpanel">${pane.html}</div>
             </section>`;
     };
 
@@ -1964,7 +1967,7 @@
             <button type="button" data-action="hint" title="Nápověda: ${escapeHtml(next.label)} – odpověď pak za ${nextCost}" class="btn-3d flex h-12 w-full shrink-0 items-center gap-3 rounded-2xl bg-gradient-to-b from-gold-400 to-gold-600 px-3 text-left text-brand-950">
                 ${uiArt('napoveda', 'h-9 w-9 -my-1')}
                 <span class="min-w-0 flex-1">
-                    <span class="block text-[11px] font-black uppercase tracking-wider opacity-90">Nápověda ${round.hintLevel}/${data.hints.length + 1}</span>
+                    <span class="block text-[11px] font-black uppercase tracking-wider opacity-90">Nápověda ${round.hintLevel}/${data.hints.length}</span>
                     <span class="flex items-baseline gap-1.5 text-sm font-black leading-tight"><span class="truncate">${escapeHtml(capitalize(next.label))}</span><span class="shrink-0 text-xs font-bold opacity-90">· pak ${nextCost}</span></span>
                 </span>
                 <i data-lucide="${next.icon}" class="h-5 w-5 shrink-0 opacity-70"></i>
@@ -2179,7 +2182,7 @@
             <div class="fade-in relative max-h-[88dvh] w-full max-w-md overflow-y-auto rounded-[1.75rem] bg-white shadow-2xl dark:bg-slate-900">
                 <!-- Zavírací tlačítko zůstane vidět i po posunutí dolů -->
                 <div class="pointer-events-none sticky top-0 z-10 -mb-14 flex justify-end p-3">
-                    <button type="button" data-close aria-label="Zavřít" class="pointer-events-auto rounded-full bg-slate-900/60 p-2.5 text-white backdrop-blur-sm hover:bg-slate-900/80">
+                    <button type="button" data-close aria-label="Zavřít" class="pointer-events-auto rounded-full bg-slate-900/60 p-2.5 text-white shadow backdrop-blur-sm hover:bg-slate-900/80 dark:bg-slate-600/90 dark:hover:bg-slate-500">
                         <i data-lucide="x" class="h-5 w-5"></i>
                     </button>
                 </div>
@@ -2251,7 +2254,7 @@
                     <p class="text-sm text-rose-800 dark:text-rose-300">${round.answer ? `Tvoje odpověď: ${escapeHtml(round.answer)} · ` : ''}Správně: ${escapeHtml(data.question.answerLabel)}</p>
                     ${xpLine(round.xp, 'text-rose-800 dark:text-rose-300')}
                     ${round.answerRef ? `
-                        <button type="button" data-action="item-info" data-topic="${escapeHtml(round.answerRef.topic)}" data-id="${escapeHtml(round.answerRef.id)}" class="mt-2 inline-flex items-center gap-1.5 rounded-lg bg-white px-2.5 py-1.5 text-xs font-bold text-rose-700 shadow-sm transition-colors hover:bg-rose-100 dark:bg-rose-950 dark:text-rose-200 dark:hover:bg-rose-900">
+                        <button type="button" data-action="item-info" data-topic="${escapeHtml(round.answerRef.topic)}" data-id="${escapeHtml(round.answerRef.id)}" class="mt-2 inline-flex min-h-[2.5rem] items-center gap-1.5 rounded-lg bg-white px-2.5 py-1.5 text-xs font-bold text-rose-700 shadow-sm transition-colors hover:bg-rose-100 dark:bg-rose-950 dark:text-rose-200 dark:hover:bg-rose-900">
                             <i data-lucide="info" class="h-3.5 w-3.5"></i> Ukaž ${escapeHtml(round.answer)}
                         </button>
                     ` : ''}
@@ -2272,7 +2275,7 @@
                 <h3 class="${CARD_TITLE} mb-3"><i data-lucide="graduation-cap" class="w-4 h-4 ${styleOf(TOPIC_BY_ID[data.topic]).text}"></i> ${answered ? 'A ostatní možnosti?' : 'Co byly ostatní možnosti?'}</h3>
                 <div class="flex flex-wrap gap-2">
                     ${others.map(choice => `
-                        <button type="button" data-action="item-info" data-topic="${escapeHtml(choice.topic)}" data-id="${escapeHtml(choice.id)}" class="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-bold text-slate-700 transition-colors hover:border-slate-400 hover:bg-white dark:border-slate-600 dark:bg-slate-700/60 dark:text-slate-100 dark:hover:border-slate-400 dark:hover:bg-slate-700">
+                        <button type="button" data-action="item-info" data-topic="${escapeHtml(choice.topic)}" data-id="${escapeHtml(choice.id)}" class="inline-flex min-h-[2.5rem] items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-bold text-slate-700 transition-colors hover:border-slate-400 hover:bg-white dark:border-slate-600 dark:bg-slate-700/60 dark:text-slate-100 dark:hover:border-slate-400 dark:hover:bg-slate-700">
                             <i data-lucide="info" class="h-4 w-4 ${styleOf(TOPIC_BY_ID[data.topic]).text}"></i> ${escapeHtml(choice.label)}
                         </button>`).join('')}
                 </div>
@@ -2319,8 +2322,8 @@
                 <i data-lucide="map-pin" class="h-10 w-10 fill-rose-500 stroke-white"></i>
             </div>
             <div class="absolute right-2 top-2 flex flex-col overflow-hidden rounded-xl border border-slate-200 bg-white/95 shadow-md dark:border-slate-600 dark:bg-slate-800/95">
-                <button type="button" data-action="zoom-in" aria-label="Přiblížit mapu" class="p-2.5 text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700"><i data-lucide="plus" class="h-4 w-4"></i></button>
-                <button type="button" data-action="zoom-out" aria-label="Oddálit mapu" class="border-t border-slate-200 p-2.5 text-slate-700 hover:bg-slate-100 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-700"><i data-lucide="minus" class="h-4 w-4"></i></button>
+                <button type="button" data-action="zoom-in" aria-label="Přiblížit mapu" class="p-3 text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700"><i data-lucide="plus" class="h-4 w-4"></i></button>
+                <button type="button" data-action="zoom-out" aria-label="Oddálit mapu" class="border-t border-slate-200 p-3 text-slate-700 hover:bg-slate-100 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-700"><i data-lucide="minus" class="h-4 w-4"></i></button>
             </div>
             <div class="absolute inset-x-0 bottom-0 flex items-center justify-between gap-2 bg-white/85 px-2.5 py-1 text-[10px] text-slate-600 backdrop-blur-sm dark:bg-slate-900/80 dark:text-slate-300">
                 <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer" class="hover:underline">© přispěvatelé OpenStreetMap</a>
@@ -2647,7 +2650,7 @@
             </span>`;
         const label = `Cíle týdne: splněno ${done} ze ${rows.length}, ${goalsLeftText()}. Zobrazit podrobnosti`;
         return `
-            <button type="button" id="weekly-goals" data-action="goals-open" aria-label="${escapeHtml(label)}" title="${escapeHtml(rows.map(row => row.goal.title).join('\n'))}" class="flex w-full items-center gap-1.5 rounded-2xl bg-white px-2.5 py-1.5 text-left shadow-sm ring-1 ring-slate-200/70 transition-all active:scale-[0.98] dark:bg-slate-800/70 dark:ring-slate-700/70">
+            <button type="button" id="weekly-goals" data-action="goals-open" aria-label="${escapeHtml(label)}" title="${escapeHtml(rows.map(row => row.goal.title).join('\n'))}" class="flex min-h-[2.5rem] w-full items-center gap-1.5 rounded-2xl bg-white px-2.5 py-1.5 text-left shadow-sm ring-1 ring-slate-200/70 transition-all active:scale-[0.98] dark:bg-slate-800/70 dark:ring-slate-700/70">
                 <i data-lucide="goal" class="h-4 w-4 shrink-0 text-brand-700 dark:text-cream"></i>
                 <span class="shrink-0 whitespace-nowrap text-[11px] font-black text-slate-800 dark:text-slate-100">Cíle týdne <span class="${state.bonus ? 'text-emerald-600 dark:text-emerald-300' : 'text-slate-500 dark:text-slate-400'}">${done}/${rows.length}</span></span>
                 <span class="flex min-w-0 flex-1 gap-1">${rows.map(chip).join('')}</span>
@@ -3128,7 +3131,7 @@
     const renderLearnHome = () => {
         const mistakes = loadMistakes();
         const card = (topic) => `
-            <button type="button" data-action="learn-topic" data-topic="${topic.id}" class="flex min-h-[4rem] min-w-0 flex-col items-center justify-center gap-1 rounded-2xl border border-slate-100 bg-white p-2 text-center shadow-sm transition-all hover:border-brand-300 active:scale-[0.98] dark:border-slate-700 dark:bg-slate-800 dark:hover:border-brand-600">
+            <button type="button" data-action="learn-topic" data-topic="${topic.id}" class="flex min-h-[4rem] min-w-0 flex-col items-center justify-center gap-1 rounded-2xl border border-slate-100 bg-white px-1 py-2 text-center shadow-sm transition-all hover:border-brand-300 active:scale-[0.98] dark:border-slate-700 dark:bg-slate-800 dark:hover:border-brand-600">
                 ${topicIcon(topic, 'h-10 w-10', `rounded-xl p-2 ${styleOf(topic).soft}`, 'h-[1.375rem] w-[1.375rem]')}
                 <span class="${topic.title.length > 10 ? 'text-[10px]' : 'text-[11.5px]'} font-black leading-tight text-slate-800 [overflow-wrap:anywhere] dark:text-slate-100">${escapeHtml(topic.title)}</span>
             </button>`;
@@ -3172,10 +3175,10 @@
                 <span class="shrink-0 rounded-xl p-2 ${styleOf(ctx.topic).soft}"><i data-lucide="${icon}" class="h-5 w-5"></i></span>
                 <span class="min-w-0 flex-1">
                     <span class="flex items-baseline justify-between gap-2">
-                        <span class="truncate font-bold text-slate-800 dark:text-slate-100">${escapeHtml(label)}</span>
+                        <span class="min-w-0 font-bold leading-tight text-slate-800 dark:text-slate-100">${escapeHtml(label)}</span>
                         <span class="shrink-0 text-xs font-semibold text-slate-500 dark:text-slate-400">${done ? `${done} / ` : ''}${items.length}</span>
                     </span>
-                    ${text ? `<span class="block truncate text-xs text-slate-500 dark:text-slate-400">${escapeHtml(text)}</span>` : ''}
+                    ${text ? `<span class="mt-0.5 block line-clamp-2 text-xs leading-snug text-slate-500 dark:text-slate-400">${escapeHtml(text)}</span>` : ''}
                     ${progressBar(done, items.length)}
                 </span>
             </button>`;
@@ -3189,7 +3192,7 @@
                 ${topicIcon(topic, 'h-14 w-14', `rounded-2xl p-3 ${styleOf(topic).soft}`, 'h-7 w-7')}
                 <div>
                     <h2 class="text-2xl font-black tracking-tight text-slate-800 dark:text-slate-50">${escapeHtml(topic.title)}</h2>
-                    <p class="text-sm text-slate-500 dark:text-slate-400">${settings.tier === 'all' ? 'Celé téma i se méně známými' : 'Celé téma a kategorie jen se známými'} · <button type="button" data-action="settings" class="-my-2 px-1 py-2 font-bold text-slate-700 underline underline-offset-2 dark:text-slate-200">změnit</button></p>
+                    <p class="text-sm text-slate-500 dark:text-slate-400">${settings.tier === 'all' ? 'Celé téma i se méně známými' : 'Celé téma a kategorie jen se známými'} · <button type="button" data-action="settings" class="-my-2.5 px-1 py-2.5 font-bold text-slate-700 underline underline-offset-2 dark:text-slate-200">změnit</button></p>
                 </div>
             </div>
             <h3 class="${CARD_TITLE} mt-1">Kategorie</h3>
@@ -3869,10 +3872,10 @@
                 ${error ? `<p class="text-center text-sm font-semibold text-rose-700 dark:text-rose-400" role="alert">${escapeHtml(error)}</p>` : ''}
                 <div class="flex flex-col items-center gap-2">
                     <button type="button" data-action="auth-login" class="${PRIMARY_BUTTON}"><i data-lucide="log-in" class="h-5 w-5"></i> Přihlásit se přes Google</button>
-                    <button type="button" data-action="play-as-host" class="mt-1 rounded-xl px-4 py-2 text-sm font-bold text-slate-500 underline decoration-slate-300 underline-offset-4 hover:text-slate-800 dark:text-slate-400 dark:decoration-slate-600 dark:hover:text-slate-100">Pokračovat bez přihlášení</button>
+                    <button type="button" data-action="play-as-host" class="mt-1 rounded-xl px-4 py-2.5 text-sm font-bold text-slate-500 underline decoration-slate-300 underline-offset-4 hover:text-slate-800 dark:text-slate-400 dark:decoration-slate-600 dark:hover:text-slate-100">Pokračovat bez přihlášení</button>
                     <p class="text-center text-xs text-slate-500 dark:text-slate-400">Hra funguje i bez účtu, jen bez profilu a výzev. Přihlásit se můžeš kdykoli později.</p>
                 </div>
-                <p class="mt-2 text-center text-xs text-slate-500 dark:text-slate-400"><a href="soukromi.html" class="rounded-lg px-1.5 py-2 font-bold underline underline-offset-2">Ochrana osobních údajů</a> · <a href="licence.html" class="rounded-lg px-1.5 py-2 font-bold underline underline-offset-2">Zdroje a licence</a></p>
+                <p class="mt-2 text-center text-xs text-slate-500 dark:text-slate-400"><a href="soukromi.html" class="inline-block rounded-lg px-1.5 py-3 font-bold underline underline-offset-2">Ochrana osobních údajů</a> · <a href="licence.html" class="inline-block rounded-lg px-1.5 py-3 font-bold underline underline-offset-2">Zdroje a licence</a></p>
             </div>`;
         renderIcons(appContent);
         updateControlsUI();
@@ -3922,7 +3925,7 @@
             <div class="relative max-h-[92dvh] w-full max-w-md overflow-y-auto rounded-[1.75rem] bg-slate-50 p-5 shadow-2xl dark:bg-slate-900">
                 <div class="mb-4 flex items-center justify-between">
                     <h2 id="dialog-title" class="text-lg font-black text-slate-800 dark:text-slate-100">${escapeHtml(title)}</h2>
-                    <button type="button" data-close aria-label="Zavřít" class="rounded-xl p-2 text-slate-500 hover:bg-slate-200 dark:text-slate-400 dark:hover:bg-slate-800"><i data-lucide="x" class="h-5 w-5"></i></button>
+                    <button type="button" data-close aria-label="Zavřít" class="-m-0.5 rounded-xl p-2.5 text-slate-500 hover:bg-slate-200 dark:text-slate-400 dark:hover:bg-slate-800"><i data-lucide="x" class="h-5 w-5"></i></button>
                 </div>
                 ${body}
             </div>`;
@@ -4365,8 +4368,8 @@
             const sections = BADGE_GROUPS.map(group => {
                 const earned = group.badges.filter(badge => progress.badges[badge.id]).length;
                 return `<section class="rounded-2xl bg-white p-2.5 shadow-sm dark:bg-slate-800">
-                    <div class="mb-1.5 flex items-center justify-between gap-2"><h4 class="truncate text-[12px] font-black text-slate-800 dark:text-slate-100">${escapeHtml(group.title)}</h4><span class="shrink-0 text-[11px] font-bold text-slate-500 dark:text-slate-400">${earned}/${group.badges.length}</span></div>
-                    <div class="flex flex-wrap gap-1.5">${group.badges.map(badge => `<button type="button" data-badge="${badge.id}" aria-label="${escapeHtml(badge.title)}" title="${escapeHtml(`${badge.title}: ${badge.text} ${badgeReward(badge)}`)}" class="rounded-full ${selected === badge.id ? 'ring-2 ring-brand-600 ring-offset-2 dark:ring-offset-slate-800' : ''}">${medalHtml(badge, Boolean(progress.badges[badge.id]), 'h-9 w-9', 'h-4 w-4')}</button>`).join('')}</div>
+                    <div class="mb-1.5 flex items-center justify-between gap-2"><h4 class="min-w-0 text-[12px] font-black leading-tight text-slate-800 dark:text-slate-100">${escapeHtml(group.title)}</h4><span class="shrink-0 text-[11px] font-bold text-slate-500 dark:text-slate-400">${earned}/${group.badges.length}</span></div>
+                    <div class="flex flex-wrap gap-1.5">${group.badges.map(badge => `<button type="button" data-badge="${badge.id}" aria-label="${escapeHtml(badge.title)}" title="${escapeHtml(`${badge.title}: ${badge.text} ${badgeReward(badge)}`)}" class="-m-0.5 rounded-full p-0.5 ${selected === badge.id ? 'ring-2 ring-brand-600 ring-offset-2 dark:ring-offset-slate-800' : ''}">${medalHtml(badge, Boolean(progress.badges[badge.id]), 'h-9 w-9', 'h-4 w-4')}</button>`).join('')}</div>
                 </section>`;
             }).join('');
             showDialog('Odznaky', `
@@ -5168,7 +5171,7 @@
                         <p class="mt-1 text-sm font-semibold leading-snug text-slate-600 dark:text-slate-300">${escapeHtml(Tips.textFor(tip, Boolean(signedUser())))}</p></div>
                 </div>
                 ${tip.action ? `<button type="button" data-tip-go="${escapeHtml(tip.action.kind)}" class="${PRIMARY_BUTTON}">${escapeHtml(tip.action.label)}</button>` : ''}
-                <div class="flex items-center justify-between gap-2"><button type="button" data-tip-off class="${TOUR_LINK}">Tipy už nechci</button><button type="button" data-close class="rounded-xl px-3 py-2 text-[13px] font-bold text-slate-600 dark:text-slate-300">Rozumím</button></div>
+                <div class="flex items-center justify-between gap-2"><button type="button" data-tip-off class="${TOUR_LINK}">Tipy už nechci</button><button type="button" data-close class="rounded-xl px-3 py-2.5 text-[13px] font-bold text-slate-600 dark:text-slate-300">Rozumím</button></div>
             </div>`, {
             onClick: (event) => {
                 const go = event.target.closest('[data-tip-go]');
@@ -5189,7 +5192,7 @@
                 <div class="flex items-center gap-3"><span class="${TOUR_BUBBLE}"><i data-lucide="trophy" class="h-5 w-5"></i></span>
                     <p class="text-sm font-semibold leading-snug text-slate-700 dark:text-slate-200">Přihlášky do týdenního turnaje jsou otevřené. Začíná <b>${escapeHtml(when)}</b>, každý den jedno kolo (10 otázek), vítěz postupuje dál až do finále.</p></div>
                 <button type="button" data-offer-join="${escapeHtml(tournament.id)}" class="flex w-full items-center justify-center gap-2 rounded-2xl btn-3d bg-emerald-600 px-4 py-3 text-base font-black text-white active:scale-[0.98]"><i data-lucide="trophy" class="h-5 w-5"></i> Přihlásit se</button>
-                <div class="flex items-center justify-between gap-2"><button type="button" data-offer-rules class="${TOUR_LINK}">Jak turnaje fungují</button><button type="button" data-close class="rounded-xl px-3 py-2 text-[13px] font-bold text-slate-500 underline underline-offset-2 dark:text-slate-400">Teď ne</button></div>
+                <div class="flex items-center justify-between gap-2"><button type="button" data-offer-rules class="${TOUR_LINK}">Jak turnaje fungují</button><button type="button" data-close class="rounded-xl px-3 py-2.5 text-[13px] font-bold text-slate-500 underline underline-offset-2 dark:text-slate-400">Teď ne</button></div>
             </div>`, {
             onClick: (event) => {
                 const join = event.target.closest('[data-offer-join]');
@@ -5277,7 +5280,7 @@
     // --- Karta na záložce Více hráčů ---
     const TOUR_BUBBLE = 'flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-gold-300 to-gold-600 text-brand-950 shadow-sm ring-2 ring-white/70 dark:ring-slate-700';
     const TOUR_ICON = 'flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-gold-300 to-gold-600 text-brand-950 shadow-sm ring-2 ring-white/80 dark:ring-slate-700';
-    const TOUR_LINK = 'rounded px-1 py-0.5 text-[11px] font-black text-brand-700 underline decoration-brand-700/40 underline-offset-2 dark:text-cream dark:decoration-cream/40';
+    const TOUR_LINK = 'inline-flex min-h-[2.5rem] items-center rounded px-1 text-[11px] font-black text-brand-700 underline decoration-brand-700/40 underline-offset-2 dark:text-cream dark:decoration-cream/40';
     const TOUR_SMALL = 'flex shrink-0 items-center justify-center gap-1 rounded-xl bg-white/70 text-[11px] font-black text-slate-700 ring-1 ring-slate-300/70 active:scale-95 disabled:opacity-50 dark:bg-slate-900/40 dark:text-slate-200 dark:ring-slate-600';
     const fillBar = (percent, count) => `<span class="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-white/80 dark:bg-slate-700" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${percent}" aria-label="Naplnění turnaje"><span class="block h-full rounded-full bg-gradient-to-r from-gold-400 to-gold-600 ${BAR_WIDTHS[count ? Math.max(1, Math.round(percent / 10)) : 0]}"></span></span>`;
     const entryButton = (state, id) => {
