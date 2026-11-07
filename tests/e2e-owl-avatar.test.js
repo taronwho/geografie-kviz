@@ -113,7 +113,7 @@ test('sova jako obrázek profilu', { skip: !chromium && 'Playwright není nainst
         // Profil: první dlaždice je „Moje sova“ s mým náhledem
         await one.tab.click('[data-me-tab="profile"]');
         await one.tab.waitForSelector('[data-pick-owl]');
-        assert.equal(await one.tab.evaluate(() => document.querySelector('[data-pick-avatar]').previousElementSibling === document.querySelector('[data-pick-owl]')), true, 'dlaždice je první');
+        assert.equal(await one.tab.evaluate(() => document.querySelector('[data-avatar-strip]').firstElementChild === document.querySelector('[data-pick-owl]')), true, 'dlaždice je první');
         assert.equal(await one.tab.getAttribute('[data-pick-owl]', 'aria-label'), 'Sova Mudrlant');
         assert.equal(await one.tab.getAttribute('[data-pick-owl]', 'aria-pressed'), 'false');
         assert.equal(await one.tab.getAttribute('[data-pick-owl] img[data-keep]', 'src'), 'icons/logo-zelena.webp');
@@ -212,6 +212,102 @@ test('sova jako obrázek profilu', { skip: !chromium && 'Playwright není nainst
         db.profiles['u-1'].color = 'emerald';
     });
 
+    await t.test('sova titulu jako profilovka: dosažená jde vybrat, vyšší je zamčená; uloží se s pózou, druhý hráč ji vidí', async () => {
+        db.profiles['u-1'].owl = null;
+        db.profiles['u-1'].avatar = '🦊';
+        // Úroveň 18 (PROGRESS): sovy titulů 1–4 (Zvědavec … Znalec) jsou dosažené, 5–10 zamčené; zelený talár a brýle
+        const one = await open('tok-u1', { extra: { 'mudrlant.look': JSON.stringify({ robe: 'zelena', acc: { face: { id: 'bryle', color: 'original' } } }) } });
+        await one.tab.click('#btn-settings');
+        await one.tab.click('[data-me-tab="profile"]');
+        await one.tab.waitForSelector('[data-pick-owl="titul-1"]');
+        // Pořadí v pásu obrázků: Moje sova, sovy titulů (dosažené, pak zamčené), emoji
+        const tiles = await one.tab.$$eval('[data-avatar-strip] > button', nodes => nodes.slice(0, 12).map(node => node.dataset.pickOwl !== undefined ? `vyber:${node.dataset.pickOwl}` : node.dataset.lockedOwl ? `zamčeno:${node.dataset.lockedOwl}` : 'emoji'));
+        assert.deepEqual(tiles, ['vyber:', 'vyber:titul-1', 'vyber:titul-2', 'vyber:titul-3', 'vyber:titul-4', 'zamčeno:titul-5', 'zamčeno:titul-6', 'zamčeno:titul-7', 'zamčeno:titul-8', 'zamčeno:titul-9', 'zamčeno:titul-10', 'emoji']);
+        // Náhled je sova titulu v mém zeleném taláru, bez doplňků, oříznutá do kolečka
+        assert.equal(await one.tab.getAttribute('[data-pick-owl="titul-4"] img', 'src'), 'icons/topics/sova-titul-4-zelena.webp');
+        assert.equal(await one.tab.locator('[data-pick-owl="titul-4"] span.rounded-full.overflow-hidden img[data-keep]').count(), 1);
+        assert.equal(await one.tab.locator('[data-pick-owl="titul-4"] img[src*="doplnky"]').count(), 0);
+        assert.equal(await one.tab.getAttribute('[data-pick-owl="titul-2"]', 'aria-label'), 'Sova titulu Učeň (Učeň, Žák)');
+        // Zamčená: zašedlá, s úrovní, od které se odemkne, nejde vybrat (klepnutí jen poradí)
+        const locked = '[data-locked-owl="titul-5"]';
+        assert.equal(await one.tab.getAttribute(locked, 'aria-disabled'), 'true');
+        assert.equal(await one.tab.getAttribute(locked, 'title'), 'Sova titulu Učenec (Učenec, Vzdělanec, Erudit): od úrovně 27');
+        assert.match(await one.tab.textContent(locked), /úr\.\s27/);
+        assert.equal(await one.tab.locator(`${locked} .grayscale img`).count(), 1);
+        assert.equal(await one.tab.locator(`${locked}[data-pick-owl]`).count(), 0);
+        await one.tab.click(locked, { force: true });
+        await one.tab.waitForFunction(() => /Sova titulu Učenec se odemkne od úrovně 27\./.test(document.getElementById('settings-overlay').textContent));
+        assert.equal(await one.tab.locator('[data-pick-owl][aria-pressed="true"]').count(), 0, 'zamčená sova se nevybrala');
+        assert.equal(await one.tab.getAttribute('[data-pick-avatar="🦊"]', 'aria-pressed'), 'true');
+        // Dosažená: vybere se, hlavička okna ji hned ukáže (bez uložení se nic nepošle)
+        await one.tab.click('[data-pick-owl="titul-4"]');
+        await one.tab.waitForSelector('[data-pick-owl="titul-4"][aria-pressed="true"]');
+        assert.equal(await one.tab.getAttribute('[data-pick-owl=""]', 'aria-pressed'), 'false', 'Moje sova (s doplňky) není vybraná');
+        assert.equal(await one.tab.evaluate(() => { const header = document.getElementById('settings-title').closest('.flex'); const img = header.querySelector('img[data-owl-pose]'); return img && img.getAttribute('src'); }), 'icons/topics/sova-titul-4-zelena.webp');
+        assert.equal(await fits(one.tab), true, 'okno Profil bez posouvání');
+        await one.tab.waitForFunction(() => [...document.querySelectorAll('[data-avatar-strip] img')].every(img => img.complete && img.naturalWidth > 0));
+        await shot(one.tab, 'sova-titulu-profilovka.png');
+        assert.equal(db.profiles['u-1'].owl, null);
+        await one.tab.click('[data-save-profile]');
+        await one.tab.waitForFunction(() => /Uloženo/.test(document.getElementById('settings-overlay').textContent));
+        assert.equal(db.profiles['u-1'].owl, 'robe=zelena;pose=titul-4;face=bryle.original', 'póza v textu sovy, doplňky zůstávají pro starší aplikaci');
+        assert.equal(db.profiles['u-1'].avatar, '🦉');
+        assert.equal(await one.tab.evaluate(() => JSON.parse(localStorage.getItem('mudrlant.look')).pose), 'titul-4');
+        await one.tab.click('#settings-overlay [data-close]');
+        await one.tab.waitForSelector('#btn-settings img[data-owl-pose="titul-4"][src="icons/topics/sova-titul-4-zelena.webp"]');
+        assert.equal(await one.tab.locator('#btn-settings img[src*="doplnky"]').count(), 0, 'v tlačítku je sova titulu bez doplňků');
+
+        // Změna barvy obleku přeuloží profil a sova titulu změní barvu (pro mě hned, pro ostatní z databáze)
+        await one.tab.click('#btn-settings');
+        await one.tab.click('[data-me-tab="look"]');
+        await one.tab.click('[data-robe-pick="modra"]');
+        await one.tab.click('#settings-overlay [data-close]');
+        await one.tab.waitForSelector('#btn-settings img[data-owl-pose="titul-4"][src="icons/topics/sova-titul-4-modra.webp"]');
+        await waitFor(() => db.profiles['u-1'].owl === 'robe=modra;pose=titul-4;face=bryle.original', `profil se nepřeuložil: ${db.profiles['u-1'].owl}`);
+
+        // Druhý hráč (zelený oblek) vidí sovu titulu hráčky 1 v jejím modrém taláru: u výzvy i v jejím profilu
+        const two = await open('tok-u2', { extra: { 'mudrlant.look': JSON.stringify({ robe: 'zelena' }) } });
+        await two.tab.click('[data-action="home-tab"][data-tab="multi"]');
+        await two.tab.waitForSelector('#challenges-section [data-player-id="u-1"] img[data-owl-pose="titul-4"]');
+        await two.tab.waitForTimeout(300);
+        const seen = await two.tab.$$eval('#challenges-section [data-player-id="u-1"] img', nodes => nodes.map(node => [node.getAttribute('src'), node.hasAttribute('data-keep')]));
+        assert.deepEqual(seen, [['icons/topics/sova-titul-4-modra.webp', true]], 'jen sova titulu, nepřebarvená mým oblekem');
+        await shot(two.tab, 'sova-titulu-cizi-hrac.png');
+        await two.tab.click('#challenges-section [data-player-id="u-1"]');
+        await two.tab.waitForSelector('#dialog-overlay img[data-owl-pose="titul-4"][src="icons/topics/sova-titul-4-modra.webp"]');
+        assert.deepEqual(two.problems, []);
+        await two.context.close();
+
+        // Ztráta úrovně (vývojářský reset na úroveň 10): ukáže se nejvyšší dosažená sova titulu (Učeň), ne zamčená Znalec
+        await one.tab.goto(`${origin}/?vyvojar`);
+        await one.tab.waitForSelector('#btn-settings img[data-owl-pose="titul-4"]');
+        await one.tab.click('#btn-settings');
+        await one.tab.click('[data-me-tab="game"]');
+        await one.tab.click('[data-dev="level:10"]');
+        await one.tab.waitForSelector('[data-dev="restore"]');
+        await one.tab.keyboard.press('Escape');
+        // Na úrovni 10 je zamčený i modrý talár (úroveň 12): sova titulu je ve výchozím vínovém
+        await one.tab.waitForSelector('#btn-settings img[data-owl-pose="titul-2"][src="icons/topics/sova-titul-2.webp"]');
+        await one.tab.click('#btn-settings');
+        await one.tab.click('[data-me-tab="profile"]');
+        await one.tab.waitForSelector('[data-pick-owl="titul-2"][aria-pressed="true"]');
+        assert.equal(await one.tab.locator('[data-locked-owl="titul-4"]').count(), 1, 'Znalec je teď zamčený');
+        // Po návratu úrovně je zpátky zvolená sova (volba se neztratí)
+        await one.tab.click('[data-me-tab="game"]');
+        await one.tab.click('[data-dev="restore"]');
+        await one.tab.waitForFunction(() => !document.querySelector('[data-dev="restore"]'));
+        await one.tab.keyboard.press('Escape');
+        await one.tab.waitForSelector('#btn-settings img[data-owl-pose="titul-4"]');
+        // (talár zůstane do načtení stránky výchozí, jako u každé volby zamčené během nižší úrovně)
+        await one.tab.reload();
+        await one.tab.waitForSelector('#btn-settings img[data-owl-pose="titul-4"][src="icons/topics/sova-titul-4-modra.webp"]');
+        assert.equal(db.profiles['u-1'].owl, 'robe=modra;pose=titul-4;face=bryle.original', 'vývojářský reset se do účtu neuložil');
+        assert.deepEqual(one.problems, []);
+        await one.context.close();
+        db.profiles['u-1'].owl = null;
+        db.profiles['u-1'].avatar = '🦊';
+    });
+
     await t.test('emoji zruší sovu; tmavý režim; profil se vejde na malém telefonu', async () => {
         for (const viewport of [{ width: 390, height: 780 }, { width: 360, height: 640 }]) {
             db.profiles['u-1'].owl = 'robe=zelena;face=bryle.original';
@@ -227,7 +323,7 @@ test('sova jako obrázek profilu', { skip: !chromium && 'Playwright není nainst
             // Sova okno nezvětší oproti emoji; na běžném telefonu se okno vejde úplně (na 360×640 se posouvalo už předtím)
             assert.equal(withOwl, await overflow(), `sova nezvětší okno ${viewport.width}×${viewport.height}`);
             if (viewport.height >= 780) assert.ok(withOwl <= 0, 'Profil bez posouvání');
-            assert.equal(await one.tab.locator('#settings-overlay span.rounded-full img[data-keep]').count(), 0, 'v hlavičce okna je zase emoji');
+            assert.equal(await one.tab.evaluate(() => document.getElementById('settings-title').closest('.flex').querySelectorAll('img[data-keep]').length), 0, 'v hlavičce okna je zase emoji');
             await one.tab.click('[data-save-profile]');
             await one.tab.waitForFunction(() => /Uloženo/.test(document.getElementById('settings-overlay').textContent));
             assert.equal(db.profiles['u-1'].owl, null);

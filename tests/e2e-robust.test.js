@@ -36,7 +36,7 @@ test('nasazení: skripty z index.html jsou v service workeru i v kopírování n
         assert.ok(fs.existsSync(path.join(ROOT, file)), `${file} z APP_SHELL neexistuje`);
         assert.ok(copied.includes(file) || copied.includes(file.split('/')[0]), `${file} z APP_SHELL se v pages.yml nekopíruje`);
     }
-    for (const id of ['zemepis', 'mix', 'sova-spi']) assert.ok(fs.existsSync(path.join(ROOT, `icons/topics/${id}.webp`)));
+    for (const id of ['zemepis', 'mix', 'sova-spi', 'turnaj', 'nahodny', 'kod', 'cile', 'procvicovani', 'sova-tip']) assert.ok(fs.existsSync(path.join(ROOT, `icons/topics/${id}.webp`)));
     // sed v nasazení hledá přesně tento řádek (jinak by se mezipaměť nikdy nezměnila)
     assert.match(sw, /const CACHE_NAME = 'mudrlant-v3';/);
     assert.ok(pages.includes("const CACHE_NAME = 'mudrlant-v3';"));

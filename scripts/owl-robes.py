@@ -1,5 +1,5 @@
 # Barvy obleku sovy: z icons/logo.webp a icons/topics/sova-*.webp (vínový talár) vyrobí varianty <název>-<barva>.webp.
-# Přebarví se jen vínová/červená oblast (talár, čepice, kniha); oči, zobák, peří, zlaté detaily a obrys zůstanou.
+# Přebarví se jen vínová/červená oblast (talár, čepice, kniha, tmavě vínové čáry); oči, zobák, růžový jazyk, peří a zlaté detaily zůstanou.
 # Spuštění: python3 scripts/owl-robes.py   (Pillow, numpy). Barvy musí odpovídat ROBES v look.js.
 import os, glob
 import numpy as np
@@ -46,6 +46,9 @@ def recolor(im, hue, sat, val):
     hd = np.where(h > 180, h - 360, h)            # -180 … 180
     w = np.clip((hd + 60) / 15, 0, 1) * np.clip((18 - hd) / 8, 0, 1)
     w *= np.clip((s - 0.18) / 0.15, 0, 1)
+    # Růžový jazyk a zobáček (sovy titulů s otevřeným zobákem): světlá červená až růžová (jas od 0,72, odstín od -2°) zůstane;
+    # talár a čepice jsou tmavší a do vínova (odstín kolem -15°), jejich světlá místa jsou pod hranicí
+    w *= 1 - np.clip((v - 0.62) / 0.1, 0, 1) * np.clip((hd + 8) / 6, 0, 1)
     out = hsv_to_rgb(np.full_like(h, hue), np.clip(s * sat, 0, 1), np.clip(v * val, 0, 1))
     rgb = a[..., :3] * (1 - w[..., None]) + out * w[..., None]
     return Image.fromarray((np.dstack([rgb, a[..., 3]]) * 255).round().astype(np.uint8), 'RGBA')

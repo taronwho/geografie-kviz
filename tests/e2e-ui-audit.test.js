@@ -52,7 +52,7 @@ const inspect = () => {
         if (el.matches('#app-header button, [data-action="next"], [data-action="choice"], [data-action="hint"], [data-chooser-play], #answer-form button')
             && Math.min(box.width, box.height) < 43.5) out.small.push(`${name(el)} ${Math.round(box.width)}×${Math.round(box.height)}`);
         // Zavírání oken, medaile, výběr vzhledu, doplňky sovy, obrázky v Profilu, přepínače, cíle týdne a odkazy pod okny: aspoň 40 px
-        if (el.matches('[data-close][aria-label], [data-fact-close], [data-badge], #weekly-goals, [data-tip-off], [data-update-app], [data-theme-pick], [data-frame], #settings-overlay a[href], [data-owl-pick], [data-pick-avatar], [data-pick-owl], [data-locked-avatar], [role="switch"], [data-tutorial-restart], [data-chooser-category], [data-chooser-topic]')
+        if (el.matches('[data-close][aria-label], [data-fact-close], [data-badge], #weekly-goals, [data-tip-off], [data-update-app], [data-theme-pick], [data-frame], #settings-overlay a[href], [data-owl-pick], [data-pick-avatar], [data-pick-owl], [data-locked-avatar], [data-locked-owl], [role="switch"], [data-tutorial-restart], [data-chooser-category], [data-chooser-topic]')
             && Math.min(box.width, box.height) < 39.5) out.small.push(`${name(el)} ${Math.round(box.width)}×${Math.round(box.height)}`);
         el.scrollIntoView({ block: 'center', inline: 'nearest' });
         const at = el.getBoundingClientRect();
@@ -264,6 +264,18 @@ test('rozhraní na úzkém telefonu', { skip: !chromium && 'Playwright není nai
             await tab.click('#status-text');
             await tab.waitForSelector('[data-open-levels]');
             await check(tab, `${scene}: můj postup`, scheme);
+            // Karta s úrovní a titulem má sovu titulu (místo kolečka úrovně, úroveň je štítek na sově) a nenaroste: okno se kvůli ní
+            // neposouvá víc než dřív (106 px jako karta s kolečkem; jinak okno posouvá jen seznam mistrovství témat pod ní)
+            const card = await tab.evaluate(() => {
+                const box = document.querySelector('[data-open-levels]').getBoundingClientRect();
+                const owl = document.querySelector('[data-open-levels] [data-title-owl] img');
+                const title = document.querySelector('[data-open-levels] .text-xl');
+                return { height: box.height, owl: owl && owl.getAttribute('src'), owlHeight: owl && owl.getBoundingClientRect().height, titleLines: Math.round(title.getBoundingClientRect().height / parseFloat(getComputedStyle(title).lineHeight)) };
+            });
+            assert.ok(card.height <= 106.5, `${scene}: karta úrovně ${card.height} px`);
+            assert.equal(card.owl, 'icons/topics/sova-titul-1.webp');
+            assert.ok(card.owlHeight >= 64, `${scene}: sova titulu ${card.owlHeight} px`);
+            assert.equal(card.titleLines, 1, `${scene}: titul na jeden řádek`);
             assert.deepEqual(problems, [], 'bez chyb v konzoli a bez porušení CSP');
             await context.close();
         });

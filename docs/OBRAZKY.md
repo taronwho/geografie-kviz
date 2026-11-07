@@ -12,7 +12,7 @@ Cíl: aby celá hra vypadala originálně. Ilustrace nahradí obecné ikony u ti
 
 ## 1. Tituly – sovy (Úrovně a tituly)
 
-Každá sova patří k několika titulům. Teď titulům slouží nálady sovy (Zvědavec je spící sova).
+Každá sova patří k několika titulům. Hotovo: sovy jsou v Úrovních a titulech, v oslavě nového titulu, na kartě Můj postup a jako profilovka (dosažené tituly; Nastavení → Profil → Obrázek).
 
 ### 1. `sova-titul-1.png` – Zvědavec, Čtenář, Posluchač (úrovně 1–6)
 
@@ -335,6 +335,8 @@ Cartoon sticker illustration in exactly the same art style as the attached owl m
 ```
 
 ## 4. Dlaždice – více hráčů, úvod, učení
+
+**Stav: č. 40–45 jsou dodané a zapojené do hry** – karta turnaje a pozvánka do turnaje, dlaždice Náhodný soupeř a Zadat kód (klíč i v okně Zadat kód výzvy), pruh a okno Cíle týdne, Procvičování v Učení a okno tipu. Sova s žárovkou (č. 45) je ve hře jako `sova-tip`, aby měla barvy obleku jako ostatní sovy.
 
 ### 40. `turnaj.png` – Karta a dlaždice turnaje
 

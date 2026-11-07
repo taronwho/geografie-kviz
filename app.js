@@ -10,7 +10,7 @@
         processWikiText, takeLeadFacts, checkAnswer, normalizeAnswer, filterItems, pickItem, sortItems,
         buildItemChoices, cultureLandsFor, findAnswerItem, setCountries, updateMistakes, nameAnswers, pointsFor, dropKnownFacts, scaleKnown, dropChoiceNames,
         computeStreak, buildShareText, getTileLayout, shuffle,
-        LEVEL_XP, xpForLevel, MAX_LEVEL, LEVEL_TITLES,
+        LEVEL_XP, xpForLevel, MAX_LEVEL, LEVEL_TITLES, titleOwlTier,
         BADGES, BADGE_GROUPS, BADGE_BY_ID, earnedBadgeIds, compactBadges, expandBadges, normalizeCounters,
         levelProgress, titleForLevel, nextTitle, answerXp, DAILY_XP, DAILY_ALL_XP, streakXp, MASTERY_STEPS, masteryStars, nextMastery
     } = window.MudrlantCore;
@@ -931,6 +931,30 @@
         if (!item || Social.AVATARS.includes(emoji) || (myProfile && myProfile.avatar === emoji) || Look.isUnlocked(item, lookContext())) return null;
         return item;
     };
+    // Sovy titulů (icons/topics/sova-titul-<n>.webp): ilustrace stupně titulu podle úrovně; barvu obleku jí dá look-robes.js
+    const titleOwlPose = (level) => `titul-${titleOwlTier(level)}`;
+    const titleOwlArt = (level) => `sova-${titleOwlPose(level)}`;
+    // Tituly jednoho stupně sovy (např. Učeň, Žák)
+    const tierTitles = (tier) => LEVEL_TITLES.filter(entry => titleOwlTier(entry.from) === tier).map(entry => entry.title);
+    // Moje zvolená sova titulu omezená na dosaženou úroveň (null = sova s doplňky)
+    const myPose = () => { const ctx = lookContext(); return Owl && Look ? Owl.allowedPose(ctx.prefs.pose, ctx.level) : null; };
+    // Dlaždice sov titulů v Profilu → Obrázek (hned za „Moje sova“): sova v mé barvě obleku, oříznutá do kolečka jako v profilovce;
+    // dosažené jdou vybrat, vyšší jsou zašedlé s úrovní, od které se odemknou, a klepnutí jen řekne, kdy to bude
+    const poseTiles = () => {
+        if (!Owl || !Owl.poseHtml || !Look || !meDraft) return '';
+        const ctx = lookContext();
+        return Look.POSES.map(pose => {
+            const titles = tierTitles(pose.tier);
+            const label = `Sova titulu ${titles[0]} (${titles.join(', ')})`;
+            const art = Owl.poseHtml(pose.id, ctx.prefs.robe);
+            if (ctx.level < pose.level) {
+                return `<button type="button" data-locked-owl="${pose.id}" aria-disabled="true" aria-label="${escapeHtml(`${label} je zamčená: od úrovně ${pose.level}`)}" title="${escapeHtml(`${label}: od úrovně ${pose.level}`)}" class="${AVATAR_TILE} ${AVATAR_OFF} relative">`
+                    + `<span class="block h-full w-full opacity-40 grayscale">${art}</span><span class="absolute bottom-0 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-white px-1 text-[9px] font-black leading-[0.75rem] text-slate-700 dark:bg-slate-900 dark:text-slate-200">úr.&nbsp;${pose.level}</span></button>`;
+            }
+            const on = Boolean(meDraft.owl && meDraft.pose === pose.id);
+            return `<button type="button" data-pick-owl="${pose.id}" aria-label="${escapeHtml(label)}" title="${escapeHtml(label)}" aria-pressed="${on}" class="${AVATAR_TILE} ${on ? AVATAR_ON : AVATAR_OFF}">${art}</button>`;
+        }).join('');
+    };
     const refreshPush = async () => {
         const user = signedUser();
         if (!Push || !user) { pushState = null; pushPrefs = null; return; }
@@ -1393,7 +1417,7 @@
         if ((!user || !Social) && meTab === 'profile') meTab = 'game';
         if (user && Social && !meDraft) {
             const base = myProfile || { display_name: user.name, avatar: '🦊', color: 'emerald' };
-            meDraft = { name: base.display_name, avatar: base.avatar, color: base.color, owl: Boolean(base.owl && Owl) };
+            meDraft = { name: base.display_name, avatar: base.avatar, color: base.color, owl: Boolean(base.owl && Owl), pose: base.owl && Owl && Look ? myPose() : null };
             if (!myProfile) loadMyProfile().then(() => { if (!meDirty && document.getElementById('settings-overlay')) { meDraft = null; openSettings(meNote); } });
         }
         let overlay = document.getElementById('settings-overlay');
@@ -1405,7 +1429,7 @@
         if (!overlay) overlay = createSettingsOverlay();
         const state = Auth ? Auth.getState() : { configured: false };
         const profile = user ? (myProfile || { display_name: user.name, avatar: '🦊', color: 'emerald' }) : null;
-        const shown = profile && meTab === 'profile' && meDraft ? { ...profile, ...{ avatar: meDraft.avatar, color: meDraft.color, owl: meDraft.owl ? myOwlText() : null, draft: true } } : profile;
+        const shown = profile && meTab === 'profile' && meDraft ? { ...profile, ...{ avatar: meDraft.avatar, color: meDraft.color, owl: meDraft.owl ? ownOwlText(meDraft.pose) : null, draft: true } } : profile;
         const level = levelProgress(loadProgress().xp);
         const noteText = note || meNote;
         const tabList = [['game', 'gamepad-2', 'Hra'], ...(user && Social ? [['profile', 'user-round', 'Profil']] : []), ['look', 'palette', 'Vzhled'], ...(Owl ? [['owl', 'sparkles', 'Mudrlant']] : [])];
@@ -1445,7 +1469,7 @@
                 </label>
                 <div>
                     <p class="${ME_HEADING} mb-1.5">Obrázek</p>
-                    <div data-avatar-strip class="scroll-fade-x relative -mx-1 grid auto-cols-[2.5rem] grid-flow-col grid-rows-3 gap-1 overflow-x-auto overscroll-x-contain px-1 py-0.5 pr-8">${Owl && Owl.owlAvatarHtml ? `<button type="button" data-pick-owl aria-label="Sova Mudrlant" title="Sova Mudrlant" aria-pressed="${meDraft.owl}" class="${AVATAR_TILE} ${meDraft.owl ? AVATAR_ON : AVATAR_OFF}">${Owl.owlAvatarHtml(myOwlText(), 'h-full w-auto', 'h-[88%]')}</button>` : ''}${Social.allAvatars().map(emoji => {
+                    <div data-avatar-strip class="scroll-fade-x relative -mx-1 grid auto-cols-[2.5rem] grid-flow-col grid-rows-3 gap-1 overflow-x-auto overscroll-x-contain px-1 py-0.5 pr-8">${Owl && Owl.owlAvatarHtml ? `<button type="button" data-pick-owl aria-label="Sova Mudrlant" title="Sova Mudrlant" aria-pressed="${meDraft.owl && !meDraft.pose}" class="${AVATAR_TILE} ${meDraft.owl && !meDraft.pose ? AVATAR_ON : AVATAR_OFF}">${Owl.owlAvatarHtml(ownOwlText(null), 'h-full w-auto', 'h-[88%]')}</button>${poseTiles()}` : ''}${Social.allAvatars().map(emoji => {
                         const lock = avatarLock(emoji);
                         if (lock) return `<button type="button" data-locked-avatar="${emoji}" aria-disabled="true" aria-label="Obrázek ${emoji} je zamčený: ${avatarUnlockText(lock)}" title="${avatarUnlockText(lock)}" class="${AVATAR_TILE} ${AVATAR_OFF} opacity-40 grayscale">${emoji}</button>`;
                         return `<button type="button" data-pick-avatar="${emoji}" aria-label="Obrázek ${emoji}" aria-pressed="${emoji === meDraft.avatar && !meDraft.owl}" class="${AVATAR_TILE} ${emoji === meDraft.avatar && !meDraft.owl ? AVATAR_ON : AVATAR_OFF}">${emoji}</button>`;
@@ -1512,14 +1536,17 @@
         const input = document.getElementById('profile-name');
         if (input) meDraft.name = input.value;
         try {
-            myProfile = await Social.saveProfile(user.id, { ...meDraft, owl: meDraft.owl ? myOwlText() : null });
+            const owlText = meDraft.owl ? ownOwlText(meDraft.pose) : null;
+            myProfile = await Social.saveProfile(user.id, { ...meDraft, owl: owlText });
+            // Zvolená sova titulu (nebo sova s doplňky) se pamatuje ve Vzhledu: platí pro mou profilovku i pro pozdější přeuložení sovy
+            if (meDraft.owl && Look) Look.setPref('pose', meDraft.pose || null);
             // Volba sovy se pamatuje i v zařízení: v databázi bez sloupce owl (schema.sql ještě nebylo znovu spuštěno) by se jinak ztratila
             // a profilovka by zůstala emoji. Ostatní hráči ji uvidí až po spuštění schematu.
             writeJson(OWL_AVATAR_KEY, Boolean(meDraft.owl));
             // Vlastní odstín se pamatuje i v zařízení (starší schéma ho do databáze neuloží, tam jde nejbližší pojmenovaná barva)
             writeJson(AVATAR_COLOR_KEY, Social.customHue(meDraft.color) !== null ? meDraft.color : null);
             if (Social.customHue(meDraft.color) !== null && myProfile.color !== meDraft.color) myProfile = { ...myProfile, color: meDraft.color };
-            if (meDraft.owl && !myProfile.owl) myProfile = { ...myProfile, owl: myOwlText() };
+            if (meDraft.owl && !myProfile.owl) myProfile = { ...myProfile, owl: owlText };
             meNote = 'Uloženo.';
             meDirty = false;
             updateProfileButton();
@@ -1703,6 +1730,14 @@
                 return;
             }
             if (devButton) { devApply(devButton.dataset.dev); updateControlsUI(); openSettings(`Hotovo: ${devButton.textContent.trim()}`, `[data-dev="${devButton.dataset.dev}"]`); return; }
+            const lockedOwl = event.target.closest('[data-locked-owl]');
+            if (lockedOwl && Look) {
+                const input = document.getElementById('profile-name');
+                if (input && meDraft) meDraft.name = input.value;
+                const pose = Look.findPose(lockedOwl.dataset.lockedOwl);
+                if (pose) openSettings(`Sova titulu ${tierTitles(pose.tier)[0]} se odemkne od úrovně ${pose.level}.`, `[data-locked-owl="${pose.id}"]`);
+                return;
+            }
             const locked = event.target.closest('[data-locked-avatar]');
             if (locked) {
                 const input = document.getElementById('profile-name');
@@ -1717,12 +1752,19 @@
             if (avatar || color || pickOwl) {
                 const input = document.getElementById('profile-name');
                 if (input && meDraft) meDraft.name = input.value;
-                if (pickOwl) { meDraft.owl = true; meDraft.avatar = '🦉'; }
+                if (pickOwl) {
+                    // Prázdná hodnota = sova s doplňky, jinak sova titulu (jen dosaženého)
+                    const pose = Look && pickOwl.dataset.pickOwl ? Look.findPose(pickOwl.dataset.pickOwl) : null;
+                    if (pose && levelProgress(loadProgress().xp).level < pose.level) return;
+                    meDraft.owl = true;
+                    meDraft.avatar = '🦉';
+                    meDraft.pose = pose ? pose.id : null;
+                }
                 if (avatar) { meDraft.avatar = avatar.dataset.pickAvatar; meDraft.owl = false; }
                 if (color) meDraft.color = color.dataset.pickColor;
                 meDirty = true;
                 meNote = '';
-                openSettings('', pickOwl ? '[data-pick-owl]' : avatar ? `[data-pick-avatar="${meDraft.avatar}"]` : `[data-pick-color="${meDraft.color}"]`);
+                openSettings('', pickOwl ? `[data-pick-owl="${meDraft.pose || ''}"]` : avatar ? `[data-pick-avatar="${meDraft.avatar}"]` : `[data-pick-color="${meDraft.color}"]`);
                 return;
             }
             const variantButton = event.target.closest('[data-variant]');
@@ -3127,7 +3169,8 @@
     const announce = (levelBefore, levelNow, badgeTitles) => {
         if (levelNow > levelBefore) {
             const newTitle = titleForLevel(levelNow) !== titleForLevel(levelBefore);
-            showCelebration(newTitle ? 'vitez' : 'oslava', newTitle ? 'Nový titul' : `Úroveň ${levelNow}`, newTitle ? `${titleForLevel(levelNow)} (úroveň ${levelNow})` : titleForLevel(levelNow));
+            // Nový titul slaví sova jeho stupně (sova titulu v barvě mého obleku)
+            showCelebration(newTitle ? titleOwlPose(levelNow) : 'oslava', newTitle ? 'Nový titul' : `Úroveň ${levelNow}`, newTitle ? `${titleForLevel(levelNow)} (úroveň ${levelNow})` : titleForLevel(levelNow));
         }
         badgeTitles.slice(0, 3).forEach(title => showCelebration('oslava', 'Nový odznak', title));
         if (badgeTitles.length > 3) showCelebration('oslava', 'Další odznaky', `a ještě ${badgeTitles.length - 3}`);
@@ -3224,7 +3267,7 @@
         const label = `Cíle týdne: splněno ${done} ze ${rows.length}, ${goalsLeftText()}. Zobrazit podrobnosti`;
         return `
             <button type="button" id="weekly-goals" data-action="goals-open" aria-label="${escapeHtml(label)}" title="${escapeHtml(rows.map(row => row.goal.title).join('\n'))}" class="flex min-h-[2.5rem] w-full items-center gap-1.5 rounded-2xl bg-white px-2.5 py-1.5 text-left shadow-sm ring-1 ring-slate-200/70 transition-all active:scale-[0.98] dark:bg-slate-800/70 dark:ring-slate-700/70">
-                <i data-lucide="goal" class="h-4 w-4 shrink-0 text-brand-700 dark:text-cream"></i>
+                ${uiArt('cile', 'h-7 w-7 -my-1 -ml-1')}
                 <span class="shrink-0 whitespace-nowrap text-[11px] font-black text-slate-800 dark:text-slate-100">Cíle týdne <span class="${state.bonus ? 'text-emerald-600 dark:text-emerald-300' : 'text-slate-500 dark:text-slate-400'}">${done}/${rows.length}</span></span>
                 <span class="flex min-w-0 flex-1 gap-1">${rows.map(chip).join('')}</span>
                 <i data-lucide="chevron-right" class="h-3.5 w-3.5 shrink-0 text-slate-400"></i>
@@ -3247,7 +3290,7 @@
                 </div>
             </li>`;
         showDialog('Cíle týdne', `
-            <p class="-mt-2 mb-3 text-xs text-slate-500 dark:text-slate-400">${escapeHtml(Goals.weekLabel(state.week))} · ${goalsLeftText()}</p>
+            <div class="-mt-3 mb-2 flex items-center gap-2">${uiArt('cile', 'h-10 w-10')}<p class="text-xs text-slate-500 dark:text-slate-400">${escapeHtml(Goals.weekLabel(state.week))} · ${goalsLeftText()}</p></div>
             <ul class="flex flex-col gap-2">${rows.map(row).join('')}</ul>
             <p class="mt-3 flex items-center gap-2 rounded-2xl ${state.bonus ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200' : 'bg-gold-100 text-gold-800 dark:bg-gold-900/40 dark:text-gold-200'} px-3 py-2 text-xs font-bold"><i data-lucide="trophy" class="h-4 w-4 shrink-0"></i>${state.bonus ? `Všechny cíle splněny: bonus +${Goals.BONUS_XP} XP získán` : `Za všechny tři cíle bonus +${Goals.BONUS_XP} XP a odznak Týdenní cíle`}</p>`);
         applyProgress(document.getElementById('dialog-overlay'));
@@ -3727,7 +3770,7 @@
         const reviewText = reviewSummary ? reviewSummary.text : due ? 'Špatné odpovědi se vrací po 1, 3, 7, 14 a 30 dnech' : next ? `Nic na řadě, ${next}` : 'Co v kvízu spleteš, sem přijde k procvičení';
         const reviewSection = reviewEnabled() ? `
             <section data-review-section class="flex items-center gap-3 rounded-2xl border border-slate-100 bg-white p-3 shadow-sm dark:border-slate-700 dark:bg-slate-800">
-                <span class="shrink-0 rounded-xl bg-gold-100 p-2 text-gold-700 dark:bg-gold-900/40 dark:text-gold-300"><i data-lucide="repeat" class="h-5 w-5"></i></span>
+                ${uiArt('procvicovani', 'h-11 w-11 -my-1')}
                 <span class="min-w-0 flex-1">
                     <span class="block text-sm font-black leading-tight text-slate-800 dark:text-slate-100">K procvičení dnes (${due})</span>
                     <span class="block text-[11px] font-semibold leading-tight text-slate-500 dark:text-slate-400">${escapeHtml(reviewText)}</span>
@@ -3993,8 +4036,14 @@
     const playerName = (player) => (player && player.display_name) || 'Hráč';
     // Hráči, jejichž obrázek jde klepnout (klepnutí otevře profil); id → údaje o hráči
     const knownPlayers = new Map();
-    // Moje sova (barva obleku + doplňky z lokální volby) jako text pro profil
-    const myOwlText = () => Owl && Owl.encodeOwl && Look ? Owl.encodeOwl(Look.prefs(lookContext())) : '';
+    // Moje sova (barva obleku + doplňky z lokální volby, případně sova titulu) jako text pro profil; pose = jiná sova titulu než uložená
+    // (náhled v Profilu), null = sova s doplňky. Sova titulu se omezí na dosaženou úroveň: po ztrátě úrovně nejvyšší dosažená.
+    const ownOwlText = (pose) => {
+        if (!Owl || !Owl.encodeOwl || !Look) return '';
+        const ctx = lookContext();
+        return Owl.encodeOwl({ ...ctx.prefs, pose: Owl.allowedPose(pose, ctx.level) });
+    };
+    const myOwlText = () => Look ? ownOwlText(Look.prefs(lookContext()).pose) : '';
     // link = klepnutím na obrázek se otevře profil hráče (klepnutí zachytí společný posluchač dole)
     const avatarHtml = (player, size = 'h-10 w-10 text-xl', link = false) => {
         const linked = link && player && player.id;
@@ -4007,7 +4056,8 @@
         const isMe = Boolean(me && player && player.id === me.id);
         // Můj vlastní řádek (žebříček, výzvy) nemusí mít sovu z databáze (starší schéma): bere se z mého profilu / zařízení
         const showsOwl = Boolean(player && (player.owl || (isMe && !player.draft && myProfile && myProfile.owl)));
-        const owlHtml = showsOwl && Owl && Owl.owlAvatarHtml ? Owl.owlAvatarHtml(isMe && Look ? myOwlText() : player.owl) : '';
+        // Náhled v Profilu (draft) má sovu z rozpracované volby (třeba jinou sovu titulu)
+        const owlHtml = showsOwl && Owl && Owl.owlAvatarHtml ? Owl.owlAvatarHtml(isMe && Look && !player.draft ? myOwlText() : player.owl) : '';
         return `<span ${linked ? `data-player-id="${escapeHtml(player.id)}" role="button" tabindex="0" aria-label="Profil hráče ${escapeHtml(playerName(player))}"` : 'aria-hidden="true"'} class="flex shrink-0 items-center justify-center rounded-full ${size} ${avatarBg(isMe && !player.draft && myProfile && myProfile.color ? myProfile.color : player && player.color)}${frame}${linked ? ' cursor-pointer' : ''}">${owlHtml || escapeHtml((player && player.avatar) || '🦊')}</span>`;
     };
     // Téma výzvy: „mix“ (všechna), jedno téma, nebo víc témat oddělených čárkou
@@ -4110,6 +4160,9 @@
         try {
             if (ctx.prefs.frame === 'zadny' && myProfile.frame) Look.setPref('frame', myProfile.frame, ctx);
             if (ctx.prefs.title === 'level' && myProfile.title_pref) Look.setPref('title', myProfile.title_pref, ctx);
+            // Sova titulu jako profilovka z účtu (nové zařízení): převezme se, když tu žádná zvolená není
+            const accountPose = Owl && myProfile.owl ? (Owl.parseOwl(myProfile.owl) || {}).pose : null;
+            if (accountPose && !ctx.prefs.pose) Look.setPref('pose', accountPose, ctx);
         } finally { adoptingLook = false; }
         const now = Look.prefs(ctx);
         const pushFrame = now.frame !== 'zadny' && now.frame !== (myProfile.frame || 'zadny');
@@ -4304,14 +4357,15 @@
     // Rychlé akce: tři dlaždice (Vyzvat, Náhodný soupeř, Zadat kód) a pod nimi drobný čip s nastavením přijímaných výzev
     // Na nízkém displeji (short:) menší ikony a nižší dlaždice, ať se nad ohyb vejde i liga
     const QUICK_TILE = 'flex min-h-[4.5rem] min-w-0 flex-col items-center justify-center gap-1 rounded-2xl px-1 py-2 text-center text-[12px] font-black leading-tight short:min-h-[3.75rem] short:gap-0.5 short:py-1.5';
-    const QUICK_ICON = 'flex h-9 w-9 items-center justify-center rounded-full short:h-7 short:w-7';
+    // Kostky a klíč jsou vzdušnější kresby než meče u Vyzvat: obrázek je o kousek větší, místo zabere stejné (h-9, na nízkém displeji h-7)
+    const QUICK_ART = 'h-11 w-11 -my-1 short:h-8 short:w-8 short:-my-0.5';
     const QUICK_LIGHT = 'bg-white text-slate-800 shadow-sm ring-1 ring-slate-200/70 active:scale-95 dark:bg-slate-800 dark:text-slate-100 dark:ring-slate-700/70';
     const quickActions = () => `
         <div class="flex flex-col gap-1.5">
             <div class="grid grid-cols-3 gap-2">
                 <button type="button" data-action="new-challenge" class="${QUICK_TILE} btn-3d bg-brand-700 text-white">${uiArt('vyzva', 'h-9 w-9 short:h-7 short:w-7')}Vyzvat</button>
-                <button type="button" data-action="random-challenge" class="${QUICK_TILE} ${QUICK_LIGHT}"><span class="${QUICK_ICON} bg-brand-100 text-brand-700 dark:bg-brand-900/50 dark:text-brand-200"><i data-lucide="shuffle" class="h-5 w-5"></i></span>Náhodný soupeř</button>
-                <button type="button" data-action="join-challenge" class="${QUICK_TILE} ${QUICK_LIGHT}"><span class="${QUICK_ICON} bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300"><i data-lucide="hash" class="h-5 w-5"></i></span>Zadat kód</button>
+                <button type="button" data-action="random-challenge" class="${QUICK_TILE} ${QUICK_LIGHT}">${uiArt('nahodny', QUICK_ART)}Náhodný soupeř</button>
+                <button type="button" data-action="join-challenge" class="${QUICK_TILE} ${QUICK_LIGHT}">${uiArt('kod', QUICK_ART)}Zadat kód</button>
             </div>
             <button type="button" data-action="open-accept" title="Změnit, z jakých témat přijímám výzvy" class="flex min-h-[2rem] max-w-full items-center gap-1.5 self-center rounded-full bg-slate-200/60 px-3 py-1 text-[11.5px] font-bold text-slate-600 active:scale-95 dark:bg-slate-800/80 dark:text-slate-300"><i data-lucide="shield-check" class="h-3.5 w-3.5 shrink-0 text-brand-700 dark:text-brand-300"></i><span class="min-w-0 truncate">Přijímám výzvy z: <b class="text-slate-800 dark:text-slate-100">${escapeHtml(acceptSummary())}</b></span><i data-lucide="pencil" class="h-3 w-3 shrink-0 text-brand-700 dark:text-cream"></i></button>
         </div>`;
@@ -4929,6 +4983,7 @@
         let note = '';
         const render = (value = '') => showDialog('Zadat kód výzvy', `
             <form class="flex flex-col gap-3" autocomplete="off">
+                ${uiArt('kod', 'mx-auto -my-1 h-14 w-14')}
                 <input id="challenge-code" data-autofocus type="text" inputmode="text" autocapitalize="characters" maxlength="200" placeholder="Např. K7M2QX" value="${escapeHtml(value)}" class="w-full rounded-xl border-2 border-slate-200 bg-white px-3 py-3 text-center text-xl font-black uppercase tracking-widest text-slate-800 focus:border-brand-600 focus:outline-none dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100">
                 <button type="submit" class="${PRIMARY_BUTTON}">Otevřít výzvu</button>
                 ${note ? DIALOG_NOTE(note) : ''}
@@ -5032,9 +5087,6 @@
 
     // XP s mezerou po tisících („12 500“); nedělitelná mezera, ať se číslo nezalomí
     const formatXp = (value) => String(Math.round(value)).replace(/\B(?=(\d{3})+(?!\d))/g, '\u00a0');
-    // Obrázek titulu: zatím sova v pózách od spící (první tituly) po vítěze (poslední); dosažené barevně, ostatní zešedlé
-    const TITLE_OWLS = ['spi', 'smutek', 'premysleni', 'vitej', 'vyzva', 'radost', 'serie', 'prohra', 'oslava', 'vitez'];
-    const titleOwl = (index) => TITLE_OWLS[Math.min(TITLE_OWLS.length - 1, Math.floor(index * TITLE_OWLS.length / LEVEL_TITLES.length))];
     // Přehled úrovní: posouvací seznam titulů; u každého obrázek (nedosažené zešedlé), název, rozsah úrovní a XP potřebné na jednotlivé úrovně
     // Odměny odemykané v rozsahu úrovní řádku (drobné štítky)
     const rewardChips = (from, last, here) => {
@@ -5052,7 +5104,7 @@
             const levels = Array.from({ length: last - entry.from + 1 }, (_, i) => entry.from + i);
             return `
                 <li data-title-row="${entry.from}"${here ? ' data-here' : ''} class="flex items-center gap-3 rounded-2xl p-2 shadow-sm ${here ? 'bg-brand-700 text-white ring-2 ring-gold-400' : reached ? 'bg-white dark:bg-slate-800' : 'bg-white/60 dark:bg-slate-800/50'}">
-                    ${uiArt(`sova-${titleOwl(index)}`, `h-14 w-14 ${reached ? '' : 'opacity-40 grayscale'}`)}
+                    ${uiArt(titleOwlArt(entry.from), `h-14 w-14 ${reached ? '' : 'opacity-40 grayscale'}`)}
                     <div class="min-w-0 flex-1">
                         <p class="flex items-baseline justify-between gap-2"><span class="truncate text-[15px] font-black leading-tight ${here ? '' : reached ? 'text-slate-800 dark:text-slate-100' : 'text-slate-500 dark:text-slate-400'}">${escapeHtml(entry.title)}</span><span class="shrink-0 text-[11px] font-bold ${here ? 'text-gold-300' : 'text-slate-500 dark:text-slate-400'}">úr. ${entry.from === last ? entry.from : `${entry.from}–${last}`}</span></p>
                         <p class="mt-0.5 text-[11px] font-semibold leading-snug ${here ? 'text-white/85' : 'text-slate-500 dark:text-slate-400'}">od ${formatXp(xpForLevel(entry.from))} XP</p>
@@ -5099,8 +5151,8 @@
         }).join('');
         showDialog('Můj postup', `
             <div class="flex flex-col gap-3">
-                <button type="button" data-open-levels class="btn-3d flex w-full items-center gap-4 rounded-2xl bg-gradient-to-br from-brand-700 to-brand-900 p-3 text-left text-white" aria-label="Tabulka úrovní">
-                    <span class="flex h-16 w-16 shrink-0 flex-col items-center justify-center rounded-full bg-gold-500 text-brand-950 shadow-inner"><span class="text-[9px] font-black uppercase leading-none">úr.</span><span class="text-2xl font-black leading-none">${level.level}</span></span>
+                <button type="button" data-open-levels class="btn-3d flex w-full items-center gap-3 rounded-2xl bg-gradient-to-br from-brand-700 to-brand-900 p-3 text-left text-white" aria-label="Tabulka úrovní">
+                    <span class="relative h-[4.5rem] w-[4.5rem] shrink-0" data-title-owl>${uiArt(titleOwlArt(level.level), 'h-full w-full')}<span class="absolute -bottom-1 -right-1.5 flex h-9 w-9 flex-col items-center justify-center rounded-full bg-gold-500 text-brand-950 shadow-md ring-2 ring-brand-800"><span class="text-[8px] font-black uppercase leading-none">úr.</span><span class="text-[15px] font-black leading-none">${level.level}</span></span></span>
                     <span class="min-w-0 flex-1">
                         <span class="block text-xl font-black leading-tight">${escapeHtml(titleForLevel(level.level))}</span>
                         <span class="mt-1.5 block h-2 overflow-hidden rounded-full bg-white/25" aria-hidden="true"><span class="block h-full w-0 rounded-full bg-gold-400" data-progress="${Math.round(level.ratio * 100)}"></span></span>
@@ -5914,7 +5966,7 @@
         showDialog('Tip od Mudrlanta', `
             <div id="tip-dialog" data-tip="${escapeHtml(tip.id)}" class="flex flex-col gap-3">
                 <div class="flex items-start gap-3">
-                    <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gold-100 text-gold-700 dark:bg-gold-900/40 dark:text-gold-300"><i data-lucide="${escapeHtml(tip.icon)}" class="h-6 w-6"></i></span>
+                    ${uiArt('sova-tip', 'h-[4.5rem] w-[4.5rem] -my-1')}
                     <div class="min-w-0"><p class="text-base font-black leading-tight text-slate-800 dark:text-slate-100">${escapeHtml(tip.title)}</p>
                         <p class="mt-1 text-sm font-semibold leading-snug text-slate-600 dark:text-slate-300">${escapeHtml(Tips.textFor(tip, Boolean(signedUser())))}</p></div>
                 </div>
@@ -5937,7 +5989,7 @@
         const when = `${Tournament.weekdayName(tournament.week_start)} ${Tournament.formatDay(tournament.week_start)}`;
         showDialog(TOUR_DIALOG, `
             <div id="tournament-offer" class="flex flex-col gap-3">
-                <div class="flex items-center gap-3"><span class="${TOUR_BUBBLE}"><i data-lucide="trophy" class="h-5 w-5"></i></span>
+                <div class="flex items-center gap-3">${uiArt('turnaj', 'h-14 w-14')}
                     <p class="text-sm font-semibold leading-snug text-slate-700 dark:text-slate-200">Přihlášky do týdenního turnaje jsou otevřené. Začíná <b>${escapeHtml(when)}</b>, každý den jedno kolo (10 otázek), vítěz postupuje dál až do finále.</p></div>
                 <button type="button" data-offer-join="${escapeHtml(tournament.id)}" class="flex w-full items-center justify-center gap-2 rounded-2xl btn-3d bg-emerald-600 px-4 py-3 text-base font-black text-white active:scale-[0.98]"><i data-lucide="trophy" class="h-5 w-5"></i> Přihlásit se</button>
                 <div class="flex items-center justify-between gap-2"><button type="button" data-offer-rules class="${TOUR_LINK}">Jak turnaje fungují</button><button type="button" data-close class="rounded-xl px-3 py-2.5 text-[13px] font-bold text-slate-500 underline underline-offset-2 dark:text-slate-400">Teď ne</button></div>
@@ -6038,8 +6090,8 @@
     };
 
     // --- Karta na záložce Více hráčů ---
-    const TOUR_BUBBLE = 'flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-gold-300 to-gold-600 text-brand-950 shadow-sm ring-2 ring-white/70 dark:ring-slate-700';
-    const TOUR_ICON = 'flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-gold-300 to-gold-600 text-brand-950 shadow-sm ring-2 ring-white/80 dark:ring-slate-700';
+    // Ilustrace turnaje (icons/topics/turnaj.webp): o kousek větší než místo, které zabere (40 px jako dřív kroužek), ať se řádek nezvýší ani nezúží text
+    const TOUR_ART = 'h-12 w-12 -m-1';
     const TOUR_LINK = 'inline-flex min-h-[2.5rem] items-center rounded px-1 text-[11px] font-black text-brand-700 underline decoration-brand-700/40 underline-offset-2 dark:text-cream dark:decoration-cream/40';
     const TOUR_SMALL = 'flex shrink-0 items-center justify-center gap-1 rounded-xl bg-white/70 text-[11px] font-black text-slate-700 ring-1 ring-slate-300/70 active:scale-95 disabled:opacity-50 dark:bg-slate-900/40 dark:text-slate-200 dark:ring-slate-600';
     const fillBar = (percent, count) => `<span class="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-white/80 dark:bg-slate-700" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${percent}" aria-label="Naplnění turnaje"><span class="block h-full rounded-full bg-gradient-to-r from-gold-400 to-gold-600 ${BAR_WIDTHS[count ? Math.max(1, Math.round(percent / 10)) : 0]}"></span></span>`;
@@ -6056,7 +6108,7 @@
         if (state.phase === 'open') {
             return `
                 <div data-tournament-row="open" class="flex items-center gap-2.5 py-2 first:pt-0 last:pb-0">
-                    <span class="${TOUR_ICON}"><i data-lucide="users" class="h-5 w-5"></i></span>
+                    ${uiArt('turnaj', TOUR_ART)}
                     <button type="button" data-action="tournament-open" data-tid="${id}" class="min-w-0 flex-1 text-left" aria-label="Přihlášení hráči">
                         <span class="block truncate text-[14px] font-black leading-tight text-slate-800 dark:text-slate-100">Přihlášky otevřené</span>
                         <span class="flex items-center gap-1 truncate text-[11px] font-semibold text-slate-600 dark:text-slate-300">${state.joined ? '<i data-lucide="circle-check" class="h-3.5 w-3.5 shrink-0 text-emerald-600 dark:text-emerald-400"></i>' : ''}<span class="truncate">${state.closed ? 'Přihlášky jsou zavřené' : state.joined ? `Jsi přihlášen · ${escapeHtml(Tournament.formatDay(state.start))}` : `Začíná ${escapeHtml(Tournament.weekdayName(state.start))} ${escapeHtml(Tournament.formatDay(state.start))}`}</span></span>
@@ -6076,7 +6128,7 @@
         const opponent = state.opponent && view.entries.find(entry => entry.user_id === state.opponent);
         return `
             <div data-tournament-row="${state.phase}" ${state.step ? `data-step="${state.step}"` : ''} class="flex items-center gap-2.5 py-2 first:pt-0 last:pb-0">
-                <span class="${TOUR_ICON}"><i data-lucide="trophy" class="h-5 w-5"></i></span>
+                ${uiArt('turnaj', TOUR_ART)}
                 <div class="min-w-0 flex-1">
                     <p class="truncate text-[14px] font-black leading-tight text-slate-800 dark:text-slate-100">${escapeHtml(title)}</p>
                     <p data-tournament-text class="flex flex-wrap items-center gap-x-1 text-[11px] font-semibold leading-snug text-slate-600 dark:text-slate-300">${state.step === 'play' && opponent ? `<span>Dnes hraješ proti</span> <span class="inline-flex items-center gap-1">${avatarHtml(opponent.player, 'h-4 w-4 text-[10px]')}<b class="text-slate-800 dark:text-slate-100">${escapeHtml(playerName(opponent.player))}</b></span>` : escapeHtml(text)}</p>

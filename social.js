@@ -90,7 +90,13 @@
         const gap = (a, b) => Math.min(Math.abs(a - b), 360 - Math.abs(a - b));
         return COLORS.filter(name => NAMED_HUE[name] !== undefined).reduce((best, name) => gap(NAMED_HUE[name], hue) < gap(NAMED_HUE[best], hue) ? name : best, COLORS[0]);
     };
-    const cleanOwl = (value) => typeof value === 'string' && /^[a-z0-9=.;-]{1,200}$/.test(value) ? value : null;
+    // Sova titulu (část pose=…) jen titul-1 … titul-10; jiná póza se z textu vynechá, zbytek sovy (oblek, doplňky) platí dál
+    const POSE_PART = /^pose=titul-(?:[1-9]|10)$/;
+    const cleanOwl = (value) => {
+        if (typeof value !== 'string' || !/^[a-z0-9=.;-]{1,200}$/.test(value)) return null;
+        const text = value.split(';').filter(part => !part.startsWith('pose=') || POSE_PART.test(part)).join(';');
+        return text || null;
+    };
     const cleanTitlePref = (value) => typeof value === 'string' && /^[a-z0-9-]{1,40}$/.test(value) ? value : null;
     const getProfile = async (userId) => (await withExtras(extras => request('GET', `profiles?id=eq.${encodeURIComponent(userId)}&select=${profileFields(extras)}`)) || [])[0] || null;
     // Rámeček a titul u jména do účtu; bez nových sloupců v databázi se potichu nic neuloží

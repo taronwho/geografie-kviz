@@ -1794,6 +1794,49 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         await context.close();
     });
 
+    await t.test('sovy titulů: Můj postup, okno Úrovně a tituly a oslava nového titulu ukazují sovu stupně titulu v barvě obleku', async () => {
+        const core = require('../quiz-core.js');
+        // Kousek pod úrovní 7 (Učeň): první správná odpověď přinese nový titul a s ním sovu druhého stupně; zelený talár (úroveň 6)
+        const { context, tab, log } = await setup(browser, { storage: {
+            'mudrlant.progress': JSON.stringify({ xp: core.xpForLevel(7) - 5, counters: {}, badges: {} }),
+            'mudrlant.look': JSON.stringify({ robe: 'zelena', acc: { face: { id: 'bryle', color: 'original' } } })
+        } });
+        await tab.goto(`${ORIGIN}/`);
+        await waitForHome(tab);
+        await tab.click('#status-badge');
+        await tab.waitForSelector('#dialog-overlay [data-open-levels]');
+        // Karta s úrovní: sova titulu Zvědavec–Posluchač (stupeň 1) v zeleném taláru, bez doplňků, a štítek úrovně
+        assert.equal(await tab.getAttribute('[data-open-levels] [data-title-owl] img', 'src'), 'icons/topics/sova-titul-1-zelena.webp');
+        assert.equal(await tab.locator('[data-open-levels] img[src*="doplnky"]').count(), 0, 'sova titulu je bez doplňků');
+        assert.match(await tab.textContent('[data-open-levels] [data-title-owl]'), /úr\.\s*6/);
+        await tab.waitForFunction(() => { const img = document.querySelector('[data-title-owl] img'); return img.complete && img.naturalWidth === 320; });
+        await tab.click('[data-open-levels]');
+        await tab.waitForSelector('#dialog-overlay [data-title-row]');
+        // Každý titul má sovu svého stupně (31 titulů, 10 sov), nedosažené jsou zašedlé
+        const rows = await tab.$$eval('#dialog-overlay [data-title-row]', nodes => nodes.map(node => { const img = node.querySelector('img'); return [Number(node.dataset.titleRow), img.getAttribute('src'), img.classList.contains('grayscale')]; }));
+        assert.equal(rows.length, 31);
+        for (const [from, src, grey] of rows) {
+            assert.equal(src, `icons/topics/sova-titul-${core.titleOwlTier(from)}-zelena.webp`, `titul od úrovně ${from}`);
+            assert.equal(grey, from > 6, `titul od úrovně ${from}: ${grey ? 'zašedlý' : 'barevný'}`);
+        }
+        assert.deepEqual([...new Set(rows.map(row => row[1]))].length, 10, 'deset různých sov');
+        await tab.waitForFunction(() => [...document.querySelectorAll('#dialog-overlay [data-title-row] img')].every(img => img.complete && img.naturalWidth > 0), null, { timeout: 10000 });
+        await tab.keyboard.press('Escape');
+
+        // Správná odpověď → úroveň 7 → oslava „Nový titul: Učeň“ se sovou druhého stupně v zeleném taláru
+        await tab.click('[data-action="daily"][data-topic="zemepis"]');
+        await waitForQuestion(tab);
+        const data = await readRound(tab);
+        await tab.click(`[data-action="choice"]:has-text("${data.question.answerLabel}")`);
+        await waitForResult(tab);
+        await tab.waitForFunction(() => { const card = document.getElementById('celebration'); return card && /Nový titul/.test(card.textContent); }, null, { timeout: 10000 });
+        assert.match(await tab.textContent('#celebration'), /Nový titul\s*Učeň \(úroveň 7\)/);
+        assert.equal(await tab.getAttribute('#celebration img', 'src'), 'icons/topics/sova-titul-2-zelena.webp');
+        assert.deepEqual(log.errors, []);
+        assert.deepEqual(log.csp, []);
+        await context.close();
+    });
+
     await t.test('tmavý režim', async () => {
         const { context, tab, log } = await setup(browser, { colorScheme: 'dark' });
         await tab.goto(`${ORIGIN}/`);
