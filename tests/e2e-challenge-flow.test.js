@@ -51,7 +51,7 @@ const backend = async (context, db) => {
         if (!me) return json({ message: 'no token' }, 401);
         db.log.push(key);
         if (db.delay[key]) await sleep(db.delay[key]);
-        if (db.fail[key]) return json({ message: 'boom' }, db.fail[key]);
+        if (db.fail[key]) return typeof db.fail[key] === 'object' ? json({ code: 'P0001', message: db.fail[key].message }, db.fail[key].status) : json({ message: 'boom' }, db.fail[key]);
         const param = (name) => url.searchParams.get(name) || '';
         const eq = (name) => param(name).replace(/^eq\./, '');
         const body = request.postData() ? JSON.parse(request.postData()) : null;
@@ -297,6 +297,27 @@ test('hra více hráčů: výzvy, obnova, okna a profil', { skip: !chromium && '
         assert.deepEqual(db.profiles['u-1'].blocked_topics, ['sport', 'vlajky']);
         assert.deepEqual(log.errors, []);
         assert.deepEqual(log.csp, []);
+        await context.close();
+    });
+
+    await t.test('odveta: hláška databáze (blok) místo „zkontroluj připojení“; starší výzva s 20 otázkami se odvetí s 10', async () => {
+        const db = newDb();
+        db.challenges.OOOOOO = { id: 'OOOOOO', creator_id: 'u-2', invited_id: 'u-1', topic: 'zemepis', count: 20, seed: 'o', include_hard: false, categories: [], variant: 'choices', created_at: '2026-11-03T10:00:00Z' };
+        db.results.push({ challenge_id: 'OOOOOO', user_id: 'u-1', correct: 12, points: 30, finished_at: '2026-11-03T10:10:00Z' }, { challenge_id: 'OOOOOO', user_id: 'u-2', correct: 10, points: 30, finished_at: '2026-11-03T10:20:00Z' });
+        const { context, tab, log } = await start(db);
+        await tab.click('[data-action="challenge-open"][data-code="OOOOOO"] [data-player-id="u-2"]');
+        await tab.waitForSelector('[data-rematch]');
+        assert.match(await compact(tab, '#dialog-overlay'), /Zeměpis · 10 otázek/);
+        db.fail['POST /rest/v1/challenges'] = { status: 400, message: 'Tohoto hráče nejde vyzvat.' };
+        await tab.click('[data-rematch]');
+        await tab.waitForFunction(() => /Tohoto hráče nejde vyzvat/.test(document.getElementById('dialog-overlay').textContent));
+        assert.doesNotMatch(await compact(tab, '#dialog-overlay'), /Zkontroluj připojení/);
+        delete db.fail['POST /rest/v1/challenges'];
+        await tab.click('[data-rematch]');
+        await tab.waitForSelector('[data-action="choice"]', { timeout: 30000 });
+        const rematch = Object.values(db.challenges).find(c => c.creator_id === 'u-1');
+        assert.deepEqual([rematch.invited_id, rematch.topic, rematch.count], ['u-2', 'zemepis', 10]);
+        assert.deepEqual(log.errors, []);
         await context.close();
     });
 

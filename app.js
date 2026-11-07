@@ -4070,6 +4070,13 @@
     // Nová výzva: komu (konkrétní hráč / náhodný / odkaz), téma (i víc témat), počet otázek a nastavení. Téma a nastavení jsou
     // souhrnné řádky, které se rozbalí klepnutím; tlačítko Vytvořit a hrát je stále dole na očích.
     // preset = { opponent, last }: výzva se předvyplní nastavením z poslední hry s tímto hráčem (úprava před odvetou); { who: 'random' }: rovnou náhodný soupeř
+    // Proč se výzva nezaložila: hláška databáze (česky: soupeř nepřijímá téma, blok mezi hráči), jinak výpadek spojení
+    const challengeErrorText = (error) => {
+        const message = String((error && error.message) || '');
+        if (error && error.status === 400 && /nepřijímá/.test(message)) return 'Tenhle hráč mezitím vypnul některé z vybraných témat. Zkus jiné.';
+        if (error && error.status >= 400 && error.status < 500 && /[ěščřžýáíéúůďťň]/i.test(message)) return message;
+        return 'Výzvu se nepodařilo založit. Zkontroluj připojení a zkus to znovu.';
+    };
     let newChallengeToken = 0;
     const openNewChallenge = (preset = null) => {
         if (!signedUser()) return;
@@ -4275,7 +4282,7 @@
                         startChallenge({ ...created, creator: myProfile, invited: opponent, fresh: true }, 0, []);
                     } catch (error) {
                         busy = false;
-                        note = error && error.status === 400 && /nepřijímá/.test(String(error.message || '')) ? 'Tenhle hráč mezitím vypnul některé z vybraných témat. Zkus jiné.' : 'Výzvu se nepodařilo založit. Zkontroluj připojení a zkus to znovu.';
+                        note = challengeErrorText(error);
                         render();
                     }
                 }
@@ -4309,7 +4316,7 @@
             const last = preset.last;
             if (last) {
                 draft.topics = last.topic === 'mix' ? [] : challengeTopicIds(last.topic);
-                draft.count = [5, 10, 15, 20].includes(last.count) ? last.count : draft.count;
+                draft.count = Social.COUNTS.includes(last.count) ? last.count : draft.count;
                 draft.hard = Boolean(last.include_hard);
                 draft.variant = last.variant === 'typed' ? 'typed' : 'choices';
                 draft.cats = Array.isArray(last.categories) && last.categories.length ? last.categories : null;
@@ -4683,7 +4690,7 @@
                 const versus = stats.versus && (stats.versus.wins + stats.versus.draws + stats.versus.losses)
                     ? `<div class="flex flex-col items-center gap-2"><p class="${CARD_TITLE}">Vaše bilance</p><div class="flex flex-wrap justify-center gap-1.5">${chip(plural(stats.versus.wins, 'výhra', 'výhry', 'výher'), 'bg-emerald-600 text-white')}${chip(plural(stats.versus.draws, 'remíza', 'remízy', 'remíz'), 'bg-slate-500 text-white')}${chip(plural(stats.versus.losses, 'prohra', 'prohry', 'proher'), 'bg-rose-600 text-white')}</div></div>`
                     : '<p class="text-center text-sm text-slate-500 dark:text-slate-400">Ještě jste spolu nehráli.</p>';
-                const same = stats.last ? `${challengeTopicTitle(stats.last.topic)} · ${stats.last.count} otázek` : 'Mix · 10 otázek';
+                const same = stats.last ? `${challengeTopicTitle(stats.last.topic)} · ${Social.COUNTS.includes(stats.last.count) ? stats.last.count : 10} otázek` : 'Mix · 10 otázek';
                 body = `
                     <div class="grid grid-cols-3 gap-2">${tile('Výzvy', stats.games)}${tile('Úspěšnost', percent)}${tile('Nejlepší', stats.best ? `${stats.best.correct}/${stats.best.count}` : '–')}</div>
                     ${versus}
@@ -4729,7 +4736,7 @@
                     try {
                         const last = stats.last;
                         const created = await Social.createChallenge(user.id, {
-                            topic: last ? last.topic : 'mix', count: last ? last.count : 10, invitedId: player.id,
+                            topic: last ? last.topic : 'mix', count: last && Social.COUNTS.includes(last.count) ? last.count : 10, invitedId: player.id,
                             includeHard: Boolean(last && last.include_hard), categories: (last && last.categories) || [], variant: (last && last.variant) || 'choices'
                         });
                         closeDialog();
@@ -4737,7 +4744,7 @@
                         startChallenge({ ...created, creator: myProfile, invited: player, fresh: true }, 0, []);
                     } catch (error) {
                         busy = false;
-                        note = error && error.status === 400 && /nepřijímá/.test(String(error.message || '')) ? 'Tenhle hráč mezitím vypnul některé z vybraných témat. Zkus jiné.' : 'Výzvu se nepodařilo založit. Zkontroluj připojení a zkus to znovu.';
+                        note = challengeErrorText(error);
                         render();
                     }
                 }
