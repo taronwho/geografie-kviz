@@ -3789,12 +3789,14 @@
     // Rating a ligy (rating.js; počítá je databáze po dohrání výzvy proti jinému hráči). Barvy lig jsou třídy .league-* v src/input.css.
     const Rating = window.MudrlantRating;
     const BAR_WIDTHS = ['w-0', 'w-[10%]', 'w-[20%]', 'w-[30%]', 'w-[40%]', 'w-[50%]', 'w-[60%]', 'w-[70%]', 'w-[80%]', 'w-[90%]', 'w-full'];
-    const leagueBubble = (league, size = 'h-11 w-11', iconSize = 'h-5 w-5') => `<span class="league-${league.id} flex ${size} shrink-0 items-center justify-center rounded-full shadow-sm ring-2 ring-white/70 dark:ring-slate-700" title="Liga ${escapeHtml(league.name)}"><i data-lucide="${league.icon}" class="${iconSize}"></i></span>`;
+    // Erb ligy (vlastní ilustrace icons/topics/liga-<id>.webp)
+    const leagueEmblem = (league, cls) => `<img src="icons/topics/liga-${league.id}.webp" alt="" data-league-emblem="${league.id}" class="${cls} shrink-0 object-contain drop-shadow-sm">`;
+    const leagueBubble = (league, size = 'h-11 w-11') => `<span class="flex ${size} shrink-0 items-center justify-center" title="Liga ${escapeHtml(league.name)}">${leagueEmblem(league, 'h-full w-full')}</span>`;
     // Malý popisek „ikona Liga · rating“ pro profil soupeře a žebříček
     const leagueChip = (rating) => {
         if (!Rating || rating === null || rating === undefined) return '';
         const league = Rating.leagueFor(rating);
-        return `<span class="league-fg-${league.id} inline-flex items-center gap-1 text-xs font-black"><i data-lucide="${league.icon}" class="h-3.5 w-3.5"></i>${escapeHtml(league.name)} · ${Rating.cleanRating(rating)}</span>`;
+        return `<span class="league-fg-${league.id} inline-flex items-center gap-1 text-xs font-black">${leagueEmblem(league, 'h-4 w-4')}${escapeHtml(league.name)} · ${Rating.cleanRating(rating)}</span>`;
     };
     // Karta „Moje liga“ na záložce Více hráčů: ikona ligy, rating, ukazatel do další ligy a tlačítko týdenního žebříčku
     const leagueCard = () => {
@@ -3824,7 +3826,7 @@
         };
         const leagues = Rating.LEAGUES.map((league, index) => `
             <li data-league="${league.id}" class="flex items-center gap-2 rounded-xl bg-white p-1.5 shadow-sm dark:bg-slate-800 ${mine && mine.id === league.id ? 'ring-2 ring-brand-600' : ''}">
-                ${leagueBubble(league, 'h-8 w-8', 'h-4 w-4')}
+                ${leagueBubble(league, 'h-8 w-8')}
                 <span class="min-w-0 flex-1"><span class="block truncate text-[13px] font-black leading-tight text-slate-800 dark:text-slate-100">${escapeHtml(league.name)}${mine && mine.id === league.id ? ' (ty)' : ''}</span><span class="block truncate text-[11px] font-semibold text-slate-500 dark:text-slate-400">${range(league, index)}</span></span>
             </li>`).join('');
         const POINT = 'flex gap-2 text-[13px] leading-snug text-slate-600 dark:text-slate-300';
@@ -5205,7 +5207,7 @@
         const change = c.ratingChange;
         if (!change) return results.length > 1 ? '' : '<p class="mt-2 text-xs font-semibold text-white/80">Rating se spočítá, až výzvu dohraje soupeř.</p>';
         const league = Rating.leagueFor(change.after || myRating.rating);
-        return `<p id="rating-change" class="mt-2 inline-flex items-center gap-1.5 rounded-full bg-black/20 px-3 py-1 text-sm font-black text-white"><span class="${change.delta > 0 ? 'text-emerald-300' : change.delta < 0 ? 'text-rose-300' : 'text-white/80'}">${Rating.formatDelta(change.delta)}</span> rating <i data-lucide="${league.icon}" class="h-4 w-4"></i> ${escapeHtml(league.name)} ${change.after || myRating.rating}</p>${change.capped ? '<p class="mt-1 text-[11px] font-semibold text-white/70">S tímhle hráčem už tento týden rating nestoupá (max. 3 výzvy).</p>' : ''}`;
+        return `<p id="rating-change" class="mt-2 inline-flex items-center gap-1.5 rounded-full bg-black/20 px-3 py-1 text-sm font-black text-white"><span class="${change.delta > 0 ? 'text-emerald-300' : change.delta < 0 ? 'text-rose-300' : 'text-white/80'}">${Rating.formatDelta(change.delta)}</span> rating ${leagueEmblem(league, 'h-5 w-5')} ${escapeHtml(league.name)} ${change.after || myRating.rating}</p>${change.capped ? '<p class="mt-1 text-[11px] font-semibold text-white/70">S tímhle hráčem už tento týden rating nestoupá (max. 3 výzvy).</p>' : ''}`;
     };
     const renderChallengeDone = (results = null, state = 'ok') => {
         const c = challenge;

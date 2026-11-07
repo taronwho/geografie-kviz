@@ -144,7 +144,9 @@ test('rating, ligy a týdenní žebříček', { skip: !chromium && 'Playwright n
         assert.match(card, /Do ligy Zlato ještě 130/);
         assert.equal(await tab.getAttribute('#league-card [role="progressbar"]', 'aria-valuenow'), '13');
         assert.ok(await tab.evaluate(() => document.getElementById('league-card').getBoundingClientRect().height) < 80, 'karta je nízká');
-        assert.equal(await tab.evaluate(() => getComputedStyle(document.querySelector('#league-card .league-stribro')).backgroundImage.includes('gradient')), true, 'barva ligy z CSS třídy');
+        // Erb ligy je vlastní ilustrace a skutečně se načte
+        await tab.waitForFunction(() => { const img = document.querySelector('#league-card img[data-league-emblem="stribro"]'); return img && img.complete && img.naturalWidth > 0; });
+        assert.match(await tab.getAttribute('#league-card img[data-league-emblem="stribro"]', 'src'), /icons\/topics\/liga-stribro\.webp$/);
         await shot(tab, 'multi-liga');
 
         // Týdenní žebříček: tři hráči, můj řádek zvýrazněný, změny s mínusem, přepis týdne
@@ -250,8 +252,7 @@ test('rating, ligy a týdenní žebříček', { skip: !chromium && 'Playwright n
                 const text = (await tab.textContent(`#league-help [data-league="${league.id}"]`)).replace(/\s+/g, ' ');
                 assert.ok(text.includes(league.name), text);
                 assert.ok(text.includes(expectedRange(index)), `${league.name}: ${text}`);
-                assert.equal(await tab.locator(`#league-help [data-league="${league.id}"] .${league.css}`).count(), 1, 'barva a ikona jako na kartě');
-                assert.equal(await tab.locator(`#league-help [data-league="${league.id}"] svg`).count(), 1, 'ikona ligy');
+                assert.equal(await tab.locator(`#league-help [data-league="${league.id}"] img[data-league-emblem="${league.id}"]`).count(), 1, 'erb ligy jako na kartě');
             }
             assert.match(await tab.textContent('#league-help [data-league="stribro"]'), /\(ty\)/, 'moje liga je označená');
             assert.equal(await tab.locator('#league-help [data-help-back]').count(), 0, 'z karty tlačítko Zpět není');

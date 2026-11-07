@@ -97,3 +97,14 @@ test('závěrečná obrazovka výzvy: výsledek slovy a hlášky (15+ pro každo
     assert.ok(seen.size >= 12, `hlášky se střídají (${seen.size})`);
     assert.match(Rating.quipFor('neznámá', 'x'), /\S/, 'neznámá situace nespadne');
 });
+
+test('každá liga má erb (vlastní ilustraci) v icons/topics', () => {
+    const R = require('../rating.js');
+    const fs2 = require('node:fs');
+    const path2 = require('node:path');
+    for (const league of R.LEAGUES) {
+        const file = path2.join(__dirname, '..', 'icons', 'topics', `liga-${league.id}.webp`);
+        assert.ok(fs2.existsSync(file), file);
+        assert.equal(fs2.readFileSync(file).subarray(0, 4).toString(), 'RIFF');
+    }
+});
