@@ -4884,8 +4884,12 @@
         closeDialog();
         runRound(async () => {
             // Stejná otázka pro všechny: položku určuje semínko výzvy a pořadí; u jednoho tématu se dřívější otázky nezopakují
+            // Stejná položka bývá ve dvou tématech (stavba v Architektuře i Zeměpisu): v Mixu a turnaji se nezopakuje ani napříč tématy
+            const usedIds = new Set();
             const pickFor = (ctx, rng, history) => {
-                const pool = ctx.items.filter(candidate => (challenge.hard || candidate.k === 1) && (!challenge.categories.length || challenge.categories.includes(candidate.c)));
+                const all = ctx.items.filter(candidate => (challenge.hard || candidate.k === 1) && (!challenge.categories.length || challenge.categories.includes(candidate.c)));
+                const unused = all.filter(candidate => !usedIds.has(candidate.q));
+                const pool = unused.length ? unused : all;
                 const keys = ctx.topic.categories.map(c => c.key).filter(key => !challenge.categories.length || challenge.categories.includes(key));
                 return pickItem(pool.length ? pool : ctx.items.filter(candidate => candidate.k === 1), rng, history, keys);
             };
@@ -4905,7 +4909,7 @@
                 const earlierTopic = ids.length > 1 ? pickRandom(ids, earlierRng) : ids[0];
                 const earlierCtx = await loadTopic(earlierTopic);
                 const earlier = pickFor(earlierCtx, earlierRng, historyOf(earlierTopic));
-                if (earlier) historyOf(earlierTopic).push(earlier.q);
+                if (earlier) { historyOf(earlierTopic).push(earlier.q); usedIds.add(earlier.q); }
             }
             const rng = createSeededRandom(`${challenge.seed}:${index}`);
             const topicId = ids.length > 1 ? pickRandom(ids, rng) : ids[0];
