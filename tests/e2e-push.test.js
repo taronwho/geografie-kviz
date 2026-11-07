@@ -11,6 +11,7 @@ try { ({ chromium } = require('playwright')); } catch (e) {}
 
 const ROOT = path.join(__dirname, '..');
 const ORIGIN = 'https://geo.test';
+const SHOTS = process.env.SHOTS_DIR || '';
 const CONTENT_TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png', '.webp': 'image/webp', '.webmanifest': 'application/manifest+json' };
 const CSP = fs.readFileSync(path.join(ROOT, '_headers'), 'utf8').match(/Content-Security-Policy: (.+)/)[1];
 const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==', 'base64');
@@ -118,15 +119,22 @@ test('upozornění (push) v Nastavení', { skip: !chromium && 'Playwright není 
         const { context, tab, log, db } = await start();
         await openSettings(tab);
         await tab.waitForSelector('[data-push-toggle="on"]');
-        assert.match(await tab.textContent('#settings-overlay'), /Zapnout upozornění/);
+        // Řádek Upozornění se spínačem (vypnuto) v kartě Hra
+        assert.equal(await tab.getAttribute('[data-push-toggle="on"]', 'role'), 'switch');
+        assert.equal(await tab.getAttribute('[data-push-toggle="on"]', 'aria-checked'), 'false');
+        assert.match(await tab.textContent('[data-push-toggle="on"]'), /Upozornění/);
         assert.equal(await tab.evaluate(() => window.__push.asked), 0, 'nic se nezapne samo');
         await tab.click('[data-push-toggle="on"]');
         await tab.waitForSelector('[data-push-toggle="off"]');
+        assert.equal(await tab.getAttribute('[data-push-toggle="off"]', 'aria-checked'), 'true');
         assert.equal(await tab.evaluate(() => window.__push.asked), 1);
         assert.equal(await tab.evaluate(() => window.__push.subscribed), 1);
         assert.deepEqual(db.subscribed.map(row => row.endpoint_url), ['https://push.example.com/send/abc']);
         assert.match(await tab.textContent('#settings-note'), /zapnutá/);
         assert.deepEqual(await overflow(tab), { page: 0, box: 0 });
+        // Karta Hra se i se zapnutými upozorněními (řádek se spínačem a volby, co posílat) vejde na 390×780 bez posouvání
+        assert.equal(await tab.evaluate(() => { const box = document.querySelector('#settings-overlay > div'); return box.scrollHeight - box.clientHeight; }), 0, 'karta Hra bez posouvání');
+        if (SHOTS) await tab.screenshot({ path: path.join(SHOTS, 'upozorneni-zapnuto-390.png') });
 
         // volba: výzvy vypnout
         assert.equal(await tab.getAttribute('[data-push-pref="challenge"]', 'aria-pressed'), 'true');
@@ -165,6 +173,7 @@ test('upozornění (push) v Nastavení', { skip: !chromium && 'Playwright není 
         await openSettings(tab);
         await tab.click('[data-push-toggle="on"]');
         await tab.waitForSelector('[data-push-toggle="off"]');
+        if (SHOTS) await tab.screenshot({ path: path.join(SHOTS, 'upozorneni-zapnuto-360-tmavy.png') });
         // Panel s upozorněním se vejde (pás záložek Nastavení je na 360 px starší a těsný, ten se tu nehlídá)
         assert.deepEqual(await tab.evaluate(() => { const panel = document.querySelector('[data-push-toggle]').parentElement; const box = document.querySelector('#settings-overlay > div'); return { page: document.documentElement.scrollWidth - document.documentElement.clientWidth, panel: panel.scrollWidth - panel.clientWidth, outside: [...panel.querySelectorAll('button')].filter(el => el.getBoundingClientRect().right > box.getBoundingClientRect().right).length }; }), { page: 0, panel: 0, outside: 0 });
         await tab.click('#settings-overlay [data-me-tab="profile"]');

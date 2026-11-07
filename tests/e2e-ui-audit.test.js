@@ -51,8 +51,8 @@ const inspect = () => {
         // Hlavní akce a hlavička: aspoň 44 px (ostatní drobná tlačítka se nehlídají)
         if (el.matches('#app-header button, [data-action="next"], [data-action="choice"], [data-action="hint"], [data-chooser-play], #answer-form button')
             && Math.min(box.width, box.height) < 43.5) out.small.push(`${name(el)} ${Math.round(box.width)}×${Math.round(box.height)}`);
-        // Zavírání oken, medaile, výběr vzhledu, cíle týdne a odkazy pod okny: aspoň 40 px
-        if (el.matches('[data-close][aria-label], [data-fact-close], [data-badge], #weekly-goals, [data-tip-off], [data-update-app], [data-theme-pick], [data-frame], #settings-overlay a[href]')
+        // Zavírání oken, medaile, výběr vzhledu, doplňky sovy, obrázky v Profilu, přepínače, cíle týdne a odkazy pod okny: aspoň 40 px
+        if (el.matches('[data-close][aria-label], [data-fact-close], [data-badge], #weekly-goals, [data-tip-off], [data-update-app], [data-theme-pick], [data-frame], #settings-overlay a[href], [data-owl-pick], [data-pick-avatar], [data-pick-owl], [data-locked-avatar], [role="switch"], [data-tutorial-restart], [data-chooser-category], [data-chooser-topic]')
             && Math.min(box.width, box.height) < 39.5) out.small.push(`${name(el)} ${Math.round(box.width)}×${Math.round(box.height)}`);
         el.scrollIntoView({ block: 'center', inline: 'nearest' });
         const at = el.getBoundingClientRect();
@@ -264,6 +264,82 @@ test('rozhraní na úzkém telefonu', { skip: !chromium && 'Playwright není nai
             await tab.click('#status-text');
             await tab.waitForSelector('[data-open-levels]');
             await check(tab, `${scene}: můj postup`, scheme);
+            assert.deepEqual(problems, [], 'bez chyb v konzoli a bez porušení CSP');
+            await context.close();
+        });
+    }
+
+    // Úvod (záložka Jeden hráč) se vejde bez posouvání i na nízkém telefonu 360×640: tam je rozvržení kompaktní (varianta short:
+    // v tailwind.config.js) – dnešní otázky jen jako ikony se stavem v odznaku, menší dlaždice témat; na vyšších displejích zůstává
+    // popisek stavu („čeká“) a velké ikony. Dlaždice mají aspoň 40 px, ikony témat aspoň 32 px a popisky aspoň 10 px.
+    for (const [viewport, scheme] of [[{ width: 360, height: 640 }, 'light'], [{ width: 360, height: 640 }, 'dark'], [{ width: 390, height: 780 }, 'light'], [{ width: 412, height: 915 }, 'dark']]) {
+        await t.test(`úvod bez posouvání (${viewport.width}×${viewport.height}, ${scheme})`, async () => {
+            const { context, tab, problems } = await open(scheme, { viewport });
+            const scene = `úvod ${viewport.width}×${viewport.height}`;
+            await check(tab, scene, scheme);
+            await fitsScreen(tab, scene, scheme);
+            const sizes = await tab.evaluate(() => {
+                const side = (el) => { const r = el.getBoundingClientRect(); return Math.min(r.width, r.height); };
+                const min = (selector, measure) => Math.min(...[...document.querySelectorAll(selector)].map(measure));
+                return {
+                    daily: min('[data-action="daily"]', side),
+                    tiles: min('[data-action="play-topic"], [data-action="play-mix"]', side),
+                    icons: min('[data-action="play-topic"] img', el => el.getBoundingClientRect().height),
+                    labels: min('[data-action="play-topic"] > span', el => parseFloat(getComputedStyle(el).fontSize)),
+                    status: [...document.querySelectorAll('[data-action="daily"] > span.truncate')].filter(el => el.getBoundingClientRect().height > 0).length,
+                    count: document.querySelectorAll('[data-action="daily"]').length
+                };
+            });
+            assert.ok(sizes.daily >= 39.5, `${scheme} / ${scene}: dnešní otázka ${sizes.daily} px`);
+            assert.ok(sizes.tiles >= 48, `${scheme} / ${scene}: dlaždice tématu ${sizes.tiles} px`);
+            assert.ok(sizes.icons >= 32, `${scheme} / ${scene}: ikona tématu ${sizes.icons} px`);
+            assert.ok(sizes.labels >= 10, `${scheme} / ${scene}: popisek tématu ${sizes.labels} px`);
+            assert.equal(sizes.status, viewport.height > 770 ? sizes.count : 0, `${scheme} / ${scene}: popisek stavu dnešní otázky jen na vyšším displeji`);
+            // Záložka Více hráčů (host: nabídka přihlášení) projde stejnými kontrolami
+            await tab.click('[data-action="home-tab"][data-tab="multi"]');
+            await tab.waitForSelector('[data-action="auth-login"]');
+            await check(tab, `${scene}: více hráčů`, scheme);
+            await fitsScreen(tab, `${scene}: více hráčů`, scheme);
+            assert.deepEqual(problems, [], 'bez chyb v konzoli a bez porušení CSP');
+            await context.close();
+        });
+    }
+
+    // Karta Hra v Nastavení: na 390×780 se vejde bez posouvání (host s nabídkou přihlášení i přihlášený hráč), na 360×640 přihlášený
+    // také a host jen s malým posunem; přepínače jsou řádky se spínačem (role switch) a dotykovou plochou aspoň 40 px
+    for (const [viewport, signedIn, scheme, limit] of [[{ width: 390, height: 780 }, false, 'light', 0], [{ width: 390, height: 780 }, true, 'dark', 0], [{ width: 360, height: 640 }, true, 'light', 0], [{ width: 360, height: 640 }, false, 'dark', 80]]) {
+        await t.test(`karta Hra v Nastavení (${viewport.width}×${viewport.height}, ${signedIn ? 'přihlášený' : 'host'}, ${scheme})`, async () => {
+            const { context, tab, problems } = await open(scheme, { viewport, signedIn });
+            await tab.click('#btn-settings');
+            await tab.waitForSelector(signedIn ? '[data-me-tab="profile"]' : '[data-auth-login]');
+            const scene = `karta Hra ${viewport.width}×${viewport.height}`;
+            await check(tab, scene, scheme);
+            const size = await tab.evaluate(() => { const box = document.querySelector('#settings-overlay > div'); return { over: box.scrollHeight - box.clientHeight, switches: [...box.querySelectorAll('[role="switch"]')].map(el => el.getAttribute('aria-checked')) }; });
+            assert.ok(size.over <= limit, `${scheme} / ${scene}: posun ${size.over} px (nejvýš ${limit})`);
+            assert.deepEqual(size.switches, ['true', 'false'], 'procvičování (zapnuté) a tipy (v testu vypnuté) jako přepínače');
+            assert.deepEqual(problems, [], 'bez chyb v konzoli a bez porušení CSP');
+            await context.close();
+        });
+    }
+
+    // Výběr kategorií (Zeměpis) a témat (Mix) na 360×640: tlačítko Hrát je v lepkavé patičce, vidět a nezakryté nahoře i uprostřed posunu
+    for (const [action, scheme] of [['[data-action="play-topic"][data-topic="zemepis"]', 'light'], ['[data-action="play-mix"]', 'dark']]) {
+        await t.test(`výběr ${action.includes('mix') ? 'Mix' : 'Zeměpis'}: Hrát vždy vidět (${scheme})`, async () => {
+            const { context, tab, problems } = await open(scheme);
+            await tab.click(action);
+            await tab.waitForSelector('#play-chooser [data-chooser-play]');
+            await check(tab, 'výběr kategorií', scheme);
+            for (const at of [0, 0.5, 1]) {
+                const state = await tab.evaluate((at) => {
+                    const box = document.querySelector('#play-chooser > div');
+                    box.scrollTop = (box.scrollHeight - box.clientHeight) * at;
+                    const play = document.querySelector('[data-chooser-play]').getBoundingClientRect();
+                    const hit = document.elementFromPoint(play.left + play.width / 2, play.top + play.height / 2);
+                    return { top: play.top, bottom: play.bottom, height: innerHeight, free: Boolean(hit && hit.closest('[data-chooser-play]')), scrolls: box.scrollHeight > box.clientHeight };
+                }, at);
+                assert.ok(state.top >= 0 && state.bottom <= state.height + 0.5, `${scheme}: Hrát mimo obrazovku při posunu ${at} (${state.top}–${state.bottom})`);
+                assert.equal(state.free, true, `${scheme}: Hrát je zakryté při posunu ${at}`);
+            }
             assert.deepEqual(problems, [], 'bez chyb v konzoli a bez porušení CSP');
             await context.close();
         });

@@ -156,6 +156,9 @@
 /* Vlnění vlajky: SVG filtr #owl-flag-wave (inline <svg> v index.html) posune obrázek vlajky podle mapy icons/doplnky/vlajka-vlna.webp, takže pruhy a znaky sledují střednici plátna. Bez podpory filtru zůstane vlajka rovná (vždy oříznutá maskou). */
 .owl-flag-img { filter: url(#owl-flag-wave); }
 
+/* Pás, který se posouvá do strany (obrázky v Profilu): pravý okraj se ztrácí, ať je vidět, že za ním jsou další */
+.scroll-fade-x { -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 2.25rem), transparent); mask-image: linear-gradient(to right, #000 calc(100% - 2.25rem), transparent); }
+
 /* Pozvánka do turnaje: okno svítí zeleně a jemně pulzuje (při omezeném pohybu jen svítí) */
 .offer-panel { box-shadow: 0 0 0 3px rgb(52 211 153 / 0.95), 0 0 26px rgb(52 211 153 / 0.6); }
 @media (prefers-reduced-motion: no-preference) {

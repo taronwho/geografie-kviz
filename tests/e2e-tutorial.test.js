@@ -109,15 +109,20 @@ test('tutorial při prvním spuštění', { skip: !chromium && 'Playwright není
         await shot(tab, `${prefix}6-zkusime`);
     };
     // Zkoušení po otevření otázky: nápověda (přeskočí se), odpověď, výsledek, konec přes Menu / Další
-    // Pulzující rámeček je vystředěný na zvýrazněném prvku (i po dokončení animací prvku)
+    // Pulzující rámeček je vystředěný na zvýrazněném prvku (i po dokončení animací prvku). Čeká se na stav, ne pevnou dobu:
+    // při zatíženém procesoru dobíhají animace (fade-in výsledku) a přeměření rámečku později než za 1,5 s
     const ringCentered = async (tab, selector) => {
-        await tab.waitForTimeout(1500);
-        const [ring, box] = await tab.evaluate((sel) => {
+        const measure = () => tab.evaluate((sel) => {
             const r = document.querySelector('[data-tut-ring]').getBoundingClientRect(), b = document.querySelector(sel).getBoundingClientRect();
             return [r, b].map(x => ({ cx: x.left + x.width / 2, cy: x.top + x.height / 2, w: x.width, h: x.height }));
         }, selector);
-        assert.ok(Math.abs(ring.cx - box.cx) <= 1.5 && Math.abs(ring.cy - box.cy) <= 1.5, `rámeček je vystředěný: ${JSON.stringify([ring, box])}`);
-        assert.ok(ring.w - box.w <= 12 && ring.h - box.h <= 12, 'rámeček je těsně kolem prvku');
+        const centered = ([ring, box]) => Math.abs(ring.cx - box.cx) <= 1.5 && Math.abs(ring.cy - box.cy) <= 1.5 && ring.w - box.w <= 12 && ring.h - box.h <= 12;
+        await tab.waitForFunction((sel) => {
+            const r = document.querySelector('[data-tut-ring]').getBoundingClientRect(), b = document.querySelector(sel).getBoundingClientRect();
+            return Math.abs(r.left + r.width / 2 - b.left - b.width / 2) <= 1.5 && Math.abs(r.top + r.height / 2 - b.top - b.height / 2) <= 1.5 && r.width - b.width <= 12 && r.height - b.height <= 12;
+        }, selector, { timeout: 10000 }).catch(() => {});
+        const found = await measure();
+        assert.ok(centered(found), `rámeček je vystředěný a těsně kolem prvku: ${JSON.stringify(found)}`);
     };
     const finishTrial = async (tab, { typed = false } = {}) => {
         await waitTitle(tab, 'Nápověda');
@@ -288,19 +293,37 @@ test('tutorial při prvním spuštění', { skip: !chromium && 'Playwright není
         fact = null;
         const { context, tab, problems } = await open({ stored: RUNNING(6), slow: 11000 });
         await waitTitle(tab, 'Teď si to zkusíme doopravdy');
+        // Čas se měří hodinami stránky od chvíle těsně před klepnutím: tutoriál začne čekat až po klepnutí, takže dokud od něj
+        // neuplynulo 8 s (WAIT_MS), Přeskočit krok být vidět nesmí – i když zatížený procesor zdrží jednotlivá měření
+        const clicked = await tab.evaluate(() => Date.now());
         await tab.click('[data-action="daily"][data-topic="geologie"]');
-        const started = Date.now();
         let sawWait = false;
-        while (Date.now() - started < 6000) {
-            assert.equal(await bubbleVisible(tab), true, 'bublina nesmí zmizet při pomalém načítání');
-            if (/Načítám otázku/.test(await tab.textContent('[data-tut-text]'))) sawWait = true;
-            assert.ok((await stepOf(tab)) <= 7, 'krok se nepřeskočil');
-            await tab.waitForTimeout(400);
+        let earlyChecks = 0;
+        for (;;) {
+            const state = await tab.evaluate(() => {
+                const root = document.getElementById('tutorial');
+                return {
+                    now: Date.now(),
+                    visible: Boolean(root && !root.classList.contains('hidden') && document.querySelector('[data-tut-bubble]').getBoundingClientRect().height > 0),
+                    text: (document.querySelector('[data-tut-text]') || {}).textContent || '',
+                    skip: Boolean(document.querySelector('[data-tut-skipstep]:not(.hidden)')),
+                    stored: localStorage.getItem('mudrlant.tutorial')
+                };
+            });
+            const elapsed = state.now - clicked;
+            if (elapsed >= 6000) break;
+            assert.equal(state.visible, true, 'bublina nesmí zmizet při pomalém načítání');
+            if (/Načítám otázku/.test(state.text)) sawWait = true;
+            const saved = JSON.parse(state.stored);
+            assert.ok(saved && saved.how === 'running' && saved.step <= 7, 'krok se nepřeskočil');
+            assert.equal(state.skip, false, `Přeskočit krok až po delším čekání (${elapsed} ms od klepnutí)`);
+            earlyChecks++;
+            await tab.waitForTimeout(300);
         }
         assert.equal(sawWait, true, 'čekací text');
-        assert.equal(await tab.locator('[data-tut-skipstep]:not(.hidden)').count(), 0, 'Přeskočit krok až po delším čekání');
+        assert.ok(earlyChecks >= 3, `čekání se kontrolovalo průběžně (${earlyChecks}×)`);
         await shot(tab, '12-pomala-sit');
-        await tab.waitForSelector('[data-tut-skipstep]:not(.hidden)', { timeout: 8000 });
+        await tab.waitForSelector('[data-tut-skipstep]:not(.hidden)', { timeout: 15000 });
         assert.match(await tab.textContent('[data-tut-text]'), /nenačetla/);
         await shot(tab, '13-pomala-sit-8s');
         await finishTrial(tab);
@@ -428,7 +451,10 @@ test('tutorial při prvním spuštění', { skip: !chromium && 'Playwright není
         await waitTitle(tab, 'Nápověda');
         await tab.evaluate(() => document.getElementById('btn-settings').click());
         await tab.waitForSelector('#settings-overlay');
-        assert.equal(await tab.isVisible('#tutorial'), false);
+        // Tutoriál se schová v nejbližším snímku po otevření okna (pozorovatel DOM → requestAnimationFrame), ne hned
+        await tab.waitForSelector('#tutorial', { state: 'hidden', timeout: 5000 });
+        await tab.waitForTimeout(300);
+        assert.equal(await tab.isVisible('#tutorial'), false, 'tutoriál zůstává schovaný, dokud je okno otevřené');
         await tab.keyboard.press('Escape');
         await waitTitle(tab, 'Nápověda');
         // Zpět na telefonu zavře okno s událostí, tutoriál přitom nezmizí

@@ -637,10 +637,12 @@
     const TOGGLE_ON = 'border-brand-600 bg-brand-50 text-brand-800 dark:bg-brand-900/40 dark:text-brand-100';
     const TOGGLE_OFF = 'border-slate-200 bg-white text-slate-600 hover:border-brand-300 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:border-brand-600';
 
-    const renderTierButtons = (on = TOGGLE_ON, topic = null) => Object.entries(TIERS).map(([key, tier]) => `
-        <button type="button" data-tier="${key}" aria-pressed="${settings.tier === key}" class="rounded-2xl border-2 p-3 text-left transition-colors active:scale-[0.98] ${settings.tier === key ? on : TOGGLE_OFF}">
-            <span class="block text-sm font-black">${tier.title}</span>
-            <span class="mt-0.5 block text-xs leading-snug opacity-90">${key === 'known' && topic && topic.words && topic.words.tierKnown ? escapeHtml(topic.words.tierKnown) : tier.text}</span>
+    // Známost otázek (Nastavení i výběr tématu); brief = krátký popis na jeden řádek (Nastavení), jinak příklady z tématu
+    const TIER_BRIEF = { known: 'Slavná místa a lidé…', all: 'Celá sada, těžší' };
+    const renderTierButtons = (on = TOGGLE_ON, topic = null, brief = false) => Object.entries(TIERS).map(([key, tier]) => `
+        <button type="button" data-tier="${key}" aria-pressed="${settings.tier === key}"${brief ? ` title="${escapeHtml(tier.text)}"` : ''} class="rounded-2xl border-2 px-2.5 py-2 text-left transition-colors active:scale-[0.98] ${settings.tier === key ? on : TOGGLE_OFF}">
+            <span class="block text-sm font-black leading-tight">${tier.title}</span>
+            <span class="mt-0.5 block text-[11px] font-semibold leading-snug opacity-90">${brief ? TIER_BRIEF[key] : key === 'known' && topic && topic.words && topic.words.tierKnown ? escapeHtml(topic.words.tierKnown) : tier.text}</span>
         </button>`).join('');
 
     const closeSettings = () => {
@@ -872,12 +874,21 @@
             <div class="flex flex-wrap gap-1"><button type="button" data-dev="player-reports" class="rounded-lg bg-rose-100 px-2 py-1 text-[11px] font-bold text-rose-900 active:scale-95 dark:bg-rose-900/50 dark:text-rose-100">Nahlášení hráči</button></div>` : ''}
         </div>`;
     const ME_HEADING = 'text-[11px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400';
-    const VARIANT_BRIEF = { choices: { short: 'Možnosti', text: '4 možnosti, až 4 body' }, typed: { short: 'Psaní', text: 'Těžší, dvojnásobek bodů' } };
+    const VARIANT_BRIEF = { choices: { short: 'Možnosti', text: '4 možnosti, až 4 body' }, typed: { short: 'Psaní', text: 'Těžší, 2× víc bodů' } };
     const renderVariantCompact = (selected) => Object.entries(VARIANTS).map(([key, variant]) => `
-        <button type="button" data-variant="${key}" aria-pressed="${selected === key}" title="${escapeHtml(variant.text)}" class="btn-3d-light flex min-w-0 flex-col items-start gap-1 rounded-2xl p-3 text-left ${selected === key ? 'bg-brand-50 ring-2 ring-brand-600 dark:bg-brand-900/40' : 'bg-white dark:bg-slate-800'}">
-            <span class="flex items-center gap-2"><span class="rounded-lg bg-brand-100 p-1.5 text-brand-700 dark:bg-brand-900/60 dark:text-brand-200"><i data-lucide="${variant.icon}" class="h-4 w-4"></i></span><span class="text-sm font-black text-slate-800 dark:text-slate-100">${VARIANT_BRIEF[key].short}</span></span>
+        <button type="button" data-variant="${key}" aria-pressed="${selected === key}" title="${escapeHtml(variant.text)}" class="btn-3d-light flex min-w-0 flex-col items-start gap-0.5 rounded-2xl px-2.5 py-2 text-left ${selected === key ? 'bg-brand-50 ring-2 ring-brand-600 dark:bg-brand-900/40' : 'bg-white dark:bg-slate-800'}">
+            <span class="flex items-center gap-1.5"><span class="rounded-md bg-brand-100 p-1 text-brand-700 dark:bg-brand-900/60 dark:text-brand-200"><i data-lucide="${variant.icon}" class="h-4 w-4"></i></span><span class="text-sm font-black leading-tight text-slate-800 dark:text-slate-100">${VARIANT_BRIEF[key].short}</span></span>
             <span class="text-[11px] font-semibold leading-snug text-slate-500 dark:text-slate-400">${VARIANT_BRIEF[key].text}</span>
         </button>`).join('');
+    // Řádek nastavení v kartě Hra: ikona, název, krátké vysvětlení a vpravo přepínač (on = true/false) nebo šipka (on = null)
+    const SETTING_ROW = 'flex min-h-[3rem] w-full items-center gap-3 px-3 py-2 text-left transition-colors active:bg-slate-50 disabled:opacity-60 dark:active:bg-slate-700/40';
+    const switchMark = (on) => `<span aria-hidden="true" class="flex h-6 w-10 shrink-0 items-center rounded-full p-0.5 ${on ? 'justify-end bg-brand-600' : 'justify-start bg-slate-300 dark:bg-slate-600'}"><span class="h-5 w-5 rounded-full bg-white shadow-sm"></span></span>`;
+    const settingRow = ({ attrs, icon, title, text = '', on = null }) => `
+        <button type="button" ${attrs}${on === null ? '' : ` role="switch" aria-checked="${on}"`} class="${SETTING_ROW}">
+            <i data-lucide="${icon}" class="h-5 w-5 shrink-0 ${on === false ? 'text-slate-500 dark:text-slate-400' : 'text-brand-700 dark:text-brand-300'}"></i>
+            <span class="min-w-0 flex-1"><span class="block text-[13px] font-black leading-tight text-slate-800 dark:text-slate-100">${title}</span>${text ? `<span class="mt-0.5 block text-[11px] font-semibold leading-snug text-slate-500 dark:text-slate-400">${text}</span>` : ''}</span>
+            ${on === null ? '<i data-lucide="chevron-right" class="h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400"></i>' : switchMark(on)}
+        </button>`;
     // --- Vzhled: odměny (barevná témata, barva obleku sovy, rámečky, obrázky, titul) – části dodávají look-*.js přes MudrlantLook ---
     const Look = window.MudrlantLook;
     const Tutorial = window.MudrlantTutorial;
@@ -901,7 +912,7 @@
         if (!Look) return '';
         const ctx = lookContext();
         return `<div class="flex flex-col gap-2">${Look.getSections().filter(section => (section.tab || 'look') === tab).map(section => `
-            <section data-look="${section.id}" class="rounded-2xl bg-white p-2.5 shadow-sm dark:bg-slate-800">
+            <section data-look="${section.id}" class="rounded-2xl bg-white ${section.tight ? 'px-1.5 py-2' : 'p-2.5'} shadow-sm dark:bg-slate-800">
                 ${section.noTitle ? '' : `<h3 class="${ME_HEADING} mb-1.5">${escapeHtml(section.title)}</h3>`}
                 ${section.render(ctx)}
             </section>`).join('')}</div>`;
@@ -924,25 +935,24 @@
         if (before !== JSON.stringify([pushState, pushPrefs]) && document.getElementById('settings-overlay') && !pushBusy) openSettings(meNote);
     };
     const PUSH_TEXTS = {
-        off: 'Dostaneš upozornění, když začne tvůj turnajový zápas nebo ti někdo pošle výzvu. Vypnout je můžeš kdykoli.',
-        on: 'Upozornění jsou zapnutá na tomhle zařízení. Přijde jen to, co si níže necháš zapnuté.',
-        denied: 'Upozornění jsou v prohlížeči zakázaná. Povol je v nastavení webu (ikona u adresy) a zkus to znovu.',
-        unsupported: 'Tenhle prohlížeč upozornění neumí.',
-        iphone: 'Na iPhonu nejdřív přidej aplikaci na plochu (Sdílet, Přidat na plochu) a otevři ji odtamtud.'
+        off: 'Zápas v turnaji a nové výzvy',
+        on: 'Zapnutá na tomhle zařízení',
+        denied: 'V prohlížeči zakázaná – povol je u adresy webu',
+        unsupported: 'Tenhle prohlížeč upozornění neumí',
+        iphone: 'Na iPhonu nejdřív Sdílet → Přidat na plochu a otevři odtamtud'
     };
+    // Upozornění jako řádek s přepínačem v kartě Hra (zapnutá: pod ním volby, co posílat)
     const pushPanel = () => {
         if (!Push || !signedUser() || !pushState || pushState.kind === 'hidden') return '';
         const { kind } = pushState;
         const text = kind === 'unsupported' && pushState.ios ? PUSH_TEXTS.iphone : PUSH_TEXTS[kind];
-        const pref = (key, label) => `<button type="button" data-push-pref="${key}" aria-pressed="${Boolean(pushPrefs[key])}" class="rounded-2xl border-2 px-3 py-2 text-left text-xs font-black transition-colors active:scale-[0.98] ${pushPrefs[key] ? TOGGLE_ON : TOGGLE_OFF}">${label}</button>`;
+        if (kind === 'unsupported') return `<div class="flex min-h-[3rem] items-center gap-3 px-3 py-2"><i data-lucide="bell-off" class="h-5 w-5 shrink-0 text-slate-500 dark:text-slate-400"></i><span class="min-w-0 flex-1"><span class="block text-[13px] font-black leading-tight text-slate-800 dark:text-slate-100">Upozornění</span><span class="mt-0.5 block text-[11px] font-semibold leading-snug text-slate-500 dark:text-slate-400">${text}</span></span></div>`;
+        const on = kind === 'on';
+        const pref = (key, label) => `<button type="button" data-push-pref="${key}" aria-pressed="${Boolean(pushPrefs[key])}" class="min-h-[2.5rem] rounded-xl border-2 px-2.5 py-1.5 text-left text-[11px] font-black leading-tight transition-colors active:scale-[0.98] ${pushPrefs[key] ? TOGGLE_ON : TOGGLE_OFF}">${label}</button>`;
         return `
-            <div class="mt-3 rounded-2xl bg-white p-3 shadow-sm dark:bg-slate-800">
-                <h3 class="${ME_HEADING} mb-1">Upozornění</h3>
-                <p class="text-xs text-slate-500 dark:text-slate-400">${text}</p>
-                ${kind === 'off' || kind === 'denied' ? `<button type="button" data-push-toggle="on" ${pushBusy ? 'disabled' : ''} class="${PRIMARY_BUTTON} mt-2"><i data-lucide="bell" class="h-5 w-5"></i> Zapnout upozornění</button>` : ''}
-                ${kind === 'on' ? `
-                    ${pushPrefs ? `<div class="mt-2 grid grid-cols-2 gap-2" role="group" aria-label="Co posílat">${pref('tournament', 'Turnaje: kola a zprávy')}${pref('challenge', 'Výzvy od hráčů')}</div>` : ''}
-                    <button type="button" data-push-toggle="off" ${pushBusy ? 'disabled' : ''} class="${SECONDARY_BUTTON} mt-2"><i data-lucide="bell-off" class="h-5 w-5"></i> Vypnout upozornění</button>` : ''}
+            <div data-push-panel>
+                ${settingRow({ attrs: `data-push-toggle="${on ? 'off' : 'on'}"${pushBusy ? ' disabled' : ''}`, icon: on ? 'bell' : 'bell-off', title: 'Upozornění', text, on })}
+                ${on && pushPrefs ? `<div class="grid grid-cols-2 gap-2 px-3 pb-2.5" role="group" aria-label="Co posílat">${pref('tournament', 'Turnaje: kola a zprávy')}${pref('challenge', 'Výzvy od hráčů')}</div>` : ''}
             </div>`;
     };
     const togglePush = async (turnOn) => {
@@ -990,6 +1000,8 @@
         const reopened = Boolean(overlay);
         if (!reopened) refreshPush();
         const scroll = reopened && overlay.firstElementChild ? overlay.firstElementChild.scrollTop : 0;
+        const oldStrip = reopened ? overlay.querySelector('[data-avatar-strip]') : null;
+        const stripScroll = oldStrip ? oldStrip.scrollLeft : null;
         if (!overlay) overlay = createSettingsOverlay();
         const state = Auth ? Auth.getState() : { configured: false };
         const profile = user ? (myProfile || { display_name: user.name, avatar: '🦊', color: 'emerald' }) : null;
@@ -1004,22 +1016,27 @@
                 ${tabList.map(([id, icon, label]) => `
                     <button type="button" role="tab" data-me-tab="${id}" aria-selected="${meTab === id}" class="flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-xl min-h-[2.75rem] px-2 text-[13px] font-black ${crowded ? 'max-[400px]:px-1 max-[400px]:text-[12px]' : ''} ${meTab === id ? 'btn-3d bg-brand-700 text-white' : 'text-slate-600 dark:text-slate-400'}"><i data-lucide="${icon}" class="h-4 w-4 shrink-0 ${crowded ? 'max-sm:hidden' : ''}"></i> ${label}</button>`).join('')}
             </div>`;
+        // Karta Hra: varianta a známost jako dvě dvojice kompaktních karet, přepínače (procvičování, tipy, upozornění) a tutoriál
+        // jako řádky jednoho seznamu – na 390×780 se vejde bez posouvání
         const gameBody = `
-            <h3 class="${ME_HEADING} mb-2">Varianta hry</h3>
+            <h3 class="${ME_HEADING} mb-1.5">Varianta hry</h3>
             <div class="grid grid-cols-2 gap-2">${renderVariantCompact(gameVariant)}</div>
-            <h3 class="${ME_HEADING} mb-2 mt-4">Známost otázek</h3>
-            <div class="grid grid-cols-2 gap-2" role="group" aria-label="Známost">${renderTierButtons()}</div>
-            <p class="mt-2 text-[11px] leading-snug text-slate-500 dark:text-slate-400">Pro hraní témat, mix i prohlížení. Dnešní otázky jsou ze známých, jen tu a tam (asi desetina) z těžších. Co z tématu hrát, vybereš na jeho dlaždici.</p>
+            <h3 class="${ME_HEADING} mb-1.5 mt-3">Známost otázek</h3>
+            <div class="grid grid-cols-2 gap-2" role="group" aria-label="Známost">${renderTierButtons(TOGGLE_ON, null, true)}</div>
+            <p class="mt-1.5 text-[11px] leading-snug text-slate-500 dark:text-slate-400">Pro témata a mix. Dnešní otázky jsou hlavně ze známých.</p>
             ${state.configured && !user ? `
-                <div class="mt-3 rounded-2xl bg-white p-3 shadow-sm dark:bg-slate-800">
-                    <p class="text-xs text-slate-500 dark:text-slate-400">S účtem se ukládá postup, získáš profil a půjde hrát výzvy s ostatními. Bez něj hraješ jako host.</p>
-                    <button type="button" data-auth-login class="${PRIMARY_BUTTON} mt-2"><i data-lucide="log-in" class="h-5 w-5"></i> Přihlásit se přes Google</button>
-                    ${state.error ? `<p class="mt-2 text-xs font-semibold text-rose-700 dark:text-rose-400" role="alert">${escapeHtml(state.error)}</p>` : ''}
-                </div>` : ''}
-            ${Review ? `<button type="button" data-review-toggle role="switch" aria-checked="${reviewEnabled()}" class="mt-3 flex w-full items-center gap-3 rounded-2xl border-2 px-3 py-2 text-left transition-colors active:scale-[0.99] ${reviewEnabled() ? TOGGLE_ON : TOGGLE_OFF}"><i data-lucide="repeat" class="h-5 w-5 shrink-0"></i><span class="min-w-0 flex-1"><span class="block text-sm font-black">Procvičování špatných odpovědí</span><span class="block text-[11px] font-semibold leading-snug opacity-80">${reviewEnabled() ? 'Zapnuto: špatné odpovědi se ti vrací po 1, 3, 7, 14 a 30 dnech' : 'Vypnuto: nic se nevrací a nic nečeká'}</span></span><span class="shrink-0 text-xs font-black">${reviewEnabled() ? 'Zapnuto' : 'Vypnuto'}</span></button>` : ''}
-            ${Tips ? `<button type="button" data-tips-toggle role="switch" aria-checked="${tipsOn()}" class="mt-3 flex w-full items-center gap-3 rounded-2xl border-2 px-3 py-2 text-left transition-colors active:scale-[0.99] ${tipsOn() ? TOGGLE_ON : TOGGLE_OFF}"><i data-lucide="lightbulb" class="h-5 w-5 shrink-0"></i><span class="min-w-0 flex-1"><span class="block text-sm font-black">Tipy od Mudrlanta</span><span class="block text-[11px] font-semibold leading-snug opacity-80">${tipsOn() ? 'Zapnuto: žárovka u sovy tě občas upozorní na funkci hry' : 'Vypnuto: žárovka ukazuje jen zajímavost dne'}</span></span><span class="shrink-0 text-xs font-black">${tipsOn() ? 'Zapnuto' : 'Vypnuto'}</span></button>` : ''}
-            ${pushPanel()}
-            <button type="button" data-tutorial-restart class="btn-3d-light mt-3 flex w-full items-center gap-2 rounded-2xl bg-white px-3 py-2 text-left dark:bg-slate-800"><i data-lucide="info" class="h-5 w-5 shrink-0 text-brand-700 dark:text-brand-300"></i><span class="min-w-0 flex-1 truncate text-[13px] font-black text-slate-800 dark:text-slate-100">Projít znovu tutoriál</span><i data-lucide="chevron-right" class="h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400"></i></button>
+                <button type="button" data-auth-login class="mt-3 flex w-full items-center gap-3 rounded-2xl btn-3d bg-brand-700 px-4 py-2 text-left text-white">
+                    <i data-lucide="log-in" class="h-5 w-5 shrink-0"></i>
+                    <span class="min-w-0 flex-1"><span class="block text-[15px] font-black leading-tight">Přihlásit se přes Google</span><span class="block text-[11px] font-semibold leading-snug text-white/90">Uloží se postup a půjde hrát s ostatními</span></span>
+                    <i data-lucide="chevron-right" class="h-4 w-4 shrink-0"></i>
+                </button>
+                ${state.error ? `<p class="mt-2 text-xs font-semibold text-rose-700 dark:text-rose-400" role="alert">${escapeHtml(state.error)}</p>` : ''}` : ''}
+            <div class="mt-3 divide-y divide-slate-100 overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-200/70 dark:divide-slate-700/70 dark:bg-slate-800 dark:ring-slate-700/70">
+                ${Review ? settingRow({ attrs: 'data-review-toggle', icon: 'repeat', title: 'Procvičování chyb', text: reviewEnabled() ? 'Vrací se po 1, 3, 7, 14 a 30 dnech' : 'Chyby se nevrací, nic nečeká', on: reviewEnabled() }) : ''}
+                ${Tips ? settingRow({ attrs: 'data-tips-toggle', icon: 'lightbulb', title: 'Tipy od Mudrlanta', text: tipsOn() ? 'Žárovka občas ukáže funkci hry' : 'Žárovka ukáže jen zajímavost dne', on: tipsOn() }) : ''}
+                ${pushPanel()}
+                ${settingRow({ attrs: 'data-tutorial-restart', icon: 'info', title: 'Projít znovu tutoriál' })}
+            </div>
             ${renderDevPanel()}`;
         const profileBody = user && Social && meDraft ? `
             <form id="profile-form" class="flex flex-col gap-3" autocomplete="off">
@@ -1028,15 +1045,15 @@
                 </label>
                 <div>
                     <p class="${ME_HEADING} mb-1.5">Obrázek</p>
-                    <div class="grid grid-cols-12 gap-1">${Owl && Owl.owlAvatarHtml ? `<button type="button" data-pick-owl aria-label="Sova Mudrlant" title="Sova Mudrlant" aria-pressed="${meDraft.owl}" class="flex aspect-square items-center justify-center rounded-lg border-2 active:scale-95 ${meDraft.owl ? 'border-brand-600 bg-brand-50 dark:bg-brand-900/40' : 'border-transparent bg-white dark:bg-slate-800'}">${Owl.owlAvatarHtml(myOwlText(), 'h-full w-auto', 'h-[88%]')}</button>` : ''}${Social.allAvatars().map(emoji => {
+                    <div data-avatar-strip class="scroll-fade-x relative -mx-1 grid auto-cols-[2.5rem] grid-flow-col grid-rows-3 gap-1 overflow-x-auto overscroll-x-contain px-1 py-0.5 pr-8">${Owl && Owl.owlAvatarHtml ? `<button type="button" data-pick-owl aria-label="Sova Mudrlant" title="Sova Mudrlant" aria-pressed="${meDraft.owl}" class="${AVATAR_TILE} ${meDraft.owl ? AVATAR_ON : AVATAR_OFF}">${Owl.owlAvatarHtml(myOwlText(), 'h-full w-auto', 'h-[88%]')}</button>` : ''}${Social.allAvatars().map(emoji => {
                         const lock = avatarLock(emoji);
-                        if (lock) return `<button type="button" data-locked-avatar="${emoji}" aria-disabled="true" aria-label="Obrázek ${emoji} je zamčený: ${avatarUnlockText(lock)}" title="${avatarUnlockText(lock)}" class="flex aspect-square items-center justify-center rounded-lg border-2 border-transparent bg-white text-base opacity-40 grayscale dark:bg-slate-800">${emoji}</button>`;
-                        return `<button type="button" data-pick-avatar="${emoji}" aria-label="Obrázek ${emoji}" aria-pressed="${emoji === meDraft.avatar && !meDraft.owl}" class="flex aspect-square items-center justify-center rounded-lg border-2 text-base active:scale-95 ${emoji === meDraft.avatar && !meDraft.owl ? 'border-brand-600 bg-brand-50 dark:bg-brand-900/40' : 'border-transparent bg-white dark:bg-slate-800'}">${emoji}</button>`;
+                        if (lock) return `<button type="button" data-locked-avatar="${emoji}" aria-disabled="true" aria-label="Obrázek ${emoji} je zamčený: ${avatarUnlockText(lock)}" title="${avatarUnlockText(lock)}" class="${AVATAR_TILE} ${AVATAR_OFF} opacity-40 grayscale">${emoji}</button>`;
+                        return `<button type="button" data-pick-avatar="${emoji}" aria-label="Obrázek ${emoji}" aria-pressed="${emoji === meDraft.avatar && !meDraft.owl}" class="${AVATAR_TILE} ${emoji === meDraft.avatar && !meDraft.owl ? AVATAR_ON : AVATAR_OFF}">${emoji}</button>`;
                     }).join('')}</div>
                 </div>
                 <div>
-                    <p class="${ME_HEADING} mb-1.5">Barva pozadí</p>
-                    <div class="flex justify-between px-1">${Social.COLORS.map(color => `<button type="button" data-pick-color="${color}" aria-label="Barva ${color}" aria-pressed="${color === meDraft.color}" class="h-7 w-7 rounded-full ${avatarBg(color)} ${color === meDraft.color ? 'ring-2 ring-slate-800/70 ring-offset-2 dark:ring-white/80 dark:ring-offset-slate-900' : ''} active:scale-95"></button>`).join('')}</div>
+                    <p class="${ME_HEADING} mb-0.5">Barva pozadí</p>
+                    <div class="flex">${Social.COLORS.map(color => `<button type="button" data-pick-color="${color}" aria-label="Barva ${color}" aria-pressed="${color === meDraft.color}" class="flex h-10 min-w-0 flex-1 items-center justify-center active:scale-95"><span class="h-7 w-7 rounded-full ${avatarBg(color)} ${color === meDraft.color ? 'ring-2 ring-slate-800/70 ring-offset-2 dark:ring-white/80 dark:ring-offset-slate-900' : ''}"></span></button>`).join('')}</div>
                     <input type="range" min="0" max="355" step="5" value="${Social.customHue(meDraft.color) ?? Social.customHue('h' + ({ emerald: 160, sky: 200, violet: 260, rose: 350, amber: 40, teal: 175, orange: 25, indigo: 240 }[meDraft.color] || 160))}" data-pick-hue aria-label="Všechny barvy: odstín pozadí profilovky" class="mt-2 h-6 w-full cursor-pointer appearance-none rounded-full bg-[linear-gradient(90deg,#f00,#ff0,#0f0,#0ff,#00f,#f0f,#f00)]">
                 </div>
                 <div class="flex gap-2">
@@ -1061,23 +1078,33 @@
                 </div>
                 ${tabs}
                 <div class="mt-3">${meTab === 'profile' && profileBody ? profileBody : meTab === 'look' ? lookBody('look') : meTab === 'owl' ? lookBody('owl') : gameBody}</div>
-                <p id="settings-note" class="mt-2 min-h-[1.1rem] text-xs font-semibold ${noteText.startsWith('Uloženo') || !meNote ? 'text-emerald-700 dark:text-emerald-300' : 'text-rose-700 dark:text-rose-400'}" role="status">${escapeHtml(noteText)}</p>
+                <p id="settings-note" class="${noteText ? 'mt-2 ' : ''}text-xs font-semibold ${noteText.startsWith('Uloženo') || !meNote ? 'text-emerald-700 dark:text-emerald-300' : 'text-rose-700 dark:text-rose-400'}" role="status">${escapeHtml(noteText)}</p>
                 ${renderSchemaBanner()}
-                <div class="flex items-center justify-center gap-2 text-xs text-slate-500 dark:text-slate-400">
-                    <span id="app-version">${escapeHtml(versionLabel())}</span>
+                <div class="mt-3 flex flex-wrap items-center justify-center gap-x-1 text-xs text-slate-500 dark:text-slate-400">
+                    <span id="app-version" class="px-1">${escapeHtml(versionLabel())}</span>
                     <button type="button" data-update-app class="-my-2 inline-flex min-h-[2.5rem] items-center rounded-lg px-2 font-bold text-slate-600 underline underline-offset-2 hover:bg-slate-200 disabled:no-underline dark:text-slate-300 dark:hover:bg-slate-800">Aktualizovat</button>
-                </div>
-                ${meTab === 'game' ? `<div class="mt-1 flex flex-wrap items-center justify-center gap-x-1 text-xs text-slate-500 dark:text-slate-400">
-                    <a href="soukromi.html" class="-my-2 inline-flex min-h-[2.5rem] items-center rounded-lg px-2 font-bold underline underline-offset-2">Ochrana osobních údajů</a>
+                    ${meTab === 'game' ? `
+                    <a href="soukromi.html" class="-my-2 inline-flex min-h-[2.5rem] items-center rounded-lg px-2 font-bold underline underline-offset-2">Osobní údaje</a>
                     <a href="licence.html" class="-my-2 inline-flex min-h-[2.5rem] items-center rounded-lg px-2 font-bold underline underline-offset-2">Zdroje a licence</a>
-                    ${user && Social ? '<button type="button" data-open-privacy class="-my-2 inline-flex min-h-[2.5rem] items-center rounded-lg px-2 font-bold underline underline-offset-2">Moje data</button>' : ''}
-                </div>` : ''}
+                    ${user && Social ? '<button type="button" data-open-privacy class="-my-2 inline-flex min-h-[2.5rem] items-center rounded-lg px-2 font-bold underline underline-offset-2">Moje data</button>' : ''}` : ''}
+                </div>
             </div>`;
         overlay.firstElementChild.scrollTop = scroll;
+        // Pás obrázků zůstane po překreslení na stejném místě; při otevření Profilu ukáže vybraný obrázek
+        const strip = overlay.querySelector('[data-avatar-strip]');
+        if (strip && stripScroll !== null) strip.scrollLeft = stripScroll;
+        else if (strip) {
+            const picked = strip.querySelector('[aria-pressed="true"]');
+            if (picked) strip.scrollLeft = picked.offsetLeft - (strip.clientWidth - picked.offsetWidth) / 2;
+        }
         renderIcons(overlay);
         const target = focusSelector ? overlay.querySelector(focusSelector) : (meTab === 'profile' ? null : overlay.querySelector('[data-variant][aria-pressed="true"]'));
         (target || overlay.querySelector('[data-close]')).focus({ preventScroll: true });
     };
+    // Dlaždice obrázku v Profilu: 40 × 40 px ve třech řádcích, které se posouvají do strany (místo 12 drobných sloupců)
+    const AVATAR_TILE = 'flex h-10 w-10 items-center justify-center rounded-xl border-2 text-xl active:scale-95';
+    const AVATAR_ON = 'border-brand-600 bg-brand-50 dark:bg-brand-900/40';
+    const AVATAR_OFF = 'border-transparent bg-white dark:bg-slate-800';
     const OWL_AVATAR_KEY = 'mudrlant.owlAvatar';
     const saveMeProfile = async () => {
         const user = signedUser();
@@ -1234,7 +1261,7 @@
             if (event.target.closest('[data-review-toggle]')) {
                 writeJson(KEYS.reviewOn, !reviewEnabled());
                 updateControlsUI();
-                openSettings(reviewEnabled() ? 'Procvičování špatných odpovědí je zapnuté.' : 'Procvičování špatných odpovědí je vypnuté.', '[data-review-toggle]');
+                openSettings(reviewEnabled() ? 'Procvičování chyb je zapnuté.' : 'Procvičování chyb je vypnuté.', '[data-review-toggle]');
                 return;
             }
             const pushToggle = event.target.closest('[data-push-toggle]');
@@ -1373,7 +1400,7 @@
     };
 
     const chooserToggle = (attribute, value, isOn, icon, label, on) => `
-        <button type="button" ${attribute}="${escapeHtml(value)}" aria-pressed="${isOn}" class="flex min-h-[2.5rem] items-center gap-2 rounded-xl border-2 px-2.5 py-2 text-left text-sm font-bold leading-tight transition-colors active:scale-[0.98] ${isOn ? on : TOGGLE_OFF}">
+        <button type="button" ${attribute}="${escapeHtml(value)}" aria-pressed="${isOn}" class="flex min-h-[2.75rem] items-center gap-1.5 rounded-xl border-2 px-2 py-1 text-left text-[13px] font-bold leading-tight transition-colors active:scale-[0.98] ${isOn ? on : TOGGLE_OFF}">
             <i data-lucide="${isOn ? 'square-check-big' : 'square'}" class="h-4 w-4 shrink-0"></i>
             <i data-lucide="${icon}" class="h-4 w-4 shrink-0 opacity-70"></i>
             <span class="min-w-0">${escapeHtml(label)}</span>
@@ -1395,28 +1422,32 @@
         // Překreslení po klepnutí bez úvodní animace a se stejným posunutím
         const previous = overlay.firstElementChild;
         const scroll = previous ? previous.scrollTop : 0;
+        // Hrát je v lepkavé patičce: při posouvání dlouhého výběru (Mix, nízký displej) zůstává vidět u spodního okraje okna,
+        // pod ním (po doposunutí) je Jiné téma
         overlay.innerHTML = `
-            <div class="${previous ? '' : 'fade-in '}max-h-[92dvh] w-full max-w-md overflow-y-auto rounded-[1.75rem] bg-slate-50 p-5 shadow-2xl dark:bg-slate-900">
-                <div class="mb-4 flex items-center gap-3">
+            <div class="${previous ? '' : 'fade-in '}max-h-[92dvh] w-full max-w-md overflow-y-auto rounded-[1.75rem] bg-slate-50 px-4 pb-4 pt-4 shadow-2xl dark:bg-slate-900">
+                <div class="mb-3 flex items-center gap-3">
                     ${topicIcon(topic, 'h-12 w-12', `shrink-0 rounded-2xl bg-gradient-to-br p-2.5 text-white ${style.tile}`, 'h-6 w-6')}
                     <div class="min-w-0 flex-1">
-                        <h2 id="chooser-title" class="text-lg font-black text-slate-800 dark:text-slate-100">${escapeHtml(topic.title)}</h2>
+                        <h2 id="chooser-title" class="text-lg font-black leading-tight text-slate-800 dark:text-slate-100">${escapeHtml(topic.title)}</h2>
                         <p class="text-sm text-slate-500 dark:text-slate-400">${isMix ? 'Z jakých témat chceš otázky?' : 'Co chceš hrát?'}</p>
                     </div>
                     <button type="button" data-close aria-label="Zavřít" class="-m-0.5 rounded-xl p-2.5 text-slate-500 hover:bg-slate-200 dark:text-slate-400 dark:hover:bg-slate-800"><i data-lucide="x" class="h-5 w-5"></i></button>
                 </div>
-                <div class="mb-2 flex items-center justify-between">
+                <div class="mb-1.5 flex items-center justify-between">
                     <h3 class="${SETTINGS_HEADING}">${isMix ? 'Témata' : 'Kategorie'}</h3>
                     <button type="button" data-chooser-all class="-my-3 rounded-lg px-2 py-3 text-xs font-bold ${style.text} underline-offset-2 hover:underline">Vybrat vše</button>
                 </div>
-                <div class="grid grid-cols-2 gap-2" role="group" aria-label="${isMix ? 'Témata' : 'Kategorie'}">${options}</div>
-                <h3 class="${SETTINGS_HEADING} mb-2 mt-5">Známost</h3>
-                <div class="grid grid-cols-2 gap-2" role="group" aria-label="Známost">${renderTierButtons(style.on, isMix ? null : topic)}</div>
-                <p id="chooser-note" class="mt-3 min-h-[1.25rem] text-sm font-semibold text-rose-700 dark:text-rose-400" role="status">${escapeHtml(note)}</p>
-                <button type="button" data-chooser-play class="mt-1 flex w-full items-center justify-center gap-2 rounded-[1.2rem] py-4 text-lg font-black text-white shadow-lg transition-all active:scale-95 ${style.button} btn-3d">
-                    <i data-lucide="play" class="h-5 w-5"></i> Hrát
-                </button>
-                <h3 class="${SETTINGS_HEADING} mb-2 mt-5">Jiné téma</h3>
+                <div class="grid grid-cols-2 gap-1.5" role="group" aria-label="${isMix ? 'Témata' : 'Kategorie'}">${options}</div>
+                <h3 class="${SETTINGS_HEADING} mb-1.5 mt-3">Známost</h3>
+                <div class="grid grid-cols-2 gap-1.5" role="group" aria-label="Známost">${renderTierButtons(style.on, isMix ? null : topic)}</div>
+                <div data-chooser-footer class="sticky -bottom-4 z-10 -mx-4 mt-3 border-t border-slate-200/80 bg-slate-50 px-4 pb-4 pt-2.5 dark:border-slate-800 dark:bg-slate-900">
+                    <p id="chooser-note" class="${note ? 'mb-1.5 ' : ''}text-sm font-semibold text-rose-700 dark:text-rose-400" role="status">${escapeHtml(note)}</p>
+                    <button type="button" data-chooser-play class="flex w-full items-center justify-center gap-2 rounded-[1.2rem] py-3 text-lg font-black text-white shadow-lg transition-all active:scale-95 ${style.button} btn-3d">
+                        <i data-lucide="play" class="h-5 w-5"></i> Hrát
+                    </button>
+                </div>
+                <h3 class="${SETTINGS_HEADING} mb-2 mt-2">Jiné téma</h3>
                 <div class="flex flex-wrap gap-2">${switches}</div>
             </div>`;
         overlay.firstElementChild.scrollTop = scroll;
@@ -1747,14 +1778,23 @@
         settleGoals();
         const stats = loadStats();
         const today = getDayKey();
-        // Dnešní otázky: ikona tématu a stav, název v popisku (14 témat se vejde do dvou řádků)
+        // Dnešní otázky: ikona tématu a stav, název v popisku (14 témat se vejde do dvou řádků). Na nízkém displeji (short:)
+        // jen ikona se stavem jako odznakem v rohu (hotovo ✓, nevyšlo ×, čeká •), dlaždice 40 px vysoká; celý stav je v popisku tlačítka
+        const dailyBadge = (result) => {
+            const badge = 'pointer-events-none absolute -bottom-1 -right-1 hidden items-center justify-center rounded-full ring-2 ring-white short:flex dark:ring-slate-800';
+            if (!result) return '<span aria-hidden="true" class="pointer-events-none absolute bottom-1 right-1 hidden h-1.5 w-1.5 rounded-full bg-gold-500 short:block"></span>';
+            return result.correct
+                ? `<span aria-hidden="true" class="${badge} h-4 w-4 bg-emerald-600 text-white"><i data-lucide="check" class="h-3 w-3 stroke-[3]"></i></span>`
+                : `<span aria-hidden="true" class="${badge} h-4 w-4 bg-rose-600 text-white"><i data-lucide="x" class="h-3 w-3 stroke-[3]"></i></span>`;
+        };
         const dailyButtons = TOPICS.map(topic => {
             const status = dailyStatus(topic.id, stats);
             const streak = computeStreak(stats.daily[topic.id] || {}, today);
             return `
-                <button type="button" data-action="daily" data-topic="${topic.id}" title="Dnešní otázka – ${escapeHtml(topic.title)}" aria-label="Dnešní otázka – ${escapeHtml(topic.title)}: ${escapeHtml(status.text)}" class="relative flex min-w-0 flex-col items-center gap-0.5 rounded-xl bg-slate-50 px-0.5 pb-1 pt-1 ring-1 ring-slate-200/70 transition-all active:scale-95 dark:bg-slate-900/60 dark:ring-slate-700/70">
+                <button type="button" data-action="daily" data-topic="${topic.id}" title="Dnešní otázka – ${escapeHtml(topic.title)}" aria-label="Dnešní otázka – ${escapeHtml(topic.title)}: ${escapeHtml(status.text)}" class="relative flex min-w-0 flex-col items-center gap-0.5 rounded-xl bg-slate-50 px-0.5 pb-1 pt-1 ring-1 ring-slate-200/70 transition-all active:scale-95 short:min-h-[2.5rem] short:justify-center dark:bg-slate-900/60 dark:ring-slate-700/70">
                     ${topicIcon(topic, 'h-7 w-7', `rounded-lg p-1 ${styleOf(topic).soft}`, 'h-[1.125rem] w-[1.125rem]')}
-                    <span class="flex max-w-full items-center gap-0.5 truncate text-[10px] font-bold ${status.tone}">${status.icon ? `<i data-lucide="${status.icon}" class="h-3 w-3 shrink-0"></i>` : ''}${status.text}</span>
+                    <span class="flex max-w-full items-center gap-0.5 truncate text-[10px] font-bold short:hidden ${status.tone}">${status.icon ? `<i data-lucide="${status.icon}" class="h-3 w-3 shrink-0"></i>` : ''}${status.text}</span>
+                    ${dailyBadge((stats.daily[topic.id] || {})[today])}
                     ${streak ? `<span class="absolute -right-1.5 -top-2 flex items-center rounded-lg bg-slate-900/85 py-px pl-0 pr-1.5 text-[10px] font-black text-white shadow ring-1 ring-white/20" title="Série dní">${uiArt('serie', 'h-4 w-4')}${streak}</span>` : ''}
                 </button>`;
         }).join('');
@@ -1767,35 +1807,35 @@
         const tile = (topic) => {
             const scope = scopeOf(topic);
             return `
-                <button type="button" data-action="play-topic" data-topic="${topic.id}"${scope ? ` title="${escapeHtml(`${topic.title} · ${scope}`)}"` : ''} class="relative flex min-h-[4rem] min-w-0 flex-col items-center justify-center gap-1 overflow-hidden rounded-2xl bg-gradient-to-br p-1.5 text-center text-white shadow-md ring-1 ring-black/5 transition-all active:scale-[0.97] ${styleOf(topic).tile}">
-                    ${topicArt(topic) ? topicIcon(topic, 'h-11 w-11') : `<i data-lucide="${topic.icon}" class="h-[1.625rem] w-[1.625rem]"></i>`}
-                    <span class="block ${topic.title.length > 10 ? 'text-[10px]' : 'text-[11.5px]'} font-black leading-tight tracking-tight">${escapeHtml(topic.title)}</span>
+                <button type="button" data-action="play-topic" data-topic="${topic.id}"${scope ? ` title="${escapeHtml(`${topic.title} · ${scope}`)}"` : ''} class="relative flex min-h-[4rem] min-w-0 flex-col items-center justify-center gap-1 overflow-hidden rounded-2xl bg-gradient-to-br p-1.5 text-center text-white shadow-md ring-1 ring-black/5 transition-all active:scale-[0.97] short:min-h-[3.5rem] short:gap-0.5 short:p-1 ${styleOf(topic).tile}">
+                    ${topicArt(topic) ? topicIcon(topic, 'h-11 w-11 short:h-8 short:w-8') : `<i data-lucide="${topic.icon}" class="h-[1.625rem] w-[1.625rem]"></i>`}
+                    <span class="block ${topic.title.length > 10 ? 'text-[10px]' : 'text-[11.5px]'} font-black leading-tight tracking-tight short:leading-[1.1]">${escapeHtml(topic.title)}</span>
                 </button>`;
         };
         const mixScope = settings.topics.length === TOPICS.length ? 'Otázky ze všech témat' : `${settings.topics.length} z ${TOPICS.length} témat`;
         const mixTile = `
-            <button type="button" data-action="play-mix" title="${escapeHtml(`Mix · ${mixScope}`)}" class="relative col-span-2 flex min-h-[4rem] min-w-0 items-center justify-center gap-2.5 overflow-hidden rounded-2xl bg-gradient-to-br p-2.5 text-left text-white shadow-md ring-1 ring-black/5 transition-all active:scale-[0.97] ${styleOf(MIX).tile}">
-                                ${topicIcon(MIX, 'h-12 w-12')}
+            <button type="button" data-action="play-mix" title="${escapeHtml(`Mix · ${mixScope}`)}" class="relative col-span-2 flex min-h-[4rem] min-w-0 items-center justify-center gap-2.5 overflow-hidden rounded-2xl bg-gradient-to-br p-2.5 text-left text-white shadow-md ring-1 ring-black/5 transition-all active:scale-[0.97] short:min-h-[3.5rem] short:p-1.5 ${styleOf(MIX).tile}">
+                ${topicIcon(MIX, 'h-12 w-12 short:h-10 short:w-10')}
                 <span class="min-w-0 text-base font-black leading-tight">${escapeHtml(MIX.title)}</span>
             </button>`;
         const ordered = groupedTopics().flatMap(group => group.topics);
         const left = TOPICS.length - answered;
         appContent.innerHTML = `
-            <div class="fade-in flex min-h-full w-full flex-col gap-2.5 bg-slate-50 p-3 pb-4 dark:bg-slate-900">
+            <div class="fade-in flex min-h-full w-full flex-col gap-2.5 bg-slate-50 p-3 pb-4 short:gap-2 short:pb-3 dark:bg-slate-900">
                 ${renderHomeTabs()}
-                ${homeTab() === 'multi' ? renderChallengesSection() : `<section class="rounded-[1.4rem] bg-white p-2.5 shadow-sm ring-1 ring-slate-200/70 dark:bg-slate-800/70 dark:ring-slate-700/70">
-                    <div class="mb-2 flex items-center justify-between gap-2">
-                        <h2 class="flex min-w-0 items-center gap-2 whitespace-nowrap text-slate-800 dark:text-slate-100">${uiArt('dnes', 'h-8 w-8')}<span class="min-w-0"><span class="block text-[13px] font-black leading-tight">Dnešní otázky</span><span class="block text-[11px] font-bold leading-tight text-slate-500 dark:text-slate-400">${answered}/${TOPICS.length} splněno</span></span></h2>
+                ${homeTab() === 'multi' ? renderChallengesSection() : `<section class="rounded-[1.4rem] bg-white p-2.5 shadow-sm ring-1 ring-slate-200/70 short:p-2 dark:bg-slate-800/70 dark:ring-slate-700/70">
+                    <div class="mb-2 flex items-center justify-between gap-2 short:mb-1.5">
+                        <h2 class="flex min-w-0 items-center gap-2 whitespace-nowrap text-slate-800 dark:text-slate-100">${uiArt('dnes', 'h-8 w-8 short:h-7 short:w-7')}<span class="min-w-0"><span class="block text-[13px] font-black leading-tight">Dnešní otázky</span><span class="block text-[11px] font-bold leading-tight text-slate-500 dark:text-slate-400">${answered}/${TOPICS.length} splněno</span></span></h2>
                         ${left ? `
-                            <button type="button" data-action="play-daily" class="flex shrink-0 items-center gap-1.5 rounded-xl btn-3d bg-brand-700 px-3 py-2 text-[13px] font-black text-white">
+                            <button type="button" data-action="play-daily" class="flex shrink-0 items-center gap-1.5 rounded-xl btn-3d bg-brand-700 px-3 py-2 text-[13px] font-black text-white short:py-1.5">
                                 <i data-lucide="play" class="h-4 w-4"></i> ${answered ? 'Pokračovat' : 'Hrát vše'} <span class="font-bold opacity-90">· zbývá ${left}</span>
                             </button>` : `
-                            <span class="flex shrink-0 items-center gap-1.5 rounded-xl bg-emerald-50 px-3 py-2 text-[13px] font-bold text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300"><i data-lucide="circle-check" class="h-4 w-4"></i> Vše hotové</span>`}
+                            <span class="flex shrink-0 items-center gap-1.5 rounded-xl bg-emerald-50 px-3 py-2 text-[13px] font-bold text-emerald-700 short:py-1.5 dark:bg-emerald-900/30 dark:text-emerald-300"><i data-lucide="circle-check" class="h-4 w-4"></i> Vše hotové</span>`}
                     </div>
                     <div class="grid grid-cols-7 gap-1">${dailyButtons}</div>
                 </section>
                 ${renderGoalsCard()}
-                <section class="grid max-h-[26rem] flex-1 grid-cols-4 auto-rows-fr gap-2">${mixTile}${ordered.map(tile).join('')}</section>`}
+                <section class="grid max-h-[26rem] flex-1 grid-cols-4 auto-rows-fr gap-2 short:gap-1.5">${mixTile}${ordered.map(tile).join('')}</section>`}
             </div>`;
         applyProgress(appContent);
         renderIcons(appContent);
@@ -3856,14 +3896,16 @@
         return `<div id="home-tabs" role="tablist" class="flex shrink-0 gap-1 rounded-2xl bg-slate-200/70 p-1 dark:bg-slate-800">${option('single', 'user-round', 'Jeden hráč')}${option('multi', 'users', 'Více hráčů', waiting)}</div>`;
     };
     // Rychlé akce: tři dlaždice (Vyzvat, Náhodný soupeř, Zadat kód) a pod nimi drobný čip s nastavením přijímaných výzev
-    const QUICK_TILE = 'flex min-h-[4.5rem] min-w-0 flex-col items-center justify-center gap-1 rounded-2xl px-1 py-2 text-center text-[12px] font-black leading-tight';
+    // Na nízkém displeji (short:) menší ikony a nižší dlaždice, ať se nad ohyb vejde i liga
+    const QUICK_TILE = 'flex min-h-[4.5rem] min-w-0 flex-col items-center justify-center gap-1 rounded-2xl px-1 py-2 text-center text-[12px] font-black leading-tight short:min-h-[3.75rem] short:gap-0.5 short:py-1.5';
+    const QUICK_ICON = 'flex h-9 w-9 items-center justify-center rounded-full short:h-7 short:w-7';
     const QUICK_LIGHT = 'bg-white text-slate-800 shadow-sm ring-1 ring-slate-200/70 active:scale-95 dark:bg-slate-800 dark:text-slate-100 dark:ring-slate-700/70';
     const quickActions = () => `
         <div class="flex flex-col gap-1.5">
             <div class="grid grid-cols-3 gap-2">
-                <button type="button" data-action="new-challenge" class="${QUICK_TILE} btn-3d bg-brand-700 text-white">${uiArt('vyzva', 'h-9 w-9')}Vyzvat</button>
-                <button type="button" data-action="random-challenge" class="${QUICK_TILE} ${QUICK_LIGHT}"><span class="flex h-9 w-9 items-center justify-center rounded-full bg-brand-100 text-brand-700 dark:bg-brand-900/50 dark:text-brand-200"><i data-lucide="shuffle" class="h-5 w-5"></i></span>Náhodný soupeř</button>
-                <button type="button" data-action="join-challenge" class="${QUICK_TILE} ${QUICK_LIGHT}"><span class="flex h-9 w-9 items-center justify-center rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300"><i data-lucide="hash" class="h-5 w-5"></i></span>Zadat kód</button>
+                <button type="button" data-action="new-challenge" class="${QUICK_TILE} btn-3d bg-brand-700 text-white">${uiArt('vyzva', 'h-9 w-9 short:h-7 short:w-7')}Vyzvat</button>
+                <button type="button" data-action="random-challenge" class="${QUICK_TILE} ${QUICK_LIGHT}"><span class="${QUICK_ICON} bg-brand-100 text-brand-700 dark:bg-brand-900/50 dark:text-brand-200"><i data-lucide="shuffle" class="h-5 w-5"></i></span>Náhodný soupeř</button>
+                <button type="button" data-action="join-challenge" class="${QUICK_TILE} ${QUICK_LIGHT}"><span class="${QUICK_ICON} bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300"><i data-lucide="hash" class="h-5 w-5"></i></span>Zadat kód</button>
             </div>
             <button type="button" data-action="open-accept" title="Změnit, z jakých témat přijímám výzvy" class="flex min-h-[2rem] max-w-full items-center gap-1.5 self-center rounded-full bg-slate-200/60 px-3 py-1 text-[11.5px] font-bold text-slate-600 active:scale-95 dark:bg-slate-800/80 dark:text-slate-300"><i data-lucide="shield-check" class="h-3.5 w-3.5 shrink-0 text-brand-700 dark:text-brand-300"></i><span class="min-w-0 truncate">Přijímám výzvy z: <b class="text-slate-800 dark:text-slate-100">${escapeHtml(acceptSummary())}</b></span><i data-lucide="pencil" class="h-3 w-3 shrink-0 text-brand-700 dark:text-cream"></i></button>
         </div>`;

@@ -1483,31 +1483,38 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         await one.tab.click('#settings-overlay [data-close]');
         await one.tab.waitForFunction(() => document.getElementById('btn-settings').textContent.includes('🐼'));
 
-        // Přijímané výzvy: z profilu i ze záložky Více hráčů; vypnuté téma se uloží, Zapnout vše je vrátí
+        // Přijímané výzvy: z profilu i ze záložky Více hráčů; vypnuté téma se uloží, Zapnout vše je vrátí.
+        // Okno klepnutí ignoruje, dokud se uložené nastavení nenačte (souhrn „nastavit“), proto se čeká na načtený souhrn. Uložení
+        // se pozná podle nového stavu přepínače spolu s „Uloženo.“ – starý stav s hláškou z minulého klepnutí podmínku nesplní.
+        const acceptSaved = (selector, checked) => one.tab.waitForFunction(({ selector, checked }) => {
+            const overlay = document.getElementById('dialog-overlay');
+            const element = document.querySelector(selector);
+            return Boolean(overlay && element) && element.getAttribute('aria-checked') === checked && /Uloženo/.test(overlay.textContent);
+        }, { selector, checked });
         await one.tab.click('#btn-settings');
         await one.tab.click('[data-me-tab="profile"]');
         await one.tab.click('[data-open-accept]');
-        await one.tab.waitForSelector('[data-accept-topic="vlajky"]');
+        await one.tab.waitForFunction(() => /Přijímáš: všechna témata/.test((document.getElementById('dialog-overlay') || {}).textContent || ''));
         assert.equal(await one.tab.getAttribute('[data-accept-topic="vlajky"]', 'aria-checked'), 'true');
         await one.tab.click('[data-accept-topic="vlajky"]');
-        await one.tab.waitForFunction(() => /Uloženo/.test(document.getElementById('dialog-overlay').textContent));
+        await acceptSaved('[data-accept-topic="vlajky"]', 'false');
         assert.deepEqual(db.profiles['u-1'].blocked_topics, ['vlajky']);
-        assert.equal(await one.tab.getAttribute('[data-accept-topic="vlajky"]', 'aria-checked'), 'false');
         assert.match(await one.tab.textContent('#dialog-overlay'), /Přijímáš: 13 z 14 témat/);
         await one.tab.click('[data-accept-all]');
         await one.tab.waitForFunction(() => !document.querySelector('[data-accept-all]') && /Uloženo/.test(document.getElementById('dialog-overlay').textContent));
+        assert.equal(await one.tab.getAttribute('[data-accept-topic="vlajky"]', 'aria-checked'), 'true');
         assert.deepEqual(db.profiles['u-1'].blocked_topics, []);
         // Mix je samostatný přepínač (výchozí zapnuto); vypnutý se projeví v souhrnu
         assert.equal(await one.tab.getAttribute('[data-accept-mix]', 'aria-checked'), 'true');
         await one.tab.click('[data-accept-mix]');
-        await one.tab.waitForFunction(() => /Uloženo/.test(document.getElementById('dialog-overlay').textContent));
+        await acceptSaved('[data-accept-mix]', 'false');
         assert.equal(db.profiles['u-1'].accepts_mix, false);
         assert.match(await one.tab.textContent('#dialog-overlay'), /Přijímáš: všechna témata, bez Mixu/);
         await one.tab.click('[data-accept-mix]');
-        await one.tab.waitForFunction(() => document.querySelector('[data-accept-mix]').getAttribute('aria-checked') === 'true' && /Uloženo/.test(document.getElementById('dialog-overlay').textContent));
+        await acceptSaved('[data-accept-mix]', 'true');
         assert.equal(db.profiles['u-1'].accepts_mix, true);
         await one.tab.click('#dialog-overlay [data-close]');
-        assert.match(await one.tab.textContent('#challenges-section'), /Přijímám výzvy z:\s*všechna témata/);
+        await one.tab.waitForFunction(() => /Přijímám výzvy z:\s*všechna témata/.test((document.getElementById('challenges-section') || {}).textContent || ''));
 
         // Výzva konkrétnímu hráči: hledání podle přezdívky (Petr), téma zeměpis, 5 otázek
         await one.tab.click('#challenges-section [data-action="new-challenge"]');
