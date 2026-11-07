@@ -995,10 +995,13 @@
         const shown = profile && meTab === 'profile' && meDraft ? { ...profile, ...{ avatar: meDraft.avatar, color: meDraft.color, owl: meDraft.owl ? myOwlText() : null, draft: true } } : profile;
         const level = levelProgress(loadProgress().xp);
         const noteText = note || meNote;
+        const tabList = [['game', 'gamepad-2', 'Hra'], ...(user && Social ? [['profile', 'user-round', 'Profil']] : []), ['look', 'palette', 'Vzhled'], ...(Owl ? [['owl', 'sparkles', 'Mudrlant']] : [])];
+        // Čtyři záložky (přihlášený hráč) se na telefon s ikonami nevejdou („Mudrlan“): ikony až na širším displeji, na 360 px menší písmo a okraje
+        const crowded = tabList.length > 3;
         const tabs = `
             <div role="tablist" class="mt-3 flex gap-1 rounded-2xl bg-slate-200/70 p-1 dark:bg-slate-800">
-                ${[['game', 'gamepad-2', 'Hra'], ...(user && Social ? [['profile', 'user-round', 'Profil']] : []), ['look', 'palette', 'Vzhled'], ...(Owl ? [['owl', 'sparkles', 'Mudrlant']] : [])].map(([id, icon, label]) => `
-                    <button type="button" role="tab" data-me-tab="${id}" aria-selected="${meTab === id}" class="flex flex-1 items-center justify-center gap-1.5 rounded-xl min-h-[2.75rem] px-2 text-[13px] font-black ${meTab === id ? 'btn-3d bg-brand-700 text-white' : 'text-slate-600 dark:text-slate-400'}"><i data-lucide="${icon}" class="h-4 w-4"></i> ${label}</button>`).join('')}
+                ${tabList.map(([id, icon, label]) => `
+                    <button type="button" role="tab" data-me-tab="${id}" aria-selected="${meTab === id}" class="flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-xl min-h-[2.75rem] px-2 text-[13px] font-black ${crowded ? 'max-[400px]:px-1 max-[400px]:text-[12px]' : ''} ${meTab === id ? 'btn-3d bg-brand-700 text-white' : 'text-slate-600 dark:text-slate-400'}"><i data-lucide="${icon}" class="h-4 w-4 shrink-0 ${crowded ? 'max-sm:hidden' : ''}"></i> ${label}</button>`).join('')}
             </div>`;
         const gameBody = `
             <h3 class="${ME_HEADING} mb-2">Varianta hry</h3>
@@ -1036,7 +1039,7 @@
                     <input type="range" min="0" max="355" step="5" value="${Social.customHue(meDraft.color) ?? Social.customHue('h' + ({ emerald: 160, sky: 200, violet: 260, rose: 350, amber: 40, teal: 175, orange: 25, indigo: 240 }[meDraft.color] || 160))}" data-pick-hue aria-label="Všechny barvy: odstín pozadí profilovky" class="mt-2 h-6 w-full cursor-pointer appearance-none rounded-full bg-[linear-gradient(90deg,#f00,#ff0,#0f0,#0ff,#00f,#f0f,#f00)]">
                 </div>
                 <div class="flex gap-2">
-                    <button type="button" data-open-accept class="btn-3d-light flex min-w-0 flex-1 items-center gap-2 rounded-2xl bg-white px-3 py-2 text-left dark:bg-slate-800"><i data-lucide="shield-check" class="h-5 w-5 shrink-0 text-brand-700 dark:text-brand-300"></i><span class="min-w-0 flex-1 truncate text-[13px] font-black text-slate-800 dark:text-slate-100">Přijímané výzvy <span class="font-semibold text-slate-500 dark:text-slate-400">· ${escapeHtml(acceptSummary())}</span></span><i data-lucide="chevron-right" class="h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400"></i></button>
+                    <button type="button" data-open-accept class="btn-3d-light flex min-w-0 flex-1 items-center gap-2 rounded-2xl bg-white px-3 py-2 text-left dark:bg-slate-800"><i data-lucide="shield-check" class="h-5 w-5 shrink-0 text-brand-700 dark:text-brand-300"></i><span class="min-w-0 flex-1 text-[13px] font-black leading-tight text-slate-800 dark:text-slate-100">Přijímané výzvy <span class="font-semibold text-slate-500 dark:text-slate-400">· ${escapeHtml(acceptSummary())}</span></span><i data-lucide="chevron-right" class="h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400"></i></button>
                     ${Friends ? `<button type="button" data-open-blocked aria-label="Zablokovaní hráči: ${myBlocks ? myBlocks.length : 'načítám'}" title="Zablokovaní hráči" class="btn-3d-light relative flex h-auto w-11 shrink-0 items-center justify-center rounded-2xl bg-white text-brand-700 dark:bg-slate-800 dark:text-brand-300"><i data-lucide="ban" class="h-5 w-5"></i>${myBlocks && myBlocks.length ? `<span class="absolute -right-1 -top-1 flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-rose-600 px-1 text-[10px] font-black text-white">${myBlocks.length}</span>` : ''}</button>` : ''}
                 </div>
                 <div class="grid grid-cols-2 gap-2">

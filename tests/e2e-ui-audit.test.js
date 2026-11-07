@@ -121,17 +121,20 @@ test('rozhraní na úzkém telefonu', { skip: !chromium && 'Playwright není nai
     t.after(async () => { await browser.close(); server.close(); });
 
     // fact = zajímavost dne (data/fakt.json), jinak ji server nemá
-    const open = async (scheme, { viewport = VIEWPORT, fact = null } = {}) => {
+    // signedIn = přihlášený hráč (falešné Supabase: jeho profil, jinak prázdné odpovědi) – v Nastavení má čtyři záložky
+    const open = async (scheme, { viewport = VIEWPORT, fact = null, signedIn = false } = {}) => {
         const context = await browser.newContext({ serviceWorkers: 'block', viewport, colorScheme: scheme, reducedMotion: 'reduce', hasTouch: true });
         if (fact) await context.route('**/data/fakt.json', route => route.fulfill({ json: fact }));
-        await context.addInitScript(() => {
+        const auth = signedIn ? JSON.stringify({ access_token: 'tok', refresh_token: 'r', expires_at: 4102444800, user: { id: 'u-1', email: 'jana@example.com', name: 'Jana Nováková' } }) : null;
+        await context.addInitScript((auth) => {
             if (sessionStorage.getItem('seeded')) return;
             sessionStorage.setItem('seeded', '1');
             localStorage.setItem('mudrlant.account', JSON.stringify('host'));
             localStorage.setItem('mudrlant.variant', 'choices');
             localStorage.setItem('mudrlant.tutorial', JSON.stringify({ how: 'done' }));
             localStorage.setItem('mudrlant.tips', JSON.stringify({ off: true }));
-        });
+            if (auth) localStorage.setItem('mudrlant.auth', auth);
+        }, auth);
         const tab = await context.newPage();
         const problems = [];
         tab.on('pageerror', error => problems.push(error.message));
@@ -139,6 +142,10 @@ test('rozhraní na úzkém telefonu', { skip: !chromium && 'Playwright není nai
         await context.route('**/*', route => {
             const url = new URL(route.request().url());
             if (url.origin === origin) return route.fallback();
+            if (signedIn && url.hostname.endsWith('.supabase.co')) {
+                if (url.pathname === '/rest/v1/profiles') return route.fulfill({ json: [{ id: 'u-1', display_name: 'Jana Nováková', avatar: '🦊', color: 'emerald', owl: null, xp: 0, badges: [] }] });
+                return route.fulfill({ json: url.pathname.startsWith('/auth/') ? {} : [] });
+            }
             if (url.hostname === 'cs.wikipedia.org') return route.fulfill({ json: { query: { pages: { 7: { pageid: 7, title: 'Zkouška', extract: fixtures.extractFor(url.searchParams.get('titles')) } } } } });
             if (/\.(png|jpe?g|webp)$/.test(url.pathname) || url.hostname === 'upload.wikimedia.org' || url.hostname === 'tile.openstreetmap.org') return route.fulfill({ contentType: 'image/png', body: PNG });
             return route.abort();
@@ -257,6 +264,28 @@ test('rozhraní na úzkém telefonu', { skip: !chromium && 'Playwright není nai
             await tab.click('#status-text');
             await tab.waitForSelector('[data-open-levels]');
             await check(tab, `${scene}: můj postup`, scheme);
+            assert.deepEqual(problems, [], 'bez chyb v konzoli a bez porušení CSP');
+            await context.close();
+        });
+    }
+
+    // Nastavení přihlášeného hráče: čtyři záložky (Hra, Profil, Vzhled, Mudrlant) se na 360 px vejdou celé, bez „Mudrlan“
+    for (const scheme of ['light', 'dark']) {
+        await t.test(`nastavení přihlášeného hráče: čtyři záložky (${scheme})`, async () => {
+            const { context, tab, problems } = await open(scheme, { signedIn: true });
+            await tab.click('#btn-settings');
+            await tab.waitForSelector('[data-me-tab="profile"]');
+            const tabs = await tab.evaluate(() => {
+                const list = document.querySelector('#settings-overlay [role="tablist"]');
+                return { list: [list.scrollWidth, list.clientWidth], tabs: [...list.querySelectorAll('[data-me-tab]')].map(el => ({ text: el.textContent.trim(), scroll: el.scrollWidth, client: el.clientWidth, width: el.getBoundingClientRect().width })) };
+            });
+            assert.deepEqual(tabs.tabs.map(item => item.text), ['Hra', 'Profil', 'Vzhled', 'Mudrlant']);
+            assert.ok(tabs.list[0] <= tabs.list[1] + 1, `${scheme}: pás záložek přetéká (${tabs.list[0]} > ${tabs.list[1]})`);
+            for (const item of tabs.tabs) assert.ok(item.scroll <= item.client + 1 && item.width >= 44, `${scheme}: záložka ${item.text} uříznutá nebo malá (${item.scroll} > ${item.client}, šířka ${item.width})`);
+            for (const id of ['game', 'profile', 'look', 'owl']) {
+                await tab.click(`[data-me-tab="${id}"]`);
+                await check(tab, `nastavení přihlášeného – ${id}`, scheme);
+            }
             assert.deepEqual(problems, [], 'bez chyb v konzoli a bez porušení CSP');
             await context.close();
         });
