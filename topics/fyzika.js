@@ -64,7 +64,8 @@
             return formatFacts(item, [['named', 'Pojmenováno po', v => v], ['year', 'Rok', formatYear]])
                 .filter(fact => fact.label !== 'Pojmenováno po' || ['result', 'card'].includes(mode) || !namedInName(item));
         }
-        if (item.c === 'castice') return formatFacts(item, [['group', 'Skupina', v => v]]);
+        // Skupina u třídy částic (Fermion – „lepton“) nedává smysl
+        if (item.c === 'castice') return PARTICLE_CLASSES[item.n] ? [] : formatFacts(item, [['group', 'Skupina', v => v]]);
         if (item.c === 'mise') return formatFacts(item, [['year', 'Rok', formatYear], ['op', 'Provozovatel', v => v]]);
         if (item.c === 'vesmir') {
             return formatFacts(item, [['parent', 'Obíhá kolem', v => v], ['const', 'Souhvězdí', v => v], ['diam', 'Průměr', v => `${scientific(v)} km`], ['mass', 'Hmotnost', v => `${scientific(v)} kg`],
@@ -181,6 +182,37 @@
 
     const EXTRA_MASK = { Q13082: ['Jádro'], Q11429: ['Jádro'], Q206037: ['Otáčení'], Q11412: ['Gravitační'], Q172858: ['Rezonanční'], Q181465: ['Indukce', 'Indukční'] };
 
+    // Třídy částic: které skupiny (pole group) nebo částice zahrnují a ve kterých širších třídách jsou samy
+    const PARTICLE_CLASSES = {
+        'Subatomární částice': { groups: ['lepton', 'kvark', 'boson', 'baryon', 'mezon', 'hadron'], names: ['Atomové jádro', 'Alfa částice', 'Antičástice'], parents: [] },
+        'Elementární částice': { groups: ['lepton', 'kvark', 'boson'], parents: ['Subatomární částice'] },
+        'Fermion': { groups: ['lepton', 'kvark', 'baryon'], parents: ['Subatomární částice'] },
+        'Boson': { groups: ['boson', 'mezon'], parents: ['Subatomární částice'] },
+        'Lepton': { groups: ['lepton'], parents: ['Elementární částice', 'Fermion'] },
+        'Kvark': { groups: ['kvark'], parents: ['Elementární částice', 'Fermion'] },
+        'Hadron': { groups: ['baryon', 'mezon'], parents: ['Subatomární částice'] },
+        'Baryon': { groups: ['baryon'], parents: ['Hadron', 'Fermion'] },
+        'Mezon': { groups: ['mezon'], parents: ['Hadron', 'Boson'] },
+        'Nukleon': { names: ['Proton', 'Neutron'], parents: ['Baryon'] },
+        'Antičástice': { names: ['Pozitron', 'Antiproton'], parents: ['Subatomární částice'] },
+        'Atomové jádro': { names: ['Alfa částice', 'Proton'], parents: ['Subatomární částice'] }
+    };
+    // Vázané soustavy (pozitronium je exotický atom) do tříd elementárních částic nepatří
+    const NOT_PARTICLE_MEMBERS = new Set(['Pozitronium', 'Atom', 'Molekula', 'Ion']);
+    const ancestorsOf = (name, seen = new Set()) => {
+        for (const parent of (PARTICLE_CLASSES[name] || {}).parents || []) if (!seen.has(parent)) { seen.add(parent); ancestorsOf(parent, seen); }
+        return seen;
+    };
+    const particleContains = (cls, other) => {
+        const spec = PARTICLE_CLASSES[cls.n];
+        if (!spec || cls.q === other.q) return false;
+        if (PARTICLE_CLASSES[other.n]) return ancestorsOf(other.n).has(cls.n);
+        if (NOT_PARTICLE_MEMBERS.has(other.n)) return false;
+        const group = (other.f || {}).group;
+        return (spec.names || []).includes(other.n) || (Boolean(group) && (spec.groups || []).includes(group));
+    };
+    const particlesOverlap = (a, b) => particleContains(a, b) || particleContains(b, a);
+
     return {
         id: 'fyzika',
         title: 'Fyzika',
@@ -199,6 +231,7 @@
         },
         categories: CATEGORIES,
 
+        particlesOverlap,
         // Nesprávné možnosti: veličiny se stejnou jednotkou nebo z téhož oboru (energie – práce – teplo), jednotky téže
         // veličiny (metr – stopa – palec), tělesa téhož druhu kolem téhož tělesa (měsíce Jupiteru), fyzici stejného pohlaví a doby
         similarity: (item, other, ctx) => {
@@ -209,7 +242,8 @@
             if (item.c === 'vesmir') return (f.kind === g.kind ? 3 : 0) + (f.parent && f.parent === g.parent ? 3 : 0) + (f.const && f.const === g.const ? 1 : 0);
             // Zákony, jevy a konstanty podle druhu; částice podle skupiny; sondy a přístroje podle druhu a doby
             if (item.c === 'pojmy') return item.ty === other.ty ? 3 : 0;
-            if (item.c === 'castice') return f.group && f.group === g.group ? 3 : 0;
+            // Třída, do které částice patří (Elektron – Lepton, Fermion; Neutron – Nukleon, Baryon), by byla druhá správná odpověď
+            if (item.c === 'castice') return particlesOverlap(item, other) ? -Infinity : f.group && f.group === g.group ? 3 : 0;
             if (item.c === 'mise') return (item.ty === other.ty ? 3 : 0) + eraNearness(f.year, g.year);
             // Osoby: pohlaví a doba, k tomu stejná země (k Sacharovovi sovětští vědci, ne Descartes) a Čech k Čechům
             return personSimilarity(item, other) + (item.ty === other.ty ? 2 : 0) + (Boolean(f.nobel) === Boolean(g.nobel) ? 1 : 0)

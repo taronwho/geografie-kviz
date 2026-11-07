@@ -43,9 +43,12 @@
     // Vzorec v obvyklém zápisu: Wikidata mají u některých látek jen Hillův zápis (ClHO místo HClO, CNNa místo NaCN),
     // který by mezi možnostmi nápadně trčel
     const METALS = /^(Li|Na|K|Rb|Cs|Be|Mg|Ca|Sr|Ba|Al|Fe|Cu|Zn|Ag|Au|Hg|Pb|Sn|Mn|Cr|Ni|Co|Ti)$/;
+    // Anorganická látka s kyslíkem před dalším prvkem (O₂Pb, O₄PbS, H₂O₄Se) je také Hillův zápis – obvykle PbO₂, PbSO₄, H₂SeO₄
+    const oxygenFirst = (symbols) => !symbols.includes('C') && symbols.includes('O') && symbols.slice(symbols.indexOf('O') + 1).some(symbol => !/^(H|O|F)$/.test(symbol));
     const looksUsual = (formula) => {
         const symbols = symbolsOf(formula);
         if (symbols.length > 1 && /^(Cl|Br|I|F)$/.test(symbols[0])) return false;
+        if (oxygenFirst(symbols)) return false;
         return !(symbols.includes('C') && !symbols.includes('H') && symbols.some(symbol => METALS.test(symbol)));
     };
     const escapeRegExp = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');

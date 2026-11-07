@@ -107,6 +107,8 @@ export const cleanDescription = (text) => typeof text !== 'string' ? text : text
     .replace(/\s*\([^)]*$/, '')
     .replace(/\s{2,}/g, ' ')
     .replace(/[\s,;]+$/, '')
+    // Tečka na konci: hra za krátký popis tečku přidává sama („Americký herec..“, „př. n. l..“)
+    .replace(/\.+$/, '')
     .trim();
 
 // Zapíše data tématu; okruhy s méně než 5 položkami vynechá (i z položek), aby v učení nebyly skoro prázdné

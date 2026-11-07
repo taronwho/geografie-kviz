@@ -288,11 +288,23 @@ const hydroxideFormula = (formula) => {
     const metal = match[1] || match[4];
     return match[2] && match[2] !== '₁' ? `${metal}(OH)${match[2]}` : `${metal}OH`;
 };
+// Anorganický vzorec v Hillově zápisu s kyslíkem před dalším prvkem (O₂Pb, O₄PbS, H₂O₄Se, O₆P₄) v obvyklém pořadí:
+// vodík, ostatní prvky, kyslík nakonec (PbO₂, PbSO₄, H₂SeO₄, P₄O₆); u fluoridů kyslíku (OF₂) a hydroxidů pořadí zůstane
+const oxygenLast = (formula) => {
+    if (!/^(?:[A-Z][a-z]?[₀-₉]*)+$/.test(formula)) return formula;
+    const parts = formula.match(/[A-Z][a-z]?[₀-₉]*/g);
+    const symbol = (part) => part.replace(/[₀-₉]+$/, '');
+    const oxygen = parts.findIndex(part => symbol(part) === 'O');
+    if (parts.some(part => symbol(part) === 'C') || oxygen < 0 || !parts.slice(oxygen + 1).some(part => !/^(H|O|F)$/.test(symbol(part)))) return formula;
+    const hydrogen = parts.filter(part => symbol(part) === 'H');
+    const others = parts.filter(part => !/^(H|O)$/.test(symbol(part)));
+    return [...hydrogen, ...others, parts[oxygen]].join('');
+};
 // ions = i nabité vzorce (thiamin, acetylcholin jsou kationty)
 const pickFormula = (list, ions = false) => {
     const clean = (list || []).filter(formula => ions || !/[⁺⁻]/.test(formula));
     if (!clean.length) return undefined;
-    return clean.find(formula => !isHill(formula)) || clean[0];
+    return oxygenLast(clean.find(formula => !isHill(formula)) || clean[0]);
 };
 const toPlain = (formula) => formula.replace(/[₀-₉]/g, digit => String(SUBSCRIPTS.indexOf(digit)));
 

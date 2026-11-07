@@ -50,8 +50,8 @@
         mezopotamska: ['kanaanska', 'perska', 'biblicka'], perska: ['mezopotamska', 'biblicka'], cinska: ['japonska'], japonska: ['cinska'],
         keltska: ['severska'], severska: ['keltska'], biblicka: ['kanaanska', 'mezopotamska', 'perska']
     };
-    // Slova, která v popisu prozradí mytologii (řecký, Olymp, faraon, Edda, Slované…)
-    const MYTH_WORDS = /(?<![\p{L}\d])(?:staro|pra)?(?:řeck|římsk|helén|antick|egypt|severs|germán|skandináv|nordick|norsk|islandsk|vikin|slovan|olymp|Řím|Řek(?:ové|ů|ům)|Egypt|Edd|Ásgard|Ás[ouy]|Vanov|faraon|Slovan|Nil|Thé[bv]|Memfi|Heliopol|Valhal|Walhal|Ragnar|Ygg|Midgard|Atén|Athén|Trój|Homér|Hésiod|Ovid|Vergil|indick|Indi[eiíe]|hinduis|védsk|keltsk|Kelt|irsk|Irsk|velšsk|artuš|Artuš|Camelot|japonsk|Japonsk|šintoi|čínsk|Čín|taoi|mezopotám|sumer|akkad|babylon|babylón|asyrsk|aztéc|Azték|Aztéc|mayš|maysk|májsk|Maj(?:ové|ů)|inck|Ink(?:ové|ů|a|y|ou)|persk|perš|Persi|zoroastr|kanaán|Kanaán|fénick|biblick|Bibl|křesťan|židovsk|abrahám|islám|Jeruzalém|Eden|judais|kabal|džinis|buddh|muslim|konfuci|galsk|Gal(?:ové|ů)|Galie|íránsk|Írán|ugarit|hebrej|Izrael|izraelsk|sumersk|Babylón|Asýri|Ninive|Uruk|Ur\b|Andy|andsk|Peru|Mexik|Tenochtitl|Yucatán|Tibet|tibetsk|Nepál|Srí|Kambodž|Angkor)\p{L}*/giu;
+    // Slova, která v popisu prozradí mytologii (řecký, Olymp, faraon, Edda, Slované…), i jména národů (Babyloňané, Egypťané, Číňané)
+    const MYTH_WORDS = /(?<![\p{L}\d])(?:staro|pra)?(?:řeck|římsk|helén|antick|egyp[tť]|babyl|japon|Čí[nň]|Ind(?:ové|ů|ům)|hindu|asy[rř]|May(?:ové|ů|ům)|féni|akka[dď]|severs|germán|skandináv|nordick|norsk|islandsk|vikin|slovan|olymp|Řím|Řek(?:ové|ů|ům)|Egypt|Edd|Ásgard|Ás[ouy]|Vanov|faraon|Slovan|Nil|Thé[bv]|Memfi|Heliopol|Valhal|Walhal|Ragnar|Ygg|Midgard|Atén|Athén|Trój|Homér|Hésiod|Ovid|Vergil|indick|Indi[eiíe]|hinduis|védsk|keltsk|Kelt|irsk|Irsk|velšsk|artuš|Artuš|Camelot|japonsk|Japonsk|šintoi|čínsk|Čín|taoi|mezopotám|sumer|akkad|babylon|babylón|asyrsk|aztéc|Azték|Aztéc|mayš|maysk|májsk|Maj(?:ové|ů)|inck|Ink(?:ové|ů|a|y|ou)|persk|perš|Persi|zoroastr|kanaán|Kanaán|fénick|biblick|Bibl|křesťan|židovsk|abrahám|islám|Jeruzalém|Eden|judais|kabal|džinis|buddh|muslim|konfuci|galsk|Gal(?:ové|ů)|Galie|íránsk|Írán|ugarit|hebrej|Izrael|izraelsk|sumersk|Babylón|Asýri|Ninive|Uruk|Ur\b|Andy|andsk|Peru|Mexik|Tenochtitl|Yucatán|Tibet|tibetsk|Nepál|Srí|Kambodž|Angkor)\p{L}*/giu;
 
     // Jak často se místo „Kdo je to?“ ptáme na protějšek (u klasických dvojic) nebo na mytologii
     const COUNTERPART_QUIZ_SHARE = 0.35;
@@ -179,6 +179,11 @@
         const wrong = twin && (f(item).cp || key === 'rimska') ? [twin, ...shuffle(others, rng).slice(0, 2)] : shuffle(others, rng).slice(0, 3);
         return shuffle([key, ...wrong], rng).map(other => ({ id: `mytologie-${other}`, label: MYTHS[other].label, correct: other === key }));
     };
+    // Otázka na mytologii jen tam, kde ji neprozradí kategorie: štítek otázky má ikonu kategorie (pyramida u egyptské, meč
+    // u severské) a hráč, který si vybral jen Egyptskou mytologii, by odpověď znal předem. Bájné bytosti a předměty jsou ze
+    // všech mytologií; u řecké a římské kategorie jen tehdy, když je mezi možnostmi i ta druhá (řecká × římská)
+    const mythIsOpen = (item) => item.c === 'bytosti' || item.c === 'predmety'
+        || (item.c === 'recka' && (f(item).myk === 'rimska' || (f(item).myk === 'recka' && Boolean(f(item).cp))));
     const mythQuestion = (item, rng) => {
         const myth = MYTHS[f(item).myk];
         if (!myth) return null;
@@ -281,7 +286,7 @@
                 const question = counterpartQuestion(item, ctx, rng);
                 if (question) return question;
             }
-            return a.myk && roll >= 1 - MYTH_QUIZ_SHARE ? mythQuestion(item, rng) : null;
+            return a.myk && roll >= 1 - MYTH_QUIZ_SHARE && mythIsOpen(item) ? mythQuestion(item, rng) : null;
         },
         // U protějšku zmizí protějšek, u mytologie i slova, která ji prozradí; u jména jméno, další tvary a protějšek
         censor: (type, text, item, ctx) => {

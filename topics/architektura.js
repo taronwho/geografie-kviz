@@ -97,6 +97,17 @@
         const style = styleItem(key, ctx);
         return style ? style.n : '';
     };
+    // Sloh architekta jen tehdy, když v jeho době žil: z Wikidat má architekt sloh stavby, na které pracoval, a u přestaveb
+    // a dostaveb je to sloh dávno minulý (Carlo Fontana – románský, Bernhard Grueber – gotika)
+    const architectStyle = (person, ctx) => {
+        const f = person.f || {};
+        const style = styleItem(f.st, ctx);
+        if (!style || f.born === undefined) return style ? f.st : null;
+        const from = style.f.from ?? -Infinity;
+        const to = style.f.to ?? Infinity;
+        const active = [f.born + 15, f.died ?? f.born + 90];
+        return active[1] >= from - 15 && active[0] <= to + 15 ? f.st : null;
+    };
     const architectOf = (item, ctx) => {
         const architect = item.f && item.f.aq ? indexOf(ctx).byId.get(item.f.aq) : null;
         return architect && architect.c === 'architekti' ? architect : null;
@@ -198,7 +209,7 @@
             const facts = [{ label: 'Období', value: f.per }];
             if (mode === 'result' || mode === 'card') {
                 const buildings = famous(ctx, other => other.c === 'stavby' && other.f.st === f.key, 3).map(other => other.n);
-                const architects = famous(ctx, other => other.c === 'architekti' && other.f.st === f.key, 3).map(other => other.n);
+                const architects = famous(ctx, other => other.c === 'architekti' && architectStyle(other, ctx) === f.key, 3).map(other => other.n);
                 if (f.ex) facts.push({ label: 'Na obrázku', value: f.ex });
                 if (buildings.length) facts.push({ label: 'Slavné stavby', value: buildings.join(', ') });
                 if (architects.length) facts.push({ label: 'Architekti', value: architects.join(', ') });
@@ -208,7 +219,7 @@
         if (item.c === 'prvky') return [];
         return [
             ...formatFacts(item, [['born', 'Narození', formatYear], ['died', 'Úmrtí', formatYear], ['land', 'Země', v => v]], ['born', 'died']),
-            ...(styleName(f.st, ctx) ? [{ label: 'Sloh', value: styleName(f.st, ctx) }] : []),
+            ...(styleName(architectStyle(item, ctx), ctx) ? [{ label: 'Sloh', value: styleName(architectStyle(item, ctx), ctx) }] : []),
             ...formatFacts(item, [['work', 'Slavná stavba', v => v]])
         ];
     };
@@ -308,7 +319,7 @@
         }
         if (item.c === 'slohy') {
             // Architekti slohu, slavné stavby, nakonec období na časové ose
-            const architects = famous(ctx, other => other.c === 'architekti' && other.f.st === f.key, 3).map(other => other.n);
+            const architects = famous(ctx, other => other.c === 'architekti' && architectStyle(other, ctx) === f.key, 3).map(other => other.n);
             const buildings = famous(ctx, other => other.c === 'stavby' && other.f.st === f.key && other.n !== f.ex, 3).map(other => other.n);
             return [
                 { kind: 'facts', label: 'architekti', icon: 'pen-tool', facts: architects.length ? [{ label: 'Architekti', value: architects.join(', ') }] : [] },

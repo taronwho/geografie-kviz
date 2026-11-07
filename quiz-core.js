@@ -728,10 +728,25 @@
     };
     // Jména ostatních nabízených možností v popisu (s Iljou Muromcem a Aljošou Popovičem) by je hned vyřadila
     const CHOICE_MARK = '';
-    const hideOtherChoices = (text, question, ctx) => {
+    // Zakrývají se jen slova, která možnost odliší: slovo společné víc možnostem (cyklistika u Dráhové a Silniční cyklistiky,
+    // olympijské u her) ani slovo, které hráč vidí v otázce či štítku (sonda u „Co je to za sondu nebo přístroj?“), nic nevyřadí
+    // a zakryté by z popisu udělalo nesmysl („Disciplína sportovní [***]“, „Vesmírná [***] NASA“)
+    const choiceStem = (word) => { const plain = normalizeAnswer(word); return plain.slice(0, Math.max(3, Math.min(5, plain.length - 1))); };
+    const hideOtherChoices = (text, question, ctx, visible = '') => {
         if (!text || question.match) return text;
         if (!ctx.itemNames) ctx.itemNames = new Set(ctx.items.map(other => normalizeAnswer(other.n)));
-        const labels = question.choices.filter(choice => !choice.correct && ctx.itemNames.has(normalizeAnswer(choice.label))).map(choice => choice.label);
+        const wordsOf = (label) => stripBrackets(String(label || '')).split(/[\s,\-–]+/).filter(word => /[\p{L}\p{N}]/u.test(word));
+        const counts = new Map();
+        for (const choice of question.choices) for (const stem of new Set(wordsOf(choice.label).map(choiceStem))) counts.set(stem, (counts.get(stem) || 0) + 1);
+        const shown = new Set(wordsOf(`${question.title || ''} ${visible}`).map(choiceStem));
+        const distinct = (word) => /^\d+$/.test(word) || !(counts.get(choiceStem(word)) > 1 || shown.has(choiceStem(word)));
+        const labels = question.choices.filter(choice => !choice.correct && ctx.itemNames.has(normalizeAnswer(choice.label))).map(choice => {
+            const words = wordsOf(choice.label);
+            // Víceslovná možnost: jen odlišující slova a z nich ne přívlastky malým písmenem (fotbalová, pohybové, česká – možnost
+            // nevyřadí); jednoslovná (Kyslík, Vlk) celá
+            if (words.length < 2) return choice.label;
+            return words.filter((word, index) => distinct(word) && (index === 0 || !/^\p{Ll}/u.test(word)) && /\p{L}{2,}|\d{3,}/u.test(word)).join(' ');
+        }).filter(Boolean);
         const extra = genericWordsOf(ctx);
         return labels.length ? absorbGenericWords(censorName(text, specificWords(labels, extra)), labels, '[***]', extra).replaceAll('[***]', CHOICE_MARK) : text;
     };
@@ -757,7 +772,8 @@
     // Text pro hráče bez odpovědi: zakrytí názvu (téma nebo jádro), potom kontrola všech tvarů jména (maskLeaks)
     const hideAnswer = (text, question, item, ctx, { keep = [] } = {}) => {
         if (!text) return '';
-        const hidden = hideOtherChoices(text, question, ctx);
+        const category = (ctx.topic.categories || []).find(entry => entry.key === item.c) || {};
+        const hidden = hideOtherChoices(text, question, ctx, [item.ty, category.one].filter(Boolean).join(' '));
         const censored = mergeCensored(censorForItem(question.type, hidden, item, ctx).replaceAll(CHOICE_MARK, '[***]'));
         return maskLeaks(censored, answerNamesFor(question, item, ctx), { isGeneric: (word) => isGenericWord(word, genericWordsOf(ctx)), keep: [question.title, question.showName ? item.n : '', item.ty, ...(ctx.topic.keepWords ? ctx.topic.keepWords(question.type, item, ctx) : []), ...keep] });
     };
@@ -779,10 +795,17 @@
         return { text, questionText, moreText };
     };
     // Prozrazuje fakt odpověď (nebo začíná stejným kořenem jako ona)? Takový fakt se jako nápověda nenabídne.
+    // Zkratka v odpovědi rozepsaná ve faktu: kometa C/2022 E3 (ZTF) a objevitel Zwicky Transient Facility
+    const spellsAcronym = (value, names) => {
+        const acronyms = names.flatMap(name => String(name || '').match(/(?<![\p{L}\p{N}])\p{Lu}{3,6}(?![\p{L}\p{N}])/gu) || []).filter(word => !isRomanNumeral(word));
+        if (!acronyms.length) return false;
+        const initials = value.split(/[\s\-–]+/).filter(word => /^\p{Lu}/u.test(word)).map(word => word[0]).join('');
+        return acronyms.some(acronym => initials.includes(acronym));
+    };
     const factRevealsAnswer = (fact, names, { isGeneric = () => false, rootNames = '' } = {}) => {
         const value = String(fact.value);
         return names.length > 0 && (findLeaks(value, names, { isGeneric }).length > 0 || censorName(value, names.join(', ')).includes('[***]')
-            || (Boolean(rootNames) && sharesWordRoot(value, rootNames)));
+            || (Boolean(rootNames) && sharesWordRoot(value, rootNames)) || spellsAcronym(value, names));
     };
 
     // --- Položky témat: místa, osobnosti, druhy, prvky… (formát data/<téma>.json) ---
@@ -872,11 +895,12 @@
     };
     // Mají položky společný okruh (šelmy, kyseliny, mechanika…)?
     const sharesGroup = (a, b) => (a.g || []).some(group => (b.g || []).includes(group));
-    // Blízká doba (rok položky f.y): stejné století 3 body, sousední 2, do tří století 1
+    // Blízká doba (rok položky f.y): stejné století 3 body, sousední 2, do tří století 1; tisíc a víc let vedle sebe
+    // (Spartakus a Ajman az-Zaváhirí, oba „vojevůdce“) je nápadné – takový kandidát ztrácí, i když má stejný druh (+4)
     const eraNearness = (a, b) => {
         if (a === undefined || b === undefined) return 0;
         const distance = Math.abs(centuryOf(a) - centuryOf(b));
-        return distance === 0 ? 3 : distance === 1 ? 2 : distance <= 3 ? 1 : 0;
+        return distance === 0 ? 3 : distance === 1 ? 2 : distance <= 3 ? 1 : distance <= 6 ? 0 : distance <= 10 ? -2 : -5;
     };
     // --- Kultura nesprávných možností: k Číňanovi Číňané, k Angličanovi Angličané, ne jediný Evropan mezi Asiaty ---
     // Země osoby či díla (f.land) se převede na dnešní stát (historické státy na nástupce) a z něj kontinent
@@ -1092,6 +1116,29 @@
         return shorter.length < longer.length && shorter.every(matches);
     };
 
+    // Zmiňuje text (krátký popis položky) název jiné položky jako celek, i skloněný či jako část slova (monokarboxylová –
+    // Karboxylová kyselina)? Popis „X je Y“ říká, že X je druh Y – Y by pak byla druhá správná možnost
+    const normalizedWords = new Map();
+    const wordsNormalized = (text) => {
+        if (!normalizedWords.has(text)) normalizedWords.set(text, normalizeAnswer(text).split(' ').filter(Boolean));
+        return normalizedWords.get(text);
+    };
+    const mentionsName = (text, name) => {
+        const words = wordsNormalized(name);
+        if (!text || !words.length || (words.length === 1 && words[0].length < 5)) return false;
+        const textWords = wordsNormalized(text);
+        const stems = words.map(word => word.length >= 5 ? word.slice(0, word.length - 2) : word);
+        const fits = (textWord, stem) => stem.length < 4 ? textWord === stem : textWord.startsWith(stem) || (stem.length >= 6 && textWord.includes(stem));
+        return textWords.some((_, start) => stems.every((stem, i) => textWords[start + i] !== undefined && fits(textWords[start + i], stem)));
+    };
+    // Nadřazený pojem položky (Organická kyselina k Mastné kyselině, Elementární částice k Mionu): v popisu položky přímo,
+    // nebo v popisu pojmu, který popis položky zmiňuje (mastná → monokarboxylová → karboxylová kyselina → organická kyselina)
+    const broaderTerms = (item, items) => {
+        if (!item.d) return () => false;
+        const mentioned = items.filter(other => other.c === item.c && other.q !== item.q && other.d && mentionsName(item.d, other.n));
+        return (other) => mentionsName(item.d, other.n) || mentioned.some(middle => middle.q !== other.q && mentionsName(middle.d, other.n));
+    };
+
     // Nesprávné možnosti názvu: položky stejné kategorie seřazené podle podobnosti. Základ dá jádro – stejně známé
     // (ke známé odpovědi známé možnosti) a stejného typu (k anglickému králi angličtí králové, k průlivu průlivy);
     // zbytek přidá téma funkcí similarity(other) – blízká místa, stejné století a pohlaví, stejná čeleď…
@@ -1105,9 +1152,14 @@
         // Společné okruhy (stejná doba, země, žánr): drobný bonus za každý, nejvýš tři
         const groupBonus = (other) => Math.min(3, (item.g || []).filter(group => (other.g || []).includes(group)).length) * 0.8;
         // Druh (tenista, malířka, hlavní město) je vidět u otázky – nesprávná možnost jiného druhu by byla poznat hned
+        const broader = broaderTerms(item, items);
         const score = (other) => tier(other) + (item.ty && other.ty === item.ty ? 4 : 0) + (similarity(other) || 0) + cultureScore(item, other, culture) + groupBonus(other)
-            - (isNamePart(item.n, other.n) ? 100 : 0) + rng() * CHOICE_JITTER;
-        const entries = shuffle(items.filter(other => other.c === item.c && other.q !== item.q), rng)
+            - (isNamePart(item.n, other.n) || broader(other) ? 100 : 0) + rng() * CHOICE_JITTER;
+        // Možnost, jejíž název je přijímanou odpovědí správné položky (nebo naopak), by byla druhá správná: Katedrála Notre-Dame
+        // (Paříž) u katedrály v Rouenu, jejíž článek se jmenuje Katedrála Notre-Dame (Rouen)
+        const namesOf = (other) => [other.n, displayName(other.t || '')].map(normalizeAnswer).filter(Boolean);
+        const ownNames = new Set(namesOf(item));
+        const entries = shuffle(items.filter(other => other.c === item.c && other.q !== item.q && !namesOf(other).some(name => ownNames.has(name))), rng)
             .map(candidate => ({ candidate, value: score(candidate) }))
             .filter(entry => entry.value > -Infinity)
             .sort((a, b) => b.value - a.value);

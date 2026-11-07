@@ -60,6 +60,30 @@
         return facts;
     };
 
+    // Slova se stejným kořenem (jeseteři – Jeseter malý – jeseterovití, růžovité – Růže, degus – degu, sibirica – sibiřská)
+    // Latinský a český zápis se liší v pár hláskách (rosmarinus – rozmarýna, Phoenix – fénix, Cygnus – cygnus)
+    const fold = (word) => normalizeAnswer(word).replace(/ph/g, 'f').replace(/th/g, 't').replace(/ch/g, 'k').replace(/[yj]/g, 'i')
+        .replace(/c(?=[aou])|q/g, 'k').replace(/z/g, 's').replace(/w/g, 'v').replace(/x/g, 'ks');
+    const sameRoot = (a, b) => {
+        const x = fold(a);
+        const y = fold(b);
+        const shorter = Math.min(x.length, y.length);
+        if (shorter < 3) return false;
+        let common = 0;
+        while (common < shorter && x[common] === y[common]) common++;
+        return common >= 4 ? common >= shorter * 0.6 : common >= 3 && common >= shorter - 1;
+    };
+    const wordsOf = (text) => String(text || '').split(/[^\p{L}]+/u).filter(word => word.length >= 3);
+    const sharesRoot = (text, other) => wordsOf(text).some(word => wordsOf(other).some(otherWord => sameRoot(word, otherWord)));
+    // Vědecký název jako nápověda: slovo skoro stejné jako slovo českého jména (Pinus sibirica u borovice sibiřské,
+    // Octodon degus u osmáka degu) by jméno prozradilo – nahradí se třemi tečkami (fakt se značkou [***] by se vyřadil celý); zbyde-li jen to, nápověda odpadne
+    const latHintOf = (item) => {
+        const lat = (item.f || {}).lat;
+        if (!lat) return null;
+        const masked = lat.split(' ').map(word => wordsOf(item.n).some(nameWord => sameRoot(word, nameWord)) ? '…' : word);
+        return masked.some(word => /\p{L}{3,}/u.test(word)) ? masked.join(' ') : null;
+    };
+
     // Nápovědy k otázce „Kam patří?“: fotka (podle vzhledu se pozná), u živočichů čeleď a nakonec známí příbuzní
     // z hledané skupiny (k šelmám vlk a kočka); mapa rozšíření ani hmotnost řád neprozradí
     const fameIndex = new WeakMap();
@@ -67,20 +91,23 @@
         if (!fameIndex.has(ctx.items)) fameIndex.set(ctx.items, new Map(ctx.items.map((candidate, index) => [candidate.q, index])));
         return fameIndex.get(ctx.items).get(other.q) ?? Infinity;
     };
-    const relativesOf = (item, ctx, levelKey) => {
+    const relativesOf = (item, ctx, levelKey, allowed = () => true) => {
         const group = (item.f || {})[levelKey];
         return ctx.items
-            .filter(other => other.q !== item.q && other.c === item.c && other.f && other.f[levelKey] === group)
+            .filter(other => other.q !== item.q && other.c === item.c && other.f && other.f[levelKey] === group && allowed(other.n))
             .sort((a, b) => (b.k || 0) - (a.k || 0) || fameOf(a, ctx) - fameOf(b, ctx))
             .slice(0, 4).map(other => other.n);
     };
     const taxonHints = (item, ctx) => {
         const level = taxonLevel(item);
         const f = item.f || {};
-        const relatives = relativesOf(item, ctx, level.key);
+        const answer = f[level.key];
+        // Příbuzný nebo čeleď se jménem hledané skupiny (Jeseter malý, jeseterovití u jeseterů) by odpověď prozradili
+        const relatives = relativesOf(item, ctx, level.key, (name) => !sharesRoot(name, answer));
+        const family = level.key === 'ord' && /^\p{Ll}/u.test(f.fam || '') && !sharesRoot(f.fam, answer) ? f.fam : null;
         return [
             { kind: 'photo' },
-            ...(level.key === 'ord' && /^\p{Ll}/u.test(f.fam || '') ? [{ kind: 'facts', label: 'čeleď', icon: 'git-branch', facts: [{ label: 'Čeleď', value: f.fam }] }] : []),
+            ...(family ? [{ kind: 'facts', label: 'čeleď', icon: 'git-branch', facts: [{ label: 'Čeleď', value: family }] }] : []),
             { kind: 'facts', label: 'příbuzní', icon: 'network', facts: relatives.length ? [{ label: level.key === 'ord' ? 'Ze stejného řádu' : 'Ze stejné čeledi', value: relatives.join(', ') }] : [] }
         ];
     };
@@ -180,10 +207,7 @@
             if (others.length < 3) others = siblings(null);
             if (others.length < 3) return null;
             const wrong = shuffle(others, rng).slice(0, 3);
-            // Jednotné číslo řádu: „je brouk“ prozradí brouky, „hlodavec“ hlodavce (kmen z množného čísla „brouc“ ho nenajde)
-    const singularsOf = (name) => name.split(/\s+/).flatMap(word => /ci$/u.test(word) ? [word.slice(0, -2) + 'k', word.slice(0, -2) + 'ec'] : []);
-
-    return {
+            return {
                 type: 'taxon',
                 title: level.title,
                 showName: true,
@@ -204,7 +228,7 @@
         // U „Co je to za zvíře?“ navíc jako poslední nápověda vědecký název (v popisu je zakrytý)
         hints: (item, ctx, type) => {
             if (type === 'taxon') return taxonHints(item, ctx);
-            const lat = (item.f || {}).lat;
+            const lat = latHintOf(item);
             return [{ kind: 'photo' }, { kind: 'visual', spec: rangeMapOf(item) }, { kind: 'facts', facts: factsOf(item, type) },
                 { kind: 'facts', label: 'vědecký název', icon: 'microscope', facts: lat ? [{ label: 'Vědecký název', value: lat }] : [] }];
         },
