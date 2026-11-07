@@ -127,11 +127,9 @@ test('první ukázaný krok se představí sovou; bez žárovky nese uvítání 
     assert.equal(Tutorial.owlFor(badge, true), 'sova-vitej');
     assert.equal(Tutorial.owlFor(hint, false), 'sova-premysleni');
     assert.equal(Tutorial.textFor(hint, true), hint.text);
-    // Úzký displej: text s úrovní vedle sovy chybí, krok neposílá na něj, ale do Nastavení
-    assert.match(Tutorial.textFor(badge, false, true), /v Nastavení/);
-    assert.doesNotMatch(Tutorial.textFor(badge, false, true), /klepnutí na text/);
-    assert.match(Tutorial.textFor(badge, true, true), /^Ahoj, jsem Mudrlant.*v Nastavení/);
-    assert.equal(Tutorial.textFor(hint, false, true), hint.text, 'kroky bez zvláštního znění se nemění');
+    // Úroveň vedle sovy je vidět i na úzkém displeji: krok všude radí klepnout na ni (žádné zvláštní znění pro 360 px)
+    assert.match(Tutorial.textFor(badge, false), /klepnutí na text tvůj postup/);
+    assert.equal(badge.narrowText, undefined);
     assert.match(Tutorial.STEPS[0].title, /Ahoj, jsem Mudrlant/);
 });
 

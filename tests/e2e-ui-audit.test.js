@@ -36,7 +36,7 @@ const inspect = () => {
     const out = { hscroll: [], unreachable: [], covered: [], small: [], unnamed: [], contrast: [] };
     const vw = window.innerWidth, vh = window.innerHeight;
     const visible = (el) => { const s = getComputedStyle(el); if (s.display === 'none' || s.visibility === 'hidden' || Number(s.opacity) === 0) return false; const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0; };
-    const overlay = document.getElementById('settings-overlay') || document.getElementById('dialog-overlay') || document.getElementById('play-chooser') || document.getElementById('place-info');
+    const overlay = document.getElementById('settings-overlay') || document.getElementById('dialog-overlay') || document.getElementById('play-chooser') || document.getElementById('place-info') || document.getElementById('fact-overlay');
     const scope = overlay || document.body;
     const name = (el) => (el.getAttribute('aria-label') || el.title || el.textContent || el.tagName).trim().replace(/\s+/g, ' ').slice(0, 40);
     if (document.documentElement.scrollWidth > vw + 1) out.hscroll.push(`stránka ${document.documentElement.scrollWidth} > ${vw}`);
@@ -58,7 +58,8 @@ const inspect = () => {
         const at = el.getBoundingClientRect();
         if (at.bottom > vh + 0.5 || at.top < -0.5 || at.right > vw + 0.5 || at.left < -0.5) { out.unreachable.push(`${name(el)} top ${Math.round(at.top)} bottom ${Math.round(at.bottom)}`); continue; }
         const hit = document.elementFromPoint(at.left + at.width / 2, at.top + at.height / 2);
-        if (hit && !(el.contains(hit) || hit.contains(el))) out.covered.push(`${name(el)} překrývá ${hit.tagName.toLowerCase()}`);
+        // Žárovka zajímavosti sedí přes sovu ve štítku záměrně (obě otevřou zajímavost); úroveň vedle hlídá test hlavičky
+        if (hit && !(el.contains(hit) || hit.contains(el)) && !(el.id === 'status-badge' && hit.closest('#fact-hint'))) out.covered.push(`${name(el)} překrývá ${hit.tagName.toLowerCase()}`);
     }
     main.scrollTop = saved;
     // Kontrast textu (bez přechodů na pozadí a bez emoji)
@@ -119,8 +120,10 @@ test('rozhraní na úzkém telefonu', { skip: !chromium && 'Playwright není nai
     const browser = await chromium.launch(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {});
     t.after(async () => { await browser.close(); server.close(); });
 
-    const open = async (scheme) => {
-        const context = await browser.newContext({ serviceWorkers: 'block', viewport: VIEWPORT, colorScheme: scheme, reducedMotion: 'reduce', hasTouch: true });
+    // fact = zajímavost dne (data/fakt.json), jinak ji server nemá
+    const open = async (scheme, { viewport = VIEWPORT, fact = null } = {}) => {
+        const context = await browser.newContext({ serviceWorkers: 'block', viewport, colorScheme: scheme, reducedMotion: 'reduce', hasTouch: true });
+        if (fact) await context.route('**/data/fakt.json', route => route.fulfill({ json: fact }));
         await context.addInitScript(() => {
             if (sessionStorage.getItem('seeded')) return;
             sessionStorage.setItem('seeded', '1');
@@ -218,6 +221,42 @@ test('rozhraní na úzkém telefonu', { skip: !chromium && 'Playwright není nai
             await tab.waitForSelector('#play-chooser [data-chooser-play]');
             await check(tab, 'výběr tématu', scheme);
 
+            assert.deepEqual(problems, [], 'bez chyb v konzoli a bez porušení CSP');
+            await context.close();
+        });
+    }
+
+    // Hlavička se zajímavostí dne: sova (s žárovkou) otevře zajímavost, úroveň vedle ní Můj postup – i na 360 px,
+    // kde se název Mudrlant nevejde (vidět je jen „Úr. 1“ s pruhem); plocha úrovně aspoň 40 px
+    for (const [viewport, scheme] of [[{ width: 360, height: 640 }, 'light'], [{ width: 360, height: 640 }, 'dark'], [{ width: 390, height: 780 }, 'light'], [{ width: 390, height: 780 }, 'dark']]) {
+        await t.test(`hlavička: zajímavost i můj postup (${viewport.width}×${viewport.height}, ${scheme})`, async () => {
+            const fact = { date: '2026-10-16', year: 1922, title: 'Objev hrobky Tutanchamona', text: 'V roce 1922 objevil Howard Carter vchod do hrobky faraona Tutanchamona.', url: 'https://cs.wikipedia.org/wiki/Tutanchamon', page: 'Tutanchamon', source: 'Wikipedie' };
+            const { context, tab, problems } = await open(scheme, { viewport, fact });
+            await tab.waitForSelector('#fact-hint:not(.hidden)');
+            const scene = `hlavička ${viewport.width} ${scheme}`;
+            assert.equal(await tab.isVisible('#status-text'), true, `${scene}: úroveň vedle sovy je vidět`);
+            assert.match(await tab.textContent('#status-text'), /Úr\. 1/);
+            if (viewport.width <= 370) assert.equal(await tab.isVisible('#status-text > span:first-child'), false, `${scene}: název se na úzký displej nevejde`);
+            // Plocha, která vede do Mého postupu (tlačítko bez sovy), je aspoň 40 × 40 px a nic ji nepřekrývá
+            const area = await tab.evaluate(() => {
+                const badge = document.getElementById('status-badge').getBoundingClientRect();
+                const owl = document.getElementById('status-icon-slot').getBoundingClientRect();
+                const text = document.getElementById('status-text').getBoundingClientRect();
+                const hit = document.elementFromPoint(text.left + text.width / 2, text.top + text.height / 2);
+                return { width: badge.right - owl.right, height: badge.height, free: Boolean(hit && hit.closest('#status-text')) };
+            });
+            assert.ok(area.width >= 40 && area.height >= 40, `${scene}: plocha úrovně ${area.width}×${area.height}`);
+            assert.equal(area.free, true, `${scene}: úroveň ničím nepřekrytá`);
+            await check(tab, `${scene}: úvod se zajímavostí`, scheme);
+            // Klepnutí na sovu (přes ni je žárovka) → zajímavost, zavřít; úroveň → Můj postup
+            await tab.click('#status-icon-slot', { force: true });
+            await tab.waitForSelector('#fact-overlay');
+            await check(tab, `${scene}: zajímavost`, scheme);
+            await tab.keyboard.press('Escape');
+            await tab.waitForSelector('#fact-overlay', { state: 'detached' });
+            await tab.click('#status-text');
+            await tab.waitForSelector('[data-open-levels]');
+            await check(tab, `${scene}: můj postup`, scheme);
             assert.deepEqual(problems, [], 'bez chyb v konzoli a bez porušení CSP');
             await context.close();
         });
