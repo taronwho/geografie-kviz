@@ -160,6 +160,9 @@ Dřív se průběh rozehrané výzvy (které otázky už hráč zodpověděl) dr
   a před koncem zápasu; `tournament_finish_match` výsledek sečte z odpovědí a bez všech deseti ho nezapíše (argumenty `correct_count` a `point_count` zůstaly kvůli starším
   aplikacím, nepoužijí se). Opakování zápasu od první otázky tu server bránil už dřív (zápas jde začít jen jednou), nově jde rozehraný zápas dohrát i po smazání dat nebo na jiném zařízení.
 - Starší databáze bez tabulek a funkcí (404): aplikace průběh neposílá a chová se jako dřív.
+- **Omezení:** server zná jen odpovědi, které k němu dorazily. Odpověď zodpovězená bez spojení, která se ještě neodeslala, by po smazání dat zmizela a otázka
+  by se nabídla znovu; online se každá odpověď ukládá hned po zodpovězení. Počet správných a body počítá aplikace (správnost odpovědi server neověřuje),
+  server hlídá jen pořadí, tvar a rozsah hodnot a že výsledek odpovídá součtu průběhu.
 - **Pořadí nasazení:** nejdřív spusť `schema.sql`, pak nasaď aplikaci. Starší verze aplikace, která ještě běží v něčím prohlížeči, průběh neposílá, takže jí server výsledek
   výzvy ani zápasu nepřijme; po obnovení stránky (nová verze) se odpovědi uložené v zařízení dopošlou a výsledek se odešle.
 - Test: `tests/sql-progress.test.js` (pokusy o podvod: cizí výzva, přeskočení a přepsání otázky, výsledek bez průběhu nebo s vylepšenými čísly, dvojí a souběžný claim XP, migrace).

@@ -306,15 +306,15 @@
     const needCode = (code) => { const clean = String(code || ''); if (!/^[A-Z0-9]{6}$/.test(clean)) throw new SocialError('Neplatný kód výzvy.', 400); return clean; };
     const challengeProgress = (userId, code, count = 20) => guardAnswers('challenge', async () => cleanAnswers(
         await request('GET', `challenge_progress?challenge_id=eq.${needCode(code)}&user_id=eq.${encodeURIComponent(userId)}&select=idx,correct,points&order=idx.asc&limit=20`), count, 8));
-    // true = uloženo (nebo server stejnou odpověď už měl), null = databáze průběh neeviduje
+    // true = uloženo (nebo server stejnou odpověď už měl), null = databáze průběh neeviduje; správná odpověď má vždy aspoň bod (jinak by ji server odmítl)
     const saveChallengeProgress = (code, idx, { correct, points }) => guardAnswers('challenge', async () => {
-        await request('POST', 'rpc/challenge_progress_save', { body: { code: needCode(code), idx: wholeNumber(idx, 19), correct: Boolean(correct), points: correct ? wholeNumber(points, 8) : 0 } });
+        await request('POST', 'rpc/challenge_progress_save', { body: { code: needCode(code), idx: wholeNumber(idx, 19), correct: Boolean(correct), points: correct ? Math.max(1, wholeNumber(points, 8)) : 0 } });
         return true;
     });
     const tournamentAnswers = (userId, mid) => guardAnswers('tournament', async () => cleanAnswers(
         await request('GET', `tournament_answers?match_id=eq.${encodeURIComponent(needTournamentId(mid, 'zápas'))}&user_id=eq.${encodeURIComponent(userId)}&select=idx,correct,points&order=idx.asc&limit=10`), 10, 4));
     const saveTournamentAnswer = (mid, idx, { correct, points }) => guardAnswers('tournament', async () => {
-        await request('POST', 'rpc/tournament_answer_save', { body: { mid: needTournamentId(mid, 'zápas'), idx: wholeNumber(idx, 9), correct: Boolean(correct), points: correct ? wholeNumber(points, 4) : 0 } });
+        await request('POST', 'rpc/tournament_answer_save', { body: { mid: needTournamentId(mid, 'zápas'), idx: wholeNumber(idx, 9), correct: Boolean(correct), points: correct ? Math.max(1, wholeNumber(points, 4)) : 0 } });
         return true;
     });
     // XP za vyhrané zápasy turnaje (schéma 3): server zapíše dosud nevyplacené výhry a vrátí je ([{ id, round }]); retryKey = klíč zařízení,
