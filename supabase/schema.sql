@@ -1926,6 +1926,159 @@ revoke all on function public.result_from_progress() from public, anon, authenti
 revoke all on function public.challenge_progress_save(text, integer, boolean, integer), public.tournament_answer_save(uuid, integer, boolean, integer), public.claim_tournament_xp(text) from public, anon;
 grant execute on function public.challenge_progress_save(text, integer, boolean, integer), public.tournament_answer_save(uuid, integer, boolean, integer), public.claim_tournament_xp(text) to authenticated;
 
+-- ===== ZAČÁTEK BLOKU: Jak odpověděli ostatní – souhrnné statistiky odpovědí (schéma 6) =====
+-- Samostatný blok (tabulky answer_stats a answer_stats_limits, funkce answer_stats_*, dev_suspicious_questions); mimo něj mění jen číslo verze na konci.
+-- Po dohrané hře pošle aplikace přihlášeného hráče jednou dávkou (answer_stats_submit, nejvýš 30 odpovědí) své odpovědi: téma, položka (Wikidata Q…),
+-- druh otázky, způsob odpovídání (choices = výběr z možností, typed = psaní), správně / špatně a u špatné odpovědi id zvolené nesprávné možnosti.
+-- Server k otázce jen přičte do souhrnných počítadel (zobrazeno, správně, nejčastější nesprávné možnosti); kdo, kdy a jak odpověděl, se neukládá.
+-- O hráči leží jen řádek v answer_stats_limits kvůli limitu: počet dávek a odpovědí v aktuální hodině a otisky (hashtext) otázek, které se v ní
+-- už započetly (každá otázka se od jednoho hráče započte nejvýš jednou za hodinu: proti dvojímu započtení po ztracené odpovědi serveru a proti
+-- „nafukování“ jedné otázky). Řádek se po dvou hodinách maže (a se smazáním účtu hned). Souhrn tématu čte přihlášený hráč přes answer_stats_topic
+-- (jen otázky s aspoň 20 odpověďmi), podezřelé otázky jen dev_admins přes dev_suspicious_questions; tabulky samy přes API nikdo nečte ani nezapisuje.
+create table if not exists public.answer_stats (
+    topic text not null,
+    item_id text not null,
+    kind text not null,
+    variant text not null,
+    shown bigint not null default 0,
+    correct bigint not null default 0,
+    -- nejčastější nesprávné možnosti { "<id možnosti>": počet }, nejvýš 8 (answer_stats_bump)
+    wrong jsonb not null default '{}'::jsonb,
+    updated_at timestamptz not null default now(),
+    primary key (topic, item_id, kind, variant)
+);
+alter table public.answer_stats drop constraint if exists answer_stats_values;
+alter table public.answer_stats add constraint answer_stats_values check (
+    topic ~ '^[a-z0-9-]{1,24}$' and item_id ~ '^Q[1-9][0-9]{0,11}$' and kind ~ '^[a-z0-9-]{1,24}$' and variant in ('choices', 'typed')
+    and shown >= 0 and correct >= 0 and correct <= shown and jsonb_typeof(wrong) = 'object');
+alter table public.answer_stats enable row level security;
+-- žádná pravidla řádků: čtení i zápis jen přes funkce níž
+
+create table if not exists public.answer_stats_limits (
+    user_id uuid primary key references public.profiles (id) on delete cascade,
+    window_start timestamptz not null default now(),
+    batch_count integer not null default 0,
+    answer_count integer not null default 0,
+    seen integer[] not null default '{}'
+);
+create index if not exists answer_stats_limits_window_idx on public.answer_stats_limits (window_start);
+alter table public.answer_stats_limits enable row level security;
+
+-- Počítadlo nesprávných možností: nejvýš 8 nejčastějších (Space-Saving: nová možnost při plném počítadle vystřídá tu nejméně
+-- častou a převezme její počet + 1, takže možnost, kterou hráči volí opravdu často, v počítadle zůstane vždy)
+create or replace function public.answer_stats_bump(counts jsonb, choice text) returns jsonb
+language plpgsql immutable set search_path = public as $$
+declare low_key text; low_value bigint;
+begin
+    if choice is null then return counts; end if;
+    if counts ? choice then return jsonb_set(counts, array[choice], to_jsonb((counts ->> choice)::bigint + 1)); end if;
+    if (select count(*) from jsonb_object_keys(counts)) < 8 then return counts || jsonb_build_object(choice, 1); end if;
+    select e.key, e.value::bigint into low_key, low_value from jsonb_each_text(counts) e order by e.value::bigint asc, e.key asc limit 1;
+    return (counts - low_key) || jsonb_build_object(choice, low_value + 1);
+end;
+$$;
+
+-- Dávka odpovědí přihlášeného hráče: [{ "t": téma, "q": "Q123", "k": druh, "v": "choices" | "typed", "c": true | false, "w": id nesprávné možnosti }].
+-- Víc než 30 odpovědí najednou nebo jiný tvar než pole = chyba; jednotlivá odpověď ve špatném tvaru se jen přeskočí. Limit na hráče:
+-- nejvýš 30 dávek a 300 odpovědí za hodinu, každá otázka (téma, položka, druh, způsob) jednou za hodinu; co je nad limit, se potichu nezapočte.
+-- Vrací počet započtených odpovědí.
+create or replace function public.answer_stats_submit(answers jsonb) returns integer
+language plpgsql security definer set search_path = public as $$
+#variable_conflict use_variable
+declare
+    uid uuid := auth.uid();
+    lim public.answer_stats_limits;
+    entry jsonb;
+    t text; q text; k text; v text; c boolean; w text; h integer;
+    counted integer := 0;
+begin
+    if uid is null then raise exception 'Přihlas se.' using errcode = '42501'; end if;
+    if answers is null or jsonb_typeof(answers) <> 'array' then raise exception 'Neplatná dávka odpovědí.' using errcode = '22023'; end if;
+    if jsonb_array_length(answers) > 30 then raise exception 'Příliš mnoho odpovědí najednou.' using errcode = '22023'; end if;
+    -- souběžné dávky téhož hráče jdou po sobě (limit a otisky)
+    perform pg_advisory_xact_lock(hashtext('answer_stats:' || uid::text));
+    delete from public.answer_stats_limits l where l.window_start < now() - interval '2 hours';
+    insert into public.answer_stats_limits (user_id) values (uid) on conflict (user_id) do nothing;
+    select * into lim from public.answer_stats_limits l where l.user_id = uid;
+    if lim.window_start < now() - interval '1 hour' then
+        lim.window_start := now(); lim.batch_count := 0; lim.answer_count := 0; lim.seen := '{}';
+    end if;
+    if lim.batch_count >= 30 then return 0; end if;
+    lim.batch_count := lim.batch_count + 1;
+    for entry in select e.value from jsonb_array_elements(answers) e loop
+        exit when lim.answer_count >= 300;
+        if jsonb_typeof(entry) <> 'object' or coalesce(jsonb_typeof(entry -> 'c'), '') <> 'boolean' then continue; end if;
+        t := entry ->> 't'; q := entry ->> 'q'; k := entry ->> 'k'; v := entry ->> 'v';
+        c := (entry ->> 'c')::boolean;
+        w := case when jsonb_typeof(entry -> 'w') = 'string' then entry ->> 'w' end;
+        if t is null or t !~ '^[a-z0-9-]{1,24}$' or q is null or q !~ '^Q[1-9][0-9]{0,11}$' or k is null or k !~ '^[a-z0-9-]{1,24}$'
+            or v is null or v not in ('choices', 'typed') then continue; end if;
+        -- nesprávná možnost jen u špatné odpovědi: krátký text bez řídicích znaků, jiný než hádaná položka
+        if c or w is null or char_length(w) not between 1 and 60 or w ~ '[[:cntrl:]]' or w = q then w := null; end if;
+        h := hashtext(t || '/' || q || '/' || k || '/' || v);
+        if h = any(lim.seen) then continue; end if;
+        lim.seen := array_append(lim.seen, h);
+        lim.answer_count := lim.answer_count + 1;
+        insert into public.answer_stats as s (topic, item_id, kind, variant, shown, correct, wrong)
+            values (t, q, k, v, 1, case when c then 1 else 0 end, public.answer_stats_bump('{}'::jsonb, w))
+            on conflict (topic, item_id, kind, variant) do update
+            set shown = s.shown + 1, correct = s.correct + (case when c then 1 else 0 end), wrong = public.answer_stats_bump(s.wrong, w), updated_at = now();
+        counted := counted + 1;
+    end loop;
+    update public.answer_stats_limits l set window_start = lim.window_start, batch_count = lim.batch_count, answer_count = lim.answer_count, seen = lim.seen
+        where l.user_id = uid;
+    return counted;
+end;
+$$;
+
+-- Souhrn tématu pro aplikaci (stáhne ho nejvýš jednou denně): [[položka, druh, 'c' | 't', zobrazeno, správně], …],
+-- jen otázky s aspoň 20 odpověďmi, nejvýš 8 000 nejhranějších
+create or replace function public.answer_stats_topic(topic_id text) returns jsonb
+language plpgsql stable security definer set search_path = public as $$
+begin
+    if auth.uid() is null then raise exception 'Přihlas se.' using errcode = '42501'; end if;
+    if topic_id is null or topic_id !~ '^[a-z0-9-]{1,24}$' then raise exception 'Neplatné téma.' using errcode = '22023'; end if;
+    return coalesce((
+        select jsonb_agg(jsonb_build_array(s.item_id, s.kind, case when s.variant = 'typed' then 't' else 'c' end, s.shown, s.correct) order by s.shown desc, s.item_id, s.kind, s.variant)
+        from (select a.item_id, a.kind, a.variant, a.shown, a.correct from public.answer_stats a
+              where a.topic = topic_id and a.shown >= 20 order by a.shown desc, a.item_id, a.kind, a.variant limit 8000) s
+    ), '[]'::jsonb);
+end;
+$$;
+
+-- Podezřelé otázky (jen dev_admins): u výběru z možností úspěšnost pod 25 % (hůř než tipování) při aspoň min_n odpovědích (výchozí 50),
+-- nebo jedna nesprávná možnost volená častěji než správná odpověď (při aspoň 20 odpovědích). Nejpodezřelejší první, nejvýš 100.
+-- reason: 'mate' = nesprávná možnost vede, 'nizka' = nízká úspěšnost
+create or replace function public.dev_suspicious_questions(min_n integer default 50) returns table (
+    topic text, item_id text, kind text, variant text, shown bigint, correct bigint, top_wrong text, top_wrong_count bigint, reason text
+)
+language plpgsql security definer set search_path = public as $$
+#variable_conflict use_column
+declare n integer := greatest(20, least(coalesce(min_n, 50), 1000000));
+begin
+    perform public.dev_check();
+    return query
+        with ranked as (
+            select s.topic, s.item_id, s.kind, s.variant, s.shown, s.correct, w.key as wrong_key, coalesce(w.value::bigint, 0) as wrong_count
+            from public.answer_stats s
+            left join lateral (select e.key, e.value from jsonb_each_text(s.wrong) e order by e.value::bigint desc, e.key asc limit 1) w on true
+            where s.shown >= 20
+        )
+        select r.topic, r.item_id, r.kind, r.variant, r.shown, r.correct, r.wrong_key, r.wrong_count,
+            case when r.wrong_count > r.correct then 'mate' else 'nizka' end
+        from ranked r
+        where r.wrong_count > r.correct or (r.variant = 'choices' and r.shown >= n and r.correct * 4 < r.shown)
+        order by (r.wrong_count - r.correct)::numeric / r.shown desc, r.correct::numeric / r.shown asc, r.shown desc, r.topic, r.item_id
+        limit 100;
+end;
+$$;
+
+revoke all on public.answer_stats, public.answer_stats_limits from anon, authenticated;
+revoke all on function public.answer_stats_bump(jsonb, text) from public, anon, authenticated;
+revoke all on function public.answer_stats_submit(jsonb), public.answer_stats_topic(text), public.dev_suspicious_questions(integer) from public, anon;
+grant execute on function public.answer_stats_submit(jsonb), public.answer_stats_topic(text), public.dev_suspicious_questions(integer) to authenticated;
+-- ===== KONEC BLOKU: Jak odpověděli ostatní =====
+
 -- ===== Verze schématu =====
 -- Číslo se zvyšuje při KAŽDÉ změně tohoto souboru (tabulka, sloupec, funkce, pravidlo) a zároveň konstanta REQUIRED_SCHEMA v app.js.
 -- Aplikace ho po přihlášení porovná a správci (dev_admins nebo vývojářský režim) ukáže v Nastavení, že má schéma spustit znovu;
@@ -1933,7 +2086,8 @@ grant execute on function public.challenge_progress_save(text, integer, boolean,
 -- 3: průběh výzev a zápasů turnaje na serveru (challenge_progress, tournament_answers), XP za výhry v turnaji jednou za účet (tournament_xp_claims).
 -- 4: zkušební upozornění přes server pro dev_admins (push_tests, dev_push_test, druh 'test' v push_due a push_mark).
 -- 5: okamžité odesílání upozornění (push_kick přes pg_cron a pg_net, push_kick_state, push_pending sdílené s push_due, dev_push_status).
+-- 6: Jak odpověděli ostatní (answer_stats, answer_stats_limits, answer_stats_submit, answer_stats_topic, dev_suspicious_questions).
 create or replace function public.schema_version() returns integer
-language sql immutable as $$ select 5 $$;
+language sql immutable as $$ select 6 $$;
 revoke all on function public.schema_version() from public, anon;
 grant execute on function public.schema_version() to authenticated;
