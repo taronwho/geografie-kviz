@@ -2490,10 +2490,36 @@
         updateControlsUI();
     };
 
+    // Rozehrané výzvy a zápasy turnaje (nejvýš 6) zvlášť od relace: když hráč mezi tím začne jinou výzvu nebo zápas, ta dřívější se neztratí
+    // (výzva by jinak šla hrát znovu od začátku a zápas turnaje by už nešel dohrát). Dohrané se mažou (markChallengeFinished, markTournamentFinished).
+    const OPEN_CHALLENGES_KEY = 'mudrlant.openChallenges';
+    const openChallengeKey = (c) => (c.tournament && c.tournament.mid ? `t:${c.tournament.mid}` : `c:${c.code}`);
+    const savedOpenChallenges = () => {
+        const list = readJson(OPEN_CHALLENGES_KEY);
+        return Array.isArray(list) ? list.filter(c => c && typeof c === 'object' && typeof c.code === 'string' && Array.isArray(c.results) && Number.isFinite(c.count) && !c.done) : [];
+    };
+    const rememberOpenChallenge = (c) => {
+        if (!c || c.done || !c.code) return;
+        const key = openChallengeKey(c);
+        writeJson(OPEN_CHALLENGES_KEY, [...savedOpenChallenges().filter(other => openChallengeKey(other) !== key), { ...c, sending: false, reacting: false, lastResults: null }].slice(-6));
+    };
+    // Poslední rozehraná (nedohraná a neodeslaná) výzva přihlášeného hráče ze seznamu; null = žádná
+    const latestOpenChallenge = () => {
+        const user = signedUser();
+        return savedOpenChallenges().filter(saved => !saved.tournament && !finishedChallenges().includes(saved.code) && (!saved.owner || !user || saved.owner === user.id)).pop() || null;
+    };
+    const forgetOpenChallenge = (key) => {
+        const list = savedOpenChallenges();
+        if (list.some(other => openChallengeKey(other) === key)) writeJson(OPEN_CHALLENGES_KEY, list.filter(other => openChallengeKey(other) !== key));
+    };
     const persistState = () => {
         if (!current) return;
+        if (mode === 'challenge' && challenge && !challenge.done) rememberOpenChallenge(challenge);
         // Rozehraný zápas turnaje se ukládá také: po návratu v den kola nabídne karta turnaje Pokračovat (od další otázky)
-        writeJson(KEYS.session, { version: STATE_VERSION, data: current, round, mode, pool, challenge: mode === 'challenge' ? challenge : null, timestamp: Date.now() });
+        // Rozehraná výzva (i zápas turnaje) se ukládá i během jiné hry (Hrát dál, dnešní otázky): po zavření aplikace by se jinak ztratila
+        // a výzva by šla hrát znovu od začátku, zápas turnaje by už nešel dohrát
+        const keptChallenge = mode === 'challenge' ? challenge : (challenge && !challenge.done ? challenge : null);
+        writeJson(KEYS.session, { version: STATE_VERSION, data: current, round, mode, pool, challenge: keptChallenge, timestamp: Date.now() });
         if (mode === 'daily' && current.dailyDate) {
             const daily = readJson(KEYS.daily) || {};
             daily[current.topic] = { date: current.dailyDate, data: current, round };
@@ -2823,7 +2849,7 @@
         // Zodpovězená otázka se po obnovení stránky (třeba po aktualizaci aplikace) neukazuje znovu: hráč začne na úvodní stránce
         // (u dnešní otázky je její výsledek dál po ruce přes ikonu tématu, u výzvy se pokračuje tlačítkem na úvodní stránce)
         if (session.round.answered) {
-            if (session.mode === 'challenge' && session.challenge && !session.challenge.done && !session.challenge.tournament && !finishedChallenges().includes(session.challenge.code)) challenge = session.challenge;
+            if (session.challenge && !session.challenge.done && !session.challenge.tournament && !finishedChallenges().includes(session.challenge.code)) challenge = session.challenge;
             return false;
         }
         // Dnešní otázka z uložené relace platí jen do půlnoci
@@ -2833,7 +2859,7 @@
             current = upgradeRoundData(session.data);
             round = session.round;
             mode = session.mode;
-            challenge = session.mode === 'challenge' ? session.challenge : challenge;
+            challenge = session.challenge || challenge;
             pool = session.pool && (session.pool.kind !== 'topic' || TOPIC_BY_ID[session.pool.topic]) ? session.pool : { kind: 'mix' };
             renderRound();
         } catch (error) {
@@ -2853,16 +2879,21 @@
     // Rozehraný zápas turnaje nabízí k pokračování karta turnaje (jen v den kola), sem se nebere.
     const restoreSession = () => {
         const session = readJson(KEYS.session);
-        if (session && session.version === STATE_VERSION && session.mode === 'challenge' && session.challenge && !session.challenge.done && !session.challenge.tournament
+        if (session && session.version === STATE_VERSION && session.challenge && !session.challenge.done && !session.challenge.tournament
             && !finishedChallenges().includes(session.challenge.code) && Date.now() - session.timestamp < SESSION_MAX_AGE) challenge = session.challenge;
+        // Relaci přepsal zápas turnaje nebo jiná hra: poslední rozehraná výzva ze seznamu
+        if (!challenge) challenge = latestOpenChallenge();
         return false;
     };
     // Rozehraný zápas turnaje: z paměti (právě hraný), jinak z uložené relace; { mid, challenge } nebo null
     const savedTournamentChallenge = () => {
         if (challenge && challenge.tournament && !challenge.done) return { mid: challenge.tournament.mid, challenge };
         const session = readJson(KEYS.session);
-        const saved = session && session.version === STATE_VERSION && session.mode === 'challenge' ? session.challenge : null;
-        if (!saved || saved.done || !saved.tournament || !saved.tournament.mid || !Array.isArray(saved.results)) return null;
+        const fromSession = session && session.version === STATE_VERSION ? session.challenge : null;
+        const usable = (saved) => Boolean(saved && !saved.done && saved.tournament && saved.tournament.mid && Array.isArray(saved.results));
+        // Relaci mohla přepsat jiná výzva: pak se vezme zápas ze seznamu rozehraných
+        const saved = usable(fromSession) ? fromSession : savedOpenChallenges().filter(usable).pop();
+        if (!saved) return null;
         return { mid: saved.tournament.mid, challenge: saved };
     };
     const savedTournamentMatch = () => { const saved = savedTournamentChallenge(); return saved ? saved.mid : null; };
@@ -4899,6 +4930,9 @@
         const myChange = mine && Rating && results.length > 1 ? await Social.getRatingChange(user.id, code).catch(() => null) : null;
         if (!stillOpen()) return;
         const own = def.creator && def.creator.id === user.id;
+        // Rozehraná výzva (v paměti, nebo uložená mezi rozehranými): pokračuje se, nehraje se znovu od první otázky
+        const resumable = mine ? null : ownChallengeInProgress() && challenge.code === code ? challenge
+            : savedOpenChallenges().find(saved => !saved.tournament && saved.code === code && (!saved.owner || saved.owner === user.id)) || null;
         const text = `${own ? 'Vyzývám tě' : 'Hraju'} v Mudrlantu: ${challengeTopicTitle(def.topic)}, ${def.count} otázek.`;
         showDialog(own ? 'Tvoje výzva' : 'Výzva', `
             <div class="flex flex-col gap-4">
@@ -4917,7 +4951,7 @@
                 ${def.invited ? `<p class="flex items-center gap-2 text-sm font-semibold text-slate-600 dark:text-slate-300">Vyzvaný hráč: ${avatarHtml(def.invited, 'h-6 w-6 text-sm')} <b>${escapeHtml(def.invited.id === user.id ? 'ty' : playerName(def.invited))}</b></p>` : ''}
                 ${results.length ? `<ol class="flex flex-col gap-1.5">${rankingRows(results, def.count, user.id)}</ol>` : '<p class="text-sm text-slate-500 dark:text-slate-400">Zatím nikdo nehrál.</p>'}
                 ${myChange ? `<p class="text-sm font-bold text-slate-600 dark:text-slate-300">Tvůj rating: <b class="${myChange.delta > 0 ? 'text-emerald-700 dark:text-emerald-400' : myChange.delta < 0 ? 'text-rose-700 dark:text-rose-400' : ''}">${Rating.formatDelta(myChange.delta)}</b> (${myChange.after})</p>` : ''}
-                ${mine ? '' : `<button type="button" data-ch-play class="${PRIMARY_BUTTON}"><i data-lucide="play" class="h-5 w-5"></i> ${ownChallengeInProgress() && challenge.code === code ? resumeLabel(challenge) : 'Hrát výzvu'}</button>`}
+                ${mine ? '' : `<button type="button" data-ch-play class="${PRIMARY_BUTTON}"><i data-lucide="play" class="h-5 w-5"></i> ${resumable ? resumeLabel(resumable) : 'Hrát výzvu'}</button>`}
                 <button type="button" data-ch-share class="${SECONDARY_BUTTON}"><i data-lucide="share-2" class="h-5 w-5"></i> Sdílet výzvu · ${code}</button>
             </div>`, {
             onClick: (event) => {
@@ -4925,7 +4959,7 @@
                 if (event.target.closest('[data-ch-play]')) {
                     closeDialog();
                     // Tahle výzva je už rozehraná: pokračuje se od další otázky (ne znovu od první)
-                    if (ownChallengeInProgress() && challenge.code === code) ACTIONS['challenge-resume']();
+                    if (resumable) { challenge = resumable; ACTIONS['challenge-resume'](); }
                     else startChallenge(def, 0, []);
                 }
             }
@@ -4990,7 +5024,7 @@
 
     const challengeHome = () => {
         // Výzva, jejíž výsledek se nepodařilo odeslat, zůstává: úvod nabídne její dokončení
-        if (!ownChallengeInProgress()) challenge = null;
+        if (!ownChallengeInProgress()) challenge = latestOpenChallenge();
         mode = 'daily';
         myChallenges = null;
         renderHome();
@@ -5057,6 +5091,7 @@
     const finishedChallenges = () => { const list = readJson(FINISHED_KEY); return Array.isArray(list) ? list.filter(code => typeof code === 'string') : []; };
     const markChallengeFinished = (code) => {
         if (!code) return;
+        forgetOpenChallenge(`c:${code}`);
         writeJson(FINISHED_KEY, [...new Set([...finishedChallenges(), code])].slice(-60));
         const session = readJson(KEYS.session);
         if (session && session.challenge && session.challenge.code === code) { session.challenge.done = true; writeJson(KEYS.session, session); }
@@ -5067,6 +5102,8 @@
         const user = signedUser();
         // Dvojité klepnutí nebo rychlé „Zkusit znovu“: odeslání už běží, druhé se nespouští
         if (!c || !user || c.sending) return;
+        // Výzvu rozehrál jiný účet (mezitím se v jiné kartě přihlásil někdo jiný): jeho odpovědi se pod tenhle účet neodešlou
+        if (c.owner && c.owner !== user.id) { challenge = null; mode = 'daily'; renderHome(); showToast('Tuhle výzvu rozehrál jiný účet.'); return; }
         c.sending = true;
         c.done = true;
         renderChallengeDone(null, 'sending');
@@ -5812,6 +5849,7 @@
     };
     // Dohraný zápas se v uložené relaci označí jako hotový, ať ho karta po dalším spuštění nenabízí k pokračování
     const markTournamentFinished = (mid) => {
+        forgetOpenChallenge(`t:${mid}`);
         const session = readJson(KEYS.session);
         if (session && session.challenge && session.challenge.tournament && session.challenge.tournament.mid === mid && !session.challenge.done) { session.challenge.done = true; writeJson(KEYS.session, session); }
     };

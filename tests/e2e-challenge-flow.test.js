@@ -65,7 +65,26 @@ const backend = async (context, db) => {
             if (name === 'friends_list') return json([]);
             if (name === 'weekly_leaderboard') return json([]);
             if (name === 'search_players') return json(Object.values(db.profiles).filter(p => p.id !== me.id && p.display_name.toLowerCase().includes(String(body.term).toLowerCase())));
+            // Turnaj (jen když ho test založil): start a konec zápasu jako v databázi
+            if (db.tournaments && /^(tournament_|my_tournament)/.test(name)) {
+                if (name === 'tournament_start_match') { db.tresults.push({ match_id: body.mid, user_id: me.id, started_at: new Date().toISOString(), finished_at: null, correct: null, points: null, time_ms: null }); return route.fulfill({ status: 200, body: '' }); }
+                if (name === 'tournament_finish_match') {
+                    const own = db.tresults.find(r => r.match_id === body.mid && r.user_id === me.id);
+                    if (!own || own.finished_at) return json({ code: 'P0001', message: 'Výsledek jde zapsat jen jednou.' }, 400);
+                    Object.assign(own, { finished_at: new Date().toISOString(), correct: body.correct_count, points: body.point_count, time_ms: 30000 });
+                    return route.fulfill({ status: 200, body: '' });
+                }
+                if (name === 'my_tournament_stats') return json([{ best: 0, wins: 0, played: 0 }]);
+                return route.fulfill({ status: 200, body: '' });
+            }
             return json({ code: 'PGRST202', message: 'Could not find the function' }, 404);
+        }
+        if (/^\/rest\/v1\/tournament/.test(url.pathname)) {
+            if (!db.tournaments) return json({ code: 'PGRST205', message: 'Could not find the table' }, 404);
+            if (url.pathname === '/rest/v1/tournaments') return json(db.tournaments);
+            if (url.pathname === '/rest/v1/tournament_entries') return json(db.entries.filter(e => !eq('user_id') || e.user_id === eq('user_id')).map(e => ({ ...e, player: profile(e.user_id) })));
+            if (url.pathname === '/rest/v1/tournament_matches') return json(db.matches.map(m => ({ ...m, results: db.tresults.filter(r => r.match_id === m.id && (r.user_id === me.id || m.winner)).map(({ match_id, ...rest }) => rest) })));
+            return json([]);
         }
         const table = url.pathname.replace('/rest/v1/', '');
         if (table === 'profiles') {
@@ -144,14 +163,14 @@ test('hra více hráčů: výzvy, obnova, okna a profil', { skip: !chromium && '
         for (const [viewport, colorScheme] of [[{ width: 390, height: 780 }, 'light'], [{ width: 360, height: 640 }, 'dark']]) {
             const db = newDb();
             db.challenges.WWWWWW = { id: 'WWWWWW', creator_id: 'u-1', invited_id: 'u-2', topic: 'historie', count: 10, seed: 's1', include_hard: false, categories: [], variant: 'choices', created_at: '2026-11-03T10:00:00Z' };
-            db.challenges.LLLLLL = { id: 'LLLLLL', creator_id: 'u-2', invited_id: 'u-1', topic: 'zemepis', count: 5, seed: 's2', include_hard: false, categories: [], variant: 'choices', created_at: '2026-11-03T11:00:00Z' };
+            db.challenges.KKKKKK = { id: 'KKKKKK', creator_id: 'u-2', invited_id: 'u-1', topic: 'zemepis', count: 5, seed: 's2', include_hard: false, categories: [], variant: 'choices', created_at: '2026-11-03T11:00:00Z' };
             db.results.push(
                 { challenge_id: 'WWWWWW', user_id: 'u-1', correct: 6, points: 20, finished_at: '2026-11-03T10:10:00Z' }, { challenge_id: 'WWWWWW', user_id: 'u-2', correct: 6, points: 14, finished_at: '2026-11-03T10:20:00Z' },
-                { challenge_id: 'LLLLLL', user_id: 'u-1', correct: 3, points: 8, finished_at: '2026-11-03T11:10:00Z' }, { challenge_id: 'LLLLLL', user_id: 'u-2', correct: 3, points: 9, finished_at: '2026-11-03T11:20:00Z' });
+                { challenge_id: 'KKKKKK', user_id: 'u-1', correct: 3, points: 8, finished_at: '2026-11-03T11:10:00Z' }, { challenge_id: 'KKKKKK', user_id: 'u-2', correct: 3, points: 9, finished_at: '2026-11-03T11:20:00Z' });
             const { context, tab, log } = await start(db, 'tok-u1', { viewport, colorScheme });
             await tab.waitForSelector('[data-action="challenge-open"][data-code="WWWWWW"]');
             assert.match(await compact(tab, '[data-action="challenge-open"][data-code="WWWWWW"]'), /vyhráno 6\/10/, 'víc bodů při stejném počtu správných je výhra');
-            assert.match(await compact(tab, '[data-action="challenge-open"][data-code="LLLLLL"]'), /prohráno 3\/5/);
+            assert.match(await compact(tab, '[data-action="challenge-open"][data-code="KKKKKK"]'), /prohráno 3\/5/);
             // Profil soupeře: bilance česky (1 výhra, 1 prohra) a tlačítka přátel s ikonami
             await tab.click('[data-action="challenge-open"][data-code="WWWWWW"] [data-player-id="u-2"]');
             await tab.waitForSelector('[data-rematch]');
@@ -302,10 +321,10 @@ test('hra více hráčů: výzvy, obnova, okna a profil', { skip: !chromium && '
 
     await t.test('odveta: hláška databáze (blok) místo „zkontroluj připojení“; starší výzva s 20 otázkami se odvetí s 10', async () => {
         const db = newDb();
-        db.challenges.OOOOOO = { id: 'OOOOOO', creator_id: 'u-2', invited_id: 'u-1', topic: 'zemepis', count: 20, seed: 'o', include_hard: false, categories: [], variant: 'choices', created_at: '2026-11-03T10:00:00Z' };
-        db.results.push({ challenge_id: 'OOOOOO', user_id: 'u-1', correct: 12, points: 30, finished_at: '2026-11-03T10:10:00Z' }, { challenge_id: 'OOOOOO', user_id: 'u-2', correct: 10, points: 30, finished_at: '2026-11-03T10:20:00Z' });
+        db.challenges.MMMMMM = { id: 'MMMMMM', creator_id: 'u-2', invited_id: 'u-1', topic: 'zemepis', count: 20, seed: 'o', include_hard: false, categories: [], variant: 'choices', created_at: '2026-11-03T10:00:00Z' };
+        db.results.push({ challenge_id: 'MMMMMM', user_id: 'u-1', correct: 12, points: 30, finished_at: '2026-11-03T10:10:00Z' }, { challenge_id: 'MMMMMM', user_id: 'u-2', correct: 10, points: 30, finished_at: '2026-11-03T10:20:00Z' });
         const { context, tab, log } = await start(db);
-        await tab.click('[data-action="challenge-open"][data-code="OOOOOO"] [data-player-id="u-2"]');
+        await tab.click('[data-action="challenge-open"][data-code="MMMMMM"] [data-player-id="u-2"]');
         await tab.waitForSelector('[data-rematch]');
         assert.match(await compact(tab, '#dialog-overlay'), /Zeměpis · 10 otázek/);
         db.fail['POST /rest/v1/challenges'] = { status: 400, message: 'Tohoto hráče nejde vyzvat.' };
@@ -317,6 +336,57 @@ test('hra více hráčů: výzvy, obnova, okna a profil', { skip: !chromium && '
         await tab.waitForSelector('[data-action="choice"]', { timeout: 30000 });
         const rematch = Object.values(db.challenges).find(c => c.creator_id === 'u-1');
         assert.deepEqual([rematch.invited_id, rematch.topic, rematch.count], ['u-2', 'zemepis', 10]);
+        assert.deepEqual(log.errors, []);
+        await context.close();
+    });
+
+    await t.test('rozehraný zápas turnaje a mezi tím výzva: po zavření aplikace jdou dohrát obě', async () => {
+        const db = newDb();
+        const uuid = (n) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
+        const ids = ['u-1', 'u-2', 'f-1', 'f-2', 'f-3', 'f-4', 'f-5', 'f-6'];
+        ids.slice(2).forEach((id, i) => { db.profiles[id] = player(id, `Hráč ${i + 1}`, '🐸'); });
+        Object.assign(db, {
+            tournaments: [{ id: uuid(1), topic: 'mix', week_start: '2026-11-02', started_on: '2026-11-04', capacity: 128, status: 'running', size: 8, rounds: 3, seed: 'seed-abc' }],
+            entries: ids.map((user, i) => ({ tournament_id: uuid(1), user_id: user, joined_at: new Date(Date.UTC(2026, 10, 1, 8, i)).toISOString(), status: 'playing', place: null })),
+            matches: [1, 2, 3, 4].map(slot => ({ id: uuid(100 + slot), tournament_id: uuid(1), round: 1, slot, third: false, p1: ids[2 * slot - 2], p2: ids[2 * slot - 1], winner: null, decided_by: null })),
+            tresults: []
+        });
+        db.challenges.JJJJJJ = { id: 'JJJJJJ', creator_id: 'u-2', invited_id: 'u-1', topic: 'zemepis', count: 5, seed: 'i', include_hard: false, categories: [], variant: 'choices', created_at: '2026-11-03T10:00:00Z' };
+        const { context, tab, log } = await start(db);
+        await tab.waitForSelector('[data-action="tournament-play"]');
+        await tab.click('[data-action="tournament-play"]');
+        for (let i = 0; i < 3; i++) await answer(tab);
+        await tab.waitForSelector('[data-action="choice"]');
+        // Domů, výzva od Petra, dvě otázky, zavření aplikace
+        await tab.click('#btn-home');
+        await waitForHome(tab);
+        await tab.click('[data-action="challenge-open"][data-code="JJJJJJ"]');
+        await tab.click('[data-ch-play]');
+        for (let i = 0; i < 2; i++) await answer(tab);
+        await tab.waitForSelector('[data-action="choice"]');
+        await tab.reload();
+        await waitForHome(tab);
+        await tab.waitForSelector('[data-action="tournament-resume"]');
+        assert.match(await compact(tab, '[data-action="challenge-resume"]'), /Pokračovat ve výzvě \(3\/5\)/);
+        await tab.click('[data-action="tournament-resume"]');
+        await tab.waitForSelector('[data-tour-timer]');
+        assert.equal(await tab.textContent('#status-text'), 'Turnaj · 4/10');
+        for (let i = 0; i < 7; i++) await answer(tab);
+        await tab.waitForSelector('[data-action="tournament-back"]');
+        assert.ok(db.tresults.find(r => r.user_id === 'u-1').finished_at, 'zápas je odehraný');
+        await tab.click('[data-action="challenge-home"]');
+        await waitForHome(tab);
+        await tab.waitForSelector('[data-action="challenge-resume"]');
+        await tab.click('[data-action="challenge-resume"]');
+        await tab.waitForSelector('[data-action="choice"]');
+        assert.equal(await tab.textContent('#status-text'), 'Výzva · 3/5');
+        for (let i = 0; i < 3; i++) await answer(tab);
+        await tab.waitForSelector('[data-challenge-outcome]');
+        assert.equal(db.results.filter(r => r.challenge_id === 'JJJJJJ' && r.user_id === 'u-1').length, 1);
+        await tab.click('[data-action="challenge-home"]');
+        await waitForHome(tab);
+        await tab.waitForSelector('[data-action="challenge-open"][data-code="JJJJJJ"]');
+        assert.equal(await tab.locator('[data-action="challenge-resume"]').count(), 0);
         assert.deepEqual(log.errors, []);
         await context.close();
     });
