@@ -194,6 +194,38 @@ Jednorázové nastavení:
 
 Poznámky: na iPhonu fungují upozornění jen v aplikaci přidané na plochu (iOS 16.4 a novější). Výměna klíčů VAPID zneplatní všechna předplatná, hráči si upozornění zapnou znovu.
 Chceš-li odesílat častěji než po hodině, uprav `cron` v `push.yml` (GitHub plánované běhy občas zpožďuje o několik minut).
+
+**Schéma 4 (zkušební upozornění):** spusť znovu celý `supabase/schema.sql` (přibyla tabulka `push_tests`, funkce `dev_push_test()` a `push_test_key()`
+a druh `test` v `push_due` a `push_mark`). Aplikace potřebuje verzi 4; správci (vývojářský režim) jinak v Nastavení ukáže „Databáze není aktuální“.
+
+**Když přepínač nejde zapnout:** výsledek se ukáže hned u přepínače (podtitulek řádku Upozornění, pod ním rada, krátce i v hlášce dole). Během čekání je tam „Zapínám…“.
+Možné příčiny: *Prohlížeč upozornění zablokoval* (klepnutí na řádek otevře okno „Jak povolit upozornění“ s postupem pro Android, aplikaci na ploše, iPhone a počítač;
+tlačítko „Už jsem povolil – zkontrolovat“ zapnutí dokončí, stejně tak samotný návrat do aplikace z nastavení), *Dotaz prohlížeče se zavřel bez volby* (Chrome dotaz
+někdy ztlumí – ikona zvonku v adresním řádku), *Nespustila se část aplikace pro upozornění (service worker)* (obnovit stránku), *Push služba prohlížeče odběr odmítla*
+(s názvem chyby, např. `AbortError`; v Brave je potřeba zapnout „Používat služby Google pro zasílání zpráv“), *Databáze nemá funkce upozornění* (404: spustit schéma),
+*Přihlášení vypršelo* (401) a *Server odpověděl chybou …* (jiný kód).
+
+### Jak upozornění vyzkoušet (krok za krokem)
+
+1. **Vývojářský režim:** otevři aplikaci s `?vyvojar` na konci adresy (např. `https://taronwho.github.io/geografie-kviz/app/?vyvojar`). V Nastavení → Hra se dole objeví
+   oranžově orámovaný „Vývojářský režim“ s oddílem **Upozornění** (tři tlačítka). Vypne se adresou s `?vyvojar=0`.
+2. **Zapni upozornění:** přihlas se, Nastavení → Hra → přepínač **Upozornění** → v dotazu prohlížeče **Povolit**. Podtitulek řádku napíše „Hotovo: upozornění jsou zapnutá“.
+3. **Diagnostika upozornění** (když něco nejde): ukáže povolení prohlížeče (`granted` = povoleno, `denied` = zablokováno, `default` = ještě se neptal), jestli běží
+   service worker, jestli má prohlížeč předplatné (adresa zkráceně), prvních 8 znaků klíče `vapidPublicKey` a jestli server odpovídá a zná toto zařízení.
+   Klíče předplatného se nezobrazují, snímek obrazovky se dá bez obav poslat vývojáři.
+4. **Zkusit upozornění v tomto zařízení** (bez serveru, hned): stránka pošle zprávu service workeru a ten ukáže upozornění „Zkušební upozornění Mudrlanta“ stejnou
+   funkcí jako skutečné upozornění ze serveru. Klepni na něj: aplikace se otevře na záložce Více hráčů a napíše „Klepnutí na upozornění funguje“. Když upozornění nejsou
+   povolená, okno to řekne a nabídne povolení. Tím je ověřený telefon a prohlížeč (zobrazení i klepnutí), ne server.
+5. **Poslat zkušební upozornění přes server** (celá cesta: databáze → GitHub → push služba → telefon). Jednou zapiš svůj účet do `dev_admins` (SQL Editor, přezdívku
+   nahraď svou): `insert into public.dev_admins (user_id) select id from public.profiles where lower(display_name) = lower('Taron') on conflict do nothing;`
+   Po klepnutí databáze (`dev_push_test()`) zařadí zkušební zprávu pro tvůj účet (všechna tvoje zařízení se zapnutými upozorněními) a aplikace napíše, co dál:
+   **Otevři GitHub → Actions → Upozornění → Run workflow (dry_run = false), nebo počkej na další hodinový běh (7–21 h).** Do minuty po doběhnutí workflow přijde
+   „Zkušební upozornění Mudrlanta“; v logu běhu je „Odesláno N zařízením“. Klepnutí otevře záložku Více hráčů.
+   - Zpráva se pošle jen jednou (pak ji `push_mark` uzavře), čeká nejvýš 24 hodin; další klepnutí na tlačítko ji zařadí znovu (hodinový limit pro zkoušky neplatí).
+   - **Noční klid** (21:00–7:00 Praha): plánované běhy nic neposílají; **ručně spuštěný** běh (Run workflow) pošle i v noci, ale jen zkušební upozornění –
+     ostatní (turnaje, výzvy) počkají na ráno. Skript to pozná podle proměnné `MANUAL` (nastavuje ji workflow); `FORCE=true` při ručním spuštění skriptu pošle vše.
+   - Účet mimo `dev_admins` dostane „Tenhle účet není v dev_admins“; účet bez zapnutých upozornění „Účet nemá zapnutá upozornění na žádném zařízení“ (nic se nezařadí).
+   - `dry_run = true` jen vypíše, co by se poslalo (zkušební zprávu nechá čekat).
 ## Moje data: export a smazání účtu (zveřejnění, Google Play)
 
 Nastavení → dole **Moje data** (jen přihlášený hráč) → **Stáhnout moje data (JSON)** a **Smazat účet a data** (s potvrzením). Potřebují aktuální `supabase/schema.sql`
