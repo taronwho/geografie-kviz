@@ -3,7 +3,7 @@
 // potřebuje data/countries.json a data/zemepis.json – z měst zeměpisu se bere město stavby)
 import { readFileSync } from 'node:fs';
 import { landByDescription } from './lib/nationality.mjs';
-import { qlever, id, values, parsePoint, imageFields, yearOf, compact, cached, inBatches, writeTopic, readCountries, CZECHIA } from './lib/wikidata.mjs';
+import { qlever, id, values, parsePoint, imageFields, yearOf, compact, cached, inBatches, writeTopic, readCountries, CZECHIA, buildingTypeFromName } from './lib/wikidata.mjs';
 
 const ARCHITECT = 'Q42973';
 const FEMALE = 'Q6581072';
@@ -446,7 +446,7 @@ for (const entry of [...kept.filter(other => other.key), ...kept.filter(other =>
         k: zemepisKnown.has(qid) || (unstyled ? entry.sl >= (cz ? OTHER_CZECH_KNOWN_SL : OTHER_KNOWN_SL)
             : cz ? rank < LIMITS.stavby.czKnown || (czechPerStyle[key] <= 2 && entry.sl >= 8) : rank < LIMITS.stavby.known) ? 1 : 0,
         // Obecné „stavba“ nic neřekne (a mezi možnostmi by spojovalo nesouvisející stavby)
-        ty: typeOf(detail) === 'stavba' ? undefined : typeOf(detail),
+        ty: typeOf(detail) === 'stavba' ? undefined : buildingTypeFromName(name, typeOf(detail)),
         d: detail.d,
         cz: cz ? 1 : undefined,
         la: point ? point.lat : undefined,

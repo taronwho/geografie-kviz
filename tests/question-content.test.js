@@ -162,3 +162,22 @@ test('audit worker přijme i úvody ve tvaru testovací fixture (tests/wiki-intr
     const json = JSON.parse(fs.readFileSync(path.join(__dirname, 'wiki-intros.json'), 'utf8'));
     assert.ok(json.items && Object.values(json.items).every(entry => entry.t && typeof entry.extract === 'string'));
 });
+
+test('štítek stavby neodporuje názvu (Zámek Kroměříž není „hrad“, Kostel sv. Mikuláše není „katedrála“)', async () => {
+    const { buildingTypeFromName } = await import('../scripts/lib/wikidata.mjs');
+    assert.equal(buildingTypeFromName('Zámek Kroměříž', 'hrad'), 'zámek');
+    assert.equal(buildingTypeFromName('Kostel svatého Mikuláše v Praze-Starém Městě', 'katedrála'), 'kostel');
+    // Slučitelné druhy a název, který druh štítku obsahuje, zůstanou
+    assert.equal(buildingTypeFromName('Bazilika svatého Víta', 'katedrála'), 'katedrála');
+    assert.equal(buildingTypeFromName('Chrám svatého Víta', 'katedrála'), 'katedrála');
+    assert.equal(buildingTypeFromName('Mešita-katedrála v Córdobě', 'katedrála'), 'katedrála');
+    assert.equal(buildingTypeFromName('Karlův most', 'most'), 'most');
+    for (const [id, category] of [['architektura', 'stavby'], ['zemepis', 'stavba']]) {
+        const wrong = P.loadContext(id).items.filter(item => item.c === category && item.ty && buildingTypeFromName(item.n, item.ty) !== item.ty);
+        assert.deepEqual(wrong.map(item => `${item.n}: ${item.ty}`), [], id);
+    }
+});
+
+test('popis: víceslovný region za „ve státě“ se zakryje celý (ne „[***] York“)', () => {
+    assert.equal(core.censorCountry('v Lake Placid ve státě New York v USA.', 'Spojené státy americké', []), 'v Lake Placid [***] v USA.');
+});

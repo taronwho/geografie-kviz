@@ -440,7 +440,8 @@ export const auditItemData = (item, ctx) => {
     }
     for (const mode of ['name', 'result']) {
         for (const fact of ctx.topic.facts(item, ctx, mode)) {
-            if (fact.value === undefined || fact.value === null || /^(undefined|null|NaN|)$/.test(String(fact.value).trim()) || /\bundefined\b|\bNaN\b/.test(String(fact.value))) add(`fakt „${fact.label}“ bez hodnoty`, `${fact.label}: ${fact.value}`);
+            // NaN jako číslo, ne ve vzorci (azid sodný NaN₃)
+            if (fact.value === undefined || fact.value === null || /^(undefined|null|NaN|)$/.test(String(fact.value).trim()) || /\bundefined\b|(?<![\p{L}\p{N}])NaN(?![\p{L}\p{N}₀-₉])/u.test(String(fact.value))) add(`fakt „${fact.label}“ bez hodnoty`, `${fact.label}: ${fact.value}`);
         }
     }
     return findings;

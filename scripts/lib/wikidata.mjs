@@ -111,6 +111,22 @@ export const cleanDescription = (text) => typeof text !== 'string' ? text : text
     .replace(/\.+$/, '')
     .trim();
 
+// Druh stavby podle jejího jména: Wikidata mají u zámků „hrad“ (castle), u kostela „katedrála“, u rotundy „kaple“ –
+// štítek otázky by pak odporoval názvu (Zámek Kroměříž – hrad). Když název začíná druhem stavby a štítek je jiný druh,
+// platí druh z názvu; když název druh štítku obsahuje (Mešita-katedrála, Zámek … – muzeum), štítek zůstane
+const BUILDING_TYPES = ['kostel', 'katedrála', 'bazilika', 'chrám', 'kaple', 'rotunda', 'klášter', 'mešita', 'synagoga', 'hrad', 'zámek', 'palác', 'pevnost',
+    'věž', 'most', 'muzeum', 'divadlo', 'radnice', 'nádraží', 'stadion', 'pagoda'];
+const COMPATIBLE = new Set(['bazilika:katedrála', 'katedrála:bazilika', 'kostel:bazilika', 'kaple:kostel']);
+const typeWordOf = (text) => BUILDING_TYPES.find(word => new RegExp(`(?<![\\p{L}])${word}(?![\\p{L}])`, 'iu').test(text || ''));
+export const buildingTypeFromName = (name, ty) => {
+    if (!name || !ty) return ty;
+    const leading = BUILDING_TYPES.find(word => new RegExp(`^${word}(?![\\p{L}])`, 'iu').test(name));
+    const typed = typeWordOf(ty);
+    // „Chrám“ je obecné slovo (kostel, katedrála i mešita); bazilika může být i katedrálou a kostel bazilikou
+    if (!leading || !typed || leading === typed || leading === 'chrám' || COMPATIBLE.has(`${leading}:${typed}`)) return ty;
+    return new RegExp(`(?<![\\p{L}])${typed}(?![\\p{L}])`, 'iu').test(name) ? ty : leading;
+};
+
 // Zapíše data tématu; okruhy s méně než 5 položkami vynechá (i z položek), aby v učení nebyly skoro prázdné
 export const writeTopic = (topicId, { collections: allCollections, items }) => {
     const sizes = new Map(allCollections.map(collection => [collection.id, items.filter(item => (item.g || []).includes(collection.id)).length]));
