@@ -47,8 +47,9 @@
     const STATE_VERSION = 8;
     const SESSION_MAX_AGE = 2 * 60 * 60 * 1000;
     // Verze databázového schématu, kterou aplikace potřebuje: zvyšuje se spolu s schema_version() na konci supabase/schema.sql
-    // (tests/sql-security.test.js hlídá shodu). Správce (dev_admins nebo vývojářský režim) uvidí v Nastavení, že má schéma spustit znovu.
-    const REQUIRED_SCHEMA = 2;
+    // (tests/sql-monitor.test.js hlídá shodu). Správce (dev_admins nebo vývojářský režim) uvidí v Nastavení, že má schéma spustit znovu.
+    // 3 = průběh výzev a zápasů turnaje na serveru a XP za výhry v turnaji jednou za účet.
+    const REQUIRED_SCHEMA = 3;
     const HISTORY_SIZE = 200;
     const REQUEST_TIMEOUT = 12000;
     const WIKI_TIMEOUT = 6000;
@@ -2538,6 +2539,81 @@
         const list = savedOpenChallenges();
         if (list.some(other => openChallengeKey(other) === key)) writeJson(OPEN_CHALLENGES_KEY, list.filter(other => openChallengeKey(other) !== key));
     };
+
+    // --- Průběh na serveru (schéma 3): každá odpověď výzvy i zápasu turnaje se hned uloží na server, v pořadí a jen jednou ---
+    // Po smazání dat, na jiném zařízení nebo v jiné kartě se pak pokračuje podle serveru (první nezodpovězenou otázkou), takže rozehranou výzvu
+    // nejde hrát znovu od začátku; konečný výsledek server sečte z uložených odpovědí. Bez spojení zůstanou odpovědi v zařízení (výzva v relaci
+    // a v mudrlant.openChallenges) a dopošlou se s další odpovědí nebo před odesláním výsledku. c.synced = kolik odpovědí server potvrdil
+    // (-1 = neví se, nejdřív se průběh načte). Starší databáze bez průběhu (404): nic se neposílá a výzva se chová jako dřív.
+    const answerQueues = new Map();
+    const answersApi = (c) => {
+        const user = signedUser();
+        if (!Social || !user || !c || (c.owner && c.owner !== user.id)) return null;
+        if (c.tournament && c.tournament.mid) return { load: () => Social.tournamentAnswers(user.id, c.tournament.mid), save: (index, row) => Social.saveTournamentAnswer(c.tournament.mid, index, row) };
+        return c.code ? { load: () => Social.challengeProgress(user.id, c.code, c.count), save: (index, row) => Social.saveChallengeProgress(c.code, index, row) } : null;
+    };
+    // Rozehraná výzva se s každou otázkou vytvoří znovu (startChallenge): stav ze serveru patří do té, která se právě hraje
+    const liveChallenge = (c) => (challenge && openChallengeKey(challenge) === openChallengeKey(c) ? challenge : c);
+    // Odpovědi ze serveru platí: přepíšou místní na stejných místech, místní za nimi zůstanou (dopošlou se)
+    const mergeAnswers = (c, rows) => {
+        if (!Array.isArray(c.results)) c.results = [];
+        rows.forEach((row, index) => { c.results[index] = { correct: row.correct, points: row.points }; });
+        c.synced = rows.length;
+        return c;
+    };
+    const keepChallenge = (c) => {
+        if (!c || c.done) return;
+        if (c === challenge && current && mode === 'challenge') persistState();
+        else rememberOpenChallenge(c);
+    };
+    const knownSynced = (c) => (Number.isInteger(c.synced) && c.synced >= 0 ? c.synced : -1);
+    // true = server má všechny zodpovězené otázky, false = nepodařilo se (bez spojení), null = databáze průběh neeviduje
+    const pushAnswers = async (c) => {
+        const api = answersApi(c);
+        if (!api) return false;
+        let retried = false;
+        for (;;) {
+            let target = liveChallenge(c);
+            if (knownSynced(target) < 0) {
+                const rows = await api.load();
+                if (rows === null) return null;
+                target = mergeAnswers(liveChallenge(c), rows);
+                keepChallenge(target);
+            }
+            try {
+                while (target.synced < target.count && (target.results || [])[target.synced]) {
+                    const index = target.synced;
+                    if ((await api.save(index, target.results[index])) === null) return null;
+                    target = liveChallenge(c);
+                    target.synced = Math.max(knownSynced(target), index + 1);
+                    keepChallenge(target);
+                }
+                return true;
+            } catch (error) {
+                // Server odpověď odmítl (na tu otázku má jinou, nebo mu chybí předchozí): platí, co má server; načte se znovu a zbytek se dopošle
+                if (!retried && error && error.status >= 400 && error.status < 500 && error.status !== 401) { retried = true; liveChallenge(c).synced = -1; continue; }
+                return false;
+            }
+        }
+    };
+    // Odesílání jedné výzvy jde po sobě (pořadí otázek); vrací výsledek pushAnswers
+    const syncAnswers = (c) => {
+        if (!c) return Promise.resolve(false);
+        const key = openChallengeKey(c);
+        const run = (answerQueues.get(key) || Promise.resolve()).then(() => pushAnswers(c)).catch(() => false);
+        answerQueues.set(key, run);
+        return run;
+    };
+    // Před pokračováním: průběh ze serveru (mohl přibýt na jiném zařízení); bez spojení do pár sekund se pokračuje podle zařízení
+    const refreshAnswers = async (c) => {
+        const api = answersApi(c);
+        if (!api) return;
+        let timer = null;
+        try {
+            const rows = await Promise.race([api.load(), new Promise(resolve => { timer = setTimeout(() => resolve(undefined), 4000); })]);
+            if (Array.isArray(rows)) { mergeAnswers(c, rows); keepChallenge(c); }
+        } catch (error) { /* bez spojení se pokračuje podle zařízení */ } finally { clearTimeout(timer); }
+    };
     const persistState = () => {
         if (!current) return;
         if (mode === 'challenge' && challenge && !challenge.done) rememberOpenChallenge(challenge);
@@ -2791,8 +2867,8 @@
             }
             stats.daily[current.topic] = topicDaily;
         } else if (mode === 'challenge' && challenge) {
-            // Výzva se do běžných statistik nepočítá, jen do svého výsledku
-            challenge.results[challenge.index] = { correct: round.correct, points: round.points };
+            // Výzva se do běžných statistik nepočítá, jen do svého výsledku. Odpověď, kterou už server má (zodpovězená na jiném zařízení), platí ze serveru.
+            if (!(knownSynced(challenge) > challenge.index)) challenge.results[challenge.index] = { correct: round.correct, points: round.points };
         } else {
             stats.practice.played += 1;
             stats.practice.correct += round.correct ? 1 : 0;
@@ -2828,6 +2904,8 @@
         mapZoom = DEFAULT_MAP_ZOOM;
         recordResult();
         renderRound();
+        // Odpověď výzvy (zápasu turnaje) hned na server; bez spojení počká v zařízení
+        if (mode === 'challenge' && challenge) syncAnswers(challenge);
     };
 
     const showNextHint = () => {
@@ -3124,7 +3202,9 @@
 
     const continueAfterResult = () => {
         if (mode === 'challenge' && challenge) {
-            if (challenge.index + 1 < challenge.count) startChallenge(challenge, challenge.index + 1, challenge.results);
+            // Další nezodpovězená otázka (ze serveru mohly přibýt odpovědi z jiného zařízení); všechny zodpovězené = konec
+            const next = challengeNextIndex(challenge);
+            if (next >= 0) startChallenge(challenge, next, challenge.results);
             else finishChallenge();
             return;
         }
@@ -3806,6 +3886,15 @@
     const ownChallengeInProgress = () => {
         const user = signedUser();
         return Boolean(user && challenge && !challenge.done && !challenge.tournament && (!challenge.owner || challenge.owner === user.id));
+    };
+    // Pokračuje se první nezodpovězenou otázkou: zodpovězená (aplikace se zavřela před „Další“, nebo ji zná server) se znovu nehraje, jinak by šla
+    // po zobrazení správné odpovědi zodpovědět podruhé. Všechny zodpovězené: nic se nehraje znovu, výzva se rovnou odešle.
+    let resumingChallenge = false;
+    const continueChallenge = () => {
+        if (!ownChallengeInProgress()) return;
+        const next = challengeNextIndex(challenge);
+        if (next < 0) { mode = 'challenge'; finishChallenge(); return; }
+        startChallenge(challenge, next, challenge.results);
     };
     // Pořadí podle důležitosti: co čeká na hráče (rozehraná výzva, zápas turnaje dnes, pozvánky), turnaj, rychlé akce, liga, poslední výzvy
     const challengesInner = () => {
@@ -4948,8 +5037,10 @@
         const stillOpen = () => { const overlay = document.getElementById('dialog-overlay'); return token === challengeToken && Boolean(overlay && overlay.dataset.title === 'Výzva'); };
         let def;
         let results;
+        // Průběh ze serveru (schéma 3): pole odpovědí, null = databáze ho neeviduje, undefined = nepodařilo se ho načíst
+        let progress;
         try {
-            [def, results] = await Promise.all([Social.getChallenge(code), Social.getResults(code)]);
+            [def, results, progress] = await Promise.all([Social.getChallenge(code), Social.getResults(code), Social.challengeProgress(user.id, code).catch(() => undefined)]);
         } catch (error) {
             if (stillOpen()) showDialog('Výzva', DIALOG_NOTE('Výzvu se nepodařilo načíst. Zkontroluj připojení a zkus to znovu.'));
             return;
@@ -4961,8 +5052,10 @@
         if (!stillOpen()) return;
         const own = def.creator && def.creator.id === user.id;
         // Rozehraná výzva (v paměti, nebo uložená mezi rozehranými): pokračuje se, nehraje se znovu od první otázky
-        const resumable = mine ? null : ownChallengeInProgress() && challenge.code === code ? challenge
+        let resumable = mine ? null : ownChallengeInProgress() && challenge.code === code ? challenge
             : savedOpenChallenges().find(saved => !saved.tournament && saved.code === code && (!saved.owner || saved.owner === user.id)) || null;
+        // Server zná rozehraný průběh (i po smazání dat nebo z jiného zařízení): pokračuje se podle něj, ne od první otázky
+        if (!mine && Array.isArray(progress) && progress.length) resumable = mergeAnswers(resumable || makeChallenge({ ...def, owner: user.id }), progress);
         const text = `${own ? 'Vyzývám tě' : 'Hraju'} v Mudrlantu: ${challengeTopicTitle(def.topic)}, ${def.count} otázek.`;
         showDialog(own ? 'Tvoje výzva' : 'Výzva', `
             <div class="flex flex-col gap-4">
@@ -4989,13 +5082,22 @@
                 if (event.target.closest('[data-ch-play]')) {
                     closeDialog();
                     // Tahle výzva je už rozehraná: pokračuje se od další otázky (ne znovu od první)
-                    if (resumable) { challenge = resumable; ACTIONS['challenge-resume'](); }
-                    else startChallenge(def, 0, []);
+                    if (resumable) { challenge = resumable; continueChallenge(); }
+                    else startChallenge({ ...def, synced: Array.isArray(progress) ? 0 : -1 }, 0, []);
                 }
             }
         });
     };
 
+    // Rozehraná výzva z řádku výzvy (nebo z dřívější rozehrané): co a kým se hraje, odpovědi a kolik jich potvrdil server
+    const makeChallenge = (def, index = 0, results = []) => ({
+        code: def.code || def.id, topic: def.topic, seed: def.seed, count: def.count, index, results, creator: def.creator || null, invited: def.invited || null, done: false,
+        hard: Boolean(def.hard ?? def.include_hard), categories: def.categories || [], variant: def.variant || null, tournament: def.tournament || null,
+        // Kdo výzvu hraje: po odhlášení a přihlášení jiného účtu na stejném zařízení se mu cizí rozehraná výzva nenabízí
+        owner: def.owner || (signedUser() ? signedUser().id : null),
+        // Kolik odpovědí má server (průběh, schéma 3); právě založená výzva žádné, jinak -1 = neví se (před prvním uložením se načte)
+        synced: def.fresh ? 0 : knownSynced(def)
+    });
     // Průběh výzvy: otázky z pevného semínka, stejné pro všechny; bez běžných statistik a řad
     const startChallenge = (def, index = 0, results = []) => {
         if (isLoading) return;
@@ -5007,12 +5109,7 @@
             saveProgress(progress);
             announce(1, 1, titles);
         }
-        challenge = {
-            code: def.code || def.id, topic: def.topic, seed: def.seed, count: def.count, index, results, creator: def.creator || null, invited: def.invited || null, done: false,
-            hard: Boolean(def.hard ?? def.include_hard), categories: def.categories || [], variant: def.variant || null, tournament: def.tournament || null,
-            // Kdo výzvu hraje: po odhlášení a přihlášení jiného účtu na stejném zařízení se mu cizí rozehraná výzva nenabízí
-            owner: def.owner || (signedUser() ? signedUser().id : null)
-        };
+        challenge = makeChallenge(def, index, results);
         mode = 'challenge';
         closeDialog();
         runRound(async () => {
@@ -5137,15 +5234,20 @@
         c.sending = true;
         c.done = true;
         renderChallengeDone(null, 'sending');
-        const correct = c.results.filter(row => row && row.correct).length;
-        const points = c.results.reduce((sum, row) => sum + (row ? row.points : 0), 0);
+        let correct = 0;
+        let points = 0;
         try {
             try {
+                // Odpovědi, které server ještě nemá (bez spojení), se odešlou nejdřív: výsledek server sečte z nich
+                if ((await syncAnswers(c)) === false) throw new Error('Odpovědi se nepodařilo uložit.');
+                correct = c.results.filter(row => row && row.correct).length;
+                points = c.results.reduce((sum, row) => sum + (row ? row.points : 0), 0);
                 await Social.submitResult(user.id, c.code, { correct, points });
             } catch (error) {
                 // Výsledek není uložený: výzva zůstane rozehraná (úvod nabídne její dokončení, i po zavření aplikace), ať se neztratí
-                // a nejde ji hrát znovu od začátku
+                // a nejde ji hrát znovu od začátku. Server průběh odmítl: příště se načte znovu.
                 c.done = false;
+                if (error && error.status === 400) c.synced = -1;
                 throw error;
             }
             // Až uložený výsledek: dohraná výzva se zapamatuje a úvod ji už nenabízí
@@ -5195,34 +5297,86 @@
     let tournamentStarting = false;
     let tournamentDialogId = '';
     let tournamentQuery = '';
+    const tournamentServerResume = new Set(); // rozehrané zápasy, jejichž odpovědi zná server (dají se dohrát bez uložené relace)
     let tournamentMode = 'bracket'; // pohled v okně turnaje: 'bracket' (pavouk) nebo 'rounds' (seznam kol)
     let bracketFull = null; // null = podle toho, kde jsem (vypadl jsem před osmifinále → celý pavouk); jinak volba hráče
     let bracketFocus = ''; // hráč, jehož cesta pavoukem je zvýrazněná (klepnutí na hráče)
     let bracketReset = true; // po otevření a změně pohledu se pavouk posune na moje kolo, při dalším překreslení zůstane, kde je
-    const resetTournaments = () => { tournamentOffer = null; tournamentView = null; tournamentTickAt = 0; tournamentStatsAt = 0; tournamentBusy = ''; tournamentAgain = null; };
+    const resetTournaments = () => { tournamentOffer = null; tournamentView = null; tournamentTickAt = 0; tournamentStatsAt = 0; tournamentBusy = ''; tournamentAgain = null; tournamentServerResume.clear(); };
     const plainText = (text) => String(text || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
-    // Za vyhraný zápas XP; vyplacené zápasy se pamatují v zařízení (jednou za zápas) a počítadla pro odznaky se doplní z účtu (maximum s lokální hodnotou)
-    const applyTournamentProgress = async ({ wonIds = [], wonRounds = {}, stats = false } = {}) => {
-        const claimed = readJson(TOUR_XP_KEY);
-        const known = Array.isArray(claimed) ? claimed.filter(id => typeof id === 'string') : [];
-        const fresh = [...new Set(wonIds)].filter(id => !known.includes(id));
-        if (fresh.length) writeJson(TOUR_XP_KEY, [...known, ...fresh].slice(-300));
+    // Za vyhraný zápas XP, jednou za účet: vyplacení eviduje server (claim_tournament_xp, schéma 3) a XP se připíše jen za zápasy, které právě vrátil,
+    // takže nové zařízení ani smazaná data už nic nepřipíšou znovu. Seznam v zařízení (mudrlant.tourXp) je jen záložní ochrana proti dvojímu připsání
+    // (dvě volání v jedné relaci, opakování se stejným klíčem); ve starší databázi bez evidence (404) se podle něj vyplácí jako dřív.
+    // Počítadla pro odznaky se doplní z účtu (maximum s lokální hodnotou).
+    const TOUR_CLAIM_KEY = 'mudrlant.tourXpClaim';
+    let tournamentPaying = null;
+    const paidTournamentMatches = () => { const list = readJson(TOUR_XP_KEY); return Array.isArray(list) ? list.filter(id => typeof id === 'string') : []; };
+    // Výhry k vyplacení ze serveru ([{ id, round }]); null = databáze vyplácení neeviduje, undefined = bez spojení (zkusí se příště).
+    // Klíč (zvlášť pro každý účet na zařízení) zůstane uložený, dokud se XP nepřipíše: když se odpověď serveru ztratí, další volání se stejným klíčem vrátí tytéž zápasy.
+    const claimKeys = () => { const saved = readJson(TOUR_CLAIM_KEY); return saved && typeof saved === 'object' && !Array.isArray(saved) ? saved : {}; };
+    const dropClaimKey = (userId) => { const keys = claimKeys(); if (keys[userId]) { delete keys[userId]; writeJson(TOUR_CLAIM_KEY, keys); } };
+    const claimTournamentXp = async (userId) => {
+        const keys = claimKeys();
+        let key = keys[userId];
+        if (typeof key !== 'string' || !/^[0-9a-f]{24}$/.test(key)) {
+            const bytes = new Uint8Array(12);
+            crypto.getRandomValues(bytes);
+            key = Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('');
+            writeJson(TOUR_CLAIM_KEY, Object.fromEntries([...Object.entries(keys).filter(([id, value]) => id !== userId && typeof value === 'string').slice(-4), [userId, key]]));
+        }
+        try { return await Social.claimTournamentXp(key); } catch (error) { return undefined; }
+    };
+    const applyTournamentProgress = (options = {}) => {
+        // Vyplácí se po jednom (výsledek turnaje a obnova karty se můžou sejít): druhé volání počká na první
+        const run = (tournamentPaying || Promise.resolve()).then(() => payTournamentProgress(options)).catch(error => console.error(error));
+        tournamentPaying = run;
+        return run;
+    };
+    const payTournamentProgress = async ({ wonIds = [], wonRounds = {}, stats = false } = {}) => {
+        const user = signedUser();
+        if (!user || !Social) return;
+        const candidates = [...new Set(wonIds)].filter(id => !paidTournamentMatches().includes(id));
+        let fresh = []; // [{ id, round }] k připsání
+        let settled = []; // zápasy, které už se nemají nabízet k vyplacení
+        let claimed = false;
+        if (candidates.length || stats) {
+            const rows = await claimTournamentXp(user.id);
+            if (rows === null) {
+                fresh = candidates.map(id => ({ id, round: wonRounds[id] }));
+                settled = candidates;
+            } else if (rows) {
+                claimed = true;
+                fresh = rows;
+                // vyhrané zápasy, které server nevrátil, už vyplacené jsou (jiné zařízení, starší verze aplikace)
+                settled = [...candidates, ...rows.map(row => row.id)];
+            }
+        }
         let remote = null;
         if (stats || fresh.length) {
             tournamentStatsAt = Date.now();
             try { remote = await Social.myTournamentStats(); } catch (error) { remote = null; }
         }
-        if (!fresh.length && !remote) return;
+        if (!signedUser() || signedUser().id !== user.id) return;
+        // Záložní ochrana: co už zařízení připsalo, se nepřipíše znovu (ani když ho server vrátí podruhé se stejným klíčem)
+        const known = paidTournamentMatches();
+        fresh = fresh.filter(row => !known.includes(row.id));
+        // Až po připsání XP: vyřízené zápasy do seznamu v zařízení a klíč pro opakování pryč
+        const settle = () => {
+            if (settled.length) writeJson(TOUR_XP_KEY, [...new Set([...known, ...settled])].slice(-300));
+            if (claimed) dropClaimKey(user.id);
+        };
+        if (!fresh.length && !remote) { settle(); return; }
         const progress = loadProgress();
         const levelBefore = levelProgress(progress.xp).level;
-        progress.xp += fresh.reduce((sum, id) => sum + Tournament.winXp(wonRounds[id]), 0);
+        progress.xp += fresh.reduce((sum, row) => sum + Tournament.winXp(row.round), 0);
         if (remote) {
             progress.counters.tourBest = Math.max(progress.counters.tourBest || 0, remote.best);
             progress.counters.tourWins = Math.max(progress.counters.tourWins || 0, remote.wins);
         }
         const titles = grantBadges(progress);
         saveProgress(progress);
+        settle();
         announce(levelBefore, levelProgress(progress.xp).level, titles);
         applyLook();
         updateControlsUI();
@@ -5396,6 +5550,12 @@
             }));
             if (!signedUser() || signedUser().id !== user.id) return;
             tournamentView = views.filter(view => view.tournament.status !== 'finished' || view.state.playing);
+            // Rozehraný zápas bez uložené relace: eviduje-li server odpovědi (schéma 3), karta nabídne Pokračovat místo „nedokončil“
+            await Promise.all(tournamentView.filter(view => view.state.step === 'unfinished' && !tournamentServerResume.has(view.state.matchId)).map(async (view) => {
+                const rows = await Social.tournamentAnswers(user.id, view.state.matchId).catch(() => undefined);
+                if (Array.isArray(rows)) { tournamentServerResume.add(view.state.matchId); view.state = tournamentStateOf(view, user.id, today); }
+            }));
+            if (!signedUser() || signedUser().id !== user.id) return;
             const wonRounds = Object.assign({}, ...views.map(view => Tournament.xpRounds(view.matches, user.id)));
             const wonIds = Object.keys(wonRounds);
             afterNotices(() => applyTournamentProgress({ wonIds, wonRounds, stats: force || Date.now() - tournamentStatsAt > 600000 }));
@@ -5412,7 +5572,13 @@
     };
     const findTournament = (tid) => (tournamentView || []).find(view => view.tournament.id === tid) || null;
     // Stav karty z toho, co spočítal server, plus rozehraný zápas tohoto zařízení (uložená relace → krok 'resume')
-    const tournamentStateOf = (view, meId, today = Tournament.pragueToday()) => Tournament.cardState({ tournament: view.tournament, entries: view.entries, matches: view.matches, me: meId, today, savedMatch: savedTournamentMatch() });
+    // Bez uložené relace (smazaná data, jiné zařízení) jde rozehraný zápas dohrát, když jeho odpovědi eviduje server (schéma 3, tournamentServerResume);
+    // ve starší databázi se kolo počítá jako neodehrané
+    const tournamentStateOf = (view, meId, today = Tournament.pragueToday()) => {
+        const input = { tournament: view.tournament, entries: view.entries, matches: view.matches, me: meId, today };
+        const state = Tournament.cardState({ ...input, savedMatch: savedTournamentMatch() });
+        return state.step === 'unfinished' && tournamentServerResume.has(state.matchId) ? Tournament.cardState({ ...input, savedMatch: state.matchId }) : state;
+    };
     // Před vykreslením se stavy přepočítají: uložená relace se mezitím mohla změnit (zápas začal, dohrál se), server ne
     const syncTournamentStates = () => {
         const user = signedUser();
@@ -5839,24 +6005,30 @@
             const match = view.matches.find(item => item.id === state.matchId);
             if (match && !Tournament.resultOf(match, user.id)) match.results = [...(match.results || []), { user_id: user.id, started_at: new Date().toISOString(), finished_at: null, correct: null, points: null, time_ms: null }];
         }
-        startChallenge({
-            code: 'turnaj', topic: tournament.topic, seed: `${tournament.seed}-r${state.round}`, count: Tournament.QUESTIONS, variant: 'choices', include_hard: false,
-            tournament: { tid: tournament.id, mid: state.matchId, round: state.round, name: state.roundName, seedBase: tournament.seed }
-        }, 0, []);
+        // Zápas právě začal: server od něj ještě žádnou odpověď nemá
+        startChallenge({ ...tournamentChallengeDef(tournament, state), synced: 0 }, 0, []);
     };
-    // Pokračování rozehraného zápasu (uložená relace tohoto zařízení) od první nezodpovězené otázky; server měří čas od začátku zápasu.
+    // Zápas turnaje jako výzva: otázky ze semínka turnaje a kola, vždy výběr z možností a jen známější položky
+    const tournamentChallengeDef = (tournament, state) => ({
+        code: 'turnaj', topic: tournament.topic, seed: `${tournament.seed}-r${state.round}`, count: Tournament.QUESTIONS, variant: 'choices', include_hard: false,
+        tournament: { tid: tournament.id, mid: state.matchId, round: state.round, name: state.roundName, seedBase: tournament.seed }
+    });
+    // Pokračování rozehraného zápasu od první nezodpovězené otázky; server měří čas od začátku zápasu. Odpovědi se vezmou ze serveru (schéma 3),
+    // takže zápas jde dohrát i po smazání dat nebo na jiném zařízení; starší databáze jen z uložené relace tohoto zařízení.
     // Když jsou všechny otázky zodpovězené (aplikace se zavřela před odesláním), výsledek se rovnou odešle.
     const resumeTournament = async (tid) => {
         if (!findTournament(tid) || !Social || tournamentStarting || isLoading) return;
         tournamentStarting = true;
         // Server rozhoduje: před pokračováním se stav zápasu načte znovu (mezitím mohl skončit den kola nebo se zápas rozhodl)
         try { await refreshTournaments({ force: true }); } catch (error) { /* bez spojení se pokračuje podle posledního známého stavu */ }
-        tournamentStarting = false;
         const view = findTournament(tid);
-        if (!view) return;
+        if (!view) { tournamentStarting = false; return; }
         syncTournamentStates();
         const saved = savedTournamentChallenge();
-        if (view.state.step !== 'resume' || !saved || saved.mid !== view.state.matchId) {
+        const local = saved && saved.mid === view.state.matchId ? saved.challenge : null;
+        const fromServer = !local && tournamentServerResume.has(view.state.matchId);
+        if (view.state.step !== 'resume' || (!local && !fromServer)) {
+            tournamentStarting = false;
             if (saved && view.state.matchId === saved.mid) markTournamentFinished(saved.mid);
             const expired = view.state.step === 'counting' || view.state.step === 'lost' || view.state.step === 'won';
             if (document.getElementById('dialog-overlay')) closeDialog();
@@ -5864,21 +6036,29 @@
             paintChallenges();
             return;
         }
-        const def = saved.challenge;
-        const results = Array.from({ length: def.count }, (_, index) => def.results[index] || null);
-        const next = results.findIndex(row => !row);
+        const def = { ...(local || tournamentChallengeDef(view.tournament, view.state)) };
+        def.results = Array.from({ length: def.count }, (_, index) => (local && local.results[index]) || null);
+        // Odpovědi ze serveru platí (mohly přibýt na jiném zařízení); bez spojení se pokračuje podle zařízení
+        const user = signedUser();
+        let rows;
+        try { rows = user ? await Social.tournamentAnswers(user.id, view.state.matchId) : undefined; } catch (error) { rows = undefined; }
+        tournamentStarting = false;
+        if (Array.isArray(rows)) mergeAnswers(def, rows);
+        else if (fromServer) { showToast('Rozehraný zápas se nepodařilo načíst. Zkontroluj připojení a zkus to znovu.'); return; }
+        const next = def.results.findIndex(row => !row);
         showToast('Čas běží od začátku zápasu');
         if (next < 0) {
-            challenge = { ...def, results, index: def.count - 1, done: false };
+            challenge = makeChallenge(def, def.count - 1, def.results);
             mode = 'challenge';
             closeDialog();
             finishTournamentMatch();
             return;
         }
-        startChallenge(def, next, results);
+        startChallenge(def, next, def.results);
     };
     // Dohraný zápas se v uložené relaci označí jako hotový, ať ho karta po dalším spuštění nenabízí k pokračování
     const markTournamentFinished = (mid) => {
+        tournamentServerResume.delete(mid);
         forgetOpenChallenge(`t:${mid}`);
         const session = readJson(KEYS.session);
         if (session && session.challenge && session.challenge.tournament && session.challenge.tournament.mid === mid && !session.challenge.done) { session.challenge.done = true; writeJson(KEYS.session, session); }
@@ -5891,14 +6071,21 @@
         c.sending = true;
         c.done = true;
         renderTournamentDone('sending');
-        const correct = c.results.filter(row => row && row.correct).length;
-        const points = c.results.reduce((sum, row) => sum + (row ? row.points : 0), 0);
         try {
+            // Odpovědi, které server ještě nemá, se odešlou nejdřív: výsledek zápasu server sečte z nich
+            const pushed = await syncAnswers(c);
+            if (pushed === false) throw new Error('Výsledek se nepodařilo uložit. Zkontroluj připojení.');
+            const correct = c.results.filter(row => row && row.correct).length;
+            const points = c.results.reduce((sum, row) => sum + (row ? row.points : 0), 0);
             try {
                 await Social.finishTournamentMatch(c.tournament.mid, correct, points);
             } catch (error) {
                 // Odpověď se ztratila a výsledek už na serveru je: pokračuje se k výsledku zápasu
-                if (!/jen jednou/.test(error.message)) throw error;
+                if (!/jen jednou/.test(error.message)) {
+                    // Server odpovědi nemá všechny (jiné zařízení, stará relace): při dalším pokusu se průběh načte znovu
+                    if (error && error.status === 400) c.synced = -1;
+                    throw error;
+                }
             }
             // Odehraný zápas turnaje do počítadel (týdenní cíl); umístění a odznaky doplní refreshTournaments
             if (!c.counted) { c.counted = true; const progress = loadProgress(); progress.counters.tourPlayed += 1; saveProgress(progress); settleGoals(); }
@@ -6039,13 +6226,13 @@
         'recent-more': () => { recentExpanded = !recentExpanded; paintChallenges(); },
         'join-challenge': () => openJoinChallenge(),
         'challenge-open': (button) => openChallenge(button.dataset.code),
-        'challenge-resume': () => {
-            if (!ownChallengeInProgress()) return;
-            // Pokračuje se první nezodpovězenou otázkou: zodpovězená (aplikace se zavřela před „Další“) se znovu nehraje, jinak by šla
-            // po zobrazení správné odpovědi zodpovědět podruhé. Všechny zodpovězené: nic se nehraje znovu, výzva se rovnou odešle.
-            const next = challengeNextIndex(challenge);
-            if (next < 0) { mode = 'challenge'; finishChallenge(); return; }
-            startChallenge(challenge, next, challenge.results);
+        'challenge-resume': async () => {
+            if (!ownChallengeInProgress() || resumingChallenge) return;
+            // Server mohl mezitím dostat další odpovědi (hráč pokračoval na jiném zařízení): pokračuje se podle něj
+            const c = challenge;
+            resumingChallenge = true;
+            try { await refreshAnswers(c); } finally { resumingChallenge = false; }
+            if (challenge === c) continueChallenge();
         },
         'challenge-share': (button) => shareChallenge(button.dataset.code, button.dataset.text || ''),
         'challenge-retry': () => finishChallenge(true),

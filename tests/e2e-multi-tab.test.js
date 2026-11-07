@@ -105,6 +105,10 @@ const backend = async (context, db) => {
         const profile = (id) => (db.profiles[id] ? { ...db.profiles[id] } : null);
         const challengeRow = (c) => ({ ...c, creator: profile(c.creator_id), invited: c.invited_id ? profile(c.invited_id) : null });
         const rpc = /^\/rest\/v1\/rpc\/(.+)$/.exec(url.pathname);
+        // Schéma 3: průběh výzvy a XP za výhry (tady jen přijmout a nic nevracet)
+        if (rpc && rpc[1] === 'challenge_progress_save') return json(1);
+        if (rpc && rpc[1] === 'claim_tournament_xp') return json([]);
+        if (url.pathname === '/rest/v1/challenge_progress') return json([]);
         if (rpc && /^(tournament_|my_tournament)/.test(rpc[1])) {
             db.calls.push(rpc[1]);
             if (rpc[1] === 'my_tournament_stats') return json([{ best: 0, wins: 0, played: 0 }]);

@@ -41,7 +41,9 @@ const newDb = ({ today = MON } = {}) => {
             'u-1': { id: 'u-1', display_name: 'Jana Nováková', avatar: '🦊', color: 'emerald', xp: 0, badges: [], rating: 1120, rated_games: 6 },
             'u-2': { id: 'u-2', display_name: 'Petr Svoboda', avatar: '🐼', color: 'sky', xp: 4000, badges: [], rating: 1260, rated_games: 14 }
         },
-        tournaments: [], entries: [], matches: [], results: [], notices: []
+        tournaments: [], entries: [], matches: [], results: [], notices: [],
+        // Schéma 3: odpovědi zápasu po otázkách (answersMissing = starší databáze bez nich) a vyplacené XP za výhry (claimMissing = bez evidence)
+        answers: [], answersMissing: false, claims: [], claimMissing: false, claimLost: 0
     };
     return db;
 };
@@ -60,6 +62,15 @@ const runningEight = (db, { opponentResult = null, myStarted = false } = {}) => 
     if (opponentResult) db.results.push({ match_id: uuid(101), user_id: 'u-2', started_at: '2026-11-09T07:00:00Z', finished_at: '2026-11-09T07:01:00Z', time_ms: 60000, ...opponentResult });
     if (myStarted) db.results.push({ match_id: uuid(101), user_id: 'u-1', started_at: '2026-11-09T08:00:00Z', finished_at: null, correct: null, points: null, time_ms: null });
     return fillers;
+};
+// Týž turnaj, můj zápas 1. kola už rozhodnutý serverem: vyhrál jsem (6 správně proti 2), Petr vypadl
+const wonEight = (db) => {
+    runningEight(db);
+    Object.assign(db.matches.find(match => match.id === uuid(101)), { winner: 'u-1', decided_by: 'played' });
+    db.results.push({ match_id: uuid(101), user_id: 'u-1', started_at: '2026-11-09T08:00:00Z', finished_at: '2026-11-09T08:02:00Z', correct: 6, points: 18, time_ms: 120000 },
+        { match_id: uuid(101), user_id: 'u-2', started_at: '2026-11-09T07:00:00Z', finished_at: '2026-11-09T07:02:00Z', correct: 2, points: 6, time_ms: 120000 });
+    Object.assign(db.entries.find(entry => entry.tournament_id === T_RUN && entry.user_id === 'u-2'), { status: 'out', place: 5 });
+    db.stats = { best: 2, wins: 1, played: 1 };
 };
 const openTournament = (db, count, { capacity = 128, mine = false } = {}) => {
     db.tournaments.push({ id: T_OPEN, topic: 'mix', week_start: '2026-11-16', started_on: null, capacity, status: 'open', size: null, rounds: null, seed: 'seed-next' });
@@ -137,6 +148,18 @@ const backend = async (context, db) => {
             if (db.devDenied) return json({ code: '42501', message: 'Vývojářské nástroje turnajů nejsou pro tento účet zapnuté (viz docs/SUPABASE.md, dev_admins).' }, 403);
             return json(rpc[1] === 'dev_tournament_add_bots' ? 31 : rpc[1] === 'dev_tournament_clear_bots' ? 31 : rpc[1] === 'dev_tournament_reset' ? 2 : null);
         }
+        // XP za výhry jednou za účet (jako claim_tournament_xp): zapíše nevyplacené výhry a vrátí je; se stejným klíčem vrátí i dřív zapsané.
+        // claimLost = kolikrát se odpověď „ztratí“ (zápis proběhne, klient dostane chybu)
+        if (rpc && rpc[1] === 'claim_tournament_xp') {
+            if (db.missing || db.claimMissing) return json({ code: 'PGRST202', message: 'Could not find the function' }, 404);
+            db.calls.push({ name: rpc[1], body });
+            const key = body && body.retry_key;
+            const again = db.claims.filter(claim => claim.user_id === me.id && key && claim.retry_key === key);
+            const fresh = db.matches.filter(m => m.winner === me.id && m.decided_by && m.decided_by !== 'earlier' && !db.claims.some(claim => claim.match_id === m.id));
+            fresh.forEach(m => db.claims.push({ match_id: m.id, user_id: me.id, round: m.round, retry_key: key || null }));
+            if (db.claimLost > 0) { db.claimLost -= 1; return json({ message: 'boom' }, 503); }
+            return json([...again, ...fresh.map(m => ({ match_id: m.id, round: m.round }))].map(claim => ({ id: claim.match_id, round: claim.round })));
+        }
         if (rpc && /^(tournament_|my_tournament)/.test(rpc[1])) {
             if (db.missing) return json({ code: 'PGRST202', message: 'Could not find the function' }, 404);
             db.calls.push({ name: rpc[1], body });
@@ -162,10 +185,28 @@ const backend = async (context, db) => {
                 db.results.push({ match_id: m.id, user_id: me.id, started_at: new Date().toISOString(), finished_at: null, correct: null, points: null, time_ms: null });
                 return route.fulfill({ status: 200, body: '' });
             }
+            // Odpověď v zápase (jako tournament_answer_save): jen po začátku, před koncem, jen další v pořadí, stejná znovu nic nemění
+            if (rpc[1] === 'tournament_answer_save') {
+                if (db.answersMissing) return json({ code: 'PGRST202', message: 'Could not find the function' }, 404);
+                const own = db.results.find(row => row.match_id === body.mid && row.user_id === me.id);
+                if (!own) return fail('Zápas jsi ještě nezačal.');
+                if (own.finished_at) return fail('Zápas už je dohraný.');
+                const mine = db.answers.filter(row => row.match_id === body.mid && row.user_id === me.id);
+                const prev = mine.find(row => row.idx === body.idx);
+                if (prev) return prev.correct === body.correct && prev.points === body.points ? json(mine.length) : fail('Odpověď na tuhle otázku už je uložená, přepsat ji nejde.');
+                if (body.idx !== mine.length) return fail('Nejdřív se musí uložit předchozí otázky.');
+                db.answers.push({ match_id: body.mid, user_id: me.id, idx: body.idx, correct: body.correct, points: body.points });
+                return json(mine.length + 1);
+            }
             if (rpc[1] === 'tournament_finish_match') {
                 const own = db.results.find(row => row.match_id === body.mid && row.user_id === me.id);
                 if (!own || own.finished_at) return fail('Výsledek jde zapsat jen jednou.');
-                Object.assign(own, { finished_at: new Date().toISOString(), correct: body.correct_count, points: body.point_count, time_ms: db.myTimeMs });
+                // výsledek spočítá server z odpovědí (starší databáze bere čísla od klienta)
+                const answered = db.answers.filter(row => row.match_id === body.mid && row.user_id === me.id);
+                if (!db.answersMissing && answered.length < 10) return fail('Zápas ještě není dohraný: nejdřív se musí uložit všechny odpovědi.');
+                const correct = db.answersMissing ? body.correct_count : answered.filter(row => row.correct).length;
+                const points = db.answersMissing ? body.point_count : answered.reduce((sum, row) => sum + row.points, 0);
+                Object.assign(own, { finished_at: new Date().toISOString(), correct, points, time_ms: db.myTimeMs });
                 const m = matchRow(body.mid);
                 const other = db.results.find(row => row.match_id === m.id && row.user_id !== me.id && row.finished_at);
                 if (other) {
@@ -204,6 +245,10 @@ const backend = async (context, db) => {
                 return json(rows.map(item => ({ ...item, results: db.results.filter(row => row.match_id === item.id && (row.user_id === me.id || item.winner)).map(({ match_id, ...rest }) => rest) })));
             }
             if (url.pathname === '/rest/v1/tournament_notices') return json(db.notices.filter(notice => notice.user_id === me.id && !notice.seen));
+            if (url.pathname === '/rest/v1/tournament_answers') {
+                if (db.answersMissing) return json({ code: 'PGRST205', message: 'Could not find the table' }, 404);
+                return json(db.answers.filter(row => row.match_id === eq('match_id') && row.user_id === me.id).sort((a, b) => a.idx - b.idx).map(({ idx, correct, points }) => ({ idx, correct, points })));
+            }
             return json([]);
         }
         if (url.pathname === '/rest/v1/rpc/weekly_leaderboard') return json([]);
@@ -534,6 +579,67 @@ test('týdenní turnaje', { skip: !chromium && 'Playwright není nainstalovaný'
         await context.close();
     });
 
+    await t.test('XP za vyhraný zápas jednou za účet: nové zařízení ho nepřipíše znovu, ztracená odpověď serveru se dožene jednou, starší databáze jako dřív', async () => {
+        const until = async (check, what) => { const end = Date.now() + 15000; while (!check()) { if (Date.now() > end) throw new Error(`nedočkal jsem se: ${what}`); await new Promise(resolve => setTimeout(resolve, 50)); } };
+        const paidList = (tab) => tab.evaluate(() => JSON.parse(localStorage.getItem('mudrlant.tourXp') || '[]'));
+        // první zařízení: server výhru vrátí jako nevyplacenou, XP se připíše
+        const db = newDb();
+        wonEight(db);
+        let page = await start(db);
+        await page.tab.waitForFunction(() => (JSON.parse(localStorage.getItem('mudrlant.progress') || '{}').xp || 0) >= 20);
+        assert.equal((await progressOf(page.tab)).xp, 20);
+        assert.deepEqual(db.claims.map(claim => claim.match_id), [uuid(101)]);
+        assert.deepEqual(await paidList(page.tab), [uuid(101)]);
+        await page.context.close();
+        // nové zařízení (nebo smazaná data) se stejným účtem: server výhru už nevrátí, XP se nepřipíše znovu (odznaky z účtu ano)
+        page = await start(db);
+        await page.tab.waitForFunction(() => JSON.parse(localStorage.getItem('mudrlant.tourXp') || '[]').length === 1);
+        await until(() => db.calls.filter(call => call.name === 'claim_tournament_xp').length >= 2, 'druhý claim');
+        await page.tab.waitForTimeout(300);
+        const fresh = await progressOf(page.tab);
+        assert.equal(fresh.xp || 0, 0, 'XP za už vyplacený zápas se na novém zařízení nepřipíše');
+        assert.equal((fresh.counters || {}).tourWins, 1);
+        assert.deepEqual(page.log.errors, []);
+        await page.context.close();
+
+        // ztracená odpověď: server výhru zapíše jako vyplacenou, klient dostane chybu; další otevření se stejným klíčem ji dostane znovu a XP připíše jednou
+        const lost = newDb();
+        wonEight(lost);
+        lost.claimLost = 1;
+        page = await start(lost);
+        await until(() => lost.claims.length === 1 && lost.calls.some(call => call.name === 'claim_tournament_xp'), 'claim');
+        await page.tab.waitForTimeout(500);
+        assert.equal((await progressOf(page.tab)).xp || 0, 0, 'bez odpovědi serveru se nic nepřipíše');
+        const key = await page.tab.evaluate(() => JSON.parse(localStorage.getItem('mudrlant.tourXpClaim'))['u-1']);
+        assert.match(key, /^[0-9a-f]{24}$/, 'klíč pro opakování zůstal uložený');
+        await page.tab.reload();
+        await waitForHome(page.tab);
+        await page.tab.waitForFunction(() => (JSON.parse(localStorage.getItem('mudrlant.progress') || '{}').xp || 0) >= 20);
+        assert.equal(lost.calls.filter(call => call.name === 'claim_tournament_xp').at(-1).body.retry_key, key, 'opakuje se se stejným klíčem');
+        await page.tab.reload();
+        await waitForHome(page.tab);
+        await until(() => lost.calls.filter(call => call.name === 'claim_tournament_xp').length >= 3, 'třetí claim');
+        await page.tab.waitForTimeout(300);
+        assert.equal((await progressOf(page.tab)).xp, 20, 'připsáno jen jednou');
+        assert.deepEqual(await page.tab.evaluate(() => JSON.parse(localStorage.getItem('mudrlant.tourXpClaim'))), {}, 'po připsání klíč zmizí');
+        assert.deepEqual(page.log.errors, []);
+        await page.context.close();
+
+        // starší databáze bez claim_tournament_xp (404): vyplacené zápasy zná jen zařízení jako dřív
+        const old = newDb();
+        old.claimMissing = true;
+        wonEight(old);
+        page = await start(old);
+        await page.tab.waitForFunction(() => (JSON.parse(localStorage.getItem('mudrlant.progress') || '{}').xp || 0) >= 20);
+        await page.tab.reload();
+        await waitForHome(page.tab);
+        await page.tab.waitForSelector('#tournament-card');
+        await page.tab.waitForTimeout(300);
+        assert.equal((await progressOf(page.tab)).xp, 20, 'stejné zařízení nepřipíše podruhé');
+        assert.deepEqual(page.log.errors, []);
+        await page.context.close();
+    });
+
     await t.test('zápas prohraju: výsledek soupeře se ukáže až po rozhodnutí a hráč vypadne', async () => {
         const db = newDb();
         runningEight(db, { opponentResult: { correct: 5, points: 9 } });
@@ -628,9 +734,36 @@ test('týdenní turnaje', { skip: !chromium && 'Playwright není nainstalovaný'
         await context.close();
     });
 
-    await t.test('rozehraný zápas bez uložené relace (jiné zařízení) a po půlnoci: pokračovat nejde', async () => {
-        // Server začátek zná, zařízení relaci nemá: neodehráno, nejde hrát znovu
+    await t.test('rozehraný zápas bez uložené relace na jiném zařízení: pokračuje se odpověďmi ze serveru, výsledek je jejich součet', async () => {
         const db = newDb();
+        runningEight(db, { myStarted: true });
+        // na prvním zařízení zodpověděl tři otázky (dvě správně), pak smazal data / vzal jiný telefon
+        db.answers.push({ match_id: uuid(101), user_id: 'u-1', idx: 0, correct: true, points: 4 }, { match_id: uuid(101), user_id: 'u-1', idx: 1, correct: false, points: 0 }, { match_id: uuid(101), user_id: 'u-1', idx: 2, correct: true, points: 3 });
+        const { context, tab, log } = await start(db);
+        await tab.waitForSelector('#tournament-card [data-action="tournament-resume"]');
+        const card = (await tab.textContent('#tournament-card')).replace(/\s+/g, ' ');
+        assert.match(card, /Zápas máš rozehraný/);
+        assert.doesNotMatch(card, /začal a nedokončil/);
+        assert.equal(await tab.locator('[data-action="tournament-play"]').count(), 0);
+        await tab.click('[data-action="tournament-resume"]');
+        await tab.waitForSelector('[data-action="give-up"]');
+        assert.match(await tab.textContent('#status-badge'), /Turnaj · 4\/10/, 'pokračuje se první otázkou, kterou server nemá');
+        assert.equal(db.calls.filter(call => call.name === 'tournament_start_match').length, 0, 'zápas se znovu nezačíná');
+        await playMatch(tab, 7);
+        await tab.waitForSelector('[data-tournament-outcome]');
+        assert.deepEqual(db.answers.filter(row => row.user_id === 'u-1').map(row => row.idx), [0, 1, 2, 3, 4, 5, 6, 7, 8, 9], 'odpovědi jdou na server v pořadí, žádná dvakrát');
+        const mine = db.results.find(row => row.match_id === uuid(101) && row.user_id === 'u-1');
+        assert.deepEqual([mine.correct, mine.points], [2, 7], 'výsledek je součet odpovědí na serveru');
+        assert.match((await tab.textContent('#app-content')).replace(/\s+/g, ' '), /2\/10/);
+        assert.deepEqual(log.errors, []);
+        assert.deepEqual(log.csp, []);
+        await context.close();
+    });
+
+    await t.test('rozehraný zápas bez uložené relace (starší databáze bez odpovědí) a po půlnoci: pokračovat nejde', async () => {
+        // Server začátek zná, zařízení relaci nemá a databáze odpovědi neeviduje: neodehráno, nejde hrát znovu
+        const db = newDb();
+        db.answersMissing = true;
         runningEight(db, { myStarted: true });
         const { context, tab, log } = await start(db);
         await tab.waitForSelector('#tournament-card');

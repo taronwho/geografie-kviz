@@ -5,6 +5,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
+const { finishMatchSql } = require('./sql-play.js');
 
 const host = process.env.PGHOST || '/tmp';
 const port = process.env.PGPORT || '5439';
@@ -94,7 +95,7 @@ test('SQL: týdenní turnaje', { skip: !available && 'PostgreSQL není dostupný
         denied(as(p1, TUE, `select tournament_start_match('${mid}');`), 'jiný den');
         ok(as(p1, MON, `select tournament_start_match('${mid}');`));
         denied(as(p1, MON, `select tournament_start_match('${mid}');`), 'podruhé');
-        ok(as(p1, MON, `select tournament_finish_match('${mid}', 7, 20);`));
+        ok(as(p1, MON, `${finishMatchSql(mid, 7, 20)}`));
         denied(as(p1, MON, `select tournament_finish_match('${mid}', 10, 40);`), 'výsledek jen jednou');
         // soupeř vidí, že hráč 1 odehrál? Ne: výsledek je skrytý do rozhodnutí
         assert.equal(as(p2, MON, `select count(*) from tournament_results where user_id = '${p1}';`).stdout.trim().split('\n').pop(), '0');
@@ -104,17 +105,17 @@ test('SQL: týdenní turnaje', { skip: !available && 'PostgreSQL není dostupný
     await t.test('1. kolo: oba odehrají (rozhodne výsledek), jeden odehraje (kontumace), nikdo (dřívější přihlášení)', () => {
         const [m1, m2, m3, m4] = matches;
         // m1: p2 odehraje hůř než p1 -> vyhrává p1 (7 správně)
-        ok(as(m1[2], MON, `select tournament_start_match('${m1[0]}'); select tournament_finish_match('${m1[0]}', 5, 15);`));
+        ok(as(m1[2], MON, `select tournament_start_match('${m1[0]}'); ${finishMatchSql(m1[0], 5, 15)}`));
         assert.equal(q(`select winner = '${m1[1]}' from tournament_matches where id = '${m1[0]}'`), 't');
         assert.equal(q(`select decided_by from tournament_matches where id = '${m1[0]}'`), 'played');
         // m2: oba stejně správně i body -> rozhoduje čas; hráč b zahájí a skončí hned, hráč a čeká -> b je rychlejší
         ok(as(m2[1], MON, `select tournament_start_match('${m2[0]}');`));
         q(`update tournament_results set started_at = now() - interval '50 seconds' where match_id = '${m2[0]}' and user_id = '${m2[1]}'`);
-        ok(as(m2[2], MON, `select tournament_start_match('${m2[0]}'); select tournament_finish_match('${m2[0]}', 8, 24);`));
-        ok(as(m2[1], MON, `select tournament_finish_match('${m2[0]}', 8, 24);`));
+        ok(as(m2[2], MON, `select tournament_start_match('${m2[0]}'); ${finishMatchSql(m2[0], 8, 24)}`));
+        ok(as(m2[1], MON, `${finishMatchSql(m2[0], 8, 24)}`));
         assert.equal(q(`select winner = '${m2[2]}' from tournament_matches where id = '${m2[0]}'`), 't', 'rychlejší čas vyhrává');
         // m3: odehraje jen p1; m4: neodehraje nikdo
-        ok(as(m3[1], MON, `select tournament_start_match('${m3[0]}'); select tournament_finish_match('${m3[0]}', 3, 9);`));
+        ok(as(m3[1], MON, `select tournament_start_match('${m3[0]}'); ${finishMatchSql(m3[0], 3, 9)}`));
         assert.equal(q(`select winner is null from tournament_matches where id = '${m3[0]}'`), 't', 'do konce dne se čeká');
         tick(MON);
         assert.equal(q(`select count(*) from tournament_matches where round = 2`), '0', 'další kolo vznikne až po termínu');
@@ -131,15 +132,15 @@ test('SQL: týdenní turnaje', { skip: !available && 'PostgreSQL není dostupný
 
     await t.test('semifinále: jeden zápas odehrají oba, druhý nikdo; další den finále a zápas o 3. místo', () => {
         const semi = q(`select id || '|' || p1 || '|' || p2 from tournament_matches where round = 2 order by slot`).split('\n').map(line => line.split('|'));
-        ok(as(semi[0][1], TUE, `select tournament_start_match('${semi[0][0]}'); select tournament_finish_match('${semi[0][0]}', 9, 30);`));
-        ok(as(semi[0][2], TUE, `select tournament_start_match('${semi[0][0]}'); select tournament_finish_match('${semi[0][0]}', 4, 12);`));
+        ok(as(semi[0][1], TUE, `select tournament_start_match('${semi[0][0]}'); ${finishMatchSql(semi[0][0], 9, 30)}`));
+        ok(as(semi[0][2], TUE, `select tournament_start_match('${semi[0][0]}'); ${finishMatchSql(semi[0][0], 4, 12)}`));
         tick(WED2);
         assert.equal(q(`select count(*) from tournament_matches where round = 3`), '2');
         assert.equal(q(`select count(*) from tournament_matches where round = 3 and third`), '1');
         const fin = q(`select id || '|' || p1 || '|' || p2 || '|' || third from tournament_matches where round = 3 order by third`).split('\n').map(line => line.split('|'));
         // finále: p1 vyhraje; o třetí místo: nikdo neodehraje
-        ok(as(fin[0][1], WED2, `select tournament_start_match('${fin[0][0]}'); select tournament_finish_match('${fin[0][0]}', 10, 40);`));
-        ok(as(fin[0][2], WED2, `select tournament_start_match('${fin[0][0]}'); select tournament_finish_match('${fin[0][0]}', 6, 20);`));
+        ok(as(fin[0][1], WED2, `select tournament_start_match('${fin[0][0]}'); ${finishMatchSql(fin[0][0], 10, 40)}`));
+        ok(as(fin[0][2], WED2, `select tournament_start_match('${fin[0][0]}'); ${finishMatchSql(fin[0][0], 6, 20)}`));
         assert.equal(q(`select status from tournaments where id = '${tid}'`), 'running', 'zápas o 3. místo ještě čeká do konce dne');
         tick(THU);
         assert.equal(q(`select status from tournaments where id = '${tid}'`), 'finished');

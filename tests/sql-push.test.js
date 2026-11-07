@@ -5,6 +5,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
+const { challengeProgressSql, finishMatchSql } = require('./sql-play.js');
 
 const host = process.env.PGHOST || '/tmp';
 const port = process.env.PGPORT || '5439';
@@ -153,7 +154,7 @@ test('SQL: web push (odběry, tajemství, push_due, push_mark)', { skip: !availa
         ok(as(id(2), MON, `update profiles set push_tournament = true where id = '${id(2)}';`));
         // jiný den: zápas dne není (další kolo ještě nevzniklo, dnešní kolo je po termínu a rozhodne se)
         q(`delete from push_sent`);
-        ok(as(id(1), MON, `select tournament_finish_match('${myMatch}', 7, 20);`));
+        ok(as(id(1), MON, finishMatchSql(myMatch, 7, 20)));
         const tuesday = dueRows(TUE, 9);
         assert.ok(tuesday.every(row => row.kind !== 'tournament' || row.key.includes(`:${TUE}:`)), JSON.stringify(tuesday));
     });
@@ -216,9 +217,9 @@ test('SQL: web push (odběry, tajemství, push_due, push_mark)', { skip: !availa
         assert.equal(second.length, 1);
         assert.equal(second[0].key, `chal:ABCDE3:${id(1)}`);
         // vyzvaný výzvu odehraje: už se nepřipomíná
-        ok(as(id(1), TUE, `insert into challenge_results (challenge_id, user_id, correct, points) values ('ABCDE3', '${id(1)}', 5, 10);`));
+        ok(as(id(1), TUE, `${challengeProgressSql('ABCDE3', 10, 5, 10)} insert into challenge_results (challenge_id, user_id, correct, points) values ('ABCDE3', '${id(1)}', 5, 10);`));
         assert.equal(dueRows(TUE, 9).filter(row => row.kind === 'challenge').length, 0);
-        q(`delete from challenge_results where challenge_id = 'ABCDE3'`);
+        q(`delete from challenge_results where challenge_id = 'ABCDE3'; delete from challenge_progress where challenge_id = 'ABCDE3'`);
         ok(as(id(1), TUE, `update profiles set push_challenge = false where id = '${id(1)}';`));
         assert.equal(dueRows(TUE, 9).filter(row => row.kind === 'challenge').length, 0, 'vypnuté výzvy');
         ok(as(id(1), TUE, `update profiles set push_challenge = true where id = '${id(1)}';`));
@@ -231,14 +232,14 @@ test('SQL: web push (odběry, tajemství, push_due, push_mark)', { skip: !availa
         ok(as(id(3), TUE, `select push_subscribe('${endpointOf(33)}', '${P256DH}', '${AUTH}');`));
         const mine = () => dueRows(TUE, 9).filter(row => row.kind === 'challenge' && row.user === id(3));
         assert.equal(mine().length, 0, 'bez výsledku nic');
-        ok(as(id(1), TUE, `insert into challenge_results (challenge_id, user_id, correct, points) values ('ABCDE3', '${id(1)}', 7, 20);`));
+        ok(as(id(1), TUE, `${challengeProgressSql('ABCDE3', 10, 7, 20)} insert into challenge_results (challenge_id, user_id, correct, points) values ('ABCDE3', '${id(1)}', 7, 20);`));
         const rows = mine();
         assert.equal(rows.length, 1);
         assert.equal(rows[0].title, 'Hráč 1 odehrál tvoji výzvu');
         assert.equal(rows[0].body, 'Dal 7 z 10 správně. Podívej se, jak jsi na tom ty.');
         assert.equal(rows[0].key, `chalr:ABCDE3:${id(3)}`);
         // výsledek zakladatele samotného nic nespouští
-        ok(as(id(3), TUE, `insert into challenge_results (challenge_id, user_id, correct, points) values ('ABCDE3', '${id(3)}', 4, 8);`));
+        ok(as(id(3), TUE, `${challengeProgressSql('ABCDE3', 10, 4, 8)} insert into challenge_results (challenge_id, user_id, correct, points) values ('ABCDE3', '${id(3)}', 4, 8);`));
         assert.equal(mine().length, 1);
         mark([rows[0].key], { okEndpoints: [rows[0].endpoint] });
         assert.equal(mine().length, 0, 'odeslané se neopakuje');
@@ -247,7 +248,7 @@ test('SQL: web push (odběry, tajemství, push_due, push_mark)', { skip: !availa
         ok(as(id(3), TUE, `update profiles set push_challenge = false where id = '${id(3)}';`));
         assert.equal(mine().length, 0, 'vypnuté výzvy');
         ok(as(id(3), TUE, `update profiles set push_challenge = true where id = '${id(3)}';`));
-        q(`delete from challenge_results where challenge_id = 'ABCDE3'; delete from push_subscriptions where endpoint = '${endpointOf(33)}'; delete from push_sent;`);
+        q(`delete from challenge_results where challenge_id = 'ABCDE3'; delete from challenge_progress where challenge_id = 'ABCDE3'; delete from push_subscriptions where endpoint = '${endpointOf(33)}'; delete from push_sent;`);
     });
 
     await t.test('push_mark: chyby se počítají, po třech odběr mizí, 404/410 maže hned, úspěch nuluje; staré push_sent se uklidí', () => {

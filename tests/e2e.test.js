@@ -1358,7 +1358,8 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
 
     await t.test('profil a výzvy: přezdívka a obrázek v záhlaví, výzva hráči podle přezdívky, náhodný soupeř, příchozí výzva, žebříček', async () => {
         // Falešný Supabase v paměti: profily, výzvy a výsledky; každý hráč má svůj token
-        const db = { profiles: {}, challenges: {}, results: [] };
+        // progress = průběh výzev po otázkách (schéma 3): výsledek pak server sečte z něj
+        const db = { profiles: {}, challenges: {}, results: [], progress: [] };
         const users = { 'tok-u1': { id: 'u-1', name: 'Jana Nováková' }, 'tok-u2': { id: 'u-2', name: 'Petr Svoboda' } };
         const profileOf = (id) => db.profiles[id] || (db.profiles[id] = { id, display_name: Object.values(users).find(user => user.id === id).name, avatar: '🦊', color: 'emerald' });
         profileOf('u-1');
@@ -1381,6 +1382,16 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
                     const wanted = (body && body.wanted) || [];
                     return json(Object.values(db.profiles).filter(profile => profile.id !== me.id && !(profile.blocked_topics || []).some(topic => wanted.includes(topic)) && !(body && body.wants_mix && profile.accepts_mix === false)).slice(0, 1));
                 }
+                // Odpověď na otázku výzvy: jen další v pořadí, stejná znovu nic nemění, jiná na uloženém místě se odmítne
+                if (url.pathname === '/rest/v1/rpc/challenge_progress_save') {
+                    const mine = db.progress.filter(row => row.challenge_id === body.code && row.user_id === me.id);
+                    const prev = mine.find(row => row.idx === body.idx);
+                    if (prev) return prev.correct === body.correct && prev.points === body.points ? json(mine.length) : json({ code: '22023', message: 'Odpověď na tuhle otázku už je uložená, přepsat ji nejde.' }, 400);
+                    if (body.idx !== mine.length || db.results.some(row => row.challenge_id === body.code && row.user_id === me.id)) return json({ code: '22023', message: 'Nejdřív se musí uložit předchozí otázky.' }, 400);
+                    db.progress.push({ challenge_id: body.code, user_id: me.id, idx: body.idx, correct: body.correct, points: body.points });
+                    return json(mine.length + 1);
+                }
+                if (url.pathname === '/rest/v1/challenge_progress') return json(db.progress.filter(row => row.challenge_id === eq('challenge_id') && row.user_id === me.id).sort((a, b) => a.idx - b.idx));
                 if (url.pathname === '/rest/v1/rpc/search_players') {
                     const term = String((body && body.term) || '').toLowerCase();
                     return json(Object.values(db.profiles).filter(profile => profile.id !== me.id && profile.display_name.toLowerCase().includes(term)).slice(0, 8));
@@ -1414,7 +1425,11 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
                 }
                 if (url.pathname === '/rest/v1/challenge_results') {
                     if (request.method() === 'POST') {
-                        if (!db.results.some(row => row.challenge_id === body.challenge_id && row.user_id === body.user_id)) db.results.push({ ...body, finished_at: `2026-11-03T10:0${db.results.length}:00Z` });
+                        if (!db.results.some(row => row.challenge_id === body.challenge_id && row.user_id === body.user_id)) {
+                            const answered = db.progress.filter(row => row.challenge_id === body.challenge_id && row.user_id === body.user_id);
+                            if (answered.length < db.challenges[body.challenge_id].count) return json({ code: 'P0001', message: 'Výsledek výzvy jde uložit až po uložení odpovědí na všechny otázky.' }, 400);
+                            db.results.push({ ...body, correct: answered.filter(row => row.correct).length, points: answered.reduce((sum, row) => sum + row.points, 0), finished_at: `2026-11-03T10:0${db.results.length}:00Z` });
+                        }
                         return route.fulfill({ status: 201, body: '' });
                     }
                     if (param('challenge_id').startsWith('in.') && param('user_id').startsWith('eq.')) {
