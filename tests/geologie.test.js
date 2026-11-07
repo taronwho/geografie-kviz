@@ -46,7 +46,8 @@ test('geologie: kontrola dat – fotky, tvrdost, období, jedna položka na jmé
     assert.equal(new Set(data.items.map(item => item.n.toLocaleLowerCase('cs'))).size, data.items.length);
     for (const item of data.items) {
         const f = item.f || {};
-        if (item.c === 'nerosty' || item.c === 'kameny') assert.ok(item.im && item.ih, `${item.n}: bez fotky`);
+        // Nerost, kámen i hornina se poznávají z fotky v otázce (opuka ji ve Wikidatech nemá – náhrada z Commons)
+        if (item.c === 'nerosty' || item.c === 'kameny' || item.c === 'horniny') assert.ok(item.im && item.ih, `${item.n}: bez fotky`);
         if (f.h) assert.ok(f.h[0] >= 1 && f.h[0] <= f.h[1] && f.h[1] <= 10, `${item.n}: tvrdost ${f.h}`);
         if (f.formula) assert.ok(!/[☐{]/.test(f.formula), `${item.n}: vzorec ${f.formula}`);
         if (item.c === 'obdobi') assert.ok(f.from > f.to && f.from <= 4600 && f.to >= 0, `${item.n}: ${f.from}–${f.to}`);

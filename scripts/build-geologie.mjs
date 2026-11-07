@@ -280,8 +280,8 @@ const KNOWN_PERIODS = new Set(['Prvohory', 'Druhohory', 'Třetihory', 'Čtvrtoho
 const QID_OVERRIDES = { 'svor': 'Q3856092', 'období:Devon (geologie)': 'Q65955' };
 // Droba, radiolarit, erlan a mylonit mají ve Wikidatech fotku jiné horniny (křemence, lomu na křemelinu, obecné přeměněné horniny)
 const SKIP_ROCKS = new Set(['Křída', 'Melafyr', 'Droba', 'Radiolarit', 'Erlan', 'Mylonit']);
-// Fotka ve Wikidatech nepatří k hornině (obsidián: snímek z výročí ruských Wikizpráv) – náhrada z Commons
-const IMAGE_OVERRIDES = { 'Obsidián': 'A2613-Museum Geologi-Obsidian.jpg' };
+// Fotka ve Wikidatech nepatří k hornině (obsidián: snímek z výročí ruských Wikizpráv) nebo chybí (opuka) – náhrada z Commons
+const IMAGE_OVERRIDES = { 'Obsidián': 'A2613-Museum Geologi-Obsidian.jpg', 'Opuka': 'Zlatá opuka.jpg' };
 const commonsUrl = (file) => `http://commons.wikimedia.org/wiki/Special:FilePath/${encodeURIComponent(file)}`;
 
 // --- Vzorce: zápis bez nábojů (Fe²⁺ → Fe); u známých nerostů obvyklý zápis z učebnic ---
@@ -518,8 +518,8 @@ for (const [name, [group, composition, origin]] of Object.entries(ROCKS)) {
     // Fotka horniny může být i PNG (tonalit), mapy a schémata horniny nemají
     const image = IMAGE_OVERRIDES[name] ? { ...detail, im: commonsUrl(IMAGE_OVERRIDES[name]) } : detail;
     const photo = photoOf(image).im ? photoOf(image) : /\.png$/i.test(fileOf(image.im)) ? imageFields(image.im) : {};
-    // Bez fotky jen česká hornina (opuka), ostatní by bez obrázku nedávaly smysl
-    if (!photo.im && !CZECH_LOCALITIES[name]) { console.log(`  hornina bez fotky ${name}`); continue; }
+    // Hornina se poznává z fotky v otázce – bez ní by otázka nedávala smysl (opuka fotku ve Wikidatech nemá: IMAGE_OVERRIDES)
+    if (!photo.im) { console.log(`  hornina bez fotky ${name}`); continue; }
     const f = compact({ grp: group, comp: composition, orig: origin, use: ROCK_USES[name], czl: CZECH_LOCALITIES[name], al: ALIASES[name], cf: conflictsOf(name) });
     add(compact({ q, t: detail.t, n: name, c: 'horniny', k: KNOWN.has(name) ? 1 : 0, d: descriptionOf(detail), cz: f.czl ? 1 : undefined, ...photo, f }));
 }

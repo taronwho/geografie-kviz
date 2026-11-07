@@ -7,7 +7,7 @@ vyžadují jen uvedení autora a licence – to dělá stránka Zdroje a licence
 
 ## Souhrn
 
-- souborů celkem: **23628**, s načtenými metadaty: **23628**, zatím nestaženo: **0**
+- souborů celkem: **23629**, s načtenými metadaty: **23629**, zatím nestaženo: **0**
 - problémových: **0**
 
 ## Počty podle témat
@@ -19,7 +19,7 @@ vyžadují jen uvedení autora a licence – to dělá stránka Zdroje a licence
 | chemie | 961 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | film | 719 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | fyzika | 1493 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| geologie | 389 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| geologie | 390 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | historie | 2890 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | hudba | 1231 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | literatura | 1304 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
