@@ -45,11 +45,19 @@ test('mytologie: známé položky, kategorie, česká stopa a okruhy', () => {
     assert.ok(inCollection('egyptsti-bohove').includes('Anubis'));
     assert.ok(inCollection('recti-hrdinove').includes('Héraklés') && inCollection('trojska-valka').includes('Hektór'));
     assert.ok(inCollection('recke-bytosti').includes('Pegas') && inCollection('slovanske-bytosti').includes('Vodník'));
-    assert.ok(data.collections.length >= 8 && data.collections.length <= 20);
+    assert.ok(data.collections.length >= 8 && data.collections.length <= 30);
     // Egyptští bohové pod známými jmény, Usir a Eset jako další psané odpovědi
     assert.ok(find('Osiris').al.includes('Usir') && find('Isis').al.includes('Eset'));
-    // Šárka má na Wikipedii jen článek o jménu – v tématu není; ani místa a předměty
-    assert.ok(!data.items.some(item => ['Šárka', 'Yggdrasil', 'Midgard', 'Mjöllnir', 'Lucifer', 'Romulus a Remus'].includes(item.n)));
+    // Šárka má na Wikipedii jen článek o jménu – v tématu není
+    assert.ok(!data.items.some(item => ['Šárka', 'Lucifer', 'Nymfy', 'Semiramis'].includes(item.n)));
+    // Další mytologie a bájná místa a předměty mají vlastní kategorie
+    const newer = { indicka: ['Šiva', 'Ganéša', 'Kálí'], keltska: ['Lugh', 'Merlin'], vychod: ['Amaterasu', 'Nefritový císař'], orient: ['Marduk', 'Inanna', 'Gilgameš'],
+        amerika: ['Quetzalcoatl', 'Tlaloc'], predmety: ['Atlantida', 'Excalibur', 'Yggdrasil', 'Valhalla'], bytosti: ['Michael', 'Satan', 'Banshee', 'Kappa'] };
+    for (const [category, names] of Object.entries(newer)) for (const name of names) assert.equal(find(name)?.c, category, `${name}: kategorie`);
+    for (const name of ['Šiva', 'Višnu', 'Amaterasu', 'Quetzalcoatl', 'Atlantida']) assert.equal(find(name).k, 1, `${name} je známý`);
+    assert.equal(find('Marduk').f.myk, 'mezopotamska');
+    assert.equal(find('Merlin').f.myk, undefined);
+    assert.ok(inCollection('indicti-bohove').includes('Šiva') && inCollection('bajna-mista').includes('Excalibur') && inCollection('andele-a-demoni').includes('Gabriel'));
 });
 
 test('mytologie: data bez rozporů – jedinečná jména a další názvy, opravené pohlaví', () => {
@@ -112,16 +120,17 @@ test('mytologie: otázka na protějšek – Zeus a Jupiter, Apollón bez protěj
 });
 
 test('mytologie: otázka „Ze které mytologie je?“ jen u postav jediné mytologie', () => {
-    const thor = mytologie.specialQuestion(find('Thór'), ctx, rngStartingWith(0.9));
-    assert.equal(thor.type, 'myth');
-    assert.equal(thor.answerLabel, 'severská');
-    assert.ok(core.checkAnswer('severská', thor) && core.checkAnswer('nordická', thor) && !core.checkAnswer('řecká', thor));
-    assert.equal(thor.choices.filter(choice => choice.correct).length, 1);
-    // U Dia je záludnou možností římská, u řeckého hrdiny bez protějšku římská není (Římané báje převzali)
+    const valkyrie = mytologie.specialQuestion(find('Valkýra'), ctx, rngStartingWith(0.9));
+    assert.equal(valkyrie.type, 'myth');
+    assert.equal(valkyrie.answerLabel, 'severská');
+    assert.ok(core.checkAnswer('severská', valkyrie) && core.checkAnswer('nordická', valkyrie) && !core.checkAnswer('řecká', valkyrie));
+    assert.equal(valkyrie.choices.filter(choice => choice.correct).length, 1);
+    // U Dia je záludnou možností římská
     assert.ok(mytologie.specialQuestion(find('Zeus'), ctx, rngStartingWith(0.9)).choices.some(choice => choice.label === 'římská'));
-    for (let seed = 0; seed < 6; seed++) {
-        const achilles = mytologie.specialQuestion(find('Achilles'), ctx, rngStartingWith(0.9, `achilles${seed}`));
-        assert.ok(!achilles.choices.some(choice => choice.label === 'římská'));
+    // Mytologii, kterou určuje kategorie (a ikona na štítku otázky: meč u severské, pyramida u egyptské), se otázka neptá;
+    // u řeckého hrdiny bez římského protějšku by zbyla jediná možnost z kategorie Řecká a římská mytologie
+    for (const name of ['Thór', 'Marduk', 'Anubis', 'Achilles']) {
+        assert.equal(mytologie.specialQuestion(find(name), ctx, rngStartingWith(0.9)), null, name);
     }
     // Postavy dvou mytologií, české pověsti a bytosti celé Evropy se na mytologii neptají
     for (const name of ['Apollón', 'Libuše', 'Drak', 'Sfinx', 'Golem', 'Ježibaba']) {
@@ -133,7 +142,10 @@ test('mytologie: otázka „Ze které mytologie je?“ jen u postav jediné myto
     assert.match(mytologie.censor('myth', 'Bůh řeky Nil.', find('Hapi'), ctx), /řeky/);
     // Nápověda s fotkou je až poslední – obraz (egyptské malby) mytologii prozradí nejvíc
     assert.ok(['photo', 'visual'].includes(mytologie.hints(find('Thór'), ctx, 'myth').pop().kind));
-    assert.equal(mytologie.specialQuestion(find('Thór'), ctx, rngStartingWith(0.5)), null);
+    assert.equal(mytologie.specialQuestion(find('Valkýra'), ctx, rngStartingWith(0.5)), null);
+    // Jméno národa prozradí mytologii stejně jako přídavné jméno (Marduk: „Národní bůh Babyloňanů.“)
+    assert.doesNotMatch(mytologie.censor('myth', 'Národní bůh Babyloňanů, ctěný i Asyřany.', find('Marduk'), ctx), /Babyl|Asyř/);
+    assert.doesNotMatch(mytologie.censor('myth', 'Bůh, kterého uctívali Egypťané i Číňané.', find('Anubis'), ctx), /Egyp|Čí/);
 });
 
 test('mytologie: otázka na jméno – zakrytí, nápovědy, možnosti a psané odpovědi', () => {

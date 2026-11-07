@@ -61,7 +61,7 @@
         { id: 'bez-napovedy', icon: 'eye-off', target: 15, xp: 100, metric: 'noHint', title: (t) => `Odpověz správně na ${plural(t, 'otázku', 'otázky', 'otázek')} bez nápovědy` },
         { id: 'dny', icon: 'calendar-check', target: 4, xp: 50, metric: 'days', title: (t) => `Hrej ${plural(t, 'den', 'různé dny', 'různých dní')}` },
         { id: 'poznane', icon: 'book-open', target: 15, xp: 100, metric: 'learned', title: (t) => `Poznej ${plural(t, 'novou položku', 'nové položky', 'nových položek')}` },
-        { id: 'opakovani', icon: 'repeat', target: 20, xp: 100, metric: 'reviewed', title: (t) => `Opakuj ${plural(t, 'kartu', 'karty', 'karet')}` },
+        { id: 'opakovani', icon: 'repeat', target: 20, xp: 100, metric: 'reviewed', title: (t) => `Procvič ${plural(t, 'špatnou odpověď', 'špatné odpovědi', 'špatných odpovědí')}` },
         { id: 'chyby', icon: 'repeat', target: 10, xp: 50, metric: 'fixed', title: (t) => `Oprav ${plural(t, 'dřívější chybu', 'dřívější chyby', 'dřívějších chyb')}` },
         { id: 'vyzvy', icon: 'swords', target: 3, xp: 100, multi: true, metric: 'challenges', title: (t) => `Dohraj ${plural(t, 'výzvu', 'výzvy', 'výzev')}` },
         { id: 'vyhry', icon: 'trophy', target: 2, xp: 150, multi: true, metric: 'wins', title: (t) => `Vyhraj ${plural(t, 'výzvu', 'výzvy', 'výzev')}` },

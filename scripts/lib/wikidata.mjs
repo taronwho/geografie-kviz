@@ -18,8 +18,8 @@ export const CONTINENTS = { Q46: 'EU', Q48: 'AS', Q15: 'AF', Q49: 'NA', Q18: 'SA
 export const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 // Dotaz SPARQL s opakováním při přetížení (429, 5xx) i výpadku spojení
-export const sparql = async (query, endpoint = ENDPOINT) => {
-    for (let attempt = 1; attempt <= 6; attempt++) {
+export const sparql = async (query, endpoint = ENDPOINT, attempts = 6) => {
+    for (let attempt = 1; attempt <= attempts; attempt++) {
         let status;
         try {
             const response = await fetch(endpoint, {
@@ -32,12 +32,12 @@ export const sparql = async (query, endpoint = ENDPOINT) => {
         } catch (error) {
             status = error.message;
         }
-        console.warn(`  ${status}, zkouším znovu (${attempt}/6)`);
+        console.warn(`  ${status}, zkouším znovu (${attempt}/${attempts})`);
         await sleep(15000 * attempt);
     }
     throw new Error('Wikidata neodpovídají');
 };
-export const qlever = (query) => sparql(QLEVER_PREFIXES + query, QLEVER);
+export const qlever = (query, attempts) => sparql(QLEVER_PREFIXES + query, QLEVER, attempts);
 
 export const id = (uri) => uri.split('/').pop();
 export const round = (n, digits = 0) => Math.round(n * 10 ** digits) / 10 ** digits;
@@ -46,7 +46,7 @@ export const values = (qids) => qids.map(q => 'wd:' + q).join(' ');
 // Souřadnice na jiném tělese (Olympus Mons na Marsu) mají před bodem odkaz na glóbus – ty vynecháme
 export const parsePoint = (wkt) => {
     if (!wkt || wkt.trim().startsWith('<')) return null;
-    const match = /Point\(([-\d.eE]+) ([-\d.eE]+)\)/.exec(wkt);
+    const match = /Point\(([-\d.eE]+) ([-\d.eE]+)\)/i.exec(wkt);
     return match ? { lon: round(Number(match[1]), 3), lat: round(Number(match[2]), 3) } : null;
 };
 
@@ -107,7 +107,25 @@ export const cleanDescription = (text) => typeof text !== 'string' ? text : text
     .replace(/\s*\([^)]*$/, '')
     .replace(/\s{2,}/g, ' ')
     .replace(/[\s,;]+$/, '')
+    // Tečka na konci: hra za krátký popis tečku přidává sama („Americký herec..“, „př. n. l..“)
+    .replace(/\.+$/, '')
     .trim();
+
+// Druh stavby podle jejího jména: Wikidata mají u zámků „hrad“ (castle), u kostela „katedrála“, u rotundy „kaple“ –
+// štítek otázky by pak odporoval názvu (Zámek Kroměříž – hrad). Když název začíná druhem stavby a štítek je jiný druh,
+// platí druh z názvu; když název druh štítku obsahuje (Mešita-katedrála, Zámek … – muzeum), štítek zůstane
+const BUILDING_TYPES = ['kostel', 'katedrála', 'bazilika', 'chrám', 'kaple', 'rotunda', 'klášter', 'mešita', 'synagoga', 'hrad', 'zámek', 'palác', 'pevnost',
+    'věž', 'most', 'muzeum', 'divadlo', 'radnice', 'nádraží', 'stadion', 'pagoda'];
+const COMPATIBLE = new Set(['bazilika:katedrála', 'katedrála:bazilika', 'kostel:bazilika', 'kaple:kostel']);
+const typeWordOf = (text) => BUILDING_TYPES.find(word => new RegExp(`(?<![\\p{L}])${word}(?![\\p{L}])`, 'iu').test(text || ''));
+export const buildingTypeFromName = (name, ty) => {
+    if (!name || !ty) return ty;
+    const leading = BUILDING_TYPES.find(word => new RegExp(`^${word}(?![\\p{L}])`, 'iu').test(name));
+    const typed = typeWordOf(ty);
+    // „Chrám“ je obecné slovo (kostel, katedrála i mešita); bazilika může být i katedrálou a kostel bazilikou
+    if (!leading || !typed || leading === typed || leading === 'chrám' || COMPATIBLE.has(`${leading}:${typed}`)) return ty;
+    return new RegExp(`(?<![\\p{L}])${typed}(?![\\p{L}])`, 'iu').test(name) ? ty : leading;
+};
 
 // Zapíše data tématu; okruhy s méně než 5 položkami vynechá (i z položek), aby v učení nebyly skoro prázdné
 export const writeTopic = (topicId, { collections: allCollections, items }) => {

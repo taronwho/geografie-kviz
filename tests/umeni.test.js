@@ -35,7 +35,12 @@ test('umění: známé obrazy, sochy a umělci, česká stopa', () => {
     // Mezi umělci nejsou spisovatelé a herci, kteří taky malovali
     assert.ok(!data.items.some(item => ['Johann Wolfgang Goethe', 'Karel Čapek', 'Chalíl Džibrán', 'Dennis Hopper', 'Hermann Hesse'].includes(item.n)));
     // Díla mají obrázek, název bez upřesnění v závorce a žádné nevhodné akty
-    assert.ok(data.items.filter(item => item.c !== 'umelci').every(item => item.im && item.ih && !/\(/.test(item.n)));
+    assert.ok(data.items.filter(item => item.c === 'obrazy' || item.c === 'sochy').every(item => item.im && item.ih && !/\(/.test(item.n)));
+    // Nové okruhy: směry mají popis a dobu, fotografové a ilustrátoři narození; aspoň 400 známých a 1500 položek
+    assert.ok(data.items.filter(item => item.c === 'smery').every(item => item.d && item.f.y !== undefined && !/\(/.test(item.n)));
+    assert.ok(data.items.filter(item => item.c === 'fotografove' || item.c === 'ilustratori').every(item => item.f.born !== undefined && item.d));
+    assert.ok(data.items.filter(item => item.k).length >= 400 && data.items.length >= 1500);
+    for (const name of ['Impresionismus', 'Robert Capa', 'Henri Cartier-Bresson']) assert.equal(find(name).k, 1, `${name} má být známé`);
     assert.ok(!data.items.some(item => item.n === 'Původ světa'));
 });
 

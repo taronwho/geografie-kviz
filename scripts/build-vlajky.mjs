@@ -6,9 +6,10 @@
 import { inflateSync } from 'node:zlib';
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { qlever, sparql, id, values, parsePoint, fileName, thumbHash, compact, cached, inBatches, readCountries, writeTopic, sleep, CZECHIA } from './lib/wikidata.mjs';
+import { REGION_COUNTRIES, NOT_A_REGION, CITY_MIN_POPULATION, MAX_CITIES, HISTORICAL_TITLES, KNOWN_HISTORICAL, HISTORICAL_SKIP_FILE, HISTORICAL_FILES, TERRITORY_TITLES, ORGANIZATION_TITLES } from './lib/vlajky-extra.mjs';
 
 // QLever, a když je přetížený, query.wikidata.org (dotazy jsou malé, zvládne je i ten)
-const run = (query) => qlever(query).catch(() => sparql(query));
+const run = (query) => qlever(query, 2).catch(() => sparql(query));
 
 const countries = readCountries();
 const STATE_IDS = Object.keys(countries);
@@ -16,9 +17,13 @@ const USER_AGENT = 'MudrlantBuild/1.0 (https://github.com/taronwho/mudrlant)';
 
 // Kolik nejznámějších vlajek a znaků (podle počtu jazykových verzí článku o státu) patří mezi známé
 const KNOWN_FLAGS = 90;
+// Kolik nejznámějších regionů, velkých měst a nových území a organizací (podle počtu jazykových verzí článku) patří mezi známé
+const KNOWN_EXTRA = { regiony: 35, uzemi: 12 };
+// Vlajky, které zná i ten, kdo ostatní nepoznává, ač státy nejsou mezi 90 nejznámějšími (Monako, Kuba, Severní Korea, Nepál…)
+const KNOWN_FLAG_EXTRA = ['Q235', 'Q241', 'Q423', 'Q878', 'Q837', 'Q865', 'Q347', 'Q233', 'Q229', 'Q77', 'Q836', 'Q810', 'Q117', 'Q924', 'Q711', 'Q236', 'Q221', 'Q238', 'Q804', 'Q733', 'Q750', 'Q736', 'Q854', 'Q805', 'Q813'];
 // Státní znaky zná běžný člověk jen u pár států (sousedé, velmoci, výrazné znaky) – podle počtu článků by mezi
 // známými byly i znaky Ázerbájdžánu či Thajska
-const KNOWN_ARMS = ['Q213', 'Q214', 'Q183', 'Q40', 'Q36', 'Q28', 'Q39', 'Q30', 'Q16', 'Q96', 'Q159', 'Q212', 'Q145', 'Q142', 'Q29', 'Q222', 'Q17', 'Q668', 'Q79'];
+const KNOWN_ARMS = ['Q213', 'Q214', 'Q183', 'Q40', 'Q36', 'Q28', 'Q39', 'Q30', 'Q16', 'Q96', 'Q159', 'Q212', 'Q145', 'Q142', 'Q29', 'Q222', 'Q17', 'Q668', 'Q79', 'Q224', 'Q215', 'Q235', 'Q237', 'Q34', 'Q35'];
 // Známá území a organizace (ostatní mezi méně známými)
 const KNOWN_OTHERS = ['Q458', 'Q1065', 'Q7184', 'Q21', 'Q22', 'Q980', 'Q223', 'Q1183', 'Q8646', 'Q1439', 'Q99', 'Q782', 'Q1410', 'Q4628', 'Q797'];
 // Sousedé Česka (okruh Česko a sousedé)
@@ -49,7 +54,14 @@ const CZ_TOWN = 'Q15978299';
 const CZ_STATUTORY = 'Q257978';
 const CZ_REGIONAL_CAPITAL = 'Q12031379';
 const PRAGUE = 'Q1085';
-const CZ_TOWN_MIN_POPULATION = 20000;
+// Města (všechna se znakem), obce od tohoto počtu obyvatel a městské části Prahy; známá jsou města nad CZ_KNOWN_POPULATION
+// a krajská a statutární
+const CZ_MUNICIPALITY = 'Q5153359';
+const CZ_PRAGUE_PART = 'Q75338598';
+const CZ_MUNICIPALITY_MIN_POPULATION = 3000;
+const CZ_KNOWN_POPULATION = 20000;
+// Turisticky proslulá města, která zná každý, i když jsou malá
+const CZ_KNOWN_TOWNS = ['Český Krumlov', 'Kutná Hora', 'Telč', 'Litomyšl', 'Kroměříž', 'Mikulov', 'Lednice', 'Karlštejn', 'Třeboň', 'Špindlerův Mlýn', 'Nové Město na Moravě', 'Terezín', 'Lidice', 'Kolín'];
 // Malý znak Česka je zároveň znakem Čech – psaná odpověď „Česko“ u Čech proto platí taky
 const CZ_LANDS = { Q39193: ['Čechy', ['Česko', 'Česká republika']], Q43266: ['Morava', []], Q45551: ['Slezsko', ['České Slezsko']] };
 
@@ -605,7 +617,7 @@ const symbolIds = [...states.values()].flatMap(state => [state.flag, state.arms]
 const czechRows = await cached('vlajky-czech', async () => {
     const rows = await run(`
 SELECT ?item ?type ?t ?label ?pop ?img ?coord ?kraj ?sl ?area WHERE {
-  VALUES ?type { wd:${CZ_REGION} wd:${CZ_TOWN} }
+  VALUES ?type { wd:${CZ_REGION} wd:${CZ_TOWN} wd:${CZ_MUNICIPALITY} wd:${CZ_PRAGUE_PART} }
   ?item wdt:P17 wd:${CZECHIA} ; wdt:P31 ?type ; wdt:P94 ?img ; wikibase:sitelinks ?sl .
   ?a schema:about ?item ; schema:isPartOf <https://cs.wikipedia.org/> ; schema:name ?t .
   ?item rdfs:label ?label FILTER(LANG(?label) = "cs")
@@ -613,6 +625,7 @@ SELECT ?item ?type ?t ?label ?pop ?img ?coord ?kraj ?sl ?area WHERE {
   OPTIONAL { ?item wdt:P625 ?coord }
   OPTIONAL { ?item wdt:P2046 ?area }
   OPTIONAL { ?item wdt:P131+ ?kraj . ?kraj wdt:P31 wd:${CZ_REGION} }
+  FILTER(?type != wd:${CZ_MUNICIPALITY} || (BOUND(?pop) && ?pop >= ${CZ_MUNICIPALITY_MIN_POPULATION}))
 }`);
     const extra = await run(`
 SELECT ?item ?type WHERE { VALUES ?type { wd:${CZ_STATUTORY} wd:${CZ_REGIONAL_CAPITAL} } ?item wdt:P31 ?type ; wdt:P17 wd:${CZECHIA} }`);
@@ -719,7 +732,7 @@ for (const state of stateEntries) {
     if (flagFile && flag && flag.t) {
         items.push(compact({
             q: state.flag, t: flag.t, ...base, c: 'vlajka',
-            k: stateRank.get(state.q) < KNOWN_FLAGS || state.q === CZECHIA ? 1 : 0,
+            k: stateRank.get(state.q) < KNOWN_FLAGS || KNOWN_FLAG_EXTRA.includes(state.q) || state.q === CZECHIA ? 1 : 0,
             d: flag.d, im: flagFile, ih: thumbHash(flagFile),
             cw: censorWordsOf(flag.t),
             f: compact({ ...facts, year: yearOfDate(flag.year) }),
@@ -759,16 +772,18 @@ const regionCapitalOf = new Map();
 for (const entry of czechEntries.values()) {
     if (regionalCapitals.has(entry.q)) for (const kraj of entry.krajIds) regionCapitalOf.set(kraj, entry.n);
 }
-const KNOWN_TOWNS = 12;
+const townKind = (entry) => entry.q === PRAGUE || entry.types.has(CZ_TOWN) ? 'město' : entry.types.has(CZ_PRAGUE_PART) ? 'městská část' : 'obec';
 const towns = [...czechEntries.values()]
-    .filter(entry => entry.q === PRAGUE || (entry.types.has(CZ_TOWN) && (statutory.has(entry.q) || regionalCapitals.has(entry.q) || entry.pop >= CZ_TOWN_MIN_POPULATION)))
+    .filter(entry => entry.q === PRAGUE || entry.types.has(CZ_TOWN) || entry.types.has(CZ_PRAGUE_PART) || entry.types.has(CZ_MUNICIPALITY))
     .sort((a, b) => (b.pop || 0) - (a.pop || 0));
-for (const [index, town] of towns.entries()) {
+for (const town of towns) {
     const point = pointOf(town.coord);
     const kraj = [...town.krajIds].map(q => regionNames.get(q)).find(Boolean);
+    const kind = townKind(town);
+    const known = kind === 'město' && (town.q === PRAGUE || town.pop >= CZ_KNOWN_POPULATION || regionalCapitals.has(town.q) || statutory.has(town.q) || CZ_KNOWN_TOWNS.includes(town.n));
     items.push(compact({
-        q: town.q, t: town.t, n: town.n.replace(/ \(.*\)$/, ''), c: 'cesko', k: index < KNOWN_TOWNS || regionalCapitals.has(town.q) ? 1 : 0,
-        ty: 'město', cz: 1, co: [CZECHIA], la: point && point.lat, lo: point && point.lon,
+        q: town.q, t: town.t, n: town.n.replace(/ \(.*\)$/, ''), c: 'cesko', k: known ? 1 : 0,
+        ty: kind, cz: 1, co: [CZECHIA], la: point && point.lat, lo: point && point.lon,
         im: town.img, ih: thumbHash(town.img),
         f: compact({ pop: town.pop, kraj: town.q === PRAGUE ? undefined : kraj, capital: regionalCapitals.has(town.q) ? 1 : undefined, statutory: statutory.has(town.q) ? 1 : undefined })
     }));
@@ -821,12 +836,159 @@ for (const [q, other] of others) {
     }));
 }
 
-// Stejný název dvakrát v jedné kategorii (stát i území) by byl sporný – zůstane první
+// --- 4b. Regiony států, velká města, zaniklé státy, další území a organizace (lib/vlajky-extra.mjs) ---
+const DETAIL_UNIONS = `
+  { ?item p:P41 ?s . ?s ps:P41 ?v ; wikibase:rank ?rank . OPTIONAL { ?s pq:P582 ?end } BIND("flagImg" AS ?p) }
+  UNION { ?item p:P94 ?s . ?s ps:P94 ?v ; wikibase:rank ?rank . OPTIONAL { ?s pq:P582 ?end } BIND("armsImg" AS ?p) }
+  UNION { ?a schema:about ?item ; schema:isPartOf <https://cs.wikipedia.org/> ; schema:name ?v . BIND("t" AS ?p) }
+  UNION { ?item rdfs:label ?v FILTER(LANG(?v) = "cs") BIND("n" AS ?p) }
+  UNION { ?item wdt:P625 ?v BIND("coord" AS ?p) }
+  UNION { ?item wdt:P17 ?v BIND("co" AS ?p) }
+  UNION { ?item wdt:P36 ?x . ?x rdfs:label ?v FILTER(LANG(?v) = "cs") BIND("cap" AS ?p) }
+  UNION { ?item wdt:P2046 ?v BIND("area" AS ?p) }
+  UNION { ?item wdt:P1082 ?v BIND("pop" AS ?p) }
+  UNION { ?item wdt:P571 ?v BIND("start" AS ?p) }
+  UNION { ?item wdt:P576 ?v BIND("endDate" AS ?p) }
+  UNION { ?item wdt:P1376 ?v BIND("capOf" AS ?p) }
+  UNION { ?item wdt:P30 ?v BIND("cont" AS ?p) }
+  UNION { ?item wikibase:sitelinks ?v BIND("sl" AS ?p) }`;
+// Podrobnosti položek: obrázky (vlajka, znak), název, souřadnice, země…
+const fetchDetails = async (name, qids) => {
+    const rows = await cached(name, async () => {
+        const result = [];
+        await inBatches(qids, 40, (batch) => `SELECT ?item ?p ?v ?rank ?end WHERE { VALUES ?item { ${values(batch)} } ${DETAIL_UNIONS} }`, (row) => result.push(simplify(row)), run);
+        return result;
+    });
+    const details = new Map(qids.map(q => [q, { flagImgs: [], armsImgs: [], co: [], capOf: [], cont: [] }]));
+    for (const row of rows) {
+        const entry = details.get(row.item);
+        if (!entry || row.v === undefined) continue;
+        if (row.p === 'flagImg' || row.p === 'armsImg') entry[`${row.p}s`].push({ file: fileName(row.v), rank: row.rank, end: row.end });
+        else if (['co', 'capOf', 'cont'].includes(row.p)) { if (!entry[row.p].includes(row.v)) entry[row.p].push(row.v); }
+        else if (row.p === 'pop' || row.p === 'area' || row.p === 'sl') entry[row.p] = Math.max(entry[row.p] || 0, Number(row.v));
+        else if (!(row.p in entry)) entry[row.p] = row.v;
+    }
+    return details;
+};
+const SYMBOL_EXISTS = '{ ?item wdt:P41 ?symbolFlag } UNION { ?item wdt:P94 ?symbolArms }';
+const CS_ARTICLE = '?a schema:about ?item ; schema:isPartOf <https://cs.wikipedia.org/> .';
+// Položky podle názvu článku na české Wikipedii (s vlajkou)
+const idsByTitles = async (name, titles) => {
+    const rows = await cached(name, async () => {
+        const result = [];
+        for (let i = 0; i < titles.length; i += 60) {
+            result.push(...(await run(`SELECT DISTINCT ?item ?t ?sl WHERE { VALUES ?t { ${titles.slice(i, i + 60).map(title => `"${title}"@cs`).join(' ')} }
+  ?a schema:name ?t ; schema:isPartOf <https://cs.wikipedia.org/> ; schema:about ?item . ?item wikibase:sitelinks ?sl . ${SYMBOL_EXISTS} }`)).map(simplify));
+        }
+        return result;
+    });
+    return [...new Map(rows.map(row => [row.item, row])).values()];
+};
+const countryOf = (entry, exclude) => entry.co.map(c => STATE_ALIASES[c] || c).find(c => countries[c] && c !== exclude);
+
+// Regiony první úrovně vybraných zemí (státy USA, spolkové země, kanadské provincie…): vlajka, jinak znak
+const regionIds = await cached('vlajky-regions', async () => (await run(`SELECT DISTINCT ?item ?c ?sl WHERE {
+  VALUES ?c { ${values(Object.keys(REGION_COUNTRIES))} }
+  ?item wdt:P17 ?c ; wdt:P31/wdt:P279* wd:Q10864048 ; wikibase:sitelinks ?sl .
+  FILTER NOT EXISTS { ?item wdt:P576 ?ended }
+  ${SYMBOL_EXISTS}
+  ${CS_ARTICLE}
+}`)).map(simplify));
+const regionCountry = new Map();
+for (const row of regionIds) if (!regionCountry.has(row.item)) regionCountry.set(row.item, row.c);
+const regionsByCountry = new Map();
+for (const row of regionIds) {
+    if (regionCountry.get(row.item) !== row.c || (regionsByCountry.get(row.c) || []).some(other => other.item === row.item)) continue;
+    regionsByCountry.set(row.c, [...(regionsByCountry.get(row.c) || []), row]);
+}
+const selectedRegions = [...regionsByCountry.entries()].filter(([c]) => REGION_COUNTRIES[c]).flatMap(([c, list]) => list.sort((a, b) => Number(b.sl) - Number(a.sl)).slice(0, REGION_COUNTRIES[c]));
+const regionDetails = await fetchDetails('vlajky-region-details', selectedRegions.map(row => row.item));
+const extraItems = [];
+for (const [q, entry] of regionDetails) {
+    const flagFile = currentImage(entry.flagImgs);
+    const file = flagFile || currentImage(entry.armsImgs);
+    const country = regionCountry.get(q);
+    if (!file || !entry.t || !entry.n || !countries[country] || NOT_A_REGION.test(entry.n)) continue;
+    const point = pointOf(entry.coord);
+    extraItems.push(compact({
+        q, t: entry.t, n: entry.n.replace(/ \(.*\)$/, ''), c: 'regiony', k: 0, it: flagFile ? 'v' : 'z', co: [country], la: point && point.lat, lo: point && point.lon,
+        im: file, ih: thumbHash(file), f: compact({ cap: entry.cap, area: entry.area ? Math.round(entry.area) : undefined, pop: entry.pop ? Math.round(entry.pop) : undefined }), sl: entry.sl
+    }));
+}
+
+// Velká města (nad milion obyvatel) a hlavní města států, kromě českých: znak, jinak vlajka
+const cityIds = await cached('vlajky-cities', async () => (await run(`SELECT DISTINCT ?item ?sl WHERE {
+  ?item wdt:P31/wdt:P279* wd:Q515 ; wikibase:sitelinks ?sl .
+  { ?item wdt:P1082 ?pop FILTER(?pop >= ${CITY_MIN_POPULATION}) } UNION { ?item wdt:P1376 ?state . VALUES ?state { ${values(STATE_IDS)} } }
+  FILTER NOT EXISTS { ?item wdt:P17 wd:${CZECHIA} }
+  ${SYMBOL_EXISTS}
+  ${CS_ARTICLE}
+}`)).map(simplify));
+const selectedCities = [...new Map(cityIds.map(row => [row.item, row])).values()].sort((a, b) => Number(b.sl) - Number(a.sl)).slice(0, MAX_CITIES);
+const cityDetails = await fetchDetails('vlajky-city-details', selectedCities.map(row => row.item));
+for (const [q, entry] of cityDetails) {
+    const armsFile = currentImage(entry.armsImgs);
+    const file = armsFile || currentImage(entry.flagImgs);
+    const country = countryOf(entry);
+    if (!file || !entry.t || !entry.n || !country) continue;
+    const point = pointOf(entry.coord);
+    extraItems.push(compact({
+        q, t: entry.t, n: entry.n.replace(/ \(.*\)$/, ''), c: 'mesta', k: 0, it: armsFile ? 'z' : 'v', co: [country], la: point && point.lat, lo: point && point.lon,
+        im: file, ih: thumbHash(file),
+        f: compact({ pop: entry.pop ? Math.round(entry.pop) : undefined, capital: entry.capOf.some(state => countries[state]) ? 1 : undefined }), sl: entry.sl
+    }));
+}
+
+// Zaniklé státy
+const historicalIds = await idsByTitles('vlajky-historical', HISTORICAL_TITLES);
+const historicalDetails = await fetchDetails('vlajky-historical-details', historicalIds.map(row => row.item));
+for (const [q, entry] of historicalDetails) {
+    const file = HISTORICAL_FILES[q] || currentImage(entry.flagImgs) || (entry.flagImgs.find(s => !/Deprecated/.test(s.rank)) || {}).file;
+    if (!file || !entry.t || !entry.n || HISTORICAL_SKIP_FILE.test(file) || q === 'Q7318') continue;
+    const point = pointOf(entry.coord);
+    extraItems.push(compact({
+        q, t: entry.t, n: capitalize(entry.n).replace(/ \(.*\)$/, ''), c: 'historie', k: KNOWN_HISTORICAL.includes(entry.t) ? 1 : 0, it: 'v', la: point && point.lat, lo: point && point.lon,
+        im: file, ih: thumbHash(file), f: compact({ from: yearOfDate(entry.start), to: yearOfDate(entry.endDate) }), sl: entry.sl
+    }));
+}
+
+// Další území a organizace: vlajka dané entity (okruh „Území a organizace“)
+for (const [titles, kind] of [[TERRITORY_TITLES, 'území'], [ORGANIZATION_TITLES, 'organizace']]) {
+    const ids = await idsByTitles(`vlajky-${kind === 'území' ? 'territories' : 'organizations'}`, titles);
+    const details = await fetchDetails(`vlajky-${kind === 'území' ? 'territory' : 'organization'}-details`, ids.map(row => row.item));
+    for (const [q, entry] of details) {
+        const file = currentImage(entry.flagImgs);
+        if (!file || !entry.t || !entry.n) continue;
+        const country = countryOf(entry, q);
+        const point = pointOf(entry.coord);
+        extraItems.push(compact({
+            q, t: entry.t, n: capitalize(entry.n).replace(/ \(.*\)$/, ''), c: 'uzemi', k: 0, ty: kind === 'organizace' && /organizace/i.test(entry.n + entry.t) ? 'sdružení' : kind, gen: 1, co: country && kind === 'území' ? [country] : undefined,
+            la: kind === 'území' && point ? point.lat : undefined, lo: kind === 'území' && point ? point.lon : undefined, im: file, ih: thumbHash(file),
+            f: compact({ cont: kind === 'území' ? (entry.cont.map(c => CONTINENT_IDS[c]).find(Boolean) || (country && countries[country].continent) || undefined) : undefined, year: kind === 'organizace' ? yearOfDate(entry.start) : undefined }),
+            sl: entry.sl
+        }));
+    }
+}
+// Známá města: velkoměsta nad 4 miliony a hlavní města 70 nejznámějších států
+for (const item of extraItems.filter(entry => entry.c === 'mesta')) {
+    item.k = (item.f && item.f.pop >= 4000000) || (item.f && item.f.capital && stateRank.get(item.co[0]) < 70) ? 1 : 0;
+}
+// Známější: nejznámější regiony a nová území podle počtu jazykových verzí článku
+for (const [category, count] of Object.entries(KNOWN_EXTRA)) {
+    extraItems.filter(item => item.c === category).sort((a, b) => b.sl - a.sl).slice(0, count).forEach(item => { item.k = 1; });
+}
+items.push(...extraItems);
+
+// Stejný název dvakrát v jedné kategorii (stát i území) by byl sporný – zůstane první; stejný obrázek dvakrát také
 const seen = new Set();
+const seenImages = new Set();
+const seenIds = new Set();
 const unique = items.filter(item => {
     const key = `${item.c}:${item.n.toLocaleLowerCase('cs')}`;
-    if (seen.has(key)) return false;
+    if (seen.has(key) || seenImages.has(item.im) || seenIds.has(item.q)) return false;
+    seenIds.add(item.q);
     seen.add(key);
+    seenImages.add(item.im);
     return true;
 });
 
@@ -842,7 +1004,7 @@ const signatures = new Map();
     const save = () => { if (file) { mkdirSync(dir, { recursive: true }); writeFileSync(file, JSON.stringify([...signatures])); } };
     let missing = 0;
     // Nejdřív vlajky (na jejich podobnosti záleží nejvíc), pak znaky
-    const order = ['vlajka', 'uzemi', 'znak', 'cesko'];
+    const order = ['vlajka', 'uzemi', 'znak', 'cesko', 'regiony', 'mesta', 'historie'];
     const queue = [...unique].sort((a, b) => order.indexOf(a.c) - order.indexOf(b.c));
     for (const [index, item] of queue.entries()) {
         if (signatures.has(item.im)) continue;
@@ -897,9 +1059,27 @@ const COLLECTIONS = [
     { id: 'slunce', label: 'Vlajky se sluncem', test: item => isFlag(item) && shows(item, /slunce/iu) },
     { id: 'cesko-a-sousede', label: 'Česko a sousedé', text: 'Vlajky a znaky', test: item => (isFlag(item) || item.c === 'znak') && NEIGHBOURS.includes(stateOf(item)) },
     { id: 'znaky-evropy', label: 'Státní znaky Evropy', test: item => item.c === 'znak' && continentOf(item) === 'EU' },
-    { id: 'kraje', label: 'Kraje a historické země', test: item => item.c === 'cesko' && item.ty !== 'město' },
+    { id: 'kraje', label: 'Kraje a historické země', test: item => item.c === 'cesko' && (item.ty === 'kraj' || item.ty === 'historická země') },
+    { id: 'velka-mesta-cesko', label: 'Velká česká města', text: 'Nad 50 000 obyvatel', test: item => item.c === 'cesko' && item.ty === 'město' && (item.f || {}).pop >= 50000 },
+    { id: 'mensi-mesta-cesko', label: 'Menší česká města', text: 'Do 10 000 obyvatel', test: item => item.c === 'cesko' && item.ty === 'město' && (item.f || {}).pop < 10000 },
+    { id: 'obce-cesko', label: 'České obce', text: 'Obce nad 3 000 obyvatel', test: item => item.c === 'cesko' && item.ty === 'obec' },
+    { id: 'prazske-casti', label: 'Městské části Prahy', test: item => item.c === 'cesko' && item.ty === 'městská část' },
+    { id: 'staty-usa', label: 'Státy USA', test: item => item.c === 'regiony' && item.co[0] === 'Q30' },
+    { id: 'spolkove-zeme', label: 'Německé spolkové země', test: item => item.c === 'regiony' && item.co[0] === 'Q183' },
+    { id: 'kanada-australie', label: 'Kanada a Austrálie', text: 'Provincie a státy', test: item => item.c === 'regiony' && ['Q16', 'Q408'].includes(item.co[0]) },
+    { id: 'alpske-zeme', label: 'Rakousko a Švýcarsko', text: 'Spolkové země a kantony', test: item => item.c === 'regiony' && ['Q40', 'Q39'].includes(item.co[0]) },
+    { id: 'rusko-ukrajina', label: 'Rusko a Ukrajina', text: 'Oblasti a republiky', test: item => item.c === 'regiony' && ['Q159', 'Q212'].includes(item.co[0]) },
+    { id: 'polsko-slovensko-chorvatsko', label: 'Polsko, Slovensko a Chorvatsko', test: item => item.c === 'regiony' && ['Q36', 'Q214', 'Q224'].includes(item.co[0]) },
+    { id: 'jizni-evropa', label: 'Španělsko, Itálie a Francie', test: item => item.c === 'regiony' && ['Q29', 'Q38', 'Q142'].includes(item.co[0]) },
+    { id: 'severozapadni-evropa', label: 'Severní a západní Evropa', text: 'Skandinávie, Benelux, Británie', test: item => item.c === 'regiony' && ['Q34', 'Q20', 'Q33', 'Q55', 'Q31', 'Q145'].includes(item.co[0]) },
+    { id: 'latinska-amerika', label: 'Latinská Amerika', text: 'Brazílie, Mexiko, Argentina, Chile, Peru', test: item => item.c === 'regiony' && ['Q155', 'Q96', 'Q414', 'Q298', 'Q419'].includes(item.co[0]) },
+    { id: 'hlavni-mesta', label: 'Hlavní města světa', test: item => item.c === 'mesta' && item.f && item.f.capital === 1 },
+    { id: 'mesta-evropy', label: 'Města Evropy', test: item => item.c === 'mesta' && continentOf(item) === 'EU' },
+    { id: 'mesta-asie', label: 'Města Asie', test: item => item.c === 'mesta' && continentOf(item) === 'AS' },
+    { id: 'mesta-ameriky', label: 'Města Ameriky', test: item => item.c === 'mesta' && ['NA', 'SA'].includes(continentOf(item)) },
+    { id: 'mesta-afriky-oceanie', label: 'Města Afriky a Oceánie', test: item => item.c === 'mesta' && ['AF', 'OC'].includes(continentOf(item)) },
     { id: 'krajska-mesta', label: 'Krajská města', test: item => item.c === 'cesko' && item.ty === 'město' && (item.f.capital || item.q === PRAGUE) },
-    { id: 'organizace', label: 'Mezinárodní organizace', test: item => item.c === 'uzemi' && item.ty === 'organizace' }
+    { id: 'organizace', label: 'Mezinárodní organizace', test: item => item.c === 'uzemi' && (item.ty === 'organizace' || item.ty === 'sdružení') }
 ];
 for (const item of unique) {
     const groups = COLLECTIONS.filter(collection => collection.test(item)).map(collection => collection.id);
@@ -907,9 +1087,9 @@ for (const item of unique) {
 }
 const collections = COLLECTIONS.map(({ test, ...collection }) => collection);
 // Pomocné údaje pro okruhy už v datech nejsou potřeba
-for (const item of unique) { delete item.shows; delete item.src; }
+for (const item of unique) { delete item.shows; delete item.src; delete item.sl; }
 
-for (const category of ['vlajka', 'znak', 'cesko', 'uzemi']) {
+for (const category of ['vlajka', 'znak', 'cesko', 'uzemi', 'regiony', 'mesta', 'historie']) {
     const inCategory = unique.filter(item => item.c === category);
     console.log(`${category}: ${inCategory.length} (${inCategory.filter(item => item.k).length} známých, ${inCategory.filter(item => item.sg).length} s podpisem)`);
 }

@@ -1147,7 +1147,7 @@ grant execute on function public.dev_client_errors(), public.dev_is_admin() to a
 -- Aplikace ho po přihlášení porovná a správci (dev_admins nebo vývojářský režim) ukáže v Nastavení, že má schéma spustit znovu;
 -- tests/sql-security.test.js hlídá, že se obě čísla shodují. Funkce patří na konec souboru.
 create or replace function public.schema_version() returns integer
-language sql immutable as $$ select 1 $$;
+language sql immutable as $$ select 2 $$;
 revoke all on function public.schema_version() from public, anon;
 grant execute on function public.schema_version() to authenticated;
 -- ===== Hlášení chyb v otázkách =====
@@ -1225,7 +1225,15 @@ begin
         'turnaje_prihlasky', coalesce((select jsonb_agg(to_jsonb(e) order by e.joined_at) from public.tournament_entries e where e.user_id = uid), '[]'::jsonb),
         'turnaje_zapasy', coalesce((select jsonb_agg(to_jsonb(m)) from public.tournament_matches m where uid in (m.p1, m.p2)), '[]'::jsonb),
         'turnaje_vysledky', coalesce((select jsonb_agg(to_jsonb(t) order by t.started_at) from public.tournament_results t where t.user_id = uid), '[]'::jsonb),
-        'turnaje_zpravy', coalesce((select jsonb_agg(to_jsonb(n) order by n.created_at) from public.tournament_notices n where n.user_id = uid), '[]'::jsonb)
+        'turnaje_zpravy', coalesce((select jsonb_agg(to_jsonb(n) order by n.created_at) from public.tournament_notices n where n.user_id = uid), '[]'::jsonb),
+        -- Sociální vrstva a hlášení (tabulky jsou níž v tomto souboru; tělo funkce se kontroluje až při volání)
+        'posledni_aktivita', (select s.last_seen from public.player_seen s where s.user_id = uid),
+        'pratele', coalesce((select jsonb_agg(to_jsonb(f) order by f.created_at) from public.friendships f where uid in (f.user_id, f.friend_id)), '[]'::jsonb),
+        'zablokovani_hraci', coalesce((select jsonb_agg(to_jsonb(b) order by b.created_at) from public.player_blocks b where b.blocker = uid), '[]'::jsonb),
+        'reakce', coalesce((select jsonb_agg(to_jsonb(r) order by r.created_at) from public.match_reactions r where uid in (r.from_id, r.to_id)), '[]'::jsonb),
+        'nahlaseni_hracu', coalesce((select jsonb_agg(to_jsonb(r) order by r.created_at) from public.player_reports r where r.reporter = uid), '[]'::jsonb),
+        'hlaseni_otazek', coalesce((select jsonb_agg(to_jsonb(r) order by r.created_at) from public.question_reports r where r.user_id = uid), '[]'::jsonb),
+        'upozorneni_odbery', coalesce((select jsonb_agg(jsonb_build_object('endpoint', s.endpoint, 'vytvoren', s.created_at)) from public.push_subscriptions s where s.user_id = uid), '[]'::jsonb)
     ) into result;
     return result;
 end;
@@ -1258,11 +1266,29 @@ $$;
 revoke all on function public.export_my_data(), public.delete_my_account() from public, anon;
 grant execute on function public.export_my_data(), public.delete_my_account() to authenticated;
 -- ===== Sociální vrstva: přátelé, reakce po zápase, blokování a nahlášení =====
--- Kdy byl hráč naposled v aplikaci (touch_seen() nejvýš jednou za 5 minut; klient sloupec psát nemůže). Přátelé vidí „aktivní dnes / před 3 dny“.
-alter table public.profiles add column if not exists last_seen timestamptz;
+-- Kdy byl hráč naposled v aplikaci (touch_seen() nejvýš jednou za 5 minut; klient řádek psát nemůže). Vidí to jen přátelé („aktivní dnes / před 3 dny“)
+-- přes friends_list(), proto je to ve vlastní tabulce (sloupec v profiles by přes čtení profilů viděl kdokoli přihlášený).
+create table if not exists public.player_seen (
+    user_id uuid primary key references public.profiles (id) on delete cascade,
+    last_seen timestamptz not null default now()
+);
+alter table public.player_seen enable row level security;
+drop policy if exists "aktivita: vlastní" on public.player_seen;
+create policy "aktivita: vlastní" on public.player_seen for select to authenticated using (user_id = auth.uid());
+revoke all on public.player_seen from anon, authenticated;
+grant select on public.player_seen to authenticated;
+-- Starší verze měla sloupec profiles.last_seen: hodnoty se přenesou a sloupec zmizí
+do $$ begin
+    if exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'profiles' and column_name = 'last_seen') then
+        insert into public.player_seen (user_id, last_seen) select id, last_seen from public.profiles where last_seen is not null
+            on conflict (user_id) do update set last_seen = greatest(public.player_seen.last_seen, excluded.last_seen);
+        alter table public.profiles drop column last_seen;
+    end if;
+end $$;
 create or replace function public.touch_seen() returns void
 language sql security definer set search_path = public as $$
-    update public.profiles set last_seen = now() where id = auth.uid() and (last_seen is null or last_seen < now() - interval '5 minutes');
+    insert into public.player_seen (user_id, last_seen) select p.id, now() from public.profiles p where p.id = auth.uid()
+        on conflict (user_id) do update set last_seen = now() where public.player_seen.last_seen < now() - interval '5 minutes';
 $$;
 
 -- Blokování: zablokovaný hráč mě nenajde v hledání, nevyzve mě, nevybere se mi jako náhodný soupeř (a naopak); v žebříčku zůstává (veřejný)
@@ -1385,10 +1411,11 @@ language sql stable security definer set search_path = public as $$
         where m.user_id = auth.uid() and o.user_id in (select other from mine)
         group by o.user_id
     )
-    select p.id, p.display_name, p.avatar, p.color, p.frame, p.title_pref, p.owl, p.rating, p.last_seen, mine.status, mine.direction, mine.created_at,
+    -- Poslední aktivitu vidí jen přátelé (ne ten, komu jsem jen poslal žádost, ani ten, kdo mi ji poslal)
+    select p.id, p.display_name, p.avatar, p.color, p.frame, p.title_pref, p.owl, p.rating, case when mine.status = 'accepted' then s.last_seen end, mine.status, mine.direction, mine.created_at,
         coalesce(d.wins, 0), coalesce(d.losses, 0), coalesce(d.draws, 0)
-    from mine join public.profiles p on p.id = mine.other left join duel d on d.other = mine.other
-    order by (mine.status = 'pending' and mine.direction = 'in') desc, p.last_seen desc nulls last, p.display_name
+    from mine join public.profiles p on p.id = mine.other left join duel d on d.other = mine.other left join public.player_seen s on s.user_id = mine.other
+    order by (mine.status = 'pending' and mine.direction = 'in') desc, case when mine.status = 'accepted' then s.last_seen end desc nulls last, p.display_name
     limit 400;
 $$;
 

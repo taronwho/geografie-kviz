@@ -51,13 +51,13 @@ test('na řadě jsou karty s termínem dnes nebo dřív; text dalšího opaková
     ];
     assert.deepEqual(Review.dueCards(cards, TODAY).map(Review.keyOf), ['a:1', 'a:2']);
     assert.equal(Review.dueCount(cards, TODAY), 2);
-    assert.equal(Review.nextDueText(cards, TODAY), 'další opakování dnes');
-    assert.equal(Review.nextDueText(cards.slice(2), TODAY), 'další opakování zítra');
-    assert.equal(Review.nextDueText(cards.slice(3), TODAY), 'další opakování za 5 dní');
-    assert.equal(Review.nextDueText(cards.slice(3), '2026-11-06'), 'další opakování za 3 dny');
+    assert.equal(Review.nextDueText(cards, TODAY), 'další procvičení dnes');
+    assert.equal(Review.nextDueText(cards.slice(2), TODAY), 'další procvičení zítra');
+    assert.equal(Review.nextDueText(cards.slice(3), TODAY), 'další procvičení za 5 dní');
+    assert.equal(Review.nextDueText(cards.slice(3), '2026-11-06'), 'další procvičení za 3 dny');
     assert.equal(Review.nextDueText([], TODAY), '');
     assert.equal(Review.nextDue(cards, TODAY), '2026-11-05');
-    assert.equal(Review.summaryText({ mastered: 3, total: 5 }, cards.slice(2), TODAY), 'Zvládnuto 3 z 5, další opakování zítra');
+    assert.equal(Review.summaryText({ mastered: 3, total: 5 }, cards.slice(2), TODAY), 'Zvládnuto 3 z 5, další procvičení zítra');
     assert.equal(Review.summaryText({ mastered: 1, total: 1 }, [], TODAY), 'Zvládnuto 1 z 1');
     assert.equal(Review.cardsWord(1), '1 karta');
     assert.equal(Review.cardsWord(3), '3 karty');

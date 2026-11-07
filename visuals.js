@@ -54,12 +54,20 @@
         const height = Math.round(container.clientHeight) || 224;
         const layout = buildTimeline(spec, width);
         const svg = svgElement('svg', { viewBox: `0 0 ${width} ${height}`, class: 'absolute inset-0 h-full w-full', 'aria-hidden': 'true' });
-        const axisY = Math.round(height * 0.58);
+        // Na nízkém panelu (malý telefon) se popisky stáhnou k ose a legenda k hornímu okraji, ať se dva řádky událostí vejdou
+        const tight = height < 160;
+        const legendY = tight ? 4 : 12;
+        const anchorGap = tight ? 43 : 46;
+        const rowGap = tight ? 13 : 15;
+        const rows = layout.anchors.length ? Math.max(...layout.anchors.map(anchor => anchor.row)) + 1 : 0;
+        const below = rows ? anchorGap + (rows - 1) * rowGap + 4 : 36;
+        const above = legendY + 12 + 4 + 51;
+        const axisY = Math.max(above, Math.min(Math.round(height * 0.58), height - below));
         svg.appendChild(svgElement('line', { x1: 12, x2: width - 12, y1: axisY, y2: axisY, 'stroke-width': 2, class: 'stroke-slate-400 dark:stroke-slate-500' }));
         // Osa bez letopočtů: aspoň směr času
         if (spec.blind) {
-            svg.appendChild(svgText('dříve', { x: 14, y: axisY + 20, 'font-size': 11, 'font-weight': 600, class: 'fill-slate-400 dark:fill-slate-500' }));
-            svg.appendChild(svgText('později →', { x: width - 14, y: axisY + 20, 'text-anchor': 'end', 'font-size': 11, 'font-weight': 600, class: 'fill-slate-400 dark:fill-slate-500' }));
+            svg.appendChild(svgText('dříve', { x: 14, y: axisY + 20, 'font-size': 11, 'font-weight': 600, class: 'fill-slate-500 dark:fill-slate-400' }));
+            svg.appendChild(svgText('později →', { x: width - 14, y: axisY + 20, 'text-anchor': 'end', 'font-size': 11, 'font-weight': 600, class: 'fill-slate-500 dark:fill-slate-400' }));
         }
         for (const tick of layout.ticks) {
             svg.appendChild(svgElement('line', { x1: tick.x, x2: tick.x, y1: axisY - 5, y2: axisY + 5, 'stroke-width': 1.5, class: 'stroke-slate-400 dark:stroke-slate-500' }));
@@ -83,7 +91,7 @@
         }
         // Známé události v okolí: čárka pod osou a popisek v řádku a zarovnání, které spočítalo jádro (bez překrývání)
         for (const anchor of layout.anchors) {
-            const y = axisY + 46 + anchor.row * 15;
+            const y = axisY + anchorGap + anchor.row * rowGap;
             svg.appendChild(svgElement('line', { x1: anchor.x, x2: anchor.x, y1: axisY + 4, y2: y - 11, 'stroke-width': 1, 'stroke-dasharray': '2 2', class: 'stroke-slate-400 dark:stroke-slate-500' }));
             // Obrys v barvě pozadí, ať popisek nepřeškrtne čárka jiné události
             svg.appendChild(svgText(anchor.label, {
@@ -97,8 +105,8 @@
         if (layout.bars.some(bar => bar.kind !== 'life')) legend.push(['fill-amber-500', spec.spanLabel || 'vláda']);
         legend.forEach(([fill, text], index) => {
             const x = 14 + index * 78;
-            svg.appendChild(svgElement('rect', { x, y: 12, width: 12, height: 12, rx: 3, class: fill }));
-            svg.appendChild(svgText(text, { x: x + 17, y: 22, 'font-size': 12, 'font-weight': 600, class: 'fill-slate-600 dark:fill-slate-300' }));
+            svg.appendChild(svgElement('rect', { x, y: legendY, width: 12, height: 12, rx: 3, class: fill }));
+            svg.appendChild(svgText(text, { x: x + 17, y: legendY + 10, 'font-size': 12, 'font-weight': 600, class: 'fill-slate-600 dark:fill-slate-300' }));
         });
         container.prepend(svg);
     };
@@ -172,11 +180,11 @@
         const width = Math.round(container.clientWidth) || 360;
         const height = Math.round(container.clientHeight) || 224;
         const svg = svgElement('svg', { viewBox: `0 0 ${width} ${height}`, class: 'absolute inset-0 h-full w-full', 'aria-hidden': 'true' });
-        // 18 sloupců a 7 řádků, mezera a dva řádky lanthanoidů a aktinoidů; místo dole pro popisek
+        // 18 sloupců a 7 řádků, mezera a dva řádky lanthanoidů a aktinoidů; tabulka vyplní a vycentruje celý panel
         const gap = 1.5;
-        const cell = Math.min((width - 24) / 18, (height - 44) / 9.5);
+        const cell = Math.min((width - 24) / 18, (height - 16) / 9.5);
         const left = (width - cell * 18) / 2;
-        const top = 10;
+        const top = Math.max(8, (height - cell * 9.5) / 2);
         const yOf = (row) => top + (row - 1) * cell - (row >= 9 ? cell * 0.5 : 0);
         for (let z = 1; z <= 118; z++) {
             const position = periodicPosition(z);
@@ -217,15 +225,16 @@
         };
         svg.appendChild(svgElement('rect', { x: left, y: axisY - 6, width: right - left, height: 12, rx: 6, class: 'fill-slate-200 dark:fill-slate-700' }));
         // Popisky značek ve dvou řádcích, ať se nepřekrývají
-        (spec.ticks || []).forEach((tick, index) => {
-            const x = position(tick.value);
-            const row = index % 2;
-            svg.appendChild(svgElement('line', { x1: x, x2: x, y1: axisY - 6, y2: axisY + 10 + row * 14, 'stroke-width': 1, class: 'stroke-slate-400 dark:stroke-slate-500' }));
-            svg.appendChild(svgText(tick.label, { x, y: axisY + 22 + row * 14, 'text-anchor': x < left + 20 ? 'start' : x > right - 20 ? 'end' : 'middle', 'font-size': 11, 'font-weight': 600, class: 'fill-slate-600 dark:fill-slate-300' }));
-        });
+        // Nejdřív všechny čárky, pak popisky s obrysem v barvě pozadí – čárka druhého řádku nepřeškrtne popisek prvního
+        const ticks = (spec.ticks || []).map((tick, index) => ({ ...tick, x: position(tick.value), row: index % 2 }));
+        ticks.forEach(({ x, row }) => svg.appendChild(svgElement('line', { x1: x, x2: x, y1: axisY - 6, y2: axisY + 10 + row * 14, 'stroke-width': 1, class: 'stroke-slate-400 dark:stroke-slate-500' })));
+        ticks.forEach(({ x, row, label }) => svg.appendChild(svgText(label, {
+            x, y: axisY + 22 + row * 14, 'text-anchor': x < left + 20 ? 'start' : x > right - 20 ? 'end' : 'middle', 'font-size': 11, 'font-weight': 600,
+            'paint-order': 'stroke', 'stroke-width': 3, 'stroke-linejoin': 'round', class: 'fill-slate-600 stroke-white dark:fill-slate-300 dark:stroke-slate-800'
+        })));
         const [leftLabel, rightLabel] = spec.reverse ? [spec.maxLabel, spec.minLabel] : [spec.minLabel, spec.maxLabel];
-        if (leftLabel) svg.appendChild(svgText(leftLabel, { x: left, y: axisY - 16, 'font-size': 11, class: 'fill-slate-400 dark:fill-slate-500' }));
-        if (rightLabel) svg.appendChild(svgText(rightLabel, { x: right, y: axisY - 16, 'text-anchor': 'end', 'font-size': 11, class: 'fill-slate-400 dark:fill-slate-500' }));
+        if (leftLabel) svg.appendChild(svgText(leftLabel, { x: left, y: axisY - 16, 'font-size': 11, class: 'fill-slate-500 dark:fill-slate-400' }));
+        if (rightLabel) svg.appendChild(svgText(rightLabel, { x: right, y: axisY - 16, 'text-anchor': 'end', 'font-size': 11, class: 'fill-slate-500 dark:fill-slate-400' }));
         if (spec.value !== undefined && spec.value !== null) {
             const x = position(spec.value);
             const barX = spec.reverse ? Math.min(x, right - 6) : left;

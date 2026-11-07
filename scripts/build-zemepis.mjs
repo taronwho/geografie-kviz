@@ -5,7 +5,7 @@
 // 2. krok: podrobnosti po dávkách – článek na české Wikipedii, název, souřadnice, státy, fotka, čísla
 // 3. krok: zápis v UNESCO a okruhy pro systematické učení
 import { createRequire } from 'node:module';
-import { sparql, id, round, values, parsePoint, imageFields, cached, inBatches, readCountries, writeTopic, sleep, CZECHIA } from './lib/wikidata.mjs';
+import { sparql, id, round, values, parsePoint, imageFields, cached, inBatches, readCountries, writeTopic, sleep, CZECHIA, buildingTypeFromName } from './lib/wikidata.mjs';
 
 const { getContinent } = createRequire(import.meta.url)('../quiz-core.js');
 
@@ -238,7 +238,7 @@ for (const [qid, entry] of ordered) {
         k: known ? 1 : 0,
         la: point.lat,
         lo: point.lon,
-        ty: TYPE_OVERRIDES[qid] || typeLabelOf(category, typeId, types[typeId]),
+        ty: TYPE_OVERRIDES[qid] || (category.key === 'stavba' ? buildingTypeFromName(name, typeLabelOf(category, typeId, types[typeId])) : typeLabelOf(category, typeId, types[typeId])),
         d: v.d || undefined,
         // Jen dnešní státy (u Moskevské konzervatoře ne Sovětský svaz a Ruské impérium)
         co: category.key === 'stat' ? [qid] : detail.co.filter(country => countries[country]),

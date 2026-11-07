@@ -84,12 +84,12 @@ test('opakování s rozestupy a týdenní cíle', { skip: !chromium && 'Playwrig
         assert.equal((await tab.textContent('[data-review-due]')).replace(/\D/g, ''), '2');
         await tab.click('#btn-learn');
         await tab.waitForSelector('[data-review-section]');
-        assert.match(await tab.textContent('[data-review-section]'), /K opakování dnes \(2\)/);
+        assert.match(await tab.textContent('[data-review-section]'), /K procvičení dnes \(2\)/);
         await tab.waitForTimeout(500);
         assert.equal(await noScroll(tab), true, 'Učení bez posouvání');
         await tab.click('[data-action="review-start"]');
         await tab.waitForSelector('[data-action="choice"]');
-        assert.match(await tab.textContent('body'), /Opakování · 1\/2/);
+        assert.match(await tab.textContent('body'), /Procvičování · 1\/2/);
         for (let i = 0; i < 2; i++) {
             await tab.locator('[data-action="choice"]').first().click();
             await tab.waitForSelector('[data-action="next"]');

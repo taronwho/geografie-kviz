@@ -54,7 +54,7 @@ const setup = async (browser, options = {}) => {
         if (sessionStorage.getItem('test-storage-set')) return;
         sessionStorage.setItem('test-storage-set', '1');
         Object.entries(entries).forEach(([key, value]) => localStorage.setItem(key, value));
-    }, { 'mudrlant.tutorial': JSON.stringify({ how: 'done' }), ...storage });
+    }, { 'mudrlant.tutorial': JSON.stringify({ how: 'done' }), 'mudrlant.tips': JSON.stringify({ off: true }), ...storage });
     if (options.fixedRandom) await context.addInitScript(value => { Math.random = () => value; }, options.fixedRandom === true ? 0.1 : options.fixedRandom);
     const tab = await context.newPage();
     const log = { wiki: [], data: 0, photos: [], tiles: 0, satellite: [], errors: [], csp: [] };
@@ -159,6 +159,8 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         // Dokud není odemčená nápověda, je v panelu jen popis (bez záložek); tlačítko nápovědy říká, co odemkne
         assert.equal(await tab.locator('[role="tablist"]').count(), 0);
         assert.match(await tab.textContent('[data-action="hint"]'), /Fotka[\s\S]*pak 3 body/);
+        // Tlačítko čísluje nápovědy stejně jako počítadlo (3 nápovědy: první je 1/3, ne 1/4)
+        assert.match(await tab.textContent('[data-action="hint"]'), /Nápověda 1\/3/);
 
         // 1. nápověda: skutečná fotka jako pozadí prvku (ne <img>)
         await tab.click('[data-action="hint"]');
@@ -172,6 +174,7 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         await tab.click('[data-action="hint"]');
         await tab.waitForSelector('[data-action="hint-tab"][data-step="facts"][aria-selected="true"]');
         assert.match(await appText(tab), /Kontinent/);
+        assert.match(await tab.textContent('[data-action="hint"]'), /Nápověda 3\/3/);
 
         // 3. nápověda: slepá mapa bez popisků s obrysy států, další už není
         await tab.click('[data-action="hint"]');
@@ -293,6 +296,13 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         await tab.click('[data-badge="vitez"]');
         assert.match(await tab.textContent('#dialog-overlay [data-badge-reward]'), /Vavřínový \(rámeček\), Vavřínový věnec \(doplněk Mudrlanta\)/);
         await tab.click('[data-badge="stovka"]');
+        // Z odznaků i z tabulky úrovní vede cesta zpět na Můj postup (jako z mistrovství)
+        await tab.click('#dialog-overlay [data-back-progress]');
+        await tab.waitForSelector('#dialog-overlay [data-open-levels]');
+        await tab.click('[data-open-levels]');
+        await tab.waitForSelector('#dialog-overlay [data-title-row]');
+        await tab.click('#dialog-overlay [data-back-progress]');
+        await tab.waitForSelector('#dialog-overlay [data-open-badges]');
         await tab.keyboard.press('Escape');
         // Výsledek u dnešní otázky je vidět celý (ne zkrácený na „4 bod…“)
         const cut = await tab.evaluate(() => [...document.querySelectorAll('[data-action="daily"] span.truncate')].filter(span => span.scrollWidth > span.clientWidth).map(span => span.textContent));
@@ -349,6 +359,8 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         await tab.waitForSelector('#place-info h2:has-text("Rakousko")');
         await tab.keyboard.press('Escape');
         assert.equal(await tab.locator('#place-info').count(), 0);
+        // Fokus se po zavření okna vrátí na tlačítko, které ho otevřelo (ne na začátek stránky)
+        await tab.waitForFunction(() => /Ukaž Rakousko/.test(document.activeElement.textContent) && document.activeElement.dataset.action === 'item-info');
         assert.equal(await tab.locator('section:has-text("ostatní možnosti")').count(), 0, 'u psaní nebyly možnosti vidět');
         assert.deepEqual(log.errors, []);
         assert.deepEqual(log.csp, []);
@@ -519,7 +531,7 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         await waitForQuestion(tab);
         const again = await readRound(tab);
         assert.equal(again.id, daily.id);
-        assert.equal(await tab.textContent('#status-text'), 'Opakování chyb · 1');
+        assert.equal(await tab.textContent('#status-text'), 'Procvičování chyb · 1');
         await tab.click(`[data-action="choice"]:has-text("${again.question.answerLabel}")`);
         await waitForResult(tab);
         assert.match(await tab.textContent('[data-action="next"]'), /Hotovo – zpět do učení/);
@@ -980,6 +992,12 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         await tab.click('[data-action="give-up"]');
         await waitForResult(tab);
         assert.doesNotMatch(await appText(tab), /Zajímavosti/);
+        // Další otázka se na nedostupnou Wikipedii znovu neptá (ani náhradní otázky za chudý popis): načte se hned
+        await tab.click('#btn-home');
+        await waitForHome(tab);
+        await tab.click('[data-action="daily"][data-topic="historie"]');
+        await waitForQuestion(tab);
+        assert.equal(log.wiki.length, 2, 'po výpadku se Wikipedie chvíli nezkouší');
         assert.deepEqual(log.errors, []);
         await context.close();
     });
@@ -1462,7 +1480,7 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         assert.equal(await one.tab.getAttribute('[data-accept-topic="vlajky"]', 'aria-checked'), 'false');
         assert.match(await one.tab.textContent('#dialog-overlay'), /Přijímáš: 13 z 14 témat/);
         await one.tab.click('[data-accept-all]');
-        await one.tab.waitForFunction(() => !document.querySelector('[data-accept-all]'));
+        await one.tab.waitForFunction(() => !document.querySelector('[data-accept-all]') && /Uloženo/.test(document.getElementById('dialog-overlay').textContent));
         assert.deepEqual(db.profiles['u-1'].blocked_topics, []);
         // Mix je samostatný přepínač (výchozí zapnuto); vypnutý se projeví v souhrnu
         assert.equal(await one.tab.getAttribute('[data-accept-mix]', 'aria-checked'), 'true');
@@ -1471,7 +1489,7 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         assert.equal(db.profiles['u-1'].accepts_mix, false);
         assert.match(await one.tab.textContent('#dialog-overlay'), /Přijímáš: všechna témata, bez Mixu/);
         await one.tab.click('[data-accept-mix]');
-        await one.tab.waitForFunction(() => document.querySelector('[data-accept-mix]').getAttribute('aria-checked') === 'true');
+        await one.tab.waitForFunction(() => document.querySelector('[data-accept-mix]').getAttribute('aria-checked') === 'true' && /Uloženo/.test(document.getElementById('dialog-overlay').textContent));
         assert.equal(db.profiles['u-1'].accepts_mix, true);
         await one.tab.click('#dialog-overlay [data-close]');
         assert.match(await one.tab.textContent('#challenges-section'), /Přijímám výzvy z:\s*všechna témata/);
@@ -1543,7 +1561,7 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         await one.tab.click('[data-ch-who="anyone"]');
         await one.tab.click('[data-ch-open="topics"]');
         await one.tab.click('[data-ch-topic="vlajky"]');
-        for (const key of ['znak', 'uzemi', 'cesko']) await one.tab.click(`[data-ch-cat="${key}"]`);
+        for (const key of ['znak', 'uzemi', 'cesko', 'regiony', 'mesta', 'historie']) await one.tab.click(`[data-ch-cat="${key}"]`);
         assert.equal(await one.tab.locator('[data-ch-cat][aria-pressed="true"]').count(), 1);
         await one.tab.click('[data-ch-cat="vlajka"]');
         assert.equal(await one.tab.locator('[data-ch-cat][aria-pressed="true"]').count(), 1, 'poslední okruh nejde zrušit');
@@ -1672,7 +1690,7 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         const profileText = await two.tab.textContent('#dialog-overlay');
         assert.match(profileText, /Janička/);
         assert.match(profileText, /Vaše bilance/);
-        assert.match(profileText, /1\s*výher/);
+        assert.match(profileText, /1\s*výhra/);
         assert.match(profileText, /Vyzvat k odvetě/);
         assert.match(profileText, /Zeměpis · 5 otázek/);
         // Pod odvetou je „Upravit nastavení výzvy“: otevře se formulář nové výzvy předvyplněný soupeřem a nastavením z poslední hry

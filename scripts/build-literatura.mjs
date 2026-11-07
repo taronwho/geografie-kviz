@@ -227,7 +227,9 @@ const NOT_KNOWN = new Set(['Abú Nuwás', 'Chvádže Šamsuddín Muhammad Háfiz
     'Nagíb Mahfúz', 'Macuo Bašó', 'Taras Ševčenko', 'Helen Kellerová', 'Ralph Waldo Emerson', 'Henry David Thoreau', 'Maya Angelou', 'Mary Wollstonecraftová',
     'Pearl S. Bucková', 'George Eliot', 'Romain Rolland', 'José Saramago', 'Orhan Pamuk', 'Luigi Pirandello', 'Michel de Montaigne', 'Anatole France', 'Knut Hamsun',
     'Sen v červeném domě', 'Příběh prince Gendžiho', 'Příběhy Tří říší', 'Příběhy od jezerního břehu', 'Rámájana', 'Muž v tygří kůži', 'Theogonia',
-    'Sword Art Online', 'Eragon', 'Nový měsíc', 'Lovec draků', 'Klub rváčů', 'Život je sen', 'Práce a dni']);
+    'Svatý Jeroným', 'Solón', 'Thomas Carlyle', 'Rachel Carsonová', 'John Ruskin', 'Hildegarda z Bingenu', 'Sa\'dí', 'Novalis', 'Muhammad Iqbal',
+    'Zlatá legenda', 'Když přišli nacisté', 'Ťin Pching Mej', 'Lusovci', 'Osvobozený Jeruzalém', 'Peršané', 'Parzival', 'Oidipus na Kolónu', 'Bakchantky',
+    'Zuřivý Roland', 'Oresteia', 'Sword Art Online', 'Eragon', 'Nový měsíc', 'Lovec draků', 'Klub rváčů', 'Život je sen', 'Práce a dni']);
 const EXCLUDED = new Set(['Donald Trump', 'Bob Dylan']);
 
 // --- Spisovatelé ---
@@ -311,12 +313,13 @@ const KNOWN_CHARACTERS = new Set(['Sherlock Holmes', 'Dr. Watson', 'Harry Potter
 const NOT_LITERARY_CHARACTER = /komiks|mang|anime|videoher|folklór|mytolog|legendární|bódhisattva|božstv|personifikac|maskot|kreslená postava$/iu;
 const characterIds = new Set([...candidates.characters.map(([q]) => q), ...MUST_CHARACTERS]);
 const characters = [];
+const reasons = {};
 for (const qid of characterIds) {
     const detail = details.get(qid);
-    if (!detail || !detail.t) continue;
+    if (!detail || !detail.t) { reasons.nodetail = (reasons.nodetail || 0) + 1; continue; }
     const typeLabels = (detail.type || []).map(cs).filter(Boolean);
     const literary = typeLabels.includes('literární postava');
-    if (!MUST_CHARACTERS.includes(qid) && typeLabels.some(text => NOT_LITERARY_CHARACTER.test(text)) && !(literary && !typeLabels.some(text => /komiks|mang|anime/u.test(text)))) continue;
+    if (!MUST_CHARACTERS.includes(qid) && typeLabels.some(text => NOT_LITERARY_CHARACTER.test(text)) && !(literary && !typeLabels.some(text => /komiks|mang|anime/u.test(text)))) { reasons.type = (reasons.type || 0) + 1; continue; }
     // Dílo: první literární dílo, ve kterém vystupuje (z našich kandidátů); autor z díla, jinak tvůrce postavy
     // Postava musí být i mezi postavami díla, pokud je dílo vypisuje (Pipi ve Wikidatech „vystupuje“ i v Ronje)
     // Z více děl to nejstarší – první výskyt postavy (Bilbo → Hobit, ne Pán prstenů); dílo se jménem postavy v názvu
@@ -332,16 +335,17 @@ for (const qid of characterIds) {
     const workDetail = workQid ? details.get(workQid) : null;
     const author = ((workDetail && workDetail.author) || []).length === 1 ? workDetail.author[0] : (detail.creator || []).length === 1 ? detail.creator[0] : null;
     // Jen slavné postavy (ne vedlejší postavy Duny nebo Temné věže) a skutečné postavy (ne chór)
-    if (!author || /^Chór$/u.test(nameOf(qid) || '') || (!KNOWN_CHARACTERS.has(nameOf(qid)) && detail.sl < 25)) continue;
+    if (!author || /^Chór$/u.test(nameOf(qid) || '') || (!KNOWN_CHARACTERS.has(nameOf(qid)) && detail.sl < 18)) { reasons[!author ? 'noauthor' : 'sl'] = (reasons[!author ? 'noauthor' : 'sl'] || 0) + 1; continue; }
     // Název díla: z našich děl, jinak jen když postava vystupuje v jediném díle
     const workName = workQid ? nameOf(workQid) : (detail.inWork || []).length === 1 ? cs(detail.inWork[0]) : undefined;
     characters.push({ qid, detail, name: nameOf(qid), category: 'postavy', author, by: nameOf(author), work: workQid, workName });
 }
+console.log('Postavy vyřazeny:', JSON.stringify(reasons), 'zbylo', characters.length);
 // --- 4. krok: výběr a známost ---
 const LIMITS = {
-    spisovatele: { limit: 520, known: 130, czLimit: 110 },
-    dila: { limit: 480, known: 110, czLimit: 80 },
-    postavy: { limit: 90, known: 35, czLimit: 20 }
+    spisovatele: { limit: 740, known: 240, czLimit: 110 },
+    dila: { limit: 760, known: 200, czLimit: 80 },
+    postavy: { limit: 140, known: 35, czLimit: 20 }
 };
 const byFame = (list) => list.sort((a, b) => Number(CZECH_KNOWN.has(b.name)) - Number(CZECH_KNOWN.has(a.name)) || b.detail.sl - a.detail.sl);
 const nameKey = (name) => name.toLocaleLowerCase('cs');
@@ -367,14 +371,14 @@ for (const list of [byFame(people), byFame(works), byFame(characters)]) {
         if (taken.has(nameKey(name))) continue;
         if (category !== 'spisovatele') {
             // Dílo nazvané po autorovi a nejvýš 6 děl (3 postavy) od jednoho autora – jinak by byl půl tématu Harry Potter
-            const cap = category === 'dila' ? 6 : 3;
+            const cap = category === 'dila' ? 6 : 4;
             const key = `${category}:${entry.author}`;
             if (nameKey(entry.by).includes(nameKey(name)) || (perAuthor.get(key) || 0) >= cap) continue;
             perAuthor.set(key, (perAuthor.get(key) || 0) + 1);
         }
         taken.add(nameKey(name));
         const authorKey = entry.author || entry.qid;
-        let known = category === 'postavy' ? KNOWN_CHARACTERS.has(name)
+        let known = category === 'postavy' ? KNOWN_CHARACTERS.has(name) || detail.sl >= 60
             : must || (!NOT_KNOWN.has(name) && counts.known < settings.known && (knownPerAuthor.get(authorKey) || 0) < (category === 'spisovatele' ? 1 : 3));
         if (known && !must) {
             counts.known++;
@@ -521,4 +525,13 @@ for (const category of Object.keys(LIMITS)) {
 }
 for (const collection of collections) console.log(`okruh ${collection.label}: ${items.filter(item => (item.g || []).includes(collection.id)).length}`);
 
+// Popisy, které by jinak prozradily název (Povídky malostranské – „soubor povídek“): obecné slovo druhu se nahradí
+for (const item of items) {
+    if (item.n === 'Povídky malostranské') Object.assign(item, { ty: 'sbírka próz', d: 'soubor próz z pražské Malé Strany od Jana Nerudy' });
+    // Název s „povídky“ + druh „sbírka povídek“ = prozrazená odpověď
+    else if (item.c === 'dila' && /(povíd|pohád)/iu.test(item.n)) {
+        if (item.ty) item.ty = item.ty.replace(/(povídek|pohádek)/giu, 'próz');
+        if (item.d) item.d = item.d.replace(/(povídek|pohádek)/giu, 'próz');
+    }
+}
 writeTopic('literatura', { collections, items });

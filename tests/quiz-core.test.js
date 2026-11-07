@@ -463,6 +463,12 @@ test('časová osa: pruhy uvnitř šířky, rozumné značky, známé události 
 test('psaná odpověď: překlep po slovech, čísla, římské číslice, značky a století přesně', () => {
     const name = (accepted) => ({ accepted });
     assert.ok(core.checkAnswer('Napolen Bonaparte', name(['Napoleon Bonaparte'])), 'překlep v delším slově');
+    // Přehozená sousední písmena jsou jeden překlep (nejčastější překlep na telefonu)
+    assert.ok(core.checkAnswer('Milan Kundear', name(['Milan Kundera'])), 'přehozená písmena');
+    assert.ok(core.checkAnswer('Král Artšu', name(['Král Artuš'])));
+    assert.ok(core.checkAnswer('capelal', name(['Capella'])));
+    assert.ok(!core.checkAnswer('Kudnear', name(['Kundera'])), 'dvě přehození jsou už moc');
+    assert.ok(!core.checkAnswer('Ludvík XVI', name(['Ludvík XIV.'])), 'římská číslice ani přehozená');
     assert.ok(!core.checkAnswer('Ludvík XV', name(['Ludvík XIV.'])), 'římská číslice přesně');
     assert.ok(!core.checkAnswer('Alžběta II.', name(['Alžběta I.'])));
     assert.ok(!core.checkAnswer('Myš domácí', name(['Pes domácí'])), 'krátké slovo bez tolerance');

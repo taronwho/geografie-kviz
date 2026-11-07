@@ -4,8 +4,8 @@
 //
 // Popis otázky bere hra z úvodu článku na Wikipedii (za běhu, přes síť); bez sítě hraje s krátkým popisem z Wikidat (pole d).
 // Audit pracuje bez sítě, proto hodnotí popis z Wikidat a volitelně uložené úvody z Wikipedie (cache { titulek: text }).
-// Skládání otázky (zakrytí, nápovědy) má hra v app.js (createRoundData, buildHints, censorFor); funkce zde je zrcadlí
-// bez DOM a sítě – při změně app.js je třeba upravit i tento soubor (hlídá tests/audit.test.js).
+// Skládání otázky (zakrytí, nápovědy) má hra v app.js (createRoundData, buildHints); popis a další věty sestaví stejná funkce jádra
+// (buildQuestionTexts), nápovědy zrcadlí buildHints bez DOM a sítě – při změně app.js je třeba upravit i tento soubor (hlídá tests/audit.test.js).
 import fs from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
@@ -46,60 +46,11 @@ export const loadContext = (id, { items = null } = {}) => {
     return ctx;
 };
 
-// --- Zrcadlo app.js: zakrytí popisu (censorFor) ---
-const GENERIC_NAME_WORDS = new Set(['národní', 'park', 'přírodní', 'rezervace', 'chráněná', 'krajinná', 'oblast', 'poloostrov', 'ostrov', 'ostrovy',
-    'souostroví', 'moře', 'záliv', 'zátoka', 'jezero', 'řeka', 'hora', 'pohoří', 'vodopád', 'vodopády', 'poušť', 'nížina', 'průliv', 'kanál', 'údolí',
-    'katedrála', 'chrám', 'kostel', 'bazilika', 'hrad', 'zámek', 'palác', 'most', 'věž', 'muzeum', 'náměstí', 'klášter', 'mešita', 'synagoga',
-    'bitva', 'válka', 'obléhání', 'revoluce', 'povstání', 'říše', 'království', 'císařství', 'republika', 'jednotka', 'energie', 'síla', 'kyselina', 'kyseliny',
-    'socha', 'pomník', 'busta', 'obraz', 'portrét', 'album', 'opera', 'symfonie', 'koncert', 'píseň', 'film', 'román', 'povídka', 'báseň']);
-export const genericWordsOf = (ctx) => {
-    if (!ctx.genericWords) {
-        const counts = new Map();
-        for (const other of ctx.items) {
-            for (const word of new Set(other.n.split(/\s+/).slice(1).filter(word => /^\p{Ll}{4,}$/u.test(word)).map(word => word.toLocaleLowerCase('cs')))) counts.set(word, (counts.get(word) || 0) + 1);
-        }
-        ctx.genericWords = new Set([...counts].filter(([, count]) => count >= 4).map(([word]) => word));
-    }
-    return ctx.genericWords;
-};
-const isGenericWord = (word, extra) => GENERIC_NAME_WORDS.has(word.toLocaleLowerCase('cs')) || Boolean(extra && extra.has(word.toLocaleLowerCase('cs')));
-const specificWords = (names, extra = null) => names.filter(Boolean).map(name => {
-    const words = name.split(/\s+/);
-    const kept = words.filter(word => !isGenericWord(word, extra));
-    return kept.length ? kept.join(' ') : name;
-}).join(', ');
+// --- Obecná slova názvů (park, řeka, bitva): stejná pravidla jako zakrývání ve hře (quiz-core.js) ---
+export const genericWordsOf = (ctx) => core.genericWordsOf(ctx);
+const isGenericWord = (word, extra) => core.isGenericWord(word, extra);
+const specificWords = (names, extra = null) => core.specificWords(names, extra);
 const escapeRegExp = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-const absorbGenericWords = (text, names, mark = '[***]', extra = null) => {
-    const generic = [...new Set(names.filter(Boolean).flatMap(name => name.split(/\s+/)).filter(word => isGenericWord(word, extra)))];
-    if (!generic.length || !text.includes(mark)) return text;
-    const stems = generic.map(word => escapeRegExp(word.slice(0, Math.max(3, word.length - 2)))).join('|');
-    const markPattern = escapeRegExp(mark);
-    const after = new RegExp(`${markPattern}(?:\\s+(?:${stems})\\p{L}*(?![\\p{L}]))+`, 'giu');
-    const before = new RegExp(`(?<![\\p{L}])(?:(?:${stems})\\p{L}*\\s+)+${markPattern}`, 'giu');
-    return text.replace(after, mark).replace(before, mark);
-};
-const hideNicknames = (text, item) => {
-    const roots = [item.n, displayName(item.t || '')].join(' ').split(/[\s\-–,.]+/).filter(word => word.length >= 5).map(word => normalizeAnswer(word).slice(0, 4));
-    return mergeCensored(text.replace(/(?<![\p{L}\p{N}])\p{Lu}\p{L}{3,}/gu, word => roots.includes(normalizeAnswer(word).slice(0, 4)) ? '[***]' : word));
-};
-export const censorFor = (type, text, item, ctx) => {
-    if (!text) return '';
-    const custom = ctx.topic.censor ? ctx.topic.censor(type, text, item, ctx) : null;
-    if (custom !== null && custom !== undefined) return custom;
-    const aliases = ctx.topic.nameAliases ? ctx.topic.nameAliases(item, ctx) : [];
-    const names = [item.n, displayName(item.t || ''), ...aliases];
-    const extra = genericWordsOf(ctx);
-    return hideNicknames(mergeCensored(absorbGenericWords(censorName(text, specificWords(names, extra)), names, '[***]', extra)), item);
-};
-const CHOICE_MARK = '';
-const hideOtherChoices = (text, question, ctx) => {
-    if (!text || question.match) return text;
-    if (!ctx.itemNames) ctx.itemNames = new Set(ctx.items.map(other => normalizeAnswer(other.n)));
-    const labels = question.choices.filter(choice => !choice.correct && ctx.itemNames.has(normalizeAnswer(choice.label))).map(choice => choice.label);
-    const extra = genericWordsOf(ctx);
-    return labels.length ? absorbGenericWords(censorName(text, specificWords(labels, extra)), labels, '[***]', extra).replaceAll('[***]', CHOICE_MARK) : text;
-};
-const OUT_OF_CONTEXT = /^(?:ten|ta|to|ti|ty|tento|tato|toto|tito|tyto|tomuto|tohoto|této|těchto|tuto|tím|jeho|její|jejich|on|ona|ono|oni|ony|část|ostatní|také|rovněž|dále|však|proto|tam|zde|odtud|později|nicméně|přesto)(?![\p{L}])/iu;
 
 // --- Zrcadlo app.js: nápovědy (buildHints) ---
 const VISUAL_INFO = {
@@ -116,10 +67,11 @@ const timelineVisible = (spec, text) => {
     const years = [...(spec.points || []), ...(spec.spans || []).flatMap(span => [span.from, span.to])].filter(year => Number.isFinite(year) && year >= 100);
     return years.length > 0 && years.every(year => new RegExp(`(?<!\\d)${year}(?!\\d)`).test(text));
 };
-export const buildHints = (plan, { photoUrl, visibleText, shared = new Set(), answers = '', textPhotos = new Set(), omit = [], rootCheck = false, extraGeneric = null, photoMasks = {} }) => {
-    const rootNames = rootCheck && answers ? specificWords(answers.split(', '), extraGeneric) : '';
-    const revealsAnswer = (fact) => Boolean(answers) && (censorName(String(fact.value), answers).includes('[***]')
-        || (Boolean(rootNames) && sharesWordRoot(String(fact.value), rootNames)));
+// answers = odpovědi, které nápověda nesmí prozradit (pole; kvůli starším voláním i řetězec „a, b“) – stejná kontrola jako ve hře (factRevealsAnswer)
+export const buildHints = (plan, { photoUrl, visibleText, shared = new Set(), answers = [], textPhotos = new Set(), omit = [], rootCheck = false, extraGeneric = null, photoMasks = {} }) => {
+    const answerList = Array.isArray(answers) ? answers.filter(Boolean) : String(answers || '').split(', ').filter(Boolean);
+    const rootNames = rootCheck && answerList.length ? specificWords(answerList, extraGeneric) : '';
+    const revealsAnswer = (fact) => core.factRevealsAnswer(fact, answerList, { isGeneric: (word) => isGenericWord(word, extraGeneric), rootNames });
     const hints = [];
     let shownBefore = '';
     for (const step of plan) {
@@ -129,7 +81,9 @@ export const buildHints = (plan, { photoUrl, visibleText, shared = new Set(), an
         const textImage = step.spec && step.spec.type === 'image' && textPhotos.has(step.spec.file);
         if (step.kind === 'visual' && step.spec && visualInfo(step.spec) && !timelineVisible(step.spec, visibleText) && !scaleKnown(step.spec, visibleText) && !textImage) {
             const masks = step.spec.type === 'image' && photoMasks[step.spec.file];
-            hint = { kind: 'visual', spec: masks ? { ...step.spec, masks } : step.spec, label: visualInfo(step.spec).name, icon: visualInfo(step.spec).icon };
+            // Událost na časové ose se jménem odpovědi se vynechá (jako ve hře)
+            const spec = step.spec.type === 'timeline' && answerList.length ? { ...step.spec, hide: [step.spec.hide, ...answerList].filter(Boolean).join(', ') } : step.spec;
+            hint = { kind: 'visual', spec: masks ? { ...spec, masks } : spec, label: visualInfo(step.spec).name, icon: visualInfo(step.spec).icon };
         }
         if (step.kind === 'facts') {
             const facts = dropChoiceNames(dropKnownFacts(step.facts || [], step.label ? visibleText : `${visibleText} · ${shownBefore}`), omit)
@@ -146,11 +100,6 @@ export const buildHints = (plan, { photoUrl, visibleText, shared = new Set(), an
         hints.push({ key, ...hint });
     }
     return hints;
-};
-const hintAnswers = (question, item, aliases = []) => {
-    if (question.match) return '';
-    if (question.type === 'name') return [item.n, displayName(item.t || ''), ...aliases.filter(alias => alias !== (item.f || {}).lat)].join(', ');
-    return question.accepted.join(', ');
 };
 
 // --- Varianty otázky položky ---
@@ -170,7 +119,7 @@ export const nameQuestion = (item, ctx, rng) => {
         type: 'name',
         title: category.question || topic.words.question,
         showName: false,
-        choices: buildItemChoices(item, items, rng, other => topic.similarity ? topic.similarity(item, other, ctx) : 0),
+        choices: buildItemChoices(item, items, rng, other => topic.similarity ? topic.similarity(item, other, ctx) : 0, core.cultureLandsFor(topic, ctx)),
         accepted: nameAnswers(item, topic.nameAliases ? topic.nameAliases(item, ctx) : []),
         placeholder: category.placeholder || topic.words.placeholder,
         answerLabel: item.n
@@ -215,16 +164,13 @@ export const assembleRound = (item, ctx, variant, text) => {
     const isSpecial = Boolean(variant.special);
     const category = categoryOf(topic, item.c);
     const shown = topic.questionImage ? topic.questionImage(item, ctx, question.type) : null;
-    const censorText = (value) => mergeCensored(censorFor(question.type, hideOtherChoices(value, question, ctx), item, ctx).replaceAll(CHOICE_MARK, '[***]'));
-    const chosen = text.fallback ? text : { ...text, ...chooseDescription(text.description, text.more, censorText, { startOk: sentence => !OUT_OF_CONTEXT.test(sentence) }) };
+    const { text: chosen, questionText, moreText } = core.buildQuestionTexts(item, ctx, question, text, { special: isSpecial });
     const photoUrl = photoOf(item);
     const visual = topic.visual ? topic.visual(item, ctx, question.type) : null;
-    const typeLabel = item.ty && !censorFor(question.type, item.ty, item, ctx).includes('[***]') ? item.ty : category.one;
-    const questionText = censorText(chosen.description);
+    const typeLabel = item.ty && !core.hideAnswer(item.ty, question, { ...item, ty: '' }, ctx).includes('[***]') ? item.ty : category.one;
     const thin = !shown && !isSpecial && (chosen.fallback || realWords(questionText) < MIN_DESCRIPTION_WORDS);
     const basePlan = (topic.hints && topic.hints(item, ctx, question.type))
         || [{ kind: 'photo' }, { kind: 'visual', spec: visual }, { kind: 'facts', facts: topic.facts(item, ctx, question.type) }];
-    const moreText = isSpecial || !chosen.more ? '' : censorText(stripFactSentences(chosen.more, topic.facts(item, ctx, question.type)));
     const plan = realWords(moreText) >= MIN_EXCERPT_WORDS ? [{ kind: 'excerpt', text: moreText }, ...basePlan] : basePlan;
     const visibleText = [question.title, question.showName ? item.n : '', typeLabel, questionText, realWords(moreText) >= MIN_EXCERPT_WORDS ? moreText : ''].join(' · ');
     const wrongItems = question.type === 'name' ? question.choices.filter(choice => !choice.correct).map(choice => ctx.byId.get(choice.id)).filter(Boolean) : [];
@@ -233,7 +179,7 @@ export const assembleRound = (item, ctx, variant, text) => {
     const shared = new Set(wrongFacts.length ? [...factKeys(item)].filter(key => wrongFacts.every(keys => keys.has(key))) : []);
     let hints = buildHints(plan, {
         photoUrl: (shown && shown.file === item.im) || ctx.textPhotos.has(item.im) ? null : photoUrl,
-        visibleText, shared, answers: hintAnswers(question, item, topic.nameAliases ? topic.nameAliases(item, ctx) : []), textPhotos: ctx.textPhotos,
+        visibleText, shared, answers: core.answerNamesFor(question, item, ctx), textPhotos: ctx.textPhotos,
         rootCheck: question.type === 'name', extraGeneric: genericWordsOf(ctx), photoMasks: ctx.photoMasks || {},
         omit: question.match ? [] : (question.choices || []).filter(choice => !choice.correct).map(choice => choice.label)
     });
@@ -244,7 +190,9 @@ export const assembleRound = (item, ctx, variant, text) => {
 
 // --- Hlídač prozrazení: přísnější než zakrytí ve hře (bez diakritiky, s odvozenými přídavnými jmény a čísly) ---
 const SKIP_WORDS = new Set(['nad', 'pod', 'na', 've', 'de', 'la', 'le', 'les', 'des', 'du', 'di', 'da', 'del', 'der', 'die', 'das', 'am', 'an', 'im', 'of', 'the', 'and', 'et', 'san', 'saint', 'sankt',
-    'al', 'el', 'ad', 'as', 'ar', 'az', 'ibn', 'bin', 'ben', 'von', 'van', 'zu', 'den', 'ten', 'ter', 'dos', 'do', 'y', 'století', 'stoleti', 'stát', 'státy', 'státu', 'států', 'státní', 'stat', 'staty', 'statu', 'statu', 'statni', 'léta', 'leta', 'mytologie', 'hornina', 'vyvřelina', 'vyvrelina']);
+    'al', 'el', 'ad', 'as', 'ar', 'az', 'ibn', 'bin', 'ben', 'von', 'van', 'zu', 'den', 'ten', 'ter', 'dos', 'do', 'y', 'století', 'stoleti', 'stát', 'státy', 'státu', 'států', 'státní', 'stat', 'staty', 'statu', 'statu', 'statni', 'léta', 'leta', 'mytologie', 'hornina', 'vyvřelina', 'vyvrelina',
+    // Přídomek světce (Štěpán I. Svatý) není jméno: „Svatá říše římská“ na časové ose ho neprozradí
+    'svatý', 'svatá', 'svaté', 'svatého', 'svatou', 'svaty', 'svata', 'svate', 'svateho']);
 const isRomanNumeral = (word) => /^[IVXLC]+\.?$/.test(word);
 const splitWords = (text) => String(text || '').split(/[\s,\-–:;!?„“”"…\/()]+/).filter(Boolean);
 const textWordsOf = (text) => normalizeAnswer(String(text || '').replace(/\[\*\*\*\]/g, ' ')).split(' ').filter(Boolean);
@@ -268,10 +216,16 @@ export const commonTitleWordsOf = (ctx) => {
     }
     return ctx.commonTitleWords;
 };
+// Upřesnění v závorce (Liška obecná (houba), Panenská věž (Turecko)) není součást odpovědi, kterou hráč hádá – jen když bez něj
+// nezbude žádné slovo (C/2020 F3 (NEOWISE)), je odpovědí i ono
+const withoutQualifier = (answer) => {
+    const base = displayName(String(answer));
+    return base !== answer && /\p{L}{3,}/u.test(base) ? base : answer;
+};
 export const distinguishingWords = (answers, wrongLabels, extra = null, common = null) => {
-    const wrongStems = new Set(wrongLabels.flatMap(label => splitWords(label).flatMap(word => detectorStems(word))));
+    const wrongStems = new Set(wrongLabels.flatMap(label => splitWords(withoutQualifier(label)).flatMap(word => detectorStems(word))));
     const words = [];
-    for (const answer of answers) {
+    for (const answer of answers.map(withoutQualifier)) {
         for (const word of splitWords(answer)) {
             if (word.length < 4 || isRomanNumeral(word) || /^\d/.test(word) || SKIP_WORDS.has(word.toLowerCase()) || isGenericWord(word, extra) || (common && common.has(normalizeAnswer(word)))) continue;
             const stems = detectorStems(word).filter(stem => !wrongStems.has(stem));
@@ -337,7 +291,10 @@ const findSymbolLeak = (text, question) => {
 // Odpovědi otázky pro hlídače: u názvu jméno, titulek a další názvy (bez vědeckého názvu – ten je schválně poslední nápovědou)
 const detectorAnswers = (question, item, ctx) => {
     if (question.type === 'name') {
-        const aliases = ctx.topic.nameAliases ? ctx.topic.nameAliases(item, ctx) : [];
+        // Slova, která téma v popisu schválně ponechá (pořadatelské město olympiády), nejsou prozrazením, i když jsou v aliasech („Paříž 1924“)
+        const kept = new Set((ctx.topic.keepWords ? ctx.topic.keepWords('name', item, ctx) : []).filter(Boolean).flatMap(text => String(text).split(/\s+/)).map(core.normalizeAnswer));
+        const withoutKept = (alias) => kept.size ? alias.split(/\s+/).filter(word => !kept.has(core.normalizeAnswer(word))).join(' ') : alias;
+        const aliases = (ctx.topic.nameAliases ? ctx.topic.nameAliases(item, ctx) : []).map(withoutKept);
         return [item.n, displayName(item.t || ''), ...aliases.filter(alias => alias !== (item.f || {}).lat)].filter(Boolean);
     }
     if (question.match) return [];
@@ -383,7 +340,8 @@ export const auditRound = (item, ctx, round) => {
         if (hint.kind === 'excerpt') leakIn(hint.text, 'nápověda „další věty“');
         if (hint.kind === 'visual' && hint.spec) {
             const spec = hint.spec;
-            const texts = [spec.valueLabel, spec.label, ...(spec.ticks || []).map(tick => tick.label), ...(spec.anchors || []).map(anchor => anchor[1])].filter(Boolean);
+            // Popisek slepé mapy (Místo je uprostřed) je pevný text tématu, ne údaj o položce (El Misti × „Místo“)
+            const texts = [spec.valueLabel, spec.type === 'map' ? '' : spec.label, ...(spec.ticks || []).map(tick => tick.label), ...(spec.anchors || []).map(anchor => anchor[1])].filter(Boolean);
             if (spec.type === 'timeline' && Array.isArray(spec.anchors)) {
                 // Na ose se ukážou jen vybrané události; stejně jako hra vyřadíme ty se jménem (hide)
                 const shown = core.buildTimeline(spec, 340).anchors.map(anchor => anchor.label);
@@ -482,7 +440,8 @@ export const auditItemData = (item, ctx) => {
     }
     for (const mode of ['name', 'result']) {
         for (const fact of ctx.topic.facts(item, ctx, mode)) {
-            if (fact.value === undefined || fact.value === null || /^(undefined|null|NaN|)$/.test(String(fact.value).trim()) || /\bundefined\b|\bNaN\b/.test(String(fact.value))) add(`fakt „${fact.label}“ bez hodnoty`, `${fact.label}: ${fact.value}`);
+            // NaN jako číslo, ne ve vzorci (azid sodný NaN₃)
+            if (fact.value === undefined || fact.value === null || /^(undefined|null|NaN|)$/.test(String(fact.value).trim()) || /\bundefined\b|(?<![\p{L}\p{N}])NaN(?![\p{L}\p{N}₀-₉])/u.test(String(fact.value))) add(`fakt „${fact.label}“ bez hodnoty`, `${fact.label}: ${fact.value}`);
         }
     }
     return findings;

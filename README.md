@@ -18,16 +18,21 @@ Základní otázka je „Co je to?“ podle kategorie (Který prvek to je?, Kdo 
 | Historie | Ve kterém století začal vládnout? (narodila se, nastoupil do úřadu, odehrálo se, vznikl) – vždy jeden okamžik, ať na přelomu století nejsou správně dvě odpovědi |
 | Biologie | Do kterého řádu (u rostlin a hub čeledi) patří? |
 | Chemie | Jakou značku má tento prvek? Jaký vzorec má tato látka? |
-| Fyzika | Jaká je jednotka SI této veličiny? Jakou značku má tato jednotka? Co měří tato jednotka? |
+| Fyzika | Jaká je jednotka SI této veličiny? Jakou značku má tato jednotka? Co měří tato jednotka? Který zákon, jev či částice to je? Co je to za těleso, sondu nebo přístroj? (veličiny, jednotky, zákony a jevy, částice, vesmír, mise, fyzici a astronomové) |
 | Vlajky a znaky | Vlajka či znak jsou vidět hned: Čí je to vlajka? Čí je to znak? (státy, české kraje a města, organizace) |
+| Chemie | Jakou značku má tento prvek? Jaký vzorec má tato látka? Jaká reakce, pojem či metoda to je? (prvky, látky, reakce a procesy, pojmy a metody, chemici) |
+| Fyzika | Jaká je jednotka SI této veličiny? Jakou značku má tato jednotka? Co měří tato jednotka? |
+| Vlajky a znaky | Vlajka či znak jsou vidět hned: Čí je to vlajka? Čí je to znak? (státy, české kraje, města a obce, regiony států, velká města světa, zaniklé státy, území a organizace) |
 | Mytologie | Jak se jmenuje v římské/řecké mytologii? Ze které mytologie je? |
 | Geologie | Nerost či hornina jsou vidět hned: Jakou má tvrdost podle Mohse? Jaký má vzorec? Do které skupiny hornin patří? Které je to období? |
-| Výtvarné umění | Obraz či socha jsou vidět hned: Co je to za obraz? Kdo to namaloval? Ke kterému směru patří? |
+| Výtvarné umění | Obraz či socha jsou vidět hned: Co je to za obraz? Kdo to namaloval? Ke kterému směru patří? Dále umělci, fotografové, ilustrátoři a umělecké směry |
 | Architektura | Stavba je vidět hned: Jaký je to sloh? Kdo ji navrhl? |
+| Výtvarné umění | Obraz či socha jsou vidět hned: Co je to za obraz? Kdo to namaloval? Ke kterému směru patří? |
+| Architektura | Stavba je vidět hned: Jaký je to sloh? Kdo ji navrhl? (u mostů, věží, muzeí a dalších staveb bez jasného slohu název; k tomu architektonické prvky a architekti) |
 | Hudba | Kdo to složil? Do kterého hudebního období patří? |
 | Literatura | Kdo to napsal? Kdo tuto postavu vymyslel? Ve kterém století žil či dílo vzniklo? |
 | Film | Kdo film režíroval? Ve kterém desetiletí měl premiéru? |
-| Sport | Ve kterém sportu se proslavil(a)? Kde se konaly olympijské hry? Které hry to jsou? Co je to za sport (podle fotky)? |
+| Sport | Ve kterém sportu se proslavil(a)? Kde se konaly olympijské hry? Které hry to jsou? Co je to za sport (podle fotky)? Který klub, stadion, okruh nebo soutěž to je (podle země, mapy, kapacity a fotky)? |
 
 Nápovědy jdou postupně a každá ubere bod: **popis** z české Wikipedie (je vidět hned, odpověď je v něm zakrytá), **fotka**, **obrazová nápověda** tématu a **čísla a fakta** z Wikidat. Obrazové nápovědy:
 
@@ -90,13 +95,17 @@ Jádro a aplikace je uplatní samy, téma pro ně nemusí nic dělat:
   los (`CHOICE_JITTER`), ať se možnosti u téže položky střídají. Téma může zemi určit jinak nebo kulturu vypnout funkcí
   `culture(item, ctx)` (bitvy a stavby podle státu, místa a vlajky podle vzdálenosti). Vlastní žebříčky tématu (autoři,
   režiséři) přičtou `core.cultureScore(odpověď, kandidát)`. Test `tests/distractors.test.js` měří na skutečných datech podíl
-  možností ze stejné země a doby.
+  možností ze stejné země a doby. Nesprávná možnost nikdy není přijímanou odpovědí správné (Katedrála Notre-Dame u katedrály
+  v Rouenu) ani nadřazeným pojmem z jejího popisu (Organická kyselina k Mastné kyselině); osoby vzdálené tisíc let se
+  nenabízejí. Test `tests/question-content.test.js` hlídá systémové chyby obsahu otázek nalezené při kontrole všech témat.
 - **Fotka s napsanou odpovědí** (jméno na dresu, název na plakátu či cedulce) se jako nápověda nenabídne. Najde ji OCR:
   `npm run audit:photo-text` (potřebuje `tesseract`) přečte fotky všech témat a zapíše `data/photo-text.json`;
   přečtené texty si pamatuje v `.cache/ocr`, takže po přidání tématu čte jen nové fotky. Po přidání tématu nebo
   přestavbě dat ho spusťte znovu. Pak `npm run audit:photo-masks` najde u označených fotek polohu nápisu a zapíše
   `data/photo-masks.json` – taková fotka se nápovědou ukáže s rozmazaným nápisem (po odpovědi celá). Vynechá se jen
   fotka, u které poloha nápisu známá není. Náhled zakrytí: `PREVIEW=složka npm run audit:photo-masks -- téma`.
+  U vlajek a znaků, kde je obrázek přímo otázkou, se čtou i kresby (SVG) a za odpověď se berou i slova z názvu souboru
+  (nápis CALIFORNIA REPUBLIC na vlajce Kalifornie, `scripts/lib/photo-words.mjs`); nápis se na obrázku otázky rozmaže.
 - **Audit otázek:** `npm run audit:questions` (volitelně `-- --sample=300`, `--topic=historie,hudba`, `--all`) projde témata a sestaví otázky jako hra
   (`scripts/lib/audit.mjs`). Hlásí odpověď prozrazenou v popisu či nápovědách, nápovědy opakující popis, dvě správné či příliš podobné možnosti,
   nesprávné možnosti jiné země/doby, chudé popisy, rozbité odkazy na obrázky (hash souboru na Commons) a nejednoznačné psané odpovědi (aliasy).

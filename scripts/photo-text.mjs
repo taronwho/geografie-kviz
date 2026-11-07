@@ -11,6 +11,8 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { createRequire } from 'node:module';
 
+import { QUESTION_IMAGE_TOPICS, fileNameWords, prepareForOcr, ocrSuffix } from './lib/photo-words.mjs';
+
 const require = createRequire(import.meta.url);
 const core = require('../quiz-core.js');
 const run = promisify(execFile);
@@ -32,9 +34,9 @@ const wanted = process.argv.slice(2).length ? process.argv.slice(2) : [...ORDER.
 const GENERIC = new Set(['národní', 'park', 'hrad', 'zámek', 'most', 'kostel', 'katedrála', 'chrám', 'palác', 'věž', 'ostrov', 'řeka', 'hora',
     'jezero', 'moře', 'válka', 'bitva', 'socha', 'obraz', 'film', 'album', 'opera', 'symfonie', 'svatý', 'svatého', 'saint', 'the', 'and', 'von', 'van', 'der', 'della']);
 const plain = (text) => core.normalizeAnswer(text).replace(/[^a-z0-9]+/g, ' ').trim();
-const nameWords = (item) => {
+const nameWords = (item, topic = '') => {
     const names = [item.n, core.displayName(item.t || ''), ...(item.al || [])].filter(Boolean);
-    const words = new Set();
+    const words = new Set(QUESTION_IMAGE_TOPICS.has(topic) ? fileNameWords(item.im, plain) : []);
     for (const name of names) {
         for (const word of name.split(/[\s,.:;!?()'"–-]+/)) {
             const key = plain(word);
@@ -49,9 +51,12 @@ const found = (tokens, word) => tokens.some(token => token === word
     || (word.length >= 6 && Math.abs(token.length - word.length) <= 1 && core.levenshtein(token, word) <= 1));
 
 const cacheFile = (file) => path.join(CACHE, `${file.replace(/[^\w.-]+/g, '_').slice(0, 180)}.txt`);
-const readText = async (item) => {
-    const cached = cacheFile(item.im);
-    if (fs.existsSync(cached)) return fs.readFileSync(cached, 'utf8');
+const readText = async (item, topic = '') => {
+    // U upravených kreseb se přidá i dřívější čtení bez úpravy (co našlo to, platí dál)
+    const plainCached = cacheFile(item.im);
+    const before = ocrSuffix(topic) && fs.existsSync(plainCached) ? `\n${fs.readFileSync(plainCached, 'utf8')}` : '';
+    const cached = cacheFile(`${item.im}${ocrSuffix(topic)}`);
+    if (fs.existsSync(cached)) return fs.readFileSync(cached, 'utf8') + before;
     const url = core.commonsPhotoUrl(item.im, item.ih, 500);
     let body = null;
     for (let attempt = 0; attempt < 6 && !body; attempt++) {
@@ -68,18 +73,21 @@ const readText = async (item) => {
     const image = path.join(CACHE, `img-${process.pid}-${Math.random().toString(36).slice(2)}.jpg`);
     fs.writeFileSync(image, body);
     let text = '';
+    let prepared = image;
     try {
+        prepared = await prepareForOcr(run, image, topic);
         // Řídký text (psm 11) najde i nápisy rozházené po fotce – startovní čísla, cedule, plakáty
-        // Jedno vlákno na fotku (souběžně jich běží víc) a nejvýš 15 s – rušná fotka by jinak četla i minuty
-        const { stdout } = await run('tesseract', [image, '-', '--psm', '11'], { timeout: 15000, maxBuffer: 1 << 20, env: { ...process.env, OMP_THREAD_LIMIT: '1' } });
+        // Jedno vlákno na fotku (souběžně jich běží víc) a nejvýš 15 s (u zvětšené kresby 30 s) – rušná fotka by jinak četla i minuty
+        const { stdout } = await run('tesseract', [prepared, '-', '--psm', '11'], { timeout: prepared === image ? 15000 : 30000, maxBuffer: 1 << 20, env: { ...process.env, OMP_THREAD_LIMIT: '1' } });
         text = stdout;
     } catch {
         text = '';
     } finally {
         fs.rmSync(image, { force: true });
+        if (prepared !== image) fs.rmSync(prepared, { force: true });
     }
     fs.writeFileSync(cached, text);
-    return text;
+    return text + before;
 };
 
 const result = fs.existsSync(OUT) ? JSON.parse(fs.readFileSync(OUT, 'utf8')) : {};
@@ -91,18 +99,21 @@ const save = () => {
 for (const topic of wanted) {
     const file = path.join(ROOT, 'data', `${topic}.json`);
     if (!fs.existsSync(file)) continue;
-    const items = (JSON.parse(fs.readFileSync(file, 'utf8')).items || []).filter(item => item.im && item.ih && core.isRealPhoto(item.im));
-    const flagged = new Set();
+    // OCR_SKIP=starý-soubor.json: položky, které v něm už byly (a jsou přečtené), se nečtou znovu a jejich dosavadní výsledek zůstane
+    const skip = process.env.OCR_SKIP ? new Set((JSON.parse(fs.readFileSync(process.env.OCR_SKIP, 'utf8')).items || []).map(item => item.q)) : new Set();
+    // U témat, kde je obrázek přímo otázkou (vlajky, znaky), i kresby – nápis na nich prozradí odpověď hned
+    const items = (JSON.parse(fs.readFileSync(file, 'utf8')).items || []).filter(item => item.im && item.ih && (core.isRealPhoto(item.im) || QUESTION_IMAGE_TOPICS.has(topic)) && !skip.has(item.q));
+    const flagged = new Set((result[topic] || []).filter(qid => skip.has(qid)));
     let done = 0;
     let missing = 0;
     const queue = [...items];
     const worker = async () => {
         while (queue.length) {
             const item = queue.shift();
-            const text = await readText(item);
+            const text = await readText(item, topic);
             if (text === null) missing++;
             const tokens = plain(text || '').split(' ').filter(Boolean);
-            const words = nameWords(item);
+            const words = nameWords(item, topic);
             if (words.length && words.some(word => found(tokens, word))) flagged.add(item.q);
             if (++done % 100 === 0) console.log(`${topic}: ${done}/${items.length}, s textem odpovědi ${flagged.size}`);
         }

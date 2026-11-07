@@ -11,6 +11,8 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { createRequire } from 'node:module';
 
+import { QUESTION_IMAGE_TOPICS, fileNameWords, prepareForOcr, ocrSuffix } from './lib/photo-words.mjs';
+
 const require = createRequire(import.meta.url);
 const core = require('../quiz-core.js');
 const run = promisify(execFile);
@@ -29,8 +31,8 @@ if (PREVIEW) fs.mkdirSync(PREVIEW, { recursive: true });
 const GENERIC = new Set(['národní', 'park', 'hrad', 'zámek', 'most', 'kostel', 'katedrála', 'chrám', 'palác', 'věž', 'ostrov', 'řeka', 'hora',
     'jezero', 'moře', 'válka', 'bitva', 'socha', 'obraz', 'film', 'album', 'opera', 'symfonie', 'svatý', 'svatého', 'saint', 'the', 'and', 'von', 'van', 'der', 'della']);
 const plain = (text) => core.normalizeAnswer(text).replace(/[^a-z0-9]+/g, ' ').trim();
-const nameWords = (item) => {
-    const words = new Set();
+const nameWords = (item, topic = '') => {
+    const words = new Set(QUESTION_IMAGE_TOPICS.has(topic) ? fileNameWords(item.im, plain) : []);
     for (const name of [item.n, core.displayName(item.t || ''), ...(item.al || [])].filter(Boolean)) {
         for (const word of name.split(/[\s,.:;!?()'"–-]+/)) {
             const key = plain(word);
@@ -60,12 +62,12 @@ const download = async (url) => {
 };
 
 // Slova s polohou (tesseract TSV) – stejný náhled 500 px jako u čtení textu
-const readWords = async (item, image) => {
-    const cached = path.join(CACHE, `${item.im.replace(/[^\w.-]+/g, '_').slice(0, 180)}.tsv`);
+const readWords = async (item, image, topic = '') => {
+    const cached = path.join(CACHE, `${`${item.im}${ocrSuffix(topic)}`.replace(/[^\w.-]+/g, '_').slice(0, 180)}.tsv`);
     let tsv;
     if (fs.existsSync(cached)) tsv = fs.readFileSync(cached, 'utf8');
     else {
-        const { stdout } = await run('tesseract', [image, '-', '--psm', '11', 'tsv'], { timeout: 20000, maxBuffer: 4 << 20, env: { ...process.env, OMP_THREAD_LIMIT: '1' } });
+        const { stdout } = await run('tesseract', [image, '-', '--psm', '11', 'tsv'], { timeout: 40000, maxBuffer: 4 << 20, env: { ...process.env, OMP_THREAD_LIMIT: '1' } });
         tsv = stdout;
         fs.writeFileSync(cached, tsv);
     }
@@ -158,11 +160,15 @@ for (const topic of topics) {
         if (!item || (ONLY.length && !ONLY.includes(item.n))) continue;
         const body = await download(core.commonsPhotoUrl(item.im, item.ih, 500));
         if (!body) { console.log(`${topic}: ${item.n} – nestaženo`); continue; }
-        const image = path.join(CACHE, `img-${process.pid}.jpg`);
-        fs.writeFileSync(image, body);
+        const original = path.join(CACHE, `img-${process.pid}.jpg`);
+        fs.writeFileSync(original, body);
+        // U kreseb vlajek čte OCR upravený (zvětšený) obrázek – obdélníky jsou podílem jeho rozměrů, takže sedí i na původní
+        const image = await prepareForOcr(run, original, topic);
         try {
             const size = await imageSize(image);
-            const masks = masksFor(await readWords(item, image), nameWords(item), size);
+            let masks = masksFor(await readWords(item, image, topic), nameWords(item, topic), size);
+            // Nápis, který přečetlo jen čtení bez úpravy, se hledá i na původním obrázku
+            if (!masks.length && image !== original) masks = masksFor(await readWords(item, original), nameWords(item, topic), await imageSize(original));
             if (masks.length) {
                 result[item.im] = masks;
                 masked++;
@@ -176,6 +182,7 @@ for (const topic of topics) {
             }
         } finally {
             fs.rmSync(image, { force: true });
+            fs.rmSync(original, { force: true });
         }
     }
     console.log(`${topic}: zakrytí u ${masked} fotek`);

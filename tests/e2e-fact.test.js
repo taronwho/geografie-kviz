@@ -49,6 +49,7 @@ test('denní zajímavost', { skip: !chromium && 'Playwright není nainstalovaný
             localStorage.setItem('mudrlant.account', JSON.stringify('host'));
             localStorage.setItem('mudrlant.variant', 'choices');
             localStorage.setItem('mudrlant.tutorial', JSON.stringify({ how: 'done' }));
+            localStorage.setItem('mudrlant.tips', JSON.stringify({ off: true }));
         });
         const tab = await context.newPage();
         const problems = [];
