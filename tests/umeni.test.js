@@ -157,3 +157,31 @@ test('umění: psané odpovědi, nesprávné možnosti a okruhy', () => {
     assert.equal(umeni.subtitle(find('Mona Lisa'), ctx), 'Leonardo da Vinci · kolem 1503');
     assert.equal(umeni.subtitle(find('Alfons Mucha'), ctx), '1860–1939 · Česko');
 });
+
+test('umění: představitelé směru jsou výtvarníci z tématu, hlavní napřed; díla mají český název', async () => {
+    const strip = (title) => title.replace(/ \(.*\)$/, '');
+    const people = new Set(data.items.filter(item => ['umelci', 'fotografove', 'ilustratori'].includes(item.c)).map(item => strip(item.t)));
+    const architects = new Set(require(path.join(__dirname, '..', 'data', 'architektura.json')).items.filter(item => item.c === 'architekti').map(item => strip(item.t)));
+    const reps = (name) => find(name).f.reps || [];
+    // Ne spisovatel Hermann Hesse u secese ani král Pchúmipchon u expresionismu (malíř jen jako vedlejší povolání)
+    assert.ok(!reps('Secese').includes('Hermann Hesse') && reps('Secese').includes('Gustav Klimt'), reps('Secese').join(', '));
+    assert.ok(!reps('Expresionismus').some(name => /Pchúmipchon/.test(name)), reps('Expresionismus').join(', '));
+    assert.ok(!reps('Futurismus').includes('Filippo Tommaso Marinetti') && reps('Futurismus').includes('Umberto Boccioni'), reps('Futurismus').join(', '));
+    // U impresionismu Monet napřed, ne Matisse (ten má směrů pět)
+    assert.equal(reps('Impresionismus')[0], 'Claude Monet');
+    assert.ok(!reps('Impresionismus').includes('Henri Matisse'));
+    for (const movement of data.items.filter(item => item.c === 'smery')) {
+        for (const name of movement.f.reps || []) assert.ok(people.has(name) || architects.has(name), `${movement.n}: ${name}`);
+    }
+    // Cizí štítek Wikidat → název českého článku, cizí název platí jako psaná odpověď
+    const portinari = find('Portinarův triptych');
+    assert.deepEqual(portinari.al, ['Portinari Altarpiece']);
+    assert.ok(core.isAnswerMatch('Portinari Altarpiece', core.nameAnswers(portinari, umeni.nameAliases(portinari, ctx))));
+    assert.ok(!data.items.some(item => ['Washington Crossing the Delaware', 'Beethovenfries', 'De geograaf', 'Portinari Altarpiece'].includes(item.n)));
+    const { czechWorkName } = await import('../scripts/lib/umeni-rules.mjs');
+    assert.deepEqual(czechWorkName('Portinari Altarpiece', 'Portinarův triptych'), { n: 'Portinarův triptych', al: ['Portinari Altarpiece'] });
+    assert.deepEqual(czechWorkName('Doña Jana Šílená', 'Doña Juana la Loca'), { n: 'Doña Jana Šílená' });
+    assert.deepEqual(czechWorkName('Ulička', 'Ulička v Delftu'), { n: 'Ulička' });
+    // Popis neprozradí název (Kanó-ha: „zakl. Masanobu Kanó“, Mladé Polsko: „Młoda Polska“)
+    assert.ok(!/Kanó/.test(find('Kanó-ha').d) && !/Młoda/.test(find('Mladé Polsko').d));
+});

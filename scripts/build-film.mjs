@@ -1,6 +1,6 @@
 // Téma Film: data/film.json z Wikidat – filmy, režiséři, herci a herečky
 // Spuštění: npm run build:film (s BUILD_CACHE=složka jde pravidla ladit bez opakovaného stahování)
-import { sparql, id, values, imageFields, yearOf, compact, cached, inBatches, writeTopic } from './lib/wikidata.mjs';
+import { sparql, id, values, imageFields, yearOf, compact, cached, inBatches, writeTopic, statementOrder } from './lib/wikidata.mjs';
 import { landsByDescription } from './lib/nationality.mjs';
 
 const HUMAN = 'Q5';
@@ -107,6 +107,17 @@ const people = new Map(await cached('film-people', () => fetchDetails(personIds,
 console.log(`Podrobnosti: ${filmMap.size} filmů, ${people.size} osob`);
 // Jen mezinárodní jméno (mul) mají třeba Marlon Brando nebo Pablo Picasso
 for (const person of people.values()) if (!person.n && person.mul) person.n = [].concat(person.mul)[0];
+
+// Pořadí obsazení (P161): SPARQL pořadí výroků nevrací – z API Wikidat [herec, pořadí z kvalifikátoru P1545 nebo null] v pořadí
+// výroků, které bývá podle titulků (Kmotr: Brando, Pacino, Caan); zastaralé výroky vynechány
+const castOrder = new Map(await cached('film-cast-order', () => statementOrder(filmIds, 'P161')));
+// Místo herce v obsazení: pořadí z kvalifikátoru, jinak pořadí výroku (za těmi s kvalifikátorem), neznámý na konec
+const castPosition = (film, actor) => {
+    const order = castOrder.get(film) || [];
+    const index = order.findIndex(([qid]) => qid === actor);
+    if (index < 0) return Infinity;
+    return order[index][1] ?? 10000 + index;
+};
 
 // České názvy žánrů, zemí, ocenění a povolání
 const referenced = new Set();
@@ -271,11 +282,11 @@ for (const [qid, links] of candidates.films) {
         && (countries.every(state => CZECH_FILM_STATES.has(state) || state === SLOVAKIA) || directorIds.some(director => isCzechPerson(people.get(director))));
     const isTvFilm = (detail.type || []).includes(TV_FILM) && !(detail.type || []).some(type => FILM_TYPES.includes(type));
     if (isTvFilm && !isCzech) continue;
-    // Herci podle známosti (ve Wikidatech nejsou seřazení podle rolí); nejdřív herci, až pak režiséři a další v cameo roli
-    // (Vláčil ve Vesničko má středisková, Stan Lee ve Spider-Manovi)
+    // Herci podle obsazení (pořadí v titulcích, castPosition), ne podle slávy – u Captain Marvel Brie Larson, ne Scarlett Johansson
+    // v cameo roli; nejdřív herci, až pak režiséři a další v cameo roli (Vláčil ve Vesničko má středisková, Stan Lee ve Spider-Manovi)
     const isActor = (qid) => roleOf(people.get(qid), 0) === 'herci' ? 1 : 0;
     const cast = [...new Set(detail.cast || [])].filter(actor => personName(actor))
-        .sort((a, b) => isActor(b) - isActor(a) || (sitelinks.get(b) || 0) - (sitelinks.get(a) || 0));
+        .sort((a, b) => isActor(b) - isActor(a) || castPosition(qid, a) - castPosition(qid, b) || (sitelinks.get(b) || 0) - (sitelinks.get(a) || 0));
     const genres = genresOf(detail);
     const animated = (detail.type || []).some(type => ANIMATED.includes(type)) || genres.includes('animovaný film');
     if (animated && animatedCount >= LIMITS.filmy.animatedLimit) continue;

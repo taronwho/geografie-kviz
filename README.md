@@ -106,6 +106,10 @@ Jádro a aplikace je uplatní samy, téma pro ně nemusí nic dělat:
   fotka, u které poloha nápisu známá není. Náhled zakrytí: `PREVIEW=složka npm run audit:photo-masks -- téma`.
   U vlajek a znaků, kde je obrázek přímo otázkou, se čtou i kresby (SVG) a za odpověď se berou i slova z názvu souboru
   (nápis CALIFORNIA REPUBLIC na vlajce Kalifornie, `scripts/lib/photo-words.mjs`); nápis se na obrázku otázky rozmaže.
+  Nápisy, které OCR nepřečte (drobné písmo v pečeti, text do oblouku – NEVADA, STATE OF IDAHO, REPÚBLICA DE COSTA RICA), mají
+  ruční zakrytí v `scripts/photo-masks-manual.json` (stejný tvar, má přednost; `ONLY_MANUAL=1 npm run audit:photo-masks` je
+  jen doplní). Vlajka, která je celá nápisem (OSCE, РСФСР, FIFA), má v datech `nq`: zůstává v učení, otázkou se nestane
+  (`pickItem`). Rozmazání nese rozmazaná kopie fotky v obdélníku, ne jen `backdrop-filter` (ten bez GPU nefunguje).
 - **Audit otázek:** `npm run audit:questions` (volitelně `-- --sample=300`, `--topic=historie,hudba`, `--all`) projde témata a sestaví otázky jako hra
   (`scripts/lib/audit.mjs`). Hlásí odpověď prozrazenou v popisu či nápovědách, nápovědy opakující popis, dvě správné či příliš podobné možnosti,
   nesprávné možnosti jiné země/doby, chudé popisy, rozbité odkazy na obrázky (hash souboru na Commons) a nejednoznačné psané odpovědi (aliasy).
