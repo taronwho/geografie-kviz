@@ -17,7 +17,7 @@
         { id: 'napoveda', icon: 'lightbulb', after: 2, title: 'Nevíš si rady?', text: 'Klepni na žlutou Nápovědu. Každá ti sice ubere bod, ale často stačí, aby ses dostal k odpovědi. Čím méně nápověd, tím víc bodů.',
             used: (u) => num(u.counters.noHint) >= 15 },
         { id: 'dnesni', icon: 'calendar-days', after: 0, title: 'Dnešní otázky', text: 'Každý den na tebe čeká jedna otázka z každého tématu. Za sérii dní v řadě dostaneš bonus XP a odznaky.',
-            action: { kind: 'single', label: 'Na úvod' }, used: (u) => num(u.counters.bestStreak) >= 3 },
+            used: (u) => num(u.counters.bestStreak) >= 3 },
         { id: 'vyzva', icon: 'swords', multi: true, after: 8, title: 'Vyzvi kamaráda', text: 'Ve Více hráčích vyber Vyzvat: oba dostanete stejných 10 otázek a uvidíte, kdo je lepší.',
             guestText: 'Po přihlášení přes Google můžeš vyzvat kamaráda: oba dostanete stejných 10 otázek a uvidíte, kdo je lepší.',
             action: { kind: 'multi', label: 'Zkusit' }, used: (u) => num(u.counters.created) + num(u.counters.challenges) > 0 },
@@ -42,7 +42,7 @@
         { id: 'ligy', icon: 'medal', multi: true, account: true, after: 36, title: 'Ligy', text: 'Za výhry ve výzvách ti roste rating a postupuješ v ligách od Bronzu výš. Týdenní žebříček ukazuje nejlepší hráče.',
             action: { kind: 'multi', label: 'Zobrazit' }, ready: (u) => num(u.counters.challenges) >= 3, used: (u) => num(u.counters.wins) >= 8 },
         { id: 'cile', icon: 'target', after: 45, title: 'Týdenní cíle', text: 'Na úvodu máš každý týden tři nové cíle. Splníš-li všechny, čeká tě bonus XP a odznak.',
-            action: { kind: 'single', label: 'Na úvod' }, used: (u) => num(u.counters.weeksDone) > 0 }
+            used: (u) => num(u.counters.weeksDone) > 0 }
     ];
     const BY_ID = new Map(TIPS.map(tip => [tip.id, tip]));
 

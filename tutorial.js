@@ -25,7 +25,10 @@
     const QUESTION_LOST = 'Otázka se nenačetla. Zkus ji otevřít znovu z úvodní obrazovky, nebo tento krok přeskoč.';
     const STEPS = [
         { id: 'fact', phase: 'tour', owl: 'sova-vitej', mode: 'tap', soft: true, softLabel: 'Dál', skippable: true, target: '#fact-hint:not(.hidden)', hit: '#fact-hint', title: 'Ahoj, jsem Mudrlant!', text: 'Žárovka u mého loga ukazuje, co se tento den stalo v dějinách. Můžeš na ni klepnout, nebo pokračovat tlačítkem Dál.', wait: 'Hledám žárovku…', waitLong: TOUR_WAIT },
-        { id: 'badge', phase: 'tour', owl: 'sova-vitej', mode: 'info', target: '#status-badge', title: 'Úroveň a XP', text: 'Za správné odpovědi sbíráš XP, rosteš v úrovních a za výkony dostaneš odznaky. Klepnutí na sovu otevře událost dne, klepnutí na text tvůj postup.', intro: 'Ahoj, jsem Mudrlant! Za správné odpovědi sbíráš XP, rosteš v úrovních a za výkony dostaneš odznaky. Klepnutí na sovu otevře událost dne, klepnutí na text tvůj postup.', wait: 'Chvilku…', waitLong: TOUR_WAIT },
+        { id: 'badge', phase: 'tour', owl: 'sova-vitej', mode: 'info', target: '#status-badge', title: 'Úroveň a XP', text: 'Za správné odpovědi sbíráš XP, rosteš v úrovních a za výkony dostaneš odznaky. Klepnutí na sovu otevře událost dne, klepnutí na text tvůj postup.', intro: 'Ahoj, jsem Mudrlant! Za správné odpovědi sbíráš XP, rosteš v úrovních a za výkony dostaneš odznaky. Klepnutí na sovu otevře událost dne, klepnutí na text tvůj postup.',
+            // Úzký displej (360 px): text s úrovní vedle sovy není vidět, postup je v Nastavení
+            narrowText: 'Za správné odpovědi sbíráš XP, rosteš v úrovních a za výkony dostaneš odznaky. Klepnutí na sovu otevře událost dne, svou úroveň a postup najdeš v Nastavení.',
+            narrowIntro: 'Ahoj, jsem Mudrlant! Za správné odpovědi sbíráš XP, rosteš v úrovních a za výkony dostaneš odznaky. Klepnutí na sovu otevře událost dne, svou úroveň a postup najdeš v Nastavení.', wait: 'Chvilku…', waitLong: TOUR_WAIT },
         { id: 'daily', phase: 'tour', owl: 'sova-vitej', mode: 'info', target: '[data-action="daily"]', area: 'parent', title: 'Dnešní otázky', text: 'Každý den tu najdeš otázku z každého tématu. Splněné se označí, další čekají do zítřka.', intro: 'Ahoj, jsem Mudrlant! Každý den tu najdeš otázku z každého tématu. Splněné se označí, další čekají do zítřka.', wait: 'Chvilku…', waitLong: TOUR_WAIT },
         { id: 'topics', phase: 'tour', owl: 'sova-vitej', mode: 'info', target: '[data-action="play-topic"]', area: 'parent', title: 'Témata a Mix', text: 'Dlaždice jsou témata, vyber si, co chceš hrát. Mix míchá otázky ze všech témat.', wait: 'Chvilku…', waitLong: TOUR_WAIT },
         { id: 'multi', phase: 'tour', owl: 'sova-vyzva', mode: 'info', target: '[data-action="home-tab"][data-tab="multi"]', title: 'Více hráčů', text: 'Na téhle záložce vyzveš kamaráda kódem nebo přezdívkou a dáš si odvetu. Z výher roste tvůj rating a liga, je tu i týdenní žebříček a turnaj. Chce to přihlášení přes Google.', wait: TOUR_WAIT, waitLong: TOUR_WAIT, skippable: true },
@@ -92,7 +95,10 @@
         return { n: at < 0 ? 0 : at + 1, total: active.length };
     };
     // První ukázaný krok se představí (když žárovka není, uvítání nese první krok prohlídky)
-    const textFor = (step, first) => (first && step.intro ? step.intro : step.text);
+    // narrow = úzký displej, kde krok má vlastní znění (chybí na něm prvek, o kterém běžný text mluví)
+    const textFor = (step, first, narrow = false) => (narrow && step.narrowText
+        ? (first && step.narrowIntro ? step.narrowIntro : step.narrowText)
+        : (first && step.intro ? step.intro : step.text));
     const owlFor = (step, first) => (first && step.id !== 'fact' && step.phase === 'tour' ? 'sova-vitej' : step.owl);
 
     const api = { KEY, STEPS, TRY_INDEX, WAIT_MS, GRACE_MS, isDone, isRunning, hasPlayed, shouldStart, resumeStep, resumeNoFact, markRunning, markDone, reset, plan, position, textFor, owlFor };
@@ -129,8 +135,12 @@
     };
     const present = (step) => Boolean(holeOf(step));
     const external = () => Boolean(doc.querySelector(EXTERNAL));
-    // Krok Více hráčů se nepočítá, když záložka není (hra bez Supabase)
-    const hidden = () => [...(state && state.noFact ? ['fact'] : []), ...(doc.querySelector('[data-action="home-tab"][data-tab="multi"]') ? [] : ['multi'])];
+    // Krok Více hráčů se nepočítá, když záložka není (hra bez Supabase). Rozhoduje nastavení hry, ne to, jestli je záložka
+    // právě vidět: mimo úvod (otázka, výsledek) by jinak počítadlo skočilo z „Krok 7 z 11“ na „Krok 7 z 10“
+    const multiOn = () => {
+        try { return Boolean(root.MudrlantAuth && root.MudrlantAuth.isConfigured() && root.MudrlantSocial); } catch (e) { return false; }
+    };
+    const hidden = () => [...(state && state.noFact ? ['fact'] : []), ...(multiOn() || doc.querySelector('[data-action="home-tab"][data-tab="multi"]') ? [] : ['multi'])];
 
     const build = () => {
         const el = doc.createElement('div');
@@ -216,7 +226,8 @@
         if (!ui.owl.src.endsWith(wanted)) ui.owl.src = wanted;
         ui.count.textContent = counter(step);
         ui.title.textContent = step.title;
-        ui.text.textContent = read && SHORT[step.id] ? SHORT[step.id] : textFor(step, first);
+        const statusText = doc.getElementById('status-text');
+        ui.text.textContent = read && SHORT[step.id] ? SHORT[step.id] : textFor(step, first, Boolean(statusText) && !visible(statusText));
         ui.count.classList.toggle('hidden', read);
         const rect = hole.getBoundingClientRect();
         const pad = 4;
