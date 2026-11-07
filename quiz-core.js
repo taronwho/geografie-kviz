@@ -1222,6 +1222,9 @@
     // Osobnost (má rok narození) se dá napsat i samým příjmením (Einstein, da Vinci) nebo s iniciálou (A. Einstein).
     // Panovníci s číslem a přízviskem (Karel IV., Alexandr Veliký) a názvy s tečkou či číslem příjmení nemají
     const NAME_PARTICLES = new Set(['z', 'ze', 'de', 'da', 'di', 'del', 'della', 'van', 'von', 'der', 'den', 'ten', 'ter', 'la', 'le', 'al', 'el', 'bin', 'ibn', 'ben', 'af', 'zu', 'dos', 'du']);
+    const EPITHETS = new Set(['veliký', 'veliká', 'velký', 'velká', 'svatý', 'svatá', 'český', 'česká', 'mladší', 'starší', 'ukrutný', 'pobožný', 'dobrý', 'moudrý',
+        'smělý', 'krutý', 'hrozný', 'sličný', 'spravedlivý', 'štědrý', 'zbožný', 'učený', 'slavný', 'ctihodný', 'statečný', 'nebojácný', 'prostý', 'plešatý', 'lysý',
+        'rudovousý', 'dobyvatel', 'vyznavač', 'apoštol', 'mučedník', 'jr.', 'sr.', 'junior', 'senior']);
     const surnameAnswers = (item) => {
         if (!item || !item.n || !item.f || item.f.born === undefined || item.c === 'panovnik') return [];
         const words = item.n.split(/\s+/);
@@ -1230,7 +1233,9 @@
         while (start > 1 && NAME_PARTICLES.has(words[start - 1].toLowerCase())) start--;
         const surname = words.slice(start).join(' ');
         if (surname.length < 3 || CENSOR_SKIP_WORDS.has(surname.toLowerCase())) return [];
+        // Přízvisko není příjmení: „mladší“ by platilo pro Agrippinu i Drusa, „Veliký“ pro Alberta i Basileia, „Česká“ pro Anežku i Marii
         const last = words[words.length - 1];
+        if (/^\p{Ll}/u.test(last) || EPITHETS.has(last.toLocaleLowerCase('cs'))) return [];
         return [...new Set([surname, last, `${words[0].charAt(0)}. ${surname}`])];
     };
     const nameAnswers = (item, extra = []) => [item.n, item.t, displayName(item.t || ''), ...surnameAnswers(item), ...extra].filter(Boolean);

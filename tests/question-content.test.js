@@ -178,6 +178,18 @@ test('štítek stavby neodporuje názvu (Zámek Kroměříž není „hrad“, K
     }
 });
 
+test('psaná odpověď: přízvisko není příjmení („mladší“ neplatí za Agrippinu mladší, „Česká“ za Anežku Českou)', () => {
+    const historie = P.loadContext('historie');
+    for (const [name, epithet] of [['Agrippina mladší', 'mladší'], ['Albert Veliký', 'Veliký'], ['Anežka Česká', 'Česká']]) {
+        const item = find(historie, name);
+        const accepted = core.nameAnswers(item, historie.topic.nameAliases ? historie.topic.nameAliases(item, historie) : []);
+        assert.ok(!core.isAnswerMatch(epithet, accepted), `${name}: ${accepted.join(' / ')}`);
+        assert.ok(core.isAnswerMatch(name, accepted));
+    }
+    // Skutečné příjmení platí dál
+    assert.ok(core.isAnswerMatch('Jackson', core.nameAnswers(find(historie, 'Andrew Jackson'))));
+});
+
 test('popis: víceslovný region za „ve státě“ se zakryje celý (ne „[***] York“)', () => {
     assert.equal(core.censorCountry('v Lake Placid ve státě New York v USA.', 'Spojené státy americké', []), 'v Lake Placid [***] v USA.');
 });
