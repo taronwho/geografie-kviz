@@ -35,7 +35,7 @@ const serveFile = (pathname) => {
 // realNotification = ponechá skutečné Notification prohlížeče (povolení řídí context.grantPermissions); delay = dotaz prohlížeče odpoví po delay ms;
 // subscribeError = push služba odmítne odběr; readyNever = service worker se nikdy nespustí. Zprávy pro service worker (push-test) se zapisují
 // do __push.swMessages a atrapa odpoví { ok: true }; window.__swEmit(data) napodobí zprávu od service workeru (klepnutí na upozornění).
-const pushStub = ({ permission, answer, realNotification, delay, subscribeError, readyNever }) => {
+const pushStub = ({ permission, answer, realNotification, delay, subscribeError, readyNever, noPush }) => {
     const P256DH = 'BNcRdreALRFXTkOOUHK1EtK2wtaz5Ry4YfYCA_0QTpQtUbVlUls0VJXg7A8u-Ts1XbjhazAkj7I99e8QcYP7DkM';
     const state = { subscription: null, asked: 0, subscribed: 0, unsubscribed: 0, swMessages: [], listeners: [] };
     const make = () => ({
@@ -44,6 +44,7 @@ const pushStub = ({ permission, answer, realNotification, delay, subscribeError,
         async unsubscribe() { state.subscription = null; state.unsubscribed++; return true; }
     });
     window.__push = state;
+    if (noPush) { delete window.PushManager; return; }
     window.PushManager = function PushManager() {};
     if (!realNotification) {
         window.Notification = {
@@ -78,7 +79,11 @@ const pushStub = ({ permission, answer, realNotification, delay, subscribeError,
     window.__swEmit = (data) => state.listeners.forEach(listener => listener({ data }));
 };
 
-const newDb = () => ({ subscribed: [], deleted: [], patches: [], devTests: 0, subscribeStatus: 0, devAdmin: true, devices: 1, profile: { id: 'u-1', display_name: 'Jana Nováková', avatar: '🦊', color: 'emerald', xp: 0, badges: [], push_tournament: true, push_challenge: true } });
+// Otevřený turnaj (přihlášky do příštího pondělí), do kterého se hráč může přihlásit
+const TID = '11111111-2222-3333-4444-555555555555';
+const nextMonday = () => { const day = new Date(); day.setUTCDate(day.getUTCDate() + (((8 - day.getUTCDay()) % 7) || 7)); return day.toISOString().slice(0, 10); };
+const newDb = () => ({ subscribed: [], deleted: [], patches: [], devTests: 0, subscribeStatus: 0, devAdmin: true, devices: 1, entries: [], joins: 0, profile: { id: 'u-1', display_name: 'Jana Nováková', avatar: '🦊', color: 'emerald', xp: 0, badges: [], push_tournament: true, push_challenge: true },
+    tournament: { id: TID, topic: 'mix', week_start: nextMonday(), started_on: null, capacity: 32, status: 'open', size: null, rounds: null, seed: 's1' } });
 const backend = async (context, db, key) => {
     await context.route('**/config.js', route => route.fulfill({ contentType: 'text/javascript', body: config(key) }));
     await context.route('https://proj.supabase.co/**', route => {
@@ -97,6 +102,11 @@ const backend = async (context, db, key) => {
             if (db.devices) db.devTests++;
             return json(db.devices);
         }
+        if (url.pathname === '/rest/v1/rpc/tournament_tick') return route.fulfill({ status: 200, body: '' });
+        if (url.pathname === '/rest/v1/rpc/tournament_join') { db.joins++; if (!db.entries.includes('u-1')) db.entries.push('u-1'); return route.fulfill({ status: 200, body: '' }); }
+        if (url.pathname === '/rest/v1/rpc/tournament_leave') { db.entries = db.entries.filter(id => id !== 'u-1'); return route.fulfill({ status: 200, body: '' }); }
+        if (url.pathname === '/rest/v1/tournaments') return json(db.tournament ? [db.tournament] : []);
+        if (url.pathname === '/rest/v1/tournament_entries') return json(db.entries.map(id => ({ user_id: id, joined_at: '2026-11-01T10:00:00Z', status: 'joined', place: null, player: { ...db.profile } })));
         if (url.pathname === '/rest/v1/push_subscriptions' && request.method() === 'DELETE') { db.deleted.push(url.searchParams.get('endpoint').replace(/^eq\./, '')); return route.fulfill({ status: 204, body: '' }); }
         if (url.pathname === '/rest/v1/push_subscriptions') return json(db.subscribed.filter(row => !db.deleted.includes(row.endpoint_url)).map(row => ({ endpoint: row.endpoint_url })));
         if (url.pathname === '/rest/v1/profiles') {
@@ -108,15 +118,15 @@ const backend = async (context, db, key) => {
     });
 };
 
-const setup = async (browser, { key = VAPID, permission = 'default', answer = 'granted', storage = {}, viewport = { width: 390, height: 780 }, colorScheme = 'light', grant = false, realNotification = false, delay = 0, subscribeError = false, readyNever = false, db: dbOptions = {} } = {}) => {
-    const context = await browser.newContext({ serviceWorkers: 'block', colorScheme, viewport });
+const setup = async (browser, { key = VAPID, permission = 'default', answer = 'granted', storage = {}, viewport = { width: 390, height: 780 }, colorScheme = 'light', grant = false, realNotification = false, delay = 0, subscribeError = false, readyNever = false, noPush = false, userAgent = undefined, db: dbOptions = {} } = {}) => {
+    const context = await browser.newContext({ serviceWorkers: 'block', colorScheme, viewport, ...(userAgent ? { userAgent } : {}) });
     if (grant) await context.grantPermissions(['notifications'], { origin: ORIGIN });
     await context.addInitScript(entries => {
         if (sessionStorage.getItem('test-storage-set')) return;
         sessionStorage.setItem('test-storage-set', '1');
         Object.entries(entries).forEach(([name, value]) => localStorage.setItem(name, value));
     }, { 'mudrlant.tutorial': JSON.stringify({ how: 'done' }), 'mudrlant.variant': 'choices', 'mudrlant.account': JSON.stringify('host'), 'mudrlant.homeTab': JSON.stringify('single'), 'mudrlant.tips': JSON.stringify({ off: true }), ...login, ...storage });
-    await context.addInitScript(pushStub, { permission, answer, realNotification, delay, subscribeError, readyNever });
+    await context.addInitScript(pushStub, { permission, answer, realNotification, delay, subscribeError, readyNever, noPush });
     const tab = await context.newPage();
     const log = { errors: [], csp: [] };
     tab.on('pageerror', error => log.errors.push(error.message));
@@ -450,5 +460,173 @@ test('upozornění (push) v Nastavení', { skip: !chromium && 'Playwright není 
         assert.match(await none.tab.textContent('#push-test'), /nemá zapnutá upozornění/);
         assert.equal(none.db.devTests, 0);
         await none.context.close();
+    });
+
+    // --- Nabídka upozornění (hra se sama zeptá) ---
+    const offerRecord = (tab) => tab.evaluate(() => (JSON.parse(localStorage.getItem('mudrlant.pushOffer') || '{}'))['u-1'] || null);
+    const setOfferRecord = (tab, record) => tab.evaluate((record) => localStorage.setItem('mudrlant.pushOffer', JSON.stringify({ 'u-1': record })), record);
+    const joinTournament = async (tab) => {
+        await tab.waitForSelector(`[data-action="tournament-join"][data-tid="${TID}"]`, { timeout: 15000 });
+        await tab.click(`[data-action="tournament-join"][data-tid="${TID}"]`);
+    };
+    // Nabídka se neukáže: počká se déle, než je její zpoždění, a okno nesmí být
+    const noOffer = async (tab, wait = 4500) => { await tab.waitForTimeout(wait); assert.equal(await tab.locator('#push-offer, #push-offer-ios').count(), 0, 'nabídka se nemá ukázat'); };
+    const multi = { 'mudrlant.homeTab': JSON.stringify('multi') };
+    // Znovu načtená aplikace s odhlášeným hráčem z turnaje (ať jde přihlásit znovu)
+    // (pozvánka do turnaje vyskakuje při každém druhém spuštění: počítadlo spuštění se vrátí, ať tu nepřekáží)
+    const reloadOut = async (tab, db) => { db.entries = []; await tab.evaluate(() => localStorage.setItem('mudrlant.tourPromo', JSON.stringify({ launches: 0 }))); await tab.reload(); await waitForHome(tab); };
+
+    await t.test('nabídka po přihlášení do turnaje: sova, užitek, noční klid, Zapnout → souhlas prohlížeče a potvrzení; už nikdy znovu', async () => {
+        const { context, tab, db, log } = await start({ storage: multi });
+        assert.equal(await tab.locator('#push-offer').count(), 0, 'po spuštění se nikdo neptá');
+        await joinTournament(tab);
+        await tab.waitForSelector('#push-offer', { timeout: 10000 });
+        assert.equal(await tab.getAttribute('#push-offer', 'data-context'), 'tournament');
+        const text = await tab.textContent('#push-offer');
+        assert.match(text, /Mám ti dát vědět\?/);
+        assert.match(text, /Jsi v turnaji!/);
+        assert.match(text, /Začíná tvůj zápas turnaje – kdo kolo neodehraje, vypadává\./);
+        assert.match(text, /Někdo tě vyzval\./);
+        assert.match(text, /Soupeř dohrál tvoji výzvu\./);
+        assert.match(text, /V noci \(21–7 h\) nic neposílám\. Vypnout jde kdykoli v Nastavení → Hra\./);
+        assert.ok(await tab.$('#push-offer img[src*="sova-"]'), 'sova Mudrlant');
+        assert.equal((await tab.textContent('[data-push-offer-on]')).trim(), 'Zapnout upozornění');
+        assert.match(await tab.textContent('#push-offer [data-close]'), /Teď ne/);
+        assert.equal(await tab.evaluate(() => window.__push.asked), 0, 'samotná nabídka se prohlížeče neptá');
+        // vejde se na telefon bez posouvání a bez přetékání do strany
+        assert.deepEqual(await overflow(tab, '#dialog-overlay > div'), { page: 0, box: 0 });
+        assert.equal(await tab.evaluate(() => { const box = document.querySelector('#dialog-overlay > div'); return box.scrollHeight - box.clientHeight; }), 0, 'okno bez posouvání');
+        if (SHOTS) await tab.screenshot({ path: path.join(SHOTS, 'nabidka-upozorneni-390.png') });
+        const shownRecord = await offerRecord(tab);
+        assert.equal(shownRecord.shown, 1, 'ukázání se počítá hned');
+        assert.equal(shownRecord.done, false);
+        await tab.click('[data-push-offer-on]');
+        await tab.waitForSelector('#push-offer[data-done]');
+        assert.match(await tab.textContent('#push-offer'), /Upozornění jsou zapnutá/);
+        assert.equal(await tab.evaluate(() => window.__push.asked), 1);
+        assert.equal(db.subscribed.length, 1, 'zapnutí stejné jako v Nastavení: předplatné uložené na serveru');
+        assert.equal((await offerRecord(tab)).done, true);
+        await tab.click('#push-offer [data-close]');
+        // v Nastavení je zapnuto
+        await openSettings(tab);
+        await tab.waitForSelector('[data-push-toggle="off"]');
+        assert.deepEqual(log.errors, []);
+        assert.deepEqual(log.csp, []);
+        await context.close();
+    });
+
+    await t.test('nabídka: chyba při zapnutí je srozumitelná a jde zkusit znovu; zamítnutí v prohlížeči = už nikdy a návod', async () => {
+        const failing = await start({ storage: multi, db: { subscribeStatus: 404 } });
+        await joinTournament(failing.tab);
+        await failing.tab.waitForSelector('#push-offer');
+        await failing.tab.click('[data-push-offer-on]');
+        await failing.tab.waitForSelector('[data-push-offer-note]');
+        assert.match(await failing.tab.textContent('[data-push-offer-note]'), /Databáze nemá funkce upozornění/);
+        assert.match(await failing.tab.textContent('[data-push-offer-on]'), /Zkusit znovu/);
+        await failing.context.close();
+
+        const refused = await start({ storage: multi, answer: 'denied' });
+        await joinTournament(refused.tab);
+        await refused.tab.waitForSelector('#push-offer');
+        await refused.tab.click('[data-push-offer-on]');
+        await refused.tab.waitForSelector('[data-push-offer-help]');
+        assert.match(await refused.tab.textContent('[data-push-offer-note]'), /zablokoval/);
+        assert.equal((await offerRecord(refused.tab)).done, true, 'po zamítnutí v prohlížeči už nikdy');
+        await refused.tab.click('[data-push-offer-help]');
+        await refused.tab.waitForSelector('#push-help');
+        await refused.context.close();
+    });
+
+    await t.test('„Teď ne“: znovu nejdřív za 7 dní, celkem nejvýš 3×', async () => {
+        const { context, tab, db } = await start({ storage: multi });
+        await joinTournament(tab);
+        await tab.waitForSelector('#push-offer');
+        await tab.click('#push-offer [data-close]');
+        await tab.waitForFunction(() => !document.getElementById('dialog-overlay'));
+        const first = await offerRecord(tab);
+        assert.equal(first.shown, 1);
+        assert.ok(Math.abs(first.last - Date.now()) < 60000);
+        assert.equal(first.done, false);
+        // do 7 dnů nic (znovu přihlášení do turnaje, po 6 dnech)
+        await setOfferRecord(tab, { ...first, last: Date.now() - 6 * 86400000 });
+        await reloadOut(tab, db);
+        await joinTournament(tab);
+        await noOffer(tab);
+        // po 7 dnech znovu (podruhé)
+        await setOfferRecord(tab, { ...(await offerRecord(tab)), last: Date.now() - 8 * 86400000 });
+        await reloadOut(tab, db);
+        await joinTournament(tab);
+        await tab.waitForSelector('#push-offer');
+        assert.equal((await offerRecord(tab)).shown, 2);
+        await tab.click('#push-offer [data-close]');
+        // potřetí ukázaná nabídka je poslední
+        await setOfferRecord(tab, { ...(await offerRecord(tab)), shown: 3, last: Date.now() - 30 * 86400000 });
+        await reloadOut(tab, db);
+        await joinTournament(tab);
+        await noOffer(tab);
+        await context.close();
+    });
+
+    await t.test('nabídka se neukáže, když prohlížeč už povolil nebo zablokoval, nebo když jsou upozornění zapnutá', async () => {
+        for (const permission of ['denied', 'granted']) {
+            const { context, tab } = await start({ storage: multi, permission });
+            await joinTournament(tab);
+            await noOffer(tab, 5000);
+            assert.equal((await offerRecord(tab)).done, true, `${permission}: už nikdy`);
+            assert.equal(await tab.evaluate(() => window.__push.asked), 0);
+            await context.close();
+        }
+        // bez klíče VAPID ani bez přihlášení se nic neplánuje
+        const noKey = await start({ storage: multi, key: '' });
+        await joinTournament(noKey.tab);
+        await noOffer(noKey.tab);
+        await noKey.context.close();
+    });
+
+    await t.test('jinak nejdřív při 3. otevření záložky Více hráčů; ne během tutoriálu a ne přes jiné okno', async () => {
+        const { context, tab } = await start();
+        const toMulti = async () => { await tab.click('#home-tabs [data-tab="multi"]'); await tab.waitForFunction(() => document.querySelector('#home-tabs [data-tab="multi"]').getAttribute('aria-selected') === 'true'); };
+        const toSingle = () => tab.click('#home-tabs [data-tab="single"]');
+        await toMulti();
+        await noOffer(tab, 4000);
+        await toSingle();
+        await toMulti();
+        await noOffer(tab, 4000);
+        assert.equal((await offerRecord(tab)).opens, 2);
+        await toSingle();
+        await toMulti();
+        await tab.waitForSelector('#push-offer', { timeout: 10000 });
+        assert.equal(await tab.getAttribute('#push-offer', 'data-context'), 'multi');
+        await context.close();
+
+        // tutoriál běží: nabídka počká a ze záložky Více hráčů se tentokrát vzdá
+        const tutorial = await start({ storage: { 'mudrlant.pushOffer': JSON.stringify({ 'u-1': { shown: 0, last: 0, opens: 2, done: false } }) } });
+        await tutorial.tab.evaluate(() => localStorage.setItem('mudrlant.tutorial', JSON.stringify({ how: 'running', step: 2 })));
+        await tutorial.tab.click('#home-tabs [data-tab="multi"]');
+        await noOffer(tutorial.tab, 8000);
+        assert.equal((await offerRecord(tutorial.tab)).shown, 0, 'během tutoriálu se nepočítá ani neukáže');
+        await tutorial.context.close();
+
+        // jiné okno (Nastavení) je otevřené: nabídka po přihlášení do turnaje počká, až se zavře
+        const busy = await start({ storage: multi });
+        await joinTournament(busy.tab);
+        await openSettings(busy.tab);
+        await busy.tab.waitForTimeout(4500);
+        assert.equal(await busy.tab.locator('#push-offer').count(), 0, 'ne přes otevřené Nastavení');
+        await busy.tab.keyboard.press('Escape');
+        await busy.tab.waitForSelector('#push-offer', { timeout: 10000 });
+        await busy.context.close();
+    });
+
+    await t.test('iPhone bez přidání na plochu: místo nabídky jednou krátká rada', async () => {
+        const iphone = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1';
+        const { context, tab, log } = await start({ storage: multi, noPush: true, userAgent: iphone });
+        await joinTournament(tab);
+        await tab.waitForSelector('#push-offer-ios', { timeout: 10000 });
+        assert.match(await tab.textContent('#push-offer-ios'), /Na iPhonu nejdřív Sdílet → Přidat na plochu a otevři odtamtud/);
+        assert.equal((await offerRecord(tab)).done, true, 'rada jen jednou');
+        assert.deepEqual(await overflow(tab, '#dialog-overlay > div'), { page: 0, box: 0 });
+        assert.deepEqual(log.errors, []);
+        await context.close();
     });
 });

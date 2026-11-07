@@ -341,6 +341,10 @@
             document.body.appendChild(toast);
         }
         toast.textContent = message;
+        // V otevřeném okně (Nastavení, dialog) nahoře, ať nezakryje řádek, u kterého se výsledek právě ukázal
+        const inWindow = Boolean(document.getElementById('settings-overlay') || document.getElementById('dialog-overlay'));
+        toast.classList.toggle('bottom-24', !inWindow);
+        toast.classList.toggle('top-4', inWindow);
         toast.classList.remove('opacity-0');
         clearTimeout(showToast.timer);
         showToast.timer = setTimeout(() => toast.classList.add('opacity-0'), 2500);
@@ -1147,7 +1151,8 @@
     const PUSH_TEST_TITLE = 'Zkouška upozornění';
     const pushTestOpen = () => { const overlay = document.getElementById('dialog-overlay'); return Boolean(overlay && overlay.dataset.title === PUSH_TEST_TITLE); };
     const TEST_TEXT = 'text-sm font-semibold leading-snug text-slate-600 dark:text-slate-300';
-    const testBox = (tone, text) => `<p data-push-test-result="${tone}" role="${tone === 'ok' ? 'status' : 'alert'}" class="flex items-start gap-2 rounded-2xl px-3 py-2.5 text-[15px] font-black leading-snug ${tone === 'ok' ? 'bg-emerald-50 text-emerald-800 ring-1 ring-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-200 dark:ring-emerald-800/60' : 'bg-rose-50 text-rose-800 ring-1 ring-rose-200 dark:bg-rose-950/40 dark:text-rose-200 dark:ring-rose-800/60'}"><i data-lucide="${tone === 'ok' ? 'circle-check' : 'circle-x'}" class="mt-0.5 h-5 w-5 shrink-0"></i><span>${escapeHtml(text)}</span></p>`;
+    const TEST_ICON = { ok: 'circle-check', error: 'circle-x' };
+    const testBox = (tone, text) => `<p data-push-test-result="${tone}" role="${tone === 'ok' ? 'status' : 'alert'}" class="flex items-start gap-2 rounded-2xl px-3 py-2.5 text-[15px] font-black leading-snug ${tone === 'ok' ? 'bg-emerald-50 text-emerald-800 ring-1 ring-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-200 dark:ring-emerald-800/60' : 'bg-rose-50 text-rose-800 ring-1 ring-rose-200 dark:bg-rose-950/40 dark:text-rose-200 dark:ring-rose-800/60'}"><i data-lucide="${TEST_ICON[tone]}" class="mt-0.5 h-5 w-5 shrink-0"></i><span>${escapeHtml(text)}</span></p>`;
     const showPushTest = (html, onClick = null) => showDialog(PUSH_TEST_TITLE, `<div id="push-test" class="flex flex-col gap-3">${html}</div>`, { onClick });
     const CLOSE_TEST = () => `<button type="button" data-close class="${PRIMARY_BUTTON}">Rozumím</button>`;
     const ENABLE_TEST = (label) => `<button type="button" data-push-test-enable class="${PRIMARY_BUTTON}"><i data-lucide="bell" class="h-5 w-5"></i> ${escapeHtml(label)}</button><button type="button" data-close class="mx-auto rounded-xl px-3 py-2 text-[13px] font-bold text-slate-600 underline underline-offset-2 dark:text-slate-300">Teď ne</button>`;
@@ -1210,6 +1215,164 @@
             <p class="${TEST_TEXT}">Pošle ho odesílač na GitHubu. Co dál:</p>
             <p data-push-test-next class="rounded-2xl bg-white p-3 text-sm font-bold leading-snug text-slate-700 shadow-sm ring-1 ring-slate-200/70 dark:bg-slate-800 dark:text-slate-200 dark:ring-slate-700/70">Otevři GitHub → Actions → Upozornění → Run workflow (dry_run = false), nebo počkej na další hodinový běh (7–21 h).</p>
             <p class="text-xs font-semibold leading-snug text-slate-500 dark:text-slate-400">Ručně spuštěný běh pošle zkušební upozornění i v noci (ostatní upozornění jen 7–21 h). Zpráva čeká nejvýš 24 hodin a přijde jen jednou. Klepnutí na ni otevře záložku Více hráčů.</p>${CLOSE_TEST()}`);
+    };
+
+    // --- Nabídka upozornění: hra se sama zeptá, jestli upozornění zapnout, a vysvětlí proč ---
+    // Jen když to dává smysl: přihlášený hráč, prohlížeč push umí, je klíč VAPID, prohlížeč se ještě neptal (permission 'default') a upozornění nejsou zapnutá.
+    // Kdy: hned po přihlášení do turnaje, po dohrání výzvy, na jejíhož soupeře se čeká (i po založení výzvy – založení ji rovnou spustí),
+    // jinak nejdřív při 3. otevření záložky Více hráčů. „Teď ne“ (i zavření okna) = znovu nejdřív za 7 dní, celkem nejvýš 3×; po zapnutí nebo zamítnutí
+    // v prohlížeči už nikdy. Ne během tutoriálu, uprostřed otázky nebo zápasu, ani přes jiné otevřené okno (počká, až se zavře).
+    // Na iPhonu bez přidání na plochu (push tam nejde) místo nabídky jednou krátká rada. Stav je v localStorage zvlášť pro každý účet (mudrlant.pushOffer).
+    const PUSH_OFFER_KEY = 'mudrlant.pushOffer';
+    const PUSH_OFFER_GAP = 7 * 86400000;
+    const PUSH_OFFER_MAX = 3;
+    const PUSH_OFFER_MULTI = 3;
+    // Chvíli po události (hráč nejdřív uvidí výsledek a hlášku dole, ta zmizí po 2,5 s), ať okno nezakryje
+    const PUSH_OFFER_DELAY = 3000;
+    const PUSH_OFFER_TITLE = 'Upozornění';
+    const pushOfferAll = () => { const saved = readJson(PUSH_OFFER_KEY); return saved && typeof saved === 'object' && !Array.isArray(saved) ? saved : {}; };
+    const pushOfferOf = (userId) => {
+        const row = pushOfferAll()[userId];
+        const count = (value) => (Number.isFinite(value) && value > 0 ? Math.floor(value) : 0);
+        return { shown: count(row && row.shown), last: count(row && row.last), opens: count(row && row.opens), done: Boolean(row && row.done) };
+    };
+    const savePushOffer = (userId, patch) => {
+        const all = pushOfferAll();
+        const next = { ...pushOfferOf(userId), ...patch };
+        delete all[userId];
+        writeJson(PUSH_OFFER_KEY, Object.fromEntries([...Object.entries(all).slice(-4), [userId, next]]));
+    };
+    const pushOfferAllowed = (record, now = Date.now()) => !record.done && record.shown < PUSH_OFFER_MAX && (!record.last || now - record.last >= PUSH_OFFER_GAP);
+    // Něco jiného má přednost: tutoriál, otázka, načítání, jiné okno nebo oslava
+    const PUSH_OFFER_BLOCKERS = ['dialog-overlay', 'settings-overlay', 'play-chooser', 'photo-zoom', 'place-info', 'fact-overlay', 'celebration', 'tutorial', 'account-welcome'];
+    const pushOfferBlocked = () => {
+        if (isLoading || (screen !== 'home' && screen !== 'challenge-done')) return true;
+        if (Tutorial) {
+            if (Tutorial.isActive()) return true;
+            try { if (Tutorial.isRunning(window.localStorage)) return true; } catch (error) { /* bez úložiště tutoriál neběží */ }
+        }
+        return PUSH_OFFER_BLOCKERS.some(id => document.getElementById(id)) || Boolean(document.querySelector('body > [aria-modal="true"]'));
+    };
+    const pushOfferFits = (context) => (context === 'multi' ? screen === 'home' && homeTab() === 'multi' : true);
+    let pushOfferPending = null; // { context, userId, until }
+    let pushOfferTimer = 0;
+    // Naplánuje nabídku; z turnaje a výzvy počká na zavření jiného okna až 3 minuty, ze záložky Více hráčů jen chvíli (jinak příště)
+    const schedulePushOffer = (context) => {
+        const user = signedUser();
+        if (!Push || !user || !Push.configured() || (!Push.supported() && pushEnvironment() !== 'ios') || !pushOfferAllowed(pushOfferOf(user.id))) return;
+        pushOfferPending = { context, userId: user.id, until: Date.now() + PUSH_OFFER_DELAY + (context === 'multi' ? 3000 : 180000) };
+        clearTimeout(pushOfferTimer);
+        pushOfferTimer = setTimeout(tryPushOffer, PUSH_OFFER_DELAY);
+    };
+    const tryPushOffer = async () => {
+        const pending = pushOfferPending;
+        const user = signedUser();
+        if (!pending) return;
+        if (!user || user.id !== pending.userId || Date.now() > pending.until) { pushOfferPending = null; return; }
+        const retry = () => { clearTimeout(pushOfferTimer); pushOfferTimer = setTimeout(tryPushOffer, 1000); };
+        if (pushOfferBlocked() || !pushOfferFits(pending.context)) { retry(); return; }
+        let state = null;
+        try { state = await Push.state(); } catch (error) { state = null; }
+        if (pushOfferPending !== pending) return;
+        const record = pushOfferOf(user.id);
+        const permission = window.Notification ? String(window.Notification.permission) : '';
+        const iphone = state && state.kind === 'unsupported' && state.ios && !(window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) && navigator.standalone !== true;
+        // Zapnuto, zablokováno nebo už jednou povoleno: nabídka nemá smysl a už se neukáže
+        if (state && (state.kind === 'on' || state.kind === 'denied' || (state.kind === 'off' && permission !== 'default'))) { savePushOffer(user.id, { done: true }); pushOfferPending = null; return; }
+        if (!state || !pushOfferAllowed(record) || (state.kind !== 'off' && !iphone)) { pushOfferPending = null; return; }
+        if (pushOfferBlocked() || !pushOfferFits(pending.context)) { retry(); return; }
+        pushOfferPending = null;
+        // Ukázání se počítá hned („Teď ne“ i zavření okna znamená počkat 7 dní); rada pro iPhone jen jednou
+        savePushOffer(user.id, { shown: record.shown + 1, last: Date.now(), ...(iphone ? { done: true } : {}) });
+        if (iphone) showPushIphoneHint(); else showPushOffer(pending.context);
+    };
+    const PUSH_OFFER_LEAD = {
+        tournament: 'Jsi v turnaji! Ať ti žádné kolo neuteče.',
+        challenge: 'Až soupeř výzvu dohraje, můžeš se to dozvědět hned.',
+        multi: 'Dám ti vědět, i když máš aplikaci zavřenou.'
+    };
+    const PUSH_OFFER_ITEMS = [
+        ['trophy', 'Začíná tvůj zápas turnaje – kdo kolo neodehraje, vypadává.'],
+        ['swords', 'Někdo tě vyzval.'],
+        ['flag', 'Soupeř dohrál tvoji výzvu.']
+    ];
+    const pushOffer = { context: 'multi', busy: false, note: null, done: false };
+    const pushOfferOpen = () => Boolean(document.getElementById('push-offer'));
+    const renderPushOffer = () => {
+        if (pushOffer.done) {
+            showDialog(PUSH_OFFER_TITLE, `
+                <div id="push-offer" data-done class="flex flex-col items-center gap-3 text-center">
+                    ${uiArt('sova-radost', 'h-24 w-24')}
+                    <p class="text-lg font-black text-slate-800 dark:text-slate-100" role="status">Upozornění jsou zapnutá</p>
+                    <p class="text-sm font-semibold leading-snug text-slate-600 dark:text-slate-300">Dám ti vědět, až začne tvůj zápas nebo tě někdo vyzve. Vypnout je můžeš kdykoli v Nastavení → Hra.</p>
+                    <button type="button" data-close data-autofocus class="${PRIMARY_BUTTON}">Super</button>
+                </div>`);
+            return;
+        }
+        const note = pushOffer.note;
+        showDialog(PUSH_OFFER_TITLE, `
+            <div id="push-offer" data-context="${escapeHtml(pushOffer.context)}" class="flex flex-col gap-3">
+                <div class="flex items-center gap-3">
+                    ${uiArt('sova-vitej', 'h-20 w-20 -my-1')}
+                    <div class="min-w-0"><p class="text-lg font-black leading-tight text-slate-800 dark:text-slate-100">Mám ti dát vědět?</p>
+                        <p class="mt-1 text-sm font-semibold leading-snug text-slate-600 dark:text-slate-300">${escapeHtml(PUSH_OFFER_LEAD[pushOffer.context] || PUSH_OFFER_LEAD.multi)} Pošlu ti krátké upozornění, když:</p></div>
+                </div>
+                <ul class="flex flex-col gap-1.5 rounded-2xl bg-white p-3 shadow-sm ring-1 ring-slate-200/70 dark:bg-slate-800 dark:ring-slate-700/70">${PUSH_OFFER_ITEMS.map(([icon, text]) => `
+                    <li class="flex items-center gap-2.5 text-[13px] font-bold leading-snug text-slate-700 dark:text-slate-200"><span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-100 text-brand-700 dark:bg-brand-900/60 dark:text-brand-200"><i data-lucide="${icon}" class="h-4 w-4"></i></span>${escapeHtml(text)}</li>`).join('')}</ul>
+                <p class="text-xs font-semibold leading-snug text-slate-500 dark:text-slate-400">V noci (21–7 h) nic neposílám. Vypnout jde kdykoli v Nastavení → Hra.</p>
+                ${note ? `<p data-push-offer-note role="alert" class="rounded-xl bg-rose-50 px-3 py-2 text-[13px] font-semibold leading-snug text-rose-800 ring-1 ring-rose-200 dark:bg-rose-950/40 dark:text-rose-200 dark:ring-rose-800/60"><b>${escapeHtml(note.short)}.</b> ${escapeHtml(note === PUSH_NOTES.denied ? 'Povolit je jde v nastavení prohlížeče.' : note.advice)}</p>` : ''}
+                ${note === PUSH_NOTES.denied
+                    ? `<button type="button" data-push-offer-help class="${PRIMARY_BUTTON}"><i data-lucide="info" class="h-5 w-5"></i> Jak je povolit</button>`
+                    : `<button type="button" data-push-offer-on class="${PRIMARY_BUTTON}"${pushOffer.busy ? ' disabled aria-busy="true"' : ''}><i data-lucide="${pushOffer.busy ? 'hourglass' : 'bell'}" class="h-5 w-5"></i> ${pushOffer.busy ? 'Zapínám… potvrď dotaz prohlížeče' : note ? 'Zkusit znovu' : 'Zapnout upozornění'}</button>`}
+                <button type="button" data-close class="mx-auto rounded-xl px-4 py-2.5 text-[13px] font-bold text-slate-600 underline underline-offset-2 dark:text-slate-300">Teď ne</button>
+            </div>`, {
+            onClick: (event) => {
+                if (event.target.closest('[data-push-offer-help]')) { openPushHelp(); return; }
+                if (event.target.closest('[data-push-offer-on]') && !pushOffer.busy) acceptPushOffer();
+            }
+        });
+    };
+    const showPushOffer = (context) => {
+        Object.assign(pushOffer, { context, busy: false, note: null, done: false });
+        renderPushOffer();
+    };
+    // „Zapnout upozornění“: stejné zapnutí jako přepínač v Nastavení (souhlas prohlížeče hned v klepnutí, předplatné, uložení)
+    const acceptPushOffer = async () => {
+        const user = signedUser();
+        const work = enablePushNow();
+        pushOffer.busy = true;
+        pushOffer.note = null;
+        renderPushOffer();
+        const note = await work;
+        pushOffer.busy = false;
+        if (user && (note.ok || note === PUSH_NOTES.denied)) savePushOffer(user.id, { done: true });
+        pushState = null;
+        pushPrefs = null;
+        if (!pushOfferOpen()) { showToast(note.short); return; }
+        if (note.ok) pushOffer.done = true; else pushOffer.note = note;
+        renderPushOffer();
+    };
+    const showPushIphoneHint = () => showDialog(PUSH_OFFER_TITLE, `
+        <div id="push-offer-ios" class="flex flex-col gap-3">
+            <div class="flex items-center gap-3">${uiArt('sova-vitej', 'h-20 w-20 -my-1')}
+                <p class="min-w-0 text-sm font-semibold leading-snug text-slate-600 dark:text-slate-300">Umím ti dát vědět, když začíná tvůj zápas v turnaji nebo tě někdo vyzve. Na iPhonu to jde jen v aplikaci na ploše.</p></div>
+            <p class="flex items-center gap-2 rounded-2xl bg-white p-3 text-sm font-black leading-snug text-slate-700 shadow-sm ring-1 ring-slate-200/70 dark:bg-slate-800 dark:text-slate-200 dark:ring-slate-700/70"><i data-lucide="info" class="h-5 w-5 shrink-0 text-brand-700 dark:text-brand-300"></i>${escapeHtml(PUSH_TEXTS.iphone)}.</p>
+            <p class="text-xs font-semibold leading-snug text-slate-500 dark:text-slate-400">Pak zapni upozornění v Nastavení → Hra.</p>
+            <button type="button" data-close data-autofocus class="${PRIMARY_BUTTON}">Rozumím</button>
+        </div>`);
+    // Otevření záložky Více hráčů (přepnutí nebo spuštění aplikace rovnou na ní): počítá se pro účet; od 3. otevření nabídka (podle pravidel výše)
+    let pushHomeTabSeen = '';
+    const notePushHomeTab = () => {
+        const tab = homeTab();
+        const entered = tab === 'multi' && pushHomeTabSeen !== 'multi';
+        pushHomeTabSeen = tab;
+        const user = signedUser();
+        if (!entered || !user || !Push || !Push.configured()) return;
+        const record = pushOfferOf(user.id);
+        if (record.done) return;
+        const opens = Math.min(record.opens + 1, 99);
+        savePushOffer(user.id, { opens });
+        if (opens >= PUSH_OFFER_MULTI) schedulePushOffer('multi');
     };
     const changePushPref = async (key) => {
         const user = signedUser();
@@ -2015,6 +2178,7 @@
     const renderHome = () => {
         screen = 'home';
         closePlaceInfo();
+        notePushHomeTab();
         settleGoals();
         const stats = loadStats();
         const today = getDayKey();
@@ -5494,6 +5658,8 @@
         renderIcons(appContent);
         appContent.scrollTo(0, 0);
         updateControlsUI();
+        // Dohraná výzva, na jejíhož soupeře se čeká (i právě založená): nabídka upozornění, ať se hráč dozví, až soupeř dohraje
+        if (state === 'ok' && results && (!rivals.length || invitedWaiting)) schedulePushOffer('challenge');
     };
 
     // Po poslední otázce: zapíše výsledek (první platí) a ukáže žebříček výzvy
@@ -6254,13 +6420,17 @@
         tournamentBusy = tid;
         paintChallenges();
         if (document.getElementById('tournament-status') || document.getElementById('tournament-entries')) renderTournamentDialog();
+        let joined = false;
         try {
             await (join ? Social.joinTournament(tid) : Social.leaveTournament(tid));
             showToast(join ? 'Jsi přihlášen do turnaje' : 'Odhlášen z turnaje');
+            joined = join;
         } catch (error) {
             showToast(error.message);
         }
         tournamentBusy = '';
+        // Hned po přihlášení do turnaje nabídka upozornění (kdo kolo neodehraje, vypadává); počká, až se zavře okno turnaje
+        if (joined) schedulePushOffer('tournament');
         await refreshTournaments({ force: true });
         paintChallenges();
         if (document.getElementById('dialog-overlay') && document.getElementById('dialog-overlay').dataset.title === TOUR_DIALOG) renderTournamentDialog();

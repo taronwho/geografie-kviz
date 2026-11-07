@@ -387,8 +387,15 @@ test('nasazení: push.js je v index.html, sw.js i pages.yml; workflow nepoužív
 
 test('souhlas: aplikace nezapíná upozornění sama, odhlášení je maže a schema posílá jen odběratelům', () => {
     const app = read('app.js');
-    // enable se volá jen z klepnutí na tlačítko (togglePush), nikde jinde
+    // enable se volá na jediném místě (enablePushNow) a to jen z klepnutí: přepínač, návod „zkontrolovat“, zkouška ve vývojářském režimu a nabídka
+    // (plus dokončení po návratu z nastavení prohlížeče, když hráč předtím otevřel návod a povolení už udělil)
     assert.equal((app.match(/Push\.enable\(/g) || []).length, 1);
+    assert.equal((app.match(/enablePushNow\(\)/g) || []).length, 4, 'togglePush, finishPushHelp, devPushEnable, acceptPushOffer');
+    assert.match(app, /if \(event\.target\.closest\('\[data-push-offer-on\]'\) && !pushOffer\.busy\) acceptPushOffer\(\);/);
+    assert.match(app, /if \(pushIntent && permission === 'granted'\) \{ finishPushHelp\(\); return; \}/);
+    // samotná nabídka se prohlížeče neptá: tryPushOffer jen čte stav a ukazuje okno
+    const offer = app.slice(app.indexOf('const tryPushOffer = async'), app.indexOf('const PUSH_OFFER_LEAD'));
+    assert.doesNotMatch(offer, /enablePushNow|requestPermission|Push\.enable/);
     assert.match(app, /Push\.disable\(\)\.catch\(\(\) => \{\}\)\s*:\s*Promise\.resolve\(\)\)\.then\(\(\) => Auth\.logout\(\)\)/);
     const schema = read('supabase/schema.sql');
     assert.match(schema, /from fresh f join public\.push_subscriptions s on s\.user_id = f\.user_id/);

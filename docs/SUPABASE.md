@@ -178,6 +178,14 @@ Bez níže popsaného nastavení se v aplikaci tlačítko „Zapnout upozorněn�
 a jdou odděleně zapnout/vypnout turnaje a výzvy. **Odhlášení z účtu** předplatné na tom zařízení také smaže, takže jiný hráč na sdíleném telefonu nic cizího nedostane. Předplatné vidí a maže jen jeho vlastník (RLS);
 odběry, které prohlížeč zrušil (odpověď 404/410), nebo které třikrát selhaly, server smaže sám. Zpráva o stejné věci se pošle nejvýš jednou, od každého druhu nejvýš jedna za hodinu.
 
+**Nabídka v aplikaci:** hra se sama zeptá („Mám ti dát vědět?“ se sovou, třemi důvody a poznámkou o nočním klidu, tlačítka „Zapnout upozornění“ a „Teď ne“), ale jen když
+to dává smysl: hráč je přihlášený, prohlížeč push umí, `vapidPublicKey` je vyplněný, prohlížeč se ještě neptal (`Notification.permission` = `default`) a upozornění
+nejsou zapnutá. Kdy: hned po přihlášení do turnaje, po dohrání výzvy, na jejíhož soupeře se čeká (i po založení výzvy, protože založení ji rovnou spustí), jinak
+nejdřív při 3. otevření záložky Více hráčů. „Teď ne“ (i zavření okna) = znovu nejdřív za 7 dní, celkem nejvýš 3×; po zapnutí nebo zamítnutí v prohlížeči už nikdy.
+Nikdy během tutoriálu, uprostřed otázky nebo zápasu ani přes jiné otevřené okno (po turnaji a výzvě počká až 3 minuty, než se okno zavře). Na iPhonu bez přidání na
+plochu se místo nabídky jednou ukáže rada „Sdílet → Přidat na plochu“. Stav je v `localStorage` (`mudrlant.pushOffer`, zvlášť pro každý účet). Zapnutí z nabídky je
+stejné jako přepínač v Nastavení (souhlas prohlížeče, předplatné, uložení) a skončí potvrzením „Upozornění jsou zapnutá“, nebo srozumitelnou chybou s možností zkusit znovu.
+
 Jednorázové nastavení:
 
 1. **Databáze:** spusť znovu celý `supabase/schema.sql` (přibyly tabulky `push_subscriptions`, `app_secrets`, `push_sent`, sloupce `profiles.push_tournament` a `push_challenge` a funkce `push_*`).
