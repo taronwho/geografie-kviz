@@ -35,5 +35,7 @@ module.exports = {
             }
         }
     },
-    plugins: []
+    // short: = nízký displej (telefon 360×640 a podobné, okno do 770 px výšky). Úvod a okna se na něm zhustí, aby se vešly bez posouvání;
+    // vyšší displeje (390×780, 412×915) zůstávají beze změny. Vlastní varianta, ne položka v screens: s ní by přestaly fungovat max-[…]: varianty.
+    plugins: [({ addVariant }) => addVariant('short', '@media (max-height: 770px)')]
 };

@@ -67,9 +67,8 @@ test('opakování s rozestupy a týdenní cíle', { skip: !chromium && 'Playwrig
             await tab.keyboard.press('Escape');
             await tab.waitForSelector('#dialog-overlay', { state: 'detached' });
             await tab.waitForTimeout(400);
-            // Na 360×640 se úvod posouval už před cíli (14 témat); tam se hlídá jen to, že pruh cílů přibyl nanejvýš o svou výšku
-            if (viewport.height >= 780) assert.equal(await noScroll(tab), true, 'úvod bez posouvání');
-            else assert.ok(await tab.evaluate(() => { const b = document.getElementById('app-content'); return b.scrollHeight - b.clientHeight <= 120; }), 'posun na malém telefonu zůstává malý');
+            // I na 360×640 (kompaktní úvod pro nízký displej) se úvod s pruhem cílů vejde bez posouvání
+            assert.equal(await noScroll(tab), true, 'úvod bez posouvání');
             const box = await goals.boundingBox();
             assert.ok(box.x >= 0 && box.x + box.width <= viewport.width, 'karta cílů nepřetéká');
             assert.equal(await tab.locator('[data-review-due]').count(), 0, 'bez karet žádný čip');

@@ -149,24 +149,30 @@
     let note = '';
     const slotOf = (id) => (Look.find('accessories', id) || {}).slot;
 
+    // Dlaždice doplňku: tlačítko vyplní celou buňku mřížky (aspoň 40 × 40 px dotykové plochy), vidět je jen vnitřní dlaždice
+    // s průhledným okrajem – mezery mezi dlaždicemi jsou tak součástí dotykové plochy, ne mrtvé místo
+    const TILE_HIT = 'flex h-10 w-full items-center justify-center p-0.5';
+    const TILE = 'flex h-9 w-full items-center justify-center rounded-xl border-2';
+    const TILE_ON = 'border-brand-500 bg-brand-50 dark:bg-brand-950';
+    const TILE_OFF = 'border-transparent bg-slate-50 dark:bg-slate-700/50';
     const tile = (item, ctx, selected) => {
         const open = Look.isUnlocked(item, ctx);
         const label = open ? item.title : `${item.title}: ${Look.unlockText(item, item.badge ? badgeTitle(item.badge) : null)}`;
-        return `<button type="button" data-owl-pick="${item.slot}:${item.id}" aria-pressed="${selected}" ${open ? '' : 'aria-disabled="true"'} title="${escapeHtml(label)}" aria-label="${escapeHtml(label)}"
-            class="flex h-9 w-full items-center justify-center rounded-xl border-2 ${selected ? 'border-brand-500 bg-brand-50 dark:bg-brand-950' : 'border-transparent bg-slate-50 dark:bg-slate-700/50'} ${open ? '' : 'cursor-not-allowed'}">
-            <img src="icons/doplnky/${item.id}-ikona.webp" alt="" class="h-7 w-7 object-contain ${open ? '' : 'opacity-40 grayscale'}"></button>`;
+        return `<button type="button" data-owl-pick="${item.slot}:${item.id}" aria-pressed="${selected}" ${open ? '' : 'aria-disabled="true"'} title="${escapeHtml(label)}" aria-label="${escapeHtml(label)}" class="${TILE_HIT} ${open ? '' : 'cursor-not-allowed'}">
+            <span class="${TILE} ${selected ? TILE_ON : TILE_OFF}"><img src="icons/doplnky/${item.id}-ikona.webp" alt="" class="h-7 w-7 object-contain ${open ? '' : 'opacity-40 grayscale'}"></span></button>`;
     };
-    const noneTile = (slot, selected) => `<button type="button" data-owl-pick="${slot}:none" aria-pressed="${selected}" title="Bez doplňku" aria-label="Bez doplňku"
-        class="flex h-9 w-full items-center justify-center rounded-xl border-2 text-lg font-black text-slate-500 dark:text-slate-400 ${selected ? 'border-brand-500 bg-brand-50 dark:bg-brand-950' : 'border-transparent bg-slate-50 dark:bg-slate-700/50'}">–</button>`;
+    const noneTile = (slot, selected) => `<button type="button" data-owl-pick="${slot}:none" aria-pressed="${selected}" title="Bez doplňku" aria-label="Bez doplňku" class="${TILE_HIT}">
+        <span class="${TILE} text-lg font-black text-slate-500 dark:text-slate-400 ${selected ? TILE_ON : TILE_OFF}">–</span></button>`;
 
     const render = (ctx) => {
         const acc = ctx.prefs.acc || {};
         const slots = Look.SLOTS.map(slot => {
             const chosen = acc[slot.id] ? acc[slot.id].id : 'none';
             const items = Look.ACCESSORIES.filter(item => item.slot === slot.id);
-            // Štítek místa nad řádkem a pravidelná mřížka o šesti sloupcích: první dlaždice je vždy „bez doplňku“, další doplňky se jen řadí dál
-            return `<div class="flex flex-col gap-1"><p class="text-[11px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">${slot.title}</p>
-                <div class="grid grid-cols-9 gap-1">${noneTile(slot.id, chosen === 'none')}${items.map(item => tile(item, ctx, chosen === item.id)).join('')}</div></div>`;
+            // Štítek místa nad řádkem a pravidelná mřížka sloupců aspoň 40 px (7 na 360 px, 8 na 390 px): první dlaždice je vždy
+            // „bez doplňku“, další doplňky se jen řadí dál (hlava s osmi doplňky má na telefonu dva řádky)
+            return `<div class="flex flex-col gap-0.5"><p class="px-0.5 text-[11px] font-black uppercase leading-none tracking-wider text-slate-500 dark:text-slate-400">${slot.title}</p>
+                <div class="grid grid-cols-[repeat(auto-fill,minmax(2.5rem,1fr))]">${noneTile(slot.id, chosen === 'none')}${items.map(item => tile(item, ctx, chosen === item.id)).join('')}</div></div>`;
         }).join('');
         // Barva patří doplňku, který hráč naposledy vybral (nebo prvnímu nasazenému)
         const target = activeSlot && acc[activeSlot] ? activeSlot : Look.SLOTS.map(slot => slot.id).find(id => acc[id]);
@@ -197,9 +203,9 @@
             <div class="grid grid-cols-10 justify-items-center gap-1" role="group" aria-label="Barva doplňku">${Look.ACC_COLORS.map(dot).join('')}</div>${slider}</div>`
             : '<p class="text-[11px] font-semibold text-slate-500 dark:text-slate-400">Vyber doplněk a pak jeho barvu.</p>';
         return `<div class="flex flex-col gap-2">
-            <div class="flex justify-center py-1 [@media(max-height:700px)]:py-0">${logoHtml('mt-6 [@media(max-height:700px)]:mt-4', 'h-24 w-auto drop-shadow-lg [@media(max-height:700px)]:h-16', acc)}</div>
-            ${slots}<div class="flex flex-col gap-1.5">${colors}${flagPicker}</div>
-            ${note ? `<p role="status" class="text-[11px] font-bold text-brand-700 dark:text-brand-300">${escapeHtml(note)}</p>` : ''}
+            <div class="flex justify-center [@media(max-height:700px)]:-mb-1">${logoHtml('mt-5 [@media(max-height:700px)]:mt-4', 'h-20 w-auto drop-shadow-lg [@media(max-height:700px)]:h-16', acc)}</div>
+            ${slots}<div class="flex flex-col gap-1.5 px-0.5">${colors}${flagPicker}</div>
+            ${note ? `<p role="status" class="px-0.5 text-[11px] font-bold text-brand-700 dark:text-brand-300">${escapeHtml(note)}</p>` : ''}
         </div>`;
     };
 
@@ -257,6 +263,6 @@
         return Look.setPref('acc', acc, ctx);
     };
 
-    if (Look) Look.register({ id: 'owl', tab: 'owl', title: 'Doplňky Mudrlanta', noTitle: true, order: 5, render, click, change, apply: (prefs) => refresh(prefs.acc || {}) });
+    if (Look) Look.register({ id: 'owl', tab: 'owl', title: 'Doplňky Mudrlanta', noTitle: true, tight: true, order: 5, render, click, change, apply: (prefs) => refresh(prefs.acc || {}) });
     return { logoHtml, layersHtml, layerSrc, flagSrc, refresh, PAD, slotOf, encodeOwl, parseOwl, owlAvatarHtml, OWL_MAX };
 });
