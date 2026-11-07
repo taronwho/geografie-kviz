@@ -1229,6 +1229,9 @@
         if (!item || !item.n || !item.f || item.f.born === undefined || item.c === 'panovnik') return [];
         const words = item.n.split(/\s+/);
         if (words.length < 2 || words.length > 4 || /[\d.]/.test(item.n)) return [];
+        // Čínská a korejská jména mají příjmení napřed (Mao Ce-tung, Kim Čong-un, Tchu Jou-jou): příjmením je první slovo,
+        // ne rodné jméno za ním; dvoupísmenné (Li, Si) by bylo nejednoznačné
+        if (words.length === 2 && /^\p{Lu}\p{Ll}{0,5}$/u.test(words[0]) && /^\p{Lu}\p{Ll}*-\p{Ll}+$/u.test(words[1])) return words[0].length >= 3 ? [words[0]] : [];
         let start = words.length - 1;
         while (start > 1 && NAME_PARTICLES.has(words[start - 1].toLowerCase())) start--;
         const surname = words.slice(start).join(' ');

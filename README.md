@@ -95,13 +95,17 @@ Jádro a aplikace je uplatní samy, téma pro ně nemusí nic dělat:
   los (`CHOICE_JITTER`), ať se možnosti u téže položky střídají. Téma může zemi určit jinak nebo kulturu vypnout funkcí
   `culture(item, ctx)` (bitvy a stavby podle státu, místa a vlajky podle vzdálenosti). Vlastní žebříčky tématu (autoři,
   režiséři) přičtou `core.cultureScore(odpověď, kandidát)`. Test `tests/distractors.test.js` měří na skutečných datech podíl
-  možností ze stejné země a doby.
+  možností ze stejné země a doby. Nesprávná možnost nikdy není přijímanou odpovědí správné (Katedrála Notre-Dame u katedrály
+  v Rouenu) ani nadřazeným pojmem z jejího popisu (Organická kyselina k Mastné kyselině); osoby vzdálené tisíc let se
+  nenabízejí. Test `tests/question-content.test.js` hlídá systémové chyby obsahu otázek nalezené při kontrole všech témat.
 - **Fotka s napsanou odpovědí** (jméno na dresu, název na plakátu či cedulce) se jako nápověda nenabídne. Najde ji OCR:
   `npm run audit:photo-text` (potřebuje `tesseract`) přečte fotky všech témat a zapíše `data/photo-text.json`;
   přečtené texty si pamatuje v `.cache/ocr`, takže po přidání tématu čte jen nové fotky. Po přidání tématu nebo
   přestavbě dat ho spusťte znovu. Pak `npm run audit:photo-masks` najde u označených fotek polohu nápisu a zapíše
   `data/photo-masks.json` – taková fotka se nápovědou ukáže s rozmazaným nápisem (po odpovědi celá). Vynechá se jen
   fotka, u které poloha nápisu známá není. Náhled zakrytí: `PREVIEW=složka npm run audit:photo-masks -- téma`.
+  U vlajek a znaků, kde je obrázek přímo otázkou, se čtou i kresby (SVG) a za odpověď se berou i slova z názvu souboru
+  (nápis CALIFORNIA REPUBLIC na vlajce Kalifornie, `scripts/lib/photo-words.mjs`); nápis se na obrázku otázky rozmaže.
 - **Audit otázek:** `npm run audit:questions` (volitelně `-- --sample=300`, `--topic=historie,hudba`, `--all`) projde témata a sestaví otázky jako hra
   (`scripts/lib/audit.mjs`). Hlásí odpověď prozrazenou v popisu či nápovědách, nápovědy opakující popis, dvě správné či příliš podobné možnosti,
   nesprávné možnosti jiné země/doby, chudé popisy, rozbité odkazy na obrázky (hash souboru na Commons) a nejednoznačné psané odpovědi (aliasy).

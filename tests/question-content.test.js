@@ -188,6 +188,10 @@ test('psaná odpověď: přízvisko není příjmení („mladší“ neplatí z
     }
     // Skutečné příjmení platí dál
     assert.ok(core.isAnswerMatch('Jackson', core.nameAnswers(find(historie, 'Andrew Jackson'))));
+    // Čínské a korejské jméno: příjmení je napřed (Mao), rodné jméno (Ce-tung) samo neplatí
+    const mao = core.nameAnswers(find(historie, 'Mao Ce-tung'));
+    assert.ok(core.isAnswerMatch('Mao', mao) && !core.isAnswerMatch('Ce-tung', mao), mao.join(' / '));
+    assert.ok(!core.isAnswerMatch('Čong-un', core.nameAnswers(find(historie, 'Kim Čong-un'))));
 });
 
 test('popis: víceslovný region za „ve státě“ se zakryje celý (ne „[***] York“)', () => {
