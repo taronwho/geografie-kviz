@@ -1,5 +1,7 @@
-# Upozornění (web push): jednou za hodinu zavolá v databázi funkci push_due (kdo má co dostat: nový zápas turnaje, výzva, výsledek výzvy)
-# a pošle je přes knihovnu web-push. Bez service_role klíče: databáze se prokazuje veřejným klíčem z config.js a tajemstvím PUSH_CRON_SECRET.
+# Upozornění (web push): jednou za hodinu zavolá v databázi funkci push_due (kdo má co dostat: nový zápas turnaje, výzva, výsledek výzvy,
+# zkušební upozornění z vývojářského režimu) a pošle je přes knihovnu web-push. Ručně (Run workflow) se dá spustit kdykoli: v nočním klidu
+# (21:00–7:00 Praha) pak pošle jen zkušební upozornění, ostatní počkají na ráno.
+# Bez service_role klíče: databáze se prokazuje veřejným klíčem z config.js a tajemstvím PUSH_CRON_SECRET.
 # Potřebuje secrets VAPID_PRIVATE_KEY a PUSH_CRON_SECRET (Settings → Secrets and variables → Actions, viz docs/SUPABASE.md).
 # Plánované spouštění funguje jen z výchozí větve; bez secrets se běh jen zapíše do logu a skončí bez chyby.
 name: Upozornění
@@ -37,4 +39,5 @@ jobs:
           PUSH_CRON_SECRET: ${{ secrets.PUSH_CRON_SECRET }}
           VAPID_SUBJECT: ${{ vars.VAPID_SUBJECT }}
           DRY_RUN: ${{ github.event.inputs.dry_run }}
+          MANUAL: ${{ github.event_name == 'workflow_dispatch' }}
         run: node scripts/send-push.mjs

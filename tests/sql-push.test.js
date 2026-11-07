@@ -287,4 +287,63 @@ test('SQL: web push (odběry, tajemství, push_due, push_mark)', { skip: !availa
         assert.equal(last(ok(as(id(1), TUE, `with u as (update profiles set push_tournament = false where id = '${id(2)}' returning 1) select count(*) from u;`))), '0', 'cizí předvolby se nezmění');
         assert.equal(q(`select push_tournament from profiles where id = '${id(2)}'`), 't');
     });
+
+    await t.test('zkušební upozornění (dev_push_test): jen dev_admins a jen pro sebe; zařadí se, push_due ho vrátí (i do hodiny po jiném), push_mark ho uzavře', () => {
+        const ADMIN = id(9);
+        const OTHER = id(10);
+        const tests = () => dueRows(TUE, 9).filter(row => row.kind === 'test');
+        q(`delete from push_sent`);
+        // bez dev_admins nic: hráč, anon ani správce bez odběru (0 = nic se nezařadilo)
+        denied(as(OTHER, TUE, `select dev_push_test();`), 'hráč mimo dev_admins');
+        denied(psql(dbName, `set role anon; select dev_push_test();`), 'anon');
+        q(`insert into dev_admins (user_id) values ('${ADMIN}') on conflict do nothing`);
+        assert.equal(last(ok(as(ADMIN, TUE, `select dev_push_test();`))), '0', 'bez odběru se nic nezařadí');
+        assert.equal(q(`select count(*) from push_tests`), '0');
+        // s odběrem: zařadí se jedna žádost, vrací počet zařízení
+        ok(as(ADMIN, TUE, `select push_subscribe('${endpointOf(90)}', '${P256DH}', '${AUTH}');`));
+        ok(as(ADMIN, TUE, `select push_subscribe('${endpointOf(91)}', '${P256DH}', '${AUTH}');`));
+        ok(as(OTHER, TUE, `select push_subscribe('${endpointOf(92)}', '${P256DH}', '${AUTH}');`));
+        assert.equal(last(ok(as(ADMIN, TUE, `select dev_push_test();`))), '2');
+        assert.equal(q(`select count(*) from push_tests where user_id = '${ADMIN}'`), '1');
+        // tabulka žádostí ani pomocná funkce klíče nejsou přes API dostupné (ani správci)
+        denied(as(ADMIN, TUE, `select * from push_tests;`), 'hráč nečte žádosti');
+        denied(as(OTHER, TUE, `insert into push_tests (user_id) values ('${OTHER}');`), 'hráč si žádost nezapíše');
+        denied(psql(dbName, `set role anon; select * from push_tests;`), 'anon nečte žádosti');
+        denied(as(ADMIN, TUE, `select push_test_key('${ADMIN}', now());`), 'pomocná funkce není pro hráče');
+        // push_due vrátí zkušební zprávu pro obě zařízení správce, nikomu jinému; bez předvoleb (vypnuté turnaje i výzvy nevadí)
+        ok(as(ADMIN, TUE, `update profiles set push_tournament = false, push_challenge = false where id = '${ADMIN}';`));
+        const rows = tests();
+        assert.deepEqual(rows.map(row => row.endpoint).sort(), [endpointOf(90), endpointOf(91)]);
+        assert.ok(rows.every(row => row.user === ADMIN && row.title === 'Zkušební upozornění Mudrlanta' && row.url === './?tab=multi'), JSON.stringify(rows));
+        assert.equal(rows[0].body, 'Funguje to! Klepni sem a otevře se záložka Více hráčů.');
+        assert.match(rows[0].key, new RegExp(`^test:\\d+:${ADMIN}$`));
+        assert.equal(rows[0].key, rows[1].key);
+        // druhá žádost před odesláním žádost jen obnoví (pořád jedna, nový klíč); starý klíč ji neuzavře
+        ok(as(ADMIN, TUE, `select dev_push_test();`));
+        assert.equal(q(`select count(*) from push_tests`), '1');
+        const fresh = tests();
+        assert.notEqual(fresh[0].key, rows[0].key);
+        mark([rows[0].key], { okEndpoints: [endpointOf(90)] });
+        assert.equal(q(`select count(*) from push_tests`), '1', 'starý klíč novější žádost neuzavře');
+        // odeslání a push_mark: žádost je vyřízená, v push_sent je druh test a hráč; znovu se neposílá
+        mark([fresh[0].key], { okEndpoints: fresh.map(row => row.endpoint) });
+        assert.equal(q(`select count(*) from push_tests`), '0');
+        assert.equal(q(`select kind || ' ' || user_id from push_sent where dedupe_key = '${fresh[0].key}'`), `test ${ADMIN}`);
+        assert.deepEqual(tests(), []);
+        // nová zkouška hned po odeslané projde (hodinový limit pro zkoušky neplatí)
+        ok(as(ADMIN, TUE, `select dev_push_test();`));
+        assert.equal(tests().length, 2);
+        // nevyřízená žádost starší než den se neposílá a push_mark ji uklidí; nedoručená (žádný úspěch) zůstává čekat
+        mark([], { failed: [endpointOf(90)] });
+        assert.equal(q(`select count(*) from push_tests`), '1', 'bez doručení žádost čeká na další běh');
+        q(`update push_tests set requested_at = now() - interval '25 hours'`);
+        assert.deepEqual(tests(), []);
+        mark([]);
+        assert.equal(q(`select count(*) from push_tests`), '0');
+        // smazání účtu (profilu) smaže i jeho žádost
+        ok(as(ADMIN, TUE, `select dev_push_test();`));
+        assert.equal(q(`select count(*) from push_tests`), '1');
+        assert.equal(q(`select count(*) from information_schema.table_constraints where table_name = 'push_tests' and constraint_type = 'FOREIGN KEY'`), '1');
+        q(`delete from push_tests; delete from push_sent; delete from push_subscriptions where user_id in ('${ADMIN}', '${OTHER}'); delete from dev_admins where user_id = '${ADMIN}';`);
+    });
 });

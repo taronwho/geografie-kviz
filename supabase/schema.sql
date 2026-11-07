@@ -952,6 +952,18 @@ create index if not exists push_sent_user_idx on public.push_sent (user_id, kind
 alter table public.push_sent enable row level security;
 revoke all on public.push_sent from public, anon, authenticated;
 
+-- Zkušební upozornění z vývojářského režimu (dev_push_test, jen dev_admins): nejvýš jedno čekající na účet. push_due ho vrátí (druh 'test'),
+-- odesílač pošle a push_mark řádek smaže; nevyřízené se po 24 hodinách zahodí. Přes API se tabulka nedá číst ani zapisovat.
+create table if not exists public.push_tests (
+    user_id uuid primary key references public.profiles (id) on delete cascade,
+    requested_at timestamptz not null default now()
+);
+alter table public.push_tests enable row level security;
+revoke all on public.push_tests from public, anon, authenticated;
+-- Klíč zkušební zprávy (test:čas v ms:hráč) – push_mark z něj pozná hráče (3. část) a smaže jen tu žádost, která se opravdu odeslala
+create or replace function public.push_test_key(uid uuid, at timestamptz) returns text
+language sql stable as $$ select 'test:' || floor(extract(epoch from at) * 1000)::bigint || ':' || uid $$;
+
 -- Ověření tajemství: porovnávají se otisky (md5) obou hodnot, takže shoda prvních znaků nic neprozradí
 create or replace function public.push_check_secret(secret text) returns void
 language plpgsql security definer set search_path = public as $$
@@ -1039,11 +1051,17 @@ begin
         from public.tournament_notices n
         join public.profiles me on me.id = n.user_id and me.push_tournament
         where not n.seen and n.created_at > now() - interval '7 days' and n.kind in ('excluded_full', 'cancelled', 'eliminated_noplay', 'result')
+        union all
+        -- (d) zkušební upozornění z vývojářského režimu (dev_push_test): bez předvoleb a bez hodinového limitu, každá žádost jednou
+        select pt.user_id, 'test', 'Zkušební upozornění Mudrlanta', 'Funguje to! Klepni sem a otevře se záložka Více hráčů.', './?tab=multi',
+            public.push_test_key(pt.user_id, pt.requested_at), pt.requested_at::text
+        from public.push_tests pt
+        where pt.requested_at > now() - interval '1 day'
     ), fresh as (
         select i.*, row_number() over (partition by i.user_id, i.kind order by i.sort_at, i.dedupe_key) as rn
         from items i
         where not exists (select 1 from public.push_sent s where s.dedupe_key = i.dedupe_key)
-            and not exists (select 1 from public.push_sent s where s.user_id = i.user_id and s.kind = i.kind and s.sent_at > now() - interval '55 minutes')
+            and (i.kind = 'test' or not exists (select 1 from public.push_sent s where s.user_id = i.user_id and s.kind = i.kind and s.sent_at > now() - interval '55 minutes'))
     )
     select f.user_id, s.endpoint, s.p256dh, s.auth, f.kind, f.title, f.body, f.url, f.dedupe_key
     from fresh f join public.push_subscriptions s on s.user_id = f.user_id and s.fails < 3
@@ -1062,9 +1080,11 @@ begin
     perform public.push_check_secret(secret);
     insert into public.push_sent (dedupe_key, user_id, kind)
     select k, case when split_part(k, ':', 3) ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then split_part(k, ':', 3)::uuid end,
-        case split_part(k, ':', 1) when 'tour' then 'tournament' when 'chal' then 'challenge' when 'chalr' then 'challenge' when 'notice' then 'notice' end
+        case split_part(k, ':', 1) when 'tour' then 'tournament' when 'chal' then 'challenge' when 'chalr' then 'challenge' when 'notice' then 'notice' when 'test' then 'test' end
     from unnest(coalesce(keys, '{}')) k where char_length(k) between 1 and 200
     on conflict (dedupe_key) do nothing;
+    -- Odeslaná zkušební zpráva je vyřízená; novější žádost (jiný čas, jiný klíč) zůstane čekat. Nevyřízené žádosti starší než den se zahodí.
+    delete from public.push_tests t where public.push_test_key(t.user_id, t.requested_at) = any (coalesce(keys, '{}')) or t.requested_at < now() - interval '1 day';
     update public.push_subscriptions set last_ok = now(), fails = 0 where endpoint = any (coalesce(ok_endpoints, '{}'));
     update public.push_subscriptions set fails = least(fails + 1, 100) where endpoint = any (coalesce(failed_endpoints, '{}'));
     delete from public.push_subscriptions where endpoint = any (coalesce(gone_endpoints, '{}')) or fails >= 3;
@@ -1074,7 +1094,26 @@ begin
 end;
 $$;
 
-revoke all on function public.push_check_secret(text), public.push_day_part(), public.push_round_name(integer, integer, boolean) from public, anon, authenticated;
+-- Zkušební upozornění přes server (Nastavení → Vývojářský režim → Poslat zkušební upozornění přes server): jen účet v dev_admins a jen pro sebe.
+-- Zařadí (nebo obnoví) jednu žádost; vrátí počet zařízení účtu, kam zpráva půjde – 0 = účet nemá zapnutá upozornění nikde a nic se nezařadí.
+create or replace function public.dev_push_test() returns integer
+language plpgsql security definer set search_path = public as $$
+declare devices integer;
+begin
+    if auth.uid() is null or not exists (select 1 from public.dev_admins where user_id = auth.uid()) then
+        raise exception 'Zkušební upozornění smí poslat jen účet v dev_admins (viz docs/SUPABASE.md).' using errcode = '42501';
+    end if;
+    select count(*) into devices from public.push_subscriptions s where s.user_id = auth.uid() and s.fails < 3;
+    if devices = 0 then return 0; end if;
+    insert into public.push_tests (user_id, requested_at) values (auth.uid(), clock_timestamp())
+    on conflict (user_id) do update set requested_at = excluded.requested_at;
+    return devices;
+end;
+$$;
+
+revoke all on function public.push_check_secret(text), public.push_day_part(), public.push_round_name(integer, integer, boolean), public.push_test_key(uuid, timestamptz) from public, anon, authenticated;
+revoke all on function public.dev_push_test() from public, anon;
+grant execute on function public.dev_push_test() to authenticated;
 revoke all on function public.push_subscribe(text, text, text) from public, anon;
 grant execute on function public.push_subscribe(text, text, text) to authenticated;
 -- Odesílatel se hlásí veřejným klíčem (role anon) a prokazuje se tajemstvím
@@ -1757,7 +1796,8 @@ grant execute on function public.challenge_progress_save(text, integer, boolean,
 -- Aplikace ho po přihlášení porovná a správci (dev_admins nebo vývojářský režim) ukáže v Nastavení, že má schéma spustit znovu;
 -- tests/sql-monitor.test.js hlídá, že se obě čísla shodují. Funkce patří na konec souboru: když spuštění skončí chybou dřív, verze zůstane stará.
 -- 3: průběh výzev a zápasů turnaje na serveru (challenge_progress, tournament_answers), XP za výhry v turnaji jednou za účet (tournament_xp_claims).
+-- 4: zkušební upozornění přes server pro dev_admins (push_tests, dev_push_test, druh 'test' v push_due a push_mark).
 create or replace function public.schema_version() returns integer
-language sql immutable as $$ select 3 $$;
+language sql immutable as $$ select 4 $$;
 revoke all on function public.schema_version() from public, anon;
 grant execute on function public.schema_version() to authenticated;

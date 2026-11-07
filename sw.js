@@ -65,13 +65,28 @@ self.addEventListener('fetch', (event) => {
 
 // Web push (odesílá GitHub Actions, viz docs/SUPABASE.md): ukáže upozornění a po klepnutí otevře aplikaci na záložce Více hráčů
 const pushText = (value, max, fallback) => (typeof value === 'string' && value.trim() ? value.trim().slice(0, max) : fallback);
+// Jedna funkce pro skutečný push i pro zkoušku z vývojářského režimu (zpráva push-test od stránky): stejné ořezání textů, ikona, tag a adresa
+const showPush = (data) => {
+    const value = data && typeof data === 'object' ? data : {};
+    const kind = pushText(value.kind, 30, 'mudrlant');
+    return self.registration.showNotification(pushText(value.title, 80, 'Mudrlant'), {
+        body: pushText(value.body, 200, ''), icon: 'icons/icon-192.png', tag: kind, data: { url: pushText(value.url, 200, './'), kind }
+    });
+};
 self.addEventListener('push', (event) => {
     let data = {};
     try { data = event.data ? event.data.json() : {}; } catch (error) { data = {}; }
-    if (!data || typeof data !== 'object') data = {};
-    event.waitUntil(self.registration.showNotification(pushText(data.title, 80, 'Mudrlant'), {
-        body: pushText(data.body, 200, ''), icon: 'icons/icon-192.png', tag: pushText(data.kind, 30, 'mudrlant'), data: { url: pushText(data.url, 200, './') }
-    }));
+    event.waitUntil(showPush(data));
+});
+// Zkouška bez serveru (Nastavení → Vývojářský režim → Zkusit upozornění v tomto zařízení): zprávu smí poslat jen stránka téže aplikace
+// (prohlížeč doručí service workeru zprávy jen z vlastního původu); odpověď (ukázáno / chyba) jde zpět přes předaný port
+self.addEventListener('message', (event) => {
+    const message = event.data;
+    if (!message || message.type !== 'push-test') return;
+    const port = event.ports && event.ports[0];
+    const reply = (answer) => { if (port) port.postMessage(answer); };
+    const shown = Promise.resolve().then(() => showPush(message.payload)).then(() => reply({ ok: true }), (error) => reply({ ok: false, error: `${error && error.name ? error.name : 'Error'}: ${error && error.message ? error.message : ''}` }));
+    if (event.waitUntil) event.waitUntil(shown);
 });
 self.addEventListener('notificationclick', (event) => {
     event.notification.close();
@@ -83,7 +98,7 @@ self.addEventListener('notificationclick', (event) => {
         const open = windows.find(client => new URL(client.url).origin === scope.origin);
         if (open) {
             await open.focus();
-            open.postMessage({ type: 'push-open', tab: target.searchParams.get('tab') || '' });
+            open.postMessage({ type: 'push-open', tab: target.searchParams.get('tab') || '', kind: pushText(event.notification.data && event.notification.data.kind, 30, '') });
         } else {
             await self.clients.openWindow(target.href);
         }

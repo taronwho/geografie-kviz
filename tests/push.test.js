@@ -23,7 +23,7 @@ const subscription = (extra = {}) => ({
 });
 
 // Prostředí prohlížeče: Notification, service worker s pushManager, fetch do „databáze“
-const makeRoot = ({ permission = 'default', answer = 'granted', existing = null, config = {}, session = true, fail = null } = {}) => {
+const makeRoot = ({ permission = 'default', answer = 'granted', existing = null, config = {}, session = true, fail = null, reply = null } = {}) => {
     const calls = [];
     const manager = {
         current: existing,
@@ -39,7 +39,10 @@ const makeRoot = ({ permission = 'default', answer = 'granted', existing = null,
         isSecureContext: true,
         fetch: async (url, init) => {
             calls.push({ url, method: init.method, body: init.body ? JSON.parse(init.body) : undefined });
-            if (fail && fail(url, init)) return { ok: false, status: 500, text: async () => '' };
+            const failed = fail && fail(url, init);
+            if (failed instanceof Error) throw failed;
+            if (failed) return { ok: false, status: typeof failed === 'number' ? failed : 500, text: async () => '' };
+            if (reply) { const body = reply(url, init); if (body !== undefined) return { ok: true, status: 200, text: async () => JSON.stringify(body) }; }
             return { ok: true, status: 200, text: async () => (url.includes('profiles?') && init.method === 'GET' ? JSON.stringify([{ push_tournament: true, push_challenge: false }]) : '') };
         }
     };
@@ -120,6 +123,76 @@ test('push.js: volby turnaje a výzev se čtou a ukládají jen k vlastnímu pro
     assert.equal(await makeRoot({ fail: () => true }).api.getPrefs('u-1'), null, 'starší databáze bez sloupců');
 });
 
+test('push.js: chyby nesou druh (kind), podle kterého aplikace ukáže konkrétní příčinu a radu', async () => {
+    const kindOf = async (promise) => { try { await promise; return 'bez chyby'; } catch (error) { return { kind: error.kind, status: error.status, detail: error.detail }; } };
+    // push služba prohlížeče odmítla odběr: název a zpráva chyby
+    const refused = makeRoot();
+    refused.manager.subscribe = async () => { const error = new Error('Registration failed - push service error'); error.name = 'AbortError'; throw error; };
+    assert.deepEqual(await kindOf(refused.api.enable()), { kind: 'subscribe', status: 0, detail: 'AbortError: Registration failed - push service error' });
+    // databáze bez funkcí upozornění (404) a jiná chyba serveru; předplatné v prohlížeči se zruší
+    const missing = makeRoot({ fail: (url) => (url.includes('push_subscribe') ? 404 : false) });
+    assert.deepEqual(await kindOf(missing.api.enable()), { kind: 'server', status: 404, detail: '' });
+    assert.equal(missing.manager.current.unsubscribed, 1);
+    assert.equal((await kindOf(makeRoot({ fail: (url) => (url.includes('push_subscribe') ? 503 : false) }).api.enable())).status, 503);
+    // vypršelé přihlášení, bez spojení, nespuštěný service worker, nepodporovaný prohlížeč
+    assert.equal((await kindOf(makeRoot({ fail: (url) => (url.includes('push_subscribe') ? 401 : false) }).api.enable())).kind, 'auth');
+    assert.equal((await kindOf(makeRoot({ session: false }).api.enable())).kind, 'auth');
+    assert.equal((await kindOf(makeRoot({ fail: () => new TypeError('Failed to fetch') }).api.enable())).kind, 'network');
+    const noWorker = makeRoot();
+    noWorker.root.navigator.serviceWorker = { ready: Promise.reject(new Error('neběží')) };
+    noWorker.root.navigator.serviceWorker.ready.catch(() => {});
+    assert.equal((await kindOf(Push.make(noWorker.root).enable())).kind, 'worker');
+    assert.equal((await kindOf(makeRoot({ config: { vapidPublicKey: '' } }).api.enable())).kind, 'unsupported');
+});
+
+test('push.js: diagnostika ukáže povolení, service worker, předplatné (zkráceně), klíč a odpověď serveru – bez klíčů předplatného', async () => {
+    const env = makeRoot({ permission: 'granted', existing: subscription(), reply: (url) => (url.includes('push_subscriptions?select=endpoint') ? [{ endpoint: ENDPOINT }] : undefined) });
+    env.root.navigator.serviceWorker.getRegistration = async () => ({ scope: 'https://app.test/', active: { state: 'activated' } });
+    env.root.navigator.serviceWorker.controller = {};
+    const d = await env.api.diagnose();
+    assert.equal(d.permission, 'granted');
+    assert.equal(d.vapid, VAPID.slice(0, 8));
+    assert.equal(d.vapidValid, true);
+    assert.deepEqual(d.registration, { scope: 'https://app.test/', active: 'activated', waiting: false, installing: false });
+    assert.equal(d.controlled, true);
+    assert.equal(d.ready, true);
+    assert.equal(d.subscription.endpoint, 'push.example.com/…send/abc');
+    assert.deepEqual(d.server, { status: 200, count: 1, thisDevice: true });
+    assert.doesNotMatch(JSON.stringify(d), new RegExp(`${P256DH}|${AUTH}|${ENDPOINT.replace(/\//g, '\\/')}`), 'klíče ani celá adresa odběru se neukazují');
+    // tabulka chybí (404), bez předplatného, nepřihlášený
+    const broken = await makeRoot({ fail: () => 404 }).api.diagnose();
+    assert.deepEqual(broken.server, { status: 404, kind: 'server' });
+    assert.deepEqual(broken.subscription, { none: true });
+    assert.equal((await makeRoot({ session: false }).api.diagnose()).server, null);
+});
+
+test('push.js: zkouška v zařízení pošle service workeru zprávu a čeká na odpověď; bez povolení nic nepošle', async () => {
+    assert.deepEqual(await makeRoot({ permission: 'default' }).api.testLocal(), { ok: false, reason: 'permission', permission: 'default' });
+    const env = makeRoot({ permission: 'granted' });
+    const posted = [];
+    env.root.MessageChannel = MessageChannel;
+    env.root.navigator.serviceWorker = { ready: Promise.resolve({ pushManager: env.manager, active: { postMessage: (message, ports) => { posted.push(message); ports[0].postMessage({ ok: true }); } } }) };
+    assert.deepEqual(await Push.make(env.root).testLocal(), { ok: true });
+    assert.deepEqual(posted, [{ type: 'push-test', payload: Push.TEST_PAYLOAD }]);
+    assert.equal(Push.TEST_PAYLOAD.kind, 'test');
+    assert.equal(Push.TEST_PAYLOAD.url, './?tab=multi');
+    const failing = makeRoot({ permission: 'granted' });
+    failing.root.MessageChannel = MessageChannel;
+    failing.root.navigator.serviceWorker = { ready: Promise.resolve({ pushManager: failing.manager, active: { postMessage: (message, ports) => ports[0].postMessage({ ok: false, error: 'TypeError: No notification permission' }) } }) };
+    assert.deepEqual(await Push.make(failing.root).testLocal(), { ok: false, reason: 'failed', detail: 'TypeError: No notification permission' });
+    const inactive = makeRoot({ permission: 'granted' });
+    inactive.root.MessageChannel = MessageChannel;
+    assert.deepEqual(await inactive.api.testLocal(), { ok: false, reason: 'worker' }, 'service worker bez aktivní verze');
+});
+
+test('push.js: zkouška přes server volá jen dev_push_test a vrátí počet zařízení; účet mimo dev_admins dostane srozumitelnou chybu', async () => {
+    const env = makeRoot({ reply: (url) => (url.endsWith('rpc/dev_push_test') ? 2 : undefined) });
+    assert.equal(await env.api.requestServerTest(), 2);
+    assert.deepEqual(env.calls.map(call => call.url), ['https://proj.supabase.co/rest/v1/rpc/dev_push_test']);
+    await assert.rejects(makeRoot({ fail: () => 403 }).api.requestServerTest(), (error) => error.kind === 'forbidden');
+    await assert.rejects(makeRoot({ fail: () => 404 }).api.requestServerTest(), (error) => error.kind === 'server' && error.status === 404);
+});
+
 // --- service worker ---
 const makeWorker = ({ windows = [] } = {}) => {
     const handlers = {};
@@ -142,14 +215,22 @@ const makeWorker = ({ windows = [] } = {}) => {
         handlers.push({ data: data === undefined ? null : { json: () => { if (data instanceof Error) throw data; return data; } }, waitUntil: (promise) => waits.push(promise) });
         await Promise.all(waits);
     };
-    const click = async (url) => {
+    const click = async (url, data = undefined) => {
         const waits = [];
         let closed = false;
-        handlers.notificationclick({ notification: { close: () => { closed = true; }, data: url === undefined ? undefined : { url } }, waitUntil: (promise) => waits.push(promise) });
+        handlers.notificationclick({ notification: { close: () => { closed = true; }, data: data || (url === undefined ? undefined : { url }) }, waitUntil: (promise) => waits.push(promise) });
         await Promise.all(waits);
         return closed;
     };
-    return { push, click, shown, opened, messages };
+    // Zpráva od stránky (vývojářská zkouška upozornění); odpověď přes port
+    const message = async (data) => {
+        const waits = [];
+        const replies = [];
+        handlers.message({ data, ports: [{ postMessage: (answer) => replies.push(answer) }], waitUntil: (promise) => waits.push(promise) });
+        await Promise.all(waits);
+        return JSON.parse(JSON.stringify(replies));
+    };
+    return { push, click, message, shown, opened, messages, sandbox };
 };
 
 test('sw: push ukáže upozornění (vždy, i s chybným obsahem) a ořízne dlouhé texty', async () => {
@@ -176,13 +257,43 @@ test('sw: klepnutí otevře aplikaci na záložce Více hráčů (nové okno), n
     const running = makeWorker({ windows: ['https://app.test/app/'] });
     await running.click('./?tab=multi');
     assert.equal(running.opened.length, 0);
-    assert.deepEqual(JSON.parse(JSON.stringify(running.messages)), [{ url: 'https://app.test/app/', message: { type: 'push-open', tab: 'multi' } }]);
+    assert.deepEqual(JSON.parse(JSON.stringify(running.messages)), [{ url: 'https://app.test/app/', message: { type: 'push-open', tab: 'multi', kind: '' } }]);
+    // druh upozornění jde s klepnutím do aplikace (zkušební upozornění tak potvrdí, že klepnutí funguje)
+    const test = makeWorker({ windows: ['https://app.test/app/'] });
+    await test.click(undefined, { url: './?tab=multi', kind: 'test' });
+    assert.deepEqual(JSON.parse(JSON.stringify(test.messages[0].message)), { type: 'push-open', tab: 'multi', kind: 'test' });
     const foreign = makeWorker();
     await foreign.click('https://evil.example/phish?tab=multi');
     assert.deepEqual(foreign.opened, ['https://app.test/app/'], 'cizí adresa se nikdy neotevře');
     const empty = makeWorker();
     await empty.click(undefined);
     assert.deepEqual(empty.opened, ['https://app.test/app/']);
+});
+
+test('sw: zkouška ze stránky (push-test) ukáže upozornění stejnou funkcí jako skutečný push a odpoví přes port', async () => {
+    const source = read('sw.js');
+    // jedna sdílená funkce pro oba případy
+    assert.match(source, /const showPush = /);
+    assert.match(source, /addEventListener\('push'[\s\S]*?event\.waitUntil\(showPush\(data\)\)/);
+    assert.match(source, /addEventListener\('message'[\s\S]*?showPush\(message\.payload\)/);
+    const worker = makeWorker();
+    const payload = Push.TEST_PAYLOAD;
+    assert.deepEqual(await worker.message({ type: 'push-test', payload }), [{ ok: true }]);
+    await worker.push(payload);
+    assert.equal(worker.shown.length, 2);
+    assert.deepEqual(JSON.parse(JSON.stringify(worker.shown[0])), JSON.parse(JSON.stringify(worker.shown[1])), 'zkouška = skutečný push se stejným obsahem');
+    assert.equal(worker.shown[0].title, 'Zkušební upozornění Mudrlanta');
+    assert.equal(worker.shown[0].options.tag, 'test');
+    assert.deepEqual(JSON.parse(JSON.stringify(worker.shown[0].options.data)), { url: './?tab=multi', kind: 'test' });
+    // jiné zprávy service worker ignoruje; chyba prohlížeče (bez povolení) se vrátí stránce
+    assert.deepEqual(await worker.message({ type: 'neco-jineho' }), []);
+    assert.equal(worker.shown.length, 2);
+    worker.sandbox.self.registration.showNotification = async () => { throw Object.assign(new Error('No notification permission has been granted for this origin.'), { name: 'TypeError' }); };
+    assert.deepEqual(await worker.message({ type: 'push-test', payload }), [{ ok: false, error: 'TypeError: No notification permission has been granted for this origin.' }]);
+    // klepnutí na zkušební upozornění otevře záložku Více hráčů (zavřená aplikace)
+    const closed = makeWorker();
+    await closed.click(undefined, worker.shown[0].options.data);
+    assert.deepEqual(closed.opened, ['https://app.test/app/?tab=multi']);
 });
 
 // --- odesílač ---
@@ -225,6 +336,38 @@ test('send-push: runOnce pošle, zapíše jen doručené klíče a rozliší zru
     assert.equal(isQuietHour(new Date('2026-07-15T19:00:00Z')), true);   // 21:00
 });
 
+test('send-push: zkušební upozornění (druh test) se pošle a označí jako ostatní; v nočním klidu ruční běh pošle jen zkoušky', async () => {
+    const { runOnce, planRun, payloadFor } = await import('../scripts/send-push.mjs');
+    const testRow = { user_id: 'u9', endpoint: 'https://p.example/9', p256dh: P256DH, auth: AUTH, kind: 'test', title: 'Zkušební upozornění Mudrlanta', body: 'Funguje to! Klepni sem a otevře se záložka Více hráčů.', url: './?tab=multi', dedupe_key: 'test:1762500000000:u9' };
+    const other = { ...testRow, endpoint: 'https://p.example/1', kind: 'tournament', title: 'Turnaj', dedupe_key: 'tour:m:u1:2026-11-09:rano' };
+    // stejný obsah jako skutečné upozornění: service worker ho zobrazí stejnou funkcí
+    assert.deepEqual(JSON.parse(payloadFor(testRow)), { ...Push.TEST_PAYLOAD });
+    const calls = [];
+    const sent = [];
+    const rpc = async (name, body) => { calls.push({ name, body }); return name === 'push_due' ? [testRow, other] : null; };
+    const send = async (sub, payload) => { sent.push({ endpoint: sub.endpoint, payload: JSON.parse(payload) }); };
+    // ve dne: všechno, push_mark dostane i klíč zkoušky
+    assert.deepEqual(await runOnce({ rpc, send, secret: 's', log: () => {} }), { sent: 2, failed: 0, gone: 0, keys: 2 });
+    assert.deepEqual(calls.find(call => call.name === 'push_mark').body.keys, ['test:1762500000000:u9', 'tour:m:u1:2026-11-09:rano']);
+    // jen zkoušky (noční ruční běh): turnajová zpráva se nepošle ani neoznačí, přijde ráno
+    calls.length = 0; sent.length = 0;
+    const logs = [];
+    assert.deepEqual(await runOnce({ rpc, send, secret: 's', kinds: ['test'], log: (line) => logs.push(line) }), { sent: 1, failed: 0, gone: 0, keys: 1 });
+    assert.deepEqual(sent.map(item => item.payload.kind), ['test']);
+    assert.deepEqual(calls.find(call => call.name === 'push_mark').body, { secret: 's', keys: ['test:1762500000000:u9'], ok_endpoints: ['https://p.example/9'], failed_endpoints: [], gone_endpoints: [] });
+    assert.match(logs.join('\n'), /Noční klid: 1 upozornění počká na ráno/);
+    // plán běhu: den = vše; noc + plánovaný běh = nic; noc + ruční běh = jen zkoušky; FORCE = vše
+    const night = new Date('2026-01-15T22:30:00Z'); // 23:30 Praha
+    const day = new Date('2026-01-15T10:00:00Z');
+    assert.deepEqual(planRun({ now: day }), { send: true, kinds: null });
+    assert.deepEqual(planRun({ now: day, manual: true }), { send: true, kinds: null });
+    assert.deepEqual(planRun({ now: night }), { send: false, kinds: null });
+    assert.deepEqual(planRun({ now: night, manual: true }), { send: true, kinds: ['test'] });
+    assert.deepEqual(planRun({ now: night, force: true }), { send: true, kinds: null });
+    // workflow předává, že jde o ruční běh
+    assert.match(read('.github/workflows/push.yml'), /MANUAL: \$\{\{ github\.event_name == 'workflow_dispatch' \}\}/);
+});
+
 // --- nasazení a bezpečnost ---
 test('nasazení: push.js je v index.html, sw.js i pages.yml; workflow nepoužívá service_role', () => {
     assert.match(read('index.html'), /<script src="push\.js" defer><\/script>/);
@@ -244,8 +387,15 @@ test('nasazení: push.js je v index.html, sw.js i pages.yml; workflow nepoužív
 
 test('souhlas: aplikace nezapíná upozornění sama, odhlášení je maže a schema posílá jen odběratelům', () => {
     const app = read('app.js');
-    // enable se volá jen z klepnutí na tlačítko (togglePush), nikde jinde
+    // enable se volá na jediném místě (enablePushNow) a to jen z klepnutí: přepínač, návod „zkontrolovat“, zkouška ve vývojářském režimu a nabídka
+    // (plus dokončení po návratu z nastavení prohlížeče, když hráč předtím otevřel návod a povolení už udělil)
     assert.equal((app.match(/Push\.enable\(/g) || []).length, 1);
+    assert.equal((app.match(/enablePushNow\(\)/g) || []).length, 4, 'togglePush, finishPushHelp, devPushEnable, acceptPushOffer');
+    assert.match(app, /if \(event\.target\.closest\('\[data-push-offer-on\]'\) && !pushOffer\.busy\) acceptPushOffer\(\);/);
+    assert.match(app, /if \(pushIntent && permission === 'granted'\) \{ finishPushHelp\(\); return; \}/);
+    // samotná nabídka se prohlížeče neptá: tryPushOffer jen čte stav a ukazuje okno
+    const offer = app.slice(app.indexOf('const tryPushOffer = async'), app.indexOf('const PUSH_OFFER_LEAD'));
+    assert.doesNotMatch(offer, /enablePushNow|requestPermission|Push\.enable/);
     assert.match(app, /Push\.disable\(\)\.catch\(\(\) => \{\}\)\s*:\s*Promise\.resolve\(\)\)\.then\(\(\) => Auth\.logout\(\)\)/);
     const schema = read('supabase/schema.sql');
     assert.match(schema, /from fresh f join public\.push_subscriptions s on s\.user_id = f\.user_id/);

@@ -62,8 +62,8 @@ test('SQL: průběh výzev a turnajů na serveru, XP za výhry jednou za účet'
     q(`insert into challenges (id, creator_id, invited_id, topic, seed, count, variant) values ('PRIVAT', '${A}', '${B}', 'mix', 's1', 5, 'choices');
        insert into challenges (id, creator_id, topic, seed, count) values ('OTEVRE', '${A}', 'mix', 's2', 3);`);
 
-    await t.test('verze schématu je 3', () => {
-        assert.equal(last(ok(as(A, 'select schema_version();'))), '3');
+    await t.test('verze schématu je aspoň 3 (průběh výzev na serveru)', () => {
+        assert.ok(Number(last(ok(as(A, 'select schema_version();')))) >= 3);
     });
 
     await t.test('průběh výzvy: jen další otázka v pořadí, cizí výzva, přeskočení, přepsání a nesmyslné hodnoty neprojdou', () => {
