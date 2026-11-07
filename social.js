@@ -282,6 +282,55 @@
     // Server od teď měří čas zápasu; až po úspěchu se smí hrát
     const startTournamentMatch = (mid) => tournamentCall('tournament_start_match', { mid: needTournamentId(mid, 'zápas') }, 'Zápas se nepodařilo zahájit. Zkontroluj připojení a zkus to znovu.');
     const finishTournamentMatch = (mid, correct, points) => tournamentCall('tournament_finish_match', { mid: needTournamentId(mid, 'zápas'), correct_count: wholeNumber(correct, 10), point_count: wholeNumber(points, 100) }, 'Výsledek se nepodařilo odeslat. Zkontroluj připojení.');
+
+    // Průběh výzvy a zápasu turnaje na serveru (schéma 3): odpovědi po otázkách v pořadí, ať rozehranou výzvu nejde po smazání dat hrát znovu
+    // od první otázky a dohrát jde i na jiném zařízení. Starší databáze bez tabulek a funkcí (404): načtení vrací null a uložení null
+    // (aplikace se pak chová jako dřív) a dál se o ně nežádá; chyba spojení se vyhodí, odmítnutí serverem (4xx) také (s hláškou serveru).
+    const answersMissing = { challenge: false, tournament: false };
+    const guardAnswers = async (kind, run) => {
+        if (answersMissing[kind]) return null;
+        try { return await run(); } catch (error) {
+            if (error.status === 404) { answersMissing[kind] = true; return null; }
+            throw error;
+        }
+    };
+    // Jen souvislá řada odpovědí od první otázky (server jinou neuloží): [{ correct, points }]
+    const cleanAnswers = (rows, count, maxPoints) => {
+        const list = [];
+        (Array.isArray(rows) ? rows : []).map(row => ({ idx: Math.floor(Number(row && row.idx)), correct: Boolean(row && row.correct), points: wholeNumber(row && row.points, maxPoints) }))
+            .sort((a, b) => a.idx - b.idx)
+            .forEach(row => { if (row.idx === list.length && list.length < count) list.push({ correct: row.correct && row.points > 0, points: row.correct ? row.points : 0 }); });
+        return list;
+    };
+    // Kód výzvy tak, jak ho drží databáze (šest znaků A–Z a 0–9)
+    const needCode = (code) => { const clean = String(code || ''); if (!/^[A-Z0-9]{6}$/.test(clean)) throw new SocialError('Neplatný kód výzvy.', 400); return clean; };
+    const challengeProgress = (userId, code, count = 20) => guardAnswers('challenge', async () => cleanAnswers(
+        await request('GET', `challenge_progress?challenge_id=eq.${needCode(code)}&user_id=eq.${encodeURIComponent(userId)}&select=idx,correct,points&order=idx.asc&limit=20`), count, 8));
+    // true = uloženo (nebo server stejnou odpověď už měl), null = databáze průběh neeviduje; správná odpověď má vždy aspoň bod (jinak by ji server odmítl)
+    const saveChallengeProgress = (code, idx, { correct, points }) => guardAnswers('challenge', async () => {
+        await request('POST', 'rpc/challenge_progress_save', { body: { code: needCode(code), idx: wholeNumber(idx, 19), correct: Boolean(correct), points: correct ? Math.max(1, wholeNumber(points, 8)) : 0 } });
+        return true;
+    });
+    const tournamentAnswers = (userId, mid) => guardAnswers('tournament', async () => cleanAnswers(
+        await request('GET', `tournament_answers?match_id=eq.${encodeURIComponent(needTournamentId(mid, 'zápas'))}&user_id=eq.${encodeURIComponent(userId)}&select=idx,correct,points&order=idx.asc&limit=10`), 10, 4));
+    const saveTournamentAnswer = (mid, idx, { correct, points }) => guardAnswers('tournament', async () => {
+        await request('POST', 'rpc/tournament_answer_save', { body: { mid: needTournamentId(mid, 'zápas'), idx: wholeNumber(idx, 9), correct: Boolean(correct), points: correct ? Math.max(1, wholeNumber(points, 4)) : 0 } });
+        return true;
+    });
+    // XP za vyhrané zápasy turnaje (schéma 3): server zapíše dosud nevyplacené výhry a vrátí je ([{ id, round }]); retryKey = klíč zařízení,
+    // se kterým opakované volání (ztracená odpověď) vrátí tytéž zápasy znovu. null = databáze vyplácení neeviduje (starší schéma).
+    let claimMissing = false;
+    const claimTournamentXp = async (retryKey) => {
+        if (claimMissing || tournamentsMissing) return null;
+        try {
+            const rows = await request('POST', 'rpc/claim_tournament_xp', { body: { retry_key: /^[A-Za-z0-9_-]{8,64}$/.test(String(retryKey || '')) ? retryKey : null } });
+            if (!Array.isArray(rows)) return null;
+            return rows.filter(row => row && isTournamentId(row.id)).map(row => ({ id: String(row.id), round: Math.max(1, wholeNumber(row.round, 20)) }));
+        } catch (error) {
+            if (error.status === 404) { claimMissing = true; return null; }
+            throw error;
+        }
+    };
     // Vývojářské nástroje turnajů (boti): jen pro účet zapsaný v dev_admins; chyba serveru se předá tak, jak je
     const devTournament = async (name, body = {}) => {
         const allowed = ['dev_tournament_add_bots', 'dev_tournament_start_now', 'dev_tournament_next_round', 'dev_tournament_clear_bots', 'dev_tournament_reset'];
@@ -535,5 +584,6 @@
 
     return { AVATARS, allAvatars, cleanColor, customHue, nearestColor, cleanFrame, cleanOwl, saveOwl, cleanTitlePref, saveLook, COLORS, COUNTS, NAME_MAX, SocialError, cleanName, isValidName, newCode, parseCode, getProfile, saveProfile, createChallenge, getChallenge, getResults, submitResult, myChallenges, searchPlayers, randomOpponent, incomingChallenges, playerStats, getProgress, saveProgress, getRating, getRatingChange, weeklyLeaderboard, getAccepts, saveAccepts,
         tournamentTick, getTournaments, inTournament, devTournament, devClientErrors, isDevAdmin, schemaVersion, reportQuestion, getQuestionReports, deleteQuestionReport, exportMyData, deleteMyAccount, getTournamentEntries, getTournamentMatches, joinTournament, leaveTournament, startTournamentMatch, finishTournamentMatch, myTournamentStats, tournamentNotices, tournamentNoticesSeen,
+        challengeProgress, saveChallengeProgress, tournamentAnswers, saveTournamentAnswer, claimTournamentXp,
         touchSeen, friendsList, addFriend, acceptFriend, removeFriend, REACTIONS, react, reactionsFor, lastReactionFrom, blockedPlayers, blockPlayer, unblockPlayer, REPORT_REASONS, reportPlayer, devReports, devResolveReport };
 });

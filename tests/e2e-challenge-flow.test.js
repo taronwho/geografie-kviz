@@ -33,7 +33,9 @@ const player = (id, name, avatar, extra = {}) => ({ id, display_name: name, avat
 const newDb = () => ({
     fail: {}, delay: {}, patches: [], log: [],
     profiles: { 'u-1': player('u-1', 'Jana Nováková', '🦊', { color: 'emerald' }), 'u-2': player('u-2', 'Petr Svoboda', '🐼'), 'u-3': player('u-3', 'Eva Mistr', '🦉') },
-    challenges: {}, results: [], blocks: [], friendships: []
+    challenges: {}, results: [], blocks: [], friendships: [],
+    // Průběh výzev po otázkách (schéma 3); progressMissing = starší databáze bez něj
+    progress: [], progressMissing: false
 });
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -77,7 +79,23 @@ const backend = async (context, db) => {
                 if (name === 'my_tournament_stats') return json([{ best: 0, wins: 0, played: 0 }]);
                 return route.fulfill({ status: 200, body: '' });
             }
+            // Odpověď na otázku výzvy (jako challenge_progress_save): jen hráč, který výzvu smí hrát, jen další otázka v pořadí, stejná znovu nic nemění
+            if (name === 'challenge_progress_save' && !db.progressMissing) {
+                const c = db.challenges[body.code];
+                if (!c || (c.invited_id && c.invited_id !== me.id && c.creator_id !== me.id)) return json({ code: '42501', message: 'Tuhle výzvu hrát nemůžeš.' }, 403);
+                if (db.results.some(r => r.challenge_id === body.code && r.user_id === me.id)) return json({ code: '22023', message: 'Výzvu už máš dohranou.' }, 400);
+                const mine = db.progress.filter(r => r.challenge_id === body.code && r.user_id === me.id);
+                const prev = mine.find(r => r.idx === body.idx);
+                if (prev) return prev.correct === body.correct && prev.points === body.points ? json(mine.length) : json({ code: '22023', message: 'Odpověď na tuhle otázku už je uložená, přepsat ji nejde.' }, 400);
+                if (body.idx !== mine.length) return json({ code: '22023', message: 'Nejdřív se musí uložit předchozí otázky.' }, 400);
+                db.progress.push({ challenge_id: body.code, user_id: me.id, idx: body.idx, correct: body.correct, points: body.points });
+                return json(mine.length + 1);
+            }
             return json({ code: 'PGRST202', message: 'Could not find the function' }, 404);
+        }
+        if (url.pathname === '/rest/v1/challenge_progress') {
+            if (db.progressMissing) return json({ code: 'PGRST205', message: 'Could not find the table' }, 404);
+            return json(db.progress.filter(r => r.challenge_id === eq('challenge_id') && r.user_id === me.id).sort((a, b) => a.idx - b.idx).map(({ idx, correct, points }) => ({ idx, correct, points })));
         }
         if (/^\/rest\/v1\/tournament/.test(url.pathname)) {
             if (!db.tournaments) return json({ code: 'PGRST205', message: 'Could not find the table' }, 404);
@@ -99,7 +117,14 @@ const backend = async (context, db) => {
         }
         if (table === 'challenge_results') {
             if (method === 'POST') {
-                if (!db.results.some(r => r.challenge_id === body.challenge_id && r.user_id === body.user_id)) db.results.push({ ...body, finished_at: new Date().toISOString() });
+                if (!db.results.some(r => r.challenge_id === body.challenge_id && r.user_id === body.user_id)) {
+                    // Výsledek spočítá server z průběhu a bez celého průběhu ho nepřijme (starší databáze bere čísla od klienta)
+                    const answered = db.progress.filter(r => r.challenge_id === body.challenge_id && r.user_id === body.user_id);
+                    const c = db.challenges[body.challenge_id];
+                    if (!db.progressMissing && (!c || answered.length < c.count)) return json({ code: 'P0001', message: 'Výsledek výzvy jde uložit až po uložení odpovědí na všechny otázky.' }, 400);
+                    const totals = db.progressMissing ? {} : { correct: answered.filter(r => r.correct).length, points: answered.reduce((sum, r) => sum + r.points, 0) };
+                    db.results.push({ ...body, ...totals, finished_at: new Date().toISOString() });
+                }
                 return route.fulfill({ status: 201, body: '' });
             }
             const withPlayer = (r) => ({ ...r, player: profile(r.user_id) });
@@ -387,6 +412,92 @@ test('hra více hráčů: výzvy, obnova, okna a profil', { skip: !chromium && '
         await waitForHome(tab);
         await tab.waitForSelector('[data-action="challenge-open"][data-code="JJJJJJ"]');
         assert.equal(await tab.locator('[data-action="challenge-resume"]').count(), 0);
+        assert.deepEqual(log.errors, []);
+        await context.close();
+    });
+
+    const until = async (check, what) => { const end = Date.now() + 15000; while (!check()) { if (Date.now() > end) throw new Error(`nedočkal jsem se: ${what}`); await sleep(50); } };
+    const progressOf = (db, code, user = 'u-1') => db.progress.filter(r => r.challenge_id === code && r.user_id === user).map(r => r.idx);
+    // Smazání dat aplikace v zařízení: zůstane jen přihlášení a úvodní nastavení testu (rozehrané výzvy, relace i postup zmizí)
+    const clearDeviceData = (tab) => tab.evaluate(() => {
+        const keep = ['mudrlant.auth', 'mudrlant.tutorial', 'mudrlant.tips', 'mudrlant.variant', 'mudrlant.account', 'mudrlant.homeTab'].map(key => [key, localStorage.getItem(key)]);
+        localStorage.clear();
+        keep.forEach(([key, value]) => { if (value !== null) localStorage.setItem(key, value); });
+    });
+
+    await t.test('průběh na serveru: po smazání dat výzva pokračuje první neuloženou otázkou (ne od první) a výsledek je součet průběhu', async () => {
+        const db = newDb();
+        db.challenges.SSSSSS = { id: 'SSSSSS', creator_id: 'u-2', invited_id: 'u-1', topic: 'zemepis', count: 5, seed: 'smazana-data', include_hard: false, categories: [], variant: 'choices', created_at: '2026-11-03T10:00:00Z' };
+        const { context, tab, log } = await start(db);
+        await tab.click('[data-action="challenge-open"][data-code="SSSSSS"]');
+        await tab.click('[data-ch-play]');
+        await answer(tab);
+        await answer(tab, { giveUp: true });
+        await tab.waitForSelector('[data-action="choice"]');
+        await until(() => progressOf(db, 'SSSSSS').length === 2, 'dvě odpovědi na serveru');
+        const firstTwo = db.progress.map(r => ({ ...r }));
+        // Smazaná data: zařízení o rozehrané výzvě neví, server ano
+        await clearDeviceData(tab);
+        await tab.reload();
+        await waitForHome(tab);
+        await tab.waitForSelector('[data-action="challenge-open"][data-code="SSSSSS"]');
+        assert.equal(await tab.locator('[data-action="challenge-resume"]').count(), 0, 'v zařízení nic rozehraného není');
+        await tab.click('[data-action="challenge-open"][data-code="SSSSSS"]');
+        await tab.waitForSelector('[data-ch-play]');
+        assert.match(await compact(tab, '[data-ch-play]'), /Pokračovat ve výzvě \(3\/5\)/, 'nehraje se znovu od první otázky');
+        await tab.click('[data-ch-play]');
+        await tab.waitForSelector('[data-action="choice"]');
+        assert.equal(await tab.textContent('#status-text'), 'Výzva · 3/5');
+        for (let i = 0; i < 3; i++) await answer(tab, { giveUp: true });
+        await tab.waitForSelector('[data-challenge-outcome]');
+        assert.deepEqual(progressOf(db, 'SSSSSS'), [0, 1, 2, 3, 4], 'každá otázka na serveru jednou, v pořadí');
+        assert.deepEqual(db.progress.slice(0, 2), firstTwo, 'první dvě odpovědi se nepřepsaly');
+        const result = db.results.find(r => r.challenge_id === 'SSSSSS' && r.user_id === 'u-1');
+        assert.deepEqual([result.correct, result.points], [db.progress.filter(r => r.correct).length, db.progress.reduce((sum, r) => sum + r.points, 0)]);
+        assert.match(await compact(tab, '#app-content'), new RegExp(`${result.correct}/5`), 'obrazovka ukazuje výsledek podle serveru');
+        assert.deepEqual(log.errors, []);
+        assert.deepEqual(log.csp, []);
+        await context.close();
+    });
+
+    await t.test('bez spojení: neuložené odpovědi počkají v zařízení (i po zavření aplikace) a odešlou se v pořadí před výsledkem', async () => {
+        const db = newDb();
+        db.challenges.QQQQQQ = { id: 'QQQQQQ', creator_id: 'u-2', invited_id: 'u-1', topic: 'zemepis', count: 5, seed: 'fronta', include_hard: false, categories: [], variant: 'choices', created_at: '2026-11-03T10:00:00Z' };
+        const { context, tab, log } = await start(db);
+        await tab.click('[data-action="challenge-open"][data-code="QQQQQQ"]');
+        await tab.click('[data-ch-play]');
+        await answer(tab, { giveUp: true });
+        await until(() => progressOf(db, 'QQQQQQ').length === 1, 'první odpověď na serveru');
+        db.fail['POST /rest/v1/rpc/challenge_progress_save'] = 503;
+        for (let i = 0; i < 4; i++) await answer(tab, { giveUp: true });
+        // Výsledek bez uložených odpovědí se neposílá: zůstane k dokončení
+        await tab.waitForSelector('[data-action="challenge-retry"]');
+        assert.deepEqual(progressOf(db, 'QQQQQQ'), [0]);
+        assert.equal(db.log.filter(key => key === 'POST /rest/v1/challenge_results').length, 0, 'výsledek se bez průběhu neposlal');
+        await tab.reload();
+        await waitForHome(tab);
+        await tab.waitForSelector('[data-action="challenge-resume"]');
+        assert.match(await compact(tab, '[data-action="challenge-resume"]'), /Dokončit výzvu/);
+        delete db.fail['POST /rest/v1/rpc/challenge_progress_save'];
+        await tab.click('[data-action="challenge-resume"]');
+        await tab.waitForSelector('[data-challenge-outcome]');
+        assert.deepEqual(progressOf(db, 'QQQQQQ'), [0, 1, 2, 3, 4], 'fronta se odeslala v pořadí');
+        assert.equal(db.results.filter(r => r.challenge_id === 'QQQQQQ').length, 1);
+        assert.deepEqual(log.errors, []);
+        await context.close();
+    });
+
+    await t.test('starší databáze bez průběhu (404): výzva se hraje a odešle jako dřív', async () => {
+        const db = newDb();
+        db.progressMissing = true;
+        db.challenges.RRRRRR = { id: 'RRRRRR', creator_id: 'u-2', invited_id: 'u-1', topic: 'zemepis', count: 5, seed: 'stara', include_hard: false, categories: [], variant: 'choices', created_at: '2026-11-03T10:00:00Z' };
+        const { context, tab, log } = await start(db);
+        await tab.click('[data-action="challenge-open"][data-code="RRRRRR"]');
+        await tab.click('[data-ch-play]');
+        for (let i = 0; i < 5; i++) await answer(tab, { giveUp: true });
+        await tab.waitForSelector('[data-challenge-outcome]');
+        assert.deepEqual([db.results.length, db.results[0].correct, db.results[0].points], [1, 0, 0]);
+        assert.ok(db.log.filter(key => key === 'POST /rest/v1/rpc/challenge_progress_save').length <= 1, 'po první 404 se průběh dál neposílá');
         assert.deepEqual(log.errors, []);
         await context.close();
     });

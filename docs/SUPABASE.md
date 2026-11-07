@@ -123,7 +123,7 @@ Bez něj se karta turnaje v aplikaci prostě neukáže.
   (smaže i turnaje, ve kterých boti hráli). Boti hrají na střední úrovni (úspěšnost 45–80 %). Databáze tyto funkce pustí jen účtu zapsanému v `dev_admins`; zapiš se jednou v SQL Editoru
   (přezdívku nahraď svou): `insert into public.dev_admins (user_id) select id from public.profiles where lower(display_name) = lower('Taron');`
   Boti jsou řádky v `auth.users` s e-mailem `bot-…@bots.invalid`; ostrý provoz s nimi nepočítej a po zkoušce je smaž.
-- **Rozehraný zápas turnaje:** aplikace ukládá postup zápasu do `localStorage`; po zavření nebo ztrátě spojení nabídne karta turnaje v den kola **Pokračovat** od další otázky. Server o začátku zná (`tournament_start_match`) a čas měří od něj, nic se tím nezastavuje; po půlnoci dne kola se zápas nabízet přestane a hráč dostane hlášku, že vypršel.
+- **Rozehraný zápas turnaje:** každá odpověď se hned uloží na server (`tournament_answer_save`, viz „Průběh výzev a zápasů na serveru“ níž) a zároveň do `localStorage`; po zavření, ztrátě spojení, smazání dat nebo na jiném zařízení nabídne karta turnaje v den kola **Pokračovat** od první otázky, kterou server nemá. Server o začátku zná (`tournament_start_match`) a čas měří od něj, nic se tím nezastavuje; po půlnoci dne kola se zápas nabízet přestane a hráč dostane hlášku, že vypršel. Výsledek zápasu (`tournament_finish_match`) server sečte z uložených odpovědí a bez všech deseti ho nezapíše. Ve starší databázi bez `tournament_answers` jde pokračovat jen na zařízení, kde zápas začal.
 - **Chyby z provozu:** `monitor.js` posílá neodchycené chyby (nejvýš 5 za relaci a 20 za den a zařízení) do tabulky `client_errors` (zpráva, zkrácený zásobník, adresa bez parametrů, prohlížeč, verze aplikace; žádné osobní údaje). Zapisovat smí kdokoli s veřejným klíčem, číst jen `dev_admins` (Nastavení → vývojářský režim → Chyby z provozu, `dev_client_errors()`). Server pustí nejvýš 100 řádků za hodinu a 500 za den.
 - **Verze schématu:** `schema_version()` na konci `schema.sql` se zvyšuje při každé změně souboru spolu s `REQUIRED_SCHEMA` v `app.js` (hlídá `tests/sql-monitor.test.js`). Je-li databáze novější než aplikace, hráč uvidí „Aktualizuj stránku“; je-li starší (funkce chybí nebo má nižší číslo), uvidí jednou denně „Databáze není aktuální“ a správce v Nastavení návod spustit `schema.sql` znovu.
 - **Hlášení chyb v otázkách:** tlačítko „Nahlásit chybu“ (vlajka) v okně otázky a po odpovědi uloží hlášení do tabulky `question_reports` (důvod + volitelný text, nejvýš 20 za 24 hodin na hráče, délky hlídá databáze). Bez připojení se hlášení uloží v zařízení a odešle později; bez účtu hra hráči přátelsky poradí přihlášení. Číst a mazat hlášení smí jen účet v `dev_admins`: v Nastavení v režimu vývojáře (`?vyvojar`) je oddíl „Hlášení otázek“ se seznamem a tlačítkem Vyřízeno. Po aktualizaci spusť znovu celé `supabase/schema.sql` (přibyla tabulka `question_reports`, funkce `is_dev_admin()` a spoušť s denním limitem).
@@ -133,6 +133,39 @@ Bez něj se karta turnaje v aplikaci prostě neukáže.
   nejde najít, vyzvat ani nevyjde jako náhodný soupeř a přátelství s ním skončí. Reagovat (👍 🔥 😅 🤝) jde jen na zápas, který oba odehráli. Nahlášení (důvod + poznámka do 300 znaků,
   nejvýš 10 za den) čte jen správce: V Nastavení v režimu vývojáře je „Nahlášení hráči“ (jen účet v `dev_admins`) s tlačítkem Vyřešeno.
 - Odznaky za turnaje (`turnaj-*`) a za zběhlost v tématech (`zbehly-*`) jsou v `badge_catalog()`; přibude-li další odznak, přidej ho i tam.
+- **XP za vyhrané zápasy jednou za účet (schéma 3):** dřív si vyplacené zápasy pamatovalo jen zařízení (`mudrlant.tourXp`), takže nové zařízení nebo smazaná data XP připsaly znovu.
+  Teď vyplacení eviduje tabulka `tournament_xp_claims` (zápas, hráč, kolo, čas): `claim_tournament_xp(retry_key)` (security definer, jen pro `auth.uid()`) atomicky zapíše dosud
+  nevyplacené výhry volajícího (vítěz = volající, `decided_by <> 'earlier'`, tedy ne postup dřívějšího přihlášeného bez hry) a vrátí jejich `id` a `round`; aplikace připíše XP
+  (`winXp(kolo)` z `tournament.js`) jen za vrácené. Dvě souběžná volání téhož hráče jdou po sobě a zápas se vyplatí jen jednou. `retry_key` je náhodný klíč zařízení
+  (`mudrlant.tourXpClaim`): když se odpověď serveru ztratí, další volání se stejným klíčem vrátí tytéž zápasy; po připsání XP aplikace klíč smaže. Seznam `mudrlant.tourXp`
+  zůstává jen jako záložní ochrana proti dvojímu připsání v jednom zařízení. Hráč vidí jen své řádky, zapisuje jen funkce. Starší databáze bez funkce (404): aplikace vyplácí jako dřív podle zařízení.
+  - **Migrace:** tabulka vzniká při prvním spuštění `schema.sql` verze 3 a všechny výhry rozhodnuté do té chvíle se do ní zapíšou jako vyplacené (`legacy = true`):
+    XP za ně hráči dostali ve svých zařízeních a znovu se vyplácet nemají. Kdo vyhrál a od té doby aplikaci neotevřel (XP za výhru ještě nedostal), o XP za tyto zápasy přijde –
+    je to nejvýš pár zápasů běžícího týdne a je to menší zlo než dvojí výplata všem. Další spuštění `schema.sql` už nic nemění (tabulka existuje).
+
+## Průběh výzev a zápasů na serveru (schéma 3)
+
+Dřív se průběh rozehrané výzvy (které otázky už hráč zodpověděl) držel jen v zařízení: po smazání dat šla výzva hrát znovu od první otázky. Teď ho eviduje server.
+
+- Tabulka `challenge_progress` (výzva, hráč, `idx` od 0, `correct`, `points`, čas): po každé odpovědi aplikace zavolá `challenge_progress_save(code, idx, correct, points)`
+  (security definer, jen za `auth.uid()`). Funkce přijme jen **další index v pořadí**: nic přeskočit ani přepsat nejde; stejná odpověď poslaná znovu (fronta po výpadku spojení,
+  ztracená odpověď serveru) nic nezmění a projde. Hrát smí jen ten, kdo smí zapsat výsledek (výzva pro kohokoli s kódem, jinak jen vyzvaný a zakladatel); po zapsání výsledku
+  už průběh nejde měnit. Body se kontrolují (správně 1–4, psaná odpověď až 8, špatně 0; výzva s pevným výběrem z možností nejvýš 4).
+- Konečný výsledek (`challenge_results`) se zapisuje dál stejně, ale spoušť `result_from_progress` ho pro hráče (role `authenticated`) přijme, až když server má odpovědi
+  na všechny otázky, a počet správných i body **spočítá sama z průběhu** (čísla od klienta se přepíšou). Správce (`postgres`) se tím neřídí.
+- Aplikace při otevření výzvy průběh načte (`GET challenge_progress`, pravidlo řádků pustí jen vlastní řádky) a pokračuje první nezodpovězenou otázkou s výsledky ze serveru;
+  totéž před pokračováním z úvodní stránky (průběh mohl přibýt na jiném zařízení). Bez spojení odpovědi čekají v zařízení (rozehraná výzva v relaci a v `mudrlant.openChallenges`)
+  a dopošlou se v pořadí s další odpovědí nebo před odesláním výsledku; výsledek se bez nich neposílá.
+- Zápasy turnaje: stejně tabulka `tournament_answers` a `tournament_answer_save(mid, idx, correct, points)` – jen účastník, jen po `tournament_start_match`, jen v den kola
+  a před koncem zápasu; `tournament_finish_match` výsledek sečte z odpovědí a bez všech deseti ho nezapíše (argumenty `correct_count` a `point_count` zůstaly kvůli starším
+  aplikacím, nepoužijí se). Opakování zápasu od první otázky tu server bránil už dřív (zápas jde začít jen jednou), nově jde rozehraný zápas dohrát i po smazání dat nebo na jiném zařízení.
+- Starší databáze bez tabulek a funkcí (404): aplikace průběh neposílá a chová se jako dřív.
+- **Omezení:** server zná jen odpovědi, které k němu dorazily. Odpověď zodpovězená bez spojení, která se ještě neodeslala, by po smazání dat zmizela a otázka
+  by se nabídla znovu; online se každá odpověď ukládá hned po zodpovězení. Počet správných a body počítá aplikace (správnost odpovědi server neověřuje),
+  server hlídá jen pořadí, tvar a rozsah hodnot a že výsledek odpovídá součtu průběhu.
+- **Pořadí nasazení:** nejdřív spusť `schema.sql`, pak nasaď aplikaci. Starší verze aplikace, která ještě běží v něčím prohlížeči, průběh neposílá, takže jí server výsledek
+  výzvy ani zápasu nepřijme; po obnovení stránky (nová verze) se odpovědi uložené v zařízení dopošlou a výsledek se odešle.
+- Test: `tests/sql-progress.test.js` (pokusy o podvod: cizí výzva, přeskočení a přepsání otázky, výsledek bez průběhu nebo s vylepšenými čísly, dvojí a souběžný claim XP, migrace).
 
 ## Upozornění (web push)
 
@@ -168,7 +201,8 @@ Nastavení → dole **Moje data** (jen přihlášený hráč) → **Stáhnout mo
 
 - `export_my_data()` vrátí jako JSON jen řádky přihlášeného hráče (`auth.uid()`): účet (id, e-mail, časy), profil, založené výzvy, výsledky,
   historii ratingu, přihlášky/zápasy/výsledky/zprávy turnajů, poslední aktivitu, přátelství a žádosti, zablokované hráče, reakce,
-  vlastní nahlášení hráčů a hlášení otázek a odběry upozornění (bez klíčů).
+  vlastní nahlášení hráčů a hlášení otázek, odběry upozornění (bez klíčů) a od schématu 3 i průběh výzev (`vyzvy_prubeh`), odpovědi v zápasech turnaje
+  (`turnaje_odpovedi`) a vyplacené XP za výhry v turnaji (`turnaje_xp`).
 - Poslední aktivita (`player_seen`, zapisuje jen `touch_seen()`) je ve vlastní tabulce: hráč čte jen svůj řádek, přátelé ji dostanou
   přes `friends_list()` (žadatel ani oslovený u nepřijaté žádosti ne). Starší sloupec `profiles.last_seen` (četl ho kdokoli přihlášený)
   schéma při spuštění převede a odstraní.

@@ -5,6 +5,11 @@
 //
 // Spuštění: npm run audit:photo-masks [-- téma téma…]   (nejdřív npm run audit:photo-text)
 // Náhled: PREVIEW=složka npm run audit:photo-masks -- sport   uloží fotky s vykresleným zakrytím (potřebuje ImageMagick)
+//
+// Ruční zakrytí (scripts/photo-masks-manual.json, stejný tvar): nápisy, které OCR nepřečte (drobný text v pečeti, písmo
+// do oblouku – SOUTH DAKOTA, GREAT SEAL OF THE STATE OF NEVADA, REPÚBLICA DE COSTA RICA). Přidá se vždy a má přednost
+// před nalezeným; nápis, který je celou vlajkou (OSCE, РСФСР), se nezakrývá – položka má v datech nq (viz build-vlajky.mjs).
+// Jen ruční zakrytí bez čtení: ONLY_MANUAL=1 npm run audit:photo-masks
 import fs from 'node:fs';
 import path from 'node:path';
 import { execFile } from 'node:child_process';
@@ -150,7 +155,8 @@ const renderPreview = async (image, masks, size, out) => {
 
 const flagged = JSON.parse(fs.readFileSync(FLAGGED, 'utf8'));
 const result = fs.existsSync(OUT) ? JSON.parse(fs.readFileSync(OUT, 'utf8')) : {};
-const topics = process.argv.slice(2).length ? process.argv.slice(2) : Object.keys(flagged);
+const MANUAL = JSON.parse(fs.readFileSync(path.join(ROOT, 'scripts', 'photo-masks-manual.json'), 'utf8'));
+const topics = process.env.ONLY_MANUAL ? [] : process.argv.slice(2).length ? process.argv.slice(2) : Object.keys(flagged);
 for (const topic of topics) {
     const items = JSON.parse(fs.readFileSync(path.join(ROOT, 'data', `${topic}.json`), 'utf8')).items;
     const byId = new Map(items.map(item => [item.q, item]));
@@ -187,4 +193,6 @@ for (const topic of topics) {
     }
     console.log(`${topic}: zakrytí u ${masked} fotek`);
 }
-if (!PREVIEW) fs.writeFileSync(OUT, `${JSON.stringify(Object.fromEntries(Object.keys(result).sort().map(key => [key, result[key]])))}\n`);
+Object.assign(result, MANUAL);
+console.log(`ruční zakrytí: ${Object.keys(MANUAL).length} obrázků`);
+if (!PREVIEW) fs.writeFileSync(OUT,`${JSON.stringify(Object.fromEntries(Object.keys(result).sort().map(key => [key, result[key]])))}\n`);

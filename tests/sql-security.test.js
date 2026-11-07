@@ -5,6 +5,7 @@ const assert = require('node:assert/strict');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 const core = require('../quiz-core.js');
+const { challengeProgressSql } = require('./sql-play.js');
 
 const host = process.env.PGHOST || '/tmp';
 const port = process.env.PGPORT || '5439';
@@ -152,16 +153,21 @@ test('SQL: zneužití (RLS, oprávnění, XP, odznaky, limity)', { skip: !availa
         denied(result(B, B, 'PRIVAT', 5, 41), 'víc bodů než možné');
         denied(result(B, B, 'PRIVAT', -1, 0), 'záporné');
         denied(result(B, B, 'NENI01', 1, 1), 'neexistující výzva');
+        // výsledek bez uloženého průběhu (odpovědí po otázkách) server nepřijme
+        denied(result(B, B, 'PRIVAT', 5, 10), 'bez průběhu');
+        ok(asUser(B, challengeProgressSql('PRIVAT', 10, 5, 10)));
         ok(result(B, B, 'PRIVAT', 5, 10, '2001-01-01'));
         assert.ok(Number(q(`select extract(year from finished_at) from challenge_results where challenge_id = 'PRIVAT'`)) >= 2026, 'finished_at určuje server');
         denied(asUser(B, `update challenge_results set correct = 10, points = 40 where challenge_id = 'PRIVAT'`), 'výsledek nejde přepsat');
         denied(asUser(B, `delete from challenge_results where challenge_id = 'PRIVAT'`));
+        ok(asUser(A, challengeProgressSql('PRIVAT', 10, 7, 20)));
         ok(result(A, A, 'PRIVAT', 7, 20));
         assert.equal(q(`select count(*) from rating_history where challenge_id = 'PRIVAT'`), '2');
         // do ratingu a historie klient nesáhne
         denied(asUser(B, `update rating_history set delta = 500`));
         denied(asUser(B, `delete from rating_history`));
         // cizí hráč s kódem otevřené výzvy smí hrát
+        ok(asUser(C, challengeProgressSql('BBBBB1', 10, 6, 12)));
         ok(result(C, C, 'BBBBB1', 6, 12));
     });
 

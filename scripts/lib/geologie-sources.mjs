@@ -109,23 +109,23 @@ export const MORE_ROCKS = {
     'Fosforit': ['usazena', 'fosforečnany vápníku', 'vzniká v mořích, surovina na hnojiva']
 };
 
-// --- Další období a věky: [název článku, název, úroveň, nadřazená jednotka, od, do (mil. let), život] ---
+// --- Další období a věky: [název článku, název, úroveň, nadřazená jednotka, od, do (mil. let; ICS v2026/06), život] ---
 export const MORE_PERIODS = [
     ['Paleocén', 'Paleocén', 'epocha', 'Paleogén', 66, 56, 'první velcí savci a ptáci po vymření dinosaurů'],
     ['Eocén', 'Eocén', 'epocha', 'Paleogén', 56, 33.9, 'první kopytníci, velryby a primáti; tropické lesy i v Evropě'],
-    ['Oligocén', 'Oligocén', 'epocha', 'Paleogén', 33.9, 23.03, 'ochlazení, ustupují lesy a rozšiřují se trávy'],
-    ['Miocén', 'Miocén', 'epocha', 'Neogén', 23.03, 5.333, 'travnaté stepi, lidoopi; vznik Alp a Himálaje'],
+    ['Oligocén', 'Oligocén', 'epocha', 'Paleogén', 33.9, 23.04, 'ochlazení, ustupují lesy a rozšiřují se trávy'],
+    ['Miocén', 'Miocén', 'epocha', 'Neogén', 23.04, 5.333, 'travnaté stepi, lidoopi; vznik Alp a Himálaje'],
     ['Pliocén', 'Pliocén', 'epocha', 'Neogén', 5.333, 2.58, 'australopitékové, první předkové člověka'],
     ['Ediakara', 'Ediakara', 'perioda', 'Proterozoikum', 635, 538.8, 'první velcí mnohobuněční živočichové (dickinsonie)'],
     ['Kryogén', 'Kryogén', 'perioda', 'Proterozoikum', 720, 635, 'globální zalednění, „Země jako sněhová koule“'],
     ['Fanerozoikum', 'Fanerozoikum', 'eon', undefined, 538.8, 0, 'od trilobitů přes dinosaury po člověka: doba bohatého života'],
-    ['Berrias', 'Berrias', 'věk', 'Křída', 145, 139.8], ['Valangin', 'Valangin', 'věk', 'Křída', 139.8, 132.6], ['Hauteriv', 'Hauteriv', 'věk', 'Křída', 132.6, 125.77],
-    ['Barrem', 'Barrem', 'věk', 'Křída', 125.77, 121.4], ['Alb', 'Alb', 'věk', 'Křída', 113, 100.5], ['Cenoman', 'Cenoman', 'věk', 'Křída', 100.5, 93.9],
-    ['Turon', 'Turon', 'věk', 'Křída', 93.9, 89.8], ['Santon', 'Santon', 'věk', 'Křída', 86.3, 83.6], ['Kampán', 'Kampán', 'věk', 'Křída', 83.6, 72.1],
+    ['Berrias', 'Berrias', 'věk', 'Křída', 143.1, 137.05], ['Valangin', 'Valangin', 'věk', 'Křída', 137.05, 132.6], ['Hauteriv', 'Hauteriv', 'věk', 'Křída', 132.6, 125.77],
+    ['Barrem', 'Barrem', 'věk', 'Křída', 125.77, 121.4], ['Alb', 'Alb', 'věk', 'Křída', 113.2, 100.5], ['Cenoman', 'Cenoman', 'věk', 'Křída', 100.5, 93.9],
+    ['Turon', 'Turon', 'věk', 'Křída', 93.9, 89.8], ['Santon', 'Santon', 'věk', 'Křída', 85.7, 83.6], ['Kampán', 'Kampán', 'věk', 'Křída', 83.6, 72.2],
     ['Hettang', 'Hettang', 'věk', 'Jura', 201.4, 199.5], ['Sinemur', 'Sinemur', 'věk', 'Jura', 199.5, 192.9], ['Pliensbach', 'Pliensbach', 'věk', 'Jura', 192.9, 184.2],
     ['Toark', 'Toark', 'věk', 'Jura', 184.2, 174.7], ['Aalen (geologie)', 'Aalen', 'věk', 'Jura', 174.7, 170.9], ['Bajok', 'Bajok', 'věk', 'Jura', 170.9, 168.2],
-    ['Kimmeridge', 'Kimmeridge', 'věk', 'Jura', 154.8, 149.2], ['Tithon', 'Tithon', 'věk', 'Jura', 149.2, 145],
-    ['Karn', 'Karn', 'věk', 'Trias', 237, 227], ['Nor (stratigrafická jednotka)', 'Nor', 'věk', 'Trias', 227, 205.7]
+    ['Kimmeridge', 'Kimmeridge', 'věk', 'Jura', 154.8, 149.2], ['Tithon', 'Tithon', 'věk', 'Jura', 149.2, 143.1],
+    ['Karn', 'Karn', 'věk', 'Trias', 237, 227.3], ['Nor (stratigrafická jednotka)', 'Nor', 'věk', 'Trias', 227.3, 205.7]
 ];
 
 // Dvojice, které by na fotce nebo podle popisu mohly být obě správně (meteorit × chondrit, tuf × ignimbrit); nesejdou se mezi možnostmi

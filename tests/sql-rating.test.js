@@ -5,6 +5,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
+const { challengeProgressSql } = require('./sql-play.js');
 
 const host = process.env.PGHOST || '/tmp';
 const port = process.env.PGPORT || '5439';
@@ -17,7 +18,8 @@ const ids = ['11111111-1111-1111-1111-111111111111', '22222222-2222-2222-2222-22
 // Jako klient (PostgREST): role authenticated + přihlášený uživatel
 const asUser = (uid, sql) => psql(dbName, `begin; set local role authenticated; select set_config('request.jwt.claim.sub', '${uid}', true); ${sql}; commit;`);
 const q = (sql) => { const r = psql(dbName, sql); assert.equal(r.status, 0, r.stderr); return r.stdout.trim(); };
-const play = (code, uid, correct, points) => { const r = asUser(uid, `insert into challenge_results (challenge_id, user_id, correct, points) values ('${code}', '${uid}', ${correct}, ${points})`); assert.equal(r.status, 0, r.stderr); };
+// Dohrání výzvy jako aplikace: nejdřív průběh po otázkách (challenge_progress_save), pak výsledek (server ho sečte z průběhu)
+const play = (code, uid, correct, points) => { const r = asUser(uid, `${challengeProgressSql(code, 10, correct, points)} insert into challenge_results (challenge_id, user_id, correct, points) values ('${code}', '${uid}', ${correct}, ${points})`); assert.equal(r.status, 0, r.stderr); };
 const challenge = (code, creator) => q(`insert into challenges (id, creator_id, topic, seed, count) values ('${code}', '${creator}', 'mix', 's', 10)`);
 const rating = (uid) => Number(q(`select rating from profiles where id = '${uid}'`));
 

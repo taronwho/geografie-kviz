@@ -836,8 +836,12 @@
     const filterItems = (items, { tier = 'all', collection = null } = {}) =>
         items.filter(item => (tier === 'all' || item.k === 1) && inCollection(item, collection));
 
-    // Nejdřív kategorie (v pořadí z tématu), potom položka v ní – jinak by převážila nejpočetnější kategorie
-    const pickItem = (pool, rng, recentIds = [], categoryOrder = []) => {
+    // Nejdřív kategorie (v pořadí z tématu), potom položka v ní – jinak by převážila nejpočetnější kategorie.
+    // Položka s nq (no question) je jen k učení: obrázek otázky by odpověď prozradil celý (vlajka, která je celá nápisem –
+    // OSCE, РСФСР) – otázkou se stane, jen když jiná není
+    const pickItem = (allItems, rng, recentIds = [], categoryOrder = []) => {
+        const askable = allItems.filter(item => !item.nq);
+        const pool = askable.length ? askable : allItems;
         const present = new Set(pool.map(item => item.c));
         const categoryKeys = [...categoryOrder.filter(key => present.has(key)), ...[...present].filter(key => !categoryOrder.includes(key))];
         const categoryKey = pickRandom(categoryKeys, rng);

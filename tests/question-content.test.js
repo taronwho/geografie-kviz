@@ -202,6 +202,24 @@ test('vlajky: nápis s odpovědí na vlajce či znaku (CALIFORNIA REPUBLIC, FIFA
     for (const name of ['Kalifornie', 'Kansas', 'FIFA', 'Oregon', 'Wisconsin', 'Arkansas', 'Iowa']) assert.ok(flagged.some(item => item.n === name), name);
     // Obrázek otázky je u vlajek celý vidět hned: každý označený musí mít známou polohu nápisu
     assert.deepEqual(flagged.filter(item => !photoMasks[item.im]).map(item => item.n), []);
+    // Nápisy, které OCR nepřečte (drobné písmo v pečeti, do oblouku), mají ruční zakrytí (scripts/photo-masks-manual.json)
+    const manual = JSON.parse(fs.readFileSync(path.join(P.ROOT, 'scripts', 'photo-masks-manual.json'), 'utf8'));
+    for (const [name, category] of [['Nevada', 'regiony'], ['Idaho', 'regiony'], ['Kentucky', 'regiony'], ['Jižní Dakota', 'regiony'], ['Wyoming', 'regiony'],
+        ['Kostarika', 'znak'], ['Vietnam', 'znak'], ['Tchaj-pej', 'mesta'], ['UNESCO', 'uzemi']]) {
+        const item = ctx.items.find(other => other.n === name && other.c === category);
+        assert.ok(item && manual[item.im] && photoMasks[item.im], `${name}: ruční zakrytí`);
+        assert.deepEqual(photoMasks[item.im], manual[item.im], `${name}: ruční zakrytí má přednost před nalezeným`);
+    }
+    for (const masks of Object.values(manual)) {
+        for (const box of masks) assert.ok(box.length === 4 && box.every(v => v >= 0 && v <= 1) && box[0] + box[2] <= 1.0001 && box[1] + box[3] <= 1.0001, JSON.stringify(box));
+    }
+    // Vlajka, která je celá nápisem (OSCE, РСФСР, FIFA), je jen k učení: otázkou se nestane
+    const learnOnly = ctx.items.filter(item => item.nq).map(item => item.n).sort((a, b) => a.localeCompare(b, 'cs'));
+    assert.deepEqual(learnOnly, ['FIFA', 'Île-de-France', 'Jihoafrické rozvojové společenství', 'Organizace pro bezpečnost a spolupráci v Evropě',
+        'Ruská sovětská federativní socialistická republika', 'Ukrajinská sovětská socialistická republika']);
+    const rng = core.createSeededRandom('nq');
+    const pool = ctx.items.filter(item => item.c === 'uzemi' || item.c === 'historie');
+    for (let i = 0; i < 300; i++) assert.ok(!core.pickItem(pool, rng).nq);
     const { fileNameWords } = await import('../scripts/lib/photo-words.mjs');
     const plain = (text) => core.normalizeAnswer(text).replace(/[^a-z0-9]+/g, ' ').trim();
     assert.deepEqual(fileNameWords('Flag of California.svg', plain), ['california']);
@@ -215,4 +233,18 @@ test('popis: přídavné jméno s c → č prozradí název (cykloadice – cykl
 
 test('popis: víceslovný region za „ve státě“ se zakryje celý (ne „[***] York“)', () => {
     assert.equal(core.censorCountry('v Lake Placid ve státě New York v USA.', 'Spojené státy americké', []), 'v Lake Placid [***] v USA.');
+});
+
+test('krátký popis: drobná typografie z Wikidat (čárky, rozsah století, uvozovky, „od roku“) a opravy podle QID', async () => {
+    const { cleanDescription, DESCRIPTION_FIXES } = await import('../scripts/lib/wikidata.mjs');
+    assert.equal(cleanDescription('obraz , autor Jan van Eyck'), 'obraz, autor Jan van Eyck');
+    assert.equal(cleanDescription('japonský architekt,spoluzakladatel hnutí'), 'japonský architekt, spoluzakladatel hnutí');
+    assert.equal(cleanDescription('minerál (Mg,Fe)₂SiO₄'), 'minerál (Mg,Fe)₂SiO₄');
+    assert.equal(cleanDescription('imitace japonského umění v 19.-20. století'), 'imitace japonského umění v 19.–20. století');
+    assert.equal(cleanDescription('jedna z tzv. "Grand Tour"'), 'jedna z tzv. „Grand Tour“');
+    assert.equal(cleanDescription('umělecký styl, od 1904'), 'umělecký styl, od roku 1904');
+    assert.equal(cleanDescription('pohoří v šířce kolem 150 km a délce kolem 1100 km'), 'pohoří v šířce kolem 150 km a délce kolem 1100 km');
+    const sport = P.loadContext('sport');
+    assert.match(find(sport, 'Paříž–Roubaix').d, /ve Francii/);
+    assert.ok(Object.values(DESCRIPTION_FIXES).every(text => text === cleanDescription(text)));
 });

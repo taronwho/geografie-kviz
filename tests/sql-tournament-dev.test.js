@@ -4,6 +4,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
+const { finishMatchSql } = require('./sql-play.js');
 
 const host = process.env.PGHOST || '/tmp';
 const port = process.env.PGPORT || '5439';
@@ -68,7 +69,7 @@ test('SQL: vývojářské nástroje turnajů (boti)', { skip: !available && 'Pos
         assert.equal(q(`select winner is null from tournament_matches where id = '${mine}'`), 't');
         assert.equal(q(`select count(*) from tournament_matches where round = 1 and winner is not null`), '15');
         // vývojář svůj zápas může odehrát (dnes je den 1. kola)
-        ok(as(id(1), WED, `select tournament_start_match('${mine}'); select tournament_finish_match('${mine}', 10, 40);`));
+        ok(as(id(1), WED, `select tournament_start_match('${mine}'); ${finishMatchSql(mine, 10, 40)}`));
         assert.equal(q(`select winner is not null from tournament_matches where id = '${mine}'`), 't');
     });
 

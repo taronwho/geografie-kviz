@@ -200,7 +200,8 @@ create policy "výsledky: zapisuje hráč sám" on public.challenge_results for 
         user_id = auth.uid()
         and exists (select 1 from public.challenges c where c.id = challenge_id and (c.invited_id is null or c.invited_id = auth.uid() or c.creator_id = auth.uid()))
         and correct <= (select c.count from public.challenges c where c.id = challenge_id)
-        and points <= 4 * (select c.count from public.challenges c where c.id = challenge_id)
+        -- psaná odpověď má dvojnásobek bodů (nejvýš 8 za otázku)
+        and points <= 8 * (select c.count from public.challenges c where c.id = challenge_id)
     );
 -- Čas dohrání určuje server (klient si ho nemůže zpětně upravit)
 create or replace function public.stamp_result() returns trigger
@@ -719,15 +720,21 @@ begin
 end;
 $$;
 
+-- Konec zápasu: počet správných a body spočítá server z odpovědí uložených přes tournament_answer_save (níž v souboru; tělo se kontroluje až při volání).
+-- Bez všech deseti uložených odpovědí výsledek zapsat nejde; čísla od klienta (correct_count, point_count) zůstávají v podpisu kvůli starším aplikacím, nepoužijí se.
 create or replace function public.tournament_finish_match(mid uuid, correct_count integer, point_count integer) returns void
 language plpgsql security definer set search_path = public as $$
-declare m public.tournament_matches; r public.tournament_results;
+declare m public.tournament_matches; r public.tournament_results; answered integer; good integer; total integer;
 begin
     if auth.uid() is null then raise exception 'Přihlas se.' using errcode = '42501'; end if;
     select * into m from public.tournament_matches where id = mid;
     select * into r from public.tournament_results where match_id = mid and user_id = auth.uid() for update;
     if m.id is null or r.match_id is null or r.finished_at is not null or m.winner is not null then raise exception 'Výsledek jde zapsat jen jednou.' using errcode = '22023'; end if;
-    update public.tournament_results set finished_at = now(), correct = greatest(0, least(correct_count, 10)), points = greatest(0, least(point_count, 100)),
+    select count(*)::integer, (count(*) filter (where a.correct))::integer, coalesce(sum(a.points), 0)::integer into answered, good, total
+        from public.tournament_answers a where a.match_id = mid and a.user_id = auth.uid();
+    -- 10 otázek na zápas (QUESTIONS v tournament.js)
+    if answered < 10 then raise exception 'Zápas ještě není dohraný: nejdřív se musí uložit všechny odpovědi.' using errcode = '22023'; end if;
+    update public.tournament_results set finished_at = now(), correct = good, points = total,
         time_ms = greatest(0, least(extract(epoch from now() - started_at) * 1000, 3600000))::integer
         where match_id = mid and user_id = auth.uid();
     perform public.tournament_progress(m.tournament_id);
@@ -1142,14 +1149,6 @@ revoke all on function public.limit_client_errors() from public, anon, authentic
 revoke all on function public.dev_client_errors(), public.dev_is_admin() from public, anon;
 grant execute on function public.dev_client_errors(), public.dev_is_admin() to authenticated;
 
--- ===== Verze schématu =====
--- Číslo se zvyšuje při KAŽDÉ změně tohoto souboru (tabulka, sloupec, funkce, pravidlo) a zároveň konstanta REQUIRED_SCHEMA v app.js.
--- Aplikace ho po přihlášení porovná a správci (dev_admins nebo vývojářský režim) ukáže v Nastavení, že má schéma spustit znovu;
--- tests/sql-security.test.js hlídá, že se obě čísla shodují. Funkce patří na konec souboru.
-create or replace function public.schema_version() returns integer
-language sql immutable as $$ select 2 $$;
-revoke all on function public.schema_version() from public, anon;
-grant execute on function public.schema_version() to authenticated;
 -- ===== Hlášení chyb v otázkách =====
 -- Hráč v okně otázky nahlásí chybu (špatná odpověď, nejasné zadání, špatný obrázek, jiné) s volitelným textem. Vložit smí jen vlastní
 -- hlášení (omezená délka, nejvýš 20 za 24 hodin), číst a mazat je smí jen dev_admins (seznam ve vývojářském panelu v Nastavení).
@@ -1233,7 +1232,11 @@ begin
         'reakce', coalesce((select jsonb_agg(to_jsonb(r) order by r.created_at) from public.match_reactions r where uid in (r.from_id, r.to_id)), '[]'::jsonb),
         'nahlaseni_hracu', coalesce((select jsonb_agg(to_jsonb(r) order by r.created_at) from public.player_reports r where r.reporter = uid), '[]'::jsonb),
         'hlaseni_otazek', coalesce((select jsonb_agg(to_jsonb(r) order by r.created_at) from public.question_reports r where r.user_id = uid), '[]'::jsonb),
-        'upozorneni_odbery', coalesce((select jsonb_agg(jsonb_build_object('endpoint', s.endpoint, 'vytvoren', s.created_at)) from public.push_subscriptions s where s.user_id = uid), '[]'::jsonb)
+        'upozorneni_odbery', coalesce((select jsonb_agg(jsonb_build_object('endpoint', s.endpoint, 'vytvoren', s.created_at)) from public.push_subscriptions s where s.user_id = uid), '[]'::jsonb),
+        -- Průběh výzev a zápasů turnaje (odpovědi po otázkách) a vyplacené XP za vyhrané zápasy (schéma 3, tabulky na konci souboru)
+        'vyzvy_prubeh', coalesce((select jsonb_agg(to_jsonb(p) order by p.answered_at, p.challenge_id, p.idx) from public.challenge_progress p where p.user_id = uid), '[]'::jsonb),
+        'turnaje_odpovedi', coalesce((select jsonb_agg(to_jsonb(a) order by a.answered_at, a.idx) from public.tournament_answers a where a.user_id = uid), '[]'::jsonb),
+        'turnaje_xp', coalesce((select jsonb_agg(to_jsonb(x) order by x.claimed_at) from public.tournament_xp_claims x where x.user_id = uid), '[]'::jsonb)
     ) into result;
     return result;
 end;
@@ -1565,3 +1568,196 @@ revoke all on function public.on_block(), public.on_friend_request(), public.on_
     public.friend_count(uuid), public.check_challenge_blocks(), public.check_reaction(), public.on_report(), public.is_blocked(uuid, uuid) from public, anon, authenticated;
 revoke all on function public.touch_seen(), public.friends_list(), public.search_players(text), public.dev_player_reports(), public.dev_report_resolve(bigint) from public, anon;
 grant execute on function public.touch_seen(), public.friends_list(), public.search_players(text), public.dev_player_reports(), public.dev_report_resolve(bigint) to authenticated;
+-- ===== Průběh výzev a zápasů turnaje na serveru (schéma 3) =====
+-- Každá odpověď se hned po zodpovězení uloží (pořadí otázky od 0, správně, body). Uložit jde jen další otázku v pořadí, nic přeskočit ani přepsat;
+-- stejná odpověď poslaná znovu (fronta po výpadku spojení, ztracená odpověď serveru) nic nezmění. Po smazání dat v zařízení nebo na jiném zařízení
+-- aplikace průběh načte a pokračuje první nezodpovězenou otázkou, takže výzvu nejde hrát znovu od první otázky. Konečný výsledek spočítá server
+-- z průběhu (výzva: spoušť result_from_progress na challenge_results; turnaj: tournament_finish_match). Průběh vidí jen jeho hráč, zapisuje se jen přes funkce.
+create table if not exists public.challenge_progress (
+    challenge_id text not null references public.challenges (id) on delete cascade,
+    user_id uuid not null references public.profiles (id) on delete cascade,
+    idx integer not null,
+    correct boolean not null,
+    points integer not null,
+    answered_at timestamptz not null default now(),
+    primary key (challenge_id, user_id, idx)
+);
+-- správná odpověď má aspoň bod, špatná žádný; nejvýš 8 bodů (psaná odpověď bez nápovědy), výzva má nejvýš 20 otázek
+alter table public.challenge_progress drop constraint if exists challenge_progress_values;
+alter table public.challenge_progress add constraint challenge_progress_values check (idx between 0 and 19 and points between 0 and 8 and correct = (points > 0));
+create index if not exists challenge_progress_user_idx on public.challenge_progress (user_id, answered_at desc);
+alter table public.challenge_progress enable row level security;
+drop policy if exists "průběh výzvy: vlastní" on public.challenge_progress;
+create policy "průběh výzvy: vlastní" on public.challenge_progress for select to authenticated using (user_id = auth.uid());
+
+-- Uloží odpověď na otázku idx výzvy code za přihlášeného hráče; vrací počet uložených odpovědí (= index další otázky)
+create or replace function public.challenge_progress_save(code text, idx integer, correct boolean, points integer) returns integer
+language plpgsql security definer set search_path = public as $$
+#variable_conflict use_variable
+declare uid uuid := auth.uid(); c public.challenges; prev public.challenge_progress; saved integer;
+begin
+    if uid is null then raise exception 'Přihlas se.' using errcode = '42501'; end if;
+    select * into c from public.challenges ch where ch.id = code;
+    -- hrát smí každý s kódem, u výzvy určenému hráči jen on a zakladatel (stejně jako zápis výsledku)
+    if c.id is null or not (c.invited_id is null or c.invited_id = uid or c.creator_id = uid) then
+        raise exception 'Tuhle výzvu hrát nemůžeš.' using errcode = '42501';
+    end if;
+    -- souběžné zápisy téhož hráče do téže výzvy jdou po sobě (pořadí otázek)
+    perform pg_advisory_xact_lock(hashtext('challenge_progress:' || code || ':' || uid::text));
+    if exists (select 1 from public.challenge_results r where r.challenge_id = code and r.user_id = uid) then
+        raise exception 'Výzvu už máš dohranou.' using errcode = '22023';
+    end if;
+    if idx is null or idx < 0 or idx >= c.count then raise exception 'Neplatné číslo otázky.' using errcode = '22023'; end if;
+    -- výběr z možností nejvýš 4 body za otázku, psaná odpověď dvojnásobek (jen výzva bez pevného způsobu odpovídání)
+    if correct is null or points is null or points < 0 or points > (case when c.variant = 'choices' then 4 else 8 end) or correct <> (points > 0) then
+        raise exception 'Neplatný výsledek otázky.' using errcode = '22023';
+    end if;
+    select count(*)::integer into saved from public.challenge_progress p where p.challenge_id = code and p.user_id = uid;
+    select * into prev from public.challenge_progress p where p.challenge_id = code and p.user_id = uid and p.idx = idx;
+    if prev.challenge_id is not null then
+        if prev.correct = correct and prev.points = points then return saved; end if;
+        raise exception 'Odpověď na tuhle otázku už je uložená, přepsat ji nejde.' using errcode = '22023';
+    end if;
+    if idx <> saved then raise exception 'Nejdřív se musí uložit předchozí otázky.' using errcode = '22023'; end if;
+    insert into public.challenge_progress (challenge_id, user_id, idx, correct, points) values (code, uid, idx, correct, points);
+    return saved + 1;
+end;
+$$;
+
+-- Konečný výsledek výzvy počítá server z průběhu: hráč (role authenticated) ho uloží, až když má na serveru odpovědi na všechny otázky,
+-- a počet správných i body se vezmou z nich (čísla od klienta se přepíšou). Průběh čte pravidlo řádků jen hráči samotnému, výsledek za jiného
+-- hráče tak průběh nemá a neprojde. Správce (postgres) se tím neřídí; opakovaný zápis už uloženého výsledku řeší primární klíč (ON CONFLICT).
+create or replace function public.result_from_progress() returns trigger
+language plpgsql set search_path = public as $$
+declare answered integer; good integer; total integer; question_count integer;
+begin
+    if current_user not in ('authenticated', 'anon') then return new; end if;
+    if exists (select 1 from public.challenge_results r where r.challenge_id = new.challenge_id and r.user_id = new.user_id) then return new; end if;
+    select c.count into question_count from public.challenges c where c.id = new.challenge_id;
+    select count(*)::integer, (count(*) filter (where p.correct))::integer, coalesce(sum(p.points), 0)::integer into answered, good, total
+        from public.challenge_progress p where p.challenge_id = new.challenge_id and p.user_id = new.user_id;
+    if question_count is null or answered < question_count then
+        raise exception 'Výsledek výzvy jde uložit až po uložení odpovědí na všechny otázky.' using errcode = 'P0001';
+    end if;
+    new.correct := good;
+    new.points := total;
+    return new;
+end;
+$$;
+drop trigger if exists challenge_results_from_progress on public.challenge_results;
+create trigger challenge_results_from_progress before insert on public.challenge_results for each row execute function public.result_from_progress();
+
+-- Odpovědi v zápase turnaje: stejně jako průběh výzvy, jen v den kola, po tournament_start_match a před tournament_finish_match.
+-- Po smazání dat nebo na jiném zařízení se tak dá rozehraný zápas dohrát od první nezodpovězené otázky (čas dál běží od začátku zápasu).
+create table if not exists public.tournament_answers (
+    match_id uuid not null references public.tournament_matches (id) on delete cascade,
+    user_id uuid not null references public.profiles (id) on delete cascade,
+    idx integer not null,
+    correct boolean not null,
+    points integer not null,
+    answered_at timestamptz not null default now(),
+    primary key (match_id, user_id, idx)
+);
+-- zápas má 10 otázek z výběru z možností (nejvýš 4 body za otázku)
+alter table public.tournament_answers drop constraint if exists tournament_answers_values;
+alter table public.tournament_answers add constraint tournament_answers_values check (idx between 0 and 9 and points between 0 and 4 and correct = (points > 0));
+create index if not exists tournament_answers_user_idx on public.tournament_answers (user_id, answered_at desc);
+alter table public.tournament_answers enable row level security;
+drop policy if exists "turnaje: vlastní odpovědi" on public.tournament_answers;
+create policy "turnaje: vlastní odpovědi" on public.tournament_answers for select to authenticated using (user_id = auth.uid());
+
+create or replace function public.tournament_answer_save(mid uuid, idx integer, correct boolean, points integer) returns integer
+language plpgsql security definer set search_path = public as $$
+#variable_conflict use_variable
+declare uid uuid := auth.uid(); m public.tournament_matches; t public.tournaments; r public.tournament_results; prev public.tournament_answers; saved integer;
+begin
+    if uid is null then raise exception 'Přihlas se.' using errcode = '42501'; end if;
+    select * into m from public.tournament_matches tm where tm.id = mid;
+    if m.id is null or uid not in (m.p1, m.p2) then raise exception 'Tohle není tvůj zápas.' using errcode = '42501'; end if;
+    perform pg_advisory_xact_lock(hashtext('tournament_answers:' || mid::text || ':' || uid::text));
+    select * into r from public.tournament_results tr where tr.match_id = mid and tr.user_id = uid;
+    if r.match_id is null then raise exception 'Zápas jsi ještě nezačal.' using errcode = '22023'; end if;
+    if r.finished_at is not null or m.winner is not null then raise exception 'Zápas už je dohraný.' using errcode = '22023'; end if;
+    select * into t from public.tournaments tt where tt.id = m.tournament_id;
+    if t.status <> 'running' or t.started_on + (m.round - 1) <> public.tournament_today() then raise exception 'Kolo se dnes nehraje.' using errcode = '22023'; end if;
+    if idx is null or idx < 0 or idx > 9 then raise exception 'Neplatné číslo otázky.' using errcode = '22023'; end if;
+    if correct is null or points is null or points < 0 or points > 4 or correct <> (points > 0) then raise exception 'Neplatný výsledek otázky.' using errcode = '22023'; end if;
+    select count(*)::integer into saved from public.tournament_answers a where a.match_id = mid and a.user_id = uid;
+    select * into prev from public.tournament_answers a where a.match_id = mid and a.user_id = uid and a.idx = idx;
+    if prev.match_id is not null then
+        if prev.correct = correct and prev.points = points then return saved; end if;
+        raise exception 'Odpověď na tuhle otázku už je uložená, přepsat ji nejde.' using errcode = '22023';
+    end if;
+    if idx <> saved then raise exception 'Nejdřív se musí uložit předchozí otázky.' using errcode = '22023'; end if;
+    insert into public.tournament_answers (match_id, user_id, idx, correct, points) values (mid, uid, idx, correct, points);
+    return saved + 1;
+end;
+$$;
+
+-- ===== XP za vyhrané zápasy turnaje: vyplácí se jednou za účet =====
+-- Dřív si vyplacené zápasy pamatovalo jen zařízení (mudrlant.tourXp): na novém zařízení nebo po smazání dat se XP připsalo znovu. Teď vyplacení eviduje
+-- server: claim_tournament_xp() atomicky zapíše dosud nevyplacené výhry volajícího (vítěz = volající, ne postup „dřívější přihlášení“ bez hry) a vrátí
+-- jejich id a kolo; aplikace připíše XP jen za vrácené. Volitelný retry_key: zopakované volání se stejným klíčem (odpověď serveru se ztratila) vrátí
+-- tytéž zápasy znovu (proti dvojímu připsání v jednom zařízení chrání mudrlant.tourXp).
+-- Migrace: tabulka vzniká při prvním spuštění téhle verze a všechny výhry rozhodnuté do té doby se do ní zapíšou jako vyplacené (legacy = true):
+-- XP za ně hráč dostal ve svém zařízení. Kdo vyhrál a od té doby aplikaci neotevřel, XP za tyto zápasy už nedostane (méně zlé než dvojí výplata).
+do $$
+begin
+    if to_regclass('public.tournament_xp_claims') is null then
+        create table public.tournament_xp_claims (
+            match_id uuid primary key references public.tournament_matches (id) on delete cascade,
+            user_id uuid not null references public.profiles (id) on delete cascade,
+            round integer not null,
+            retry_key text,
+            legacy boolean not null default false,
+            claimed_at timestamptz not null default now()
+        );
+        insert into public.tournament_xp_claims (match_id, user_id, round, legacy)
+            select m.id, m.winner, m.round, true from public.tournament_matches m where m.winner is not null and m.decided_by <> 'earlier';
+    end if;
+end
+$$;
+alter table public.tournament_xp_claims drop constraint if exists tournament_xp_claims_key_format;
+alter table public.tournament_xp_claims add constraint tournament_xp_claims_key_format check (retry_key is null or retry_key ~ '^[A-Za-z0-9_-]{8,64}$');
+create index if not exists tournament_xp_claims_user_idx on public.tournament_xp_claims (user_id, retry_key);
+alter table public.tournament_xp_claims enable row level security;
+drop policy if exists "turnaje: vlastní vyplacené XP" on public.tournament_xp_claims;
+create policy "turnaje: vlastní vyplacené XP" on public.tournament_xp_claims for select to authenticated using (user_id = auth.uid());
+
+create or replace function public.claim_tournament_xp(retry_key text default null) returns table (id uuid, round integer)
+language plpgsql security definer set search_path = public as $$
+#variable_conflict use_variable
+declare uid uuid := auth.uid(); k text := nullif(btrim(coalesce(retry_key, '')), '');
+begin
+    if uid is null then raise exception 'Přihlas se.' using errcode = '42501'; end if;
+    if k is not null and k !~ '^[A-Za-z0-9_-]{8,64}$' then raise exception 'Neplatný klíč.' using errcode = '22023'; end if;
+    -- dvě souběžná volání téhož hráče jdou po sobě (zápas se vyplatí jen jednomu z nich)
+    perform pg_advisory_xact_lock(hashtext('tournament_xp:' || uid::text));
+    return query
+        with fresh as (
+            insert into public.tournament_xp_claims (match_id, user_id, round, retry_key)
+            select m.id, uid, m.round, k from public.tournament_matches m where m.winner = uid and m.decided_by <> 'earlier'
+            on conflict (match_id) do nothing
+            returning tournament_xp_claims.match_id, tournament_xp_claims.round
+        )
+        select f.match_id, f.round from fresh f
+        union
+        select x.match_id, x.round from public.tournament_xp_claims x where k is not null and x.user_id = uid and x.retry_key = k and not x.legacy;
+end;
+$$;
+
+revoke all on public.challenge_progress, public.tournament_answers, public.tournament_xp_claims from anon, authenticated;
+grant select on public.challenge_progress, public.tournament_answers, public.tournament_xp_claims to authenticated;
+revoke all on function public.result_from_progress() from public, anon, authenticated;
+revoke all on function public.challenge_progress_save(text, integer, boolean, integer), public.tournament_answer_save(uuid, integer, boolean, integer), public.claim_tournament_xp(text) from public, anon;
+grant execute on function public.challenge_progress_save(text, integer, boolean, integer), public.tournament_answer_save(uuid, integer, boolean, integer), public.claim_tournament_xp(text) to authenticated;
+
+-- ===== Verze schématu =====
+-- Číslo se zvyšuje při KAŽDÉ změně tohoto souboru (tabulka, sloupec, funkce, pravidlo) a zároveň konstanta REQUIRED_SCHEMA v app.js.
+-- Aplikace ho po přihlášení porovná a správci (dev_admins nebo vývojářský režim) ukáže v Nastavení, že má schéma spustit znovu;
+-- tests/sql-monitor.test.js hlídá, že se obě čísla shodují. Funkce patří na konec souboru: když spuštění skončí chybou dřív, verze zůstane stará.
+-- 3: průběh výzev a zápasů turnaje na serveru (challenge_progress, tournament_answers), XP za výhry v turnaji jednou za účet (tournament_xp_claims).
+create or replace function public.schema_version() returns integer
+language sql immutable as $$ select 3 $$;
+revoke all on function public.schema_version() from public, anon;
+grant execute on function public.schema_version() to authenticated;

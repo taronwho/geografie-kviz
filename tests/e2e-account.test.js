@@ -35,7 +35,7 @@ test('Moje data, smazání účtu a právní stránky', { skip: !chromium && 'Pl
     const browser = await chromium.launch(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {});
     t.after(async () => { await browser.close(); server.close(); });
 
-    const state = { calls: [], deleteReply: { status: 200, body: true }, exportReply: { status: 200, body: { ucet: { id: 'u-1', email: 'jana@example.com' }, profil: { display_name: 'Jana' } } } };
+    const state = { calls: [], deleteReply: { status: 200, body: true }, exportReply: { status: 200, body: { ucet: { id: 'u-1', email: 'jana@example.com' }, profil: { display_name: 'Jana' }, vyzvy_prubeh: [], turnaje_odpovedi: [], turnaje_xp: [] } } };
     const backend = async (context) => {
         await context.route('**/config.js', route => route.fulfill({ contentType: 'text/javascript', body: 'window.MUDRLANT_CONFIG = { supabaseUrl: "https://proj.supabase.co", supabaseAnonKey: "anon-key" };' }));
         await context.route('https://proj.supabase.co/**', route => {
@@ -46,6 +46,9 @@ test('Moje data, smazání účtu a právní stránky', { skip: !chromium && 'Pl
             if (url.pathname === '/rest/v1/rpc/export_my_data') { state.calls.push('export'); return json(state.exportReply.body, state.exportReply.status); }
             if (url.pathname === '/rest/v1/rpc/delete_my_account') { state.calls.push('delete'); return json(state.deleteReply.body, state.deleteReply.status); }
             if (url.pathname === '/rest/v1/profiles') return json([{ id: 'u-1', display_name: 'Jana', avatar: '🦊', color: 'emerald', owl: null }]);
+            // Schéma 3: XP za výhry v turnaji (nic nevyplaceného) a průběh výzev
+            if (url.pathname === '/rest/v1/rpc/claim_tournament_xp') return json([]);
+            if (url.pathname === '/rest/v1/rpc/challenge_progress_save') return json(1);
             return json([]);
         });
     };

@@ -132,13 +132,34 @@
         stage.className = 'pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2';
         stage.style.width = `min(100cqw, calc(100cqh * ${ratio.toFixed(5)}))`;
         stage.style.aspectRatio = `${width} / ${height}`;
+        // Rozmazání nese kopie fotky uvnitř obdélníku s filtrem blur (posunutá tak, aby seděla na fotku pod ní), ne jen
+        // backdrop-filter: ten některé prohlížeče a vykreslování bez GPU nepoužijí a nápis (NEVADA) by pod ztmavením zůstal čitelný.
+        // Obdélník je neprůhledný – u kresby s průhledným pozadím by rozmazaná kopie nápis pod sebou nezakryla.
+        // Poloměr roste s výškou obdélníku (velký nápis TAIPEI potřebuje víc), nejméně 10 px
+        const image = element.style.backgroundImage;
+        const pct = (value) => `${(value * 100).toFixed(2)}%`;
         for (const [x, y, w, h] of masks) {
             const box = document.createElement('div');
-            box.className = 'absolute rounded-md bg-slate-900/80 backdrop-blur-xl';
-            box.style.left = `${(x * 100).toFixed(2)}%`;
-            box.style.top = `${(y * 100).toFixed(2)}%`;
-            box.style.width = `${(w * 100).toFixed(2)}%`;
-            box.style.height = `${(h * 100).toFixed(2)}%`;
+            box.className = 'absolute overflow-hidden rounded-md bg-slate-900/80 backdrop-blur-xl';
+            box.style.left = pct(x);
+            box.style.top = pct(y);
+            box.style.width = pct(w);
+            box.style.height = pct(h);
+            if (image && w > 0 && h > 0) {
+                box.className = 'absolute overflow-hidden rounded-md bg-slate-900';
+                const copy = document.createElement('div');
+                copy.className = 'absolute bg-no-repeat';
+                copy.style.backgroundImage = image;
+                copy.style.backgroundSize = '100% 100%';
+                copy.style.left = pct(-x / w);
+                copy.style.top = pct(-y / h);
+                copy.style.width = pct(1 / w);
+                copy.style.height = pct(1 / h);
+                copy.style.filter = `blur(max(10px, ${(h * 40).toFixed(2)}cqh))`;
+                const tint = document.createElement('div');
+                tint.className = 'absolute inset-0 bg-slate-900/80';
+                box.append(copy, tint);
+            }
             stage.appendChild(box);
         }
         element.appendChild(stage);
