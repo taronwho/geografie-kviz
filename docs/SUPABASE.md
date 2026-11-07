@@ -261,6 +261,8 @@ Předpoklad: upozornění fungují podle kroků výš (VAPID, `PUSH_CRON_SECRET`
    on conflict (name) do update set value = excluded.value;
    -- Každou minutu se podívat, jestli je co poslat (úloha se stejným názvem se při dalším spuštění jen přepíše)
    select cron.schedule('upozorneni', '* * * * *', $$select public.push_kick()$$);
+   -- Jednou denně smazat starý záznam o bězích (úloha běží každou minutu, záznam by jinak pořád rostl)
+   select cron.schedule('upozorneni-uklid', '17 3 * * *', $$delete from cron.job_run_details where end_time < now() - interval '3 days'$$);
    ```
 
 2. **Run**. Dole se ukáže číslo úlohy (např. `1`). Spustit totéž znovu je bezpečné: token se přepíše a úloha `upozorneni` zůstane jedna
