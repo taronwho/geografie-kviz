@@ -3224,7 +3224,7 @@
         const label = `Cíle týdne: splněno ${done} ze ${rows.length}, ${goalsLeftText()}. Zobrazit podrobnosti`;
         return `
             <button type="button" id="weekly-goals" data-action="goals-open" aria-label="${escapeHtml(label)}" title="${escapeHtml(rows.map(row => row.goal.title).join('\n'))}" class="flex min-h-[2.5rem] w-full items-center gap-1.5 rounded-2xl bg-white px-2.5 py-1.5 text-left shadow-sm ring-1 ring-slate-200/70 transition-all active:scale-[0.98] dark:bg-slate-800/70 dark:ring-slate-700/70">
-                <i data-lucide="goal" class="h-4 w-4 shrink-0 text-brand-700 dark:text-cream"></i>
+                ${uiArt('cile', 'h-7 w-7 -my-1 -ml-1')}
                 <span class="shrink-0 whitespace-nowrap text-[11px] font-black text-slate-800 dark:text-slate-100">Cíle týdne <span class="${state.bonus ? 'text-emerald-600 dark:text-emerald-300' : 'text-slate-500 dark:text-slate-400'}">${done}/${rows.length}</span></span>
                 <span class="flex min-w-0 flex-1 gap-1">${rows.map(chip).join('')}</span>
                 <i data-lucide="chevron-right" class="h-3.5 w-3.5 shrink-0 text-slate-400"></i>
@@ -3247,7 +3247,7 @@
                 </div>
             </li>`;
         showDialog('Cíle týdne', `
-            <p class="-mt-2 mb-3 text-xs text-slate-500 dark:text-slate-400">${escapeHtml(Goals.weekLabel(state.week))} · ${goalsLeftText()}</p>
+            <div class="-mt-3 mb-2 flex items-center gap-2">${uiArt('cile', 'h-10 w-10')}<p class="text-xs text-slate-500 dark:text-slate-400">${escapeHtml(Goals.weekLabel(state.week))} · ${goalsLeftText()}</p></div>
             <ul class="flex flex-col gap-2">${rows.map(row).join('')}</ul>
             <p class="mt-3 flex items-center gap-2 rounded-2xl ${state.bonus ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200' : 'bg-gold-100 text-gold-800 dark:bg-gold-900/40 dark:text-gold-200'} px-3 py-2 text-xs font-bold"><i data-lucide="trophy" class="h-4 w-4 shrink-0"></i>${state.bonus ? `Všechny cíle splněny: bonus +${Goals.BONUS_XP} XP získán` : `Za všechny tři cíle bonus +${Goals.BONUS_XP} XP a odznak Týdenní cíle`}</p>`);
         applyProgress(document.getElementById('dialog-overlay'));
@@ -3727,7 +3727,7 @@
         const reviewText = reviewSummary ? reviewSummary.text : due ? 'Špatné odpovědi se vrací po 1, 3, 7, 14 a 30 dnech' : next ? `Nic na řadě, ${next}` : 'Co v kvízu spleteš, sem přijde k procvičení';
         const reviewSection = reviewEnabled() ? `
             <section data-review-section class="flex items-center gap-3 rounded-2xl border border-slate-100 bg-white p-3 shadow-sm dark:border-slate-700 dark:bg-slate-800">
-                <span class="shrink-0 rounded-xl bg-gold-100 p-2 text-gold-700 dark:bg-gold-900/40 dark:text-gold-300"><i data-lucide="repeat" class="h-5 w-5"></i></span>
+                ${uiArt('procvicovani', 'h-11 w-11 -my-1')}
                 <span class="min-w-0 flex-1">
                     <span class="block text-sm font-black leading-tight text-slate-800 dark:text-slate-100">K procvičení dnes (${due})</span>
                     <span class="block text-[11px] font-semibold leading-tight text-slate-500 dark:text-slate-400">${escapeHtml(reviewText)}</span>
@@ -4304,14 +4304,15 @@
     // Rychlé akce: tři dlaždice (Vyzvat, Náhodný soupeř, Zadat kód) a pod nimi drobný čip s nastavením přijímaných výzev
     // Na nízkém displeji (short:) menší ikony a nižší dlaždice, ať se nad ohyb vejde i liga
     const QUICK_TILE = 'flex min-h-[4.5rem] min-w-0 flex-col items-center justify-center gap-1 rounded-2xl px-1 py-2 text-center text-[12px] font-black leading-tight short:min-h-[3.75rem] short:gap-0.5 short:py-1.5';
-    const QUICK_ICON = 'flex h-9 w-9 items-center justify-center rounded-full short:h-7 short:w-7';
+    // Kostky a klíč jsou vzdušnější kresby než meče u Vyzvat: obrázek je o kousek větší, místo zabere stejné (h-9, na nízkém displeji h-7)
+    const QUICK_ART = 'h-11 w-11 -my-1 short:h-8 short:w-8 short:-my-0.5';
     const QUICK_LIGHT = 'bg-white text-slate-800 shadow-sm ring-1 ring-slate-200/70 active:scale-95 dark:bg-slate-800 dark:text-slate-100 dark:ring-slate-700/70';
     const quickActions = () => `
         <div class="flex flex-col gap-1.5">
             <div class="grid grid-cols-3 gap-2">
                 <button type="button" data-action="new-challenge" class="${QUICK_TILE} btn-3d bg-brand-700 text-white">${uiArt('vyzva', 'h-9 w-9 short:h-7 short:w-7')}Vyzvat</button>
-                <button type="button" data-action="random-challenge" class="${QUICK_TILE} ${QUICK_LIGHT}"><span class="${QUICK_ICON} bg-brand-100 text-brand-700 dark:bg-brand-900/50 dark:text-brand-200"><i data-lucide="shuffle" class="h-5 w-5"></i></span>Náhodný soupeř</button>
-                <button type="button" data-action="join-challenge" class="${QUICK_TILE} ${QUICK_LIGHT}"><span class="${QUICK_ICON} bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300"><i data-lucide="hash" class="h-5 w-5"></i></span>Zadat kód</button>
+                <button type="button" data-action="random-challenge" class="${QUICK_TILE} ${QUICK_LIGHT}">${uiArt('nahodny', QUICK_ART)}Náhodný soupeř</button>
+                <button type="button" data-action="join-challenge" class="${QUICK_TILE} ${QUICK_LIGHT}">${uiArt('kod', QUICK_ART)}Zadat kód</button>
             </div>
             <button type="button" data-action="open-accept" title="Změnit, z jakých témat přijímám výzvy" class="flex min-h-[2rem] max-w-full items-center gap-1.5 self-center rounded-full bg-slate-200/60 px-3 py-1 text-[11.5px] font-bold text-slate-600 active:scale-95 dark:bg-slate-800/80 dark:text-slate-300"><i data-lucide="shield-check" class="h-3.5 w-3.5 shrink-0 text-brand-700 dark:text-brand-300"></i><span class="min-w-0 truncate">Přijímám výzvy z: <b class="text-slate-800 dark:text-slate-100">${escapeHtml(acceptSummary())}</b></span><i data-lucide="pencil" class="h-3 w-3 shrink-0 text-brand-700 dark:text-cream"></i></button>
         </div>`;
@@ -4929,6 +4930,7 @@
         let note = '';
         const render = (value = '') => showDialog('Zadat kód výzvy', `
             <form class="flex flex-col gap-3" autocomplete="off">
+                ${uiArt('kod', 'mx-auto -my-1 h-14 w-14')}
                 <input id="challenge-code" data-autofocus type="text" inputmode="text" autocapitalize="characters" maxlength="200" placeholder="Např. K7M2QX" value="${escapeHtml(value)}" class="w-full rounded-xl border-2 border-slate-200 bg-white px-3 py-3 text-center text-xl font-black uppercase tracking-widest text-slate-800 focus:border-brand-600 focus:outline-none dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100">
                 <button type="submit" class="${PRIMARY_BUTTON}">Otevřít výzvu</button>
                 ${note ? DIALOG_NOTE(note) : ''}
@@ -5914,7 +5916,7 @@
         showDialog('Tip od Mudrlanta', `
             <div id="tip-dialog" data-tip="${escapeHtml(tip.id)}" class="flex flex-col gap-3">
                 <div class="flex items-start gap-3">
-                    <span class="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gold-100 text-gold-700 dark:bg-gold-900/40 dark:text-gold-300"><i data-lucide="${escapeHtml(tip.icon)}" class="h-6 w-6"></i></span>
+                    ${uiArt('sova-tip', 'h-[4.5rem] w-[4.5rem] -my-1')}
                     <div class="min-w-0"><p class="text-base font-black leading-tight text-slate-800 dark:text-slate-100">${escapeHtml(tip.title)}</p>
                         <p class="mt-1 text-sm font-semibold leading-snug text-slate-600 dark:text-slate-300">${escapeHtml(Tips.textFor(tip, Boolean(signedUser())))}</p></div>
                 </div>
@@ -5937,7 +5939,7 @@
         const when = `${Tournament.weekdayName(tournament.week_start)} ${Tournament.formatDay(tournament.week_start)}`;
         showDialog(TOUR_DIALOG, `
             <div id="tournament-offer" class="flex flex-col gap-3">
-                <div class="flex items-center gap-3"><span class="${TOUR_BUBBLE}"><i data-lucide="trophy" class="h-5 w-5"></i></span>
+                <div class="flex items-center gap-3">${uiArt('turnaj', 'h-14 w-14')}
                     <p class="text-sm font-semibold leading-snug text-slate-700 dark:text-slate-200">Přihlášky do týdenního turnaje jsou otevřené. Začíná <b>${escapeHtml(when)}</b>, každý den jedno kolo (10 otázek), vítěz postupuje dál až do finále.</p></div>
                 <button type="button" data-offer-join="${escapeHtml(tournament.id)}" class="flex w-full items-center justify-center gap-2 rounded-2xl btn-3d bg-emerald-600 px-4 py-3 text-base font-black text-white active:scale-[0.98]"><i data-lucide="trophy" class="h-5 w-5"></i> Přihlásit se</button>
                 <div class="flex items-center justify-between gap-2"><button type="button" data-offer-rules class="${TOUR_LINK}">Jak turnaje fungují</button><button type="button" data-close class="rounded-xl px-3 py-2.5 text-[13px] font-bold text-slate-500 underline underline-offset-2 dark:text-slate-400">Teď ne</button></div>
@@ -6038,8 +6040,8 @@
     };
 
     // --- Karta na záložce Více hráčů ---
-    const TOUR_BUBBLE = 'flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-gold-300 to-gold-600 text-brand-950 shadow-sm ring-2 ring-white/70 dark:ring-slate-700';
-    const TOUR_ICON = 'flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-gold-300 to-gold-600 text-brand-950 shadow-sm ring-2 ring-white/80 dark:ring-slate-700';
+    // Ilustrace turnaje (icons/topics/turnaj.webp): o kousek větší než místo, které zabere (40 px jako dřív kroužek), ať se řádek nezvýší ani nezúží text
+    const TOUR_ART = 'h-12 w-12 -m-1';
     const TOUR_LINK = 'inline-flex min-h-[2.5rem] items-center rounded px-1 text-[11px] font-black text-brand-700 underline decoration-brand-700/40 underline-offset-2 dark:text-cream dark:decoration-cream/40';
     const TOUR_SMALL = 'flex shrink-0 items-center justify-center gap-1 rounded-xl bg-white/70 text-[11px] font-black text-slate-700 ring-1 ring-slate-300/70 active:scale-95 disabled:opacity-50 dark:bg-slate-900/40 dark:text-slate-200 dark:ring-slate-600';
     const fillBar = (percent, count) => `<span class="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-white/80 dark:bg-slate-700" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${percent}" aria-label="Naplnění turnaje"><span class="block h-full rounded-full bg-gradient-to-r from-gold-400 to-gold-600 ${BAR_WIDTHS[count ? Math.max(1, Math.round(percent / 10)) : 0]}"></span></span>`;
@@ -6056,7 +6058,7 @@
         if (state.phase === 'open') {
             return `
                 <div data-tournament-row="open" class="flex items-center gap-2.5 py-2 first:pt-0 last:pb-0">
-                    <span class="${TOUR_ICON}"><i data-lucide="users" class="h-5 w-5"></i></span>
+                    ${uiArt('turnaj', TOUR_ART)}
                     <button type="button" data-action="tournament-open" data-tid="${id}" class="min-w-0 flex-1 text-left" aria-label="Přihlášení hráči">
                         <span class="block truncate text-[14px] font-black leading-tight text-slate-800 dark:text-slate-100">Přihlášky otevřené</span>
                         <span class="flex items-center gap-1 truncate text-[11px] font-semibold text-slate-600 dark:text-slate-300">${state.joined ? '<i data-lucide="circle-check" class="h-3.5 w-3.5 shrink-0 text-emerald-600 dark:text-emerald-400"></i>' : ''}<span class="truncate">${state.closed ? 'Přihlášky jsou zavřené' : state.joined ? `Jsi přihlášen · ${escapeHtml(Tournament.formatDay(state.start))}` : `Začíná ${escapeHtml(Tournament.weekdayName(state.start))} ${escapeHtml(Tournament.formatDay(state.start))}`}</span></span>
@@ -6076,7 +6078,7 @@
         const opponent = state.opponent && view.entries.find(entry => entry.user_id === state.opponent);
         return `
             <div data-tournament-row="${state.phase}" ${state.step ? `data-step="${state.step}"` : ''} class="flex items-center gap-2.5 py-2 first:pt-0 last:pb-0">
-                <span class="${TOUR_ICON}"><i data-lucide="trophy" class="h-5 w-5"></i></span>
+                ${uiArt('turnaj', TOUR_ART)}
                 <div class="min-w-0 flex-1">
                     <p class="truncate text-[14px] font-black leading-tight text-slate-800 dark:text-slate-100">${escapeHtml(title)}</p>
                     <p data-tournament-text class="flex flex-wrap items-center gap-x-1 text-[11px] font-semibold leading-snug text-slate-600 dark:text-slate-300">${state.step === 'play' && opponent ? `<span>Dnes hraješ proti</span> <span class="inline-flex items-center gap-1">${avatarHtml(opponent.player, 'h-4 w-4 text-[10px]')}<b class="text-slate-800 dark:text-slate-100">${escapeHtml(playerName(opponent.player))}</b></span>` : escapeHtml(text)}</p>

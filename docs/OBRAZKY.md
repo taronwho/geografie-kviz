@@ -336,6 +336,8 @@ Cartoon sticker illustration in exactly the same art style as the attached owl m
 
 ## 4. Dlaždice – více hráčů, úvod, učení
 
+**Stav: č. 40–45 jsou dodané a zapojené do hry** – karta turnaje a pozvánka do turnaje, dlaždice Náhodný soupeř a Zadat kód (klíč i v okně Zadat kód výzvy), pruh a okno Cíle týdne, Procvičování v Učení a okno tipu. Sova s žárovkou (č. 45) je ve hře jako `sova-tip`, aby měla barvy obleku jako ostatní sovy.
+
 ### 40. `turnaj.png` – Karta a dlaždice turnaje
 
 Přiložit: `branding/sova-original.jpg` (vzor stylu)

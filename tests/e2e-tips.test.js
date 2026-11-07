@@ -60,6 +60,7 @@ test('tipy od Mudrlanta', { skip: !chromium && 'Playwright není nainstalovaný'
         await tab.waitForSelector('#tip-dialog');
         assert.equal(await tab.getAttribute('#tip-dialog', 'data-tip'), 'dnesni');
         assert.match(await tab.textContent('#tip-dialog'), /Dnešní otázky/);
+        await tab.waitForFunction(() => { const img = document.querySelector('#tip-dialog img[src="icons/topics/sova-tip.webp"]'); return img && img.complete && img.naturalWidth > 0; });
         assert.equal(await tab.evaluate(() => { const box = document.querySelector('#dialog-overlay > div'); return box.scrollHeight <= box.clientHeight + 1; }), true, 'tip se vejde bez posouvání');
         const state = await tab.evaluate(() => JSON.parse(localStorage.getItem('mudrlant.tips')));
         assert.deepEqual(state.seen, ['dnesni']);

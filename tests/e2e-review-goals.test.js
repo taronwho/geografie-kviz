@@ -59,6 +59,7 @@ test('opakování s rozestupy a týdenní cíle', { skip: !chromium && 'Playwrig
             await goals.waitFor();
             assert.equal(await goals.locator('[data-goal]').count(), 3);
             assert.match(await goals.textContent(), /Cíle týdne\s*0\/3/);
+            assert.equal(await goals.locator('img[src="icons/topics/cile.webp"]').count(), 1, 'ilustrace cílů');
             await goals.click();
             await tab.waitForSelector('#dialog-overlay [data-goal-row]');
             assert.equal(await tab.locator('#dialog-overlay [data-goal-row]').count(), 3);
@@ -84,6 +85,7 @@ test('opakování s rozestupy a týdenní cíle', { skip: !chromium && 'Playwrig
         await tab.click('#btn-learn');
         await tab.waitForSelector('[data-review-section]');
         assert.match(await tab.textContent('[data-review-section]'), /K procvičení dnes \(2\)/);
+        assert.equal(await tab.locator('[data-review-section] img[src="icons/topics/procvicovani.webp"]').count(), 1, 'ilustrace opakování');
         await tab.waitForTimeout(500);
         assert.equal(await noScroll(tab), true, 'Učení bez posouvání');
         await tab.click('[data-action="review-start"]');
