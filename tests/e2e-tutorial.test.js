@@ -259,6 +259,11 @@ test('tutorial při prvním spuštění', { skip: !chromium && 'Playwright není
             assert.equal(await inside(tab), true);
             await shot(tab, `${prefix}1-zarovka`);
             await next(tab);
+            // Na úzkém displeji text s úrovní vedle sovy není: krok s hlavičkou posílá pro postup do Nastavení
+            await waitTitle(tab, 'Úroveň a XP');
+            const badgeText = await tab.textContent('[data-tut-text]');
+            if (viewport.width <= 370) assert.match(badgeText, /v Nastavení/);
+            else assert.match(badgeText, /klepnutí na text tvůj postup/);
             await tourFromBadge(tab, prefix);
             await tab.click('[data-action="daily"]');
             await waitTitle(tab, 'Nápověda');
