@@ -7032,6 +7032,25 @@
         window.addEventListener('online', flushReports);
         Auth.init().then(state => { if (!state.user && invite) openChallenge(invite); });
     }
+    // Klávesnice na telefonu: Chrome i Safari při jejím otevření zmenší jen viditelnou plochu, okna zarovnaná ke spodku by zůstala pod ní.
+    // Výška klávesnice jde do proměnné --kb (styles: okna se o ni zvednou a zkrátí) a zaměřené pole se posune do viditelné části okna.
+    const viewport = window.visualViewport;
+    if (viewport) {
+        const syncKeyboard = () => {
+            const inset = Math.round(window.innerHeight - viewport.height - viewport.offsetTop);
+            const open = inset > 80 && viewport.scale < 1.05; // menší rozdíl je lišta prohlížeče, přiblížení prsty není klávesnice
+            const root = document.documentElement;
+            const was = root.classList.contains('kb-open');
+            root.style.setProperty('--kb', `${open ? inset : 0}px`);
+            root.classList.toggle('kb-open', open);
+            const field = document.activeElement;
+            if (open && !was && field && field.closest && field.closest('#dialog-overlay, #settings-overlay')) {
+                requestAnimationFrame(() => field.scrollIntoView({ block: 'nearest' }));
+            }
+        };
+        viewport.addEventListener('resize', syncKeyboard);
+        viewport.addEventListener('scroll', syncKeyboard);
+    }
     gameVariant = readVariant();
     settings = loadSettings();
     applyLook();
