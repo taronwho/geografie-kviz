@@ -208,6 +208,11 @@ test('vlajky: nápis s odpovědí na vlajce či znaku (CALIFORNIA REPUBLIC, FIFA
     assert.deepEqual(fileNameWords('Emblem of Astana (latin).svg', plain), ['astana']);
 });
 
+test('popis: přídavné jméno s c → č prozradí název (cykloadice – cykloadiční), Hradec – Hradčany ne', () => {
+    assert.equal(core.censorName('1,3-dipolární cykloadiční reakce.', 'Azido-alkynová Huisgenova cykloadice'), '1,3-dipolární [***] reakce.');
+    assert.equal(core.censorName('Hradčany a Hradec.', 'Hradec Králové'), 'Hradčany a [***].');
+});
+
 test('popis: víceslovný region za „ve státě“ se zakryje celý (ne „[***] York“)', () => {
     assert.equal(core.censorCountry('v Lake Placid ve státě New York v USA.', 'Spojené státy americké', []), 'v Lake Placid [***] v USA.');
 });

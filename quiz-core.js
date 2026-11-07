@@ -169,6 +169,8 @@
             for (const [pattern, replacement] of STEM_ALTERNATIONS) {
                 if (pattern.test(stem)) stems.add(stem.replace(pattern, replacement));
             }
+            // c → č v odvozeném přídavném jménu (cykloadice → cykloadiční, substituce → substituční), jen u delších slov na -ce
+            if (word.length >= 7 && /ce$/iu.test(word) && /c$/iu.test(stem)) stems.add(`${stem.slice(0, -1)}č`);
         }
         // Pohyblivé e (Hradec → Hradci) jen u delších kmenů, z „Per“ (Peru) by jinak vzniklo „Pr“ a zakrylo „pro“
         for (const stem of [...stems]) {
