@@ -1462,7 +1462,7 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         assert.equal(await one.tab.getAttribute('[data-accept-topic="vlajky"]', 'aria-checked'), 'false');
         assert.match(await one.tab.textContent('#dialog-overlay'), /Přijímáš: 13 z 14 témat/);
         await one.tab.click('[data-accept-all]');
-        await one.tab.waitForFunction(() => !document.querySelector('[data-accept-all]'));
+        await one.tab.waitForFunction(() => !document.querySelector('[data-accept-all]') && /Uloženo/.test(document.getElementById('dialog-overlay').textContent));
         assert.deepEqual(db.profiles['u-1'].blocked_topics, []);
         // Mix je samostatný přepínač (výchozí zapnuto); vypnutý se projeví v souhrnu
         assert.equal(await one.tab.getAttribute('[data-accept-mix]', 'aria-checked'), 'true');
@@ -1471,7 +1471,7 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         assert.equal(db.profiles['u-1'].accepts_mix, false);
         assert.match(await one.tab.textContent('#dialog-overlay'), /Přijímáš: všechna témata, bez Mixu/);
         await one.tab.click('[data-accept-mix]');
-        await one.tab.waitForFunction(() => document.querySelector('[data-accept-mix]').getAttribute('aria-checked') === 'true');
+        await one.tab.waitForFunction(() => document.querySelector('[data-accept-mix]').getAttribute('aria-checked') === 'true' && /Uloženo/.test(document.getElementById('dialog-overlay').textContent));
         assert.equal(db.profiles['u-1'].accepts_mix, true);
         await one.tab.click('#dialog-overlay [data-close]');
         assert.match(await one.tab.textContent('#challenges-section'), /Přijímám výzvy z:\s*všechna témata/);
@@ -1672,7 +1672,7 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         const profileText = await two.tab.textContent('#dialog-overlay');
         assert.match(profileText, /Janička/);
         assert.match(profileText, /Vaše bilance/);
-        assert.match(profileText, /1\s*výher/);
+        assert.match(profileText, /1\s*výhra/);
         assert.match(profileText, /Vyzvat k odvetě/);
         assert.match(profileText, /Zeměpis · 5 otázek/);
         // Pod odvetou je „Upravit nastavení výzvy“: otevře se formulář nové výzvy předvyplněný soupeřem a nastavením z poslední hry
