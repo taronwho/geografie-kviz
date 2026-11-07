@@ -159,6 +159,8 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         // Dokud není odemčená nápověda, je v panelu jen popis (bez záložek); tlačítko nápovědy říká, co odemkne
         assert.equal(await tab.locator('[role="tablist"]').count(), 0);
         assert.match(await tab.textContent('[data-action="hint"]'), /Fotka[\s\S]*pak 3 body/);
+        // Tlačítko čísluje nápovědy stejně jako počítadlo (3 nápovědy: první je 1/3, ne 1/4)
+        assert.match(await tab.textContent('[data-action="hint"]'), /Nápověda 1\/3/);
 
         // 1. nápověda: skutečná fotka jako pozadí prvku (ne <img>)
         await tab.click('[data-action="hint"]');
@@ -172,6 +174,7 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         await tab.click('[data-action="hint"]');
         await tab.waitForSelector('[data-action="hint-tab"][data-step="facts"][aria-selected="true"]');
         assert.match(await appText(tab), /Kontinent/);
+        assert.match(await tab.textContent('[data-action="hint"]'), /Nápověda 3\/3/);
 
         // 3. nápověda: slepá mapa bez popisků s obrysy států, další už není
         await tab.click('[data-action="hint"]');
@@ -293,6 +296,13 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         await tab.click('[data-badge="vitez"]');
         assert.match(await tab.textContent('#dialog-overlay [data-badge-reward]'), /Vavřínový \(rámeček\), Vavřínový věnec \(doplněk Mudrlanta\)/);
         await tab.click('[data-badge="stovka"]');
+        // Z odznaků i z tabulky úrovní vede cesta zpět na Můj postup (jako z mistrovství)
+        await tab.click('#dialog-overlay [data-back-progress]');
+        await tab.waitForSelector('#dialog-overlay [data-open-levels]');
+        await tab.click('[data-open-levels]');
+        await tab.waitForSelector('#dialog-overlay [data-title-row]');
+        await tab.click('#dialog-overlay [data-back-progress]');
+        await tab.waitForSelector('#dialog-overlay [data-open-badges]');
         await tab.keyboard.press('Escape');
         // Výsledek u dnešní otázky je vidět celý (ne zkrácený na „4 bod…“)
         const cut = await tab.evaluate(() => [...document.querySelectorAll('[data-action="daily"] span.truncate')].filter(span => span.scrollWidth > span.clientWidth).map(span => span.textContent));
@@ -349,6 +359,8 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         await tab.waitForSelector('#place-info h2:has-text("Rakousko")');
         await tab.keyboard.press('Escape');
         assert.equal(await tab.locator('#place-info').count(), 0);
+        // Fokus se po zavření okna vrátí na tlačítko, které ho otevřelo (ne na začátek stránky)
+        await tab.waitForFunction(() => /Ukaž Rakousko/.test(document.activeElement.textContent) && document.activeElement.dataset.action === 'item-info');
         assert.equal(await tab.locator('section:has-text("ostatní možnosti")').count(), 0, 'u psaní nebyly možnosti vidět');
         assert.deepEqual(log.errors, []);
         assert.deepEqual(log.csp, []);
@@ -980,6 +992,12 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         await tab.click('[data-action="give-up"]');
         await waitForResult(tab);
         assert.doesNotMatch(await appText(tab), /Zajímavosti/);
+        // Další otázka se na nedostupnou Wikipedii znovu neptá (ani náhradní otázky za chudý popis): načte se hned
+        await tab.click('#btn-home');
+        await waitForHome(tab);
+        await tab.click('[data-action="daily"][data-topic="historie"]');
+        await waitForQuestion(tab);
+        assert.equal(log.wiki.length, 2, 'po výpadku se Wikipedie chvíli nezkouší');
         assert.deepEqual(log.errors, []);
         await context.close();
     });

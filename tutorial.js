@@ -129,8 +129,12 @@
     };
     const present = (step) => Boolean(holeOf(step));
     const external = () => Boolean(doc.querySelector(EXTERNAL));
-    // Krok Více hráčů se nepočítá, když záložka není (hra bez Supabase)
-    const hidden = () => [...(state && state.noFact ? ['fact'] : []), ...(doc.querySelector('[data-action="home-tab"][data-tab="multi"]') ? [] : ['multi'])];
+    // Krok Více hráčů se nepočítá, když záložka není (hra bez Supabase). Rozhoduje nastavení hry, ne to, jestli je záložka
+    // právě vidět: mimo úvod (otázka, výsledek) by jinak počítadlo skočilo z „Krok 7 z 11“ na „Krok 7 z 10“
+    const multiOn = () => {
+        try { return Boolean(root.MudrlantAuth && root.MudrlantAuth.isConfigured() && root.MudrlantSocial); } catch (e) { return false; }
+    };
+    const hidden = () => [...(state && state.noFact ? ['fact'] : []), ...(multiOn() || doc.querySelector('[data-action="home-tab"][data-tab="multi"]') ? [] : ['multi'])];
 
     const build = () => {
         const el = doc.createElement('div');

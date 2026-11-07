@@ -178,6 +178,8 @@ test('tutorial při prvním spuštění', { skip: !chromium && 'Playwright není
         await tab.click('[data-action="choice"]');
         await waitTitle(tab, 'Výsledek');
         assert.deepEqual(JSON.parse(await stored(tab)), { how: 'running', step: 9 }, 'po hraní se stav neztratí');
+        // Mimo úvod (bez záložky Více hráčů na obrazovce) počítadlo neposkočí na „z 10“
+        assert.match(await tab.textContent('[data-tut-count]'), /Krok 10 z 11/);
         await shot(tab, '9-vysledek');
         assert.equal(await blocked(tab, '[data-verdict]'), true, 'výsledek je jen k prohlédnutí');
         const after = await tab.evaluate(() => JSON.parse(localStorage.getItem('mudrlant.progress') || '{"xp":0}').xp);
@@ -496,6 +498,36 @@ test('tutorial při prvním spuštění', { skip: !chromium && 'Playwright není
         }
         assert.deepEqual(second.problems, []);
         await second.context.close();
+    });
+
+    await t.test('uvítání: Domů před výběrem varianty tutoriál nespustí, začne až po výběru varianty', async () => {
+        fact = null;
+        const context = await browser.newContext({ serviceWorkers: 'block', viewport: { width: 390, height: 780 } });
+        await context.addInitScript(() => {
+            if (sessionStorage.getItem('seeded')) return;
+            sessionStorage.setItem('seeded', '1');
+            localStorage.setItem('mudrlant.account', JSON.stringify('host'));
+        });
+        await context.route(/^https?:\/\/(?!127\.0\.0\.1)/, route => route.abort().catch(() => {}));
+        const tab = await context.newPage();
+        const problems = [];
+        tab.on('pageerror', error => problems.push(error.message));
+        await tab.goto(`${origin}/`);
+        await tab.waitForSelector('#variant-welcome [data-variant]');
+        await tab.click('#btn-home');
+        await tab.waitForSelector('[data-action="daily"]');
+        await tab.waitForTimeout(800);
+        assert.equal(await tab.locator('#tutorial').count(), 0, 'bez varianty tutoriál nečeká na otázku, která se nespustí');
+        assert.equal(await stored(tab), null);
+        // Dnešní otázka bez varianty vrátí na uvítání; po výběru se ukáže úvod a teprve s ním tutoriál od začátku
+        await tab.click('[data-action="daily"]');
+        await tab.waitForSelector('#variant-welcome [data-variant]');
+        assert.equal(await tab.locator('#tutorial').count(), 0);
+        await tab.click('#variant-welcome [data-variant="choices"]');
+        await waitTitle(tab, 'Úroveň a XP');
+        assert.match(await tab.textContent('[data-tut-count]'), /Krok 1 z 10/);
+        assert.deepEqual(problems, []);
+        await context.close();
     });
 
     // Dokončení od libovolného kroku zkoušení (po obnovení nevíme, kde přesně hráč je)

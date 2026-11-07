@@ -316,6 +316,19 @@
         }
     });
 
+    // Po zavření okna se fokus vrátí na prvek, který ho otevřel (Ukaž …, Sdílet, dlaždice); jinak by klávesnice i čtečka
+    // obrazovky skončily na začátku stránky. Když zavření samo něco zaměří nebo otvírač zmizel, nechá se to být.
+    let focusBeforeOverlay = null;
+    document.addEventListener('focusin', (event) => {
+        if (!(event.target.closest && event.target.closest('[aria-modal="true"]'))) focusBeforeOverlay = event.target;
+    });
+    new MutationObserver((records) => {
+        const closed = records.some(record => [...record.removedNodes].some(node => node.nodeType === 1 && node.getAttribute('aria-modal') === 'true'));
+        if (!closed || document.querySelector('body > [aria-modal="true"]')) return;
+        if (document.activeElement && document.activeElement !== document.body) return;
+        if (focusBeforeOverlay && focusBeforeOverlay.isConnected) focusBeforeOverlay.focus({ preventScroll: true });
+    }).observe(document.body, { childList: true });
+
     const showToast = (message) => {
         let toast = document.getElementById('toast');
         if (!toast) {
@@ -389,9 +402,14 @@
     // Úvod článku z české Wikipedie; bez spojení aspoň krátký popis z Wikidat, ať jde hrát dál.
     // Úspěšně stažené úvody si pamatujeme, ať se atlas a okno s popisem neptají Wikipedie znovu.
     const itemTexts = new Map();
+    // Když Wikipedie neodpověděla (bez internetu, zaseknutá), chvíli se na ni neptáme: další otázka (i náhradní za chudý popis)
+    // by jinak na každý popis čekala dva pokusy po 6 s a jedna otázka by se načítala skoro minutu
+    const WIKI_PAUSE = 60000;
+    let wikiFailedAt = 0;
+    const wikiPaused = () => Date.now() - wikiFailedAt < WIKI_PAUSE;
     const fetchItemText = async (item) => {
         if (itemTexts.has(item.t)) return itemTexts.get(item.t);
-        try {
+        if (!wikiPaused()) try {
             // Zaseknutá Wikipedie nesmí zdržet otázku dlouho: dva pokusy po 6 s, pak krátký popis z Wikidat
             const data = await fetchJson(`${WIKI_API}&action=query&prop=extracts&exintro=1&explaintext=1&exchars=1200&redirects=1&titles=${encodeURIComponent(item.t)}`, 2, WIKI_TIMEOUT);
             const page = Object.values((data.query && data.query.pages) || {})[0];
@@ -401,6 +419,7 @@
                 return text;
             }
         } catch (e) {
+            if (e instanceof NetworkError) wikiFailedAt = Date.now();
             console.error(e);
         }
         const shortDescription = item.d ? `${item.d.charAt(0).toUpperCase()}${item.d.slice(1)}.` : '';
@@ -1773,7 +1792,8 @@
         appContent.scrollTo(0, 0);
         updateControlsUI();
         refreshChallenges();
-        if (Tutorial) Tutorial.maybeStart({ ready: factLoading });
+        // Tutoriál až po výběru varianty: úvod jde otevřít i z uvítání (Domů), otázka by se ale nespustila a bublina by čekala
+        if (Tutorial && gameVariant) Tutorial.maybeStart({ ready: factLoading });
     };
 
     // --- Otázka: popis hned, pak nápovědy fotka → obrazová nápověda tématu → fakta ---
@@ -1964,7 +1984,7 @@
             <button type="button" data-action="hint" title="Nápověda: ${escapeHtml(next.label)} – odpověď pak za ${nextCost}" class="btn-3d flex h-12 w-full shrink-0 items-center gap-3 rounded-2xl bg-gradient-to-b from-gold-400 to-gold-600 px-3 text-left text-brand-950">
                 ${uiArt('napoveda', 'h-9 w-9 -my-1')}
                 <span class="min-w-0 flex-1">
-                    <span class="block text-[11px] font-black uppercase tracking-wider opacity-90">Nápověda ${round.hintLevel}/${data.hints.length + 1}</span>
+                    <span class="block text-[11px] font-black uppercase tracking-wider opacity-90">Nápověda ${round.hintLevel}/${data.hints.length}</span>
                     <span class="flex items-baseline gap-1.5 text-sm font-black leading-tight"><span class="truncate">${escapeHtml(capitalize(next.label))}</span><span class="shrink-0 text-xs font-bold opacity-90">· pak ${nextCost}</span></span>
                 </span>
                 <i data-lucide="${next.icon}" class="h-5 w-5 shrink-0 opacity-70"></i>
@@ -2887,7 +2907,7 @@
             let data = await createRoundData(picked.item, picked.ctx, picked.rng);
             // Chudý popis: vybere se jiná otázka (u dnešní otázky další určená položka), nejvýš třikrát; pak se vezme, co je
             // (výzva ne: všichni hráči musí dostat stejné otázky, i když se někomu Wikipedie nenačte)
-            for (let attempt = 1; data.thin && mode !== 'challenge' && attempt <= MAX_THIN_RETRIES; attempt++) {
+            for (let attempt = 1; data.thin && mode !== 'challenge' && !wikiPaused() && attempt <= MAX_THIN_RETRIES; attempt++) {
                 const next = await pick(attempt);
                 if (!next.item) break;
                 const candidate = await createRoundData(next.item, next.ctx, next.rng);
@@ -4374,8 +4394,11 @@
                     <p class="text-sm font-black text-slate-800 dark:text-slate-100">${have} / ${total} <span class="font-semibold text-slate-500 dark:text-slate-400">získaných odznaků</span></p>
                     <div class="sticky top-0 z-10 -mx-1 bg-slate-50 px-1 pb-2 dark:bg-slate-900">${detailHtml}</div>
                     <div class="grid grid-cols-2 gap-1.5">${sections}</div>
+                    <button type="button" data-back-progress class="${SECONDARY_BUTTON} !py-2.5 text-sm"><i data-lucide="chevron-left" class="h-4 w-4"></i> Zpět na Můj postup</button>
                 </div>`, {
                 onClick: (event) => {
+                    // Zpět na přehled jako u mistrovství (jinak by šlo okno jen zavřít)
+                    if (event.target.closest('[data-back-progress]')) { openProgress(); return; }
                     const medal = event.target.closest('[data-badge]');
                     if (medal) { selected = medal.dataset.badge; render(); }
                 }
@@ -4421,7 +4444,8 @@
                 <p class="text-xs leading-snug text-slate-600 dark:text-slate-300">Za správné odpovědi sbíráš body zkušeností (XP) a stoupáš o úrovně. Každých pár úrovní dostaneš nový titul a odměny: doplňky, rámečky nebo barvy.</p>
                 <p class="text-[11px] font-semibold leading-snug text-slate-500 dark:text-slate-400" data-my-xp>Tvoje XP: <b class="text-slate-700 dark:text-slate-200">${formatXp(xp)} XP</b> · úroveň ${current} · ${escapeHtml(titleForLevel(current))}</p>
                 <ul class="flex flex-col gap-1.5">${rows}</ul>
-            </div>`);
+                <button type="button" data-back-progress class="${SECONDARY_BUTTON} !py-2.5 text-sm"><i data-lucide="chevron-left" class="h-4 w-4"></i> Zpět na Můj postup</button>
+            </div>`, { onClick: (event) => { if (event.target.closest('[data-back-progress]')) openProgress(); } });
         const here = document.querySelector('#dialog-overlay [data-here]');
         if (here) here.scrollIntoView({ block: 'center' });
     };
@@ -6158,5 +6182,5 @@
         renderHome();
     }
     // Rozběhnutý tutoriál pokračuje od uloženého kroku, i když se aplikace otevřela rovnou do rozehrané otázky
-    if (Tutorial) Tutorial.maybeStart({ ready: factLoading });
+    if (Tutorial && gameVariant) Tutorial.maybeStart({ ready: factLoading });
 })();
