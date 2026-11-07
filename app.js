@@ -48,7 +48,7 @@
     const SESSION_MAX_AGE = 2 * 60 * 60 * 1000;
     // Verze databázového schématu, kterou aplikace potřebuje: zvyšuje se spolu s schema_version() na konci supabase/schema.sql
     // (tests/sql-security.test.js hlídá shodu). Správce (dev_admins nebo vývojářský režim) uvidí v Nastavení, že má schéma spustit znovu.
-    const REQUIRED_SCHEMA = 1;
+    const REQUIRED_SCHEMA = 2;
     const HISTORY_SIZE = 200;
     const REQUEST_TIMEOUT = 12000;
     const WIKI_TIMEOUT = 6000;
@@ -955,7 +955,7 @@
             if (turnOn) meNote = result.ok ? 'Uloženo: upozornění jsou zapnutá.' : result.reason === 'denied' ? 'Upozornění jsou v prohlížeči zakázaná.' : 'Upozornění zůstala vypnutá.';
             else meNote = result.ok ? 'Uloženo: upozornění jsou vypnutá.' : 'Upozornění jsou na tomhle zařízení vypnutá, na serveru se ale odběr nepodařilo smazat.';
         } catch (error) {
-            meNote = 'Upozornění se nepodařilo zapnout, zkus to znovu.';
+            meNote = turnOn ? 'Upozornění se nepodařilo zapnout, zkus to znovu.' : 'Upozornění se nepodařilo vypnout, zkus to znovu.';
         }
         pushBusy = false;
         pushState = null;
@@ -965,10 +965,14 @@
     };
     const changePushPref = async (key) => {
         const user = signedUser();
-        if (!Push || !user || !pushPrefs) return;
+        // Dvojí klepnutí během ukládání by poslalo stejnou změnu dvakrát (z původního stavu): další volba až po odpovědi
+        if (!Push || !user || !pushPrefs || pushBusy) return;
+        pushBusy = true;
         const next = { ...pushPrefs, [key]: !pushPrefs[key] };
         try { pushPrefs = await Push.savePrefs(user.id, next); meNote = 'Uloženo.'; } catch (error) { meNote = 'Uložení se nepodařilo, zkus to znovu.'; }
-        openSettings(meNote, `[data-push-pref="${key}"]`);
+        pushBusy = false;
+        // Zavřené Nastavení se po uložení znovu neotevře
+        if (document.getElementById('settings-overlay')) openSettings(meNote, `[data-push-pref="${key}"]`);
     };
     const openSettings = (note = '', focusSelector = null, tab = null) => {
         closeChooser();
@@ -2509,10 +2513,36 @@
         updateControlsUI();
     };
 
+    // Rozehrané výzvy a zápasy turnaje (nejvýš 6) zvlášť od relace: když hráč mezi tím začne jinou výzvu nebo zápas, ta dřívější se neztratí
+    // (výzva by jinak šla hrát znovu od začátku a zápas turnaje by už nešel dohrát). Dohrané se mažou (markChallengeFinished, markTournamentFinished).
+    const OPEN_CHALLENGES_KEY = 'mudrlant.openChallenges';
+    const openChallengeKey = (c) => (c.tournament && c.tournament.mid ? `t:${c.tournament.mid}` : `c:${c.code}`);
+    const savedOpenChallenges = () => {
+        const list = readJson(OPEN_CHALLENGES_KEY);
+        return Array.isArray(list) ? list.filter(c => c && typeof c === 'object' && typeof c.code === 'string' && Array.isArray(c.results) && Number.isFinite(c.count) && !c.done) : [];
+    };
+    const rememberOpenChallenge = (c) => {
+        if (!c || c.done || !c.code) return;
+        const key = openChallengeKey(c);
+        writeJson(OPEN_CHALLENGES_KEY, [...savedOpenChallenges().filter(other => openChallengeKey(other) !== key), { ...c, sending: false, reacting: false, lastResults: null }].slice(-6));
+    };
+    // Poslední rozehraná (nedohraná a neodeslaná) výzva přihlášeného hráče ze seznamu; null = žádná
+    const latestOpenChallenge = () => {
+        const user = signedUser();
+        return savedOpenChallenges().filter(saved => !saved.tournament && !finishedChallenges().includes(saved.code) && (!saved.owner || !user || saved.owner === user.id)).pop() || null;
+    };
+    const forgetOpenChallenge = (key) => {
+        const list = savedOpenChallenges();
+        if (list.some(other => openChallengeKey(other) === key)) writeJson(OPEN_CHALLENGES_KEY, list.filter(other => openChallengeKey(other) !== key));
+    };
     const persistState = () => {
         if (!current) return;
+        if (mode === 'challenge' && challenge && !challenge.done) rememberOpenChallenge(challenge);
         // Rozehraný zápas turnaje se ukládá také: po návratu v den kola nabídne karta turnaje Pokračovat (od další otázky)
-        writeJson(KEYS.session, { version: STATE_VERSION, data: current, round, mode, pool, challenge: mode === 'challenge' ? challenge : null, timestamp: Date.now() });
+        // Rozehraná výzva (i zápas turnaje) se ukládá i během jiné hry (Hrát dál, dnešní otázky): po zavření aplikace by se jinak ztratila
+        // a výzva by šla hrát znovu od začátku, zápas turnaje by už nešel dohrát
+        const keptChallenge = mode === 'challenge' ? challenge : (challenge && !challenge.done ? challenge : null);
+        writeJson(KEYS.session, { version: STATE_VERSION, data: current, round, mode, pool, challenge: keptChallenge, timestamp: Date.now() });
         if (mode === 'daily' && current.dailyDate) {
             const daily = readJson(KEYS.daily) || {};
             daily[current.topic] = { date: current.dailyDate, data: current, round };
@@ -2842,7 +2872,7 @@
         // Zodpovězená otázka se po obnovení stránky (třeba po aktualizaci aplikace) neukazuje znovu: hráč začne na úvodní stránce
         // (u dnešní otázky je její výsledek dál po ruce přes ikonu tématu, u výzvy se pokračuje tlačítkem na úvodní stránce)
         if (session.round.answered) {
-            if (session.mode === 'challenge' && session.challenge && !session.challenge.done && !session.challenge.tournament && !finishedChallenges().includes(session.challenge.code)) challenge = session.challenge;
+            if (session.challenge && !session.challenge.done && !session.challenge.tournament && !finishedChallenges().includes(session.challenge.code)) challenge = session.challenge;
             return false;
         }
         // Dnešní otázka z uložené relace platí jen do půlnoci
@@ -2852,7 +2882,7 @@
             current = upgradeRoundData(session.data);
             round = session.round;
             mode = session.mode;
-            challenge = session.mode === 'challenge' ? session.challenge : challenge;
+            challenge = session.challenge || challenge;
             pool = session.pool && (session.pool.kind !== 'topic' || TOPIC_BY_ID[session.pool.topic]) ? session.pool : { kind: 'mix' };
             renderRound();
         } catch (error) {
@@ -2872,16 +2902,21 @@
     // Rozehraný zápas turnaje nabízí k pokračování karta turnaje (jen v den kola), sem se nebere.
     const restoreSession = () => {
         const session = readJson(KEYS.session);
-        if (session && session.version === STATE_VERSION && session.mode === 'challenge' && session.challenge && !session.challenge.done && !session.challenge.tournament
+        if (session && session.version === STATE_VERSION && session.challenge && !session.challenge.done && !session.challenge.tournament
             && !finishedChallenges().includes(session.challenge.code) && Date.now() - session.timestamp < SESSION_MAX_AGE) challenge = session.challenge;
+        // Relaci přepsal zápas turnaje nebo jiná hra: poslední rozehraná výzva ze seznamu
+        if (!challenge) challenge = latestOpenChallenge();
         return false;
     };
     // Rozehraný zápas turnaje: z paměti (právě hraný), jinak z uložené relace; { mid, challenge } nebo null
     const savedTournamentChallenge = () => {
         if (challenge && challenge.tournament && !challenge.done) return { mid: challenge.tournament.mid, challenge };
         const session = readJson(KEYS.session);
-        const saved = session && session.version === STATE_VERSION && session.mode === 'challenge' ? session.challenge : null;
-        if (!saved || saved.done || !saved.tournament || !saved.tournament.mid || !Array.isArray(saved.results)) return null;
+        const fromSession = session && session.version === STATE_VERSION ? session.challenge : null;
+        const usable = (saved) => Boolean(saved && !saved.done && saved.tournament && saved.tournament.mid && Array.isArray(saved.results));
+        // Relaci mohla přepsat jiná výzva: pak se vezme zápas ze seznamu rozehraných
+        const saved = usable(fromSession) ? fromSession : savedOpenChallenges().filter(usable).pop();
+        if (!saved) return null;
         return { mid: saved.tournament.mid, challenge: saved };
     };
     const savedTournamentMatch = () => { const saved = savedTournamentChallenge(); return saved ? saved.mid : null; };
@@ -3461,6 +3496,9 @@
     // Témata, ze kterých hráč nepřijímá výzvy (null = ještě se nenačetla)
     let myBlocked = null;
     let myAcceptsMix = true;
+    let acceptsSaving = Promise.resolve(); // ukládání přijímaných témat jedno po druhém
+    let acceptsConfirmed = null; // poslední stav potvrzený serverem ({ blocked, mix })
+    const adoptAccepts = (accepts) => { myBlocked = accepts.blocked; myAcceptsMix = accepts.mix; acceptsConfirmed = { blocked: [...accepts.blocked], mix: accepts.mix }; };
     const acceptSummary = () => !myBlocked ? 'nastavit' : `${myBlocked.length ? `${TOPICS.length - myBlocked.length} z ${TOPICS.length} témat` : 'všechna témata'}${myAcceptsMix ? '' : ', bez Mixu'}`;
     // Okno „Přijímané výzvy“: každé téma jde vypnout; ukládá se hned po klepnutí
     const openAccepted = async () => {
@@ -3495,28 +3533,35 @@
                     const toggle = event.target.closest('[data-accept-topic]');
                     const all = event.target.closest('[data-accept-all]');
                     const mixSwitch = event.target.closest('[data-accept-mix]');
-                    if (!toggle && !all && !mixSwitch) return;
-                    const before = myBlocked || [];
-                    const beforeMix = myAcceptsMix;
+                    // Dokud se nastavení nenačte, klepnutí by uložilo změnu proti prázdnému seznamu a přepsalo uložená témata
+                    if ((!toggle && !all && !mixSwitch) || myBlocked === null) return;
+                    const before = myBlocked;
                     if (mixSwitch) myAcceptsMix = !myAcceptsMix;
                     else myBlocked = all ? [] : before.includes(toggle.dataset.acceptTopic) ? before.filter(id => id !== toggle.dataset.acceptTopic) : [...before, toggle.dataset.acceptTopic];
                     note = '';
                     render();
+                    // Rychlá klepnutí za sebou: ukládá se po jednom (pořadí na serveru = pořadí klepnutí) a vždy aktuální stav;
+                    // při chybě se vrátí poslední uložený stav
+                    const saved = acceptsSaving.then(async () => {
+                        const sent = { blocked: [...(myBlocked || [])], mix: myAcceptsMix };
+                        await Social.saveAccepts(user.id, sent);
+                        acceptsConfirmed = sent;
+                    });
+                    acceptsSaving = saved.catch(() => {});
                     try {
-                        await Social.saveAccepts(user.id, { blocked: myBlocked, mix: myAcceptsMix });
+                        await saved;
                         note = 'Uloženo.';
                         paintChallenges();
                     } catch (error) {
-                        myBlocked = before;
-                        myAcceptsMix = beforeMix;
+                        if (acceptsConfirmed) { myBlocked = [...acceptsConfirmed.blocked]; myAcceptsMix = acceptsConfirmed.mix; }
                         note = 'Uložení se nepodařilo. Zkontroluj připojení a že je v databázi nejnovější SQL.';
                     }
-                    render();
+                    if (document.getElementById('dialog-overlay') && document.getElementById('dialog-overlay').dataset.title === 'Přijímané výzvy') render();
                 }
             });
         };
         render();
-        if (myBlocked === null) { const accepts = await Social.getAccepts(user.id); myBlocked = accepts.blocked; myAcceptsMix = accepts.mix; if (document.getElementById('dialog-overlay')) render(); }
+        if (myBlocked === null) { const accepts = await Social.getAccepts(user.id); if (myBlocked === null) adoptAccepts(accepts); const overlay = document.getElementById('dialog-overlay'); if (overlay && overlay.dataset.title === 'Přijímané výzvy') render(); }
     };
     // Rámeček a titul u jména se ukládají do účtu, ať je vidí ostatní. Po změně ve Vzhledu se pošlou; po načtení profilu se na novém zařízení
     // (kde je volba výchozí) převezme volba z účtu a jinou zvolenou volbu zařízení se do účtu nahraje.
@@ -3582,15 +3627,17 @@
         updateProfileButton();
         syncProgress();
         checkSchemaVersion(user);
-        if (myBlocked === null) Social.getAccepts(user.id).then(accepts => { if (!signedUser() || signedUser().id !== user.id) return; myBlocked = accepts.blocked; myAcceptsMix = accepts.mix; paintChallenges(); });
+        if (myBlocked === null) Social.getAccepts(user.id).then(accepts => { if (!signedUser() || signedUser().id !== user.id || myBlocked !== null) return; adoptAccepts(accepts); paintChallenges(); });
         return myProfile;
     };
 
     // Část Výzvy na úvodní stránce: bez nastaveného Supabase se neukáže, bez přihlášení láká k přihlášení
     const challengeRow = (row) => {
         const count = row.challenge ? row.challenge.count : 0;
-        const best = row.others.length ? Math.max(...row.others.map(other => other.correct)) : -1;
-        const outcome = !row.others.length ? 'čeká' : row.correct > best ? 'vyhráno' : row.correct === best ? 'remíza' : 'prohráno';
+        // Stejně jako výsledek výzvy a rating: víc správných, při shodě víc bodů (proti nejlepšímu soupeři)
+        const best = row.others.reduce((top, other) => !top || other.correct > top.correct || (other.correct === top.correct && other.points > top.points) ? other : top, null);
+        const versus = !best ? null : row.correct !== best.correct ? row.correct - best.correct : (row.points || 0) - (best.points || 0);
+        const outcome = versus === null ? 'čeká' : versus > 0 ? 'vyhráno' : versus === 0 ? 'remíza' : 'prohráno';
         // Barevný proužek vlevo a štítek: vyhráno zelená, prohráno červená, remíza zlatá, čeká šedá
         const look = outcome === 'vyhráno' ? ['bg-emerald-500', 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300']
             : outcome === 'prohráno' ? ['bg-rose-500', 'bg-rose-100 text-rose-800 dark:bg-rose-900/40 dark:text-rose-300']
@@ -3713,10 +3760,12 @@
         const saved = readJson(KEYS.homeTab);
         return saved === 'multi' ? 'multi' : 'single';
     };
+    // Pozvánky do výzev bez těch od hráčů, které jsem zablokoval (výzvy založené před blokem v databázi zůstávají)
+    const visibleIncoming = () => (incomingList || []).filter(invite => !(myBlocks || []).some(row => invite.creator && row.id === invite.creator.id));
     const renderHomeTabs = () => {
         if (!(Auth && Auth.isConfigured() && Social)) return '';
         const tab = homeTab();
-        const waiting = (incomingList || []).length;
+        const waiting = visibleIncoming().length;
         const option = (id, icon, label, badge = 0) => `
             <button type="button" role="tab" data-action="home-tab" data-tab="${id}" aria-selected="${tab === id}" class="relative flex flex-1 items-center justify-center gap-2 rounded-xl min-h-[2.75rem] px-3 text-[13px] font-black transition-colors ${tab === id ? 'btn-3d bg-brand-700 text-white' : 'text-slate-600 dark:text-slate-400'}">
                 <i data-lucide="${icon}" class="h-4 w-4"></i> ${label}${badge ? `<span class="rounded-full bg-gold-500 px-1.5 py-0.5 text-[10px] font-black leading-none text-brand-950">${badge}</span>` : ''}
@@ -3747,6 +3796,14 @@
                 : `<div class="flex items-center gap-3 rounded-2xl bg-white p-2.5 shadow-sm ring-1 ring-slate-200/70 dark:bg-slate-800/70 dark:ring-slate-700/70">${uiArt('sova-vyzva', 'h-10 w-10')}<p class="text-sm text-slate-600 dark:text-slate-300">Zatím žádné výzvy. Založ první tlačítkem Vyzvat.</p></div>`;
         return `<div class="flex flex-col gap-1"><div class="flex min-h-[2rem] items-center justify-between gap-2"><p class="${LABEL}">Poslední výzvy</p>${toggle}</div>${body}</div>`;
     };
+    // První nezodpovězená otázka rozehrané výzvy (-1 = všechny zodpovězené)
+    const challengeNextIndex = (c) => { for (let i = 0; i < c.count; i++) if (!(c.results || [])[i]) return i; return -1; };
+    const resumeLabel = (c) => { const next = challengeNextIndex(c); return next < 0 ? 'Dokončit výzvu (odeslat výsledek)' : `Pokračovat ve výzvě (${next + 1}/${c.count})`; };
+    // Rozehraná výzva přihlášeného hráče (cizí, rozehranou jiným účtem na tomtéž zařízení, ne)
+    const ownChallengeInProgress = () => {
+        const user = signedUser();
+        return Boolean(user && challenge && !challenge.done && !challenge.tournament && (!challenge.owner || challenge.owner === user.id));
+    };
     // Pořadí podle důležitosti: co čeká na hráče (rozehraná výzva, zápas turnaje dnes, pozvánky), turnaj, rychlé akce, liga, poslední výzvy
     const challengesInner = () => {
         const user = signedUser();
@@ -3759,9 +3816,9 @@
                     <button type="button" data-action="auth-login" class="flex w-full items-center justify-center gap-2 rounded-2xl bg-brand-700 px-4 py-3 text-base font-black text-white shadow-md active:scale-[0.98]"><i data-lucide="log-in" class="h-5 w-5"></i> Přihlásit se přes Google</button>
                 </div>`;
         }
-        const incoming = incomingList || [];
-        const resume = challenge && !challenge.done && !challenge.tournament
-            ? `<button type="button" data-action="challenge-resume" class="flex w-full items-center justify-center gap-2 rounded-2xl btn-3d bg-gradient-to-b from-gold-400 to-gold-600 px-4 py-2.5 text-[15px] font-black text-brand-950"><i data-lucide="play" class="h-5 w-5"></i> Pokračovat ve výzvě (${challenge.index + 1}/${challenge.count})</button>` : '';
+        const incoming = visibleIncoming();
+        const resume = ownChallengeInProgress()
+            ? `<button type="button" data-action="challenge-resume" class="flex w-full items-center justify-center gap-2 rounded-2xl btn-3d bg-gradient-to-b from-gold-400 to-gold-600 px-4 py-2.5 text-[15px] font-black text-brand-950"><i data-lucide="play" class="h-5 w-5"></i> ${resumeLabel(challenge)}</button>` : '';
         // Přátelé (friends.js): žádosti o přátelství mezi tím, co čeká; pás přátel pod rychlými akcemi (jen když nějací jsou)
         const social = Friends ? Friends.split(friendRows) : { friends: [], incoming: [] };
         const requests = Friends ? Friends.requestRows(social.incoming, friendsHelpers()) : '';
@@ -4036,15 +4093,18 @@
                 if (!button) return;
                 button.disabled = true;
                 try { await Social.deleteQuestionReport(button.dataset.reportDone); } catch (error) { showToast('Hlášení se nepodařilo vyřídit.'); }
-                openQuestionReports();
+                if (stillOpen()) openQuestionReports();
             }
         });
+        // Zavřené okno se po pozdní odpovědi znovu neotevře
+        const stillOpen = () => { const overlay = document.getElementById('dialog-overlay'); return Boolean(overlay && overlay.dataset.title === 'Hlášení otázek'); };
         draw('<p class="py-6 text-center text-sm font-semibold text-slate-500 dark:text-slate-400" role="status">Načítám hlášení…</p>');
         let rows;
         try { rows = await Social.getQuestionReports(100); } catch (error) {
-            draw(DIALOG_NOTE(error.status === 401 || error.status === 403 ? 'Tenhle účet není v dev_admins (návod v docs/SUPABASE.md).' : (error.message || 'Hlášení se nepodařilo načíst.')));
+            if (stillOpen()) draw(DIALOG_NOTE(error.status === 401 || error.status === 403 ? 'Tenhle účet není v dev_admins (návod v docs/SUPABASE.md).' : (error.message || 'Hlášení se nepodařilo načíst.')));
             return;
         }
+        if (!stillOpen()) return;
         draw(rows.length ? `<ul class="flex flex-col gap-2">${rows.map(row => `
             <li class="rounded-xl border border-slate-200 bg-white p-3 text-sm dark:border-slate-700 dark:bg-slate-800">
                 <p class="flex flex-wrap items-center gap-x-2 text-[11px] font-black uppercase tracking-wider text-rose-700 dark:text-rose-300"><span>${escapeHtml(Report.reasonLabel(row.reason))}</span><span class="font-bold normal-case tracking-normal text-slate-500 dark:text-slate-400">${escapeHtml(row.topic)} · ${escapeHtml(row.item_id)}${row.question_type ? ` · ${escapeHtml(row.question_type)}` : ''}</span></p>
@@ -4064,6 +4124,14 @@
     // Nová výzva: komu (konkrétní hráč / náhodný / odkaz), téma (i víc témat), počet otázek a nastavení. Téma a nastavení jsou
     // souhrnné řádky, které se rozbalí klepnutím; tlačítko Vytvořit a hrát je stále dole na očích.
     // preset = { opponent, last }: výzva se předvyplní nastavením z poslední hry s tímto hráčem (úprava před odvetou); { who: 'random' }: rovnou náhodný soupeř
+    // Proč se výzva nezaložila: hláška databáze (česky: soupeř nepřijímá téma, blok mezi hráči), jinak výpadek spojení
+    const challengeErrorText = (error) => {
+        const message = String((error && error.message) || '');
+        if (error && error.status === 400 && /nepřijímá/.test(message)) return 'Tenhle hráč mezitím vypnul některé z vybraných témat. Zkus jiné.';
+        if (error && error.status >= 400 && error.status < 500 && /[ěščřžýáíéúůďťň]/i.test(message)) return message;
+        return 'Výzvu se nepodařilo založit. Zkontroluj připojení a zkus to znovu.';
+    };
+    let newChallengeToken = 0;
     const openNewChallenge = (preset = null) => {
         if (!signedUser()) return;
         const draft = { topics: [], count: 10, who: 'player', opponent: null, blocked: null, mixOk: true, query: '', found: null, hard: false, variant: 'choices', cats: null, open: null };
@@ -4164,7 +4232,16 @@
             <div class="mb-3 grid grid-cols-2 gap-1.5">${chip('data-ch-hard', 'no', !draft.hard, 'Známé<span class="block text-[11px] font-semibold opacity-70">slavné a běžné věci</span>')}${chip('data-ch-hard', 'yes', draft.hard, 'I těžší<span class="block text-[11px] font-semibold opacity-70">i méně známé věci</span>')}</div>
             <p class="${LABEL} mb-1.5">Odpovídání (pro všechny stejně)</p>
             <div class="grid grid-cols-2 gap-1.5">${chip('data-ch-variant', 'choices', draft.variant === 'choices', 'Možnosti<span class="block text-[11px] font-semibold opacity-70">vybíráš ze 4</span>')}${chip('data-ch-variant', 'typed', draft.variant === 'typed', 'Psaní<span class="block text-[11px] font-semibold opacity-70">dvojnásobek bodů</span>')}</div>`;
-        const render = () => showDialog('Nová výzva', `
+        // Pozdní odpovědi (přijímaná témata soupeře, chyba založení) překreslí okno, jen když je pořád otevřené
+        const token = ++newChallengeToken;
+        let opened = false;
+        const render = () => {
+            const overlay = document.getElementById('dialog-overlay');
+            if (opened && !(token === newChallengeToken && overlay && overlay.dataset.title === 'Nová výzva')) return;
+            opened = true;
+            draw();
+        };
+        const draw = () => showDialog('Nová výzva', `
             <div class="flex flex-col gap-2.5">
                 <div role="radiogroup" aria-label="Koho vyzvat" class="flex flex-col gap-1.5">
                     <p class="${LABEL}">Koho vyzvat</p>
@@ -4259,7 +4336,7 @@
                         startChallenge({ ...created, creator: myProfile, invited: opponent, fresh: true }, 0, []);
                     } catch (error) {
                         busy = false;
-                        note = error && error.status === 400 && /nepřijímá/.test(String(error.message || '')) ? 'Tenhle hráč mezitím vypnul některé z vybraných témat. Zkus jiné.' : 'Výzvu se nepodařilo založit. Zkontroluj připojení a zkus to znovu.';
+                        note = challengeErrorText(error);
                         render();
                     }
                 }
@@ -4293,7 +4370,7 @@
             const last = preset.last;
             if (last) {
                 draft.topics = last.topic === 'mix' ? [] : challengeTopicIds(last.topic);
-                draft.count = [5, 10, 15, 20].includes(last.count) ? last.count : draft.count;
+                draft.count = Social.COUNTS.includes(last.count) ? last.count : draft.count;
                 draft.hard = Boolean(last.include_hard);
                 draft.variant = last.variant === 'typed' ? 'typed' : 'choices';
                 draft.cats = Array.isArray(last.categories) && last.categories.length ? last.categories : null;
@@ -4326,9 +4403,11 @@
         render();
     };
 
-    const rankingRows = (rows, count, meId) => rows.map((row, index) => `
+    // Místo v pořadí: hráči se stejným počtem správných i bodů ho sdílejí (při remíze mají pohár oba)
+    const rankingPlace = (rows, row) => 1 + rows.filter(other => other.correct > row.correct || (other.correct === row.correct && other.points > row.points)).length;
+    const rankingRows = (rows, count, meId) => rows.map((row) => `
         <li class="flex items-center gap-3 rounded-2xl bg-white p-2.5 shadow-sm dark:bg-slate-800 ${row.user_id === meId ? 'ring-2 ring-brand-600' : ''}">
-            <span class="w-5 text-center text-sm font-black text-slate-500 dark:text-slate-400">${index === 0 ? '🏆' : index + 1}</span>
+            <span data-place="${rankingPlace(rows, row)}" class="w-5 text-center text-sm font-black text-slate-500 dark:text-slate-400">${rankingPlace(rows, row) === 1 ? '🏆' : rankingPlace(rows, row)}</span>
             ${avatarHtml(row.player, 'h-9 w-9 text-lg', true)}
             <span class="min-w-0 flex-1 truncate text-sm font-bold text-slate-800 dark:text-slate-100">${escapeHtml(playerName(row.player))}${row.user_id === meId ? ' (ty)' : ''}</span>
             <span class="text-right"><span class="block text-base font-black text-slate-800 dark:text-slate-100">${row.correct}/${count}</span><span class="block text-[10px] font-semibold text-slate-500 dark:text-slate-400">${escapeHtml(formatPoints(row.points))}</span></span>
@@ -4544,12 +4623,18 @@
     };
 
     // Profil cizího hráče (klepnutí na jeho obrázek): statistiky z výzev, vzájemná bilance a odveta se stejným nastavením
+    let profileToken = 0;
     const openPlayerProfile = async (playerId) => {
         const user = signedUser();
         if (!user || !Social) { openLoginDialog(); return; }
         if (playerId === user.id) { openProfile(); return; }
         const player = knownPlayers.get(playerId);
         if (!player) return;
+        // Pozdní odpovědi (statistiky, přátelé, uložení) překreslí jen tohle okno, dokud je otevřené: zavřené okno se znovu neotevře
+        // a profil jiného hráče (nebo jiné okno) se nepřepíše
+        const token = ++profileToken;
+        let opened = false;
+        const isOpen = () => { const overlay = document.getElementById('dialog-overlay'); return token === profileToken && Boolean(overlay && /^(Profil hráče|Nahlásit hráče)$/.test(overlay.dataset.title)); };
         let stats = null;
         let theirProgress = null;
         let theirRating = null;
@@ -4651,17 +4736,19 @@
                 + (earned.length ? `<div class="mt-1 flex flex-wrap justify-center gap-1.5" aria-label="Odznaky">${earned.map(badge => `<span title="${escapeHtml(`${badge.title}: ${badge.text}`)}">${medalHtml(badge, true, 'h-8 w-8', 'h-4 w-4')}</span>`).join('')}</div>` : '');
         };
         const tile = (label, value) => `<div class="rounded-2xl bg-white p-3 text-center shadow-sm dark:bg-slate-800"><p class="text-xl font-black text-slate-800 dark:text-slate-100">${value}</p><p class="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">${label}</p></div>`;
-        const chip = (value, label, tone) => `<span class="rounded-xl px-2.5 py-1.5 text-[13px] font-black ${tone}">${value} ${label}</span>`;
+        const chip = (label, tone) => `<span class="rounded-xl px-2.5 py-1.5 text-[13px] font-black ${tone}">${escapeHtml(label)}</span>`;
         const render = () => {
+            if (opened && !isOpen()) return;
+            opened = true;
             let body;
             if (failed) body = '<p class="text-sm font-semibold text-rose-700 dark:text-rose-400">Profil se nepodařilo načíst. Zkontroluj připojení.</p>';
             else if (!stats) body = '<p class="text-sm font-semibold text-slate-500 dark:text-slate-400">Načítám…</p>';
             else {
                 const percent = stats.answered ? `${Math.round(stats.correct / stats.answered * 100)} %` : '–';
                 const versus = stats.versus && (stats.versus.wins + stats.versus.draws + stats.versus.losses)
-                    ? `<div class="flex flex-col items-center gap-2"><p class="${CARD_TITLE}">Vaše bilance</p><div class="flex flex-wrap justify-center gap-1.5">${chip(stats.versus.wins, 'výher', 'bg-emerald-600 text-white')}${chip(stats.versus.draws, 'remíz', 'bg-slate-500 text-white')}${chip(stats.versus.losses, 'proher', 'bg-rose-600 text-white')}</div></div>`
+                    ? `<div class="flex flex-col items-center gap-2"><p class="${CARD_TITLE}">Vaše bilance</p><div class="flex flex-wrap justify-center gap-1.5">${chip(plural(stats.versus.wins, 'výhra', 'výhry', 'výher'), 'bg-emerald-600 text-white')}${chip(plural(stats.versus.draws, 'remíza', 'remízy', 'remíz'), 'bg-slate-500 text-white')}${chip(plural(stats.versus.losses, 'prohra', 'prohry', 'proher'), 'bg-rose-600 text-white')}</div></div>`
                     : '<p class="text-center text-sm text-slate-500 dark:text-slate-400">Ještě jste spolu nehráli.</p>';
-                const same = stats.last ? `${challengeTopicTitle(stats.last.topic)} · ${stats.last.count} otázek` : 'Mix · 10 otázek';
+                const same = stats.last ? `${challengeTopicTitle(stats.last.topic)} · ${Social.COUNTS.includes(stats.last.count) ? stats.last.count : 10} otázek` : 'Mix · 10 otázek';
                 body = `
                     <div class="grid grid-cols-3 gap-2">${tile('Výzvy', stats.games)}${tile('Úspěšnost', percent)}${tile('Nejlepší', stats.best ? `${stats.best.correct}/${stats.best.count}` : '–')}</div>
                     ${versus}
@@ -4707,7 +4794,7 @@
                     try {
                         const last = stats.last;
                         const created = await Social.createChallenge(user.id, {
-                            topic: last ? last.topic : 'mix', count: last ? last.count : 10, invitedId: player.id,
+                            topic: last ? last.topic : 'mix', count: last && Social.COUNTS.includes(last.count) ? last.count : 10, invitedId: player.id,
                             includeHard: Boolean(last && last.include_hard), categories: (last && last.categories) || [], variant: (last && last.variant) || 'choices'
                         });
                         closeDialog();
@@ -4715,7 +4802,7 @@
                         startChallenge({ ...created, creator: myProfile, invited: player, fresh: true }, 0, []);
                     } catch (error) {
                         busy = false;
-                        note = error && error.status === 400 && /nepřijímá/.test(String(error.message || '')) ? 'Tenhle hráč mezitím vypnul některé z vybraných témat. Zkus jiné.' : 'Výzvu se nepodařilo založit. Zkontroluj připojení a zkus to znovu.';
+                        note = challengeErrorText(error);
                         render();
                     }
                 }
@@ -4764,7 +4851,7 @@
                     note = error && error.message ? error.message : 'Odblokování se nepodařilo. Zkus to znovu.';
                 }
                 busyId = null;
-                render();
+                if (document.getElementById('dialog-overlay') && document.getElementById('dialog-overlay').dataset.title === 'Zablokovaní hráči') render();
             }
         });
         // Seznam ještě nebyl načtený: okno se ukáže hned (Načítám…) a po načtení se překreslí; jinak rovnou
@@ -4796,7 +4883,7 @@
                 } catch (error) {
                     note = error && error.message ? error.message : 'Nepodařilo se. Zkus to znovu.';
                 }
-                render();
+                if (document.getElementById('dialog-overlay') && document.getElementById('dialog-overlay').dataset.title === 'Nahlášení hráči') render();
             }
         });
         render();
@@ -4839,6 +4926,7 @@
     };
 
     // Detail výzvy podle kódu: kdo vyzývá, o co jde, žebříček; hrát jde, dokud hráč nemá výsledek
+    let challengeToken = 0;
     const openChallenge = async (rawCode) => {
         const code = Social ? Social.parseCode(rawCode) : '';
         if (!code) { showDialog('Výzva', DIALOG_NOTE('Tenhle kód výzvy není platný.')); return; }
@@ -4852,18 +4940,26 @@
             return;
         }
         showDialog('Výzva', '<p class="py-6 text-center text-sm font-semibold text-slate-500 dark:text-slate-400">Načítám výzvu…</p>');
+        // Hráč mezitím okno zavřel nebo otevřel jinou výzvu: pozdní odpověď se zahodí (okno se samo znovu neotevře)
+        const token = ++challengeToken;
+        const stillOpen = () => { const overlay = document.getElementById('dialog-overlay'); return token === challengeToken && Boolean(overlay && overlay.dataset.title === 'Výzva'); };
         let def;
         let results;
         try {
             [def, results] = await Promise.all([Social.getChallenge(code), Social.getResults(code)]);
         } catch (error) {
-            showDialog('Výzva', DIALOG_NOTE('Výzvu se nepodařilo načíst. Zkontroluj připojení a zkus to znovu.'));
+            if (stillOpen()) showDialog('Výzva', DIALOG_NOTE('Výzvu se nepodařilo načíst. Zkontroluj připojení a zkus to znovu.'));
             return;
         }
+        if (!stillOpen()) return;
         if (!def) { showDialog('Výzva', DIALOG_NOTE('Výzva s tímhle kódem neexistuje.')); return; }
         const mine = results.find(row => row.user_id === user.id);
         const myChange = mine && Rating && results.length > 1 ? await Social.getRatingChange(user.id, code).catch(() => null) : null;
+        if (!stillOpen()) return;
         const own = def.creator && def.creator.id === user.id;
+        // Rozehraná výzva (v paměti, nebo uložená mezi rozehranými): pokračuje se, nehraje se znovu od první otázky
+        const resumable = mine ? null : ownChallengeInProgress() && challenge.code === code ? challenge
+            : savedOpenChallenges().find(saved => !saved.tournament && saved.code === code && (!saved.owner || saved.owner === user.id)) || null;
         const text = `${own ? 'Vyzývám tě' : 'Hraju'} v Mudrlantu: ${challengeTopicTitle(def.topic)}, ${def.count} otázek.`;
         showDialog(own ? 'Tvoje výzva' : 'Výzva', `
             <div class="flex flex-col gap-4">
@@ -4882,12 +4978,17 @@
                 ${def.invited ? `<p class="flex items-center gap-2 text-sm font-semibold text-slate-600 dark:text-slate-300">Vyzvaný hráč: ${avatarHtml(def.invited, 'h-6 w-6 text-sm')} <b>${escapeHtml(def.invited.id === user.id ? 'ty' : playerName(def.invited))}</b></p>` : ''}
                 ${results.length ? `<ol class="flex flex-col gap-1.5">${rankingRows(results, def.count, user.id)}</ol>` : '<p class="text-sm text-slate-500 dark:text-slate-400">Zatím nikdo nehrál.</p>'}
                 ${myChange ? `<p class="text-sm font-bold text-slate-600 dark:text-slate-300">Tvůj rating: <b class="${myChange.delta > 0 ? 'text-emerald-700 dark:text-emerald-400' : myChange.delta < 0 ? 'text-rose-700 dark:text-rose-400' : ''}">${Rating.formatDelta(myChange.delta)}</b> (${myChange.after})</p>` : ''}
-                ${mine ? '' : `<button type="button" data-ch-play class="${PRIMARY_BUTTON}"><i data-lucide="play" class="h-5 w-5"></i> Hrát výzvu</button>`}
+                ${mine ? '' : `<button type="button" data-ch-play class="${PRIMARY_BUTTON}"><i data-lucide="play" class="h-5 w-5"></i> ${resumable ? resumeLabel(resumable) : 'Hrát výzvu'}</button>`}
                 <button type="button" data-ch-share class="${SECONDARY_BUTTON}"><i data-lucide="share-2" class="h-5 w-5"></i> Sdílet výzvu · ${code}</button>
             </div>`, {
             onClick: (event) => {
                 if (event.target.closest('[data-ch-share]')) shareChallenge(code, text);
-                if (event.target.closest('[data-ch-play]')) { closeDialog(); startChallenge(def, 0, []); }
+                if (event.target.closest('[data-ch-play]')) {
+                    closeDialog();
+                    // Tahle výzva je už rozehraná: pokračuje se od další otázky (ne znovu od první)
+                    if (resumable) { challenge = resumable; ACTIONS['challenge-resume'](); }
+                    else startChallenge(def, 0, []);
+                }
             }
         });
     };
@@ -4905,7 +5006,9 @@
         }
         challenge = {
             code: def.code || def.id, topic: def.topic, seed: def.seed, count: def.count, index, results, creator: def.creator || null, invited: def.invited || null, done: false,
-            hard: Boolean(def.hard ?? def.include_hard), categories: def.categories || [], variant: def.variant || null, tournament: def.tournament || null
+            hard: Boolean(def.hard ?? def.include_hard), categories: def.categories || [], variant: def.variant || null, tournament: def.tournament || null,
+            // Kdo výzvu hraje: po odhlášení a přihlášení jiného účtu na stejném zařízení se mu cizí rozehraná výzva nenabízí
+            owner: def.owner || (signedUser() ? signedUser().id : null)
         };
         mode = 'challenge';
         closeDialog();
@@ -4947,7 +5050,8 @@
     };
 
     const challengeHome = () => {
-        challenge = null;
+        // Výzva, jejíž výsledek se nepodařilo odeslat, zůstává: úvod nabídne její dokončení
+        if (!ownChallengeInProgress()) challenge = latestOpenChallenge();
         mode = 'daily';
         myChallenges = null;
         renderHome();
@@ -4987,6 +5091,8 @@
                     ${Friends && bestRival && bestRival.user_id ? Friends.reactionBar(bestRival.user_id, c.reaction || null, { busy: Boolean(c.reacting), name: playerName(bestRival.player) }) : ''}
                     <p class="text-sm text-slate-500 dark:text-slate-400">${results && results.length > 1 ? 'Porovnání s ostatními hráči.' : 'Pošli kód kamarádům, ať ti to oplatí.'}</p>`;
         if (state === 'ok') c.lastResults = results;
+        // Upozornění, že vyzvaný hráč výzvu uvidí: ne vyzvanému samotnému a ne potom, co už ji dohrál
+        const invitedWaiting = Boolean(c.invited && c.invited.id && (!user || c.invited.id !== user.id) && !(results || []).some(row => row.user_id === c.invited.id));
         appContent.innerHTML = `
             <div class="fade-in flex min-h-full w-full flex-col gap-4 bg-slate-50 p-4 pb-6 dark:bg-slate-900">
                 <div class="rounded-[1.5rem] bg-gradient-to-br from-brand-600 to-brand-900 p-5 text-center text-white shadow-lg">
@@ -4997,7 +5103,7 @@
                     ${ratingNote(c, results)}
                 </div>
                 ${body}
-                ${c.invited ? `<p class="flex items-center justify-center gap-2 text-sm font-semibold text-slate-600 dark:text-slate-300">Vyzvaný hráč: ${avatarHtml(c.invited, 'h-6 w-6 text-sm')} <b>${escapeHtml(playerName(c.invited))}</b> uvidí výzvu na úvodní stránce</p>` : ''}
+                ${invitedWaiting ? `<p data-invited-note class="text-center text-sm font-semibold leading-relaxed text-slate-600 dark:text-slate-300"><span class="inline-flex max-w-full items-center gap-1.5 align-middle">${avatarHtml(c.invited, 'h-6 w-6 text-sm')}<b class="truncate">${escapeHtml(playerName(c.invited))}</b></span> uvidí výzvu na úvodní stránce.</p>` : ''}
                 <button type="button" data-action="challenge-share" data-code="${escapeHtml(c.code)}" data-text="Zahrál jsem výzvu v Mudrlantu: ${correct}/${c.count}. Zvládneš to líp?" class="${SECONDARY_BUTTON}"><i data-lucide="share-2" class="h-5 w-5"></i> Sdílet výzvu · ${escapeHtml(c.code)}</button>
                 <button type="button" data-action="challenge-home" class="${PRIMARY_BUTTON}">Zpět domů</button>
             </div>`;
@@ -5012,6 +5118,7 @@
     const finishedChallenges = () => { const list = readJson(FINISHED_KEY); return Array.isArray(list) ? list.filter(code => typeof code === 'string') : []; };
     const markChallengeFinished = (code) => {
         if (!code) return;
+        forgetOpenChallenge(`c:${code}`);
         writeJson(FINISHED_KEY, [...new Set([...finishedChallenges(), code])].slice(-60));
         const session = readJson(KEYS.session);
         if (session && session.challenge && session.challenge.code === code) { session.challenge.done = true; writeJson(KEYS.session, session); }
@@ -5022,14 +5129,24 @@
         const user = signedUser();
         // Dvojité klepnutí nebo rychlé „Zkusit znovu“: odeslání už běží, druhé se nespouští
         if (!c || !user || c.sending) return;
+        // Výzvu rozehrál jiný účet (mezitím se v jiné kartě přihlásil někdo jiný): jeho odpovědi se pod tenhle účet neodešlou
+        if (c.owner && c.owner !== user.id) { challenge = null; mode = 'daily'; renderHome(); showToast('Tuhle výzvu rozehrál jiný účet.'); return; }
         c.sending = true;
         c.done = true;
-        markChallengeFinished(c.code);
         renderChallengeDone(null, 'sending');
         const correct = c.results.filter(row => row && row.correct).length;
         const points = c.results.reduce((sum, row) => sum + (row ? row.points : 0), 0);
         try {
-            await Social.submitResult(user.id, c.code, { correct, points });
+            try {
+                await Social.submitResult(user.id, c.code, { correct, points });
+            } catch (error) {
+                // Výsledek není uložený: výzva zůstane rozehraná (úvod nabídne její dokončení, i po zavření aplikace), ať se neztratí
+                // a nejde ji hrát znovu od začátku
+                c.done = false;
+                throw error;
+            }
+            // Až uložený výsledek: dohraná výzva se zapamatuje a úvod ji už nenabízí
+            markChallengeFinished(c.code);
             const results = await Social.getResults(c.code);
             // Rating po výzvě počítá databáze; změnu (a nový rating do karty ligy) načteme, ať ji hráč vidí hned
             if (Rating && results.length > 1 && !c.ratingChange) {
@@ -5759,6 +5876,7 @@
     };
     // Dohraný zápas se v uložené relaci označí jako hotový, ať ho karta po dalším spuštění nenabízí k pokračování
     const markTournamentFinished = (mid) => {
+        forgetOpenChallenge(`t:${mid}`);
         const session = readJson(KEYS.session);
         if (session && session.challenge && session.challenge.tournament && session.challenge.tournament.mid === mid && !session.challenge.done) { session.challenge.done = true; writeJson(KEYS.session, session); }
     };
@@ -5919,10 +6037,12 @@
         'join-challenge': () => openJoinChallenge(),
         'challenge-open': (button) => openChallenge(button.dataset.code),
         'challenge-resume': () => {
-            if (!challenge || challenge.done) return;
-            // Všechny otázky už jsou zodpovězené (aplikace se zavřela před odesláním): nic se nehraje znovu, výzva se rovnou odešle
-            if (challenge.results.filter(Boolean).length >= challenge.count) { finishChallenge(); return; }
-            startChallenge(challenge, challenge.index, challenge.results);
+            if (!ownChallengeInProgress()) return;
+            // Pokračuje se první nezodpovězenou otázkou: zodpovězená (aplikace se zavřela před „Další“) se znovu nehraje, jinak by šla
+            // po zobrazení správné odpovědi zodpovědět podruhé. Všechny zodpovězené: nic se nehraje znovu, výzva se rovnou odešle.
+            const next = challengeNextIndex(challenge);
+            if (next < 0) { mode = 'challenge'; finishChallenge(); return; }
+            startChallenge(challenge, next, challenge.results);
         },
         'challenge-share': (button) => shareChallenge(button.dataset.code, button.dataset.text || ''),
         'challenge-retry': () => finishChallenge(true),
@@ -6154,11 +6274,21 @@
     if (Auth) {
         const invite = takeInviteCode();
         if (invite) writeJson(KEYS.pendingChallenge, invite);
+        let shownUserId = null;
         Auth.onChange((state) => {
             if (document.getElementById('settings-overlay')) openSettings();
             // Úvod s přihlášením: po přihlášení dál (k variantě nebo domů), po neúspěchu znovu s chybou
             if (document.getElementById('account-welcome') && (Auth.hasSession() || state.error)) showStart();
-            if (!state.user) { myProfile = null; myBlocked = null; myAcceptsMix = true; myChallenges = null; myRating = null; incomingList = null; friendRows = null; recentReactions = []; myBlocks = null; resetTournaments(); updateProfileButton(); paintChallenges(); return; }
+            // Odhlášení, nebo přihlášení jiného účtu (třeba v jiné kartě): údaje předchozího účtu se zahodí, ať se nepromítnou do nového
+            // (jeho bloky, přijímaná témata a výzvy by se jinak ukazovaly a ukládaly pod novým účtem)
+            const userId = state.user ? state.user.id : null;
+            if (userId !== shownUserId) {
+                shownUserId = userId;
+                myProfile = null; myBlocked = null; myAcceptsMix = true; acceptsConfirmed = null; myChallenges = null; myRating = null; incomingList = null; friendRows = null; recentReactions = []; myBlocks = null; resetTournaments();
+                updateProfileButton();
+                paintChallenges();
+            }
+            if (!state.user) return;
             // Po přihlášení (i návratu z Googlu) se otevře výzva, na kterou hráč klepl v odkazu
             const pending = readJson(KEYS.pendingChallenge);
             if (pending) {

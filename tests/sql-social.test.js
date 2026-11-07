@@ -205,12 +205,34 @@ test('SQL: přátelé, blokování, reakce a nahlášení', { skip: !available &
         denied(asUser(B, `insert into dev_admins (user_id) values ('${A}')`), 'dev_admins si klient nezapíše');
     });
 
-    await t.test('last_seen: touch_seen jen vlastní řádek, klient sloupec nezapíše', () => {
-        denied(asUser(A, `update profiles set last_seen = now() where id = '${A}'`));
+    await t.test('last_seen: touch_seen jen vlastní řádek, klient ho nezapíše a cizí aktivitu nevidí', () => {
+        denied(asUser(A, `insert into player_seen (user_id, last_seen) values ('${A}', now())`), 'zápis jen přes touch_seen');
+        denied(asUser(A, `update player_seen set last_seen = now()`));
         ok(asUser(A, `select touch_seen()`));
-        assert.notEqual(q(`select last_seen from profiles where id = '${A}'`), '');
-        assert.equal(q(`select last_seen is null from profiles where id = '${B}'`), 't');
+        assert.notEqual(q(`select last_seen from player_seen where user_id = '${A}'`), '');
+        assert.equal(q(`select count(*) from player_seen where user_id = '${B}'`), '0');
         denied(as('anon', null, `select touch_seen()`));
+        // V profilech (čte je každý přihlášený) poslední aktivita není; v player_seen vidí hráč jen svůj řádek
+        assert.equal(q(`select count(*) from information_schema.columns where table_name = 'profiles' and column_name = 'last_seen'`), '0');
+        ok(asUser(B, `select touch_seen()`));
+        assert.equal(count(B, `select * from player_seen`), 1);
+        assert.equal(count(C, `select * from player_seen`), 0);
+        denied(as('anon', null, `select * from player_seen`));
+    });
+
+    await t.test('friends_list: poslední aktivitu vidí jen přátelé, ne žadatel ani oslovený', () => {
+        q(`insert into auth.users (id, email, raw_user_meta_data) values ('${C}', 'c@example.com', '{"full_name": "Cecil"}'), ('${D}', 'd@example.com', '{"full_name": "Dana"}') on conflict (id) do nothing;
+           insert into profiles (id, display_name) values ('${C}', 'Cecil'), ('${D}', 'Dana') on conflict (id) do nothing;
+           delete from player_blocks; delete from friendships where '${A}' in (user_id, friend_id) or '${C}' in (user_id, friend_id) or '${D}' in (user_id, friend_id);
+           insert into player_seen (user_id, last_seen) values ('${A}', now()), ('${C}', now()), ('${D}', now()) on conflict (user_id) do update set last_seen = now()`);
+        ok(asUser(A, `insert into friendships (user_id, friend_id) values ('${A}', '${C}'), ('${A}', '${D}')`));
+        ok(asUser(C, `update friendships set status = 'accepted' where user_id = '${A}' and friend_id = '${C}'`));
+        assert.equal(last(asUser(A, `select (last_seen is not null)::text from friends_list() where id = '${C}'`)), 'true', 'přítel');
+        assert.equal(last(asUser(A, `select (last_seen is null)::text from friends_list() where id = '${D}'`)), 'true', 'moje čekající žádost');
+        assert.equal(last(asUser(D, `select (last_seen is null)::text from friends_list() where id = '${A}'`)), 'true', 'cizí žádost pro mě');
+        assert.equal(last(asUser(C, `select (last_seen is not null)::text from friends_list() where id = '${A}'`)), 'true');
+        // Hledání hráčů vrací profily: bez poslední aktivity
+        assert.ok(!/last_seen/.test(last(asUser(B, `select to_jsonb(p)::text from search_players('Cecil') p`))));
     });
 
     await t.test('pomocné funkce jdou volat jen interně', () => {
