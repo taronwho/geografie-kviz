@@ -1,0 +1,18 @@
+{
+    "name": "Mudrlant",
+    "short_name": "Mudrlant",
+    "description": "Vědomostní kvíz ze zeměpisu, historie, přírodních věd, umění, kultury a sportu – dnešní otázky, trénink a učení po okruzích.",
+    "lang": "cs",
+    "id": "/mudrlant/app/",
+    "start_url": "./",
+    "scope": "./",
+    "display": "standalone",
+    "orientation": "portrait",
+    "background_color": "#2d3034",
+    "theme_color": "#87233f",
+    "icons": [
+        { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+        { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+        { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+    ]
+}
