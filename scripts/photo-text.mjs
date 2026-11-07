@@ -11,7 +11,7 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { createRequire } from 'node:module';
 
-import { QUESTION_IMAGE_TOPICS, fileNameWords } from './lib/photo-words.mjs';
+import { QUESTION_IMAGE_TOPICS, fileNameWords, prepareForOcr, ocrSuffix } from './lib/photo-words.mjs';
 
 const require = createRequire(import.meta.url);
 const core = require('../quiz-core.js');
@@ -51,9 +51,12 @@ const found = (tokens, word) => tokens.some(token => token === word
     || (word.length >= 6 && Math.abs(token.length - word.length) <= 1 && core.levenshtein(token, word) <= 1));
 
 const cacheFile = (file) => path.join(CACHE, `${file.replace(/[^\w.-]+/g, '_').slice(0, 180)}.txt`);
-const readText = async (item) => {
-    const cached = cacheFile(item.im);
-    if (fs.existsSync(cached)) return fs.readFileSync(cached, 'utf8');
+const readText = async (item, topic = '') => {
+    // U upravených kreseb se přidá i dřívější čtení bez úpravy (co našlo to, platí dál)
+    const plainCached = cacheFile(item.im);
+    const before = ocrSuffix(topic) && fs.existsSync(plainCached) ? `\n${fs.readFileSync(plainCached, 'utf8')}` : '';
+    const cached = cacheFile(`${item.im}${ocrSuffix(topic)}`);
+    if (fs.existsSync(cached)) return fs.readFileSync(cached, 'utf8') + before;
     const url = core.commonsPhotoUrl(item.im, item.ih, 500);
     let body = null;
     for (let attempt = 0; attempt < 6 && !body; attempt++) {
@@ -70,18 +73,21 @@ const readText = async (item) => {
     const image = path.join(CACHE, `img-${process.pid}-${Math.random().toString(36).slice(2)}.jpg`);
     fs.writeFileSync(image, body);
     let text = '';
+    let prepared = image;
     try {
+        prepared = await prepareForOcr(run, image, topic);
         // Řídký text (psm 11) najde i nápisy rozházené po fotce – startovní čísla, cedule, plakáty
-        // Jedno vlákno na fotku (souběžně jich běží víc) a nejvýš 15 s – rušná fotka by jinak četla i minuty
-        const { stdout } = await run('tesseract', [image, '-', '--psm', '11'], { timeout: 15000, maxBuffer: 1 << 20, env: { ...process.env, OMP_THREAD_LIMIT: '1' } });
+        // Jedno vlákno na fotku (souběžně jich běží víc) a nejvýš 15 s (u zvětšené kresby 30 s) – rušná fotka by jinak četla i minuty
+        const { stdout } = await run('tesseract', [prepared, '-', '--psm', '11'], { timeout: prepared === image ? 15000 : 30000, maxBuffer: 1 << 20, env: { ...process.env, OMP_THREAD_LIMIT: '1' } });
         text = stdout;
     } catch {
         text = '';
     } finally {
         fs.rmSync(image, { force: true });
+        if (prepared !== image) fs.rmSync(prepared, { force: true });
     }
     fs.writeFileSync(cached, text);
-    return text;
+    return text + before;
 };
 
 const result = fs.existsSync(OUT) ? JSON.parse(fs.readFileSync(OUT, 'utf8')) : {};
@@ -104,7 +110,7 @@ for (const topic of wanted) {
     const worker = async () => {
         while (queue.length) {
             const item = queue.shift();
-            const text = await readText(item);
+            const text = await readText(item, topic);
             if (text === null) missing++;
             const tokens = plain(text || '').split(' ').filter(Boolean);
             const words = nameWords(item, topic);

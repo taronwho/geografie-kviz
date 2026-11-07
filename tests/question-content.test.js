@@ -199,7 +199,7 @@ test('vlajky: nápis s odpovědí na vlajce či znaku (CALIFORNIA REPUBLIC, FIFA
     const photoMasks = JSON.parse(fs.readFileSync(path.join(P.ROOT, 'data', 'photo-masks.json'), 'utf8'));
     const ctx = P.loadContext('vlajky');
     const flagged = (photoText.vlajky || []).map(id => ctx.byId.get(id)).filter(Boolean);
-    for (const name of ['Kalifornie', 'Kansas', 'FIFA', 'Oregon']) assert.ok(flagged.some(item => item.n === name), name);
+    for (const name of ['Kalifornie', 'Kansas', 'FIFA', 'Oregon', 'Wisconsin', 'Arkansas', 'Iowa']) assert.ok(flagged.some(item => item.n === name), name);
     // Obrázek otázky je u vlajek celý vidět hned: každý označený musí mít známou polohu nápisu
     assert.deepEqual(flagged.filter(item => !photoMasks[item.im]).map(item => item.n), []);
     const { fileNameWords } = await import('../scripts/lib/photo-words.mjs');
