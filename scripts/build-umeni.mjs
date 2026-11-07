@@ -1,6 +1,7 @@
 // Téma Výtvarné umění: data/umeni.json z Wikidat – obrazy, sochy, malíři a sochaři
 // Spuštění: npm run build:umeni (s BUILD_CACHE=složka jde pravidla ladit bez opakovaného stahování)
 import { sparql, qlever, id, values, imageFields, yearOf, compact, cached, inBatches, writeTopic } from './lib/wikidata.mjs';
+import { repsQuery, repOfRow, pickReps, architectIds, czechWorkName } from './lib/umeni-rules.mjs';
 
 const PAINTING = 'Q3305213';
 const HUMAN = 'Q5';
@@ -147,15 +148,13 @@ const movementDetails = new Map(await cached('umeni-movements', async () => {
   UNION { ?item wdt:P31 ?v BIND("type" AS ?p) }
   UNION { ?item wdt:P279 ?v BIND("sub" AS ?p) }
 }`, collect(result));
-    // Představitelé: nejznámější lidé s tímto směrem, kteří mají český článek
+    // Představitelé: lidé s tímto směrem, kteří mají český článek (všichni kandidáti – vybírá se až podle položek tématu, pickReps)
     const reps = new Map();
-    await inBatches(candidates.movements.map(([qid]) => qid), 40, (qids) => `SELECT DISTINCT ?item ?v ?sl ?born ?name WHERE { VALUES ?item { ${values(qids)} }
-  VALUES ?occ { ${values([...ARTIST_OCCUPATIONS, ...PHOTOGRAPHER_OCCUPATIONS, 'Q42973'])} } ?v wdt:P135 ?item ; wdt:P106 ?occ ; wdt:P31 wd:${HUMAN} . ?a schema:about ?v ; schema:isPartOf <https://cs.wikipedia.org/> ; schema:name ?name . ?v wikibase:sitelinks ?sl .
-  OPTIONAL { ?v wdt:P569 ?born } FILTER(?sl >= 25) }`, (row) => {
+    await inBatches(candidates.movements.map(([qid]) => qid), 40, (qids) => repsQuery(qids, [...ARTIST_OCCUPATIONS, ...PHOTOGRAPHER_OCCUPATIONS, 'Q42973'], HUMAN), (row) => {
         const key = id(row.item.value);
-        reps.set(key, [...(reps.get(key) || []), { q: id(row.v.value), n: row.name.value.replace(/ \(.*\)$/, ''), sl: Number(row.sl.value), born: row.born ? row.born.value : undefined }]);
+        reps.set(key, [...(reps.get(key) || []), repOfRow(row, id)]);
     });
-    for (const [qid, list] of reps) result.get(qid).reps = list.sort((a, b) => b.sl - a.sl).slice(0, 12);
+    for (const [qid, list] of reps) result.get(qid).reps = list.sort((a, b) => b.sl - a.sl);
     return [...result];
 }));
 
@@ -197,6 +196,8 @@ const nameOf = (detail) => {
     const name = (detail.n || detail.t || '').replace(/ \(.*\)$/, '');
     return name.charAt(0).toUpperCase() + name.slice(1);
 };
+// Název díla: cizí štítek Wikidat (Portinari Altarpiece) → název českého článku (czechWorkName v scripts/lib/umeni-rules.mjs)
+const workNames = (detail) => czechWorkName(nameOf(detail), nameOf({ t: detail.t }));
 const sitelinks = new Map([...candidates.paintings, ...candidates.sculptures, ...candidates.artists]);
 
 // --- 3. krok: pravidla ---
@@ -492,7 +493,7 @@ for (const [qid, links] of workList) {
     const item = {
         q: qid,
         t: detail.t,
-        n: nameOf(detail),
+        ...workNames(detail),
         ty: kindOf(detail.type, isSculpture),
         d: detail.d,
         ...imageFields(detail.im),
@@ -620,6 +621,7 @@ for (const kind of PERSON_CATEGORIES) {
 }
 
 // Umělecké směry: vznik a zánik, země a nejznámější představitelé; bez obrázku (ptáme se na popis)
+const repAllowed = new Set([...usedPeople, ...architectIds()]);
 const movementYear = (values = []) => {
     const years = values.map(yearOf).filter(year => year !== undefined && year <= THIS_YEAR);
     return years.length ? Math.min(...years) : undefined;
@@ -630,7 +632,8 @@ for (const [qid] of candidates.movements) {
     if (!detail || !detail.t || !nameOf(detail)) continue;
     const from = movementYear(detail.from);
     const to = movementYear(detail.to);
-    const reps = (detail.reps || []).filter((rep, index, all) => rep.n && all.findIndex(other => other.q === rep.q || other.n === rep.n) === index);
+    // Jen výtvarníci a architekti, které témata vedou jako položky (ne Hermann Hesse u secese), hlavní představitelé směru napřed
+    const reps = pickReps(detail.reps || [], repAllowed);
     const bornYears = reps.map(rep => yearOf(rep.born)).filter(year => year !== undefined).sort((a, b) => a - b);
     const middle = bornYears.length >= 2 ? bornYears[Math.floor(bornYears.length / 2)] + 30 : undefined;
     const start = from ?? middle;
@@ -700,9 +703,9 @@ for (const category of Object.keys(LIMITS)) {
 }
 for (const collection of collections) console.log(`okruh ${collection.label}: ${sizeOf(collection)}`);
 
-// Popisy, které by prozradily odpověď (Manneken Pis = „chlapeček“, Kubištův Svatý Šebestián = „kubistický“ ~ Kubišta)
+// Popisy, které by prozradily odpověď (Čurající chlapeček / Manneken Pis = „chlapeček“, Kubištův Svatý Šebestián = „kubistický“ ~ Kubišta)
 for (const item of items) {
-    if (item.n === 'Manneken Pis') item.d = 'bronzová socha močící postavy v Bruselu';
+    if (item.q === 'Q152072') item.d = 'bronzová socha močící postavy v Bruselu';
     if (item.n === 'Svatý Šebestián' && /Kubišt/u.test(item.f.by || '')) item.d = 'obraz Bohumila Kubišty z roku 1912';
 }
 writeTopic('umeni', { collections, items });

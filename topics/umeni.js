@@ -260,7 +260,8 @@
             const years = f.y !== undefined && g.y !== undefined ? Math.max(0, 4 - Math.abs(f.y - g.y) / 100) : 0;
             return (f.by && f.by === g.by ? 4 : 0) + (sameMovement ? 3 : 0) + eraNearness(f.y, g.y) + years + land + sameCzech;
         },
-        nameAliases: (item, ctx) => isPerson(item) ? artistAliases(item, ctx) : [],
+        // U díla s cizím štítkem Wikidat (Portinari Altarpiece → Portinarův triptych) platí i cizí název (al)
+        nameAliases: (item, ctx) => isPerson(item) ? artistAliases(item, ctx) : [...(item.al || [])],
 
         // U díla občas „Kdo to namaloval?“ (jen u jistého autora z dat) nebo „Ke kterému směru patří?“ (jen u jasného směru)
         specialQuestion: (item, ctx, rng) => {

@@ -122,6 +122,14 @@ export const cleanDescription = (text) => typeof text !== 'string' ? text : text
     .replace(/[\s,;]+$/, '')
     // Tečka na konci: hra za krátký popis tečku přidává sama („Americký herec..“, „př. n. l..“)
     .replace(/\.+$/, '')
+    // Drobná typografie z Wikidat: mezera před čárkou („obraz , autor“), chybějící mezera za ní mezi slovy („architekt,spoluzakladatel“;
+    // vzorec (Mg,Fe) zůstane), rozsah století spojovníkem („19.-20. století“), rovné uvozovky („"Grand Tour"“ → „Grand Tour“)
+    .replace(/\s+,/g, ',')
+    .replace(/(\p{Ll}),(?=\p{Ll}{2})/gu, '$1, ')
+    .replace(/(\d)\.\s*-\s*(\d)/g, '$1.–$2')
+    .replace(/"([^"]+)"/g, '„$1“')
+    // Letopočet bez „roku“ („od 1904“, „kolem 1920“) – ne délka či počet („kolem 1500 km“)
+    .replace(/(?<![\p{L}])(od|kolem) ([12]\d{3})(?![\d\s]*(?:km|m|kg|t|mil|tis|let|lidí|obyvatel|°|%))(?!\d)/gu, '$1 roku $2')
     .trim();
 
 // Druh stavby podle jejího jména: Wikidata mají u zámků „hrad“ (castle), u kostela „katedrála“, u rotundy „kaple“ –
@@ -140,6 +148,23 @@ export const buildingTypeFromName = (name, ty) => {
     return new RegExp(`(?<![\\p{L}])${typed}(?![\\p{L}])`, 'iu').test(name) ? ty : leading;
 };
 
+// Krátké popisy z Wikidat, které jsou chybné (Paříž–Roubaix „v Itálii“), prozradí odpověď (Kanó-ha: „zakl. Masanobu Kanó“,
+// Mladé Polsko: „Młoda Polska je…“) nebo nejsou česky dobře – oprava podle QID pro všechna témata
+export const DESCRIPTION_FIXES = {
+    Q33992: 'jednodenní cyklistický závod ve Francii, jeden z tzv. „Monumentů“',
+    Q458653: 'italský architekt',
+    Q252801: 'japonská malířská škola založená v 15. století',
+    Q1133329: 'polské umělecké hnutí z přelomu 19. a 20. století',
+    Q62506: 'barokní malíři, následovníci Caravaggia',
+    Q1086353: 'umělecké sdružení',
+    Q584084: 'umělecký styl let 1530–1610',
+    Q186030: 'umění současnosti navazující na pop-art a konceptuální umění',
+    Q153739: 'německo-francouzský sochař, malíř a básník',
+    Q891532: 'umělecký spolek a hnutí',
+    Q131221: 'umělecké a sociální hnutí',
+    Q203209: 'umělecké hnutí'
+};
+
 // Zapíše data tématu; okruhy s méně než 5 položkami vynechá (i z položek), aby v učení nebyly skoro prázdné
 export const writeTopic = (topicId, { collections: allCollections, items }) => {
     const sizes = new Map(allCollections.map(collection => [collection.id, items.filter(item => (item.g || []).includes(collection.id)).length]));
@@ -151,6 +176,7 @@ export const writeTopic = (topicId, { collections: allCollections, items }) => {
         if (!item.g.length) delete item.g;
     }
     for (const item of items) {
+        if (item.d && Object.hasOwn(DESCRIPTION_FIXES, item.q)) item.d = DESCRIPTION_FIXES[item.q];
         if (item.d) item.d = cleanDescription(item.d);
         if (item.ty) item.ty = cleanDescription(item.ty);
     }

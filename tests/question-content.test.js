@@ -234,3 +234,17 @@ test('popis: přídavné jméno s c → č prozradí název (cykloadice – cykl
 test('popis: víceslovný region za „ve státě“ se zakryje celý (ne „[***] York“)', () => {
     assert.equal(core.censorCountry('v Lake Placid ve státě New York v USA.', 'Spojené státy americké', []), 'v Lake Placid [***] v USA.');
 });
+
+test('krátký popis: drobná typografie z Wikidat (čárky, rozsah století, uvozovky, „od roku“) a opravy podle QID', async () => {
+    const { cleanDescription, DESCRIPTION_FIXES } = await import('../scripts/lib/wikidata.mjs');
+    assert.equal(cleanDescription('obraz , autor Jan van Eyck'), 'obraz, autor Jan van Eyck');
+    assert.equal(cleanDescription('japonský architekt,spoluzakladatel hnutí'), 'japonský architekt, spoluzakladatel hnutí');
+    assert.equal(cleanDescription('minerál (Mg,Fe)₂SiO₄'), 'minerál (Mg,Fe)₂SiO₄');
+    assert.equal(cleanDescription('imitace japonského umění v 19.-20. století'), 'imitace japonského umění v 19.–20. století');
+    assert.equal(cleanDescription('jedna z tzv. "Grand Tour"'), 'jedna z tzv. „Grand Tour“');
+    assert.equal(cleanDescription('umělecký styl, od 1904'), 'umělecký styl, od roku 1904');
+    assert.equal(cleanDescription('pohoří v šířce kolem 150 km a délce kolem 1100 km'), 'pohoří v šířce kolem 150 km a délce kolem 1100 km');
+    const sport = P.loadContext('sport');
+    assert.match(find(sport, 'Paříž–Roubaix').d, /ve Francii/);
+    assert.ok(Object.values(DESCRIPTION_FIXES).every(text => text === cleanDescription(text)));
+});
