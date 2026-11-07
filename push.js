@@ -1,6 +1,7 @@
 // Web push v prohlížeči: oprávnění, předplatné (PushManager.subscribe s veřejným VAPID klíčem z config.js), uložení do databáze a odhlášení.
 // Nic se nezapne samo: předplatné vzniká až po klepnutí na „Zapnout upozornění“ a po souhlasu v prohlížeči; vypnutí a odhlášení z účtu ho smaže
-// z prohlížeče i z databáze (tabulka push_subscriptions, RLS: hráč vidí a maže jen svá). Odesílání dělá GitHub Actions (scripts/send-push.mjs).
+// z prohlížeče i z databáze (tabulka push_subscriptions, RLS: hráč vidí a maže jen svá). Odesílání dělá GitHub Actions (scripts/send-push.mjs),
+// které hned spouští databáze (push_kick) a záložně hodinový plán.
 (function (root, factory) {
     const api = factory(root);
     if (typeof module === 'object' && module.exports) module.exports = api;
@@ -212,8 +213,19 @@
                 throw error;
             }
         };
+        // Je na serveru nastavené okamžité odesílání (dev_push_status, schéma 5, jen dev_admins)? { instant, token, pgNet, cron, github } nebo null,
+        // když se to nedá zjistit (starší databáze bez funkce, chyba spojení) – aplikace pak ukáže obecný text
+        const serverPushStatus = async () => {
+            try {
+                const status = await rest('POST', 'rpc/dev_push_status', {});
+                if (!status || typeof status !== 'object' || Array.isArray(status)) return null;
+                const code = Number(status.github);
+                return { instant: status.instant === true, token: status.token === true, pgNet: status.pg_net === true, cron: status.cron === true,
+                    github: Number.isInteger(code) && code > 0 ? code : null };
+            } catch (error) { return null; }
+        };
 
-        return { state, enable, disable, getPrefs, savePrefs, configured, supported, vapidKey, diagnose, testLocal, requestServerTest };
+        return { state, enable, disable, getPrefs, savePrefs, configured, supported, vapidKey, diagnose, testLocal, requestServerTest, serverPushStatus };
     };
     // Obsah zkušebního upozornění (stejný tvar jako od odesílače: title, body, url, kind); text na serveru je v push_due
     const TEST_PAYLOAD = { title: 'Zkušební upozornění Mudrlanta', body: 'Funguje to! Klepni sem a otevře se záložka Více hráčů.', url: './?tab=multi', kind: 'test' };

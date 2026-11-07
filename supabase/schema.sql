@@ -886,8 +886,10 @@ revoke all on function public.dev_tournament_add_bots(uuid, integer), public.dev
 grant execute on function public.dev_tournament_add_bots(uuid, integer), public.dev_tournament_start_now(uuid), public.dev_tournament_next_round(uuid), public.dev_tournament_clear_bots(), public.dev_tournament_reset() to authenticated;
 
 -- ===== Web push: upozornění na turnaje a výzvy =====
--- Odběr (endpoint + klíče) si uloží prohlížeč hráče (push.js); odesílá GitHub Actions (scripts/send-push.mjs) jednou za hodinu: zavolá push_due(secret),
+-- Odběr (endpoint + klíče) si uloží prohlížeč hráče (push.js); odesílá GitHub Actions (scripts/send-push.mjs): zavolá push_due(secret),
 -- pošle notifikace a zapíše push_mark(...). Tajemství push_cron leží jen v app_secrets (žádný přístup přes API), takže veřejný klíč z config.js nic nevyčte.
+-- Workflow běží podle hodinového plánu GitHubu (nespolehlivě) a navíc ho spouští sama databáze: push_kick() (pg_cron každou minutu, pg_net) zavolá
+-- GitHub API, jakmile je co poslat (viz níž a docs/SUPABASE.md, Okamžité odesílání upozornění).
 create table if not exists public.push_subscriptions (
     endpoint text primary key,
     user_id uuid not null references public.profiles (id) on delete cascade,
@@ -933,11 +935,16 @@ begin
 end;
 $$;
 
--- Tajemství pro odesílatele (GitHub Actions). Jediný řádek 'push_cron' vložíš ručně v SQL Editoru (docs/SUPABASE.md); přes API se tabulka nedá ani číst.
+-- Tajemství pro odesílatele (GitHub Actions). Řádek 'push_cron' vložíš ručně v SQL Editoru (docs/SUPABASE.md); přes API se tabulka nedá ani číst.
+-- Okamžité odesílání (push_kick) tu má token GitHubu 'github_token' a volitelně 'github_repo' (vlastník/repozitář, výchozí taronwho/geografie-kviz).
 create table if not exists public.app_secrets (
     name text primary key check (name ~ '^[a-z_]{1,40}$'),
     value text not null check (char_length(value) between 16 and 200)
 );
+-- Krátký název repozitáře (např. jan/kviz) je výjimka z minimální délky; tvar vlastník/repozitář hlídá i push_kick
+alter table public.app_secrets drop constraint if exists app_secrets_value_check;
+alter table public.app_secrets add constraint app_secrets_value_check check (char_length(value) between 16 and 200
+    or (name = 'github_repo' and value ~ '^[A-Za-z0-9_.-]{1,100}/[A-Za-z0-9_.-]{1,100}$'));
 alter table public.app_secrets enable row level security;
 revoke all on public.app_secrets from public, anon, authenticated;
 
@@ -994,17 +1001,14 @@ $$;
 
 -- Co poslat: (a) dnešní neodehraný turnajový zápas, (b) nevyřízená příchozí výzva mladší než 3 dny a výsledek výzvy, kterou hráč založil, (c) nepřečtená zpráva o turnaji.
 -- Jeden řádek na odběr (zařízení); z každého druhu nejvýš jedna věc na hráče a běh a nic, co téhož druhu dostal v poslední hodině.
-drop function if exists public.push_due(text);
-create or replace function public.push_due(secret text) returns table (
+-- push_pending() je interní (bez ověření tajemství a bez posunu turnajů): totéž, co by teď vrátilo push_due, a totéž, podle čeho
+-- push_kick pozná, že je co poslat – pravidla jsou tak na jednom místě. Práva volajícího (spouští ji jen push_due a push_kick), přes API nejde.
+create or replace function public.push_pending() returns table (
     user_id uuid, endpoint text, p256dh text, auth text, kind text, title text, body text, url text, dedupe_key text
 )
-language plpgsql security definer set search_path = public as $$
-declare today date; part text;
+language plpgsql stable set search_path = public as $$
+declare today date := public.tournament_today(); part text := public.push_day_part();
 begin
-    perform public.push_check_secret(secret);
-    perform public.tournament_tick();
-    today := public.tournament_today();
-    part := public.push_day_part();
     return query
     with items as (
         select m.p as user_id, 'tournament'::text as kind,
@@ -1070,6 +1074,19 @@ begin
 end;
 $$;
 
+-- Odesílač (GitHub Actions) si řekne, co poslat: ověří tajemství, posune turnaje (připomínky a zprávy o turnaji) a vrátí push_pending()
+drop function if exists public.push_due(text);
+create or replace function public.push_due(secret text) returns table (
+    user_id uuid, endpoint text, p256dh text, auth text, kind text, title text, body text, url text, dedupe_key text
+)
+language plpgsql security definer set search_path = public as $$
+begin
+    perform public.push_check_secret(secret);
+    perform public.tournament_tick();
+    return query select * from public.push_pending();
+end;
+$$;
+
 -- Zápis po odeslání: klíče do push_sent (hráč a druh z klíče kvůli hodinovému limitu), úspěšné odběry dostanou last_ok, neúspěšné +1 chyba
 -- (po třech chybách odběr mizí), odběry s odpovědí 404/410 (gone) se smažou hned. Staré záznamy push_sent (14 dní) se uklidí. Vrací počet smazaných odběrů.
 drop function if exists public.push_mark(text, text[], text[]);
@@ -1111,9 +1128,127 @@ begin
 end;
 $$;
 
+-- ===== Okamžité odesílání: databáze sama spustí workflow Upozornění na GitHubu =====
+-- Hodinový plán GitHubu běží nespolehlivě (někdy jen párkrát za den), proto pg_cron každou minutu volá push_kick(): když push_pending() vrací
+-- něco, co by odesílač právě teď poslal, zavolá přes pg_net GitHub API (workflow_dispatch pro push.yml, dry_run = false) a upozornění přijde do 1–2 minut.
+-- Takto spuštěný workflow běží s MANUAL=true, takže v nočním klidu (21:00–7:00 Praha) pošle jen zkušební upozornění; push_kick proto v noci počítá
+-- jen s nimi a ostatní spustí ráno. Token GitHubu je jen v app_secrets ('github_token'), přes API ho nikdo nepřečte, a push_kick přes API zavolat
+-- nejde (jen vlastník databáze, tedy úloha pg_cron). Pojistky proti zacyklení: další spuštění nejdřív 3 minuty po posledním, nejvýš 12 za hodinu,
+-- a když čekají jen tytéž zprávy jako při posledním spuštění (doručení selhává nebo GitHub běh nespustil), další pokus za 10, 20, 40, pak 60 minut.
+-- Vrací krátký stav: no-token, bad-token, bad-repo, no-pg_net (nic neudělá), nothing (není co poslat), wait (něco nového, čeká se na 3 minuty),
+-- backoff (tytéž zprávy, další pokus později), hour-limit (12 spuštění za hodinu), dispatched (požadavek zařazen; pg_net ho odešle po konci transakce).
+
+-- Noční klid jako ve scripts/send-push.mjs (QUIET_FROM 7, QUIET_TO 21, pražský čas); mudrlant.test_hour používají jen testy
+create or replace function public.push_quiet_now() returns boolean
+language sql stable set search_path = public as $$
+    select h < 7 or h >= 21 from (select coalesce(nullif(current_setting('mudrlant.test_hour', true), '')::integer, extract(hour from now() at time zone 'Europe/Prague')::integer) as h) x
+$$;
+
+-- Je k dispozici pg_net (funkce net.http_post)? Funkce níž jsou v plpgsql a net volají dynamicky, takže schéma jde spustit i bez rozšíření.
+create or replace function public.push_net_ready() returns boolean
+language sql stable set search_path = public as $$
+    select exists (select 1 from pg_catalog.pg_proc p join pg_catalog.pg_namespace n on n.oid = p.pronamespace where n.nspname = 'net' and p.proname = 'http_post')
+$$;
+
+-- Stav push_kick (jediný řádek): poslední spuštění workflow, spuštění za poslední hodinu, otisky (md5 klíčů) zpráv, které tehdy čekaly, počet
+-- opakovaných pokusů kvůli týmž zprávám, id posledního požadavku v pg_net (odpověď GitHubu drží pg_net v net._http_response), otisk tokenu, kterým
+-- šel, a kdy a s jakým výsledkem push_kick naposledy běžel. Přes API nedostupná.
+create table if not exists public.push_kick_state (
+    id boolean primary key default true check (id),
+    last_at timestamptz,
+    recent timestamptz[] not null default '{}',
+    pending text[] not null default '{}',
+    retries integer not null default 0,
+    request_id bigint,
+    token_hash text,
+    checked_at timestamptz,
+    last_status text
+);
+alter table public.push_kick_state enable row level security;
+revoke all on public.push_kick_state from public, anon, authenticated;
+
+create or replace function public.push_kick() returns text
+language plpgsql security definer set search_path = public as $$
+declare
+    tok text; repo_name text; st public.push_kick_state; fps text[]; runs timestamptz[]; is_new boolean; gap interval; req bigint; outcome text;
+begin
+    select btrim(s.value) into tok from public.app_secrets s where s.name = 'github_token';
+    if coalesce(tok, '') = '' then return 'no-token'; end if;
+    if tok !~ '^[A-Za-z0-9_]{20,200}$' then return 'bad-token'; end if;
+    select btrim(s.value) into repo_name from public.app_secrets s where s.name = 'github_repo';
+    repo_name := coalesce(nullif(repo_name, ''), 'taronwho/geografie-kviz');
+    if repo_name !~ '^[A-Za-z0-9_.-]{1,100}/[A-Za-z0-9_.-]{1,100}$' then return 'bad-repo'; end if;
+    if not public.push_net_ready() then return 'no-pg_net'; end if;
+    -- jeden běh naráz: řádek stavu zůstane zamčený do konce transakce
+    insert into public.push_kick_state (id) values (true) on conflict (id) do nothing;
+    select * into st from public.push_kick_state k where k.id for update;
+    -- stejně jako push_due: nejdřív posunout turnaje, pak co čeká; v nočním klidu jen zkoušky (víc ručně spuštěný workflow nepošle)
+    perform public.tournament_tick();
+    select coalesce(array_agg(distinct md5(p.dedupe_key)), '{}') into fps
+        from public.push_pending() p where p.kind = 'test' or not public.push_quiet_now();
+    runs := array(select r from unnest(st.recent) r where r > now() - interval '1 hour' order by r);
+    -- nové = aspoň jedna zpráva, která při posledním spuštění nečekala; jinak jde o opakovaný pokus kvůli týmž zprávám
+    is_new := not (fps <@ st.pending);
+    gap := case when is_new then interval '3 minutes' else least(interval '10 minutes' * power(2, least(st.retries, 3)), interval '1 hour') end;
+    if cardinality(fps) = 0 then outcome := 'nothing';
+    elsif st.last_at is not null and now() < st.last_at + gap then outcome := case when is_new then 'wait' else 'backoff' end;
+    elsif cardinality(runs) >= 12 then outcome := 'hour-limit';
+    else
+        execute 'select net.http_post(url := $1, body := $2, headers := $3, timeout_milliseconds := $4)' into req using
+            'https://api.github.com/repos/' || repo_name || '/actions/workflows/push.yml/dispatches',
+            jsonb_build_object('ref', 'main', 'inputs', jsonb_build_object('dry_run', 'false')),
+            jsonb_build_object('Authorization', 'Bearer ' || tok, 'Accept', 'application/vnd.github+json', 'X-GitHub-Api-Version', '2022-11-28',
+                'User-Agent', 'mudrlant-push', 'Content-Type', 'application/json'),
+            10000;
+        outcome := 'dispatched';
+    end if;
+    update public.push_kick_state k set checked_at = now(), last_status = outcome,
+        recent = case when outcome = 'dispatched' then runs || now() else runs end,
+        pending = case outcome when 'dispatched' then fps when 'nothing' then '{}'::text[] else k.pending end,
+        retries = case outcome when 'dispatched' then case when is_new then 0 else k.retries + 1 end when 'nothing' then 0 else k.retries end,
+        last_at = case when outcome = 'dispatched' then now() else k.last_at end,
+        request_id = case when outcome = 'dispatched' then req else k.request_id end,
+        token_hash = case when outcome = 'dispatched' then md5(tok) else k.token_hash end
+    where k.id;
+    return outcome;
+end;
+$$;
+
+-- Stav okamžitého odesílání pro okno „Zkouška upozornění“ (jen dev_admins). instant = je token, pg_net i úloha pg_cron, která volá push_kick;
+-- funguje i bez pg_cron a pg_net (jen vrátí false). github = kód odpovědi GitHubu na poslední spuštění (dokud ho pg_net drží a token se mezitím neměnil).
+create or replace function public.dev_push_status() returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare tok text; token_ok boolean; net_ok boolean; cron_ok boolean := false; st public.push_kick_state; code integer;
+begin
+    if auth.uid() is null or not exists (select 1 from public.dev_admins where user_id = auth.uid()) then
+        raise exception 'Stav upozornění smí číst jen účet v dev_admins (viz docs/SUPABASE.md).' using errcode = '42501';
+    end if;
+    select btrim(s.value) into tok from public.app_secrets s where s.name = 'github_token';
+    token_ok := coalesce(tok ~ '^[A-Za-z0-9_]{20,200}$', false);
+    net_ok := public.push_net_ready();
+    if to_regclass('cron.job') is not null then
+        begin
+            execute $q$select exists (select 1 from cron.job j where j.command ilike '%push_kick%' and coalesce((to_jsonb(j) ->> 'active')::boolean, true))$q$ into cron_ok;
+        exception when others then cron_ok := false;
+        end;
+    end if;
+    select * into st from public.push_kick_state k where k.id;
+    if st.request_id is not null and st.token_hash = md5(coalesce(tok, '')) and to_regclass('net._http_response') is not null then
+        begin
+            execute 'select status_code from net._http_response where id = $1' into code using st.request_id;
+        exception when others then code := null;
+        end;
+    end if;
+    return jsonb_build_object('instant', token_ok and net_ok and coalesce(cron_ok, false), 'token', token_ok, 'pg_net', net_ok, 'cron', coalesce(cron_ok, false),
+        'github', code, 'last_dispatch', st.last_at, 'last_check', st.checked_at, 'last_status', st.last_status);
+end;
+$$;
+
 revoke all on function public.push_check_secret(text), public.push_day_part(), public.push_round_name(integer, integer, boolean), public.push_test_key(uuid, timestamptz) from public, anon, authenticated;
-revoke all on function public.dev_push_test() from public, anon;
-grant execute on function public.dev_push_test() to authenticated;
+-- Okamžité odesílání: push_kick spouští jen pg_cron (vlastník databáze), pomocné funkce nejsou pro nikoho přes API
+revoke all on function public.push_pending(), public.push_quiet_now(), public.push_net_ready(), public.push_kick() from public, anon, authenticated;
+revoke all on function public.dev_push_test(), public.dev_push_status() from public, anon;
+grant execute on function public.dev_push_test(), public.dev_push_status() to authenticated;
 revoke all on function public.push_subscribe(text, text, text) from public, anon;
 grant execute on function public.push_subscribe(text, text, text) to authenticated;
 -- Odesílatel se hlásí veřejným klíčem (role anon) a prokazuje se tajemstvím
@@ -1797,7 +1932,8 @@ grant execute on function public.challenge_progress_save(text, integer, boolean,
 -- tests/sql-monitor.test.js hlídá, že se obě čísla shodují. Funkce patří na konec souboru: když spuštění skončí chybou dřív, verze zůstane stará.
 -- 3: průběh výzev a zápasů turnaje na serveru (challenge_progress, tournament_answers), XP za výhry v turnaji jednou za účet (tournament_xp_claims).
 -- 4: zkušební upozornění přes server pro dev_admins (push_tests, dev_push_test, druh 'test' v push_due a push_mark).
+-- 5: okamžité odesílání upozornění (push_kick přes pg_cron a pg_net, push_kick_state, push_pending sdílené s push_due, dev_push_status).
 create or replace function public.schema_version() returns integer
-language sql immutable as $$ select 4 $$;
+language sql immutable as $$ select 5 $$;
 revoke all on function public.schema_version() from public, anon;
 grant execute on function public.schema_version() to authenticated;

@@ -170,8 +170,10 @@ Dřív se průběh rozehrané výzvy (které otázky už hráč zodpověděl) dr
 ## Upozornění (web push)
 
 Aplikace umí poslat upozornění: **začíná tvůj turnajový zápas** (dnes hraješ kolo, večer podruhé), **nová výzva od hráče**, **soupeř odehrál tvoji výzvu** a **zpráva o turnaji** (nepřijat, zrušen, vypadl jsi, výsledek).
-Supabase nemá plánovač, proto odesílá GitHub Actions (`.github/workflows/push.yml`, jednou za hodinu mezi 7:00 a 21:00 pražského času). Nepoužívá se žádný klíč `service_role` ani `sb_secret_…`:
-odesílač volá v databázi funkce `push_due` a `push_mark` s veřejným klíčem z `config.js` a vlastním tajemstvím, které leží jen v tabulce `app_secrets` (přes API ji nejde ani přečíst) a v GitHub secrets.
+Odesílá je GitHub Actions (`.github/workflows/push.yml`, posílá se mezi 7:00 a 21:00 pražského času). Spouští ho hodinový plán GitHubu, který ale běží nespolehlivě
+(někdy jen párkrát za den), a po nastavení [okamžitého odesílání](#okamžité-odesílání-upozornění) hlavně sama databáze, takže upozornění přijde do 1–2 minut.
+Nepoužívá se žádný klíč `service_role` ani `sb_secret_…`: odesílač volá v databázi funkce `push_due` a `push_mark` s veřejným klíčem z `config.js` a vlastním tajemstvím,
+které leží jen v tabulce `app_secrets` (přes API ji nejde ani přečíst) a v GitHub secrets.
 Bez níže popsaného nastavení se v aplikaci tlačítko „Zapnout upozornění“ vůbec neukáže a nic se neposílá.
 
 **Souhlas a odhlášení:** upozornění vzniknou až po klepnutí na **Nastavení → Hra → Zapnout upozornění** a po souhlasu v prohlížeči. Tamtéž jdou vypnout (smaže se předplatné v prohlížeči i v databázi)
@@ -197,14 +199,20 @@ Jednorázové nastavení:
    - `VAPID_PRIVATE_KEY`: *Private Key* z kroku 2 (nikam jinam ho nevkládej),
    - `PUSH_CRON_SECRET`: stejné tajemství jako v kroku 4.
    Volitelně v záložce *Variables* proměnná `VAPID_SUBJECT` (kontakt provozovatele, `mailto:tvuj@email.cz`); výchozí je adresa aplikace.
-6. **Vyzkoušení:** Actions → *Upozornění* → **Run workflow** (s `dry_run` = `true` jen vypíše, co by poslal). Plánované spouštění funguje jen z výchozí větve (`main`).
-   V aplikaci zapni upozornění a zkus založit výzvu ze druhého účtu; upozornění přijde nejpozději při dalším hodinovém běhu.
+6. **Okamžité odesílání:** nastav podle části [Okamžité odesílání upozornění](#okamžité-odesílání-upozornění) níž (token GitHubu, `pg_cron`, `pg_net`, jedno SQL).
+   Bez něj upozornění chodí jen při hodinových bězích GitHubu, které se často zpozdí o hodiny.
+7. **Vyzkoušení:** Actions → *Upozornění* → **Run workflow** (s `dry_run` = `true` jen vypíše, co by poslal). Plánované spouštění funguje jen z výchozí větve (`main`).
+   V aplikaci zapni upozornění a zkus založit výzvu ze druhého účtu; s okamžitým odesíláním přijde upozornění do 1–2 minut, jinak až při běhu GitHubu.
 
 Poznámky: na iPhonu fungují upozornění jen v aplikaci přidané na plochu (iOS 16.4 a novější). Výměna klíčů VAPID zneplatní všechna předplatná, hráči si upozornění zapnou znovu.
-Chceš-li odesílat častěji než po hodině, uprav `cron` v `push.yml` (GitHub plánované běhy občas zpožďuje o několik minut).
+Častější `cron` v `push.yml` nepomůže (GitHub plánované běhy zpožďuje nebo vynechává); rychlé doručení zajistí okamžité odesílání níž.
 
 **Schéma 4 (zkušební upozornění):** spusť znovu celý `supabase/schema.sql` (přibyla tabulka `push_tests`, funkce `dev_push_test()` a `push_test_key()`
-a druh `test` v `push_due` a `push_mark`). Aplikace potřebuje verzi 4; správci (vývojářský režim) jinak v Nastavení ukáže „Databáze není aktuální“.
+a druh `test` v `push_due` a `push_mark`).
+
+**Schéma 5 (okamžité odesílání):** spusť znovu celý `supabase/schema.sql` (přibyla funkce `push_kick()`, tabulka `push_kick_state`, funkce `dev_push_status()`
+pro vývojářské okno a interní `push_pending()`, kterou teď sdílí `push_due` – navenek se `push_due` nemění). Schéma jde spustit i bez rozšíření `pg_cron` a `pg_net`.
+Aplikace potřebuje verzi 5; správci (vývojářský režim) jinak v Nastavení ukáže „Databáze není aktuální“ a zkouška upozornění napíše obecný text.
 
 **Když přepínač nejde zapnout:** výsledek se ukáže hned u přepínače (podtitulek řádku Upozornění, pod ním rada, krátce i v hlášce dole). Během čekání je tam „Zapínám…“.
 Možné příčiny: *Prohlížeč upozornění zablokoval* (klepnutí na řádek otevře okno „Jak povolit upozornění“ s postupem pro Android, aplikaci na ploše, iPhone a počítač;
@@ -212,6 +220,82 @@ tlačítko „Už jsem povolil – zkontrolovat“ zapnutí dokončí, stejně t
 někdy ztlumí – ikona zvonku v adresním řádku), *Nespustila se část aplikace pro upozornění (service worker)* (obnovit stránku), *Push služba prohlížeče odběr odmítla*
 (s názvem chyby, např. `AbortError`; v Brave je potřeba zapnout „Používat služby Google pro zasílání zpráv“), *Databáze nemá funkce upozornění* (404: spustit schéma),
 *Přihlášení vypršelo* (401) a *Server odpověděl chybou …* (jiný kód).
+
+### Okamžité odesílání upozornění
+
+GitHub spouští hodinový plán odesílače velmi nespolehlivě (někdy jen dvakrát za den), takže upozornění by čekala hodiny. Proto může odesílač spouštět
+sama databáze: každou minutu se podívá, jestli je co poslat, a když ano, řekne GitHubu „spusť Upozornění“. Upozornění pak přijde **do 1–2 minut**.
+K tomu potřebuje token z GitHubu, který má přístup jen k Actions (spouštění workflow) v tomto jediném repozitáři – kód měnit ani číst secrets nemůže. Token leží jen ve tvé databázi (tabulka `app_secrets`, přes API
+ji nikdo nepřečte); klíč `service_role` ani `sb_secret_…` se ani tady nepoužívá. Nastavení se dělá jednou a zabere asi 10 minut.
+
+Předpoklad: upozornění fungují podle kroků výš (VAPID, `PUSH_CRON_SECRET`) a databáze má **schéma 5** – spusť znovu celý `supabase/schema.sql`
+(SQL Editor → New query → vložit → Run, viz [Aktualizace databáze](#aktualizace-databáze-profily-a-výzvy)).
+
+**a) Token na GitHubu**
+
+1. Na https://github.com klikni vpravo nahoře na svou **profilovou fotku** → **Settings**.
+2. V levém menu úplně dole **Developer settings** → **Personal access tokens** → **Fine-grained tokens** → **Generate new token**.
+3. *Token name*: `Mudrlant upozornění`. *Resource owner* nech svůj účet.
+4. *Expiration*: vyber nejdelší dobu, kterou nabídka dovolí (u *Custom* datum co nejdál, nebo *No expiration*, pokud ho GitHub nabízí).
+   Až token vyprší (GitHub ti předem pošle e-mail), upozornění zase chodí jen při hodinových bězích. Pak vytvoř nový token stejným postupem
+   a spusť znovu SQL z kroku c) s novým tokenem.
+5. *Repository access*: **Only select repositories** → v seznamu vyber **geografie-kviz**.
+6. *Permissions* → **Repository permissions** → u **Actions** zvol **Read and write** (v novějším vzhledu **+ Add permissions** → zaškrtni **Actions**
+   → vpravo **Read and write**). *Metadata: Read-only* se přidá samo. Nic dalšího nezapínej.
+7. Dole **Generate token** (a v okně ještě jednou potvrď). Token začíná `github_pat_` a ukáže se **jen jednou**: hned ho zkopíruj ikonou vedle něj.
+   Nikam ho neposílej a nevkládej do repozitáře ani do GitHub secrets.
+
+**b) Rozšíření v Supabase**
+
+1. V projektu Supabase v levém menu **Database** → **Extensions**.
+2. Do hledání napiš `pg_cron` a zapni přepínač (potvrď **Enable extension**, schéma nech, jak je nabídnuté).
+3. Totéž pro `pg_net`.
+
+**c) SQL Editor**
+
+1. **SQL Editor** → **New query** a vlož tohle SQL. `SEM_VLOZ_TOKEN` nahraď zkopírovaným tokenem (apostrofy kolem nech):
+
+   ```sql
+   -- Token z GitHubu (jen v databázi, přes API ho nikdo nepřečte)
+   insert into public.app_secrets (name, value) values ('github_token', 'SEM_VLOZ_TOKEN')
+   on conflict (name) do update set value = excluded.value;
+   -- Každou minutu se podívat, jestli je co poslat (úloha se stejným názvem se při dalším spuštění jen přepíše)
+   select cron.schedule('upozorneni', '* * * * *', $$select public.push_kick()$$);
+   -- Jednou denně smazat starý záznam o bězích (úloha běží každou minutu, záznam by jinak pořád rostl)
+   select cron.schedule('upozorneni-uklid', '17 3 * * *', $$delete from cron.job_run_details where end_time < now() - interval '3 days'$$);
+   ```
+
+2. **Run**. Dole se ukáže číslo úlohy (např. `1`). Spustit totéž znovu je bezpečné: token se přepíše a úloha `upozorneni` zůstane jedna
+   (pg_cron úlohu se stejným názvem jen aktualizuje). Chyba *violates check constraint* znamená, že místo tokenu zůstal `SEM_VLOZ_TOKEN` nebo jen jeho kus.
+3. Jen když máš repozitář pod jiným názvem než `taronwho/geografie-kviz` (vlastní kopie), přidej ještě (s vlastním názvem):
+   `insert into public.app_secrets (name, value) values ('github_repo', 'vlastnik/repozitar') on conflict (name) do update set value = excluded.value;`
+
+**d) Jak ověřit**
+
+1. Otevři aplikaci s `?vyvojar` → Nastavení → Vývojářský režim → **Poslat zkušební upozornění přes server**. Okno má napsat
+   **„Upozornění přijde do 1–2 minut.“** Když napíše, že okamžité odesílání je nastavené jen zčásti, vypíše i to, co chybí.
+2. Do 1–2 minut přijde „Zkušební upozornění Mudrlanta“ (i v noci – zkušební upozornění se posílají i v nočním klidu).
+3. Na GitHubu → **Actions** → vlevo **Upozornění** je nový běh s událostí **workflow_dispatch** (hodinové běhy mají **schedule**);
+   v logu kroku *Odeslání* je „Odesláno 1 zařízením“.
+4. Když nic nepřijde, spusť v SQL Editoru `select public.push_kick();` – vrátí krátký stav: `no-token` (chybí token, krok c), `bad-token` (token se
+   nezkopíroval celý nebo s mezerou uvnitř), `no-pg_net` (krok b), `nothing` (není co poslat), `wait`/`backoff`/`hour-limit` (pojistky níž),
+   `dispatched` (GitHub dostal pokyn). Odpověď GitHubu ukáže `select status_code, created from net._http_response order by created desc limit 5;`:
+   `204` = v pořádku, `401` = token neplatí nebo vypršel, `403` nebo `404` = token nemá u repozitáře **geografie-kviz** právo *Actions: Read and write*.
+   Okno zkoušky v aplikaci po odmítnutí GitHubem napíše „GitHub ho naposledy odmítl“.
+
+**e) Záloha a pojistky**
+
+- Hodinový plán v `push.yml` zůstává jako **záloha** (třeba když token vyprší); nic v něm neměň.
+- Databáze spustí workflow, jen když by odesílač opravdu něco poslal – podle stejných pravidel jako `push_due` (předvolby hráče, nejvýš jedna zpráva
+  téhož druhu za hodinu, platné odběry). V nočním klidu (21:00–7:00) jen kvůli zkušebnímu upozornění; ostatní počkají a spustí se ráno v 7:00.
+- Proti zacyklení a zbytečným během: další spuštění nejdřív 3 minuty po předchozím, nejvýš 12 za hodinu, a když čekají pořád tytéž zprávy
+  (doručení selhává nebo GitHub běh nespustil), další pokus až za 10, 20, 40 a pak 60 minut. Stav je v tabulce `push_kick_state` (přes API nedostupná).
+- Vypnutí: `select cron.unschedule('upozorneni');` (případně ještě `delete from public.app_secrets where name = 'github_token';` a token smaž na GitHubu
+  ve Fine-grained tokens → **Delete**). Upozornění pak chodí jen podle hodinového plánu.
+- Token prochází jen databází a rozšířením `pg_net` (jeho schéma `net` není přes API vidět – nepřidávej ho v Settings → API do *Exposed schemas*).
+
+**f) Schéma 5:** okamžité odesílání potřebuje `supabase/schema.sql` ve verzi 5 (viz výš). Po každé budoucí aktualizaci schématu stačí spustit
+celý soubor znovu; token i úloha `upozorneni` zůstanou.
 
 ### Jak upozornění vyzkoušet (krok za krokem)
 
@@ -227,11 +311,17 @@ někdy ztlumí – ikona zvonku v adresním řádku), *Nespustila se část apli
 5. **Poslat zkušební upozornění přes server** (celá cesta: databáze → GitHub → push služba → telefon). Jednou zapiš svůj účet do `dev_admins` (SQL Editor, přezdívku
    nahraď svou): `insert into public.dev_admins (user_id) select id from public.profiles where lower(display_name) = lower('Taron') on conflict do nothing;`
    Po klepnutí databáze (`dev_push_test()`) zařadí zkušební zprávu pro tvůj účet (všechna tvoje zařízení se zapnutými upozorněními) a aplikace napíše, co dál:
-   **Otevři GitHub → Actions → Upozornění → Run workflow (dry_run = false), nebo počkej na další hodinový běh (7–21 h).** Do minuty po doběhnutí workflow přijde
-   „Zkušební upozornění Mudrlanta“; v logu běhu je „Odesláno N zařízením“. Klepnutí otevře záložku Více hráčů.
+   - s **okamžitým odesíláním** (část výš): **„Upozornění přijde do 1–2 minut.“** – nic dalšího dělat nemusíš;
+   - bez něj (nebo se schématem starším než 5): že server posílá, jen když ho spustí GitHub (má to být každou hodinu, ale často je to mnohem později),
+     odkaz na návod [Okamžité odesílání upozornění](#okamžité-odesílání-upozornění) a vedlejší rada **„Hned ho pošleš na GitHubu: Actions → Upozornění → Run workflow“**
+     (`dry_run` nech `false`); když je nastavení rozpracované, i co chybí (token GitHubu, pg_net, úloha pg_cron);
+   - když GitHub poslední spuštění odmítl (např. vypršelý token): „GitHub ho naposledy odmítl (chyba 401)“ a odkaz na návod.
+
+   Do minuty po doběhnutí workflow přijde „Zkušební upozornění Mudrlanta“; v logu běhu je „Odesláno N zařízením“. Klepnutí otevře záložku Více hráčů.
    - Zpráva se pošle jen jednou (pak ji `push_mark` uzavře), čeká nejvýš 24 hodin; další klepnutí na tlačítko ji zařadí znovu (hodinový limit pro zkoušky neplatí).
-   - **Noční klid** (21:00–7:00 Praha): plánované běhy nic neposílají; **ručně spuštěný** běh (Run workflow) pošle i v noci, ale jen zkušební upozornění –
-     ostatní (turnaje, výzvy) počkají na ráno. Skript to pozná podle proměnné `MANUAL` (nastavuje ji workflow); `FORCE=true` při ručním spuštění skriptu pošle vše.
+   - **Noční klid** (21:00–7:00 Praha): plánované běhy nic neposílají; běh spuštěný **ručně** (Run workflow) nebo **databází** (okamžité odesílání) pošle i v noci,
+     ale jen zkušební upozornění – ostatní (turnaje, výzvy) počkají na ráno. Skript to pozná podle proměnné `MANUAL` (workflow ji nastaví u každého
+     spuštění typu `workflow_dispatch`); `FORCE=true` při ručním spuštění skriptu pošle vše.
    - Účet mimo `dev_admins` dostane „Tenhle účet není v dev_admins“; účet bez zapnutých upozornění „Účet nemá zapnutá upozornění na žádném zařízení“ (nic se nezařadí).
    - `dry_run = true` jen vypíše, co by se poslalo (zkušební zprávu nechá čekat).
 ## Moje data: export a smazání účtu (zveřejnění, Google Play)
