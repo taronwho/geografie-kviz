@@ -55,11 +55,24 @@ export const fileName = (commonsUrl) => decodeURIComponent(commonsUrl.split('/Sp
 // Náhled fotky přímo z upload.wikimedia.org: cesta podle MD5 názvu souboru
 export const thumbHash = (file) => createHash('md5').update(file.replace(/ /g, '_')).digest('hex').slice(0, 2);
 
+// Fotky z Wikidat, které nejdou použít (reports/licence-problemy.md: metadata Commons bez licence, smazaný soubor),
+// a volná náhrada z Commons; prázdný řetězec = položka bez fotky
+export const PHOTO_REPLACEMENTS = {
+    // NASA PIA… bez šablony licence na Commons
+    'PIA18317-SaturnMoon-Tethys-Cassini-20150411.jpg': 'Global view of Tethys from Cassini.jpg',
+    'PIA24168-Asteroid-99942Apophis-RadarImages-20210326.jpg': '99942 Apophis shape.png',
+    // Soubory, které na Commons už nejsou (Wikidata už mají jiné)
+    'Bundesarchiv B 145 Bild-F078072-0004, Konrad Adenauer.jpg': 'Konrad Adenauer - 14. CDU-Bundesparteitag-kasf0095.JPG',
+    'Parus atricapillus 2 (Marek Szczepanek).jpg': 'Poecile montanus Raschötz 20190905.jpg',
+    'Slobodan Milosevic in French delegation 2000.png': 'Stevan Kragujević, Slobodan Milošević, portret.jpg'
+};
+
 // Fotka položky: název souboru a hash pro náhled (jen skutečné fotky řeší až aplikace)
 export const imageFields = (commonsUrl) => {
     if (!commonsUrl) return {};
-    const image = fileName(commonsUrl);
-    return { im: image, ih: thumbHash(image) };
+    const found = fileName(commonsUrl);
+    const image = Object.hasOwn(PHOTO_REPLACEMENTS, found) ? PHOTO_REPLACEMENTS[found] : found;
+    return image ? { im: image, ih: thumbHash(image) } : {};
 };
 
 // Rok z data Wikidat (i před naším letopočtem: „-0753-01-01T00:00:00Z“)
