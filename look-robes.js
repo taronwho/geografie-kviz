@@ -6,7 +6,8 @@
     const Look = window.MudrlantLook;
     if (!Look) return;
     const ROBE_IDS = Look.ROBES.map(robe => robe.id).filter(id => id !== 'vinova');
-    const OWL_SRC = /^(icons\/(?:logo|topics\/sova-[a-z]+?))(?:-(?:zelena|modra|ruzova|fialova|cerna|zlata))?\.webp$/;
+    // Pózy sovy včetně sov titulů (sova-titul-1 … 10)
+    const OWL_SRC = /^(icons\/(?:logo|topics\/sova-[a-z0-9-]+?))(?:-(?:zelena|modra|ruzova|fialova|cerna|zlata))?\.webp$/;
     const owlSrc = (src, robe) => {
         const match = OWL_SRC.exec(src || '');
         return match ? `${match[1]}${robe && robe !== 'vinova' ? `-${robe}` : ''}.webp` : null;

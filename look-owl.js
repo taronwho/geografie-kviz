@@ -77,14 +77,26 @@
 
     // --- Sova jako obrázek profilu: zápis voleb do textu (sloupec profiles.owl), např. 'robe=zelena;head=koruna.modra;face=bryle.original' ---
     // Platnost se kontroluje proti katalogu (ne proti odemčení – hráč má sovu, kterou si ostatní prohlížejí); neznámé části se zahodí.
+    // Sova titulu (póza, Look.POSES) je část 'pose=titul-5' hned za oblekem: 'robe=zelena;pose=titul-5;face=bryle.original'. Starší aplikace
+    // klíč pose nezná a přeskočí ho (ukáže sovu s doplňky v barvě obleku), proto se doplňky zapisují i s pózou.
     const OWL_MAX = 200;
     const encodeOwl = (prefs) => {
         const parsed = parseOwl(prefs);
         const parts = [`robe=${parsed ? parsed.robe : 'vinova'}`];
+        if (parsed && parsed.pose) parts.push(`pose=${parsed.pose}`);
         if (parsed) for (const slot of ORDER) if (parsed.acc[slot]) parts.push(`${slot}=${parsed.acc[slot].id}.${parsed.acc[slot].color}${parsed.acc[slot].flag ? `.${parsed.acc[slot].flag}` : ''}`);
         return parts.join(';').slice(0, OWL_MAX);
     };
-    // Vstup: text, nebo objekt { robe, acc } (třeba Look.prefs()); výstup { robe, acc } nebo null, když nejde o platnou sovu
+    // Sova titulu, kterou hráč na dané úrovni smí mít: zvolená, když ji dosáhl; jinak nejvyšší dosažená (po ztrátě úrovně);
+    // bez platné pózy nebo úrovně null (běžná sova s doplňky)
+    const allowedPose = (pose, level) => {
+        const item = Look && Look.findPose ? Look.findPose(pose) : null;
+        if (!item || !(level >= 1)) return null;
+        if (level >= item.level) return item.id;
+        const reached = Look.POSES.filter(entry => level >= entry.level).pop();
+        return reached ? reached.id : null;
+    };
+    // Vstup: text, nebo objekt { robe, acc, pose } (třeba Look.prefs()); výstup { robe, acc } (se sovou titulu i pose) nebo null, když nejde o platnou sovu
     // Vlajka státu na vlaječce je třetí část zápisu: 'hand=vlajka.original.q101472'; starší zápis bez ní platí dál
     // Barva doplňku v zápisu: z katalogu, nebo vlastní odstín h<stupně> (platnost se kontroluje bez ohledu na odemčení)
     const validColor = (color) => Look.ACC_COLORS.some(entry => entry.id === color && entry.id !== 'vlastni') || Look.customHue(color) !== null;
@@ -92,8 +104,11 @@
         if (!Look) return null;
         let robe = 'vinova';
         const acc = {};
+        let pose = null;
         let known = false;
         const takeRobe = (id) => { if (Look.find('robes', id)) { robe = id; known = true; } };
+        // Sova titulu: jen titul-1 … titul-10 (Look.POSES), první platná; jiná hodnota se zahodí
+        const takePose = (id) => { if (!pose && Look.findPose && Look.findPose(id)) { pose = id; known = true; } };
         const takeAcc = (slot, id, color, flag) => {
             const item = Look.find('accessories', id);
             if (!item || item.slot !== slot || acc[slot]) return;
@@ -109,20 +124,50 @@
                 const key = part.slice(0, eq);
                 const value = part.slice(eq + 1);
                 if (key === 'robe') takeRobe(value);
+                else if (key === 'pose') takePose(value);
                 else if (Look.SLOTS.some(slot => slot.id === key)) { const [id, color, flag] = value.split('.'); takeAcc(key, id, color === undefined ? 'original' : color, flag); }
             }
         } else if (input && typeof input === 'object') {
             takeRobe(input.robe);
+            takePose(input.pose);
             const source = input.acc && typeof input.acc === 'object' ? input.acc : {};
             for (const slot of Look.SLOTS) { const entry = source[slot.id]; if (entry && typeof entry === 'object') takeAcc(slot.id, entry.id, entry.color, entry.flag); }
             known = true;
         } else return null;
-        return known ? { robe, acc } : null;
+        if (!known) return null;
+        return pose ? { robe, acc, pose } : { robe, acc };
     }
-    // Sova z dané konfigurace (ne z mých voleb): data-keep ji ochrání před přebarvením pozorovatelem z look-robes.js
+    // Sova titulu v kolečku obrázku hráče: ilustrace icons/topics/sova-titul-<n>[-<barva>].webp (barva obleku jako u loga, bez doplňků),
+    // mírně zvětšená a posunutá tak, aby kolečko vyplnila sova s čepicí a jejím předmětem (knihy, lupa, brk…); výřez podle kompozice ilustrace.
+    // Třídy jsou vypsané celé, ať je Tailwind najde. Obal je <span> (sova bývá uvnitř <button> nebo <p>).
+    const POSE_CROP = {
+        'titul-1': 'w-[125%] left-[-12%] top-[-2%]',
+        'titul-2': 'w-[125%] left-[-14%] top-[-2%]',
+        'titul-3': 'w-[125%] left-[-14%] top-[-3%]',
+        'titul-4': 'w-[125%] left-[-14%] top-[-4%]',
+        'titul-5': 'w-[125%] left-[-16%] top-[-3%]',
+        'titul-6': 'w-[125%] left-[-16%] top-[-5%]',
+        'titul-7': 'w-[125%] left-[-13%] top-[-6%]',
+        'titul-8': 'w-[125%] left-[-12%] top-[-5%]',
+        'titul-9': 'w-[120%] left-[-10%] top-[-8%]',
+        'titul-10': 'w-[125%] left-[-12%] top-[-6%]'
+    };
+    const poseSrc = (pose, robe = 'vinova') => {
+        const item = Look && Look.findPose ? Look.findPose(pose) : null;
+        if (!item) return null;
+        const known = Look.find('robes', robe) ? robe : 'vinova';
+        return `icons/topics/sova-${item.id}${known === 'vinova' ? '' : `-${known}`}.webp`;
+    };
+    const poseHtml = (pose, robe) => {
+        const src = poseSrc(pose, robe);
+        return src ? `<span class="relative block h-full w-full overflow-hidden rounded-full"><img data-keep data-owl-pose="${pose}" src="${src}" alt="" class="absolute max-w-none select-none ${POSE_CROP[pose]}"></span>` : '';
+    };
+    // Sova z dané konfigurace (ne z mých voleb): data-keep ji ochrání před přebarvením pozorovatelem z look-robes.js.
+    // S pózou se kreslí sova titulu (vyplní celé kolečko, imgClass a wrapClass se neuplatní), jinak logo s doplňky.
     const owlAvatarHtml = (parsedOrText, imgClass = 'h-full w-auto', wrapClass = 'h-[88%]') => {
         const parsed = parseOwl(parsedOrText);
         if (!parsed) return '';
+        if (parsed.pose) return poseHtml(parsed.pose, parsed.robe);
         const src = `icons/logo${parsed.robe === 'vinova' ? '' : `-${parsed.robe}`}.webp`;
         return `<span class="relative inline-flex shrink-0 ${wrapClass}${hatClass(parsed.acc)}"><img data-keep src="${src}" alt="" class="${imgClass}">${layersHtml(parsed.acc, 'data-keep')}</span>`;
     };
@@ -264,5 +309,5 @@
     };
 
     if (Look) Look.register({ id: 'owl', tab: 'owl', title: 'Doplňky Mudrlanta', noTitle: true, tight: true, order: 5, render, click, change, apply: (prefs) => refresh(prefs.acc || {}) });
-    return { logoHtml, layersHtml, layerSrc, flagSrc, refresh, PAD, slotOf, encodeOwl, parseOwl, owlAvatarHtml, OWL_MAX };
+    return { logoHtml, layersHtml, layerSrc, flagSrc, refresh, PAD, slotOf, encodeOwl, parseOwl, owlAvatarHtml, allowedPose, poseSrc, poseHtml, POSE_CROP, OWL_MAX };
 });

@@ -3,11 +3,11 @@
 // Nastavení → Vzhled přidávají z vlastních souborů přes Look.register(...): look-themes.js, look-robes.js, look-frames.js.
 (function (root, factory) {
     const isNode = typeof module === 'object' && module.exports;
-    // Vlajky států pro vlaječku (look-flags.js, v prohlížeči se načítá před tímto souborem)
-    const api = factory(root, root.MudrlantFlags || (isNode ? require('./look-flags.js') : null));
+    // Vlajky států pro vlaječku (look-flags.js) a stupně sov titulů (quiz-core.js); v prohlížeči se oba načítají před tímto souborem
+    const api = factory(root, root.MudrlantFlags || (isNode ? require('./look-flags.js') : null), root.MudrlantCore || (isNode ? require('./quiz-core.js') : null));
     if (isNode) module.exports = api;
     else root.MudrlantLook = api;
-})(typeof self !== 'undefined' ? self : this, (root, Flags) => {
+})(typeof self !== 'undefined' ? self : this, (root, Flags, Core) => {
     'use strict';
     const KEY = 'mudrlant.look';
 
@@ -96,8 +96,14 @@
     const customHue = (color) => { const match = CUSTOM_HUE.exec(String(color)); const hue = match ? Number(match[1]) : NaN; return hue >= 0 && hue <= 355 && hue % 5 === 0 ? hue : null; };
     // Vlajka státu na vlaječce: id z look-flags.js (malé q Wikidat, např. q101472); cokoli jiného se zahodí
     const flagOk = (flag) => typeof flag === 'string' && /^q\d{1,9}$/.test(flag) && Boolean(Flags) && Flags.has(flag);
+    // Sova titulu jako obrázek profilu (póza): 'titul-1' … 'titul-10' podle stupňů Core.TITLE_OWL_FROM (level = od jaké úrovně), null = sova
+    // s doplňky. Volba se ukládá, jak ji hráč zvolil; na dosaženou úroveň se omezí až při vykreslení (MudrlantOwl.allowedPose), takže
+    // po ztrátě úrovně (vývojářský reset) se ukáže nejvyšší dosažená sova a po návratu úrovně zase ta zvolená. Není v CATALOG:
+    // nejde o samostatnou odměnu (oslavu má nový titul).
+    const POSES = (Core && Core.TITLE_OWL_FROM ? Core.TITLE_OWL_FROM : []).map((from, index) => ({ id: `titul-${index + 1}`, tier: index + 1, level: from }));
+    const findPose = (id) => POSES.find(pose => pose.id === id) || null;
     const CATALOG = { themes: THEMES, robes: ROBES, frames: FRAMES, avatars: AVATARS, accessories: ACCESSORIES, colors: ACC_COLORS.filter(color => color.level > 1) };
-    const DEFAULTS = { theme: 'vinova', robe: 'vinova', frame: 'zadny', title: 'level', acc: {} };
+    const DEFAULTS = { theme: 'vinova', robe: 'vinova', frame: 'zadny', title: 'level', acc: {}, pose: null };
 
     // Barva doplňku: z katalogu (odemčená) nebo vlastní odstín z palety (když je paleta odemčená)
     const colorOk = (color, ctx) => {
@@ -135,6 +141,7 @@
                 if (item.flags && flagOk(entry.flag)) value.acc[slot.id].flag = entry.flag;
             }
         }
+        value.pose = findPose(source.pose) ? source.pose : null;
         if (source.title === 'none' || source.title === 'level') value.title = source.title;
         else if (typeof source.title === 'string' && (!ctx || (ctx.badges && ctx.badges[source.title]))) value.title = source.title;
         return value;
@@ -188,5 +195,5 @@
     // Odměny odemknuté na dané úrovni (pro přehled úrovní)
     const rewardsAtLevel = (level) => Object.entries(CATALOG).flatMap(([category, items]) => items.filter(item => !item.badge && item.level === level).map(item => ({ category, item })));
 
-    return { CATALOG, THEMES, ROBES, FRAMES, AVATARS, ACCESSORIES, SLOTS, ACC_COLORS, customHue, colorOk, flagOk, DEFAULTS, isUnlocked, unlockText, find, normalize, prefs, setPref, onChange, register, getSections, apply, newRewards, rewardsAtLevel, REWARD_KINDS, rewardsForBadge, badgeRewardText };
+    return { CATALOG, THEMES, ROBES, FRAMES, AVATARS, ACCESSORIES, SLOTS, ACC_COLORS, POSES, findPose, customHue, colorOk, flagOk, DEFAULTS, isUnlocked, unlockText, find, normalize, prefs, setPref, onChange, register, getSections, apply, newRewards, rewardsAtLevel, REWARD_KINDS, rewardsForBadge, badgeRewardText };
 });
