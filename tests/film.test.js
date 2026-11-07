@@ -146,3 +146,11 @@ test('film: nesprávné možnosti a okruhy', () => {
     assert.ok(inCollection('drzitele-oscara').includes('Miloš Forman'));
     assert.ok(inCollection('westerny').includes('Limonádový Joe aneb Koňská opera'));
 });
+
+test('film: Hrají podle obsazení (pořadí v titulcích), ne podle slávy herce', () => {
+    // Captain Marvel: Brie Larson v hlavní roli, ne Scarlett Johansson v krátké scéně po titulcích
+    assert.deepEqual(find('Captain Marvel').f.cast.slice(0, 2), ['Brie Larson', 'Samuel L. Jackson']);
+    assert.ok(!find('Captain Marvel').f.cast.includes('Scarlett Johanssonová'));
+    assert.equal(find('Avengers: Endgame').f.cast[0], 'Robert Downey Jr.');
+    assert.deepEqual(find('Kmotr').f.cast.slice(0, 2), ['Marlon Brando', 'Al Pacino']);
+});

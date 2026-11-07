@@ -39,6 +39,37 @@ export const sparql = async (query, endpoint = ENDPOINT, attempts = 6) => {
 };
 export const qlever = (query, attempts) => sparql(QLEVER_PREFIXES + query, QLEVER, attempts);
 
+// Hodnoty vlastnosti v pořadí výroků (SPARQL pořadí nevrací) s kvalifikátorem pořadí P1545: [[položka, [[hodnota, pořadí|null], …]], …].
+// Z API Wikidat po 10 položkách za sebou (souběžné dotazy API odmítá s 429); zastaralé výroky vynechány
+export const statementOrder = async (qids, property, onProgress) => {
+    const result = [];
+    for (let i = 0; i < qids.length; i += 10) {
+        const batch = qids.slice(i, i + 10);
+        for (let attempt = 1; attempt <= 6; attempt++) {
+            try {
+                const response = await fetch(`https://www.wikidata.org/w/api.php?action=wbgetentities&format=json&props=claims&ids=${batch.join('|')}`,
+                    { headers: { 'User-Agent': USER_AGENT }, signal: AbortSignal.timeout(60000) });
+                if (response.status === 429 || response.status >= 500) throw new Error(`HTTP ${response.status}`);
+                const entities = (await response.json()).entities || {};
+                for (const qid of batch) {
+                    const claims = (((entities[qid] || {}).claims || {})[property] || []).filter(claim => claim.rank !== 'deprecated' && claim.mainsnak.datavalue);
+                    result.push([qid, claims.map(claim => {
+                        const ordinal = Number(((claim.qualifiers || {}).P1545 || []).map(qualifier => qualifier.datavalue && qualifier.datavalue.value).find(Boolean));
+                        return [claim.mainsnak.datavalue.value.id, Number.isFinite(ordinal) && ordinal > 0 ? ordinal : null];
+                    })]);
+                }
+                break;
+            } catch (error) {
+                if (attempt === 6) throw error;
+                await sleep(5000 * attempt);
+            }
+        }
+        if (onProgress) onProgress(Math.min(i + 10, qids.length), qids.length);
+        await sleep(500);
+    }
+    return result;
+};
+
 export const id = (uri) => uri.split('/').pop();
 export const round = (n, digits = 0) => Math.round(n * 10 ** digits) / 10 ** digits;
 export const values = (qids) => qids.map(q => 'wd:' + q).join(' ');
