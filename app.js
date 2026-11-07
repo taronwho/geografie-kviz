@@ -10,7 +10,7 @@
         processWikiText, takeLeadFacts, checkAnswer, normalizeAnswer, filterItems, pickItem, sortItems,
         buildItemChoices, cultureLandsFor, findAnswerItem, setCountries, updateMistakes, nameAnswers, pointsFor, dropKnownFacts, scaleKnown, dropChoiceNames,
         computeStreak, buildShareText, getTileLayout, shuffle,
-        LEVEL_XP, xpForLevel, MAX_LEVEL, LEVEL_TITLES,
+        LEVEL_XP, xpForLevel, MAX_LEVEL, LEVEL_TITLES, titleOwlTier,
         BADGES, BADGE_GROUPS, BADGE_BY_ID, earnedBadgeIds, compactBadges, expandBadges, normalizeCounters,
         levelProgress, titleForLevel, nextTitle, answerXp, DAILY_XP, DAILY_ALL_XP, streakXp, MASTERY_STEPS, masteryStars, nextMastery
     } = window.MudrlantCore;
@@ -924,6 +924,30 @@
         if (!item || Social.AVATARS.includes(emoji) || (myProfile && myProfile.avatar === emoji) || Look.isUnlocked(item, lookContext())) return null;
         return item;
     };
+    // Sovy titulů (icons/topics/sova-titul-<n>.webp): ilustrace stupně titulu podle úrovně; barvu obleku jí dá look-robes.js
+    const titleOwlPose = (level) => `titul-${titleOwlTier(level)}`;
+    const titleOwlArt = (level) => `sova-${titleOwlPose(level)}`;
+    // Tituly jednoho stupně sovy (např. Učeň, Žák)
+    const tierTitles = (tier) => LEVEL_TITLES.filter(entry => titleOwlTier(entry.from) === tier).map(entry => entry.title);
+    // Moje zvolená sova titulu omezená na dosaženou úroveň (null = sova s doplňky)
+    const myPose = () => { const ctx = lookContext(); return Owl && Look ? Owl.allowedPose(ctx.prefs.pose, ctx.level) : null; };
+    // Dlaždice sov titulů v Profilu → Obrázek (hned za „Moje sova“): sova v mé barvě obleku, oříznutá do kolečka jako v profilovce;
+    // dosažené jdou vybrat, vyšší jsou zašedlé s úrovní, od které se odemknou, a klepnutí jen řekne, kdy to bude
+    const poseTiles = () => {
+        if (!Owl || !Owl.poseHtml || !Look || !meDraft) return '';
+        const ctx = lookContext();
+        return Look.POSES.map(pose => {
+            const titles = tierTitles(pose.tier);
+            const label = `Sova titulu ${titles[0]} (${titles.join(', ')})`;
+            const art = Owl.poseHtml(pose.id, ctx.prefs.robe);
+            if (ctx.level < pose.level) {
+                return `<button type="button" data-locked-owl="${pose.id}" aria-disabled="true" aria-label="${escapeHtml(`${label} je zamčená: od úrovně ${pose.level}`)}" title="${escapeHtml(`${label}: od úrovně ${pose.level}`)}" class="${AVATAR_TILE} ${AVATAR_OFF} relative">`
+                    + `<span class="block h-full w-full opacity-40 grayscale">${art}</span><span class="absolute bottom-0 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-white px-1 text-[9px] font-black leading-[0.75rem] text-slate-700 dark:bg-slate-900 dark:text-slate-200">úr.&nbsp;${pose.level}</span></button>`;
+            }
+            const on = Boolean(meDraft.owl && meDraft.pose === pose.id);
+            return `<button type="button" data-pick-owl="${pose.id}" aria-label="${escapeHtml(label)}" title="${escapeHtml(label)}" aria-pressed="${on}" class="${AVATAR_TILE} ${on ? AVATAR_ON : AVATAR_OFF}">${art}</button>`;
+        }).join('');
+    };
     const refreshPush = async () => {
         const user = signedUser();
         if (!Push || !user) { pushState = null; pushPrefs = null; return; }
@@ -993,7 +1017,7 @@
         if ((!user || !Social) && meTab === 'profile') meTab = 'game';
         if (user && Social && !meDraft) {
             const base = myProfile || { display_name: user.name, avatar: '🦊', color: 'emerald' };
-            meDraft = { name: base.display_name, avatar: base.avatar, color: base.color, owl: Boolean(base.owl && Owl) };
+            meDraft = { name: base.display_name, avatar: base.avatar, color: base.color, owl: Boolean(base.owl && Owl), pose: base.owl && Owl && Look ? myPose() : null };
             if (!myProfile) loadMyProfile().then(() => { if (!meDirty && document.getElementById('settings-overlay')) { meDraft = null; openSettings(meNote); } });
         }
         let overlay = document.getElementById('settings-overlay');
@@ -1005,7 +1029,7 @@
         if (!overlay) overlay = createSettingsOverlay();
         const state = Auth ? Auth.getState() : { configured: false };
         const profile = user ? (myProfile || { display_name: user.name, avatar: '🦊', color: 'emerald' }) : null;
-        const shown = profile && meTab === 'profile' && meDraft ? { ...profile, ...{ avatar: meDraft.avatar, color: meDraft.color, owl: meDraft.owl ? myOwlText() : null, draft: true } } : profile;
+        const shown = profile && meTab === 'profile' && meDraft ? { ...profile, ...{ avatar: meDraft.avatar, color: meDraft.color, owl: meDraft.owl ? ownOwlText(meDraft.pose) : null, draft: true } } : profile;
         const level = levelProgress(loadProgress().xp);
         const noteText = note || meNote;
         const tabList = [['game', 'gamepad-2', 'Hra'], ...(user && Social ? [['profile', 'user-round', 'Profil']] : []), ['look', 'palette', 'Vzhled'], ...(Owl ? [['owl', 'sparkles', 'Mudrlant']] : [])];
@@ -1045,7 +1069,7 @@
                 </label>
                 <div>
                     <p class="${ME_HEADING} mb-1.5">Obrázek</p>
-                    <div data-avatar-strip class="scroll-fade-x relative -mx-1 grid auto-cols-[2.5rem] grid-flow-col grid-rows-3 gap-1 overflow-x-auto overscroll-x-contain px-1 py-0.5 pr-8">${Owl && Owl.owlAvatarHtml ? `<button type="button" data-pick-owl aria-label="Sova Mudrlant" title="Sova Mudrlant" aria-pressed="${meDraft.owl}" class="${AVATAR_TILE} ${meDraft.owl ? AVATAR_ON : AVATAR_OFF}">${Owl.owlAvatarHtml(myOwlText(), 'h-full w-auto', 'h-[88%]')}</button>` : ''}${Social.allAvatars().map(emoji => {
+                    <div data-avatar-strip class="scroll-fade-x relative -mx-1 grid auto-cols-[2.5rem] grid-flow-col grid-rows-3 gap-1 overflow-x-auto overscroll-x-contain px-1 py-0.5 pr-8">${Owl && Owl.owlAvatarHtml ? `<button type="button" data-pick-owl aria-label="Sova Mudrlant" title="Sova Mudrlant" aria-pressed="${meDraft.owl && !meDraft.pose}" class="${AVATAR_TILE} ${meDraft.owl && !meDraft.pose ? AVATAR_ON : AVATAR_OFF}">${Owl.owlAvatarHtml(ownOwlText(null), 'h-full w-auto', 'h-[88%]')}</button>${poseTiles()}` : ''}${Social.allAvatars().map(emoji => {
                         const lock = avatarLock(emoji);
                         if (lock) return `<button type="button" data-locked-avatar="${emoji}" aria-disabled="true" aria-label="Obrázek ${emoji} je zamčený: ${avatarUnlockText(lock)}" title="${avatarUnlockText(lock)}" class="${AVATAR_TILE} ${AVATAR_OFF} opacity-40 grayscale">${emoji}</button>`;
                         return `<button type="button" data-pick-avatar="${emoji}" aria-label="Obrázek ${emoji}" aria-pressed="${emoji === meDraft.avatar && !meDraft.owl}" class="${AVATAR_TILE} ${emoji === meDraft.avatar && !meDraft.owl ? AVATAR_ON : AVATAR_OFF}">${emoji}</button>`;
@@ -1112,14 +1136,17 @@
         const input = document.getElementById('profile-name');
         if (input) meDraft.name = input.value;
         try {
-            myProfile = await Social.saveProfile(user.id, { ...meDraft, owl: meDraft.owl ? myOwlText() : null });
+            const owlText = meDraft.owl ? ownOwlText(meDraft.pose) : null;
+            myProfile = await Social.saveProfile(user.id, { ...meDraft, owl: owlText });
+            // Zvolená sova titulu (nebo sova s doplňky) se pamatuje ve Vzhledu: platí pro mou profilovku i pro pozdější přeuložení sovy
+            if (meDraft.owl && Look) Look.setPref('pose', meDraft.pose || null);
             // Volba sovy se pamatuje i v zařízení: v databázi bez sloupce owl (schema.sql ještě nebylo znovu spuštěno) by se jinak ztratila
             // a profilovka by zůstala emoji. Ostatní hráči ji uvidí až po spuštění schematu.
             writeJson(OWL_AVATAR_KEY, Boolean(meDraft.owl));
             // Vlastní odstín se pamatuje i v zařízení (starší schéma ho do databáze neuloží, tam jde nejbližší pojmenovaná barva)
             writeJson(AVATAR_COLOR_KEY, Social.customHue(meDraft.color) !== null ? meDraft.color : null);
             if (Social.customHue(meDraft.color) !== null && myProfile.color !== meDraft.color) myProfile = { ...myProfile, color: meDraft.color };
-            if (meDraft.owl && !myProfile.owl) myProfile = { ...myProfile, owl: myOwlText() };
+            if (meDraft.owl && !myProfile.owl) myProfile = { ...myProfile, owl: owlText };
             meNote = 'Uloženo.';
             meDirty = false;
             updateProfileButton();
@@ -1300,6 +1327,14 @@
                 return;
             }
             if (devButton) { devApply(devButton.dataset.dev); updateControlsUI(); openSettings(`Hotovo: ${devButton.textContent.trim()}`, `[data-dev="${devButton.dataset.dev}"]`); return; }
+            const lockedOwl = event.target.closest('[data-locked-owl]');
+            if (lockedOwl && Look) {
+                const input = document.getElementById('profile-name');
+                if (input && meDraft) meDraft.name = input.value;
+                const pose = Look.findPose(lockedOwl.dataset.lockedOwl);
+                if (pose) openSettings(`Sova titulu ${tierTitles(pose.tier)[0]} se odemkne od úrovně ${pose.level}.`, `[data-locked-owl="${pose.id}"]`);
+                return;
+            }
             const locked = event.target.closest('[data-locked-avatar]');
             if (locked) {
                 const input = document.getElementById('profile-name');
@@ -1314,12 +1349,19 @@
             if (avatar || color || pickOwl) {
                 const input = document.getElementById('profile-name');
                 if (input && meDraft) meDraft.name = input.value;
-                if (pickOwl) { meDraft.owl = true; meDraft.avatar = '🦉'; }
+                if (pickOwl) {
+                    // Prázdná hodnota = sova s doplňky, jinak sova titulu (jen dosaženého)
+                    const pose = Look && pickOwl.dataset.pickOwl ? Look.findPose(pickOwl.dataset.pickOwl) : null;
+                    if (pose && levelProgress(loadProgress().xp).level < pose.level) return;
+                    meDraft.owl = true;
+                    meDraft.avatar = '🦉';
+                    meDraft.pose = pose ? pose.id : null;
+                }
                 if (avatar) { meDraft.avatar = avatar.dataset.pickAvatar; meDraft.owl = false; }
                 if (color) meDraft.color = color.dataset.pickColor;
                 meDirty = true;
                 meNote = '';
-                openSettings('', pickOwl ? '[data-pick-owl]' : avatar ? `[data-pick-avatar="${meDraft.avatar}"]` : `[data-pick-color="${meDraft.color}"]`);
+                openSettings('', pickOwl ? `[data-pick-owl="${meDraft.pose || ''}"]` : avatar ? `[data-pick-avatar="${meDraft.avatar}"]` : `[data-pick-color="${meDraft.color}"]`);
                 return;
             }
             const variantButton = event.target.closest('[data-variant]');
@@ -2723,7 +2765,8 @@
     const announce = (levelBefore, levelNow, badgeTitles) => {
         if (levelNow > levelBefore) {
             const newTitle = titleForLevel(levelNow) !== titleForLevel(levelBefore);
-            showCelebration(newTitle ? 'vitez' : 'oslava', newTitle ? 'Nový titul' : `Úroveň ${levelNow}`, newTitle ? `${titleForLevel(levelNow)} (úroveň ${levelNow})` : titleForLevel(levelNow));
+            // Nový titul slaví sova jeho stupně (sova titulu v barvě mého obleku)
+            showCelebration(newTitle ? titleOwlPose(levelNow) : 'oslava', newTitle ? 'Nový titul' : `Úroveň ${levelNow}`, newTitle ? `${titleForLevel(levelNow)} (úroveň ${levelNow})` : titleForLevel(levelNow));
         }
         badgeTitles.slice(0, 3).forEach(title => showCelebration('oslava', 'Nový odznak', title));
         if (badgeTitles.length > 3) showCelebration('oslava', 'Další odznaky', `a ještě ${badgeTitles.length - 3}`);
@@ -3589,8 +3632,14 @@
     const playerName = (player) => (player && player.display_name) || 'Hráč';
     // Hráči, jejichž obrázek jde klepnout (klepnutí otevře profil); id → údaje o hráči
     const knownPlayers = new Map();
-    // Moje sova (barva obleku + doplňky z lokální volby) jako text pro profil
-    const myOwlText = () => Owl && Owl.encodeOwl && Look ? Owl.encodeOwl(Look.prefs(lookContext())) : '';
+    // Moje sova (barva obleku + doplňky z lokální volby, případně sova titulu) jako text pro profil; pose = jiná sova titulu než uložená
+    // (náhled v Profilu), null = sova s doplňky. Sova titulu se omezí na dosaženou úroveň: po ztrátě úrovně nejvyšší dosažená.
+    const ownOwlText = (pose) => {
+        if (!Owl || !Owl.encodeOwl || !Look) return '';
+        const ctx = lookContext();
+        return Owl.encodeOwl({ ...ctx.prefs, pose: Owl.allowedPose(pose, ctx.level) });
+    };
+    const myOwlText = () => Look ? ownOwlText(Look.prefs(lookContext()).pose) : '';
     // link = klepnutím na obrázek se otevře profil hráče (klepnutí zachytí společný posluchač dole)
     const avatarHtml = (player, size = 'h-10 w-10 text-xl', link = false) => {
         const linked = link && player && player.id;
@@ -3603,7 +3652,8 @@
         const isMe = Boolean(me && player && player.id === me.id);
         // Můj vlastní řádek (žebříček, výzvy) nemusí mít sovu z databáze (starší schéma): bere se z mého profilu / zařízení
         const showsOwl = Boolean(player && (player.owl || (isMe && !player.draft && myProfile && myProfile.owl)));
-        const owlHtml = showsOwl && Owl && Owl.owlAvatarHtml ? Owl.owlAvatarHtml(isMe && Look ? myOwlText() : player.owl) : '';
+        // Náhled v Profilu (draft) má sovu z rozpracované volby (třeba jinou sovu titulu)
+        const owlHtml = showsOwl && Owl && Owl.owlAvatarHtml ? Owl.owlAvatarHtml(isMe && Look && !player.draft ? myOwlText() : player.owl) : '';
         return `<span ${linked ? `data-player-id="${escapeHtml(player.id)}" role="button" tabindex="0" aria-label="Profil hráče ${escapeHtml(playerName(player))}"` : 'aria-hidden="true"'} class="flex shrink-0 items-center justify-center rounded-full ${size} ${avatarBg(isMe && !player.draft && myProfile && myProfile.color ? myProfile.color : player && player.color)}${frame}${linked ? ' cursor-pointer' : ''}">${owlHtml || escapeHtml((player && player.avatar) || '🦊')}</span>`;
     };
     // Téma výzvy: „mix“ (všechna), jedno téma, nebo víc témat oddělených čárkou
@@ -3706,6 +3756,9 @@
         try {
             if (ctx.prefs.frame === 'zadny' && myProfile.frame) Look.setPref('frame', myProfile.frame, ctx);
             if (ctx.prefs.title === 'level' && myProfile.title_pref) Look.setPref('title', myProfile.title_pref, ctx);
+            // Sova titulu jako profilovka z účtu (nové zařízení): převezme se, když tu žádná zvolená není
+            const accountPose = Owl && myProfile.owl ? (Owl.parseOwl(myProfile.owl) || {}).pose : null;
+            if (accountPose && !ctx.prefs.pose) Look.setPref('pose', accountPose, ctx);
         } finally { adoptingLook = false; }
         const now = Look.prefs(ctx);
         const pushFrame = now.frame !== 'zadny' && now.frame !== (myProfile.frame || 'zadny');
@@ -4628,9 +4681,6 @@
 
     // XP s mezerou po tisících („12 500“); nedělitelná mezera, ať se číslo nezalomí
     const formatXp = (value) => String(Math.round(value)).replace(/\B(?=(\d{3})+(?!\d))/g, '\u00a0');
-    // Obrázek titulu: zatím sova v pózách od spící (první tituly) po vítěze (poslední); dosažené barevně, ostatní zešedlé
-    const TITLE_OWLS = ['spi', 'smutek', 'premysleni', 'vitej', 'vyzva', 'radost', 'serie', 'prohra', 'oslava', 'vitez'];
-    const titleOwl = (index) => TITLE_OWLS[Math.min(TITLE_OWLS.length - 1, Math.floor(index * TITLE_OWLS.length / LEVEL_TITLES.length))];
     // Přehled úrovní: posouvací seznam titulů; u každého obrázek (nedosažené zešedlé), název, rozsah úrovní a XP potřebné na jednotlivé úrovně
     // Odměny odemykané v rozsahu úrovní řádku (drobné štítky)
     const rewardChips = (from, last, here) => {
@@ -4648,7 +4698,7 @@
             const levels = Array.from({ length: last - entry.from + 1 }, (_, i) => entry.from + i);
             return `
                 <li data-title-row="${entry.from}"${here ? ' data-here' : ''} class="flex items-center gap-3 rounded-2xl p-2 shadow-sm ${here ? 'bg-brand-700 text-white ring-2 ring-gold-400' : reached ? 'bg-white dark:bg-slate-800' : 'bg-white/60 dark:bg-slate-800/50'}">
-                    ${uiArt(`sova-${titleOwl(index)}`, `h-14 w-14 ${reached ? '' : 'opacity-40 grayscale'}`)}
+                    ${uiArt(titleOwlArt(entry.from), `h-14 w-14 ${reached ? '' : 'opacity-40 grayscale'}`)}
                     <div class="min-w-0 flex-1">
                         <p class="flex items-baseline justify-between gap-2"><span class="truncate text-[15px] font-black leading-tight ${here ? '' : reached ? 'text-slate-800 dark:text-slate-100' : 'text-slate-500 dark:text-slate-400'}">${escapeHtml(entry.title)}</span><span class="shrink-0 text-[11px] font-bold ${here ? 'text-gold-300' : 'text-slate-500 dark:text-slate-400'}">úr. ${entry.from === last ? entry.from : `${entry.from}–${last}`}</span></p>
                         <p class="mt-0.5 text-[11px] font-semibold leading-snug ${here ? 'text-white/85' : 'text-slate-500 dark:text-slate-400'}">od ${formatXp(xpForLevel(entry.from))} XP</p>
@@ -4695,8 +4745,8 @@
         }).join('');
         showDialog('Můj postup', `
             <div class="flex flex-col gap-3">
-                <button type="button" data-open-levels class="btn-3d flex w-full items-center gap-4 rounded-2xl bg-gradient-to-br from-brand-700 to-brand-900 p-3 text-left text-white" aria-label="Tabulka úrovní">
-                    <span class="flex h-16 w-16 shrink-0 flex-col items-center justify-center rounded-full bg-gold-500 text-brand-950 shadow-inner"><span class="text-[9px] font-black uppercase leading-none">úr.</span><span class="text-2xl font-black leading-none">${level.level}</span></span>
+                <button type="button" data-open-levels class="btn-3d flex w-full items-center gap-3 rounded-2xl bg-gradient-to-br from-brand-700 to-brand-900 p-3 text-left text-white" aria-label="Tabulka úrovní">
+                    <span class="relative h-[4.5rem] w-[4.5rem] shrink-0" data-title-owl>${uiArt(titleOwlArt(level.level), 'h-full w-full')}<span class="absolute -bottom-1 -right-1.5 flex h-9 w-9 flex-col items-center justify-center rounded-full bg-gold-500 text-brand-950 shadow-md ring-2 ring-brand-800"><span class="text-[8px] font-black uppercase leading-none">úr.</span><span class="text-[15px] font-black leading-none">${level.level}</span></span></span>
                     <span class="min-w-0 flex-1">
                         <span class="block text-xl font-black leading-tight">${escapeHtml(titleForLevel(level.level))}</span>
                         <span class="mt-1.5 block h-2 overflow-hidden rounded-full bg-white/25" aria-hidden="true"><span class="block h-full w-0 rounded-full bg-gold-400" data-progress="${Math.round(level.ratio * 100)}"></span></span>

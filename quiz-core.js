@@ -1604,6 +1604,11 @@
         [96, 'Archimudrc'], [100, 'Mudrlant']
     ].map(([from, title]) => ({ from, title }));
     const titleForLevel = (level) => LEVEL_TITLES.filter(entry => level >= entry.from).pop().title;
+    // Sovy titulů: deset ilustrací icons/topics/sova-titul-1 … 10, každá patří k několika po sobě jdoucím titulům;
+    // číslo = úroveň prvního titulu stupně (Zvědavec 1, Učeň 7, Student 12, Znalec 18, Učenec 27, Odborník 36, Mistr 45, Docent 56, Mudrc 68, Legenda 84)
+    const TITLE_OWL_FROM = [1, 7, 12, 18, 27, 36, 45, 56, 68, 84];
+    // Stupeň sovy titulu 1–10 pro úroveň
+    const titleOwlTier = (level) => Math.max(1, TITLE_OWL_FROM.filter(from => level >= from).length);
     // Další titul (kdy a jaký), null na konci
     const nextTitle = (level) => LEVEL_TITLES.find(entry => entry.from > level) || null;
     // Za odpověď: správná 10 XP a 5 za každý bod (nejvýš 4 body, psaním dvojnásobek), špatná 2 XP za pokus, vzdání nic;
@@ -1761,7 +1766,7 @@
 
     return {
         EMPTY_COUNTERS, BADGES, BADGE_GROUPS, BADGE_BY_ID, earnedBadgeIds, compactBadges, expandBadges, normalizeCounters,
-        MAX_LEVEL, LEVEL_XP, questionsForLevel, xpForLevel, levelFromXp, levelProgress, LEVEL_TITLES, titleForLevel, nextTitle, answerXp, DAILY_XP, DAILY_ALL_XP, streakXp, MASTERY_STEPS, masteryStars, nextMastery,
+        MAX_LEVEL, LEVEL_XP, questionsForLevel, xpForLevel, levelFromXp, levelProgress, LEVEL_TITLES, titleForLevel, nextTitle, TITLE_OWL_FROM, titleOwlTier, answerXp, DAILY_XP, DAILY_ALL_XP, streakXp, MASTERY_STEPS, masteryStars, nextMastery,
         UNKNOWN_COUNTRY, INTERNATIONAL_WATERS, CZECHIA_QID, AFTER_SYMBOL_WORD, TILE_SIZE, COUNTRIES, CONTINENT_NAMES,
         SATELLITE_TILES, OSM_TILES,
         escapeHtml, stripBrackets, isRealPhoto, commonsPhotoUrl, commonsFileUrl, displayName, plural, formatPoints,

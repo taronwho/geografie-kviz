@@ -12,7 +12,7 @@ Cíl: aby celá hra vypadala originálně. Ilustrace nahradí obecné ikony u ti
 
 ## 1. Tituly – sovy (Úrovně a tituly)
 
-Každá sova patří k několika titulům. Teď titulům slouží nálady sovy (Zvědavec je spící sova).
+Každá sova patří k několika titulům. Hotovo: sovy jsou v Úrovních a titulech, v oslavě nového titulu, na kartě Můj postup a jako profilovka (dosažené tituly; Nastavení → Profil → Obrázek).
 
 ### 1. `sova-titul-1.png` – Zvědavec, Čtenář, Posluchač (úrovně 1–6)
 
