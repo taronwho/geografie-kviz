@@ -268,6 +268,10 @@ test('záložka Více hráčů je kompaktní', { skip: !chromium && 'Playwright 
     await t.test('rychlé akce: Vyzvat, Náhodný soupeř, Zadat kód a Přijímám výzvy z', { skip: SOFT }, async () => {
         const { context, tab, log } = await start(typical, { viewport: { width: 390, height: 780 }, colorScheme: 'light', now: '2026-11-11T10:00:00Z' });
         assert.match((await tab.textContent('#challenges-section')).replace(/\s+/g, ' '), /Přijímám výzvy z: všechna témata/);
+        // Dlaždice a karta turnaje mají vlastní ilustrace a skutečně se načtou
+        for (const [selector, name] of [['[data-action="random-challenge"]', 'nahodny'], ['[data-action="join-challenge"]', 'kod'], ['#tournament-card', 'turnaj']]) {
+            await tab.waitForFunction(([s, n]) => { const img = document.querySelector(`#challenges-section ${s} img[src="icons/topics/${n}.webp"]`); return img && img.complete && img.naturalWidth > 0; }, [selector, name]);
+        }
         await tab.click('#challenges-section [data-action="new-challenge"]');
         await tab.waitForSelector('[data-ch-who="player"][aria-checked="true"]');
         await tab.keyboard.press('Escape');
