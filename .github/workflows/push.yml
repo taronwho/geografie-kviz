@@ -1,7 +1,11 @@
-# Upozornění (web push): jednou za hodinu zavolá v databázi funkci push_due (kdo má co dostat: nový zápas turnaje, výzva, výsledek výzvy,
-# zkušební upozornění z vývojářského režimu) a pošle je přes knihovnu web-push. Ručně (Run workflow) se dá spustit kdykoli: v nočním klidu
-# (21:00–7:00 Praha) pak pošle jen zkušební upozornění, ostatní počkají na ráno.
-# Bez service_role klíče: databáze se prokazuje veřejným klíčem z config.js a tajemstvím PUSH_CRON_SECRET.
+# Upozornění (web push): zavolá v databázi funkci push_due (kdo má co dostat: nový zápas turnaje, výzva, výsledek výzvy, zkušební upozornění
+# z vývojářského režimu) a pošle je přes knihovnu web-push.
+# Kdy běží: (1) hned, když je co poslat – spouští ho sama databáze: úloha pg_cron každou minutu volá push_kick(), která přes pg_net zavolá
+# GitHub API workflow_dispatch (dry_run = false; nejdřív 3 minuty po předchozím, nejvýš 12× za hodinu), takže upozornění přijde do 1–2 minut
+# (docs/SUPABASE.md, Okamžité odesílání upozornění); (2) záložní hodinový plán níž, který GitHub spouští nespolehlivě; (3) ručně (Run workflow).
+# Běh typu workflow_dispatch (ručně i z databáze) pošle v nočním klidu (21:00–7:00 Praha) jen zkušební upozornění, ostatní počkají na ráno.
+# Bez service_role klíče: databáze se prokazuje veřejným klíčem z config.js a tajemstvím PUSH_CRON_SECRET. Token GitHubu pro okamžité
+# odesílání je jen v databázi (app_secrets), tady ani v GitHub secrets není.
 # Potřebuje secrets VAPID_PRIVATE_KEY a PUSH_CRON_SECRET (Settings → Secrets and variables → Actions, viz docs/SUPABASE.md).
 # Plánované spouštění funguje jen z výchozí větve; bez secrets se běh jen zapíše do logu a skončí bez chyby.
 name: Upozornění

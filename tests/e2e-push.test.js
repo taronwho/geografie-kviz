@@ -1,7 +1,8 @@
 // Upozornění v prohlížeči (Nastavení → Hra): nabídka se bez klíče VAPID neukáže, zapnutí (souhlas, předplatné, uložení do falešné databáze),
 // viditelný výsledek přímo u přepínače („Zapínám…“, konkrétní příčina a rada: zamítnuto, zavřený dotaz, nespuštěný service worker, chyba push
 // služby, 404 serveru), návod pro zablokovaná upozornění a dokončení po povolení, volby turnaje a výzev, vypnutí a odhlášení mažou odběr,
-// klepnutí na upozornění (?tab=multi) otevře Více hráčů, vývojářský režim (diagnostika, zkouška v zařízení, zkouška přes server), CSP bez chyb,
+// klepnutí na upozornění (?tab=multi) otevře Více hráčů, vývojářský režim (diagnostika, zkouška v zařízení, zkouška přes server s okamžitým
+// odesíláním i bez něj a se starší databází), CSP bez chyb,
 // bez vodorovného posouvání. Push API v prohlížeči je nahrazené atrapou (skutečné předplatné vyžaduje push server), service worker také
 // (zkouška v zařízení: atrapa přijme zprávu push-test a odpoví; klepnutí na upozornění se napodobí zprávou push-open).
 // Potřebuje Playwright (viz tests/e2e.test.js), jinak se přeskočí.
@@ -82,7 +83,7 @@ const pushStub = ({ permission, answer, realNotification, delay, subscribeError,
 // Otevřený turnaj (přihlášky do příštího pondělí), do kterého se hráč může přihlásit
 const TID = '11111111-2222-3333-4444-555555555555';
 const nextMonday = () => { const day = new Date(); day.setUTCDate(day.getUTCDate() + (((8 - day.getUTCDay()) % 7) || 7)); return day.toISOString().slice(0, 10); };
-const newDb = () => ({ subscribed: [], deleted: [], patches: [], devTests: 0, subscribeStatus: 0, devAdmin: true, devices: 1, entries: [], joins: 0, profile: { id: 'u-1', display_name: 'Jana Nováková', avatar: '🦊', color: 'emerald', xp: 0, badges: [], push_tournament: true, push_challenge: true },
+const newDb = () => ({ subscribed: [], deleted: [], patches: [], devTests: 0, statusCalls: 0, pushStatus: undefined, subscribeStatus: 0, devAdmin: true, devices: 1, entries: [], joins: 0, profile: { id: 'u-1', display_name: 'Jana Nováková', avatar: '🦊', color: 'emerald', xp: 0, badges: [], push_tournament: true, push_challenge: true },
     tournament: { id: TID, topic: 'mix', week_start: nextMonday(), started_on: null, capacity: 32, status: 'open', size: null, rounds: null, seed: 's1' } });
 const backend = async (context, db, key) => {
     await context.route('**/config.js', route => route.fulfill({ contentType: 'text/javascript', body: config(key) }));
@@ -101,6 +102,12 @@ const backend = async (context, db, key) => {
             if (!db.devAdmin) return json({ code: '42501', message: 'Zkušební upozornění smí poslat jen účet v dev_admins (viz docs/SUPABASE.md).' }, 403);
             if (db.devices) db.devTests++;
             return json(db.devices);
+        }
+        // Stav okamžitého odesílání (schéma 5): pushStatus = odpověď, 404 = starší databáze bez funkce, undefined = jako ostatní RPC (null)
+        if (url.pathname === '/rest/v1/rpc/dev_push_status' && db.pushStatus !== undefined) {
+            db.statusCalls++;
+            if (!db.devAdmin) return json({ code: '42501', message: 'Stav upozornění smí číst jen účet v dev_admins.' }, 403);
+            return db.pushStatus === 404 ? json({ code: 'PGRST202', message: 'Could not find the function public.dev_push_status' }, 404) : json(db.pushStatus);
         }
         if (url.pathname === '/rest/v1/rpc/tournament_tick') return route.fulfill({ status: 200, body: '' });
         if (url.pathname === '/rest/v1/rpc/tournament_join') { db.joins++; if (!db.entries.includes('u-1')) db.entries.push('u-1'); return route.fulfill({ status: 200, body: '' }); }
@@ -434,18 +441,76 @@ test('upozornění (push) v Nastavení', { skip: !chromium && 'Playwright není 
         await blocked.context.close();
     });
 
-    await t.test('vývojářský režim: zkouška přes server zařadí zprávu a řekne, co dál; účet mimo dev_admins a účet bez odběru srozumitelně', async () => {
-        const { context, tab, db } = await start({ query: '?vyvojar' });
-        await openSettings(tab);
-        await tab.click('[data-dev="push-server"]');
-        await tab.waitForSelector('[data-push-test-result="ok"]');
-        assert.equal(db.devTests, 1);
-        assert.match(await tab.textContent('#push-test'), /čeká na odeslání/);
-        assert.equal(await tab.textContent('[data-push-test-next]'), 'Otevři GitHub → Actions → Upozornění → Run workflow (dry_run = false), nebo počkej na další hodinový běh (7–21 h).');
-        assert.match(await tab.textContent('#push-test'), /i v noci/);
-        assert.deepEqual(await overflow(tab, '#dialog-overlay > div'), { page: 0, box: 0 });
-        await context.close();
+    // Okno bez svislého posouvání (celé vidět) a bez přetékání do strany
+    const fitsDialog = (tab) => tab.evaluate(() => { const box = document.querySelector('#dialog-overlay > div'); return { vertical: box.scrollHeight - box.clientHeight, horizontal: box.scrollWidth - box.clientWidth, page: document.documentElement.scrollWidth - document.documentElement.clientWidth }; });
+    const DOCS = 'https://github.com/taronwho/geografie-kviz/blob/main/docs/SUPABASE.md#okamžité-odesílání-upozornění';
+    const HINT = 'Hned ho pošleš na GitHubu: Actions → Upozornění → Run workflow.';
+    const serverTest = async (options) => {
+        const page = await start({ query: '?vyvojar', ...options });
+        await openSettings(page.tab);
+        await page.tab.click('[data-dev="push-server"]');
+        await page.tab.waitForSelector('[data-push-test-result]');
+        return { ...page, text: await page.tab.textContent('#push-test') };
+    };
 
+    await t.test('vývojářský režim: zkouška přes server zařadí zprávu a srozumitelně řekne, co dál (bez okamžitého odesílání, i se starší databází)', async () => {
+        for (const pushStatus of [undefined, 404, { instant: false, token: false, pg_net: false, cron: false, github: null }]) {
+            const { context, tab, db, log, text } = await serverTest({ viewport: { width: 360, height: 640 }, db: { pushStatus } });
+            const label = JSON.stringify(pushStatus);
+            assert.equal(db.devTests, 1, label);
+            assert.equal(await tab.getAttribute('[data-push-test-result]', 'data-push-test-result'), 'ok');
+            assert.match(text, /Zkušební upozornění čeká na odeslání \(zařízení: 1\)/, label);
+            assert.match(text, /Server upozornění posílá, jen když ho spustí GitHub\. Má to být každou hodinu, ale GitHub to často udělá až mnohem později\./, label);
+            assert.equal(await tab.textContent('[data-push-test-next]'), 'Aby upozornění přicházela do 1–2 minut, zapni okamžité odesílání podle návodu Okamžité odesílání upozornění.', label);
+            assert.equal(await tab.getAttribute('[data-push-test-docs]', 'href'), DOCS);
+            assert.equal(await tab.getAttribute('[data-push-test-docs]', 'target'), '_blank');
+            assert.equal(await tab.textContent('[data-push-test-hint]'), HINT, 'ruční spuštění jen jako vedlejší rada');
+            assert.equal(await tab.locator('[data-push-test-setup]').count(), 0, 'nic nastaveného = žádný seznam chybějících kroků');
+            assert.doesNotMatch(text, /dry_run|dry-run|workflow_dispatch|pg_net|pg_cron/, `bez technických výrazů: ${label}`);
+            assert.deepEqual(await fitsDialog(tab), { vertical: 0, horizontal: 0, page: 0 }, `celé okno vidět na 360×640: ${label}`);
+            if (SHOTS && pushStatus === undefined) await tab.screenshot({ path: path.join(SHOTS, 'upozorneni-zkouska-server-360.png') });
+            assert.deepEqual(log.errors, []);
+            assert.deepEqual(log.csp, []);
+            await context.close();
+        }
+    });
+
+    await t.test('vývojářský režim: s okamžitým odesíláním „přijde do 1–2 minut“; odmítnutí GitHubem a rozpracované nastavení řekne', async () => {
+        const instant = await serverTest({ viewport: { width: 360, height: 640 }, db: { pushStatus: { instant: true, token: true, pg_net: true, cron: true, github: 204 } } });
+        assert.equal(instant.db.statusCalls, 1);
+        assert.match(instant.text, /Zkušební upozornění je na cestě \(zařízení: 1\)/);
+        assert.equal(await instant.tab.textContent('[data-push-test-next]'), 'Upozornění přijde do 1–2 minut.');
+        assert.match(instant.text, /Nic dalšího dělat nemusíš\./);
+        assert.equal(await instant.tab.locator('[data-push-test-hint], [data-push-test-docs], [data-push-test-setup]').count(), 0, 'nic dalšího k dělání');
+        assert.doesNotMatch(instant.text, /GitHub|Run workflow|dry_run/);
+        assert.deepEqual(await fitsDialog(instant.tab), { vertical: 0, horizontal: 0, page: 0 });
+        if (SHOTS) await instant.tab.screenshot({ path: path.join(SHOTS, 'upozorneni-zkouska-okamzite-360.png') });
+        await instant.tab.click('#push-test [data-close]');
+        await instant.tab.waitForFunction(() => !document.getElementById('dialog-overlay'));
+        await instant.context.close();
+
+        // první spuštění ještě bez odpovědi GitHubu (github null) je taky v pořádku
+        const fresh = await serverTest({ db: { pushStatus: { instant: true, token: true, pg_net: true, cron: true, github: null } } });
+        assert.equal(await fresh.tab.textContent('[data-push-test-next]'), 'Upozornění přijde do 1–2 minut.');
+        await fresh.context.close();
+
+        const refused = await serverTest({ viewport: { width: 360, height: 640 }, db: { pushStatus: { instant: true, token: true, pg_net: true, cron: true, github: 401 } } });
+        assert.match(refused.text, /čeká na odeslání/);
+        assert.match(refused.text, /GitHub ho naposledy odmítl \(chyba 401\)\. Token nejspíš vypršel\./);
+        assert.equal(await refused.tab.textContent('[data-push-test-next]'), 'Vytvoř nový token a spusť znovu stejné SQL podle návodu Okamžité odesílání upozornění.');
+        assert.equal(await refused.tab.getAttribute('[data-push-test-docs]', 'href'), DOCS);
+        assert.equal(await refused.tab.textContent('[data-push-test-hint]'), HINT);
+        assert.deepEqual(await fitsDialog(refused.tab), { vertical: 0, horizontal: 0, page: 0 });
+        await refused.context.close();
+
+        const partial = await serverTest({ viewport: { width: 360, height: 640 }, db: { pushStatus: { instant: false, token: true, pg_net: true, cron: false, github: null } } });
+        assert.match(partial.text, /Server upozornění posílá, jen když ho spustí GitHub/);
+        assert.equal(await partial.tab.textContent('[data-push-test-setup]'), 'Okamžité odesílání je nastavené jen zčásti, chybí: úloha pg_cron.');
+        assert.deepEqual(await fitsDialog(partial.tab), { vertical: 0, horizontal: 0, page: 0 }, 'i nejdelší varianta se vejde');
+        await partial.context.close();
+    });
+
+    await t.test('vývojářský režim: zkouška přes server – účet mimo dev_admins a účet bez odběru srozumitelně', async () => {
         const stranger = await start({ query: '?vyvojar', db: { devAdmin: false } });
         await openSettings(stranger.tab);
         await stranger.tab.click('[data-dev="push-server"]');

@@ -1,9 +1,11 @@
-// Odesílání upozornění (spouští GitHub Actions podle .github/workflows/push.yml): zavolá RPC push_due (kdo má co dostat), pošle web push
+// Odesílání upozornění (běží v GitHub Actions podle .github/workflows/push.yml: hned, když ho přes workflow_dispatch spustí databáze – push_kick
+// v supabase/schema.sql, záložně podle hodinového plánu a ručně přes Run workflow): zavolá RPC push_due (kdo má co dostat), pošle web push
 // přes knihovnu web-push a výsledek zapíše RPC push_mark. Používá jen veřejný klíč z config.js (role anon) a vlastní tajemství PUSH_CRON_SECRET;
 // klíč service_role se nepoužívá a nikde není potřeba. Soukromý klíč VAPID_PRIVATE_KEY je jen v GitHub secrets.
 // Proměnné prostředí: VAPID_PRIVATE_KEY, PUSH_CRON_SECRET (povinné), VAPID_SUBJECT (volitelné, výchozí adresa aplikace), DRY_RUN=true (nic nepošle),
-// MANUAL=true (běh spuštěný ručně: v nočním klidu pošle aspoň zkušební upozornění z vývojářského režimu), FORCE=true (v noci pošle všechno).
-// Noční klid 21:00–7:00 (Praha): plánovaný běh nepošle nic; ruční běh jen zprávy druhu 'test' (ostatní počkají na ráno – nezapíšou se jako odeslané).
+// MANUAL=true (běh typu workflow_dispatch, tedy ruční nebo spuštěný databází: v nočním klidu pošle aspoň zkušební upozornění z vývojářského režimu),
+// FORCE=true (v noci pošle všechno). Noční klid 21:00–7:00 (Praha): plánovaný běh nepošle nic; ruční běh jen zprávy druhu 'test' (ostatní počkají
+// na ráno – nezapíšou se jako odeslané). Stejné pravidlo pro noc má push_kick v databázi, aby workflow v noci nespouštěl zbytečně.
 import { readFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 
@@ -54,7 +56,7 @@ export const runOnce = async ({ rpc, send, secret, dryRun = false, kinds = null,
             log(`Odeslání selhalo (${error && error.statusCode ? error.statusCode : 'bez odpovědi'}).`);
         }
     }
-    // Klíč se zapíše, jen když dorazilo aspoň na jedno zařízení; jinak se příští hodinu zkusí znovu (odběr s třemi chybami server smaže)
+    // Klíč se zapíše, jen když dorazilo aspoň na jedno zařízení; jinak se zkusí znovu při dalším běhu (odběr s třemi chybami server smaže)
     await rpc('push_mark', { secret, keys: [...keys], ok_endpoints: [...okEndpoints], failed_endpoints: [...failed], gone_endpoints: [...gone] });
     log(`Odesláno ${okEndpoints.size} zařízením, chyb ${failed.size}, zrušených odběrů ${gone.size}.`);
     return { sent: okEndpoints.size, failed: failed.size, gone: gone.size, keys: keys.size };

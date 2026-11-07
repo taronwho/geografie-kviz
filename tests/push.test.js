@@ -193,6 +193,20 @@ test('push.js: zkouška přes server volá jen dev_push_test a vrátí počet za
     await assert.rejects(makeRoot({ fail: () => 404 }).api.requestServerTest(), (error) => error.kind === 'server' && error.status === 404);
 });
 
+test('push.js: stav okamžitého odesílání (dev_push_status); starší databáze, cizí účet nebo chyba spojení = null (obecný text)', async () => {
+    const status = { instant: true, token: true, pg_net: true, cron: true, github: 204, last_dispatch: '2026-11-07T10:00:00Z' };
+    const env = makeRoot({ reply: (url) => (url.endsWith('rpc/dev_push_status') ? status : undefined) });
+    assert.deepEqual(await env.api.serverPushStatus(), { instant: true, token: true, pgNet: true, cron: true, github: 204 });
+    assert.deepEqual(env.calls.map(call => [call.url, call.method]), [['https://proj.supabase.co/rest/v1/rpc/dev_push_status', 'POST']]);
+    const partial = makeRoot({ reply: () => ({ instant: false, token: true, pg_net: false, cron: false, github: null }) });
+    assert.deepEqual(await partial.api.serverPushStatus(), { instant: false, token: true, pgNet: false, cron: false, github: null });
+    // jen skutečné true platí (řetězec ani číslo ne); kód odpovědi GitHubu jen jako kladné celé číslo
+    assert.deepEqual(await makeRoot({ reply: () => ({ instant: 'true', github: '<b>' }) }).api.serverPushStatus(), { instant: false, token: false, pgNet: false, cron: false, github: null });
+    for (const fail of [() => 404, () => 403, () => new TypeError('Failed to fetch')]) assert.equal(await makeRoot({ fail }).api.serverPushStatus(), null);
+    assert.equal(await makeRoot({ reply: () => [] }).api.serverPushStatus(), null);
+    assert.equal(await makeRoot({ session: false }).api.serverPushStatus(), null);
+});
+
 // --- service worker ---
 const makeWorker = ({ windows = [] } = {}) => {
     const handlers = {};
@@ -383,6 +397,39 @@ test('nasazení: push.js je v index.html, sw.js i pages.yml; workflow nepoužív
     assert.doesNotMatch(read('push.js'), /style="|setAttribute\(\s*['"]style|<script/, 'bez inline stylů a skriptů (CSP)');
     assert.match(read('config.js'), /vapidPublicKey:\s*'[A-Za-z0-9_-]*'/);
     assert.doesNotMatch(read('config.js'), /VAPID_PRIVATE|privateKey/i, 'soukromý klíč v repozitáři není');
+});
+
+test('okamžité odesílání: databáze spouští push.yml přes workflow_dispatch; token GitHubu jen v databázi, v repozitáři nikde', () => {
+    const workflow = read('.github/workflows/push.yml');
+    assert.match(workflow, /workflow_dispatch:\s*\n\s*inputs:\s*\n\s*dry_run:/, 'workflow jde spustit přes API s dry_run');
+    assert.match(workflow, /schedule:/, 'hodinový plán zůstává jako záloha');
+    assert.doesNotMatch(workflow, /github_token|GITHUB_PAT|secrets\.GH_/i, 'token pro okamžité odesílání v GitHub secrets není');
+    const schema = read('supabase/schema.sql');
+    assert.match(schema, /'\/actions\/workflows\/push\.yml\/dispatches'/);
+    assert.match(schema, /jsonb_build_object\('ref', 'main', 'inputs', jsonb_build_object\('dry_run', 'false'\)\)/);
+    assert.match(schema, /revoke all on function public\.push_pending\(\), public\.push_quiet_now\(\), public\.push_net_ready\(\), public\.push_kick\(\) from public, anon, authenticated;/);
+    assert.doesNotMatch(schema, /grant [^;]*push_kick/, 'push_kick nikomu přes API');
+    // noční klid v databázi = noční klid odesílače (QUIET_FROM 7, QUIET_TO 21)
+    assert.match(read('scripts/send-push.mjs'), /const QUIET_FROM = 7;[\s\S]*const QUIET_TO = 21;/);
+    assert.match(schema, /select h < 7 or h >= 21 from/);
+    // návod: hotové SQL se zástupným textem místo tokenu a naplánování push_kick každou minutu
+    const docs = read('docs/SUPABASE.md');
+    assert.match(docs, /### Okamžité odesílání upozornění/);
+    assert.match(docs, /insert into public\.app_secrets \(name, value\) values \('github_token', 'SEM_VLOZ_TOKEN'\)\n\s*on conflict \(name\) do update set value = excluded\.value;/);
+    assert.match(docs, /select cron\.schedule\('upozorneni', '\* \* \* \* \*', \$\$select public\.push_kick\(\)\$\$\);/);
+    assert.match(read('app.js'), /SUPABASE\.md#okamžité-odesílání-upozornění/, 'aplikace odkazuje na tuto část návodu');
+    // žádný skutečný token GitHubu (ani Supabase) v žádném souboru repozitáře
+    const skip = new Set(['node_modules', '.git', '.claude', 'data', 'branding', 'icons', 'reports']);
+    const files = [];
+    const walk = (dir) => fs.readdirSync(path.join(ROOT, dir), { withFileTypes: true }).forEach((entry) => {
+        const rel = path.join(dir, entry.name);
+        if (entry.isDirectory()) { if (!skip.has(entry.name)) walk(rel); } else if (/\.(js|mjs|md|yml|yaml|sql|html|json|txt|sh)$/.test(entry.name)) files.push(rel);
+    });
+    walk('');
+    assert.ok(files.length > 20 && files.includes(path.join('supabase', 'schema.sql')) && files.includes(path.join('docs', 'SUPABASE.md')));
+    for (const file of files) {
+        assert.doesNotMatch(read(file), /github_pat_[A-Za-z0-9_]{20,}|\bgh[pousr]_[A-Za-z0-9]{30,}/, `${file}: žádný token GitHubu`);
+    }
 });
 
 test('souhlas: aplikace nezapíná upozornění sama, odhlášení je maže a schema posílá jen odběratelům', () => {

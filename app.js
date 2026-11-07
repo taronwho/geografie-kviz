@@ -48,8 +48,9 @@
     const SESSION_MAX_AGE = 2 * 60 * 60 * 1000;
     // Verze databázového schématu, kterou aplikace potřebuje: zvyšuje se spolu s schema_version() na konci supabase/schema.sql
     // (tests/sql-monitor.test.js hlídá shodu). Správce (dev_admins nebo vývojářský režim) uvidí v Nastavení, že má schéma spustit znovu.
-    // 3 = průběh výzev a zápasů turnaje na serveru a XP za výhry v turnaji jednou za účet; 4 = zkušební upozornění přes server (dev_push_test).
-    const REQUIRED_SCHEMA = 4;
+    // 3 = průběh výzev a zápasů turnaje na serveru a XP za výhry v turnaji jednou za účet; 4 = zkušební upozornění přes server (dev_push_test);
+    // 5 = okamžité odesílání upozornění (push_kick, dev_push_status; aplikace funguje i se 4, jen ve zkoušce upozornění ukáže obecný text).
+    const REQUIRED_SCHEMA = 5;
     const HISTORY_SIZE = 200;
     const REQUEST_TIMEOUT = 12000;
     const WIKI_TIMEOUT = 6000;
@@ -1218,14 +1219,43 @@
                 : result.reason === 'permission' ? ['Upozornění nejsou povolená', 'Povol je a zkus to znovu.'] : ['Tenhle prohlížeč upozornění neumí', ''];
         showPushTest(`${testBox('error', text[0])}${text[1] ? `<p class="${TEST_TEXT}">${escapeHtml(text[1])}</p>` : ''}${CLOSE_TEST()}`);
     };
-    // „Poslat zkušební upozornění přes server“: databáze (dev_push_test, jen dev_admins) zařadí zprávu, odesílač na GitHubu ji pošle při dalším běhu
+    // „Poslat zkušební upozornění přes server“: databáze (dev_push_test, jen dev_admins) zařadí zprávu, odesílač na GitHubu ji pošle při dalším běhu.
+    // Co napsat, záleží na tom, jestli je na serveru zapnuté okamžité odesílání (dev_push_status, schéma 5): pak přijde do 1–2 minut a není co dělat;
+    // jinak (i se starší databází) jednoduché vysvětlení, odkaz na návod a jako vedlejší rada ruční spuštění na GitHubu.
+    const PUSH_INSTANT_DOCS = 'https://github.com/taronwho/geografie-kviz/blob/main/docs/SUPABASE.md#okamžité-odesílání-upozornění';
+    const PUSH_TEST_HINT = 'text-xs font-semibold leading-snug text-slate-500 dark:text-slate-400';
+    const PUSH_TEST_NEXT = 'rounded-2xl bg-white p-3 text-sm font-bold leading-snug text-slate-700 shadow-sm ring-1 ring-slate-200/70 dark:bg-slate-800 dark:text-slate-200 dark:ring-slate-700/70';
+    const pushDocsLink = (text) => `<a href="${PUSH_INSTANT_DOCS}" target="_blank" rel="noopener noreferrer" data-push-test-docs class="font-black text-brand-700 underline underline-offset-2 dark:text-brand-300">${escapeHtml(text)}</a>`;
+    const pushServerQueued = (devices, status) => {
+        const runHint = `<p data-push-test-hint class="${PUSH_TEST_HINT}">Hned ho pošleš na GitHubu: Actions → Upozornění → Run workflow.</p>`;
+        if (status && status.instant && !(status.github >= 300)) {
+            return `${testBox('ok', `Zkušební upozornění je na cestě (zařízení: ${devices})`)}
+                <p data-push-test-next class="${PUSH_TEST_NEXT}">Upozornění přijde do 1–2 minut.</p>
+                <p class="${PUSH_TEST_HINT}">Nic dalšího dělat nemusíš. Klepnutí na upozornění otevře záložku Více hráčů.</p>${CLOSE_TEST()}`;
+        }
+        const queued = testBox('ok', `Zkušební upozornění čeká na odeslání (zařízení: ${devices})`);
+        if (status && status.instant) {
+            return `${queued}
+                <p class="${TEST_TEXT}">Okamžité odesílání je zapnuté, ale GitHub ho naposledy odmítl (chyba ${escapeHtml(status.github)}). Token nejspíš vypršel.</p>
+                <p data-push-test-next class="${PUSH_TEST_NEXT}">Vytvoř nový token a spusť znovu stejné SQL podle návodu ${pushDocsLink('Okamžité odesílání upozornění')}.</p>${runHint}${CLOSE_TEST()}`;
+        }
+        // Rozpracované nastavení (něco už je, něco chybí): krátce co zbývá
+        const parts = status ? [['token GitHubu', status.token], ['pg_net', status.pgNet], ['úloha pg_cron', status.cron]] : [];
+        const missing = parts.filter(([, done]) => !done).map(([label]) => label);
+        const setup = missing.length && missing.length < parts.length ? `<p data-push-test-setup class="${PUSH_TEST_HINT}">Okamžité odesílání je nastavené jen zčásti, chybí: ${escapeHtml(missing.join(', '))}.</p>` : '';
+        return `${queued}
+            <p class="${TEST_TEXT}">Server upozornění posílá, jen když ho spustí GitHub. Má to být každou hodinu, ale GitHub to často udělá až mnohem později.</p>
+            <p data-push-test-next class="${PUSH_TEST_NEXT}">Aby upozornění přicházela do 1–2 minut, zapni okamžité odesílání podle návodu ${pushDocsLink('Okamžité odesílání upozornění')}.</p>${runHint}${setup}${CLOSE_TEST()}`;
+    };
     const devPushServer = async () => {
         if (!Push || !signedUser()) { showToast('Nejdřív se přihlas.'); return; }
         showPushTest(`<p class="${TEST_TEXT}" role="status">Zařazuji zkušební upozornění…</p>`);
         let devices = 0;
+        // Stav serveru se zjišťuje souběžně; když nejde zjistit (starší databáze), je null a okno ukáže obecný text
+        const statusWork = Push.serverPushStatus ? Push.serverPushStatus().catch(() => null) : Promise.resolve(null);
         try { devices = await Push.requestServerTest(); } catch (error) {
             const text = error.kind === 'forbidden' ? 'Tenhle účet není v dev_admins (návod v docs/SUPABASE.md, část Upozornění).'
-                : error.kind === 'server' && error.status === 404 ? 'V databázi chybí funkce dev_push_test: spusť znovu supabase/schema.sql (verze 4).' : `${pushErrorNote(error).short}.`;
+                : error.kind === 'server' && error.status === 404 ? `V databázi chybí funkce dev_push_test: spusť znovu supabase/schema.sql (verze ${REQUIRED_SCHEMA}).` : `${pushErrorNote(error).short}.`;
             if (pushTestOpen()) showPushTest(`${testBox('error', 'Zkušební upozornění se nezařadilo')}<p class="${TEST_TEXT}">${escapeHtml(text)}</p>${CLOSE_TEST()}`);
             return;
         }
@@ -1235,10 +1265,9 @@
                 (event) => { if (event.target.closest('[data-push-test-enable]')) devPushEnable(devPushServer); });
             return;
         }
-        showPushTest(`${testBox('ok', `Zkušební upozornění čeká na odeslání (zařízení: ${devices})`)}
-            <p class="${TEST_TEXT}">Pošle ho odesílač na GitHubu. Co dál:</p>
-            <p data-push-test-next class="rounded-2xl bg-white p-3 text-sm font-bold leading-snug text-slate-700 shadow-sm ring-1 ring-slate-200/70 dark:bg-slate-800 dark:text-slate-200 dark:ring-slate-700/70">Otevři GitHub → Actions → Upozornění → Run workflow (dry_run = false), nebo počkej na další hodinový běh (7–21 h).</p>
-            <p class="text-xs font-semibold leading-snug text-slate-500 dark:text-slate-400">Ručně spuštěný běh pošle zkušební upozornění i v noci (ostatní upozornění jen 7–21 h). Zpráva čeká nejvýš 24 hodin a přijde jen jednou. Klepnutí na ni otevře záložku Více hráčů.</p>${CLOSE_TEST()}`);
+        const status = await statusWork;
+        if (!pushTestOpen()) return;
+        showPushTest(pushServerQueued(devices, status));
     };
 
     // --- Nabídka upozornění: hra se sama zeptá, jestli upozornění zapnout, a vysvětlí proč ---
