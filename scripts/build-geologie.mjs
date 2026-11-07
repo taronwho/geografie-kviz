@@ -250,27 +250,28 @@ const NOT_MINERALS = /^(drahokam|polodrahokam|křemičitany|karbonáty|fylosilik
 // Nerosty od 16 jazykových verzí (dřív 24); jen s fotkou a se vzorcem nebo tvrdostí, k=1 jen podle seznamu KNOWN
 const SITELINKS_MIN = 16;
 
-// --- Geologická období (mil. let; Mezinárodní chronostratigrafická tabulka) ---
+// --- Geologická období (mil. let; Mezinárodní chronostratigrafická tabulka ICS v2026/06, stratigraphy.org/chart –
+// hranice prvohor podle revize 2024: ordovik 486,85, silur 443,1, devon 419,62, karbon 358,86, křída 143,1; hadaikum od 4 567) ---
 // level: eon, éra, perioda, epocha; parent = nadřazená jednotka; life = co se tehdy dělo se životem
 const PERIODS = [
-    { title: 'Hadaikum', name: 'Hadaikum', level: 'eon', from: 4600, to: 4000, life: 'vznik Země a Měsíce, ještě bez života' },
-    { title: 'Archaikum', name: 'Archaikum', level: 'eon', from: 4000, to: 2500, life: 'první jednobuněčné organismy, sinice a stromatolity', alias: ['prahory'] },
+    { title: 'Hadaikum', name: 'Hadaikum', level: 'eon', from: 4567, to: 4031, life: 'vznik Země a Měsíce, ještě bez života' },
+    { title: 'Archaikum', name: 'Archaikum', level: 'eon', from: 4031, to: 2500, life: 'první jednobuněčné organismy, sinice a stromatolity', alias: ['prahory'] },
     { title: 'Proterozoikum', name: 'Proterozoikum', level: 'eon', from: 2500, to: 538.8, life: 'kyslík v atmosféře, první mnohobuněční živočichové', alias: ['starohory'] },
-    { title: 'Paleozoikum', name: 'Prvohory', level: 'éra', from: 538.8, to: 251.9, life: 'trilobiti, první ryby, obojživelníci a plazi, uhelné pralesy', alias: ['paleozoikum'] },
-    { title: 'Mezozoikum', name: 'Druhohory', level: 'éra', from: 251.9, to: 66, life: 'dinosauři, první savci a ptáci', alias: ['mezozoikum'] },
+    { title: 'Paleozoikum', name: 'Prvohory', level: 'éra', from: 538.8, to: 251.902, life: 'trilobiti, první ryby, obojživelníci a plazi, uhelné pralesy', alias: ['paleozoikum'] },
+    { title: 'Mezozoikum', name: 'Druhohory', level: 'éra', from: 251.902, to: 66, life: 'dinosauři, první savci a ptáci', alias: ['mezozoikum'] },
     { title: 'Terciér', name: 'Třetihory', level: 'éra', from: 66, to: 2.58, life: 'rozvoj savců a ptáků, vznik Alp a Himálaje', alias: ['terciér'] },
     { title: 'Kvartér', name: 'Čtvrtohory', level: 'éra', from: 2.58, to: 0, life: 'doby ledové, mamuti, člověk', alias: ['kvartér'] },
-    { title: 'Kambrium', name: 'Kambrium', level: 'perioda', parent: 'Prvohory', from: 538.8, to: 485.4, life: 'prudký rozvoj živočichů v mořích, první trilobiti' },
-    { title: 'Ordovik', name: 'Ordovik', level: 'perioda', parent: 'Prvohory', from: 485.4, to: 443.8, life: 'trilobiti, hlavonožci, první bezčelistní obratlovci' },
-    { title: 'Silur', name: 'Silur', level: 'perioda', parent: 'Prvohory', from: 443.8, to: 419.2, life: 'první cévnaté rostliny na souši, korálové útesy' },
-    { title: 'Devon (geologie)', name: 'Devon', level: 'perioda', parent: 'Prvohory', from: 419.2, to: 358.9, life: 'věk ryb, první obojživelníci a lesy' },
-    { title: 'Karbon', name: 'Karbon', level: 'perioda', parent: 'Prvohory', from: 358.9, to: 298.9, life: 'plavuňové a přesličkové pralesy (dnešní černé uhlí), první plazi' },
-    { title: 'Perm', name: 'Perm', level: 'perioda', parent: 'Prvohory', from: 298.9, to: 251.9, life: 'savcovití plazi; na konci největší vymírání v dějinách Země' },
-    { title: 'Trias', name: 'Trias', level: 'perioda', parent: 'Druhohory', from: 251.9, to: 201.4, life: 'první dinosauři a savci' },
-    { title: 'Jura', name: 'Jura', level: 'perioda', parent: 'Druhohory', from: 201.4, to: 145, life: 'obří býložraví dinosauři, první ptáci (archeopteryx)' },
-    { title: 'Křída', name: 'Křída', level: 'perioda', parent: 'Druhohory', from: 145, to: 66, life: 'kvetoucí rostliny, tyranosaurus; na konci vymření dinosaurů' },
-    { title: 'Paleogén', name: 'Paleogén', level: 'perioda', parent: 'Třetihory', from: 66, to: 23.03, life: 'rozvoj savců po vymření dinosaurů' },
-    { title: 'Neogén', name: 'Neogén', level: 'perioda', parent: 'Třetihory', from: 23.03, to: 2.58, life: 'travnaté stepi, první předkové člověka' },
+    { title: 'Kambrium', name: 'Kambrium', level: 'perioda', parent: 'Prvohory', from: 538.8, to: 486.85, life: 'prudký rozvoj živočichů v mořích, první trilobiti' },
+    { title: 'Ordovik', name: 'Ordovik', level: 'perioda', parent: 'Prvohory', from: 486.85, to: 443.1, life: 'trilobiti, hlavonožci, první bezčelistní obratlovci' },
+    { title: 'Silur', name: 'Silur', level: 'perioda', parent: 'Prvohory', from: 443.1, to: 419.62, life: 'první cévnaté rostliny na souši, korálové útesy' },
+    { title: 'Devon (geologie)', name: 'Devon', level: 'perioda', parent: 'Prvohory', from: 419.62, to: 358.86, life: 'věk ryb, první obojživelníci a lesy' },
+    { title: 'Karbon', name: 'Karbon', level: 'perioda', parent: 'Prvohory', from: 358.86, to: 298.9, life: 'plavuňové a přesličkové pralesy (dnešní černé uhlí), první plazi' },
+    { title: 'Perm', name: 'Perm', level: 'perioda', parent: 'Prvohory', from: 298.9, to: 251.902, life: 'savcovití plazi; na konci největší vymírání v dějinách Země' },
+    { title: 'Trias', name: 'Trias', level: 'perioda', parent: 'Druhohory', from: 251.902, to: 201.4, life: 'první dinosauři a savci' },
+    { title: 'Jura', name: 'Jura', level: 'perioda', parent: 'Druhohory', from: 201.4, to: 143.1, life: 'obří býložraví dinosauři, první ptáci (archeopteryx)' },
+    { title: 'Křída', name: 'Křída', level: 'perioda', parent: 'Druhohory', from: 143.1, to: 66, life: 'kvetoucí rostliny, tyranosaurus; na konci vymření dinosaurů' },
+    { title: 'Paleogén', name: 'Paleogén', level: 'perioda', parent: 'Třetihory', from: 66, to: 23.04, life: 'rozvoj savců po vymření dinosaurů' },
+    { title: 'Neogén', name: 'Neogén', level: 'perioda', parent: 'Třetihory', from: 23.04, to: 2.58, life: 'travnaté stepi, první předkové člověka' },
     { title: 'Pleistocén', name: 'Pleistocén', level: 'epocha', parent: 'Čtvrtohory', from: 2.58, to: 0.0117, life: 'doby ledové, mamuti, neandrtálci a moderní člověk' },
     { title: 'Holocén', name: 'Holocén', level: 'epocha', parent: 'Čtvrtohory', from: 0.0117, to: 0, life: 'současnost po poslední době ledové: zemědělství, města' }
 ];

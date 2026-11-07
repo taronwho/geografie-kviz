@@ -92,7 +92,15 @@ test('geologie: stupnice tvrdosti a stáří', () => {
     assert.ok(jura.log && jura.value === 201.4 && jura.max === 4600, JSON.stringify(jura));
     const periodHints = geologie.hints(find('Jura'), ctx, 'name');
     assert.ok(periodHints.some(hint => hint.kind === 'visual' && hint.spec.type === 'image' && /Paleographic/.test(hint.spec.file)));
-    assert.equal(geologie.subtitle(find('Jura'), ctx), 'perioda druhohor · před 201,4–145 mil. let');
+    assert.equal(geologie.subtitle(find('Jura'), ctx), 'perioda druhohor · před 201,4–143,1 mil. let');
+    // Hranice podle aktuální tabulky ICS (v2026/06; prvohory po revizi 2024), ne ze starší verze (ordovik 485,4)
+    const ICS = { Kambrium: [538.8, 486.85], Ordovik: [486.85, 443.1], Silur: [443.1, 419.62], Devon: [419.62, 358.86], Karbon: [358.86, 298.9],
+        Perm: [298.9, 251.902], Trias: [251.902, 201.4], Křída: [143.1, 66], Neogén: [23.04, 2.58], Archaikum: [4031, 2500] };
+    for (const [name, range] of Object.entries(ICS)) assert.deepEqual([find(name).f.from, find(name).f.to], range, name);
+    // Navazující období: konec jednoho je začátek dalšího v téže nadřazené jednotce
+    const periods = data.items.filter(item => item.c === 'obdobi' && item.f.lvl === 'perioda' && ['Prvohory', 'Druhohory', 'Třetihory'].includes(item.f.par))
+        .sort((a, b) => b.f.from - a.f.from);
+    for (let i = 1; i < periods.length; i++) assert.equal(periods[i].f.from, periods[i - 1].f.to, `${periods[i - 1].n} → ${periods[i].n}`);
     assert.equal(geologie.subtitle(find('Holocén'), ctx).replace(/\s/g, ' '), 'epocha čtvrtohor · před 11 700 let až dodnes');
 });
 
