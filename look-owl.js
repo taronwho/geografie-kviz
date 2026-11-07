@@ -157,7 +157,7 @@
             <img src="icons/doplnky/${item.id}-ikona.webp" alt="" class="h-7 w-7 object-contain ${open ? '' : 'opacity-40 grayscale'}"></button>`;
     };
     const noneTile = (slot, selected) => `<button type="button" data-owl-pick="${slot}:none" aria-pressed="${selected}" title="Bez doplňku" aria-label="Bez doplňku"
-        class="flex h-9 w-full items-center justify-center rounded-xl border-2 text-lg font-black text-slate-400 ${selected ? 'border-brand-500 bg-brand-50 dark:bg-brand-950' : 'border-transparent bg-slate-50 dark:bg-slate-700/50'}">–</button>`;
+        class="flex h-9 w-full items-center justify-center rounded-xl border-2 text-lg font-black text-slate-500 dark:text-slate-400 ${selected ? 'border-brand-500 bg-brand-50 dark:bg-brand-950' : 'border-transparent bg-slate-50 dark:bg-slate-700/50'}">–</button>`;
 
     const render = (ctx) => {
         const acc = ctx.prefs.acc || {};
@@ -197,7 +197,7 @@
             <div class="grid grid-cols-10 justify-items-center gap-1" role="group" aria-label="Barva doplňku">${Look.ACC_COLORS.map(dot).join('')}</div>${slider}</div>`
             : '<p class="text-[11px] font-semibold text-slate-500 dark:text-slate-400">Vyber doplněk a pak jeho barvu.</p>';
         return `<div class="flex flex-col gap-2">
-            <div class="flex justify-center py-1">${logoHtml('mt-6', 'h-24 w-auto drop-shadow-lg [@media(max-height:700px)]:h-16', acc)}</div>
+            <div class="flex justify-center py-1 [@media(max-height:700px)]:py-0">${logoHtml('mt-6 [@media(max-height:700px)]:mt-4', 'h-24 w-auto drop-shadow-lg [@media(max-height:700px)]:h-16', acc)}</div>
             ${slots}<div class="flex flex-col gap-1.5">${colors}${flagPicker}</div>
             ${note ? `<p role="status" class="text-[11px] font-bold text-brand-700 dark:text-brand-300">${escapeHtml(note)}</p>` : ''}
         </div>`;

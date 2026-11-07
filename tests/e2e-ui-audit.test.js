@@ -36,7 +36,7 @@ const inspect = () => {
     const out = { hscroll: [], unreachable: [], covered: [], small: [], unnamed: [], contrast: [] };
     const vw = window.innerWidth, vh = window.innerHeight;
     const visible = (el) => { const s = getComputedStyle(el); if (s.display === 'none' || s.visibility === 'hidden' || Number(s.opacity) === 0) return false; const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0; };
-    const overlay = document.getElementById('settings-overlay') || document.getElementById('dialog-overlay') || document.getElementById('play-chooser') || document.getElementById('place-info');
+    const overlay = document.getElementById('settings-overlay') || document.getElementById('dialog-overlay') || document.getElementById('play-chooser') || document.getElementById('place-info') || document.getElementById('fact-overlay');
     const scope = overlay || document.body;
     const name = (el) => (el.getAttribute('aria-label') || el.title || el.textContent || el.tagName).trim().replace(/\s+/g, ' ').slice(0, 40);
     if (document.documentElement.scrollWidth > vw + 1) out.hscroll.push(`stránka ${document.documentElement.scrollWidth} > ${vw}`);
@@ -51,11 +51,15 @@ const inspect = () => {
         // Hlavní akce a hlavička: aspoň 44 px (ostatní drobná tlačítka se nehlídají)
         if (el.matches('#app-header button, [data-action="next"], [data-action="choice"], [data-action="hint"], [data-chooser-play], #answer-form button')
             && Math.min(box.width, box.height) < 43.5) out.small.push(`${name(el)} ${Math.round(box.width)}×${Math.round(box.height)}`);
+        // Zavírání oken, medaile, výběr vzhledu, cíle týdne a odkazy pod okny: aspoň 40 px
+        if (el.matches('[data-close][aria-label], [data-fact-close], [data-badge], #weekly-goals, [data-tip-off], [data-update-app], [data-theme-pick], [data-frame], #settings-overlay a[href]')
+            && Math.min(box.width, box.height) < 39.5) out.small.push(`${name(el)} ${Math.round(box.width)}×${Math.round(box.height)}`);
         el.scrollIntoView({ block: 'center', inline: 'nearest' });
         const at = el.getBoundingClientRect();
         if (at.bottom > vh + 0.5 || at.top < -0.5 || at.right > vw + 0.5 || at.left < -0.5) { out.unreachable.push(`${name(el)} top ${Math.round(at.top)} bottom ${Math.round(at.bottom)}`); continue; }
         const hit = document.elementFromPoint(at.left + at.width / 2, at.top + at.height / 2);
-        if (hit && !(el.contains(hit) || hit.contains(el))) out.covered.push(`${name(el)} překrývá ${hit.tagName.toLowerCase()}`);
+        // Žárovka zajímavosti sedí přes sovu ve štítku záměrně (obě otevřou zajímavost); úroveň vedle hlídá test hlavičky
+        if (hit && !(el.contains(hit) || hit.contains(el)) && !(el.id === 'status-badge' && hit.closest('#fact-hint'))) out.covered.push(`${name(el)} překrývá ${hit.tagName.toLowerCase()}`);
     }
     main.scrollTop = saved;
     // Kontrast textu (bez přechodů na pozadí a bez emoji)
@@ -89,6 +93,24 @@ const inspect = () => {
         const size = parseFloat(style.fontSize); const large = size >= 24 || (size >= 18.66 && Number(style.fontWeight) >= 700);
         if (ratio < (large ? 3 : 4.5)) out.contrast.push(`${ratio.toFixed(2)} „${text.slice(0, 30)}“ ${style.color}`);
     }
+    // Uříznutý text („Správné odp…“, „Hluboký …“) a slovo zlomené uprostřed („ARCHITEKTU / RA“); jména hráčů se smí zkrátit
+    out.clipped = [];
+    out.split = [];
+    const texts = document.createTreeWalker(scope, NodeFilter.SHOW_TEXT);
+    for (let node = texts.nextNode(); node; node = texts.nextNode()) {
+        const el = node.parentElement;
+        if (!el || !node.textContent.trim() || !visible(el) || el.closest('svg, [aria-hidden="true"], #toast, #celebration, #tutorial, [data-player-name]')) continue;
+        const style = getComputedStyle(el);
+        const clamp = style.webkitLineClamp && style.webkitLineClamp !== 'none';
+        if ((style.textOverflow === 'ellipsis' && el.scrollWidth > el.clientWidth + 1) || (clamp && el.scrollHeight > el.clientHeight + 2)) out.clipped.push(`„${el.textContent.trim().slice(0, 30)}“`);
+        const range = document.createRange();
+        for (const match of node.textContent.matchAll(/[^\s\-–·/]{4,}/gu)) {
+            range.setStart(node, match.index);
+            range.setEnd(node, match.index + match[0].length);
+            const lines = new Set([...range.getClientRects()].filter(rect => rect.width > 0).map(rect => Math.round(rect.top)));
+            if (lines.size > 1) out.split.push(`„${match[0]}“`);
+        }
+    }
     return out;
 };
 
@@ -98,16 +120,21 @@ test('rozhraní na úzkém telefonu', { skip: !chromium && 'Playwright není nai
     const browser = await chromium.launch(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {});
     t.after(async () => { await browser.close(); server.close(); });
 
-    const open = async (scheme) => {
-        const context = await browser.newContext({ serviceWorkers: 'block', viewport: VIEWPORT, colorScheme: scheme, reducedMotion: 'reduce', hasTouch: true });
-        await context.addInitScript(() => {
+    // fact = zajímavost dne (data/fakt.json), jinak ji server nemá
+    // signedIn = přihlášený hráč (falešné Supabase: jeho profil, jinak prázdné odpovědi) – v Nastavení má čtyři záložky
+    const open = async (scheme, { viewport = VIEWPORT, fact = null, signedIn = false } = {}) => {
+        const context = await browser.newContext({ serviceWorkers: 'block', viewport, colorScheme: scheme, reducedMotion: 'reduce', hasTouch: true });
+        if (fact) await context.route('**/data/fakt.json', route => route.fulfill({ json: fact }));
+        const auth = signedIn ? JSON.stringify({ access_token: 'tok', refresh_token: 'r', expires_at: 4102444800, user: { id: 'u-1', email: 'jana@example.com', name: 'Jana Nováková' } }) : null;
+        await context.addInitScript((auth) => {
             if (sessionStorage.getItem('seeded')) return;
             sessionStorage.setItem('seeded', '1');
             localStorage.setItem('mudrlant.account', JSON.stringify('host'));
             localStorage.setItem('mudrlant.variant', 'choices');
             localStorage.setItem('mudrlant.tutorial', JSON.stringify({ how: 'done' }));
             localStorage.setItem('mudrlant.tips', JSON.stringify({ off: true }));
-        });
+            if (auth) localStorage.setItem('mudrlant.auth', auth);
+        }, auth);
         const tab = await context.newPage();
         const problems = [];
         tab.on('pageerror', error => problems.push(error.message));
@@ -115,6 +142,10 @@ test('rozhraní na úzkém telefonu', { skip: !chromium && 'Playwright není nai
         await context.route('**/*', route => {
             const url = new URL(route.request().url());
             if (url.origin === origin) return route.fallback();
+            if (signedIn && url.hostname.endsWith('.supabase.co')) {
+                if (url.pathname === '/rest/v1/profiles') return route.fulfill({ json: [{ id: 'u-1', display_name: 'Jana Nováková', avatar: '🦊', color: 'emerald', owl: null, xp: 0, badges: [] }] });
+                return route.fulfill({ json: url.pathname.startsWith('/auth/') ? {} : [] });
+            }
             if (url.hostname === 'cs.wikipedia.org') return route.fulfill({ json: { query: { pages: { 7: { pageid: 7, title: 'Zkouška', extract: fixtures.extractFor(url.searchParams.get('titles')) } } } } });
             if (/\.(png|jpe?g|webp)$/.test(url.pathname) || url.hostname === 'upload.wikimedia.org' || url.hostname === 'tile.openstreetmap.org') return route.fulfill({ contentType: 'image/png', body: PNG });
             return route.abort();
@@ -127,7 +158,12 @@ test('rozhraní na úzkém telefonu', { skip: !chromium && 'Playwright není nai
     const check = async (tab, scene, scheme) => {
         await tab.waitForTimeout(200);
         const found = await tab.evaluate(inspect);
-        for (const kind of ['hscroll', 'unreachable', 'covered', 'small', 'unnamed', 'contrast']) assert.deepEqual(found[kind], [], `${scheme} / ${scene}: ${kind}`);
+        for (const kind of ['hscroll', 'unreachable', 'covered', 'small', 'unnamed', 'contrast', 'clipped', 'split']) assert.deepEqual(found[kind], [], `${scheme} / ${scene}: ${kind}`);
+    };
+    // Otázka se vejde na obrazovku bez posouvání (panel nápověd vyplní, co zbude)
+    const fitsScreen = async (tab, scene, scheme) => {
+        const size = await tab.evaluate(() => { const main = document.getElementById('app-content'); return { scroll: main.scrollHeight, client: main.clientHeight }; });
+        assert.ok(size.scroll <= size.client + 1, `${scheme} / ${scene}: posouvá se (${size.scroll} > ${size.client})`);
     };
 
     for (const scheme of ['light', 'dark']) {
@@ -138,8 +174,13 @@ test('rozhraní na úzkém telefonu', { skip: !chromium && 'Playwright není nai
             await tab.click('[data-action="daily"][data-topic="zemepis"]');
             await tab.waitForSelector('[data-action="give-up"]', { timeout: 30000 });
             await check(tab, 'otázka', scheme);
-            const hint = await tab.$('[data-action="hint"]');
-            if (hint) { await hint.click(); await check(tab, 'otázka s nápovědou', scheme); }
+            await fitsScreen(tab, 'otázka', scheme);
+            // Všechny nápovědy postupně: žádná nesmí stránku natáhnout
+            for (let step = 1; await tab.$('[data-action="hint"]'); step++) {
+                await tab.click('[data-action="hint"]');
+                await check(tab, `otázka s nápovědou ${step}`, scheme);
+                await fitsScreen(tab, `otázka s nápovědou ${step}`, scheme);
+            }
             await (await tab.$$('[data-action="choice"]'))[0].click();
             await tab.waitForSelector('[data-verdict]');
             await check(tab, 'výsledek', scheme);
@@ -152,6 +193,8 @@ test('rozhraní na úzkém telefonu', { skip: !chromium && 'Playwright není nai
             await check(tab, 'nastavení – hra', scheme);
             await tab.click('[data-me-tab="look"]');
             await check(tab, 'nastavení – vzhled', scheme);
+            await tab.click('[data-me-tab="owl"]');
+            await check(tab, 'nastavení – Mudrlant', scheme);
             await tab.keyboard.press('Escape');
 
             await tab.click('#btn-learn');
@@ -189,4 +232,108 @@ test('rozhraní na úzkém telefonu', { skip: !chromium && 'Playwright není nai
             await context.close();
         });
     }
+
+    // Hlavička se zajímavostí dne: sova (s žárovkou) otevře zajímavost, úroveň vedle ní Můj postup – i na 360 px,
+    // kde se název Mudrlant nevejde (vidět je jen „Úr. 1“ s pruhem); plocha úrovně aspoň 40 px
+    for (const [viewport, scheme] of [[{ width: 360, height: 640 }, 'light'], [{ width: 360, height: 640 }, 'dark'], [{ width: 390, height: 780 }, 'light'], [{ width: 390, height: 780 }, 'dark']]) {
+        await t.test(`hlavička: zajímavost i můj postup (${viewport.width}×${viewport.height}, ${scheme})`, async () => {
+            const fact = { date: '2026-10-16', year: 1922, title: 'Objev hrobky Tutanchamona', text: 'V roce 1922 objevil Howard Carter vchod do hrobky faraona Tutanchamona.', url: 'https://cs.wikipedia.org/wiki/Tutanchamon', page: 'Tutanchamon', source: 'Wikipedie' };
+            const { context, tab, problems } = await open(scheme, { viewport, fact });
+            await tab.waitForSelector('#fact-hint:not(.hidden)');
+            const scene = `hlavička ${viewport.width} ${scheme}`;
+            assert.equal(await tab.isVisible('#status-text'), true, `${scene}: úroveň vedle sovy je vidět`);
+            assert.match(await tab.textContent('#status-text'), /Úr\. 1/);
+            if (viewport.width <= 370) assert.equal(await tab.isVisible('#status-text > span:first-child'), false, `${scene}: název se na úzký displej nevejde`);
+            // Plocha, která vede do Mého postupu (tlačítko bez sovy), je aspoň 40 × 40 px a nic ji nepřekrývá
+            const area = await tab.evaluate(() => {
+                const badge = document.getElementById('status-badge').getBoundingClientRect();
+                const owl = document.getElementById('status-icon-slot').getBoundingClientRect();
+                const text = document.getElementById('status-text').getBoundingClientRect();
+                const hit = document.elementFromPoint(text.left + text.width / 2, text.top + text.height / 2);
+                return { width: badge.right - owl.right, height: badge.height, free: Boolean(hit && hit.closest('#status-text')) };
+            });
+            assert.ok(area.width >= 40 && area.height >= 40, `${scene}: plocha úrovně ${area.width}×${area.height}`);
+            assert.equal(area.free, true, `${scene}: úroveň ničím nepřekrytá`);
+            await check(tab, `${scene}: úvod se zajímavostí`, scheme);
+            // Klepnutí na sovu (přes ni je žárovka) → zajímavost, zavřít; úroveň → Můj postup
+            await tab.click('#status-icon-slot', { force: true });
+            await tab.waitForSelector('#fact-overlay');
+            await check(tab, `${scene}: zajímavost`, scheme);
+            await tab.keyboard.press('Escape');
+            await tab.waitForSelector('#fact-overlay', { state: 'detached' });
+            await tab.click('#status-text');
+            await tab.waitForSelector('[data-open-levels]');
+            await check(tab, `${scene}: můj postup`, scheme);
+            assert.deepEqual(problems, [], 'bez chyb v konzoli a bez porušení CSP');
+            await context.close();
+        });
+    }
+
+    // Nastavení přihlášeného hráče: čtyři záložky (Hra, Profil, Vzhled, Mudrlant) se na 360 px vejdou celé, bez „Mudrlan“
+    for (const scheme of ['light', 'dark']) {
+        await t.test(`nastavení přihlášeného hráče: čtyři záložky (${scheme})`, async () => {
+            const { context, tab, problems } = await open(scheme, { signedIn: true });
+            await tab.click('#btn-settings');
+            await tab.waitForSelector('[data-me-tab="profile"]');
+            const tabs = await tab.evaluate(() => {
+                const list = document.querySelector('#settings-overlay [role="tablist"]');
+                return { list: [list.scrollWidth, list.clientWidth], tabs: [...list.querySelectorAll('[data-me-tab]')].map(el => ({ text: el.textContent.trim(), scroll: el.scrollWidth, client: el.clientWidth, width: el.getBoundingClientRect().width })) };
+            });
+            assert.deepEqual(tabs.tabs.map(item => item.text), ['Hra', 'Profil', 'Vzhled', 'Mudrlant']);
+            assert.ok(tabs.list[0] <= tabs.list[1] + 1, `${scheme}: pás záložek přetéká (${tabs.list[0]} > ${tabs.list[1]})`);
+            for (const item of tabs.tabs) assert.ok(item.scroll <= item.client + 1 && item.width >= 44, `${scheme}: záložka ${item.text} uříznutá nebo malá (${item.scroll} > ${item.client}, šířka ${item.width})`);
+            for (const id of ['game', 'profile', 'look', 'owl']) {
+                await tab.click(`[data-me-tab="${id}"]`);
+                await check(tab, `nastavení přihlášeného – ${id}`, scheme);
+            }
+            assert.deepEqual(problems, [], 'bez chyb v konzoli a bez porušení CSP');
+            await context.close();
+        });
+    }
+
+    // Obrazové nápovědy v nejmenším panelu otázky (7 rem na 360×640) i ve větším: popisky uvnitř plochy, popisky stupnice
+    // se nepřekrývají a čárky je nepřeškrtnou, periodická tabulka plochu využije
+    await t.test('časová osa, stupnice a periodická tabulka v malém panelu', async () => {
+        const { context, tab, problems } = await open('light');
+        const specs = {
+            timeline: { type: 'timeline', spans: [{ kind: 'life', from: 356, to: 323 }, { kind: 'reign', from: 336, to: 323 }].map(span => ({ ...span, from: -span.from, to: -span.to })),
+                anchors: [[-399, 'smrt Sókrata', 1], [-490, 'bitva u Marathónu', 1], [-221, 'sjednocení Číny', 1]] },
+            scale: { type: 'scale', min: 1, max: 10, value: 2.25, valueLabel: 'tvrdost 2–2,5', minLabel: 'měkký', maxLabel: 'tvrdý',
+                ticks: ['mastek', 'sádrovec', 'kalcit', 'fluorit', 'apatit', 'živec', 'křemen', 'topaz', 'korund', 'diamant'].map((label, i) => ({ value: i + 1, label })) },
+            periodic: { type: 'periodic', z: 10 }
+        };
+        for (const [width, height] of [[330, 112], [330, 136], [366, 288]]) {
+            const found = await tab.evaluate(async ({ specs, width, height }) => {
+                const out = [];
+                for (const [kind, spec] of Object.entries(specs)) {
+                    const box = document.createElement('div');
+                    Object.assign(box.style, { position: 'fixed', left: '0', top: '0', zIndex: '99' });
+                    document.body.appendChild(box);
+                    box.style.width = `${width}px`;
+                    box.style.height = `${height}px`;
+                    await window.MudrlantVisuals.render(box, spec, {});
+                    const svg = box.querySelector('svg');
+                    const shapes = [...svg.querySelectorAll('text, rect, circle')].map(el => ({ el, b: el.getBBox() }));
+                    for (const { el, b } of shapes) if (b.x < -1 || b.y < -1 || b.x + b.width > width + 1 || b.y + b.height > height + 1) out.push(`${kind} ${width}×${height}: ${el.tagName} „${el.textContent}“ mimo plochu`);
+                    const labels = shapes.filter(({ el }) => el.tagName === 'text');
+                    for (let i = 0; i < labels.length; i++) for (let j = i + 1; j < labels.length; j++) {
+                        const [a, b] = [labels[i].b, labels[j].b];
+                        if (a.x < b.x + b.width - 1 && b.x < a.x + a.width - 1 && a.y < b.y + b.height - 1 && b.y < a.y + a.height - 1) out.push(`${kind} ${width}×${height}: „${labels[i].el.textContent}“ překrývá „${labels[j].el.textContent}“`);
+                    }
+                    // Popisky stupnice mají obrys v barvě pozadí, takže čárky pod nimi nejsou vidět
+                    if (kind === 'scale') labels.filter(({ el }) => el.getAttribute('font-weight') === '600').forEach(({ el }) => { if (el.getAttribute('paint-order') !== 'stroke') out.push(`stupnice: „${el.textContent}“ bez obrysu`); });
+                    if (kind === 'periodic') {
+                        const used = [...svg.querySelectorAll('rect')].map(rect => rect.getBBox());
+                        const tableHeight = Math.max(...used.map(b => b.y + b.height)) - Math.min(...used.map(b => b.y));
+                        if (tableHeight < height * 0.75 && width / 18 * 9.5 > height * 0.75) out.push(`periodická tabulka ${width}×${height}: využije jen ${Math.round(tableHeight)} px výšky`);
+                    }
+                    box.remove();
+                }
+                return out;
+            }, { specs, width, height });
+            assert.deepEqual(found, [], `${width}×${height}`);
+        }
+        assert.deepEqual(problems, [], 'bez chyb v konzoli a bez porušení CSP');
+        await context.close();
+    });
 });

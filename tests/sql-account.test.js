@@ -62,6 +62,25 @@ test('SQL: export a smazání účtu', { skip: !available && 'PostgreSQL není d
         assert.ok(!JSON.stringify(data).includes(id(2)) || data.rating_historie.every(row => row.user_id === id(1)), 'cizí řádky v exportu nejsou');
     });
 
+    await t.test('export obsahuje i přátele, bloky, reakce, nahlášení, hlášení otázek a poslední aktivitu (jen vlastní)', () => {
+        q(`insert into friendships (user_id, friend_id, status) values ('${id(1)}', '${id(2)}', 'pending'), ('${id(3)}', '${id(1)}', 'pending'), ('${id(4)}', '${id(5)}', 'pending');
+           insert into player_blocks (blocker, blocked) values ('${id(1)}', '${id(6)}'), ('${id(7)}', '${id(1)}');
+           insert into player_reports (reporter, reported, reason) values ('${id(1)}', '${id(8)}', 'jine'), ('${id(9)}', '${id(1)}', 'prezdivka');
+           insert into question_reports (user_id, topic, item_id, reason) values ('${id(1)}', 'zemepis', 'Q1', 'jine'), ('${id(2)}', 'zemepis', 'Q2', 'jine');
+           insert into match_reactions (challenge_id, from_id, to_id, emoji) values ('AAAAAA', '${id(2)}', '${id(1)}', '👍');`);
+        ok(as(id(1), `select touch_seen();`));
+        ok(as(id(2), `select touch_seen();`));
+        const data = JSON.parse(last(ok(as(id(1), `select export_my_data();`))));
+        assert.ok(data.posledni_aktivita, 'poslední aktivita');
+        assert.equal(data.pratele.length, 2);
+        assert.ok(data.pratele.every(row => [row.user_id, row.friend_id].includes(id(1))), 'jen moje přátelství');
+        assert.deepEqual(data.zablokovani_hraci.map(row => row.blocked), [id(6)], 'jen koho blokuju já (ne kdo blokuje mě)');
+        assert.deepEqual(data.nahlaseni_hracu.map(row => row.reported), [id(8)], 'jen moje nahlášení (ne kdo nahlásil mě)');
+        assert.deepEqual(data.hlaseni_otazek.map(row => row.item_id), ['Q1']);
+        assert.deepEqual(data.reakce.map(row => row.emoji), ['👍']);
+        assert.deepEqual(data.upozorneni_odbery, []);
+    });
+
     await t.test('smazání odstraní profil, navázaná data i auth.users; cizí účty zůstanou', () => {
         assert.equal(last(ok(as(id(1), `select delete_my_account();`))), 't');
         assert.equal(q(`select count(*) from auth.users where id = '${id(1)}'`), '0');

@@ -418,6 +418,20 @@
         }
         return previous[b.length];
     };
+    // Vzdálenost pro psanou odpověď: jako levenshtein, ale dvě přehozená sousední písmena (Kundear – Kundera) jsou jeden překlep
+    const typoDistance = (a, b) => {
+        if (a === b) return 0;
+        const rows = [Array.from({ length: b.length + 1 }, (_, j) => j)];
+        for (let i = 1; i <= a.length; i++) {
+            const row = [i];
+            for (let j = 1; j <= b.length; j++) {
+                row[j] = Math.min(rows[i - 1][j] + 1, row[j - 1] + 1, rows[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+                if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) row[j] = Math.min(row[j], rows[i - 2][j - 2] + 1);
+            }
+            rows.push(row);
+        }
+        return rows[a.length][b.length];
+    };
 
     // Překlep se toleruje po slovech (v delším slově jeden, v dlouhém dva); čísla a římské číslice musí sedět přesně,
     // jinak by „Ludvík XV.“ prošel za Ludvíka XIV. a „15. století“ za 14.
@@ -447,7 +461,7 @@
         const free = [...givenWords];
         // Napřed přesné shody, potom ty s překlepem – jinak by překlep „ukradl“ cizí slovo
         const rest = words.filter(word => { const i = free.indexOf(word); if (i < 0) return true; free.splice(i, 1); return false; });
-        return rest.every(word => { const i = free.findIndex(other => levenshtein(other, word) <= wordTolerance(word)); if (i < 0) return false; free.splice(i, 1); return true; });
+        return rest.every(word => { const i = free.findIndex(other => typoDistance(other, word) <= wordTolerance(word)); if (i < 0) return false; free.splice(i, 1); return true; });
     };
     const matchesOne = (given, expected) => {
         if (!given || !expected) return false;
@@ -455,12 +469,12 @@
         const givenWords = given.split(' ');
         const words = expected.split(' ');
         if (words.length === givenWords.length) {
-            if (words.every((word, i) => levenshtein(givenWords[i], word) <= wordTolerance(word))) return true;
+            if (words.every((word, i) => typoDistance(givenWords[i], word) <= wordTolerance(word))) return true;
             if (matchesAnyOrder(givenWords, words)) return true;
         }
         // Chybějící nebo přebývající mezera („Jan Hus“ – „Janhus“) u slov bez čísel
         return words.length !== givenWords.length && !words.some(isExactToken)
-            && levenshtein(given.replace(/ /g, ''), expected.replace(/ /g, '')) <= Math.min(wordTolerance(expected.replace(/ /g, '')), 1);
+            && typoDistance(given.replace(/ /g, ''), expected.replace(/ /g, '')) <= Math.min(wordTolerance(expected.replace(/ /g, '')), 1);
     };
     const isAnswerMatch = (input, acceptedAnswers) => {
         const given = normalizeAnswer(input);
@@ -1633,7 +1647,7 @@
         BADGE_GROUPS.push(group);
     };
     const T = (goal, title, id) => ({ goal, title, id });
-    addGroup('odpovedi', 'Správné odpovědi', 'target', (c) => c.correct, (g) => `${g} správných odpovědí.`,
+    addGroup('odpovedi', 'Správné odpovědi', 'target', (c) => c.correct, (g) => g === 1 ? 'První správná odpověď.' : `${g} správných odpovědí.`,
         [T(1, 'První krok', 'prvni-krok'), T(10, 'Rozjezd'), T(50, 'Pětapadesátka'), T(100, 'Stovka', 'stovka'), T(250, 'Čtvrt tisíce'), T(500, 'Pětistovka'),
             T(1000, 'Tisícovka', 'tisicovka'), T(2500, 'Dva a půl tisíce'), T(5000, 'Pět tisíc'), T(10000, 'Deset tisíc')]);
     addGroup('rada', 'Správně v řadě', 'zap', (c) => c.bestRun, (g) => `${g} správných odpovědí v řadě.`,

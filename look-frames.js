@@ -7,7 +7,7 @@
     else root.MudrlantLookFrames = api;
 })(typeof self !== 'undefined' ? self : this, (Look, Core) => {
     'use strict';
-    const SHORT = { zadny: 'Bez', bronz: 'Bronz', stribro: 'Stříbro', zlato: 'Zlato', vavrin: 'Vavřín', plamen: 'Plamen', diamant: 'Diamant' };
+    const SHORT = { zadny: 'Bez', bronz: 'Bronz', stribro: 'Stříbro', zlato: 'Zlato', vavrin: 'Vavřín', plamen: 'Plamen', diamant: 'Diamant', medailista: 'Medaile', 'mistr-turnaje': 'Mistr' };
     const escapeHtml = (text) => Core && Core.escapeHtml ? Core.escapeHtml(text) : String(text).replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
 
     // Třídy rámečku pro obrázek hráče; neznámé id (a „bez rámečku“) nedá nic, takže cizí hodnota z databáze nic nerozbije
@@ -41,13 +41,13 @@
             const unlocked = Look.isUnlocked(item, ctx);
             const label = unlocked || item.id === 'zadny' ? SHORT[item.id] : (item.badge ? 'Odznak' : `Úr. ${item.level}`);
             const text = unlocked ? item.title : `${item.title}: ${Look.unlockText(item, item.badge ? badgeTitle(item.badge) : null)}`;
-            return `<button type="button" data-frame="${item.id}" aria-pressed="${item.id === selected}" aria-label="${escapeHtml(unlocked ? item.title : `${text} (zamčeno)`)}" title="${escapeHtml(text)}" class="flex min-w-0 flex-col items-center gap-1 rounded-xl border-2 px-0.5 pb-1 pt-2 active:scale-95 ${item.id === selected ? 'border-brand-600 bg-brand-50 dark:bg-brand-900/40' : 'border-transparent bg-slate-100 dark:bg-slate-700/60'} ${unlocked ? '' : 'opacity-50 grayscale'}">
+            return `<button type="button" data-frame="${item.id}" aria-pressed="${item.id === selected}" aria-label="${escapeHtml(unlocked ? item.title : `${text} (zamčeno)`)}" title="${escapeHtml(text)}" class="flex min-w-0 flex-col items-center gap-1 rounded-xl border-2 px-0.5 pb-1 pt-2 active:scale-95 min-[400px]:py-1.5 ${item.id === selected ? 'border-brand-600 bg-brand-50 dark:bg-brand-900/40' : 'border-transparent bg-slate-100 dark:bg-slate-700/60'} ${unlocked ? '' : 'opacity-50 grayscale'}">
                 ${ctx.avatarHtml ? ctx.avatarHtml({ ...player, id: null, frame: item.id }, 'h-8 w-8 text-base') : ''}
-                <span class="max-w-full truncate text-[10px] font-bold leading-none text-slate-600 dark:text-slate-300">${escapeHtml(label)}</span>
+                <span class="max-w-full truncate text-[10px] font-bold leading-none text-slate-600 dark:text-slate-300 min-[400px]:hidden">${escapeHtml(label)}</span>
             </button>`;
         }).join('');
         const shown = hint || frameHint(Look.find('frames', selected), ctx, badgeTitle);
-        return `<div class="grid grid-cols-9 gap-1" role="group" aria-label="Rámeček profilu">${tiles}</div>
+        return `<div class="grid grid-cols-5 gap-1.5 min-[400px]:grid-cols-9 min-[400px]:gap-1" role="group" aria-label="Rámeček profilu">${tiles}</div>
             <p class="mt-1.5 text-[11px] leading-snug text-slate-500 dark:text-slate-400" role="status">${escapeHtml(shown)}${ctx.user ? '' : ' · uvidí ho hráči po přihlášení'}</p>`;
     };
     const clickFrames = (event, ctx) => {

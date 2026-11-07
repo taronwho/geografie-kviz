@@ -48,7 +48,7 @@
     const SESSION_MAX_AGE = 2 * 60 * 60 * 1000;
     // Verze databázového schématu, kterou aplikace potřebuje: zvyšuje se spolu s schema_version() na konci supabase/schema.sql
     // (tests/sql-security.test.js hlídá shodu). Správce (dev_admins nebo vývojářský režim) uvidí v Nastavení, že má schéma spustit znovu.
-    const REQUIRED_SCHEMA = 1;
+    const REQUIRED_SCHEMA = 2;
     const HISTORY_SIZE = 200;
     const REQUEST_TIMEOUT = 12000;
     const WIKI_TIMEOUT = 6000;
@@ -316,6 +316,19 @@
         }
     });
 
+    // Po zavření okna se fokus vrátí na prvek, který ho otevřel (Ukaž …, Sdílet, dlaždice); jinak by klávesnice i čtečka
+    // obrazovky skončily na začátku stránky. Když zavření samo něco zaměří nebo otvírač zmizel, nechá se to být.
+    let focusBeforeOverlay = null;
+    document.addEventListener('focusin', (event) => {
+        if (!(event.target.closest && event.target.closest('[aria-modal="true"]'))) focusBeforeOverlay = event.target;
+    });
+    new MutationObserver((records) => {
+        const closed = records.some(record => [...record.removedNodes].some(node => node.nodeType === 1 && node.getAttribute('aria-modal') === 'true'));
+        if (!closed || document.querySelector('body > [aria-modal="true"]')) return;
+        if (document.activeElement && document.activeElement !== document.body) return;
+        if (focusBeforeOverlay && focusBeforeOverlay.isConnected) focusBeforeOverlay.focus({ preventScroll: true });
+    }).observe(document.body, { childList: true });
+
     const showToast = (message) => {
         let toast = document.getElementById('toast');
         if (!toast) {
@@ -389,9 +402,14 @@
     // Úvod článku z české Wikipedie; bez spojení aspoň krátký popis z Wikidat, ať jde hrát dál.
     // Úspěšně stažené úvody si pamatujeme, ať se atlas a okno s popisem neptají Wikipedie znovu.
     const itemTexts = new Map();
+    // Když Wikipedie neodpověděla (bez internetu, zaseknutá), chvíli se na ni neptáme: další otázka (i náhradní za chudý popis)
+    // by jinak na každý popis čekala dva pokusy po 6 s a jedna otázka by se načítala skoro minutu
+    const WIKI_PAUSE = 60000;
+    let wikiFailedAt = 0;
+    const wikiPaused = () => Date.now() - wikiFailedAt < WIKI_PAUSE;
     const fetchItemText = async (item) => {
         if (itemTexts.has(item.t)) return itemTexts.get(item.t);
-        try {
+        if (!wikiPaused()) try {
             // Zaseknutá Wikipedie nesmí zdržet otázku dlouho: dva pokusy po 6 s, pak krátký popis z Wikidat
             const data = await fetchJson(`${WIKI_API}&action=query&prop=extracts&exintro=1&explaintext=1&exchars=1200&redirects=1&titles=${encodeURIComponent(item.t)}`, 2, WIKI_TIMEOUT);
             const page = Object.values((data.query && data.query.pages) || {})[0];
@@ -401,6 +419,7 @@
                 return text;
             }
         } catch (e) {
+            if (e instanceof NetworkError) wikiFailedAt = Date.now();
             console.error(e);
         }
         const shortDescription = item.d ? `${item.d.charAt(0).toUpperCase()}${item.d.slice(1)}.` : '';
@@ -602,12 +621,12 @@
         appContent.innerHTML = `
             <div class="fade-in flex min-h-full flex-col justify-center gap-4 p-6">
                 <div class="mb-2 text-center">
-                    <img src="icons/topics/sova-premysleni.webp" alt="" class="mx-auto mb-3 h-36 w-36 object-contain drop-shadow-lg">
+                    <img src="icons/topics/sova-premysleni.webp" alt="" class="mx-auto mb-3 h-36 w-36 object-contain drop-shadow-lg [@media(max-height:700px)]:h-28 [@media(max-height:700px)]:w-28">
                     <h2 class="text-2xl font-black text-slate-800 dark:text-slate-50">Vítej v Mudrlantovi</h2>
                     <p class="mt-2 text-sm text-slate-500 dark:text-slate-400">Kvíz ze zeměpisu a dalších oborů. Jak chceš odpovídat? Změníš to kdykoli v nastavení vpravo nahoře.</p>
                 </div>
                 <div id="variant-welcome" class="flex flex-col gap-3">${renderVariantCards(null)}</div>
-                <p class="mt-2 text-center text-xs text-slate-500 dark:text-slate-400"><a href="soukromi.html" class="rounded-lg px-1.5 py-2 font-bold underline underline-offset-2">Ochrana osobních údajů</a> · <a href="licence.html" class="rounded-lg px-1.5 py-2 font-bold underline underline-offset-2">Zdroje a licence</a></p>
+                <p class="mt-2 text-center text-xs text-slate-500 dark:text-slate-400"><a href="soukromi.html" class="inline-block rounded-lg px-1.5 py-3 font-bold underline underline-offset-2">Ochrana osobních údajů</a> · <a href="licence.html" class="inline-block rounded-lg px-1.5 py-3 font-bold underline underline-offset-2">Zdroje a licence</a></p>
             </div>`;
         renderIcons(appContent);
         updateControlsUI();
@@ -841,7 +860,7 @@
     const renderDevPanel = () => !devOn() ? '' : `
         <div class="mt-3 rounded-2xl border-2 border-dashed border-amber-400/70 p-2.5">
             <p class="mb-1.5 flex items-center justify-between text-[11px] font-black uppercase tracking-widest text-amber-700 dark:text-amber-400"><span>Vývojářský režim</span><span class="font-bold normal-case tracking-normal">${devActive() ? 'zkušební postup' : 'tvůj postup'}</span></p>
-            <div class="flex flex-wrap gap-1">${[['max', 'Vše (úr. 100)'], ['level:10', 'Úr. 10'], ['level:25', 'Úr. 25'], ['level:50', 'Úr. 50'], ['level:75', 'Úr. 75'], ['badges', 'Všechny odznaky'], ['nobadges', 'Žádné odznaky'], ['nostars', 'Vymazat hvězdičky'], ['bulb', 'Vrátit žárovku'], ['tips', 'Obnovit tipy']].map(([kind, label]) => `<button type="button" data-dev="${kind}" class="rounded-lg bg-slate-200 px-2 py-1 text-[11px] font-bold text-slate-700 active:scale-95 dark:bg-slate-700 dark:text-slate-200">${label}</button>`).join('')}${devActive() ? '<button type="button" data-dev="restore" class="rounded-lg bg-amber-500 px-2 py-1 text-[11px] font-black text-white active:scale-95">Vrátit můj postup</button>' : ''}</div>
+            <div class="flex flex-wrap gap-1">${[['max', 'Vše (úr. 100)'], ['level:10', 'Úr. 10'], ['level:25', 'Úr. 25'], ['level:50', 'Úr. 50'], ['level:75', 'Úr. 75'], ['badges', 'Všechny odznaky'], ['nobadges', 'Žádné odznaky'], ['nostars', 'Vymazat hvězdičky'], ['bulb', 'Vrátit žárovku'], ['tips', 'Obnovit tipy']].map(([kind, label]) => `<button type="button" data-dev="${kind}" class="rounded-lg bg-slate-200 px-2 py-1 text-[11px] font-bold text-slate-700 active:scale-95 dark:bg-slate-700 dark:text-slate-200">${label}</button>`).join('')}${devActive() ? '<button type="button" data-dev="restore" class="rounded-lg bg-amber-700 px-2 py-1 text-[11px] font-black text-white active:scale-95">Vrátit můj postup</button>' : ''}</div>
             ${Social ? `<p class="mb-1 mt-2 text-[11px] font-black uppercase tracking-widest text-amber-700 dark:text-amber-400">Turnaj (boti)</p>
             <div class="flex flex-wrap gap-1">${[['tour-bots', '+31 botů'], ['tour-start', 'Spustit hned'], ['tour-next', 'Další kolo'], ['tour-reset', 'Smazat odehraný turnaj'], ['tour-clear', 'Smazat boty']].map(([kind, label]) => `<button type="button" data-dev="${kind}" class="rounded-lg bg-emerald-100 px-2 py-1 text-[11px] font-bold text-emerald-900 active:scale-95 dark:bg-emerald-900/50 dark:text-emerald-100">${label}</button>`).join('')}</div>
             <p class="mb-1 mt-2 text-[11px] font-black uppercase tracking-widest text-amber-700 dark:text-amber-400">Provoz</p>
@@ -936,7 +955,7 @@
             if (turnOn) meNote = result.ok ? 'Uloženo: upozornění jsou zapnutá.' : result.reason === 'denied' ? 'Upozornění jsou v prohlížeči zakázaná.' : 'Upozornění zůstala vypnutá.';
             else meNote = result.ok ? 'Uloženo: upozornění jsou vypnutá.' : 'Upozornění jsou na tomhle zařízení vypnutá, na serveru se ale odběr nepodařilo smazat.';
         } catch (error) {
-            meNote = 'Upozornění se nepodařilo zapnout, zkus to znovu.';
+            meNote = turnOn ? 'Upozornění se nepodařilo zapnout, zkus to znovu.' : 'Upozornění se nepodařilo vypnout, zkus to znovu.';
         }
         pushBusy = false;
         pushState = null;
@@ -946,10 +965,14 @@
     };
     const changePushPref = async (key) => {
         const user = signedUser();
-        if (!Push || !user || !pushPrefs) return;
+        // Dvojí klepnutí během ukládání by poslalo stejnou změnu dvakrát (z původního stavu): další volba až po odpovědi
+        if (!Push || !user || !pushPrefs || pushBusy) return;
+        pushBusy = true;
         const next = { ...pushPrefs, [key]: !pushPrefs[key] };
         try { pushPrefs = await Push.savePrefs(user.id, next); meNote = 'Uloženo.'; } catch (error) { meNote = 'Uložení se nepodařilo, zkus to znovu.'; }
-        openSettings(meNote, `[data-push-pref="${key}"]`);
+        pushBusy = false;
+        // Zavřené Nastavení se po uložení znovu neotevře
+        if (document.getElementById('settings-overlay')) openSettings(meNote, `[data-push-pref="${key}"]`);
     };
     const openSettings = (note = '', focusSelector = null, tab = null) => {
         closeChooser();
@@ -972,10 +995,13 @@
         const shown = profile && meTab === 'profile' && meDraft ? { ...profile, ...{ avatar: meDraft.avatar, color: meDraft.color, owl: meDraft.owl ? myOwlText() : null, draft: true } } : profile;
         const level = levelProgress(loadProgress().xp);
         const noteText = note || meNote;
+        const tabList = [['game', 'gamepad-2', 'Hra'], ...(user && Social ? [['profile', 'user-round', 'Profil']] : []), ['look', 'palette', 'Vzhled'], ...(Owl ? [['owl', 'sparkles', 'Mudrlant']] : [])];
+        // Čtyři záložky (přihlášený hráč) se na telefon s ikonami nevejdou („Mudrlan“): ikony až na širším displeji, na 360 px menší písmo a okraje
+        const crowded = tabList.length > 3;
         const tabs = `
             <div role="tablist" class="mt-3 flex gap-1 rounded-2xl bg-slate-200/70 p-1 dark:bg-slate-800">
-                ${[['game', 'gamepad-2', 'Hra'], ...(user && Social ? [['profile', 'user-round', 'Profil']] : []), ['look', 'palette', 'Vzhled'], ...(Owl ? [['owl', 'sparkles', 'Mudrlant']] : [])].map(([id, icon, label]) => `
-                    <button type="button" role="tab" data-me-tab="${id}" aria-selected="${meTab === id}" class="flex flex-1 items-center justify-center gap-1.5 rounded-xl min-h-[2.75rem] px-2 text-[13px] font-black ${meTab === id ? 'btn-3d bg-brand-700 text-white' : 'text-slate-600 dark:text-slate-400'}"><i data-lucide="${icon}" class="h-4 w-4"></i> ${label}</button>`).join('')}
+                ${tabList.map(([id, icon, label]) => `
+                    <button type="button" role="tab" data-me-tab="${id}" aria-selected="${meTab === id}" class="flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-xl min-h-[2.75rem] px-2 text-[13px] font-black ${crowded ? 'max-[400px]:px-1 max-[400px]:text-[12px]' : ''} ${meTab === id ? 'btn-3d bg-brand-700 text-white' : 'text-slate-600 dark:text-slate-400'}"><i data-lucide="${icon}" class="h-4 w-4 shrink-0 ${crowded ? 'max-sm:hidden' : ''}"></i> ${label}</button>`).join('')}
             </div>`;
         const gameBody = `
             <h3 class="${ME_HEADING} mb-2">Varianta hry</h3>
@@ -1013,7 +1039,7 @@
                     <input type="range" min="0" max="355" step="5" value="${Social.customHue(meDraft.color) ?? Social.customHue('h' + ({ emerald: 160, sky: 200, violet: 260, rose: 350, amber: 40, teal: 175, orange: 25, indigo: 240 }[meDraft.color] || 160))}" data-pick-hue aria-label="Všechny barvy: odstín pozadí profilovky" class="mt-2 h-6 w-full cursor-pointer appearance-none rounded-full bg-[linear-gradient(90deg,#f00,#ff0,#0f0,#0ff,#00f,#f0f,#f00)]">
                 </div>
                 <div class="flex gap-2">
-                    <button type="button" data-open-accept class="btn-3d-light flex min-w-0 flex-1 items-center gap-2 rounded-2xl bg-white px-3 py-2 text-left dark:bg-slate-800"><i data-lucide="shield-check" class="h-5 w-5 shrink-0 text-brand-700 dark:text-brand-300"></i><span class="min-w-0 flex-1 truncate text-[13px] font-black text-slate-800 dark:text-slate-100">Přijímané výzvy <span class="font-semibold text-slate-500 dark:text-slate-400">· ${escapeHtml(acceptSummary())}</span></span><i data-lucide="chevron-right" class="h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400"></i></button>
+                    <button type="button" data-open-accept class="btn-3d-light flex min-w-0 flex-1 items-center gap-2 rounded-2xl bg-white px-3 py-2 text-left dark:bg-slate-800"><i data-lucide="shield-check" class="h-5 w-5 shrink-0 text-brand-700 dark:text-brand-300"></i><span class="min-w-0 flex-1 text-[13px] font-black leading-tight text-slate-800 dark:text-slate-100">Přijímané výzvy <span class="font-semibold text-slate-500 dark:text-slate-400">· ${escapeHtml(acceptSummary())}</span></span><i data-lucide="chevron-right" class="h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400"></i></button>
                     ${Friends ? `<button type="button" data-open-blocked aria-label="Zablokovaní hráči: ${myBlocks ? myBlocks.length : 'načítám'}" title="Zablokovaní hráči" class="btn-3d-light relative flex h-auto w-11 shrink-0 items-center justify-center rounded-2xl bg-white text-brand-700 dark:bg-slate-800 dark:text-brand-300"><i data-lucide="ban" class="h-5 w-5"></i>${myBlocks && myBlocks.length ? `<span class="absolute -right-1 -top-1 flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-rose-600 px-1 text-[10px] font-black text-white">${myBlocks.length}</span>` : ''}</button>` : ''}
                 </div>
                 <div class="grid grid-cols-2 gap-2">
@@ -1030,7 +1056,7 @@
                         <p class="truncate text-xs text-slate-500 dark:text-slate-400">${user ? escapeHtml(user.email || user.name) : 'Hraješ bez účtu'}</p>
                         <button type="button" data-open-progress class="mt-0.5 flex items-center gap-1 text-[11px] font-black text-brand-700 dark:text-cream">${escapeHtml(ownTitleText(level.level))} <i data-lucide="chevron-right" class="h-3 w-3"></i></button>
                     </div>
-                    <button type="button" data-close aria-label="Zavřít" class="self-start rounded-xl p-2 text-slate-500 hover:bg-slate-200 dark:text-slate-400 dark:hover:bg-slate-800"><i data-lucide="x" class="h-5 w-5"></i></button>
+                    <button type="button" data-close aria-label="Zavřít" class="-m-0.5 self-start rounded-xl p-2.5 text-slate-500 hover:bg-slate-200 dark:text-slate-400 dark:hover:bg-slate-800"><i data-lucide="x" class="h-5 w-5"></i></button>
                 </div>
                 ${tabs}
                 <div class="mt-3">${meTab === 'profile' && profileBody ? profileBody : meTab === 'look' ? lookBody('look') : meTab === 'owl' ? lookBody('owl') : gameBody}</div>
@@ -1038,12 +1064,12 @@
                 ${renderSchemaBanner()}
                 <div class="flex items-center justify-center gap-2 text-xs text-slate-500 dark:text-slate-400">
                     <span id="app-version">${escapeHtml(versionLabel())}</span>
-                    <button type="button" data-update-app class="rounded-lg px-2 py-1 font-bold text-slate-600 underline underline-offset-2 hover:bg-slate-200 disabled:no-underline dark:text-slate-300 dark:hover:bg-slate-800">Aktualizovat</button>
+                    <button type="button" data-update-app class="-my-2 inline-flex min-h-[2.5rem] items-center rounded-lg px-2 font-bold text-slate-600 underline underline-offset-2 hover:bg-slate-200 disabled:no-underline dark:text-slate-300 dark:hover:bg-slate-800">Aktualizovat</button>
                 </div>
                 ${meTab === 'game' ? `<div class="mt-1 flex flex-wrap items-center justify-center gap-x-1 text-xs text-slate-500 dark:text-slate-400">
-                    <a href="soukromi.html" class="rounded-lg px-2 py-1 font-bold underline underline-offset-2">Ochrana osobních údajů</a>
-                    <a href="licence.html" class="rounded-lg px-2 py-1 font-bold underline underline-offset-2">Zdroje a licence</a>
-                    ${user && Social ? '<button type="button" data-open-privacy class="rounded-lg px-2 py-1 font-bold underline underline-offset-2">Moje data</button>' : ''}
+                    <a href="soukromi.html" class="-my-2 inline-flex min-h-[2.5rem] items-center rounded-lg px-2 font-bold underline underline-offset-2">Ochrana osobních údajů</a>
+                    <a href="licence.html" class="-my-2 inline-flex min-h-[2.5rem] items-center rounded-lg px-2 font-bold underline underline-offset-2">Zdroje a licence</a>
+                    ${user && Social ? '<button type="button" data-open-privacy class="-my-2 inline-flex min-h-[2.5rem] items-center rounded-lg px-2 font-bold underline underline-offset-2">Moje data</button>' : ''}
                 </div>` : ''}
             </div>`;
         overlay.firstElementChild.scrollTop = scroll;
@@ -1346,7 +1372,7 @@
     };
 
     const chooserToggle = (attribute, value, isOn, icon, label, on) => `
-        <button type="button" ${attribute}="${escapeHtml(value)}" aria-pressed="${isOn}" class="flex items-center gap-2 rounded-xl border-2 px-2.5 py-2 text-left text-sm font-bold leading-tight transition-colors active:scale-[0.98] ${isOn ? on : TOGGLE_OFF}">
+        <button type="button" ${attribute}="${escapeHtml(value)}" aria-pressed="${isOn}" class="flex min-h-[2.5rem] items-center gap-2 rounded-xl border-2 px-2.5 py-2 text-left text-sm font-bold leading-tight transition-colors active:scale-[0.98] ${isOn ? on : TOGGLE_OFF}">
             <i data-lucide="${isOn ? 'square-check-big' : 'square'}" class="h-4 w-4 shrink-0"></i>
             <i data-lucide="${icon}" class="h-4 w-4 shrink-0 opacity-70"></i>
             <span class="min-w-0">${escapeHtml(label)}</span>
@@ -1362,7 +1388,7 @@
             ? TOPICS.map(other => chooserToggle('data-chooser-topic', other.id, settings.topics.includes(other.id), other.icon, other.title, styleOf(other).on)).join('')
             : topic.categories.map(category => chooserToggle('data-chooser-category', category.key, selectedCategories(topic).includes(category.key), category.icon, category.label, style.on)).join('');
         const switches = [...TOPICS, MIX].filter(other => other.id !== topic.id).map(other => `
-            <button type="button" data-chooser-switch="${other.id}" class="flex shrink-0 items-center gap-1.5 rounded-xl px-2.5 py-1.5 text-xs font-bold ${styleOf(other).soft}">
+            <button type="button" data-chooser-switch="${other.id}" class="flex min-h-[2.5rem] shrink-0 items-center gap-1.5 rounded-xl px-2.5 py-1.5 text-xs font-bold ${styleOf(other).soft}">
                 <i data-lucide="${other.icon}" class="h-3.5 w-3.5"></i> ${escapeHtml(other.title)}
             </button>`).join('');
         // Překreslení po klepnutí bez úvodní animace a se stejným posunutím
@@ -1376,11 +1402,11 @@
                         <h2 id="chooser-title" class="text-lg font-black text-slate-800 dark:text-slate-100">${escapeHtml(topic.title)}</h2>
                         <p class="text-sm text-slate-500 dark:text-slate-400">${isMix ? 'Z jakých témat chceš otázky?' : 'Co chceš hrát?'}</p>
                     </div>
-                    <button type="button" data-close aria-label="Zavřít" class="rounded-xl p-2 text-slate-500 hover:bg-slate-200 dark:text-slate-400 dark:hover:bg-slate-800"><i data-lucide="x" class="h-5 w-5"></i></button>
+                    <button type="button" data-close aria-label="Zavřít" class="-m-0.5 rounded-xl p-2.5 text-slate-500 hover:bg-slate-200 dark:text-slate-400 dark:hover:bg-slate-800"><i data-lucide="x" class="h-5 w-5"></i></button>
                 </div>
                 <div class="mb-2 flex items-center justify-between">
                     <h3 class="${SETTINGS_HEADING}">${isMix ? 'Témata' : 'Kategorie'}</h3>
-                    <button type="button" data-chooser-all class="-my-2 rounded-lg px-2 py-2 text-xs font-bold ${style.text} underline-offset-2 hover:underline">Vybrat vše</button>
+                    <button type="button" data-chooser-all class="-my-3 rounded-lg px-2 py-3 text-xs font-bold ${style.text} underline-offset-2 hover:underline">Vybrat vše</button>
                 </div>
                 <div class="grid grid-cols-2 gap-2" role="group" aria-label="${isMix ? 'Témata' : 'Kategorie'}">${options}</div>
                 <h3 class="${SETTINGS_HEADING} mb-2 mt-5">Známost</h3>
@@ -1570,15 +1596,17 @@
         const text = document.getElementById('status-text');
         if (place.logo) {
             const level = levelProgress(loadProgress().xp);
-            text.innerHTML = `<span class="block text-lg font-black normal-case leading-none tracking-tight text-brand-700 dark:text-cream">${escapeHtml(APP_NAME)}</span>`
-                + `<span class="mt-1 block text-[10px] font-bold normal-case tracking-wide text-slate-500 dark:text-slate-400">Úr. ${level.level} · ${escapeHtml(titleForLevel(level.level))}</span>`
+            text.innerHTML = `<span class="block text-lg font-black normal-case leading-none tracking-tight text-brand-700 dark:text-cream max-[370px]:hidden">${escapeHtml(APP_NAME)}</span>`
+                + `<span class="mt-1 block whitespace-nowrap text-[10px] font-bold normal-case tracking-wide text-slate-500 dark:text-slate-400 max-[370px]:mt-0 max-[370px]:text-[11px]">Úr. ${level.level}<span class="max-[370px]:hidden"> · ${escapeHtml(titleForLevel(level.level))}</span></span>`
                 + `<span class="mt-0.5 block h-1 w-full overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700" aria-hidden="true"><span class="block h-full w-0 rounded-full bg-gold-500" data-progress="${Math.round(level.ratio * 100)}"></span></span>`;
             applyProgress(text);
-            // Na úzkém displeji (360 px) se vedle pěti tlačítek vejde jen sova
-            text.className = 'text-left max-[370px]:hidden';
+            // Na úzkém displeji (360 px) se vedle čtyř tlačítek vejde sova a jen úroveň s pruhem (text vede do Mého postupu i tam, sova otevírá zajímavost)
+            text.className = 'min-w-[2.25rem] text-left';
         } else {
             text.textContent = place.text;
-            text.className = `line-clamp-2 break-words text-left uppercase leading-tight text-[11px] ${style ? '' : 'text-slate-700 dark:text-slate-200'}`;
+            // Dlouhé slovo (ARCHITEKTURA) se nesmí zlomit uprostřed: menší písmo, zlom až jako poslední možnost
+            const longest = Math.max(0, ...String(place.text).split(/\s+/).map(word => word.length));
+            text.className = `line-clamp-2 break-words text-left uppercase leading-tight ${longest > 10 ? 'text-[10px] tracking-tight' : 'text-[11px]'} ${style ? '' : 'text-slate-700 dark:text-slate-200'}`;
         }
     };
 
@@ -1697,7 +1725,7 @@
             <div class="fact-pop absolute inset-x-3 top-[4.6rem] mx-auto max-w-md">
                 <span aria-hidden="true" class="absolute -top-2 left-9 h-4 w-4 rotate-45 rounded-sm bg-white dark:bg-slate-800"></span>
                 <div class="relative max-h-[calc(100dvh-6rem)] overflow-y-auto rounded-3xl bg-white p-4 shadow-2xl ring-2 ring-gold-400 dark:bg-slate-800">
-                    <button type="button" data-fact-close aria-label="Zavřít" class="absolute right-2 top-2 rounded-full p-1.5 text-slate-500 dark:text-slate-400 active:scale-95"><i data-lucide="x" class="h-5 w-5"></i></button>
+                    <button type="button" data-fact-close aria-label="Zavřít" class="absolute right-1 top-1 rounded-full p-2.5 text-slate-500 dark:text-slate-400 active:scale-95"><i data-lucide="x" class="h-5 w-5"></i></button>
                     <p class="flex items-center gap-1.5 whitespace-nowrap pr-8 text-[10px] font-black uppercase tracking-wide text-gold-700 min-[400px]:text-[11px] dark:text-gold-400"><img src="icons/topics/napoveda.webp" alt="" class="-my-1 h-7 w-7 shrink-0 -rotate-12 object-contain drop-shadow-[0_0_4px_rgba(239,197,92,0.8)]"><span class="min-w-0 truncate">Tento den v dějinách · ${escapeHtml(shortDay(getDayKey()))}${Number.isInteger(dailyFact.year) ? ` ${dailyFact.year}` : ''}</span></p>
                     <h2 id="fact-title" class="mt-1.5 text-xl font-black leading-tight text-slate-800 dark:text-slate-100">${escapeHtml(dailyFact.title)}</h2>
                     <p class="mt-2 text-[15px] leading-relaxed text-slate-700 dark:text-slate-200">${escapeHtml(dailyFact.text)}</p>
@@ -1773,7 +1801,8 @@
         appContent.scrollTo(0, 0);
         updateControlsUI();
         refreshChallenges();
-        if (Tutorial) Tutorial.maybeStart({ ready: factLoading });
+        // Tutoriál až po výběru varianty: úvod jde otevřít i z uvítání (Domů), otázka by se ale nespustila a bublina by čekala
+        if (Tutorial && gameVariant) Tutorial.maybeStart({ ready: factLoading });
     };
 
     // --- Otázka: popis hned, pak nápovědy fotka → obrazová nápověda tématu → fakta ---
@@ -1909,8 +1938,9 @@
 
     // Panel se záložkami a jednou plochou pevné výšky – nápovědy se nepřidávají pod sebe, takže se nic neposouvá
     // panes = [{ key, label, icon, html }], action = akce záložky, extra = tlačítko za záložkami
-    // Výška panelu: na vysokém telefonu víc místa pro fotku a mapu, na malém aspoň 11 rem (bez posouvání)
-    const QUESTION_PANEL_HEIGHT = 'h-[clamp(8.5rem,calc(100dvh_-_35rem),18rem)]';
+    // Výška panelu otázky: vyplní místo, které na obrazovce zbude (dvouřádková otázka nebo delší možnosti ho zmenší, ať se nic
+    // neposouvá), nejvýš asi 18 rem plochy, na malém telefonu aspoň 7 rem. Výsledek má pevnou výšku podle obrazovky.
+    const QUESTION_PANEL_HEIGHT = 'fill';
     const RESULT_PANEL_HEIGHT = 'h-[clamp(13rem,42dvh,24rem)]';
     // Vybraná záložka s názvem, ostatní jen ikonou (s popiskem pro čtečku) – vejdou se i na úzký displej;
     // jediná plocha záložky nepotřebuje, jen nadpis
@@ -1922,16 +1952,16 @@
                 ${panes.map(candidate => {
                     const selected = candidate.key === pane.key;
                     return `
-                        <button type="button" role="tab" aria-selected="${selected}" aria-label="${escapeHtml(candidate.label)}" title="${escapeHtml(candidate.label)}" data-action="${action}" data-step="${candidate.key}" class="flex min-h-[2.25rem] shrink-0 items-center justify-center gap-1.5 rounded-xl text-xs font-bold transition-colors ${selected ? `px-3 ${style.tab}` : `min-w-[2.75rem] px-2.5 ${TAB_OFF}`}">
+                        <button type="button" role="tab" aria-selected="${selected}" aria-label="${escapeHtml(candidate.label)}" title="${escapeHtml(candidate.label)}" data-action="${action}" data-step="${candidate.key}" class="flex min-h-[2.5rem] shrink-0 items-center justify-center gap-1.5 rounded-xl text-xs font-bold transition-colors ${selected ? `px-3 ${style.tab}` : `min-w-[2.75rem] px-2.5 ${TAB_OFF}`}">
                             <i data-lucide="${candidate.icon}" class="h-4 w-4"></i>${selected ? escapeHtml(candidate.label) : ''}
                         </button>`;
                 }).join('')}
             </div>` : `
             <h3 class="${CARD_TITLE} min-h-[2.75rem] border-b border-slate-100 px-4 dark:border-slate-700"><i data-lucide="${pane.icon}" class="h-4 w-4 ${style.text}"></i> ${escapeHtml(pane.label)}</h3>`;
         return `
-            <section id="${action}-panel" class="${CARD} shrink-0 overflow-hidden">
+            <section id="${action}-panel" class="${CARD} ${height === 'fill' ? 'flex max-h-[21rem] flex-1 flex-col' : 'shrink-0'} overflow-hidden">
                 ${tabs}
-                <div class="relative ${height} overflow-hidden" role="tabpanel">${pane.html}</div>
+                <div class="relative ${height === 'fill' ? 'min-h-[7rem] flex-1' : height} overflow-hidden" role="tabpanel">${pane.html}</div>
             </section>`;
     };
 
@@ -1964,7 +1994,7 @@
             <button type="button" data-action="hint" title="Nápověda: ${escapeHtml(next.label)} – odpověď pak za ${nextCost}" class="btn-3d flex h-12 w-full shrink-0 items-center gap-3 rounded-2xl bg-gradient-to-b from-gold-400 to-gold-600 px-3 text-left text-brand-950">
                 ${uiArt('napoveda', 'h-9 w-9 -my-1')}
                 <span class="min-w-0 flex-1">
-                    <span class="block text-[11px] font-black uppercase tracking-wider opacity-90">Nápověda ${round.hintLevel}/${data.hints.length + 1}</span>
+                    <span class="block text-[11px] font-black uppercase tracking-wider opacity-90">Nápověda ${round.hintLevel}/${data.hints.length}</span>
                     <span class="flex items-baseline gap-1.5 text-sm font-black leading-tight"><span class="truncate">${escapeHtml(capitalize(next.label))}</span><span class="shrink-0 text-xs font-bold opacity-90">· pak ${nextCost}</span></span>
                 </span>
                 <i data-lucide="${next.icon}" class="h-5 w-5 shrink-0 opacity-70"></i>
@@ -2179,7 +2209,7 @@
             <div class="fade-in relative max-h-[88dvh] w-full max-w-md overflow-y-auto rounded-[1.75rem] bg-white shadow-2xl dark:bg-slate-900">
                 <!-- Zavírací tlačítko zůstane vidět i po posunutí dolů -->
                 <div class="pointer-events-none sticky top-0 z-10 -mb-14 flex justify-end p-3">
-                    <button type="button" data-close aria-label="Zavřít" class="pointer-events-auto rounded-full bg-slate-900/60 p-2.5 text-white backdrop-blur-sm hover:bg-slate-900/80">
+                    <button type="button" data-close aria-label="Zavřít" class="pointer-events-auto rounded-full bg-slate-900/60 p-2.5 text-white shadow backdrop-blur-sm hover:bg-slate-900/80 dark:bg-slate-600/90 dark:hover:bg-slate-500">
                         <i data-lucide="x" class="h-5 w-5"></i>
                     </button>
                 </div>
@@ -2251,7 +2281,7 @@
                     <p class="text-sm text-rose-800 dark:text-rose-300">${round.answer ? `Tvoje odpověď: ${escapeHtml(round.answer)} · ` : ''}Správně: ${escapeHtml(data.question.answerLabel)}</p>
                     ${xpLine(round.xp, 'text-rose-800 dark:text-rose-300')}
                     ${round.answerRef ? `
-                        <button type="button" data-action="item-info" data-topic="${escapeHtml(round.answerRef.topic)}" data-id="${escapeHtml(round.answerRef.id)}" class="mt-2 inline-flex items-center gap-1.5 rounded-lg bg-white px-2.5 py-1.5 text-xs font-bold text-rose-700 shadow-sm transition-colors hover:bg-rose-100 dark:bg-rose-950 dark:text-rose-200 dark:hover:bg-rose-900">
+                        <button type="button" data-action="item-info" data-topic="${escapeHtml(round.answerRef.topic)}" data-id="${escapeHtml(round.answerRef.id)}" class="mt-2 inline-flex min-h-[2.5rem] items-center gap-1.5 rounded-lg bg-white px-2.5 py-1.5 text-xs font-bold text-rose-700 shadow-sm transition-colors hover:bg-rose-100 dark:bg-rose-950 dark:text-rose-200 dark:hover:bg-rose-900">
                             <i data-lucide="info" class="h-3.5 w-3.5"></i> Ukaž ${escapeHtml(round.answer)}
                         </button>
                     ` : ''}
@@ -2272,7 +2302,7 @@
                 <h3 class="${CARD_TITLE} mb-3"><i data-lucide="graduation-cap" class="w-4 h-4 ${styleOf(TOPIC_BY_ID[data.topic]).text}"></i> ${answered ? 'A ostatní možnosti?' : 'Co byly ostatní možnosti?'}</h3>
                 <div class="flex flex-wrap gap-2">
                     ${others.map(choice => `
-                        <button type="button" data-action="item-info" data-topic="${escapeHtml(choice.topic)}" data-id="${escapeHtml(choice.id)}" class="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-bold text-slate-700 transition-colors hover:border-slate-400 hover:bg-white dark:border-slate-600 dark:bg-slate-700/60 dark:text-slate-100 dark:hover:border-slate-400 dark:hover:bg-slate-700">
+                        <button type="button" data-action="item-info" data-topic="${escapeHtml(choice.topic)}" data-id="${escapeHtml(choice.id)}" class="inline-flex min-h-[2.5rem] items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-bold text-slate-700 transition-colors hover:border-slate-400 hover:bg-white dark:border-slate-600 dark:bg-slate-700/60 dark:text-slate-100 dark:hover:border-slate-400 dark:hover:bg-slate-700">
                             <i data-lucide="info" class="h-4 w-4 ${styleOf(TOPIC_BY_ID[data.topic]).text}"></i> ${escapeHtml(choice.label)}
                         </button>`).join('')}
                 </div>
@@ -2319,8 +2349,8 @@
                 <i data-lucide="map-pin" class="h-10 w-10 fill-rose-500 stroke-white"></i>
             </div>
             <div class="absolute right-2 top-2 flex flex-col overflow-hidden rounded-xl border border-slate-200 bg-white/95 shadow-md dark:border-slate-600 dark:bg-slate-800/95">
-                <button type="button" data-action="zoom-in" aria-label="Přiblížit mapu" class="p-2.5 text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700"><i data-lucide="plus" class="h-4 w-4"></i></button>
-                <button type="button" data-action="zoom-out" aria-label="Oddálit mapu" class="border-t border-slate-200 p-2.5 text-slate-700 hover:bg-slate-100 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-700"><i data-lucide="minus" class="h-4 w-4"></i></button>
+                <button type="button" data-action="zoom-in" aria-label="Přiblížit mapu" class="p-3 text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700"><i data-lucide="plus" class="h-4 w-4"></i></button>
+                <button type="button" data-action="zoom-out" aria-label="Oddálit mapu" class="border-t border-slate-200 p-3 text-slate-700 hover:bg-slate-100 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-700"><i data-lucide="minus" class="h-4 w-4"></i></button>
             </div>
             <div class="absolute inset-x-0 bottom-0 flex items-center justify-between gap-2 bg-white/85 px-2.5 py-1 text-[10px] text-slate-600 backdrop-blur-sm dark:bg-slate-900/80 dark:text-slate-300">
                 <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer" class="hover:underline">© přispěvatelé OpenStreetMap</a>
@@ -2486,10 +2516,36 @@
         updateControlsUI();
     };
 
+    // Rozehrané výzvy a zápasy turnaje (nejvýš 6) zvlášť od relace: když hráč mezi tím začne jinou výzvu nebo zápas, ta dřívější se neztratí
+    // (výzva by jinak šla hrát znovu od začátku a zápas turnaje by už nešel dohrát). Dohrané se mažou (markChallengeFinished, markTournamentFinished).
+    const OPEN_CHALLENGES_KEY = 'mudrlant.openChallenges';
+    const openChallengeKey = (c) => (c.tournament && c.tournament.mid ? `t:${c.tournament.mid}` : `c:${c.code}`);
+    const savedOpenChallenges = () => {
+        const list = readJson(OPEN_CHALLENGES_KEY);
+        return Array.isArray(list) ? list.filter(c => c && typeof c === 'object' && typeof c.code === 'string' && Array.isArray(c.results) && Number.isFinite(c.count) && !c.done) : [];
+    };
+    const rememberOpenChallenge = (c) => {
+        if (!c || c.done || !c.code) return;
+        const key = openChallengeKey(c);
+        writeJson(OPEN_CHALLENGES_KEY, [...savedOpenChallenges().filter(other => openChallengeKey(other) !== key), { ...c, sending: false, reacting: false, lastResults: null }].slice(-6));
+    };
+    // Poslední rozehraná (nedohraná a neodeslaná) výzva přihlášeného hráče ze seznamu; null = žádná
+    const latestOpenChallenge = () => {
+        const user = signedUser();
+        return savedOpenChallenges().filter(saved => !saved.tournament && !finishedChallenges().includes(saved.code) && (!saved.owner || !user || saved.owner === user.id)).pop() || null;
+    };
+    const forgetOpenChallenge = (key) => {
+        const list = savedOpenChallenges();
+        if (list.some(other => openChallengeKey(other) === key)) writeJson(OPEN_CHALLENGES_KEY, list.filter(other => openChallengeKey(other) !== key));
+    };
     const persistState = () => {
         if (!current) return;
+        if (mode === 'challenge' && challenge && !challenge.done) rememberOpenChallenge(challenge);
         // Rozehraný zápas turnaje se ukládá také: po návratu v den kola nabídne karta turnaje Pokračovat (od další otázky)
-        writeJson(KEYS.session, { version: STATE_VERSION, data: current, round, mode, pool, challenge: mode === 'challenge' ? challenge : null, timestamp: Date.now() });
+        // Rozehraná výzva (i zápas turnaje) se ukládá i během jiné hry (Hrát dál, dnešní otázky): po zavření aplikace by se jinak ztratila
+        // a výzva by šla hrát znovu od začátku, zápas turnaje by už nešel dohrát
+        const keptChallenge = mode === 'challenge' ? challenge : (challenge && !challenge.done ? challenge : null);
+        writeJson(KEYS.session, { version: STATE_VERSION, data: current, round, mode, pool, challenge: keptChallenge, timestamp: Date.now() });
         if (mode === 'daily' && current.dailyDate) {
             const daily = readJson(KEYS.daily) || {};
             daily[current.topic] = { date: current.dailyDate, data: current, round };
@@ -2647,7 +2703,7 @@
             </span>`;
         const label = `Cíle týdne: splněno ${done} ze ${rows.length}, ${goalsLeftText()}. Zobrazit podrobnosti`;
         return `
-            <button type="button" id="weekly-goals" data-action="goals-open" aria-label="${escapeHtml(label)}" title="${escapeHtml(rows.map(row => row.goal.title).join('\n'))}" class="flex w-full items-center gap-1.5 rounded-2xl bg-white px-2.5 py-1.5 text-left shadow-sm ring-1 ring-slate-200/70 transition-all active:scale-[0.98] dark:bg-slate-800/70 dark:ring-slate-700/70">
+            <button type="button" id="weekly-goals" data-action="goals-open" aria-label="${escapeHtml(label)}" title="${escapeHtml(rows.map(row => row.goal.title).join('\n'))}" class="flex min-h-[2.5rem] w-full items-center gap-1.5 rounded-2xl bg-white px-2.5 py-1.5 text-left shadow-sm ring-1 ring-slate-200/70 transition-all active:scale-[0.98] dark:bg-slate-800/70 dark:ring-slate-700/70">
                 <i data-lucide="goal" class="h-4 w-4 shrink-0 text-brand-700 dark:text-cream"></i>
                 <span class="shrink-0 whitespace-nowrap text-[11px] font-black text-slate-800 dark:text-slate-100">Cíle týdne <span class="${state.bonus ? 'text-emerald-600 dark:text-emerald-300' : 'text-slate-500 dark:text-slate-400'}">${done}/${rows.length}</span></span>
                 <span class="flex min-w-0 flex-1 gap-1">${rows.map(chip).join('')}</span>
@@ -2819,7 +2875,7 @@
         // Zodpovězená otázka se po obnovení stránky (třeba po aktualizaci aplikace) neukazuje znovu: hráč začne na úvodní stránce
         // (u dnešní otázky je její výsledek dál po ruce přes ikonu tématu, u výzvy se pokračuje tlačítkem na úvodní stránce)
         if (session.round.answered) {
-            if (session.mode === 'challenge' && session.challenge && !session.challenge.done && !session.challenge.tournament && !finishedChallenges().includes(session.challenge.code)) challenge = session.challenge;
+            if (session.challenge && !session.challenge.done && !session.challenge.tournament && !finishedChallenges().includes(session.challenge.code)) challenge = session.challenge;
             return false;
         }
         // Dnešní otázka z uložené relace platí jen do půlnoci
@@ -2829,7 +2885,7 @@
             current = upgradeRoundData(session.data);
             round = session.round;
             mode = session.mode;
-            challenge = session.mode === 'challenge' ? session.challenge : challenge;
+            challenge = session.challenge || challenge;
             pool = session.pool && (session.pool.kind !== 'topic' || TOPIC_BY_ID[session.pool.topic]) ? session.pool : { kind: 'mix' };
             renderRound();
         } catch (error) {
@@ -2849,16 +2905,21 @@
     // Rozehraný zápas turnaje nabízí k pokračování karta turnaje (jen v den kola), sem se nebere.
     const restoreSession = () => {
         const session = readJson(KEYS.session);
-        if (session && session.version === STATE_VERSION && session.mode === 'challenge' && session.challenge && !session.challenge.done && !session.challenge.tournament
+        if (session && session.version === STATE_VERSION && session.challenge && !session.challenge.done && !session.challenge.tournament
             && !finishedChallenges().includes(session.challenge.code) && Date.now() - session.timestamp < SESSION_MAX_AGE) challenge = session.challenge;
+        // Relaci přepsal zápas turnaje nebo jiná hra: poslední rozehraná výzva ze seznamu
+        if (!challenge) challenge = latestOpenChallenge();
         return false;
     };
     // Rozehraný zápas turnaje: z paměti (právě hraný), jinak z uložené relace; { mid, challenge } nebo null
     const savedTournamentChallenge = () => {
         if (challenge && challenge.tournament && !challenge.done) return { mid: challenge.tournament.mid, challenge };
         const session = readJson(KEYS.session);
-        const saved = session && session.version === STATE_VERSION && session.mode === 'challenge' ? session.challenge : null;
-        if (!saved || saved.done || !saved.tournament || !saved.tournament.mid || !Array.isArray(saved.results)) return null;
+        const fromSession = session && session.version === STATE_VERSION ? session.challenge : null;
+        const usable = (saved) => Boolean(saved && !saved.done && saved.tournament && saved.tournament.mid && Array.isArray(saved.results));
+        // Relaci mohla přepsat jiná výzva: pak se vezme zápas ze seznamu rozehraných
+        const saved = usable(fromSession) ? fromSession : savedOpenChallenges().filter(usable).pop();
+        if (!saved) return null;
         return { mid: saved.tournament.mid, challenge: saved };
     };
     const savedTournamentMatch = () => { const saved = savedTournamentChallenge(); return saved ? saved.mid : null; };
@@ -2887,7 +2948,7 @@
             let data = await createRoundData(picked.item, picked.ctx, picked.rng);
             // Chudý popis: vybere se jiná otázka (u dnešní otázky další určená položka), nejvýš třikrát; pak se vezme, co je
             // (výzva ne: všichni hráči musí dostat stejné otázky, i když se někomu Wikipedie nenačte)
-            for (let attempt = 1; data.thin && mode !== 'challenge' && attempt <= MAX_THIN_RETRIES; attempt++) {
+            for (let attempt = 1; data.thin && mode !== 'challenge' && !wikiPaused() && attempt <= MAX_THIN_RETRIES; attempt++) {
                 const next = await pick(attempt);
                 if (!next.item) break;
                 const candidate = await createRoundData(next.item, next.ctx, next.rng);
@@ -3128,7 +3189,7 @@
     const renderLearnHome = () => {
         const mistakes = loadMistakes();
         const card = (topic) => `
-            <button type="button" data-action="learn-topic" data-topic="${topic.id}" class="flex min-h-[4rem] min-w-0 flex-col items-center justify-center gap-1 rounded-2xl border border-slate-100 bg-white p-2 text-center shadow-sm transition-all hover:border-brand-300 active:scale-[0.98] dark:border-slate-700 dark:bg-slate-800 dark:hover:border-brand-600">
+            <button type="button" data-action="learn-topic" data-topic="${topic.id}" class="flex min-h-[4rem] min-w-0 flex-col items-center justify-center gap-1 rounded-2xl border border-slate-100 bg-white px-1 py-2 text-center shadow-sm transition-all hover:border-brand-300 active:scale-[0.98] dark:border-slate-700 dark:bg-slate-800 dark:hover:border-brand-600">
                 ${topicIcon(topic, 'h-10 w-10', `rounded-xl p-2 ${styleOf(topic).soft}`, 'h-[1.375rem] w-[1.375rem]')}
                 <span class="${topic.title.length > 10 ? 'text-[10px]' : 'text-[11.5px]'} font-black leading-tight text-slate-800 [overflow-wrap:anywhere] dark:text-slate-100">${escapeHtml(topic.title)}</span>
             </button>`;
@@ -3172,10 +3233,10 @@
                 <span class="shrink-0 rounded-xl p-2 ${styleOf(ctx.topic).soft}"><i data-lucide="${icon}" class="h-5 w-5"></i></span>
                 <span class="min-w-0 flex-1">
                     <span class="flex items-baseline justify-between gap-2">
-                        <span class="truncate font-bold text-slate-800 dark:text-slate-100">${escapeHtml(label)}</span>
+                        <span class="min-w-0 font-bold leading-tight text-slate-800 dark:text-slate-100">${escapeHtml(label)}</span>
                         <span class="shrink-0 text-xs font-semibold text-slate-500 dark:text-slate-400">${done ? `${done} / ` : ''}${items.length}</span>
                     </span>
-                    ${text ? `<span class="block truncate text-xs text-slate-500 dark:text-slate-400">${escapeHtml(text)}</span>` : ''}
+                    ${text ? `<span class="mt-0.5 block line-clamp-2 text-xs leading-snug text-slate-500 dark:text-slate-400">${escapeHtml(text)}</span>` : ''}
                     ${progressBar(done, items.length)}
                 </span>
             </button>`;
@@ -3189,7 +3250,7 @@
                 ${topicIcon(topic, 'h-14 w-14', `rounded-2xl p-3 ${styleOf(topic).soft}`, 'h-7 w-7')}
                 <div>
                     <h2 class="text-2xl font-black tracking-tight text-slate-800 dark:text-slate-50">${escapeHtml(topic.title)}</h2>
-                    <p class="text-sm text-slate-500 dark:text-slate-400">${settings.tier === 'all' ? 'Celé téma i se méně známými' : 'Celé téma a kategorie jen se známými'} · <button type="button" data-action="settings" class="-my-2 px-1 py-2 font-bold text-slate-700 underline underline-offset-2 dark:text-slate-200">změnit</button></p>
+                    <p class="text-sm text-slate-500 dark:text-slate-400">${settings.tier === 'all' ? 'Celé téma i se méně známými' : 'Celé téma a kategorie jen se známými'} · <button type="button" data-action="settings" class="-my-2.5 px-1 py-2.5 font-bold text-slate-700 underline underline-offset-2 dark:text-slate-200">změnit</button></p>
                 </div>
             </div>
             <h3 class="${CARD_TITLE} mt-1">Kategorie</h3>
@@ -3438,6 +3499,9 @@
     // Témata, ze kterých hráč nepřijímá výzvy (null = ještě se nenačetla)
     let myBlocked = null;
     let myAcceptsMix = true;
+    let acceptsSaving = Promise.resolve(); // ukládání přijímaných témat jedno po druhém
+    let acceptsConfirmed = null; // poslední stav potvrzený serverem ({ blocked, mix })
+    const adoptAccepts = (accepts) => { myBlocked = accepts.blocked; myAcceptsMix = accepts.mix; acceptsConfirmed = { blocked: [...accepts.blocked], mix: accepts.mix }; };
     const acceptSummary = () => !myBlocked ? 'nastavit' : `${myBlocked.length ? `${TOPICS.length - myBlocked.length} z ${TOPICS.length} témat` : 'všechna témata'}${myAcceptsMix ? '' : ', bez Mixu'}`;
     // Okno „Přijímané výzvy“: každé téma jde vypnout; ukládá se hned po klepnutí
     const openAccepted = async () => {
@@ -3472,28 +3536,35 @@
                     const toggle = event.target.closest('[data-accept-topic]');
                     const all = event.target.closest('[data-accept-all]');
                     const mixSwitch = event.target.closest('[data-accept-mix]');
-                    if (!toggle && !all && !mixSwitch) return;
-                    const before = myBlocked || [];
-                    const beforeMix = myAcceptsMix;
+                    // Dokud se nastavení nenačte, klepnutí by uložilo změnu proti prázdnému seznamu a přepsalo uložená témata
+                    if ((!toggle && !all && !mixSwitch) || myBlocked === null) return;
+                    const before = myBlocked;
                     if (mixSwitch) myAcceptsMix = !myAcceptsMix;
                     else myBlocked = all ? [] : before.includes(toggle.dataset.acceptTopic) ? before.filter(id => id !== toggle.dataset.acceptTopic) : [...before, toggle.dataset.acceptTopic];
                     note = '';
                     render();
+                    // Rychlá klepnutí za sebou: ukládá se po jednom (pořadí na serveru = pořadí klepnutí) a vždy aktuální stav;
+                    // při chybě se vrátí poslední uložený stav
+                    const saved = acceptsSaving.then(async () => {
+                        const sent = { blocked: [...(myBlocked || [])], mix: myAcceptsMix };
+                        await Social.saveAccepts(user.id, sent);
+                        acceptsConfirmed = sent;
+                    });
+                    acceptsSaving = saved.catch(() => {});
                     try {
-                        await Social.saveAccepts(user.id, { blocked: myBlocked, mix: myAcceptsMix });
+                        await saved;
                         note = 'Uloženo.';
                         paintChallenges();
                     } catch (error) {
-                        myBlocked = before;
-                        myAcceptsMix = beforeMix;
+                        if (acceptsConfirmed) { myBlocked = [...acceptsConfirmed.blocked]; myAcceptsMix = acceptsConfirmed.mix; }
                         note = 'Uložení se nepodařilo. Zkontroluj připojení a že je v databázi nejnovější SQL.';
                     }
-                    render();
+                    if (document.getElementById('dialog-overlay') && document.getElementById('dialog-overlay').dataset.title === 'Přijímané výzvy') render();
                 }
             });
         };
         render();
-        if (myBlocked === null) { const accepts = await Social.getAccepts(user.id); myBlocked = accepts.blocked; myAcceptsMix = accepts.mix; if (document.getElementById('dialog-overlay')) render(); }
+        if (myBlocked === null) { const accepts = await Social.getAccepts(user.id); if (myBlocked === null) adoptAccepts(accepts); const overlay = document.getElementById('dialog-overlay'); if (overlay && overlay.dataset.title === 'Přijímané výzvy') render(); }
     };
     // Rámeček a titul u jména se ukládají do účtu, ať je vidí ostatní. Po změně ve Vzhledu se pošlou; po načtení profilu se na novém zařízení
     // (kde je volba výchozí) převezme volba z účtu a jinou zvolenou volbu zařízení se do účtu nahraje.
@@ -3559,15 +3630,17 @@
         updateProfileButton();
         syncProgress();
         checkSchemaVersion(user);
-        if (myBlocked === null) Social.getAccepts(user.id).then(accepts => { if (!signedUser() || signedUser().id !== user.id) return; myBlocked = accepts.blocked; myAcceptsMix = accepts.mix; paintChallenges(); });
+        if (myBlocked === null) Social.getAccepts(user.id).then(accepts => { if (!signedUser() || signedUser().id !== user.id || myBlocked !== null) return; adoptAccepts(accepts); paintChallenges(); });
         return myProfile;
     };
 
     // Část Výzvy na úvodní stránce: bez nastaveného Supabase se neukáže, bez přihlášení láká k přihlášení
     const challengeRow = (row) => {
         const count = row.challenge ? row.challenge.count : 0;
-        const best = row.others.length ? Math.max(...row.others.map(other => other.correct)) : -1;
-        const outcome = !row.others.length ? 'čeká' : row.correct > best ? 'vyhráno' : row.correct === best ? 'remíza' : 'prohráno';
+        // Stejně jako výsledek výzvy a rating: víc správných, při shodě víc bodů (proti nejlepšímu soupeři)
+        const best = row.others.reduce((top, other) => !top || other.correct > top.correct || (other.correct === top.correct && other.points > top.points) ? other : top, null);
+        const versus = !best ? null : row.correct !== best.correct ? row.correct - best.correct : (row.points || 0) - (best.points || 0);
+        const outcome = versus === null ? 'čeká' : versus > 0 ? 'vyhráno' : versus === 0 ? 'remíza' : 'prohráno';
         // Barevný proužek vlevo a štítek: vyhráno zelená, prohráno červená, remíza zlatá, čeká šedá
         const look = outcome === 'vyhráno' ? ['bg-emerald-500', 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300']
             : outcome === 'prohráno' ? ['bg-rose-500', 'bg-rose-100 text-rose-800 dark:bg-rose-900/40 dark:text-rose-300']
@@ -3690,10 +3763,12 @@
         const saved = readJson(KEYS.homeTab);
         return saved === 'multi' ? 'multi' : 'single';
     };
+    // Pozvánky do výzev bez těch od hráčů, které jsem zablokoval (výzvy založené před blokem v databázi zůstávají)
+    const visibleIncoming = () => (incomingList || []).filter(invite => !(myBlocks || []).some(row => invite.creator && row.id === invite.creator.id));
     const renderHomeTabs = () => {
         if (!(Auth && Auth.isConfigured() && Social)) return '';
         const tab = homeTab();
-        const waiting = (incomingList || []).length;
+        const waiting = visibleIncoming().length;
         const option = (id, icon, label, badge = 0) => `
             <button type="button" role="tab" data-action="home-tab" data-tab="${id}" aria-selected="${tab === id}" class="relative flex flex-1 items-center justify-center gap-2 rounded-xl min-h-[2.75rem] px-3 text-[13px] font-black transition-colors ${tab === id ? 'btn-3d bg-brand-700 text-white' : 'text-slate-600 dark:text-slate-400'}">
                 <i data-lucide="${icon}" class="h-4 w-4"></i> ${label}${badge ? `<span class="rounded-full bg-gold-500 px-1.5 py-0.5 text-[10px] font-black leading-none text-brand-950">${badge}</span>` : ''}
@@ -3724,6 +3799,14 @@
                 : `<div class="flex items-center gap-3 rounded-2xl bg-white p-2.5 shadow-sm ring-1 ring-slate-200/70 dark:bg-slate-800/70 dark:ring-slate-700/70">${uiArt('sova-vyzva', 'h-10 w-10')}<p class="text-sm text-slate-600 dark:text-slate-300">Zatím žádné výzvy. Založ první tlačítkem Vyzvat.</p></div>`;
         return `<div class="flex flex-col gap-1"><div class="flex min-h-[2rem] items-center justify-between gap-2"><p class="${LABEL}">Poslední výzvy</p>${toggle}</div>${body}</div>`;
     };
+    // První nezodpovězená otázka rozehrané výzvy (-1 = všechny zodpovězené)
+    const challengeNextIndex = (c) => { for (let i = 0; i < c.count; i++) if (!(c.results || [])[i]) return i; return -1; };
+    const resumeLabel = (c) => { const next = challengeNextIndex(c); return next < 0 ? 'Dokončit výzvu (odeslat výsledek)' : `Pokračovat ve výzvě (${next + 1}/${c.count})`; };
+    // Rozehraná výzva přihlášeného hráče (cizí, rozehranou jiným účtem na tomtéž zařízení, ne)
+    const ownChallengeInProgress = () => {
+        const user = signedUser();
+        return Boolean(user && challenge && !challenge.done && !challenge.tournament && (!challenge.owner || challenge.owner === user.id));
+    };
     // Pořadí podle důležitosti: co čeká na hráče (rozehraná výzva, zápas turnaje dnes, pozvánky), turnaj, rychlé akce, liga, poslední výzvy
     const challengesInner = () => {
         const user = signedUser();
@@ -3736,9 +3819,9 @@
                     <button type="button" data-action="auth-login" class="flex w-full items-center justify-center gap-2 rounded-2xl bg-brand-700 px-4 py-3 text-base font-black text-white shadow-md active:scale-[0.98]"><i data-lucide="log-in" class="h-5 w-5"></i> Přihlásit se přes Google</button>
                 </div>`;
         }
-        const incoming = incomingList || [];
-        const resume = challenge && !challenge.done && !challenge.tournament
-            ? `<button type="button" data-action="challenge-resume" class="flex w-full items-center justify-center gap-2 rounded-2xl btn-3d bg-gradient-to-b from-gold-400 to-gold-600 px-4 py-2.5 text-[15px] font-black text-brand-950"><i data-lucide="play" class="h-5 w-5"></i> Pokračovat ve výzvě (${challenge.index + 1}/${challenge.count})</button>` : '';
+        const incoming = visibleIncoming();
+        const resume = ownChallengeInProgress()
+            ? `<button type="button" data-action="challenge-resume" class="flex w-full items-center justify-center gap-2 rounded-2xl btn-3d bg-gradient-to-b from-gold-400 to-gold-600 px-4 py-2.5 text-[15px] font-black text-brand-950"><i data-lucide="play" class="h-5 w-5"></i> ${resumeLabel(challenge)}</button>` : '';
         // Přátelé (friends.js): žádosti o přátelství mezi tím, co čeká; pás přátel pod rychlými akcemi (jen když nějací jsou)
         const social = Friends ? Friends.split(friendRows) : { friends: [], incoming: [] };
         const requests = Friends ? Friends.requestRows(social.incoming, friendsHelpers()) : '';
@@ -3869,10 +3952,10 @@
                 ${error ? `<p class="text-center text-sm font-semibold text-rose-700 dark:text-rose-400" role="alert">${escapeHtml(error)}</p>` : ''}
                 <div class="flex flex-col items-center gap-2">
                     <button type="button" data-action="auth-login" class="${PRIMARY_BUTTON}"><i data-lucide="log-in" class="h-5 w-5"></i> Přihlásit se přes Google</button>
-                    <button type="button" data-action="play-as-host" class="mt-1 rounded-xl px-4 py-2 text-sm font-bold text-slate-500 underline decoration-slate-300 underline-offset-4 hover:text-slate-800 dark:text-slate-400 dark:decoration-slate-600 dark:hover:text-slate-100">Pokračovat bez přihlášení</button>
+                    <button type="button" data-action="play-as-host" class="mt-1 rounded-xl px-4 py-2.5 text-sm font-bold text-slate-500 underline decoration-slate-300 underline-offset-4 hover:text-slate-800 dark:text-slate-400 dark:decoration-slate-600 dark:hover:text-slate-100">Pokračovat bez přihlášení</button>
                     <p class="text-center text-xs text-slate-500 dark:text-slate-400">Hra funguje i bez účtu, jen bez profilu a výzev. Přihlásit se můžeš kdykoli později.</p>
                 </div>
-                <p class="mt-2 text-center text-xs text-slate-500 dark:text-slate-400"><a href="soukromi.html" class="rounded-lg px-1.5 py-2 font-bold underline underline-offset-2">Ochrana osobních údajů</a> · <a href="licence.html" class="rounded-lg px-1.5 py-2 font-bold underline underline-offset-2">Zdroje a licence</a></p>
+                <p class="mt-2 text-center text-xs text-slate-500 dark:text-slate-400"><a href="soukromi.html" class="inline-block rounded-lg px-1.5 py-3 font-bold underline underline-offset-2">Ochrana osobních údajů</a> · <a href="licence.html" class="inline-block rounded-lg px-1.5 py-3 font-bold underline underline-offset-2">Zdroje a licence</a></p>
             </div>`;
         renderIcons(appContent);
         updateControlsUI();
@@ -3922,7 +4005,7 @@
             <div class="relative max-h-[92dvh] w-full max-w-md overflow-y-auto rounded-[1.75rem] bg-slate-50 p-5 shadow-2xl dark:bg-slate-900">
                 <div class="mb-4 flex items-center justify-between">
                     <h2 id="dialog-title" class="text-lg font-black text-slate-800 dark:text-slate-100">${escapeHtml(title)}</h2>
-                    <button type="button" data-close aria-label="Zavřít" class="rounded-xl p-2 text-slate-500 hover:bg-slate-200 dark:text-slate-400 dark:hover:bg-slate-800"><i data-lucide="x" class="h-5 w-5"></i></button>
+                    <button type="button" data-close aria-label="Zavřít" class="-m-0.5 rounded-xl p-2.5 text-slate-500 hover:bg-slate-200 dark:text-slate-400 dark:hover:bg-slate-800"><i data-lucide="x" class="h-5 w-5"></i></button>
                 </div>
                 ${body}
             </div>`;
@@ -4013,15 +4096,18 @@
                 if (!button) return;
                 button.disabled = true;
                 try { await Social.deleteQuestionReport(button.dataset.reportDone); } catch (error) { showToast('Hlášení se nepodařilo vyřídit.'); }
-                openQuestionReports();
+                if (stillOpen()) openQuestionReports();
             }
         });
+        // Zavřené okno se po pozdní odpovědi znovu neotevře
+        const stillOpen = () => { const overlay = document.getElementById('dialog-overlay'); return Boolean(overlay && overlay.dataset.title === 'Hlášení otázek'); };
         draw('<p class="py-6 text-center text-sm font-semibold text-slate-500 dark:text-slate-400" role="status">Načítám hlášení…</p>');
         let rows;
         try { rows = await Social.getQuestionReports(100); } catch (error) {
-            draw(DIALOG_NOTE(error.status === 401 || error.status === 403 ? 'Tenhle účet není v dev_admins (návod v docs/SUPABASE.md).' : (error.message || 'Hlášení se nepodařilo načíst.')));
+            if (stillOpen()) draw(DIALOG_NOTE(error.status === 401 || error.status === 403 ? 'Tenhle účet není v dev_admins (návod v docs/SUPABASE.md).' : (error.message || 'Hlášení se nepodařilo načíst.')));
             return;
         }
+        if (!stillOpen()) return;
         draw(rows.length ? `<ul class="flex flex-col gap-2">${rows.map(row => `
             <li class="rounded-xl border border-slate-200 bg-white p-3 text-sm dark:border-slate-700 dark:bg-slate-800">
                 <p class="flex flex-wrap items-center gap-x-2 text-[11px] font-black uppercase tracking-wider text-rose-700 dark:text-rose-300"><span>${escapeHtml(Report.reasonLabel(row.reason))}</span><span class="font-bold normal-case tracking-normal text-slate-500 dark:text-slate-400">${escapeHtml(row.topic)} · ${escapeHtml(row.item_id)}${row.question_type ? ` · ${escapeHtml(row.question_type)}` : ''}</span></p>
@@ -4041,6 +4127,14 @@
     // Nová výzva: komu (konkrétní hráč / náhodný / odkaz), téma (i víc témat), počet otázek a nastavení. Téma a nastavení jsou
     // souhrnné řádky, které se rozbalí klepnutím; tlačítko Vytvořit a hrát je stále dole na očích.
     // preset = { opponent, last }: výzva se předvyplní nastavením z poslední hry s tímto hráčem (úprava před odvetou); { who: 'random' }: rovnou náhodný soupeř
+    // Proč se výzva nezaložila: hláška databáze (česky: soupeř nepřijímá téma, blok mezi hráči), jinak výpadek spojení
+    const challengeErrorText = (error) => {
+        const message = String((error && error.message) || '');
+        if (error && error.status === 400 && /nepřijímá/.test(message)) return 'Tenhle hráč mezitím vypnul některé z vybraných témat. Zkus jiné.';
+        if (error && error.status >= 400 && error.status < 500 && /[ěščřžýáíéúůďťň]/i.test(message)) return message;
+        return 'Výzvu se nepodařilo založit. Zkontroluj připojení a zkus to znovu.';
+    };
+    let newChallengeToken = 0;
     const openNewChallenge = (preset = null) => {
         if (!signedUser()) return;
         const draft = { topics: [], count: 10, who: 'player', opponent: null, blocked: null, mixOk: true, query: '', found: null, hard: false, variant: 'choices', cats: null, open: null };
@@ -4141,7 +4235,16 @@
             <div class="mb-3 grid grid-cols-2 gap-1.5">${chip('data-ch-hard', 'no', !draft.hard, 'Známé<span class="block text-[11px] font-semibold opacity-70">slavné a běžné věci</span>')}${chip('data-ch-hard', 'yes', draft.hard, 'I těžší<span class="block text-[11px] font-semibold opacity-70">i méně známé věci</span>')}</div>
             <p class="${LABEL} mb-1.5">Odpovídání (pro všechny stejně)</p>
             <div class="grid grid-cols-2 gap-1.5">${chip('data-ch-variant', 'choices', draft.variant === 'choices', 'Možnosti<span class="block text-[11px] font-semibold opacity-70">vybíráš ze 4</span>')}${chip('data-ch-variant', 'typed', draft.variant === 'typed', 'Psaní<span class="block text-[11px] font-semibold opacity-70">dvojnásobek bodů</span>')}</div>`;
-        const render = () => showDialog('Nová výzva', `
+        // Pozdní odpovědi (přijímaná témata soupeře, chyba založení) překreslí okno, jen když je pořád otevřené
+        const token = ++newChallengeToken;
+        let opened = false;
+        const render = () => {
+            const overlay = document.getElementById('dialog-overlay');
+            if (opened && !(token === newChallengeToken && overlay && overlay.dataset.title === 'Nová výzva')) return;
+            opened = true;
+            draw();
+        };
+        const draw = () => showDialog('Nová výzva', `
             <div class="flex flex-col gap-2.5">
                 <div role="radiogroup" aria-label="Koho vyzvat" class="flex flex-col gap-1.5">
                     <p class="${LABEL}">Koho vyzvat</p>
@@ -4236,7 +4339,7 @@
                         startChallenge({ ...created, creator: myProfile, invited: opponent, fresh: true }, 0, []);
                     } catch (error) {
                         busy = false;
-                        note = error && error.status === 400 && /nepřijímá/.test(String(error.message || '')) ? 'Tenhle hráč mezitím vypnul některé z vybraných témat. Zkus jiné.' : 'Výzvu se nepodařilo založit. Zkontroluj připojení a zkus to znovu.';
+                        note = challengeErrorText(error);
                         render();
                     }
                 }
@@ -4270,7 +4373,7 @@
             const last = preset.last;
             if (last) {
                 draft.topics = last.topic === 'mix' ? [] : challengeTopicIds(last.topic);
-                draft.count = [5, 10, 15, 20].includes(last.count) ? last.count : draft.count;
+                draft.count = Social.COUNTS.includes(last.count) ? last.count : draft.count;
                 draft.hard = Boolean(last.include_hard);
                 draft.variant = last.variant === 'typed' ? 'typed' : 'choices';
                 draft.cats = Array.isArray(last.categories) && last.categories.length ? last.categories : null;
@@ -4303,9 +4406,11 @@
         render();
     };
 
-    const rankingRows = (rows, count, meId) => rows.map((row, index) => `
+    // Místo v pořadí: hráči se stejným počtem správných i bodů ho sdílejí (při remíze mají pohár oba)
+    const rankingPlace = (rows, row) => 1 + rows.filter(other => other.correct > row.correct || (other.correct === row.correct && other.points > row.points)).length;
+    const rankingRows = (rows, count, meId) => rows.map((row) => `
         <li class="flex items-center gap-3 rounded-2xl bg-white p-2.5 shadow-sm dark:bg-slate-800 ${row.user_id === meId ? 'ring-2 ring-brand-600' : ''}">
-            <span class="w-5 text-center text-sm font-black text-slate-500 dark:text-slate-400">${index === 0 ? '🏆' : index + 1}</span>
+            <span data-place="${rankingPlace(rows, row)}" class="w-5 text-center text-sm font-black text-slate-500 dark:text-slate-400">${rankingPlace(rows, row) === 1 ? '🏆' : rankingPlace(rows, row)}</span>
             ${avatarHtml(row.player, 'h-9 w-9 text-lg', true)}
             <span class="min-w-0 flex-1 truncate text-sm font-bold text-slate-800 dark:text-slate-100">${escapeHtml(playerName(row.player))}${row.user_id === meId ? ' (ty)' : ''}</span>
             <span class="text-right"><span class="block text-base font-black text-slate-800 dark:text-slate-100">${row.correct}/${count}</span><span class="block text-[10px] font-semibold text-slate-500 dark:text-slate-400">${escapeHtml(formatPoints(row.points))}</span></span>
@@ -4365,8 +4470,8 @@
             const sections = BADGE_GROUPS.map(group => {
                 const earned = group.badges.filter(badge => progress.badges[badge.id]).length;
                 return `<section class="rounded-2xl bg-white p-2.5 shadow-sm dark:bg-slate-800">
-                    <div class="mb-1.5 flex items-center justify-between gap-2"><h4 class="truncate text-[12px] font-black text-slate-800 dark:text-slate-100">${escapeHtml(group.title)}</h4><span class="shrink-0 text-[11px] font-bold text-slate-500 dark:text-slate-400">${earned}/${group.badges.length}</span></div>
-                    <div class="flex flex-wrap gap-1.5">${group.badges.map(badge => `<button type="button" data-badge="${badge.id}" aria-label="${escapeHtml(badge.title)}" title="${escapeHtml(`${badge.title}: ${badge.text} ${badgeReward(badge)}`)}" class="rounded-full ${selected === badge.id ? 'ring-2 ring-brand-600 ring-offset-2 dark:ring-offset-slate-800' : ''}">${medalHtml(badge, Boolean(progress.badges[badge.id]), 'h-9 w-9', 'h-4 w-4')}</button>`).join('')}</div>
+                    <div class="mb-1.5 flex items-center justify-between gap-2"><h4 class="min-w-0 text-[12px] font-black leading-tight text-slate-800 dark:text-slate-100">${escapeHtml(group.title)}</h4><span class="shrink-0 text-[11px] font-bold text-slate-500 dark:text-slate-400">${earned}/${group.badges.length}</span></div>
+                    <div class="flex flex-wrap gap-1.5">${group.badges.map(badge => `<button type="button" data-badge="${badge.id}" aria-label="${escapeHtml(badge.title)}" title="${escapeHtml(`${badge.title}: ${badge.text} ${badgeReward(badge)}`)}" class="-m-0.5 rounded-full p-0.5 ${selected === badge.id ? 'ring-2 ring-brand-600 ring-offset-2 dark:ring-offset-slate-800' : ''}">${medalHtml(badge, Boolean(progress.badges[badge.id]), 'h-9 w-9', 'h-4 w-4')}</button>`).join('')}</div>
                 </section>`;
             }).join('');
             showDialog('Odznaky', `
@@ -4374,8 +4479,11 @@
                     <p class="text-sm font-black text-slate-800 dark:text-slate-100">${have} / ${total} <span class="font-semibold text-slate-500 dark:text-slate-400">získaných odznaků</span></p>
                     <div class="sticky top-0 z-10 -mx-1 bg-slate-50 px-1 pb-2 dark:bg-slate-900">${detailHtml}</div>
                     <div class="grid grid-cols-2 gap-1.5">${sections}</div>
+                    <button type="button" data-back-progress class="${SECONDARY_BUTTON} !py-2.5 text-sm"><i data-lucide="chevron-left" class="h-4 w-4"></i> Zpět na Můj postup</button>
                 </div>`, {
                 onClick: (event) => {
+                    // Zpět na přehled jako u mistrovství (jinak by šlo okno jen zavřít)
+                    if (event.target.closest('[data-back-progress]')) { openProgress(); return; }
                     const medal = event.target.closest('[data-badge]');
                     if (medal) { selected = medal.dataset.badge; render(); }
                 }
@@ -4421,7 +4529,8 @@
                 <p class="text-xs leading-snug text-slate-600 dark:text-slate-300">Za správné odpovědi sbíráš body zkušeností (XP) a stoupáš o úrovně. Každých pár úrovní dostaneš nový titul a odměny: doplňky, rámečky nebo barvy.</p>
                 <p class="text-[11px] font-semibold leading-snug text-slate-500 dark:text-slate-400" data-my-xp>Tvoje XP: <b class="text-slate-700 dark:text-slate-200">${formatXp(xp)} XP</b> · úroveň ${current} · ${escapeHtml(titleForLevel(current))}</p>
                 <ul class="flex flex-col gap-1.5">${rows}</ul>
-            </div>`);
+                <button type="button" data-back-progress class="${SECONDARY_BUTTON} !py-2.5 text-sm"><i data-lucide="chevron-left" class="h-4 w-4"></i> Zpět na Můj postup</button>
+            </div>`, { onClick: (event) => { if (event.target.closest('[data-back-progress]')) openProgress(); } });
         const here = document.querySelector('#dialog-overlay [data-here]');
         if (here) here.scrollIntoView({ block: 'center' });
     };
@@ -4517,12 +4626,18 @@
     };
 
     // Profil cizího hráče (klepnutí na jeho obrázek): statistiky z výzev, vzájemná bilance a odveta se stejným nastavením
+    let profileToken = 0;
     const openPlayerProfile = async (playerId) => {
         const user = signedUser();
         if (!user || !Social) { openLoginDialog(); return; }
         if (playerId === user.id) { openProfile(); return; }
         const player = knownPlayers.get(playerId);
         if (!player) return;
+        // Pozdní odpovědi (statistiky, přátelé, uložení) překreslí jen tohle okno, dokud je otevřené: zavřené okno se znovu neotevře
+        // a profil jiného hráče (nebo jiné okno) se nepřepíše
+        const token = ++profileToken;
+        let opened = false;
+        const isOpen = () => { const overlay = document.getElementById('dialog-overlay'); return token === profileToken && Boolean(overlay && /^(Profil hráče|Nahlásit hráče)$/.test(overlay.dataset.title)); };
         let stats = null;
         let theirProgress = null;
         let theirRating = null;
@@ -4624,17 +4739,19 @@
                 + (earned.length ? `<div class="mt-1 flex flex-wrap justify-center gap-1.5" aria-label="Odznaky">${earned.map(badge => `<span title="${escapeHtml(`${badge.title}: ${badge.text}`)}">${medalHtml(badge, true, 'h-8 w-8', 'h-4 w-4')}</span>`).join('')}</div>` : '');
         };
         const tile = (label, value) => `<div class="rounded-2xl bg-white p-3 text-center shadow-sm dark:bg-slate-800"><p class="text-xl font-black text-slate-800 dark:text-slate-100">${value}</p><p class="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">${label}</p></div>`;
-        const chip = (value, label, tone) => `<span class="rounded-xl px-2.5 py-1.5 text-[13px] font-black ${tone}">${value} ${label}</span>`;
+        const chip = (label, tone) => `<span class="rounded-xl px-2.5 py-1.5 text-[13px] font-black ${tone}">${escapeHtml(label)}</span>`;
         const render = () => {
+            if (opened && !isOpen()) return;
+            opened = true;
             let body;
             if (failed) body = '<p class="text-sm font-semibold text-rose-700 dark:text-rose-400">Profil se nepodařilo načíst. Zkontroluj připojení.</p>';
             else if (!stats) body = '<p class="text-sm font-semibold text-slate-500 dark:text-slate-400">Načítám…</p>';
             else {
                 const percent = stats.answered ? `${Math.round(stats.correct / stats.answered * 100)} %` : '–';
                 const versus = stats.versus && (stats.versus.wins + stats.versus.draws + stats.versus.losses)
-                    ? `<div class="flex flex-col items-center gap-2"><p class="${CARD_TITLE}">Vaše bilance</p><div class="flex flex-wrap justify-center gap-1.5">${chip(stats.versus.wins, 'výher', 'bg-emerald-600 text-white')}${chip(stats.versus.draws, 'remíz', 'bg-slate-500 text-white')}${chip(stats.versus.losses, 'proher', 'bg-rose-600 text-white')}</div></div>`
+                    ? `<div class="flex flex-col items-center gap-2"><p class="${CARD_TITLE}">Vaše bilance</p><div class="flex flex-wrap justify-center gap-1.5">${chip(plural(stats.versus.wins, 'výhra', 'výhry', 'výher'), 'bg-emerald-600 text-white')}${chip(plural(stats.versus.draws, 'remíza', 'remízy', 'remíz'), 'bg-slate-500 text-white')}${chip(plural(stats.versus.losses, 'prohra', 'prohry', 'proher'), 'bg-rose-600 text-white')}</div></div>`
                     : '<p class="text-center text-sm text-slate-500 dark:text-slate-400">Ještě jste spolu nehráli.</p>';
-                const same = stats.last ? `${challengeTopicTitle(stats.last.topic)} · ${stats.last.count} otázek` : 'Mix · 10 otázek';
+                const same = stats.last ? `${challengeTopicTitle(stats.last.topic)} · ${Social.COUNTS.includes(stats.last.count) ? stats.last.count : 10} otázek` : 'Mix · 10 otázek';
                 body = `
                     <div class="grid grid-cols-3 gap-2">${tile('Výzvy', stats.games)}${tile('Úspěšnost', percent)}${tile('Nejlepší', stats.best ? `${stats.best.correct}/${stats.best.count}` : '–')}</div>
                     ${versus}
@@ -4680,7 +4797,7 @@
                     try {
                         const last = stats.last;
                         const created = await Social.createChallenge(user.id, {
-                            topic: last ? last.topic : 'mix', count: last ? last.count : 10, invitedId: player.id,
+                            topic: last ? last.topic : 'mix', count: last && Social.COUNTS.includes(last.count) ? last.count : 10, invitedId: player.id,
                             includeHard: Boolean(last && last.include_hard), categories: (last && last.categories) || [], variant: (last && last.variant) || 'choices'
                         });
                         closeDialog();
@@ -4688,7 +4805,7 @@
                         startChallenge({ ...created, creator: myProfile, invited: player, fresh: true }, 0, []);
                     } catch (error) {
                         busy = false;
-                        note = error && error.status === 400 && /nepřijímá/.test(String(error.message || '')) ? 'Tenhle hráč mezitím vypnul některé z vybraných témat. Zkus jiné.' : 'Výzvu se nepodařilo založit. Zkontroluj připojení a zkus to znovu.';
+                        note = challengeErrorText(error);
                         render();
                     }
                 }
@@ -4737,7 +4854,7 @@
                     note = error && error.message ? error.message : 'Odblokování se nepodařilo. Zkus to znovu.';
                 }
                 busyId = null;
-                render();
+                if (document.getElementById('dialog-overlay') && document.getElementById('dialog-overlay').dataset.title === 'Zablokovaní hráči') render();
             }
         });
         // Seznam ještě nebyl načtený: okno se ukáže hned (Načítám…) a po načtení se překreslí; jinak rovnou
@@ -4769,7 +4886,7 @@
                 } catch (error) {
                     note = error && error.message ? error.message : 'Nepodařilo se. Zkus to znovu.';
                 }
-                render();
+                if (document.getElementById('dialog-overlay') && document.getElementById('dialog-overlay').dataset.title === 'Nahlášení hráči') render();
             }
         });
         render();
@@ -4812,6 +4929,7 @@
     };
 
     // Detail výzvy podle kódu: kdo vyzývá, o co jde, žebříček; hrát jde, dokud hráč nemá výsledek
+    let challengeToken = 0;
     const openChallenge = async (rawCode) => {
         const code = Social ? Social.parseCode(rawCode) : '';
         if (!code) { showDialog('Výzva', DIALOG_NOTE('Tenhle kód výzvy není platný.')); return; }
@@ -4825,18 +4943,26 @@
             return;
         }
         showDialog('Výzva', '<p class="py-6 text-center text-sm font-semibold text-slate-500 dark:text-slate-400">Načítám výzvu…</p>');
+        // Hráč mezitím okno zavřel nebo otevřel jinou výzvu: pozdní odpověď se zahodí (okno se samo znovu neotevře)
+        const token = ++challengeToken;
+        const stillOpen = () => { const overlay = document.getElementById('dialog-overlay'); return token === challengeToken && Boolean(overlay && overlay.dataset.title === 'Výzva'); };
         let def;
         let results;
         try {
             [def, results] = await Promise.all([Social.getChallenge(code), Social.getResults(code)]);
         } catch (error) {
-            showDialog('Výzva', DIALOG_NOTE('Výzvu se nepodařilo načíst. Zkontroluj připojení a zkus to znovu.'));
+            if (stillOpen()) showDialog('Výzva', DIALOG_NOTE('Výzvu se nepodařilo načíst. Zkontroluj připojení a zkus to znovu.'));
             return;
         }
+        if (!stillOpen()) return;
         if (!def) { showDialog('Výzva', DIALOG_NOTE('Výzva s tímhle kódem neexistuje.')); return; }
         const mine = results.find(row => row.user_id === user.id);
         const myChange = mine && Rating && results.length > 1 ? await Social.getRatingChange(user.id, code).catch(() => null) : null;
+        if (!stillOpen()) return;
         const own = def.creator && def.creator.id === user.id;
+        // Rozehraná výzva (v paměti, nebo uložená mezi rozehranými): pokračuje se, nehraje se znovu od první otázky
+        const resumable = mine ? null : ownChallengeInProgress() && challenge.code === code ? challenge
+            : savedOpenChallenges().find(saved => !saved.tournament && saved.code === code && (!saved.owner || saved.owner === user.id)) || null;
         const text = `${own ? 'Vyzývám tě' : 'Hraju'} v Mudrlantu: ${challengeTopicTitle(def.topic)}, ${def.count} otázek.`;
         showDialog(own ? 'Tvoje výzva' : 'Výzva', `
             <div class="flex flex-col gap-4">
@@ -4855,12 +4981,17 @@
                 ${def.invited ? `<p class="flex items-center gap-2 text-sm font-semibold text-slate-600 dark:text-slate-300">Vyzvaný hráč: ${avatarHtml(def.invited, 'h-6 w-6 text-sm')} <b>${escapeHtml(def.invited.id === user.id ? 'ty' : playerName(def.invited))}</b></p>` : ''}
                 ${results.length ? `<ol class="flex flex-col gap-1.5">${rankingRows(results, def.count, user.id)}</ol>` : '<p class="text-sm text-slate-500 dark:text-slate-400">Zatím nikdo nehrál.</p>'}
                 ${myChange ? `<p class="text-sm font-bold text-slate-600 dark:text-slate-300">Tvůj rating: <b class="${myChange.delta > 0 ? 'text-emerald-700 dark:text-emerald-400' : myChange.delta < 0 ? 'text-rose-700 dark:text-rose-400' : ''}">${Rating.formatDelta(myChange.delta)}</b> (${myChange.after})</p>` : ''}
-                ${mine ? '' : `<button type="button" data-ch-play class="${PRIMARY_BUTTON}"><i data-lucide="play" class="h-5 w-5"></i> Hrát výzvu</button>`}
+                ${mine ? '' : `<button type="button" data-ch-play class="${PRIMARY_BUTTON}"><i data-lucide="play" class="h-5 w-5"></i> ${resumable ? resumeLabel(resumable) : 'Hrát výzvu'}</button>`}
                 <button type="button" data-ch-share class="${SECONDARY_BUTTON}"><i data-lucide="share-2" class="h-5 w-5"></i> Sdílet výzvu · ${code}</button>
             </div>`, {
             onClick: (event) => {
                 if (event.target.closest('[data-ch-share]')) shareChallenge(code, text);
-                if (event.target.closest('[data-ch-play]')) { closeDialog(); startChallenge(def, 0, []); }
+                if (event.target.closest('[data-ch-play]')) {
+                    closeDialog();
+                    // Tahle výzva je už rozehraná: pokračuje se od další otázky (ne znovu od první)
+                    if (resumable) { challenge = resumable; ACTIONS['challenge-resume'](); }
+                    else startChallenge(def, 0, []);
+                }
             }
         });
     };
@@ -4878,7 +5009,9 @@
         }
         challenge = {
             code: def.code || def.id, topic: def.topic, seed: def.seed, count: def.count, index, results, creator: def.creator || null, invited: def.invited || null, done: false,
-            hard: Boolean(def.hard ?? def.include_hard), categories: def.categories || [], variant: def.variant || null, tournament: def.tournament || null
+            hard: Boolean(def.hard ?? def.include_hard), categories: def.categories || [], variant: def.variant || null, tournament: def.tournament || null,
+            // Kdo výzvu hraje: po odhlášení a přihlášení jiného účtu na stejném zařízení se mu cizí rozehraná výzva nenabízí
+            owner: def.owner || (signedUser() ? signedUser().id : null)
         };
         mode = 'challenge';
         closeDialog();
@@ -4920,7 +5053,8 @@
     };
 
     const challengeHome = () => {
-        challenge = null;
+        // Výzva, jejíž výsledek se nepodařilo odeslat, zůstává: úvod nabídne její dokončení
+        if (!ownChallengeInProgress()) challenge = latestOpenChallenge();
         mode = 'daily';
         myChallenges = null;
         renderHome();
@@ -4960,6 +5094,8 @@
                     ${Friends && bestRival && bestRival.user_id ? Friends.reactionBar(bestRival.user_id, c.reaction || null, { busy: Boolean(c.reacting), name: playerName(bestRival.player) }) : ''}
                     <p class="text-sm text-slate-500 dark:text-slate-400">${results && results.length > 1 ? 'Porovnání s ostatními hráči.' : 'Pošli kód kamarádům, ať ti to oplatí.'}</p>`;
         if (state === 'ok') c.lastResults = results;
+        // Upozornění, že vyzvaný hráč výzvu uvidí: ne vyzvanému samotnému a ne potom, co už ji dohrál
+        const invitedWaiting = Boolean(c.invited && c.invited.id && (!user || c.invited.id !== user.id) && !(results || []).some(row => row.user_id === c.invited.id));
         appContent.innerHTML = `
             <div class="fade-in flex min-h-full w-full flex-col gap-4 bg-slate-50 p-4 pb-6 dark:bg-slate-900">
                 <div class="rounded-[1.5rem] bg-gradient-to-br from-brand-600 to-brand-900 p-5 text-center text-white shadow-lg">
@@ -4970,7 +5106,7 @@
                     ${ratingNote(c, results)}
                 </div>
                 ${body}
-                ${c.invited ? `<p class="flex items-center justify-center gap-2 text-sm font-semibold text-slate-600 dark:text-slate-300">Vyzvaný hráč: ${avatarHtml(c.invited, 'h-6 w-6 text-sm')} <b>${escapeHtml(playerName(c.invited))}</b> uvidí výzvu na úvodní stránce</p>` : ''}
+                ${invitedWaiting ? `<p data-invited-note class="text-center text-sm font-semibold leading-relaxed text-slate-600 dark:text-slate-300"><span class="inline-flex max-w-full items-center gap-1.5 align-middle">${avatarHtml(c.invited, 'h-6 w-6 text-sm')}<b class="truncate">${escapeHtml(playerName(c.invited))}</b></span> uvidí výzvu na úvodní stránce.</p>` : ''}
                 <button type="button" data-action="challenge-share" data-code="${escapeHtml(c.code)}" data-text="Zahrál jsem výzvu v Mudrlantu: ${correct}/${c.count}. Zvládneš to líp?" class="${SECONDARY_BUTTON}"><i data-lucide="share-2" class="h-5 w-5"></i> Sdílet výzvu · ${escapeHtml(c.code)}</button>
                 <button type="button" data-action="challenge-home" class="${PRIMARY_BUTTON}">Zpět domů</button>
             </div>`;
@@ -4985,6 +5121,7 @@
     const finishedChallenges = () => { const list = readJson(FINISHED_KEY); return Array.isArray(list) ? list.filter(code => typeof code === 'string') : []; };
     const markChallengeFinished = (code) => {
         if (!code) return;
+        forgetOpenChallenge(`c:${code}`);
         writeJson(FINISHED_KEY, [...new Set([...finishedChallenges(), code])].slice(-60));
         const session = readJson(KEYS.session);
         if (session && session.challenge && session.challenge.code === code) { session.challenge.done = true; writeJson(KEYS.session, session); }
@@ -4995,14 +5132,24 @@
         const user = signedUser();
         // Dvojité klepnutí nebo rychlé „Zkusit znovu“: odeslání už běží, druhé se nespouští
         if (!c || !user || c.sending) return;
+        // Výzvu rozehrál jiný účet (mezitím se v jiné kartě přihlásil někdo jiný): jeho odpovědi se pod tenhle účet neodešlou
+        if (c.owner && c.owner !== user.id) { challenge = null; mode = 'daily'; renderHome(); showToast('Tuhle výzvu rozehrál jiný účet.'); return; }
         c.sending = true;
         c.done = true;
-        markChallengeFinished(c.code);
         renderChallengeDone(null, 'sending');
         const correct = c.results.filter(row => row && row.correct).length;
         const points = c.results.reduce((sum, row) => sum + (row ? row.points : 0), 0);
         try {
-            await Social.submitResult(user.id, c.code, { correct, points });
+            try {
+                await Social.submitResult(user.id, c.code, { correct, points });
+            } catch (error) {
+                // Výsledek není uložený: výzva zůstane rozehraná (úvod nabídne její dokončení, i po zavření aplikace), ať se neztratí
+                // a nejde ji hrát znovu od začátku
+                c.done = false;
+                throw error;
+            }
+            // Až uložený výsledek: dohraná výzva se zapamatuje a úvod ji už nenabízí
+            markChallengeFinished(c.code);
             const results = await Social.getResults(c.code);
             // Rating po výzvě počítá databáze; změnu (a nový rating do karty ligy) načteme, ať ji hráč vidí hned
             if (Rating && results.length > 1 && !c.ratingChange) {
@@ -5168,7 +5315,7 @@
                         <p class="mt-1 text-sm font-semibold leading-snug text-slate-600 dark:text-slate-300">${escapeHtml(Tips.textFor(tip, Boolean(signedUser())))}</p></div>
                 </div>
                 ${tip.action ? `<button type="button" data-tip-go="${escapeHtml(tip.action.kind)}" class="${PRIMARY_BUTTON}">${escapeHtml(tip.action.label)}</button>` : ''}
-                <div class="flex items-center justify-between gap-2"><button type="button" data-tip-off class="${TOUR_LINK}">Tipy už nechci</button><button type="button" data-close class="rounded-xl px-3 py-2 text-[13px] font-bold text-slate-600 dark:text-slate-300">Rozumím</button></div>
+                <div class="flex items-center justify-between gap-2"><button type="button" data-tip-off class="${TOUR_LINK}">Tipy už nechci</button><button type="button" data-close class="rounded-xl px-3 py-2.5 text-[13px] font-bold text-slate-600 dark:text-slate-300">Rozumím</button></div>
             </div>`, {
             onClick: (event) => {
                 const go = event.target.closest('[data-tip-go]');
@@ -5189,7 +5336,7 @@
                 <div class="flex items-center gap-3"><span class="${TOUR_BUBBLE}"><i data-lucide="trophy" class="h-5 w-5"></i></span>
                     <p class="text-sm font-semibold leading-snug text-slate-700 dark:text-slate-200">Přihlášky do týdenního turnaje jsou otevřené. Začíná <b>${escapeHtml(when)}</b>, každý den jedno kolo (10 otázek), vítěz postupuje dál až do finále.</p></div>
                 <button type="button" data-offer-join="${escapeHtml(tournament.id)}" class="flex w-full items-center justify-center gap-2 rounded-2xl btn-3d bg-emerald-600 px-4 py-3 text-base font-black text-white active:scale-[0.98]"><i data-lucide="trophy" class="h-5 w-5"></i> Přihlásit se</button>
-                <div class="flex items-center justify-between gap-2"><button type="button" data-offer-rules class="${TOUR_LINK}">Jak turnaje fungují</button><button type="button" data-close class="rounded-xl px-3 py-2 text-[13px] font-bold text-slate-500 underline underline-offset-2 dark:text-slate-400">Teď ne</button></div>
+                <div class="flex items-center justify-between gap-2"><button type="button" data-offer-rules class="${TOUR_LINK}">Jak turnaje fungují</button><button type="button" data-close class="rounded-xl px-3 py-2.5 text-[13px] font-bold text-slate-500 underline underline-offset-2 dark:text-slate-400">Teď ne</button></div>
             </div>`, {
             onClick: (event) => {
                 const join = event.target.closest('[data-offer-join]');
@@ -5277,7 +5424,7 @@
     // --- Karta na záložce Více hráčů ---
     const TOUR_BUBBLE = 'flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-gold-300 to-gold-600 text-brand-950 shadow-sm ring-2 ring-white/70 dark:ring-slate-700';
     const TOUR_ICON = 'flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-gold-300 to-gold-600 text-brand-950 shadow-sm ring-2 ring-white/80 dark:ring-slate-700';
-    const TOUR_LINK = 'rounded px-1 py-0.5 text-[11px] font-black text-brand-700 underline decoration-brand-700/40 underline-offset-2 dark:text-cream dark:decoration-cream/40';
+    const TOUR_LINK = 'inline-flex min-h-[2.5rem] items-center rounded px-1 text-[11px] font-black text-brand-700 underline decoration-brand-700/40 underline-offset-2 dark:text-cream dark:decoration-cream/40';
     const TOUR_SMALL = 'flex shrink-0 items-center justify-center gap-1 rounded-xl bg-white/70 text-[11px] font-black text-slate-700 ring-1 ring-slate-300/70 active:scale-95 disabled:opacity-50 dark:bg-slate-900/40 dark:text-slate-200 dark:ring-slate-600';
     const fillBar = (percent, count) => `<span class="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-white/80 dark:bg-slate-700" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${percent}" aria-label="Naplnění turnaje"><span class="block h-full rounded-full bg-gradient-to-r from-gold-400 to-gold-600 ${BAR_WIDTHS[count ? Math.max(1, Math.round(percent / 10)) : 0]}"></span></span>`;
     const entryButton = (state, id) => {
@@ -5732,6 +5879,7 @@
     };
     // Dohraný zápas se v uložené relaci označí jako hotový, ať ho karta po dalším spuštění nenabízí k pokračování
     const markTournamentFinished = (mid) => {
+        forgetOpenChallenge(`t:${mid}`);
         const session = readJson(KEYS.session);
         if (session && session.challenge && session.challenge.tournament && session.challenge.tournament.mid === mid && !session.challenge.done) { session.challenge.done = true; writeJson(KEYS.session, session); }
     };
@@ -5892,10 +6040,12 @@
         'join-challenge': () => openJoinChallenge(),
         'challenge-open': (button) => openChallenge(button.dataset.code),
         'challenge-resume': () => {
-            if (!challenge || challenge.done) return;
-            // Všechny otázky už jsou zodpovězené (aplikace se zavřela před odesláním): nic se nehraje znovu, výzva se rovnou odešle
-            if (challenge.results.filter(Boolean).length >= challenge.count) { finishChallenge(); return; }
-            startChallenge(challenge, challenge.index, challenge.results);
+            if (!ownChallengeInProgress()) return;
+            // Pokračuje se první nezodpovězenou otázkou: zodpovězená (aplikace se zavřela před „Další“) se znovu nehraje, jinak by šla
+            // po zobrazení správné odpovědi zodpovědět podruhé. Všechny zodpovězené: nic se nehraje znovu, výzva se rovnou odešle.
+            const next = challengeNextIndex(challenge);
+            if (next < 0) { mode = 'challenge'; finishChallenge(); return; }
+            startChallenge(challenge, next, challenge.results);
         },
         'challenge-share': (button) => shareChallenge(button.dataset.code, button.dataset.text || ''),
         'challenge-retry': () => finishChallenge(true),
@@ -6127,11 +6277,21 @@
     if (Auth) {
         const invite = takeInviteCode();
         if (invite) writeJson(KEYS.pendingChallenge, invite);
+        let shownUserId = null;
         Auth.onChange((state) => {
             if (document.getElementById('settings-overlay')) openSettings();
             // Úvod s přihlášením: po přihlášení dál (k variantě nebo domů), po neúspěchu znovu s chybou
             if (document.getElementById('account-welcome') && (Auth.hasSession() || state.error)) showStart();
-            if (!state.user) { myProfile = null; myBlocked = null; myAcceptsMix = true; myChallenges = null; myRating = null; incomingList = null; friendRows = null; recentReactions = []; myBlocks = null; resetTournaments(); updateProfileButton(); paintChallenges(); return; }
+            // Odhlášení, nebo přihlášení jiného účtu (třeba v jiné kartě): údaje předchozího účtu se zahodí, ať se nepromítnou do nového
+            // (jeho bloky, přijímaná témata a výzvy by se jinak ukazovaly a ukládaly pod novým účtem)
+            const userId = state.user ? state.user.id : null;
+            if (userId !== shownUserId) {
+                shownUserId = userId;
+                myProfile = null; myBlocked = null; myAcceptsMix = true; acceptsConfirmed = null; myChallenges = null; myRating = null; incomingList = null; friendRows = null; recentReactions = []; myBlocks = null; resetTournaments();
+                updateProfileButton();
+                paintChallenges();
+            }
+            if (!state.user) return;
             // Po přihlášení (i návratu z Googlu) se otevře výzva, na kterou hráč klepl v odkazu
             const pending = readJson(KEYS.pendingChallenge);
             if (pending) {
@@ -6158,5 +6318,5 @@
         renderHome();
     }
     // Rozběhnutý tutoriál pokračuje od uloženého kroku, i když se aplikace otevřela rovnou do rozehrané otázky
-    if (Tutorial) Tutorial.maybeStart({ ready: factLoading });
+    if (Tutorial && gameVariant) Tutorial.maybeStart({ ready: factLoading });
 })();

@@ -167,7 +167,11 @@ Nastavení → dole **Moje data** (jen přihlášený hráč) → **Stáhnout mo
 (spustit celé znovu v SQL Editoru); bez něj aplikace ukáže „Tato funkce na serveru zatím není zapnutá“ a export stáhne aspoň data ze zařízení.
 
 - `export_my_data()` vrátí jako JSON jen řádky přihlášeného hráče (`auth.uid()`): účet (id, e-mail, časy), profil, založené výzvy, výsledky,
-  historii ratingu, přihlášky/zápasy/výsledky/zprávy turnajů.
+  historii ratingu, přihlášky/zápasy/výsledky/zprávy turnajů, poslední aktivitu, přátelství a žádosti, zablokované hráče, reakce,
+  vlastní nahlášení hráčů a hlášení otázek a odběry upozornění (bez klíčů).
+- Poslední aktivita (`player_seen`, zapisuje jen `touch_seen()`) je ve vlastní tabulce: hráč čte jen svůj řádek, přátelé ji dostanou
+  přes `friends_list()` (žadatel ani oslovený u nepřijaté žádosti ne). Starší sloupec `profiles.last_seen` (četl ho kdokoli přihlášený)
+  schéma při spuštění převede a odstraní.
 - `delete_my_account()` (security definer, vlastník `postgres`) smaže řádek v `profiles` – ostatní tabulky na něj navazují přes `ON DELETE CASCADE`
   – a pak i řádek v `auth.users` (stejně jako vývojářská funkce `dev_tournament_clear_bots`). Nepoužívá se žádný klíč `service_role`,
   klient volá funkci jen s tokenem přihlášeného hráče (grant jen pro `authenticated`).

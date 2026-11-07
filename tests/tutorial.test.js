@@ -127,6 +127,9 @@ test('první ukázaný krok se představí sovou; bez žárovky nese uvítání 
     assert.equal(Tutorial.owlFor(badge, true), 'sova-vitej');
     assert.equal(Tutorial.owlFor(hint, false), 'sova-premysleni');
     assert.equal(Tutorial.textFor(hint, true), hint.text);
+    // Úroveň vedle sovy je vidět i na úzkém displeji: krok všude radí klepnout na ni (žádné zvláštní znění pro 360 px)
+    assert.match(Tutorial.textFor(badge, false), /klepnutí na text tvůj postup/);
+    assert.equal(badge.narrowText, undefined);
     assert.match(Tutorial.STEPS[0].title, /Ahoj, jsem Mudrlant/);
 });
 

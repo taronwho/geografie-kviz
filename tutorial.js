@@ -25,7 +25,9 @@
     const QUESTION_LOST = 'Otázka se nenačetla. Zkus ji otevřít znovu z úvodní obrazovky, nebo tento krok přeskoč.';
     const STEPS = [
         { id: 'fact', phase: 'tour', owl: 'sova-vitej', mode: 'tap', soft: true, softLabel: 'Dál', skippable: true, target: '#fact-hint:not(.hidden)', hit: '#fact-hint', title: 'Ahoj, jsem Mudrlant!', text: 'Žárovka u mého loga ukazuje, co se tento den stalo v dějinách. Můžeš na ni klepnout, nebo pokračovat tlačítkem Dál.', wait: 'Hledám žárovku…', waitLong: TOUR_WAIT },
-        { id: 'badge', phase: 'tour', owl: 'sova-vitej', mode: 'info', target: '#status-badge', title: 'Úroveň a XP', text: 'Za správné odpovědi sbíráš XP, rosteš v úrovních a za výkony dostaneš odznaky. Klepnutí na sovu otevře událost dne, klepnutí na text tvůj postup.', intro: 'Ahoj, jsem Mudrlant! Za správné odpovědi sbíráš XP, rosteš v úrovních a za výkony dostaneš odznaky. Klepnutí na sovu otevře událost dne, klepnutí na text tvůj postup.', wait: 'Chvilku…', waitLong: TOUR_WAIT },
+        { id: 'badge', phase: 'tour', owl: 'sova-vitej', mode: 'info', target: '#status-badge', title: 'Úroveň a XP', text: 'Za správné odpovědi sbíráš XP, rosteš v úrovních a za výkony dostaneš odznaky. Klepnutí na sovu otevře událost dne, klepnutí na text tvůj postup.', intro: 'Ahoj, jsem Mudrlant! Za správné odpovědi sbíráš XP, rosteš v úrovních a za výkony dostaneš odznaky. Klepnutí na sovu otevře událost dne, klepnutí na text tvůj postup.',
+            // I na úzkém displeji (360 px) je vedle sovy úroveň s pruhem (bez názvu a titulu), takže text platí všude
+            wait: 'Chvilku…', waitLong: TOUR_WAIT },
         { id: 'daily', phase: 'tour', owl: 'sova-vitej', mode: 'info', target: '[data-action="daily"]', area: 'parent', title: 'Dnešní otázky', text: 'Každý den tu najdeš otázku z každého tématu. Splněné se označí, další čekají do zítřka.', intro: 'Ahoj, jsem Mudrlant! Každý den tu najdeš otázku z každého tématu. Splněné se označí, další čekají do zítřka.', wait: 'Chvilku…', waitLong: TOUR_WAIT },
         { id: 'topics', phase: 'tour', owl: 'sova-vitej', mode: 'info', target: '[data-action="play-topic"]', area: 'parent', title: 'Témata a Mix', text: 'Dlaždice jsou témata, vyber si, co chceš hrát. Mix míchá otázky ze všech témat.', wait: 'Chvilku…', waitLong: TOUR_WAIT },
         { id: 'multi', phase: 'tour', owl: 'sova-vyzva', mode: 'info', target: '[data-action="home-tab"][data-tab="multi"]', title: 'Více hráčů', text: 'Na téhle záložce vyzveš kamaráda kódem nebo přezdívkou a dáš si odvetu. Z výher roste tvůj rating a liga, je tu i týdenní žebříček a turnaj. Chce to přihlášení přes Google.', wait: TOUR_WAIT, waitLong: TOUR_WAIT, skippable: true },
@@ -129,8 +131,12 @@
     };
     const present = (step) => Boolean(holeOf(step));
     const external = () => Boolean(doc.querySelector(EXTERNAL));
-    // Krok Více hráčů se nepočítá, když záložka není (hra bez Supabase)
-    const hidden = () => [...(state && state.noFact ? ['fact'] : []), ...(doc.querySelector('[data-action="home-tab"][data-tab="multi"]') ? [] : ['multi'])];
+    // Krok Více hráčů se nepočítá, když záložka není (hra bez Supabase). Rozhoduje nastavení hry, ne to, jestli je záložka
+    // právě vidět: mimo úvod (otázka, výsledek) by jinak počítadlo skočilo z „Krok 7 z 11“ na „Krok 7 z 10“
+    const multiOn = () => {
+        try { return Boolean(root.MudrlantAuth && root.MudrlantAuth.isConfigured() && root.MudrlantSocial); } catch (e) { return false; }
+    };
+    const hidden = () => [...(state && state.noFact ? ['fact'] : []), ...(multiOn() || doc.querySelector('[data-action="home-tab"][data-tab="multi"]') ? [] : ['multi'])];
 
     const build = () => {
         const el = doc.createElement('div');
@@ -152,7 +158,7 @@
                     </div>
                 </div>
                 <div class="mt-2 flex items-center justify-between gap-2">
-                    <button type="button" data-tut-skip class="rounded-xl px-3 py-2 text-[13px] font-bold text-slate-500 underline underline-offset-2 active:scale-95 dark:text-slate-400">Přeskočit</button>
+                    <button type="button" data-tut-skip class="rounded-xl px-3 py-2.5 text-[13px] font-bold text-slate-500 underline underline-offset-2 active:scale-95 dark:text-slate-400">Přeskočit</button>
                     <button type="button" data-tut-skipstep class="hidden rounded-xl btn-3d bg-slate-200 px-4 py-2 text-[13px] font-black text-slate-700 active:scale-95 dark:bg-slate-700 dark:text-slate-100">Přeskočit krok</button>
                     <button type="button" data-tut-next class="hidden rounded-xl btn-3d bg-brand-700 px-4 py-2 text-[13px] font-black text-white active:scale-95">Dál</button>
                 </div>

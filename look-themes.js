@@ -18,7 +18,7 @@
             const tile = on ? 'bg-brand-50 ring-2 ring-brand-600 dark:bg-brand-900/40' : open ? 'bg-slate-100 active:scale-95 dark:bg-slate-700/60' : 'bg-slate-100 opacity-70 dark:bg-slate-700/40';
             return `<button type="button" data-theme-pick="${theme.id}" aria-pressed="${on}"${open ? '' : ' aria-disabled="true"'} class="flex min-w-0 flex-col items-center gap-0.5 rounded-xl px-1 py-1.5 ${tile}">
                 ${dot}
-                <span class="w-full truncate text-center text-[11px] font-bold leading-tight ${open ? 'text-slate-800 dark:text-slate-100' : 'text-slate-600 dark:text-slate-300'}">${theme.title}</span>
+                <span class="w-full text-balance text-center text-[11px] font-bold leading-tight ${open ? 'text-slate-800 dark:text-slate-100' : 'text-slate-600 dark:text-slate-300'}">${theme.title}</span>
                 ${open ? '' : `<span class="w-full truncate text-center text-[10px] font-semibold leading-none text-slate-600 dark:text-slate-300">${Look.unlockText(theme)}</span>`}
             </button>`;
         }).join('')}</div>`;
