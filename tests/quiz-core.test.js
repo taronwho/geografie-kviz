@@ -275,6 +275,10 @@ test('náhodná položka: nejdřív kategorie, nedávno hrané se neopakují', (
     const a = core.pickItem(PLACES, core.createSeededRandom('geo-kviz-2026-10-19'), [], order);
     const b = core.pickItem(PLACES, core.createSeededRandom('geo-kviz-2026-10-19'), [], order);
     assert.equal(a.q, b.q);
+    // Položka jen k učení (nq – vlajka, která je celá nápisem s odpovědí) se otázkou nestane, dokud je jiná
+    const learnOnly = PLACES.map(p => p.c === 'hora' ? { ...p, nq: 1 } : p);
+    for (let i = 0; i < 100; i++) assert.ok(!core.pickItem(learnOnly, rng).nq);
+    assert.equal(core.pickItem(learnOnly.filter(p => p.nq), rng).c, 'hora');
 });
 
 test('možnosti názvu: stejná kategorie, nejpodobnější podle tématu a stejně známé; nesou ID', () => {

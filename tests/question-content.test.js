@@ -202,6 +202,24 @@ test('vlajky: nápis s odpovědí na vlajce či znaku (CALIFORNIA REPUBLIC, FIFA
     for (const name of ['Kalifornie', 'Kansas', 'FIFA', 'Oregon', 'Wisconsin', 'Arkansas', 'Iowa']) assert.ok(flagged.some(item => item.n === name), name);
     // Obrázek otázky je u vlajek celý vidět hned: každý označený musí mít známou polohu nápisu
     assert.deepEqual(flagged.filter(item => !photoMasks[item.im]).map(item => item.n), []);
+    // Nápisy, které OCR nepřečte (drobné písmo v pečeti, do oblouku), mají ruční zakrytí (scripts/photo-masks-manual.json)
+    const manual = JSON.parse(fs.readFileSync(path.join(P.ROOT, 'scripts', 'photo-masks-manual.json'), 'utf8'));
+    for (const [name, category] of [['Nevada', 'regiony'], ['Idaho', 'regiony'], ['Kentucky', 'regiony'], ['Jižní Dakota', 'regiony'], ['Wyoming', 'regiony'],
+        ['Kostarika', 'znak'], ['Vietnam', 'znak'], ['Tchaj-pej', 'mesta'], ['UNESCO', 'uzemi']]) {
+        const item = ctx.items.find(other => other.n === name && other.c === category);
+        assert.ok(item && manual[item.im] && photoMasks[item.im], `${name}: ruční zakrytí`);
+        assert.deepEqual(photoMasks[item.im], manual[item.im], `${name}: ruční zakrytí má přednost před nalezeným`);
+    }
+    for (const masks of Object.values(manual)) {
+        for (const box of masks) assert.ok(box.length === 4 && box.every(v => v >= 0 && v <= 1) && box[0] + box[2] <= 1.0001 && box[1] + box[3] <= 1.0001, JSON.stringify(box));
+    }
+    // Vlajka, která je celá nápisem (OSCE, РСФСР, FIFA), je jen k učení: otázkou se nestane
+    const learnOnly = ctx.items.filter(item => item.nq).map(item => item.n).sort((a, b) => a.localeCompare(b, 'cs'));
+    assert.deepEqual(learnOnly, ['FIFA', 'Île-de-France', 'Jihoafrické rozvojové společenství', 'Organizace pro bezpečnost a spolupráci v Evropě',
+        'Ruská sovětská federativní socialistická republika', 'Ukrajinská sovětská socialistická republika']);
+    const rng = core.createSeededRandom('nq');
+    const pool = ctx.items.filter(item => item.c === 'uzemi' || item.c === 'historie');
+    for (let i = 0; i < 300; i++) assert.ok(!core.pickItem(pool, rng).nq);
     const { fileNameWords } = await import('../scripts/lib/photo-words.mjs');
     const plain = (text) => core.normalizeAnswer(text).replace(/[^a-z0-9]+/g, ' ').trim();
     assert.deepEqual(fileNameWords('Flag of California.svg', plain), ['california']);

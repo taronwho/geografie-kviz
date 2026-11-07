@@ -47,6 +47,10 @@ const TERRITORIES = {
 };
 // Státy, které Wikidata u území uvádějí jako celé království (Grónsko → Dánské království)
 const STATE_ALIASES = { Q756617: 'Q35', Q29999: 'Q55' };
+// Vlajky, které jsou celé nápisem s odpovědí (РСФСР, У.С.Р.Р., OSCE, SADC, FIFA, Région Île-de-France): po rozmazání nápisu
+// by zbyla prázdná plocha – jen k učení, otázkou se nestanou (nq, quiz-core pickItem). Nápisy v pečetích a na páskách se
+// rozmažou (scripts/photo-masks-manual.json)
+const NO_QUESTION = new Set(['Q2184', 'Q133356', 'Q81299', 'Q816706', 'Q13917', 'Q253414']);
 
 // Česko: kraje, města (krajská, statutární a nad 20 000 obyvatel) a historické země
 const CZ_REGION = 'Q38911';
@@ -1088,6 +1092,7 @@ for (const item of unique) {
 const collections = COLLECTIONS.map(({ test, ...collection }) => collection);
 // Pomocné údaje pro okruhy už v datech nejsou potřeba
 for (const item of unique) { delete item.shows; delete item.src; delete item.sl; }
+for (const item of unique) if (NO_QUESTION.has(item.q)) item.nq = 1;
 
 for (const category of ['vlajka', 'znak', 'cesko', 'uzemi', 'regiony', 'mesta', 'historie']) {
     const inCategory = unique.filter(item => item.c === category);
