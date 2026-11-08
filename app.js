@@ -391,6 +391,8 @@
     const loadWorld = memoizeBy(() => fetchJson('data/world.json'));
     // Slepé mapy otázky „Ukaž na mapě“ (data/mapa.json), načtou se s první takovou otázkou
     const loadMapData = memoizeBy(() => fetchJson('data/mapa.json'));
+    // Slepé mapy regionů (kraje, spolkové země, státy USA… – data/regiony.json), načtou se s první mapou regionu nebo města
+    const loadRegions = memoizeBy(() => fetchJson('data/regiony.json'));
     // Fotky, na kterých je napsaná odpověď (jméno na dresu, název na plakátu) – najde je OCR při sestavení dat
     // (npm run audit:photo-text); bez souboru se hraje dál se všemi fotkami
     const loadPhotoText = memoizeBy(() => fetchJson('data/photo-text.json').catch(() => ({})));
@@ -412,7 +414,7 @@
         refreshAnswerStats(topicId);
         return ctx;
     });
-    const visualDeps = { loadWorld: () => loadWorld() };
+    const visualDeps = { loadWorld: () => loadWorld(), loadRegions: () => loadRegions() };
 
     // Úvod článku z české Wikipedie; bez spojení aspoň krátký popis z Wikidat, ať jde hrát dál.
     // Úspěšně stažené úvody si pamatujeme, ať se atlas a okno s popisem neptají Wikipedie znovu.
@@ -2494,7 +2496,7 @@
             ${caption ? `<h3 class="${CARD_TITLE} -mb-2"><i data-lucide="${visual.icon}" class="h-4 w-4"></i> ${escapeHtml(capitalize(visual.name))}</h3>` : ''}
             <section class="relative ${height} shrink-0 overflow-hidden border ${rounded} ${visual.frame}">
                 <div ${id ? `id="${id}"` : 'data-visual'} class="absolute inset-0" role="img" aria-label="${escapeHtml(visual.describe(spec))}"></div>
-                ${corner ? `<span class="absolute bottom-2 right-2 rounded-lg bg-black/65 px-2 py-1 text-[11px] font-bold text-white">${escapeHtml(corner)}</span>` : ''}
+                ${corner ? `<span data-visual-corner class="absolute bottom-2 right-2 rounded-lg bg-black/65 px-2 py-1 text-[11px] font-bold text-white">${escapeHtml(corner)}</span>` : ''}
             </section>`;
     };
 
@@ -2506,7 +2508,7 @@
         return `
             <div class="absolute inset-0 ${visual.frame}">
                 <div id="${id}" class="absolute inset-0" role="img" aria-label="${escapeHtml(visual.describe(spec))}"></div>
-                ${corner ? `<span class="absolute bottom-2 right-2 rounded-lg bg-black/65 px-2 py-1 text-[11px] font-bold text-white">${escapeHtml(corner)}</span>` : ''}
+                ${corner ? `<span data-visual-corner class="absolute bottom-2 right-2 rounded-lg bg-black/65 px-2 py-1 text-[11px] font-bold text-white">${escapeHtml(corner)}</span>` : ''}
             </div>`;
     };
     const factsPane = (facts) => `<div class="absolute inset-0 overflow-y-auto p-2.5"><h3 class="sr-only">Čísla a fakta</h3>${renderFactsList(facts)}</div>`;
@@ -3673,7 +3675,7 @@
             // Souhrn odpovědí ostatních k tématu (stáhne se, jen když v zařízení chybí nebo je starší než den)
             refreshAnswerStats(current.topic);
             // Obrysy států pro slepou mapu stáhneme dopředu, ať je nápověda hned po ruce
-            if (data.visual && data.visual.type === 'map') loadWorld().catch(() => {});
+            if (data.visual && data.visual.type === 'map') (data.visual.regional ? loadRegions() : loadWorld()).catch(() => {});
         } catch (error) {
             isLoading = false;
             renderError(error);

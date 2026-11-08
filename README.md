@@ -51,7 +51,9 @@ pro všechny hráče i starší verze aplikace), chyby a opakování karet také
 
 Nápovědy jdou postupně a každá ubere bod: **popis** z české Wikipedie (je vidět hned, odpověď je v něm zakrytá), **fotka**, **obrazová nápověda** tématu a **čísla a fakta** z Wikidat. Obrazové nápovědy:
 
-- **slepá mapa** (zeměpis, bitvy) – obrysy států bez popisků, místo uprostřed,
+- **slepá mapa** (zeměpis, bitvy) – obrysy států bez popisků, místo uprostřed; uvnitř velkého státu se mapa oddálí, až jsou vidět
+  pobřeží nebo hranice. U regionů států, měst světa a českých znaků celý stát s hranicemi krajů, spolkových zemí či provincií,
+  hledaný region zvýrazněný a místo vyznačené tečkou,
 - **časová osa** (historie, chemici, fyzici) – život a vláda či úřad, s pár orientačními událostmi ze stejných dějin (u anglického krále anglické a světové, české jen u českých dějin),
 - **mapa rozšíření** (biologie) a **strukturní vzorec** (chemie) – obrázek z Wikimedia Commons,
 - **slepá periodická tabulka** (chemie) – políčka bez značek obarvená podle skupin, hledaný prvek zvýrazněný.
@@ -168,6 +170,7 @@ Data témat se generují z Wikidat (zeměpis a historie přes query.wikidata.org
 npm run build:countries  # data/countries.json
 npm run build:world      # data/world.json (Natural Earth 1:110m)
 npm run build:mapa       # data/mapa.json (Natural Earth 1:50m, Česko 1:10m s kraji a řekami)
+npm run build:regiony    # data/regiony.json (Natural Earth 1:10m: regiony států z okruhu Regiony států a české kraje; po build:vlajky)
 npm run build:zemepis    # data/zemepis.json
 npm run build:historie   # data/historie.json
 npm run build:biologie   # data/biologie.json

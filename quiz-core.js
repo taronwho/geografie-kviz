@@ -1414,6 +1414,7 @@
         const radians = Math.max(Math.min(lat, 85), -85) * Math.PI / 180;
         return Math.log(Math.tan(Math.PI / 4 + radians / 2)) * 180 / Math.PI;
     };
+    const inverseMercatorY = (y) => Math.atan(Math.sinh(y * Math.PI / 180)) * 180 / Math.PI;
     const buildBlindMap = (world, { lat, lon, spanLon, width, height, highlightIso }) => {
         const scale = width / spanLon;
         const centerY = mercatorY(lat);
@@ -1438,6 +1439,136 @@
             if (path) shapes.push({ id: country.id, d: path, highlight: Boolean(highlightIso) && country.id === highlightIso });
         }
         return shapes;
+    };
+
+    // Kolik pixelů obrysů (pobřeží a hranic) je ve výřezu slepé mapy – uvnitř velkého státu (Rusko, USA, Brazílie)
+    // bývá výřez jednolitá plocha bez jediné čáry
+    const visibleOutline = (world, { lat, lon, spanLon, width, height }) => {
+        const scale = width / spanLon;
+        const centerY = mercatorY(lat);
+        let total = 0;
+        for (const country of world.countries) {
+            for (const ring of country.r) {
+                let lonSum = 0;
+                for (let i = 0; i < ring.length; i += 2) lonSum += ring[i];
+                const shift = Math.round((lon - lonSum / (ring.length / 2) / 10) / 360) * 360;
+                let px = null, py = null;
+                for (let i = 0; i < ring.length; i += 2) {
+                    const x = (ring[i] / 10 + shift - lon) * scale + width / 2;
+                    const y = height / 2 - (mercatorY(ring[i + 1] / 10) - centerY) * scale;
+                    // Úsek se počítá, když je jeho střed ve výřezu (na odhad stačí)
+                    if (px !== null && (px + x) / 2 >= 0 && (px + x) / 2 <= width && (py + y) / 2 >= 0 && (py + y) / 2 <= height) total += Math.hypot(x - px, y - py);
+                    px = x; py = y;
+                }
+            }
+        }
+        return total;
+    };
+    const inRing = (ring, x, y, step = 2) => {
+        let inside = false;
+        for (let i = 0, j = ring.length - step; i < ring.length; j = i, i += step) {
+            const [xi, yi, xj, yj] = [ring[i], ring[i + 1], ring[j], ring[j + 1]];
+            if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) inside = !inside;
+        }
+        return inside;
+    };
+    // Šířka výřezu slepé mapy uvnitř velkého státu: když je výřez skoro celý pevnina a obrysů (pobřeží, hranic) v něm je
+    // míň, než měří obvod mapy, mapa se oddálí (nejvýš na trojnásobek), až jsou vidět čáry, podle kterých se dá zorientovat.
+    // Výřez s mořem (ostrovy, pobřeží) se nechá, jak je
+    const onLand = (world, lat, lon) => world.countries.some(country => country.r.some(ring => inRing(ring, ((lon + 540) % 360 - 180) * 10, lat * 10)));
+    const landShare = (world, { lat, lon, spanLon, width, height }) => {
+        const scale = width / spanLon;
+        let land = 0, total = 0;
+        for (let i = 1; i < 6; i++) {
+            for (let j = 1; j < 4; j++) {
+                const x = lon + (i / 6 - 0.5) * spanLon;
+                const y = mercatorY(lat) + (0.5 - j / 4) * height / scale;
+                total++;
+                if (onLand(world, inverseMercatorY(y), x)) land++;
+            }
+        }
+        return land / total;
+    };
+    const blindMapSpan = (world, { lat, lon, spanLon, width, height }) => {
+        const limit = Math.max(spanLon, Math.min(spanLon * 3, 100));
+        const bare = (span) => visibleOutline(world, { lat, lon, spanLon: span, width, height }) < width + height
+            && landShare(world, { lat, lon, spanLon: span, width, height }) > 0.8;
+        if (!onLand(world, lat, lon)) return spanLon;
+        let span = spanLon;
+        while (span < limit && bare(span)) span = Math.min(span * 1.25, limit);
+        return Math.round(span);
+    };
+
+    // --- Slepá mapa regionu (data/regiony.json, vlajky regionů a měst, znaky českých krajů a měst) ---
+    // Celý stát s hranicemi svých krajů, spolkových zemí, provincií… a se sousedy; hledaný region zvýrazněný a tečka na něm.
+    // Data jsou v Mercatorově zobrazení: x = zeměpisná délka, y = mercatorY(šířka), cesty celočíselně po q stupních, rozdílově.
+    // f = rámec státu [x0, y0, x1, y1] (u Ruska chybí – celé by se nevešlo), i = regiony položek: b = rámec, p = tečka, r = obrys
+    // Okraj kolem rámce; výřez kolem regionu, když se celý stát nevejde (Rusko, Chile či Kanada na nízkém širokém panelu),
+    // nejširší výřez s celým státem a nejmenší výřez ve stupních
+    const REGIONAL_PAD = 1.12;
+    const REGIONAL_WINDOW = [40, 100];
+    const REGIONAL_MAX_FIT = 130;
+    const REGIONAL_MIN_SPAN = 3;
+    const regionalView = (entry, target, aspect) => {
+        const fit = ([x0, y0, x1, y1]) => Math.max(x1 - x0, (y1 - y0) * aspect);
+        const box = target.b || [target.p[0], target.p[1], target.p[0], target.p[1]];
+        if (entry.f) {
+            const union = [Math.min(entry.f[0], box[0]), Math.min(entry.f[1], box[1]), Math.max(entry.f[2], box[2]), Math.max(entry.f[3], box[3])];
+            const span = Math.max(fit(union) * REGIONAL_PAD, REGIONAL_MIN_SPAN);
+            if (span <= REGIONAL_MAX_FIT) return { x: (union[0] + union[2]) / 2, y: (union[1] + union[3]) / 2, span };
+        }
+        const span = Math.min(Math.max(fit(box) * 1.5, REGIONAL_WINDOW[0]), REGIONAL_WINDOW[1]);
+        return { x: (box[0] + box[2]) / 2, y: (box[1] + box[3]) / 2, span };
+    };
+    // Čísla cest po pěti bitech ve znacích base64url (šestý bit = pokračuje další znak), znaménko v nejnižším bitu
+    const REGIONAL_DIGITS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
+    const DIGIT_VALUES = Object.fromEntries([...REGIONAL_DIGITS].map((digit, value) => [digit, value]));
+    const decodeNumbers = (text) => {
+        const numbers = [];
+        let value = 0, shift = 1;
+        for (const digit of text) {
+            const chunk = DIGIT_VALUES[digit];
+            value += (chunk & 31) * shift;
+            if (chunk & 32) { shift *= 32; continue; }
+            numbers.push(value % 2 ? -(value + 1) / 2 : value / 2);
+            value = 0; shift = 1;
+        }
+        return numbers;
+    };
+    // Cesta SVG z rozdílově zapsaných prstenců (closed) či lomených čar; co je celé mimo výřez, se vynechá
+    const regionalPath = (list, q, project, width, height, closed) => {
+        let d = '';
+        for (const text of list || []) {
+            const encoded = decodeNumbers(text);
+            let x = 0, y = 0, part = '';
+            let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+            for (let i = 0; i < encoded.length; i += 2) {
+                x += encoded[i]; y += encoded[i + 1];
+                const [px, py] = project(x * q, y * q);
+                part += `${i === 0 ? 'M' : 'L'}${px.toFixed(1)} ${py.toFixed(1)}`;
+                minX = Math.min(minX, px); maxX = Math.max(maxX, px); minY = Math.min(minY, py); maxY = Math.max(maxY, py);
+            }
+            if (maxX >= 0 && minX <= width && maxY >= 0 && minY <= height) d += closed ? `${part}Z` : part;
+        }
+        return d;
+    };
+    // Výřez a vrstvy regionální slepé mapy: own = stát, others = sousedé, region = hledaný region (jen když ho data znají),
+    // lines = hranice regionů uvnitř státu, lakes = velká jezera; dot = tečka na hledaném místě (v px), regionSize = delší strana
+    // rámce regionu v px (malý region potřebuje kolem tečky kroužek, aby byl vidět)
+    const buildRegionalMap = (entry, { item, lat, lon, width, height }) => {
+        const known = item && entry.i && entry.i[item];
+        const target = known || { p: [lon, mercatorY(lat)] };
+        const view = regionalView(entry, target, width / height);
+        const scale = width / view.span;
+        const project = (x, y) => [(x - view.x) * scale + width / 2, height / 2 - (y - view.y) * scale];
+        const layer = (list, closed = true) => regionalPath(list, entry.q, project, width, height, closed);
+        const [dotX, dotY] = project(target.p[0], target.p[1]);
+        return {
+            lat: inverseMercatorY(view.y), lon: view.x, span: view.span,
+            layers: { others: layer(entry.o), own: layer(entry.c), region: known ? layer(known.r) : '', lines: layer(entry.l, false), lakes: layer(entry.w) },
+            dot: { x: dotX, y: dotY },
+            regionSize: known && known.b ? Math.max(known.b[2] - known.b[0], known.b[3] - known.b[1]) * scale : 0
+        };
     };
 
 
@@ -1802,7 +1933,8 @@
         inCollection, filterItems, pickItem, sortItems, getCountryNames, getContinent, continentAt, getCountryAliases,
         distanceKm, nearness, STATE_STEPS, sharesGroup, eraNearness, personSimilarity, rankBySimilarity, takeDistinct,
         buildItemChoices, buildCountryChoices, findAnswerItem, findAnswerCountry, updateMistakes, nameAnswers, countryAnswers,
-        pointsFor, dropKnownFacts, scaleKnown, timelineKnown, dropChoiceNames, sharesWordRoot, chooseDescription, censoredShare, MAX_CENSORED_SHARE, isFactVisible, formatNumber, formatPopulation, formatYear, formatFacts, getMapSpan, buildBlindMap,
+        pointsFor, dropKnownFacts, scaleKnown, timelineKnown, dropChoiceNames, sharesWordRoot, chooseDescription, censoredShare, MAX_CENSORED_SHARE, isFactVisible, formatNumber, formatPopulation, formatYear, formatFacts, getMapSpan, buildBlindMap, blindMapSpan, visibleOutline,
+        mercatorY, inverseMercatorY, regionalView, buildRegionalMap, REGIONAL_WINDOW, REGIONAL_DIGITS, decodeNumbers,
         buildTimeline, centuryOf, centuryLabel, computeStreak, buildShareText, getTileLayout
     };
 });
