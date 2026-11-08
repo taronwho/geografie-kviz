@@ -3,6 +3,7 @@
 Kvízová aplikace s tématy **Zeměpis**, **Historie**, **Biologie**, **Chemie**, **Fyzika**, **Geologie**, **Vlajky a znaky**, **Mytologie**, **Výtvarné umění**, **Architektura**, **Hudba**, **Literatura**, **Film** a **Sport**. Všechna témata fungují stejně:
 
 - **Dnešní otázky** – každé téma má jednu otázku denně, pro všechny stejnou (ze známých položek, asi desetina z těžších), a vlastní sérii dní; výsledek jde sdílet.
+- **Kvíz dne** – každý den stejných 10 otázek z různých témat pro všechny (výběr z možností), jeden pokus, pořadí dne a přátel podle bodů a času, vlastní série dní; výsledek jde sdílet textem s mřížkou 🟩🟥 i obrázkem (`daily-quiz.js`, `share-card.js`, databáze viz `docs/SUPABASE.md`).
 - **Hraní tématu** – dlaždice tématu na domovské obrazovce; poprvé se otevře okno s výběrem kategorií (výchozí všechny), pak se hraje rovnou. **Mix** míchá otázky z vybraných témat. Každé téma má svou barvu (štítek a okraj hlavičky), klepnutím na štítek jde změnit kategorie nebo téma. Jen známé položky, nebo i méně známé.
 - **Bleskovka a Přežití** – režimy pro jednoho hráče, spouští se tlačítky vedle **Hrát** v okně s výběrem tématu (pro téma i Mix, s vybranými kategoriemi). Bleskovka: 60 sekund, co nejvíc správných odpovědí, vždy 4 možnosti bez nápověd, chyba ubere 3 sekundy, čas stojí při načítání otázky. Přežití: tři životy, prvních 5 otázek ze známých položek, pak přibývají méně známé (od 25. otázky celá sada), bez nápověd. Rekord se pamatuje pro každé téma, Mix i celkově (jen v zařízení, `mudrlant.modes`); XP 3 za správnou odpověď (Bleskovka) či 4 za přežitou otázku, nejvýš 150 XP denně v každém režimu, +20 XP za překonaný rekord jednou denně. Chyby jdou do Mých chyb a procvičování; do dnešních otázek, výzev, statistik tréninku ani počítadel odznaků se režimy nepočítají (`modes.js`, obrazovky v `app.js`).
 - **Zvuky a vibrace** – krátké tóny syntetizované přes Web Audio (správně, špatně, tikání posledních 5 s Bleskovky, nová úroveň a titul, odznak, nový rekord) a vibrace při chybě a rekordu; AudioContext vzniká až po klepnutí hráče. Obojí jde vypnout v Nastavení → Hra (`sound.js`, `mudrlant.sound`).
@@ -84,6 +85,8 @@ Statická stránka bez serveru a bez build kroku. Nasazuje se na **GitHub Pages*
 | `modes.js` | Bleskovka a Přežití bez DOM: pravidla, hodiny s trestem, obtížnost Přežití, rekordy a XP s denním stropem – testovaná |
 | `sound.js` | Zvuky (Web Audio, bez zvukových souborů) a vibrace, přepínače v Nastavení – testovaná |
 | `question-map.js` | Otázka „Ukaž na mapě“: výběr míst a výřezu, zobrazení, body podle vzdálenosti (testované), vykreslení a ovládání mapy |
+| `daily-quiz.js` | Kvíz dne: výběr otázek ze semínka dne, součty, série, XP, uložený stav a obrazovky (karta, úvod, výsledek s pořadím) |
+| `share-card.js` | Sdílení textu (systémové, jinak schránka) a obrázku výsledku (PNG z plátna se sovou v barvě obleku) |
 | `topics/<téma>.js` | Jedno téma: kategorie, otázky, fakta, nápovědy a zakrývání (viz níže) |
 | `data/<téma>.json` | Položky a okruhy tématu (generované z Wikidat) |
 | `data/countries.json`, `data/world.json` | Státy a jejich obrysy pro slepou mapu (generované) |
