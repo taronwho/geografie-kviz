@@ -244,13 +244,28 @@
         return res;
     };
 
+    // Zakrytí nesmí prozradit tvar odpovědi. Slova, která v názvu jen spojují jeho části (Liška a pes, Obrazce na planině Nazca,
+    // Pán prstenů: Návrat krále, Cesta do fantazie), mezi dvěma zakrytými místy by ho ukázala: „[***] a [***]“ má mezi
+    // možnostmi jen jedna odpověď tvaru „X a Y“. Zakrytá místa oddělená jen takovými slovy, mezerami a interpunkcí uvnitř
+    // věty (pomlčka, dvojtečka, čárka) se proto slijí do jednoho bloku – blok zakrývá celý výskyt jména.
+    const JOINING_WORDS = ['a', 'i', 'o', 'u', 'v', 've', 'z', 'ze', 's', 'se', 'k', 'ke', 'na', 'do', 'od', 'po', 'pro', 'při', 'za', 'nad', 'pod', 'před',
+        'mezi', 'bez', 'aneb', 'čili', 'nebo', 'of', 'the', 'and', 'in', 'on', 'at', 'to', 'for', 'de', 'del', 'della', 'di', 'da', 'du', 'des', 'la', 'le', 'les',
+        'el', 'al', 'y', 'e', 'et', 'und', 'der', 'die', 'das', 'den', 'dem', 'von', 'van', 'zu', 'am', 'an', 'im', 'auf', 'en', 'och', 'og'];
+    const JOIN_UNIT = `(?:[\\s\\-–—:,&'’+/]|(?<![\\p{L}\\p{N}])(?:${JOINING_WORDS.join('|')})(?![\\p{L}\\p{N}]))`;
+    const JOINED_MARKS = new RegExp(`\\[\\*\\*\\*\\]${JOIN_UNIT}*\\[\\*\\*\\*\\]`, 'giu');
     // Sousední zakrytá slova jako jeden blok – podle počtu [***] by šlo poznat, z kolika slov se odpověď skládá
     // Iniciály těsně před zakrytým jménem (C. S. [***], J. R. R. [***]) by jméno prozradily – patří k němu
-    const mergeCensored = (text) => text
-        .replace(/(?<![\p{L}\d])(?:\p{Lu}\.\s?){1,4}(?=\[\*\*\*\])/gu, '')
-        // Saint, Sankt, San, St. těsně před zakrytým jménem (Saint [***] u St. Louis) je jeho součást
-        .replace(/(?<![\p{L}\d])(?:Saint|Sankt|Santa|Santo|San|São|St\.|Sv\.)[\s\-–]+(?=\[\*\*\*\])/gu, '')
-        .replace(/\[\*\*\*\](?:[\s\-–]+\[\*\*\*\])+/g, '[***]');
+    const mergeCensored = (text) => {
+        let result = String(text ?? '')
+            .replace(/(?<![\p{L}\d])(?:\p{Lu}\.\s?){1,4}(?=\[\*\*\*\])/gu, '')
+            // Saint, Sankt, San, St. těsně před zakrytým jménem (Saint [***] u St. Louis) je jeho součást
+            .replace(/(?<![\p{L}\d])(?:Saint|Sankt|Santa|Santo|San|São|St\.|Sv\.)[\s\-–]+(?=\[\*\*\*\])/gu, '');
+        for (let previous = ''; previous !== result;) {
+            previous = result;
+            result = result.replace(JOINED_MARKS, '[***]');
+        }
+        return result;
+    };
 
     const censorName = (text, name) => {
         // Po vypuštěné závorce nezůstane „ ,“ ani „,,“
@@ -267,7 +282,8 @@
     const REGION_ADJECTIVE_PATTERN = /(?<![\p{L}\p{N}])(?:v|ve) \p{Lu}\p{Ll}+(?:ém|ím) (?:kraji|okrese|regionu|vojvodství|kantonu|departementu|hrabství)(?![\p{L}\p{N}])/gu;
 
     // Místo hned po slově „značka“ (značka N, se značkou m, značí se A) – tam se zakryje i jednopísmenná značka
-    const AFTER_SYMBOL_WORD = '(?:[Zz]načk\\p{L}*|[Ss]ymbol\\p{L}*|[Zz]kratk\\p{L}*|[Zz]načí se|[Oo]značuje se|[Oo]značení)\\s*:?\\s+';
+    // i hned za názvem na začátku úvodu („Watt, W je jednotka výkonu“ – závorka se značkou z úvodu vypadla jen napůl)
+    const AFTER_SYMBOL_WORD = '(?:(?:[Zz]načk\\p{L}*|[Ss]ymbol\\p{L}*|[Zz]kratk\\p{L}*|[Zz]načí se|[Oo]značuje se|[Oo]značení)\\s*:?\\s+|^\\p{Lu}[\\p{L}\\-]*,\\s*)';
 
     const isKnownCountry = (country) => Boolean(country) && country !== UNKNOWN_COUNTRY && country !== INTERNATIONAL_WATERS;
 
@@ -793,13 +809,58 @@
         return [...(question.accepted || []), question.answerLabel].filter(Boolean);
     };
     const answerNamesFor = (question, item, ctx) => answerNamesOf(question, item, ctx.topic.nameAliases ? ctx.topic.nameAliases(item, ctx) : []);
+    // --- Tvar odpovědi: slovo těsně u zakrytého místa, které z možností vybírá ---
+    // Po zakrytí nesmí v textu zůstat slovo, podle kterého by šlo správnou možnost vybrat nebo možnosti zúžit: spojka „a“ vedle
+    // [***] u Lišky a psa (jiná možnost tvar „X a Y“ nemá), číslo „5“ v „[***] 5“ mezi pražskými obvody, „[***] horniny“ mezi
+    // dvěma horninami a dvěma vyvřelinami. Takové je každé slovo správné možnosti, které nemají všechny nesprávné. Zakryté
+    // místo ho pohltí – blok zakryje celý výskyt jména. Slovo společné všem možnostem (Praha u čtyř obvodů) nic neprozradí.
+    // Slova možnosti podle kmene (hornina × horniny, Praha × Prahy), čísla celá
+    const choiceTokens = (label) => normalizeAnswer(label).split(' ').filter(Boolean).map(token => /^\d+$/.test(token) ? token : choiceStem(token));
+    const distinctiveTokens = (question) => {
+        const choices = (question && question.choices) || [];
+        const correct = choices.filter(choice => choice.correct);
+        if (correct.length !== 1 || choices.length < 2) return new Set();
+        const wrong = choices.filter(choice => !choice.correct).map(choice => new Set(choiceTokens(choice.label)));
+        return new Set(choiceTokens(correct[0].label).filter(token => !wrong.every(tokens => tokens.has(token))));
+    };
+    const MARK = '[***]';
+    const NEIGHBOUR_GAP = "[\\s\\-–—:,&'’+/]*";
+    const LEFT_NEIGHBOUR = new RegExp(`(?<![\\p{L}\\p{N}])([\\p{L}\\p{N}]+)${NEIGHBOUR_GAP}$`, 'u');
+    const RIGHT_NEIGHBOUR = new RegExp(`^${NEIGHBOUR_GAP}([\\p{L}\\p{N}]+)(?![\\p{L}\\p{N}])`, 'u');
+    // Slova vedle zakrytých míst, která prozradí tvar odpovědi: [{ word, start, end }] (end = konec zakrytého místa vpravo,
+    // start = začátek zakrytého místa vlevo; úsek start–end se zakryje)
+    const structureLeaks = (text, question) => {
+        const distinct = distinctiveTokens(question);
+        const value = String(text || '');
+        if (!distinct.size || !value.includes(MARK)) return [];
+        const leaks = [];
+        for (let index = value.indexOf(MARK); index >= 0; index = value.indexOf(MARK, index + MARK.length)) {
+            const left = LEFT_NEIGHBOUR.exec(value.slice(0, index));
+            if (left && distinct.has(choiceTokens(left[1])[0])) leaks.push({ word: left[1], start: index - left[0].length, end: index + MARK.length });
+            const right = RIGHT_NEIGHBOUR.exec(value.slice(index + MARK.length));
+            if (right && distinct.has(choiceTokens(right[1])[0])) leaks.push({ word: right[1], start: index, end: index + MARK.length + right[0].length });
+        }
+        return leaks;
+    };
+    const sealStructure = (text, question) => {
+        let result = String(text || '');
+        for (let round = 0; round < 20; round++) {
+            const [leak] = structureLeaks(result, question);
+            if (!leak) break;
+            result = mergeCensored(`${result.slice(0, leak.start)}${MARK}${result.slice(leak.end)}`);
+        }
+        return result;
+    };
+
     // Text pro hráče bez odpovědi: zakrytí názvu (téma nebo jádro), potom kontrola všech tvarů jména (maskLeaks)
+    // a nakonec tvaru odpovědi (sealStructure)
     const hideAnswer = (text, question, item, ctx, { keep = [] } = {}) => {
         if (!text) return '';
         const category = (ctx.topic.categories || []).find(entry => entry.key === item.c) || {};
         const hidden = hideOtherChoices(text, question, ctx, [item.ty, category.one].filter(Boolean).join(' '));
         const censored = mergeCensored(censorForItem(question.type, hidden, item, ctx).replaceAll(CHOICE_MARK, '[***]'));
-        return maskLeaks(censored, answerNamesFor(question, item, ctx), { isGeneric: (word) => isGenericWord(word, genericWordsOf(ctx)), keep: [question.title, question.showName ? item.n : '', item.ty, ...(ctx.topic.keepWords ? ctx.topic.keepWords(question.type, item, ctx) : []), ...keep] });
+        const masked = maskLeaks(censored, answerNamesFor(question, item, ctx), { isGeneric: (word) => isGenericWord(word, genericWordsOf(ctx)), keep: [question.title, question.showName ? item.n : '', item.ty, ...(ctx.topic.keepWords ? ctx.topic.keepWords(question.type, item, ctx) : []), ...keep] });
+        return sealStructure(masked, question);
     };
 
     // Věta vytržená z kontextu („Doprovázejí boha Rea…“, „Část odborníků se k tomuto výkladu kloní…“) nedává smysl
@@ -809,14 +870,20 @@
     const MAX_USABLE_CENSORED_SHARE = 0.5;
     // Popis a další věty úvodu tak, jak je uvidí hráč. fetched = { description, more, fallback } z processWikiText;
     // special = otázka zvláštního druhu (další věty se pak nepoužijí)
+    // origin = odkud text je: 'article' (úvod článku z Wikipedie), 'fallback' (krátký popis z Wikidat, když Wikipedie
+    // neodpověděla) nebo 'withheld' (téma text před odpovědí neukazuje – úvod článku o kraji či městě by ho prozradil i se
+    // zakrytým názvem). Nápovědou smí být jen text z článku; náhradní ani zadržený text nápovědou nikdy není.
     const buildQuestionTexts = (item, ctx, question, fetched, { special = false } = {}) => {
+        if (ctx.topic.withholdText && ctx.topic.withholdText(question.type, item, ctx)) {
+            return { text: fetched, questionText: '', moreText: '', origin: 'withheld' };
+        }
         const censorText = (value) => hideAnswer(value, question, item, ctx);
         const text = fetched.fallback ? fetched
             : { ...fetched, ...chooseDescription(fetched.description, fetched.more, censorText, { startOk: sentence => !OUT_OF_CONTEXT.test(sentence) }) };
         let questionText = censorText(text.description);
         if (!fetched.fallback && censoredShare(questionText) > MAX_USABLE_CENSORED_SHARE) questionText = '';
         const moreText = special || !text.more ? '' : censorText(stripFactSentences(text.more, ctx.topic.facts(item, ctx, question.type)));
-        return { text, questionText, moreText };
+        return { text, questionText, moreText, origin: fetched.fallback ? 'fallback' : 'article' };
     };
     // Prozrazuje fakt odpověď (nebo začíná stejným kořenem jako ona)? Takový fakt se jako nápověda nenabídne.
     // Zkratka v odpovědi rozepsaná ve faktu: kometa C/2022 E3 (ZTF) a objevitel Zwicky Transient Facility
@@ -1288,9 +1355,17 @@
     const stemOf = (word) => word.slice(0, Math.max(4, Math.ceil(word.length * 0.7)));
     // Slovo je vidět i tehdy, když z některého slova textu vychází (vorvaň → vorvaňovití, hřib → hřibovité,
     // s pohyblivým e: klouzek → klouzkovité, orel → orlovití)
-    const isFactVisible = (value, text) => {
+    const isFactVisible = (value, text, label = '') => {
         // Rok, který už je v popisu („z roku 1980“ a fakt Rok 1980)
         if (/^\d{3,4}$/.test(String(value).trim())) return new RegExp(`(?<!\\d)${String(value).trim()}(?!\\d)`).test(text);
+        // Období (882–1240, 379–395 n. l.): vidět jsou oba roky
+        const range = String(value).trim().match(/^(\d{3,4})\s*[–-]\s*(\d{3,4})((?: př\.)? n\. l\.)?$/u);
+        if (range) return [range[1], range[2]].every(year => isFactVisible(range[3] ? `${year}${range[3]}` : year, text, label));
+        // Hodnota beze slov (4'33") je vidět, když text má stejná čísla za sebou
+        if (!/\p{L}/u.test(String(value)) && /\d/.test(String(value)) && ` ${normalizeAnswer(text)} `.includes(` ${normalizeAnswer(value)} `)) return true;
+        // Rok s letopočtem (680 n. l., 199 př. n. l.), který už je v textu („dne 10. října 680“, „roku 199 př. n. l.“)
+        const era = String(value).trim().match(/^(\d{1,4}) (př\. )?n\. l\.$/u);
+        if (era) return new RegExp(`(?<![\\d,.])${era[1]}(?![\\d]|[,.]\\d)${era[2] ? '[^.\\d]{0,12}př' : '(?!\\s*př)'}`, 'u').test(text);
         // Číslo s jednotkou, které už je v popisu („Je dlouhá 47 km“ a fakt Délka 47 km; „1 042 km²“ = „1042 km2“)
         const measure = String(value).trim().match(/^(\d[\d\s\u00a0\u202f]*(?:,\d+)?)\s*([^\d\s].*)?$/u);
         if (measure) {
@@ -1312,9 +1387,36 @@
         const seen = (word) => haystack.includes(stemOf(word))
             || textWords.some(other => word.length <= other.length + 6 && rootsOf(other).some(root => root.length >= 3 && word.startsWith(root)))
             || shortWords.some(other => [other, other.replace(/e([^aeiouy])$/, '$1')].some(root => word.startsWith(`${root}ov`)));
+        // Trojpísmenné slovo hodnoty (měď, pes) je vidět jen jako začátek odvozeného slova textu (měďnatý, psovití – ne medvěd)
+        // (i slovo samo: sci-fi), a stejně odvozená delší slova (síra → sírový, stříbro → stříbrný, fluor → fluorid)
+        const DERIVED = /^(?:ov|nat|it|icit|ist|ecn|id|n[yaeiu])/;
+        const shortSeen = (word) => haystack.split(' ').some(other => other === word || (other.startsWith(word) && DERIVED.test(other.slice(word.length))));
+        const derivedSeen = (word) => {
+            const stem = word.replace(/[aeiouy]+$/, '');
+            return stem.length >= 3 && haystack.split(' ').some(other => other.startsWith(stem) && DERIVED.test(other.slice(stem.length)));
+        };
+        // Trojpísmenné slovo hodnoty musí být vidět také (Panthera leo přidá „leo“, i když rod Panthera už hráč zná)
+        // Krátké jméno (Jan, Ron, Sam) i ve skloněném tvaru (Janem Svěrákem)
+        const CASE_ENDING = /^(?:a|u|e|em|ovi|ou|y|i|ov[aeiouy]|ovou|ovym)$/;
+        const nameSeen = (word) => haystack.split(' ').some(other => other.startsWith(word) && CASE_ENDING.test(other.slice(word.length)));
+        const shortsSeen = (part) => {
+            const proper = new Set((String(part).match(/\p{Lu}\p{L}*/gu) || []).map(normalizeAnswer));
+            return normalizeAnswer(part).split(' ').filter(word => word.length === 3 && !/\d/.test(word) && !PLAIN_WORDS.has(word))
+                .every(word => shortSeen(word) || (proper.has(word) && nameSeen(word)));
+        };
         const wordsSeen = (part) => {
             const words = normalizeAnswer(part).split(' ').filter(significant);
-            return words.length > 0 && words.every(seen);
+            if (words.length > 0 && words.every(seen) && shortsSeen(part)) return true;
+            const all = normalizeAnswer(part).split(' ').filter(word => word.length >= 3 && !/\d/.test(word));
+            return all.length > 0 && all.every(word => word.length === 3 ? shortSeen(word) : seen(word) || derivedSeen(word));
+        };
+        // Počet, který text říká se slovem z popisku faktu („hraná 18 hráči“ a Hráčů na hřišti: 18 za tým)
+        const labelRoots = normalizeAnswer(label).split(' ').filter(word => word.length >= 4).map(word => word.slice(0, 4));
+        const countSeen = (part) => {
+            const numbers = part.match(/\d+/g) || [];
+            if (!numbers.length || !labelRoots.length || normalizeAnswer(part).split(' ').some(word => significant(word))) return false;
+            return numbers.every(number => [...String(text).matchAll(new RegExp(`(?<![\\d,.])${number}(?![\\d]|[,.]\\d)\\s+(\\p{L}+)`, 'gu'))]
+                .some(match => labelRoots.includes(normalizeAnswer(match[1]).slice(0, 4))));
         };
         // Vlastní jméno pozná zakrývací stroj i ve skloňovaném či přídavném tvaru: „J. R. R. Tolkiena“ = John Ronald Reuel
         // Tolkien (podle příjmení), „čínský malíř“ = Čína. Seznam (Mona Lisa, Poslední večeře) je vidět, když jsou vidět všechny
@@ -1329,9 +1431,9 @@
             const keys = [...new Set([proper[proper.length - 1], last && /(?:sk|ck)[ýáéí]$/u.test(last) ? last : null].filter(Boolean))];
             return keys.some(key => marks(censorName(text, key)) > before);
         };
-        return String(value).split(/,\s+/).every(part => wordsSeen(part) || keySeen(part));
+        return String(value).split(/,\s+/).every(part => wordsSeen(part) || (keySeen(part) && shortsSeen(part)) || countSeen(part));
     };
-    const dropKnownFacts = (facts, text) => facts.filter(fact => !isFactVisible(fact.value, text));
+    const dropKnownFacts = (facts, text) => facts.filter(fact => !isFactVisible(fact.value, text, fact.label));
 
     // Osa (stáří období, tvrdost…), jejíž hodnotu už říká text otázky („před 251,9 až 201,4 miliony let“), nic nepřidá: poznáme ji podle čísel
     // v popisku hodnoty (desetinná čísla a čísla od tří číslic; jednociferná by se v textu našla náhodou). Tisíce se píšou s mezerou (11 700).
@@ -1348,12 +1450,14 @@
     // vzdálený nejvýš YEAR_SLACK let. Bere se letopočet od 100 do 2100, který není délkou ani počtem (1515 m, 1200 obyvatel).
     // Osa bez letopočtů (blind, otázka na století) roky neukazuje, takže nápovědou zůstane.
     const YEAR_SLACK = 5;
-    const YEAR_IN_TEXT = /(?<![\d,.])(\d{3,4})(?![\d,]|\.\d|\s?(?:m\b|km|cm|mm|kg|g\b|t\b|l\b|%|obyv|lidí|osob|stran|kusů|mil|tis))/g;
+    const YEAR_IN_TEXT = /(?<![\d,.])(\d{3,4})(?!\d|[,.]\d|\s?(?:m\b|km|cm|mm|kg|g\b|t\b|l\b|%|obyv|lidí|osob|stran|kusů|mil|tis))/g;
     const timelineKnown = (spec, text) => {
         if (!spec || spec.type !== 'timeline' || spec.blind) return false;
         const years = [...(spec.points || []), ...(spec.spans || []).flatMap(span => [span.from, span.to])].filter(year => Number.isFinite(year) && year >= 100);
         if (!years.length) return false;
-        const inText = [...String(text || '').matchAll(YEAR_IN_TEXT)].map(match => Number(match[1])).filter(year => year >= 100 && year <= 2100);
+        // Datum 15.10.1842 = 15. 10. 1842 (rok za tečkou data je letopočet, ne desetinné číslo)
+        const dated = String(text || '').replace(/(?<!\d)(\d{1,2})\.\s?(\d{1,2})\.\s?(?=\d{3,4}(?!\d))/g, '$1. $2. ');
+        const inText = [...dated.matchAll(YEAR_IN_TEXT)].map(match => Number(match[1])).filter(year => year >= 100 && year <= 2100);
         return years.every(year => inText.some(seen => Math.abs(seen - year) <= YEAR_SLACK));
     };
 
@@ -1514,7 +1618,8 @@
         const box = target.b || [target.p[0], target.p[1], target.p[0], target.p[1]];
         if (entry.f) {
             const union = [Math.min(entry.f[0], box[0]), Math.min(entry.f[1], box[1]), Math.max(entry.f[2], box[2]), Math.max(entry.f[3], box[3])];
-            const span = Math.max(fit(union) * REGIONAL_PAD, REGIONAL_MIN_SPAN);
+            // m = nejmenší výřez dat (u města se částmi desetiny stupně), jinak REGIONAL_MIN_SPAN
+            const span = Math.max(fit(union) * REGIONAL_PAD, entry.m || REGIONAL_MIN_SPAN);
             if (span <= REGIONAL_MAX_FIT) return { x: (union[0] + union[2]) / 2, y: (union[1] + union[3]) / 2, span };
         }
         const span = Math.min(Math.max(fit(box) * 1.5, REGIONAL_WINDOW[0]), REGIONAL_WINDOW[1]);
@@ -1555,10 +1660,11 @@
     // Výřez a vrstvy regionální slepé mapy: own = stát, others = sousedé, region = hledaný region (jen když ho data znají),
     // lines = hranice regionů uvnitř státu, lakes = velká jezera; dot = tečka na hledaném místě (v px), regionSize = delší strana
     // rámce regionu v px (malý region potřebuje kolem tečky kroužek, aby byl vidět)
-    const buildRegionalMap = (entry, { item, lat, lon, width, height }) => {
+    // view = { lat, lon, span } jiný výřez (přiblížení na možnosti, tlačítka +/−), others = ostatní možnosti jako šedé tečky
+    const buildRegionalMap = (entry, { item, lat, lon, width, height, view: wanted = null, others = [] }) => {
         const known = item && entry.i && entry.i[item];
         const target = known || { p: [lon, mercatorY(lat)] };
-        const view = regionalView(entry, target, width / height);
+        const view = wanted ? { x: wanted.lon, y: mercatorY(wanted.lat), span: wanted.span } : regionalView(entry, target, width / height);
         const scale = width / view.span;
         const project = (x, y) => [(x - view.x) * scale + width / 2, height / 2 - (y - view.y) * scale];
         const layer = (list, closed = true) => regionalPath(list, entry.q, project, width, height, closed);
@@ -1567,10 +1673,38 @@
             lat: inverseMercatorY(view.y), lon: view.x, span: view.span,
             layers: { others: layer(entry.o), own: layer(entry.c), region: known ? layer(known.r) : '', lines: layer(entry.l, false), lakes: layer(entry.w) },
             dot: { x: dotX, y: dotY },
+            others: others.map(point => { const [x, y] = project(point.lon, mercatorY(point.lat)); return { x, y }; }),
             regionSize: known && known.b ? Math.max(known.b[2] - known.b[0], known.b[3] - known.b[1]) * scale : 0
         };
     };
 
+
+    // Výřez slepé mapy, jak ho nakreslí visuals.js, a data, ze kterých se kreslí: 'city' (části města), 'country' (regiony
+    // státu) nebo 'world' (obrysy států). regions = data/regiony.json, world = data/world.json (null = nenačtené), width a height
+    // = panel v px, zoom = násobek šířky výřezu z tlačítek +/− (2 = oddálit). Výchozí výřez: u regionu celý stát (u městské
+    // části město), jinak výřez tématu kolem místa, uvnitř velkého státu oddálený, až jsou vidět hranice (blindMapSpan).
+    // Přiblížení na možnosti (spec.fit) platí, jen když zabere nejvýš FIT_SHARE výchozího výřezu; oddálená mapa přejde
+    // za rámcem dat na hrubší data (město → stát → svět).
+    const COVER_FACTOR = 1.6;
+    const mapExtent = (spec, { regions = null, world = null, width = 360, height = 224, zoom = 1 } = {}) => {
+        const aspect = width / height;
+        const regional = spec.regional || null;
+        const country = regional && regions && regions.countries ? regions.countries[regional.country] || null : null;
+        const city = regional && regional.city && regions && regions.cities ? regions.cities[regional.city] || null : null;
+        const viewOf = (entry) => {
+            const known = entry.i && entry.i[regional.item];
+            const view = regionalView(entry, known || { p: [spec.lon, mercatorY(spec.lat)] }, aspect);
+            return { lat: inverseMercatorY(view.y), lon: view.x, span: view.span };
+        };
+        let base = city ? viewOf(city) : country ? viewOf(country) : { lat: spec.lat, lon: spec.lon, span: spec.span };
+        if (!city && !country && world && !spec.highlightIso) base = { ...base, span: blindMapSpan(world, { lat: base.lat, lon: base.lon, spanLon: base.span, width, height }) };
+        const fitted = Boolean(spec.fit) && spec.fit.span <= base.span * FIT_SHARE;
+        const view = fitted ? spec.fit : base;
+        const span = Math.min(view.span * zoom, 360);
+        const covers = (entry) => Boolean(entry) && span <= (entry.f ? Math.max(entry.f[2] - entry.f[0], (entry.f[3] - entry.f[1]) * aspect) * REGIONAL_PAD * COVER_FACTOR : REGIONAL_WINDOW[1]);
+        const source = covers(city) ? 'city' : covers(country) ? 'country' : 'world';
+        return { lat: view.lat, lon: view.lon, span, fitted, source, entry: source === 'city' ? city : source === 'country' ? country : null };
+    };
 
     // --- Časová osa (historie, vědci…) ---
 
@@ -1919,6 +2053,196 @@
         return [...result];
     };
 
+    // --- Nápovědy otázky: jedna cesta pro hru (app.js) i audit (scripts/lib/audit.mjs) ---
+    //
+    // Zásada: nápověda se nabídne jen tehdy, když přidá něco nového. Známé je už to, co hráč vidí bez nápovědy – otázka, štítek
+    // druhu a kategorie, popisek obrázku, to, co mají všechny čtyři možnosti společné („Praha“ u čtyř obvodů) – a všechno,
+    // co ukázaly dřívější nápovědy (text, další věty, fakta, roky na ose). Text, který nevznikl z článku (náhradní popis
+    // z Wikidat, zadržený text), nápovědou není nikdy – pozná se podle původu (origin z buildQuestionTexts), ne podle znění.
+
+    // Slova, která v porovnání textů nic nenesou (spojky, zájmena, pomocná slovesa)
+    const PLAIN_WORDS = new Set(['jako', 'jeho', 'jeji', 'jejich', 'ktery', 'ktera', 'ktere', 'kteri', 'kterou', 'kterem', 'kterym', 'kterych', 'jsou', 'byl', 'byla',
+        'bylo', 'byli', 'byly', 'bude', 'jest', 'take', 'tak', 'ale', 'nebo', 'jen', 'uz', 'nez', 'aby', 'pro', 'pri', 'pred', 'pod', 'nad', 'mezi', 'jeden',
+        'jedna', 'jedno', 'jednoho', 'jedne', 'jednim', 'tento', 'tato', 'toto', 'tyto', 'tohoto', 'teto', 'tomto', 'tim', 'ten', 'ta', 'to', 'se', 'si', 'je',
+        'jej', 'ji', 'jim', 'nim', 'nich', 'ni', 'ze', 've', 'na', 'do', 'od', 'po', 'za', 'ke', 'kde', 'kdy', 'co', 'cim', 'coz', 'take', 'rovnez', 'pak',
+        'the', 'and', 'of', 'des', 'les', 'der', 'die', 'das', 'und', 'von']);
+    const contentWords = (text) => normalizeAnswer(String(text || '').replace(/\[\*\*\*\]/g, ' ')).split(' ')
+        .filter(word => word && (/\d/.test(word) || word.length >= 3) && !PLAIN_WORDS.has(word));
+    // Klíč slova pro porovnání bez koncovek (geoglyfy × geoglyfů, obrazce × obrazců); čísla celá
+    const wordKey = (word) => /^\d+$/.test(word) ? word : word.slice(0, Math.max(3, Math.min(5, word.length - 2)));
+    // Slova textu, která v known ještě nebyla
+    const newWords = (text, known) => {
+        const keys = new Set(contentWords(known).map(wordKey));
+        return contentWords(text).filter(word => !keys.has(wordKey(word)));
+    };
+    // Přidá text něco nového? Aspoň tři nová slova (u kratšího textu všechna) a aspoň čtvrtina jeho slov – jinak je to
+    // stejný nebo skoro stejný text jako dřív (další věty, které opakují popis)
+    const MIN_NEW_WORDS = 3;
+    const MIN_NEW_SHARE = 0.25;
+    const addsInformation = (text, known) => {
+        const words = contentWords(text);
+        if (!words.length) return false;
+        const fresh = newWords(text, known).length;
+        return fresh >= Math.min(MIN_NEW_WORDS, words.length) && fresh / words.length >= MIN_NEW_SHARE;
+    };
+    // Co mají všechny možnosti společné (Praha u Praha 1 až Praha 22): nic nerozliší, hráč to ví z možností samých
+    const commonChoiceText = (question) => {
+        const choices = (question && question.choices) || [];
+        if (choices.length < 2) return '';
+        const rest = choices.slice(1).map(choice => new Set(choiceTokens(choice.label)));
+        return normalizeAnswer(choices[0].label).split(' ').filter(word => word && rest.every(tokens => tokens.has(choiceTokens(word)[0]))).join(' ');
+    };
+
+    // Slepá mapa v měřítku, které rozliší možnosti: když všechny možnosti leží blízko sebe (obvody jednoho města, místa jednoho
+    // státu), mapa se přiblíží na ně – na celé zemi by byla tečka tam, kde ji čekají všechny možnosti. Ostatní možnosti jsou na
+    // mapě šedé tečky. Jen přiblížení: rozložené možnosti nechají výřez tématu (rozhodne mapExtent). fit = { lat, lon, span }
+    // (střed a šířka ve stupních délky), others = poloha ostatních možností; výřez se vejde i do nízkého panelu (FIT_ASPECT).
+    const FIT_PAD = 1.8;
+    const FIT_ASPECT = 2;
+    const MIN_FIT_SPAN = 0.08;
+    // Přiblížit, jen když možnosti zaberou nejvýš tolik výřezu tématu
+    const FIT_SHARE = 0.5;
+    // Nejužší výřez, na kterém obrysy států ještě něco ukážou (ve stupních délky)
+    const WORLD_MIN_SPAN = 2;
+    const pointOf = (other, ctx) => {
+        const coords = ctx.topic.coords ? ctx.topic.coords(other, ctx) : other.la !== undefined ? { lat: other.la, lon: other.lo } : null;
+        return coords && Number.isFinite(coords.lat) && Number.isFinite(coords.lon) ? coords : null;
+    };
+    const choicePoints = (question, ctx) => {
+        if (!question || question.type !== 'name' || question.match || !ctx.byId) return [];
+        return (question.choices || []).map(choice => {
+            const other = ctx.byId.get(choice.id);
+            const point = other && pointOf(other, ctx);
+            return point ? { lat: point.lat, lon: point.lon, correct: Boolean(choice.correct) } : null;
+        }).filter(Boolean);
+    };
+    const choicesView = (points) => {
+        const lons = points.map(point => point.lon);
+        const ys = points.map(point => mercatorY(point.lat));
+        const lonRange = Math.max(...lons) - Math.min(...lons);
+        if (lonRange > 180) return null;
+        const span = Math.max(Math.max(lonRange, (Math.max(...ys) - Math.min(...ys)) * FIT_ASPECT) * FIT_PAD, MIN_FIT_SPAN);
+        return { lat: inverseMercatorY((Math.max(...ys) + Math.min(...ys)) / 2), lon: (Math.max(...lons) + Math.min(...lons)) / 2, span: Math.round(span * 1000) / 1000 };
+    };
+    const fitMapToChoices = (spec, question, ctx) => {
+        if (!spec || spec.type !== 'map') return spec;
+        const points = choicePoints(question, ctx);
+        if (points.length < 2 || points.filter(point => point.correct).length !== 1) return spec;
+        const view = choicesView(points);
+        if (!view) return spec;
+        // Obrysy států (svět 1 : 110 mil.) jsou na užším výřezu nepoužitelné: možnosti blíž u sebe (mrakodrapy jednoho města)
+        // mapa bez dat regionů nerozliší a místo, které mají společné, hráč z možností zná – taková mapa nápovědou není
+        if (!spec.regional && view.span < WORLD_MIN_SPAN) return null;
+        // Jestli se přiblíží, rozhodne mapExtent podle výchozího výřezu (u regionu celý stát z dat) a FIT_SHARE
+        return { ...spec, fit: view, others: points.filter(point => !point.correct).map(({ lat, lon }) => ({ lat, lon })) };
+    };
+
+    // Nápovědy z plánu kroků: 'photo', 'text' (popis u otázky s obrázkem), 'excerpt' (další věty), 'visual', 'facts'.
+    // known = co hráč ví bez nápovědy (otázka, štítek, popisek obrázku, společné části možností), visibleText = zadání a volně
+    // viditelný popis, shared = hodnoty faktů, které mají všechny možnosti (nic mezi nimi nerozliší);
+    // describeVisual(spec) → { name, icon } nebo null (neznámý druh obrázku)
+    const buildHints = (plan, { photoUrl = null, visibleText = '', known = '', shared = new Set(), answers = [], textPhotos = new Set(), omit = [], rootCheck = false,
+        extraGeneric = null, photoMasks = {}, describeVisual = () => null } = {}) => {
+        // Fakt prozradí odpověď i tehdy, když obsahuje kterýkoli její tvar nebo začíná stejným kořenem jako jméno
+        // (Těží se z něj: antimon u Antimonitu); společná kontrola s popisem (factRevealsAnswer)
+        const rootNames = rootCheck && answers.length ? specificWords(answers, extraGeneric) : '';
+        const revealsAnswer = (fact) => factRevealsAnswer(fact, answers, { isGeneric: (word) => isGenericWord(word, extraGeneric), rootNames });
+        const hints = [];
+        // Co už hráč viděl: zadání, známé věci a obsah všech dřívějších nápověd (text, další věty, fakta, roky na ose)
+        let shownBefore = '';
+        const seen = () => `${visibleText} · ${known} · ${shownBefore}`;
+        for (const step of plan || []) {
+            let hint = null;
+            if (step.kind === 'photo' && photoUrl) hint = { kind: 'photo', label: 'fotka', icon: 'image' };
+            // Popis u otázky s obrázkem: jen text z článku a jen když přidá něco nového; název díla (showName) je nový vždy
+            if (step.kind === 'text') {
+                const text = step.origin === 'article' && countRealWords(step.text) >= 3 && addsInformation(step.text, seen()) ? step.text : '';
+                if (text || step.name) hint = { kind: 'text', text, name: step.name || '', label: step.name ? (text ? 'název a popis' : 'název') : 'popis', icon: 'quote' };
+            }
+            // Další věty z úvodu článku (bez jména), jen když nejsou (skoro) stejné jako to, co už hráč četl
+            if (step.kind === 'excerpt' && step.text && addsInformation(step.text, seen())) hint = { kind: 'excerpt', text: step.text, label: 'další věty', icon: 'book-open' };
+            // Obrázek s napsanou odpovědí (portrét autora se jménem) nápovědou není
+            const textImage = step.spec && step.spec.type === 'image' && textPhotos.has(step.spec.file);
+            const visual = step.kind === 'visual' && step.spec ? describeVisual(step.spec) : null;
+            if (visual && !timelineKnown(step.spec, seen()) && !scaleKnown(step.spec, seen()) && !textImage) {
+                const masks = step.spec.type === 'image' && photoMasks[step.spec.file];
+                // Událost na časové ose se jménem odpovědi (autor, režisér) by ji prozradila: vynechá se jako události s hádanou položkou
+                const spec = step.spec.type === 'timeline' && answers.length ? { ...step.spec, hide: [step.spec.hide, ...answers].filter(Boolean).join(', ') } : step.spec;
+                hint = { kind: 'visual', spec: masks ? { ...spec, masks } : spec, label: visual.name, icon: visual.icon };
+            }
+            if (step.kind === 'facts') {
+                // omit = jména nesprávných možností (Sourozenci: Chiméra, Hydra u Kerberose by je vyřadili)
+                const facts = dropChoiceNames(dropKnownFacts(step.facts || [], seen()), omit)
+                    .filter(fact => !shared.has(String(fact.value)) && !revealsAnswer(fact));
+                // extra = vlastní nápověda tématu; po odpovědi se ukáže i mezi fakty
+                if (facts.length) hint = { kind: 'facts', facts, label: step.label || 'čísla a fakta', icon: step.icon || 'info', extra: Boolean(step.label) };
+            }
+            if (!hint) continue;
+            if (hint.kind === 'text') shownBefore += ` · ${hint.name} ${hint.text}`;
+            if (hint.kind === 'excerpt') shownBefore += ` · ${hint.text}`;
+            if (hint.kind === 'facts') shownBefore += ` · ${hint.facts.map(fact => fact.value).join(' · ')}`;
+            if (hint.kind === 'visual' && hint.spec.type === 'timeline' && !hint.spec.blind) {
+                shownBefore += ` · ${[...(hint.spec.points || []), ...(hint.spec.spans || []).flatMap(span => [span.from, span.to])].filter(year => Number.isFinite(year) && year >= 100).join(' · ')}`;
+            }
+            let key = hint.kind;
+            for (let n = 2; hints.some(other => other.key === key); n++) key = `${hint.kind}-${n}`;
+            hints.push({ key, ...hint });
+        }
+        return hints;
+    };
+
+    // Kolik slov skutečného textu (bez zakrytých míst) má popis mít, aby z něj šla odpověď poznat nebo aspoň odhadnout,
+    // a kolik další věty, aby byly nápovědou
+    const MIN_DESCRIPTION_WORDS = 14;
+    const MIN_EXCERPT_WORDS = 8;
+    // Nápovědy jedné otázky: plán tématu (u století současníci a osa bez letopočtů, u vzorce složení), jinak fotka → obrazová
+    // nápověda → čísla a fakta; před ně další věty úvodu a u otázky s obrázkem popis. texts = výsledek buildQuestionTexts,
+    // shown = obrázek otázky (topic.questionImage), special = otázka zvláštního druhu. Vrátí nápovědy, fakta ukázaná hned
+    // v okně (u chudého popisu), thin a to, co hráč vidí bez nápovědy (visibleText, known).
+    const planRound = ({ item, ctx, question, texts, typeLabel, shown = null, special = false, photoUrl = null, describeVisual = () => null, photoMasks = {}, textPhotos = new Set() }) => {
+        const { topic } = ctx;
+        const category = (topic.categories || []).find(entry => entry.key === item.c) || { key: item.c, label: item.c, one: topic.words.one };
+        const { questionText = '', moreText = '', origin = 'article' } = texts;
+        // Příliš chudý popis („Zimbabwský politik.“) nestačí k odpovědi: když je popis jediná opora otázky, je „thin“
+        const thin = !shown && !special && (origin !== 'article' || countRealWords(questionText) < MIN_DESCRIPTION_WORDS);
+        const visual = topic.visual ? topic.visual(item, ctx, question.type) : null;
+        // Otázka na mapě nápovědy nemá (popis i fakta by místo prozradily)
+        const basePlan = question.type === 'map' ? [] : (topic.hints && topic.hints(item, ctx, question.type))
+            || [{ kind: 'photo' }, { kind: 'visual', spec: visual }, { kind: 'facts', facts: topic.facts(item, ctx, question.type) }];
+        // Pokračování úvodu článku (zakryté stejně jako popis) je první, nejlevnější nápověda; bez dost skutečných slov se vynechá
+        const withExcerpt = countRealWords(moreText) >= MIN_EXCERPT_WORDS ? [{ kind: 'excerpt', text: moreText }, ...basePlan] : basePlan;
+        // U otázky s obrázkem (obraz, vlajka, nerost…) se hádá z obrázku; popis je až první nápověda, ne hned viditelná záložka
+        const plan = shown ? [{ kind: 'text', text: questionText, origin, name: question.showName ? item.n : '' }, ...withExcerpt] : withExcerpt;
+        // Bez nápovědy hráč vidí otázku, štítek a (bez obrázku) popis s názvem díla; u otázky s obrázkem jsou název i popis až
+        // v první nápovědě. Známé je i to, co mají společné všechny možnosti
+        const visibleText = [question.title, typeLabel, ...(shown ? [] : [question.showName ? item.n : '', questionText])].filter(Boolean).join(' · ');
+        const known = [category.one, category.label, shown && shown.label, commonChoiceText(question)].filter(Boolean).join(' · ');
+        // Fakt, který mají všechny nesprávné možnosti stejný jako správná, mezi nimi nepomůže vybrat
+        const wrongItems = question.type === 'name' && ctx.byId ? (question.choices || []).filter(choice => !choice.correct).map(choice => ctx.byId.get(choice.id)).filter(Boolean) : [];
+        // Porovnává se hodnota bez ohledu na popisek: nápověda tématu ji může nazvat jinak než seznam faktů (Stát × Patří k: USA
+        // u čtyř amerických států)
+        const factValues = (other) => new Set(topic.facts(other, ctx, question.type).map(fact => String(fact.value)));
+        const wrongFacts = wrongItems.map(factValues);
+        const shared = new Set(wrongFacts.length ? [...factValues(item)].filter(value => wrongFacts.every(values => values.has(value))) : []);
+        let hints = buildHints(plan, {
+            // Fotka, kterou otázka ukazuje hned, už nápovědou není; fotka s napsanou odpovědí také ne
+            photoUrl: (shown && shown.file === item.im) || textPhotos.has(item.im) ? null : photoUrl,
+            visibleText, known, shared, answers: answerNamesFor(question, item, ctx), textPhotos, photoMasks, describeVisual,
+            rootCheck: question.type === 'name', extraGeneric: genericWordsOf(ctx),
+            omit: question.match ? [] : (question.choices || []).filter(choice => !choice.correct).map(choice => choice.label)
+        }).map(hint => hint.kind === 'visual' && hint.spec.type === 'map' ? { ...hint, spec: fitMapToChoices(hint.spec, question, ctx) } : hint)
+            .filter(hint => !(hint.kind === 'visual' && !hint.spec));
+        let leadFacts = [];
+        if (thin) {
+            ({ hints, leadFacts } = takeLeadFacts(hints));
+            // Fakta ukázaná hned v okně hráč zná: nápověda, která je jen opakuje (osa s roky vlády, které už jsou mezi fakty), vypadne
+            const lead = `${visibleText} · ${known} · ${leadFacts.map(fact => fact.value).join(' · ')}`;
+            hints = hints.map(hint => hint.kind === 'facts' ? { ...hint, facts: dropKnownFacts(hint.facts, lead) } : hint)
+                .filter(hint => !(hint.kind === 'facts' && !hint.facts.length) && !(hint.kind === 'visual' && (timelineKnown(hint.spec, lead) || scaleKnown(hint.spec, lead))));
+        }
+        return { hints, leadFacts, thin, visibleText, known, visual };
+    };
+
     return {
         EMPTY_COUNTERS, BADGES, BADGE_GROUPS, BADGE_BY_ID, earnedBadgeIds, compactBadges, expandBadges, normalizeCounters,
         MAX_LEVEL, LEVEL_XP, questionsForLevel, xpForLevel, levelFromXp, levelProgress, LEVEL_TITLES, titleForLevel, nextTitle, TITLE_OWL_FROM, titleOwlTier, answerXp, DAILY_XP, DAILY_ALL_XP, streakXp, MASTERY_STEPS, masteryStars, nextMastery,
@@ -1929,12 +2253,14 @@
         ELEMENT_FAMILIES, elementFamily, periodicPosition,
         maskLeaks, findLeaks, answerTokens, foldKeys, isPersonName, genericWordsOf, isGenericWord, specificWords, absorbGenericWords, hideNicknames, CHOICE_MARK, hideOtherChoices,
         censorForItem, answerNamesOf, answerNamesFor, hideAnswer, OUT_OF_CONTEXT, buildQuestionTexts, factRevealsAnswer, GENERIC_NAME_WORDS,
+        JOINING_WORDS, distinctiveTokens, structureLeaks, sealStructure, contentWords, newWords, addsInformation, commonChoiceText,
+        choicePoints, choicesView, fitMapToChoices, FIT_SHARE, WORLD_MIN_SPAN, buildHints, planRound, MIN_DESCRIPTION_WORDS, MIN_EXCERPT_WORDS,
         setCountries, landOf, landsOf, landFromDescription, cultureDistance, CULTURE_GROUPS, cultureScore, cultureLandsFor, getWordStems, censorName, mergeCensored, censorCountry, isKnownCountry, processWikiText, stripFactSentences, takeLeadFacts, normalizeAnswer, levenshtein, isAnswerMatch, isSymbolMatch, isCenturyMatch, isFormulaMatch, formulaCounts, checkAnswer,
         inCollection, filterItems, pickItem, sortItems, getCountryNames, getContinent, continentAt, getCountryAliases,
         distanceKm, nearness, STATE_STEPS, sharesGroup, eraNearness, personSimilarity, rankBySimilarity, takeDistinct,
         buildItemChoices, buildCountryChoices, findAnswerItem, findAnswerCountry, updateMistakes, nameAnswers, countryAnswers,
         pointsFor, dropKnownFacts, scaleKnown, timelineKnown, dropChoiceNames, sharesWordRoot, chooseDescription, censoredShare, MAX_CENSORED_SHARE, isFactVisible, formatNumber, formatPopulation, formatYear, formatFacts, getMapSpan, buildBlindMap, blindMapSpan, visibleOutline,
-        mercatorY, inverseMercatorY, regionalView, buildRegionalMap, REGIONAL_WINDOW, REGIONAL_DIGITS, decodeNumbers,
+        mercatorY, inverseMercatorY, regionalView, buildRegionalMap, mapExtent, REGIONAL_WINDOW, REGIONAL_DIGITS, decodeNumbers,
         buildTimeline, centuryOf, centuryLabel, computeStreak, buildShareText, getTileLayout
     };
 });

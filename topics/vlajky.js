@@ -127,6 +127,7 @@
     };
 
     // Slepá mapa: u státu zvýrazněný stát, u měst, krajů a území bod uprostřed
+    const PRAGUE = 'Q1085';
     const mapOf = (item, { countries }) => {
         if (item.la === undefined || item.lo === undefined) return null;
         if (isState(item)) {
@@ -139,6 +140,8 @@
         // Regiony, města a české znaky: celý stát s hranicemi krajů (data/regiony.json), region zvýrazněný, místo tečkou;
         // pro stát bez dat obrysy států s místem uprostřed
         if ((item.c === 'regiony' || item.c === 'mesta' || item.c === 'cesko') && (item.co || [])[0]) {
+            // Pražská městská část: mapa Prahy s hranicemi částí (data/regiony.json, cities), jinak celý stát
+            if (item.ty === 'městská část') return { type: 'map', lat: item.la, lon: item.lo, span: 0.6, highlightIso: '', label: 'Městská část je vyznačená tečkou', regional: { country: item.co[0], city: PRAGUE, item: item.q } };
             const label = item.c === 'regiony' || item.ty === 'kraj' ? 'Region je vyznačený tečkou' : `${isTownLike(item) || item.c === 'mesta' ? 'Město' : 'Místo'} je vyznačené tečkou`;
             return { type: 'map', lat: item.la, lon: item.lo, span, highlightIso: '', label, regional: { country: item.co[0], item: item.q } };
         }
@@ -183,24 +186,11 @@
         return [facts(continentFact(item, ctx)), { kind: 'visual', spec: mapOf(item, ctx) }, facts([country ? { label: 'Patří k', value: country.name } : null])];
     };
 
-    // Popis u českých znaků: úvod článku o městě či kraji by odpověď prozradil i se zakrytým názvem
-    // („druhé největší město v Česku“), proto jen obecná věta – celý popis se ukáže po odpovědi
-    const czechDescription = (item) => {
-        if (item.ty === 'kraj') return 'Znak jednoho z českých krajů. Kterému patří?';
-        if (item.ty === 'historická země') return 'Znak jedné z historických českých zemí. Které patří?';
-        if (item.ty === 'obec') return 'Znak jedné z českých obcí. Které patří?';
-        if (item.ty === 'městská část') return 'Znak jedné z pražských městských částí. Které patří?';
-        // Bez „krajské“ – nesprávné možnosti bývají i jiná města
-        return 'Znak jednoho z českých měst. Kterému patří?';
-    };
-    // Regiony, města, zaniklé státy a nová území: úvod článku by prozradil název i stát, proto jen obecná věta (celý popis po odpovědi)
-    const genericDescription = (item) => {
-        const what = item.it === 'z' ? 'Znak' : 'Vlajka';
-        if (item.c === 'regiony') return `${what} jednoho z regionů světa (státu, země, provincie či oblasti). Kterému patří?`;
-        if (item.c === 'mesta') return `${what} jednoho z velkých měst světa. Kterému patří?`;
-        if (item.c === 'historie') return 'Vlajka státu, který dnes už neexistuje. Který to byl?';
-        return isOrganization(item) ? 'Vlajka mezinárodní organizace nebo sdružení. Které patří?' : 'Vlajka jednoho ze závislých či sporných území. Kterému patří?';
-    };
+    // Úvod článku o městě, kraji, regionu, zaniklém státu či novém území by odpověď prozradil i se zakrytým názvem („druhé
+    // největší město v Česku“, „stát na jihovýchodě USA“), proto se před odpovědí neukáže vůbec (celý popis až po odpovědi).
+    // Náhradní obecná věta („Znak jednoho z českých měst. Kterému patří?“) by nic nepřidala k otázce, štítku a možnostem –
+    // otázka proto popis jako nápovědu nemá a nápovědy začínají fakty a mapou.
+    const withholdsText = (item) => item.c === 'cesko' || isRegionLike(item) || Boolean(item.gen);
     // Slova označující typ celku, která se v odpovědi psát nemusí (Kraj Vysočina, Stát Texas, Prefektura Kagawa)
     const ADMIN_WORDS = /^(?:kraj|oblast|region|stát|provincie|prefektura|kanton|župa|spolková země|země|departement|republika|autonomní oblast|autonomní republika|vojvodství|hrabství|guvernorát|okrug)\s+|\s+(?:kraj|oblast|region|stát|provincie|prefektura|kanton|župa|země|departement|republika|vojvodství|hrabství)$/iu;
     // Další přijímané názvy: zkratky států (USA, ČR), u krajů jméno bez slova kraj, u území a organizací z dat (OSN, NATO)
@@ -257,10 +247,9 @@
             return score;
         },
         nameAliases: (item) => aliasesOf(item),
+        withholdText: (type, item) => type === 'name' && withholdsText(item),
         censor: (type, text, item, ctx) => {
-            if (type !== 'name') return null;
-            if (item.c === 'cesko') return czechDescription(item);
-            if (isRegionLike(item) || item.gen) return genericDescription(item);
+            if (type !== 'name' || withholdsText(item)) return null;
             // U území i stát, ke kterému patří („dánského závislého území“, „federálních států USA“) – je až poslední nápovědou
             const owner = !isState(item) && ctx && ctx.countries && ctx.countries[(item.co || [])[0]];
             if (owner) {

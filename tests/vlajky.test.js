@@ -90,8 +90,13 @@ test('vlajky: psané odpovědi a zakrytí popisu', () => {
     // Přezdívka vlajky a tvar, který běžné zakrytí mine
     assert.doesNotMatch(vlajky.censor('name', 'Vlajka Dánska, známá jako Dannebrog, je červená.', find('Dánsko'), ctx), /Dán|Dannebrog/u);
     assert.doesNotMatch(vlajky.censor('name', 'Vlajka Nového Zélandu připomíná vazby Nového Zélandu.', find('Nový Zéland'), ctx), /Nov|Zéland/u);
-    // Kraje a města: jen obecná věta (úvod článku o městě by ho prozradil)
-    assert.equal(vlajky.censor('name', 'Brno je druhé největší město v Česku.', find('Brno', 'cesko'), ctx), 'Znak jednoho z českých měst. Kterému patří?');
+    // Kraje a města: úvod článku se před odpovědí vůbec neukáže (prozradil by je) a žádná náhradní věta ho nenahradí
+    const brno = find('Brno', 'cesko');
+    assert.equal(vlajky.withholdText('name', brno), true);
+    const brnoQuestion = { type: 'name', title: 'Čí je to znak?', choices: [{ label: 'Brno', correct: true, id: brno.q }] };
+    const texts = core.buildQuestionTexts(brno, ctx, brnoQuestion, { description: 'Brno je druhé největší město v Česku.', more: 'Leží na soutoku Svratky a Svitavy.', funFacts: [] });
+    assert.deepEqual([texts.questionText, texts.moreText, texts.origin], ['', '', 'withheld']);
+    assert.equal(vlajky.withholdText('name', chad), false, 'vlajka státu má popis z článku');
     assert.ok(core.checkAnswer('Vysočina', { accepted: core.nameAnswers(find('Kraj Vysočina', 'cesko'), vlajky.nameAliases(find('Kraj Vysočina', 'cesko'), ctx)) }));
 });
 

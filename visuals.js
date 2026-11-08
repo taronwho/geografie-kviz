@@ -2,7 +2,7 @@
 (function (root) {
     'use strict';
 
-    const { buildBlindMap, blindMapSpan, buildRegionalMap, buildTimeline, formatNumber, commonsPhotoUrl, commonsFileUrl, periodicPosition, elementFamily } = root.MudrlantCore;
+    const { buildBlindMap, buildRegionalMap, mapExtent, mercatorY, buildTimeline, formatNumber, commonsPhotoUrl, commonsFileUrl, periodicPosition, elementFamily } = root.MudrlantCore;
     const SVG_NS = 'http://www.w3.org/2000/svg';
 
     const svgElement = (tag, attributes) => {
@@ -28,13 +28,13 @@
 
     // Region menší než tolik px dostane kolem tečky kroužek
     const REGION_RING_SIZE = 36;
-    // Slepá mapa regionu: celý stát s hranicemi krajů (spolkových zemí, států…) a se sousedy, hledaný region zvýrazněný
-    // a tečka na něm; nic popsané (data/regiony.json, výřez spočítá quiz-core.js)
-    const renderRegionalMap = (container, spec, entry) => {
-        const width = Math.round(container.clientWidth) || 360;
-        const height = Math.round(container.clientHeight) || 224;
-        const map = buildRegionalMap(entry, { item: spec.regional.item, lat: spec.lat, lon: spec.lon, width, height });
-        const svg = svgElement('svg', { viewBox: `0 0 ${width} ${height}`, class: 'absolute inset-0 h-full w-full', 'aria-hidden': 'true' });
+    // Ostatní možnosti (přiblížená mapa): šedé tečky, hledané místo zůstane červené
+    const otherDots = (svg, points) => points.forEach(point => svg.appendChild(svgElement('circle', { cx: point.x, cy: point.y, r: 4.5, 'stroke-width': 2, 'data-other': '', class: 'fill-slate-500 stroke-white dark:fill-slate-300 dark:stroke-slate-900' })));
+    // Slepá mapa regionu: celý stát (u městské části město) s hranicemi krajů, spolkových zemí, států… a se sousedy, hledaný
+    // region zvýrazněný a tečka na něm; nic popsané (data/regiony.json, výřez spočítá quiz-core.js: mapExtent)
+    const regionalSvg = (spec, extent, width, height) => {
+        const map = buildRegionalMap(extent.entry, { item: spec.regional.item, lat: spec.lat, lon: spec.lon, width, height, view: extent, others: extent.fitted ? spec.others || [] : [] });
+        const svg = svgElement('svg', { viewBox: `0 0 ${width} ${height}`, class: 'absolute inset-0 h-full w-full', 'aria-hidden': 'true', 'data-map': '' });
         const layer = (d, attributes) => { if (d) svg.appendChild(svgElement('path', { d, 'fill-rule': 'evenodd', 'stroke-linejoin': 'round', 'stroke-linecap': 'round', ...attributes })); };
         layer(map.layers.others, { 'stroke-width': 0.8, class: 'fill-stone-200 stroke-slate-400 dark:fill-slate-700 dark:stroke-slate-500' });
         layer(map.layers.own, { class: 'fill-amber-50 dark:fill-slate-500' });
@@ -42,32 +42,17 @@
         layer(map.layers.lines, { fill: 'none', 'stroke-width': 0.8, class: 'stroke-slate-400 dark:stroke-slate-300' });
         layer(map.layers.lakes, { 'stroke-width': 0.6, class: 'fill-sky-200 stroke-slate-400 dark:fill-sky-950 dark:stroke-slate-400' });
         layer(map.layers.own, { fill: 'none', 'stroke-width': 1.3, class: 'stroke-slate-500 dark:stroke-slate-200' });
+        otherDots(svg, map.others);
         // Kroužek kolem tečky jen u místa bez obrysu a u malého regionu – velký region by zakryl
         if (map.layers.region && map.regionSize >= REGION_RING_SIZE) svg.appendChild(svgElement('circle', { cx: map.dot.x, cy: map.dot.y, r: 5, 'stroke-width': 2, class: 'fill-rose-500 stroke-white' }));
         else target(svg, map.dot.x, map.dot.y, 15);
-        container.prepend(svg);
-        showMapScale(container, { ...spec, lat: map.lat, span: map.span, measured: true });
+        return { svg, lat: map.lat, span: map.span };
     };
-
-    // Slepá mapa: obrysy států bez jediného popisku, místo označené terčem uprostřed (u států zvýrazněný celý stát)
-    const renderMap = async (container, spec, { loadWorld, loadRegions }) => {
-        // Region státu, pro který jsou data krajů; když se nenačtou (bez internetu), stačí obrysy států
-        if (spec.regional && loadRegions) {
-            const regions = await loadRegions().catch(() => null);
-            const entry = regions && regions.countries[spec.regional.country];
-            if (entry) {
-                if (container.isConnected) renderRegionalMap(container, spec, entry);
-                return;
-            }
-        }
-        const world = await loadWorld();
-        if (!container.isConnected) return;
-        const width = Math.round(container.clientWidth) || 360;
-        const height = Math.round(container.clientHeight) || 224;
-        const svg = svgElement('svg', { viewBox: `0 0 ${width} ${height}`, class: 'absolute inset-0 h-full w-full', 'aria-hidden': 'true' });
-        // Bod uprostřed velkého státu: mapa se oddálí, až jsou vidět pobřeží nebo hranice
-        const span = spec.highlightIso ? spec.span : blindMapSpan(world, { lat: spec.lat, lon: spec.lon, spanLon: spec.span, width, height });
-        const shapes = buildBlindMap(world, { lat: spec.lat, lon: spec.lon, spanLon: span, width, height, highlightIso: spec.highlightIso });
+    // Slepá mapa: obrysy států bez jediného popisku, místo označené terčem (u států zvýrazněný celý stát)
+    const worldSvg = (spec, extent, world, width, height) => {
+        const span = extent.span;
+        const svg = svgElement('svg', { viewBox: `0 0 ${width} ${height}`, class: 'absolute inset-0 h-full w-full', 'aria-hidden': 'true', 'data-map': '' });
+        const shapes = buildBlindMap(world, { lat: extent.lat, lon: extent.lon, spanLon: span, width, height, highlightIso: spec.highlightIso });
         for (const shape of shapes) {
             svg.appendChild(svgElement('path', {
                 d: shape.d,
@@ -78,10 +63,59 @@
                     : 'fill-amber-50 stroke-slate-400 dark:fill-slate-600 dark:stroke-slate-400'
             }));
         }
+        const scale = width / span;
+        const project = (point) => [((point.lon - extent.lon + 540) % 360 - 180) * scale + width / 2, height / 2 - (mercatorY(point.lat) - mercatorY(extent.lat)) * scale];
+        otherDots(svg, (extent.fitted ? spec.others || [] : []).map(project).map(([x, y]) => ({ x, y })));
         // Malé státy (Malta, Monako) na mapě obrys nemají – pak i u státu terč
-        if (!shapes.some(shape => shape.highlight)) target(svg, width / 2, height / 2, 15);
-        container.prepend(svg);
-        if (span !== spec.span || spec.regional) showMapScale(container, { ...spec, span, measured: true });
+        if (!shapes.some(shape => shape.highlight)) target(svg, ...project(spec), 15);
+        return { svg, lat: extent.lat, span };
+    };
+
+    // Tlačítka +/− slepé mapy: přiblížit až na čtvrtinu výchozího výřezu, oddálit až na celý svět (mapa přejde z částí města
+    // na stát a na obrysy států, když výřez přeroste data)
+    const MIN_ZOOM = 0.25;
+    const zoomButton = (direction, label, text, onZoom) => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.dataset.mapZoom = direction;
+        button.setAttribute('aria-label', label);
+        button.title = label;
+        button.className = `flex h-9 w-9 items-center justify-center text-lg font-black leading-none text-slate-700 hover:bg-slate-100 disabled:opacity-40 dark:text-slate-200 dark:hover:bg-slate-700${direction === 'out' ? ' border-t border-slate-200 dark:border-slate-600' : ''}`;
+        button.textContent = text;
+        button.addEventListener('click', (event) => { event.stopPropagation(); onZoom(direction === 'in' ? 0.5 : 2); });
+        return button;
+    };
+    const renderMap = async (container, spec, { loadWorld, loadRegions }) => {
+        // Regiony a části města, když jsou pro stát data; bez nich (bez internetu) stačí obrysy států
+        const regions = spec.regional && loadRegions ? await loadRegions().catch(() => null) : null;
+        let world = null;
+        let zoom = 1;
+        let buttons = null;
+        const draw = async () => {
+            const width = Math.round(container.clientWidth) || 360;
+            const height = Math.round(container.clientHeight) || 224;
+            // Obrysy států jsou potřeba, když mapa nemá data regionů (nebo je oddálená za ně)
+            if (!world && mapExtent(spec, { regions, width, height, zoom }).source === 'world') world = await loadWorld();
+            const extent = mapExtent(spec, { regions, world, width, height, zoom });
+            if (!container.isConnected) return;
+            const drawn = extent.entry ? regionalSvg(spec, extent, width, height) : worldSvg(spec, extent, world, width, height);
+            container.querySelectorAll('svg[data-map]').forEach(old => old.remove());
+            container.prepend(drawn.svg);
+            container.dataset.mapSource = extent.source;
+            const label = extent.fitted && (spec.others || []).length ? `${spec.label}, šedé tečky jsou ostatní možnosti` : spec.label;
+            showMapScale(container, { ...spec, label, lat: drawn.lat, span: drawn.span, measured: true });
+            if (buttons) {
+                buttons.querySelector('[data-map-zoom="in"]').disabled = zoom <= MIN_ZOOM;
+                buttons.querySelector('[data-map-zoom="out"]').disabled = extent.span >= 300;
+            }
+        };
+        buttons = document.createElement('div');
+        buttons.dataset.mapZoomButtons = '';
+        buttons.className = 'absolute right-2 top-2 flex flex-col overflow-hidden rounded-xl border border-slate-200 bg-white/95 shadow-md dark:border-slate-600 dark:bg-slate-800/95';
+        const onZoom = (factor) => { zoom = Math.max(MIN_ZOOM, zoom * factor); draw(); };
+        buttons.append(zoomButton('in', 'Přiblížit mapu', '+', onZoom), zoomButton('out', 'Oddálit mapu', '−', onZoom));
+        await draw();
+        if (container.isConnected) container.appendChild(buttons);
     };
 
     const svgText = (text, attributes) => {
