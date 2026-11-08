@@ -924,6 +924,27 @@
                 ${section.render(ctx)}
             </section>`).join('')}</div>`;
     };
+    // Záložka Mudrlant: moje sova s doplňky jako profilový obrázek jedním klepnutím (jinak jen v Profilu → Obrázek);
+    // když už jí je, řekne to – další změny doplňků a barvy se do profilu uloží samy
+    let owlAvatarBusy = false;
+    const owlAvatarRow = (user) => {
+        if (!user || !Social || !Owl || !meDraft) return '';
+        if (myProfile && myProfile.owl && !myPose()) {
+            return `<p data-owl-avatar-on class="mt-2 flex items-center gap-2 rounded-2xl bg-emerald-50 px-3 py-2.5 text-[13px] font-bold leading-snug text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-200"><i data-lucide="check" class="h-4 w-4 shrink-0"></i>Tvůj Mudrlant je profilový obrázek. Změny se v profilu ukážou samy.</p>`;
+        }
+        return `<button type="button" data-owl-as-avatar ${owlAvatarBusy ? 'disabled' : ''} class="mt-2 flex w-full items-center justify-center gap-2 rounded-2xl btn-3d bg-brand-700 px-4 py-2.5 text-[15px] font-black text-white disabled:opacity-60"><i data-lucide="user-round" class="h-5 w-5"></i>${owlAvatarBusy ? 'Ukládám…' : 'Použít jako profilový obrázek'}</button>`;
+    };
+    const useOwlAsAvatar = async () => {
+        if (!meDraft || owlAvatarBusy) return;
+        meDraft.owl = true;
+        meDraft.avatar = '🦉';
+        meDraft.pose = null;
+        meDirty = true;
+        owlAvatarBusy = true;
+        openSettings('', '[data-owl-as-avatar]');
+        try { await saveMeProfile(); } finally { owlAvatarBusy = false; }
+        if (document.getElementById('settings-overlay')) openSettings(meNote, '[data-owl-avatar-on], [data-owl-as-avatar]');
+    };
     // Zamčený obrázek hráče (odemyká se úrovní): položka katalogu, nebo null, když je k dispozici (základní, odemčený nebo už uložený v profilu)
     const avatarUnlockText = (item) => item.badge ? `Odznak: ${(BADGE_BY_ID[item.badge] || {}).title || item.badge}` : `Úroveň ${item.level}`;
     const avatarLock = (emoji) => {
@@ -1529,7 +1550,7 @@
                     <button type="button" data-close aria-label="Zavřít" class="-m-0.5 self-start rounded-xl p-2.5 text-slate-500 hover:bg-slate-200 dark:text-slate-400 dark:hover:bg-slate-800"><i data-lucide="x" class="h-5 w-5"></i></button>
                 </div>
                 ${tabs}
-                <div class="mt-3">${meTab === 'profile' && profileBody ? profileBody : meTab === 'look' ? lookBody('look') : meTab === 'owl' ? lookBody('owl') : gameBody}</div>
+                <div class="mt-3">${meTab === 'profile' && profileBody ? profileBody : meTab === 'look' ? lookBody('look') : meTab === 'owl' ? lookBody('owl') + owlAvatarRow(user) : gameBody}</div>
                 <p id="settings-note" class="${noteText ? 'mt-2 ' : ''}text-xs font-semibold ${noteText.startsWith('Uloženo') || !meNote ? 'text-emerald-700 dark:text-emerald-300' : 'text-rose-700 dark:text-rose-400'}" role="status">${escapeHtml(noteText)}</p>
                 ${renderSchemaBanner()}
                 <div class="mt-3 flex flex-wrap items-center justify-center gap-x-1 text-xs text-slate-500 dark:text-slate-400">
@@ -1774,6 +1795,7 @@
                 openSettings(item.badge ? `${item.title} se odemkne odznakem „${(BADGE_BY_ID[item.badge] || {}).title || item.badge}“.` : `${item.title} se odemkne na úrovni ${item.level}.`);
                 return;
             }
+            if (event.target.closest('[data-owl-as-avatar]')) { useOwlAsAvatar(); return; }
             const avatar = event.target.closest('[data-pick-avatar]');
             const color = event.target.closest('[data-pick-color]');
             const pickOwl = event.target.closest('[data-pick-owl]');

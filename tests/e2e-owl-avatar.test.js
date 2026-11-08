@@ -332,4 +332,24 @@ test('sova jako obrázek profilu', { skip: !chromium && 'Playwright není nainst
             await one.context.close();
         }
     });
+
+    await t.test('záložka Mudrlant: tlačítko „Použít jako profilový obrázek“ uloží mou sovu; pak řekne, že už jí je', async () => {
+        db.profiles['u-1'].owl = null;
+        db.profiles['u-1'].avatar = '🦊';
+        const one = await open('tok-u1', { extra: { 'mudrlant.look': JSON.stringify({ robe: 'zelena', acc: { face: { id: 'bryle', color: 'original' } } }) } });
+        await one.tab.click('#btn-settings');
+        await one.tab.click('[data-me-tab="owl"]');
+        await one.tab.waitForSelector('[data-owl-as-avatar]');
+        assert.equal(await one.tab.locator('[data-owl-avatar-on]').count(), 0);
+        await one.tab.click('[data-owl-as-avatar]');
+        await one.tab.waitForSelector('[data-owl-avatar-on]');
+        await waitFor(() => db.profiles['u-1'].owl === 'robe=zelena;face=bryle.original', `neuložilo se: ${db.profiles['u-1'].owl}`);
+        assert.equal(db.profiles['u-1'].avatar, '🦉');
+        assert.equal(await one.tab.locator('[data-owl-as-avatar]').count(), 0, 'tlačítko zmizí');
+        // Hlavička okna ukazuje sovu místo emoji
+        assert.equal(await one.tab.locator('#settings-overlay span.rounded-full img[data-keep][src="icons/logo-zelena.webp"]').count(), 1);
+        await shot(one.tab, 'owl-avatar-zalozka-mudrlant.png');
+        assert.deepEqual(one.problems, []);
+        await one.context.close();
+    });
 });
