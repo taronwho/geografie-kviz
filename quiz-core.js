@@ -1333,6 +1333,19 @@
         const haystack = normalize(text);
         return tokens.every(token => new RegExp(`(?<![\\d,])${token}(?![\\d]|,\\d)`).test(haystack));
     };
+    // Časová osa, jejíž roky už říká text otázky nebo další věty, nic nepřidá. Rok z Wikidat a rok v textu se často liší
+    // o rok či dva (obraz „datovaný do roku 1516“, Wikidata 1515; narození podle jiného kalendáře), proto stačí rok v textu
+    // vzdálený nejvýš YEAR_SLACK let. Bere se letopočet od 100 do 2100, který není délkou ani počtem (1515 m, 1200 obyvatel).
+    // Osa bez letopočtů (blind, otázka na století) roky neukazuje, takže nápovědou zůstane.
+    const YEAR_SLACK = 5;
+    const YEAR_IN_TEXT = /(?<![\d,.])(\d{3,4})(?![\d,]|\.\d|\s?(?:m\b|km|cm|mm|kg|g\b|t\b|l\b|%|obyv|lidí|osob|stran|kusů|mil|tis))/g;
+    const timelineKnown = (spec, text) => {
+        if (!spec || spec.type !== 'timeline' || spec.blind) return false;
+        const years = [...(spec.points || []), ...(spec.spans || []).flatMap(span => [span.from, span.to])].filter(year => Number.isFinite(year) && year >= 100);
+        if (!years.length) return false;
+        const inText = [...String(text || '').matchAll(YEAR_IN_TEXT)].map(match => Number(match[1])).filter(year => year >= 100 && year <= 2100);
+        return years.every(year => inText.some(seen => Math.abs(seen - year) <= YEAR_SLACK));
+    };
 
     // Jméno nesprávné možnosti ve faktu (u Kerberose „Sourozenci: Chiméra, Hydra“, u Dia „Děti: Athéna, Apollón“) by ji
     // vyřadilo – kdo bere sourozence, ten je mezi možnostmi nehledá. Ze seznamu hodnot (čárka, „a“) se taková jména
@@ -1778,7 +1791,7 @@
         inCollection, filterItems, pickItem, sortItems, getCountryNames, getContinent, continentAt, getCountryAliases,
         distanceKm, nearness, STATE_STEPS, sharesGroup, eraNearness, personSimilarity, rankBySimilarity, takeDistinct,
         buildItemChoices, buildCountryChoices, findAnswerItem, findAnswerCountry, updateMistakes, nameAnswers, countryAnswers,
-        pointsFor, dropKnownFacts, scaleKnown, dropChoiceNames, sharesWordRoot, chooseDescription, censoredShare, MAX_CENSORED_SHARE, isFactVisible, formatNumber, formatPopulation, formatYear, formatFacts, getMapSpan, buildBlindMap,
+        pointsFor, dropKnownFacts, scaleKnown, timelineKnown, dropChoiceNames, sharesWordRoot, chooseDescription, censoredShare, MAX_CENSORED_SHARE, isFactVisible, formatNumber, formatPopulation, formatYear, formatFacts, getMapSpan, buildBlindMap,
         buildTimeline, centuryOf, centuryLabel, computeStreak, buildShareText, getTileLayout
     };
 });
