@@ -588,8 +588,40 @@
     };
     const devResolveReport = (id) => request('POST', 'rpc/dev_report_resolve', { body: { rid: wholeNumber(id, Number.MAX_SAFE_INTEGER) } });
 
+    // ===== Jak odpověděli ostatní (schéma 6, answer-stats.js): dávka odpovědí po hře, souhrn tématu, podezřelé otázky pro dev_admins =====
+    // Starší databáze bez funkcí (404): odeslání i stažení vrací null a dál se o ně nežádá (po novém načtení stránky se zkusí znovu); jiné chyby se vyhodí.
+    let answerStatsMissing = false;
+    const answerStatsCall = async (name, body) => {
+        if (answerStatsMissing) return null;
+        try { return await request('POST', `rpc/${name}`, { body }); } catch (error) {
+            if (error.status === 404) { answerStatsMissing = true; return null; }
+            throw error;
+        }
+    };
+    // answers = [{ t, q, k, v, c, w? }] z MudrlantAnswerStats (nejvýš 30); vrací počet započtených, null = databáze statistiky neumí
+    const submitAnswerStats = async (answers) => {
+        const list = (Array.isArray(answers) ? answers : []).slice(0, 30);
+        if (!list.length) return 0;
+        const counted = await answerStatsCall('answer_stats_submit', { answers: list });
+        return counted === null ? null : wholeNumber(counted, 30);
+    };
+    // Souhrn tématu [[položka, druh, 'c' | 't', zobrazeno, správně], …]; null = databáze statistiky neumí
+    const answerStatsTopic = async (topic) => {
+        if (!/^[a-z0-9-]{1,24}$/.test(String(topic || ''))) throw new SocialError('Neplatné téma.', 400);
+        const rows = await answerStatsCall('answer_stats_topic', { topic_id: topic });
+        return rows === null ? null : (Array.isArray(rows) ? rows : []);
+    };
+    const devSuspiciousQuestions = async () => {
+        try { return (await request('POST', 'rpc/dev_suspicious_questions', { body: {} })) || []; } catch (error) {
+            if (error.status === 404) throw new SocialError('Statistiky odpovědí v databázi chybí: spusť znovu supabase/schema.sql (verze 6).', 404);
+            if (error.status === 401 || error.status === 403 || /dev_admins/.test(String(error.message))) throw new SocialError('Tenhle účet není v dev_admins (návod v docs/SUPABASE.md).', 403);
+            throw error;
+        }
+    };
+
     return { AVATARS, allAvatars, cleanColor, customHue, nearestColor, cleanFrame, cleanOwl, saveOwl, cleanTitlePref, saveLook, COLORS, COUNTS, NAME_MAX, SocialError, cleanName, isValidName, newCode, parseCode, getProfile, saveProfile, createChallenge, getChallenge, getResults, submitResult, myChallenges, searchPlayers, randomOpponent, incomingChallenges, playerStats, getProgress, saveProgress, getRating, getRatingChange, weeklyLeaderboard, getAccepts, saveAccepts,
         tournamentTick, getTournaments, inTournament, devTournament, devClientErrors, isDevAdmin, schemaVersion, reportQuestion, getQuestionReports, deleteQuestionReport, exportMyData, deleteMyAccount, getTournamentEntries, getTournamentMatches, joinTournament, leaveTournament, startTournamentMatch, finishTournamentMatch, myTournamentStats, tournamentNotices, tournamentNoticesSeen,
         challengeProgress, saveChallengeProgress, tournamentAnswers, saveTournamentAnswer, claimTournamentXp,
-        touchSeen, friendsList, addFriend, acceptFriend, removeFriend, REACTIONS, react, reactionsFor, lastReactionFrom, blockedPlayers, blockPlayer, unblockPlayer, REPORT_REASONS, reportPlayer, devReports, devResolveReport };
+        touchSeen, friendsList, addFriend, acceptFriend, removeFriend, REACTIONS, react, reactionsFor, lastReactionFrom, blockedPlayers, blockPlayer, unblockPlayer, REPORT_REASONS, reportPlayer, devReports, devResolveReport,
+        submitAnswerStats, answerStatsTopic, devSuspiciousQuestions };
 });

@@ -100,6 +100,13 @@
         };
     };
     const pickRandom = (items, rng) => items[Math.floor(rng() * items.length)];
+    // Vážený los (jedno volání rng): váha 1 všem = totéž jako pickRandom; nekladné nebo chybné váhy se berou jako 1
+    const pickWeighted = (items, weightOf, rng) => {
+        const weights = items.map(item => { const weight = Number(weightOf(item)); return Number.isFinite(weight) && weight > 0 ? weight : 1; });
+        let target = rng() * weights.reduce((sum, weight) => sum + weight, 0);
+        for (let i = 0; i < items.length; i++) { target -= weights[i]; if (target < 0) return items[i]; }
+        return items[items.length - 1];
+    };
     const shuffle = (items, rng) => {
         const result = [...items];
         for (let i = result.length - 1; i > 0; i--) {
@@ -839,7 +846,10 @@
     // Nejdřív kategorie (v pořadí z tématu), potom položka v ní – jinak by převážila nejpočetnější kategorie.
     // Položka s nq (no question) je jen k učení: obrázek otázky by odpověď prozradil celý (vlajka, která je celá nápisem –
     // OSCE, РСФСР) – otázkou se stane, jen když jiná není
-    const pickItem = (allItems, rng, recentIds = [], categoryOrder = []) => {
+    // weightOf(item) = volitelná váha položky uvnitř kategorie (kalibrace obtížnosti z answer-stats.js, jen trénink bez semínka);
+    // bez ní (dnešní otázky, výzvy, turnaje) se losuje rovnoměrně a se stejnými voláními rng jako dřív
+    const pickItem = (allItems, rng, recentIds = [], categoryOrder = [], weightOf = null) => {
+        const pickOne = (list) => weightOf ? pickWeighted(list, weightOf, rng) : pickRandom(list, rng);
         const askable = allItems.filter(item => !item.nq);
         const pool = askable.length ? askable : allItems;
         const present = new Set(pool.map(item => item.c));
@@ -848,10 +858,10 @@
         const inCategory = pool.filter(item => item.c === categoryKey);
         const recent = new Map(recentIds.map((id, index) => [id, index]));
         const fresh = inCategory.filter(item => !recent.has(item.q));
-        if (fresh.length) return pickRandom(fresh, rng);
+        if (fresh.length) return pickOne(fresh);
         // Všechno už bylo: z polovičky hrané nejdávněji, ať se hned neopakuje právě odehraná otázka
         const oldestFirst = [...inCategory].sort((a, b) => recent.get(b.q) - recent.get(a.q));
-        return pickRandom(oldestFirst.slice(0, Math.ceil(oldestFirst.length / 2)), rng);
+        return pickOne(oldestFirst.slice(0, Math.ceil(oldestFirst.length / 2)));
     };
 
     // Řazení pro systematické procházení okruhu: podle názvu, nebo podle faktu (výška, rok…) – položky bez údaje na konec
@@ -1783,7 +1793,7 @@
         UNKNOWN_COUNTRY, INTERNATIONAL_WATERS, CZECHIA_QID, AFTER_SYMBOL_WORD, TILE_SIZE, COUNTRIES, CONTINENT_NAMES,
         SATELLITE_TILES, OSM_TILES,
         escapeHtml, stripBrackets, isRealPhoto, commonsPhotoUrl, commonsFileUrl, displayName, plural, formatPoints,
-        getDayKey, shiftDayKey, formatDayKey, createSeededRandom, pickRandom, shuffle,
+        getDayKey, shiftDayKey, formatDayKey, createSeededRandom, pickRandom, pickWeighted, shuffle,
         ELEMENT_FAMILIES, elementFamily, periodicPosition,
         maskLeaks, findLeaks, answerTokens, foldKeys, isPersonName, genericWordsOf, isGenericWord, specificWords, absorbGenericWords, hideNicknames, CHOICE_MARK, hideOtherChoices,
         censorForItem, answerNamesOf, answerNamesFor, hideAnswer, OUT_OF_CONTEXT, buildQuestionTexts, factRevealsAnswer, GENERIC_NAME_WORDS,

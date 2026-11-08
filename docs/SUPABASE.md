@@ -106,6 +106,10 @@ jsou z katalogu, omezuje zakládání výzev (30 za hodinu) a vyzvaný hráč sm
 odznak, přidej jeho id i do funkce `badge_catalog()` v `schema.sql` (test `tests/sql-security.test.js` hlídá, že se shodují) a spusť schéma znovu.
 Odznaků je přes 270 (skupiny mají 5 až 10 stupňů), proto je limit sloupce `profiles.badges` 500 položek a 12 000 znaků; po aktualizaci aplikace je třeba schéma spustit znovu, jinak by hráč s mnoha odznaky nešel uložit.
 
+**Schéma 6 (Jak odpověděli ostatní):** spusť znovu celý `supabase/schema.sql`. Přibyly tabulky `answer_stats` a `answer_stats_limits` a funkce
+`answer_stats_submit`, `answer_stats_topic` a `dev_suspicious_questions` (popis v oddílu „Jak odpověděli ostatní“ níž). Dokud databáze verzi 6 nemá,
+aplikace statistiky jen neukazuje a odpovědi si nechá v zařízení; správce v Nastavení uvidí „Databáze není aktuální“.
+
 ## Týdenní turnaje
 
 Turnaje potřebují nejnovější `schema.sql` (tabulky `tournaments`, `tournament_entries`, `tournament_matches`, `tournament_results`, `tournament_notices` a funkce `tournament_*`).
@@ -166,6 +170,42 @@ Dřív se průběh rozehrané výzvy (které otázky už hráč zodpověděl) dr
 - **Pořadí nasazení:** nejdřív spusť `schema.sql`, pak nasaď aplikaci. Starší verze aplikace, která ještě běží v něčím prohlížeči, průběh neposílá, takže jí server výsledek
   výzvy ani zápasu nepřijme; po obnovení stránky (nová verze) se odpovědi uložené v zařízení dopošlou a výsledek se odešle.
 - Test: `tests/sql-progress.test.js` (pokusy o podvod: cizí výzva, přeskočení a přepsání otázky, výsledek bez průběhu nebo s vylepšenými čísly, dvojí a souběžný claim XP, migrace).
+
+## Jak odpověděli ostatní: souhrnné statistiky odpovědí (schéma 6)
+
+Po odpovědi hráč pod verdiktem uvidí „Správně odpovědělo 23 % hráčů“ (u psané odpovědi „Správně napsalo…“), když otázku stejného druhu
+a stejným způsobem (výběr z možností / psaní) zodpovědělo aspoň 20 hráčů s účtem. Logika je v `answer-stats.js`, volání databáze v `social.js`
+(`submitAnswerStats`, `answerStatsTopic`, `devSuspiciousQuestions`), SQL v samostatném bloku `schema.sql` „Jak odpověděli ostatní“.
+
+- **Sběr jen od přihlášených:** aplikace odpověď zapíše do fronty v zařízení (`mudrlant.answerStats.queue`: téma, položka `Q…`, druh otázky, způsob,
+  správně, u špatné odpovědi id zvolené nesprávné možnosti) a pošle ji **jednou dávkou po hře**: při návratu domů nebo do učení, na konci výzvy či zápasu
+  turnaje, a v dlouhém tréninku po 20 odpovědích. Bez sítě fronta čeká (nejvýš 60 odpovědí) a odejde po připojení nebo dalším spuštění, jen pod stejným účtem.
+  Nepočítá se opakování karet a procvičování chyb (odpověď hráč už viděl) ani dnešní otázka zodpovězená podruhé. Výzvy, turnaje a dnešní otázky se počítají.
+- **`answer_stats_submit(answers jsonb) → integer`** (security definer, `grant execute … to authenticated`, anon nic): pole nejvýš 30 odpovědí,
+  jinak chyba. Kontroluje tvary (téma `^[a-z0-9-]{1,24}$`, položka `^Q[1-9][0-9]{0,11}$`, druh `^[a-z0-9-]{1,24}$`, způsob `choices`/`typed`, správně jako boolean,
+  nesprávná možnost text 1–60 znaků bez řídicích znaků); odpověď ve špatném tvaru se přeskočí. Ke každé otázce jen přičte `shown`, `correct`
+  a počítadlo nesprávných možností `wrong` (nejvýš 8 nejčastějších, Space-Saving v `answer_stats_bump`). Vrací počet započtených.
+- **Limity na hráče:** nejvýš 30 dávek a 300 odpovědí za hodinu a každá otázka (téma, položka, druh, způsob) se od hráče započte nejvýš jednou za hodinu
+  (proti dvojímu započtení po ztracené odpovědi serveru i proti „nafukování“ jedné otázky). Co je nad limit, se potichu nezapočte (aplikace dávku nezkouší znovu).
+  K tomu slouží jediná data o hráči: řádek v `answer_stats_limits` (začátek hodiny, počet dávek a odpovědí, otisky `hashtext` započtených otázek), který se po dvou
+  hodinách smaže (každé volání maže staré řádky) a se smazáním účtu hned (cascade). Historie odpovědí hráče se nevede; souhrnná počítadla po smazání účtu zůstávají
+  a do exportu „Moje data“ nepatří (nejsou vázaná na hráče).
+- **`answer_stats_topic(topic_id text) → jsonb`** (security definer, stable, jen `authenticated`): souhrn tématu `[[položka, druh, 'c' | 't', zobrazeno, správně], …]`
+  jen pro otázky s aspoň 20 odpověďmi, nejvýš 8 000 nejhranějších.
+- **Jak aplikace stahuje (proč takhle):** hra je otevřená (trénink nemá předem daný seznam otázek) a kalibrace potřebuje čísla celého tématu ještě před losováním,
+  proto se souhrn stahuje **po tématech**: při načtení tématu, nejvýš jednou denně na téma (`mudrlant.answerStats.topic.<téma>` v `localStorage`, platí 24 h),
+  na pozadí, nic na něj nečeká. Řádek po odpovědi i kalibrace čtou jen uložený souhrn, takže hra se nezdrží ani o jedno volání. Bez sítě, bez účtu, po chybě
+  (další pokus nejdřív za 15 minut) nebo se starší databází (404) se nic neukazuje. Stažení je malé (jen otázky s aspoň 20 odpověďmi, pět hodnot na řádek).
+- **Kalibrace obtížnosti** (pravidlo v komentáři v `answer-stats.js`, zapojení v `pickItem` v `quiz-core.js`): jen trénink tématu a Mixu (losování bez semínka).
+  Úspěšnost položky = správně / zobrazeno z výběru z možností (součet přes druhy otázek), jen při aspoň 50 odpovědích. Známá položka (`k = 1`) s úspěšností pod 15 %
+  se losuje s váhou 0,35; hráči od úrovně 20 se položky, které zná přes 95 % hráčů, losují s váhou 0,6; jinak váha 1. Váha platí jen uvnitř kategorie, položka nikdy
+  nevypadne úplně. Dnešní otázky, výzvy a turnaje (semínko) statistiky ignorují, ať mají všichni hráči stejné otázky.
+- **Podezřelé otázky (jen `dev_admins`):** Nastavení → vývojářský režim (`?vyvojar`) → Hlášení otázek → **Podezřelé otázky**. `dev_suspicious_questions(min_n integer default 50)`
+  (security definer, `dev_check()`, grant `authenticated`) vrátí nejvýš 100 otázek: u výběru z možností úspěšnost pod 25 % (hůř než tipování) při aspoň `min_n` odpovědích,
+  nebo nesprávná možnost volená častěji než správná odpověď (při aspoň 20 odpovědích). Okno ukáže téma, název položky, druh otázky, %, počet odpovědí, nejčastější
+  nesprávnou možnost a tlačítko **Detail** (okno s popisem položky).
+- Testy: `tests/sql-answer-stats.test.js` (práva, tvary, limity, počítadlo, souhrn, správce), `tests/answer-stats.test.js` (fronta, souhrn, text, kalibrace),
+  `tests/e2e-answer-stats.test.js` (řádek na 360×640 a 390×780, jedna dávka po hře, offline, okno pro správce).
 
 ## Upozornění (web push)
 

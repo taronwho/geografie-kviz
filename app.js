@@ -49,8 +49,9 @@
     // Verze databázového schématu, kterou aplikace potřebuje: zvyšuje se spolu s schema_version() na konci supabase/schema.sql
     // (tests/sql-monitor.test.js hlídá shodu). Správce (dev_admins nebo vývojářský režim) uvidí v Nastavení, že má schéma spustit znovu.
     // 3 = průběh výzev a zápasů turnaje na serveru a XP za výhry v turnaji jednou za účet; 4 = zkušební upozornění přes server (dev_push_test);
-    // 5 = okamžité odesílání upozornění (push_kick, dev_push_status; aplikace funguje i se 4, jen ve zkoušce upozornění ukáže obecný text).
-    const REQUIRED_SCHEMA = 5;
+    // 5 = okamžité odesílání upozornění (push_kick, dev_push_status; aplikace funguje i se 4, jen ve zkoušce upozornění ukáže obecný text);
+    // 6 = Jak odpověděli ostatní (answer_stats_submit, answer_stats_topic, dev_suspicious_questions; se starší databází se statistiky jen neukazují).
+    const REQUIRED_SCHEMA = 6;
     const HISTORY_SIZE = 200;
     const REQUEST_TIMEOUT = 12000;
     const WIKI_TIMEOUT = 6000;
@@ -401,6 +402,7 @@
         // Fotka s napsanou odpovědí, kterou neumíme zakrýt (OCR nápis našlo, ale ne jeho polohu), se jako nápověda nenabídne
         ctx.textPhotos = new Set((photoText[topicId] || []).map(id => (ctx.byId.get(id) || {}).im).filter(file => file && !photoMasks[file]));
         loadedTopics.set(topicId, ctx);
+        refreshAnswerStats(topicId);
         return ctx;
     });
     const visualDeps = { loadWorld: () => loadWorld() };
@@ -876,7 +878,7 @@
             ${Push ? `<p class="mb-1 mt-2 text-[11px] font-black uppercase tracking-widest text-amber-700 dark:text-amber-400">Upozornění</p>
             <div class="flex flex-wrap gap-1">${[['push-diag', 'Diagnostika upozornění'], ['push-local', 'Zkusit upozornění v tomto zařízení'], ...(Social ? [['push-server', 'Poslat zkušební upozornění přes server']] : [])].map(([kind, label]) => `<button type="button" data-dev="${kind}" class="rounded-lg bg-sky-100 px-2 py-1 text-[11px] font-bold text-sky-900 active:scale-95 dark:bg-sky-900/50 dark:text-sky-100">${label}</button>`).join('')}</div>` : ''}
             ${Social ? `<p class="mb-1 mt-2 text-[11px] font-black uppercase tracking-widest text-amber-700 dark:text-amber-400">Hlášení otázek</p>
-            <div class="flex flex-wrap gap-1"><button type="button" data-dev="reports" class="rounded-lg bg-emerald-100 px-2 py-1 text-[11px] font-bold text-emerald-900 active:scale-95 dark:bg-emerald-900/50 dark:text-emerald-100">Seznam hlášení</button></div>` : ''}
+            <div class="flex flex-wrap gap-1"><button type="button" data-dev="reports" class="rounded-lg bg-emerald-100 px-2 py-1 text-[11px] font-bold text-emerald-900 active:scale-95 dark:bg-emerald-900/50 dark:text-emerald-100">Seznam hlášení</button><button type="button" data-dev="suspicious" class="rounded-lg bg-amber-100 px-2 py-1 text-[11px] font-bold text-amber-900 active:scale-95 dark:bg-amber-900/50 dark:text-amber-100">Podezřelé otázky</button></div>` : ''}
             ${Social ? `<p class="mb-1 mt-2 text-[11px] font-black uppercase tracking-widest text-amber-700 dark:text-amber-400">Moderace</p>
             <div class="flex flex-wrap gap-1"><button type="button" data-dev="player-reports" class="rounded-lg bg-rose-100 px-2 py-1 text-[11px] font-bold text-rose-900 active:scale-95 dark:bg-rose-900/50 dark:text-rose-100">Nahlášení hráči</button></div>` : ''}
         </div>`;
@@ -1764,6 +1766,7 @@
             if (devButton && devButton.dataset.dev === 'push-local') { devPushLocal(); return; }
             if (devButton && devButton.dataset.dev === 'push-server') { devPushServer(); return; }
             if (devButton && devButton.dataset.dev === 'reports') { openQuestionReports(); return; }
+            if (devButton && devButton.dataset.dev === 'suspicious') { openSuspiciousQuestions(); return; }
             if (devButton && devButton.dataset.dev === 'player-reports') { closeSettings(); openDevReports(); return; }
             if (devButton && devButton.dataset.dev === 'tips') {
                 if (Tips) writeTipsState(Tips.reset(readTipsState()));
@@ -2270,6 +2273,7 @@
     const renderHome = () => {
         screen = 'home';
         closePlaceInfo();
+        flushAnswerStats();
         notePushHomeTab();
         settleGoals();
         const stats = loadStats();
@@ -2816,6 +2820,7 @@
                     <div>
                         <p class="font-black text-emerald-800 dark:text-emerald-200">Správně! +${formatPoints(round.points)}</p>
                         <p class="text-sm text-emerald-800 dark:text-emerald-300">${round.typed ? 'Napsaná odpověď' : 'Výběr z možností'}${data.hints.length ? ` · nápovědy ${levels}` : ''}</p>
+                        ${answerStatsLine(data, 'text-emerald-800 dark:text-emerald-300')}
                         ${xpLine(round.xp, 'text-emerald-800 dark:text-emerald-300')}
                     </div>
                 </div>`;
@@ -2826,6 +2831,7 @@
                 <div>
                     <p class="font-black text-rose-800 dark:text-rose-200">${round.gaveUp ? 'Tentokrát bez odpovědi' : 'Bohužel, to není ono'}</p>
                     <p class="text-sm text-rose-800 dark:text-rose-300">${round.answer ? `Tvoje odpověď: ${escapeHtml(round.answer)} · ` : ''}Správně: ${escapeHtml(data.question.answerLabel)}</p>
+                    ${answerStatsLine(data, 'text-rose-800 dark:text-rose-300')}
                     ${xpLine(round.xp, 'text-rose-800 dark:text-rose-300')}
                     ${round.answerRef ? `
                         <button type="button" data-action="item-info" data-topic="${escapeHtml(round.answerRef.topic)}" data-id="${escapeHtml(round.answerRef.id)}" class="mt-2 inline-flex min-h-[2.5rem] items-center gap-1.5 rounded-lg bg-white px-2.5 py-1.5 text-xs font-bold text-rose-700 shadow-sm transition-colors hover:bg-rose-100 dark:bg-rose-950 dark:text-rose-200 dark:hover:bg-rose-900">
@@ -3450,6 +3456,7 @@
         Object.assign(round, { answered: true, correct, typed, answer, answerRef: ref, gaveUp, points });
         mapZoom = DEFAULT_MAP_ZOOM;
         recordResult();
+        recordAnswerStat({ correct, answerRef, gaveUp });
         renderRound();
         // Odpověď výzvy (zápasu turnaje) hned na server; bez spojení počká v zařízení
         if (mode === 'challenge' && challenge) syncAnswers(challenge);
@@ -3587,6 +3594,8 @@
             if (mode === 'challenge' && challenge && challenge.variant) round.variant = challenge.variant;
             isLoading = false;
             renderRound();
+            // Souhrn odpovědí ostatních k tématu (stáhne se, jen když v zařízení chybí nebo je starší než den)
+            refreshAnswerStats(current.topic);
             // Obrysy států pro slepou mapu stáhneme dopředu, ať je nápověda hned po ruce
             if (data.visual && data.visual.type === 'map') loadWorld().catch(() => {});
         } catch (error) {
@@ -3715,7 +3724,8 @@
             }
             if (pool.kind === 'topic' || pool.kind === 'mix') {
                 ctx = await loadTopic(pool.kind === 'topic' ? pool.topic : pickRandom(settings.topics, Math.random));
-                item = pickItem(playableItems(ctx), Math.random, history, ctx.topic.categories.map(c => c.key));
+                // Trénink bez semínka: mírná kalibrace obtížnosti podle odpovědí ostatních (pravidlo v answer-stats.js)
+                item = pickItem(playableItems(ctx), Math.random, history, ctx.topic.categories.map(c => c.key), answerStatsWeigher(ctx.topic.id));
             }
             if (item) rememberPlayed(item);
             return { item, ctx, rng: Math.random };
@@ -4039,6 +4049,7 @@
         closeChooser();
         learn.view = view;
         learn.topic = topicId;
+        flushAnswerStats();
         renderLearn().then(() => appContent.scrollTo(0, 0));
     };
 
@@ -4769,6 +4780,82 @@
                     <button type="button" data-report-done="${Number(row.id)}" class="flex min-h-[2.25rem] items-center gap-1 rounded-lg bg-emerald-100 px-2.5 py-1 text-xs font-bold text-emerald-900 disabled:opacity-50 dark:bg-emerald-900/50 dark:text-emerald-100"><i data-lucide="check" class="h-3.5 w-3.5"></i> Vyřízeno</button>
                 </div>
             </li>`).join('')}</ul>` : '<p class="py-6 text-center text-sm font-semibold text-slate-500 dark:text-slate-400" role="status">Zatím žádná hlášení.</p>');
+    };
+
+    // --- Jak odpověděli ostatní (answer-stats.js): souhrny odpovědí ostatních hráčů, fronta vlastních odpovědí a kalibrace losování ---
+    // Sbírá se jen od přihlášených hráčů. Souhrn tématu se stáhne nejvýš jednou denně při načtení tématu (jedno volání na téma, nic na něj
+    // nečeká) a řádek po odpovědi i kalibrace ho čtou synchronně ze zařízení; bez sítě, účtu nebo souhrnu se nic neukazuje.
+    const AnswerStats = window.MudrlantAnswerStats || null;
+    const statsUser = () => (AnswerStats && Auth && Auth.isConfigured() && Social ? signedUser() : null);
+    const statsStorage = () => reportStorage();
+    const refreshAnswerStats = (topicId) => {
+        if (!statsUser() || navigator.onLine === false) return;
+        AnswerStats.refresh(topicId, { storage: statsStorage(), fetchRows: (topic) => Social.answerStatsTopic(topic) }).catch(() => {});
+    };
+    const answerStatsIndex = (topicId) => (AnswerStats ? AnswerStats.topicIndex(statsStorage(), topicId) : null);
+    const answerStatsWeigher = (topicId) => (AnswerStats ? AnswerStats.weigher(answerStatsIndex(topicId), { level: levelProgress(loadProgress().xp).level }) : null);
+    // Řádek pod verdiktem („Správně odpovědělo 23 % hráčů“); jen z aspoň 20 odpovědí a jen se sítí
+    const answerStatsLine = (data, tone) => {
+        if (!AnswerStats || !round || navigator.onLine === false) return '';
+        const stat = AnswerStats.statFor(answerStatsIndex(data.topic), data.id, data.question.type, round.variant);
+        const text = AnswerStats.lineFor(stat, round.variant);
+        return text ? `<p data-answer-stats title="${escapeHtml(AnswerStats.sampleText(stat))}" class="mt-0.5 flex items-center gap-1 text-xs font-semibold leading-tight ${tone}"><i data-lucide="users" class="h-3.5 w-3.5 shrink-0"></i><span class="truncate">${escapeHtml(text)}</span></p>` : '';
+    };
+    // Odpověď do fronty: bez opakování karet a procvičování chyb (odpověď už hráč viděl) a bez dnešní otázky zodpovězené podruhé
+    const recordAnswerStat = ({ correct, answerRef, gaveUp }) => {
+        const user = statsUser();
+        if (!user || !current || !round) return;
+        if (mode === 'practice' && (pool.kind === 'review' || pool.kind === 'mistakes')) return;
+        if (mode === 'daily' && round.dailyFirst === false) return;
+        const waiting = AnswerStats.record(statsStorage(), user.id, { topic: current.topic, itemId: current.id, kind: current.question.type, variant: round.variant,
+            correct, wrongId: !correct && !gaveUp && answerRef ? answerRef.id : null });
+        // Dlouhý trénink: plná dávka se pošle hned (jinak až po hře)
+        if (waiting >= AnswerStats.BATCH_MAX) flushAnswerStats();
+    };
+    // Odeslání po dohrané hře (návrat domů nebo do učení, konec výzvy či zápasu): jedna dávka = jedno volání databáze
+    const flushAnswerStats = () => {
+        const user = statsUser();
+        if (!user || navigator.onLine === false) return;
+        AnswerStats.flush({ user: user.id, send: (answers) => Social.submitAnswerStats(answers), storage: statsStorage() }).catch(() => {});
+    };
+    // Dev panel: Podezřelé otázky (databáze je pustí jen účtu v dev_admins); názvy položek a možností se doplní z dat témat
+    const SUSPICIOUS_TITLE = 'Podezřelé otázky';
+    const openSuspiciousQuestions = async () => {
+        if (!statsUser()) { showToast('Podezřelé otázky vidí přihlášený účet z dev_admins.'); return; }
+        const stillOpen = () => { const overlay = document.getElementById('dialog-overlay'); return Boolean(overlay && overlay.dataset.title === SUSPICIOUS_TITLE); };
+        const onClick = (event) => {
+            const button = event.target.closest('[data-suspicious-item]');
+            if (button) openItemInfo(button.dataset.topic, button.dataset.id);
+        };
+        showDialog(SUSPICIOUS_TITLE, '<p class="py-6 text-center text-sm font-semibold text-slate-500 dark:text-slate-400" role="status">Načítám statistiky…</p>', { onClick });
+        let rows;
+        try { rows = AnswerStats.cleanSuspicious(await Social.devSuspiciousQuestions()); } catch (error) {
+            if (stillOpen()) showDialog(SUSPICIOUS_TITLE, DIALOG_NOTE(error.message || 'Statistiky se nepodařilo načíst.'), { onClick });
+            return;
+        }
+        const contexts = new Map();
+        await Promise.all([...new Set(rows.map(row => row.topic))].filter(id => TOPIC_BY_ID[id]).map(id => loadTopic(id).then(ctx => { contexts.set(id, ctx); }).catch(() => {})));
+        if (!stillOpen()) return;
+        const lookupIn = (topicId) => (id) => {
+            const ctx = contexts.get(topicId);
+            const item = ctx && ctx.byId.get(id);
+            return item ? item.n : (ctx && ctx.countries && Object.prototype.hasOwnProperty.call(ctx.countries, id) ? ctx.countries[id].name : null);
+        };
+        const intro = `<p class="mb-2 text-xs text-slate-500 dark:text-slate-400">Úspěšnost pod 25 % z aspoň 50 odpovědí výběrem z možností, nebo nesprávná možnost, kterou hráči volí častěji než správnou. Bez údajů o hráčích.</p>`;
+        showDialog(SUSPICIOUS_TITLE, intro + (rows.length ? `<ul id="suspicious-list" class="flex flex-col gap-2">${rows.map(row => {
+            const lookup = lookupIn(row.topic);
+            const name = lookup(row.itemId);
+            const wrong = row.topWrong ? AnswerStats.optionLabel(row.topWrong, lookup) : '';
+            return `
+            <li data-suspicious="${escapeHtml(`${row.topic}:${row.itemId}:${row.kind}:${row.variant}`)}" class="rounded-xl border border-slate-200 bg-white p-3 text-sm dark:border-slate-700 dark:bg-slate-800">
+                <p class="flex flex-wrap items-center gap-x-2 text-[11px] font-black uppercase tracking-wider text-amber-700 dark:text-amber-300"><span>${escapeHtml(AnswerStats.REASONS[row.reason])}</span><span class="font-bold normal-case tracking-normal text-slate-500 dark:text-slate-400">${escapeHtml(TOPIC_BY_ID[row.topic] ? TOPIC_BY_ID[row.topic].title : row.topic)} · ${escapeHtml(AnswerStats.kindLabel(row.kind))} · ${row.variant === 'typed' ? 'psaní' : 'možnosti'}</span></p>
+                <p class="mt-1 font-semibold text-slate-800 dark:text-slate-100">${escapeHtml(name || row.itemId)}${name ? ` <span class="text-xs font-normal text-slate-500 dark:text-slate-400">${escapeHtml(row.itemId)}</span>` : ''}</p>
+                <div class="mt-1 flex items-end justify-between gap-2">
+                    <p class="min-w-0 text-[13px] text-slate-700 dark:text-slate-200"><b>${AnswerStats.percentOf(row.correct, row.shown)}&nbsp;%</b> správně z&nbsp;${row.shown}${wrong ? `<br>Nejčastější chyba: <b>${escapeHtml(wrong)}</b> <span class="whitespace-nowrap">(${AnswerStats.percentOf(row.topWrongCount, row.shown)}&nbsp;%)</span>` : ''}</p>
+                    ${contexts.has(row.topic) && name ? `<button type="button" data-suspicious-item data-topic="${escapeHtml(row.topic)}" data-id="${escapeHtml(row.itemId)}" class="flex min-h-[2.25rem] shrink-0 items-center gap-1 rounded-lg bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-800 dark:bg-slate-700 dark:text-slate-100"><i data-lucide="info" class="h-3.5 w-3.5"></i> Detail</button>` : ''}
+                </div>
+            </li>`;
+        }).join('')}</ul>` : '<p id="suspicious-list" class="py-6 text-center text-sm font-semibold text-slate-500 dark:text-slate-400" role="status">Zatím žádné podezřelé otázky.</p>'), { onClick });
     };
 
     // Profil: jméno, emoji a barva obrázku
@@ -5750,7 +5837,7 @@
                 : `<ol class="flex flex-col gap-1.5">${results && results.length ? rankingRows(results, c.count, user && user.id) : ''}</ol>
                     ${Friends && bestRival && bestRival.user_id ? Friends.reactionBar(bestRival.user_id, c.reaction || null, { busy: Boolean(c.reacting), name: playerName(bestRival.player) }) : ''}
                     <p class="text-sm text-slate-500 dark:text-slate-400">${results && results.length > 1 ? 'Porovnání s ostatními hráči.' : 'Pošli kód kamarádům, ať ti to oplatí.'}</p>`;
-        if (state === 'ok') c.lastResults = results;
+        if (state === 'ok') { c.lastResults = results; flushAnswerStats(); }
         // Upozornění, že vyzvaný hráč výzvu uvidí: ne vyzvanému samotnému a ne potom, co už ji dohrál
         const invitedWaiting = Boolean(c.invited && c.invited.id && (!user || c.invited.id !== user.id) && !(results || []).some(row => row.user_id === c.invited.id));
         appContent.innerHTML = `
@@ -6669,6 +6756,7 @@
         const c = challenge;
         if (!c || !c.tournament) return;
         screen = 'challenge-done';
+        if (state === 'ok') flushAnswerStats();
         closePlaceInfo();
         const user = signedUser();
         const tour = c.tournament;
@@ -7058,9 +7146,11 @@
                 openChallenge(pending);
             }
             refreshChallenges();
-            if (state.user) flushReports();
+            if (state.user) { flushReports(); flushAnswerStats(); }
         });
         window.addEventListener('online', flushReports);
+        // Po obnovení připojení se dopošlou odpovědi z dohraných her (rozehraná hra počká na svůj konec)
+        window.addEventListener('online', () => { if (screen !== 'round') flushAnswerStats(); });
         Auth.init().then(state => { if (!state.user && invite) openChallenge(invite); });
     }
     // Klávesnice na telefonu: Chrome i Safari při jejím otevření zmenší jen viditelnou plochu, okna zarovnaná ke spodku by zůstala pod ní.
