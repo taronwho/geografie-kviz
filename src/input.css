@@ -19,6 +19,9 @@
     /* Výška aplikace: starší prohlížeče bez dvh dostanou výšku viditelné plochy (ne 100vh, které sahá pod lištu prohlížeče), novější dynamickou */
     html, body { height: 100%; }
     @supports (height: 100dvh) { body { height: 100dvh; } }
+    /* Změřená viditelná výška (app.js, --app-h) má přednost: po obnovení stránky na Androidu bývá 100dvh chybně vyšší */
+    body { height: var(--app-h, 100%); }
+    @supports (height: 100dvh) { body { height: var(--app-h, 100dvh); } }
     /* Zaměření z klávesnice: výrazný obrys v barvě tématu (světlý i tmavý režim), myš a dotyk ho neukazují */
     :focus-visible { outline: 3px solid rgb(var(--brand-600)); outline-offset: 2px; }
     @media (prefers-color-scheme: dark) { :focus-visible { outline-color: rgb(var(--brand-300)); } }

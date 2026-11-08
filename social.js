@@ -623,6 +623,83 @@
         const data = (await request('POST', 'rpc/daily_quiz_friends', { body: { for_day: cleanDay(day) } })) || {};
         return { day: cleanDay(data.day), friends: wholeNumber(data.friends, 100000), rows: (Array.isArray(data.rows) ? data.rows : []).map(cleanQuizRow) };
     });
+    // --- Skupiny (schéma 8, groups.js): moje skupiny, detail s pořadím, založení, přidání kódem a správa zakladatelem ---
+    // Databáze bez funkcí (404): seznam vrací null (aplikace Skupiny nenabídne) a dál se o ně nežádá; ostatní volání skončí srozumitelnou chybou.
+    // Hlášky databáze jsou česky (limit skupin, plná skupina, jen zakladatel…) a předají se dál; jiné chyby nahradí obecný text.
+    let groupsMissing = false;
+    const GROUPS_MISSING = 'Skupiny zatím nejsou k dispozici (databáze potřebuje nejnovější schema.sql).';
+    const groupsCall = async (name, body, fallback) => {
+        if (groupsMissing) throw new SocialError(GROUPS_MISSING, 404);
+        try { return await request('POST', `rpc/${name}`, { body }); } catch (error) {
+            if (error instanceof SocialError && error.status === 404) { groupsMissing = true; throw new SocialError(GROUPS_MISSING, 404); }
+            if (error instanceof SocialError && error.status === 401) throw new SocialError('Nejsi přihlášený.', 401);
+            if (error instanceof SocialError && error.status < 500 && CZECH_MESSAGE.test(error.message)) throw error;
+            throw new SocialError(fallback, error && error.status);
+        }
+    };
+    const GROUP_CODE = /^[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{6}$/;
+    const needGroup = (value) => { if (!isUuid(value)) throw new SocialError('Neplatná skupina.', 400); return value; };
+    const cleanGroupCode = (value) => { const code = String(value || '').toUpperCase().replace(/[\s-]/g, ''); return GROUP_CODE.test(code) ? code : ''; };
+    const cleanGroupPlayer = (row) => row && typeof row === 'object' && row.id ? {
+        id: String(row.id), display_name: String(row.display_name || 'Hráč'), avatar: row.avatar, color: row.color, frame: cleanFrame(row.frame), title_pref: cleanTitlePref(row.title_pref), owl: cleanOwl(row.owl)
+    } : null;
+    const cleanGroup = (row) => row && typeof row === 'object' && isUuid(row.id) ? {
+        id: String(row.id), name: String(row.name || 'Skupina').slice(0, 40), icon: typeof row.icon === 'string' ? row.icon.slice(0, 8) : '🦉', code: cleanGroupCode(row.code),
+        owner_id: row.owner_id ? String(row.owner_id) : null, is_owner: row.is_owner === true, members: wholeNumber(row.members, 1000),
+        played_today: row.played_today === true,
+        leader: row.leader ? { ...cleanGroupPlayer(row.leader), score: wholeNumber(row.leader.score, 40), time_ms: wholeNumber(row.leader.time_ms, 3000000), me: row.leader.me === true } : null
+    } : null;
+    const cleanGroupRow = (row) => ({
+        ...cleanGroupPlayer(row), owner: row.owner === true, me: row.me === true, joined_at: row.joined_at ? String(row.joined_at) : null,
+        today: row.today && typeof row.today === 'object' ? { score: wholeNumber(row.today.score, 40), correct: wholeNumber(row.today.correct, 10), time_ms: wholeNumber(row.today.time_ms, 3000000) } : null,
+        week_score: wholeNumber(row.week_score, 280), week_correct: wholeNumber(row.week_correct, 70), week_time_ms: wholeNumber(row.week_time_ms, 21000000),
+        week_days: wholeNumber(row.week_days, 7), week_xp: wholeNumber(row.week_xp, 100000)
+    });
+    const cleanGroupChallenge = (row) => row && typeof row === 'object' && parseCode(row.id) ? {
+        id: parseCode(row.id), topic: String(row.topic || 'mix'), count: wholeNumber(row.count, 20), created_at: row.created_at ? String(row.created_at) : null, creator: cleanGroupPlayer(row.creator),
+        results: (Array.isArray(row.results) ? row.results : []).map(item => ({ user_id: String(item.user_id), correct: wholeNumber(item.correct, 20), points: wholeNumber(item.points, 160) }))
+    } : null;
+    // Moje skupiny s dnešním vedoucím Kvízu dne; null = databáze skupiny nemá
+    const myGroups = async () => {
+        if (groupsMissing) return null;
+        try {
+            const rows = await groupsCall('my_groups', {}, 'Skupiny se nepodařilo načíst.');
+            return (Array.isArray(rows) ? rows : []).map(cleanGroup).filter(Boolean);
+        } catch (error) {
+            if (error.status === 404) return null;
+            throw error;
+        }
+    };
+    const groupDetail = async (groupId) => {
+        const data = await groupsCall('group_detail', { gid: needGroup(groupId) }, 'Skupinu se nepodařilo načíst. Zkontroluj připojení.');
+        const group = cleanGroup(data);
+        if (!group) throw new SocialError('Skupinu se nepodařilo načíst.', 500);
+        return { ...group, day: cleanDay(data.day), week_start: cleanDay(data.week_start), rows: (Array.isArray(data.rows) ? data.rows : []).filter(row => row && row.id).map(cleanGroupRow), challenge: cleanGroupChallenge(data.challenge) };
+    };
+    const groupCreate = async (name, icon) => cleanGroup(await groupsCall('group_create', { group_name: String(name || '').slice(0, 80), group_icon: String(icon || '') }, 'Skupinu se nepodařilo založit. Zkus to znovu.'));
+    // Náhled a přidání kódem: null = skupina s tímhle kódem není
+    const groupPreview = async (code) => {
+        const clean = cleanGroupCode(code);
+        if (!clean) return null;
+        const data = await groupsCall('group_preview', { join_code: clean }, 'Skupinu se nepodařilo najít. Zkontroluj připojení.');
+        return data && isUuid(data.id) ? { id: String(data.id), name: String(data.name || 'Skupina').slice(0, 40), icon: typeof data.icon === 'string' ? data.icon.slice(0, 8) : '🦉', code: clean, members: wholeNumber(data.members, 1000), owner: cleanGroupPlayer(data.owner), member: data.member === true } : null;
+    };
+    const groupJoin = async (code) => {
+        const clean = cleanGroupCode(code);
+        if (!clean) return null;
+        return cleanGroup(await groupsCall('group_join', { join_code: clean }, 'Přidání do skupiny se nepodařilo. Zkus to znovu.'));
+    };
+    const groupLeave = (groupId) => groupsCall('group_leave', { gid: needGroup(groupId) }, 'Skupinu se nepodařilo opustit. Zkus to znovu.');
+    const groupUpdate = async (groupId, name, icon) => cleanGroup(await groupsCall('group_update', { gid: needGroup(groupId), group_name: String(name || '').slice(0, 80), group_icon: String(icon || '') }, 'Změnu se nepodařilo uložit. Zkus to znovu.'));
+    const groupNewCode = async (groupId) => cleanGroupCode(await groupsCall('group_regenerate_code', { gid: needGroup(groupId) }, 'Nový kód se nepodařilo vytvořit. Zkus to znovu.'));
+    const groupRemoveMember = (groupId, memberId) => groupsCall('group_remove_member', { gid: needGroup(groupId), member_id: needId(memberId) }, 'Člena se nepodařilo odebrat. Zkus to znovu.');
+    const groupDelete = (groupId) => groupsCall('group_delete', { gid: needGroup(groupId) }, 'Skupinu se nepodařilo smazat. Zkus to znovu.');
+    // Výzva skupině: kód výzvy pro kohokoli (createChallenge bez soupeře) se připojí ke skupině
+    const groupSetChallenge = (groupId, code) => {
+        const clean = parseCode(code);
+        if (!clean) throw new SocialError('Neplatná výzva.', 400);
+        return groupsCall('group_set_challenge', { gid: needGroup(groupId), challenge_code: clean }, 'Výzvu se nepodařilo poslat skupině. Zkus to znovu.');
+    };
     // ===== Jak odpověděli ostatní (schéma 6, answer-stats.js): dávka odpovědí po hře, souhrn tématu, podezřelé otázky pro dev_admins =====
     // Starší databáze bez funkcí (404): odeslání i stažení vrací null a dál se o ně nežádá (po novém načtení stránky se zkusí znovu); jiné chyby se vyhodí.
     let answerStatsMissing = false;
@@ -681,6 +758,8 @@
         submitAnswerStats, answerStatsTopic, devSuspiciousQuestions,
         // Kvíz dne (schéma 7)
         dailyQuizState, dailyQuizStart, dailyQuizAnswer, dailyQuizBoard, dailyQuizFriends,
+        // Skupiny (schéma 8)
+        myGroups, groupDetail, groupCreate, groupPreview, groupJoin, groupLeave, groupUpdate, groupNewCode, groupRemoveMember, groupDelete, groupSetChallenge,
         // Odměny (schéma 9)
         getRewards, saveRewards };
 });

@@ -93,6 +93,7 @@ Statická stránka bez serveru a bez build kroku. Nasazuje se na **GitHub Pages*
 | `sound.js` | Zvuky (Web Audio, bez zvukových souborů) a vibrace, přepínače v Nastavení – testovaná |
 | `question-map.js` | Otázka „Ukaž na mapě“: výběr míst a výřezu, zobrazení, body podle vzdálenosti (testované), vykreslení a ovládání mapy |
 | `daily-quiz.js` | Kvíz dne: výběr otázek ze semínka dne, součty, série, XP, uložený stav a obrazovky (karta, úvod, výsledek s pořadím) |
+| `groups.js` | Skupiny: název, kód a odkaz `?skupina=KÓD`, pořadí Dnes / Týden (Kvíz dne, XP) a okna (seznam, založení, přidání kódem, detail, správa) – testovaná |
 | `share-card.js` | Sdílení textu (systémové, jinak schránka) a obrázku výsledku (PNG z plátna se sovou v barvě obleku) |
 | `rewards.js` | Truhla Mudrlanta, ochrana série a diplomy: výběr věci, ochrana vynechaného dne, sjednocení s účtem a jejich HTML – testovaná |
 | `topics/<téma>.js` | Jedno téma: kategorie, otázky, fakta, nápovědy a zakrývání (viz níže) |
@@ -181,6 +182,11 @@ v Supabase spusť znovu celé.
 **Týdenní turnaje** (vyřazovací pavouk v Mixu, kolo = jeden den): klient je v `tournament.js` (čistá logika: názvy kol, dny, stav karty, texty zpráv),
 volání databáze v `social.js` a okno turnaje, hra zápasu a karta na záložce Více hráčů v `app.js`; pravidla a posun kol dělá databáze
 (`tournament_tick()` a další funkce v `supabase/schema.sql`). Starší databáze bez turnajů kartu prostě neukáže.
+**Skupiny** (třída, rodina, kamarádi; schéma 8): čip Skupiny na záložce Více hráčů otevře seznam skupin s dnešním vedoucím Kvízu dne; detail skupiny
+má pořadí **Dnes** (Kvíz dne) a **Týden** (součet bodů Kvízu dne nebo XP získané od pondělí), kód s pozvánkou (odkaz `?skupina=KÓD`, po přihlášení
+se okno otevře samo) a **Vyzvat skupinu** (jedna výzva pro všechny členy, do ratingu se nepočítá). Nejvýš 10 skupin na hráče a 50 členů ve skupině;
+zakladatel skupinu přejmenuje, změní kód, odebere člena nebo ji smaže. Okna a pořadí jsou v `groups.js`, volání v `social.js`, pravidla a limity
+v databázi (`group_*` v `supabase/schema.sql`, popis v `docs/SUPABASE.md`).
 Okno turnaje má pohled **Pavouk** (sloupce kol zleva doprava jako v NHL playoff, od osmifinále, „Celý pavouk“ ukáže všechna kola; klepnutí na hráče zvýrazní jeho cestu)
 a rozbalovací **Celé pořadí** všech hráčů (místa 1.–4., pak skupiny podle kola vyřazení); jejich logika (`bracketColumns`, `standings`, `placeRange`) je čistě v `tournament.js`.
 Původně: přihlášení účtem Google přes Supabase (`auth.js`, `config.js`, část Účet v Nastavení) a databázové

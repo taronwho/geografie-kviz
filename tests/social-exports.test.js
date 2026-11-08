@@ -6,7 +6,7 @@ const path = require('node:path');
 
 test('app.js volá jen funkce, které social.js exportuje', () => {
     const Social = require('../social.js');
-    const source = ['app.js', 'friends.js', 'question-report.js', 'monitor.js', 'push.js'].map(file => {
+    const source = ['app.js', 'friends.js', 'groups.js', 'question-report.js', 'monitor.js', 'push.js'].map(file => {
         try { return fs.readFileSync(path.join(__dirname, '..', file), 'utf8'); } catch (error) { return ''; }
     }).join('\n');
     const used = [...new Set([...source.matchAll(/\bSocial\.([A-Za-z_]\w*)/g)].map(match => match[1]))];
