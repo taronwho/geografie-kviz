@@ -128,3 +128,38 @@ test('hudba: nápovědy, časová osa, psané odpovědi a podobné možnosti', (
         assert.ok(wrongOf('Marta Kubišová', seed).every(other => other.sx === 'f'), 'ke zpěvačce zpěvačky');
     }
 });
+
+test('hudba: opery a muzikály – vlastní kategorie, autor a století premiéry', () => {
+    const stage = data.items.filter(item => item.c === 'opery');
+    assert.ok(stage.length >= 150 && stage.length <= 300, `oper a muzikálů ${stage.length}`);
+    const known = stage.filter(item => item.k === 1).length / stage.length;
+    assert.ok(known >= 0.2 && known <= 0.35, `známých ${known}`);
+    assert.ok(stage.every(item => ['opera', 'opereta', 'muzikál'].includes(item.ty) && item.f.year !== undefined && item.d), 'druh, rok premiéry a popis');
+    assert.ok(!data.items.some(item => item.c === 'dila' && ['opera', 'opereta', 'muzikál'].includes(item.ty)), 'jevištní díla nejsou dvakrát');
+    for (const name of ['Prodaná nevěsta', 'Rusalka', 'Carmen', 'Kouzelná flétna', 'Fantom opery']) assert.equal(find(name).c, 'opery', name);
+    assert.ok(inCollection('ceske-opery').includes('Prodaná nevěsta') && inCollection('muzikaly').includes('Fantom opery'));
+    assert.ok(inCollection('ceska-dila').includes('Prodaná nevěsta'), 'české opery zůstávají i mezi českými díly');
+    // Fakt Premiéra místo Roku, u otázky na století bez letopočtu
+    assert.ok(asLines(hudba.facts(find('Carmen'), ctx, 'name')).includes('Premiéra: 1875'));
+    assert.ok(!hudba.facts(find('Carmen'), ctx, 'century').some(fact => /\d{4}/.test(fact.value)));
+    // Kdo to složil? Možnosti jsou autoři jiných oper a muzikálů z podobné doby (k Lloydu Webberovi ne barokní skladatel)
+    for (const seed of ['a', 'b', 'c']) {
+        const question = hudba.specialQuestion(find('Fantom opery'), ctx, rngStartingWith(0.1, seed));
+        assert.equal(question.type, 'author');
+        assert.equal(question.answerLabel, 'Andrew Lloyd Webber');
+        for (const choice of question.choices) {
+            const author = ctx.byId.get(choice.id);
+            assert.ok(data.items.some(work => work.c === 'opery' && work.f.byq === author.q), `${author.n} nesložil operu ani muzikál`);
+            assert.ok(author.f.born > 1850, `${author.n}: jiná doba`);
+        }
+    }
+    // Ve kterém století měla premiéru?
+    const century = hudba.specialQuestion(find('Carmen'), ctx, rngStartingWith(0.5));
+    assert.equal(century.title, 'Ve kterém století měla premiéru?');
+    assert.equal(century.answerLabel, '19. století');
+    assert.ok(core.checkAnswer('19', century) && !core.checkAnswer('18', century));
+    assert.doesNotMatch(hudba.censor('century', 'Carmen je romantická opera z roku 1875 (premiéra v 19. století).', find('Carmen'), ctx), /1875|19\.|romantick/);
+    // Nesprávné možnosti názvu: jiné opery a muzikály
+    const choices = core.buildItemChoices(find('Rusalka'), data.items, core.createSeededRandom('rusalka'), other => hudba.similarity(find('Rusalka'), other, ctx));
+    assert.ok(choices.every(choice => ctx.byId.get(choice.id).c === 'opery'));
+});

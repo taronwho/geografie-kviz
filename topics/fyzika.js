@@ -1,4 +1,4 @@
-// Téma Fyzika: fyzikální veličiny, jednotky, zákony a jevy, částice, vesmír, kosmické mise a přístroje, fyzici a astronomové (data/fyzika.json)
+// Téma Fyzika: fyzikální veličiny, jednotky, zákony a jevy, částice, vesmír, kosmické mise a přístroje, vynálezy, fyzici a astronomové (data/fyzika.json)
 (function (root, factory) {
     const isNode = typeof module === 'object' && module.exports;
     const topic = factory(isNode ? require('../quiz-core.js') : root.MudrlantCore);
@@ -9,7 +9,7 @@
 
     const {
         formatFacts, formatNumber, formatYear, censorName, stripBrackets, shuffle, normalizeAnswer,
-        personSimilarity, rankBySimilarity, takeDistinct, eraNearness
+        personSimilarity, rankBySimilarity, takeDistinct, eraNearness, centuryOf, centuryLabel
     } = core;
 
     const CATEGORIES = [
@@ -19,6 +19,7 @@
         { key: 'castice', label: 'Částice', one: 'částice', icon: 'atom', question: 'Která částice to je?', placeholder: 'Napiš název částice…', sort: { by: 'name' } },
         { key: 'vesmir', label: 'Vesmír', one: 'vesmírné těleso', icon: 'orbit', question: 'Co je to za těleso?', placeholder: 'Napiš název…', sort: { by: 'name' } },
         { key: 'mise', label: 'Mise a přístroje', one: 'sonda či přístroj', icon: 'rocket', question: 'Co je to za sondu nebo přístroj?', placeholder: 'Napiš název…', sort: { by: 'name' } },
+        { key: 'vynalezy', label: 'Vynálezy a vynálezci', one: 'vynález', icon: 'lightbulb', question: 'Co je to za vynález?', placeholder: 'Napiš název vynálezu…', sort: { by: 'year' } },
         { key: 'fyzici', label: 'Fyzici', one: 'fyzik', icon: 'user', question: 'Kdo to je?', placeholder: 'Napiš jméno…', sort: { by: 'y' } },
         { key: 'astronomove', label: 'Astronomové a kosmonauti', one: 'astronom', icon: 'telescope', question: 'Kdo to je?', placeholder: 'Napiš jméno…', sort: { by: 'y' } }
     ];
@@ -27,6 +28,9 @@
     const UNIT_QUIZ_SHARE = 0.4;
     const SYMBOL_QUIZ_SHARE = 0.25;
     const MEASURES_QUIZ_SHARE = 0.2;
+    // U vynálezu otázka na vynálezce a na dobu vynálezu (hranice podílů)
+    const INVENTOR_QUIZ_SHARE = 0.3;
+    const INVENTION_TIME_SHARE = 0.55;
 
     // Velká čísla vědecky: 5,97 × 10²⁴
     const SUPERSCRIPTS = '⁰¹²³⁴⁵⁶⁷⁸⁹';
@@ -67,6 +71,13 @@
         // Skupina u třídy částic (Fermion – „lepton“) nedává smysl
         if (item.c === 'castice') return PARTICLE_CLASSES[item.n] ? [] : formatFacts(item, [['group', 'Skupina', v => v]]);
         if (item.c === 'mise') return formatFacts(item, [['year', 'Rok', formatYear], ['op', 'Provozovatel', v => v]]);
+        if (item.c === 'vynalezy') {
+            return formatFacts(item, [
+                ...(mode === 'inventor' ? [] : [['by', 'Vynálezce', v => v]]),
+                ...(mode === 'century' || mode === 'decade' ? [] : [['year', 'Rok', formatYear]]),
+                ['land', 'Země vynálezce', v => v]
+            ]);
+        }
         if (item.c === 'vesmir') {
             return formatFacts(item, [['parent', 'Obíhá kolem', v => v], ['const', 'Souhvězdí', v => v], ['diam', 'Průměr', v => `${scientific(v)} km`], ['mass', 'Hmotnost', v => `${scientific(v)} kg`],
                 ['ly', 'Vzdálenost', v => `${scientific(v)} světelných let`], ['period', 'Oběžná doba', days], ['year', 'Objeveno', formatYear], ['disc', 'Objevitel', v => v]]);
@@ -87,8 +98,11 @@
         [1492, 'objevení Ameriky'], [1618, 'začátek třicetileté války'], [1789, 'Velká francouzská revoluce'],
         [1914, 'začátek 1. světové války'], [1939, 'začátek 2. světové války'], [1989, 'pád Berlínské zdi']
     ];
-    const visualOf = (item) => {
+    const visualOf = (item, mode) => {
         const f = item.f || {};
+        // Vynález na ose s milníky fyziky (u otázky na dobu vynálezu by osa prozradila odpověď)
+        if (item.c === 'vynalezy') return f.year !== undefined && mode !== 'century' && mode !== 'decade'
+            ? { type: 'timeline', spans: [], points: [f.year], hide: [item.n, f.by].filter(Boolean).join(', '), anchors: PHYSICS_EVENTS } : null;
         if (!['fyzici', 'astronomove'].includes(item.c) || f.born === undefined || f.died === undefined) return null;
         return { type: 'timeline', spans: [{ kind: 'life', from: f.born, to: f.died }], points: [], hide: item.n, anchors: PHYSICS_EVENTS };
     };
@@ -213,6 +227,111 @@
     };
     const particlesOverlap = (a, b) => particleContains(a, b) || particleContains(b, a);
 
+    // --- Vynálezy: kdo to vynalezl a kdy ---
+    // Bratři a bratranci (bratři Wrightové) jdou napsat i samotným příjmením (Wrightové, Wright), osoba i příjmením, které nemá jiný vynálezce
+    const inventorSurname = (name) => {
+        const words = String(name || '').split(' ');
+        return words.length >= 2 && words[words.length - 1].length >= 3 ? words[words.length - 1] : null;
+    };
+    const inventorAnswers = (name, ctx) => {
+        const family = /^(bratři|bratranci) (\p{L}+)$/u.exec(name);
+        if (family) return [name, family[2], family[2].replace(/(ové|ovi)$/u, '')];
+        const surname = inventorSurname(name);
+        const shared = surname && ((ctx && ctx.items) || []).some(other => other.c === 'vynalezy' && other.f.by !== name
+            && normalizeAnswer(inventorSurname(other.f.by) || '') === normalizeAnswer(surname));
+        return [name, ...(surname && !shared ? [surname] : [])];
+    };
+    const inventorQuestion = (item, ctx, rng) => {
+        const f = item.f || {};
+        // Jméno vynálezce v názvu vynálezu (Rubikova kostka) by odpověď prozradilo
+        if (!f.by || !ctx.items || censorName(item.n, inventorAnswers(f.by, ctx).join(', ')).includes('[***]')) return null;
+        const excluded = new Set([f.by, ...(f.xn || [])].map(normalizeAnswer));
+        // Vynálezci z podobné doby a ze stejné země (k Edisonovi Bell a Tesla, ne Gutenberg)
+        const candidates = ctx.items.filter(other => other.c === 'vynalezy' && other.q !== item.q && other.f.by && !excluded.has(normalizeAnswer(other.f.by)));
+        const score = (other) => eraNearness(f.year, other.f.year) * 2 + Math.max(0, 3 - Math.abs(f.year - other.f.year) / 25) + (f.land === other.f.land ? 2 : 0)
+            + (/^(bratři|bratranci) /u.test(f.by) === /^(bratři|bratranci) /u.test(other.f.by) ? 1 : 0);
+        const wrong = takeDistinct(rankBySimilarity(candidates, score, rng), 3, excluded, other => other.f.by).map(other => other.f.by);
+        if (wrong.length < 3) return null;
+        return {
+            type: 'inventor',
+            title: 'Kdo to vynalezl?',
+            showName: true,
+            choices: shuffle([f.by, ...wrong], rng).map(name => ({ id: `vynalezce-${name}`, label: name, correct: name === f.by })),
+            accepted: inventorAnswers(f.by, ctx),
+            placeholder: 'Napiš jméno vynálezce…',
+            answerLabel: f.by
+        };
+    };
+    // Doba vynálezu: do roku 1900 století, potom desetiletí (ve 20. století by „20. století“ bylo moc hrubé)
+    const decadeLabel = (decade) => decade >= 1910 && decade < 2000 ? `${decade % 100}. léta` : `${decade}. léta`;
+    const decadeAnswers = (decade) => [...new Set([decadeLabel(decade), `${decade}. léta`, `${decade}`, ...(decade >= 1910 && decade < 2000 ? [`${decade % 100}`] : []),
+        ...Array.from({ length: 10 }, (_, i) => String(decade + i))])];
+    const inventionTimeQuestion = (item, rng) => {
+        const f = item.f || {};
+        if (f.year === undefined || /\d{3,4}/.test(item.n)) return null;
+        if (f.year >= 1900) {
+            const decade = Math.floor(f.year / 10) * 10;
+            const last = Math.floor(new Date().getFullYear() / 10) * 10;
+            const wrong = [...shuffle([-10, 10], rng), ...shuffle([-20, 20], rng), ...shuffle([-30, 30], rng)].map(offset => decade + offset)
+                .filter(other => other >= 1900 && other <= last).slice(0, 3);
+            return {
+                type: 'decade',
+                title: 'Ve kterém desetiletí to bylo vynalezeno?',
+                showName: true,
+                choices: shuffle([decade, ...wrong], rng).map(other => ({ id: `desetileti-${other}`, label: decadeLabel(other), correct: other === decade })),
+                accepted: decadeAnswers(decade),
+                match: 'symbol',
+                placeholder: 'Napiš desetiletí, třeba 60. léta',
+                answerLabel: decadeLabel(decade)
+            };
+        }
+        // Rok 1700 patří do 17. století, většina by ale řekla 18. – takovou otázku vynecháme
+        if (f.year % 100 === 0) return null;
+        const century = centuryOf(f.year);
+        const shift = (offset) => { let result = century + offset; if (century > 0 && result <= 0) result -= 1; return result; };
+        const wrong = [...shuffle([-1, 1], rng), ...shuffle([-2, 2], rng), ...shuffle([-3, 3], rng)].map(shift).filter(other => other <= 19).slice(0, 3);
+        return {
+            type: 'century',
+            title: 'Ve kterém století to bylo vynalezeno?',
+            showName: true,
+            choices: shuffle([century, ...wrong], rng).map(other => ({ id: `stoleti-${other}`, label: centuryLabel(other), correct: other === century })),
+            match: 'century',
+            century,
+            accepted: [centuryLabel(century)],
+            placeholder: 'Napiš století, třeba 19',
+            answerLabel: centuryLabel(century)
+        };
+    };
+    // Vynálezy z let kolem (bez letopočtu v názvu) a další vynálezy téhož vynálezce – nápovědy
+    const inventionsAround = (item, ctx) => ctx.items.filter(other => other.c === 'vynalezy' && other.q !== item.q && other.k === 1 && !/\d/.test(other.n)
+        && Math.abs(other.f.year - item.f.year) <= (item.f.year >= 1900 ? 4 : 30)).sort((a, b) => Math.abs(a.f.year - item.f.year) - Math.abs(b.f.year - item.f.year))
+        .slice(0, 3).map(other => other.n);
+    const otherInventions = (item, ctx) => ctx.items.filter(other => other.c === 'vynalezy' && other.q !== item.q && other.f.by === item.f.by).slice(0, 2).map(other => other.n);
+    const inventionHints = (item, ctx, type) => {
+        const facts = factsOf(item, type, ctx);
+        const by = facts.filter(fact => fact.label === 'Vynálezce');
+        const rest = facts.filter(fact => fact.label !== 'Vynálezce');
+        if (type === 'inventor') {
+            const others = otherInventions(item, ctx);
+            return [
+                { kind: 'facts', label: 'doba a země', icon: 'calendar', facts: rest },
+                { kind: 'facts', label: 'další vynálezy', icon: 'lightbulb', facts: others.length ? [{ label: 'Další vynálezy', value: others.join(', ') }] : [] }
+            ];
+        }
+        if (type === 'century' || type === 'decade') {
+            const around = inventionsAround(item, ctx);
+            return [
+                { kind: 'facts', label: 'vynálezce', icon: 'user', facts: facts },
+                { kind: 'facts', label: 've stejné době', icon: 'calendar-range', facts: around.length ? [{ label: 'Ve stejné době', value: around.join(', ') }] : [] }
+            ];
+        }
+        // Otázka na název: fotka, rok a země, osa a nakonec vynálezce
+        return [{ kind: 'photo' }, { kind: 'facts', facts: rest }, { kind: 'visual', spec: visualOf(item, type) }, { kind: 'facts', label: 'vynálezce', icon: 'user', facts: by }];
+    };
+    const ERA_WORDS = /(?<![\p{L}])(?:středověk|novověk|starověk|antick|renesan|barok|osvícen|průmyslov\p{L}* revoluc|(?:první|druh\p{L}*|1\.|2\.) světov\p{L}* válk)\p{L}*/giu;
+    const hideYears = (text) => core.mergeCensored(stripBrackets(text).replace(/\s{2,}/g, ' ')
+        .replace(/(?<![\p{L}\d])\d{1,4}(?:\.\s*(?:let\p{L}*|lét\p{L}*|století|stol\.))?(?!\d)/gu, '[***]').replace(ERA_WORDS, '[***]'));
+
     return {
         id: 'fyzika',
         title: 'Fyzika',
@@ -227,11 +346,13 @@
             next: 'Další otázka',
             atlas: 'Atlas fyziky',
             placeholder: 'Napiš odpověď…',
-            tierKnown: 'Základní veličiny a jednotky, známé zákony a částice, tělesa, mise a vědci'
+            tierKnown: 'Základní veličiny a jednotky, známé zákony, částice, tělesa, mise, vynálezy a vědci'
         },
         categories: CATEGORIES,
 
         particlesOverlap,
+        // U vynálezu rozhoduje doba, ne země vynálezce (k Bluetooth ne kyvadlové hodiny jen proto, že jsou také z Nizozemska)
+        culture: (item) => item.c === 'vynalezy' ? [] : undefined,
         // Nesprávné možnosti: veličiny se stejnou jednotkou nebo z téhož oboru (energie – práce – teplo), jednotky téže
         // veličiny (metr – stopa – palec), tělesa téhož druhu kolem téhož tělesa (měsíce Jupiteru), fyzici stejného pohlaví a doby
         similarity: (item, other, ctx) => {
@@ -245,6 +366,8 @@
             // Třída, do které částice patří (Elektron – Lepton, Fermion; Neutron – Nukleon, Baryon), by byla druhá správná odpověď
             if (item.c === 'castice') return particlesOverlap(item, other) ? -Infinity : f.group && f.group === g.group ? 3 : 0;
             if (item.c === 'mise') return (item.ty === other.ty ? 3 : 0) + eraNearness(f.year, g.year);
+            // Vynálezy z podobné doby (k telefonu fonograf a žárovka), stejné země vynálezce
+            if (item.c === 'vynalezy') return eraNearness(f.year, g.year) + Math.max(0, 3 - Math.abs(f.year - g.year) / 30) + (f.land === g.land ? 1 : 0) - (f.by === g.by ? 2 : 0);
             // Osoby: pohlaví a doba, k tomu stejná země (k Sacharovovi sovětští vědci, ne Descartes) a Čech k Čechům
             return personSimilarity(item, other) + (item.ty === other.ty ? 2 : 0) + (Boolean(f.nobel) === Boolean(g.nobel) ? 1 : 0)
                 + (f.land && f.land === g.land ? 3 : 0) + ((item.cz === 1) === (other.cz === 1) ? 0 : -3);
@@ -252,6 +375,12 @@
 
         specialQuestion: (item, ctx, rng) => {
             const f = item.f || {};
+            if (item.c === 'vynalezy') {
+                const roll = rng();
+                if (roll < INVENTOR_QUIZ_SHARE) return inventorQuestion(item, ctx, rng);
+                if (roll < INVENTION_TIME_SHARE) return inventionTimeQuestion(item, rng);
+                return null;
+            }
             const same = ctx.items.filter(other => other.c === item.c && other.q !== item.q);
             // Nejpodobnější položky téže kategorie (z téhož oboru), jejich hodnota key jako nesprávné možnosti
             // Značky se porovnávají přesně (m a m² jsou různé), názvy bez diakritiky a velikosti písmen
@@ -321,8 +450,13 @@
             return null;
         },
         // Popis bez hledané jednotky, značky nebo veličiny (název položky u těchto otázek zůstane)
-        censor: (type, text, item) => {
+        censor: (type, text, item, ctx) => {
             const f = item.f || {};
+            if (item.c === 'vynalezy') {
+                if (type === 'inventor') return censorName(stripBrackets(text).replace(/\s{2,}/g, ' '), inventorAnswers(f.by, ctx).join(', '));
+                if (type === 'century' || type === 'decade') return hideYears(text);
+                return null;
+            }
             const plain = stripBrackets(text).replace(/\s{2,}/g, ' ').replace(/\s+([,;.?!])/g, '$1');
             // Slova popisu odvozená od názvu jinak, než zakrytí tvarů pozná (jádra u Jaderné fúze, otáčení u Otáček za minutu)
             if (type === 'name' && EXTRA_MASK[item.q]) {
@@ -342,8 +476,8 @@
             return null;
         },
 
-        hints: hintsFor,
-        visual: visualOf,
+        hints: (item, ctx, type) => item.c === 'vynalezy' ? inventionHints(item, ctx, type) : hintsFor(item, ctx, type),
+        visual: (item, ctx, mode) => visualOf(item, mode),
         facts: (item, ctx, mode) => factsOf(item, mode, ctx),
         subtitle: (item) => {
             const f = item.f || {};
@@ -353,6 +487,7 @@
             if (item.c === 'pojmy') return [item.ty, f.named ? `po: ${f.named}` : ''].filter(Boolean).join(' · ');
             if (item.c === 'castice') return f.group || 'částice';
             if (item.c === 'mise') return [item.ty, f.year !== undefined ? formatYear(f.year) : ''].filter(Boolean).join(' · ');
+            if (item.c === 'vynalezy') return [f.by, f.year !== undefined ? formatYear(f.year) : ''].filter(Boolean).join(' · ');
             return [f.born !== undefined ? `${formatYear(f.born)}–${f.died !== undefined ? formatYear(f.died) : ''}` : '', f.land].filter(Boolean).join(' · ');
         },
         isCzech: (item) => item.cz === 1

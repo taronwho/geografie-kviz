@@ -1,4 +1,4 @@
-// Téma Hudba: skladatelé, hudebníci a zpěváci, kapely a slavná díla (data/hudba.json)
+// Téma Hudba: skladatelé, hudebníci a zpěváci, kapely, slavná díla, opery a muzikály (data/hudba.json)
 (function (root, factory) {
     const isNode = typeof module === 'object' && module.exports;
     const topic = factory(isNode ? require('../quiz-core.js') : root.MudrlantCore);
@@ -9,7 +9,7 @@
 
     const {
         formatYear, formatFacts, shuffle, eraNearness, personSimilarity, censorName, normalizeAnswer, rankBySimilarity, takeDistinct,
-        isRealPhoto, nameAnswers, buildTimeline, isAnswerMatch
+        isRealPhoto, nameAnswers, buildTimeline, isAnswerMatch, centuryOf, centuryLabel
     } = core;
 
     const PERSON = { question: 'Kdo to je?', placeholder: 'Napiš jméno…', sort: { by: 'y' } };
@@ -17,13 +17,19 @@
         { key: 'skladatele', label: 'Skladatelé', one: 'skladatel', icon: 'piano', ...PERSON },
         { key: 'hudebnici', label: 'Hudebníci a zpěváci', one: 'hudebník', icon: 'mic-vocal', ...PERSON },
         { key: 'kapely', label: 'Kapely', one: 'kapela', icon: 'guitar', question: 'Co je to za kapelu?', placeholder: 'Napiš název kapely…', sort: { by: 'y' } },
-        { key: 'dila', label: 'Slavná díla', one: 'dílo', icon: 'music-2', question: 'Které dílo to je?', placeholder: 'Napiš název…', sort: { by: 'y' } }
+        { key: 'dila', label: 'Slavná díla', one: 'dílo', icon: 'music-2', question: 'Které dílo to je?', placeholder: 'Napiš název…', sort: { by: 'y' } },
+        { key: 'opery', label: 'Opery a muzikály', one: 'jevištní dílo', icon: 'drama', question: 'Která opera nebo muzikál to je?', placeholder: 'Napiš název…', sort: { by: 'y' } }
     ];
     const isPerson = (item) => item.c === 'skladatele' || item.c === 'hudebnici';
+    // Dílo: skladba, píseň či album, nebo jevištní dílo (opera, opereta, muzikál)
+    const isWork = (item) => item.c === 'dila' || item.c === 'opery';
+    const isStage = (item) => item.c === 'opery';
 
     // Jak často se u díla ptáme na autora a u skladatele na období
     const AUTHOR_QUIZ_SHARE = 0.4;
     const PERIOD_QUIZ_SHARE = 0.3;
+    // U opery a muzikálu navíc otázka na století premiéry (hranice podílu po otázce na autora)
+    const PREMIERE_QUIZ_SHARE = 0.6;
     const THIS_YEAR = new Date().getFullYear();
 
     // Hudební období (u skladatele určené při sestavení dat jen tam, kde je zařazení jasné)
@@ -47,7 +53,7 @@
             const worksBy = new Map();
             const surnames = new Map();
             for (const item of ctx.items) {
-                if (item.c === 'dila' && item.f && item.f.byq) worksBy.set(item.f.byq, [...(worksBy.get(item.f.byq) || []), item]);
+                if (isWork(item) && item.f && item.f.byq) worksBy.set(item.f.byq, [...(worksBy.get(item.f.byq) || []), item]);
                 const surname = isPerson(item) ? surnameOf(item.n) : null;
                 if (surname) surnames.set(normalizeAnswer(surname), [...(surnames.get(normalizeAnswer(surname)) || []), item]);
             }
@@ -55,7 +61,7 @@
         }
         return indexes.get(ctx.items);
     };
-    const authorOf = (item, ctx) => item.c === 'dila' && item.f && item.f.byq ? indexOf(ctx).byId.get(item.f.byq) || null : null;
+    const authorOf = (item, ctx) => isWork(item) && item.f && item.f.byq ? indexOf(ctx).byId.get(item.f.byq) || null : null;
 
     // Příjmení slavného (Mozart, Smetana) – bez přípon „mladší“ a římských číslic
     const NAME_SUFFIX = /^(mladší|starší|ml\.|st\.|jr\.|sr\.|[IVX]+\.?)$/iu;
@@ -107,7 +113,7 @@
             return facts;
         }
         const facts = [];
-        if (f.year !== undefined && mode !== 'author') facts.push({ label: 'Rok', value: formatYear(f.year) });
+        if (f.year !== undefined && mode !== 'author' && mode !== 'century') facts.push({ label: isStage(item) ? 'Premiéra' : 'Rok', value: formatYear(f.year) });
         facts.push(...formatFacts(item, [['genre', 'Žánr', v => v], ['land', 'Země', v => v]]));
         // Autor, jehož jméno je v názvu, by u otázky na název prozradil odpověď
         if (mode !== 'author' && (answered || !(f.by && core.isFactVisible(f.by, item.n)))) facts.push(...formatFacts(item, [['by', 'Autor', v => v]]));
@@ -199,9 +205,14 @@
         const author = authorOf(item, ctx);
         if (!author || GENERIC_TITLE.test(item.n)) return null;
         const excluded = new Set([author.q, ...(item.xa || [])]);
-        // Autor, jehož jméno je v názvu díla, by byl nápadný
-        const candidates = ctx.items.filter(other => other.c === author.c && !excluded.has(other.q) && !censorName(item.n, other.n).includes('[***]'));
-        const wrong = takeDistinct(rankBySimilarity(candidates, other => authorSimilarity(author, other, item, ctx) + core.cultureScore(author, other), rng), 3, new Set([normalizeAnswer(author.n)]), other => other.n);
+        // Autor, jehož jméno je v názvu díla, by byl nápadný. U opery a muzikálu jen autoři jiných oper a muzikálů
+        // (k Verdimu Puccini a Rossini, k Lloydu Webberovi Bernstein – ne zpěvačka bez jediného muzikálu)
+        const authorsOf = (filter) => ctx.items.filter(other => filter(other) && !excluded.has(other.q) && !censorName(item.n, other.n).includes('[***]'));
+        const stageAuthors = isStage(item) ? authorsOf(other => isPerson(other) && (indexOf(ctx).worksBy.get(other.q) || []).some(isStage)) : [];
+        const candidates = stageAuthors.length >= 3 ? stageAuthors : authorsOf(other => other.c === author.c);
+        // U oper a muzikálů rozhoduje víc doba (k Lloydu Webberovi Bernstein, ne barokní Purcell)
+        const eraBonus = (other) => isStage(item) ? Math.max(0, 4 - Math.abs(((author.f || {}).y ?? 0) - ((other.f || {}).y ?? 0)) / 40) : 0;
+        const wrong = takeDistinct(rankBySimilarity(candidates, other => authorSimilarity(author, other, item, ctx) + core.cultureScore(author, other) + eraBonus(other), rng), 3, new Set([normalizeAnswer(author.n)]), other => other.n);
         if (wrong.length < 3 || censorName(item.n, author.n).includes('[***]')) return null;
         const kind = (item.f || {}).kind;
         return {
@@ -212,6 +223,27 @@
             accepted: nameAnswers(author, nameAliases(author, ctx)),
             placeholder: author.c === 'kapely' ? 'Napiš název kapely…' : 'Napiš jméno…',
             answerLabel: author.n
+        };
+    };
+    // Ve kterém století měla opera či muzikál premiéru? Nesprávná století co nejbližší (k 19. století 18. a 20.)
+    const premiereQuestion = (item, rng) => {
+        const f = item.f || {};
+        // Rok 1900 patří do 19. století, ale většina by řekla 20. – takovou otázku vynecháme, stejně jako letopočet v názvu
+        if (f.year === undefined || f.year < 1550 || f.year % 100 === 0 || /\d{3,4}/.test(item.n)) return null;
+        const century = centuryOf(f.year);
+        const last = centuryOf(THIS_YEAR);
+        const wrong = [...shuffle([-1, 1], rng), ...shuffle([-2, 2], rng)].map(offset => century + offset).filter(other => other >= 16 && other <= last).slice(0, 3);
+        if (wrong.length < 3) return null;
+        return {
+            type: 'century',
+            title: 'Ve kterém století měla premiéru?',
+            showName: true,
+            choices: shuffle([century, ...wrong], rng).map(other => ({ id: `stoleti-${other}`, label: centuryLabel(other), correct: other === century })),
+            match: 'century',
+            century,
+            accepted: [centuryLabel(century)],
+            placeholder: 'Napiš století, třeba 19',
+            answerLabel: centuryLabel(century)
         };
     };
     const periodQuestion = (item, rng) => {
@@ -234,6 +266,8 @@
 
     // Z popisu u otázky na období zmizí období, směry a letopočty (prozradily by odpověď)
     const PERIOD_WORDS = /(?<![\p{L}])(?:renesan|barok|klasicis|klasicist|romanti|modern|impresionis|expresionis|neoklasic|avantgard|vídeňsk|hudb)\p{L}*/giu;
+    // U otázky na století premiéry: slohy a směry, které dobu prozradí (barokní opera, romantická, veristická)
+    const ERA_WORDS = /(?<![\p{L}])(?:renesan|barok|klasicis|klasicist|romanti|veris|impresionis|expresionis|neoklasic|avantgard|modern)\p{L}*/giu;
     const hideYears = (text) => text.replace(/(?<![\p{L}\d])\d{1,4}(?!\d)(\.\s*(?:století|stol\.))?/gu, '[***]');
 
     // --- Nápovědy podle druhu otázky ---
@@ -252,6 +286,14 @@
                 factsStep(origin, 'vznik díla', 'calendar'),
                 factsStep(works.length ? [{ label: 'Další díla autora', value: works.join(', ') }] : [], 'další díla', 'music-2'),
                 { kind: 'visual', spec: portraitOf(author) }
+            ];
+        }
+        if (type === 'century') {
+            // Autor a země řeknou hodně, ale století ne hned; osa bez letopočtů ukáže, co se dělo kolem (roky života autora by století prozradily)
+            return [
+                factsStep(factsOf(item, 'century').filter(fact => ['Autor', 'Země', 'Žánr'].includes(fact.label)), 'autor a země', 'drama'),
+                factsStep(relatedOf(item), 'libreto', 'scroll-text'),
+                { kind: 'visual', spec: blindTimelineOf(item) },
             ];
         }
         if (type === 'period') {
@@ -336,7 +378,7 @@
             if (item.gr && item.gr === other.gr) score += 3;
             score += decadeNearness(f.y, g.y);
             // Druh díla podle štítku (opereta k operetě a opeře, ne k narozeninové písničce)
-            if (item.c === 'dila') score += (f.byq && f.byq === g.byq ? 4 : 0) + (workKind(item) === workKind(other) ? 3 : -2) + (item.ty && item.ty === other.ty ? 3 : 0);
+            if (isWork(item)) score += (f.byq && f.byq === g.byq ? 4 : 0) + (workKind(item) === workKind(other) ? 3 : -2) + (item.ty && item.ty === other.ty ? 3 : 0);
             score += (item.cz === 1) === (other.cz === 1) ? 2 : -3;
             return score;
         },
@@ -346,6 +388,7 @@
         specialQuestion: (item, ctx, rng) => {
             const roll = rng();
             if (item.c === 'dila') return roll < AUTHOR_QUIZ_SHARE ? authorQuestion(item, ctx, rng) : null;
+            if (isStage(item)) return roll < AUTHOR_QUIZ_SHARE ? authorQuestion(item, ctx, rng) : roll < PREMIERE_QUIZ_SHARE ? premiereQuestion(item, rng) : null;
             if (item.c === 'skladatele') return roll < PERIOD_QUIZ_SHARE ? periodQuestion(item, rng) : null;
             return null;
         },
@@ -357,6 +400,7 @@
             }
             if (type === 'name' && isPerson(item)) return censorPerson(text, item, ctx);
             if (type === 'period') return hideYears(core.stripBrackets(text).replace(/\s{2,}/g, ' ').replace(PERIOD_WORDS, '[***]'));
+            if (type === 'century') return core.mergeCensored(hideYears(core.stripBrackets(text).replace(/\s{2,}/g, ' ').replace(ERA_WORDS, '[***]')));
             return null;
         },
         // Kterou jinou osobnost či kapelu hráč napsal u otázky na autora

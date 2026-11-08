@@ -1,13 +1,13 @@
 # Obrázky k nahrazení před komerčním vydáním
 
-Sestaveno 2026-11-07 skriptem `scripts/build-licenses.mjs` z metadat Wikimedia Commons (`data/licenses.json`).
+Sestaveno 2026-11-08 skriptem `scripts/build-licenses.mjs` z metadat Wikimedia Commons (`data/licenses.json`).
 Uvedené soubory mají licenci, která nedovoluje komerční užití nebo úpravy (ořez, překrytí), jsou „fair use“, nebo licenci neuvádějí.
 Před vydáním v Google Play je nutné je nahradit jiným obrázkem (nebo položku ponechat bez fotky). Licence CC BY, CC BY-SA, CC0 a volná díla jsou v pořádku,
 vyžadují jen uvedení autora a licence – to dělá stránka Zdroje a licence (`licence.html`).
 
 ## Souhrn
 
-- souborů celkem: **23629**, s načtenými metadaty: **23629**, zatím nestaženo: **0**
+- souborů celkem: **24412**, s načtenými metadaty: **24412**, zatím nestaženo: **0**
 - problémových: **0**
 
 ## Počty podle témat
@@ -15,13 +15,13 @@ vyžadují jen uvedení autora a licence – to dělá stránka Zdroje a licence
 | Téma | Souborů | Problémových | NC | ND | NC-ND | fair use | bez licence | chybí |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | architektura | 1668 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| biologie | 3319 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| biologie | 3711 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | chemie | 961 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| film | 719 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| fyzika | 1493 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| film | 720 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| fyzika | 1587 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | geologie | 390 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| historie | 2890 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| hudba | 1231 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| historie | 3061 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| hudba | 1359 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | literatura | 1304 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | mytologie | 751 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | sport | 1695 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |

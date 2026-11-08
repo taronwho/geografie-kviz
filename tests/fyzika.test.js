@@ -70,3 +70,50 @@ test('fyzika: popis nových položek nezná jejich název a možnosti jsou tého
     assert.ok(topic.facts(voyager, ctx, 'name').some(fact => fact.label === 'Rok'));
     assert.equal(topic.visual(find('Albert Einstein'), ctx, 'name').type, 'timeline');
 });
+
+// Generátor, který poprvé vrátí zadané číslo (volba druhu otázky) a pak pokračuje se semínkem
+const rngStartingWith = (first, seed = 'fyzika') => {
+    const rng = core.createSeededRandom(seed);
+    let used = false;
+    return () => used ? rng() : (used = true, first);
+};
+
+test('fyzika: vynálezy a vynálezci – data, otázka na vynálezce a na dobu vynálezu', () => {
+    const inventions = data.items.filter(item => item.c === 'vynalezy');
+    assert.ok(inventions.length >= 80 && inventions.length <= 300, `vynálezů ${inventions.length}`);
+    const known = inventions.filter(item => item.k === 1).length / inventions.length;
+    assert.ok(known >= 0.2 && known <= 0.35, `známých ${known}`);
+    assert.ok(inventions.every(item => item.f.by && Number.isFinite(item.f.year) && item.ty === 'vynález'));
+    // Vynálezce je jen údaj, fyzik není dvakrát (Newton, Faraday jsou mezi fyziky, vynálezy nejsou položkami fyziků)
+    assert.ok(!inventions.some(item => data.items.some(other => other.c === 'fyzici' && other.q === item.q)));
+    assert.equal(find('Telefon').f.by, 'Alexander Graham Bell');
+    assert.ok(find('Lodní šroub').cz === 1 && find('Kontaktní čočka').f.by === 'Otto Wichterle');
+    assert.ok(inCollection('ceske-vynalezy').includes('Ruchadlo') && inCollection('vynalezy-19-stoleti').includes('Žárovka'));
+    // Kdo to vynalezl? – soupeři o prvenství (Meucci, Gray) mezi možnostmi nejsou
+    const phone = find('Telefon');
+    for (const seed of ['a', 'b', 'c', 'd']) {
+        const question = topic.specialQuestion(phone, ctx, rngStartingWith(0.1, seed));
+        assert.equal(question.type, 'inventor');
+        assert.equal(question.choices.filter(choice => choice.correct).length, 1);
+        assert.ok(!question.choices.some(choice => /Meucci|Gray|Reis/.test(choice.label)), question.choices.map(choice => choice.label).join(', '));
+        assert.ok(core.checkAnswer('Bell', question));
+    }
+    const wright = topic.specialQuestion(find('Letoun'), ctx, rngStartingWith(0.1));
+    assert.ok(core.checkAnswer('Wrightové', wright) && core.checkAnswer('bratři Wrightové', wright));
+    assert.doesNotMatch(topic.censor('inventor', 'Telefon vynalezl Alexander Graham Bell, Bellův patent je z roku 1876.', phone, ctx), /Bell/);
+    // Doba: do roku 1900 století, potom desetiletí; letopočty z popisu zmizí
+    const century = topic.specialQuestion(phone, ctx, rngStartingWith(0.4));
+    assert.equal(century.title, 'Ve kterém století to bylo vynalezeno?');
+    assert.equal(century.answerLabel, '19. století');
+    const decade = topic.specialQuestion(find('Počítačová myš'), ctx, rngStartingWith(0.4));
+    assert.equal(decade.type, 'decade');
+    assert.equal(decade.answerLabel, '60. léta');
+    assert.ok(core.checkAnswer('1964', decade) && core.checkAnswer('60. léta', decade));
+    assert.doesNotMatch(topic.censor('century', 'Telefon (1876) je vynález 19. století.', phone, ctx), /1876|19\./);
+    // Nápovědy: u názvu fotka, rok a země, osa a nakonec vynálezce; u vynálezce bez jména
+    assert.deepEqual(topic.hints(phone, ctx, 'name').map(hint => hint.label || hint.kind), ['photo', 'facts', 'visual', 'vynálezce']);
+    assert.ok(!topic.hints(phone, ctx, 'inventor').some(hint => (hint.facts || []).some(fact => /Bell/.test(fact.value))));
+    // Nesprávné možnosti názvu: vynálezy podobné doby
+    const choices = core.buildItemChoices(phone, data.items, core.createSeededRandom('tel'), other => topic.similarity(phone, other, ctx), core.cultureLandsFor(topic, ctx));
+    assert.ok(choices.every(choice => find(choice.label).c === 'vynalezy' && Math.abs(find(choice.label).f.year - 1876) <= 120), choices.map(choice => choice.label).join(', '));
+});

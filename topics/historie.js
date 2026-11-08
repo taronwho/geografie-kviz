@@ -1,4 +1,4 @@
-// Téma Historie: panovníci, prezidenti a státníci, osobnosti, bitvy, války a revoluce, říše a státy minulosti (data/historie.json)
+// Téma Historie: panovníci, prezidenti a státníci, osobnosti, bitvy, války a revoluce, události, říše a státy minulosti (data/historie.json)
 (function (root, factory) {
     const isNode = typeof module === 'object' && module.exports;
     const topic = factory(isNode ? require('../quiz-core.js') : root.MudrlantCore);
@@ -7,7 +7,8 @@
 })(typeof self !== 'undefined' ? self : this, (core) => {
     'use strict';
 
-    const { formatYear, formatFacts, centuryOf, centuryLabel, getCountryNames, shuffle, eraNearness, personSimilarity } = core;
+    const { formatYear, formatFacts, centuryOf, centuryLabel, getCountryNames, shuffle, eraNearness, personSimilarity, buildCountryChoices, countryAnswers,
+        censorCountry, getCountryAliases, findAnswerCountry, distanceKm, censorName } = core;
 
     const PERSON = { question: 'Kdo to je?', placeholder: 'Napiš jméno…', sort: { by: 'y' } };
     const CATEGORIES = [
@@ -15,15 +16,24 @@
         { key: 'statnik', label: 'Prezidenti a státníci', one: 'státník', icon: 'scale', ...PERSON, spanLabel: 'v úřadu' },
         { key: 'osobnost', label: 'Osobnosti', one: 'osobnost', icon: 'user', ...PERSON, spanLabel: 'v úřadu' },
         { key: 'bitva', label: 'Bitvy, války a revoluce', one: 'událost', icon: 'swords', question: 'Která bitva, válka nebo revoluce to je?', placeholder: 'Napiš název…', sort: { by: 'y' } },
+        { key: 'udalosti', label: 'Události', one: 'událost', icon: 'calendar-days', question: 'Která událost to je?', placeholder: 'Napiš název události…', sort: { by: 'y' } },
         { key: 'rise', label: 'Říše a státy minulosti', one: 'stát', icon: 'castle', question: 'Který stát to je?', placeholder: 'Napiš název státu…', sort: { by: 'y' } }
     ];
     const isPerson = (item) => item.c === 'panovnik' || item.c === 'statnik' || item.c === 'osobnost';
     // Událost je součástí jiné (f.war: Říjnová revoluce → Ruská revoluce, bitva u Azincourtu → stoletá válka)
+    // Událost má stejná fakta jako bitva (rok, místo, součást) a slepou mapu, když je známé místo
+    const isEvent = (item) => item.c === 'bitva' || item.c === 'udalosti';
+    // Smlouvy, listiny a konference se „podepisují“ a „konají“, ostatní události se „staly“
+    const isTreaty = (item) => item.c === 'udalosti' && /smlouva|listina/u.test(item.ty || '');
+    const EVENT_GROUPS = [['dohody', /smlouva|listina|konference|koncil|proces|korunovace/u], ['katastrofy', /zemětřesení|epidemie|hladomor|požár|povodeň|havárie|výbuch sopky|krize/u],
+        ['nasili', /masakr|atentát|převrat|protest|invaze/u], ['vypravy', /expedice/u]];
+    const eventGroup = (item) => item.c === 'udalosti' ? (EVENT_GROUPS.find(([, pattern]) => pattern.test(item.ty || '')) || [])[0] : undefined;
     const isPartOf = (part, whole) => Boolean((part.f || {}).war) && part.f.war.toLocaleLowerCase('cs') === whole.n.toLocaleLowerCase('cs');
     const categoryOf = (item) => CATEGORIES.find(category => category.key === item.c) || CATEGORIES[0];
 
-    // Jak často se místo „Kdo to je?“ ptáme na století
+    // Jak často se místo „Kdo to je?“ ptáme na století (u události ještě na stát)
     const CENTURY_QUIZ_SHARE = 0.3;
+    const COUNTRY_QUIZ_SHARE = 0.5;
 
     // Otázka na století se ptá na jeden okamžik (nástup, narození, vznik), ne na celý život –
     // kdo žil na přelomu století (Eliška Přemyslovna 1292–1330), patřil by do obou
@@ -44,9 +54,10 @@
         if (isPerson(item) && f.from !== undefined) return { year: f.from, title: `Ve kterém století nastoupil${ending} do úřadu?` };
         if (isPerson(item) && f.born !== undefined && !isEstimate(f.born)) return { year: f.born, title: `Ve kterém století se narodil${ending}?` };
         if (isPerson(item) && f.died !== undefined && !isEstimate(f.died)) return { year: f.died, title: `Ve kterém století zemřel${ending}?` };
-        if (item.c === 'bitva' && f.year !== undefined) {
+        if (isTreaty(item) && f.year !== undefined) return { year: f.year, title: 'Ve kterém století byla podepsána?' };
+        if (isEvent(item) && f.year !== undefined) {
             const spansCenturies = f.end !== undefined && centuryOf(f.end) !== centuryOf(f.year);
-            return { year: f.year, title: spansCenturies ? 'Ve kterém století to začalo?' : 'Ve kterém století se to odehrálo?' };
+            return { year: f.year, title: spansCenturies ? 'Ve kterém století to začalo?' : item.c === 'udalosti' ? 'Ve kterém století se to stalo?' : 'Ve kterém století se to odehrálo?' };
         }
         if (item.c === 'rise' && f.from !== undefined) return { year: f.from, title: 'Ve kterém století tento stát vznikl?' };
         return null;
@@ -62,7 +73,7 @@
     const periodOf = (item) => {
         const f = item.f || {};
         if (isPerson(item)) return f.born !== undefined ? [f.born, f.died] : [f.y, f.y];
-        if (item.c === 'bitva') return [f.year, f.end];
+        if (isEvent(item)) return [f.year, f.end];
         return f.from !== undefined ? [f.from, f.to] : [f.y, f.y];
     };
 
@@ -92,9 +103,13 @@
             if (withYears && f.from !== undefined) facts.push({ label: item.c === 'panovnik' ? 'Vláda' : 'V úřadu', value: range(f.from, f.to) });
             return [...facts, ...century, ...formatFacts(item, [['dyn', 'Rod', v => v], ['land', 'Země', v => v]])];
         }
-        if (item.c === 'bitva') {
+        if (isEvent(item)) {
             const facts = withYears ? [{ label: f.end ? 'Doba' : 'Rok', value: range(f.year, f.end) }] : [];
-            return [...facts, ...century, ...formatFacts({ ...item, f }, [['war', 'Součást', v => v], ['place', 'Místo', v => v]])];
+            // U otázky na stát místo ani stát nezazní
+            const where = mode === 'location' ? [] : [['place', 'Místo', v => v]];
+            const state = item.c === 'udalosti' && mode !== 'location' && countries ? getCountryNames(item, countries) : [];
+            return [...facts, ...century, ...formatFacts({ ...item, f }, [['war', 'Součást', v => v], ...where]),
+                ...(state.length && state.length <= 2 && !state.includes(f.place) ? [{ label: state.length > 1 ? 'Státy' : 'Stát', value: state.join(', ') }] : [])];
         }
         const facts = withYears ? [{ label: 'Doba trvání', value: range(f.from, f.to) }] : [];
         return [...facts, ...century, ...formatFacts(item, [['cap', 'Hlavní město', v => v]])];
@@ -199,7 +214,9 @@
 
     // Časová osa (u bitev se souřadnicemi slepá mapa); u otázky na století by roky na ose prozradily odpověď
     const visualOf = (item, ctx, mode) => {
-        if (item.c === 'bitva' && item.la !== undefined) {
+        // U otázky na stát by mapa odpověď prozradila
+        if (mode === 'location') return null;
+        if (isEvent(item) && item.la !== undefined) {
             return { type: 'map', lat: item.la, lon: item.lo, span: 24, highlightIso: '', label: 'Místo je uprostřed' };
         }
         if (mode === 'century') return null;
@@ -218,7 +235,7 @@
             if (f.from !== undefined) spans.push({ kind: 'reign', from: f.from, to: f.to ?? (alive ? THIS_YEAR : f.died ?? f.from) });
             return spans.length ? { type: 'timeline', spans, points: [], hide: item.n, spanLabel: categoryOf(item).spanLabel } : null;
         }
-        if (item.c === 'bitva') {
+        if (isEvent(item)) {
             if (f.year === undefined) return null;
             return f.end ? { type: 'timeline', spans: [{ kind: 'reign', from: f.year, to: f.end }], points: [], hide: item.n, spanLabel: 'trvání' }
                 : { type: 'timeline', spans: [], points: [f.year], hide: item.n };
@@ -248,7 +265,7 @@
         const people = pick(ctx.items.filter(other => isPerson(other) && other.f && other.f.born <= year && year <= (other.f.died ?? THIS_YEAR)
             && Math.abs(activeYear(other) - year) <= 30),
             other => (sameHistory(other) ? 2 : 0) - Math.abs(activeYear(other) - year) / 15, 3);
-        const events = pick(ctx.items.filter(other => other.c === 'bitva' && other.f && Math.abs(other.f.year - year) <= 10),
+        const events = pick(ctx.items.filter(other => isEvent(other) && other.f && Math.abs(other.f.year - year) <= 10),
             other => (item.f.war && other.f.war === item.f.war ? 3 : 0) + (sameHistory(other) ? 1 : 0), 2);
         return [
             people.length ? { label: 'Tehdy žili', value: people.join(', ') } : null,
@@ -269,7 +286,7 @@
             const life = f.born !== undefined ? range(f.born, f.died) : '';
             return [life, f.land].filter(Boolean).join(' · ') || categoryOf(item).one;
         }
-        if (item.c === 'bitva') return [range(f.year, f.end), placeOf(item, countries) || getCountryNames(item, countries)[0]].filter(Boolean).join(' · ');
+        if (isEvent(item)) return [range(f.year, f.end), placeOf(item, countries) || getCountryNames(item, countries)[0]].filter(Boolean).join(' · ');
         return range(f.from, f.to);
     };
 
@@ -278,6 +295,47 @@
     // Slova, která dobu prozradí (konflikt studené války, sovětské jednotky, za druhé světové války)
     const ERA_WORDS = /(?<![\p{L}])(?:studen\p{L}* válk\p{L}*|(?:první|druh\p{L}*|1\.|2\.) světov\p{L}* válk\p{L}*|sovětsk\p{L}*|SSSR|nacist\p{L}*|nacismu|komunist\p{L}*|bolševi\p{L}*|napoleonsk\p{L}*|středověk\p{L}*|novověk\p{L}*|starověk\p{L}*|antick\p{L}*|pravěk\p{L}*|raně novověk\p{L}*)(?![\p{L}])/giu;
     const hideEra = (text) => core.mergeCensored(hideYears(text).replace(ERA_WORDS, '[***]'));
+
+    // --- Otázka „Ve kterém dnešním státě se to stalo?“ (u události s jedním známým státem, jehož název ani místo nejsou v názvu) ---
+    const eventCountry = (item, countries) => {
+        const known = (item.co || []).filter(qid => countries && countries[qid]);
+        if (item.c !== 'udalosti' || known.length !== 1 || (item.co || []).length > 2) return null;
+        const name = countries[known[0]].name;
+        const place = (item.f || {}).place;
+        const words = [name, ...getCountryAliases([known[0]]), place].filter(Boolean);
+        return words.some(word => core.isFactVisible(word, item.n)) ? null : known[0];
+    };
+    // Středy států podle měst a událostí v datech (vzdálenost pro nesprávné možnosti: k Rakousku Německo a Česko, ne Peru)
+    const centresCache = new WeakMap();
+    const countryCentres = (items) => {
+        if (!centresCache.has(items)) {
+            const sums = new Map();
+            for (const other of items) {
+                if (other.la === undefined || (other.co || []).length !== 1) continue;
+                const sum = sums.get(other.co[0]) || { lat: 0, lon: 0, n: 0 };
+                sums.set(other.co[0], { lat: sum.lat + other.la, lon: sum.lon + other.lo, n: sum.n + 1 });
+            }
+            centresCache.set(items, new Map([...sums].map(([qid, sum]) => [qid, { la: sum.lat / sum.n, lo: sum.lon / sum.n }])));
+        }
+        return centresCache.get(items);
+    };
+    const countryQuestion = (item, ctx, rng) => {
+        const countryId = eventCountry(item, ctx.countries);
+        if (!countryId) return null;
+        const name = ctx.countries[countryId].name;
+        return {
+            type: 'location',
+            title: isTreaty(item) ? 'Ve kterém dnešním státě byla podepsána?' : 'Ve kterém dnešním státě se to stalo?',
+            showName: true,
+            choices: buildCountryChoices(countryId, ctx.countries, rng, (id) => {
+                const centre = item.la !== undefined ? countryCentres(ctx.items || []).get(id) : null;
+                return centre ? distanceKm(item, centre) : undefined;
+            }).map(choice => ({ ...choice, topic: 'zemepis' })),
+            accepted: countryAnswers([countryId], [name]),
+            placeholder: 'Napiš stát…',
+            answerLabel: name
+        };
+    };
 
     return {
         id: 'historie',
@@ -293,12 +351,12 @@
             next: 'Další otázka',
             atlas: 'Atlas dějin',
             placeholder: 'Napiš odpověď…',
-            tierKnown: 'Slavní panovníci, prezidenti, bitvy'
+            tierKnown: 'Slavní panovníci, prezidenti, bitvy a události'
         },
         categories: CATEGORIES,
 
         // Bitvy se řadí podle státu, kde se odehrály (osoby podle země, ze které pocházejí)
-        culture: (item, ctx) => item.c === 'bitva' ? core.getCountryNames(item, (ctx && ctx.countries) || {}).slice(0, 3) : undefined,
+        culture: (item, ctx) => isEvent(item) ? core.getCountryNames(item, (ctx && ctx.countries) || {}).slice(0, 3) : undefined,
 
         // Nesprávné možnosti: stejné pohlaví a podobná doba, stejné dějiny (anglický král k anglickým), rod, válka
         similarity: (item, other) => {
@@ -311,7 +369,9 @@
             // Osoby: blízká doba i v rámci století (k Disraelimu Gladstone, ne Sunak) a stejná země
             if (isPerson(item) && f.y !== undefined && g.y !== undefined) score += Math.max(0, 3 - Math.abs(f.y - g.y) / 30);
             if (isPerson(item) && f.land && f.land === g.land) score += 2;
-            if (item.c === 'bitva' && f.war && f.war === g.war) score += 3;
+            if (isEvent(item) && f.war && f.war === g.war) score += 3;
+            // Události stejné skupiny (ke smlouvě smlouvy a kongresy, k zemětřesení katastrofy a epidemie)
+            if (item.c === 'udalosti' && eventGroup(item) && eventGroup(item) === eventGroup(other)) score += 3;
             const regions = cachedRegions(item);
             if (regions.length && cachedRegions(other).some(region => regions.includes(region))) score += 2;
             return score;
@@ -319,7 +379,9 @@
 
         // Občas „Ve kterém století začal vládnout?“ (narodila se, odehrálo se…) – jméno je pak vidět a z popisu zmizí letopočty
         specialQuestion: (item, ctx, rng) => {
-            if (!(rng() < CENTURY_QUIZ_SHARE)) return null;
+            const roll = rng();
+            if (item.c === 'udalosti' && roll >= CENTURY_QUIZ_SHARE && roll < COUNTRY_QUIZ_SHARE) return countryQuestion(item, ctx, rng);
+            if (!(roll < CENTURY_QUIZ_SHARE)) return null;
             const event = centuryEvent(item);
             // Rok 1300 patří do 13. století, většina lidí by ale řekla 14. – takovou otázku vynecháme;
             // stejně tak, když je letopočet vidět už v názvu („Pád Akkonu (1291)“)
@@ -347,8 +409,26 @@
                 answerLabel: centuryLabel(century)
             };
         },
-        censor: (type, text) => type === 'century' ? hideEra(text) : null,
+        censor: (type, text, item, ctx) => {
+            if (type === 'century') return hideEra(text);
+            // U otázky na stát zmizí stát, národnost i místo (Versailles prozradí Francii)
+            if (type === 'location') {
+                const countryId = eventCountry(item, ctx.countries);
+                if (!countryId) return null;
+                const place = (item.f || {}).place;
+                const hidden = censorCountry(text, ctx.countries[countryId].name, getCountryAliases([countryId]));
+                return place ? censorName(hidden, place) : hidden;
+            }
+            return null;
+        },
+        findAnswer: (type, answer, item, ctx) => {
+            if (type !== 'location') return null;
+            const countryId = findAnswerCountry(answer, item.co || [], ctx.countries || {});
+            return countryId ? { topic: 'zemepis', id: countryId } : null;
+        },
         hints: (item, ctx, type) => {
+            // Stát: fakta bez místa a státu, fotka, osa
+            if (type === 'location') return [{ kind: 'facts', facts: factsOf(item, 'location', ctx.countries) }, { kind: 'photo' }, { kind: 'visual', spec: withAnchors(item, timelineOf(item)) }];
             if (type !== 'century') return null;
             const event = centuryEvent(item);
             return [
