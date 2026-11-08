@@ -186,12 +186,14 @@
     //  - jinak váha 1. Váha platí jen uvnitř kategorie (kategorie se dál losuje rovnoměrně, pickItem v quiz-core.js).
     // Dnešní otázky, výzvy a turnaje se losují ze semínka a statistiky nepoužívají vůbec, ať mají všichni hráči stejné otázky.
     const CALIBRATION = Object.freeze({ minSample: 50, hardRate: 0.15, hardWeight: 0.35, easyRate: 0.95, easyWeight: 0.6, expertLevel: 20 });
+    // Druhy otázek bez čtyř možností (klepnutí na mapu, odhad čísla, seřazení) mají jinou úspěšnost: do kalibrace se nepočítají
+    const NOT_CHOICES = new Set(['map', 'estimate', 'order']);
     // Úspěšnost položky z výběru z možností (0–1); null bez dost odpovědí
     const itemRate = (index, itemId) => {
         const rows = (index && index.get(String(itemId || ''))) || [];
         let shown = 0;
         let correct = 0;
-        for (const row of rows) if (row.variant === 'choices') { shown += row.shown; correct += row.correct; }
+        for (const row of rows) if (row.variant === 'choices' && !NOT_CHOICES.has(row.kind)) { shown += row.shown; correct += row.correct; }
         return shown >= CALIBRATION.minSample ? correct / shown : null;
     };
     const weightFor = (item, index, { level = 1 } = {}) => {
@@ -221,7 +223,8 @@
     const KIND_LABELS = {
         name: 'název', location: 'stát', century: 'století', taxon: 'řád či čeleď', symbol: 'značka', formula: 'vzorec', unit: 'jednotka',
         usymbol: 'značka jednotky', measures: 'veličina', hardness: 'tvrdost', group: 'skupina hornin', style: 'sloh či směr', architect: 'architekt',
-        author: 'autor', period: 'období', director: 'režisér', decade: 'desetiletí', counterpart: 'protějšek', myth: 'mytologie', sport: 'sport', host: 'pořadatel'
+        author: 'autor', period: 'období', director: 'režisér', decade: 'desetiletí', counterpart: 'protějšek', myth: 'mytologie', sport: 'sport', host: 'pořadatel',
+        map: 'na mapě', estimate: 'odhad čísla', order: 'seřazení'
     };
     const kindLabel = (kind) => (Object.prototype.hasOwnProperty.call(KIND_LABELS, kind) ? KIND_LABELS[kind] : String(kind || ''));
     const cleanSuspicious = (rows) => (Array.isArray(rows) ? rows : [])

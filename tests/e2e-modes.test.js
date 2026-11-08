@@ -50,6 +50,7 @@ test('Bleskovka, Přežití, zvuky a vibrace', { skip: !chromium && 'Playwright 
     // seed = další položky localStorage; clock = hodiny pod kontrolou testu (Bleskovka do konce bez čekání)
     const open = async ({ viewport = { width: 390, height: 780 }, colorScheme = 'light', seed = {}, clock = false } = {}) => {
         const context = await browser.newContext({ serviceWorkers: 'block', viewport, colorScheme });
+        await context.addInitScript(() => { window.MUDRLANT_NUMERIC_RATE = 0; }); // jen obyčejné otázky (Seřaď a Odhadni číslo: e2e-numeric)
         await context.addInitScript((seed) => {
             // Záznam tónů (frekvence) a vibrací: test pozná, co zaznělo
             window.__tones = [];

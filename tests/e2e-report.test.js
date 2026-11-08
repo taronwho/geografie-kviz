@@ -43,6 +43,7 @@ test('Nahlásit chybu v otázce', { skip: !chromium && 'Playwright není nainsta
     const open = async ({ signedIn = false, dev = false, width = 390, height = 780, colorScheme = 'light', reportStatus = 201 } = {}) => {
         const context = await browser.newContext({ serviceWorkers: 'block', viewport: { width, height }, colorScheme });
         await context.clock.setFixedTime(new Date('2026-11-04T12:00:00'));
+        await context.addInitScript(() => { window.MUDRLANT_NUMERIC_RATE = 0; }); // jen obyčejné otázky (Seřaď a Odhadni číslo: e2e-numeric)
         await context.addInitScript(({ login, dev: devOn }) => {
             if (sessionStorage.getItem('seeded')) return;
             sessionStorage.setItem('seeded', '1');

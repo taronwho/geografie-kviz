@@ -49,6 +49,18 @@ mezi nimi, kruh plných bodů a „Vedle o 37 km“. Otázka přijde v tréninku
 otázkách, počítadlo `mudrlant.mapGap` v zařízení) a nemá nápovědy. Dnešní otázky, výzvy a turnaje ji zatím nemají (stejné otázky
 pro všechny hráče i starší verze aplikace), chyby a opakování karet také ne.
 
+**Číselné otázky** (`numeric-questions.js`) se v hraní tématu, v Mixu, ve výzvách a v turnajích přimíchají asi do každé osmé otázky, jen kde téma
+má spolehlivá čísla z dat (biologie a mytologie je nemají; dnešní otázky a učení nikdy). Bez nápověd, body za přesnost (ve variantě psaní dvojnásobek):
+
+- **Seřaď** – čtyři položky ze stejné kategorie (výška hor, délka řek, rozloha a obyvatelé států, česká města, stavby, roky bitev, filmů, děl a založení
+  klubů, rok narození osobností, protonové číslo, tvrdost podle Mohse, stáří geologických období, průměr a oběh planet…), hodnoty vždy dost daleko od sebe.
+  Klepnutí dává pořadí 1–4, další klepnutí ho zruší. Celé pořadí 4 body, jedna prohozená sousední dvojice 2 body.
+- **Odhadni číslo** – jen známé položky (Kolik metrů měří tato hora? V jakém roce proběhla tato bitva?). Velikosti podle poměru (do 5 % 4 body, do 10 % 3,
+  do 25 % 2, do 50 % 1), letopočty podle rozdílu let (u 20. století rok, u starších dob víc), protonové číslo podle rozdílu. Výsledek ukáže odhad na stupnici.
+
+Do chyb, opakování ani poznaných položek se nepočítají, v režimech Bleskovka a Přežití nejsou. Ve výzvě plán otázky určuje semínko výzvy (vlastní řada čísel),
+takže všichni dostanou stejnou. Otázka je vždy jen jednoho druhu: Ukaž na mapě, číselná, nebo obyčejná.
+
 Nápovědy jdou postupně a každá ubere bod: **popis** z české Wikipedie (je vidět hned, odpověď je v něm zakrytá), **fotka**, **obrazová nápověda** tématu a **čísla a fakta** z Wikidat. Obrazové nápovědy:
 
 - **slepá mapa** (zeměpis, bitvy) – obrysy států bez popisků, místo uprostřed,
@@ -67,6 +79,7 @@ Statická stránka bez serveru a bez build kroku. Nasazuje se na **GitHub Pages*
 | `index.html` | Kostra stránky |
 | `app.js` | Rozhraní: obrazovky, otázka s nápovědami, výsledek, okno s popisem, učení, nastavení, ukládání stavu |
 | `quiz-core.js` | Čistá logika bez DOM (výběr položek, okruhy, zakrývání, odpovědi, body, fakta, slepá mapa, časová osa, periodická tabulka, série) – testovaná |
+| `numeric-questions.js` | Číselné otázky Seřaď a Odhadni číslo: vlastnosti témat, výběr položek, body, čtení odhadu a vzhled otázky i výsledku – testované |
 | `visuals.js` | Vykreslení obrazových nápověd (mapa, časová osa, obrázek, periodická tabulka) |
 | `modes.js` | Bleskovka a Přežití bez DOM: pravidla, hodiny s trestem, obtížnost Přežití, rekordy a XP s denním stropem – testovaná |
 | `sound.js` | Zvuky (Web Audio, bez zvukových souborů) a vibrace, přepínače v Nastavení – testovaná |

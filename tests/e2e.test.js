@@ -50,6 +50,7 @@ const setup = async (browser, options = {}) => {
     if (options.account !== null) storage['mudrlant.account'] = JSON.stringify('host');
     if (options.settings) storage['mudrlant.settings'] = JSON.stringify(options.settings);
     // Uložená data jen při prvním načtení, ať test vidí, co s nimi aplikace udělá
+    await context.addInitScript(() => { window.MUDRLANT_NUMERIC_RATE = 0; }); // jen obyčejné otázky (Seřaď a Odhadni číslo: e2e-numeric)
     await context.addInitScript(entries => {
         if (sessionStorage.getItem('test-storage-set')) return;
         sessionStorage.setItem('test-storage-set', '1');

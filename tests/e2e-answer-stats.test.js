@@ -50,6 +50,7 @@ test('Jak odpověděli ostatní', { skip: !chromium && 'Playwright není nainsta
     const open = async ({ signedIn = true, dev = false, width = 390, height = 780, colorScheme = 'light', topicStatus = 200, rows = TOPIC_ROWS, suspicious = [], topic = 'historie', seed = null } = {}) => {
         const context = await browser.newContext({ serviceWorkers: 'block', viewport: { width, height }, colorScheme });
         await context.clock.setFixedTime(new Date('2026-11-04T12:00:00'));
+        await context.addInitScript(() => { window.MUDRLANT_NUMERIC_RATE = 0; }); // jen obyčejné otázky (Seřaď a Odhadni číslo: e2e-numeric)
         await context.addInitScript(({ login, dev: devOn, seed: extra }) => {
             if (sessionStorage.getItem('seeded')) return;
             sessionStorage.setItem('seeded', '1');

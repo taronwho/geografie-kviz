@@ -165,7 +165,9 @@ test('kalibrace: známá položka s úspěšností pod 15 % (n ≥ 50) méně č
         ['Q3', 'name', 'c', 40, 2], // jen 40 odpovědí: bez změny
         ['Q4', 'name', 'c', 200, 198], // 99 %
         ['Q5', 'name', 't', 200, 2], // psaní se do kalibrace nepočítá
-        ['Q6', 'name', 'c', 100, 50]
+        ['Q6', 'name', 'c', 100, 50],
+        // Mapa a odhad čísla nejsou výběr ze 4 možností: do kalibrace se nepočítají (jinak by Q7 vyšla 11 %)
+        ['Q7', 'name', 'c', 60, 30], ['Q7', 'map', 'c', 100, 0], ['Q7', 'estimate', 'c', 100, 0]
     ], now);
     const index = Stats.topicIndex(storage, 'zemepis', now);
     const known = (q) => ({ q, k: 1, c: 'stat' });
@@ -178,6 +180,7 @@ test('kalibrace: známá položka s úspěšností pod 15 % (n ≥ 50) méně č
     assert.equal(Stats.weightFor(known('Q5'), index, { level: 50 }), 1);
     assert.equal(Stats.weightFor(known('Q6'), index, { level: 50 }), 1);
     assert.equal(Stats.weightFor(known('Q999'), index), 1);
+    assert.equal(Stats.weightFor(known('Q7'), index), 1, 'mapa a odhad čísla kalibraci nemění');
     assert.equal(Stats.weigher(null), null, 'bez souhrnu se neváží');
     assert.equal(Stats.weigher(new Map()), null);
     assert.equal(Stats.weigher(index, { level: 20 })(known('Q4')), Stats.CALIBRATION.easyWeight);
@@ -232,6 +235,7 @@ test('podezřelé otázky: popisky možností a očištění řádků ze serveru
     assert.equal(rows[1].reason, 'nizka');
     assert.equal(rows[1].topWrong, null);
     assert.equal(Stats.kindLabel('century'), 'století');
+    assert.deepEqual(['map', 'estimate', 'order'].map(Stats.kindLabel), ['na mapě', 'odhad čísla', 'seřazení']);
     assert.equal(Stats.kindLabel('ordering'), 'ordering', 'neznámý druh tak, jak je');
     assert.equal(Stats.kindLabel('constructor'), 'constructor', 'ne vlastnost objektu');
     assert.equal(Stats.percentOf(1, 3), 33);

@@ -230,7 +230,7 @@
     };
 
     // Stupnice (tvrdost podle Mohse, geologický čas…): osa od min do max se značkami, hledaná hodnota jako ukazatel;
-    // spec = { min, max, value, ticks: [{ value, label }], valueLabel?, minLabel?, maxLabel?, log?, reverse? }
+    // spec = { min, max, value, ticks: [{ value, label }], valueLabel?, minLabel?, maxLabel?, log?, reverse?, marks?: [{ value, label }] }
     const renderScale = async (container, spec) => {
         const width = Math.round(container.clientWidth) || 360;
         const height = Math.round(container.clientHeight) || 224;
@@ -256,6 +256,17 @@
         const [leftLabel, rightLabel] = spec.reverse ? [spec.maxLabel, spec.minLabel] : [spec.minLabel, spec.maxLabel];
         if (leftLabel) svg.appendChild(svgText(leftLabel, { x: left, y: axisY - 16, 'font-size': 11, class: 'fill-slate-500 dark:fill-slate-400' }));
         if (rightLabel) svg.appendChild(svgText(rightLabel, { x: right, y: axisY - 16, 'text-anchor': 'end', 'font-size': 11, class: 'fill-slate-500 dark:fill-slate-400' }));
+        // Další značky (odhad hráče u číselné otázky): kroužek na ose a popisek pod ní; hledaná hodnota se kreslí až přes ně
+        for (const mark of spec.marks || []) {
+            const x = position(mark.value);
+            svg.appendChild(svgElement('circle', { cx: x, cy: axisY, r: 8, 'stroke-width': 3, class: 'fill-sky-600 stroke-white dark:fill-sky-400 dark:stroke-slate-900' }));
+            if (mark.label) {
+                svg.appendChild(svgText(mark.label, {
+                    x, y: axisY + 28, 'text-anchor': x < left + 60 ? 'start' : x > right - 60 ? 'end' : 'middle', 'font-size': 12, 'font-weight': 700,
+                    'paint-order': 'stroke', 'stroke-width': 3, 'stroke-linejoin': 'round', class: 'fill-sky-700 stroke-white dark:fill-sky-300 dark:stroke-slate-800'
+                }));
+            }
+        }
         if (spec.value !== undefined && spec.value !== null) {
             const x = position(spec.value);
             const barX = spec.reverse ? Math.min(x, right - 6) : left;
