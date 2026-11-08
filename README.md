@@ -36,6 +36,19 @@ Základní otázka je „Co je to?“ podle kategorie (Který prvek to je?, Kdo 
 | Film | Kdo film režíroval? Ve kterém desetiletí měl premiéru? |
 | Sport | Ve kterém sportu se proslavil(a)? Kde se konaly olympijské hry? Které hry to jsou? Co je to za sport (podle fotky)? Který klub, stadion, okruh nebo soutěž to je (podle země, mapy, kapacity a fotky)? |
 
+**Ukaž na mapě** (`question-map.js`): „Kde leží Kilimandžáro?“, „Kde stojí Karlštejn?“ – hráč klepne na slepou mapu (obrysy bez popisků),
+tip může klepnutím přesunout, mapu přiblížit tlačítky +/−, kolečkem nebo dvěma prsty a posunout tažením, pak **Potvrdit**.
+Ptá se jen na místa, která jsou na mapě bod: ze zeměpisu města, vrcholy a sopky, jezera a nádrže, ostrovy, stavby, vodopády,
+jeskyně, skály a národní parky (ne řeky, pohoří, souostroví ani moře), ze sportu stadiony, haly a okruhy. Výřez je pevný pro celou
+oblast, ať nic neprozradí: kontinent (Evropa od Islandu po Ural, Afrika, Asie, Severní Amerika bez Havaje, Jižní Amerika, Austrálie
+a Oceánie), u míst v Česku celé Česko s kraji a hlavními řekami. Místo mimo výřez, ostrov, který na mapě není, stejné jméno
+na dvou místech a stavba ve velkém českém městě („kde je Praha“) se nekladou. **Body** podle vzdálenosti po zemském povrchu:
+plný počet (4, při psaní 8) do 3 % úhlopříčky výřezu (Česko asi 18 km, Evropa asi 210 km; u ostrovů, jezer a parků navíc
+poloměr podle rozlohy), pak ubývají až k nule na 20 % úhlopříčky; správně = aspoň bod. Výsledek ukáže tip, správné místo, čáru
+mezi nimi, kruh plných bodů a „Vedle o 37 km“. Otázka přijde v tréninku asi u každé osmé vhodné otázky (po 6 až 10 vhodných
+otázkách, počítadlo `mudrlant.mapGap` v zařízení) a nemá nápovědy. Dnešní otázky, výzvy a turnaje ji zatím nemají (stejné otázky
+pro všechny hráče i starší verze aplikace), chyby a opakování karet také ne.
+
 Nápovědy jdou postupně a každá ubere bod: **popis** z české Wikipedie (je vidět hned, odpověď je v něm zakrytá), **fotka**, **obrazová nápověda** tématu a **čísla a fakta** z Wikidat. Obrazové nápovědy:
 
 - **slepá mapa** (zeměpis, bitvy) – obrysy států bez popisků, místo uprostřed,
@@ -57,9 +70,11 @@ Statická stránka bez serveru a bez build kroku. Nasazuje se na **GitHub Pages*
 | `visuals.js` | Vykreslení obrazových nápověd (mapa, časová osa, obrázek, periodická tabulka) |
 | `modes.js` | Bleskovka a Přežití bez DOM: pravidla, hodiny s trestem, obtížnost Přežití, rekordy a XP s denním stropem – testovaná |
 | `sound.js` | Zvuky (Web Audio, bez zvukových souborů) a vibrace, přepínače v Nastavení – testovaná |
+| `question-map.js` | Otázka „Ukaž na mapě“: výběr míst a výřezu, zobrazení, body podle vzdálenosti (testované), vykreslení a ovládání mapy |
 | `topics/<téma>.js` | Jedno téma: kategorie, otázky, fakta, nápovědy a zakrývání (viz níže) |
 | `data/<téma>.json` | Položky a okruhy tématu (generované z Wikidat) |
 | `data/countries.json`, `data/world.json` | Státy a jejich obrysy pro slepou mapu (generované) |
+| `data/mapa.json` | Slepé mapy otázky „Ukaž na mapě“: cesty SVG každé oblasti už v jejím zobrazení (generované) |
 | `icons.js` | Použité ikony z Lucide (generované) |
 | `styles.css` | Styly z Tailwindu (generované ze `src/input.css`) |
 | `sw.js`, `manifest.webmanifest`, `icons/` | Instalace na plochu a provoz bez internetu |
@@ -152,6 +167,7 @@ Data témat se generují z Wikidat (zeměpis a historie přes query.wikidata.org
 ```sh
 npm run build:countries  # data/countries.json
 npm run build:world      # data/world.json (Natural Earth 1:110m)
+npm run build:mapa       # data/mapa.json (Natural Earth 1:50m, Česko 1:10m s kraji a řekami)
 npm run build:zemepis    # data/zemepis.json
 npm run build:historie   # data/historie.json
 npm run build:biologie   # data/biologie.json
@@ -173,4 +189,4 @@ Spustí testy logiky (`tests/quiz-core.test.js`), kontrolu témat a jejich dat (
 
 ## Zdroje dat
 
-Položky, fakta a fotky z [Wikidat](https://www.wikidata.org) a [Wikimedia Commons](https://commons.wikimedia.org), popisy z [české Wikipedie](https://cs.wikipedia.org), obrysy států [Natural Earth](https://www.naturalearthdata.com) (volné dílo), satelitní snímky NASA Blue Marble přes [GIBS](https://earthdata.nasa.gov/gibs), mapa © přispěvatelé [OpenStreetMap](https://www.openstreetmap.org/copyright), ikony [Lucide](https://lucide.dev) (ISC).
+Položky, fakta a fotky z [Wikidat](https://www.wikidata.org) a [Wikimedia Commons](https://commons.wikimedia.org), popisy z [české Wikipedie](https://cs.wikipedia.org), obrysy států, kraje a řeky [Natural Earth](https://www.naturalearthdata.com) (volné dílo), satelitní snímky NASA Blue Marble přes [GIBS](https://earthdata.nasa.gov/gibs), mapa © přispěvatelé [OpenStreetMap](https://www.openstreetmap.org/copyright), ikony [Lucide](https://lucide.dev) (ISC).

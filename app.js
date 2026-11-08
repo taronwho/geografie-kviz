@@ -23,6 +23,8 @@
     // Režimy Bleskovka a Přežití (modes.js) a zvuky s vibracemi (sound.js); bez skriptu se jen nenabídnou, hra zůstane potichu
     const Modes = window.MudrlantModes || null;
     const Sound = window.MudrlantSound || null;
+    // Otázka „Ukaž na mapě“ (question-map.js); bez skriptu se hraje bez ní
+    const MapQuestion = window.MudrlantMapQuestion || null;
     const TOPICS = window.MudrlantTopics || [];
     const TOPIC_BY_ID = Object.fromEntries(TOPICS.map(topic => [topic.id, topic]));
     const APP_NAME = 'Mudrlant';
@@ -387,6 +389,8 @@
     };
     const loadCountries = memoizeBy(() => fetchJson('data/countries.json').then(data => data.countries));
     const loadWorld = memoizeBy(() => fetchJson('data/world.json'));
+    // Slepé mapy otázky „Ukaž na mapě“ (data/mapa.json), načtou se s první takovou otázkou
+    const loadMapData = memoizeBy(() => fetchJson('data/mapa.json'));
     // Fotky, na kterých je napsaná odpověď (jméno na dresu, název na plakátu) – najde je OCR při sestavení dat
     // (npm run audit:photo-text); bez souboru se hraje dál se všemi fotkami
     const loadPhotoText = memoizeBy(() => fetchJson('data/photo-text.json').catch(() => ({})));
@@ -520,10 +524,14 @@
     const realWords = (text) => String(text || '').replace(/\[\*\*\*\]/g, ' ').split(/\s+/).filter(word => /\p{L}/u.test(word)).length;
     const MAX_THIN_RETRIES = 3;
     const MIN_EXCERPT_WORDS = 8;
+    // Otázka „Ukaž na mapě“ (question-map.js): jen v tréninku, asi každá osmá vhodná otázka. Dnešní otázky, výzvy a turnaje ji
+    // nemají (stejné otázky pro všechny hráče i starší verze aplikace), chyby a opakování také ne. Los nebere z rng otázky.
+    const mapQuestionFor = (item, ctx) => !MapQuestion || mode !== 'practice' || pool.kind === 'mistakes' || pool.kind === 'review' ? null
+        : MapQuestion.nextQuestion(item, ctx, { storage: { read: () => readJson(MapQuestion.GAP_KEY), write: (value) => writeJson(MapQuestion.GAP_KEY, value) }, loadMap: loadMapData });
         const createRoundData = async (item, ctx, rng) => {
         const { topic, items } = ctx;
         // Pořadí volání rng je stálé, aby dnešní otázka vyšla všem stejně
-        const special = topic.specialQuestion ? topic.specialQuestion(item, ctx, rng) : null;
+        const special = (await mapQuestionFor(item, ctx)) || (topic.specialQuestion ? topic.specialQuestion(item, ctx, rng) : null);
         const category = categoryOf(topic, item.c);
         const question = special || {
             type: 'name',
@@ -553,7 +561,8 @@
         const typeLabel = item.ty && !hideAnswer(item.ty, question, { ...item, ty: '' }, ctx).includes('[***]') ? item.ty : category.one;
         // Příliš chudý popis („Zimbabwský politik.“) nestačí k odpovědi: když je popis jediná opora otázky, je „thin“
         const thin = !shown && !special && (text.fallback || realWords(questionText) < MIN_DESCRIPTION_WORDS);
-        const basePlan = (topic.hints && topic.hints(item, ctx, question.type))
+        // Otázka na mapě nápovědy nemá (popis i fakta by místo prozradily)
+        const basePlan = question.type === 'map' ? [] : (topic.hints && topic.hints(item, ctx, question.type))
             || [{ kind: 'photo' }, { kind: 'visual', spec: visual }, { kind: 'facts', facts: topic.facts(item, ctx, question.type) }];
         // Pokračování úvodu článku (zakryté stejně jako popis) je první, nejlevnější nápověda; bez dost skutečných slov se vynechá
         const withExcerpt = realWords(moreText) >= MIN_EXCERPT_WORDS ? [{ kind: 'excerpt', text: moreText }, ...basePlan] : basePlan;
@@ -2637,6 +2646,8 @@
         });
         const resultPhoto = document.getElementById('result-photo');
         if (resultPhoto) showPhoto(resultPhoto, current.photoUrl);
+        const guessMap = document.getElementById('map-guess');
+        if (guessMap && MapQuestion) MapQuestion.mountResult(guessMap, current, round && round.map, { loadMap: loadMapData });
         const satellite = document.getElementById('result-satellite');
         if (satellite && current.coords) renderTiles(satellite, current.coords.lat, current.coords.lon, RESULT_SATELLITE_ZOOM, SATELLITE_TILES);
         renderMap();
@@ -2675,8 +2686,21 @@
     // Tlačítko „Nahlásit chybu v otázce“ (okno otázky: jen ikona vedle „Nevím“, výsledek: s textem vedle Wikipedie); okno je openReportDialog
     const REPORT_ICON_BUTTON = '<button type="button" data-action="report-question" class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-slate-500 hover:bg-slate-200 dark:text-slate-400 dark:hover:bg-slate-800" title="Nahlásit chybu v otázce" aria-label="Nahlásit chybu v otázce"><i data-lucide="flag" class="h-4 w-4"></i></button>';
     const REPORT_TEXT_BUTTON = '<button type="button" data-action="report-question" class="flex shrink-0 items-center justify-center gap-1.5 rounded-xl bg-slate-100 px-3 py-3 text-sm font-bold text-slate-700 transition-colors hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700" aria-label="Nahlásit chybu v otázce"><i data-lucide="flag" class="h-4 w-4"></i> Nahlásit chybu</button>';
+    // Otázka „Ukaž na mapě“: vlastní obrazovka z question-map.js (mapa místo popisu, nápověd a možností), tip se ukládá do kola
+    const renderMapQuestion = (keepScroll) => {
+        const data = current;
+        const topic = TOPIC_BY_ID[data.topic];
+        appContent.innerHTML = MapQuestion.questionScreen(data, { style: styleOf(topic), categoryIcon: categoryOf(topic, data.category).icon, typed: round.variant === 'typed',
+            guess: round.mapGuess, fresh: !keepScroll, report: canReport() && mode !== 'challenge' ? REPORT_ICON_BUTTON : '' });
+        renderIcons(appContent);
+        clearInterval(tourTimer);
+        if (!keepScroll) appContent.scrollTo(0, 0);
+        MapQuestion.mountQuestion(appContent, data, { guess: round.mapGuess || null, loadMap: loadMapData, onConfirm: () => ACTIONS['map-confirm'](),
+            onPlace: (guess) => { if (current === data && round && !round.answered) { round.mapGuess = guess; persistState(); } } });
+    };
     const renderQuestion = (keepScroll) => {
         const data = current;
+        if (data.question.type === 'map' && MapQuestion) return renderMapQuestion(keepScroll);
         const topic = TOPIC_BY_ID[data.topic];
         const style = styleOf(topic);
         const level = round.hintLevel;
@@ -2855,6 +2879,7 @@
         ? `<div class="mt-0.5 text-xs font-bold ${tone}">${xp.total ? `<span class="inline-block rounded-md bg-gold-500 px-1.5 py-0.5 font-black text-brand-950">+${xp.total} XP</span>` : ''}${(xp.badges || []).map(title => `<span class="ml-1 inline-flex items-center gap-1 rounded-md bg-brand-700 px-1.5 py-0.5 font-black text-white"><i data-lucide="award" class="h-3 w-3"></i>${escapeHtml(title)}</span>`).join('')}${xp.parts.length ? `<ul class="mt-1 space-y-0.5 font-semibold opacity-90">${xp.parts.map(part => `<li>+${part.xp} XP ${escapeHtml(part.label)}</li>`).join('')}</ul>` : ''}</div>` : '';
 
     const renderResultBanner = (data) => {
+        if (data.question.type === 'map' && MapQuestion) return MapQuestion.resultBanner(data, round, { uiArt, xpLine });
         // Kolik nápověd hráč použil z kolika, které otázka měla
         const levels = `${round.hintLevel - 1}/${data.hints.length}`;
         if (round.correct) {
@@ -2966,6 +2991,8 @@
     // Záložky výsledku: fotka, mapa s polohou, bez fotky snímek z družice, obrazová nápověda (časová osa, tabulka…)
     const resultPanes = (data) => {
         const panes = [];
+        // Otázka na mapě: první záložka ukáže tip, správné místo a vzdálenost
+        if (data.question.type === 'map' && MapQuestion) panes.push({ key: 'guess', label: 'Na mapě', icon: 'crosshair', html: MapQuestion.resultPane(data, round.map) });
         // Obrázek z otázky (vlajka, obraz), když to není zároveň fotka položky
         if (data.questionImage && data.questionImage.url && !(data.questionImage.same && data.photoUrl)) {
             panes.push({ key: 'image', label: data.questionImage.label, icon: data.questionImage.icon, html: photoPane('result-image') });
@@ -3495,11 +3522,12 @@
     };
 
     // answerRef: položka (nebo stát) ze špatné odpovědi – výsledek k ní nabídne okno s popisem
-    const submitAnswer = ({ correct, typed, answer, answerRef = null, gaveUp = false }) => {
+    // points = body spočítané otázkou samou (na mapě podle vzdálenosti), extra = další údaje do kola (tip na mapě)
+    const submitAnswer = ({ correct, typed, answer, answerRef = null, gaveUp = false, points: given = null, extra = null }) => {
         if (!round || round.answered) return;
-        const points = correct ? pointsFor(round.hintLevel, typed) : 0;
+        const points = correct ? (Number.isInteger(given) ? given : pointsFor(round.hintLevel, typed)) : 0;
         const ref = !correct && isKnownRef(answerRef) ? answerRef : null;
-        Object.assign(round, { answered: true, correct, typed, answer, answerRef: ref, gaveUp, points });
+        Object.assign(round, extra || {}, { answered: true, correct, typed, answer, answerRef: ref, gaveUp, points });
         mapZoom = DEFAULT_MAP_ZOOM;
         // Zvuk odpovědi (Nevím = bez zvuku); oslavy nové úrovně a odznaku zazní až po něm
         if (Sound && !gaveUp) Sound.answer(correct);
@@ -7424,6 +7452,12 @@
         'hint-tab': (button) => switchTab('hint-tab', button.dataset.step),
         'result-tab': (button) => switchTab('result-tab', button.dataset.step),
         'give-up': () => submitAnswer({ correct: false, typed: false, answer: null, gaveUp: true }),
+        // Potvrzení tipu na mapě: body podle vzdálenosti (question-map.js), správně = aspoň bod
+        'map-confirm': () => {
+            if (!MapQuestion || !round || round.answered || !current || current.question.type !== 'map') return;
+            const result = MapQuestion.evaluate(current.question, round.mapGuess, round.variant === 'typed');
+            if (result) submitAnswer({ correct: result.points > 0, typed: false, answer: `Vedle o ${MapQuestion.formatKm(result.km)}`, points: result.points, extra: { map: result } });
+        },
         'report-question': () => openReportDialog(),
         'item-info': (button) => openItemInfo(button.dataset.topic, button.dataset.id),
         next: () => continueAfterResult(),
