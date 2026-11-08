@@ -376,7 +376,8 @@
             </section>`;
     };
 
-    // Výsledek: sova, skóre, mřížka otázek, XP, sdílení, série, pořadí (přihlášený) nebo pozvánka k přihlášení (host)
+    // Výsledek: sova, skóre, mřížka otázek, XP, sdílení, série, pořadí (přihlášený) nebo pozvánka k přihlášení (host);
+    // pořadí je dlouhý seznam, Zpět domů proto zůstává dole lepkavě vidět
     const resultHtml = ({ day, summary, xp = null, streak = 0, best = 0, guest = false, canLogin = false, ranking = null, closed = false, pending = false, freezes = '' }, h) => {
         const bits = bitsOf(summary.bitmap, summary.answered);
         const grid = bits.map((bit, index) => `<span class="h-5 w-5 rounded-md ${bit === true ? 'bg-emerald-400' : bit === false ? 'bg-rose-400' : 'bg-white/25'}" title="${index + 1}. otázka: ${bit === true ? 'správně' : bit === false ? 'špatně' : 'bez odpovědi'}"></span>`).join('');
@@ -409,7 +410,7 @@
                         <p class="text-sm leading-snug text-slate-600 dark:text-slate-300">${canLogin ? 'Po přihlášení se dnešní výsledek zapíše do pořadí (když jsi Kvíz dne na účtu ještě nehrál) a porovnáš se s přáteli.' : 'Pořadí je jen pro přihlášené hráče.'}</p>
                         ${canLogin ? `<button type="button" data-action="quiz-login" class="${PRIMARY}"><i data-lucide="log-in" class="h-5 w-5"></i> Přihlásit se přes Google</button>` : ''}
                     </div>` : ranking ? rankingHtml(ranking, h) : ''}
-                <button type="button" data-action="quiz-home" class="${guest && canLogin ? SECONDARY.replace('px-2 py-2.5 text-sm', 'w-full px-4 py-3 text-base') : PRIMARY}"><i data-lucide="house" class="h-5 w-5"></i> Zpět domů</button>
+                <div class="sticky bottom-0 z-10 -mx-4 -mb-6 bg-slate-50/95 px-4 pb-6 pt-2 backdrop-blur dark:bg-slate-900/95"><button type="button" data-action="quiz-home" class="${guest && canLogin ? SECONDARY.replace('px-2 py-2.5 text-sm', 'w-full px-4 py-3 text-base') : PRIMARY}"><i data-lucide="house" class="h-5 w-5"></i> Zpět domů</button></div>
             </div>`;
     };
 

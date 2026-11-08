@@ -601,11 +601,15 @@
 
     // Známost otázek (Nastavení i výběr tématu); brief = krátký popis na jeden řádek (Nastavení), jinak příklady z tématu
     const TIER_BRIEF = { known: 'Slavná místa a lidé…', all: 'Celá sada, těžší' };
-    const renderTierButtons = (on = TOGGLE_ON, topic = null, brief = false) => Object.entries(TIERS).map(([key, tier]) => `
-        <button type="button" data-tier="${key}" aria-pressed="${settings.tier === key}"${brief ? ` title="${escapeHtml(tier.text)}"` : ''} class="rounded-2xl border-2 px-2.5 py-2 text-left transition-colors active:scale-[0.98] ${settings.tier === key ? on : TOGGLE_OFF}">
+    // tight = na nízkém displeji (short:) jen název, popis zůstane v title a na vyšším displeji
+    const renderTierButtons = (on = TOGGLE_ON, topic = null, brief = false, tight = false) => Object.entries(TIERS).map(([key, tier]) => {
+        const text = key === 'known' && topic && topic.words && topic.words.tierKnown ? escapeHtml(topic.words.tierKnown) : tier.text;
+        return `
+        <button type="button" data-tier="${key}" aria-pressed="${settings.tier === key}"${brief ? ` title="${escapeHtml(tier.text)}"` : tight ? ` title="${text}"` : ''} class="rounded-2xl border-2 px-2.5 py-2 text-left transition-colors active:scale-[0.98] ${tight ? 'short:min-h-[2.75rem] short:py-1.5 ' : ''}${settings.tier === key ? on : TOGGLE_OFF}">
             <span class="block text-sm font-black leading-tight">${tier.title}</span>
-            <span class="mt-0.5 block text-[11px] font-semibold leading-snug opacity-90${brief ? ' short:hidden' : ''}">${brief ? TIER_BRIEF[key] : key === 'known' && topic && topic.words && topic.words.tierKnown ? escapeHtml(topic.words.tierKnown) : tier.text}</span>
-        </button>`).join('');
+            <span class="mt-0.5 block text-[11px] font-semibold leading-snug opacity-90${brief || tight ? ' short:hidden' : ''}">${brief ? TIER_BRIEF[key] : text}</span>
+        </button>`;
+    }).join('');
 
     const closeSettings = () => {
         const overlay = document.getElementById('settings-overlay');
@@ -846,7 +850,7 @@
             <span class="text-[11px] font-semibold leading-snug text-slate-500 dark:text-slate-400">${VARIANT_BRIEF[key].text}</span>
         </button>`).join('');
     // Řádek nastavení v kartě Hra: ikona, název, krátké vysvětlení a vpravo přepínač (on = true/false) nebo šipka (on = null)
-    const SETTING_ROW = 'flex min-h-[3rem] w-full items-center gap-3 px-3 py-2 text-left transition-colors active:bg-slate-50 disabled:opacity-60 dark:active:bg-slate-700/40';
+    const SETTING_ROW = 'flex min-h-[3rem] w-full items-center gap-3 px-3 py-2 text-left transition-colors active:bg-slate-50 disabled:opacity-60 short:min-h-[2.75rem] short:py-1.5 dark:active:bg-slate-700/40';
     const switchMark = (on) => `<span aria-hidden="true" class="flex h-6 w-10 shrink-0 items-center rounded-full p-0.5 ${on ? 'justify-end bg-brand-600' : 'justify-start bg-slate-300 dark:bg-slate-600'}"><span class="h-5 w-5 rounded-full bg-white shadow-sm"></span></span>`;
     const settingRow = ({ attrs, icon, title, text = '', on = null }) => `
         <button type="button" ${attrs}${on === null ? '' : ` role="switch" aria-checked="${on}"`} class="${SETTING_ROW}">
@@ -905,7 +909,7 @@
         if (myProfile && myProfile.owl && !myPose()) {
             return `<p data-owl-avatar-on class="mt-2 flex items-center gap-2 rounded-2xl bg-emerald-50 px-3 py-2.5 text-[13px] font-bold leading-snug text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-200"><i data-lucide="check" class="h-4 w-4 shrink-0"></i>Tvůj Mudrlant je profilový obrázek. Změny se v profilu ukážou samy.</p>`;
         }
-        return `<button type="button" data-owl-as-avatar ${owlAvatarBusy ? 'disabled' : ''} class="mt-2 flex w-full items-center justify-center gap-2 rounded-2xl btn-3d bg-brand-700 px-4 py-2.5 text-[15px] font-black text-white disabled:opacity-60"><i data-lucide="user-round" class="h-5 w-5"></i>${owlAvatarBusy ? 'Ukládám…' : 'Použít jako profilový obrázek'}</button>`;
+        return `<button type="button" data-owl-as-avatar ${owlAvatarBusy ? 'disabled' : ''} class="mt-2 flex w-full items-center justify-center gap-2 rounded-2xl btn-3d bg-brand-700 px-4 py-2.5 text-[15px] font-black text-white disabled:opacity-60 short:py-2"><i data-lucide="user-round" class="h-5 w-5"></i>${owlAvatarBusy ? 'Ukládám…' : 'Použít jako profilový obrázek'}</button>`;
     };
     const useOwlAsAvatar = async () => {
         if (!meDraft || owlAvatarBusy) return;
@@ -1458,9 +1462,9 @@
         // Čtyři záložky (přihlášený hráč) se na telefon s ikonami nevejdou („Mudrlan“): ikony až na širším displeji, na 360 px menší písmo a okraje
         const crowded = tabList.length > 3;
         const tabs = `
-            <div role="tablist" class="mt-3 flex gap-1 rounded-2xl bg-slate-200/70 p-1 dark:bg-slate-800">
+            <div role="tablist" class="mt-3 flex gap-1 rounded-2xl bg-slate-200/70 p-1 short:mt-2 dark:bg-slate-800">
                 ${tabList.map(([id, icon, label]) => `
-                    <button type="button" role="tab" data-me-tab="${id}" aria-selected="${meTab === id}" class="flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-xl min-h-[2.75rem] px-2 text-[13px] font-black ${crowded ? 'max-[400px]:px-1 max-[400px]:text-[12px]' : ''} ${meTab === id ? 'btn-3d bg-brand-700 text-white' : 'text-slate-600 dark:text-slate-400'}"><i data-lucide="${icon}" class="h-4 w-4 shrink-0 ${crowded ? 'max-sm:hidden' : ''}"></i> ${label}</button>`).join('')}
+                    <button type="button" role="tab" data-me-tab="${id}" aria-selected="${meTab === id}" class="flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-xl min-h-[2.75rem] short:min-h-[2.5rem] px-2 text-[13px] font-black ${crowded ? 'max-[400px]:px-1 max-[400px]:text-[12px]' : ''} ${meTab === id ? 'btn-3d bg-brand-700 text-white' : 'text-slate-600 dark:text-slate-400'}"><i data-lucide="${icon}" class="h-4 w-4 shrink-0 ${crowded ? 'max-sm:hidden' : ''}"></i> ${label}</button>`).join('')}
             </div>`;
         // Karta Hra: varianta a známost jako dvě dvojice kompaktních karet, přepínače (procvičování, tipy, upozornění) a tutoriál
         // jako řádky jednoho seznamu – na 390×780 se vejde bez posouvání
@@ -1486,13 +1490,13 @@
             </div>
             ${renderDevPanel()}`;
         const profileBody = user && Social && meDraft ? `
-            <form id="profile-form" class="flex flex-col gap-3" autocomplete="off">
-                <label class="${ME_HEADING}">Přezdívka <span class="font-semibold normal-case tracking-normal">(podle ní tě ostatní najdou, musí být jedinečná)</span>
+            <form id="profile-form" class="flex flex-col gap-3 short:gap-2" autocomplete="off">
+                <label class="${ME_HEADING}">Přezdívka <span class="font-semibold normal-case tracking-normal">(jedinečná, podle ní tě najdou)</span>
                     <input id="profile-name" type="text" maxlength="${Social.NAME_MAX}" value="${escapeHtml(meDraft.name)}" class="mt-1 w-full rounded-xl border-2 border-slate-200 bg-white px-3 py-2 text-base font-bold normal-case tracking-normal text-slate-800 focus:border-brand-600 focus:outline-none dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100">
                 </label>
                 <div>
                     <p class="${ME_HEADING} mb-1.5">Obrázek</p>
-                    <div data-avatar-strip class="scroll-fade-x relative -mx-1 grid auto-cols-[2.5rem] grid-flow-col grid-rows-3 gap-1 overflow-x-auto overscroll-x-contain px-1 py-0.5 pr-8">${Owl && Owl.owlAvatarHtml ? `<button type="button" data-pick-owl aria-label="Sova Mudrlant" title="Sova Mudrlant" aria-pressed="${meDraft.owl && !meDraft.pose}" class="${AVATAR_TILE} ${meDraft.owl && !meDraft.pose ? AVATAR_ON : AVATAR_OFF}">${Owl.owlAvatarHtml(ownOwlText(null), 'h-full w-auto', 'h-[88%]')}</button>${poseTiles()}` : ''}${Social.allAvatars().map(emoji => {
+                    <div data-avatar-strip class="scroll-fade-x relative -mx-1 grid auto-cols-[2.5rem] grid-flow-col grid-rows-3 gap-1 overflow-x-auto overscroll-x-contain px-1 py-0.5 pr-8 short:grid-rows-2">${Owl && Owl.owlAvatarHtml ? `<button type="button" data-pick-owl aria-label="Sova Mudrlant" title="Sova Mudrlant" aria-pressed="${meDraft.owl && !meDraft.pose}" class="${AVATAR_TILE} ${meDraft.owl && !meDraft.pose ? AVATAR_ON : AVATAR_OFF}">${Owl.owlAvatarHtml(ownOwlText(null), 'h-full w-auto', 'h-[88%]')}</button>${poseTiles()}` : ''}${Social.allAvatars().map(emoji => {
                         const lock = avatarLock(emoji);
                         if (lock) return `<button type="button" data-locked-avatar="${emoji}" aria-disabled="true" aria-label="Obrázek ${emoji} je zamčený: ${avatarUnlockText(lock)}" title="${avatarUnlockText(lock)}" class="${AVATAR_TILE} ${AVATAR_OFF} opacity-40 grayscale">${emoji}</button>`;
                         return `<button type="button" data-pick-avatar="${emoji}" aria-label="Obrázek ${emoji}" aria-pressed="${emoji === meDraft.avatar && !meDraft.owl}" class="${AVATAR_TILE} ${emoji === meDraft.avatar && !meDraft.owl ? AVATAR_ON : AVATAR_OFF}">${emoji}</button>`;
@@ -1524,10 +1528,10 @@
                     <button type="button" data-close aria-label="Zavřít" class="-m-0.5 self-start rounded-xl p-2.5 text-slate-500 hover:bg-slate-200 dark:text-slate-400 dark:hover:bg-slate-800"><i data-lucide="x" class="h-5 w-5"></i></button>
                 </div>
                 ${tabs}
-                <div class="mt-3">${meTab === 'profile' && profileBody ? profileBody : meTab === 'look' ? lookBody('look') : meTab === 'owl' ? lookBody('owl') + owlAvatarRow(user) : gameBody}</div>
+                <div class="mt-3 short:mt-2">${meTab === 'profile' && profileBody ? profileBody : meTab === 'look' ? lookBody('look') : meTab === 'owl' ? lookBody('owl') + owlAvatarRow(user) : gameBody}</div>
                 <p id="settings-note" class="${noteText ? 'mt-2 ' : ''}text-xs font-semibold ${noteText.startsWith('Uloženo') || !meNote ? 'text-emerald-700 dark:text-emerald-300' : 'text-rose-700 dark:text-rose-400'}" role="status">${escapeHtml(noteText)}</p>
                 ${renderSchemaBanner()}
-                <div class="mt-3 flex flex-wrap items-center justify-center gap-x-1 text-xs text-slate-500 dark:text-slate-400">
+                <div class="mt-3 flex flex-wrap items-center justify-center gap-x-1 text-xs text-slate-500 short:mt-2 dark:text-slate-400">
                     <span id="app-version" class="px-1">${escapeHtml(versionLabel())}</span>
                     <button type="button" data-update-app class="-my-2 inline-flex min-h-[2.5rem] items-center rounded-lg px-2 font-bold text-slate-600 underline underline-offset-2 hover:bg-slate-200 disabled:no-underline dark:text-slate-300 dark:hover:bg-slate-800">Aktualizovat</button>
                     ${meTab === 'game' ? `
@@ -1885,10 +1889,11 @@
         if (screen === 'home') renderHome();
     };
 
+    // Na nízkém displeji (short:) nižší přepínače bez ozdobné ikony tématu: výběr se vejde bez posouvání
     const chooserToggle = (attribute, value, isOn, icon, label, on) => `
-        <button type="button" ${attribute}="${escapeHtml(value)}" aria-pressed="${isOn}" class="flex min-h-[2.75rem] items-center gap-1.5 rounded-xl border-2 px-2 py-1 text-left text-[13px] font-bold leading-tight transition-colors active:scale-[0.98] ${isOn ? on : TOGGLE_OFF}">
+        <button type="button" ${attribute}="${escapeHtml(value)}" aria-pressed="${isOn}" class="flex min-h-[2.75rem] items-center gap-1.5 rounded-xl border-2 px-2 py-1 text-left text-[13px] font-bold leading-tight transition-colors active:scale-[0.98] short:min-h-[2.5rem] short:py-0.5 ${isOn ? on : TOGGLE_OFF}">
             <i data-lucide="${isOn ? 'square-check-big' : 'square'}" class="h-4 w-4 shrink-0"></i>
-            <i data-lucide="${icon}" class="h-4 w-4 shrink-0 opacity-70"></i>
+            <i data-lucide="${icon}" class="h-4 w-4 shrink-0 opacity-70 short:hidden"></i>
             <span class="min-w-0">${escapeHtml(label)}</span>
         </button>`;
 
@@ -1908,28 +1913,28 @@
         // Nahoře velká tlačítka Hrát, Bleskovka a Přežití (lepkavě: při posouvání dlouhého výběru zůstanou vidět), pod nimi výběr témat či kategorií a známosti
         overlay.innerHTML = `
             <div class="${previous ? '' : 'fade-in '}max-h-[92dvh] w-full max-w-md overflow-y-auto rounded-[1.75rem] bg-slate-50 px-4 pb-4 pt-4 shadow-2xl dark:bg-slate-900">
-                <div class="mb-3 flex items-center gap-3">
-                    ${topicIcon(topic, 'h-12 w-12', `shrink-0 rounded-2xl bg-gradient-to-br p-2.5 text-white ${style.tile}`, 'h-6 w-6')}
+                <div class="mb-2 flex items-center gap-3">
+                    ${topicIcon(topic, 'h-12 w-12 short:h-10 short:w-10', `shrink-0 rounded-2xl bg-gradient-to-br p-2.5 short:p-2 text-white ${style.tile}`, 'h-6 w-6')}
                     <div class="min-w-0 flex-1">
                         <h2 id="chooser-title" class="text-lg font-black leading-tight text-slate-800 dark:text-slate-100">${escapeHtml(topic.title)}</h2>
-                        <p class="text-sm text-slate-500 dark:text-slate-400">${isMix ? 'Z jakých témat chceš otázky?' : 'Co chceš hrát?'}</p>
+                        <p class="text-sm leading-snug text-slate-500 short:text-xs dark:text-slate-400">${isMix ? 'Z jakých témat chceš otázky?' : 'Co chceš hrát?'}</p>
                     </div>
                     <button type="button" data-close aria-label="Zavřít" class="-m-0.5 rounded-xl p-2.5 text-slate-500 hover:bg-slate-200 dark:text-slate-400 dark:hover:bg-slate-800"><i data-lucide="x" class="h-5 w-5"></i></button>
                 </div>
                 <div data-chooser-actions class="sticky -top-4 z-10 -mx-4 bg-slate-50 px-4 pb-2 pt-1 dark:bg-slate-900">
                 <p id="chooser-note" class="${note ? 'mb-1.5 ' : ''}text-sm font-semibold text-rose-700 dark:text-rose-400" role="status">${escapeHtml(note)}</p>
-                <button type="button" data-chooser-play class="flex w-full items-center justify-center gap-2 rounded-[1.2rem] py-3.5 text-xl font-black text-white shadow-lg transition-all active:scale-95 ${style.button} btn-3d">
+                <button type="button" data-chooser-play class="flex w-full items-center justify-center gap-2 rounded-[1.2rem] py-3.5 text-xl font-black text-white shadow-lg transition-all active:scale-95 short:py-2 ${style.button} btn-3d">
                     <i data-lucide="play" class="h-6 w-6"></i> Hrát
                 </button>
                 ${Modes ? `<div class="mt-2 grid grid-cols-2 gap-2">${modeChooserButtons()}</div>` : ''}
                 </div>
-                <div class="mb-1.5 mt-2 flex items-center justify-between">
+                <div class="mb-1.5 mt-2 flex items-center justify-between short:mb-1 short:mt-1">
                     <h3 class="${SETTINGS_HEADING}">${isMix ? 'Témata' : 'Kategorie'}</h3>
                     <span class="-my-3 flex"><button type="button" data-chooser-all class="rounded-lg px-2 py-3 text-xs font-bold ${style.text} underline-offset-2 hover:underline">Vybrat vše</button><button type="button" data-chooser-none class="rounded-lg px-2 py-3 text-xs font-bold text-slate-500 underline-offset-2 hover:underline dark:text-slate-400">Zrušit vše</button></span>
                 </div>
-                <div class="grid grid-cols-2 gap-1.5" role="group" aria-label="${isMix ? 'Témata' : 'Kategorie'}">${options}</div>
-                <h3 class="${SETTINGS_HEADING} mb-1.5 mt-3">Známost</h3>
-                <div class="grid grid-cols-2 gap-1.5" role="group" aria-label="Známost">${renderTierButtons(style.on, isMix ? null : topic)}</div>
+                <div class="grid grid-cols-2 gap-1.5 short:gap-1" role="group" aria-label="${isMix ? 'Témata' : 'Kategorie'}">${options}</div>
+                <h3 class="${SETTINGS_HEADING} mb-1.5 mt-3 short:mb-1 short:mt-1.5">Známost</h3>
+                <div class="grid grid-cols-2 gap-1.5" role="group" aria-label="Známost">${renderTierButtons(style.on, isMix ? null : topic, false, true)}</div>
             </div>`;
         overlay.firstElementChild.scrollTop = scroll;
         renderIcons(overlay);
@@ -5060,7 +5065,7 @@
     const modeChooserButtons = () => Modes ? Modes.IDS.map(id => {
         const def = Modes.MODES[id];
         return `
-            <button type="button" data-chooser-mode="${id}" title="${escapeHtml(`${def.title}: ${def.tagline}`)}" aria-label="${escapeHtml(`${def.title}: ${def.tagline}`)}" class="btn-3d-light flex min-h-[3.5rem] min-w-0 items-center gap-2.5 rounded-[1.2rem] bg-white px-3 py-2 text-left text-slate-800 dark:bg-slate-800 dark:text-slate-100">
+            <button type="button" data-chooser-mode="${id}" title="${escapeHtml(`${def.title}: ${def.tagline}`)}" aria-label="${escapeHtml(`${def.title}: ${def.tagline}`)}" class="btn-3d-light flex min-h-[3.5rem] min-w-0 items-center gap-2.5 rounded-[1.2rem] bg-white px-3 py-2 text-left short:min-h-[2.75rem] short:py-1 text-slate-800 dark:bg-slate-800 dark:text-slate-100">
                 ${modeBadge(id, 'h-9 w-9', 'h-5 w-5')}<span class="min-w-0"><span class="block text-[15px] font-black leading-tight">${escapeHtml(def.title)}</span><span class="block text-[11px] font-semibold leading-tight text-slate-500 dark:text-slate-400">${id === 'blitz' ? '60 sekund' : id === 'survival' ? '3 životy' : ''}</span></span>
             </button>`;
     }).join('') : '';
@@ -5150,17 +5155,17 @@
         const render = () => {
             const blocked = myBlocked || [];
             showDialog('Přijímané výzvy', `
-                <div class="flex flex-col gap-3">
-                    <p class="text-xs leading-snug text-slate-500 dark:text-slate-400">Vyber, z jakých témat tě ostatní můžou vyzývat. U <b class="text-slate-700 dark:text-slate-200">vypnutých</b> témat ti výzvu nezadají a náhodný soupeř tě v nich nedostane. Třeba když historii vůbec neznáš.</p>
-                    <button type="button" data-accept-mix role="switch" aria-checked="${myAcceptsMix}" class="btn-3d-light flex w-full items-center gap-2.5 rounded-2xl p-2.5 text-left ${myAcceptsMix ? 'bg-white dark:bg-slate-800' : 'bg-slate-100 dark:bg-slate-800/60'}">
-                        ${uiArt('mix', 'h-9 w-9')}
+                <div class="flex flex-col gap-3 short:gap-2">
+                    <p class="text-xs leading-snug text-slate-500 short:text-[11px] dark:text-slate-400">Vyber, z jakých témat tě ostatní můžou vyzývat. U <b class="text-slate-700 dark:text-slate-200">vypnutých</b> témat ti výzvu nezadají a náhodný soupeř tě v nich nedostane. Třeba když historii vůbec neznáš.</p>
+                    <button type="button" data-accept-mix role="switch" aria-checked="${myAcceptsMix}" class="btn-3d-light flex w-full items-center gap-2.5 rounded-2xl p-2.5 text-left short:p-2 ${myAcceptsMix ? 'bg-white dark:bg-slate-800' : 'bg-slate-100 dark:bg-slate-800/60'}">
+                        ${uiArt('mix', 'h-9 w-9 short:h-8 short:w-8')}
                         <span class="min-w-0 flex-1"><span class="block text-[13px] font-black leading-tight text-slate-800 dark:text-slate-100">Mix všech témat</span><span class="block text-[11px] font-semibold leading-snug text-slate-500 dark:text-slate-400">${myAcceptsMix ? (TOPICS.length - blocked.length > 0 ? `Dostaneš ho jen z tvých ${TOPICS.length - blocked.length} zapnutých témat.` : 'Nemáš zapnuté žádné téma.') : 'Vypnuto: přijímáš jen výzvy z konkrétních témat.'}</span></span>
                         <span class="flex h-6 w-11 shrink-0 items-center rounded-full p-0.5 ${myAcceptsMix ? 'justify-end bg-emerald-500' : 'justify-start bg-slate-300 dark:bg-slate-600'}"><span class="h-5 w-5 rounded-full bg-white shadow"></span></span>
                     </button>
-                    <ul class="grid grid-cols-2 gap-1.5">${TOPICS.map(topic => {
+                    <ul class="grid grid-cols-2 gap-1.5 short:gap-1">${TOPICS.map(topic => {
                         const off = blocked.includes(topic.id);
-                        return `<li><button type="button" data-accept-topic="${topic.id}" role="switch" aria-checked="${!off}" class="btn-3d-light flex w-full items-center gap-2 rounded-xl p-2 text-left ${off ? 'bg-slate-100 opacity-70 dark:bg-slate-800/60' : 'bg-white dark:bg-slate-800'}">
-                            ${topicIcon(topic, 'h-8 w-8', `rounded-lg p-1.5 ${styleOf(topic).soft}`, 'h-5 w-5')}
+                        return `<li><button type="button" data-accept-topic="${topic.id}" role="switch" aria-checked="${!off}" class="btn-3d-light flex min-h-[2.5rem] w-full items-center gap-2 rounded-xl p-2 text-left short:py-1 ${off ? 'bg-slate-100 opacity-70 dark:bg-slate-800/60' : 'bg-white dark:bg-slate-800'}">
+                            ${topicIcon(topic, 'h-8 w-8 short:h-7 short:w-7', `rounded-lg p-1.5 short:p-1 ${styleOf(topic).soft}`, 'h-5 w-5')}
                             <span class="min-w-0 flex-1 text-[11.5px] font-black leading-tight ${off ? 'text-slate-500 line-through dark:text-slate-400' : 'text-slate-800 dark:text-slate-100'}">${escapeHtml(topic.title)}</span>
                             <span class="flex h-5 w-5 shrink-0 items-center justify-center rounded-full ${off ? 'bg-slate-300 text-white dark:bg-slate-600' : 'bg-emerald-500 text-white'}"><i data-lucide="${off ? 'ban' : 'check'}" class="h-3 w-3"></i></span>
                         </button></li>`;
@@ -5169,7 +5174,7 @@
                         <p class="text-xs font-bold text-slate-600 dark:text-slate-300">Přijímáš: ${escapeHtml(acceptSummary())}</p>
                         ${blocked.length ? '<button type="button" data-accept-all class="rounded-lg bg-slate-200 px-2.5 py-1.5 text-xs font-black text-slate-700 dark:bg-slate-700 dark:text-slate-200">Zapnout vše</button>' : ''}
                     </div>
-                    <p class="min-h-[1rem] text-xs font-semibold ${note.startsWith('Uloženo') ? 'text-emerald-700 dark:text-emerald-300' : 'text-rose-700 dark:text-rose-400'}" role="status">${escapeHtml(note)}</p>
+                    <p class="min-h-[1rem] text-xs font-semibold short:-mt-1 ${note.startsWith('Uloženo') ? 'text-emerald-700 dark:text-emerald-300' : 'text-rose-700 dark:text-rose-400'}" role="status">${escapeHtml(note)}</p>
                 </div>`, {
                 onClick: async (event) => {
                     const toggle = event.target.closest('[data-accept-topic]');
@@ -5685,7 +5690,8 @@
         updateControlsUI();
     };
 
-    // Okna (profil, nová výzva, kód, detail výzvy): jedno společné
+    // Okna (profil, nová výzva, kód, detail výzvy): jedno společné. Nadpis se zavíráním je lepkavý: u dlouhého seznamu, který se posouvá,
+    // zůstane vidět (lepkavé prvky uvnitř okna se proto lepí pod něj, top-11)
     let dialogHandler = null;
     let dialogSubmit = null;
     let dialogInput = null;
@@ -5727,7 +5733,7 @@
         overlay.dataset.title = title;
         overlay.innerHTML = `
             <div class="relative max-h-[92dvh] w-full max-w-md overflow-y-auto rounded-[1.75rem] bg-slate-50 p-5 shadow-2xl dark:bg-slate-900">
-                <div class="mb-4 flex items-center justify-between">
+                <div data-dialog-head class="sticky -top-5 z-20 -mx-5 -mt-5 mb-2 flex items-center justify-between bg-slate-50 px-5 pb-2 pt-5 dark:bg-slate-900">
                     <h2 id="dialog-title" class="text-lg font-black text-slate-800 dark:text-slate-100">${escapeHtml(title)}</h2>
                     <button type="button" data-close aria-label="Zavřít" class="-m-0.5 rounded-xl p-2.5 text-slate-500 hover:bg-slate-200 dark:text-slate-400 dark:hover:bg-slate-800"><i data-lucide="x" class="h-5 w-5"></i></button>
                 </div>
@@ -5957,7 +5963,8 @@
         const chip = (attr, value, active, content) => `<button type="button" ${attr}="${escapeHtml(String(value))}" aria-pressed="${active}" class="min-w-0 rounded-xl border-2 px-2 py-1.5 text-[13px] font-bold leading-tight active:scale-[0.98] ${active ? 'border-brand-600 bg-brand-50 text-brand-900 dark:bg-brand-900/40 dark:text-brand-100' : 'border-transparent bg-white text-slate-600 dark:bg-slate-800 dark:text-slate-300'}">${content}</button>`;
         const LABEL = 'text-xs font-black uppercase tracking-widest text-slate-500 dark:text-slate-400';
         const foundRows = () => {
-            if (draft.found === null) return draft.query.trim().length >= 2 ? '<p class="px-1 text-xs font-semibold text-slate-500 dark:text-slate-400">Hledám…</p>' : '<p class="px-1 text-xs text-slate-500 dark:text-slate-400">Napiš aspoň 2 znaky přezdívky.</p>';
+            // Prázdné pole nic nepíše (radí zástupný text), rada o dvou znacích až po prvním písmenu
+            if (draft.found === null) return draft.query.trim().length >= 2 ? '<p class="px-1 text-xs font-semibold text-slate-500 dark:text-slate-400">Hledám…</p>' : draft.query.trim() ? '<p class="px-1 text-xs text-slate-500 dark:text-slate-400">Napiš aspoň 2 znaky přezdívky.</p>' : '';
             if (!draft.found.length) return '<p class="px-1 text-xs font-semibold text-slate-500 dark:text-slate-400">Žádný takový hráč. Zkus jinou přezdívku.</p>';
             return draft.found.map(player => `
                 <button type="button" data-pick-opp="${escapeHtml(player.id)}" class="flex w-full items-center gap-3 rounded-xl bg-white p-2 text-left shadow-sm active:scale-[0.99] dark:bg-slate-800">
@@ -5993,16 +6000,16 @@
             }
             // Přátelé k rychlému výběru (friends.js) nad hledáním podle přezdívky
             const quick = Friends ? Friends.quickFriends(Friends.split(friendRows).friends, friendsHelpers()) : '';
-            return `${quick}<input id="opp-search" type="text" maxlength="24" autocomplete="off" placeholder="${quick ? 'Nebo začni psát přezdívku hráče' : 'Začni psát přezdívku hráče'}" value="${escapeHtml(draft.query)}" class="mt-2 w-full rounded-xl border-2 border-slate-200 bg-white px-3 py-2.5 text-base font-bold text-slate-800 focus:border-brand-600 focus:outline-none dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"><div id="opp-results" class="mt-2 flex flex-col gap-1.5">${foundRows()}</div>`;
+            return `${quick}<input id="opp-search" type="text" maxlength="24" autocomplete="off" placeholder="${quick ? 'Nebo začni psát přezdívku hráče' : 'Začni psát přezdívku hráče'}" value="${escapeHtml(draft.query)}" class="mt-2 w-full rounded-xl border-2 border-slate-200 bg-white px-3 py-2 text-base font-bold text-slate-800 focus:border-brand-600 focus:outline-none dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"><div id="opp-results" class="mt-2 flex flex-col gap-1.5 empty:mt-0">${foundRows()}</div>`;
         };
         // Tři jasně odlišené možnosti: konkrétní hráč (výchozí), náhodný hráč, odkaz pro kohokoli
         const whoCard = (id, icon, title, text) => {
             const active = draft.who === id;
             return `
                 <div>
-                    <button type="button" data-ch-who="${id}" role="radio" aria-checked="${active}" class="flex w-full items-center gap-3 rounded-2xl border-2 px-3 py-2 text-left active:scale-[0.99] ${active ? 'border-brand-600 bg-brand-50 dark:bg-brand-900/40' : 'border-transparent bg-white dark:bg-slate-800'}">
-                        <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${active ? 'bg-brand-600 text-white' : 'bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-300'}"><i data-lucide="${icon}" class="h-[1.125rem] w-[1.125rem]"></i></span>
-                        <span class="min-w-0 flex-1"><span class="block text-[14px] font-black leading-tight text-slate-800 dark:text-slate-100">${title}</span><span class="block truncate text-[11px] text-slate-500 dark:text-slate-400">${text}</span></span>
+                    <button type="button" data-ch-who="${id}" role="radio" aria-checked="${active}" class="flex min-h-[2.75rem] w-full items-center gap-3 rounded-2xl border-2 px-3 py-1.5 text-left active:scale-[0.99] ${active ? 'border-brand-600 bg-brand-50 dark:bg-brand-900/40' : 'border-transparent bg-white dark:bg-slate-800'}">
+                        <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full short:h-7 short:w-7 ${active ? 'bg-brand-600 text-white' : 'bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-300'}"><i data-lucide="${icon}" class="h-[1.125rem] w-[1.125rem]"></i></span>
+                        <span class="min-w-0 flex-1"><span class="block text-[14px] font-black leading-tight text-slate-800 dark:text-slate-100">${title}</span><span class="block truncate text-[11px] text-slate-500 dark:text-slate-400${active ? '' : ' short:hidden'}">${text}</span></span>
                         <span class="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 ${active ? 'border-brand-600 bg-brand-600 text-white' : 'border-slate-300 dark:border-slate-600'}">${active ? '<i data-lucide="check" class="h-3 w-3"></i>' : ''}</span>
                     </button>
                     ${active && id === 'player' ? opponentSearch() : ''}
@@ -6013,7 +6020,7 @@
             const open = draft.open === id;
             return `
                 <div class="rounded-2xl bg-white shadow-sm dark:bg-slate-800/70">
-                    <button type="button" data-ch-open="${id}" aria-expanded="${open}" class="flex w-full items-center gap-3 px-3 py-2.5 text-left">
+                    <button type="button" data-ch-open="${id}" aria-expanded="${open}" class="flex w-full items-center gap-3 px-3 py-2 text-left short:py-1.5">
                         <i data-lucide="${icon}" class="h-5 w-5 shrink-0 text-slate-500 dark:text-slate-400"></i>
                         <span class="min-w-0 flex-1"><span class="block text-[11px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">${label}</span><span class="block truncate text-[14px] font-bold text-slate-800 dark:text-slate-100">${escapeHtml(summary)}</span></span>
                         <i data-lucide="${open ? 'chevron-down' : 'chevron-right'}" class="h-5 w-5 shrink-0 text-slate-500 dark:text-slate-400"></i>
@@ -6048,10 +6055,10 @@
             draw();
         };
         const draw = () => showDialog('Nová výzva', `
-            <div class="flex flex-col gap-2.5">
+            <div class="flex flex-col gap-2.5 short:gap-2">
                 ${draft.group ? `<div data-ch-group class="flex items-center gap-3 rounded-2xl bg-white px-3 py-2 shadow-sm ring-2 ring-brand-600 dark:bg-slate-800"><span aria-hidden="true" class="text-2xl">${escapeHtml(draft.group.icon)}</span><span class="min-w-0 flex-1"><span class="block text-[11px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">Výzva skupině</span><span class="block truncate text-[14px] font-black text-slate-800 dark:text-slate-100">${escapeHtml(draft.group.name)}</span></span></div>` : `
                 <div role="radiogroup" aria-label="Koho vyzvat" class="flex flex-col gap-1.5">
-                    <p class="${LABEL}">Koho vyzvat</p>
+                    <p class="${LABEL} short:hidden">Koho vyzvat</p>
                     ${whoCard('player', 'user-round', 'Konkrétního hráče', 'Najdeš ho podle přezdívky')}
                     ${whoCard('random', 'shuffle', 'Náhodného hráče', 'Soupeře vybereme za tebe')}
                     ${whoCard('anyone', 'share-2', 'Kamaráda přes odkaz', 'Pošleš odkaz nebo kód komukoli')}
@@ -6063,8 +6070,8 @@
                     <div class="grid grid-cols-3 gap-1">${Social.COUNTS.map(count => chip('data-ch-count', count, draft.count === count, `<span class="px-1.5 font-black">${count}</span>`)).join('')}</div>
                 </div>
                 ${accordion('settings', 'pencil', 'Nastavení', settingsSummary(), settingsBody())}
-                <div class="sticky -bottom-5 -mx-5 mt-1 bg-slate-50/95 px-5 pb-5 pt-3 backdrop-blur dark:bg-slate-900/95">
-                    <button type="button" data-ch-create ${busy ? 'disabled' : ''} class="${PRIMARY_BUTTON}">${uiArt('vyzva', 'h-7 w-7')} ${busy ? 'Zakládám…' : 'Vytvořit a hrát'}</button>
+                <div class="sticky -bottom-5 -mx-5 mt-1 bg-slate-50/95 px-5 pb-5 pt-3 backdrop-blur short:pt-2 dark:bg-slate-900/95">
+                    <button type="button" data-ch-create ${busy ? 'disabled' : ''} class="${PRIMARY_BUTTON} short:py-2.5">${uiArt('vyzva', 'h-7 w-7')} ${busy ? 'Zakládám…' : 'Vytvořit a hrát'}</button>
                     ${note ? DIALOG_NOTE(note) : ''}
                 </div>
             </div>`, {
@@ -6264,6 +6271,8 @@
         }).sort((a, b) => b.ratio - a.ratio);
     };
     const goalBar = (ratio) => `<span class="mt-1 block h-1.5 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700" aria-hidden="true"><span class="block h-full w-0 rounded-full bg-gold-500" data-progress="${Math.round(ratio * 100)}"></span></span>`;
+    // Tlačítko Zpět dole v dlouhém seznamu (odznaky, úrovně): lepkavé, při posouvání zůstane vidět
+    const STICKY_BACK = (label) => `<div class="sticky -bottom-5 z-10 -mx-5 -mb-5 bg-slate-50 px-5 pb-5 pt-2 dark:bg-slate-900"><button type="button" data-back-progress class="${SECONDARY_BUTTON} !py-2.5 text-sm"><i data-lucide="chevron-left" class="h-4 w-4"></i> ${label}</button></div>`;
     // Všechny odznaky po skupinách: řada medailí (získané barevné, další šedé), klepnutím na medaili podrobnosti
     const openBadges = () => {
         let selected = null;
@@ -6292,9 +6301,9 @@
             showDialog('Odznaky', `
                 <div class="flex flex-col gap-3">
                     <p class="text-sm font-black text-slate-800 dark:text-slate-100">${have} / ${total} <span class="font-semibold text-slate-500 dark:text-slate-400">získaných odznaků</span></p>
-                    <div class="sticky top-0 z-10 -mx-1 bg-slate-50 px-1 pb-2 dark:bg-slate-900">${detailHtml}</div>
+                    <div class="sticky top-11 z-10 -mx-1 bg-slate-50 px-1 pb-2 dark:bg-slate-900">${detailHtml}</div>
                     <div class="grid grid-cols-2 gap-1.5">${sections}</div>
-                    <button type="button" data-back-progress class="${SECONDARY_BUTTON} !py-2.5 text-sm"><i data-lucide="chevron-left" class="h-4 w-4"></i> Zpět na Můj postup</button>
+                    ${STICKY_BACK('Zpět na Můj postup')}
                 </div>`, {
                 onClick: (event) => {
                     // Zpět na přehled jako u mistrovství (jinak by šlo okno jen zavřít)
@@ -6341,7 +6350,7 @@
                 <p class="text-xs leading-snug text-slate-600 dark:text-slate-300">Za správné odpovědi sbíráš body zkušeností (XP) a stoupáš o úrovně. Každých pár úrovní dostaneš nový titul a odměny: doplňky, rámečky nebo barvy.</p>
                 <p class="text-[11px] font-semibold leading-snug text-slate-500 dark:text-slate-400" data-my-xp>Tvoje XP: <b class="text-slate-700 dark:text-slate-200">${formatXp(xp)} XP</b> · úroveň ${current} · ${escapeHtml(titleForLevel(current))}</p>
                 <ul class="flex flex-col gap-1.5">${rows}</ul>
-                <button type="button" data-back-progress class="${SECONDARY_BUTTON} !py-2.5 text-sm"><i data-lucide="chevron-left" class="h-4 w-4"></i> Zpět na Můj postup</button>
+                ${STICKY_BACK('Zpět na Můj postup')}
             </div>`, { onClick: (event) => { if (event.target.closest('[data-back-progress]')) openProgress(); } });
         const here = document.querySelector('#dialog-overlay [data-here]');
         if (here) here.scrollIntoView({ block: 'center' });
@@ -6495,10 +6504,16 @@
             const friend = friendById(playerId);
             const balance = friend && friend.status === 'accepted' ? Friends.balanceText(friend) : '';
             const act = friend ? Friends.activity(friend.last_seen) : { text: '' };
-            return `<div class="flex items-center gap-2">${isBlocked() ? `<div class="min-w-0 flex-1">${Friends.blockedNote(playerName(player))}</div>` : button}${Friends.moreButton(menuOpen)}</div>
+            // Přátelství a poslední reakce drobně pod tlačítky (jméno hráče je v hlavičce, u emoji v popisku)
+            const info = [
+                friend && friend.status === 'accepted' && (act.text || balance) ? `<span>${[act.text ? `Přítel · ${escapeHtml(act.text)}` : 'Přítel', balance ? `bilance ${escapeHtml(balance)}` : ''].filter(Boolean).join(' · ')}</span>` : '',
+                lastReaction && lastReaction.emoji ? `<span class="inline-flex items-center gap-1" data-last-reaction>Poslední reakce: ${Friends.reactionBadge(lastReaction.emoji, playerName(player))} ${escapeHtml(Friends.REACTION_LABELS[lastReaction.emoji] || '')}</span>` : ''
+            ].filter(Boolean);
+            return `<div class="flex flex-col gap-1.5">
+                <div class="flex items-center gap-2">${isBlocked() ? `<div class="min-w-0 flex-1">${Friends.blockedNote(playerName(player))}</div>` : button}${Friends.moreButton(menuOpen)}</div>
                 ${menuOpen ? Friends.moreMenu(isBlocked()) : ''}
-                ${friend && friend.status === 'accepted' && (act.text || balance) ? `<p class="text-center text-[11px] font-semibold text-slate-500 dark:text-slate-400">${[act.text ? `Přítel · ${escapeHtml(act.text)}` : 'Přítel', balance ? `bilance ${escapeHtml(balance)}` : ''].filter(Boolean).join(' · ')}</p>` : ''}
-                ${lastReaction && lastReaction.emoji ? `<p class="flex items-center justify-center gap-1.5 text-[12px] font-semibold text-slate-600 dark:text-slate-300">Poslední reakce od ${escapeHtml(playerName(player))}: ${Friends.reactionBadge(lastReaction.emoji, playerName(player))} ${escapeHtml(Friends.REACTION_LABELS[lastReaction.emoji] || '')}</p>` : ''}`;
+                ${info.length ? `<p class="flex flex-col items-center gap-0.5 text-center text-[11px] font-semibold leading-snug text-slate-500 dark:text-slate-400">${info.join('')}</p>` : ''}
+            </div>`;
         };
         const friendAction = async (action) => {
             if (friendBusy || !Friends) return;
@@ -6560,19 +6575,31 @@
             reportBusy = false;
             render();
         };
-        const levelAndBadges = (value) => {
-            const level = levelProgress(value.xp || 0).level;
-            const owned = expandBadges((value.badges || []).filter(id => BADGE_BY_ID[id]));
-            const earned = compactBadges(owned).map(id => BADGE_BY_ID[id]).slice(0, 14);
-            // Titul u jména podle volby hráče: úroveň (výchozí), nic, nebo jeden ze získaných odznaků
-            const pref = Social.cleanTitlePref(value.title_pref) || 'level';
+        // Titul u jména podle volby hráče: úroveň (výchozí), nic, nebo jeden ze získaných odznaků
+        const titlePref = (value) => Social.cleanTitlePref(value.title_pref) || 'level';
+        const titleLine = (value) => {
+            const pref = titlePref(value);
             if (pref === 'none') return '';
-            if (pref !== 'level' && BADGE_BY_ID[pref]) return `<p class="flex items-center justify-center gap-1.5 text-sm font-bold text-brand-700 dark:text-cream">${medalHtml(BADGE_BY_ID[pref], true, 'h-7 w-7', 'h-3.5 w-3.5')} ${escapeHtml(BADGE_BY_ID[pref].title)}</p>`;
-            return `<p class="text-sm font-bold text-brand-700 dark:text-cream">Úr. ${level} · ${escapeHtml(titleForLevel(level))}</p>`
-                + (earned.length ? `<div class="mt-1 flex flex-wrap justify-center gap-1.5" aria-label="Odznaky">${earned.map(badge => `<span title="${escapeHtml(`${badge.title}: ${badge.text}`)}">${medalHtml(badge, true, 'h-8 w-8', 'h-4 w-4')}</span>`).join('')}</div>` : '');
+            if (pref !== 'level' && BADGE_BY_ID[pref]) return `<p class="flex min-w-0 items-center gap-1.5 text-sm font-bold text-brand-700 dark:text-cream">${medalHtml(BADGE_BY_ID[pref], true, 'h-6 w-6', 'h-3 w-3')}<span class="truncate">${escapeHtml(BADGE_BY_ID[pref].title)}</span></p>`;
+            const level = levelProgress(value.xp || 0).level;
+            return `<p class="truncate text-sm font-bold text-brand-700 dark:text-cream">Úr. ${level} · ${escapeHtml(titleForLevel(level))}</p>`;
         };
-        const tile = (label, value) => `<div class="rounded-2xl bg-white p-3 text-center shadow-sm dark:bg-slate-800"><p class="text-xl font-black text-slate-800 dark:text-slate-100">${value}</p><p class="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">${label}</p></div>`;
-        const chip = (label, tone) => `<span class="rounded-xl px-2.5 py-1.5 text-[13px] font-black ${tone}">${escapeHtml(label)}</span>`;
+        // Odznaky (jen u titulu podle úrovně): jedna řada malých medailí, „+N“ rozbalí všechny
+        let badgesOpen = false;
+        const BADGES_SHOWN = 6;
+        const badgesRow = (value) => {
+            if (titlePref(value) !== 'level') return '';
+            const earned = compactBadges(expandBadges((value.badges || []).filter(id => BADGE_BY_ID[id]))).map(id => BADGE_BY_ID[id]);
+            if (!earned.length) return '';
+            const fold = earned.length > BADGES_SHOWN + 1;
+            const shown = fold && !badgesOpen ? earned.slice(0, BADGES_SHOWN) : earned;
+            const medal = (badge) => `<span title="${escapeHtml(`${badge.title}: ${badge.text}`)}">${medalHtml(badge, true, 'h-8 w-8', 'h-4 w-4')}</span>`;
+            const toggle = fold ? `<button type="button" data-profile-badges aria-expanded="${badgesOpen}" aria-label="${badgesOpen ? 'Méně odznaků' : `Všechny odznaky (${earned.length})`}" class="flex h-10 min-w-[2.5rem] shrink-0 items-center justify-center rounded-full bg-slate-200 px-2.5 text-[12px] font-black text-slate-700 active:scale-95 dark:bg-slate-700 dark:text-slate-200">${badgesOpen ? '<i data-lucide="chevron-down" class="h-4 w-4 rotate-180"></i>' : `+${earned.length - BADGES_SHOWN}`}</button>` : '';
+            return `<div class="flex ${badgesOpen ? 'flex-wrap' : 'flex-nowrap overflow-hidden'} items-center justify-center gap-1.5" aria-label="Odznaky" data-profile-badge-row>${shown.map(medal).join('')}${toggle}</div>`;
+        };
+        // Statistiky z výzev a vzájemná bilance v jedné kartě: tři čísla v řádku, pod nimi bilance jako čipy
+        const stat = (label, value) => `<div class="px-1 text-center"><p class="text-lg font-black leading-tight text-slate-800 dark:text-slate-100">${value}</p><p class="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">${label}</p></div>`;
+        const chip = (label, tone) => `<span class="rounded-lg px-2 py-0.5 text-[12px] font-black ${tone}">${escapeHtml(label)}</span>`;
         const render = () => {
             if (opened && !isOpen()) return;
             opened = true;
@@ -6582,24 +6609,31 @@
             else {
                 const percent = stats.answered ? `${Math.round(stats.correct / stats.answered * 100)} %` : '–';
                 const versus = stats.versus && (stats.versus.wins + stats.versus.draws + stats.versus.losses)
-                    ? `<div class="flex flex-col items-center gap-2"><p class="${CARD_TITLE}">Vaše bilance</p><div class="flex flex-wrap justify-center gap-1.5">${chip(plural(stats.versus.wins, 'výhra', 'výhry', 'výher'), 'bg-emerald-600 text-white')}${chip(plural(stats.versus.draws, 'remíza', 'remízy', 'remíz'), 'bg-slate-500 text-white')}${chip(plural(stats.versus.losses, 'prohra', 'prohry', 'proher'), 'bg-rose-600 text-white')}</div></div>`
-                    : '<p class="text-center text-sm text-slate-500 dark:text-slate-400">Ještě jste spolu nehráli.</p>';
+                    ? `<div class="flex flex-wrap items-center justify-center gap-1.5"><p class="text-[11px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400"><span class="max-[380px]:sr-only">Vaše </span>bilance</p>${chip(plural(stats.versus.wins, 'výhra', 'výhry', 'výher'), 'bg-emerald-600 text-white')}${chip(plural(stats.versus.draws, 'remíza', 'remízy', 'remíz'), 'bg-slate-500 text-white')}${chip(plural(stats.versus.losses, 'prohra', 'prohry', 'proher'), 'bg-rose-600 text-white')}</div>`
+                    : '<p class="text-center text-xs text-slate-500 dark:text-slate-400">Ještě jste spolu nehráli.</p>';
                 const same = stats.last ? `${challengeTopicTitle(stats.last.topic)} · ${Social.COUNTS.includes(stats.last.count) ? stats.last.count : 10} otázek` : 'Mix · 10 otázek';
                 body = `
-                    <div class="grid grid-cols-3 gap-2">${tile('Výzvy', stats.games)}${tile('Úspěšnost', percent)}${tile('Nejlepší', stats.best ? `${stats.best.correct}/${stats.best.count}` : '–')}</div>
-                    ${versus}
+                    <div class="rounded-2xl bg-white p-2 shadow-sm dark:bg-slate-800" data-player-stats>
+                        <div class="grid grid-cols-3 divide-x divide-slate-200 dark:divide-slate-700">${stat('Výzvy', stats.games)}${stat('Úspěšnost', percent)}${stat('Nejlepší', stats.best ? `${stats.best.correct}/${stats.best.count}` : '–')}</div>
+                        <div class="mt-2 border-t border-slate-200 pt-2 dark:border-slate-700">${versus}</div>
+                    </div>
                     <div>
                         <button type="button" data-rematch ${busy ? 'disabled' : ''} class="${PRIMARY_BUTTON}">${uiArt('vyzva', 'h-7 w-7')} ${busy ? 'Zakládám…' : stats.last ? 'Vyzvat k odvetě' : 'Vyzvat'}</button>
-                        <p class="mt-1.5 text-center text-xs text-slate-500 dark:text-slate-400">${stats.last ? 'Stejné nastavení jako naposledy' : 'První výzva'}: ${escapeHtml(same)}</p>
-                        <button type="button" data-edit-challenge ${busy ? 'disabled' : ''} class="btn-3d-light mt-2 flex w-full items-center justify-center gap-1.5 rounded-2xl bg-white px-4 py-2.5 text-sm font-black text-slate-700 dark:bg-slate-800 dark:text-slate-200"><i data-lucide="settings-2" class="h-4 w-4"></i> Upravit nastavení výzvy</button>
+                        <div class="mt-1 flex items-center gap-2">
+                            <p class="min-w-0 flex-1 text-xs leading-snug text-slate-500 dark:text-slate-400">${stats.last ? 'Stejné nastavení jako naposledy' : 'První výzva'}: ${escapeHtml(same)}</p>
+                            <button type="button" data-edit-challenge ${busy ? 'disabled' : ''} class="flex min-h-[2.5rem] shrink-0 items-center gap-1 rounded-xl px-2 text-[13px] font-black text-brand-700 hover:bg-slate-200 disabled:opacity-50 dark:text-cream dark:hover:bg-slate-800"><i data-lucide="settings-2" class="h-4 w-4"></i> Upravit<span class="sr-only"> nastavení výzvy</span></button>
+                        </div>
                     </div>`;
             }
             if (view === 'report' && Friends) {
-                body = Friends.reportBody(Social.REPORT_REASONS, reportReason, reportNote, { busy: reportBusy }) + `<button type="button" data-report-back class="mt-2 flex w-full items-center justify-center gap-1.5 rounded-2xl px-3 py-2 text-[13px] font-black text-slate-600 dark:text-slate-300"><i data-lucide="chevron-left" class="h-4 w-4"></i> Zpět na profil</button>`;
+                body = Friends.reportBody(Social.REPORT_REASONS, reportReason, reportNote, { busy: reportBusy }) + `<button type="button" data-report-back class="mt-2 flex min-h-[2.5rem] w-full items-center justify-center gap-1.5 rounded-2xl px-3 py-2 text-[13px] font-black text-slate-600 dark:text-slate-300"><i data-lucide="chevron-left" class="h-4 w-4"></i> Zpět na profil</button>`;
             }
             showDialog(view === 'report' ? 'Nahlásit hráče' : 'Profil hráče', `
-                <div class="flex flex-col gap-4">
-                    <div class="flex flex-col items-center gap-2 text-center">${avatarHtml(player, 'h-20 w-20 text-5xl')}<p class="text-xl font-black text-slate-800 dark:text-slate-100">${escapeHtml(playerName(player))}</p>${theirProgress ? levelAndBadges(theirProgress) : ''}${theirRating ? `<p id="player-league">${leagueChip(theirRating.rating)}</p>` : ''}</div>
+                <div class="flex flex-col gap-3">
+                    <div class="flex items-center gap-3" data-profile-head>${avatarHtml(player, 'h-16 w-16 text-4xl')}
+                        <div class="min-w-0 flex-1"><p class="truncate text-xl font-black leading-tight text-slate-800 dark:text-slate-100">${escapeHtml(playerName(player))}</p>${theirProgress ? titleLine(theirProgress) : ''}${theirRating ? `<p id="player-league" class="mt-0.5">${leagueChip(theirRating.rating)}</p>` : ''}</div>
+                    </div>
+                    ${theirProgress && view !== 'report' ? badgesRow(theirProgress) : ''}
                     ${view === 'report' ? '' : socialRow()}
                     ${isBlocked() && view !== 'report' ? '' : body}
                     ${note ? DIALOG_NOTE(note, /přijali|přítel|odeslána|odblokovaný|zablokovaný/.test(note) ? 'text-emerald-700 dark:text-emerald-300' : undefined) : ''}
@@ -6609,6 +6643,7 @@
                 onClick: async (event) => {
                     const friendButton = event.target.closest('[data-friend]');
                     if (friendButton) { friendAction(friendButton.dataset.friend); return; }
+                    if (event.target.closest('[data-profile-badges]')) { badgesOpen = !badgesOpen; render(); return; }
                     if (event.target.closest('[data-more]')) { menuOpen = !menuOpen; render(); return; }
                     if (event.target.closest('[data-report]')) { view = 'report'; menuOpen = false; note = ''; render(); return; }
                     if (event.target.closest('[data-report-back]')) { view = 'profile'; render(); return; }
@@ -7059,7 +7094,7 @@
         const picker = rivals.length > 1 ? `<div role="group" aria-label="Porovnat s hráčem" class="flex gap-1.5 overflow-x-auto pb-1">${rivals.slice(0, 20).map(row => `<button type="button" data-bd-rival="${escapeHtml(row.user_id)}" aria-pressed="${rival && row.user_id === rival.user_id}" class="flex shrink-0 items-center gap-1.5 rounded-full px-2 py-1 text-[12px] font-bold ${rival && row.user_id === rival.user_id ? 'bg-brand-700 text-white' : 'bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-200'}">${avatarHtml(row.player, 'h-5 w-5 text-[11px]')}<span class="max-w-[7rem] truncate">${escapeHtml(playerName(row.player))}</span></button>`).join('')}</div>` : '';
         return `<div class="flex flex-col gap-2">
                 ${picker}
-                <div class="sticky -top-5 z-10 -mx-1 grid grid-cols-2 gap-1.5 bg-slate-50 px-1 py-1.5 dark:bg-slate-900">
+                <div class="sticky top-11 z-10 -mx-1 grid grid-cols-2 gap-1.5 bg-slate-50 px-1 py-1.5 dark:bg-slate-900">
                     ${breakdownHead({ ...me, count }, 'Ty')}
                     ${rival ? breakdownHead({ ...rival, count }, playerName(rival.player)) : ''}
                 </div>
@@ -8163,7 +8198,7 @@
             const medals = ['text-gold-600 dark:text-gold-300', 'text-slate-500 dark:text-slate-300', 'text-amber-700 dark:text-amber-500', 'text-slate-500 dark:text-slate-400'];
             body = `
                 <p class="text-xs font-semibold leading-snug text-slate-500 dark:text-slate-400">Týden ${escapeHtml(Tournament.weekLabel(tournament.week_start))} · ${tournament.size ? `${Tournament.playersWord(tournament.size)}` : ''} · Mix všech témat, ${Tournament.QUESTIONS} otázek v kole</p>
-                ${state.role === 'player' || (state.phase === 'finished' && state.playing) ? `<div id="tournament-status" class="flex items-center gap-2.5 rounded-2xl bg-gold-50 p-2.5 ring-1 ring-gold-300/70 dark:bg-gold-900/20 dark:ring-gold-700/60"><p class="min-w-0 flex-1 text-[13px] font-bold leading-snug text-slate-800 dark:text-slate-100">${state.roundName ? `<span class="font-black">${escapeHtml(state.roundName)}:</span> ` : ''}${escapeHtml(status)}</p>${state.step === 'play' || state.step === 'resume' ? `<button type="button" data-t-play class="shrink-0 rounded-xl bg-gold-500 px-3.5 py-2 text-[13px] font-black text-brand-950 shadow-sm active:scale-[0.97]">${state.step === 'resume' ? 'Pokračovat' : 'Hrát'}</button>` : ''}</div>` : `<p id="tournament-status" class="text-sm font-semibold text-slate-600 dark:text-slate-300">${escapeHtml(status)}</p>`}
+                ${state.role === 'player' || (state.phase === 'finished' && state.playing) ? `<div class="sticky top-11 z-20 -mx-1 -my-1 bg-slate-50 px-1 py-1 dark:bg-slate-900"><div id="tournament-status" class="flex items-center gap-2.5 rounded-2xl bg-gold-50 p-2.5 ring-1 ring-gold-300/70 dark:bg-gold-900/20 dark:ring-gold-700/60"><p class="min-w-0 flex-1 text-[13px] font-bold leading-snug text-slate-800 dark:text-slate-100">${state.roundName ? `<span class="font-black">${escapeHtml(state.roundName)}:</span> ` : ''}${escapeHtml(status)}</p>${state.step === 'play' || state.step === 'resume' ? `<button type="button" data-t-play class="shrink-0 rounded-xl bg-gold-500 px-3.5 py-2 text-[13px] font-black text-brand-950 shadow-sm active:scale-[0.97]">${state.step === 'resume' ? 'Pokračovat' : 'Hrát'}</button>` : ''}</div></div>` : `<p id="tournament-status" class="text-sm font-semibold text-slate-600 dark:text-slate-300">${escapeHtml(status)}</p>`}
                 ${lastBreakdown}
                 ${podium.length ? `<ol id="tournament-podium" class="flex flex-col gap-1">${podium.map(entry => `<li class="flex items-center gap-2 rounded-xl bg-white px-2.5 py-1.5 shadow-sm dark:bg-slate-800 ${entry.user_id === user.id ? 'ring-2 ring-brand-600' : 'ring-1 ring-slate-200/70 dark:ring-slate-700/70'}"><span class="flex w-8 shrink-0 items-center justify-center gap-0.5 text-sm font-black ${medals[entry.place - 1]}">${entry.place}.${entry.place === 1 ? '<i data-lucide="trophy" class="h-3.5 w-3.5"></i>' : ''}</span>${avatarHtml(entry.player, 'h-8 w-8 text-base')}<span class="min-w-0 flex-1 truncate text-[13px] font-black text-slate-800 dark:text-slate-100">${escapeHtml(playerName(entry.player))}${entry.user_id === user.id ? ' (ty)' : ''}</span></li>`).join('')}</ol>` : ''}
                 ${rankingHtml(view, user.id)}
@@ -8275,9 +8310,9 @@
     };
     const openTournamentHelp = (back = false) => {
         showDialog('Jak turnaje fungují', `
-            <div class="flex flex-col gap-3">
-                <ul id="tournament-rules" class="flex flex-col gap-2">${Tournament.RULES.map(rule => `<li class="flex gap-2 text-sm leading-snug text-slate-700 dark:text-slate-200"><i data-lucide="check" class="mt-0.5 h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400"></i><span>${escapeHtml(rule)}</span></li>`).join('')}</ul>
-                <p class="text-xs leading-snug text-slate-500 dark:text-slate-400">Názvy kol podle počtu hráčů v kole: 128 hráčů 1. kolo, 64 2. kolo, 32 šestnáctifinále, 16 osmifinále, 8 čtvrtfinále, 4 semifinále, 2 finále a zápas o 3. místo.</p>
+            <div class="flex flex-col gap-3 short:gap-2">
+                <ul id="tournament-rules" class="flex flex-col gap-2 short:gap-1.5">${Tournament.RULES.map(rule => `<li class="flex gap-2 text-sm leading-snug text-slate-700 short:text-[13px] short:leading-tight dark:text-slate-200"><i data-lucide="check" class="mt-0.5 h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400"></i><span>${escapeHtml(rule)}</span></li>`).join('')}</ul>
+                <p class="text-xs leading-snug text-slate-500 short:text-[11px] short:leading-tight dark:text-slate-400">Názvy kol podle počtu hráčů v kole: 128 hráčů 1. kolo, 64 2. kolo, 32 šestnáctifinále, 16 osmifinále, 8 čtvrtfinále, 4 semifinále, 2 finále a zápas o 3. místo.</p>
                 ${back && findTournament(tournamentDialogId) ? `<button type="button" data-t-back class="${SECONDARY_BUTTON}">Zpět na turnaj</button>` : ''}
             </div>`, { onClick: (event) => { if (event.target.closest('[data-t-back]')) { bracketReset = true; renderTournamentDialog(); } } });
     };
