@@ -8,6 +8,7 @@
     "build:icons": "node scripts/build-icons.mjs",
     "build:countries": "node scripts/build-countries.mjs",
     "build:world": "node scripts/build-world.mjs",
+    "build:mapa": "node scripts/build-mapa.mjs",
     "build:zemepis": "node scripts/build-zemepis.mjs",
     "build:historie": "node scripts/build-historie.mjs",
     "build:biologie": "node scripts/build-biologie.mjs",

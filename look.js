@@ -96,7 +96,7 @@
     const customHue = (color) => { const match = CUSTOM_HUE.exec(String(color)); const hue = match ? Number(match[1]) : NaN; return hue >= 0 && hue <= 355 && hue % 5 === 0 ? hue : null; };
     // Vlajka státu na vlaječce: id z look-flags.js (malé q Wikidat, např. q101472); cokoli jiného se zahodí
     const flagOk = (flag) => typeof flag === 'string' && /^q\d{1,9}$/.test(flag) && Boolean(Flags) && Flags.has(flag);
-    // Sova titulu jako obrázek profilu (póza): 'titul-1' … 'titul-10' podle stupňů Core.TITLE_OWL_FROM (level = od jaké úrovně), null = sova
+    // Sova titulu jako obrázek profilu (póza): 'titul-1' … 'titul-11' podle stupňů Core.TITLE_OWL_FROM (level = od jaké úrovně), null = sova
     // s doplňky. Volba se ukládá, jak ji hráč zvolil; na dosaženou úroveň se omezí až při vykreslení (MudrlantOwl.allowedPose), takže
     // po ztrátě úrovně (vývojářský reset) se ukáže nejvyšší dosažená sova a po návratu úrovně zase ta zvolená. Není v CATALOG:
     // nejde o samostatnou odměnu (oslavu má nový titul).

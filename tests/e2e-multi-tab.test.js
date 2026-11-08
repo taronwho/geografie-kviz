@@ -189,10 +189,21 @@ const measure = (tab) => tab.evaluate(() => {
 test('záložka Více hráčů je kompaktní', { skip: !chromium && 'Playwright není nainstalovaný' }, async (t) => {
     const browser = await chromium.launch(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {});
     t.after(() => browser.close());
-    const start = async (fill, { viewport, colorScheme, now }) => {
+    const start = async (fill, { viewport, colorScheme, now, keyboard = false }) => {
         const db = newDb();
         fill(db);
         const page = await setup(browser, { viewport, colorScheme, now });
+        // Náhrada visualViewport: window.__keyboard(px) „otevře“ klávesnici – viditelná plocha se zmenší, okno stránky (innerHeight) zůstane jako v Chromu
+        if (keyboard) await page.context.addInitScript(() => {
+            const fake = new EventTarget();
+            let inset = 0;
+            Object.defineProperties(fake, {
+                height: { get: () => window.innerHeight - inset }, width: { get: () => window.innerWidth },
+                offsetTop: { get: () => 0 }, offsetLeft: { get: () => 0 }, pageTop: { get: () => 0 }, pageLeft: { get: () => 0 }, scale: { get: () => 1 }
+            });
+            Object.defineProperty(window, 'visualViewport', { configurable: true, get: () => fake });
+            window.__keyboard = (px) => { inset = px; fake.dispatchEvent(new Event('resize')); };
+        });
         await backend(page.context, db);
         await page.tab.goto(`${ORIGIN}/`);
         await page.tab.waitForSelector('#challenges-section [data-action="new-challenge"]');
@@ -287,6 +298,34 @@ test('záložka Více hráčů je kompaktní', { skip: !chromium && 'Playwright 
         await tab.waitForFunction(() => !document.getElementById('dialog-overlay'));
         await tab.click('#challenges-section [data-action="open-accept"]');
         await tab.waitForSelector('[data-accept-topic]');
+        assert.deepEqual(log.errors, []);
+        assert.deepEqual(log.csp, []);
+        await context.close();
+    });
+
+    await t.test('Zadat kód na malém telefonu: otevřená klávesnice okno nepřekryje, po zavření se vrátí dolů', async () => {
+        const { context, tab, log } = await start(typical, { viewport: { width: 360, height: 640 }, colorScheme: 'light', now: '2026-11-11T10:00:00Z', keyboard: true });
+        await tab.click('#challenges-section [data-action="join-challenge"]');
+        await tab.waitForSelector('#challenge-code');
+        const KEYBOARD = 300;
+        await tab.evaluate(px => window.__keyboard(px), KEYBOARD);
+        await tab.waitForFunction(() => document.documentElement.classList.contains('kb-open'));
+        await tab.waitForTimeout(100);
+        const open = await tab.evaluate(() => {
+            const panel = document.getElementById('dialog-overlay').firstElementChild.getBoundingClientRect();
+            const field = document.getElementById('challenge-code').getBoundingClientRect();
+            const submit = document.querySelector('#dialog-overlay button[type="submit"]');
+            return { panelTop: panel.top, panelBottom: panel.bottom, fieldTop: field.top, fieldBottom: field.bottom, submitBottom: submit ? submit.getBoundingClientRect().bottom : null };
+        });
+        const visible = 640 - KEYBOARD;
+        assert.ok(open.panelBottom <= visible + 1, `spodek okna ${open.panelBottom} px musí být nad klávesnicí (${visible} px)`);
+        assert.ok(open.panelTop >= 0, 'okno nesmí utéct nahoru mimo obrazovku');
+        assert.ok(open.fieldTop >= 0 && open.fieldBottom <= visible, `pole pro kód (${open.fieldTop}–${open.fieldBottom} px) musí být vidět`);
+        await shot(tab, 'kod-klavesnice-360x640');
+        await tab.evaluate(() => window.__keyboard(0));
+        await tab.waitForFunction(() => !document.documentElement.classList.contains('kb-open'));
+        const closed = await tab.evaluate(() => document.getElementById('dialog-overlay').firstElementChild.getBoundingClientRect().bottom);
+        assert.ok(closed > visible + 100, 'po zavření klávesnice je okno zase dole');
         assert.deepEqual(log.errors, []);
         assert.deepEqual(log.csp, []);
         await context.close();

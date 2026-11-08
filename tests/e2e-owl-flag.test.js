@@ -230,7 +230,12 @@ test('vlajka státu na vlaječce sovy', { skip: !chromium && 'Playwright není n
         await tab.waitForSelector('#challenges-section [data-player-id="u-1"] [data-owl-flag-img]');
         await tab.waitForFunction(() => { const image = document.querySelector('#challenges-section [data-player-id="u-1"] [data-owl-flag-img]'); return image && image.complete && image.naturalWidth > 0; });
         await tab.waitForFunction(() => { const box = document.querySelector('#challenges-section [data-player-id="u-1"] .owl-flag'); return box && getComputedStyle(box).opacity === '1'; });
-        const seen = await flagState(tab, '#challenges-section [data-player-id="u-1"]');
+        // Seznam výzev se po načtení profilů ještě překreslí a nová vlaječka se ukáže až po načtení obrázku: čte se ustálený stav
+        let seen = null;
+        for (let attempt = 0; attempt < 30 && !(seen && seen.opacity === '1'); attempt++) {
+            if (attempt) await tab.waitForTimeout(100);
+            seen = await flagState(tab, '#challenges-section [data-player-id="u-1"]');
+        }
         assert.ok(seen.src.includes('Flag_of_Indonesia.svg/120px-Flag_of_Indonesia.svg.png'));
         assert.equal(seen.opacity, '1');
         assert.equal(await tab.locator('#challenges-section [data-player-id="u-1"] [data-owl-layer]').count(), 0, 'cizí sova nemá vrstvy živé sovy');

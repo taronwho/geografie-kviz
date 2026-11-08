@@ -1813,14 +1813,15 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         await tab.waitForFunction(() => { const img = document.querySelector('[data-title-owl] img'); return img.complete && img.naturalWidth === 320; });
         await tab.click('[data-open-levels]');
         await tab.waitForSelector('#dialog-overlay [data-title-row]');
-        // Každý titul má sovu svého stupně (31 titulů, 10 sov), nedosažené jsou zašedlé
+        // Každý titul má sovu svého stupně (31 titulů, 11 sov), nedosažené jsou zašedlé
         const rows = await tab.$$eval('#dialog-overlay [data-title-row]', nodes => nodes.map(node => { const img = node.querySelector('img'); return [Number(node.dataset.titleRow), img.getAttribute('src'), img.classList.contains('grayscale')]; }));
         assert.equal(rows.length, 31);
         for (const [from, src, grey] of rows) {
             assert.equal(src, `icons/topics/sova-titul-${core.titleOwlTier(from)}-zelena.webp`, `titul od úrovně ${from}`);
             assert.equal(grey, from > 6, `titul od úrovně ${from}: ${grey ? 'zašedlý' : 'barevný'}`);
         }
-        assert.deepEqual([...new Set(rows.map(row => row[1]))].length, 10, 'deset různých sov');
+        assert.deepEqual([...new Set(rows.map(row => row[1]))].length, 11, 'jedenáct různých sov');
+        assert.deepEqual(rows.filter(row => row[1].includes('sova-titul-11')).map(row => row[0]), [100], 'vlastní sovu má jen Mudrlant (úroveň 100)');
         await tab.waitForFunction(() => [...document.querySelectorAll('#dialog-overlay [data-title-row] img')].every(img => img.complete && img.naturalWidth > 0), null, { timeout: 10000 });
         await tab.keyboard.press('Escape');
 
@@ -1838,6 +1839,44 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         await context.close();
     });
 
+    await t.test('sova Mudrlanta: úroveň 100 slaví nejvyšší titul vlastní sovou (titul-11), ukáže ji Můj postup i řádek Mudrlant', async () => {
+        const core = require('../quiz-core.js');
+        // Kousek pod úrovní 100: první správná odpověď přinese titul Mudrlant a s ním jedenáctou sovu; zlatý talár (úroveň 65)
+        const { context, tab, log } = await setup(browser, { storage: {
+            'mudrlant.progress': JSON.stringify({ xp: core.xpForLevel(100) - 5, counters: {}, badges: {} }),
+            'mudrlant.look': JSON.stringify({ robe: 'zlata', acc: {} })
+        } });
+        await tab.goto(`${ORIGIN}/`);
+        await waitForHome(tab);
+        await tab.click('[data-action="daily"][data-topic="zemepis"]');
+        await waitForQuestion(tab);
+        const data = await readRound(tab);
+        await tab.click(`[data-action="choice"]:has-text("${data.question.answerLabel}")`);
+        await waitForResult(tab);
+        await tab.waitForFunction(() => { const card = document.getElementById('celebration'); return card && /Nový titul/.test(card.textContent); }, null, { timeout: 10000 });
+        assert.match(await tab.textContent('#celebration'), /Nový titul\s*Mudrlant \(úroveň 100\)/);
+        assert.equal(await tab.getAttribute('#celebration img', 'src'), 'icons/topics/sova-titul-11-zlata.webp');
+        await tab.waitForFunction(() => { const img = document.querySelector('#celebration img'); return img.complete && img.naturalWidth === 320; });
+        // Po novém načtení (postup je uložený) karta Můj postup a okno Úrovně a tituly
+        await tab.goto(`${ORIGIN}/`);
+        await waitForHome(tab);
+        await tab.click('#status-badge');
+        await tab.waitForSelector('#dialog-overlay [data-open-levels]');
+        assert.equal(await tab.getAttribute('[data-open-levels] [data-title-owl] img', 'src'), 'icons/topics/sova-titul-11-zlata.webp');
+        assert.match(await tab.textContent('[data-open-levels]'), /Mudrlant[\s\S]*Nejvyšší úroveň/);
+        assert.match(await tab.textContent('[data-open-levels] [data-title-owl]'), /úr\.\s*100/);
+        await tab.click('[data-open-levels]');
+        await tab.waitForSelector('#dialog-overlay [data-title-row="100"][data-here]');
+        assert.equal(await tab.getAttribute('[data-title-row="100"] img', 'src'), 'icons/topics/sova-titul-11-zlata.webp');
+        assert.equal(await tab.getAttribute('[data-title-row="96"] img', 'src'), 'icons/topics/sova-titul-10-zlata.webp');
+        assert.equal(await tab.locator('#dialog-overlay [data-title-row] img.grayscale').count(), 0, 'všechny tituly dosažené');
+        // Řádek Mudrlant je vidět (okno se na aktuální titul posune)
+        assert.ok(await tab.evaluate(() => { const row = document.querySelector('[data-title-row="100"]').getBoundingClientRect(); return row.top >= 0 && row.bottom <= innerHeight; }));
+        assert.deepEqual(log.errors, []);
+        assert.deepEqual(log.csp, []);
+        await context.close();
+    });
+
     await t.test('tmavý režim', async () => {
         const { context, tab, log } = await setup(browser, { colorScheme: 'dark' });
         await tab.goto(`${ORIGIN}/`);
@@ -1847,4 +1886,30 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         assert.deepEqual(log.csp, []);
         await context.close();
     });
+});
+
+test('otázka s obrázkem: popis až jako nápověda, ne hned', { skip: !chromium && 'Playwright není nainstalovaný' }, async (t) => {
+    const browser = await chromium.launch(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {});
+    t.after(() => browser.close());
+    const { context, tab, log } = await setup(browser, { fixedRandom: 0.3 });
+    await tab.goto(`${ORIGIN}/`);
+    await waitForHome(tab);
+    await practiceCollection(tab, 'vlajky', null);
+    const data = await readRound(tab);
+    assert.ok(data.questionImage, 'otázka na vlajku ukazuje vlajku hned');
+    assert.equal(hintKeys(data)[0], 'text', 'první nápověda je popis');
+    // Před nápovědou: vlajka bez popisu, tlačítko nabízí popis
+    assert.equal(await tab.locator('#app-content p.italic').count(), 0, 'popis není vidět, dokud hráč nevezme nápovědu');
+    assert.equal(await tab.locator('[data-action="hint-tab"][data-step="text"]').count(), 0);
+    assert.match(await tab.textContent('[data-action="hint"]'), /Nápověda 1\/\d[\s\S]*Popis/);
+    assert.match(await appText(tab), /Nápovědy 0\/\d/);
+    await tab.click('[data-action="hint"]');
+    await tab.waitForSelector('[data-action="hint-tab"][data-step="text"][aria-selected="true"]');
+    const description = await tab.textContent('#app-content p.italic');
+    assert.ok(description.length > 10, 'po nápovědě je popis vidět');
+    assert.ok(!description.includes(data.question.answerLabel), 'popis neprozradí odpověď');
+    assert.match(await appText(tab), /Nápovědy 1\/\d/);
+    assert.deepEqual(log.errors, []);
+    assert.deepEqual(log.csp, []);
+    await context.close();
 });

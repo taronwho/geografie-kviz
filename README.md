@@ -4,6 +4,8 @@ Kvízová aplikace s tématy **Zeměpis**, **Historie**, **Biologie**, **Chemie*
 
 - **Dnešní otázky** – každé téma má jednu otázku denně, pro všechny stejnou (ze známých položek, asi desetina z těžších), a vlastní sérii dní; výsledek jde sdílet.
 - **Hraní tématu** – dlaždice tématu na domovské obrazovce; poprvé se otevře okno s výběrem kategorií (výchozí všechny), pak se hraje rovnou. **Mix** míchá otázky z vybraných témat. Každé téma má svou barvu (štítek a okraj hlavičky), klepnutím na štítek jde změnit kategorie nebo téma. Jen známé položky, nebo i méně známé.
+- **Bleskovka a Přežití** – režimy pro jednoho hráče, spouští se tlačítky vedle **Hrát** v okně s výběrem tématu (pro téma i Mix, s vybranými kategoriemi). Bleskovka: 60 sekund, co nejvíc správných odpovědí, vždy 4 možnosti bez nápověd, chyba ubere 3 sekundy, čas stojí při načítání otázky. Přežití: tři životy, prvních 5 otázek ze známých položek, pak přibývají méně známé (od 25. otázky celá sada), bez nápověd. Rekord se pamatuje pro každé téma, Mix i celkově (jen v zařízení, `mudrlant.modes`); XP 3 za správnou odpověď (Bleskovka) či 4 za přežitou otázku, nejvýš 150 XP denně v každém režimu, +20 XP za překonaný rekord jednou denně. Chyby jdou do Mých chyb a procvičování; do dnešních otázek, výzev, statistik tréninku ani počítadel odznaků se režimy nepočítají (`modes.js`, obrazovky v `app.js`).
+- **Zvuky a vibrace** – krátké tóny syntetizované přes Web Audio (správně, špatně, tikání posledních 5 s Bleskovky, nová úroveň a titul, odznak, nový rekord) a vibrace při chybě a rekordu; AudioContext vzniká až po klepnutí hráče. Obojí jde vypnout v Nastavení → Hra (`sound.js`, `mudrlant.sound`).
 - **Učení** – bez bodů a systematicky: v každém tématu jsou celé kategorie a **okruhy** (Česko, Přemyslovci, Angličtí panovníci, Šelmy, Naše příroda, Vyhynulé druhy, Halogeny, Vitamíny, Základní jednotky SI…). Okruh jde procházet popořadě jako atlas, nebo procvičovat jen jeho otázky; postup se ukládá. K tomu **Moje chyby** – co hráč neuhodl, jde si prohlédnout a procvičit znovu.
 
 Při prvním spuštění si hráč zvolí variantu hry – výběr ze čtyř možností, nebo psaní odpovědi za dvojnásobek bodů.
@@ -34,6 +36,19 @@ Základní otázka je „Co je to?“ podle kategorie (Který prvek to je?, Kdo 
 | Film | Kdo film režíroval? Ve kterém desetiletí měl premiéru? |
 | Sport | Ve kterém sportu se proslavil(a)? Kde se konaly olympijské hry? Které hry to jsou? Co je to za sport (podle fotky)? Který klub, stadion, okruh nebo soutěž to je (podle země, mapy, kapacity a fotky)? |
 
+**Ukaž na mapě** (`question-map.js`): „Kde leží Kilimandžáro?“, „Kde stojí Karlštejn?“ – hráč klepne na slepou mapu (obrysy bez popisků),
+tip může klepnutím přesunout, mapu přiblížit tlačítky +/−, kolečkem nebo dvěma prsty a posunout tažením, pak **Potvrdit**.
+Ptá se jen na místa, která jsou na mapě bod: ze zeměpisu města, vrcholy a sopky, jezera a nádrže, ostrovy, stavby, vodopády,
+jeskyně, skály a národní parky (ne řeky, pohoří, souostroví ani moře), ze sportu stadiony, haly a okruhy. Výřez je pevný pro celou
+oblast, ať nic neprozradí: kontinent (Evropa od Islandu po Ural, Afrika, Asie, Severní Amerika bez Havaje, Jižní Amerika, Austrálie
+a Oceánie), u míst v Česku celé Česko s kraji a hlavními řekami. Místo mimo výřez, ostrov, který na mapě není, stejné jméno
+na dvou místech a stavba ve velkém českém městě („kde je Praha“) se nekladou. **Body** podle vzdálenosti po zemském povrchu:
+plný počet (4, při psaní 8) do 3 % úhlopříčky výřezu (Česko asi 18 km, Evropa asi 210 km; u ostrovů, jezer a parků navíc
+poloměr podle rozlohy), pak ubývají až k nule na 20 % úhlopříčky; správně = aspoň bod. Výsledek ukáže tip, správné místo, čáru
+mezi nimi, kruh plných bodů a „Vedle o 37 km“. Otázka přijde v tréninku asi u každé osmé vhodné otázky (po 6 až 10 vhodných
+otázkách, počítadlo `mudrlant.mapGap` v zařízení) a nemá nápovědy. Dnešní otázky, výzvy a turnaje ji zatím nemají (stejné otázky
+pro všechny hráče i starší verze aplikace), chyby a opakování karet také ne.
+
 **Číselné otázky** (`numeric-questions.js`) se v hraní tématu, v Mixu, ve výzvách a v turnajích přimíchají asi do každé osmé otázky, jen kde téma
 má spolehlivá čísla z dat (biologie a mytologie je nemají; dnešní otázky a učení nikdy). Bez nápověd, body za přesnost (ve variantě psaní dvojnásobek):
 
@@ -43,7 +58,8 @@ má spolehlivá čísla z dat (biologie a mytologie je nemají; dnešní otázky
 - **Odhadni číslo** – jen známé položky (Kolik metrů měří tato hora? V jakém roce proběhla tato bitva?). Velikosti podle poměru (do 5 % 4 body, do 10 % 3,
   do 25 % 2, do 50 % 1), letopočty podle rozdílu let (u 20. století rok, u starších dob víc), protonové číslo podle rozdílu. Výsledek ukáže odhad na stupnici.
 
-Do chyb, opakování ani poznaných položek se nepočítají. Ve výzvě plán otázky určuje semínko výzvy (vlastní řada čísel), takže všichni dostanou stejnou.
+Do chyb, opakování ani poznaných položek se nepočítají, v režimech Bleskovka a Přežití nejsou. Ve výzvě plán otázky určuje semínko výzvy (vlastní řada čísel),
+takže všichni dostanou stejnou. Otázka je vždy jen jednoho druhu: Ukaž na mapě, číselná, nebo obyčejná.
 
 Nápovědy jdou postupně a každá ubere bod: **popis** z české Wikipedie (je vidět hned, odpověď je v něm zakrytá), **fotka**, **obrazová nápověda** tématu a **čísla a fakta** z Wikidat. Obrazové nápovědy:
 
@@ -65,9 +81,13 @@ Statická stránka bez serveru a bez build kroku. Nasazuje se na **GitHub Pages*
 | `quiz-core.js` | Čistá logika bez DOM (výběr položek, okruhy, zakrývání, odpovědi, body, fakta, slepá mapa, časová osa, periodická tabulka, série) – testovaná |
 | `numeric-questions.js` | Číselné otázky Seřaď a Odhadni číslo: vlastnosti témat, výběr položek, body, čtení odhadu a vzhled otázky i výsledku – testované |
 | `visuals.js` | Vykreslení obrazových nápověd (mapa, časová osa, obrázek, periodická tabulka) |
+| `modes.js` | Bleskovka a Přežití bez DOM: pravidla, hodiny s trestem, obtížnost Přežití, rekordy a XP s denním stropem – testovaná |
+| `sound.js` | Zvuky (Web Audio, bez zvukových souborů) a vibrace, přepínače v Nastavení – testovaná |
+| `question-map.js` | Otázka „Ukaž na mapě“: výběr míst a výřezu, zobrazení, body podle vzdálenosti (testované), vykreslení a ovládání mapy |
 | `topics/<téma>.js` | Jedno téma: kategorie, otázky, fakta, nápovědy a zakrývání (viz níže) |
 | `data/<téma>.json` | Položky a okruhy tématu (generované z Wikidat) |
 | `data/countries.json`, `data/world.json` | Státy a jejich obrysy pro slepou mapu (generované) |
+| `data/mapa.json` | Slepé mapy otázky „Ukaž na mapě“: cesty SVG každé oblasti už v jejím zobrazení (generované) |
 | `icons.js` | Použité ikony z Lucide (generované) |
 | `styles.css` | Styly z Tailwindu (generované ze `src/input.css`) |
 | `sw.js`, `manifest.webmanifest`, `icons/` | Instalace na plochu a provoz bez internetu |
@@ -160,6 +180,7 @@ Data témat se generují z Wikidat (zeměpis a historie přes query.wikidata.org
 ```sh
 npm run build:countries  # data/countries.json
 npm run build:world      # data/world.json (Natural Earth 1:110m)
+npm run build:mapa       # data/mapa.json (Natural Earth 1:50m, Česko 1:10m s kraji a řekami)
 npm run build:zemepis    # data/zemepis.json
 npm run build:historie   # data/historie.json
 npm run build:biologie   # data/biologie.json
@@ -181,4 +202,4 @@ Spustí testy logiky (`tests/quiz-core.test.js`), kontrolu témat a jejich dat (
 
 ## Zdroje dat
 
-Položky, fakta a fotky z [Wikidat](https://www.wikidata.org) a [Wikimedia Commons](https://commons.wikimedia.org), popisy z [české Wikipedie](https://cs.wikipedia.org), obrysy států [Natural Earth](https://www.naturalearthdata.com) (volné dílo), satelitní snímky NASA Blue Marble přes [GIBS](https://earthdata.nasa.gov/gibs), mapa © přispěvatelé [OpenStreetMap](https://www.openstreetmap.org/copyright), ikony [Lucide](https://lucide.dev) (ISC).
+Položky, fakta a fotky z [Wikidat](https://www.wikidata.org) a [Wikimedia Commons](https://commons.wikimedia.org), popisy z [české Wikipedie](https://cs.wikipedia.org), obrysy států, kraje a řeky [Natural Earth](https://www.naturalearthdata.com) (volné dílo), satelitní snímky NASA Blue Marble přes [GIBS](https://earthdata.nasa.gov/gibs), mapa © přispěvatelé [OpenStreetMap](https://www.openstreetmap.org/copyright), ikony [Lucide](https://lucide.dev) (ISC).
