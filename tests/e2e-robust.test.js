@@ -80,6 +80,7 @@ test('robustnost v prohlížeči', { skip: !chromium && 'Playwright není nainst
     t.after(async () => { await browser.close(); server.close(); });
     const open = async (seed, ready = '[data-action="play-topic"]') => {
         const context = await browser.newContext({ serviceWorkers: 'block', viewport: { width: 390, height: 780 } });
+        await context.addInitScript(() => { window.MUDRLANT_NUMERIC_RATE = 0; }); // jen obyčejné otázky (Seřaď a Odhadni číslo: e2e-numeric)
         await context.addInitScript(seed);
         const tab = await context.newPage();
         const problems = [];

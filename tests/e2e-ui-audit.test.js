@@ -126,6 +126,7 @@ test('rozhraní na úzkém telefonu', { skip: !chromium && 'Playwright není nai
         const context = await browser.newContext({ serviceWorkers: 'block', viewport, colorScheme: scheme, reducedMotion: 'reduce', hasTouch: true });
         if (fact) await context.route('**/data/fakt.json', route => route.fulfill({ json: fact }));
         const auth = signedIn ? JSON.stringify({ access_token: 'tok', refresh_token: 'r', expires_at: 4102444800, user: { id: 'u-1', email: 'jana@example.com', name: 'Jana Nováková' } }) : null;
+        await context.addInitScript(() => { window.MUDRLANT_NUMERIC_RATE = 0; }); // jen obyčejné otázky (Seřaď a Odhadni číslo: e2e-numeric)
         await context.addInitScript((auth) => {
             if (sessionStorage.getItem('seeded')) return;
             sessionStorage.setItem('seeded', '1');

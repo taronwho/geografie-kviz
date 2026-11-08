@@ -20,6 +20,8 @@
     // Tipy od Mudrlanta (tips.js): žárovka u sovy, když má hráč na co upozornit; bez skriptu se jen nezobrazí
     const Tips = window.MudrlantTips || null;
     const Goals = window.MudrlantGoals || null;
+    // Číselné otázky Seřaď a Odhadni číslo (numeric-questions.js); bez skriptu jen nejsou
+    const Numeric = window.MudrlantNumeric || null;
     const TOPICS = window.MudrlantTopics || [];
     const TOPIC_BY_ID = Object.fromEntries(TOPICS.map(topic => [topic.id, topic]));
     const APP_NAME = 'Mudrlant';
@@ -2597,6 +2599,7 @@
     const REPORT_ICON_BUTTON = '<button type="button" data-action="report-question" class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-slate-500 hover:bg-slate-200 dark:text-slate-400 dark:hover:bg-slate-800" title="Nahlásit chybu v otázce" aria-label="Nahlásit chybu v otázce"><i data-lucide="flag" class="h-4 w-4"></i></button>';
     const REPORT_TEXT_BUTTON = '<button type="button" data-action="report-question" class="flex shrink-0 items-center justify-center gap-1.5 rounded-xl bg-slate-100 px-3 py-3 text-sm font-bold text-slate-700 transition-colors hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700" aria-label="Nahlásit chybu v otázce"><i data-lucide="flag" class="h-4 w-4"></i> Nahlásit chybu</button>';
     const renderQuestion = (keepScroll) => {
+        if (isNumeric(current)) return renderNumeric(keepScroll);
         const data = current;
         const topic = TOPIC_BY_ID[data.topic];
         const style = styleOf(topic);
@@ -2929,6 +2932,7 @@
 
     // Výsledek: verdikt, název, záložky s fotkou, mapou a nápovědami, pak popis a fakta; tlačítko Další je přilepené dole
     const renderResult = (keepScroll) => {
+        if (isNumeric(current)) return renderNumeric(keepScroll);
         const data = current;
         const topic = TOPIC_BY_ID[data.topic];
         const style = styleOf(topic);
@@ -3018,6 +3022,60 @@
             const verdict = appContent.querySelector('[data-verdict]');
             if (verdict) verdict.focus({ preventScroll: true });
         }
+    };
+
+    // --- Číselné otázky Seřaď a Odhadni číslo (numeric-questions.js): vlastní obrazovka otázky i výsledku, body podle přesnosti ---
+    // Bez nápověd; do chyb, opakování ani poznaných položek se nepočítají (ptají se na čísla, ne na položku). Plán otázky dělá výběr
+    // otázky (numericPlan): hra tématu a mixu a výzvy a turnaje (se semínkem výzvy, takže všichni dostanou stejnou), ne dnešní otázky a učení.
+    const isNumeric = (data) => Boolean(Numeric && Numeric.isKind(data));
+    const numericPlan = (ctx, item, pool, rng) => (Numeric && ctx && item ? Numeric.plan({ topic: ctx.topic, item, pool, rng }) : null);
+    const numericUi = (data) => ({
+        style: styleOf(TOPIC_BY_ID[data.topic]), card: CARD, cardTitle: CARD_TITLE, art: uiArt, xpLine, variant: round.variant, wikiUrl: wikipediaUrl,
+        statsCard: mode === 'challenge' ? '' : renderStatsCard(data), reportIcon: canReport() && mode !== 'challenge' ? REPORT_ICON_BUTTON : '',
+        reportText: canReport() ? REPORT_TEXT_BUTTON : '', nextLabel: round.answered ? getNextLabel() : '',
+        timer: Boolean(mode === 'challenge' && challenge && challenge.tournament && !round.answered)
+    });
+    const renderNumeric = (keepScroll) => {
+        const data = current;
+        appContent.innerHTML = (round.answered ? Numeric.resultHtml : Numeric.questionHtml)(data, round, numericUi(data));
+        if (keepScroll && appContent.firstElementChild) appContent.firstElementChild.classList.remove('fade-in');
+        renderIcons(appContent);
+        Numeric.mount(appContent, data, round, { Visuals, deps: visualDeps });
+        if (appContent.querySelector('[data-tour-timer]')) {
+            if (!round.timerStart) round.timerStart = Date.now();
+            startTourTimer(round.timerStart);
+        } else clearInterval(tourTimer);
+        if (keepScroll) return;
+        appContent.scrollTo(0, 0);
+        const verdict = appContent.querySelector('[data-verdict]');
+        if (verdict) verdict.focus({ preventScroll: true });
+    };
+    const numericPick = (index) => {
+        if (!round || round.answered || !isNumeric(current) || current.numeric.kind !== 'order' || !current.numeric.items[index]) return;
+        Numeric.togglePick(round, index);
+        Numeric.paintOrder(appContent, current, round, { style: styleOf(TOPIC_BY_ID[current.topic]) });
+        persistState();
+    };
+    const numericConfirm = () => {
+        if (!round || round.answered || !isNumeric(current) || current.numeric.kind !== 'order' || (round.pick || []).length !== 4) return;
+        round.score = Numeric.scoreOrder(current, round.pick);
+        const points = Numeric.pointsFor(round.score.base, round.variant);
+        submitAnswer({ correct: points > 0, typed: false, answer: round.pick.map(index => current.numeric.items[index].name).join(', '), points });
+    };
+    const numericEstimate = (form) => {
+        if (!round || round.answered || !isNumeric(current) || current.numeric.kind !== 'estimate') return;
+        const input = form.elements.guess;
+        const guess = Numeric.readGuess(current, input.value);
+        if (!Number.isFinite(guess)) {
+            Numeric.notePreview(document.getElementById('estimate-note'), current, input.value, true);
+            input.setAttribute('aria-invalid', 'true');
+            input.focus();
+            return;
+        }
+        round.guess = guess;
+        round.score = Numeric.scoreEstimate(current, guess);
+        const points = Numeric.pointsFor(round.score.base, round.variant);
+        submitAnswer({ correct: points > 0, typed: false, answer: Numeric.formatGuess(current, guess), points });
     };
 
     // --- Průběh hry ---
@@ -3391,6 +3449,8 @@
             stats.practice.points += round.points;
         }
         writeJson(KEYS.stats, stats);
+        // Číselná otázka se ptá na čísla, ne na položku: do chyb, opakování ani poznaných položek nejde
+        if (isNumeric(current)) { awardXp(stats); return; }
         // Neuhodnutá položka jde do seznamu chyb v učení, správně uhodnutá z něj zmizí a počítá se do postupu v okruzích
         round.wasMistake = loadMistakes().includes(`${current.topic}:${current.id}`);
         writeJson(KEYS.mistakes, updateMistakes(loadMistakes(), `${current.topic}:${current.id}`, round.correct));
@@ -3412,9 +3472,10 @@
     };
 
     // answerRef: položka (nebo stát) ze špatné odpovědi – výsledek k ní nabídne okno s popisem
-    const submitAnswer = ({ correct, typed, answer, answerRef = null, gaveUp = false }) => {
+    // points = body číselné otázky (podle přesnosti), jinak podle nápověd
+    const submitAnswer = ({ correct, typed, answer, answerRef = null, gaveUp = false, points: fixed = null }) => {
         if (!round || round.answered) return;
-        const points = correct ? pointsFor(round.hintLevel, typed) : 0;
+        const points = Number.isInteger(fixed) ? fixed : correct ? pointsFor(round.hintLevel, typed) : 0;
         const ref = !correct && isKnownRef(answerRef) ? answerRef : null;
         Object.assign(round, { answered: true, correct, typed, answer, answerRef: ref, gaveUp, points });
         mapZoom = DEFAULT_MAP_ZOOM;
@@ -3539,7 +3600,8 @@
             let picked = await pick(0);
             if (picked.abort) { isLoading = false; picked.abort(); return; }
             if (!picked.item) throw new Error('Není z čeho vybírat');
-            let data = await createRoundData(picked.item, picked.ctx, picked.rng);
+            // Číselná otázka, když ji výběr naplánoval (bez popisu z Wikipedie, takže chudý popis se jí netýká)
+            let data = (picked.numeric && Numeric && Numeric.buildRound(picked.numeric, picked.ctx)) || await createRoundData(picked.item, picked.ctx, picked.rng);
             // Chudý popis: vybere se jiná otázka (u dnešní otázky další určená položka), nejvýš třikrát; pak se vezme, co je
             // (výzva ne: všichni hráči musí dostat stejné otázky, i když se někomu Wikipedie nenačte)
             for (let attempt = 1; data.thin && mode !== 'challenge' && !wikiPaused() && attempt <= MAX_THIN_RETRIES; attempt++) {
@@ -3635,6 +3697,7 @@
             const history = readJson(KEYS.history) || [];
             let ctx;
             let item;
+            let numeric = null;
             if (pool.kind === 'mistakes') {
                 // Chyba, jejíž položka v nových datech už není, se ze seznamu vyřadí a zkusí se jiná
                 let keys = loadMistakes();
@@ -3684,10 +3747,13 @@
             }
             if (pool.kind === 'topic' || pool.kind === 'mix') {
                 ctx = await loadTopic(pool.kind === 'topic' ? pool.topic : pickRandom(settings.topics, Math.random));
-                item = pickItem(playableItems(ctx), Math.random, history, ctx.topic.categories.map(c => c.key));
+                const playable = playableItems(ctx);
+                item = pickItem(playable, Math.random, history, ctx.topic.categories.map(c => c.key));
+                // Tu a tam Seřaď nebo Odhadni číslo z vybraných kategorií (v okruzích, chybách a opakování z učení ne)
+                numeric = numericPlan(ctx, item, playable, Math.random);
             }
             if (item) rememberPlayed(item);
-            return { item, ctx, rng: Math.random };
+            return { item, ctx, rng: Math.random, numeric };
         }, pool.kind === 'topic' || pool.kind === 'collection' ? TOPIC_BY_ID[pool.topic] : pool.kind === 'mix' ? MIX : null);
     };
 
@@ -5652,6 +5718,10 @@
                 const keys = ctx.topic.categories.map(c => c.key).filter(key => !challenge.categories.length || challenge.categories.includes(key));
                 return pickItem(pool.length ? pool : ctx.items.filter(candidate => candidate.k === 1), rng, history, keys);
             };
+            // Číselná otázka (Seřaď, Odhadni číslo): vlastní řada náhodných čísel ze semínka otázky (výběr položky se nemění)
+            // a jen položky, které výzva nabízí a které v ní ještě nebyly; všichni hráči tak dostanou stejnou
+            const challengeNumeric = (ctx, item, seedText) => numericPlan(ctx, item, ctx.items.filter(candidate => (challenge.hard || candidate.k === 1)
+                && (!challenge.categories.length || challenge.categories.includes(candidate.c)) && !usedIds.has(candidate.q)), createSeededRandom(`${seedText}:cisla`));
             const ids = challengeTopicIds(challenge.topic);
             // Dřívější otázky se přehrají se stejným semínkem (i u Mixu a turnaje, kde se téma losuje), takže se žádná položka v rámci výzvy nezopakuje
             const histories = new Map();
@@ -5668,13 +5738,16 @@
                 const earlierTopic = ids.length > 1 ? pickRandom(ids, earlierRng) : ids[0];
                 const earlierCtx = await loadTopic(earlierTopic);
                 const earlier = pickFor(earlierCtx, earlierRng, historyOf(earlierTopic));
+                // Číselná otázka dřívějšího pořadí (stejné semínko, stejný plán): ani její položky se nezopakují
+                const earlierNumeric = challengeNumeric(earlierCtx, earlier, earlierSeed);
                 if (earlier) { historyOf(earlierTopic).push(earlier.q); usedIds.add(earlier.q); }
+                if (earlierNumeric) earlierNumeric.ids.forEach(id => usedIds.add(id));
             }
             const rng = createSeededRandom(`${challenge.seed}:${index}`);
             const topicId = ids.length > 1 ? pickRandom(ids, rng) : ids[0];
             const ctx = await loadTopic(topicId);
             const item = pickFor(ctx, rng, historyOf(topicId));
-            return { item, ctx, rng };
+            return { item, ctx, rng, numeric: challengeNumeric(ctx, item, `${challenge.seed}:${index}`) };
         }, challengeTopicIds(challenge.topic).length === 1 ? TOPIC_BY_ID[challengeTopicIds(challenge.topic)[0]] : MIX);
     };
 
@@ -6802,6 +6875,8 @@
         'review-start': () => startReview(),
         'goals-open': () => openGoals(),
         'clear-mistakes': () => clearMistakes(),
+        'order-pick': (button) => numericPick(Number(button.dataset.index)),
+        'order-confirm': () => numericConfirm(),
         choice: (button) => {
             if (!round || round.variant === 'typed') return;
             const choice = current && current.question.choices[Number(button.dataset.index)];
@@ -6821,6 +6896,7 @@
     });
 
     appContent.addEventListener('submit', (event) => {
+        if (event.target.id === 'estimate-form') { event.preventDefault(); numericEstimate(event.target); return; }
         if (event.target.id !== 'answer-form') return;
         event.preventDefault();
         if (!round || round.variant !== 'typed') return;
@@ -6844,6 +6920,13 @@
         const exactlyOwn = current.question.accepted.some(accepted => normalizeAnswer(accepted) === normalizeAnswer(answer));
         if (correct && other && !exactlyOwn && normalizeAnswer(other.n) === normalizeAnswer(answer)) correct = false;
         submitAnswer({ correct, typed: true, answer, answerRef: correct ? null : answerRef });
+    });
+
+    // Odhadni číslo: pod polem se ukazuje, jak aplikace číslo čte (dlouhá čísla, miliony)
+    appContent.addEventListener('input', (event) => {
+        if (event.target.id !== 'estimate-input' || !isNumeric(current)) return;
+        event.target.removeAttribute('aria-invalid');
+        Numeric.notePreview(document.getElementById('estimate-note'), current, event.target.value);
     });
 
     // Chyba načtení obrázku (dlaždice mapy) nebublá, zachytíme ji ve fázi capture a obrázek skryjeme
