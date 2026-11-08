@@ -2,7 +2,7 @@
 // mytologie, postavy Starých pověstí českých a bájné bytosti
 // Spuštění: npm run build:mytologie (s BUILD_CACHE=složka jde pravidla ladit bez opakovaného stahování)
 import { qlever, sparql, id, values, imageFields, compact, cached, inBatches, writeTopic } from './lib/wikidata.mjs';
-import { categoryMembers, FORCED_SOURCES, FORCED_EXCLUDE, FORCED_LISTS, FORCED_CREATURES, FORCED_OBJECTS } from './lib/mytologie-sources.mjs';
+import { categoryMembers, FORCED_SOURCES, FORCED_EXCLUDE, FORCED_LISTS, FORCED_CREATURES, FORCED_OBJECTS, NAME_OVERRIDES } from './lib/mytologie-sources.mjs';
 
 // QLever, a když je přetížený, query.wikidata.org
 const run = (query) => qlever(query).catch(() => sparql(query));
@@ -60,13 +60,20 @@ const CREATURE_MYTHOLOGY = { Kentaur: ['recka'], Kyklop: ['recka'], Satyr: ['rec
     Sfinx: ['recka', 'egyptska'], Gryf: [], Fénix: [], 'Mořská panna': [], Bazilišek: [], Jednorožec: [], Drak: [], Obr: [], Kraken: ['severska'] };
 // Nejsou to postavy ani bytosti (místa, předměty, národy, pojmy) nebo jsou sporné (Lucifer je spíš ďábel)
 const EXCLUDED = new Set(['Lucifer', 'Jablko sváru', 'Gaius Mucius Scaevola', 'Egyptská představa člověka', 'Staroegyptská představa člověka', 'Urdina studna',
-    'Mímiho studna', 'Pelasgové', 'Arimaspové', 'Androfágové', 'Gargareáni', 'Titán', 'Kamény', 'Wendigo', 'Astarte', 'Aštarté', 'Anat', 'Bríseovna']);
+    'Mímiho studna', 'Pelasgové', 'Arimaspové', 'Androfágové', 'Gargareáni', 'Titán', 'Kamény', 'Wendigo', 'Astarte', 'Aštarté', 'Anat', 'Bríseovna',
+    // Caissa je bohyně šachu z básně 18. století, Agis I. spartský král, Penáti skupina bohů; Sabazios a Agdistis jsou frýžští, ne řečtí bohové
+    'Caissa', 'Agis I.', 'Penáti', 'Sabazios', 'Agdistis']);
 // Postavy bez třídy s českým názvem (Ymir je ve Wikidatech jen „jötunn“)
 const FORCE_FIGURE = new Set(['Ymir']);
 // Slavní hrdinové řeckých bájí (Wikidata je mají jen jako „postavu řecké mytologie“)
 const HEROES = new Set(['Achilles', 'Odysseus', 'Héraklés', 'Perseus', 'Théseus', 'Iásón', 'Hektór', 'Aineiás', 'Orfeus', 'Bellerofontés', 'Agamemnón',
     'Meneláos', 'Paris', 'Aiás', 'Patroklos', 'Diomédes', 'Meleagros', 'Kadmos', 'Atalanta', 'Nestór', 'Peleus', 'Péleus', 'Télemachos', 'Filoktétés',
     'Neoptolemos', 'Ilja Muromec', 'Dobryňa Nikitič', 'Aljoša Popovič', 'Sadko']);
+// Okruh hrdinů ze všech mytologií: kromě druhu „hrdina“ i ti, kdo jsou v datech postavou pověstí či mytickou postavou
+// Devět světů na stromě Yggdrasil (a strom sám)
+const NINE_WORLDS = new Set(['Ásgard', 'Vanaheim', 'Ljósálfheim', 'Midgard', 'Jötunheim', 'Svartálfheim', 'Niflheim', 'Múspellheim', 'Helheim', 'Yggdrasil']);
+const WORLD_HEROES = new Set(['Gilgameš', 'Enkidu', 'Isfandijár', 'Keresáspa', 'Džamšíd', 'Rávana', 'Momotaró', 'Bivoj', 'Horymír', 'Bruncvík', 'Praotec Čech',
+    'Romulus a Remus', 'Kovář Wieland', 'Brunhilda', 'Ráma', 'Ardžuna', 'Hanumán', 'Sun Wu-kchung']);
 // Postavy trojské války (okruh)
 const TROY = new Set(['Achilles', 'Hektór', 'Paris', 'Helena', 'Agamemnón', 'Meneláos', 'Odysseus', 'Aiás', 'Patroklos', 'Priamos', 'Kassandra', 'Aineiás',
     'Hekabé', 'Andromaché', 'Diomédes', 'Nestór', 'Láokoón', 'Ífigeneia', 'Klytaimnéstra', 'Filoktétés', 'Neoptolemos', 'Penthesilea', 'Memnón']);
@@ -75,11 +82,14 @@ const OLYMPIAN_NAMES = new Set(['Zeus', 'Héra', 'Poseidón', 'Démétér', 'Ath
 // Egyptské bohy česká Wikipedie píše egyptologicky (Usir, Anup), ve škole i v knihách jsou známější řecké tvary
 const EGYPTIAN_NAMES = { Eset: 'Isis', Usir: 'Osiris', Anup: 'Anubis', Hor: 'Horus', Sutech: 'Seth', Thovt: 'Thoth', Re: 'Ra', Nebthet: 'Nefthys', Tveret: 'Taweret' };
 // Další názvy z Wikidat, které patří jiné bytosti (klekánice, Apis) nebo by zakryly běžné slovo (éra)
-const BAD_ALIASES = new Set(['Klekánice', 'Apis', 'Era', 'Gera', 'Héire', 'Mořské panny', 'Kyklopové', 'Skarbnik', 'Duch Gór', 'Liczyrzepa', 'Rzepiór', 'Rzepolicz', 'Karkonosz']);
+const BAD_ALIASES = new Set(['Klekánice', 'Apis', 'Era', 'Gera', 'Héire', 'Mořské panny', 'Kyklopové', 'Skarbnik', 'Duch Gór', 'Liczyrzepa', 'Rzepiór', 'Rzepolicz', 'Karkonosz',
+    // Bouřňák je pták, Kalydónský lov báje, Rhodos ostrov, Šejtan jiný ďábel (Šajtán) a anděl smrti je Azrael
+    'Bouřňák', 'Kalydónský kanec', 'Kalydónský lov', 'Rhodos', 'Šejtan', 'Anděl smrti']);
 // Psané odpovědi navíc: běžné kratší či počeštěné tvary
 const MANUAL_ALIASES = { 'Přemysl Oráč': ['Přemysl'], 'Mínótauros': ['Minotaur'], Kerberos: ['Kerber'] };
-// Chybné pohlaví ve Wikidatech (Šu a Heh jsou bohové)
-const MALE = new Set(['Šu', 'Heh']);
+// Chybné nebo chybějící pohlaví ve Wikidatech (Šu a Heh jsou bohové, Elpis a Ninkasi bohyně)
+const MALE = new Set(['Šu', 'Heh', 'Hapi', 'Hemen', 'Bhaga', 'Pohvizd', 'Enkimdu']);
+const FEMALE_FIX = new Set(['Elpis', 'Ninkasi', 'Sófrosyné']);
 const CURATED_MYTHOLOGY = Object.fromEntries([
     ...Object.entries(CREATURE_MYTHOLOGY),
     ...SLAVIC_GODS.map(title => [title, ['slovanska']]), ...SLAVIC_CREATURES.map(title => [title, ['slovanska']]), ...CZECH_CREATURES.map(title => [title, ['slovanska']])
@@ -105,7 +115,7 @@ const COUNTERPARTS = [
 const MAJOR_PAIRS = 16;
 
 // Třídy, podle kterých položka je (nebo není) postava či bytost
-const FIGURE = /božstv|bůh|bohyně|bohové|titán|postava|hrdin|polobůh|bytost|tvor|zvíře|kůň|pes|psi|had|drak|netvor|příšer|hybrid|humanoid|taxon|obr|nymf|múz|démon|duch|víla|lid$|druh|familiár|bohatýr|pták|entit|prapředek|personifikace|věšt|čaroděj|monstr|valkýr|vlk|býk|lev|kentaur|kyklop|satyr/u;
+const FIGURE = /božstv|bůh|bohyně|bohové|bozi|titán|postava|hrdin|polobůh|bytost|tvor|zvíře|kůň|pes|psi|had|drak|netvor|příšer|hybrid|humanoid|taxon|obr|nymf|múz|démon|duch|víla|lid$|druh|familiár|bohatýr|pták|entit|prapředek|personifikace|věšt|čaroděj|monstr|valkýr|vlk|býk|lev|kentaur|kyklop|satyr|oread|najád|dryád|ókeanovn|okeanovn|plejád|anemoi|gigant|potamoi/iu;
 const NOT_FIGURE = /rozcestník|rodné jméno|příjmení|město|lokalita|válka|bitva|událost|náboženství|^\S+ mytologie$|říše|předmět|zbraň|strom|loď|planetka|souhvězdí|kniha|literární dílo|pojem|svět$|místo|hora|řeka|ostrov|kultura|epos|báseň/u;
 const CREATURE = /bytost|tvor|zvíře|kůň|pes|psi|had|drak|netvor|příšer|hybrid|humanoidní druh|taxon|obr|lid$|familiár|pták|monstr|vlk|býk|lev|třída/u;
 const HERO = /hrdin|polobůh|bohatýr/u;
@@ -147,7 +157,7 @@ const forcedList = await cached('mytologie-forced', async () => {
     const wanted = new Map();
     const want = (title, entry) => { if (!wanted.has(title) && !FORCED_EXCLUDE.has(title) && !/^Seznam /u.test(title)) wanted.set(title, entry); };
     // Ruční seznamy mají přednost před kategoriemi (Epona je keltská, ne řecká) a platí i pro kandidáty z Wikidat
-    for (const list of FORCED_LISTS) for (const title of list.titles) want(title, { myths: list.myths, kind: 'figure', deity: list.deity, manual: true });
+    for (const list of FORCED_LISTS) for (const title of list.titles) want(title, { myths: list.myths, kind: 'figure', deity: list.deity, female: list.female, type: list.ty, manual: true });
     for (const [title, [type, myths]] of Object.entries(FORCED_CREATURES)) want(title, { myths, kind: 'creature', type, manual: true });
     for (const [title, [type, myths]] of Object.entries(FORCED_OBJECTS)) want(title, { myths, kind: 'object', type, manual: true });
     for (const source of FORCED_SOURCES) {
@@ -242,8 +252,9 @@ for (const [qid, candidate] of candidates) {
     const curated = isCzechLegend || isCreatureTitle || title in CURATED_MYTHOLOGY;
     const olympian = (detail.myth || []).includes(OLYMPIANS) || classes.includes(OLYMPIAN_CLASS);
     const forced = candidate.forced;
-    // Z kategorií a seznamů jen to, co má fotku a skutečný popis (ne rozcestník, jméno nebo skupinu)
-    if (forced && (!detail.im || /rozcestník|křestní jméno|příjmení|moučník|hudební skupina|skupina/u.test(`${detail.d || ''} ${classNames.join(' ')}`))) continue;
+    // Z kategorií a seznamů jen skutečný popis (ne rozcestník, jméno nebo skupinu); z kategorií navíc jen s fotkou,
+    // ruční seznamy jsou vybrané po jednom (otázku nese úvod článku)
+    if (forced && ((!detail.im && !forced.manual) || /rozcestník|křestní jméno|příjmení|moučník|hudební skupina|skupina(?! mytických bytostí)/u.test(`${detail.d || ''} ${classNames.filter(name => !forced.manual || !/skupina/u.test(name)).join(' ')}`))) continue;
     // Jen postavy a bytosti (ne místa, události, předměty a skupiny), lidé jen z pověstí
     if (!forced && !curated && !olympian && !FORCE_FIGURE.has(title) && !classes.some(q => JOTUNN.includes(q))) {
         if (classes.includes(HUMAN)) continue;
@@ -262,10 +273,16 @@ for (const [qid, candidate] of candidates) {
     const isCreature = (forced && forced.kind === 'creature') || (!forced && isCreatureTitle) || (!(forced && forced.kind === 'object') && !isDeity && !isCzechLegend && classNames.some(name => CREATURE.test(name)) && !classes.some(q => JOTUNN.includes(q)) && title !== 'Sun Wu-kchung');
     // Kurátorované bytosti pod názvem článku (Domovoj, ne „Dědek“; Lešij, ne „Lesní mužík“)
     let name = isCreatureTitle || isCzechLegend || forced ? clean(title) : clean(detail.n || title);
-    const female = (detail.sex === FEMALE || (forced && forced.female && !detail.sex)) && !MALE.has(name);
+    // Známější jméno, než má článek (Mjöllni → Mjölnir, Hapi (býk) → Apis)
+    const renamed = NAME_OVERRIDES[title];
+    const female = (detail.sex === FEMALE || (forced && forced.female && !detail.sex) || FEMALE_FIX.has(name)) && !MALE.has(name);
     if (!forced && (EXCLUDED.has(name) || EXCLUDED.has(title))) continue;
     const aliases = (detail.al || []).filter(alias => /^\p{Lu}/u.test(alias) && alias.split(' ').length <= 2 && alias.length >= 2);
     if (detail.n && clean(detail.n) !== name) aliases.push(clean(detail.n));
+    if (renamed) {
+        aliases.unshift(name);
+        name = renamed;
+    }
     if (EGYPTIAN_NAMES[name] && myths.has('egyptska')) {
         aliases.unshift(name);
         name = EGYPTIAN_NAMES[name];
@@ -340,16 +357,18 @@ for (const [qid, candidate] of candidates) {
             cpm: hasCounterpart && counterpart.major ? 1 : undefined
         }),
         fc: forced ? 1 : undefined,
+        mn: forced && forced.manual ? 1 : undefined,
         olymp: OLYMPIAN_NAMES.has(name) ? 1 : undefined,
         obscure: OBSCURE_CZECH.has(title) ? 1 : undefined
     }));
 }
 
-// Jedna položka na jméno: ze stejně pojmenovaných zůstane ta s více jazykovými verzemi
+// Jedna položka na jméno (i bez diakritiky – hindská Dánu a keltská Danu by se psanou odpovědí nerozlišily):
+// ze stejně pojmenovaných zůstane ta s více jazykovými verzemi
 items.sort((a, b) => b.sl - a.sl);
 const byName = new Map();
 for (const item of items) {
-    const key = item.n.toLocaleLowerCase('cs');
+    const key = item.n.normalize('NFD').replace(/\p{M}/gu, '').toLocaleLowerCase('cs');
     if (!byName.has(key)) byName.set(key, item);
 }
 let unique = [...byName.values()];
@@ -373,19 +392,22 @@ for (const item of unique) {
 }
 
 // Známost: nejznámější podle počtu jazykových verzí v každé kategorii, české pověsti a česká stvoření (bez bájných knížat)
-const KNOWN = { recka: 80, egyptska: 16, severska: 12, slovanska: 10, bytosti: 40, indicka: 14, keltska: 8, vychod: 8, orient: 10, amerika: 4, predmety: 8 };
+const KNOWN = { recka: 105, egyptska: 22, severska: 18, slovanska: 14, bytosti: 66, indicka: 18, keltska: 12, vychod: 10, orient: 13, amerika: 6, predmety: 28 };
 const MIN_SITELINKS = { recka: 22, egyptska: 18, severska: 18, slovanska: 0, bytosti: 0, indicka: 0, keltska: 0, vychod: 0, orient: 0, amerika: 0, predmety: 0 };
 // Postavy z kategorií a seznamů (méně známé) se berou od 16 jazykových verzí; známá jména mají víc
 const FORCED_MIN_SITELINKS = { recka: 20, egyptska: 20, severska: 20 };
 const FORCED_MIN_DEFAULT = 14;
-// Řeckých a římských postav je ve Wikidatech přes čtyři sta – jen ty známější (a všechny s protějškem)
-const LIMIT = { recka: 340 };
+// Ruční seznamy jsou vybrané po jednom: stačí pár jazykových verzí (slovanské a keltské bytosti jich víc nemají)
+const MANUAL_MIN_SITELINKS = 6;
+// Řeckých a římských postav je ve Wikidatech přes čtyři sta – jen ty známější (a všechny s protějškem a z ručních seznamů)
+const LIMIT = { recka: 420 };
 const ranks = {};
 const counts = {};
 unique = unique.filter(item => {
+    if (item.mn) return item.sl >= MANUAL_MIN_SITELINKS;
     counts[item.c] = (counts[item.c] || 0) + 1;
-    // Řecké postavy bez obrázku jen mezi prvními 240 (jako dřív), další už s obrázkem
-    if (item.c === 'recka' && !item.im && counts[item.c] > 240 && !item.f.cp) return false;
+    // Řecké postavy bez obrázku jen mezi prvními 280, další už s obrázkem
+    if (item.c === 'recka' && !item.im && counts[item.c] > 280 && !item.f.cp) return false;
     return (item.sl >= (item.fc ? FORCED_MIN_SITELINKS[item.c] ?? FORCED_MIN_DEFAULT : MIN_SITELINKS[item.c]) && counts[item.c] <= (LIMIT[item.c] || Infinity)) || item.cz || item.f.cp;
 });
 for (const item of unique) {
@@ -421,12 +443,16 @@ const COLLECTIONS = [
     { id: 'amerika', label: 'Aztékové, Mayové a Inkové', text: 'Quetzalcoatl, Tlaloc, Chaac, Pačamama…', test: item => item.c === 'amerika' },
     { id: 'andele-a-demoni', label: 'Andělé a démoni', text: 'Michael, Gabriel, Satan, Lilith…', test: item => item.f.myk === 'biblicka' },
     { id: 'bajna-mista', label: 'Bájná místa a předměty', text: 'Atlantida, Excalibur, Valhalla, zlaté rouno…', test: item => item.c === 'predmety' },
+    { id: 'hrdinove', label: 'Hrdinové světových bájí', text: 'Héraklés, Gilgameš, Cúchulainn, Ilja Muromec, Bivoj…', test: item => /hrdin/u.test(item.ty) || WORLD_HEROES.has(item.n) },
+    { id: 'zbrane-a-predmety', label: 'Bájné zbraně a předměty', text: 'Mjölnir, Excalibur, zlaté rouno, trójský kůň…', test: item => item.c === 'predmety' && /předmět|zbraň|prsten|loď|nápoj|trůn|symbol|koruna|kámen/u.test(item.ty) },
+    { id: 'rise-a-podsveti', label: 'Podsvětí, nebesa a bájné země', text: 'Ásgard, Valhalla, Tartaros, Duat, Avalon, Atlantida…', test: item => item.c === 'predmety' && /místo|říše|podsvětí|nebe|země|ostrov|město|hrad|řeka|hora|most|pramen|skály|obydlí/u.test(item.ty) },
+    { id: 'devet-svetu', label: 'Devět světů severské mytologie', text: 'Ásgard, Midgard, Jötunheim, Helheim a strom Yggdrasil', test: item => NINE_WORLDS.has(item.n) },
     { id: 'recke-bytosti', label: 'Řecké nestvůry a bytosti', text: 'Pegas, Kerberos, Medúsa…', test: item => item.c === 'bytosti' && /řecká|římská/u.test(item.f.my || '') }
 ];
 for (const item of unique) {
     const groups = COLLECTIONS.filter(collection => collection.test(item)).map(collection => collection.id);
     if (groups.length) item.g = groups;
-    delete item.olymp; delete item.obscure; delete item.sl; delete item.fc;
+    delete item.olymp; delete item.obscure; delete item.sl; delete item.fc; delete item.mn;
 }
 const collections = COLLECTIONS.map(({ test, ...collection }) => collection);
 

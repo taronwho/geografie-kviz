@@ -7,7 +7,7 @@
 // níže z mineralogických a geologických příruček.
 import { createRequire } from 'node:module';
 import { qlever, id, values, imageFields, compact, cached, inBatches, writeTopic } from './lib/wikidata.mjs';
-import { FORMS, FORM_GROUPS, KNOWN_FORMS, FOSSILS, KNOWN_FOSSILS, MORE_ROCKS, MORE_PERIODS, MORE_CONFLICTS } from './lib/geologie-sources.mjs';
+import { FORMS, FORM_GROUPS, KNOWN_FORMS, FOSSILS, KNOWN_FOSSILS, MORE_ROCKS, MORE_ROCK_QIDS, MORE_PERIODS, MORE_CONFLICTS, NAMED_SITES, CZECH_SITES, FAMOUS_DIAMONDS, PHOTO_OVERRIDES } from './lib/geologie-sources.mjs';
 
 // Vzorec se ověří stejně, jako ho pak porovná aplikace
 const { formulaCounts, isRealPhoto } = createRequire(import.meta.url)('../quiz-core.js');
@@ -53,11 +53,25 @@ const GEMS = {
     'Vltavín': { color: 'lahvově zelený', group: 'zelený', h: [5.5, 6.5], czl: 'jižní Čechy (Českobudějovicko, Třeboňsko)', org: 'přírodní sklo z dopadu meteoritu' },
     'Jantar': { color: 'medově žlutý až hnědý', group: 'žlutý', h: [2, 2.5], loc: 'pobřeží Baltského moře', org: 'zkamenělá pryskyřice třetihorních jehličnanů' },
     'Perla': { color: 'bílý s perleťovým leskem', group: 'bílý', h: [2.5, 4.5], org: 'vzniká v lastuře mlžů' },
-    'Gagát': { color: 'černý', group: 'černý', h: [2.5, 4], loc: 'Whitby (Anglie)', org: 'zkamenělé dřevo' }
+    'Gagát': { color: 'černý', group: 'černý', h: [2.5, 4], loc: 'Whitby (Anglie)', org: 'zkamenělé dřevo' },
+    // Další odrůdy křemene, chalcedonu, granátu, berylu, živce a opálu
+    'Heliotrop': { color: 'tmavě zelený s červenými skvrnami', group: 'zelený', parent: 'chalcedon', formula: 'SiO₂', h: [6.5, 7], loc: 'Indie' },
+    'Sardonyx': { color: 'pruhovaný červenohnědě a bíle', group: 'pruhovaný', parent: 'chalcedon', formula: 'SiO₂', h: [6.5, 7] },
+    'Ametrín': { color: 'fialový a žlutý v jednom krystalu', group: 'fialový', parent: 'křemen', formula: 'SiO₂', h: [7, 7], loc: 'Bolívie' },
+    'Morion': { color: 'černý, neprůhledný', group: 'černý', parent: 'křemen', formula: 'SiO₂', h: [7, 7] },
+    'Prasiolit': { color: 'světle zelený', group: 'zelený', parent: 'křemen', formula: 'SiO₂', h: [7, 7], loc: 'Brazílie' },
+    'Tsavorit': { color: 'sytě zelený', group: 'zelený', parent: 'granát', formula: 'Ca₃Al₂(SiO₄)₃', h: [7, 7.5], loc: 'Keňa, Tanzanie' },
+    'Rhodolit': { color: 'růžově až fialově červený', group: 'červený', parent: 'granát', formula: '(Mg,Fe)₃Al₂(SiO₄)₃', h: [7, 7.5] },
+    'Bixbit': { color: 'malinově červený', group: 'červený', parent: 'beryl', formula: 'Be₃Al₂Si₆O₁₈', h: [7.5, 8], loc: 'Utah (USA)' },
+    'Adulár': { color: 'bezbarvý s modravým leskem', group: 'bílý', parent: 'ortoklas', formula: 'KAlSi₃O₈', h: [6, 6.5], loc: 'Srí Lanka' },
+    'Hyalit': { color: 'bezbarvý, čirý jako sklo', group: 'bezbarvý', parent: 'opál', formula: 'SiO₂·nH₂O', h: [5.5, 6], czl: 'Valeč v Doupovských horách' }
 };
 // Kameny, které by od sebe na fotce nerozeznal ani odborník – mezi možnostmi se nesejdou (ani s mateřským nerostem)
 const GEM_CONFLICTS = [['Pyrop', 'Almandin'], ['Jadeit', 'Nefrit'], ['Achát', 'Onyx'], ['Rubín', 'Spinel'], ['Citrín', 'Topaz'],
-    ['Akvamarín', 'Topaz'], ['Jaspis', 'Karneol'], ['Křišťál', 'Diamant']];
+    ['Akvamarín', 'Topaz'], ['Jaspis', 'Karneol'], ['Křišťál', 'Diamant'], ['Ametrín', 'Ametyst'], ['Ametrín', 'Citrín'], ['Morion', 'Záhněda'],
+    ['Rhodolit', 'Pyrop'], ['Rhodolit', 'Almandin'], ['Tsavorit', 'Démantoid'], ['Sardonyx', 'Onyx'], ['Sardonyx', 'Achát'], ['Sardonyx', 'Karneol'],
+    ['Heliotrop', 'Jaspis'], ['Adulár', 'Labradorit'], ['Adulár', 'Ortoklas'], ['Hyalit', 'Opál'], ['Hyalit', 'Křišťál'], ['Bixbit', 'Morganit'],
+    ['Prasiolit', 'Aventurin']];
 
 // --- Horniny: skupina podle vzniku (hlubinné a výlevné vyvřeliny, žilné, usazené, přeměněné), složení a stavba či vznik ---
 // Žilné horniny a horniny se sporným zařazením (migmatit na pomezí přeměněných a vyvřelých) otázku na skupinu nemají
@@ -128,9 +142,13 @@ const ROCK_USES = {
     'Hnědé uhlí': 'palivo v tepelných elektrárnách', 'Pemza': 'brusivo a lehčené stavební hmoty', 'Obsidián': 'čepele pravěkých nástrojů',
     'Pazourek': 'pravěké nástroje a křesadla', 'Křemelina': 'filtry a výroba dynamitu', 'Bauxit': 'výroba hliníku', 'Travertin': 'obklady a stavební kámen',
     'Perlit': 'tepelné izolace a zahradnické substráty', 'Syenit': 'stavební a dekorační kámen', 'Gabro': 'dekorační kámen („černá žula“)',
-    'Diorit': 'stavební a dekorační kámen', 'Andezit': 'štěrk a stavební kámen', 'Fylit': 'střešní krytina', 'Antracit': 'kvalitní palivo'
+    'Diorit': 'stavební a dekorační kámen', 'Andezit': 'štěrk a stavební kámen', 'Fylit': 'střešní krytina', 'Antracit': 'kvalitní palivo',
+    'Písek': 'stavebnictví a výroba skla', 'Rašelina': 'zahradnictví, palivo a lázeňské zábaly', 'Kaolin': 'výroba porcelánu a papíru',
+    'Bentonit': 'stelivo pro kočky, výplach vrtů a slévárenství', 'Ropné břidlice': 'výroba ropy a paliva pro elektrárny', 'Ropné písky': 'těžba ropy',
+    'Páskovaná železná ruda': 'hlavní světová ruda železa', 'Smirek': 'brusivo na brusné papíry a kotouče', 'Pucolán': 'římský beton a cement',
+    'Larvikit': 'leštěné obklady fasád a pomníky'
 };
-const BUILDING_STONES = new Set(['Žula', 'Mramor', 'Pískovec', 'Vápenec', 'Travertin', 'Opuka', 'Čedič', 'Syenit', 'Gabro', 'Diorit', 'Andezit', 'Fylit', 'Pěnovec']);
+const BUILDING_STONES = new Set(['Žula', 'Mramor', 'Pískovec', 'Vápenec', 'Travertin', 'Opuka', 'Čedič', 'Syenit', 'Gabro', 'Diorit', 'Andezit', 'Fylit', 'Pěnovec', 'Larvikit']);
 
 // --- Tvrdost podle Mohse [od, do]; otázka na tvrdost jen u jednoho čísla ---
 const HARDNESS = {
@@ -149,7 +167,9 @@ const HARDNESS = {
     'Wulfenit': [3, 3], 'Krokoit': [2.5, 3], 'Vivianit': [1.5, 2], 'Chalkantit': [2.5, 2.5], 'Covellin': [1.5, 2], 'Akantit': [2, 2.5],
     'Pyromorfit': [3.5, 4], 'Cordierit': [7, 7.5], 'Sodalit': [5.5, 6], 'Nefelín': [5.5, 6], 'Tremolit': [5, 6], 'Aktinolit': [5, 6],
     'Enstatit': [5, 6], 'Anatas': [5.5, 6], 'Brookit': [5.5, 6], 'Kobaltin': [5.5, 5.5], 'Pyrhotin': [3.5, 4.5], 'Montmorillonit': [1, 2],
-    'Chryzokol': [2, 4], 'Stroncianit': [3.5, 3.5], 'Fenakit': [7.5, 8], 'Willemit': [5.5, 5.5], 'Kutnohorit': [3.5, 4]
+    'Chryzokol': [2, 4], 'Stroncianit': [3.5, 3.5], 'Fenakit': [7.5, 8], 'Willemit': [5.5, 5.5], 'Kutnohorit': [3.5, 4],
+    'Tetraedrit': [3.5, 4], 'Axinit': [6.5, 7], 'Benitoit': [6, 6.5], 'Autunit': [2, 2.5], 'Oligoklas': [6, 6.5], 'Sugilit': [5.5, 6.5],
+    'Cavansit': [3, 4], 'Borax': [2, 2.5], 'Johannit': [2, 2.5]
 };
 
 // --- Barva (nápověda) a barevná skupina (podobné nesprávné možnosti) ---
@@ -182,7 +202,10 @@ const MINERAL_COLORS = {
     'Granát': ['tmavě červený', 'červený'], 'Chalcedon': ['bělavý až modrošedý', 'bílý'], 'Scheelit': ['bílý až nažloutlý', 'bílý'], 'Nefelín': ['bílý až šedý', 'bílý'],
     'Tremolit': ['bílý až šedý', 'bílý'], 'Montmorillonit': ['bílý až narůžovělý', 'bílý'], 'Spodumen': ['bezbarvý, růžový nebo zelený', 'růžový'],
     'Willemit': ['zelenožlutý', 'zelený'], 'Stroncianit': ['bílý', 'bílý'], 'Sillimanit': ['bílý až hnědý', 'bílý'], 'Enstatit': ['hnědý až zelenavý', 'hnědý'],
-    'Kutnohorit': ['bílý až narůžovělý', 'bílý'], 'Covellin': ['indigově modrý, kovový', 'modrý']
+    'Kutnohorit': ['bílý až narůžovělý', 'bílý'], 'Covellin': ['indigově modrý, kovový', 'modrý'],
+    'Tetraedrit': ['ocelově šedý až černý, kovový', 'kovově šedý'], 'Axinit': ['hnědý až fialově hnědý', 'hnědý'], 'Benitoit': ['sytě modrý', 'modrý'],
+    'Autunit': ['citronově žlutý až zelenožlutý', 'žlutý'], 'Oligoklas': ['bílý, šedý nebo nazelenalý', 'bílý'], 'Sugilit': ['fialový', 'fialový'],
+    'Cavansit': ['sytě zelenomodrý', 'modrý'], 'Borax': ['bezbarvý až bílý', 'bezbarvý'], 'Johannit': ['smaragdově zelený', 'zelený']
 };
 // Barva vrypu: u nerostů s kovovým leskem jedna z nejlepších poznávacích vlastností (nebarevný bílý vryp se neuvádí)
 const STREAK = {
@@ -192,7 +215,7 @@ const STREAK = {
     'Stříbro': 'stříbrně bílý', 'Měď': 'měděně červený', 'Uraninit': 'hnědočerný', 'Wolframit': 'hnědočerný', 'Chromit': 'hnědý', 'Ilmenit': 'černý',
     'Kuprit': 'hnědočervený', 'Realgar': 'oranžový', 'Auripigment': 'světle žlutý', 'Molybdenit': 'zelenavě šedý', 'Bornit': 'šedočerný',
     'Chalkocit': 'šedočerný', 'Arsenopyrit': 'šedočerný', 'Pyroluzit': 'černý', 'Rutil': 'světle hnědý', 'Pyrhotin': 'šedočerný', 'Covellin': 'šedočerný',
-    'Kasiterit': 'bílý až nahnědlý', 'Krokoit': 'oranžově žlutý', 'Akantit': 'černý'
+    'Kasiterit': 'bílý až nahnědlý', 'Krokoit': 'oranžově žlutý', 'Akantit': 'černý', 'Tetraedrit': 'černý až hnědý'
 };
 
 // --- Naleziště v Česku (česká stopa) ---
@@ -205,7 +228,9 @@ const CZECH_LOCALITIES = {
     'Pískovec': 'Český ráj, Labské pískovce, Adršpach', 'Vápenec': 'Český kras (Koněprusy), Moravský kras', 'Mramor': 'Supíkovice, Lipová-lázně',
     'Opuka': 'Bílá Hora v Praze', 'Černé uhlí': 'Ostravsko-karvinská pánev, Kladensko', 'Hnědé uhlí': 'Mostecká a Sokolovská pánev',
     'Rula': 'Českomoravská vrchovina', 'Granulit': 'Blanský les', 'Serpentinit': 'Mohelno, Křemže', 'Buližník': 'Divoká Šárka v Praze',
-    'Greisen': 'Cínovec, Krupka', 'Pěnovec': 'Svatý Jan pod Skalou', 'Pazourek': 'severní Morava a Slezsko (přinesl ledovec)', 'Křemelina': 'Borovany u Českých Budějovic'
+    'Greisen': 'Cínovec, Krupka', 'Pěnovec': 'Svatý Jan pod Skalou', 'Pazourek': 'severní Morava a Slezsko (přinesl ledovec)', 'Křemelina': 'Borovany u Českých Budějovic',
+    'Johannit': 'Jáchymov', 'Kaolin': 'Sedlec u Karlových Varů', 'Rašelina': 'Šumava, Krušné hory, Třeboňsko', 'Flyš': 'Beskydy a další vnější Karpaty',
+    'Pizolit': 'Karlovy Vary (hrachovec)', 'Spilit': 'Barrandien (Křivoklátsko)', 'Nefelinit': 'České středohoří'
 };
 // Nerosty pojmenované po českém nalezišti (česká stopa bez naleziště v nápovědě – to by název prozradilo)
 const CZECH_NAMED = new Set(['Kutnohorit', 'Kladnoit', 'Heyrovskýit', 'Zálesíit']);
@@ -216,7 +241,8 @@ const ORES = {
     'Uraninit': 'uran', 'Antimonit': 'antimon', 'Wolframit': 'wolfram', 'Scheelit': 'wolfram', 'Molybdenit': 'molybden', 'Chromit': 'chrom',
     'Ilmenit': 'titan', 'Rutil': 'titan', 'Pyroluzit': 'mangan', 'Akantit': 'stříbro', 'Kobaltin': 'kobalt', 'Bauxit': 'hliník', 'Smithsonit': 'zinek',
     'Cerusit': 'olovo', 'Spodumen': 'lithium', 'Lepidolit': 'lithium', 'Beryl': 'beryllium', 'Zirkon': 'zirkonium', 'Celestin': 'stroncium',
-    'Stroncianit': 'stroncium', 'Baryt': 'baryum', 'Fluorit': 'fluor', 'Kryolit': 'hliník (tavidlo)', 'Sylvín': 'draslík'
+    'Stroncianit': 'stroncium', 'Baryt': 'baryum', 'Fluorit': 'fluor', 'Kryolit': 'hliník (tavidlo)', 'Sylvín': 'draslík',
+    'Tetraedrit': 'měď', 'Autunit': 'uran', 'Borax': 'bor'
 };
 // Další přijímané psané odpovědi (lidové a starší české názvy)
 const ALIASES = {
@@ -228,11 +254,13 @@ const ALIASES = {
     'Serpentinit': ['hadec'], 'Akvamarín': ['akvamarin'], 'Diamant': ['démant'], 'Molybdenit': ['leštěnec molybdenový'], 'Akantit': ['argentit'],
     'Pyroluzit': ['burel'], 'Chalkocit': ['leštěnec měděný'], 'Arsenopyrit': ['arzenopyrit'],
     'Lapis lazuli': ['lazurit', 'lazurový kámen'], 'Hnědé uhlí': ['lignit'],
-    'Křemelina': ['diatomit'], 'Kontaktní rohovec': ['rohovec']
+    'Křemelina': ['diatomit'], 'Kontaktní rohovec': ['rohovec'],
+    'Adulár': ['měsíční kámen'], 'Bixbit': ['červený beryl'], 'Pizolit': ['hrachovec']
 };
 // Nerosty, které se do tématu musí dostat (Mohsova stupnice, česká naleziště), i když mají méně jazykových verzí
 const MUST_MINERALS = ['Mastek', 'Sádrovec', 'Kalcit', 'Fluorit', 'Apatit', 'Ortoklas', 'Křemen', 'Korund', 'Uraninit', 'Stříbro', 'Zlato', 'Měď', 'Síra',
-    'Rtuť', 'Kasiterit', 'Wolframit', 'Chalcedon', 'Granát', 'Beryl', 'Kutnohorit', 'Kladnoit', 'Lepidolit'];
+    'Rtuť', 'Kasiterit', 'Wolframit', 'Chalcedon', 'Granát', 'Beryl', 'Kutnohorit', 'Kladnoit', 'Lepidolit',
+    'Tetraedrit', 'Axinit', 'Benitoit', 'Autunit', 'Oligoklas', 'Sugilit', 'Cavansit', 'Borax', 'Johannit'];
 // Mohsova stupnice: deset srovnávacích nerostů (název na stupnici v nápovědě)
 const MOHS = [['Mastek', 1, 'mastek'], ['Sádrovec', 2, 'sádrovec'], ['Kalcit', 3, 'kalcit'], ['Fluorit', 4, 'fluorit'], ['Apatit', 5, 'apatit'],
     ['Ortoklas', 6, 'živec'], ['Křemen', 7, 'křemen'], ['Topaz', 8, 'topaz'], ['Korund', 9, 'korund'], ['Diamant', 10, 'diamant']];
@@ -243,7 +271,8 @@ const KNOWN = new Set(['Křemen', 'Kalcit', 'Sádrovec', 'Halit', 'Mastek', 'Gra
     'Diamant', 'Rubín', 'Safír', 'Smaragd', 'Ametyst', 'Topaz', 'Opál', 'Tyrkys', 'Achát', 'Jantar', 'Perla', 'Vltavín', 'Pyrop', 'Křišťál',
     'Lapis lazuli', 'Jaspis', 'Onyx', 'Akvamarín', 'Citrín', 'Růženín', 'Záhněda', 'Turmalín', 'Nefrit', 'Tygří oko',
     'Žula', 'Čedič', 'Pískovec', 'Vápenec', 'Mramor', 'Rula', 'Obsidián', 'Pemza', 'Opuka', 'Znělec', 'Slepenec', 'Pazourek', 'Černé uhlí',
-    'Hnědé uhlí', 'Gabro', 'Andezit', 'Travertin', 'Serpentinit', 'Svor', 'Fylit', 'Bauxit', 'Diorit', 'Syenit', 'Pegmatit', 'Brekcie', 'Antracit', 'Buližník']);
+    'Hnědé uhlí', 'Gabro', 'Andezit', 'Travertin', 'Serpentinit', 'Svor', 'Fylit', 'Bauxit', 'Diorit', 'Syenit', 'Pegmatit', 'Brekcie', 'Antracit', 'Buližník',
+    'Písek', 'Rašelina', 'Kaolin', 'Borax', 'Koh-i-Noor', 'Cullinan', 'Hope']);
 // Názvy, které nejsou nerostem pro kvíz: skupiny nerostů (slída, živce – na fotce by šlo i o muskovit či ortoklas), odrůdy
 // (selenit = sádrovec), slavné diamanty, směsi a syntetické látky; forsterit a lazurit by se pletly s olivínem a lapis lazuli
 const NOT_MINERALS = /^(drahokam|polodrahokam|křemičitany|karbonáty|fylosilikát|prvek|horninotvorný minerál|jílové minerály|azbest|slída|živce|amfibol|pyroxeny|zeolit|plagioklas|draselný živec|alkalický živec|mafity|foidy|sericit|smektit|koh-i-noor|hope|cullinan|orlov|darya-i-noor|lesedi la rona|krvavý diamant|syntetický diamant|briliant|kryptonit|adnr|himálajská sůl|islandský kalcit|selenit|gema|arcikam|spinelid|ametrín|morion|prasiolit|sardonyx|heliotrop|bixbit|tsavorit|rhodolit|kočičí oko|skupina .*|černobylit|elektrum|osmiridium|yttrito-hlinitý granát|lonsdaleit|tranquillityit|greigit|cohenit|forsterit|lazurit|monazit|organolity|český granát|adulár|illit|abelsonit|urea|acetamid|elbait|skoryl|dravit|tetraboritan sodný)$/i;
@@ -276,28 +305,33 @@ const PERIODS = [
     { title: 'Holocén', name: 'Holocén', level: 'epocha', parent: 'Čtvrtohory', from: 0.0117, to: 0, life: 'současnost po poslední době ledové: zemědělství, města' }
 ];
 for (const [title, name, level, parent, from, to, life] of MORE_PERIODS) PERIODS.push({ title, name, level, ...(parent ? { parent } : {}), from, to, ...(life ? { life } : {}) });
-const KNOWN_PERIODS = new Set(['Prvohory', 'Druhohory', 'Třetihory', 'Čtvrtohory', 'Kambrium', 'Karbon', 'Trias', 'Jura', 'Křída']);
+const KNOWN_PERIODS = new Set(['Prvohory', 'Druhohory', 'Třetihory', 'Čtvrtohory', 'Kambrium', 'Karbon', 'Trias', 'Jura', 'Křída', 'Kenozoikum', 'Prekambrium']);
 // Položky, které se podle štítku najdou špatně (Svor = obec, Devon = rozcestník, Křída = perioda i hornina – hornina vypadne)
-const QID_OVERRIDES = { 'svor': 'Q3856092', 'období:Devon (geologie)': 'Q65955' };
+const QID_OVERRIDES = { 'svor': 'Q3856092', 'období:Devon (geologie)': 'Q65955', ...MORE_ROCK_QIDS };
 // Droba, radiolarit, erlan a mylonit mají ve Wikidatech fotku jiné horniny (křemence, lomu na křemelinu, obecné přeměněné horniny)
 const SKIP_ROCKS = new Set(['Křída', 'Melafyr', 'Droba', 'Radiolarit', 'Erlan', 'Mylonit']);
 // Fotka ve Wikidatech nepatří k hornině (obsidián: snímek z výročí ruských Wikizpráv) nebo chybí (opuka) – náhrada z Commons
 const IMAGE_OVERRIDES = { 'Obsidián': 'A2613-Museum Geologi-Obsidian.jpg', 'Opuka': 'Zlatá opuka.jpg' };
 const commonsUrl = (file) => `http://commons.wikimedia.org/wiki/Special:FilePath/${encodeURIComponent(file)}`;
+// Fotka podle názvu článku: náhrada z Commons (PHOTO_OVERRIDES), jinak z Wikidat
+const withPhoto = (title, detail) => PHOTO_OVERRIDES[title] ? { ...detail, im: commonsUrl(PHOTO_OVERRIDES[title]) } : detail;
 
 // --- Vzorce: zápis bez nábojů (Fe²⁺ → Fe); u známých nerostů obvyklý zápis z učebnic ---
 const FORMULAS = {
     'Magnetit': 'Fe₃O₄', 'Ilmenit': 'FeTiO₃', 'Chromit': 'FeCr₂O₄', 'Mastek': 'Mg₃Si₄O₁₀(OH)₂', 'Ortoklas': 'KAlSi₃O₈', 'Kyanit': 'Al₂SiO₅',
     'Sillimanit': 'Al₂SiO₅', 'Andalusit': 'Al₂SiO₅', 'Apatit': 'Ca₅(PO₄)₃(F,Cl,OH)', 'Muskovit': 'KAl₂(AlSi₃O₁₀)(OH)₂', 'Limonit': 'FeO(OH)·nH₂O',
     'Olivín': '(Mg,Fe)₂SiO₄', 'Beryl': 'Be₃Al₂Si₆O₁₈', 'Chalcedon': 'SiO₂', 'Biotit': 'K(Mg,Fe)₃AlSi₃O₁₀(OH)₂',
-    'Uraninit': 'UO₂', 'Wolframit': '(Fe,Mn)WO₄', 'Tremolit': 'Ca₂Mg₅Si₈O₂₂(OH)₂', 'Stroncianit': 'SrCO₃', 'Kutnohorit': 'CaMn(CO₃)₂'
+    'Uraninit': 'UO₂', 'Wolframit': '(Fe,Mn)WO₄', 'Tremolit': 'Ca₂Mg₅Si₈O₂₂(OH)₂', 'Stroncianit': 'SrCO₃', 'Kutnohorit': 'CaMn(CO₃)₂',
+    'Tetraedrit': '(Cu,Fe)₁₂Sb₄S₁₃', 'Benitoit': 'BaTiSi₃O₉', 'Autunit': 'Ca(UO₂)₂(PO₄)₂·10H₂O', 'Oligoklas': '(Na,Ca)(Si,Al)₄O₈',
+    'Sugilit': 'KNa₂(Fe,Mn,Al)₂Li₃Si₁₂O₃₀', 'Cavansit': 'Ca(VO)Si₄O₁₀·4H₂O', 'Borax': 'Na₂B₄O₅(OH)₄·8H₂O', 'Johannit': 'Cu(UO₂)₂(SO₄)₂(OH)₂·8H₂O'
 };
 // Ortoklas nemá na české Wikipedii vlastní článek (je pod draselným živcem) a jeho položka ve Wikidatech není mezi
 // kandidáty – článek z draselného živce, fotka a vlastnosti z položky ortoklasu (Q21813710)
 const ORTHOCLASE = { q: 'Q3811879', image: 'http://commons.wikimedia.org/wiki/Special:FilePath/OrthoclaseBresil.jpg', strunz: ['9.FA.30'], sys: 'jednoklonná', dens: 2.6 };
 // Nerosty, které by na fotce mohly být jedno i druhé (ortoklas, mikroklin i sanidin jsou draselné živce)
 const CONFLICTS = [...GEM_CONFLICTS, ['Ortoklas', 'Mikroklin'], ['Ortoklas', 'Sanidin'], ['Mikroklin', 'Sanidin'], ['Pyrit', 'Markazit'],
-    ['Hematit', 'Limonit'], ['Limonit', 'Goethit'], ['Anatas', 'Brookit'], ...MORE_CONFLICTS];
+    ['Hematit', 'Limonit'], ['Limonit', 'Goethit'], ['Anatas', 'Brookit'], ['Oligoklas', 'Albit'], ['Oligoklas', 'Anortit'], ['Tetraedrit', 'Galenit'],
+    ['Autunit', 'Johannit'], ...MORE_CONFLICTS];
 const conflictsOf = (name) => CONFLICTS.filter(pair => pair.includes(name)).map(pair => pair.find(other => other !== name));
 // Zápisy s prázdnou pozicí (☐), rozpětím (1.3-2.0) nebo složenými závorkami by hráči nic neřekly – takový vzorec vynecháme
 const cleanFormula = (formula) => {
@@ -393,7 +427,7 @@ const mineralTitles = new Map([...mineralCandidates.map(([q]) => q), ...extraMin
 const mineralQid = (name) => extraMinerals.get(name) || mineralTitles.get(name) || qidOf(name);
 
 // Útvary, jevy a zkameněliny (lib/geologie-sources.mjs) podle názvu článku
-const extraTitles = [...Object.keys(FORMS), ...Object.keys(FOSSILS)];
+const extraTitles = [...Object.keys(FORMS), ...Object.keys(FOSSILS), ...Object.keys(NAMED_SITES), ...Object.keys(FAMOUS_DIAMONDS)];
 const extraByTitle = new Map(await cached('geologie-by-title2', async () => {
     const result = [];
     await inBatches(extraTitles, 100, (list) => `SELECT ?x ?l WHERE { VALUES ?l { ${list.map(name => `"${name}"@cs`).join(' ')} }
@@ -532,7 +566,7 @@ for (const period of PERIODS) {
     if (!detail || !detail.t) { console.log(`  vynecháno období ${period.title}`); continue; }
     const file = fileOf(detail.im);
     const isPaleoMap = /Paleographic Map/i.test(file);
-    const f = compact({ lvl: period.level, from: period.from, to: period.to, life: period.life, par: period.parent, al: period.alias,
+    const f = compact({ lvl: period.level, from: period.from, to: period.to, life: period.life, par: period.parent, al: period.alias, cf: conflictsOf(period.name),
         ...(isPaleoMap ? { map: file, mh: imageFields(detail.im).ih } : {}) });
     // Fotka jen skutečná (trilobit u prvohor), ne mapa ani dnešní glóbus
     const photo = !isPaleoMap && !/Mollweide/i.test(file) ? photoOf(detail) : {};
@@ -544,9 +578,32 @@ for (const [title, [group, example]] of Object.entries(FORMS)) {
     const q = extraByTitle.get(title);
     const detail = details.get(q);
     if (!detail || !detail.t || /rozcestník/.test(detail.d || '')) { console.log(`  vynechán útvar ${title}`); continue; }
-    const photo = photoOf(detail);
+    const photo = photoOf(withPhoto(title, detail));
     if (!photo.im) { console.log(`  útvar bez fotky ${title}`); continue; }
     add(compact({ q, t: detail.t, n: displayTitle(title), c: 'utvary', k: KNOWN_FORMS.has(title) ? 1 : 0, d: descriptionOf(detail), ...photo, f: compact({ grp: group, ex: example, cf: conflictsOf(displayTitle(title)) }) }));
+}
+
+// Slavná geologická místa (stejně jako útvary: fotka je podstata otázky); jméno může být české (Obrův chodník)
+for (const [title, [group, place, name, aliases]] of Object.entries(NAMED_SITES)) {
+    const q = extraByTitle.get(title);
+    const detail = details.get(q);
+    if (!detail || !detail.t || /rozcestník/.test(detail.d || '')) { console.log(`  vynecháno místo ${title}`); continue; }
+    const photo = photoOf(detail);
+    if (!photo.im) { console.log(`  místo bez fotky ${title}`); continue; }
+    const n = name || displayTitle(title);
+    add(compact({ q, t: detail.t, n, c: 'utvary', k: KNOWN_FORMS.has(title) ? 1 : 0, d: descriptionOf(detail), cz: CZECH_SITES.has(title) ? 1 : undefined, ...photo,
+        f: compact({ grp: group, loc: place, al: aliases, cf: conflictsOf(n) }) }));
+}
+
+// Slavné broušené diamanty (mezi drahými kameny; nesprávné možnosti jsou ostatní slavné diamanty)
+for (const [title, [name, carats, color, found, now]] of Object.entries(FAMOUS_DIAMONDS)) {
+    const q = extraByTitle.get(title);
+    const detail = details.get(q);
+    if (!detail || !detail.t) { console.log(`  vynechán diamant ${title}`); continue; }
+    const photo = photoOf(withPhoto(title, detail));
+    if (!photo.im) { console.log(`  diamant bez fotky ${title}`); continue; }
+    add(compact({ q, t: detail.t, n: name, c: 'kameny', k: KNOWN.has(name) ? 1 : 0, d: descriptionOf(detail), ...photo,
+        f: compact({ fam: 1, col: color, cg: 'slavný diamant', ct: carats, loc: found, now }) }));
 }
 
 // Zkameněliny a vyhynulé organismy bez obratlovců (ti jsou v tématu Biologie)
@@ -554,7 +611,7 @@ for (const [title, [group, period, note]] of Object.entries(FOSSILS)) {
     const q = extraByTitle.get(title);
     const detail = details.get(q);
     if (!detail || !detail.t || /rozcestník/.test(detail.d || '')) { console.log(`  vynechána zkamenělina ${title}`); continue; }
-    const photo = photoOf(detail);
+    const photo = photoOf(withPhoto(title, detail));
     if (!photo.im) { console.log(`  zkamenělina bez fotky ${title}`); continue; }
     add(compact({ q, t: detail.t, n: displayTitle(title), c: 'zkameneliny', k: KNOWN_FOSSILS.has(title) ? 1 : 0, d: descriptionOf(detail), ...photo, f: compact({ grp: group, per: period, note, cf: conflictsOf(displayTitle(title)) }) }));
 }
@@ -575,8 +632,9 @@ const COLLECTIONS = [
     { id: 'usazene', label: 'Usazené horniny', test: item => ROCK_GROUPS.usazene.includes(item.f.grp) },
     { id: 'premenene', label: 'Přeměněné horniny', test: item => ROCK_GROUPS.premenene.includes(item.f.grp) },
     { id: 'stavebni-kamen', label: 'Stavební a sochařský kámen', test: item => item.c === 'horniny' && BUILDING_STONES.has(item.n) },
-    { id: 'epochy', label: 'Epochy třetihor a čtvrtohor', text: 'Paleocén, eocén, miocén, pleistocén…', test: item => item.c === 'obdobi' && item.f.lvl === 'epocha' },
-    { id: 'veky', label: 'Věky druhohor', text: 'Cenoman, turon, bajok, tithon…', test: item => item.c === 'obdobi' && item.f.lvl === 'věk' },
+    { id: 'epochy', label: 'Epochy třetihor a čtvrtohor', text: 'Paleocén, eocén, miocén, pleistocén…', test: item => item.c === 'obdobi' && item.f.lvl === 'epocha' && ['Paleogén', 'Neogén', 'Čtvrtohory'].includes(item.f.par) },
+    { id: 'veky', label: 'Věky druhohor', text: 'Cenoman, turon, bajok, tithon…', test: item => item.c === 'obdobi' && item.f.lvl === 'věk' && ['Trias', 'Jura', 'Křída'].includes(item.f.par) },
+    { id: 'prekambrium', label: 'Prahory a starohory', text: 'Hadaikum, archaikum, proterozoikum, ediakara…', test: item => item.c === 'obdobi' && item.f.to >= 538.8 },
     { id: 'sopecne-utvary', label: 'Sopečné útvary a jevy', text: 'Kaldera, maar, gejzír, lahar…', test: item => item.c === 'utvary' && item.f.grp === 'sopecne' },
     { id: 'ledovcove-utvary', label: 'Ledovce a jejich stopy', text: 'Fjord, kar, moréna, drumlin…', test: item => item.c === 'utvary' && item.f.grp === 'ledovcove' },
     { id: 'rdecni-utvary', label: 'Řeky, moře a pobřeží', text: 'Kaňon, meandr, delta, laguna…', test: item => item.c === 'utvary' && item.f.grp === 'vodni' },
@@ -585,6 +643,9 @@ const COLLECTIONS = [
     { id: 'tektonika', label: 'Tektonika a stavba Země', text: 'Zlom, subdukce, rift, kraton…', test: item => item.c === 'utvary' && item.f.grp === 'tektonicke' },
     { id: 'telesa', label: 'Horninová tělesa', text: 'Batolit, lakolit, žíla, geoda…', test: item => item.c === 'utvary' && item.f.grp === 'magmaticke' },
     { id: 'impakty', label: 'Dopady těles a meteority', text: 'Impaktní kráter, meteorit, chondrit…', test: item => item.c === 'utvary' && item.f.grp === 'impaktni' },
+    { id: 'horske-utvary', label: 'Skály, svahy a vrcholy', text: 'Náhorní plošina, kuesta, kuloár, suť…', test: item => item.c === 'utvary' && item.f.grp === 'horske' },
+    { id: 'slavna-mista', label: 'Slavná geologická místa', text: "Obrův chodník, Pamukkale, Chicxulub, Pravčická brána…", test: item => item.c === 'utvary' && Boolean(item.f.loc) },
+    { id: 'slavne-diamanty', label: 'Slavné diamanty', text: 'Koh-i-Noor, Cullinan, Hope…', test: item => item.c === 'kameny' && item.f.fam === 1 },
     { id: 'prvohorni-zivot', label: 'Život prvohor', text: 'Trilobiti, graptoliti, lepidodendron…', test: item => item.c === 'zkameneliny' && /kambrium|ordovik|silur|devon|karbon|perm/.test(item.f.per) },
     { id: 'zacatky-zivota', label: 'Počátky života', text: 'Stromatolity, ediakarská fauna, kambrická explozivní fauna', test: item => item.c === 'zkameneliny' && /ediakara|archaik|kambrium$/.test(item.f.per) || item.n === 'Stromatolit' },
     { id: 'rostlinne-zkameneliny', label: 'Zkamenělé rostliny', test: item => item.c === 'zkameneliny' && item.f.grp === 'rostliny' },

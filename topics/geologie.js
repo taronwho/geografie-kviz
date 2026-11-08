@@ -77,7 +77,10 @@
         return CLASS_NAMES[f.cls] || '';
     };
     // Mateřský nerost v 2. pádě (odrůda křemene)
-    const GENITIVE = { 'korund': 'korundu', 'beryl': 'berylu', 'křemen': 'křemene', 'chalcedon': 'chalcedonu', 'chryzoberyl': 'chryzoberylu', 'granát': 'granátu' };
+    const GENITIVE = { 'korund': 'korundu', 'beryl': 'berylu', 'křemen': 'křemene', 'chalcedon': 'chalcedonu', 'chryzoberyl': 'chryzoberylu', 'granát': 'granátu',
+        'ortoklas': 'ortoklasu', 'opál': 'opálu' };
+    // Hmotnost slavného diamantu: 105,6 karátu, 3106 karátů
+    const caratsText = (value) => `${formatNumber(value)} ${Number.isInteger(value) ? 'karátů' : 'karátu'}`;
 
     // --- Vzorce ---
     const SUBSCRIPTS = '₀₁₂₃₄₅₆₇₈₉';
@@ -118,7 +121,7 @@
     const GROUP_WORDS = /(?<![\p{L}])(?:vyvřel|vyvřen|magmat|hlubinn|výlevn|výlev|vulkan|sopečn|sopk|intruz|plutoni|efuz|láv|usazen|usazov|sediment|přeměn|metamorf|žiln)\p{L}*/giu;
 
     // --- Geologická období ---
-    const LEVELS = { eon: 'eon', 'éra': 'éra', perioda: 'perioda', epocha: 'epocha', 'věk': 'věk (stupeň)' };
+    const LEVELS = { 'superéon': 'superéon', eon: 'eon', 'éra': 'éra', perioda: 'perioda', epocha: 'epocha', 'věk': 'věk (stupeň)' };
     const PARENT_GENITIVE = { 'Prvohory': 'prvohor', 'Druhohory': 'druhohor', 'Třetihory': 'třetihor', 'Čtvrtohory': 'čtvrtohor' };
     // Stáří v milionech let slovy: 4 600 → 4,6 mld. let, 0,0117 → 11 700 let
     const ago = (value) => value >= 1000 ? `${formatNumber(value / 1000)} mld. let` : value >= 1 ? `${formatNumber(value)} mil. let`
@@ -148,8 +151,9 @@
 
     // --- Útvary a zkameněliny ---
     const FORM_GROUPS = {
-        sopecne: 'vulkanismus', ledovcove: 'zalednění a mrazové jevy', vodni: 'řeky a pobřeží', pousteni: 'poušť a zvětrávání', krasove: 'kras a jeskyně',
-        tektonicke: 'tektonika a stavba Země', magmaticke: 'horninová tělesa a útvary', impaktni: 'dopady z vesmíru', jevy: 'přírodní jevy'
+        sopecne: 'vulkanismus', ledovcove: 'zalednění a mrazové jevy', vodni: 'řeky a pobřeží', pousteni: 'poušť a zvětrávání', krasove: 'krasové jevy',
+        tektonicke: 'tektonika a stavba Země', magmaticke: 'horninová tělesa a útvary', impaktni: 'dopady z vesmíru', jevy: 'přírodní jevy',
+        horske: 'skály, svahy a vrcholy', naleziste: 'naleziště zkamenělin'
     };
     const isForm = (item) => item.c === 'utvary';
     const isFossil = (item) => item.c === 'zkameneliny';
@@ -168,8 +172,10 @@
             ...(f.dens ? fact('Hustota', `${decimal(f.dens)} g/cm³`) : []),
             ...(item.c === 'nerosty' ? fact('Těží se z něj', f.ore) : []),
             ...fact('Původ', f.org),
+            ...(f.ct ? fact('Hmotnost', caratsText(f.ct)) : []),
             ...fact('Naleziště v Česku', f.czl),
-            ...fact('Známá naleziště', f.loc),
+            ...fact(f.fam ? 'Nalezen' : 'Známá naleziště', f.loc),
+            ...fact('Kde je dnes', f.now),
             ...(mode !== 'formula' ? fact('Vzorec', f.formula) : [])
         ];
     };
@@ -192,7 +198,7 @@
             ...fact('Život', f.life)
         ];
     };
-    const formFacts = (item) => [...fact('Druh', FORM_GROUPS[(item.f || {}).grp]), ...fact('Typické příklady', (item.f || {}).ex)];
+    const formFacts = (item) => [...fact('Druh', FORM_GROUPS[(item.f || {}).grp]), ...fact('Typické příklady', (item.f || {}).ex), ...fact('Kde to je', (item.f || {}).loc)];
     const fossilFacts = (item) => [...fact('Skupina', (item.f || {}).grp), ...fact('Žil v době', (item.f || {}).per), ...fact('Zajímavost', (item.f || {}).note)];
     const factsOf = (item, ctx, mode) => isMineral(item) ? mineralFacts(item, mode) : item.c === 'horniny' ? rockFacts(item, mode)
         : isForm(item) ? formFacts(item) : isFossil(item) ? fossilFacts(item) : periodFacts(item);
@@ -306,7 +312,7 @@
             return [
                 { kind: 'facts', facts: pick(facts, ['Odrůda nerostu', 'Barva']) },
                 { kind: 'visual', spec: f.h ? mohsScale(item, type) : null },
-                { kind: 'facts', label: 'původ a naleziště', icon: 'map-pin', facts: pick(facts, ['Původ', 'Naleziště v Česku', 'Známá naleziště']) },
+                { kind: 'facts', label: 'původ a naleziště', icon: 'map-pin', facts: pick(facts, ['Původ', 'Hmotnost', 'Naleziště v Česku', 'Známá naleziště', 'Nalezen', 'Kde je dnes']) },
                 { kind: 'facts', label: 'vzorec', icon: 'flask-conical', facts: pick(facts, ['Vzorec']) }
             ];
         }
@@ -320,7 +326,7 @@
         if (isForm(item)) {
             return [
                 { kind: 'facts', facts: pick(facts, ['Druh']) },
-                { kind: 'facts', label: 'příklady', icon: 'map-pin', facts: pick(facts, ['Typické příklady']) }
+                { kind: 'facts', label: 'příklady', icon: 'map-pin', facts: pick(facts, ['Typické příklady', 'Kde to je']) }
             ];
         }
         if (isFossil(item)) {
@@ -349,6 +355,7 @@
     const subtitle = (item) => {
         const f = item.f || {};
         if (item.c === 'nerosty') return [className(f), f.formula].filter(Boolean).join(' · ');
+        if (item.c === 'kameny' && f.fam) return ['slavný diamant', f.ct ? caratsText(f.ct) : ''].filter(Boolean).join(' · ');
         if (item.c === 'kameny') return [f.par ? `odrůda ${GENITIVE[f.par] || f.par}` : f.org || className(f), f.formula].filter(Boolean).join(' · ');
         if (item.c === 'horniny') return GROUP_NAMES[f.grp] || '';
         if (isForm(item)) return FORM_GROUPS[f.grp] || '';
