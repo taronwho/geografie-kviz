@@ -202,6 +202,8 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         await waitForResult(tab);
         assert.match(await appText(tab), /Správně! \+1 bod/);
         assert.equal(await tab.textContent('h1'), data.name);
+        // Ve výsledku zůstane vidět, na co se otázka ptala
+        assert.equal((await tab.textContent('[data-result-question]')).replace(/\s+/g, ' ').trim(), `Otázka: ${data.question.title}`);
         assert.match(await appText(tab), /Čísla a fakta/);
         assert.match(await appText(tab), /Zajímavosti/);
         assert.equal(await tab.getAttribute('a:has-text("Číst na Wikipedii")', 'href'), `https://cs.wikipedia.org/wiki/${encodeURIComponent(data.title.replace(/ /g, '_'))}`);
