@@ -167,6 +167,39 @@ Dřív se průběh rozehrané výzvy (které otázky už hráč zodpověděl) dr
   výzvy ani zápasu nepřijme; po obnovení stránky (nová verze) se odpovědi uložené v zařízení dopošlou a výsledek se odešle.
 - Test: `tests/sql-progress.test.js` (pokusy o podvod: cizí výzva, přeskočení a přepsání otázky, výsledek bez průběhu nebo s vylepšenými čísly, dvojí a souběžný claim XP, migrace).
 
+## Kvíz dne (schéma 6)
+
+**Po aktualizaci spusť znovu celý `supabase/schema.sql`** (SQL Editor → New query → vložit → Run). Schéma má verzi 6; aplikace ji potřebuje
+(správce jinak v Nastavení uvidí „Databáze není aktuální“). Se starší databází se Kvíz dne hraje jen v zařízení a pořadí hlásí, že není dostupné.
+
+Kvíz dne je každý den (pražský čas) stejných 10 otázek pro všechny hráče, s pořadím. Je to něco jiného než **Dnešní otázky** (jedna otázka
+z každého tématu), ty zůstávají beze změny. Otázky losuje aplikace ze semínka dne (`daily-quiz.js`): témata poměrně ze skupin, jen známé položky,
+v každém kvízu 3 snadnější, 4 střední a 3 těžší (podle známosti položky v kategorii) a žádná položka ze včerejška. Odpovídá se vždy výběrem ze
+čtyř možností, i když hráč jinak píše. Server otázky nezná, hlídá pokus, odpovědi, čas a pořadí.
+
+Nové části schématu (blok „Kvíz dne (schéma 6)“ na konci souboru, před verzí schématu):
+
+- Tabulka `daily_quiz_results` (hráč, den, počet zodpovězených, správných, body, čas v ms, mřížka správných odpovědí jako bity, počet volání,
+  začátek, poslední odpověď, dohrání). Jeden řádek na hráče a den (primární klíč). Kontroly: body 1–4 za správnou, mřížka odpovídá počtu správných,
+  dohráno = 10 odpovědí, čas nejvýš 50 minut. Pravidlo řádků: hráč čte jen své řádky; zapisovat přímo nesmí nikdo (jen funkce níže).
+- Funkce pro přihlášené (`authenticated`, anon nic):
+  - `daily_quiz_state()` – dnešní stav (den určuje server, série dní); nic nezakládá.
+  - `daily_quiz_start()` – založí dnešní pokus (jen jednou, čas začátku určuje server), jinak vrátí rozehraný nebo dohraný. Začít znovu nejde.
+  - `daily_quiz_answer(for_day, idx, is_correct, points, ms)` – odpověď na otázku: jen další v pořadí, stejná znovu nic nezmění, jinou na zodpovězenou
+    otázku a přeskočení server odmítne. Body 1–4 za správnou a 0 za špatnou, odpověď rychlejší než 0,5 s odmítne, `for_day` jiný než dnešek také
+    (po půlnoci se nedohraný pokus počítá, jak stál). Čas na otázku: aspoň doba od předchozí odpovědi (nebo začátku) bez 15 s na načtení otázky,
+    nejvýš 5 minut, takže zavřením aplikace se čas nezastaví. Nejvýš 40 volání start/answer za den.
+  - `daily_quiz_board(for_day default null, top_n default 50)` – pořadí dne (víc bodů, při shodě kratší čas; stejné body i čas = stejné místo),
+    top N (nejvýš 100) a moje místo; dnes jen dohrané pokusy, u minulých dnů i nedohrané. Nejvýš 30 dní zpět. Vrací jen veřejné údaje profilu
+    (přezdívka, obrázek, barva, rámeček, titul, sova), mřížku jen moji.
+  - `daily_quiz_friends(for_day default null)` – totéž mezi mnou a přijatými přáteli, s počtem přátel.
+- Pomocné funkce `daily_quiz_today()`, `daily_quiz_streaks()`, `daily_quiz_json()` a `daily_quiz_counted()` přes API volat nejde.
+- `export_my_data()` má nově i `kviz_dne`; smazání účtu řádky smaže (cizí klíč na `profiles`).
+
+Hráč bez přihlášení Kvíz dne hraje jen v zařízení (jeden pokus za den a zařízení) a výsledek může sdílet; v pořadí není a vidí „Přihlas se a uvidíš se
+v pořadí“. Po přihlášení se jeho dnešní výsledek zapíše na účet, pokud tam Kvíz dne ještě není. Omezení jako u výzev: správnost odpovědi počítá
+aplikace, server hlídá pořadí, tvar a rozsah hodnot a čas. Test: `tests/sql-daily-quiz.test.js`.
+
 ## Upozornění (web push)
 
 Aplikace umí poslat upozornění: **začíná tvůj turnajový zápas** (dnes hraješ kolo, večer podruhé), **nová výzva od hráče**, **soupeř odehrál tvoji výzvu** a **zpráva o turnaji** (nepřijat, zrušen, vypadl jsi, výsledek).

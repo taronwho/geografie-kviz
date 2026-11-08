@@ -3,6 +3,7 @@
 Kvízová aplikace s tématy **Zeměpis**, **Historie**, **Biologie**, **Chemie**, **Fyzika**, **Geologie**, **Vlajky a znaky**, **Mytologie**, **Výtvarné umění**, **Architektura**, **Hudba**, **Literatura**, **Film** a **Sport**. Všechna témata fungují stejně:
 
 - **Dnešní otázky** – každé téma má jednu otázku denně, pro všechny stejnou (ze známých položek, asi desetina z těžších), a vlastní sérii dní; výsledek jde sdílet.
+- **Kvíz dne** – každý den stejných 10 otázek z různých témat pro všechny (výběr z možností), jeden pokus, pořadí dne a přátel podle bodů a času, vlastní série dní; výsledek jde sdílet textem s mřížkou 🟩🟥 i obrázkem (`daily-quiz.js`, `share-card.js`, databáze viz `docs/SUPABASE.md`).
 - **Hraní tématu** – dlaždice tématu na domovské obrazovce; poprvé se otevře okno s výběrem kategorií (výchozí všechny), pak se hraje rovnou. **Mix** míchá otázky z vybraných témat. Každé téma má svou barvu (štítek a okraj hlavičky), klepnutím na štítek jde změnit kategorie nebo téma. Jen známé položky, nebo i méně známé.
 - **Učení** – bez bodů a systematicky: v každém tématu jsou celé kategorie a **okruhy** (Česko, Přemyslovci, Angličtí panovníci, Šelmy, Naše příroda, Vyhynulé druhy, Halogeny, Vitamíny, Základní jednotky SI…). Okruh jde procházet popořadě jako atlas, nebo procvičovat jen jeho otázky; postup se ukládá. K tomu **Moje chyby** – co hráč neuhodl, jde si prohlédnout a procvičit znovu.
 
@@ -53,6 +54,8 @@ Statická stránka bez serveru a bez build kroku. Nasazuje se na **GitHub Pages*
 | `app.js` | Rozhraní: obrazovky, otázka s nápovědami, výsledek, okno s popisem, učení, nastavení, ukládání stavu |
 | `quiz-core.js` | Čistá logika bez DOM (výběr položek, okruhy, zakrývání, odpovědi, body, fakta, slepá mapa, časová osa, periodická tabulka, série) – testovaná |
 | `visuals.js` | Vykreslení obrazových nápověd (mapa, časová osa, obrázek, periodická tabulka) |
+| `daily-quiz.js` | Kvíz dne: výběr otázek ze semínka dne, součty, série, XP, uložený stav a obrazovky (karta, úvod, výsledek s pořadím) |
+| `share-card.js` | Sdílení textu (systémové, jinak schránka) a obrázku výsledku (PNG z plátna se sovou v barvě obleku) |
 | `topics/<téma>.js` | Jedno téma: kategorie, otázky, fakta, nápovědy a zakrývání (viz níže) |
 | `data/<téma>.json` | Položky a okruhy tématu (generované z Wikidat) |
 | `data/countries.json`, `data/world.json` | Státy a jejich obrysy pro slepou mapu (generované) |
