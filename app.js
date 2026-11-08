@@ -1961,15 +1961,10 @@
         const options = isMix
             ? TOPICS.map(other => chooserToggle('data-chooser-topic', other.id, settings.topics.includes(other.id), other.icon, other.title, styleOf(other).on)).join('')
             : topic.categories.map(category => chooserToggle('data-chooser-category', category.key, selectedCategories(topic).includes(category.key), category.icon, category.label, style.on)).join('');
-        const switches = [...TOPICS, MIX].filter(other => other.id !== topic.id).map(other => `
-            <button type="button" data-chooser-switch="${other.id}" class="flex min-h-[2.5rem] shrink-0 items-center gap-1.5 rounded-xl px-2.5 py-1.5 text-xs font-bold ${styleOf(other).soft}">
-                <i data-lucide="${other.icon}" class="h-3.5 w-3.5"></i> ${escapeHtml(other.title)}
-            </button>`).join('');
         // Překreslení po klepnutí bez úvodní animace a se stejným posunutím
         const previous = overlay.firstElementChild;
         const scroll = previous ? previous.scrollTop : 0;
-        // Hrát je v lepkavé patičce: při posouvání dlouhého výběru (Mix, nízký displej) zůstává vidět u spodního okraje okna,
-        // pod ním (po doposunutí) je Jiné téma
+        // Nahoře velká tlačítka Hrát, Bleskovka a Přežití (lepkavě: při posouvání dlouhého výběru zůstanou vidět), pod nimi výběr témat či kategorií a známosti
         overlay.innerHTML = `
             <div class="${previous ? '' : 'fade-in '}max-h-[92dvh] w-full max-w-md overflow-y-auto rounded-[1.75rem] bg-slate-50 px-4 pb-4 pt-4 shadow-2xl dark:bg-slate-900">
                 <div class="mb-3 flex items-center gap-3">
@@ -1980,24 +1975,20 @@
                     </div>
                     <button type="button" data-close aria-label="Zavřít" class="-m-0.5 rounded-xl p-2.5 text-slate-500 hover:bg-slate-200 dark:text-slate-400 dark:hover:bg-slate-800"><i data-lucide="x" class="h-5 w-5"></i></button>
                 </div>
-                <div class="mb-1.5 flex items-center justify-between">
+                <div data-chooser-actions class="sticky -top-4 z-10 -mx-4 bg-slate-50 px-4 pb-2 pt-1 dark:bg-slate-900">
+                <p id="chooser-note" class="${note ? 'mb-1.5 ' : ''}text-sm font-semibold text-rose-700 dark:text-rose-400" role="status">${escapeHtml(note)}</p>
+                <button type="button" data-chooser-play class="flex w-full items-center justify-center gap-2 rounded-[1.2rem] py-3.5 text-xl font-black text-white shadow-lg transition-all active:scale-95 ${style.button} btn-3d">
+                    <i data-lucide="play" class="h-6 w-6"></i> Hrát
+                </button>
+                ${Modes ? `<div class="mt-2 grid grid-cols-2 gap-2">${modeChooserButtons()}</div>` : ''}
+                </div>
+                <div class="mb-1.5 mt-2 flex items-center justify-between">
                     <h3 class="${SETTINGS_HEADING}">${isMix ? 'Témata' : 'Kategorie'}</h3>
                     <button type="button" data-chooser-all class="-my-3 rounded-lg px-2 py-3 text-xs font-bold ${style.text} underline-offset-2 hover:underline">Vybrat vše</button>
                 </div>
                 <div class="grid grid-cols-2 gap-1.5" role="group" aria-label="${isMix ? 'Témata' : 'Kategorie'}">${options}</div>
                 <h3 class="${SETTINGS_HEADING} mb-1.5 mt-3">Známost</h3>
                 <div class="grid grid-cols-2 gap-1.5" role="group" aria-label="Známost">${renderTierButtons(style.on, isMix ? null : topic)}</div>
-                <div data-chooser-footer class="sticky -bottom-4 z-10 -mx-4 mt-3 border-t border-slate-200/80 bg-slate-50 px-4 pb-4 pt-2.5 dark:border-slate-800 dark:bg-slate-900">
-                    <p id="chooser-note" class="${note ? 'mb-1.5 ' : ''}text-sm font-semibold text-rose-700 dark:text-rose-400" role="status">${escapeHtml(note)}</p>
-                    <div class="flex gap-2">
-                        <button type="button" data-chooser-play class="flex min-w-0 flex-1 items-center justify-center gap-2 rounded-[1.2rem] py-3 text-lg font-black text-white shadow-lg transition-all active:scale-95 ${style.button} btn-3d">
-                            <i data-lucide="play" class="h-5 w-5"></i> Hrát
-                        </button>
-                        ${modeChooserButtons()}
-                    </div>
-                </div>
-                <h3 class="${SETTINGS_HEADING} mb-2 mt-2">Jiné téma</h3>
-                <div class="flex flex-wrap gap-2">${switches}</div>
             </div>`;
         overlay.firstElementChild.scrollTop = scroll;
         renderIcons(overlay);
@@ -2025,7 +2016,6 @@
             const category = event.target.closest('[data-chooser-category]');
             const topicToggle = event.target.closest('[data-chooser-topic]');
             const tier = event.target.closest('[data-tier]');
-            const switchTo = event.target.closest('[data-chooser-switch]');
             if (category && topic) toggleChoice('category', category.dataset.chooserCategory, topic, refocus);
             else if (topicToggle) toggleChoice('topic', topicToggle.dataset.chooserTopic, null, refocus);
             else if (tier) { saveSettings({ tier: tier.dataset.tier }); renderChooser('', refocus); }
@@ -2033,9 +2023,6 @@
                 if (topic) saveSettings({ categories: { ...settings.categories, [topic.id]: undefined } });
                 else saveSettings({ topics: TOPICS.map(other => other.id) });
                 renderChooser('', refocus);
-            } else if (switchTo) {
-                chooser = switchTo.dataset.chooserSwitch === 'mix' ? { kind: 'mix' } : { kind: 'topic', topic: switchTo.dataset.chooserSwitch };
-                renderChooser('', '[data-chooser-play]');
             } else if (event.target.closest('[data-chooser-play]')) {
                 const pick = chooser;
                 closeChooser();
@@ -4696,8 +4683,8 @@
     const modeChooserButtons = () => Modes ? Modes.IDS.map(id => {
         const def = Modes.MODES[id];
         return `
-            <button type="button" data-chooser-mode="${id}" title="${escapeHtml(`${def.title}: ${def.tagline}`)}" aria-label="${escapeHtml(`${def.title}: ${def.tagline}`)}" class="btn-3d-light flex w-[4.75rem] shrink-0 flex-col items-center justify-center gap-1 rounded-[1.2rem] bg-white px-1 py-1 text-[11.5px] font-black leading-none text-slate-800 dark:bg-slate-800 dark:text-slate-100">
-                ${modeBadge(id, 'h-6 w-6', 'h-3.5 w-3.5')}${escapeHtml(def.title)}
+            <button type="button" data-chooser-mode="${id}" title="${escapeHtml(`${def.title}: ${def.tagline}`)}" aria-label="${escapeHtml(`${def.title}: ${def.tagline}`)}" class="btn-3d-light flex min-h-[3.5rem] min-w-0 items-center gap-2.5 rounded-[1.2rem] bg-white px-3 py-2 text-left text-slate-800 dark:bg-slate-800 dark:text-slate-100">
+                ${modeBadge(id, 'h-9 w-9', 'h-5 w-5')}<span class="min-w-0"><span class="block text-[15px] font-black leading-tight">${escapeHtml(def.title)}</span><span class="block text-[11px] font-semibold leading-tight text-slate-500 dark:text-slate-400">${id === 'blitz' ? '60 sekund' : id === 'survival' ? '3 životy' : ''}</span></span>
             </button>`;
     }).join('') : '';
     const modeActions = {

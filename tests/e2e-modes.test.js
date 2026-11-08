@@ -98,12 +98,16 @@ test('Bleskovka, Přežití, zvuky a vibrace', { skip: !chromium && 'Playwright 
         return { scroll: main.scrollHeight - main.clientHeight, wide: document.documentElement.scrollWidth - document.documentElement.clientWidth };
     });
     const storage = (tab, key) => tab.evaluate((key) => JSON.parse(localStorage.getItem(key) || 'null'), key);
-    // Okno Co hrát pro Zeměpis (přes Mix, ať nezáleží na tom, jestli už hráč výběr viděl) a režim z něj
+    // Okno Co hrát pro Zeměpis (při prvním klepnutí na dlaždici) a režim z něj
     const openMode = async (tab, kind) => {
-        await tab.click('[data-action="play-mix"]');
-        await tab.waitForSelector('#play-chooser');
-        await tab.click('[data-chooser-switch="zemepis"]');
-        await tab.waitForSelector('#chooser-title:has-text("Zeměpis")');
+        // Dlaždice tématu otevře okno jen poprvé; jinak se hraje rovnou a okno se otevře klepnutím na téma v hlavičce
+        await tab.click('[data-action="play-topic"][data-topic="zemepis"]');
+        const opened = await tab.waitForSelector('#chooser-title:has-text("Zeměpis")', { timeout: 2000 }).then(() => true, () => false);
+        if (!opened) {
+            await tab.waitForSelector('[data-action="give-up"]');
+            await tab.click('#status-badge');
+            await tab.waitForSelector('#chooser-title:has-text("Zeměpis")');
+        }
         await tab.click(`[data-chooser-mode="${kind}"]`);
         await tab.waitForSelector(`[data-mode-intro="${kind}"]`);
     };
@@ -123,20 +127,23 @@ test('Bleskovka, Přežití, zvuky a vibrace', { skip: !chromium && 'Playwright 
         return { right, wrong: right === 0 ? 1 : 0, answer, item, labels: info.labels };
     };
 
-    await t.test('okno Co hrát nabízí Bleskovku a Přežití vedle Hrát; úvod ukáže pravidla a rekordy; úvod se nemění', async () => {
+    await t.test('okno Co hrát nabízí nahoře Hrát a pod ním Bleskovku a Přežití; úvod ukáže pravidla a rekordy; úvod se nemění', async () => {
         const { context, tab, problems } = await open();
         await tab.click('[data-action="play-mix"]');
         await tab.waitForSelector('#play-chooser [data-chooser-mode="blitz"]');
-        const buttons = await tab.evaluate(() => [...document.querySelectorAll('#play-chooser [data-chooser-mode]')].map(el => ({ text: el.textContent.trim(), label: el.getAttribute('aria-label'), h: el.getBoundingClientRect().height, w: el.getBoundingClientRect().width })));
-        assert.deepEqual(buttons.map(button => button.text), ['Bleskovka', 'Přežití']);
+        const buttons = await tab.evaluate(() => [...document.querySelectorAll('#play-chooser [data-chooser-mode]')].map(el => ({ text: el.textContent.trim(), title: el.querySelector('.font-black').textContent.trim(), label: el.getAttribute('aria-label'), h: el.getBoundingClientRect().height, w: el.getBoundingClientRect().width })));
+        assert.deepEqual(buttons.map(button => button.title), ['Bleskovka', 'Přežití']);
         assert.match(buttons[0].label, /60 sekund/);
         for (const button of buttons) assert.ok(button.h >= 44 && button.w >= 44, `${button.text}: ${button.w}×${button.h}`);
-        const sameRow = await tab.evaluate(() => {
+        // Hrát přes celou šířku nahoře, pod ním oba režimy v jednom řádku, teprve pak výběr témat
+        const layout = await tab.evaluate(() => {
             const play = document.querySelector('[data-chooser-play]').getBoundingClientRect();
             const blitz = document.querySelector('[data-chooser-mode="blitz"]').getBoundingClientRect();
-            return Math.abs(play.top - blitz.top) < 2;
+            const survival = document.querySelector('[data-chooser-mode="survival"]').getBoundingClientRect();
+            const topics = document.querySelector('#play-chooser [data-chooser-topic]').getBoundingClientRect();
+            return { below: blitz.top >= play.bottom - 1, row: Math.abs(blitz.top - survival.top) < 2, topicsBelow: topics.top >= blitz.bottom - 1 };
         });
-        assert.equal(sameRow, true, 'režimy jsou ve stejném řádku jako Hrát (okno nenaroste)');
+        assert.deepEqual(layout, { below: true, row: true, topicsBelow: true });
         await shot(tab, 'rezimy-vyber-390');
         await tab.click('#play-chooser [data-close]');
         // Úvodní obrazovka zůstává bez vstupu navíc (místo nezabírá) a bez posouvání
