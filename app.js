@@ -480,7 +480,7 @@
         for (const step of plan) {
             let hint = null;
             if (step.kind === 'photo' && photoUrl) hint = { kind: 'photo', label: 'fotka', icon: 'image' };
-            if (step.kind === 'text') hint = { kind: 'text', label: 'popis', icon: 'quote' };
+            if (step.kind === 'text') hint = { kind: 'text', label: step.label || 'popis', icon: 'quote' };
             // Další věty z úvodu článku (bez jména), když je popis zkrácený a text má pokračování
             if (step.kind === 'excerpt' && step.text) hint = { kind: 'excerpt', text: step.text, label: 'další věty', icon: 'book-open' };
             // Obrázek s napsanou odpovědí (portrét autora se jménem) nápovědou není
@@ -567,7 +567,7 @@
         // Pokračování úvodu článku (zakryté stejně jako popis) je první, nejlevnější nápověda; bez dost skutečných slov se vynechá
         const withExcerpt = realWords(moreText) >= MIN_EXCERPT_WORDS ? [{ kind: 'excerpt', text: moreText }, ...basePlan] : basePlan;
         // U otázky s obrázkem (obraz, vlajka, nerost…) se hádá z obrázku; popis je až první nápověda, ne hned viditelná záložka
-        const plan = shown && realWords(questionText) >= 3 ? [{ kind: 'text' }, ...withExcerpt] : withExcerpt;
+        const plan = shown && realWords(questionText) >= 3 ? [{ kind: 'text', label: question.showName ? 'název a popis' : 'popis' }, ...withExcerpt] : withExcerpt;
         const visibleText = [question.title, question.showName ? item.n : '', typeLabel, questionText, realWords(moreText) >= MIN_EXCERPT_WORDS ? moreText : ''].join(' · ');
         // Fakt, který mají všechny nesprávné možnosti stejný jako správná, mezi nimi nepomůže vybrat
         const wrongItems = question.type === 'name' ? question.choices.filter(choice => !choice.correct).map(choice => ctx.byId.get(choice.id)).filter(Boolean) : [];
@@ -2569,21 +2569,15 @@
             return { key: hint.key, label: tabLabel(hint), icon: hint.icon, html };
         });
     };
-    // Jen název (otázka na autora obrazu, na sloh stavby): patří k zadání, i když je popis schovaný za nápovědou
-    const namePane = (data, style) => `
-        <div class="absolute inset-0 overflow-y-auto overscroll-contain p-3.5">
-            <div class="${HINT_CHIP}"><i data-lucide="tag" class="w-4 h-4 ${style.text}"></i><span class="font-medium">Název:</span> <b class="text-slate-800 dark:text-slate-100">${escapeHtml(data.name)}</b></div>
-        </div>`;
 
     // Panel otázky: popis a odemčené nápovědy, za záložkami tlačítko na další nápovědu
-    // U otázky s obrázkem je popis nápovědou (krok 'text'), volně zůstane nanejvýš název
+    // U otázky s obrázkem je popis (i s názvem díla) nápovědou (krok 'text'): vidět je jen obrázek
     const questionPanel = (data) => {
         const style = styleOf(TOPIC_BY_ID[data.topic]);
         const unlocked = data.hints.slice(0, round.hintLevel - 1);
         const image = data.questionImage ? [{ key: 'image', label: data.questionImage.label, icon: data.questionImage.icon, html: photoPane('question-image') }] : [];
         const textAsHint = data.hints.some(hint => hint.kind === 'text');
-        const free = !textAsHint ? [{ key: 'text', label: 'Popis', icon: 'quote', html: textPane(data, style) }]
-            : data.question.showName ? [{ key: 'name', label: 'Název', icon: 'tag', html: namePane(data, style) }] : [];
+        const free = !textAsHint ? [{ key: 'text', label: 'Popis', icon: 'quote', html: textPane(data, style) }] : [];
         const panes = [...image, ...free, ...hintPanes(unlocked, data, style)];
         return renderTabbedPanel(panes, round.tab || panes[0].key, 'hint-tab', QUESTION_PANEL_HEIGHT);
     };
