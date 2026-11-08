@@ -90,8 +90,8 @@
         const gap = (a, b) => Math.min(Math.abs(a - b), 360 - Math.abs(a - b));
         return COLORS.filter(name => NAMED_HUE[name] !== undefined).reduce((best, name) => gap(NAMED_HUE[name], hue) < gap(NAMED_HUE[best], hue) ? name : best, COLORS[0]);
     };
-    // Sova titulu (část pose=…) jen titul-1 … titul-10; jiná póza se z textu vynechá, zbytek sovy (oblek, doplňky) platí dál
-    const POSE_PART = /^pose=titul-(?:[1-9]|10)$/;
+    // Sova titulu (část pose=…) jen titul-1 … titul-11; jiná póza se z textu vynechá, zbytek sovy (oblek, doplňky) platí dál
+    const POSE_PART = /^pose=titul-(?:[1-9]|1[01])$/;
     const cleanOwl = (value) => {
         if (typeof value !== 'string' || !/^[a-z0-9=.;-]{1,200}$/.test(value)) return null;
         const text = value.split(';').filter(part => !part.startsWith('pose=') || POSE_PART.test(part)).join(';');

@@ -1627,10 +1627,11 @@
         [96, 'Archimudrc'], [100, 'Mudrlant']
     ].map(([from, title]) => ({ from, title }));
     const titleForLevel = (level) => LEVEL_TITLES.filter(entry => level >= entry.from).pop().title;
-    // Sovy titulů: deset ilustrací icons/topics/sova-titul-1 … 10, každá patří k několika po sobě jdoucím titulům;
-    // číslo = úroveň prvního titulu stupně (Zvědavec 1, Učeň 7, Student 12, Znalec 18, Učenec 27, Odborník 36, Mistr 45, Docent 56, Mudrc 68, Legenda 84)
-    const TITLE_OWL_FROM = [1, 7, 12, 18, 27, 36, 45, 56, 68, 84];
-    // Stupeň sovy titulu 1–10 pro úroveň
+    // Sovy titulů: jedenáct ilustrací icons/topics/sova-titul-1 … 11, každá patří k jednomu nebo několika po sobě jdoucím titulům;
+    // číslo = úroveň prvního titulu stupně (Zvědavec 1, Učeň 7, Student 12, Znalec 18, Učenec 27, Odborník 36, Mistr 45, Docent 56, Mudrc 68,
+    // Legenda 84, Mudrlant 100 – nejvyšší titul má vlastní sovu)
+    const TITLE_OWL_FROM = [1, 7, 12, 18, 27, 36, 45, 56, 68, 84, 100];
+    // Stupeň sovy titulu 1–11 pro úroveň
     const titleOwlTier = (level) => Math.max(1, TITLE_OWL_FROM.filter(from => level >= from).length);
     // Další titul (kdy a jaký), null na konci
     const nextTitle = (level) => LEVEL_TITLES.find(entry => entry.from > level) || null;
