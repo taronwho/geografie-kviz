@@ -72,10 +72,10 @@
     const friendButton = (state, { busy = false, blocked = false } = {}) => {
         if (blocked) return '';
         const item = FRIEND_BUTTON[state] || FRIEND_BUTTON.none;
-        return `<button type="button" data-friend="${item.action}" ${busy ? 'disabled' : ''} class="flex min-h-[2.75rem] min-w-0 flex-1 items-center justify-center gap-1.5 rounded-2xl px-3 text-[13px] font-black disabled:opacity-50 ${item.tone}"><i data-lucide="${item.icon}" class="h-4 w-4 shrink-0"></i><span class="truncate">${busy ? 'Chvilku…' : item.label}</span></button>`;
+        return `<button type="button" data-friend="${item.action}" ${busy ? 'disabled' : ''} class="flex min-h-[2.5rem] min-w-0 flex-1 items-center justify-center gap-1.5 rounded-2xl px-3 text-[13px] font-black disabled:opacity-50 ${item.tone}"><i data-lucide="${item.icon}" class="h-4 w-4 shrink-0"></i><span class="truncate">${busy ? 'Chvilku…' : item.label}</span></button>`;
     };
     // Menu „⋯“ v profilu: Nahlásit, Zablokovat / Odblokovat
-    const moreButton = (open) => `<button type="button" data-more aria-label="Další možnosti" aria-expanded="${open}" class="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white text-slate-600 shadow-sm active:scale-95 dark:bg-slate-800 dark:text-slate-300"><i data-lucide="ellipsis" class="h-5 w-5"></i></button>`;
+    const moreButton = (open) => `<button type="button" data-more aria-label="Další možnosti" aria-expanded="${open}" class="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white text-slate-600 shadow-sm active:scale-95 dark:bg-slate-800 dark:text-slate-300"><i data-lucide="ellipsis" class="h-5 w-5"></i></button>`;
     const moreMenu = (blocked) => `
         <div data-more-menu role="menu" class="grid grid-cols-2 gap-1.5">
             <button type="button" role="menuitem" data-report class="flex min-h-[2.5rem] items-center justify-center gap-1.5 rounded-xl bg-white px-2 text-[12px] font-black text-slate-700 shadow-sm active:scale-[0.98] dark:bg-slate-800 dark:text-slate-200"><i data-lucide="flag" class="h-4 w-4"></i> Nahlásit</button>
@@ -95,7 +95,7 @@
     const reportBody = (reasons, chosen, note = '', { busy = false } = {}) => `
         <form id="report-form" class="flex flex-col gap-3" autocomplete="off">
             <p class="text-xs leading-snug text-slate-500 dark:text-slate-400">Nahlášení vidí jen správce hry. Vyber důvod, případně připiš, co se stalo.</p>
-            <div role="radiogroup" aria-label="Důvod" class="flex flex-wrap gap-1.5">${reasons.map(item => `<button type="button" role="radio" aria-checked="${chosen === item.id}" data-reason="${esc(item.id)}" class="min-h-[2.25rem] rounded-xl border-2 px-2.5 text-[13px] font-bold ${chosen === item.id ? 'border-brand-600 bg-brand-50 text-brand-900 dark:bg-brand-900/40 dark:text-brand-100' : 'border-transparent bg-white text-slate-600 dark:bg-slate-800 dark:text-slate-300'}">${esc(item.label)}</button>`).join('')}</div>
+            <div role="radiogroup" aria-label="Důvod" class="flex flex-wrap gap-1.5">${reasons.map(item => `<button type="button" role="radio" aria-checked="${chosen === item.id}" data-reason="${esc(item.id)}" class="min-h-[2.5rem] rounded-xl border-2 px-2.5 text-[13px] font-bold ${chosen === item.id ? 'border-brand-600 bg-brand-50 text-brand-900 dark:bg-brand-900/40 dark:text-brand-100' : 'border-transparent bg-white text-slate-600 dark:bg-slate-800 dark:text-slate-300'}">${esc(item.label)}</button>`).join('')}</div>
             <textarea id="report-note" maxlength="300" rows="3" placeholder="Poznámka (nepovinná)" class="w-full rounded-xl border-2 border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:border-brand-600 focus:outline-none dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100">${esc(note)}</textarea>
             <button type="submit" data-report-send ${busy || !chosen ? 'disabled' : ''} class="flex w-full items-center justify-center gap-2 rounded-2xl btn-3d bg-brand-700 px-4 py-3 text-base font-black text-white disabled:opacity-50"><i data-lucide="flag" class="h-5 w-5"></i> ${busy ? 'Odesílám…' : 'Odeslat nahlášení'}</button>
         </form>`;
@@ -126,13 +126,13 @@
             <button type="button" data-action="friend-decline" data-id="${esc(row.id)}" aria-label="Odmítnout žádost od ${esc(row.display_name)}" class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-600 active:scale-95 dark:bg-slate-700 dark:text-slate-300"><i data-lucide="x" class="h-4 w-4"></i></button>
         </div>`;
     }).join('');
-    // Rychlý výběr přátel ve formuláři nové výzvy (nad hledáním): čipy s avatarem a jménem, data-pick-opp jako výsledky hledání
+    // Rychlý výběr přátel ve formuláři nové výzvy (nad hledáním): popisek a vedle něj řada čipů s avatarem a jménem, data-pick-opp jako výsledky hledání
     const quickFriends = (friends, h) => {
         if (!friends || !friends.length) return '';
         return `
-            <div id="quick-friends" class="mt-2">
-                <p class="mb-1 px-1 text-[11px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">Přátelé</p>
-                <div class="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1">${friends.slice(0, 20).map(row => `<button type="button" data-pick-opp="${esc(row.id)}" class="flex max-w-[9rem] shrink-0 items-center gap-1.5 rounded-xl bg-white py-1 pl-1 pr-2.5 text-left shadow-sm active:scale-[0.98] dark:bg-slate-800">${h.avatarHtml(row, 'h-7 w-7 text-sm')}<span class="truncate text-[12px] font-bold text-slate-800 dark:text-slate-100">${esc(shortName(row.display_name, 12))}</span></button>`).join('')}</div>
+            <div id="quick-friends" class="mt-2 flex items-center gap-2">
+                <p class="shrink-0 pl-1 text-[11px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">Přátelé</p>
+                <div class="-my-1 flex min-w-0 flex-1 gap-1.5 overflow-x-auto px-1 py-1">${friends.slice(0, 20).map(row => `<button type="button" data-pick-opp="${esc(row.id)}" class="flex max-w-[9rem] shrink-0 items-center gap-1.5 rounded-xl bg-white py-1 pl-1 pr-2.5 text-left shadow-sm active:scale-[0.98] dark:bg-slate-800">${h.avatarHtml(row, 'h-7 w-7 text-sm')}<span class="truncate text-[12px] font-bold text-slate-800 dark:text-slate-100">${esc(shortName(row.display_name, 12))}</span></button>`).join('')}</div>
             </div>`;
     };
     // Řada reakcí po zápase; chosen = moje už poslaná reakce

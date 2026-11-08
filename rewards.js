@@ -322,7 +322,7 @@
     // nezískaný = co chybí
     const diplomaDialogHtml = (row, { name = '', needName = false } = {}, h) => row.earned ? `
         <div class="flex flex-col gap-2.5" data-diploma-dialog="${esc(row.topic.id)}">
-            <div data-diploma-preview class="flex aspect-[4/5] w-full items-center justify-center overflow-hidden rounded-2xl bg-slate-100 shadow-inner dark:bg-slate-900"><p class="text-xs font-semibold text-slate-500 dark:text-slate-400" role="status">Kreslím diplom…</p></div>
+            <div data-diploma-preview class="flex aspect-[4/5] w-full items-center short:mx-auto short:w-[90%] justify-center overflow-hidden rounded-2xl bg-slate-100 shadow-inner dark:bg-slate-900"><p class="text-xs font-semibold text-slate-500 dark:text-slate-400" role="status">Kreslím diplom…</p></div>
             <label class="flex items-center gap-2 text-[12px] font-bold text-slate-600 dark:text-slate-300"><span class="shrink-0">Jméno na diplomu</span>
                 <input type="text" data-diploma-name maxlength="30" value="${esc(name)}" placeholder="${needName ? 'Tvoje jméno' : ''}" class="h-9 min-w-0 flex-1 rounded-xl border-2 border-slate-200 bg-white px-2.5 text-sm font-bold text-slate-800 focus:border-brand-600 focus:outline-none dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"></label>
             <div class="flex gap-2">

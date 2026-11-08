@@ -248,8 +248,8 @@
             <div class="flex flex-col gap-1.5"><p class="text-[11px] font-bold text-slate-500 dark:text-slate-400">Barva: <b class="text-slate-700 dark:text-slate-200">${escapeHtml(targetItem.title)}</b></p>
             <div class="grid grid-cols-10 justify-items-center gap-1" role="group" aria-label="Barva doplňku">${Look.ACC_COLORS.map(dot).join('')}</div>${slider}</div>`
             : '<p class="text-[11px] font-semibold text-slate-500 dark:text-slate-400">Vyber doplněk a pak jeho barvu.</p>';
-        return `<div class="flex flex-col gap-2">
-            <div class="flex justify-center [@media(max-height:700px)]:-mb-1">${logoHtml('mt-5 [@media(max-height:700px)]:mt-4', 'h-20 w-auto drop-shadow-lg [@media(max-height:700px)]:h-16', acc)}</div>
+        return `<div class="flex flex-col gap-2 short:gap-1.5">
+            <div class="flex justify-center [@media(max-height:700px)]:-mb-1">${logoHtml('mt-5 [@media(max-height:700px)]:mt-3', 'h-20 w-auto drop-shadow-lg [@media(max-height:700px)]:h-14', acc)}</div>
             ${slots}<div class="flex flex-col gap-1.5 px-0.5">${colors}${flagPicker}</div>
             ${note ? `<p role="status" class="px-0.5 text-[11px] font-bold text-brand-700 dark:text-brand-300">${escapeHtml(note)}</p>` : ''}
         </div>`;
