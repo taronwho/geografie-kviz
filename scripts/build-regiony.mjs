@@ -7,9 +7,10 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { layer, polygonsOf, ringKm2, planarArea, simplify, clipPolygon, clipLine } from './lib/natural-earth.mjs';
+import { encodePoints } from './lib/regional-encode.mjs';
 
 const require = createRequire(import.meta.url);
-const { mercatorY, inverseMercatorY, regionalView, REGIONAL_DIGITS: DIGITS } = require('../quiz-core.js');
+const { mercatorY, inverseMercatorY, regionalView } = require('../quiz-core.js');
 const vlajky = JSON.parse(readFileSync(new URL('../data/vlajky.json', import.meta.url), 'utf8'));
 
 const CZECHIA = 'Q213';
@@ -182,30 +183,7 @@ const chainsOf = (edges) => {
     return chains;
 };
 
-// Zápis: celá čísla po q, první bod absolutně a další rozdílově, opakované body vynechané; každé číslo jako znaky base64url
-// po pěti bitech (šestý bit = pokračuje další znak), znaménko v nejnižším bitu – drobné posuny zaberou jeden znak
-const encodeNumber = (value) => {
-    let rest = value < 0 ? -value * 2 - 1 : value * 2;
-    let text = '';
-    do {
-        const chunk = rest & 31;
-        rest = Math.floor(rest / 32);
-        text += DIGITS[rest ? chunk | 32 : chunk];
-    } while (rest);
-    return text;
-};
-const encodePoints = (points, q) => {
-    let text = '';
-    let px = 0, py = 0, count = 0;
-    for (const [x, y] of points) {
-        const ix = Math.round(x / q);
-        const iy = Math.round(y / q);
-        if (count && ix === px && iy === py) continue;
-        text += encodeNumber(ix - px) + encodeNumber(iy - py);
-        px = ix; py = iy; count++;
-    }
-    return { text, count };
-};
+// Zápis cest: scripts/lib/regional-encode.mjs (rozdílově po q, base64url)
 // minArea = nejmenší ostrůvek (v jednotkách², výchozí asi tři pixely napříč); obrys hledaného regionu i menší
 const encodeRings = (rings, box, tolerance, q, minArea = (tolerance * 6) ** 2) => {
     const out = [];
@@ -347,10 +325,13 @@ for (const qid of countryIds) {
     console.log(`  ${qid} ${a3}: ${Math.round(size / 1024)} kB, regionů ${targets.size}/${own.filter(item => item.c === 'regiony' || item.ty === 'kraj').length}, ${fits ? 'celý stát' : 'okolí regionu'}, q ${q}`);
 }
 
+// Městské části (cities) staví scripts/build-casti-mest.mjs z OpenStreetMap – při novém sestavení regionů zůstanou
+const previous = (() => { try { return JSON.parse(readFileSync(new URL('../data/regiony.json', import.meta.url), 'utf8')); } catch (e) { return {}; } })();
 writeFileSync(new URL('../data/regiony.json', import.meta.url), JSON.stringify({
     source: 'Natural Earth 5.1.2 (volné dílo): regiony států (admin 1) a jezera 1:10m',
     generated: new Date().toISOString().slice(0, 10),
-    countries
+    countries,
+    ...(previous.cities ? { citiesSource: previous.citiesSource, cities: previous.cities } : {})
 }));
 if (process.env.REGIONY_REPORT) writeFileSync(process.env.REGIONY_REPORT, report.join('\n'));
 console.log(`regiony.json: ${countryIds.length} států`);

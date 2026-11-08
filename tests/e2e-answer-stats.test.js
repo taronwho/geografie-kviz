@@ -109,7 +109,10 @@ test('Jak odpověděli ostatní', { skip: !chromium && 'Playwright není nainsta
         await tab.waitForSelector('[data-action="next"]');
         return { data, choice: data.question.choices[index] };
     };
-    const layout = (tab) => tab.evaluate(() => {
+    // Výsledek najíždí animací (fade-in: posun o 10 px, 0,5 s) – měří se až po ní, jinak by poloha závisela na tom, kdy přesně
+    // měření v průběhu animace přišlo (u hosta a přihlášeného hráče pokaždé jindy)
+    const layout = (tab) => tab.evaluate(async () => {
+        await Promise.all(document.getAnimations().filter(animation => animation.effect && animation.effect.getTiming().iterations !== Infinity).map(animation => animation.finished.catch(() => null)));
         const rect = (selector) => { const el = document.querySelector(selector); if (!el) return null; const box = el.getBoundingClientRect(); return { top: box.top, bottom: box.bottom, left: box.left, right: box.right, height: box.height }; };
         return { line: rect('[data-answer-stats]'), verdict: rect('[data-verdict]'), next: rect('[data-action="next"]'), innerHeight, innerWidth, scrollWidth: document.documentElement.scrollWidth,
             inline: document.querySelectorAll('#app-content [style]:not(#map-tiles img):not([data-progress])').length };

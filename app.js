@@ -6,13 +6,14 @@
     const {
         SATELLITE_TILES, OSM_TILES,
         escapeHtml, plural, isRealPhoto, commonsPhotoUrl, commonsFileUrl, displayName, formatPoints, getDayKey, formatDayKey, createSeededRandom, pickRandom,
-        censorName, hideAnswer, buildQuestionTexts, factRevealsAnswer, answerNamesFor, genericWordsOf, specificWords, isGenericWord, OUT_OF_CONTEXT,
-        processWikiText, takeLeadFacts, checkAnswer, normalizeAnswer, filterItems, pickItem, sortItems,
-        buildItemChoices, cultureLandsFor, findAnswerItem, setCountries, updateMistakes, nameAnswers, pointsFor, dropKnownFacts, scaleKnown, timelineKnown, dropChoiceNames,
+        censorName, hideAnswer, buildQuestionTexts, OUT_OF_CONTEXT,
+        processWikiText, checkAnswer, normalizeAnswer, filterItems, pickItem, sortItems,
+        buildItemChoices, cultureLandsFor, findAnswerItem, setCountries, updateMistakes, nameAnswers, pointsFor,
         computeStreak, buildShareText, getTileLayout, shuffle,
         LEVEL_XP, xpForLevel, MAX_LEVEL, LEVEL_TITLES, titleOwlTier,
         BADGES, BADGE_GROUPS, BADGE_BY_ID, earnedBadgeIds, compactBadges, expandBadges, normalizeCounters,
-        levelProgress, titleForLevel, nextTitle, answerXp, DAILY_XP, DAILY_ALL_XP, streakXp, MASTERY_STEPS, masteryStars, nextMastery
+        levelProgress, titleForLevel, nextTitle, answerXp, DAILY_XP, DAILY_ALL_XP, streakXp, MASTERY_STEPS, masteryStars, nextMastery,
+        buildHints: CoreBuildHints, planRound
     } = window.MudrlantCore;
     const Visuals = window.MudrlantVisuals;
     // Opakování karet (review.js) a týdenní cíle (goals.js); bez skriptu se jen nezobrazí
@@ -467,53 +468,11 @@
     const relevantFacts = (facts, item) => (facts || []).filter(fact => !OUT_OF_CONTEXT.test(fact)
         && censorName(fact, [item.n, displayName(item.t)].join(', ')).includes('[***]'));
 
-    // Nápovědy otázky: téma je pro svůj druh otázky může určit samo (u století současníci a osa bez letopočtů,
-    // u vzorce složení), jinak fotka → obrazová nápověda → čísla a fakta. Nápověda, která nic nepřidá, se vynechá:
-    // fotka, která se nenačte, prázdná fakta i fakta, která hráč už vidí v zadání nebo v popisu.
-    // shared = fakta, která mají stejná všechny nabízené nesprávné možnosti (třída savci u čtyř savců) – mezi nimi nerozhodnou
-    // answers = odpovědi, které nápověda nesmí prozradit (u otázky na název jméno položky, u řádu řád…)
-    // Časová osa, jejíž roky (i o pár let jinak) už jsou v popisu nebo dalších větách, nic nepřidá (timelineKnown v quiz-core)
-    // Otázka s obrázkem (obraz, vlajka, nerost): popis je první nápověda (krok 'text'), ne volná záložka
-    const buildHints = (plan, { photoUrl, visibleText, shared = new Set(), answers = [], textPhotos = new Set(), omit = [], rootCheck = false, extraGeneric = null }) => {
-        // Fakt prozradí odpověď i tehdy, když obsahuje kterýkoli její tvar nebo začíná stejným kořenem jako jméno
-        // (Těží se z něj: antimon u Antimonitu); společná kontrola s popisem (factRevealsAnswer)
-        const rootNames = rootCheck && answers.length ? specificWords(answers, extraGeneric) : '';
-        const revealsAnswer = (fact) => factRevealsAnswer(fact, answers, { isGeneric: (word) => isGenericWord(word, extraGeneric), rootNames });
-        const hints = [];
-        // Co už dřívější nápovědy řekly (roky na časové ose, hodnoty faktů): další krok to nesmí opakovat
-        let shownBefore = '';
-        for (const step of plan) {
-            let hint = null;
-            if (step.kind === 'photo' && photoUrl) hint = { kind: 'photo', label: 'fotka', icon: 'image' };
-            if (step.kind === 'text') hint = { kind: 'text', label: step.label || 'popis', icon: 'quote' };
-            // Další věty z úvodu článku (bez jména), když je popis zkrácený a text má pokračování
-            if (step.kind === 'excerpt' && step.text) hint = { kind: 'excerpt', text: step.text, label: 'další věty', icon: 'book-open' };
-            // Obrázek s napsanou odpovědí (portrét autora se jménem) nápovědou není
-            const textImage = step.spec && step.spec.type === 'image' && textPhotos.has(step.spec.file);
-            if (step.kind === 'visual' && step.spec && Visuals.info(step.spec) && !timelineKnown(step.spec, visibleText) && !scaleKnown(step.spec, visibleText) && !textImage) {
-                const masks = step.spec.type === 'image' && photoMasks[step.spec.file];
-                // Událost na časové ose se jménem odpovědi (autor, režisér) by ji prozradila: vynechá se jako události s hádanou položkou
-                const spec = step.spec.type === 'timeline' && answers.length ? { ...step.spec, hide: [step.spec.hide, ...answers].filter(Boolean).join(', ') } : step.spec;
-                hint = { kind: 'visual', spec: masks ? { ...spec, masks } : spec, label: Visuals.info(step.spec).name, icon: Visuals.info(step.spec).icon };
-            }
-            if (step.kind === 'facts') {
-                // omit = jména nesprávných možností (Sourozenci: Chiméra, Hydra u Kerberose by je vyřadili)
-                const facts = dropChoiceNames(dropKnownFacts(step.facts || [], step.label ? visibleText : `${visibleText} · ${shownBefore}`), omit)
-                    .filter(fact => (step.label || !shared.has(`${fact.label}\u0000${fact.value}`)) && !revealsAnswer(fact));
-                // extra = vlastní nápověda tématu; po odpovědi se ukáže i mezi fakty
-                if (facts.length) hint = { kind: 'facts', facts, label: step.label || 'čísla a fakta', icon: step.icon || 'info', extra: Boolean(step.label) };
-            }
-            if (!hint) continue;
-            if (hint.kind === 'facts') shownBefore += ` · ${hint.facts.map(fact => fact.value).join(' · ')}`;
-            if (hint.kind === 'visual' && hint.spec.type === 'timeline' && !hint.spec.blind) {
-                shownBefore += ` · ${[...(hint.spec.points || []), ...(hint.spec.spans || []).flatMap(span => [span.from, span.to])].filter(year => Number.isFinite(year) && year >= 100).join(' · ')}`;
-            }
-            let key = hint.kind;
-            for (let n = 2; hints.some(other => other.key === key); n++) key = `${hint.kind}-${n}`;
-            hints.push({ key, ...hint });
-        }
-        return hints;
-    };
+    // Nápovědy otázky sestaví jádro (quiz-core.js: planRound a buildHints) stejně pro hru i audit: nápověda, která nic
+    // nepřidá (k otázce, štítku, možnostem a dřívějším nápovědám), se vynechá. Tady se jen doplní, které obrazové nápovědy
+    // umí aplikace vykreslit (Visuals.info).
+    const describeVisual = (spec) => Visuals.info(spec);
+    const buildHints = (plan, options) => CoreBuildHints(plan, { photoMasks, describeVisual, ...options });
     // Otázka uložená starší verzí má nápovědy jen jako názvy kroků ('photo', 'visual', 'facts')
     const upgradeRoundData = (data) => {
         if (data && Array.isArray(data.hints) && data.hints.some(step => typeof step === 'string')) {
@@ -524,11 +483,7 @@
     };
 
     // Data jedné otázky – vše, co se uloží a po obnovení stránky zobrazí znovu
-    // Kolik slov skutečného textu (bez zakrytých míst) má popis mít, aby z něj šla odpověď poznat nebo aspoň odhadnout
-    const MIN_DESCRIPTION_WORDS = 14;
-    const realWords = (text) => String(text || '').replace(/\[\*\*\*\]/g, ' ').split(/\s+/).filter(word => /\p{L}/u.test(word)).length;
     const MAX_THIN_RETRIES = 3;
-    const MIN_EXCERPT_WORDS = 8;
     // Otázka „Ukaž na mapě“ (question-map.js): jen v tréninku, asi každá osmá vhodná otázka. Dnešní otázky, výzvy a turnaje ji
     // nemají (stejné otázky pro všechny hráče i starší verze aplikace), chyby a opakování také ne. Los nebere z rng otázky.
     const mapQuestionFor = (item, ctx) => !MapQuestion || mode !== 'practice' || pool.kind === 'mistakes' || pool.kind === 'review' ? null
@@ -558,33 +513,14 @@
         const fetchedText = await fetchItemText(item);
         // Popis i další věty úvodu bez odpovědi (společné zakrytí všech tvarů jména); popis, který je po zakrytí skoro samá mezera
         // („[***] práci konanou [***] silou“), nahradí další věty úvodu, a když nic nezbude, vypadne
-        const { text, questionText, moreText } = buildQuestionTexts(item, ctx, question, fetchedText, { special: Boolean(special) });
+        const { text, questionText, moreText, origin } = buildQuestionTexts(item, ctx, question, fetchedText, { special: Boolean(special) });
         const settled = await Promise.race([photoProbe.then(result => ({ result })), new Promise(resolve => setTimeout(() => resolve(null), PHOTO_WAIT))]);
         const photoUrl = settled ? settled.result : photoOf(item, 960);
-        const visual = topic.visual ? topic.visual(item, ctx, question.type) : null;
         // Typ položky („obec ve Španělsku“, „král“) nesmí prozradit odpověď
         const typeLabel = item.ty && !hideAnswer(item.ty, question, { ...item, ty: '' }, ctx).includes('[***]') ? item.ty : category.one;
-        // Příliš chudý popis („Zimbabwský politik.“) nestačí k odpovědi: když je popis jediná opora otázky, je „thin“
-        const thin = !shown && !special && (text.fallback || realWords(questionText) < MIN_DESCRIPTION_WORDS);
-        // Otázka na mapě nápovědy nemá (popis i fakta by místo prozradily)
-        const basePlan = question.type === 'map' ? [] : (topic.hints && topic.hints(item, ctx, question.type))
-            || [{ kind: 'photo' }, { kind: 'visual', spec: visual }, { kind: 'facts', facts: topic.facts(item, ctx, question.type) }];
-        // Pokračování úvodu článku (zakryté stejně jako popis) je první, nejlevnější nápověda; bez dost skutečných slov se vynechá
-        const withExcerpt = realWords(moreText) >= MIN_EXCERPT_WORDS ? [{ kind: 'excerpt', text: moreText }, ...basePlan] : basePlan;
-        // U otázky s obrázkem (obraz, vlajka, nerost…) se hádá z obrázku; popis je až první nápověda, ne hned viditelná záložka
-        const plan = shown && realWords(questionText) >= 3 ? [{ kind: 'text', label: question.showName ? 'název a popis' : 'popis' }, ...withExcerpt] : withExcerpt;
-        const visibleText = [question.title, question.showName ? item.n : '', typeLabel, questionText, realWords(moreText) >= MIN_EXCERPT_WORDS ? moreText : ''].join(' · ');
-        // Fakt, který mají všechny nesprávné možnosti stejný jako správná, mezi nimi nepomůže vybrat
-        const wrongItems = question.type === 'name' ? question.choices.filter(choice => !choice.correct).map(choice => ctx.byId.get(choice.id)).filter(Boolean) : [];
-        const factKeys = (other) => new Set(topic.facts(other, ctx, question.type).map(fact => `${fact.label}\u0000${fact.value}`));
-        const wrongFacts = wrongItems.map(factKeys);
-        const shared = new Set(wrongFacts.length ? [...factKeys(item)].filter(key => wrongFacts.every(keys => keys.has(key))) : []);
-        let hints = buildHints(plan, { photoUrl: (shown && shown.file === item.im) || (ctx.textPhotos && ctx.textPhotos.has(item.im)) ? null : photoUrl,
-            visibleText, shared, answers: answerNamesFor(question, item, ctx), textPhotos: ctx.textPhotos || new Set(),
-            rootCheck: question.type === 'name', extraGeneric: genericWordsOf(ctx),
-            omit: question.match ? [] : (question.choices || []).filter(choice => !choice.correct).map(choice => choice.label) });
-        let leadFacts = [];
-        if (thin) ({ hints, leadFacts } = takeLeadFacts(hints));
+        // Nápovědy, fakta ukázaná hned u chudého popisu a „thin“ (popis nestačí k odpovědi) – společně s auditem
+        const { hints, leadFacts, thin, visual } = planRound({ item, ctx, question, texts: { questionText, moreText, origin }, typeLabel, shown, special: Boolean(special),
+            photoUrl, describeVisual, photoMasks, textPhotos: ctx.textPhotos || new Set() });
         return {
             topic: topic.id,
             id: item.q,
@@ -2505,21 +2441,26 @@
             </div>`;
     };
     const factsPane = (facts) => `<div class="absolute inset-0 overflow-y-auto p-2.5"><h3 class="sr-only">Čísla a fakta</h3>${renderFactsList(facts)}</div>`;
-    const textPane = (data, style) => `
+    // Popis: volná záložka u otázky bez obrázku (data), nebo nápověda u otázky s obrázkem (hint: název díla a popis z článku)
+    const textPane = (data, style, hint = null) => {
+        const name = hint ? hint.name : data.question.showName ? data.name : '';
+        const text = hint ? hint.text : data.questionText;
+        return `
         <div class="absolute inset-0 overflow-y-auto overscroll-contain p-3.5">
-            ${data.question.showName ? `
+            ${name ? `
                 <div class="${HINT_CHIP}">
                     <i data-lucide="tag" class="w-4 h-4 ${style.text}"></i>
-                    <span class="font-medium">Název:</span> <b class="text-slate-800 dark:text-slate-100">${escapeHtml(data.name)}</b>
+                    <span class="font-medium">Název:</span> <b class="text-slate-800 dark:text-slate-100">${escapeHtml(name)}</b>
                 </div>` : ''}
-            ${data.questionText
-                ? `<p class="text-[15px] font-medium italic leading-snug text-slate-700 dark:text-slate-200">„${escapeHtml(data.questionText)}“</p>`
-                : '<p class="text-sm text-slate-500 dark:text-slate-400">Popis se teď nepodařilo načíst z Wikipedie – pomůžou nápovědy.</p>'}
-            ${(data.leadFacts || []).length ? `
+            ${text
+                ? `<p class="text-[15px] font-medium italic leading-snug text-slate-700 dark:text-slate-200">„${escapeHtml(text)}“</p>`
+                : hint ? '' : '<p class="text-sm text-slate-500 dark:text-slate-400">Popis se teď nepodařilo načíst z Wikipedie – pomůžou nápovědy.</p>'}
+            ${!hint && (data.leadFacts || []).length ? `
                 <dl class="mt-2.5 flex flex-wrap gap-1.5" aria-label="Co o tom víme">
                     ${data.leadFacts.map(fact => `<div class="rounded-lg bg-slate-100 px-2 py-1 text-xs dark:bg-slate-900/60"><dt class="inline font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">${escapeHtml(fact.label)}:</dt> <dd class="inline font-bold text-slate-800 dark:text-slate-100">${escapeHtml(fact.value)}</dd></div>`).join('')}
                 </dl>` : ''}
         </div>`;
+    };
     const excerptPane = (hint) => `
         <div class="absolute inset-0 overflow-y-auto overscroll-contain p-3.5">
             <p class="text-[15px] font-medium italic leading-snug text-slate-700 dark:text-slate-200">„${escapeHtml(hint.text)}“</p>
@@ -2560,7 +2501,8 @@
         return hints.map(hint => {
             const html = hint.kind === 'visual' ? visualPane(visualHintId(hint), hint.spec)
                 : hint.kind === 'photo' ? photoPane('hint-photo') : hint.kind === 'excerpt' ? excerptPane(hint)
-                    : hint.kind === 'text' ? textPane(data, style) : factsPane(hint.facts);
+                    // Nápověda uložená starší verzí nemá vlastní text – vezme se popis otázky
+                    : hint.kind === 'text' ? textPane(data, style, hint.text === undefined ? null : hint) : factsPane(hint.facts);
             return { key: hint.key, label: tabLabel(hint), icon: hint.icon, html };
         });
     };
@@ -2571,8 +2513,10 @@
         const style = styleOf(TOPIC_BY_ID[data.topic]);
         const unlocked = data.hints.slice(0, round.hintLevel - 1);
         const image = data.questionImage ? [{ key: 'image', label: data.questionImage.label, icon: data.questionImage.icon, html: photoPane('question-image') }] : [];
+        // Volný popis jen u otázky bez obrázku; u otázky s obrázkem je popis nápovědou, a když žádný skutečný popis není
+        // (náhradní nebo zadržený text), záložka Popis vůbec není
         const textAsHint = data.hints.some(hint => hint.kind === 'text');
-        const free = !textAsHint ? [{ key: 'text', label: 'Popis', icon: 'quote', html: textPane(data, style) }] : [];
+        const free = !textAsHint && !data.questionImage ? [{ key: 'text', label: 'Popis', icon: 'quote', html: textPane(data, style) }] : [];
         const panes = [...image, ...free, ...hintPanes(unlocked, data, style)];
         return renderTabbedPanel(panes, round.tab || panes[0].key, 'hint-tab', QUESTION_PANEL_HEIGHT);
     };
@@ -8192,7 +8136,10 @@
     if (viewport) {
         const syncKeyboard = () => {
             const inset = Math.round(window.innerHeight - viewport.height - viewport.offsetTop);
-            const open = inset > 80 && viewport.scale < 1.05; // menší rozdíl je lišta prohlížeče, přiblížení prsty není klávesnice
+            // Klávesnice jen při psaní do pole: menší rozdíl je lišta prohlížeče, přiblížení prsty není klávesnice a rozdíl bez
+            // zaměřeného pole je chybně nahlášená výška okna (řeší syncAppHeight níž)
+            const typing = document.activeElement && /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName);
+            const open = typing && inset > 80 && viewport.scale < 1.05;
             const root = document.documentElement;
             const was = root.classList.contains('kb-open');
             root.style.setProperty('--kb', `${open ? inset : 0}px`);
@@ -8205,6 +8152,24 @@
         viewport.addEventListener('resize', syncKeyboard);
         viewport.addEventListener('scroll', syncKeyboard);
     }
+    // Výška aplikace = skutečně viditelná plocha (--app-h). Android po obnovení stránky (aktualizace aplikace) občas nahlásí
+    // výšku i se systémovou lištou a 100dvh pak sahá pod spodek obrazovky – aplikace by byla useknutá, dokud se nezavře.
+    // Proto se výška přeměří po načtení, po změně velikosti, po návratu do aplikace a ještě chvíli po startu.
+    // Při otevřené klávesnici se nemění (okna se zvedají přes --kb).
+    const syncAppHeight = () => {
+        const root = document.documentElement;
+        if (root.classList.contains('kb-open')) return;
+        const visible = viewport && viewport.scale < 1.05 ? viewport.height : window.innerHeight;
+        if (visible > 200) root.style.setProperty('--app-h', `${Math.round(visible)}px`);
+    };
+    if (viewport) viewport.addEventListener('resize', syncAppHeight);
+    document.addEventListener('focusout', () => setTimeout(() => { if (viewport) viewport.dispatchEvent(new Event('resize')); else syncAppHeight(); }, 250));
+    window.addEventListener('resize', syncAppHeight);
+    window.addEventListener('pageshow', syncAppHeight);
+    window.addEventListener('orientationchange', () => setTimeout(syncAppHeight, 300));
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') { syncAppHeight(); setTimeout(syncAppHeight, 400); } });
+    syncAppHeight();
+    [300, 1000, 2500].forEach(delay => setTimeout(syncAppHeight, delay));
     gameVariant = readVariant();
     settings = loadSettings();
     applyLook();

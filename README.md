@@ -150,6 +150,17 @@ Jádro a aplikace je uplatní samy, téma pro ně nemusí nic dělat:
 - **Audit otázek:** `npm run audit:questions` (volitelně `-- --sample=300`, `--topic=historie,hudba`, `--all`) projde témata a sestaví otázky jako hra
   (`scripts/lib/audit.mjs`). Hlásí odpověď prozrazenou v popisu či nápovědách, nápovědy opakující popis, dvě správné či příliš podobné možnosti,
   nesprávné možnosti jiné země/doby, chudé popisy, rozbité odkazy na obrázky (hash souboru na Commons) a nejednoznačné psané odpovědi (aliasy).
+  Nápovědy sestaví stejné funkce jádra jako hra (`planRound`, `buildHints` v `quiz-core.js`), takže audit hodnotí přesně to, co uvidí hráč.
+  Zásady nápověd, které jádro vynucuje a audit hlídá jako jisté chyby u všech témat:
+  - **Tvar odpovědi** (`tvar`): zakrytá místa oddělená jen spojkou, předložkou či interpunkcí jsou jeden blok (`[***] a [***]` → `[***]`)
+    a slovo těsně u zakrytého místa, které mají jen některé možnosti (spojka „a“ u Lišky a psa, „5“ u Prahy 5), zakrytí pohltí
+    (`mergeCensored`, `sealStructure`).
+  - **Šablona** (`sablona`): nápovědou je jen text z článku; náhradní popis z Wikidat a text, který téma zadrží (`withholdText`: úvod
+    o kraji, městě či regionu by je prozradil), nápovědou není nikdy. Audit navíc hlásí stejný text nápovědy u tří a více položek.
+  - **Prázdná nápověda** (`prazdna-napoveda`): každá nápověda přidá něco nového oproti otázce, štítku, společné části možností
+    a dřívějším nápovědám (další věty stejné jako popis, fakt z dřívějšího textu, fakt společný všem možnostem, osa se známými roky).
+  - **Měřítko mapy** (`mapa-meritko`): slepá mapa se přiblíží na možnosti, když leží blízko sebe (pražské obvody na mapě Prahy
+    s hranicemi městských částí z OpenStreetMap, `npm run build:casti`); tlačítka +/− mapu přiblíží či oddálí.
   Zapíše `reports/audit-otazek.md` (souhrn) a `reports/audit-otazek.json` (vše); exit kód je nenulový jen u jistých chyb, které nejsou
   v `scripts/audit-allowlist.json`.
 
@@ -187,6 +198,7 @@ npm run build:countries  # data/countries.json
 npm run build:world      # data/world.json (Natural Earth 1:110m)
 npm run build:mapa       # data/mapa.json (Natural Earth 1:50m, Česko 1:10m s kraji a řekami)
 npm run build:regiony    # data/regiony.json (Natural Earth 1:10m: regiony států z okruhu Regiony států a české kraje; po build:vlajky)
+npm run build:casti      # data/regiony.json, cities: hranice pražských městských částí (OpenStreetMap přes Nominatim; po build:regiony)
 npm run build:zemepis    # data/zemepis.json
 npm run build:historie   # data/historie.json
 npm run build:biologie   # data/biologie.json
@@ -208,4 +220,4 @@ Spustí testy logiky (`tests/quiz-core.test.js`), kontrolu témat a jejich dat (
 
 ## Zdroje dat
 
-Položky, fakta a fotky z [Wikidat](https://www.wikidata.org) a [Wikimedia Commons](https://commons.wikimedia.org), popisy z [české Wikipedie](https://cs.wikipedia.org), obrysy států, kraje a řeky [Natural Earth](https://www.naturalearthdata.com) (volné dílo), satelitní snímky NASA Blue Marble přes [GIBS](https://earthdata.nasa.gov/gibs), mapa © přispěvatelé [OpenStreetMap](https://www.openstreetmap.org/copyright), ikony [Lucide](https://lucide.dev) (ISC).
+Položky, fakta a fotky z [Wikidat](https://www.wikidata.org) a [Wikimedia Commons](https://commons.wikimedia.org), popisy z [české Wikipedie](https://cs.wikipedia.org), obrysy států, kraje a řeky [Natural Earth](https://www.naturalearthdata.com) (volné dílo), satelitní snímky NASA Blue Marble přes [GIBS](https://earthdata.nasa.gov/gibs), mapa a hranice pražských městských částí © přispěvatelé [OpenStreetMap](https://www.openstreetmap.org/copyright) (ODbL), ikony [Lucide](https://lucide.dev) (ISC).

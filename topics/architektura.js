@@ -45,7 +45,7 @@
         novorenesance: { words: ['novorenesan', 'neorenesan', 'renesan', 'historis'], aliases: ['novorenesanční', 'neorenesance', 'novorenesanční sloh'] },
         novobaroko: { words: ['novobarok', 'neobarok', 'barok', 'historis'], aliases: ['novobarokní', 'neobaroko', 'novobarokní sloh'] },
         novobyzantsky: { words: ['novobyzan', 'neobyzan', 'byzan', 'historis', 'rusk'], aliases: ['novobyzantský', 'neobyzantský sloh', 'rusko-byzantský sloh'] },
-        secese: { words: ['secesn', 'secese', 'secesi', 'art nouveau', 'jugendstil', 'modernism', 'modernist'], aliases: ['secesní', 'secesní sloh', 'art nouveau', 'katalánský modernismus', 'jugendstil'] },
+        secese: { words: ['secesn', 'secese', 'secesi', 'art nouveau', 'jugendstil', 'modernism', 'modernist', 'katalán'], aliases: ['secesní', 'secesní sloh', 'art nouveau', 'katalánský modernismus', 'jugendstil'] },
         kubismus: { words: ['kubis', 'rondokubis'], aliases: ['kubistický', 'rondokubismus', 'kubistický sloh'] },
         artdeco: { words: ['art deco', 'art-deco', 'artdeco', 'rondokubis'], aliases: ['artdeco', 'art-deco'] },
         funkcionalismus: { words: ['funkcional', 'internacionál', 'mezinárodní sloh', 'mezinárodní styl', 'bauhaus'], aliases: ['funkcionalistický', 'mezinárodní sloh', 'internacionální styl', 'funkcionalistický sloh'] },

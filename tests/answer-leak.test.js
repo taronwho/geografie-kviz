@@ -44,7 +44,9 @@ test('zakrývání nešetří běžná slova ani to, co hráč vidí v zadání'
     // Malé slovo ve víceslovném názvu je přívlastek: hudební skladatel zůstane, i když je odpovědí „hudební romantismus“
     assert.equal(core.maskLeaks('Byl to hudební skladatel romantismu.', ['hudební romantismus', 'romantismus']), 'Byl to hudební skladatel romantismu.');
     // Název díla vidí hráč v zadání (Kdo to napsal? Havran) a nezakrývá se
-    assert.equal(core.maskLeaks('Havran Poeův, Poe.', ['Edgar Allan Poe'], { keep: ['Havran'] }), 'Havran [***], [***].');
+    // (dvě zakrytá místa oddělená jen čárkou jsou jeden blok)
+    assert.equal(core.maskLeaks('Havran Poeův, Poe.', ['Edgar Allan Poe'], { keep: ['Havran'] }), 'Havran [***].');
+    assert.equal(core.maskLeaks('Havran Poeův je slavný, Poe ho psal.', ['Edgar Allan Poe'], { keep: ['Havran'] }), 'Havran [***] je slavný, [***] ho psal.');
     assert.equal(core.maskLeaks('Havran je báseň.', ['Havran'], { keep: ['Havran'] }), 'Havran je báseň.');
     // Název série vedle autora se nezakryje (jen jména v řadě na začátku úvodu)
     assert.equal(core.maskLeaks('Kniha Letopisy Narnie Lewise.', ['Clive Staples Lewis']), 'Kniha Letopisy Narnie [***].');

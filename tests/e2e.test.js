@@ -1899,7 +1899,8 @@ test('otázka s obrázkem: popis až jako nápověda, ne hned', { skip: !chromiu
     const { context, tab, log } = await setup(browser, { fixedRandom: 0.3 });
     await tab.goto(`${ORIGIN}/`);
     await waitForHome(tab);
-    await practiceCollection(tab, 'vlajky', null);
+    // Vlajky evropských států: popis z článku o vlajce (u regionů, měst a českých znaků se úvod před odpovědí neukazuje)
+    await practiceCollection(tab, 'vlajky', 'vlajky-evropy');
     const data = await readRound(tab);
     assert.ok(data.questionImage, 'otázka na vlajku ukazuje vlajku hned');
     assert.equal(hintKeys(data)[0], 'text', 'první nápověda je popis');
@@ -1917,4 +1918,29 @@ test('otázka s obrázkem: popis až jako nápověda, ne hned', { skip: !chromiu
     assert.deepEqual(log.errors, []);
     assert.deepEqual(log.csp, []);
     await context.close();
+
+    // Pražská městská část: úvod článku by ji prozradil a náhradní věta nic neřekne – žádná záložka Popis ani nápověda z textu,
+    // nápovědy začínají fakty a slepou mapou Prahy s hranicemi částí a tlačítky +/−
+    const district = await setup(browser, { fixedRandom: 0.3 });
+    await district.tab.goto(`${ORIGIN}/`);
+    await waitForHome(district.tab);
+    await practiceCollection(district.tab, 'vlajky', 'prazske-casti');
+    const part = await readRound(district.tab);
+    assert.ok(part.questionImage);
+    assert.equal(part.questionText, '');
+    assert.ok(!part.hints.some(hint => hint.kind === 'text' || hint.kind === 'excerpt'), hintKeys(part).join(', '));
+    assert.equal(await district.tab.locator('[data-action="hint-tab"][data-step="text"]').count(), 0, 'žádná záložka Popis');
+    const mapHint = part.hints.find(hint => hint.kind === 'visual' && hint.spec.type === 'map');
+    assert.ok(mapHint && mapHint.spec.regional.city === 'Q1085', 'slepá mapa Prahy');
+    for (let level = 1; level <= part.hints.indexOf(mapHint) + 1; level++) await district.tab.click('[data-action="hint"]');
+    await district.tab.waitForSelector('#hint-visual svg[data-map] path');
+    assert.equal(await district.tab.getAttribute('#hint-visual', 'data-map-source'), 'city');
+    assert.match(await district.tab.getAttribute('#hint-visual', 'aria-label'), /výřez je široký asi \d+ km/);
+    await district.tab.click('[data-map-zoom="out"]');
+    await district.tab.click('[data-map-zoom="out"]');
+    await district.tab.click('[data-map-zoom="out"]');
+    await district.tab.waitForFunction(() => document.getElementById('hint-visual').dataset.mapSource === 'country');
+    assert.deepEqual(district.log.errors, []);
+    assert.deepEqual(district.log.csp, []);
+    await district.context.close();
 });

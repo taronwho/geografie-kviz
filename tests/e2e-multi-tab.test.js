@@ -330,4 +330,16 @@ test('záložka Více hráčů je kompaktní', { skip: !chromium && 'Playwright 
         assert.deepEqual(log.csp, []);
         await context.close();
     });
+
+    await t.test('chybně nahlášená výška okna (Android po aktualizaci): aplikace se přizpůsobí viditelné ploše, spodek není useknutý', async () => {
+        const { context, tab, log } = await start(typical, { viewport: { width: 360, height: 640 }, colorScheme: 'light', now: '2026-11-11T10:00:00Z', keyboard: true });
+        // Bez zaměřeného pole: viditelná plocha je o 150 px menší než okno – nejde o klávesnici
+        await tab.evaluate(() => { document.activeElement && document.activeElement.blur && document.activeElement.blur(); window.__keyboard(150); });
+        await tab.waitForFunction(() => Math.round(document.body.getBoundingClientRect().height) === 490);
+        assert.equal(await tab.evaluate(() => document.documentElement.classList.contains('kb-open')), false, 'bez pole to není klávesnice');
+        await tab.evaluate(() => window.__keyboard(0));
+        await tab.waitForFunction(() => Math.round(document.body.getBoundingClientRect().height) === 640);
+        assert.deepEqual(log.errors, []);
+        await context.close();
+    });
 });
