@@ -100,7 +100,7 @@ self.addEventListener('notificationclick', (event) => {
         const open = windows.find(client => new URL(client.url).origin === scope.origin);
         if (open) {
             await open.focus();
-            open.postMessage({ type: 'push-open', tab: target.searchParams.get('tab') || '', kind: pushText(event.notification.data && event.notification.data.kind, 30, '') });
+            open.postMessage({ type: 'push-open', tab: target.searchParams.get('tab') || '', vyzva: target.searchParams.get('vyzva') || '', kind: pushText(event.notification.data && event.notification.data.kind, 30, '') });
         } else {
             await self.clients.openWindow(target.href);
         }

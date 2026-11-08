@@ -522,3 +522,8 @@ jako dřív (jen správně a body) a v Rozpisu otázek ukáže jen hráčovy vla
   starší 7 dní i rozehrané. Zápas turnaje: jen jeho dva hráči, soupeřovy odpovědi až po soupeřově dohrání nebo rozhodnutí zápasu. Dokud hráč nedohraje,
   soupeřovy odpovědi nevidí. Tabulky samy dál čte pravidlo řádků jen jejich hráči. Kdo vyhrál, se nemění.
 - Testy: `tests/sql-challenge-details.test.js`, `tests/e2e-challenge-breakdown.test.js`, rozpis zápasu v `tests/e2e-tournament.test.js`.
+
+## Upozornění k výzvě otevřou rovnou výzvu (schéma 11)
+
+Upozornění „… tě vyzývá“ a „… odehrál tvoji výzvu“ mají v adrese kód výzvy (`./?tab=multi&vyzva=KÓD`). Klepnutí otevře rovnou okno výzvy:
+pozvánku ke hraní, nebo po dohrání výsledky s rozpisem otázek. Spusť znovu celý `supabase/schema.sql` (verze 11) – mění se jen funkce `push_pending`.
