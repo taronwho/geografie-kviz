@@ -6,6 +6,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const Rating = require('../rating.js');
 
+const closeAutoBreakdown = async (tab) => { await tab.waitForTimeout(900); if (await tab.locator('#dialog-overlay').count()) { await tab.keyboard.press('Escape'); await tab.waitForFunction(() => !document.getElementById('dialog-overlay')); } };
 let chromium = null;
 try { ({ chromium } = require('playwright')); } catch (e) {}
 
@@ -184,6 +185,7 @@ test('rating, ligy a týdenní žebříček', { skip: !chromium && 'Playwright n
         assert.ok(change.includes(String(1120 + expected)), change);
         assert.equal(db.profiles['u-1'].rating, 1120 + expected);
         assert.equal(db.profiles['u-2'].rating, 1260 - expected);
+        await closeAutoBreakdown(tab);
         await shot(tab, 'vysledek-vyzvy');
 
         // Profil soupeře ukáže jeho ligu a (nový) rating

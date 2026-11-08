@@ -164,11 +164,11 @@
 
     // Řádek pořadí: místo, obrázek, přezdívka, hodnota vpravo (h = pomocné funkce z app.js: avatarHtml)
     const boardRowHtml = (row, main, sub, h) => `
-        <li data-group-row="${esc(row.id)}" class="flex items-center gap-2.5 rounded-2xl bg-white p-1.5 pr-2.5 shadow-sm dark:bg-slate-800 ${row.me ? 'ring-2 ring-brand-600 dark:ring-brand-400' : ''}">
+        <li data-group-row="${esc(row.id)}" class="flex items-center gap-2.5 rounded-2xl bg-white p-1 pr-2.5 shadow-sm dark:bg-slate-800 ${row.me ? 'ring-2 ring-brand-600 dark:ring-brand-400' : ''}">
             <span data-place="${row.place}" class="w-6 shrink-0 text-center text-[13px] font-black text-slate-500 dark:text-slate-400">${row.place === 1 ? '🏆' : `${row.place}.`}</span>
             ${h.avatarHtml(row, 'h-8 w-8 text-base', !row.me)}
             <span class="min-w-0 flex-1 truncate text-sm font-bold text-slate-800 dark:text-slate-100">${esc(row.display_name || 'Hráč')}${row.me ? ' (ty)' : ''}</span>
-            <span class="shrink-0 text-right"><span class="block text-sm font-black text-slate-800 dark:text-slate-100">${esc(main)}</span>${sub ? `<span class="block text-[10px] font-semibold text-slate-500 dark:text-slate-400">${esc(sub)}</span>` : ''}</span>
+            <span class="shrink-0 text-right leading-tight"><span class="block text-sm font-black leading-tight text-slate-800 dark:text-slate-100">${esc(main)}</span>${sub ? `<span class="block text-[10px] font-semibold leading-tight text-slate-500 dark:text-slate-400">${esc(sub)}</span>` : ''}</span>
         </li>`;
     // Kdo v pořadí ještě není: malé obrázky v jedné řadě
     const waitingHtml = (rows, label, h) => (rows.length ? `
@@ -196,14 +196,15 @@
         if (!c) return '';
         const mine = c.results.some(row => row.user_id === (detail.rows.find(item => item.me) || {}).id);
         return `
-            <div data-group-challenge class="flex items-center gap-2.5 ${CARD} p-2">
+            <div data-group-challenge class="flex items-center gap-2.5 ${CARD} p-1.5">
                 <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-700 dark:bg-brand-900/40 dark:text-brand-200"><i data-lucide="${esc(h.topicIcon(c.topic))}" class="h-5 w-5"></i></span>
                 <span class="min-w-0 flex-1"><span class="block truncate text-[13px] font-black leading-tight text-slate-800 dark:text-slate-100">Výzva skupiny · ${esc(h.topicTitle(c.topic))}</span>
                 <span class="block truncate text-[11px] font-semibold text-slate-500 dark:text-slate-400">${c.creator ? `${esc(shortName(c.creator.display_name))} · ` : ''}hotovo ${c.results.length} z ${detail.members}</span></span>
                 <button type="button" data-group-play="${esc(c.id)}" class="${mine ? LIGHT_BUTTON : BRAND_BUTTON} shrink-0"><i data-lucide="${mine ? 'trophy' : 'play'}" class="h-4 w-4"></i>${mine ? 'Výsledky' : 'Hrát'}</button>
             </div>`;
     };
-    // Detail skupiny: hlavička, kód s pozvánkou, záložky Dnes / Týden (v týdnu Kvíz dne / XP), výzva skupiny a akce
+    // Detail skupiny: hlavička, kód s pozvánkou, záložky Dnes / Týden (v týdnu Kvíz dne / XP), výzva skupiny a akce. Pořadí je seznam
+    // všech členů (u velké skupiny se okno posouvá): Vyzvat skupinu a Spravovat / Opustit jsou dole lepkavě, zůstanou vidět
     const detailHtml = (detail, view, h) => {
         if (!detail) return note(view.error || 'Načítám skupinu…');
         const tab = (id, label) => `<button type="button" role="tab" data-group-tab="${id}" aria-selected="${view.tab === id}" class="flex min-h-[2.5rem] flex-1 items-center justify-center rounded-xl px-2 text-[13px] font-black ${view.tab === id ? 'btn-3d bg-brand-700 text-white' : 'text-slate-600 dark:text-slate-300'}">${label}</button>`;
@@ -211,14 +212,14 @@
         const me = detail.rows.find(row => row.me);
         const confirmLeave = view.confirm === 'leave';
         return `
-            <div id="group-detail" data-group-id="${esc(detail.id)}" class="flex flex-col gap-2.5">
+            <div id="group-detail" data-group-id="${esc(detail.id)}" class="flex flex-col gap-2">
                 <div class="flex items-center gap-2.5">
-                    ${iconBubble(detail.icon, 'h-11 w-11 text-2xl')}
+                    ${iconBubble(detail.icon, 'h-10 w-10 text-2xl')}
                     <div class="min-w-0 flex-1"><p data-group-name class="truncate text-[16px] font-black leading-tight text-slate-800 dark:text-slate-100">${esc(detail.name)}</p>
                     <p class="truncate text-[12px] font-semibold text-slate-500 dark:text-slate-400">${esc(membersWord(detail.members))}${detail.is_owner ? ' · jsi zakladatel' : ''}</p></div>
                 </div>
-                <div class="flex items-center gap-2 ${CARD} py-1.5 pl-3 pr-1.5">
-                    <span class="min-w-0 flex-1"><span class="block ${LABEL}">Kód skupiny</span><span data-group-code-value class="block font-mono text-lg font-black tracking-[0.2em] text-slate-800 dark:text-slate-100">${esc(detail.code)}</span></span>
+                <div class="flex items-center gap-2 ${CARD} py-1 pl-3 pr-1">
+                    <span class="flex min-w-0 flex-1 items-baseline gap-2"><span class="shrink-0 ${LABEL}">Kód</span><span data-group-code-value class="truncate font-mono text-lg font-black tracking-[0.2em] text-slate-800 dark:text-slate-100">${esc(detail.code)}</span></span>
                     <button type="button" data-group-share class="${LIGHT_BUTTON} shrink-0"><i data-lucide="share-2" class="h-4 w-4"></i> Pozvat</button>
                 </div>
                 <div role="tablist" class="flex gap-1 rounded-2xl bg-slate-200/70 p-1 dark:bg-slate-800">${tab('day', 'Dnes')}${tab('week', 'Týden')}</div>
@@ -226,7 +227,7 @@
                 <div data-group-board class="flex flex-col gap-1.5">${boardHtml(detail, view, h)}</div>
                 ${view.tab === 'day' && me && !me.today ? '<button type="button" data-group-quiz class="self-start rounded-lg px-1 py-1 text-[12px] font-black text-brand-700 underline underline-offset-2 dark:text-cream">Zahraj si dnešní Kvíz dne</button>' : ''}
                 ${challengeHtml(detail, h)}
-                <div class="flex gap-2">
+                <div data-group-actions class="sticky -bottom-5 z-10 -mx-5 -my-1.5 flex gap-2 bg-slate-50/95 px-5 py-1.5 backdrop-blur dark:bg-slate-900/95">
                     <button type="button" data-group-challenge-new class="${BRAND_BUTTON} flex-1 whitespace-nowrap"><i data-lucide="swords" class="h-4 w-4 shrink-0"></i> Vyzvat skupinu</button>
                     ${detail.is_owner ? `<button type="button" data-group-manage class="${LIGHT_BUTTON} shrink-0"><i data-lucide="pencil" class="h-4 w-4"></i> Spravovat</button>`
                         : `<button type="button" data-group-leave class="${confirmLeave ? DANGER_BUTTON : LIGHT_BUTTON} shrink-0"><i data-lucide="log-out" class="h-4 w-4"></i> ${confirmLeave ? 'Opravdu?' : 'Opustit'}</button>`}
