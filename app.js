@@ -1897,9 +1897,10 @@
         const isMix = chooser.kind === 'mix';
         const topic = isMix ? MIX : TOPIC_BY_ID[chooser.topic];
         const style = styleOf(topic);
+        // Po „Zrušit vše“ (chooser.empty) není vybrané nic; první klepnutí vybere jen to jedno
         const options = isMix
-            ? TOPICS.map(other => chooserToggle('data-chooser-topic', other.id, settings.topics.includes(other.id), other.icon, other.title, styleOf(other).on)).join('')
-            : topic.categories.map(category => chooserToggle('data-chooser-category', category.key, selectedCategories(topic).includes(category.key), category.icon, category.label, style.on)).join('');
+            ? TOPICS.map(other => chooserToggle('data-chooser-topic', other.id, !chooser.empty && settings.topics.includes(other.id), other.icon, other.title, styleOf(other).on)).join('')
+            : topic.categories.map(category => chooserToggle('data-chooser-category', category.key, !chooser.empty && selectedCategories(topic).includes(category.key), category.icon, category.label, style.on)).join('');
         // Překreslení po klepnutí bez úvodní animace a se stejným posunutím
         const previous = overlay.firstElementChild;
         const scroll = previous ? previous.scrollTop : 0;
@@ -1923,7 +1924,7 @@
                 </div>
                 <div class="mb-1.5 mt-2 flex items-center justify-between">
                     <h3 class="${SETTINGS_HEADING}">${isMix ? 'Témata' : 'Kategorie'}</h3>
-                    <button type="button" data-chooser-all class="-my-3 rounded-lg px-2 py-3 text-xs font-bold ${style.text} underline-offset-2 hover:underline">Vybrat vše</button>
+                    <span class="-my-3 flex"><button type="button" data-chooser-all class="rounded-lg px-2 py-3 text-xs font-bold ${style.text} underline-offset-2 hover:underline">Vybrat vše</button><button type="button" data-chooser-none class="rounded-lg px-2 py-3 text-xs font-bold text-slate-500 underline-offset-2 hover:underline dark:text-slate-400">Zrušit vše</button></span>
                 </div>
                 <div class="grid grid-cols-2 gap-1.5" role="group" aria-label="${isMix ? 'Témata' : 'Kategorie'}">${options}</div>
                 <h3 class="${SETTINGS_HEADING} mb-1.5 mt-3">Známost</h3>
@@ -1955,10 +1956,20 @@
             const category = event.target.closest('[data-chooser-category]');
             const topicToggle = event.target.closest('[data-chooser-topic]');
             const tier = event.target.closest('[data-tier]');
-            if (category && topic) toggleChoice('category', category.dataset.chooserCategory, topic, refocus);
+            const nothing = Boolean(chooser && chooser.empty);
+            if (nothing && (category || topicToggle)) {
+                chooser.empty = false;
+                if (category && topic) saveSettings({ categories: { ...settings.categories, [topic.id]: [category.dataset.chooserCategory] } });
+                else if (topicToggle) saveSettings({ topics: [topicToggle.dataset.chooserTopic] });
+                renderChooser('', refocus);
+            } else if (nothing && (event.target.closest('[data-chooser-play]') || event.target.closest('[data-chooser-mode]'))) {
+                renderChooser(topic ? 'Vyber aspoň jeden okruh.' : 'Vyber aspoň jedno téma.', refocus);
+            } else if (event.target.closest('[data-chooser-none]')) { chooser.empty = true; renderChooser('', refocus); }
+            else if (category && topic) toggleChoice('category', category.dataset.chooserCategory, topic, refocus);
             else if (topicToggle) toggleChoice('topic', topicToggle.dataset.chooserTopic, null, refocus);
             else if (tier) { saveSettings({ tier: tier.dataset.tier }); renderChooser('', refocus); }
             else if (event.target.closest('[data-chooser-all]')) {
+                chooser.empty = false;
                 if (topic) saveSettings({ categories: { ...settings.categories, [topic.id]: undefined } });
                 else saveSettings({ topics: TOPICS.map(other => other.id) });
                 renderChooser('', refocus);
@@ -3306,10 +3317,44 @@
         card.addEventListener('click', done);
         setTimeout(done, 4500);
     };
+    // Během hry (otázka na obrazovce, výzva, zápas turnaje, Kvíz dne, Bleskovka a Přežití) by karta zakryla možnosti:
+    // místo ní se ukáže jen malé okénko nahoře a celé oslavy přijdou až na klidné obrazovce (výsledek otázky v tréninku,
+    // konec výzvy či Kvízu dne, výsledek režimu, úvod). Kontroluje se každou sekundu.
+    const celebrationCalm = () => {
+        if (mode === 'blitz' || mode === 'survival') return !modeGame || modeGame.phase === 'result' || screen !== 'mode';
+        if (screen === 'home' || screen === 'learn' || screen === 'challenge-done' || screen === 'quiz-done' || screen === 'welcome') return true;
+        if (mode === 'challenge' || mode === 'quiz') return false;
+        return Boolean(round && round.answered);
+    };
+    const MINI_CELEBRATION = 'pointer-events-none fixed right-3 top-[4.5rem] z-[60] flex max-w-[70vw] items-center gap-1.5 rounded-full bg-brand-900/90 px-3 py-1.5 text-xs font-black text-gold-200 shadow-lg ring-1 ring-gold-400/60';
+    const miniCelebration = (item) => {
+        const old = document.getElementById('celebration-mini');
+        if (old) old.remove();
+        const chip = document.createElement('div');
+        chip.id = 'celebration-mini';
+        chip.setAttribute('role', 'status');
+        chip.className = `fade-in ${MINI_CELEBRATION}`;
+        chip.innerHTML = `<i data-lucide="sparkles" class="h-3.5 w-3.5 shrink-0"></i><span class="truncate">${escapeHtml(item.title)}: ${escapeHtml(item.text)}</span>`;
+        document.body.appendChild(chip);
+        renderIcons(chip);
+        setTimeout(() => chip.remove(), 2500);
+    };
+    const deferredCelebrations = [];
     const showCelebration = (owl, title, text, sound = null) => {
-        celebrationQueue.push({ owl, title, text, sound });
+        const item = { owl, title, text, sound };
+        if (!celebrationCalm()) { deferredCelebrations.push(item); miniCelebration(item); return; }
+        celebrationQueue.push(item);
         if (!celebrating) nextCelebration();
     };
+    setInterval(() => {
+        // Karta, která zůstala viset do další otázky, zmizí; odložené oslavy se ukážou, jakmile je klid
+        const card = document.getElementById('celebration');
+        if (card && !celebrationCalm()) { card.remove(); celebrating = false; celebrationQueue.length = 0; }
+        if (deferredCelebrations.length && celebrationCalm()) {
+            celebrationQueue.push(...deferredCelebrations.splice(0));
+            if (!celebrating) setTimeout(nextCelebration, 400);
+        }
+    }, 1000);
     const announce = (levelBefore, levelNow, badgeTitles) => {
         if (levelNow > levelBefore) {
             const newTitle = titleForLevel(levelNow) !== titleForLevel(levelBefore);
@@ -5925,7 +5970,7 @@
                     ${TOPICS.map(topic => chip('data-ch-topic', topic.id, !all && draft.topics.includes(topic.id), `<span class="flex flex-col items-center gap-0.5"><i data-lucide="${topic.icon}" class="h-4 w-4"></i><span class="block text-[11px]">${escapeHtml(topic.title)}</span></span>`)).join('')}
                 </div>
                 <p class="mt-2 text-[11px] text-slate-500 dark:text-slate-400">Klepnutím vybereš víc témat najednou.</p>
-                ${cats.length > 1 ? `<p class="${LABEL} mb-1.5 mt-3">Okruh</p><div class="flex flex-wrap gap-1.5">${cats.map(category => chip('data-ch-cat', category.key, chosen.includes(category.key), `<span class="flex items-center gap-1.5"><i data-lucide="${chosen.includes(category.key) ? 'check' : 'plus'}" class="h-3.5 w-3.5"></i>${escapeHtml(category.label)}</span>`)).join('')}</div>` : ''}`;
+                ${cats.length > 1 ? `<div class="mb-1.5 mt-3 flex items-center justify-between gap-2"><p class="${LABEL}">Okruh</p><span class="flex gap-1"><button type="button" data-ch-cats="all" class="rounded-lg px-2 py-1.5 text-xs font-bold text-brand-700 underline-offset-2 hover:underline dark:text-brand-300">Vybrat vše</button><button type="button" data-ch-cats="none" class="rounded-lg px-2 py-1.5 text-xs font-bold text-slate-500 underline-offset-2 hover:underline dark:text-slate-400">Zrušit vše</button></span></div><div class="flex flex-wrap gap-1.5">${cats.map(category => chip('data-ch-cat', category.key, chosen.includes(category.key), `<span class="flex items-center gap-1.5"><i data-lucide="${chosen.includes(category.key) ? 'check' : 'plus'}" class="h-3.5 w-3.5"></i>${escapeHtml(category.label)}</span>`)).join('')}</div>` : ''}`;
         };
         const settingsBody = () => `
             <p class="${LABEL} mb-1.5">Obtížnost</p>
@@ -5983,10 +6028,12 @@
                 if (category) {
                     const chosen = selectedCats();
                     const key = category.dataset.chCat;
-                    // Aspoň jeden okruh musí zůstat
-                    draft.cats = chosen.includes(key) ? (chosen.length > 1 ? chosen.filter(other => other !== key) : chosen) : [...chosen, key];
+                    // Po „Zrušit vše“ se dá začít od nuly; prázdný výběr ale výzvu nezaloží (hláška u tlačítka)
+                    draft.cats = chosen.includes(key) ? chosen.filter(other => other !== key) : [...chosen, key];
                     render();
                 }
+                const allCats = event.target.closest('[data-ch-cats]');
+                if (allCats) { draft.cats = allCats.dataset.chCats === 'all' ? null : []; note = ''; render(); }
                 if (hard) { draft.hard = hard.dataset.chHard === 'yes'; render(); }
                 if (variant) { draft.variant = variant.dataset.chVariant; render(); }
                 if (count) { draft.count = Number(count.dataset.chCount); render(); }
@@ -6002,6 +6049,11 @@
                     if (draft.opponent) { const id = draft.opponent.id; Social.getAccepts(id).then(accepts => { if (draft.opponent && draft.opponent.id === id) { draft.blocked = accepts.blocked; draft.mixOk = accepts.mix; render(); } }); }
                 }
                 if (event.target.closest('[data-clear-opp]')) { draft.opponent = null; draft.blocked = null; draft.mixOk = true; render(); }
+                if (event.target.closest('[data-ch-create]') && !busy && draft.topics.length === 1 && Array.isArray(draft.cats) && !draft.cats.length) {
+                    note = 'Vyber aspoň jeden okruh.';
+                    render();
+                    return;
+                }
                 if (event.target.closest('[data-ch-create]') && !busy) {
                     if (draft.who === 'player' && !draft.opponent) { note = 'Vyber hráče, kterého chceš vyzvat.'; render(); return; }
                     busy = true;
