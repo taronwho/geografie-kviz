@@ -212,6 +212,10 @@ test('Kvíz dne v prohlížeči', { skip: !chromium && 'Playwright není nainsta
             assert.equal(await tab.$('#answer-form'), null, 'žádné psaní odpovědi');
             assert.match(await compact(tab, '#status-text'), new RegExp(`Kvíz dne · ${i + 1}/10`));
             assert.ok(await tab.$('[data-tour-timer]'), 'u otázky běží čas');
+            // Body ve hře: čip vlevo nahoře (správná odpověď bez nápovědy za 4 body, třetí otázka špatně), vedle času se nepřekrývá
+            assert.equal(await compact(tab, '[data-score-chip]'), `${4 * (i - (i > 2 ? 1 : 0))} b`);
+            assert.ok(await tab.evaluate(() => document.querySelector('[data-score-chip]').getBoundingClientRect().right < document.querySelector('[data-score-chip] ~ span').getBoundingClientRect().left), 'čip a čas se nepřekrývají');
+            if (i === 5 && process.env.SCREENSHOT_DIR) await tab.screenshot({ path: path.join(process.env.SCREENSHOT_DIR, 'kviz-dne-body-360x640-light.png') });
             const data = await answer(tab, { correct: i !== 2, next: false });
             seen.push(`${data.topic}:${data.id}`);
             assert.match(await compact(tab, '[data-action="next"]'), i < 9 ? new RegExp(`Další otázka \\(${i + 2}/10\\)`) : /Dokončit Kvíz dne/);

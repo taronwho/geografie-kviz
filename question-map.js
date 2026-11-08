@@ -605,8 +605,8 @@
             <div class="${ui.fresh ? 'fade-in ' : ''}flex min-h-full w-full flex-col gap-2 bg-slate-50 p-3 dark:bg-slate-900">
                 <div class="relative flex flex-col items-center gap-1 text-center">
                     ${ui.extraTop || ''}
-                    <span class="inline-flex items-center gap-1.5 rounded-lg border px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest text-white shadow-sm ${ui.style.solid}">
-                        <i data-lucide="${escapeHtml(ui.categoryIcon)}" class="h-3 w-3"></i> ${escapeHtml(data.typeLabel)} · ukaž na mapě
+                    <span class="inline-flex ${ui.labelClass || 'max-w-full'} items-center gap-1.5 rounded-lg border px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest text-white shadow-sm ${ui.style.solid}">
+                        <i data-lucide="${escapeHtml(ui.categoryIcon)}" class="h-3 w-3 shrink-0"></i> <span class="truncate">${escapeHtml(data.typeLabel)} · ukaž na mapě</span>
                     </span>
                     <h2 class="text-[22px] font-black leading-tight tracking-tight text-slate-800 dark:text-slate-50">${escapeHtml(question.title)}</h2>
                     <p class="text-xs font-semibold text-slate-500 dark:text-slate-400">Plné ${formatPoints(max)} do ${formatKm(question.map.full)}, čím blíž, tím víc bodů</p>
@@ -725,6 +725,7 @@
                     <div>
                         <p class="font-black text-rose-800 dark:text-rose-200">Tentokrát bez odpovědi</p>
                         <p class="text-sm text-rose-800 dark:text-rose-300">${name} je na mapě zeleně</p>
+                        ${ui.totalLine ? ui.totalLine('text-rose-800 dark:text-rose-300') : ''}
                         ${ui.xpLine(round.xp, 'text-rose-800 dark:text-rose-300')}
                     </div>
                 </div>`;
@@ -742,6 +743,7 @@
                 <div>
                     <p class="font-black ${good ? 'text-emerald-800 dark:text-emerald-200' : 'text-rose-800 dark:text-rose-200'}">${heading}</p>
                     <p class="text-sm ${text}">${escapeHtml(detail)}</p>
+                    ${ui.totalLine ? ui.totalLine(text) : ''}
                     ${ui.xpLine(round.xp, text)}
                 </div>
             </div>`;

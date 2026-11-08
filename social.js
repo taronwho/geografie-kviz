@@ -300,29 +300,91 @@
             throw error;
         }
     };
-    // Jen souvislá řada odpovědí od první otázky (server jinou neuloží): [{ correct, points }]
+    // Podrobnosti odpovědi do Rozpisu otázek (schéma 10): text odpovědi (nejvýš 120 znaků, bez řídicích a neviditelných znaků), nápovědy 0–4
+    // a čas v ms (nejvýš hodina); co chybí nebo nedává smysl, je null
+    const ANSWER_MAX = 120;
+    // eslint-disable-next-line no-control-regex
+    const HIDDEN_CHARS = /[\u0000-\u001f\u007f-\u009f\u00ad\u200b-\u200f\u2028-\u202e\u2060-\u206f\ufeff<>]/g;
+    const cleanAnswerLabel = (value) => {
+        if (typeof value !== 'string') return null;
+        const text = value.replace(HIDDEN_CHARS, ' ').replace(/\s+/g, ' ').trim();
+        return text ? Array.from(text).slice(0, ANSWER_MAX).join('').trim() : null;
+    };
+    const optionalWhole = (value, max) => (value === null || value === undefined || value === '' || !Number.isFinite(Number(value)) || Number(value) < 0 ? null : Math.min(max, Math.floor(Number(value))));
+    const cleanDetails = (row) => ({ answer: cleanAnswerLabel(row && row.answer), hints: optionalWhole(row && row.hints, 4), ms: optionalWhole(row && row.ms, 3600000) });
+    // Jen souvislá řada odpovědí od první otázky (server jinou neuloží): [{ correct, points, answer, hints, ms }]
     const cleanAnswers = (rows, count, maxPoints) => {
         const list = [];
-        (Array.isArray(rows) ? rows : []).map(row => ({ idx: Math.floor(Number(row && row.idx)), correct: Boolean(row && row.correct), points: wholeNumber(row && row.points, maxPoints) }))
+        (Array.isArray(rows) ? rows : []).map(row => ({ idx: Math.floor(Number(row && row.idx)), correct: Boolean(row && row.correct), points: wholeNumber(row && row.points, maxPoints), ...cleanDetails(row) }))
             .sort((a, b) => a.idx - b.idx)
-            .forEach(row => { if (row.idx === list.length && list.length < count) list.push({ correct: row.correct && row.points > 0, points: row.correct ? row.points : 0 }); });
+            .forEach(row => { if (row.idx === list.length && list.length < count) list.push({ correct: row.correct && row.points > 0, points: row.correct ? row.points : 0, answer: row.answer, hints: row.hints, ms: row.ms }); });
         return list;
+    };
+    // Databáze bez podrobností (schéma starší než 10): sloupce chybí (400) a funkce s nimi neexistuje (404). Pak se načítá a ukládá jen
+    // správně a body jako dřív a o podrobnosti se dál nežádá (po novém načtení stránky se zkusí znovu).
+    let detailsMissing = false;
+    const withDetails = async (run) => {
+        if (!detailsMissing) {
+            try { return await run(true); } catch (error) {
+                if (error.status !== 400 && error.status !== 404) throw error;
+            }
+            const result = await run(false);
+            detailsMissing = true;
+            return result;
+        }
+        return run(false);
+    };
+    const answerColumns = (details) => `idx,correct,points${details ? ',answer,hints,ms' : ''}`;
+    const answerBody = (base, row, details) => {
+        if (!details) return base;
+        const extra = cleanDetails(row);
+        return { ...base, answer: extra.answer, hints: extra.hints, ms: extra.ms };
     };
     // Kód výzvy tak, jak ho drží databáze (šest znaků A–Z a 0–9)
     const needCode = (code) => { const clean = String(code || ''); if (!/^[A-Z0-9]{6}$/.test(clean)) throw new SocialError('Neplatný kód výzvy.', 400); return clean; };
-    const challengeProgress = (userId, code, count = 20) => guardAnswers('challenge', async () => cleanAnswers(
-        await request('GET', `challenge_progress?challenge_id=eq.${needCode(code)}&user_id=eq.${encodeURIComponent(userId)}&select=idx,correct,points&order=idx.asc&limit=20`), count, 8));
+    const challengeProgress = (userId, code, count = 20) => guardAnswers('challenge', async () => cleanAnswers(await withDetails(details =>
+        request('GET', `challenge_progress?challenge_id=eq.${needCode(code)}&user_id=eq.${encodeURIComponent(userId)}&select=${answerColumns(details)}&order=idx.asc&limit=20`)), count, 8));
     // true = uloženo (nebo server stejnou odpověď už měl), null = databáze průběh neeviduje; správná odpověď má vždy aspoň bod (jinak by ji server odmítl)
-    const saveChallengeProgress = (code, idx, { correct, points }) => guardAnswers('challenge', async () => {
-        await request('POST', 'rpc/challenge_progress_save', { body: { code: needCode(code), idx: wholeNumber(idx, 19), correct: Boolean(correct), points: correct ? Math.max(1, wholeNumber(points, 8)) : 0 } });
+    const saveChallengeProgress = (code, idx, row) => guardAnswers('challenge', async () => {
+        const { correct, points } = row || {};
+        const base = { code: needCode(code), idx: wholeNumber(idx, 19), correct: Boolean(correct), points: correct ? Math.max(1, wholeNumber(points, 8)) : 0 };
+        await withDetails(details => request('POST', 'rpc/challenge_progress_save', { body: answerBody(base, row, details) }));
         return true;
     });
-    const tournamentAnswers = (userId, mid) => guardAnswers('tournament', async () => cleanAnswers(
-        await request('GET', `tournament_answers?match_id=eq.${encodeURIComponent(needTournamentId(mid, 'zápas'))}&user_id=eq.${encodeURIComponent(userId)}&select=idx,correct,points&order=idx.asc&limit=10`), 10, 4));
-    const saveTournamentAnswer = (mid, idx, { correct, points }) => guardAnswers('tournament', async () => {
-        await request('POST', 'rpc/tournament_answer_save', { body: { mid: needTournamentId(mid, 'zápas'), idx: wholeNumber(idx, 9), correct: Boolean(correct), points: correct ? Math.max(1, wholeNumber(points, 4)) : 0 } });
+    const tournamentAnswers = (userId, mid) => guardAnswers('tournament', async () => cleanAnswers(await withDetails(details =>
+        request('GET', `tournament_answers?match_id=eq.${encodeURIComponent(needTournamentId(mid, 'zápas'))}&user_id=eq.${encodeURIComponent(userId)}&select=${answerColumns(details)}&order=idx.asc&limit=10`)), 10, 4));
+    const saveTournamentAnswer = (mid, idx, row) => guardAnswers('tournament', async () => {
+        const { correct, points } = row || {};
+        const base = { mid: needTournamentId(mid, 'zápas'), idx: wholeNumber(idx, 9), correct: Boolean(correct), points: correct ? Math.max(1, wholeNumber(points, 4)) : 0 };
+        await withDetails(details => request('POST', 'rpc/tournament_answer_save', { body: answerBody(base, row, details) }));
         return true;
     });
+    // Rozpis otázek po dohrání (schéma 10): odpovědi hráčů po otázkách { [userId]: [{ correct, points, answer, hints, ms } | null, …] }.
+    // Cizí odpovědi server vrátí, až když volající sám dohrál (výzvu: i soupeř ji dohrál nebo vypršela; zápas: dohráli oba nebo je rozhodnutý).
+    // null = databáze rozpis nemá (starší schéma); odmítnutí (403, ještě nedohráno) a chyba spojení se vyhodí.
+    const cleanBreakdown = (rows, count, maxPoints) => {
+        const players = {};
+        (Array.isArray(rows) ? rows : []).forEach(row => {
+            const userId = row && typeof row.user_id === 'string' && /^[0-9a-fA-F-]{32,36}$/.test(row.user_id) ? row.user_id : null;
+            const idx = Math.floor(Number(row && row.idx));
+            if (!userId || !(idx >= 0 && idx < count)) return;
+            if (!players[userId]) players[userId] = Array.from({ length: count }, () => null);
+            const points = wholeNumber(row.points, maxPoints);
+            const correct = Boolean(row.correct) && points > 0;
+            players[userId][idx] = { correct, points: correct ? points : 0, ...cleanDetails(row) };
+        });
+        return players;
+    };
+    const breakdownCall = async (fn, body, count, maxPoints) => {
+        try {
+            return cleanBreakdown(await request('POST', `rpc/${fn}`, { body }), count, maxPoints);
+        } catch (error) {
+            if (error.status === 404) return null;
+            throw error;
+        }
+    };
+    const challengeDetails = (code, count = 20) => breakdownCall('challenge_details', { code: needCode(code) }, Math.max(1, wholeNumber(count, 20)), 8);
+    const tournamentDetails = (mid) => breakdownCall('tournament_details', { mid: needTournamentId(mid, 'zápas') }, 10, 4);
     // XP za vyhrané zápasy turnaje (schéma 3): server zapíše dosud nevyplacené výhry a vrátí je ([{ id, round }]); retryKey = klíč zařízení,
     // se kterým opakované volání (ztracená odpověď) vrátí tytéž zápasy znovu. null = databáze vyplácení neeviduje (starší schéma).
     let claimMissing = false;
@@ -753,7 +815,9 @@
 
     return { AVATARS, allAvatars, cleanColor, customHue, nearestColor, cleanFrame, cleanOwl, saveOwl, cleanTitlePref, saveLook, COLORS, COUNTS, NAME_MAX, SocialError, cleanName, isValidName, newCode, parseCode, getProfile, saveProfile, createChallenge, getChallenge, getResults, submitResult, myChallenges, searchPlayers, randomOpponent, incomingChallenges, playerStats, getProgress, saveProgress, getRating, getRatingChange, weeklyLeaderboard, getAccepts, saveAccepts,
         tournamentTick, getTournaments, inTournament, devTournament, devClientErrors, isDevAdmin, schemaVersion, reportQuestion, getQuestionReports, deleteQuestionReport, exportMyData, deleteMyAccount, getTournamentEntries, getTournamentMatches, joinTournament, leaveTournament, startTournamentMatch, finishTournamentMatch, myTournamentStats, tournamentNotices, tournamentNoticesSeen,
-        challengeProgress, saveChallengeProgress, tournamentAnswers, saveTournamentAnswer, claimTournamentXp,
+        challengeProgress, saveChallengeProgress, tournamentAnswers, saveTournamentAnswer, claimTournamentXp, cleanAnswerLabel,
+        // Rozpis otázek (schéma 10)
+        challengeDetails, tournamentDetails,
         touchSeen, friendsList, addFriend, acceptFriend, removeFriend, REACTIONS, react, reactionsFor, lastReactionFrom, blockedPlayers, blockPlayer, unblockPlayer, REPORT_REASONS, reportPlayer, devReports, devResolveReport,
         submitAnswerStats, answerStatsTopic, devSuspiciousQuestions,
         // Kvíz dne (schéma 7)

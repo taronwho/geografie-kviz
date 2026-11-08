@@ -2710,6 +2710,170 @@ alter table public.profiles add constraint profiles_rewards_shape check (rewards
 grant update (rewards) on public.profiles to authenticated;
 -- ===== Odměny (schéma 9) — KONEC BLOKU =====
 
+-- ===== Rozpis otázek po výzvě a zápasu turnaje (schéma 10) — ZAČÁTEK BLOKU =====
+-- Ke každé uložené odpovědi výzvy (challenge_progress) a zápasu turnaje (tournament_answers) přibyly podrobnosti pro „Rozpis otázek“:
+-- co hráč odpověděl (answer: zvolená možnost, napsaný text nebo krátké shrnutí, např. „Vedle o 37 km“; nejvýš 120 znaků, bez řídicích
+-- a neviditelných znaků), kolik použil nápověd (hints 0–4) a jak dlouho otázku měl (ms, nejvýš hodina). Všechno je nepovinné: starší aplikace
+-- je neposílá a starší odpovědi je nemají (null). Body a správnost hlídají dál stejné kontroly jako dřív (nejvýš 4, u psaní 8 bodů, správně = aspoň bod).
+-- Funkce pro uložení odpovědi mají proto tři nepovinné parametry navíc; starou podobu se čtyřmi parametry (vytváří ji část souboru výš) blok
+-- odstraní, aby volání se čtyřmi parametry nebylo nejednoznačné (projde novou funkcí s výchozími hodnotami).
+-- Cizí odpovědi vrací jen challenge_details a tournament_details, a to jen hráči, který výzvu (zápas) sám dohrál: dokud nedohraje, nedozví se nic.
+-- Výzva: odpovědi ostatních hráčů, kteří ji dohráli; u výzvy starší 7 dní i rozehrané (výzva vypršela). Zápas turnaje: soupeřovy odpovědi,
+-- když zápas dohrál i on, nebo když je zápas rozhodnutý. Tabulky samy dál čte pravidlo řádků jen jejich hráči. Kdo vyhrál, se tu nemění.
+alter table public.challenge_progress add column if not exists answer text;
+alter table public.challenge_progress add column if not exists hints smallint;
+alter table public.challenge_progress add column if not exists ms integer;
+alter table public.challenge_progress drop constraint if exists challenge_progress_details;
+alter table public.challenge_progress add constraint challenge_progress_details
+    check ((answer is null or char_length(answer) between 1 and 120) and (hints is null or hints between 0 and 4) and (ms is null or ms between 0 and 3600000));
+alter table public.tournament_answers add column if not exists answer text;
+alter table public.tournament_answers add column if not exists hints smallint;
+alter table public.tournament_answers add column if not exists ms integer;
+alter table public.tournament_answers drop constraint if exists tournament_answers_details;
+alter table public.tournament_answers add constraint tournament_answers_details
+    check ((answer is null or char_length(answer) between 1 and 120) and (hints is null or hints between 0 and 4) and (ms is null or ms between 0 and 3600000));
+
+-- Text odpovědi do rozpisu: řídicí, neviditelné a směr textu měnící znaky a lomené závorky pryč, mezery sloučené, nejvýš 120 znaků (prázdný = null)
+create or replace function public.clean_answer_label(raw text) returns text
+language sql immutable set search_path = public as $$
+    select nullif(btrim(left(btrim(regexp_replace(regexp_replace(coalesce(raw, ''),
+        '[\u0001-\u001f\u007f-\u009f\u00ad\u200b-\u200f\u2028-\u202e\u2060-\u206f\ufeff<>]', ' ', 'g'), '\s+', ' ', 'g')), 120)), '')
+$$;
+
+-- Nápovědy a čas: null = neuvedeno; jinak 0–4 nápovědy a nezáporný čas (delší než hodina se uloží jako hodina)
+create or replace function public.check_answer_details(hints integer, ms integer) returns void
+language plpgsql immutable set search_path = public as $$
+begin
+    if hints is not null and (hints < 0 or hints > 4) then raise exception 'Neplatný počet nápověd.' using errcode = '22023'; end if;
+    if ms is not null and ms < 0 then raise exception 'Neplatný čas odpovědi.' using errcode = '22023'; end if;
+end;
+$$;
+
+drop function if exists public.challenge_progress_save(text, integer, boolean, integer);
+create or replace function public.challenge_progress_save(code text, idx integer, correct boolean, points integer,
+    answer text default null, hints integer default null, ms integer default null) returns integer
+language plpgsql security definer set search_path = public as $$
+#variable_conflict use_variable
+declare uid uuid := auth.uid(); c public.challenges; prev public.challenge_progress; saved integer;
+begin
+    if uid is null then raise exception 'Přihlas se.' using errcode = '42501'; end if;
+    select * into c from public.challenges ch where ch.id = code;
+    -- hrát smí každý s kódem, u výzvy určenému hráči jen on a zakladatel (stejně jako zápis výsledku)
+    if c.id is null or not (c.invited_id is null or c.invited_id = uid or c.creator_id = uid) then
+        raise exception 'Tuhle výzvu hrát nemůžeš.' using errcode = '42501';
+    end if;
+    perform pg_advisory_xact_lock(hashtext('challenge_progress:' || code || ':' || uid::text));
+    if exists (select 1 from public.challenge_results r where r.challenge_id = code and r.user_id = uid) then
+        raise exception 'Výzvu už máš dohranou.' using errcode = '22023';
+    end if;
+    if idx is null or idx < 0 or idx >= c.count then raise exception 'Neplatné číslo otázky.' using errcode = '22023'; end if;
+    if correct is null or points is null or points < 0 or points > (case when c.variant = 'choices' then 4 else 8 end) or correct <> (points > 0) then
+        raise exception 'Neplatný výsledek otázky.' using errcode = '22023';
+    end if;
+    perform public.check_answer_details(hints, ms);
+    select count(*)::integer into saved from public.challenge_progress p where p.challenge_id = code and p.user_id = uid;
+    select * into prev from public.challenge_progress p where p.challenge_id = code and p.user_id = uid and p.idx = idx;
+    if prev.challenge_id is not null then
+        -- stejná odpověď poslaná znovu nic nemění (ani podrobnosti, ty platí z prvního uložení)
+        if prev.correct = correct and prev.points = points then return saved; end if;
+        raise exception 'Odpověď na tuhle otázku už je uložená, přepsat ji nejde.' using errcode = '22023';
+    end if;
+    if idx <> saved then raise exception 'Nejdřív se musí uložit předchozí otázky.' using errcode = '22023'; end if;
+    insert into public.challenge_progress (challenge_id, user_id, idx, correct, points, answer, hints, ms)
+        values (code, uid, idx, correct, points, public.clean_answer_label(answer), hints, case when ms is null then null else least(ms, 3600000) end);
+    return saved + 1;
+end;
+$$;
+
+drop function if exists public.tournament_answer_save(uuid, integer, boolean, integer);
+create or replace function public.tournament_answer_save(mid uuid, idx integer, correct boolean, points integer,
+    answer text default null, hints integer default null, ms integer default null) returns integer
+language plpgsql security definer set search_path = public as $$
+#variable_conflict use_variable
+declare uid uuid := auth.uid(); m public.tournament_matches; t public.tournaments; r public.tournament_results; prev public.tournament_answers; saved integer;
+begin
+    if uid is null then raise exception 'Přihlas se.' using errcode = '42501'; end if;
+    select * into m from public.tournament_matches tm where tm.id = mid;
+    if m.id is null or uid not in (m.p1, m.p2) then raise exception 'Tohle není tvůj zápas.' using errcode = '42501'; end if;
+    perform pg_advisory_xact_lock(hashtext('tournament_answers:' || mid::text || ':' || uid::text));
+    select * into r from public.tournament_results tr where tr.match_id = mid and tr.user_id = uid;
+    if r.match_id is null then raise exception 'Zápas jsi ještě nezačal.' using errcode = '22023'; end if;
+    if r.finished_at is not null or m.winner is not null then raise exception 'Zápas už je dohraný.' using errcode = '22023'; end if;
+    select * into t from public.tournaments tt where tt.id = m.tournament_id;
+    if t.status <> 'running' or t.started_on + (m.round - 1) <> public.tournament_today() then raise exception 'Kolo se dnes nehraje.' using errcode = '22023'; end if;
+    if idx is null or idx < 0 or idx > 9 then raise exception 'Neplatné číslo otázky.' using errcode = '22023'; end if;
+    if correct is null or points is null or points < 0 or points > 4 or correct <> (points > 0) then raise exception 'Neplatný výsledek otázky.' using errcode = '22023'; end if;
+    perform public.check_answer_details(hints, ms);
+    select count(*)::integer into saved from public.tournament_answers a where a.match_id = mid and a.user_id = uid;
+    select * into prev from public.tournament_answers a where a.match_id = mid and a.user_id = uid and a.idx = idx;
+    if prev.match_id is not null then
+        if prev.correct = correct and prev.points = points then return saved; end if;
+        raise exception 'Odpověď na tuhle otázku už je uložená, přepsat ji nejde.' using errcode = '22023';
+    end if;
+    if idx <> saved then raise exception 'Nejdřív se musí uložit předchozí otázky.' using errcode = '22023'; end if;
+    insert into public.tournament_answers (match_id, user_id, idx, correct, points, answer, hints, ms)
+        values (mid, uid, idx, correct, points, public.clean_answer_label(answer), hints, case when ms is null then null else least(ms, 3600000) end);
+    return saved + 1;
+end;
+$$;
+
+-- Rozpis výzvy: moje odpovědi a odpovědi hráčů, kteří výzvu dohráli (u výzvy starší 7 dní i rozehrané). Jen pro hráče s vlastním výsledkem:
+-- kdo výzvu nedohrál (nebo ji vůbec nehrál), dostane chybu a nedozví se ani to, jestli výzva existuje.
+create or replace function public.challenge_details(code text)
+returns table (user_id uuid, idx integer, correct boolean, points integer, answer text, hints integer, ms integer)
+language plpgsql stable security definer set search_path = public as $$
+declare uid uuid := auth.uid(); c public.challenges; expired boolean;
+begin
+    if uid is null then raise exception 'Přihlas se.' using errcode = '42501'; end if;
+    if code is null or code !~ '^[A-Z0-9]{6}$' then raise exception 'Neplatný kód výzvy.' using errcode = '22023'; end if;
+    select * into c from public.challenges ch where ch.id = code;
+    if c.id is null or not exists (select 1 from public.challenge_results r where r.challenge_id = c.id and r.user_id = uid) then
+        raise exception 'Rozpis otázek uvidíš, až výzvu dohraješ.' using errcode = '42501';
+    end if;
+    expired := c.created_at < now() - interval '7 days';
+    return query
+        select p.user_id, p.idx, p.correct, p.points, p.answer, p.hints::integer, p.ms
+        from public.challenge_progress p
+        where p.challenge_id = c.id
+            and (p.user_id = uid or expired or exists (select 1 from public.challenge_results r where r.challenge_id = c.id and r.user_id = p.user_id))
+        order by p.user_id, p.idx
+        limit 2000;
+end;
+$$;
+
+-- Rozpis zápasu turnaje: jen pro jeho hráče, až ho sám dohraje; soupeřovy odpovědi, když zápas dohrál i soupeř, nebo je zápas rozhodnutý
+create or replace function public.tournament_details(mid uuid)
+returns table (user_id uuid, idx integer, correct boolean, points integer, answer text, hints integer, ms integer)
+language plpgsql stable security definer set search_path = public as $$
+declare uid uuid := auth.uid(); m public.tournament_matches; rival uuid; open_rival boolean;
+begin
+    if uid is null then raise exception 'Přihlas se.' using errcode = '42501'; end if;
+    select * into m from public.tournament_matches tm where tm.id = mid;
+    if m.id is null or uid not in (m.p1, m.p2) then raise exception 'Tohle není tvůj zápas.' using errcode = '42501'; end if;
+    if not exists (select 1 from public.tournament_results tr where tr.match_id = m.id and tr.user_id = uid and tr.finished_at is not null) then
+        raise exception 'Rozpis otázek uvidíš, až zápas dohraješ.' using errcode = '42501';
+    end if;
+    rival := case when m.p1 = uid then m.p2 else m.p1 end;
+    open_rival := m.winner is not null
+        or exists (select 1 from public.tournament_results tr where tr.match_id = m.id and tr.user_id = rival and tr.finished_at is not null);
+    return query
+        select a.user_id, a.idx, a.correct, a.points, a.answer, a.hints::integer, a.ms
+        from public.tournament_answers a
+        where a.match_id = m.id and (a.user_id = uid or (a.user_id = rival and open_rival))
+        order by a.user_id, a.idx
+        limit 20;
+end;
+$$;
+
+revoke all on function public.clean_answer_label(text), public.check_answer_details(integer, integer) from public, anon, authenticated;
+revoke all on function public.challenge_progress_save(text, integer, boolean, integer, text, integer, integer),
+    public.tournament_answer_save(uuid, integer, boolean, integer, text, integer, integer),
+    public.challenge_details(text), public.tournament_details(uuid) from public, anon;
+grant execute on function public.challenge_progress_save(text, integer, boolean, integer, text, integer, integer),
+    public.tournament_answer_save(uuid, integer, boolean, integer, text, integer, integer),
+    public.challenge_details(text), public.tournament_details(uuid) to authenticated;
+-- ===== Rozpis otázek po výzvě a zápasu turnaje (schéma 10) — KONEC BLOKU =====
+
 -- ===== Verze schématu =====
 -- Číslo se zvyšuje při KAŽDÉ změně tohoto souboru (tabulka, sloupec, funkce, pravidlo) a zároveň konstanta REQUIRED_SCHEMA v app.js.
 -- Aplikace ho po přihlášení porovná a správci (dev_admins nebo vývojářský režim) ukáže v Nastavení, že má schéma spustit znovu;
@@ -2723,7 +2887,9 @@ grant update (rewards) on public.profiles to authenticated;
 --    výzva skupině se nepočítá do ratingu).
 -- 9: Odměny (profiles.rewards: Truhla Mudrlanta, ochrana série, diplomy; export_my_data je má v řádku profilu) a odznaky Kvízu dne, Bleskovky, Přežití,
 --    mapy, odhadu a Seřaď v badge_catalog().
+-- 10: Rozpis otázek (challenge_progress a tournament_answers: answer, hints, ms; challenge_progress_save a tournament_answer_save s nepovinnými
+--     podrobnostmi; challenge_details a tournament_details vrací soupeřovy odpovědi až po dohrání).
 create or replace function public.schema_version() returns integer
-language sql immutable as $$ select 9 $$;
+language sql immutable as $$ select 10 $$;
 revoke all on function public.schema_version() from public, anon;
 grant execute on function public.schema_version() to authenticated;

@@ -195,8 +195,17 @@ const backend = async (context, db) => {
                 const prev = mine.find(row => row.idx === body.idx);
                 if (prev) return prev.correct === body.correct && prev.points === body.points ? json(mine.length) : fail('Odpověď na tuhle otázku už je uložená, přepsat ji nejde.');
                 if (body.idx !== mine.length) return fail('Nejdřív se musí uložit předchozí otázky.');
-                db.answers.push({ match_id: body.mid, user_id: me.id, idx: body.idx, correct: body.correct, points: body.points });
+                db.answers.push({ match_id: body.mid, user_id: me.id, idx: body.idx, correct: body.correct, points: body.points, answer: body.answer ?? null, hints: body.hints ?? null, ms: body.ms ?? null });
                 return json(mine.length + 1);
+            }
+            // Rozpis zápasu (jako tournament_details): jen hráč zápasu, až ho sám dohraje; soupeřovy odpovědi po jeho dohrání nebo rozhodnutí
+            if (rpc[1] === 'tournament_details') {
+                const m = matchRow(body.mid);
+                if (!m || ![m.p1, m.p2].includes(me.id)) return fail('Tohle není tvůj zápas.', 403);
+                const done = (uid) => db.results.some(row => row.match_id === m.id && row.user_id === uid && row.finished_at);
+                if (!done(me.id)) return fail('Rozpis otázek uvidíš, až zápas dohraješ.', 403);
+                const rival = m.p1 === me.id ? m.p2 : m.p1;
+                return json(db.answers.filter(row => row.match_id === m.id && (row.user_id === me.id || (row.user_id === rival && (m.winner || done(rival))))).map(({ match_id, ...rest }) => rest));
             }
             if (rpc[1] === 'tournament_finish_match') {
                 const own = db.results.find(row => row.match_id === body.mid && row.user_id === me.id);
@@ -526,6 +535,15 @@ test('týdenní turnaje', { skip: !chromium && 'Playwright není nainstalovaný'
         assert.match(await tab.textContent('#status-badge'), /Turnaj · 1\/10/);
         assert.equal(await tab.locator('[data-tour-timer]').count(), 1, 'u otázky turnaje běží čas');
         assert.match(await tab.textContent('[data-tour-timer]'), /^\d+:\d{2}$/);
+        // Body ve hře: čip vlevo nahoře, štítek druhu otázky mezi ním a časem se nepřekrývá ani nezalomí
+        assert.equal((await tab.textContent('[data-score-chip]')).trim(), '0 b');
+        const header = await tab.evaluate(() => {
+            const chip = document.querySelector('[data-score-chip]').getBoundingClientRect();
+            const timer = document.querySelector('[data-tour-timer]').parentElement.getBoundingClientRect();
+            const label = document.querySelector('[data-score-chip]').parentElement.querySelector(':scope > span.inline-flex:not(.absolute)').getBoundingClientRect();
+            return { apart: chip.right <= label.left && label.right <= timer.left, oneLine: label.height < 24 };
+        });
+        assert.deepEqual(header, { apart: true, oneLine: true });
         assert.ok(await tab.locator('[data-action="choice"]').count() >= 2, 'varianta s výběrem z možností');
         assert.equal(await tab.locator('#answer-form').count(), 0);
         await shot(tab, 'turnaj-hra');
@@ -545,6 +563,15 @@ test('týdenní turnaje', { skip: !chromium && 'Playwright není nainstalovaný'
         assert.match(outcome, /0\/10/);
         assert.equal(await tab.locator('[data-match][data-mine]').count(), 1);
         await shot(tab, 'turnaj-vysledek');
+        // Rozpis otázek: zápas je rozhodnutý, moje odpovědi ze serveru (soupeřovy se tu neuložily)
+        await tab.click('[data-action="tournament-breakdown"]');
+        await tab.waitForSelector('#breakdown-list [data-bd-row]', { timeout: 30000 });
+        assert.equal(await tab.locator('#breakdown-list [data-bd-row]').count(), 10);
+        assert.equal(await tab.locator('#breakdown-list [data-bd-row="0"] [data-bd-cell]').count(), 2, 'oba hráči vedle sebe');
+        assert.match((await tab.textContent('#dialog-overlay')).replace(/\s+/g, ' '), /Soupeřovy odpovědi po otázkách se u téhle hry neuložily/);
+        assert.ok(db.calls.some(call => call.name === 'tournament_details' && call.body.mid === uuid(101)));
+        await shot(tab, 'turnaj-rozpis');
+        await tab.click('#dialog-overlay [data-close]');
         // XP za vyhraný zápas (jednou) a odznaky z počítadel (nejlepší umístění 2 = čtvrtfinále, 1 výhra)
         await tab.waitForFunction(() => (JSON.parse(localStorage.getItem('mudrlant.progress') || '{}').xp || 0) >= 20);
         const progress = await progressOf(tab);

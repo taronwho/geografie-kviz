@@ -179,6 +179,9 @@ poslat komukoli s kódem, konkrétnímu hráči podle jedinečné přezdívky, n
 vyzvaný ji uvidí na úvodní stránce. Výzvu lze nastavit: téma nebo mix, okruh tématu (třeba jen vlajky států), obtížnost
 (známé / i těžší), pevný způsob odpovídání (možnosti / psaní) a počet otázek. Schéma databáze je napsané tak, aby šlo pouštět opakovaně; po jeho změně ho
 v Supabase spusť znovu celé.
+**Rozpis otázek** (schéma 10): když výzvu (nebo zápas turnaje) dohrají oba hráči, výsledek i okno výzvy nabídnou rozpis po otázkách: zadání a správná
+odpověď, u obou hráčů vedle sebe co odpověděli, správně/špatně, nápovědy, body a čas; klepnutí na otázku otevře popis položky. Při hře výzvy, zápasu
+turnaje, Kvízu dne i tréninku ukazuje záhlaví otázky čip s body ve hře („12 b“).
 **Týdenní turnaje** (vyřazovací pavouk v Mixu, kolo = jeden den): klient je v `tournament.js` (čistá logika: názvy kol, dny, stav karty, texty zpráv),
 volání databáze v `social.js` a okno turnaje, hra zápasu a karta na záložce Více hráčů v `app.js`; pravidla a posun kol dělá databáze
 (`tournament_tick()` a další funkce v `supabase/schema.sql`). Starší databáze bez turnajů kartu prostě neukáže.
