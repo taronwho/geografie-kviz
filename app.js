@@ -20,6 +20,9 @@
     // Tipy od Mudrlanta (tips.js): žárovka u sovy, když má hráč na co upozornit; bez skriptu se jen nezobrazí
     const Tips = window.MudrlantTips || null;
     const Goals = window.MudrlantGoals || null;
+    // Režimy Bleskovka a Přežití (modes.js) a zvuky s vibracemi (sound.js); bez skriptu se jen nenabídnou, hra zůstane potichu
+    const Modes = window.MudrlantModes || null;
+    const Sound = window.MudrlantSound || null;
     const TOPICS = window.MudrlantTopics || [];
     const TOPIC_BY_ID = Object.fromEntries(TOPICS.map(topic => [topic.id, topic]));
     const APP_NAME = 'Mudrlant';
@@ -648,7 +651,7 @@
     const renderTierButtons = (on = TOGGLE_ON, topic = null, brief = false) => Object.entries(TIERS).map(([key, tier]) => `
         <button type="button" data-tier="${key}" aria-pressed="${settings.tier === key}"${brief ? ` title="${escapeHtml(tier.text)}"` : ''} class="rounded-2xl border-2 px-2.5 py-2 text-left transition-colors active:scale-[0.98] ${settings.tier === key ? on : TOGGLE_OFF}">
             <span class="block text-sm font-black leading-tight">${tier.title}</span>
-            <span class="mt-0.5 block text-[11px] font-semibold leading-snug opacity-90">${brief ? TIER_BRIEF[key] : key === 'known' && topic && topic.words && topic.words.tierKnown ? escapeHtml(topic.words.tierKnown) : tier.text}</span>
+            <span class="mt-0.5 block text-[11px] font-semibold leading-snug opacity-90${brief ? ' short:hidden' : ''}">${brief ? TIER_BRIEF[key] : key === 'known' && topic && topic.words && topic.words.tierKnown ? escapeHtml(topic.words.tierKnown) : tier.text}</span>
         </button>`).join('');
 
     const closeSettings = () => {
@@ -898,6 +901,20 @@
             <span class="min-w-0 flex-1"><span class="block text-[13px] font-black leading-tight text-slate-800 dark:text-slate-100">${title}</span>${text ? `<span class="mt-0.5 block text-[11px] font-semibold leading-snug text-slate-500 dark:text-slate-400">${text}</span>` : ''}</span>
             ${on === null ? '<i data-lucide="chevron-right" class="h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400"></i>' : switchMark(on)}
         </button>`;
+    // Zvuky a vibrace (sound.js): dva přepínače vedle sebe v jednom řádku karty Hra, ať se karta vejde bez posouvání;
+    // Vibrace jen tam, kde je prohlížeč umí (iPhone ne)
+    const soundRows = () => {
+        if (!Sound) return '';
+        const prefs = Sound.prefs();
+        const vibration = Sound.canVibrate();
+        const cell = (attrs, icon, title, on) => `
+            <button type="button" ${attrs} role="switch" aria-checked="${on}" class="${SETTING_ROW}">
+                <i data-lucide="${icon}" class="h-5 w-5 shrink-0 ${on ? 'text-brand-700 dark:text-brand-300' : 'text-slate-500 dark:text-slate-400'}"></i>
+                <span class="min-w-0 flex-1 text-[13px] font-black leading-tight text-slate-800 dark:text-slate-100">${title}</span>
+                ${switchMark(on)}
+            </button>`;
+        return `<div data-sound-row class="grid ${vibration ? 'grid-cols-2 divide-x divide-slate-100 dark:divide-slate-700/70' : ''}">${cell('data-sound-toggle', prefs.sound ? 'volume-2' : 'volume-x', 'Zvuky', prefs.sound)}${vibration ? cell('data-vibration-toggle', 'vibrate', 'Vibrace', prefs.vibration) : ''}</div>`;
+    };
     // --- Vzhled: odměny (barevná témata, barva obleku sovy, rámečky, obrázky, titul) – části dodávají look-*.js přes MudrlantLook ---
     const Look = window.MudrlantLook;
     const Tutorial = window.MudrlantTutorial;
@@ -1496,19 +1513,20 @@
         const gameBody = `
             <h3 class="${ME_HEADING} mb-1.5">Varianta hry</h3>
             <div class="grid grid-cols-2 gap-2">${renderVariantCompact(gameVariant)}</div>
-            <h3 class="${ME_HEADING} mb-1.5 mt-3">Známost otázek</h3>
+            <h3 class="${ME_HEADING} mb-1.5 mt-3 short:mt-2">Známost otázek<span class="hidden font-bold normal-case tracking-normal short:inline"> · pro témata a mix</span></h3>
             <div class="grid grid-cols-2 gap-2" role="group" aria-label="Známost">${renderTierButtons(TOGGLE_ON, null, true)}</div>
-            <p class="mt-1.5 text-[11px] leading-snug text-slate-500 dark:text-slate-400">Pro témata a mix. Dnešní otázky jsou hlavně ze známých.</p>
+            <p class="mt-1.5 text-[11px] leading-snug text-slate-500 short:hidden dark:text-slate-400">Pro témata a mix. Dnešní otázky jsou hlavně ze známých.</p>
             ${state.configured && !user ? `
-                <button type="button" data-auth-login class="mt-3 flex w-full items-center gap-3 rounded-2xl btn-3d bg-brand-700 px-4 py-2 text-left text-white">
+                <button type="button" data-auth-login class="mt-3 short:mt-2 flex w-full items-center gap-3 rounded-2xl btn-3d bg-brand-700 px-4 py-2 text-left text-white">
                     <i data-lucide="log-in" class="h-5 w-5 shrink-0"></i>
                     <span class="min-w-0 flex-1"><span class="block text-[15px] font-black leading-tight">Přihlásit se přes Google</span><span class="block text-[11px] font-semibold leading-snug text-white/90">Uloží se postup a půjde hrát s ostatními</span></span>
                     <i data-lucide="chevron-right" class="h-4 w-4 shrink-0"></i>
                 </button>
                 ${state.error ? `<p class="mt-2 text-xs font-semibold text-rose-700 dark:text-rose-400" role="alert">${escapeHtml(state.error)}</p>` : ''}` : ''}
-            <div class="mt-3 divide-y divide-slate-100 overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-200/70 dark:divide-slate-700/70 dark:bg-slate-800 dark:ring-slate-700/70">
+            <div class="mt-3 short:mt-2 divide-y divide-slate-100 overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-200/70 dark:divide-slate-700/70 dark:bg-slate-800 dark:ring-slate-700/70">
                 ${Review ? settingRow({ attrs: 'data-review-toggle', icon: 'repeat', title: 'Procvičování chyb', text: reviewEnabled() ? 'Vrací se po 1, 3, 7, 14 a 30 dnech' : 'Chyby se nevrací, nic nečeká', on: reviewEnabled() }) : ''}
                 ${Tips ? settingRow({ attrs: 'data-tips-toggle', icon: 'lightbulb', title: 'Tipy od Mudrlanta', text: tipsOn() ? 'Žárovka občas ukáže funkci hry' : 'Žárovka ukáže jen zajímavost dne', on: tipsOn() }) : ''}
+                ${soundRows()}
                 ${pushPanel()}
                 ${settingRow({ attrs: 'data-tutorial-restart', icon: 'info', title: 'Projít znovu tutoriál' })}
             </div>
@@ -1736,6 +1754,21 @@
                 openSettings(tipsOn() ? 'Tipy od Mudrlanta jsou zapnuté.' : 'Tipy od Mudrlanta jsou vypnuté.', '[data-tips-toggle]');
                 return;
             }
+            // Zvuky a vibrace: zapnutí hned předvede, jak znějí (klepnutí je gesto, AudioContext se smí probudit)
+            if (event.target.closest('[data-sound-toggle]') && Sound) {
+                const on = !Sound.prefs().sound;
+                Sound.set({ sound: on });
+                if (on) Sound.play('correct');
+                openSettings(on ? 'Zvuky jsou zapnuté.' : 'Zvuky jsou vypnuté.', '[data-sound-toggle]');
+                return;
+            }
+            if (event.target.closest('[data-vibration-toggle]') && Sound) {
+                const on = !Sound.prefs().vibration;
+                Sound.set({ vibration: on });
+                if (on) Sound.vibrate('wrong');
+                openSettings(on ? 'Vibrace jsou zapnuté.' : 'Vibrace jsou vypnuté.', '[data-vibration-toggle]');
+                return;
+            }
             if (event.target.closest('[data-review-toggle]')) {
                 writeJson(KEYS.reviewOn, !reviewEnabled());
                 updateControlsUI();
@@ -1874,6 +1907,7 @@
                 note = 'Uloženo. Psaní platí od další otázky, tady už byly možnosti vidět.';
             }
         }
+        if (screen === 'mode') note = 'Uloženo. Bleskovka a Přežití se hrají vždy s výběrem z možností.';
         openSettings(note, `[data-variant="${variant}"]`);
     };
 
@@ -1941,9 +1975,12 @@
                 <div class="grid grid-cols-2 gap-1.5" role="group" aria-label="Známost">${renderTierButtons(style.on, isMix ? null : topic)}</div>
                 <div data-chooser-footer class="sticky -bottom-4 z-10 -mx-4 mt-3 border-t border-slate-200/80 bg-slate-50 px-4 pb-4 pt-2.5 dark:border-slate-800 dark:bg-slate-900">
                     <p id="chooser-note" class="${note ? 'mb-1.5 ' : ''}text-sm font-semibold text-rose-700 dark:text-rose-400" role="status">${escapeHtml(note)}</p>
-                    <button type="button" data-chooser-play class="flex w-full items-center justify-center gap-2 rounded-[1.2rem] py-3 text-lg font-black text-white shadow-lg transition-all active:scale-95 ${style.button} btn-3d">
-                        <i data-lucide="play" class="h-5 w-5"></i> Hrát
-                    </button>
+                    <div class="flex gap-2">
+                        <button type="button" data-chooser-play class="flex min-w-0 flex-1 items-center justify-center gap-2 rounded-[1.2rem] py-3 text-lg font-black text-white shadow-lg transition-all active:scale-95 ${style.button} btn-3d">
+                            <i data-lucide="play" class="h-5 w-5"></i> Hrát
+                        </button>
+                        ${modeChooserButtons()}
+                    </div>
                 </div>
                 <h3 class="${SETTINGS_HEADING} mb-2 mt-2">Jiné téma</h3>
                 <div class="flex flex-wrap gap-2">${switches}</div>
@@ -1990,6 +2027,12 @@
                 closeChooser();
                 markSeen(pick.kind === 'mix' ? 'mix' : pick.topic);
                 startPractice(pick.kind === 'mix' ? { kind: 'mix' } : { kind: 'topic', topic: pick.topic });
+            } else if (event.target.closest('[data-chooser-mode]')) {
+                // Bleskovka a Přežití s vybraným tématem (kategoriemi) nebo mixem: úvod s pravidly a rekordy
+                const pick = chooser;
+                closeChooser();
+                markSeen(pick.kind === 'mix' ? 'mix' : pick.topic);
+                openModeIntro(event.target.closest('[data-chooser-mode]').dataset.chooserMode, pick.kind === 'mix' ? { kind: 'mix' } : { kind: 'topic', topic: pick.topic });
             }
         });
         document.body.appendChild(overlay);
@@ -2048,6 +2091,7 @@
             return { icon: 'graduation-cap', text: topic ? `Učení · ${topic.title}` : 'Učení', topic };
         }
         if (screen === 'challenge-done') return { icon: 'trophy', text: challenge && challenge.tournament ? 'Zápas hotový' : 'Výzva hotová', topic: null };
+        if (screen === 'mode' && modeGame) return modePlace(modeGame);
         // Úvod: sova z loga, název a dnešní datum
         if (screen !== 'round' || !current) return { logo: true, text: `${APP_NAME} · ${shortDay(getDayKey())}`, date: shortDay(getDayKey()), topic: null };
         const topic = TOPIC_BY_ID[current.topic];
@@ -2073,7 +2117,7 @@
     const updateControlsUI = () => {
         // Procvičování okruhu nebo chyb patří k učení
         const fromLearn = mode === 'practice' && (pool.kind === 'collection' || pool.kind === 'mistakes' || pool.kind === 'review');
-        const section = screen === 'learn' ? 'learn' : screen === 'round' ? (mode === 'daily' || mode === 'challenge' ? 'home' : fromLearn ? 'learn' : 'practice') : 'home';
+        const section = screen === 'learn' ? 'learn' : screen === 'mode' ? 'practice' : screen === 'round' ? (mode === 'daily' || mode === 'challenge' ? 'home' : fromLearn ? 'learn' : 'practice') : 'home';
         updateProfileButton();
         const settingsButton = document.getElementById('btn-settings');
         settingsButton.disabled = isLoading;
@@ -2107,7 +2151,7 @@
         const place = describePlace();
         const style = place.topic ? styleOf(place.topic) : null;
         updateFactHint();
-        document.getElementById('app-header').className = `${HEADER_BASE} ${style && screen === 'round' ? style.accent : 'border-slate-200/70 dark:border-slate-800'}`;
+        document.getElementById('app-header').className = `${HEADER_BASE} ${style && (screen === 'round' || screen === 'mode') ? style.accent : 'border-slate-200/70 dark:border-slate-800'}`;
         const badge = document.getElementById('status-badge');
         badge.className = place.logo ? BADGE_LOGO
             : `${BADGE_BASE} ${style ? `${style.soft} border-transparent` : 'bg-white text-slate-700 border-slate-200/60 dark:bg-slate-800 dark:border-slate-700'}`;
@@ -3224,21 +3268,23 @@
         card.className = 'fade-in fixed inset-x-3 bottom-24 z-[60] mx-auto flex max-w-sm cursor-pointer items-center gap-3 rounded-3xl bg-gradient-to-br from-brand-800 to-brand-950 p-3 pr-4 text-white shadow-2xl ring-2 ring-gold-400';
         card.innerHTML = `${uiArt(`sova-${item.owl}`, 'h-20 w-20 -my-4 drop-shadow-lg')}<div class="min-w-0 flex-1"><p class="text-[11px] font-black uppercase tracking-widest text-gold-300">${escapeHtml(item.title)}</p><p class="text-base font-black leading-tight">${escapeHtml(item.text)}</p></div>`;
         document.body.appendChild(card);
+        // Zvuk oslavy (nová úroveň, titul, odznak) zazní, až se karta ukáže
+        if (item.sound && Sound) Sound.play(item.sound);
         const done = () => { if (!card.isConnected) return; card.remove(); setTimeout(nextCelebration, 250); };
         card.addEventListener('click', done);
         setTimeout(done, 4500);
     };
-    const showCelebration = (owl, title, text) => {
-        celebrationQueue.push({ owl, title, text });
+    const showCelebration = (owl, title, text, sound = null) => {
+        celebrationQueue.push({ owl, title, text, sound });
         if (!celebrating) nextCelebration();
     };
     const announce = (levelBefore, levelNow, badgeTitles) => {
         if (levelNow > levelBefore) {
             const newTitle = titleForLevel(levelNow) !== titleForLevel(levelBefore);
             // Nový titul slaví sova jeho stupně (sova titulu v barvě mého obleku)
-            showCelebration(newTitle ? titleOwlPose(levelNow) : 'oslava', newTitle ? 'Nový titul' : `Úroveň ${levelNow}`, newTitle ? `${titleForLevel(levelNow)} (úroveň ${levelNow})` : titleForLevel(levelNow));
+            showCelebration(newTitle ? titleOwlPose(levelNow) : 'oslava', newTitle ? 'Nový titul' : `Úroveň ${levelNow}`, newTitle ? `${titleForLevel(levelNow)} (úroveň ${levelNow})` : titleForLevel(levelNow), newTitle ? 'title' : 'level');
         }
-        badgeTitles.slice(0, 3).forEach(title => showCelebration('oslava', 'Nový odznak', title));
+        badgeTitles.slice(0, 3).forEach(title => showCelebration('oslava', 'Nový odznak', title, 'badge'));
         if (badgeTitles.length > 3) showCelebration('oslava', 'Další odznaky', `a ještě ${badgeTitles.length - 3}`);
         const kinds = Look.REWARD_KINDS;
         Look.newRewards(levelBefore, levelNow, freshBadgeIds).forEach(({ category, item }) => showCelebration('vitez', 'Nová odměna', `${item.title} (${kinds[category]}) – vyber si ji v Nastavení → Vzhled`));
@@ -3455,6 +3501,8 @@
         const ref = !correct && isKnownRef(answerRef) ? answerRef : null;
         Object.assign(round, { answered: true, correct, typed, answer, answerRef: ref, gaveUp, points });
         mapZoom = DEFAULT_MAP_ZOOM;
+        // Zvuk odpovědi (Nevím = bez zvuku); oslavy nové úrovně a odznaku zazní až po něm
+        if (Sound && !gaveUp) Sound.answer(correct);
         recordResult();
         recordAnswerStat({ correct, answerRef, gaveUp });
         renderRound();
@@ -4080,6 +4128,480 @@
     const changeMapZoom = (delta) => {
         mapZoom = Math.min(MAX_MAP_ZOOM, Math.max(MIN_MAP_ZOOM, mapZoom + delta));
         renderMap();
+    };
+
+    // --- Bleskovka a Přežití: režimy pro jednoho hráče (pravidla, hodiny, rekordy a XP v modes.js, zvuky v sound.js) ---
+    // Vlastní obrazovka (screen 'mode'): úvod s pravidly a rekordy → otázky (vždy výběr z možností, bez nápověd) → výsledek s rekordy a XP.
+    // Otázka se sestaví stejně jako v běžné hře (createRoundData) a další se chystá už během té současné, ať se nečeká na Wikipedii.
+    // Chyby jdou do Mých chyb a procvičování jako v běžné hře, správně uhodnuté do postupu v okruzích; do dnešních otázek, výzev,
+    // statistik tréninku ani počítadel odpovědí pro odznaky a cíle týdne se odpovědi nepočítají (rychlé otázky by je jinak nafoukly);
+    // počítá se jen den hraní a poznané položky (mistrovství).
+    // Hra se neukládá: odchod z obrazovky (Domů, Zpět, jiná hra) ji ukončí bez výsledku, tlačítko Ukončit hru s výsledkem.
+    // phase: 'intro' | 'loading' | 'question' | 'feedback' | 'error' | 'result'
+    let modeGame = null;
+    let modeTimer = null;
+    let modeFeedbackTimer = null;
+    // Okna, během kterých čas Bleskovky stojí (Nastavení, popis položky…)
+    const MODE_OVERLAYS = ['settings-overlay', 'dialog-overlay', 'play-chooser', 'place-info', 'photo-zoom', 'fact-overlay'];
+    const MODE_BADGE = { blitz: 'bg-gold-500 text-brand-950', survival: 'bg-rose-600 text-white' };
+    const modeTopicOf = (game) => game.pool.kind === 'topic' ? TOPIC_BY_ID[game.pool.topic] : MIX;
+    const loadModeState = () => Modes.parse(readJson(Modes.STORAGE_KEY));
+    const modeLive = (game) => Boolean(game) && game === modeGame && screen === 'mode';
+    const stopModeTimers = () => {
+        clearInterval(modeTimer);
+        clearTimeout(modeFeedbackTimer);
+        modeTimer = null;
+        modeFeedbackTimer = null;
+    };
+    // Štítek v hlavičce: režim a téma v barvě tématu (při mixu téma právě hrané otázky); klepnutím nic nemění
+    const modePlace = (game) => {
+        const def = Modes.MODES[game.kind];
+        const scopeTopic = modeTopicOf(game);
+        const playing = current && (game.phase === 'question' || game.phase === 'feedback') ? TOPIC_BY_ID[current.topic] : null;
+        return { icon: def.icon, text: `${def.title} · ${scopeTopic.title}`, topic: playing || scopeTopic };
+    };
+    // Co se hraje: kategorie tématu (nebo témata mixu), u Bleskovky i známost z výběru; Přežití má vlastní obtížnost
+    const modeScopeText = (game) => {
+        const parts = [];
+        if (game.pool.kind === 'mix') parts.push(settings.topics.length === TOPICS.length ? 'všechna témata' : `${settings.topics.length} z ${TOPICS.length} témat`);
+        else {
+            const topic = TOPIC_BY_ID[game.pool.topic];
+            const chosen = selectedCategories(topic);
+            parts.push(chosen.length === topic.categories.length ? 'všechny kategorie' : chosen.length === 1 ? categoryOf(topic, chosen[0]).label : `${chosen.length} z ${topic.categories.length} kategorií`);
+        }
+        if (game.kind === 'blitz') parts.push(settings.tier === 'all' ? 'i méně známé' : 'jen známé');
+        return parts.join(' · ');
+    };
+
+    // Úvod režimu: pravidla, rekordy a kolik XP dnes ještě jde získat
+    const openModeIntro = (kind, nextPool) => {
+        if (!Modes || !Modes.MODES[kind] || isLoading) return;
+        stopModeTimers();
+        closeChooser();
+        closeSettings();
+        closePlaceInfo();
+        pool = nextPool.kind === 'topic' && TOPIC_BY_ID[nextPool.topic] ? { kind: 'topic', topic: nextPool.topic } : { kind: 'mix' };
+        mode = kind;
+        current = null;
+        round = null;
+        modeGame = { kind, pool: { ...pool }, scope: Modes.scopeOf(pool), phase: 'intro' };
+        screen = 'mode';
+        renderModeScreen();
+    };
+    const startModeGame = (kind = modeGame && modeGame.kind, gamePool = modeGame && modeGame.pool) => {
+        if (!Modes || !Modes.MODES[kind] || !gamePool) return;
+        const def = Modes.MODES[kind];
+        stopModeTimers();
+        closePlaceInfo();
+        if (Sound) Sound.unlock();
+        mode = kind;
+        pool = { ...gamePool };
+        screen = 'mode';
+        modeGame = {
+            kind, pool: { ...gamePool }, scope: Modes.scopeOf(gamePool), phase: 'loading',
+            score: 0, asked: 0, wrong: 0, lives: def.lives || 0, picked: null, penalty: false, lostLife: false,
+            clock: kind === 'blitz' ? Modes.createClock(def.seconds) : null, shown: def.seconds || 0,
+            seen: new Set(), missed: [], next: null, outcome: null, xp: null
+        };
+        modeTimer = setInterval(modeTick, 100);
+        showNextModeQuestion(modeGame);
+    };
+    // Odchod z obrazovky režimu (Zpět, Domů): rozehraná hra se zahodí
+    const leaveMode = () => {
+        stopModeTimers();
+        modeGame = null;
+        current = null;
+        round = null;
+        renderHome();
+    };
+
+    // Další otázka: položka z vybraných kategorií (mix: náhodné téma z vybraných), bez opakování v jedné hře.
+    // Bleskovka bere známost z výběru, Přežití podle počtu položených otázek (modes.js: survivalTier).
+    const prepareModeQuestion = async (game) => {
+        const history = readJson(KEYS.history) || [];
+        for (let attempt = 0; attempt < 4; attempt++) {
+            const topicId = game.pool.kind === 'topic' ? game.pool.topic : pickRandom(settings.topics, Math.random);
+            const ctx = await loadTopic(topicId);
+            const chosen = selectedCategories(ctx.topic);
+            const inCategories = ctx.items.filter(item => chosen.includes(item.c));
+            const base = inCategories.length ? inCategories : ctx.items;
+            const tiered = filterItems(base, { tier: game.kind === 'survival' ? Modes.survivalTier(game.asked, Math.random) : settings.tier });
+            const candidates = tiered.length ? tiered : base;
+            const fresh = candidates.filter(item => !game.seen.has(`${topicId}:${item.q}`));
+            const item = pickItem(fresh.length ? fresh : candidates, Math.random, history, ctx.topic.categories.map(category => category.key));
+            if (!item) continue;
+            game.seen.add(`${topicId}:${item.q}`);
+            const data = await createRoundData(item, ctx, Math.random);
+            // Jen otázky s výběrem z možností; chudý popis (bez nápověd by nešlo odpovědět) nejvýš dvakrát vymění
+            if (!Modes.playable(data) || (data.thin && attempt < 2 && !wikiPaused())) continue;
+            rememberPlayed(item);
+            return data;
+        }
+        throw new Error('Není z čeho vybírat');
+    };
+    const queueModeQuestion = (game) => {
+        const slot = { data: null };
+        slot.promise = prepareModeQuestion(game).then(data => { slot.data = data; return data; });
+        slot.promise.catch(() => {});
+        return slot;
+    };
+    const showNextModeQuestion = async (game) => {
+        if (!modeLive(game)) return;
+        const slot = game.next || queueModeQuestion(game);
+        game.next = null;
+        if (!slot.data) {
+            game.phase = 'loading';
+            renderModeScreen();
+            try {
+                await slot.promise;
+            } catch (error) {
+                if (!modeLive(game)) return;
+                console.error(error);
+                game.phase = 'error';
+                game.error = error;
+                renderModeScreen();
+                return;
+            }
+            if (!modeLive(game) || game.phase !== 'loading') return;
+        }
+        game.asked += 1;
+        game.picked = null;
+        game.penalty = false;
+        game.lostLife = false;
+        game.phase = 'question';
+        current = slot.data;
+        round = { hintLevel: 1, variant: 'choices', answered: false, correct: false, points: 0, typed: false, answer: null, gaveUp: false, review: false };
+        renderModeScreen();
+        // Další otázka se chystá hned, dokud hráč přemýšlí
+        game.next = queueModeQuestion(game);
+    };
+
+    // Hodiny Bleskovky: běží, jen když je vidět otázka (ne při načítání, po odpovědi, ve skryté aplikaci ani pod otevřeným oknem)
+    const modeTick = () => {
+        const game = modeGame;
+        if (!game || screen !== 'mode') {
+            // Hráč odešel jinam: hra skončila bez výsledku
+            stopModeTimers();
+            if (game && screen !== 'mode') modeGame = null;
+            return;
+        }
+        if (game.kind !== 'blitz' || !game.clock) return;
+        const now = Date.now();
+        const run = game.phase === 'question' && !document.hidden && !MODE_OVERLAYS.some(id => document.getElementById(id));
+        if (run && !Modes.clockRunning(game.clock)) game.clock = Modes.startClock(game.clock, now);
+        if (!run && Modes.clockRunning(game.clock)) game.clock = Modes.pauseClock(game.clock, now);
+        const left = Modes.clockLeft(game.clock, now);
+        const shown = Modes.secondsShown(left);
+        const tick = Modes.tickDue(game.shown, shown);
+        game.shown = shown;
+        paintModeClock(left);
+        if (tick && Sound) Sound.play(tick === 1 ? 'tickLast' : 'tick');
+        if (left <= 0 && game.phase === 'question') finishModeGame(game);
+    };
+    document.addEventListener('visibilitychange', () => { if (modeGame && screen === 'mode') modeTick(); });
+    // Čas a pruh se překreslují bez překreslení otázky (posledních 10 s červeně)
+    const paintModeClock = (left) => {
+        const box = appContent.querySelector('[data-mode-timer]');
+        if (!box) return;
+        const shown = Modes.secondsShown(left);
+        box.querySelector('[data-mode-clock]').textContent = String(shown);
+        const bar = box.querySelector('[data-mode-bar]');
+        bar.style.width = `${Math.max(0, Math.min(100, left / (Modes.MODES.blitz.seconds * 10)))}%`;
+        const urgent = shown <= 10;
+        if (box.dataset.urgent === String(urgent)) return;
+        box.dataset.urgent = String(urgent);
+        bar.classList.toggle('bg-gold-500', !urgent);
+        bar.classList.toggle('bg-rose-500', urgent);
+        bar.classList.toggle('mode-urgent', urgent);
+        const chip = box.querySelector('[data-mode-clock-chip]');
+        chip.classList.toggle('text-rose-700', urgent);
+        chip.classList.toggle('dark:text-rose-300', urgent);
+    };
+
+    // Odpověď: krátce ukáže správnou (a špatnou) možnost, pak další otázka; Bleskovka za chybu ubere čas, Přežití život
+    const answerMode = (index) => {
+        const game = modeGame;
+        if (!modeLive(game) || game.phase !== 'question' || !current) return;
+        const choice = current.question.choices[index];
+        if (!choice) return;
+        const def = Modes.MODES[game.kind];
+        const now = Date.now();
+        game.picked = index;
+        game.phase = 'feedback';
+        Object.assign(round, { answered: true, correct: Boolean(choice.correct), answer: choice.label });
+        if (game.clock) game.clock = Modes.pauseClock(game.clock, now);
+        if (choice.correct) game.score += 1;
+        else {
+            game.wrong += 1;
+            if (game.kind === 'blitz') { game.clock = Modes.penalize(game.clock, def.penalty * 1000, now); game.penalty = true; }
+            if (game.kind === 'survival') { game.lives = Math.max(0, game.lives - 1); game.lostLife = true; }
+            if (!game.missed.some(miss => miss.topic === current.topic && miss.id === current.id)) game.missed.push({ topic: current.topic, id: current.id, name: current.name });
+        }
+        noteModeAnswer(current, Boolean(choice.correct));
+        if (Sound) Sound.answer(Boolean(choice.correct));
+        renderModeScreen();
+        const over = game.kind === 'survival' ? game.lives <= 0 : Modes.clockLeft(game.clock, now) <= 0;
+        modeFeedbackTimer = setTimeout(() => {
+            if (!modeLive(game) || game.phase !== 'feedback') return;
+            if (over) finishModeGame(game);
+            else showNextModeQuestion(game);
+        }, choice.correct ? def.feedback.correct : def.feedback.wrong);
+    };
+    // Chyby a procvičování jako v běžné hře: špatně = do Mých chyb a karta opakování, správně = z chyb pryč a do poznaných položek
+    const noteModeAnswer = (data, correct) => {
+        const key = `${data.topic}:${data.id}`;
+        writeJson(KEYS.mistakes, updateMistakes(loadMistakes(), key, correct));
+        if (reviewEnabled()) saveReview(Review.onAnswer(loadReview(), key, correct, getDayKey(), { force: false }));
+        if (correct) {
+            const learned = loadLearned();
+            learned[data.topic] = [...new Set([...(learned[data.topic] || []), data.id])];
+            writeJson(KEYS.learned, learned);
+        }
+    };
+    // XP za hru (rozpis a denní strop z modes.js); den hraní se počítá jako u běžné hry, odznaky za poznané položky a úroveň také
+    const awardModeXp = (xp) => {
+        const before = loadProgress();
+        const progress = { ...before, xp: before.xp + xp.total };
+        if (progress.counters.lastDay !== getDayKey()) { progress.counters.days += 1; progress.counters.lastDay = getDayKey(); }
+        const badgeTitles = grantBadges(progress);
+        saveProgress(progress);
+        announce(levelProgress(before.xp).level, levelProgress(progress.xp).level, badgeTitles);
+        settleGoals();
+        applyLook();
+        syncProgress();
+        return { ...xp, badges: badgeTitles };
+    };
+    // Konec hry (čas, poslední život nebo Ukončit hru): rekordy, XP, oslava nového rekordu se zvukem a vibrací
+    const finishModeGame = (game) => {
+        if (!modeLive(game) || game.phase === 'result') return;
+        stopModeTimers();
+        game.next = null;
+        current = null;
+        round = null;
+        // Ukončeno hned na začátku (žádná otázka): zpět na úvod, hra se nepočítá
+        if (!game.asked) {
+            modeGame = { kind: game.kind, pool: game.pool, scope: game.scope, phase: 'intro' };
+            renderModeScreen();
+            return;
+        }
+        const def = Modes.MODES[game.kind];
+        const outcome = Modes.finish(loadModeState(), game.kind, game.scope, game.score, getDayKey());
+        writeJson(Modes.STORAGE_KEY, outcome.state);
+        game.outcome = outcome;
+        game.phase = 'result';
+        if (outcome.record) {
+            if (Sound) { Sound.play('record'); Sound.vibrate('record'); }
+            showCelebration('vitez', 'Nový rekord!', `${def.title} · ${modeTopicOf(game).title}: ${Modes.scoreLabel(game.kind, game.score)}`);
+        }
+        game.xp = awardModeXp(outcome.xp);
+        renderModeScreen();
+    };
+
+    // --- Obrazovky režimu ---
+    const modeBadge = (kind, cls = 'h-7 w-7', icon = 'h-4 w-4') => `<span class="flex ${cls} shrink-0 items-center justify-center rounded-full ${MODE_BADGE[kind]}"><i data-lucide="${Modes.MODES[kind].icon}" class="${icon}"></i></span>`;
+    const modeStat = (label, value, attrs = '') => `
+        <div ${attrs} class="flex flex-col justify-between rounded-2xl bg-white px-2 py-2 text-center shadow-sm ring-1 ring-slate-200/70 dark:bg-slate-800 dark:ring-slate-700/70">
+            <p class="text-[10px] font-black uppercase leading-tight tracking-wider text-slate-500 dark:text-slate-400">${escapeHtml(label)}</p>
+            <p class="mt-0.5 text-2xl font-black tabular-nums leading-tight text-slate-800 dark:text-slate-100">${value}</p>
+        </div>`;
+    const modeScoreChip = (game) => `<span class="flex shrink-0 items-center gap-1 rounded-xl bg-emerald-50 px-2.5 py-1.5 text-lg font-black tabular-nums leading-none text-emerald-800 ring-1 ring-emerald-200 dark:bg-emerald-900/40 dark:text-emerald-200 dark:ring-emerald-800" aria-label="Správně: ${game.score}"><i data-lucide="check" class="h-4 w-4"></i>${game.score}</span>`;
+    // Horní řádek hry: Bleskovka = zbývající čas s pruhem, Přežití = srdíčka a obtížnost; vpravo počet správných
+    const modeStatus = (game) => {
+        if (game.kind === 'blitz') {
+            return `
+                <div data-mode-timer class="flex items-center gap-2.5">
+                    <span class="relative shrink-0">
+                        <span data-mode-clock-chip role="timer" aria-label="Zbývající čas v sekundách" class="flex min-w-[4.5rem] items-center gap-1 rounded-xl bg-white px-2.5 py-1.5 text-lg font-black tabular-nums leading-none text-slate-800 shadow-sm ring-1 ring-slate-200/70 dark:bg-slate-800 dark:text-slate-100 dark:ring-slate-700/70"><i data-lucide="zap" class="h-4 w-4 text-gold-600 dark:text-gold-400"></i><span data-mode-clock>${Modes.secondsShown(Modes.clockLeft(game.clock, Date.now()))}</span><span class="text-xs font-bold text-slate-500 dark:text-slate-400">s</span></span>
+                        ${game.penalty ? `<span data-mode-penalty class="mode-pop absolute left-1/2 top-full z-10 mt-1 -translate-x-1/2 whitespace-nowrap rounded-lg bg-rose-600 px-2 py-0.5 text-xs font-black text-white shadow">−${Modes.MODES.blitz.penalty} s</span>` : ''}
+                    </span>
+                    <span class="h-2.5 min-w-0 flex-1 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700" aria-hidden="true"><span data-mode-bar class="block h-full w-full rounded-full bg-gold-500"></span></span>
+                    ${modeScoreChip(game)}
+                </div>`;
+        }
+        const hearts = Array.from({ length: Modes.MODES.survival.lives }, (_, index) => {
+            const alive = index < game.lives;
+            const justLost = game.lostLife && index === game.lives;
+            return `<i data-lucide="heart" class="h-5 w-5 ${alive ? 'fill-rose-500 text-rose-600 dark:text-rose-400' : `text-slate-300 dark:text-slate-600 ${justLost ? 'mode-heart-lost' : ''}`}"></i>`;
+        }).join('');
+        return `
+            <div data-mode-lives="${game.lives}" class="flex items-center gap-2.5">
+                <span class="flex shrink-0 items-center gap-0.5 rounded-xl bg-white px-2 py-1.5 shadow-sm ring-1 ring-slate-200/70 dark:bg-slate-800 dark:ring-slate-700/70" role="img" aria-label="Životy: ${game.lives} ze ${Modes.MODES.survival.lives}">${hearts}</span>
+                <span class="min-w-0 flex-1 text-center text-[11px] font-bold uppercase leading-tight tracking-wider text-slate-500 dark:text-slate-400">${escapeHtml(Modes.difficultyLabel(Math.max(0, game.asked - 1)))}</span>
+                ${modeScoreChip(game)}
+            </div>`;
+    };
+    const renderModeIntro = (game) => {
+        const def = Modes.MODES[game.kind];
+        const topic = modeTopicOf(game);
+        const style = styleOf(topic);
+        const state = loadModeState();
+        const records = Modes.recordsOf(state, game.kind, game.scope);
+        const left = Modes.xpLeftToday(state, game.kind, getDayKey());
+        const xpText = left > 0
+            ? `+${def.xpPer} XP za každou ${def.xpUnit[0]} (dnes ještě až ${left} XP) a +${Modes.RECORD_XP} XP za překonaný rekord.`
+            : `Dnešní strop ${Modes.DAILY_XP_CAP} XP za ${def.titleAcc} je vyčerpaný – rekordy se počítají dál.`;
+        appContent.innerHTML = `
+            <div data-mode-intro="${game.kind}" class="fade-in flex min-h-full w-full flex-col gap-3 bg-slate-50 p-4 short:gap-2 short:p-3 dark:bg-slate-900">
+                <div class="flex items-center gap-3">
+                    <span class="relative shrink-0">
+                        ${topicIcon(topic, 'h-14 w-14', `flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br text-white ${style.tile}`, 'h-7 w-7')}
+                        <span class="absolute -bottom-1 -right-1 rounded-full ring-2 ring-slate-50 dark:ring-slate-900">${modeBadge(game.kind)}</span>
+                    </span>
+                    <div class="min-w-0">
+                        <h2 class="text-2xl font-black leading-tight text-slate-800 dark:text-slate-50">${escapeHtml(def.title)}</h2>
+                        <p class="text-[13px] font-semibold leading-snug text-slate-600 dark:text-slate-300">${escapeHtml(topic.title)} · ${escapeHtml(modeScopeText(game))}</p>
+                    </div>
+                </div>
+                <ul class="${CARD} flex flex-col gap-2.5 p-3.5 short:gap-2 short:p-3">
+                    ${Modes.rules(game.kind).map(rule => `<li class="flex items-center gap-2.5 text-[13px] font-semibold leading-snug text-slate-700 dark:text-slate-200"><i data-lucide="${rule.icon}" class="h-5 w-5 shrink-0 ${style.text}"></i><span>${escapeHtml(rule.text)}</span></li>`).join('')}
+                </ul>
+                <div class="grid grid-cols-2 gap-2">
+                    ${modeStat(game.pool.kind === 'mix' ? 'Rekord mixu' : 'Rekord tématu', records.scope || '–', 'data-mode-record-scope')}
+                    ${modeStat('Celkový rekord', records.overall || '–', 'data-mode-record-overall')}
+                </div>
+                <p class="text-xs font-semibold leading-snug text-slate-500 dark:text-slate-400">${escapeHtml(xpText)}</p>
+                <div class="mt-auto flex flex-col gap-1">
+                    <button type="button" data-action="mode-start" class="flex w-full items-center justify-center gap-2 rounded-[1.2rem] py-3.5 text-lg font-black text-white shadow-lg transition-all active:scale-95 short:py-3 ${style.button} btn-3d"><i data-lucide="play" class="h-5 w-5"></i> Start</button>
+                    <button type="button" data-action="mode-home" class="${BACK_LINK} mx-auto"><i data-lucide="chevron-left" class="h-4 w-4"></i> Zpět na úvod</button>
+                </div>
+            </div>`;
+    };
+    const renderModeQuestion = (game) => {
+        const data = current;
+        const topic = TOPIC_BY_ID[data.topic];
+        const style = styleOf(topic);
+        const category = categoryOf(topic, data.category);
+        const feedback = game.phase === 'feedback';
+        const BASE = 'btn-3d-light min-h-[3rem] rounded-xl px-3 py-1.5 text-sm font-bold leading-tight';
+        const choiceClass = (choice, index) => !feedback ? `${BASE} bg-white text-slate-700 dark:bg-slate-700 dark:text-slate-100`
+            : choice.correct ? `${BASE} border-emerald-700 bg-emerald-600 text-white dark:border-emerald-900 dark:bg-emerald-700`
+            : index === game.picked ? `${BASE} border-rose-800 bg-rose-600 text-white dark:border-rose-900 dark:bg-rose-700`
+            : `${BASE} bg-white text-slate-700 opacity-50 dark:bg-slate-700 dark:text-slate-100`;
+        const choices = data.question.choices.map((choice, index) => `
+            <button type="button" data-action="mode-choice" data-index="${index}"${feedback ? ' disabled' : ''} class="${choiceClass(choice, index)}">${escapeHtml(choice.label)}</button>`).join('');
+        const verdict = !feedback ? '' : round.correct ? 'Správně!' : `Špatně. Správně je ${data.question.answerLabel}.`;
+        appContent.innerHTML = `
+            <div data-mode-question="${game.kind}" data-phase="${game.phase}" data-asked="${game.asked}" class="flex min-h-full w-full flex-col gap-2.5 bg-slate-50 p-3 pb-2 dark:bg-slate-900">
+                ${modeStatus(game)}
+                <div class="flex flex-col items-center gap-1 text-center">
+                    <span class="inline-flex items-center gap-1.5 rounded-lg border px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest text-white shadow-sm ${style.solid}"><i data-lucide="${category.icon}" class="h-3 w-3"></i> ${escapeHtml(data.typeLabel)}</span>
+                    <h2 class="text-[22px] font-black leading-tight tracking-tight text-slate-800 dark:text-slate-50">${escapeHtml(data.question.title)}</h2>
+                </div>
+                ${questionPanel(data)}
+                <section class="${CARD} p-3"><div class="grid grid-cols-2 gap-2">${choices}</div></section>
+                <p class="sr-only" role="status">${escapeHtml(verdict)}</p>
+                <button type="button" data-action="mode-quit" class="mx-auto flex min-h-[2.75rem] items-center gap-2 px-3 text-sm font-semibold text-slate-500 underline-offset-4 hover:underline dark:text-slate-400"><i data-lucide="flag" class="h-4 w-4"></i> Ukončit hru</button>
+            </div>`;
+        renderIcons(appContent);
+        mountPanels();
+        if (game.clock) paintModeClock(Modes.clockLeft(game.clock, Date.now()));
+        if (!feedback) appContent.scrollTo(0, 0);
+    };
+    const renderModeLoading = (game) => {
+        const topic = modeTopicOf(game);
+        appContent.innerHTML = `
+            <div data-mode-loading class="flex min-h-full w-full flex-col gap-2.5 bg-slate-50 p-3 dark:bg-slate-900">
+                ${game.asked || game.kind === 'blitz' ? modeStatus(game) : ''}
+                <div class="flex flex-1 flex-col items-center justify-center">
+                    ${topicArt(topic) ? topicIcon(topic, 'bob mb-4 h-20 w-20') : LOADING_OWL}
+                    <p class="text-sm font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300">${game.asked ? 'Chystám další otázku…' : 'Chystám otázky…'}</p>
+                    ${game.kind === 'blitz' ? '<p class="mt-1 text-xs font-semibold text-slate-500 dark:text-slate-400">Čas zatím stojí</p>' : ''}
+                </div>
+            </div>`;
+        renderIcons(appContent);
+        if (game.clock) paintModeClock(Modes.clockLeft(game.clock, Date.now()));
+    };
+    const renderModeError = (game) => {
+        const offline = game.error instanceof NetworkError || !navigator.onLine;
+        appContent.innerHTML = `
+            <div data-mode-error class="fade-in flex min-h-full flex-col items-center justify-center gap-2 bg-slate-50 p-8 text-center dark:bg-slate-900">
+                <i data-lucide="${offline ? 'wifi-off' : 'search-x'}" class="mb-2 h-14 w-14 text-slate-300 dark:text-slate-600"></i>
+                <h2 class="text-xl font-bold text-slate-700 dark:text-slate-200">${offline ? 'Chyba spojení' : 'Něco se pokazilo'}</h2>
+                <p class="mb-4 text-slate-500 dark:text-slate-400">${offline ? 'Další otázku se nepodařilo načíst. Zkontroluj připojení k internetu a zkus to znovu.' : 'Další otázku se nepodařilo připravit. Zkus to prosím znovu.'}${game.kind === 'blitz' ? ' Čas mezitím stojí.' : ''}</p>
+                <button type="button" data-action="mode-retry" class="rounded-2xl bg-brand-700 px-6 py-3 font-bold text-white shadow-lg active:scale-95">Zkusit znovu</button>
+                <button type="button" data-action="mode-quit" class="${BACK_LINK}">Ukončit hru</button>
+            </div>`;
+        renderIcons(appContent);
+    };
+    const renderModeResult = (game) => {
+        const def = Modes.MODES[game.kind];
+        const topic = modeTopicOf(game);
+        const style = styleOf(topic);
+        const { outcome } = game;
+        const owl = outcome.record ? 'sova-vitez' : game.score > 0 ? 'sova-radost' : 'sova-smutek';
+        const unit = Modes.scoreLabel(game.kind, game.score).replace(/^\d+ /, '');
+        const recordLine = outcome.record
+            ? `<p data-mode-new-record class="mode-pop mt-1.5 inline-flex items-center gap-1.5 rounded-full bg-gold-500 px-3 py-1 text-sm font-black text-brand-950 shadow"><i data-lucide="trophy" class="h-4 w-4"></i> Nový rekord!${outcome.overallRecord && !outcome.scopeRecord ? ' (celkový)' : outcome.overallRecord ? ' I celkový.' : ''}</p>`
+            : outcome.firstRecord ? `<p class="mt-1 text-xs font-bold text-slate-600 dark:text-slate-300">${game.pool.kind === 'mix' ? 'První rekord v mixu' : 'První rekord v tématu'}</p>`
+            : outcome.before.scope ? `<p class="mt-1 text-xs font-bold text-slate-600 dark:text-slate-300">Rekord je ${outcome.before.scope}, ${outcome.before.scope - game.score === 1 ? 'chyběla 1' : outcome.before.scope - game.score <= 4 ? `chyběly ${outcome.before.scope - game.score}` : `chybělo ${outcome.before.scope - game.score}`}</p>` : '';
+        const missed = game.missed.filter(isKnownRef);
+        const missedHtml = missed.length ? `
+            <section class="${CARD} p-3">
+                <h3 class="${CARD_TITLE}"><i data-lucide="repeat" class="h-4 w-4 ${style.text}"></i> Co ti uteklo</h3>
+                <p class="mb-2 mt-0.5 text-xs font-semibold text-slate-500 dark:text-slate-400">${reviewEnabled() ? 'Vrátí se ti v procvičování chyb.' : 'Najdeš to v Mých chybách v Učení.'}</p>
+                <div class="flex flex-wrap gap-1.5">
+                    ${missed.slice(0, 8).map(miss => `<button type="button" data-action="item-info" data-topic="${escapeHtml(miss.topic)}" data-id="${escapeHtml(miss.id)}" class="inline-flex min-h-[2.5rem] items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-[13px] font-bold text-slate-700 hover:border-slate-400 dark:border-slate-600 dark:bg-slate-700/60 dark:text-slate-100"><i data-lucide="info" class="h-4 w-4 ${style.text}"></i> ${escapeHtml(miss.name)}</button>`).join('')}
+                    ${missed.length > 8 ? `<span class="self-center text-xs font-bold text-slate-500 dark:text-slate-400">a ${missed.length - 8} další v Mých chybách</span>` : ''}
+                </div>
+            </section>` : '';
+        appContent.innerHTML = `
+            <div data-mode-result="${game.kind}" class="fade-in flex min-h-full w-full flex-col bg-slate-50 dark:bg-slate-900">
+                <div class="flex flex-grow flex-col gap-3 p-4 short:gap-2.5 short:p-3">
+                    <div data-verdict tabindex="-1" class="flex items-center gap-3 rounded-2xl bg-white p-3 shadow-sm outline-none ring-1 ring-slate-200/70 dark:bg-slate-800 dark:ring-slate-700/70">
+                        ${uiArt(owl, 'h-20 w-20 -my-2')}
+                        <div class="min-w-0 flex-1">
+                            <p class="flex items-center gap-1.5 text-[11px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">${modeBadge(game.kind, 'h-5 w-5', 'h-3 w-3')} ${escapeHtml(def.title)} · ${escapeHtml(topic.title)}</p>
+                            <p class="mt-1 flex items-baseline gap-2"><span data-mode-score class="text-5xl font-black tabular-nums leading-none text-slate-800 dark:text-slate-50">${game.score}</span><span class="text-sm font-bold leading-tight text-slate-600 dark:text-slate-300">${escapeHtml(unit)}</span></p>
+                            ${recordLine}
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-3 gap-2">
+                        ${modeStat(game.pool.kind === 'mix' ? 'Rekord mixu' : 'Rekord tématu', outcome.after.scope || '–')}
+                        ${modeStat('Celkový rekord', outcome.after.overall || '–')}
+                        ${game.kind === 'blitz' ? modeStat('Chyby', game.wrong) : modeStat('Otázek', game.asked)}
+                    </div>
+                    ${game.xp && (game.xp.total || game.xp.note) ? `<div data-mode-xp class="rounded-2xl bg-white px-3 py-2 shadow-sm ring-1 ring-slate-200/70 dark:bg-slate-800 dark:ring-slate-700/70">${xpLine(game.xp, 'text-slate-700 dark:text-slate-200')}${game.xp.note ? `<p class="mt-1 text-xs font-semibold text-slate-500 dark:text-slate-400">${escapeHtml(game.xp.note)}</p>` : ''}</div>` : ''}
+                    ${missedHtml}
+                </div>
+                <div class="sticky bottom-0 z-20 flex gap-2 border-t border-slate-200/70 bg-slate-50/95 px-4 pb-4 pt-3 backdrop-blur-sm dark:border-slate-800 dark:bg-slate-900/95">
+                    <button type="button" data-action="mode-home" class="flex shrink-0 items-center justify-center gap-1.5 rounded-[1.2rem] bg-slate-200 px-4 py-3.5 text-base font-bold text-slate-700 transition-all active:scale-95 dark:bg-slate-800 dark:text-slate-200"><i data-lucide="house" class="h-5 w-5"></i> Úvod</button>
+                    <button type="button" data-action="mode-again" class="flex min-w-0 flex-1 items-center justify-center gap-2 rounded-[1.2rem] py-3.5 text-lg font-bold text-white shadow-lg transition-all active:scale-95 max-[389px]:text-base ${style.button} btn-3d"><i data-lucide="repeat" class="h-5 w-5 shrink-0"></i> Hrát znovu</button>
+                </div>
+            </div>`;
+        const verdict = appContent.querySelector('[data-verdict]');
+        if (verdict) verdict.focus({ preventScroll: true });
+    };
+    const renderModeScreen = () => {
+        const game = modeGame;
+        if (!game || !Modes) return;
+        screen = 'mode';
+        if (game.phase === 'intro') renderModeIntro(game);
+        else if (game.phase === 'loading') renderModeLoading(game);
+        else if (game.phase === 'error') renderModeError(game);
+        else if (game.phase === 'result') renderModeResult(game);
+        else renderModeQuestion(game);
+        if (game.phase !== 'question' && game.phase !== 'feedback') {
+            applyProgress(appContent);
+            renderIcons(appContent);
+            if (game.phase !== 'loading') appContent.scrollTo(0, 0);
+        }
+        updateControlsUI();
+    };
+    // Tlačítka Bleskovka a Přežití v okně Co hrát (vedle Hrát)
+    const modeChooserButtons = () => Modes ? Modes.IDS.map(id => {
+        const def = Modes.MODES[id];
+        return `
+            <button type="button" data-chooser-mode="${id}" title="${escapeHtml(`${def.title}: ${def.tagline}`)}" aria-label="${escapeHtml(`${def.title}: ${def.tagline}`)}" class="btn-3d-light flex w-[4.75rem] shrink-0 flex-col items-center justify-center gap-1 rounded-[1.2rem] bg-white px-1 py-1 text-[11.5px] font-black leading-none text-slate-800 dark:bg-slate-800 dark:text-slate-100">
+                ${modeBadge(id, 'h-6 w-6', 'h-3.5 w-3.5')}${escapeHtml(def.title)}
+            </button>`;
+    }).join('') : '';
+    const modeActions = {
+        'mode-start': () => startModeGame(),
+        'mode-choice': (button) => answerMode(Number(button.dataset.index)),
+        'mode-quit': () => { if (modeGame && modeGame.phase !== 'intro' && modeGame.phase !== 'result') finishModeGame(modeGame); },
+        'mode-again': () => { if (modeGame) startModeGame(modeGame.kind, modeGame.pool); },
+        'mode-home': () => leaveMode(),
+        'mode-retry': () => { if (modeGame && modeGame.phase === 'error') { modeGame.phase = 'loading'; showNextModeQuestion(modeGame); } }
     };
 
     // --- Profil a výzvy (hra více hráčů) ---
@@ -6875,6 +7397,7 @@
         'league-help': () => openLeagueHelp(),
         'home-tab': (button) => { writeJson(KEYS.homeTab, button.dataset.tab === 'multi' ? 'multi' : 'single'); renderHome(); refreshTournaments(); },
         ...tournamentActions,
+        ...modeActions,
         'new-challenge': () => openNewChallenge(),
         'random-challenge': () => openNewChallenge({ who: 'random' }),
         'recent-more': () => { recentExpanded = !recentExpanded; paintChallenges(); },
@@ -7038,6 +7561,8 @@
             else renderHome();
         } else if (screen === 'challenge-done') {
             challengeHome();
+        } else if (screen === 'mode') {
+            leaveMode();
         } else if (screen === 'learn') {
             const up = { atlas: 'collection', collection: 'topic', topic: 'home', mistakes: 'home' }[learn.view];
             if (up) openLearn(up);
