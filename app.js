@@ -3306,10 +3306,44 @@
         card.addEventListener('click', done);
         setTimeout(done, 4500);
     };
+    // Během hry (otázka na obrazovce, výzva, zápas turnaje, Kvíz dne, Bleskovka a Přežití) by karta zakryla možnosti:
+    // místo ní se ukáže jen malé okénko nahoře a celé oslavy přijdou až na klidné obrazovce (výsledek otázky v tréninku,
+    // konec výzvy či Kvízu dne, výsledek režimu, úvod). Kontroluje se každou sekundu.
+    const celebrationCalm = () => {
+        if (mode === 'blitz' || mode === 'survival') return !modeGame || modeGame.phase === 'result' || screen !== 'mode';
+        if (screen === 'home' || screen === 'learn' || screen === 'challenge-done' || screen === 'quiz-done' || screen === 'welcome') return true;
+        if (mode === 'challenge' || mode === 'quiz') return false;
+        return Boolean(round && round.answered);
+    };
+    const MINI_CELEBRATION = 'pointer-events-none fixed right-3 top-[4.5rem] z-[60] flex max-w-[70vw] items-center gap-1.5 rounded-full bg-brand-900/90 px-3 py-1.5 text-xs font-black text-gold-200 shadow-lg ring-1 ring-gold-400/60';
+    const miniCelebration = (item) => {
+        const old = document.getElementById('celebration-mini');
+        if (old) old.remove();
+        const chip = document.createElement('div');
+        chip.id = 'celebration-mini';
+        chip.setAttribute('role', 'status');
+        chip.className = `fade-in ${MINI_CELEBRATION}`;
+        chip.innerHTML = `<i data-lucide="sparkles" class="h-3.5 w-3.5 shrink-0"></i><span class="truncate">${escapeHtml(item.title)}: ${escapeHtml(item.text)}</span>`;
+        document.body.appendChild(chip);
+        renderIcons(chip);
+        setTimeout(() => chip.remove(), 2500);
+    };
+    const deferredCelebrations = [];
     const showCelebration = (owl, title, text, sound = null) => {
-        celebrationQueue.push({ owl, title, text, sound });
+        const item = { owl, title, text, sound };
+        if (!celebrationCalm()) { deferredCelebrations.push(item); miniCelebration(item); return; }
+        celebrationQueue.push(item);
         if (!celebrating) nextCelebration();
     };
+    setInterval(() => {
+        // Karta, která zůstala viset do další otázky, zmizí; odložené oslavy se ukážou, jakmile je klid
+        const card = document.getElementById('celebration');
+        if (card && !celebrationCalm()) { card.remove(); celebrating = false; celebrationQueue.length = 0; }
+        if (deferredCelebrations.length && celebrationCalm()) {
+            celebrationQueue.push(...deferredCelebrations.splice(0));
+            if (!celebrating) setTimeout(nextCelebration, 400);
+        }
+    }, 1000);
     const announce = (levelBefore, levelNow, badgeTitles) => {
         if (levelNow > levelBefore) {
             const newTitle = titleForLevel(levelNow) !== titleForLevel(levelBefore);
