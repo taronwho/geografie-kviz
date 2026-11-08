@@ -590,6 +590,14 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         await tab.click('#status-badge');
         await tab.waitForSelector('#play-chooser [data-chooser-category="hora"][aria-pressed="true"]');
         await tab.click('#play-chooser [data-chooser-all]');
+        // Zrušit vše: nic vybraného, Hrát jen upozorní; první klepnutí vybere jen tu kategorii
+        await tab.click('#play-chooser [data-chooser-none]');
+        assert.equal(await tab.locator('#play-chooser [data-chooser-category][aria-pressed="true"]').count(), 0);
+        await tab.click('#play-chooser [data-chooser-play]');
+        await tab.waitForSelector('#chooser-note:has-text("Vyber aspoň jeden okruh")');
+        await tab.click('#play-chooser [data-chooser-category="hora"]');
+        assert.equal(await tab.locator('#play-chooser [data-chooser-category][aria-pressed="true"]').count(), 1);
+        await tab.click('#play-chooser [data-chooser-all]');
         assert.equal(await tab.locator('#play-chooser [data-chooser-switch]').count(), 0, 'okno bez přepínání na jiné téma');
         await tab.click('#play-chooser [data-close]');
         await tab.click('#btn-home');
@@ -1592,10 +1600,14 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         await one.tab.click('[data-ch-who="anyone"]');
         await one.tab.click('[data-ch-open="topics"]');
         await one.tab.click('[data-ch-topic="vlajky"]');
-        for (const key of ['znak', 'uzemi', 'cesko', 'regiony', 'mesta', 'historie']) await one.tab.click(`[data-ch-cat="${key}"]`);
-        assert.equal(await one.tab.locator('[data-ch-cat][aria-pressed="true"]').count(), 1);
+        // Zrušit vše, pak jen okruh vlajek států; Vybrat vše vrátí všechny
+        await one.tab.click('[data-ch-cats="none"]');
+        assert.equal(await one.tab.locator('[data-ch-cat][aria-pressed="true"]').count(), 0);
+        await one.tab.click('[data-ch-cats="all"]');
+        assert.equal(await one.tab.locator('[data-ch-cat][aria-pressed="false"]').count(), 0);
+        await one.tab.click('[data-ch-cats="none"]');
         await one.tab.click('[data-ch-cat="vlajka"]');
-        assert.equal(await one.tab.locator('[data-ch-cat][aria-pressed="true"]').count(), 1, 'poslední okruh nejde zrušit');
+        assert.equal(await one.tab.locator('[data-ch-cat][aria-pressed="true"]').count(), 1);
         await one.tab.click('[data-ch-open="settings"]');
         await one.tab.click('[data-ch-hard="yes"]');
         await one.tab.click('[data-ch-variant="typed"]');
