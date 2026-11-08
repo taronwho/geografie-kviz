@@ -707,3 +707,19 @@ test('osa stáří, jejíž hodnotu už říká popis, se jako nápověda nenab�
     assert.equal(core.scaleKnown({ type: 'scale', valueLabel: 'tvrdost 6' }, 'Mohsova tvrdost 6.'), false, 'jednociferné číslo se nehodnotí (našlo by se náhodou)');
     assert.equal(core.scaleKnown({ type: 'timeline' }, '251,9'), false);
 });
+
+test('časová osa, jejíž rok už je v popisu (i o pár let jinak), se jako nápověda nenabízí', () => {
+    const point = (year) => ({ type: 'timeline', spans: [], points: [year] });
+    // Salome od Tiziana: Wikidata 1515, popis „datovaný do roku 1516“
+    assert.equal(core.timelineKnown(point(1515), '[***] je obraz, přisuzovaný Tizianovi, datovaný do roku 1516.'), true);
+    assert.equal(core.timelineKnown(point(1515), 'Obraz vznikl roku 1515.'), true);
+    assert.equal(core.timelineKnown(point(1515), 'Obraz vznikl v 16. století.'), false, 'století rok neříká – osa pomůže');
+    assert.equal(core.timelineKnown(point(1515), 'Obraz vznikl roku 1540.'), false, 'vzdálený rok osu nenahradí');
+    assert.equal(core.timelineKnown(point(1515), 'Hora měří 1515 m.'), false, 'výška není letopočet');
+    assert.equal(core.timelineKnown(point(1515), 'Město má 1514 obyvatel.'), false, 'počet obyvatel není letopočet');
+    const life = { type: 'timeline', spans: [{ kind: 'life', from: 1840, to: 1910 }], points: [] };
+    assert.equal(core.timelineKnown(life, 'Narodil se roku 1840 a zemřel 1910.'), true);
+    assert.equal(core.timelineKnown(life, 'Narodil se roku 1840.'), false, 'chybí rok úmrtí – osa ho přidá');
+    assert.equal(core.timelineKnown({ ...point(1515), blind: true }, 'Roku 1515.'), false, 'osa bez letopočtů zůstává nápovědou');
+    assert.equal(core.timelineKnown({ type: 'scale', valueLabel: '1515' }, '1515'), false);
+});

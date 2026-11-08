@@ -215,14 +215,14 @@ test('sova jako obrázek profilu', { skip: !chromium && 'Playwright není nainst
     await t.test('sova titulu jako profilovka: dosažená jde vybrat, vyšší je zamčená; uloží se s pózou, druhý hráč ji vidí', async () => {
         db.profiles['u-1'].owl = null;
         db.profiles['u-1'].avatar = '🦊';
-        // Úroveň 18 (PROGRESS): sovy titulů 1–4 (Zvědavec … Znalec) jsou dosažené, 5–10 zamčené; zelený talár a brýle
+        // Úroveň 18 (PROGRESS): sovy titulů 1–4 (Zvědavec … Znalec) jsou dosažené, 5–11 zamčené; zelený talár a brýle
         const one = await open('tok-u1', { extra: { 'mudrlant.look': JSON.stringify({ robe: 'zelena', acc: { face: { id: 'bryle', color: 'original' } } }) } });
         await one.tab.click('#btn-settings');
         await one.tab.click('[data-me-tab="profile"]');
         await one.tab.waitForSelector('[data-pick-owl="titul-1"]');
         // Pořadí v pásu obrázků: Moje sova, sovy titulů (dosažené, pak zamčené), emoji
-        const tiles = await one.tab.$$eval('[data-avatar-strip] > button', nodes => nodes.slice(0, 12).map(node => node.dataset.pickOwl !== undefined ? `vyber:${node.dataset.pickOwl}` : node.dataset.lockedOwl ? `zamčeno:${node.dataset.lockedOwl}` : 'emoji'));
-        assert.deepEqual(tiles, ['vyber:', 'vyber:titul-1', 'vyber:titul-2', 'vyber:titul-3', 'vyber:titul-4', 'zamčeno:titul-5', 'zamčeno:titul-6', 'zamčeno:titul-7', 'zamčeno:titul-8', 'zamčeno:titul-9', 'zamčeno:titul-10', 'emoji']);
+        const tiles = await one.tab.$$eval('[data-avatar-strip] > button', nodes => nodes.slice(0, 13).map(node => node.dataset.pickOwl !== undefined ? `vyber:${node.dataset.pickOwl}` : node.dataset.lockedOwl ? `zamčeno:${node.dataset.lockedOwl}` : 'emoji'));
+        assert.deepEqual(tiles, ['vyber:', 'vyber:titul-1', 'vyber:titul-2', 'vyber:titul-3', 'vyber:titul-4', 'zamčeno:titul-5', 'zamčeno:titul-6', 'zamčeno:titul-7', 'zamčeno:titul-8', 'zamčeno:titul-9', 'zamčeno:titul-10', 'zamčeno:titul-11', 'emoji']);
         // Náhled je sova titulu v mém zeleném taláru, bez doplňků, oříznutá do kolečka
         assert.equal(await one.tab.getAttribute('[data-pick-owl="titul-4"] img', 'src'), 'icons/topics/sova-titul-4-zelena.webp');
         assert.equal(await one.tab.locator('[data-pick-owl="titul-4"] span.rounded-full.overflow-hidden img[data-keep]').count(), 1);
@@ -233,6 +233,10 @@ test('sova jako obrázek profilu', { skip: !chromium && 'Playwright není nainst
         assert.equal(await one.tab.getAttribute(locked, 'aria-disabled'), 'true');
         assert.equal(await one.tab.getAttribute(locked, 'title'), 'Sova titulu Učenec (Učenec, Vzdělanec, Erudit): od úrovně 27');
         assert.match(await one.tab.textContent(locked), /úr\.\s27/);
+        // Mudrlant (nejvyšší titul, úroveň 100) má vlastní sovu: jediný titul stupně, proto bez výčtu v závorce
+        assert.equal(await one.tab.getAttribute('[data-locked-owl="titul-11"]', 'title'), 'Sova titulu Mudrlant: od úrovně 100');
+        assert.match(await one.tab.textContent('[data-locked-owl="titul-11"]'), /úr\.\s100/);
+        assert.equal(await one.tab.getAttribute('[data-locked-owl="titul-11"] img', 'src'), 'icons/topics/sova-titul-11-zelena.webp');
         assert.equal(await one.tab.locator(`${locked} .grayscale img`).count(), 1);
         assert.equal(await one.tab.locator(`${locked}[data-pick-owl]`).count(), 0);
         await one.tab.click(locked, { force: true });
@@ -308,6 +312,41 @@ test('sova jako obrázek profilu', { skip: !chromium && 'Playwright není nainst
         db.profiles['u-1'].avatar = '🦊';
     });
 
+    await t.test('sova Mudrlanta (titul-11): na úrovni 100 odemčená, uloží se s pózou a druhý hráč ji vidí oříznutou do kolečka', async () => {
+        db.profiles['u-1'].owl = null;
+        db.profiles['u-1'].avatar = '🦊';
+        const progress = JSON.stringify({ xp: require('../quiz-core.js').xpForLevel(100), counters: {}, badges: {} });
+        const one = await open('tok-u1', { extra: { 'mudrlant.progress': progress, 'mudrlant.look': JSON.stringify({ robe: 'zlata' }) } });
+        await one.tab.click('#btn-settings');
+        await one.tab.click('[data-me-tab="profile"]');
+        await one.tab.waitForSelector('[data-pick-owl="titul-11"]');
+        assert.equal(await one.tab.locator('[data-locked-owl]').count(), 0, 'na úrovni 100 nic zamčeného');
+        assert.equal(await one.tab.getAttribute('[data-pick-owl="titul-11"]', 'aria-label'), 'Sova titulu Mudrlant');
+        assert.equal(await one.tab.getAttribute('[data-pick-owl="titul-11"] img', 'src'), 'icons/topics/sova-titul-11-zlata.webp');
+        await one.tab.click('[data-pick-owl="titul-11"]');
+        await one.tab.waitForSelector('[data-pick-owl="titul-11"][aria-pressed="true"]');
+        // Výřez do kolečka: sova je větší než kolečko, korunu a obličej má uprostřed (třídy Tailwindu, ne inline styl)
+        const crop = await one.tab.evaluate(() => {
+            const img = document.querySelector('[data-pick-owl="titul-11"] img'); const box = img.parentElement.getBoundingClientRect(); const pic = img.getBoundingClientRect();
+            return { ratio: pic.width / box.width, centre: (pic.left + pic.width / 2 - box.left) / box.width, style: img.getAttribute('style') };
+        });
+        assert.ok(crop.ratio > 1.4 && Math.abs(crop.centre - 0.5) < 0.03 && crop.style === null, JSON.stringify(crop));
+        await one.tab.click('[data-save-profile]');
+        await one.tab.waitForFunction(() => /Uloženo/.test(document.getElementById('settings-overlay').textContent));
+        assert.equal(db.profiles['u-1'].owl, 'robe=zlata;pose=titul-11');
+        await one.tab.click('#settings-overlay [data-close]');
+        await one.tab.waitForSelector('#btn-settings img[data-owl-pose="titul-11"][src="icons/topics/sova-titul-11-zlata.webp"]');
+        const two = await open('tok-u2', { extra: { 'mudrlant.look': JSON.stringify({ robe: 'zelena' }) } });
+        await two.tab.click('[data-action="home-tab"][data-tab="multi"]');
+        await two.tab.waitForSelector('#challenges-section [data-player-id="u-1"] img[data-owl-pose="titul-11"][src="icons/topics/sova-titul-11-zlata.webp"]');
+        assert.deepEqual(two.problems, []);
+        await two.context.close();
+        assert.deepEqual(one.problems, []);
+        await one.context.close();
+        db.profiles['u-1'].owl = null;
+        db.profiles['u-1'].avatar = '🦊';
+    });
+
     await t.test('emoji zruší sovu; tmavý režim; profil se vejde na malém telefonu', async () => {
         for (const viewport of [{ width: 390, height: 780 }, { width: 360, height: 640 }]) {
             db.profiles['u-1'].owl = 'robe=zelena;face=bryle.original';
@@ -331,5 +370,25 @@ test('sova jako obrázek profilu', { skip: !chromium && 'Playwright není nainst
             assert.deepEqual(one.problems, []);
             await one.context.close();
         }
+    });
+
+    await t.test('záložka Mudrlant: tlačítko „Použít jako profilový obrázek“ uloží mou sovu; pak řekne, že už jí je', async () => {
+        db.profiles['u-1'].owl = null;
+        db.profiles['u-1'].avatar = '🦊';
+        const one = await open('tok-u1', { extra: { 'mudrlant.look': JSON.stringify({ robe: 'zelena', acc: { face: { id: 'bryle', color: 'original' } } }) } });
+        await one.tab.click('#btn-settings');
+        await one.tab.click('[data-me-tab="owl"]');
+        await one.tab.waitForSelector('[data-owl-as-avatar]');
+        assert.equal(await one.tab.locator('[data-owl-avatar-on]').count(), 0);
+        await one.tab.click('[data-owl-as-avatar]');
+        await one.tab.waitForSelector('[data-owl-avatar-on]');
+        await waitFor(() => db.profiles['u-1'].owl === 'robe=zelena;face=bryle.original', `neuložilo se: ${db.profiles['u-1'].owl}`);
+        assert.equal(db.profiles['u-1'].avatar, '🦉');
+        assert.equal(await one.tab.locator('[data-owl-as-avatar]').count(), 0, 'tlačítko zmizí');
+        // Hlavička okna ukazuje sovu místo emoji
+        assert.equal(await one.tab.locator('#settings-overlay span.rounded-full img[data-keep][src="icons/logo-zelena.webp"]').count(), 1);
+        await shot(one.tab, 'owl-avatar-zalozka-mudrlant.png');
+        assert.deepEqual(one.problems, []);
+        await one.context.close();
     });
 });

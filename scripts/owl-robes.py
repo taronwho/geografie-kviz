@@ -15,6 +15,15 @@ ROBES = {
     'cerna': (230, 0.10, 0.45),
     'zlata': (47, 1.00, 1.45),
 }
+# Sova titulu Mudrlant (sova-titul-11) sedí v odznaku s purpurovou mlhovinou, vínovými obrysy a červenými drahokamy v odstínech
+# taláru: přebarví se jen uvnitř obdélníků s čepicí a talárem ('in'), drahokamy v nich zůstanou ('out');
+# souřadnice v pixelech obrázku 320 × 320 (x0, y0, x1, y1)
+AREAS = {
+    'sova-titul-11': {
+        'in': [(116, 34, 207, 84), (97, 76, 229, 130), (74, 200, 100, 246), (98, 180, 128, 256), (108, 195, 214, 280), (190, 186, 254, 262)],
+        'out': [(137, 54, 150, 72), (174, 54, 188, 72), (156, 248, 169, 272)],
+    },
+}
 
 def rgb_to_hsv(a):
     r, g, b = a[..., 0], a[..., 1], a[..., 2]
@@ -39,7 +48,7 @@ def hsv_to_rgb(h, s, v):
     r = np.select(conds, [c, x, z, z, x, c]); g = np.select(conds, [x, c, c, x, z, z]); b = np.select(conds, [z, z, x, c, c, x])
     return np.stack([r + m, g + m, b + m], -1)
 
-def recolor(im, hue, sat, val):
+def recolor(im, hue, sat, val, area=None):
     a = np.asarray(im.convert('RGBA')).astype(np.float32) / 255
     h, s, v = rgb_to_hsv(a[..., :3])
     # vínová/červená/purpurová: odstín 300-360 a 0-12, dost sytá; měkký přechod na okrajích rozsahu
@@ -49,6 +58,11 @@ def recolor(im, hue, sat, val):
     # Růžový jazyk a zobáček (sovy titulů s otevřeným zobákem): světlá červená až růžová (jas od 0,72, odstín od -2°) zůstane;
     # talár a čepice jsou tmavší a do vínova (odstín kolem -15°), jejich světlá místa jsou pod hranicí
     w *= 1 - np.clip((v - 0.62) / 0.1, 0, 1) * np.clip((hd + 8) / 6, 0, 1)
+    if area:
+        inside = np.zeros(w.shape, bool)
+        for x0, y0, x1, y1 in area['in']: inside[y0:y1, x0:x1] = True
+        for x0, y0, x1, y1 in area['out']: inside[y0:y1, x0:x1] = False
+        w *= inside
     out = hsv_to_rgb(np.full_like(h, hue), np.clip(s * sat, 0, 1), np.clip(v * val, 0, 1))
     rgb = a[..., :3] * (1 - w[..., None]) + out * w[..., None]
     return Image.fromarray((np.dstack([rgb, a[..., 3]]) * 255).round().astype(np.uint8), 'RGBA')
@@ -59,4 +73,4 @@ for path in sources:
     if base.rsplit('-', 1)[-1] in ROBES: continue  # už je to varianta
     im = Image.open(path)
     for robe, (hue, sat, val) in ROBES.items():
-        recolor(im, hue, sat, val).save(os.path.join(os.path.dirname(path), f'{base}-{robe}.webp'), 'WEBP', quality=82, method=6)
+        recolor(im, hue, sat, val, AREAS.get(base)).save(os.path.join(os.path.dirname(path), f'{base}-{robe}.webp'), 'WEBP', quality=82, method=6)
