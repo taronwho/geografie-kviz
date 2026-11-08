@@ -63,7 +63,7 @@
     // 8 = Skupiny (group_*, my_groups, týdenní XP; se starší databází se Skupiny jen nenabídnou);
     // 9 = odměny v účtu (profiles.rewards: Truhla Mudrlanta, ochrana série, diplomy) a nové odznaky (se starší databází zůstanou jen v zařízení);
     // 10 = Rozpis otázek (podrobnosti odpovědí výzvy a zápasu turnaje, challenge_details a tournament_details; se starší databází jen vlastní odpovědi ze zařízení).
-    const REQUIRED_SCHEMA = 10;
+    const REQUIRED_SCHEMA = 11;
     const HISTORY_SIZE = 200;
     const REQUEST_TIMEOUT = 12000;
     const WIKI_TIMEOUT = 6000;
@@ -8812,6 +8812,9 @@
             if (test && pushTestOpen()) closeDialog();
             if (test && screen === 'home') closeSettings();
             openHomeTabFromPush(String(event.data.tab || ''));
+            // Upozornění k výzvě (pozvánka, soupeř dohrál): rovnou okno výzvy s výsledky
+            const pushCode = Social ? Social.parseCode(String(event.data.vyzva || '')) : '';
+            if (pushCode) openChallenge(pushCode);
             if (test) showToast('Klepnutí na upozornění funguje: otevřela se záložka Více hráčů');
         });
         document.addEventListener('visibilitychange', () => {

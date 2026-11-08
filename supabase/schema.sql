@@ -1037,7 +1037,7 @@ begin
         where not exists (select 1 from public.tournament_results r where r.match_id = m.id and r.user_id = m.p)
         union all
         select c.invited_id, 'challenge', coalesce(cr.display_name, 'Hráč') || ' tě vyzývá',
-            'Výzva na ' || c.count || ' otázek čeká v aplikaci. Zahraj si ji, než vyprší.', './?tab=multi',
+            'Výzva na ' || c.count || ' otázek čeká v aplikaci. Zahraj si ji, než vyprší.', './?tab=multi&vyzva=' || c.id,
             'chal:' || c.id || ':' || c.invited_id, c.created_at::text
         from public.challenges c
         join public.profiles me on me.id = c.invited_id and me.push_challenge
@@ -1046,7 +1046,7 @@ begin
             and not exists (select 1 from public.challenge_results r where r.challenge_id = c.id and r.user_id = c.invited_id)
         union all
         select c.creator_id, 'challenge', coalesce(op.display_name, 'Hráč') || ' odehrál tvoji výzvu',
-            'Dal ' || r.correct || ' z ' || c.count || ' správně. Podívej se, jak jsi na tom ty.', './?tab=multi',
+            'Dal ' || r.correct || ' z ' || c.count || ' správně. Podívej se, jak jsi na tom ty.', './?tab=multi&vyzva=' || c.id,
             'chalr:' || c.id || ':' || c.creator_id, r.finished_at::text
         from public.challenges c
         join public.challenge_results r on r.challenge_id = c.id and r.user_id = c.invited_id
@@ -2890,6 +2890,6 @@ grant execute on function public.challenge_progress_save(text, integer, boolean,
 -- 10: Rozpis otázek (challenge_progress a tournament_answers: answer, hints, ms; challenge_progress_save a tournament_answer_save s nepovinnými
 --     podrobnostmi; challenge_details a tournament_details vrací soupeřovy odpovědi až po dohrání).
 create or replace function public.schema_version() returns integer
-language sql immutable as $$ select 10 $$;
+language sql immutable as $$ select 11 $$;
 revoke all on function public.schema_version() from public, anon;
 grant execute on function public.schema_version() to authenticated;

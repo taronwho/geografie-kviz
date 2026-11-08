@@ -271,11 +271,15 @@ test('sw: klepnutí otevře aplikaci na záložce Více hráčů (nové okno), n
     const running = makeWorker({ windows: ['https://app.test/app/'] });
     await running.click('./?tab=multi');
     assert.equal(running.opened.length, 0);
-    assert.deepEqual(JSON.parse(JSON.stringify(running.messages)), [{ url: 'https://app.test/app/', message: { type: 'push-open', tab: 'multi', kind: '' } }]);
+    assert.deepEqual(JSON.parse(JSON.stringify(running.messages)), [{ url: 'https://app.test/app/', message: { type: 'push-open', tab: 'multi', vyzva: '', kind: '' } }]);
     // druh upozornění jde s klepnutím do aplikace (zkušební upozornění tak potvrdí, že klepnutí funguje)
     const test = makeWorker({ windows: ['https://app.test/app/'] });
     await test.click(undefined, { url: './?tab=multi', kind: 'test' });
-    assert.deepEqual(JSON.parse(JSON.stringify(test.messages[0].message)), { type: 'push-open', tab: 'multi', kind: 'test' });
+    assert.deepEqual(JSON.parse(JSON.stringify(test.messages[0].message)), { type: 'push-open', tab: 'multi', vyzva: '', kind: 'test' });
+    // Upozornění k výzvě nese kód: běžící aplikace otevře rovnou okno výzvy
+    const result = makeWorker({ windows: ['https://app.test/app/'] });
+    await result.click(undefined, { url: './?tab=multi&vyzva=ABC234', kind: 'challenge' });
+    assert.deepEqual(JSON.parse(JSON.stringify(result.messages[0].message)), { type: 'push-open', tab: 'multi', vyzva: 'ABC234', kind: 'challenge' });
     const foreign = makeWorker();
     await foreign.click('https://evil.example/phish?tab=multi');
     assert.deepEqual(foreign.opened, ['https://app.test/app/'], 'cizí adresa se nikdy neotevře');

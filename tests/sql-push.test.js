@@ -210,6 +210,7 @@ test('SQL: web push (odběry, tajemství, push_due, push_mark)', { skip: !availa
         assert.equal(rows[0].title, 'Hráč 3 tě vyzývá');
         assert.equal(rows[0].body, 'Výzva na 5 otázek čeká v aplikaci. Zahraj si ji, než vyprší.');
         assert.equal(rows[0].key, `chal:ABCDE2:${id(1)}`);
+        assert.equal(rows[0].url, './?tab=multi&vyzva=ABCDE2', 'klepnutí otevře rovnou výzvu');
         mark([rows[0].key], { okEndpoints: [rows[0].endpoint] });
         assert.equal(dueRows(TUE, 9).filter(row => row.kind === 'challenge').length, 0, 'druhá výzva počká hodinu');
         q(`update push_sent set sent_at = sent_at - interval '2 hours'`);
@@ -238,6 +239,7 @@ test('SQL: web push (odběry, tajemství, push_due, push_mark)', { skip: !availa
         assert.equal(rows[0].title, 'Hráč 1 odehrál tvoji výzvu');
         assert.equal(rows[0].body, 'Dal 7 z 10 správně. Podívej se, jak jsi na tom ty.');
         assert.equal(rows[0].key, `chalr:ABCDE3:${id(3)}`);
+        assert.equal(rows[0].url, './?tab=multi&vyzva=ABCDE3', 'klepnutí otevře výsledky výzvy');
         // výsledek zakladatele samotného nic nespouští
         ok(as(id(3), TUE, `${challengeProgressSql('ABCDE3', 10, 4, 8)} insert into challenge_results (challenge_id, user_id, correct, points) values ('ABCDE3', '${id(3)}', 4, 8);`));
         assert.equal(mine().length, 1);
