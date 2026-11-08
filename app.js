@@ -3538,7 +3538,9 @@
                 applyLook();
                 syncLookWithAccount();
             }
-            if (!remote.rewards || !Rewards.samePayload(merged, remote.rewards)) await Social.saveRewards(user.id, Rewards.payload(merged));
+            // Prázdné odměny (hráč zatím nic nezískal) se do účtu nezapisují – zbytečný zápis při každém prvním přihlášení
+            const nothing = Rewards.samePayload(merged, Rewards.merge({}, {}));
+            if (!nothing && (!remote.rewards || !Rewards.samePayload(merged, remote.rewards))) await Social.saveRewards(user.id, Rewards.payload(merged));
         } catch (error) { /* bez sítě nebo sloupce zůstanou odměny v zařízení */ } finally { syncingRewards = false; }
     };
     const paintGoalsCard = () => {
