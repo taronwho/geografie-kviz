@@ -1,6 +1,11 @@
 // Téma Literatura: data/literatura.json z Wikidat (přes QLever) – spisovatelé a básníci, literární díla a postavy
 // Spuštění: npm run build:literatura (s BUILD_CACHE=složka jde pravidla ladit bez opakovaného stahování)
+import { createRequire } from 'node:module';
 import { sparql, qlever, id, values, imageFields, yearOf, compact, cached, inBatches, writeTopic, readCountries } from './lib/wikidata.mjs';
+import { CHARACTERS } from './lib/literatura-postavy.mjs';
+
+// Zakrytí jako ve hře: popis postavy nesmí obsahovat název díla ani příjmení autora
+const { censorName } = createRequire(import.meta.url)('../quiz-core.js');
 
 const HUMAN = 'Q5';
 const FEMALE = 'Q6581072';
@@ -46,7 +51,9 @@ const PROPERTIES = {
     creator: 'P170', inWork: 'P1441', series: 'P179', partOf: 'P361', characters: 'P674'
 };
 const allIds = [...new Set(Object.values(candidates).flat().map(([q]) => q))];
-const fetchDetails = async (list, run = qlever) => {
+// Podrobnosti po dávkách se dají číst i z query.wikidata.org (WIKIDATA_ENDPOINT=wdqs), když je QLever přetížený
+const detailsRun = process.env.WIKIDATA_ENDPOINT === 'wdqs' ? sparql : qlever;
+const fetchDetails = async (list, run = detailsRun) => {
     const result = new Map(list.map(qid => [qid, {}]));
     await inBatches(list, 120, (qids) => `SELECT ?item ?p ?v WHERE {
   VALUES ?item { ${values(qids)} }
@@ -75,6 +82,22 @@ if (missingDetails.length) for (const [qid, detail] of await fetchDetails(missin
 // Slavné postavy, které obecný dotaz nenajde (Švejk nemá ve Wikidatech vazbu na dílo), z query.wikidata.org
 const MUST_CHARACTERS = ['Q1976939', 'Q1932108', 'Q9323967', 'Q741432', 'Q1156620', 'Q2587533', 'Q30611756', 'Q1269082', 'Q12292447'];
 for (const [qid, detail] of await cached('literatura-must-characters', async () => [...await fetchDetails(MUST_CHARACTERS, sparql)])) details.set(qid, detail);
+// Ručně vybrané postavy (lib/literatura-postavy.mjs) podle názvu článku a jejich autoři, kteří mezi kandidáty nejsou
+const curatedQids = new Map(await cached('literatura-curated-characters', async () => {
+    const result = [];
+    const titles = Object.keys(CHARACTERS);
+    for (let i = 0; i < titles.length; i += 100) {
+        const rows = await sparql(`SELECT ?item ?t WHERE { VALUES ?t { ${titles.slice(i, i + 100).map(title => JSON.stringify(title) + '@cs').join(' ')} }
+  ?a schema:name ?t ; schema:isPartOf <https://cs.wikipedia.org/> ; schema:about ?item . }`);
+        result.push(...rows.map(row => [row.t.value, id(row.item.value)]));
+    }
+    return result;
+}));
+const curatedAuthors = Object.values(CHARACTERS).map(entry => entry.a).filter(Boolean);
+const curatedMissing = [...new Set([...curatedQids.values(), ...curatedAuthors])].filter(qid => !details.has(qid));
+for (const [qid, detail] of await cached('literatura-curated-details', async () => [...await fetchDetails(curatedMissing, sparql)])) details.set(qid, detail);
+const curatedOf = new Map([...curatedQids].map(([title, qid]) => [qid, CHARACTERS[title]]));
+for (const title of Object.keys(CHARACTERS)) if (!curatedQids.has(title)) console.log(`  postava bez článku: ${title}`);
 // Homér je ve Wikidatech „člověk, který může být smyšlený“ – obecný dotaz na lidi ho nenajde
 const MUST_PEOPLE = ['Q6691'];
 for (const [qid, detail] of await cached('literatura-must-people', async () => [...await fetchDetails(MUST_PEOPLE, sparql)])) details.set(qid, detail);
@@ -87,7 +110,7 @@ const referenced = [...new Set([...details.values()].flatMap(detail => REFERENCE
 const fetchLabels = async (list) => {
     const result = [];
     await inBatches(list, 400, (qids) => `SELECT ?item ?lang ?l WHERE { VALUES ?item { ${values(qids)} } ?item rdfs:label ?l . BIND(LANG(?l) AS ?lang) FILTER(?lang = "cs" || ?lang = "en") }`,
-        (row) => result.push([`${row.lang.value}:${id(row.item.value)}`, row.l.value]), qlever);
+        (row) => result.push([`${row.lang.value}:${id(row.item.value)}`, row.l.value]), detailsRun);
     return result;
 };
 const labels = new Map(await cached('literatura-labels', () => fetchLabels(referenced)));
@@ -311,15 +334,19 @@ const KNOWN_CHARACTERS = new Set(['Sherlock Holmes', 'Dr. Watson', 'Harry Potter
 
 // --- Postavy: jen ze skutečné literatury (autor je spisovatel) – Batman, Darth Vader a Mickey Mouse ne ---
 const NOT_LITERARY_CHARACTER = /komiks|mang|anime|videoher|folklór|mytolog|legendární|bódhisattva|božstv|personifikac|maskot|kreslená postava$/iu;
-const characterIds = new Set([...candidates.characters.map(([q]) => q), ...MUST_CHARACTERS]);
+const characterIds = new Set([...candidates.characters.map(([q]) => q), ...MUST_CHARACTERS, ...curatedOf.keys()]);
+// Dílo ručně vybrané postavy podle názvu (z kandidátů děl), jinak jen název
+const workByName = new Map(candidates.works.map(([q]) => q).filter(q => details.get(q) && details.get(q).t && !isNotLiterature(details.get(q)))
+    .flatMap(q => [[nameOf(q), q], [titleName(details.get(q).t), q]]).reverse());
 const characters = [];
 const reasons = {};
 for (const qid of characterIds) {
     const detail = details.get(qid);
     if (!detail || !detail.t) { reasons.nodetail = (reasons.nodetail || 0) + 1; continue; }
+    const cur = curatedOf.get(qid);
     const typeLabels = (detail.type || []).map(cs).filter(Boolean);
     const literary = typeLabels.includes('literární postava');
-    if (!MUST_CHARACTERS.includes(qid) && typeLabels.some(text => NOT_LITERARY_CHARACTER.test(text)) && !(literary && !typeLabels.some(text => /komiks|mang|anime/u.test(text)))) { reasons.type = (reasons.type || 0) + 1; continue; }
+    if (!cur && !MUST_CHARACTERS.includes(qid) && typeLabels.some(text => NOT_LITERARY_CHARACTER.test(text)) && !(literary && !typeLabels.some(text => /komiks|mang|anime/u.test(text)))) { reasons.type = (reasons.type || 0) + 1; continue; }
     // Dílo: první literární dílo, ve kterém vystupuje (z našich kandidátů); autor z díla, jinak tvůrce postavy
     // Postava musí být i mezi postavami díla, pokud je dílo vypisuje (Pipi ve Wikidatech „vystupuje“ i v Ronje)
     // Z více děl to nejstarší – první výskyt postavy (Bilbo → Hobit, ne Pán prstenů); dílo se jménem postavy v názvu
@@ -334,6 +361,16 @@ for (const qid of characterIds) {
     const workQid = (named || inWorks[0] || {}).q;
     const workDetail = workQid ? details.get(workQid) : null;
     const author = ((workDetail && workDetail.author) || []).length === 1 ? workDetail.author[0] : (detail.creator || []).length === 1 ? detail.creator[0] : null;
+    if (cur) {
+        // Ručně vybraná postava: dílo z tabulky (autor z dat díla), jinak dílo a autor podle Wikidat, nakonec autor z tabulky
+        const curWork = cur.w ? workByName.get(cur.w) : undefined;
+        const work = curWork || (cur.w ? undefined : workQid);
+        const curWorkDetail = curWork ? details.get(curWork) : null;
+        const fromWork = curWorkDetail && (curWorkDetail.author || []).length === 1 ? curWorkDetail.author[0] : null;
+        const by = fromWork || cur.a || (cur.by ? null : author);
+        characters.push({ qid, detail, name: nameOf(qid), category: 'postavy', author: by, by: by ? nameOf(by) : cur.by, work, workName: cur.w || (work ? nameOf(work) : undefined), cur });
+        continue;
+    }
     // Jen slavné postavy (ne vedlejší postavy Duny nebo Temné věže) a skutečné postavy (ne chór)
     if (!author || /^Chór$/u.test(nameOf(qid) || '') || (!KNOWN_CHARACTERS.has(nameOf(qid)) && detail.sl < 18)) { reasons[!author ? 'noauthor' : 'sl'] = (reasons[!author ? 'noauthor' : 'sl'] || 0) + 1; continue; }
     // Název díla: z našich děl, jinak jen když postava vystupuje v jediném díle
@@ -345,7 +382,7 @@ console.log('Postavy vyřazeny:', JSON.stringify(reasons), 'zbylo', characters.l
 const LIMITS = {
     spisovatele: { limit: 740, known: 240, czLimit: 110 },
     dila: { limit: 760, known: 200, czLimit: 80 },
-    postavy: { limit: 140, known: 35, czLimit: 20 }
+    postavy: { limit: 140, known: 35, czLimit: 20, curatedLimit: 260 }
 };
 const byFame = (list) => list.sort((a, b) => Number(CZECH_KNOWN.has(b.name)) - Number(CZECH_KNOWN.has(a.name)) || b.detail.sl - a.detail.sl);
 const nameKey = (name) => name.toLocaleLowerCase('cs');
@@ -359,26 +396,29 @@ for (const list of [byFame(people), byFame(works), byFame(characters)]) {
     const knownPerAuthor = new Map();
     for (const entry of list) {
         const { detail, category, name } = entry;
-        if (!name || (category !== 'spisovatele' && !entry.by)) continue;
+        // Bez autora jen ručně vybrané postavy anonymních děl (Sindibád z Tisíce a jedné noci) – bez otázky na autora
+        if (!name || (category !== 'spisovatele' && !entry.by && !entry.cur)) continue;
         const settings = LIMITS[category];
         // Díla a postavy jen od vybraných spisovatelů nebo slavná (autor v datech je potřeba pro otázku na autora)
-        if (category !== 'spisovatele' && !peopleSelected.has(entry.author) && (category === 'postavy' || detail.sl < 40) && !CZECH_KNOWN.has(name)) continue;
+        // Ručně vybrané postavy i od autorů, kteří v tématu nejsou (Barrie, Fleming) – bez otázky na autora
+        if (category !== 'spisovatele' && !entry.cur && !peopleSelected.has(entry.author) && (category === 'postavy' || detail.sl < 40) && !CZECH_KNOWN.has(name)) continue;
         const authorDetail = details.get(entry.author) || {};
         const isCzech = category === 'spisovatele' ? isCzechPerson(detail)
-            : isCzechPerson(authorDetail) || (detail.lang || []).includes('Q9056') || (detail.origin || []).some(q => CZECH_STATES.has(q));
+            : isCzechPerson(authorDetail) || (detail.lang || []).includes('Q9056') || (detail.origin || []).some(q => CZECH_STATES.has(q)) || (entry.cur && entry.cur.land === 'Česko');
         const must = CZECH_KNOWN.has(name);
-        if (!must && counts.all >= settings.limit && !(isCzech && counts.cz < settings.czLimit)) continue;
+        if (!must && counts.all >= (entry.cur ? settings.curatedLimit : settings.limit) && !(isCzech && counts.cz < settings.czLimit)) continue;
         if (taken.has(nameKey(name))) continue;
         if (category !== 'spisovatele') {
             // Dílo nazvané po autorovi a nejvýš 6 děl (3 postavy) od jednoho autora – jinak by byl půl tématu Harry Potter
-            const cap = category === 'dila' ? 6 : 4;
+            // Ručně vybraných postav jedné série víc (Středozem, Bradavice), jinak nejvýš 4
+            const cap = category === 'dila' ? 6 : entry.cur ? 32 : 4;
             const key = `${category}:${entry.author}`;
-            if (nameKey(entry.by).includes(nameKey(name)) || (perAuthor.get(key) || 0) >= cap) continue;
+            if ((entry.by && nameKey(entry.by).includes(nameKey(name))) || (perAuthor.get(key) || 0) >= cap) continue;
             perAuthor.set(key, (perAuthor.get(key) || 0) + 1);
         }
         taken.add(nameKey(name));
         const authorKey = entry.author || entry.qid;
-        let known = category === 'postavy' ? KNOWN_CHARACTERS.has(name) || detail.sl >= 60
+        let known = category === 'postavy' ? KNOWN_CHARACTERS.has(name) || Boolean(entry.cur && entry.cur.k) || detail.sl >= 60
             : must || (!NOT_KNOWN.has(name) && counts.known < settings.known && (knownPerAuthor.get(authorKey) || 0) < (category === 'spisovatele' ? 1 : 3));
         if (known && !must) {
             counts.known++;
@@ -406,6 +446,14 @@ const famousWorkOf = (entry) => {
 };
 const CZECH_LANDS = /^(Česko|Československo)$/u;
 
+// Popis postavy: ruční, jinak z Wikidat – jen když nejmenuje dílo ani autora (otázka na dílo a autora by jinak byla hned zodpovězená)
+const surname = (name) => (name || '').split(/\s+/).filter(word => word.length >= 3).pop();
+const characterDescription = (entry) => {
+    if (entry.cur && entry.cur.d) return entry.cur.d;
+    const text = entry.detail.d;
+    const names = [entry.workName, surname(entry.by)].filter(Boolean);
+    return text && names.length && censorName(text, names.join(', ')).includes('[***]') ? undefined : text;
+};
 const items = [];
 for (const entry of selected) {
     const { qid, detail, category } = entry;
@@ -439,12 +487,16 @@ for (const entry of selected) {
     } else {
         const authorDetail = details.get(entry.author) || {};
         const workEntry = selected.find(other => other.qid === entry.work);
+        const cur = entry.cur || {};
         f = {
             by: entry.by,
             byq: selectedIds.has(entry.author) ? entry.author : undefined,
             work: entry.workName,
-            land: landOf(authorDetail, 'cit'),
-            y: workEntry ? workEntry.year : minYear([...((details.get(entry.work) || {}).pub || [])])
+            land: cur.land || landOf(authorDetail, 'cit'),
+            y: cur.y ?? (workEntry ? workEntry.year : minYear([...((details.get(entry.work) || {}).pub || [])])),
+            // Otázka „Ze kterého díla je?“ jen u postavy jednoho díla; další psané odpovědi (Hobit)
+            wq: cur.one && entry.workName ? 1 : undefined,
+            wa: cur.wa
         };
     }
     items.push(compact({
@@ -454,9 +506,9 @@ for (const entry of selected) {
         c: category,
         k: entry.known ? 1 : 0,
         ty: category === 'dila' ? entry.kind : category === 'postavy' ? 'literární postava' : entry.ty,
-        d: detail.d,
+        d: category === 'postavy' ? characterDescription(entry) : detail.d,
         cz: entry.isCzech ? 1 : undefined,
-        sx: category !== 'dila' && detail.sex === FEMALE ? 'f' : undefined,
+        sx: category !== 'dila' && (detail.sex === FEMALE || (entry.cur && entry.cur.sx === 'f')) ? 'f' : undefined,
         ...imageFields(detail.im),
         f: compact(f),
         // Žánrová skupina (sci-fi, detektivka…) pro nesprávné možnosti a okruhy

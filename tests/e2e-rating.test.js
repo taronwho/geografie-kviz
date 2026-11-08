@@ -103,6 +103,7 @@ const backend = async (context, db, { missing = false } = {}) => {
 
 const setup = async (browser, storage, viewport = { width: 400, height: 800 }) => {
     const context = await browser.newContext({ serviceWorkers: 'block', colorScheme: 'light', viewport });
+    await context.addInitScript(() => { window.MUDRLANT_NUMERIC_RATE = 0; }); // jen obyčejné otázky (Seřaď a Odhadni číslo: e2e-numeric)
     await context.addInitScript(entries => {
         if (sessionStorage.getItem('test-storage-set')) return;
         sessionStorage.setItem('test-storage-set', '1');

@@ -49,6 +49,7 @@ test('tutorial při prvním spuštění', { skip: !chromium && 'Playwright není
     // slow = prodleva (ms) odpovědí Wikipedie; variant = způsob odpovídání
     const open = async ({ done = false, stored = null, variant = 'choices', slow = 0, viewport = { width: 390, height: 780 }, scheme = 'light' } = {}) => {
         const context = await browser.newContext({ serviceWorkers: 'block', viewport, colorScheme: scheme });
+        await context.addInitScript(() => { window.MUDRLANT_NUMERIC_RATE = 0; }); // jen obyčejné otázky (Seřaď a Odhadni číslo: e2e-numeric)
         await context.addInitScript(({ isDone, preset, mode }) => {
             if (sessionStorage.getItem('seeded')) return;
             sessionStorage.setItem('seeded', '1');
@@ -533,6 +534,7 @@ test('tutorial při prvním spuštění', { skip: !chromium && 'Playwright není
     await t.test('uvítání: Domů před výběrem varianty tutoriál nespustí, začne až po výběru varianty', async () => {
         fact = null;
         const context = await browser.newContext({ serviceWorkers: 'block', viewport: { width: 390, height: 780 } });
+        await context.addInitScript(() => { window.MUDRLANT_NUMERIC_RATE = 0; }); // jen obyčejné otázky (Seřaď a Odhadni číslo: e2e-numeric)
         await context.addInitScript(() => {
             if (sessionStorage.getItem('seeded')) return;
             sessionStorage.setItem('seeded', '1');

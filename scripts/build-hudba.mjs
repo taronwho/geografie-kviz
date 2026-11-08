@@ -38,7 +38,14 @@ const candidates = await cached('hudba-candidates-2', async () => {
         albums: albums.slice(0, 2500)
     };
 });
-console.log(`Kandidáti: ${candidates.people.length} osob, ${candidates.groups.length} skupin, ${candidates.works.length} skladeb, ${candidates.albums.length} alb`);
+// Opery, operety a muzikály: vlastní kategorie, proto i ty s málo jazykovými verzemi (české opery)
+const OPERA = 'Q1344';
+const MUSICAL = 'Q2743';
+const stageCandidates = await cached('hudba-opery-candidates', async () => fromRows(await qlever(`SELECT DISTINCT ?x ?sl WHERE {
+  { ?x wdt:P136/wdt:P279* wd:${OPERA} } UNION { ?x wdt:P31/wdt:P279* wd:${OPERA} } UNION { ?x wdt:P136 wd:${MUSICAL} } UNION { ?x wdt:P31 wd:${MUSICAL} }
+  ${csArticle('?x')} FILTER(?sl >= 3) }`)).slice(0, 900));
+const workCandidates = [...new Map([...candidates.works, ...stageCandidates])].sort((a, b) => b[1] - a[1]);
+console.log(`Kandidáti: ${candidates.people.length} osob, ${candidates.groups.length} skupin, ${candidates.works.length} skladeb, ${stageCandidates.length} oper a muzikálů, ${candidates.albums.length} alb`);
 
 // --- 2. krok: podrobnosti po dávkách ---
 const SINGLE = { t: 1, n: 1, d: 1, den: 1, im: 1, born: 1, died: 1, sex: 1 };
@@ -48,7 +55,7 @@ const PROPERTIES = {
     composer: 'P86', performer: 'P175', lyrics: 'P676', libretto: 'P87', pub: 'P577', premiere: 'P1191', lang: 'P407', type: 'P31',
     partOf: 'P361', award: 'P166'
 };
-const allIds = [...new Set(Object.values(candidates).flat().map(([q]) => q))];
+const allIds = [...new Set([...Object.values(candidates).flat(), ...stageCandidates].map(([q]) => q))];
 const fetchDetails = async (list) => {
     const result = new Map(list.map(qid => [qid, {}]));
     await inBatches(list, 120, (qids) => `SELECT ?item ?p ?v WHERE {
@@ -91,6 +98,9 @@ const fetchLabels = async (list) => {
     return result;
 };
 const labels = new Map(await cached('hudba-labels-2', () => fetchLabels(referenced)));
+// Názvy odkazovaných položek, které přibyly s operami (skladatelé, libretisté)
+const missingLabels = referenced.filter(qid => !labels.has(`cs:${qid}`) && !labels.has(`en:${qid}`));
+if (missingLabels.length) for (const [key, value] of await cached('hudba-labels-opery', () => fetchLabels(missingLabels))) labels.set(key, value);
 const cs = (qid) => labels.get(`cs:${qid}`);
 const en = (qid) => labels.get(`en:${qid}`) || '';
 
@@ -265,6 +275,10 @@ const MORE_KNOWN_WORKS = ['Wish You Were Here', 'A Night at the Opera', 'Led Zep
     'Orfeus v podsvětí', 'Zlatý věk', 'Romeo a Julie', 'Spartakus', 'Chicago', 'Cabaret', 'Hair', 'Pomáda', 'Evita', 'Starci na chmelu',
     'Lví král', 'Za zvuků hudby', 'My Fair Lady', 'Hello, Dolly!', 'Oliver!', 'Notre-Dame de Paris', 'Lady Carneval', 'Hlídač krav', 'Vlak do Prahy'];
 for (const name of MORE_KNOWN_WORKS) KNOWN_WORKS.add(name);
+// Další známé opery a muzikály (názvy tak, jak je mají data: Vlasy, Kabaret, Piková dáma)
+for (const name of ['Vlasy', 'Kabaret', 'Piková dáma', 'Fidelio', 'Faust', 'Šumař na střeše', 'Jakobín', 'Hubička', 'Káťa Kabanová', 'Příhody lišky Bystroušky',
+    'Dracula', 'Krysař', 'Porgy a Bess', 'Norma', 'Salome', 'Žebrácká opera', 'Kníže Igor', 'Vilém Tell', 'Lucie z Lammermooru', 'Orfeus a Eurydika',
+    'Čarodějka', 'Hamilton', 'Rent', 'Oklahoma!', 'Lví král', 'Kráska a zvíře', 'Mary Poppins', 'Hamlet', 'Johanka z Arku', 'Monte Cristo']) KNOWN_WORKS.add(name);
 // Další česká a slovenská jména, která zná skoro každý
 for (const name of ['Petra Černocká', 'Daniel Landa', 'Elán', 'Richard Müller', 'Jiří Suchý', 'Jiří Šlitr', 'Spirituál kvintet', 'Věra Špinarová', 'Vladimír Mišík',
     'Ivan Hlas', 'Lenka Dusilová', 'Aneta Langerová', 'Richard Krajčo', 'Janek Ledecký', 'Karel Plíhal', 'Jaroslav Uhlíř', 'Felix Slováček', 'Daniel Hůlka',
@@ -352,9 +366,12 @@ const DESCRIBED_KINDS = [['opereta', /operet/u], ['muzikál', /muzikál|rockov(�
 const NOT_MUSIC_WORK = /film|seriál|divadelní hra|videohr|eurovi|modlitb|mariánsk|antifon|liturgi/iu;
 const NO_AUTHOR = /^(traditional|anonym|lidová|lidové|Panna Maria|DP)$/iu;
 const albumIds = new Set(candidates.albums.map(([q]) => q));
-const workCandidateIds = new Set([...candidates.works, ...candidates.albums].map(([q]) => q));
+const workCandidateIds = new Set([...workCandidates, ...candidates.albums].map(([q]) => q));
+// Jevištní díla s vlastní kategorií Opery a muzikály (balet zůstává mezi díly)
+const WORK_YEARS = { Q232134: 1874 };
+const STAGE_KINDS = new Set(['opera', 'opereta', 'muzikál']);
 const works = [];
-for (const [qid] of [...candidates.works, ...candidates.albums]) {
+for (const [qid] of [...workCandidates, ...candidates.albums]) {
     const detail = details.get(qid);
     if (!detail || !detail.t || NOT_MUSIC_WORK.test(detail.d || '')) continue;
     const typed = workKindOf(detail);
@@ -370,6 +387,10 @@ for (const [qid] of [...candidates.works, ...candidates.albums]) {
     const premiere = minYear(detail.premiere);
     const inception = minYear(detail.from);
     let kind = albumIds.has(qid) ? 'album' : typed === 'hymna' ? 'hymna' : described || typed;
+    // Píseň či árie z muzikálu nebo opery („píseň z muzikálu Evita“, článek „What If (píseň…)“) je píseň, ne muzikál
+    if (STAGE_KINDS.has(kind) && (/(?<!\p{L})(píseň|písní|árie|song|singl|duet|sbor)(?!\p{L})/iu.test(detail.d || '') || /\((píseň|árie|singl)/iu.test(detail.t))) kind = 'píseň';
+    // Osoba (dirigent u opery) jevištním dílem není
+    if ((detail.type || []).includes(HUMAN)) continue;
     // Píseň populární hudby bývá jen „hudební dílo“ – pozná se podle interpreta
     if (kind === 'skladba' && performers.length && (pub || inception || 0) >= 1940) kind = 'píseň';
     const nickname = NICKNAMES[detail.t];
@@ -386,8 +407,11 @@ for (const [qid] of [...candidates.works, ...candidates.albums]) {
     const authorNames = (author ? [author] : composers.length ? composers : performers).map(nameOf).filter(Boolean);
     if (!authorNames.length || authorNames.length > 2 || authorNames.some(other => NO_AUTHOR.test(other))) continue;
     // Rok: u jevištních děl premiéra, jinak vznik či vydání (vznik zaokrouhlený na půlstoletí jen bez jiného údaje)
-    const year = premiere ?? (inception !== undefined && !(inception % 50 === 0 && pub !== undefined) ? Math.min(inception, pub ?? inception) : pub);
-    works.push({ qid, detail, category: 'dila', kind, source, author, name, aliases: nickname ? nickname[1] : [], year, by: authorNames.join(', '),
+    // Chybný rok premiéry ve Wikidatech (Dvě vdovy: 1784 místo 1874)
+    const year = WORK_YEARS[qid] ?? premiere ?? (inception !== undefined && !(inception % 50 === 0 && pub !== undefined) ? Math.min(inception, pub ?? inception) : pub);
+    // Opera či muzikál bez popisu nebo bez roku premiéry by v otázce neměly z čeho napovědět
+    if (STAGE_KINDS.has(kind) && (!detail.d || year === undefined || !/\p{L}{3}/u.test(name))) continue;
+    works.push({ qid, detail, category: STAGE_KINDS.has(kind) ? 'opery' : 'dila', kind, source, author, name, aliases: nickname ? nickname[1] : [], year, by: authorNames.join(', '),
         genre: kind === 'album' || kind === 'píseň' ? genreGroupOf(detail, qid) : null });
 }
 
@@ -397,7 +421,9 @@ const LIMITS = {
     skladatele: { limit: 215, known: 60, czLimit: 45 },
     hudebnici: { limit: 430, known: 90, czLimit: 80 },
     kapely: { limit: 280, known: 85, czLimit: 55 },
-    dila: { limit: 540, known: 75, czLimit: 60 }
+    // Opery, operety a muzikály mají vlastní kategorii (dřív mezi díly zabíraly 74 míst)
+    dila: { limit: 466, known: 75, czLimit: 60 },
+    opery: { limit: 230, known: 0, czLimit: 45, perAuthor: 6 }
 };
 // Pořadí: nejdřív slavná česká jména, potom podle počtu jazykových verzí
 const byFame = (list) => list.sort((a, b) => Number(CZECH_KNOWN.has(b.name)) - Number(CZECH_KNOWN.has(a.name)) || b.detail.sl - a.detail.sl);
@@ -408,14 +434,16 @@ const taken = new Set();
 const perAuthor = new Map();
 const selected = [];
 const isCzechPerson = (detail) => isCzechDetail(detail, 'cit', 'bornIn', 'origin', 'country');
-for (const list of [byFame(people.filter(p => p.category === 'skladatele')), byFame(people.filter(p => p.category === 'hudebnici')), byFame(bands), byFame(works)]) {
+const isWorkCategory = (category) => category === 'dila' || category === 'opery';
+for (const list of [byFame(people.filter(p => p.category === 'skladatele')), byFame(people.filter(p => p.category === 'hudebnici')), byFame(bands),
+    byFame(works.filter(work => work.category === 'opery')), byFame(works.filter(work => work.category === 'dila'))]) {
     const counts = { all: 0, cz: 0, known: 0 };
     console.log(`  k výběru: ${list.length} (${list[0] ? list[0].category : ''})`);
     for (const entry of list) {
         const { detail, category, name } = entry;
         const settings = LIMITS[category];
         const authorDetail = details.get(entry.author) || {};
-        const isCzech = category === 'dila'
+        const isCzech = isWorkCategory(category)
             ? Boolean(entry.author && isCzechPerson(authorDetail) && /^Česko|^Československo/u.test(landOf(authorDetail, 'cit', 'origin', 'country') || ''))
                 || (detail.origin || []).some(q => CZECH_STATES.has(q)) || (detail.lang || []).includes('Q9056')
             : isCzechPerson(detail);
@@ -423,13 +451,14 @@ for (const list of [byFame(people.filter(p => p.category === 'skladatele')), byF
         if (!must && counts.all >= settings.limit && !(isCzech && counts.cz < settings.czLimit)) continue;
         if (taken.has(nameKey(name))) continue;
         const authorKey = entry.author || entry.by;
-        if (category === 'dila') {
-            // Dílo nazvané po autorovi (album Metallica) by bylo hned poznat
-            if (nameKey(entry.by).includes(nameKey(name)) || (perAuthor.get(authorKey) || 0) >= 4) continue;
-            perAuthor.set(authorKey, (perAuthor.get(authorKey) || 0) + 1);
+        if (isWorkCategory(category)) {
+            // Dílo nazvané po autorovi (album Metallica) by bylo hned poznat; u jednoho autora jen pár děl (u oper víc)
+            const authorCount = `${category}:${authorKey}`;
+            if (nameKey(entry.by).includes(nameKey(name)) || (perAuthor.get(authorCount) || 0) >= (settings.perAuthor || 4)) continue;
+            perAuthor.set(authorCount, (perAuthor.get(authorCount) || 0) + 1);
         }
         taken.add(nameKey(name));
-        const known = must || (category === 'dila' ? KNOWN_WORKS.has(name) : !NOT_KNOWN.has(name) && counts.known < settings.known);
+        const known = must || (isWorkCategory(category) ? KNOWN_WORKS.has(name) : !NOT_KNOWN.has(name) && counts.known < settings.known);
         if (known && !must) counts.known++;
         counts.all++;
         if (isCzech) counts.cz++;
@@ -441,7 +470,7 @@ const selectedBands = new Set(selected.filter(entry => entry.category === 'kapel
 
 // Nejslavnější dílo osoby či kapely: z významných děl (P800) to, které máme, jinak naše nejslavnější
 const worksByAuthor = new Map();
-for (const entry of selected) if (entry.category === 'dila' && entry.author) worksByAuthor.set(entry.author, [...(worksByAuthor.get(entry.author) || []), entry]);
+for (const entry of selected) if (isWorkCategory(entry.category) && entry.author) worksByAuthor.set(entry.author, [...(worksByAuthor.get(entry.author) || []), entry]);
 const famousWorkOf = (entry) => {
     const own = worksByAuthor.get(entry.qid) || [];
     const notable = (entry.detail.notable || []).filter(q => workCandidateIds.has(q));
@@ -508,7 +537,7 @@ for (const entry of selected) {
         n: entry.name,
         c: category,
         k: entry.known ? 1 : 0,
-        ty: category === 'dila' ? entry.kind : entry.ty,
+        ty: isWorkCategory(category) ? entry.kind : entry.ty,
         d: detail.d,
         cz: entry.isCzech ? 1 : undefined,
         sx: (category === 'skladatele' || category === 'hudebnici') && detail.sex === FEMALE ? 'f' : undefined,
@@ -530,6 +559,7 @@ for (const item of items) {
 
 // Autoři stejnojmenných děl (Rusalka – Dvořák i Dargomyžskij, Othello – Verdi i Rossini): u otázky na autora nesmí být mezi možnostmi
 const workNames = [...new Set(items.filter(item => item.c === 'dila').flatMap(item => [item.n, titleName(item.t)]))];
+const stageNames = [...new Set(items.filter(item => item.c === 'opery').flatMap(item => [item.n, titleName(item.t)]))];
 const namesakeAuthors = new Map(await cached('hudba-namesakes-2', async () => {
     const result = [];
     await inBatches(workNames, 150, (names) => `SELECT ?l ?au WHERE { VALUES ?l { ${names.map(name => JSON.stringify(name) + '@cs').join(' ')} }
@@ -539,8 +569,18 @@ const namesakeAuthors = new Map(await cached('hudba-namesakes-2', async () => {
     for (const [name, author] of result) grouped.set(name, [...new Set([...(grouped.get(name) || []), author])]);
     return [...grouped];
 }));
+// Stejnojmenné opery (Othello – Verdi i Rossini, Rusalka – Dvořák i Dargomyžskij)
+for (const [name, authors] of await cached('hudba-namesakes-opery', async () => {
+    const result = [];
+    await inBatches(stageNames, 150, (names) => `SELECT ?l ?au WHERE { VALUES ?l { ${names.map(name => JSON.stringify(name) + '@cs').join(' ')} }
+  ?w rdfs:label ?l . { ?w wdt:P86 ?au } UNION { ?w wdt:P175 ?au } UNION { ?w wdt:P50 ?au } }`,
+    (row) => result.push([row.l.value, id(row.au.value)]), qlever);
+    const grouped = new Map();
+    for (const [name, author] of result) grouped.set(name, [...new Set([...(grouped.get(name) || []), author])]);
+    return [...grouped];
+})) namesakeAuthors.set(name, [...new Set([...(namesakeAuthors.get(name) || []), ...authors])]);
 for (const item of items) {
-    if (item.c !== 'dila' || !item.f.byq) continue;
+    if (!isWorkCategory(item.c) || !item.f.byq) continue;
     const others = [...new Set([item.n, titleName(item.t)].flatMap(name => namesakeAuthors.get(name) || []))].filter(q => q !== item.f.byq && selectedIds.has(q));
     if (others.length) item.xa = others;
 }
@@ -549,14 +589,16 @@ for (const item of items) {
 const BY_YEAR = { by: 'y' };
 const isPerformer = (item) => item.c === 'hudebnici' || item.c === 'kapely';
 const isClassical = (item) => item.gr === 'klasika' || /operní/u.test(item.ty || '');
-const isCzechLand = (item) => item.cz === 1 && (CZECH_LANDS.test(item.f.land || '') || item.c === 'dila');
+const isCzechLand = (item) => item.cz === 1 && (CZECH_LANDS.test(item.f.land || '') || isWorkCategory(item.c));
 const inGenre = (...groups) => (item) => (isPerformer(item) || (item.c === 'dila' && item.f.kind !== 'skladba')) && groups.includes(item.gr);
 const decade = (from) => (item) => isPerformer(item) && !isClassical(item) && item.st >= from && item.st < from + 10;
 const COLLECTIONS = [
     { id: 'cesti-skladatele', label: 'Čeští skladatelé', sort: BY_YEAR, test: item => item.c === 'skladatele' && isCzechLand(item) },
     { id: 'ceska-popularni', label: 'Česká populární hudba', text: 'Zpěváci, hudebníci a kapely', sort: BY_YEAR, test: item => isPerformer(item) && isCzechLand(item) && !isClassical(item) },
     { id: 'slovenska-hudba', label: 'Slovenská hudba', text: 'Slovenští skladatelé, zpěváci, kapely a díla', sort: BY_YEAR, test: item => item.f.land === 'Slovensko' },
-    { id: 'ceska-dila', label: 'Česká hudební díla', sort: BY_YEAR, test: item => item.c === 'dila' && item.cz === 1 },
+    { id: 'ceska-dila', label: 'Česká hudební díla', sort: BY_YEAR, test: item => isWorkCategory(item.c) && item.cz === 1 },
+    { id: 'ceske-opery', label: 'České opery a muzikály', sort: BY_YEAR, test: item => item.c === 'opery' && item.cz === 1 },
+    { id: 'muzikaly', label: 'Muzikály', text: 'Od West Side Story po Draculu', sort: BY_YEAR, test: item => item.c === 'opery' && item.ty === 'muzikál' },
     { id: 'renesance', label: 'Renesance', text: 'Skladatelé 15. a 16. století', sort: BY_YEAR, test: item => item.f.per === 'renesance' },
     { id: 'baroko', label: 'Baroko', text: 'Skladatelé zhruba 1600–1750', sort: BY_YEAR, test: item => item.f.per === 'baroko' },
     { id: 'klasicismus', label: 'Klasicismus', text: 'Skladatelé zhruba 1750–1820', sort: BY_YEAR, test: item => item.f.per === 'klasicismus' },

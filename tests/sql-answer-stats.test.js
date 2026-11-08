@@ -174,10 +174,10 @@ test('SQL: Jak odpověděli ostatní (souhrnné statistiky odpovědí)', { skip:
         assert.ok(lines(ok(asUser(ADMIN, 'select item_id from dev_suspicious_questions(5);'))).includes('Q9'), 'Q9 (30 odpovědí, 17 %) při prahu 20');
     });
 
-    await t.test('spuštění schématu podruhé nic nerozbije a verze je 6', () => {
+    await t.test('spuštění schématu podruhé nic nerozbije a verze je aspoň 6 (7 = Kvíz dne)', () => {
         const before = q('select count(*) || \'/\' || sum(shown) from answer_stats');
         ok(psql(dbName, '', SCHEMA));
         assert.equal(q('select count(*) || \'/\' || sum(shown) from answer_stats'), before);
-        assert.equal(last(ok(asUser(B, 'select schema_version();'))), '6');
+        assert.ok(Number(last(ok(asUser(B, 'select schema_version();')))) >= 6);
     });
 });

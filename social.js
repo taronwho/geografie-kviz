@@ -588,6 +588,41 @@
     };
     const devResolveReport = (id) => request('POST', 'rpc/dev_report_resolve', { body: { rid: wholeNumber(id, Number.MAX_SAFE_INTEGER) } });
 
+    // --- Kvíz dne (schéma 7): stav dnešního pokusu, začátek, odpověď po otázkách, pořadí dne a přátel ---
+    // Databáze bez funkcí (404): vrací se null a dál se o ně nežádá (aplikace pak hraje jen v zařízení, bez pořadí); jiné chyby se vyhodí
+    let quizMissing = false;
+    const guardQuiz = async (run) => {
+        if (quizMissing) return null;
+        try { return await run(); } catch (error) {
+            if (error.status === 404) { quizMissing = true; return null; }
+            throw error;
+        }
+    };
+    const cleanDay = (value) => (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : null);
+    const cleanQuizState = (row) => (row && typeof row === 'object' ? {
+        day: cleanDay(row.day), started: Boolean(row.started), answered: wholeNumber(row.answered, 10), correct: wholeNumber(row.correct, 10), score: wholeNumber(row.score, 40),
+        time_ms: wholeNumber(row.time_ms, 3000000), bitmap: wholeNumber(row.bitmap, 1023), finished: Boolean(row.finished), streak: wholeNumber(row.streak, 100000), best_streak: wholeNumber(row.best_streak, 100000)
+    } : null);
+    const cleanQuizRow = (row) => ({
+        rank: wholeNumber(row.rank, 10000000) || 1, id: String(row.id), display_name: String(row.display_name || 'Hráč'), avatar: row.avatar, color: row.color,
+        frame: cleanFrame(row.frame), title_pref: cleanTitlePref(row.title_pref), owl: cleanOwl(row.owl),
+        score: wholeNumber(row.score, 40), correct: wholeNumber(row.correct, 10), time_ms: wholeNumber(row.time_ms, 3000000), me: row.me === true
+    });
+    const dailyQuizState = () => guardQuiz(async () => cleanQuizState(await request('POST', 'rpc/daily_quiz_state', { body: {} })));
+    const dailyQuizStart = () => guardQuiz(async () => cleanQuizState(await request('POST', 'rpc/daily_quiz_start', { body: {} })));
+    // row = { correct, points, ms }: body za správnou 1–4, za špatnou 0, čas na otázku v ms (server ho ověří)
+    const dailyQuizAnswer = (day, idx, row) => guardQuiz(async () => cleanQuizState(await request('POST', 'rpc/daily_quiz_answer', {
+        body: { for_day: cleanDay(day), idx: wholeNumber(idx, 9), is_correct: Boolean(row && row.correct), points: row && row.correct ? Math.max(1, wholeNumber(row.points, 4)) : 0, ms: wholeNumber(row && row.ms, 3600000) }
+    })));
+    const dailyQuizBoard = (day = null, top = 50) => guardQuiz(async () => {
+        const data = (await request('POST', 'rpc/daily_quiz_board', { body: { for_day: cleanDay(day), top_n: wholeNumber(top, 100) || 50 } })) || {};
+        const me = data.me && typeof data.me === 'object' ? { rank: wholeNumber(data.me.rank, 10000000) || 1, score: wholeNumber(data.me.score, 40), correct: wholeNumber(data.me.correct, 10), time_ms: wholeNumber(data.me.time_ms, 3000000), bitmap: wholeNumber(data.me.bitmap, 1023), answered: wholeNumber(data.me.answered, 10) } : null;
+        return { day: cleanDay(data.day), total: wholeNumber(data.total, 10000000), top: (Array.isArray(data.top) ? data.top : []).map(cleanQuizRow), me, streak: wholeNumber(data.streak, 100000), best_streak: wholeNumber(data.best_streak, 100000) };
+    });
+    const dailyQuizFriends = (day = null) => guardQuiz(async () => {
+        const data = (await request('POST', 'rpc/daily_quiz_friends', { body: { for_day: cleanDay(day) } })) || {};
+        return { day: cleanDay(data.day), friends: wholeNumber(data.friends, 100000), rows: (Array.isArray(data.rows) ? data.rows : []).map(cleanQuizRow) };
+    });
     // ===== Jak odpověděli ostatní (schéma 6, answer-stats.js): dávka odpovědí po hře, souhrn tématu, podezřelé otázky pro dev_admins =====
     // Starší databáze bez funkcí (404): odeslání i stažení vrací null a dál se o ně nežádá (po novém načtení stránky se zkusí znovu); jiné chyby se vyhodí.
     let answerStatsMissing = false;
@@ -623,5 +658,7 @@
         tournamentTick, getTournaments, inTournament, devTournament, devClientErrors, isDevAdmin, schemaVersion, reportQuestion, getQuestionReports, deleteQuestionReport, exportMyData, deleteMyAccount, getTournamentEntries, getTournamentMatches, joinTournament, leaveTournament, startTournamentMatch, finishTournamentMatch, myTournamentStats, tournamentNotices, tournamentNoticesSeen,
         challengeProgress, saveChallengeProgress, tournamentAnswers, saveTournamentAnswer, claimTournamentXp,
         touchSeen, friendsList, addFriend, acceptFriend, removeFriend, REACTIONS, react, reactionsFor, lastReactionFrom, blockedPlayers, blockPlayer, unblockPlayer, REPORT_REASONS, reportPlayer, devReports, devResolveReport,
-        submitAnswerStats, answerStatsTopic, devSuspiciousQuestions };
+        submitAnswerStats, answerStatsTopic, devSuspiciousQuestions,
+        // Kvíz dne (schéma 7)
+        dailyQuizState, dailyQuizStart, dailyQuizAnswer, dailyQuizBoard, dailyQuizFriends };
 });

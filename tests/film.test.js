@@ -36,8 +36,8 @@ test('film: známé filmy a filmaři, česká stopa', () => {
     // Filmy bez obrázku (plakáty nejsou volné), filmaři s fotkou
     assert.ok(data.items.filter(item => item.c === 'filmy').every(item => !item.im));
     assert.ok(data.items.filter(item => item.c !== 'filmy' && item.k === 1).filter(item => item.im).length >= 150);
-    // Animované filmy jen do limitu, ať nepřeválcují ostatní
-    assert.ok(data.items.filter(item => item.ty === 'animovaný film').length <= 70);
+    // Animované filmy mají vlastní kategorii, mezi filmy nejsou
+    assert.ok(data.items.filter(item => item.ty === 'animovaný film').every(item => item.c === 'animovane'));
 });
 
 test('film: kontrola dat – roky, jedna položka na jméno, filmografie', () => {
@@ -46,7 +46,7 @@ test('film: kontrola dat – roky, jedna položka na jméno, filmografie', () =>
         const f = item.f || {};
         if (f.born !== undefined && f.died !== undefined) assert.ok(f.died > f.born && f.died - f.born <= 105, `${item.n}: ${f.born}–${f.died}`);
         for (const year of [f.born, f.died, f.year]) assert.ok(year === undefined || year <= thisYear, `${item.n}: rok ${year}`);
-        if (item.c === 'filmy') assert.ok(f.year >= 1880, `${item.n}: bez roku`);
+        if (['filmy', 'animovane', 'serialy'].includes(item.c)) assert.ok(f.year >= 1880, `${item.n}: bez roku`);
         else assert.ok(f.born !== undefined && f.films && f.films.length, `${item.n}: bez narození nebo filmů`);
     }
     assert.equal(new Set(data.items.map(item => item.n.toLocaleLowerCase('cs'))).size, data.items.length);
@@ -138,7 +138,7 @@ test('film: nesprávné možnosti a okruhy', () => {
     for (const options of wrongOptions('Pelíšky')) assert.ok(options.every(other => other.cz === 1), options.map(o => o.n).join(', '));
     for (const options of wrongOptions('Libuše Šafránková')) assert.ok(options.every(other => other.sx === 'f' && other.cz === 1), options.map(o => o.n).join(', '));
     for (const options of wrongOptions('Alfred Hitchcock')) assert.ok(options.every(other => other.f.born < 1950), options.map(o => o.n).join(', '));
-    assert.ok(data.collections.length >= 8 && data.collections.length <= 20);
+    assert.ok(data.collections.length >= 8 && data.collections.length <= 30);
     assert.ok(inCollection('cesky-film').includes('Kolja') && !inCollection('cesky-film').includes('Kmotr'));
     assert.ok(inCollection('ceska-klasika').includes('Ostře sledované vlaky') && !inCollection('ceska-klasika').includes('Pelíšky'));
     assert.ok(inCollection('pohadky').includes('Tři oříšky pro Popelku'));
@@ -153,4 +153,76 @@ test('film: Hrají podle obsazení (pořadí v titulcích), ne podle slávy herc
     assert.ok(!find('Captain Marvel').f.cast.includes('Scarlett Johanssonová'));
     assert.equal(find('Avengers: Endgame').f.cast[0], 'Robert Downey Jr.');
     assert.deepEqual(find('Kmotr').f.cast.slice(0, 2), ['Marlon Brando', 'Al Pacino']);
+});
+
+// --- Animované filmy a seriály ---
+
+test('film: animované filmy – vlastní kategorie, studio a známost', () => {
+    const animated = data.items.filter(item => item.c === 'animovane');
+    assert.ok(animated.length >= 100 && animated.length <= 300, `animovaných filmů ${animated.length}`);
+    const known = animated.filter(item => item.k === 1).length / animated.length;
+    assert.ok(known >= 0.2 && known <= 0.35, `známých ${known}`);
+    for (const name of ['Lví král', 'Shrek', 'Toy Story: Příběh hraček', 'Ledové království']) assert.equal(find(name).k, 1, `${name} má být známý`);
+    assert.equal(find('Lví král').c, 'animovane');
+    assert.equal(find('Toy Story: Příběh hraček').f.studio, 'Pixar');
+    assert.ok(animated.some(item => item.cz === 1), 'česká animace');
+    assert.ok(animated.every(item => !item.im), 'plakáty nejsou volné');
+    // Okruhy studií
+    assert.ok(inCollection('pixar').includes('Toy Story: Příběh hraček') && inCollection('disney').includes('Lví král'));
+    assert.ok(!data.collections.some(collection => collection.id === 'animovane'), 'okruh Animované filmy nahradila kategorie');
+});
+
+test('film: otázka „Které studio film natočilo?“ – bez druhé správné odpovědi (Pixar a Disney)', () => {
+    const toyStory = find('Toy Story: Příběh hraček');
+    for (let seed = 0; seed < 8; seed++) {
+        const question = film.specialQuestion(toyStory, ctx, rngStartingWith(0.3, `studio${seed}`));
+        assert.equal(question.type, 'studio');
+        assert.equal(question.answerLabel, 'Pixar');
+        assert.equal(question.choices.filter(choice => choice.correct).length, 1);
+        assert.ok(!question.choices.some(choice => choice.label === 'Walt Disney'), 'filmy Pixaru vydával Disney');
+    }
+    const lionKing = film.specialQuestion(find('Lví král'), ctx, rngStartingWith(0.3));
+    assert.ok(core.checkAnswer('Disney', lionKing) && !core.checkAnswer('Pixar', lionKing));
+    // Popis bez jména studia, název filmu zůstane
+    const text = film.censor('studio', 'Toy Story je animovaný film studia Pixar, který distribuovalo studio Walt Disney Pictures.', toyStory, ctx);
+    assert.doesNotMatch(text, /Pixar|Disney/);
+    // Ostatní otázky animovaného filmu: desetiletí premiéry, jinak název
+    assert.equal(film.specialQuestion(find('Shrek'), ctx, rngStartingWith(0.5)).type, 'decade');
+    assert.equal(film.specialQuestion(find('Shrek'), ctx, rngStartingWith(0.9)), null);
+});
+
+test('film: seriály – české i světové, tvůrce, vysílání a otázky', () => {
+    const series = data.items.filter(item => item.c === 'serialy');
+    assert.ok(series.length >= 100 && series.length <= 300, `seriálů ${series.length}`);
+    const known = series.filter(item => item.k === 1).length / series.length;
+    assert.ok(known >= 0.2 && known <= 0.35, `známých ${known}`);
+    for (const name of ['Simpsonovi', 'Přátelé', 'Nemocnice na kraji města', 'Arabela', 'Návštěvníci']) assert.equal(find(name).k, 1, `${name} má být známý`);
+    assert.ok(find('Nemocnice na kraji města').cz === 1 && !find('Simpsonovi').cz);
+    // Soutěže a reality show nejsou seriály
+    assert.ok(!series.some(item => /SuperStar|má talent|Big Brother/u.test(item.n)));
+    const hospital = find('Nemocnice na kraji města');
+    assert.deepEqual(film.facts(hospital, ctx, 'name').map(fact => fact.label).slice(0, 1), ['Vysílání']);
+    assert.ok(!film.facts(hospital, ctx, 'name').some(fact => fact.label === 'Scénář'), 'autor je samostatná nápověda');
+    assert.equal(film.subtitle(find('Simpsonovi'), ctx).split(' · ')[0], 'od 1989');
+    // Kdo napsal scénář? – možnosti jsou scenáristé jiných českých seriálů
+    const writer = film.specialQuestion(hospital, ctx, rngStartingWith(0.1));
+    assert.equal(writer.type, 'creator');
+    assert.equal(writer.title, 'Kdo napsal scénář seriálu?');
+    assert.equal(writer.answerLabel, 'Jaroslav Dietl');
+    assert.equal(writer.choices.filter(choice => choice.correct).length, 1);
+    assert.ok(core.checkAnswer('Dietl', writer));
+    assert.doesNotMatch(film.censor('creator', 'Seriál napsal Jaroslav Dietl, Dietlův scénář…', hospital, ctx), /Dietl/);
+    const simpsons = film.specialQuestion(find('Simpsonovi'), ctx, rngStartingWith(0.1));
+    assert.equal(simpsons.title, 'Kdo seriál vytvořil?');
+    assert.equal(simpsons.answerLabel, 'Matt Groening');
+    // Desetiletí začátku vysílání
+    const decade = film.specialQuestion(find('Simpsonovi'), ctx, rngStartingWith(0.3));
+    assert.equal(decade.title, 'Ve kterém desetiletí se začal vysílat?');
+    assert.equal(decade.answerLabel, '80. léta');
+    // Nesprávné možnosti seriálu jsou seriály (ne filmy) a k českému české
+    for (let seed = 0; seed < 4; seed++) {
+        const choices = core.buildItemChoices(hospital, data.items, core.createSeededRandom(`nemocnice${seed}`), other => film.similarity(hospital, other, ctx));
+        assert.ok(choices.every(choice => ctx.byId.get(choice.id).c === 'serialy' && ctx.byId.get(choice.id).cz === 1), choices.map(choice => choice.label).join(', '));
+    }
+    assert.ok(inCollection('ceske-serialy').includes('Arabela') && inCollection('animovane-serialy').includes('Simpsonovi'));
 });

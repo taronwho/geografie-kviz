@@ -43,6 +43,7 @@ test('otázka „Ukaž na mapě“', { skip: !chromium && 'Playwright není nain
     const open = async ({ width = 390, height = 780, colorScheme = 'light', variant = 'choices', gap = 10, categories = ['mesto'], storage = {}, hasTouch = false } = {}) => {
         const context = await browser.newContext({ serviceWorkers: 'block', viewport: { width, height }, colorScheme, hasTouch });
         await context.clock.setFixedTime(new Date('2026-11-04T12:00:00'));
+        await context.addInitScript(() => { window.MUDRLANT_NUMERIC_RATE = 0; }); // jen obyčejné otázky (Seřaď a Odhadni číslo: e2e-numeric)
         await context.addInitScript((entries) => {
             if (sessionStorage.getItem('seeded')) return;
             sessionStorage.setItem('seeded', '1');

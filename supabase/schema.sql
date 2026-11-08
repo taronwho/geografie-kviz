@@ -1410,7 +1410,9 @@ begin
         -- Průběh výzev a zápasů turnaje (odpovědi po otázkách) a vyplacené XP za vyhrané zápasy (schéma 3, tabulky na konci souboru)
         'vyzvy_prubeh', coalesce((select jsonb_agg(to_jsonb(p) order by p.answered_at, p.challenge_id, p.idx) from public.challenge_progress p where p.user_id = uid), '[]'::jsonb),
         'turnaje_odpovedi', coalesce((select jsonb_agg(to_jsonb(a) order by a.answered_at, a.idx) from public.tournament_answers a where a.user_id = uid), '[]'::jsonb),
-        'turnaje_xp', coalesce((select jsonb_agg(to_jsonb(x) order by x.claimed_at) from public.tournament_xp_claims x where x.user_id = uid), '[]'::jsonb)
+        'turnaje_xp', coalesce((select jsonb_agg(to_jsonb(x) order by x.claimed_at) from public.tournament_xp_claims x where x.user_id = uid), '[]'::jsonb),
+        -- Kvíz dne (schéma 7, tabulka na konci souboru)
+        'kviz_dne', coalesce((select jsonb_agg(to_jsonb(k) order by k.day) from public.daily_quiz_results k where k.user_id = uid), '[]'::jsonb)
     ) into result;
     return result;
 end;
@@ -2078,6 +2080,205 @@ revoke all on function public.answer_stats_bump(jsonb, text) from public, anon, 
 revoke all on function public.answer_stats_submit(jsonb), public.answer_stats_topic(text), public.dev_suspicious_questions(integer) from public, anon;
 grant execute on function public.answer_stats_submit(jsonb), public.answer_stats_topic(text), public.dev_suspicious_questions(integer) to authenticated;
 -- ===== KONEC BLOKU: Jak odpověděli ostatní =====
+-- ===== Kvíz dne (schéma 7) — ZAČÁTEK BLOKU =====
+-- Každý den (pražský čas) stejných 10 otázek pro všechny hráče: otázky losuje aplikace ze semínka dne (daily-quiz.js), server hlídá jeden
+-- započítaný pokus na hráče a den, pořadí a sérii. Řádek pokusu vzniká při daily_quiz_start() a den určuje server, takže pokus nejde začít znovu
+-- (ani po smazání dat nebo na jiném zařízení). Odpovědi se ukládají po otázkách (daily_quiz_answer): jen další otázka v pořadí, nic přeskočit
+-- ani přepsat, body jen 1–4 za správnou (výběr z možností) a 0 za špatnou. Rozehraný pokus jde dokončit později, čas ale běží dál: server ke každé
+-- odpovědi započte aspoň dobu od předchozí odpovědi (nebo od začátku) bez 15 s na načtení otázky, nejvýš 5 minut na otázku. Odpověď rychlejší
+-- než 0,5 s server odmítne. Po půlnoci se nedohraný pokus počítá, jak stál (nezodpovězené otázky jako špatné). Pořadí: víc bodů, při shodě kratší čas.
+-- Tabulku hráč jen čte (svůj řádek); zapisují jen funkce níže. Pořadí dne a přátel vracejí funkce s právy vlastníka a jen veřejné údaje profilu.
+create table if not exists public.daily_quiz_results (
+    user_id uuid not null references public.profiles (id) on delete cascade,
+    day date not null,
+    answered smallint not null default 0,
+    correct smallint not null default 0,
+    score smallint not null default 0,
+    time_ms integer not null default 0,
+    -- bit i = otázka i zodpovězená správně (sdílená mřížka 🟩🟥)
+    bitmap integer not null default 0,
+    -- volání start/answer v tomto dni (limit proti zahlcení)
+    calls smallint not null default 0,
+    started_at timestamptz not null default now(),
+    last_at timestamptz not null default now(),
+    finished_at timestamptz,
+    primary key (user_id, day)
+);
+alter table public.daily_quiz_results drop constraint if exists daily_quiz_results_values;
+alter table public.daily_quiz_results add constraint daily_quiz_results_values check (
+    answered between 0 and 10 and correct between 0 and answered and score between correct and 4 * correct
+    and time_ms between 0 and 3000000 and bitmap >= 0 and bitmap < (1 << answered::integer)
+    and correct = length(replace((bitmap::bit(10))::text, '0', ''))
+    and calls between 0 and 1000 and (finished_at is null) = (answered < 10));
+create index if not exists daily_quiz_results_rank on public.daily_quiz_results (day, score desc, time_ms);
+alter table public.daily_quiz_results enable row level security;
+drop policy if exists "kvíz dne: vlastní řádky" on public.daily_quiz_results;
+create policy "kvíz dne: vlastní řádky" on public.daily_quiz_results for select to authenticated using (user_id = auth.uid());
+revoke all on public.daily_quiz_results from anon, authenticated;
+grant select on public.daily_quiz_results to authenticated;
+
+-- Den kvízu (Praha); mudrlant.test_today používají jen testy (z API ho klient nastavit nemůže)
+create or replace function public.daily_quiz_today() returns date
+language sql stable set search_path = public as $$
+    select coalesce(nullif(current_setting('mudrlant.test_today', true), '')::date, (now() at time zone 'Europe/Prague')::date)
+$$;
+-- Série hráče: dny po sobě s odehraným kvízem (dnešek jen dohraný, minulé dny i nedohrané) končící dnes nebo včera, a nejdelší série
+create or replace function public.daily_quiz_streaks(uid uuid, today date) returns table (streak integer, best integer)
+language sql stable set search_path = public as $$
+    with played as (
+        select r.day from public.daily_quiz_results r
+        where r.user_id = uid and r.answered > 0 and (r.finished_at is not null or r.day < today) and r.day <= today
+    ), runs as (
+        select min(p.day) as first_day, max(p.day) as last_day, count(*)::integer as len
+        from (select day, day - (row_number() over (order by day))::integer as grp from played) p group by p.grp
+    )
+    select coalesce((select len from runs where last_day >= today - 1 order by last_day desc limit 1), 0),
+           coalesce((select max(len) from runs), 0)
+$$;
+-- Stav pokusu jako JSON pro aplikaci (r bez řádku = ještě nezačatý)
+create or replace function public.daily_quiz_json(r public.daily_quiz_results, d date, uid uuid) returns jsonb
+language sql stable set search_path = public as $$
+    select jsonb_build_object('day', d, 'started', r.user_id is not null, 'answered', coalesce(r.answered, 0), 'correct', coalesce(r.correct, 0),
+        'score', coalesce(r.score, 0), 'time_ms', coalesce(r.time_ms, 0), 'bitmap', coalesce(r.bitmap, 0), 'finished', r.finished_at is not null,
+        'streak', s.streak, 'best_streak', s.best)
+    from public.daily_quiz_streaks(uid, d) s
+$$;
+
+-- Dnešní stav přihlášeného hráče (nic nezakládá)
+create or replace function public.daily_quiz_state() returns jsonb
+language plpgsql stable security definer set search_path = public as $$
+declare uid uuid := auth.uid(); d date := public.daily_quiz_today(); r public.daily_quiz_results;
+begin
+    if uid is null then raise exception 'Přihlas se.' using errcode = '42501'; end if;
+    select * into r from public.daily_quiz_results where user_id = uid and day = d;
+    return public.daily_quiz_json(r, d, uid);
+end;
+$$;
+
+-- Začátek (nebo pokračování) dnešního pokusu: řádek vznikne jen jednou, čas začátku určuje server. Nejvýš 40 volání start/answer za den.
+create or replace function public.daily_quiz_start() returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare uid uuid := auth.uid(); d date := public.daily_quiz_today(); r public.daily_quiz_results;
+begin
+    if uid is null then raise exception 'Přihlas se.' using errcode = '42501'; end if;
+    insert into public.daily_quiz_results (user_id, day) values (uid, d) on conflict (user_id, day) do nothing;
+    select * into r from public.daily_quiz_results where user_id = uid and day = d for update;
+    if r.calls >= 40 then raise exception 'Příliš mnoho pokusů o uložení Kvízu dne. Zkus to zítra.' using errcode = '22023'; end if;
+    update public.daily_quiz_results set calls = calls + 1 where user_id = uid and day = d returning * into r;
+    return public.daily_quiz_json(r, d, uid);
+end;
+$$;
+
+-- Odpověď na otázku idx (od 0) dnešního kvízu; for_day = den, pro který aplikace otázky losovala (po půlnoci už neplatí).
+-- Stejná odpověď poslaná znovu (ztracená odpověď serveru) nic nezmění; jinou odpověď na zodpovězenou otázku server odmítne.
+create or replace function public.daily_quiz_answer(for_day date, idx integer, is_correct boolean, points integer, ms integer) returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare uid uuid := auth.uid(); d date := public.daily_quiz_today(); r public.daily_quiz_results; gap bigint; counted integer;
+begin
+    if uid is null then raise exception 'Přihlas se.' using errcode = '42501'; end if;
+    if for_day is distinct from d then raise exception 'Tenhle Kvíz dne už skončil. Dnes je nový.' using errcode = '22023'; end if;
+    if idx is null or idx < 0 or idx > 9 or is_correct is null or points is null or ms is null then raise exception 'Neplatná odpověď.' using errcode = '22023'; end if;
+    if (is_correct and (points < 1 or points > 4)) or (not is_correct and points <> 0) then raise exception 'Neplatné body.' using errcode = '22023'; end if;
+    select * into r from public.daily_quiz_results where user_id = uid and day = d for update;
+    if r.user_id is null then raise exception 'Kvíz dne nejdřív začni.' using errcode = '22023'; end if;
+    if r.calls >= 40 then raise exception 'Příliš mnoho pokusů o uložení Kvízu dne. Zkus to zítra.' using errcode = '22023'; end if;
+    if idx < r.answered then
+        if ((r.bitmap >> idx) & 1 = 1) = is_correct then
+            update public.daily_quiz_results set calls = calls + 1 where user_id = uid and day = d returning * into r;
+            return public.daily_quiz_json(r, d, uid);
+        end if;
+        raise exception 'Na tuhle otázku už odpověď máš.' using errcode = '22023';
+    end if;
+    if idx > r.answered then raise exception 'Nejdřív se musí uložit předchozí otázka.' using errcode = '22023'; end if;
+    if ms < 500 then raise exception 'Odpověď přišla příliš rychle.' using errcode = '22023'; end if;
+    -- čas na otázku: aspoň to, co uplynulo od předchozí odpovědi (bez 15 s na načtení), nejvýš 5 minut
+    gap := floor(extract(epoch from (now() - r.last_at)) * 1000)::bigint;
+    counted := least(greatest(ms::bigint, gap - 15000), 300000)::integer;
+    update public.daily_quiz_results set
+        answered = answered + 1,
+        correct = correct + (case when is_correct then 1 else 0 end),
+        score = score + points,
+        time_ms = time_ms + counted,
+        bitmap = bitmap | (case when is_correct then 1 << idx else 0 end),
+        last_at = now(),
+        calls = calls + 1,
+        finished_at = case when answered + 1 = 10 then now() end
+    where user_id = uid and day = d
+    returning * into r;
+    return public.daily_quiz_json(r, d, uid);
+end;
+$$;
+
+-- Pokusy, které se v daném dni počítají do pořadí: dohrané, a u minulých dnů i nedohrané (jak stály)
+create or replace function public.daily_quiz_counted(d date, today date) returns setof public.daily_quiz_results
+language sql stable set search_path = public as $$
+    select r.* from public.daily_quiz_results r where r.day = d and r.answered > 0 and (r.finished_at is not null or r.day < today)
+$$;
+
+-- Pořadí dne: top N (výchozí 50, nejvýš 100) a moje místo; for_day null = dnes, jinak nejvýš 30 dní zpět. Jen veřejné údaje profilu.
+create or replace function public.daily_quiz_board(for_day date default null, top_n integer default 50) returns jsonb
+language plpgsql stable security definer set search_path = public as $$
+declare uid uuid := auth.uid(); today date := public.daily_quiz_today(); d date := coalesce(for_day, public.daily_quiz_today());
+    n integer := least(greatest(coalesce(top_n, 50), 1), 100); result jsonb;
+begin
+    if uid is null then raise exception 'Přihlas se.' using errcode = '42501'; end if;
+    if d > today or d < today - 30 then raise exception 'Pořadí Kvízu dne je jen za posledních 30 dní.' using errcode = '22023'; end if;
+    with ranked as (
+        select c.user_id, c.score, c.correct, c.time_ms, c.bitmap, c.answered,
+            (rank() over (order by c.score desc, c.time_ms))::integer as place,
+            (row_number() over (order by c.score desc, c.time_ms, c.finished_at nulls last, c.user_id))::integer as pos
+        from public.daily_quiz_counted(d, today) c
+    )
+    select jsonb_build_object(
+        'day', d,
+        'total', (select count(*) from ranked),
+        'top', coalesce((select jsonb_agg(jsonb_build_object('rank', k.place, 'id', p.id, 'display_name', p.display_name, 'avatar', p.avatar, 'color', p.color,
+                'frame', p.frame, 'title_pref', p.title_pref, 'owl', p.owl, 'score', k.score, 'correct', k.correct, 'time_ms', k.time_ms, 'me', k.user_id = uid) order by k.pos)
+            from ranked k join public.profiles p on p.id = k.user_id where k.pos <= n), '[]'::jsonb),
+        'me', (select jsonb_build_object('rank', k.place, 'score', k.score, 'correct', k.correct, 'time_ms', k.time_ms, 'bitmap', k.bitmap, 'answered', k.answered)
+            from ranked k where k.user_id = uid),
+        'streak', s.streak, 'best_streak', s.best
+    ) into result
+    from public.daily_quiz_streaks(uid, today) s;
+    return result;
+end;
+$$;
+
+-- Pořadí mezi přáteli (přijatá přátelství oběma směry) a mnou; friends = počet přátel (aplikace pozná „nemáš přátele“ od „ještě nehráli“)
+create or replace function public.daily_quiz_friends(for_day date default null) returns jsonb
+language plpgsql stable security definer set search_path = public as $$
+declare uid uuid := auth.uid(); today date := public.daily_quiz_today(); d date := coalesce(for_day, public.daily_quiz_today()); result jsonb;
+begin
+    if uid is null then raise exception 'Přihlas se.' using errcode = '42501'; end if;
+    if d > today or d < today - 30 then raise exception 'Pořadí Kvízu dne je jen za posledních 30 dní.' using errcode = '22023'; end if;
+    with circle as (
+        select case when f.user_id = uid then f.friend_id else f.user_id end as id
+        from public.friendships f where f.status = 'accepted' and uid in (f.user_id, f.friend_id)
+    ), ranked as (
+        select c.user_id, c.score, c.correct, c.time_ms,
+            (rank() over (order by c.score desc, c.time_ms))::integer as place,
+            (row_number() over (order by c.score desc, c.time_ms, c.finished_at nulls last, c.user_id))::integer as pos
+        from public.daily_quiz_counted(d, today) c where c.user_id = uid or c.user_id in (select id from circle)
+    )
+    select jsonb_build_object(
+        'day', d,
+        'friends', (select count(*) from circle),
+        'rows', coalesce((select jsonb_agg(jsonb_build_object('rank', k.place, 'id', p.id, 'display_name', p.display_name, 'avatar', p.avatar, 'color', p.color,
+                'frame', p.frame, 'title_pref', p.title_pref, 'owl', p.owl, 'score', k.score, 'correct', k.correct, 'time_ms', k.time_ms, 'me', k.user_id = uid) order by k.pos)
+            from ranked k join public.profiles p on p.id = k.user_id where k.pos <= 200), '[]'::jsonb)
+    ) into result;
+    return result;
+end;
+$$;
+
+-- Pomocné funkce jen interně; hráč volá jen stav, start, odpověď, pořadí a přátele (anon nic)
+revoke all on function public.daily_quiz_today(), public.daily_quiz_streaks(uuid, date), public.daily_quiz_json(public.daily_quiz_results, date, uuid),
+    public.daily_quiz_counted(date, date) from public, anon, authenticated;
+revoke all on function public.daily_quiz_state(), public.daily_quiz_start(), public.daily_quiz_answer(date, integer, boolean, integer, integer),
+    public.daily_quiz_board(date, integer), public.daily_quiz_friends(date) from public, anon;
+grant execute on function public.daily_quiz_state(), public.daily_quiz_start(), public.daily_quiz_answer(date, integer, boolean, integer, integer),
+    public.daily_quiz_board(date, integer), public.daily_quiz_friends(date) to authenticated;
+-- ===== Kvíz dne (schéma 7) — KONEC BLOKU =====
 
 -- ===== Verze schématu =====
 -- Číslo se zvyšuje při KAŽDÉ změně tohoto souboru (tabulka, sloupec, funkce, pravidlo) a zároveň konstanta REQUIRED_SCHEMA v app.js.
@@ -2087,7 +2288,8 @@ grant execute on function public.answer_stats_submit(jsonb), public.answer_stats
 -- 4: zkušební upozornění přes server pro dev_admins (push_tests, dev_push_test, druh 'test' v push_due a push_mark).
 -- 5: okamžité odesílání upozornění (push_kick přes pg_cron a pg_net, push_kick_state, push_pending sdílené s push_due, dev_push_status).
 -- 6: Jak odpověděli ostatní (answer_stats, answer_stats_limits, answer_stats_submit, answer_stats_topic, dev_suspicious_questions).
+-- 7: Kvíz dne (daily_quiz_results, daily_quiz_state/start/answer/board/friends; export_my_data má i 'kviz_dne').
 create or replace function public.schema_version() returns integer
-language sql immutable as $$ select 6 $$;
+language sql immutable as $$ select 7 $$;
 revoke all on function public.schema_version() from public, anon;
 grant execute on function public.schema_version() to authenticated;

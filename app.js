@@ -25,6 +25,8 @@
     const Sound = window.MudrlantSound || null;
     // Otázka „Ukaž na mapě“ (question-map.js); bez skriptu se hraje bez ní
     const MapQuestion = window.MudrlantMapQuestion || null;
+    // Číselné otázky Seřaď a Odhadni číslo (numeric-questions.js); bez skriptu jen nejsou
+    const Numeric = window.MudrlantNumeric || null;
     const TOPICS = window.MudrlantTopics || [];
     const TOPIC_BY_ID = Object.fromEntries(TOPICS.map(topic => [topic.id, topic]));
     const APP_NAME = 'Mudrlant';
@@ -55,8 +57,9 @@
     // (tests/sql-monitor.test.js hlídá shodu). Správce (dev_admins nebo vývojářský režim) uvidí v Nastavení, že má schéma spustit znovu.
     // 3 = průběh výzev a zápasů turnaje na serveru a XP za výhry v turnaji jednou za účet; 4 = zkušební upozornění přes server (dev_push_test);
     // 5 = okamžité odesílání upozornění (push_kick, dev_push_status; aplikace funguje i se 4, jen ve zkoušce upozornění ukáže obecný text);
-    // 6 = Jak odpověděli ostatní (answer_stats_submit, answer_stats_topic, dev_suspicious_questions; se starší databází se statistiky jen neukazují).
-    const REQUIRED_SCHEMA = 6;
+    // 6 = Jak odpověděli ostatní (answer_stats_submit, answer_stats_topic, dev_suspicious_questions; se starší databází se statistiky jen neukazují);
+    // 7 = Kvíz dne (daily_quiz_*; se starší databází se Kvíz dne hraje jen v zařízení, bez pořadí).
+    const REQUIRED_SCHEMA = 7;
     const HISTORY_SIZE = 200;
     const REQUEST_TIMEOUT = 12000;
     const WIKI_TIMEOUT = 6000;
@@ -391,6 +394,8 @@
     const loadWorld = memoizeBy(() => fetchJson('data/world.json'));
     // Slepé mapy otázky „Ukaž na mapě“ (data/mapa.json), načtou se s první takovou otázkou
     const loadMapData = memoizeBy(() => fetchJson('data/mapa.json'));
+    // Slepé mapy regionů (kraje, spolkové země, státy USA… – data/regiony.json), načtou se s první mapou regionu nebo města
+    const loadRegions = memoizeBy(() => fetchJson('data/regiony.json'));
     // Fotky, na kterých je napsaná odpověď (jméno na dresu, název na plakátu) – najde je OCR při sestavení dat
     // (npm run audit:photo-text); bez souboru se hraje dál se všemi fotkami
     const loadPhotoText = memoizeBy(() => fetchJson('data/photo-text.json').catch(() => ({})));
@@ -412,7 +417,7 @@
         refreshAnswerStats(topicId);
         return ctx;
     });
-    const visualDeps = { loadWorld: () => loadWorld() };
+    const visualDeps = { loadWorld: () => loadWorld(), loadRegions: () => loadRegions() };
 
     // Úvod článku z české Wikipedie; bez spojení aspoň krátký popis z Wikidat, ať jde hrát dál.
     // Úspěšně stažené úvody si pamatujeme, ať se atlas a okno s popisem neptají Wikipedie znovu.
@@ -2100,12 +2105,14 @@
             return { icon: 'graduation-cap', text: topic ? `Učení · ${topic.title}` : 'Učení', topic };
         }
         if (screen === 'challenge-done') return { icon: 'trophy', text: challenge && challenge.tournament ? 'Zápas hotový' : 'Výzva hotová', topic: null };
+        if (screen === 'quiz' || screen === 'quiz-done') return { icon: 'timer', text: `Kvíz dne · ${shortDay(quiz ? quiz.day : getDayKey())}`, topic: null };
         if (screen === 'mode' && modeGame) return modePlace(modeGame);
         // Úvod: sova z loga, název a dnešní datum
         if (screen !== 'round' || !current) return { logo: true, text: `${APP_NAME} · ${shortDay(getDayKey())}`, date: shortDay(getDayKey()), topic: null };
         const topic = TOPIC_BY_ID[current.topic];
         if (mode === 'daily') return { icon: topic.icon, text: `${topic.title} · ${shortDay(current.dailyDate || getDayKey())}`, topic };
         if (mode === 'challenge' && challenge) return { icon: challenge.tournament ? 'trophy' : 'swords', text: `${challenge.tournament ? 'Turnaj' : 'Výzva'} · ${challenge.index + 1}/${challenge.count}`, topic };
+        if (mode === 'quiz') return { icon: topic.icon, text: `Kvíz dne · ${quizIndex + 1}/${DailyQuiz.QUESTIONS}`, topic };
         if (pool.kind === 'mistakes') return { icon: 'repeat', text: `Procvičování chyb · ${loadMistakes().length}`, topic };
         if (pool.kind === 'review') return { icon: 'repeat', text: `Procvičování · ${Math.min(pool.done + 1, pool.total)}/${pool.total}`, topic };
         if (pool.kind === 'collection') {
@@ -2126,7 +2133,7 @@
     const updateControlsUI = () => {
         // Procvičování okruhu nebo chyb patří k učení
         const fromLearn = mode === 'practice' && (pool.kind === 'collection' || pool.kind === 'mistakes' || pool.kind === 'review');
-        const section = screen === 'learn' ? 'learn' : screen === 'mode' ? 'practice' : screen === 'round' ? (mode === 'daily' || mode === 'challenge' ? 'home' : fromLearn ? 'learn' : 'practice') : 'home';
+        const section = screen === 'learn' ? 'learn' : screen === 'mode' ? 'practice' : screen === 'round' ? (mode === 'daily' || mode === 'challenge' || mode === 'quiz' ? 'home' : fromLearn ? 'learn' : 'practice') : 'home';
         updateProfileButton();
         const settingsButton = document.getElementById('btn-settings');
         settingsButton.disabled = isLoading;
@@ -2360,9 +2367,9 @@
         const tile = (topic) => {
             const scope = scopeOf(topic);
             return `
-                <button type="button" data-action="play-topic" data-topic="${topic.id}"${scope ? ` title="${escapeHtml(`${topic.title} · ${scope}`)}"` : ''} class="relative flex min-h-[4rem] min-w-0 flex-col items-center justify-center gap-1 overflow-hidden rounded-2xl bg-gradient-to-br p-1.5 text-center text-white shadow-md ring-1 ring-black/5 transition-all active:scale-[0.97] short:min-h-[3.5rem] short:gap-0.5 short:p-1 ${styleOf(topic).tile}">
-                    ${topicArt(topic) ? topicIcon(topic, 'h-11 w-11 short:h-8 short:w-8') : `<i data-lucide="${topic.icon}" class="h-[1.625rem] w-[1.625rem]"></i>`}
-                    <span class="block ${topic.title.length > 10 ? 'text-[10px]' : 'text-[11.5px]'} font-black leading-tight tracking-tight short:leading-[1.1]">${escapeHtml(topic.title)}</span>
+                <button type="button" data-action="play-topic" data-topic="${topic.id}"${scope ? ` title="${escapeHtml(`${topic.title} · ${scope}`)}"` : ''} class="relative flex min-h-[4rem] min-w-0 flex-col items-center justify-center gap-1 overflow-hidden rounded-2xl bg-gradient-to-br p-1 text-center text-white shadow-md ring-1 ring-black/5 transition-all active:scale-[0.97] short:min-h-[3.5rem] short:gap-0.5 short:p-0.5 ${styleOf(topic).tile}">
+                    ${topicArt(topic) ? topicIcon(topic, 'h-10 w-10 short:h-8 short:w-8') : `<i data-lucide="${topic.icon}" class="h-[1.625rem] w-[1.625rem]"></i>`}
+                    <span class="block ${topic.title.length > 10 ? 'text-[10px]' : 'text-[11.5px]'} font-black leading-tight tracking-tight short:leading-none">${escapeHtml(topic.title)}</span>
                 </button>`;
         };
         const mixScope = settings.topics.length === TOPICS.length ? 'Otázky ze všech témat' : `${settings.topics.length} z ${TOPICS.length} témat`;
@@ -2374,9 +2381,9 @@
         const ordered = groupedTopics().flatMap(group => group.topics);
         const left = TOPICS.length - answered;
         appContent.innerHTML = `
-            <div class="fade-in flex min-h-full w-full flex-col gap-2.5 bg-slate-50 p-3 pb-4 short:gap-2 short:pb-3 dark:bg-slate-900">
+            <div class="fade-in flex min-h-full w-full flex-col gap-2 bg-slate-50 p-3 pb-4 short:gap-1.5 short:pb-3 dark:bg-slate-900">
                 ${renderHomeTabs()}
-                ${homeTab() === 'multi' ? renderChallengesSection() : `<section class="rounded-[1.4rem] bg-white p-2.5 shadow-sm ring-1 ring-slate-200/70 short:p-2 dark:bg-slate-800/70 dark:ring-slate-700/70">
+                ${homeTab() === 'multi' ? renderChallengesSection() : `${quizHomeCard()}<section class="rounded-[1.4rem] bg-white p-2.5 shadow-sm ring-1 ring-slate-200/70 short:p-1.5 dark:bg-slate-800/70 dark:ring-slate-700/70">
                     <div class="mb-2 flex items-center justify-between gap-2 short:mb-1.5">
                         <h2 class="flex min-w-0 items-center gap-2 whitespace-nowrap text-slate-800 dark:text-slate-100">${uiArt('dnes', 'h-8 w-8 short:h-7 short:w-7')}<span class="min-w-0"><span class="block text-[13px] font-black leading-tight">Dnešní otázky</span><span class="block text-[11px] font-bold leading-tight text-slate-500 dark:text-slate-400">${answered}/${TOPICS.length} splněno</span></span></h2>
                         ${left ? `
@@ -2388,13 +2395,14 @@
                     <div class="grid grid-cols-7 gap-1">${dailyButtons}</div>
                 </section>
                 ${renderGoalsCard()}
-                <section class="grid max-h-[26rem] flex-1 grid-cols-4 auto-rows-fr gap-2 short:gap-1.5">${mixTile}${ordered.map(tile).join('')}</section>`}
+                <section class="grid max-h-[26rem] flex-1 grid-cols-4 auto-rows-fr gap-2 short:gap-1">${mixTile}${ordered.map(tile).join('')}</section>`}
             </div>`;
         applyProgress(appContent);
         renderIcons(appContent);
         appContent.scrollTo(0, 0);
         updateControlsUI();
         refreshChallenges();
+        if (DailyQuiz) refreshQuizServer();
         // Tutoriál až po výběru varianty: úvod jde otevřít i z uvítání (Domů), otázka by se ale nespustila a bublina by čekala
         if (Tutorial && gameVariant) Tutorial.maybeStart({ ready: factLoading });
     };
@@ -2494,7 +2502,7 @@
             ${caption ? `<h3 class="${CARD_TITLE} -mb-2"><i data-lucide="${visual.icon}" class="h-4 w-4"></i> ${escapeHtml(capitalize(visual.name))}</h3>` : ''}
             <section class="relative ${height} shrink-0 overflow-hidden border ${rounded} ${visual.frame}">
                 <div ${id ? `id="${id}"` : 'data-visual'} class="absolute inset-0" role="img" aria-label="${escapeHtml(visual.describe(spec))}"></div>
-                ${corner ? `<span class="absolute bottom-2 right-2 rounded-lg bg-black/65 px-2 py-1 text-[11px] font-bold text-white">${escapeHtml(corner)}</span>` : ''}
+                ${corner ? `<span data-visual-corner class="absolute bottom-2 right-2 rounded-lg bg-black/65 px-2 py-1 text-[11px] font-bold text-white">${escapeHtml(corner)}</span>` : ''}
             </section>`;
     };
 
@@ -2506,7 +2514,7 @@
         return `
             <div class="absolute inset-0 ${visual.frame}">
                 <div id="${id}" class="absolute inset-0" role="img" aria-label="${escapeHtml(visual.describe(spec))}"></div>
-                ${corner ? `<span class="absolute bottom-2 right-2 rounded-lg bg-black/65 px-2 py-1 text-[11px] font-bold text-white">${escapeHtml(corner)}</span>` : ''}
+                ${corner ? `<span data-visual-corner class="absolute bottom-2 right-2 rounded-lg bg-black/65 px-2 py-1 text-[11px] font-bold text-white">${escapeHtml(corner)}</span>` : ''}
             </div>`;
     };
     const factsPane = (facts) => `<div class="absolute inset-0 overflow-y-auto p-2.5"><h3 class="sr-only">Čísla a fakta</h3>${renderFactsList(facts)}</div>`;
@@ -2693,6 +2701,7 @@
             onPlace: (guess) => { if (current === data && round && !round.answered) { round.mapGuess = guess; persistState(); } } });
     };
     const renderQuestion = (keepScroll) => {
+        if (isNumeric(current)) return renderNumeric(keepScroll);
         const data = current;
         if (data.question.type === 'map' && MapQuestion) return renderMapQuestion(keepScroll);
         const topic = TOPIC_BY_ID[data.topic];
@@ -2713,7 +2722,7 @@
         appContent.innerHTML = `
             <div class="${keepScroll ? '' : 'fade-in '}flex min-h-full w-full flex-col gap-2.5 bg-slate-50 p-3 pb-3 dark:bg-slate-900">
                 <div class="relative flex flex-col items-center gap-1 text-center">
-                    ${mode === 'challenge' && challenge && challenge.tournament ? `<span class="absolute right-0 top-0 inline-flex items-center gap-1 rounded-lg bg-slate-200 px-2 py-0.5 text-xs font-black tabular-nums text-slate-700 dark:bg-slate-700 dark:text-slate-100" title="Čas na tuto otázku: při shodě rozhoduje rychlejší hráč"><i data-lucide="timer" class="h-3.5 w-3.5"></i><span data-tour-timer>0:00</span></span>` : ''}
+                    ${(mode === 'challenge' && challenge && challenge.tournament) || mode === 'quiz' ? `<span class="absolute right-0 top-0 inline-flex items-center gap-1 rounded-lg bg-slate-200 px-2 py-0.5 text-xs font-black tabular-nums text-slate-700 dark:bg-slate-700 dark:text-slate-100" title="Čas na tuto otázku: při shodě rozhoduje rychlejší hráč"><i data-lucide="timer" class="h-3.5 w-3.5"></i><span data-tour-timer>0:00</span></span>` : ''}
                     <span class="inline-flex items-center gap-1.5 rounded-lg border px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest text-white shadow-sm ${style.solid}">
                         <i data-lucide="${category.icon}" class="h-3 w-3"></i> ${escapeHtml(data.typeLabel)}
                     </span>
@@ -2931,16 +2940,22 @@
             const results = Object.values(stats.daily[data.topic] || {});
             const wins = results.filter(result => result.correct).length;
             const label = 'text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400';
+            // Obrázek ke sdílení (share-card.js) se kreslí až při stisku tlačítka „Sdílet obrázek“ (pointerdown, viz níž): kreslení hned
+            // při zobrazení výsledku by zdrželo jeho vykreslení (a tutoriál, který výsledek právě ukazuje); vstup karty se počítá až tam
+            const card = Boolean(ShareCard);
             return `
-                <section class="${CARD} flex items-center gap-2 p-3">
-                    <div class="grid flex-1 grid-cols-3 gap-1 text-center">
+                <section class="${CARD} flex flex-col gap-2 p-3">
+                    <div class="grid grid-cols-3 gap-1 text-center">
                         <div><p class="text-xl font-black text-slate-800 dark:text-slate-100">${computeStreak(stats.daily[data.topic] || {}, getDayKey())}</p><p class="flex items-center justify-center gap-1 ${label}">${uiArt('serie', 'h-5 w-5')}Série</p></div>
                         <div><p class="text-xl font-black text-slate-800 dark:text-slate-100">${results.length}</p><p class="${label}">Hráno</p></div>
                         <div><p class="text-xl font-black text-slate-800 dark:text-slate-100">${wins}</p><p class="${label}">Uhodnuto</p></div>
                     </div>
-                    <button type="button" data-action="share" aria-label="Sdílet výsledek" class="flex shrink-0 items-center gap-1.5 rounded-xl px-3 py-2.5 text-sm font-bold text-white shadow-md transition-all active:scale-95 ${styleOf(TOPIC_BY_ID[data.topic]).button}">
-                        <i data-lucide="share-2" class="h-4 w-4"></i> Sdílet
-                    </button>
+                    <div class="grid grid-cols-2 gap-2">
+                        <button type="button" data-action="share" aria-label="Sdílet výsledek" class="flex min-w-0 items-center justify-center gap-1.5 rounded-xl px-3 py-2.5 text-sm font-bold text-white shadow-md transition-all active:scale-95 ${styleOf(TOPIC_BY_ID[data.topic]).button}">
+                            <i data-lucide="share-2" class="h-4 w-4 shrink-0"></i> Sdílet
+                        </button>
+                        ${card ? `<button type="button" data-action="share-image" class="flex min-w-0 items-center justify-center gap-1.5 rounded-xl btn-3d-light bg-white px-3 py-2.5 text-sm font-bold text-slate-800 transition-all active:scale-95 dark:bg-slate-700 dark:text-slate-100"><i data-lucide="image" class="h-4 w-4 shrink-0"></i> Sdílet obrázek</button>` : ''}
+                    </div>
                 </section>`;
         }
         return `
@@ -3017,6 +3032,7 @@
     // Text hlavního tlačítka pod výsledkem
     const getNextLabel = () => {
         if (mode === 'challenge' && challenge) return challenge.index + 1 < challenge.count ? `Další otázka (${challenge.index + 2}/${challenge.count})` : (challenge.tournament ? 'Dokončit zápas' : 'Dokončit výzvu');
+        if (mode === 'quiz') return quizNextLabel();
         if (mode === 'daily') {
             const next = nextDailyTopic(current && current.topic);
             return next ? `Další dnešní: ${next.title}` : 'Hotovo – zpět do menu';
@@ -3031,6 +3047,7 @@
 
     // Výsledek: verdikt, název, záložky s fotkou, mapou a nápovědami, pak popis a fakta; tlačítko Další je přilepené dole
     const renderResult = (keepScroll) => {
+        if (isNumeric(current)) return renderNumeric(keepScroll);
         const data = current;
         const topic = TOPIC_BY_ID[data.topic];
         const style = styleOf(topic);
@@ -3088,7 +3105,7 @@
                         </section>
                     ` : ''}
 
-                    ${(mode === 'daily' && data.dailyDate) || mode === 'challenge' ? '' : renderStatsCard(data)}
+                    ${(mode === 'daily' && data.dailyDate) || mode === 'challenge' || mode === 'quiz' ? '' : renderStatsCard(data)}
 
                     <div class="flex gap-2">
                         <a href="${wikipediaUrl(data.title)}" target="_blank" rel="noopener noreferrer" class="flex min-w-0 flex-1 items-center justify-center gap-2 rounded-xl bg-slate-100 py-3 text-sm font-bold text-slate-700 transition-colors hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700">
@@ -3120,6 +3137,60 @@
             const verdict = appContent.querySelector('[data-verdict]');
             if (verdict) verdict.focus({ preventScroll: true });
         }
+    };
+
+    // --- Číselné otázky Seřaď a Odhadni číslo (numeric-questions.js): vlastní obrazovka otázky i výsledku, body podle přesnosti ---
+    // Bez nápověd; do chyb, opakování ani poznaných položek se nepočítají (ptají se na čísla, ne na položku). Plán otázky dělá výběr
+    // otázky (numericPlan): hra tématu a mixu a výzvy a turnaje (se semínkem výzvy, takže všichni dostanou stejnou), ne dnešní otázky a učení.
+    const isNumeric = (data) => Boolean(Numeric && Numeric.isKind(data));
+    const numericPlan = (ctx, item, pool, rng) => (Numeric && ctx && item ? Numeric.plan({ topic: ctx.topic, item, pool, rng }) : null);
+    const numericUi = (data) => ({
+        style: styleOf(TOPIC_BY_ID[data.topic]), card: CARD, cardTitle: CARD_TITLE, art: uiArt, xpLine, variant: round.variant, wikiUrl: wikipediaUrl,
+        statsCard: mode === 'challenge' ? '' : renderStatsCard(data), reportIcon: canReport() && mode !== 'challenge' ? REPORT_ICON_BUTTON : '',
+        reportText: canReport() ? REPORT_TEXT_BUTTON : '', nextLabel: round.answered ? getNextLabel() : '',
+        timer: Boolean(mode === 'challenge' && challenge && challenge.tournament && !round.answered)
+    });
+    const renderNumeric = (keepScroll) => {
+        const data = current;
+        appContent.innerHTML = (round.answered ? Numeric.resultHtml : Numeric.questionHtml)(data, round, numericUi(data));
+        if (keepScroll && appContent.firstElementChild) appContent.firstElementChild.classList.remove('fade-in');
+        renderIcons(appContent);
+        Numeric.mount(appContent, data, round, { Visuals, deps: visualDeps });
+        if (appContent.querySelector('[data-tour-timer]')) {
+            if (!round.timerStart) round.timerStart = Date.now();
+            startTourTimer(round.timerStart);
+        } else clearInterval(tourTimer);
+        if (keepScroll) return;
+        appContent.scrollTo(0, 0);
+        const verdict = appContent.querySelector('[data-verdict]');
+        if (verdict) verdict.focus({ preventScroll: true });
+    };
+    const numericPick = (index) => {
+        if (!round || round.answered || !isNumeric(current) || current.numeric.kind !== 'order' || !current.numeric.items[index]) return;
+        Numeric.togglePick(round, index);
+        Numeric.paintOrder(appContent, current, round, { style: styleOf(TOPIC_BY_ID[current.topic]) });
+        persistState();
+    };
+    const numericConfirm = () => {
+        if (!round || round.answered || !isNumeric(current) || current.numeric.kind !== 'order' || (round.pick || []).length !== 4) return;
+        round.score = Numeric.scoreOrder(current, round.pick);
+        const points = Numeric.pointsFor(round.score.base, round.variant);
+        submitAnswer({ correct: points > 0, typed: false, answer: round.pick.map(index => current.numeric.items[index].name).join(', '), points });
+    };
+    const numericEstimate = (form) => {
+        if (!round || round.answered || !isNumeric(current) || current.numeric.kind !== 'estimate') return;
+        const input = form.elements.guess;
+        const guess = Numeric.readGuess(current, input.value);
+        if (!Number.isFinite(guess)) {
+            Numeric.notePreview(document.getElementById('estimate-note'), current, input.value, true);
+            input.setAttribute('aria-invalid', 'true');
+            input.focus();
+            return;
+        }
+        round.guess = guess;
+        round.score = Numeric.scoreEstimate(current, guess);
+        const points = Numeric.pointsFor(round.score.base, round.variant);
+        submitAnswer({ correct: points > 0, typed: false, answer: Numeric.formatGuess(current, guess), points });
     };
 
     // --- Průběh hry ---
@@ -3234,6 +3305,7 @@
     const persistState = () => {
         if (!current) return;
         if (mode === 'challenge' && challenge && !challenge.done) rememberOpenChallenge(challenge);
+        if (mode === 'quiz') quizKeepOpen();
         // Rozehraný zápas turnaje se ukládá také: po návratu v den kola nabídne karta turnaje Pokračovat (od další otázky)
         // Rozehraná výzva (i zápas turnaje) se ukládá i během jiné hry (Hrát dál, dnešní otázky): po zavření aplikace by se jinak ztratila
         // a výzva by šla hrát znovu od začátku, zápas turnaje by už nešel dohrát
@@ -3489,12 +3561,17 @@
         } else if (mode === 'challenge' && challenge) {
             // Výzva se do běžných statistik nepočítá, jen do svého výsledku. Odpověď, kterou už server má (zodpovězená na jiném zařízení), platí ze serveru.
             if (!(knownSynced(challenge) > challenge.index)) challenge.results[challenge.index] = { correct: round.correct, points: round.points };
+        } else if (mode === 'quiz') {
+            // Kvíz dne má svůj výsledek (daily-quiz.js), do statistik tréninku se nepočítá
+            quizRecord();
         } else {
             stats.practice.played += 1;
             stats.practice.correct += round.correct ? 1 : 0;
             stats.practice.points += round.points;
         }
         writeJson(KEYS.stats, stats);
+        // Číselná otázka se ptá na čísla, ne na položku: do chyb, opakování ani poznaných položek nejde
+        if (isNumeric(current)) { awardXp(stats); return; }
         // Neuhodnutá položka jde do seznamu chyb v učení, správně uhodnutá z něj zmizí a počítá se do postupu v okruzích
         round.wasMistake = loadMistakes().includes(`${current.topic}:${current.id}`);
         writeJson(KEYS.mistakes, updateMistakes(loadMistakes(), `${current.topic}:${current.id}`, round.correct));
@@ -3516,7 +3593,8 @@
     };
 
     // answerRef: položka (nebo stát) ze špatné odpovědi – výsledek k ní nabídne okno s popisem
-    // points = body spočítané otázkou samou (na mapě podle vzdálenosti), extra = další údaje do kola (tip na mapě)
+    // points = body spočítané otázkou samou (Ukaž na mapě podle vzdálenosti, Seřaď a Odhadni číslo podle přesnosti; správně = aspoň bod),
+    // jinak podle nápověd; extra = další údaje do kola (tip na mapě)
     const submitAnswer = ({ correct, typed, answer, answerRef = null, gaveUp = false, points: given = null, extra = null }) => {
         if (!round || round.answered) return;
         const points = correct ? (Number.isInteger(given) ? given : pointsFor(round.hintLevel, typed)) : 0;
@@ -3530,6 +3608,7 @@
         renderRound();
         // Odpověď výzvy (zápasu turnaje) hned na server; bez spojení počká v zařízení
         if (mode === 'challenge' && challenge) syncAnswers(challenge);
+        if (mode === 'quiz' && quiz) syncQuiz(quiz);
     };
 
     const showNextHint = () => {
@@ -3555,17 +3634,8 @@
             streak: computeStreak(results, getDayKey()),
             url: `${window.location.origin}${window.location.pathname}`
         });
-        try {
-            if (navigator.share) {
-                await navigator.share({ text });
-                return;
-            }
-            await navigator.clipboard.writeText(text);
-            showToast('Výsledek je zkopírovaný ve schránce');
-        } catch (e) {
-            if (e && e.name === 'AbortError') return;
-            showToast('Sdílení se nepodařilo');
-        }
+        // Sdílení (systémové, jinak schránka) je pro celou aplikaci v share-card.js
+        if (window.MudrlantShareCard) await window.MudrlantShareCard.shareText({ text }, { toast: showToast, copied: 'Výsledek je zkopírovaný ve schránce' });
     };
 
     // Obnovení rozehrané otázky z uložené relace. Aplikace ho při běžném startu nepoužívá (vždy začíná úvodní stránkou);
@@ -3582,7 +3652,8 @@
         }
         // Dnešní otázka z uložené relace platí jen do půlnoci
         const isCurrent = session.mode !== 'daily' || session.data.dailyDate === getDayKey();
-        if (!isFresh || !isCurrent || (session.mode === 'challenge' && !session.challenge)) return false;
+        // Kvíz dne se obnovuje jen přes svou kartu (stav má v mudrlant.dailyQuiz)
+        if (!isFresh || !isCurrent || (session.mode === 'challenge' && !session.challenge) || session.mode === 'quiz') return false;
         try {
             current = upgradeRoundData(session.data);
             round = session.round;
@@ -3647,10 +3718,11 @@
             let picked = await pick(0);
             if (picked.abort) { isLoading = false; picked.abort(); return; }
             if (!picked.item) throw new Error('Není z čeho vybírat');
-            let data = await createRoundData(picked.item, picked.ctx, picked.rng);
+            // Číselná otázka, když ji výběr naplánoval (bez popisu z Wikipedie, takže chudý popis se jí netýká)
+            let data = (picked.numeric && Numeric && Numeric.buildRound(picked.numeric, picked.ctx)) || await createRoundData(picked.item, picked.ctx, picked.rng);
             // Chudý popis: vybere se jiná otázka (u dnešní otázky další určená položka), nejvýš třikrát; pak se vezme, co je
             // (výzva ne: všichni hráči musí dostat stejné otázky, i když se někomu Wikipedie nenačte)
-            for (let attempt = 1; data.thin && mode !== 'challenge' && !wikiPaused() && attempt <= MAX_THIN_RETRIES; attempt++) {
+            for (let attempt = 1; data.thin && mode !== 'challenge' && mode !== 'quiz' && !wikiPaused() && attempt <= MAX_THIN_RETRIES; attempt++) {
                 const next = await pick(attempt);
                 if (!next.item) break;
                 const candidate = await createRoundData(next.item, next.ctx, next.rng);
@@ -3662,12 +3734,14 @@
             round = createRound();
             // Výzva má pevný způsob odpovídání pro všechny hráče
             if (mode === 'challenge' && challenge && challenge.variant) round.variant = challenge.variant;
+            // Kvíz dne: výběr z možností, čas a nápovědy jako před zavřením aplikace
+            if (mode === 'quiz') quizRoundReady();
             isLoading = false;
             renderRound();
             // Souhrn odpovědí ostatních k tématu (stáhne se, jen když v zařízení chybí nebo je starší než den)
             refreshAnswerStats(current.topic);
             // Obrysy států pro slepou mapu stáhneme dopředu, ať je nápověda hned po ruce
-            if (data.visual && data.visual.type === 'map') loadWorld().catch(() => {});
+            if (data.visual && data.visual.type === 'map') (data.visual.regional ? loadRegions() : loadWorld()).catch(() => {});
         } catch (error) {
             isLoading = false;
             renderError(error);
@@ -3745,6 +3819,7 @@
             const history = readJson(KEYS.history) || [];
             let ctx;
             let item;
+            let numeric = null;
             if (pool.kind === 'mistakes') {
                 // Chyba, jejíž položka v nových datech už není, se ze seznamu vyřadí a zkusí se jiná
                 let keys = loadMistakes();
@@ -3796,9 +3871,11 @@
                 ctx = await loadTopic(pool.kind === 'topic' ? pool.topic : pickRandom(settings.topics, Math.random));
                 // Trénink bez semínka: mírná kalibrace obtížnosti podle odpovědí ostatních (pravidlo v answer-stats.js)
                 item = pickItem(playableItems(ctx), Math.random, history, ctx.topic.categories.map(c => c.key), answerStatsWeigher(ctx.topic.id));
+                // Tu a tam Seřaď nebo Odhadni číslo z vybraných kategorií (v okruzích, chybách a opakování z učení ne)
+                numeric = numericPlan(ctx, item, playableItems(ctx), Math.random);
             }
             if (item) rememberPlayed(item);
-            return { item, ctx, rng: Math.random };
+            return { item, ctx, rng: Math.random, numeric };
         }, pool.kind === 'topic' || pool.kind === 'collection' ? TOPIC_BY_ID[pool.topic] : pool.kind === 'mix' ? MIX : null);
     };
 
@@ -3833,6 +3910,11 @@
             const next = challengeNextIndex(challenge);
             if (next >= 0) startChallenge(challenge, next, challenge.results);
             else finishChallenge();
+            return;
+        }
+        if (mode === 'quiz') {
+            if (quiz) playQuizQuestion(DailyQuiz.nextIndex(quiz));
+            else renderHome();
             return;
         }
         if (mode === 'daily') {
@@ -3873,6 +3955,7 @@
 
     const retry = () => {
         if (screen === 'learn') renderLearn();
+        else if (mode === 'quiz' && quiz) playQuizQuestion(quizIndex);
         else if (mode === 'daily') startDaily(lastDailyTopic || TOPICS[0].id);
         else startPractice();
     };
@@ -5351,6 +5434,8 @@
         if (!user || !current || !round) return;
         if (mode === 'practice' && (pool.kind === 'review' || pool.kind === 'mistakes')) return;
         if (mode === 'daily' && round.dailyFirst === false) return;
+        // Seřaď se ptá na čtyři položky naráz: žádná z nich otázku sama neurčuje (Odhadni číslo patří jedné položce, ten se zapíše)
+        if (isNumeric(current) && current.numeric.kind === 'order') return;
         const waiting = AnswerStats.record(statsStorage(), user.id, { topic: current.topic, itemId: current.id, kind: current.question.type, variant: round.variant,
             correct, wrongId: !correct && !gaveUp && answerRef ? answerRef.id : null });
         // Dlouhý trénink: plná dávka se pošle hned (jinak až po hře)
@@ -6192,20 +6277,7 @@
     const challengeLink = (code) => `${window.location.origin}${window.location.pathname}?vyzva=${code}`;
     const shareChallenge = async (code, text = '') => {
         const message = `${text || 'Vyzývám tě v Mudrlantu!'}\nKód výzvy: ${code}`;
-        try {
-            if (navigator.share) {
-                await navigator.share({ title: 'Výzva v Mudrlantu', text: message, url: challengeLink(code) });
-                return;
-            }
-        } catch (error) {
-            if (error && error.name === 'AbortError') return;
-        }
-        try {
-            await navigator.clipboard.writeText(`${message}\n${challengeLink(code)}`);
-            showToast('Odkaz na výzvu zkopírován');
-        } catch (error) {
-            showToast('Kopírování se nepodařilo');
-        }
+        if (window.MudrlantShareCard) await window.MudrlantShareCard.shareText({ title: 'Výzva v Mudrlantu', text: message, url: challengeLink(code) }, { toast: showToast, copied: 'Odkaz na výzvu zkopírován', failed: 'Kopírování se nepodařilo' });
     };
 
     // Detail výzvy podle kódu: kdo vyzývá, o co jde, žebříček; hrát jde, dokud hráč nemá výsledek
@@ -6314,6 +6386,10 @@
                 const keys = ctx.topic.categories.map(c => c.key).filter(key => !challenge.categories.length || challenge.categories.includes(key));
                 return pickItem(pool.length ? pool : ctx.items.filter(candidate => candidate.k === 1), rng, history, keys);
             };
+            // Číselná otázka (Seřaď, Odhadni číslo): vlastní řada náhodných čísel ze semínka otázky (výběr položky se nemění)
+            // a jen položky, které výzva nabízí a které v ní ještě nebyly; všichni hráči tak dostanou stejnou
+            const challengeNumeric = (ctx, item, seedText) => numericPlan(ctx, item, ctx.items.filter(candidate => (challenge.hard || candidate.k === 1)
+                && (!challenge.categories.length || challenge.categories.includes(candidate.c)) && !usedIds.has(candidate.q)), createSeededRandom(`${seedText}:cisla`));
             const ids = challengeTopicIds(challenge.topic);
             // Dřívější otázky se přehrají se stejným semínkem (i u Mixu a turnaje, kde se téma losuje), takže se žádná položka v rámci výzvy nezopakuje
             const histories = new Map();
@@ -6330,13 +6406,16 @@
                 const earlierTopic = ids.length > 1 ? pickRandom(ids, earlierRng) : ids[0];
                 const earlierCtx = await loadTopic(earlierTopic);
                 const earlier = pickFor(earlierCtx, earlierRng, historyOf(earlierTopic));
+                // Číselná otázka dřívějšího pořadí (stejné semínko, stejný plán): ani její položky se nezopakují
+                const earlierNumeric = challengeNumeric(earlierCtx, earlier, earlierSeed);
                 if (earlier) { historyOf(earlierTopic).push(earlier.q); usedIds.add(earlier.q); }
+                if (earlierNumeric) earlierNumeric.ids.forEach(id => usedIds.add(id));
             }
             const rng = createSeededRandom(`${challenge.seed}:${index}`);
             const topicId = ids.length > 1 ? pickRandom(ids, rng) : ids[0];
             const ctx = await loadTopic(topicId);
             const item = pickFor(ctx, rng, historyOf(topicId));
-            return { item, ctx, rng };
+            return { item, ctx, rng, numeric: challengeNumeric(ctx, item, `${challenge.seed}:${index}`) };
         }, challengeTopicIds(challenge.topic).length === 1 ? TOPIC_BY_ID[challengeTopicIds(challenge.topic)[0]] : MIX);
     };
 
@@ -6396,11 +6475,14 @@
                 ${body}
                 ${invitedWaiting ? `<p data-invited-note class="text-center text-sm font-semibold leading-relaxed text-slate-600 dark:text-slate-300"><span class="inline-flex max-w-full items-center gap-1.5 align-middle">${avatarHtml(c.invited, 'h-6 w-6 text-sm')}<b class="truncate">${escapeHtml(playerName(c.invited))}</b></span> uvidí výzvu na úvodní stránce.</p>` : ''}
                 <button type="button" data-action="challenge-share" data-code="${escapeHtml(c.code)}" data-text="Zahrál jsem výzvu v Mudrlantu: ${correct}/${c.count}. Zvládneš to líp?" class="${SECONDARY_BUTTON}"><i data-lucide="share-2" class="h-5 w-5"></i> Sdílet výzvu · ${escapeHtml(c.code)}</button>
+                ${outcome === 'vyhra' && ShareCard ? `<button type="button" data-action="challenge-share-image" class="${SECONDARY_BUTTON}"><i data-lucide="image" class="h-5 w-5"></i> Sdílet obrázek</button>` : ''}
                 <button type="button" data-action="challenge-home" class="${PRIMARY_BUTTON}">Zpět domů</button>
             </div>`;
         renderIcons(appContent);
         appContent.scrollTo(0, 0);
         updateControlsUI();
+        // Vyhraná výzva: obrázek ke sdílení se připraví hned (share-card.js)
+        if (outcome === 'vyhra' && ShareCard) { const card = challengeCardInput(c); if (card) ShareCard.prepare(card, ShareCard.fileName('vyzva', card.day)); }
         // Dohraná výzva, na jejíhož soupeře se čeká (i právě založená): nabídka upozornění, ať se hráč dozví, až soupeř dohraje
         if (state === 'ok' && results && (!rivals.length || invitedWaiting)) schedulePushOffer('challenge');
     };
@@ -6473,6 +6555,382 @@
         } finally {
             c.sending = false;
         }
+    };
+
+    // --- Kvíz dne (daily-quiz.js): stejných 10 otázek pro všechny, jeden započítaný pokus denně, pořadí dne a přátel ---
+    // Pokus (otázky, odpovědi, otázka na obrazovce) drží zařízení v mudrlant.dailyQuiz; přihlášenému ho drží i server (schéma 6, daily_quiz_*):
+    // každá odpověď se hned uloží, pokus nejde začít znovu a po zavření aplikace se pokračuje stejnou otázkou (nápovědy zůstanou, čas běží dál).
+    // Po půlnoci se nedohraný pokus počítá, jak stál. Host hraje jen v zařízení (jeden pokus za den a zařízení) a do pořadí se nezapíše;
+    // po přihlášení se jeho dnešní výsledek zapíše na účet, pokud tam Kvíz dne ještě není. Sdílení textem i obrázkem dělá share-card.js.
+    const DailyQuiz = window.MudrlantDailyQuiz || null;
+    const ShareCard = window.MudrlantShareCard || null;
+    const QUIZ_LOGIN_KEY = 'mudrlant.quizLogin';
+    let quiz = null; // hraný pokus (attempt z daily-quiz.js)
+    let quizIndex = 0; // otázka, která se právě hraje
+    let quizView = null; // obrazovka výsledku: { day, tab ('all' | 'friends'), board, friends } – null = načítá se, false = nedostupné
+    let quizServer = null; // poslední stav ze serveru { userId, day, state (null = databáze Kvíz dne nemá) }
+    let quizServerAt = 0;
+    let quizOpening = false;
+    const quizGroups = () => groupedTopics().map(group => group.topics.map(topic => topic.id));
+    const quizRanked = () => Boolean(DailyQuiz && Social && Auth && Auth.isConfigured() && signedUser());
+    const quizState = () => DailyQuiz.rollover(DailyQuiz.parseState(readJson(DailyQuiz.KEY)), DailyQuiz.pragueDay());
+    const storeQuiz = (attempt = quiz) => { const state = quizState(); if (attempt) state.attempt = attempt; writeJson(DailyQuiz.KEY, state); return state; };
+    const quizServerState = (day) => { const user = signedUser(); return user && quizServer && quizServer.userId === user.id && quizServer.state && quizServer.state.day === day ? quizServer.state : null; };
+    const within = (promise, ms) => Promise.race([promise, new Promise(resolve => setTimeout(() => resolve(undefined), ms))]);
+    const appUrl = () => `${window.location.origin}${window.location.pathname}`;
+    const robeNow = () => document.documentElement.dataset.robe || 'vinova';
+    const fromServer = (state) => ({ answered: state.answered, correct: state.correct, score: state.score, time_ms: state.time_ms, bitmap: state.bitmap });
+    // Server platí: odpovědi, které má jinak (jiné zařízení), přepíšou místní; místní za nimi zůstanou a dopošlou se
+    const applyQuizServer = (attempt, state) => {
+        const user = signedUser();
+        if (user) { quizServer = { userId: user.id, day: state.day, state }; quizServerAt = Date.now(); }
+        if (state.day !== attempt.day) return false;
+        const bits = DailyQuiz.bitsOf(state.bitmap, state.answered);
+        for (let i = 0; i < state.answered; i++) if (!attempt.results[i] || attempt.results[i].correct !== bits[i]) attempt.results[i] = { correct: bits[i], points: null, ms: 0 };
+        if (attempt.open && attempt.open.index < state.answered) attempt.open = null;
+        attempt.server = fromServer(state);
+        attempt.synced = state.answered;
+        if (state.finished) attempt.done = true;
+        if (attempt === quiz) storeQuiz(attempt);
+        return true;
+    };
+    // Dnešní pokus pro tohoto hráče: hostovi patří pokus zařízení, přihlášenému jeho (nebo hostovský, který si tím převezme); server má přednost
+    const reconcileQuiz = (attempt, server, today) => {
+        const user = signedUser();
+        if (!user) return attempt;
+        let own = attempt && (attempt.owner === user.id || attempt.owner === 'host') ? attempt : null;
+        if (own) own.owner = user.id;
+        if (!server) return own;
+        if (server.started) {
+            if (!own) own = DailyQuiz.newAttempt(today, user.id);
+            applyQuizServer(own, server);
+            return own;
+        }
+        // Server pokus ještě nemá: hostovský nebo neodeslaný se mu pošle celý (od začátku)
+        if (own) own.synced = -1;
+        return own;
+    };
+
+    // Odesílání odpovědí na server jde po sobě; true = server má vše, false = nepodařilo se (bez spojení), null = databáze Kvíz dne nemá
+    let quizSync = Promise.resolve(true);
+    const pushQuiz = async (attempt) => {
+        const user = signedUser();
+        if (!attempt || !quizRanked() || attempt.owner !== user.id) return false;
+        let retried = false;
+        for (;;) {
+            try {
+                if (attempt.synced < 0) {
+                    const state = await Social.dailyQuizStart();
+                    if (!state) return null;
+                    if (!applyQuizServer(attempt, state)) return false;
+                }
+                while (attempt.synced < attempt.results.length) {
+                    const index = attempt.synced;
+                    const state = await Social.dailyQuizAnswer(attempt.day, index, attempt.results[index]);
+                    if (!state) return null;
+                    if (!applyQuizServer(attempt, state) || attempt.synced <= index) return false;
+                }
+                return true;
+            } catch (error) {
+                // Server odpověď odmítl (má jinou, chybí mu předchozí): načte se jeho stav a zbytek se dopošle; podruhé už se nezkouší
+                if (retried || !error || !(error.status >= 400 && error.status < 500) || error.status === 401) return false;
+                retried = true;
+                const state = await Social.dailyQuizState().catch(() => null);
+                if (!state || !applyQuizServer(attempt, state)) return false;
+                if (!state.started) attempt.synced = -1;
+            }
+        }
+    };
+    const syncQuiz = (attempt = quiz) => { quizSync = quizSync.then(() => pushQuiz(attempt)).catch(() => false); return quizSync; };
+
+    // Stav serveru pro kartu na úvodu (nejvýš jednou za 5 minut; po dohrání a přihlášení hned)
+    const refreshQuizServer = async (force = false) => {
+        const user = signedUser();
+        if (!quizRanked()) return;
+        const today = DailyQuiz.pragueDay();
+        if (!force && quizServer && quizServer.userId === user.id && quizServer.day === today && Date.now() - quizServerAt < 5 * 60000) return;
+        quizServerAt = Date.now();
+        try {
+            const state = await Social.dailyQuizState();
+            quizServer = { userId: user.id, day: state ? state.day : today, state };
+        } catch (error) { quizServerAt = 0; return; }
+        paintQuizCard();
+    };
+    const quizHomeView = () => {
+        const today = DailyQuiz.pragueDay();
+        const state = quizState();
+        const user = signedUser();
+        const attempt = state.attempt && state.attempt.day === today && (!user || state.attempt.owner === 'host' || state.attempt.owner === user.id) ? state.attempt : null;
+        const server = quizServerState(today);
+        let summary = attempt ? DailyQuiz.attemptSummary(attempt) : null;
+        let done = Boolean(attempt && attempt.done);
+        if (server && server.started && (!summary || server.answered >= summary.answered)) { summary = fromServer(server); done = done || server.finished; }
+        const status = done ? 'done' : (summary && summary.answered) || (attempt && attempt.open) ? 'progress' : 'new';
+        const streak = server ? server.streak : DailyQuiz.streakOf(DailyQuiz.playedDays(state, today), today);
+        return { status, answered: summary ? summary.answered : 0, summary, rank: attempt && attempt.rank ? attempt.rank.rank : null, streak };
+    };
+    const quizHomeCard = () => (DailyQuiz ? DailyQuiz.homeCardHtml(quizHomeView()) : '');
+    const paintQuizCard = () => {
+        const card = document.getElementById('quiz-card');
+        if (!card || screen !== 'home') return;
+        card.outerHTML = quizHomeCard();
+        renderIcons(appContent);
+    };
+    const quizHelpers = () => {
+        const user = signedUser();
+        return {
+            avatarHtml, xpLine: (xp) => xpLine(xp, 'text-white/90'),
+            topicIcon: (id) => (TOPIC_BY_ID[id] ? topicIcon(TOPIC_BY_ID[id], 'h-6 w-6', `rounded-md p-1 ${styleOf(TOPIC_BY_ID[id]).soft}`, 'h-4 w-4') : ''),
+            meRow: user ? { id: user.id, display_name: (myProfile && myProfile.display_name) || 'Ty', avatar: myProfile ? myProfile.avatar : '🦉', color: myProfile ? myProfile.color : 'emerald', owl: myProfile ? myProfile.owl : null, frame: myProfile ? myProfile.frame : null } : {}
+        };
+    };
+
+    // Úvod Kvízu dne (pravidla a Začít / Pokračovat), nebo rovnou výsledek, když je dnešní pokus dohraný
+    const openQuiz = async () => {
+        if (!DailyQuiz || quizOpening || isLoading) return;
+        quizOpening = true;
+        try {
+            let today = DailyQuiz.pragueDay();
+            const state = quizState();
+            let server;
+            if (quizRanked()) {
+                screen = 'quiz';
+                renderLoading('Načítám Kvíz dne…');
+                updateControlsUI();
+                server = await within(Social.dailyQuizState().catch(() => undefined), 6000);
+                if (server) { quizServer = { userId: signedUser().id, day: server.day, state: server }; quizServerAt = Date.now(); }
+                if (server === null) quizServer = { userId: signedUser().id, day: today, state: null };
+                // Den určuje server (telefon může mít jiný čas)
+                if (server && server.day) today = server.day;
+            }
+            const local = state.attempt && state.attempt.day === today ? state.attempt : null;
+            quiz = reconcileQuiz(local, server, today);
+            if (quiz) storeQuiz(quiz);
+            // Všech deset otázek zodpovězených v tomto zařízení bez připsaných XP (aplikace se zavřela před „Dokončit“): dokončí se teď;
+            // pokus dohraný jinde (odpovědi ze serveru nemají body) se jen ukáže
+            const playedHere = Boolean(quiz) && quiz.results.length === DailyQuiz.QUESTIONS && quiz.results.every(row => row.points !== null);
+            if (quiz && playedHere && !quiz.xp) { finishQuiz(); return; }
+            if (quiz && (quiz.done || DailyQuiz.nextIndex(quiz) < 0)) { if (quiz.done) showQuizResult(); else finishQuiz(); return; }
+            renderQuizIntro(today, server === null);
+        } finally {
+            quizOpening = false;
+        }
+    };
+    const renderQuizIntro = (day, offline = false) => {
+        screen = 'quiz';
+        closePlaceInfo();
+        const topics = DailyQuiz.slotsFor(day, quizGroups()).map(slot => slot.topic);
+        appContent.innerHTML = DailyQuiz.introHtml({ day, topics, answered: quiz ? quiz.results.length : 0, open: Boolean(quiz && quiz.open), guest: !quizRanked() && Boolean(Auth && Auth.isConfigured()), offline: offline && quizRanked() }, quizHelpers());
+        renderIcons(appContent);
+        appContent.scrollTo(0, 0);
+        updateControlsUI();
+    };
+    const startQuiz = () => {
+        if (!DailyQuiz || isLoading) return;
+        const user = signedUser();
+        const server = user && quizServer && quizServer.userId === user.id ? quizServer.state : null;
+        const today = server && server.day ? server.day : DailyQuiz.pragueDay();
+        if (!quiz || quiz.day !== today) quiz = DailyQuiz.newAttempt(today, user ? user.id : 'host');
+        if (quiz.done) { showQuizResult(); return; }
+        storeQuiz(quiz);
+        // Přihlášený: server založí pokus (a začne měřit čas) hned, ještě během načítání první otázky; bez spojení se to dožene s první odpovědí
+        if (quizRanked() && quiz.owner === user.id) syncQuiz(quiz);
+        playQuizQuestion(DailyQuiz.nextIndex(quiz));
+    };
+    // Otázka index: položku určuje plán dne (stejný pro všechny); jednou ukázaná otázka se při pokračování vezme stejná i po aktualizaci dat
+    const playQuizQuestion = (index) => {
+        if (!quiz) return;
+        if (index < 0) { finishQuiz(); return; }
+        const attempt = quiz;
+        quizIndex = index;
+        mode = 'quiz';
+        const groups = quizGroups();
+        const slot = DailyQuiz.slotsFor(attempt.day, groups)[index];
+        runRound(async () => {
+            const rng = createSeededRandom(DailyQuiz.questionSeed(attempt.day, index));
+            const saved = attempt.plan[index];
+            if (saved && TOPIC_BY_ID[saved.topic]) {
+                const ctx = await loadTopic(saved.topic);
+                const item = ctx.byId.get(saved.q);
+                if (item) return { item, ctx, rng };
+            }
+            const ids = [...new Set(DailyQuiz.slotsFor(attempt.day, groups).slice(0, index + 1).map(entry => entry.topic))].filter(id => TOPIC_BY_ID[id]);
+            const contexts = new Map((await Promise.all(ids.map(id => loadTopic(id)))).map(ctx => [ctx.topic.id, ctx]));
+            const plan = DailyQuiz.planDay(attempt.day, groups, (id) => { const ctx = contexts.get(id); return ctx ? { items: ctx.items, categories: ctx.topic.categories.map(category => category.key) } : null; }, index);
+            const pick = plan[index];
+            const ctx = pick ? contexts.get(pick.topic) : null;
+            return { item: ctx ? ctx.byId.get(pick.q) : null, ctx, rng };
+        }, slot ? TOPIC_BY_ID[slot.topic] || null : null);
+    };
+    // Otázka je na obrazovce: vždy výběr z možností, čas od prvního zobrazení (po návratu běží dál), nápovědy jako před zavřením
+    const quizRoundReady = () => {
+        if (!quiz || !round || !current) return;
+        round.variant = 'choices';
+        const open = quiz.open && quiz.open.index === quizIndex ? quiz.open : { index: quizIndex, at: Date.now(), hint: 1 };
+        round.timerStart = open.at;
+        round.hintLevel = Math.min(Math.max(1, open.hint || 1), getLevelCount(current));
+        quiz.open = open;
+        if (!quiz.plan[quizIndex]) quiz.plan[quizIndex] = { topic: current.topic, q: current.id };
+        storeQuiz(quiz);
+    };
+    // Při každém překreslení otázky: použité nápovědy do uloženého stavu (zavření aplikace je nevrátí)
+    const quizKeepOpen = () => {
+        if (!quiz || !round || round.answered || !quiz.open || quiz.open.index !== quizIndex || quiz.open.hint === round.hintLevel) return;
+        quiz.open.hint = round.hintLevel;
+        storeQuiz(quiz);
+    };
+    const quizRecord = () => {
+        if (!quiz || quiz.results.length !== quizIndex) return;
+        const ms = Math.max(0, Date.now() - (round.timerStart || Date.now()));
+        quiz.results.push({ correct: Boolean(round.correct), points: round.correct ? Math.min(DailyQuiz.MAX_POINTS, round.points) : 0, ms: Math.min(ms, 3600000) });
+        quiz.open = null;
+        storeQuiz(quiz);
+    };
+    const quizNextLabel = () => (quiz && quiz.results.length < DailyQuiz.QUESTIONS ? `Další otázka (${quiz.results.length + 1}/${DailyQuiz.QUESTIONS})` : 'Dokončit Kvíz dne');
+
+    // Konec: XP jednou za den a zařízení (dokončení, série, bez chyby), záznam dne do série hosta, pak výsledek s pořadím
+    const finishQuiz = async () => {
+        const attempt = quiz;
+        if (!attempt) { renderHome(); return; }
+        attempt.open = null;
+        attempt.done = true;
+        storeQuiz(attempt);
+        quizView = { day: attempt.day, tab: 'all', board: null, friends: null };
+        if (quizRanked() && attempt.owner === signedUser().id) {
+            renderQuizResult();
+            await within(syncQuiz(attempt), 8000);
+        }
+        // XP jen jednou za den a zařízení (awardQuizXp to hlídá sama)
+        awardQuizXp(attempt);
+        showQuizResult();
+    };
+    const awardQuizXp = (attempt) => {
+        const state = quizState();
+        const day = attempt.day;
+        const summary = DailyQuiz.attemptSummary(attempt);
+        const record = state.days[day] || {};
+        state.days[day] = { ...summary, done: true, xp: Boolean(record.xp || attempt.xp) };
+        state.attempt = attempt;
+        if (record.xp || attempt.xp) { writeJson(DailyQuiz.KEY, state); return; }
+        const server = quizServerState(day);
+        const streak = Math.max(DailyQuiz.streakOf(DailyQuiz.playedDays(state, day), day), server && server.finished ? server.streak : 0);
+        attempt.xp = DailyQuiz.xpFor({ correct: summary.correct, streak });
+        state.days[day].xp = true;
+        writeJson(DailyQuiz.KEY, state);
+        const before = loadProgress();
+        const progress = { ...before, xp: before.xp + attempt.xp.total };
+        const titles = grantBadges(progress);
+        saveProgress(progress);
+        announce(levelProgress(before.xp).level, levelProgress(progress.xp).level, titles);
+        settleGoals();
+        applyLook();
+        syncProgress();
+    };
+    const showQuizResult = () => {
+        if (!quiz) return;
+        if (!quizView || quizView.day !== quiz.day) quizView = { day: quiz.day, tab: 'all', board: null, friends: null };
+        // Den do série hosta i u pokusu, který se dohrál jinde (přihlášený na jiném zařízení)
+        const state = quizState();
+        if (!state.days[quiz.day] || !state.days[quiz.day].done) { state.days[quiz.day] = { ...DailyQuiz.attemptSummary(quiz), done: true, xp: Boolean(quiz.xp) }; state.attempt = quiz; writeJson(DailyQuiz.KEY, state); }
+        renderQuizResult();
+        loadQuizBoard();
+    };
+    const quizCardInput = (attempt, summary, streak) => ({
+        kicker: 'Kvíz dne', headline: `${summary.correct}/${DailyQuiz.QUESTIONS}`, detail: `${formatPoints(summary.score)} · čas ${DailyQuiz.formatTime(summary.time_ms)}`,
+        grid: DailyQuiz.bitsOf(summary.bitmap, summary.answered),
+        note: attempt.rank ? `${attempt.rank.rank}. místo z ${attempt.rank.total}` : streak > 1 ? `Série ${DailyQuiz.daysWord(streak)}` : 'Stejných 10 otázek pro všechny',
+        day: attempt.day, robe: robeNow(), pose: DailyQuiz.poseFor(summary.correct), url: appUrl(), appName: APP_NAME
+    });
+    const quizResultData = () => {
+        const attempt = quiz;
+        const user = signedUser();
+        const today = DailyQuiz.pragueDay();
+        const state = quizState();
+        const summary = DailyQuiz.attemptSummary(attempt);
+        const ranked = quizRanked() && attempt.owner === user.id;
+        const server = ranked ? quizServerState(attempt.day) : null;
+        const played = DailyQuiz.playedDays(state, today);
+        const streak = server ? server.streak : DailyQuiz.streakOf(played, today);
+        const best = Math.max(streak, server ? server.best_streak : DailyQuiz.bestStreakOf(played));
+        return { attempt, summary, ranked, streak, best, pending: ranked && quizServer && quizServer.state !== null && (attempt.synced < 0 || attempt.synced < attempt.results.length) };
+    };
+    const renderQuizResult = () => {
+        if (!quiz) return;
+        const keep = screen === 'quiz-done' ? appContent.scrollTop : 0;
+        screen = 'quiz-done';
+        closePlaceInfo();
+        const { attempt, summary, ranked, streak, best, pending } = quizResultData();
+        const canLogin = Boolean(Auth && Auth.isConfigured() && Social) && !signedUser();
+        appContent.innerHTML = DailyQuiz.resultHtml({
+            day: attempt.day, summary, xp: attempt.xp, streak, best, guest: !ranked, canLogin, closed: summary.answered < DailyQuiz.QUESTIONS, pending,
+            ranking: ranked ? { tab: quizView.tab, board: quizView.board, friends: quizView.friends } : null
+        }, quizHelpers());
+        renderIcons(appContent);
+        appContent.scrollTo(0, keep);
+        updateControlsUI();
+        // Obrázek ke sdílení se připraví hned, ať klepnutí na „Sdílet obrázek“ může sdílet bez čekání
+        if (ShareCard) ShareCard.prepare(quizCardInput(attempt, summary, streak), ShareCard.fileName('kviz-dne', attempt.day));
+    };
+    const paintQuizRanking = () => {
+        const section = document.getElementById('quiz-ranking');
+        if (!section || screen !== 'quiz-done' || !quizView) return;
+        section.outerHTML = DailyQuiz.rankingHtml({ tab: quizView.tab, board: quizView.board, friends: quizView.friends }, quizHelpers());
+        renderIcons(appContent);
+    };
+    const loadQuizBoard = async () => {
+        const attempt = quiz;
+        const view = quizView;
+        if (!attempt || !view || !quizRanked() || attempt.owner !== signedUser().id) return;
+        // Neodeslané odpovědi nejdřív (jinak by hráč v pořadí chyběl)
+        if (attempt.synced < attempt.results.length) await within(syncQuiz(attempt), 8000);
+        const [board, friends] = await Promise.all([Social.dailyQuizBoard(attempt.day).catch(() => false), Social.dailyQuizFriends(attempt.day).catch(() => false)]);
+        if (quizView !== view || quiz !== attempt) return;
+        view.board = board || false;
+        view.friends = friends || false;
+        if (board && board.me) { attempt.rank = { rank: board.me.rank, total: board.total }; storeQuiz(attempt); }
+        if (board && quizServer && quizServer.state && quizServer.state.day === attempt.day) Object.assign(quizServer.state, { streak: board.streak, best_streak: board.best_streak });
+        if (screen === 'quiz-done') renderQuizResult();
+    };
+    const shareQuiz = () => {
+        if (!quiz || !ShareCard) return;
+        const summary = DailyQuiz.attemptSummary(quiz);
+        ShareCard.shareText({ text: DailyQuiz.shareText({ appName: APP_NAME, day: quiz.day, summary, url: appUrl() }) }, { toast: showToast, copied: 'Výsledek je zkopírovaný ve schránce' });
+    };
+    const shareQuizImage = () => {
+        if (!quiz || !ShareCard) return;
+        const { attempt, summary, streak } = quizResultData();
+        ShareCard.shareImage(quizCardInput(attempt, summary, streak), { name: ShareCard.fileName('kviz-dne', attempt.day), text: DailyQuiz.shareText({ appName: APP_NAME, day: attempt.day, summary, url: appUrl() }), toast: showToast });
+    };
+    // Obrázek k výsledku dnešní otázky tématu (bez názvu položky, ať nikomu nic neprozradí)
+    const dailyCardInput = () => {
+        const dayKey = current && current.dailyDate;
+        const results = dayKey && loadStats().daily[current.topic];
+        const result = results && results[dayKey];
+        if (!result) return null;
+        const topic = TOPIC_BY_ID[current.topic];
+        const levels = `nápovědy ${result.hintLevel - 1}/${(result.levelCount || result.hintLevel) - 1}`;
+        const streak = computeStreak(results, getDayKey());
+        return { kicker: `Dnešní otázka · ${topic.title}`, headline: result.correct ? 'Správně!' : 'Tentokrát ne', detail: result.correct ? `${formatPoints(result.points)} · ${levels}` : levels,
+            grid: null, note: streak ? `Série ${plural(streak, 'den', 'dny', 'dní')} v řadě` : '', day: dayKey, robe: robeNow(), pose: result.correct ? 'radost' : 'smutek', url: appUrl(), appName: APP_NAME };
+    };
+    const shareDailyImage = () => {
+        const input = dailyCardInput();
+        if (input && ShareCard) ShareCard.shareImage(input, { name: ShareCard.fileName(`dnesni-${current.topic}`, input.day), toast: showToast });
+    };
+    // Obrázek po vyhrané výzvě: skóre, mřížka otázek a soupeř
+    const challengeCardInput = (c) => {
+        if (!c || !Array.isArray(c.results)) return null;
+        const correct = c.results.filter(row => row && row.correct).length;
+        const points = c.results.reduce((sum, row) => sum + (row ? row.points : 0), 0);
+        const user = signedUser();
+        const rivals = user && Array.isArray(c.lastResults) ? c.lastResults.filter(row => row.user_id !== user.id) : [];
+        const rival = rivals.length === 1 ? playerName(rivals[0].player) : '';
+        return { kicker: `Výzva · ${challengeTopicTitle(c.topic)}`, headline: `${correct}/${c.count}`, detail: `${formatPoints(points)} · vítězství`, grid: Array.from({ length: c.count }, (_, i) => (c.results[i] ? Boolean(c.results[i].correct) : null)),
+            note: rival ? `Vyhráno proti hráči ${rival}` : rivals.length ? `Vyhráno proti ${plural(rivals.length, 'hráči', 'hráčům', 'hráčům')}` : 'Zvládneš to líp?', day: getDayKey(), robe: robeNow(), pose: 'vitez', url: appUrl(), appName: APP_NAME };
+    };
+    const shareChallengeImage = () => {
+        const input = challengeCardInput(challenge);
+        if (input && ShareCard) ShareCard.shareImage(input, { name: ShareCard.fileName('vyzva', input.day), text: `Vyhrál jsem výzvu v Mudrlantu: ${input.headline}. Zvládneš to líp?\n${challengeLink(challenge.code)}`, toast: showToast });
     };
 
     // --- Týdenní turnaje ---
@@ -7434,6 +7892,16 @@
             if (challenge === c) continueChallenge();
         },
         'challenge-share': (button) => shareChallenge(button.dataset.code, button.dataset.text || ''),
+        'challenge-share-image': () => shareChallengeImage(),
+        // Kvíz dne (daily-quiz.js) a obrázek k výsledku dnešní otázky (share-card.js)
+        'quiz-open': () => openQuiz(),
+        'quiz-start': () => startQuiz(),
+        'quiz-home': () => renderHome(),
+        'quiz-tab': (button) => { if (quizView) { quizView.tab = button.dataset.tab === 'friends' ? 'friends' : 'all'; paintQuizRanking(); } },
+        'quiz-share': () => shareQuiz(),
+        'quiz-share-image': () => shareQuizImage(),
+        'quiz-login': () => { writeJson(QUIZ_LOGIN_KEY, DailyQuiz.pragueDay()); if (Auth) Auth.login(); },
+        'share-image': () => shareDailyImage(),
         'challenge-retry': () => finishChallenge(true),
         'challenge-home': () => challengeHome(),
         'play-daily': () => { const next = nextDailyTopic(); if (next) startNextDaily(next.id); },
@@ -7472,6 +7940,8 @@
         'review-start': () => startReview(),
         'goals-open': () => openGoals(),
         'clear-mistakes': () => clearMistakes(),
+        'order-pick': (button) => numericPick(Number(button.dataset.index)),
+        'order-confirm': () => numericConfirm(),
         choice: (button) => {
             if (!round || round.variant === 'typed') return;
             const choice = current && current.question.choices[Number(button.dataset.index)];
@@ -7490,7 +7960,15 @@
         if (button && ACTIONS[button.dataset.action]) ACTIONS[button.dataset.action](button);
     });
 
+    // Obrázek k výsledku dnešní otázky se začne kreslit už při stisku (před klepnutím), ať se sdílí co nejdřív po klepnutí
+    appContent.addEventListener('pointerdown', (event) => {
+        if (!ShareCard || !event.target.closest('[data-action="share-image"]')) return;
+        const card = dailyCardInput();
+        if (card) ShareCard.prepare(card, ShareCard.fileName(`dnesni-${current.topic}`, card.day));
+    });
+
     appContent.addEventListener('submit', (event) => {
+        if (event.target.id === 'estimate-form') { event.preventDefault(); numericEstimate(event.target); return; }
         if (event.target.id !== 'answer-form') return;
         event.preventDefault();
         if (!round || round.variant !== 'typed') return;
@@ -7514,6 +7992,13 @@
         const exactlyOwn = current.question.accepted.some(accepted => normalizeAnswer(accepted) === normalizeAnswer(answer));
         if (correct && other && !exactlyOwn && normalizeAnswer(other.n) === normalizeAnswer(answer)) correct = false;
         submitAnswer({ correct, typed: true, answer, answerRef: correct ? null : answerRef });
+    });
+
+    // Odhadni číslo: pod polem se ukazuje, jak aplikace číslo čte (dlouhá čísla, miliony)
+    appContent.addEventListener('input', (event) => {
+        if (event.target.id !== 'estimate-input' || !isNumeric(current)) return;
+        event.target.removeAttribute('aria-invalid');
+        Numeric.notePreview(document.getElementById('estimate-note'), current, event.target.value);
     });
 
     // Chyba načtení obrázku (dlaždice mapy) nebublá, zachytíme ji ve fázi capture a obrázek skryjeme
@@ -7589,6 +8074,8 @@
             else renderHome();
         } else if (screen === 'challenge-done') {
             challengeHome();
+        } else if (screen === 'quiz' || screen === 'quiz-done') {
+            renderHome();
         } else if (screen === 'mode') {
             leaveMode();
         } else if (screen === 'learn') {
@@ -7688,6 +8175,7 @@
             if (userId !== shownUserId) {
                 shownUserId = userId;
                 myProfile = null; myBlocked = null; myAcceptsMix = true; acceptsConfirmed = null; myChallenges = null; myRating = null; incomingList = null; friendRows = null; recentReactions = []; myBlocks = null; resetTournaments();
+                quizServer = null; quizServerAt = 0;
                 updateProfileButton();
                 paintChallenges();
             }
@@ -7700,6 +8188,11 @@
             }
             refreshChallenges();
             if (state.user) { flushReports(); flushAnswerStats(); }
+            // Přihlášení z výsledku Kvízu dne („Přihlas se a uvidíš se v pořadí“): výsledek se otevře znovu a zapíše na účet
+            if (DailyQuiz && readJson(QUIZ_LOGIN_KEY)) {
+                try { localStorage.removeItem(QUIZ_LOGIN_KEY); } catch (e) { /* bez úložiště se nic nepamatuje */ }
+                if (screen === 'home' || screen === 'quiz-done') openQuiz();
+            }
         });
         window.addEventListener('online', flushReports);
         // Po obnovení připojení se dopošlou odpovědi z dohraných her (rozehraná hra počká na svůj konec)

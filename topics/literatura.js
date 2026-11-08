@@ -18,9 +18,10 @@
         { key: 'postavy', label: 'Literární postavy', one: 'postava', icon: 'drama', question: 'Která postava to je?', placeholder: 'Napiš jméno postavy…', sort: { by: 'name' } }
     ];
 
-    // Jak často se u díla a postavy ptáme na autora a u spisovatele či díla na století
+    // Jak často se u díla a postavy ptáme na autora, u spisovatele či díla na století a u postavy jednoho díla na dílo
     const AUTHOR_QUIZ_SHARE = 0.4;
     const CENTURY_QUIZ_SHARE = 0.25;
+    const WORK_QUIZ_SHARE = 0.3;
     const THIS_YEAR = new Date().getFullYear();
 
     // Díla s obecným názvem (Básně, Povídky, Deník) napsalo víc autorů – na autora se u nich neptáme
@@ -33,16 +34,20 @@
             const byId = new Map(ctx.items.map(item => [item.q, item]));
             const worksBy = new Map();
             const surnames = new Map();
+            const worksByName = new Map();
             for (const item of ctx.items) {
                 if (item.c === 'dila' && item.f && item.f.byq) worksBy.set(item.f.byq, [...(worksBy.get(item.f.byq) || []), item]);
+                if (item.c === 'dila') for (const name of [item.n, core.displayName(item.t || '')]) if (name && !worksByName.has(normalizeAnswer(name))) worksByName.set(normalizeAnswer(name), item);
                 const surname = item.c === 'spisovatele' ? surnameOf(item.n) : null;
                 if (surname) surnames.set(normalizeAnswer(surname), [...(surnames.get(normalizeAnswer(surname)) || []), item]);
             }
-            indexes.set(ctx.items, { byId, worksBy, surnames, fame: new Map(ctx.items.map((item, index) => [item.q, index])) });
+            indexes.set(ctx.items, { byId, worksBy, surnames, worksByName, fame: new Map(ctx.items.map((item, index) => [item.q, index])) });
         }
         return indexes.get(ctx.items);
     };
     const authorOf = (item, ctx) => item.c !== 'spisovatele' && item.f && item.f.byq ? indexOf(ctx).byId.get(item.f.byq) || null : null;
+    // Dílo postavy, když je v tématu (Hobit, Kmotr); jinak má postava jen jeho název (Stopařův průvodce po Galaxii)
+    const workOf = (item, ctx) => item.c === 'postavy' && item.f && item.f.work ? indexOf(ctx).worksByName.get(normalizeAnswer(item.f.work)) || null : null;
 
     // Příjmení slavného (Čapek, Shakespeare) – bez přípon „mladší“ a římských číslic
     const NAME_SUFFIX = /^(mladší|starší|ml\.|st\.|jr\.|sr\.|[IVX]+\.?)$/iu;
@@ -236,6 +241,40 @@
         };
     };
 
+    // --- Otázka na dílo postavy: „Ze kterého díla je tato postava?“ (jen u postavy jednoho díla – u Gandalfa či Holmese ne) ---
+    // Nesprávná díla jsou od jiných autorů (v jiném díle téhož autora by postava mohla vystupovat také), ze stejné země,
+    // jazyka a doby; ne díla, v jejichž názvu je jméno postavy, ani díla, mezi jejichž postavami je
+    const workNames = (item, ctx) => {
+        const work = workOf(item, ctx);
+        return [...new Set([item.f.work, ...(item.f.wa || []), ...(work ? nameAnswers(work, nameAliases(work, ctx)) : [])].filter(Boolean))];
+    };
+    const workQuestion = (item, ctx, rng) => {
+        const f = item.f || {};
+        if (!f.wq || !f.work || censorName(f.work, item.n).includes('[***]')) return null;
+        const work = workOf(item, ctx);
+        const accepted = workNames(item, ctx);
+        const taken = new Set(accepted.map(normalizeAnswer));
+        const base = work || { cz: item.cz, gr: item.gr, f: { y: f.y, land: f.land } };
+        const candidates = ctx.items.filter(other => other.c === 'dila' && other.q !== (work && work.q) && !taken.has(normalizeAnswer(other.n))
+            && !(f.byq && other.f.byq === f.byq) && !(f.by && other.f.by === f.by) && !GENERIC_TITLE.test(other.n)
+            && !censorName(other.n, item.n).includes('[***]') && !(other.f.chars || '').split(', ').includes(item.n));
+        const score = (other) => eraNearness(base.f.y, other.f.y) + (base.f.land && base.f.land === other.f.land ? 3 : 0)
+            + (base.f.lang && base.f.lang === other.f.lang ? 2 : 0) + (base.gr && base.gr === other.gr ? 2 : 0)
+            + ((item.cz === 1) === (other.cz === 1) ? 1 : -3) + (other.k === 1 ? 1 : 0);
+        const wrong = takeDistinct(rankBySimilarity(candidates, score, rng), 3, taken, other => other.n);
+        if (wrong.length < 3) return null;
+        const correct = { id: work ? work.q : `dilo-${normalizeAnswer(f.work)}`, label: f.work, correct: true };
+        return {
+            type: 'work',
+            title: 'Ze kterého díla je tato postava?',
+            showName: true,
+            choices: shuffle([correct, ...wrong.map(other => ({ id: other.q, label: other.n, correct: false }))], rng),
+            accepted,
+            placeholder: 'Napiš název díla…',
+            answerLabel: f.work
+        };
+    };
+
     // Roky a století z textu u otázky na století zmizí
     const hideYears = (text) => text.replace(/(?<![\p{L}\d])\d{1,4}(?!\d)(\.\s*(?:století|stol\.))?/gu, '[***]');
 
@@ -261,6 +300,14 @@
                 factsStep(origin, 'vznik díla', 'calendar'),
                 factsStep(works.length ? [{ label: 'Další díla autora', value: works.join(', ') }] : [], 'další díla', 'library'),
                 { kind: 'visual', spec: portraitOf(author) }
+            ];
+        }
+        // Otázka na dílo: země → autor → fotka (filmová podoba postavy dílo napoví nejvíc)
+        if (type === 'work') {
+            return [
+                factsStep(formatFacts(item, [['land', 'Země', v => v]]), 'původ', 'map-pin'),
+                factsStep(f.by ? [{ label: 'Autor', value: f.by }] : [], 'autor', 'feather'),
+                { kind: 'photo' }
             ];
         }
         if (type === 'century') {
@@ -343,10 +390,11 @@
         },
         nameAliases,
 
-        // U díla a postavy občas „Kdo to napsal?“, u spisovatele a díla „Ve kterém století…?“
+        // U díla a postavy občas „Kdo to napsal?“, u spisovatele a díla „Ve kterém století…?“, u postavy jednoho díla „Ze kterého díla je?“
         specialQuestion: (item, ctx, rng) => {
             const roll = rng();
             if (item.c !== 'spisovatele' && roll < AUTHOR_QUIZ_SHARE) return authorQuestion(item, ctx, rng);
+            if (item.c === 'postavy' && roll >= 1 - WORK_QUIZ_SHARE) return workQuestion(item, ctx, rng);
             if (item.c !== 'postavy' && roll >= 1 - CENTURY_QUIZ_SHARE) return centuryQuestion(item, rng);
             return null;
         },
@@ -357,11 +405,25 @@
                 return author ? censorPerson(text, author, ctx) : text;
             }
             if (type === 'name' && item.c !== 'dila') return censorPerson(text, item, ctx);
+            // U otázky na dílo zmizí název díla i jeho autor (podle autora by bylo dílo hned jasné)
+            if (type === 'work') {
+                const author = authorOf(item, ctx);
+                const withoutWork = censorName(text, workNames(item, ctx).join(', '));
+                const withoutAuthor = author ? censorPerson(withoutWork, author, ctx) : item.f.by ? censorName(withoutWork, item.f.by) : withoutWork;
+                // Skloněné krátké příjmení (Maye, Poea) zakryje až společné hledání všech tvarů jména
+                const authorNames = [author && author.n, item.f.by].filter(Boolean);
+                return core.mergeCensored(authorNames.length ? core.maskLeaks(withoutAuthor, authorNames, { keep: [item.n] }) : withoutAuthor);
+            }
             if (type === 'century') return hideYears(core.stripBrackets(text).replace(/\s{2,}/g, ' '));
             return null;
         },
         // Kterého jiného spisovatele hráč napsal u otázky na autora
         findAnswer: (type, answer, item, ctx) => {
+            if (type === 'work') {
+                const own = new Set(workNames(item, ctx).map(normalizeAnswer));
+                const other = ctx.items.find(candidate => candidate.c === 'dila' && !own.has(normalizeAnswer(candidate.n)) && isAnswerMatch(answer, nameAnswers(candidate, nameAliases(candidate, ctx))));
+                return other ? { topic: 'literatura', id: other.q } : null;
+            }
             if (type !== 'author') return null;
             const author = authorOf(item, ctx);
             const match = author && ctx.items.find(other => other.c === 'spisovatele' && other.q !== author.q && isAnswerMatch(answer, nameAnswers(other, nameAliases(other, ctx))));

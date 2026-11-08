@@ -45,7 +45,7 @@ test('mytologie: známé položky, kategorie, česká stopa a okruhy', () => {
     assert.ok(inCollection('egyptsti-bohove').includes('Anubis'));
     assert.ok(inCollection('recti-hrdinove').includes('Héraklés') && inCollection('trojska-valka').includes('Hektór'));
     assert.ok(inCollection('recke-bytosti').includes('Pegas') && inCollection('slovanske-bytosti').includes('Vodník'));
-    assert.ok(data.collections.length >= 8 && data.collections.length <= 30);
+    assert.ok(data.collections.length >= 8 && data.collections.length <= 32);
     // Egyptští bohové pod známými jmény, Usir a Eset jako další psané odpovědi
     assert.ok(find('Osiris').al.includes('Usir') && find('Isis').al.includes('Eset'));
     // Šárka má na Wikipedii jen článek o jménu – v tématu není
@@ -178,4 +178,48 @@ test('mytologie: otázka na jméno – zakrytí, nápovědy, možnosti a psané 
     assert.equal(mytologie.subtitle(find('Libuše'), ctx), 'České pověsti');
     assert.equal(mytologie.subtitle(find('Thór'), ctx), 'Severská mytologie');
     assert.equal(mytologie.isCzech(find('Bivoj')), true);
+});
+
+test('mytologie: nové postavy, bytosti, místa a předměty a jejich okruhy', () => {
+    const expected = {
+        severska: ['Mani', 'Magni', 'Skuld', 'Brokk', 'Ask a Embla'], keltska: ['Dagda', 'Cúchulainn', 'Macha', 'Danu'], slovanska: ['Děda Mráz', 'Ivan Carevič', 'Vesna'],
+        egyptska: ['Hapi', 'Apis', 'Mehet'], indicka: ['Nandi', 'Manu', 'Urvaší'], vychod: ['Cukujomi', 'Jao'], amerika: ['Manco Capac', 'Huracan'],
+        recka: ['Echó', 'Zefyros', 'Chaos', 'Pomona', 'Nessos'], orient: ['Dumuzi', 'Anáhitá', 'Mithra'],
+        bytosti: ['Leviatan', 'Džin', 'Gnóm', 'Alkonost', 'Nága', 'Krampus', 'Sudička', 'Týfón'],
+        predmety: ['Mjölnir', 'Gungnir', 'Ásgard', 'Bifröst', 'Helheim', 'Kamelot', 'Avalon', 'Anch', 'Horovo oko', 'Trójský kůň', 'Xibalbá', 'Mictlan']
+    };
+    for (const [category, names] of Object.entries(expected)) for (const name of names) assert.equal(find(name)?.c, category, `${name}: kategorie`);
+    // Známější jméno, než má článek: Mjölnir (Mjöllni), Apis (Hapi), Horovo oko (Vedžat) – původní tvar se přijme i psaný
+    assert.equal(find('Mjölnir').t, 'Mjöllni');
+    assert.ok(core.isAnswerMatch('Mjöllni', core.nameAnswers(find('Mjölnir'), mytologie.nameAliases(find('Mjölnir'), ctx))));
+    assert.ok(core.isAnswerMatch('Vedžat', core.nameAnswers(find('Horovo oko'), mytologie.nameAliases(find('Horovo oko'), ctx))));
+    assert.equal(find('Apis').t, 'Hapi (býk)');
+    // Opravené pohlaví a druh
+    for (const name of ['Elpis', 'Ninkasi', 'Echó', 'Macha']) assert.equal(find(name).sx, 'f', name);
+    assert.equal(find('Elpis').ty, 'bohyně');
+    assert.equal(find('Hapi').ty, 'bůh');
+    // Bohyně šachu z básně, spartský král ani skupina bohů nejsou mytickými postavami
+    for (const name of ['Caissa', 'Agis I.', 'Penáti']) assert.ok(!find(name), name);
+    // Okruhy: devět světů, hrdinové ze všech mytologií, zbraně a předměty, podsvětí a bájné země
+    assert.deepEqual(inCollection('devet-svetu').sort(), ['Ásgard', 'Helheim', 'Jötunheim', 'Ljósálfheim', 'Midgard', 'Múspellheim', 'Niflheim', 'Svartálfheim', 'Vanaheim', 'Yggdrasil'].sort());
+    assert.ok(['Héraklés', 'Gilgameš', 'Cúchulainn', 'Ilja Muromec', 'Bivoj', 'Ivan Carevič'].every(name => inCollection('hrdinove').includes(name)));
+    assert.ok(['Mjölnir', 'Excalibur', 'Trójský kůň', 'Anch'].every(name => inCollection('zbrane-a-predmety').includes(name)));
+    assert.ok(['Ásgard', 'Duat', 'Avalon', 'Xibalbá', 'Élysion'].every(name => inCollection('rise-a-podsveti').includes(name)));
+    assert.ok(!inCollection('zbrane-a-predmety').includes('Ásgard') && !inCollection('rise-a-podsveti').includes('Mjölnir'));
+    // Splývající bytosti a bohové spolu mezi možnostmi nebudou
+    const wrongOf = (name, seed) => core.buildItemChoices(find(name), data.items, core.createSeededRandom(seed), other => mytologie.similarity(find(name), other, ctx))
+        .filter(choice => !choice.correct).map(choice => choice.label);
+    for (let seed = 0; seed < 20; seed++) {
+        assert.ok(!wrongOf('Iblís', `i${seed}`).some(name => ['Satan', 'Šajtán'].includes(name)));
+        assert.ok(!wrongOf('Gnóm', `g${seed}`).includes('Trpaslík'));
+        assert.ok(!wrongOf('Magni', `m${seed}`).includes('Mani'));
+    }
+    // Otázka na mytologii u předmětu: Mjölnir je severský, popis Ásgard ani Thóra neprozradí
+    const hammer = mytologie.specialQuestion(find('Mjölnir'), ctx, rngStartingWith(0.9));
+    assert.equal(hammer.type, 'myth');
+    assert.equal(hammer.answerLabel, 'severská');
+    assert.doesNotMatch(mytologie.censor('myth', 'Kladivo boha Thóra, které vyrobili trpaslíci v Ásgardu.', find('Mjölnir'), ctx), /Thór|Ásgard/);
+    // Známých je kolem 350
+    const known = data.items.filter(item => item.k === 1).length;
+    assert.ok(known >= 300 && known <= 400, `známých ${known}`);
 });

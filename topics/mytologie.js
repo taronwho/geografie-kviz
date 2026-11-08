@@ -63,7 +63,14 @@
         ['Medúsa', 'Gorgony'], ['Satyr', 'Faun'], ['Siréna', 'Mořská panna', 'Rusalka'], ['Rusalka', 'Víla'], ['Ježibaba', 'Baba Jaga'],
         ['Drak', 'Zmej'], ['Lešij', 'Hejkal'], ['Domovoj', 'Skřítek', 'Plivník'], ['Trpaslík', 'Permoník'], ['Obr', 'Troll', 'Kyklop'],
         ['Upír', 'Lamia', 'Empúsa'], ['Fénix', 'Pták Ohnivák'], ['Ra', 'Aton', 'Atum', 'Cheprer'], ['Svarožic', 'Dažbog', 'Radegast', 'Svarog'],
-        ['Chors', 'Dažbog'], ['Freya', 'Frigg'], ['Pluto', 'Plútos'], ['Kybelé', 'Rheia'], ['Hélios', 'Apollón'], ['Seléné', 'Artemis'], ['Diana', 'Luna']
+        ['Chors', 'Dažbog'], ['Freya', 'Frigg'], ['Pluto', 'Plútos'], ['Kybelé', 'Rheia'], ['Hélios', 'Apollón'], ['Seléné', 'Artemis'], ['Diana', 'Luna'],
+        // Ďábel islámu a Bible, drobní skřítci a šotci, okřídlení draci a hadí kohouti, ptáci s ženskou hlavou, nebeské nymfy a hadi Indie
+        ['Satan', 'Iblís', 'Šajtán', 'Belzebub'], ['Gnóm', 'Trpaslík', 'Kobold', 'Skřítek', 'Tomte', 'Permoník'], ['Goblin', 'Skřet', 'Imp', 'Troll'],
+        ['Wyverna', 'Drak', 'Zmej'], ['Kokatrice', 'Bazilišek'], ['Hipogryf', 'Gryf', 'Pegas'], ['Mantikora', 'Sfinx', 'Chiméra'], ['Alkonost', 'Sirin', 'Gamajun', 'Siréna', 'Harpyje'],
+        ['Apsaras', 'Urvaší'], ['Nága', 'Ananta', 'Vrtra'], ['Krampus', 'Čert'], ['Merrow', 'Mořská panna', 'Siréna', 'Selkie'], ['Leviatan', 'Kraken', 'Jörmungandr'],
+        ['Smrtka', 'Azrael', 'Samael', 'Šinigami'], ['Sudička', 'Norny'], ['Alléktó', 'Megaira'], ['Džin', 'Ghúl'], ['Abaddón', 'Azazel', 'Samael'],
+        ['Hapi', 'Apis'], ['Mjölnir', 'Gungnir'], ['Ásgard', 'Valhalla'], ['Helheim', 'Hel', 'Niflheim'], ['Élysion', 'Ostrovy požehnaných'],
+        ['Avalon', 'Tir na nOg'], ['Mictlan', 'Xibalbá'], ['Chaos', 'Erebos'], ['Chronos', 'Kronos', 'Aión'], ['Magni', 'Mani'], ['Diti', 'Aditi']
     ];
     const confusableWith = new Map();
     for (const group of CONFUSABLE) for (const name of group) confusableWith.set(name, [...(confusableWith.get(name) || []), ...group.filter(other => other !== name)]);

@@ -3,6 +3,7 @@
 // Spuštění: npm run build:fyzika (s BUILD_CACHE=složka jde pravidla ladit bez opakovaného stahování)
 import { qlever, id, values, imageFields, yearOf, compact, cached, inBatches, writeTopic } from './lib/wikidata.mjs';
 import { landByDescription } from './lib/nationality.mjs';
+import { INVENTIONS } from './lib/fyzika-inventions.mjs';
 
 const PHYSICIST = 'Q169470';
 const NOBEL_PHYSICS = 'Q38104';
@@ -21,7 +22,9 @@ const LIMITS = {
     vesmir: { limit: 520, known: 80 },
     mise: { limit: 140 },
     fyzici: { limit: 560, known: 110 },
-    astronomove: { limit: 260 }
+    astronomove: { limit: 260 },
+    // Kolik vynálezů (kromě českých) je známých
+    vynalezy: { known: 30 }
 };
 // Počet jazykových verzí článku, od kterého je položka známá (fyzici a astronomové: Galilei, Gagarin; zákony a jevy, částice, konstanty)
 const KNOWN_SL = { fyzici: 100, astronomove: 75, pojmy: 75, castice: 60, mise: 55 };
@@ -518,6 +521,39 @@ for (const [qid, sl] of candidates.missions) {
     });
     if (added) rank++;
 }
+// Vynálezy: ruční výběr s vynálezcem, rokem a zemí (scripts/lib/fyzika-inventions.mjs), název, popis a fotka z Wikidat.
+// Vynálezce je jen údaj u vynálezu, ne položka – fyzici tak nejsou dvakrát; přístroje, které už jsou mezi misemi a přístroji
+// (teploměr, barometr, Voltův sloup), se vynechají
+const inventionLiteral = (label) => /@cs$/.test(label) ? `${JSON.stringify(label.slice(0, -3))}@cs` : `${JSON.stringify(label)}@en`;
+const inventionRows = await cached('fyzika-vynalezy', async () => {
+    const rows = await qlever(`SELECT ?l ?x ?sl WHERE { VALUES ?l { ${INVENTIONS.map(([label]) => inventionLiteral(label)).join(' ')} } ?x rdfs:label ?l . ${csArticle('?x')} }`);
+    const best = new Map();
+    for (const row of rows) {
+        const label = `${row.l.value}${row.l['xml:lang'] === 'cs' ? '@cs' : ''}`;
+        const sl = Number(row.sl.value);
+        if (!best.has(label) || best.get(label)[1] < sl) best.set(label, [id(row.x.value), sl]);
+    }
+    const qids = [...new Set([...best.values()].map(([qid]) => qid))];
+    const result = new Map(qids.map(qid => [qid, {}]));
+    await inBatches(qids, 150, detailsQuery([]), onRowTo(result), qlever);
+    return [...best].map(([label, [qid, sl]]) => [label, qid, sl, result.get(qid)]);
+});
+const inventionByLabel = new Map(inventionRows.map(([label, qid, sl, detail]) => [label, { qid, sl, detail }]));
+const inventions = INVENTIONS.map(([label, by, year, land, not]) => ({ ...inventionByLabel.get(label), by, year, land, not }))
+    .filter(entry => entry.qid && entry.detail && entry.detail.t && !items.some(item => item.q === entry.qid));
+// Známé: nejvíc jazykových verzí článku (telefon, žárovka, automobil) a české vynálezy
+const knownInventions = new Set(inventions.filter(entry => entry.land !== 'Česko').sort((a, b) => b.sl - a.sl).slice(0, LIMITS.vynalezy.known).map(entry => entry.qid));
+for (const entry of inventions) {
+    const detail = { ...entry.detail };
+    if (!detail.n) detail.n = detail.t.replace(/ \(.*\)$/, '');
+    addItem({
+        q: entry.qid, t: detail.t, n: capitalize(detail.n), c: 'vynalezy', k: knownInventions.has(entry.qid) || entry.land === 'Česko' ? 1 : 0, ty: 'vynález', d: detail.d,
+        cz: entry.land === 'Česko' ? 1 : undefined,
+        ...imageFields(detail.im),
+        f: compact({ by: entry.by, year: entry.year, land: entry.land, xn: entry.not, y: entry.year })
+    });
+}
+
 console.log('pojmy:', items.filter(item => item.c === 'pojmy').map(item => `${item.n} [${item.ty}${item.k ? ',k' : ''}]`).join('; '));
 console.log('částice:', items.filter(item => item.c === 'castice').map(item => item.n).join('; '));
 console.log('mise:', items.filter(item => item.c === 'mise').map(item => `${item.n} [${item.ty}${item.k ? ',k' : ''}]`).join('; '));
@@ -554,7 +590,11 @@ const COLLECTIONS = [
     { id: 'pristroje', label: 'Přístroje a urychlovače', text: 'Urychlovače, mikroskopy, detektory, dalekohledy', test: item => item.c === 'mise' && ['přístroj', 'urychlovač částic', 'observatoř'].includes(item.ty) },
     { id: 'astronomove', label: 'Astronomové', sort: { by: 'y' }, test: item => item.c === 'astronomove' && ['astronom', 'astronomka'].includes(item.ty) },
     { id: 'kosmonauti', label: 'Kosmonauti a astronauti', sort: { by: 'y' }, test: item => item.c === 'astronomove' && ['kosmonaut', 'kosmonautka'].includes(item.ty) },
-    { id: 'nobelova-cena-fyzika', label: 'Nositelé Nobelovy ceny za fyziku', sort: { by: 'y' }, test: item => item.c === 'fyzici' && item.f.nobel === 1 }
+    { id: 'nobelova-cena-fyzika', label: 'Nositelé Nobelovy ceny za fyziku', sort: { by: 'y' }, test: item => item.c === 'fyzici' && item.f.nobel === 1 },
+    { id: 'ceske-vynalezy', label: 'České vynálezy', text: 'Lodní šroub, ruchadlo, kostkový cukr, kontaktní čočka…', sort: { by: 'year' }, test: item => item.c === 'vynalezy' && item.f.land === 'Česko' },
+    { id: 'vynalezy-do-1800', label: 'Vynálezy do roku 1800', text: 'Od papíru a knihtisku po parní stroj', sort: { by: 'year' }, test: item => item.c === 'vynalezy' && item.f.year < 1800 },
+    { id: 'vynalezy-19-stoleti', label: 'Vynálezy 19. století', text: 'Telefon, žárovka, automobil…', sort: { by: 'year' }, test: item => item.c === 'vynalezy' && item.f.year >= 1800 && item.f.year < 1900 },
+    { id: 'vynalezy-20-stoleti', label: 'Vynálezy 20. a 21. století', text: 'Letadlo, televize, počítačová myš…', sort: { by: 'year' }, test: item => item.c === 'vynalezy' && item.f.year >= 1900 }
 ].map(collection => ({ sort: BY_NAME, ...collection }));
 for (const item of items) {
     const groups = COLLECTIONS.filter(collection => collection.test(item)).map(collection => collection.id);

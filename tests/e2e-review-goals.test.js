@@ -34,6 +34,7 @@ test('opakování s rozestupy a týdenní cíle', { skip: !chromium && 'Playwrig
     t.after(async () => { await browser.close(); server.close(); });
     const open = async ({ viewport = { width: 390, height: 780 }, colorScheme = 'light', mistakes = [] } = {}) => {
         const context = await browser.newContext({ serviceWorkers: 'block', viewport, colorScheme });
+        await context.addInitScript(() => { window.MUDRLANT_NUMERIC_RATE = 0; }); // jen obyčejné otázky (Seřaď a Odhadni číslo: e2e-numeric)
         await context.addInitScript((seed) => {
             if (sessionStorage.getItem('seeded')) return;
             sessionStorage.setItem('seeded', '1');
