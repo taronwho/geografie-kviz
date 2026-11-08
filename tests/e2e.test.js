@@ -583,11 +583,16 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         await waitForQuestion(tab);
         assert.equal((await readRound(tab)).id, second.id, 'rozehraná otázka zůstala');
 
-        // Klepnutí na téma nahoře: výběr kategorií i přepnutí na jiné téma
+        // Klepnutí na téma nahoře: výběr kategorií; jiné téma se vybírá z úvodu (dlaždice)
         await tab.click('#status-badge');
         await tab.waitForSelector('#play-chooser [data-chooser-category="hora"][aria-pressed="true"]');
         await tab.click('#play-chooser [data-chooser-all]');
-        await tab.click('#play-chooser [data-chooser-switch="historie"]');
+        assert.equal(await tab.locator('#play-chooser [data-chooser-switch]').count(), 0, 'okno bez přepínání na jiné téma');
+        await tab.click('#play-chooser [data-close]');
+        await tab.click('#btn-home');
+        await waitForHome(tab);
+        await tab.click('[data-action="play-topic"][data-topic="historie"]');
+        await tab.waitForSelector('#play-chooser');
         assert.equal(await tab.textContent('#chooser-title'), 'Historie');
         await tab.click('#play-chooser [data-chooser-play]');
         await waitForQuestion(tab);
