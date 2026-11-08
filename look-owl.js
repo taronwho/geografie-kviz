@@ -107,7 +107,7 @@
         let pose = null;
         let known = false;
         const takeRobe = (id) => { if (Look.find('robes', id)) { robe = id; known = true; } };
-        // Sova titulu: jen titul-1 … titul-10 (Look.POSES), první platná; jiná hodnota se zahodí
+        // Sova titulu: jen titul-1 … titul-11 (Look.POSES), první platná; jiná hodnota se zahodí
         const takePose = (id) => { if (!pose && Look.findPose && Look.findPose(id)) { pose = id; known = true; } };
         const takeAcc = (slot, id, color, flag) => {
             const item = Look.find('accessories', id);
@@ -150,7 +150,8 @@
         'titul-7': 'w-[125%] left-[-13%] top-[-6%]',
         'titul-8': 'w-[125%] left-[-12%] top-[-5%]',
         'titul-9': 'w-[120%] left-[-10%] top-[-8%]',
-        'titul-10': 'w-[125%] left-[-12%] top-[-6%]'
+        'titul-10': 'w-[125%] left-[-12%] top-[-6%]',
+        'titul-11': 'w-[160%] left-[-30%] top-[-8%]'
     };
     const poseSrc = (pose, robe = 'vinova') => {
         const item = Look && Look.findPose ? Look.findPose(pose) : null;

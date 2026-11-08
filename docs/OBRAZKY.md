@@ -12,7 +12,7 @@ Cíl: aby celá hra vypadala originálně. Ilustrace nahradí obecné ikony u ti
 
 ## 1. Tituly – sovy (Úrovně a tituly)
 
-Každá sova patří k několika titulům. Hotovo: sovy jsou v Úrovních a titulech, v oslavě nového titulu, na kartě Můj postup a jako profilovka (dosažené tituly; Nastavení → Profil → Obrázek).
+Každá sova patří k několika titulům, jen nejvyšší titul Mudrlant (úroveň 100) má vlastní sovu `sova-titul-11` (oddíl 11). Hotovo: sovy jsou v Úrovních a titulech, v oslavě nového titulu, na kartě Můj postup a jako profilovka (dosažené tituly; Nastavení → Profil → Obrázek).
 
 ### 1. `sova-titul-1.png` – Zvědavec, Čtenář, Posluchač (úrovně 1–6)
 
@@ -86,13 +86,17 @@ Přiložit: `branding/sova-original.jpg` (postava)
 Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole object. Single centered subject filling about 80 % of the frame with even empty space around it. Plain solid flat dark grey background, color #2d3034, no gradient, no shadow on the background, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl mascot as the character: keep its face, monocle with chain, white eyebrows and whiskers, golden-brown feathers and wine-red academic robe with cap exactly as they are; change only the pose and props described here. The wine-red color must appear only on the robe and cap: all props must be in other colors (no red, pink or wine-colored props). Subject: The owl as an old wise sage with a long flowing white feather beard, sitting on a pile of ancient brown leather-bound books, a softly glowing open book floating above its wings, a few small golden stars around. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
-### 10. `sova-titul-10.png` – Legenda, Strážce vědění, Orákulum, Archimudrc, Mudrlant (úrovně 84–100)
+### 10. `sova-titul-10.png` – Legenda, Strážce vědění, Orákulum, Archimudrc (úrovně 84–99)
 
 Přiložit: `branding/sova-original.jpg` (postava)
 
 ```text
 Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole object. Single centered subject filling about 80 % of the frame with even empty space around it. Plain solid flat dark grey background, color #2d3034, no gradient, no shadow on the background, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl mascot as the character: keep its face, monocle with chain, white eyebrows and whiskers, golden-brown feathers and wine-red academic robe with cap exactly as they are; change only the pose and props described here. The wine-red color must appear only on the robe and cap: all props must be in other colors (no red, pink or wine-colored props). Subject: The owl as a legendary grand master: a golden crown with a blue gem on its cap, a green laurel wreath, a flowing deep royal blue cape over its robe, a radiant golden halo of light behind it, majestic and proud. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
+
+### 11. `sova-titul-11.png` – Mudrlant (úroveň 100)
+
+Hotovo, bez promptu (vlastní kresba): sova s korunou, žezlem s galaxií a modrým pláštěm v kulatém odznaku s hvězdnou oblohou a vavříny. Tmavé nebe uvnitř krémového okraje zůstává neprůhledné (`scripts/topic-icons.py`, `STICKER`) a barva obleku přebarví jen talár a čepici (`scripts/owl-robes.py`, `AREAS`).
 
 ## 2. Ligy – erby (výzvy a žebříček)
 

@@ -1,4 +1,4 @@
-// Sovy titulů: deset ilustrací ke stupňům titulů (quiz-core TITLE_OWL_FROM), jejich soubory a barvy obleku, odemykání podle úrovně
+// Sovy titulů: jedenáct ilustrací ke stupňům titulů (quiz-core TITLE_OWL_FROM), jejich soubory a barvy obleku, odemykání podle úrovně
 // a sova titulu jako obrázek profilu (zápis pose=titul-N v textu profiles.owl, look-owl.js a social.js). Spuštění: npm test
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -12,21 +12,22 @@ const Owl = require('../look-owl.js');
 const Social = require('../social.js');
 
 const ROOT = path.join(__dirname, '..');
-const POSE_IDS = Array.from({ length: 10 }, (_, index) => `titul-${index + 1}`);
+const POSE_IDS = Array.from({ length: 11 }, (_, index) => `titul-${index + 1}`);
 
-test('sovy titulů: deset stupňů začíná vždy titulem a odpovídá zadání (1–6, 7–11, 12–17, … 84–100)', () => {
+test('sovy titulů: jedenáct stupňů začíná vždy titulem a odpovídá zadání (1–6, 7–11, 12–17, … 84–99, Mudrlant 100)', () => {
     const starts = Core.LEVEL_TITLES.map(entry => entry.from);
-    assert.deepEqual(Core.TITLE_OWL_FROM, [1, 7, 12, 18, 27, 36, 45, 56, 68, 84]);
+    assert.deepEqual(Core.TITLE_OWL_FROM, [1, 7, 12, 18, 27, 36, 45, 56, 68, 84, 100]);
     for (const from of Core.TITLE_OWL_FROM) assert.ok(starts.includes(from), `stupeň od ${from} začíná titulem`);
     const tiers = Object.fromEntries(Core.LEVEL_TITLES.map(entry => [entry.title, Core.titleOwlTier(entry.from)]));
     assert.deepEqual(tiers, {
         Zvědavec: 1, Čtenář: 1, Posluchač: 1, Učeň: 2, Žák: 2, Student: 3, Zasvěcenec: 3, Znalec: 4, Badatel: 4, Zkoumatel: 4,
         Učenec: 5, Vzdělanec: 5, Erudit: 5, Odborník: 6, Specialista: 6, Expert: 6, Mistr: 7, Magistr: 7, Doktor: 7,
         Docent: 8, Profesor: 8, Akademik: 8, Mudrc: 9, Vševěd: 9, Velemistr: 9, Polyhistor: 9,
-        Legenda: 10, 'Strážce vědění': 10, Orákulum: 10, Archimudrc: 10, Mudrlant: 10
+        Legenda: 10, 'Strážce vědění': 10, Orákulum: 10, Archimudrc: 10, Mudrlant: 11
     });
-    assert.deepEqual([0, 1, 6, 7, 11, 12, 17, 18, 26, 27, 35, 36, 44, 45, 55, 56, 67, 68, 83, 84, 100].map(Core.titleOwlTier),
-        [1, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 9, 9, 10, 10]);
+    assert.deepEqual([0, 1, 6, 7, 11, 12, 17, 18, 26, 27, 35, 36, 44, 45, 55, 56, 67, 68, 83, 84, 99, 100].map(Core.titleOwlTier),
+        [1, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 9, 9, 10, 10, 11]);
+    assert.equal(Core.MAX_LEVEL, 100, 'Mudrlant (nejvyšší titul) je na nejvyšší úrovni');
     // Každá úroveň má stupeň stejný jako její titul
     for (let level = 1; level <= Core.MAX_LEVEL; level++) assert.equal(Core.titleOwlTier(level), tiers[Core.titleForLevel(level)], `úroveň ${level}`);
     assert.deepEqual(Look.POSES.map(pose => [pose.id, pose.level]), POSE_IDS.map((id, index) => [id, Core.TITLE_OWL_FROM[index]]));
@@ -59,7 +60,7 @@ test('sovy titulů: zdroj v branding/ikony, výřez 320 × 320 a všechny barvy 
         assert.equal(Owl.poseSrc(id, 'zlata'), `icons/topics/sova-${id}-zlata.webp`);
         assert.ok(Owl.POSE_CROP[id], `výřez do kolečka pro ${id}`);
     }
-    assert.equal(Owl.poseSrc('titul-11'), null);
+    assert.equal(Owl.poseSrc('titul-12'), null);
     assert.equal(Owl.poseSrc('titul-3', 'neexistuje'), 'icons/topics/sova-titul-3.webp', 'neznámý oblek = vínový');
 });
 
@@ -95,12 +96,40 @@ print(json.dumps(out))
         assert.ok(counts.changed > 3000, `${name}: talár je přebarvený (${counts.changed} px)`);
         // Světle červená až růžová (jazyk, tváře) nezezelená; ztlumení barvy na okraji drobného jazyka od ztrátové komprese WebP nevadí
         // (před úpravou masky v owl-robes.py zezelenal skoro celý jazyk)
-        assert.ok(counts.pinkChanged <= Math.max(3, counts.pink * 0.15), `${name}: růžový jazyk / zobák zůstal (zezelenalo ${counts.pinkChanged} z ${counts.pink} px)`);
+        // (Mudrlant má zobák zavřený: světle růžové jsou jen odlesky hvězdiček na taláru, které se přebarví s ním; drahokamy hlídá další test)
+        if (name !== 'titul-11') assert.ok(counts.pinkChanged <= Math.max(3, counts.pink * 0.15), `${name}: růžový jazyk / zobák zůstal (zezelenalo ${counts.pinkChanged} z ${counts.pink} px)`);
         assert.ok(counts.otherChanged <= counts.other * 0.01, `${name}: modré, zelené a žluté plochy zůstaly (${counts.otherChanged} z ${counts.other} px)`);
     }
 });
 
-test('sova titulu jako profilovka: encodeOwl / parseOwl zapíšou a přečtou pózu (jen titul-1 … titul-10)', () => {
+test('sova Mudrlanta (titul-11): barva obleku přebarví jen talár a čepici, ne mlhovinu, drahokamy ani obrysy odznaku', () => {
+    // Výřezy v obrázku 320 × 320: purpurová mlhovina vlevo a vpravo, červené drahokamy na koruně, žezle a odznaku na hrudi,
+    // tmavě vínový obrys odznaku nahoře; čepice a talár se naopak přebarví. Potřebuje Python s Pillow a numpy, jinak se přeskočí.
+    let report;
+    try {
+        report = JSON.parse(execFileSync('python3', ['-I', '-c', `
+import json
+import numpy as np
+from PIL import Image
+KEEP = {'mlhovina': [(14, 130, 60, 210), (240, 50, 300, 150), (255, 180, 300, 255)], 'drahokamy': [(138, 55, 149, 70), (175, 55, 187, 70), (60, 118, 72, 132), (158, 252, 167, 268)], 'obrys': [(100, 18, 220, 32)]}
+ROBE = {'čepice': (100, 80, 225, 108), 'talár': (110, 200, 150, 270)}
+a = np.asarray(Image.open('icons/topics/sova-titul-11.webp').convert('RGBA')).astype(np.float32)
+out = {}
+for robe in ['zelena', 'modra', 'ruzova', 'fialova', 'cerna', 'zlata']:
+    b = np.asarray(Image.open(f'icons/topics/sova-titul-11-{robe}.webp').convert('RGBA')).astype(np.float32)
+    changed = (np.abs(a[..., :3] - b[..., :3]).max(-1) > 40) & (a[..., 3] > 200)
+    share = lambda box: float(changed[box[1]:box[3], box[0]:box[2]].mean())
+    out[robe] = {**{name: max(share(box) for box in boxes) for name, boxes in KEEP.items()}, **{name: share(box) for name, box in ROBE.items()}}
+print(json.dumps(out))
+`], { cwd: ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }));
+    } catch (error) { return; }
+    for (const [robe, shares] of Object.entries(report)) {
+        for (const name of ['mlhovina', 'drahokamy', 'obrys']) assert.ok(shares[name] <= 0.02, `${robe}: ${name} zůstala (${shares[name]})`);
+        for (const name of ['čepice', 'talár']) assert.ok(shares[name] >= 0.3, `${robe}: ${name} je přebarvená (${shares[name]})`);
+    }
+});
+
+test('sova titulu jako profilovka: encodeOwl / parseOwl zapíšou a přečtou pózu (jen titul-1 … titul-11)', () => {
     const prefs = { robe: 'zelena', acc: { face: { id: 'bryle', color: 'original' } }, pose: 'titul-5' };
     const text = Owl.encodeOwl(prefs);
     assert.equal(text, 'robe=zelena;pose=titul-5;face=bryle.original', 'póza hned za oblekem, doplňky zůstanou pro starší aplikaci');
@@ -110,24 +139,27 @@ test('sova titulu jako profilovka: encodeOwl / parseOwl zapíšou a přečtou p�
     // Bez pózy se nic nemění (žádný klíč pose ani v textu, ani v objektu)
     assert.deepEqual(Owl.parseOwl('robe=zelena'), { robe: 'zelena', acc: {} });
     assert.equal(Owl.encodeOwl({ robe: 'modra', acc: {}, pose: null }), 'robe=modra');
-    // Všech deset póz projde, cokoli jiného se zahodí
+    // Všech jedenáct póz projde, cokoli jiného se zahodí
     for (const id of POSE_IDS) assert.equal(Owl.parseOwl(`robe=vinova;pose=${id}`).pose, id);
-    for (const bad of ['titul-0', 'titul-11', 'titul-', 'titul-01', 'vitez', 'spi', 'titul-5x', '']) {
+    for (const bad of ['titul-0', 'titul-12', 'titul-', 'titul-01', 'titul-011', 'vitez', 'spi', 'titul-5x', '']) {
         assert.deepEqual(Owl.parseOwl(`robe=modra;pose=${bad}`), { robe: 'modra', acc: {} }, bad);
         assert.equal(Owl.encodeOwl({ robe: 'modra', acc: {}, pose: bad }), 'robe=modra', bad);
     }
     assert.equal(Owl.parseOwl('pose=titul-2;pose=titul-9').pose, 'titul-2', 'platí první póza');
     assert.deepEqual(Owl.parseOwl('pose=titul-3'), { robe: 'vinova', acc: {}, pose: 'titul-3' }, 'samotná póza je platná sova');
     assert.equal(Owl.parseOwl('pose=titul-12'), null);
+    assert.deepEqual(Owl.parseOwl('robe=zlata;pose=titul-11'), { robe: 'zlata', acc: {}, pose: 'titul-11' }, 'sova Mudrlanta (úroveň 100)');
     // Nejdelší možný zápis (póza, čtyři doplňky s vlastní barvou a vlajkou) se vejde do 200 znaků bez useknutí pózy
-    const long = Owl.encodeOwl({ robe: 'fialova', pose: 'titul-10', acc: { head: { id: 'sluchatka', color: 'h355' }, face: { id: 'slunecni-bryle', color: 'h355' }, neck: { id: 'medaile', color: 'h355' }, hand: { id: 'vlajka', color: 'h355', flag: 'q213' } } });
-    assert.ok(long.length <= Owl.OWL_MAX && Owl.parseOwl(long).pose === 'titul-10', long);
+    const long = Owl.encodeOwl({ robe: 'fialova', pose: 'titul-11', acc: { head: { id: 'sluchatka', color: 'h355' }, face: { id: 'slunecni-bryle', color: 'h355' }, neck: { id: 'medaile', color: 'h355' }, hand: { id: 'vlajka', color: 'h355', flag: 'q213' } } });
+    assert.ok(long.length <= Owl.OWL_MAX && Owl.parseOwl(long).pose === 'titul-11', long);
 });
 
 test('sova titulu jako profilovka: Social.cleanOwl pózu zná a ověří', () => {
     assert.equal(Social.cleanOwl('robe=zelena;pose=titul-5'), 'robe=zelena;pose=titul-5');
     assert.equal(Social.cleanOwl('robe=zelena;pose=titul-10;face=bryle.original'), 'robe=zelena;pose=titul-10;face=bryle.original');
-    assert.equal(Social.cleanOwl('robe=zelena;pose=titul-11;face=bryle.original'), 'robe=zelena;face=bryle.original', 'neplatná póza se vynechá, zbytek zůstane');
+    assert.equal(Social.cleanOwl('robe=zelena;pose=titul-11;face=bryle.original'), 'robe=zelena;pose=titul-11;face=bryle.original');
+    assert.equal(Social.cleanOwl('robe=zelena;pose=titul-12;face=bryle.original'), 'robe=zelena;face=bryle.original', 'neplatná póza se vynechá, zbytek zůstane');
+    assert.equal(Social.cleanOwl('robe=zelena;pose=titul-110'), 'robe=zelena');
     assert.equal(Social.cleanOwl('robe=zelena;pose=vitez'), 'robe=zelena');
     assert.equal(Social.cleanOwl('pose=titul-0'), null);
     assert.equal(Social.cleanOwl('pose=titul-1'), 'pose=titul-1');
@@ -147,12 +179,34 @@ test('sova titulu jako profilovka: starší aplikace (dnešní parseOwl bez znal
     assert.ok(!Old.owlAvatarHtml(text).includes('titul'));
 });
 
+test('sova Mudrlanta (titul-11): aplikace s deseti sovami titulů neznámou pózu přeskočí a nespadne', () => {
+    // Stejný kód jako v nasazené verzi se sovami titul-1 … titul-10 (quiz-core, look, look-owl a social z commitu 2890e2b):
+    // póza titul-11 se zahodí, ukáže se sova s doplňky v barvě obleku a čištění profilu ji vynechá, zbytek zůstane
+    const sources = {};
+    try {
+        for (const file of ['quiz-core.js', 'look.js', 'look-owl.js', 'social.js']) sources[file] = execFileSync('git', ['show', `2890e2b:${file}`], { cwd: ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+    } catch (error) { return; }
+    const sandbox = { self: { MudrlantFlags: require('../look-flags.js') } };
+    for (const source of Object.values(sources)) vm.runInNewContext(source, sandbox);
+    const { MudrlantLook: OldLook, MudrlantOwl: OldOwl, MudrlantSocial: OldSocial } = sandbox.self;
+    assert.equal(OldLook.POSES.length, 10, 'starší verze zná jen deset sov titulů');
+    const text = Owl.encodeOwl({ robe: 'zelena', pose: 'titul-11', acc: { face: { id: 'bryle', color: 'original' } } });
+    assert.equal(text, 'robe=zelena;pose=titul-11;face=bryle.original');
+    assert.deepEqual(JSON.parse(JSON.stringify(OldOwl.parseOwl(text))), { robe: 'zelena', acc: { face: { id: 'bryle', color: 'original' } } });
+    assert.match(OldOwl.owlAvatarHtml(text), /src="icons\/logo-zelena\.webp"/);
+    assert.ok(!OldOwl.owlAvatarHtml(text).includes('titul'));
+    assert.equal(OldSocial.cleanOwl(text), 'robe=zelena;face=bryle.original');
+    assert.equal(OldOwl.allowedPose('titul-11', 100), null);
+    assert.equal(OldLook.normalize({ pose: 'titul-11' }, { level: 100, badges: {} }).pose, null, 'vlastní volba se na starší verzi zahodí');
+});
+
 test('sova titulu jako profilovka: owlAvatarHtml vykreslí ilustraci titulu v barvě obleku, oříznutou do kolečka, bez doplňků', () => {
     const html = Owl.owlAvatarHtml('robe=zelena;pose=titul-5;face=bryle.original');
     assert.match(html, /^<span class="relative block h-full w-full overflow-hidden rounded-full"><img data-keep data-owl-pose="titul-5" src="icons\/topics\/sova-titul-5-zelena\.webp" alt="" class="absolute max-w-none select-none [^"]+"><\/span>$/);
     assert.ok(!html.includes('doplnky'), 'bez vrstev doplňků');
     assert.ok(html.includes(Owl.POSE_CROP['titul-5']));
     assert.match(Owl.owlAvatarHtml('robe=vinova;pose=titul-10'), /src="icons\/topics\/sova-titul-10\.webp"/);
+    assert.match(Owl.owlAvatarHtml('robe=modra;pose=titul-11'), /data-owl-pose="titul-11" src="icons\/topics\/sova-titul-11-modra\.webp"/);
     // Neplatná póza = obyčejná sova s doplňky
     assert.match(Owl.owlAvatarHtml('robe=zelena;pose=titul-99;face=bryle.original'), /src="icons\/logo-zelena\.webp".*icons\/doplnky\/bryle\.webp/);
     // Výřezy jsou celé třídy Tailwindu (styles.css je musí obsahovat, CSP nepustí inline styl)
@@ -169,6 +223,8 @@ test('sova titulu: odemyká se úrovní; po ztrátě úrovně se ukáže nejvyš
     assert.equal(Owl.allowedPose('titul-2', 6), 'titul-1', 'úroveň 6 ještě nemá Učně');
     assert.equal(Owl.allowedPose('titul-10', 84), 'titul-10');
     assert.equal(Owl.allowedPose('titul-10', 83), 'titul-9');
+    assert.equal(Owl.allowedPose('titul-11', 100), 'titul-11', 'Mudrlant od úrovně 100');
+    assert.equal(Owl.allowedPose('titul-11', 99), 'titul-10');
     assert.equal(Owl.allowedPose('titul-9', 30), 'titul-5', 'vývojářský reset na úroveň 30');
     assert.equal(Owl.allowedPose('titul-9', 1), 'titul-1');
     assert.equal(Owl.allowedPose('titul-3', 0), null, 'bez úrovně běžná sova');
@@ -177,7 +233,8 @@ test('sova titulu: odemyká se úrovní; po ztrátě úrovně se ukáže nejvyš
     assert.equal(Owl.allowedPose('vitez', 50), null);
     // Volba ve Vzhledu (Look.prefs): platná póza se uloží, jak ji hráč zvolil (omezí se až při vykreslení), neplatná se zahodí
     assert.equal(Look.normalize({ pose: 'titul-8' }, { level: 3, badges: {} }).pose, 'titul-8');
-    assert.equal(Look.normalize({ pose: 'titul-11' }, { level: 100, badges: {} }).pose, null);
+    assert.equal(Look.normalize({ pose: 'titul-11' }, { level: 3, badges: {} }).pose, 'titul-11');
+    assert.equal(Look.normalize({ pose: 'titul-12' }, { level: 100, badges: {} }).pose, null);
     assert.equal(Look.normalize({}, null).pose, null);
     assert.equal(Look.DEFAULTS.pose, null);
 });

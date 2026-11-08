@@ -49,7 +49,7 @@ const inspect = () => {
         if (!label) out.unnamed.push(el.outerHTML.slice(0, 80));
         const box = el.getBoundingClientRect();
         // Hlavní akce a hlavička: aspoň 44 px (ostatní drobná tlačítka se nehlídají)
-        if (el.matches('#app-header button, [data-action="next"], [data-action="choice"], [data-action="hint"], [data-chooser-play], #answer-form button')
+        if (el.matches('#app-header button, [data-action="next"], [data-action="choice"], [data-action="hint"], [data-chooser-play], #answer-form button, [data-chooser-mode], [data-action="mode-choice"], [data-action="mode-start"], [data-action="mode-again"]')
             && Math.min(box.width, box.height) < 43.5) out.small.push(`${name(el)} ${Math.round(box.width)}×${Math.round(box.height)}`);
         // Zavírání oken, medaile, výběr vzhledu, doplňky sovy, obrázky v Profilu, přepínače, cíle týdne a odkazy pod okny: aspoň 40 px
         if (el.matches('[data-close][aria-label], [data-fact-close], [data-badge], #weekly-goals, [data-tip-off], [data-update-app], [data-theme-pick], [data-frame], #settings-overlay a[href], [data-owl-pick], [data-pick-avatar], [data-pick-owl], [data-locked-avatar], [data-locked-owl], [role="switch"], [data-tutorial-restart], [data-chooser-category], [data-chooser-topic]')
@@ -328,7 +328,7 @@ test('rozhraní na úzkém telefonu', { skip: !chromium && 'Playwright není nai
             await check(tab, scene, scheme);
             const size = await tab.evaluate(() => { const box = document.querySelector('#settings-overlay > div'); return { over: box.scrollHeight - box.clientHeight, switches: [...box.querySelectorAll('[role="switch"]')].map(el => el.getAttribute('aria-checked')) }; });
             assert.ok(size.over <= limit, `${scheme} / ${scene}: posun ${size.over} px (nejvýš ${limit})`);
-            assert.deepEqual(size.switches, ['true', 'false'], 'procvičování (zapnuté) a tipy (v testu vypnuté) jako přepínače');
+            assert.deepEqual(size.switches, ['true', 'false', 'true', 'true'], 'procvičování (zapnuté), tipy (v testu vypnuté), zvuky a vibrace (zapnuté) jako přepínače');
             assert.deepEqual(problems, [], 'bez chyb v konzoli a bez porušení CSP');
             await context.close();
         });
@@ -351,6 +351,37 @@ test('rozhraní na úzkém telefonu', { skip: !chromium && 'Playwright není nai
                 }, at);
                 assert.ok(state.top >= 0 && state.bottom <= state.height + 0.5, `${scheme}: Hrát mimo obrazovku při posunu ${at} (${state.top}–${state.bottom})`);
                 assert.equal(state.free, true, `${scheme}: Hrát je zakryté při posunu ${at}`);
+            }
+            assert.deepEqual(problems, [], 'bez chyb v konzoli a bez porušení CSP');
+            await context.close();
+        });
+    }
+
+    // Bleskovka a Přežití (okno Co hrát → úvod → otázka → po odpovědi → výsledek): stejné kontroly a bez posouvání na 360×640
+    for (const scheme of ['light', 'dark']) {
+        await t.test(`Bleskovka a Přežití (360×640, ${scheme})`, async () => {
+            const { context, tab, problems } = await open(scheme);
+            for (const kind of ['blitz', 'survival']) {
+                await tab.click('[data-action="play-mix"]');
+                await tab.waitForSelector('#play-chooser [data-chooser-mode]');
+                await tab.click(`[data-chooser-mode="${kind}"]`);
+                await tab.waitForSelector(`[data-mode-intro="${kind}"]`);
+                await check(tab, `${kind}: úvod`, scheme);
+                await fitsScreen(tab, `${kind}: úvod`, scheme);
+                await tab.click('[data-action="mode-start"]');
+                await tab.waitForSelector('[data-mode-question][data-phase="question"]', { timeout: 30000 });
+                await check(tab, `${kind}: otázka`, scheme);
+                await fitsScreen(tab, `${kind}: otázka`, scheme);
+                await tab.click('[data-action="mode-choice"][data-index="0"]');
+                await tab.waitForSelector('[data-mode-question][data-phase="feedback"]');
+                await check(tab, `${kind}: po odpovědi`, scheme);
+                await fitsScreen(tab, `${kind}: po odpovědi`, scheme);
+                await tab.click('[data-action="mode-quit"]');
+                await tab.waitForSelector(`[data-mode-result="${kind}"]`);
+                await check(tab, `${kind}: výsledek`, scheme);
+                await fitsScreen(tab, `${kind}: výsledek`, scheme);
+                await tab.click('[data-action="mode-home"]');
+                await tab.waitForSelector('[data-action="play-topic"]');
             }
             assert.deepEqual(problems, [], 'bez chyb v konzoli a bez porušení CSP');
             await context.close();
