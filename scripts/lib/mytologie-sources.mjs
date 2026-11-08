@@ -74,7 +74,60 @@ export const FORCED_LISTS = [
     { myths: ['perska'], deity: true, titles: ['Ahura Mazda', 'Angra Mainju'] },
     { myths: ['recka'], titles: ['Sófrosyné', 'Sibyla'] },
     { myths: ['rimska'], titles: ['Romulus a Remus', 'Rhea Silvia', 'Numitor', 'Faustulus'] },
-    { myths: ['egyptska'], deity: true, titles: ['Apedemak', 'Hapi (bůh záplav)', 'Harpokratés', 'Hatmehit', 'Hemen', 'Mehet'] }
+    { myths: ['egyptska'], deity: true, titles: ['Apedemak', 'Hapi (bůh záplav)', 'Harpokratés', 'Hatmehit', 'Hemen', 'Mehet'] },
+    // Další postavy (ty = druh, female = žena, když ho Wikidata neuvádějí); ruční seznamy nepotřebují fotku – otázku nese úvod článku
+    // Severská mytologie
+    { myths: ['severska'], deity: true, titles: ['Mani (bůh)', 'Magni', 'Módi'] },
+    { myths: ['severska'], female: true, ty: 'norna', titles: ['Skuld'] },
+    { myths: ['severska'], ty: 'trpaslík', titles: ['Brokk', 'Sindri'] },
+    { myths: ['severska'], ty: 'první lidé', titles: ['Ask a Embla'] },
+    { myths: ['severska'], titles: ['Aurvandil'] },
+    // Keltská mytologie
+    { myths: ['keltska'], deity: true, titles: ['Dagda (keltský bůh)', 'Toutatis', 'Ogmios', 'Nodens', 'Bres', 'Cian', 'Goibniu', 'Grannus', 'Lugus', 'Midir', 'Smertrios', 'Abellio (keltský bůh)'] },
+    { myths: ['keltska'], deity: true, female: true, titles: ['Macha', 'Belisama', 'Badb', 'Áine', 'Arianrhod', 'Bóand', 'Anu (bohyně)', 'Sequana', 'Airmid'] },
+    { myths: ['keltska'], ty: 'hrdina', titles: ['Cúchulainn'] },
+    { myths: ['keltska'], ty: 'hrdinka', female: true, titles: ['Aífe'] },
+    // Slované, Rusové, Poláci (pověsti a lidová víra)
+    { myths: ['slovanska'], deity: true, titles: ['Pohvizd', 'Trojan (bůh)'] },
+    { myths: ['slovanska'], ty: 'božská dvojčata', titles: ['Lel a Polel'] },
+    { myths: ['slovanska'], deity: true, female: true, titles: ['Vesna', 'Perchta'] },
+    { myths: ['slovanska'], ty: 'postava lidových pohádek', titles: ['Děda Mráz', 'Sněhurka (ruský folklór)'] },
+    { myths: ['slovanska'], ty: 'bájný vládce', titles: ['Kníže Lech', 'Krak (kníže)', 'Popiel II.', 'Gostomysl'] },
+    { myths: ['slovanska'], ty: 'bájná kněžna', female: true, titles: ['Wanda (kněžna)'] },
+    { myths: ['slovanska'], ty: 'hrdina', titles: ['Ivan Carevič'] },
+    { myths: ['slovanska'], titles: ['Solověj-Razbojnik', 'Bojan (staroruský básník)', 'Pan Twardowski'] },
+    // Egypt
+    { myths: ['egyptska'], deity: true, titles: ['Am-Heh', 'Aken', 'Ba-Pef', 'Achty (bůh)', 'Veneg'] },
+    { myths: ['egyptska'], deity: true, female: true, titles: ['Hededet', 'Jat (bohyně)'] },
+    // Indie
+    { myths: ['indicka'], deity: true, titles: ['Nandi', 'Djaus', 'Mahákála', 'Tvaštr', 'Arjaman', 'Savitar', 'Púšan', 'Bhaga', 'Pardžanja'] },
+    { myths: ['indicka'], deity: true, female: true, titles: ['Ušas', 'Diti'] },
+    { myths: ['indicka'], ty: 'apsara', female: true, titles: ['Urvaší'] },
+    { myths: ['indicka'], ty: 'první člověk', titles: ['Manu'] },
+    { myths: ['indicka'], ty: 'mudrc', titles: ['Kašjapa'] },
+    // Mezopotámie a Persie
+    { myths: ['mezopotamska'], deity: true, titles: ['Dumuzi', 'Abzu', 'Enkimdu'] },
+    { myths: ['mezopotamska'], deity: true, female: true, titles: ['Sarpanit'] },
+    { myths: ['perska'], deity: true, titles: ['Mithra', 'Zurvan', 'Verethragna'] },
+    { myths: ['perska'], deity: true, female: true, titles: ['Anáhitá'] },
+    { myths: ['perska'], ty: 'bájný král', titles: ['Ferídún'] },
+    // Japonsko a Čína
+    { myths: ['japonska'], deity: true, titles: ['Cukujomi', 'Hotei'] },
+    { myths: ['cinska'], ty: 'bájný císař', titles: ['Jao (vládce)', 'Šun (vládce)', 'Čuan-sü'] },
+    { myths: ['cinska'], deity: true, female: true, titles: ['Čchang-si'] },
+    // Inkové
+    { myths: ['incka'], ty: 'bájný vládce', titles: ['Manco Capac'] },
+    // Řecko: prvotní bohové, větry, nymfy, titáni, giganti a kentauři, které třídy z Wikidat nezachytí
+    { myths: ['recka'], deity: true, titles: ['Chaos (mytologie)', 'Erebos', 'Aithér', 'Chronos', 'Ofión', 'Zefyros', 'Euros', 'Notos', 'Próteus', 'Fantasos', 'Aión (mytologie)'] },
+    { myths: ['recka'], deity: true, female: true, titles: ['Peithó', 'Elpis', 'Áté', 'Apaté', 'Eurybia', 'Despoina'] },
+    { myths: ['recka'], ty: 'nymfa', female: true, titles: ['Echó', 'Maia (mytologie)', 'Dafné', 'Amaltheia (mytologie)', 'Galateia', 'Mintha', 'Rhodé', 'Eurynomé (ókeanovna)'] },
+    { myths: ['recka'], ty: 'erínye', female: true, titles: ['Megaira', 'Alléktó'] },
+    { myths: ['recka'], ty: 'titán', titles: ['Persés', 'Menoitios'] },
+    { myths: ['recka'], ty: 'gigant', titles: ['Enkelados', 'Porfyrión', 'Alkyoneus', 'Mimas (mytologie)'] },
+    { myths: ['recka'], ty: 'kentaur', titles: ['Nessos', 'Folos'] },
+    // Řím
+    { myths: ['rimska'], deity: true, titles: ['Terminus (mytologie)', 'Vertumnus', 'Dispater', 'Tiberinus', 'Pales'] },
+    { myths: ['rimska'], deity: true, female: true, titles: ['Pomona', 'Juturna', 'Veritas', 'Angerona', 'Mater Matuta', 'Lucina (mytologie)', 'Virtus (bohyně)', 'Carmenta', 'Libertas'] }
 ];
 
 // Bájné bytosti: název článku → [druh, mytologie]
@@ -93,7 +146,28 @@ export const FORCED_CREATURES = {
     'Michael (archanděl)': ['archanděl', ['biblicka']], 'Gabriel (archanděl)': ['archanděl', ['biblicka']], 'Rafael (archanděl)': ['archanděl', ['biblicka']],
     'Azrael': ['anděl smrti', ['biblicka']], 'Metatron': ['anděl', ['biblicka']], 'Raziel': ['anděl', ['biblicka']], 'Samael': ['anděl smrti', ['biblicka']],
     'Cherub': ['anděl', ['biblicka']], 'Seraf': ['anděl', ['biblicka']], 'Adramelech': ['démon', ['biblicka']], 'Lilith': ['démon', ['biblicka']],
-    'Satan': ['ďábel', ['biblicka']], 'Belzebub': ['démon', ['biblicka']], 'Azazel': ['padlý anděl', ['biblicka']]
+    'Satan': ['ďábel', ['biblicka']], 'Belzebub': ['démon', ['biblicka']], 'Azazel': ['padlý anděl', ['biblicka']],
+    // Další bytosti (prázdná mytologie = bytost z pověstí více národů, otázka „Ze které mytologie?“ se u ní neklade)
+    'Tanngnjóst a Tanngrisni': ['bájní kozli', ['severska']], 'Tomte': ['bájná bytost', ['severska']], 'Fylgja': ['duch', ['severska']],
+    'Losos moudrosti': ['bájná bytost', ['keltska']], 'Merrow': ['bájná bytost', ['keltska']], 'Leannan Sidhe': ['bájná bytost', ['keltska']],
+    'Alkonost': ['bájný pták', ['slovanska']], 'Sirin': ['bájný pták', ['slovanska']], 'Gamajun': ['bájný pták', ['slovanska']], 'Rarog': ['bájný pták', ['slovanska']],
+    'Sudička': ['bájná bytost', ['slovanska']], 'Drekavac': ['bájná bytost', ['slovanska']], 'Šišiga': ['bájná bytost', ['slovanska']],
+    'Psohlavec (folklór)': ['bájná bytost', ['slovanska']], 'Ala (mytologie)': ['bájná bytost', ['slovanska']], 'Bohynka': ['démon', ['slovanska']],
+    'Ovinnik': ['duch', ['slovanska']], 'Vij (mytologie)': ['démon', ['slovanska']], 'Zlatorog': ['bájné zvíře', ['slovanska']],
+    'Nága': ['bájná bytost', ['indicka']], 'Apsaras': ['nebeská nymfa', ['indicka']], 'Gandharva': ['bájná bytost', ['indicka']], 'Makara': ['bájná bytost', ['indicka']],
+    'Vrtra': ['démonický had', ['indicka']], 'Ananta': ['bájný had', ['indicka']], 'Lilú': ['démon', ['mezopotamska']],
+    'Ahuizotl (démon)': ['bájná bytost', ['aztecka']], 'Amaru (mytologie)': ['bájný had', ['incka']],
+    'Kučisake-onna': ['bájná bytost', ['japonska']], 'Amazake babá': ['bájná bytost', ['japonska']], "Sie-č'": ['bájná bytost', ['cinska']],
+    'Charybda': ['mořská nestvůra', ['recka']], 'Týfón': ['nestvůra', ['recka']], 'Stymfalští ptáci': ['bájní ptáci', ['recka']],
+    'Krommyónská svině': ['bájné zvíře', ['recka']], 'Argos (pes)': ['bájný pes', ['recka']],
+    'Leviatan': ['biblická nestvůra', ['biblicka']], 'Behemot': ['biblická nestvůra', ['biblicka']], 'Uriel (archanděl)': ['archanděl', ['biblicka']],
+    'Abaddón': ['anděl zkázy', ['biblicka']], 'Asmodeus': ['démon', ['biblicka']], 'Bélial': ['démon', ['biblicka']], 'Mamon': ['démon', ['biblicka']],
+    'Belfegor': ['démon', ['biblicka']],
+    'Mantikora': ['bájná bytost', []], 'Hipogryf': ['bájná bytost', []], 'Wyverna': ['bájná bytost', []], 'Gnóm': ['bájná bytost', []], 'Goblin': ['bájná bytost', []],
+    'Skřet': ['bájná bytost', []], 'Kobold': ['bájná bytost', []], 'Krampus': ['bájná bytost', []], 'Ghúl': ['bájná bytost', []], 'Imp': ['bájná bytost', []],
+    'Tarasque': ['bájná bytost', []], 'Tatzelwurm': ['bájná bytost', []], 'Kokatrice': ['bájná bytost', []], 'Bunyip': ['bájná bytost', []],
+    'Hromový pták': ['bájný pták', []], 'Burák (kůň)': ['bájný kůň', []], 'Džin': ['bájná bytost', []], 'Iblís': ['ďábel', []], 'Šajtán': ['ďábel', []],
+    'Smrtka': ['zosobněná smrt', []], 'Podhozenec': ['bájná bytost', []], 'Kallikantzaros': ['bájná bytost', []]
 };
 
 // Bájná místa a předměty: název článku → [druh, mytologie]
@@ -107,5 +181,31 @@ export const FORCED_OBJECTS = {
     'Tartaros': ['bájné místo', ['recka']], 'Valhalla': ['bájné místo', ['severska']], 'Midgard': ['bájné místo', ['severska']],
     'Yggdrasil': ['bájný strom', ['severska']], 'Duat': ['bájné místo', ['egyptska']], 'Benben': ['bájné místo', ['egyptska']],
     'Dilmun': ['bájné místo', ['mezopotamska']], 'Ys': ['bájné město', ['keltska']], 'Mjölnir': ['bájný předmět', ['severska']],
-    'Gungnir': ['bájný předmět', ['severska']], 'El Dorado': ['bájné město', []]
+    'Gungnir': ['bájný předmět', ['severska']], 'El Dorado': ['bájné město', []],
+    // Devět světů a další místa a předměty severské mytologie (česká Wikipedie má Mjöllni a Gungni, ne Mjölnir a Gungnir)
+    'Ásgard': ['bájná říše', ['severska']], 'Vanaheim': ['bájná říše', ['severska']], 'Jötunheim': ['bájná říše', ['severska']],
+    'Niflheim': ['bájná říše', ['severska']], 'Múspellheim': ['bájná říše', ['severska']], 'Ljósálfheim': ['bájná říše', ['severska']],
+    'Svartálfheim': ['bájná říše', ['severska']], 'Helheim': ['podsvětí', ['severska']], 'Ginnungagap': ['bájné místo', ['severska']],
+    'Utgard': ['bájné místo', ['severska']], 'Bifröst': ['bájný most', ['severska']], 'Gjallarbrú': ['bájný most', ['severska']],
+    'Urdina studna': ['bájný pramen', ['severska']], 'Mímiho studna': ['bájný pramen', ['severska']], 'Hlidskjalf': ['bájný trůn', ['severska']],
+    'Mjöllni': ['bájná zbraň', ['severska']], 'Gungni': ['bájná zbraň', ['severska']], 'Draupni': ['bájný prsten', ['severska']],
+    'Andvarinaut': ['bájný prsten', ['severska']], 'Naglfar': ['bájná loď', ['severska']], 'Skídbladni': ['bájná loď', ['severska']],
+    'Hringhorni': ['bájná loď', ['severska']], 'Medovina básnictví': ['bájný nápoj', ['severska']],
+    // Keltské, artušovské a slovanské
+    'Kamelot (hrad)': ['bájný hrad', ['artus']], 'Avalon (ostrov)': ['bájný ostrov', ['artus']], 'Lyonesse': ['bájná země', ['artus']],
+    'Kulatý stůl': ['bájný předmět', ['artus']], 'Tir na nOg': ['bájná země', ['keltska']], 'Annwn': ['podsvětí', ['keltska']],
+    'Chaloupka na kuří nožce': ['bájné obydlí', ['slovanska']], 'Alatyr (mytologie)': ['bájný kámen', ['slovanska']], 'Nav': ['podsvětí', ['slovanska']],
+    // Egyptské posvátné symboly
+    'Anch': ['posvátný symbol', ['egyptska']], 'Vedžat': ['posvátný symbol', ['egyptska']], 'Džed': ['posvátný symbol', ['egyptska']],
+    'Tijet': ['posvátný symbol', ['egyptska']], 'Šen (staroegyptský symbol)': ['posvátný symbol', ['egyptska']], 'Atef': ['posvátná koruna', ['egyptska']],
+    'Imiut': ['posvátný předmět', ['egyptska']],
+    // Řecké a další
+    'Trójský kůň': ['bájný předmět', ['recka']], 'Élysion': ['bájné místo', ['recka']], 'Hyperborea': ['bájná země', ['recka']],
+    'Ostrovy požehnaných': ['bájné ostrovy', ['recka']], 'Aiaia': ['bájný ostrov', ['recka']], 'Léthé': ['bájná řeka', ['recka']],
+    'Pyriflegethón': ['bájná řeka', ['recka']], 'Mínóův labyrint': ['bájné místo', ['recka']], 'Symplégady': ['bájné skály', ['recka']],
+    'Svarga': ['nebe bohů', ['indicka']], 'Naraka (hinduismus)': ['podsvětí', ['indicka']], 'Mictlan': ['podsvětí', ['aztecka']],
+    'Xibalbá': ['podsvětí', ['mayska']], 'Chakana': ['posvátný symbol', ['incka']], 'Noemova archa': ['bájná loď', ['biblicka']],
+    'Uroboros': ['bájný symbol', []]
 };
+// Názvy článků, pod kterými postavu či předmět česky zná málokdo: jméno v tématu (původní název zůstane jako další psaná odpověď)
+export const NAME_OVERRIDES = { 'Mjöllni': 'Mjölnir', 'Gungni': 'Gungnir', 'Draupni': 'Draupnir', 'Hapi (býk)': 'Apis', 'Vedžat': 'Horovo oko' };

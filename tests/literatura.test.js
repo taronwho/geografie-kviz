@@ -116,3 +116,59 @@ test('literatura: nápovědy, psané odpovědi a podobné možnosti', () => {
         assert.ok(wrongOf('Hamlet', seed).some(other => other.f.by === 'William Shakespeare'), 'k Hamletovi další Shakespearovy hry');
     }
 });
+
+test('literatura: postavy – ručně vybrané, popisy bez díla a autora, otázka „Ze kterého díla je?“', () => {
+    const characters = data.items.filter(item => item.c === 'postavy');
+    assert.ok(characters.length >= 140, `postav ${characters.length}`);
+    for (const name of ['Lord Voldemort', 'Glum', 'Šmak', 'Kapitán Hook', 'Vinnetou', 'Arthur Dent', 'Sindibád', 'Rumcajs', 'Jára Cimrman', 'Ostap Bender']) {
+        assert.equal(find(name)?.c, 'postavy', name);
+    }
+    for (const name of ['Lord Voldemort', 'Šmak', 'Kapitán Hook', 'Pinocchio', 'Sindibád']) assert.equal(find(name).k, 1, `${name} je známá`);
+    // Popis postavy neobsahuje název díla ani příjmení autora (u otázky na dílo a autora by odpověď prozradil)
+    for (const item of characters.filter(other => other.d)) {
+        const f = item.f || {};
+        const surname = (f.by || '').split(' ').filter(word => word.length >= 3).pop();
+        const names = [f.work, ...(f.wa || []), surname].filter(Boolean);
+        if (names.length) assert.ok(!core.censorName(item.d, names.join(', ')).includes('[***]'), `${item.n}: ${item.d}`);
+        assert.ok(!core.censorName(item.d, item.n).includes('[***]'), `${item.n}: popis jmenuje postavu – ${item.d}`);
+    }
+    // Ze kterého díla je? Šmak: Hobit (i zkrácený název), nesprávné možnosti od jiných autorů
+    const smak = find('Šmak');
+    const question = literatura.specialQuestion(smak, ctx, rngStartingWith(0.9));
+    assert.equal(question.type, 'work');
+    assert.equal(question.title, 'Ze kterého díla je tato postava?');
+    assert.equal(question.showName, true);
+    assert.equal(question.answerLabel, 'Hobit aneb Cesta tam a zase zpátky');
+    assert.equal(question.choices.filter(choice => choice.correct).length, 1);
+    assert.ok(core.checkAnswer('Hobit', question) && !core.checkAnswer('Pán prstenů', question));
+    for (let seed = 0; seed < 10; seed++) {
+        const other = literatura.specialQuestion(smak, ctx, rngStartingWith(0.9, `smak${seed}`));
+        for (const choice of other.choices.filter(entry => !entry.correct)) {
+            const work = ctx.byId.get(choice.id);
+            assert.ok(work && work.c === 'dila' && work.f.by !== smak.f.by, `${choice.label}: jiný autor`);
+        }
+    }
+    // Popis bez díla a autora: zakryje se název díla, zkrácený název i jméno autora
+    const censored = literatura.censor('work', 'Šmak je drak z knihy Hobit aneb Cesta tam a zase zpátky (Hobit), kterou napsal J. R. R. Tolkien.', smak, ctx);
+    assert.doesNotMatch(censored, /Hobit|Tolkien|Cesta tam/);
+    assert.match(censored, /^Šmak je drak/);
+    // Nápovědy: země, autor, fotka; dílo ne
+    assert.deepEqual(literatura.hints(smak, ctx, 'work').map(step => step.label || step.kind), ['původ', 'autor', 'photo']);
+    assert.ok(!literatura.facts(smak, ctx, 'work').some(fact => fact.label === 'Dílo'));
+    // Dílo mimo téma (Stopařův průvodce po Galaxii): správná možnost je jeho název
+    const dent = literatura.specialQuestion(find('Arthur Dent'), ctx, rngStartingWith(0.9));
+    assert.equal(dent.answerLabel, 'Stopařův průvodce po Galaxii');
+    assert.ok(core.checkAnswer('Stopařův průvodce', dent));
+    // Napsané jiné dílo se pozná
+    assert.deepEqual(literatura.findAnswer('work', 'Pán prstenů', smak, ctx), { topic: 'literatura', id: find('Pán prstenů').q });
+    // Postava celé série (Gandalf, Harry Potter) a postava, jejíž jméno je v názvu díla (Pinocchio), se na dílo neptá
+    for (const name of ['Gandalf', 'Harry Potter', 'Sherlock Holmes', 'Pinocchio']) {
+        assert.equal(literatura.specialQuestion(find(name), ctx, rngStartingWith(0.9)), null, name);
+    }
+    // Kdo tuto postavu vymyslel? u postavy od autora z tématu; od autora mimo téma (Barrie) se neptá
+    assert.equal(literatura.specialQuestion(find('Šmak'), ctx, rngStartingWith(0.1)).answerLabel, 'John Ronald Reuel Tolkien');
+    assert.equal(literatura.specialQuestion(find('Kapitán Hook'), ctx, rngStartingWith(0.1)), null);
+    // Česká stopa u českých postav
+    assert.equal(find('Rumcajs').cz, 1);
+    assert.ok(inCollection('ceska-literatura').includes('Jára Cimrman'));
+});

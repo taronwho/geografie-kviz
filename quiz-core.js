@@ -100,6 +100,13 @@
         };
     };
     const pickRandom = (items, rng) => items[Math.floor(rng() * items.length)];
+    // Vážený los (jedno volání rng): váha 1 všem = totéž jako pickRandom; nekladné nebo chybné váhy se berou jako 1
+    const pickWeighted = (items, weightOf, rng) => {
+        const weights = items.map(item => { const weight = Number(weightOf(item)); return Number.isFinite(weight) && weight > 0 ? weight : 1; });
+        let target = rng() * weights.reduce((sum, weight) => sum + weight, 0);
+        for (let i = 0; i < items.length; i++) { target -= weights[i]; if (target < 0) return items[i]; }
+        return items[items.length - 1];
+    };
     const shuffle = (items, rng) => {
         const result = [...items];
         for (let i = result.length - 1; i > 0; i--) {
@@ -839,7 +846,10 @@
     // Nejdřív kategorie (v pořadí z tématu), potom položka v ní – jinak by převážila nejpočetnější kategorie.
     // Položka s nq (no question) je jen k učení: obrázek otázky by odpověď prozradil celý (vlajka, která je celá nápisem –
     // OSCE, РСФСР) – otázkou se stane, jen když jiná není
-    const pickItem = (allItems, rng, recentIds = [], categoryOrder = []) => {
+    // weightOf(item) = volitelná váha položky uvnitř kategorie (kalibrace obtížnosti z answer-stats.js, jen trénink bez semínka);
+    // bez ní (dnešní otázky, výzvy, turnaje) se losuje rovnoměrně a se stejnými voláními rng jako dřív
+    const pickItem = (allItems, rng, recentIds = [], categoryOrder = [], weightOf = null) => {
+        const pickOne = (list) => weightOf ? pickWeighted(list, weightOf, rng) : pickRandom(list, rng);
         const askable = allItems.filter(item => !item.nq);
         const pool = askable.length ? askable : allItems;
         const present = new Set(pool.map(item => item.c));
@@ -848,10 +858,10 @@
         const inCategory = pool.filter(item => item.c === categoryKey);
         const recent = new Map(recentIds.map((id, index) => [id, index]));
         const fresh = inCategory.filter(item => !recent.has(item.q));
-        if (fresh.length) return pickRandom(fresh, rng);
+        if (fresh.length) return pickOne(fresh);
         // Všechno už bylo: z polovičky hrané nejdávněji, ať se hned neopakuje právě odehraná otázka
         const oldestFirst = [...inCategory].sort((a, b) => recent.get(b.q) - recent.get(a.q));
-        return pickRandom(oldestFirst.slice(0, Math.ceil(oldestFirst.length / 2)), rng);
+        return pickOne(oldestFirst.slice(0, Math.ceil(oldestFirst.length / 2)));
     };
 
     // Řazení pro systematické procházení okruhu: podle názvu, nebo podle faktu (výška, rok…) – položky bez údaje na konec
@@ -1333,6 +1343,19 @@
         const haystack = normalize(text);
         return tokens.every(token => new RegExp(`(?<![\\d,])${token}(?![\\d]|,\\d)`).test(haystack));
     };
+    // Časová osa, jejíž roky už říká text otázky nebo další věty, nic nepřidá. Rok z Wikidat a rok v textu se často liší
+    // o rok či dva (obraz „datovaný do roku 1516“, Wikidata 1515; narození podle jiného kalendáře), proto stačí rok v textu
+    // vzdálený nejvýš YEAR_SLACK let. Bere se letopočet od 100 do 2100, který není délkou ani počtem (1515 m, 1200 obyvatel).
+    // Osa bez letopočtů (blind, otázka na století) roky neukazuje, takže nápovědou zůstane.
+    const YEAR_SLACK = 5;
+    const YEAR_IN_TEXT = /(?<![\d,.])(\d{3,4})(?![\d,]|\.\d|\s?(?:m\b|km|cm|mm|kg|g\b|t\b|l\b|%|obyv|lidí|osob|stran|kusů|mil|tis))/g;
+    const timelineKnown = (spec, text) => {
+        if (!spec || spec.type !== 'timeline' || spec.blind) return false;
+        const years = [...(spec.points || []), ...(spec.spans || []).flatMap(span => [span.from, span.to])].filter(year => Number.isFinite(year) && year >= 100);
+        if (!years.length) return false;
+        const inText = [...String(text || '').matchAll(YEAR_IN_TEXT)].map(match => Number(match[1])).filter(year => year >= 100 && year <= 2100);
+        return years.every(year => inText.some(seen => Math.abs(seen - year) <= YEAR_SLACK));
+    };
 
     // Jméno nesprávné možnosti ve faktu (u Kerberose „Sourozenci: Chiméra, Hydra“, u Dia „Děti: Athéna, Apollón“) by ji
     // vyřadilo – kdo bere sourozence, ten je mezi možnostmi nehledá. Ze seznamu hodnot (čárka, „a“) se taková jména
@@ -1604,10 +1627,11 @@
         [96, 'Archimudrc'], [100, 'Mudrlant']
     ].map(([from, title]) => ({ from, title }));
     const titleForLevel = (level) => LEVEL_TITLES.filter(entry => level >= entry.from).pop().title;
-    // Sovy titulů: deset ilustrací icons/topics/sova-titul-1 … 10, každá patří k několika po sobě jdoucím titulům;
-    // číslo = úroveň prvního titulu stupně (Zvědavec 1, Učeň 7, Student 12, Znalec 18, Učenec 27, Odborník 36, Mistr 45, Docent 56, Mudrc 68, Legenda 84)
-    const TITLE_OWL_FROM = [1, 7, 12, 18, 27, 36, 45, 56, 68, 84];
-    // Stupeň sovy titulu 1–10 pro úroveň
+    // Sovy titulů: jedenáct ilustrací icons/topics/sova-titul-1 … 11, každá patří k jednomu nebo několika po sobě jdoucím titulům;
+    // číslo = úroveň prvního titulu stupně (Zvědavec 1, Učeň 7, Student 12, Znalec 18, Učenec 27, Odborník 36, Mistr 45, Docent 56, Mudrc 68,
+    // Legenda 84, Mudrlant 100 – nejvyšší titul má vlastní sovu)
+    const TITLE_OWL_FROM = [1, 7, 12, 18, 27, 36, 45, 56, 68, 84, 100];
+    // Stupeň sovy titulu 1–11 pro úroveň
     const titleOwlTier = (level) => Math.max(1, TITLE_OWL_FROM.filter(from => level >= from).length);
     // Další titul (kdy a jaký), null na konci
     const nextTitle = (level) => LEVEL_TITLES.find(entry => entry.from > level) || null;
@@ -1770,7 +1794,7 @@
         UNKNOWN_COUNTRY, INTERNATIONAL_WATERS, CZECHIA_QID, AFTER_SYMBOL_WORD, TILE_SIZE, COUNTRIES, CONTINENT_NAMES,
         SATELLITE_TILES, OSM_TILES,
         escapeHtml, stripBrackets, isRealPhoto, commonsPhotoUrl, commonsFileUrl, displayName, plural, formatPoints,
-        getDayKey, shiftDayKey, formatDayKey, createSeededRandom, pickRandom, shuffle,
+        getDayKey, shiftDayKey, formatDayKey, createSeededRandom, pickRandom, pickWeighted, shuffle,
         ELEMENT_FAMILIES, elementFamily, periodicPosition,
         maskLeaks, findLeaks, answerTokens, foldKeys, isPersonName, genericWordsOf, isGenericWord, specificWords, absorbGenericWords, hideNicknames, CHOICE_MARK, hideOtherChoices,
         censorForItem, answerNamesOf, answerNamesFor, hideAnswer, OUT_OF_CONTEXT, buildQuestionTexts, factRevealsAnswer, GENERIC_NAME_WORDS,
@@ -1778,7 +1802,7 @@
         inCollection, filterItems, pickItem, sortItems, getCountryNames, getContinent, continentAt, getCountryAliases,
         distanceKm, nearness, STATE_STEPS, sharesGroup, eraNearness, personSimilarity, rankBySimilarity, takeDistinct,
         buildItemChoices, buildCountryChoices, findAnswerItem, findAnswerCountry, updateMistakes, nameAnswers, countryAnswers,
-        pointsFor, dropKnownFacts, scaleKnown, dropChoiceNames, sharesWordRoot, chooseDescription, censoredShare, MAX_CENSORED_SHARE, isFactVisible, formatNumber, formatPopulation, formatYear, formatFacts, getMapSpan, buildBlindMap,
+        pointsFor, dropKnownFacts, scaleKnown, timelineKnown, dropChoiceNames, sharesWordRoot, chooseDescription, censoredShare, MAX_CENSORED_SHARE, isFactVisible, formatNumber, formatPopulation, formatYear, formatFacts, getMapSpan, buildBlindMap,
         buildTimeline, centuryOf, centuryLabel, computeStreak, buildShareText, getTileLayout
     };
 });

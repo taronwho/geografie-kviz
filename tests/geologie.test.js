@@ -38,7 +38,9 @@ test('geologie: známé položky a česká stopa', () => {
     assert.equal(find('Zlato').t, 'Zlato (minerál)');
     assert.equal(find('Ortoklas').t, 'Draselný živec');
     // Skupiny nerostů a hornina se jménem periody (křída) v tématu nejsou
-    for (const name of ['Slída', 'Živce', 'Plagioklas', 'Selenit', 'Koh-i-Noor']) assert.ok(!data.items.some(item => item.n === name), name);
+    for (const name of ['Slída', 'Živce', 'Plagioklas', 'Selenit']) assert.ok(!data.items.some(item => item.n === name), name);
+    // Slavný diamant není nerost: je mezi drahými kameny jako slavný broušený kámen
+    assert.ok(!data.items.some(item => item.c === 'nerosty' && item.n === 'Koh-i-Noor'));
     assert.equal(find('Křída').c, 'obdobi');
 });
 
@@ -213,4 +215,42 @@ test('geologie: útvary a jevy, zkameněliny, epochy a věky', () => {
     // Věk křídy leží v křídě
     assert.equal(find('Cenoman').f.par, 'Křída');
     assert.ok(find('Cenoman').f.from < find('Křída').f.from && find('Cenoman').f.to >= find('Křída').f.to);
+});
+
+test('geologie: nové nerosty, kameny, horniny, útvary, místa a období', () => {
+    // Nerosty s ručně doplněnou tvrdostí a barvou, odrůdy jako drahé kameny, horniny se skupinou
+    assert.deepEqual(find('Tetraedrit').f.h, [3.5, 4]);
+    assert.equal(find('Tetraedrit').c, 'nerosty');
+    assert.match(find('Johannit').f.czl, /Jáchymov/);
+    for (const name of ['Heliotrop', 'Morion', 'Ametrín', 'Tsavorit', 'Hyalit']) assert.equal(find(name).c, 'kameny', name);
+    assert.equal(find('Morion').f.par, 'křemen');
+    assert.equal(geologie.subtitle(find('Adulár')), 'odrůda ortoklasu · KAlSi₃O₈');
+    for (const [name, group] of [['Rašelina', 'usazena'], ['Kaolin', 'usazena'], ['Komatiit', 'vylevna'], ['Larvikit', 'hlubinna'], ['Smirek', 'premenena']]) {
+        assert.equal(find(name).c, 'horniny', name);
+        assert.equal(find(name).f.grp, group, name);
+    }
+    // Útvary a slavná místa: druh a místo, česká stopa, české jméno s původním jako psanou odpovědí
+    for (const name of ['Vodopád', 'Ledovec', 'Cenote', 'Stolová hora', 'Obrův chodník', 'Pravčická brána', 'Chicxulubský kráter']) assert.equal(find(name).c, 'utvary', name);
+    const causeway = find('Obrův chodník');
+    assert.ok(asLines(geologie.facts(causeway, ctx, 'name')).includes('Kde to je: Severní Irsko'));
+    assert.ok(geologie.nameAliases(causeway).includes("Giant's Causeway"));
+    assert.equal(find('Pravčická brána').cz, 1);
+    assert.ok(inCollection('slavna-mista').includes('Pamukkale') && inCollection('impakty').includes('Chicxulubský kráter'));
+    // Slavné diamanty: hmotnost v karátech, nesprávné možnosti jsou jiné slavné diamanty
+    const cullinan = find('Cullinan');
+    assert.ok(asLines(geologie.facts(cullinan, ctx, 'name')).some(line => /^Hmotnost: 3\s?106 karátů$/u.test(line)));
+    assert.ok(asLines(geologie.facts(find('Hope'), ctx, 'name')).some(line => /^Hmotnost: 45,52 karátu$/u.test(line)));
+    assert.equal(geologie.subtitle(find('Hope')).split(' · ')[0], 'slavný diamant');
+    for (const options of wrongOptions('Cullinan')) assert.ok(options.every(name => find(name).f.fam === 1), options.join(', '));
+    assert.equal(inCollection('slavne-diamanty').length, 5);
+    // Období z téže tabulky: rét končí začátkem jury, kenozoikum trvá dodnes, prekambrium končí kambriem
+    assert.equal(find('Rét').f.to, find('Jura').f.from);
+    assert.equal(find('Kenozoikum').f.to, 0);
+    assert.equal(find('Prekambrium').f.to, find('Kambrium').f.from);
+    assert.ok(inCollection('prekambrium').includes('Ediakara') && !inCollection('prekambrium').includes('Kambrium'));
+    assert.ok(!inCollection('epochy').includes('Spodní křída') && !inCollection('veky').includes('Dan'));
+    // Žádný fakt útvaru ani zkameněliny neprozradí název (druh „krasové jevy“ u jeskyní, místo u propasti)
+    for (const item of data.items.filter(other => other.c === 'utvary' || other.c === 'zkameneliny')) {
+        for (const fact of geologie.facts(item, ctx, 'name')) assert.ok(!core.censorName(fact.value, [item.n, ...(item.f.al || [])].join(', ')).includes('[***]'), `${item.n}: ${fact.value}`);
+    }
 });
