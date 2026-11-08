@@ -8136,7 +8136,10 @@
     if (viewport) {
         const syncKeyboard = () => {
             const inset = Math.round(window.innerHeight - viewport.height - viewport.offsetTop);
-            const open = inset > 80 && viewport.scale < 1.05; // menší rozdíl je lišta prohlížeče, přiblížení prsty není klávesnice
+            // Klávesnice jen při psaní do pole: menší rozdíl je lišta prohlížeče, přiblížení prsty není klávesnice a rozdíl bez
+            // zaměřeného pole je chybně nahlášená výška okna (řeší syncAppHeight níž)
+            const typing = document.activeElement && /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName);
+            const open = typing && inset > 80 && viewport.scale < 1.05;
             const root = document.documentElement;
             const was = root.classList.contains('kb-open');
             root.style.setProperty('--kb', `${open ? inset : 0}px`);
@@ -8149,6 +8152,24 @@
         viewport.addEventListener('resize', syncKeyboard);
         viewport.addEventListener('scroll', syncKeyboard);
     }
+    // Výška aplikace = skutečně viditelná plocha (--app-h). Android po obnovení stránky (aktualizace aplikace) občas nahlásí
+    // výšku i se systémovou lištou a 100dvh pak sahá pod spodek obrazovky – aplikace by byla useknutá, dokud se nezavře.
+    // Proto se výška přeměří po načtení, po změně velikosti, po návratu do aplikace a ještě chvíli po startu.
+    // Při otevřené klávesnici se nemění (okna se zvedají přes --kb).
+    const syncAppHeight = () => {
+        const root = document.documentElement;
+        if (root.classList.contains('kb-open')) return;
+        const visible = viewport && viewport.scale < 1.05 ? viewport.height : window.innerHeight;
+        if (visible > 200) root.style.setProperty('--app-h', `${Math.round(visible)}px`);
+    };
+    if (viewport) viewport.addEventListener('resize', syncAppHeight);
+    document.addEventListener('focusout', () => setTimeout(() => { if (viewport) viewport.dispatchEvent(new Event('resize')); else syncAppHeight(); }, 250));
+    window.addEventListener('resize', syncAppHeight);
+    window.addEventListener('pageshow', syncAppHeight);
+    window.addEventListener('orientationchange', () => setTimeout(syncAppHeight, 300));
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') { syncAppHeight(); setTimeout(syncAppHeight, 400); } });
+    syncAppHeight();
+    [300, 1000, 2500].forEach(delay => setTimeout(syncAppHeight, delay));
     gameVariant = readVariant();
     settings = loadSettings();
     applyLook();
