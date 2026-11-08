@@ -60,8 +60,8 @@ test('SQL: Kvíz dne', { skip: !available && 'PostgreSQL není dostupný' }, asy
     for (let run = 0; run < 2; run++) ok(psql(dbName, '', schema));
     q(Array.from({ length: 5 }, (_, i) => `insert into auth.users (id, email, raw_user_meta_data) values ('${id(i + 1)}', 'u${i + 1}@example.com', '{"full_name": "Hráč ${i + 1}"}');`).join('\n'));
 
-    await t.test('verze schématu 6 a tabulka s pravidly řádků', () => {
-        assert.ok(Number(last(ok(as(A, 'select schema_version();')))) >= 6);
+    await t.test('verze schématu 7 a tabulka s pravidly řádků', () => {
+        assert.ok(Number(last(ok(as(A, 'select schema_version();')))) >= 7);
         assert.equal(q(`select relrowsecurity from pg_class where oid = 'public.daily_quiz_results'::regclass`), 't');
     });
 

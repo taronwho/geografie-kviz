@@ -43,6 +43,9 @@
 }
 /* Okna zarovnaná ke spodku: tlačítka nesmí zajet pod systémovou lištu telefonu (iPhone, gesta Androidu) */
 #settings-overlay, #play-chooser, #place-info, #dialog-overlay { padding-bottom: max(1rem, env(safe-area-inset-bottom)); }
+/* Otevřená klávesnice (app.js nastaví --kb a třídu kb-open): okno se zvedne nad ni a zkrátí se, obsah se pak posouvá uvnitř okna */
+html.kb-open #settings-overlay, html.kb-open #dialog-overlay { padding-bottom: calc(0.75rem + var(--kb, 0px)); }
+html.kb-open #settings-overlay > *, html.kb-open #dialog-overlay > * { max-height: calc(100dvh - var(--kb, 0px) - 1.5rem); }
 @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 .spin { animation: spin 1.5s linear infinite; }
 @keyframes spin { 100% { transform: rotate(360deg); } }
@@ -207,3 +210,14 @@
     .licence-table td { border-top-color: #41454a; }
     .licence-flag { background: #7f1d1d; color: #fecaca; }
 }
+
+/* Bleskovka a Přežití (modes.js, app.js): „−3 s“ u času a „Nový rekord!“ vyskočí, ztracené srdce se smrskne, posledních 10 s pruh času pulzuje.
+   Animuje se vlastnost scale (ne transform), ať zůstane posun z tříd -translate-x-1/2; při „omezit pohyb“ bez animací */
+@media (prefers-reduced-motion: no-preference) {
+    .mode-pop { animation: modePop 0.45s cubic-bezier(0.2, 1.4, 0.4, 1) both; }
+    .mode-heart-lost { animation: modeHeartLost 0.6s ease-out both; }
+    .mode-urgent { animation: modeUrgent 1s ease-in-out infinite; }
+}
+@keyframes modePop { from { opacity: 0; scale: 0.5; } to { opacity: 1; scale: 1; } }
+@keyframes modeHeartLost { 0% { scale: 1.35; opacity: 1; } 60% { scale: 0.8; } 100% { scale: 1; opacity: 1; } }
+@keyframes modeUrgent { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }

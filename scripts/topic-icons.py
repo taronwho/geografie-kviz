@@ -10,6 +10,9 @@ root = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..')
 # Záře kolem předmětu mimo krémový obrys (sova-titul-9: tyrkysová záře kolem plovoucí knihy): v zadaném výřezu (podíl šířky
 # a výšky: x0, y0, x1, y1) se odstraní vše, kam se od okraje dostane výplň bez přechodu přes krémový obrys nebo tmavě vínovou čáru
 GLOW = {'sova-titul-9': (0.52, 0.0, 0.92, 0.40)}
+# Samolepka s uzavřeným krémovým okrajem (sova-titul-11: kulatý odznak s tmavou galaxií): uvnitř okraje nic průhledné není
+# (tmavě modré nebe má skoro barvu pozadí, ale mezera to není) a vně okraje zmizí vše (jiskry se září vedle žezla)
+STICKER = {'sova-titul-11'}
 
 def cream_like(a, bg, cream, full):
     # Barva na přímce pozadí → krémový obrys (full=False: i přechod z pozadí do krémové, full=True: jen skoro krémová)
@@ -50,7 +53,7 @@ def cut(path, name=''):
         lined = rim.any() and cream_like(a[y0:y1, x0:x1][rim], bg, cream0, False).mean() > 0.5
         ImageDraw.floodfill(holes, (int(x), int(y)), 50 if lined else 60)
         remaining &= ~comp
-    outside = outside | (np.asarray(holes) == 50)
+    if name not in STICKER: outside = outside | (np.asarray(holes) == 50)
     glow = np.zeros((H, W), bool)
     if name in GLOW:
         gx0, gy0, gx1, gy1 = GLOW[name]
@@ -65,6 +68,19 @@ def cut(path, name=''):
         open_img = Image.fromarray((((~wall & box) | outside) * 255).astype(np.uint8)).copy()
         ImageDraw.floodfill(open_img, (3, 3), 128)
         glow = (np.asarray(open_img) == 128) & box
+        outside = outside | glow
+    if name in STICKER:
+        # Samolepka = souvislá oblast se středem obrázku, kam se výplň od okraje nedostane přes skoro krémový okraj
+        # (o dva pixely širší, ať šev neprosákne); co zbyde vně ní (jiskry a jejich záře), je průhledné, jen pozadí do čtyř
+        # pixelů od ní ne (měkký přechod okraje zůstane jako u ostatních ikon)
+        wall = np.asarray(Image.fromarray((cream_like(a, bg, cream0, True) * 255).astype(np.uint8)).filter(ImageFilter.MaxFilter(5))) > 0
+        open_img = Image.fromarray(((~wall | outside) * 255).astype(np.uint8)).copy()
+        ImageDraw.floodfill(open_img, (3, 3), 128)
+        inner = Image.fromarray(((np.asarray(open_img) != 128) * 255).astype(np.uint8)).copy()
+        ImageDraw.floodfill(inner, (W // 2, H // 2), 128)
+        sticker = np.asarray(inner) == 128
+        close = np.asarray(Image.fromarray((sticker * 255).astype(np.uint8)).filter(ImageFilter.MaxFilter(9))) > 0
+        glow = ~sticker & (~close | ~outside)
         outside = outside | glow
     out_img = Image.fromarray((outside * 255).astype(np.uint8))
     ring = np.asarray(out_img.filter(ImageFilter.MaxFilter(7))) > 0

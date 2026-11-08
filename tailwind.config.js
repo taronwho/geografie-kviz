@@ -3,7 +3,7 @@
 // neutrální šedá podle tmavého pozadí loga. Šedá přepisuje Tailwind „slate“, takže třídy v kódu zůstávají slate-*;
 // světlé odstíny mají teplý nádech krémového obrysu, tmavé jsou grafitové jako pozadí loga (#2d3034 = slate-800).
 module.exports = {
-    content: ['./index.html', './licence.html', './soukromi.html', './licence.js', './app.js', './friends.js', './look*.js', './tutorial.js', './visuals.js', './topics/*.js', './daily-quiz.js'],
+    content: ['./index.html', './licence.html', './soukromi.html', './licence.js', './app.js', './friends.js', './look*.js', './tutorial.js', './visuals.js', './question-map.js', './topics/*.js', './daily-quiz.js'],
     darkMode: 'media',
     // Najetí myší jen tam, kde myš je – na telefonu by po klepnutí „hover“ zůstal viset (bílé tlačítko v tmavém režimu)
     future: { hoverOnlyWhenSupported: true },

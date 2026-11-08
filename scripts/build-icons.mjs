@@ -22,7 +22,9 @@ const ICONS = [
     'hammer', 'clock', 'timer', 'calendar', 'drama', 'person-standing', 'user-round', 'venetian-mask', 'wand-sparkles', 'award', 'goal',
     'volleyball', 'hexagon', 'diamond', 'sword', 'skull', 'pyramid', 'triangle', 'tent', 'bell', 'bell-off',
     // Přátelé (friends.js) a Moje data
-    'user-plus', 'user-check', 'user-minus', 'ellipsis', 'download'
+    'user-plus', 'user-check', 'user-minus', 'ellipsis', 'download',
+    // Přežití (životy) a Nastavení → Zvuky a Vibrace (sound.js)
+    'heart', 'volume-2', 'volume-x', 'vibrate'
 ];
 
 const toPascalCase = (name) => name.replace(/(^|-)(\w)/g, (_, __, letter) => letter.toUpperCase());

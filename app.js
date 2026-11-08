@@ -8,7 +8,7 @@
         escapeHtml, plural, isRealPhoto, commonsPhotoUrl, commonsFileUrl, displayName, formatPoints, getDayKey, formatDayKey, createSeededRandom, pickRandom,
         censorName, hideAnswer, buildQuestionTexts, factRevealsAnswer, answerNamesFor, genericWordsOf, specificWords, isGenericWord, OUT_OF_CONTEXT,
         processWikiText, takeLeadFacts, checkAnswer, normalizeAnswer, filterItems, pickItem, sortItems,
-        buildItemChoices, cultureLandsFor, findAnswerItem, setCountries, updateMistakes, nameAnswers, pointsFor, dropKnownFacts, scaleKnown, dropChoiceNames,
+        buildItemChoices, cultureLandsFor, findAnswerItem, setCountries, updateMistakes, nameAnswers, pointsFor, dropKnownFacts, scaleKnown, timelineKnown, dropChoiceNames,
         computeStreak, buildShareText, getTileLayout, shuffle,
         LEVEL_XP, xpForLevel, MAX_LEVEL, LEVEL_TITLES, titleOwlTier,
         BADGES, BADGE_GROUPS, BADGE_BY_ID, earnedBadgeIds, compactBadges, expandBadges, normalizeCounters,
@@ -20,6 +20,11 @@
     // Tipy od Mudrlanta (tips.js): žárovka u sovy, když má hráč na co upozornit; bez skriptu se jen nezobrazí
     const Tips = window.MudrlantTips || null;
     const Goals = window.MudrlantGoals || null;
+    // Režimy Bleskovka a Přežití (modes.js) a zvuky s vibracemi (sound.js); bez skriptu se jen nenabídnou, hra zůstane potichu
+    const Modes = window.MudrlantModes || null;
+    const Sound = window.MudrlantSound || null;
+    // Otázka „Ukaž na mapě“ (question-map.js); bez skriptu se hraje bez ní
+    const MapQuestion = window.MudrlantMapQuestion || null;
     const TOPICS = window.MudrlantTopics || [];
     const TOPIC_BY_ID = Object.fromEntries(TOPICS.map(topic => [topic.id, topic]));
     const APP_NAME = 'Mudrlant';
@@ -50,8 +55,9 @@
     // (tests/sql-monitor.test.js hlídá shodu). Správce (dev_admins nebo vývojářský režim) uvidí v Nastavení, že má schéma spustit znovu.
     // 3 = průběh výzev a zápasů turnaje na serveru a XP za výhry v turnaji jednou za účet; 4 = zkušební upozornění přes server (dev_push_test);
     // 5 = okamžité odesílání upozornění (push_kick, dev_push_status; aplikace funguje i se 4, jen ve zkoušce upozornění ukáže obecný text);
-    // 6 = Kvíz dne (daily_quiz_*; se starší databází se Kvíz dne hraje jen v zařízení, bez pořadí).
-    const REQUIRED_SCHEMA = 6;
+    // 6 = Jak odpověděli ostatní (answer_stats_submit, answer_stats_topic, dev_suspicious_questions; se starší databází se statistiky jen neukazují);
+    // 7 = Kvíz dne (daily_quiz_*; se starší databází se Kvíz dne hraje jen v zařízení, bez pořadí).
+    const REQUIRED_SCHEMA = 7;
     const HISTORY_SIZE = 200;
     const REQUEST_TIMEOUT = 12000;
     const WIKI_TIMEOUT = 6000;
@@ -384,6 +390,8 @@
     };
     const loadCountries = memoizeBy(() => fetchJson('data/countries.json').then(data => data.countries));
     const loadWorld = memoizeBy(() => fetchJson('data/world.json'));
+    // Slepé mapy otázky „Ukaž na mapě“ (data/mapa.json), načtou se s první takovou otázkou
+    const loadMapData = memoizeBy(() => fetchJson('data/mapa.json'));
     // Fotky, na kterých je napsaná odpověď (jméno na dresu, název na plakátu) – najde je OCR při sestavení dat
     // (npm run audit:photo-text); bez souboru se hraje dál se všemi fotkami
     const loadPhotoText = memoizeBy(() => fetchJson('data/photo-text.json').catch(() => ({})));
@@ -402,6 +410,7 @@
         // Fotka s napsanou odpovědí, kterou neumíme zakrýt (OCR nápis našlo, ale ne jeho polohu), se jako nápověda nenabídne
         ctx.textPhotos = new Set((photoText[topicId] || []).map(id => (ctx.byId.get(id) || {}).im).filter(file => file && !photoMasks[file]));
         loadedTopics.set(topicId, ctx);
+        refreshAnswerStats(topicId);
         return ctx;
     });
     const visualDeps = { loadWorld: () => loadWorld() };
@@ -459,12 +468,8 @@
     // fotka, která se nenačte, prázdná fakta i fakta, která hráč už vidí v zadání nebo v popisu.
     // shared = fakta, která mají stejná všechny nabízené nesprávné možnosti (třída savci u čtyř savců) – mezi nimi nerozhodnou
     // answers = odpovědi, které nápověda nesmí prozradit (u otázky na název jméno položky, u řádu řád…)
-    // Časová osa, jejíž roky už jsou v popisu („v roce 1960“), nic nepřidá
-    const timelineVisible = (spec, text) => {
-        if (spec.type !== 'timeline' || spec.blind) return false;
-        const years = [...(spec.points || []), ...(spec.spans || []).flatMap(span => [span.from, span.to])].filter(year => Number.isFinite(year) && year >= 100);
-        return years.length > 0 && years.every(year => new RegExp(`(?<!\\d)${year}(?!\\d)`).test(text));
-    };
+    // Časová osa, jejíž roky (i o pár let jinak) už jsou v popisu nebo dalších větách, nic nepřidá (timelineKnown v quiz-core)
+    // Otázka s obrázkem (obraz, vlajka, nerost): popis je první nápověda (krok 'text'), ne volná záložka
     const buildHints = (plan, { photoUrl, visibleText, shared = new Set(), answers = [], textPhotos = new Set(), omit = [], rootCheck = false, extraGeneric = null }) => {
         // Fakt prozradí odpověď i tehdy, když obsahuje kterýkoli její tvar nebo začíná stejným kořenem jako jméno
         // (Těží se z něj: antimon u Antimonitu); společná kontrola s popisem (factRevealsAnswer)
@@ -476,11 +481,12 @@
         for (const step of plan) {
             let hint = null;
             if (step.kind === 'photo' && photoUrl) hint = { kind: 'photo', label: 'fotka', icon: 'image' };
+            if (step.kind === 'text') hint = { kind: 'text', label: 'popis', icon: 'quote' };
             // Další věty z úvodu článku (bez jména), když je popis zkrácený a text má pokračování
             if (step.kind === 'excerpt' && step.text) hint = { kind: 'excerpt', text: step.text, label: 'další věty', icon: 'book-open' };
             // Obrázek s napsanou odpovědí (portrét autora se jménem) nápovědou není
             const textImage = step.spec && step.spec.type === 'image' && textPhotos.has(step.spec.file);
-            if (step.kind === 'visual' && step.spec && Visuals.info(step.spec) && !timelineVisible(step.spec, visibleText) && !scaleKnown(step.spec, visibleText) && !textImage) {
+            if (step.kind === 'visual' && step.spec && Visuals.info(step.spec) && !timelineKnown(step.spec, visibleText) && !scaleKnown(step.spec, visibleText) && !textImage) {
                 const masks = step.spec.type === 'image' && photoMasks[step.spec.file];
                 // Událost na časové ose se jménem odpovědi (autor, režisér) by ji prozradila: vynechá se jako události s hádanou položkou
                 const spec = step.spec.type === 'timeline' && answers.length ? { ...step.spec, hide: [step.spec.hide, ...answers].filter(Boolean).join(', ') } : step.spec;
@@ -519,10 +525,14 @@
     const realWords = (text) => String(text || '').replace(/\[\*\*\*\]/g, ' ').split(/\s+/).filter(word => /\p{L}/u.test(word)).length;
     const MAX_THIN_RETRIES = 3;
     const MIN_EXCERPT_WORDS = 8;
+    // Otázka „Ukaž na mapě“ (question-map.js): jen v tréninku, asi každá osmá vhodná otázka. Dnešní otázky, výzvy a turnaje ji
+    // nemají (stejné otázky pro všechny hráče i starší verze aplikace), chyby a opakování také ne. Los nebere z rng otázky.
+    const mapQuestionFor = (item, ctx) => !MapQuestion || mode !== 'practice' || pool.kind === 'mistakes' || pool.kind === 'review' ? null
+        : MapQuestion.nextQuestion(item, ctx, { storage: { read: () => readJson(MapQuestion.GAP_KEY), write: (value) => writeJson(MapQuestion.GAP_KEY, value) }, loadMap: loadMapData });
         const createRoundData = async (item, ctx, rng) => {
         const { topic, items } = ctx;
         // Pořadí volání rng je stálé, aby dnešní otázka vyšla všem stejně
-        const special = topic.specialQuestion ? topic.specialQuestion(item, ctx, rng) : null;
+        const special = (await mapQuestionFor(item, ctx)) || (topic.specialQuestion ? topic.specialQuestion(item, ctx, rng) : null);
         const category = categoryOf(topic, item.c);
         const question = special || {
             type: 'name',
@@ -552,10 +562,13 @@
         const typeLabel = item.ty && !hideAnswer(item.ty, question, { ...item, ty: '' }, ctx).includes('[***]') ? item.ty : category.one;
         // Příliš chudý popis („Zimbabwský politik.“) nestačí k odpovědi: když je popis jediná opora otázky, je „thin“
         const thin = !shown && !special && (text.fallback || realWords(questionText) < MIN_DESCRIPTION_WORDS);
-        const basePlan = (topic.hints && topic.hints(item, ctx, question.type))
+        // Otázka na mapě nápovědy nemá (popis i fakta by místo prozradily)
+        const basePlan = question.type === 'map' ? [] : (topic.hints && topic.hints(item, ctx, question.type))
             || [{ kind: 'photo' }, { kind: 'visual', spec: visual }, { kind: 'facts', facts: topic.facts(item, ctx, question.type) }];
         // Pokračování úvodu článku (zakryté stejně jako popis) je první, nejlevnější nápověda; bez dost skutečných slov se vynechá
-        const plan = realWords(moreText) >= MIN_EXCERPT_WORDS ? [{ kind: 'excerpt', text: moreText }, ...basePlan] : basePlan;
+        const withExcerpt = realWords(moreText) >= MIN_EXCERPT_WORDS ? [{ kind: 'excerpt', text: moreText }, ...basePlan] : basePlan;
+        // U otázky s obrázkem (obraz, vlajka, nerost…) se hádá z obrázku; popis je až první nápověda, ne hned viditelná záložka
+        const plan = shown && realWords(questionText) >= 3 ? [{ kind: 'text' }, ...withExcerpt] : withExcerpt;
         const visibleText = [question.title, question.showName ? item.n : '', typeLabel, questionText, realWords(moreText) >= MIN_EXCERPT_WORDS ? moreText : ''].join(' · ');
         // Fakt, který mají všechny nesprávné možnosti stejný jako správná, mezi nimi nepomůže vybrat
         const wrongItems = question.type === 'name' ? question.choices.filter(choice => !choice.correct).map(choice => ctx.byId.get(choice.id)).filter(Boolean) : [];
@@ -648,7 +661,7 @@
     const renderTierButtons = (on = TOGGLE_ON, topic = null, brief = false) => Object.entries(TIERS).map(([key, tier]) => `
         <button type="button" data-tier="${key}" aria-pressed="${settings.tier === key}"${brief ? ` title="${escapeHtml(tier.text)}"` : ''} class="rounded-2xl border-2 px-2.5 py-2 text-left transition-colors active:scale-[0.98] ${settings.tier === key ? on : TOGGLE_OFF}">
             <span class="block text-sm font-black leading-tight">${tier.title}</span>
-            <span class="mt-0.5 block text-[11px] font-semibold leading-snug opacity-90">${brief ? TIER_BRIEF[key] : key === 'known' && topic && topic.words && topic.words.tierKnown ? escapeHtml(topic.words.tierKnown) : tier.text}</span>
+            <span class="mt-0.5 block text-[11px] font-semibold leading-snug opacity-90${brief ? ' short:hidden' : ''}">${brief ? TIER_BRIEF[key] : key === 'known' && topic && topic.words && topic.words.tierKnown ? escapeHtml(topic.words.tierKnown) : tier.text}</span>
         </button>`).join('');
 
     const closeSettings = () => {
@@ -878,7 +891,7 @@
             ${Push ? `<p class="mb-1 mt-2 text-[11px] font-black uppercase tracking-widest text-amber-700 dark:text-amber-400">Upozornění</p>
             <div class="flex flex-wrap gap-1">${[['push-diag', 'Diagnostika upozornění'], ['push-local', 'Zkusit upozornění v tomto zařízení'], ...(Social ? [['push-server', 'Poslat zkušební upozornění přes server']] : [])].map(([kind, label]) => `<button type="button" data-dev="${kind}" class="rounded-lg bg-sky-100 px-2 py-1 text-[11px] font-bold text-sky-900 active:scale-95 dark:bg-sky-900/50 dark:text-sky-100">${label}</button>`).join('')}</div>` : ''}
             ${Social ? `<p class="mb-1 mt-2 text-[11px] font-black uppercase tracking-widest text-amber-700 dark:text-amber-400">Hlášení otázek</p>
-            <div class="flex flex-wrap gap-1"><button type="button" data-dev="reports" class="rounded-lg bg-emerald-100 px-2 py-1 text-[11px] font-bold text-emerald-900 active:scale-95 dark:bg-emerald-900/50 dark:text-emerald-100">Seznam hlášení</button></div>` : ''}
+            <div class="flex flex-wrap gap-1"><button type="button" data-dev="reports" class="rounded-lg bg-emerald-100 px-2 py-1 text-[11px] font-bold text-emerald-900 active:scale-95 dark:bg-emerald-900/50 dark:text-emerald-100">Seznam hlášení</button><button type="button" data-dev="suspicious" class="rounded-lg bg-amber-100 px-2 py-1 text-[11px] font-bold text-amber-900 active:scale-95 dark:bg-amber-900/50 dark:text-amber-100">Podezřelé otázky</button></div>` : ''}
             ${Social ? `<p class="mb-1 mt-2 text-[11px] font-black uppercase tracking-widest text-amber-700 dark:text-amber-400">Moderace</p>
             <div class="flex flex-wrap gap-1"><button type="button" data-dev="player-reports" class="rounded-lg bg-rose-100 px-2 py-1 text-[11px] font-bold text-rose-900 active:scale-95 dark:bg-rose-900/50 dark:text-rose-100">Nahlášení hráči</button></div>` : ''}
         </div>`;
@@ -898,6 +911,20 @@
             <span class="min-w-0 flex-1"><span class="block text-[13px] font-black leading-tight text-slate-800 dark:text-slate-100">${title}</span>${text ? `<span class="mt-0.5 block text-[11px] font-semibold leading-snug text-slate-500 dark:text-slate-400">${text}</span>` : ''}</span>
             ${on === null ? '<i data-lucide="chevron-right" class="h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400"></i>' : switchMark(on)}
         </button>`;
+    // Zvuky a vibrace (sound.js): dva přepínače vedle sebe v jednom řádku karty Hra, ať se karta vejde bez posouvání;
+    // Vibrace jen tam, kde je prohlížeč umí (iPhone ne)
+    const soundRows = () => {
+        if (!Sound) return '';
+        const prefs = Sound.prefs();
+        const vibration = Sound.canVibrate();
+        const cell = (attrs, icon, title, on) => `
+            <button type="button" ${attrs} role="switch" aria-checked="${on}" class="${SETTING_ROW}">
+                <i data-lucide="${icon}" class="h-5 w-5 shrink-0 ${on ? 'text-brand-700 dark:text-brand-300' : 'text-slate-500 dark:text-slate-400'}"></i>
+                <span class="min-w-0 flex-1 text-[13px] font-black leading-tight text-slate-800 dark:text-slate-100">${title}</span>
+                ${switchMark(on)}
+            </button>`;
+        return `<div data-sound-row class="grid ${vibration ? 'grid-cols-2 divide-x divide-slate-100 dark:divide-slate-700/70' : ''}">${cell('data-sound-toggle', prefs.sound ? 'volume-2' : 'volume-x', 'Zvuky', prefs.sound)}${vibration ? cell('data-vibration-toggle', 'vibrate', 'Vibrace', prefs.vibration) : ''}</div>`;
+    };
     // --- Vzhled: odměny (barevná témata, barva obleku sovy, rámečky, obrázky, titul) – části dodávají look-*.js přes MudrlantLook ---
     const Look = window.MudrlantLook;
     const Tutorial = window.MudrlantTutorial;
@@ -926,6 +953,27 @@
                 ${section.render(ctx)}
             </section>`).join('')}</div>`;
     };
+    // Záložka Mudrlant: moje sova s doplňky jako profilový obrázek jedním klepnutím (jinak jen v Profilu → Obrázek);
+    // když už jí je, řekne to – další změny doplňků a barvy se do profilu uloží samy
+    let owlAvatarBusy = false;
+    const owlAvatarRow = (user) => {
+        if (!user || !Social || !Owl || !meDraft) return '';
+        if (myProfile && myProfile.owl && !myPose()) {
+            return `<p data-owl-avatar-on class="mt-2 flex items-center gap-2 rounded-2xl bg-emerald-50 px-3 py-2.5 text-[13px] font-bold leading-snug text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-200"><i data-lucide="check" class="h-4 w-4 shrink-0"></i>Tvůj Mudrlant je profilový obrázek. Změny se v profilu ukážou samy.</p>`;
+        }
+        return `<button type="button" data-owl-as-avatar ${owlAvatarBusy ? 'disabled' : ''} class="mt-2 flex w-full items-center justify-center gap-2 rounded-2xl btn-3d bg-brand-700 px-4 py-2.5 text-[15px] font-black text-white disabled:opacity-60"><i data-lucide="user-round" class="h-5 w-5"></i>${owlAvatarBusy ? 'Ukládám…' : 'Použít jako profilový obrázek'}</button>`;
+    };
+    const useOwlAsAvatar = async () => {
+        if (!meDraft || owlAvatarBusy) return;
+        meDraft.owl = true;
+        meDraft.avatar = '🦉';
+        meDraft.pose = null;
+        meDirty = true;
+        owlAvatarBusy = true;
+        openSettings('', '[data-owl-as-avatar]');
+        try { await saveMeProfile(); } finally { owlAvatarBusy = false; }
+        if (document.getElementById('settings-overlay')) openSettings(meNote, '[data-owl-avatar-on], [data-owl-as-avatar]');
+    };
     // Zamčený obrázek hráče (odemyká se úrovní): položka katalogu, nebo null, když je k dispozici (základní, odemčený nebo už uložený v profilu)
     const avatarUnlockText = (item) => item.badge ? `Odznak: ${(BADGE_BY_ID[item.badge] || {}).title || item.badge}` : `Úroveň ${item.level}`;
     const avatarLock = (emoji) => {
@@ -947,7 +995,7 @@
         const ctx = lookContext();
         return Look.POSES.map(pose => {
             const titles = tierTitles(pose.tier);
-            const label = `Sova titulu ${titles[0]} (${titles.join(', ')})`;
+            const label = `Sova titulu ${titles[0]}${titles.length > 1 ? ` (${titles.join(', ')})` : ''}`;
             const art = Owl.poseHtml(pose.id, ctx.prefs.robe);
             if (ctx.level < pose.level) {
                 return `<button type="button" data-locked-owl="${pose.id}" aria-disabled="true" aria-label="${escapeHtml(`${label} je zamčená: od úrovně ${pose.level}`)}" title="${escapeHtml(`${label}: od úrovně ${pose.level}`)}" class="${AVATAR_TILE} ${AVATAR_OFF} relative">`
@@ -1475,19 +1523,20 @@
         const gameBody = `
             <h3 class="${ME_HEADING} mb-1.5">Varianta hry</h3>
             <div class="grid grid-cols-2 gap-2">${renderVariantCompact(gameVariant)}</div>
-            <h3 class="${ME_HEADING} mb-1.5 mt-3">Známost otázek</h3>
+            <h3 class="${ME_HEADING} mb-1.5 mt-3 short:mt-2">Známost otázek<span class="hidden font-bold normal-case tracking-normal short:inline"> · pro témata a mix</span></h3>
             <div class="grid grid-cols-2 gap-2" role="group" aria-label="Známost">${renderTierButtons(TOGGLE_ON, null, true)}</div>
-            <p class="mt-1.5 text-[11px] leading-snug text-slate-500 dark:text-slate-400">Pro témata a mix. Dnešní otázky jsou hlavně ze známých.</p>
+            <p class="mt-1.5 text-[11px] leading-snug text-slate-500 short:hidden dark:text-slate-400">Pro témata a mix. Dnešní otázky jsou hlavně ze známých.</p>
             ${state.configured && !user ? `
-                <button type="button" data-auth-login class="mt-3 flex w-full items-center gap-3 rounded-2xl btn-3d bg-brand-700 px-4 py-2 text-left text-white">
+                <button type="button" data-auth-login class="mt-3 short:mt-2 flex w-full items-center gap-3 rounded-2xl btn-3d bg-brand-700 px-4 py-2 text-left text-white">
                     <i data-lucide="log-in" class="h-5 w-5 shrink-0"></i>
                     <span class="min-w-0 flex-1"><span class="block text-[15px] font-black leading-tight">Přihlásit se přes Google</span><span class="block text-[11px] font-semibold leading-snug text-white/90">Uloží se postup a půjde hrát s ostatními</span></span>
                     <i data-lucide="chevron-right" class="h-4 w-4 shrink-0"></i>
                 </button>
                 ${state.error ? `<p class="mt-2 text-xs font-semibold text-rose-700 dark:text-rose-400" role="alert">${escapeHtml(state.error)}</p>` : ''}` : ''}
-            <div class="mt-3 divide-y divide-slate-100 overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-200/70 dark:divide-slate-700/70 dark:bg-slate-800 dark:ring-slate-700/70">
+            <div class="mt-3 short:mt-2 divide-y divide-slate-100 overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-200/70 dark:divide-slate-700/70 dark:bg-slate-800 dark:ring-slate-700/70">
                 ${Review ? settingRow({ attrs: 'data-review-toggle', icon: 'repeat', title: 'Procvičování chyb', text: reviewEnabled() ? 'Vrací se po 1, 3, 7, 14 a 30 dnech' : 'Chyby se nevrací, nic nečeká', on: reviewEnabled() }) : ''}
                 ${Tips ? settingRow({ attrs: 'data-tips-toggle', icon: 'lightbulb', title: 'Tipy od Mudrlanta', text: tipsOn() ? 'Žárovka občas ukáže funkci hry' : 'Žárovka ukáže jen zajímavost dne', on: tipsOn() }) : ''}
+                ${soundRows()}
                 ${pushPanel()}
                 ${settingRow({ attrs: 'data-tutorial-restart', icon: 'info', title: 'Projít znovu tutoriál' })}
             </div>
@@ -1531,7 +1580,7 @@
                     <button type="button" data-close aria-label="Zavřít" class="-m-0.5 self-start rounded-xl p-2.5 text-slate-500 hover:bg-slate-200 dark:text-slate-400 dark:hover:bg-slate-800"><i data-lucide="x" class="h-5 w-5"></i></button>
                 </div>
                 ${tabs}
-                <div class="mt-3">${meTab === 'profile' && profileBody ? profileBody : meTab === 'look' ? lookBody('look') : meTab === 'owl' ? lookBody('owl') : gameBody}</div>
+                <div class="mt-3">${meTab === 'profile' && profileBody ? profileBody : meTab === 'look' ? lookBody('look') : meTab === 'owl' ? lookBody('owl') + owlAvatarRow(user) : gameBody}</div>
                 <p id="settings-note" class="${noteText ? 'mt-2 ' : ''}text-xs font-semibold ${noteText.startsWith('Uloženo') || !meNote ? 'text-emerald-700 dark:text-emerald-300' : 'text-rose-700 dark:text-rose-400'}" role="status">${escapeHtml(noteText)}</p>
                 ${renderSchemaBanner()}
                 <div class="mt-3 flex flex-wrap items-center justify-center gap-x-1 text-xs text-slate-500 dark:text-slate-400">
@@ -1715,6 +1764,21 @@
                 openSettings(tipsOn() ? 'Tipy od Mudrlanta jsou zapnuté.' : 'Tipy od Mudrlanta jsou vypnuté.', '[data-tips-toggle]');
                 return;
             }
+            // Zvuky a vibrace: zapnutí hned předvede, jak znějí (klepnutí je gesto, AudioContext se smí probudit)
+            if (event.target.closest('[data-sound-toggle]') && Sound) {
+                const on = !Sound.prefs().sound;
+                Sound.set({ sound: on });
+                if (on) Sound.play('correct');
+                openSettings(on ? 'Zvuky jsou zapnuté.' : 'Zvuky jsou vypnuté.', '[data-sound-toggle]');
+                return;
+            }
+            if (event.target.closest('[data-vibration-toggle]') && Sound) {
+                const on = !Sound.prefs().vibration;
+                Sound.set({ vibration: on });
+                if (on) Sound.vibrate('wrong');
+                openSettings(on ? 'Vibrace jsou zapnuté.' : 'Vibrace jsou vypnuté.', '[data-vibration-toggle]');
+                return;
+            }
             if (event.target.closest('[data-review-toggle]')) {
                 writeJson(KEYS.reviewOn, !reviewEnabled());
                 updateControlsUI();
@@ -1745,6 +1809,7 @@
             if (devButton && devButton.dataset.dev === 'push-local') { devPushLocal(); return; }
             if (devButton && devButton.dataset.dev === 'push-server') { devPushServer(); return; }
             if (devButton && devButton.dataset.dev === 'reports') { openQuestionReports(); return; }
+            if (devButton && devButton.dataset.dev === 'suspicious') { openSuspiciousQuestions(); return; }
             if (devButton && devButton.dataset.dev === 'player-reports') { closeSettings(); openDevReports(); return; }
             if (devButton && devButton.dataset.dev === 'tips') {
                 if (Tips) writeTipsState(Tips.reset(readTipsState()));
@@ -1776,6 +1841,7 @@
                 openSettings(item.badge ? `${item.title} se odemkne odznakem „${(BADGE_BY_ID[item.badge] || {}).title || item.badge}“.` : `${item.title} se odemkne na úrovni ${item.level}.`);
                 return;
             }
+            if (event.target.closest('[data-owl-as-avatar]')) { useOwlAsAvatar(); return; }
             const avatar = event.target.closest('[data-pick-avatar]');
             const color = event.target.closest('[data-pick-color]');
             const pickOwl = event.target.closest('[data-pick-owl]');
@@ -1851,6 +1917,7 @@
                 note = 'Uloženo. Psaní platí od další otázky, tady už byly možnosti vidět.';
             }
         }
+        if (screen === 'mode') note = 'Uloženo. Bleskovka a Přežití se hrají vždy s výběrem z možností.';
         openSettings(note, `[data-variant="${variant}"]`);
     };
 
@@ -1918,9 +1985,12 @@
                 <div class="grid grid-cols-2 gap-1.5" role="group" aria-label="Známost">${renderTierButtons(style.on, isMix ? null : topic)}</div>
                 <div data-chooser-footer class="sticky -bottom-4 z-10 -mx-4 mt-3 border-t border-slate-200/80 bg-slate-50 px-4 pb-4 pt-2.5 dark:border-slate-800 dark:bg-slate-900">
                     <p id="chooser-note" class="${note ? 'mb-1.5 ' : ''}text-sm font-semibold text-rose-700 dark:text-rose-400" role="status">${escapeHtml(note)}</p>
-                    <button type="button" data-chooser-play class="flex w-full items-center justify-center gap-2 rounded-[1.2rem] py-3 text-lg font-black text-white shadow-lg transition-all active:scale-95 ${style.button} btn-3d">
-                        <i data-lucide="play" class="h-5 w-5"></i> Hrát
-                    </button>
+                    <div class="flex gap-2">
+                        <button type="button" data-chooser-play class="flex min-w-0 flex-1 items-center justify-center gap-2 rounded-[1.2rem] py-3 text-lg font-black text-white shadow-lg transition-all active:scale-95 ${style.button} btn-3d">
+                            <i data-lucide="play" class="h-5 w-5"></i> Hrát
+                        </button>
+                        ${modeChooserButtons()}
+                    </div>
                 </div>
                 <h3 class="${SETTINGS_HEADING} mb-2 mt-2">Jiné téma</h3>
                 <div class="flex flex-wrap gap-2">${switches}</div>
@@ -1967,6 +2037,12 @@
                 closeChooser();
                 markSeen(pick.kind === 'mix' ? 'mix' : pick.topic);
                 startPractice(pick.kind === 'mix' ? { kind: 'mix' } : { kind: 'topic', topic: pick.topic });
+            } else if (event.target.closest('[data-chooser-mode]')) {
+                // Bleskovka a Přežití s vybraným tématem (kategoriemi) nebo mixem: úvod s pravidly a rekordy
+                const pick = chooser;
+                closeChooser();
+                markSeen(pick.kind === 'mix' ? 'mix' : pick.topic);
+                openModeIntro(event.target.closest('[data-chooser-mode]').dataset.chooserMode, pick.kind === 'mix' ? { kind: 'mix' } : { kind: 'topic', topic: pick.topic });
             }
         });
         document.body.appendChild(overlay);
@@ -2026,6 +2102,7 @@
         }
         if (screen === 'challenge-done') return { icon: 'trophy', text: challenge && challenge.tournament ? 'Zápas hotový' : 'Výzva hotová', topic: null };
         if (screen === 'quiz' || screen === 'quiz-done') return { icon: 'timer', text: `Kvíz dne · ${shortDay(quiz ? quiz.day : getDayKey())}`, topic: null };
+        if (screen === 'mode' && modeGame) return modePlace(modeGame);
         // Úvod: sova z loga, název a dnešní datum
         if (screen !== 'round' || !current) return { logo: true, text: `${APP_NAME} · ${shortDay(getDayKey())}`, date: shortDay(getDayKey()), topic: null };
         const topic = TOPIC_BY_ID[current.topic];
@@ -2052,7 +2129,7 @@
     const updateControlsUI = () => {
         // Procvičování okruhu nebo chyb patří k učení
         const fromLearn = mode === 'practice' && (pool.kind === 'collection' || pool.kind === 'mistakes' || pool.kind === 'review');
-        const section = screen === 'learn' ? 'learn' : screen === 'round' ? (mode === 'daily' || mode === 'challenge' || mode === 'quiz' ? 'home' : fromLearn ? 'learn' : 'practice') : 'home';
+        const section = screen === 'learn' ? 'learn' : screen === 'mode' ? 'practice' : screen === 'round' ? (mode === 'daily' || mode === 'challenge' || mode === 'quiz' ? 'home' : fromLearn ? 'learn' : 'practice') : 'home';
         updateProfileButton();
         const settingsButton = document.getElementById('btn-settings');
         settingsButton.disabled = isLoading;
@@ -2086,7 +2163,7 @@
         const place = describePlace();
         const style = place.topic ? styleOf(place.topic) : null;
         updateFactHint();
-        document.getElementById('app-header').className = `${HEADER_BASE} ${style && screen === 'round' ? style.accent : 'border-slate-200/70 dark:border-slate-800'}`;
+        document.getElementById('app-header').className = `${HEADER_BASE} ${style && (screen === 'round' || screen === 'mode') ? style.accent : 'border-slate-200/70 dark:border-slate-800'}`;
         const badge = document.getElementById('status-badge');
         badge.className = place.logo ? BADGE_LOGO
             : `${BADGE_BASE} ${style ? `${style.soft} border-transparent` : 'bg-white text-slate-700 border-slate-200/60 dark:bg-slate-800 dark:border-slate-700'}`;
@@ -2252,6 +2329,7 @@
     const renderHome = () => {
         screen = 'home';
         closePlaceInfo();
+        flushAnswerStats();
         notePushHomeTab();
         settleGoals();
         const stats = loadStats();
@@ -2487,20 +2565,30 @@
 
     // První obrazová nápověda má id hint-visual, další (mapa i vlajka u státního znaku) hint-visual-2…: každá karta vlastní prvek
     const visualHintId = (hint) => hint.key === 'visual' ? 'hint-visual' : `hint-${hint.key}`;
-    const hintPanes = (hints) => {
+    const hintPanes = (hints, data, style) => {
         return hints.map(hint => {
             const html = hint.kind === 'visual' ? visualPane(visualHintId(hint), hint.spec)
-                : hint.kind === 'photo' ? photoPane('hint-photo') : hint.kind === 'excerpt' ? excerptPane(hint) : factsPane(hint.facts);
+                : hint.kind === 'photo' ? photoPane('hint-photo') : hint.kind === 'excerpt' ? excerptPane(hint)
+                    : hint.kind === 'text' ? textPane(data, style) : factsPane(hint.facts);
             return { key: hint.key, label: tabLabel(hint), icon: hint.icon, html };
         });
     };
+    // Jen název (otázka na autora obrazu, na sloh stavby): patří k zadání, i když je popis schovaný za nápovědou
+    const namePane = (data, style) => `
+        <div class="absolute inset-0 overflow-y-auto overscroll-contain p-3.5">
+            <div class="${HINT_CHIP}"><i data-lucide="tag" class="w-4 h-4 ${style.text}"></i><span class="font-medium">Název:</span> <b class="text-slate-800 dark:text-slate-100">${escapeHtml(data.name)}</b></div>
+        </div>`;
 
     // Panel otázky: popis a odemčené nápovědy, za záložkami tlačítko na další nápovědu
+    // U otázky s obrázkem je popis nápovědou (krok 'text'), volně zůstane nanejvýš název
     const questionPanel = (data) => {
         const style = styleOf(TOPIC_BY_ID[data.topic]);
         const unlocked = data.hints.slice(0, round.hintLevel - 1);
         const image = data.questionImage ? [{ key: 'image', label: data.questionImage.label, icon: data.questionImage.icon, html: photoPane('question-image') }] : [];
-        const panes = [...image, { key: 'text', label: 'Popis', icon: 'quote', html: textPane(data, style) }, ...hintPanes(unlocked)];
+        const textAsHint = data.hints.some(hint => hint.kind === 'text');
+        const free = !textAsHint ? [{ key: 'text', label: 'Popis', icon: 'quote', html: textPane(data, style) }]
+            : data.question.showName ? [{ key: 'name', label: 'Název', icon: 'tag', html: namePane(data, style) }] : [];
+        const panes = [...image, ...free, ...hintPanes(unlocked, data, style)];
         return renderTabbedPanel(panes, round.tab || panes[0].key, 'hint-tab', QUESTION_PANEL_HEIGHT);
     };
     // Tlačítko další nápovědy přes celou šířku pod popisem: co odemkne a za kolik pak bude odpověď
@@ -2562,6 +2650,8 @@
         });
         const resultPhoto = document.getElementById('result-photo');
         if (resultPhoto) showPhoto(resultPhoto, current.photoUrl);
+        const guessMap = document.getElementById('map-guess');
+        if (guessMap && MapQuestion) MapQuestion.mountResult(guessMap, current, round && round.map, { loadMap: loadMapData });
         const satellite = document.getElementById('result-satellite');
         if (satellite && current.coords) renderTiles(satellite, current.coords.lat, current.coords.lon, RESULT_SATELLITE_ZOOM, SATELLITE_TILES);
         renderMap();
@@ -2600,8 +2690,21 @@
     // Tlačítko „Nahlásit chybu v otázce“ (okno otázky: jen ikona vedle „Nevím“, výsledek: s textem vedle Wikipedie); okno je openReportDialog
     const REPORT_ICON_BUTTON = '<button type="button" data-action="report-question" class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-slate-500 hover:bg-slate-200 dark:text-slate-400 dark:hover:bg-slate-800" title="Nahlásit chybu v otázce" aria-label="Nahlásit chybu v otázce"><i data-lucide="flag" class="h-4 w-4"></i></button>';
     const REPORT_TEXT_BUTTON = '<button type="button" data-action="report-question" class="flex shrink-0 items-center justify-center gap-1.5 rounded-xl bg-slate-100 px-3 py-3 text-sm font-bold text-slate-700 transition-colors hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700" aria-label="Nahlásit chybu v otázce"><i data-lucide="flag" class="h-4 w-4"></i> Nahlásit chybu</button>';
+    // Otázka „Ukaž na mapě“: vlastní obrazovka z question-map.js (mapa místo popisu, nápověd a možností), tip se ukládá do kola
+    const renderMapQuestion = (keepScroll) => {
+        const data = current;
+        const topic = TOPIC_BY_ID[data.topic];
+        appContent.innerHTML = MapQuestion.questionScreen(data, { style: styleOf(topic), categoryIcon: categoryOf(topic, data.category).icon, typed: round.variant === 'typed',
+            guess: round.mapGuess, fresh: !keepScroll, report: canReport() && mode !== 'challenge' ? REPORT_ICON_BUTTON : '' });
+        renderIcons(appContent);
+        clearInterval(tourTimer);
+        if (!keepScroll) appContent.scrollTo(0, 0);
+        MapQuestion.mountQuestion(appContent, data, { guess: round.mapGuess || null, loadMap: loadMapData, onConfirm: () => ACTIONS['map-confirm'](),
+            onPlace: (guess) => { if (current === data && round && !round.answered) { round.mapGuess = guess; persistState(); } } });
+    };
     const renderQuestion = (keepScroll) => {
         const data = current;
+        if (data.question.type === 'map' && MapQuestion) return renderMapQuestion(keepScroll);
         const topic = TOPIC_BY_ID[data.topic];
         const style = styleOf(topic);
         const level = round.hintLevel;
@@ -2780,6 +2883,7 @@
         ? `<div class="mt-0.5 text-xs font-bold ${tone}">${xp.total ? `<span class="inline-block rounded-md bg-gold-500 px-1.5 py-0.5 font-black text-brand-950">+${xp.total} XP</span>` : ''}${(xp.badges || []).map(title => `<span class="ml-1 inline-flex items-center gap-1 rounded-md bg-brand-700 px-1.5 py-0.5 font-black text-white"><i data-lucide="award" class="h-3 w-3"></i>${escapeHtml(title)}</span>`).join('')}${xp.parts.length ? `<ul class="mt-1 space-y-0.5 font-semibold opacity-90">${xp.parts.map(part => `<li>+${part.xp} XP ${escapeHtml(part.label)}</li>`).join('')}</ul>` : ''}</div>` : '';
 
     const renderResultBanner = (data) => {
+        if (data.question.type === 'map' && MapQuestion) return MapQuestion.resultBanner(data, round, { uiArt, xpLine });
         // Kolik nápověd hráč použil z kolika, které otázka měla
         const levels = `${round.hintLevel - 1}/${data.hints.length}`;
         if (round.correct) {
@@ -2789,6 +2893,7 @@
                     <div>
                         <p class="font-black text-emerald-800 dark:text-emerald-200">Správně! +${formatPoints(round.points)}</p>
                         <p class="text-sm text-emerald-800 dark:text-emerald-300">${round.typed ? 'Napsaná odpověď' : 'Výběr z možností'}${data.hints.length ? ` · nápovědy ${levels}` : ''}</p>
+                        ${answerStatsLine(data, 'text-emerald-800 dark:text-emerald-300')}
                         ${xpLine(round.xp, 'text-emerald-800 dark:text-emerald-300')}
                     </div>
                 </div>`;
@@ -2799,6 +2904,7 @@
                 <div>
                     <p class="font-black text-rose-800 dark:text-rose-200">${round.gaveUp ? 'Tentokrát bez odpovědi' : 'Bohužel, to není ono'}</p>
                     <p class="text-sm text-rose-800 dark:text-rose-300">${round.answer ? `Tvoje odpověď: ${escapeHtml(round.answer)} · ` : ''}Správně: ${escapeHtml(data.question.answerLabel)}</p>
+                    ${answerStatsLine(data, 'text-rose-800 dark:text-rose-300')}
                     ${xpLine(round.xp, 'text-rose-800 dark:text-rose-300')}
                     ${round.answerRef ? `
                         <button type="button" data-action="item-info" data-topic="${escapeHtml(round.answerRef.topic)}" data-id="${escapeHtml(round.answerRef.id)}" class="mt-2 inline-flex min-h-[2.5rem] items-center gap-1.5 rounded-lg bg-white px-2.5 py-1.5 text-xs font-bold text-rose-700 shadow-sm transition-colors hover:bg-rose-100 dark:bg-rose-950 dark:text-rose-200 dark:hover:bg-rose-900">
@@ -2836,8 +2942,8 @@
             const wins = results.filter(result => result.correct).length;
             const label = 'text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400';
             // Obrázek ke sdílení (share-card.js) se kreslí až při stisku tlačítka „Sdílet obrázek“ (pointerdown, viz níž): kreslení hned
-            // při zobrazení výsledku by zdrželo jeho vykreslení (a tutoriál, který výsledek právě ukazuje)
-            const card = ShareCard && dailyCardInput();
+            // při zobrazení výsledku by zdrželo jeho vykreslení (a tutoriál, který výsledek právě ukazuje); vstup karty se počítá až tam
+            const card = Boolean(ShareCard);
             return `
                 <section class="${CARD} flex flex-col gap-2 p-3">
                     <div class="grid grid-cols-3 gap-1 text-center">
@@ -2895,6 +3001,8 @@
     // Záložky výsledku: fotka, mapa s polohou, bez fotky snímek z družice, obrazová nápověda (časová osa, tabulka…)
     const resultPanes = (data) => {
         const panes = [];
+        // Otázka na mapě: první záložka ukáže tip, správné místo a vzdálenost
+        if (data.question.type === 'map' && MapQuestion) panes.push({ key: 'guess', label: 'Na mapě', icon: 'crosshair', html: MapQuestion.resultPane(data, round.map) });
         // Obrázek z otázky (vlajka, obraz), když to není zároveň fotka položky
         if (data.questionImage && data.questionImage.url && !(data.questionImage.same && data.photoUrl)) {
             panes.push({ key: 'image', label: data.questionImage.label, icon: data.questionImage.icon, html: photoPane('result-image') });
@@ -3199,21 +3307,23 @@
         card.className = 'fade-in fixed inset-x-3 bottom-24 z-[60] mx-auto flex max-w-sm cursor-pointer items-center gap-3 rounded-3xl bg-gradient-to-br from-brand-800 to-brand-950 p-3 pr-4 text-white shadow-2xl ring-2 ring-gold-400';
         card.innerHTML = `${uiArt(`sova-${item.owl}`, 'h-20 w-20 -my-4 drop-shadow-lg')}<div class="min-w-0 flex-1"><p class="text-[11px] font-black uppercase tracking-widest text-gold-300">${escapeHtml(item.title)}</p><p class="text-base font-black leading-tight">${escapeHtml(item.text)}</p></div>`;
         document.body.appendChild(card);
+        // Zvuk oslavy (nová úroveň, titul, odznak) zazní, až se karta ukáže
+        if (item.sound && Sound) Sound.play(item.sound);
         const done = () => { if (!card.isConnected) return; card.remove(); setTimeout(nextCelebration, 250); };
         card.addEventListener('click', done);
         setTimeout(done, 4500);
     };
-    const showCelebration = (owl, title, text) => {
-        celebrationQueue.push({ owl, title, text });
+    const showCelebration = (owl, title, text, sound = null) => {
+        celebrationQueue.push({ owl, title, text, sound });
         if (!celebrating) nextCelebration();
     };
     const announce = (levelBefore, levelNow, badgeTitles) => {
         if (levelNow > levelBefore) {
             const newTitle = titleForLevel(levelNow) !== titleForLevel(levelBefore);
             // Nový titul slaví sova jeho stupně (sova titulu v barvě mého obleku)
-            showCelebration(newTitle ? titleOwlPose(levelNow) : 'oslava', newTitle ? 'Nový titul' : `Úroveň ${levelNow}`, newTitle ? `${titleForLevel(levelNow)} (úroveň ${levelNow})` : titleForLevel(levelNow));
+            showCelebration(newTitle ? titleOwlPose(levelNow) : 'oslava', newTitle ? 'Nový titul' : `Úroveň ${levelNow}`, newTitle ? `${titleForLevel(levelNow)} (úroveň ${levelNow})` : titleForLevel(levelNow), newTitle ? 'title' : 'level');
         }
-        badgeTitles.slice(0, 3).forEach(title => showCelebration('oslava', 'Nový odznak', title));
+        badgeTitles.slice(0, 3).forEach(title => showCelebration('oslava', 'Nový odznak', title, 'badge'));
         if (badgeTitles.length > 3) showCelebration('oslava', 'Další odznaky', `a ještě ${badgeTitles.length - 3}`);
         const kinds = Look.REWARD_KINDS;
         Look.newRewards(levelBefore, levelNow, freshBadgeIds).forEach(({ category, item }) => showCelebration('vitez', 'Nová odměna', `${item.title} (${kinds[category]}) – vyber si ji v Nastavení → Vzhled`));
@@ -3427,13 +3537,17 @@
     };
 
     // answerRef: položka (nebo stát) ze špatné odpovědi – výsledek k ní nabídne okno s popisem
-    const submitAnswer = ({ correct, typed, answer, answerRef = null, gaveUp = false }) => {
+    // points = body spočítané otázkou samou (na mapě podle vzdálenosti), extra = další údaje do kola (tip na mapě)
+    const submitAnswer = ({ correct, typed, answer, answerRef = null, gaveUp = false, points: given = null, extra = null }) => {
         if (!round || round.answered) return;
-        const points = correct ? pointsFor(round.hintLevel, typed) : 0;
+        const points = correct ? (Number.isInteger(given) ? given : pointsFor(round.hintLevel, typed)) : 0;
         const ref = !correct && isKnownRef(answerRef) ? answerRef : null;
-        Object.assign(round, { answered: true, correct, typed, answer, answerRef: ref, gaveUp, points });
+        Object.assign(round, extra || {}, { answered: true, correct, typed, answer, answerRef: ref, gaveUp, points });
         mapZoom = DEFAULT_MAP_ZOOM;
+        // Zvuk odpovědi (Nevím = bez zvuku); oslavy nové úrovně a odznaku zazní až po něm
+        if (Sound && !gaveUp) Sound.answer(correct);
         recordResult();
+        recordAnswerStat({ correct, answerRef, gaveUp });
         renderRound();
         // Odpověď výzvy (zápasu turnaje) hned na server; bez spojení počká v zařízení
         if (mode === 'challenge' && challenge) syncAnswers(challenge);
@@ -3566,6 +3680,8 @@
             if (mode === 'quiz') quizRoundReady();
             isLoading = false;
             renderRound();
+            // Souhrn odpovědí ostatních k tématu (stáhne se, jen když v zařízení chybí nebo je starší než den)
+            refreshAnswerStats(current.topic);
             // Obrysy států pro slepou mapu stáhneme dopředu, ať je nápověda hned po ruce
             if (data.visual && data.visual.type === 'map') loadWorld().catch(() => {});
         } catch (error) {
@@ -3694,7 +3810,8 @@
             }
             if (pool.kind === 'topic' || pool.kind === 'mix') {
                 ctx = await loadTopic(pool.kind === 'topic' ? pool.topic : pickRandom(settings.topics, Math.random));
-                item = pickItem(playableItems(ctx), Math.random, history, ctx.topic.categories.map(c => c.key));
+                // Trénink bez semínka: mírná kalibrace obtížnosti podle odpovědí ostatních (pravidlo v answer-stats.js)
+                item = pickItem(playableItems(ctx), Math.random, history, ctx.topic.categories.map(c => c.key), answerStatsWeigher(ctx.topic.id));
             }
             if (item) rememberPlayed(item);
             return { item, ctx, rng: Math.random };
@@ -4024,6 +4141,7 @@
         closeChooser();
         learn.view = view;
         learn.topic = topicId;
+        flushAnswerStats();
         renderLearn().then(() => appContent.scrollTo(0, 0));
     };
 
@@ -4054,6 +4172,480 @@
     const changeMapZoom = (delta) => {
         mapZoom = Math.min(MAX_MAP_ZOOM, Math.max(MIN_MAP_ZOOM, mapZoom + delta));
         renderMap();
+    };
+
+    // --- Bleskovka a Přežití: režimy pro jednoho hráče (pravidla, hodiny, rekordy a XP v modes.js, zvuky v sound.js) ---
+    // Vlastní obrazovka (screen 'mode'): úvod s pravidly a rekordy → otázky (vždy výběr z možností, bez nápověd) → výsledek s rekordy a XP.
+    // Otázka se sestaví stejně jako v běžné hře (createRoundData) a další se chystá už během té současné, ať se nečeká na Wikipedii.
+    // Chyby jdou do Mých chyb a procvičování jako v běžné hře, správně uhodnuté do postupu v okruzích; do dnešních otázek, výzev,
+    // statistik tréninku ani počítadel odpovědí pro odznaky a cíle týdne se odpovědi nepočítají (rychlé otázky by je jinak nafoukly);
+    // počítá se jen den hraní a poznané položky (mistrovství).
+    // Hra se neukládá: odchod z obrazovky (Domů, Zpět, jiná hra) ji ukončí bez výsledku, tlačítko Ukončit hru s výsledkem.
+    // phase: 'intro' | 'loading' | 'question' | 'feedback' | 'error' | 'result'
+    let modeGame = null;
+    let modeTimer = null;
+    let modeFeedbackTimer = null;
+    // Okna, během kterých čas Bleskovky stojí (Nastavení, popis položky…)
+    const MODE_OVERLAYS = ['settings-overlay', 'dialog-overlay', 'play-chooser', 'place-info', 'photo-zoom', 'fact-overlay'];
+    const MODE_BADGE = { blitz: 'bg-gold-500 text-brand-950', survival: 'bg-rose-600 text-white' };
+    const modeTopicOf = (game) => game.pool.kind === 'topic' ? TOPIC_BY_ID[game.pool.topic] : MIX;
+    const loadModeState = () => Modes.parse(readJson(Modes.STORAGE_KEY));
+    const modeLive = (game) => Boolean(game) && game === modeGame && screen === 'mode';
+    const stopModeTimers = () => {
+        clearInterval(modeTimer);
+        clearTimeout(modeFeedbackTimer);
+        modeTimer = null;
+        modeFeedbackTimer = null;
+    };
+    // Štítek v hlavičce: režim a téma v barvě tématu (při mixu téma právě hrané otázky); klepnutím nic nemění
+    const modePlace = (game) => {
+        const def = Modes.MODES[game.kind];
+        const scopeTopic = modeTopicOf(game);
+        const playing = current && (game.phase === 'question' || game.phase === 'feedback') ? TOPIC_BY_ID[current.topic] : null;
+        return { icon: def.icon, text: `${def.title} · ${scopeTopic.title}`, topic: playing || scopeTopic };
+    };
+    // Co se hraje: kategorie tématu (nebo témata mixu), u Bleskovky i známost z výběru; Přežití má vlastní obtížnost
+    const modeScopeText = (game) => {
+        const parts = [];
+        if (game.pool.kind === 'mix') parts.push(settings.topics.length === TOPICS.length ? 'všechna témata' : `${settings.topics.length} z ${TOPICS.length} témat`);
+        else {
+            const topic = TOPIC_BY_ID[game.pool.topic];
+            const chosen = selectedCategories(topic);
+            parts.push(chosen.length === topic.categories.length ? 'všechny kategorie' : chosen.length === 1 ? categoryOf(topic, chosen[0]).label : `${chosen.length} z ${topic.categories.length} kategorií`);
+        }
+        if (game.kind === 'blitz') parts.push(settings.tier === 'all' ? 'i méně známé' : 'jen známé');
+        return parts.join(' · ');
+    };
+
+    // Úvod režimu: pravidla, rekordy a kolik XP dnes ještě jde získat
+    const openModeIntro = (kind, nextPool) => {
+        if (!Modes || !Modes.MODES[kind] || isLoading) return;
+        stopModeTimers();
+        closeChooser();
+        closeSettings();
+        closePlaceInfo();
+        pool = nextPool.kind === 'topic' && TOPIC_BY_ID[nextPool.topic] ? { kind: 'topic', topic: nextPool.topic } : { kind: 'mix' };
+        mode = kind;
+        current = null;
+        round = null;
+        modeGame = { kind, pool: { ...pool }, scope: Modes.scopeOf(pool), phase: 'intro' };
+        screen = 'mode';
+        renderModeScreen();
+    };
+    const startModeGame = (kind = modeGame && modeGame.kind, gamePool = modeGame && modeGame.pool) => {
+        if (!Modes || !Modes.MODES[kind] || !gamePool) return;
+        const def = Modes.MODES[kind];
+        stopModeTimers();
+        closePlaceInfo();
+        if (Sound) Sound.unlock();
+        mode = kind;
+        pool = { ...gamePool };
+        screen = 'mode';
+        modeGame = {
+            kind, pool: { ...gamePool }, scope: Modes.scopeOf(gamePool), phase: 'loading',
+            score: 0, asked: 0, wrong: 0, lives: def.lives || 0, picked: null, penalty: false, lostLife: false,
+            clock: kind === 'blitz' ? Modes.createClock(def.seconds) : null, shown: def.seconds || 0,
+            seen: new Set(), missed: [], next: null, outcome: null, xp: null
+        };
+        modeTimer = setInterval(modeTick, 100);
+        showNextModeQuestion(modeGame);
+    };
+    // Odchod z obrazovky režimu (Zpět, Domů): rozehraná hra se zahodí
+    const leaveMode = () => {
+        stopModeTimers();
+        modeGame = null;
+        current = null;
+        round = null;
+        renderHome();
+    };
+
+    // Další otázka: položka z vybraných kategorií (mix: náhodné téma z vybraných), bez opakování v jedné hře.
+    // Bleskovka bere známost z výběru, Přežití podle počtu položených otázek (modes.js: survivalTier).
+    const prepareModeQuestion = async (game) => {
+        const history = readJson(KEYS.history) || [];
+        for (let attempt = 0; attempt < 4; attempt++) {
+            const topicId = game.pool.kind === 'topic' ? game.pool.topic : pickRandom(settings.topics, Math.random);
+            const ctx = await loadTopic(topicId);
+            const chosen = selectedCategories(ctx.topic);
+            const inCategories = ctx.items.filter(item => chosen.includes(item.c));
+            const base = inCategories.length ? inCategories : ctx.items;
+            const tiered = filterItems(base, { tier: game.kind === 'survival' ? Modes.survivalTier(game.asked, Math.random) : settings.tier });
+            const candidates = tiered.length ? tiered : base;
+            const fresh = candidates.filter(item => !game.seen.has(`${topicId}:${item.q}`));
+            const item = pickItem(fresh.length ? fresh : candidates, Math.random, history, ctx.topic.categories.map(category => category.key));
+            if (!item) continue;
+            game.seen.add(`${topicId}:${item.q}`);
+            const data = await createRoundData(item, ctx, Math.random);
+            // Jen otázky s výběrem z možností; chudý popis (bez nápověd by nešlo odpovědět) nejvýš dvakrát vymění
+            if (!Modes.playable(data) || (data.thin && attempt < 2 && !wikiPaused())) continue;
+            rememberPlayed(item);
+            return data;
+        }
+        throw new Error('Není z čeho vybírat');
+    };
+    const queueModeQuestion = (game) => {
+        const slot = { data: null };
+        slot.promise = prepareModeQuestion(game).then(data => { slot.data = data; return data; });
+        slot.promise.catch(() => {});
+        return slot;
+    };
+    const showNextModeQuestion = async (game) => {
+        if (!modeLive(game)) return;
+        const slot = game.next || queueModeQuestion(game);
+        game.next = null;
+        if (!slot.data) {
+            game.phase = 'loading';
+            renderModeScreen();
+            try {
+                await slot.promise;
+            } catch (error) {
+                if (!modeLive(game)) return;
+                console.error(error);
+                game.phase = 'error';
+                game.error = error;
+                renderModeScreen();
+                return;
+            }
+            if (!modeLive(game) || game.phase !== 'loading') return;
+        }
+        game.asked += 1;
+        game.picked = null;
+        game.penalty = false;
+        game.lostLife = false;
+        game.phase = 'question';
+        current = slot.data;
+        round = { hintLevel: 1, variant: 'choices', answered: false, correct: false, points: 0, typed: false, answer: null, gaveUp: false, review: false };
+        renderModeScreen();
+        // Další otázka se chystá hned, dokud hráč přemýšlí
+        game.next = queueModeQuestion(game);
+    };
+
+    // Hodiny Bleskovky: běží, jen když je vidět otázka (ne při načítání, po odpovědi, ve skryté aplikaci ani pod otevřeným oknem)
+    const modeTick = () => {
+        const game = modeGame;
+        if (!game || screen !== 'mode') {
+            // Hráč odešel jinam: hra skončila bez výsledku
+            stopModeTimers();
+            if (game && screen !== 'mode') modeGame = null;
+            return;
+        }
+        if (game.kind !== 'blitz' || !game.clock) return;
+        const now = Date.now();
+        const run = game.phase === 'question' && !document.hidden && !MODE_OVERLAYS.some(id => document.getElementById(id));
+        if (run && !Modes.clockRunning(game.clock)) game.clock = Modes.startClock(game.clock, now);
+        if (!run && Modes.clockRunning(game.clock)) game.clock = Modes.pauseClock(game.clock, now);
+        const left = Modes.clockLeft(game.clock, now);
+        const shown = Modes.secondsShown(left);
+        const tick = Modes.tickDue(game.shown, shown);
+        game.shown = shown;
+        paintModeClock(left);
+        if (tick && Sound) Sound.play(tick === 1 ? 'tickLast' : 'tick');
+        if (left <= 0 && game.phase === 'question') finishModeGame(game);
+    };
+    document.addEventListener('visibilitychange', () => { if (modeGame && screen === 'mode') modeTick(); });
+    // Čas a pruh se překreslují bez překreslení otázky (posledních 10 s červeně)
+    const paintModeClock = (left) => {
+        const box = appContent.querySelector('[data-mode-timer]');
+        if (!box) return;
+        const shown = Modes.secondsShown(left);
+        box.querySelector('[data-mode-clock]').textContent = String(shown);
+        const bar = box.querySelector('[data-mode-bar]');
+        bar.style.width = `${Math.max(0, Math.min(100, left / (Modes.MODES.blitz.seconds * 10)))}%`;
+        const urgent = shown <= 10;
+        if (box.dataset.urgent === String(urgent)) return;
+        box.dataset.urgent = String(urgent);
+        bar.classList.toggle('bg-gold-500', !urgent);
+        bar.classList.toggle('bg-rose-500', urgent);
+        bar.classList.toggle('mode-urgent', urgent);
+        const chip = box.querySelector('[data-mode-clock-chip]');
+        chip.classList.toggle('text-rose-700', urgent);
+        chip.classList.toggle('dark:text-rose-300', urgent);
+    };
+
+    // Odpověď: krátce ukáže správnou (a špatnou) možnost, pak další otázka; Bleskovka za chybu ubere čas, Přežití život
+    const answerMode = (index) => {
+        const game = modeGame;
+        if (!modeLive(game) || game.phase !== 'question' || !current) return;
+        const choice = current.question.choices[index];
+        if (!choice) return;
+        const def = Modes.MODES[game.kind];
+        const now = Date.now();
+        game.picked = index;
+        game.phase = 'feedback';
+        Object.assign(round, { answered: true, correct: Boolean(choice.correct), answer: choice.label });
+        if (game.clock) game.clock = Modes.pauseClock(game.clock, now);
+        if (choice.correct) game.score += 1;
+        else {
+            game.wrong += 1;
+            if (game.kind === 'blitz') { game.clock = Modes.penalize(game.clock, def.penalty * 1000, now); game.penalty = true; }
+            if (game.kind === 'survival') { game.lives = Math.max(0, game.lives - 1); game.lostLife = true; }
+            if (!game.missed.some(miss => miss.topic === current.topic && miss.id === current.id)) game.missed.push({ topic: current.topic, id: current.id, name: current.name });
+        }
+        noteModeAnswer(current, Boolean(choice.correct));
+        if (Sound) Sound.answer(Boolean(choice.correct));
+        renderModeScreen();
+        const over = game.kind === 'survival' ? game.lives <= 0 : Modes.clockLeft(game.clock, now) <= 0;
+        modeFeedbackTimer = setTimeout(() => {
+            if (!modeLive(game) || game.phase !== 'feedback') return;
+            if (over) finishModeGame(game);
+            else showNextModeQuestion(game);
+        }, choice.correct ? def.feedback.correct : def.feedback.wrong);
+    };
+    // Chyby a procvičování jako v běžné hře: špatně = do Mých chyb a karta opakování, správně = z chyb pryč a do poznaných položek
+    const noteModeAnswer = (data, correct) => {
+        const key = `${data.topic}:${data.id}`;
+        writeJson(KEYS.mistakes, updateMistakes(loadMistakes(), key, correct));
+        if (reviewEnabled()) saveReview(Review.onAnswer(loadReview(), key, correct, getDayKey(), { force: false }));
+        if (correct) {
+            const learned = loadLearned();
+            learned[data.topic] = [...new Set([...(learned[data.topic] || []), data.id])];
+            writeJson(KEYS.learned, learned);
+        }
+    };
+    // XP za hru (rozpis a denní strop z modes.js); den hraní se počítá jako u běžné hry, odznaky za poznané položky a úroveň také
+    const awardModeXp = (xp) => {
+        const before = loadProgress();
+        const progress = { ...before, xp: before.xp + xp.total };
+        if (progress.counters.lastDay !== getDayKey()) { progress.counters.days += 1; progress.counters.lastDay = getDayKey(); }
+        const badgeTitles = grantBadges(progress);
+        saveProgress(progress);
+        announce(levelProgress(before.xp).level, levelProgress(progress.xp).level, badgeTitles);
+        settleGoals();
+        applyLook();
+        syncProgress();
+        return { ...xp, badges: badgeTitles };
+    };
+    // Konec hry (čas, poslední život nebo Ukončit hru): rekordy, XP, oslava nového rekordu se zvukem a vibrací
+    const finishModeGame = (game) => {
+        if (!modeLive(game) || game.phase === 'result') return;
+        stopModeTimers();
+        game.next = null;
+        current = null;
+        round = null;
+        // Ukončeno hned na začátku (žádná otázka): zpět na úvod, hra se nepočítá
+        if (!game.asked) {
+            modeGame = { kind: game.kind, pool: game.pool, scope: game.scope, phase: 'intro' };
+            renderModeScreen();
+            return;
+        }
+        const def = Modes.MODES[game.kind];
+        const outcome = Modes.finish(loadModeState(), game.kind, game.scope, game.score, getDayKey());
+        writeJson(Modes.STORAGE_KEY, outcome.state);
+        game.outcome = outcome;
+        game.phase = 'result';
+        if (outcome.record) {
+            if (Sound) { Sound.play('record'); Sound.vibrate('record'); }
+            showCelebration('vitez', 'Nový rekord!', `${def.title} · ${modeTopicOf(game).title}: ${Modes.scoreLabel(game.kind, game.score)}`);
+        }
+        game.xp = awardModeXp(outcome.xp);
+        renderModeScreen();
+    };
+
+    // --- Obrazovky režimu ---
+    const modeBadge = (kind, cls = 'h-7 w-7', icon = 'h-4 w-4') => `<span class="flex ${cls} shrink-0 items-center justify-center rounded-full ${MODE_BADGE[kind]}"><i data-lucide="${Modes.MODES[kind].icon}" class="${icon}"></i></span>`;
+    const modeStat = (label, value, attrs = '') => `
+        <div ${attrs} class="flex flex-col justify-between rounded-2xl bg-white px-2 py-2 text-center shadow-sm ring-1 ring-slate-200/70 dark:bg-slate-800 dark:ring-slate-700/70">
+            <p class="text-[10px] font-black uppercase leading-tight tracking-wider text-slate-500 dark:text-slate-400">${escapeHtml(label)}</p>
+            <p class="mt-0.5 text-2xl font-black tabular-nums leading-tight text-slate-800 dark:text-slate-100">${value}</p>
+        </div>`;
+    const modeScoreChip = (game) => `<span class="flex shrink-0 items-center gap-1 rounded-xl bg-emerald-50 px-2.5 py-1.5 text-lg font-black tabular-nums leading-none text-emerald-800 ring-1 ring-emerald-200 dark:bg-emerald-900/40 dark:text-emerald-200 dark:ring-emerald-800" aria-label="Správně: ${game.score}"><i data-lucide="check" class="h-4 w-4"></i>${game.score}</span>`;
+    // Horní řádek hry: Bleskovka = zbývající čas s pruhem, Přežití = srdíčka a obtížnost; vpravo počet správných
+    const modeStatus = (game) => {
+        if (game.kind === 'blitz') {
+            return `
+                <div data-mode-timer class="flex items-center gap-2.5">
+                    <span class="relative shrink-0">
+                        <span data-mode-clock-chip role="timer" aria-label="Zbývající čas v sekundách" class="flex min-w-[4.5rem] items-center gap-1 rounded-xl bg-white px-2.5 py-1.5 text-lg font-black tabular-nums leading-none text-slate-800 shadow-sm ring-1 ring-slate-200/70 dark:bg-slate-800 dark:text-slate-100 dark:ring-slate-700/70"><i data-lucide="zap" class="h-4 w-4 text-gold-600 dark:text-gold-400"></i><span data-mode-clock>${Modes.secondsShown(Modes.clockLeft(game.clock, Date.now()))}</span><span class="text-xs font-bold text-slate-500 dark:text-slate-400">s</span></span>
+                        ${game.penalty ? `<span data-mode-penalty class="mode-pop absolute left-1/2 top-full z-10 mt-1 -translate-x-1/2 whitespace-nowrap rounded-lg bg-rose-600 px-2 py-0.5 text-xs font-black text-white shadow">−${Modes.MODES.blitz.penalty} s</span>` : ''}
+                    </span>
+                    <span class="h-2.5 min-w-0 flex-1 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700" aria-hidden="true"><span data-mode-bar class="block h-full w-full rounded-full bg-gold-500"></span></span>
+                    ${modeScoreChip(game)}
+                </div>`;
+        }
+        const hearts = Array.from({ length: Modes.MODES.survival.lives }, (_, index) => {
+            const alive = index < game.lives;
+            const justLost = game.lostLife && index === game.lives;
+            return `<i data-lucide="heart" class="h-5 w-5 ${alive ? 'fill-rose-500 text-rose-600 dark:text-rose-400' : `text-slate-300 dark:text-slate-600 ${justLost ? 'mode-heart-lost' : ''}`}"></i>`;
+        }).join('');
+        return `
+            <div data-mode-lives="${game.lives}" class="flex items-center gap-2.5">
+                <span class="flex shrink-0 items-center gap-0.5 rounded-xl bg-white px-2 py-1.5 shadow-sm ring-1 ring-slate-200/70 dark:bg-slate-800 dark:ring-slate-700/70" role="img" aria-label="Životy: ${game.lives} ze ${Modes.MODES.survival.lives}">${hearts}</span>
+                <span class="min-w-0 flex-1 text-center text-[11px] font-bold uppercase leading-tight tracking-wider text-slate-500 dark:text-slate-400">${escapeHtml(Modes.difficultyLabel(Math.max(0, game.asked - 1)))}</span>
+                ${modeScoreChip(game)}
+            </div>`;
+    };
+    const renderModeIntro = (game) => {
+        const def = Modes.MODES[game.kind];
+        const topic = modeTopicOf(game);
+        const style = styleOf(topic);
+        const state = loadModeState();
+        const records = Modes.recordsOf(state, game.kind, game.scope);
+        const left = Modes.xpLeftToday(state, game.kind, getDayKey());
+        const xpText = left > 0
+            ? `+${def.xpPer} XP za každou ${def.xpUnit[0]} (dnes ještě až ${left} XP) a +${Modes.RECORD_XP} XP za překonaný rekord.`
+            : `Dnešní strop ${Modes.DAILY_XP_CAP} XP za ${def.titleAcc} je vyčerpaný – rekordy se počítají dál.`;
+        appContent.innerHTML = `
+            <div data-mode-intro="${game.kind}" class="fade-in flex min-h-full w-full flex-col gap-3 bg-slate-50 p-4 short:gap-2 short:p-3 dark:bg-slate-900">
+                <div class="flex items-center gap-3">
+                    <span class="relative shrink-0">
+                        ${topicIcon(topic, 'h-14 w-14', `flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br text-white ${style.tile}`, 'h-7 w-7')}
+                        <span class="absolute -bottom-1 -right-1 rounded-full ring-2 ring-slate-50 dark:ring-slate-900">${modeBadge(game.kind)}</span>
+                    </span>
+                    <div class="min-w-0">
+                        <h2 class="text-2xl font-black leading-tight text-slate-800 dark:text-slate-50">${escapeHtml(def.title)}</h2>
+                        <p class="text-[13px] font-semibold leading-snug text-slate-600 dark:text-slate-300">${escapeHtml(topic.title)} · ${escapeHtml(modeScopeText(game))}</p>
+                    </div>
+                </div>
+                <ul class="${CARD} flex flex-col gap-2.5 p-3.5 short:gap-2 short:p-3">
+                    ${Modes.rules(game.kind).map(rule => `<li class="flex items-center gap-2.5 text-[13px] font-semibold leading-snug text-slate-700 dark:text-slate-200"><i data-lucide="${rule.icon}" class="h-5 w-5 shrink-0 ${style.text}"></i><span>${escapeHtml(rule.text)}</span></li>`).join('')}
+                </ul>
+                <div class="grid grid-cols-2 gap-2">
+                    ${modeStat(game.pool.kind === 'mix' ? 'Rekord mixu' : 'Rekord tématu', records.scope || '–', 'data-mode-record-scope')}
+                    ${modeStat('Celkový rekord', records.overall || '–', 'data-mode-record-overall')}
+                </div>
+                <p class="text-xs font-semibold leading-snug text-slate-500 dark:text-slate-400">${escapeHtml(xpText)}</p>
+                <div class="mt-auto flex flex-col gap-1">
+                    <button type="button" data-action="mode-start" class="flex w-full items-center justify-center gap-2 rounded-[1.2rem] py-3.5 text-lg font-black text-white shadow-lg transition-all active:scale-95 short:py-3 ${style.button} btn-3d"><i data-lucide="play" class="h-5 w-5"></i> Start</button>
+                    <button type="button" data-action="mode-home" class="${BACK_LINK} mx-auto"><i data-lucide="chevron-left" class="h-4 w-4"></i> Zpět na úvod</button>
+                </div>
+            </div>`;
+    };
+    const renderModeQuestion = (game) => {
+        const data = current;
+        const topic = TOPIC_BY_ID[data.topic];
+        const style = styleOf(topic);
+        const category = categoryOf(topic, data.category);
+        const feedback = game.phase === 'feedback';
+        const BASE = 'btn-3d-light min-h-[3rem] rounded-xl px-3 py-1.5 text-sm font-bold leading-tight';
+        const choiceClass = (choice, index) => !feedback ? `${BASE} bg-white text-slate-700 dark:bg-slate-700 dark:text-slate-100`
+            : choice.correct ? `${BASE} border-emerald-700 bg-emerald-600 text-white dark:border-emerald-900 dark:bg-emerald-700`
+            : index === game.picked ? `${BASE} border-rose-800 bg-rose-600 text-white dark:border-rose-900 dark:bg-rose-700`
+            : `${BASE} bg-white text-slate-700 opacity-50 dark:bg-slate-700 dark:text-slate-100`;
+        const choices = data.question.choices.map((choice, index) => `
+            <button type="button" data-action="mode-choice" data-index="${index}"${feedback ? ' disabled' : ''} class="${choiceClass(choice, index)}">${escapeHtml(choice.label)}</button>`).join('');
+        const verdict = !feedback ? '' : round.correct ? 'Správně!' : `Špatně. Správně je ${data.question.answerLabel}.`;
+        appContent.innerHTML = `
+            <div data-mode-question="${game.kind}" data-phase="${game.phase}" data-asked="${game.asked}" class="flex min-h-full w-full flex-col gap-2.5 bg-slate-50 p-3 pb-2 dark:bg-slate-900">
+                ${modeStatus(game)}
+                <div class="flex flex-col items-center gap-1 text-center">
+                    <span class="inline-flex items-center gap-1.5 rounded-lg border px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest text-white shadow-sm ${style.solid}"><i data-lucide="${category.icon}" class="h-3 w-3"></i> ${escapeHtml(data.typeLabel)}</span>
+                    <h2 class="text-[22px] font-black leading-tight tracking-tight text-slate-800 dark:text-slate-50">${escapeHtml(data.question.title)}</h2>
+                </div>
+                ${questionPanel(data)}
+                <section class="${CARD} p-3"><div class="grid grid-cols-2 gap-2">${choices}</div></section>
+                <p class="sr-only" role="status">${escapeHtml(verdict)}</p>
+                <button type="button" data-action="mode-quit" class="mx-auto flex min-h-[2.75rem] items-center gap-2 px-3 text-sm font-semibold text-slate-500 underline-offset-4 hover:underline dark:text-slate-400"><i data-lucide="flag" class="h-4 w-4"></i> Ukončit hru</button>
+            </div>`;
+        renderIcons(appContent);
+        mountPanels();
+        if (game.clock) paintModeClock(Modes.clockLeft(game.clock, Date.now()));
+        if (!feedback) appContent.scrollTo(0, 0);
+    };
+    const renderModeLoading = (game) => {
+        const topic = modeTopicOf(game);
+        appContent.innerHTML = `
+            <div data-mode-loading class="flex min-h-full w-full flex-col gap-2.5 bg-slate-50 p-3 dark:bg-slate-900">
+                ${game.asked || game.kind === 'blitz' ? modeStatus(game) : ''}
+                <div class="flex flex-1 flex-col items-center justify-center">
+                    ${topicArt(topic) ? topicIcon(topic, 'bob mb-4 h-20 w-20') : LOADING_OWL}
+                    <p class="text-sm font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300">${game.asked ? 'Chystám další otázku…' : 'Chystám otázky…'}</p>
+                    ${game.kind === 'blitz' ? '<p class="mt-1 text-xs font-semibold text-slate-500 dark:text-slate-400">Čas zatím stojí</p>' : ''}
+                </div>
+            </div>`;
+        renderIcons(appContent);
+        if (game.clock) paintModeClock(Modes.clockLeft(game.clock, Date.now()));
+    };
+    const renderModeError = (game) => {
+        const offline = game.error instanceof NetworkError || !navigator.onLine;
+        appContent.innerHTML = `
+            <div data-mode-error class="fade-in flex min-h-full flex-col items-center justify-center gap-2 bg-slate-50 p-8 text-center dark:bg-slate-900">
+                <i data-lucide="${offline ? 'wifi-off' : 'search-x'}" class="mb-2 h-14 w-14 text-slate-300 dark:text-slate-600"></i>
+                <h2 class="text-xl font-bold text-slate-700 dark:text-slate-200">${offline ? 'Chyba spojení' : 'Něco se pokazilo'}</h2>
+                <p class="mb-4 text-slate-500 dark:text-slate-400">${offline ? 'Další otázku se nepodařilo načíst. Zkontroluj připojení k internetu a zkus to znovu.' : 'Další otázku se nepodařilo připravit. Zkus to prosím znovu.'}${game.kind === 'blitz' ? ' Čas mezitím stojí.' : ''}</p>
+                <button type="button" data-action="mode-retry" class="rounded-2xl bg-brand-700 px-6 py-3 font-bold text-white shadow-lg active:scale-95">Zkusit znovu</button>
+                <button type="button" data-action="mode-quit" class="${BACK_LINK}">Ukončit hru</button>
+            </div>`;
+        renderIcons(appContent);
+    };
+    const renderModeResult = (game) => {
+        const def = Modes.MODES[game.kind];
+        const topic = modeTopicOf(game);
+        const style = styleOf(topic);
+        const { outcome } = game;
+        const owl = outcome.record ? 'sova-vitez' : game.score > 0 ? 'sova-radost' : 'sova-smutek';
+        const unit = Modes.scoreLabel(game.kind, game.score).replace(/^\d+ /, '');
+        const recordLine = outcome.record
+            ? `<p data-mode-new-record class="mode-pop mt-1.5 inline-flex items-center gap-1.5 rounded-full bg-gold-500 px-3 py-1 text-sm font-black text-brand-950 shadow"><i data-lucide="trophy" class="h-4 w-4"></i> Nový rekord!${outcome.overallRecord && !outcome.scopeRecord ? ' (celkový)' : outcome.overallRecord ? ' I celkový.' : ''}</p>`
+            : outcome.firstRecord ? `<p class="mt-1 text-xs font-bold text-slate-600 dark:text-slate-300">${game.pool.kind === 'mix' ? 'První rekord v mixu' : 'První rekord v tématu'}</p>`
+            : outcome.before.scope ? `<p class="mt-1 text-xs font-bold text-slate-600 dark:text-slate-300">Rekord je ${outcome.before.scope}, ${outcome.before.scope - game.score === 1 ? 'chyběla 1' : outcome.before.scope - game.score <= 4 ? `chyběly ${outcome.before.scope - game.score}` : `chybělo ${outcome.before.scope - game.score}`}</p>` : '';
+        const missed = game.missed.filter(isKnownRef);
+        const missedHtml = missed.length ? `
+            <section class="${CARD} p-3">
+                <h3 class="${CARD_TITLE}"><i data-lucide="repeat" class="h-4 w-4 ${style.text}"></i> Co ti uteklo</h3>
+                <p class="mb-2 mt-0.5 text-xs font-semibold text-slate-500 dark:text-slate-400">${reviewEnabled() ? 'Vrátí se ti v procvičování chyb.' : 'Najdeš to v Mých chybách v Učení.'}</p>
+                <div class="flex flex-wrap gap-1.5">
+                    ${missed.slice(0, 8).map(miss => `<button type="button" data-action="item-info" data-topic="${escapeHtml(miss.topic)}" data-id="${escapeHtml(miss.id)}" class="inline-flex min-h-[2.5rem] items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-[13px] font-bold text-slate-700 hover:border-slate-400 dark:border-slate-600 dark:bg-slate-700/60 dark:text-slate-100"><i data-lucide="info" class="h-4 w-4 ${style.text}"></i> ${escapeHtml(miss.name)}</button>`).join('')}
+                    ${missed.length > 8 ? `<span class="self-center text-xs font-bold text-slate-500 dark:text-slate-400">a ${missed.length - 8} další v Mých chybách</span>` : ''}
+                </div>
+            </section>` : '';
+        appContent.innerHTML = `
+            <div data-mode-result="${game.kind}" class="fade-in flex min-h-full w-full flex-col bg-slate-50 dark:bg-slate-900">
+                <div class="flex flex-grow flex-col gap-3 p-4 short:gap-2.5 short:p-3">
+                    <div data-verdict tabindex="-1" class="flex items-center gap-3 rounded-2xl bg-white p-3 shadow-sm outline-none ring-1 ring-slate-200/70 dark:bg-slate-800 dark:ring-slate-700/70">
+                        ${uiArt(owl, 'h-20 w-20 -my-2')}
+                        <div class="min-w-0 flex-1">
+                            <p class="flex items-center gap-1.5 text-[11px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">${modeBadge(game.kind, 'h-5 w-5', 'h-3 w-3')} ${escapeHtml(def.title)} · ${escapeHtml(topic.title)}</p>
+                            <p class="mt-1 flex items-baseline gap-2"><span data-mode-score class="text-5xl font-black tabular-nums leading-none text-slate-800 dark:text-slate-50">${game.score}</span><span class="text-sm font-bold leading-tight text-slate-600 dark:text-slate-300">${escapeHtml(unit)}</span></p>
+                            ${recordLine}
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-3 gap-2">
+                        ${modeStat(game.pool.kind === 'mix' ? 'Rekord mixu' : 'Rekord tématu', outcome.after.scope || '–')}
+                        ${modeStat('Celkový rekord', outcome.after.overall || '–')}
+                        ${game.kind === 'blitz' ? modeStat('Chyby', game.wrong) : modeStat('Otázek', game.asked)}
+                    </div>
+                    ${game.xp && (game.xp.total || game.xp.note) ? `<div data-mode-xp class="rounded-2xl bg-white px-3 py-2 shadow-sm ring-1 ring-slate-200/70 dark:bg-slate-800 dark:ring-slate-700/70">${xpLine(game.xp, 'text-slate-700 dark:text-slate-200')}${game.xp.note ? `<p class="mt-1 text-xs font-semibold text-slate-500 dark:text-slate-400">${escapeHtml(game.xp.note)}</p>` : ''}</div>` : ''}
+                    ${missedHtml}
+                </div>
+                <div class="sticky bottom-0 z-20 flex gap-2 border-t border-slate-200/70 bg-slate-50/95 px-4 pb-4 pt-3 backdrop-blur-sm dark:border-slate-800 dark:bg-slate-900/95">
+                    <button type="button" data-action="mode-home" class="flex shrink-0 items-center justify-center gap-1.5 rounded-[1.2rem] bg-slate-200 px-4 py-3.5 text-base font-bold text-slate-700 transition-all active:scale-95 dark:bg-slate-800 dark:text-slate-200"><i data-lucide="house" class="h-5 w-5"></i> Úvod</button>
+                    <button type="button" data-action="mode-again" class="flex min-w-0 flex-1 items-center justify-center gap-2 rounded-[1.2rem] py-3.5 text-lg font-bold text-white shadow-lg transition-all active:scale-95 max-[389px]:text-base ${style.button} btn-3d"><i data-lucide="repeat" class="h-5 w-5 shrink-0"></i> Hrát znovu</button>
+                </div>
+            </div>`;
+        const verdict = appContent.querySelector('[data-verdict]');
+        if (verdict) verdict.focus({ preventScroll: true });
+    };
+    const renderModeScreen = () => {
+        const game = modeGame;
+        if (!game || !Modes) return;
+        screen = 'mode';
+        if (game.phase === 'intro') renderModeIntro(game);
+        else if (game.phase === 'loading') renderModeLoading(game);
+        else if (game.phase === 'error') renderModeError(game);
+        else if (game.phase === 'result') renderModeResult(game);
+        else renderModeQuestion(game);
+        if (game.phase !== 'question' && game.phase !== 'feedback') {
+            applyProgress(appContent);
+            renderIcons(appContent);
+            if (game.phase !== 'loading') appContent.scrollTo(0, 0);
+        }
+        updateControlsUI();
+    };
+    // Tlačítka Bleskovka a Přežití v okně Co hrát (vedle Hrát)
+    const modeChooserButtons = () => Modes ? Modes.IDS.map(id => {
+        const def = Modes.MODES[id];
+        return `
+            <button type="button" data-chooser-mode="${id}" title="${escapeHtml(`${def.title}: ${def.tagline}`)}" aria-label="${escapeHtml(`${def.title}: ${def.tagline}`)}" class="btn-3d-light flex w-[4.75rem] shrink-0 flex-col items-center justify-center gap-1 rounded-[1.2rem] bg-white px-1 py-1 text-[11.5px] font-black leading-none text-slate-800 dark:bg-slate-800 dark:text-slate-100">
+                ${modeBadge(id, 'h-6 w-6', 'h-3.5 w-3.5')}${escapeHtml(def.title)}
+            </button>`;
+    }).join('') : '';
+    const modeActions = {
+        'mode-start': () => startModeGame(),
+        'mode-choice': (button) => answerMode(Number(button.dataset.index)),
+        'mode-quit': () => { if (modeGame && modeGame.phase !== 'intro' && modeGame.phase !== 'result') finishModeGame(modeGame); },
+        'mode-again': () => { if (modeGame) startModeGame(modeGame.kind, modeGame.pool); },
+        'mode-home': () => leaveMode(),
+        'mode-retry': () => { if (modeGame && modeGame.phase === 'error') { modeGame.phase = 'loading'; showNextModeQuestion(modeGame); } }
     };
 
     // --- Profil a výzvy (hra více hráčů) ---
@@ -4754,6 +5346,82 @@
                     <button type="button" data-report-done="${Number(row.id)}" class="flex min-h-[2.25rem] items-center gap-1 rounded-lg bg-emerald-100 px-2.5 py-1 text-xs font-bold text-emerald-900 disabled:opacity-50 dark:bg-emerald-900/50 dark:text-emerald-100"><i data-lucide="check" class="h-3.5 w-3.5"></i> Vyřízeno</button>
                 </div>
             </li>`).join('')}</ul>` : '<p class="py-6 text-center text-sm font-semibold text-slate-500 dark:text-slate-400" role="status">Zatím žádná hlášení.</p>');
+    };
+
+    // --- Jak odpověděli ostatní (answer-stats.js): souhrny odpovědí ostatních hráčů, fronta vlastních odpovědí a kalibrace losování ---
+    // Sbírá se jen od přihlášených hráčů. Souhrn tématu se stáhne nejvýš jednou denně při načtení tématu (jedno volání na téma, nic na něj
+    // nečeká) a řádek po odpovědi i kalibrace ho čtou synchronně ze zařízení; bez sítě, účtu nebo souhrnu se nic neukazuje.
+    const AnswerStats = window.MudrlantAnswerStats || null;
+    const statsUser = () => (AnswerStats && Auth && Auth.isConfigured() && Social ? signedUser() : null);
+    const statsStorage = () => reportStorage();
+    const refreshAnswerStats = (topicId) => {
+        if (!statsUser() || navigator.onLine === false) return;
+        AnswerStats.refresh(topicId, { storage: statsStorage(), fetchRows: (topic) => Social.answerStatsTopic(topic) }).catch(() => {});
+    };
+    const answerStatsIndex = (topicId) => (AnswerStats ? AnswerStats.topicIndex(statsStorage(), topicId) : null);
+    const answerStatsWeigher = (topicId) => (AnswerStats ? AnswerStats.weigher(answerStatsIndex(topicId), { level: levelProgress(loadProgress().xp).level }) : null);
+    // Řádek pod verdiktem („Správně odpovědělo 23 % hráčů“); jen z aspoň 20 odpovědí a jen se sítí
+    const answerStatsLine = (data, tone) => {
+        if (!AnswerStats || !round || navigator.onLine === false) return '';
+        const stat = AnswerStats.statFor(answerStatsIndex(data.topic), data.id, data.question.type, round.variant);
+        const text = AnswerStats.lineFor(stat, round.variant);
+        return text ? `<p data-answer-stats title="${escapeHtml(AnswerStats.sampleText(stat))}" class="mt-0.5 flex items-center gap-1 text-xs font-semibold leading-tight ${tone}"><i data-lucide="users" class="h-3.5 w-3.5 shrink-0"></i><span class="truncate">${escapeHtml(text)}</span></p>` : '';
+    };
+    // Odpověď do fronty: bez opakování karet a procvičování chyb (odpověď už hráč viděl) a bez dnešní otázky zodpovězené podruhé
+    const recordAnswerStat = ({ correct, answerRef, gaveUp }) => {
+        const user = statsUser();
+        if (!user || !current || !round) return;
+        if (mode === 'practice' && (pool.kind === 'review' || pool.kind === 'mistakes')) return;
+        if (mode === 'daily' && round.dailyFirst === false) return;
+        const waiting = AnswerStats.record(statsStorage(), user.id, { topic: current.topic, itemId: current.id, kind: current.question.type, variant: round.variant,
+            correct, wrongId: !correct && !gaveUp && answerRef ? answerRef.id : null });
+        // Dlouhý trénink: plná dávka se pošle hned (jinak až po hře)
+        if (waiting >= AnswerStats.BATCH_MAX) flushAnswerStats();
+    };
+    // Odeslání po dohrané hře (návrat domů nebo do učení, konec výzvy či zápasu): jedna dávka = jedno volání databáze
+    const flushAnswerStats = () => {
+        const user = statsUser();
+        if (!user || navigator.onLine === false) return;
+        AnswerStats.flush({ user: user.id, send: (answers) => Social.submitAnswerStats(answers), storage: statsStorage() }).catch(() => {});
+    };
+    // Dev panel: Podezřelé otázky (databáze je pustí jen účtu v dev_admins); názvy položek a možností se doplní z dat témat
+    const SUSPICIOUS_TITLE = 'Podezřelé otázky';
+    const openSuspiciousQuestions = async () => {
+        if (!statsUser()) { showToast('Podezřelé otázky vidí přihlášený účet z dev_admins.'); return; }
+        const stillOpen = () => { const overlay = document.getElementById('dialog-overlay'); return Boolean(overlay && overlay.dataset.title === SUSPICIOUS_TITLE); };
+        const onClick = (event) => {
+            const button = event.target.closest('[data-suspicious-item]');
+            if (button) openItemInfo(button.dataset.topic, button.dataset.id);
+        };
+        showDialog(SUSPICIOUS_TITLE, '<p class="py-6 text-center text-sm font-semibold text-slate-500 dark:text-slate-400" role="status">Načítám statistiky…</p>', { onClick });
+        let rows;
+        try { rows = AnswerStats.cleanSuspicious(await Social.devSuspiciousQuestions()); } catch (error) {
+            if (stillOpen()) showDialog(SUSPICIOUS_TITLE, DIALOG_NOTE(error.message || 'Statistiky se nepodařilo načíst.'), { onClick });
+            return;
+        }
+        const contexts = new Map();
+        await Promise.all([...new Set(rows.map(row => row.topic))].filter(id => TOPIC_BY_ID[id]).map(id => loadTopic(id).then(ctx => { contexts.set(id, ctx); }).catch(() => {})));
+        if (!stillOpen()) return;
+        const lookupIn = (topicId) => (id) => {
+            const ctx = contexts.get(topicId);
+            const item = ctx && ctx.byId.get(id);
+            return item ? item.n : (ctx && ctx.countries && Object.prototype.hasOwnProperty.call(ctx.countries, id) ? ctx.countries[id].name : null);
+        };
+        const intro = `<p class="mb-2 text-xs text-slate-500 dark:text-slate-400">Úspěšnost pod 25 % z aspoň 50 odpovědí výběrem z možností, nebo nesprávná možnost, kterou hráči volí častěji než správnou. Bez údajů o hráčích.</p>`;
+        showDialog(SUSPICIOUS_TITLE, intro + (rows.length ? `<ul id="suspicious-list" class="flex flex-col gap-2">${rows.map(row => {
+            const lookup = lookupIn(row.topic);
+            const name = lookup(row.itemId);
+            const wrong = row.topWrong ? AnswerStats.optionLabel(row.topWrong, lookup) : '';
+            return `
+            <li data-suspicious="${escapeHtml(`${row.topic}:${row.itemId}:${row.kind}:${row.variant}`)}" class="rounded-xl border border-slate-200 bg-white p-3 text-sm dark:border-slate-700 dark:bg-slate-800">
+                <p class="flex flex-wrap items-center gap-x-2 text-[11px] font-black uppercase tracking-wider text-amber-700 dark:text-amber-300"><span>${escapeHtml(AnswerStats.REASONS[row.reason])}</span><span class="font-bold normal-case tracking-normal text-slate-500 dark:text-slate-400">${escapeHtml(TOPIC_BY_ID[row.topic] ? TOPIC_BY_ID[row.topic].title : row.topic)} · ${escapeHtml(AnswerStats.kindLabel(row.kind))} · ${row.variant === 'typed' ? 'psaní' : 'možnosti'}</span></p>
+                <p class="mt-1 font-semibold text-slate-800 dark:text-slate-100">${escapeHtml(name || row.itemId)}${name ? ` <span class="text-xs font-normal text-slate-500 dark:text-slate-400">${escapeHtml(row.itemId)}</span>` : ''}</p>
+                <div class="mt-1 flex items-end justify-between gap-2">
+                    <p class="min-w-0 text-[13px] text-slate-700 dark:text-slate-200"><b>${AnswerStats.percentOf(row.correct, row.shown)}&nbsp;%</b> správně z&nbsp;${row.shown}${wrong ? `<br>Nejčastější chyba: <b>${escapeHtml(wrong)}</b> <span class="whitespace-nowrap">(${AnswerStats.percentOf(row.topWrongCount, row.shown)}&nbsp;%)</span>` : ''}</p>
+                    ${contexts.has(row.topic) && name ? `<button type="button" data-suspicious-item data-topic="${escapeHtml(row.topic)}" data-id="${escapeHtml(row.itemId)}" class="flex min-h-[2.25rem] shrink-0 items-center gap-1 rounded-lg bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-800 dark:bg-slate-700 dark:text-slate-100"><i data-lucide="info" class="h-3.5 w-3.5"></i> Detail</button>` : ''}
+                </div>
+            </li>`;
+        }).join('')}</ul>` : '<p id="suspicious-list" class="py-6 text-center text-sm font-semibold text-slate-500 dark:text-slate-400" role="status">Zatím žádné podezřelé otázky.</p>'), { onClick });
     };
 
     // Profil: jméno, emoji a barva obrázku
@@ -5722,7 +6390,7 @@
                 : `<ol class="flex flex-col gap-1.5">${results && results.length ? rankingRows(results, c.count, user && user.id) : ''}</ol>
                     ${Friends && bestRival && bestRival.user_id ? Friends.reactionBar(bestRival.user_id, c.reaction || null, { busy: Boolean(c.reacting), name: playerName(bestRival.player) }) : ''}
                     <p class="text-sm text-slate-500 dark:text-slate-400">${results && results.length > 1 ? 'Porovnání s ostatními hráči.' : 'Pošli kód kamarádům, ať ti to oplatí.'}</p>`;
-        if (state === 'ok') c.lastResults = results;
+        if (state === 'ok') { c.lastResults = results; flushAnswerStats(); }
         // Upozornění, že vyzvaný hráč výzvu uvidí: ne vyzvanému samotnému a ne potom, co už ji dohrál
         const invitedWaiting = Boolean(c.invited && c.invited.id && (!user || c.invited.id !== user.id) && !(results || []).some(row => row.user_id === c.invited.id));
         appContent.innerHTML = `
@@ -7020,6 +7688,7 @@
         const c = challenge;
         if (!c || !c.tournament) return;
         screen = 'challenge-done';
+        if (state === 'ok') flushAnswerStats();
         closePlaceInfo();
         const user = signedUser();
         const tour = c.tournament;
@@ -7138,6 +7807,7 @@
         'league-help': () => openLeagueHelp(),
         'home-tab': (button) => { writeJson(KEYS.homeTab, button.dataset.tab === 'multi' ? 'multi' : 'single'); renderHome(); refreshTournaments(); },
         ...tournamentActions,
+        ...modeActions,
         'new-challenge': () => openNewChallenge(),
         'random-challenge': () => openNewChallenge({ who: 'random' }),
         'recent-more': () => { recentExpanded = !recentExpanded; paintChallenges(); },
@@ -7174,6 +7844,12 @@
         'hint-tab': (button) => switchTab('hint-tab', button.dataset.step),
         'result-tab': (button) => switchTab('result-tab', button.dataset.step),
         'give-up': () => submitAnswer({ correct: false, typed: false, answer: null, gaveUp: true }),
+        // Potvrzení tipu na mapě: body podle vzdálenosti (question-map.js), správně = aspoň bod
+        'map-confirm': () => {
+            if (!MapQuestion || !round || round.answered || !current || current.question.type !== 'map') return;
+            const result = MapQuestion.evaluate(current.question, round.mapGuess, round.variant === 'typed');
+            if (result) submitAnswer({ correct: result.points > 0, typed: false, answer: `Vedle o ${MapQuestion.formatKm(result.km)}`, points: result.points, extra: { map: result } });
+        },
         'report-question': () => openReportDialog(),
         'item-info': (button) => openItemInfo(button.dataset.topic, button.dataset.id),
         next: () => continueAfterResult(),
@@ -7320,6 +7996,8 @@
             challengeHome();
         } else if (screen === 'quiz' || screen === 'quiz-done') {
             renderHome();
+        } else if (screen === 'mode') {
+            leaveMode();
         } else if (screen === 'learn') {
             const up = { atlas: 'collection', collection: 'topic', topic: 'home', mistakes: 'home' }[learn.view];
             if (up) openLearn(up);
@@ -7429,7 +8107,7 @@
                 openChallenge(pending);
             }
             refreshChallenges();
-            if (state.user) flushReports();
+            if (state.user) { flushReports(); flushAnswerStats(); }
             // Přihlášení z výsledku Kvízu dne („Přihlas se a uvidíš se v pořadí“): výsledek se otevře znovu a zapíše na účet
             if (DailyQuiz && readJson(QUIZ_LOGIN_KEY)) {
                 try { localStorage.removeItem(QUIZ_LOGIN_KEY); } catch (e) { /* bez úložiště se nic nepamatuje */ }
@@ -7437,7 +8115,28 @@
             }
         });
         window.addEventListener('online', flushReports);
+        // Po obnovení připojení se dopošlou odpovědi z dohraných her (rozehraná hra počká na svůj konec)
+        window.addEventListener('online', () => { if (screen !== 'round') flushAnswerStats(); });
         Auth.init().then(state => { if (!state.user && invite) openChallenge(invite); });
+    }
+    // Klávesnice na telefonu: Chrome i Safari při jejím otevření zmenší jen viditelnou plochu, okna zarovnaná ke spodku by zůstala pod ní.
+    // Výška klávesnice jde do proměnné --kb (styles: okna se o ni zvednou a zkrátí) a zaměřené pole se posune do viditelné části okna.
+    const viewport = window.visualViewport;
+    if (viewport) {
+        const syncKeyboard = () => {
+            const inset = Math.round(window.innerHeight - viewport.height - viewport.offsetTop);
+            const open = inset > 80 && viewport.scale < 1.05; // menší rozdíl je lišta prohlížeče, přiblížení prsty není klávesnice
+            const root = document.documentElement;
+            const was = root.classList.contains('kb-open');
+            root.style.setProperty('--kb', `${open ? inset : 0}px`);
+            root.classList.toggle('kb-open', open);
+            const field = document.activeElement;
+            if (open && !was && field && field.closest && field.closest('#dialog-overlay, #settings-overlay')) {
+                requestAnimationFrame(() => field.scrollIntoView({ block: 'nearest' }));
+            }
+        };
+        viewport.addEventListener('resize', syncKeyboard);
+        viewport.addEventListener('scroll', syncKeyboard);
     }
     gameVariant = readVariant();
     settings = loadSettings();
