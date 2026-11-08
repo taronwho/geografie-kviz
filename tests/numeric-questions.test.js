@@ -144,6 +144,8 @@ test('Seřaď na skutečných datech: 4 položky ze stejné kategorie a skupiny,
                 assert.equal(new Set(items.map(item => item.c)).size, 1, 'stejná kategorie');
                 if (usedSpec.group) assert.equal(new Set(items.map(item => usedSpec.group(item))).size, 1, 'stejná skupina');
                 assert.equal(new Set(items.map(item => core.normalizeAnswer(item.n))).size, 4, 'různé názvy');
+                const photos = data.numeric.items.filter(row => row.photo).length;
+                assert.ok(photos === 0 || photos === 4, `${plan.spec}: obrázky u všech, nebo u žádné (${photos})`);
                 const values = data.numeric.items.map(row => row.value);
                 for (let a = 0; a < 4; a++) for (let b = a + 1; b < 4; b++) assert.ok(Numeric.farEnough(usedSpec.gap, values[a], values[b]), `${plan.spec}: ${values[a]} a ${values[b]} jsou dost daleko`);
                 // Hodnota je z dat (zaokrouhlená) a s jednotkou
