@@ -1243,6 +1243,8 @@
     // Náhoda ve výběru: z podobně dobrých kandidátů se losuje, ať se u téže položky možnosti střídají; menší než nejmenší
     // rozdíl vah (stejný typ +4 proti známosti 3), takže los nepřehlasuje podobnost
     const CHOICE_JITTER = 0.9;
+    // Pod touto hodnotou je kandidát jen nouzová možnost (téma ho srazilo, třeba region jiného státu)
+    const CHOICE_FLOOR = -20;
     // culture(item) = země položky pro výběr podle kultury (výchozí landsOf; téma může zvolit jinou, např. zemi místa bitvy)
     const buildItemChoices = (item, items, rng, similarity = () => 0, culture = landsOf) => {
         // Ke známé odpovědi známá možnost váží víc – jinak by známá odpověď mezi samými neznámými byla nápadná
@@ -1268,7 +1270,8 @@
         if (item.k === 1 && distractors.length === 3 && !distractors.some(other => other.k === 1)) {
             const own = culture(item) || [];
             const sameArea = (other) => !own.length || Math.min(...own.map(x => Math.min(...((culture(other) || []).map(y => cultureDistance(x, y)).concat([2.5]))))) <= 2;
-            const known = entries.find(entry => entry.candidate.k === 1 && !distractors.includes(entry.candidate) && sameArea(entry.candidate)
+            // Jen kandidát bez velké srážky (cizí stát u regionu, část názvu správné odpovědi): ten je mimo hru i tady
+            const known = entries.find(entry => entry.candidate.k === 1 && entry.value > CHOICE_FLOOR && !distractors.includes(entry.candidate) && sameArea(entry.candidate)
                 && !taken.has(normalizeAnswer(entry.candidate.n)));
             if (known) distractors = [...distractors.slice(0, 2), known.candidate];
         }
@@ -1805,11 +1808,14 @@
     const centuryLabel = (century) => century > 0 ? `${century}. století` : `${-century}. století př. n. l.`;
 
     // Série = počet po sobě jdoucích dní se správnou odpovědí, dnešek se počítá, jen pokud už je odehraný
-    const computeStreak = (dailyResults, todayKey) => {
+    // frozen = dny zachráněné ochranou série (rewards.js): série přes ně pokračuje, do délky se nepočítají
+    const computeStreak = (dailyResults, todayKey, frozen = null) => {
+        const saved = frozen instanceof Set ? frozen : new Set(frozen || []);
         let day = dailyResults[todayKey] ? todayKey : shiftDayKey(todayKey, -1);
         let streak = 0;
-        while (dailyResults[day] && dailyResults[day].correct) {
-            streak++;
+        for (let guard = 0; guard < 4000; guard++) {
+            if (dailyResults[day] && dailyResults[day].correct) streak++;
+            else if (!saved.has(day)) break;
             day = shiftDayKey(day, -1);
         }
         return streak;
@@ -1922,7 +1928,11 @@
         answered: 0, correct: 0, typedCorrect: 0, noHint: 0, hardCorrect: 0, run: 0, bestRun: 0, bestStreak: 0, perfectDays: 0,
         challenges: 0, wins: 0, winRun: 0, bestWinRun: 0, created: 0, perfectChallenges: 0, dailyCorrect: 0, fixed: 0, days: 0, lastDay: '', topics: {}, topicRun: {}, topicBest: {}, tourBest: 0, tourWins: 0,
         // Odehrané zápasy turnajů, zopakované karty (review.js) a týdny se všemi splněnými cíli (goals.js)
-        tourPlayed: 0, reviewed: 0, weeksDone: 0
+        tourPlayed: 0, reviewed: 0, weeksDone: 0,
+        // Kvíz dne (dohrané dny, nejdelší série, bez chyby), Bleskovka a Přežití (rekord, hry, hry s aspoň 10 správnými / 15 přežitými),
+        // Ukaž na mapě, Odhadni a Seřaď (zodpovězené, s plnými body nebo do 10 %), sdílené obrázky, otevřené truhly a použité ochrany série
+        quizDone: 0, quizBestStreak: 0, quizPerfect: 0, blitzBest: 0, survivalBest: 0, blitzGames: 0, survivalGames: 0, blitzTen: 0, survivalFifteen: 0,
+        mapAnswered: 0, mapExact: 0, estimateAnswered: 0, estimateGood: 0, orderAnswered: 0, orderPerfect: 0, sharedImages: 0, chestsOpened: 0, freezesUsed: 0
     };
     const number = (value) => Number.isFinite(value) ? value : 0;
     // Barva medaile podle stupně ve skupině: bronz, stříbro, zlato, vínová a nejvyšší diamantová
@@ -2030,6 +2040,25 @@
     // Týdenní cíle (goals.js): týdny, ve kterých hráč splnil všechny tři cíle
     addGroup('tydenni-cile', 'Týdenní cíle', 'goal', (c) => c.weeksDone, (g) => g === 1 ? 'Splň všechny tři cíle jednoho týdne.' : `${g} týdnů se všemi třemi splněnými cíli.`,
         [T(1, 'Cílevědomý', 'tydenni-cile'), T(5, 'Pět týdnů cílů'), T(10, 'Deset týdnů cílů'), T(20, 'Dvacet týdnů cílů'), T(52, 'Rok cílů')]);
+    // Kvíz dne (daily-quiz.js): dohrané dny, nejdelší série a kvízy bez chyby
+    addGroup('kviz-dne', 'Kvíz dne', 'timer', (c) => c.quizDone, (g) => g === 1 ? 'Dohraj svůj první Kvíz dne.' : `Dohraj ${g} Kvízů dne.`,
+        [T(1, 'Kvízový nováček', 'kviz-dne'), T(10, 'Deset Kvízů dne'), T(50, 'Padesát Kvízů dne'), T(100, 'Sto Kvízů dne'), T(365, 'Rok Kvízů dne')]);
+    addGroup('kviz-serie', 'Série Kvízu dne', 'flame', (c) => c.quizBestStreak, (g) => `Hraj Kvíz dne ${g} dní v řadě.`,
+        [T(3, 'Kvízová trojka'), T(7, 'Kvízový týden', 'kviz-tyden'), T(14, 'Dva kvízové týdny'), T(30, 'Kvízový měsíc'), T(100, 'Sto kvízových dní')]);
+    addGroup('kviz-perfekt', 'Kvíz dne bez chyby', 'sparkles', (c) => c.quizPerfect, (g) => g === 1 ? 'Všech 10 otázek Kvízu dne správně.' : `${g}× všech 10 otázek Kvízu dne správně.`,
+        [T(1, 'Desítka', 'kviz-perfekt'), T(5, 'Pět dokonalých kvízů'), T(20, 'Kvízový mistr'), T(50, 'Kvízová legenda'), T(100, 'Sto desítek')]);
+    // Bleskovka a Přežití (modes.js): nejlepší výsledek jedné hry v kterémkoli tématu nebo v Mixu
+    addGroup('bleskovka', 'Bleskovka', 'zap', (c) => c.blitzBest, (g) => `V Bleskovce ${g} správných odpovědí za 60 sekund.`,
+        [T(8, 'Rozběh'), T(12, 'Rychlík'), T(16, 'Blesk'), T(20, 'Hromovládce'), T(25, 'Rychlost světla')]);
+    addGroup('preziti', 'Přežití', 'heart', (c) => c.survivalBest, (g) => `V Přežití přežij ${g} otázek v jedné hře.`,
+        [T(10, 'Přeživší'), T(20, 'Houževnatý'), T(35, 'Nezdolný'), T(50, 'Nesmrtelný'), T(75, 'Legenda přežití')]);
+    // Ukaž na mapě (plné body = tip v kruhu plných bodů), Odhadni číslo (do 10 %, u letopočtů a čísel o pár let či kusů) a Seřaď (celé pořadí)
+    addGroup('mapa', 'Ukaž na mapě', 'crosshair', (c) => c.mapExact, (g) => `${g}× plné body v otázce Ukaž na mapě.`,
+        [T(5, 'Kartograf'), T(25, 'Zeměměřič'), T(100, 'Živá mapa'), T(250, 'Živý glóbus'), T(500, 'Mistr map')]);
+    addGroup('odhad', 'Přesné odhady', 'gauge', (c) => c.estimateGood, (g) => `${g} přesných odhadů (aspoň 3 body v otázce Odhadni číslo).`,
+        [T(5, 'Odhadce'), T(25, 'Bystré oko'), T(100, 'Živé měřidlo'), T(250, 'Mistr odhadu'), T(500, 'Lidská kalkulačka')]);
+    addGroup('serad', 'Seřaď bez chyby', 'list-ordered', (c) => c.orderPerfect, (g) => `${g}× celé pořadí správně v otázce Seřaď.`,
+        [T(5, 'Pořádkumilovný'), T(25, 'Srovnávač'), T(100, 'Mistr pořadí'), T(250, 'Dokonalý pořádek'), T(500, 'Vládce pořadí')]);
     const BADGE_BY_ID = Object.fromEntries(BADGES.map(badge => [badge.id, badge]));
     const normalizeCounters = (counters) => ({ ...EMPTY_COUNTERS, ...(counters || {}), topics: { ...((counters && counters.topics) || {}) },
         topicRun: { ...((counters && counters.topicRun) || {}) }, topicBest: { ...((counters && counters.topicBest) || {}) } });

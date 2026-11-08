@@ -321,7 +321,7 @@ const mapScaleProblem = (spec, question, ctx) => {
 
 // --- Kontroly jedné sestavené otázky ---
 const snippet = (text, limit = 90) => { const plain = String(text || '').replace(/\s+/g, ' ').trim(); return plain.length > limit ? `${plain.slice(0, limit - 1)}…` : plain; };
-const CRITICAL = new Set(['prozrazeno', 'moznosti', 'obrazek', 'tvar', 'sablona', 'prazdna-napoveda', 'mapa-meritko']);
+const CRITICAL = new Set(['prozrazeno', 'moznosti', 'obrazek', 'tvar', 'sablona', 'prazdna-napoveda', 'mapa-meritko', 'moznosti-stat']);
 export const isCritical = (finding) => CRITICAL.has(finding.kind);
 export const auditRound = (item, ctx, round) => {
     const findings = [];
@@ -423,6 +423,7 @@ export const auditRound = (item, ctx, round) => {
         else if (isAnswerMatch(choice.label, question.accepted) || levenshtein(normalizeAnswer(choice.label), normalizeAnswer(question.answerLabel || '')) <= 1) add('moznosti-podobne', `nesprávná možnost „${choice.label}“ se od správné odpovědi liší jen drobností`, `${question.answerLabel} ~ ${choice.label}`);
     }
     findings.push(...auditChoiceFit(item, ctx, question).map(found => ({ ...found, type: question.type })));
+    findings.push(...auditSameCountry(item, ctx, question).map(found => ({ ...found, type: question.type })));
     if (choices.length && choices.length < 4) add('moznosti-malo', `jen ${choices.length} možnosti`, choices.map(choice => choice.label).join(' | '));
 
     // (4b) Otázka bez jediné nápovědy (chudý popis se hodnotí za položku, viz auditItemData)
@@ -449,6 +450,28 @@ export const auditChoiceFit = (item, ctx, question) => {
     if (otherLand.length) found.push({ kind: 'moznosti-zeme', problem: `${otherLand.length} z ${wrong.length} nesprávných možností je z jiné země než správná (${lands.join(', ')})`, snippet: otherLand.map(other => `${other.n} (${landsOfItem(other).join(', ')})`).join(' | ') });
     if (otherEra.length) found.push({ kind: 'moznosti-doba', problem: `${otherEra.length} z ${wrong.length} nesprávných možností je o víc než ${ERA_GAP} let jinde než správná (${era})`, snippet: otherEra.map(other => `${other.n} (${eraOfItem(other)})`).join(' | ') });
     return found;
+};
+// Kategorie, kde téma slibuje nesprávné možnosti ze stejného státu (topic.sameCountry, regiony států u vlajek): region jiného státu je
+// jistá chyba (hráč ho vyřadí podle státu), pokud stát v datech má aspoň tři další položky té kategorie (jinak je to nouzová možnost)
+const peersByCountry = new WeakMap();
+const countryPeers = (ctx, category) => {
+    if (!peersByCountry.has(ctx)) peersByCountry.set(ctx, new Map());
+    const cache = peersByCountry.get(ctx);
+    if (!cache.has(category)) {
+        const counts = new Map();
+        for (const other of ctx.items) if (other.c === category && (other.co || [])[0]) counts.set(other.co[0], (counts.get(other.co[0]) || 0) + 1);
+        cache.set(category, counts);
+    }
+    return cache.get(category);
+};
+export const auditSameCountry = (item, ctx, question) => {
+    if (question.type !== 'name' || !(ctx.topic.sameCountry || []).includes(item.c)) return [];
+    const own = (item.co || [])[0];
+    if (!own || (countryPeers(ctx, item.c).get(own) || 0) < 4) return [];
+    const foreign = (question.choices || []).filter(choice => !choice.correct).map(choice => ctx.byId.get(choice.id))
+        .filter(other => other && (other.co || [])[0] !== own);
+    return foreign.length ? [{ kind: 'moznosti-stat', problem: `${foreign.length} z 3 nesprávných možností je z jiného státu než správná odpověď (${own})`,
+        snippet: foreign.map(other => `${other.n} (${(other.co || []).join(', ')})`).join(' | ') }] : [];
 };
 // (4) Chudý popis: krátký popis z Wikidat nebo jen název kategorie – bez Wikipedie k odpovědi nestačí
 export const isThinDescription = (item, ctx, text) => {

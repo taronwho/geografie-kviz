@@ -3,7 +3,7 @@
 // Projde položky a všechny druhy otázek, které téma umí (viz scripts/lib/audit.mjs), a hlásí: odpověď prozrazenou v zadání nebo nápovědách,
 // nápovědy opakující popis, rozbité či příliš podobné možnosti, nesprávné možnosti jiné země/doby než správná, chudé popisy, rozbité odkazy
 // na obrázky a nejednoznačné psané odpovědi (aliasy). Výstup: reports/audit-otazek.md (čitelný souhrn) a reports/audit-otazek.json (vše).
-// Exit kód je nenulový jen u jistých chyb (prozrazení, tvar odpovědi v zakrytí, dvě správné možnosti, rozbitý obrázek, nápověda ze
+// Exit kód je nenulový jen u jistých chyb (prozrazení, tvar odpovědi v zakrytí, dvě správné možnosti, region z jiného státu, rozbitý obrázek, nápověda ze
 // šablony nebo bez nového obsahu, slepá mapa v nevhodném měřítku), které nejsou v scripts/audit-allowlist.json.
 // --sample=N: rovnoměrný vzorek asi N položek z každého tématu (rychlá kontrola); --all: i chudé popisy po jednom (jinak jen počty);
 // --wiki=soubor: uložené úvody článků z Wikipedie ({ "Titulek": "text" }) – bez něj se hodnotí krátký popis z Wikidat (jako při výpadku sítě).
@@ -29,6 +29,7 @@ const KIND_LABELS = {
     tvar: 'Zakrytí ukazuje tvar odpovědi („[***] a [***]“, slovo u zakrytí jen ze správné možnosti) (kritické)',
     sablona: 'Nápověda z náhradního nebo obecného textu (šablona) (kritické)', 'prazdna-napoveda': 'Nápověda nic nepřidá k tomu, co hráč už viděl (kritické)',
     'mapa-meritko': 'Slepá mapa v měřítku, které možnosti nerozliší (kritické)',
+    'moznosti-stat': 'Nesprávná možnost regionu z jiného státu než správná odpověď (kritické)',
     duplicita: 'Nápověda opakuje popis', 'moznosti-podobne': 'Příliš podobná nesprávná možnost', 'moznosti-zeme': 'Nesprávné možnosti z jiné země než správná',
     'moznosti-doba': 'Nesprávné možnosti z jiné doby než správná', 'moznosti-malo': 'Málo možností', aliasy: 'Nejednoznačná psaná odpověď (alias platí pro víc položek)',
     'obrazek-sdileny': 'Stejná fotka u víc položek okruhu (duplicita, nebo cizí fotka)', 'chudy-popis': 'Chudý nebo krátký popis', 'bez-napovedy': 'Otázka bez nápovědy', data: 'Rozbitá data'

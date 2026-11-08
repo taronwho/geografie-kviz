@@ -100,3 +100,27 @@ test('obrázek: soubor přes systémové sdílení, když ho prohlížeč umí; 
     assert.deepEqual(clicks, ['b.png']);
     restore();
 });
+
+test('diplom: model listu (název, jméno, barvy a ikona tématu, sova v barvě obleku, datum) a název souboru', () => {
+    const { api: ShareCard, restore } = load({});
+    restore();
+    const model = ShareCard.diplomaModel({ kind: 'diploma', topic: { id: 'zemepis', title: 'Zeměpis', color: 'emerald' }, title: 'Mistr zeměpisu', name: '  Jana  ', day: '2026-11-08', known: 312, robe: 'modra', url: 'https://example.org/app/', appName: 'Mudrlant' });
+    assert.equal(model.title, 'Mistr zeměpisu');
+    assert.equal(model.name, 'Jana');
+    assert.equal(model.date, '8. 11. 2026');
+    assert.deepEqual([model.main, model.dark], ShareCard.TOPIC_COLORS.emerald);
+    assert.equal(model.icon, 'icons/topics/zemepis.webp');
+    assert.equal(model.owl, 'icons/topics/sova-vitez-modra.webp');
+    assert.match(model.detail, /312 poznaných položek/);
+    assert.equal(model.footer, 'example.org/app');
+    assert.equal(ShareCard.diplomaModel({ topic: { id: '../x', color: 'neznama' } }).icon, null, 'cizí id tématu se nenačte');
+    assert.equal(ShareCard.diplomaModel({ topic: {} }).name, 'Hráč Mudrlanta');
+    assert.equal(ShareCard.fileName('diplom-zemepis', '2026-11-08'), 'mudrlant-diplom-zemepis-2026-11-08.png');
+    assert.deepEqual([ShareCard.DIPLOMA.width, ShareCard.DIPLOMA.height], [1080, 1350]);
+    // Barvy pro všechna témata
+    for (const file of fs.readdirSync(path.join(__dirname, '..', 'topics')).filter(name => name.endsWith('.js'))) {
+        const topic = require(path.join(__dirname, '..', 'topics', file));
+        assert.ok(ShareCard.TOPIC_COLORS[topic.color], `${topic.id}: barva ${topic.color}`);
+        assert.ok(fs.existsSync(path.join(__dirname, '..', 'icons', 'topics', `${topic.id}.webp`)), `${topic.id}: ikona`);
+    }
+});

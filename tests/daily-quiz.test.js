@@ -212,3 +212,11 @@ test('daily-quiz.js a share-card.js jsou zapojené: index.html, service worker, 
     const html = read('index.html');
     assert.ok(html.indexOf('daily-quiz.js') < html.indexOf('app.js') && html.indexOf('share-card.js') < html.indexOf('app.js'), 'před app.js');
 });
+
+test('série Kvízu dne přes den zachráněný ochranou (rewards.js) pokračuje, den se nepočítá', () => {
+    const days = ['2026-11-04', '2026-11-05', '2026-11-07'];
+    assert.equal(DQ.streakOf(days, '2026-11-07'), 1);
+    assert.equal(DQ.streakOf(days, '2026-11-07', ['2026-11-06']), 3);
+    assert.equal(DQ.streakOf(days, '2026-11-08', ['2026-11-06']), 3, 'dnes ještě nehráno');
+    assert.equal(DQ.streakOf(['2026-11-05'], '2026-11-08', ['2026-11-06']), 0, 'dva vynechané dny');
+});

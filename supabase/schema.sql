@@ -310,7 +310,15 @@ language sql immutable set search_path = public as $$
         'zbehly-sport-5', 'zbehly-sport', 'zbehly-sport-25', 'zbehly-sport-50', 'zbehly-sport-100',
         'turnaj-ucast', 'turnaj-ctvrtfinale', 'turnaj-semifinale', 'turnaj-bronz', 'turnaj-stribro', 'turnaj-zlato',
         'turnaj-postupy-1', 'turnaj-postupy-5', 'turnaj-postupy-15', 'turnaj-postupy-30', 'turnaj-postupy-60',
-        'tydenni-cile', 'tydenni-cile-5', 'tydenni-cile-10', 'tydenni-cile-20', 'tydenni-cile-52'
+        'tydenni-cile', 'tydenni-cile-5', 'tydenni-cile-10', 'tydenni-cile-20', 'tydenni-cile-52',
+        -- Schéma 9: Kvíz dne, Bleskovka, Přežití, Ukaž na mapě, Odhadni a Seřaď
+        'kviz-dne', 'kviz-dne-10', 'kviz-dne-50', 'kviz-dne-100', 'kviz-dne-365',
+        'kviz-serie-3', 'kviz-tyden', 'kviz-serie-14', 'kviz-serie-30', 'kviz-serie-100',
+        'kviz-perfekt', 'kviz-perfekt-5', 'kviz-perfekt-20', 'kviz-perfekt-50', 'kviz-perfekt-100',
+        'bleskovka-8', 'bleskovka-12', 'bleskovka-16', 'bleskovka-20', 'bleskovka-25',
+        'preziti-10', 'preziti-20', 'preziti-35', 'preziti-50', 'preziti-75',
+        'mapa-5', 'mapa-25', 'mapa-100', 'mapa-250', 'mapa-500', 'odhad-5', 'odhad-25', 'odhad-100', 'odhad-250', 'odhad-500',
+        'serad-5', 'serad-25', 'serad-100', 'serad-250', 'serad-500'
     ]::text[];
 $$;
 
@@ -347,6 +355,8 @@ declare
     is_capped boolean;
 begin
     perform pg_advisory_xact_lock(hashtext('rating:' || new.challenge_id));
+    -- Výzvu skupině (schéma 8, tabulka je níž v souboru) hraje víc hráčů najednou: do ratingu se nepočítá
+    if exists (select 1 from public.group_challenges gc where gc.challenge_id = new.challenge_id) then return null; end if;
     if (select count(*) from public.challenge_results where challenge_id = new.challenge_id) <> 2 then return null; end if;
     if exists (select 1 from public.rating_history where challenge_id = new.challenge_id) then return null; end if;
     select * into other from public.challenge_results where challenge_id = new.challenge_id and user_id <> new.user_id;
@@ -1412,7 +1422,13 @@ begin
         'turnaje_odpovedi', coalesce((select jsonb_agg(to_jsonb(a) order by a.answered_at, a.idx) from public.tournament_answers a where a.user_id = uid), '[]'::jsonb),
         'turnaje_xp', coalesce((select jsonb_agg(to_jsonb(x) order by x.claimed_at) from public.tournament_xp_claims x where x.user_id = uid), '[]'::jsonb),
         -- Kvíz dne (schéma 7, tabulka na konci souboru)
-        'kviz_dne', coalesce((select jsonb_agg(to_jsonb(k) order by k.day) from public.daily_quiz_results k where k.user_id = uid), '[]'::jsonb)
+        'kviz_dne', coalesce((select jsonb_agg(to_jsonb(k) order by k.day) from public.daily_quiz_results k where k.user_id = uid), '[]'::jsonb),
+        -- Skupiny (schéma 8): moje členství (u skupiny jen její údaje, ne ostatní členové), výzvy, které jsem poslal skupině, a XP po týdnech
+        'skupiny', coalesce((select jsonb_agg(jsonb_build_object('id', g.id, 'nazev', g.name, 'ikona', g.icon, 'kod', g.code, 'zakladatel', g.owner_id = uid,
+            'zalozena', g.created_at, 'clenem_od', m.joined_at) order by m.joined_at) from public.group_members m join public.groups g on g.id = m.group_id where m.user_id = uid), '[]'::jsonb),
+        'skupiny_vyzvy', coalesce((select jsonb_agg(jsonb_build_object('vyzva', gc.challenge_id, 'skupina', gc.group_id, 'vytvoreno', gc.created_at) order by gc.created_at)
+            from public.group_challenges gc join public.challenges c on c.id = gc.challenge_id where c.creator_id = uid), '[]'::jsonb),
+        'xp_tydny', coalesce((select jsonb_agg(to_jsonb(x) order by x.week) from public.xp_weekly x where x.user_id = uid), '[]'::jsonb)
     ) into result;
     return result;
 end;
@@ -2280,6 +2296,420 @@ grant execute on function public.daily_quiz_state(), public.daily_quiz_start(), 
     public.daily_quiz_board(date, integer), public.daily_quiz_friends(date) to authenticated;
 -- ===== Kvíz dne (schéma 7) — KONEC BLOKU =====
 
+-- ===== Skupiny (schéma 8) — ZAČÁTEK BLOKU =====
+-- Soukromé skupiny (třída, rodina, kamarádi) s vlastním pořadím. Skupinu založí přihlášený hráč (název 2–40 znaků, ikona z nabídky), ostatní se přidají
+-- šestiznakovým kódem nebo odkazem …?skupina=KÓD. Zakladatel skupinu přejmenuje, vygeneruje nový kód (starý přestane platit), odebere člena nebo
+-- skupinu smaže; člen ji může opustit. Hráč je nejvýš v 10 skupinách, skupina má nejvýš 50 členů. Skupinu a její členy vidí jen členové (RLS);
+-- zapisuje se jen přes funkce níže (s právy vlastníka, s kontrolou vstupů a oprávnění). Pořadí skupiny: Kvíz dne dnes a součet za týden
+-- (daily_quiz_results) a XP získané tento týden (xp_weekly). Vrací se jen veřejné údaje profilu (jméno, obrázek, barva, rámeček, titul, sova).
+-- Výzva skupině: jedna výzva pro kohokoli s kódem (challenges bez invited_id), kterou hrají všichni členové; do ratingu se nepočítá (rate_challenge).
+
+-- Týdenní XP: XP v účtu (profiles.xp) posílá aplikace po každé hře a server ho jen zvyšuje (protect_rating). Spoušť níže zapíše přírůstek do
+-- týdne (pondělí, Praha). Jeden zápis se počítá nejvýš do 1500 XP (víc nedá ani několik her offline) a první nahrání postupu do prázdného účtu
+-- nad 1500 XP se do týdne nepočítá (to je dřívější postup ze zařízení, ne tento týden). Řádek vidí jen jeho hráč; ostatní jen součet přes group_detail.
+create table if not exists public.xp_weekly (
+    user_id uuid not null references public.profiles (id) on delete cascade,
+    week date not null,
+    gained integer not null default 0,
+    primary key (user_id, week)
+);
+alter table public.xp_weekly drop constraint if exists xp_weekly_values;
+alter table public.xp_weekly add constraint xp_weekly_values check (gained between 0 and 100000 and extract(isodow from week) = 1);
+alter table public.xp_weekly enable row level security;
+drop policy if exists "týdenní XP: vlastní" on public.xp_weekly;
+create policy "týdenní XP: vlastní" on public.xp_weekly for select to authenticated using (user_id = auth.uid());
+
+-- Pondělí týdne, do kterého patří den d
+create or replace function public.group_week_start(d date) returns date
+language sql immutable set search_path = public as $$ select d - (extract(isodow from d)::integer - 1) $$;
+
+create or replace function public.count_weekly_xp() returns trigger
+language plpgsql security definer set search_path = public as $$
+declare gain integer;
+begin
+    if new.xp is null or old.xp is null or new.xp <= old.xp then return null; end if;
+    if old.xp = 0 and new.xp > 1500 then return null; end if;
+    gain := least(new.xp - old.xp, 1500);
+    insert into public.xp_weekly (user_id, week, gained) values (new.id, public.group_week_start(public.daily_quiz_today()), gain)
+    on conflict (user_id, week) do update set gained = least(public.xp_weekly.gained + excluded.gained, 100000);
+    return null;
+end;
+$$;
+drop trigger if exists profiles_weekly_xp on public.profiles;
+create trigger profiles_weekly_xp after update of xp on public.profiles for each row when (new.xp > old.xp) execute function public.count_weekly_xp();
+
+-- Ikony skupin (stejný seznam je v groups.js)
+create or replace function public.group_icons() returns text[]
+language sql immutable as $$ select array['🦉', '🏫', '🎒', '📚', '👪', '🏠', '🤝', '🌍', '🚀', '⚽', '🎨', '🎵', '🧪', '🦊', '🐼', '🔥']::text[] $$;
+
+create table if not exists public.groups (
+    id uuid primary key default gen_random_uuid(),
+    name text not null,
+    icon text not null default '🦉',
+    code text not null,
+    owner_id uuid not null references public.profiles (id) on delete cascade,
+    created_at timestamptz not null default now()
+);
+-- Název: 2–40 znaků bez okrajových a zdvojených mezer, bez řídicích znaků a znaků <>&"'`\ (aplikace navíc pustí jen písmena, číslice a pár znaků, jako u přezdívky)
+alter table public.groups drop constraint if exists groups_name_format;
+alter table public.groups add constraint groups_name_format check (char_length(name) between 2 and 40 and name = btrim(name) and name !~ '\s\s' and name !~ '[[:cntrl:]<>&"''`\\]');
+alter table public.groups drop constraint if exists groups_icon_list;
+alter table public.groups add constraint groups_icon_list check (icon = any (public.group_icons()));
+alter table public.groups drop constraint if exists groups_code_format;
+alter table public.groups add constraint groups_code_format check (code ~ '^[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{6}$');
+create unique index if not exists groups_code_key on public.groups (code);
+create index if not exists groups_owner_idx on public.groups (owner_id);
+
+create table if not exists public.group_members (
+    group_id uuid not null references public.groups (id) on delete cascade,
+    user_id uuid not null references public.profiles (id) on delete cascade,
+    joined_at timestamptz not null default now(),
+    primary key (group_id, user_id)
+);
+create index if not exists group_members_user_idx on public.group_members (user_id, joined_at);
+
+-- Výzvy skupině (kód výzvy → skupina); smazáním výzvy nebo skupiny zmizí i propojení
+create table if not exists public.group_challenges (
+    challenge_id text primary key references public.challenges (id) on delete cascade,
+    group_id uuid not null references public.groups (id) on delete cascade,
+    created_at timestamptz not null default now()
+);
+create index if not exists group_challenges_group_idx on public.group_challenges (group_id, created_at desc);
+
+-- Neúspěšné pokusy o kód skupiny (proti hádání kódů): nejvýš 20 za hodinu na hráče; přes API je nikdo nečte
+create table if not exists public.group_join_tries (
+    user_id uuid primary key references public.profiles (id) on delete cascade,
+    window_start timestamptz not null default now(),
+    tries integer not null default 0
+);
+
+alter table public.groups enable row level security;
+alter table public.group_members enable row level security;
+alter table public.group_challenges enable row level security;
+alter table public.group_join_tries enable row level security;
+
+-- Je přihlášený hráč členem skupiny? (pro pravidla řádků; s právy vlastníka, ať se pravidlo group_members nevolá samo na sebe)
+create or replace function public.is_group_member(gid uuid) returns boolean
+language sql stable security definer set search_path = public as $$
+    select exists (select 1 from public.group_members m where m.group_id = gid and m.user_id = auth.uid());
+$$;
+drop policy if exists "skupiny: vidí členové" on public.groups;
+create policy "skupiny: vidí členové" on public.groups for select to authenticated using (public.is_group_member(id));
+drop policy if exists "členové skupin: vidí členové" on public.group_members;
+create policy "členové skupin: vidí členové" on public.group_members for select to authenticated using (public.is_group_member(group_id));
+drop policy if exists "výzvy skupin: vidí členové" on public.group_challenges;
+create policy "výzvy skupin: vidí členové" on public.group_challenges for select to authenticated using (public.is_group_member(group_id));
+revoke all on public.xp_weekly, public.groups, public.group_members, public.group_challenges, public.group_join_tries from anon, authenticated;
+grant select on public.xp_weekly, public.groups, public.group_members, public.group_challenges to authenticated;
+
+-- Nový kód skupiny: 6 znaků bez zaměnitelných (0/O, 1/I/L) z náhodných bajtů gen_random_uuid(); opakuje se, dokud není volný
+create or replace function public.group_new_code() returns text
+language plpgsql volatile set search_path = public as $$
+declare alphabet text := 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'; raw bytea; candidate text; attempt integer := 0;
+begin
+    loop
+        raw := uuid_send(gen_random_uuid());
+        candidate := '';
+        for i in 0..5 loop candidate := candidate || substr(alphabet, 1 + get_byte(raw, i) % 31, 1); end loop;
+        exit when not exists (select 1 from public.groups where code = candidate);
+        attempt := attempt + 1;
+        if attempt > 20 then raise exception 'Kód skupiny se nepodařilo vytvořit, zkus to znovu.' using errcode = 'P0001'; end if;
+    end loop;
+    return candidate;
+end;
+$$;
+-- Název očištěný o okrajové a zdvojené mezery; neplatný skončí chybou
+create or replace function public.group_clean_name(raw text) returns text
+language plpgsql immutable set search_path = public as $$
+declare cleaned text := btrim(regexp_replace(coalesce(raw, ''), '\s+', ' ', 'g'));
+begin
+    if char_length(cleaned) < 2 or char_length(cleaned) > 40 then raise exception 'Název skupiny má mít 2 až 40 znaků.' using errcode = '22023'; end if;
+    if cleaned ~ '[[:cntrl:]<>&"''`\\]' then raise exception 'Název skupiny obsahuje nepovolený znak.' using errcode = '22023'; end if;
+    return cleaned;
+end;
+$$;
+create or replace function public.group_check_icon(raw text) returns text
+language plpgsql immutable set search_path = public as $$
+begin
+    if raw is null or not (raw = any (public.group_icons())) then raise exception 'Vyber ikonu skupiny z nabídky.' using errcode = '22023'; end if;
+    return raw;
+end;
+$$;
+-- Kód z textu: velká písmena, bez mezer a pomlček; jiný tvar = null
+create or replace function public.group_parse_code(raw text) returns text
+language sql immutable set search_path = public as $$
+    select case when c ~ '^[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{6}$' then c end from (select upper(regexp_replace(coalesce(raw, ''), '[\s-]', '', 'g')) as c) x
+$$;
+-- Jen zakladatel skupiny (jinak chyba); vrací skupinu
+create or replace function public.group_owned(gid uuid, uid uuid) returns public.groups
+language plpgsql stable set search_path = public as $$
+declare g public.groups;
+begin
+    select * into g from public.groups where id = gid;
+    if g.id is null or not exists (select 1 from public.group_members m where m.group_id = gid and m.user_id = uid) then
+        raise exception 'Tahle skupina neexistuje nebo v ní nejsi.' using errcode = '42501';
+    end if;
+    if g.owner_id <> uid then raise exception 'Tohle může jen zakladatel skupiny.' using errcode = '42501'; end if;
+    return g;
+end;
+$$;
+-- Skupina jako JSON pro člena (kód vidí každý člen, ať ho může poslat dál)
+create or replace function public.group_json(g public.groups, uid uuid) returns jsonb
+language sql stable set search_path = public as $$
+    select jsonb_build_object('id', g.id, 'name', g.name, 'icon', g.icon, 'code', g.code, 'owner_id', g.owner_id, 'is_owner', g.owner_id = uid, 'created_at', g.created_at,
+        'members', (select count(*) from public.group_members m where m.group_id = g.id))
+$$;
+-- Neúspěšný pokus o kód se započte (funkce pak vrací null, ne chybu, ať se zápis nevrátí); okno je hodina
+create or replace function public.group_code_try(uid uuid, hit boolean) returns void
+language plpgsql set search_path = public as $$
+begin
+    if hit then return; end if;
+    insert into public.group_join_tries (user_id, window_start, tries) values (uid, now(), 1)
+    on conflict (user_id) do update set
+        tries = case when public.group_join_tries.window_start < now() - interval '1 hour' then 1 else public.group_join_tries.tries + 1 end,
+        window_start = case when public.group_join_tries.window_start < now() - interval '1 hour' then now() else public.group_join_tries.window_start end;
+end;
+$$;
+create or replace function public.group_code_blocked(uid uuid) returns boolean
+language sql stable set search_path = public as $$
+    select exists (select 1 from public.group_join_tries t where t.user_id = uid and t.tries >= 20 and t.window_start >= now() - interval '1 hour')
+$$;
+
+-- Založení skupiny: zakladatel je hned jejím členem
+create or replace function public.group_create(group_name text, group_icon text) returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare uid uuid := auth.uid(); g public.groups; clean text; ico text;
+begin
+    if uid is null then raise exception 'Přihlas se.' using errcode = '42501'; end if;
+    clean := public.group_clean_name(group_name);
+    ico := public.group_check_icon(group_icon);
+    perform pg_advisory_xact_lock(hashtext('groups:' || uid::text));
+    if (select count(*) from public.group_members where user_id = uid) >= 10 then
+        raise exception 'Můžeš být nejvýš v 10 skupinách. Nejdřív nějakou opusť.' using errcode = 'P0001';
+    end if;
+    insert into public.groups (name, icon, code, owner_id) values (clean, ico, public.group_new_code(), uid) returning * into g;
+    insert into public.group_members (group_id, user_id) values (g.id, uid);
+    return public.group_json(g, uid);
+end;
+$$;
+
+-- Náhled skupiny podle kódu (před přidáním): název, ikona, počet členů, zakladatel a jestli už jsem členem; neznámý kód = null
+create or replace function public.group_preview(join_code text) returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare uid uuid := auth.uid(); c text := public.group_parse_code(join_code); g public.groups;
+begin
+    if uid is null then raise exception 'Přihlas se.' using errcode = '42501'; end if;
+    if public.group_code_blocked(uid) then raise exception 'Příliš mnoho špatných kódů. Zkus to za hodinu.' using errcode = 'P0001'; end if;
+    if c is not null then select * into g from public.groups where code = c; end if;
+    perform public.group_code_try(uid, g.id is not null);
+    if g.id is null then return null; end if;
+    return jsonb_build_object('id', g.id, 'name', g.name, 'icon', g.icon, 'code', g.code,
+        'members', (select count(*) from public.group_members m where m.group_id = g.id),
+        'owner', (select jsonb_build_object('id', p.id, 'display_name', p.display_name, 'avatar', p.avatar, 'color', p.color, 'frame', p.frame, 'title_pref', p.title_pref, 'owl', p.owl)
+            from public.profiles p where p.id = g.owner_id),
+        'member', exists (select 1 from public.group_members m where m.group_id = g.id and m.user_id = uid));
+end;
+$$;
+
+-- Přidání do skupiny kódem; kdo už členem je, dostane skupinu zpět beze změny. Neznámý kód = null (započte se jako pokus).
+create or replace function public.group_join(join_code text) returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare uid uuid := auth.uid(); c text := public.group_parse_code(join_code); g public.groups;
+begin
+    if uid is null then raise exception 'Přihlas se.' using errcode = '42501'; end if;
+    if public.group_code_blocked(uid) then raise exception 'Příliš mnoho špatných kódů. Zkus to za hodinu.' using errcode = 'P0001'; end if;
+    perform pg_advisory_xact_lock(hashtext('groups:' || uid::text));
+    if c is not null then select * into g from public.groups where code = c for update; end if;
+    perform public.group_code_try(uid, g.id is not null);
+    if g.id is null then return null; end if;
+    if exists (select 1 from public.group_members where group_id = g.id and user_id = uid) then return public.group_json(g, uid); end if;
+    if public.is_blocked(g.owner_id, uid) then raise exception 'Do téhle skupiny se přidat nemůžeš.' using errcode = 'P0001'; end if;
+    if (select count(*) from public.group_members where user_id = uid) >= 10 then
+        raise exception 'Můžeš být nejvýš v 10 skupinách. Nejdřív nějakou opusť.' using errcode = 'P0001';
+    end if;
+    if (select count(*) from public.group_members where group_id = g.id) >= 50 then
+        raise exception 'Skupina je plná (nejvýš 50 členů).' using errcode = 'P0001';
+    end if;
+    insert into public.group_members (group_id, user_id) values (g.id, uid);
+    return public.group_json(g, uid);
+end;
+$$;
+
+-- Opuštění skupiny (zakladatel ji neopouští, může ji smazat)
+create or replace function public.group_leave(gid uuid) returns void
+language plpgsql security definer set search_path = public as $$
+declare uid uuid := auth.uid();
+begin
+    if uid is null then raise exception 'Přihlas se.' using errcode = '42501'; end if;
+    if exists (select 1 from public.groups where id = gid and owner_id = uid) then
+        raise exception 'Zakladatel skupinu neopouští. Můžeš ji smazat.' using errcode = 'P0001';
+    end if;
+    delete from public.group_members where group_id = gid and user_id = uid;
+    if not found then raise exception 'Tahle skupina neexistuje nebo v ní nejsi.' using errcode = '42501'; end if;
+end;
+$$;
+
+-- Zakladatel: přejmenování a ikona
+create or replace function public.group_update(gid uuid, group_name text, group_icon text) returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare uid uuid := auth.uid(); g public.groups;
+begin
+    if uid is null then raise exception 'Přihlas se.' using errcode = '42501'; end if;
+    perform public.group_owned(gid, uid);
+    update public.groups set name = public.group_clean_name(group_name), icon = public.group_check_icon(group_icon) where id = gid returning * into g;
+    return public.group_json(g, uid);
+end;
+$$;
+
+-- Zakladatel: nový kód (starý kód ani odkaz už nefungují; členové zůstávají)
+create or replace function public.group_regenerate_code(gid uuid) returns text
+language plpgsql security definer set search_path = public as $$
+declare uid uuid := auth.uid(); c text;
+begin
+    if uid is null then raise exception 'Přihlas se.' using errcode = '42501'; end if;
+    perform public.group_owned(gid, uid);
+    update public.groups set code = public.group_new_code() where id = gid returning code into c;
+    return c;
+end;
+$$;
+
+-- Zakladatel: odebrání člena (sebe ne)
+create or replace function public.group_remove_member(gid uuid, member_id uuid) returns void
+language plpgsql security definer set search_path = public as $$
+declare uid uuid := auth.uid();
+begin
+    if uid is null then raise exception 'Přihlas se.' using errcode = '42501'; end if;
+    perform public.group_owned(gid, uid);
+    if member_id is null or member_id = uid then raise exception 'Sebe ze skupiny odebrat nemůžeš.' using errcode = '22023'; end if;
+    delete from public.group_members where group_id = gid and user_id = member_id;
+    if not found then raise exception 'Tenhle hráč ve skupině není.' using errcode = '22023'; end if;
+end;
+$$;
+
+-- Zakladatel: smazání skupiny (členství a propojení výzev zmizí s ní; výzvy samotné zůstávají)
+create or replace function public.group_delete(gid uuid) returns void
+language plpgsql security definer set search_path = public as $$
+declare uid uuid := auth.uid();
+begin
+    if uid is null then raise exception 'Přihlas se.' using errcode = '42501'; end if;
+    perform public.group_owned(gid, uid);
+    delete from public.groups where id = gid;
+end;
+$$;
+
+-- Veřejné údaje profilu jako JSON (stejné jako v pořadí Kvízu dne)
+create or replace function public.group_player_json(p public.profiles) returns jsonb
+language sql stable set search_path = public as $$
+    select jsonb_build_object('id', p.id, 'display_name', p.display_name, 'avatar', p.avatar, 'color', p.color, 'frame', p.frame, 'title_pref', p.title_pref, 'owl', p.owl)
+$$;
+
+-- Moje skupiny (v pořadí přidání) s dnešním vedoucím Kvízu dne (dohrané pokusy: víc bodů, pak kratší čas) a jestli jsem dnes hrál
+create or replace function public.my_groups() returns jsonb
+language plpgsql stable security definer set search_path = public as $$
+declare uid uuid := auth.uid(); today date := public.daily_quiz_today();
+begin
+    if uid is null then raise exception 'Přihlas se.' using errcode = '42501'; end if;
+    return coalesce((
+        select jsonb_agg(public.group_json(g, uid) || jsonb_build_object(
+            'played_today', exists (select 1 from public.daily_quiz_results r where r.user_id = uid and r.day = today and r.finished_at is not null),
+            'leader', (select public.group_player_json(p) || jsonb_build_object('score', r.score, 'time_ms', r.time_ms, 'me', p.id = uid)
+                from public.group_members o join public.daily_quiz_results r on r.user_id = o.user_id and r.day = today and r.finished_at is not null
+                join public.profiles p on p.id = o.user_id
+                where o.group_id = g.id order by r.score desc, r.time_ms, r.finished_at, o.user_id limit 1)
+        ) order by m.joined_at, g.id)
+        from public.group_members m join public.groups g on g.id = m.group_id where m.user_id = uid), '[]'::jsonb);
+end;
+$$;
+
+-- Detail skupiny pro člena: členové s veřejnými údaji a čísly pro pořadí (aplikace řadí sama), dnešní den a začátek týdne,
+-- poslední výzva skupině s výsledky členů. Dnes = dohraný Kvíz dne; týden = součet bodů od pondělí (minulé dny i nedohrané, jak stály).
+create or replace function public.group_detail(gid uuid) returns jsonb
+language plpgsql stable security definer set search_path = public as $$
+declare uid uuid := auth.uid(); today date := public.daily_quiz_today(); ws date := public.group_week_start(public.daily_quiz_today()); g public.groups; ch jsonb;
+begin
+    if uid is null then raise exception 'Přihlas se.' using errcode = '42501'; end if;
+    select * into g from public.groups where id = gid;
+    if g.id is null or not exists (select 1 from public.group_members m where m.group_id = gid and m.user_id = uid) then
+        raise exception 'Tahle skupina neexistuje nebo v ní nejsi.' using errcode = '42501';
+    end if;
+    select jsonb_build_object('id', c.id, 'topic', c.topic, 'count', c.count, 'created_at', c.created_at,
+            'creator', case when p.id is null then null else public.group_player_json(p) end,
+            'results', coalesce((select jsonb_agg(jsonb_build_object('user_id', r.user_id, 'correct', r.correct, 'points', r.points) order by r.correct desc, r.points desc, r.finished_at)
+                from public.challenge_results r join public.group_members o on o.group_id = gid and o.user_id = r.user_id where r.challenge_id = c.id), '[]'::jsonb))
+        into ch
+        from public.group_challenges gc join public.challenges c on c.id = gc.challenge_id left join public.profiles p on p.id = c.creator_id
+        where gc.group_id = gid order by gc.created_at desc limit 1;
+    return public.group_json(g, uid) || jsonb_build_object('day', today, 'week_start', ws, 'challenge', ch,
+        'rows', coalesce((select jsonb_agg(public.group_player_json(p) || jsonb_build_object('owner', p.id = g.owner_id, 'me', p.id = uid, 'joined_at', m.joined_at,
+                'today', (select jsonb_build_object('score', r.score, 'correct', r.correct, 'time_ms', r.time_ms) from public.daily_quiz_results r
+                    where r.user_id = m.user_id and r.day = today and r.finished_at is not null),
+                'week_score', coalesce(w.score, 0), 'week_correct', coalesce(w.correct, 0), 'week_time_ms', coalesce(w.time_ms, 0), 'week_days', coalesce(w.days, 0),
+                'week_xp', coalesce((select x.gained from public.xp_weekly x where x.user_id = m.user_id and x.week = ws), 0)) order by m.joined_at, m.user_id)
+            from public.group_members m join public.profiles p on p.id = m.user_id
+            left join lateral (select sum(r.score)::integer as score, sum(r.correct)::integer as correct, sum(r.time_ms)::integer as time_ms, count(*)::integer as days
+                from public.daily_quiz_results r where r.user_id = m.user_id and r.day between ws and today and r.answered > 0 and (r.finished_at is not null or r.day < today)) w on true
+            where m.group_id = gid), '[]'::jsonb));
+end;
+$$;
+
+-- Výzva skupině: člen ji nejdřív založí jako výzvu pro kohokoli s kódem (challenges, invited_id prázdné) a hned ji tu připojí.
+-- Jen vlastní a čerstvou výzvu (do hodiny), jednu výzvu jen k jedné skupině, nejvýš 10 výzev skupině za 24 hodin.
+create or replace function public.group_set_challenge(gid uuid, challenge_code text) returns void
+language plpgsql security definer set search_path = public as $$
+declare uid uuid := auth.uid(); c public.challenges;
+begin
+    if uid is null then raise exception 'Přihlas se.' using errcode = '42501'; end if;
+    if not exists (select 1 from public.group_members m where m.group_id = gid and m.user_id = uid) then
+        raise exception 'Tahle skupina neexistuje nebo v ní nejsi.' using errcode = '42501';
+    end if;
+    select * into c from public.challenges where id = upper(coalesce(challenge_code, ''));
+    if c.id is null or c.creator_id <> uid or c.invited_id is not null or c.created_at < now() - interval '1 hour' then
+        raise exception 'Tuhle výzvu ke skupině připojit nejde.' using errcode = '22023';
+    end if;
+    perform 1 from public.groups where id = gid for update;
+    if (select count(*) from public.group_challenges where group_id = gid and created_at > now() - interval '24 hours') >= 10 then
+        raise exception 'Skupina dostala za poslední den už 10 výzev. Zkus to zítra.' using errcode = 'P0001';
+    end if;
+    insert into public.group_challenges (challenge_id, group_id) values (c.id, gid) on conflict (challenge_id) do nothing;
+    if not found then raise exception 'Tahle výzva už ke skupině patří.' using errcode = '22023'; end if;
+end;
+$$;
+
+-- Smazání účtu: skupiny, které hráč založil a jsou v nich i jiní, převezme nejdéle přidaný člen (ostatní zmizí s profilem)
+create or replace function public.group_handover() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+    update public.groups g set owner_id = (select m.user_id from public.group_members m where m.group_id = g.id and m.user_id <> old.id order by m.joined_at, m.user_id limit 1)
+    where g.owner_id = old.id and exists (select 1 from public.group_members m where m.group_id = g.id and m.user_id <> old.id);
+    return old;
+end;
+$$;
+drop trigger if exists profiles_group_handover on public.profiles;
+create trigger profiles_group_handover before delete on public.profiles for each row execute function public.group_handover();
+
+-- Oprávnění: hráč volá jen funkce skupin (anon nic); pomocné a triggerové funkce zvenčí nikdo, is_group_member jen kvůli pravidlům řádků
+revoke all on function public.group_week_start(date), public.count_weekly_xp(), public.group_icons(), public.group_new_code(), public.group_clean_name(text),
+    public.group_check_icon(text), public.group_parse_code(text), public.group_owned(uuid, uuid), public.group_json(public.groups, uuid),
+    public.group_player_json(public.profiles), public.group_code_try(uuid, boolean), public.group_code_blocked(uuid), public.group_handover() from public, anon, authenticated;
+revoke all on function public.is_group_member(uuid), public.group_create(text, text), public.group_preview(text), public.group_join(text), public.group_leave(uuid),
+    public.group_update(uuid, text, text), public.group_regenerate_code(uuid), public.group_remove_member(uuid, uuid), public.group_delete(uuid),
+    public.my_groups(), public.group_detail(uuid), public.group_set_challenge(uuid, text) from public, anon;
+grant execute on function public.is_group_member(uuid), public.group_create(text, text), public.group_preview(text), public.group_join(text), public.group_leave(uuid),
+    public.group_update(uuid, text, text), public.group_regenerate_code(uuid), public.group_remove_member(uuid, uuid), public.group_delete(uuid),
+    public.my_groups(), public.group_detail(uuid), public.group_set_challenge(uuid, text) to authenticated;
+-- ===== Skupiny (schéma 8) — KONEC BLOKU =====
+
+-- ===== Odměny (schéma 9) — ZAČÁTEK BLOKU =====
+-- Truhla Mudrlanta, ochrana série a diplomy (rewards.js): co hráč z truhly dostal, kolik má ochran a které dny zachránily, kdy získal
+-- diplomy. Aplikace drží stav v zařízení a s účtem ho sjednocuje (věci, truhly a dny se sčítají, počet ochran platí z novější změny),
+-- aby přežil přeinstalaci. Jen kosmetika bez peněz: databáze hlídá tvar a velikost, obsah ověřuje aplikace. Odznaky schématu 9 jsou
+-- v badge_catalog() výše. Export dat (export_my_data) bere celý řádek profilu, takže sloupec obsahuje i on.
+alter table public.profiles add column if not exists rewards jsonb;
+alter table public.profiles drop constraint if exists profiles_rewards_shape;
+alter table public.profiles add constraint profiles_rewards_shape check (rewards is null or (jsonb_typeof(rewards) = 'object' and pg_column_size(rewards) <= 8000)) not valid;
+grant update (rewards) on public.profiles to authenticated;
+-- ===== Odměny (schéma 9) — KONEC BLOKU =====
+
 -- ===== Verze schématu =====
 -- Číslo se zvyšuje při KAŽDÉ změně tohoto souboru (tabulka, sloupec, funkce, pravidlo) a zároveň konstanta REQUIRED_SCHEMA v app.js.
 -- Aplikace ho po přihlášení porovná a správci (dev_admins nebo vývojářský režim) ukáže v Nastavení, že má schéma spustit znovu;
@@ -2289,7 +2719,11 @@ grant execute on function public.daily_quiz_state(), public.daily_quiz_start(), 
 -- 5: okamžité odesílání upozornění (push_kick přes pg_cron a pg_net, push_kick_state, push_pending sdílené s push_due, dev_push_status).
 -- 6: Jak odpověděli ostatní (answer_stats, answer_stats_limits, answer_stats_submit, answer_stats_topic, dev_suspicious_questions).
 -- 7: Kvíz dne (daily_quiz_results, daily_quiz_state/start/answer/board/friends; export_my_data má i 'kviz_dne').
+-- 8: Skupiny (groups, group_members, group_challenges, group_join_tries, xp_weekly, funkce group_* a my_groups; export_my_data má i 'skupiny', 'skupiny_vyzvy' a 'xp_tydny';
+--    výzva skupině se nepočítá do ratingu).
+-- 9: Odměny (profiles.rewards: Truhla Mudrlanta, ochrana série, diplomy; export_my_data je má v řádku profilu) a odznaky Kvízu dne, Bleskovky, Přežití,
+--    mapy, odhadu a Seřaď v badge_catalog().
 create or replace function public.schema_version() returns integer
-language sql immutable as $$ select 7 $$;
+language sql immutable as $$ select 9 $$;
 revoke all on function public.schema_version() from public, anon;
 grant execute on function public.schema_version() to authenticated;

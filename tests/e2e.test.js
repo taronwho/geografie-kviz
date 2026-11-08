@@ -265,10 +265,11 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         await tab.click('#status-badge');
         await tab.waitForSelector('#dialog-overlay');
         assert.equal(await tab.locator('#dialog-overlay li').count(), 14 + 2, 'mistrovství všech témat a dva nejbližší odznaky');
-        assert.match(await tab.textContent('#dialog-overlay'), /Všechny odznaky\s*1 \/ \d{3}/);
+        assert.match(await tab.textContent('#dialog-overlay'), /Všechny\s*1 \/ \d{3}/);
         // Nejbližší odznaky říkají, co za ně hráč dostane
-        assert.equal(await tab.locator('#dialog-overlay [data-badge-reward]').count(), 2);
-        assert.match(await tab.textContent('#dialog-overlay [data-badge-reward]'), /^Odměna: /);
+        // (jen ty, které něco dávají; odznak jen pro slávu řádek s odměnou nemá)
+        for (const text of await tab.locator('#dialog-overlay [data-badge-reward]').allTextContents()) assert.match(text, /^Odměna: /);
+        assert.doesNotMatch(await tab.textContent('#dialog-overlay'), /sláva/);
         // Mistrovství tématu: klepnutí na téma vysvětlí hvězdičky a vrátí se zpět
         await tab.click('[data-mastery="zemepis"]');
         await tab.waitForSelector('#dialog-overlay [data-mastery-info]');
@@ -291,7 +292,7 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         assert.equal(await tab.locator('[data-badge="tema-zemepis-25"] img.grayscale').count(), 1, 'zamčená medaile tématu: zašedlá ilustrace');
         await tab.click('[data-badge="stovka"]');
         assert.match(await tab.textContent('#dialog-overlay'), /100 správných odpovědí\./);
-        assert.match(await tab.textContent('#dialog-overlay [data-badge-reward]'), /Odměna: sláva/);
+        assert.equal(await tab.locator('#dialog-overlay [data-badge-reward]').count(), 0, 'odznak jen pro slávu: bez řádku s odměnou');
         await tab.click('[data-badge="zbehly-zemepis"]');
         assert.match(await tab.textContent('#dialog-overlay [data-badge-reward]'), /Odměna: Kompas \(doplněk Mudrlanta\)/);
         await tab.click('[data-badge="vitez"]');

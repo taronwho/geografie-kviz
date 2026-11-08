@@ -341,10 +341,17 @@ test('Bleskovka, Přežití, zvuky a vibrace', { skip: !chromium && 'Playwright 
             const timer = await tab.evaluate(() => { const r = document.querySelector('[data-mode-clock-chip]').getBoundingClientRect(); return { top: r.top, bottom: r.bottom }; });
             assert.ok(timer.top >= 0 && timer.bottom < viewport.height / 3, 'odpočet je nahoře na očích');
             await shot(tab, `bleskovka-otazka-${viewport.width}-${colorScheme}`);
+            // Jedna správná odpověď (s nulou není co sdílet), pak Ukončit hru
+            const first = await solve(tab);
+            await tab.click(`[data-action="mode-choice"][data-index="${first.right}"]`);
+            await waitQuestion(tab, 2);
             await tab.click('[data-action="mode-quit"]');
             await tab.waitForSelector('[data-mode-result="blitz"]');
             assert.deepEqual(await fits(tab), { scroll: 0, wide: 0 });
             await shot(tab, `bleskovka-vysledek-${viewport.width}-${colorScheme}`);
+            // Sdílet obrázek (share-card.js): bez podpory sdílení souboru se PNG stáhne
+            const [download] = await Promise.all([tab.waitForEvent('download'), tab.click('[data-action="mode-share-image"]')]);
+            assert.match(download.suggestedFilename(), /^mudrlant-bleskovka-\d{4}-\d{2}-\d{2}\.png$/);
             assert.deepEqual(problems, []);
             await context.close();
         });

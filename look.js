@@ -49,7 +49,11 @@
         { id: '🦩', title: 'Plameňák', level: 44 }, { id: '🐅', title: 'Tygr', level: 55 }, { id: '🦁', title: 'Lev', level: 65 },
         { id: '👑', title: 'Koruna', level: 80 },
         { id: '🏅', title: 'Turnajový hráč', badge: 'turnaj-ucast' }, { id: '🥉', title: 'Bronz z turnaje', badge: 'turnaj-bronz' },
-        { id: '🥈', title: 'Stříbro z turnaje', badge: 'turnaj-stribro' }, { id: '🏆', title: 'Mistr turnaje', badge: 'turnaj-zlato' }
+        { id: '🥈', title: 'Stříbro z turnaje', badge: 'turnaj-stribro' }, { id: '🏆', title: 'Mistr turnaje', badge: 'turnaj-zlato' },
+        // Odznaky Kvízu dne, Bleskovky, Přežití a otázek Ukaž na mapě, Odhadni a Seřaď
+        { id: '⏱️', title: 'Stopky', badge: 'kviz-tyden' }, { id: '💯', title: 'Stovka', badge: 'kviz-perfekt' },
+        { id: '⚡', title: 'Blesk', badge: 'bleskovka-16' }, { id: '🐻', title: 'Medvěd', badge: 'preziti-20' },
+        { id: '🗺️', title: 'Mapa', badge: 'mapa-25' }, { id: '🎯', title: 'Terč', badge: 'odhad-25' }, { id: '🧩', title: 'Skládačka', badge: 'serad-25' }
     ];
     // Doplňky sovy: každý patří do jednoho místa (slot), v každém místě je nejvýš jeden; ke každému hráč zvolí barvu
     const SLOTS = [
@@ -111,13 +115,25 @@
         if (item) return !ctx || isUnlocked(item, ctx);
         return customHue(color) !== null && (!ctx || isUnlocked(ACC_COLORS.find(entry => entry.id === 'vlastni'), ctx));
     };
-    // ctx = { level, badges } (badges: objekt id → datum nebo true)
+    // Věci z Truhly Mudrlanta (rewards.js): { kategorie: [id] }; app.js je nastaví při startu a po otevření truhly (setGifts).
+    // Položky katalogu se v různých kategoriích jmenují stejně (vinova, zlata), proto se kategorie hledá podle samotné položky.
+    let giftState = {};
+    const CATEGORY_OF = new Map();
+    Object.entries(CATALOG).forEach(([category, items]) => items.forEach(item => CATEGORY_OF.set(item, category)));
+    const setGifts = (value) => { giftState = value && typeof value === 'object' ? value : {}; };
+    const isGift = (item, gifts) => {
+        const category = CATEGORY_OF.get(item);
+        return Boolean(category && gifts && Array.isArray(gifts[category]) && gifts[category].includes(item.id));
+    };
+    // ctx = { level, badges, gifts? } (badges: objekt id → datum nebo true; gifts: věci z truhly, výchozí ze setGifts, null = bez nich)
     const isUnlocked = (item, ctx) => {
         if (!item) return false;
+        if (ctx && isGift(item, ctx.gifts !== undefined ? ctx.gifts : giftState)) return true;
         if (item.badge) return Boolean(ctx && ctx.badges && ctx.badges[item.badge]);
         return Boolean(ctx) && ctx.level >= (item.level || 1);
     };
     const unlockText = (item, badgeTitle = null) => item.badge ? `Odznak: ${badgeTitle || item.badge}` : `Úroveň ${item.level}`;
+    const categoryOf = (item) => CATEGORY_OF.get(item) || null;
     const find = (category, id) => (CATALOG[category] || []).find(item => item.id === id) || null;
 
     // --- Uložené volby ---
@@ -174,10 +190,12 @@
     onChange((value) => sections.forEach(section => { try { if (section.apply) section.apply(value); } catch (e) { console.error(e); } }));
 
     // Nové odměny po změně úrovně nebo získaných odznacích: [{ category, item }] pro oslavu „Nová odměna“
+    // (věc, kterou hráč už má z truhly, se znovu neslaví)
     const newRewards = (levelBefore, levelAfter, newBadgeIds = []) => {
         const result = [];
         for (const [category, items] of Object.entries(CATALOG)) {
             for (const item of items) {
+                if (isGift(item, giftState)) continue;
                 if (item.badge ? newBadgeIds.includes(item.badge) : (item.level > levelBefore && item.level <= levelAfter)) result.push({ category, item });
             }
         }
@@ -187,13 +205,13 @@
     const REWARD_KINDS = { themes: 'barevné téma', robes: 'talár Mudrlanta', frames: 'rámeček', avatars: 'obrázek hráče', accessories: 'doplněk Mudrlanta', colors: 'barva doplňků' };
     // Odměny, které odemkne konkrétní odznak: [{ category, item }] (prázdné, když odznak dává jen slávu)
     const rewardsForBadge = (badgeId) => Object.entries(CATALOG).flatMap(([category, items]) => items.filter(item => item.badge === badgeId).map(item => ({ category, item })));
-    // Věta o odměně za odznak: „Odměna: Kompas (doplněk Mudrlanta)“, bez odměny „Odměna: sláva“
+    // Věta o odměně za odznak: „Odměna: Kompas (doplněk Mudrlanta)“; odznak bez věci (jen pro slávu) dá prázdný text a řádek se vynechá
     const badgeRewardText = (badgeId) => {
         const rewards = rewardsForBadge(badgeId);
-        return `Odměna: ${rewards.length ? rewards.map(({ category, item }) => `${item.title} (${REWARD_KINDS[category]})`).join(', ') : 'sláva'}`;
+        return rewards.length ? `Odměna: ${rewards.map(({ category, item }) => `${item.title} (${REWARD_KINDS[category]})`).join(', ')}` : '';
     };
     // Odměny odemknuté na dané úrovni (pro přehled úrovní)
     const rewardsAtLevel = (level) => Object.entries(CATALOG).flatMap(([category, items]) => items.filter(item => !item.badge && item.level === level).map(item => ({ category, item })));
 
-    return { CATALOG, THEMES, ROBES, FRAMES, AVATARS, ACCESSORIES, SLOTS, ACC_COLORS, POSES, findPose, customHue, colorOk, flagOk, DEFAULTS, isUnlocked, unlockText, find, normalize, prefs, setPref, onChange, register, getSections, apply, newRewards, rewardsAtLevel, REWARD_KINDS, rewardsForBadge, badgeRewardText };
+    return { setGifts, isGift: (item) => isGift(item, giftState), categoryOf, CATALOG, THEMES, ROBES, FRAMES, AVATARS, ACCESSORIES, SLOTS, ACC_COLORS, POSES, findPose, customHue, colorOk, flagOk, DEFAULTS, isUnlocked, unlockText, find, normalize, prefs, setPref, onChange, register, getSections, apply, newRewards, rewardsAtLevel, REWARD_KINDS, rewardsForBadge, badgeRewardText };
 });

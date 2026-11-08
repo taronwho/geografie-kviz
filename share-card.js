@@ -1,7 +1,7 @@
 // Sdílení výsledků: text (navigator.share, jinak schránka) a obrázek PNG nakreslený na plátno (sova v barvě obleku hráče, skóre, mřížka
 // otázek, datum a adresa hry). Obrázek se sdílí jako soubor přes navigator.share({ files }), kde to prohlížeč umí, jinak se stáhne.
 // Plátno kreslí jen obrázky z vlastního původu (icons/…), takže není „zašpiněné“ a jde z něj vyrobit PNG. Používá ho Kvíz dne,
-// výsledek dnešní otázky a vyhraná výzva (app.js). Čistá část (rozložení karty, názvy obrázků, text) se testuje v tests/share-card.test.js.
+// výsledek dnešní otázky, vyhraná výzva, Bleskovka a Přežití a diplom za mistrovství tématu (app.js). Čistá část (rozložení karty, názvy obrázků, text) se testuje v tests/share-card.test.js.
 (function (root, factory) {
     const api = factory(root);
     if (typeof module === 'object' && module.exports) module.exports = api;
@@ -197,8 +197,154 @@
             ctx.fillText(model.footer, SIZE / 2, SIZE - PAD - 18);
         }
     };
-    // Nakreslí kartu a vrátí plátno (1080 × 1080)
+    // --- Diplom za mistrovství tématu (kind: 'diploma'): krémový list 1080 × 1350 (4 : 5) s rámem v barvě tématu, ikona tématu,
+    // „Mistr zeměpisu“, jméno hráče, sova v barvě obleku, pečeť a datum ---
+    const DIPLOMA = { width: 1080, height: 1350 };
+    // Barvy témat (Tailwind 700 a 900 podle topic.color)
+    const TOPIC_COLORS = {
+        emerald: ['#047857', '#064e3b'], blue: ['#1d4ed8', '#1e3a8a'], amber: ['#b45309', '#78350f'], indigo: ['#4338ca', '#312e81'], lime: ['#4d7c0f', '#365314'],
+        yellow: ['#a16207', '#713f12'], sky: ['#0369a1', '#0c4a6e'], violet: ['#6d28d9', '#4c1d95'], orange: ['#c2410c', '#7c2d12'], stone: ['#57534e', '#292524'],
+        pink: ['#be185d', '#831843'], teal: ['#0f766e', '#134e4a'], rose: ['#be123c', '#881337'], red: ['#b91c1c', '#7f1d1d']
+    };
+    const TOPIC_ID = /^[a-z0-9-]{1,30}$/;
+    // input = { kind: 'diploma', topic: { id, title, color }, title ('Mistr zeměpisu'), name, day, known (počet položek), robe, url, appName }
+    const diplomaModel = (input) => {
+        const topic = input.topic || {};
+        const [main, dark] = TOPIC_COLORS[topic.color] || TOPIC_COLORS.emerald;
+        return {
+            kind: 'diploma', appName: String(input.appName || 'Mudrlant'), title: String(input.title || 'Mistr oboru'),
+            name: String(input.name || '').trim().slice(0, 30) || 'Hráč Mudrlanta', topicTitle: String(topic.title || ''),
+            detail: input.known ? `${Number(input.known).toLocaleString('cs-CZ')} poznaných položek` : 'Plné mistrovství tématu',
+            date: formatDay(input.day), main, dark,
+            icon: TOPIC_ID.test(String(topic.id || '')) ? `icons/topics/${topic.id}.webp` : null,
+            owl: owlSrc('vitez', input.robe), logo: logoSrc(input.robe),
+            footer: input.url ? shortUrl(input.url) : ''
+        };
+    };
+    const star = (ctx, x, y, r) => {
+        ctx.beginPath();
+        for (let i = 0; i < 10; i++) {
+            const angle = -Math.PI / 2 + i * Math.PI / 5;
+            const radius = i % 2 ? r * 0.45 : r;
+            ctx.lineTo(x + Math.cos(angle) * radius, y + Math.sin(angle) * radius);
+        }
+        ctx.closePath();
+        ctx.fill();
+    };
+    const drawDiploma = (canvas, model, images) => {
+        const { width: W, height: H } = DIPLOMA;
+        const ctx = canvas.getContext('2d');
+        // List: krémový papír s jemným přechodem
+        const paper = ctx.createLinearGradient(0, 0, 0, H);
+        paper.addColorStop(0, '#fffaf0');
+        paper.addColorStop(1, '#fbecc8');
+        ctx.fillStyle = paper;
+        ctx.fillRect(0, 0, W, H);
+        // Rám: silný v barvě tématu, uvnitř tenký zlatý, v rozích zlaté kosočtverce
+        ctx.lineJoin = 'round';
+        ctx.strokeStyle = model.main;
+        ctx.lineWidth = 26;
+        roundRect(ctx, 34, 34, W - 68, H - 68, 36);
+        ctx.stroke();
+        ctx.strokeStyle = '#d69725';
+        ctx.lineWidth = 6;
+        roundRect(ctx, 66, 66, W - 132, H - 132, 24);
+        ctx.stroke();
+        ctx.fillStyle = '#d69725';
+        for (const [x, y] of [[66, 66], [W - 66, 66], [66, H - 66], [W - 66, H - 66]]) {
+            ctx.beginPath(); ctx.moveTo(x, y - 22); ctx.lineTo(x + 22, y); ctx.lineTo(x, y + 22); ctx.lineTo(x - 22, y); ctx.closePath(); ctx.fill();
+        }
+        ctx.textBaseline = 'alphabetic';
+        ctx.textAlign = 'center';
+        // Hlavička: logo a název hry, nápis DIPLOM
+        if (images.logo) ctx.drawImage(images.logo, W / 2 - 46, 104, 92, 92 * (images.logo.height / images.logo.width || 1));
+        ctx.fillStyle = model.dark;
+        ctx.font = `800 34px ${FONT}`;
+        ctx.fillText(model.appName.toUpperCase().split('').join(' '), W / 2, 238);
+        ctx.fillStyle = '#94571a';
+        ctx.font = `900 110px Georgia, "Times New Roman", serif`;
+        ctx.fillText('DIPLOM', W / 2, 360);
+        ctx.fillStyle = '#5c4a32';
+        ctx.font = `600 36px ${FONT}`;
+        ctx.fillText(`za mistrovství tématu ${model.topicTitle}`.trim(), W / 2, 418);
+        // Ikona tématu v kruhu barvy tématu
+        const cy = 560;
+        ctx.fillStyle = model.main;
+        ctx.beginPath(); ctx.arc(W / 2, cy, 104, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = '#efc55c';
+        ctx.lineWidth = 10;
+        ctx.beginPath(); ctx.arc(W / 2, cy, 104, 0, Math.PI * 2); ctx.stroke();
+        if (images.icon) {
+            const ratio = images.icon.width / images.icon.height || 1;
+            const box = 150;
+            const w = ratio >= 1 ? box : box * ratio;
+            const h = ratio >= 1 ? box / ratio : box;
+            ctx.drawImage(images.icon, W / 2 - w / 2, cy - h / 2, w, h);
+        }
+        // Hvězdičky mistrovství
+        ctx.fillStyle = '#d69725';
+        for (let i = 0; i < 5; i++) star(ctx, W / 2 + (i - 2) * 64, 718, 24);
+        // Titul a jméno
+        ctx.fillStyle = model.main;
+        fitFont(ctx, model.title, 900, 96, W - 220, 48);
+        ctx.fillText(model.title, W / 2, 850);
+        ctx.fillStyle = '#5c4a32';
+        ctx.font = `600 34px ${FONT}`;
+        ctx.fillText('Tento diplom získává', W / 2, 920);
+        ctx.fillStyle = '#2d3034';
+        fitFont(ctx, model.name, 800, 76, W - 240, 36);
+        ctx.fillText(model.name, W / 2, 1006);
+        ctx.strokeStyle = 'rgba(148, 87, 26, 0.45)';
+        ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.moveTo(250, 1032); ctx.lineTo(W - 250, 1032); ctx.stroke();
+        ctx.fillStyle = '#5c4a32';
+        // Detail jen ve středním sloupci, ať se nepotká se sovou vlevo a pečetí vpravo
+        fitFont(ctx, model.detail, 600, 28, 470, 18);
+        ctx.fillText(model.detail, W / 2, 1080);
+        // Sova vlevo dole, pečeť vpravo dole, datum a adresa uprostřed
+        if (images.owl) {
+            const ratio = images.owl.width / images.owl.height || 1;
+            const box = 200;
+            const w = ratio >= 1 ? box : box * ratio;
+            const h = ratio >= 1 ? box / ratio : box;
+            ctx.drawImage(images.owl, 92 + (box - w) / 2, H - 92 - h, w, h);
+        }
+        const sx = W - 186;
+        const sy = H - 196;
+        ctx.fillStyle = '#d69725';
+        for (let i = 0; i < 24; i++) {
+            const angle = i * Math.PI / 12;
+            ctx.beginPath();
+            ctx.arc(sx + Math.cos(angle) * 70, sy + Math.sin(angle) * 70, 12, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        ctx.beginPath(); ctx.arc(sx, sy, 72, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#efc55c';
+        ctx.beginPath(); ctx.arc(sx, sy, 55, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#94571a';
+        star(ctx, sx, sy - 3, 34);
+        ctx.fillStyle = '#5c4a32';
+        ctx.font = `700 34px ${FONT}`;
+        if (model.date) ctx.fillText(model.date, W / 2, H - 170);
+        if (model.footer) {
+            ctx.fillStyle = 'rgba(92, 74, 50, 0.75)';
+            ctx.font = `600 28px ${FONT}`;
+            ctx.fillText(model.footer, W / 2, H - 124);
+        }
+    };
+    // Nakreslí kartu a vrátí plátno (1080 × 1080; diplom 1080 × 1350)
     const render = async (input) => {
+        if (input && input.kind === 'diploma') {
+            const model = diplomaModel(input);
+            const [owl, logo, icon] = await Promise.all([loadImage(model.owl), loadImage(model.logo), model.icon ? loadImage(model.icon) : Promise.resolve(null)]);
+            const canvas = root.document.createElement('canvas');
+            canvas.width = DIPLOMA.width;
+            canvas.height = DIPLOMA.height;
+            drawDiploma(canvas, model, { owl, logo, icon });
+            canvas.dataset.owl = owl ? model.owl : '';
+            canvas.dataset.icon = icon ? model.icon : '';
+            return canvas;
+        }
         const model = cardModel(input);
         const [owl, logo] = await Promise.all([loadImage(model.owl), loadImage(model.logo)]);
         const canvas = root.document.createElement('canvas');
@@ -269,5 +415,19 @@
         }
     };
 
-    return { SIZE, ROBES, POSES, COLORS, shareText, robeOf, owlSrc, logoSrc, formatDay, shortUrl, gridLayout, cardModel, fileName, render, prepare, shareImage };
+    // Jen stažení obrázku (tlačítko Stáhnout u diplomu): 'downloaded' nebo 'failed'
+    const saveImage = async (input, { name = fileName('vysledek', input.day), toast = () => {} } = {}) => {
+        try {
+            const entry = prepare(input, name);
+            if (!entry.blob) await entry.promise;
+            download(entry.blob, name);
+            toast('Obrázek je uložený ve stažených souborech');
+            return 'downloaded';
+        } catch (error) {
+            toast('Obrázek se nepodařilo uložit');
+            return 'failed';
+        }
+    };
+
+    return { SIZE, DIPLOMA, TOPIC_COLORS, diplomaModel, saveImage, ROBES, POSES, COLORS, shareText, robeOf, owlSrc, logoSrc, formatDay, shortUrl, gridLayout, cardModel, fileName, render, prepare, shareImage };
 });

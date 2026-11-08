@@ -154,3 +154,47 @@ test('vypnuté opakování: týdenní cíl na opakování karet se nikdy nevylos
         assert.equal(goals.length, 3);
     }
 });
+
+test('cíle pro Kvíz dne, Bleskovku, Přežití a Seřaď: jen s danou částí aplikace, nejvýš jeden režim za týden, dost dní', () => {
+    const G = require('../goals.js');
+    const all = { topics: TOPICS, quiz: true, modes: true, numeric: true };
+    const kinds = new Set();
+    for (let week = 0; week < 120; week++) {
+        const key = new Date(Date.UTC(2026, 0, 5) + week * 7 * 86400000).toISOString().slice(0, 10);
+        const goals = G.weeklyGoals(key, all);
+        assert.equal(goals.length, 3);
+        goals.forEach(goal => kinds.add(goal.kind));
+        assert.ok(goals.filter(goal => goal.kind === 'bleskovka' || goal.kind === 'preziti').length <= 1, `${key}: nejvýš jeden režim`);
+        // Bez částí aplikace se nové cíle nelosují (losování zůstává jako dřív)
+        assert.ok(G.weeklyGoals(key, { topics: TOPICS }).every(goal => !['kviz', 'bleskovka', 'preziti', 'serad'].includes(goal.kind)));
+        // Uložené cíle jdou zpět z id
+        assert.deepEqual(G.goalsFromIds(goals.map(goal => goal.id), all), goals);
+    }
+    for (const kind of ['kviz', 'bleskovka', 'preziti', 'serad']) assert.ok(kinds.has(kind), `${kind} se losuje`);
+    assert.equal(G.KINDS.find(kind => kind.id === 'kviz').title(3), 'Zahraj Kvíz dne 3×');
+    assert.equal(G.KINDS.find(kind => kind.id === 'serad').title(3), 'Seřaď 3× bez chyby');
+    assert.match(G.KINDS.find(kind => kind.id === 'bleskovka').title(1), /Bleskovka: aspoň 10 správně/);
+    assert.match(G.KINDS.find(kind => kind.id === 'preziti').title(1), /Přežij 15 otázek/);
+    // Týden vzniklý v neděli: žádný cíl na víc dní, než zbývá
+    for (let week = 0; week < 60; week++) {
+        const key = new Date(Date.UTC(2026, 0, 5) + week * 7 * 86400000).toISOString().slice(0, 10);
+        assert.ok(G.weeklyGoals(key, { ...all, daysLeft: 1 }).every(goal => goal.kind !== 'kviz' && goal.kind !== 'dny'), key);
+    }
+    // Uložené cíle, které už nejdou hrát (odhlášení u výzev), se vylosují znovu
+    assert.equal(G.goalsFromIds(['vyzvy', 'spravne', 'dny'], all), null);
+    assert.ok(G.goalsFromIds(['vyzvy', 'spravne', 'dny'], { ...all, multiplayer: true }));
+    assert.equal(G.goalsFromIds(['tema-neexistuje', 'spravne', 'dny'], all), null);
+});
+
+test('stav týdne: uložené cíle se drží, stav ze starší verze dostane jen dřívější druhy cílů', () => {
+    const G = require('../goals.js');
+    const all = { topics: TOPICS, quiz: true, modes: true, numeric: true };
+    const fresh = G.ensureState(null, '2026-11-02', { correct: 1 });
+    assert.ok(!fresh.goals && !fresh.legacy);
+    const kept = G.ensureState({ ...fresh, goals: ['kviz', 'spravne', 'bleskovka'] }, '2026-11-02', {});
+    assert.deepEqual(G.goalsFor(kept, all).map(goal => goal.id).sort(), ['bleskovka', 'kviz', 'spravne']);
+    const legacy = G.ensureState({ week: '2026-11-02', snapshot: {}, claimed: [], bonus: false }, '2026-11-02', {});
+    assert.equal(legacy.legacy, true);
+    assert.deepEqual(G.goalsFor(legacy, all), G.weeklyGoals('2026-11-02', { topics: TOPICS }), 'jako před aktualizací');
+    assert.equal(G.ensureState(kept, '2026-11-09', {}).goals, undefined, 'nový týden losuje znovu');
+});

@@ -205,12 +205,14 @@
     const poseFor = (correct) => (correct >= QUESTIONS ? 'vitez' : correct >= 7 ? 'oslava' : correct >= 4 ? 'radost' : 'premysleni');
 
     // --- Série a XP ---
-    // Série = dny po sobě s odehraným kvízem; dnešek se počítá, jen když je odehraný (jinak se počítá od včerejška)
-    const streakOf = (days, today) => {
+    // Série = dny po sobě s odehraným kvízem; dnešek se počítá, jen když je odehraný (jinak se počítá od včerejška).
+    // frozen = dny zachráněné ochranou série (rewards.js): série přes ně pokračuje, do délky se nepočítají
+    const streakOf = (days, today, frozen = []) => {
         const set = new Set(days || []);
+        const saved = new Set(frozen || []);
         let day = set.has(today) ? today : addDays(today, -1);
         let count = 0;
-        while (set.has(day)) { count += 1; day = addDays(day, -1); }
+        for (let guard = 0; guard < 4000 && (set.has(day) || saved.has(day)); guard++) { if (set.has(day)) count += 1; day = addDays(day, -1); }
         return count;
     };
     const bestStreakOf = (days) => {
@@ -375,7 +377,7 @@
     };
 
     // Výsledek: sova, skóre, mřížka otázek, XP, sdílení, série, pořadí (přihlášený) nebo pozvánka k přihlášení (host)
-    const resultHtml = ({ day, summary, xp = null, streak = 0, best = 0, guest = false, canLogin = false, ranking = null, closed = false, pending = false }, h) => {
+    const resultHtml = ({ day, summary, xp = null, streak = 0, best = 0, guest = false, canLogin = false, ranking = null, closed = false, pending = false, freezes = '' }, h) => {
         const bits = bitsOf(summary.bitmap, summary.answered);
         const grid = bits.map((bit, index) => `<span class="h-5 w-5 rounded-md ${bit === true ? 'bg-emerald-400' : bit === false ? 'bg-rose-400' : 'bg-white/25'}" title="${index + 1}. otázka: ${bit === true ? 'správně' : bit === false ? 'špatně' : 'bez odpovědi'}"></span>`).join('');
         const right = bits.map((bit, index) => (bit ? index + 1 : null)).filter(Boolean);
@@ -398,7 +400,7 @@
                 </div>
                 <div data-quiz-streak class="flex items-center gap-3 rounded-2xl bg-white p-3 shadow-sm ring-1 ring-slate-200/70 dark:bg-slate-800/70 dark:ring-slate-700/70">
                     ${art('serie', 'h-10 w-10')}
-                    <div class="min-w-0 flex-1"><p class="${LABEL}">Moje série Kvízu dne</p><p class="text-lg font-black leading-tight text-slate-800 dark:text-slate-100">${esc(daysWord(streak))}${best > streak ? ` <span class="text-xs font-bold text-slate-500 dark:text-slate-400">· nejlepší ${esc(daysWord(best))}</span>` : ''}</p></div>
+                    <div class="min-w-0 flex-1"><p class="flex items-center gap-1.5 ${LABEL}">Moje série Kvízu dne${freezes}</p><p class="text-lg font-black leading-tight text-slate-800 dark:text-slate-100">${esc(daysWord(streak))}${best > streak ? ` <span class="text-xs font-bold text-slate-500 dark:text-slate-400">· nejlepší ${esc(daysWord(best))}</span>` : ''}</p></div>
                 </div>
                 ${guest ? `
                     <div data-quiz-login class="flex flex-col items-center gap-2 rounded-[1.4rem] bg-white p-4 text-center shadow-sm ring-1 ring-slate-200/70 dark:bg-slate-800/70 dark:ring-slate-700/70">

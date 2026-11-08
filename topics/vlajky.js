@@ -202,6 +202,21 @@
         return aliases.filter(alias => normalizeAnswer(alias) !== normalizeAnswer(item.n));
     };
 
+    // Region státu: jen regiony téhož státu, k tomu sousední (blízko středu) a podobně velké podle počtu obyvatel (podobně známé);
+    // region jiného státu dostane velkou srážku, takže se použije, jen když stát nemá aspoň tři další regiony
+    const REGION_STEPS = [250, 500, 900, 1500, 2500];
+    const OTHER_STATE = -60;
+    const regionScore = (item, other, look) => {
+        const own = (item.co || [])[0];
+        if (!own || own !== (other.co || [])[0]) return OTHER_STATE + look * 0.01;
+        let score = look;
+        if (item.la !== undefined && other.la !== undefined) score += nearness(distanceKm(item, other), REGION_STEPS) * 0.6;
+        const a = Number((item.f || {}).pop);
+        const b = Number((other.f || {}).pop);
+        if (a > 0 && b > 0) score += Math.max(0, 1.5 - Math.abs(Math.log10(a / b)));
+        return score;
+    };
+
     const subtitle = (item, ctx) => {
         if (item.c === 'cesko') return (item.f || {}).kraj || 'Česko';
         if (item.c === 'historie') return 'Zaniklý stát';
@@ -233,12 +248,17 @@
         // Vlajky mají vlastní pravidla (podobný vzhled, sousedé), ne kulturu jmen osob
         culture: () => [],
 
+        // Regiony států: nesprávné možnosti se berou jen ze stejného státu (jinak by hráč cizí region vyřadil podle státu, „Santiago“
+        // u státu USA); region jiného státu přijde na řadu, jen když jich stát v datech nemá dost (Spojené království)
+        sameCountry: ['regiony'],
+
         // Nesprávné možnosti: hlavně podobně vypadající vlajky a znaky, k tomu sousedé a stejný kontinent
         similarity: (item, other, ctx) => {
             if (isTwin(item, other)) return -Infinity;
             let score = lookAlike(item.sg, other.sg) * (item.c === 'cesko' ? 6 : 10) + sharedPattern(item, other);
-            // Regiony a města: vlajky stejného státu se pletou nejvíc, zaniklé státy se srovnávají podle doby
-            if (item.c === 'regiony' || item.c === 'mesta') score += (item.co || [])[0] && item.co[0] === (other.co || [])[0] ? 2 : 0;
+            if (item.c === 'regiony') return regionScore(item, other, score);
+            // Města: vlajky stejného státu se pletou nejvíc, zaniklé státy se srovnávají podle doby
+            if (item.c === 'mesta') score += (item.co || [])[0] && item.co[0] === (other.co || [])[0] ? 2 : 0;
             if (item.c === 'historie') score += item.f && other.f && item.f.from !== undefined && other.f.from !== undefined ? Math.max(0, 2 - Math.abs(item.f.from - other.f.from) / 60) : 0;
             if (item.c === 'cesko') return score + ((item.f || {}).kraj && item.f.kraj === (other.f || {}).kraj ? 1.5 : 0);
             if (item.la !== undefined && other.la !== undefined) score += nearness(distanceKm(item, other), STATE_STEPS) * 0.5;
