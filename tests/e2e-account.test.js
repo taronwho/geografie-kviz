@@ -45,7 +45,10 @@ test('Moje data, smazání účtu a právní stránky', { skip: !chromium && 'Pl
             if (url.pathname.startsWith('/auth/')) return json({});
             if (url.pathname === '/rest/v1/rpc/export_my_data') { state.calls.push('export'); return json(state.exportReply.body, state.exportReply.status); }
             if (url.pathname === '/rest/v1/rpc/delete_my_account') { state.calls.push('delete'); return json(state.deleteReply.body, state.deleteReply.status); }
-            if (url.pathname === '/rest/v1/profiles') return json([{ id: 'u-1', display_name: 'Jana', avatar: '🦊', color: 'emerald', owl: null }]);
+            if (url.pathname === '/rest/v1/profiles') {
+                if (request.method() === 'PATCH') { const body = request.postDataJSON(); state.patches = [...(state.patches || []), body]; return json([{ id: 'u-1', avatar: '🦊', color: 'emerald', owl: null, ...body }]); }
+                return json([{ id: 'u-1', display_name: 'Jana', avatar: '🦊', color: 'emerald', owl: null }]);
+            }
             // Schéma 3: XP za výhry v turnaji (nic nevyplaceného) a průběh výzev
             if (url.pathname === '/rest/v1/rpc/claim_tournament_xp') return json([]);
             if (url.pathname === '/rest/v1/rpc/challenge_progress_save') return json(1);
@@ -68,6 +71,29 @@ test('Moje data, smazání účtu a právní stránky', { skip: !chromium && 'Pl
         return { context, tab, problems, goto: async (url = '/') => tab.goto(`${origin}${url}`) };
     };
     const shot = async (tab, name) => { if (SHOTS) await tab.screenshot({ path: path.join(SHOTS, name), fullPage: true }); };
+
+    await t.test('po přihlášení přes Google hra jednou nabídne přezdívku (jméno z Googlu ostatní neuvidí)', async () => {
+        const page = await open({ entries: { 'mudrlant.nickPending': JSON.stringify(Date.now()) } });
+        await page.goto();
+        await page.tab.waitForSelector('#nick-input', { timeout: 20000 });
+        assert.equal(await page.tab.inputValue('#nick-input'), 'Jana', 'návrh z křestního jména');
+        await page.tab.fill('#nick-input', 'Janička');
+        await page.tab.click('#nick-offer button[type="submit"]');
+        await page.tab.waitForFunction(() => !document.getElementById('nick-input'));
+        assert.equal((state.patches || []).at(-1).display_name, 'Janička');
+        // Podruhé už se nenabízí
+        await page.tab.reload();
+        await page.tab.waitForTimeout(4000);
+        assert.equal(await page.tab.locator('#nick-input').count(), 0);
+        assert.deepEqual(page.problems, []);
+        await page.context.close();
+        // Bez přihlášení přes Google (jen obnovení stránky s účtem) se nenabízí
+        const other = await open();
+        await other.goto();
+        await other.tab.waitForTimeout(4000);
+        assert.equal(await other.tab.locator('#nick-input').count(), 0);
+        await other.context.close();
+    });
 
     await t.test('uvítání s přihlášením má v patičce odkazy na zásady a licence', async () => {
         const page = await open({ signedIn: false });

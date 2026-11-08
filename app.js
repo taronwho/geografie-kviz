@@ -1694,7 +1694,7 @@
                 openSettings('', null, tabButton.dataset.meTab);
                 return;
             }
-            if (event.target.closest('[data-auth-login]')) { Auth.login(); return; }
+            if (event.target.closest('[data-auth-login]')) { startLogin(); return; }
             if (event.target.closest('[data-auth-logout]')) {
                 // Odhlášený hráč nesmí na tomhle zařízení dál dostávat upozornění: odběr se smaže ještě za přihlášení
                 closeSettings();
@@ -5165,8 +5165,72 @@
         updateProfileButton();
         syncProgress();
         checkSchemaVersion(user);
+        scheduleNicknameOffer(user, !loaded);
         if (myBlocked === null) Social.getAccepts(user.id).then(accepts => { if (!signedUser() || signedUser().id !== user.id || myBlocked !== null) return; adoptAccepts(accepts); paintChallenges(); });
         return myProfile;
+    };
+
+    // Přezdívka po prvním přihlášení: profil z Googlu nese celé jméno – hra jednou (na účet a zařízení) nabídne zvolit si přezdívku,
+    // pod kterou ho uvidí ostatní (výzvy, žebříčky, skupiny). Jen když je profil nový nebo jméno je pořád to z Googlu; počká,
+    // až nebude nic jiného na obrazovce (tutoriál, otázka, jiné okno – stejná pravidla jako nabídka upozornění).
+    const NICK_ASKED_KEY = 'mudrlant.nickAsked';
+    const nickAsked = (id) => { const list = readJson(NICK_ASKED_KEY); return Array.isArray(list) && list.includes(id); };
+    const markNickAsked = (id) => { const list = readJson(NICK_ASKED_KEY); writeJson(NICK_ASKED_KEY, [...(Array.isArray(list) ? list : []), id].slice(-20)); };
+    // Přihlášení přes Google: značka, že se hráč právě přihlašuje (po návratu z Googlu se pak nabídne přezdívka)
+    const NICK_PENDING_KEY = 'mudrlant.nickPending';
+    const startLogin = () => { writeJson(NICK_PENDING_KEY, Date.now()); if (Auth) Auth.login(); };
+    let nickTimer = null;
+    const scheduleNicknameOffer = (user, fresh, tries = 0) => {
+        clearTimeout(nickTimer);
+        const pending = readJson(NICK_PENDING_KEY);
+        // Jen hned po přihlášení přes Google (nejvýš 30 minut od klepnutí), ne při každém načtení profilu
+        if (!Number.isFinite(pending) || Date.now() - pending > 30 * 60 * 1000) return;
+        if (!user || !Social || !myProfile) return;
+        if (nickAsked(user.id)) { writeJson(NICK_PENDING_KEY, null); return; }
+        const googleName = String(user.name || '').trim();
+        if (!fresh && myProfile.display_name !== googleName) { markNickAsked(user.id); writeJson(NICK_PENDING_KEY, null); return; }
+        if (pushOfferBlocked()) { if (tries < 40) nickTimer = setTimeout(() => scheduleNicknameOffer(user, fresh, tries + 1), 3000); return; }
+        markNickAsked(user.id);
+        writeJson(NICK_PENDING_KEY, null);
+        openNicknameOffer(user);
+    };
+    const openNicknameOffer = (user) => {
+        // Návrh: křestní jméno z Googlu, když projde pravidly přezdívky
+        const first = String(user.name || '').trim().split(/\s+/)[0] || '';
+        const draft = { name: Social.isValidName && Social.isValidName(first) ? first : '', note: '', busy: false };
+        const render = () => {
+            showDialog('Jak ti mají ostatní říkat?', `
+                <form id="nick-offer" class="flex flex-col gap-3" autocomplete="off">
+                    <p class="text-sm text-slate-600 dark:text-slate-300">Vyber si přezdívku. Uvidí ji ostatní hráči ve výzvách, žebříčcích a skupinách – tvé celé jméno z Googlu ne. Změnit ji jde kdykoli v Nastavení → Profil.</p>
+                    <label for="nick-input" class="sr-only">Přezdívka</label>
+                    <input id="nick-input" data-autofocus type="text" maxlength="${Social.NAME_MAX || 24}" value="${escapeHtml(draft.name)}" placeholder="Přezdívka" class="w-full rounded-xl border-2 border-slate-200 bg-white px-3 py-2.5 text-base font-bold text-slate-800 focus:border-brand-600 focus:outline-none dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100">
+                    ${draft.note ? DIALOG_NOTE(draft.note) : ''}
+                    <button type="submit" ${draft.busy ? 'disabled' : ''} class="${PRIMARY_BUTTON}">${draft.busy ? 'Ukládám…' : 'Uložit přezdívku'}</button>
+                    <button type="button" data-close class="${SECONDARY_BUTTON}">Teď ne</button>
+                </form>`, {
+                onInput: (event) => { if (event.target.id === 'nick-input') draft.name = event.target.value; },
+                onSubmit: async () => {
+                    if (draft.busy) return;
+                    const input = document.getElementById('nick-input');
+                    if (input) draft.name = input.value;
+                    draft.busy = true; draft.note = ''; render();
+                    try {
+                        const base = myProfile || {};
+                        myProfile = await Social.saveProfile(user.id, { name: draft.name, avatar: base.avatar, color: base.color, owl: base.owl || null });
+                        meDraft = null;
+                        updateProfileButton();
+                        paintChallenges();
+                        closeDialog();
+                        showToast(`Přezdívka uložena: ${myProfile.display_name}`);
+                        return;
+                    } catch (error) {
+                        draft.note = error.status === 400 || error.status === 409 ? error.message : 'Uložení se nepodařilo, zkus to znovu.';
+                    }
+                    draft.busy = false; render();
+                }
+            });
+        };
+        render();
     };
 
     // Část Výzvy na úvodní stránce: bez nastaveného Supabase se neukáže, bez přihlášení láká k přihlášení
@@ -5488,7 +5552,7 @@
             ${owlLogo('mx-auto flex', 'h-24 w-auto drop-shadow-lg')}
             <p class="text-sm text-slate-600 dark:text-slate-300">S účtem Google si vybereš přezdívku a obrázek, můžeš vyzývat kamarády nebo náhodné hráče a porovnat s nimi výsledky. Hra dál funguje i bez přihlášení.</p>
             <button type="button" data-auth-login-dialog class="${PRIMARY_BUTTON}"><i data-lucide="log-in" class="h-5 w-5"></i> Přihlásit se přes Google</button>
-        </div>`, { onClick: (event) => { if (event.target.closest('[data-auth-login-dialog]')) Auth.login(); } });
+        </div>`, { onClick: (event) => { if (event.target.closest('[data-auth-login-dialog]')) startLogin(); } });
 
     // Úvod (jednou, dokud hráč nezvolí): přihlášení přes Google jako hlavní volba, méně výrazně hraní bez účtu
     const wantsAccountWelcome = () => Boolean(Auth && Auth.isConfigured() && Social) && !Auth.hasSession() && readJson(KEYS.account) !== 'host';
@@ -6581,7 +6645,7 @@
             showDialog('Výzva', `
                 <p class="mb-4 text-sm text-slate-600 dark:text-slate-300">Někdo tě vyzval. Pro hru výzvy se nejdřív přihlas, hned potom se výzva otevře.</p>
                 <button type="button" data-auth-login-dialog class="${PRIMARY_BUTTON}"><i data-lucide="log-in" class="h-5 w-5"></i> Přihlásit se přes Google</button>`,
-            { onClick: (event) => { if (event.target.closest('[data-auth-login-dialog]')) Auth.login(); } });
+            { onClick: (event) => { if (event.target.closest('[data-auth-login-dialog]')) startLogin(); } });
             return;
         }
         showDialog('Výzva', '<p class="py-6 text-center text-sm font-semibold text-slate-500 dark:text-slate-400">Načítám výzvu…</p>');
@@ -8164,7 +8228,7 @@
     if (window.MudrlantGroups && Social) {
         GroupsUI = window.MudrlantGroups.createUI({
             Social, showDialog, closeDialog, avatarHtml, showToast, signedUser, renderIcons,
-            login: () => { if (Auth) Auth.login(); },
+            login: () => { if (Auth) startLogin(); },
             openChallenge: (code) => openChallenge(code),
             openQuiz: () => { if (DailyQuiz) openQuiz(); },
             newGroupChallenge: (group) => openNewChallenge({ group }),
@@ -8176,7 +8240,7 @@
     // Všechny akce přes delegaci událostí – stránka nepotřebuje inline JavaScript (kvůli CSP)
     const ACTIONS = {
         daily: (button) => { lastDailyTopic = button.dataset.topic; startDaily(button.dataset.topic); },
-        'auth-login': () => Auth && Auth.login(),
+        'auth-login': () => Auth && startLogin(),
         'play-as-host': () => {
             writeJson(KEYS.account, 'host');
             showStart();
@@ -8215,7 +8279,7 @@
         'quiz-tab': (button) => { if (quizView) { quizView.tab = button.dataset.tab === 'friends' ? 'friends' : 'all'; paintQuizRanking(); } },
         'quiz-share': () => shareQuiz(),
         'quiz-share-image': () => shareQuizImage(),
-        'quiz-login': () => { writeJson(QUIZ_LOGIN_KEY, DailyQuiz.pragueDay()); if (Auth) Auth.login(); },
+        'quiz-login': () => { writeJson(QUIZ_LOGIN_KEY, DailyQuiz.pragueDay()); if (Auth) startLogin(); },
         'share-image': () => shareDailyImage(),
         'challenge-retry': () => finishChallenge(true),
         'challenge-home': () => challengeHome(),
