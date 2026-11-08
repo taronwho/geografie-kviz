@@ -7,6 +7,8 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+// Rozpis otázek se po dohrání otevře sám (za 0,7 s): před odchodem z výsledku se zavře
+const closeAutoBreakdown = async (tab) => { await tab.waitForTimeout(900); if (await tab.locator('#dialog-overlay').count()) { await tab.keyboard.press('Escape'); await tab.waitForFunction(() => !document.getElementById('dialog-overlay')); } };
 
 let chromium = null;
 try { ({ chromium } = require('playwright')); } catch (e) {}
@@ -257,7 +259,7 @@ test('hra více hráčů: výzvy, obnova, okna a profil', { skip: !chromium && '
         db.fail['POST /rest/v1/challenge_results'] = 503;
         await answer(tab);
         await tab.waitForSelector('[data-action="challenge-retry"]');
-        await tab.click('[data-action="challenge-home"]');
+        await closeAutoBreakdown(tab); await tab.click('[data-action="challenge-home"]');
         await waitForHome(tab);
         await tab.waitForSelector('[data-action="challenge-resume"]');
         assert.match(await compact(tab, '[data-action="challenge-resume"]'), /Dokončit výzvu/);
@@ -278,7 +280,7 @@ test('hra více hráčů: výzvy, obnova, okna a profil', { skip: !chromium && '
         await tab.click('[data-action="challenge-resume"]');
         await tab.waitForSelector('[data-challenge-outcome]');
         assert.equal(db.results.filter(row => row.challenge_id === code).length, 1, 'výsledek je na serveru jednou');
-        await tab.click('[data-action="challenge-home"]');
+        await closeAutoBreakdown(tab); await tab.click('[data-action="challenge-home"]');
         await waitForHome(tab);
         await tab.waitForSelector('[data-action="challenge-open"]');
         assert.equal(await tab.locator('[data-action="challenge-resume"]').count(), 0);
@@ -400,7 +402,7 @@ test('hra více hráčů: výzvy, obnova, okna a profil', { skip: !chromium && '
         for (let i = 0; i < 7; i++) await answer(tab);
         await tab.waitForSelector('[data-action="tournament-back"]');
         assert.ok(db.tresults.find(r => r.user_id === 'u-1').finished_at, 'zápas je odehraný');
-        await tab.click('[data-action="challenge-home"]');
+        await closeAutoBreakdown(tab); await tab.click('[data-action="challenge-home"]');
         await waitForHome(tab);
         await tab.waitForSelector('[data-action="challenge-resume"]');
         await tab.click('[data-action="challenge-resume"]');
@@ -409,7 +411,7 @@ test('hra více hráčů: výzvy, obnova, okna a profil', { skip: !chromium && '
         for (let i = 0; i < 3; i++) await answer(tab);
         await tab.waitForSelector('[data-challenge-outcome]');
         assert.equal(db.results.filter(r => r.challenge_id === 'JJJJJJ' && r.user_id === 'u-1').length, 1);
-        await tab.click('[data-action="challenge-home"]');
+        await closeAutoBreakdown(tab); await tab.click('[data-action="challenge-home"]');
         await waitForHome(tab);
         await tab.waitForSelector('[data-action="challenge-open"][data-code="JJJJJJ"]');
         assert.equal(await tab.locator('[data-action="challenge-resume"]').count(), 0);

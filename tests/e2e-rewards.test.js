@@ -67,7 +67,7 @@ test('odměny: truhla, ochrana série, diplomy, sdílení obrázku', { skip: !ch
         return box.scrollHeight <= box.clientHeight + 1 && document.documentElement.scrollWidth <= window.innerWidth;
     });
     const storage = (tab, key) => tab.evaluate((name) => JSON.parse(localStorage.getItem(name)), key);
-    const clearCelebrations = async (tab) => { for (let i = 0; i < 8 && await tab.locator('#celebration').count(); i++) { await tab.locator('#celebration').click(); await tab.waitForTimeout(300); } };
+    const clearCelebrations = async (tab) => { for (let i = 0; i < 8 && await tab.locator('#celebration').count(); i++) { await tab.locator('#celebration').click({ timeout: 1500 }).catch(() => {}); await tab.waitForTimeout(300); } };
 
     for (const [name, viewport, colorScheme] of [['390×780', { width: 390, height: 780 }, 'light'], ['360×640', { width: 360, height: 640 }, 'light'], ['390×780 tmavý', { width: 390, height: 780 }, 'dark'], ['360×640 tmavý', { width: 360, height: 640 }, 'dark']]) {
         await t.test(`truhla: pruh na úvodu, otevření, věc a nasazení (${name})`, async () => {
