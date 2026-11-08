@@ -239,6 +239,52 @@ Hráč bez přihlášení Kvíz dne hraje jen v zařízení (jeden pokus za den 
 v pořadí“. Po přihlášení se jeho dnešní výsledek zapíše na účet, pokud tam Kvíz dne ještě není. Omezení jako u výzev: správnost odpovědi počítá
 aplikace, server hlídá pořadí, tvar a rozsah hodnot a čas. Test: `tests/sql-daily-quiz.test.js`.
 
+## Skupiny (schéma 8)
+
+**Po aktualizaci spusť znovu celý `supabase/schema.sql`** (SQL Editor → New query → vložit → Run). Schéma má verzi 8; aplikace ji potřebuje
+(správce jinak v Nastavení uvidí „Databáze není aktuální“). Se starší databází se čip Skupiny na záložce Více hráčů jen neukáže.
+
+Skupina je soukromé pořadí pro třídu, rodinu nebo kamarády. Založí ji přihlášený hráč (název 2–40 znaků, ikona z nabídky), ostatní se přidají
+šestiznakovým kódem nebo odkazem `…/?skupina=KÓD` (jako odkaz na výzvu: nepřihlášený se nejdřív přihlásí, kód si aplikace zapamatuje v `mudrlant.pendingGroup`
+a po přihlášení okno otevře). Hráč je nejvýš v **10 skupinách**, skupina má nejvýš **50 členů**. Zakladatel skupinu přejmenuje, změní ikonu,
+vygeneruje nový kód (starý kód i odkaz přestanou platit), odebere člena nebo skupinu smaže; člen ji může opustit (zakladatel ne, ten ji smaže).
+
+Nové části schématu (blok „Skupiny (schéma 8)“ na konci souboru, před verzí schématu):
+
+- Tabulky `groups` (název, ikona, kód, zakladatel), `group_members` (skupina, hráč, od kdy), `group_challenges` (výzva skupině → skupina)
+  a `group_join_tries` (neúspěšné pokusy o kód). Kontroly: název bez okrajových a zdvojených mezer, řídicích znaků a `<>&"'`\`, ikona z `group_icons()`
+  (stejný seznam je v `groups.js`, hlídá `tests/groups.test.js`), kód 6 znaků bez zaměnitelných 0/O a 1/I/L, kód jedinečný.
+- Pravidla řádků: skupinu, její členy a výzvy skupině **vidí jen členové** (`is_group_member(gid)`, security definer, ať se pravidlo `group_members`
+  nevolá samo na sebe). Zapisovat přímo do tabulek nesmí nikdo; `group_join_tries` nikdo nečte.
+- **Týdenní XP:** tabulka `xp_weekly` (hráč, pondělí týdne, získané XP) a spoušť `profiles_weekly_xp` na `profiles.xp`. Týdenní XP na serveru dosud nebylo
+  (jen celkové `profiles.xp`, které aplikace posílá po každé hře a server ho jen zvyšuje), proto spoušť zapisuje přírůstek do týdne (pondělí, Praha).
+  Jeden zápis se počítá nejvýš do 1500 XP a první nahrání postupu do prázdného účtu nad 1500 XP se nepočítá (dřívější postup ze zařízení). Je to stejně
+  důvěryhodné jako celkové XP (počítá ho aplikace); řádek vidí jen jeho hráč, ostatní jen součet v pořadí skupiny.
+- Funkce pro přihlášené (`authenticated`, anon nic; všechny security definer s pevnou `search_path`, kontrolují přihlášení, členství a vstupy):
+  - `group_create(group_name, group_icon)` – založí skupinu, zakladatel je hned členem; limit 10 skupin.
+  - `group_preview(join_code)` – náhled podle kódu (název, ikona, počet členů, zakladatel, jestli už jsem členem); neznámý kód = `null`.
+  - `group_join(join_code)` – přidání (opakované nic nezmění); limity 10 skupin na hráče a 50 členů; hráč, kterého zakladatel zablokoval, se nepřidá.
+    Neznámý kód = `null`. Po 20 neúspěšných kódech za hodinu `group_preview` i `group_join` skončí hláškou „Příliš mnoho špatných kódů“ (proti hádání).
+  - `group_leave(gid)` – člen opustí skupinu.
+  - Jen zakladatel: `group_update(gid, group_name, group_icon)`, `group_regenerate_code(gid)`, `group_remove_member(gid, member_id)` (sebe ne), `group_delete(gid)`.
+  - `my_groups()` – moje skupiny s počtem členů, kódem a dnešním vedoucím Kvízu dne (dohraný pokus: víc bodů, pak kratší čas).
+  - `group_detail(gid)` – jen pro člena: členové s **veřejnými údaji profilu** (přezdívka, obrázek, barva, rámeček, titul, sova) a čísly pro pořadí:
+    Kvíz dne dnes (jen dohraný), součet bodů za týden od pondělí (minulé dny i nedohrané, jak stály, jako v pořadí dne), počet dní, týdenní XP;
+    a poslední výzva skupině s výsledky členů. Řadí aplikace (`groups.js`).
+  - `group_set_challenge(gid, challenge_code)` – **Vyzvat skupinu**: člen založí obyčejnou výzvu pro kohokoli s kódem (`challenges` bez `invited_id`)
+    a hned ji připojí ke skupině; jen vlastní výzvu mladší než hodina, nejvýš 10 výzev skupině za 24 hodin. Výzvu hrají všichni členové (stejné otázky ze
+    semínka), detail výzvy ukazuje pořadí všech. **Výzva skupině se nepočítá do ratingu** (`rate_challenge` ji přeskočí; jinak by se jako souboj
+    ohodnotili první dva, kdo ji dohrají).
+  - Pomocné funkce (`group_new_code`, `group_clean_name`, `group_owned`, `group_json`, `group_code_try`, …) přes API volat nejde.
+- `export_my_data()` má nově `skupiny` (moje členství: skupina, ikona, kód, jestli jsem zakladatel, od kdy; ostatní členové ne), `skupiny_vyzvy` a `xp_tydny`.
+- Smazání účtu: členství a týdenní XP zmizí s profilem. Skupinu, kterou hráč založil a jsou v ní i jiní, převezme nejdéle přidaný člen
+  (spoušť `profiles_group_handover`); skupina jen se zakladatelem zmizí.
+
+V aplikaci: na záložce **Více hráčů** je čip **Skupiny** (s počtem skupin) ve stejném řádku jako „Přijímám výzvy z“, záložka se tím neprodlouží.
+Čip otevře okno Skupiny (seznam s dnešním vedoucím, Založit, Mám kód), skupina otevře detail se záložkami **Dnes / Týden** (v týdnu Kvíz dne nebo XP),
+kódem a tlačítkem Pozvat (sdílení odkazu), Vyzvat skupinu a Spravovat / Opustit. Testy: `tests/sql-groups.test.js` (práva, RLS, limity, kódy,
+pořadí, týdenní XP, výzva, export, smazání účtu), `tests/groups.test.js` (logika a escapování), `tests/e2e-groups.test.js` (okna na 360×640 a 390×780).
+
 ## Upozornění (web push)
 
 Aplikace umí poslat upozornění: **začíná tvůj turnajový zápas** (dnes hraješ kolo, večer podruhé), **nová výzva od hráče**, **soupeř odehrál tvoji výzvu** a **zpráva o turnaji** (nepřijat, zrušen, vypadl jsi, výsledek).
@@ -404,7 +450,8 @@ Nastavení → dole **Moje data** (jen přihlášený hráč) → **Stáhnout mo
 - `export_my_data()` vrátí jako JSON jen řádky přihlášeného hráče (`auth.uid()`): účet (id, e-mail, časy), profil, založené výzvy, výsledky,
   historii ratingu, přihlášky/zápasy/výsledky/zprávy turnajů, poslední aktivitu, přátelství a žádosti, zablokované hráče, reakce,
   vlastní nahlášení hráčů a hlášení otázek, odběry upozornění (bez klíčů) a od schématu 3 i průběh výzev (`vyzvy_prubeh`), odpovědi v zápasech turnaje
-  (`turnaje_odpovedi`) a vyplacené XP za výhry v turnaji (`turnaje_xp`).
+  (`turnaje_odpovedi`) a vyplacené XP za výhry v turnaji (`turnaje_xp`), od schématu 7 Kvíz dne (`kviz_dne`) a od schématu 8 skupiny (`skupiny`,
+  `skupiny_vyzvy`) a týdenní XP (`xp_tydny`).
 - Poslední aktivita (`player_seen`, zapisuje jen `touch_seen()`) je ve vlastní tabulce: hráč čte jen svůj řádek, přátelé ji dostanou
   přes `friends_list()` (žadatel ani oslovený u nepřijaté žádosti ne). Starší sloupec `profiles.last_seen` (četl ho kdokoli přihlášený)
   schéma při spuštění převede a odstraní.
@@ -444,4 +491,4 @@ Nastavení → dole **Moje data** (jen přihlášený hráč) → **Stáhnout mo
 1. Ukládání postupu (série, statistiky) k účtu, ať se přenáší mezi telefony.
 2. Tabulky `matches` a `match_players` s RLS a Supabase Realtime pro souboj o stejné otázky (otázka dne se už losuje
    stejně všem podle data).
-3. Žebříček přátel.
+3. Žebříček přátel (hotovo: pořadí přátel v Kvízu dne a skupiny se soukromým pořadím, schéma 8).
