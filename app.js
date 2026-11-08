@@ -61,8 +61,9 @@
     // 6 = Jak odpověděli ostatní (answer_stats_submit, answer_stats_topic, dev_suspicious_questions; se starší databází se statistiky jen neukazují);
     // 7 = Kvíz dne (daily_quiz_*; se starší databází se Kvíz dne hraje jen v zařízení, bez pořadí);
     // 8 = Skupiny (group_*, my_groups, týdenní XP; se starší databází se Skupiny jen nenabídnou);
-    // 9 = odměny v účtu (profiles.rewards: Truhla Mudrlanta, ochrana série, diplomy) a nové odznaky (se starší databází zůstanou jen v zařízení).
-    const REQUIRED_SCHEMA = 9;
+    // 9 = odměny v účtu (profiles.rewards: Truhla Mudrlanta, ochrana série, diplomy) a nové odznaky (se starší databází zůstanou jen v zařízení);
+    // 10 = Rozpis otázek (podrobnosti odpovědí výzvy a zápasu turnaje, challenge_details a tournament_details; se starší databází jen vlastní odpovědi ze zařízení).
+    const REQUIRED_SCHEMA = 10;
     const HISTORY_SIZE = 200;
     const REQUEST_TIMEOUT = 12000;
     const WIKI_TIMEOUT = 6000;
@@ -2639,13 +2640,43 @@
     const renderMapQuestion = (keepScroll) => {
         const data = current;
         const topic = TOPIC_BY_ID[data.topic];
+        const chip = scoreChip();
         appContent.innerHTML = MapQuestion.questionScreen(data, { style: styleOf(topic), categoryIcon: categoryOf(topic, data.category).icon, typed: round.variant === 'typed',
+            extraTop: chip, labelClass: chip ? HEADER_LABEL_ROOM : '',
             guess: round.mapGuess, fresh: !keepScroll, report: canReport() && mode !== 'challenge' ? REPORT_ICON_BUTTON : '' });
         renderIcons(appContent);
         clearInterval(tourTimer);
         if (!keepScroll) appContent.scrollTo(0, 0);
         MapQuestion.mountQuestion(appContent, data, { guess: round.mapGuess || null, loadMap: loadMapData, onConfirm: () => ACTIONS['map-confirm'](),
             onPlace: (guess) => { if (current === data && round && !round.answered) { round.mapGuess = guess; persistState(); } } });
+    };
+    // --- Body ve hře: čip v záhlaví otázky (výzva, zápas turnaje, Kvíz dne a trénink) a součet ve výsledku otázky ---
+    // Výzva a turnaj sčítají uložené odpovědi, Kvíz dne svůj pokus, trénink body od chvíle, kdy hráč začal hrát tohle téma (mix, okruh, chyby).
+    let practiceRun = { key: '', points: 0 };
+    const practiceKey = () => `${pool.kind}:${pool.topic || ''}:${pool.collection || ''}`;
+    const runningScore = () => {
+        if (mode === 'challenge' && challenge) return (challenge.results || []).reduce((sum, row) => sum + (row && row.points > 0 ? row.points : 0), 0);
+        if (mode === 'quiz' && quiz && DailyQuiz) return Math.max(DailyQuiz.summarize(quiz.results).score, quiz.server ? quiz.server.score || 0 : 0);
+        if (mode === 'practice') return practiceRun.key === practiceKey() ? practiceRun.points : 0;
+        return null;
+    };
+    const recordPracticeRun = () => {
+        const key = practiceKey();
+        if (practiceRun.key !== key) practiceRun = { key, points: 0 };
+        practiceRun.points += round.points;
+    };
+    // Čip vlevo nahoře (vpravo bývá čas zápasu); štítek druhu otázky mezi nimi se zúží a případně zkrátí, ať se záhlaví nezalomí
+    const SCORE_CHIP = 'absolute left-0 top-0 inline-flex items-center gap-1 rounded-lg bg-gold-100 px-2 py-0.5 text-xs font-black tabular-nums text-gold-800 dark:bg-gold-900/50 dark:text-gold-200';
+    const HEADER_LABEL_ROOM = 'max-w-[calc(100%-8.5rem)]';
+    const scoreChip = () => {
+        const total = runningScore();
+        if (total === null) return '';
+        return `<span data-score-chip class="${SCORE_CHIP}" title="Body v této hře" aria-label="Body v této hře: ${total}"><i data-lucide="star" class="h-3.5 w-3.5"></i>${total} b</span>`;
+    };
+    // Řádek „Celkem: 16 bodů“ do výsledku otázky (jen tam, kde je čip)
+    const scoreTotalLine = (tone) => {
+        const total = runningScore();
+        return total === null ? '' : `<p data-score-total class="text-sm font-bold ${tone}">Celkem ve hře: ${escapeHtml(formatPoints(total))}</p>`;
     };
     const renderQuestion = (keepScroll) => {
         if (isNumeric(current)) return renderNumeric(keepScroll);
@@ -2665,13 +2696,16 @@
                 ${renderAnswerInput(data)}
             </section>`;
 
+        const chip = scoreChip();
+        const timed = (mode === 'challenge' && challenge && challenge.tournament) || mode === 'quiz';
         // Při psaní je pole nahoře: otevřená klávesnice by ho jinak zakryla
         appContent.innerHTML = `
             <div class="${keepScroll ? '' : 'fade-in '}flex min-h-full w-full flex-col gap-2.5 bg-slate-50 p-3 pb-3 dark:bg-slate-900">
                 <div class="relative flex flex-col items-center gap-1 text-center">
-                    ${(mode === 'challenge' && challenge && challenge.tournament) || mode === 'quiz' ? `<span class="absolute right-0 top-0 inline-flex items-center gap-1 rounded-lg bg-slate-200 px-2 py-0.5 text-xs font-black tabular-nums text-slate-700 dark:bg-slate-700 dark:text-slate-100" title="Čas na tuto otázku: při shodě rozhoduje rychlejší hráč"><i data-lucide="timer" class="h-3.5 w-3.5"></i><span data-tour-timer>0:00</span></span>` : ''}
-                    <span class="inline-flex items-center gap-1.5 rounded-lg border px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest text-white shadow-sm ${style.solid}">
-                        <i data-lucide="${category.icon}" class="h-3 w-3"></i> ${escapeHtml(data.typeLabel)}
+                    ${chip}
+                    ${timed ? `<span class="absolute right-0 top-0 inline-flex items-center gap-1 rounded-lg bg-slate-200 px-2 py-0.5 text-xs font-black tabular-nums text-slate-700 dark:bg-slate-700 dark:text-slate-100" title="Čas na tuto otázku: při shodě rozhoduje rychlejší hráč"><i data-lucide="timer" class="h-3.5 w-3.5"></i><span data-tour-timer>0:00</span></span>` : ''}
+                    <span class="inline-flex ${chip || timed ? HEADER_LABEL_ROOM : 'max-w-full'} items-center gap-1.5 rounded-lg border px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest text-white shadow-sm ${style.solid}">
+                        <i data-lucide="${category.icon}" class="h-3 w-3 shrink-0"></i> <span class="truncate">${escapeHtml(data.typeLabel)}</span>
                     </span>
                     <h2 class="text-[22px] font-black leading-tight tracking-tight text-slate-800 dark:text-slate-50">${escapeHtml(data.question.title)}</h2>
                 </div>
@@ -2829,7 +2863,7 @@
         ? `<div class="mt-0.5 text-xs font-bold ${tone}">${xp.total ? `<span class="inline-block rounded-md bg-gold-500 px-1.5 py-0.5 font-black text-brand-950">+${xp.total} XP</span>` : ''}${(xp.badges || []).map(title => `<span class="ml-1 inline-flex items-center gap-1 rounded-md bg-brand-700 px-1.5 py-0.5 font-black text-white"><i data-lucide="award" class="h-3 w-3"></i>${escapeHtml(title)}</span>`).join('')}${xp.parts.length ? `<ul class="mt-1 space-y-0.5 font-semibold opacity-90">${xp.parts.map(part => `<li>+${part.xp} XP ${escapeHtml(part.label)}</li>`).join('')}</ul>` : ''}</div>` : '';
 
     const renderResultBanner = (data) => {
-        if (data.question.type === 'map' && MapQuestion) return MapQuestion.resultBanner(data, round, { uiArt, xpLine });
+        if (data.question.type === 'map' && MapQuestion) return MapQuestion.resultBanner(data, round, { uiArt, xpLine, totalLine: scoreTotalLine });
         // Kolik nápověd hráč použil z kolika, které otázka měla
         const levels = `${round.hintLevel - 1}/${data.hints.length}`;
         if (round.correct) {
@@ -2839,6 +2873,7 @@
                     <div>
                         <p class="font-black text-emerald-800 dark:text-emerald-200">Správně! +${formatPoints(round.points)}</p>
                         <p class="text-sm text-emerald-800 dark:text-emerald-300">${round.typed ? 'Napsaná odpověď' : 'Výběr z možností'}${data.hints.length ? ` · nápovědy ${levels}` : ''}</p>
+                        ${scoreTotalLine('text-emerald-800 dark:text-emerald-300')}
                         ${answerStatsLine(data, 'text-emerald-800 dark:text-emerald-300')}
                         ${xpLine(round.xp, 'text-emerald-800 dark:text-emerald-300')}
                     </div>
@@ -2850,6 +2885,7 @@
                 <div>
                     <p class="font-black text-rose-800 dark:text-rose-200">${round.gaveUp ? 'Tentokrát bez odpovědi' : 'Bohužel, to není ono'}</p>
                     <p class="text-sm text-rose-800 dark:text-rose-300">${round.answer ? `Tvoje odpověď: ${escapeHtml(round.answer)} · ` : ''}Správně: ${escapeHtml(data.question.answerLabel)}</p>
+                    ${scoreTotalLine('text-rose-800 dark:text-rose-300')}
                     ${answerStatsLine(data, 'text-rose-800 dark:text-rose-300')}
                     ${xpLine(round.xp, 'text-rose-800 dark:text-rose-300')}
                     ${round.answerRef ? `
@@ -3096,7 +3132,9 @@
         style: styleOf(TOPIC_BY_ID[data.topic]), card: CARD, cardTitle: CARD_TITLE, art: uiArt, xpLine, variant: round.variant, wikiUrl: wikipediaUrl,
         statsCard: mode === 'challenge' ? '' : renderStatsCard(data), reportIcon: canReport() && mode !== 'challenge' ? REPORT_ICON_BUTTON : '',
         reportText: canReport() ? REPORT_TEXT_BUTTON : '', nextLabel: round.answered ? getNextLabel() : '',
-        timer: Boolean(mode === 'challenge' && challenge && challenge.tournament && !round.answered)
+        timer: Boolean(mode === 'challenge' && challenge && challenge.tournament && !round.answered),
+        // Body ve hře: čip v záhlaví otázky (ve výsledku číselné otázky součet není, pořadí musí zůstat na očích)
+        score: round.answered ? '' : scoreChip(), labelRoom: HEADER_LABEL_ROOM
     });
     const renderNumeric = (keepScroll) => {
         const data = current;
@@ -3193,7 +3231,14 @@
     // Odpovědi ze serveru platí: přepíšou místní na stejných místech, místní za nimi zůstanou (dopošlou se)
     const mergeAnswers = (c, rows) => {
         if (!Array.isArray(c.results)) c.results = [];
-        rows.forEach((row, index) => { c.results[index] = { correct: row.correct, points: row.points }; });
+        // Podrobnosti (Rozpis otázek) ze serveru, a když je server nemá (starší databáze), ze zařízení
+        rows.forEach((row, index) => {
+            // místní podrobnosti jen ke stejné odpovědi (na jiném zařízení mohla být na tuhle otázku jiná)
+            const before = c.results[index];
+            const local = before && before.correct === row.correct && before.points === row.points ? before : {};
+            const pick = (key) => (row[key] !== undefined && row[key] !== null ? row[key] : local[key] !== undefined ? local[key] : null);
+            c.results[index] = { correct: row.correct, points: row.points, answer: pick('answer'), hints: pick('hints'), ms: pick('ms') };
+        });
         c.synced = rows.length;
         return c;
     };
@@ -3816,6 +3861,18 @@
         syncProgress();
     };
 
+    // Podrobnosti odpovědi do Rozpisu otázek: text odpovědi (zvolená možnost, napsaný text, u mapy a čísel krátké shrnutí; „Nevím“ = vzdal),
+    // počet použitých nápověd (0–4) a čas od ukázání otázky (nejvýš hodina)
+    const ANSWER_LABEL_MAX = 120;
+    const answerDetails = () => {
+        const text = round.gaveUp ? 'Nevím' : String(round.answer || '').replace(/\s+/g, ' ').trim();
+        const since = round.shownAt || round.timerStart;
+        return {
+            answer: text ? (text.length > ANSWER_LABEL_MAX ? `${text.slice(0, ANSWER_LABEL_MAX - 1)}…` : text) : null,
+            hints: Math.max(0, Math.min(4, (round.hintLevel || 1) - 1)),
+            ms: Number.isFinite(since) ? Math.max(0, Math.min(3600000, Date.now() - since)) : null
+        };
+    };
     const recordResult = () => {
         const stats = loadStats();
         if (mode === 'daily' && current.dailyDate) {
@@ -3830,7 +3887,8 @@
             stats.daily[current.topic] = topicDaily;
         } else if (mode === 'challenge' && challenge) {
             // Výzva se do běžných statistik nepočítá, jen do svého výsledku. Odpověď, kterou už server má (zodpovězená na jiném zařízení), platí ze serveru.
-            if (!(knownSynced(challenge) > challenge.index)) challenge.results[challenge.index] = { correct: round.correct, points: round.points };
+            // S odpovědí i podrobnosti do Rozpisu otázek (schéma 10): co hráč odpověděl, kolik použil nápověd a jak dlouho otázku měl
+            if (!(knownSynced(challenge) > challenge.index)) challenge.results[challenge.index] = { correct: round.correct, points: round.points, ...answerDetails() };
         } else if (mode === 'quiz') {
             // Kvíz dne má svůj výsledek (daily-quiz.js), do statistik tréninku se nepočítá
             quizRecord();
@@ -3838,6 +3896,7 @@
             stats.practice.played += 1;
             stats.practice.correct += round.correct ? 1 : 0;
             stats.practice.points += round.points;
+            recordPracticeRun();
         }
         writeJson(KEYS.stats, stats);
         // Číselná otázka se ptá na čísla, ne na položku: do chyb, opakování ani poznaných položek nejde
@@ -4002,6 +4061,8 @@
             const { dailyDate } = picked;
             current = dailyDate ? { ...data, dailyDate } : data;
             round = createRound();
+            // Čas otázky do Rozpisu otázek se měří od jejího ukázání (uloží se s kolem, po obnovení stránky běží dál)
+            round.shownAt = Date.now();
             // Výzva má pevný způsob odpovídání pro všechny hráče
             if (mode === 'challenge' && challenge && challenge.variant) round.variant = challenge.variant;
             // Kvíz dne: výběr z možností, čas a nápovědy jako před zavřením aplikace
@@ -6744,11 +6805,13 @@
                 ${def.invited ? `<p class="flex items-center gap-2 text-sm font-semibold text-slate-600 dark:text-slate-300">Vyzvaný hráč: ${avatarHtml(def.invited, 'h-6 w-6 text-sm')} <b>${escapeHtml(def.invited.id === user.id ? 'ty' : playerName(def.invited))}</b></p>` : ''}
                 ${results.length ? `<ol class="flex flex-col gap-1.5">${rankingRows(results, def.count, user.id)}</ol>` : '<p class="text-sm text-slate-500 dark:text-slate-400">Zatím nikdo nehrál.</p>'}
                 ${myChange ? `<p class="text-sm font-bold text-slate-600 dark:text-slate-300">Tvůj rating: <b class="${myChange.delta > 0 ? 'text-emerald-700 dark:text-emerald-400' : myChange.delta < 0 ? 'text-rose-700 dark:text-rose-400' : ''}">${Rating.formatDelta(myChange.delta)}</b> (${myChange.after})</p>` : ''}
+                ${mine && results.some(row => row.user_id !== user.id) ? `<button type="button" data-ch-breakdown class="${SECONDARY_BUTTON}"><i data-lucide="list-ordered" class="h-5 w-5"></i> Rozpis otázek</button>` : ''}
                 ${mine ? '' : `<button type="button" data-ch-play class="${PRIMARY_BUTTON}"><i data-lucide="play" class="h-5 w-5"></i> ${resumable ? resumeLabel(resumable) : 'Hrát výzvu'}</button>`}
                 <button type="button" data-ch-share class="${SECONDARY_BUTTON}"><i data-lucide="share-2" class="h-5 w-5"></i> Sdílet výzvu · ${code}</button>
             </div>`, {
             onClick: (event) => {
                 if (event.target.closest('[data-ch-share]')) shareChallenge(code, text);
+                if (event.target.closest('[data-ch-breakdown]')) openChallengeBreakdown({ ...def, code }, results);
                 if (event.target.closest('[data-ch-play]')) {
                     closeDialog();
                     // Tahle výzva je už rozehraná: pokračuje se od další otázky (ne znovu od první)
@@ -6768,6 +6831,51 @@
         // Kolik odpovědí má server (průběh, schéma 3); právě založená výzva žádné, jinak -1 = neví se (před prvním uložením se načte)
         synced: def.fresh ? 0 : knownSynced(def)
     });
+    // Výběr otázek výzvy (i zápasu turnaje): stejná otázka pro všechny, položku určuje semínko výzvy a pořadí; u jednoho tématu se dřívější
+    // otázky nezopakují. Stejná položka bývá ve dvou tématech (stavba v Architektuře i Zeměpisu): v Mixu a turnaji se nezopakuje ani napříč tématy.
+    // step(semínko) vybere otázku daného semínka (s remember = true si její položky zapamatuje jako použité); earlierSeeds(index) = semínka otázek
+    // před otázkou index (u turnaje i všech dřívějších kol). Hra i Rozpis otázek procházejí semínka ve stejném pořadí, takže vyjdou stejné otázky.
+    const challengePicker = (c) => {
+        const usedIds = new Set();
+        const offered = (candidate) => (c.hard || candidate.k === 1) && (!c.categories.length || c.categories.includes(candidate.c));
+        const pickFor = (ctx, rng, history) => {
+            const all = ctx.items.filter(offered);
+            const unused = all.filter(candidate => !usedIds.has(candidate.q));
+            const pool = unused.length ? unused : all;
+            const keys = ctx.topic.categories.map(category => category.key).filter(key => !c.categories.length || c.categories.includes(key));
+            return pickItem(pool.length ? pool : ctx.items.filter(candidate => candidate.k === 1), rng, history, keys);
+        };
+        // Číselná otázka (Seřaď, Odhadni číslo): vlastní řada náhodných čísel ze semínka otázky (výběr položky se nemění)
+        // a jen položky, které výzva nabízí a které v ní ještě nebyly; všichni hráči tak dostanou stejnou
+        const challengeNumeric = (ctx, item, seedText) => numericPlan(ctx, item, ctx.items.filter(candidate => offered(candidate) && !usedIds.has(candidate.q)), createSeededRandom(`${seedText}:cisla`));
+        const ids = challengeTopicIds(c.topic);
+        const histories = new Map();
+        const historyOf = (topicId) => { if (!histories.has(topicId)) histories.set(topicId, []); return histories.get(topicId); };
+        const step = async (seedText, remember = true) => {
+            const rng = createSeededRandom(seedText);
+            const topicId = ids.length > 1 ? pickRandom(ids, rng) : ids[0];
+            const ctx = await loadTopic(topicId);
+            const item = pickFor(ctx, rng, historyOf(topicId));
+            // Číselná otázka dřívějšího pořadí (stejné semínko, stejný plán): ani její položky se nezopakují
+            const numeric = challengeNumeric(ctx, item, seedText);
+            if (remember) {
+                if (item) { historyOf(topicId).push(item.q); usedIds.add(item.q); }
+                if (numeric) numeric.ids.forEach(id => usedIds.add(id));
+            }
+            return { item, ctx, rng, numeric };
+        };
+        // Turnaj: otázky se nesmí zopakovat ani v dřívějších kolech (každé kolo má semínko `<turnaj>-r<kolo>`)
+        const earlierSeeds = (index) => {
+            const seeds = [];
+            const tour = c.tournament;
+            if (tour && tour.seedBase && tour.round > 1) {
+                for (let tourRound = 1; tourRound < tour.round; tourRound++) for (let before = 0; before < c.count; before++) seeds.push(`${tour.seedBase}-r${tourRound}:${before}`);
+            }
+            for (let before = 0; before < index; before++) seeds.push(`${c.seed}:${before}`);
+            return seeds;
+        };
+        return { step, earlierSeeds };
+    };
     // Průběh výzvy: otázky z pevného semínka, stejné pro všechny; bez běžných statistik a řad
     const startChallenge = (def, index = 0, results = []) => {
         if (isLoading) return;
@@ -6783,46 +6891,10 @@
         mode = 'challenge';
         closeDialog();
         runRound(async () => {
-            // Stejná otázka pro všechny: položku určuje semínko výzvy a pořadí; u jednoho tématu se dřívější otázky nezopakují
-            // Stejná položka bývá ve dvou tématech (stavba v Architektuře i Zeměpisu): v Mixu a turnaji se nezopakuje ani napříč tématy
-            const usedIds = new Set();
-            const pickFor = (ctx, rng, history) => {
-                const all = ctx.items.filter(candidate => (challenge.hard || candidate.k === 1) && (!challenge.categories.length || challenge.categories.includes(candidate.c)));
-                const unused = all.filter(candidate => !usedIds.has(candidate.q));
-                const pool = unused.length ? unused : all;
-                const keys = ctx.topic.categories.map(c => c.key).filter(key => !challenge.categories.length || challenge.categories.includes(key));
-                return pickItem(pool.length ? pool : ctx.items.filter(candidate => candidate.k === 1), rng, history, keys);
-            };
-            // Číselná otázka (Seřaď, Odhadni číslo): vlastní řada náhodných čísel ze semínka otázky (výběr položky se nemění)
-            // a jen položky, které výzva nabízí a které v ní ještě nebyly; všichni hráči tak dostanou stejnou
-            const challengeNumeric = (ctx, item, seedText) => numericPlan(ctx, item, ctx.items.filter(candidate => (challenge.hard || candidate.k === 1)
-                && (!challenge.categories.length || challenge.categories.includes(candidate.c)) && !usedIds.has(candidate.q)), createSeededRandom(`${seedText}:cisla`));
-            const ids = challengeTopicIds(challenge.topic);
             // Dřívější otázky se přehrají se stejným semínkem (i u Mixu a turnaje, kde se téma losuje), takže se žádná položka v rámci výzvy nezopakuje
-            const histories = new Map();
-            const historyOf = (topicId) => { if (!histories.has(topicId)) histories.set(topicId, []); return histories.get(topicId); };
-            // Turnaj: otázky se nesmí zopakovat ani v dřívějších kolech (každé kolo má semínko `<turnaj>-r<kolo>`)
-            const earlierSeeds = [];
-            const tour = challenge.tournament;
-            if (tour && tour.seedBase && tour.round > 1) {
-                for (let round = 1; round < tour.round; round++) for (let before = 0; before < challenge.count; before++) earlierSeeds.push(`${tour.seedBase}-r${round}:${before}`);
-            }
-            for (let before = 0; before < index; before++) earlierSeeds.push(`${challenge.seed}:${before}`);
-            for (const earlierSeed of earlierSeeds) {
-                const earlierRng = createSeededRandom(earlierSeed);
-                const earlierTopic = ids.length > 1 ? pickRandom(ids, earlierRng) : ids[0];
-                const earlierCtx = await loadTopic(earlierTopic);
-                const earlier = pickFor(earlierCtx, earlierRng, historyOf(earlierTopic));
-                // Číselná otázka dřívějšího pořadí (stejné semínko, stejný plán): ani její položky se nezopakují
-                const earlierNumeric = challengeNumeric(earlierCtx, earlier, earlierSeed);
-                if (earlier) { historyOf(earlierTopic).push(earlier.q); usedIds.add(earlier.q); }
-                if (earlierNumeric) earlierNumeric.ids.forEach(id => usedIds.add(id));
-            }
-            const rng = createSeededRandom(`${challenge.seed}:${index}`);
-            const topicId = ids.length > 1 ? pickRandom(ids, rng) : ids[0];
-            const ctx = await loadTopic(topicId);
-            const item = pickFor(ctx, rng, historyOf(topicId));
-            return { item, ctx, rng, numeric: challengeNumeric(ctx, item, `${challenge.seed}:${index}`) };
+            const picker = challengePicker(challenge);
+            for (const earlierSeed of picker.earlierSeeds(index)) await picker.step(earlierSeed);
+            return picker.step(`${challenge.seed}:${index}`, false);
         }, challengeTopicIds(challenge.topic).length === 1 ? TOPIC_BY_ID[challengeTopicIds(challenge.topic)[0]] : MIX);
     };
 
@@ -6881,6 +6953,7 @@
                 </div>
                 ${body}
                 ${invitedWaiting ? `<p data-invited-note class="text-center text-sm font-semibold leading-relaxed text-slate-600 dark:text-slate-300"><span class="inline-flex max-w-full items-center gap-1.5 align-middle">${avatarHtml(c.invited, 'h-6 w-6 text-sm')}<b class="truncate">${escapeHtml(playerName(c.invited))}</b></span> uvidí výzvu na úvodní stránce.</p>` : ''}
+                ${state === 'ok' && rivals.length ? `<button type="button" data-action="challenge-breakdown" class="${SECONDARY_BUTTON}"><i data-lucide="list-ordered" class="h-5 w-5"></i> Rozpis otázek</button>` : ''}
                 <button type="button" data-action="challenge-share" data-code="${escapeHtml(c.code)}" data-text="Zahrál jsem výzvu v Mudrlantu: ${correct}/${c.count}. Zvládneš to líp?" class="${SECONDARY_BUTTON}"><i data-lucide="share-2" class="h-5 w-5"></i> Sdílet výzvu · ${escapeHtml(c.code)}</button>
                 ${outcome === 'vyhra' && ShareCard ? `<button type="button" data-action="challenge-share-image" class="${SECONDARY_BUTTON}"><i data-lucide="image" class="h-5 w-5"></i> Sdílet obrázek</button>` : ''}
                 <button type="button" data-action="challenge-home" class="${PRIMARY_BUTTON}">Zpět domů</button>
@@ -6893,6 +6966,176 @@
         // Dohraná výzva, na jejíhož soupeře se čeká (i právě založená): nabídka upozornění, ať se hráč dozví, až soupeř dohraje
         if (state === 'ok' && results && (!rivals.length || invitedWaiting)) schedulePushOffer('challenge');
     };
+
+    // --- Rozpis otázek po výzvě a zápasu turnaje (schéma 10): otázka po otázce, co který hráč odpověděl, s body, nápovědami a časem ---
+    // Otázky se znovu vyberou ze semínka (challengePicker, stejně jako ve hře), odpovědi hráčů vrátí server (challenge_details, tournament_details),
+    // a to jen tomu, kdo sám dohrál, a cizí až po dohrání soupeře (nebo po vypršení). Starší odpovědi podrobnosti nemají: ukáže se, co je.
+    const BREAKDOWN_TITLE = 'Rozpis otázek';
+    const breakdownQuestions = new Map();
+    // Otázka do rozpisu: zadání, u otázky „ve kterém státě“ i místo, správná odpověď a položka pro okno s popisem
+    const describeChallengeQuestion = ({ item, ctx, rng, numeric }) => {
+        if (!item || !ctx) return null;
+        const built = numeric && Numeric ? Numeric.buildRound(numeric, ctx) : null;
+        if (built) return { topic: ctx.topic.id, id: built.id, title: built.question.title, subject: built.numeric.kind === 'estimate' ? built.name : '', answer: built.question.answerLabel };
+        // Stejné pořadí losování jako createRoundData (výzva nemá otázku na mapě, ta rng nebere)
+        const special = ctx.topic.specialQuestion ? ctx.topic.specialQuestion(item, ctx, rng) : null;
+        const category = categoryOf(ctx.topic, item.c);
+        return {
+            topic: ctx.topic.id, id: item.q, title: special ? special.title : (category.question || ctx.topic.words.question),
+            subject: special && special.showName ? item.n : '', answer: special ? special.answerLabel : item.n
+        };
+    };
+    const challengeQuestionList = (def) => {
+        const c = { ...def, hard: Boolean(def.hard), categories: Array.isArray(def.categories) ? def.categories : [] };
+        const tour = c.tournament;
+        const key = [c.topic, c.seed, c.count, c.hard ? 1 : 0, c.categories.join(','), tour ? `${tour.seedBase}:${tour.round}` : ''].join('|');
+        if (!breakdownQuestions.has(key)) {
+            const promise = (async () => {
+                const picker = challengePicker(c);
+                for (const seed of picker.earlierSeeds(0)) await picker.step(seed);
+                const list = [];
+                for (let index = 0; index < c.count; index++) {
+                    const step = await picker.step(`${c.seed}:${index}`);
+                    let question = null;
+                    try { question = describeChallengeQuestion(step); } catch (error) { console.error(error); }
+                    list.push(question);
+                }
+                return list;
+            })();
+            breakdownQuestions.set(key, promise);
+            promise.catch(() => breakdownQuestions.delete(key));
+        }
+        return breakdownQuestions.get(key);
+    };
+    const hasDetails = (row) => Boolean(row) && (row.answer !== null && row.answer !== undefined || Number.isInteger(row.hints) || Number.isInteger(row.ms));
+    const breakdownCell = (row, who) => {
+        if (!row) {
+            return `<div data-bd-cell="none" class="min-w-0 rounded-xl bg-slate-100 px-2 py-1 text-slate-500 dark:bg-slate-700/60 dark:text-slate-400"><p class="text-[12.5px] font-bold"><span class="sr-only">${escapeHtml(who)}: </span>bez odpovědi</p></div>`;
+        }
+        const tone = row.correct ? 'bg-emerald-50 text-emerald-900 dark:bg-emerald-900/30 dark:text-emerald-100' : 'bg-rose-50 text-rose-900 dark:bg-rose-900/30 dark:text-rose-100';
+        const text = row.answer || (row.correct ? 'Správně' : 'Špatně');
+        const facts = [`<span>${escapeHtml(`${row.points} b`)}</span>`];
+        if (Number.isInteger(row.hints)) facts.push(`<span class="inline-flex items-center gap-0.5" title="Použité nápovědy"><i data-lucide="lightbulb" class="h-3 w-3"></i>${row.hints}<span class="sr-only"> nápověd</span></span>`);
+        if (Number.isInteger(row.ms)) facts.push(`<span class="inline-flex items-center gap-0.5" title="Čas na otázku"><i data-lucide="timer" class="h-3 w-3"></i>${escapeHtml(formatQuestionTime(row.ms))}</span>`);
+        return `<div data-bd-cell="${row.correct ? 'ok' : 'bad'}" class="min-w-0 rounded-xl px-2 py-1 ${tone}">
+                <p class="flex items-center gap-1 text-[12.5px] font-bold leading-tight"><span class="sr-only">${escapeHtml(who)}: </span><i data-lucide="${row.correct ? 'check' : 'x'}" class="h-3.5 w-3.5 shrink-0"></i><span class="line-clamp-2 break-words">${escapeHtml(text)}</span><span class="sr-only">${row.correct ? ' (správně)' : ' (špatně)'}</span></p>
+                <p class="mt-0.5 flex flex-wrap items-center gap-x-2 text-[10.5px] font-semibold tabular-nums opacity-80">${facts.join('')}</p>
+            </div>`;
+    };
+    const breakdownHead = (entry, label) => `
+        <div class="flex min-w-0 items-center gap-1.5">
+            ${avatarHtml(entry.player, 'h-7 w-7 text-sm')}
+            <span class="min-w-0"><span class="block truncate text-[12.5px] font-black text-slate-800 dark:text-slate-100">${escapeHtml(label)}</span>
+            <span class="block text-[10.5px] font-semibold tabular-nums text-slate-500 dark:text-slate-400">${entry.correct === null ? '' : `${entry.correct}/${entry.count} · ${entry.points} b`}</span></span>
+        </div>`;
+    // state: { def, players: [{ user_id, player, correct, points }], meId, rivalId, questions, answers ({ [userId]: [...] } | null), local, error }
+    const renderBreakdown = (state) => {
+        const { def, meId } = state;
+        const me = state.players.find(row => row.user_id === meId) || { user_id: meId, player: null, correct: null, points: null };
+        const rivals = state.players.filter(row => row.user_id !== meId);
+        const rival = rivals.find(row => row.user_id === state.rivalId) || rivals[0] || null;
+        const count = def.count;
+        const mineRows = (state.answers && state.answers[meId]) || state.local || [];
+        const rivalRows = rival && state.answers ? state.answers[rival.user_id] || [] : [];
+        const notes = [];
+        if (!state.answers) notes.push('Soupeřovy odpovědi po otázkách teď databáze neposílá (je potřeba aktualizovat schéma). Vidíš jen své odpovědi z tohoto zařízení.');
+        else if (rival && !rivalRows.some(Boolean)) notes.push('Soupeřovy odpovědi po otázkách se u téhle hry neuložily.');
+        const shown = [...mineRows, ...rivalRows].filter(Boolean);
+        if (shown.some(row => !hasDetails(row))) notes.push('U starších odpovědí se ukládalo jen, jestli byly správně, a body (bez textu odpovědi, nápověd a času).');
+        if (!state.questions) notes.push('Zadání otázek se teď nepodařilo načíst.');
+        const rows = Array.from({ length: count }, (_, index) => {
+            const question = state.questions ? state.questions[index] : null;
+            const head = `<span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-[11px] font-black text-slate-600 dark:bg-slate-700 dark:text-slate-200">${index + 1}</span>
+                <span class="min-w-0 flex-1">
+                    <span class="block truncate text-[11px] font-semibold text-slate-500 dark:text-slate-400">${escapeHtml(question ? `${question.title}${question.subject ? ` · ${question.subject}` : ''}` : `Otázka ${index + 1}`)}</span>
+                    ${question ? `<span class="line-clamp-2 break-words text-[13px] font-black leading-tight text-slate-800 dark:text-slate-100">${escapeHtml(question.answer)}</span>` : ''}
+                </span>`;
+            return `<li data-bd-row="${index}" class="rounded-2xl bg-white p-2 shadow-sm dark:bg-slate-800">
+                ${question && isKnownRef(question) ? `<button type="button" data-bd-info data-topic="${escapeHtml(question.topic)}" data-id="${escapeHtml(question.id)}" class="flex w-full items-start gap-2 rounded-xl text-left" aria-label="${escapeHtml(`Otázka ${index + 1}: ${question.answer} – popis`)}">${head}<i data-lucide="info" class="mt-0.5 h-4 w-4 shrink-0 text-slate-400 dark:text-slate-500"></i></button>`
+                    : `<div class="flex items-start gap-2">${head}</div>`}
+                <div class="mt-1.5 grid grid-cols-2 gap-1.5">${breakdownCell(mineRows[index] || null, 'Ty')}${rival ? breakdownCell(rivalRows[index] || null, playerName(rival.player)) : ''}</div>
+            </li>`;
+        }).join('');
+        const picker = rivals.length > 1 ? `<div role="group" aria-label="Porovnat s hráčem" class="flex gap-1.5 overflow-x-auto pb-1">${rivals.slice(0, 20).map(row => `<button type="button" data-bd-rival="${escapeHtml(row.user_id)}" aria-pressed="${rival && row.user_id === rival.user_id}" class="flex shrink-0 items-center gap-1.5 rounded-full px-2 py-1 text-[12px] font-bold ${rival && row.user_id === rival.user_id ? 'bg-brand-700 text-white' : 'bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-200'}">${avatarHtml(row.player, 'h-5 w-5 text-[11px]')}<span class="max-w-[7rem] truncate">${escapeHtml(playerName(row.player))}</span></button>`).join('')}</div>` : '';
+        return `<div class="flex flex-col gap-2">
+                ${picker}
+                <div class="sticky -top-5 z-10 -mx-1 grid grid-cols-2 gap-1.5 bg-slate-50 px-1 py-1.5 dark:bg-slate-900">
+                    ${breakdownHead({ ...me, count }, 'Ty')}
+                    ${rival ? breakdownHead({ ...rival, count }, playerName(rival.player)) : ''}
+                </div>
+                <ol id="breakdown-list" class="flex flex-col gap-1.5">${rows}</ol>
+                ${notes.map(note => `<p data-bd-note class="text-xs font-semibold leading-snug text-slate-500 dark:text-slate-400">${escapeHtml(note)}</p>`).join('')}
+                <p class="text-[11px] leading-snug text-slate-500 dark:text-slate-400">Klepnutím na otázku se ukáže popis odpovědi.</p>
+            </div>`;
+    };
+    let breakdownToken = 0;
+    // players: výsledky hráčů (user_id, player, correct, points); load: odpovědi ze serveru; local: moje odpovědi z tohoto zařízení
+    const openBreakdown = async ({ def, players, load, local = null }) => {
+        const user = signedUser();
+        if (!user || !Social) return;
+        const token = ++breakdownToken;
+        const stillOpen = () => { const overlay = document.getElementById('dialog-overlay'); return token === breakdownToken && Boolean(overlay && overlay.dataset.title === BREAKDOWN_TITLE); };
+        showDialog(BREAKDOWN_TITLE, '<p class="py-6 text-center text-sm font-semibold text-slate-500 dark:text-slate-400">Načítám rozpis…</p>');
+        const [answers, questions] = await Promise.all([
+            Promise.resolve().then(load).then(value => ({ value }), error => ({ error })),
+            challengeQuestionList(def).catch(error => { console.error(error); return null; })
+        ]);
+        if (!stillOpen()) return;
+        if (answers.error) {
+            const denied = answers.error.status === 403 || answers.error.status === 401;
+            showDialog(BREAKDOWN_TITLE, DIALOG_NOTE(denied ? 'Rozpis otázek uvidíš, až hru dohraješ ty i soupeř.' : 'Rozpis se nepodařilo načíst. Zkontroluj připojení a zkus to znovu.'));
+            return;
+        }
+        const ranked = players.map(row => ({ user_id: row.user_id, player: row.player || null, correct: Number.isInteger(row.correct) ? row.correct : null, points: Number.isInteger(row.points) ? row.points : null }));
+        const state = { def, players: ranked, meId: user.id, rivalId: null, questions, answers: answers.value, local: Array.isArray(local) ? local : null };
+        // Výchozí soupeř: ten, kdo má odpovědi (u výzvy pro víc hráčů první v pořadí)
+        const withRows = ranked.filter(row => row.user_id !== user.id && state.answers && state.answers[row.user_id]);
+        state.rivalId = (withRows[0] || ranked.find(row => row.user_id !== user.id) || {}).user_id || null;
+        const draw = () => showDialog(BREAKDOWN_TITLE, renderBreakdown(state), {
+            onClick: (event) => {
+                const info = event.target.closest('[data-bd-info]');
+                if (info) { openItemInfo(info.dataset.topic, info.dataset.id); return; }
+                const pick = event.target.closest('[data-bd-rival]');
+                if (pick) { state.rivalId = pick.dataset.bdRival; draw(); }
+            }
+        });
+        draw();
+    };
+    // Rozpis výzvy (z výsledku výzvy i z okna výzvy): moje odpovědi z tohoto zařízení, když je databáze nemá
+    const openChallengeBreakdown = (def, results) => {
+        const code = def.code || def.id;
+        const user = signedUser();
+        const local = challenge && !challenge.tournament && challenge.code === code && (!challenge.owner || !user || challenge.owner === user.id) ? challenge.results : null;
+        openBreakdown({
+            def: { topic: def.topic, seed: def.seed, count: def.count, hard: Boolean(def.hard ?? def.include_hard), categories: def.categories || [], tournament: null },
+            players: results || [], load: () => Social.challengeDetails(code, def.count), local
+        });
+    };
+    // Rozpis zápasu turnaje: otázky ze semínka turnaje a kola (stejně jako tournamentChallengeDef)
+    const openTournamentBreakdown = (tid, mid) => {
+        const view = findTournament(tid);
+        const match = view && view.matches.find(item => item.id === mid);
+        if (!view || !match || !Tournament) return;
+        const entries = new Map(view.entries.map(entry => [entry.user_id, entry]));
+        const players = [match.p1, match.p2].map(userId => {
+            const result = match.results.find(item => item.user_id === userId && item.finished_at);
+            return { user_id: userId, player: (entries.get(userId) || {}).player || null, correct: result ? result.correct : null, points: result ? result.points : null };
+        });
+        const local = challenge && challenge.tournament && challenge.tournament.mid === mid ? challenge.results : null;
+        openBreakdown({
+            def: { topic: view.tournament.topic, seed: `${view.tournament.seed}-r${match.round}`, count: Tournament.QUESTIONS, hard: false, categories: [],
+                tournament: { seedBase: view.tournament.seed, round: match.round } },
+            players, load: () => Social.tournamentDetails(mid), local
+        });
+    };
+    // Rozpis zápasu jde otevřít, když ho hráč dohrál a soupeř také (nebo je zápas rozhodnutý)
+    const canTournamentBreakdown = (match, meId) => {
+        if (!match || !meId || !Tournament.involves(match, meId)) return false;
+        const done = (userId) => match.results.some(item => item.user_id === userId && item.finished_at);
+        const rival = match.p1 === meId ? match.p2 : match.p1;
+        return done(meId) && (done(rival) || Boolean(match.winner));
+    };
+    const BREAKDOWN_LINK = 'flex min-h-[2.25rem] items-center justify-center gap-1.5 self-start rounded-lg px-1 text-[12px] font-black text-brand-700 hover:underline dark:text-brand-200';
 
     // Po poslední otázce: zapíše výsledek (první platí) a ukáže žebříček výzvy
     // Dohraná výzva se zapamatuje (kód) a uložená relace se označí jako hotová, ať ji úvod po dalším spuštění nenabízí k pokračování
@@ -7721,7 +7964,7 @@
 
     // --- Okno turnaje: stav, konečné pořadí, kola se zápasy (aktuální rozbalené) ---
     // Jeden zápas: dva hráči pod sebou, výsledek (až když ho server ukáže), vítěz; můj zápas je zvýrazněný
-    const tournamentMatchHtml = (match, players, meId) => {
+    const tournamentMatchHtml = (match, players, meId, { breakdown = false, tid = '' } = {}) => {
         const mine = Tournament.involves(match, meId);
         const how = match.decided_by === 'walkover' ? 'Kontumačně: soupeř kolo neodehrál.' : match.decided_by === 'earlier' ? 'Nikdo neodehrál, postupuje dřívější přihlášený.' : '';
         const row = (id) => {
@@ -7738,7 +7981,7 @@
             </div>`;
         };
         const names = plainText(`${playerName((players.get(match.p1) || {}).player)} ${playerName((players.get(match.p2) || {}).player)}`);
-        return `<li data-match="${escapeHtml(match.id)}" ${mine ? 'data-mine' : ''} data-names="${escapeHtml(names)}" class="flex flex-col gap-1 rounded-xl bg-white px-2.5 py-1.5 shadow-sm dark:bg-slate-800 ${mine ? 'ring-2 ring-brand-600' : 'ring-1 ring-slate-200/70 dark:ring-slate-700/70'}">${row(match.p1)}${row(match.p2)}${how ? `<p class="text-[10.5px] font-semibold text-slate-500 dark:text-slate-400">${escapeHtml(how)}</p>` : ''}</li>`;
+        return `<li data-match="${escapeHtml(match.id)}" ${mine ? 'data-mine' : ''} data-names="${escapeHtml(names)}" class="flex flex-col gap-1 rounded-xl bg-white px-2.5 py-1.5 shadow-sm dark:bg-slate-800 ${mine ? 'ring-2 ring-brand-600' : 'ring-1 ring-slate-200/70 dark:ring-slate-700/70'}">${row(match.p1)}${row(match.p2)}${how ? `<p class="text-[10.5px] font-semibold text-slate-500 dark:text-slate-400">${escapeHtml(how)}</p>` : ''}${breakdown && tid && canTournamentBreakdown(match, meId) ? `<button type="button" data-action="tournament-breakdown" data-tid="${escapeHtml(tid)}" data-mid="${escapeHtml(match.id)}" class="${BREAKDOWN_LINK}"><i data-lucide="list-ordered" class="h-3.5 w-3.5"></i> Rozpis otázek</button>` : ''}</li>`;
     };
     const tournamentRoundsHtml = (view, meId, today) => {
         const { tournament, entries, matches } = view;
@@ -7754,7 +7997,7 @@
                     <span class="min-w-0 flex-1"><span class="block truncate text-[13px] font-black text-slate-800 dark:text-slate-100">${escapeHtml(group.name)}</span><span class="block truncate text-[11px] font-semibold text-slate-500 dark:text-slate-400">${escapeHtml(Tournament.dayWord(group.day, today))} · ${decidedCount}/${group.matches.length} rozhodnuto</span></span>
                     <i data-lucide="chevron-down" class="h-4 w-4 shrink-0 text-slate-500 transition-transform group-open:rotate-180 dark:text-slate-400"></i>
                 </summary>
-                <ul class="mt-1.5 flex flex-col gap-1.5">${group.matches.map(match => tournamentMatchHtml(match, players, meId)).join('')}</ul>
+                <ul class="mt-1.5 flex flex-col gap-1.5">${group.matches.map(match => tournamentMatchHtml(match, players, meId, { breakdown: true, tid: tournament.id })).join('')}</ul>
             </details>`;
         }).join('');
     };
@@ -7910,6 +8153,10 @@
                 ${rules}`;
         } else {
             const status = Tournament.statusText(state, names, today);
+            // Rozpis posledního mého zápasu (i v pohledu Pavouk, kde zápasy nemají vlastní řádky)
+            const lastMine = Tournament.myMatch(matches, user.id);
+            const lastBreakdown = canTournamentBreakdown(lastMine, user.id)
+                ? `<button type="button" data-action="tournament-breakdown" data-tid="${escapeHtml(tournament.id)}" data-mid="${escapeHtml(lastMine.id)}" class="${BREAKDOWN_LINK}"><i data-lucide="list-ordered" class="h-3.5 w-3.5"></i> Rozpis otázek mého posledního zápasu</button>` : '';
             const podium = state.phase === 'finished' ? Tournament.podium(entries) : [];
             const hasBracket = Boolean(matches.length && tournament.size >= 2);
             const bracketOn = hasBracket && tournamentMode === 'bracket';
@@ -7917,6 +8164,7 @@
             body = `
                 <p class="text-xs font-semibold leading-snug text-slate-500 dark:text-slate-400">Týden ${escapeHtml(Tournament.weekLabel(tournament.week_start))} · ${tournament.size ? `${Tournament.playersWord(tournament.size)}` : ''} · Mix všech témat, ${Tournament.QUESTIONS} otázek v kole</p>
                 ${state.role === 'player' || (state.phase === 'finished' && state.playing) ? `<div id="tournament-status" class="flex items-center gap-2.5 rounded-2xl bg-gold-50 p-2.5 ring-1 ring-gold-300/70 dark:bg-gold-900/20 dark:ring-gold-700/60"><p class="min-w-0 flex-1 text-[13px] font-bold leading-snug text-slate-800 dark:text-slate-100">${state.roundName ? `<span class="font-black">${escapeHtml(state.roundName)}:</span> ` : ''}${escapeHtml(status)}</p>${state.step === 'play' || state.step === 'resume' ? `<button type="button" data-t-play class="shrink-0 rounded-xl bg-gold-500 px-3.5 py-2 text-[13px] font-black text-brand-950 shadow-sm active:scale-[0.97]">${state.step === 'resume' ? 'Pokračovat' : 'Hrát'}</button>` : ''}</div>` : `<p id="tournament-status" class="text-sm font-semibold text-slate-600 dark:text-slate-300">${escapeHtml(status)}</p>`}
+                ${lastBreakdown}
                 ${podium.length ? `<ol id="tournament-podium" class="flex flex-col gap-1">${podium.map(entry => `<li class="flex items-center gap-2 rounded-xl bg-white px-2.5 py-1.5 shadow-sm dark:bg-slate-800 ${entry.user_id === user.id ? 'ring-2 ring-brand-600' : 'ring-1 ring-slate-200/70 dark:ring-slate-700/70'}"><span class="flex w-8 shrink-0 items-center justify-center gap-0.5 text-sm font-black ${medals[entry.place - 1]}">${entry.place}.${entry.place === 1 ? '<i data-lucide="trophy" class="h-3.5 w-3.5"></i>' : ''}</span>${avatarHtml(entry.player, 'h-8 w-8 text-base')}<span class="min-w-0 flex-1 truncate text-[13px] font-black text-slate-800 dark:text-slate-100">${escapeHtml(playerName(entry.player))}${entry.user_id === user.id ? ' (ty)' : ''}</span></li>`).join('')}</ol>` : ''}
                 ${rankingHtml(view, user.id)}
                 ${hasBracket ? `<div role="group" aria-label="Pohled na turnaj" class="grid grid-cols-2 gap-1 rounded-xl bg-slate-200/70 p-1 dark:bg-slate-800">${[['rounds', 'Seznam kol'], ['bracket', 'Pavouk']].map(([mode, title]) => `<button type="button" data-t-mode="${mode}" aria-pressed="${(mode === 'bracket') === bracketOn}" class="rounded-lg px-2 py-1.5 text-[13px] font-black ${(mode === 'bracket') === bracketOn ? 'bg-white text-brand-700 shadow-sm dark:bg-slate-700 dark:text-white' : 'text-slate-600 dark:text-slate-300'}">${title}</button>`).join('')}</div>` : ''}
@@ -7940,6 +8188,7 @@
                 else if (target.closest('[data-t-leave]')) changeTournamentEntry(tournamentDialogId, false);
                 else if (target.closest('[data-t-play]')) { const view = findTournament(tournamentDialogId); if (view && view.state.step === 'resume') resumeTournament(tournamentDialogId); else playTournament(tournamentDialogId); }
                 else if (target.closest('[data-t-help]')) openTournamentHelp(true);
+                else if (target.closest('[data-action="tournament-breakdown"]')) { const button = target.closest('[data-action="tournament-breakdown"]'); openTournamentBreakdown(button.dataset.tid, button.dataset.mid); }
                 else if (target.closest('[data-t-mode]')) { tournamentMode = target.closest('[data-t-mode]').dataset.tMode === 'rounds' ? 'rounds' : 'bracket'; bracketReset = true; rerender(); }
                 else if (target.closest('[data-b-full]')) { bracketFull = target.closest('[data-b-full]').getAttribute('aria-pressed') !== 'true'; bracketReset = true; rerender(); }
                 else if (target.closest('[data-b-me]')) { const box = document.getElementById('bracket-scroll'); scrollBracketTo(box && box.querySelector('[data-bfocus]'), 'smooth'); }
@@ -8216,6 +8465,7 @@
                     <p class="mt-1 text-sm font-bold text-white/90">${escapeHtml(formatPoints(points))}</p>
                 </div>
                 ${body}
+                ${state === 'ok' && canTournamentBreakdown(match, user && user.id) ? `<button type="button" data-action="tournament-breakdown" data-tid="${escapeHtml(tour.tid)}" data-mid="${escapeHtml(tour.mid)}" class="${SECONDARY_BUTTON}"><i data-lucide="list-ordered" class="h-5 w-5"></i> Rozpis otázek</button>` : ''}
                 <button type="button" data-action="tournament-back" class="${PRIMARY_BUTTON}"><i data-lucide="trophy" class="h-5 w-5"></i> Zpět na turnaj</button>
                 <button type="button" data-action="challenge-home" class="${SECONDARY_BUTTON}">Zpět domů</button>
             </div>`;
@@ -8336,6 +8586,8 @@
         'share-image': () => shareDailyImage(),
         'challenge-retry': () => finishChallenge(true),
         'challenge-home': () => challengeHome(),
+        'challenge-breakdown': () => { if (challenge && !challenge.tournament) openChallengeBreakdown(challenge, challenge.lastResults || []); },
+        'tournament-breakdown': (button) => openTournamentBreakdown(button.dataset.tid, button.dataset.mid),
         'play-daily': () => { const next = nextDailyTopic(); if (next) startNextDaily(next.id); },
         'daily-home': () => renderHome(),
         'play-topic': (button) => playTopic(button.dataset.topic),

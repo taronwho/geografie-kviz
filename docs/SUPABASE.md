@@ -505,3 +505,20 @@ a nové odznaky se do účtu neuloží (databáze je z katalogu vyřadí), jinak
   Přežití (`preziti-…`), Ukaž na mapě (`mapa-…`), Přesné odhady (`odhad-…`) a Seřaď bez chyby (`serad-…`).
 - Jen kosmetika bez peněz, takže server obsah nepřepočítává (hráč si stejně může upravit i localStorage). Testy: `tests/rewards.test.js`, `tests/e2e-rewards.test.js`,
   katalog odznaků `tests/sql-security.test.js`.
+
+## Rozpis otázek (schéma 10)
+
+**Po aktualizaci spusť znovu celý `supabase/schema.sql`.** Schéma má verzi 10 (verze 9 jsou Odměny). Se starší databází aplikace ukládá odpovědi
+jako dřív (jen správně a body) a v Rozpisu otázek ukáže jen hráčovy vlastní odpovědi z tohoto zařízení s poznámkou.
+
+- Blok „Rozpis otázek po výzvě a zápasu turnaje (schéma 10)“ před verzí schématu. Tabulky `challenge_progress` a `tournament_answers` mají nepovinné sloupce
+  `answer` (co hráč odpověděl: zvolená možnost, napsaný text, u odhadu a mapy krátké shrnutí; 1–120 znaků), `hints` (použité nápovědy 0–4) a `ms`
+  (čas otázky, 0–3 600 000). Starší odpovědi je mají prázdné.
+- `challenge_progress_save` a `tournament_answer_save` mají tři nepovinné parametry navíc (`answer`, `hints`, `ms`); původní podobu se čtyřmi parametry
+  blok odstraní, starší aplikace ji volají dál (výchozí hodnoty). Text odpovědi čistí `clean_answer_label` (řídicí a neviditelné znaky a lomené závorky pryč,
+  nejvýš 120 znaků), nápovědy a čas kontroluje `check_answer_details` (obě jen pro interní použití). Body a správnost hlídají stejné kontroly jako dřív.
+- `challenge_details(code)` a `tournament_details(mid)` (security definer, jen `authenticated`) vrací odpovědi po otázkách (`user_id, idx, correct, points,
+  answer, hints, ms`). Jen hráči, který výzvu (zápas) sám dohrál; jinak chyba 42501. Výzva: vlastní odpovědi a odpovědi hráčů, kteří ji dohráli, u výzvy
+  starší 7 dní i rozehrané. Zápas turnaje: jen jeho dva hráči, soupeřovy odpovědi až po soupeřově dohrání nebo rozhodnutí zápasu. Dokud hráč nedohraje,
+  soupeřovy odpovědi nevidí. Tabulky samy dál čte pravidlo řádků jen jejich hráči. Kdo vyhrál, se nemění.
+- Testy: `tests/sql-challenge-details.test.js`, `tests/e2e-challenge-breakdown.test.js`, rozpis zápasu v `tests/e2e-tournament.test.js`.
