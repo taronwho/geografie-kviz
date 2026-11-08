@@ -2,7 +2,7 @@
 (function (root) {
     'use strict';
 
-    const { buildBlindMap, buildTimeline, formatNumber, commonsPhotoUrl, commonsFileUrl, periodicPosition, elementFamily } = root.MudrlantCore;
+    const { buildBlindMap, blindMapSpan, buildRegionalMap, buildTimeline, formatNumber, commonsPhotoUrl, commonsFileUrl, periodicPosition, elementFamily } = root.MudrlantCore;
     const SVG_NS = 'http://www.w3.org/2000/svg';
 
     const svgElement = (tag, attributes) => {
@@ -15,14 +15,59 @@
     // Šířka výřezu mapy v kilometrech (na rovnoběžce místa) – dává představu o měřítku
     const mapWidthKm = (spec) => spec.span * 111.32 * Math.cos(spec.lat * Math.PI / 180);
 
+    // Výřez mapy se upravil až při kreslení (oddálení, celý stát) – měřítko v rohu a popis pro čtečku podle skutečného výřezu
+    const showMapScale = (container, spec) => {
+        const corner = container.parentElement && container.parentElement.querySelector('[data-visual-corner]');
+        if (corner) corner.textContent = VISUALS.map.corner(spec);
+        container.setAttribute('aria-label', VISUALS.map.describe(spec));
+    };
+    const target = (svg, cx, cy, ring) => {
+        svg.appendChild(svgElement('circle', { cx, cy, r: ring, fill: 'none', 'stroke-width': 2.5, class: 'stroke-rose-500/60' }));
+        svg.appendChild(svgElement('circle', { cx, cy, r: 6, 'stroke-width': 2.5, class: 'fill-rose-500 stroke-white' }));
+    };
+
+    // Region menší než tolik px dostane kolem tečky kroužek
+    const REGION_RING_SIZE = 36;
+    // Slepá mapa regionu: celý stát s hranicemi krajů (spolkových zemí, států…) a se sousedy, hledaný region zvýrazněný
+    // a tečka na něm; nic popsané (data/regiony.json, výřez spočítá quiz-core.js)
+    const renderRegionalMap = (container, spec, entry) => {
+        const width = Math.round(container.clientWidth) || 360;
+        const height = Math.round(container.clientHeight) || 224;
+        const map = buildRegionalMap(entry, { item: spec.regional.item, lat: spec.lat, lon: spec.lon, width, height });
+        const svg = svgElement('svg', { viewBox: `0 0 ${width} ${height}`, class: 'absolute inset-0 h-full w-full', 'aria-hidden': 'true' });
+        const layer = (d, attributes) => { if (d) svg.appendChild(svgElement('path', { d, 'fill-rule': 'evenodd', 'stroke-linejoin': 'round', 'stroke-linecap': 'round', ...attributes })); };
+        layer(map.layers.others, { 'stroke-width': 0.8, class: 'fill-stone-200 stroke-slate-400 dark:fill-slate-700 dark:stroke-slate-500' });
+        layer(map.layers.own, { class: 'fill-amber-50 dark:fill-slate-500' });
+        layer(map.layers.region, { class: 'fill-emerald-400 dark:fill-emerald-600' });
+        layer(map.layers.lines, { fill: 'none', 'stroke-width': 0.8, class: 'stroke-slate-400 dark:stroke-slate-300' });
+        layer(map.layers.lakes, { 'stroke-width': 0.6, class: 'fill-sky-200 stroke-slate-400 dark:fill-sky-950 dark:stroke-slate-400' });
+        layer(map.layers.own, { fill: 'none', 'stroke-width': 1.3, class: 'stroke-slate-500 dark:stroke-slate-200' });
+        // Kroužek kolem tečky jen u místa bez obrysu a u malého regionu – velký region by zakryl
+        if (map.layers.region && map.regionSize >= REGION_RING_SIZE) svg.appendChild(svgElement('circle', { cx: map.dot.x, cy: map.dot.y, r: 5, 'stroke-width': 2, class: 'fill-rose-500 stroke-white' }));
+        else target(svg, map.dot.x, map.dot.y, 15);
+        container.prepend(svg);
+        showMapScale(container, { ...spec, lat: map.lat, span: map.span, measured: true });
+    };
+
     // Slepá mapa: obrysy států bez jediného popisku, místo označené terčem uprostřed (u států zvýrazněný celý stát)
-    const renderMap = async (container, spec, { loadWorld }) => {
+    const renderMap = async (container, spec, { loadWorld, loadRegions }) => {
+        // Region státu, pro který jsou data krajů; když se nenačtou (bez internetu), stačí obrysy států
+        if (spec.regional && loadRegions) {
+            const regions = await loadRegions().catch(() => null);
+            const entry = regions && regions.countries[spec.regional.country];
+            if (entry) {
+                if (container.isConnected) renderRegionalMap(container, spec, entry);
+                return;
+            }
+        }
         const world = await loadWorld();
         if (!container.isConnected) return;
         const width = Math.round(container.clientWidth) || 360;
         const height = Math.round(container.clientHeight) || 224;
         const svg = svgElement('svg', { viewBox: `0 0 ${width} ${height}`, class: 'absolute inset-0 h-full w-full', 'aria-hidden': 'true' });
-        const shapes = buildBlindMap(world, { lat: spec.lat, lon: spec.lon, spanLon: spec.span, width, height, highlightIso: spec.highlightIso });
+        // Bod uprostřed velkého státu: mapa se oddálí, až jsou vidět pobřeží nebo hranice
+        const span = spec.highlightIso ? spec.span : blindMapSpan(world, { lat: spec.lat, lon: spec.lon, spanLon: spec.span, width, height });
+        const shapes = buildBlindMap(world, { lat: spec.lat, lon: spec.lon, spanLon: span, width, height, highlightIso: spec.highlightIso });
         for (const shape of shapes) {
             svg.appendChild(svgElement('path', {
                 d: shape.d,
@@ -34,11 +79,9 @@
             }));
         }
         // Malé státy (Malta, Monako) na mapě obrys nemají – pak i u státu terč
-        if (!shapes.some(shape => shape.highlight)) {
-            svg.appendChild(svgElement('circle', { cx: width / 2, cy: height / 2, r: 15, fill: 'none', 'stroke-width': 2.5, class: 'stroke-rose-500/60' }));
-            svg.appendChild(svgElement('circle', { cx: width / 2, cy: height / 2, r: 6, 'stroke-width': 2.5, class: 'fill-rose-500 stroke-white' }));
-        }
+        if (!shapes.some(shape => shape.highlight)) target(svg, width / 2, height / 2, 15);
         container.prepend(svg);
+        if (span !== spec.span || spec.regional) showMapScale(container, { ...spec, span, measured: true });
     };
 
     const svgText = (text, attributes) => {
@@ -288,8 +331,10 @@
             name: 'slepá mapa',
             icon: 'map',
             frame: 'border-sky-200 bg-sky-200 dark:border-slate-700 dark:bg-sky-950',
-            corner: (spec) => `↔ ${formatDistance(mapWidthKm(spec))}`,
-            describe: (spec) => `Slepá mapa bez popisků. ${spec.label}, výřez je široký asi ${formatDistance(mapWidthKm(spec))}.`,
+            // Výřez mapy regionu (celý stát) je známý až po načtení dat – do té doby bez čísla
+            corner: (spec) => spec.regional && !spec.measured ? '↔ …' : `↔ ${formatDistance(mapWidthKm(spec))}`,
+            describe: (spec) => spec.regional && !spec.measured ? `Slepá mapa bez popisků. ${spec.label}.`
+                : `Slepá mapa bez popisků. ${spec.label}, výřez je široký asi ${formatDistance(mapWidthKm(spec))}.`,
             render: renderMap
         },
         timeline: {

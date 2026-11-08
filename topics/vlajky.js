@@ -136,7 +136,13 @@
             };
         }
         const span = item.c === 'cesko' ? 6 : item.c === 'mesta' ? 8 : item.c === 'regiony' ? 14 : 24;
-        const label = item.c === 'mesta' || isTownLike(item) ? 'Město je uprostřed' : item.c === 'regiony' ? 'Místo je uprostřed' : item.c === 'historie' ? 'Střed státu' : 'Území je uprostřed';
+        // Regiony, města a české znaky: celý stát s hranicemi krajů (data/regiony.json), region zvýrazněný, místo tečkou;
+        // pro stát bez dat obrysy států s místem uprostřed
+        if ((item.c === 'regiony' || item.c === 'mesta' || item.c === 'cesko') && (item.co || [])[0]) {
+            const label = item.c === 'regiony' || item.ty === 'kraj' ? 'Region je vyznačený tečkou' : `${isTownLike(item) || item.c === 'mesta' ? 'Město' : 'Místo'} je vyznačené tečkou`;
+            return { type: 'map', lat: item.la, lon: item.lo, span, highlightIso: '', label, regional: { country: item.co[0], item: item.q } };
+        }
+        const label = item.c === 'historie' ? 'Střed státu' : 'Území je uprostřed';
         return { type: 'map', lat: item.la, lon: item.lo, span, highlightIso: '', label };
     };
     const imageOf = (item) => item.im ? { type: 'image', file: item.im, hash: item.ih, name: isFlag(item) ? 'vlajka' : 'znak', icon: isFlag(item) ? 'flag' : 'shield' } : null;
