@@ -3366,6 +3366,8 @@
     // místo ní se ukáže jen malé okénko nahoře a celé oslavy přijdou až na klidné obrazovce (výsledek otázky v tréninku,
     // konec výzvy či Kvízu dne, výsledek režimu, úvod). Kontroluje se každou sekundu.
     const celebrationCalm = () => {
+        // Otevřené okno (třeba rozpis otázek po výzvě) má přednost: oslavy počkají, až se zavře
+        if (document.getElementById('dialog-overlay')) return false;
         if (mode === 'blitz' || mode === 'survival') return !modeGame || modeGame.phase === 'result' || screen !== 'mode';
         if (screen === 'home' || screen === 'learn' || screen === 'challenge-done' || screen === 'quiz-done' || screen === 'welcome') return true;
         if (mode === 'challenge' || mode === 'quiz') return false;
@@ -6940,6 +6942,11 @@
                     ${Friends && bestRival && bestRival.user_id ? Friends.reactionBar(bestRival.user_id, c.reaction || null, { busy: Boolean(c.reacting), name: playerName(bestRival.player) }) : ''}
                     <p class="text-sm text-slate-500 dark:text-slate-400">${results && results.length > 1 ? 'Porovnání s ostatními hráči.' : 'Pošli kód kamarádům, ať ti to oplatí.'}</p>`;
         if (state === 'ok') { c.lastResults = results; flushAnswerStats(); }
+        // Rozpis otázek se po dohrání otevře sám (jednou na výzvu), jakmile je s kým srovnávat; tlačítko na výsledku zůstává
+        if (state === 'ok' && !c.tournament && rivals.length && !c.breakdownShown) {
+            c.breakdownShown = true;
+            setTimeout(() => { if (challenge === c && screen === 'challenge-done' && !document.getElementById('dialog-overlay')) openChallengeBreakdown(c, results); }, 700);
+        }
         // Upozornění, že vyzvaný hráč výzvu uvidí: ne vyzvanému samotnému a ne potom, co už ji dohrál
         const invitedWaiting = Boolean(c.invited && c.invited.id && (!user || c.invited.id !== user.id) && !(results || []).some(row => row.user_id === c.invited.id));
         appContent.innerHTML = `
@@ -8469,6 +8476,11 @@
                 <button type="button" data-action="tournament-back" class="${PRIMARY_BUTTON}"><i data-lucide="trophy" class="h-5 w-5"></i> Zpět na turnaj</button>
                 <button type="button" data-action="challenge-home" class="${SECONDARY_BUTTON}">Zpět domů</button>
             </div>`;
+        // Rozpis zápasu se po dohrání otevře sám (jednou), když soupeř už dohrál nebo je zápas rozhodnutý
+        if (state === 'ok' && canTournamentBreakdown(match, user && user.id) && !c.breakdownShown) {
+            c.breakdownShown = true;
+            setTimeout(() => { if (challenge === c && screen === 'challenge-done' && !document.getElementById('dialog-overlay')) openTournamentBreakdown(tour.tid, tour.mid); }, 700);
+        }
         renderIcons(appContent);
         appContent.scrollTo(0, 0);
         updateControlsUI();

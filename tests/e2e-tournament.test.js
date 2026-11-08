@@ -5,6 +5,8 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+// Rozpis otázek se po dohrání otevře sám (za 0,7 s): před odchodem z výsledku se zavře
+const closeAutoBreakdown = async (tab) => { await tab.waitForTimeout(900); if (await tab.locator('#dialog-overlay').count()) { await tab.keyboard.press('Escape'); await tab.waitForFunction(() => !document.getElementById('dialog-overlay')); } };
 
 let chromium = null;
 try { ({ chromium } = require('playwright')); } catch (e) {}
@@ -563,8 +565,8 @@ test('týdenní turnaje', { skip: !chromium && 'Playwright není nainstalovaný'
         assert.match(outcome, /0\/10/);
         assert.equal(await tab.locator('[data-match][data-mine]').count(), 1);
         await shot(tab, 'turnaj-vysledek');
-        // Rozpis otázek: zápas je rozhodnutý, moje odpovědi ze serveru (soupeřovy se tu neuložily)
-        await tab.click('[data-action="tournament-breakdown"]');
+        // Rozpis otázek: zápas je rozhodnutý, otevře se sám; moje odpovědi ze serveru (soupeřovy se tu neuložily)
+        assert.equal(await tab.locator('[data-action="tournament-breakdown"]').count(), 1, 'tlačítko zůstává i pro pozdější otevření');
         await tab.waitForSelector('#breakdown-list [data-bd-row]', { timeout: 30000 });
         assert.equal(await tab.locator('#breakdown-list [data-bd-row]').count(), 10);
         assert.equal(await tab.locator('#breakdown-list [data-bd-row="0"] [data-bd-cell]').count(), 2, 'oba hráči vedle sebe');
@@ -682,7 +684,7 @@ test('týdenní turnaje', { skip: !chromium && 'Playwright není nainstalovaný'
         assert.match(outcome, /5\/10/, 'soupeřův výsledek je vidět až po rozhodnutí');
         assert.doesNotMatch(outcome, /XP za vyhraný/);
         assert.equal((await progressOf(tab)).xp || 0, 0);
-        await tab.click('[data-action="challenge-home"]');
+        await closeAutoBreakdown(tab); await tab.click('[data-action="challenge-home"]');
         await tab.waitForSelector('#tournament-card');
         assert.match(await tab.textContent('#tournament-card'), /Vypadl jsi: 5\.–8\. místo/);
         assert.equal(await tab.locator('[data-action="tournament-play"]').count(), 0);
@@ -701,7 +703,7 @@ test('týdenní turnaje', { skip: !chromium && 'Playwright není nainstalovaný'
         assert.match(outcome, /Odehráno!/);
         assert.match(outcome, /Čekáš na soupeře/);
         assert.doesNotMatch(outcome, /Vyhráváš|nevyšlo/);
-        await tab.click('[data-action="challenge-home"]');
+        await closeAutoBreakdown(tab); await tab.click('[data-action="challenge-home"]');
         await tab.waitForSelector('#tournament-card');
         assert.match(await tab.textContent('#tournament-card'), /Odehráno 0\/10, čekáš na soupeře/);
         assert.equal(await tab.locator('[data-action="tournament-play"]').count(), 0);

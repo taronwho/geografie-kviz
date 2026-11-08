@@ -239,8 +239,7 @@ test('Rozpis otázek po výzvě a průběžné body', { skip: !chromium && 'Play
             assert.ok(mine.every(r => Number.isInteger(r.hints) && r.hints >= 0 && r.hints <= 4));
             assert.ok(mine[1].hints >= mine[0].hints, 'nápověda u druhé otázky');
             assert.ok(mine.every(r => Number.isInteger(r.ms) && r.ms >= 0 && r.ms <= 3600000));
-            // Rozpis: 5 řádků, dva sloupce (já a Jana), soupeřovy odpovědi ze serveru
-            await tab.click('[data-action="challenge-breakdown"]');
+            // Rozpis se po dohrání otevře sám: 5 řádků, dva sloupce (já a Jana), soupeřovy odpovědi ze serveru
             await tab.waitForSelector('#breakdown-list [data-bd-row]');
             assert.equal(await tab.locator('#breakdown-list [data-bd-row]').count(), 5);
             assert.equal(await tab.locator('#breakdown-list [data-bd-row="0"] [data-bd-cell]').count(), 2, 'oba hráči vedle sebe');
@@ -310,7 +309,7 @@ test('Rozpis otázek po výzvě a průběžné body', { skip: !chromium && 'Play
         for (let i = 0; i < 5; i++) { await answer(tab); await tab.click('[data-action="next"]'); }
         await tab.waitForSelector('[data-action="challenge-breakdown"]', { timeout: 30000 });
         assert.equal(old.progress.filter(r => r.challenge_id === 'STARAD' && r.user_id === UID2).length, 5, 'průběh se uložil i bez podrobností');
-        await tab.click('[data-action="challenge-breakdown"]');
+        // Rozpis se otevře sám
         await tab.waitForSelector('#breakdown-list [data-bd-row]');
         assert.equal(await tab.locator('#breakdown-list [data-bd-row="0"] [data-bd-cell="none"]').count(), 1, 'soupeřovy odpovědi chybí (jen jeho součet v záhlaví)');
         assert.equal(await tab.locator('#breakdown-list [data-bd-row="0"] [data-bd-cell="ok"], #breakdown-list [data-bd-row="0"] [data-bd-cell="bad"]').count(), 1, 'moje odpověď ze zařízení');
