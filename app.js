@@ -3016,6 +3016,7 @@
                             </span>
                             ${originBadge}
                         </div>
+                        ${data.question && data.question.title ? `<p data-result-question class="mb-2 rounded-xl bg-slate-100 px-3 py-1.5 text-[13px] font-semibold leading-snug text-slate-600 dark:bg-slate-800 dark:text-slate-300"><span class="font-black text-slate-500 dark:text-slate-400">Otázka:</span> ${escapeHtml(data.question.title)}</p>` : ''}
                         <h1 class="text-3xl font-black leading-tight tracking-tight text-slate-800 dark:text-slate-50">${escapeHtml(data.name)}</h1>
                         <p class="mt-1 flex items-center gap-1.5 text-sm font-semibold text-slate-500 dark:text-slate-400">
                             <i data-lucide="${topic.subtitleIcon || 'navigation'}" class="h-4 w-4 shrink-0 ${style.text}"></i> ${escapeHtml(data.subtitle)}
