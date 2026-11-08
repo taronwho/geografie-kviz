@@ -95,7 +95,7 @@ export const INVENTIONS = [
     ['contact lens', 'Otto Wichterle', 1961, 'Česko', ['Adolf Fick']],
     ['compact cassette', 'Lou Ottens', 1963, 'Nizozemsko'],
     ['computer mouse', 'Douglas Engelbart', 1964, 'USA'],
-    ['Semtex', 'Stanislav Brebera', 1964, 'Česko'],
+    ['semtex', 'Stanislav Brebera', 1964, 'Česko'], // anglický název malým písmenem; „Semtex“ s velkým je energetický nápoj
     ['Kevlar', 'Stephanie Kwolek', 1965, 'USA'],
     ['automated teller machine', 'John Shepherd-Barron', 1967, 'Anglie'],
     ['laser printer', 'Gary Starkweather', 1969, 'USA'],
