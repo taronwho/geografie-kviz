@@ -44,7 +44,9 @@ const CATEGORIES = {
     statnik: { limit: 450, known: 110, czKnown: 15 },
     osobnost: { limit: 600, known: 120, czKnown: 30 },
     bitva: { limit: 700, known: 120, czKnown: 20 },
-    rise: { limit: 400, known: 80, czKnown: 6 }
+    rise: { limit: 400, known: 80, czKnown: 6 },
+    // Události: limit a známé určuje krok 3b (EVENT_LIMIT, EVENT_KNOWN)
+    udalosti: { limit: 260, known: 70, czKnown: 13 }
 };
 
 // --- 1. krok: kandidáti ---
@@ -388,6 +390,194 @@ for (const [qid, entry] of ordered) {
     }));
 }
 
+// --- 3b. krok: události (smlouvy a mírové smlouvy, kongresy a koncily, objevné výpravy, katastrofy, atentáty, korunovace…) ---
+// Bitvy, války a revoluce mají vlastní kategorii – tady jen to, co mezi nimi není
+const EVENT_QUERIES = [
+    ['mírová smlouva', `?item wdt:P31 wd:Q625298 ; wikibase:sitelinks ?sl . FILTER(?sl >= 30)`],
+    ['smlouva', `?item wdt:P31 wd:Q131569 ; wikibase:sitelinks ?sl . FILTER(?sl >= 50)`],
+    ['koncil', `?item wdt:P31 wd:Q51645 ; wikibase:sitelinks ?sl . FILTER(?sl >= 35)`],
+    ['zemětřesení', `?item wdt:P31 wd:Q7944 ; wikibase:sitelinks ?sl . FILTER(?sl >= 45)`],
+    ['epidemie', `VALUES ?type { wd:Q44512 wd:Q12184 } ?item wdt:P31 ?type ; wikibase:sitelinks ?sl . FILTER(?sl >= 35)`],
+    ['hladomor', `?item wdt:P31 wd:Q168247 ; wikibase:sitelinks ?sl . FILTER(?sl >= 35)`],
+    ['povodeň', `?item wdt:P31 wd:Q8068 ; wikibase:sitelinks ?sl . FILTER(?sl >= 30)`],
+    ['výbuch sopky', `?item wdt:P31 wd:Q7692360 ; wikibase:sitelinks ?sl . FILTER(?sl >= 25)`],
+    ['expedice', `?item wdt:P31 wd:Q2401485 ; wikibase:sitelinks ?sl . FILTER(?sl >= 28)`],
+    ['atentát', `?item wdt:P31 wd:Q3882219 ; wikibase:sitelinks ?sl . FILTER(?sl >= 40)`],
+    ['protest', `?item wdt:P31 wd:Q273120 ; wikibase:sitelinks ?sl . FILTER(?sl >= 45)`],
+    ['masakr', `?item wdt:P31 wd:Q3199915 ; wikibase:sitelinks ?sl . FILTER(?sl >= 50)`],
+    ['převrat', `?item wdt:P31 wd:Q45382 ; wikibase:sitelinks ?sl . FILTER(?sl >= 40)`],
+    ['korunovace', `?item wdt:P31 wd:Q209715 ; wikibase:sitelinks ?sl . FILTER(?sl >= 20)`]
+];
+// Slavné události, které Wikidata vedou pod obecným druhem (historická událost, listina, konference): podle českého názvu
+const PINNED_EVENTS = ['Pád Berlínské zdi', 'Znovusjednocení Německa', 'Rozpad Sovětského svazu', 'Rozdělení Československa', 'Pražské jaro',
+    'Invaze vojsk Varšavské smlouvy do Československa', 'Operace Anthropoid', 'Vyhlazení Lidic', 'První pražská defenestrace', 'Druhá pražská defenestrace',
+    'Černobylská havárie', 'Havárie elektrárny Fukušima I', 'Havárie elektrárny Three Mile Island', 'Potopení Titanicu', 'Katastrofa vzducholodi Hindenburg',
+    'Erupce Vesuvu', 'Velký požár Londýna', 'Velký požár Říma', 'Velký požár v Chicagu', 'Požár Říšského sněmu', 'Bostonské pití čaje', 'teroristické útoky 11. září 2001',
+    'Milánský edikt', 'Edikt nantský', 'Magna charta', 'Zlatá bula sicilská', 'Zlatá bula Karla IV.', 'Deklarace nezávislosti Spojených států amerických',
+    'Magna charta libertatum', 'Havárie vzducholodi Hindenburg', 'Rozpad Československa', 'Upálení mistra Jana Husa',
+    'Mnichovská dohoda', 'Vídeňský kongres', 'Jaltská konference', 'Postupimská konference', 'Teheránská konference', 'Berlínský kongres', 'Berlínská konference',
+    'Konference ve Wannsee', 'Pařížská mírová konference 1919', 'Bartolomějská noc', 'Křišťálová noc', 'holokaust', 'Velká hospodářská krize',
+    'Magellanova expedice', 'Lewisova a Clarkova expedice', 'Amundsenova expedice na jižní pól', 'Expedice Terra Nova', 'Upálení Jana Husa', 'Kutnohorský dekret',
+    'Únor 1948', 'Atentát na Johna Fitzgeralda Kennedyho', 'Atentát na Abrahama Lincolna', 'Zavraždění Julia Caesara', 'Kolumbova první plavba',
+    'Objevení Ameriky', 'Zámořské objevy', 'Rozdělení Indie', 'Berlínská blokáda', 'Karibská krize', 'Přistání v Zátoce sviní', 'Watergate', 'Vídeňská arbitráž',
+    'Pražský mír', 'Vestfálský mír', 'Versailleská smlouva', 'Korunovace Alžběty II.', 'Hladomor na Ukrajině', 'Černá smrt', 'Španělská chřipka', 'Arabské jaro',
+    'Solný pochod', 'Pochod na Řím', 'Baltský řetěz', 'Den D', 'Norimberský proces', 'Lidická tragédie', 'Akce K', 'Zavraždění Václava', 'Babylonské zajetí'];
+// Druhy, které jsou bitvou, válkou nebo revolucí (ty jsou v kategorii Bitvy, války a revoluce)
+const MILITARY_TYPES = /bitva|válka|obléhání|revoluce|vojensk|tažení|operace(?! Anthropoid)|ofenzíva|invaze|bombardování/u;
+const eventCandidates = new Map(await cached('historie-udalosti-candidates-3', async () => {
+    const result = new Map();
+    for (const [kind, where] of EVENT_QUERIES) {
+        const rows = await sparql(`SELECT DISTINCT ?item ?sl WHERE { ${where} ?a schema:about ?item ; schema:isPartOf <https://cs.wikipedia.org/> . } LIMIT 2000`);
+        for (const row of rows) if (!result.has(id(row.item.value))) result.set(id(row.item.value), { sl: Number(row.sl.value), kind });
+        console.log(`událost ${kind}: ${rows.length}`);
+        await sleep(500);
+    }
+    // Český štítek bývá s malým písmenem (pád Berlínské zdi); ze stejně pojmenovaných (film Operace Anthropoid) ta s nejvíc jazykovými verzemi
+    const forms = [...new Set(PINNED_EVENTS.flatMap(name => [name, name.charAt(0).toLocaleLowerCase('cs') + name.slice(1)]))];
+    // Podle štítku i podle názvu článku na české Wikipedii (Magna charta libertatum)
+    const pinned = await sparql(`SELECT ?item ?l ?sl WHERE { VALUES ?l { ${forms.map(name => `${JSON.stringify(name)}@cs`).join(' ')} }
+  { ?item rdfs:label ?l } UNION { ?t schema:about ?item ; schema:isPartOf <https://cs.wikipedia.org/> ; schema:name ?l }
+  ?item wikibase:sitelinks ?sl . ?a schema:about ?item ; schema:isPartOf <https://cs.wikipedia.org/> . }`);
+    const best = new Map();
+    for (const row of pinned) {
+        const key = row.l.value.toLocaleLowerCase('cs');
+        if (!best.has(key) || best.get(key).sl < Number(row.sl.value)) best.set(key, { qid: id(row.item.value), sl: Number(row.sl.value) });
+    }
+    for (const { qid, sl } of best.values()) result.set(qid, { ...(result.get(qid) || { kind: 'událost' }), sl, pinned: true });
+    console.log(`události podle názvu: ${best.size} z ${PINNED_EVENTS.length}`);
+    return [...result];
+}));
+const eventIds = [...eventCandidates.keys()].filter(qid => !items.some(item => item.q === qid));
+const eventDetailsQuery = (qids) => `SELECT ?item ?p ?v WHERE {
+  VALUES ?item { ${values(qids)} }
+  { ?article schema:about ?item ; schema:isPartOf <https://cs.wikipedia.org/> ; schema:name ?v . BIND("t" AS ?p) }
+  UNION { ?item rdfs:label ?v FILTER(LANG(?v) = "cs") BIND("n" AS ?p) }
+  UNION { ?item schema:description ?v FILTER(LANG(?v) = "cs") BIND("d" AS ?p) }
+  UNION { ?item wdt:P18 ?v BIND("im" AS ?p) }
+  UNION { ?item wdt:P580 ?v BIND("start" AS ?p) }
+  UNION { ?item wdt:P582 ?v BIND("end" AS ?p) }
+  UNION { ?item wdt:P585 ?v BIND("date" AS ?p) }
+  UNION { ?item wdt:P571 ?v BIND("from" AS ?p) }
+  UNION { ?item wdt:P577 ?v BIND("pub" AS ?p) }
+  UNION { ?item wdt:P625 ?v BIND("coord" AS ?p) }
+  UNION { ?item wdt:P17 ?v BIND("co" AS ?p) }
+  UNION { ?item wdt:P276|wdt:P1071 ?v BIND("loc" AS ?p) }
+  UNION { ?item wdt:P276|wdt:P1071 ?l . ?l wdt:P17 ?v BIND("lco" AS ?p) }
+  UNION { ?item wdt:P276|wdt:P1071 ?l . ?l wdt:P625 ?v BIND("lcoord" AS ?p) }
+  UNION { ?item wdt:P31 ?v BIND("type" AS ?p) }
+  UNION { ?item wdt:P361 ?v BIND("part" AS ?p) }
+}`;
+const EVENT_SINGLE = { t: 1, n: 1, d: 1, im: 1, start: 1, end: 1, date: 1, from: 1, pub: 1, coord: 1, lcoord: 1 };
+const fetchEventDetails = async (list) => {
+    const result = new Map(list.map(qid => [qid, {}]));
+    await inBatches(list, 50, eventDetailsQuery, (row) => {
+        const entry = result.get(id(row.item.value));
+        const key = row.p.value;
+        if (!row.v) return;
+        const v = row.v.value.startsWith('http://www.wikidata.org/entity/') ? id(row.v.value) : row.v.value;
+        if (EVENT_SINGLE[key]) { if (!(key in entry)) entry[key] = v; }
+        else if (!(entry[key] || []).includes(v)) entry[key] = [...(entry[key] || []), v];
+    });
+    return [...result];
+};
+const eventDetails = new Map(await cached('historie-udalosti-details', () => fetchEventDetails(eventIds)));
+// Události, které přibyly po uložení mezipaměti, se dočtou zvlášť
+const missingEvents = eventIds.filter(qid => !eventDetails.has(qid));
+if (missingEvents.length) for (const [qid, detail] of await cached(`historie-udalosti-details-${missingEvents.length}`, () => fetchEventDetails(missingEvents))) eventDetails.set(qid, detail);
+const eventRefs = [...new Set([...eventDetails.values()].flatMap(detail => [...(detail.loc || []), ...(detail.type || []), ...(detail.part || [])]))].filter(qid => /^Q\d+$/.test(qid) && !labels.has(qid));
+for (const [qid, text] of await cached(`historie-udalosti-labels-${eventRefs.length}`, async () => {
+    const result = [];
+    await inBatches(eventRefs, 400, (qids) => `SELECT ?item ?label WHERE { VALUES ?item { ${values(qids)} } ?item rdfs:label ?label FILTER(LANG(?label) = "cs") }`,
+        (row) => result.push([id(row.item.value), row.label.value]));
+    return result;
+})) labels.set(qid, text);
+
+// Druh události: podle dotazu, jinak podle druhu ve Wikidatech
+const EVENT_KINDS = [['invaze', /invaz|okupac/u], ['konference', /konferenc|kongres|summit/u], ['mírová smlouva', /mírov/u], ['smlouva', /smlouv|dohod|pakt|úmluv/u], ['listina', /listin|edikt|bula|charta|deklarac|dekret/u],
+    ['konference', /konferenc|kongres|summit/u], ['koncil', /koncil/u], ['proces', /proces/u], ['korunovace', /korunovac/u], ['zemětřesení', /zemětřes/u],
+    ['hladomor', /hladomor/u], ['epidemie', /epidemi|pandemi|(?<!\p{L})mor(?!\p{L})|chřipk/u], ['výbuch sopky', /erupc|sopk/u], ['požár', /požár/u], ['povodeň', /povod/u],
+    ['havárie', /havári|neštěstí|katastrof|ztroskot|potopení/u], ['expedice', /expedic|výprav|plavb|objev/u], ['masakr', /masakr|genocid|pogrom|holokaust|vyvražd|vyhlazen/u], ['atentát', /atentát|zavražd|vražd/u],
+    ['převrat', /převrat|puč/u], ['protest', /protest|demonstrac|pochod|nepokoj/u], ['masakr', /masakr|genocid|pogrom|holokaust/u], ['krize', /krize/u]];
+// Druh: napřed podle názvu (Vídeňský kongres, Invaze vojsk Varšavské smlouvy), pak podle dotazu, druhu ve Wikidatech a popisu
+const eventKindOf = (entry, detail) => {
+    const byName = (EVENT_KINDS.find(([, pattern]) => pattern.test((detail.n || detail.t || '').toLocaleLowerCase('cs'))) || [])[0];
+    if (byName) return byName;
+    if (entry.kind !== 'událost') return entry.kind;
+    const text = [...(detail.type || []).map(label), detail.d].filter(Boolean).join(' · ').toLocaleLowerCase('cs');
+    // Soudní proces jen podle názvu (Norimberský proces) – „proces rozpadu“ v popisu soudem není
+    return (EVENT_KINDS.find(([kind, pattern]) => kind !== 'proces' && pattern.test(text)) || ['událost'])[0];
+};
+const EVENT_LIMIT = 260;
+const EVENT_KNOWN = 50;
+// Mírových smluv a koncilů je mnoho – vezmou se jen ty nejznámější, ať nepřeválcují ostatní události
+const EVENT_KIND_LIMITS = { 'mírová smlouva': 42, smlouva: 24, koncil: 10, 'zemětřesení': 12, masakr: 10 };
+// AIDS je nemoc, ne událost, Zkáza Titanicu díl seriálu; revoluce patří k bitvám a válkám
+const NOT_EVENTS = new Set(['Q12199', 'Q959313']);
+const eventNames = new Set();
+const eventKindCounts = {};
+const events = [];
+for (const [qid, entry] of [...eventCandidates].sort((a, b) => b[1].sl - a[1].sl)) {
+    const detail = eventDetails.get(qid);
+    if (!detail || !detail.t || events.length >= EVENT_LIMIT || NOT_EVENTS.has(qid) || /revoluc/iu.test(detail.n || detail.t)) continue;
+    // Film, díl seriálu nebo kniha se jménem události (Operace Anthropoid z roku 2021) událostí nejsou
+    if (/(?<!\p{L})(film|seriál|román|kniha|píseň|videohr|album)/iu.test(detail.d || '')) continue;
+    const typeLabels = (detail.type || []).map(label).filter(Boolean);
+    if (typeLabels.some(text => MILITARY_TYPES.test(text)) && !entry.pinned) continue;
+    // Rok: začátek, datum, vznik (smlouvy), zveřejnění; konec jen u déle trvajících
+    const titled = /\((\d{3,4})(?:[–-](\d{3,4}))?\)$/.exec(detail.t || '');
+    let start = titled ? Number(titled[1]) : yearOf(detail.start) ?? yearOf(detail.date) ?? yearOf(detail.from) ?? yearOf(detail.pub);
+    let end = titled ? (titled[2] ? Number(titled[2]) : undefined) : yearOf(detail.end);
+    if (start === undefined || start < -3000 || start > THIS_YEAR) continue;
+    // Nedávné události (po roce 2015) jsou spíš zprávy než dějiny
+    if (start > 2015 && !entry.pinned) continue;
+    if (end !== undefined && (end < start || end > THIS_YEAR)) end = undefined;
+    const name = detail.n || detail.t.replace(/ \(.*\)$/, '');
+    const kind = eventKindOf(entry, detail);
+    // Jedna událost na jméno (Pražský mír 1635 i 1866 jsou dvě různé – rozliší je rok v závorce názvu článku)
+    const nameKey = name.toLocaleLowerCase('cs');
+    // České události se vejdou vždy (Vyhlazení Lidic i nad limit masakrů)
+    const czechLike = /(?<!\p{L})(česk|čech|morav|pražsk|lidic|lidick)/iu.test(`${name} ${detail.d || ''}`);
+    if (eventNames.has(nameKey) || (!czechLike && (eventKindCounts[kind] || 0) >= (EVENT_KIND_LIMITS[kind] ?? Infinity))) continue;
+    if (preferredByName.has(name.toLocaleLowerCase('cs')) && preferredByName.get(name.toLocaleLowerCase('cs')) !== qid && items.some(item => item.q === preferredByName.get(name.toLocaleLowerCase('cs')))) continue;
+    const point = parsePoint(detail.coord) || parsePoint(detail.lcoord);
+    // Stát: přímo u události, jinak stát místa (u smluv místa podpisu)
+    const countries = [...new Set([...(detail.co || []), ...(detail.lco || [])])];
+    const isCzech = countries.some(q => CZECH_STATES.has(q)) || /(?<!\p{L})(česk|čech|morav|pražsk|lidick)/iu.test(`${name} ${detail.d || ''}`);
+    eventNames.add(nameKey);
+    eventKindCounts[kind] = (eventKindCounts[kind] || 0) + 1;
+    events.push({ qid, entry, detail, name, start, end, point, countries, isCzech, kind });
+}
+const knownEvents = new Set([...events].sort((a, b) => b.entry.sl - a.entry.sl).slice(0, EVENT_KNOWN).map(event => event.qid));
+// Nejznámější české události
+const CZECH_EVENTS_KNOWN = new Set(['Pražské jaro', 'Mnichovská dohoda', 'První pražská defenestrace', 'Druhá pražská defenestrace', 'Upálení Jana Husa',
+    'Operace Anthropoid', 'Vyhlazení Lidic', 'Rozdělení Československa', 'Invaze vojsk Varšavské smlouvy do Československa', 'Únor 1948', 'Kutnohorský dekret',
+    'Zlatá bula sicilská', 'Pražský mír']);
+for (const event of events) {
+    const { qid, detail, name, start, end, point, countries } = event;
+    items.push(compact({
+        q: qid,
+        t: detail.t,
+        n: name,
+        c: 'udalosti',
+        k: knownEvents.has(qid) || CZECH_EVENTS_KNOWN.has(name) ? 1 : 0,
+        ty: event.kind,
+        d: detail.d,
+        cz: event.isCzech ? 1 : undefined,
+        la: point ? point.lat : undefined,
+        lo: point ? point.lon : undefined,
+        co: countries,
+        ...imageFields(detail.im),
+        f: compact({
+            year: start,
+            end: end !== undefined && end !== start ? end : undefined,
+            place: (detail.loc || []).map(label).filter(Boolean)[0],
+            war: (detail.part || []).map(label).filter(Boolean)[0],
+            y: start
+        })
+    }));
+}
+console.log(`události: ${events.length}`);
+
 // Názvy s velkým písmenem („Bitva u Lipan“); „Václav II. Český“ → „Václav II.“, pokud se tak nejmenuje nikdo jiný
 const TERRITORIAL = /^(.+ [IVXLC]+\.) \p{Lu}\p{Ll}+[sc]k[ýá]$/u;
 const shortName = (name) => (TERRITORIAL.exec(name) || [])[1];
@@ -439,6 +629,10 @@ const COLLECTIONS = [
     { id: 'napoleonske-valky', label: 'Napoleonské války', sort: BY_YEAR, test: inWar('napoleonske') },
     { id: 'prvni-svetova', label: 'První světová válka', sort: BY_YEAR, test: inWar('prvni_svetova') },
     { id: 'druha-svetova', label: 'Druhá světová válka', sort: BY_YEAR, test: inWar('druha_svetova') },
+    { id: 'smlouvy', label: 'Smlouvy a mírové smlouvy', text: 'Od Vestfálského míru po Mnichovskou dohodu', sort: BY_YEAR, test: item => item.c === 'udalosti' && /smlouva|listina/u.test(item.ty || '') },
+    { id: 'kongresy-koncily', label: 'Kongresy, konference a koncily', sort: BY_YEAR, test: item => item.c === 'udalosti' && /konference|koncil/u.test(item.ty || '') },
+    { id: 'katastrofy', label: 'Katastrofy a epidemie', text: 'Zemětřesení, požáry, hladomory, morové rány a havárie', sort: BY_YEAR,
+        test: item => item.c === 'udalosti' && /zemětřesení|epidemie|hladomor|požár|povodeň|havárie|výbuch sopky/u.test(item.ty || '') },
     { id: 'starovek', label: 'Starověk', text: 'Do pádu Západořímské říše (476)', sort: BY_YEAR, test: item => item.f.y < 476 },
     { id: 'stredovek', label: 'Středověk', text: '476–1492', sort: BY_YEAR, test: item => item.f.y >= 476 && item.f.y < 1492 },
     { id: 'novovek', label: 'Novověk', text: '1492–1914', sort: BY_YEAR, test: item => item.f.y >= 1492 && item.f.y < 1914 },

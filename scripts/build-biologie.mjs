@@ -1,7 +1,8 @@
-// Téma Biologie: data/biologie.json z Wikidat – savci, ptáci, plazi a obojživelníci, ryby, hmyz, další bezobratlí, rostliny, houby
-// a pravěcí tvorové. Strom taxonů je velký, proto dotazy jdou přes QLever (query.wikidata.org na nich vyprší).
+// Téma Biologie: data/biologie.json z Wikidat – savci, ptáci, plazi a obojživelníci, ryby, hmyz, další bezobratlí, rostliny, houby,
+// pravěcí tvorové, plemena psů a koček a lidské tělo (plemena a tělo sestaví scripts/lib/biologie-extra.mjs). Strom taxonů je velký, proto dotazy jdou přes QLever (query.wikidata.org na nich vyprší).
 // Spuštění: npm run build:biologie (s BUILD_CACHE=složka jde pravidla ladit bez opakovaného stahování)
 import { qlever, id, values, imageFields, compact, cached, inBatches, writeTopic, sleep } from './lib/wikidata.mjs';
+import { buildBreeds, buildBody, EXTRA_COLLECTIONS } from './lib/biologie-extra.mjs';
 
 const RANK = { class: 'Q37517', order: 'Q36602', family: 'Q35409', genus: 'Q34740', species: 'Q7432' };
 
@@ -387,12 +388,22 @@ for (const item of items) {
     const groups = COLLECTIONS.filter(collection => collection.test(item)).map(collection => collection.id);
     if (groups.length) item.g = groups;
 }
-const collections = COLLECTIONS
+// Plemena psů a koček a lidské tělo: vlastní kategorie a okruhy (ne podle předků ve stromu taxonů)
+const takenIds = new Set(items.map(item => item.q));
+const takenNames = new Set(items.map(item => item.n.toLowerCase()));
+const extraItems = [...await buildBreeds({ takenIds, takenNames }), ...await buildBody({ takenIds, takenNames })];
+for (const item of extraItems) {
+    const groups = EXTRA_COLLECTIONS.filter(collection => collection.test(item)).map(collection => collection.id);
+    if (groups.length) item.g = groups;
+    delete item.sl; delete item.fg; delete item.czb;
+    items.push(item);
+}
+const collections = [...COLLECTIONS, ...EXTRA_COLLECTIONS]
     .map(({ test, ...collection }) => collection)
     .filter(collection => items.filter(item => (item.g || []).includes(collection.id)).length >= 5);
 for (const item of items) { delete item.anc; delete item.dom; }
 
-for (const category of CATEGORIES) {
+for (const category of [...CATEGORIES, { key: 'plemena' }, { key: 'telo' }]) {
     const inCategory = items.filter(item => item.c === category.key);
     console.log(`${category.key}: ${inCategory.length} (${inCategory.filter(item => item.k).length} známých, ${inCategory.filter(item => item.rm).length} s mapou rozšíření)`);
 }
