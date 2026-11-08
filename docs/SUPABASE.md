@@ -445,3 +445,16 @@ Nastavení → dole **Moje data** (jen přihlášený hráč) → **Stáhnout mo
 2. Tabulky `matches` a `match_players` s RLS a Supabase Realtime pro souboj o stejné otázky (otázka dne se už losuje
    stejně všem podle data).
 3. Žebříček přátel.
+
+## Odměny (schéma 9)
+
+**Po aktualizaci spusť znovu celý `supabase/schema.sql`.** Schéma má verzi 9 (verze 8 jsou Skupiny). Se starší databází se odměny drží jen v zařízení
+a nové odznaky se do účtu neuloží (databáze je z katalogu vyřadí), jinak aplikace funguje.
+
+- Sloupec `profiles.rewards jsonb` (blok „Odměny (schéma 9)“ před verzí schématu): věci z Truhly Mudrlanta, otevřené a čekající truhly po týdnech,
+  počet ochran série s časem poslední změny, dny zachráněné ochranou, klíče získaných ochran a dny získaných diplomů. Kontrola: objekt nejvýš 8 000 bajtů;
+  obsah čistí aplikace (`rewards.js`, `parse`). Hráč smí sloupec měnit jen ve svém profilu (`grant update (rewards)`), export dat ho obsahuje (celý řádek profilu).
+- `badge_catalog()` má nové odznaky: Kvíz dne (`kviz-dne…`), série a bez chyby (`kviz-serie-…`, `kviz-tyden`, `kviz-perfekt…`), Bleskovka (`bleskovka-…`),
+  Přežití (`preziti-…`), Ukaž na mapě (`mapa-…`), Přesné odhady (`odhad-…`) a Seřaď bez chyby (`serad-…`).
+- Jen kosmetika bez peněz, takže server obsah nepřepočítává (hráč si stejně může upravit i localStorage). Testy: `tests/rewards.test.js`, `tests/e2e-rewards.test.js`,
+  katalog odznaků `tests/sql-security.test.js`.

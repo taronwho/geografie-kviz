@@ -24,7 +24,9 @@ const ICONS = [
     // Přátelé (friends.js) a Moje data
     'user-plus', 'user-check', 'user-minus', 'ellipsis', 'download',
     // Přežití (životy) a Nastavení → Zvuky a Vibrace (sound.js)
-    'heart', 'volume-2', 'volume-x', 'vibrate'
+    'heart', 'volume-2', 'volume-x', 'vibrate',
+    // Odměny (rewards.js) a odznak Seřaď
+    'list-ordered'
 ];
 
 const toPascalCase = (name) => name.replace(/(^|-)(\w)/g, (_, __, letter) => letter.toUpperCase());

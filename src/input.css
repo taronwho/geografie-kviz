@@ -221,3 +221,26 @@ html.kb-open #settings-overlay > *, html.kb-open #dialog-overlay > * { max-heigh
 @keyframes modePop { from { opacity: 0; scale: 0.5; } to { opacity: 1; scale: 1; } }
 @keyframes modeHeartLost { 0% { scale: 1.35; opacity: 1; } 60% { scale: 0.8; } 100% { scale: 1; opacity: 1; } }
 @keyframes modeUrgent { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+
+/* Truhla Mudrlanta (rewards.js, app.js): zavřená se pohupuje, po otevření se víko zvedne a odklopí, za truhlou se rozzáří světlo
+   a jiskry, věc vyskočí. Při „omezit pohyb“ se víko jen ukáže otevřené a věc se objeví bez pohybu (žádné kývání ani skoky) */
+.chest-svg .chest-glow, .chest-svg .chest-sparks { opacity: 0; }
+.chest-svg .chest-lid { transform-box: fill-box; transform-origin: 8% 100%; }
+.chest-open .chest-svg .chest-lid { transform: translate(-6%, -22%) rotate(-28deg); }
+.chest-open .chest-svg .chest-glow, .chest-open .chest-svg .chest-sparks { opacity: 1; }
+.chest-overlay { background: rgb(22 23 25 / 0.82); }
+@media (prefers-reduced-motion: no-preference) {
+    .chest-box:not(.chest-open) .chest-svg { animation: chestWobble 2.4s ease-in-out infinite; transform-origin: 50% 90%; }
+    .chest-shake .chest-svg { animation: chestShake 0.5s ease-in-out both !important; }
+    .chest-open .chest-svg .chest-lid { animation: chestLid 0.7s cubic-bezier(0.2, 1.3, 0.4, 1) both; }
+    .chest-open .chest-svg .chest-glow { animation: chestGlow 0.9s ease-out both; transform-box: fill-box; transform-origin: 50% 50%; }
+    .chest-open .chest-svg .chest-sparks { animation: chestSparks 1.6s ease-in-out 0.3s infinite; }
+    .chest-reveal { animation: chestReveal 0.55s cubic-bezier(0.2, 1.4, 0.4, 1) 0.35s both; }
+    .chest-strip .chest-mini { animation: chestWobble 2.4s ease-in-out infinite; transform-origin: 50% 90%; }
+}
+@keyframes chestWobble { 0%, 70%, 100% { rotate: 0deg; } 76% { rotate: -6deg; } 82% { rotate: 6deg; } 88% { rotate: -4deg; } 94% { rotate: 3deg; } }
+@keyframes chestShake { 0%, 100% { translate: 0 0; rotate: 0deg; } 20% { translate: -4px 0; rotate: -5deg; } 40% { translate: 4px 0; rotate: 5deg; } 60% { translate: -3px 0; rotate: -3deg; } 80% { translate: 3px 0; rotate: 2deg; } }
+@keyframes chestLid { from { transform: translate(0, 0) rotate(0deg); } to { transform: translate(-6%, -22%) rotate(-28deg); } }
+@keyframes chestGlow { from { opacity: 0; transform: scale(0.3); } to { opacity: 1; transform: scale(1); } }
+@keyframes chestSparks { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+@keyframes chestReveal { from { opacity: 0; scale: 0.6; translate: 0 18px; } to { opacity: 1; scale: 1; translate: 0 0; } }

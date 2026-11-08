@@ -6,6 +6,7 @@ const path = require('node:path');
 const Tips = require('../tips.js');
 
 const NOW = Date.parse('2026-11-09T10:00:00Z');
+const ACTIONS = ['settings', 'learn', 'progress', 'multi', 'single', 'quiz', 'modes', 'goals'];
 const base = (over = {}) => ({ counters: { answered: 0 }, today: '2026-11-09', now: NOW, launches: 1, signedIn: false, multiAvailable: true, reviewOn: true, ...over });
 
 test('každý tip má id, titulek, text a ikonu, která existuje v icons.js; akce míří na známé místo', () => {
@@ -16,11 +17,11 @@ test('každý tip má id, titulek, text a ikonu, která existuje v icons.js; akc
         ids.add(tip.id);
         assert.ok(tip.title && tip.text.length > 30 && tip.text.length < 260, tip.id);
         assert.ok(icons.includes(`"${tip.icon}"`), `ikona ${tip.icon}`);
-        if (tip.action) assert.ok(['settings', 'learn', 'progress', 'multi', 'single'].includes(tip.action.kind), tip.id);
+        if (tip.action) assert.ok(ACTIONS.includes(tip.action.kind), tip.id);
         assert.equal(typeof tip.used, 'function');
     }
     const app = fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8');
-    for (const kind of ['settings', 'learn', 'progress', 'multi', 'single']) assert.ok(new RegExp(`${kind}: \\(\\) =>`).test(app), `akce ${kind} je v app.js`);
+    for (const kind of ACTIONS) assert.ok(new RegExp(`${kind}: \\(\\) =>`).test(app), `akce ${kind} je v app.js`);
 });
 
 test('nový hráč dostane nejdřív základní tip, tip o více hráčích až po několika odpovědích', () => {
@@ -53,10 +54,11 @@ test('rozpočet za den klesá se zkušeností hráče', () => {
 });
 
 test('funkci, kterou hráč už používá, tip nenabídne; tip se ukáže jen jednou', () => {
-    const player = { answered: 200, typedCorrect: 5, created: 2, challenges: 4, tourPlayed: 1, reviewed: 3, noHint: 40, bestStreak: 9, wins: 20, weeksDone: 1 };
+    const player = { answered: 700, typedCorrect: 5, created: 2, challenges: 4, tourPlayed: 1, reviewed: 3, noHint: 40, bestStreak: 9, wins: 20, weeksDone: 1,
+        quizDone: 9, blitzGames: 2, orderAnswered: 8, mapAnswered: 6, sharedImages: 1, freezesUsed: 1, chestsOpened: 1 };
     const ctx = base({ counters: player, signedIn: true });
     const offered = [];
-    let state = { ...Tips.EMPTY, visited: { learn: true, progress: true, look: true } };
+    let state = { ...Tips.EMPTY, visited: { learn: true, progress: true, look: true, diplomas: true } };
     let now = NOW;
     for (let day = 0; day < 20; day++) {
         const tip = Tips.pick(state, { ...ctx, today: `2026-12-${String(day + 1).padStart(2, '0')}`, now });
@@ -100,4 +102,50 @@ test('vypnuté tipy se nenabídnou; vypnuté procvičování špatných odpověd
         { seen: ['dnesni'], day: 'xxxxxxxxxx', n: 0, lastAt: 0, off: false, visited: { learn: true } });
     assert.deepEqual(Tips.parse(null), Tips.EMPTY);
     assert.equal(Tips.reset(Tips.markShown(Tips.setOff(Tips.EMPTY, true), 'dnesni', '2026-11-09', NOW)).seen.length, 0);
+});
+
+test('tipy na Kvíz dne, Bleskovku a Přežití, Seřaď a Odhadni, mapu, sdílení obrázku, ochranu série, truhlu a diplomy', () => {
+    const at = (id, ctx) => Tips.pick({ ...Tips.EMPTY, seen: Tips.TIPS.filter(tip => tip.id !== id).map(tip => tip.id) }, ctx);
+    // Kvíz dne: brzy, pro hosta s textem o přihlášení; kdo ho hrál, tip nedostane; bez Kvízu dne v aplikaci také ne
+    assert.equal(at('kviz-dne', base({ counters: { answered: 4 } })).id, 'kviz-dne');
+    assert.match(Tips.textFor(Tips.BY_ID.get('kviz-dne'), false), /Po přihlášení/);
+    assert.match(Tips.textFor(Tips.BY_ID.get('kviz-dne'), true), /kolikátý/);
+    assert.equal(at('kviz-dne', base({ counters: { answered: 40, quizDone: 1 } })), null);
+    assert.equal(at('kviz-dne', base({ counters: { answered: 40 }, quiz: false })), null);
+    assert.equal(Tips.BY_ID.get('kviz-dne').action.kind, 'quiz');
+    // Pořadí Kvízu dne jen přihlášenému, který kvíz hrál
+    assert.equal(at('kviz-poradi', base({ counters: { answered: 40, quizDone: 1 } })), null, 'host ne');
+    assert.equal(at('kviz-poradi', base({ counters: { answered: 40, quizDone: 1 }, signedIn: true })).id, 'kviz-poradi');
+    assert.equal(at('kviz-poradi', base({ counters: { answered: 40 }, signedIn: true })), null, 'ještě nehrál');
+    // Bleskovka a Přežití: kde je najít (okno Co hrát), kdo hrál, nedostane
+    assert.match(Tips.BY_ID.get('rezimy').text, /Co hrát/);
+    assert.equal(at('rezimy', base({ counters: { answered: 10 } })).action.kind, 'modes');
+    assert.equal(at('rezimy', base({ counters: { answered: 10, survivalGames: 1 } })), null);
+    // Seřaď, Odhadni a mapa: až po první takové otázce, body za přesnost
+    assert.equal(at('ciselne', base({ counters: { answered: 30 } })), null);
+    assert.equal(at('ciselne', base({ counters: { answered: 30, estimateAnswered: 1 } })).id, 'ciselne');
+    assert.match(Tips.BY_ID.get('ciselne').text, /přesnost/);
+    assert.equal(at('mapa', base({ counters: { answered: 30, mapAnswered: 1 } })).id, 'mapa');
+    assert.match(Tips.BY_ID.get('mapa').text, /vzdálenost/);
+    assert.equal(at('mapa', base({ counters: { answered: 30, mapAnswered: 5 } })), null);
+    // Jak odpověděli ostatní: jen přihlášenému (statistiky se ukazují jen jemu)
+    assert.equal(at('ostatni', base({ counters: { answered: 40 } })), null);
+    assert.equal(at('ostatni', base({ counters: { answered: 40 }, signedIn: true })).id, 'ostatni');
+    // Sdílení obrázku: po prvním výsledku, který jde sdílet
+    assert.equal(at('obrazek', base({ counters: { answered: 40 } })), null);
+    assert.equal(at('obrazek', base({ counters: { answered: 40, quizDone: 1 } })).id, 'obrazek');
+    assert.equal(at('obrazek', base({ counters: { answered: 40, quizDone: 1, sharedImages: 1 } })), null);
+    // Ochrana série: když má hráč sérii nebo ochranu; kdo ji už použil, ví
+    assert.equal(at('ochrana', base({ counters: { answered: 40 } })), null);
+    assert.equal(at('ochrana', base({ counters: { answered: 40 }, freezes: 1 })).id, 'ochrana');
+    assert.equal(at('ochrana', base({ counters: { answered: 40, bestStreak: 3, freezesUsed: 1 } })), null);
+    // Truhla: s cíli týdne; kdo ji otevřel, ví
+    assert.equal(at('truhla', base({ counters: { answered: 60 } })).action.kind, 'goals');
+    assert.equal(at('truhla', base({ counters: { answered: 60, chestsOpened: 1 } })), null);
+    // Diplomy: až má hráč v některém tématu aspoň 3 hvězdy; po návštěvě diplomů ne
+    assert.equal(at('diplomy', base({ counters: { answered: 60 }, maxStars: 2 })), null);
+    assert.equal(at('diplomy', base({ counters: { answered: 60 }, maxStars: 3 })).action.kind, 'progress');
+    const visited = Tips.touch(Tips.EMPTY, 'diplomas');
+    assert.equal(visited.visited.diplomas, true);
+    assert.equal(Tips.pick({ ...visited, seen: Tips.TIPS.filter(tip => tip.id !== 'diplomy').map(tip => tip.id) }, base({ counters: { answered: 60 }, maxStars: 5 })), null);
 });

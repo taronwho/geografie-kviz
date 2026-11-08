@@ -1,6 +1,6 @@
 # Vlastní ilustrace – prompty ke zkopírování
 
-Cíl: aby celá hra vypadala originálně. Ilustrace nahradí obecné ikony u titulů, lig, odznaků, dlaždic a v Google Play. Celkem **46 obrázků**, pořadí je i doporučené pořadí.
+Cíl: aby celá hra vypadala originálně. Ilustrace nahradí obecné ikony u titulů, lig, odznaků, dlaždic a v Google Play. Celkem **56 obrázků**, pořadí je i doporučené pořadí.
 
 ## Jak na to
 
@@ -400,8 +400,91 @@ Přiložit: `branding/sova-original.jpg` (postava). Název „Mudrlant“ do pra
 Wide horizontal banner in exactly the same cartoon sticker art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading. Use the attached owl mascot as the character: keep its face, monocle with chain, white eyebrows and whiskers, golden-brown feathers and wine-red academic robe with cap exactly as they are; change only the pose and props described here. The wine-red color must appear only on the robe and cap: all props must be in other colors (no red, pink or wine-colored props). The owl stands in the left third of the banner, proudly holding an open book, surrounded by small floating colorful topic icons: a globe, a parchment scroll, a green leaf, a chemistry flask, an atom, a waving flag, a music note, a film clapper, a paint palette, a greek column, a gem, a trophy, a winged helmet and an open book. Background: smooth dark grey to deep wine-red gradient. Leave the right third of the banner empty (only background) for a title that will be added later. No text, no letters, no numbers, no logo, no watermark. Wide image, aspect ratio 2:1 (for example 2048 × 1000 px); 16:9 is also fine, it will be cropped to 1024 × 500. --ar 2:1
 ```
 
+## 6. Nové odznaky a odměny
+
+**Stav: zatím zástupné ikony.** Medaile odznaků Kvíz dne, Série Kvízu dne, Kvíz dne bez chyby, Bleskovka, Přežití, Ukaž na mapě, Přesné odhady a Seřaď bez chyby mají ve hře čárovou ikonu (stopky, plamen, jiskry, blesk, srdce, zaměřovač, budík, číslovaný seznam), jako měly ostatní odznaky před dodáním symbolů. Truhla Mudrlanta je zatím kreslená vektorově (víko se při otevření zvedne), ochrana série je štít z ikon. Symbol odznaku se kreslí bez kolečka medaile, stejně jako v oddíle 3.
+
+### 47. `odznak-kviz-dne.png` – Kvíz dne
+
+Přiložit: `branding/sova-original.jpg` (vzor stylu)
+
+```text
+Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole object. Single centered subject filling about 80 % of the frame with even empty space around it. Plain solid flat dark grey background, color #2d3034, no gradient, no shadow on the background, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, colors, shading); do not draw the owl. Subject: A shiny golden pocket stopwatch standing in front of a small cream tear-off calendar page, with a tiny sparkle on the stopwatch button. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+### 48. `odznak-kviz-serie.png` – Série Kvízu dne
+
+Přiložit: `branding/sova-original.jpg` (vzor stylu)
+
+```text
+Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole object. Single centered subject filling about 80 % of the frame with even empty space around it. Plain solid flat dark grey background, color #2d3034, no gradient, no shadow on the background, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, colors, shading); do not draw the owl. Subject: A golden pocket stopwatch wrapped in a cheerful bright orange and yellow flame. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+### 49. `odznak-kviz-perfekt.png` – Kvíz dne bez chyby
+
+Přiložit: `branding/sova-original.jpg` (vzor stylu)
+
+```text
+Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole object. Single centered subject filling about 80 % of the frame with even empty space around it. Plain solid flat dark grey background, color #2d3034, no gradient, no shadow on the background, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, colors, shading); do not draw the owl. Subject: Ten small glossy green square tiles arranged in a neat fan shape with a big golden star in front of them. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+### 50. `odznak-bleskovka.png` – Bleskovka
+
+Přiložit: `branding/sova-original.jpg` (vzor stylu)
+
+```text
+Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole object. Single centered subject filling about 80 % of the frame with even empty space around it. Plain solid flat dark grey background, color #2d3034, no gradient, no shadow on the background, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, colors, shading); do not draw the owl. Subject: A round blue stopwatch with a bold bright yellow lightning bolt striking across its face. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+### 51. `odznak-preziti.png` – Přežití
+
+Přiložit: `branding/sova-original.jpg` (vzor stylu)
+
+```text
+Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole object. Single centered subject filling about 80 % of the frame with even empty space around it. Plain solid flat dark grey background, color #2d3034, no gradient, no shadow on the background, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, colors, shading); do not draw the owl. Subject: Three glossy red cartoon hearts stacked behind a small sturdy wooden shield with a golden rim. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+### 52. `odznak-mapa.png` – Ukaž na mapě
+
+Přiložit: `branding/sova-original.jpg` (vzor stylu)
+
+```text
+Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole object. Single centered subject filling about 80 % of the frame with even empty space around it. Plain solid flat dark grey background, color #2d3034, no gradient, no shadow on the background, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, colors, shading); do not draw the owl. Subject: A folded parchment treasure map with a red map pin stuck exactly in the middle of a small red and white bullseye drawn on it. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+### 53. `odznak-odhad.png` – Přesné odhady
+
+Přiložit: `branding/sova-original.jpg` (vzor stylu)
+
+```text
+Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole object. Single centered subject filling about 80 % of the frame with even empty space around it. Plain solid flat dark grey background, color #2d3034, no gradient, no shadow on the background, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, colors, shading); do not draw the owl. Subject: A round analog gauge with a white dial, a green zone at the top and the needle pointing right into the green zone, with a small brass magnifying glass leaning on it. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+### 54. `odznak-serad.png` – Seřaď bez chyby
+
+Přiložit: `branding/sova-original.jpg` (vzor stylu)
+
+```text
+Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole object. Single centered subject filling about 80 % of the frame with even empty space around it. Plain solid flat dark grey background, color #2d3034, no gradient, no shadow on the background, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, colors, shading); do not draw the owl. Subject: Four colorful wooden toy blocks of increasing height standing in a row like steps, with a small green check mark above the tallest one. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+### 55. `truhla.png` – Truhla Mudrlanta (odměna za cíle týdne)
+
+Přiložit: `branding/sova-original.jpg` (vzor stylu). Víko musí být vidět celé (ve hře se při otevření zvedne, odříznu ho zvlášť).
+
+```text
+Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole object. Single centered subject filling about 80 % of the frame with even empty space around it. Plain solid flat dark grey background, color #2d3034, no gradient, no shadow on the background, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, colors, shading); do not draw the owl. Subject: A closed wooden treasure chest with golden metal bands, a golden lock plate and a rounded lid, a soft golden glow leaking out from under the lid and a few small cream sparkles around it. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+### 56. `ochrana-serie.png` – Ochrana série
+
+Přiložit: `branding/sova-original.jpg` (vzor stylu).
+
+```text
+Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole object. Single centered subject filling about 80 % of the frame with even empty space around it. Plain solid flat dark grey background, color #2d3034, no gradient, no shadow on the background, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, colors, shading); do not draw the owl. Subject: A rounded heater shield made of light icy blue crystal with a golden rim, with a small cheerful orange flame safely inside it. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
 ## Co udělám po dodání
 
 1. Uložím soubory do `branding/ikony/`, vyříznu pozadí (`python3 scripts/topic-icons.py …`) a u sov vyrobím barvy obleku (`python3 scripts/owl-robes.py`).
-2. Zapojím je: sovy titulů do Úrovní a titulů, erby lig do výzev a žebříčku, symboly do medailí (zamčené jako zašedlý náhled), dlaždice do Více hráčů, úvodu a Učení, sovu s žárovkou do tipů, banner s nápisem pro Google Play.
+2. Zapojím je: sovy titulů do Úrovní a titulů, erby lig do výzev a žebříčku, symboly do medailí (zamčené jako zašedlý náhled), dlaždice do Více hráčů, úvodu a Učení, sovu s žárovkou do tipů, banner s nápisem pro Google Play, truhlu do okna Truhla Mudrlanta a pruhu Cíle týdne, štít ochrany série k sérii a do Mého postupu.
 3. Prověřím snímky na 360–412 px ve světlém i tmavém režimu a doplním test, že všechny obrázky existují.

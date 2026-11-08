@@ -114,3 +114,18 @@ test('výjimky a vzorek skutečného tématu', async () => {
     assert.ok(result.total > result.items);
     for (const item of result.findings) assert.ok(item.kind && item.topic === 'geologie' && item.problem !== undefined);
 });
+
+test('auditSameCountry: region z jiného státu je jistá chyba, pokud stát má dost regionů', async () => {
+    const { auditSameCountry, isCritical } = await audit();
+    const region = (q, n, co) => ({ q, t: n, n, c: 'regiony', co: [co], f: {} });
+    const items = [region('Q1', 'Texas', 'Q30'), region('Q2', 'Ohio', 'Q30'), region('Q3', 'Utah', 'Q30'), region('Q4', 'Iowa', 'Q30'), region('Q5', 'Santiago', 'Q298'), region('Q6', 'Wales', 'Q145')];
+    const ctx = { ...makeCtx(items, 'vlajky'), topic: { ...makeCtx(items, 'vlajky').topic, sameCountry: ['regiony'] } };
+    const ask = (ids) => nameQuestion(ids.map((id, i) => choice(ctx.byId.get(id).n, i === 0, id)), [ctx.byId.get(ids[0]).n]);
+    const found = auditSameCountry(items[0], ctx, ask(['Q1', 'Q2', 'Q3', 'Q5']));
+    assert.deepEqual(found.map(item => item.kind), ['moznosti-stat']);
+    assert.ok(isCritical(found[0]));
+    assert.match(found[0].snippet, /Santiago/);
+    assert.deepEqual(auditSameCountry(items[0], ctx, ask(['Q1', 'Q2', 'Q3', 'Q4'])), []);
+    assert.deepEqual(auditSameCountry(items[5], ctx, ask(['Q6', 'Q2', 'Q3', 'Q5'])), [], 'stát s jediným regionem: nouzové možnosti');
+    assert.deepEqual(auditSameCountry(items[0], makeCtx(items, 'vlajky'), ask(['Q1', 'Q2', 'Q3', 'Q5'])), [], 'jen kategorie, kde to téma slibuje');
+});

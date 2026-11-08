@@ -41,14 +41,14 @@
             const unlocked = Look.isUnlocked(item, ctx);
             const label = unlocked || item.id === 'zadny' ? SHORT[item.id] : (item.badge ? 'Odznak' : `Úr. ${item.level}`);
             const text = unlocked ? item.title : `${item.title}: ${Look.unlockText(item, item.badge ? badgeTitle(item.badge) : null)}`;
-            return `<button type="button" data-frame="${item.id}" aria-pressed="${item.id === selected}" aria-label="${escapeHtml(unlocked ? item.title : `${text} (zamčeno)`)}" title="${escapeHtml(text)}" class="flex min-w-0 flex-col items-center gap-1 rounded-xl border-2 px-0.5 pb-1 pt-2 active:scale-95 min-[400px]:py-1.5 ${item.id === selected ? 'border-brand-600 bg-brand-50 dark:bg-brand-900/40' : 'border-transparent bg-slate-100 dark:bg-slate-700/60'} ${unlocked ? '' : 'opacity-50 grayscale'}">
-                ${ctx.avatarHtml ? ctx.avatarHtml({ ...player, id: null, frame: item.id }, 'h-8 w-8 text-base') : ''}
-                <span class="max-w-full truncate text-[10px] font-bold leading-none text-slate-600 dark:text-slate-300 min-[400px]:hidden">${escapeHtml(label)}</span>
+            return `<button type="button" data-frame="${item.id}" aria-pressed="${item.id === selected}" aria-label="${escapeHtml(unlocked ? item.title : `${text} (zamčeno)`)}" title="${escapeHtml(text)}" class="flex h-11 w-11 shrink-0 snap-start items-center justify-center rounded-xl border-2 active:scale-95 ${item.id === selected ? 'border-brand-600 bg-brand-50 dark:bg-brand-900/40' : 'border-transparent bg-slate-100 dark:bg-slate-700/60'} ${unlocked ? '' : 'opacity-50 grayscale'}">
+                ${ctx.avatarHtml ? ctx.avatarHtml({ ...player, id: null, frame: item.id }, 'h-8 w-8 text-base') : ''}<span class="sr-only">${escapeHtml(label)}</span>
             </button>`;
         }).join('');
         const shown = hint || frameHint(Look.find('frames', selected), ctx, badgeTitle);
-        return `<div class="grid grid-cols-5 gap-1.5 min-[400px]:grid-cols-9 min-[400px]:gap-1" role="group" aria-label="Rámeček profilu">${tiles}</div>
-            <p class="mt-1.5 text-[11px] leading-snug text-slate-500 dark:text-slate-400" role="status">${escapeHtml(shown)}${ctx.user ? '' : ' · uvidí ho hráči po přihlášení'}</p>`;
+        // Jedna řada (Vzhled se vejde bez posouvání); na úzkém displeji se řada posouvá do strany, ne celé okno
+        return `<div class="-mx-0.5 flex w-full min-w-0 snap-x gap-1 overflow-x-auto px-0.5 pb-0.5 [scrollbar-width:none]" role="group" aria-label="Rámeček profilu">${tiles}</div>
+            <p class="mt-1 text-[11px] leading-snug text-slate-500 dark:text-slate-400" role="status">${escapeHtml(shown)}${ctx.user ? '' : ' · uvidí ho hráči po přihlášení'}</p>`;
     };
     const clickFrames = (event, ctx) => {
         const button = event.target.closest('[data-frame]');
@@ -73,7 +73,7 @@
         const optionHtml = (option) => `<option value="${escapeHtml(option.value)}"${option.value === ctx.prefs.title ? ' selected' : ''}>${escapeHtml(option.label)}</option>`;
         return `<label class="block">
                 <span class="sr-only">Co se zobrazí u tvého jména</span>
-                <select data-title-select class="min-h-[2.75rem] w-full rounded-xl border-2 border-slate-200 bg-white px-3 py-2 text-sm font-bold text-slate-800 focus:border-brand-600 focus:outline-none dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100">
+                <select data-title-select class="min-h-[2.5rem] w-full rounded-xl border-2 border-slate-200 bg-white px-3 py-1.5 text-sm font-bold text-slate-800 focus:border-brand-600 focus:outline-none dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100">
                     ${optionHtml(options[0])}${optionHtml(options[1])}
                     ${options.length > 2 ? `<optgroup label="Získané odznaky">${options.slice(2).map(optionHtml).join('')}</optgroup>` : ''}
                 </select>

@@ -127,3 +127,34 @@ test('vlajky: okruhy pro učení', () => {
     assert.ok(inCollection('kraje').includes('Jihomoravský kraj'));
     assert.ok(inCollection('cesko-a-sousede').includes('Rakousko'));
 });
+
+test('vlajky: regiony států mají nesprávné možnosti ze stejného státu, blízké a podobně velké', () => {
+    const regions = data.items.filter(item => item.c === 'regiony');
+    const perCountry = new Map();
+    for (const item of regions) perCountry.set(item.co[0], (perCountry.get(item.co[0]) || 0) + 1);
+    let checked = 0;
+    for (const item of regions) {
+        if (perCountry.get(item.co[0]) < 4) continue;
+        for (let seed = 0; seed < 6; seed++) {
+            const wrong = choicesOf(item, `region-${seed}-${item.q}`).filter(choice => !choice.correct).map(choice => ctx.byId.get(choice.id));
+            assert.equal(wrong.length, 3);
+            for (const other of wrong) assert.equal(other.co[0], item.co[0], `${item.n}: ${other.n} je z jiného státu`);
+            checked++;
+        }
+    }
+    assert.ok(checked > 1500, `zkontrolováno ${checked} otázek`);
+    // Ani známá položka (Ciudad de México) nedostane známý region cizího státu jen proto, že je známý
+    const mexico = regions.find(item => item.n === 'Ciudad de México');
+    if (mexico) assert.ok(choicesOf(mexico, 'a').every(choice => ctx.byId.get(choice.id).co[0] === 'Q96'));
+    // Stát s jediným regionem v datech (Spojené království) dostane nouzové možnosti, otázka zůstane úplná
+    const lonely = regions.find(item => perCountry.get(item.co[0]) === 1);
+    if (lonely) assert.equal(choicesOf(lonely, 'b').length, 4);
+    // Sousední region je mezi podobnými výš než vzdálený (při stejném vzhledu vlajky)
+    const texas = regions.find(item => item.q === 'Q1439');
+    if (texas) {
+        const near = regions.find(item => item.q === 'Q1649'); // Oklahoma
+        const far = regions.find(item => item.q === 'Q1066807' || item.n === 'Maine');
+        if (near && far) assert.ok(vlajky.similarity(texas, { ...near, sg: far.sg }, ctx) > vlajky.similarity(texas, far, ctx));
+    }
+    assert.deepEqual(vlajky.sameCountry, ['regiony']);
+});

@@ -269,7 +269,7 @@ test('odměny ve Vzhledu: rámečky, titul a obrázky hráče', { skip: !chromiu
         assert.match(await tab.getAttribute('[data-locked-avatar="🦖"]', 'aria-label'), /zamčený: Úroveň 28/);
         assert.equal(await tab.getAttribute('[data-locked-avatar="🦖"]', 'title'), 'Úroveň 28');
         assert.match(await tab.getAttribute('[data-locked-avatar="🦖"]', 'class'), /grayscale/);
-        assert.equal(await tab.locator('[data-pick-avatar], [data-locked-avatar]').count(), 34);
+        assert.equal(await tab.locator('[data-pick-avatar], [data-locked-avatar]').count(), 41, '20 základních a 21 odemykaných (úroveň, turnaje, odznaky Kvízu dne, režimů a otázek)');
         assert.equal(await tab.evaluate(() => { const box = document.querySelector('#settings-overlay > div'); return box.scrollHeight <= box.clientHeight; }), true, 'okno bez posouvání');
         await tab.click('[data-locked-avatar="🦖"]', { force: true });
         await tab.waitForFunction(() => /T-Rex se odemkne na úrovni 28/.test(document.getElementById('settings-note').textContent));

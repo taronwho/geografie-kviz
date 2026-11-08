@@ -15,6 +15,7 @@
     const esc = (text) => String(text).replace(/[&<>"]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
 
     let robe = 'vinova';
+    let note = '';
     const retint = (img) => {
         if (img.hasAttribute('data-keep')) return;
         const next = owlSrc(img.getAttribute('src'), robe);
@@ -38,25 +39,34 @@
     };
 
     Look.register({
-        id: 'robes', title: 'Barva obleku Mudrlanta', order: 20,
+        id: 'robes', title: 'Barva obleku Mudrlanta', order: 20, tight: true,
+        // Kompaktně (Vzhled se vejde bez posouvání): jen sova v dlaždici 44 px, zamčená zašedlá se zámkem; název a jak se odemyká
+        // je v popisku (i pro čtečku) a v řádku pod řadou (vybraný talár, nebo zamčený, na který hráč klepl)
         render: (ctx) => {
             const chosen = ctx.prefs.robe;
-            return `<div class="grid grid-cols-7 gap-1">${Look.ROBES.map(item => {
+            const tiles = Look.ROBES.map(item => {
                 const open = Look.isUnlocked(item, ctx);
                 const selected = item.id === chosen;
                 const art = owlSrc('icons/topics/sova-vitej.webp', item.id);
-                return `<button type="button" data-robe-pick="${item.id}" ${open ? '' : 'aria-disabled="true"'} aria-pressed="${selected}" aria-label="${esc(item.title)}${open ? '' : `, zamčeno: ${esc(Look.unlockText(item))}`}"
-                    class="flex min-w-0 flex-col items-center rounded-xl px-0 py-1 text-center ${selected ? 'bg-brand-50 ring-2 ring-brand-500 dark:bg-brand-950' : 'bg-slate-50 dark:bg-slate-700/50'} ${open ? '' : 'cursor-not-allowed'}">
+                const lockText = open ? '' : Look.unlockText(item).replace('Úroveň', 'Úr.');
+                return `<button type="button" data-robe-pick="${item.id}" ${open ? '' : 'aria-disabled="true"'} aria-pressed="${selected}" aria-label="${esc(item.title)}${open ? '' : `, zamčeno: ${esc(Look.unlockText(item))}`}" title="${esc(item.title)}${open ? '' : `: ${esc(Look.unlockText(item))}`}"
+                    class="relative flex h-11 min-w-0 items-center justify-center rounded-xl ${selected ? 'bg-brand-50 ring-2 ring-brand-500 dark:bg-brand-950' : 'bg-slate-50 dark:bg-slate-700/50'} ${open ? '' : 'cursor-not-allowed'}">
                     <img src="${art}" alt="" data-keep class="h-10 w-10 object-contain ${open ? '' : 'opacity-40 grayscale'}">
-                    <span class="mt-0.5 text-[10px] font-bold leading-tight ${open ? 'text-slate-700 dark:text-slate-200' : 'text-slate-500 dark:text-slate-400'}">${esc(item.title.replace(' talár', ''))}</span>
-                    ${open ? '' : `<span class="text-[10px] leading-tight text-slate-500 dark:text-slate-400">${esc(Look.unlockText(item).replace('Úroveň', 'Úr.'))}</span>`}
+                    ${open ? '' : `<span class="absolute bottom-0.5 right-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-slate-600 text-white ring-1 ring-white dark:bg-slate-300 dark:text-slate-900 dark:ring-slate-800" aria-hidden="true"><i data-lucide="lock" class="h-2 w-2"></i></span><span class="sr-only">${esc(lockText)}</span>`}
                 </button>`;
-            }).join('')}</div>`;
+            }).join('');
+            const current = Look.find('robes', chosen) || Look.ROBES[0];
+            return `<div class="grid grid-cols-7 gap-0.5">${tiles}</div>
+                <p class="mt-1 px-1 text-[11px] font-semibold leading-snug text-slate-500 dark:text-slate-400" role="status">${esc(note || current.title)}</p>`;
         },
         click: (event, ctx) => {
             const button = event.target.closest('[data-robe-pick]');
             if (!button) return false;
-            return Look.setPref('robe', button.dataset.robePick, ctx);
+            const item = Look.find('robes', button.dataset.robePick);
+            if (!item) return false;
+            if (!Look.isUnlocked(item, ctx)) { note = `${item.title}: ${Look.unlockText(item)}`; return true; }
+            note = '';
+            return Look.setPref('robe', item.id, ctx);
         },
         apply: (prefs) => {
             robe = ROBE_IDS.includes(prefs.robe) ? prefs.robe : 'vinova';

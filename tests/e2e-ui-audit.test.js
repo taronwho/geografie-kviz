@@ -266,16 +266,16 @@ test('rozhraní na úzkém telefonu', { skip: !chromium && 'Playwright není nai
             await tab.waitForSelector('[data-open-levels]');
             await check(tab, `${scene}: můj postup`, scheme);
             // Karta s úrovní a titulem má sovu titulu (místo kolečka úrovně, úroveň je štítek na sově) a nenaroste: okno se kvůli ní
-            // neposouvá víc než dřív (106 px jako karta s kolečkem; jinak okno posouvá jen seznam mistrovství témat pod ní)
+            // nenaroste (nejvýš 106 px; Můj postup je kompaktní a vejde se bez posouvání, viz tests/e2e-rewards.test.js)
             const card = await tab.evaluate(() => {
                 const box = document.querySelector('[data-open-levels]').getBoundingClientRect();
                 const owl = document.querySelector('[data-open-levels] [data-title-owl] img');
-                const title = document.querySelector('[data-open-levels] .text-xl');
+                const title = document.querySelector('[data-open-levels] .text-lg');
                 return { height: box.height, owl: owl && owl.getAttribute('src'), owlHeight: owl && owl.getBoundingClientRect().height, titleLines: Math.round(title.getBoundingClientRect().height / parseFloat(getComputedStyle(title).lineHeight)) };
             });
             assert.ok(card.height <= 106.5, `${scene}: karta úrovně ${card.height} px`);
             assert.equal(card.owl, 'icons/topics/sova-titul-1.webp');
-            assert.ok(card.owlHeight >= 64, `${scene}: sova titulu ${card.owlHeight} px`);
+            assert.ok(card.owlHeight >= 52, `${scene}: sova titulu ${card.owlHeight} px`);
             assert.equal(card.titleLines, 1, `${scene}: titul na jeden řádek`);
             assert.deepEqual(problems, [], 'bez chyb v konzoli a bez porušení CSP');
             await context.close();

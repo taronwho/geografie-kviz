@@ -310,7 +310,15 @@ language sql immutable set search_path = public as $$
         'zbehly-sport-5', 'zbehly-sport', 'zbehly-sport-25', 'zbehly-sport-50', 'zbehly-sport-100',
         'turnaj-ucast', 'turnaj-ctvrtfinale', 'turnaj-semifinale', 'turnaj-bronz', 'turnaj-stribro', 'turnaj-zlato',
         'turnaj-postupy-1', 'turnaj-postupy-5', 'turnaj-postupy-15', 'turnaj-postupy-30', 'turnaj-postupy-60',
-        'tydenni-cile', 'tydenni-cile-5', 'tydenni-cile-10', 'tydenni-cile-20', 'tydenni-cile-52'
+        'tydenni-cile', 'tydenni-cile-5', 'tydenni-cile-10', 'tydenni-cile-20', 'tydenni-cile-52',
+        -- Schéma 9: Kvíz dne, Bleskovka, Přežití, Ukaž na mapě, Odhadni a Seřaď
+        'kviz-dne', 'kviz-dne-10', 'kviz-dne-50', 'kviz-dne-100', 'kviz-dne-365',
+        'kviz-serie-3', 'kviz-tyden', 'kviz-serie-14', 'kviz-serie-30', 'kviz-serie-100',
+        'kviz-perfekt', 'kviz-perfekt-5', 'kviz-perfekt-20', 'kviz-perfekt-50', 'kviz-perfekt-100',
+        'bleskovka-8', 'bleskovka-12', 'bleskovka-16', 'bleskovka-20', 'bleskovka-25',
+        'preziti-10', 'preziti-20', 'preziti-35', 'preziti-50', 'preziti-75',
+        'mapa-5', 'mapa-25', 'mapa-100', 'mapa-250', 'mapa-500', 'odhad-5', 'odhad-25', 'odhad-100', 'odhad-250', 'odhad-500',
+        'serad-5', 'serad-25', 'serad-100', 'serad-250', 'serad-500'
     ]::text[];
 $$;
 
@@ -2280,6 +2288,17 @@ grant execute on function public.daily_quiz_state(), public.daily_quiz_start(), 
     public.daily_quiz_board(date, integer), public.daily_quiz_friends(date) to authenticated;
 -- ===== Kvíz dne (schéma 7) — KONEC BLOKU =====
 
+-- ===== Odměny (schéma 9) — ZAČÁTEK BLOKU =====
+-- Truhla Mudrlanta, ochrana série a diplomy (rewards.js): co hráč z truhly dostal, kolik má ochran a které dny zachránily, kdy získal
+-- diplomy. Aplikace drží stav v zařízení a s účtem ho sjednocuje (věci, truhly a dny se sčítají, počet ochran platí z novější změny),
+-- aby přežil přeinstalaci. Jen kosmetika bez peněz: databáze hlídá tvar a velikost, obsah ověřuje aplikace. Odznaky schématu 9 jsou
+-- v badge_catalog() výše. Export dat (export_my_data) bere celý řádek profilu, takže sloupec obsahuje i on.
+alter table public.profiles add column if not exists rewards jsonb;
+alter table public.profiles drop constraint if exists profiles_rewards_shape;
+alter table public.profiles add constraint profiles_rewards_shape check (rewards is null or (jsonb_typeof(rewards) = 'object' and pg_column_size(rewards) <= 8000)) not valid;
+grant update (rewards) on public.profiles to authenticated;
+-- ===== Odměny (schéma 9) — KONEC BLOKU =====
+
 -- ===== Verze schématu =====
 -- Číslo se zvyšuje při KAŽDÉ změně tohoto souboru (tabulka, sloupec, funkce, pravidlo) a zároveň konstanta REQUIRED_SCHEMA v app.js.
 -- Aplikace ho po přihlášení porovná a správci (dev_admins nebo vývojářský režim) ukáže v Nastavení, že má schéma spustit znovu;
@@ -2289,7 +2308,8 @@ grant execute on function public.daily_quiz_state(), public.daily_quiz_start(), 
 -- 5: okamžité odesílání upozornění (push_kick přes pg_cron a pg_net, push_kick_state, push_pending sdílené s push_due, dev_push_status).
 -- 6: Jak odpověděli ostatní (answer_stats, answer_stats_limits, answer_stats_submit, answer_stats_topic, dev_suspicious_questions).
 -- 7: Kvíz dne (daily_quiz_results, daily_quiz_state/start/answer/board/friends; export_my_data má i 'kviz_dne').
+-- 9: Odměny (profiles.rewards: Truhla Mudrlanta, ochrana série, diplomy) a odznaky Kvízu dne, Bleskovky, Přežití, mapy, odhadu a Seřaď v badge_catalog().
 create or replace function public.schema_version() returns integer
-language sql immutable as $$ select 7 $$;
+language sql immutable as $$ select 9 $$;
 revoke all on function public.schema_version() from public, anon;
 grant execute on function public.schema_version() to authenticated;

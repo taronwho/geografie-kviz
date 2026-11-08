@@ -654,11 +654,33 @@
         }
     };
 
+    // ===== Odměny (schéma 9, rewards.js): věci z Truhly Mudrlanta, ochrany série a diplomy v profiles.rewards =====
+    // Sloupec přibyl schématem 9: dokud ho databáze nemá (400), vrací se null a dál se o něj nežádá (po novém načtení se zkusí znovu)
+    let rewardsMissing = false;
+    const guardRewards = async (run) => {
+        if (rewardsMissing) return null;
+        try { return await run(); } catch (error) {
+            if (error.status === 400 || error.status === 404) { rewardsMissing = true; return null; }
+            throw error;
+        }
+    };
+    // { rewards: objekt nebo null } (řádek bez sloupce = null)
+    const getRewards = (userId) => guardRewards(async () => {
+        const row = ((await request('GET', `profiles?id=eq.${encodeURIComponent(userId)}&select=rewards`)) || [])[0];
+        return row ? { rewards: row.rewards && typeof row.rewards === 'object' && !Array.isArray(row.rewards) ? row.rewards : null } : null;
+    });
+    const saveRewards = (userId, rewards) => guardRewards(async () => {
+        await request('PATCH', `profiles?id=eq.${encodeURIComponent(userId)}`, { body: { rewards }, prefer: 'return=minimal' });
+        return true;
+    });
+
     return { AVATARS, allAvatars, cleanColor, customHue, nearestColor, cleanFrame, cleanOwl, saveOwl, cleanTitlePref, saveLook, COLORS, COUNTS, NAME_MAX, SocialError, cleanName, isValidName, newCode, parseCode, getProfile, saveProfile, createChallenge, getChallenge, getResults, submitResult, myChallenges, searchPlayers, randomOpponent, incomingChallenges, playerStats, getProgress, saveProgress, getRating, getRatingChange, weeklyLeaderboard, getAccepts, saveAccepts,
         tournamentTick, getTournaments, inTournament, devTournament, devClientErrors, isDevAdmin, schemaVersion, reportQuestion, getQuestionReports, deleteQuestionReport, exportMyData, deleteMyAccount, getTournamentEntries, getTournamentMatches, joinTournament, leaveTournament, startTournamentMatch, finishTournamentMatch, myTournamentStats, tournamentNotices, tournamentNoticesSeen,
         challengeProgress, saveChallengeProgress, tournamentAnswers, saveTournamentAnswer, claimTournamentXp,
         touchSeen, friendsList, addFriend, acceptFriend, removeFriend, REACTIONS, react, reactionsFor, lastReactionFrom, blockedPlayers, blockPlayer, unblockPlayer, REPORT_REASONS, reportPlayer, devReports, devResolveReport,
         submitAnswerStats, answerStatsTopic, devSuspiciousQuestions,
         // Kvíz dne (schéma 7)
-        dailyQuizState, dailyQuizStart, dailyQuizAnswer, dailyQuizBoard, dailyQuizFriends };
+        dailyQuizState, dailyQuizStart, dailyQuizAnswer, dailyQuizBoard, dailyQuizFriends,
+        // Odměny (schéma 9)
+        getRewards, saveRewards };
 });

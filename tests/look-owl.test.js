@@ -170,8 +170,8 @@ test('odměna za odznak: Look řekne, co přesně odznak odemkne (nebo že dáv�
     assert.equal(Look.badgeRewardText('vitez'), 'Odměna: Vavřínový (rámeček), Vavřínový věnec (doplněk Mudrlanta)');
     assert.equal(Look.badgeRewardText('zbehly-zemepis'), 'Odměna: Kompas (doplněk Mudrlanta)');
     assert.equal(Look.badgeRewardText('turnaj-bronz'), 'Odměna: Medailista turnaje (rámeček), Bronz z turnaje (obrázek hráče)');
-    assert.equal(Look.badgeRewardText('stovka'), 'Odměna: sláva');
-    assert.equal(Look.badgeRewardText('zbehly-zemepis-25'), 'Odměna: sláva', 'další stupně zběhlosti doplněk nedávají');
+    assert.equal(Look.badgeRewardText('stovka'), '', 'odznak jen pro slávu: bez řádku s odměnou');
+    assert.equal(Look.badgeRewardText('zbehly-zemepis-25'), '', 'další stupně zběhlosti doplněk nedávají');
     // Každý odznak z katalogu odměn skutečně existuje
     for (const items of Object.values(Look.CATALOG)) for (const item of items.filter(entry => entry.badge)) assert.ok(Core.BADGE_BY_ID[item.badge], item.badge);
 });
