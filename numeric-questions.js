@@ -290,7 +290,9 @@
         };
         if (planned.kind === 'order') {
             if (items.length !== 4) return null;
-            const rows = items.map(entry);
+            // Obrázky buď u všech čtyř položek, nebo u žádné: jediný obrázek by jednu možnost zbytečně zvýraznil
+            const all = items.map(entry);
+            const rows = all.every(row => row.photo) ? all : all.map(row => ({ ...row, photo: null }));
             const [title, detailText] = spec.order[planned.dir] || [];
             const correct = rows.map((row, index) => index).sort((a, b) => planned.dir === 'desc' ? rows[b].value - rows[a].value : rows[a].value - rows[b].value);
             return {
@@ -461,8 +463,9 @@
     const BADGE_ON = 'flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-2 border-transparent text-base font-black text-white shadow-sm';
     const ROW_OFF = 'flex min-h-[3.5rem] w-full items-center gap-3 rounded-2xl border-2 border-slate-200 bg-white px-2.5 py-1.5 text-left transition-colors active:scale-[0.99] dark:border-slate-600 dark:bg-slate-700';
     const ROW_ON = 'flex min-h-[3.5rem] w-full items-center gap-3 rounded-2xl border-2 px-2.5 py-1.5 text-left transition-colors active:scale-[0.99]';
+    // Celý obrázek (znak, vlajka, fotka) bez ořezu
     const thumb = (photo, size = 'h-10 w-10') => photo
-        ? `<span data-numeric-photo="${escapeHtml(photo)}" class="${size} shrink-0 rounded-xl bg-slate-200 bg-cover bg-center dark:bg-slate-600" aria-hidden="true"></span>`
+        ? `<span data-numeric-photo="${escapeHtml(photo)}" class="${size} shrink-0 rounded-xl bg-slate-200 bg-contain bg-center bg-no-repeat dark:bg-slate-600" aria-hidden="true"></span>`
         : '';
     const solidOf = (style) => String(style.solid || '').split(/\s+/).filter(cls => cls.startsWith('bg-')).join(' ');
     const orderLabel = (row, position) => position >= 0 ? `${row.name}: ${position + 1}. místo, klepnutím ho zrušíš` : `${row.name}: klepnutím dáš další místo`;
