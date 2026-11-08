@@ -532,7 +532,9 @@ test('výběr položky: když už bylo všechno, ne ta právě hraná', () => {
 });
 
 test('zakrývání: přídavná jména od míst a německé přehlásky', () => {
-    assert.equal(core.censorName('žije pouze na Kubě a v Mexiku', 'Krokodýl kubánský, Danaus mexický'), 'žije pouze na [***] a v [***]');
+    // Zakrytá místa spojená jen „a v“ jsou jeden blok (počet bloků ani spojky neprozradí tvar odpovědi)
+    assert.equal(core.censorName('žije pouze na Kubě a v Mexiku', 'Krokodýl kubánský, Danaus mexický'), 'žije pouze na [***]');
+    assert.equal(core.censorName('žije na Kubě, hlavně v Mexiku', 'Krokodýl kubánský, Danaus mexický'), 'žije na [***], hlavně v [***]');
     assert.equal(core.censorName('v Africe', 'Buvol africký'), 'v [***]');
     assert.equal(core.censorName('Arnold Schönberg', 'Arnold Schoenberg'), '[***]');
     assert.equal(core.censorName('Mueller', 'Hans Müller'), '[***]');
