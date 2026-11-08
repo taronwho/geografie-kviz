@@ -59,8 +59,9 @@
     // 3 = průběh výzev a zápasů turnaje na serveru a XP za výhry v turnaji jednou za účet; 4 = zkušební upozornění přes server (dev_push_test);
     // 5 = okamžité odesílání upozornění (push_kick, dev_push_status; aplikace funguje i se 4, jen ve zkoušce upozornění ukáže obecný text);
     // 6 = Jak odpověděli ostatní (answer_stats_submit, answer_stats_topic, dev_suspicious_questions; se starší databází se statistiky jen neukazují);
-    // 7 = Kvíz dne (daily_quiz_*; se starší databází se Kvíz dne hraje jen v zařízení, bez pořadí).
-    const REQUIRED_SCHEMA = 7;
+    // 7 = Kvíz dne (daily_quiz_*; se starší databází se Kvíz dne hraje jen v zařízení, bez pořadí);
+    // 8 = Skupiny (group_*, my_groups, týdenní XP; se starší databází se Skupiny jen nenabídnou).
+    const REQUIRED_SCHEMA = 8;
     const HISTORY_SIZE = 200;
     const REQUEST_TIMEOUT = 12000;
     const WIKI_TIMEOUT = 6000;
@@ -4656,6 +4657,8 @@
     let incomingList = null;
     // Přátelé (friends.js): řádky z friends_list (null = nenačtené nebo databáze přátele nemá), reakce k posledním výzvám, moji zablokovaní (null = nenačtení)
     const Friends = window.MudrlantFriends;
+    // Skupiny (groups.js): okna a čip na záložce Více hráčů; vytvoří se u ACTIONS, až jsou pomocné funkce oken hotové
+    let GroupsUI = null;
     let friendRows = null;
     let recentReactions = [];
     let myBlocks = null;
@@ -4996,7 +4999,10 @@
                 <button type="button" data-action="random-challenge" class="${QUICK_TILE} ${QUICK_LIGHT}">${uiArt('nahodny', QUICK_ART)}Náhodný soupeř</button>
                 <button type="button" data-action="join-challenge" class="${QUICK_TILE} ${QUICK_LIGHT}">${uiArt('kod', QUICK_ART)}Zadat kód</button>
             </div>
-            <button type="button" data-action="open-accept" title="Změnit, z jakých témat přijímám výzvy" class="flex min-h-[2rem] max-w-full items-center gap-1.5 self-center rounded-full bg-slate-200/60 px-3 py-1 text-[11.5px] font-bold text-slate-600 active:scale-95 dark:bg-slate-800/80 dark:text-slate-300"><i data-lucide="shield-check" class="h-3.5 w-3.5 shrink-0 text-brand-700 dark:text-brand-300"></i><span class="min-w-0 truncate">Přijímám výzvy z: <b class="text-slate-800 dark:text-slate-100">${escapeHtml(acceptSummary())}</b></span><i data-lucide="pencil" class="h-3 w-3 shrink-0 text-brand-700 dark:text-cream"></i></button>
+            <div class="flex max-w-full items-center justify-center gap-1.5">
+                ${GroupsUI ? GroupsUI.chip() : ''}
+                <button type="button" data-action="open-accept" title="Změnit, z jakých témat přijímám výzvy" class="flex min-h-[2rem] min-w-0 max-w-full items-center gap-1.5 rounded-full bg-slate-200/60 px-3 py-1 text-[11.5px] font-bold text-slate-600 active:scale-95 dark:bg-slate-800/80 dark:text-slate-300"><i data-lucide="shield-check" class="h-3.5 w-3.5 shrink-0 text-brand-700 dark:text-brand-300"></i><span class="min-w-0 truncate">Přijímám výzvy z: <b class="text-slate-800 dark:text-slate-100">${escapeHtml(acceptSummary())}</b></span><i data-lucide="pencil" class="h-3 w-3 shrink-0 text-brand-700 dark:text-cream"></i></button>
+            </div>
         </div>`;
     // Poslední výzvy: jen tři nejnovější, Zobrazit vše rozbalí zbytek
     const recentSection = (incoming) => {
@@ -5123,6 +5129,7 @@
             paintChallenges();
             // Přátelé a reakce až po hlavním obsahu (záložka se vykreslí dřív); poslední aktivita se zapíše nejvýš jednou za 5 minut
             if (Friends) Social.touchSeen().catch(() => {});
+            if (GroupsUI) GroupsUI.refresh();
             await loadFriends(user);
             paintChallenges();
         } finally {
@@ -5435,7 +5442,8 @@
     let newChallengeToken = 0;
     const openNewChallenge = (preset = null) => {
         if (!signedUser()) return;
-        const draft = { topics: [], count: 10, who: 'player', opponent: null, blocked: null, mixOk: true, query: '', found: null, hard: false, variant: 'choices', cats: null, open: null };
+        // group = výzva skupině (groups.js): výzva pro kohokoli s kódem, kterou server připojí ke skupině
+        const draft = { topics: [], count: 10, who: 'player', opponent: null, blocked: null, mixOk: true, query: '', found: null, hard: false, variant: 'choices', cats: null, open: null, group: null };
         let busy = false;
         let note = '';
         let searchToken = 0;
@@ -5544,12 +5552,13 @@
         };
         const draw = () => showDialog('Nová výzva', `
             <div class="flex flex-col gap-2.5">
+                ${draft.group ? `<div data-ch-group class="flex items-center gap-3 rounded-2xl bg-white px-3 py-2 shadow-sm ring-2 ring-brand-600 dark:bg-slate-800"><span aria-hidden="true" class="text-2xl">${escapeHtml(draft.group.icon)}</span><span class="min-w-0 flex-1"><span class="block text-[11px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">Výzva skupině</span><span class="block truncate text-[14px] font-black text-slate-800 dark:text-slate-100">${escapeHtml(draft.group.name)}</span></span></div>` : `
                 <div role="radiogroup" aria-label="Koho vyzvat" class="flex flex-col gap-1.5">
                     <p class="${LABEL}">Koho vyzvat</p>
                     ${whoCard('player', 'user-round', 'Konkrétního hráče', 'Najdeš ho podle přezdívky')}
                     ${whoCard('random', 'shuffle', 'Náhodného hráče', 'Soupeře vybereme za tebe')}
                     ${whoCard('anyone', 'share-2', 'Kamaráda přes odkaz', 'Pošleš odkaz nebo kód komukoli')}
-                </div>
+                </div>`}
                 ${accordion('topics', challengeTopicIcon(topicValue()), 'Téma', topicSummary(), topicBody())}
                 <div class="flex items-center gap-3 rounded-2xl bg-white px-3 py-2 shadow-sm dark:bg-slate-800/70">
                     <i data-lucide="hash" class="h-5 w-5 shrink-0 text-slate-500 dark:text-slate-400"></i>
@@ -5632,6 +5641,8 @@
                         const all = topicCategories().length;
                         const cats = draft.topics.length !== 1 || !draft.cats || draft.cats.length >= all ? [] : draft.cats;
                         const created = await Social.createChallenge(signedUser().id, { topic: resolved.value, count: draft.count, invitedId: opponent ? opponent.id : null, includeHard: draft.hard, categories: cats, variant: draft.variant });
+                        // Výzva skupině: připojí se ke skupině (členové ji uvidí v detailu skupiny); když to nevyjde, hraje se jako výzva přes odkaz
+                        if (draft.group) await Social.groupSetChallenge(draft.group.id, created.id).catch(error => showToast(error && error.message ? error.message : 'Výzvu se nepodařilo poslat skupině.'));
                         closeDialog();
                         await loadMyProfile();
                         startChallenge({ ...created, creator: myProfile, invited: opponent, fresh: true }, 0, []);
@@ -5667,6 +5678,7 @@
             }
         });
         if (preset && preset.who === 'random') draft.who = 'random';
+        if (preset && preset.group) { draft.who = 'anyone'; draft.group = preset.group; }
         if (preset && preset.opponent) {
             const last = preset.last;
             if (last) {
@@ -7790,6 +7802,19 @@
         return code;
     }
 
+    // Skupiny (groups.js): okna dostanou pomocné funkce aplikace; Vyzvat skupinu otevře Novou výzvu pro skupinu
+    if (window.MudrlantGroups && Social) {
+        GroupsUI = window.MudrlantGroups.createUI({
+            Social, showDialog, closeDialog, avatarHtml, showToast, signedUser, renderIcons,
+            login: () => { if (Auth) Auth.login(); },
+            openChallenge: (code) => openChallenge(code),
+            openQuiz: () => { if (DailyQuiz) openQuiz(); },
+            newGroupChallenge: (group) => openNewChallenge({ group }),
+            topicTitle: challengeTopicTitle, topicIcon: challengeTopicIcon,
+            share: (payload) => ShareCard ? ShareCard.shareText(payload, { toast: showToast, copied: 'Odkaz do skupiny zkopírován', failed: 'Kopírování se nepodařilo' }) : null
+        });
+    }
+
     // Všechny akce přes delegaci událostí – stránka nepotřebuje inline JavaScript (kvůli CSP)
     const ACTIONS = {
         daily: (button) => { lastDailyTopic = button.dataset.topic; startDaily(button.dataset.topic); },
@@ -7800,6 +7825,7 @@
         },
         'open-profile': () => openProfile(),
         'open-accept': () => openAccepted(),
+        'groups-open': () => { if (GroupsUI) GroupsUI.openList(); },
         // Přátelé a reakce (friends.js)
         'friend-accept': (button) => answerFriendRequest(button.dataset.id, true),
         'friend-decline': (button) => answerFriendRequest(button.dataset.id, false),
@@ -8095,6 +8121,7 @@
     if (Auth) {
         const invite = takeInviteCode();
         if (invite) writeJson(KEYS.pendingChallenge, invite);
+        const groupInvite = GroupsUI ? GroupsUI.takeLink() : '';
         let shownUserId = null;
         Auth.onChange((state) => {
             if (document.getElementById('settings-overlay')) openSettings();
@@ -8107,6 +8134,7 @@
                 shownUserId = userId;
                 myProfile = null; myBlocked = null; myAcceptsMix = true; acceptsConfirmed = null; myChallenges = null; myRating = null; incomingList = null; friendRows = null; recentReactions = []; myBlocks = null; resetTournaments();
                 quizServer = null; quizServerAt = 0;
+                if (GroupsUI) GroupsUI.reset();
                 updateProfileButton();
                 paintChallenges();
             }
@@ -8116,7 +8144,7 @@
             if (pending) {
                 try { localStorage.removeItem(KEYS.pendingChallenge); } catch (e) { /* bez úložiště se kód nepamatuje */ }
                 openChallenge(pending);
-            }
+            } else if (GroupsUI) GroupsUI.afterLogin();
             refreshChallenges();
             if (state.user) { flushReports(); flushAnswerStats(); }
             // Přihlášení z výsledku Kvízu dne („Přihlas se a uvidíš se v pořadí“): výsledek se otevře znovu a zapíše na účet
@@ -8128,7 +8156,11 @@
         window.addEventListener('online', flushReports);
         // Po obnovení připojení se dopošlou odpovědi z dohraných her (rozehraná hra počká na svůj konec)
         window.addEventListener('online', () => { if (screen !== 'round') flushAnswerStats(); });
-        Auth.init().then(state => { if (!state.user && invite) openChallenge(invite); });
+        Auth.init().then(state => {
+            if (!state.user && invite) openChallenge(invite);
+            // Odkaz do skupiny: přihlášený se rovnou přidá (náhled a Přidat se), nepřihlášený se nejdřív přihlásí
+            else if (groupInvite && GroupsUI) GroupsUI.openJoin(groupInvite);
+        });
     }
     // Klávesnice na telefonu: Chrome i Safari při jejím otevření zmenší jen viditelnou plochu, okna zarovnaná ke spodku by zůstala pod ní.
     // Výška klávesnice jde do proměnné --kb (styles: okna se o ni zvednou a zkrátí) a zaměřené pole se posune do viditelné části okna.
