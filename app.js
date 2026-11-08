@@ -8,7 +8,7 @@
         escapeHtml, plural, isRealPhoto, commonsPhotoUrl, commonsFileUrl, displayName, formatPoints, getDayKey, formatDayKey, createSeededRandom, pickRandom,
         censorName, hideAnswer, buildQuestionTexts, factRevealsAnswer, answerNamesFor, genericWordsOf, specificWords, isGenericWord, OUT_OF_CONTEXT,
         processWikiText, takeLeadFacts, checkAnswer, normalizeAnswer, filterItems, pickItem, sortItems,
-        buildItemChoices, cultureLandsFor, findAnswerItem, setCountries, updateMistakes, nameAnswers, pointsFor, dropKnownFacts, scaleKnown, dropChoiceNames,
+        buildItemChoices, cultureLandsFor, findAnswerItem, setCountries, updateMistakes, nameAnswers, pointsFor, dropKnownFacts, scaleKnown, timelineKnown, dropChoiceNames,
         computeStreak, buildShareText, getTileLayout, shuffle,
         LEVEL_XP, xpForLevel, MAX_LEVEL, LEVEL_TITLES, titleOwlTier,
         BADGES, BADGE_GROUPS, BADGE_BY_ID, earnedBadgeIds, compactBadges, expandBadges, normalizeCounters,
@@ -458,12 +458,8 @@
     // fotka, která se nenačte, prázdná fakta i fakta, která hráč už vidí v zadání nebo v popisu.
     // shared = fakta, která mají stejná všechny nabízené nesprávné možnosti (třída savci u čtyř savců) – mezi nimi nerozhodnou
     // answers = odpovědi, které nápověda nesmí prozradit (u otázky na název jméno položky, u řádu řád…)
-    // Časová osa, jejíž roky už jsou v popisu („v roce 1960“), nic nepřidá
-    const timelineVisible = (spec, text) => {
-        if (spec.type !== 'timeline' || spec.blind) return false;
-        const years = [...(spec.points || []), ...(spec.spans || []).flatMap(span => [span.from, span.to])].filter(year => Number.isFinite(year) && year >= 100);
-        return years.length > 0 && years.every(year => new RegExp(`(?<!\\d)${year}(?!\\d)`).test(text));
-    };
+    // Časová osa, jejíž roky (i o pár let jinak) už jsou v popisu nebo dalších větách, nic nepřidá (timelineKnown v quiz-core)
+    // Otázka s obrázkem (obraz, vlajka, nerost): popis je první nápověda (krok 'text'), ne volná záložka
     const buildHints = (plan, { photoUrl, visibleText, shared = new Set(), answers = [], textPhotos = new Set(), omit = [], rootCheck = false, extraGeneric = null }) => {
         // Fakt prozradí odpověď i tehdy, když obsahuje kterýkoli její tvar nebo začíná stejným kořenem jako jméno
         // (Těží se z něj: antimon u Antimonitu); společná kontrola s popisem (factRevealsAnswer)
@@ -475,11 +471,12 @@
         for (const step of plan) {
             let hint = null;
             if (step.kind === 'photo' && photoUrl) hint = { kind: 'photo', label: 'fotka', icon: 'image' };
+            if (step.kind === 'text') hint = { kind: 'text', label: 'popis', icon: 'quote' };
             // Další věty z úvodu článku (bez jména), když je popis zkrácený a text má pokračování
             if (step.kind === 'excerpt' && step.text) hint = { kind: 'excerpt', text: step.text, label: 'další věty', icon: 'book-open' };
             // Obrázek s napsanou odpovědí (portrét autora se jménem) nápovědou není
             const textImage = step.spec && step.spec.type === 'image' && textPhotos.has(step.spec.file);
-            if (step.kind === 'visual' && step.spec && Visuals.info(step.spec) && !timelineVisible(step.spec, visibleText) && !scaleKnown(step.spec, visibleText) && !textImage) {
+            if (step.kind === 'visual' && step.spec && Visuals.info(step.spec) && !timelineKnown(step.spec, visibleText) && !scaleKnown(step.spec, visibleText) && !textImage) {
                 const masks = step.spec.type === 'image' && photoMasks[step.spec.file];
                 // Událost na časové ose se jménem odpovědi (autor, režisér) by ji prozradila: vynechá se jako události s hádanou položkou
                 const spec = step.spec.type === 'timeline' && answers.length ? { ...step.spec, hide: [step.spec.hide, ...answers].filter(Boolean).join(', ') } : step.spec;
@@ -554,7 +551,9 @@
         const basePlan = (topic.hints && topic.hints(item, ctx, question.type))
             || [{ kind: 'photo' }, { kind: 'visual', spec: visual }, { kind: 'facts', facts: topic.facts(item, ctx, question.type) }];
         // Pokračování úvodu článku (zakryté stejně jako popis) je první, nejlevnější nápověda; bez dost skutečných slov se vynechá
-        const plan = realWords(moreText) >= MIN_EXCERPT_WORDS ? [{ kind: 'excerpt', text: moreText }, ...basePlan] : basePlan;
+        const withExcerpt = realWords(moreText) >= MIN_EXCERPT_WORDS ? [{ kind: 'excerpt', text: moreText }, ...basePlan] : basePlan;
+        // U otázky s obrázkem (obraz, vlajka, nerost…) se hádá z obrázku; popis je až první nápověda, ne hned viditelná záložka
+        const plan = shown && realWords(questionText) >= 3 ? [{ kind: 'text' }, ...withExcerpt] : withExcerpt;
         const visibleText = [question.title, question.showName ? item.n : '', typeLabel, questionText, realWords(moreText) >= MIN_EXCERPT_WORDS ? moreText : ''].join(' · ');
         // Fakt, který mají všechny nesprávné možnosti stejný jako správná, mezi nimi nepomůže vybrat
         const wrongItems = question.type === 'name' ? question.choices.filter(choice => !choice.correct).map(choice => ctx.byId.get(choice.id)).filter(Boolean) : [];
@@ -924,6 +923,27 @@
                 ${section.noTitle ? '' : `<h3 class="${ME_HEADING} mb-1.5">${escapeHtml(section.title)}</h3>`}
                 ${section.render(ctx)}
             </section>`).join('')}</div>`;
+    };
+    // Záložka Mudrlant: moje sova s doplňky jako profilový obrázek jedním klepnutím (jinak jen v Profilu → Obrázek);
+    // když už jí je, řekne to – další změny doplňků a barvy se do profilu uloží samy
+    let owlAvatarBusy = false;
+    const owlAvatarRow = (user) => {
+        if (!user || !Social || !Owl || !meDraft) return '';
+        if (myProfile && myProfile.owl && !myPose()) {
+            return `<p data-owl-avatar-on class="mt-2 flex items-center gap-2 rounded-2xl bg-emerald-50 px-3 py-2.5 text-[13px] font-bold leading-snug text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-200"><i data-lucide="check" class="h-4 w-4 shrink-0"></i>Tvůj Mudrlant je profilový obrázek. Změny se v profilu ukážou samy.</p>`;
+        }
+        return `<button type="button" data-owl-as-avatar ${owlAvatarBusy ? 'disabled' : ''} class="mt-2 flex w-full items-center justify-center gap-2 rounded-2xl btn-3d bg-brand-700 px-4 py-2.5 text-[15px] font-black text-white disabled:opacity-60"><i data-lucide="user-round" class="h-5 w-5"></i>${owlAvatarBusy ? 'Ukládám…' : 'Použít jako profilový obrázek'}</button>`;
+    };
+    const useOwlAsAvatar = async () => {
+        if (!meDraft || owlAvatarBusy) return;
+        meDraft.owl = true;
+        meDraft.avatar = '🦉';
+        meDraft.pose = null;
+        meDirty = true;
+        owlAvatarBusy = true;
+        openSettings('', '[data-owl-as-avatar]');
+        try { await saveMeProfile(); } finally { owlAvatarBusy = false; }
+        if (document.getElementById('settings-overlay')) openSettings(meNote, '[data-owl-avatar-on], [data-owl-as-avatar]');
     };
     // Zamčený obrázek hráče (odemyká se úrovní): položka katalogu, nebo null, když je k dispozici (základní, odemčený nebo už uložený v profilu)
     const avatarUnlockText = (item) => item.badge ? `Odznak: ${(BADGE_BY_ID[item.badge] || {}).title || item.badge}` : `Úroveň ${item.level}`;
@@ -1530,7 +1550,7 @@
                     <button type="button" data-close aria-label="Zavřít" class="-m-0.5 self-start rounded-xl p-2.5 text-slate-500 hover:bg-slate-200 dark:text-slate-400 dark:hover:bg-slate-800"><i data-lucide="x" class="h-5 w-5"></i></button>
                 </div>
                 ${tabs}
-                <div class="mt-3">${meTab === 'profile' && profileBody ? profileBody : meTab === 'look' ? lookBody('look') : meTab === 'owl' ? lookBody('owl') : gameBody}</div>
+                <div class="mt-3">${meTab === 'profile' && profileBody ? profileBody : meTab === 'look' ? lookBody('look') : meTab === 'owl' ? lookBody('owl') + owlAvatarRow(user) : gameBody}</div>
                 <p id="settings-note" class="${noteText ? 'mt-2 ' : ''}text-xs font-semibold ${noteText.startsWith('Uloženo') || !meNote ? 'text-emerald-700 dark:text-emerald-300' : 'text-rose-700 dark:text-rose-400'}" role="status">${escapeHtml(noteText)}</p>
                 ${renderSchemaBanner()}
                 <div class="mt-3 flex flex-wrap items-center justify-center gap-x-1 text-xs text-slate-500 dark:text-slate-400">
@@ -1775,6 +1795,7 @@
                 openSettings(item.badge ? `${item.title} se odemkne odznakem „${(BADGE_BY_ID[item.badge] || {}).title || item.badge}“.` : `${item.title} se odemkne na úrovni ${item.level}.`);
                 return;
             }
+            if (event.target.closest('[data-owl-as-avatar]')) { useOwlAsAvatar(); return; }
             const avatar = event.target.closest('[data-pick-avatar]');
             const color = event.target.closest('[data-pick-color]');
             const pickOwl = event.target.closest('[data-pick-owl]');
@@ -2483,20 +2504,30 @@
 
     // První obrazová nápověda má id hint-visual, další (mapa i vlajka u státního znaku) hint-visual-2…: každá karta vlastní prvek
     const visualHintId = (hint) => hint.key === 'visual' ? 'hint-visual' : `hint-${hint.key}`;
-    const hintPanes = (hints) => {
+    const hintPanes = (hints, data, style) => {
         return hints.map(hint => {
             const html = hint.kind === 'visual' ? visualPane(visualHintId(hint), hint.spec)
-                : hint.kind === 'photo' ? photoPane('hint-photo') : hint.kind === 'excerpt' ? excerptPane(hint) : factsPane(hint.facts);
+                : hint.kind === 'photo' ? photoPane('hint-photo') : hint.kind === 'excerpt' ? excerptPane(hint)
+                    : hint.kind === 'text' ? textPane(data, style) : factsPane(hint.facts);
             return { key: hint.key, label: tabLabel(hint), icon: hint.icon, html };
         });
     };
+    // Jen název (otázka na autora obrazu, na sloh stavby): patří k zadání, i když je popis schovaný za nápovědou
+    const namePane = (data, style) => `
+        <div class="absolute inset-0 overflow-y-auto overscroll-contain p-3.5">
+            <div class="${HINT_CHIP}"><i data-lucide="tag" class="w-4 h-4 ${style.text}"></i><span class="font-medium">Název:</span> <b class="text-slate-800 dark:text-slate-100">${escapeHtml(data.name)}</b></div>
+        </div>`;
 
     // Panel otázky: popis a odemčené nápovědy, za záložkami tlačítko na další nápovědu
+    // U otázky s obrázkem je popis nápovědou (krok 'text'), volně zůstane nanejvýš název
     const questionPanel = (data) => {
         const style = styleOf(TOPIC_BY_ID[data.topic]);
         const unlocked = data.hints.slice(0, round.hintLevel - 1);
         const image = data.questionImage ? [{ key: 'image', label: data.questionImage.label, icon: data.questionImage.icon, html: photoPane('question-image') }] : [];
-        const panes = [...image, { key: 'text', label: 'Popis', icon: 'quote', html: textPane(data, style) }, ...hintPanes(unlocked)];
+        const textAsHint = data.hints.some(hint => hint.kind === 'text');
+        const free = !textAsHint ? [{ key: 'text', label: 'Popis', icon: 'quote', html: textPane(data, style) }]
+            : data.question.showName ? [{ key: 'name', label: 'Název', icon: 'tag', html: namePane(data, style) }] : [];
+        const panes = [...image, ...free, ...hintPanes(unlocked, data, style)];
         return renderTabbedPanel(panes, round.tab || panes[0].key, 'hint-tab', QUESTION_PANEL_HEIGHT);
     };
     // Tlačítko další nápovědy přes celou šířku pod popisem: co odemkne a za kolik pak bude odpověď

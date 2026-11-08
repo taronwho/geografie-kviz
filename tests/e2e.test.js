@@ -1847,3 +1847,29 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         await context.close();
     });
 });
+
+test('otázka s obrázkem: popis až jako nápověda, ne hned', { skip: !chromium && 'Playwright není nainstalovaný' }, async (t) => {
+    const browser = await chromium.launch(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {});
+    t.after(() => browser.close());
+    const { context, tab, log } = await setup(browser, { fixedRandom: 0.3 });
+    await tab.goto(`${ORIGIN}/`);
+    await waitForHome(tab);
+    await practiceCollection(tab, 'vlajky', null);
+    const data = await readRound(tab);
+    assert.ok(data.questionImage, 'otázka na vlajku ukazuje vlajku hned');
+    assert.equal(hintKeys(data)[0], 'text', 'první nápověda je popis');
+    // Před nápovědou: vlajka bez popisu, tlačítko nabízí popis
+    assert.equal(await tab.locator('#app-content p.italic').count(), 0, 'popis není vidět, dokud hráč nevezme nápovědu');
+    assert.equal(await tab.locator('[data-action="hint-tab"][data-step="text"]').count(), 0);
+    assert.match(await tab.textContent('[data-action="hint"]'), /Nápověda 1\/\d[\s\S]*Popis/);
+    assert.match(await appText(tab), /Nápovědy 0\/\d/);
+    await tab.click('[data-action="hint"]');
+    await tab.waitForSelector('[data-action="hint-tab"][data-step="text"][aria-selected="true"]');
+    const description = await tab.textContent('#app-content p.italic');
+    assert.ok(description.length > 10, 'po nápovědě je popis vidět');
+    assert.ok(!description.includes(data.question.answerLabel), 'popis neprozradí odpověď');
+    assert.match(await appText(tab), /Nápovědy 1\/\d/);
+    assert.deepEqual(log.errors, []);
+    assert.deepEqual(log.csp, []);
+    await context.close();
+});
