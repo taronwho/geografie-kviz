@@ -946,7 +946,7 @@
         const ctx = lookContext();
         return Look.POSES.map(pose => {
             const titles = tierTitles(pose.tier);
-            const label = `Sova titulu ${titles[0]} (${titles.join(', ')})`;
+            const label = `Sova titulu ${titles[0]}${titles.length > 1 ? ` (${titles.join(', ')})` : ''}`;
             const art = Owl.poseHtml(pose.id, ctx.prefs.robe);
             if (ctx.level < pose.level) {
                 return `<button type="button" data-locked-owl="${pose.id}" aria-disabled="true" aria-label="${escapeHtml(`${label} je zamčená: od úrovně ${pose.level}`)}" title="${escapeHtml(`${label}: od úrovně ${pose.level}`)}" class="${AVATAR_TILE} ${AVATAR_OFF} relative">`
