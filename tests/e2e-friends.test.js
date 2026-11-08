@@ -6,6 +6,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 
+const closeAutoBreakdown = async (tab) => { await tab.waitForTimeout(900); if (await tab.locator('#dialog-overlay').count()) { await tab.keyboard.press('Escape'); await tab.waitForFunction(() => !document.getElementById('dialog-overlay')); } };
 let chromium = null;
 try { ({ chromium } = require('playwright')); } catch (e) {}
 
@@ -318,6 +319,7 @@ test('přátelé, reakce, blokování a nahlášení', { skip: !chromium && 'Pla
             if (i < 4) await tab.waitForSelector('[data-action="give-up"]');
         }
         await tab.waitForSelector('[data-reactions]');
+        await closeAutoBreakdown(tab);
         assert.equal(await tab.locator('[data-reactions] [data-emoji]').count(), 4);
         await shot(tab, 'reakce');
         await tab.click('[data-reactions] [data-emoji="🔥"]');
