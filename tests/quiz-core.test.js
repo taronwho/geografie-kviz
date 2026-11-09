@@ -725,3 +725,13 @@ test('časová osa, jejíž rok už je v popisu (i o pár let jinak), se jako n�
     assert.equal(core.timelineKnown({ ...point(1515), blind: true }, 'Roku 1515.'), false, 'osa bez letopočtů zůstává nápovědou');
     assert.equal(core.timelineKnown({ type: 'scale', valueLabel: '1515' }, '1515'), false);
 });
+
+test('obtížnost: Základní (k: 1) ⊂ Mudrlant ⊂ Mudrlant Expert (x: 1 jen v Expertu)', () => {
+    const items = [{ q: 'a', k: 1 }, { q: 'b', k: 0 }, { q: 'c', k: 0, x: 1 }, { q: 'd' }];
+    const ids = (tier) => core.filterItems(items, { tier }).map(item => item.q);
+    assert.deepEqual(ids('known'), ['a']);
+    assert.deepEqual(ids('all'), ['a', 'b', 'd']);
+    assert.deepEqual(ids('expert'), ['a', 'b', 'c', 'd']);
+    assert.deepEqual(core.filterItems(items).map(item => item.q), ['a', 'b', 'c', 'd'], 'bez úrovně všechno');
+    assert.deepEqual(items.map(core.levelOf), [1, 2, 3, 2]);
+});

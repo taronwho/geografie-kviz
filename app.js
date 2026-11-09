@@ -7,7 +7,7 @@
         SATELLITE_TILES, OSM_TILES,
         escapeHtml, plural, isRealPhoto, commonsPhotoUrl, commonsFileUrl, displayName, formatPoints, getDayKey, formatDayKey, createSeededRandom, pickRandom,
         censorName, hideAnswer, buildQuestionTexts, OUT_OF_CONTEXT,
-        processWikiText, checkAnswer, normalizeAnswer, filterItems, pickItem, sortItems,
+        processWikiText, checkAnswer, normalizeAnswer, filterItems, levelOf, pickItem, sortItems,
         buildItemChoices, cultureLandsFor, findAnswerItem, setCountries, updateMistakes, nameAnswers, pointsFor,
         computeStreak, buildShareText, getTileLayout, shuffle,
         LEVEL_XP, xpForLevel, MAX_LEVEL, LEVEL_TITLES, titleOwlTier,
@@ -65,7 +65,7 @@
     // 8 = Skupiny (group_*, my_groups, týdenní XP; se starší databází se Skupiny jen nenabídnou);
     // 9 = odměny v účtu (profiles.rewards: Truhla Mudrlanta, ochrana série, diplomy) a nové odznaky (se starší databází zůstanou jen v zařízení);
     // 10 = Rozpis otázek (podrobnosti odpovědí výzvy a zápasu turnaje, challenge_details a tournament_details; se starší databází jen vlastní odpovědi ze zařízení).
-    const REQUIRED_SCHEMA = 15;
+    const REQUIRED_SCHEMA = 16;
     const HISTORY_SIZE = 200;
     const REQUEST_TIMEOUT = 12000;
     const WIKI_TIMEOUT = 6000;
@@ -153,7 +153,7 @@
             if (chosen.length && chosen.length < keys.length) categories[topic.id] = chosen;
         }
         return {
-            tier: saved.tier === 'all' ? 'all' : 'known',
+            tier: TIERS[saved.tier] ? saved.tier : 'known',
             topics: topics.length ? topics : TOPICS.map(topic => topic.id),
             categories,
             seen: Array.isArray(saved.seen) ? saved.seen : []
@@ -198,9 +198,11 @@
         choices: { icon: 'layout-grid', title: 'Výběr ze 4 možností', text: 'Klasický kvíz. Bez nápovědy až 4 body, každá nápověda bod ubere.' },
         typed: { icon: 'keyboard', title: 'Psaní odpovědi', text: 'Těžší varianta za dvojnásobek bodů. Na diakritice, velkých písmenech ani drobném překlepu nezáleží.' }
     };
+    // Úrovně obtížnosti se sčítají: Mudrlant obsahuje i základní otázky, Expert všechny (quiz-core filterItems)
     const TIERS = {
-        known: { title: 'Jen známé', text: 'Hlavní města, slavné osobnosti, běžná zvířata…' },
-        all: { title: 'I méně známé', text: 'Těžší – celá sada' }
+        known: { title: 'Základní', short: 'Základní', text: 'Hlavní města, slavné osobnosti, běžná zvířata…' },
+        all: { title: 'Mudrlant', short: 'Mudrlant', text: 'I méně známé věci – pro zvídavé' },
+        expert: { title: 'Mudrlant Expert', short: 'Expert', text: 'Všechno včetně perliček pro fajnšmekry' }
     };
 
     // Barvy témat (celé názvy tříd kvůli Tailwindu): soft = štítek, solid = plný štítek, button = hlavní tlačítko,
@@ -607,13 +609,20 @@
     const TOGGLE_OFF = 'border-slate-200 bg-white text-slate-600 hover:border-brand-300 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:border-brand-600';
 
     // Známost otázek (Nastavení i výběr tématu); brief = krátký popis na jeden řádek (Nastavení), jinak příklady z tématu
-    const TIER_BRIEF = { known: 'Slavná místa a lidé…', all: 'Celá sada, těžší' };
+    const TIER_BRIEF = { known: 'Zná většina lidí', all: 'I méně známé', expert: 'I perličky' };
+    // Obtížnost výzvy (1–3) a její úroveň; starší výzvy mají jen include_hard / hard (I těžší = Mudrlant)
+    const LEVEL_TIERS = { 1: { key: 'known', ...TIERS.known }, 2: { key: 'all', ...TIERS.all }, 3: { key: 'expert', ...TIERS.expert } };
+    const challengeLevel = (def) => {
+        const level = Number(def && def.level);
+        if ([1, 2, 3].includes(level)) return level;
+        return def && (def.hard === true || def.include_hard === true) ? 2 : 1;
+    };
     // tight = na nízkém displeji (short:) jen název, popis zůstane v title a na vyšším displeji
     const renderTierButtons = (on = TOGGLE_ON, topic = null, brief = false, tight = false) => Object.entries(TIERS).map(([key, tier]) => {
         const text = key === 'known' && topic && topic.words && topic.words.tierKnown ? escapeHtml(topic.words.tierKnown) : tier.text;
         return `
         <button type="button" data-tier="${key}" aria-pressed="${settings.tier === key}"${brief ? ` title="${escapeHtml(tier.text)}"` : tight ? ` title="${text}"` : ''} class="rounded-2xl border-2 px-2.5 py-2 text-left transition-colors active:scale-[0.98] ${tight ? 'short:min-h-[2.75rem] short:py-1.5 ' : ''}${settings.tier === key ? on : TOGGLE_OFF}">
-            <span class="block text-sm font-black leading-tight">${tier.title}</span>
+            <span class="block text-sm font-black leading-tight">${tight ? `<span class="short:hidden">${tier.title}</span><span class="hidden short:inline">${tier.short}</span>` : tier.title}</span>
             <span class="mt-0.5 block text-[11px] font-semibold leading-snug opacity-90${brief || tight ? ' short:hidden' : ''}">${brief ? TIER_BRIEF[key] : text}</span>
         </button>`;
     }).join('');
@@ -1483,8 +1492,8 @@
         const gameBody = `
             <h3 class="${ME_HEADING} mb-1.5">Varianta hry</h3>
             <div class="grid grid-cols-2 gap-2">${renderVariantCompact(gameVariant)}</div>
-            <h3 class="${ME_HEADING} mb-1.5 mt-3 short:mt-2">Známost otázek<span class="hidden font-bold normal-case tracking-normal short:inline"> · pro témata a mix</span></h3>
-            <div class="grid grid-cols-2 gap-2" role="group" aria-label="Známost">${renderTierButtons(TOGGLE_ON, null, true)}</div>
+            <h3 class="${ME_HEADING} mb-1.5 mt-3 short:mt-2">Obtížnost otázek<span class="hidden font-bold normal-case tracking-normal short:inline"> · pro témata a mix</span></h3>
+            <div class="grid grid-cols-3 gap-1.5" role="group" aria-label="Obtížnost">${renderTierButtons(TOGGLE_ON, null, true)}</div>
             <p class="mt-1.5 text-[11px] leading-snug text-slate-500 short:hidden dark:text-slate-400">Pro témata a mix. Dnešní otázky jsou hlavně ze známých.</p>
             ${state.configured && !user ? `
                 <button type="button" data-auth-login class="mt-3 short:mt-2 flex w-full items-center gap-3 rounded-2xl btn-3d bg-brand-700 px-4 py-2 text-left text-white">
@@ -1952,8 +1961,8 @@
                     <span class="-my-3 flex"><button type="button" data-chooser-all class="rounded-lg px-2 py-3 text-xs font-bold ${style.text} underline-offset-2 hover:underline">Vybrat vše</button><button type="button" data-chooser-none class="rounded-lg px-2 py-3 text-xs font-bold text-slate-500 underline-offset-2 hover:underline dark:text-slate-400">Zrušit vše</button></span>
                 </div>
                 <div class="grid grid-cols-2 gap-1.5 short:gap-1" role="group" aria-label="${isMix ? 'Témata' : 'Kategorie'}">${options}</div>
-                <h3 class="${SETTINGS_HEADING} mb-1.5 mt-3 short:mb-1 short:mt-1.5">Známost</h3>
-                <div class="grid grid-cols-2 gap-1.5" role="group" aria-label="Známost">${renderTierButtons(style.on, isMix ? null : topic, false, true)}</div>
+                <h3 class="${SETTINGS_HEADING} mb-1.5 mt-3 short:mb-1 short:mt-1.5">Obtížnost</h3>
+                <div class="grid grid-cols-3 gap-1.5" role="group" aria-label="Obtížnost">${renderTierButtons(style.on, isMix ? null : topic, false, true)}</div>
             </div>`;
         overlay.firstElementChild.scrollTop = scroll;
         renderIcons(overlay);
@@ -4271,7 +4280,7 @@
             // Tu a tam (DAILY_HARD_SHARE) je dnešní otázka z těžších, méně známých; los má vlastní semínko, takže ostatních 90 %
             // dnešních otázek zůstává stejných a pro všechny hráče platí stejně
             const hard = createSeededRandom(`${dailySeed(ctx.topic, today)}:tezka`)() < DAILY_HARD_SHARE;
-            const harder = hard ? ctx.items.filter(candidate => candidate.k !== 1) : [];
+            const harder = hard ? ctx.items.filter(candidate => levelOf(candidate) === 2) : [];
             const item = pickItem(harder.length ? harder : ctx.items.filter(candidate => candidate.k === 1), rng, [], ctx.topic.categories.map(c => c.key));
             return { item, ctx, rng, dailyDate: today };
         }, TOPIC_BY_ID[topicId]);
@@ -4285,7 +4294,7 @@
     // Položky okruhu: celé téma a kategorie podle nastavené známosti, zvláštní okruhy celé
     const collectionItems = (ctx, collectionId) => {
         const special = collectionId && !collectionId.startsWith('c:');
-        const items = filterItems(ctx.items, { tier: special ? 'all' : settings.tier, collection: collectionId });
+        const items = filterItems(ctx.items, { tier: special ? 'expert' : settings.tier, collection: collectionId });
         return items.length ? items : filterItems(ctx.items, { collection: collectionId });
     };
 
@@ -4545,7 +4554,7 @@
                 ${topicIcon(topic, 'h-14 w-14', `rounded-2xl p-3 ${styleOf(topic).soft}`, 'h-7 w-7')}
                 <div>
                     <h2 class="text-2xl font-black tracking-tight text-slate-800 dark:text-slate-50">${escapeHtml(topic.title)}</h2>
-                    <p class="text-sm text-slate-500 dark:text-slate-400">${settings.tier === 'all' ? 'Celé téma i se méně známými' : 'Celé téma a kategorie jen se známými'} · <button type="button" data-action="settings" class="-my-2.5 px-1 py-2.5 font-bold text-slate-700 underline underline-offset-2 dark:text-slate-200">změnit</button></p>
+                    <p class="text-sm text-slate-500 dark:text-slate-400">Celé téma · obtížnost ${TIERS[settings.tier].title} · <button type="button" data-action="settings" class="-my-2.5 px-1 py-2.5 font-bold text-slate-700 underline underline-offset-2 dark:text-slate-200">změnit</button></p>
                 </div>
             </div>
             <h3 class="${CARD_TITLE} mt-1">Kategorie</h3>
@@ -4779,7 +4788,7 @@
             const chosen = selectedCategories(topic);
             parts.push(chosen.length === topic.categories.length ? 'všechny kategorie' : chosen.length === 1 ? categoryOf(topic, chosen[0]).label : `${chosen.length} z ${topic.categories.length} kategorií`);
         }
-        if (game.kind === 'blitz') parts.push(settings.tier === 'all' ? 'i méně známé' : 'jen známé');
+        if (game.kind === 'blitz') parts.push(TIERS[settings.tier].title);
         return parts.join(' · ');
     };
 
@@ -6161,7 +6170,7 @@
     const openNewChallenge = (preset = null) => {
         if (!signedUser()) return;
         // group = výzva skupině (groups.js): výzva pro kohokoli s kódem, kterou server připojí ke skupině
-        const draft = { topics: [], count: 10, who: 'player', opponent: null, blocked: null, mixOk: true, query: '', found: null, hard: false, variant: 'choices', cats: null, open: null, group: null };
+        const draft = { topics: [], count: 10, who: 'player', opponent: null, blocked: null, mixOk: true, query: '', found: null, level: 1, variant: 'choices', cats: null, open: null, group: null };
         let busy = false;
         let note = '';
         let searchToken = 0;
@@ -6174,7 +6183,7 @@
         // Okruhy jen u jednoho vybraného tématu (třeba jen vlajky států)
         const topicCategories = () => draft.topics.length === 1 ? TOPIC_BY_ID[draft.topics[0]].categories : [];
         const selectedCats = () => draft.cats || topicCategories().map(category => category.key);
-        const settingsSummary = () => [draft.hard ? 'I těžší' : 'Známé', draft.variant === 'typed' ? 'Psaní' : 'Možnosti'].join(' · ');
+        const settingsSummary = () => [LEVEL_TIERS[draft.level].title, draft.variant === 'typed' ? 'Psaní' : 'Možnosti'].join(' · ');
         const chip = (attr, value, active, content) => `<button type="button" ${attr}="${escapeHtml(String(value))}" aria-pressed="${active}" class="min-w-0 rounded-xl border-2 px-2 py-1.5 text-[13px] font-bold leading-tight active:scale-[0.98] ${active ? 'border-brand-600 bg-brand-50 text-brand-900 dark:bg-brand-900/40 dark:text-brand-100' : 'border-transparent bg-white text-slate-600 dark:bg-slate-800 dark:text-slate-300'}">${content}</button>`;
         const LABEL = 'text-xs font-black uppercase tracking-widest text-slate-500 dark:text-slate-400';
         const foundRows = () => {
@@ -6257,7 +6266,7 @@
         };
         const settingsBody = () => `
             <p class="${LABEL} mb-1.5">Obtížnost</p>
-            <div class="mb-3 grid grid-cols-2 gap-1.5">${chip('data-ch-hard', 'no', !draft.hard, 'Známé<span class="block text-[11px] font-semibold opacity-70">slavné a běžné věci</span>')}${chip('data-ch-hard', 'yes', draft.hard, 'I těžší<span class="block text-[11px] font-semibold opacity-70">i méně známé věci</span>')}</div>
+            <div class="mb-3 grid grid-cols-3 gap-1.5">${[1, 2, 3].map(level => chip('data-ch-level', level, draft.level === level, `${LEVEL_TIERS[level].short}<span class="block text-[11px] font-semibold opacity-70">${TIER_BRIEF[LEVEL_TIERS[level].key]}</span>`)).join('')}</div>
             <p class="${LABEL} mb-1.5">Odpovídání (pro všechny stejně)</p>
             <div class="grid grid-cols-2 gap-1.5">${chip('data-ch-variant', 'choices', draft.variant === 'choices', 'Možnosti<span class="block text-[11px] font-semibold opacity-70">vybíráš ze 4</span>')}${chip('data-ch-variant', 'typed', draft.variant === 'typed', 'Psaní<span class="block text-[11px] font-semibold opacity-70">dvojnásobek bodů</span>')}</div>`;
         // Pozdní odpovědi (přijímaná témata soupeře, chyba založení) překreslí okno, jen když je pořád otevřené
@@ -6297,7 +6306,7 @@
                 const who = event.target.closest('[data-ch-who]');
                 const pick = event.target.closest('[data-pick-opp]');
                 const category = event.target.closest('[data-ch-cat]');
-                const hard = event.target.closest('[data-ch-hard]');
+                const hard = event.target.closest('[data-ch-level]');
                 const variant = event.target.closest('[data-ch-variant]');
                 if (open) { draft.open = draft.open === open.dataset.chOpen ? null : open.dataset.chOpen; render(); }
                 if (topic) {
@@ -6317,7 +6326,7 @@
                 }
                 const allCats = event.target.closest('[data-ch-cats]');
                 if (allCats) { draft.cats = allCats.dataset.chCats === 'all' ? null : []; note = ''; render(); }
-                if (hard) { draft.hard = hard.dataset.chHard === 'yes'; render(); }
+                if (hard) { draft.level = Number(hard.dataset.chLevel) || 1; render(); }
                 if (variant) { draft.variant = variant.dataset.chVariant; render(); }
                 if (count) { draft.count = Number(count.dataset.chCount); render(); }
                 if (who) { draft.who = who.dataset.chWho; note = ''; render(); }
@@ -6366,7 +6375,7 @@
                         }
                         const all = topicCategories().length;
                         const cats = draft.topics.length !== 1 || !draft.cats || draft.cats.length >= all ? [] : draft.cats;
-                        const created = await Social.createChallenge(signedUser().id, { topic: resolved.value, count: draft.count, invitedId: opponent ? opponent.id : null, includeHard: draft.hard, categories: cats, variant: draft.variant });
+                        const created = await Social.createChallenge(signedUser().id, { topic: resolved.value, count: draft.count, invitedId: opponent ? opponent.id : null, includeHard: draft.level >= 2, level: draft.level, categories: cats, variant: draft.variant });
                         // Výzva skupině: připojí se ke skupině (členové ji uvidí v detailu skupiny); když to nevyjde, hraje se jako výzva přes odkaz
                         if (draft.group) await Social.groupSetChallenge(draft.group.id, created.id).catch(error => showToast(error && error.message ? error.message : 'Výzvu se nepodařilo poslat skupině.'));
                         closeDialog();
@@ -6410,7 +6419,7 @@
             if (last) {
                 draft.topics = last.topic === 'mix' ? [] : challengeTopicIds(last.topic);
                 draft.count = Social.COUNTS.includes(last.count) ? last.count : draft.count;
-                draft.hard = Boolean(last.include_hard);
+                draft.level = challengeLevel(last);
                 draft.variant = last.variant === 'typed' ? 'typed' : 'choices';
                 draft.cats = Array.isArray(last.categories) && last.categories.length ? last.categories : null;
             }
@@ -6888,7 +6897,7 @@
                         const last = stats.last;
                         const created = await Social.createChallenge(user.id, {
                             topic: last ? last.topic : 'mix', count: last && Social.COUNTS.includes(last.count) ? last.count : 10, invitedId: player.id,
-                            includeHard: Boolean(last && last.include_hard), categories: (last && last.categories) || [], variant: (last && last.variant) || 'choices'
+                            includeHard: Boolean(last && last.include_hard), level: last ? challengeLevel(last) : 1, categories: (last && last.categories) || [], variant: (last && last.variant) || 'choices'
                         });
                         closeDialog();
                         await loadMyProfile();
@@ -7055,7 +7064,7 @@
                 ${(() => {
                     const ids = challengeTopicIds(def.topic);
                     const topicDef = ids.length === 1 ? TOPIC_BY_ID[ids[0]] : null;
-                    const tags = [def.include_hard ? 'I těžší otázky' : 'Známé otázky', def.variant === 'typed' ? 'Psaní odpovědí' : def.variant === 'choices' ? 'Výběr z možností' : null,
+                    const tags = [`Obtížnost ${LEVEL_TIERS[challengeLevel(def)].title}`, def.variant === 'typed' ? 'Psaní odpovědí' : def.variant === 'choices' ? 'Výběr z možností' : null,
                         ...(def.categories || []).length && topicDef ? [`Okruh: ${def.categories.map(key => categoryOf(topicDef, key).label).join(', ')}`] : []].filter(Boolean);
                     return `<div class="flex flex-wrap gap-1.5">${tags.map(tag => `<span class="rounded-full bg-slate-200 px-2.5 py-1 text-[11px] font-bold text-slate-600 dark:bg-slate-700 dark:text-slate-300">${escapeHtml(tag)}</span>`).join('')}</div>`;
                 })()}
@@ -7082,7 +7091,7 @@
     // Rozehraná výzva z řádku výzvy (nebo z dřívější rozehrané): co a kým se hraje, odpovědi a kolik jich potvrdil server
     const makeChallenge = (def, index = 0, results = []) => ({
         code: def.code || def.id, topic: def.topic, seed: def.seed, count: def.count, index, results, creator: def.creator || null, invited: def.invited || null, done: false,
-        hard: Boolean(def.hard ?? def.include_hard), categories: def.categories || [], variant: def.variant || null, tournament: def.tournament || null,
+        level: challengeLevel(def), categories: def.categories || [], variant: def.variant || null, tournament: def.tournament || null,
         // Kdo výzvu hraje: po odhlášení a přihlášení jiného účtu na stejném zařízení se mu cizí rozehraná výzva nenabízí
         owner: def.owner || (signedUser() ? signedUser().id : null),
         // Kolik odpovědí má server (průběh, schéma 3); právě založená výzva žádné, jinak -1 = neví se (před prvním uložením se načte)
@@ -7094,7 +7103,7 @@
     // před otázkou index (u turnaje i všech dřívějších kol). Hra i Rozpis otázek procházejí semínka ve stejném pořadí, takže vyjdou stejné otázky.
     const challengePicker = (c) => {
         const usedIds = new Set();
-        const offered = (candidate) => (c.hard || candidate.k === 1) && (!c.categories.length || c.categories.includes(candidate.c));
+        const offered = (candidate) => levelOf(candidate) <= challengeLevel(c) && (!c.categories.length || c.categories.includes(candidate.c));
         const pickFor = (ctx, rng, history) => {
             const all = ctx.items.filter(offered);
             const unused = all.filter(candidate => !usedIds.has(candidate.q));
@@ -7248,9 +7257,9 @@
         };
     };
     const challengeQuestionList = (def) => {
-        const c = { ...def, hard: Boolean(def.hard), categories: Array.isArray(def.categories) ? def.categories : [] };
+        const c = { ...def, level: challengeLevel(def), categories: Array.isArray(def.categories) ? def.categories : [] };
         const tour = c.tournament;
-        const key = [c.topic, c.seed, c.count, c.hard ? 1 : 0, c.categories.join(','), tour ? `${tour.seedBase}:${tour.round}` : ''].join('|');
+        const key = [c.topic, c.seed, c.count, c.level, c.categories.join(','), tour ? `${tour.seedBase}:${tour.round}` : ''].join('|');
         if (!breakdownQuestions.has(key)) {
             const promise = (async () => {
                 const picker = challengePicker(c);
@@ -7376,7 +7385,7 @@
         const user = signedUser();
         const local = challenge && !challenge.tournament && challenge.code === code && (!challenge.owner || !user || challenge.owner === user.id) ? challenge.results : null;
         openBreakdown({
-            def: { topic: def.topic, seed: def.seed, count: def.count, hard: Boolean(def.hard ?? def.include_hard), categories: def.categories || [], tournament: null },
+            def: { topic: def.topic, seed: def.seed, count: def.count, level: challengeLevel(def), categories: def.categories || [], tournament: null },
             players: results || [], load: () => Social.challengeDetails(code, def.count), local
         });
     };
@@ -7395,7 +7404,7 @@
         const spectator = !user || !Tournament.involves(match, user.id);
         const local = !spectator && challenge && challenge.tournament && challenge.tournament.mid === mid ? challenge.results : null;
         openBreakdown({
-            def: { topic: view.tournament.topic, seed: `${view.tournament.seed}-r${match.round}`, count: Tournament.QUESTIONS, hard: false, categories: [],
+            def: { topic: view.tournament.topic, seed: `${view.tournament.seed}-r${match.round}`, count: Tournament.QUESTIONS, level: 1, categories: [],
                 tournament: { seedBase: view.tournament.seed, round: match.round } },
             players, load: () => Social.tournamentDetails(mid), local, viewAs: spectator ? match.p1 : null
         });

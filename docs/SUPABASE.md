@@ -554,3 +554,9 @@ Každá odpověď Kvízu dne se uloží i s podrobnostmi (tabulka `daily_quiz_an
 jde klepnout na kteréhokoli hráče a uvidíš jeho odpovědi po otázkách vedle svých. Otázky jsou pro všechny stejné, proto cizí odpovědi
 (`daily_quiz_details`) server pošle jen tomu, kdo dnešní kvíz sám dohrál; za minulé dny vždy. Spusť znovu celý `supabase/schema.sql` (verze 15);
 dokud ho nespustíš, aplikace odpovídá postaru (bez podrobností) a rozpis ukáže jen tvoje odpovědi z tohoto zařízení.
+
+## Tři úrovně obtížnosti výzev (schéma 16)
+
+Výzva má obtížnost Základní, Mudrlant nebo Mudrlant Expert (sloupec `challenges.level`, 1–3). Starší sloupec `include_hard` zůstává
+(Mudrlant a Expert ho mají zapnutý), takže výzvy založené dřív i starší verze aplikace fungují dál. Spusť znovu celý `supabase/schema.sql`
+(verze 16); dokud ho nespustíš, výzva s obtížností Expert se založí jako Mudrlant.

@@ -680,6 +680,10 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         await tab.click('#settings-overlay [data-variant="typed"]');
         assert.match(await tab.textContent('#settings-note'), /od další otázky/);
         assert.equal(await tab.getAttribute('#settings-overlay [data-tier="known"]', 'aria-pressed'), 'true');
+        // Tři úrovně: Základní, Mudrlant, Mudrlant Expert (uloží se a přežijí načtení nastavení)
+        assert.deepEqual(await tab.locator('#settings-overlay [data-tier]').evaluateAll(buttons => buttons.map(button => button.dataset.tier)), ['known', 'all', 'expert']);
+        await tab.click('#settings-overlay [data-tier="expert"]');
+        assert.equal((await readStorage(tab, 'mudrlant.settings')).tier, 'expert');
         await tab.click('#settings-overlay [data-tier="all"]');
         const saved = await readStorage(tab, 'mudrlant.settings');
         assert.deepEqual({ ...saved, topics: undefined, known: undefined }, { tier: 'all', topics: undefined, known: undefined, categories: {}, seen: [] });
@@ -1617,14 +1621,16 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         await one.tab.click('[data-ch-cat="vlajka"]');
         assert.equal(await one.tab.locator('[data-ch-cat][aria-pressed="true"]').count(), 1);
         await one.tab.click('[data-ch-open="settings"]');
-        await one.tab.click('[data-ch-hard="yes"]');
+        // Tři úrovně obtížnosti: Základní, Mudrlant, Mudrlant Expert
+        assert.equal(await one.tab.locator('[data-ch-level]').count(), 3);
+        await one.tab.click('[data-ch-level="3"]');
         await one.tab.click('[data-ch-variant="typed"]');
-        assert.match(await one.tab.textContent('[data-ch-open="settings"]'), /I těžší · Psaní/);
+        assert.match(await one.tab.textContent('[data-ch-open="settings"]'), /Mudrlant Expert · Psaní/);
         await one.tab.click('[data-ch-count="5"]');
         await one.tab.click('[data-ch-create]');
         await waitForQuestion(one.tab);
         const custom = Object.values(db.challenges).find(c => c.topic === 'vlajky');
-        assert.deepEqual([custom.categories, custom.include_hard, custom.variant, custom.invited_id], [['vlajka'], true, 'typed', null]);
+        assert.deepEqual([custom.categories, custom.include_hard, custom.level, custom.variant, custom.invited_id], [['vlajka'], true, 3, 'typed', null]);
         const customRound = await one.tab.evaluate(() => JSON.parse(localStorage.getItem('mudrlant.session')));
         assert.equal(customRound.data.category, 'vlajka', 'jen vybraný okruh');
         assert.equal(customRound.round.variant, 'typed', 'pevný způsob odpovídání výzvy');

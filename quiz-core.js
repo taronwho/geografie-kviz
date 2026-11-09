@@ -921,8 +921,13 @@
         if (collectionId.startsWith('c:')) return item.c === collectionId.slice(2);
         return (item.g || []).includes(collectionId);
     };
-    const filterItems = (items, { tier = 'all', collection = null } = {}) =>
-        items.filter(item => (tier === 'all' || item.k === 1) && inCollection(item, collection));
+    // Úrovně obtížnosti (sčítají se): known = Základní (k: 1, zná většina lidí), all = Mudrlant (i méně známé, bez expertních),
+    // expert = Mudrlant Expert (všechno včetně perliček, x: 1)
+    const levelOf = (item) => (item && item.k === 1 ? 1 : item && item.x ? 3 : 2);
+    const TIER_LEVEL = { known: 1, all: 2, expert: 3 };
+    const tierLevel = (tier) => TIER_LEVEL[tier] || 3;
+    const filterItems = (items, { tier = 'expert', collection = null } = {}) =>
+        items.filter(item => levelOf(item) <= tierLevel(tier) && inCollection(item, collection));
 
     // Nejdřív kategorie (v pořadí z tématu), potom položka v ní – jinak by převážila nejpočetnější kategorie.
     // Položka s nq (no question) je jen k učení: obrázek otázky by odpověď prozradil celý (vlajka, která je celá nápisem –
@@ -2308,7 +2313,7 @@
         JOINING_WORDS, distinctiveTokens, structureLeaks, sealStructure, contentWords, newWords, addsInformation, commonChoiceText,
         choicePoints, choicesView, fitMapToChoices, FIT_SHARE, WORLD_MIN_SPAN, buildHints, planRound, MIN_DESCRIPTION_WORDS, MIN_EXCERPT_WORDS,
         setCountries, landOf, landsOf, landFromDescription, cultureDistance, CULTURE_GROUPS, cultureScore, cultureLandsFor, getWordStems, censorName, mergeCensored, censorCountry, isKnownCountry, processWikiText, stripFactSentences, takeLeadFacts, normalizeAnswer, levenshtein, isAnswerMatch, isSymbolMatch, isCenturyMatch, isFormulaMatch, formulaCounts, checkAnswer,
-        inCollection, filterItems, pickItem, sortItems, getCountryNames, getContinent, continentAt, getCountryAliases,
+        inCollection, filterItems, levelOf, tierLevel, pickItem, sortItems, getCountryNames, getContinent, continentAt, getCountryAliases,
         distanceKm, nearness, STATE_STEPS, sharesGroup, eraNearness, personSimilarity, rankBySimilarity, takeDistinct,
         buildItemChoices, buildCountryChoices, findAnswerItem, findAnswerCountry, updateMistakes, nameAnswers, countryAnswers,
         pointsFor, dropKnownFacts, scaleKnown, timelineKnown, dropChoiceNames, sharesWordRoot, chooseDescription, censoredShare, MAX_CENSORED_SHARE, isFactVisible, formatNumber, formatPopulation, formatYear, formatFacts, getMapSpan, buildBlindMap, blindMapSpan, visibleOutline,
