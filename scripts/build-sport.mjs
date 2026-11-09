@@ -1,6 +1,11 @@
 // Téma Sport: data/sport.json z Wikidat – sportovci, olympijské hry, sporty a disciplíny
 // Spuštění: npm run build:sport (s BUILD_CACHE=složka jde pravidla ladit bez opakovaného stahování)
+// Podrobnosti po dávkách jdou číst i z query.wikidata.org (WIKIDATA_ENDPOINT=wdqs), když je QLever přetížený
 import { buildExtra } from './lib/sport-extra.mjs';
+import { cachedEntries } from './lib/sport-cache.mjs';
+import { assignLevels, levelSummary } from './lib/sport-levels.mjs';
+import { CZECH_GOLDS, LEGEND_GOLDS, NAGANO_1998 } from './lib/sport-olympians.mjs';
+import { czechPageviews } from './lib/zemepis-levels.mjs';
 import { sparql, qlever, id, values, parsePoint, fileName, imageFields, yearOf, compact, cached, inBatches, writeTopic } from './lib/wikidata.mjs';
 
 const HUMAN = 'Q5';
@@ -48,13 +53,18 @@ const CITY_NAMES = {
 // x… = sporty, které se na fotce dají splést (plavání a kraul, lezení a bouldering) – nikdy nejsou spolu mezi možnostmi.
 // Bez sportů, jejichž fotka sport neukazuje (kendó má jen znaky, štafeta vypadá jako sprint, kickbox jako box)
 const SPORTS = {
-    Q2736: 'mic tym branka', Q5372: 'mic tym kos', Q1734: 'mic tym sit', Q8418: 'mic tym branka', Q5378: 'mic tym ovalny', Q41323: 'mic tym ovalny',
+    Q2736: 'mic tym branka', Q5372: 'mic tym kos', Q1734: 'mic tym sit', Q8418: 'mic tym branka xhazena', Q5378: 'mic tym ovalny xragby', Q41323: 'mic tym ovalny',
     Q5369: 'mic tym palka', Q171038: 'mic tym palka', Q5375: 'mic tym palka', Q7707: 'mic tym branka voda', Q1455: 'mic tym hokejka branka',
-    Q4543: 'mic sit', Q171401: 'mic tym branka', Q206763: 'tym hokejka branka', Q185851: 'mic tym hokejka branka', Q192937: 'mic tym kos',
+    Q4543: 'mic sit', Q171401: 'mic tym branka', Q206763: 'mic tym hokejka branka', Q185851: 'mic tym hokejka branka', Q192937: 'mic tym kos',
     Q231200: 'mic tym kos', Q50776: 'mic tym ovalny', Q204632: 'mic tym', Q213711: 'mic tym hokejka', Q188818: 'mic sit', Q134211: 'mic tym hokejka kun',
     Q210778: 'mic tym branka', Q690676: 'mic tym voda lod', Q1050588: 'mic sit', Q183018: 'tym hokejka zima led', Q41466: 'tym hokejka zima led branka',
     Q946171: 'tym hokejka branka', Q8099087: 'mic tym kolo', Q244700: 'tym', Q1295867: 'mic tym palka',
-    Q847: 'raketa sit mic', Q3930: 'raketa sit mic', Q7291: 'raketa sit', Q133201: 'raketa mic',
+    // Méně známé míčové hry; x… = na fotce k nerozeznání od známého sportu (padel a pickleball od tenisu, ragby 7 od ragby)
+    Q647559: 'mic tym branka', Q1582389: 'raketa mic sit xtenis xsquash', Q866224: 'raketa mic sit xtenis', Q1618467: 'raketa mic sit xtenis',
+    Q19578052: 'mic sit xstul', Q473719: 'mic tym', Q212845: 'mic xsquash', Q754586: 'raketa mic xsquash', Q535116: 'mic tym branka xhazena',
+    Q1128216: 'mic tym kos', Q597628: 'mic tym sit', Q659707: 'mic tym', Q1741679: 'mic tym', Q204985: 'mic tym kun',
+    Q270102: 'mic tym ovalny xragby', Q10962: 'mic tym ovalny xragby',
+    Q847: 'raketa sit mic xtenis', Q3930: 'raketa sit mic xstul', Q7291: 'raketa sit', Q133201: 'raketa mic xsquash',
     Q186222: 'zima lyze snih', Q179687: 'zima lyze snih', Q7718: 'zima lyze snih', Q166788: 'zima lyze snih', Q178131: 'zima snih',
     Q189472: 'zima lyze snih', Q38108: 'zima led brusle', Q192431: 'zima led brusle', Q193654: 'zima led brusle',
     Q136851: 'zima led presnost', Q177275: 'zima led draha', Q186190: 'zima led draha', Q273285: 'zima led draha',
@@ -91,10 +101,10 @@ const BUCKETS = {
     },
     basketbal: { ids: ['Q5372'], label: 'basketbal', man: 'basketbalista', woman: 'basketbalistka', tags: 'mic tym', limit: 35, known: 8, cz: 6 },
     cyklistika: { ids: ['Q2215841', 'Q3609', 'Q221635', 'Q520611', 'Q335638', 'Q53121'], label: 'cyklistika', man: 'cyklista', woman: 'cyklistka', tags: 'leto kolo', limit: 30, known: 5, cz: 8 },
-    auto: { ids: ['Q5386', 'Q1968', 'Q7856', 'Q9340418'], label: 'automobilové závody', man: 'automobilový závodník', woman: 'automobilová závodnice', tags: 'motor', limit: 45, known: 9, cz: 5 },
+    auto: { ids: ['Q5386', 'Q1968', 'Q7856', 'Q9340418'], label: 'automobilové závody', man: 'automobilový závodník', woman: 'automobilová závodnice', tags: 'motor', limit: 55, known: 9, cz: 5 },
     moto: { ids: ['Q328716', 'Q215862', 'Q750080'], label: 'motocyklové závody', man: 'motocyklový závodník', woman: 'motocyklová závodnice', tags: 'motor', limit: 8, known: 1, cz: 3 },
-    plavani: { ids: ['Q31920'], label: 'plavání', man: 'plavec', woman: 'plavkyně', tags: 'voda leto', limit: 30, known: 6, cz: 4 },
-    box: { ids: ['Q32112'], label: 'box', man: 'boxer', woman: 'boxerka', tags: 'boj', limit: 22, known: 7, cz: 2 },
+    plavani: { ids: ['Q31920'], label: 'plavání', man: 'plavec', woman: 'plavkyně', tags: 'voda leto', limit: 75, known: 6, cz: 4 },
+    box: { ids: ['Q32112'], label: 'box', man: 'boxer', woman: 'boxerka', tags: 'boj', limit: 55, known: 7, cz: 2 },
     alpske: { ids: ['Q186222'], label: 'alpské lyžování', man: 'lyžař', woman: 'lyžařka', tags: 'zima snih lyze', limit: 22, known: 4, cz: 6 },
     bezky: { ids: ['Q179687'], label: 'běh na lyžích', man: 'běžec na lyžích', woman: 'běžkyně na lyžích', tags: 'zima snih lyze', limit: 14, known: 2, cz: 6 },
     skoky: { ids: ['Q7718'], label: 'skoky na lyžích', man: 'skokan na lyžích', woman: 'skokanka na lyžích', tags: 'zima snih lyze', limit: 12, known: 1, cz: 6 },
@@ -107,14 +117,14 @@ const BUCKETS = {
     golf: { ids: ['Q5377'], label: 'golf', man: 'golfista', woman: 'golfistka', tags: 'presnost', limit: 10, known: 3, cz: 1 },
     baseball: { ids: ['Q5369'], label: 'baseball', man: 'baseballista', woman: 'baseballistka', tags: 'mic tym palka', limit: 8, known: 2, cz: 0 },
     americky: { ids: ['Q41323'], label: 'americký fotbal', man: 'hráč amerického fotbalu', woman: 'hráčka amerického fotbalu', tags: 'mic tym', limit: 8, known: 2, cz: 0 },
-    serm: { ids: ['Q12100'], label: 'šerm', man: 'šermíř', woman: 'šermířka', tags: 'boj', limit: 6, known: 0, cz: 2 },
-    judo: { ids: ['Q11420'], label: 'judo', man: 'judista', woman: 'judistka', tags: 'boj', limit: 6, known: 0, cz: 3 },
-    mma: { ids: ['Q114466'], label: 'smíšená bojová umění', man: 'zápasník MMA', woman: 'zápasnice MMA', tags: 'boj', limit: 6, known: 1, cz: 3 },
-    zapas: { ids: ['Q42486', 'Q838089', 'Q389654', 'Q327223'], label: 'zápas', man: 'zápasník', woman: 'zápasnice', tags: 'boj', limit: 5, known: 0, cz: 3 },
+    serm: { ids: ['Q12100'], label: 'šerm', man: 'šermíř', woman: 'šermířka', tags: 'boj', limit: 16, known: 0, cz: 2 },
+    judo: { ids: ['Q11420'], label: 'judo', man: 'judista', woman: 'judistka', tags: 'boj', limit: 22, known: 1, cz: 3 },
+    mma: { ids: ['Q114466'], label: 'smíšená bojová umění', man: 'zápasník MMA', woman: 'zápasnice MMA', tags: 'boj', limit: 18, known: 1, cz: 3 },
+    zapas: { ids: ['Q42486', 'Q838089', 'Q389654', 'Q327223'], label: 'zápas', man: 'zápasník', woman: 'zápasnice', tags: 'boj', limit: 10, known: 0, cz: 3 },
     hazena: { ids: ['Q8418'], label: 'házená', man: 'házenkář', woman: 'házenkářka', tags: 'mic tym', limit: 6, known: 0, cz: 5 },
     volejbal: { ids: ['Q1734', 'Q4543'], label: 'volejbal', man: 'volejbalista', woman: 'volejbalistka', tags: 'mic tym', limit: 6, known: 0, cz: 4 },
-    veslovani: { ids: ['Q159354'], label: 'veslování', man: 'veslař', woman: 'veslařka', tags: 'voda lod', limit: 5, known: 0, cz: 4 },
-    kanoistika: { ids: ['Q20856109', 'Q213934', 'Q31874', 'Q1141850'], label: 'kanoistika', man: 'kanoista', woman: 'kanoistka', tags: 'voda lod', limit: 5, known: 0, cz: 10 },
+    veslovani: { ids: ['Q159354'], label: 'veslování', man: 'veslař', woman: 'veslařka', tags: 'voda lod', limit: 12, known: 0, cz: 4 },
+    kanoistika: { ids: ['Q20856109', 'Q213934', 'Q31874', 'Q1141850'], label: 'kanoistika', man: 'kanoista', woman: 'kanoistka', tags: 'voda lod', limit: 12, known: 0, cz: 10 },
     strelba: { ids: ['Q206989'], label: 'sportovní střelba', man: 'sportovní střelec', woman: 'sportovní střelkyně', tags: 'presnost', limit: 4, known: 0, cz: 5 },
     stolni: { ids: ['Q3930'], label: 'stolní tenis', man: 'stolní tenista', woman: 'stolní tenistka', tags: 'raketa mic', limit: 4, known: 0, cz: 2 },
     badminton: { ids: ['Q7291'], label: 'badminton', man: 'badmintonista', woman: 'badmintonistka', tags: 'raketa', limit: 4, known: 0, cz: 1 },
@@ -125,8 +135,8 @@ const BUCKETS = {
     jezdectvi: { ids: ['Q902378', 'Q211773', 'Q187916'], label: 'jezdectví', man: 'jezdec', woman: 'jezdkyně', tags: 'kun', limit: 4, known: 0, cz: 2 },
     triatlon: { ids: ['Q10980'], label: 'triatlon', man: 'triatlonista', woman: 'triatlonistka', tags: 'vytrvalost', limit: 3, known: 0, cz: 2 },
     vzpirani: { ids: ['Q83462'], label: 'vzpírání', man: 'vzpěrač', woman: 'vzpěračka', tags: 'sila', limit: 4, known: 0, cz: 1 },
-    skoky_do_vody: { ids: ['Q7735'], label: 'skoky do vody', man: 'skokan do vody', woman: 'skokanka do vody', tags: 'voda', limit: 3, known: 0, cz: 1 },
-    jachting: { ids: ['Q14085739'], label: 'jachting', man: 'jachtař', woman: 'jachtařka', tags: 'voda lod', limit: 3, known: 0, cz: 1 },
+    skoky_do_vody: { ids: ['Q7735'], label: 'skoky do vody', man: 'skokan do vody', woman: 'skokanka do vody', tags: 'voda', limit: 6, known: 0, cz: 1 },
+    jachting: { ids: ['Q14085739'], label: 'jachting', man: 'jachtař', woman: 'jachtařka', tags: 'voda lod', limit: 6, known: 0, cz: 1 },
     florbal: { ids: ['Q206763'], label: 'florbal', man: 'florbalista', woman: 'florbalistka', tags: 'tym hokejka', limit: 0, known: 0, cz: 2 }
 };
 const BUCKET_OF = new Map(Object.entries(BUCKETS).flatMap(([key, bucket]) => bucket.ids.map(qid => [qid, key])));
@@ -139,7 +149,8 @@ const COACH = /trenér|rozhodčí|funkcionář|manažer|komentátor/u;
 // Obecná sportovní povolání (sportovec, olympionik, atlet)
 const GENERIC_ATHLETE = new Set(['Q2066131', 'Q50995749', 'Q58825429', 'Q11513337']);
 // Slavní hlavně něčím jiným, i když je Wikidata vedou jako sportovce
-const NOT_ATHLETES = new Set(['Ivana Trumpová', 'Charlene, kněžna monacká', 'Joseph Campbell', 'Philip Noel-Baker', 'Enzo Ferrari']);
+const NOT_ATHLETES = new Set(['Ivana Trumpová', 'Charlene, kněžna monacká', 'Joseph Campbell', 'Philip Noel-Baker', 'Enzo Ferrari',
+    'Yanni', 'Cristina Španělská', 'Suthida']);
 // Sport v popisu („česká rychlobruslařka a cyklistka“): platí ten, který popis uvádí první; u shody na stejném místě
 // rozhoduje pořadí (stolní tenis před tenisem, americký fotbal před fotbalem, běžec na lyžích před atletem)
 const DESCRIPTION_SPORTS = [
@@ -234,9 +245,9 @@ const hostDetails = new Map(await cached('sport-hosts', async () => {
 console.log(`Hry: ${gamesDetails.size}, pořadatelská města: ${hostDetails.size}`);
 
 // --- 2. krok: sporty a disciplíny ---
-const sportDetails = new Map(await cached('sport-sports', async () => {
-    const result = new Map(SPORT_IDS.map(qid => [qid, {}]));
-    await inBatches(SPORT_IDS, 60, (qids) => `SELECT ?item ?p ?v WHERE {
+const sportDetails = await cachedEntries('sport-sports', SPORT_IDS, async (sportIds) => {
+    const result = new Map(sportIds.map(qid => [qid, {}]));
+    await inBatches(sportIds, 60, (qids) => `SELECT ?item ?p ?v WHERE {
   VALUES ?item { ${values(qids)} }
   { ?a schema:about ?item ; schema:isPartOf <https://cs.wikipedia.org/> ; schema:name ?v BIND("t" AS ?p) }
   UNION { ?item rdfs:label ?v FILTER(LANG(?v) = "cs") BIND("n" AS ?p) }
@@ -255,7 +266,7 @@ const sportDetails = new Map(await cached('sport-sports', async () => {
         else if (!(key in entry)) entry[key] = v;
     });
     return [...result];
-}));
+});
 console.log(`Sporty: ${[...sportDetails.values()].filter(detail => detail.t).length} s článkem`);
 
 // --- 3. krok: kandidáti na sportovce (QLever – přes všechny lidi se sportem) ---
@@ -307,23 +318,98 @@ const RESERVE = 1.6;
 // Nejznámější sportovci světa se berou bez ohledu na počet za sport (aspoň tolik článků ve Wikipedii); od druhé hranice jsou „známí“
 const ATHLETE_FLOOR = 75;
 const ATHLETE_KNOWN = 90;
+// Sportovkyně: v každém sportu aspoň tolik (podíl z limitu sportu) – podle počtu článků by jich jinak bylo málo
+const WOMEN_SHARE = 0.35;
+const womenQuota = (bucket) => Math.round(WOMEN_SHARE * bucket.limit);
+// Přes kvótu jen sportovkyně aspoň s tolika jazykovými verzemi článku (české všechny)
+const WOMEN_MIN_SITELINKS = 20;
+const detailsRun = process.env.WIKIDATA_ENDPOINT === 'wdqs' ? sparql : qlever;
 const candidateMap = new Map(athleteCandidates);
-const selected = new Set();
+
+// Sportovkyně mezi kandidáty (pohlaví v dotazu na kandidáty není)
+const femaleCandidates = new Set(await cached('sport-female-candidates', async () => (await qlever(`SELECT DISTINCT ?p WHERE {
+  VALUES ?sport { ${values(ATHLETE_SPORTS)} }
+  { ?p wdt:P641 ?sport } UNION { ?p wdt:P106 ?occ . ?occ wdt:P641 ?sport }
+  ?p wdt:P31 wd:${HUMAN} ; wdt:P21 wd:${FEMALE} ; wikibase:sitelinks ?sl .
+  ?a schema:about ?p ; schema:isPartOf <https://cs.wikipedia.org/> .
+  FILTER(?sl >= 5)
+}`)).map(row => id(row.p.value))));
+console.log(`Sportovkyně mezi kandidáty: ${athleteCandidates.filter(([qid]) => femaleCandidates.has(qid)).length}`);
+
+// Olympijští vítězové ve Wikidatech: zlato u účasti na události (P1344 + P166) i u ocenění (P166 + událost P1344)
+const GOLD = 'Q15243387';
+const goldRows = await cached('sport-gold-medalists', async () => (await qlever(`SELECT ?p ?e ?s ?r WHERE {
+  { ?p p:P1344 ?s . ?s ps:P1344 ?e ; pq:P166 wd:${GOLD} . BIND("u" AS ?r) }
+  UNION { ?p p:P166 ?s . ?s ps:P166 wd:${GOLD} . OPTIONAL { ?s pq:P1344 ?e } BIND("o" AS ?r) }
+  ?p wdt:P31 wd:${HUMAN} . ?a schema:about ?p ; schema:isPartOf <https://cs.wikipedia.org/> .
+}`)).map(row => [id(row.p.value), row.e ? id(row.e.value) : '', row.s.value.split('/').pop(), row.r.value]));
+// Počet zlatých: různé události, nebo počet ocenění (u ocenění bez události) – co je víc
+const goldCounts = new Map();
+{
+    const byPerson = new Map();
+    for (const [qid, event, statement, route] of goldRows) {
+        const entry = byPerson.get(qid) || { events: new Set(), awards: new Set() };
+        if (event) entry.events.add(event);
+        if (route === 'o') entry.awards.add(statement);
+        byPerson.set(qid, entry);
+    }
+    for (const [qid, entry] of byPerson) goldCounts.set(qid, Math.max(entry.events.size, entry.awards.size));
+}
+// Ručně ověření vítězové (týmy z Nagana a Moskvy, sprinteři bez údajů): název článku → položka Wikidat
+const manualTitles = [...Object.keys(CZECH_GOLDS), ...Object.keys(LEGEND_GOLDS)];
+const titleIds = await cachedEntries('sport-manual-titles', manualTitles, async (titles) => {
+    const rows = await qlever(`SELECT ?item ?t WHERE { VALUES ?t { ${titles.map(t => `"${t.replace(/"/g, '')}"@cs`).join(' ')} }
+  ?a schema:about ?item ; schema:isPartOf <https://cs.wikipedia.org/> ; schema:name ?t . ?item wdt:P31 wd:${HUMAN} . }`);
+    return rows.map(row => [row.t.value, id(row.item.value)]);
+});
+for (const title of manualTitles) if (!titleIds.has(title)) console.warn(`  ruční seznam: článek „${title}“ není článek o člověku`);
+const MANUAL_GOLDS = new Map();
+for (const [title, games] of [...Object.entries(CZECH_GOLDS), ...Object.entries(LEGEND_GOLDS)]) {
+    if (titleIds.has(title)) MANUAL_GOLDS.set(titleIds.get(title), games);
+}
+const NAGANO_IDS = new Set(NAGANO_1998.map(title => titleIds.get(title)).filter(Boolean));
+// Olympijské legendy (aspoň 4 zlaté) a čeští olympijští vítězové se berou vždy, i nad limit sportu
+const LEGEND_GOLD = 4;
+const forced = new Set([...MANUAL_GOLDS.keys()]);
+for (const [qid, golds] of goldCounts) if (golds >= LEGEND_GOLD || (golds > 0 && (candidateMap.get(qid) || {}).cz)) forced.add(qid);
+// Vynucení, kteří mezi kandidáty nejsou (méně článků): sport a české občanství zvlášť
+const forcedCandidates = await cachedEntries('sport-forced-candidates', [...forced].filter(qid => !candidateMap.has(qid)), async (qids) => {
+    const result = new Map();
+    await inBatches(qids, 200, (batch) => `SELECT ?p ?sl ?sport ?occ ?c WHERE {
+  VALUES ?p { ${values(batch)} } VALUES ?sport { ${values(ATHLETE_SPORTS)} }
+  { ?p wdt:P641 ?sport } UNION { ?p wdt:P106 ?occ . ?occ wdt:P641 ?sport }
+  ?p wikibase:sitelinks ?sl . OPTIONAL { ?p wdt:P27 ?c } }`, (row) => {
+        const qid = id(row.p.value);
+        const entry = result.get(qid) || { sl: Number(row.sl.value), sports: {}, cz: false };
+        const sport = id(row.sport.value);
+        const via = row.occ ? id(row.occ.value) : 'P641';
+        entry.sports[sport] = [...new Set([...(entry.sports[sport] || []), via])];
+        if (row.c && CZECH_STATES.has(id(row.c.value))) entry.cz = true;
+        result.set(qid, entry);
+    }, detailsRun);
+    return [...result];
+});
+for (const [qid, entry] of forcedCandidates) candidateMap.set(qid, entry);
+const allCandidates = [...candidateMap.entries()];
+console.log(`Vynucení olympijští vítězové: ${forced.size} (bez údajů o sportu ${[...forced].filter(qid => !candidateMap.has(qid)).length})`);
+
+const selected = new Set([...forced].filter(qid => candidateMap.has(qid)));
 for (const key of bucketKeys) {
-    const inBucket = athleteCandidates.filter(([, entry]) => bucketsOf(entry.sports)[0] === key).sort((a, b) => b[1].sl - a[1].sl);
+    const inBucket = allCandidates.filter(([, entry]) => bucketsOf(entry.sports)[0] === key).sort((a, b) => b[1].sl - a[1].sl);
     inBucket.slice(0, Math.ceil(BUCKETS[key].limit * RESERVE)).forEach(([qid]) => selected.add(qid));
     inBucket.filter(([, entry]) => entry.cz).slice(0, Math.ceil(BUCKETS[key].cz * RESERVE)).forEach(([qid]) => selected.add(qid));
+    inBucket.filter(([qid]) => femaleCandidates.has(qid)).slice(0, Math.ceil(womenQuota(BUCKETS[key]) * RESERVE)).forEach(([qid]) => selected.add(qid));
     inBucket.filter(([, entry]) => entry.sl >= ATHLETE_FLOOR).forEach(([qid]) => selected.add(qid));
 }
 const selectedIds = [...selected];
 console.log(`Vybráno ${selectedIds.length} sportovců k podrobnostem…`);
 
-// --- 4. krok: podrobnosti o sportovcích ---
+// --- 4. krok: podrobnosti o sportovcích (v mezipaměti po položkách – při změně výběru se dostahují jen noví) ---
 const PERSON_SINGLE = { t: 1, n: 1, d: 1, im: 1, born: 1, died: 1, sex: 1, ws: 1, we: 1 };
-const athleteDetails = new Map(await cached('sport-athlete-details-v2', async () => {
-    const result = new Map(selectedIds.map(qid => [qid, { teams: [], oly: [] }]));
-    await inBatches(selectedIds, 60, (qids) => `SELECT ?item ?p ?v ?start ?end ?medal WHERE {
-  VALUES ?item { ${values(qids)} }
+const athleteDetails = await cachedEntries('sport-athlete-details-v2', selectedIds, async (qids) => {
+    const result = new Map(qids.map(qid => [qid, { teams: [], oly: [] }]));
+    await inBatches(qids, 60, (batch) => `SELECT ?item ?p ?v ?start ?end ?medal WHERE {
+  VALUES ?item { ${values(batch)} }
   { ?a schema:about ?item ; schema:isPartOf <https://cs.wikipedia.org/> ; schema:name ?v BIND("t" AS ?p) }
   UNION { ?item rdfs:label ?v FILTER(LANG(?v) = "cs") BIND("n" AS ?p) }
   UNION { ?item schema:description ?v FILTER(LANG(?v) = "cs") BIND("d" AS ?p) }
@@ -350,20 +436,33 @@ const athleteDetails = new Map(await cached('sport-athlete-details-v2', async ()
         else if (key === 'oly') entry.oly.push({ id: v, medal: row.medal ? id(row.medal.value) : '' });
         else if (PERSON_SINGLE[key]) { if (!(key in entry)) entry[key] = v; }
         else if (!(entry[key] || []).includes(v)) entry[key] = [...(entry[key] || []), v];
-    }, qlever);
+    }, detailsRun);
     return [...result];
-}));
+});
+// Medaile u ocenění (P166 s událostí P1344): Wikidata je u řady sportovců vedou jen takhle
+const MEDAL_IDS = Object.keys(MEDALS);
+const awardMedals = await cachedEntries('sport-athlete-medals', selectedIds, async (qids) => {
+    const result = new Map(qids.map(qid => [qid, []]));
+    await inBatches(qids, 150, (batch) => `SELECT ?item ?medal ?e WHERE {
+  VALUES ?item { ${values(batch)} } VALUES ?medal { ${values(MEDAL_IDS)} }
+  ?item p:P166 ?s . ?s ps:P166 ?medal ; pq:P1344 ?e . }`,
+    (row) => result.get(id(row.item.value)).push({ id: id(row.e.value), medal: id(row.medal.value) }), detailsRun);
+    return [...result];
+});
+// V mezipaměti můžou být i sportovci z dřívějšího výběru
+for (const qid of [...athleteDetails.keys()]) if (!selected.has(qid)) athleteDetails.delete(qid);
+for (const [qid, detail] of athleteDetails) detail.awards = awardMedals.get(qid) || [];
 
 // Události, kterých se sportovci účastnili (P1344): ke kterým hrám patří (finále 5000 m → atletika na LOH 1952 → LOH 1952)
 const gameSet = new Set(gameIds);
-const eventIds = [...new Set([...athleteDetails.values()].flatMap(detail => detail.oly.map(entry => entry.id)))].filter(q => /^Q\d+$/.test(q));
-const eventGames = new Map(await cached('sport-event-games-v2', async () => {
+const eventIds = [...new Set([...athleteDetails.values()].flatMap(detail => [...detail.oly, ...detail.awards].map(entry => entry.id)))].filter(q => /^Q\d+$/.test(q));
+const eventGames = await cachedEntries('sport-event-games-v2', eventIds.filter(q => !gameSet.has(q)), async (qids) => {
     const result = [];
-    await inBatches(eventIds.filter(q => !gameSet.has(q)), 300, (qids) => `SELECT ?e ?g WHERE {
-  VALUES ?e { ${values(qids)} } VALUES ?g { ${values(gameIds)} } ?e wdt:P361* ?g . }`,
+    await inBatches(qids, 300, (batch) => `SELECT ?e ?g WHERE {
+  VALUES ?e { ${values(batch)} } VALUES ?g { ${values(gameIds)} } ?e wdt:P361* ?g . }`,
     (row) => result.push([id(row.e.value), id(row.g.value)]), qlever);
     return result;
-}));
+});
 for (const qid of gameIds) eventGames.set(qid, qid);
 console.log(`Události na olympijských hrách: ${eventGames.size} z ${eventIds.length}`);
 
@@ -374,13 +473,13 @@ for (const detail of athleteDetails.values()) {
     detail.teams.forEach(team => referenced.add(team.id));
 }
 for (const q of referenced) if (!/^Q\d+$/.test(q)) referenced.delete(q);
-const labels = new Map(await cached('sport-labels-v2', async () => {
+const labels = await cachedEntries('sport-labels-v2', [...referenced], async (qids) => {
     const result = [];
-    await inBatches([...referenced], 400, (qids) => `SELECT ?item ?label ?sl WHERE { VALUES ?item { ${values(qids)} }
+    await inBatches(qids, 400, (batch) => `SELECT ?item ?label ?sl WHERE { VALUES ?item { ${values(batch)} }
   ?item rdfs:label ?label FILTER(LANG(?label) = "cs") OPTIONAL { ?item wikibase:sitelinks ?sl } }`,
     (row) => result.push([id(row.item.value), { n: row.label.value, sl: row.sl ? Number(row.sl.value) : 0 }]), qlever);
     return result;
-}));
+});
 const label = (qid) => (labels.get(qid) || {}).n;
 console.log(`Názvy: ${labels.size} z ${referenced.size}`);
 
@@ -448,7 +547,7 @@ const OLYMPIC_SINCE = {
     Q178131: 1998, Q206989: 1896, Q179687: 1924, Q31920: 1896, Q326827: 1896, Q61465: 1984, Q186190: 1928, Q180692: 1984, Q273285: 1964,
     Q192431: 1924, Q193654: 1992, Q842284: 2020, Q189472: 1992, Q1541373: 2020, Q1141850: 1936, Q31874: 1972, Q3609: 1896, Q221635: 1896,
     Q215184: 2008, Q14085739: 1900, Q40244: 1896, Q164761: 1896, Q165704: 1896, Q170737: 1896, Q185027: 1896, Q187204: 1896, Q180935: 1896,
-    Q182570: 1896, Q178108: 1908, Q184865: 1900, Q537769: 1896, Q202391: 1908, Q211773: 1912, Q191051: 1984
+    Q182570: 1896, Q178108: 1908, Q184865: 1900, Q537769: 1896, Q202391: 1908, Q211773: 1912, Q191051: 1984, Q270102: 2016
 };
 // Vznik sportu, kde je rok jasný (Wikidata mají u volejbalu rok založení federace)
 const FOUNDED = { Q2736: 1863, Q5372: 1891, Q1734: 1895, Q847: 1873, Q11420: 1882, Q1968: 1950, Q106500: 1938, Q192937: 1902, Q244700: 1968, Q41466: 1875 };
@@ -460,7 +559,8 @@ const NOT_EQUIPMENT = /nějak|paže|předloktí|hřiště|kurt|dvorec|závodišt
 const PLAYERS = {
     Q2736: 11, Q5372: 5, Q1734: 6, Q8418: 7, Q41323: 11, Q5369: 9, Q171038: 9, Q5375: 11, Q7707: 7, Q1455: 11, Q4543: 2, Q171401: 5,
     Q206763: 6, Q185851: 10, Q192937: 8, Q231200: 7, Q50776: 18, Q204632: 15, Q213711: 15, Q41466: 6, Q183018: 11, Q134211: 4, Q210778: 5,
-    Q690676: 5, Q1050588: 5, Q946171: 5, Q8099087: 2, Q244700: 7, Q1295867: 9, Q188818: 3
+    Q690676: 5, Q1050588: 5, Q946171: 5, Q8099087: 2, Q244700: 7, Q1295867: 9, Q188818: 3,
+    Q647559: 3, Q535116: 4, Q1128216: 5, Q597628: 6, Q270102: 7, Q10962: 13, Q659707: 7, Q204985: 4
 };
 // Druh sportu podle štítků (první, který sedí)
 const SPORT_KINDS = [['vytrvalost', 'vytrvalostní sport'], ['zima', 'zimní sport'], ['styl', 'plavecký způsob'], ['atletika', 'atletická disciplína'],
@@ -488,7 +588,8 @@ for (const [qid, detail] of sportRows) {
             from: FOUNDED[qid],
             origin: qid in ORIGIN ? ORIGIN[qid] || undefined : (detail.origin || [])[0],
             uses: (detail.uses || []).filter(text => !NOT_EQUIPMENT.test(text)).map(text => text.charAt(0).toLowerCase() + text.slice(1)).slice(0, 4)
-        })
+        }),
+        sl: Number(detail.sl)
     });
 }
 
@@ -499,12 +600,12 @@ const czechoslovakOnly = [...athleteDetails.entries()].filter(([, detail]) => {
     const states = [...(detail.cit || []), ...(detail.cfs || [])];
     return states.includes('Q33946') && !states.includes('Q213');
 }).map(([qid]) => qid);
-const birthCountries = new Map(await cached('sport-birth-countries-v2', async () => {
+const birthCountries = await cachedEntries('sport-birth-countries-v2', czechoslovakOnly, async (qids) => {
     const result = [];
-    await inBatches(czechoslovakOnly, 200, (qids) => `SELECT ?item ?c WHERE { VALUES ?item { ${values(qids)} } ?item wdt:P19 ?place . ?place wdt:P17 ?c . }`,
+    await inBatches(qids, 200, (batch) => `SELECT ?item ?c WHERE { VALUES ?item { ${values(batch)} } ?item wdt:P19 ?place . ?place wdt:P17 ?c . }`,
         (row) => result.push([id(row.item.value), id(row.c.value)]));
     return result;
-}));
+});
 const isCzechAthlete = (qid, detail) => {
     const states = [...(detail.cit || []), ...(detail.cfs || [])];
     if (states.includes('Q213') || states.includes('Q42585')) return true;
@@ -568,21 +669,42 @@ const careerOf = (detail, life, olympicYears) => {
     if (to !== undefined && (to > THIS_YEAR || (life.died !== undefined && to > life.died) || from === undefined || to < from)) to = undefined;
     return { from, to };
 };
+// Medaile jsou ve Wikidatech dvojím způsobem: u účasti na události (P1344 s medailí) a u ocenění (P166 s událostí, často jen
+// celé hry). Na každých hrách se počítá ten, který jich uvádí víc – sečíst by je znamenalo počítat medaile dvakrát
 const olympicsOf = (detail) => {
     const games = new Set();
-    const medals = new Map();
+    const perGame = new Map();
+    const tally = (game, kind) => {
+        if (!perGame.has(game)) perGame.set(game, {});
+        const entry = perGame.get(game);
+        if (!entry[kind]) entry[kind] = { events: new Set(), whole: false, awards: 0 };
+        return entry[kind];
+    };
     for (const entry of detail.oly) {
         const game = eventGames.get(entry.id);
         if (!game) continue;
         games.add(game);
-        if (MEDALS[entry.medal]) medals.set(`${entry.id}-${entry.medal}`, { game, kind: MEDALS[entry.medal] });
+        // Medaile u celých her („účastník LOH 1972, zlato“) vedle medailí u disciplín je tatáž medaile znovu
+        if (!MEDALS[entry.medal]) continue;
+        if (entry.id === game) tally(game, MEDALS[entry.medal]).whole = true;
+        else tally(game, MEDALS[entry.medal]).events.add(entry.id);
+    }
+    for (const entry of detail.awards || []) {
+        const game = eventGames.get(entry.id);
+        if (!game || !MEDALS[entry.medal]) continue;
+        games.add(game);
+        tally(game, MEDALS[entry.medal]).awards++;
     }
     const sorted = [...games].sort((a, b) => gameInfo.get(a).year - gameInfo.get(b).year || (gameInfo.get(a).type === 'Z' ? -1 : 1));
-    const count = (kind) => [...medals.values()].filter(medal => medal.kind === kind).length;
+    const inGame = (game, kind) => {
+        const entry = (perGame.get(game) || {})[kind];
+        return entry ? Math.max(entry.events.size || (entry.whole ? 1 : 0), entry.awards) : 0;
+    };
+    const count = (kind) => sorted.reduce((sum, game) => sum + inGame(game, kind), 0);
     return {
         og: sorted,
         gold: count('gold'), silver: count('silver'), bronze: count('bronze'),
-        goldAt: [...new Set([...medals.values()].filter(medal => medal.kind === 'gold').map(medal => medal.game))]
+        goldAt: sorted.filter(game => inGame(game, 'gold') > 0)
     };
 };
 const countryLabel = (detail) => {
@@ -605,6 +727,8 @@ const athleteRows = [...athleteDetails.entries()]
 // Ze stejně pojmenovaných zůstane ten známější
 const rankInBucket = {};
 const czechRankInBucket = {};
+const womenRankInBucket = {};
+const GAME_BY_KEY = new Map(GAMES.map(([qid, year, type]) => [`${type}${year}`, qid]));
 let czechRank = 0;
 for (const { qid, detail, candidate } of athleteRows) {
     if (!detail.t) continue;
@@ -627,8 +751,20 @@ for (const { qid, detail, candidate } of athleteRows) {
     if (!name.split(/\s+/).some(word => word.length >= 3)) continue;
     const rank = rankInBucket[bucketKey] || 0;
     const czRank = czechRankInBucket[bucketKey] || 0;
-    if (rank >= bucket.limit && !(isCzech && czRank < bucket.cz) && candidate.sl < ATHLETE_FLOOR) continue;
+    const female = detail.sex === FEMALE_ID;
+    const wRank = womenRankInBucket[bucketKey] || 0;
+    // Nad limit sportu: Češi do české kvóty, sportovkyně do své, nejznámější sportovci světa a olympijští vítězové (forced)
+    if (rank >= bucket.limit && !(isCzech && czRank < bucket.cz) && !(female && wRank < womenQuota(bucket) && (candidate.sl >= WOMEN_MIN_SITELINKS || isCzech))
+        && candidate.sl < ATHLETE_FLOOR && !forced.has(qid)) continue;
     const olympics = olympicsOf(detail);
+    // Ručně ověřené zlaté medaile (týmové turnaje, sprinteři): hry z ručního seznamu, počet aspoň podle něj
+    const manualGames = (MANUAL_GOLDS.get(qid) || []).map(key => GAME_BY_KEY.get(key)).filter(Boolean);
+    if (manualGames.length) {
+        olympics.gold = Math.max(olympics.gold, manualGames.length);
+        olympics.goldAt = [...new Set([...olympics.goldAt, ...manualGames])];
+        olympics.og = [...new Set([...olympics.og, ...manualGames])]
+            .sort((a, b) => gameInfo.get(a).year - gameInfo.get(b).year || (gameInfo.get(a).type === 'Z' ? -1 : 1));
+    }
     // Čeští hokejisté v Naganu 1998 vyhráli zlato (u týmových turnajů Wikidata medaili často neuvádějí)
     if (bucketKey === 'hokej' && isCzech && olympics.og.includes('Q9664') && !olympics.goldAt.includes('Q9664')) {
         olympics.goldAt.push('Q9664');
@@ -636,7 +772,6 @@ for (const { qid, detail, candidate } of athleteRows) {
     }
     const olympicYears = olympics.og.map(game => gameInfo.get(game).year);
     const career = careerOf(detail, life, olympicYears);
-    const female = detail.sex === FEMALE_ID;
     const known = rank < bucket.known || candidate.sl >= ATHLETE_KNOWN || (isCzech && (CZECH_KNOWN.has(name) || czechRank < 25));
     const added = addItem({
         q: qid, t: detail.t, n: name, c: 'sportovci', k: known ? 1 : 0,
@@ -665,6 +800,7 @@ for (const { qid, detail, candidate } of athleteRows) {
     });
     if (!added) continue;
     rankInBucket[bucketKey] = rank + 1;
+    if (female) womenRankInBucket[bucketKey] = wRank + 1;
     if (isCzech) {
         czechRankInBucket[bucketKey] = czRank + 1;
         czechRank++;
@@ -684,7 +820,8 @@ const COLLECTIONS = [
     { id: 'cesti-olympijsti-vitezove', label: 'Čeští olympijští vítězové', sort: BY_BORN, test: item => item.c === 'sportovci' && item.cz && item.f.gold > 0 },
     { id: 'nagano', label: 'Nagano 1998', text: 'Zlatý hokejový tým z turnaje století', sort: BY_BORN, test: item => athleteIn('hokej')(item) && item.cz && (item.f.goldAt || []).includes('Q9664') },
     { id: 'olympijske-legendy', label: 'Olympijské legendy', text: 'Aspoň čtyři zlaté olympijské medaile', sort: BY_BORN, test: item => item.c === 'sportovci' && item.f.gold >= 4 },
-    { id: 'sportovkyne', label: 'Slavné sportovkyně', sort: BY_BORN, test: item => item.c === 'sportovci' && item.sx === 'f' && item.k === 1 },
+    // Sportovkyně aspoň s 30 jazykovými verzemi článku (české všechny); úrovně určí, které jsou Základní
+    { id: 'sportovkyne', label: 'Slavné sportovkyně', sort: BY_BORN, test: item => item.c === 'sportovci' && item.sx === 'f' && (item.sl >= 30 || item.cz) },
     { id: 'fotbal', label: 'Fotbal', sort: BY_BORN, test: item => athleteIn('fotbal')(item) || ['Q2736', 'Q171401', 'Q210778'].includes(item.q) },
     { id: 'hokej', label: 'Lední hokej', sort: BY_BORN, test: item => athleteIn('hokej')(item) || ['Q41466', 'Q183018', 'Q946171'].includes(item.q) },
     { id: 'tenis', label: 'Tenis', sort: BY_BORN, test: item => athleteIn('tenis')(item) || item.q === 'Q847' },
@@ -712,13 +849,70 @@ for (const item of items) {
     if (groups.length) item.g = groups;
 }
 const collections = COLLECTIONS.map(({ test, ...collection }) => collection);
-// Pomocné údaje pro výběr už v datech nejsou potřeba
-for (const item of items) { delete item.sk; delete item.sl; }
 
-for (const category of ['sportovci', 'olympiady', 'sporty', 'kluby', 'sportoviste', 'souteze']) {
-    const inCategory = items.filter(item => item.c === category);
-    console.log(`${category}: ${inCategory.length} (${inCategory.filter(item => item.k).length} známých, ${inCategory.filter(item => item.cz).length} českých)`);
+// --- 8. krok: úrovně obtížnosti (scripts/lib/sport-levels.mjs) ---
+// Sláva = geometrický průměr návštěvnosti článku české Wikipedie za rok 2025 a počtu jazykových verzí: návštěvnost ukazuje,
+// co znají čeští čtenáři (i dnešní hvězdy – Rybakinová, Medveděv mají verzí málo), verze to, co je slavné ve světě (stadiony
+// mistrovství světa jich mají díky robotům hodně, čtenářů málo). České položky ×1,3. Olympijské hry podle roku (starší méně známé).
+// Olympijské sporty nejsou pro experty. Známé z pravidel výše (ručně vybrané, nejznámější v každém sportu) zůstávají.
+const pageviews = await cachedEntries('sport-pageviews-2025', items.filter(item => item.c !== 'olympiady').map(item => item.t),
+    async (titles) => Object.entries(await czechPageviews(titles)), { retryMissing: true });
+console.log(`Návštěvnost článků: ${pageviews.size} z ${items.length}`);
+const CZECH_BONUS = 1.3;
+const OLYMPIC_SPORTS = new Set(Object.keys(OLYMPIC_SINCE));
+for (const item of items) {
+    const fame = item.c === 'olympiady' ? item.f.year - 1850 : Math.sqrt(Math.max(pageviews.get(item.t) || 0, 1) * Math.max(item.sl || 0, 1));
+    // Sporty a hry mají známé ručně (KNOWN_SPORTS, poválečné hry): méně známý sport (kanoepolo) se kvůli okruhu známým nestane –
+    // články o sportech mají mnohem větší návštěvnost než o sportovcích a v okruhu by předběhly i slavné sportovce
+    item._ = { fame: fame * (item.cz ? CZECH_BONUS : 1), protect: item.c === 'sporty' && OLYMPIC_SPORTS.has(item.q), never: ['sporty', 'olympiady'].includes(item.c) };
 }
-for (const collection of collections) console.log(`okruh ${collection.label}: ${items.filter(item => (item.g || []).includes(collection.id)).length}`);
+// Rozložení slávy v kategoriích (pro ladění minimální slávy známých): 10., 25., 50., 75. a 90. percentil
+for (const category of ['sportovci', 'kluby', 'sportoviste', 'souteze', 'sporty']) {
+    const fames = items.filter(item => item.c === category).map(item => item._.fame).sort((a, b) => a - b);
+    console.log(`sláva ${category}: ${[0.1, 0.25, 0.5, 0.75, 0.9].map(share => Math.round(fames[Math.floor(share * (fames.length - 1))])).join(' / ')}`);
+}
+const LEVELS = {
+    // minKnown: zhruba medián slávy kategorie (do minima okruhu stačí 60 % – viz sport-levels.mjs)
+    sportovci: { known: 0.22, czechKnown: 0.25, minKnown: 250, expert: 0.23, czechExpert: 0.13 },
+    kluby: { known: 0.28, minKnown: 300, expert: 0.25, czechExpert: 0.15 },
+    sportoviste: { known: 0.2, minKnown: 130, expert: 0.27, czechExpert: 0.15 },
+    souteze: { known: 0.28, minKnown: 350, expert: 0.25, czechExpert: 0.15 },
+    sporty: { known: 0, minKnown: 300, expert: 0.2 },
+    olympiady: { known: 0, minKnown: 0, expert: 0.25 }
+};
+const groupsForLevels = collections.map(collection => ({ id: collection.id, members: items.filter(item => (item.g || []).includes(collection.id)) }));
+// Sportovci se porovnávají v rámci sportu (fotbalisté mají nejvíc jazykových verzí), ostatní v kategorii; české položky zvlášť
+const promoted = assignLevels(items, {
+    categories: LEVELS, groups: groupsForLevels, okruhKnown: 0.26,
+    stratumOf: (item) => `${item.c === 'sportovci' ? item.sk : ''}|${item.cz ? 'cz' : 'svet'}`
+});
+console.log(`Známé kvůli okruhům: ${promoted.length}`);
+// Pomocné údaje pro výběr už v datech nejsou potřeba
+for (const item of items) { delete item.sk; delete item.sl; delete item._; }
+
+for (const category of Object.keys(LEVELS)) {
+    const inCategory = items.filter(item => item.c === category);
+    console.log(`${levelSummary(category, inCategory)}, českých ${inCategory.filter(item => item.cz).length}`);
+}
+for (const group of groupsForLevels) console.log(levelSummary(`okruh ${group.id}`, group.members));
+console.log(levelSummary('celkem', items));
+
+// Sportovci a kluby bez krátkého popisu ve Wikidatech: popis z přídavného jména země a druhu („americký klub amerického fotbalu“,
+// „brazilská fotbalistka“) – stejně jako ho mají ostatní; bez něj by otázka při výpadku Wikipedie neměla žádný text
+const LAND_ADJECTIVES = {
+    'Spojené státy americké': 'americk', Kanada: 'kanadsk', Brazílie: 'brazilsk', Francie: 'francouzsk', Itálie: 'italsk', Španělsko: 'španělsk',
+    Indie: 'indick', Peru: 'peruánsk', Srbsko: 'srbsk', 'Bosna a Hercegovina': 'bosensk', Litva: 'litevsk', 'Jižní Korea': 'jihokorejsk',
+    'Sovětský svaz': 'sovětsk', Ukrajina: 'ukrajinsk', Belgie: 'belgick', Keňa: 'keňsk', Maroko: 'marock', Kuba: 'kubánsk', Mosambik: 'mosambick',
+    'Jihoafrická republika': 'jihoafrick', Švýcarsko: 'švýcarsk', Čína: 'čínsk', Filipíny: 'filipínsk', 'Spojené království': 'britsk', Švédsko: 'švédsk',
+    Nizozemsko: 'nizozemsk', 'Nizozemské království': 'nizozemsk', Rumunsko: 'rumunsk', Gruzie: 'gruzínsk', Thajsko: 'thajsk', Austrálie: 'australsk',
+    Rusko: 'rusk', Řecko: 'řeck', Irsko: 'irsk', Německo: 'německ', Polsko: 'polsk', Chorvatsko: 'chorvatsk', Norsko: 'norsk', Slovensko: 'slovensk',
+    Česko: 'česk', Japonsko: 'japonsk', Maďarsko: 'maďarsk', Rakousko: 'rakousk', Finsko: 'finsk', Dánsko: 'dánsk', Jamajka: 'jamajsk', Mexiko: 'mexick',
+    Argentina: 'argentinsk', Portugalsko: 'portugalsk', Turecko: 'tureck', 'Nový Zéland': 'novozélandsk', Kazachstán: 'kazachstánsk', Slovinsko: 'slovinsk'
+};
+for (const item of items) {
+    if (item.d || !['sportovci', 'kluby'].includes(item.c) || !item.ty) continue;
+    const stem = LAND_ADJECTIVES[(item.f.land || '').split(', ')[0]];
+    if (stem) item.d = `${stem}${item.sx === 'f' ? 'á' : 'ý'} ${item.ty}`;
+}
 
 writeTopic('sport', { collections, items });
