@@ -183,7 +183,7 @@
             jezero: ['jezero', 'přehradní nádrž', 'laguna', 'moře', 'zátoka', 'průliv'],
             ostrov: ['ostrov', 'souostroví'],
             stavba: true,
-            priroda: ['vodopád', 'jeskyně', 'skála', 'skalní suk', 'národní park', 'poušť', 'poloostrov']
+            priroda: ['vodopád', 'jeskyně', 'skála', 'skalní suk', 'národní park', 'chráněná krajinná oblast', 'národní přírodní rezervace', 'poušť', 'poloostrov']
         },
         sport: { sportoviste: true }
     };
