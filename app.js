@@ -399,7 +399,9 @@
     const loadCountries = memoizeBy(() => fetchJson('data/countries.json').then(data => data.countries));
     const loadWorld = memoizeBy(() => fetchJson('data/world.json'));
     // Slepé mapy otázky „Ukaž na mapě“ (data/mapa.json), načtou se s první takovou otázkou
-    const loadMapData = memoizeBy(() => fetchJson('data/mapa.json'));
+    // s obrysy plošných míst (data/mapa-tvary.json); bez nich se plochy počítají jako bod s poloměrem
+    const loadMapData = memoizeBy(() => Promise.all([fetchJson('data/mapa.json'), fetchJson('data/mapa-tvary.json').catch(() => ({ shapes: {} }))])
+        .then(([map, shapes]) => ({ ...map, shapes: shapes.shapes || {} })));
     // Slepé mapy regionů (kraje, spolkové země, státy USA… – data/regiony.json), načtou se s první mapou regionu nebo města
     const loadRegions = memoizeBy(() => fetchJson('data/regiony.json'));
     // Fotky, na kterých je napsaná odpověď (jméno na dresu, název na plakátu) – najde je OCR při sestavení dat
@@ -4364,7 +4366,7 @@
                 const map = await loadMapData();
                 for (let attempt = 0; attempt < 8 && !item; attempt++) {
                     ctx = await loadTopic(pool.topic || pickRandom(MAP_TOPICS, Math.random));
-                    const all = ctx.items.filter(entry => MapQuestion.candidate(entry, ctx));
+                    const all = ctx.items.filter(entry => MapQuestion.candidate(entry, ctx, map));
                     const tiered = filterItems(all, { tier: settings.tier });
                     const pickedItem = pickItem(tiered.length >= 20 ? tiered : all, Math.random, history, ctx.topic.categories.map(c => c.key));
                     if (pickedItem && MapQuestion.buildQuestion(pickedItem, ctx, map)) item = pickedItem;
