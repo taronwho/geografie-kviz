@@ -63,7 +63,7 @@
     // 8 = Skupiny (group_*, my_groups, týdenní XP; se starší databází se Skupiny jen nenabídnou);
     // 9 = odměny v účtu (profiles.rewards: Truhla Mudrlanta, ochrana série, diplomy) a nové odznaky (se starší databází zůstanou jen v zařízení);
     // 10 = Rozpis otázek (podrobnosti odpovědí výzvy a zápasu turnaje, challenge_details a tournament_details; se starší databází jen vlastní odpovědi ze zařízení).
-    const REQUIRED_SCHEMA = 11;
+    const REQUIRED_SCHEMA = 12;
     const HISTORY_SIZE = 200;
     const REQUEST_TIMEOUT = 12000;
     const WIKI_TIMEOUT = 6000;
@@ -745,6 +745,11 @@
                 if (!running) throw new Error('Žádný turnaj neběží.');
                 await Social.devTournament('dev_tournament_next_round', { tid: running.id });
                 message = 'Posun o kolo, boti odehráli';
+            } else if (kind === 'tour-play') {
+                if (!running) throw new Error('Žádný turnaj neběží.');
+                const played = await Social.devTournament('dev_tournament_bots_play', { tid: running.id });
+                resetTournaments();
+                message = Number(played) ? `Boti odehráli zápasů: ${Number(played)}` : 'Boti už mají kolo odehrané';
             } else if (kind === 'tour-reset') {
                 const removed = await Social.devTournament('dev_tournament_reset', {});
                 resetTournaments();
@@ -832,7 +837,7 @@
             <p class="mb-1.5 flex items-center justify-between text-[11px] font-black uppercase tracking-widest text-amber-700 dark:text-amber-400"><span>Vývojářský režim</span><span class="font-bold normal-case tracking-normal">${devActive() ? 'zkušební postup' : 'tvůj postup'}</span></p>
             <div class="flex flex-wrap gap-1">${[['max', 'Vše (úr. 100)'], ['level:10', 'Úr. 10'], ['level:25', 'Úr. 25'], ['level:50', 'Úr. 50'], ['level:75', 'Úr. 75'], ['badges', 'Všechny odznaky'], ['nobadges', 'Žádné odznaky'], ['nostars', 'Vymazat hvězdičky'], ['bulb', 'Vrátit žárovku'], ['tips', 'Obnovit tipy']].map(([kind, label]) => `<button type="button" data-dev="${kind}" class="rounded-lg bg-slate-200 px-2 py-1 text-[11px] font-bold text-slate-700 active:scale-95 dark:bg-slate-700 dark:text-slate-200">${label}</button>`).join('')}${devActive() ? '<button type="button" data-dev="restore" class="rounded-lg bg-amber-700 px-2 py-1 text-[11px] font-black text-white active:scale-95">Vrátit můj postup</button>' : ''}</div>
             ${Social ? `<p class="mb-1 mt-2 text-[11px] font-black uppercase tracking-widest text-amber-700 dark:text-amber-400">Turnaj (boti)</p>
-            <div class="flex flex-wrap gap-1">${[['tour-bots', '+31 botů'], ['tour-start', 'Spustit hned'], ['tour-next', 'Další kolo'], ['tour-reset', 'Smazat odehraný turnaj'], ['tour-clear', 'Smazat boty']].map(([kind, label]) => `<button type="button" data-dev="${kind}" class="rounded-lg bg-emerald-100 px-2 py-1 text-[11px] font-bold text-emerald-900 active:scale-95 dark:bg-emerald-900/50 dark:text-emerald-100">${label}</button>`).join('')}</div>
+            <div class="flex flex-wrap gap-1">${[['tour-bots', '+31 botů'], ['tour-start', 'Spustit hned'], ['tour-play', 'Boti odehrají kolo'], ['tour-next', 'Další kolo'], ['tour-reset', 'Smazat odehraný turnaj'], ['tour-clear', 'Smazat boty']].map(([kind, label]) => `<button type="button" data-dev="${kind}" class="rounded-lg bg-emerald-100 px-2 py-1 text-[11px] font-bold text-emerald-900 active:scale-95 dark:bg-emerald-900/50 dark:text-emerald-100">${label}</button>`).join('')}</div>
             <p class="mb-1 mt-2 text-[11px] font-black uppercase tracking-widest text-amber-700 dark:text-amber-400">Provoz</p>
             <div class="flex flex-wrap gap-1"><button type="button" data-dev="errors" class="rounded-lg bg-rose-100 px-2 py-1 text-[11px] font-bold text-rose-900 active:scale-95 dark:bg-rose-900/50 dark:text-rose-100">Chyby z provozu</button></div>` : ''}
             ${Push ? `<p class="mb-1 mt-2 text-[11px] font-black uppercase tracking-widest text-amber-700 dark:text-amber-400">Upozornění</p>
@@ -2625,7 +2630,7 @@
         mountPanels();
     };
 
-    // Turnaj: živý čas u každé otázky (rozhoduje při shodě správných odpovědí i bodů), přestane se počítat po odpovědi
+    // Turnaj: živý čas u každé otázky (rozhoduje při shodě bodů i správných odpovědí), přestane se počítat po odpovědi
     let tourTimer = null;
     const formatQuestionTime = (ms) => { const seconds = Math.max(0, Math.floor(ms / 1000)); return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`; };
     const startTourTimer = (startedAt) => {
@@ -2865,7 +2870,7 @@
     };
     // Řádek „+30 XP“ s rozpisem (odpověď, dnešní otázka, série…) pod výsledkem
     const xpLine = (xp, tone) => xp && (xp.total || (xp.badges && xp.badges.length))
-        ? `<div class="mt-0.5 text-xs font-bold ${tone}">${xp.total ? `<span class="inline-block rounded-md bg-gold-500 px-1.5 py-0.5 font-black text-brand-950">+${xp.total} XP</span>` : ''}${(xp.badges || []).map(title => `<span class="ml-1 inline-flex items-center gap-1 rounded-md bg-brand-700 px-1.5 py-0.5 font-black text-white"><i data-lucide="award" class="h-3 w-3"></i>${escapeHtml(title)}</span>`).join('')}${xp.parts.length ? `<ul class="mt-1 space-y-0.5 font-semibold opacity-90">${xp.parts.map(part => `<li>+${part.xp} XP ${escapeHtml(part.label)}</li>`).join('')}</ul>` : ''}</div>` : '';
+        ? `<div class="mt-0.5 text-xs font-bold ${tone}">${xp.total ? `<span class="inline-block rounded-md bg-gold-500 px-1.5 py-0.5 font-black text-brand-950">+${xp.total} XP</span>` : ''}${(xp.badges || []).map(title => `<span class="ml-1 inline-flex items-center gap-1 rounded-md bg-brand-700 px-1.5 py-0.5 font-black text-white"><i data-lucide="award" class="h-3 w-3"></i>${escapeHtml(title)}</span>`).join('')}${xp.parts.length === 1 && !(xp.badges || []).length && xp.parts[0].xp === xp.total ? ` <span class="ml-0.5 font-semibold opacity-90">${escapeHtml(xp.parts[0].label)}</span>` : xp.parts.length ? `<ul class="mt-1 space-y-0.5 font-semibold opacity-90">${xp.parts.map(part => `<li>+${part.xp} XP ${escapeHtml(part.label)}</li>`).join('')}</ul>` : ''}</div>` : '';
 
     const renderResultBanner = (data) => {
         if (data.question.type === 'map' && MapQuestion) return MapQuestion.resultBanner(data, round, { uiArt, xpLine, totalLine: scoreTotalLine });
@@ -2884,17 +2889,29 @@
                     </div>
                 </div>`;
         }
+        // Správná odpověď jako první a nejvýraznější (zelený rámeček), hráčova odpověď pod ní přeškrtnutá
+        const correctChoice = (data.question.choices || []).find(choice => choice.correct);
+        const correctRef = correctChoice && correctChoice.id ? { topic: correctChoice.topic || data.topic, id: correctChoice.id } : null;
+        const correctInfo = isKnownRef(correctRef);
+        const correctBody = `
+            <span class="flex items-center gap-1 text-[10px] font-black uppercase tracking-wider text-emerald-700 dark:text-emerald-300"><i data-lucide="circle-check" class="h-3.5 w-3.5"></i>Správná odpověď</span>
+            <span class="flex items-center gap-1.5 text-base font-black leading-snug text-emerald-900 dark:text-emerald-50">${escapeHtml(data.question.answerLabel)}${correctInfo ? '<i data-lucide="info" class="h-4 w-4 shrink-0 opacity-70"></i>' : ''}</span>`;
+        const correctBox = correctInfo
+            ? `<button type="button" data-correct-answer data-action="item-info" data-topic="${escapeHtml(correctRef.topic)}" data-id="${escapeHtml(correctRef.id)}" aria-label="Správná odpověď: ${escapeHtml(data.question.answerLabel)} – ukázat popis" class="mt-1.5 flex w-full flex-col items-start rounded-xl border-2 border-emerald-500 bg-emerald-50 px-3 py-1.5 text-left transition-colors hover:bg-emerald-100 dark:border-emerald-500 dark:bg-emerald-900/50 dark:hover:bg-emerald-900">${correctBody}</button>`
+            : `<div data-correct-answer class="mt-1.5 flex flex-col items-start rounded-xl border-2 border-emerald-500 bg-emerald-50 px-3 py-1.5 dark:border-emerald-500 dark:bg-emerald-900/50">${correctBody}</div>`;
         return `
-            <div data-verdict tabindex="-1" class="flex items-center gap-3 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 outline-none dark:border-rose-800 dark:bg-rose-900/30">
-                ${uiArt('sova-smutek', 'h-[4.5rem] w-[4.5rem] -my-3')}
-                <div>
+            <div data-verdict tabindex="-1" class="flex items-start gap-3 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 outline-none dark:border-rose-800 dark:bg-rose-900/30">
+                ${uiArt('sova-smutek', 'h-14 w-14 shrink-0')}
+                <div class="min-w-0 flex-1">
                     <p class="font-black text-rose-800 dark:text-rose-200">${round.gaveUp ? 'Tentokrát bez odpovědi' : 'Bohužel, to není ono'}</p>
-                    <p class="text-sm text-rose-800 dark:text-rose-300">${round.answer ? `Tvoje odpověď: ${escapeHtml(round.answer)} · ` : ''}Správně: ${escapeHtml(data.question.answerLabel)}</p>
+                    ${correctBox}
+                    ${round.answer ? `
+                        <p data-wrong-answer class="mt-1.5 flex items-start gap-1 text-sm text-rose-800 dark:text-rose-300"><i data-lucide="circle-x" class="mt-0.5 h-4 w-4 shrink-0"></i><span>Tvoje odpověď: <s class="font-semibold decoration-2">${escapeHtml(round.answer)}</s></span></p>` : ''}
                     ${scoreTotalLine('text-rose-800 dark:text-rose-300')}
                     ${answerStatsLine(data, 'text-rose-800 dark:text-rose-300')}
                     ${xpLine(round.xp, 'text-rose-800 dark:text-rose-300')}
                     ${round.answerRef ? `
-                        <button type="button" data-action="item-info" data-topic="${escapeHtml(round.answerRef.topic)}" data-id="${escapeHtml(round.answerRef.id)}" class="mt-2 inline-flex min-h-[2.5rem] items-center gap-1.5 rounded-lg bg-white px-2.5 py-1.5 text-xs font-bold text-rose-700 shadow-sm transition-colors hover:bg-rose-100 dark:bg-rose-950 dark:text-rose-200 dark:hover:bg-rose-900">
+                        <button type="button" data-action="item-info" data-topic="${escapeHtml(round.answerRef.topic)}" data-id="${escapeHtml(round.answerRef.id)}" class="mt-1.5 inline-flex min-h-[2.25rem] items-center gap-1.5 rounded-lg bg-white px-2.5 py-1 text-xs font-bold text-rose-700 shadow-sm transition-colors hover:bg-rose-100 dark:bg-rose-950 dark:text-rose-200 dark:hover:bg-rose-900">
                             <i data-lucide="info" class="h-3.5 w-3.5"></i> Ukaž ${escapeHtml(round.answer)}
                         </button>
                     ` : ''}
@@ -5350,9 +5367,9 @@
     // Část Výzvy na úvodní stránce: bez nastaveného Supabase se neukáže, bez přihlášení láká k přihlášení
     const challengeRow = (row) => {
         const count = row.challenge ? row.challenge.count : 0;
-        // Stejně jako výsledek výzvy a rating: víc správných, při shodě víc bodů (proti nejlepšímu soupeři)
-        const best = row.others.reduce((top, other) => !top || other.correct > top.correct || (other.correct === top.correct && other.points > top.points) ? other : top, null);
-        const versus = !best ? null : row.correct !== best.correct ? row.correct - best.correct : (row.points || 0) - (best.points || 0);
+        // Stejně jako výsledek výzvy a rating: víc bodů, při shodě víc správných (proti nejlepšímu soupeři)
+        const best = row.others.reduce((top, other) => !top || compareResults(other, top) > 0 ? other : top, null);
+        const versus = !best ? null : compareResults(row, best);
         const outcome = versus === null ? 'čeká' : versus > 0 ? 'vyhráno' : versus === 0 ? 'remíza' : 'prohráno';
         // Barevný proužek vlevo a štítek: vyhráno zelená, prohráno červená, remíza zlatá, čeká šedá
         const look = outcome === 'vyhráno' ? ['bg-emerald-500', 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300']
@@ -5381,6 +5398,8 @@
         </button>`;
     // Rating a ligy (rating.js; počítá je databáze po dohrání výzvy proti jinému hráči). Barvy lig jsou třídy .league-* v src/input.css.
     const Rating = window.MudrlantRating;
+    // Pořadí ve výzvách a zápasech: víc bodů, při shodě víc správných (jediné pravidlo v rating.js, shodné s databází)
+    const compareResults = (Rating && Rating.compareResults) || ((a, b) => ((Number(a.points) || 0) - (Number(b.points) || 0)) || ((Number(a.correct) || 0) - (Number(b.correct) || 0)));
     const BAR_WIDTHS = ['w-0', 'w-[10%]', 'w-[20%]', 'w-[30%]', 'w-[40%]', 'w-[50%]', 'w-[60%]', 'w-[70%]', 'w-[80%]', 'w-[90%]', 'w-full'];
     // Erb ligy (vlastní ilustrace icons/topics/liga-<id>.webp)
     const leagueEmblem = (league, cls) => `<img src="icons/topics/liga-${league.id}.webp" alt="" data-league-emblem="${league.id}" class="${cls} shrink-0 object-contain drop-shadow-sm">`;
@@ -6231,7 +6250,7 @@
     };
 
     // Místo v pořadí: hráči se stejným počtem správných i bodů ho sdílejí (při remíze mají pohár oba)
-    const rankingPlace = (rows, row) => 1 + rows.filter(other => other.correct > row.correct || (other.correct === row.correct && other.points > row.points)).length;
+    const rankingPlace = (rows, row) => 1 + rows.filter(other => compareResults(other, row) > 0).length;
     const rankingRows = (rows, count, meId) => rows.map((row) => `
         <li class="flex items-center gap-3 rounded-2xl bg-white p-2.5 shadow-sm dark:bg-slate-800 ${row.user_id === meId ? 'ring-2 ring-brand-600' : ''}">
             <span data-place="${rankingPlace(rows, row)}" class="w-5 text-center text-sm font-black text-slate-500 dark:text-slate-400">${rankingPlace(rows, row) === 1 ? '🏆' : rankingPlace(rows, row)}</span>
@@ -6961,7 +6980,7 @@
         const points = c.results.reduce((sum, row) => sum + (row ? row.points : 0), 0);
         // Sova podle výsledku: vítěz s pohárem, poražený s „dobrá hra“, remíza s radostí, sám s oslavou
         const rivals = user && results ? results.filter(row => row.user_id !== user.id) : [];
-        const bestRival = rivals.reduce((top, row) => !top || row.correct > top.correct || (row.correct === top.correct && row.points > top.points) ? row : top, null);
+        const bestRival = rivals.reduce((top, row) => !top || compareResults(row, top) > 0 ? row : top, null);
         // Výsledek slovy a hláška (stejná pro tutéž výzvu); bez soupeře se čeká, až dohraje
         const outcome = Rating && state === 'ok' ? Rating.outcomeOf({ correct, points }, bestRival) : null;
         const outcomeOwl = !outcome || outcome === 'cekani' ? 'oslava' : outcome === 'vyhra' ? 'vitez' : outcome === 'remiza' ? 'radost' : 'prohra';
@@ -7228,7 +7247,7 @@
             if (!c.counted) {
                 c.counted = true;
                 const rivals = results.filter(row => row.user_id !== user.id);
-                const won = rivals.length > 0 && rivals.every(row => correct > row.correct || (correct === row.correct && points > row.points));
+                const won = rivals.length > 0 && rivals.every(row => compareResults({ correct, points }, row) > 0);
                 const progress = loadProgress();
                 const counters = progress.counters;
                 counters.challenges += 1;

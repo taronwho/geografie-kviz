@@ -173,7 +173,7 @@
         'Každý týden se hraje turnaj v Mixu všech témat, začíná v pondělí. Přihlášky se otevírají hned po začátku předchozího turnaje.',
         `Hraje nejvyšší mocnina dvou nejdřív přihlášených hráčů (nejvýš ${MAX_PLAYERS}, nejméně ${MIN_PLAYERS}). Ostatní nehrají. Když se přihlásí méně než ${MIN_PLAYERS}, turnaj se ruší.`,
         `Pavouk je vyřazovací. Jedno kolo trvá jeden den: dvojice mají ${QUESTIONS} stejných otázek z Mixu (jen ze známějších) a každý je odehraje kdykoli během dne, jen jednou.`,
-        'Vyhraje ten, kdo má víc správných odpovědí, pak víc bodů, pak ten, kdo je rychlejší, a nakonec toho, kdo se přihlásil dřív.',
+        'Vyhraje ten, kdo má víc bodů (nápověda bod ubere), při shodě víc správných odpovědí, pak ten, kdo je rychlejší, a nakonec ten, kdo se přihlásil dřív.',
         'Kdo kolo neodehraje, prohrává kontumačně a vypadává; soupeř, který odehrál, postupuje. Když neodehraje nikdo, postupuje dřívější přihlášený.',
         'Poražení semifinalisté hrají o 3. místo v den finále.',
         `Za každý vyhraný zápas dostaneš XP: ${WIN_XP} v 1. kole a s každým dalším kolem o ${WIN_XP_STEP} víc. Za umístění v turnajích jsou odznaky.`

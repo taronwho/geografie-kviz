@@ -117,13 +117,13 @@ Bez něj se karta turnaje v aplikaci prostě neukáže.
 
 - Každý týden se hraje turnaj v Mixu všech témat od pondělí; přihlášky na další týden jsou otevřené celý týden.
 - Hraje nejvyšší mocnina dvou nejdřív přihlášených (nejvýš 128, nejméně 8); přebývající dostanou zprávu, pod 8 přihlášených se turnaj zruší.
-- Jedno kolo = jeden den (čas Praha), 10 otázek, v kole stejné pro všechny; vítěz zápasu: víc správných, víc bodů, rychlejší čas (měří server), dřívější přihlášení.
+- Jedno kolo = jeden den (čas Praha), 10 otázek, v kole stejné pro všechny; vítěz zápasu: víc bodů, víc správných, rychlejší čas (měří server), dřívější přihlášení.
   Kdo kolo neodehraje, prohrává; když neodehraje nikdo, postupuje dřívější přihlášený. Semifinalisté hrají o bronz v den finále.
 - Kola posouvá funkce `tournament_tick()`: volá ji aplikace při otevření (nic jiného není potřeba). Pokud chceš, aby se kola posouvala o půlnoci i bez návštěvníků,
   zapni v Supabase rozšíření **pg_cron** (Database → Extensions) a spusť jednou v SQL Editoru:
   `select cron.schedule('turnaje', '5 22,23 * * *', $$select public.tournament_tick()$$);` (22:05 a 23:05 UTC pokryje půlnoc v Praze v zimě i v létě; funkce je idempotentní).
 - **Vývojářské nástroje (boti):** pro zkoušení turnaje bez 32 lidí. V Nastavení v režimu vývojáře (`?vyvojar` v adrese) je oddíl „Turnaj (boti)“:
-  **+31 botů** (do otevřeného turnaje), **Spustit hned** (turnaj začne dnes a boti odehrají 1. kolo), **Další kolo** (boti odehrají kolo, den kola uplyne, vznikne další), **Smazat odehraný turnaj** (smaže běžící i skončené turnaje a hned znovu otevře přihlášky na příští pondělí) a **Smazat boty**
+  **+31 botů** (do otevřeného turnaje), **Spustit hned** (turnaj začne dnes a boti odehrají 1. kolo), **Boti odehrají kolo** (boti hned odehrají aktuální kolo, nečeká se na 9:00), **Další kolo** (boti odehrají kolo, den kola uplyne, vznikne další), **Smazat odehraný turnaj** (smaže běžící i skončené turnaje a hned znovu otevře přihlášky na příští pondělí) a **Smazat boty**
   (smaže i turnaje, ve kterých boti hráli). Boti hrají na střední úrovni (úspěšnost 45–80 %). Databáze tyto funkce pustí jen účtu zapsanému v `dev_admins`; zapiš se jednou v SQL Editoru
   (přezdívku nahraď svou): `insert into public.dev_admins (user_id) select id from public.profiles where lower(display_name) = lower('Taron');`
   Boti jsou řádky v `auth.users` s e-mailem `bot-…@bots.invalid`; ostrý provoz s nimi nepočítej a po zkoušce je smaž.
@@ -527,3 +527,17 @@ jako dřív (jen správně a body) a v Rozpisu otázek ukáže jen hráčovy vla
 
 Upozornění „… tě vyzývá“ a „… odehrál tvoji výzvu“ mají v adrese kód výzvy (`./?tab=multi&vyzva=KÓD`). Klepnutí otevře rovnou okno výzvy:
 pozvánku ke hraní, nebo po dohrání výsledky s rozpisem otázek. Spusť znovu celý `supabase/schema.sql` (verze 11) – mění se jen funkce `push_pending`.
+
+## Boti hrají turnaj sami každý den v 9:00 (schéma 12)
+
+Boti v běžícím turnaji odehrají své kolo každý den od 9:00 (pražský čas). Hlídá to `tournament_tick()` (funkce `tournament_bots_due`), kterou volá
+otevření aplikace kýmkoli a odesílání upozornění. Když máš zapnuté okamžité odesílání (úloha pg_cron `upozorneni` každou minutu), boti hrají
+přesně v 9:00; jinak při prvním otevření aplikace po deváté. Kolo z dřívějšího dne, které boti nestihli, odehrají hned. Bez okamžitého odesílání
+můžeš přidat samostatnou úlohu (pg_cron běží v UTC, proto 7:01 i 8:01 – kvůli letnímu a zimnímu času; před devátou tick boty nepustí):
+
+```sql
+select cron.schedule('turnaj-boti', '1 7,8 * * *', $$select public.tournament_tick()$$);
+```
+
+Ve vývojářském režimu přibylo tlačítko **Boti odehrají kolo** (`dev_tournament_bots_play`, jen `dev_admins`): boti odehrají aktuální kolo hned.
+Spusť znovu celý `supabase/schema.sql` (verze 12).

@@ -83,7 +83,7 @@ test('SQL: rating, ligy a žebříček', { skip: !available && 'PostgreSQL není
         assert.equal(q(`select rated_games from profiles where id = '${ids[0]}'`), '1');
     });
 
-    await t.test('shoda správných rozhoduje body; úplná shoda je remíza (mírně silnější skoro nic)', () => {
+    await t.test('rozhodují body, při shodě správné; úplná shoda je remíza (mírně silnější skoro nic)', () => {
         challenge('BBBBBB', ids[2]);
         play('BBBBBB', ids[2], 6, 15);
         play('BBBBBB', ids[3], 6, 15);
@@ -98,6 +98,12 @@ test('SQL: rating, ligy a žebříček', { skip: !available && 'PostgreSQL není
         play('DDDDDD', ids[3], 7, 18);
         play('DDDDDD', ids[2], 7, 25);
         assert.equal(q(`select outcome from rating_history where challenge_id = 'DDDDDD' and user_id = '${ids[2]}'`), 'win');
+        // o vítězi rozhodují body, i když soupeř má víc správných (nápovědy mu body ubraly)
+        challenge('EEEEEE', ids[1]);
+        play('EEEEEE', ids[1], 6, 14);
+        play('EEEEEE', ids[3], 5, 18);
+        assert.equal(q(`select outcome from rating_history where challenge_id = 'EEEEEE' and user_id = '${ids[3]}'`), 'win');
+        assert.equal(q(`select outcome from rating_history where challenge_id = 'EEEEEE' and user_id = '${ids[1]}'`), 'loss');
     });
 
     await t.test('součet změn je nulový, stejná dvojice max. 3x za týden (pak změna 0)', () => {

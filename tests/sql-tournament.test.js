@@ -104,9 +104,9 @@ test('SQL: týdenní turnaje', { skip: !available && 'PostgreSQL není dostupný
 
     await t.test('1. kolo: oba odehrají (rozhodne výsledek), jeden odehraje (kontumace), nikdo (dřívější přihlášení)', () => {
         const [m1, m2, m3, m4] = matches;
-        // m1: p2 odehraje hůř než p1 -> vyhrává p1 (7 správně)
-        ok(as(m1[2], MON, `select tournament_start_match('${m1[0]}'); ${finishMatchSql(m1[0], 5, 15)}`));
-        assert.equal(q(`select winner = '${m1[1]}' from tournament_matches where id = '${m1[0]}'`), 't');
+        // m1: p1 má 7 správně a 20 bodů, p2 jen 6 správně, ale 22 bodů (méně nápověd) -> rozhodují body, vyhrává p2
+        ok(as(m1[2], MON, `select tournament_start_match('${m1[0]}'); ${finishMatchSql(m1[0], 6, 22)}`));
+        assert.equal(q(`select winner = '${m1[2]}' from tournament_matches where id = '${m1[0]}'`), 't', 'víc bodů vyhrává i s méně správnými');
         assert.equal(q(`select decided_by from tournament_matches where id = '${m1[0]}'`), 'played');
         // m2: oba stejně správně i body -> rozhoduje čas; hráč b zahájí a skončí hned, hráč a čeká -> b je rychlejší
         ok(as(m2[1], MON, `select tournament_start_match('${m2[0]}');`));

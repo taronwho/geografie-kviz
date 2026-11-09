@@ -342,7 +342,7 @@ drop trigger if exists profiles_protect_rating on public.profiles;
 create trigger profiles_protect_rating before update on public.profiles for each row execute function public.protect_rating();
 
 -- Ohodnocení výzvy: jakmile mají výsledek přesně dva hráči (tvůrce a soupeř), spočítá se ELO (K = 24).
--- Vítěz je ten s víc správnými, při shodě s víc body; shoda obojího = remíza. Třetí a další hráč s kódem už rating nemění.
+-- Vítěz je ten s víc body, při shodě s víc správnými odpověďmi; shoda obojího = remíza. Třetí a další hráč s kódem už rating nemění.
 -- Tytéž dva hráči si za 7 dní započítají nejvýš 3 výzvy (jinak se výzva zapíše se změnou 0), aby se rating nedal „farmit“.
 create or replace function public.rate_challenge() returns trigger
 language plpgsql security definer set search_path = public as $$
@@ -367,8 +367,9 @@ begin
     select rating into ra from public.profiles where id = a_id;
     select rating into rb from public.profiles where id = b_id;
     if ra is null or rb is null then return null; end if;
-    if other.correct <> new.correct then score_a := case when other.correct > new.correct then 1 else 0 end;
-    elsif other.points <> new.points then score_a := case when other.points > new.points then 1 else 0 end;
+    -- o vítězi rozhodnou body (nápovědy a psaní se počítají), při shodě víc správných odpovědí
+    if other.points <> new.points then score_a := case when other.points > new.points then 1 else 0 end;
+    elsif other.correct <> new.correct then score_a := case when other.correct > new.correct then 1 else 0 end;
     else score_a := 0.5; end if;
     is_capped := (select count(*) from public.rating_history where user_id = a_id and opponent_id = b_id and created_at > now() - interval '7 days') >= 3;
     expected_a := 1 / (1 + power(10::numeric, (rb - ra)::numeric / 400));
@@ -426,7 +427,7 @@ revoke all on function public.unique_display_name(text), public.handle_new_user(
 
 -- ===== Týdenní turnaje (vyřazovací pavouk, kolo = jeden den) =====
 -- Turnaj se hraje od pondělí; mocnina dvou nejlepších přihlášených (max. 128, min. 8) hraje, ostatní dostanou zprávu. Každé kolo má jeden den (Praha),
--- ve dvojici postoupí ten s více správnými odpověďmi, pak s více body, pak s rychlejším časem; kdo kolo neodehraje, prohrává kontumačně,
+-- ve dvojici postoupí ten s více body, pak s více správnými odpověďmi, pak s rychlejším časem; kdo kolo neodehraje, prohrává kontumačně,
 -- a když neodehraje nikdo, postupuje dřívější přihlášený. Kola posouvá tournament_tick() (volá ji aplikace při otevření; volitelně i plánovač pg_cron).
 create table if not exists public.tournaments (
     id uuid primary key default gen_random_uuid(),
@@ -528,7 +529,7 @@ language sql security definer set search_path = public as $$
     insert into public.tournament_notices (user_id, tournament_id, kind, detail) values (uid, tid, notice_kind, notice_detail);
 $$;
 
--- Vítěz zápasu: víc správných, víc bodů, rychlejší čas, dřívější přihlášení
+-- Vítěz zápasu: víc bodů, víc správných, rychlejší čas, dřívější přihlášení
 create or replace function public.tournament_pick_winner(m public.tournament_matches, force boolean) returns uuid
 language plpgsql security definer set search_path = public as $$
 declare
@@ -543,8 +544,8 @@ begin
     if d1 and d2 then
         how := 'played';
         win := case
-            when r1.correct <> r2.correct then case when r1.correct > r2.correct then m.p1 else m.p2 end
             when r1.points <> r2.points then case when r1.points > r2.points then m.p1 else m.p2 end
+            when r1.correct <> r2.correct then case when r1.correct > r2.correct then m.p1 else m.p2 end
             when r1.time_ms <> r2.time_ms then case when r1.time_ms < r2.time_ms then m.p1 else m.p2 end
             else case when j1 <= j2 then m.p1 else m.p2 end end;
     elsif force and (d1 or d2) then
@@ -683,9 +684,12 @@ begin
     for t in select id from public.tournaments where status = 'open' and week_start <= today order by week_start loop
         perform public.tournament_start(t.id);
     end loop;
+    -- boti v turnajích odehrají své kolo každý den od 9:00 (Praha); před posunem kol i po něm, ať stihnou včerejší kolo i nově otevřené
+    perform public.tournament_bots_due();
     for t in select id from public.tournaments where status = 'running' loop
         perform public.tournament_progress(t.id);
     end loop;
+    perform public.tournament_bots_due();
 end;
 $$;
 
@@ -891,9 +895,50 @@ begin
 end;
 $$;
 
-revoke all on function public.dev_check(), public.dev_is_bot(uuid), public.dev_bots_play(uuid) from public, anon, authenticated;
-revoke all on function public.dev_tournament_add_bots(uuid, integer), public.dev_tournament_start_now(uuid), public.dev_tournament_next_round(uuid), public.dev_tournament_clear_bots(), public.dev_tournament_reset() from public, anon;
-grant execute on function public.dev_tournament_add_bots(uuid, integer), public.dev_tournament_start_now(uuid), public.dev_tournament_next_round(uuid), public.dev_tournament_clear_bots(), public.dev_tournament_reset() to authenticated;
+-- Hodina dne v Praze, od které boti hrají své kolo (nastavení mudrlant.test_time používají jen testy; s nastaveným test_today
+-- a bez test_time je půlnoc, ať testy s pevným dnem nezávisí na tom, kolik je zrovna hodin)
+create or replace function public.tournament_clock() returns time
+language sql stable set search_path = public as $$
+    select coalesce(nullif(current_setting('mudrlant.test_time', true), '')::time,
+        case when coalesce(current_setting('mudrlant.test_today', true), '') <> '' then time '00:00' else (now() at time zone 'Europe/Prague')::time end)
+$$;
+
+-- Boti v běžících turnajích odehrají aktuální kolo: v den kola od 9:00, kolo z minulých dnů hned (když tick ráno nikdo nespustil).
+-- Volá ji tournament_tick (otevření aplikace, odesílání upozornění a volitelně pg_cron), takže boti hrají bez zásahu vývojáře.
+create or replace function public.tournament_bots_due() returns void
+language plpgsql security definer set search_path = public as $$
+declare t record; today date := public.tournament_today();
+begin
+    for t in select tr.id, tr.started_on, (select max(m.round) from public.tournament_matches m where m.tournament_id = tr.id) as cur
+             from public.tournaments tr
+             where tr.status = 'running' and exists (select 1 from public.tournament_entries e where e.tournament_id = tr.id and public.dev_is_bot(e.user_id)) loop
+        if t.cur is not null and (t.started_on + (t.cur - 1) < today or (t.started_on + (t.cur - 1) = today and public.tournament_clock() >= time '09:00')) then
+            perform public.dev_bots_play(t.id);
+        end if;
+    end loop;
+end;
+$$;
+
+-- Vývojářské tlačítko „Boti odehrají kolo“: boti hned odehrají aktuální kolo (bez čekání na 9:00), kolo se neposouvá
+create or replace function public.dev_tournament_bots_play(tid uuid) returns integer
+language plpgsql security definer set search_path = public as $$
+declare t public.tournaments; before integer; after integer;
+begin
+    perform public.dev_check();
+    select * into t from public.tournaments where id = tid for update;
+    if t.id is null or t.status <> 'running' then raise exception 'Turnaj neběží.' using errcode = '22023'; end if;
+    select count(*) into before from public.tournament_results r join public.tournament_matches m on m.id = r.match_id
+        where m.tournament_id = tid and r.finished_at is not null and public.dev_is_bot(r.user_id);
+    perform public.dev_bots_play(tid);
+    select count(*) into after from public.tournament_results r join public.tournament_matches m on m.id = r.match_id
+        where m.tournament_id = tid and r.finished_at is not null and public.dev_is_bot(r.user_id);
+    return after - before;
+end;
+$$;
+
+revoke all on function public.dev_check(), public.dev_is_bot(uuid), public.dev_bots_play(uuid), public.tournament_bots_due() from public, anon, authenticated;
+revoke all on function public.dev_tournament_add_bots(uuid, integer), public.dev_tournament_start_now(uuid), public.dev_tournament_next_round(uuid), public.dev_tournament_bots_play(uuid), public.dev_tournament_clear_bots(), public.dev_tournament_reset() from public, anon;
+grant execute on function public.dev_tournament_add_bots(uuid, integer), public.dev_tournament_start_now(uuid), public.dev_tournament_next_round(uuid), public.dev_tournament_bots_play(uuid), public.dev_tournament_clear_bots(), public.dev_tournament_reset() to authenticated;
 
 -- ===== Web push: upozornění na turnaje a výzvy =====
 -- Odběr (endpoint + klíče) si uloží prohlížeč hráče (push.js); odesílá GitHub Actions (scripts/send-push.mjs): zavolá push_due(secret),
@@ -1586,7 +1631,7 @@ $$;
 drop trigger if exists friendships_accept on public.friendships;
 create trigger friendships_accept before update on public.friendships for each row execute function public.on_friend_accept();
 
--- Moji přátelé a žádosti (oběma směry) s profilem, poslední aktivitou a vzájemnou bilancí z výzev (víc správných, pak víc bodů)
+-- Moji přátelé a žádosti (oběma směry) s profilem, poslední aktivitou a vzájemnou bilancí z výzev (víc bodů, pak víc správných)
 drop function if exists public.friends_list();
 create or replace function public.friends_list() returns table (
     id uuid, display_name text, avatar text, color text, frame text, title_pref text, owl text, rating integer, last_seen timestamptz,
@@ -1599,8 +1644,8 @@ language sql stable security definer set search_path = public as $$
         from public.friendships f where auth.uid() is not null and auth.uid() in (f.user_id, f.friend_id)
     ), duel as (
         select o.user_id as other,
-            (count(*) filter (where m.correct > o.correct or (m.correct = o.correct and m.points > o.points)))::integer as wins,
-            (count(*) filter (where m.correct < o.correct or (m.correct = o.correct and m.points < o.points)))::integer as losses,
+            (count(*) filter (where m.points > o.points or (m.points = o.points and m.correct > o.correct)))::integer as wins,
+            (count(*) filter (where m.points < o.points or (m.points = o.points and m.correct < o.correct)))::integer as losses,
             (count(*) filter (where m.correct = o.correct and m.points = o.points))::integer as draws
         from public.challenge_results m join public.challenge_results o on o.challenge_id = m.challenge_id and o.user_id <> m.user_id
         where m.user_id = auth.uid() and o.user_id in (select other from mine)
@@ -2634,7 +2679,7 @@ begin
     end if;
     select jsonb_build_object('id', c.id, 'topic', c.topic, 'count', c.count, 'created_at', c.created_at,
             'creator', case when p.id is null then null else public.group_player_json(p) end,
-            'results', coalesce((select jsonb_agg(jsonb_build_object('user_id', r.user_id, 'correct', r.correct, 'points', r.points) order by r.correct desc, r.points desc, r.finished_at)
+            'results', coalesce((select jsonb_agg(jsonb_build_object('user_id', r.user_id, 'correct', r.correct, 'points', r.points) order by r.points desc, r.correct desc, r.finished_at)
                 from public.challenge_results r join public.group_members o on o.group_id = gid and o.user_id = r.user_id where r.challenge_id = c.id), '[]'::jsonb))
         into ch
         from public.group_challenges gc join public.challenges c on c.id = gc.challenge_id left join public.profiles p on p.id = c.creator_id
@@ -2889,7 +2934,10 @@ grant execute on function public.challenge_progress_save(text, integer, boolean,
 --    mapy, odhadu a Seřaď v badge_catalog().
 -- 10: Rozpis otázek (challenge_progress a tournament_answers: answer, hints, ms; challenge_progress_save a tournament_answer_save s nepovinnými
 --     podrobnostmi; challenge_details a tournament_details vrací soupeřovy odpovědi až po dohrání).
+-- 11: upozornění na dohranou výzvu otevřou rovnou její výsledek (push_pending: odkaz s &vyzva=KÓD).
+-- 12: boti v turnajích hrají sami každý den od 9:00 (tournament_clock, tournament_bots_due v tournament_tick) a vývojářské dev_tournament_bots_play;
+--     o vítězi výzvy i zápasu turnaje rozhodují body, počet správných odpovědí až při shodě (rate_challenge, tournament_pick_winner, friends_list, group_detail).
 create or replace function public.schema_version() returns integer
-language sql immutable as $$ select 11 $$;
+language sql immutable as $$ select 12 $$;
 revoke all on function public.schema_version() from public, anon;
 grant execute on function public.schema_version() to authenticated;

@@ -176,10 +176,12 @@
         throw new SocialError('Výzvu se nepodařilo založit.', 409);
     };
     const getChallenge = async (code) => (await withExtras(extras => request('GET', `challenges?id=eq.${encodeURIComponent(code)}&select=id,topic,seed,count,created_at,include_hard,categories,variant,creator:profiles!creator_id(${profileFields(extras)}),invited:profiles!invited_id(${profileFields(extras)})`)) || [])[0] || null;
-    // Výsledky hráčů ve výzvě, nejlepší první (víc správných, pak víc bodů, pak dřív hotové)
+    // Pořadí ve výzvě: víc bodů, při shodě víc správných (stejně jako MudrlantRating.compareResults a databáze)
+    const compareResults = (a, b) => ((Number(a.points) || 0) - (Number(b.points) || 0)) || ((Number(a.correct) || 0) - (Number(b.correct) || 0));
+    // Výsledky hráčů ve výzvě, nejlepší první (víc bodů, pak víc správných, pak dřív hotové)
     const getResults = async (code) => {
         const rows = await withExtras(extras => request('GET', `challenge_results?challenge_id=eq.${encodeURIComponent(code)}&select=correct,points,finished_at,user_id,player:profiles!user_id(${profileFields(extras)})`)) || [];
-        return rows.sort((a, b) => b.correct - a.correct || b.points - a.points || String(a.finished_at).localeCompare(String(b.finished_at)));
+        return rows.sort((a, b) => compareResults(b, a) || String(a.finished_at).localeCompare(String(b.finished_at)));
     };
     // První výsledek platí (ignoruje se opakovaný zápis), ať si nejde skóre vylepšit hraním znovu
     // Celé číslo v rozsahu 0..max (NaN, záporné a nesmyslně velké hodnoty by databáze stejně odmítla a výsledek by se ztratil)
@@ -401,7 +403,7 @@
     };
     // Vývojářské nástroje turnajů (boti): jen pro účet zapsaný v dev_admins; chyba serveru se předá tak, jak je
     const devTournament = async (name, body = {}) => {
-        const allowed = ['dev_tournament_add_bots', 'dev_tournament_start_now', 'dev_tournament_next_round', 'dev_tournament_clear_bots', 'dev_tournament_reset'];
+        const allowed = ['dev_tournament_add_bots', 'dev_tournament_start_now', 'dev_tournament_next_round', 'dev_tournament_bots_play', 'dev_tournament_clear_bots', 'dev_tournament_reset'];
         if (!allowed.includes(name)) throw new SocialError('Neznámý nástroj.', 400);
         try { return await request('POST', `rpc/${name}`, { body }); } catch (error) {
             if (error.status === 404) throw new SocialError('Vývojářské nástroje turnajů v databázi chybí: spusť znovu supabase/schema.sql.', 404);
@@ -470,7 +472,7 @@
         for (const row of theirs) {
             const own = mineById.get(row.challenge_id);
             if (!own) continue;
-            const diff = own.correct - row.correct || own.points - row.points;
+            const diff = compareResults(own, row);
             if (diff > 0) versus.wins++; else if (diff < 0) versus.losses++; else versus.draws++;
         }
         stats.versus = versus;
