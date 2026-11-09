@@ -36,7 +36,7 @@ const player = (id, name, avatar, extra = {}) => ({ id, display_name: name, avat
 
 // Databáze Kvízu dne jako v supabase/schema.sql (zjednodušeně, pravidla hlídá tests/sql-daily-quiz.test.js)
 const newDb = () => ({
-    log: [], answers: [], missing: false, fail: {},
+    log: [], answers: [], details: [], missing: false, fail: {},
     profiles: { 'u-1': player('u-1', 'Jana Nováková', '🦊', { color: 'emerald' }), 'u-2': player('u-2', 'Petr Svoboda', '🐼'), 'u-3': player('u-3', 'Eva Mistr', '🦉') },
     friendships: [{ user_id: 'u-1', friend_id: 'u-2', status: 'accepted' }],
     // dohrané pokusy jiných hráčů dnes
@@ -101,6 +101,7 @@ const backend = async (context, db) => {
                     const days = Object.values(db.quiz).filter(r => r.user_id === me.id && r.finished).map(r => r.day);
                     return json({ day: TODAY, total: all.length, top: all.filter(r => r.pos <= (body.top_n || 50)).map(shape), me: mine ? { rank: mine.rank, score: mine.score, correct: mine.correct, time_ms: mine.time_ms, bitmap: mine.bitmap, answered: mine.answered } : null, streak: DQ.streakOf(days, TODAY), best_streak: DQ.bestStreakOf(days) });
                 }
+                if (name === 'daily_quiz_details') { db.details.push(body); return json([]); }
                 if (name === 'daily_quiz_friends') {
                     const circle = db.friendships.filter(f => f.status === 'accepted' && (f.user_id === me.id || f.friend_id === me.id)).map(f => (f.user_id === me.id ? f.friend_id : f.user_id));
                     return json({ day: TODAY, friends: circle.length, rows: ranked(db, r => r.user_id === me.id || circle.includes(r.user_id)).map(shape) });
@@ -299,6 +300,27 @@ test('Kvíz dne v prohlížeči', { skip: !chromium && 'Playwright není nainsta
         await context.close();
     });
 
+    await t.test('úvod jde vypnout: příště kvíz začne rovnou, v Nastavení → Hra se zase zapne', async () => {
+        const { context, tab, log } = await setup(browser, {}, {});
+        await tab.click('#quiz-card');
+        await tab.waitForSelector('#quiz-intro [data-action="quiz-skip-intro"][aria-checked="false"]');
+        await tab.click('[data-action="quiz-skip-intro"]');
+        await tab.waitForSelector('#quiz-intro [data-action="quiz-skip-intro"][aria-checked="true"]');
+        assert.equal(await tab.evaluate(() => localStorage.getItem('mudrlant.quizSkipIntro')), '1');
+        await tab.reload();
+        await tab.click('#quiz-card');
+        await tab.waitForSelector('[data-action="choice"]', { timeout: 60000 });
+        assert.equal(await tab.locator('#quiz-intro').count(), 0, 'bez úvodu rovnou první otázka');
+        // Nastavení → Hra: řádek Úvod Kvízu dne (jen když je vypnutý) ho zase zapne
+        await tab.click('#btn-settings');
+        await tab.waitForSelector('[data-quiz-intro-toggle]');
+        await tab.click('[data-quiz-intro-toggle]');
+        await tab.waitForFunction(() => localStorage.getItem('mudrlant.quizSkipIntro') === null);
+        await tab.waitForFunction(() => !document.querySelector('[data-quiz-intro-toggle]'));
+        assert.deepEqual(log.errors, []);
+        await context.close();
+    });
+
     await t.test('přihlášený: odpovědi po otázkách na server, pořadí dne s mým místem, přátelé, série ze serveru', async () => {
         const db = newDb();
         // včera dohráno: série pokračuje
@@ -322,6 +344,17 @@ test('Kvíz dne v prohlížeči', { skip: !chromium && 'Playwright není nainsta
         assert.match(ranking, /Jana Nováková \(ty\)/);
         assert.match(await compact(tab, '[data-quiz-streak]'), /2 dny/, 'série ze serveru (včera + dnes)');
         assert.match(await compact(tab, '#quiz-result'), /\+4 XP za sérii 2 dní Kvízu dne/);
+        // Odpovědi jdou na server i s textem a nápovědami (rozpis, schéma 15)
+        assert.ok(db.answers.every(a => typeof a.answer === 'string' && a.answer && a.hints === 0), JSON.stringify(db.answers[0]));
+        // Rozpis z pořadí: klepnutí na Evu ukáže otázky, mé odpovědi a Evu vedle
+        await tab.click('[data-quiz-row="u-3"] [data-action="quiz-breakdown"]');
+        await tab.waitForSelector('#breakdown-list [data-bd-row]', { timeout: 30000 });
+        assert.equal(await tab.locator('#breakdown-list [data-bd-row]').count(), 10);
+        assert.equal(await tab.locator('#breakdown-list [data-bd-row="0"] [data-bd-cell="ok"]').count(), 1, 'moje první odpověď správně (ze zařízení)');
+        assert.match(await compact(tab, '#dialog-overlay'), /Eva Mistr/);
+        assert.deepEqual(db.details.pop(), { for_day: TODAY, players: ['u-1', 'u-3'] });
+        await tab.keyboard.press('Escape');
+        await tab.waitForFunction(() => !document.getElementById('dialog-overlay'));
         await tab.click('[data-action="quiz-tab"][data-tab="friends"]');
         const friends = await compact(tab, '#quiz-ranking');
         assert.match(friends, /Petr Svoboda/);
@@ -331,7 +364,7 @@ test('Kvíz dne v prohlížeči', { skip: !chromium && 'Playwright není nainsta
         await tab.click('[data-action="quiz-home"]');
         await tab.waitForSelector('#quiz-card[data-quiz-status="done"]');
         // 8 správně bez nápověd = 32 bodů: za Evou (40), před Petrem (30)
-        assert.match(await compact(tab, '#quiz-card'), /8\/10 · 32 bodů · 2\. místo/);
+        assert.match(await compact(tab, '#quiz-card'), /32 bodů · 8\/10 · 2\. místo/);
         assert.deepEqual(log.errors, []);
         assert.deepEqual(log.csp, []);
         await context.close();

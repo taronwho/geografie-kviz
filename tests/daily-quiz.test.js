@@ -177,7 +177,7 @@ test('vykreslení: karta na úvodu, úvod, výsledek s pořadím a pozvánka pro
     assert.match(fresh, /10 otázek pro všechny · pořadí/);
     assert.match(DQ.homeCardHtml({ status: 'progress', answered: 3 }), /Rozehráno · otázka 4\/10/);
     const done = DQ.homeCardHtml({ status: 'done', summary: { correct: 8, score: 26 }, rank: 23, streak: 4 });
-    assert.match(done, /8\/10 · 26 bodů · 23\. místo/);
+    assert.match(done, /26 bodů · 8\/10 · 23\. místo/);
     assert.doesNotMatch(done, /data-quiz-new/);
     const intro = DQ.introHtml({ day: '2026-11-08', topics: ['zemepis', 'hudba'], guest: true }, h);
     assert.match(intro, /Dnešní otázky \(jedna z každého tématu\) zůstávají zvlášť/);

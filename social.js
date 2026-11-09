@@ -674,10 +674,22 @@
     });
     const dailyQuizState = () => guardQuiz(async () => cleanQuizState(await request('POST', 'rpc/daily_quiz_state', { body: {} })));
     const dailyQuizStart = () => guardQuiz(async () => cleanQuizState(await request('POST', 'rpc/daily_quiz_start', { body: {} })));
-    // row = { correct, points, ms }: body za správnou 1–4, za špatnou 0, čas na otázku v ms (server ho ověří)
-    const dailyQuizAnswer = (day, idx, row) => guardQuiz(async () => cleanQuizState(await request('POST', 'rpc/daily_quiz_answer', {
-        body: { for_day: cleanDay(day), idx: wholeNumber(idx, 9), is_correct: Boolean(row && row.correct), points: row && row.correct ? Math.max(1, wholeNumber(row.points, 4)) : 0, ms: wholeNumber(row && row.ms, 3600000) }
-    })));
+    // row = { correct, points, ms, answer?, hints? }: body za správnou 1–4, za špatnou 0, čas na otázku v ms (server ho ověří); text odpovědi
+    // a nápovědy pro rozpis (schéma 15) – starší databáze funkci s nimi nezná (404/400), pak se pošle jen základ a podrobnosti už ne
+    let quizDetailsMissing = false;
+    const dailyQuizAnswer = (day, idx, row) => guardQuiz(async () => {
+        const base = { for_day: cleanDay(day), idx: wholeNumber(idx, 9), is_correct: Boolean(row && row.correct), points: row && row.correct ? Math.max(1, wholeNumber(row.points, 4)) : 0, ms: wholeNumber(row && row.ms, 3600000) };
+        if (!quizDetailsMissing) {
+            const extra = cleanDetails(row);
+            try { return cleanQuizState(await request('POST', 'rpc/daily_quiz_answer', { body: { ...base, answer: extra.answer, hints: extra.hints } })); } catch (error) {
+                if (error.status !== 400 && error.status !== 404) throw error;
+                quizDetailsMissing = true;
+            }
+        }
+        return cleanQuizState(await request('POST', 'rpc/daily_quiz_answer', { body: base }));
+    });
+    // Odpovědi hráčů z pořadí dne po otázkách ({ [userId]: [...] }); null = databáze rozpis Kvízu dne nezná (starší schéma)
+    const dailyQuizDetails = (day, players) => breakdownCall('daily_quiz_details', { for_day: cleanDay(day), players: (players || []).map(String).slice(0, 10) }, 10, 4);
     const dailyQuizBoard = (day = null, top = 50) => guardQuiz(async () => {
         const data = (await request('POST', 'rpc/daily_quiz_board', { body: { for_day: cleanDay(day), top_n: wholeNumber(top, 100) || 50 } })) || {};
         const me = data.me && typeof data.me === 'object' ? { rank: wholeNumber(data.me.rank, 10000000) || 1, score: wholeNumber(data.me.score, 40), correct: wholeNumber(data.me.correct, 10), time_ms: wholeNumber(data.me.time_ms, 3000000), bitmap: wholeNumber(data.me.bitmap, 1023), answered: wholeNumber(data.me.answered, 10) } : null;
@@ -823,7 +835,7 @@
         touchSeen, friendsList, addFriend, acceptFriend, removeFriend, REACTIONS, react, reactionsFor, lastReactionFrom, blockedPlayers, blockPlayer, unblockPlayer, REPORT_REASONS, reportPlayer, devReports, devResolveReport,
         submitAnswerStats, answerStatsTopic, devSuspiciousQuestions,
         // Kvíz dne (schéma 7)
-        dailyQuizState, dailyQuizStart, dailyQuizAnswer, dailyQuizBoard, dailyQuizFriends,
+        dailyQuizState, dailyQuizStart, dailyQuizAnswer, dailyQuizDetails, dailyQuizBoard, dailyQuizFriends,
         // Skupiny (schéma 8)
         myGroups, groupDetail, groupCreate, groupPreview, groupJoin, groupLeave, groupUpdate, groupNewCode, groupRemoveMember, groupDelete, groupSetChallenge,
         // Odměny (schéma 9)

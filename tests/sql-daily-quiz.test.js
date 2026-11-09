@@ -187,6 +187,31 @@ test('SQL: Kvíz dne', { skip: !available && 'PostgreSQL není dostupný' }, asy
         denied(answer(D, 1, true, 4, 4000, '2026-11-09', DAY), /už skončil/);
     });
 
+    await t.test('rozpis (schéma 15): odpovědi s textem a nápovědami; cizí jen po vlastním dohrání, za minulé dny vždy', () => {
+        const details = (uid, players, day = DAY, forDay = day) => as(uid, `select user_id || '|' || idx || '|' || correct || '|' || points || '|' || coalesce(answer, '-') || '|' || coalesce(hints::text, '-') from daily_quiz_details('${forDay}', array[${players.map(p => `'${p}'`).join(',')}]::uuid[]);`, day);
+        const rows = (r) => r.stdout.trim().split('\n').filter(line => line.split('|').length === 6);
+        // D má rozehráno: své odpovědi vidí, cizí ne (stejné otázky)
+        assert.equal(rows(ok(details(D, [D]))).length, 1);
+        assert.match(denied(details(D, [B])), /až dnešní kvíz dohraješ/);
+        // A dohrál: vidí své i B (po 10 odpovědích)
+        assert.equal(rows(ok(details(A, [A, B]))).length, 20);
+        // Nová odpověď s textem a nápovědami (text se vyčistí, nápovědy mimo 0–4 se neuloží); nový hráč F
+        const F = id(6);
+        q(`insert into auth.users (id, email, raw_user_meta_data) values ('${F}', 'u6@example.com', '{"full_name": "Hráč 6"}');`);
+        ok(as(F, 'select daily_quiz_start();'));
+        ok(as(F, `select daily_quiz_answer('${DAY}', 0, true, 2, 4000, 'Řím <b>', 2);`));
+        ok(as(F, `select daily_quiz_answer('${DAY}', 1, false, 0, 4000, 'Paříž', 9);`));
+        assert.deepEqual(rows(ok(details(F, [F]))).map(line => line.replace(/^[^|]+\|/, '')), ['0|true|2|Řím b|2', '1|false|0|Paříž|-']);
+        // starší volání s pěti parametry dál funguje (bez textu a nápověd)
+        ok(answer(F, 2, true, 4));
+        assert.equal(rows(ok(details(F, [F]))).pop().replace(/^[^|]+\|/, ''), '2|true|4|-|-');
+        // minulý den: cizí odpovědi vidí i ten, kdo tehdy nehrál; budoucí den ani anon nejde
+        assert.equal(rows(ok(details(D, [B], '2026-11-10', DAY))).length, 10);
+        denied(details(A, [A], DAY, '2026-12-31'));
+        denied(as(null, `select * from daily_quiz_details('${DAY}', array['${A}']::uuid[]);`, DAY, 'anon'));
+        assert.equal(q('select count(*) from daily_quiz_answers where answer is not null or hints is not null'), '2');
+    });
+
     await t.test('pořadí přátel: jen přijatí přátelé a já', () => {
         // A a B jsou přátelé, A → E jen žádost
         q(`insert into friendships (user_id, friend_id) values ('${A}', '${B}'); update friendships set status = 'accepted' where user_id = '${A}' and friend_id = '${B}';
