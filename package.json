@@ -9,6 +9,7 @@
     "build:countries": "node scripts/build-countries.mjs",
     "build:world": "node scripts/build-world.mjs",
     "build:mapa": "node scripts/build-mapa.mjs",
+    "build:mapa-tvary": "node scripts/build-mapa-tvary.mjs",
     "build:regiony": "node scripts/build-regiony.mjs",
     "build:casti": "node scripts/build-casti-mest.mjs",
     "build:zemepis": "node scripts/build-zemepis.mjs",
