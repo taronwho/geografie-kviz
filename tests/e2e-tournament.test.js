@@ -200,11 +200,18 @@ const backend = async (context, db) => {
                 db.answers.push({ match_id: body.mid, user_id: me.id, idx: body.idx, correct: body.correct, points: body.points, answer: body.answer ?? null, hints: body.hints ?? null, ms: body.ms ?? null });
                 return json(mine.length + 1);
             }
-            // Rozpis zápasu (jako tournament_details): jen hráč zápasu, až ho sám dohraje; soupeřovy odpovědi po jeho dohrání nebo rozhodnutí
+            // Rozpis zápasu (jako tournament_details): hráč zápasu, až ho sám dohraje; soupeřovy odpovědi po jeho dohrání nebo rozhodnutí.
+            // Cizí zápas (schéma 13): rozhodnutý a já v tomtéž kole nemám vlastní zápas neodehraný
             if (rpc[1] === 'tournament_details') {
                 const m = matchRow(body.mid);
-                if (!m || ![m.p1, m.p2].includes(me.id)) return fail('Tohle není tvůj zápas.', 403);
-                const done = (uid) => db.results.some(row => row.match_id === m.id && row.user_id === uid && row.finished_at);
+                if (!m) return fail('Zápas neexistuje.', 403);
+                const done = (uid, matchId = m.id) => db.results.some(row => row.match_id === matchId && row.user_id === uid && row.finished_at);
+                if (![m.p1, m.p2].includes(me.id)) {
+                    if (!m.winner) return fail('Rozpis cizího zápasu uvidíš, až bude rozhodnutý.', 403);
+                    const pending = db.matches.some(x => x.tournament_id === m.tournament_id && x.round === m.round && [x.p1, x.p2].includes(me.id) && !x.winner && !done(me.id, x.id));
+                    if (pending) return fail('Rozpis zápasů tohoto kola uvidíš, až odehraješ svůj zápas.', 403);
+                    return json(db.answers.filter(row => row.match_id === m.id).map(({ match_id, ...rest }) => rest));
+                }
                 if (!done(me.id)) return fail('Rozpis otázek uvidíš, až zápas dohraješ.', 403);
                 const rival = m.p1 === me.id ? m.p2 : m.p1;
                 return json(db.answers.filter(row => row.match_id === m.id && (row.user_id === me.id || (row.user_id === rival && (m.winner || done(rival))))).map(({ match_id, ...rest }) => rest));
@@ -992,6 +999,29 @@ test('týdenní turnaje', { skip: !chromium && 'Playwright není nainstalovaný'
         assert.match(first, /8\/10 · 12 b/);
         assert.match(first, /Petr Svoboda/);
         assert.match(await tab.textContent('#tournament-rounds li[data-match="' + uuid(203) + '"]'), /Kontumačně/);
+        assert.match(first, /8\/10 · 12 b · 0:10/, 'u odehraného zápasu i celkový čas');
+        // Rozpis cizího zápasu: rozhodnuté zápasy 1. kola (svůj jsem odehrál) ano, nerozhodnutá čtvrtfinále ne
+        assert.equal(await tab.locator('#tournament-rounds details[data-round="1"] [data-action="tournament-breakdown"]').count(), 8, 'všech 8 rozhodnutých zápasů');
+        assert.equal(await tab.locator('#tournament-rounds details[data-round="2"] [data-action="tournament-breakdown"]').count(), 0);
+        assert.match(await tab.textContent(`#tournament-rounds li[data-match="${uuid(201)}"] [data-action="tournament-breakdown"]`), /Rozpis zápasu/);
+        await tab.evaluate(() => { document.querySelector('#tournament-rounds details[data-round="1"]').open = true; });
+        await tab.click(`#tournament-rounds li[data-match="${uuid(201)}"] [data-action="tournament-breakdown"]`);
+        await tab.waitForSelector('#breakdown-list [data-bd-row]', { timeout: 30000 });
+        const spectated = (await tab.textContent('#dialog-overlay')).replace(/\s+/g, ' ');
+        assert.ok(spectated.includes(db.profiles[players[2]].display_name) && spectated.includes(db.profiles[players[3]].display_name), 'oba hráči jménem');
+        assert.ok(!/\bTy\b/.test(spectated), 'divák není „Ty“');
+        // (odpovědi po otázkách vykresluje stejná buňka jako u vlastního zápasu, viz e2e-challenge-breakdown; zdejší hráči nemají UUID)
+        assert.match(spectated, /7\/10 · 12 b · 0:10/, 'celkem: správně, body a čas');
+        assert.match(spectated, /3\/10 · 5 b · 0:11/);
+        assert.ok(db.calls.some(call => call.name === 'tournament_details' && call.body.mid === uuid(201)));
+        assert.equal(await tab.locator('#breakdown-list [data-bd-row="0"] [data-bd-cell]').count(), 2);
+        await tab.keyboard.press('Escape');
+        await tab.waitForFunction(() => !document.querySelector('#dialog-overlay #breakdown-list'));
+        if (!(await tab.locator('#tournament-rounds').count())) {
+            await tab.click('#tournament-card [data-action="tournament-open"]');
+            await tab.click('[data-t-mode="rounds"]');
+            await tab.waitForSelector('#tournament-rounds');
+        }
         await shot(tab, 'turnaj-dialog-360');
         // Hledání hráče rozbalí kola a schová ostatní zápasy
         await tab.fill('#tournament-search', 'petr');
@@ -1140,7 +1170,8 @@ test('týdenní turnaje', { skip: !chromium && 'Playwright není nainstalovaný'
         const text = (await first.innerText()).replace(/\s+/g, ' ');
         assert.match(text, /Jana Nováková \d\/10.*Adam 1 \d\/10/);
         assert.equal(await first.locator('svg path[d="M5 13l4 4L19 7"]').count(), 1, 'jedna fajfka u vítěze');
-        assert.equal(await first.locator('button').count(), 2);
+        assert.equal(await first.locator('button[data-bp]').count(), 2);
+        assert.equal(await first.locator('[data-action="tournament-breakdown"]').count(), 1, 'rozhodnutý zápas: tlačítko rozpisu vpravo na kartě');
         const box = await first.boundingBox();
         assert.ok(box.height >= 38 && box.height <= 46, `kompaktní karta (${box.height})`);
         const semi = (await tab.locator('#bracket-scroll [data-bcell="4-1"] [data-bcard]').innerText()).replace(/\s+/g, ' ');
