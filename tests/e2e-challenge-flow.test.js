@@ -197,8 +197,8 @@ test('hra více hráčů: výzvy, obnova, okna a profil', { skip: !chromium && '
                 { challenge_id: 'KKKKKK', user_id: 'u-1', correct: 3, points: 8, finished_at: '2026-11-03T11:10:00Z' }, { challenge_id: 'KKKKKK', user_id: 'u-2', correct: 3, points: 9, finished_at: '2026-11-03T11:20:00Z' });
             const { context, tab, log } = await start(db, 'tok-u1', { viewport, colorScheme });
             await tab.waitForSelector('[data-action="challenge-open"][data-code="WWWWWW"]');
-            assert.match(await compact(tab, '[data-action="challenge-open"][data-code="WWWWWW"]'), /vyhráno 6\/10/, 'víc bodů při stejném počtu správných je výhra');
-            assert.match(await compact(tab, '[data-action="challenge-open"][data-code="KKKKKK"]'), /prohráno 3\/5/);
+            assert.match(await compact(tab, '[data-action="challenge-open"][data-code="WWWWWW"]'), /vyhráno 20 b ?6\/10/, 'víc bodů při stejném počtu správných je výhra; body velké, správné malé');
+            assert.match(await compact(tab, '[data-action="challenge-open"][data-code="KKKKKK"]'), /prohráno 8 b ?3\/5/);
             // Profil soupeře: bilance česky (1 výhra, 1 prohra) a tlačítka přátel s ikonami
             await tab.click('[data-action="challenge-open"][data-code="WWWWWW"] [data-player-id="u-2"]');
             await tab.waitForSelector('[data-rematch]');
