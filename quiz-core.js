@@ -854,13 +854,27 @@
 
     // Text pro hráče bez odpovědi: zakrytí názvu (téma nebo jádro), potom kontrola všech tvarů jména (maskLeaks)
     // a nakonec tvaru odpovědi (sealStructure)
+    // Co hráč vidí v zadání (název u otázky na autora, desetiletí, stát…), se v textu nikdy nezakrývá: nic neprozradí
+    // a „[***] hodin“ u seriálu 24 hodin by jen mátlo. Název se před zakrýváním schová za značku, kterou žádné
+    // pravidlo zakrytí nezasáhne (znak bez písmen a číslic), a po zakrytí se vrátí.
+    const SHOWN_NAME_MARK = '\uE000';
+    const protectShownName = (text, name) => {
+        const shown = String(name || '').trim();
+        if (shown.length < 2) return { text, restore: value => value };
+        const pattern = new RegExp(`(?<![\\p{L}\\p{N}])${escapeRegExp(shown)}(?![\\p{L}\\p{N}])`, 'giu');
+        const found = [];
+        const marked = String(text).replace(pattern, (match) => { found.push(match); return SHOWN_NAME_MARK; });
+        if (!found.length) return { text, restore: value => value };
+        return { text: marked, restore: value => { let index = 0; return value.replace(new RegExp(SHOWN_NAME_MARK, 'g'), () => found[index++] || ''); } };
+    };
     const hideAnswer = (text, question, item, ctx, { keep = [] } = {}) => {
         if (!text) return '';
+        const shown = protectShownName(text, question.showName ? item.n : '');
         const category = (ctx.topic.categories || []).find(entry => entry.key === item.c) || {};
-        const hidden = hideOtherChoices(text, question, ctx, [item.ty, category.one].filter(Boolean).join(' '));
+        const hidden = hideOtherChoices(shown.text, question, ctx, [item.ty, category.one].filter(Boolean).join(' '));
         const censored = mergeCensored(censorForItem(question.type, hidden, item, ctx).replaceAll(CHOICE_MARK, '[***]'));
         const masked = maskLeaks(censored, answerNamesFor(question, item, ctx), { isGeneric: (word) => isGenericWord(word, genericWordsOf(ctx)), keep: [question.title, question.showName ? item.n : '', item.ty, ...(ctx.topic.keepWords ? ctx.topic.keepWords(question.type, item, ctx) : []), ...keep] });
-        return sealStructure(masked, question);
+        return shown.restore(sealStructure(masked, question));
     };
 
     // Věta vytržená z kontextu („Doprovázejí boha Rea…“, „Část odborníků se k tomuto výkladu kloní…“) nedává smysl
