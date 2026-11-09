@@ -112,7 +112,14 @@ test('otázka „Ukaž na mapě“', { skip: !chromium && 'Playwright není nain
         assert.match(await tab.textContent('[data-map-tiers]'), /4 body do .* km.*3 body do .* km.*2 body do .* km.*1 bod do .* km.*dál 0 bodů/);
         await tab.click('[data-map-tiers-toggle]');
         assert.ok(await tab.isHidden('[data-map-tiers]'));
-        assert.ok(await tab.isDisabled('[data-map-zoom="out"]'), 'víc oddálit nejde');
+        // Celý svět (víc oddálit nejde, žádný popisek kontinentu), nebo rovnou kontinent s popiskem
+        if (data.question.map.view === 'continent') {
+            assert.ok(!(await tab.isDisabled('[data-map-zoom="out"]')), 'z kontinentu jde oddálit');
+            assert.equal(await tab.locator('[data-map-badge]').count(), 1);
+        } else if (data.question.map.view === 'world') {
+            assert.ok(await tab.isDisabled('[data-map-zoom="out"]'), 'víc oddálit nejde');
+            assert.equal(await tab.locator('[data-map-badge]').count(), 0, 'celý svět bez popisku');
+        }
         // Nejdřív vedle, pak přesun tipu přesně na místo
         const map = await tab.locator('[data-map-question]').boundingBox();
         await tab.mouse.click(map.x + 20, map.y + map.height - 60);
@@ -172,13 +179,19 @@ test('otázka „Ukaž na mapě“', { skip: !chromium && 'Playwright není nain
         assert.ok((await viewBox(tab))[2] < panned[2], 'kolečko přibližuje');
         // Úplně oddálit a klepnout do rohu mapy daleko od místa
         while (!(await tab.isDisabled('[data-map-zoom="out"]'))) await tab.click('[data-map-zoom="out"]');
-        assert.ok(Math.abs((await viewBox(tab))[2] - before[2]) < 0.5, 'oddálení až na celou oblast');
+        const whole = (await viewBox(tab))[2];
+        // Otázka může začít přiblížená na kontinent (pak s jeho popiskem); oddálit jde vždy až na celou mapu
+        const view = (await session(tab)).data.question.map.view;
+        if (view === 'continent') {
+            assert.ok(whole > before[2] * 1.5, 'z kontinentu jde oddálit na celý svět');
+            assert.match(await tab.textContent('[data-map-badge]'), /\S/);
+        } else assert.ok(Math.abs(whole - before[2]) < 0.5, 'oddálení až na celou oblast');
         // Přiblížit jde až 256× na mapě světa (32× u Česka), pak se tlačítko vypne
         const maxZoom = await tab.evaluate(() => { const Q = window.MudrlantMapQuestion; return Q.frameOf(Q.mapRegionOf(JSON.parse(localStorage.getItem('mudrlant.session')).data.question.map.region)).maxZoom; });
         let clicks = 0;
         while (!(await tab.isDisabled('[data-map-zoom="in"]')) && clicks < 12) { await tab.click('[data-map-zoom="in"]'); clicks++; }
         assert.equal(clicks, Math.log2(maxZoom), 'klepnutí až na největší přiblížení');
-        assert.ok(Math.abs((await viewBox(tab))[2] - before[2] / maxZoom) < 0.5, `největší přiblížení ${maxZoom}×`);
+        assert.ok(Math.abs((await viewBox(tab))[2] - whole / maxZoom) < 0.5, `největší přiblížení ${maxZoom}×`);
         while (!(await tab.isDisabled('[data-map-zoom="out"]'))) await tab.click('[data-map-zoom="out"]');
         await tab.mouse.click(map.x + 6, map.y + 6);
         const { data } = await session(tab);

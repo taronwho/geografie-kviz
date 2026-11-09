@@ -67,7 +67,7 @@ test('oblast: Česko podle státu (i stadion jen s názvem státu), jinak kontin
     assert.equal(regionOf(venue('Španělsko', 41.38, 2.12)), 'evropa', 'Camp Nou: kontinent podle polohy');
 });
 
-test('položky: jen body (ne řeky, pohoří, souostroví, moře ani státy), bez stavby ve velkém městě v Česku a bez dvojznačných jmen', () => {
+test('položky: body a plochy s obrysem (ne řeky, pohoří, státy; moře a souostroví jen s obrysem), bez stavby ve velkém městě v Česku a bez dvojznačných jmen', () => {
     const ctx = { topic: { id: 'zemepis' }, items: [], countries };
     const CZ = ['Q213'];
     assert.ok(MapQuestion.candidate(place('Testov', 'mesto', 50, 15, { co: CZ }), ctx));
@@ -75,8 +75,9 @@ test('položky: jen body (ne řeky, pohoří, souostroví, moře ani státy), be
     assert.ok(MapQuestion.candidate(place('Sněžka', 'hora', 50.74, 15.74, { co: CZ, ty: 'hora' }), ctx));
     assert.equal(MapQuestion.candidate(place('Krkonoše', 'hora', 50.7, 15.6, { co: CZ, ty: 'pohoří' }), ctx), null);
     assert.equal(MapQuestion.candidate(place('Vltava', 'reka', 50.3, 14.5, { co: CZ, ty: 'řeka' }), ctx), null);
-    assert.equal(MapQuestion.candidate(place('Severní moře', 'jezero', 56, 3, { co: ['Q20'], ty: 'moře' }), ctx), null);
-    assert.equal(MapQuestion.candidate(place('Baleáry', 'ostrov', 39.5, 3, { co: ['Q29'], ty: 'souostroví' }), ctx), null);
+    assert.equal(MapQuestion.candidate(place('Severní moře', 'jezero', 56, 3, { co: ['Q20'], ty: 'moře' }), ctx, { shapes: {} }), null);
+    assert.equal(MapQuestion.candidate(place('Baleáry', 'ostrov', 39.5, 3, { co: ['Q29'], ty: 'souostroví' }), ctx, { shapes: {} }), null);
+    assert.ok(MapQuestion.candidate(place('Baleáry', 'ostrov', 39.5, 3, { co: ['Q29'], ty: 'souostroví' }), ctx, { shapes: { 'T-Baleáry': '39000,2000,0,2000,1000,0' } }), 's obrysem ano');
     assert.equal(MapQuestion.candidate(place('Česko', 'stat', 49.8, 15.5, { co: CZ }), ctx), null);
     assert.equal(MapQuestion.candidate(place('Prašná brána', 'stavba', 50.087, 14.428, { co: CZ, ty: 'brána' }), ctx), null, 'v Praze = jen „kde je Praha“');
     assert.ok(MapQuestion.candidate(place('Praha', 'mesto', 50.083, 14.42, { co: CZ }), ctx), 'samo velké město ano');
@@ -138,7 +139,7 @@ test('otázka je čistá funkce položky (stejná pro všechny hráče) a ptá s
     const brno = byName('Brno', 'mesto');
     const first = MapQuestion.buildQuestion(brno, zemepisCtx, mapData);
     assert.deepEqual(first, MapQuestion.buildQuestion(brno, zemepisCtx, mapData));
-    assert.deepEqual(first.map, { region: 'cesko', lat: brno.la, lon: brno.lo, ...MapQuestion.radiiFor(brno, MapQuestion.REGION_BY_ID.cesko) });
+    assert.deepEqual(first.map, { region: 'cesko', view: 'cesko', lat: brno.la, lon: brno.lo, ...MapQuestion.radiiFor(brno, MapQuestion.REGION_BY_ID.cesko) });
     assert.equal(first.title, 'Kde leží Brno?');
     assert.equal(first.answerLabel, 'Brno');
     assert.equal(MapQuestion.titleFor({ n: 'Karlštejn', c: 'stavba', ty: 'hrad' }), 'Kde stojí Karlštejn?');
@@ -296,4 +297,43 @@ test('zapojení: skript ve stránce před aplikací, data i skript v mezipaměti
     assert.doesNotMatch(read('question-map.js'), /[\s"']style=|\.style\.\w+\s*=[^=]/);
     const app = read('app.js');
     assert.match(app, /mode !== 'practice' \|\| pool\.kind === 'mistakes' \|\| pool\.kind === 'review'/, 'jen trénink, ne dnešní otázky, výzvy, turnaje, chyby ani opakování');
+});
+
+test('plochy: obrys z data/mapa-tvary.json – uvnitř přesná trefa, jinak vzdálenost od okraje; moře jen s obrysem', () => {
+    // Čtverec 1° × 1° kolem 50° s. š., 14–15° v. d. (první bod, pak rozdíly v tisícinách stupně)
+    const square = '50000,14000,0,1000,1000,0,0,-1000';
+    const rings = MapQuestion.decodeShape(square);
+    assert.deepEqual(rings, [[[50, 14], [50, 15], [51, 15], [51, 14]]]);
+    assert.equal(MapQuestion.distanceToShapeKm(rings, { lat: 50.5, lon: 14.5 }), 0, 'uvnitř');
+    const west = MapQuestion.distanceToShapeKm(rings, { lat: 50.5, lon: 13 });
+    assert.ok(Math.abs(west - 71) < 3, `1° západně na 50,5° je asi 71 km od okraje (${west})`);
+    // Kroužek přes 180. poledník (délky nad 180°) i tip na druhé straně
+    const fiji = MapQuestion.decodeShape('-18000,179000,0,2000,1000,0,0,-2000');
+    assert.equal(MapQuestion.distanceToShapeKm(fiji, { lat: -17.5, lon: -179.5 }), 0, 'Fidži přes 180. poledník');
+    // Otázka s obrysem: plné body kdekoli uvnitř, poloměry bez přídavku za rozlohu, měří se od okraje
+    const lake = place('Testovací jezero', 'jezero', 50.5, 14.5, { ty: 'jezero', q: 'T-lake', f: { area: 9000 }, co: ['Q213'] });
+    const lakeCtx = { ...zemepisCtx, items: [lake] };
+    const question = MapQuestion.buildQuestion(lake, lakeCtx, { ...mapData, shapes: { 'T-lake': square } });
+    assert.equal(question.map.shape, square);
+    assert.deepEqual({ full: question.map.full, zero: question.map.zero }, MapQuestion.radiiFor(lake, 'cesko', true));
+    assert.equal(MapQuestion.evaluate(question, { lat: 50.95, lon: 14.95 }, false).points, 4, 'roh plochy daleko od středu');
+    assert.equal(MapQuestion.evaluate(question, { lat: 50.95, lon: 14.95 }, false).km, 0);
+    // Moře, záliv, poušť, souostroví: jen s obrysem
+    const sea = place('Testovací moře', 'jezero', 55, 18, { ty: 'moře', q: 'T-sea' });
+    assert.ok(MapQuestion.SHAPE_ONLY.has('moře'));
+    assert.equal(MapQuestion.candidate(sea, { ...zemepisCtx, items: [sea] }, { ...mapData, shapes: {} }), null);
+    assert.equal(MapQuestion.buildQuestion(sea, { ...zemepisCtx, items: [sea] }, { ...mapData, shapes: {} }), null);
+});
+
+test('pohled: místa v Česku na mapě Česka, jinak napůl celý svět a napůl rovnou kontinent (stejně pro všechny)', () => {
+    const counts = { world: 0, continent: 0, cesko: 0 };
+    for (const item of zemepis.items) {
+        const question = MapQuestion.buildQuestion(item, zemepisCtx, mapData);
+        if (!question) continue;
+        counts[question.map.view]++;
+        if (question.map.region === 'cesko') assert.equal(question.map.view, 'cesko');
+        else assert.equal(question.map.view, MapQuestion.viewFor(item));
+    }
+    const ratio = counts.world / (counts.world + counts.continent);
+    assert.ok(ratio > 0.4 && ratio < 0.6, `svět ${counts.world}, kontinent ${counts.continent}`);
 });
