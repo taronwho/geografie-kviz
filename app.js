@@ -3566,7 +3566,7 @@
                 </div>
             </li>`;
         showDialog('Cíle týdne', `
-            <div class="-mt-3 mb-2 flex items-center gap-2">${uiArt('cile', 'h-10 w-10')}<p class="text-xs text-slate-500 dark:text-slate-400">${escapeHtml(Goals.weekLabel(state.week))} · ${goalsLeftText()}</p></div>
+            <div class="mb-2 flex items-center gap-2">${uiArt('cile', 'h-10 w-10')}<p class="text-xs text-slate-500 dark:text-slate-400">${escapeHtml(Goals.weekLabel(state.week))} · ${goalsLeftText()}</p></div>
             <ul class="flex flex-col gap-2">${rows.map(row).join('')}</ul>
             <p class="mt-3 flex items-center gap-2 rounded-2xl ${state.bonus ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200' : 'bg-gold-100 text-gold-800 dark:bg-gold-900/40 dark:text-gold-200'} px-3 py-2 text-xs font-bold"><i data-lucide="trophy" class="h-4 w-4 shrink-0"></i>${state.bonus ? `Všechny cíle splněny: bonus +${Goals.BONUS_XP} XP získán` : `Za všechny tři cíle bonus +${Goals.BONUS_XP} XP, odznak Týdenní cíle a Truhla Mudrlanta`}</p>
             ${Rewards && Rewards.pendingChest(loadRewards()) ? `<button type="button" data-chest-open class="${PRIMARY_BUTTON} mt-2 !bg-gold-500 !text-brand-950"><i data-lucide="sparkles" class="h-5 w-5"></i> Otevřít Truhlu Mudrlanta</button>` : ''}`, {
@@ -6267,12 +6267,19 @@
         brand: 'bg-gradient-to-br from-brand-500 to-brand-800 text-gold-200 ring-gold-400',
         diamond: 'bg-gradient-to-br from-sky-300 to-indigo-500 text-white ring-cyan-100'
     };
+    // Skupiny odznaků s ilustrovaným symbolem (branding/ikony/odznak-<skupina>.png → scripts/topic-icons.py; stejný seznam má sw.js)
+    const BADGE_ART = new Set(['odpovedi', 'rada', 'serie', 'dny', 'dokonale', 'dnes', 'bez-napovedy', 'psani', 'tezke', 'chyby', 'vyzvy', 'vyhry',
+        'vyhry-v-rade', 'zalozene', 'perfektni-vyzvy', 'uroven', 'poznane', 'vsestrannost', 'hvezdy', 'vsechna-temata', 'turnaje', 'turnaj-postupy',
+        'tydenni-cile', 'kviz-dne', 'kviz-serie', 'kviz-perfekt', 'bleskovka', 'preziti', 'mapa', 'odhad', 'serad']);
     // Nezískaný odznak ukazuje svou ikonu zašedlou a ztlumenou, přes ni malý zámek v rohu
     const medalHtml = (badge, earned, size = 'h-11 w-11', iconSize = 'h-5 w-5') => {
         const dim = earned ? '' : ' opacity-50 grayscale';
+        // Symbol odznaku: ikona tématu, ilustrace skupiny (icons/topics/odznak-<skupina>.webp), jinak čárová ikona
         const art = badge.topic && topicArt({ id: badge.topic })
             ? `<img src="icons/topics/${badge.topic}.webp" alt="" class="h-[72%] w-[72%] object-contain${dim}">`
-            : `<i data-lucide="${badge.icon}" class="${iconSize}${dim}"></i>`;
+            : BADGE_ART.has(badge.group)
+                ? `<img src="icons/topics/odznak-${badge.group}.webp" alt="" data-badge-art class="h-[74%] w-[74%] object-contain drop-shadow-sm${dim}">`
+                : `<i data-lucide="${badge.icon}" class="${iconSize}${dim}"></i>`;
         const lock = earned ? '' : '<span class="absolute -bottom-0.5 -right-0.5 flex h-[46%] w-[46%] items-center justify-center rounded-full bg-slate-600 text-white ring-1 ring-white dark:bg-slate-300 dark:text-slate-900 dark:ring-slate-800" data-medal-lock><i data-lucide="lock" class="h-[62%] w-[62%]"></i></span>';
         return `<span class="relative flex ${size} shrink-0 items-center justify-center rounded-full ring-2 ${earned
             ? (MEDAL_TONES[badge.tone] || MEDAL_TONES.gold)

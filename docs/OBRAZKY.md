@@ -402,7 +402,7 @@ Wide horizontal banner in exactly the same cartoon sticker art style as the atta
 
 ## 6. Nové odznaky a odměny
 
-**Stav: zatím zástupné ikony.** Medaile odznaků Kvíz dne, Série Kvízu dne, Kvíz dne bez chyby, Bleskovka, Přežití, Ukaž na mapě, Přesné odhady a Seřaď bez chyby mají ve hře čárovou ikonu (stopky, plamen, jiskry, blesk, srdce, zaměřovač, budík, číslovaný seznam), jako měly ostatní odznaky před dodáním symbolů. Truhla Mudrlanta je zatím kreslená vektorově (víko se při otevření zvedne), ochrana série je štít z ikon. Symbol odznaku se kreslí bez kolečka medaile, stejně jako v oddíle 3.
+**Stav: hotovo.** Všech 31 symbolů odznaků (oddíl 3 i 6), truhla a ochrana série jsou v `branding/ikony/` a zpracované do `icons/topics/` (`python3 scripts/topic-icons.py odznak-… truhla ochrana-serie`). Medaile je ukazují místo čárových ikon (`BADGE_ART` v `app.js`, stejný seznam v `sw.js`, kontroluje `tests/badge-art.test.js`); truhla je obrázek se září a jiskrami, při otevření poskočí. Symbol odznaku se kreslí bez kolečka medaile, stejně jako v oddíle 3.
 
 ### 47. `odznak-kviz-dne.png` – Kvíz dne
 
