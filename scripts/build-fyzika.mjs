@@ -4,6 +4,9 @@
 import { qlever, id, values, imageFields, yearOf, compact, cached, inBatches, writeTopic } from './lib/wikidata.mjs';
 import { landByDescription } from './lib/nationality.mjs';
 import { INVENTIONS } from './lib/fyzika-inventions.mjs';
+import { EXTRA_QUANTITIES, EXTRA_UNITS, EXTRA_CONSTANTS, EXTRA_CONCEPTS, PLAIN_CONCEPTS, NAME_FIXES, EXTRA_PARTICLES, EXTRA_INSTRUMENTS, OKRUH_NAMES,
+    THERMAL_UNITS, SCHOOL_KNOWN } from './lib/fyzika-extra.mjs';
+import { assignLevels, levelSummary, pageviewsByTitle } from './lib/veda-levels.mjs';
 
 const PHYSICIST = 'Q169470';
 const NOBEL_PHYSICS = 'Q38104';
@@ -15,21 +18,22 @@ const SI_DERIVED_UNIT = 'Q208469';
 const CZECH_STATES = new Set(['Q213', 'Q33946', 'Q42585', 'Q152750', 'Q853348', 'Q1998866', 'Q1991965', 'Q39193', 'Q43266']);
 
 const LIMITS = {
-    veliciny: { limit: 120, known: 45 },
-    jednotky: { limit: 120, known: 50 },
-    pojmy: { limit: 260 },
+    veliciny: { limit: 130 },
+    jednotky: { limit: 124 },
+    pojmy: { limit: 400 },
     castice: { limit: 60 },
-    vesmir: { limit: 520, known: 80 },
-    mise: { limit: 140 },
-    fyzici: { limit: 560, known: 110 },
+    vesmir: { limit: 520 },
+    mise: { limit: 200 },
+    fyzici: { limit: 560 },
     astronomove: { limit: 260 },
-    // Kolik vynálezů (kromě českých) je známých
-    vynalezy: { known: 30 }
+    vynalezy: {}
 };
-// Počet jazykových verzí článku, od kterého je položka známá (fyzici a astronomové: Galilei, Gagarin; zákony a jevy, částice, konstanty)
-const KNOWN_SL = { fyzici: 100, astronomove: 75, pojmy: 75, castice: 60, mise: 55 };
-// Vesmírná tělesa: souhvězdí zná každý podle seznamu, ostatní od tolika jazykových verzí článku
-const KNOWN_SPACE_SL = { 'měsíc': 80, 'hvězda': 60, galaxie: 70, mlhovina: 61, 'hvězdokupa': 100, kometa: 65, planetka: 70, 'trpasličí planeta': 60 };
+// Úrovně (scripts/lib/veda-levels.mjs): podíl nejznámějších položek skupiny, které jsou známé (vybrané se počítají do něj);
+// fyziků a astronomů je hodně a laik zná jen ty nejslavnější
+const KNOWN_SHARE = { veliciny: 0.3, jednotky: 0.3, pojmy: 0.25, castice: 0.3, vesmir: 0.25, mise: 0.25, fyzici: 0.12, astronomove: 0.15, vynalezy: 0.28 };
+// Na známou ji kvůli malému okruhu jde povýšit jen položku z lepší poloviny skupiny (podle známosti) nebo s návštěvností článku
+const PROMOTE_PCT = 0.55;
+const PROMOTE_PV = 8000;
 // Hvězdokupy, které zná i laik (Plejády mají hodně jazykových verzí samy)
 // Fotky bez uvedené licence na Commons (viz reports/licence-problemy.md)
 const BAD_PHOTOS = new Set(['Ross128.jpg']);
@@ -77,17 +81,18 @@ const MISSION_LABELS = ['pendulum', 'Foucault pendulum', "Newton's cradle", 'Far
     'Mars Pathfinder', 'Europa Clipper', 'Starliner', 'Crew Dragon', 'Buran', 'Salyut 1', 'Tiangong-1', 'Shenzhou 5', 'Gemini 4', 'Mercury-Atlas 6'];
 
 // Veličiny, které do fyziky ve škole nepatří, i když mají ve Wikidatech jednotku
-const NOT_PHYSICS = /index tělesné|tempo|kvantové číslo|atomové číslo|nukleonové číslo|zeměpisná|obsah alkoholu|bodový|úrok|sazba|bitov|snímkov|bezrozměr|informac|rozlišovací|poloměr|rychlost světla|elementární náboj|konstanta/iu;
+const NOT_PHYSICS = /index tělesné|tempo|kvantové číslo|atomové číslo|nukleonové číslo|zeměpisná|obsah alkoholu|bodový|úrok|sazba|bitov|snímkov|bezrozměr|informac|rozlišovací|poloměr|rychlost světla|elementární náboj|konstanta|permitivita vakua|signal strength|pohotovostní spotřeba|modulační rychlost/iu;
 // Fyzici, které Wikidata nevedou povoláním jako fyziky (Newton) nebo kteří patří k české fyzice
 const MUST_PHYSICISTS = ['Q935', 'Q937', 'Q8963', 'Q36620', 'Q46830', 'Q17714', 'Q93996', 'Q84284', 'Q627985', 'Q1361390'];
 // Veličiny, které Wikidata nevedou s doporučenou jednotkou (teplota, elektrický proud), a jejich jednotky SI
 const MUST_QUANTITIES = { Q11466: 'Q11579', Q11651: 'Q25272' };
 // Co jednotka měří, kde Wikidata uvádějí méně obvyklou veličinu první
-const MEASURES_OVERRIDES = { Q11579: 'teplota', Q25272: 'elektrický proud' };
+const MEASURES_OVERRIDES = { Q11579: 'teplota', Q25272: 'elektrický proud', Q25267: 'teplota', Q42289: 'teplota' };
 // Jednotky, které do fyziky nepatří (kalendář, informatika) nebo jsou konstantou
-const NOT_UNITS = /^(1|týden|měsíc|rok|den|rychlost světla|pixel|procento|bit|bajt|sluneční hmotnost|zvláštní práva čerpání|galaktický rok|procentní bod|bazický bod|\p{L}*bajt|oktet|planckův náboj|sverdrup)$/iu;
+const NOT_UNITS = /^(1|týden|měsíc|rok|den|rychlost světla|pixel|procento|bit|bajt|sluneční hmotnost|zvláštní práva čerpání|galaktický rok|procentní bod|bazický bod|\p{L}*bajt|oktet|planckův náboj|sverdrup|bit za sekundu|úderů za minutu|planckova \p{L}+)$/iu;
 // Značky, které Wikidata uvádějí jinak, než se u nás píšou (tuna „MT“, unce „℥“)
-const SYMBOL_OVERRIDES = { Q191118: 't', Q48013: 'oz' };
+// Námořní míle: M by se v otázce na značku pletla s metrem (m) – u nás se píše i NM
+const SYMBOL_OVERRIDES = { Q191118: 't', Q48013: 'oz', Q93318: 'NM' };
 // Násobek jednotky SI: předpona a za ní jednotka SI (kilometr, mikrogram, femtometr, centimetr krychlový), ne decibel,
 // kilopond nebo kilometr za hodinu; kilogram na metr krychlový je odvozená jednotka
 const SI_PREFIX = '(?:yokto|zepto|atto|femto|piko|nano|mikro|mili|centi|deci|deka|hekto|kilo|mega|giga|tera|peta|exa)';
@@ -154,6 +159,23 @@ const candidates = await cached('fyzika-candidates', async () => {
         missions: byDesc([...pinnedMissions.map(([q, sl]) => [q, sl, 'pinned']), ...resolvedMissions])
     };
 });
+// Ruční výběr navíc (scripts/lib/fyzika-extra.mjs) podle ID: jen položky s českým článkem
+const extraCandidates = await cached('fyzika-candidates-extra', async () => {
+    const byIds = async (qids) => fromRows(await qlever(`SELECT DISTINCT ?x ?sl WHERE { VALUES ?x { ${values(qids)} } ${csArticle('?x')} }`));
+    return {
+        quantities: await byIds(Object.keys(EXTRA_QUANTITIES)), units: await byIds(EXTRA_UNITS), constants: await byIds(EXTRA_CONSTANTS),
+        concepts: await byIds(EXTRA_CONCEPTS), particles: await byIds(EXTRA_PARTICLES), missions: await byIds(EXTRA_INSTRUMENTS)
+    };
+});
+const mergeBySl = (list, extra) => {
+    const have = new Set(list.map(([qid]) => qid));
+    return [...list, ...extra.filter(([qid]) => !have.has(qid))].sort((a, b) => b[1] - a[1]);
+};
+candidates.quantities = mergeBySl(candidates.quantities, extraCandidates.quantities);
+candidates.units = mergeBySl(candidates.units, extraCandidates.units);
+candidates.concepts = [...candidates.concepts, ...extraCandidates.concepts.map(([q, sl]) => [q, sl, 'pinned']), ...extraCandidates.constants.map(([q, sl]) => [q, sl, 'konstanta'])];
+candidates.particles = [...candidates.particles, ...extraCandidates.particles];
+candidates.missions = mergeBySl(candidates.missions, extraCandidates.missions.filter(([q]) => EXTRA_INSTRUMENTS.includes(q)).map(([q, sl]) => [q, sl, 'pinned']));
 console.log(`Kandidáti: ${candidates.quantities.length} veličin, ${candidates.units.length} jednotek, ${candidates.space.length} těles, ${candidates.physicists.length} fyziků, ${candidates.astronomers.length} astronomů, ${candidates.concepts.length} pojmů, ${candidates.particles.length} částic, ${candidates.missions.length} misí a přístrojů`);
 
 // --- Podrobnosti ---
@@ -292,6 +314,7 @@ const addItem = (item) => {
 const usable = (qid) => {
     const detail = details.get(qid);
     if (!detail || !detail.t) return null;
+    if (NAME_FIXES[qid]) detail.n = NAME_FIXES[qid];
     if (!detail.n) detail.n = detail.t.replace(/ \(.*\)$/, '');
     return detail;
 };
@@ -303,11 +326,14 @@ for (const [qid] of candidates.quantities) {
     if (!detail || NOT_PHYSICS.test(detail.n) || rank >= LIMITS.veliciny.limit) continue;
     const units = [...(detail.units || []), ...(MUST_QUANTITIES[qid] ? [MUST_QUANTITIES[qid]] : [])].filter(unit => cs(unit));
     const siUnit = units.find(isSI) || units[0];
-    if (!siUnit) continue;
+    // Jednotka bez českého názvu ve Wikidatech (kilogram metr za sekundu) podle ručního seznamu
+    const fixedUnit = EXTRA_QUANTITIES[qid];
+    if (!siUnit && !fixedUnit) continue;
     const added = addItem({
-        q: qid, t: detail.t, n: capitalize(detail.n), c: 'veliciny', k: rank < LIMITS.veliciny.known ? 1 : 0, d: detail.d,
+        q: qid, t: detail.t, n: capitalize(detail.n), c: 'veliciny', k: 0, d: detail.d,
         ...imageFields(detail.im),
-        f: { sym: quantitySymbol(detail), unit: cs(siUnit), usym: unitSymbol(details.get(siUnit) || {}), unitId: siUnit }
+        f: fixedUnit ? compact({ sym: quantitySymbol(detail), unit: fixedUnit[0], usym: fixedUnit[1] })
+            : { sym: quantitySymbol(detail), unit: cs(siUnit), usym: unitSymbol(details.get(siUnit) || {}), unitId: siUnit }
     });
     if (added) rank++;
 }
@@ -330,12 +356,13 @@ for (const [qid] of candidates.units) {
     const quantityItems = items.filter(item => item.c === 'veliciny');
     const known = quantityItems.find(item => measured.some(label => label.toLowerCase() === item.n.toLowerCase()));
     const measures = MEASURES_OVERRIDES[qid] || (known ? known.n.toLowerCase() : undefined) || measured[0] || (quantityItems.find(item => item.f.unitId === qid) || {}).n?.toLowerCase();
-    if (!symbol || !measures) continue;
+    // Značka se zápisem HTML nebo LaTeXu (ρ<sub>P</sub>, F_P) se v otázce neukáže dobře
+    if (!symbol || !measures || /[<_]/.test(symbol)) continue;
     // Kilometr, miligram, gram: násobky a díly jednotek SI, ne odvozené jednotky
     const isMultiple = isSIMultipleName(detail.n) && !SI_BASE.includes(qid);
     const system = SI_BASE.includes(qid) ? 'základní jednotka SI' : isMultiple ? 'násobek jednotky SI' : isSI(qid) ? 'odvozená jednotka SI' : 'mimo soustavu SI';
     const added = addItem({
-        q: qid, t: detail.t, n: capitalize(detail.n), c: 'jednotky', k: rank < LIMITS.jednotky.known || SI_BASE.includes(qid) ? 1 : 0, d: detail.d,
+        q: qid, t: detail.t, n: capitalize(detail.n), c: 'jednotky', k: SI_BASE.includes(qid) ? 1 : 0, d: detail.d,
         ...imageFields(detail.im),
         f: compact({ usym: symbol, measures, system, named: eponyms.get(qid) })
     });
@@ -356,26 +383,33 @@ const solarKind = (detail) => {
 };
 const KIND_LABELS = { mesic: 'měsíc', hvezda: 'hvězda', galaxie: 'galaxie', souhvezdi: 'souhvězdí', mlhovina: 'mlhovina', hvezdokupa: 'hvězdokupa' };
 // Kolik nejznámějších těles každého druhu (planetek a komet má česká Wikipedie stovky)
-const KIND_LIMITS = { 'planeta': 20, 'trpasličí planeta': 10, 'planetka': 20, 'kometa': 15, 'měsíc': 45, 'hvězda': 105, 'galaxie': 25, 'souhvězdí': 88, 'mlhovina': 40, 'hvězdokupa': 30 };
+const KIND_LIMITS = { 'planeta': 20, 'trpasličí planeta': 10, 'planetka': 37, 'kometa': 28, 'měsíc': 65, 'hvězda': 105, 'galaxie': 40, 'souhvězdí': 88, 'mlhovina': 40, 'hvězdokupa': 30 };
+// Galaxie NGC 1 až NGC 99 a měsíce s předběžným označením (S/2000 J 11) mají články jen od robotů – mezi otázky nepatří
+const BOT_NAMES = { galaxie: /^NGC \d{1,2}$/u, mesic: /^S\/\d/u };
+// Planetka se jménem měsíce (Metis, Europa, Pandora) by měsíci jméno vzala – měsíc má přednost
+const moonNames = new Set(candidates.space.filter(([, , source]) => source === 'mesic').map(([qid]) => ((details.get(qid) || {}).n || '').toLowerCase()).filter(Boolean));
 const kindCounts = {};
 rank = 0;
 for (const [qid, sl, source] of candidates.space) {
     const detail = usable(qid);
     // Těleso bez fotky (tyč, hvězda bez snímku) se na obrázku poznat nedá
-    if (!detail || rank >= LIMITS.vesmir.limit || !detail.im || BAD_PHOTOS.has(imageFields(detail.im).im)) continue;
+    if (!detail || rank >= LIMITS.vesmir.limit || !detail.im || BAD_PHOTOS.has(imageFields(detail.im).im) || (BOT_NAMES[source] && BOT_NAMES[source].test(detail.n))) continue;
     const types = (detail.type || []).map(en).join(' | ').toLowerCase();
     // Hypotetická tělesa, mlhoviny a černé díry mezi hvězdy nepatří
     const skipTypes = ['mlhovina', 'hvezdokupa'].includes(source) ? /hypothetical|fictional|myth|legend|religio/ : /hypothetical|fictional|myth|legend|religio|nebula|black hole|radio source/;
     if (skipTypes.test(types)) continue;
-    const kind = source === 'solar' ? solarKind({ ...detail, q: qid }) : KIND_LABELS[source];
-    if (kind === 'planetka' && sl < 40) continue;
+    let kind = source === 'solar' ? solarKind({ ...detail, q: qid }) : KIND_LABELS[source];
+    // Sonda Giotto je ve Wikidatech i „kometou“; kentaur Chiron s popisem „planetka“ patří k planetkám
+    if (kind === 'kometa' && /sonda/iu.test(detail.d || '')) continue;
+    if (kind === 'kometa' && /^planetka/iu.test(detail.d || '')) kind = 'planetka';
+    if (kind === 'planetka' && (sl < 40 || moonNames.has(detail.n.toLowerCase()))) continue;
     if (!kind || (kindCounts[kind] || 0) >= KIND_LIMITS[kind]) continue;
     const parent = (detail.parent || []).map(cs).filter(Boolean)[0];
     const lightYears = max(detail.dist) ? max(detail.dist) / 9.4607e15 : undefined;
     const added = addItem({
         q: qid, t: detail.t, n: capitalize(detail.n), c: 'vesmir', ty: kind, d: detail.d,
         k: kind === 'planeta' || ['Q525', 'Q405'].includes(qid) || KNOWN_SPACE_NAMES.includes(capitalize(detail.n))
-            || (kind === 'souhvězdí' ? KNOWN_CONSTELLATIONS.includes(capitalize(detail.n)) : sl >= KNOWN_SPACE_SL[kind]) ? 1 : 0,
+            || (kind === 'souhvězdí' && KNOWN_CONSTELLATIONS.includes(capitalize(detail.n))) ? 1 : 0,
         ...imageFields(detail.im),
         f: {
             kind,
@@ -413,7 +447,7 @@ for (const [qid, sl] of candidates.physicists) {
     if (born === undefined || (!nobel && !MUST_PHYSICISTS.includes(qid) && !/fyzi(k|čk)/iu.test(detail.d || ''))) continue;
     const isCzech = (detail.cit || []).some(q => CZECH_STATES.has(q));
     const added = addItem({
-        q: qid, t: detail.t, n: detail.n, c: 'fyzici', k: sl >= KNOWN_SL.fyzici || isCzech ? 1 : 0,
+        q: qid, t: detail.t, n: detail.n, c: 'fyzici', k: isCzech ? 1 : 0,
         ty: detail.sex === FEMALE ? 'fyzička' : 'fyzik', sx: detail.sex === FEMALE ? 'f' : undefined, d: detail.d, cz: isCzech ? 1 : undefined,
         ...imageFields(detail.im),
         f: { born, died: yearOf(detail.died), land: landByDescription(detail.d, (detail.cit || []).map(cs)), nobel: nobel ? 1 : undefined, y: born + 35 }
@@ -433,7 +467,7 @@ for (const [qid, sl] of candidates.astronomers) {
     const female = detail.sex === FEMALE;
     const isCzech = (detail.cit || []).some(q => CZECH_STATES.has(q));
     const added = addItem({
-        q: qid, t: detail.t, n: detail.n, c: 'astronomove', k: sl >= KNOWN_SL.astronomove || isCzech ? 1 : 0,
+        q: qid, t: detail.t, n: detail.n, c: 'astronomove', k: isCzech ? 1 : 0,
         ty: kind === 'kosmonaut' ? (female ? 'kosmonautka' : 'kosmonaut') : (female ? 'astronomka' : 'astronom'), sx: female ? 'f' : undefined, d: detail.d, cz: isCzech ? 1 : undefined,
         ...imageFields(detail.im),
         f: { born, died: yearOf(detail.died), land: landByDescription(detail.d, (detail.cit || []).map(cs)), y: born + 35 }
@@ -453,7 +487,7 @@ for (const [qid, sl] of candidates.particles) {
     if (PARTICLE_SKIP.test(name) || items.some(item => item.q === qid)) continue;
     const group = (PARTICLE_GROUPS.find(([pattern]) => pattern.test(name)) || [])[1];
     const added = addItem({
-        q: qid, t: detail.t, n: name, c: 'castice', k: sl >= KNOWN_SL.castice ? 1 : 0, ty: 'částice', d: detail.d,
+        q: qid, t: detail.t, n: name, c: 'castice', k: 0, ty: 'částice', d: detail.d,
         ...imageFields(detail.im),
         f: compact({ group })
     });
@@ -465,12 +499,12 @@ const CONCEPT_SKIP = /^(světelný rok|atmosféra|elektronvolt|chandrasekharova 
 // Pojmy, které nejsou jev (objekty a abstraktní pojmy)
 const PLAIN_CONCEPT = /supernova|pulsar|kvasar|trpaslík|neutronová hvězda|červí díra|antihmota|temná|laser|plazma|kvantum|^spin$|vlnová funkce|pole$|horizont událostí|schwarzschildův poloměr|skupenství/iu;
 // Druh se řídí i popisem: myšlenkový experiment (Schrödingerova kočka, Paradox dvojčat) není jev a k ultrazvuku nepatří
-const conceptType = (name, source, description = '') => {
+const conceptType = (name, source, description = '', qid = '') => {
     if (source === 'konstanta') return 'konstanta';
     if (/experiment|pokus/iu.test(name) || /^(?:myšlenkový )?(?:experiment|pokus)|myšlenkový experiment/iu.test(description)) return 'experiment';
-    if (/teorie|velký třesk|heliocentr|model|mechanika|termodynamika/iu.test(name)) return 'teorie';
-    if (PLAIN_CONCEPT.test(name)) return 'pojem';
-    if (/zákon|pravidlo|rovnice|věta|zásada|teorém|rovnice/iu.test(name)) return 'zákon';
+    if (/teorie|velký třesk|velký křach|heliocentr|model|mechanika|termodynamika|elektrodynamika|chromodynamika|supersymetrie|interpretace/iu.test(name)) return 'teorie';
+    if (PLAIN_CONCEPT.test(name) || PLAIN_CONCEPTS.has(qid)) return 'pojem';
+    if (/zákon|pravidlo|rovnice|věta|zásada|teorém|vzorec|transformace/iu.test(name)) return 'zákon';
     if (/princip/iu.test(name)) return 'princip';
     return 'jev';
 };
@@ -482,7 +516,7 @@ for (const [qid, sl, source] of candidates.concepts) {
     if (CONCEPT_SKIP.test(name) || items.some(item => item.q === qid)) continue;
     const named = (detail.named || []).map(cs).filter(Boolean)[0];
     const added = addItem({
-        q: qid, t: detail.t, n: name, c: 'pojmy', k: sl >= KNOWN_SL.pojmy ? 1 : 0, ty: conceptType(name, source, detail.d), d: detail.d,
+        q: qid, t: detail.t, n: name, c: 'pojmy', k: 0, ty: conceptType(name, source, detail.d, qid), d: detail.d,
         ...imageFields(detail.im),
         f: compact({ named: /^\p{Lu}/u.test(named || '') ? named : undefined, year: yearOf(detail.found) })
     });
@@ -516,7 +550,7 @@ for (const [qid, sl] of candidates.missions) {
     const name = capitalize(detail.n);
     const operator = (detail.op || []).map(cs).filter(Boolean)[0];
     const added = addItem({
-        q: qid, t: detail.t, n: name, c: 'mise', k: sl >= KNOWN_SL.mise ? 1 : 0, ty: missionKind(detail), d: detail.d,
+        q: qid, t: detail.t, n: name, c: 'mise', k: 0, ty: missionKind(detail), d: detail.d,
         ...imageFields(detail.im),
         f: compact({ year: yearOf(detail.launch) ?? yearOf(detail.inc) ?? yearOf(detail.found), op: operator })
     });
@@ -526,7 +560,7 @@ for (const [qid, sl] of candidates.missions) {
 // Vynálezce je jen údaj u vynálezu, ne položka – fyzici tak nejsou dvakrát; přístroje, které už jsou mezi misemi a přístroji
 // (teploměr, barometr, Voltův sloup), se vynechají
 const inventionLiteral = (label) => /@cs$/.test(label) ? `${JSON.stringify(label.slice(0, -3))}@cs` : `${JSON.stringify(label)}@en`;
-const inventionRows = await cached('fyzika-vynalezy', async () => {
+const inventionRows = await cached('fyzika-vynalezy-2', async () => {
     const rows = await qlever(`SELECT ?l ?x ?sl WHERE { VALUES ?l { ${INVENTIONS.map(([label]) => inventionLiteral(label)).join(' ')} } ?x rdfs:label ?l . ${csArticle('?x')} }`);
     const best = new Map();
     for (const row of rows) {
@@ -542,13 +576,11 @@ const inventionRows = await cached('fyzika-vynalezy', async () => {
 const inventionByLabel = new Map(inventionRows.map(([label, qid, sl, detail]) => [label, { qid, sl, detail }]));
 const inventions = INVENTIONS.map(([label, by, year, land, not]) => ({ ...inventionByLabel.get(label), by, year, land, not }))
     .filter(entry => entry.qid && entry.detail && entry.detail.t && !items.some(item => item.q === entry.qid));
-// Známé: nejvíc jazykových verzí článku (telefon, žárovka, automobil) a české vynálezy
-const knownInventions = new Set(inventions.filter(entry => entry.land !== 'Česko').sort((a, b) => b.sl - a.sl).slice(0, LIMITS.vynalezy.known).map(entry => entry.qid));
 for (const entry of inventions) {
     const detail = { ...entry.detail };
     if (!detail.n) detail.n = detail.t.replace(/ \(.*\)$/, '');
     addItem({
-        q: entry.qid, t: detail.t, n: capitalize(detail.n), c: 'vynalezy', k: knownInventions.has(entry.qid) || entry.land === 'Česko' ? 1 : 0, ty: 'vynález', d: detail.d,
+        q: entry.qid, t: detail.t, n: capitalize(detail.n), c: 'vynalezy', k: entry.land === 'Česko' ? 1 : 0, ty: 'vynález', d: detail.d,
         cz: entry.land === 'Česko' ? 1 : undefined,
         ...imageFields(detail.im),
         f: compact({ by: entry.by, year: entry.year, land: entry.land, xn: entry.not, y: entry.year })
@@ -565,16 +597,22 @@ const THERMAL = /tepl|entropi|entalpi|kelvin/iu;
 const quantity = (test) => (item) => item.c === 'veliciny' && test(item);
 const unit = (test) => (item) => item.c === 'jednotky' && test(item);
 const space = (...kinds) => (item) => item.c === 'vesmir' && kinds.includes(item.f.kind);
+// Zákony, jevy, pojmy, přístroje a vynálezy v okruzích Mechanika, Elektřina a magnetismus, Teplo a termika podle názvu (scripts/lib/fyzika-extra.mjs)
+const OKRUH_SETS = Object.fromEntries(Object.entries(OKRUH_NAMES).map(([id, list]) => [id, new Set(list.map(name => name.toLowerCase()))]));
+const named = (id) => (item) => ['pojmy', 'mise', 'vynalezy', 'veliciny'].includes(item.c) && OKRUH_SETS[id].has(item.n.toLowerCase());
 const BY_NAME = { by: 'name' };
 const COLLECTIONS = [
     { id: 'zakladni-jednotky-si', label: 'Základní jednotky SI', text: 'Metr, kilogram, sekunda, ampér, kelvin, mol, kandela', test: unit(item => item.f.system === 'základní jednotka SI') },
     { id: 'odvozene-jednotky-si', label: 'Odvozené jednotky SI', test: unit(item => item.f.system === 'odvozená jednotka SI') },
     { id: 'nasobky-jednotek-si', label: 'Násobky jednotek SI', text: 'Kilometr, centimetr, gram…', test: unit(item => item.f.system === 'násobek jednotky SI') },
     { id: 'jednotky-mimo-si', label: 'Jednotky mimo SI', text: 'Palce, míle, kalorie, světelné roky…', test: unit(item => item.f.system === 'mimo soustavu SI') },
-    { id: 'elektrina-magnetismus', label: 'Elektřina a magnetismus', test: item => quantity(q => ELECTRIC_UNITS.test(q.f.unit))(item) || unit(u => ELECTRIC_UNITS.test(u.n))(item) },
-    { id: 'teplo', label: 'Teplo a termika', test: item => quantity(q => THERMAL.test(q.n) || THERMAL.test(q.f.unit))(item) },
+    { id: 'elektrina-magnetismus', label: 'Elektřina a magnetismus', text: 'Proud, napětí, Ohmův zákon, indukce, magnety…',
+        test: item => quantity(q => ELECTRIC_UNITS.test(q.f.unit))(item) || unit(u => ELECTRIC_UNITS.test(u.n))(item) || named('elektrina-magnetismus')(item) },
+    { id: 'teplo', label: 'Teplo a termika', text: 'Teplota, skupenství, termodynamické zákony…',
+        test: item => quantity(q => THERMAL.test(q.n) || THERMAL.test(q.f.unit))(item) || unit(u => THERMAL_UNITS.test(u.n))(item) || named('teplo')(item) },
     { id: 'mechanika', label: 'Mechanika', text: 'Pohyb, síla, energie, tlak',
-        test: quantity(q => /^(metr|kilogram|sekunda|newton|joule|watt|pascal|metr za sekundu|metr za sekundu na druhou|metr čtvereční|metr krychlový|kilogram na metr krychlový|newton metr|radián za sekundu)$/iu.test(q.f.unit) && !THERMAL.test(q.n)) },
+        test: item => quantity(q => /^(metr|kilogram|sekunda|newton|joule|watt|pascal|metr za sekundu|metr za sekundu na druhou|metr čtvereční|metr krychlový|kilogram na metr krychlový|newton metr|radián za sekundu)$/iu.test(q.f.unit) && !THERMAL.test(q.n))(item)
+            || named('mechanika')(item) },
     { id: 'slunecni-soustava', label: 'Sluneční soustava', text: 'Slunce, planety, trpasličí planety a Měsíc', test: item => space('planeta', 'trpasličí planeta')(item) || ['Q525', 'Q405'].includes(item.q) },
     { id: 'mesice', label: 'Měsíce planet', test: space('měsíc') },
     { id: 'hvezdy', label: 'Hvězdy', test: space('hvězda') },
@@ -602,10 +640,30 @@ for (const item of items) {
     if (groups.length) item.g = groups;
     if (item.f) delete item.f.unitId;
 }
-for (const category of Object.keys(LIMITS)) {
-    const inCategory = items.filter(item => item.c === category);
-    console.log(`${category}: ${inCategory.length} (${inCategory.filter(item => item.k).length} známých, ${inCategory.filter(item => item.im).length} s fotkou)`);
-}
-for (const collection of COLLECTIONS) console.log(`okruh ${collection.label}: ${items.filter(item => (item.g || []).includes(collection.id)).length}`);
+const unmatched = Object.values(OKRUH_NAMES).flat().filter(name => !items.some(item => item.n.toLowerCase() === name.toLowerCase()));
+if (unmatched.length) console.log(`Názvy z okruhů, které v datech nejsou: ${unmatched.join(', ')}`);
+
+// --- Úrovně obtížnosti (Základní / Mudrlant / Expert) ---
+// Známost: jazykové verze článku a návštěvnost na české Wikipedii, porovnává se v kategorii (vesmír po druzích těles, astronomové zvlášť
+// od kosmonautů, české vynálezy zvlášť). Známé vždy: planety, Slunce, Měsíc, souhvězdí zvěrokruhu a nejznámější hvězdné obrazce, základní
+// jednotky SI, čeští fyzici a astronomové a učivo základní školy (SCHOOL_KNOWN)
+const sitelinks = new Map([...candidates.quantities, ...candidates.units, ...candidates.space, ...candidates.physicists, ...candidates.astronomers,
+    ...candidates.concepts, ...candidates.particles, ...candidates.missions, ...inventions.map(entry => [entry.qid, entry.sl])].map(([qid, sl]) => [qid, sl]));
+const poolOf = (item) => item.c === 'vesmir' ? `vesmir|${item.ty}` : item.c === 'astronomove' ? `astronomove|${/kosmonaut/.test(item.ty) ? 'kosmonaut' : 'astronom'}`
+    : item.c === 'vynalezy' && item.cz ? 'vynalezy|cz' : item.c;
+const pageviews = await pageviewsByTitle('fyzika-pageviews', items.map(item => item.t));
+for (const item of items) item._ = { sl: sitelinks.get(item.q) || 0, pv: pageviews[item.t], pool: poolOf(item), fixed: (item.k === 1 && !(item.c === 'vynalezy')) || SCHOOL_KNOWN.has(item.n) };
+const levelGroups = [
+    ...COLLECTIONS.map(collection => ({ id: collection.id, members: items.filter(item => (item.g || []).includes(collection.id)) })),
+    ...Object.keys(LIMITS).map(key => ({ id: `kategorie ${key}`, members: items.filter(item => item.c === key) }))
+];
+const promoted = assignLevels(items, { groups: levelGroups, knownShare: pool => pool === 'vynalezy|cz' ? 0.5 : KNOWN_SHARE[pool.split('|')[0]],
+    ceiling: item => item._.pct <= PROMOTE_PCT || (item._.pv || 0) >= PROMOTE_PV });
+console.log(`Povýšeno na známé kvůli okruhům: ${promoted.length}`);
+for (const [group, name] of promoted) console.log(`  ${group}: ${name}`);
+for (const key of Object.keys(LIMITS)) console.log('  ' + levelSummary(key, items.filter(item => item.c === key)));
+for (const collection of COLLECTIONS) console.log('  ' + levelSummary(`okruh ${collection.label}`, items.filter(item => (item.g || []).includes(collection.id))));
+console.log('  ' + levelSummary('celkem', items));
+for (const item of items) delete item._;
 
 writeTopic('fyzika', { collections: COLLECTIONS.map(({ test, ...collection }) => collection), items });
