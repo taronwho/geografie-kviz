@@ -78,6 +78,11 @@ const typical = (db) => {
     addChallenge(db, 'REC002', 'u-4', 'mix', 10, 4, 8, { minutes: 5 });
     addChallenge(db, 'REC003', 'u-5', 'vlajky', 5, 5, null, { minutes: 4 });
 };
+// 25 dohraných výzev: Poslední výzvy se načítají po stránkách při posouvání rozbaleného seznamu
+const many = (db) => {
+    for (let i = 0; i < 24; i++) addChallenge(db, `OLD${String(i).padStart(3, '0')}`, 'u-3', 'mix', 10, 5, 4, { minutes: i * 2 });
+    addChallenge(db, 'REC001', 'u-4', 'historie', 10, 7, 5, { minutes: 48 });
+};
 const busy = (db) => {
     runningEight(db);
     openTournament(db, 87, { mine: false });
@@ -146,7 +151,9 @@ const backend = async (context, db) => {
         if (url.pathname === '/rest/v1/challenge_results') {
             const ids = param('challenge_id').startsWith('in.') ? param('challenge_id').slice(4, -1).split(',') : null;
             if (param('select').includes('challenge:challenges')) {
-                return json(db.results.filter(row => row.user_id === eq('user_id')).sort((a, b) => b.finished_at.localeCompare(a.finished_at)).slice(0, Number(param('limit')) || 50).map(row => ({ ...row, challenge: challengeRow(db.challenges[row.challenge_id]) })));
+                const before = param('finished_at').startsWith('lt.') ? Date.parse(decodeURIComponent(param('finished_at').slice(3))) : Infinity;
+                db.pages = (db.pages || 0) + 1;
+                return json(db.results.filter(row => row.user_id === eq('user_id') && Date.parse(row.finished_at) < before).sort((a, b) => b.finished_at.localeCompare(a.finished_at)).slice(0, Number(param('limit')) || 50).map(row => ({ ...row, challenge: challengeRow(db.challenges[row.challenge_id]) })));
             }
             if (ids && param('user_id').startsWith('neq.')) return json(db.results.filter(row => ids.includes(row.challenge_id) && row.user_id !== param('user_id').replace('neq.', '')).map(row => ({ ...row, player: profile(row.user_id) })));
             if (ids) return json(db.results.filter(row => ids.includes(row.challenge_id) && row.user_id === eq('user_id')).map(row => ({ challenge_id: row.challenge_id })));
@@ -239,6 +246,25 @@ test('záložka Více hráčů je kompaktní', { skip: !chromium && 'Playwright 
             });
         }
     }
+
+    await t.test('Poslední výzvy: rozbalení ukáže všechny načtené, posouvání dolů načte starší až do konce', async () => {
+        const { context, tab, log } = await start(many, { viewport: { width: 390, height: 780 }, now: `${MON}T10:00:00Z` });
+        const rows = () => tab.locator('#challenges-section [data-action="challenge-open"][data-code^="OLD"]').count();
+        await tab.waitForFunction(() => document.querySelectorAll('#challenges-section [data-action="challenge-open"]').length === 3);
+        await tab.click('[data-action="recent-more"]');
+        // prvních 8 + hned další stránka (hlídka na konci je vidět), pak posouvání dolů načte zbytek
+        await tab.waitForFunction(() => document.querySelectorAll('#challenges-section [data-action="challenge-open"]').length >= 23, null, { timeout: 20000 });
+        await tab.evaluate(() => { const box = document.getElementById('app-content'); box.scrollTo(0, box.scrollHeight); });
+        await tab.waitForSelector('#challenges-section [data-recent-end]', { timeout: 20000 });
+        assert.equal(await rows(), 24, 'všech 25 výzev (24 starších + nejnovější REC001)');
+        assert.match(await tab.textContent('[data-recent-end]'), /To jsou všechny tvoje výzvy/);
+        const codes = await tab.$$eval('#challenges-section [data-action="challenge-open"]', items => items.map(item => item.dataset.code));
+        assert.equal(new Set(codes).size, codes.length, 'bez duplicit');
+        assert.equal(codes[0], 'REC001', 'nejnovější nahoře');
+        assert.deepEqual(codes.slice(1), [...codes.slice(1)].sort().reverse(), 'starší od nejnovější');
+        assert.deepEqual(log.errors, []);
+        await context.close();
+    });
 
     for (const [width, height, colorScheme] of [[390, 780, 'light'], [360, 640, 'dark']]) await t.test(`hodně obsahu ${width}×${height}, ${colorScheme === 'dark' ? 'tmavý' : 'světlý'} režim: běžící turnaj, dvě pozvánky, šest výzev; Zobrazit vše rozbalí starší`, async () => {
         const { context, tab, log } = await start(busy, { viewport: { width, height }, colorScheme, now: `${MON}T10:00:00Z` });

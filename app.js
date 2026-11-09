@@ -5247,6 +5247,10 @@
     let recentReactions = [];
     let myBlocks = null;
     let recentExpanded = false; // Poslední výzvy: rozbalené všechny (jinak jen tři nejnovější)
+    // Starší výzvy načtené při posouvání rozbaleného seznamu (stránky po RECENT_PAGE); done = už žádné starší nejsou
+    const RECENT_PAGE = 15;
+    let recentOlder = { rows: [], loading: false, done: false, error: false };
+    let recentObserver = null;
     let challengesLoading = false;
     const signedUser = () => (Auth && Auth.getState().user) || null;
     const playerName = (player) => (player && player.display_name) || 'Hráč';
@@ -5657,12 +5661,18 @@
     // Poslední výzvy: jen tři nejnovější, Zobrazit vše rozbalí zbytek
     const recentSection = (incoming) => {
         const LABEL = 'px-1 text-[11px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400';
-        const rows = myChallenges === null ? [] : myChallenges.filter(row => !incoming.some(invite => invite.id === row.challenge_id)).slice(0, 6);
-        const more = rows.length > 3;
-        const toggle = more ? `<button type="button" data-action="recent-more" aria-expanded="${recentExpanded}" class="flex min-h-[2rem] items-center gap-1 rounded-lg px-1.5 text-[11px] font-black text-brand-700 active:scale-95 dark:text-cream">${recentExpanded ? 'Méně' : `Zobrazit vše (${rows.length})`}<i data-lucide="chevron-down" class="h-3.5 w-3.5 ${recentExpanded ? 'rotate-180' : ''}"></i></button>` : '';
+        const seen = new Set();
+        const rows = myChallenges === null ? [] : [...myChallenges, ...(recentExpanded ? recentOlder.rows : [])]
+            .filter(row => !incoming.some(invite => invite.id === row.challenge_id) && !seen.has(row.challenge_id) && seen.add(row.challenge_id));
+        const more = rows.length > 3 || (myChallenges || []).length >= 8;
+        const toggle = more ? `<button type="button" data-action="recent-more" aria-expanded="${recentExpanded}" class="flex min-h-[2rem] items-center gap-1 rounded-lg px-1.5 text-[11px] font-black text-brand-700 active:scale-95 dark:text-cream">${recentExpanded ? 'Méně' : 'Zobrazit vše'}<i data-lucide="chevron-down" class="h-3.5 w-3.5 ${recentExpanded ? 'rotate-180' : ''}"></i></button>` : '';
+        // Rozbalený seznam: na konci hlídka, která při dojetí dolů načte starší výzvy (a tlačítko pro případ, že posouvání nejde)
+        const tail = !recentExpanded ? '' : recentOlder.done
+            ? `<p data-recent-end class="px-1 py-1 text-center text-[11px] font-semibold text-slate-500 dark:text-slate-400">${rows.length > 3 ? 'To jsou všechny tvoje výzvy.' : ''}</p>`
+            : `<button type="button" data-action="recent-older" data-recent-sentinel class="flex min-h-[2.5rem] w-full items-center justify-center gap-1.5 rounded-xl text-[12px] font-bold text-slate-500 dark:text-slate-400">${recentOlder.loading ? 'Načítám starší výzvy…' : recentOlder.error ? 'Starší výzvy se nepodařilo načíst. Zkusit znovu' : 'Načíst starší výzvy'}</button>`;
         const body = myChallenges === null
             ? '<p class="px-1 text-xs font-semibold text-slate-500 dark:text-slate-400">Načítám výzvy…</p>'
-            : rows.length ? `<div class="flex flex-col gap-1.5">${(recentExpanded ? rows : rows.slice(0, 3)).map(challengeRow).join('')}</div>`
+            : rows.length ? `<div data-recent-list class="flex flex-col gap-1.5">${(recentExpanded ? rows : rows.slice(0, 3)).map(challengeRow).join('')}${tail}</div>`
                 : `<div class="flex items-center gap-3 rounded-2xl bg-white p-2.5 shadow-sm ring-1 ring-slate-200/70 dark:bg-slate-800/70 dark:ring-slate-700/70">${uiArt('sova-vyzva', 'h-10 w-10')}<p class="text-sm text-slate-600 dark:text-slate-300">Zatím žádné výzvy. Založ první tlačítkem Vyzvat.</p></div>`;
         return `<div class="flex flex-col gap-1"><div class="flex min-h-[2rem] items-center justify-between gap-2"><p class="${LABEL}">Poslední výzvy</p>${toggle}</div>${body}</div>`;
     };
@@ -5757,6 +5767,39 @@
         if (!element) return;
         element.innerHTML = challengesInner();
         renderIcons(element);
+        watchRecentEnd();
+    };
+    // Starší výzvy: další stránka od nejstarší načtené (podle času dohrání)
+    const loadOlderChallenges = async () => {
+        const user = signedUser();
+        if (!user || !Social || !recentExpanded || recentOlder.loading || recentOlder.done || myChallenges === null) return;
+        const all = [...myChallenges, ...recentOlder.rows];
+        if (all.length < 8 && !recentOlder.rows.length) { recentOlder.done = true; paintChallenges(); return; }
+        const oldest = all.reduce((min, row) => (!min || String(row.finished_at) < min ? String(row.finished_at) : min), '');
+        recentOlder.loading = true;
+        recentOlder.error = false;
+        paintChallenges();
+        try {
+            const page = await Social.myChallenges(user.id, RECENT_PAGE, oldest);
+            if (!signedUser() || signedUser().id !== user.id) return;
+            recentOlder.rows = [...recentOlder.rows, ...page];
+            if (page.length < RECENT_PAGE) recentOlder.done = true;
+        } catch (error) {
+            recentOlder.error = true;
+        } finally {
+            recentOlder.loading = false;
+            paintChallenges();
+        }
+    };
+    // Hlídka na konci rozbaleného seznamu: jakmile se při posouvání ukáže, načtou se starší výzvy
+    const watchRecentEnd = () => {
+        if (recentObserver) { recentObserver.disconnect(); recentObserver = null; }
+        const sentinel = document.querySelector('#challenges-section [data-recent-sentinel]');
+        if (!sentinel || recentOlder.loading || recentOlder.error || typeof IntersectionObserver === 'undefined') return;
+        recentObserver = new IntersectionObserver((entries) => {
+            if (entries.some(entry => entry.isIntersecting)) { recentObserver.disconnect(); recentObserver = null; loadOlderChallenges(); }
+        }, { root: appContent, rootMargin: '0px 0px 200px 0px' });
+        recentObserver.observe(sentinel);
     };
     const refreshChallenges = async () => {
         const user = signedUser();
@@ -5774,6 +5817,7 @@
             ]);
             if (!signedUser() || signedUser().id !== user.id) return;
             myChallenges = mine;
+            recentOlder = { rows: [], loading: false, done: false, error: false };
             myRating = rating;
             incomingList = incoming;
             paintChallenges();
@@ -8823,6 +8867,7 @@
         'new-challenge': () => openNewChallenge(),
         'random-challenge': () => openNewChallenge({ who: 'random' }),
         'recent-more': () => { recentExpanded = !recentExpanded; paintChallenges(); },
+        'recent-older': () => { recentOlder.error = false; loadOlderChallenges(); },
         'join-challenge': () => openJoinChallenge(),
         'challenge-open': (button) => openChallenge(button.dataset.code),
         'challenge-resume': async () => {

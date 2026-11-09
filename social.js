@@ -190,8 +190,10 @@
         body: { challenge_id: code, user_id: userId, correct: wholeNumber(correct, 20), points: wholeNumber(points, 80) }, prefer: 'resolution=ignore-duplicates,return=minimal'
     });
     // Moje výzvy, nejnovější první, s mým výsledkem a výsledky ostatních
-    const myChallenges = async (userId, limit = 8) => {
-        const mine = await withExtras(extras => request('GET', `challenge_results?user_id=eq.${encodeURIComponent(userId)}&select=challenge_id,correct,points,finished_at,challenge:challenges(id,topic,count,creator:profiles!creator_id(${profileFields(extras)}))&order=finished_at.desc&limit=${limit}`)) || [];
+    // before = finished_at nejstarší už načtené výzvy: další (starší) stránka pro nekonečný seznam Posledních výzev
+    const myChallenges = async (userId, limit = 8, before = null) => {
+        const older = before && !Number.isNaN(Date.parse(before)) ? `&finished_at=lt.${encodeURIComponent(new Date(before).toISOString())}` : '';
+        const mine = await withExtras(extras => request('GET', `challenge_results?user_id=eq.${encodeURIComponent(userId)}${older}&select=challenge_id,correct,points,finished_at,challenge:challenges(id,topic,count,creator:profiles!creator_id(${profileFields(extras)}))&order=finished_at.desc&limit=${Math.max(1, Math.min(50, wholeNumber(limit, 50)))}`)) || [];
         if (!mine.length) return [];
         const ids = mine.map(row => row.challenge_id).join(',');
         const others = await withExtras(extras => request('GET', `challenge_results?challenge_id=in.(${ids})&user_id=neq.${encodeURIComponent(userId)}&select=challenge_id,correct,points,player:profiles!user_id(${profileFields(extras)})`)) || [];
