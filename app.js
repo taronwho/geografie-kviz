@@ -2865,7 +2865,7 @@
     };
     // Řádek „+30 XP“ s rozpisem (odpověď, dnešní otázka, série…) pod výsledkem
     const xpLine = (xp, tone) => xp && (xp.total || (xp.badges && xp.badges.length))
-        ? `<div class="mt-0.5 text-xs font-bold ${tone}">${xp.total ? `<span class="inline-block rounded-md bg-gold-500 px-1.5 py-0.5 font-black text-brand-950">+${xp.total} XP</span>` : ''}${(xp.badges || []).map(title => `<span class="ml-1 inline-flex items-center gap-1 rounded-md bg-brand-700 px-1.5 py-0.5 font-black text-white"><i data-lucide="award" class="h-3 w-3"></i>${escapeHtml(title)}</span>`).join('')}${xp.parts.length ? `<ul class="mt-1 space-y-0.5 font-semibold opacity-90">${xp.parts.map(part => `<li>+${part.xp} XP ${escapeHtml(part.label)}</li>`).join('')}</ul>` : ''}</div>` : '';
+        ? `<div class="mt-0.5 text-xs font-bold ${tone}">${xp.total ? `<span class="inline-block rounded-md bg-gold-500 px-1.5 py-0.5 font-black text-brand-950">+${xp.total} XP</span>` : ''}${(xp.badges || []).map(title => `<span class="ml-1 inline-flex items-center gap-1 rounded-md bg-brand-700 px-1.5 py-0.5 font-black text-white"><i data-lucide="award" class="h-3 w-3"></i>${escapeHtml(title)}</span>`).join('')}${xp.parts.length === 1 && !(xp.badges || []).length && xp.parts[0].xp === xp.total ? `<span class="ml-1.5 font-semibold opacity-90">${escapeHtml(xp.parts[0].label)}</span>` : xp.parts.length ? `<ul class="mt-1 space-y-0.5 font-semibold opacity-90">${xp.parts.map(part => `<li>+${part.xp} XP ${escapeHtml(part.label)}</li>`).join('')}</ul>` : ''}</div>` : '';
 
     const renderResultBanner = (data) => {
         if (data.question.type === 'map' && MapQuestion) return MapQuestion.resultBanner(data, round, { uiArt, xpLine, totalLine: scoreTotalLine });
@@ -2884,17 +2884,29 @@
                     </div>
                 </div>`;
         }
+        // Správná odpověď jako první a nejvýraznější (zelený rámeček), hráčova odpověď pod ní přeškrtnutá
+        const correctChoice = (data.question.choices || []).find(choice => choice.correct);
+        const correctRef = correctChoice && correctChoice.id ? { topic: correctChoice.topic || data.topic, id: correctChoice.id } : null;
+        const correctInfo = isKnownRef(correctRef);
+        const correctBody = `
+            <span class="flex items-center gap-1 text-[10px] font-black uppercase tracking-wider text-emerald-700 dark:text-emerald-300"><i data-lucide="circle-check" class="h-3.5 w-3.5"></i>Správná odpověď</span>
+            <span class="flex items-center gap-1.5 text-base font-black leading-snug text-emerald-900 dark:text-emerald-50">${escapeHtml(data.question.answerLabel)}${correctInfo ? '<i data-lucide="info" class="h-4 w-4 shrink-0 opacity-70"></i>' : ''}</span>`;
+        const correctBox = correctInfo
+            ? `<button type="button" data-correct-answer data-action="item-info" data-topic="${escapeHtml(correctRef.topic)}" data-id="${escapeHtml(correctRef.id)}" aria-label="Správná odpověď: ${escapeHtml(data.question.answerLabel)} – ukázat popis" class="mt-1.5 flex w-full flex-col items-start rounded-xl border-2 border-emerald-500 bg-emerald-50 px-3 py-1.5 text-left transition-colors hover:bg-emerald-100 dark:border-emerald-500 dark:bg-emerald-900/50 dark:hover:bg-emerald-900">${correctBody}</button>`
+            : `<div data-correct-answer class="mt-1.5 flex flex-col items-start rounded-xl border-2 border-emerald-500 bg-emerald-50 px-3 py-1.5 dark:border-emerald-500 dark:bg-emerald-900/50">${correctBody}</div>`;
         return `
-            <div data-verdict tabindex="-1" class="flex items-center gap-3 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 outline-none dark:border-rose-800 dark:bg-rose-900/30">
-                ${uiArt('sova-smutek', 'h-[4.5rem] w-[4.5rem] -my-3')}
-                <div>
+            <div data-verdict tabindex="-1" class="flex items-start gap-3 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 outline-none dark:border-rose-800 dark:bg-rose-900/30">
+                ${uiArt('sova-smutek', 'h-14 w-14 shrink-0')}
+                <div class="min-w-0 flex-1">
                     <p class="font-black text-rose-800 dark:text-rose-200">${round.gaveUp ? 'Tentokrát bez odpovědi' : 'Bohužel, to není ono'}</p>
-                    <p class="text-sm text-rose-800 dark:text-rose-300">${round.answer ? `Tvoje odpověď: ${escapeHtml(round.answer)} · ` : ''}Správně: ${escapeHtml(data.question.answerLabel)}</p>
+                    ${correctBox}
+                    ${round.answer ? `
+                        <p data-wrong-answer class="mt-1.5 flex items-start gap-1 text-sm text-rose-800 dark:text-rose-300"><i data-lucide="circle-x" class="mt-0.5 h-4 w-4 shrink-0"></i><span>Tvoje odpověď: <s class="font-semibold decoration-2">${escapeHtml(round.answer)}</s></span></p>` : ''}
                     ${scoreTotalLine('text-rose-800 dark:text-rose-300')}
                     ${answerStatsLine(data, 'text-rose-800 dark:text-rose-300')}
                     ${xpLine(round.xp, 'text-rose-800 dark:text-rose-300')}
                     ${round.answerRef ? `
-                        <button type="button" data-action="item-info" data-topic="${escapeHtml(round.answerRef.topic)}" data-id="${escapeHtml(round.answerRef.id)}" class="mt-2 inline-flex min-h-[2.5rem] items-center gap-1.5 rounded-lg bg-white px-2.5 py-1.5 text-xs font-bold text-rose-700 shadow-sm transition-colors hover:bg-rose-100 dark:bg-rose-950 dark:text-rose-200 dark:hover:bg-rose-900">
+                        <button type="button" data-action="item-info" data-topic="${escapeHtml(round.answerRef.topic)}" data-id="${escapeHtml(round.answerRef.id)}" class="mt-1.5 inline-flex min-h-[2.25rem] items-center gap-1.5 rounded-lg bg-white px-2.5 py-1 text-xs font-bold text-rose-700 shadow-sm transition-colors hover:bg-rose-100 dark:bg-rose-950 dark:text-rose-200 dark:hover:bg-rose-900">
                             <i data-lucide="info" class="h-3.5 w-3.5"></i> Ukaž ${escapeHtml(round.answer)}
                         </button>
                     ` : ''}

@@ -448,6 +448,13 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         await tab.click(`[data-action="choice"]:has-text("${wrong[0].label}")`);
         await waitForResult(tab);
         assert.match(await appText(tab), new RegExp(`Tvoje odpověď: ${wrong[0].label}`));
+        // Správná odpověď je nahoře ve výrazném rámečku, hráčova odpověď až pod ní (přeškrtnutá)
+        const correct = data.question.choices.find(choice => choice.correct);
+        assert.match(await tab.textContent('[data-verdict] [data-correct-answer]'), new RegExp(`Správná odpověď\\s*${correct.label}`));
+        assert.equal(await tab.textContent('[data-verdict] [data-wrong-answer] s'), wrong[0].label);
+        const order = await tab.evaluate(() => document.querySelector('[data-correct-answer]').getBoundingClientRect().bottom <= document.querySelector('[data-wrong-answer]').getBoundingClientRect().top);
+        assert.ok(order, 'správná odpověď je nad hráčovou');
+        if (process.env.SHOT_DIR) await tab.screenshot({ path: require('path').join(process.env.SHOT_DIR, 'spatna-odpoved.png') });
 
         // Okno s popisem: název, úvod z Wikipedie, mapa a fakta
         await tab.click(`[data-action="item-info"]:has-text("Ukaž ${wrong[0].label}")`);
