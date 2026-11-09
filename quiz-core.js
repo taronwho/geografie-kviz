@@ -1536,6 +1536,20 @@
         return Math.log(Math.tan(Math.PI / 4 + radians / 2)) * 180 / Math.PI;
     };
     const inverseMercatorY = (y) => Math.atan(Math.sinh(y * Math.PI / 180)) * 180 / Math.PI;
+    // Zeměpisné délky obrysu (ring = [délka×10, šířka×10, …]) pro mapu se středem v délce lon: obrys přes 180. poledník (Fidži,
+    // Čukotka) se rozbalí, aby body navazovaly (skok 179,9° → −179,9° by jinak nakreslil čáru přes celou mapu), a celý se posune
+    // o ±360°, aby ležel co nejblíž středu mapy
+    const ringLons = (ring, lon) => {
+        const lons = [];
+        for (let i = 0; i < ring.length; i += 2) {
+            let value = ring[i] / 10;
+            if (lons.length) value += Math.round((lons[lons.length - 1] - value) / 360) * 360;
+            lons.push(value);
+        }
+        const mean = lons.reduce((sum, value) => sum + value, 0) / (lons.length || 1);
+        const shift = Math.round((lon - mean) / 360) * 360;
+        return shift ? lons.map(value => value + shift) : lons;
+    };
     const buildBlindMap = (world, { lat, lon, spanLon, width, height, highlightIso }) => {
         const scale = width / spanLon;
         const centerY = mercatorY(lat);
@@ -1543,14 +1557,11 @@
         for (const country of world.countries) {
             let path = '';
             for (const ring of country.r) {
-                let lonSum = 0;
-                for (let i = 0; i < ring.length; i += 2) lonSum += ring[i];
-                // Obrys posunout o ±360°, aby ležel co nejblíž středu (mapa přes 180. poledník)
-                const shift = Math.round((lon - lonSum / (ring.length / 2) / 10) / 360) * 360;
+                const lons = ringLons(ring, lon);
                 let ringPath = '';
                 let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
                 for (let i = 0; i < ring.length; i += 2) {
-                    const x = (ring[i] / 10 + shift - lon) * scale + width / 2;
+                    const x = (lons[i / 2] - lon) * scale + width / 2;
                     const y = height / 2 - (mercatorY(ring[i + 1] / 10) - centerY) * scale;
                     ringPath += `${i === 0 ? 'M' : 'L'}${x.toFixed(1)} ${y.toFixed(1)}`;
                     minX = Math.min(minX, x); maxX = Math.max(maxX, x); minY = Math.min(minY, y); maxY = Math.max(maxY, y);
@@ -1570,12 +1581,10 @@
         let total = 0;
         for (const country of world.countries) {
             for (const ring of country.r) {
-                let lonSum = 0;
-                for (let i = 0; i < ring.length; i += 2) lonSum += ring[i];
-                const shift = Math.round((lon - lonSum / (ring.length / 2) / 10) / 360) * 360;
+                const lons = ringLons(ring, lon);
                 let px = null, py = null;
                 for (let i = 0; i < ring.length; i += 2) {
-                    const x = (ring[i] / 10 + shift - lon) * scale + width / 2;
+                    const x = (lons[i / 2] - lon) * scale + width / 2;
                     const y = height / 2 - (mercatorY(ring[i + 1] / 10) - centerY) * scale;
                     // Úsek se počítá, když je jeho střed ve výřezu (na odhad stačí)
                     if (px !== null && (px + x) / 2 >= 0 && (px + x) / 2 <= width && (py + y) / 2 >= 0 && (py + y) / 2 <= height) total += Math.hypot(x - px, y - py);
@@ -2303,7 +2312,7 @@
         distanceKm, nearness, STATE_STEPS, sharesGroup, eraNearness, personSimilarity, rankBySimilarity, takeDistinct,
         buildItemChoices, buildCountryChoices, findAnswerItem, findAnswerCountry, updateMistakes, nameAnswers, countryAnswers,
         pointsFor, dropKnownFacts, scaleKnown, timelineKnown, dropChoiceNames, sharesWordRoot, chooseDescription, censoredShare, MAX_CENSORED_SHARE, isFactVisible, formatNumber, formatPopulation, formatYear, formatFacts, getMapSpan, buildBlindMap, blindMapSpan, visibleOutline,
-        mercatorY, inverseMercatorY, regionalView, buildRegionalMap, mapExtent, REGIONAL_WINDOW, REGIONAL_DIGITS, decodeNumbers,
+        mercatorY, inverseMercatorY, ringLons, regionalView, buildRegionalMap, mapExtent, REGIONAL_WINDOW, REGIONAL_DIGITS, decodeNumbers,
         buildTimeline, centuryOf, centuryLabel, computeStreak, buildShareText, getTileLayout
     };
 });
