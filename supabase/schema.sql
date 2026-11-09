@@ -166,6 +166,11 @@ drop trigger if exists challenges_limit on public.challenges;
 create trigger challenges_limit before insert on public.challenges for each row execute function public.limit_challenges();
 -- Nastavení výzvy: i těžší (méně známé) otázky, vybrané okruhy tématu (prázdné = všechny) a pevný způsob odpovídání
 alter table public.challenges add column if not exists include_hard boolean not null default false;
+-- Obtížnost výzvy: 1 Základní, 2 Mudrlant, 3 Mudrlant Expert (null = podle include_hard; starší klienti znají jen include_hard)
+alter table public.challenges add column if not exists level smallint;
+do $$ begin
+    alter table public.challenges add constraint challenges_level_check check (level is null or level between 1 and 3);
+exception when duplicate_object then null; end $$;
 alter table public.challenges add column if not exists categories text[] not null default '{}';
 alter table public.challenges add column if not exists variant text;
 alter table public.challenges drop constraint if exists challenges_variant_list;
@@ -3059,7 +3064,8 @@ grant execute on function public.daily_quiz_answer(date, integer, boolean, integ
 -- 13: tournament_details ukáže rozpis i cizího rozhodnutého zápasu (ne hráči, který má v tomtéž kole vlastní zápas neodehraný).
 -- 14: boti v turnaji ukládají odpovědi po otázkách (správně, body, nápovědy, čas) – rozpis zápasu je ukáže i u nich.
 -- 15: Rozpis Kvízu dne (daily_quiz_answers, daily_quiz_answer s textem odpovědi a nápovědami, daily_quiz_details).
+-- 16: Obtížnost výzvy ve třech úrovních (challenges.level: Základní, Mudrlant, Mudrlant Expert).
 create or replace function public.schema_version() returns integer
-language sql immutable as $$ select 15 $$;
+language sql immutable as $$ select 16 $$;
 revoke all on function public.schema_version() from public, anon;
 grant execute on function public.schema_version() to authenticated;

@@ -155,15 +155,16 @@ const shot = async (tab, name) => {
     await tab.screenshot({ path: path.join(SHOTS, `${name}.png`) });
 };
 const chipPoints = async (tab) => Number(((await tab.textContent('[data-score-chip]')) || '').replace(/\D+/g, ''));
-// Záhlaví otázky: čip vlevo, štítek uprostřed bez zalomení a bez překryvu s čipem (a s časem, je-li)
+// Záhlaví otázky: čip s body (a čas, soupeř ve výzvě), štítek druhu otázky bez zalomení a bez překryvu s nimi
 const headerFits = (tab) => tab.evaluate(() => {
     const chip = document.querySelector('[data-score-chip]');
-    const label = chip.parentElement.querySelector(':scope > span.inline-flex:not([data-score-chip]):not(.absolute)');
+    const label = document.querySelector('#app-content [data-header-label]');
     const timer = document.querySelector('[data-tour-timer]');
     const a = chip.getBoundingClientRect();
     const b = label.getBoundingClientRect();
-    const lineHeight = parseFloat(getComputedStyle(label).lineHeight) || 15;
-    return { overlap: a.right > b.left - 1 || (timer ? timer.parentElement.getBoundingClientRect().left < b.right + 1 : false), wrapped: b.height > lineHeight * 1.9 + 8, chipWrapped: a.height > 26 };
+    const others = [a, timer && timer.parentElement.getBoundingClientRect(), document.querySelector('[data-opponent-chip]') && document.querySelector('[data-opponent-chip]').getBoundingClientRect()].filter(Boolean);
+    const hits = (r) => r.left < b.right - 1 && b.left < r.right - 1 && r.top < b.bottom - 1 && b.top < r.bottom - 1;
+    return { overlap: others.some(hits), wrapped: b.height > 26, chipWrapped: a.height > 26 };
 });
 // Odpověď na otázku: hint = nejdřív nápověda, giveUp = Nevím; vrátí text zvolené možnosti
 const answer = async (tab, { giveUp = false, hint = false, correct = false } = {}) => {

@@ -162,20 +162,34 @@
     };
 
     // Založí výzvu a vrátí ji (kód vybírá klient; při srážce s existujícím kódem zkusí jiný)
-    const createChallenge = async (userId, { topic, count, invitedId = null, includeHard = false, categories = [], variant = null }) => {
+    // Obtížnost: level 1 Základní, 2 Mudrlant, 3 Mudrlant Expert (sloupec level od schématu 16; include_hard = aspoň Mudrlant
+    // pro starší klienty). Bez sloupce level (starší databáze) se Expert založí jako Mudrlant.
+    let levelMissing = false;
+    const createChallenge = async (userId, { topic, count, invitedId = null, includeHard = false, level = null, categories = [], variant = null }) => {
         if (!COUNTS.includes(count)) throw new SocialError('Neplatný počet otázek.', 400);
+        const wanted = [1, 2, 3].includes(level) ? level : includeHard ? 2 : 1;
         for (let attempt = 0; attempt < 4; attempt++) {
             const id = newCode();
+            const body = { id, creator_id: userId, topic, seed: `vyzva-${id}-${Date.now().toString(36)}`, count, invited_id: invitedId, include_hard: wanted >= 2, categories: (categories || []).slice(0, 20), variant: variant === 'typed' || variant === 'choices' ? variant : null };
             try {
-                const rows = await request('POST', 'challenges', { body: { id, creator_id: userId, topic, seed: `vyzva-${id}-${Date.now().toString(36)}`, count, invited_id: invitedId, include_hard: Boolean(includeHard), categories: (categories || []).slice(0, 20), variant: variant === 'typed' || variant === 'choices' ? variant : null }, prefer: 'return=representation' });
+                const rows = await request('POST', 'challenges', { body: wanted === 3 && !levelMissing ? { ...body, level: 3 } : body, prefer: 'return=representation' });
                 return rows[0];
             } catch (error) {
+                if (error.status === 400 && wanted === 3 && !levelMissing) { levelMissing = true; attempt--; continue; }
                 if (error.status !== 409) throw error;
             }
         }
         throw new SocialError('Výzvu se nepodařilo založit.', 409);
     };
-    const getChallenge = async (code) => (await withExtras(extras => request('GET', `challenges?id=eq.${encodeURIComponent(code)}&select=id,topic,seed,count,created_at,include_hard,categories,variant,creator:profiles!creator_id(${profileFields(extras)}),invited:profiles!invited_id(${profileFields(extras)})`)) || [])[0] || null;
+    const getChallenge = async (code) => {
+        const run = async () => (await withExtras(extras => request('GET', `challenges?id=eq.${encodeURIComponent(code)}&select=id,topic,seed,count,created_at,include_hard,${levelMissing ? '' : 'level,'}categories,variant,creator:profiles!creator_id(${profileFields(extras)}),invited:profiles!invited_id(${profileFields(extras)})`)) || [])[0] || null;
+        try { return await run(); } catch (error) {
+            // Databáze bez sloupce level (před schématem 16): výzva bez úrovně Expert
+            if (error.status !== 400 || levelMissing) throw error;
+            levelMissing = true;
+            return run();
+        }
+    };
     // Pořadí ve výzvě: víc bodů, při shodě víc správných (stejně jako MudrlantRating.compareResults a databáze)
     const compareResults = (a, b) => ((Number(a.points) || 0) - (Number(b.points) || 0)) || ((Number(a.correct) || 0) - (Number(b.correct) || 0));
     // Výsledky hráčů ve výzvě, nejlepší první (víc bodů, pak víc správných, pak dřív hotové)
