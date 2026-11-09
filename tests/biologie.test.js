@@ -29,7 +29,7 @@ const wrongChoices = (item, seed) => core.buildItemChoices(item, data.items, cor
 
 test('biologie: plemena psů a koček – data, známost a okruhy', () => {
     const breeds = data.items.filter(item => item.c === 'plemena');
-    assert.ok(breeds.length >= 150 && breeds.length <= 300, `plemen ${breeds.length}`);
+    assert.ok(breeds.length >= 300 && breeds.length <= 420, `plemen ${breeds.length}`);
     assert.ok(share(breeds) >= 0.2 && share(breeds) <= 0.35, `známých ${share(breeds)}`);
     assert.ok(breeds.every(item => item.im && item.ih && ['psí plemeno', 'kočičí plemeno'].includes(item.ty)), 'plemeno se pozná podle fotky');
     for (const name of ['Německý ovčák', 'Labradorský retrívr', 'Siamská kočka', 'Perská kočka', 'Československý vlčák']) assert.equal(find(name).k, 1, `${name} má být známé`);

@@ -7,7 +7,7 @@ vyžadují jen uvedení autora a licence – to dělá stránka Zdroje a licence
 
 ## Souhrn
 
-- souborů celkem: **27419**, s načtenými metadaty: **27419**, zatím nestaženo: **0**
+- souborů celkem: **28730**, s načtenými metadaty: **28730**, zatím nestaženo: **0**
 - problémových: **0**
 
 ## Počty podle témat
@@ -15,7 +15,7 @@ vyžadují jen uvedení autora a licence – to dělá stránka Zdroje a licence
 | Téma | Souborů | Problémových | NC | ND | NC-ND | fair use | bez licence | chybí |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | architektura | 1668 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| biologie | 3711 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| biologie | 5022 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | chemie | 961 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | film | 720 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | fyzika | 1587 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |

@@ -82,8 +82,8 @@ const CZECH_BREEDS_KNOWN = new Set(['Československý vlčák', 'Český fousek'
 // Šelmy a kříženci, které Wikidata vedou jako plemeno, i když jde o divoký druh (dingo) nebo nejde o plemeno v pravém smyslu
 const NOT_BREEDS = new Set(['Q38584', 'Q144']);
 const NOT_BREED_NAME = /dingo/iu;
-const BREEDS_LIMIT = 260;
-const BREEDS_KNOWN = 0.27;
+// Kolik nejznámějších psích a kočičích plemen je známých (další doplní spodní hranice ve skupinách FCI, scripts/lib/biologie-levels.mjs)
+const BREEDS_KNOWN = { pes: 62, kocka: 10 };
 
 export const buildBreeds = async ({ takenIds, takenNames }) => {
     const candidates = await cached('biologie-plemena-candidates', async () => {
@@ -116,8 +116,8 @@ export const buildBreeds = async ({ takenIds, takenNames }) => {
         const title = first(detail, 't');
         const label = first(detail, 'n') || (title || '').replace(/ \(.*\)$/, '');
         const isCzech = (detail.land || []).some(qid => CZECH_STATES.has(qid));
-        // Bez fotky se plemeno poznat nedá; česká plemena se vezmou i nad limit
-        if (!title || !label || !first(detail, 'im') || NOT_BREED_NAME.test(label) || (items.length >= BREEDS_LIMIT && !isCzech)) continue;
+        // Bez fotky se plemeno poznat nedá; málo známá plemena se vezmou také (úroveň Expert)
+        if (!title || !label || !first(detail, 'im') || NOT_BREED_NAME.test(label)) continue;
         const name = capitalize(label);
         if (takenNames.has(name.toLowerCase())) continue;
         takenNames.add(name.toLowerCase());
@@ -150,7 +150,7 @@ export const buildBreeds = async ({ takenIds, takenNames }) => {
     // Známost: v každém druhu (psi, kočky) nejvíc jazykových verzí, k tomu nejznámější česká plemena
     for (const kind of ['pes', 'kocka']) {
         const list = items.filter(item => item.f.kind === kind).sort((a, b) => b.sl - a.sl);
-        list.forEach((item, index) => { item.k = index < Math.round(list.length * BREEDS_KNOWN) || CZECH_BREEDS_KNOWN.has(item.n) ? 1 : 0; });
+        list.forEach((item, index) => { item.k = index < BREEDS_KNOWN[kind] || CZECH_BREEDS_KNOWN.has(item.n) ? 1 : 0; });
     }
     console.log(`plemena: ${counts.pes} psů, ${counts.kocka} koček, ${items.filter(item => item.f.fci).length} se skupinou FCI`);
     return items;
@@ -162,8 +162,13 @@ export const buildBreeds = async ({ takenIds, takenNames }) => {
 const BONE = 'Q265868';
 const MUSCLE = 'Q7365';
 const GLAND = 'Q9647';
-const BONE_NAME = /kost|obratel|čéška|žebro|čelist|lopatka|kostrč|jazylka|^atlas$|kladívko|kovadlinka|třmínek|článek prstu|záprstí|zánártí|zápěstí|^nárt$|čepovec/iu;
+const BONE_NAME = /kost|^lebka$|^sluchové kůstky$|obratel|čéška|žebro|čelist|lopatka|kostrč|jazylka|^atlas$|kladívko|kovadlinka|třmínek|článek prstu|záprstí|zánártí|zápěstí|^nárt$|čepovec/iu;
 const NOT_BONE = /zubovin|dřeň|^lidská kostra$|^kost$|kostní tkáň/iu;
+// Kosti, které Wikidata nevedou jako podtřídu kosti (lebka)
+const BONE_ALWAYS = /^lebka$/iu;
+// Nervy: hlavové nervy, loketní a středový nerv (obecné pojmy – nerv, aferentní nerv – ne)
+const NERVE_NAME = /(?<!\p{L})nerv$/iu;
+const NOT_NERVE = /^(nerv|hlavový nerv|míšní nerv|aferentní nerv|eferentní nerv)$/iu;
 const MUSCLE_NAME = /sval|bránice|bedrovec|ohýbač|natahovač|zdvihač|vzpřimovač|napínač|^lýtko$/iu;
 const NOT_MUSCLE = /svalovin|uzel|vlákn|svazek|systém|dno|^sval$|^svaly |dýchací/iu;
 const GLAND_NAME = /žláz|příštítn|hypofýz|šišink|nadledvin|brzlík/iu;
@@ -171,13 +176,16 @@ const NOT_GLAND = /soustava|s vnější sekrecí$|s vnitřní sekrecí$|^žláza
 // Orgány (bez kostí, svalů a žláz): soustava, do které patří
 const ORGAN_SYSTEMS = {
     'trávicí soustava': ['jícen', 'žaludek', 'tenké střevo', 'tlusté střevo', 'dvanáctník', 'lačník', 'kyčelník', 'slepé střevo', 'apendix', 'konečník', 'játra',
-        'žlučník', 'hltan', 'slinivka břišní', 'zub', 'dáseň', 'patro'],
+        'žlučník', 'hltan', 'slinivka břišní', 'zub', 'dáseň', 'patro', 'ústa', 'ret', 'tračník', 'žlučovod', 'pobřišnice', 'řezák', 'špičák',
+        'stolička', 'třenový zub', 'zub moudrosti', 'měkké patro', 'čípek patrový'],
     'dýchací soustava': ['plíce', 'hrtan', 'průdušnice', 'průduška', 'hlasivky', 'příklopka hrtanová', 'plicní sklípek', 'nosní dutina'],
-    'oběhová soustava': ['srdce', 'aorta'],
+    'oběhová soustava': ['srdce', 'aorta', 'tepna', 'žíla', 'vlásečnice', 'krkavice', 'plicní tepna', 'dutá žíla', 'věnčitá tepna', 'srdeční síň', 'osrdečník'],
     'nervová soustava': ['mozek', 'mícha', 'mozeček', 'koncový mozek', 'mezimozek', 'prodloužená mícha', 'varolův most', 'střední mozek', 'hypothalamus',
-        'hipokampus', 'thalamus', 'mozková kůra', 'lidský mozek', 'mozkový kmen'],
+        'hipokampus', 'thalamus', 'mozková kůra', 'lidský mozek', 'mozkový kmen', 'amygdala', 'kalózní těleso', 'mozková hemisféra', 'čelní lalok',
+        'spánkový lalok', 'týlní lalok', 'mozková plena', 'bazální ganglia'],
     'smyslová soustava': ['oko', 'ucho', 'nos', 'jazyk', 'sítnice', 'rohovka', 'duhovka', 'oční čočka', 'ušní bubínek', 'hlemýžď', 'eustachova trubice',
-        'zornice', 'bělima', 'cévnatka', 'sklivec', 'ušní boltec', 'vnitřní ucho', 'střední ucho'],
+        'zornice', 'bělima', 'cévnatka', 'sklivec', 'ušní boltec', 'vnitřní ucho', 'střední ucho', 'čočka', 'oční víčko', 'spojivka', 'žlutá skvrna',
+        'chuťový pohárek', 'vestibulární aparát', 'řasnaté tělísko'],
     'vylučovací soustava': ['ledvina', 'močový měchýř', 'močovod', 'močová trubice'],
     'rozmnožovací soustava': ['děloha', 'vaječník', 'vejcovod', 'varle', 'předstojná žláza', 'chámovod', 'placenta', 'nadvarle'],
     'soustava žláz s vnitřní sekrecí': ['štítná žláza', 'hypofýza', 'šišinka', 'nadledvina', 'příštítná tělíska'],
@@ -192,22 +200,24 @@ const GLAND_SYSTEMS = [[/slin|příušn/iu, 'trávicí soustava'], [/mléčn|cow
 // Část těla kosti či svalu podle názvu (pánev napřed: kyčelní není čelní)
 const BODY_PARTS = [
     ['pánev', /pánevn|kyčeln|sedací|stydk|bedrov|bedern|hýžď/iu],
-    ['hlava', /(?<!\p{L})(čeln|týln|temenn|spánkov|klínov|čichov|slzn|nosní|lícn|patrov|radličn)|čelist|jazylk|kladívk|kovadlink|třmínek|sluchov|žvýkac|mimick|okohybn|ciliárn|dvojbříškat|napínač bubínku|zdvihač hlavy/iu],
+    ['hlava', /(?<!\p{L})(lebk|čeln|týln|temenn|spánkov|klínov|čichov|slzn|nosní|lícn|patrov|radličn)|čelist|jazylk|kladívk|kovadlink|třmínek|sluchov|žvýkac|mimick|okohybn|ciliárn|dvojbříškat|napínač bubínku|zdvihač hlavy/iu],
     ['páteř a hrudník', /obratel|atlas|čepovec|kostrč|křížov|žebr|hrudní kost|bránic|prsní|trapézov|zádov|vzpřimovač|břišní|skalen|scalen/iu],
     ['horní končetina', /klíční|lopatk|pažní|vřetenn|loketn|zápěst|záprst|prst|člunkovit|poloměsíčit|trojhrann|hráškov|mnohohrann|hlavat|hákov|deltov|hřebenov|podlopatkov|obl[ýé] sval|ohýbač/iu],
     ['dolní končetina', /stehenn|čéšk|holenn|lýtk|hlezenn|patn|krychlov|nárt|zánárt|krejčovsk|pološlašit|povázk|stehna/iu]
 ];
 // Vnější pohlavní orgány a další části, které do rodinného kvízu nepatří, a obecné pojmy (kost, orgán, soustava)
-const BODY_EXCLUDED = /pochva|penis|vulva|klitoris|šourek|předkožk|žalud|stydké pysky|pysky|panenská blána|bradavk|řitní|^prs$|^orgán$|soustava|^tkáň|buňk|^krev|^lidské tělo$|^kostra/iu;
+const BODY_EXCLUDED = /pochva|penis|vulva|klitoris|šourek|předkožk|(?<!\p{L})žalud(?!\p{L})|stydké pysky|pysky|panenská blána|bradavk|řitní|^prs$|^orgán$|soustava|^tkáň|buňk|^krev|^lidské tělo$|^kostra/iu;
 // Fotky: jen kresby a schémata (SVG, PNG, GIF a ilustrace z anatomických atlasů), ne fotografie preparátů a operací
 const DIAGRAM_FILE = /\.(svg|png|gif)$|gray\d|sobo|blausen|servier|openstax|^\d{4} |illu|diagram|anatom|scheme|schema|drawing|animation|model|dummy|3d|lateral|anterior|posterior|superior|inferior|view/iu;
 const GORY_FILE = /dissect|cadaver|autops|surgery|surgical|operat|specimen|histolog|micrograph|tem\b|sem\b|patholog|tumou?r|biops|x-?ray|ct scan|mri|endoscop|lesion|wound|injur|fetus|abortion|preparát|leber|schaf|sheep|pig|cow|dog|cat|rabbit|lamb|horse|naked|nude|genital|vagin|penis|labia/iu;
 // Fotky preparátů, které vzor názvu nepozná (spodina mozku, brzlík), a lékařské snímky
 const BAD_BODY_IMAGES = new Set(['Human brain inferior view description.JPG', 'Human thymus posterior view.jpg', 'SD-OCT Optic Disc Cross-Sections.png']);
 // Hlavní orgány, které výsledek dotazu podle identifikátorů občas nevrátí (srdce, kůže, žaludek)
-const PINNED_BODY = [['Q1072', 256], ['Q1074', 184], ['Q1029907', 171]];
-const BODY_LIMIT = 260;
-const BODY_KNOWN = 0.3;
+// a dolní čelist (bez identifikátoru TA a FMA)
+const PINNED_BODY = [['Q1072', 256], ['Q1074', 184], ['Q1029907', 171], ['Q16370', 80]];
+// Český název, kde ho Wikidata uvádějí jinak než článek („lidská dolní čelist“)
+const BODY_LABELS = { Q16370: 'dolní čelist' };
+const BODY_LIMIT = 320;
 
 export const buildBody = async ({ takenIds, takenNames }) => {
     const candidates = await cached('biologie-telo-candidates', async () => {
@@ -235,20 +245,21 @@ export const buildBody = async ({ takenIds, takenNames }) => {
     for (const [qid] of ordered) {
         const detail = details.get(qid) || {};
         const title = first(detail, 't');
-        const label = first(detail, 'n') || (title || '').replace(/ \(.*\)$/, '');
+        const label = BODY_LABELS[qid] || first(detail, 'n') || (title || '').replace(/ \(.*\)$/, '');
         if (!title || !label || BODY_EXCLUDED.test(label) || items.length >= BODY_LIMIT) continue;
         const lower = label.toLocaleLowerCase('cs');
         const roots = detail.root || [];
         let kind = null;
-        if (roots.includes('kost') && BONE_NAME.test(lower) && !NOT_BONE.test(lower)) kind = 'kost';
+        if ((roots.includes('kost') || BONE_ALWAYS.test(lower)) && BONE_NAME.test(lower) && !NOT_BONE.test(lower)) kind = 'kost';
         else if (roots.includes('sval') && MUSCLE_NAME.test(lower) && !NOT_MUSCLE.test(lower)) kind = 'sval';
         else if (GLAND_NAME.test(lower) && !NOT_GLAND.test(lower)) kind = 'žláza';
         else if (SYSTEM_OF.has(lower)) kind = 'orgán';
+        else if (NERVE_NAME.test(lower) && !NOT_NERVE.test(lower)) kind = 'nerv';
         if (!kind) continue;
         const name = capitalize(label);
         if (takenNames.has(lower)) continue;
         takenNames.add(lower);
-        const system = kind === 'kost' ? 'kosterní soustava' : kind === 'sval' ? 'svalová soustava'
+        const system = kind === 'kost' ? 'kosterní soustava' : kind === 'sval' ? 'svalová soustava' : kind === 'nerv' ? 'nervová soustava'
             : SYSTEM_OF.get(lower) || (GLAND_SYSTEMS.find(([pattern]) => pattern.test(lower)) || [])[1];
         const part = kind === 'kost' || kind === 'sval' ? (BODY_PARTS.find(([, pattern]) => pattern.test(lower)) || [])[0] : undefined;
         // Drobné a málo známé žlázy bez jasné soustavy (Littrého žláza) se vynechají
@@ -272,9 +283,9 @@ export const buildBody = async ({ takenIds, takenNames }) => {
             sl: sitelinks.get(qid)
         }));
     }
-    const ranked = [...items].sort((a, b) => b.sl - a.sl);
-    ranked.forEach((item, index) => { item.k = index < Math.round(items.length * BODY_KNOWN) ? 1 : 0; });
-    console.log(`lidské tělo: ${items.length} (${['kost', 'sval', 'orgán', 'žláza'].map(kind => `${kind} ${items.filter(item => item.ty === kind).length}`).join(', ')}), s obrázkem ${items.filter(item => item.im).length}`);
+    // Známost (k) určí scripts/build-biologie.mjs podle jazykových verzí a návštěvnosti článků
+    for (const item of items) item.k = 0;
+    console.log(`lidské tělo: ${items.length} (${['kost', 'sval', 'orgán', 'žláza', 'nerv'].map(kind => `${kind} ${items.filter(item => item.ty === kind).length}`).join(', ')}), s obrázkem ${items.filter(item => item.im).length}`);
     return items;
 };
 
