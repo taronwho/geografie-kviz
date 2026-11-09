@@ -208,26 +208,18 @@
     const freezeWord = (count) => (count === 1 ? 'ochrana' : count >= 2 && count <= 4 ? 'ochrany' : 'ochran');
     // Štít s počtem ochran u série (jen když nějakou má)
     const freezeChip = (count, attrs = '') => (count > 0 ? `<span ${attrs} data-freeze-chip class="inline-flex shrink-0 items-center gap-0.5 rounded-md bg-sky-100 px-1 py-px text-[10px] font-black leading-tight text-sky-800 ring-1 ring-sky-200 dark:bg-sky-900/50 dark:text-sky-200 dark:ring-sky-800" title="Ochrana série: ${count} z ${MAX_FREEZES}" aria-label="Ochrana série: ${count} z ${MAX_FREEZES}"><i data-lucide="shield-check" class="h-3 w-3"></i>${count}</span>` : '');
-    // Truhla (SVG): víko zvlášť, ať se při otevření zvedne; záře a jiskry za ní (animace v src/input.css, .chest-*)
+    // Truhla: obrázek (icons/topics/truhla.webp), za ní záře a jiskry (SVG); při otevření truhla poskočí a rozzáří se
+    // (animace v src/input.css, .chest-*)
     const chestSvg = (cls = 'h-40 w-40') => `
-        <svg viewBox="0 0 200 180" class="${cls} chest-svg" aria-hidden="true">
-            <g class="chest-glow"><circle cx="100" cy="92" r="78" fill="#efc55c" opacity="0.28"></circle><circle cx="100" cy="92" r="52" fill="#fee2b0" opacity="0.35"></circle></g>
-            <g class="chest-sparks" fill="#fee2b0"><path d="M40 40l4 10 10 4-10 4-4 10-4-10-10-4 10-4z"></path><path d="M162 30l3 7 7 3-7 3-3 7-3-7-7-3 7-3z"></path><path d="M170 96l2 5 5 2-5 2-2 5-2-5-5-2 5-2z"></path><path d="M28 104l2 5 5 2-5 2-2 5-2-5-5-2 5-2z"></path></g>
-            <g class="chest-body">
-                <rect x="36" y="88" width="128" height="74" rx="10" fill="#94571a" stroke="#3b1e0a" stroke-width="5"></rect>
-                <rect x="36" y="110" width="128" height="12" fill="#d69725" stroke="#3b1e0a" stroke-width="4"></rect>
-                <rect x="58" y="88" width="14" height="74" fill="#d69725" stroke="#3b1e0a" stroke-width="4"></rect>
-                <rect x="128" y="88" width="14" height="74" fill="#d69725" stroke="#3b1e0a" stroke-width="4"></rect>
-                <rect x="88" y="104" width="24" height="28" rx="5" fill="#efc55c" stroke="#3b1e0a" stroke-width="4"></rect>
-                <circle cx="100" cy="116" r="4" fill="#3b1e0a"></circle>
-            </g>
-            <g class="chest-lid">
-                <path d="M36 92 V72 Q36 40 100 40 Q164 40 164 72 V92 Z" fill="#a8641d" stroke="#3b1e0a" stroke-width="5" stroke-linejoin="round"></path>
-                <path d="M58 92 V58 Q60 46 72 44 V92 Z" fill="#d69725" stroke="#3b1e0a" stroke-width="4" stroke-linejoin="round"></path>
-                <path d="M142 92 V58 Q140 46 128 44 V92 Z" fill="#d69725" stroke="#3b1e0a" stroke-width="4" stroke-linejoin="round"></path>
-                <rect x="84" y="80" width="32" height="16" rx="4" fill="#efc55c" stroke="#3b1e0a" stroke-width="4"></rect>
-            </g>
-        </svg>`;
+        <span class="${cls} chest-svg relative inline-flex items-center justify-center" aria-hidden="true">
+            <svg viewBox="0 0 200 180" class="absolute inset-[-12%] h-[124%] w-[124%] overflow-visible">
+                <g class="chest-glow"><circle cx="100" cy="92" r="78" fill="#efc55c" opacity="0.28"></circle><circle cx="100" cy="92" r="52" fill="#fee2b0" opacity="0.35"></circle></g>
+                <g class="chest-sparks" fill="#fee2b0"><path d="M40 40l4 10 10 4-10 4-4 10-4-10-10-4 10-4z"></path><path d="M162 30l3 7 7 3-7 3-3 7-3-7-7-3 7-3z"></path><path d="M170 96l2 5 5 2-5 2-2 5-2-5-5-2 5-2z"></path><path d="M28 104l2 5 5 2-5 2-2 5-2-5-5-2 5-2z"></path></g>
+            </svg>
+            <img src="icons/topics/truhla.webp" alt="" class="chest-img relative h-full w-full object-contain drop-shadow-md">
+        </span>`;
+    // Ochrana série: obrázek štítu s plamenem (icons/topics/ochrana-serie.webp)
+    const freezeArt = (cls = 'h-7 w-7') => `<img src="icons/topics/ochrana-serie.webp" alt="" class="${cls} shrink-0 object-contain drop-shadow-sm">`;
     // Pruh na úvodu místo cílů, když truhla čeká
     const chestStripHtml = () => `
         <button type="button" id="weekly-goals" data-action="chest-open" data-chest-ready class="chest-strip flex min-h-[2.5rem] w-full items-center gap-2 rounded-2xl bg-gradient-to-r from-gold-400 to-gold-500 px-2.5 py-1.5 text-left text-brand-950 shadow-md ring-2 ring-gold-300 transition-all active:scale-[0.98] dark:ring-gold-600">
@@ -261,7 +253,7 @@
                 <p data-chest-item class="text-4xl font-black text-gold-300">+${opened.xp} XP</p>
                 <p class="text-xs font-semibold leading-snug text-white/80">Všechny věci pro Mudrlanta už máš, tak aspoň body zkušeností.</p>
             </div>`) : '';
-        const freeze = opened && opened.freeze ? `<p data-chest-freeze class="chest-reveal flex items-center gap-1.5 rounded-xl bg-sky-500/20 px-3 py-1.5 text-xs font-black text-sky-100 ring-1 ring-sky-300/40"><i data-lucide="shield-check" class="h-4 w-4"></i> A navíc ochrana série</p>` : '';
+        const freeze = opened && opened.freeze ? `<p data-chest-freeze class="chest-reveal flex items-center gap-1.5 rounded-xl bg-sky-500/20 px-3 py-1.5 text-xs font-black text-sky-100 ring-1 ring-sky-300/40">${freezeArt('h-6 w-6 -my-1')} A navíc ochrana série</p>` : '';
         const actions = opened
             ? `<div class="flex w-full gap-2">${opened.gift && opened.gift.category !== 'colors' ? `<button type="button" data-chest-wear class="flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-2xl btn-3d bg-gold-500 px-3 py-3 text-base font-black text-brand-950"><i data-lucide="sparkles" class="h-5 w-5"></i> ${opened.gift.category === 'themes' ? 'Použít' : 'Nasadit'}</button>` : ''}<button type="button" data-chest-close class="flex min-w-0 flex-1 items-center justify-center rounded-2xl bg-white/15 px-3 py-3 text-base font-bold text-white">${opened.gift && opened.gift.category !== 'colors' ? 'Později' : 'Super!'}</button></div>`
             : `<button type="button" data-chest-go class="flex w-full items-center justify-center gap-2 rounded-2xl btn-3d bg-gold-500 px-4 py-3.5 text-lg font-black text-brand-950"><i data-lucide="sparkles" class="h-5 w-5"></i> Otevřít truhlu</button>
@@ -285,7 +277,7 @@
         <div data-rewards-section>
             <h3 class="mb-1 text-xs font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">Odměny</h3>
             <div class="grid grid-cols-3 gap-1">
-                ${tile('freeze', '<span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-sky-100 text-sky-700 dark:bg-sky-900/50 dark:text-sky-200"><i data-lucide="shield-check" class="h-4 w-4"></i></span>', 'Ochrana', `${freezes} z ${MAX_FREEZES}`, 'data-freeze-count')}
+                ${tile('freeze', freezeArt(), 'Ochrana', `${freezes} z ${MAX_FREEZES}`, 'data-freeze-count')}
                 ${tile('chest', chestSvg('h-7 w-7 shrink-0'), 'Truhla', chest ? 'Čeká!' : lastReward ? esc(lastReward) : 'Za 3 cíle', '', chest ? 'bg-gold-100 ring-2 ring-gold-400 dark:bg-gold-900/40' : 'bg-white dark:bg-slate-800')}
                 ${tile('diplomas', '<span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gold-100 text-gold-700 dark:bg-gold-900/40 dark:text-gold-300"><i data-lucide="award" class="h-4 w-4"></i></span>', 'Diplomy', `${diplomas} / ${topics}`, 'data-diploma-count')}
             </div>
@@ -294,7 +286,7 @@
     // Vysvětlení ochrany série a truhly (okno z Mého postupu a štítu u série)
     const freezeHelpHtml = (freezes) => `
         <div class="flex flex-col gap-2 text-[13px] leading-snug text-slate-700 dark:text-slate-200" data-freeze-help>
-            <p class="flex items-center gap-2 rounded-2xl bg-sky-50 p-2.5 font-bold text-sky-900 dark:bg-sky-900/30 dark:text-sky-100"><i data-lucide="shield-check" class="h-6 w-6 shrink-0"></i> Máš ${freezes} ${freezeWord(freezes)} z ${MAX_FREEZES}.</p>
+            <p class="flex items-center gap-2 rounded-2xl bg-sky-50 p-2.5 font-bold text-sky-900 dark:bg-sky-900/30 dark:text-sky-100">${freezeArt('h-10 w-10 -my-1')} Máš ${freezes} ${freezeWord(freezes)} z ${MAX_FREEZES}.</p>
             <p>Když jeden den vynecháš, ochrana se sama použije a série dnešních otázek i Kvízu dne ti zůstanou. Jedna ochrana zachrání jeden den pro všechny série, chrání se série od ${MIN_PROTECTED} dní. Dva vynechané dny v řadě nezachrání.</p>
             <p><b>Jak ji získáš:</b> z Truhly Mudrlanta a za každých ${FREEZE_EVERY} dní v řadě dnešních otázek nebo Kvízu dne. Mít můžeš nejvýš ${MAX_FREEZES}.</p>
         </div>`;
@@ -342,6 +334,6 @@
         KEY, MAX_FREEZES, MIN_PROTECTED, FREEZE_EVERY, CHEST_XP, NEAREST, GIFT_CATEGORIES, KIND_NAMES, DIPLOMA_NAMES,
         isDay, addDays, formatDay, empty, parse, gifts, owns, pendingChest, addChest, candidates, pickGift, openChest, chestReward,
         earnFreeze, streakEndingAt, bridgedStreak, checkFreeze, streakFreeze, diplomaTitle, noteDiplomas, setName, payload, merge, samePayload,
-        freezeWord, freezeChip, chestSvg, chestStripHtml, previewHtml, chestHtml, progressHtml, freezeHelpHtml, chestHelpHtml, diplomasHtml, diplomaDialogHtml
+        freezeWord, freezeChip, freezeArt, chestSvg, chestStripHtml, previewHtml, chestHtml, progressHtml, freezeHelpHtml, chestHelpHtml, diplomasHtml, diplomaDialogHtml
     };
 });

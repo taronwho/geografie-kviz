@@ -137,22 +137,11 @@
         if (!known) return null;
         return pose ? { robe, acc, pose } : { robe, acc };
     }
-    // Sova titulu v kolečku obrázku hráče: ilustrace icons/topics/sova-titul-<n>[-<barva>].webp (barva obleku jako u loga, bez doplňků),
-    // mírně zvětšená a posunutá tak, aby kolečko vyplnila sova s čepicí a jejím předmětem (knihy, lupa, brk…); výřez podle kompozice ilustrace.
-    // Třídy jsou vypsané celé, ať je Tailwind najde. Obal je <span> (sova bývá uvnitř <button> nebo <p>).
-    const POSE_CROP = {
-        'titul-1': 'w-[125%] left-[-12%] top-[-2%]',
-        'titul-2': 'w-[125%] left-[-14%] top-[-2%]',
-        'titul-3': 'w-[125%] left-[-14%] top-[-3%]',
-        'titul-4': 'w-[125%] left-[-14%] top-[-4%]',
-        'titul-5': 'w-[125%] left-[-16%] top-[-3%]',
-        'titul-6': 'w-[125%] left-[-16%] top-[-5%]',
-        'titul-7': 'w-[125%] left-[-13%] top-[-6%]',
-        'titul-8': 'w-[125%] left-[-12%] top-[-5%]',
-        'titul-9': 'w-[120%] left-[-10%] top-[-8%]',
-        'titul-10': 'w-[125%] left-[-12%] top-[-6%]',
-        'titul-11': 'w-[160%] left-[-30%] top-[-8%]'
-    };
+    // Sova titulu v kolečku obrázku hráče: ilustrace icons/topics/sova-titul-<n>[-<barva>].webp (barva obleku jako u loga, bez doplňků)
+    // se do kolečka vejde celá i s čepicí a předmětem (knihy, lupa, brk…): zmenšená do vepsaného čtverce, mírně níž (čepice nahoře
+    // je širší než spodek). Třídy jsou vypsané celé, ať je Tailwind najde. Obal je <span> (sova bývá uvnitř <button> nebo <p>).
+    const FIT_IN_CIRCLE = 'w-[84%] left-[8%] top-[9%]';
+    const POSE_CROP = Object.fromEntries(Array.from({ length: 11 }, (_, i) => [`titul-${i + 1}`, FIT_IN_CIRCLE]));
     const poseSrc = (pose, robe = 'vinova') => {
         const item = Look && Look.findPose ? Look.findPose(pose) : null;
         if (!item) return null;

@@ -3528,6 +3528,15 @@
         const left = Goals.daysLeft();
         return left === 1 ? 'poslední den' : left <= 4 ? `zbývají ${left} dny` : `zbývá ${left} dní`;
     };
+    // Obrázek cíle týdne: symbol odznaku, ke kterému cíl patří; cíl v tématu ikona tématu (bez obrázku čárová ikona)
+    const GOAL_ART = { spravne: 'odznak-odpovedi', dnesni: 'odznak-dnes', 'bez-napovedy': 'odznak-bez-napovedy', dny: 'odznak-dny', poznane: 'odznak-poznane',
+        opakovani: 'procvicovani', chyby: 'odznak-chyby', vyzvy: 'odznak-vyzvy', vyhry: 'odznak-vyhry', turnaj: 'turnaj', kviz: 'odznak-kviz-dne',
+        bleskovka: 'odznak-bleskovka', preziti: 'odznak-preziti', serad: 'odznak-serad' };
+    const goalArt = (goal, cls) => {
+        const topic = goal.kind === 'tema' ? TOPIC_BY_ID[goal.id.slice('tema-'.length)] : null;
+        if (topic && topicArt(topic)) return uiArt(topic.id, cls);
+        return GOAL_ART[goal.kind] ? uiArt(GOAL_ART[goal.kind], cls) : `<i data-lucide="${goal.icon}" class="${cls}"></i>`;
+    };
     const renderGoalsCard = () => {
         if (!Goals) return '';
         // Čekající truhla má přednost: místo pruhu cílů zlaté tlačítko Otevřít (cíle jsou dál v okně po otevření truhly)
@@ -3536,7 +3545,7 @@
         const done = rows.filter(row => row.done).length;
         const chip = ({ goal, value, done }) => `
             <span data-goal="${escapeHtml(goal.id)}" class="relative flex min-w-0 flex-1 items-center justify-center gap-1 overflow-hidden rounded-lg px-1 py-1 text-[10.5px] font-black tabular-nums ${done ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200' : 'bg-slate-100 text-slate-600 dark:bg-slate-700/70 dark:text-slate-200'}">
-                <i data-lucide="${done ? 'circle-check' : goal.icon}" class="h-3 w-3 shrink-0"></i>
+                ${done ? '<i data-lucide="circle-check" class="h-3 w-3 shrink-0"></i>' : goalArt(goal, 'h-4 w-4 -my-1')}
                 <span class="truncate">${done ? 'Hotovo' : `${value}/${goal.target}`}</span>
                 ${done ? '' : `<span class="absolute inset-x-0 bottom-0 h-[3px] bg-slate-200 dark:bg-slate-600" aria-hidden="true"><span class="block h-full w-0 bg-gold-500" data-progress="${Math.round(value / goal.target * 100)}"></span></span>`}
             </span>`;
@@ -3556,7 +3565,7 @@
         const row = ({ goal, value, done }) => `
             <li data-goal-row="${escapeHtml(goal.id)}" class="rounded-2xl bg-white p-3 shadow-sm ring-1 ${done ? 'ring-emerald-300 dark:ring-emerald-700' : 'ring-slate-200/70 dark:ring-slate-700/70'} dark:bg-slate-800">
                 <div class="flex items-start gap-2.5">
-                    <span class="mt-0.5 shrink-0 rounded-xl p-1.5 ${done ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300' : 'bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-300'}"><i data-lucide="${done ? 'circle-check' : goal.icon}" class="h-4 w-4"></i></span>
+                    <span data-goal-art class="relative -my-1 shrink-0">${goalArt(goal, 'h-9 w-9')}${done ? '<span class="absolute -bottom-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-emerald-500 text-white ring-2 ring-white dark:ring-slate-800"><i data-lucide="check" class="h-3 w-3"></i></span>' : ''}</span>
                     <span class="min-w-0 flex-1 text-[13px] font-bold leading-snug text-slate-800 dark:text-slate-100">${escapeHtml(goal.title)}</span>
                     <span class="shrink-0 rounded-md px-1.5 py-0.5 text-[11px] font-black ${done ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200' : 'bg-gold-100 text-gold-800 dark:bg-gold-900/40 dark:text-gold-200'}">+${goal.xp} XP</span>
                 </div>
@@ -3566,7 +3575,7 @@
                 </div>
             </li>`;
         showDialog('Cíle týdne', `
-            <div class="-mt-3 mb-2 flex items-center gap-2">${uiArt('cile', 'h-10 w-10')}<p class="text-xs text-slate-500 dark:text-slate-400">${escapeHtml(Goals.weekLabel(state.week))} · ${goalsLeftText()}</p></div>
+            <div class="mb-2 flex items-center gap-2">${uiArt('cile', 'h-10 w-10')}<p class="text-xs text-slate-500 dark:text-slate-400">${escapeHtml(Goals.weekLabel(state.week))} · ${goalsLeftText()}</p></div>
             <ul class="flex flex-col gap-2">${rows.map(row).join('')}</ul>
             <p class="mt-3 flex items-center gap-2 rounded-2xl ${state.bonus ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200' : 'bg-gold-100 text-gold-800 dark:bg-gold-900/40 dark:text-gold-200'} px-3 py-2 text-xs font-bold"><i data-lucide="trophy" class="h-4 w-4 shrink-0"></i>${state.bonus ? `Všechny cíle splněny: bonus +${Goals.BONUS_XP} XP získán` : `Za všechny tři cíle bonus +${Goals.BONUS_XP} XP, odznak Týdenní cíle a Truhla Mudrlanta`}</p>
             ${Rewards && Rewards.pendingChest(loadRewards()) ? `<button type="button" data-chest-open class="${PRIMARY_BUTTON} mt-2 !bg-gold-500 !text-brand-950"><i data-lucide="sparkles" class="h-5 w-5"></i> Otevřít Truhlu Mudrlanta</button>` : ''}`, {
@@ -6267,12 +6276,19 @@
         brand: 'bg-gradient-to-br from-brand-500 to-brand-800 text-gold-200 ring-gold-400',
         diamond: 'bg-gradient-to-br from-sky-300 to-indigo-500 text-white ring-cyan-100'
     };
+    // Skupiny odznaků s ilustrovaným symbolem (branding/ikony/odznak-<skupina>.png → scripts/topic-icons.py; stejný seznam má sw.js)
+    const BADGE_ART = new Set(['odpovedi', 'rada', 'serie', 'dny', 'dokonale', 'dnes', 'bez-napovedy', 'psani', 'tezke', 'chyby', 'vyzvy', 'vyhry',
+        'vyhry-v-rade', 'zalozene', 'perfektni-vyzvy', 'uroven', 'poznane', 'vsestrannost', 'hvezdy', 'vsechna-temata', 'turnaje', 'turnaj-postupy',
+        'tydenni-cile', 'kviz-dne', 'kviz-serie', 'kviz-perfekt', 'bleskovka', 'preziti', 'mapa', 'odhad', 'serad']);
     // Nezískaný odznak ukazuje svou ikonu zašedlou a ztlumenou, přes ni malý zámek v rohu
     const medalHtml = (badge, earned, size = 'h-11 w-11', iconSize = 'h-5 w-5') => {
         const dim = earned ? '' : ' opacity-50 grayscale';
+        // Symbol odznaku: ikona tématu, ilustrace skupiny (icons/topics/odznak-<skupina>.webp), jinak čárová ikona
         const art = badge.topic && topicArt({ id: badge.topic })
             ? `<img src="icons/topics/${badge.topic}.webp" alt="" class="h-[72%] w-[72%] object-contain${dim}">`
-            : `<i data-lucide="${badge.icon}" class="${iconSize}${dim}"></i>`;
+            : BADGE_ART.has(badge.group)
+                ? `<img src="icons/topics/odznak-${badge.group}.webp" alt="" data-badge-art class="h-[74%] w-[74%] object-contain drop-shadow-sm${dim}">`
+                : `<i data-lucide="${badge.icon}" class="${iconSize}${dim}"></i>`;
         const lock = earned ? '' : '<span class="absolute -bottom-0.5 -right-0.5 flex h-[46%] w-[46%] items-center justify-center rounded-full bg-slate-600 text-white ring-1 ring-white dark:bg-slate-300 dark:text-slate-900 dark:ring-slate-800" data-medal-lock><i data-lucide="lock" class="h-[62%] w-[62%]"></i></span>';
         return `<span class="relative flex ${size} shrink-0 items-center justify-center rounded-full ring-2 ${earned
             ? (MEDAL_TONES[badge.tone] || MEDAL_TONES.gold)

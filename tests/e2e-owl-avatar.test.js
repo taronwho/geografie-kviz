@@ -312,7 +312,7 @@ test('sova jako obrázek profilu', { skip: !chromium && 'Playwright není nainst
         db.profiles['u-1'].avatar = '🦊';
     });
 
-    await t.test('sova Mudrlanta (titul-11): na úrovni 100 odemčená, uloží se s pózou a druhý hráč ji vidí oříznutou do kolečka', async () => {
+    await t.test('sova Mudrlanta (titul-11): na úrovni 100 odemčená, uloží se s pózou a druhý hráč ji vidí celou v kolečku', async () => {
         db.profiles['u-1'].owl = null;
         db.profiles['u-1'].avatar = '🦊';
         const progress = JSON.stringify({ xp: require('../quiz-core.js').xpForLevel(100), counters: {}, badges: {} });
@@ -325,12 +325,12 @@ test('sova jako obrázek profilu', { skip: !chromium && 'Playwright není nainst
         assert.equal(await one.tab.getAttribute('[data-pick-owl="titul-11"] img', 'src'), 'icons/topics/sova-titul-11-zlata.webp');
         await one.tab.click('[data-pick-owl="titul-11"]');
         await one.tab.waitForSelector('[data-pick-owl="titul-11"][aria-pressed="true"]');
-        // Výřez do kolečka: sova je větší než kolečko, korunu a obličej má uprostřed (třídy Tailwindu, ne inline styl)
+        // Sova se vejde do kolečka celá (menší než kolečko, uprostřed, mírně níž), třídy Tailwindu, ne inline styl
         const crop = await one.tab.evaluate(() => {
             const img = document.querySelector('[data-pick-owl="titul-11"] img'); const box = img.parentElement.getBoundingClientRect(); const pic = img.getBoundingClientRect();
             return { ratio: pic.width / box.width, centre: (pic.left + pic.width / 2 - box.left) / box.width, style: img.getAttribute('style') };
         });
-        assert.ok(crop.ratio > 1.4 && Math.abs(crop.centre - 0.5) < 0.03 && crop.style === null, JSON.stringify(crop));
+        assert.ok(crop.ratio > 0.75 && crop.ratio < 0.9 && Math.abs(crop.centre - 0.5) < 0.03 && crop.style === null, JSON.stringify(crop));
         await one.tab.click('[data-save-profile]');
         await one.tab.waitForFunction(() => /Uloženo/.test(document.getElementById('settings-overlay').textContent));
         assert.equal(db.profiles['u-1'].owl, 'robe=zlata;pose=titul-11');
