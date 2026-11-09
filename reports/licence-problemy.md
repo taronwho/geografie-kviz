@@ -7,7 +7,7 @@ vyžadují jen uvedení autora a licence – to dělá stránka Zdroje a licence
 
 ## Souhrn
 
-- souborů celkem: **29387**, s načtenými metadaty: **29387**, zatím nestaženo: **0**
+- souborů celkem: **29819**, s načtenými metadaty: **29819**, zatím nestaženo: **0**
 - problémových: **0**
 
 ## Počty podle témat
@@ -24,7 +24,7 @@ vyžadují jen uvedení autora a licence – to dělá stránka Zdroje a licence
 | hudba | 2016 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | literatura | 2172 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | mytologie | 956 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| sport | 1695 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| sport | 2127 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | umeni | 1476 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | vlajky | 1889 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | zemepis | 5353 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
