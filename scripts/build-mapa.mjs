@@ -1,16 +1,16 @@
-// Mapy pro otázku „Ukaž na mapě“: data/mapa.json z Natural Earth (volné dílo). Pevnina, jezera a hranice států 1:50m, v Česku
-// hranice 1:10m, kraje (admin 1) a hlavní řeky. Každá oblast z question-map.js (REGIONS) má cesty SVG už v souřadnicích své mapy
-// (Lambertovo azimutální zobrazení, delší strana výřezu 1000 jednotek), zjednodušené a oříznuté s rezervou za okrajem výřezu
-// (na vysokém displeji je vidět víc než výřez). Žádné popisky – mapa nesmí prozradit názvy.
+// Mapy pro otázku „Ukaž na mapě“: data/mapa.json z Natural Earth (volné dílo). Svět (pevnina, jezera a hranice států 1:50m,
+// zobrazení Equal Earth, šířka 8000 jednotek) a Česko (hranice 1:10m, kraje a hlavní řeky, Lambertovo azimutální zobrazení,
+// 1000 jednotek). Mapy z question-map.js (MAP_REGIONS) mají cesty SVG už v souřadnicích své mapy, zjednodušené a oříznuté
+// s rezervou za okrajem výřezu (na vysokém displeji je vidět víc než výřez). Žádné popisky – mapa nesmí prozradit názvy.
 // Spuštění: npm run build:mapa (s BUILD_CACHE=složka se stažené vrstvy uloží a další běh je nestahuje)
-import { writeFileSync, mkdirSync } from 'node:fs';
+import { writeFileSync, mkdirSync, readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { layer, polygonsOf, linesOf, ringKm2, planarArea, simplify, clipPolygon, clipLine } from './lib/natural-earth.mjs';
 
 const require = createRequire(import.meta.url);
 const MapQuestion = require('../question-map.js');
 
-// Zjednodušení (Douglas–Peucker) v jednotkách mapy: na telefonu je jednotka bez přiblížení asi 0,4 px (přiblížit jde až 32×)
+// Zjednodušení (Douglas–Peucker) v jednotkách mapy (svět: jednotka asi 4,5 km, Česko asi 0,5 km)
 const TOLERANCE = 0.5;
 const CZECH_TOLERANCE = 0.35;
 // Jezera od této rozlohy (km²) – menší by na mapě kontinentu byla jen tečka
@@ -47,7 +47,7 @@ const encode = (points, closed) => {
 
 const buildRegion = (region, sources) => {
     const frame = MapQuestion.frameOf(region);
-    const { angle } = MapQuestion.projector(region.center[0], region.center[1]);
+    const { angle } = MapQuestion.projectionOf(region);
     const detail = Boolean(region.detail);
     const tolerance = detail ? CZECH_TOLERANCE : TOLERANCE;
     const padX = Math.max(0, (frame.height * ASPECT_RANGE[1] - frame.width) / 2) + 24;
@@ -58,7 +58,7 @@ const buildRegion = (region, sources) => {
         if (ring.every(([lon, lat]) => angle(lat, lon) > 100) || ring.some(([lon, lat]) => angle(lat, lon) > 175)) return null;
         return ring.map(point => { const projected = frame.toMap(point[1], point[0]); projected.seam = onSeam(point); return projected; });
     };
-    const rings = (polygons) => {
+    const rings = (polygons, ringTolerance = tolerance) => {
         const plain = [];
         const seam = [];
         const seamStroke = [];
@@ -68,7 +68,7 @@ const buildRegion = (region, sources) => {
                 if (!projected) continue;
                 const clipped = clipPolygon(projected.slice(0, -1), box);
                 if (clipped.length < 3) continue;
-                const simplified = roundPoints(simplify([...clipped, clipped[0]], tolerance, point => point.seam));
+                const simplified = roundPoints(simplify([...clipped, clipped[0]], ringTolerance, point => point.seam));
                 if (simplified.length < 4 || planarArea(simplified) < MIN_RING_AREA) continue;
                 const closed = simplified.slice(0, -1);
                 // Šev na 180. poledníku (Fidži, Čukotka): výplň bez obrysu, obrys zvlášť bez úseků podél švu
@@ -118,10 +118,16 @@ const buildRegion = (region, sources) => {
         const home = rings([[sources.czechOutline]]);
         layers.home = home.plain;
     }
+    // Plochy pro „Tvůj tip: Thajsko“ (kam hráč klepl): státy světa, v Česku kraje; hrubší obrys stačí
+    const areas = (detail ? sources.kraje : sources.countries).map(({ name, polygons }) => {
+        const shape = rings(polygons, tolerance * (detail ? 2 : 3));
+        return { n: name, d: shape.plain + shape.seam };
+    }).filter(area => area.d);
     return {
         center: region.center,
         frame: [frame.width, frame.height],
-        layers: Object.fromEntries(Object.entries(layers).filter(([, value]) => value))
+        layers: Object.fromEntries(Object.entries(layers).filter(([, value]) => value)),
+        areas
     };
 };
 
@@ -179,33 +185,52 @@ const krajeTopology = (features) => {
     return { inner, outline };
 };
 
-const [land, lakes, borders50, borders10, admin1, riversMain, riversEurope] = await Promise.all([
+const [land, lakes, borders50, borders10, admin1, riversMain, riversEurope, countries50] = await Promise.all([
     layer('ne_50m_land'), layer('ne_50m_lakes'), layer('ne_50m_admin_0_boundary_lines_land'), layer('ne_10m_admin_0_boundary_lines_land'),
-    layer('ne_10m_admin_1_states_provinces'), layer('ne_10m_rivers_lake_centerlines'), layer('ne_10m_rivers_europe')
+    layer('ne_10m_admin_1_states_provinces'), layer('ne_10m_rivers_lake_centerlines'), layer('ne_10m_rivers_europe'), layer('ne_50m_admin_0_countries')
 ]);
 const kraje = admin1.features.filter(feature => feature.properties.adm0_a3 === 'CZE');
 if (kraje.length !== 14) throw new Error(`Čekám 14 krajů Česka, je jich ${kraje.length}`);
 const topology = krajeTopology(kraje);
 const riverLines = (data, names) => data.features.filter(feature => names.includes(feature.properties.name)).flatMap(feature => linesOf(feature.geometry));
+// Česká jména států z data/countries.json (podle Wikidat), závislá území a sporná místa doplněná zde
+const COUNTRY_NAMES = Object.fromEntries(Object.entries(JSON.parse(readFileSync(new URL('../data/countries.json', import.meta.url), 'utf8')).countries).map(([qid, country]) => [qid, country.name]));
+const TERRITORY_NAMES = {
+    Q11703: 'Americké Panenské ostrovy', Q1183: 'Portoriko', Q126125: 'Svatý Martin', Q129003: 'Francouzská jižní a antarktická území',
+    Q131198: 'Heardův ostrov a McDonaldovy ostrovy', Q13353: 'Montserrat', Q133888: 'Ashmorův a Cartierův ostrov', Q14773: 'Macao', Q16635: 'Guam',
+    Q16641: 'Americká Samoa', Q16644: 'Severní Mariany', Q18221: 'Turks a Caicos', Q21203: 'Aruba', Q223: 'Grónsko', Q23635: 'Bermudy',
+    Q23681: 'Severní Kypr', Q23792: 'Palestina', Q25228: 'Anguilla', Q25230: 'Guernsey', Q25279: 'Curaçao', Q25305: 'Britské Panenské ostrovy',
+    Q25362: 'Svatý Bartoloměj', Q26273: 'Svatý Martin', Q26988: 'Cookovy ostrovy', Q30971: 'Francouzská Polynésie', Q31057: 'Norfolk',
+    Q333946: 'Siačen', Q33788: 'Nová Kaledonie', Q34020: 'Niue', Q34497: 'Svatá Helena', Q34617: 'Saint Pierre a Miquelon', Q34754: 'Somaliland',
+    Q35086: 'Jižní Georgie a Jižní Sandwichovy ostrovy', Q35555: 'Wallis a Futuna', Q35672: 'Pitcairnovy ostrovy', Q43448: 'Britské indickooceánské území',
+    Q4628: 'Faerské ostrovy', Q51: 'Antarktida', Q5689: 'Alandy', Q5785: 'Kajmanské ostrovy', Q6250: 'Západní Sahara', Q8646: 'Hongkong',
+    Q9648: 'Falklandy', Q9676: 'Ostrov Man', Q785: 'Jersey', Q4824275: 'Australská území v Indickém oceánu'
+};
+const countryName = (properties) => COUNTRY_NAMES[properties.WIKIDATAID] || TERRITORY_NAMES[properties.WIKIDATAID];
+const missingNames = countries50.features.filter(feature => !countryName(feature.properties)).map(feature => feature.properties.NAME);
+if (missingNames.length) throw new Error(`Chybí české jméno státu: ${missingNames.join(', ')}`);
+const KRAJ_NAMES = { Prague: 'Praha', Vysočina: 'Kraj Vysočina' };
 const sources = {
     land: land.features.flatMap(feature => polygonsOf(feature.geometry)),
     lakes: lakes.features.flatMap(feature => polygonsOf(feature.geometry)).filter(polygon => ringKm2(polygon[0]) >= MIN_LAKE_KM2),
     borders: borders50.features.flatMap(feature => linesOf(feature.geometry)),
     czechBorders: borders10.features.flatMap(feature => linesOf(feature.geometry)),
     czechRivers: [...riverLines(riversMain, CZECH_RIVERS.ne_10m_rivers_lake_centerlines), ...riverLines(riversEurope, CZECH_RIVERS.ne_10m_rivers_europe)],
+    countries: countries50.features.map(feature => ({ name: countryName(feature.properties), polygons: polygonsOf(feature.geometry) })),
+    kraje: kraje.map(feature => ({ name: KRAJ_NAMES[feature.properties.name] || `${feature.properties.name} kraj`, polygons: polygonsOf(feature.geometry) })),
     krajeInner: topology.inner,
     czechOutline: topology.outline
 };
 
 const regions = {};
-for (const region of MapQuestion.REGIONS) {
+for (const region of MapQuestion.MAP_REGIONS) {
     regions[region.id] = buildRegion(region, sources);
-    const size = Object.values(regions[region.id].layers).reduce((total, path) => total + path.length, 0);
+    const size = [...Object.values(regions[region.id].layers), ...regions[region.id].areas.map(area => area.d)].reduce((total, path) => total + path.length, 0);
     console.log(`  ${region.id}: ${Math.round(size / 1024)} kB (${Object.keys(regions[region.id].layers).join(', ')})`);
 }
 mkdirSync(new URL('../data/', import.meta.url), { recursive: true });
 writeFileSync(new URL('../data/mapa.json', import.meta.url), JSON.stringify({
-    source: 'Natural Earth 5.1.2 (volné dílo): pevnina, jezera a hranice 1:50m; v Česku hranice, kraje a řeky 1:10m',
+    source: 'Natural Earth 5.1.2 (volné dílo): svět – pevnina, jezera a hranice 1:50m; Česko – hranice, kraje a řeky 1:10m',
     generated: new Date().toISOString().slice(0, 10),
     regions
 }));

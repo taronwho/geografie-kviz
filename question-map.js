@@ -34,12 +34,22 @@
         { id: 'oceanie', label: 'Austrálie a Oceánie', center: [-22, 155], continent: 'OC',
             bounds: [[-22, 113.3], [-11, 131], [7.6, 134.5], [-17, 179.9], [-21.3, -175.1], [-13.7, -171.6], [-46.9, 167.8], [-43.7, 146.8], [-35.1, 117]] }
     ];
+    // Mapa, na které hráč hledá: celý svět (neprozradí ani kontinent), u míst v Česku podrobná mapa Česka. Oblast místa
+    // (kontinent) dál určuje poloměry bodů. Svět je v zobrazení Equal Earth (stejnoploché, kontinenty bez velkého zkreslení),
+    // bez Antarktidy dole; víc jednotek mapy, ať jsou obrysy i při velkém přiblížení přesné.
+    const WORLD = { id: 'svet', label: 'Svět', projection: 'equalEarth', center: [0, 0], units: 8000, bounds: [[84, -180], [84, 180], [-58, -180], [-58, 180], [0, -180], [0, 180]] };
     // Okraj výřezu kolem krajních míst (podíl delší strany), ať místo na hranici oblasti není přímo na kraji mapy
     const FRAME_MARGIN = 0.04;
-    const REGION_BY_ID = Object.fromEntries(REGIONS.map(region => [region.id, region]));
+    const REGION_BY_ID = Object.fromEntries([...REGIONS, WORLD].map(region => [region.id, region]));
+    // Mapy v data/mapa.json a mapa pro otázku: Česko pro místa v Česku, jinak svět
+    const MAP_REGIONS = [REGION_BY_ID.cesko, WORLD];
+    const mapRegionOf = (regionId) => (regionId === 'cesko' ? REGION_BY_ID.cesko : WORLD);
 
     // Delší strana výřezu má na mapě 1000 jednotek (souřadnice cest v data/mapa.json)
     const FRAME_UNITS = 1000;
+    // Nejvíc přiblížení: mapa Česka 32×, svět 256× (na displeji telefonu pak asi 150 km, obrysy jsou z 1:50m)
+    const MAX_ZOOM = 32;
+    const WORLD_MAX_ZOOM = 256;
     const EARTH_KM = 6371;
     const RAD = Math.PI / 180;
 
@@ -77,21 +87,54 @@
         return { forward, inverse, angle };
     };
 
-    // Výřez oblasti v jednotkách mapy: obdélník kolem promítnutého boxu, delší strana FRAME_UNITS; diagonála v km určuje body
+    // Equal Earth (Šavrič, Patterson, Jenny 2018) se středním poledníkem lon0: x, y na jednotkové kouli, y nahoru
+    const EQUAL_EARTH = [1.340264, -0.081106, 0.000893, 0.003796];
+    const equalEarth = (lon0 = 0) => {
+        const [A1, A2, A3, A4] = EQUAL_EARTH;
+        const M = Math.sqrt(3) / 2;
+        const polynomial = (t) => { const t2 = t * t, t6 = t2 * t2 * t2; return [t * (A1 + A2 * t2 + t6 * (A3 + A4 * t2)), A1 + 3 * A2 * t2 + t6 * (7 * A3 + 9 * A4 * t2)]; };
+        const forward = (lat, lon) => {
+            const theta = Math.asin(M * Math.sin(lat * RAD));
+            // ±180° zůstane na svém okraji mapy (Fidži i Čukotka jsou v datech rozdělené na 180. poledníku)
+            const delta = lon - lon0;
+            const lambda = (delta > 180 ? delta - 360 : delta < -180 ? delta + 360 : delta) * RAD;
+            const [y, derivative] = polynomial(theta);
+            return [2 * Math.sqrt(3) * lambda * Math.cos(theta) / (3 * derivative), y];
+        };
+        const inverse = (x, y) => {
+            let theta = y / A1;
+            for (let i = 0; i < 12; i++) {
+                const [value, derivative] = polynomial(theta);
+                const step = (value - y) / derivative;
+                theta -= step;
+                if (Math.abs(step) < 1e-12) break;
+            }
+            const derivative = polynomial(theta)[1];
+            const lat = Math.asin(Math.max(-1, Math.min(1, Math.sin(theta) / M))) / RAD;
+            const lon = lon0 + 3 * x * derivative / (2 * Math.sqrt(3) * Math.cos(theta)) / RAD;
+            return [lat, Math.max(-180, Math.min(180, lon))];
+        };
+        // Celý svět je vidět (nic není „za polokoulí“)
+        return { forward, inverse, angle: () => 0 };
+    };
+    const projectionOf = (region) => (region.projection === 'equalEarth' ? equalEarth(region.center[1]) : projector(region.center[0], region.center[1]));
+
+    // Výřez oblasti v jednotkách mapy: obdélník kolem promítnutého boxu, delší strana FRAME_UNITS (u světa víc); diagonála
+    // v km určuje body. Nejvíc přiblížení: kolem 150 km na šířku displeje (jako dřív 32× u kontinentu), u Česka 32×.
     const frames = new Map();
     const frameOf = (regionOrId) => {
         const region = typeof regionOrId === 'string' ? REGION_BY_ID[regionOrId] : regionOrId;
         if (!region) return null;
         if (frames.has(region.id)) return frames.get(region.id);
-        const { forward, inverse } = projector(region.center[0], region.center[1]);
+        const { forward, inverse } = projectionOf(region);
         let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
         for (const [lat, lon] of region.bounds) {
             const [x, y] = forward(lat, lon);
             x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y);
         }
-        const margin = Math.max(x1 - x0, y1 - y0) * FRAME_MARGIN;
+        const margin = region.projection ? 0 : Math.max(x1 - x0, y1 - y0) * FRAME_MARGIN;
         x0 -= margin; x1 += margin; y0 -= margin; y1 += margin;
-        const scale = FRAME_UNITS / Math.max(x1 - x0, y1 - y0);
+        const scale = (region.units || FRAME_UNITS) / Math.max(x1 - x0, y1 - y0);
         const frame = {
             region,
             scale,
@@ -101,8 +144,9 @@
             // Poloha a jednotky mapy (x doprava, y dolů)
             toMap: (lat, lon) => { const [x, y] = forward(lat, lon); return [(x - x0) * scale, (y1 - y) * scale]; },
             fromMap: (mx, my) => { const [lat, lon] = inverse(mx / scale + x0, y1 - my / scale); return { lat, lon }; },
-            // Kolik jednotek mapy je jeden kilometr (u středu výřezu, pro kruh plných bodů)
-            unitsPerKm: scale / EARTH_KM
+            // Kolik jednotek mapy je jeden kilometr (u středu výřezu; tolerance pobřeží)
+            unitsPerKm: scale / EARTH_KM,
+            maxZoom: region.projection ? WORLD_MAX_ZOOM : MAX_ZOOM
         };
         frames.set(region.id, frame);
         return frame;
@@ -111,7 +155,7 @@
     // Místo leží ve výřezu oblasti (na přivrácené polokouli a uvnitř obdélníku mapy)
     const insideFrame = (region, lat, lon) => {
         const frame = frameOf(region);
-        if (projector(region.center[0], region.center[1]).angle(lat, lon) > 90) return false;
+        if (projectionOf(region).angle(lat, lon) > 90) return false;
         const [x, y] = frame.toMap(lat, lon);
         return x >= 0 && y >= 0 && x <= frame.width && y <= frame.height;
     };
@@ -187,6 +231,11 @@
 
     // --- Body ---
 
+    // Kulatá vzdálenost pro hranice bodů (hráč vidí „do 200 km“, ne „do 222 km“): 1, 5, 10, 50 nebo 100 km podle velikosti
+    const roundKm = (km) => {
+        const step = km < 10 ? 1 : km < 50 ? 5 : km < 200 ? 10 : km < 1000 ? 50 : 100;
+        return Math.max(1, Math.round(km / step) * step);
+    };
     // Plné body do 3 % diagonály výřezu (u plošných míst navíc poloměr místa), žádné od 20 %; mezi tím postupně ubývají
     const FULL_SHARE = 0.03;
     const ZERO_SHARE = 0.2;
@@ -194,17 +243,24 @@
         const frame = frameOf(region);
         const area = (item.f || {}).area;
         const extra = AREA_CATEGORIES.has(item.c) && area > 0 ? Math.min(Math.sqrt(area / Math.PI), frame.diagonalKm * 0.08) : 0;
-        return { full: Math.round(frame.diagonalKm * FULL_SHARE + extra), zero: Math.round(frame.diagonalKm * ZERO_SHARE + extra) };
+        return { full: roundKm(frame.diagonalKm * FULL_SHARE + extra), zero: roundKm(frame.diagonalKm * ZERO_SHARE + extra) };
     };
     // Nejvíc bodů: jako otázka bez nápovědy (při psaní dvojnásobek), aby otázka zapadla do bodů i XP ostatních otázek
     const maxPoints = (typed) => pointsFor(1, Boolean(typed));
-    // max bodů do plného poloměru, pak nejvýš max − 1 a lineárně dolů; 0 až od nulového poloměru. Body jsou celé číslo
-    // 0…max, správně = aspoň bod (stejně jako u ostatních otázek: correct = points > 0)
-    const pointsForDistance = (km, { full, zero }, max) => {
+    // Hranice bodů [{ points, km }] od plných po 1 bod: max do plného poloměru, pak rovnoměrně ubývá až po nulový poloměr;
+    // každá hranice je kulatá vzdálenost (hráč je vidí v otázce). Body jsou celé číslo 0…max, správně = aspoň bod.
+    const pointTiers = ({ full, zero }, max) => {
+        const tiers = [{ points: max, km: roundKm(full) }];
+        for (let points = max - 1; points >= 1; points--) {
+            const km = roundKm(zero - (points - 1) / Math.max(1, max - 1) * (zero - full));
+            tiers.push({ points, km: Math.max(km, tiers[tiers.length - 1].km + 1) });
+        }
+        return tiers;
+    };
+    const pointsForDistance = (km, radii, max) => {
         if (!(km >= 0)) return 0;
-        if (km <= full) return max;
-        if (km >= zero) return 0;
-        return Math.max(1, Math.min(max - 1, Math.ceil((zero - km) / (zero - full) * (max - 1))));
+        const tier = pointTiers(radii, max).find(entry => km <= entry.km);
+        return tier ? tier.points : 0;
     };
     const scoreGuess = (map, guess, max) => {
         const km = distanceKm({ la: guess.lat, lo: guess.lon }, { la: map.lat, lo: map.lon });
@@ -274,22 +330,34 @@
     };
     // Na pevnině nebo do tolerance od pobřeží (přístavní město, malý ostrov zjednodušený do pár bodů)
     const COAST_TOLERANCE_KM = 12;
-    const onDrawnLand = (regionData, frame, lat, lon) => {
+    // Ostrov musí být opravdu nakreslený (Capri v 1:50m není, jen pobřeží vedle), tolerance jen na zaokrouhlení obrysu
+    const ISLAND_TOLERANCE_KM = 3;
+    const onDrawnLand = (regionData, frame, lat, lon, toleranceKm = COAST_TOLERANCE_KM) => {
         const [x, y] = frame.toMap(lat, lon);
-        const tolerance = COAST_TOLERANCE_KM * frame.unitsPerKm;
+        const tolerance = toleranceKm * frame.unitsPerKm;
         const rings = [...layerRings(regionData, 'land'), ...layerRings(regionData, 'seam')];
         let inside = false;
         for (const ring of rings) if (insideRing(x, y, ring)) inside = !inside;
         return inside || rings.some(ring => distanceToRing(x, y, ring) <= tolerance);
     };
 
+    // Stát (na mapě Česka kraj), do kterého místo padne: data/mapa.json areas, jinak null (moře, okolí Česka)
+    const parsedAreas = new WeakMap();
+    const areaAt = (regionData, frame, lat, lon) => {
+        if (!regionData || !Array.isArray(regionData.areas)) return null;
+        if (!parsedAreas.has(regionData)) parsedAreas.set(regionData, regionData.areas.map(area => ({ name: area.n, rings: ringsOf(area.d) })));
+        const [x, y] = frame.toMap(lat, lon);
+        const hit = parsedAreas.get(regionData).find(area => area.rings.reduce((inside, ring) => (insideRing(x, y, ring) ? !inside : inside), false));
+        return hit ? hit.name : null;
+    };
+
     // Otázka na mapě pro položku, nebo null (místo v moři mimo nakreslenou pevninu, chybějící mapa oblasti)
     const buildQuestion = (item, ctx, mapData) => {
         const region = candidate(item, ctx);
-        const regionData = region && mapData && mapData.regions && mapData.regions[region.id];
+        const shown = region && mapRegionOf(region.id);
+        const regionData = shown && mapData && mapData.regions && mapData.regions[shown.id];
         if (!regionData) return null;
-        const frame = frameOf(region);
-        if (item.c !== 'jezero' && !onDrawnLand(regionData, frame, item.la, item.lo)) return null;
+        if (item.c !== 'jezero' && !onDrawnLand(regionData, frameOf(shown), item.la, item.lo, item.c === 'ostrov' ? ISLAND_TOLERANCE_KM : COAST_TOLERANCE_KM)) return null;
         return {
             type: 'map',
             title: titleFor(item),
@@ -346,13 +414,20 @@
         return points;
     };
 
+    // Místo ve vzdálenosti km a směru bearing (stupně od severu) od bodu: kruh plných bodů v jakémkoli zobrazení
+    const destination = ({ lat, lon }, km, bearing) => {
+        const delta = km / EARTH_KM;
+        const phi = lat * RAD;
+        const theta = bearing * RAD;
+        const phi2 = Math.asin(Math.sin(phi) * Math.cos(delta) + Math.cos(phi) * Math.sin(delta) * Math.cos(theta));
+        const lambda2 = lon * RAD + Math.atan2(Math.sin(theta) * Math.sin(delta) * Math.cos(phi), Math.cos(delta) - Math.sin(phi) * Math.sin(phi2));
+        return { lat: phi2 / RAD, lon: ((lambda2 / RAD + 540) % 360) - 180 };
+    };
+    const circleAround = (center, km, steps = 72) => Array.from({ length: steps }, (_, i) => destination(center, km, i * 360 / steps));
+
     // --- Vykreslení a ovládání (jen v prohlížeči) ---
 
     const SVG_NS = 'http://www.w3.org/2000/svg';
-    // Nejvíc přiblížení: i na mapě kontinentu jde tip položit na pár desítek kilometrů (obrysy jsou z 1:50m, dál by nic nepřibylo)
-    const MAX_ZOOM = 32;
-    // Výřez výsledku (oba body s kruhem plných bodů) se přiblíží nanejvýš tolik
-    const RESULT_ZOOM = 4;
     // Vrstvy mapy v pořadí kreslení; třídy celé kvůli Tailwindu. Česko: okolní státy tlumeně, Česko výrazně s kraji a řekami.
     const LAYERS = {
         continent: [
@@ -417,12 +492,22 @@
         const project = ({ lat, lon }) => frame.toMap(lat, lon);
         // Kruh plných bodů a čára mezi tipem a správným místem (v jednotkách mapy, s přiblížením rostou)
         if (marks.target && marks.full) {
-            const [cx, cy] = project(marks.target);
-            circle = svgElement('circle', { cx, cy, r: marks.full * frame.unitsPerKm, 'stroke-width': 1.5, 'stroke-dasharray': '5 4', 'vector-effect': 'non-scaling-stroke', class: 'fill-emerald-500/15 stroke-emerald-600 dark:fill-emerald-400/15 dark:stroke-emerald-400' });
+            // Kruh na zeměkouli (na mapě světa u pólů protáhlý); přes okraj mapy u 180. poledníku se jen ořízne
+            const points = circleAround(marks.target, marks.full).map(project);
+            const [tx] = project(marks.target);
+            const unwrapped = points.map(([x, y]) => [Math.abs(x - tx) > frame.width / 2 ? x + Math.sign(tx - x) * frame.width : x, y]);
+            circle = svgElement('polygon', { points: unwrapped.map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join(' '), 'stroke-width': 1.5, 'stroke-dasharray': '5 4', 'vector-effect': 'non-scaling-stroke', 'data-full-circle': '', class: 'fill-emerald-500/15 stroke-emerald-600 dark:fill-emerald-400/15 dark:stroke-emerald-400' });
             overlay.appendChild(circle);
         }
         if (marks.target && marks.guess) {
-            line = svgElement('polyline', { points: greatCircle(marks.guess, marks.target).map(project).map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join(' '), 'stroke-width': 2.5, 'stroke-dasharray': '6 5', 'stroke-linecap': 'round', 'vector-effect': 'non-scaling-stroke', class: 'fill-none stroke-slate-800 dark:stroke-white' });
+            // Přes 180. poledník (Fidži, Samoa) se čára na okraji mapy přeruší a pokračuje z druhého okraje
+            const pieces = [[]];
+            greatCircle(marks.guess, marks.target).map(project).forEach((point, i, all) => {
+                if (i > 0 && Math.abs(point[0] - all[i - 1][0]) > frame.width / 2) pieces.push([]);
+                pieces[pieces.length - 1].push(point);
+            });
+            const d = pieces.filter(piece => piece.length > 1).map(piece => `M${piece.map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join('L')}`).join('');
+            line = svgElement('path', { d, 'data-map-line': '', 'stroke-width': 2.5, 'stroke-dasharray': '6 5', 'stroke-linecap': 'round', 'vector-effect': 'non-scaling-stroke', class: 'fill-none stroke-slate-800 dark:stroke-white' });
             overlay.appendChild(line);
         }
         if (marks.target) { pins.target = targetMark(); overlay.appendChild(pins.target); }
@@ -442,7 +527,7 @@
         };
         let box = measure();
         const clampView = (cx, cy, zoom) => {
-            const z = Math.max(1, Math.min(MAX_ZOOM, zoom));
+            const z = Math.max(1, Math.min(frame.maxZoom, zoom));
             const w = box.base.w / z;
             const h = box.base.h / z;
             const x = Math.max(box.base.x, Math.min(box.base.x + box.base.w - w, cx - w / 2));
@@ -460,12 +545,12 @@
                 const [x, y] = project(point);
                 pin.setAttribute('transform', `translate(${x.toFixed(2)} ${y.toFixed(2)}) scale(${perPixel.toFixed(4)})`);
             }
-            zoomButtons.forEach(button => { button.disabled = button.dataset.mapZoom === 'in' ? view.zoom >= MAX_ZOOM - 1e-6 : view.zoom <= 1 + 1e-6; });
+            zoomButtons.forEach(button => { button.disabled = button.dataset.mapZoom === 'in' ? view.zoom >= frame.maxZoom - 1e-6 : view.zoom <= 1 + 1e-6; });
         };
         let frameRequest = 0;
         const redraw = () => { if (!frameRequest) frameRequest = root.requestAnimationFrame(() => { frameRequest = 0; draw(); }); };
         const zoomAround = (factor, mx, my) => {
-            const zoom = Math.max(1, Math.min(MAX_ZOOM, view.zoom * factor));
+            const zoom = Math.max(1, Math.min(frame.maxZoom, view.zoom * factor));
             // Bod pod prstem (kurzorem) zůstane na místě
             const fx = (mx - view.x) / view.w;
             const fy = (my - view.y) / view.h;
@@ -494,7 +579,7 @@
             const pad = Math.max(...[Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys)].map(span => span * 0.35), frame.width * 0.06);
             const spanW = Math.max(...xs) - Math.min(...xs) + 2 * pad;
             const spanH = Math.max(...ys) - Math.min(...ys) + 2 * pad;
-            const zoom = Math.min(box.base.w / spanW, box.base.h / spanH, RESULT_ZOOM);
+            const zoom = Math.min(box.base.w / spanW, box.base.h / spanH, frame.maxZoom / 8);
             view = clampView((Math.max(...xs) + Math.min(...xs)) / 2, (Math.max(...ys) + Math.min(...ys)) / 2, zoom);
         }
 
@@ -519,7 +604,7 @@
             if (gesture.kind === 'pinch' && pointers.size >= 2) {
                 const [a, b] = [...pointers.values()];
                 const factor = Math.hypot(a.x - b.x, a.y - b.y) / gesture.distance;
-                const zoom = Math.max(1, Math.min(MAX_ZOOM, gesture.view.zoom * factor));
+                const zoom = Math.max(1, Math.min(frame.maxZoom, gesture.view.zoom * factor));
                 const w = box.base.w / zoom;
                 const h = box.base.h / zoom;
                 // Střed mezi prsty drží stejné místo mapy
@@ -601,23 +686,27 @@
     const confirmLabel = (placed) => placed ? 'Potvrdit' : 'Nejdřív klepni na mapu';
     const questionScreen = (data, ui) => {
         const question = data.question;
-        const region = REGION_BY_ID[question.map.region] || REGIONS[0];
+        const region = mapRegionOf(question.map.region);
         const max = maxPoints(ui.typed);
         const placed = Boolean(ui.guess);
+        const tiers = pointTiers(question.map, max);
         return `
             <div class="${ui.fresh ? 'fade-in ' : ''}flex min-h-full w-full flex-col gap-2 bg-slate-50 p-3 dark:bg-slate-900">
                 <div class="relative flex flex-col items-center gap-1 text-center">
                     ${ui.extraTop || ''}
                     <span class="inline-flex ${ui.labelClass || 'max-w-full'} items-center gap-1.5 rounded-lg border px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest text-white shadow-sm ${ui.style.solid}">
-                        <i data-lucide="${escapeHtml(ui.categoryIcon)}" class="h-3 w-3 shrink-0"></i> <span class="truncate">${escapeHtml(data.typeLabel)} · ukaž na mapě</span>
+                        <i data-lucide="${escapeHtml(ui.categoryIcon)}" class="h-3 w-3 shrink-0"></i> <span class="leading-tight">${escapeHtml(data.typeLabel)} · na mapě</span>
                     </span>
                     <h2 class="text-[22px] font-black leading-tight tracking-tight text-slate-800 dark:text-slate-50">${escapeHtml(question.title)}</h2>
-                    <p class="text-xs font-semibold text-slate-500 dark:text-slate-400">Plné ${formatPoints(max)} do ${formatKm(question.map.full)}, čím blíž, tím víc bodů</p>
+                    <button type="button" data-map-tiers-toggle aria-expanded="false" aria-controls="map-tiers" class="inline-flex min-h-[1.5rem] items-center gap-1 rounded-lg px-2 text-xs font-bold text-slate-600 hover:bg-slate-200/60 dark:text-slate-300 dark:hover:bg-slate-700/60">
+                        <i data-lucide="target" class="h-3.5 w-3.5"></i> Plné ${formatPoints(max)} do ${formatKm(tiers[0].km)} <i data-lucide="chevron-down" class="h-3.5 w-3.5"></i>
+                    </button>
+                    <div id="map-tiers" data-map-tiers hidden><p class="flex flex-wrap justify-center gap-x-3 gap-y-0.5 text-xs font-semibold text-slate-500 dark:text-slate-400">${tiers.map(tier => `<span class="whitespace-nowrap">${formatPoints(tier.points)} do ${formatKm(tier.km)}</span>`).join('')}<span class="whitespace-nowrap">dál 0 bodů</span></p></div>
                 </div>
                 <section class="relative min-h-[13rem] flex-1 overflow-hidden rounded-2xl border ${MAP_FRAME}">
-                    <div data-map-question tabindex="0" role="application" aria-label="Mapa ${escapeHtml(region.label)} bez popisků. Klepni, kde místo leží; šipkami tip posuneš, plus a minus přiblíží, Enter potvrdí." class="absolute inset-0 overflow-hidden rounded-2xl"></div>
+                    <div data-map-question tabindex="0" role="application" aria-label="${region.projection ? 'Mapa světa' : `Mapa ${escapeHtml(region.label)}`} bez popisků. Klepni, kde místo leží; šipkami tip posuneš, plus a minus přiblíží, Enter potvrdí." class="absolute inset-0 overflow-hidden rounded-2xl"></div>
                     ${ZOOM_BUTTONS}
-                    <span class="pointer-events-none absolute bottom-2 left-2 rounded-lg bg-black/65 px-2 py-1 text-[11px] font-bold text-white">${escapeHtml(region.label)}</span>
+                    ${region.projection ? '' : `<span class="pointer-events-none absolute bottom-2 left-2 rounded-lg bg-black/65 px-2 py-1 text-[11px] font-bold text-white">${escapeHtml(region.label)}</span>`}
                 </section>
                 <button type="button" data-action="map-confirm" ${placed ? '' : 'disabled'} class="btn-3d flex h-12 w-full shrink-0 items-center justify-center gap-2 rounded-2xl px-4 text-base font-black text-white shadow-md transition-all active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 ${ui.style.button}">
                     <i data-lucide="check" class="h-5 w-5"></i> <span data-map-confirm-label>${confirmLabel(placed)}</span>
@@ -651,11 +740,21 @@
         const element = screen.querySelector('[data-map-question]');
         if (!element) return null;
         const question = data.question;
+        // Hranice bodů (4 b do …, 3 b do …): klepnutí na „Plné body do …“ je rozbalí a zase sbalí
+        const tiersToggle = screen.querySelector('[data-map-tiers-toggle]');
+        const tiersList = screen.querySelector('[data-map-tiers]');
+        if (tiersToggle && tiersList) {
+            tiersToggle.addEventListener('click', () => {
+                tiersList.hidden = !tiersList.hidden;
+                tiersToggle.setAttribute('aria-expanded', String(!tiersList.hidden));
+            });
+        }
         try {
-            const regionData = await regionDataOf(loadMap, question.map.region);
+            const shown = mapRegionOf(question.map.region);
+            const regionData = await regionDataOf(loadMap, shown.id);
             if (!element.isConnected) return null;
             const button = screen.querySelector('[data-action="map-confirm"]');
-            return createMapView(element, regionData, frameOf(question.map.region), {
+            return createMapView(element, regionData, frameOf(shown), {
                 interactive: true,
                 marks: { guess },
                 onConfirm,
@@ -681,13 +780,13 @@
         const distance = result ? `Vedle o ${formatKm(result.km)}` : 'Bez tipu – tady to je';
         return `
             <div class="absolute inset-0 ${MAP_FRAME}">
-                <div id="map-guess" class="absolute inset-0 overflow-hidden" role="img" aria-label="${escapeHtml(`Mapa ${(REGION_BY_ID[question.map.region] || {}).label || ''}: ${result ? `tvůj tip a správné místo, ${distance.toLowerCase()}` : 'správné místo'}.`)}"></div>
+                <div id="map-guess" class="absolute inset-0 overflow-hidden" role="img" aria-label="${escapeHtml(`${question.map.region === 'cesko' ? 'Mapa Česka' : 'Mapa světa'}: ${result ? `tvůj tip a správné místo, ${distance.toLowerCase()}` : 'správné místo'}.`)}"></div>
                 ${ZOOM_BUTTONS}
                 <div class="pointer-events-none absolute left-2 top-2 flex flex-col items-start gap-1">
                     <span data-map-distance class="rounded-lg bg-black/70 px-2.5 py-1 text-sm font-black text-white">${escapeHtml(distance)}</span>
                     <span class="inline-flex items-center gap-2.5 rounded-lg bg-white/90 px-2 py-1 text-[11px] font-bold text-slate-700 shadow-sm dark:bg-slate-900/85 dark:text-slate-200">
                         <span class="inline-flex items-center gap-1"><span class="h-2.5 w-2.5 rounded-full bg-emerald-600"></span>Správně</span>
-                        ${result ? '<span class="inline-flex items-center gap-1"><span class="h-2.5 w-2.5 rounded-full bg-brand-600"></span>Tvůj tip</span>' : ''}
+                        ${result ? '<span class="inline-flex items-center gap-1"><span class="h-2.5 w-2.5 rounded-full bg-brand-600"></span>Tvůj tip<span data-map-guess-area></span></span>' : ''}
                     </span>
                 </div>
             </div>`;
@@ -696,19 +795,22 @@
         const question = data.question;
         const target = { lat: question.map.lat, lon: question.map.lon };
         try {
-            const regionData = await regionDataOf(loadMap, question.map.region);
+            const shown = mapRegionOf(question.map.region);
+            const regionData = await regionDataOf(loadMap, shown.id);
             if (!element.isConnected) return null;
-            const frame = frameOf(question.map.region);
+            const frame = frameOf(shown);
             // Bez tipu jen správné místo s kruhem plných bodů
-            const fullPoints = [0, 90, 180, 270].map(bearing => {
-                const [x, y] = frame.toMap(target.lat, target.lon);
-                const r = question.map.full * frame.unitsPerKm;
-                return frame.fromMap(x + r * Math.cos(bearing * RAD), y + r * Math.sin(bearing * RAD));
-            });
+            const sameSide = (point) => shown.id === 'cesko' || Math.abs(point.lon - target.lon) <= 180;
+            const fullPoints = [0, 90, 180, 270].map(bearing => destination(target, question.map.full, bearing)).filter(sameSide);
             const guess = result ? { lat: result.lat, lon: result.lon } : null;
+            // Kam hráč klepl: „Tvůj tip · Thajsko“ (u míst v Česku kraj)
+            const areaLabel = guess && element.parentElement && element.parentElement.querySelector('[data-map-guess-area]');
+            const area = areaLabel && areaAt(regionData, frame, guess.lat, guess.lon);
+            if (area) areaLabel.textContent = ` · ${area}`;
             return createMapView(element, regionData, frame, {
                 marks: { guess, target, full: question.map.full },
-                focus: [target, ...(guess ? [guess] : []), ...fullPoints]
+                // Tip za 180. poledníkem by výřez roztáhl přes celý svět: pak jen správné místo (čára vede k okraji mapy)
+                focus: [target, ...(guess && sameSide(guess) ? [guess] : []), ...fullPoints]
             });
         } catch (error) {
             console.error(error);
@@ -753,9 +855,9 @@
     };
 
     const api = {
-        REGIONS, REGION_BY_ID, FRAME_UNITS, KINDS, GAP_KEY, MIN_GAP, MAX_GAP, MAX_ZOOM, FULL_SHARE, ZERO_SHARE, COAST_TOLERANCE_KM,
-        projector, frameOf, insideFrame, regionFor, candidate, isAmbiguous, radiiFor, maxPoints, pointsForDistance, scoreGuess, formatKm,
-        titleFor, ringsOf, onDrawnLand, buildQuestion, isDue, nextQuestion, evaluate, greatCircle,
+        REGIONS, REGION_BY_ID, WORLD, MAP_REGIONS, mapRegionOf, FRAME_UNITS, KINDS, GAP_KEY, MIN_GAP, MAX_GAP, MAX_ZOOM, WORLD_MAX_ZOOM,
+        FULL_SHARE, ZERO_SHARE, COAST_TOLERANCE_KM, projector, equalEarth, projectionOf, frameOf, roundKm, pointTiers, destination, insideFrame, regionFor, candidate, isAmbiguous, radiiFor, maxPoints, pointsForDistance, scoreGuess, formatKm,
+        titleFor, ringsOf, onDrawnLand, areaAt, buildQuestion, isDue, nextQuestion, evaluate, greatCircle,
         questionScreen, mountQuestion, resultPane, mountResult, resultBanner
     };
     return api;
