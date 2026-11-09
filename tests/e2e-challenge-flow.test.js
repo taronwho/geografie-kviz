@@ -173,6 +173,27 @@ const answer = async (tab, { next = true, giveUp = false } = {}) => {
     await tab.waitForSelector('[data-action="next"]');
     if (next) await tab.click('[data-action="next"]');
 };
+// Soupeř vpravo nahoře v záhlaví otázky (výzva, zápas turnaje): druh, přezdívka, obrázek a rozložení záhlaví (nic se nepřekrývá ani nevyčnívá)
+const opponentHeader = (tab) => tab.evaluate(() => {
+    const chip = document.querySelector('#app-content [data-opponent-chip]');
+    if (!chip) return null;
+    const box = (el) => el.getBoundingClientRect();
+    const content = box(document.getElementById('app-content'));
+    const c = box(chip);
+    const head = box(chip.closest('.relative'));
+    const avatar = chip.firstElementChild;
+    const name = chip.querySelector('[data-opponent-name]');
+    const label = box(document.querySelector('#app-content [data-header-label]'));
+    const left = [...chip.parentElement.querySelectorAll('[data-score-chip], [data-tour-timer]')].map(el => box(el.closest('.rounded-lg') || el));
+    return {
+        kind: chip.dataset.opponentChip, name: name.textContent.trim(), avatar: avatar.textContent.trim(), title: chip.getAttribute('title'),
+        avatarSize: Math.round(box(avatar).width), fontSize: getComputedStyle(name).fontSize,
+        topRight: Math.abs(head.right - c.right) < 1 && Math.abs(head.top - c.top) < 1 && c.width > 40 && head.right <= content.right,
+        clear: left.every(r => r.right <= c.left) && label.top >= c.bottom && label.left >= content.left && label.right <= content.right,
+        timer: Boolean(chip.parentElement.querySelector('[data-tour-timer]')),
+        scroll: document.documentElement.scrollWidth - document.documentElement.clientWidth + (document.getElementById('app-content').scrollWidth - document.getElementById('app-content').clientWidth)
+    };
+});
 const dialogTitle = (tab) => tab.evaluate(() => { const overlay = document.getElementById('dialog-overlay'); return overlay ? overlay.dataset.title : null; });
 
 test('hra více hráčů: výzvy, obnova, okna a profil', { skip: !chromium && 'Playwright není nainstalovaný' }, async (t) => {
@@ -383,6 +404,9 @@ test('hra více hráčů: výzvy, obnova, okna a profil', { skip: !chromium && '
         const { context, tab, log } = await start(db);
         await tab.waitForSelector('[data-action="tournament-play"]');
         await tab.click('[data-action="tournament-play"]');
+        // Soupeř zápasu vpravo nahoře, čas zápasu vlevo vedle bodů
+        await tab.waitForSelector('[data-opponent-chip]', { timeout: 30000 });
+        assert.deepEqual(await opponentHeader(tab).then(h => [h.kind, h.name, h.avatar, h.timer, h.topRight, h.clear]), ['player', 'Petr Svoboda', '🐼', true, true, true]);
         for (let i = 0; i < 3; i++) await answer(tab);
         await tab.waitForSelector('[data-action="choice"]');
         // Domů, výzva od Petra, dvě otázky, zavření aplikace
@@ -390,6 +414,8 @@ test('hra více hráčů: výzvy, obnova, okna a profil', { skip: !chromium && '
         await waitForHome(tab);
         await tab.click('[data-action="challenge-open"][data-code="JJJJJJ"]');
         await tab.click('[data-ch-play]');
+        await tab.waitForSelector('[data-opponent-chip]', { timeout: 30000 });
+        assert.deepEqual(await opponentHeader(tab).then(h => [h.kind, h.name, h.timer]), ['player', 'Petr Svoboda', false], 'vyzvaný hraje proti zakladateli, výzva bez času');
         for (let i = 0; i < 2; i++) await answer(tab);
         await tab.waitForSelector('[data-action="choice"]');
         await tab.reload();
@@ -399,6 +425,7 @@ test('hra více hráčů: výzvy, obnova, okna a profil', { skip: !chromium && '
         await tab.click('[data-action="tournament-resume"]');
         await tab.waitForSelector('[data-tour-timer]');
         assert.equal(await tab.textContent('#status-text'), 'Turnaj · 4/10');
+        assert.deepEqual(await opponentHeader(tab).then(h => [h.name, h.timer]), ['Petr Svoboda', true], 'soupeř i po obnovení zápasu');
         for (let i = 0; i < 7; i++) await answer(tab);
         await tab.waitForSelector('[data-action="tournament-back"]');
         assert.ok(db.tresults.find(r => r.user_id === 'u-1').finished_at, 'zápas je odehraný');
@@ -426,6 +453,51 @@ test('hra více hráčů: výzvy, obnova, okna a profil', { skip: !chromium && '
         const keep = ['mudrlant.auth', 'mudrlant.tutorial', 'mudrlant.tips', 'mudrlant.variant', 'mudrlant.account', 'mudrlant.homeTab'].map(key => [key, localStorage.getItem(key)]);
         localStorage.clear();
         keep.forEach(([key, value]) => { if (value !== null) localStorage.setItem(key, value); });
+    });
+
+    await t.test('soupeř vpravo nahoře v záhlaví otázky: vyzvaný vidí zakladatele, zakladatel vyzvaného, otevřená výzva, trénink bez soupeře', async () => {
+        for (const [viewport, colorScheme] of [[{ width: 360, height: 640 }, 'dark'], [{ width: 390, height: 780 }, 'light']]) {
+            const db = newDb();
+            db.profiles['u-2'].display_name = 'Petr Svoboda s dlouhou přezdívkou';
+            db.challenges.AAAAAA = { id: 'AAAAAA', creator_id: 'u-1', invited_id: 'u-2', topic: 'zemepis', count: 5, seed: 'a', include_hard: false, categories: [], variant: 'choices', created_at: '2026-11-03T10:00:00Z' };
+            // Vyzvaný (Petr) hraje proti zakladatelce Janě
+            const petr = await start(db, 'tok-u2', { viewport, colorScheme });
+            await petr.tab.click('[data-action="challenge-open"][data-code="AAAAAA"]');
+            await petr.tab.click('[data-ch-play]');
+            await petr.tab.waitForSelector('[data-opponent-chip]', { timeout: 30000 });
+            const header = await opponentHeader(petr.tab);
+            assert.deepEqual({ ...header, title: undefined }, { kind: 'player', name: 'Jana Nováková', avatar: '🦊', title: undefined, avatarSize: 18, fontSize: '11px', topRight: true, clear: true, timer: false, scroll: 0 });
+            assert.equal(header.title, 'Hraješ proti: Jana Nováková');
+            assert.deepEqual(petr.log.errors, []);
+            assert.deepEqual(petr.log.csp, []);
+            await petr.context.close();
+            // Zakladatelka (Jana) hraje proti vyzvanému: dlouhá přezdívka se zkrátí a nic nepřesahuje
+            const jana = await start(db, 'tok-u1', { viewport, colorScheme });
+            await jana.tab.click('[data-action="join-challenge"]');
+            await jana.tab.fill('#challenge-code', 'AAAAAA');
+            await jana.tab.press('#challenge-code', 'Enter');
+            await jana.tab.click('[data-ch-play]');
+            await jana.tab.waitForSelector('[data-opponent-chip]', { timeout: 30000 });
+            const own = await opponentHeader(jana.tab);
+            assert.deepEqual([own.kind, own.name, own.avatar, own.topRight, own.clear, own.scroll], ['player', 'Petr Svoboda s dlouhou přezdívkou', '🐼', true, true, 0]);
+            assert.ok(await jana.tab.evaluate(() => { const name = document.querySelector('[data-opponent-name]'); return name.scrollWidth > name.clientWidth; }), 'dlouhá přezdívka je zkrácená');
+            // Moje výzva pro kohokoli, kterou ještě nikdo nepřijal
+            await jana.tab.click('#btn-home');
+            await waitForHome(jana.tab);
+            await jana.tab.click('[data-action="new-challenge"]');
+            await jana.tab.click('[data-ch-who="anyone"]');
+            await jana.tab.click('[data-ch-count="5"]');
+            await jana.tab.click('[data-ch-create]');
+            await jana.tab.waitForSelector('[data-opponent-chip]', { timeout: 30000 });
+            assert.deepEqual(await opponentHeader(jana.tab).then(h => [h.kind, h.name, h.topRight, h.clear]), ['open', 'Otevřená výzva', true, true]);
+            // Trénink: body ano, soupeř ne
+            await jana.tab.click('#btn-practice');
+            await jana.tab.waitForSelector('[data-score-chip]', { timeout: 30000 });
+            assert.equal(await jana.tab.locator('[data-opponent-chip], [data-match-bar]').count(), 0, 'trénink je bez soupeře');
+            assert.deepEqual(jana.log.errors, []);
+            assert.deepEqual(jana.log.csp, []);
+            await jana.context.close();
+        }
     });
 
     await t.test('průběh na serveru: po smazání dat výzva pokračuje první neuloženou otázkou (ne od první) a výsledek je součet průběhu', async () => {

@@ -548,15 +548,20 @@ test('týdenní turnaje', { skip: !chromium && 'Playwright není nainstalovaný'
         assert.match(await tab.textContent('#status-badge'), /Turnaj · 1\/10/);
         assert.equal(await tab.locator('[data-tour-timer]').count(), 1, 'u otázky turnaje běží čas');
         assert.match(await tab.textContent('[data-tour-timer]'), /^\d+:\d{2}$/);
-        // Body ve hře: čip vlevo nahoře, štítek druhu otázky mezi ním a časem se nepřekrývá ani nezalomí
+        // Body ve hře a čas vlevo nahoře, soupeř (obrázek a přezdívka) vpravo nahoře; štítek druhu otázky pod nimi se nepřekrývá ani nezalomí
         assert.equal((await tab.textContent('[data-score-chip]')).trim(), '0 b');
         const header = await tab.evaluate(() => {
             const chip = document.querySelector('[data-score-chip]').getBoundingClientRect();
             const timer = document.querySelector('[data-tour-timer]').parentElement.getBoundingClientRect();
-            const label = document.querySelector('[data-score-chip]').parentElement.querySelector(':scope > span.inline-flex:not(.absolute)').getBoundingClientRect();
-            return { apart: chip.right <= label.left && label.right <= timer.left, oneLine: label.height < 24 };
+            const rival = document.querySelector('[data-opponent-chip]');
+            const opponent = rival.getBoundingClientRect();
+            const label = document.querySelector('[data-header-label]').getBoundingClientRect();
+            return {
+                apart: chip.right <= timer.left && timer.right <= opponent.left && Math.max(chip.bottom, timer.bottom, opponent.bottom) <= label.top, oneLine: label.height < 24,
+                rival: rival.querySelector('[data-opponent-name]').textContent.trim(), avatar: rival.firstElementChild.textContent.trim()
+            };
         });
-        assert.deepEqual(header, { apart: true, oneLine: true });
+        assert.deepEqual(header, { apart: true, oneLine: true, rival: 'Petr Svoboda', avatar: '🐼' });
         assert.ok(await tab.locator('[data-action="choice"]').count() >= 2, 'varianta s výběrem z možností');
         assert.equal(await tab.locator('#answer-form').count(), 0);
         await shot(tab, 'turnaj-hra');
