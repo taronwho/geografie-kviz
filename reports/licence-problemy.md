@@ -1,13 +1,13 @@
 # Obrázky k nahrazení před komerčním vydáním
 
-Sestaveno 2026-11-08 skriptem `scripts/build-licenses.mjs` z metadat Wikimedia Commons (`data/licenses.json`).
+Sestaveno 2026-11-09 skriptem `scripts/build-licenses.mjs` z metadat Wikimedia Commons (`data/licenses.json`).
 Uvedené soubory mají licenci, která nedovoluje komerční užití nebo úpravy (ořez, překrytí), jsou „fair use“, nebo licenci neuvádějí.
 Před vydáním v Google Play je nutné je nahradit jiným obrázkem (nebo položku ponechat bez fotky). Licence CC BY, CC BY-SA, CC0 a volná díla jsou v pořádku,
 vyžadují jen uvedení autora a licence – to dělá stránka Zdroje a licence (`licence.html`).
 
 ## Souhrn
 
-- souborů celkem: **24816**, s načtenými metadaty: **24816**, zatím nestaženo: **0**
+- souborů celkem: **25668**, s načtenými metadaty: **25668**, zatím nestaženo: **0**
 - problémových: **0**
 
 ## Počty podle témat
@@ -27,7 +27,7 @@ vyžadují jen uvedení autora a licence – to dělá stránka Zdroje a licence
 | sport | 1695 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | umeni | 1476 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | vlajky | 1889 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| zemepis | 4431 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| zemepis | 5353 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 
 ## Seznam souborů
 
