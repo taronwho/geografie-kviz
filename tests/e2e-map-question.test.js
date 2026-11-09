@@ -164,6 +164,12 @@ test('otázka „Ukaž na mapě“', { skip: !chromium && 'Playwright není nain
         // Úplně oddálit a klepnout do rohu mapy daleko od místa
         while (!(await tab.isDisabled('[data-map-zoom="out"]'))) await tab.click('[data-map-zoom="out"]');
         assert.ok(Math.abs((await viewBox(tab))[2] - before[2]) < 0.5, 'oddálení až na celou oblast');
+        // Přiblížit jde až 32× (na přesné místo i na mapě kontinentu), pak se tlačítko vypne
+        let clicks = 0;
+        while (!(await tab.isDisabled('[data-map-zoom="in"]')) && clicks < 10) { await tab.click('[data-map-zoom="in"]'); clicks++; }
+        assert.equal(clicks, 5, 'pět klepnutí na největší přiblížení');
+        assert.ok(Math.abs((await viewBox(tab))[2] - before[2] / 32) < 0.5, 'největší přiblížení 32×');
+        while (!(await tab.isDisabled('[data-map-zoom="out"]'))) await tab.click('[data-map-zoom="out"]');
         await tab.mouse.click(map.x + 6, map.y + 6);
         const { data } = await session(tab);
         await tab.click('[data-action="map-confirm"]');

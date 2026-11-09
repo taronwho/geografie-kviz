@@ -10,7 +10,7 @@ import { layer, polygonsOf, linesOf, ringKm2, planarArea, simplify, clipPolygon,
 const require = createRequire(import.meta.url);
 const MapQuestion = require('../question-map.js');
 
-// Zjednodušení (Douglas–Peucker) v jednotkách mapy: na telefonu při největším přiblížení je jednotka asi 2 px
+// Zjednodušení (Douglas–Peucker) v jednotkách mapy: na telefonu je jednotka bez přiblížení asi 0,4 px (přiblížit jde až 32×)
 const TOLERANCE = 0.5;
 const CZECH_TOLERANCE = 0.35;
 // Jezera od této rozlohy (km²) – menší by na mapě kontinentu byla jen tečka

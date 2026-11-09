@@ -349,7 +349,10 @@
     // --- Vykreslení a ovládání (jen v prohlížeči) ---
 
     const SVG_NS = 'http://www.w3.org/2000/svg';
-    const MAX_ZOOM = 8;
+    // Nejvíc přiblížení: i na mapě kontinentu jde tip položit na pár desítek kilometrů (obrysy jsou z 1:50m, dál by nic nepřibylo)
+    const MAX_ZOOM = 32;
+    // Výřez výsledku (oba body s kruhem plných bodů) se přiblíží nanejvýš tolik
+    const RESULT_ZOOM = 4;
     // Vrstvy mapy v pořadí kreslení; třídy celé kvůli Tailwindu. Česko: okolní státy tlumeně, Česko výrazně s kraji a řekami.
     const LAYERS = {
         continent: [
@@ -491,7 +494,7 @@
             const pad = Math.max(...[Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys)].map(span => span * 0.35), frame.width * 0.06);
             const spanW = Math.max(...xs) - Math.min(...xs) + 2 * pad;
             const spanH = Math.max(...ys) - Math.min(...ys) + 2 * pad;
-            const zoom = Math.min(box.base.w / spanW, box.base.h / spanH, MAX_ZOOM / 2);
+            const zoom = Math.min(box.base.w / spanW, box.base.h / spanH, RESULT_ZOOM);
             view = clampView((Math.max(...xs) + Math.min(...xs)) / 2, (Math.max(...ys) + Math.min(...ys)) / 2, zoom);
         }
 
