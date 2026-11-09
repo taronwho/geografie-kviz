@@ -255,6 +255,25 @@ test('otázka „Ukaž na mapě“', { skip: !chromium && 'Playwright není nain
         await context.close();
     });
 
+    await t.test('režim Ukaž na mapě (zkušební): z výběru tématu jen otázky na mapě, jedna za druhou', async () => {
+        // gap 0 = v běžném procvičování by otázka na mapě teď nepřišla; režim ji dá vždy
+        const { context, tab, problems } = await open({ gap: 0, storage: { 'mudrlant.settings': JSON.stringify({ tier: 'known', seen: [], categories: { zemepis: ['mesto'] } }) } });
+        await tab.click('[data-action="play-topic"][data-topic="zemepis"]');
+        await tab.waitForSelector('#play-chooser [data-chooser-map]');
+        await tab.click('#play-chooser [data-chooser-map]');
+        for (let i = 0; i < 3; i++) {
+            await tab.waitForSelector('[data-action="map-confirm"]', { timeout: 30000 });
+            assert.match(await tab.textContent('#status-badge'), /Ukaž na mapě · Zeměpis/);
+            await tab.click('[data-action="give-up"]');
+            await tab.waitForSelector('[data-verdict]');
+            assert.match(await tab.textContent('[data-action="next"]'), /Další na mapě/);
+            await tab.click('[data-action="next"]');
+        }
+        await tab.waitForSelector('[data-action="map-confirm"]', { timeout: 30000 });
+        assert.deepEqual(problems, []);
+        await context.close();
+    });
+
     await t.test('dnešní otázky a procvičování chyb otázku na mapě nemají, počítadlo se nemění', async () => {
         const { context, tab, problems } = await open({ storage: { 'mudrlant.mistakes': JSON.stringify(['zemepis:Q5000', 'zemepis:Q64']) } });
         await tab.click('[data-action="daily"][data-topic="zemepis"]');
