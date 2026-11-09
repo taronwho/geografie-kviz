@@ -401,7 +401,7 @@
     };
     // Vývojářské nástroje turnajů (boti): jen pro účet zapsaný v dev_admins; chyba serveru se předá tak, jak je
     const devTournament = async (name, body = {}) => {
-        const allowed = ['dev_tournament_add_bots', 'dev_tournament_start_now', 'dev_tournament_next_round', 'dev_tournament_clear_bots', 'dev_tournament_reset'];
+        const allowed = ['dev_tournament_add_bots', 'dev_tournament_start_now', 'dev_tournament_next_round', 'dev_tournament_bots_play', 'dev_tournament_clear_bots', 'dev_tournament_reset'];
         if (!allowed.includes(name)) throw new SocialError('Neznámý nástroj.', 400);
         try { return await request('POST', `rpc/${name}`, { body }); } catch (error) {
             if (error.status === 404) throw new SocialError('Vývojářské nástroje turnajů v databázi chybí: spusť znovu supabase/schema.sql.', 404);

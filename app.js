@@ -63,7 +63,7 @@
     // 8 = Skupiny (group_*, my_groups, týdenní XP; se starší databází se Skupiny jen nenabídnou);
     // 9 = odměny v účtu (profiles.rewards: Truhla Mudrlanta, ochrana série, diplomy) a nové odznaky (se starší databází zůstanou jen v zařízení);
     // 10 = Rozpis otázek (podrobnosti odpovědí výzvy a zápasu turnaje, challenge_details a tournament_details; se starší databází jen vlastní odpovědi ze zařízení).
-    const REQUIRED_SCHEMA = 11;
+    const REQUIRED_SCHEMA = 12;
     const HISTORY_SIZE = 200;
     const REQUEST_TIMEOUT = 12000;
     const WIKI_TIMEOUT = 6000;
@@ -745,6 +745,11 @@
                 if (!running) throw new Error('Žádný turnaj neběží.');
                 await Social.devTournament('dev_tournament_next_round', { tid: running.id });
                 message = 'Posun o kolo, boti odehráli';
+            } else if (kind === 'tour-play') {
+                if (!running) throw new Error('Žádný turnaj neběží.');
+                const played = await Social.devTournament('dev_tournament_bots_play', { tid: running.id });
+                resetTournaments();
+                message = Number(played) ? `Boti odehráli zápasů: ${Number(played)}` : 'Boti už mají kolo odehrané';
             } else if (kind === 'tour-reset') {
                 const removed = await Social.devTournament('dev_tournament_reset', {});
                 resetTournaments();
@@ -832,7 +837,7 @@
             <p class="mb-1.5 flex items-center justify-between text-[11px] font-black uppercase tracking-widest text-amber-700 dark:text-amber-400"><span>Vývojářský režim</span><span class="font-bold normal-case tracking-normal">${devActive() ? 'zkušební postup' : 'tvůj postup'}</span></p>
             <div class="flex flex-wrap gap-1">${[['max', 'Vše (úr. 100)'], ['level:10', 'Úr. 10'], ['level:25', 'Úr. 25'], ['level:50', 'Úr. 50'], ['level:75', 'Úr. 75'], ['badges', 'Všechny odznaky'], ['nobadges', 'Žádné odznaky'], ['nostars', 'Vymazat hvězdičky'], ['bulb', 'Vrátit žárovku'], ['tips', 'Obnovit tipy']].map(([kind, label]) => `<button type="button" data-dev="${kind}" class="rounded-lg bg-slate-200 px-2 py-1 text-[11px] font-bold text-slate-700 active:scale-95 dark:bg-slate-700 dark:text-slate-200">${label}</button>`).join('')}${devActive() ? '<button type="button" data-dev="restore" class="rounded-lg bg-amber-700 px-2 py-1 text-[11px] font-black text-white active:scale-95">Vrátit můj postup</button>' : ''}</div>
             ${Social ? `<p class="mb-1 mt-2 text-[11px] font-black uppercase tracking-widest text-amber-700 dark:text-amber-400">Turnaj (boti)</p>
-            <div class="flex flex-wrap gap-1">${[['tour-bots', '+31 botů'], ['tour-start', 'Spustit hned'], ['tour-next', 'Další kolo'], ['tour-reset', 'Smazat odehraný turnaj'], ['tour-clear', 'Smazat boty']].map(([kind, label]) => `<button type="button" data-dev="${kind}" class="rounded-lg bg-emerald-100 px-2 py-1 text-[11px] font-bold text-emerald-900 active:scale-95 dark:bg-emerald-900/50 dark:text-emerald-100">${label}</button>`).join('')}</div>
+            <div class="flex flex-wrap gap-1">${[['tour-bots', '+31 botů'], ['tour-start', 'Spustit hned'], ['tour-play', 'Boti odehrají kolo'], ['tour-next', 'Další kolo'], ['tour-reset', 'Smazat odehraný turnaj'], ['tour-clear', 'Smazat boty']].map(([kind, label]) => `<button type="button" data-dev="${kind}" class="rounded-lg bg-emerald-100 px-2 py-1 text-[11px] font-bold text-emerald-900 active:scale-95 dark:bg-emerald-900/50 dark:text-emerald-100">${label}</button>`).join('')}</div>
             <p class="mb-1 mt-2 text-[11px] font-black uppercase tracking-widest text-amber-700 dark:text-amber-400">Provoz</p>
             <div class="flex flex-wrap gap-1"><button type="button" data-dev="errors" class="rounded-lg bg-rose-100 px-2 py-1 text-[11px] font-bold text-rose-900 active:scale-95 dark:bg-rose-900/50 dark:text-rose-100">Chyby z provozu</button></div>` : ''}
             ${Push ? `<p class="mb-1 mt-2 text-[11px] font-black uppercase tracking-widest text-amber-700 dark:text-amber-400">Upozornění</p>

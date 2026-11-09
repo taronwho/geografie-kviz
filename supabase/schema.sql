@@ -683,9 +683,12 @@ begin
     for t in select id from public.tournaments where status = 'open' and week_start <= today order by week_start loop
         perform public.tournament_start(t.id);
     end loop;
+    -- boti v turnajích odehrají své kolo každý den od 9:00 (Praha); před posunem kol i po něm, ať stihnou včerejší kolo i nově otevřené
+    perform public.tournament_bots_due();
     for t in select id from public.tournaments where status = 'running' loop
         perform public.tournament_progress(t.id);
     end loop;
+    perform public.tournament_bots_due();
 end;
 $$;
 
@@ -891,9 +894,50 @@ begin
 end;
 $$;
 
-revoke all on function public.dev_check(), public.dev_is_bot(uuid), public.dev_bots_play(uuid) from public, anon, authenticated;
-revoke all on function public.dev_tournament_add_bots(uuid, integer), public.dev_tournament_start_now(uuid), public.dev_tournament_next_round(uuid), public.dev_tournament_clear_bots(), public.dev_tournament_reset() from public, anon;
-grant execute on function public.dev_tournament_add_bots(uuid, integer), public.dev_tournament_start_now(uuid), public.dev_tournament_next_round(uuid), public.dev_tournament_clear_bots(), public.dev_tournament_reset() to authenticated;
+-- Hodina dne v Praze, od které boti hrají své kolo (nastavení mudrlant.test_time používají jen testy; s nastaveným test_today
+-- a bez test_time je půlnoc, ať testy s pevným dnem nezávisí na tom, kolik je zrovna hodin)
+create or replace function public.tournament_clock() returns time
+language sql stable set search_path = public as $$
+    select coalesce(nullif(current_setting('mudrlant.test_time', true), '')::time,
+        case when coalesce(current_setting('mudrlant.test_today', true), '') <> '' then time '00:00' else (now() at time zone 'Europe/Prague')::time end)
+$$;
+
+-- Boti v běžících turnajích odehrají aktuální kolo: v den kola od 9:00, kolo z minulých dnů hned (když tick ráno nikdo nespustil).
+-- Volá ji tournament_tick (otevření aplikace, odesílání upozornění a volitelně pg_cron), takže boti hrají bez zásahu vývojáře.
+create or replace function public.tournament_bots_due() returns void
+language plpgsql security definer set search_path = public as $$
+declare t record; today date := public.tournament_today();
+begin
+    for t in select tr.id, tr.started_on, (select max(m.round) from public.tournament_matches m where m.tournament_id = tr.id) as cur
+             from public.tournaments tr
+             where tr.status = 'running' and exists (select 1 from public.tournament_entries e where e.tournament_id = tr.id and public.dev_is_bot(e.user_id)) loop
+        if t.cur is not null and (t.started_on + (t.cur - 1) < today or (t.started_on + (t.cur - 1) = today and public.tournament_clock() >= time '09:00')) then
+            perform public.dev_bots_play(t.id);
+        end if;
+    end loop;
+end;
+$$;
+
+-- Vývojářské tlačítko „Boti odehrají kolo“: boti hned odehrají aktuální kolo (bez čekání na 9:00), kolo se neposouvá
+create or replace function public.dev_tournament_bots_play(tid uuid) returns integer
+language plpgsql security definer set search_path = public as $$
+declare t public.tournaments; before integer; after integer;
+begin
+    perform public.dev_check();
+    select * into t from public.tournaments where id = tid for update;
+    if t.id is null or t.status <> 'running' then raise exception 'Turnaj neběží.' using errcode = '22023'; end if;
+    select count(*) into before from public.tournament_results r join public.tournament_matches m on m.id = r.match_id
+        where m.tournament_id = tid and r.finished_at is not null and public.dev_is_bot(r.user_id);
+    perform public.dev_bots_play(tid);
+    select count(*) into after from public.tournament_results r join public.tournament_matches m on m.id = r.match_id
+        where m.tournament_id = tid and r.finished_at is not null and public.dev_is_bot(r.user_id);
+    return after - before;
+end;
+$$;
+
+revoke all on function public.dev_check(), public.dev_is_bot(uuid), public.dev_bots_play(uuid), public.tournament_bots_due() from public, anon, authenticated;
+revoke all on function public.dev_tournament_add_bots(uuid, integer), public.dev_tournament_start_now(uuid), public.dev_tournament_next_round(uuid), public.dev_tournament_bots_play(uuid), public.dev_tournament_clear_bots(), public.dev_tournament_reset() from public, anon;
+grant execute on function public.dev_tournament_add_bots(uuid, integer), public.dev_tournament_start_now(uuid), public.dev_tournament_next_round(uuid), public.dev_tournament_bots_play(uuid), public.dev_tournament_clear_bots(), public.dev_tournament_reset() to authenticated;
 
 -- ===== Web push: upozornění na turnaje a výzvy =====
 -- Odběr (endpoint + klíče) si uloží prohlížeč hráče (push.js); odesílá GitHub Actions (scripts/send-push.mjs): zavolá push_due(secret),
@@ -2889,7 +2933,9 @@ grant execute on function public.challenge_progress_save(text, integer, boolean,
 --    mapy, odhadu a Seřaď v badge_catalog().
 -- 10: Rozpis otázek (challenge_progress a tournament_answers: answer, hints, ms; challenge_progress_save a tournament_answer_save s nepovinnými
 --     podrobnostmi; challenge_details a tournament_details vrací soupeřovy odpovědi až po dohrání).
+-- 11: upozornění na dohranou výzvu otevřou rovnou její výsledek (push_pending: odkaz s &vyzva=KÓD).
+-- 12: boti v turnajích hrají sami každý den od 9:00 (tournament_clock, tournament_bots_due v tournament_tick) a vývojářské dev_tournament_bots_play.
 create or replace function public.schema_version() returns integer
-language sql immutable as $$ select 11 $$;
+language sql immutable as $$ select 12 $$;
 revoke all on function public.schema_version() from public, anon;
 grant execute on function public.schema_version() to authenticated;

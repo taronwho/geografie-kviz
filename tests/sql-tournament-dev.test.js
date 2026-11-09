@@ -121,4 +121,42 @@ test('SQL: vývojářské nástroje turnajů (boti)', { skip: !available && 'Pos
         assert.equal(q(`select count(*) from tournament_entries where tournament_id = '${open}'`), '1');
         assert.equal(q(`select count(*) from tournaments where id = '${open}'`), '1');
     });
+
+    await t.test('boti hrají své kolo sami každý den od 9:00, vývojář je může pustit hned', () => {
+        const D1 = '2026-11-06', D2 = '2026-11-07';
+        const at = (day, time, sql) => psql(dbName, `set mudrlant.test_today = '${day}'; set mudrlant.test_time = '${time}'; ${sql}`);
+        const tour = q(`select id from tournaments where status = 'open' order by week_start limit 1`);
+        ok(as(id(1), D1, `select dev_tournament_add_bots('${tour}', 31);`));
+        ok(as(id(1), D1, `select dev_tournament_start_now('${tour}');`));
+        const botsIn = (round) => q(`select count(*) from tournament_results r join tournament_matches m on m.id = r.match_id
+            where m.tournament_id = '${tour}' and m.round = ${round} and r.finished_at is not null and dev_is_bot(r.user_id)`);
+        assert.equal(botsIn(1), '31', 'při startu boti odehrají 1. kolo hned');
+        const mine = q(`select id from tournament_matches where tournament_id = '${tour}' and round = 1 and '${id(1)}' in (p1, p2)`);
+        ok(as(id(1), D1, `select tournament_start_match('${mine}'); ${finishMatchSql(mine, 10, 40)}`));
+        assert.equal(q(`select max(round) from tournament_matches where tournament_id = '${tour}'`), '2');
+        // 2. kolo má svůj den až zítra: dnes ani zítra před devátou boti nehrají
+        ok(at(D1, '23:00', 'select tournament_tick();'));
+        ok(at(D2, '08:59', 'select tournament_tick();'));
+        assert.equal(botsIn(2), '0', 'před 9:00 boti čekají');
+        // v 9:00 je odehraje jakýkoli tick (otevření aplikace, odesílání upozornění, pg_cron)
+        ok(at(D2, '09:00', 'select tournament_tick();'));
+        assert.ok(Number(botsIn(2)) >= 15, `v 9:00 boti odehráli 2. kolo (${botsIn(2)})`);
+        assert.equal(q(`select count(*) from tournament_matches where tournament_id = '${tour}' and round = 2 and winner is null`), '1', 'čeká jen můj zápas');
+        // interní funkce přes API nejdou, vývojářské tlačítko jen pro dev_admins; podruhé už boti nemají co hrát
+        denied(as(id(2), D2, 'select tournament_bots_due();'));
+        assert.match(denied(as(id(2), D2, `select dev_tournament_bots_play('${tour}');`)), /nejsou pro tento účet zapnuté/);
+        assert.equal(as(id(1), D2, `select dev_tournament_bots_play('${tour}');`).stdout.trim().split('\n').pop(), '0');
+    });
+
+    await t.test('tlačítko „Boti odehrají kolo“ pustí boty hned i před 9:00', () => {
+        const tour = q(`select id from tournaments where status = 'running' order by week_start limit 1`);
+        const mine = q(`select id from tournament_matches where tournament_id = '${tour}' and round = 2 and '${id(1)}' in (p1, p2)`);
+        ok(as(id(1), '2026-11-07', `select tournament_start_match('${mine}'); ${finishMatchSql(mine, 10, 40)}`));
+        assert.equal(q(`select max(round) from tournament_matches where tournament_id = '${tour}'`), '3');
+        // posun o den (jako dev skok), ale ráno v 7:00: tick nic, tlačítko ano
+        q(`update tournaments set started_on = started_on - 1 where id = '${tour}'`);
+        ok(psql(dbName, `set mudrlant.test_today = '2026-11-07'; set mudrlant.test_time = '07:00'; select tournament_tick();`));
+        const played = as(id(1), '2026-11-07', `set mudrlant.test_time = '07:00'; select dev_tournament_bots_play('${tour}');`);
+        assert.ok(Number(ok(played).stdout.trim().split('\n').pop()) >= 1, played.stdout);
+    });
 });

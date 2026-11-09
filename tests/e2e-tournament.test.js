@@ -148,7 +148,7 @@ const backend = async (context, db) => {
         if (rpc && /^dev_tournament_/.test(rpc[1])) {
             db.calls.push({ name: rpc[1], body });
             if (db.devDenied) return json({ code: '42501', message: 'Vývojářské nástroje turnajů nejsou pro tento účet zapnuté (viz docs/SUPABASE.md, dev_admins).' }, 403);
-            return json(rpc[1] === 'dev_tournament_add_bots' ? 31 : rpc[1] === 'dev_tournament_clear_bots' ? 31 : rpc[1] === 'dev_tournament_reset' ? 2 : null);
+            return json(rpc[1] === 'dev_tournament_add_bots' ? 31 : rpc[1] === 'dev_tournament_clear_bots' ? 31 : rpc[1] === 'dev_tournament_reset' ? 2 : rpc[1] === 'dev_tournament_bots_play' ? 7 : null);
         }
         // XP za výhry jednou za účet (jako claim_tournament_xp): zapíše nevyplacené výhry a vrátí je; se stejným klíčem vrátí i dřív zapsané.
         // claimLost = kolikrát se odpověď „ztratí“ (zápis proběhne, klient dostane chybu)
@@ -498,6 +498,10 @@ test('týdenní turnaje', { skip: !chromium && 'Playwright není nainstalovaný'
         await tab.click('[data-dev="tour-next"]');
         await tab.waitForFunction(() => /Posun o kolo/.test((document.getElementById('toast') || {}).textContent || ''));
         assert.deepEqual(db.calls.find(call => call.name === 'dev_tournament_next_round').body, { tid: T_RUN });
+        // „Boti odehrají kolo“: boti hned odehrají aktuální kolo běžícího turnaje
+        await tab.click('[data-dev="tour-play"]');
+        await tab.waitForFunction(() => /Boti odehráli zápasů: 7/.test((document.getElementById('toast') || {}).textContent || ''));
+        assert.deepEqual(db.calls.find(call => call.name === 'dev_tournament_bots_play').body, { tid: T_RUN });
         await tab.click('[data-dev="tour-reset"]');
         await tab.waitForFunction(() => /Smazáno turnajů: 2, přihlášky jsou znovu otevřené/.test((document.getElementById('toast') || {}).textContent || ''));
         assert.ok(db.calls.some(call => call.name === 'dev_tournament_reset'));
