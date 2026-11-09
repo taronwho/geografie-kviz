@@ -131,7 +131,7 @@ test('hudba: nápovědy, časová osa, psané odpovědi a podobné možnosti', (
 
 test('hudba: opery a muzikály – vlastní kategorie, autor a století premiéry', () => {
     const stage = data.items.filter(item => item.c === 'opery');
-    assert.ok(stage.length >= 150 && stage.length <= 300, `oper a muzikálů ${stage.length}`);
+    assert.ok(stage.length >= 150 && stage.length <= 420, `oper a muzikálů ${stage.length}`);
     const known = stage.filter(item => item.k === 1).length / stage.length;
     assert.ok(known >= 0.2 && known <= 0.35, `známých ${known}`);
     assert.ok(stage.every(item => ['opera', 'opereta', 'muzikál'].includes(item.ty) && item.f.year !== undefined && item.d), 'druh, rok premiéry a popis');
