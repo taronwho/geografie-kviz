@@ -4,6 +4,7 @@ import { createRequire } from 'node:module';
 import { qlever, id, values, imageFields, yearOf, compact, cached, inBatches, writeTopic } from './lib/wikidata.mjs';
 import { landByDescription } from './lib/nationality.mjs';
 import { CONCEPT_CLASSES, CONCEPT_TITLES, GROUP_CATEGORY } from './lib/chemie-concepts.mjs';
+import { assignLevels, levelSummary, pageviewsByTitle } from './lib/veda-levels.mjs';
 
 // Skupiny prvků a jejich místo v tabulce zná jádro aplikace – stejná pravidla pro data i nápovědu
 const { elementFamily } = createRequire(import.meta.url)('../quiz-core.js');
@@ -33,21 +34,39 @@ const CZECH_STATES = new Set(['Q213', 'Q33946', 'Q42585', 'Q152750', 'Q853348', 
 
 // Prvky, které zná každý (k nim všechny do čísla 38)
 const KNOWN_ELEMENTS = new Set([47, 50, 53, 54, 55, 56, 74, 78, 79, 80, 82, 86, 88, 92, 94]);
-const LIMITS = { latky: { limit: 800, known: 160 }, chemici: { limit: 400, known: 90 }, reakce: { limit: 220, known: 25 }, pojmy: { limit: 520, known: 75 } };
+const LIMITS = { latky: { limit: 800 }, chemici: { limit: 400 }, reakce: { limit: 300 }, pojmy: { limit: 520 } };
+// Úrovně (scripts/lib/veda-levels.mjs): podíl nejznámějších položek kategorie, které jsou známé (prvky určuje KNOWN_ELEMENTS)
+const KNOWN_SHARE = { prvky: 0, latky: 0.22, chemici: 0.22, reakce: 0.22, pojmy: 0.26 };
+// Na známou ji kvůli malému okruhu jde povýšit jen položku z lepší poloviny kategorie (podle známosti) nebo s návštěvností článku
+const PROMOTE_PCT = 0.55;
+const PROMOTE_PV = 6000;
 // Od tohoto pořadí (podle počtu jazykových verzí) musí mít látka a chemik aspoň fotku či strukturní vzorec – dál už jsou méně známí
 // a obrázek je jediné, co otázku oživí
 const IMAGE_FROM = { latky: 400, chemici: 200 };
-// Okruh látek má mít aspoň tolik položek – chybějící doplní i méně známé látky nad limit
-const COLLECTION_MIN = 20;
+// Okruh látek má mít aspoň tolik položek – chybějící doplní i méně známé látky nad limit (vitamíny a aminokyseliny jsou skoro uzavřené)
+const COLLECTION_MIN = { oxidy: 100, uhlovodiky: 100, leciva: 90, hormony: 40, cukry: 35, alkoholy: 35, aminokyseliny: 30, hydroxidy: 22, vitaminy: 22 };
+const collectionMin = (id) => COLLECTION_MIN[id] ?? 20;
 // Vitamíny a hormony podle českých názvů: třídy ve Wikidatech jsou u nich nespolehlivé (kumarin „vitamín“, testosteron ne „hormon“)
 const VITAMINS = ['vitamín A', 'vitamín B6', 'vitamín B12', 'vitamín D', 'vitamín E', 'vitamín K', 'retinol', 'beta-karoten', 'thiamin', 'riboflavin', 'kyselina nikotinová', 'niacin', 'nikotinamid', 'kyselina pantothenová',
     'pyridoxin', 'biotin', 'kyselina listová', 'kobalamin', 'kyanokobalamin', 'vitamín C', 'kyselina askorbová', 'cholekalciferol',
     'ergokalciferol', 'tokoferol', 'alfa-tokoferol', 'fylochinon', 'menachinon'];
+// (český název nebo název článku – u bílkovinných hormonů se liší: článek Růstový hormon, název somatotropin)
 const HORMONES = ['adrenalin', 'noradrenalin', 'dopamin', 'serotonin', 'melatonin', 'oxytocin', 'vazopresin', 'kortizol', 'kortikosteron',
     'testosteron', 'estradiol', 'estron', 'estriol', 'progesteron', 'aldosteron', 'thyroxin', 'trijodthyronin', 'inzulin', 'glukagon',
-    'histamin', 'acetylcholin', 'kyselina gama-aminomáselná', 'endorfin', 'beta-endorfin', 'leptin', 'gastrin', 'sekretin', 'kalcitonin'];
-const isVitamin = (name) => VITAMINS.some(vitamin => vitamin.toLowerCase() === name.toLowerCase());
-const isHormone = (name) => HORMONES.includes(name.toLowerCase());
+    'histamin', 'acetylcholin', 'kyselina gama-aminomáselná', 'endorfin', 'beta-endorfin', 'leptin', 'gastrin', 'sekretin', 'kalcitonin',
+    'růstový hormon', 'prolaktin', 'thyreotropní hormon', 'adrenokortikotropní hormon', 'folitropin', 'lutropin', 'parathormon', 'erythropoetin',
+    'ghrelin', 'cholecystokinin', 'somatostatin', 'dehydroepiandrosteron', 'dihydrotestosteron', 'kortikoliberin', 'angiotenzin', 'adiponektin',
+    'anandamid', 'enkefalin', 'substance p', 'antidiuretický hormon', 'choriogonadotropin', 'kyselina glutamová'];
+// Aminokyseliny: dvacet stavebních (a selenocystein, pyrolysin) a nejznámější další; ve Wikidatech mají různé třídy (threonin žádnou „amino acid“)
+const AMINO_ACIDS = ['glycin', 'alanin', 'valin', 'leucin', 'isoleucin', 'prolin', 'fenylalanin', 'tryptofan', 'methionin', 'serin', 'threonin', 'cystein',
+    'l-cystein', 'tyrosin', 'asparagin', 'glutamin', 'kyselina asparagová', 'kyselina glutamová', 'lysin', 'arginin', 'histidin', 'selenocystein', 'pyrolysin',
+    'ornitin', 'citrulin', 'β-alanin', 'sarkosin', 'taurin', 'homocystein', 'dimethylglycin', 'kyselina gama-aminomáselná', 'kreatin'];
+const listed = (list) => (name, title = '') => list.some(entry => entry.toLowerCase() === name.toLowerCase() || entry.toLowerCase() === title.toLowerCase());
+const isVitamin = listed(VITAMINS);
+const isHormone = listed(HORMONES);
+const isAminoAcid = listed(AMINO_ACIDS);
+// Herbicid glyfosát je ve Wikidatech „secondary amino acid“, mezi aminokyseliny ve škole nepatří
+const NOT_AMINO_ACIDS = /^glyfosát$/iu;
 
 // Relativní atomové hmotnosti (IUPAC, zaokrouhlené); u nestabilních prvků nejstabilnější izotop.
 // Wikidata mají u látek jen monoizotopovou hmotnost (NaCl 57,96 místo 58,44), molární hmotnost se proto počítá ze vzorce.
@@ -132,19 +151,38 @@ const latinNames = new Map(await cached('chemie-latin', async () => {
 }));
 
 // --- Látky: chemické látky s českým článkem a vzorcem ---
+// Prvních 2500 podle počtu jazykových verzí; méně známé (do 8 verzí) jen jako doplněk malých okruhů (oxidy, léčiva) nad limit
+const COMPOUND_QUERY = (filter) => `SELECT DISTINCT ?c ?sl WHERE { VALUES ?type { wd:${CHEMICAL_ENTITY} wd:${ISOMER_GROUP} } ?c wdt:P31 ?type . ?c wdt:P274 ?f .
+  ?a schema:about ?c . ?a schema:isPartOf <https://cs.wikipedia.org/> . ?c wikibase:sitelinks ?sl ${filter} }`;
 const compoundCandidates = await cached('chemie-compounds-2500', async () => {
-    const rows = await qlever(`SELECT DISTINCT ?c ?sl WHERE { VALUES ?type { wd:${CHEMICAL_ENTITY} wd:${ISOMER_GROUP} } ?c wdt:P31 ?type . ?c wdt:P274 ?f .
-  ?a schema:about ?c . ?a schema:isPartOf <https://cs.wikipedia.org/> . ?c wikibase:sitelinks ?sl }`);
+    const rows = await qlever(COMPOUND_QUERY(''));
     return rows.map(row => [id(row.c.value), Number(row.sl.value)]).sort((a, b) => b[1] - a[1]).slice(0, 2500);
 });
-// Vitamíny a hormony, které obecný dotaz nenajde (jiná třída ve Wikidatech), podle českého názvu
-const mustCompounds = await cached('chemie-must', async () => {
-    const labels = [...VITAMINS, ...HORMONES].flatMap(name => [name, capitalize(name)]);
-    const rows = await qlever(`SELECT ?c ?sl WHERE { VALUES ?l { ${labels.map(name => `"${name}"@cs`).join(' ')} } ?c rdfs:label ?l .
-  ?a schema:about ?c . ?a schema:isPartOf <https://cs.wikipedia.org/> . ?c wikibase:sitelinks ?sl }`);
-    return rows.map(row => [id(row.c.value), Number(row.sl.value)]);
+const COMPOUND_MIN_SL = 8;
+const moreCompounds = await cached('chemie-compounds-more', async () => {
+    const rows = await qlever(COMPOUND_QUERY(`FILTER(?sl >= ${COMPOUND_MIN_SL})`));
+    return rows.map(row => [id(row.c.value), Number(row.sl.value)]).sort((a, b) => b[1] - a[1]);
 });
-for (const [qid, sl] of mustCompounds) if (!compoundCandidates.some(([other]) => other === qid)) compoundCandidates.push([qid, sl]);
+const candidateIds = new Set(compoundCandidates.map(([qid]) => qid));
+for (const [qid, sl] of moreCompounds) if (!candidateIds.has(qid)) { candidateIds.add(qid); compoundCandidates.push([qid, sl]); }
+// Oxidy, hydroxidy a cukry podle názvu článku i bez třídy ve Wikidatech (oxid manganičitý, oxid germaničitý ji nemají)
+const namedCompounds = await cached('chemie-compounds-named', async () => {
+    const rows = await qlever(`SELECT DISTINCT ?c ?sl WHERE { ?c wdt:P274 ?f . ?a schema:about ?c . ?a schema:isPartOf <https://cs.wikipedia.org/> . ?a schema:name ?t .
+  ?c wikibase:sitelinks ?sl FILTER(?sl >= ${COMPOUND_MIN_SL} && (STRSTARTS(?t, "Oxid ") || STRSTARTS(?t, "Hydroxid ") || STRENDS(?t, "óza"))) }`);
+    return rows.map(row => [id(row.c.value), Number(row.sl.value)]).sort((a, b) => b[1] - a[1]);
+});
+for (const [qid, sl] of namedCompounds) if (!candidateIds.has(qid)) { candidateIds.add(qid); compoundCandidates.push([qid, sl]); }
+// Vitamíny, hormony a aminokyseliny, které obecný dotaz nenajde (jiná třída ve Wikidatech), podle českého názvu nebo názvu článku
+const mustCompounds = await cached('chemie-must-2', async () => {
+    const names = [...new Set([...VITAMINS, ...HORMONES, ...AMINO_ACIDS])];
+    const labels = names.flatMap(name => [name, capitalize(name)]);
+    const byLabel = await qlever(`SELECT ?c ?sl WHERE { VALUES ?l { ${labels.map(name => `"${name}"@cs`).join(' ')} } ?c rdfs:label ?l .
+  ?a schema:about ?c . ?a schema:isPartOf <https://cs.wikipedia.org/> . ?c wikibase:sitelinks ?sl }`);
+    const byTitle = await qlever(`SELECT ?c ?sl WHERE { VALUES ?t { ${names.map(name => `"${capitalize(name)}"@cs`).join(' ')} } ?a schema:name ?t .
+  ?a schema:isPartOf <https://cs.wikipedia.org/> . ?a schema:about ?c . ?c wikibase:sitelinks ?sl }`);
+    return [...byLabel, ...byTitle].map(row => [id(row.c.value), Number(row.sl.value)]);
+});
+for (const [qid, sl] of mustCompounds) if (!candidateIds.has(qid)) { candidateIds.add(qid); compoundCandidates.push([qid, sl]); }
 compoundCandidates.sort((a, b) => b[1] - a[1]);
 console.log(`Látky (kandidáti): ${compoundCandidates.length}`);
 
@@ -160,7 +198,7 @@ console.log(`Chemici (kandidáti): ${chemistCandidates.length}`);
 // --- Reakce, procesy a pojmy (lib/chemie-concepts.mjs): podle druhu ve Wikidatech a ručního seznamu názvů článků ---
 const DISAMBIGUATION = 'Q4167410';
 const TITLE_GROUP = new Map(Object.entries(CONCEPT_TITLES).flatMap(([group, titles]) => titles.map(title => [title, group])));
-const conceptList = await cached('chemie-concepts', async () => {
+const conceptList = await cached('chemie-concepts-2', async () => {
     const found = new Map();
     const add = (qid, sl, group) => { if (!found.has(qid) || found.get(qid)[1] < sl) found.set(qid, [qid, sl, group]); };
     for (const [cls, min, group] of CONCEPT_CLASSES) {
@@ -222,9 +260,11 @@ const fetchDetails = async (list) => {
     return result;
 };
 const details = new Map(await cached('chemie-details', async () => [...await fetchDetails(allIds)]));
-// Kandidáti přidaní po uložení mezipaměti se dočtou zvlášť
-const missingDetails = allIds.filter(qid => !details.has(qid));
-if (missingDetails.length) for (const [qid, detail] of await fetchDetails(missingDetails)) details.set(qid, detail);
+// Kandidáti přidaní po uložení mezipaměti se dočtou zvlášť (i s vlastní mezipamětí)
+const missingDetails = [...new Set(allIds.filter(qid => !details.has(qid)))];
+if (missingDetails.length) {
+    for (const [qid, detail] of await cached(`chemie-details-extra-${missingDetails.length}`, async () => [...await fetchDetails(missingDetails)])) details.set(qid, detail);
+}
 // České názvy odkazovaných položek (objevitelé, pojmenováno po, druhy látek, země) a anglické názvy tříd látek pro okruhy
 const referenced = [...new Set([...details.values()].flatMap(detail => [...(detail.disc || []), ...(detail.named || []), ...(detail.cit || []),
     ...(detail.type || []), ...(detail.sub || []), ...(detail.role || [])]))].filter(q => /^Q\d+$/.test(q));
@@ -236,7 +276,7 @@ const fetchLabels = async (list) => {
 };
 const labels = new Map(await cached('chemie-labels', () => fetchLabels(referenced)));
 const missingLabels = referenced.filter(q => !labels.has(`en:${q}`) && !labels.has(`cs:${q}`));
-if (missingLabels.length) for (const [key, label] of await fetchLabels(missingLabels)) labels.set(key, label);
+if (missingLabels.length) for (const [key, label] of await cached(`chemie-labels-extra-${missingLabels.length}`, () => fetchLabels(missingLabels))) labels.set(key, label);
 const cs = (qid) => labels.get(`cs:${qid}`);
 const en = (qid) => labels.get(`en:${qid}`) || '';
 
@@ -343,10 +383,13 @@ const COLLECTIONS = [
     // Cukerné alkoholy (sorbitol, maltitol) a cukerné kyseliny cukry nejsou
     { id: 'cukry', label: 'Cukry (sacharidy)', sort: BY_NAME, test: compound(item => onlyCHO(item) && !/itol$|^kyselina/i.test(item.n) && !/sugar alcohol|sugar acid/.test(item.kinds)
         && (/saccharide|carbohydrate|sugar/.test(item.kinds) || /[óo]za$/i.test(item.n))) },
-    { id: 'aminokyseliny', label: 'Aminokyseliny', sort: BY_NAME, test: compound(item => /amino acid/.test(item.kinds)) },
-    { id: 'vitaminy', label: 'Vitamíny', text: 'A, B, C, D, E, K a provitamíny', sort: BY_NAME, test: compound(item => isVitamin(item.n)
+    // Aminokyseliny podle seznamu a třídy ve Wikidatech („amino acid“, „l-amino acid“, „beta-amino acid“ – ne léčiva a „excitatory amino acid antagonist“)
+    { id: 'aminokyseliny', label: 'Aminokyseliny', sort: BY_NAME, test: compound(item => isAminoAcid(item.n, item.t)
+        || (/(^|\| )[\w-]*( [\w-]+)? ?amino acids?( \||$)/.test(item.kinds) && !/medication|drug|hallucinogen|herbicide|tranquilizer|anticonvulsant|antagonist|agonist|alkaloid/.test(item.kinds)
+            && !NOT_AMINO_ACIDS.test(item.n))) },
+    { id: 'vitaminy', label: 'Vitamíny', text: 'A, B, C, D, E, K a provitamíny', sort: BY_NAME, test: compound(item => isVitamin(item.n, item.t)
         || (/vitamin [abcdek]\b/.test(item.kinds) && !/antagonist/.test(item.kinds))) },
-    { id: 'hormony', label: 'Hormony a neuropřenašeče', sort: BY_NAME, test: compound(item => isHormone(item.n)
+    { id: 'hormony', label: 'Hormony a neuropřenašeče', sort: BY_NAME, test: compound(item => isHormone(item.n, item.t)
         || (/hormone|neurotransmitter/.test(item.kinds) && !/plant hormone|antagonist|antiprogest/.test(item.kinds))) },
     { id: 'leciva', label: 'Léčiva', sort: BY_NAME, test: compound(item => /medication|analgesic|antibiotic|antiviral|anti-inflammatory|anticonvulsant|benzodiazepine/.test(item.kinds)
         && !/neurotransmitter|hormone|chemical weapon|recreational|psychoactive|stimulant|narcotic|opioid|poison|explosive/.test(item.kinds)) },
@@ -366,11 +409,16 @@ const kindsOf = (detail) => [...(detail.type || []), ...(detail.sub || []), ...(
 const names = new Set(items.map(item => item.n.toLowerCase()));
 let compoundRank = 0;
 const collectionCounts = {};
-for (const [qid] of compoundCandidates) {
+// Doplněk nad limit: izomery a deriváty s lokanty a předponami (but-2-en, 2-methylbutan-2-ol, o-xylen, (E)-stilben) a radikály ne,
+// pokud nejsou dost známé
+const ISOMER_NAME = /\d|^\p{L}-|^\(|radikál/iu;
+const ISOMER_MIN_SL = 30;
+const FILLER_IMAGELESS_SL = 20;
+for (const [qid, sl] of compoundCandidates) {
     const detail = details.get(qid);
     if (!detail || !detail.n || !detail.t) continue;
     const name = capitalize(detail.n);
-    const curated = isVitamin(detail.n) || isHormone(detail.n);
+    const curated = isVitamin(detail.n, detail.t) || isHormone(detail.n, detail.t) || isAminoAcid(detail.n, detail.t);
     let formula = FORMULA_FIXES[name] || pickFormula(detail.formula) || (curated ? pickFormula(detail.formula, true) : undefined);
     // Bez vzorce jen skupiny vitamínů (vitamín A je víc látek)
     if (!formula && !curated) continue;
@@ -380,13 +428,18 @@ for (const [qid] of compoundCandidates) {
         formula = hydroxideFormula(formula);
     }
     if (names.has(name.toLowerCase())) continue;
-    if (LEAKY_NAMES.has(name) || (compoundRank >= IMAGE_FROM.latky && !detail.im && !detail.st)) continue;
+    // Bez fotky a vzorce jen dost známá látka jako doplněk malého okruhu (oxid měďný); vzorec se ptá i bez obrázku
+    const imageless = !detail.im && !detail.st;
+    if (LEAKY_NAMES.has(name) || (compoundRank >= IMAGE_FROM.latky && !curated && imageless && !(compoundRank >= LIMITS.latky.limit && sl >= FILLER_IMAGELESS_SL))) continue;
     // Částice, směsi a ionty sem nepatří (alfa částice má „vzorec“ He)
     if (/částice|iont|kation|anion|radikál/iu.test(detail.d || '') && !/látka|sloučenina/iu.test(detail.d || '')) continue;
     // Nad limit jen látky do okruhu, který je zatím malý (vitamíny, cukry, alkoholy)
-    const probe = { c: 'latky', n: name, f: { formula }, kinds: kindsOf(detail) };
+    const probe = { c: 'latky', n: name, t: detail.t, f: { formula }, kinds: kindsOf(detail) };
     const groups = COLLECTIONS.filter(collection => collection.test(probe));
-    if (compoundRank >= LIMITS.latky.limit && !curated && !groups.some(collection => (collectionCounts[collection.id] || 0) < COLLECTION_MIN)) continue;
+    if (compoundRank >= LIMITS.latky.limit && !curated) {
+        if (!groups.some(collection => (collectionCounts[collection.id] || 0) < collectionMin(collection.id))) continue;
+        if (ISOMER_NAME.test(name) && sl < ISOMER_MIN_SL) continue;
+    }
     for (const collection of groups) collectionCounts[collection.id] = (collectionCounts[collection.id] || 0) + 1;
     names.add(name.toLowerCase());
     items.push(compact({
@@ -394,7 +447,6 @@ for (const [qid] of compoundCandidates) {
         t: detail.t,
         n: name,
         c: 'latky',
-        k: compoundRank < LIMITS.latky.known ? 1 : 0,
         d: detail.d,
         ...imageFields(detail.im),
         sv: detail.st ? imageFields(detail.st).im : undefined,
@@ -432,7 +484,7 @@ for (const [qid] of chemistCandidates) {
         t: detail.t,
         n: name,
         c: 'chemici',
-        k: chemistRank < LIMITS.chemici.known || isCzech ? 1 : 0,
+        k: isCzech ? 1 : 0,
         ty: detail.sex === FEMALE ? 'chemička' : 'chemik',
         sx: detail.sex === FEMALE ? 'f' : undefined,
         d: detail.d,
@@ -468,7 +520,7 @@ for (const [qid, , group] of conceptList) {
         t: detail.t,
         n: name,
         c: category,
-        k: conceptCounts[category] < LIMITS[category].known ? 1 : 0,
+        k: 0,
         d: detail.d,
         ...imageFields(detail.im && !usedImages.has(detail.im) ? detail.im : undefined),
         f: {},
@@ -486,6 +538,25 @@ const collections = COLLECTIONS
     .map(({ test, ...collection }) => collection)
     .filter(collection => items.filter(item => (item.g || []).includes(collection.id)).length >= 5);
 for (const item of items) { delete item.kinds; delete item.grp; }
+
+// --- Úrovně obtížnosti (Základní / Mudrlant / Expert) ---
+// Známost: jazykové verze článku a návštěvnost článku na české Wikipedii; prvky do stroncia a nejznámější těžší prvky (KNOWN_ELEMENTS)
+// a čeští chemici jsou známí vždy
+const sitelinks = new Map([...elements.map(entry => [entry.q, entry.sl]), ...compoundCandidates, ...chemistCandidates, ...conceptList.map(([qid, sl]) => [qid, sl])]);
+const pageviews = await pageviewsByTitle('chemie-pageviews', items.map(item => item.t));
+for (const item of items) item._ = { sl: sitelinks.get(item.q) || 0, pv: pageviews[item.t], pool: item.c, fixed: item.k === 1 };
+const levelGroups = [
+    ...collections.map(collection => ({ id: collection.id, members: items.filter(item => (item.g || []).includes(collection.id)) })),
+    ...['prvky', 'latky', 'reakce', 'pojmy', 'chemici'].map(key => ({ id: `kategorie ${key}`, members: items.filter(item => item.c === key) }))
+];
+const promoted = assignLevels(items, { groups: levelGroups, knownShare: pool => KNOWN_SHARE[pool],
+    ceiling: item => item._.pct <= PROMOTE_PCT || (item._.pv || 0) >= PROMOTE_PV });
+console.log(`Povýšeno na známé kvůli okruhům: ${promoted.length}`);
+for (const [group, name] of promoted) console.log(`  ${group}: ${name}`);
+for (const key of ['prvky', 'latky', 'reakce', 'pojmy', 'chemici']) console.log('  ' + levelSummary(key, items.filter(item => item.c === key)));
+for (const collection of collections) console.log('  ' + levelSummary(`okruh ${collection.label}`, items.filter(item => (item.g || []).includes(collection.id))));
+console.log('  ' + levelSummary('celkem', items));
+for (const item of items) delete item._;
 
 for (const category of ['prvky', 'latky', 'reakce', 'pojmy', 'chemici']) {
     const inCategory = items.filter(item => item.c === category);
