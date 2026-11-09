@@ -491,7 +491,10 @@
     const MAX_THIN_RETRIES = 3;
     // Otázka „Ukaž na mapě“ (question-map.js): jen v tréninku, asi každá osmá vhodná otázka. Dnešní otázky, výzvy a turnaje ji
     // nemají (stejné otázky pro všechny hráče i starší verze aplikace), chyby a opakování také ne. Los nebere z rng otázky.
-    const mapQuestionFor = (item, ctx) => !MapQuestion || mode !== 'practice' || pool.kind === 'mistakes' || pool.kind === 'review' ? null
+    // Témata s otázkami na mapě (question-map.js KINDS); režim Ukaž na mapě dává jen je a otázku na mapě pokaždé
+    const MAP_TOPICS = ['zemepis', 'sport'];
+    const mapQuestionFor = (item, ctx) => MapQuestion && mode === 'practice' && pool.kind === 'map' ? loadMapData().then(map => MapQuestion.buildQuestion(item, ctx, map)).catch(() => null)
+        : !MapQuestion || mode !== 'practice' || pool.kind === 'mistakes' || pool.kind === 'review' ? null
         : MapQuestion.nextQuestion(item, ctx, { storage: { read: () => readJson(MapQuestion.GAP_KEY), write: (value) => writeJson(MapQuestion.GAP_KEY, value) }, loadMap: loadMapData });
         const createRoundData = async (item, ctx, rng) => {
         const { topic, items } = ctx;
@@ -1940,6 +1943,7 @@
                     <i data-lucide="play" class="h-6 w-6"></i> Hrát
                 </button>
                 ${Modes ? `<div class="mt-2 grid grid-cols-2 gap-2">${modeChooserButtons()}</div>` : ''}
+                ${MapQuestion && (isMix || MAP_TOPICS.includes(chooser.topic)) ? `<button type="button" data-chooser-map class="btn-3d-light mt-2 flex min-h-[2.75rem] w-full items-center gap-2.5 rounded-[1.2rem] bg-white px-3 py-1.5 text-left text-slate-800 short:min-h-[2.5rem] dark:bg-slate-800 dark:text-slate-100"><span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-sky-100 text-sky-700 dark:bg-sky-900/50 dark:text-sky-200"><i data-lucide="crosshair" class="h-4 w-4"></i></span><span class="min-w-0 flex-1"><span class="block text-[14px] font-black leading-tight">Ukaž na mapě</span><span class="block text-[11px] font-semibold leading-tight text-slate-500 dark:text-slate-400">jen otázky na mapě · zkušební režim</span></span></button>` : ''}
                 </div>
                 <div class="mb-1.5 mt-2 flex items-center justify-between short:mb-1 short:mt-1">
                     <h3 class="${SETTINGS_HEADING}">${isMix ? 'Témata' : 'Kategorie'}</h3>
@@ -1997,6 +2001,11 @@
                 closeChooser();
                 markSeen(pick.kind === 'mix' ? 'mix' : pick.topic);
                 startPractice(pick.kind === 'mix' ? { kind: 'mix' } : { kind: 'topic', topic: pick.topic });
+            } else if (event.target.closest('[data-chooser-map]')) {
+                // Ukaž na mapě: jen otázky na mapě z místa (Zeměpis, Sport) nebo z obou v Mixu
+                const pick = chooser;
+                closeChooser();
+                startPractice({ kind: 'map', topic: pick.kind === 'topic' && MAP_TOPICS.includes(pick.topic) ? pick.topic : null });
             } else if (event.target.closest('[data-chooser-mode]')) {
                 // Bleskovka a Přežití s vybraným tématem (kategoriemi) nebo mixem: úvod s pravidly a rekordy
                 const pick = chooser;
@@ -2070,6 +2079,7 @@
         if (mode === 'challenge' && challenge) return { icon: challenge.tournament ? 'trophy' : 'swords', text: `${challenge.tournament ? 'Turnaj' : 'Výzva'} · ${challenge.index + 1}/${challenge.count}`, topic };
         if (mode === 'quiz') return { icon: topic.icon, text: `Kvíz dne · ${quizIndex + 1}/${DailyQuiz.QUESTIONS}`, topic };
         if (pool.kind === 'mistakes') return { icon: 'repeat', text: `Procvičování chyb · ${loadMistakes().length}`, topic };
+        if (pool.kind === 'map') return { icon: 'crosshair', text: `Ukaž na mapě · ${pool.topic ? topic.title : 'Mix'}`, topic };
         if (pool.kind === 'review') return { icon: 'repeat', text: `Procvičování · ${Math.min(pool.done + 1, pool.total)}/${pool.total}`, topic };
         if (pool.kind === 'collection') {
             const ctx = loadedTopics.get(pool.topic);
@@ -3110,7 +3120,7 @@
             return remaining ? `Další chyba (zbývá ${remaining})` : 'Hotovo – zpět do učení';
         }
         if (pool.kind === 'review') return pool.keys.length ? `Další karta (zbývá ${pool.keys.length})` : 'Hotovo – souhrn procvičování';
-        return pool.kind === 'collection' ? 'Další z okruhu' : 'Další otázka';
+        return pool.kind === 'collection' ? 'Další z okruhu' : pool.kind === 'map' ? 'Další na mapě' : 'Další otázka';
     };
 
     // Výsledek: verdikt, název, záložky s fotkou, mapou a nápovědami, pak popis a fakta; tlačítko Další je přilepené dole
@@ -4349,6 +4359,17 @@
                     pool = { kind: 'topic', topic: pool.topic };
                 }
             }
+            if (pool.kind === 'map') {
+                // Jen místa, která jde ukázat na mapě (podle známosti z nastavení, když jich je dost); pár pokusů, kdyby místo nebylo na kreslené mapě
+                const map = await loadMapData();
+                for (let attempt = 0; attempt < 8 && !item; attempt++) {
+                    ctx = await loadTopic(pool.topic || pickRandom(MAP_TOPICS, Math.random));
+                    const all = ctx.items.filter(entry => MapQuestion.candidate(entry, ctx));
+                    const tiered = filterItems(all, { tier: settings.tier });
+                    const pickedItem = pickItem(tiered.length >= 20 ? tiered : all, Math.random, history, ctx.topic.categories.map(c => c.key));
+                    if (pickedItem && MapQuestion.buildQuestion(pickedItem, ctx, map)) item = pickedItem;
+                }
+            }
             if (pool.kind === 'topic' || pool.kind === 'mix') {
                 ctx = await loadTopic(pool.kind === 'topic' ? pool.topic : pickRandom(settings.topics, Math.random));
                 // Trénink bez semínka: mírná kalibrace obtížnosti podle odpovědí ostatních (pravidlo v answer-stats.js)
@@ -4358,7 +4379,7 @@
             }
             if (item) rememberPlayed(item);
             return { item, ctx, rng: Math.random, numeric };
-        }, pool.kind === 'topic' || pool.kind === 'collection' ? TOPIC_BY_ID[pool.topic] : pool.kind === 'mix' ? MIX : null);
+        }, pool.kind === 'topic' || pool.kind === 'collection' || (pool.kind === 'map' && pool.topic) ? TOPIC_BY_ID[pool.topic] : pool.kind === 'mix' || pool.kind === 'map' ? MIX : null);
     };
 
     // Opakování karet, které jsou dnes na řadě (review.js): hra s pevným seznamem položek, po dohrání souhrn v učení
@@ -4383,7 +4404,7 @@
             renderRound();
             return;
         }
-        startPractice(pool.kind === 'topic' && TOPIC_BY_ID[pool.topic] ? pool : { kind: 'mix' });
+        startPractice((pool.kind === 'topic' && TOPIC_BY_ID[pool.topic]) || pool.kind === 'map' ? pool : { kind: 'mix' });
     };
 
     const continueAfterResult = () => {
