@@ -1,7 +1,9 @@
 // Téma Film: data/film.json z Wikidat – filmy, režiséři, herci a herečky
 // Spuštění: npm run build:film (s BUILD_CACHE=složka jde pravidla ladit bez opakovaného stahování)
-import { sparql, id, values, imageFields, yearOf, compact, cached, inBatches, writeTopic, statementOrder } from './lib/wikidata.mjs';
+import { sparql, qlever, id, values, imageFields, yearOf, compact, cached, inBatches, writeTopic, statementOrder } from './lib/wikidata.mjs';
 import { landsByDescription } from './lib/nationality.mjs';
+import { cachedByKey, knownFloor } from './lib/zemepis-levels.mjs';
+import { filmPageviews, fameRanks, assignLevels, levelSummary } from './lib/film-levels.mjs';
 
 const HUMAN = 'Q5';
 const FEMALE = 'Q6581072';
@@ -48,21 +50,49 @@ const animatedFilms = await candidateQuery('animated-2', `SELECT DISTINCT ?x ?sl
 const seriesCandidates = await candidateQuery('series', `SELECT DISTINCT ?x ?sl WHERE { VALUES ?type { ${values(SERIES_TYPES)} } ?x wdt:P31 ?type . ${csArticle('?x')} FILTER(?sl >= 25) }`);
 const czechSeriesCandidates = await candidateQuery('czech-series', `SELECT DISTINCT ?x ?sl WHERE { VALUES ?type { ${values(SERIES_TYPES)} } VALUES ?state { ${values([...CZECH_FILM_STATES])} }
   ?x wdt:P31 ?type ; wdt:P495 ?state . ${csArticle('?x')} FILTER(?sl >= 2) }`);
+// Okruhy, které mezi nejznámějšími filmy skoro chybí (westerny, horory, superhrdinové, němý film, zlatý věk Hollywoodu,
+// slovenský film, sitcomy a krimi): kandidáti i s méně jazykovými verzemi. Do tématu se dostanou, jen dokud okruh nemá
+// cílovou velikost (OKRUH_TARGETS), a to nejznámější z nich
+const WESTERN = 'Q172980';
+const HORROR = 'Q200092';
+const SUPERHERO = 'Q1535153';
+const SILENT = 'Q226730';
+const genreFilms = await candidateQuery('genre-films', `SELECT DISTINCT ?x ?sl WHERE { VALUES ?type { ${values(FILM_TYPES)} } VALUES ?g { ${values([WESTERN, HORROR, SUPERHERO])} }
+  ?x wdt:P31 ?type ; wdt:P136 ?g . ${csArticle('?x')} FILTER(?sl >= 20) }`);
+const silentGenreFilms = await candidateQuery('silent-films', `SELECT DISTINCT ?x ?sl WHERE { VALUES ?type { ${values(FILM_TYPES)} } ?x wdt:P31 ?type ; wdt:P136 wd:${SILENT} . ${csArticle('?x')} FILTER(?sl >= 6) }`);
+// Staré filmy s rokem premiéry a příznakem amerického původu (na query.wikidata.org dotaz vyprší, QLever ho zvládne)
+const oldFilms = await cached('film-candidates-old', async () => (await qlever(`SELECT ?x ?sl (MIN(YEAR(?d)) AS ?y) (MAX(?u) AS ?us) WHERE {
+  VALUES ?type { ${values(FILM_TYPES)} } ?x wdt:P31 ?type . ${csArticle('?x')} FILTER(?sl >= 6) ?x wdt:P577 ?d .
+  OPTIONAL { ?x wdt:P495 wd:Q30 . BIND(1 AS ?u) } } GROUP BY ?x ?sl HAVING (MIN(YEAR(?d)) < 1960)`))
+    .map(row => [id(row.x.value), Number(row.sl.value), Number(row.y.value), row.us ? 1 : 0]).sort((a, b) => b[1] - a[1]));
+const silentFilms = oldFilms.filter(([, , year]) => year < 1928).map(([qid, sl]) => [qid, sl]);
+const usClassics = oldFilms.filter(([, sl, year, us]) => year < 1960 && us && sl >= 15).map(([qid, sl]) => [qid, sl]);
+const oscarFilms = await candidateQuery('oscar-films', `SELECT DISTINCT ?x ?sl WHERE { ?x wdt:P166 wd:${OSCAR_BEST_PICTURE} . ${csArticle('?x')} }`);
+const slovakFilms = await candidateQuery('slovak-films', `SELECT DISTINCT ?x ?sl WHERE { VALUES ?type { ${values([...FILM_TYPES, TV_FILM])} }
+  ?x wdt:P31 ?type ; wdt:P495 wd:${SLOVAKIA} . ${csArticle('?x')} FILTER(?sl >= 3) }`);
+const slovakPeople = await candidateQuery('slovak-people', `SELECT DISTINCT ?x ?sl WHERE { VALUES ?occ { ${values([DIRECTOR, ...ACTOR_OCCUPATIONS])} }
+  ?x wdt:P106 ?occ ; wdt:P27 wd:${SLOVAKIA} ; wdt:P31 wd:${HUMAN} . ${csArticle('?x')} FILTER(?sl >= 3) }`);
+// České filmové a televizní pohádky mají často jen český článek (jedna jazyková verze)
+const czechFairyTales = await candidateQuery('czech-fairy-tales', `SELECT DISTINCT ?x ?sl WHERE { VALUES ?type { ${values([...FILM_TYPES, TV_FILM])} }
+  VALUES ?state { ${values([...CZECH_FILM_STATES])} } VALUES ?g { wd:Q1957385 wd:Q699 } ?x wdt:P31 ?type ; wdt:P495 ?state ; wdt:P136 ?g . ${csArticle('?x')} }`);
+const moreSeries = await candidateQuery('series-more', `SELECT DISTINCT ?x ?sl WHERE { VALUES ?type { ${values(SERIES_TYPES)} } ?x wdt:P31 ?type . ${csArticle('?x')} FILTER(?sl >= 12) }`);
+const extraFilms = [...new Map([...czechFairyTales, ...genreFilms, ...silentGenreFilms, ...silentFilms, ...usClassics, ...oscarFilms, ...slovakFilms])];
 const candidates = {
-    films: [...new Map([...films, ...czechFilms])].sort((a, b) => b[1] - a[1]),
-    people: [...new Map([...directors, ...actors, ...czechPeople])].sort((a, b) => b[1] - a[1]),
-    series: [...new Map([...seriesCandidates, ...czechSeriesCandidates])].sort((a, b) => b[1] - a[1])
+    films: [...new Map([...films, ...czechFilms, ...extraFilms])].sort((a, b) => b[1] - a[1]),
+    people: [...new Map([...directors, ...actors, ...czechPeople, ...slovakPeople])].sort((a, b) => b[1] - a[1]),
+    series: [...new Map([...seriesCandidates, ...czechSeriesCandidates, ...moreSeries])].sort((a, b) => b[1] - a[1])
 };
 console.log(`Kandidáti: ${candidates.films.length} filmů, ${animatedFilms.length} animovaných filmů, ${candidates.people.length} osob, ${candidates.series.length} seriálů`);
 const czechFilmIds = new Set(czechFilms.map(([qid]) => qid));
 const czechPeopleIds = new Set(czechPeople.map(([qid]) => qid));
 const czechSeriesIds = new Set(czechSeriesCandidates.map(([qid]) => qid));
-// Podrobnosti jen k nejznámějším (a všem českým) – víc by se do tématu stejně nevešlo
-const FILM_DETAILS = 1500;
+// Podrobnosti jen k nejznámějším (všem českým a kandidátům malých okruhů) – víc by se do tématu stejně nevešlo
+const FILM_DETAILS = 2500;
 const PEOPLE_DETAILS = 2200;
 const ANIMATED_DETAILS = 450;
-const SERIES_DETAILS = 700;
-const filmIds = candidates.films.filter(([qid], index) => index < FILM_DETAILS || czechFilmIds.has(qid)).map(([qid]) => qid);
+const SERIES_DETAILS = 1500;
+const extraFilmIds = new Set(extraFilms.map(([qid]) => qid));
+const filmIds = candidates.films.filter(([qid], index) => index < FILM_DETAILS || czechFilmIds.has(qid) || extraFilmIds.has(qid)).map(([qid]) => qid);
 // Animované filmy navíc (ty mezi nejznámějšími filmy už podrobnosti mají)
 const filmIdSet = new Set(filmIds);
 const animatedExtraIds = animatedFilms.slice(0, ANIMATED_DETAILS).map(([qid]) => qid).filter(qid => !filmIdSet.has(qid));
@@ -116,8 +146,15 @@ const fetchDetails = async (list, query, size) => {
     await inBatches(list, size, query, collect(result));
     return [...result];
 };
+// Doplnění k uložené mezipaměti po klíčích (QID): položky, které přibyly s novými kandidáty → [[QID, hodnota], …]
+const moreByKey = async (name, qids, fetchList) => {
+    const wanted = new Set(qids);
+    const stored = await cachedByKey(name, qids, async (missing) => Object.fromEntries(await fetchList(missing)));
+    return Object.entries(stored).filter(([qid]) => wanted.has(qid));
+};
 const filmMap = new Map(await cached('film-films', () => fetchDetails(filmIds, filmDetails, 25)));
 for (const [qid, detail] of await cached('film-animated-films', () => fetchDetails(animatedExtraIds, filmDetails, 25))) if (!filmMap.has(qid)) filmMap.set(qid, detail);
+for (const [qid, detail] of await moreByKey('film-films-more', filmIds.filter(qid => !filmMap.has(qid)), (ids) => fetchDetails(ids, filmDetails, 25))) filmMap.set(qid, detail);
 // Studio animovaného filmu (P272) – pro otázku „Které studio film natočilo?“
 const studioRows = await cached('film-animated-studios', async () => {
     const result = [];
@@ -148,6 +185,7 @@ const seriesDetails = (qids) => `SELECT ?item ?p ?v WHERE {
   UNION { ?item wdt:P31 ?v BIND("type" AS ?p) }
 }`;
 const seriesMap = new Map(await cached('film-series', () => fetchDetails(seriesIds, seriesDetails, 25)));
+for (const [qid, detail] of await moreByKey('film-series-more', seriesIds.filter(qid => !seriesMap.has(qid)), (ids) => fetchDetails(ids, seriesDetails, 25))) seriesMap.set(qid, detail);
 // Jména tvůrců, scenáristů, herců a stanic seriálů (osoby mimo kandidáty nemají podrobnosti)
 const seriesRefs = [...new Set([...seriesMap.values()].flatMap(detail => ['creator', 'writer', 'dir', 'cast', 'net', 'genre', 'co', 'type'].flatMap(key => detail[key] || [])))]
     .filter(qid => /^Q\d+$/.test(qid));
@@ -167,6 +205,7 @@ const people = new Map(await cached('film-people', () => fetchDetails(personIds,
 // Režiséři animovaných filmů přidaných po uložení mezipaměti
 const missingPeople = personIds.filter(qid => !people.has(qid));
 if (missingPeople.length) for (const [qid, detail] of await cached('film-people-animated', () => fetchDetails(missingPeople, personDetails, 80))) people.set(qid, detail);
+for (const [qid, detail] of await moreByKey('film-people-more', personIds.filter(qid => !people.has(qid)), (ids) => fetchDetails(ids, personDetails, 80))) people.set(qid, detail);
 console.log(`Podrobnosti: ${filmMap.size} filmů, ${people.size} osob, ${seriesMap.size} seriálů`);
 // Jen mezinárodní jméno (mul) mají třeba Marlon Brando nebo Pablo Picasso
 for (const person of people.values()) if (!person.n && person.mul) person.n = [].concat(person.mul)[0];
@@ -176,6 +215,16 @@ for (const person of people.values()) if (!person.n && person.mul) person.n = []
 const castOrder = new Map(await cached('film-cast-order', () => statementOrder(filmIds, 'P161')));
 for (const [qid, order] of await cached('film-cast-order-animated', () => statementOrder(animatedExtraIds, 'P161'))) castOrder.set(qid, order);
 for (const [qid, order] of await cached('film-cast-order-series', () => statementOrder(seriesIds, 'P161'))) castOrder.set(qid, order);
+// Pořadí obsazení filmů a seriálů, které přibyly s dalšími kandidáty; když API Wikidat odmítá (429), obsazení podle slávy herců
+// a příští běh se zeptá znovu
+const moreCastIds = [...filmIds, ...animatedExtraIds, ...seriesIds].filter(qid => !castOrder.has(qid));
+// WIKIMEDIA_API=off: API Wikidat a Wikipedie se neptá (jen mezipaměť) – ladění pravidel, když API odmítá
+const OFFLINE = process.env.WIKIMEDIA_API === 'off';
+const moreCast = await moreByKey('film-cast-order-more', moreCastIds, (ids) => OFFLINE ? Promise.reject(new Error('WIKIMEDIA_API=off')) : statementOrder(ids, 'P161')).catch(error => {
+    console.warn(`  pořadí obsazení: ${error.message} – u ${moreCastIds.length} filmů a seriálů podle slávy herců`);
+    return [];
+});
+for (const [qid, order] of moreCast) castOrder.set(qid, order);
 // Místo herce v obsazení: pořadí z kvalifikátoru, jinak pořadí výroku (za těmi s kvalifikátorem), neznámý na konec
 const castPosition = (film, actor) => {
     const order = castOrder.get(film) || [];
@@ -204,6 +253,14 @@ for (const [key, value] of await cached('film-labels-extra', async () => {
     return result;
 })) labels.set(key, value);
 for (const [key, value] of seriesLabels) if (!labels.has(key)) labels.set(key, value);
+// Názvy, které přibyly s dalšími kandidáty (QID → [[jazyk, název], …])
+const stillMissing = [...new Set([...referenced, ...seriesRefs])].filter(qid => !labels.has(`cs:${qid}`) && !labels.has(`en:${qid}`) && !labels.has(`mul:${qid}`));
+for (const [qid, list] of await moreByKey('film-labels-more', stillMissing, async (ids) => {
+    const result = new Map(ids.map(qid => [qid, []]));
+    await inBatches(ids, 300, (qids) => `SELECT ?item ?lang ?l WHERE { VALUES ?item { ${values(qids)} } ?item rdfs:label ?l . BIND(LANG(?l) AS ?lang) FILTER(?lang = "cs" || ?lang = "en" || ?lang = "mul") }`,
+        (row) => result.get(id(row.item.value)).push([row.lang.value, row.l.value]));
+    return [...result];
+})) for (const [lang, label] of list) { labels.set(`${lang}:${qid}`, label); if (!seriesLabels.has(`${lang}:${qid}`)) seriesLabels.set(`${lang}:${qid}`, label); }
 const cs = (qid) => labels.get(`cs:${qid}`);
 const en = (qid) => labels.get(`en:${qid}`) || '';
 const sitelinks = new Map([...candidates.films, ...animatedFilms, ...candidates.people, ...candidates.series]);
@@ -242,7 +299,6 @@ const studioOf = (qid) => {
     if (found.includes('DreamWorks')) return 'DreamWorks';
     return found.length === 1 ? found[0] : undefined;
 };
-const SILENT = 'Q226730';
 const DOCUMENTARY = 'Q93204';
 // Rok premiéry: nejstarší datum zveřejnění. Na desetiletí se ptáme, jen když je jisté – premiéra na přelomu desetiletí
 // (festival v prosinci 1969, kina v roce 1970) nebo natočení v jiném desetiletí (Skřivánci na niti 1969/1990) by daly dvě odpovědi
@@ -314,7 +370,12 @@ const CZECH_KNOWN = new Set(['Ostře sledované vlaky', 'Kolja', 'Pelíšky', 'O
     'Oldřich Nový', 'Hugo Haas', 'Lída Baarová', 'Adina Mandlová', 'Jaroslav Marvan', 'Jan Werich', 'Miroslav Horníček', 'Jiří Lábus', 'Oldřich Kaiser',
     'Pavel Landovský', 'Petr Čepek', 'Jiří Hrzán', 'Dana Medřická', 'Marek Eben', 'Eva Holubová', 'Simona Stašová', 'Jaroslav Dušek', 'Anna Geislerová',
     'Tatiana Vilhelmová', 'Jiří Macháček', 'Jan Tříska', 'Josef Somr', 'Václav Neckář', 'Karel Höger', 'Radoslav Brzobohatý', 'Jiří Kodet',
-    'Jana Preissová', 'Petr Nárožný', 'Ondřej Vetchý', 'Vlasta Chramostová', 'Miloš Kopecký', 'Ladislav Pešek', 'Theodor Pištěk', 'Eduard Cupák']);
+    'Jana Preissová', 'Petr Nárožný', 'Ondřej Vetchý', 'Vlasta Chramostová', 'Miloš Kopecký', 'Ladislav Pešek', 'Theodor Pištěk', 'Eduard Cupák',
+    // Pohádky, které každý rok běží v televizi (v jiných jazycích o nich články skoro nejsou)
+    'Princ a Večernice', 'Tři veteráni', 'Hrátky s čertem', 'Jak se budí princezny', 'O princezně Jasněnce a létajícím ševci', 'Nesmrtelná teta',
+    'Rumburak', 'Dvanáct měsíčků', 'Honza málem králem', 'Princezna a půl království', 'Čertova nevěsta', 'Obušku, z pytle ven!']);
+// Světové filmy, které zná každý, i když české články o nich čte málokdo (Chaplinovy němé grotesky)
+const WORLD_FILMS_KNOWN = new Set(['Zlaté opojení', 'Cirkus', 'Světla velkoměsta', 'Moderní doba', 'Diktátor', 'Kid']);
 
 // Světoví filmaři a herci, které zná každý, i když v datech mají jen jeden film (podle počtu jazykových verzí vycházejí hned za limitem známých)
 const FILM_KNOWN = new Set(['Sergej Michajlovič Ejzenštejn', 'Andrej Arseňjevič Tarkovskij', 'François Truffaut', 'Jean-Luc Godard', 'Pedro Almodóvar', 'John Ford',
@@ -330,48 +391,156 @@ const CZECH_SERIES_KNOWN = new Set(['Nemocnice na kraji města', 'Arabela', 'Ná
     'Pohádky z mechu a kapradí', 'Krtek', 'Pat a Mat', 'Bob a Bobek', 'Maxipes Fík', 'Mach a Šebestová', 'Krkonošské pohádky', 'Byli jednou dva písaři',
     'Lucie, postrach ulice', 'Případy 1. oddělení', 'Comeback', 'Zdivočelá země', 'Cirkus Humberto', 'Rodáci', 'Dobrá voda', 'Božská Ema',
     'Třetí patro', 'Rozpaky kuchaře Svatopluka', 'Pohádky pro Emu', 'Gympl s (r)učením omezeným', 'Sanitka 2', 'Policie Modrava']);
+// Okruhy pro učení (podle nich se doplňují malé okruhy a určuje spodní hranice známých položek)
+const isFilmItem = (item) => item.c === 'filmy' || item.c === 'animovane';
+const hasGenre = (...qids) => (item) => isFilmItem(item) && qids.some(qid => (item.genreIds || []).includes(qid));
+const BY_YEAR = { by: 'y' };
+const COLLECTIONS = [
+    { id: 'cesky-film', label: 'Český film', text: 'České a československé filmy, seriály, režiséři a herci', sort: BY_YEAR, test: item => item.cz },
+    { id: 'ceska-klasika', label: 'Česká filmová klasika', text: 'České a československé filmy do roku 1989', sort: BY_YEAR, test: item => item.c === 'filmy' && item.cz && item.f.year < 1990 },
+    { id: 'zlata-sedesata', label: 'Zlatá šedesátá', text: 'Česká nová vlna a filmy 60. let', sort: BY_YEAR, test: item => item.c === 'filmy' && item.cz && item.f.year >= 1960 && item.f.year < 1970 },
+    { id: 'slovensky-film', label: 'Slovenský film', text: 'Slovenské filmy, režiséři a herci', sort: BY_YEAR, test: item => [].concat(item.f.land || []).includes('Slovensko') },
+    { id: 'pohadky', label: 'Filmové pohádky', sort: BY_YEAR, test: hasGenre('Q1957385', 'Q699') },
+    { id: 'oscar-film', label: 'Oscar za nejlepší film', sort: BY_YEAR, test: item => item.c === 'filmy' && item.f.osc },
+    { id: 'drzitele-oscara', label: 'Držitelé Oscara', text: 'Režiséři, herci a herečky s Oscarem', sort: BY_YEAR, test: item => item.c !== 'filmy' && item.f.osc },
+    { id: 'ceske-serialy', label: 'České seriály', text: 'Seriály České a Československé televize i novější', sort: BY_YEAR, test: item => item.c === 'serialy' && item.cz },
+    { id: 'animovane-serialy', label: 'Animované seriály', text: 'Večerníčky, Simpsonovi, anime…', sort: BY_YEAR, test: item => item.c === 'serialy' && item.ty === 'animovaný seriál' },
+    { id: 'sitcomy', label: 'Sitcomy', sort: BY_YEAR, test: item => item.c === 'serialy' && (item.f.gen || []).includes('sitcom') },
+    { id: 'krimi-serialy', label: 'Kriminální seriály', sort: BY_YEAR, test: item => item.c === 'serialy' && (item.f.gen || []).includes('krimi') },
+    { id: 'ceska-animace', label: 'Česká animace', text: 'České a československé animované filmy a večerníčky', sort: BY_YEAR,
+        test: item => item.cz && (item.c === 'animovane' || item.c === 'serialy' && item.ty === 'animovaný seriál') },
+    { id: 'disney', label: 'Disney', text: 'Animované filmy studia Walta Disneyho', sort: BY_YEAR, test: item => item.f.studio === 'Walt Disney' },
+    { id: 'pixar', label: 'Pixar', sort: BY_YEAR, test: item => item.f.studio === 'Pixar' },
+    { id: 'dreamworks', label: 'DreamWorks', sort: BY_YEAR, test: item => item.f.studio === 'DreamWorks' },
+    { id: 'ghibli', label: 'Studio Ghibli', sort: BY_YEAR, test: item => item.f.studio === 'Studio Ghibli' },
+    { id: 'sci-fi', label: 'Sci-fi', sort: BY_YEAR, test: hasGenre('Q471839') },
+    { id: 'westerny', label: 'Westerny', sort: BY_YEAR, test: hasGenre('Q172980') },
+    { id: 'horory', label: 'Horory', sort: BY_YEAR, test: hasGenre('Q200092') },
+    { id: 'valecne', label: 'Válečné filmy', sort: BY_YEAR, test: hasGenre('Q369747') },
+    { id: 'muzikaly', label: 'Muzikály', sort: BY_YEAR, test: hasGenre('Q842256') },
+    { id: 'superhrdinove', label: 'Superhrdinové', sort: BY_YEAR, test: hasGenre('Q1535153') },
+    { id: 'nemy-film', label: 'Němý film', text: 'Filmy z doby před zvukem', sort: BY_YEAR, test: item => item.c === 'filmy' && (item.ty === 'němý film' || item.f.year < 1928) },
+    { id: 'hollywood-klasika', label: 'Zlatý věk Hollywoodu', text: 'Americké filmy do roku 1960', sort: BY_YEAR,
+        test: item => item.c === 'filmy' && (item.f.land || []).includes('Spojené státy americké') && item.f.year < 1960 }
+];
 // --- 4. krok: položky ---
+// Limity kategorií: zahraniční (limit) a české (czLimit) podle jazykových verzí, navíc české podle návštěvnosti české Wikipedie
+// (czPv – televizní pohádky a seriály, které Češi znají, i když v jiných jazycích o nich články nejsou); úrovně určí až 5. krok
 const LIMITS = {
     // Animované filmy jsou zvlášť (dřív zabíraly asi 60 míst mezi filmy a 35 mezi známými)
-    filmy: { limit: 590, known: 118, czLimit: 200, czKnown: 12 },
-    animovane: { limit: 170, known: 48, czLimit: 30, czKnown: 8 },
-    serialy: { limit: 165, known: 40, czLimit: 70, czKnown: 12 },
-    reziseri: { limit: 170, known: 65, czLimit: 40 },
-    herci: { limit: 420, known: 150, czLimit: 110 }
+    filmy: { limit: 650, czLimit: 200, czPv: 60 },
+    animovane: { limit: 190, czLimit: 30, czPv: 5 },
+    serialy: { limit: 180, czLimit: 70, czPv: 25 },
+    reziseri: { limit: 200, czLimit: 40, czPv: 5 },
+    herci: { limit: 480, czLimit: 110, czPv: 20 }
+};
+// Cílová velikost okruhů, které by mezi nejznámějšími v kategorii skoro chyběly (westerny, němý film, sitcomy, filmové
+// pohádky): doplní se nejznámějšími dalšími kandidáty nad limit kategorie
+const OKRUH_TARGETS = {
+    westerny: 70, horory: 150, 'hollywood-klasika': 100, superhrdinove: 110, 'nemy-film': 42, 'oscar-film': 100,
+    pohadky: 120, 'zlata-sedesata': 75, 'slovensky-film': 90, 'ceska-animace': 45,
+    disney: 75, pixar: 27, dreamworks: 45, ghibli: 20,
+    sitcomy: 90, 'krimi-serialy': 120, 'animovane-serialy': 120
 };
 const names = new Set();
 const nameKey = (name) => name.toLocaleLowerCase('cs');
 const items = [];
 const rank = {};
 const czechRank = {};
-// Přidá položku, pokud se vejde do limitu (české do vlastního); isKnown(pořadí, počet už známých českých) rozhodne o známosti
-const add = (category, item, isCzech, isKnown) => {
+const groupsOf = (item) => COLLECTIONS.filter(collection => collection.test(item)).map(collection => collection.id);
+// Návštěvnost článků české Wikipedie (známost českých a slovenských položek, které mají málo jazykových verzí)
+const pageviews = await filmPageviews([...new Set([...filmMap.values(), ...people.values(), ...seriesMap.values()].map(detail => detail.t).filter(Boolean))], { offline: OFFLINE });
+// Přidá položku, pokud se vejde do limitu (české do vlastního); force = doplnění malého okruhu nad limit.
+// level = { hand, never, minor, local } pro 5. krok (viz film-levels.mjs); vrátí přidanou položku
+const add = (category, item, isCzech, level, force = false) => {
     const settings = LIMITS[category];
     const position = rank[category] || 0;
     const czechPosition = czechRank[category] || 0;
-    // Nejznámější české položky se vejdou vždy
-    const full = isCzech ? czechPosition >= settings.czLimit && !CZECH_KNOWN.has(item.n) && !CZECH_SERIES_KNOWN.has(item.n) : position >= settings.limit;
-    if (full) return false;
+    // Nejznámější české položky (ruční seznam) se vejdou vždy
+    const full = !force && (isCzech ? czechPosition >= settings.czLimit : position >= settings.limit) && !(level.local && level.hand);
+    if (full) return null;
     // Jedna položka na jméno (Babička z roku 1940, ne remake)
-    if (names.has(nameKey(item.n))) return false;
+    if (names.has(nameKey(item.n))) return null;
     names.add(nameKey(item.n));
-    rank[category] = position + 1;
     if (isCzech) czechRank[category] = czechPosition + 1;
-    const czechKnown = items.filter(other => other.c === category && other.cz && other.k).length;
-    items.push(compact({ ...item, c: category, k: isKnown(position, czechKnown) ? 1 : 0, cz: isCzech ? 1 : undefined }));
-    return true;
+    else rank[category] = position + 1;
+    const entry = compact({ ...item, c: category, k: 0, cz: isCzech ? 1 : undefined });
+    entry._ = { sl: sitelinks.get(item.q) || 0, pv: pageviews[item.t], ...level };
+    items.push(entry);
+    return entry;
 };
+// Pořadí kandidátů: české a slovenské podle lepšího ze dvou pořadí – podle jazykových verzí (klasika jako Hej rup! nebo Krakatit)
+// a podle návštěvnosti české Wikipedie (televizní pohádky, novější filmy); ostatní podle jazykových verzí
+const byFame = (list) => {
+    const entries = list.map(candidate => ({ candidate, sl: sitelinks.get(candidate.item.q) || 0, pv: candidate.level.local ? pageviews[candidate.item.t] : undefined }));
+    const localEntries = entries.filter(entry => entry.candidate.level.local);
+    const bySl = fameRanks(localEntries, 0);
+    const byPv = fameRanks(localEntries, 1);
+    const world = fameRanks(entries.filter(entry => !entry.candidate.level.local), 0);
+    return entries.map(entry => [entry.candidate, bySl.has(entry) ? Math.min(bySl.get(entry), byPv.get(entry)) : world.get(entry)])
+        .sort((a, b) => a[1] - b[1]).map(([candidate]) => candidate);
+};
+// Nejdřív české položky (od nejznámějších v Česku), pak ostatní podle jazykových verzí
+// Do limitů podle jazykových verzí (pořadí kandidátů), pak české položky s nejvyšší návštěvností nad limit (czPv)
+const addMain = (list, addOne = (candidate, force) => add(candidate.category, candidate.item, candidate.isCzech, candidate.level, force), onAdd = () => {}) => {
+    for (const candidate of list) {
+        const entry = addOne(candidate, false);
+        if (entry) onAdd(entry);
+    }
+    const added = {};
+    const popular = list.filter(candidate => candidate.isCzech && pageviews[candidate.item.t] && hasHints(candidate) && !names.has(nameKey(candidate.item.n)))
+        .sort((a, b) => pageviews[b.item.t] - pageviews[a.item.t]);
+    for (const candidate of popular) {
+        if ((added[candidate.category] || 0) >= LIMITS[candidate.category].czPv || names.has(nameKey(candidate.item.n))) continue;
+        const entry = addOne(candidate, true);
+        if (!entry) continue;
+        added[candidate.category] = (added[candidate.category] || 0) + 1;
+        onAdd(entry);
+    }
+};
+// Doplní okruhy pod cílovou velikostí nejznámějšími kandidáty, kteří se do limitu kategorie nevešli; jen s popisem
+const topUp = (list, onAdd = () => {}, addOne = (candidate) => add(candidate.category, candidate.item, candidate.isCzech, candidate.level, true)) => {
+    const counts = new Map();
+    const count = (item) => { for (const group of groupsOf(item)) counts.set(group, (counts.get(group) || 0) + 1); };
+    items.forEach(count);
+    let added = 0;
+    for (const candidate of byFame(list)) {
+        if (!candidate.item.d || !hasHints(candidate) || names.has(nameKey(candidate.item.n))) continue;
+        const groups = groupsOf({ ...candidate.item, c: candidate.category, cz: candidate.isCzech ? 1 : undefined });
+        if (!groups.some(group => OKRUH_TARGETS[group] && (counts.get(group) || 0) < OKRUH_TARGETS[group])) continue;
+        const entry = addOne(candidate);
+        if (!entry) continue;
+        count(entry);
+        onAdd(entry, candidate);
+        added++;
+    }
+    return added;
+};
+const isSlovak = (item) => [].concat(item.f.land || []).includes('Slovensko');
+// Popis z faktů, když český ve Wikidatech chybí – ve stylu popisů z Wikidat („film, western: USA“; jméno filmu ani režiséra ne)
+const SHORT_LAND = { 'Spojené státy americké': 'USA' };
+const factDescription = (item) => {
+    const kinds = [...new Set([item.ty, ...(item.f.gen || []).map(genre => genre.replace(/ film$/u, ''))])].join(', ');
+    const lands = [].concat(item.f.land || []).map(land => SHORT_LAND[land] || land).join(', ');
+    // Bez roku: ten je v nápovědě „o filmu“ (s rokem v popisu by nápověda nic nepřidala)
+    return lands ? `${kinds}: ${lands}` : kinds;
+};
+// Seriál nad limit kategorie (doplnění okruhu, návštěvnost) jen s něčím do nápověd: herci, stanice nebo žánr
+const hasHints = (candidate) => candidate.category !== 'serialy' || Boolean(candidate.item.f.cast || candidate.item.f.net || candidate.item.f.gen);
 
 // Filmy: s rokem premiéry, ne dokumenty, seriály a budoucí filmy; české = jen české a československé, nebo s českým režisérem
 // (koprodukce natočené v Praze jako Casino Royale ne)
+const FACT_LABEL_WORD = /(?<!\p{L})Země(?!\p{L})/u;
 const filmItems = [];
+const filmCandidates = [];
 const personName = (qid) => people.has(qid) && people.get(qid).n ? nameOf(people.get(qid)) : undefined;
 // Filmy i animované filmy podle počtu jazykových verzí
 const filmOrder = [...new Map([...candidates.films, ...animatedFilms])].sort((a, b) => b[1] - a[1]);
 for (const [qid] of filmOrder) {
     const detail = filmMap.get(qid);
     // Český štítek ve Wikidatech občas chybí (Avatar) – název pak vychází z názvu článku
-    if (!detail || !detail.t) continue;
+    // Název se slovem „Země“ by prozradil fakt Země v okně otázky (Hledání Země Nezemě, Doba ledová 4: Země v pohybu)
+    if (!detail || !detail.t || FACT_LABEL_WORD.test(nameOf(detail))) continue;
     const types = (detail.type || []).map(type => `${cs(type) || ''} ${en(type)}`).join(' | ');
     if (/seriál|minisérie|series|krátký|short/iu.test(types) || (detail.genre || []).includes(DOCUMENTARY) && !(detail.genre || []).some(genre => GENRES.some(([q]) => q === genre))) continue;
     const { year, sure } = filmYear(detail);
@@ -391,6 +560,8 @@ for (const [qid] of filmOrder) {
     const animated = (detail.type || []).some(type => ANIMATED.includes(type)) || genres.includes('animovaný film');
     const category = animated ? 'animovane' : 'filmy';
     const minutes = detail.len ? Math.round(Number(detail.len) / 60) : undefined;
+    // Krátké němé filmy z počátků kinematografie (Kansas Saloon Smashers) nejsou celovečerní filmy
+    if (year < 1928 && (minutes !== undefined ? minutes < 40 : year < 1910)) continue;
     const item = {
         q: qid,
         t: detail.t,
@@ -421,10 +592,12 @@ for (const [qid] of filmOrder) {
     };
     if (item.studio) item.f.studio = item.studio;
     delete item.studio;
-    const known = (position, czechKnown) => isCzech ? CZECH_KNOWN.has(item.n) || czechKnown < LIMITS[category].czKnown
-        : position < LIMITS[category].known;
-    if (add(category, item, isCzech, known)) filmItems.push(items[items.length - 1]);
+    if (!item.d) item.d = factDescription(item);
+    const level = { hand: isCzech ? CZECH_KNOWN.has(item.n) : WORLD_FILMS_KNOWN.has(item.n), local: isCzech || isSlovak(item) };
+    filmCandidates.push({ category, item, isCzech, level });
 }
+addMain(filmCandidates, undefined, (entry) => filmItems.push(entry));
+console.log(`Doplněno do malých okruhů: ${topUp(filmCandidates, (entry) => filmItems.push(entry))} filmů`);
 
 // Filmografie z vybraných filmů: režiséři podle režie, herci podle obsazení (nejznámější filmy první)
 const directed = new Map();
@@ -435,6 +608,7 @@ for (const film of filmItems) {
 }
 const personCandidates = [...new Set([...candidates.people.map(([qid]) => qid), ...filmItems.flatMap(film => film.directorIds || [])])]
     .filter(qid => people.has(qid)).sort((a, b) => (sitelinks.get(b) || 0) - (sitelinks.get(a) || 0));
+const peopleCandidates = [];
 for (const qid of personCandidates) {
     const detail = people.get(qid);
     if (!detail.t || !(detail.type || []).includes(HUMAN)) continue;
@@ -467,9 +641,17 @@ for (const qid of personCandidates) {
         }),
         filmCount: own.length
     };
-    // Známí: z nejznámějších ti s aspoň dvěma filmy v datech (jinak by mezi známé pronikly hvězdy indické televize); z Čechů ti nejznámější
-    const known = (position) => isCzech ? CZECH_KNOWN.has(item.n) : FILM_KNOWN.has(item.n) || position < LIMITS[category].known && own.length >= 2;
-    // Osoba má přednost před filmem stejného jména (herečka Lída Baarová, ne životopisný film o ní)
+    // Známí: ze zahraničních jen ti s aspoň dvěma filmy v datech (jinak by mezi známé pronikly hvězdy indické televize)
+    // Slovenští filmaři (Juraj Jakubisko) se porovnávají s českými; nejznámější z ručního seznamu se vejdou vždy
+    const local = isCzech || item.f.land === 'Slovensko';
+    const hand = CZECH_KNOWN.has(item.n) || FILM_KNOWN.has(item.n);
+    const level = { hand, minor: !local && own.length < 2 && !hand, local };
+    peopleCandidates.push({ category, item, isCzech, level });
+}
+// Osoba má přednost před filmem stejného jména (herečka Lída Baarová, ne životopisný film o ní)
+const addPerson = ({ category, item, isCzech, level }, force = false) => {
+    const position = isCzech ? czechRank[category] || 0 : rank[category] || 0;
+    if (!force && position >= (isCzech ? LIMITS[category].czLimit : LIMITS[category].limit) && !(level.local && level.hand)) return null;
     const sameFilm = filmItems.find(film => nameKey(film.n) === nameKey(item.n));
     if (sameFilm) {
         items.splice(items.indexOf(sameFilm), 1);
@@ -478,8 +660,10 @@ for (const qid of personCandidates) {
         item.f.films = (item.f.films || []).filter(name => name !== sameFilm.n);
         for (const other of items) if (other.f.films) other.f.films = other.f.films.filter(name => name !== sameFilm.n);
     }
-    add(category, item, isCzech, known);
-}
+    return add(category, item, isCzech, level, force);
+};
+addMain(peopleCandidates, addPerson);
+console.log(`Doplněno do malých okruhů: ${topUp(peopleCandidates, () => {}, (candidate) => addPerson(candidate, true))} osob`);
 
 // --- Seriály ---
 // Pořady, které nejsou seriály (reality show, soutěže, talk show, wrestling, zpravodajství, dokumenty)
@@ -518,6 +702,7 @@ const seriesYears = (detail) => {
     return { start, end: start !== undefined && ends[0] !== undefined && ends[0] > start ? ends[0] : undefined };
 };
 const maxNumber = (list) => { const numbers = (list || []).map(Number).filter(Number.isFinite); return numbers.length ? Math.max(...numbers) : undefined; };
+const seriesList = [];
 for (const [qid] of candidates.series) {
     const detail = seriesMap.get(qid);
     if (!detail || !detail.t) continue;
@@ -562,10 +747,12 @@ for (const [qid] of candidates.series) {
         }),
         genreIds: [...(detail.genre || []), ...(detail.type || [])]
     };
-    const known = (position, czechKnown) => isCzech ? CZECH_SERIES_KNOWN.has(item.n) || czechKnown < LIMITS.serialy.czKnown
-        : position < LIMITS.serialy.known && !SERIES_NOT_KNOWN.has(item.n);
-    add('serialy', item, isCzech, known);
+    if (!item.d) item.d = factDescription(item);
+    const level = { hand: isCzech && CZECH_SERIES_KNOWN.has(item.n), never: SERIES_NOT_KNOWN.has(item.n), local: isCzech || isSlovak(item) };
+    seriesList.push({ category: 'serialy', item, isCzech, level });
 }
+addMain(seriesList);
+console.log(`Doplněno do malých okruhů: ${topUp(seriesList)} seriálů`);
 
 // Odkaz na režiséra filmu jen tehdy, když je mezi režiséry (otázka „Kdo film režíroval?“)
 const directorItems = new Set(items.filter(item => item.c === 'reziseri').map(item => item.q));
@@ -574,49 +761,45 @@ for (const film of filmItems) {
     delete film.f.dq1;
 }
 
-// --- 5. krok: okruhy pro učení ---
-const isFilmItem = (item) => item.c === 'filmy' || item.c === 'animovane';
-const hasGenre = (...qids) => (item) => isFilmItem(item) && qids.some(qid => (item.genreIds || []).includes(qid));
-const BY_YEAR = { by: 'y' };
-const COLLECTIONS = [
-    { id: 'cesky-film', label: 'Český film', text: 'České a československé filmy, seriály, režiséři a herci', sort: BY_YEAR, test: item => item.cz },
-    { id: 'ceska-klasika', label: 'Česká filmová klasika', text: 'České a československé filmy do roku 1989', sort: BY_YEAR, test: item => item.c === 'filmy' && item.cz && item.f.year < 1990 },
-    { id: 'zlata-sedesata', label: 'Zlatá šedesátá', text: 'Česká nová vlna a filmy 60. let', sort: BY_YEAR, test: item => item.c === 'filmy' && item.cz && item.f.year >= 1960 && item.f.year < 1970 },
-    { id: 'slovensky-film', label: 'Slovenský film', text: 'Slovenské filmy, režiséři a herci', sort: BY_YEAR, test: item => [].concat(item.f.land || []).includes('Slovensko') },
-    { id: 'pohadky', label: 'Filmové pohádky', sort: BY_YEAR, test: hasGenre('Q1957385', 'Q699') },
-    { id: 'oscar-film', label: 'Oscar za nejlepší film', sort: BY_YEAR, test: item => item.c === 'filmy' && item.f.osc },
-    { id: 'drzitele-oscara', label: 'Držitelé Oscara', text: 'Režiséři, herci a herečky s Oscarem', sort: BY_YEAR, test: item => item.c !== 'filmy' && item.f.osc },
-    { id: 'ceske-serialy', label: 'České seriály', text: 'Seriály České a Československé televize i novější', sort: BY_YEAR, test: item => item.c === 'serialy' && item.cz },
-    { id: 'animovane-serialy', label: 'Animované seriály', text: 'Večerníčky, Simpsonovi, anime…', sort: BY_YEAR, test: item => item.c === 'serialy' && item.ty === 'animovaný seriál' },
-    { id: 'sitcomy', label: 'Sitcomy', sort: BY_YEAR, test: item => item.c === 'serialy' && (item.f.gen || []).includes('sitcom') },
-    { id: 'krimi-serialy', label: 'Kriminální seriály', sort: BY_YEAR, test: item => item.c === 'serialy' && (item.f.gen || []).includes('krimi') },
-    { id: 'ceska-animace', label: 'Česká animace', text: 'České a československé animované filmy', sort: BY_YEAR, test: item => item.c === 'animovane' && item.cz },
-    { id: 'disney', label: 'Disney', text: 'Animované filmy studia Walta Disneyho', sort: BY_YEAR, test: item => item.f.studio === 'Walt Disney' },
-    { id: 'pixar', label: 'Pixar', sort: BY_YEAR, test: item => item.f.studio === 'Pixar' },
-    { id: 'dreamworks', label: 'DreamWorks', sort: BY_YEAR, test: item => item.f.studio === 'DreamWorks' },
-    { id: 'ghibli', label: 'Studio Ghibli', sort: BY_YEAR, test: item => item.f.studio === 'Studio Ghibli' },
-    { id: 'sci-fi', label: 'Sci-fi', sort: BY_YEAR, test: hasGenre('Q471839') },
-    { id: 'westerny', label: 'Westerny', sort: BY_YEAR, test: hasGenre('Q172980') },
-    { id: 'horory', label: 'Horory', sort: BY_YEAR, test: hasGenre('Q200092') },
-    { id: 'valecne', label: 'Válečné filmy', sort: BY_YEAR, test: hasGenre('Q369747') },
-    { id: 'muzikaly', label: 'Muzikály', sort: BY_YEAR, test: hasGenre('Q842256') },
-    { id: 'superhrdinove', label: 'Superhrdinové', sort: BY_YEAR, test: hasGenre('Q1535153') },
-    { id: 'nemy-film', label: 'Němý film', text: 'Filmy z doby před zvukem', sort: BY_YEAR, test: item => item.c === 'filmy' && (item.ty === 'němý film' || item.f.year < 1928) },
-    { id: 'hollywood-klasika', label: 'Zlatý věk Hollywoodu', text: 'Americké filmy do roku 1960', sort: BY_YEAR,
-        test: item => item.c === 'filmy' && (item.f.land || []).includes('Spojené státy americké') && item.f.year < 1960 }
-];
+// --- 5. krok: okruhy a úrovně ---
 for (const item of items) {
     const groups = COLLECTIONS.filter(collection => collection.test(item)).map(collection => collection.id);
     if (groups.length) item.g = groups;
 }
 for (const item of items) { delete item.castIds; delete item.directorIds; delete item.genreIds; delete item.animated; delete item.filmCount; }
-const sizeOf = (collection) => items.filter(item => (item.g || []).includes(collection.id)).length;
 const collections = COLLECTIONS.map(({ test, ...collection }) => collection);
 
+// Úrovně: známost se porovnává v kategorii, české (a slovenské) položky zvlášť – u nich rozhoduje hlavně návštěvnost české Wikipedie.
+// Známá je čtvrtina nejznámějších (u českých víc – český hráč zná české filmy a seriály líp), pro experty nejméně známá čtvrtina
+// zahraničních a pětina českých; každý okruh od 8 položek má aspoň max(3, 25 %) známých a nejvýš 45 % pro experty
+for (const item of items) item._.pool = `${item.c}|${item._.local ? 'cz' : 'svet'}`;
+const LEVEL_SHARES = { known: { svet: 0.23, cz: 0.26 }, expert: { svet: 0.3, cz: 0.2 } };
+const side = (pool) => pool.split('|')[1];
+const levelGroups = [
+    ...COLLECTIONS.map(collection => ({ id: collection.id, members: items.filter(item => (item.g || []).includes(collection.id)) })),
+    ...Object.keys(LIMITS).map(category => ({ id: category, members: items.filter(item => item.c === category) }))
+];
+const promoted = assignLevels(items, {
+    knownShare: (pool) => LEVEL_SHARES.known[side(pool)],
+    expertShare: (pool) => LEVEL_SHARES.expert[side(pool)],
+    pvWeight: (pool) => side(pool) === 'cz' ? 0.75 : 0.5,
+    // Kvůli okruhu se známou stane jen položka ze 75 % nejznámějších své skupiny (V pravé poledne, Kabinet doktora Caligariho, Hrob světlušek ano)
+    ceiling: 0.75,
+    groups: levelGroups
+});
+console.log(`Povýšeno kvůli okruhům: ${promoted.length} (${promoted.slice(0, 12).map(([group, name]) => `${group}: ${name}`).join(', ')}…)`);
+console.log(levelSummary('celkem', items));
 for (const category of Object.keys(LIMITS)) {
     const inCategory = items.filter(item => item.c === category);
-    console.log(`${category}: ${inCategory.length} (${inCategory.filter(item => item.k).length} známých, ${inCategory.filter(item => item.cz).length} českých)`);
+    console.log(`${levelSummary(category, inCategory)}, českých ${inCategory.filter(item => item.cz).length}`);
 }
-for (const collection of collections) console.log(`okruh ${collection.label}: ${sizeOf(collection)}`);
+for (const group of levelGroups.slice(0, COLLECTIONS.length)) console.log(`okruh ${levelSummary(group.id, group.members)}`);
+// Okruh pod spodní hranicí (málo dost známých položek): nejznámější z ostatních, ať je vidět, co by šlo povýšit
+for (const group of levelGroups) {
+    const need = knownFloor(group.members.length);
+    const known = group.members.filter(item => item.k).length;
+    if (known < need) console.warn(`  pod spodní hranicí ${group.id} ${known}/${need}: ${group.members.filter(item => !item.k).sort((a, b) => a._.pct - b._.pct).slice(0, 8).map(item => `${item.n} ${item._.pct.toFixed(2)}${item._.minor ? ' m' : ''}`).join(', ')}`);
+}
+for (const item of items) delete item._;
 
 writeTopic('film', { collections, items });
