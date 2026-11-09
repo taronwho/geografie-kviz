@@ -996,10 +996,10 @@ test('týdenní turnaje', { skip: !chromium && 'Playwright není nainstalovaný'
         await tab.click('#tournament-rounds details[data-round="1"] summary');
         const first = (await tab.textContent('#tournament-rounds li[data-match="' + uuid(200) + '"]')).replace(/\s+/g, ' ');
         assert.match(first, /Jana Nováková \(ty\)/);
-        assert.match(first, /8\/10 · 12 b/);
+        assert.match(first, /12 b · 8\/10/);
         assert.match(first, /Petr Svoboda/);
         assert.match(await tab.textContent('#tournament-rounds li[data-match="' + uuid(203) + '"]'), /Kontumačně/);
-        assert.match(first, /8\/10 · 12 b · 0:10/, 'u odehraného zápasu i celkový čas');
+        assert.match(first, /12 b · 8\/10 · 0:10/, 'body, správně a celkový čas');
         // Rozpis cizího zápasu: rozhodnuté zápasy 1. kola (svůj jsem odehrál) ano, nerozhodnutá čtvrtfinále ne
         assert.equal(await tab.locator('#tournament-rounds details[data-round="1"] [data-action="tournament-breakdown"]').count(), 8, 'všech 8 rozhodnutých zápasů');
         assert.equal(await tab.locator('#tournament-rounds details[data-round="2"] [data-action="tournament-breakdown"]').count(), 0);
@@ -1011,8 +1011,8 @@ test('týdenní turnaje', { skip: !chromium && 'Playwright není nainstalovaný'
         assert.ok(spectated.includes(db.profiles[players[2]].display_name) && spectated.includes(db.profiles[players[3]].display_name), 'oba hráči jménem');
         assert.ok(!/\bTy\b/.test(spectated), 'divák není „Ty“');
         // (odpovědi po otázkách vykresluje stejná buňka jako u vlastního zápasu, viz e2e-challenge-breakdown; zdejší hráči nemají UUID)
-        assert.match(spectated, /7\/10 · 12 b · 0:10/, 'celkem: správně, body a čas');
-        assert.match(spectated, /3\/10 · 5 b · 0:11/);
+        assert.match(spectated, /12 b · 7\/10 · 0:10/, 'celkem: body, správně a čas');
+        assert.match(spectated, /5 b · 3\/10 · 0:11/);
         assert.ok(db.calls.some(call => call.name === 'tournament_details' && call.body.mid === uuid(201)));
         assert.equal(await tab.locator('#breakdown-list [data-bd-row="0"] [data-bd-cell]').count(), 2);
         await tab.keyboard.press('Escape');
@@ -1168,7 +1168,7 @@ test('týdenní turnaje', { skip: !chromium && 'Playwright není nainstalovaný'
         // Karta má dva řádky: avatar, jméno, skóre x/10; vítěz s fajfkou, poražený ztlumený; nehraný zápas „—“
         const first = tab.locator('#bracket-scroll [data-bcell="2-1"] [data-bcard]');
         const text = (await first.innerText()).replace(/\s+/g, ' ');
-        assert.match(text, /Jana Nováková \d\/10.*Adam 1 \d\/10/);
+        assert.match(text, /Jana Nováková \d+ b.*Adam 1 \d+ b/);
         assert.equal(await first.locator('svg path[d="M5 13l4 4L19 7"]').count(), 1, 'jedna fajfka u vítěze');
         assert.equal(await first.locator('button[data-bp]').count(), 2);
         assert.equal(await first.locator('[data-action="tournament-breakdown"]').count(), 1, 'rozhodnutý zápas: tlačítko rozpisu vpravo na kartě');
@@ -1258,7 +1258,7 @@ test('týdenní turnaje', { skip: !chromium && 'Playwright není nainstalovaný'
         // Osmifinále ještě není odehrané, ale 1. kolo (šestnáctifinále) s výsledky je v pavouku jako první sloupec
         assert.deepEqual((await columnsOf(tab)).slice(0, 2), ['1', '2']);
         assert.equal(await cardsIn(tab, 1), 16);
-        assert.match((await tab.locator('#bracket-scroll [data-bcell="1-1"] [data-bcard]').innerText()).replace(/\s+/g, ' '), /\d+\/10/, 'skóre z 1. kola je vidět');
+        assert.match((await tab.locator('#bracket-scroll [data-bcell="1-1"] [data-bcard]').innerText()).replace(/\s+/g, ' '), /\d+ b/, 'body z 1. kola jsou vidět');
         // Seznam kol: rozbalené je aktuální i poslední dohrané kolo
         await tab.click('#tournament-bracket button[data-b-full]').catch(() => {});
         await tab.click('button:has-text("Seznam kol")');

@@ -5384,7 +5384,7 @@
                 <span class="min-w-0 flex-1 truncate text-[13px] font-bold text-slate-800 dark:text-slate-100">${escapeHtml(row.challenge ? challengeTopicTitle(row.challenge.topic) : '')}</span>
                 ${Friends && signedUser() ? Friends.reactionBadge(Friends.reactionFor(recentReactions, row.challenge_id, signedUser().id), row.others[0] ? playerName(row.others[0].player) : '') : ''}
                 <span class="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-black ${look[1]}">${outcome}</span>
-                <span class="w-11 shrink-0 text-right text-[15px] font-black tabular-nums text-slate-800 dark:text-slate-100">${row.correct}/${count}</span>
+                <span class="w-12 shrink-0 text-right leading-tight tabular-nums"><span class="block text-[15px] font-black text-slate-800 dark:text-slate-100">${Number(row.points) || 0} b</span><span class="block text-[10px] font-semibold text-slate-500 dark:text-slate-400">${row.correct}/${count}</span></span>
             </button>`;
     };
     const incomingRow = (invite) => `
@@ -6256,7 +6256,7 @@
             <span data-place="${rankingPlace(rows, row)}" class="w-5 text-center text-sm font-black text-slate-500 dark:text-slate-400">${rankingPlace(rows, row) === 1 ? '🏆' : rankingPlace(rows, row)}</span>
             ${avatarHtml(row.player, 'h-9 w-9 text-lg', true)}
             <span class="min-w-0 flex-1 truncate text-sm font-bold text-slate-800 dark:text-slate-100">${escapeHtml(playerName(row.player))}${row.user_id === meId ? ' (ty)' : ''}</span>
-            <span class="text-right"><span class="block text-base font-black text-slate-800 dark:text-slate-100">${row.correct}/${count}</span><span class="block text-[10px] font-semibold text-slate-500 dark:text-slate-400">${escapeHtml(formatPoints(row.points))}</span></span>
+            <span class="text-right"><span class="block text-base font-black text-slate-800 dark:text-slate-100">${escapeHtml(formatPoints(row.points))}</span><span class="block text-[10px] font-semibold text-slate-500 dark:text-slate-400">${row.correct}/${count} správně</span></span>
         </li>`).join('');
 
     // Odznak jako medaile ve stylu hry: získaný zlatý nebo vínový se ikonou, nezískaný šedý
@@ -7008,8 +7008,8 @@
                 <div class="rounded-[1.5rem] bg-gradient-to-br from-brand-600 to-brand-900 p-5 text-center text-white shadow-lg">
                     ${uiArt(`sova-${outcomeOwl}`, 'mx-auto -mt-1 mb-1 h-24 w-24')}${verdictHtml}
                     <p class="mt-2 text-xs font-black uppercase tracking-widest text-white/80">${escapeHtml(challengeTopicTitle(c.topic))}</p>
-                    <p class="mt-0.5 text-4xl font-black">${correct}/${c.count}</p>
-                    <p class="mt-1 text-sm font-bold text-white/90">${escapeHtml(formatPoints(points))}</p>
+                    <p data-result-points class="mt-0.5 text-4xl font-black">${escapeHtml(formatPoints(points))}</p>
+                    <p data-result-correct class="mt-1 text-sm font-bold text-white/90">${correct}/${c.count} správně</p>
                     ${ratingNote(c, results)}
                 </div>
                 ${body}
@@ -7087,7 +7087,7 @@
         <div class="flex min-w-0 items-center gap-1.5">
             ${avatarHtml(entry.player, 'h-7 w-7 text-sm')}
             <span class="min-w-0"><span class="block truncate text-[12.5px] font-black text-slate-800 dark:text-slate-100">${escapeHtml(label)}</span>
-            <span class="block text-[10.5px] font-semibold tabular-nums text-slate-500 dark:text-slate-400">${entry.correct === null ? '' : `${entry.correct}/${entry.count} · ${entry.points} b${Number.isInteger(entry.time_ms) ? ` · ${formatQuestionTime(entry.time_ms)}` : ''}`}</span></span>
+            <span class="block text-[10.5px] font-semibold tabular-nums text-slate-500 dark:text-slate-400">${entry.correct === null ? '' : `<b class="font-black text-slate-700 dark:text-slate-200">${entry.points} b</b> · ${entry.correct}/${entry.count}${Number.isInteger(entry.time_ms) ? ` · ${formatQuestionTime(entry.time_ms)}` : ''}`}</span></span>
         </div>`;
     // state: { def, players: [{ user_id, player, correct, points }], meId, rivalId, questions, answers ({ [userId]: [...] } | null), local, error }
     const renderBreakdown = (state) => {
@@ -7656,7 +7656,7 @@
         const user = signedUser();
         const rivals = user && Array.isArray(c.lastResults) ? c.lastResults.filter(row => row.user_id !== user.id) : [];
         const rival = rivals.length === 1 ? playerName(rivals[0].player) : '';
-        return { kicker: `Výzva · ${challengeTopicTitle(c.topic)}`, headline: `${correct}/${c.count}`, detail: `${formatPoints(points)} · vítězství`, grid: Array.from({ length: c.count }, (_, i) => (c.results[i] ? Boolean(c.results[i].correct) : null)),
+        return { kicker: `Výzva · ${challengeTopicTitle(c.topic)}`, headline: formatPoints(points), detail: `${correct}/${c.count} správně · vítězství`, grid: Array.from({ length: c.count }, (_, i) => (c.results[i] ? Boolean(c.results[i].correct) : null)),
             note: rival ? `Vyhráno proti hráči ${rival}` : rivals.length ? `Vyhráno proti ${plural(rivals.length, 'hráči', 'hráčům', 'hráčům')}` : 'Zvládneš to líp?', day: getDayKey(), robe: robeNow(), pose: 'vitez', url: appUrl(), appName: APP_NAME };
     };
     const shareChallengeImage = () => {
@@ -8047,7 +8047,7 @@
             const result = match.results.find(item => item.user_id === id);
             const done = result && result.finished_at;
             const won = match.winner === id;
-            const score = done ? `${result.correct}/${Tournament.QUESTIONS} · ${result.points} b${Number.isInteger(result.time_ms) ? ` · ${Tournament.formatDuration(result.time_ms)}` : ''}` : match.winner ? 'neodehráno' : '';
+            const score = done ? `${result.points} b · ${result.correct}/${Tournament.QUESTIONS}${Number.isInteger(result.time_ms) ? ` · ${Tournament.formatDuration(result.time_ms)}` : ''}` : match.winner ? 'neodehráno' : '';
             return `<div class="flex items-center gap-2 ${match.winner && !won ? 'opacity-60' : ''}">
                 ${avatarHtml(entry ? entry.player : null, 'h-7 w-7 text-sm')}
                 <span class="min-w-0 flex-1 truncate text-[12.5px] ${won ? 'font-black' : 'font-bold'} text-slate-800 dark:text-slate-100">${escapeHtml(playerName(entry ? entry.player : null))}${id === meId ? ' (ty)' : ''}</span>
@@ -8116,7 +8116,7 @@
         const name = playerName(entry ? entry.player : null);
         const mine = side.id === ctx.me;
         const tone = side.won ? 'font-black text-slate-900 dark:text-white' : side.lost ? 'font-semibold text-slate-400 dark:text-slate-500' : mine ? 'font-black text-brand-700 dark:text-brand-200' : 'font-bold text-slate-700 dark:text-slate-200';
-        const score = side.correct != null ? `${side.correct}/${Tournament.QUESTIONS}` : '—';
+        const score = side.points != null ? `${side.points} b` : '—';
         return `<button type="button" data-bp="${escapeHtml(side.id)}" data-bk="${card.key}" aria-pressed="${ctx.focus === side.id}" aria-label="${escapeHtml(`${name}${mine ? ' (ty)' : ''}: ${side.won ? 'vítěz, ' : ''}zvýraznit cestu pavoukem`)}" class="flex h-5 w-full items-center gap-1 px-1.5 text-left ${ctx.focus === side.id ? 'bg-gold-100 dark:bg-gold-900/40' : ''}">
             ${avatarHtml(entry ? entry.player : null, 'h-4 w-4 text-[10px]')}
             <span class="min-w-0 flex-1 truncate text-[11px] leading-none ${tone}">${escapeHtml(name)}</span>
@@ -8541,8 +8541,8 @@
                     ${uiArt(`sova-${state === 'ok' ? owl : 'oslava'}`, 'mx-auto -mt-1 mb-1 h-24 w-24')}
                     ${state === 'ok' ? `<p class="mt-1 text-xl font-black leading-tight ${owl === 'vitez' ? 'text-gold-300' : ''}">${escapeHtml(headline)}</p>` : ''}
                     <p class="mt-2 text-xs font-black uppercase tracking-widest text-white/80">Turnaj · ${escapeHtml(tour.name || '')}</p>
-                    <p class="mt-0.5 text-4xl font-black">${correct}/${c.count}</p>
-                    <p class="mt-1 text-sm font-bold text-white/90">${escapeHtml(formatPoints(points))}</p>
+                    <p data-result-points class="mt-0.5 text-4xl font-black">${escapeHtml(formatPoints(points))}</p>
+                    <p data-result-correct class="mt-1 text-sm font-bold text-white/90">${correct}/${c.count} správně</p>
                 </div>
                 ${body}
                 ${state === 'ok' && canTournamentBreakdown(match, user && user.id) ? `<button type="button" data-action="tournament-breakdown" data-tid="${escapeHtml(tour.tid)}" data-mid="${escapeHtml(tour.mid)}" class="${SECONDARY_BUTTON}"><i data-lucide="list-ordered" class="h-5 w-5"></i> Rozpis otázek</button>` : ''}

@@ -117,3 +117,16 @@ test('fyzika: vynálezy a vynálezci – data, otázka na vynálezce a na dobu v
     const choices = core.buildItemChoices(phone, data.items, core.createSeededRandom('tel'), other => topic.similarity(phone, other, ctx), core.cultureLandsFor(topic, ctx));
     assert.ok(choices.every(choice => find(choice.label).c === 'vynalezy' && Math.abs(find(choice.label).f.year - 1876) <= 120), choices.map(choice => choice.label).join(', '));
 });
+
+test('fyzika: myšlenkový experiment není jev – k ultrazvuku se nenabízí Schrödingerova kočka', () => {
+    // Druh pojmu podle popisu (scripts/build-fyzika.mjs: conceptType): myšlenkové experimenty jsou „experiment“
+    const thought = data.items.filter(item => item.c === 'pojmy' && /myšlenkový experiment/iu.test(item.d || ''));
+    assert.ok(thought.length >= 2);
+    assert.deepEqual(thought.filter(item => item.ty !== 'experiment').map(item => item.n), []);
+    const ultrasound = find('Ultrazvuk');
+    for (const seed of ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h']) {
+        const wrong = core.buildItemChoices(ultrasound, data.items, core.createSeededRandom(seed), other => topic.similarity(ultrasound, other, ctx), core.cultureLandsFor(topic, ctx))
+            .filter(choice => !choice.correct).map(choice => find(choice.label));
+        assert.ok(wrong.every(other => other.ty === 'jev'), wrong.map(other => `${other.n} [${other.ty}]`).join(', '));
+    }
+});

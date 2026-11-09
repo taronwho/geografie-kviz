@@ -464,9 +464,10 @@ for (const [qid, sl] of candidates.particles) {
 const CONCEPT_SKIP = /^(světelný rok|atmosféra|elektronvolt|chandrasekharova mez|tolmanova|klasický poloměr|loschmidtova|bohrův poloměr)/iu;
 // Pojmy, které nejsou jev (objekty a abstraktní pojmy)
 const PLAIN_CONCEPT = /supernova|pulsar|kvasar|trpaslík|neutronová hvězda|červí díra|antihmota|temná|laser|plazma|kvantum|^spin$|vlnová funkce|pole$|horizont událostí|schwarzschildův poloměr|skupenství/iu;
-const conceptType = (name, source) => {
+// Druh se řídí i popisem: myšlenkový experiment (Schrödingerova kočka, Paradox dvojčat) není jev a k ultrazvuku nepatří
+const conceptType = (name, source, description = '') => {
     if (source === 'konstanta') return 'konstanta';
-    if (/experiment|pokus/iu.test(name)) return 'experiment';
+    if (/experiment|pokus/iu.test(name) || /^(?:myšlenkový )?(?:experiment|pokus)|myšlenkový experiment/iu.test(description)) return 'experiment';
     if (/teorie|velký třesk|heliocentr|model|mechanika|termodynamika/iu.test(name)) return 'teorie';
     if (PLAIN_CONCEPT.test(name)) return 'pojem';
     if (/zákon|pravidlo|rovnice|věta|zásada|teorém|rovnice/iu.test(name)) return 'zákon';
@@ -481,7 +482,7 @@ for (const [qid, sl, source] of candidates.concepts) {
     if (CONCEPT_SKIP.test(name) || items.some(item => item.q === qid)) continue;
     const named = (detail.named || []).map(cs).filter(Boolean)[0];
     const added = addItem({
-        q: qid, t: detail.t, n: name, c: 'pojmy', k: sl >= KNOWN_SL.pojmy ? 1 : 0, ty: conceptType(name, source), d: detail.d,
+        q: qid, t: detail.t, n: name, c: 'pojmy', k: sl >= KNOWN_SL.pojmy ? 1 : 0, ty: conceptType(name, source, detail.d), d: detail.d,
         ...imageFields(detail.im),
         f: compact({ named: /^\p{Lu}/u.test(named || '') ? named : undefined, year: yearOf(detail.found) })
     });
