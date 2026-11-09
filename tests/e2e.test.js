@@ -288,7 +288,8 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         await tab.waitForSelector('[data-badge="prvni-krok"]');
         assert.ok(await tab.locator('[data-badge]').count() >= 120, 'všechny odznaky');
         // Zamčený odznak ukazuje svou zašedlou ikonu a přes ni zámek; získaný je barevný bez zámku
-        assert.equal(await tab.locator('[data-badge="stovka"] svg.lucide-target.grayscale').count(), 1);
+        assert.equal(await tab.locator('[data-badge="stovka"] img[data-badge-art][src="icons/topics/odznak-odpovedi.webp"].grayscale').count(), 1, 'zamčený odznak: zašedlá ilustrace skupiny');
+        assert.equal(await tab.locator('[data-badge="prvni-krok"] img[data-badge-art]:not(.grayscale)').count(), 1, 'získaný odznak: barevná ilustrace');
         assert.equal(await tab.locator('[data-badge="stovka"] [data-medal-lock] svg.lucide-lock').count(), 1);
         assert.equal(await tab.locator('[data-badge="prvni-krok"] [data-medal-lock]').count(), 0);
         assert.equal(await tab.locator('[data-badge="tema-zemepis-25"] img.grayscale').count(), 1, 'zamčená medaile tématu: zašedlá ilustrace');
