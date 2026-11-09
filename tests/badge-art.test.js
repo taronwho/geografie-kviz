@@ -21,9 +21,9 @@ test('symboly odznaků: skupiny, obrázky, zdroje a mezipaměť', () => {
     const swArt = listed(sw, /const BADGE_ART = \[([^\]]+)\]/);
     assert.match(sw, /\.\.\.BADGE_ART\.map\(id => `icons\/topics\/odznak-\$\{id\}\.webp`\)/);
     assert.deepEqual([...swArt].sort(), [...art].sort(), 'sw.js má stejný seznam');
-    for (const name of [...art.map(id => `odznak-${id}`), 'truhla', 'ochrana-serie']) {
+    for (const name of [...art.map(id => `odznak-${id}`), 'truhla', 'ochrana-serie', 'diplom']) {
         assert.ok(fs.existsSync(path.join(ROOT, 'icons', 'topics', `${name}.webp`)), `${name}.webp`);
         assert.ok(fs.existsSync(path.join(ROOT, 'branding', 'ikony', `${name}.png`)), `${name}.png`);
     }
-    assert.match(sw, /'truhla', 'ochrana-serie'/);
+    assert.match(sw, /'truhla', 'ochrana-serie', 'diplom'/);
 });

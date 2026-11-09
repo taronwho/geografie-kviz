@@ -279,7 +279,7 @@
             <div class="grid grid-cols-3 gap-1">
                 ${tile('freeze', freezeArt(), 'Ochrana', `${freezes} z ${MAX_FREEZES}`, 'data-freeze-count')}
                 ${tile('chest', chestSvg('h-7 w-7 shrink-0'), 'Truhla', chest ? 'Čeká!' : lastReward ? esc(lastReward) : 'Za 3 cíle', '', chest ? 'bg-gold-100 ring-2 ring-gold-400 dark:bg-gold-900/40' : 'bg-white dark:bg-slate-800')}
-                ${tile('diplomas', '<span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gold-100 text-gold-700 dark:bg-gold-900/40 dark:text-gold-300"><i data-lucide="award" class="h-4 w-4"></i></span>', 'Diplomy', `${diplomas} / ${topics}`, 'data-diploma-count')}
+                ${tile('diplomas', '<img src="icons/topics/diplom.webp" alt="" class="h-7 w-7 shrink-0 object-contain drop-shadow-sm">', 'Diplomy', `${diplomas} / ${topics}`, 'data-diploma-count')}
             </div>
         </div>`;
     };
@@ -301,7 +301,7 @@
         const have = rows.filter(row => row.earned).length;
         return `
         <div data-diplomas>
-            <div class="mb-1.5 flex items-baseline justify-between gap-2"><h3 class="text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Diplomy</h3><span class="text-[11px] font-bold text-slate-500 dark:text-slate-400">${have} / ${rows.length}</span></div>
+            <div class="mb-1.5 flex items-center justify-between gap-2"><h3 class="flex items-center gap-1.5 text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400"><img src="icons/topics/diplom.webp" alt="" class="h-6 w-6 shrink-0 object-contain drop-shadow-sm">Diplomy</h3><span class="text-[11px] font-bold text-slate-500 dark:text-slate-400">${have} / ${rows.length}</span></div>
             <p class="mb-1.5 text-[11px] leading-snug text-slate-500 dark:text-slate-400">Za plné mistrovství tématu (5 hvězdiček) dostaneš diplom, který můžeš sdílet.</p>
             <ul class="grid grid-cols-7 gap-1">${rows.map(row => `
                 <li><button type="button" data-diploma="${esc(row.topic.id)}" aria-label="${esc(`${row.title}: ${row.earned ? `získán ${formatDay(row.day)}` : `chybí ${row.missing} poznaných položek`}`)}" title="${esc(row.earned ? row.title : `${row.title}: poznej ještě ${row.missing} položek`)}" class="relative flex aspect-square w-full items-center justify-center rounded-xl ${row.earned ? `${h.styleOf(row.topic).soft} ring-2 ring-gold-400` : 'bg-slate-100 dark:bg-slate-700/60'}">
