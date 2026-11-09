@@ -255,6 +255,13 @@
         picture.className = 'absolute inset-2 bg-contain bg-center bg-no-repeat';
         picture.style.backgroundImage = `url("${url}")`;
         container.prepend(picture);
+        // Tlačítko „i“ (zdroj obrázku, photo-source.js) vedle obrázku, ne v něm – kontejner má roli img
+        const Source = root.MudrlantPhotoSource;
+        const frame = container.parentElement;
+        if (Source && frame && Source.fileFromUrl(url)) {
+            frame.querySelectorAll(':scope > [data-photo-info]').forEach(button => button.remove());
+            frame.insertAdjacentHTML('beforeend', Source.buttonHtml({ url, hidden: false }));
+        }
         if (spec.masks && spec.masks.length) {
             const size = await imageSize(url).catch(() => null);
             if (size) maskOverlay(picture, size.width, size.height, spec.masks);
