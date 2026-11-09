@@ -3569,7 +3569,7 @@
         if (!Goals) return;
         const { state, rows } = goalRows();
         const row = ({ goal, value, done }) => `
-            <li data-goal-row="${escapeHtml(goal.id)}" class="rounded-2xl bg-white p-3 shadow-sm ring-1 ${done ? 'ring-emerald-300 dark:ring-emerald-700' : 'ring-slate-200/70 dark:ring-slate-700/70'} dark:bg-slate-800">
+            <li data-goal-row="${escapeHtml(goal.id)}"><button type="button" data-goal-detail="${escapeHtml(goal.id)}" aria-label="${escapeHtml(`${goal.title}: podrobnosti a hrát`)}" class="block w-full rounded-2xl bg-white p-3 text-left shadow-sm ring-1 transition-transform active:scale-[0.99] ${done ? 'ring-emerald-300 dark:ring-emerald-700' : 'ring-slate-200/70 dark:ring-slate-700/70'} dark:bg-slate-800">
                 <div class="flex items-start gap-2.5">
                     <span data-goal-art class="relative -my-1 shrink-0">${goalArt(goal, 'h-9 w-9')}${done ? '<span class="absolute -bottom-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-emerald-500 text-white ring-2 ring-white dark:ring-slate-800"><i data-lucide="check" class="h-3 w-3"></i></span>' : ''}</span>
                     <span class="min-w-0 flex-1 text-[13px] font-bold leading-snug text-slate-800 dark:text-slate-100">${escapeHtml(goal.title)}</span>
@@ -3578,14 +3578,69 @@
                 <div class="mt-2 flex items-center gap-2">
                     <span class="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700" aria-hidden="true"><span class="block h-full w-0 rounded-full ${done ? 'bg-emerald-500' : 'bg-gold-500'}" data-progress="${Math.round(value / goal.target * 100)}"></span></span>
                     <span class="text-[11px] font-bold tabular-nums text-slate-500 dark:text-slate-400">${done ? 'Splněno' : `${value} / ${goal.target}`}</span>
+                    <i data-lucide="chevron-right" class="h-4 w-4 shrink-0 text-slate-400"></i>
                 </div>
-            </li>`;
+            </button></li>`;
         showDialog('Cíle týdne', `
             <div class="mb-2 flex items-center gap-2">${uiArt('cile', 'h-10 w-10')}<p class="text-xs text-slate-500 dark:text-slate-400">${escapeHtml(Goals.weekLabel(state.week))} · ${goalsLeftText()}</p></div>
             <ul class="flex flex-col gap-2">${rows.map(row).join('')}</ul>
             <p class="mt-3 flex items-center gap-2 rounded-2xl ${state.bonus ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200' : 'bg-gold-100 text-gold-800 dark:bg-gold-900/40 dark:text-gold-200'} px-3 py-2 text-xs font-bold"><i data-lucide="trophy" class="h-4 w-4 shrink-0"></i>${state.bonus ? `Všechny cíle splněny: bonus +${Goals.BONUS_XP} XP získán` : `Za všechny tři cíle bonus +${Goals.BONUS_XP} XP, odznak Týdenní cíle a Truhla Mudrlanta`}</p>
             ${Rewards && Rewards.pendingChest(loadRewards()) ? `<button type="button" data-chest-open class="${PRIMARY_BUTTON} mt-2 !bg-gold-500 !text-brand-950"><i data-lucide="sparkles" class="h-5 w-5"></i> Otevřít Truhlu Mudrlanta</button>` : ''}`, {
-            onClick: (event) => { if (event.target.closest('[data-chest-open]')) { closeDialog(); openChestOverlay(); } }
+            onClick: (event) => {
+                if (event.target.closest('[data-chest-open]')) { closeDialog(); openChestOverlay(); return; }
+                const detail = event.target.closest('[data-goal-detail]');
+                if (detail) openGoalDetail(detail.dataset.goalDetail);
+            }
+        });
+        applyProgress(document.getElementById('dialog-overlay'));
+    };
+    // Podrobnosti cíle týdne: co se počítá, jak daleko jsem a tlačítko rovnou do hry, kde se cíl plní
+    const goalPlan = (goal) => {
+        const topic = goal.kind === 'tema' ? TOPIC_BY_ID[goal.id.slice('tema-'.length)] : null;
+        const mix = { label: 'Hrát Mix', run: () => startPractice({ kind: 'mix' }) };
+        const daily = nextDailyTopic();
+        const multi = (run) => () => { writeJson(KEYS.homeTab, 'multi'); run(); };
+        const plans = {
+            spravne: { text: 'Počítá se každá správná odpověď v jakékoli hře: procvičování, dnešní otázky, výzvy, turnaj i Kvíz dne.', ...mix },
+            tema: topic ? { text: `Počítají se správné odpovědi v tématu ${topic.title}, ať hraješ procvičování, dnešní otázku nebo Mix.`, label: `Hrát ${topic.title}`, run: () => playTopic(topic.id) } : mix,
+            dnesni: daily ? { text: 'Dnešní otázky: každý den jedna nová otázka z každého tématu. Počítá se každá správná.', label: `Dnešní otázka: ${daily.title}`, run: () => startNextDaily(daily.id) }
+                : { text: 'Dnešní otázky: každý den jedna nová otázka z každého tématu. Na dnešek máš všechny zodpovězené, další přibudou zítra.', label: '', run: null },
+            'bez-napovedy': { text: 'Odpověz správně dřív, než otevřeš první nápovědu (otázka za plné 4 body). Počítá se v každé hře.', ...mix },
+            dny: { text: 'Stačí každý den odpovědět aspoň na jednu otázku. Každý den, kdy hraješ, se počítá jednou.', ...mix },
+            poznane: { text: 'Nová položka se počítá, když na ni poprvé odpovíš správně (v atlasu dostane hvězdičku).', ...mix },
+            opakovani: { text: 'Procvičování chyb vrací špatné odpovědi po 1, 3, 7, 14 a 30 dnech. Počítá se každá zopakovaná otázka.', label: 'Procvičovat chyby', run: () => (Review ? startReview() : startPractice({ kind: 'mistakes' })) },
+            chyby: { text: 'Odpověz správně na otázku, kterou jsi dřív pokazil. Nejrychleji v procvičování svých chyb.', label: 'Procvičovat chyby', run: () => startPractice({ kind: 'mistakes' }) },
+            vyzvy: { text: 'Dohraj výzvu proti kamarádovi nebo náhodnému soupeři. Počítá se každá dohraná výzva.', label: 'Nová výzva', run: multi(() => openNewChallenge()) },
+            vyhry: { text: 'Vyhraj výzvu: rozhodují body, při shodě počet správných odpovědí.', label: 'Nová výzva', run: multi(() => openNewChallenge()) },
+            turnaj: { text: 'Odehraj zápas týdenního turnaje. Kolo se hraje jeden den.', label: 'Otevřít turnaj', run: multi(() => { renderHome(); refreshTournaments(); }) },
+            kviz: { text: 'Kvíz dne: 10 stejných otázek pro všechny, jeden pokus za den. Počítá se každý dohraný den.', label: 'Hrát Kvíz dne', run: () => openQuiz() },
+            bleskovka: { text: 'Bleskovka: 60 sekund, co nejvíc správných odpovědí. Cíl splníš hrou s aspoň 10 správnými.', label: 'Hrát Bleskovku', run: () => openModeIntro('blitz', { kind: 'mix' }) },
+            preziti: { text: 'Přežití: tři životy, otázky postupně těžší. Cíl splníš, když v jedné hře přežiješ 15 otázek.', label: 'Hrát Přežití', run: () => openModeIntro('survival', { kind: 'mix' }) },
+            serad: { text: 'Otázky Seřaď (seřadit čtyři věci podle velikosti nebo doby) se objevují v procvičování. Počítá se každá seřazená bez chyby.', ...mix }
+        };
+        return plans[goal.kind] || mix;
+    };
+    const openGoalDetail = (goalId) => {
+        const { rows } = goalRows();
+        const row = rows.find(entry => entry.goal.id === goalId);
+        if (!row) return;
+        const { goal, value, done } = row;
+        const plan = goalPlan(goal);
+        showDialog('Cíl týdne', `
+            <div data-goal-info="${escapeHtml(goal.id)}" class="flex flex-col gap-3">
+                <div class="flex items-center gap-3">${goalArt(goal, 'h-16 w-16')}<div class="min-w-0"><p class="text-[15px] font-black leading-snug text-slate-800 dark:text-slate-100">${escapeHtml(goal.title)}</p><p class="mt-1 inline-block rounded-md bg-gold-100 px-1.5 py-0.5 text-[11px] font-black text-gold-800 dark:bg-gold-900/40 dark:text-gold-200">+${goal.xp} XP</p></div></div>
+                <div class="flex items-center gap-2">
+                    <span class="h-2 flex-1 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700" aria-hidden="true"><span class="block h-full w-0 rounded-full ${done ? 'bg-emerald-500' : 'bg-gold-500'}" data-progress="${Math.round(value / goal.target * 100)}"></span></span>
+                    <span class="text-[12px] font-black tabular-nums text-slate-600 dark:text-slate-300">${done ? 'Splněno' : `${value} / ${goal.target}`}</span>
+                </div>
+                <p data-goal-text class="text-[13px] leading-snug text-slate-700 dark:text-slate-200">${escapeHtml(plan.text)}</p>
+                ${plan.run ? `<button type="button" data-goal-play class="${PRIMARY_BUTTON}"><i data-lucide="play" class="h-5 w-5"></i> ${escapeHtml(plan.label)}</button>` : ''}
+                <button type="button" data-goal-back class="${SECONDARY_BUTTON} !py-2.5 text-sm"><i data-lucide="chevron-left" class="h-4 w-4"></i> Všechny cíle</button>
+            </div>`, {
+            onClick: (event) => {
+                if (event.target.closest('[data-goal-back]')) { openGoals(); return; }
+                if (event.target.closest('[data-goal-play]') && plan.run) { closeDialog(); plan.run(); }
+            }
         });
         applyProgress(document.getElementById('dialog-overlay'));
     };
