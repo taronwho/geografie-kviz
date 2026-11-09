@@ -302,3 +302,18 @@ test('audit: u všech otázek se zobrazeným názvem zůstane název v popisu vi
     }
     assert.deepEqual(problems, []);
 });
+
+test('slepá mapa: obrysy přes 180. poledník (Fidži, Čukotka) nekreslí čáru přes celou mapu', () => {
+    const world = JSON.parse(require('node:fs').readFileSync(require('node:path').join(__dirname, '..', 'data', 'world.json'), 'utf8'));
+    const width = 400;
+    const jumps = (shapes) => shapes.reduce((count, shape) => {
+        const points = [...shape.d.matchAll(/([ML])(-?[\d.]+) (-?[\d.]+)/g)];
+        return count + points.filter((point, i) => i > 0 && point[1] === 'L' && Math.abs(+point[2] - +points[i - 1][2]) > width / 2).length;
+    }, 0);
+    for (const [lat, lon, spanLon] of [[-17, 150, 60], [-17, 178, 20], [-17, -178, 20], [65, -175, 40], [1, -157, 60], [50, 15, 30]]) {
+        const shapes = core.buildBlindMap(world, { lat, lon, spanLon, width, height: 300 });
+        assert.equal(jumps(shapes), 0, `${lat}, ${lon}`);
+    }
+    // Fidži (kód 242) je vidět u Fidži (obrys se posune k mapě, ať je střed na kterékoli straně poledníku)
+    for (const lon of [178, -178]) assert.ok(core.buildBlindMap(world, { lat: -17, lon, spanLon: 20, width, height: 300 }).some(shape => shape.id === '242'), `Fidži u ${lon}`);
+});
