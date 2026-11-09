@@ -81,7 +81,7 @@ test('otázka „Ukaž na mapě“', { skip: !chromium && 'Playwright není nain
     // Kde na obrazovce je místo (šířka, délka) na mapě otázky
     const screenPoint = (tab, lat, lon, selector = '[data-map-question]') => tab.evaluate(({ lat, lon, selector }) => {
         const question = JSON.parse(localStorage.getItem('mudrlant.session')).data.question;
-        const [mx, my] = window.MudrlantMapQuestion.frameOf(question.map.region).toMap(lat, lon);
+        const [mx, my] = window.MudrlantMapQuestion.frameOf(window.MudrlantMapQuestion.mapRegionOf(question.map.region)).toMap(lat, lon);
         const svg = document.querySelector(`${selector} svg`);
         const [vx, vy, vw, vh] = svg.getAttribute('viewBox').split(' ').map(Number);
         const rect = svg.getBoundingClientRect();
@@ -103,7 +103,15 @@ test('otázka „Ukaž na mapě“', { skip: !chromium && 'Playwright není nain
         assert.equal(round.mapGuess, undefined);
         assert.ok(await tab.isDisabled('[data-action="map-confirm"]'));
         assert.match(await tab.textContent('[data-action="map-confirm"]'), /Nejdřív klepni na mapu/);
-        assert.match(await tab.textContent('#app-content'), new RegExp(`Plné 4 body do ${data.question.map.full} km`));
+        assert.match(await tab.textContent('[data-map-tiers-toggle]'), new RegExp(`Plné 4 body do ${data.question.map.full} km`));
+        // Hranice bodů se rozbalí klepnutím: 4, 3, 2 i 1 bod s kulatými vzdálenostmi
+        assert.ok(await tab.isHidden('[data-map-tiers]'));
+        await tab.click('[data-map-tiers-toggle]');
+        assert.ok(await tab.isVisible('[data-map-tiers]'));
+        assert.equal(await tab.getAttribute('[data-map-tiers-toggle]', 'aria-expanded'), 'true');
+        assert.match(await tab.textContent('[data-map-tiers]'), /4 body do .* km.*3 body do .* km.*2 body do .* km.*1 bod do .* km.*dál 0 bodů/);
+        await tab.click('[data-map-tiers-toggle]');
+        assert.ok(await tab.isHidden('[data-map-tiers]'));
         assert.ok(await tab.isDisabled('[data-map-zoom="out"]'), 'víc oddálit nejde');
         // Nejdřív vedle, pak přesun tipu přesně na místo
         const map = await tab.locator('[data-map-question]').boundingBox();
@@ -128,8 +136,9 @@ test('otázka „Ukaž na mapě“', { skip: !chromium && 'Playwright není nain
         assert.equal(await tab.getAttribute('[data-action="result-tab"][aria-selected="true"]', 'data-step'), 'guess', 'výsledek začne mapou s tipem');
         assert.equal(await tab.locator('#map-guess [data-mark="guess"]').count(), 1);
         assert.equal(await tab.locator('#map-guess [data-mark="target"]').count(), 1);
-        assert.equal(await tab.locator('#map-guess polyline').count(), 1, 'čára mezi tipem a místem');
+        assert.equal(await tab.locator('#map-guess [data-map-line]').count(), 1, 'čára mezi tipem a místem');
         assert.match(await tab.textContent('[data-map-distance]'), /^Vedle o /);
+        assert.match(await tab.textContent('[data-map-guess-area]'), /^ · \S/, 'u tipu je stát (nebo kraj), kam hráč klepl');
         assert.deepEqual(problems, []);
         // Další otázka už na mapě není (počítadlo začalo znovu)
         await tab.click('[data-action="next"]');
@@ -164,11 +173,12 @@ test('otázka „Ukaž na mapě“', { skip: !chromium && 'Playwright není nain
         // Úplně oddálit a klepnout do rohu mapy daleko od místa
         while (!(await tab.isDisabled('[data-map-zoom="out"]'))) await tab.click('[data-map-zoom="out"]');
         assert.ok(Math.abs((await viewBox(tab))[2] - before[2]) < 0.5, 'oddálení až na celou oblast');
-        // Přiblížit jde až 32× (na přesné místo i na mapě kontinentu), pak se tlačítko vypne
+        // Přiblížit jde až 256× na mapě světa (32× u Česka), pak se tlačítko vypne
+        const maxZoom = await tab.evaluate(() => { const Q = window.MudrlantMapQuestion; return Q.frameOf(Q.mapRegionOf(JSON.parse(localStorage.getItem('mudrlant.session')).data.question.map.region)).maxZoom; });
         let clicks = 0;
-        while (!(await tab.isDisabled('[data-map-zoom="in"]')) && clicks < 10) { await tab.click('[data-map-zoom="in"]'); clicks++; }
-        assert.equal(clicks, 5, 'pět klepnutí na největší přiblížení');
-        assert.ok(Math.abs((await viewBox(tab))[2] - before[2] / 32) < 0.5, 'největší přiblížení 32×');
+        while (!(await tab.isDisabled('[data-map-zoom="in"]')) && clicks < 12) { await tab.click('[data-map-zoom="in"]'); clicks++; }
+        assert.equal(clicks, Math.log2(maxZoom), 'klepnutí až na největší přiblížení');
+        assert.ok(Math.abs((await viewBox(tab))[2] - before[2] / maxZoom) < 0.5, `největší přiblížení ${maxZoom}×`);
         while (!(await tab.isDisabled('[data-map-zoom="out"]'))) await tab.click('[data-map-zoom="out"]');
         await tab.mouse.click(map.x + 6, map.y + 6);
         const { data } = await session(tab);

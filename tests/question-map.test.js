@@ -19,15 +19,18 @@ const sportCtx = { topic: { id: 'sport' }, items: sport.items, countries };
 const place = (n, c, la, lo, extra = {}) => ({ q: `T-${n}`, n, t: n, c, k: 1, la, lo, ty: '', ...extra });
 const byName = (name, category) => zemepis.items.find(item => item.n === name && (!category || item.c === category));
 
-test('výřezy: delší strana 1000 jednotek, zobrazení jde tam i zpět, data map odpovídají oblastem', () => {
-    assert.deepEqual(Object.keys(mapData.regions).sort(), MapQuestion.REGIONS.map(region => region.id).sort());
-    for (const region of MapQuestion.REGIONS) {
+test('výřezy: delší strana 1000 jednotek (svět 8000), zobrazení jde tam i zpět, data map odpovídají mapám', () => {
+    // V datech jen mapy, na kterých se hledá: svět a Česko; kontinenty určují jen poloměry bodů
+    assert.deepEqual(Object.keys(mapData.regions).sort(), ['cesko', 'svet']);
+    for (const region of [...MapQuestion.REGIONS, MapQuestion.WORLD]) {
         const frame = MapQuestion.frameOf(region);
-        assert.equal(Math.max(frame.width, frame.height), 1000, region.id);
-        assert.ok(Math.min(frame.width, frame.height) > 500, `${region.id}: výřez není nudle`);
+        assert.equal(Math.max(frame.width, frame.height), region.units || 1000, region.id);
+        assert.ok(Math.min(frame.width, frame.height) > (region.units ? 3000 : 500), `${region.id}: výřez není nudle`);
         const stored = mapData.regions[region.id];
-        assert.deepEqual(stored.frame, [frame.width, frame.height], `${region.id}: data/mapa.json je ze stejných výřezů (npm run build:mapa)`);
-        assert.deepEqual(stored.center, region.center);
+        if (stored) {
+            assert.deepEqual(stored.frame, [frame.width, frame.height], `${region.id}: data/mapa.json je ze stejných výřezů (npm run build:mapa)`);
+            assert.deepEqual(stored.center, region.center);
+        }
         // Krajní místa oblasti jsou ve výřezu a zpětné zobrazení vrátí stejné místo
         for (const [lat, lon] of region.bounds) {
             assert.ok(MapQuestion.insideFrame(region, lat, lon), `${region.id}: ${lat},${lon} ve výřezu`);
@@ -108,15 +111,26 @@ test('skutečná data: tisíce míst ze zeměpisu a stovky stadionů, všechna n
         assert.ok(total >= (topicId === 'zemepis' ? 2400 : 300), `${topicId}: ${total} otázek na mapě`);
     }
     for (const region of MapQuestion.REGIONS) assert.ok(counts[region.id] >= 40, `${region.id}: ${counts[region.id]} míst`);
+    // Hledá se na mapě světa (neprozradí kontinent), místa v Česku na mapě Česka
+    assert.equal(MapQuestion.mapRegionOf('evropa').id, 'svet');
+    assert.equal(MapQuestion.mapRegionOf('cesko').id, 'cesko');
     assert.ok(counts.cesko >= 300, 'Česko má stovky míst');
     // Ostrov, který na mapě není (Capri do 1:50m nepatří), se neptá; Kréta a Mallorca ano
     assert.ok(MapQuestion.buildQuestion(byName('Kréta', 'ostrov'), zemepisCtx, mapData));
     assert.ok(MapQuestion.buildQuestion(byName('Mallorca', 'ostrov'), zemepisCtx, mapData));
     assert.equal(MapQuestion.buildQuestion(byName('Capri', 'ostrov'), zemepisCtx, mapData), null);
     assert.equal(MapQuestion.buildQuestion(byName('Brno', 'mesto'), zemepisCtx, null), null, 'bez mapových dat žádná otázka');
-    const frame = MapQuestion.frameOf('evropa');
-    assert.equal(MapQuestion.onDrawnLand(mapData.regions.evropa, frame, 48.86, 2.35), true, 'Paříž na pevnině');
-    assert.equal(MapQuestion.onDrawnLand(mapData.regions.evropa, frame, 45, -20), false, 'Atlantik ne');
+    const frame = MapQuestion.frameOf('svet');
+    assert.equal(MapQuestion.onDrawnLand(mapData.regions.svet, frame, 48.86, 2.35), true, 'Paříž na pevnině');
+    assert.equal(MapQuestion.onDrawnLand(mapData.regions.svet, frame, 45, -20), false, 'Atlantik ne');
+    assert.equal(MapQuestion.onDrawnLand(mapData.regions.svet, frame, -17.8, 178), true, 'Fidži u 180. poledníku');
+    // Kam hráč klepl: stát (česky), na mapě Česka kraj; moře nic
+    assert.equal(MapQuestion.areaAt(mapData.regions.svet, frame, 14.5, 100.2), 'Thajsko');
+    assert.equal(MapQuestion.areaAt(mapData.regions.svet, frame, 11.55, 104.9), 'Kambodža');
+    assert.equal(MapQuestion.areaAt(mapData.regions.svet, frame, 64, -45), 'Grónsko', 'i závislá území česky');
+    assert.equal(MapQuestion.areaAt(mapData.regions.svet, frame, 45, -20), null);
+    assert.equal(MapQuestion.areaAt(mapData.regions.cesko, MapQuestion.frameOf('cesko'), 49.19, 16.6), 'Jihomoravský kraj');
+    assert.equal(MapQuestion.areaAt(mapData.regions.cesko, MapQuestion.frameOf('cesko'), 50.08, 14.42), 'Praha');
     console.log(`  otázky na mapě: ${summary.join(', ')}; ${JSON.stringify(counts)}`);
 });
 
@@ -136,8 +150,21 @@ test('otázka je čistá funkce položky (stejná pro všechny hráče) a ptá s
 test('body: plné do 3 % diagonály, pak ubývají do nuly na 20 %; celé číslo 0…max, psaní dvojnásobek', () => {
     const cz = MapQuestion.radiiFor({ c: 'mesto' }, 'cesko');
     const diagonal = MapQuestion.frameOf('cesko').diagonalKm;
-    assert.equal(cz.full, Math.round(diagonal * 0.03));
-    assert.equal(cz.zero, Math.round(diagonal * 0.2));
+    assert.equal(cz.full, MapQuestion.roundKm(diagonal * 0.03));
+    assert.equal(cz.zero, MapQuestion.roundKm(diagonal * 0.2));
+    // Kulaté hranice: hráč vidí „do 200 km“, ne „do 222 km“
+    assert.deepEqual([3, 18, 222, 335, 1491, 2236].map(MapQuestion.roundKm), [3, 20, 200, 350, 1500, 2200]);
+    const tiers = MapQuestion.pointTiers({ full: 200, zero: 1500 }, 4);
+    assert.deepEqual(tiers.map(tier => tier.points), [4, 3, 2, 1]);
+    assert.equal(tiers[0].km, 200);
+    assert.equal(tiers[3].km, 1500);
+    assert.ok(tiers.every((tier, i) => i === 0 || tier.km > tiers[i - 1].km), 'hranice rostou');
+    assert.ok(tiers.every(tier => tier.km % 50 === 0), 'všechny kulaté');
+    for (const tier of tiers) {
+        assert.equal(MapQuestion.pointsForDistance(tier.km, { full: 200, zero: 1500 }, 4), tier.points, `${tier.km} km = ${tier.points} b`);
+        assert.equal(MapQuestion.pointsForDistance(tier.km + 0.1, { full: 200, zero: 1500 }, 4), tier.points - 1);
+    }
+    assert.deepEqual(MapQuestion.pointTiers({ full: 20, zero: 120 }, 8).map(tier => tier.points), [8, 7, 6, 5, 4, 3, 2, 1]);
     assert.equal(MapQuestion.maxPoints(false), 4);
     assert.equal(MapQuestion.maxPoints(true), 8);
     for (const max of [4, 8]) {
@@ -149,14 +176,14 @@ test('body: plné do 3 % diagonály, pak ubývají do nuly na 20 %; celé čísl
             previous = points;
             if (km <= cz.full) assert.equal(points, max);
             if (km > cz.full) assert.ok(points < max, 'za plným poloměrem už ne plný počet');
-            if (km < cz.zero && km > cz.full) assert.ok(points >= 1, 'do nulového poloměru aspoň bod');
-            if (km >= cz.zero) assert.equal(points, 0);
+            if (km <= cz.zero && km > cz.full) assert.ok(points >= 1, 'do nulového poloměru aspoň bod');
+            if (km > cz.zero) assert.equal(points, 0);
         }
     }
     // Plošné místo (ostrov, jezero) má plné body i dál od středu
     const crete = MapQuestion.radiiFor(byName('Kréta', 'ostrov'), 'evropa');
     const city = MapQuestion.radiiFor({ c: 'mesto' }, 'evropa');
-    assert.ok(crete.full > city.full + 40 && Math.abs((crete.zero - crete.full) - (city.zero - city.full)) <= 1);
+    assert.ok(crete.full > city.full + 40 && Math.abs((crete.zero - crete.full) - (city.zero - city.full)) <= 100, 'stejně široký pás ubývání (až na zaokrouhlení)');
     // Vyhodnocení tipu: Jihlava místo Brna je asi 75 km vedle
     const brno = MapQuestion.buildQuestion(byName('Brno', 'mesto'), zemepisCtx, mapData);
     const result = MapQuestion.evaluate(brno, { lat: 49.396, lon: 15.591 }, false);
