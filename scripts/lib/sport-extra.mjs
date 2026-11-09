@@ -1,6 +1,10 @@
 // Téma Sport, rozšíření: kluby a týmy, sportoviště (stadiony, haly, závodní okruhy) a sportovní soutěže z Wikidat.
 // Používá build-sport.mjs; vrací položky bez okruhů (g) a bez kontroly duplicit jmen (ta dělá volající).
-import { qlever, id, values, parsePoint, imageFields, yearOf, compact, cached, inBatches } from './wikidata.mjs';
+import { qlever, sparql, id, values, parsePoint, imageFields, yearOf, compact, cached, inBatches } from './wikidata.mjs';
+import { cachedEntries } from './sport-cache.mjs';
+
+// Podrobnosti po dávkách jdou číst i z query.wikidata.org (WIKIDATA_ENDPOINT=wdqs), když je QLever přetížený
+const detailsRun = process.env.WIKIDATA_ENDPOINT === 'wdqs' ? sparql : qlever;
 
 const CS_ARTICLE = '?a schema:about ?x ; schema:isPartOf <https://cs.wikipedia.org/> .';
 const CZ_STATES = ['Q213', 'Q33946', 'Q42585'];
@@ -14,10 +18,20 @@ const CLUB_SPORTS = {
     Q2736: ['fotbal', 'fotbalový klub'], Q41466: ['lední hokej', 'hokejový klub'], Q5372: ['basketbal', 'basketbalový klub'],
     Q8418: ['házená', 'házenkářský klub'], Q1734: ['volejbal', 'volejbalový klub'], Q5369: ['baseball', 'baseballový klub'],
     Q41323: ['americký fotbal', 'klub amerického fotbalu'], Q5849: ['ragby', 'ragbyový klub'], Q1968: ['automobilové závody', 'stáj Formule 1'],
-    Q3609: ['cyklistika', 'cyklistický tým']
+    Q3609: ['cyklistika', 'cyklistický tým'], Q206763: ['florbal', 'florbalový klub']
 };
-// Reprezentace, ženské a mládežnické týmy, rezervy a zaniklé kluby
-const NOT_CLUB = /reprezentac|„B“|„A“|\bB\b|\bC\b|ženy|\(ženy|ženský|národní tým|do \d+ let|\bU\d\d\b|mládež|rezerv|\bB$|\bII$|akademie|zaniklý|sezóna|ročník/iu;
+// Ligy, jejichž kluby se berou všechny (P118, s článkem v české Wikipedii): zámořské ligy a nejvyšší české soutěže → sport
+const LEAGUE_SPORTS = {
+    Q1215892: 'Q41466', Q155223: 'Q5372', Q1215884: 'Q41323', Q1163715: 'Q5369',
+    Q217016: 'Q2736', Q1261184: 'Q2736', Q862240: 'Q41466', Q163071: 'Q41466', Q2664980: 'Q5372', Q11179672: 'Q206763',
+    // Třetí české fotbalové ligy (ČFL, MSFL) a 2. hokejová liga – kluby s článkem, většinou pro experty
+    Q341070: 'Q2736', Q1548432: 'Q2736', Q210632: 'Q41466'
+};
+// Reprezentace, ženské a mládežnické týmy, rezervy a zaniklé kluby. Samostatné „B“, „C“, „U21“ a „II“ (rezervy) jen jako celé slovo
+// s velkým písmenem: \b v JavaScriptu bere písmena s diakritikou jako hranici slova („hrající“, „Bílí Tygři“ by vypadly), „D.C.“ ne
+const NOT_CLUB_WORDS = /reprezentac|„[ABC]“|ženy|\(ženy|ženský|národní tým|do \d+ let|mládež|rezerv|akademie|zaniklý|sezóna|ročník/iu;
+const RESERVE_TEAM = /(?<![\p{L}\d.])(?:B|C|U\d\d|II)(?![\p{L}\d.])/u;
+const NOT_CLUB = { test: (text) => NOT_CLUB_WORDS.test(text) || RESERVE_TEAM.test(text) };
 // Kluby se čtou ze tříd týmů ve Wikidatech až od tolika článků ve Wikipedii (české a slovenské od 15)
 const CLUB_SITELINKS = 65;
 const CZECH_CLUB_SITELINKS = 15;
@@ -49,7 +63,10 @@ const NOT_VENUE_PHOTO = /logo|emblem|crest|znak|coat[ _]of|badge|poster|plak[aá
 // --- Sportoviště ---
 // Stadiony, haly, závodní okruhy a velodromy; ne koncertní sály a podobné stavby, které tak Wikidata občas vedou
 const VENUE_CLASSES = { Q483110: 'stadion', Q641226: 'aréna', Q1777138: 'závodní okruh', Q830893: 'velodrom' };
-const NOT_VENUE = /zaniklý|zbouraný|kongres|koncertní|filharmon|divadl|kostel|chrám|muzeum|goetheanum|kolos|amfiteátr|antick|zoo|hřbitov|park(?!\p{L})|zábavn/iu;
+// Antické hipodromy a cirky, letiště a sjezdovky vedou Wikidata jako závodní dráhy
+const NOT_VENUE = /zaniklý|zbouraný|kongres|koncertní|filharmon|divadl|kostel|chrám|muzeum|goetheanum|kolos|amfiteátr|antick|zoo|hřbitov|park(?!\p{L})|zábavn|hip+odrom|cirkus|letiště|sjezdovk/iu;
+// Dostihová závodiště (Ascot, Velká Chuchle) jsou ve Wikidatech závodní dráhy jako okruhy Formule 1 – mají vlastní druh
+const HORSE_TRACK = /dostih|závodiště|racecourse|koňsk/iu;
 // Hlavní domácí sportoviště, která zná i laik (anglické názvy podle Wikidat)
 const KNOWN_VENUES = ['Wembley Stadium', 'Camp Nou', 'Santiago Bernabéu Stadium', 'Old Trafford', 'Anfield', 'Allianz Arena', 'Stadio Giuseppe Meazza', 'Maracanã Stadium',
     'Estadio Azteca', 'Signal Iduna Park', 'Stade de France', 'Olympiastadion', 'Madison Square Garden', 'Strahov Stadium', 'Autodromo Nazionale Monza',
@@ -91,8 +108,47 @@ const COMPETITIONS = [
     ['Asian Games', 'víceboj', 'hry', 0], ['Pan American Games', 'víceboj', 'hry', 0], ['Youth Olympic Games', 'víceboj', 'hry', 0], ['X Games', 'extrémní sporty', 'hry', 0],
     ['Super Rugby', 'ragby', 'klubová soutěž', 0], ['IndyCar Series', 'automobilové závody', 'závodní série', 0], ['Mille Miglia', 'automobilové závody', 'závod', 0],
     ['Isle of Man TT', 'motocyklové závody', 'závod', 0], ['America\'s Cup', 'jachting', 'trofej', 0], ['Volvo Ocean Race', 'jachting', 'závod', 0], ['Vendée Globe', 'jachting', 'závod', 0],
-    ['Ironman World Championship', 'triatlon', 'mistrovství světa', 0], ['Snooker World Championship', 'snooker', 'mistrovství světa', 0]
+    ['Ironman World Championship', 'triatlon', 'mistrovství světa', 0], ['Snooker World Championship', 'snooker', 'mistrovství světa', 0],
+    // Další soutěže přímo podle položky Wikidat (anglický název je víceznačný nebo se změnil)
+    ['Q190163', 'lední hokej', 'mistrovství světa', 1], ['Q15804', 'fotbal', 'liga', 1], ['Q82595', 'fotbal', 'liga', 1], ['Q1701273', 'jezdectví', 'dostihy', 1],
+    ['Q182165', 'fotbal', 'liga', 0], ['Q19510', 'fotbal', 'liga', 0], ['Q485568', 'fotbal', 'liga', 0], ['Q194052', 'fotbal', 'liga', 0],
+    ['Q189327', 'fotbal', 'mistrovství kontinentu', 0], ['Q193041', 'fotbal', 'klubová soutěž', 0], ['Q189188', 'fotbal', 'superpohár', 0],
+    ['Q150880', 'fotbal', 'pohár', 0], ['Q169918', 'fotbal', 'pohár', 0], ['Q484028', 'fotbal', 'superpohár', 0], ['Q19323', 'fotbal', 'mistrovství světa', 0],
+    ['Q459459', 'fotbal', 'mistrovství Evropy', 0], ['Q1261184', 'fotbal', 'liga', 0], ['Q254716', 'fotbal', 'pohár', 0], ['Q478770', 'fotbal', 'mistrovství Evropy', 0],
+    ['Q326418', 'futsal', 'mistrovství světa', 0], ['Q223251', 'lední hokej', 'mistrovství Evropy', 0], ['Q1754117', 'lední hokej', 'mistrovství světa', 0],
+    ['Q1057427', 'lední hokej', 'turnaj', 0], ['Q605945', 'lední hokej', 'turnaj', 0], ['Q1374739', 'lední hokej', 'seriál', 0], ['Q1166017', 'lední hokej', 'trofej', 0],
+    ['Q456107', 'lední hokej', 'liga', 0], ['Q169519', 'lední hokej', 'liga', 0], ['Q688866', 'lední hokej', 'liga', 0], ['Q163071', 'lední hokej', 'liga', 0],
+    ['Q193141', 'basketbal', 'mistrovství Evropy', 0], ['Q842375', 'basketbal', 'finále', 0], ['Q2664980', 'basketbal', 'liga', 0],
+    ['Q205570', 'házená', 'mistrovství světa', 0], ['Q3118005', 'házená', 'mistrovství Evropy', 0], ['Q330395', 'házená', 'klubová soutěž', 0],
+    ['Q22669035', 'volejbal', 'mistrovství světa', 0], ['Q422986', 'florbal', 'mistrovství světa', 0], ['Q11179672', 'florbal', 'liga', 0],
+    ['Q974505', 'tenis', 'turnaj', 0], ['Q331570', 'tenis', 'týmová soutěž', 0], ['Q220347', 'tenis', 'turnaj', 0],
+    ['Q34009', 'cyklistika', 'klasika', 0], ['Q33970', 'cyklistika', 'klasika', 0], ['Q34032', 'cyklistika', 'klasika', 0], ['Q506424', 'cyklistika', 'mistrovství světa', 0],
+    ['Q487654', 'cyklistika', 'etapový závod', 0], ['Q662746', 'cyklistika', 'etapový závod', 0],
+    ['Q850292', 'motocyklové závody', 'mistrovství světa', 0], ['Q319565', 'automobilové závody', 'závodní série', 0], ['Q725531', 'automobilové závody', 'rallye', 0],
+    ['Q233929', 'automobilové závody', 'závodní série', 0], ['Q1548846', 'automobilové závody', 'Velká cena', 0], ['Q2609272', 'automobilové závody', 'rallye', 0],
+    ['Q3505844', 'motocyklové závody', 'závod', 0], ['Q8019', 'automobilové závody', 'Velká cena', 0], ['Q8036', 'automobilové závody', 'Velká cena', 0],
+    ['Q7954', 'automobilové závody', 'Velká cena', 0], ['Q7870', 'automobilové závody', 'Velká cena', 0], ['Q9233', 'automobilové závody', 'Velká cena', 0],
+    ['Q210707', 'atletika', 'mistrovství Evropy', 0], ['Q725169', 'atletika', 'mistrovství světa', 0], ['Q161222', 'atletika', 'maraton', 0],
+    ['Q1071822', 'atletika', 'maraton', 0], ['Q1536838', 'atletika', 'půlmaraton', 0],
+    ['Q646317', 'biatlon', 'mistrovství světa', 0], ['Q943691', 'alpské lyžování', 'mistrovství světa', 0], ['Q937571', 'klasické lyžování', 'mistrovství světa', 0],
+    ['Q74804', 'skoky na lyžích', 'světový pohár', 0], ['Q195537', 'běh na lyžích', 'světový pohár', 0], ['Q285389', 'krasobruslení', 'mistrovství světa', 0],
+    ['Q466099', 'běh na lyžích', 'závod', 0], ['Q1542651', 'jezdectví', 'dostihy', 0], ['Q422296', 'jezdectví', 'dostihy', 0],
+    ['Q887604', 'veslování', 'závod', 0], ['Q1413606', 'veslování', 'mistrovství světa', 0], ['Q2547839', 'kanoistika', 'mistrovství světa', 0],
+    ['Q1473250', 'judo', 'mistrovství světa', 0], ['Q1349088', 'zápas', 'mistrovství světa', 0], ['Q246747', 'box', 'mistrovství světa', 0],
+    ['Q641572', 'víceboj', 'hry', 0], ['Q673097', 'víceboj', 'hry', 0], ['Q272090', 'víceboj', 'hry', 0], ['Q498635', 'víceboj', 'hry', 0],
+    ['Q192202', 'kriket', 'mistrovství světa', 0], ['Q396412', 'kriket', 'liga', 0], ['Q502948', 'snooker', 'mistrovství světa', 0],
+    ['Q271725', 'kulturistika', 'soutěž', 0], ['Q1191199', 'gymnastika', 'mistrovství světa', 0]
 ];
+// Popisy klubů z Wikidat, které opakují název („golden State Warriors je basketbalový tým…“)
+const CLUB_DESCRIPTIONS = { Q157376: 'americký basketbalový tým hrající NBA' };
+const isQid = (text) => /^Q\d+$/.test(text);
+// Popisy soutěží z Wikidat, které jsou chybné (klasiky v Belgii „v Itálii“, „v Holandsku“)
+const COMPETITION_DESCRIPTIONS = {
+    Q34009: 'jednodenní cyklistický závod v Belgii, jeden z tzv. „Monumentů“',
+    Q33970: 'jednodenní cyklistický závod v Belgii, jeden z tzv. „Monumentů“',
+    // Popis „závody v běhu na lyžích“ by opakoval nápovědu se sportem
+    Q466099: 'každoroční dálkový závod v Jizerských horách u Liberce'
+};
 
 const first = (list) => list && list.length ? list[0] : undefined;
 
@@ -118,18 +174,23 @@ const DETAIL_UNIONS = `
   UNION { ?item wdt:P466 ?o . ?o rdfs:label ?v FILTER(LANG(?v) = "cs") BIND("occ" AS ?p) }
   UNION { ?item wdt:P664 ?o . ?o rdfs:label ?v FILTER(LANG(?v) = "cs") BIND("organizer" AS ?p) }
   UNION { ?item wdt:P641 ?o . ?o rdfs:label ?v FILTER(LANG(?v) = "cs") BIND("sportl" AS ?p) }`;
-const fetchDetails = async (name, qids) => new Map(await cached(name, async () => {
-    const result = new Map(qids.map(qid => [qid, {}]));
-    await inBatches(qids, 50, (batch) => `SELECT ?item ?p ?v WHERE { VALUES ?item { ${values(batch)} } ${DETAIL_UNIONS} }`, (row) => {
+// V mezipaměti po položkách: při rozšíření výběru se dostahují jen nové; vrací jen požadované (v mezipaměti můžou být i dřívější)
+const fetchDetails = async (name, qids) => {
+    const all = await fetchAllDetails(name, qids);
+    return new Map(qids.filter(qid => all.has(qid)).map(qid => [qid, all.get(qid)]));
+};
+const fetchAllDetails = async (name, qids) => cachedEntries(name, qids, async (missing) => {
+    const result = new Map(missing.map(qid => [qid, {}]));
+    await inBatches(missing, 50, (batch) => `SELECT ?item ?p ?v WHERE { VALUES ?item { ${values(batch)} } ${DETAIL_UNIONS} }`, (row) => {
         const entry = result.get(id(row.item.value));
         const key = row.p.value;
         const v = row.v.value;
         const raw = key === 'landid' ? id(v) : v;
         if (MULTI.has(key)) entry[key] = [...new Set([...(entry[key] || []), raw])];
         else if (!(key in entry)) entry[key] = v;
-    }, qlever);
+    }, detailsRun);
     return [...result];
-}));
+});
 
 const capitalize = (text) => text.charAt(0).toUpperCase() + text.slice(1);
 const pointOf = (detail) => parsePoint(detail.coord) || parsePoint(first(detail.cityco));
@@ -174,8 +235,43 @@ export const buildExtra = async ({ thisYear }) => {
         }
         return [...result];
     }));
+    // Všechny kluby zámořských lig a nejvyšších českých soutěží (bez zaniklých)
+    // Jen týmy a kluby (P118 mají i ročníky soutěže a finále – Super Bowl LX)
+    const leagueClubs = await cached('sport-league-clubs-v3', async () => (await qlever(`SELECT DISTINCT ?x ?l ?sl WHERE {
+  VALUES ?l { ${values(Object.keys(LEAGUE_SPORTS))} } VALUES ?team { wd:Q12973014 wd:Q847017 }
+  ?x wdt:P118 ?l ; wikibase:sitelinks ?sl ; wdt:P31/wdt:P279* ?team . ${CS_ARTICLE}
+  FILTER NOT EXISTS { ?x wdt:P31 wd:Q5 } FILTER NOT EXISTS { ?x wdt:P576 ?end } }`)).map(row => [id(row.x.value), id(row.l.value), Number(row.sl.value)]));
+    // Sport podle ligy má přednost (Toronto Maple Leafs mají ve Wikidatech omylem i basketbal)
+    const leagueSports = new Map();
+    for (const [qid, league, sl] of leagueClubs) {
+        leagueSports.set(qid, [...new Set([...(leagueSports.get(qid) || []), LEAGUE_SPORTS[league]])]);
+        clubCandidates.set(qid, { ...(clubCandidates.get(qid) || { sl }), sports: leagueSports.get(qid) });
+    }
     const clubIds = [...clubCandidates.keys()];
     const clubDetails = await fetchDetails('sport-club-details-v4', clubIds);
+    // Klub bez sídla (P159) a souřadnic: poloha domácího stadionu (P115) a město podle umístění (P131)
+    const homeless = clubIds.filter(qid => !pointOf(clubDetails.get(qid)));
+    const clubPlaces = await cachedEntries('sport-club-places', homeless, async (qids) => {
+        const result = new Map();
+        await inBatches(qids, 100, (batch) => `SELECT ?item ?p ?v WHERE { VALUES ?item { ${values(batch)} }
+  { ?item wdt:P115 ?o . ?o wdt:P625 ?v BIND("coord" AS ?p) }
+  UNION { ?item wdt:P131 ?o . ?o rdfs:label ?v FILTER(LANG(?v) = "cs") BIND("city" AS ?p) }
+  UNION { ?item wdt:P131 ?o . ?o wdt:P625 ?v BIND("cityco" AS ?p) } }`, (row) => {
+            const qid = id(row.item.value);
+            const entry = result.get(qid) || {};
+            if (!(row.p.value in entry)) entry[row.p.value] = row.v.value;
+            result.set(qid, entry);
+        }, detailsRun);
+        return [...result];
+    });
+    for (const qid of homeless) {
+        const place = clubPlaces.get(qid);
+        const detail = clubDetails.get(qid);
+        if (!place) continue;
+        if (place.coord && !detail.coord) detail.coord = place.coord;
+        if (place.city && !first(detail.city)) detail.city = [place.city];
+        if (place.cityco && !first(detail.cityco)) detail.cityco = [place.cityco];
+    }
     const clubRows = [...clubDetails.entries()]
         .map(([qid, detail]) => ({ qid, detail, candidate: clubCandidates.get(qid) }))
         .filter(({ detail, candidate }) => detail.t && detail.n && candidate.sports.length === 1 && !NOT_CLUB.test(`${detail.t} ${detail.n} ${detail.d || ''}`))
@@ -184,14 +280,16 @@ export const buildExtra = async ({ thisYear }) => {
         const [sport, kind] = CLUB_SPORTS[candidate.sports[0]];
         const land = first(detail.land);
         const point = pointOf(detail);
-        // Bez města a roku vzniku nemá klub čím napovídat (jen zemí)
+        // Bez města a roku vzniku nemá klub čím napovídat (jen zemí). Český klub bez polohy, fotky i města nemá ve hře nápovědu
+        // (země je vidět z popisu „český klub“, aréna nese jméno města – HC Děčín, Zimní stadion Děčín)
         if (!land || !(first(detail.city) || yearOf(detail.from))) continue;
+        if (CZ_LANDS.has(land) && !point && !(detail.im && !NOT_PHOTO.test(detail.im)) && !first(detail.city)) continue;
         const czech = CZ_LANDS.has(land);
         const from = yearOf(detail.from);
         items.push(compact({
             q: qid, t: detail.t, n: capitalize(detail.n.replace(/\s*\([^)]*\)\s*$/, '')), c: 'kluby',
             k: candidate.known ? 1 : 0,
-            ty: kind, d: detail.d, cz: czech ? 1 : undefined,
+            ty: kind, d: CLUB_DESCRIPTIONS[qid] || detail.d, cz: czech ? 1 : undefined,
             ...imageFields(detail.im && !NOT_PHOTO.test(detail.im) ? detail.im : undefined),
             la: point ? point.lat : undefined, lo: point ? point.lon : undefined,
             f: compact({
@@ -233,6 +331,19 @@ export const buildExtra = async ({ thisYear }) => {
         }
         return [...best.values()].map(entry => [entry.qid, { sl: entry.sl, classes: entry.classes }]);
     }));
+    // Závodní okruhy od 10 článků (s fotkou) a česká sportoviště od 5 článků
+    const moreVenues = await cached('sport-venue-candidates-more', async () => {
+        const base = `?x wdt:P31/wdt:P279* ?k ; wikibase:sitelinks ?sl ; wdt:P625 ?pt ; wdt:P18 ?im . ${CS_ARTICLE}`;
+        return [
+            ...await qlever(`SELECT ?x ?k ?sl WHERE { VALUES ?k { wd:Q1777138 } ${base} FILTER(?sl >= 10 && ?sl < 22) }`),
+            ...await qlever(`SELECT ?x ?k ?sl WHERE { VALUES ?k { ${values(venueClassIds)} } VALUES ?c { ${values(CZ_STATES)} } ?x wdt:P17 ?c . ${base} FILTER(?sl >= 5 && ?sl < 8) }`)
+        ].map(row => [id(row.x.value), id(row.k.value), Number(row.sl.value)]);
+    });
+    for (const [qid, kind, sl] of moreVenues) {
+        const entry = venueCandidates.get(qid) || { sl, classes: [] };
+        if (!entry.classes.includes(kind)) entry.classes.push(kind);
+        venueCandidates.set(qid, entry);
+    }
     const knownVenueIds = new Set(knownVenues.keys());
     for (const [qid, entry] of knownVenues) if (!venueCandidates.has(qid)) venueCandidates.set(qid, entry);
     const venueIds = [...venueCandidates.keys()];
@@ -250,7 +361,8 @@ export const buildExtra = async ({ thisYear }) => {
         if (!land || !point) continue;
         // Druh podle nejužšího: okruh, velodrom, stadion; aréna jen když to stadion není
         const classes = candidate.classes;
-        const kind = classes.includes('Q1777138') ? 'závodní okruh' : classes.includes('Q830893') ? 'velodrom'
+        const horses = HORSE_TRACK.test(`${detail.n} ${detail.d || ''}`) && !/motor|automobil|okruh/iu.test(`${detail.n} ${detail.d || ''}`);
+        const kind = classes.includes('Q1777138') ? (horses ? 'dostihové závodiště' : 'závodní okruh') : classes.includes('Q830893') ? 'velodrom'
             : classes.includes('Q483110') ? 'stadion' : classes.includes('Q641226') ? 'aréna' : 'stadion';
         const opened = yearOf(detail.opened) ?? yearOf(detail.from);
         const czech = CZ_LANDS.has(land);
@@ -273,7 +385,7 @@ export const buildExtra = async ({ thisYear }) => {
 
     // ---------- Soutěže ----------
     const competitionIds = new Map(await cached('sport-competition-ids', async () => {
-        const rows = await qlever(`SELECT ?x ?l ?sl WHERE { VALUES ?l { ${COMPETITIONS.map(([name]) => `"${name.replace(/"/g, '')}"@en`).join(' ')} } ?x rdfs:label ?l ; wikibase:sitelinks ?sl . ${CS_ARTICLE} }`);
+        const rows = await qlever(`SELECT ?x ?l ?sl WHERE { VALUES ?l { ${COMPETITIONS.filter(([name]) => !isQid(name)).map(([name]) => `"${name.replace(/"/g, '')}"@en`).join(' ')} } ?x rdfs:label ?l ; wikibase:sitelinks ?sl . ${CS_ARTICLE} }`);
         // Víc položek se stejným názvem (ročníky, města): nejvíc článků vyhrává
         const best = new Map();
         for (const row of rows) {
@@ -282,15 +394,22 @@ export const buildExtra = async ({ thisYear }) => {
         }
         return [...best.entries()].map(([name, { qid, sl }]) => [qid, { name, sl }]);
     }));
+    for (const [qid] of COMPETITIONS.filter(([name]) => isQid(name))) if (!competitionIds.has(qid)) competitionIds.set(qid, { name: qid });
     const competitionDetails = await fetchDetails('sport-competition-details', [...competitionIds.keys()]);
-    for (const [qid, { name, sl }] of competitionIds) {
+    for (const [qid, { name, sl: labelSl }] of competitionIds) {
         const detail = competitionDetails.get(qid);
         const spec = COMPETITIONS.find(([label]) => label === name);
-        if (!detail || !detail.t || !detail.n || !spec) continue;
+        if (!detail || !detail.t || !spec) continue;
+        // Bez českého štítku (Serie A) platí název článku
+        if (!detail.n) detail.n = detail.t.replace(/ \(.*\)$/, '');
+        const sl = labelSl ?? Number(detail.sl || 0);
+        if (COMPETITION_DESCRIPTIONS[qid]) detail.d = COMPETITION_DESCRIPTIONS[qid];
         const [, sport, kind, known] = spec;
         // Země jen u soutěže, která patří jedné (Major League Baseball má USA i Kanadu)
         const land = (detail.land || []).length === 1 ? detail.land[0] : undefined;
         const from = yearOf(detail.from);
+        // Bez roku vzniku a fotky nemá soutěž čím napovídat
+        if (!from && !(detail.im && !NOT_PHOTO.test(detail.im))) continue;
         items.push(compact({
             q: qid, t: detail.t, n: capitalize(detail.n), c: 'souteze', k: known ? 1 : 0,
             ty: kind, d: detail.d, cz: land && CZ_LANDS.has(land) ? 1 : undefined,
