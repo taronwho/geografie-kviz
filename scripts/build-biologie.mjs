@@ -1,23 +1,27 @@
 // Téma Biologie: data/biologie.json z Wikidat – savci, ptáci, plazi a obojživelníci, ryby, hmyz, další bezobratlí, rostliny, houby,
 // pravěcí tvorové, plemena psů a koček a lidské tělo (plemena a tělo sestaví scripts/lib/biologie-extra.mjs). Strom taxonů je velký, proto dotazy jdou přes QLever (query.wikidata.org na nich vyprší).
+// Úrovně obtížnosti (Základní / Mudrlant / Expert) podle jazykových verzí a návštěvnosti článků na české Wikipedii
+// v každém okruhu zvlášť určí scripts/lib/biologie-levels.mjs.
 // Spuštění: npm run build:biologie (s BUILD_CACHE=složka jde pravidla ladit bez opakovaného stahování)
 import { qlever, id, values, imageFields, compact, cached, inBatches, writeTopic, sleep } from './lib/wikidata.mjs';
 import { buildBreeds, buildBody, EXTRA_COLLECTIONS } from './lib/biologie-extra.mjs';
+import { assignLevels, czechPageviews, levelSummary } from './lib/biologie-levels.mjs';
 
 const RANK = { class: 'Q37517', order: 'Q36602', family: 'Q35409', genus: 'Q34740', species: 'Q7432' };
 
 // Kategorie podle předků (vědecká jména); pořadí = přednost (ptáci jsou ve Wikidatech i mezi plazy, dinosauři také)
-// limit = kolik nejznámějších vzít, known = kolik z nich je „známých“
+// limit = kolik nejznámějších vzít, known = kolik z nich je „známých“ (další známé doplní spodní hranice v okruzích,
+// viz scripts/lib/biologie-levels.mjs)
 const CATEGORIES = [
-    { key: 'pravek', roots: ['Dinosauria', 'Pterosauria', 'Plesiosauria', 'Ichthyosauria', 'Trilobita'], except: ['Aves'], genus: true, limit: 120, known: 30 },
-    { key: 'savci', roots: ['Mammalia'], limit: 600, known: 130 },
-    { key: 'ptaci', roots: ['Aves'], limit: 500, known: 100 },
-    { key: 'plazi', roots: ['Reptilia', 'Amphibia'], limit: 300, known: 60 },
-    { key: 'ryby', roots: ['Actinopterygii', 'Chondrichthyes'], limit: 250, known: 50 },
-    { key: 'hmyz', roots: ['Insecta'], limit: 250, known: 50 },
-    { key: 'bezobratli', roots: ['Arachnida', 'Crustacea', 'Myriapoda', 'Mollusca', 'Cnidaria', 'Echinodermata', 'Annelida'], limit: 200, known: 40 },
-    { key: 'rostliny', roots: ['Plantae'], limit: 700, known: 140 },
-    { key: 'houby', roots: ['Fungi'], limit: 150, known: 30 }
+    { key: 'pravek', roots: ['Dinosauria', 'Pterosauria', 'Plesiosauria', 'Ichthyosauria', 'Trilobita'], except: ['Aves'], genus: true, limit: 140, known: 30 },
+    { key: 'savci', roots: ['Mammalia'], limit: 700, known: 130 },
+    { key: 'ptaci', roots: ['Aves'], limit: 600, known: 100 },
+    { key: 'plazi', roots: ['Reptilia', 'Amphibia'], limit: 350, known: 60 },
+    { key: 'ryby', roots: ['Actinopterygii', 'Chondrichthyes'], limit: 300, known: 50 },
+    { key: 'hmyz', roots: ['Insecta'], limit: 300, known: 50 },
+    { key: 'bezobratli', roots: ['Arachnida', 'Crustacea', 'Myriapoda', 'Mollusca', 'Cnidaria', 'Echinodermata', 'Annelida'], limit: 230, known: 40 },
+    { key: 'rostliny', roots: ['Plantae'], limit: 850, known: 140 },
+    { key: 'houby', roots: ['Fungi'], limit: 180, known: 30 }
 ];
 
 // Domácí zvířata nemají ve Wikidatech taxonomickou úroveň (jsou podtřídou divokého druhu) – vybraná podle ID a podle názvu
@@ -26,6 +30,11 @@ const DOMESTIC_IDS = ['Q144', 'Q146', 'Q726', 'Q830', 'Q787', 'Q7368', 'Q2934', 
     'Q255503', 'Q848706', 'Q13408062', 'Q253941', 'Q178973', 'Q204175', 'Q834053', 'Q514809', 'Q251842', 'Q71516', 'Q123141', 'Q331065'];
 const DOMESTIC = ['morče domácí', 'krocan domácí', 'lama krotká', 'velbloud dvouhrbý', 'bourec morušový', 'včela medonosná',
     'andulka vlnkovaná', 'zlatá rybka', 'holub domácí', 'alpaka'];
+// Další domácí a chovaná zvířata (vědecká jména): mezek a mula, drůbež, mazlíčci a akvarijní ryby – v okruhu Domácí zvířata,
+// známá ale jen podle známosti (ne automaticky jako pes nebo kráva)
+const DOMESTIC_EXTRA = new Set(['Equus asinus × Equus caballus', 'Coturnix japonica', 'Cairina moschata', 'Rangifer tarandus', 'Bos frontalis',
+    'Meriones unguiculatus', 'Octodon degus', 'Phodopus sungorus', 'Phodopus roborovskii', 'Agapornis roseicollis', 'Poecilia reticulata',
+    'Betta splendens', 'Paracheirodon innesi', 'Xiphophorus hellerii', 'Pterophyllum scalare', 'Pogona vitticeps', 'Python regius']);
 // Domácí zvířata, jejichž předky Wikidata přes podtřídu nenajdou: zařazení převezmou od divokého předka
 const DOMESTIC_WILD = {
     Q144: 'Canis lupus', Q830: 'Bos primigenius', Q16529344: 'Anser anser', Q3736439: 'Anas platyrhynchos', Q780: 'Gallus gallus', Q7368: 'Ovis orientalis',
@@ -98,8 +107,18 @@ const NATIVE = new Set([
     'Craterellus cornucopioides', 'Rubroboletus satanas', 'Tylopilus felleus', 'Clitocybe nebularis', 'Phallus impudicus', 'Xerocomellus chrysenteron'
 ]);
 
-// Okruh má mít aspoň tolik položek – chybějící doplní i méně známé druhy nad limit kategorie
+// Okruh má mít aspoň COLLECTION_MIN položek – chybějící doplní i méně známé druhy nad limit kategorie; do COLLECTION_FILL
+// položek se okruh doplní druhy s článkem aspoň v COLLECTION_FILL_SL jazykových verzích (méně známé skončí v úrovni Expert)
 const COLLECTION_MIN = 40;
+const COLLECTION_FILL = 100;
+const COLLECTION_FILL_SL = 20;
+
+// Spodní hranice známých v okruhu smí povýšit jen druh, který v kategorii není mezi pětinou nejméně známých
+// (pořadí podle jazykových verzí a návštěvnosti), nebo s návštěvností článku na české Wikipedii aspoň PROMOTE_PV za 60 dní
+const PROMOTE_PCT = 0.8;
+const PROMOTE_PV = 3000;
+// Podíl nejznámějších částí lidského těla, které jsou známé (další doplní spodní hranice v okruzích)
+const BODY_KNOWN = 0.23;
 
 const IUCN = {
     Q211005: 'LC', Q719675: 'NT', Q278113: 'VU', Q11394: 'EN', Q219127: 'CR', Q239509: 'EW', Q237350: 'EX', Q3245245: 'DD'
@@ -251,8 +270,8 @@ const edibilityOf = (qid) => {
 const under = (...taxa) => (item) => taxa.some(name => item.anc.has(name));
 const BY_NAME = { by: 'name' };
 const COLLECTIONS = [
-    { id: 'nase-priroda', label: 'Naše příroda', text: 'Zvířata, rostliny a houby, které potkáš v Česku', test: item => item.cz === 1 },
-    { id: 'domaci-zvirata', label: 'Domácí zvířata', test: item => item.dom },
+    { id: 'nase-priroda', label: 'Naše příroda', text: 'Zvířata, rostliny a houby, které potkáš v Česku', fill: 0, test: item => item.cz === 1 },
+    { id: 'domaci-zvirata', label: 'Domácí zvířata', fill: 0, test: item => item.dom },
     { id: 'selmy', label: 'Šelmy', test: under('Carnivora') },
     { id: 'hlodavci', label: 'Hlodavci', test: under('Rodentia') },
     { id: 'primati', label: 'Primáti', test: under('Primates') },
@@ -342,13 +361,15 @@ for (const qid of ordered) {
     }
     const settings = CATEGORIES.find(c => c.key === category);
     const isNative = NATIVE.has(detail.lat);
-    const isDomestic = domestic.has(qid);
+    const isDomestic = domestic.has(qid) || DOMESTIC_EXTRA.has(detail.lat);
     const rank = rankByCategory[category] || 0;
     const ancestorNames = new Set(ancestors.map(ancestor => ancestor.name));
     // Do malého okruhu (vačnatci, orchideje, vyhynulé druhy) se vezmou i druhy nad limit kategorie
     const probe = { c: category, d: detail.d, cz: isNative ? 1 : undefined, anc: ancestorNames, dom: isDomestic, f: { iucn: IUCN[detail.iucn], edib: edibilityOf(qid) } };
     const groups = COLLECTIONS.filter(collection => collection.test(probe));
-    const fillsCollection = groups.some(collection => (collectionCounts[collection.id] || 0) < (collection.min || COLLECTION_MIN));
+    const sl = candidates.get(qid) || 0;
+    const fillsCollection = groups.some(collection => (collectionCounts[collection.id] || 0) < (collection.min || COLLECTION_MIN)
+        || (sl >= COLLECTION_FILL_SL && (collectionCounts[collection.id] || 0) < (collection.fill ?? COLLECTION_FILL)));
     if (rank >= settings.limit && !isNative && !isDomestic && !isFamousPrehistoric && !fillsCollection) continue;
     rankByCategory[category] = rank + 1;
     for (const collection of groups) collectionCounts[collection.id] = (collectionCounts[collection.id] || 0) + 1;
@@ -360,7 +381,7 @@ for (const qid of ordered) {
         t: detail.t,
         n: name,
         c: category,
-        k: (category === 'pravek' ? isFamousPrehistoric : rank < settings.known) || isNative || isDomestic ? 1 : 0,
+        k: (category === 'pravek' ? isFamousPrehistoric : rank < settings.known) || isNative || domestic.has(qid) ? 1 : 0,
         d: detail.d,
         cz: isNative ? 1 : undefined,
         ...imageFields(detail.im),
@@ -380,7 +401,9 @@ for (const qid of ordered) {
         }),
         // Pro okruhy: vědecká jména předků a domácí zvíře
         anc: ancestorNames,
-        dom: isDomestic
+        dom: isDomestic,
+        // Pro úrovně: jazykové verze, skupina pro porovnání známosti, vždy známé (naše příroda, domácí zvířata, slavní dinosauři)
+        _: { sl, pool: category, fixed: isNative || domestic.has(qid) || isFamousPrehistoric }
     }));
 }
 
@@ -395,6 +418,7 @@ const extraItems = [...await buildBreeds({ takenIds, takenNames }), ...await bui
 for (const item of extraItems) {
     const groups = EXTRA_COLLECTIONS.filter(collection => collection.test(item)).map(collection => collection.id);
     if (groups.length) item.g = groups;
+    item._ = { sl: item.sl, pool: item.c === 'plemena' ? `plemena|${item.f.kind}` : item.c, fixed: item.czb === 1 && item.k === 1 };
     delete item.sl; delete item.fg; delete item.czb;
     items.push(item);
 }
@@ -402,6 +426,22 @@ const collections = [...COLLECTIONS, ...EXTRA_COLLECTIONS]
     .map(({ test, ...collection }) => collection)
     .filter(collection => items.filter(item => (item.g || []).includes(collection.id)).length >= 5);
 for (const item of items) { delete item.anc; delete item.dom; }
+
+// --- 5. krok: úrovně obtížnosti (Základní / Mudrlant / Expert) ---
+// Návštěvnost článku i přesměrování z českého jména (článek Čichový orgán – lidé hledají „Nos“)
+const pageviews = await czechPageviews([...items.map(item => item.t), ...items.filter(item => item.n !== item.t).map(item => item.n)]);
+for (const item of items) item._.pv = pageviews[item.t] + (item.n !== item.t ? pageviews[item.n] || 0 : 0);
+const levelGroups = [
+    ...collections.map(collection => ({ id: collection.id, members: items.filter(item => (item.g || []).includes(collection.id)) })),
+    ...[...new Set(items.map(item => item.c))].map(key => ({ id: `kategorie ${key}`, members: items.filter(item => item.c === key) }))
+];
+// Lidské tělo: známé části podle pořadí známosti (jazykové verze i návštěvnost), ne jen podle jazykových verzí
+const promoted = assignLevels(items, { groups: levelGroups, knownShare: pool => pool === 'telo' ? BODY_KNOWN : 0,
+    ceiling: item => item._.pct <= PROMOTE_PCT || (item._.pv || 0) >= PROMOTE_PV });
+console.log(`Povýšeno na známé kvůli okruhům: ${promoted.length}`);
+for (const key of [...new Set(items.map(item => item.c))]) console.log('  ' + levelSummary(key, items.filter(item => item.c === key)));
+console.log('  ' + levelSummary('celkem', items));
+for (const item of items) delete item._;
 
 for (const category of [...CATEGORIES, { key: 'plemena' }, { key: 'telo' }]) {
     const inCategory = items.filter(item => item.c === category.key);
