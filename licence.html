@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <!-- Stejná CSP jako index.html (GitHub Pages hlavičky neposílá) -->
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' https://upload.wikimedia.org https://gibs.earthdata.nasa.gov https://tile.openstreetmap.org; connect-src 'self' https://cs.wikipedia.org https://*.supabase.co; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' https://upload.wikimedia.org https://gibs.earthdata.nasa.gov https://tile.openstreetmap.org; connect-src 'self' https://cs.wikipedia.org https://commons.wikimedia.org https://*.supabase.co; manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
     <meta name="description" content="Mudrlant – zdroje dat a obrázků, jejich autoři a licence.">
     <meta name="theme-color" content="#f7f6f3" media="(prefers-color-scheme: light)">
     <meta name="theme-color" content="#212326" media="(prefers-color-scheme: dark)">
@@ -48,7 +48,7 @@
 
             <section id="obrazky">
                 <h2>Obrázky: Wikimedia Commons</h2>
-                <p>Fotografie, vlajky, znaky, obrazy, mapy rozšíření a strukturní vzorce se načítají z <a href="https://commons.wikimedia.org" target="_blank" rel="noopener noreferrer">Wikimedia Commons</a>. Každý soubor má vlastního autora a licenci (nejčastěji Creative Commons nebo volné dílo); uvádíme je v seznamu níže podle témat, odkaz vede na stránku souboru s úplnými údaji a historií. Mudrlant obrázky zmenšuje, ořezává a část z nich překrývá (zakrytí nápisů s odpovědí). Kdo chce použít obrázek dál, řídí se licencí uvedenou na stránce souboru.</p>
+                <p>Fotografie, vlajky, znaky, obrazy, mapy rozšíření a strukturní vzorce se načítají z <a href="https://commons.wikimedia.org" target="_blank" rel="noopener noreferrer">Wikimedia Commons</a>. Každý soubor má vlastního autora a licenci (nejčastěji Creative Commons nebo volné dílo); uvádíme je v seznamu níže podle témat, odkaz vede na stránku souboru s úplnými údaji a historií. Mudrlant obrázky zmenšuje, ořezává a část z nich překrývá (zakrytí nápisů s odpovědí). Kdo chce použít obrázek dál, řídí se licencí uvedenou na stránce souboru. Autora a licenci ukáže i malé tlačítko „i“ v rohu každého obrázku ve hře (u obrázku v otázce autora a název souboru až po odpovědi, aby neprozradily odpověď).</p>
                 <div class="my-3 flex flex-col gap-2">
                     <label class="text-xs font-black uppercase tracking-widest text-slate-500 dark:text-slate-400" for="licence-search">Hledat soubor nebo autora
                         <input id="licence-search" type="search" autocomplete="off" placeholder="např. Praha, Flag of, jméno autora" class="mt-1 w-full rounded-xl border-2 border-slate-200 bg-white px-3 py-2 text-base font-semibold normal-case tracking-normal text-slate-800 focus:border-brand-600 focus:outline-none dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100">

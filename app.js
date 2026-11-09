@@ -28,6 +28,8 @@
     const MapQuestion = window.MudrlantMapQuestion || null;
     // Číselné otázky Seřaď a Odhadni číslo (numeric-questions.js); bez skriptu jen nejsou
     const Numeric = window.MudrlantNumeric || null;
+    // Zdroj obrázku z Wikimedia Commons (photo-source.js): tlačítko „i“ u obrázků; bez skriptu se jen neukáže
+    const PhotoSource = window.MudrlantPhotoSource || null;
     const TOPICS = window.MudrlantTopics || [];
     const TOPIC_BY_ID = Object.fromEntries(TOPICS.map(topic => [topic.id, topic]));
     const APP_NAME = 'Mudrlant';
@@ -1299,7 +1301,7 @@
     };
     const pushOfferAllowed = (record, now = Date.now()) => !record.done && record.shown < PUSH_OFFER_MAX && (!record.last || now - record.last >= PUSH_OFFER_GAP);
     // Něco jiného má přednost: tutoriál, otázka, načítání, jiné okno nebo oslava
-    const PUSH_OFFER_BLOCKERS = ['dialog-overlay', 'settings-overlay', 'play-chooser', 'photo-zoom', 'place-info', 'fact-overlay', 'celebration', 'tutorial', 'account-welcome'];
+    const PUSH_OFFER_BLOCKERS = ['dialog-overlay', 'settings-overlay', 'play-chooser', 'photo-zoom', 'photo-source', 'place-info', 'fact-overlay', 'celebration', 'tutorial', 'account-welcome'];
     const pushOfferBlocked = () => {
         if (isLoading || (screen !== 'home' && screen !== 'challenge-done')) return true;
         if (Tutorial) {
@@ -2397,6 +2399,11 @@
                 else delete zoom.dataset.masks;
                 zoom.classList.remove('hidden');
             }
+            const source = frame.querySelector('[data-photo-info]');
+            if (source && PhotoSource && PhotoSource.fileFromUrl(url)) {
+                source.dataset.url = url;
+                source.classList.remove('hidden');
+            }
         } catch (e) {
             if (onFail) onFail();
             const failure = element.parentElement && element.parentElement.querySelector('[data-photo-failed]');
@@ -2434,7 +2441,57 @@
         <p data-photo-failed class="hidden absolute inset-x-0 top-1/2 mt-8 text-center text-sm text-slate-500 dark:text-slate-400">Fotku se nepodařilo načíst</p>
         <div data-photo-backdrop class="absolute inset-0 scale-110 bg-cover bg-center opacity-50 blur-xl" aria-hidden="true"></div>
         <div ${attributes} class="absolute inset-0 bg-contain bg-center bg-no-repeat" aria-hidden="true"></div>
-        <button type="button" data-photo-zoom aria-label="Zvětšit fotku" class="hidden absolute bottom-2 right-2 rounded-xl bg-black/65 p-3 text-white shadow backdrop-blur-sm"><i data-lucide="expand" class="h-4 w-4"></i></button>`;
+        <button type="button" data-photo-zoom aria-label="Zvětšit fotku" class="hidden absolute bottom-2 right-2 rounded-xl bg-black/65 p-3 text-white shadow backdrop-blur-sm"><i data-lucide="expand" class="h-4 w-4"></i></button>
+        ${PhotoSource ? PhotoSource.buttonHtml() : ''}`;
+
+    // Okno „Zdroj obrázku“ (tlačítko „i“ u obrázku): licence hned, autor, popis a odkaz na Commons až po odpovědi – u obrazu je
+    // autor odpovědí a název souboru bývá název místa. Vlastní malé okno nad vším (i nad oknem s popisem a dialogem, které nezavře).
+    const loadPhotoSource = PhotoSource ? PhotoSource.createLoader((url) => fetch(url, { credentials: 'omit' })) : null;
+    let photoSourceOpener = null;
+    const closePhotoSource = () => {
+        const overlay = document.getElementById('photo-source');
+        if (!overlay) return;
+        overlay.remove();
+        if (photoSourceOpener && photoSourceOpener.isConnected) photoSourceOpener.focus({ preventScroll: true });
+        photoSourceOpener = null;
+    };
+    // Před odpovědí = obrázek je v otázce, na kterou hráč ještě neodpověděl (ne v okně s popisem ani v atlasu učení)
+    const photoBeforeAnswer = (button) => appContent.contains(button) && screen !== 'learn' && Boolean(round) && !round.answered;
+    const openPhotoSource = (button) => {
+        const fileName = PhotoSource && PhotoSource.fileFromUrl(button.dataset.url);
+        if (!fileName) return;
+        closePhotoSource();
+        const answered = !photoBeforeAnswer(button);
+        photoSourceOpener = button;
+        const overlay = document.createElement('div');
+        overlay.id = 'photo-source';
+        overlay.setAttribute('role', 'dialog');
+        overlay.setAttribute('aria-modal', 'true');
+        overlay.setAttribute('aria-labelledby', 'photo-source-title');
+        overlay.className = 'fixed inset-0 z-[60] flex items-end justify-center bg-slate-900/60 p-4 backdrop-blur-sm sm:items-center';
+        overlay.innerHTML = `
+            <div class="fade-in flex max-h-[92dvh] w-full max-w-sm flex-col gap-3 overflow-y-auto rounded-[1.75rem] bg-slate-50 p-5 shadow-2xl dark:bg-slate-900">
+                <div class="-mt-1 flex items-center justify-between">
+                    <h2 id="photo-source-title" class="flex items-center gap-2 text-lg font-black text-slate-800 dark:text-slate-100"><i data-lucide="image" class="h-5 w-5"></i> ${escapeHtml(PhotoSource.TITLE)}</h2>
+                    <button type="button" data-close aria-label="Zavřít" class="-m-1 rounded-xl p-2.5 text-slate-500 hover:bg-slate-200 dark:text-slate-400 dark:hover:bg-slate-800"><i data-lucide="x" class="h-5 w-5"></i></button>
+                </div>
+                <div data-source-body class="flex flex-col gap-3"></div>
+            </div>`;
+        const body = overlay.querySelector('[data-source-body]');
+        const draw = (status, meta = null) => {
+            body.innerHTML = PhotoSource.viewHtml(PhotoSource.buildView({ fileName, meta, answered, status }));
+            renderIcons(body);
+        };
+        draw('loading');
+        overlay.addEventListener('click', (event) => {
+            if (event.target === overlay || event.target.closest('[data-close]')) closePhotoSource();
+        });
+        trapFocus(overlay);
+        document.body.appendChild(overlay);
+        renderIcons(overlay);
+        overlay.querySelector('[data-close]').focus();
+        loadPhotoSource(fileName).then(meta => { if (overlay.isConnected) draw(meta ? 'ready' : 'failed', meta); });
+    };
 
     const capitalize = (text) => text.charAt(0).toUpperCase() + text.slice(1);
     // Záložka nápovědy: „Fakta“ místo dlouhého „Čísla a fakta“, jinak název nápovědy
@@ -4672,7 +4729,7 @@
     let modeTimer = null;
     let modeFeedbackTimer = null;
     // Okna, během kterých čas Bleskovky stojí (Nastavení, popis položky…)
-    const MODE_OVERLAYS = ['settings-overlay', 'dialog-overlay', 'play-chooser', 'place-info', 'photo-zoom', 'fact-overlay'];
+    const MODE_OVERLAYS = ['settings-overlay', 'dialog-overlay', 'play-chooser', 'place-info', 'photo-zoom', 'photo-source', 'fact-overlay'];
     const MODE_BADGE = { blitz: 'bg-gold-500 text-brand-950', survival: 'bg-rose-600 text-white' };
     const modeTopicOf = (game) => game.pool.kind === 'topic' ? TOPIC_BY_ID[game.pool.topic] : MIX;
     const loadModeState = () => Modes.parse(readJson(Modes.STORAGE_KEY));
@@ -8941,12 +8998,15 @@
     document.addEventListener('click', (event) => {
         const zoom = event.target.closest('[data-photo-zoom]');
         if (zoom && zoom.dataset.url) openPhotoZoom(zoom.dataset.url, zoom.dataset.masks ? JSON.parse(zoom.dataset.masks) : null);
+        // Zdroj obrázku: tlačítko „i“ u fotky, obrázku otázky i obrazové nápovědy z Commons
+        const source = event.target.closest('[data-photo-info]');
+        if (source && source.dataset.url) openPhotoSource(source);
     });
     // Escape zavře nejdřív okno s popisem, pak výběr co hrát, pak nastavení
     // Tlačítko Zpět na mobilu jako zpět v aplikaci: mimo čistou úvodní obrazovku drží aplikace v historii prohlížeče jeden
     // krok navíc. Zpět ho spotřebuje a aplikace udělá svůj krok zpět (zavře okno, z otázky domů, v učení o úroveň výš);
     // teprve na úvodní obrazovce Zpět aplikaci opustí. Krok se doplní či odebere po každé změně obrazovky nebo okna.
-    const OVERLAY_IDS = ['photo-zoom', 'place-info', 'play-chooser', 'settings-overlay', 'dialog-overlay'];
+    const OVERLAY_IDS = ['photo-source', 'photo-zoom', 'place-info', 'play-chooser', 'settings-overlay', 'dialog-overlay'];
     const atRoot = () => (screen === 'home' || screen === 'welcome') && !OVERLAY_IDS.some(id => document.getElementById(id));
     let skipNextPop = false;
     const syncHistory = () => {
@@ -8958,7 +9018,8 @@
         }
     };
     const goBack = () => {
-        if (document.getElementById('fact-overlay')) closeFact();
+        if (document.getElementById('photo-source')) closePhotoSource();
+        else if (document.getElementById('fact-overlay')) closeFact();
         else if (document.getElementById('dialog-overlay')) closeDialog();
         else if (document.getElementById('photo-zoom')) closePhotoZoom();
         else if (document.getElementById('place-info')) closePlaceInfo();
@@ -8996,7 +9057,8 @@
 
     document.addEventListener('keydown', (event) => {
         if (event.key !== 'Escape') return;
-        if (document.getElementById('fact-overlay')) closeFact();
+        if (document.getElementById('photo-source')) closePhotoSource();
+        else if (document.getElementById('fact-overlay')) closeFact();
         else if (document.getElementById('dialog-overlay')) closeDialog();
         else if (document.getElementById('photo-zoom')) closePhotoZoom();
         else if (document.getElementById('place-info')) closePlaceInfo();
