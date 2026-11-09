@@ -7681,7 +7681,7 @@
     let tournamentQuery = '';
     const tournamentServerResume = new Set(); // rozehrané zápasy, jejichž odpovědi zná server (dají se dohrát bez uložené relace)
     let tournamentMode = 'bracket'; // pohled v okně turnaje: 'bracket' (pavouk) nebo 'rounds' (seznam kol)
-    let bracketFull = null; // null = podle toho, kde jsem (vypadl jsem před osmifinále → celý pavouk); jinak volba hráče
+    let bracketFull = true; // výchozí je celý pavouk; tlačítko Celý pavouk přepne na pohled od osmifinále (volba hráče)
     let bracketFocus = ''; // hráč, jehož cesta pavoukem je zvýrazněná (klepnutí na hráče)
     let bracketReset = true; // po otevření a změně pohledu se pavouk posune na moje kolo, při dalším překreslení zůstane, kde je
     const resetTournaments = () => { tournamentOffer = null; tournamentView = null; tournamentTickAt = 0; tournamentStatsAt = 0; tournamentBusy = ''; tournamentAgain = null; tournamentServerResume.clear(); };
@@ -8347,7 +8347,7 @@
         tournamentDialogId = tid;
         tournamentQuery = '';
         tournamentMode = 'bracket';
-        bracketFull = null;
+        bracketFull = true;
         bracketFocus = '';
         bracketReset = true;
         renderTournamentDialog();
