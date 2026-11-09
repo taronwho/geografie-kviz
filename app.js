@@ -1490,6 +1490,7 @@
                 ${Review ? settingRow({ attrs: 'data-review-toggle', icon: 'repeat', title: 'Procvičování chyb', text: reviewEnabled() ? 'Vrací se po 1, 3, 7, 14 a 30 dnech' : 'Chyby se nevrací, nic nečeká', on: reviewEnabled() }) : ''}
                 ${Tips ? settingRow({ attrs: 'data-tips-toggle', icon: 'lightbulb', title: 'Tipy od Mudrlanta', text: tipsOn() ? 'Žárovka občas ukáže funkci hry' : 'Žárovka ukáže jen zajímavost dne', on: tipsOn() }) : ''}
                 ${soundRows()}
+                ${DailyQuiz && quizSkipIntro() ? settingRow({ attrs: 'data-quiz-intro-toggle', icon: 'timer', title: 'Úvod Kvízu dne', text: 'Vypnutý, kvíz začne rovnou', on: false }) : ''}
                 ${pushPanel()}
                 ${settingRow({ attrs: 'data-tutorial-restart', icon: 'info', title: 'Projít znovu tutoriál' })}
             </div>
@@ -1709,6 +1710,11 @@
                 // Odhlášený hráč nesmí na tomhle zařízení dál dostávat upozornění: odběr se smaže ještě za přihlášení
                 closeSettings();
                 (Push ? Push.disable().catch(() => {}) : Promise.resolve()).then(() => Auth.logout());
+                return;
+            }
+            if (event.target.closest('[data-quiz-intro-toggle]')) {
+                setQuizSkipIntro(false);
+                openSettings('Úvod Kvízu dne se zase ukáže.');
                 return;
             }
             if (event.target.closest('[data-tips-toggle]')) {
@@ -7427,6 +7433,10 @@
         };
     };
 
+    // Úvod Kvízu dne jde vypnout (zaškrtnutím na úvodu): kvíz pak po klepnutí rovnou začne; zapnout zpět jde v Nastavení → Hra
+    const QUIZ_SKIP_INTRO_KEY = 'mudrlant.quizSkipIntro';
+    const quizSkipIntro = () => { try { return localStorage.getItem(QUIZ_SKIP_INTRO_KEY) === '1'; } catch (e) { return false; } };
+    const setQuizSkipIntro = (on) => { try { if (on) localStorage.setItem(QUIZ_SKIP_INTRO_KEY, '1'); else localStorage.removeItem(QUIZ_SKIP_INTRO_KEY); } catch (e) {} };
     // Úvod Kvízu dne (pravidla a Začít / Pokračovat), nebo rovnou výsledek, když je dnešní pokus dohraný
     const openQuiz = async () => {
         if (!DailyQuiz || quizOpening || isLoading) return;
@@ -7453,6 +7463,7 @@
             const playedHere = Boolean(quiz) && quiz.results.length === DailyQuiz.QUESTIONS && quiz.results.every(row => row.points !== null);
             if (quiz && playedHere && !quiz.xp) { finishQuiz(); return; }
             if (quiz && (quiz.done || DailyQuiz.nextIndex(quiz) < 0)) { if (quiz.done) showQuizResult(); else finishQuiz(); return; }
+            if (quizSkipIntro()) { startQuiz(); return; }
             renderQuizIntro(today, server === null);
         } finally {
             quizOpening = false;
@@ -7462,7 +7473,7 @@
         screen = 'quiz';
         closePlaceInfo();
         const topics = DailyQuiz.slotsFor(day, quizGroups()).map(slot => slot.topic);
-        appContent.innerHTML = DailyQuiz.introHtml({ day, topics, answered: quiz ? quiz.results.length : 0, open: Boolean(quiz && quiz.open), guest: !quizRanked() && Boolean(Auth && Auth.isConfigured()), offline: offline && quizRanked() }, quizHelpers());
+        appContent.innerHTML = DailyQuiz.introHtml({ day, topics, answered: quiz ? quiz.results.length : 0, open: Boolean(quiz && quiz.open), guest: !quizRanked() && Boolean(Auth && Auth.isConfigured()), offline: offline && quizRanked(), skipIntro: quizSkipIntro() }, quizHelpers());
         renderIcons(appContent);
         appContent.scrollTo(0, 0);
         updateControlsUI();
@@ -8680,6 +8691,13 @@
         // Kvíz dne (daily-quiz.js) a obrázek k výsledku dnešní otázky (share-card.js)
         'quiz-open': () => openQuiz(),
         'quiz-start': () => startQuiz(),
+        'quiz-skip-intro': (button) => {
+            const on = button.getAttribute('aria-checked') !== 'true';
+            setQuizSkipIntro(on);
+            button.outerHTML = DailyQuiz.introHtml({ skipIntro: on, day: DailyQuiz.pragueDay() }, quizHelpers()).match(/<button type="button" data-action="quiz-skip-intro"[\s\S]*?<\/button>/)[0];
+            renderIcons(appContent);
+            showToast(on ? 'Příště Kvíz dne začne rovnou. Úvod jde zapnout v Nastavení → Hra.' : 'Úvod Kvízu dne se zase ukáže.');
+        },
         'quiz-home': () => renderHome(),
         'quiz-tab': (button) => { if (quizView) { quizView.tab = button.dataset.tab === 'friends' ? 'friends' : 'all'; paintQuizRanking(); } },
         'quiz-share': () => shareQuiz(),

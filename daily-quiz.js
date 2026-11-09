@@ -315,7 +315,7 @@
     };
 
     // Úvod: co Kvíz dne je, pravidla a tlačítko Začít / Pokračovat; topics = 10 témat dne (ikony)
-    const introHtml = ({ day, topics = [], answered = 0, open = false, guest = false, offline = false }, h) => {
+    const introHtml = ({ day, topics = [], answered = 0, open = false, guest = false, offline = false, skipIntro = false }, h) => {
         const resume = answered > 0 || open;
         const rule = (icon, text) => `<li class="flex items-start gap-2.5 rounded-2xl bg-white px-3 py-2 shadow-sm ring-1 ring-slate-200/70 dark:bg-slate-800/70 dark:ring-slate-700/70"><i data-lucide="${icon}" class="mt-0.5 h-4 w-4 shrink-0 text-brand-700 dark:text-brand-300"></i><span class="text-[13px] font-semibold leading-snug text-slate-700 dark:text-slate-200">${text}</span></li>`;
         return `
@@ -334,7 +334,11 @@
                 <p class="px-1 text-[12px] font-semibold leading-snug text-slate-500 dark:text-slate-400">Dnešní otázky (jedna z každého tématu) zůstávají zvlášť, tohle je jeden kvíz s pořadím hráčů.</p>
                 ${guest ? '<p data-quiz-guest class="rounded-2xl bg-gold-50 px-3 py-2 text-[12px] font-bold leading-snug text-gold-800 ring-1 ring-gold-200 dark:bg-gold-950/40 dark:text-gold-200 dark:ring-gold-800/60">Hraješ bez přihlášení: výsledek můžeš sdílet, do pořadí se ale nezapíše.</p>' : ''}
                 ${offline ? '<p class="rounded-2xl bg-slate-100 px-3 py-2 text-[12px] font-bold leading-snug text-slate-600 dark:bg-slate-800 dark:text-slate-300">Pořadí teď není dostupné. Výsledek se uloží v zařízení a odešle, až to půjde.</p>' : ''}
-                <div class="mt-auto pt-1">
+                <div class="mt-auto flex flex-col gap-1.5 pt-1">
+                    <button type="button" data-action="quiz-skip-intro" role="checkbox" aria-checked="${skipIntro}" class="flex min-h-[2.5rem] items-center gap-2 self-center rounded-xl px-2 text-[13px] font-bold text-slate-600 dark:text-slate-300">
+                        <span class="flex h-5 w-5 shrink-0 items-center justify-center rounded-md border-2 ${skipIntro ? 'border-brand-600 bg-brand-600 text-white' : 'border-slate-400 dark:border-slate-500'}">${skipIntro ? '<i data-lucide="check" class="h-3.5 w-3.5"></i>' : ''}</span>
+                        Příště úvod nezobrazovat, kvíz rovnou začne
+                    </button>
                     <button type="button" data-action="quiz-start" class="${PRIMARY}"><i data-lucide="play" class="h-5 w-5"></i> ${resume ? `Pokračovat · otázka ${Math.min(answered + 1, QUESTIONS)}/${QUESTIONS}` : 'Začít kvíz'}</button>
                 </div>
             </div>`;

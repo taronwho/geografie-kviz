@@ -299,6 +299,27 @@ test('Kvíz dne v prohlížeči', { skip: !chromium && 'Playwright není nainsta
         await context.close();
     });
 
+    await t.test('úvod jde vypnout: příště kvíz začne rovnou, v Nastavení → Hra se zase zapne', async () => {
+        const { context, tab, log } = await setup(browser, {}, {});
+        await tab.click('#quiz-card');
+        await tab.waitForSelector('#quiz-intro [data-action="quiz-skip-intro"][aria-checked="false"]');
+        await tab.click('[data-action="quiz-skip-intro"]');
+        await tab.waitForSelector('#quiz-intro [data-action="quiz-skip-intro"][aria-checked="true"]');
+        assert.equal(await tab.evaluate(() => localStorage.getItem('mudrlant.quizSkipIntro')), '1');
+        await tab.reload();
+        await tab.click('#quiz-card');
+        await tab.waitForSelector('[data-action="choice"]', { timeout: 60000 });
+        assert.equal(await tab.locator('#quiz-intro').count(), 0, 'bez úvodu rovnou první otázka');
+        // Nastavení → Hra: řádek Úvod Kvízu dne (jen když je vypnutý) ho zase zapne
+        await tab.click('#btn-settings');
+        await tab.waitForSelector('[data-quiz-intro-toggle]');
+        await tab.click('[data-quiz-intro-toggle]');
+        await tab.waitForFunction(() => localStorage.getItem('mudrlant.quizSkipIntro') === null);
+        await tab.waitForFunction(() => !document.querySelector('[data-quiz-intro-toggle]'));
+        assert.deepEqual(log.errors, []);
+        await context.close();
+    });
+
     await t.test('přihlášený: odpovědi po otázkách na server, pořadí dne s mým místem, přátelé, série ze serveru', async () => {
         const db = newDb();
         // včera dohráno: série pokračuje
