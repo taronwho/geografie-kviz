@@ -63,7 +63,7 @@
     // 8 = Skupiny (group_*, my_groups, týdenní XP; se starší databází se Skupiny jen nenabídnou);
     // 9 = odměny v účtu (profiles.rewards: Truhla Mudrlanta, ochrana série, diplomy) a nové odznaky (se starší databází zůstanou jen v zařízení);
     // 10 = Rozpis otázek (podrobnosti odpovědí výzvy a zápasu turnaje, challenge_details a tournament_details; se starší databází jen vlastní odpovědi ze zařízení).
-    const REQUIRED_SCHEMA = 12;
+    const REQUIRED_SCHEMA = 13;
     const HISTORY_SIZE = 200;
     const REQUEST_TIMEOUT = 12000;
     const WIKI_TIMEOUT = 6000;
@@ -5384,7 +5384,7 @@
                 <span class="min-w-0 flex-1 truncate text-[13px] font-bold text-slate-800 dark:text-slate-100">${escapeHtml(row.challenge ? challengeTopicTitle(row.challenge.topic) : '')}</span>
                 ${Friends && signedUser() ? Friends.reactionBadge(Friends.reactionFor(recentReactions, row.challenge_id, signedUser().id), row.others[0] ? playerName(row.others[0].player) : '') : ''}
                 <span class="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-black ${look[1]}">${outcome}</span>
-                <span class="w-11 shrink-0 text-right text-[15px] font-black tabular-nums text-slate-800 dark:text-slate-100">${row.correct}/${count}</span>
+                <span class="w-12 shrink-0 text-right leading-tight tabular-nums"><span class="block text-[15px] font-black text-slate-800 dark:text-slate-100">${Number(row.points) || 0} b</span><span class="block text-[10px] font-semibold text-slate-500 dark:text-slate-400">${row.correct}/${count}</span></span>
             </button>`;
     };
     const incomingRow = (invite) => `
@@ -6256,7 +6256,7 @@
             <span data-place="${rankingPlace(rows, row)}" class="w-5 text-center text-sm font-black text-slate-500 dark:text-slate-400">${rankingPlace(rows, row) === 1 ? '🏆' : rankingPlace(rows, row)}</span>
             ${avatarHtml(row.player, 'h-9 w-9 text-lg', true)}
             <span class="min-w-0 flex-1 truncate text-sm font-bold text-slate-800 dark:text-slate-100">${escapeHtml(playerName(row.player))}${row.user_id === meId ? ' (ty)' : ''}</span>
-            <span class="text-right"><span class="block text-base font-black text-slate-800 dark:text-slate-100">${row.correct}/${count}</span><span class="block text-[10px] font-semibold text-slate-500 dark:text-slate-400">${escapeHtml(formatPoints(row.points))}</span></span>
+            <span class="text-right"><span class="block text-base font-black text-slate-800 dark:text-slate-100">${escapeHtml(formatPoints(row.points))}</span><span class="block text-[10px] font-semibold text-slate-500 dark:text-slate-400">${row.correct}/${count} správně</span></span>
         </li>`).join('');
 
     // Odznak jako medaile ve stylu hry: získaný zlatý nebo vínový se ikonou, nezískaný šedý
@@ -7008,8 +7008,8 @@
                 <div class="rounded-[1.5rem] bg-gradient-to-br from-brand-600 to-brand-900 p-5 text-center text-white shadow-lg">
                     ${uiArt(`sova-${outcomeOwl}`, 'mx-auto -mt-1 mb-1 h-24 w-24')}${verdictHtml}
                     <p class="mt-2 text-xs font-black uppercase tracking-widest text-white/80">${escapeHtml(challengeTopicTitle(c.topic))}</p>
-                    <p class="mt-0.5 text-4xl font-black">${correct}/${c.count}</p>
-                    <p class="mt-1 text-sm font-bold text-white/90">${escapeHtml(formatPoints(points))}</p>
+                    <p data-result-points class="mt-0.5 text-4xl font-black">${escapeHtml(formatPoints(points))}</p>
+                    <p data-result-correct class="mt-1 text-sm font-bold text-white/90">${correct}/${c.count} správně</p>
                     ${ratingNote(c, results)}
                 </div>
                 ${body}
@@ -7087,12 +7087,13 @@
         <div class="flex min-w-0 items-center gap-1.5">
             ${avatarHtml(entry.player, 'h-7 w-7 text-sm')}
             <span class="min-w-0"><span class="block truncate text-[12.5px] font-black text-slate-800 dark:text-slate-100">${escapeHtml(label)}</span>
-            <span class="block text-[10.5px] font-semibold tabular-nums text-slate-500 dark:text-slate-400">${entry.correct === null ? '' : `${entry.correct}/${entry.count} · ${entry.points} b`}</span></span>
+            <span class="block text-[10.5px] font-semibold tabular-nums text-slate-500 dark:text-slate-400">${entry.correct === null ? '' : `<b class="font-black text-slate-700 dark:text-slate-200">${entry.points} b</b> · ${entry.correct}/${entry.count}${Number.isInteger(entry.time_ms) ? ` · ${formatQuestionTime(entry.time_ms)}` : ''}`}</span></span>
         </div>`;
     // state: { def, players: [{ user_id, player, correct, points }], meId, rivalId, questions, answers ({ [userId]: [...] } | null), local, error }
     const renderBreakdown = (state) => {
         const { def, meId } = state;
         const me = state.players.find(row => row.user_id === meId) || { user_id: meId, player: null, correct: null, points: null };
+        const meLabel = state.spectator ? playerName(me.player) : 'Ty';
         const rivals = state.players.filter(row => row.user_id !== meId);
         const rival = rivals.find(row => row.user_id === state.rivalId) || rivals[0] || null;
         const count = def.count;
@@ -7100,7 +7101,8 @@
         const rivalRows = rival && state.answers ? state.answers[rival.user_id] || [] : [];
         const notes = [];
         if (!state.answers) notes.push('Soupeřovy odpovědi po otázkách teď databáze neposílá (je potřeba aktualizovat schéma). Vidíš jen své odpovědi z tohoto zařízení.');
-        else if (rival && !rivalRows.some(Boolean)) notes.push('Soupeřovy odpovědi po otázkách se u téhle hry neuložily.');
+        else if (state.spectator && !mineRows.some(Boolean)) notes.push(`${meLabel}: odpovědi po otázkách se u téhle hry neuložily.`);
+        if (state.answers && rival && !rivalRows.some(Boolean)) notes.push(state.spectator ? `${playerName(rival.player)}: odpovědi po otázkách se u téhle hry neuložily.` : 'Soupeřovy odpovědi po otázkách se u téhle hry neuložily.');
         const shown = [...mineRows, ...rivalRows].filter(Boolean);
         if (shown.some(row => !hasDetails(row))) notes.push('U starších odpovědí se ukládalo jen, jestli byly správně, a body (bez textu odpovědi, nápověd a času).');
         if (!state.questions) notes.push('Zadání otázek se teď nepodařilo načíst.');
@@ -7114,14 +7116,14 @@
             return `<li data-bd-row="${index}" class="rounded-2xl bg-white p-2 shadow-sm dark:bg-slate-800">
                 ${question && isKnownRef(question) ? `<button type="button" data-bd-info data-topic="${escapeHtml(question.topic)}" data-id="${escapeHtml(question.id)}" class="flex w-full items-start gap-2 rounded-xl text-left" aria-label="${escapeHtml(`Otázka ${index + 1}: ${question.answer} – popis`)}">${head}<i data-lucide="info" class="mt-0.5 h-4 w-4 shrink-0 text-slate-400 dark:text-slate-500"></i></button>`
                     : `<div class="flex items-start gap-2">${head}</div>`}
-                <div class="mt-1.5 grid grid-cols-2 gap-1.5">${breakdownCell(mineRows[index] || null, 'Ty')}${rival ? breakdownCell(rivalRows[index] || null, playerName(rival.player)) : ''}</div>
+                <div class="mt-1.5 grid grid-cols-2 gap-1.5">${breakdownCell(mineRows[index] || null, meLabel)}${rival ? breakdownCell(rivalRows[index] || null, playerName(rival.player)) : ''}</div>
             </li>`;
         }).join('');
         const picker = rivals.length > 1 ? `<div role="group" aria-label="Porovnat s hráčem" class="flex gap-1.5 overflow-x-auto pb-1">${rivals.slice(0, 20).map(row => `<button type="button" data-bd-rival="${escapeHtml(row.user_id)}" aria-pressed="${rival && row.user_id === rival.user_id}" class="flex shrink-0 items-center gap-1.5 rounded-full px-2 py-1 text-[12px] font-bold ${rival && row.user_id === rival.user_id ? 'bg-brand-700 text-white' : 'bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-200'}">${avatarHtml(row.player, 'h-5 w-5 text-[11px]')}<span class="max-w-[7rem] truncate">${escapeHtml(playerName(row.player))}</span></button>`).join('')}</div>` : '';
         return `<div class="flex flex-col gap-2">
                 ${picker}
                 <div class="sticky top-11 z-10 -mx-1 grid grid-cols-2 gap-1.5 bg-slate-50 px-1 py-1.5 dark:bg-slate-900">
-                    ${breakdownHead({ ...me, count }, 'Ty')}
+                    ${breakdownHead({ ...me, count }, meLabel)}
                     ${rival ? breakdownHead({ ...rival, count }, playerName(rival.player)) : ''}
                 </div>
                 <ol id="breakdown-list" class="flex flex-col gap-1.5">${rows}</ol>
@@ -7131,7 +7133,8 @@
     };
     let breakdownToken = 0;
     // players: výsledky hráčů (user_id, player, correct, points); load: odpovědi ze serveru; local: moje odpovědi z tohoto zařízení
-    const openBreakdown = async ({ def, players, load, local = null }) => {
+    // viewAs = divák cizího zápasu: první sloupec patří tomuto hráči (jménem, ne „Ty“)
+    const openBreakdown = async ({ def, players, load, local = null, viewAs = null }) => {
         const user = signedUser();
         if (!user || !Social) return;
         const token = ++breakdownToken;
@@ -7144,14 +7147,16 @@
         if (!stillOpen()) return;
         if (answers.error) {
             const denied = answers.error.status === 403 || answers.error.status === 401;
-            showDialog(BREAKDOWN_TITLE, DIALOG_NOTE(denied ? 'Rozpis otázek uvidíš, až hru dohraješ ty i soupeř.' : 'Rozpis se nepodařilo načíst. Zkontroluj připojení a zkus to znovu.'));
+            const deniedText = viewAs ? 'Rozpis zápasů tohoto kola uvidíš, až odehraješ svůj zápas (a databáze je ve verzi 13).' : 'Rozpis otázek uvidíš, až hru dohraješ ty i soupeř.';
+            showDialog(BREAKDOWN_TITLE, DIALOG_NOTE(denied ? deniedText : 'Rozpis se nepodařilo načíst. Zkontroluj připojení a zkus to znovu.'));
             return;
         }
-        const ranked = players.map(row => ({ user_id: row.user_id, player: row.player || null, correct: Number.isInteger(row.correct) ? row.correct : null, points: Number.isInteger(row.points) ? row.points : null }));
-        const state = { def, players: ranked, meId: user.id, rivalId: null, questions, answers: answers.value, local: Array.isArray(local) ? local : null };
+        const ranked = players.map(row => ({ user_id: row.user_id, player: row.player || null, correct: Number.isInteger(row.correct) ? row.correct : null, points: Number.isInteger(row.points) ? row.points : null, time_ms: Number.isInteger(row.time_ms) ? row.time_ms : null }));
+        const meId = viewAs || user.id;
+        const state = { def, players: ranked, meId, spectator: Boolean(viewAs), rivalId: null, questions, answers: answers.value, local: Array.isArray(local) ? local : null };
         // Výchozí soupeř: ten, kdo má odpovědi (u výzvy pro víc hráčů první v pořadí)
-        const withRows = ranked.filter(row => row.user_id !== user.id && state.answers && state.answers[row.user_id]);
-        state.rivalId = (withRows[0] || ranked.find(row => row.user_id !== user.id) || {}).user_id || null;
+        const withRows = ranked.filter(row => row.user_id !== meId && state.answers && state.answers[row.user_id]);
+        state.rivalId = (withRows[0] || ranked.find(row => row.user_id !== meId) || {}).user_id || null;
         const draw = () => showDialog(BREAKDOWN_TITLE, renderBreakdown(state), {
             onClick: (event) => {
                 const info = event.target.closest('[data-bd-info]');
@@ -7180,21 +7185,30 @@
         const entries = new Map(view.entries.map(entry => [entry.user_id, entry]));
         const players = [match.p1, match.p2].map(userId => {
             const result = match.results.find(item => item.user_id === userId && item.finished_at);
-            return { user_id: userId, player: (entries.get(userId) || {}).player || null, correct: result ? result.correct : null, points: result ? result.points : null };
+            return { user_id: userId, player: (entries.get(userId) || {}).player || null, correct: result ? result.correct : null, points: result ? result.points : null, time_ms: result ? result.time_ms : null };
         });
-        const local = challenge && challenge.tournament && challenge.tournament.mid === mid ? challenge.results : null;
+        const user = signedUser();
+        // Cizí zápas: divák vidí oba hráče jménem (první sloupec = hráč 1)
+        const spectator = !user || !Tournament.involves(match, user.id);
+        const local = !spectator && challenge && challenge.tournament && challenge.tournament.mid === mid ? challenge.results : null;
         openBreakdown({
             def: { topic: view.tournament.topic, seed: `${view.tournament.seed}-r${match.round}`, count: Tournament.QUESTIONS, hard: false, categories: [],
                 tournament: { seedBase: view.tournament.seed, round: match.round } },
-            players, load: () => Social.tournamentDetails(mid), local
+            players, load: () => Social.tournamentDetails(mid), local, viewAs: spectator ? match.p1 : null
         });
     };
-    // Rozpis zápasu jde otevřít, když ho hráč dohrál a soupeř také (nebo je zápas rozhodnutý)
-    const canTournamentBreakdown = (match, meId) => {
-        if (!match || !meId || !Tournament.involves(match, meId)) return false;
-        const done = (userId) => match.results.some(item => item.user_id === userId && item.finished_at);
+    // Rozpis zápasu jde otevřít, když ho hráč dohrál a soupeř také (nebo je zápas rozhodnutý). Cizí zápas (stejně jako
+    // tournament_details v databázi): rozhodnutý, aspoň jeden hráč ho odehrál a já nemám v tomtéž kole vlastní zápas neodehraný
+    // (zápasy kola mají stejné otázky). matches = všechny zápasy turnaje.
+    const canTournamentBreakdown = (match, meId, matches = []) => {
+        if (!match || !meId) return false;
+        const done = (m, userId) => (m.results || []).some(item => item.user_id === userId && item.finished_at);
+        if (!Tournament.involves(match, meId)) {
+            if (!match.winner || !(done(match, match.p1) || done(match, match.p2))) return false;
+            return !matches.some(other => other.round === match.round && Tournament.involves(other, meId) && !other.winner && !done(other, meId));
+        }
         const rival = match.p1 === meId ? match.p2 : match.p1;
-        return done(meId) && (done(rival) || Boolean(match.winner));
+        return done(match, meId) && (done(match, rival) || Boolean(match.winner));
     };
     const BREAKDOWN_LINK = 'flex min-h-[2.25rem] items-center justify-center gap-1.5 self-start rounded-lg px-1 text-[12px] font-black text-brand-700 hover:underline dark:text-brand-200';
 
@@ -7642,7 +7656,7 @@
         const user = signedUser();
         const rivals = user && Array.isArray(c.lastResults) ? c.lastResults.filter(row => row.user_id !== user.id) : [];
         const rival = rivals.length === 1 ? playerName(rivals[0].player) : '';
-        return { kicker: `Výzva · ${challengeTopicTitle(c.topic)}`, headline: `${correct}/${c.count}`, detail: `${formatPoints(points)} · vítězství`, grid: Array.from({ length: c.count }, (_, i) => (c.results[i] ? Boolean(c.results[i].correct) : null)),
+        return { kicker: `Výzva · ${challengeTopicTitle(c.topic)}`, headline: formatPoints(points), detail: `${correct}/${c.count} správně · vítězství`, grid: Array.from({ length: c.count }, (_, i) => (c.results[i] ? Boolean(c.results[i].correct) : null)),
             note: rival ? `Vyhráno proti hráči ${rival}` : rivals.length ? `Vyhráno proti ${plural(rivals.length, 'hráči', 'hráčům', 'hráčům')}` : 'Zvládneš to líp?', day: getDayKey(), robe: robeNow(), pose: 'vitez', url: appUrl(), appName: APP_NAME };
     };
     const shareChallengeImage = () => {
@@ -7667,7 +7681,7 @@
     let tournamentQuery = '';
     const tournamentServerResume = new Set(); // rozehrané zápasy, jejichž odpovědi zná server (dají se dohrát bez uložené relace)
     let tournamentMode = 'bracket'; // pohled v okně turnaje: 'bracket' (pavouk) nebo 'rounds' (seznam kol)
-    let bracketFull = null; // null = podle toho, kde jsem (vypadl jsem před osmifinále → celý pavouk); jinak volba hráče
+    let bracketFull = true; // výchozí je celý pavouk; tlačítko Celý pavouk přepne na pohled od osmifinále (volba hráče)
     let bracketFocus = ''; // hráč, jehož cesta pavoukem je zvýrazněná (klepnutí na hráče)
     let bracketReset = true; // po otevření a změně pohledu se pavouk posune na moje kolo, při dalším překreslení zůstane, kde je
     const resetTournaments = () => { tournamentOffer = null; tournamentView = null; tournamentTickAt = 0; tournamentStatsAt = 0; tournamentBusy = ''; tournamentAgain = null; tournamentServerResume.clear(); };
@@ -8025,7 +8039,7 @@
 
     // --- Okno turnaje: stav, konečné pořadí, kola se zápasy (aktuální rozbalené) ---
     // Jeden zápas: dva hráči pod sebou, výsledek (až když ho server ukáže), vítěz; můj zápas je zvýrazněný
-    const tournamentMatchHtml = (match, players, meId, { breakdown = false, tid = '' } = {}) => {
+    const tournamentMatchHtml = (match, players, meId, { breakdown = false, tid = '', matches = [] } = {}) => {
         const mine = Tournament.involves(match, meId);
         const how = match.decided_by === 'walkover' ? 'Kontumačně: soupeř kolo neodehrál.' : match.decided_by === 'earlier' ? 'Nikdo neodehrál, postupuje dřívější přihlášený.' : '';
         const row = (id) => {
@@ -8033,7 +8047,7 @@
             const result = match.results.find(item => item.user_id === id);
             const done = result && result.finished_at;
             const won = match.winner === id;
-            const score = done ? `${result.correct}/${Tournament.QUESTIONS} · ${result.points} b` : match.winner ? 'neodehráno' : '';
+            const score = done ? `${result.points} b · ${result.correct}/${Tournament.QUESTIONS}${Number.isInteger(result.time_ms) ? ` · ${Tournament.formatDuration(result.time_ms)}` : ''}` : match.winner ? 'neodehráno' : '';
             return `<div class="flex items-center gap-2 ${match.winner && !won ? 'opacity-60' : ''}">
                 ${avatarHtml(entry ? entry.player : null, 'h-7 w-7 text-sm')}
                 <span class="min-w-0 flex-1 truncate text-[12.5px] ${won ? 'font-black' : 'font-bold'} text-slate-800 dark:text-slate-100">${escapeHtml(playerName(entry ? entry.player : null))}${id === meId ? ' (ty)' : ''}</span>
@@ -8042,7 +8056,7 @@
             </div>`;
         };
         const names = plainText(`${playerName((players.get(match.p1) || {}).player)} ${playerName((players.get(match.p2) || {}).player)}`);
-        return `<li data-match="${escapeHtml(match.id)}" ${mine ? 'data-mine' : ''} data-names="${escapeHtml(names)}" class="flex flex-col gap-1 rounded-xl bg-white px-2.5 py-1.5 shadow-sm dark:bg-slate-800 ${mine ? 'ring-2 ring-brand-600' : 'ring-1 ring-slate-200/70 dark:ring-slate-700/70'}">${row(match.p1)}${row(match.p2)}${how ? `<p class="text-[10.5px] font-semibold text-slate-500 dark:text-slate-400">${escapeHtml(how)}</p>` : ''}${breakdown && tid && canTournamentBreakdown(match, meId) ? `<button type="button" data-action="tournament-breakdown" data-tid="${escapeHtml(tid)}" data-mid="${escapeHtml(match.id)}" class="${BREAKDOWN_LINK}"><i data-lucide="list-ordered" class="h-3.5 w-3.5"></i> Rozpis otázek</button>` : ''}</li>`;
+        return `<li data-match="${escapeHtml(match.id)}" ${mine ? 'data-mine' : ''} data-names="${escapeHtml(names)}" class="flex flex-col gap-1 rounded-xl bg-white px-2.5 py-1.5 shadow-sm dark:bg-slate-800 ${mine ? 'ring-2 ring-brand-600' : 'ring-1 ring-slate-200/70 dark:ring-slate-700/70'}">${row(match.p1)}${row(match.p2)}${how ? `<p class="text-[10.5px] font-semibold text-slate-500 dark:text-slate-400">${escapeHtml(how)}</p>` : ''}${breakdown && tid && canTournamentBreakdown(match, meId, matches) ? `<button type="button" data-action="tournament-breakdown" data-tid="${escapeHtml(tid)}" data-mid="${escapeHtml(match.id)}" class="${BREAKDOWN_LINK}"><i data-lucide="list-ordered" class="h-3.5 w-3.5"></i> ${mine ? 'Rozpis otázek' : 'Rozpis zápasu'}</button>` : ''}</li>`;
     };
     const tournamentRoundsHtml = (view, meId, today) => {
         const { tournament, entries, matches } = view;
@@ -8058,7 +8072,7 @@
                     <span class="min-w-0 flex-1"><span class="block truncate text-[13px] font-black text-slate-800 dark:text-slate-100">${escapeHtml(group.name)}</span><span class="block truncate text-[11px] font-semibold text-slate-500 dark:text-slate-400">${escapeHtml(Tournament.dayWord(group.day, today))} · ${decidedCount}/${group.matches.length} rozhodnuto</span></span>
                     <i data-lucide="chevron-down" class="h-4 w-4 shrink-0 text-slate-500 transition-transform group-open:rotate-180 dark:text-slate-400"></i>
                 </summary>
-                <ul class="mt-1.5 flex flex-col gap-1.5">${group.matches.map(match => tournamentMatchHtml(match, players, meId, { breakdown: true, tid: tournament.id })).join('')}</ul>
+                <ul class="mt-1.5 flex flex-col gap-1.5">${group.matches.map(match => tournamentMatchHtml(match, players, meId, { breakdown: true, tid: tournament.id, matches })).join('')}</ul>
             </details>`;
         }).join('');
     };
@@ -8094,6 +8108,7 @@
 
     // --- Pavouk jako v NHL playoff: sloupce kol zleva doprava, kompaktní karty se dvěma řádky, spojnice, vítěz vpravo ---
     const BRACKET_CHECK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="h-3 w-3 shrink-0 text-emerald-600 dark:text-emerald-400"><path d="M5 13l4 4L19 7"/></svg>';
+    const BRACKET_LIST = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="h-3.5 w-3.5"><path d="M10 6h11M10 12h11M10 18h11M4 6h1M4 12h1M4 18h1"/></svg>';
     const bracketRowHtml = (card, index, ctx) => {
         const side = card.sides[index];
         if (!side.id) return '<div class="flex h-5 items-center gap-1 px-1.5"><span class="h-4 w-4 shrink-0 rounded-full border border-dashed border-slate-300 dark:border-slate-600"></span><span class="text-[11px] font-semibold text-slate-400 dark:text-slate-500">—</span></div>';
@@ -8101,7 +8116,7 @@
         const name = playerName(entry ? entry.player : null);
         const mine = side.id === ctx.me;
         const tone = side.won ? 'font-black text-slate-900 dark:text-white' : side.lost ? 'font-semibold text-slate-400 dark:text-slate-500' : mine ? 'font-black text-brand-700 dark:text-brand-200' : 'font-bold text-slate-700 dark:text-slate-200';
-        const score = side.correct != null ? `${side.correct}/${Tournament.QUESTIONS}` : '—';
+        const score = side.points != null ? `${side.points} b` : '—';
         return `<button type="button" data-bp="${escapeHtml(side.id)}" data-bk="${card.key}" aria-pressed="${ctx.focus === side.id}" aria-label="${escapeHtml(`${name}${mine ? ' (ty)' : ''}: ${side.won ? 'vítěz, ' : ''}zvýraznit cestu pavoukem`)}" class="flex h-5 w-full items-center gap-1 px-1.5 text-left ${ctx.focus === side.id ? 'bg-gold-100 dark:bg-gold-900/40' : ''}">
             ${avatarHtml(entry ? entry.player : null, 'h-4 w-4 text-[10px]')}
             <span class="min-w-0 flex-1 truncate text-[11px] leading-none ${tone}">${escapeHtml(name)}</span>
@@ -8113,7 +8128,11 @@
         const onPath = ctx.path.keys.has(card.key);
         const ring = onPath ? (ctx.focus ? 'ring-2 ring-gold-500' : 'ring-2 ring-brand-600 dark:ring-brand-400') : card.waits && !ctx.focus ? 'ring-2 ring-brand-400/70 dark:ring-brand-500/70' : 'ring-1 ring-slate-200 dark:ring-slate-700';
         const names = plainText([card.p1, card.p2].map(id => playerName((ctx.players.get(id) || {}).player)).join(' '));
-        return `<div data-bcard ${onPath ? 'data-onpath' : ''} data-names="${escapeHtml(names)}" ${card.id ? `data-match="${escapeHtml(card.id)}"` : ''} class="overflow-hidden rounded-lg shadow-sm ${card.exists ? 'bg-white dark:bg-slate-800' : 'bg-slate-100/80 dark:bg-slate-800/50'} ${ring}">${bracketRowHtml(card, 0, ctx)}<div class="h-px bg-slate-200 dark:bg-slate-700"></div>${bracketRowHtml(card, 1, ctx)}</div>`;
+        // Rozhodnutý zápas, který smím vidět: úzké tlačítko vpravo otevře rozpis zápasu (kdo co odpověděl, body, čas)
+        const match = card.id && ctx.tid ? ctx.matches.find(item => item.id === card.id) : null;
+        const open = match && canTournamentBreakdown(match, ctx.me, ctx.matches)
+            ? `<button type="button" data-action="tournament-breakdown" data-tid="${escapeHtml(ctx.tid)}" data-mid="${escapeHtml(card.id)}" aria-label="${escapeHtml(`Rozpis zápasu ${names}`)}" title="Rozpis zápasu" class="flex w-6 shrink-0 items-center justify-center border-l border-slate-200 text-brand-700 hover:bg-brand-50 dark:border-slate-700 dark:text-brand-200 dark:hover:bg-slate-700">${BRACKET_LIST}</button>` : '';
+        return `<div data-bcard ${onPath ? 'data-onpath' : ''} data-names="${escapeHtml(names)}" ${card.id ? `data-match="${escapeHtml(card.id)}"` : ''} class="flex overflow-hidden rounded-lg shadow-sm ${card.exists ? 'bg-white dark:bg-slate-800' : 'bg-slate-100/80 dark:bg-slate-800/50'} ${ring}"><div class="min-w-0 flex-1">${bracketRowHtml(card, 0, ctx)}<div class="h-px bg-slate-200 dark:bg-slate-700"></div>${bracketRowHtml(card, 1, ctx)}</div>${open}</div>`;
     };
     const bracketHtml = (view, meId, today) => {
         const { tournament, entries, matches } = view;
@@ -8127,7 +8146,7 @@
         const full = bracketFull === null ? Boolean(playing && bracket.focusRound < start) : bracketFull;
         const from = full ? 1 : Math.max(1, Math.min(start, lastDone || start));
         const path = Tournament.playerPath(bracket, bracketFocus || meId);
-        const ctx = { players, me: meId, focus: bracketFocus, path };
+        const ctx = { players, me: meId, focus: bracketFocus, path, matches, tid: tournament.id };
         const lit = ctx.focus ? 'border-gold-500' : 'border-brand-600 dark:border-brand-400';
         const line = (on) => on ? lit : 'border-slate-300 dark:border-slate-600';
         const last = bracket.columns.length;
@@ -8328,7 +8347,7 @@
         tournamentDialogId = tid;
         tournamentQuery = '';
         tournamentMode = 'bracket';
-        bracketFull = null;
+        bracketFull = true;
         bracketFocus = '';
         bracketReset = true;
         renderTournamentDialog();
@@ -8522,8 +8541,8 @@
                     ${uiArt(`sova-${state === 'ok' ? owl : 'oslava'}`, 'mx-auto -mt-1 mb-1 h-24 w-24')}
                     ${state === 'ok' ? `<p class="mt-1 text-xl font-black leading-tight ${owl === 'vitez' ? 'text-gold-300' : ''}">${escapeHtml(headline)}</p>` : ''}
                     <p class="mt-2 text-xs font-black uppercase tracking-widest text-white/80">Turnaj · ${escapeHtml(tour.name || '')}</p>
-                    <p class="mt-0.5 text-4xl font-black">${correct}/${c.count}</p>
-                    <p class="mt-1 text-sm font-bold text-white/90">${escapeHtml(formatPoints(points))}</p>
+                    <p data-result-points class="mt-0.5 text-4xl font-black">${escapeHtml(formatPoints(points))}</p>
+                    <p data-result-correct class="mt-1 text-sm font-bold text-white/90">${correct}/${c.count} správně</p>
                 </div>
                 ${body}
                 ${state === 'ok' && canTournamentBreakdown(match, user && user.id) ? `<button type="button" data-action="tournament-breakdown" data-tid="${escapeHtml(tour.tid)}" data-mid="${escapeHtml(tour.mid)}" class="${SECONDARY_BUTTON}"><i data-lucide="list-ordered" class="h-5 w-5"></i> Rozpis otázek</button>` : ''}

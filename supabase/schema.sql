@@ -2894,7 +2894,23 @@ declare uid uuid := auth.uid(); m public.tournament_matches; rival uuid; open_ri
 begin
     if uid is null then raise exception 'Přihlas se.' using errcode = '42501'; end if;
     select * into m from public.tournament_matches tm where tm.id = mid;
-    if m.id is null or uid not in (m.p1, m.p2) then raise exception 'Tohle není tvůj zápas.' using errcode = '42501'; end if;
+    if m.id is null then raise exception 'Zápas neexistuje.' using errcode = '42501'; end if;
+    if uid not in (m.p1, m.p2) then
+        -- Cizí zápas (schéma 13): kdokoli přihlášený, až je rozhodnutý. Zápasy jednoho kola mají stejné otázky, proto ho neuvidí hráč,
+        -- který má v tomtéž kole vlastní zápas ještě neodehraný (dokud ho nedohraje nebo se nerozhodne)
+        if m.winner is null then raise exception 'Rozpis cizího zápasu uvidíš, až bude rozhodnutý.' using errcode = '42501'; end if;
+        if exists (select 1 from public.tournament_matches x where x.tournament_id = m.tournament_id and x.round = m.round and uid in (x.p1, x.p2)
+                and x.winner is null and not exists (select 1 from public.tournament_results tr where tr.match_id = x.id and tr.user_id = uid and tr.finished_at is not null)) then
+            raise exception 'Rozpis zápasů tohoto kola uvidíš, až odehraješ svůj zápas.' using errcode = '42501';
+        end if;
+        return query
+            select a.user_id, a.idx, a.correct, a.points, a.answer, a.hints::integer, a.ms
+            from public.tournament_answers a
+            where a.match_id = m.id and a.user_id in (m.p1, m.p2)
+            order by a.user_id, a.idx
+            limit 20;
+        return;
+    end if;
     if not exists (select 1 from public.tournament_results tr where tr.match_id = m.id and tr.user_id = uid and tr.finished_at is not null) then
         raise exception 'Rozpis otázek uvidíš, až zápas dohraješ.' using errcode = '42501';
     end if;
@@ -2937,7 +2953,8 @@ grant execute on function public.challenge_progress_save(text, integer, boolean,
 -- 11: upozornění na dohranou výzvu otevřou rovnou její výsledek (push_pending: odkaz s &vyzva=KÓD).
 -- 12: boti v turnajích hrají sami každý den od 9:00 (tournament_clock, tournament_bots_due v tournament_tick) a vývojářské dev_tournament_bots_play;
 --     o vítězi výzvy i zápasu turnaje rozhodují body, počet správných odpovědí až při shodě (rate_challenge, tournament_pick_winner, friends_list, group_detail).
+-- 13: tournament_details ukáže rozpis i cizího rozhodnutého zápasu (ne hráči, který má v tomtéž kole vlastní zápas neodehraný).
 create or replace function public.schema_version() returns integer
-language sql immutable as $$ select 12 $$;
+language sql immutable as $$ select 13 $$;
 revoke all on function public.schema_version() from public, anon;
 grant execute on function public.schema_version() to authenticated;

@@ -200,11 +200,18 @@ const backend = async (context, db) => {
                 db.answers.push({ match_id: body.mid, user_id: me.id, idx: body.idx, correct: body.correct, points: body.points, answer: body.answer ?? null, hints: body.hints ?? null, ms: body.ms ?? null });
                 return json(mine.length + 1);
             }
-            // Rozpis zápasu (jako tournament_details): jen hráč zápasu, až ho sám dohraje; soupeřovy odpovědi po jeho dohrání nebo rozhodnutí
+            // Rozpis zápasu (jako tournament_details): hráč zápasu, až ho sám dohraje; soupeřovy odpovědi po jeho dohrání nebo rozhodnutí.
+            // Cizí zápas (schéma 13): rozhodnutý a já v tomtéž kole nemám vlastní zápas neodehraný
             if (rpc[1] === 'tournament_details') {
                 const m = matchRow(body.mid);
-                if (!m || ![m.p1, m.p2].includes(me.id)) return fail('Tohle není tvůj zápas.', 403);
-                const done = (uid) => db.results.some(row => row.match_id === m.id && row.user_id === uid && row.finished_at);
+                if (!m) return fail('Zápas neexistuje.', 403);
+                const done = (uid, matchId = m.id) => db.results.some(row => row.match_id === matchId && row.user_id === uid && row.finished_at);
+                if (![m.p1, m.p2].includes(me.id)) {
+                    if (!m.winner) return fail('Rozpis cizího zápasu uvidíš, až bude rozhodnutý.', 403);
+                    const pending = db.matches.some(x => x.tournament_id === m.tournament_id && x.round === m.round && [x.p1, x.p2].includes(me.id) && !x.winner && !done(me.id, x.id));
+                    if (pending) return fail('Rozpis zápasů tohoto kola uvidíš, až odehraješ svůj zápas.', 403);
+                    return json(db.answers.filter(row => row.match_id === m.id).map(({ match_id, ...rest }) => rest));
+                }
                 if (!done(me.id)) return fail('Rozpis otázek uvidíš, až zápas dohraješ.', 403);
                 const rival = m.p1 === me.id ? m.p2 : m.p1;
                 return json(db.answers.filter(row => row.match_id === m.id && (row.user_id === me.id || (row.user_id === rival && (m.winner || done(rival))))).map(({ match_id, ...rest }) => rest));
@@ -989,9 +996,32 @@ test('týdenní turnaje', { skip: !chromium && 'Playwright není nainstalovaný'
         await tab.click('#tournament-rounds details[data-round="1"] summary');
         const first = (await tab.textContent('#tournament-rounds li[data-match="' + uuid(200) + '"]')).replace(/\s+/g, ' ');
         assert.match(first, /Jana Nováková \(ty\)/);
-        assert.match(first, /8\/10 · 12 b/);
+        assert.match(first, /12 b · 8\/10/);
         assert.match(first, /Petr Svoboda/);
         assert.match(await tab.textContent('#tournament-rounds li[data-match="' + uuid(203) + '"]'), /Kontumačně/);
+        assert.match(first, /12 b · 8\/10 · 0:10/, 'body, správně a celkový čas');
+        // Rozpis cizího zápasu: rozhodnuté zápasy 1. kola (svůj jsem odehrál) ano, nerozhodnutá čtvrtfinále ne
+        assert.equal(await tab.locator('#tournament-rounds details[data-round="1"] [data-action="tournament-breakdown"]').count(), 8, 'všech 8 rozhodnutých zápasů');
+        assert.equal(await tab.locator('#tournament-rounds details[data-round="2"] [data-action="tournament-breakdown"]').count(), 0);
+        assert.match(await tab.textContent(`#tournament-rounds li[data-match="${uuid(201)}"] [data-action="tournament-breakdown"]`), /Rozpis zápasu/);
+        await tab.evaluate(() => { document.querySelector('#tournament-rounds details[data-round="1"]').open = true; });
+        await tab.click(`#tournament-rounds li[data-match="${uuid(201)}"] [data-action="tournament-breakdown"]`);
+        await tab.waitForSelector('#breakdown-list [data-bd-row]', { timeout: 30000 });
+        const spectated = (await tab.textContent('#dialog-overlay')).replace(/\s+/g, ' ');
+        assert.ok(spectated.includes(db.profiles[players[2]].display_name) && spectated.includes(db.profiles[players[3]].display_name), 'oba hráči jménem');
+        assert.ok(!/\bTy\b/.test(spectated), 'divák není „Ty“');
+        // (odpovědi po otázkách vykresluje stejná buňka jako u vlastního zápasu, viz e2e-challenge-breakdown; zdejší hráči nemají UUID)
+        assert.match(spectated, /12 b · 7\/10 · 0:10/, 'celkem: body, správně a čas');
+        assert.match(spectated, /5 b · 3\/10 · 0:11/);
+        assert.ok(db.calls.some(call => call.name === 'tournament_details' && call.body.mid === uuid(201)));
+        assert.equal(await tab.locator('#breakdown-list [data-bd-row="0"] [data-bd-cell]').count(), 2);
+        await tab.keyboard.press('Escape');
+        await tab.waitForFunction(() => !document.querySelector('#dialog-overlay #breakdown-list'));
+        if (!(await tab.locator('#tournament-rounds').count())) {
+            await tab.click('#tournament-card [data-action="tournament-open"]');
+            await tab.click('[data-t-mode="rounds"]');
+            await tab.waitForSelector('#tournament-rounds');
+        }
         await shot(tab, 'turnaj-dialog-360');
         // Hledání hráče rozbalí kola a schová ostatní zápasy
         await tab.fill('#tournament-search', 'petr');
@@ -1113,6 +1143,12 @@ test('týdenní turnaje', { skip: !chromium && 'Playwright není nainstalovaný'
         await tab.click('#tournament-card [data-action="tournament-open"]');
         await tab.waitForSelector('#tournament-bracket [data-bcard]');
     };
+    // Celý pavouk zapnout / vypnout (výchozí je zapnutý); klepne jen, když je stav jiný
+    const setFull = async (tab, want) => {
+        if ((await tab.getAttribute('#tournament-bracket button[data-b-full]', 'aria-pressed')) === String(want)) return;
+        await tab.click('#tournament-bracket button[data-b-full]');
+        await tab.waitForFunction((on) => document.querySelector('#tournament-bracket button[data-b-full]').getAttribute('aria-pressed') === String(on), want);
+    };
     const columnsOf = (tab) => tab.locator('#bracket-scroll [data-bcol]').evaluateAll(list => list.map(item => item.dataset.bcol));
     const cardsIn = (tab, round) => tab.locator(`#bracket-scroll [data-bcol="${round}"] [data-bcard]`).count();
     const showBracket = (tab) => tab.evaluate(() => { document.getElementById('tournament-bracket').scrollIntoView({ block: 'start' }); });
@@ -1126,7 +1162,11 @@ test('týdenní turnaje', { skip: !chromium && 'Playwright není nainstalovaný'
         await tab.waitForSelector('#tournament-card');
         assert.match((await tab.textContent('#tournament-card')).replace(/\s+/g, ' '), /Běží · Semifinále/);
         await openDialog(tab);
-        // Výchozí pohled: od osmifinále (zbývá 16 hráčů), pohár a vítěz vpravo
+        // Výchozí pohled je celý pavouk; přepnutím od osmifinále (zbývá 16 hráčů), pohár a vítěz vpravo
+        assert.equal(await tab.locator('#tournament-bracket button[data-b-full]').getAttribute('aria-pressed'), 'true', 'výchozí je celý pavouk');
+        assert.deepEqual(await columnsOf(tab), ['1', '2', '3', '4', '5', 'cup']);
+        await setFull(tab, false);
+        await tab.waitForFunction(() => document.querySelector('#bracket-scroll').dataset.from === '2');
         assert.deepEqual(await columnsOf(tab), ['2', '3', '4', '5', 'cup']);
         assert.deepEqual([await cardsIn(tab, 2), await cardsIn(tab, 3), await cardsIn(tab, 4), await cardsIn(tab, 5)], [8, 4, 2, 2], 've finálovém sloupci i zápas o 3. místo');
         const heads = (await tab.locator('#bracket-scroll [data-bcol] > div:first-child').allInnerTexts()).map(text => text.replace(/\s+/g, ' ').trim());
@@ -1138,9 +1178,10 @@ test('týdenní turnaje', { skip: !chromium && 'Playwright není nainstalovaný'
         // Karta má dva řádky: avatar, jméno, skóre x/10; vítěz s fajfkou, poražený ztlumený; nehraný zápas „—“
         const first = tab.locator('#bracket-scroll [data-bcell="2-1"] [data-bcard]');
         const text = (await first.innerText()).replace(/\s+/g, ' ');
-        assert.match(text, /Jana Nováková \d\/10.*Adam 1 \d\/10/);
+        assert.match(text, /Jana Nováková \d+ b.*Adam 1 \d+ b/);
         assert.equal(await first.locator('svg path[d="M5 13l4 4L19 7"]').count(), 1, 'jedna fajfka u vítěze');
-        assert.equal(await first.locator('button').count(), 2);
+        assert.equal(await first.locator('button[data-bp]').count(), 2);
+        assert.equal(await first.locator('[data-action="tournament-breakdown"]').count(), 1, 'rozhodnutý zápas: tlačítko rozpisu vpravo na kartě');
         const box = await first.boundingBox();
         assert.ok(box.height >= 38 && box.height <= 46, `kompaktní karta (${box.height})`);
         const semi = (await tab.locator('#bracket-scroll [data-bcell="4-1"] [data-bcard]').innerText()).replace(/\s+/g, ' ');
@@ -1160,7 +1201,7 @@ test('týdenní turnaje', { skip: !chromium && 'Playwright není nainstalovaný'
         assert.deepEqual(await noHorizontalScroll(tab), { page: 0, content: 0, dialog: 0 });
         await shot(tab, 'pavouk-32-osmifinale-360');
         // Celý pavouk: všechna kola
-        await tab.click('[data-b-full]');
+        await setFull(tab, true);
         await tab.waitForSelector('#bracket-scroll [data-bcol="1"]');
         assert.deepEqual(await columnsOf(tab), ['1', '2', '3', '4', '5', 'cup']);
         assert.equal(await cardsIn(tab, 1), 16);
@@ -1169,7 +1210,7 @@ test('týdenní turnaje', { skip: !chromium && 'Playwright není nainstalovaný'
         await tab.evaluate(() => document.getElementById('bracket-scroll').scrollTo({ left: 0, top: 0 }));
         await shot(tab, 'pavouk-32-cely-360');
         assert.deepEqual(await noHorizontalScroll(tab), { page: 0, content: 0, dialog: 0 });
-        await tab.click('[data-b-full]');
+        await setFull(tab, false);
         await tab.waitForFunction(() => document.querySelector('#bracket-scroll').dataset.from === '2');
         // Klepnutí na hráče zvýrazní jeho cestu, ostatní zmizí do pozadí, druhé klepnutí zruší
         const target = ids[8];
@@ -1227,7 +1268,7 @@ test('týdenní turnaje', { skip: !chromium && 'Playwright není nainstalovaný'
         // Osmifinále ještě není odehrané, ale 1. kolo (šestnáctifinále) s výsledky je v pavouku jako první sloupec
         assert.deepEqual((await columnsOf(tab)).slice(0, 2), ['1', '2']);
         assert.equal(await cardsIn(tab, 1), 16);
-        assert.match((await tab.locator('#bracket-scroll [data-bcell="1-1"] [data-bcard]').innerText()).replace(/\s+/g, ' '), /\d+\/10/, 'skóre z 1. kola je vidět');
+        assert.match((await tab.locator('#bracket-scroll [data-bcell="1-1"] [data-bcard]').innerText()).replace(/\s+/g, ' '), /\d+ b/, 'body z 1. kola jsou vidět');
         // Seznam kol: rozbalené je aktuální i poslední dohrané kolo
         await tab.click('#tournament-bracket button[data-b-full]').catch(() => {});
         await tab.click('button:has-text("Seznam kol")');
@@ -1244,6 +1285,8 @@ test('týdenní turnaje', { skip: !chromium && 'Playwright není nainstalovaný'
         assert.equal(new Set(ids).size, 128);
         const { context, tab, log } = await start(db, { now: '2026-11-16T10:00:00Z', viewport: { width: 390, height: 780 } });
         await openDialog(tab);
+        assert.equal(await cardsIn(tab, 1), 64, 'výchozí je celý pavouk');
+        await setFull(tab, false);
         assert.deepEqual(await columnsOf(tab), ['4', '5', '6', '7', 'cup'], 'od osmifinále (zbývá 16 hráčů)');
         assert.deepEqual([await cardsIn(tab, 4), await cardsIn(tab, 5), await cardsIn(tab, 6), await cardsIn(tab, 7)], [8, 4, 2, 2]);
         // Vítěz a pódium
@@ -1268,7 +1311,7 @@ test('týdenní turnaje', { skip: !chromium && 'Playwright není nainstalovaný'
         assert.deepEqual(await noHorizontalScroll(tab), { page: 0, content: 0, dialog: 0 });
         // Pavouk celý: sedm sloupců, 64 karet v prvním, svislé posouvání uvnitř kontejneru
         await tab.click('summary[data-ranking]');
-        await tab.click('[data-b-full]');
+        await setFull(tab, true);
         await tab.waitForSelector('#bracket-scroll [data-bcol="1"]');
         assert.deepEqual(await columnsOf(tab), ['1', '2', '3', '4', '5', '6', '7', 'cup']);
         assert.equal(await cardsIn(tab, 1), 64);
@@ -1320,7 +1363,7 @@ test('týdenní turnaje', { skip: !chromium && 'Playwright není nainstalovaný'
                     await tab.evaluate(() => { const box = document.getElementById('bracket-scroll'); box.scrollTo({ left: box.scrollWidth, top: 0 }); });
                     assert.deepEqual(await noHorizontalScroll(tab), { page: 0, content: 0, dialog: 0 });
                     await shot(tab, `pavouk-konec-${name}`);
-                    await tab.click('[data-b-full]');
+                    await setFull(tab, true);
                     await tab.waitForSelector('#bracket-scroll [data-bcol="1"]');
                     await showBracket(tab);
                     await tab.evaluate(() => document.getElementById('bracket-scroll').scrollTo({ left: 0, top: 0 }));

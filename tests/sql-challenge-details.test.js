@@ -150,14 +150,30 @@ test('SQL: rozpis otázek po výzvě a zápasu turnaje', { skip: !available && '
         ok(as(p1, finishMatchSql(mid, 7, 20)));
         assert.equal(detailRows(ok(tourDetails(p1, mid))).length, 10, 'jen vlastních 10 odpovědí, soupeř ještě nehrál');
         denied(tourDetails(p2, mid), /až zápas dohraješ/, 'soupeř bez odehrání nevidí odpovědi p1');
-        denied(tourDetails(outsider, mid), /není tvůj zápas/, 'cizí hráč');
+        denied(tourDetails(outsider, mid), /až bude rozhodnutý/, 'cizí hráč nevidí nerozhodnutý zápas');
         denied(as(p1, `select * from tournament_details('${mid}');`, MON, 'anon'), null, 'role anon');
         ok(as(p2, `select tournament_start_match('${mid}'); ${finishMatchSql(mid, 5, 15)}`));
         const rows = detailRows(ok(tourDetails(p2, mid)));
         assert.equal(rows.length, 20, 'po dohrání obou: obě strany');
         assert.ok(rows.some(row => row.endsWith('|0|t|3|Řím|1|2500')), rows.join('\n'));
         assert.equal(detailRows(ok(tourDetails(p1, mid))).length, 20);
-        // výsledek zápasu se nezměnil (rozhoduje dál počet správných, pak body, pak čas)
+        // výsledek zápasu se nezměnil (rozhodují body, pak počet správných, pak čas)
         assert.equal(q(`select (winner = '${p1}')::text || ' ' || decided_by from tournament_matches where id = '${mid}'`), 'true played');
+    });
+
+    await t.test('rozpis cizího zápasu: rozhodnutý zápas vidí každý, kdo už svůj zápas kola dohrál nebo v kole nehraje', () => {
+        const tid = q(`select id from tournaments where status = 'running'`);
+        const [mid, p1, p2] = q(`select id || '|' || p1 || '|' || p2 from tournament_matches where tournament_id = '${tid}' and round = 1 order by slot limit 1`).split('|');
+        const [other, o1] = q(`select id || '|' || p1 from tournament_matches where tournament_id = '${tid}' and round = 1 and '${p1}' not in (p1, p2) order by slot limit 1`).split('|');
+        // hráč jiného zápasu téhož kola, který svůj zápas ještě nehrál, rozpis nevidí (stejné otázky)
+        denied(tourDetails(o1, mid), /až odehraješ svůj zápas/, 'neodehraný zápas v tomtéž kole');
+        ok(as(o1, `select tournament_start_match('${other}'); ${finishMatchSql(other, 6, 18)}`));
+        const rows = detailRows(ok(tourDetails(o1, mid)));
+        assert.equal(rows.length, 20, 'po vlastním dohrání vidí oba hráče cizího zápasu');
+        assert.ok(rows.some(row => row.endsWith('|0|t|3|Řím|1|2500')), 'i text odpovědi, nápovědy a čas');
+        // kdo v turnaji vůbec nehraje (hráč 9), vidí rozhodnutý zápas hned
+        assert.equal(detailRows(ok(tourDetails(id(9), mid))).length, 20);
+        denied(as(id(9), `select * from tournament_details('${mid}');`, MON, 'anon'), null, 'bez přihlášení ne');
+        assert.ok([p1, p2].every(Boolean));
     });
 });

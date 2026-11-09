@@ -282,7 +282,7 @@
                 : { key: third ? 'third' : `${round}-${slot}`, id: '', round, slot, third, exists: false, p1: p1 || null, p2: p2 || null, winner: null, decidedBy: null, results: [] };
             card.sides = [card.p1, card.p2].map(id => {
                 const result = id ? card.results.find(row => row.user_id === id && row.finished_at) : null;
-                return { ...sideOf(card, id), correct: result ? result.correct : null };
+                return { ...sideOf(card, id), correct: result ? result.correct : null, points: result ? result.points : null };
             });
             card.mine = Boolean(me && (card.p1 === me || card.p2 === me));
             card.waits = false;
