@@ -28,7 +28,7 @@ test('sport: známí sportovci, hry a sporty, česká stopa a čistá data', () 
     assert.equal(find('Jaromír Jágr').cz, 1);
     assert.equal(find('Pelé').cz, undefined);
     // Slavní hlavně něčím jiným, i když hráli sport, mezi sportovci nejsou
-    for (const name of ['Albert Camus', 'Niels Bohr', 'Ivana Trumpová', 'Edvard Beneš', 'Henry Ford', 'Viktor Orbán', 'Sean Connery']) {
+    for (const name of ['Albert Camus', 'Niels Bohr', 'Ivana Trumpová', 'Edvard Beneš', 'Henry Ford', 'Viktor Orbán', 'Sean Connery', 'Yanni', 'Suthida']) {
         assert.ok(!find(name), `${name} není sportovec`);
     }
     // Zrušené (1916, 1940, 1944) a budoucí hry chybí
@@ -170,7 +170,7 @@ test('sport: kluby, sportoviště a soutěže – známé položky, fakta, nápo
     const clubs = byCategory('kluby');
     const venues = byCategory('sportoviste');
     const competitions = byCategory('souteze');
-    assert.ok(clubs.length >= 250 && venues.length >= 350 && competitions.length >= 60, `${clubs.length}/${venues.length}/${competitions.length}`);
+    assert.ok(clubs.length >= 400 && venues.length >= 400 && competitions.length >= 140, `${clubs.length}/${venues.length}/${competitions.length}`);
     for (const name of ['Real Madrid CF', 'AC Sparta Praha', 'Camp Nou', 'Old Trafford', 'Wimbledon', 'Tour de France', 'Liga mistrů UEFA']) {
         assert.ok(find(name) && find(name).k === 1, `chybí známá položka ${name}`);
     }
@@ -221,4 +221,68 @@ test('sport: kluby, sportoviště a soutěže – známé položky, fakta, nápo
     assert.ok(inCollection('okruhy').every(name => venues.some(item => item.n === name && item.ty === 'závodní okruh')));
     assert.ok(inCollection('motorsport').includes('Scuderia Ferrari'));
     assert.ok(!inCollection('severoamericke-ligy').includes('FC Barcelona') && inCollection('severoamericke-ligy').includes('Los Angeles Lakers'));
+});
+
+test('sport: úrovně obtížnosti – Základní v každém okruhu a kategorii, Expert jen pro méně známé', () => {
+    const share = (list, test) => list.filter(test).length / list.length;
+    for (const item of data.items) assert.ok(!(item.k === 1 && item.x), `${item.n}: známá i expertní`);
+    // Celé téma: Základní asi čtvrtina až třetina, Expert asi pětina až třetina
+    const known = share(data.items, item => item.k === 1);
+    const expert = share(data.items, item => item.x);
+    assert.ok(known >= 0.22 && known <= 0.36, `Základní ${known}`);
+    assert.ok(expert >= 0.18 && expert <= 0.32, `Expert ${expert}`);
+    // Každá kategorie a každý okruh od 8 položek má aspoň max(3, 25 %) známých a nejvýš 40 % expertních
+    const groups = [...['sportovci', 'olympiady', 'sporty', 'kluby', 'sportoviste', 'souteze'].map(c => [c, data.items.filter(item => item.c === c)]),
+        ...data.collections.map(collection => [collection.id, inCollection(collection.id).map(find)])];
+    for (const [id, list] of groups) {
+        if (list.length < 8) continue;
+        const knownCount = list.filter(item => item.k === 1).length;
+        assert.ok(knownCount >= Math.max(3, Math.floor(0.25 * list.length)), `${id}: známých ${knownCount} z ${list.length}`);
+        assert.ok(list.filter(item => item.x).length <= Math.ceil(0.4 * list.length), `${id}: příliš expertních`);
+    }
+    // Hvězdy jsou známé, i když mají málo jazykových verzí (rozhoduje i návštěvnost české Wikipedie); perličky expertní
+    for (const name of ['Usain Bolt', 'Michael Phelps', 'Jelena Rybakinová', 'Camp Nou', 'Los Angeles Lakers', 'Tour de France', 'Velká pardubická', 'Bílí Tygři Liberec']) {
+        assert.equal(find(name)?.k, 1, name);
+    }
+    for (const name of ['Royal Bafokeng Stadium', 'Pesäpallo']) assert.equal(find(name)?.x, 1, name);
+    // Olympijské sporty nejsou pro experty; Expert je v každé velké kategorii
+    for (const item of data.items.filter(other => other.c === 'sporty' && other.f.oh)) assert.ok(!item.x, item.n);
+    for (const c of ['sportovci', 'kluby', 'sportoviste', 'souteze']) assert.ok(data.items.filter(item => item.c === c && item.x).length >= 30, c);
+});
+
+test('sport: rozšířené okruhy – olympijští vítězové, legendy, sportovkyně, kluby, okruhy a soutěže', () => {
+    // Nagano 1998: celý zlatý tým (23 hráčů), i bez medaile ve Wikidatech
+    assert.equal(inCollection('nagano').length, 23);
+    for (const name of ['Josef Beránek', 'Milan Hnilička', 'Libor Procházka']) assert.ok(inCollection('nagano').includes(name), name);
+    // Čeští olympijští vítězové i z týmů (fotbal 1980, gymnastky 1948); Slováci z doby Československa ne
+    const czechChampions = inCollection('cesti-olympijsti-vitezove');
+    assert.ok(czechChampions.length >= 90, `${czechChampions.length}`);
+    for (const name of ['Ladislav Vízek', 'Ota Zaremba', 'Martin Fuksa', 'Věra Růžičková', 'Ester Ledecká']) assert.ok(czechChampions.includes(name), name);
+    for (const name of ['Ondrej Nepela', 'Anton Tkáč']) assert.ok(!czechChampions.includes(name), name);
+    // Legendy: aspoň 4 zlaté, i sprinteři, u kterých Wikidata medaile neuvádějí; medaile se nepočítají dvakrát
+    const legends = inCollection('olympijske-legendy');
+    assert.ok(legends.length >= 100, `${legends.length}`);
+    for (const name of ['Usain Bolt', 'Carl Lewis', 'Paavo Nurmi', 'Jesse Owens', 'Michael Phelps', 'Bjørn Dæhlie']) assert.ok(legends.includes(name), name);
+    for (const name of legends) assert.ok(find(name).f.gold >= 4, name);
+    assert.equal(find('Mark Spitz').f.gold, 9);
+    assert.equal(find('Jason Lezak').f.gold, 4);
+    // Sportovkyně všechny ženy, ne jen ty známé
+    const women = inCollection('sportovkyne').map(find);
+    assert.ok(women.length >= 250 && women.every(item => item.sx === 'f'), `${women.length}`);
+    assert.ok(women.filter(item => item.k !== 1).length >= 100);
+    // Kluby zámořských lig a českých soutěží (i ty, které \b v regulárním výrazu dřív vyřadilo), bez finále a ročníků
+    assert.ok(inCollection('severoamericke-ligy').length >= 100);
+    for (const name of ['Toronto Maple Leafs', 'Golden State Warriors', 'Los Angeles Dodgers']) assert.ok(inCollection('severoamericke-ligy').includes(name), name);
+    assert.equal(find('Super Bowl').c, 'souteze');
+    assert.ok(inCollection('ceske-kluby').length >= 140 && inCollection('ceske-kluby').includes('Bílí Tygři Liberec'));
+    assert.ok(!data.items.some(item => item.c === 'kluby' && /sezóna|ročník|\d{4}\/\d{2}/u.test(`${item.n} ${item.d || ''}`)));
+    // Míčové hry i méně známé, bojové a vodní sporty, okruhy bez hipodromů a letišť, soutěže
+    assert.ok(inCollection('micove-hry').length >= 50 && inCollection('micove-hry').includes('Padel'));
+    assert.ok(inCollection('bojove-sporty').length >= 120 && inCollection('vodni-sporty').length >= 150);
+    assert.ok(inCollection('okruhy').length >= 55);
+    assert.ok(!data.items.some(item => item.ty === 'závodní okruh' && /hip+odrom|cirkus|letiště|sjezdovk|dostih/iu.test(`${item.n} ${item.d || ''}`)));
+    assert.equal(find('Ascotské závodiště').ty, 'dostihové závodiště');
+    assert.ok(inCollection('souteze').length >= 140);
+    for (const name of ['Mistrovství světa v ledním hokeji', 'Serie A', 'Velká pardubická']) assert.ok(inCollection('souteze').includes(name), name);
+    assert.doesNotMatch(find('Kolem Flander').d, /Holandsk/);
 });
