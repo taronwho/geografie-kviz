@@ -70,7 +70,17 @@ export const FORMS = {
     'Náhorní plošina': ['horske', 'Tibet, Altiplano v Andách'], 'Kuesta': ['horske', 'Niagarská v Kanadě, Cotswolds v Anglii'],
     'Suť (přírodní)': ['horske', 'Alpy, Vysoké Tatry, Krkonoše'], 'Kuloár': ['horske', 'Alpy, Vysoké Tatry, Krkonoše'],
     // tektonika
-    'Hrásť': ['tektonicke', 'Harz, Vogézy, Schwarzwald'], 'Parovina': ['tektonicke', 'Českomoravská vrchovina, Kanadský štít']
+    'Hrásť': ['tektonicke', 'Harz, Vogézy, Schwarzwald'], 'Parovina': ['tektonicke', 'Českomoravská vrchovina, Kanadský štít'],
+    // další tektonika, krajina, poušť a sopky (jen pojmy se skutečnou fotkou – schémata zemské kůry, pláště či jádra by název prozradila)
+    'Vrása': ['tektonicke', 'Alpy, pohoří Jura, Barrandien'], 'Orogeneze': ['tektonicke', 'vznik Alp, Himálaje a Krkonoš'],
+    'Transformní zlom': ['tektonicke', 'San Andreas v Kalifornii, jižní ostrov Nového Zélandu'], 'Diskordance': ['tektonicke', 'Siccar Point ve Skotsku, Grand Canyon'],
+    'Hora': ['horske', 'Mount Everest, Mont Blanc, Sněžka'], 'Kopec': ['horske', 'Říp, Petřín, Milešovka'], 'Údolí': ['horske', 'Divoká Šárka v Praze, Yosemite v USA'],
+    'Pohoří': ['horske', 'Alpy, Himálaj, Krkonoše'], 'Horské sedlo': ['horske', 'Pomezní boudy v Krkonoších, Pass Thurn v Alpách'],
+    'Průsmyk': ['horske', 'Brenner, Svatý Gotthard, Velký Svatý Bernard'], 'Útes': ['horske', 'Preikestolen v Norsku, Moher v Irsku'],
+    'Oáza': ['pousteni', 'Siwa v Egyptě, Ghadames v Libyi'], 'Hamada': ['pousteni', 'Sahara (Tademaït, Hoggar)'],
+    'Erg': ['pousteni', 'Sahara (Velký východní, Chebbi), Rub al-Chálí'],
+    'Sopka': ['sopecne', 'Etna, Vesuv, Fudži'], 'Polštářová láva': ['sopecne', 'podmořské erupce u Havaje, Kypr'],
+    'Eroze': ['jevy', 'Grand Canyon, stržové rýhy na polích'], 'Lavina': ['jevy', 'Alpy, Vysoké Tatry, Krkonoše']
 };
 // Slavná geologická místa: název článku → [skupina, kde to je, jméno v tématu (jinak název článku), další psané odpovědi]
 export const NAMED_SITES = {
@@ -96,8 +106,11 @@ export const PHOTO_OVERRIDES = {
     'Firn': 'Firn ss 2006.jpg', 'Anomalocaris': 'Anomalocaris canadensis fossil.jpg', 'Opabinia': 'USNM PAL 57683 Opabinia regalis Image 3.jpg',
     'Dickinsonia': 'Dickinsonia - Ediacaran Fossil from Flinders Range in South Australia.jpg', 'Charnia': 'Charnia masoni fossil, New Walk Museum.jpg',
     'Spriggina': 'Big Spriggina floundersi.jpg', 'Cooksonia': 'Cooksonia barrandei (National Museum in Prague).jpg', 'Pikaia': 'USNM PAL 57628 Pikaia gracilens.jpg',
-    'Koh-i-Noor': 'Replica of the Koh-i-Noor.jpg'
+    'Koh-i-Noor': 'Replica of the Koh-i-Noor.jpg',
+    'Transformní zlom': 'Sanandreas.jpg', 'Diskordance': 'Siccar Point from W.jpg', 'Erg': 'Merzouga Dunes 2011.jpg', 'Hamada': 'Hoggar-Hammada.jpg'
 };
+// Krátký popis z Wikidat, který k článku nepatří (vrása: „drobné záhyby v kůži“) – náhrada
+export const FORM_DESCRIPTIONS = { 'Vrása': 'ohyb vrstev hornin vzniklý tlakem v zemské kůře' };
 // Slavná místa v Česku (česká stopa)
 export const CZECH_SITES = new Set(['Panská skála', 'Železná hůrka', 'Komorní hůrka', 'Vřídlo (Karlovy Vary)', 'Hranická propast', 'Punkevní jeskyně',
     'Koněpruské jeskyně', 'Pravčická brána', 'Příbram (meteorit)', 'Barrandien']);
@@ -119,7 +132,7 @@ export const KNOWN_FORMS = new Set(['Gejzír', 'Fjord', 'Kaňon', 'Duna', 'Kalde
     'Moréna', 'Meteorit', 'Korálový útes', 'Říční delta', 'Laguna', 'Zlom', 'Permafrost', 'Atol', 'Meandr', 'Stratovulkán', 'Subdukce',
     'Vodopád', 'Ledovec', 'Náhorní plošina', 'Stolová hora', 'Sopečný popel', 'Termální pramen', 'Rokle', 'Sopečné jezero', 'Podmořská sopka',
     "Giant's Causeway", 'Chicxulubský kráter', 'Tunguská událost', 'Pravčická brána', 'Punkevní jeskyně', 'Pamukkale', 'Kappadokie', 'Geysir', 'Old Faithful',
-    'Meteor Crater', 'Čeljabinský meteor', 'Vřídlo (Karlovy Vary)', 'Barrandien']);
+    'Meteor Crater', 'Čeljabinský meteor', 'Vřídlo (Karlovy Vary)', 'Barrandien', 'Hora', 'Kopec', 'Údolí', 'Pohoří', 'Oáza', 'Sopka', 'Lavina', 'Eroze']);
 
 // --- Zkameněliny a vyhynulé organismy bez obratlovců (ty jsou v tématu Biologie): název článku → [skupina, doba, zajímavost] ---
 export const FOSSILS = {
@@ -237,6 +250,10 @@ export const MORE_PERIODS = [
     ['Karn', 'Karn', 'věk', 'Trias', 237, 227.3], ['Nor (stratigrafická jednotka)', 'Nor', 'věk', 'Trias', 227.3, 205.7],
     // Hranice z téže tabulky (Rét končí začátkem jury, Apt sedí mezi barremem a albem, Dan končí začátkem selandu 61,6)
     ['Rét', 'Rét', 'věk', 'Trias', 205.7, 201.4], ['Apt (geologie)', 'Apt', 'věk', 'Křída', 121.4, 113.2],
+    // Další věky, které mají článek na české Wikipedii (ind, olenek, maastricht a další ho nemají)
+    ['Anis (geologie)', 'Anis', 'věk', 'Trias', 246.7, 241.464], ['Ladin (geologie)', 'Ladin', 'věk', 'Trias', 241.464, 237],
+    ['Bathon', 'Bathon', 'věk', 'Jura', 168.2, 165.3], ['Callow', 'Callow', 'věk', 'Jura', 165.3, 161.5],
+    ['Oxford (stratigrafická jednotka)', 'Oxford', 'věk', 'Jura', 161.5, 154.8], ['Coniak', 'Coniak', 'věk', 'Křída', 89.8, 85.7],
     ['Dan (geologie)', 'Dan', 'věk', 'Paleogén', 66, 61.6, 'první savci a ptáci po vymření dinosaurů'],
     ['Spodní křída', 'Spodní křída', 'epocha', 'Křída', 143.1, 100.5, 'první kvetoucí rostliny, velcí býložraví dinosauři'],
     ['Svrchní křída', 'Svrchní křída', 'epocha', 'Křída', 100.5, 66, 'tyranosaurus a triceratops; na konci vymření dinosaurů'],
@@ -279,5 +296,13 @@ export const MORE_CONFLICTS = [
     ['Ottoia', 'Hallucigenia'], ['Gastrolit', 'Koprolit'], ['Kenozoikum', 'Třetihory'], ['Kenozoikum', 'Čtvrtohory'], ['Kenozoikum', 'Paleogén'],
     ['Kenozoikum', 'Neogén'], ['Kenozoikum', 'Fanerozoikum'], ['Prekambrium', 'Hadaikum'], ['Prekambrium', 'Archaikum'], ['Prekambrium', 'Proterozoikum'],
     ['Prekambrium', 'Ediakara'], ['Prekambrium', 'Kryogén'], ['Prekambrium', 'Neoproterozoikum'], ['Prekambrium', 'Eoarchaikum'], ['Neoproterozoikum', 'Ediakara'],
-    ['Neoproterozoikum', 'Kryogén'], ['Spodní křída', 'Svrchní křída'], ['Dan', 'Paleocén'], ['Cisural', 'Perm']
+    ['Neoproterozoikum', 'Kryogén'], ['Spodní křída', 'Svrchní křída'], ['Dan', 'Paleocén'], ['Cisural', 'Perm'],
+    // krajina, poušť, sopky a tektonika: fotky, které by mohly být obojím (duny v erg i poušti, hora i pohoří)
+    ['Hora', 'Kopec'], ['Hora', 'Pohoří'], ['Hora', 'Horský štít'], ['Hora', 'Sopka'], ['Kopec', 'Svědecká hora'], ['Kopec', 'Sopka'], ['Pohoří', 'Areta'],
+    ['Údolí', 'Ledovcové údolí'], ['Údolí', 'Kaňon'], ['Údolí', 'Soutěska'], ['Údolí', 'Visuté údolí'], ['Údolí', 'Údolní niva'], ['Údolí', 'Pohoří'],
+    ['Horské sedlo', 'Průsmyk'], ['Horské sedlo', 'Údolí'], ['Průsmyk', 'Údolí'], ['Útes', 'Klif'], ['Útes', 'Skalní brána'], 
+    ['Oáza', 'Vádí'], ['Erg', 'Duna'], ['Hamada', 'Solná pláň'],
+    ['Sopka', 'Stratovulkán'], ['Sopka', 'Štítová sopka'], ['Sopka', 'Sopečný dóm'], ['Sopka', 'Sopečný kráter'], ['Sopka', 'Pliniovská erupce'],
+    ['Vrása', 'Orogeneze'], ['Vrása', 'Diskordance'], ['Transformní zlom', 'Zlom'], ['Transformní zlom', 'Rift'], ['Orogeneze', 'Pohoří'],
+    ['Polštářová láva', 'Lávový proud'], ['Eroze', 'Badlands'], ['Eroze', 'Rokle'], ['Lavina', 'Bahnotok'], ['Lavina', 'Ledovec']
 ];

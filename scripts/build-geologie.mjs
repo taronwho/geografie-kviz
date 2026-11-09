@@ -1,16 +1,21 @@
 // Téma Geologie: data/geologie.json z Wikidat (přes QLever) – nerosty, drahé kameny, horniny a geologická období
-// Spuštění: npm run build:geologie (s BUILD_CACHE=složka jde pravidla ladit bez opakovaného stahování)
+// Spuštění: npm run build:geologie (s BUILD_CACHE=složka jde pravidla ladit bez opakovaného stahování; WIKIDATA_ENDPOINT=wdqs čte
+// podrobnosti z query.wikidata.org, když je QLever přetížený)
 //
 // Wikidata mají u nerostů spolehlivý článek, fotku, vzorec, třídu podle Strunze, krystalovou soustavu a hustotu.
 // Tvrdost, vryp a zařazení hornin v nich bývají chybné (antimonit s tvrdostí 8, křemen s černým vrypem, mramor mezi
 // usazenými horninami), proto jsou tvrdost, vryp, barvy, skupiny hornin, česká naleziště a geologická období vypsané
 // níže z mineralogických a geologických příruček.
 import { createRequire } from 'node:module';
-import { qlever, id, values, imageFields, compact, cached, inBatches, writeTopic } from './lib/wikidata.mjs';
-import { FORMS, FORM_GROUPS, KNOWN_FORMS, FOSSILS, KNOWN_FOSSILS, MORE_ROCKS, MORE_ROCK_QIDS, MORE_PERIODS, MORE_CONFLICTS, NAMED_SITES, CZECH_SITES, FAMOUS_DIAMONDS, PHOTO_OVERRIDES } from './lib/geologie-sources.mjs';
+import { qlever, sparql, id, values, imageFields, compact, cached, inBatches, writeTopic } from './lib/wikidata.mjs';
+import { cachedByKey } from './lib/zemepis-levels.mjs';
+import { topicPageviews, assignLevels, levelGroups, levelSummary } from './lib/fame-levels.mjs';
+import { FORMS, FORM_GROUPS, KNOWN_FORMS, FOSSILS, KNOWN_FOSSILS, MORE_ROCKS, MORE_ROCK_QIDS, MORE_PERIODS, MORE_CONFLICTS, NAMED_SITES, CZECH_SITES, FAMOUS_DIAMONDS, PHOTO_OVERRIDES, FORM_DESCRIPTIONS } from './lib/geologie-sources.mjs';
 
 // Vzorec se ověří stejně, jako ho pak porovná aplikace
 const { formulaCounts, isRealPhoto } = createRequire(import.meta.url)('../quiz-core.js');
+// Dávkové dotazy na podrobnosti (malé) jdou i na query.wikidata.org
+const detailsRun = process.env.WIKIDATA_ENDPOINT === 'wdqs' ? sparql : qlever;
 
 const capitalize = (text) => text.charAt(0).toUpperCase() + text.slice(1);
 const isQid = (q) => /^Q\d+$/.test(q);
@@ -275,9 +280,9 @@ const KNOWN = new Set(['Křemen', 'Kalcit', 'Sádrovec', 'Halit', 'Mastek', 'Gra
     'Písek', 'Rašelina', 'Kaolin', 'Borax', 'Koh-i-Noor', 'Cullinan', 'Hope']);
 // Názvy, které nejsou nerostem pro kvíz: skupiny nerostů (slída, živce – na fotce by šlo i o muskovit či ortoklas), odrůdy
 // (selenit = sádrovec), slavné diamanty, směsi a syntetické látky; forsterit a lazurit by se pletly s olivínem a lapis lazuli
-const NOT_MINERALS = /^(drahokam|polodrahokam|křemičitany|karbonáty|fylosilikát|prvek|horninotvorný minerál|jílové minerály|azbest|slída|živce|amfibol|pyroxeny|zeolit|plagioklas|draselný živec|alkalický živec|mafity|foidy|sericit|smektit|koh-i-noor|hope|cullinan|orlov|darya-i-noor|lesedi la rona|krvavý diamant|syntetický diamant|briliant|kryptonit|adnr|himálajská sůl|islandský kalcit|selenit|gema|arcikam|spinelid|ametrín|morion|prasiolit|sardonyx|heliotrop|bixbit|tsavorit|rhodolit|kočičí oko|skupina .*|černobylit|elektrum|osmiridium|yttrito-hlinitý granát|lonsdaleit|tranquillityit|greigit|cohenit|forsterit|lazurit|monazit|organolity|český granát|adulár|illit|abelsonit|urea|acetamid|elbait|skoryl|dravit|tetraboritan sodný)$/i;
-// Nerosty od 16 jazykových verzí (dřív 24); jen s fotkou a se vzorcem nebo tvrdostí, k=1 jen podle seznamu KNOWN
-const SITELINKS_MIN = 16;
+const NOT_MINERALS = /^(drahokam|polodrahokam|křemičitany|karbonáty|fylosilikát|prvek|horninotvorný minerál|jílové minerály|azbest|slída|živce|amfibol|pyroxeny|zeolit|plagioklas|draselný živec|alkalický živec|mafity|foidy|sericit|smektit|koh-i-noor|hope|cullinan|orlov|darya-i-noor|lesedi la rona|krvavý diamant|syntetický diamant|briliant|kryptonit|adnr|himálajská sůl|islandský kalcit|selenit|gema|arcikam|spinelid|ametrín|morion|prasiolit|adranosit|talnachit|sardonyx|heliotrop|bixbit|tsavorit|rhodolit|kočičí oko|skupina .*|černobylit|elektrum|osmiridium|yttrito-hlinitý granát|lonsdaleit|tranquillityit|greigit|cohenit|forsterit|lazurit|monazit|organolity|český granát|adulár|illit|abelsonit|urea|acetamid|elbait|skoryl|dravit|tetraboritan sodný)$/i;
+// Nerosty od 8 jazykových verzí (dřív 16 a 24); jen s fotkou a se vzorcem nebo tvrdostí; méně známé jsou pro experty
+const SITELINKS_MIN = 8;
 
 // --- Geologická období (mil. let; Mezinárodní chronostratigrafická tabulka ICS v2026/06, stratigraphy.org/chart –
 // hranice prvohor podle revize 2024: ordovik 486,85, silur 443,1, devon 419,62, karbon 358,86, křída 143,1; hadaikum od 4 567) ---
@@ -364,13 +369,19 @@ const byName = new Map(await cached('geologie-by-name', async () => {
     const labels = wanted.flatMap(name => [name, name.toLowerCase()]);
     await inBatches(labels, 150, (list) => `SELECT ?x ?l ?sl WHERE { VALUES ?l { ${list.map(name => `"${name}"@cs`).join(' ')} } ?x rdfs:label ?l .
   ?a schema:about ?x . ?a schema:isPartOf <https://cs.wikipedia.org/> . ?x wikibase:sitelinks ?sl }`, (row) => result.push([row.l.value.toLowerCase(), id(row.x.value), Number(row.sl.value)]), qlever);
-    await inBatches(PERIODS.map(period => period.title), 50, (list) => `SELECT ?x ?l ?sl WHERE { VALUES ?l { ${list.map(name => `"${name}"@cs`).join(' ')} }
-  ?a schema:name ?l . ?a schema:isPartOf <https://cs.wikipedia.org/> . ?a schema:about ?x . ?x wikibase:sitelinks ?sl }`, (row) => result.push([`období:${row.l.value}`, id(row.x.value), Number(row.sl.value)]), qlever);
     // Víc položek stejného štítku: ta s nejvíc jazykovými verzemi
     const best = new Map();
     for (const [label, q, sl] of result) if (!best.has(label) || best.get(label)[1] < sl) best.set(label, [q, sl]);
     return [...best].map(([label, [q]]) => [label, q]);
 }));
+// Období podle názvu článku (mezipaměť po názvech – nová období se dostáhnou)
+const periodByTitle = await cachedByKey('geologie-periods-key', PERIODS.map(period => period.title), async (missing) => {
+    const result = Object.fromEntries(missing.map(title => [title, null]));
+    await inBatches(missing, 50, (list) => `SELECT ?x ?l WHERE { VALUES ?l { ${list.map(name => `"${name}"@cs`).join(' ')} }
+  ?a schema:name ?l . ?a schema:isPartOf <https://cs.wikipedia.org/> . ?a schema:about ?x }`, (row) => { result[row.l.value] = id(row.x.value); }, detailsRun);
+    return result;
+});
+for (const [title, q] of Object.entries(periodByTitle)) if (q) byName.set(`období:${title}`, q);
 for (const [key, q] of Object.entries(QID_OVERRIDES)) byName.set(key, q);
 const qidOf = (name) => byName.get(name.toLowerCase());
 const periodQid = (period) => byName.get(`období:${period.title}`);
@@ -410,16 +421,21 @@ const fetchDetails = async (list) => {
         if (SINGLE[key]) { if (!(key in entry)) entry[key] = v; }
         else if (key === 'sl') entry.sl = Number(v);
         else if (!(entry[key] || []).includes(v)) entry[key] = [...(entry[key] || []), v];
-    }, qlever);
+    }, detailsRun);
     return result;
 };
 const candidateIds = mineralCandidates.filter(([, sl]) => sl >= SITELINKS_MIN).map(([q]) => q);
-const allIds = [...new Set([...mineralCandidates.slice(0, 450).map(([q]) => q), ...wanted.map(qidOf), ...PERIODS.map(periodQid)].filter(q => q && isQid(q)))];
-const details = new Map(await cached('geologie-details', async () => [...await fetchDetails(allIds)]));
+const allIds = [...new Set([...mineralCandidates.slice(0, 450).map(([q]) => q), ...candidateIds, ...wanted.map(qidOf), ...PERIODS.map(periodQid)].filter(q => q && isQid(q)))];
+// Mezipaměť po položkách: při rozšíření (nižší hranice jazykových verzí, nová období) se dostáhnou jen nové
+const cachedDetails = async (name, qids) => {
+    const stored = await cachedByKey(name, qids, async (missing) => Object.fromEntries([...await fetchDetails(missing)]));
+    return [...new Set(qids)].map(q => [q, stored[q] || {}]);
+};
+const details = new Map(await cachedDetails('geologie-details-by-id', allIds));
 // Položky opravené ručně (QID_OVERRIDES), nerosty dohledané podle článku a nerosty s českým jménem pod hranicí jazykových verzí
 const czechNamedIds = mineralCandidates.map(([q]) => q).filter(q => details.has(q) && CZECH_NAMED.has(displayTitle(details.get(q).t || '')));
 const missing = [...new Set([...wanted.map(qidOf), ...PERIODS.map(periodQid), ...extraMinerals.values()])].filter(q => q && isQid(q) && !details.has(q));
-for (const [q, detail] of await cached('geologie-details-extra', async () => [...await fetchDetails(missing)])) details.set(q, detail);
+for (const [q, detail] of await cachedDetails('geologie-details-by-id', missing)) details.set(q, detail);
 Object.assign(details.get(ORTHOCLASE.q), { im: ORTHOCLASE.image, strunz: ORTHOCLASE.strunz });
 // Nerost podle názvu: článek o nerostu („Zlato (minerál)“), ne o chemickém prvku
 const mineralTitles = new Map([...mineralCandidates.map(([q]) => q), ...extraMinerals.values()].filter(q => details.has(q) && details.get(q).t)
@@ -428,14 +444,14 @@ const mineralQid = (name) => extraMinerals.get(name) || mineralTitles.get(name) 
 
 // Útvary, jevy a zkameněliny (lib/geologie-sources.mjs) podle názvu článku
 const extraTitles = [...Object.keys(FORMS), ...Object.keys(FOSSILS), ...Object.keys(NAMED_SITES), ...Object.keys(FAMOUS_DIAMONDS)];
-const extraByTitle = new Map(await cached('geologie-by-title2', async () => {
-    const result = [];
-    await inBatches(extraTitles, 100, (list) => `SELECT ?x ?l WHERE { VALUES ?l { ${list.map(name => `"${name}"@cs`).join(' ')} }
-  ?a schema:name ?l . ?a schema:isPartOf <https://cs.wikipedia.org/> . ?a schema:about ?x }`, (row) => result.push([row.l.value, id(row.x.value)]), qlever);
+const extraByTitle = new Map(Object.entries(await cachedByKey('geologie-by-title-key', extraTitles, async (missing) => {
+    const result = Object.fromEntries(missing.map(title => [title, null]));
+    await inBatches(missing, 100, (list) => `SELECT ?x ?l WHERE { VALUES ?l { ${list.map(name => `"${name}"@cs`).join(' ')} }
+  ?a schema:name ?l . ?a schema:isPartOf <https://cs.wikipedia.org/> . ?a schema:about ?x }`, (row) => { result[row.l.value] = id(row.x.value); }, detailsRun);
     return result;
-}));
-const missingExtra = [...extraByTitle.values()].filter(q => !details.has(q));
-for (const [q, detail] of await cached('geologie-details-extra2', async () => [...await fetchDetails(missingExtra)])) details.set(q, detail);
+})).filter(([title, q]) => q && extraTitles.includes(title)));
+const missingExtra = [...new Set(extraByTitle.values())].filter(q => !details.has(q));
+for (const [q, detail] of await cachedDetails('geologie-details-by-id', missingExtra)) details.set(q, detail);
 
 // --- 3. krok: vlastnosti nerostů (krystalová soustava, hustota) ---
 const mineralIds = [...new Set([...candidateIds, ...czechNamedIds, ...MUST_MINERALS.map(mineralQid), ...Object.keys(GEMS).map(qidOf)].filter(q => q && isQid(q)))];
@@ -580,7 +596,7 @@ for (const [title, [group, example]] of Object.entries(FORMS)) {
     if (!detail || !detail.t || /rozcestník/.test(detail.d || '')) { console.log(`  vynechán útvar ${title}`); continue; }
     const photo = photoOf(withPhoto(title, detail));
     if (!photo.im) { console.log(`  útvar bez fotky ${title}`); continue; }
-    add(compact({ q, t: detail.t, n: displayTitle(title), c: 'utvary', k: KNOWN_FORMS.has(title) ? 1 : 0, d: descriptionOf(detail), ...photo, f: compact({ grp: group, ex: example, cf: conflictsOf(displayTitle(title)) }) }));
+    add(compact({ q, t: detail.t, n: displayTitle(title), c: 'utvary', k: KNOWN_FORMS.has(title) ? 1 : 0, d: FORM_DESCRIPTIONS[title] || descriptionOf(detail), ...photo, f: compact({ grp: group, ex: example, cf: conflictsOf(displayTitle(title)) }) }));
 }
 
 // Slavná geologická místa (stejně jako útvary: fotka je podstata otázky); jméno může být české (Obrův chodník)
@@ -638,12 +654,12 @@ const COLLECTIONS = [
     { id: 'sopecne-utvary', label: 'Sopečné útvary a jevy', text: 'Kaldera, maar, gejzír, lahar…', test: item => item.c === 'utvary' && item.f.grp === 'sopecne' },
     { id: 'ledovcove-utvary', label: 'Ledovce a jejich stopy', text: 'Fjord, kar, moréna, drumlin…', test: item => item.c === 'utvary' && item.f.grp === 'ledovcove' },
     { id: 'rdecni-utvary', label: 'Řeky, moře a pobřeží', text: 'Kaňon, meandr, delta, laguna…', test: item => item.c === 'utvary' && item.f.grp === 'vodni' },
-    { id: 'pousteni-utvary', label: 'Poušť a skalní útvary', test: item => item.c === 'utvary' && item.f.grp === 'pousteni' },
+    { id: 'pousteni-utvary', label: 'Poušť a skalní útvary', text: 'Oáza, erg, duna, vádí, skalní hřib…', test: item => item.c === 'utvary' && item.f.grp === 'pousteni' },
     { id: 'krasove-utvary', label: 'Kras a jeskyně', text: 'Stalaktit, stalagmit, závrt, polje…', test: item => item.c === 'utvary' && item.f.grp === 'krasove' },
     { id: 'tektonika', label: 'Tektonika a stavba Země', text: 'Zlom, subdukce, rift, kraton…', test: item => item.c === 'utvary' && item.f.grp === 'tektonicke' },
     { id: 'telesa', label: 'Horninová tělesa', text: 'Batolit, lakolit, žíla, geoda…', test: item => item.c === 'utvary' && item.f.grp === 'magmaticke' },
     { id: 'impakty', label: 'Dopady těles a meteority', text: 'Impaktní kráter, meteorit, chondrit…', test: item => item.c === 'utvary' && item.f.grp === 'impaktni' },
-    { id: 'horske-utvary', label: 'Skály, svahy a vrcholy', text: 'Náhorní plošina, kuesta, kuloár, suť…', test: item => item.c === 'utvary' && item.f.grp === 'horske' },
+    { id: 'horske-utvary', label: 'Hory, údolí a skály', text: 'Hora, údolí, průsmyk, náhorní plošina, kuesta…', test: item => item.c === 'utvary' && item.f.grp === 'horske' },
     { id: 'slavna-mista', label: 'Slavná geologická místa', text: "Obrův chodník, Pamukkale, Chicxulub, Pravčická brána…", test: item => item.c === 'utvary' && Boolean(item.f.loc) },
     { id: 'slavne-diamanty', label: 'Slavné diamanty', text: 'Koh-i-Noor, Cullinan, Hope…', test: item => item.c === 'kameny' && item.f.fam === 1 },
     { id: 'prvohorni-zivot', label: 'Život prvohor', text: 'Trilobiti, graptoliti, lepidodendron…', test: item => item.c === 'zkameneliny' && /kambrium|ordovik|silur|devon|karbon|perm/.test(item.f.per) },
@@ -656,14 +672,36 @@ for (const item of items) {
     const groups = COLLECTIONS.filter(collection => collection.test(item)).map(collection => collection.id);
     if (groups.length) item.g = groups;
 }
+const collections = COLLECTIONS.map(({ test, ...collection }) => collection);
+
+// --- Úrovně obtížnosti (lib/fame-levels.mjs) ---
+// Známost: jazykové verze článku a návštěvnost článku na české Wikipedii v kategorii (česká naleziště zvlášť). Známé určí ruční
+// seznamy výše; okruh od 8 položek dostane aspoň max(3, 25 %) známých (jen z lepší poloviny své skupiny); nejméně známá čtvrtina
+// skupiny je pro experty – kromě Mohsovy stupnice a hlavních geologických období (éry, periody, eony)
+const pageviews = await topicPageviews('geologie-pageviews', items.map(item => item.t), { offline: process.env.PAGEVIEWS_OFFLINE === '1' });
+const MOHS_NAMES = new Set(MOHS.map(([name]) => name));
+for (const item of items) {
+    item._ = {
+        // Věky druhohor se porovnávají mezi sebou (jinak by je ve skupině období přebily éry a periody)
+        sl: (details.get(item.q) || {}).sl || 0, pv: pageviews[item.t], pool: item.cz ? `${item.c}:cz` : item.c === 'obdobi' && item.f.lvl === 'věk' ? 'obdobi:věk' : item.c,
+        protect: MOHS_NAMES.has(item.n) || (item.c === 'obdobi' && ['eon', 'superéon', 'éra', 'perioda'].includes(item.f.lvl))
+    };
+}
+const promoted = assignLevels(items, {
+    expertShare: (pool) => pool.endsWith(':cz') ? 0.15 : 0.27,
+    ceiling: () => 0.5,
+    groups: levelGroups(items, collections)
+});
+console.log(`Povýšeno kvůli spodní hranici okruhu: ${promoted.map(([group, name]) => `${name} (${group})`).join(', ')}`);
+for (const item of items) delete item._;
 
 // Pořadí: známé napřed, pak podle kategorie
 const order = { kameny: 0, nerosty: 1, horniny: 2, obdobi: 3, utvary: 4, zkameneliny: 5 };
 items.sort((a, b) => b.k - a.k || order[a.c] - order[b.c]);
-const collections = COLLECTIONS.map(({ test, ...collection }) => collection);
 for (const category of Object.keys(order)) {
     const inCategory = items.filter(item => item.c === category);
-    console.log(`${category}: ${inCategory.length} (známých ${inCategory.filter(item => item.k === 1).length}, s fotkou ${inCategory.filter(item => item.im).length})`);
+    console.log(`${levelSummary(category, inCategory)}, s fotkou ${inCategory.filter(item => item.im).length}`);
 }
-for (const collection of collections) console.log(`okruh ${collection.label}: ${items.filter(item => (item.g || []).includes(collection.id)).length}`);
+for (const collection of collections) console.log(levelSummary(`okruh ${collection.id}`, items.filter(item => (item.g || []).includes(collection.id))));
+console.log(levelSummary('celkem', items));
 writeTopic('geologie', { collections, items });
