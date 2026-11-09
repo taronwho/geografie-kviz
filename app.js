@@ -2630,7 +2630,7 @@
         mountPanels();
     };
 
-    // Turnaj: živý čas u každé otázky (rozhoduje při shodě správných odpovědí i bodů), přestane se počítat po odpovědi
+    // Turnaj: živý čas u každé otázky (rozhoduje při shodě bodů i správných odpovědí), přestane se počítat po odpovědi
     let tourTimer = null;
     const formatQuestionTime = (ms) => { const seconds = Math.max(0, Math.floor(ms / 1000)); return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`; };
     const startTourTimer = (startedAt) => {
@@ -5367,9 +5367,9 @@
     // Část Výzvy na úvodní stránce: bez nastaveného Supabase se neukáže, bez přihlášení láká k přihlášení
     const challengeRow = (row) => {
         const count = row.challenge ? row.challenge.count : 0;
-        // Stejně jako výsledek výzvy a rating: víc správných, při shodě víc bodů (proti nejlepšímu soupeři)
-        const best = row.others.reduce((top, other) => !top || other.correct > top.correct || (other.correct === top.correct && other.points > top.points) ? other : top, null);
-        const versus = !best ? null : row.correct !== best.correct ? row.correct - best.correct : (row.points || 0) - (best.points || 0);
+        // Stejně jako výsledek výzvy a rating: víc bodů, při shodě víc správných (proti nejlepšímu soupeři)
+        const best = row.others.reduce((top, other) => !top || compareResults(other, top) > 0 ? other : top, null);
+        const versus = !best ? null : compareResults(row, best);
         const outcome = versus === null ? 'čeká' : versus > 0 ? 'vyhráno' : versus === 0 ? 'remíza' : 'prohráno';
         // Barevný proužek vlevo a štítek: vyhráno zelená, prohráno červená, remíza zlatá, čeká šedá
         const look = outcome === 'vyhráno' ? ['bg-emerald-500', 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300']
@@ -5398,6 +5398,8 @@
         </button>`;
     // Rating a ligy (rating.js; počítá je databáze po dohrání výzvy proti jinému hráči). Barvy lig jsou třídy .league-* v src/input.css.
     const Rating = window.MudrlantRating;
+    // Pořadí ve výzvách a zápasech: víc bodů, při shodě víc správných (jediné pravidlo v rating.js, shodné s databází)
+    const compareResults = (Rating && Rating.compareResults) || ((a, b) => ((Number(a.points) || 0) - (Number(b.points) || 0)) || ((Number(a.correct) || 0) - (Number(b.correct) || 0)));
     const BAR_WIDTHS = ['w-0', 'w-[10%]', 'w-[20%]', 'w-[30%]', 'w-[40%]', 'w-[50%]', 'w-[60%]', 'w-[70%]', 'w-[80%]', 'w-[90%]', 'w-full'];
     // Erb ligy (vlastní ilustrace icons/topics/liga-<id>.webp)
     const leagueEmblem = (league, cls) => `<img src="icons/topics/liga-${league.id}.webp" alt="" data-league-emblem="${league.id}" class="${cls} shrink-0 object-contain drop-shadow-sm">`;
@@ -6248,7 +6250,7 @@
     };
 
     // Místo v pořadí: hráči se stejným počtem správných i bodů ho sdílejí (při remíze mají pohár oba)
-    const rankingPlace = (rows, row) => 1 + rows.filter(other => other.correct > row.correct || (other.correct === row.correct && other.points > row.points)).length;
+    const rankingPlace = (rows, row) => 1 + rows.filter(other => compareResults(other, row) > 0).length;
     const rankingRows = (rows, count, meId) => rows.map((row) => `
         <li class="flex items-center gap-3 rounded-2xl bg-white p-2.5 shadow-sm dark:bg-slate-800 ${row.user_id === meId ? 'ring-2 ring-brand-600' : ''}">
             <span data-place="${rankingPlace(rows, row)}" class="w-5 text-center text-sm font-black text-slate-500 dark:text-slate-400">${rankingPlace(rows, row) === 1 ? '🏆' : rankingPlace(rows, row)}</span>
@@ -6978,7 +6980,7 @@
         const points = c.results.reduce((sum, row) => sum + (row ? row.points : 0), 0);
         // Sova podle výsledku: vítěz s pohárem, poražený s „dobrá hra“, remíza s radostí, sám s oslavou
         const rivals = user && results ? results.filter(row => row.user_id !== user.id) : [];
-        const bestRival = rivals.reduce((top, row) => !top || row.correct > top.correct || (row.correct === top.correct && row.points > top.points) ? row : top, null);
+        const bestRival = rivals.reduce((top, row) => !top || compareResults(row, top) > 0 ? row : top, null);
         // Výsledek slovy a hláška (stejná pro tutéž výzvu); bez soupeře se čeká, až dohraje
         const outcome = Rating && state === 'ok' ? Rating.outcomeOf({ correct, points }, bestRival) : null;
         const outcomeOwl = !outcome || outcome === 'cekani' ? 'oslava' : outcome === 'vyhra' ? 'vitez' : outcome === 'remiza' ? 'radost' : 'prohra';
@@ -7245,7 +7247,7 @@
             if (!c.counted) {
                 c.counted = true;
                 const rivals = results.filter(row => row.user_id !== user.id);
-                const won = rivals.length > 0 && rivals.every(row => correct > row.correct || (correct === row.correct && points > row.points));
+                const won = rivals.length > 0 && rivals.every(row => compareResults({ correct, points }, row) > 0);
                 const progress = loadProgress();
                 const counters = progress.counters;
                 counters.challenges += 1;

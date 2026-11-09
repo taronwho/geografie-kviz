@@ -49,10 +49,14 @@ test('ELO: očekávané skóre a změna ratingu', () => {
     assert.equal(Rating.ratingChange(100, 1500, 0), 0);
 });
 
-test('výsledek výzvy: víc správných, pak víc bodů, jinak remíza', () => {
-    assert.equal(Rating.duelScore({ correct: 5, points: 1 }, { correct: 4, points: 90 }), 1);
-    assert.equal(Rating.duelScore({ correct: 3, points: 10 }, { correct: 3, points: 12 }), 0);
+test('výsledek výzvy: víc bodů, při shodě víc správných, jinak remíza', () => {
+    // body rozhodují i proti víc správným odpovědím (nápovědy body uberou)
+    assert.equal(Rating.duelScore({ correct: 4, points: 16 }, { correct: 5, points: 12 }), 1);
+    assert.equal(Rating.duelScore({ correct: 5, points: 12 }, { correct: 4, points: 16 }), 0);
+    assert.equal(Rating.duelScore({ correct: 4, points: 12 }, { correct: 3, points: 12 }), 1, 'při shodě bodů víc správných');
     assert.equal(Rating.duelScore({ correct: 3, points: 10 }, { correct: 3, points: 10 }), 0.5);
+    assert.ok(Rating.compareResults({ correct: 1, points: 8 }, { correct: 2, points: 7 }) > 0);
+    assert.equal(Rating.compareResults({ correct: 2, points: 7 }, { correct: 2, points: 7 }), 0);
 });
 
 test('postup do další ligy', () => {
@@ -79,10 +83,10 @@ test('formát změny a týden (pondělí až neděle)', () => {
 
 test('závěrečná obrazovka výzvy: výsledek slovy a hlášky (15+ pro každou situaci)', () => {
     assert.equal(Rating.outcomeOf({ correct: 7, points: 20 }, null), 'cekani');
-    assert.equal(Rating.outcomeOf({ correct: 7, points: 20 }, { correct: 6, points: 99 }), 'vyhra');
-    assert.equal(Rating.outcomeOf({ correct: 6, points: 99 }, { correct: 7, points: 1 }), 'prohra');
-    assert.equal(Rating.outcomeOf({ correct: 5, points: 21 }, { correct: 5, points: 20 }), 'vyhra', 'při shodě rozhodují body');
-    assert.equal(Rating.outcomeOf({ correct: 5, points: 20 }, { correct: 5, points: 21 }), 'prohra');
+    assert.equal(Rating.outcomeOf({ correct: 6, points: 99 }, { correct: 7, points: 20 }), 'vyhra', 'rozhodují body');
+    assert.equal(Rating.outcomeOf({ correct: 7, points: 20 }, { correct: 6, points: 99 }), 'prohra');
+    assert.equal(Rating.outcomeOf({ correct: 6, points: 20 }, { correct: 5, points: 20 }), 'vyhra', 'při shodě bodů rozhodují správné odpovědi');
+    assert.equal(Rating.outcomeOf({ correct: 5, points: 20 }, { correct: 6, points: 20 }), 'prohra');
     assert.equal(Rating.outcomeOf({ correct: 5, points: 20 }, { correct: 5, points: 20 }), 'remiza');
     for (const situation of ['vyhra', 'prohra', 'remiza', 'cekani']) {
         const list = Rating.QUIPS[situation];

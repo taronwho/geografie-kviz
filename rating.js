@@ -43,8 +43,11 @@
     };
     // ELO: očekávané skóre hráče A proti B
     const expectedScore = (ratingA, ratingB) => 1 / (1 + Math.pow(10, (ratingB - ratingA) / 400));
-    // Skóre výzvy z pohledu A: 1 výhra, 0 prohra, 0.5 remíza (víc správných, pak víc bodů)
-    const duelScore = (a, b) => a.correct !== b.correct ? (a.correct > b.correct ? 1 : 0) : a.points !== b.points ? (a.points > b.points ? 1 : 0) : 0.5;
+    // Jediné pravidlo pořadí ve výzvách a zápasech (stejné jako rate_challenge a tournament_pick_winner v databázi):
+    // víc bodů (nápovědy a psaní se počítají), při shodě víc správných odpovědí. Kladné číslo = A je lepší, 0 = remíza.
+    const compareResults = (a, b) => ((Number(a.points) || 0) - (Number(b.points) || 0)) || ((Number(a.correct) || 0) - (Number(b.correct) || 0));
+    // Skóre výzvy z pohledu A: 1 výhra, 0 prohra, 0.5 remíza
+    const duelScore = (a, b) => { const diff = compareResults(a, b); return diff > 0 ? 1 : diff < 0 ? 0 : 0.5; };
     // Změna ratingu hráče A (B má opačnou); rating neklesne pod MIN. Shodné s rate_challenge() v databázi.
     const ratingChange = (ratingA, ratingB, score) => {
         const a = cleanRating(ratingA);
@@ -66,12 +69,11 @@
     };
 
     // --- Závěrečná obrazovka výzvy: výsledek slovy a hláška (stejná pro tutéž výzvu, ať se po překreslení nemění) ---
-    // Výsledek proti nejlepšímu soupeři: víc správných odpovědí, při shodě víc bodů, jinak remíza. Bez soupeře = čekání.
+    // Výsledek proti nejlepšímu soupeři podle compareResults (body, pak správné), jinak remíza. Bez soupeře = čekání.
     const outcomeOf = (mine, rival) => {
         if (!rival) return 'cekani';
-        if (mine.correct !== rival.correct) return mine.correct > rival.correct ? 'vyhra' : 'prohra';
-        if (mine.points !== rival.points) return mine.points > rival.points ? 'vyhra' : 'prohra';
-        return 'remiza';
+        const diff = compareResults(mine, rival);
+        return diff > 0 ? 'vyhra' : diff < 0 ? 'prohra' : 'remiza';
     };
     const HEADLINES = { vyhra: 'Vyhrál jsi!', prohra: 'Tentokrát prohra', remiza: 'Remíza!', cekani: 'Hotovo, čeká se na soupeře' };
     const QUIPS = {
@@ -151,5 +153,5 @@
     const hashOf = (text) => { let h = 2166136261; for (const ch of String(text)) { h ^= ch.charCodeAt(0); h = Math.imul(h, 16777619); } return h >>> 0; };
     const quipFor = (outcome, seed) => { const list = QUIPS[outcome] || QUIPS.cekani; return list[hashOf(`${outcome}|${seed}`) % list.length]; };
     
-    return { outcomeOf, HEADLINES, QUIPS, quipFor, START, MIN, K, LEAGUES, cleanRating, leagueIndex, leagueFor, leagueById, leagueProgress, expectedScore, duelScore, ratingChange, formatDelta, weekStart, weekLabel };
+    return { compareResults, outcomeOf, HEADLINES, QUIPS, quipFor, START, MIN, K, LEAGUES, cleanRating, leagueIndex, leagueFor, leagueById, leagueProgress, expectedScore, duelScore, ratingChange, formatDelta, weekStart, weekLabel };
 });
