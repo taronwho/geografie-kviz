@@ -799,10 +799,13 @@ language sql stable security definer set search_path = public as $$
     select exists (select 1 from auth.users u where u.id = uid and u.email like 'bot-%@bots.invalid');
 $$;
 
--- Boti odehrají rozehraná kola: střední úroveň (každý bot má vlastní úspěšnost 45–80 %, 10 otázek, čas 30–90 s)
+-- Boti odehrají rozehraná kola: střední úroveň (každý bot má vlastní úspěšnost 45–80 %). Každou z 10 otázek odehrají jako hráč:
+-- správně/špatně, nápovědy 0–3 (body 4/3/2/1 jako ve hře, špatně 0) a čas na otázku; výsledek zápasu je součet, takže rozpis zápasu
+-- ukáže i jejich odpovědi po otázkách (text odpovědi server nezná, u správné ji aplikace doplní ze zadání)
 create or replace function public.dev_bots_play(tid uuid) returns void
 language plpgsql security definer set search_path = public as $$
-declare cur integer; m public.tournament_matches; uid uuid; p numeric; c integer; t public.tournaments;
+declare cur integer; m public.tournament_matches; uid uuid; p numeric; t public.tournaments;
+    k integer; ok boolean; h integer; pts integer; q_ms integer; c integer; total integer; spent integer;
 begin
     select * into t from public.tournaments where id = tid;
     select max(round) into cur from public.tournament_matches where tournament_id = tid;
@@ -812,9 +815,18 @@ begin
         foreach uid in array array[m.p1, m.p2] loop
             if public.dev_is_bot(uid) and not exists (select 1 from public.tournament_results where match_id = m.id and user_id = uid and finished_at is not null) then
                 p := 0.45 + 0.35 * (('x' || substr(md5(uid::text), 1, 6))::bit(24)::integer % 1000) / 1000.0;
-                select count(*)::integer into c from generate_series(1, 10) where random() < p;
+                c := 0; total := 0; spent := 0;
+                delete from public.tournament_answers where match_id = m.id and user_id = uid;
+                for k in 0 .. 9 loop
+                    ok := random() < p;
+                    h := case when random() < 0.45 then 0 else 1 + floor(random() * 3)::integer end;
+                    pts := case when ok then greatest(4 - h, 1) else 0 end;
+                    q_ms := 3000 + floor(random() * 9000)::integer + h * 2500;
+                    insert into public.tournament_answers (match_id, user_id, idx, correct, points, answer, hints, ms) values (m.id, uid, k, ok, pts, null, h, q_ms);
+                    c := c + (case when ok then 1 else 0 end); total := total + pts; spent := spent + q_ms;
+                end loop;
                 insert into public.tournament_results (match_id, user_id, started_at, finished_at, correct, points, time_ms)
-                    values (m.id, uid, now(), now(), c, least(100, c * 3 + (random() * 4)::integer), 30000 + (random() * 60000)::integer)
+                    values (m.id, uid, now(), now(), c, total, spent)
                     on conflict (match_id, user_id) do update set finished_at = now(), correct = excluded.correct, points = excluded.points, time_ms = excluded.time_ms;
             end if;
         end loop;
@@ -2954,7 +2966,8 @@ grant execute on function public.challenge_progress_save(text, integer, boolean,
 -- 12: boti v turnajích hrají sami každý den od 9:00 (tournament_clock, tournament_bots_due v tournament_tick) a vývojářské dev_tournament_bots_play;
 --     o vítězi výzvy i zápasu turnaje rozhodují body, počet správných odpovědí až při shodě (rate_challenge, tournament_pick_winner, friends_list, group_detail).
 -- 13: tournament_details ukáže rozpis i cizího rozhodnutého zápasu (ne hráči, který má v tomtéž kole vlastní zápas neodehraný).
+-- 14: boti v turnaji ukládají odpovědi po otázkách (správně, body, nápovědy, čas) – rozpis zápasu je ukáže i u nich.
 create or replace function public.schema_version() returns integer
-language sql immutable as $$ select 13 $$;
+language sql immutable as $$ select 14 $$;
 revoke all on function public.schema_version() from public, anon;
 grant execute on function public.schema_version() to authenticated;

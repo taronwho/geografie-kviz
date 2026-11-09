@@ -131,6 +131,12 @@ test('SQL: vývojářské nástroje turnajů (boti)', { skip: !available && 'Pos
         const botsIn = (round) => q(`select count(*) from tournament_results r join tournament_matches m on m.id = r.match_id
             where m.tournament_id = '${tour}' and m.round = ${round} and r.finished_at is not null and dev_is_bot(r.user_id)`);
         assert.equal(botsIn(1), '31', 'při startu boti odehrají 1. kolo hned');
+        // Boti mají odpovědi po otázkách (správně, body 4/3/2/1 podle nápověd, čas) a výsledek je jejich součet
+        assert.equal(q(`select count(*) from tournament_answers a join tournament_matches m on m.id = a.match_id where m.tournament_id = '${tour}' and m.round = 1`), '310');
+        assert.equal(q(`select count(*) from tournament_answers where hints is null or ms is null or hints not between 0 and 3 or (correct and points <> greatest(4 - hints, 1)) or (not correct and points <> 0)`), '0');
+        assert.equal(q(`select count(*) from tournament_results r join tournament_matches m on m.id = r.match_id
+            cross join lateral (select count(*) filter (where a.correct)::integer as c, sum(a.points)::integer as p, sum(a.ms)::integer as t from tournament_answers a where a.match_id = r.match_id and a.user_id = r.user_id) s
+            where m.tournament_id = '${tour}' and dev_is_bot(r.user_id) and (r.correct <> s.c or r.points <> s.p or r.time_ms <> s.t)`), '0', 'výsledek = součet odpovědí');
         const mine = q(`select id from tournament_matches where tournament_id = '${tour}' and round = 1 and '${id(1)}' in (p1, p2)`);
         ok(as(id(1), D1, `select tournament_start_match('${mine}'); ${finishMatchSql(mine, 10, 40)}`));
         assert.equal(q(`select max(round) from tournament_matches where tournament_id = '${tour}'`), '2');
