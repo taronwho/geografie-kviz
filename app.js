@@ -3528,6 +3528,15 @@
         const left = Goals.daysLeft();
         return left === 1 ? 'poslední den' : left <= 4 ? `zbývají ${left} dny` : `zbývá ${left} dní`;
     };
+    // Obrázek cíle týdne: symbol odznaku, ke kterému cíl patří; cíl v tématu ikona tématu (bez obrázku čárová ikona)
+    const GOAL_ART = { spravne: 'odznak-odpovedi', dnesni: 'odznak-dnes', 'bez-napovedy': 'odznak-bez-napovedy', dny: 'odznak-dny', poznane: 'odznak-poznane',
+        opakovani: 'procvicovani', chyby: 'odznak-chyby', vyzvy: 'odznak-vyzvy', vyhry: 'odznak-vyhry', turnaj: 'turnaj', kviz: 'odznak-kviz-dne',
+        bleskovka: 'odznak-bleskovka', preziti: 'odznak-preziti', serad: 'odznak-serad' };
+    const goalArt = (goal, cls) => {
+        const topic = goal.kind === 'tema' ? TOPIC_BY_ID[goal.id.slice('tema-'.length)] : null;
+        if (topic && topicArt(topic)) return uiArt(topic.id, cls);
+        return GOAL_ART[goal.kind] ? uiArt(GOAL_ART[goal.kind], cls) : `<i data-lucide="${goal.icon}" class="${cls}"></i>`;
+    };
     const renderGoalsCard = () => {
         if (!Goals) return '';
         // Čekající truhla má přednost: místo pruhu cílů zlaté tlačítko Otevřít (cíle jsou dál v okně po otevření truhly)
@@ -3536,7 +3545,7 @@
         const done = rows.filter(row => row.done).length;
         const chip = ({ goal, value, done }) => `
             <span data-goal="${escapeHtml(goal.id)}" class="relative flex min-w-0 flex-1 items-center justify-center gap-1 overflow-hidden rounded-lg px-1 py-1 text-[10.5px] font-black tabular-nums ${done ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200' : 'bg-slate-100 text-slate-600 dark:bg-slate-700/70 dark:text-slate-200'}">
-                <i data-lucide="${done ? 'circle-check' : goal.icon}" class="h-3 w-3 shrink-0"></i>
+                ${done ? '<i data-lucide="circle-check" class="h-3 w-3 shrink-0"></i>' : goalArt(goal, 'h-4 w-4 -my-1')}
                 <span class="truncate">${done ? 'Hotovo' : `${value}/${goal.target}`}</span>
                 ${done ? '' : `<span class="absolute inset-x-0 bottom-0 h-[3px] bg-slate-200 dark:bg-slate-600" aria-hidden="true"><span class="block h-full w-0 bg-gold-500" data-progress="${Math.round(value / goal.target * 100)}"></span></span>`}
             </span>`;
@@ -3556,7 +3565,7 @@
         const row = ({ goal, value, done }) => `
             <li data-goal-row="${escapeHtml(goal.id)}" class="rounded-2xl bg-white p-3 shadow-sm ring-1 ${done ? 'ring-emerald-300 dark:ring-emerald-700' : 'ring-slate-200/70 dark:ring-slate-700/70'} dark:bg-slate-800">
                 <div class="flex items-start gap-2.5">
-                    <span class="mt-0.5 shrink-0 rounded-xl p-1.5 ${done ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300' : 'bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-300'}"><i data-lucide="${done ? 'circle-check' : goal.icon}" class="h-4 w-4"></i></span>
+                    <span data-goal-art class="relative -my-1 shrink-0">${goalArt(goal, 'h-9 w-9')}${done ? '<span class="absolute -bottom-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-emerald-500 text-white ring-2 ring-white dark:ring-slate-800"><i data-lucide="check" class="h-3 w-3"></i></span>' : ''}</span>
                     <span class="min-w-0 flex-1 text-[13px] font-bold leading-snug text-slate-800 dark:text-slate-100">${escapeHtml(goal.title)}</span>
                     <span class="shrink-0 rounded-md px-1.5 py-0.5 text-[11px] font-black ${done ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200' : 'bg-gold-100 text-gold-800 dark:bg-gold-900/40 dark:text-gold-200'}">+${goal.xp} XP</span>
                 </div>
