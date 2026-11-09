@@ -655,7 +655,8 @@
             const points = focus.map(project);
             const xs = points.map(p => p[0]);
             const ys = points.map(p => p[1]);
-            const pad = Math.max(...[Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys)].map(span => span * focusPad), frame.width * (focusPad < 0.2 ? 0.01 : 0.06));
+            const pad = Math.max(...[Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys)].map(span => span * focusPad),
+                focusPad < 0.2 ? frame.width * 0.01 : frame.region.projection ? 300 * frame.unitsPerKm : frame.width * 0.06);
             const spanW = Math.max(...xs) - Math.min(...xs) + 2 * pad;
             const spanH = Math.max(...ys) - Math.min(...ys) + 2 * pad;
             const zoom = Math.min(box.base.w / spanW, box.base.h / spanH, frame.maxZoom / 8);
