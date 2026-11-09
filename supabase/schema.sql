@@ -2947,6 +2947,97 @@ grant execute on function public.challenge_progress_save(text, integer, boolean,
     public.challenge_details(text), public.tournament_details(uuid) to authenticated;
 -- ===== Rozpis otázek po výzvě a zápasu turnaje (schéma 10) — KONEC BLOKU =====
 
+
+-- ===== Rozpis Kvízu dne (schéma 15) — ZAČÁTEK BLOKU =====
+-- Každá odpověď Kvízu dne se uloží i s podrobnostmi (správně, body, text odpovědi, nápovědy 0–4, čas), aby si hráči v pořadí dne mohli
+-- rozkliknout, jak kdo odpověděl na kterou otázku. Otázky jsou pro všechny stejné, proto cizí odpovědi daily_quiz_details vrátí jen hráči,
+-- který dnešní kvíz sám dohrál (nebo za minulé dny). daily_quiz_answer má dva nepovinné parametry navíc (starší aplikace je neposílá);
+-- starou podobu s pěti parametry (vytváří ji část souboru výš) blok odstraní, aby volání s pěti parametry nebylo nejednoznačné.
+create table if not exists public.daily_quiz_answers (
+    user_id uuid not null references public.profiles (id) on delete cascade,
+    day date not null,
+    idx integer not null,
+    correct boolean not null,
+    points integer not null,
+    answer text,
+    hints smallint,
+    ms integer,
+    primary key (user_id, day, idx)
+);
+alter table public.daily_quiz_answers drop constraint if exists daily_quiz_answers_values;
+alter table public.daily_quiz_answers add constraint daily_quiz_answers_values check (idx between 0 and 9 and points between 0 and 4 and correct = (points > 0)
+    and (answer is null or char_length(answer) between 1 and 120) and (hints is null or hints between 0 and 4) and (ms is null or ms between 0 and 3600000));
+alter table public.daily_quiz_answers enable row level security;
+drop policy if exists "kvíz dne: vlastní odpovědi" on public.daily_quiz_answers;
+create policy "kvíz dne: vlastní odpovědi" on public.daily_quiz_answers for select to authenticated using (user_id = auth.uid());
+revoke insert, update, delete on public.daily_quiz_answers from anon, authenticated;
+
+drop function if exists public.daily_quiz_answer(date, integer, boolean, integer, integer);
+create or replace function public.daily_quiz_answer(for_day date, idx integer, is_correct boolean, points integer, ms integer, answer text default null, hints integer default null) returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare uid uuid := auth.uid(); d date := public.daily_quiz_today(); r public.daily_quiz_results; gap bigint; counted integer;
+begin
+    if uid is null then raise exception 'Přihlas se.' using errcode = '42501'; end if;
+    if for_day is distinct from d then raise exception 'Tenhle Kvíz dne už skončil. Dnes je nový.' using errcode = '22023'; end if;
+    if idx is null or idx < 0 or idx > 9 or is_correct is null or points is null or ms is null then raise exception 'Neplatná odpověď.' using errcode = '22023'; end if;
+    if (is_correct and (points < 1 or points > 4)) or (not is_correct and points <> 0) then raise exception 'Neplatné body.' using errcode = '22023'; end if;
+    select * into r from public.daily_quiz_results where user_id = uid and day = d for update;
+    if r.user_id is null then raise exception 'Kvíz dne nejdřív začni.' using errcode = '22023'; end if;
+    if r.calls >= 40 then raise exception 'Příliš mnoho pokusů o uložení Kvízu dne. Zkus to zítra.' using errcode = '22023'; end if;
+    if idx < r.answered then
+        if ((r.bitmap >> idx) & 1 = 1) = is_correct then
+            update public.daily_quiz_results set calls = calls + 1 where user_id = uid and day = d returning * into r;
+            return public.daily_quiz_json(r, d, uid);
+        end if;
+        raise exception 'Na tuhle otázku už odpověď máš.' using errcode = '22023';
+    end if;
+    if idx > r.answered then raise exception 'Nejdřív se musí uložit předchozí otázka.' using errcode = '22023'; end if;
+    if ms < 500 then raise exception 'Odpověď přišla příliš rychle.' using errcode = '22023'; end if;
+    -- čas na otázku: aspoň to, co uplynulo od předchozí odpovědi (bez 15 s na načtení), nejvýš 5 minut
+    gap := floor(extract(epoch from (now() - r.last_at)) * 1000)::bigint;
+    counted := least(greatest(ms::bigint, gap - 15000), 300000)::integer;
+    insert into public.daily_quiz_answers (user_id, day, idx, correct, points, answer, hints, ms)
+        values (uid, d, idx, is_correct, points, public.clean_answer_label(answer), case when hints between 0 and 4 then hints end, least(greatest(ms, 0), 3600000))
+        on conflict do nothing;
+    update public.daily_quiz_results set
+        answered = answered + 1,
+        correct = correct + (case when is_correct then 1 else 0 end),
+        score = score + points,
+        time_ms = time_ms + counted,
+        bitmap = bitmap | (case when is_correct then 1 << idx else 0 end),
+        last_at = now(),
+        calls = calls + 1,
+        finished_at = case when answered + 1 = 10 then now() end
+    where user_id = uid and day = d
+    returning * into r;
+    return public.daily_quiz_json(r, d, uid);
+end;
+$$;
+
+-- Odpovědi hráčů z pořadí dne po otázkách (nejvýš 10 hráčů); cizí jen tomu, kdo kvíz toho dne dohrál, nebo za minulé dny
+create or replace function public.daily_quiz_details(for_day date, players uuid[])
+returns table (user_id uuid, idx integer, correct boolean, points integer, answer text, hints integer, ms integer)
+language plpgsql stable security definer set search_path = public as $$
+declare uid uuid := auth.uid(); d date := public.daily_quiz_today();
+begin
+    if uid is null then raise exception 'Přihlas se.' using errcode = '42501'; end if;
+    if for_day is null or for_day > d or players is null or cardinality(players) > 10 then raise exception 'Neplatný dotaz.' using errcode = '22023'; end if;
+    if exists (select 1 from unnest(players) p where p <> uid) and for_day = d
+        and not exists (select 1 from public.daily_quiz_results r where r.user_id = uid and r.day = d and (r.finished_at is not null or r.answered >= 10)) then
+        raise exception 'Odpovědi ostatních uvidíš, až dnešní kvíz dohraješ.' using errcode = '42501';
+    end if;
+    return query
+        select a.user_id, a.idx, a.correct, a.points, a.answer, a.hints::integer, a.ms
+        from public.daily_quiz_answers a
+        where a.day = for_day and a.user_id = any(players)
+        order by a.user_id, a.idx
+        limit 100;
+end;
+$$;
+revoke all on function public.daily_quiz_answer(date, integer, boolean, integer, integer, text, integer), public.daily_quiz_details(date, uuid[]) from public, anon;
+grant execute on function public.daily_quiz_answer(date, integer, boolean, integer, integer, text, integer), public.daily_quiz_details(date, uuid[]) to authenticated;
+-- ===== Rozpis Kvízu dne (schéma 15) — KONEC BLOKU =====
+
 -- ===== Verze schématu =====
 -- Číslo se zvyšuje při KAŽDÉ změně tohoto souboru (tabulka, sloupec, funkce, pravidlo) a zároveň konstanta REQUIRED_SCHEMA v app.js.
 -- Aplikace ho po přihlášení porovná a správci (dev_admins nebo vývojářský režim) ukáže v Nastavení, že má schéma spustit znovu;
@@ -2967,7 +3058,8 @@ grant execute on function public.challenge_progress_save(text, integer, boolean,
 --     o vítězi výzvy i zápasu turnaje rozhodují body, počet správných odpovědí až při shodě (rate_challenge, tournament_pick_winner, friends_list, group_detail).
 -- 13: tournament_details ukáže rozpis i cizího rozhodnutého zápasu (ne hráči, který má v tomtéž kole vlastní zápas neodehraný).
 -- 14: boti v turnaji ukládají odpovědi po otázkách (správně, body, nápovědy, čas) – rozpis zápasu je ukáže i u nich.
+-- 15: Rozpis Kvízu dne (daily_quiz_answers, daily_quiz_answer s textem odpovědi a nápovědami, daily_quiz_details).
 create or replace function public.schema_version() returns integer
-language sql immutable as $$ select 14 $$;
+language sql immutable as $$ select 15 $$;
 revoke all on function public.schema_version() from public, anon;
 grant execute on function public.schema_version() to authenticated;

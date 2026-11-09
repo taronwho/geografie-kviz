@@ -63,7 +63,7 @@
     // 8 = Skupiny (group_*, my_groups, týdenní XP; se starší databází se Skupiny jen nenabídnou);
     // 9 = odměny v účtu (profiles.rewards: Truhla Mudrlanta, ochrana série, diplomy) a nové odznaky (se starší databází zůstanou jen v zařízení);
     // 10 = Rozpis otázek (podrobnosti odpovědí výzvy a zápasu turnaje, challenge_details a tournament_details; se starší databází jen vlastní odpovědi ze zařízení).
-    const REQUIRED_SCHEMA = 14;
+    const REQUIRED_SCHEMA = 15;
     const HISTORY_SIZE = 200;
     const REQUEST_TIMEOUT = 12000;
     const WIKI_TIMEOUT = 6000;
@@ -7157,7 +7157,8 @@
     let breakdownToken = 0;
     // players: výsledky hráčů (user_id, player, correct, points); load: odpovědi ze serveru; local: moje odpovědi z tohoto zařízení
     // viewAs = divák cizího zápasu: první sloupec patří tomuto hráči (jménem, ne „Ty“)
-    const openBreakdown = async ({ def, players, load, local = null, viewAs = null }) => {
+    // questions = vlastní seznam zadání (Kvíz dne); jinak se otázky vyberou ze semínka výzvy (def)
+    const openBreakdown = async ({ def, players, load, local = null, viewAs = null, questions: questionList = null }) => {
         const user = signedUser();
         if (!user || !Social) return;
         const token = ++breakdownToken;
@@ -7165,7 +7166,7 @@
         showDialog(BREAKDOWN_TITLE, '<p class="py-6 text-center text-sm font-semibold text-slate-500 dark:text-slate-400">Načítám rozpis…</p>');
         const [answers, questions] = await Promise.all([
             Promise.resolve().then(load).then(value => ({ value }), error => ({ error })),
-            challengeQuestionList(def).catch(error => { console.error(error); return null; })
+            (questionList || challengeQuestionList(def)).catch(error => { console.error(error); return null; })
         ]);
         if (!stillOpen()) return;
         if (answers.error) {
@@ -7433,6 +7434,38 @@
         };
     };
 
+    // Zadání deseti otázek Kvízu dne pro rozpis: položky z plánu dne (u mého pokusu uložené), otázka se stejným semínkem jako ve hře
+    const quizQuestionList = async (day) => {
+        const groups = quizGroups();
+        const slots = DailyQuiz.slotsFor(day, groups);
+        const ids = [...new Set(slots.map(slot => slot.topic))].filter(id => TOPIC_BY_ID[id]);
+        const contexts = new Map((await Promise.all(ids.map(id => loadTopic(id)))).map(ctx => [ctx.topic.id, ctx]));
+        const own = quiz && quiz.day === day ? quiz.plan : [];
+        const plan = DailyQuiz.planDay(day, groups, (id) => { const ctx = contexts.get(id); return ctx ? { items: ctx.items, categories: ctx.topic.categories.map(category => category.key) } : null; }, DailyQuiz.QUESTIONS - 1);
+        return Array.from({ length: DailyQuiz.QUESTIONS }, (_, index) => {
+            const pick = own[index] && contexts.get(own[index].topic) ? own[index] : plan[index];
+            const ctx = pick ? contexts.get(pick.topic) : null;
+            const item = ctx ? ctx.byId.get(pick.q) : null;
+            try { return describeChallengeQuestion({ item, ctx, rng: createSeededRandom(DailyQuiz.questionSeed(day, index)) }); } catch (error) { console.error(error); return null; }
+        });
+    };
+    // Rozpis Kvízu dne z pořadí: klepnutý hráč vedle mě (moje odpovědi i z tohoto zařízení); cizí odpovědi pošle server až po dohrání
+    const openQuizBreakdown = (playerId) => {
+        const user = signedUser();
+        if (!user || !quizView || !Social || !Social.dailyQuizDetails) return;
+        const rows = [...((quizView.board && quizView.board.top) || []), ...((quizView.friends && quizView.friends.rows) || [])];
+        const target = rows.find(row => row.id === playerId);
+        if (!target) return;
+        const toPlayer = (row) => ({ user_id: row.id, player: row, correct: row.correct, points: row.score, time_ms: row.time_ms });
+        const mine = rows.find(row => row.me || row.id === user.id) || (quizView.board && quizView.board.me ? { ...quizView.board.me, ...quizHelpers().meRow, id: user.id } : null);
+        const players = [...(mine ? [toPlayer(mine)] : []), ...(target.id !== user.id ? [toPlayer(target)] : [])];
+        const day = quizView.day;
+        openBreakdown({
+            def: { count: DailyQuiz.QUESTIONS }, players, questions: quizQuestionList(day),
+            load: () => Social.dailyQuizDetails(day, players.map(row => row.user_id)),
+            local: quiz && quiz.day === day ? quiz.results : null
+        });
+    };
     // Úvod Kvízu dne jde vypnout (zaškrtnutím na úvodu): kvíz pak po klepnutí rovnou začne; zapnout zpět jde v Nastavení → Hra
     const QUIZ_SKIP_INTRO_KEY = 'mudrlant.quizSkipIntro';
     const quizSkipIntro = () => { try { return localStorage.getItem(QUIZ_SKIP_INTRO_KEY) === '1'; } catch (e) { return false; } };
@@ -7535,7 +7568,9 @@
     const quizRecord = () => {
         if (!quiz || quiz.results.length !== quizIndex) return;
         const ms = Math.max(0, Date.now() - (round.timerStart || Date.now()));
-        quiz.results.push({ correct: Boolean(round.correct), points: round.correct ? Math.min(DailyQuiz.MAX_POINTS, round.points) : 0, ms: Math.min(ms, 3600000) });
+        const details = answerDetails();
+        quiz.results.push({ correct: Boolean(round.correct), points: round.correct ? Math.min(DailyQuiz.MAX_POINTS, round.points) : 0, ms: Math.min(ms, 3600000),
+            ...(details.answer ? { answer: details.answer } : {}), hints: details.hints });
         quiz.open = null;
         storeQuiz(quiz);
     };
@@ -8691,6 +8726,7 @@
         // Kvíz dne (daily-quiz.js) a obrázek k výsledku dnešní otázky (share-card.js)
         'quiz-open': () => openQuiz(),
         'quiz-start': () => startQuiz(),
+        'quiz-breakdown': (button) => openQuizBreakdown(button.dataset.player),
         'quiz-skip-intro': (button) => {
             const on = button.getAttribute('aria-checked') !== 'true';
             setQuizSkipIntro(on);

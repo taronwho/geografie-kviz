@@ -547,3 +547,10 @@ Spusť znovu celý `supabase/schema.sql` (verze 12).
 Boti v turnaji ukládají odpovědi po otázkách (správně/špatně, body 4/3/2/1 podle nápověd, počet nápověd a čas na otázku) a výsledek zápasu
 je jejich součet, takže rozpis zápasu je ukáže stejně jako u hráčů. Text odpovědi server nezná (otázky skládá aplikace), u správné odpovědi
 ho aplikace doplní ze zadání, u špatné ukáže „Špatně“. Platí pro kola odehraná po aktualizaci; spusť znovu celý `supabase/schema.sql` (verze 14).
+
+## Rozpis Kvízu dne (schéma 15)
+
+Každá odpověď Kvízu dne se uloží i s podrobnostmi (tabulka `daily_quiz_answers`: správně, body, text odpovědi, nápovědy, čas). V pořadí dne
+jde klepnout na kteréhokoli hráče a uvidíš jeho odpovědi po otázkách vedle svých. Otázky jsou pro všechny stejné, proto cizí odpovědi
+(`daily_quiz_details`) server pošle jen tomu, kdo dnešní kvíz sám dohrál; za minulé dny vždy. Spusť znovu celý `supabase/schema.sql` (verze 15);
+dokud ho nespustíš, aplikace odpovídá postaru (bez podrobností) a rozpis ukáže jen tvoje odpovědi z tohoto zařízení.

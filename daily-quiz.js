@@ -238,7 +238,9 @@
     // synced (kolik odpovědí potvrdil server, -1 = neví se), done, xp ({ total, parts } po dokončení), rank ({ rank, total } z pořadí) }
     const whole = (value, max) => (Number.isFinite(Number(value)) ? Math.max(0, Math.min(max, Math.floor(Number(value)))) : 0);
     const cleanSummary = (row) => ({ answered: whole(row.answered, QUESTIONS), correct: whole(row.correct, QUESTIONS), score: whole(row.score, MAX_SCORE), time_ms: whole(row.time_ms, 36000000), bitmap: whole(row.bitmap, 1023) });
-    const cleanResult = (row) => (row && typeof row === 'object' ? { correct: Boolean(row.correct), points: row.points === null ? null : whole(row.points, MAX_POINTS), ms: whole(row.ms, 3600000) } : null);
+    // Text odpovědi a nápovědy (pro rozpis otázek) zůstanou, když je odpověď má
+    const cleanResult = (row) => (row && typeof row === 'object' ? { correct: Boolean(row.correct), points: row.points === null ? null : whole(row.points, MAX_POINTS), ms: whole(row.ms, 3600000),
+        ...(typeof row.answer === 'string' && row.answer ? { answer: row.answer.slice(0, 120) } : {}), ...(Number.isInteger(row.hints) && row.hints >= 0 && row.hints <= 4 ? { hints: row.hints } : {}) } : null);
     const cleanAttempt = (raw) => {
         if (!raw || typeof raw !== 'object' || !isDay(raw.day)) return null;
         const results = [];
@@ -300,7 +302,7 @@
     const homeCardHtml = ({ status = 'new', answered = 0, summary = null, rank = null, streak = 0 }) => {
         const done = status === 'done';
         const progress = status === 'progress';
-        const text = done ? `${summary.correct}/${QUESTIONS} · ${pointsWord(summary.score)}${rank ? ` · ${rank}. místo` : ''}`
+        const text = done ? `${pointsWord(summary.score)} · ${summary.correct}/${QUESTIONS}${rank ? ` · ${rank}. místo` : ''}`
             : progress ? `Rozehráno · otázka ${Math.min(answered + 1, QUESTIONS)}/${QUESTIONS}` : `${QUESTIONS} otázek pro všechny · pořadí`;
         const label = done ? 'Výsledek' : progress ? 'Pokračovat' : 'Hrát';
         return `
@@ -349,8 +351,11 @@
         <li data-quiz-row="${esc(row.id)}" class="flex items-center gap-2.5 rounded-2xl bg-white p-2 shadow-sm dark:bg-slate-800 ${row.me ? 'ring-2 ring-brand-600 dark:ring-brand-400' : ''}">
             <span data-place="${row.rank}" class="w-7 shrink-0 text-center text-[13px] font-black text-slate-500 dark:text-slate-400">${row.rank === 1 ? '🏆' : `${row.rank}.`}</span>
             ${h.avatarHtml(row, 'h-8 w-8 text-base', !row.me)}
-            <span data-player-name class="min-w-0 flex-1 truncate text-sm font-bold text-slate-800 dark:text-slate-100">${esc(row.display_name || 'Hráč')}${row.me ? ' (ty)' : ''}</span>
-            <span class="shrink-0 text-right"><span class="block text-sm font-black text-slate-800 dark:text-slate-100">${esc(pointsWord(row.score))}</span><span class="block text-[10px] font-semibold text-slate-500 dark:text-slate-400">${row.correct}/${QUESTIONS} · ${esc(formatTime(row.time_ms))}</span></span>
+            <button type="button" data-action="quiz-breakdown" data-player="${esc(row.id)}" aria-label="${esc(`Rozpis odpovědí: ${row.display_name || 'Hráč'}`)}" class="flex min-w-0 flex-1 items-center gap-2 text-left">
+                <span data-player-name class="min-w-0 flex-1 truncate text-sm font-bold text-slate-800 dark:text-slate-100">${esc(row.display_name || 'Hráč')}${row.me ? ' (ty)' : ''}</span>
+                <span class="shrink-0 text-right"><span class="block text-sm font-black text-slate-800 dark:text-slate-100">${esc(pointsWord(row.score))}</span><span class="block text-[10px] font-semibold text-slate-500 dark:text-slate-400">${row.correct}/${QUESTIONS} · ${esc(formatTime(row.time_ms))}</span></span>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="h-4 w-4 shrink-0 text-slate-400"><path d="M10 6h11M10 12h11M10 18h11M4 6h1M4 12h1M4 18h1"/></svg>
+            </button>
         </li>`;
     // Pořadí dne (top + moje místo, když jsem mimo) nebo přátelé; board/friends null = načítá se, false = nedostupné
     const rankingHtml = ({ tab = 'all', board, friends }, h) => {
@@ -392,8 +397,8 @@
                 <div class="rounded-[1.5rem] bg-gradient-to-br from-brand-600 to-brand-900 p-4 text-center text-white shadow-lg">
                     ${art(`sova-${poseFor(summary.correct)}`, 'mx-auto -mt-1 h-20 w-20')}
                     <p class="mt-1 text-xs font-black uppercase tracking-widest text-white/80">Kvíz dne · ${esc(formatDay(day, true))}</p>
-                    <p data-quiz-score class="mt-0.5 text-4xl font-black">${summary.correct}/${QUESTIONS}</p>
-                    <p class="mt-0.5 text-sm font-bold text-white/90">${esc(pointsWord(summary.score))} · čas ${esc(formatTime(summary.time_ms))}</p>
+                    <p data-quiz-score class="mt-0.5 text-4xl font-black">${esc(pointsWord(summary.score))}</p>
+                    <p data-quiz-correct class="mt-0.5 text-sm font-bold text-white/90">${summary.correct}/${QUESTIONS} správně · čas ${esc(formatTime(summary.time_ms))}</p>
                     <div data-quiz-grid role="img" aria-label="${esc(gridLabel)}" class="mt-2.5 flex justify-center gap-1">${grid}</div>
                     ${closed ? '<p class="mt-2 text-[12px] font-semibold text-white/85">Kvíz nebyl dohraný, počítá se, jak stál.</p>' : ''}
                     ${pending ? '<p class="mt-2 text-[12px] font-semibold text-white/85">Výsledek čeká na odeslání, zkusím to znovu.</p>' : ''}
