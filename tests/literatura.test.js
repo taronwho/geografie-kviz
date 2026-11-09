@@ -36,6 +36,35 @@ test('literatura: známé položky, česká stopa a okruhy', () => {
     assert.notEqual(find('Karel Čapek').f.lang, 'francouzština');
 });
 
+test('literatura: úrovně obtížnosti – Základní v každém okruhu a kategorii, Expert jen pro méně známé', () => {
+    const share = (list, test) => list.filter(test).length / list.length;
+    for (const item of data.items) assert.ok(!(item.k === 1 && item.x), `${item.n}: známá i expertní`);
+    // Celé téma: Základní asi čtvrtina až třetina, Expert asi pětina až třetina
+    assert.ok(share(data.items, item => item.k === 1) >= 0.22 && share(data.items, item => item.k === 1) <= 0.36);
+    assert.ok(share(data.items, item => item.x) >= 0.18 && share(data.items, item => item.x) <= 0.32);
+    // Každá kategorie a každý okruh od 8 položek má aspoň max(3, 25 %) známých a nejvýš 40 % expertních
+    const groups = [...['spisovatele', 'dila', 'postavy'].map(c => [c, data.items.filter(item => item.c === c)]),
+        ...data.collections.map(collection => [collection.id, inCollection(collection.id).map(find)])];
+    for (const [id, list] of groups) {
+        if (list.length < 8) continue;
+        const known = list.filter(item => item.k === 1).length;
+        assert.ok(known >= Math.max(3, Math.floor(0.25 * list.length)), `${id}: známých ${known} z ${list.length}`);
+        assert.ok(list.filter(item => item.x).length <= Math.ceil(0.4 * list.length), `${id}: příliš expertních`);
+    }
+    // Slavná díla jsou známá, perličky expertní (méně slavná postava jen pod mírnějším prahem)
+    for (const name of ['1984', 'Zločin a trest', 'Vojna a mír', 'Malý princ', 'Frankenstein']) assert.equal(find(name)?.k, 1, name);
+    for (const name of ['Polednice', 'Hordubal', 'Broučci']) assert.ok(find(name) && !find(name).x, `${name} není perlička`);
+    assert.ok(data.items.filter(item => item.x && item.c === 'spisovatele').length >= 200);
+    // Žánry a směry: Jane Austenová není autorka hororů, surrealista není realista, Tonio Kröger není česká literatura
+    assert.notEqual(find('Jane Austenová').f.genre, 'horor');
+    assert.ok(!inCollection('horor').includes('Jane Austenová'));
+    assert.ok(inCollection('realismus').includes('Honoré de Balzac') && !inCollection('realismus').includes('André Breton'));
+    assert.ok(inCollection('romantismus').includes('Máj') && inCollection('romantismus').includes('George Gordon Byron'));
+    assert.ok(!inCollection('ceska-literatura').includes('Tonio Kröger'));
+    // Filozofové, teologové a politici bez literárního díla v tématu nejsou
+    assert.ok(!data.items.some(item => ['Oswald Spengler', 'Marshall McLuhan', 'Tertullianus', 'Dominique de Villepin', 'Ema Destinnová'].includes(item.n)));
+});
+
 test('literatura: data bez rozporů – roky a jedinečná jména', () => {
     const thisYear = new Date().getFullYear();
     const names = new Set();

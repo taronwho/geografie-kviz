@@ -25,7 +25,7 @@ const rngStartingWith = (first, seed = 'historie') => {
 
 test('historie: události – data bez bitev a válek, známost, okruhy', () => {
     const events = data.items.filter(item => item.c === 'udalosti');
-    assert.ok(events.length >= 100 && events.length <= 300, `událostí ${events.length}`);
+    assert.ok(events.length >= 200 && events.length <= 500, `událostí ${events.length}`);
     const known = events.filter(item => item.k === 1).length / events.length;
     assert.ok(known >= 0.2 && known <= 0.35, `známých ${known}`);
     assert.ok(events.every(item => Number.isFinite(item.f.year) && item.ty), 'rok a druh');
