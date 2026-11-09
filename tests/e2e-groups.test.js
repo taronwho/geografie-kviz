@@ -382,6 +382,9 @@ test('skupiny', { skip: !chromium && 'Playwright není nainstalovaný' }, async 
         await tab.click('[data-ch-count="5"]');
         await tab.click('[data-ch-create]');
         await tab.waitForSelector('[data-action="choice"]');
+        // Soupeř v záhlaví otázky: skupina (ikona a název)
+        assert.equal(await tab.getAttribute('[data-opponent-chip]', 'data-opponent-chip'), 'group');
+        assert.match(await compact(tab, '[data-opponent-chip]'), /🏫\s*skupina\s*5\.B Základka/);
         const code = Object.keys(db.challenges)[0];
         assert.equal(db.challenges[code].invited_id, null, 'výzva pro kohokoli s kódem');
         assert.deepEqual(db.calls.find(call => call.name === 'group_set_challenge').body, { gid: G1, challenge_code: code });
@@ -401,6 +404,10 @@ test('skupiny', { skip: !chromium && 'Playwright není nainstalovaný' }, async 
         await shot(other.tab, 'skupiny-vyzva-karta');
         await other.tab.click('[data-group-play="GRP234"]');
         await waitTitle(other.tab, 'Výzva');
+        // Člen hraje výzvu skupiny: v záhlaví otázky je skupina, ne jen zakladatel
+        await other.tab.click('[data-ch-play]');
+        await other.tab.waitForSelector('[data-opponent-chip]', { timeout: 30000 });
+        assert.match(await compact(other.tab, '[data-opponent-chip]'), /skupina\s*5\.B Základka/);
         assert.deepEqual(other.log.errors, []);
         await other.context.close();
         assert.deepEqual(log.errors, []);

@@ -2723,9 +2723,9 @@
     const renderMapQuestion = (keepScroll) => {
         const data = current;
         const topic = TOPIC_BY_ID[data.topic];
-        const chip = scoreChip();
+        const header = questionHeaderTop();
         appContent.innerHTML = MapQuestion.questionScreen(data, { style: styleOf(topic), categoryIcon: categoryOf(topic, data.category).icon, typed: round.variant === 'typed',
-            extraTop: chip, labelClass: chip ? HEADER_LABEL_ROOM : '',
+            extraTop: header.top, labelClass: header.label,
             guess: round.mapGuess, fresh: !keepScroll, report: canReport() && mode !== 'challenge' ? REPORT_ICON_BUTTON : '' });
         renderIcons(appContent);
         clearInterval(tourTimer);
@@ -2748,13 +2748,67 @@
         if (practiceRun.key !== key) practiceRun = { key, points: 0 };
         practiceRun.points += round.points;
     };
-    // Čip vlevo nahoře (vpravo bývá čas zápasu); štítek druhu otázky mezi nimi se zúží a případně zkrátí, ať se záhlaví nezalomí
-    const SCORE_CHIP = 'absolute left-0 top-0 inline-flex items-center gap-1 rounded-lg bg-gold-100 px-2 py-0.5 text-xs font-black tabular-nums text-gold-800 dark:bg-gold-900/50 dark:text-gold-200';
+    // Čip vlevo nahoře (vpravo bývá čas Kvízu dne); štítek druhu otázky mezi nimi se zúží a v případě potřeby zalomí na dva řádky
+    const SCORE_CHIP_BASE = 'inline-flex shrink-0 items-center gap-1 rounded-lg bg-gold-100 px-2 py-0.5 text-xs font-black tabular-nums text-gold-800 dark:bg-gold-900/50 dark:text-gold-200';
+    const SCORE_CHIP = `absolute left-0 top-0 ${SCORE_CHIP_BASE}`;
     const HEADER_LABEL_ROOM = 'max-w-[calc(100%-8.5rem)]';
-    const scoreChip = () => {
+    // inline = v řádku se soupeřem (hra proti hráči), jinak volně vlevo nahoře
+    const scoreChip = (inline = false) => {
         const total = runningScore();
         if (total === null) return '';
-        return `<span data-score-chip class="${SCORE_CHIP}" title="Body v této hře" aria-label="Body v této hře: ${total}"><i data-lucide="star" class="h-3.5 w-3.5"></i>${total} b</span>`;
+        return `<span data-score-chip class="${inline ? SCORE_CHIP_BASE : SCORE_CHIP}" title="Body v této hře" aria-label="Body v této hře: ${total}"><i data-lucide="star" class="h-3.5 w-3.5"></i>${total} b</span>`;
+    };
+    // Čas na otázku (zápas turnaje a Kvíz dne): běží v [data-tour-timer]
+    const TIMER_CHIP_BASE = 'inline-flex shrink-0 items-center gap-1 rounded-lg bg-slate-200 px-2 py-0.5 text-xs font-black tabular-nums text-slate-700 dark:bg-slate-700 dark:text-slate-100';
+    const timerChip = (inline = false) => `<span class="${inline ? TIMER_CHIP_BASE : `absolute right-0 top-0 ${TIMER_CHIP_BASE}`}" title="Čas na tuto otázku: při shodě rozhoduje rychlejší hráč"><i data-lucide="timer" class="h-3.5 w-3.5"></i><span data-tour-timer>0:00</span></span>`;
+
+    // --- Soupeř v záhlaví otázky: ve hře proti hráči (výzva, odveta, zápas turnaje) je vpravo nahoře malý obrázek a přezdívka soupeře ---
+    // Soupeř z mého pohledu: zakladatel výzvy → vyzvaný hráč, vyzvaný (nebo kdo přišel přes odkaz) → zakladatel, turnaj → druhý hráč mého zápasu.
+    // Výzva skupině: skupina (hraje proti všem členům, kteří ji dohrají); moje výzva přes odkaz, kterou ještě nikdo nepřijal: „Otevřená výzva“.
+    // Kvíz dne a trénink soupeře nemají (null).
+    const challengeOpponent = () => {
+        if (mode !== 'challenge' || !challenge) return null;
+        const user = signedUser();
+        const meId = (user && user.id) || challenge.owner || null;
+        const tour = challenge.tournament;
+        if (tour) {
+            const view = Tournament && tour.tid ? findTournament(tour.tid) : null;
+            const match = view ? (view.state && view.state.matchId === tour.mid && view.state.match) || (view.matches || []).find(item => item.id === tour.mid) : null;
+            const otherId = match && meId ? Tournament.opponentOf(match, meId) : null;
+            const entry = otherId ? (view.entries || []).find(item => item.user_id === otherId) : null;
+            const player = (entry && entry.player) || tour.opponent || null;
+            return player ? { player } : null;
+        }
+        if (challenge.group && challenge.group.name) return { group: challenge.group };
+        const creator = challenge.creator;
+        if (creator && creator.id && creator.id !== meId) return { player: creator };
+        if (challenge.invited && challenge.invited.id !== meId) return { player: challenge.invited };
+        return creator ? { open: true } : null;
+    };
+    const OPPONENT_CHIP = 'inline-flex min-w-0 max-w-[65%] items-center gap-1 rounded-full bg-white py-px pl-px pr-2 text-[11px] font-bold leading-4 text-slate-700 shadow-sm ring-1 ring-slate-200 dark:bg-slate-800 dark:text-slate-100 dark:ring-slate-700';
+    const OPPONENT_BUBBLE = 'flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-full bg-slate-100 text-[11px] text-slate-500 dark:bg-slate-700 dark:text-slate-300';
+    const opponentChip = (opponent) => {
+        if (opponent.player) {
+            const name = playerName(opponent.player);
+            return `<span data-opponent-chip="player" class="${OPPONENT_CHIP}" title="Hraješ proti: ${escapeHtml(name)}">${avatarHtml(opponent.player, 'h-[18px] w-[18px] text-[11px]')}<span class="shrink-0 font-semibold text-slate-500 dark:text-slate-400">proti</span><span data-opponent-name class="truncate">${escapeHtml(name)}</span></span>`;
+        }
+        if (opponent.group) {
+            const icon = String(opponent.group.icon || '').trim();
+            return `<span data-opponent-chip="group" class="${OPPONENT_CHIP}" title="Výzva skupiny ${escapeHtml(opponent.group.name)}"><span aria-hidden="true" class="${OPPONENT_BUBBLE}">${icon ? escapeHtml(icon) : '<i data-lucide="users" class="h-3 w-3"></i>'}</span><span class="shrink-0 font-semibold text-slate-500 dark:text-slate-400">skupina</span><span data-opponent-name class="truncate">${escapeHtml(opponent.group.name)}</span></span>`;
+        }
+        return `<span data-opponent-chip="open" class="${OPPONENT_CHIP}" title="Výzvu zatím nikdo nepřijal: hraje ji, kdo dostane odkaz"><span aria-hidden="true" class="${OPPONENT_BUBBLE}"><i data-lucide="share-2" class="h-3 w-3"></i></span><span data-opponent-name class="truncate">Otevřená výzva</span></span>`;
+    };
+    // Záhlaví otázky: ve hře proti hráči řádek „body (a čas) vlevo – soupeř vpravo“ nad štítkem druhu otázky, který pak má celou šířku
+    // (vedle čipů by na telefonu zbylo na štítek jen pár písmen); jinak body vlevo a čas vpravo vedle štítku jako dřív.
+    // Vrací { top: HTML nad štítkem, label: třída šířky štítku }
+    const questionHeaderTop = ({ timed = false, score = true } = {}) => {
+        const opponent = challengeOpponent();
+        if (opponent) {
+            const left = `${score ? scoreChip(true) : ''}${timed ? timerChip(true) : ''}`;
+            return { top: `<div data-match-bar class="flex w-full items-center justify-between gap-2"><span class="flex shrink-0 items-center gap-1">${left}</span>${opponentChip(opponent)}</div>`, label: 'max-w-full' };
+        }
+        const chip = score ? scoreChip() : '';
+        return { top: `${chip}${timed ? timerChip() : ''}`, label: chip || timed ? HEADER_LABEL_ROOM : 'max-w-full' };
     };
     // Řádek „Celkem: 16 bodů“ do výsledku otázky (jen tam, kde je čip)
     const scoreTotalLine = (tone) => {
@@ -2779,16 +2833,15 @@
                 ${renderAnswerInput(data)}
             </section>`;
 
-        const chip = scoreChip();
-        const timed = (mode === 'challenge' && challenge && challenge.tournament) || mode === 'quiz';
+        const timed = Boolean((mode === 'challenge' && challenge && challenge.tournament) || mode === 'quiz');
+        const header = questionHeaderTop({ timed });
         // Při psaní je pole nahoře: otevřená klávesnice by ho jinak zakryla
         appContent.innerHTML = `
             <div class="${keepScroll ? '' : 'fade-in '}flex min-h-full w-full flex-col gap-2.5 bg-slate-50 p-3 pb-3 dark:bg-slate-900">
                 <div class="relative flex flex-col items-center gap-1 text-center">
-                    ${chip}
-                    ${timed ? `<span class="absolute right-0 top-0 inline-flex items-center gap-1 rounded-lg bg-slate-200 px-2 py-0.5 text-xs font-black tabular-nums text-slate-700 dark:bg-slate-700 dark:text-slate-100" title="Čas na tuto otázku: při shodě rozhoduje rychlejší hráč"><i data-lucide="timer" class="h-3.5 w-3.5"></i><span data-tour-timer>0:00</span></span>` : ''}
-                    <span class="inline-flex ${chip || timed ? HEADER_LABEL_ROOM : 'max-w-full'} items-center gap-1.5 rounded-lg border px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest text-white shadow-sm ${style.solid}">
-                        <i data-lucide="${category.icon}" class="h-3 w-3 shrink-0"></i> <span class="truncate">${escapeHtml(data.typeLabel)}</span>
+                    ${header.top}
+                    <span data-header-label class="inline-flex ${header.label} items-center gap-1.5 rounded-lg border px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest text-white shadow-sm ${style.solid}">
+                        <i data-lucide="${category.icon}" class="h-3 w-3 shrink-0"></i> <span class="min-w-0 break-words leading-snug">${escapeHtml(data.typeLabel)}</span>
                     </span>
                     <h2 class="text-[22px] font-black leading-tight tracking-tight text-slate-800 dark:text-slate-50">${escapeHtml(data.question.title)}</h2>
                 </div>
@@ -3227,9 +3280,12 @@
         style: styleOf(TOPIC_BY_ID[data.topic]), card: CARD, cardTitle: CARD_TITLE, art: uiArt, xpLine, variant: round.variant, wikiUrl: wikipediaUrl,
         statsCard: mode === 'challenge' ? '' : renderStatsCard(data), reportIcon: canReport() && mode !== 'challenge' ? REPORT_ICON_BUTTON : '',
         reportText: canReport() ? REPORT_TEXT_BUTTON : '', nextLabel: round.answered ? getNextLabel() : '',
-        timer: Boolean(mode === 'challenge' && challenge && challenge.tournament && !round.answered),
-        // Body ve hře: čip v záhlaví otázky (ve výsledku číselné otázky součet není, pořadí musí zůstat na očích)
-        score: round.answered ? '' : scoreChip(), labelRoom: HEADER_LABEL_ROOM
+        // Záhlaví otázky: body ve hře, čas zápasu turnaje a soupeř (ve výsledku číselné otázky nic z toho, pořadí musí zůstat na očích)
+        ...(() => {
+            if (round.answered) return { headerTop: '', labelRoom: 'max-w-full' };
+            const header = questionHeaderTop({ timed: Boolean(mode === 'challenge' && challenge && challenge.tournament) });
+            return { headerTop: header.top, labelRoom: header.label };
+        })()
     });
     const renderNumeric = (keepScroll) => {
         const data = current;
@@ -6369,7 +6425,7 @@
                         if (draft.group) await Social.groupSetChallenge(draft.group.id, created.id).catch(error => showToast(error && error.message ? error.message : 'Výzvu se nepodařilo poslat skupině.'));
                         closeDialog();
                         await loadMyProfile();
-                        startChallenge({ ...created, creator: myProfile, invited: opponent, fresh: true }, 0, []);
+                        startChallenge({ ...created, creator: myProfile, invited: opponent, group: draft.group || null, fresh: true }, 0, []);
                     } catch (error) {
                         busy = false;
                         note = challengeErrorText(error);
@@ -7005,7 +7061,8 @@
 
     // Detail výzvy podle kódu: kdo vyzývá, o co jde, žebříček; hrát jde, dokud hráč nemá výsledek
     let challengeToken = 0;
-    const openChallenge = async (rawCode) => {
+    // group = výzva se hraje z detailu skupiny ({ id, name, icon }): v záhlaví otázky bude místo zakladatele skupina
+    const openChallenge = async (rawCode, group = null) => {
         const code = Social ? Social.parseCode(rawCode) : '';
         if (!code) { showDialog('Výzva', DIALOG_NOTE('Tenhle kód výzvy není platný.')); return; }
         const user = signedUser();
@@ -7070,16 +7127,19 @@
                 if (event.target.closest('[data-ch-play]')) {
                     closeDialog();
                     // Tahle výzva je už rozehraná: pokračuje se od další otázky (ne znovu od první)
-                    if (resumable) { challenge = resumable; continueChallenge(); }
-                    else startChallenge({ ...def, synced: Array.isArray(progress) ? 0 : -1 }, 0, []);
+                    if (resumable) { challenge = resumable; if (group && !challenge.group) challenge.group = challengeGroup(group); continueChallenge(); }
+                    else startChallenge({ ...def, group, synced: Array.isArray(progress) ? 0 : -1 }, 0, []);
                 }
             }
         });
     };
 
     // Rozehraná výzva z řádku výzvy (nebo z dřívější rozehrané): co a kým se hraje, odpovědi a kolik jich potvrdil server
+    const challengeGroup = (group) => (group && group.name ? { id: group.id || null, name: String(group.name), icon: typeof group.icon === 'string' ? group.icon : '' } : null);
     const makeChallenge = (def, index = 0, results = []) => ({
         code: def.code || def.id, topic: def.topic, seed: def.seed, count: def.count, index, results, creator: def.creator || null, invited: def.invited || null, done: false,
+        // Výzva skupině (soupeř v záhlaví otázky je skupina): { id, name, icon }, jen když se výzva hraje ze skupiny
+        group: challengeGroup(def.group),
         hard: Boolean(def.hard ?? def.include_hard), categories: def.categories || [], variant: def.variant || null, tournament: def.tournament || null,
         // Kdo výzvu hraje: po odhlášení a přihlášení jiného účtu na stejném zařízení se mu cizí rozehraná výzva nenabízí
         owner: def.owner || (signedUser() ? signedUser().id : null),
@@ -8648,13 +8708,17 @@
             if (match && !Tournament.resultOf(match, user.id)) match.results = [...(match.results || []), { user_id: user.id, started_at: new Date().toISOString(), finished_at: null, correct: null, points: null, time_ms: null }];
         }
         // Zápas právě začal: server od něj ještě žádnou odpověď nemá
-        startChallenge({ ...tournamentChallengeDef(tournament, state), synced: 0 }, 0, []);
+        startChallenge({ ...tournamentChallengeDef(tournament, state, view.entries), synced: 0 }, 0, []);
     };
     // Zápas turnaje jako výzva: otázky ze semínka turnaje a kola, vždy výběr z možností a jen známější položky
-    const tournamentChallengeDef = (tournament, state) => ({
-        code: 'turnaj', topic: tournament.topic, seed: `${tournament.seed}-r${state.round}`, count: Tournament.QUESTIONS, variant: 'choices', include_hard: false,
-        tournament: { tid: tournament.id, mid: state.matchId, round: state.round, name: state.roundName, seedBase: tournament.seed }
-    });
+    // entries = přihlášení hráči: soupeř se uloží k zápasu (záhlaví otázky ho ukáže, i kdyby se turnaje nenačetly)
+    const tournamentChallengeDef = (tournament, state, entries = []) => {
+        const opponent = state.opponent ? (entries || []).find(entry => entry.user_id === state.opponent) : null;
+        return {
+            code: 'turnaj', topic: tournament.topic, seed: `${tournament.seed}-r${state.round}`, count: Tournament.QUESTIONS, variant: 'choices', include_hard: false,
+            tournament: { tid: tournament.id, mid: state.matchId, round: state.round, name: state.roundName, seedBase: tournament.seed, opponent: opponent && opponent.player ? opponent.player : null }
+        };
+    };
     // Pokračování rozehraného zápasu od první nezodpovězené otázky; server měří čas od začátku zápasu. Odpovědi se vezmou ze serveru (schéma 3),
     // takže zápas jde dohrát i po smazání dat nebo na jiném zařízení; starší databáze jen z uložené relace tohoto zařízení.
     // Když jsou všechny otázky zodpovězené (aplikace se zavřela před odesláním), výsledek se rovnou odešle.
@@ -8678,7 +8742,7 @@
             paintChallenges();
             return;
         }
-        const def = { ...(local || tournamentChallengeDef(view.tournament, view.state)) };
+        const def = { ...(local || tournamentChallengeDef(view.tournament, view.state, view.entries)) };
         def.results = Array.from({ length: def.count }, (_, index) => (local && local.results[index]) || null);
         // Odpovědi ze serveru platí (mohly přibýt na jiném zařízení); bez spojení se pokračuje podle zařízení
         const user = signedUser();
@@ -8853,11 +8917,21 @@
     }
 
     // Skupiny (groups.js): okna dostanou pomocné funkce aplikace; Vyzvat skupinu otevře Novou výzvu pro skupinu
+    // Skupina otevřená v okně (detail skupiny): název a ikona ze seznamu mých skupin, jinak název z okna
+    const openGroupOf = () => {
+        const detail = document.getElementById('group-detail');
+        if (!detail || !detail.dataset.groupId) return null;
+        const list = GroupsUI ? GroupsUI.groups() : null;
+        const known = Array.isArray(list) ? list.find(item => item.id === detail.dataset.groupId) : null;
+        const nameEl = detail.querySelector('[data-group-name]');
+        return challengeGroup({ id: detail.dataset.groupId, name: known ? known.name : nameEl ? nameEl.textContent.trim() : '', icon: known ? known.icon : '' });
+    };
     if (window.MudrlantGroups && Social) {
         GroupsUI = window.MudrlantGroups.createUI({
             Social, showDialog, closeDialog, avatarHtml, showToast, signedUser, renderIcons,
             login: () => { if (Auth) startLogin(); },
-            openChallenge: (code) => openChallenge(code),
+            // Hra z detailu skupiny: skupina se vezme z otevřeného okna (soupeř v záhlaví otázky)
+            openChallenge: (code) => openChallenge(code, openGroupOf()),
             openQuiz: () => { if (DailyQuiz) openQuiz(); },
             newGroupChallenge: (group) => openNewChallenge({ group }),
             topicTitle: challengeTopicTitle, topicIcon: challengeTopicIcon,

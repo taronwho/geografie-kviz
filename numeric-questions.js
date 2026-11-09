@@ -457,7 +457,7 @@
 
     // --- Vzhled (HTML) ---
     // ui = pomůcky aplikace: style (barvy tématu), card, cardTitle, art(name, cls), xpLine(xp, tone), statsCard, reportIcon, reportText,
-    // nextLabel, wikiUrl(title), timer (zápas turnaje), variant, score (čip s body ve hře v záhlaví otázky), labelRoom (šířka štítku vedle čipů),
+    // nextLabel, wikiUrl(title), variant, headerTop (HTML nad štítkem otázky: body ve hře, čas zápasu, soupeř), labelRoom (šířka štítku vedle nich),
     // (výsledek číselné otázky součet bodů neukazuje: pořadí musí zůstat nad tlačítkem Další i na 360×640)
 
     const BADGE_OFF = 'flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-2 border-dashed border-slate-300 text-base font-black text-slate-400 dark:border-slate-500 dark:text-slate-500';
@@ -475,10 +475,9 @@
     const KIND_ICONS = { order: 'hash', estimate: 'gauge' };
     const headerHtml = (data, ui, subtitle = '') => `
         <div class="relative flex flex-col items-center gap-1 text-center">
-            ${ui.score || ''}
-            ${ui.timer ? '<span class="absolute right-0 top-0 inline-flex items-center gap-1 rounded-lg bg-slate-200 px-2 py-0.5 text-xs font-black tabular-nums text-slate-700 dark:bg-slate-700 dark:text-slate-100" title="Čas na tuto otázku: při shodě rozhoduje rychlejší hráč"><i data-lucide="timer" class="h-3.5 w-3.5"></i><span data-tour-timer>0:00</span></span>' : ''}
-            <span class="inline-flex ${(ui.score || ui.timer) && ui.labelRoom ? ui.labelRoom : 'max-w-full'} items-center gap-1.5 rounded-lg border px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest text-white shadow-sm ${ui.style.solid}">
-                <i data-lucide="${KIND_ICONS[data.numeric.kind]}" class="h-3 w-3 shrink-0"></i> <span class="truncate">${escapeHtml(data.typeLabel)}</span>
+            ${ui.headerTop || ''}
+            <span data-header-label class="inline-flex ${ui.headerTop && ui.labelRoom ? ui.labelRoom : 'max-w-full'} items-center gap-1.5 rounded-lg border px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest text-white shadow-sm ${ui.style.solid}">
+                <i data-lucide="${KIND_ICONS[data.numeric.kind]}" class="h-3 w-3 shrink-0"></i> <span class="min-w-0 break-words leading-snug">${escapeHtml(data.typeLabel)}</span>
             </span>
             <h2 class="text-[22px] font-black leading-tight tracking-tight text-slate-800 dark:text-slate-50">${escapeHtml(data.question.title)}</h2>
             ${subtitle ? `<p class="text-sm font-semibold leading-snug text-slate-500 dark:text-slate-400">${escapeHtml(subtitle)}</p>` : ''}
