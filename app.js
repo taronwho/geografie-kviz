@@ -28,6 +28,8 @@
     const MapQuestion = window.MudrlantMapQuestion || null;
     // Číselné otázky Seřaď a Odhadni číslo (numeric-questions.js); bez skriptu jen nejsou
     const Numeric = window.MudrlantNumeric || null;
+    // Zdroj obrázku z Wikimedia Commons (photo-source.js): tlačítko „i“ u obrázků; bez skriptu se jen neukáže
+    const PhotoSource = window.MudrlantPhotoSource || null;
     const TOPICS = window.MudrlantTopics || [];
     const TOPIC_BY_ID = Object.fromEntries(TOPICS.map(topic => [topic.id, topic]));
     const APP_NAME = 'Mudrlant';
@@ -1299,7 +1301,7 @@
     };
     const pushOfferAllowed = (record, now = Date.now()) => !record.done && record.shown < PUSH_OFFER_MAX && (!record.last || now - record.last >= PUSH_OFFER_GAP);
     // Něco jiného má přednost: tutoriál, otázka, načítání, jiné okno nebo oslava
-    const PUSH_OFFER_BLOCKERS = ['dialog-overlay', 'settings-overlay', 'play-chooser', 'photo-zoom', 'place-info', 'fact-overlay', 'celebration', 'tutorial', 'account-welcome'];
+    const PUSH_OFFER_BLOCKERS = ['dialog-overlay', 'settings-overlay', 'play-chooser', 'photo-zoom', 'photo-source', 'place-info', 'fact-overlay', 'celebration', 'tutorial', 'account-welcome'];
     const pushOfferBlocked = () => {
         if (isLoading || (screen !== 'home' && screen !== 'challenge-done')) return true;
         if (Tutorial) {
@@ -2397,6 +2399,11 @@
                 else delete zoom.dataset.masks;
                 zoom.classList.remove('hidden');
             }
+            const source = frame.querySelector('[data-photo-info]');
+            if (source && PhotoSource && PhotoSource.fileFromUrl(url)) {
+                source.dataset.url = url;
+                source.classList.remove('hidden');
+            }
         } catch (e) {
             if (onFail) onFail();
             const failure = element.parentElement && element.parentElement.querySelector('[data-photo-failed]');
@@ -2434,7 +2441,57 @@
         <p data-photo-failed class="hidden absolute inset-x-0 top-1/2 mt-8 text-center text-sm text-slate-500 dark:text-slate-400">Fotku se nepodařilo načíst</p>
         <div data-photo-backdrop class="absolute inset-0 scale-110 bg-cover bg-center opacity-50 blur-xl" aria-hidden="true"></div>
         <div ${attributes} class="absolute inset-0 bg-contain bg-center bg-no-repeat" aria-hidden="true"></div>
-        <button type="button" data-photo-zoom aria-label="Zvětšit fotku" class="hidden absolute bottom-2 right-2 rounded-xl bg-black/65 p-3 text-white shadow backdrop-blur-sm"><i data-lucide="expand" class="h-4 w-4"></i></button>`;
+        <button type="button" data-photo-zoom aria-label="Zvětšit fotku" class="hidden absolute bottom-2 right-2 rounded-xl bg-black/65 p-3 text-white shadow backdrop-blur-sm"><i data-lucide="expand" class="h-4 w-4"></i></button>
+        ${PhotoSource ? PhotoSource.buttonHtml() : ''}`;
+
+    // Okno „Zdroj obrázku“ (tlačítko „i“ u obrázku): licence hned, autor, popis a odkaz na Commons až po odpovědi – u obrazu je
+    // autor odpovědí a název souboru bývá název místa. Vlastní malé okno nad vším (i nad oknem s popisem a dialogem, které nezavře).
+    const loadPhotoSource = PhotoSource ? PhotoSource.createLoader((url) => fetch(url, { credentials: 'omit' })) : null;
+    let photoSourceOpener = null;
+    const closePhotoSource = () => {
+        const overlay = document.getElementById('photo-source');
+        if (!overlay) return;
+        overlay.remove();
+        if (photoSourceOpener && photoSourceOpener.isConnected) photoSourceOpener.focus({ preventScroll: true });
+        photoSourceOpener = null;
+    };
+    // Před odpovědí = obrázek je v otázce, na kterou hráč ještě neodpověděl (ne v okně s popisem ani v atlasu učení)
+    const photoBeforeAnswer = (button) => appContent.contains(button) && screen !== 'learn' && Boolean(round) && !round.answered;
+    const openPhotoSource = (button) => {
+        const fileName = PhotoSource && PhotoSource.fileFromUrl(button.dataset.url);
+        if (!fileName) return;
+        closePhotoSource();
+        const answered = !photoBeforeAnswer(button);
+        photoSourceOpener = button;
+        const overlay = document.createElement('div');
+        overlay.id = 'photo-source';
+        overlay.setAttribute('role', 'dialog');
+        overlay.setAttribute('aria-modal', 'true');
+        overlay.setAttribute('aria-labelledby', 'photo-source-title');
+        overlay.className = 'fixed inset-0 z-[60] flex items-end justify-center bg-slate-900/60 p-4 backdrop-blur-sm sm:items-center';
+        overlay.innerHTML = `
+            <div class="fade-in flex max-h-[92dvh] w-full max-w-sm flex-col gap-3 overflow-y-auto rounded-[1.75rem] bg-slate-50 p-5 shadow-2xl dark:bg-slate-900">
+                <div class="-mt-1 flex items-center justify-between">
+                    <h2 id="photo-source-title" class="flex items-center gap-2 text-lg font-black text-slate-800 dark:text-slate-100"><i data-lucide="image" class="h-5 w-5"></i> ${escapeHtml(PhotoSource.TITLE)}</h2>
+                    <button type="button" data-close aria-label="Zavřít" class="-m-1 rounded-xl p-2.5 text-slate-500 hover:bg-slate-200 dark:text-slate-400 dark:hover:bg-slate-800"><i data-lucide="x" class="h-5 w-5"></i></button>
+                </div>
+                <div data-source-body class="flex flex-col gap-3"></div>
+            </div>`;
+        const body = overlay.querySelector('[data-source-body]');
+        const draw = (status, meta = null) => {
+            body.innerHTML = PhotoSource.viewHtml(PhotoSource.buildView({ fileName, meta, answered, status }));
+            renderIcons(body);
+        };
+        draw('loading');
+        overlay.addEventListener('click', (event) => {
+            if (event.target === overlay || event.target.closest('[data-close]')) closePhotoSource();
+        });
+        trapFocus(overlay);
+        document.body.appendChild(overlay);
+        renderIcons(overlay);
+        overlay.querySelector('[data-close]').focus();
+        loadPhotoSource(fileName).then(meta => { if (overlay.isConnected) draw(meta ? 'ready' : 'failed', meta); });
+    };
 
     const capitalize = (text) => text.charAt(0).toUpperCase() + text.slice(1);
     // Záložka nápovědy: „Fakta“ místo dlouhého „Čísla a fakta“, jinak název nápovědy
@@ -3569,7 +3626,7 @@
         if (!Goals) return;
         const { state, rows } = goalRows();
         const row = ({ goal, value, done }) => `
-            <li data-goal-row="${escapeHtml(goal.id)}" class="rounded-2xl bg-white p-3 shadow-sm ring-1 ${done ? 'ring-emerald-300 dark:ring-emerald-700' : 'ring-slate-200/70 dark:ring-slate-700/70'} dark:bg-slate-800">
+            <li data-goal-row="${escapeHtml(goal.id)}"><button type="button" data-goal-detail="${escapeHtml(goal.id)}" aria-label="${escapeHtml(`${goal.title}: podrobnosti a hrát`)}" class="block w-full rounded-2xl bg-white p-3 text-left shadow-sm ring-1 transition-transform active:scale-[0.99] ${done ? 'ring-emerald-300 dark:ring-emerald-700' : 'ring-slate-200/70 dark:ring-slate-700/70'} dark:bg-slate-800">
                 <div class="flex items-start gap-2.5">
                     <span data-goal-art class="relative -my-1 shrink-0">${goalArt(goal, 'h-9 w-9')}${done ? '<span class="absolute -bottom-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-emerald-500 text-white ring-2 ring-white dark:ring-slate-800"><i data-lucide="check" class="h-3 w-3"></i></span>' : ''}</span>
                     <span class="min-w-0 flex-1 text-[13px] font-bold leading-snug text-slate-800 dark:text-slate-100">${escapeHtml(goal.title)}</span>
@@ -3578,14 +3635,69 @@
                 <div class="mt-2 flex items-center gap-2">
                     <span class="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700" aria-hidden="true"><span class="block h-full w-0 rounded-full ${done ? 'bg-emerald-500' : 'bg-gold-500'}" data-progress="${Math.round(value / goal.target * 100)}"></span></span>
                     <span class="text-[11px] font-bold tabular-nums text-slate-500 dark:text-slate-400">${done ? 'Splněno' : `${value} / ${goal.target}`}</span>
+                    <i data-lucide="chevron-right" class="h-4 w-4 shrink-0 text-slate-400"></i>
                 </div>
-            </li>`;
+            </button></li>`;
         showDialog('Cíle týdne', `
             <div class="mb-2 flex items-center gap-2">${uiArt('cile', 'h-10 w-10')}<p class="text-xs text-slate-500 dark:text-slate-400">${escapeHtml(Goals.weekLabel(state.week))} · ${goalsLeftText()}</p></div>
             <ul class="flex flex-col gap-2">${rows.map(row).join('')}</ul>
             <p class="mt-3 flex items-center gap-2 rounded-2xl ${state.bonus ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200' : 'bg-gold-100 text-gold-800 dark:bg-gold-900/40 dark:text-gold-200'} px-3 py-2 text-xs font-bold"><i data-lucide="trophy" class="h-4 w-4 shrink-0"></i>${state.bonus ? `Všechny cíle splněny: bonus +${Goals.BONUS_XP} XP získán` : `Za všechny tři cíle bonus +${Goals.BONUS_XP} XP, odznak Týdenní cíle a Truhla Mudrlanta`}</p>
             ${Rewards && Rewards.pendingChest(loadRewards()) ? `<button type="button" data-chest-open class="${PRIMARY_BUTTON} mt-2 !bg-gold-500 !text-brand-950"><i data-lucide="sparkles" class="h-5 w-5"></i> Otevřít Truhlu Mudrlanta</button>` : ''}`, {
-            onClick: (event) => { if (event.target.closest('[data-chest-open]')) { closeDialog(); openChestOverlay(); } }
+            onClick: (event) => {
+                if (event.target.closest('[data-chest-open]')) { closeDialog(); openChestOverlay(); return; }
+                const detail = event.target.closest('[data-goal-detail]');
+                if (detail) openGoalDetail(detail.dataset.goalDetail);
+            }
+        });
+        applyProgress(document.getElementById('dialog-overlay'));
+    };
+    // Podrobnosti cíle týdne: co se počítá, jak daleko jsem a tlačítko rovnou do hry, kde se cíl plní
+    const goalPlan = (goal) => {
+        const topic = goal.kind === 'tema' ? TOPIC_BY_ID[goal.id.slice('tema-'.length)] : null;
+        const mix = { label: 'Hrát Mix', run: () => startPractice({ kind: 'mix' }) };
+        const daily = nextDailyTopic();
+        const multi = (run) => () => { writeJson(KEYS.homeTab, 'multi'); run(); };
+        const plans = {
+            spravne: { text: 'Počítá se každá správná odpověď v jakékoli hře: procvičování, dnešní otázky, výzvy, turnaj i Kvíz dne.', ...mix },
+            tema: topic ? { text: `Počítají se správné odpovědi v tématu ${topic.title}, ať hraješ procvičování, dnešní otázku nebo Mix.`, label: `Hrát ${topic.title}`, run: () => playTopic(topic.id) } : mix,
+            dnesni: daily ? { text: 'Dnešní otázky: každý den jedna nová otázka z každého tématu. Počítá se každá správná.', label: `Dnešní otázka: ${daily.title}`, run: () => startNextDaily(daily.id) }
+                : { text: 'Dnešní otázky: každý den jedna nová otázka z každého tématu. Na dnešek máš všechny zodpovězené, další přibudou zítra.', label: '', run: null },
+            'bez-napovedy': { text: 'Odpověz správně dřív, než otevřeš první nápovědu (otázka za plné 4 body). Počítá se v každé hře.', ...mix },
+            dny: { text: 'Stačí každý den odpovědět aspoň na jednu otázku. Každý den, kdy hraješ, se počítá jednou.', ...mix },
+            poznane: { text: 'Nová položka se počítá, když na ni poprvé odpovíš správně (v atlasu dostane hvězdičku).', ...mix },
+            opakovani: { text: 'Procvičování chyb vrací špatné odpovědi po 1, 3, 7, 14 a 30 dnech. Počítá se každá zopakovaná otázka.', label: 'Procvičovat chyby', run: () => (Review ? startReview() : startPractice({ kind: 'mistakes' })) },
+            chyby: { text: 'Odpověz správně na otázku, kterou jsi dřív pokazil. Nejrychleji v procvičování svých chyb.', label: 'Procvičovat chyby', run: () => startPractice({ kind: 'mistakes' }) },
+            vyzvy: { text: 'Dohraj výzvu proti kamarádovi nebo náhodnému soupeři. Počítá se každá dohraná výzva.', label: 'Nová výzva', run: multi(() => openNewChallenge()) },
+            vyhry: { text: 'Vyhraj výzvu: rozhodují body, při shodě počet správných odpovědí.', label: 'Nová výzva', run: multi(() => openNewChallenge()) },
+            turnaj: { text: 'Odehraj zápas týdenního turnaje. Kolo se hraje jeden den.', label: 'Otevřít turnaj', run: multi(() => { renderHome(); refreshTournaments(); }) },
+            kviz: { text: 'Kvíz dne: 10 stejných otázek pro všechny, jeden pokus za den. Počítá se každý dohraný den.', label: 'Hrát Kvíz dne', run: () => openQuiz() },
+            bleskovka: { text: 'Bleskovka: 60 sekund, co nejvíc správných odpovědí. Cíl splníš hrou s aspoň 10 správnými.', label: 'Hrát Bleskovku', run: () => openModeIntro('blitz', { kind: 'mix' }) },
+            preziti: { text: 'Přežití: tři životy, otázky postupně těžší. Cíl splníš, když v jedné hře přežiješ 15 otázek.', label: 'Hrát Přežití', run: () => openModeIntro('survival', { kind: 'mix' }) },
+            serad: { text: 'Otázky Seřaď (seřadit čtyři věci podle velikosti nebo doby) se objevují v procvičování. Počítá se každá seřazená bez chyby.', ...mix }
+        };
+        return plans[goal.kind] || mix;
+    };
+    const openGoalDetail = (goalId) => {
+        const { rows } = goalRows();
+        const row = rows.find(entry => entry.goal.id === goalId);
+        if (!row) return;
+        const { goal, value, done } = row;
+        const plan = goalPlan(goal);
+        showDialog('Cíl týdne', `
+            <div data-goal-info="${escapeHtml(goal.id)}" class="flex flex-col gap-3">
+                <div class="flex items-center gap-3">${goalArt(goal, 'h-16 w-16')}<div class="min-w-0"><p class="text-[15px] font-black leading-snug text-slate-800 dark:text-slate-100">${escapeHtml(goal.title)}</p><p class="mt-1 inline-block rounded-md bg-gold-100 px-1.5 py-0.5 text-[11px] font-black text-gold-800 dark:bg-gold-900/40 dark:text-gold-200">+${goal.xp} XP</p></div></div>
+                <div class="flex items-center gap-2">
+                    <span class="h-2 flex-1 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700" aria-hidden="true"><span class="block h-full w-0 rounded-full ${done ? 'bg-emerald-500' : 'bg-gold-500'}" data-progress="${Math.round(value / goal.target * 100)}"></span></span>
+                    <span class="text-[12px] font-black tabular-nums text-slate-600 dark:text-slate-300">${done ? 'Splněno' : `${value} / ${goal.target}`}</span>
+                </div>
+                <p data-goal-text class="text-[13px] leading-snug text-slate-700 dark:text-slate-200">${escapeHtml(plan.text)}</p>
+                ${plan.run ? `<button type="button" data-goal-play class="${PRIMARY_BUTTON}"><i data-lucide="play" class="h-5 w-5"></i> ${escapeHtml(plan.label)}</button>` : ''}
+                <button type="button" data-goal-back class="${SECONDARY_BUTTON} !py-2.5 text-sm"><i data-lucide="chevron-left" class="h-4 w-4"></i> Všechny cíle</button>
+            </div>`, {
+            onClick: (event) => {
+                if (event.target.closest('[data-goal-back]')) { openGoals(); return; }
+                if (event.target.closest('[data-goal-play]') && plan.run) { closeDialog(); plan.run(); }
+            }
         });
         applyProgress(document.getElementById('dialog-overlay'));
     };
@@ -4617,7 +4729,7 @@
     let modeTimer = null;
     let modeFeedbackTimer = null;
     // Okna, během kterých čas Bleskovky stojí (Nastavení, popis položky…)
-    const MODE_OVERLAYS = ['settings-overlay', 'dialog-overlay', 'play-chooser', 'place-info', 'photo-zoom', 'fact-overlay'];
+    const MODE_OVERLAYS = ['settings-overlay', 'dialog-overlay', 'play-chooser', 'place-info', 'photo-zoom', 'photo-source', 'fact-overlay'];
     const MODE_BADGE = { blitz: 'bg-gold-500 text-brand-950', survival: 'bg-rose-600 text-white' };
     const modeTopicOf = (game) => game.pool.kind === 'topic' ? TOPIC_BY_ID[game.pool.topic] : MIX;
     const loadModeState = () => Modes.parse(readJson(Modes.STORAGE_KEY));
@@ -5135,6 +5247,10 @@
     let recentReactions = [];
     let myBlocks = null;
     let recentExpanded = false; // Poslední výzvy: rozbalené všechny (jinak jen tři nejnovější)
+    // Starší výzvy načtené při posouvání rozbaleného seznamu (stránky po RECENT_PAGE); done = už žádné starší nejsou
+    const RECENT_PAGE = 15;
+    let recentOlder = { rows: [], loading: false, done: false, error: false };
+    let recentObserver = null;
     let challengesLoading = false;
     const signedUser = () => (Auth && Auth.getState().user) || null;
     const playerName = (player) => (player && player.display_name) || 'Hráč';
@@ -5545,12 +5661,18 @@
     // Poslední výzvy: jen tři nejnovější, Zobrazit vše rozbalí zbytek
     const recentSection = (incoming) => {
         const LABEL = 'px-1 text-[11px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400';
-        const rows = myChallenges === null ? [] : myChallenges.filter(row => !incoming.some(invite => invite.id === row.challenge_id)).slice(0, 6);
-        const more = rows.length > 3;
-        const toggle = more ? `<button type="button" data-action="recent-more" aria-expanded="${recentExpanded}" class="flex min-h-[2rem] items-center gap-1 rounded-lg px-1.5 text-[11px] font-black text-brand-700 active:scale-95 dark:text-cream">${recentExpanded ? 'Méně' : `Zobrazit vše (${rows.length})`}<i data-lucide="chevron-down" class="h-3.5 w-3.5 ${recentExpanded ? 'rotate-180' : ''}"></i></button>` : '';
+        const seen = new Set();
+        const rows = myChallenges === null ? [] : [...myChallenges, ...(recentExpanded ? recentOlder.rows : [])]
+            .filter(row => !incoming.some(invite => invite.id === row.challenge_id) && !seen.has(row.challenge_id) && seen.add(row.challenge_id));
+        const more = rows.length > 3 || (myChallenges || []).length >= 8;
+        const toggle = more ? `<button type="button" data-action="recent-more" aria-expanded="${recentExpanded}" class="flex min-h-[2rem] items-center gap-1 rounded-lg px-1.5 text-[11px] font-black text-brand-700 active:scale-95 dark:text-cream">${recentExpanded ? 'Méně' : 'Zobrazit vše'}<i data-lucide="chevron-down" class="h-3.5 w-3.5 ${recentExpanded ? 'rotate-180' : ''}"></i></button>` : '';
+        // Rozbalený seznam: na konci hlídka, která při dojetí dolů načte starší výzvy (a tlačítko pro případ, že posouvání nejde)
+        const tail = !recentExpanded ? '' : recentOlder.done
+            ? `<p data-recent-end class="px-1 py-1 text-center text-[11px] font-semibold text-slate-500 dark:text-slate-400">${rows.length > 3 ? 'To jsou všechny tvoje výzvy.' : ''}</p>`
+            : `<button type="button" data-action="recent-older" data-recent-sentinel class="flex min-h-[2.5rem] w-full items-center justify-center gap-1.5 rounded-xl text-[12px] font-bold text-slate-500 dark:text-slate-400">${recentOlder.loading ? 'Načítám starší výzvy…' : recentOlder.error ? 'Starší výzvy se nepodařilo načíst. Zkusit znovu' : 'Načíst starší výzvy'}</button>`;
         const body = myChallenges === null
             ? '<p class="px-1 text-xs font-semibold text-slate-500 dark:text-slate-400">Načítám výzvy…</p>'
-            : rows.length ? `<div class="flex flex-col gap-1.5">${(recentExpanded ? rows : rows.slice(0, 3)).map(challengeRow).join('')}</div>`
+            : rows.length ? `<div data-recent-list class="flex flex-col gap-1.5">${(recentExpanded ? rows : rows.slice(0, 3)).map(challengeRow).join('')}${tail}</div>`
                 : `<div class="flex items-center gap-3 rounded-2xl bg-white p-2.5 shadow-sm ring-1 ring-slate-200/70 dark:bg-slate-800/70 dark:ring-slate-700/70">${uiArt('sova-vyzva', 'h-10 w-10')}<p class="text-sm text-slate-600 dark:text-slate-300">Zatím žádné výzvy. Založ první tlačítkem Vyzvat.</p></div>`;
         return `<div class="flex flex-col gap-1"><div class="flex min-h-[2rem] items-center justify-between gap-2"><p class="${LABEL}">Poslední výzvy</p>${toggle}</div>${body}</div>`;
     };
@@ -5645,6 +5767,39 @@
         if (!element) return;
         element.innerHTML = challengesInner();
         renderIcons(element);
+        watchRecentEnd();
+    };
+    // Starší výzvy: další stránka od nejstarší načtené (podle času dohrání)
+    const loadOlderChallenges = async () => {
+        const user = signedUser();
+        if (!user || !Social || !recentExpanded || recentOlder.loading || recentOlder.done || myChallenges === null) return;
+        const all = [...myChallenges, ...recentOlder.rows];
+        if (all.length < 8 && !recentOlder.rows.length) { recentOlder.done = true; paintChallenges(); return; }
+        const oldest = all.reduce((min, row) => (!min || String(row.finished_at) < min ? String(row.finished_at) : min), '');
+        recentOlder.loading = true;
+        recentOlder.error = false;
+        paintChallenges();
+        try {
+            const page = await Social.myChallenges(user.id, RECENT_PAGE, oldest);
+            if (!signedUser() || signedUser().id !== user.id) return;
+            recentOlder.rows = [...recentOlder.rows, ...page];
+            if (page.length < RECENT_PAGE) recentOlder.done = true;
+        } catch (error) {
+            recentOlder.error = true;
+        } finally {
+            recentOlder.loading = false;
+            paintChallenges();
+        }
+    };
+    // Hlídka na konci rozbaleného seznamu: jakmile se při posouvání ukáže, načtou se starší výzvy
+    const watchRecentEnd = () => {
+        if (recentObserver) { recentObserver.disconnect(); recentObserver = null; }
+        const sentinel = document.querySelector('#challenges-section [data-recent-sentinel]');
+        if (!sentinel || recentOlder.loading || recentOlder.error || typeof IntersectionObserver === 'undefined') return;
+        recentObserver = new IntersectionObserver((entries) => {
+            if (entries.some(entry => entry.isIntersecting)) { recentObserver.disconnect(); recentObserver = null; loadOlderChallenges(); }
+        }, { root: appContent, rootMargin: '0px 0px 200px 0px' });
+        recentObserver.observe(sentinel);
     };
     const refreshChallenges = async () => {
         const user = signedUser();
@@ -5662,6 +5817,7 @@
             ]);
             if (!signedUser() || signedUser().id !== user.id) return;
             myChallenges = mine;
+            recentOlder = { rows: [], loading: false, done: false, error: false };
             myRating = rating;
             incomingList = incoming;
             paintChallenges();
@@ -8711,6 +8867,7 @@
         'new-challenge': () => openNewChallenge(),
         'random-challenge': () => openNewChallenge({ who: 'random' }),
         'recent-more': () => { recentExpanded = !recentExpanded; paintChallenges(); },
+        'recent-older': () => { recentOlder.error = false; loadOlderChallenges(); },
         'join-challenge': () => openJoinChallenge(),
         'challenge-open': (button) => openChallenge(button.dataset.code),
         'challenge-resume': async () => {
@@ -8886,12 +9043,15 @@
     document.addEventListener('click', (event) => {
         const zoom = event.target.closest('[data-photo-zoom]');
         if (zoom && zoom.dataset.url) openPhotoZoom(zoom.dataset.url, zoom.dataset.masks ? JSON.parse(zoom.dataset.masks) : null);
+        // Zdroj obrázku: tlačítko „i“ u fotky, obrázku otázky i obrazové nápovědy z Commons
+        const source = event.target.closest('[data-photo-info]');
+        if (source && source.dataset.url) openPhotoSource(source);
     });
     // Escape zavře nejdřív okno s popisem, pak výběr co hrát, pak nastavení
     // Tlačítko Zpět na mobilu jako zpět v aplikaci: mimo čistou úvodní obrazovku drží aplikace v historii prohlížeče jeden
     // krok navíc. Zpět ho spotřebuje a aplikace udělá svůj krok zpět (zavře okno, z otázky domů, v učení o úroveň výš);
     // teprve na úvodní obrazovce Zpět aplikaci opustí. Krok se doplní či odebere po každé změně obrazovky nebo okna.
-    const OVERLAY_IDS = ['photo-zoom', 'place-info', 'play-chooser', 'settings-overlay', 'dialog-overlay'];
+    const OVERLAY_IDS = ['photo-source', 'photo-zoom', 'place-info', 'play-chooser', 'settings-overlay', 'dialog-overlay'];
     const atRoot = () => (screen === 'home' || screen === 'welcome') && !OVERLAY_IDS.some(id => document.getElementById(id));
     let skipNextPop = false;
     const syncHistory = () => {
@@ -8903,7 +9063,8 @@
         }
     };
     const goBack = () => {
-        if (document.getElementById('fact-overlay')) closeFact();
+        if (document.getElementById('photo-source')) closePhotoSource();
+        else if (document.getElementById('fact-overlay')) closeFact();
         else if (document.getElementById('dialog-overlay')) closeDialog();
         else if (document.getElementById('photo-zoom')) closePhotoZoom();
         else if (document.getElementById('place-info')) closePlaceInfo();
@@ -8941,7 +9102,8 @@
 
     document.addEventListener('keydown', (event) => {
         if (event.key !== 'Escape') return;
-        if (document.getElementById('fact-overlay')) closeFact();
+        if (document.getElementById('photo-source')) closePhotoSource();
+        else if (document.getElementById('fact-overlay')) closeFact();
         else if (document.getElementById('dialog-overlay')) closeDialog();
         else if (document.getElementById('photo-zoom')) closePhotoZoom();
         else if (document.getElementById('place-info')) closePlaceInfo();

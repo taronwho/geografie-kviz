@@ -66,6 +66,14 @@ test('opakování s rozestupy a týdenní cíle', { skip: !chromium && 'Playwrig
             assert.equal(await tab.locator('#dialog-overlay [data-goal-row]').count(), 3);
             assert.match(await tab.textContent('#dialog-overlay'), /\+\d+ XP/);
             assert.match(await tab.textContent('#dialog-overlay'), /bonus \+200 XP/);
+            // Klepnutí na cíl: podrobnosti (co se počítá, ukazatel) a tlačítko do hry, zpět na všechny cíle
+            const first = await tab.getAttribute('#dialog-overlay [data-goal-detail]', 'data-goal-detail');
+            await tab.click('#dialog-overlay [data-goal-detail]');
+            await tab.waitForSelector(`#dialog-overlay [data-goal-info="${first}"]`);
+            assert.ok((await tab.textContent('#dialog-overlay [data-goal-text]')).length > 30, 'popis cíle');
+            assert.equal(await tab.locator('#dialog-overlay [data-goal-info] img').count(), 1, 'obrázek cíle');
+            await tab.click('#dialog-overlay [data-goal-back]');
+            await tab.waitForSelector('#dialog-overlay [data-goal-row]');
             await tab.keyboard.press('Escape');
             await tab.waitForSelector('#dialog-overlay', { state: 'detached' });
             await tab.waitForTimeout(400);
@@ -74,6 +82,13 @@ test('opakování s rozestupy a týdenní cíle', { skip: !chromium && 'Playwrig
             const box = await goals.boundingBox();
             assert.ok(box.x >= 0 && box.x + box.width <= viewport.width, 'karta cílů nepřetéká');
             assert.equal(await tab.locator('[data-review-due]').count(), 0, 'bez karet žádný čip');
+            // Tlačítko v podrobnostech cíle vede rovnou do hry (otázka, úvod režimu, Kvíz dne, výběr tématu nebo výzva)
+            await goals.click();
+            await tab.click('#dialog-overlay [data-goal-detail]');
+            await tab.waitForSelector('#dialog-overlay [data-goal-play]');
+            await tab.click('#dialog-overlay [data-goal-play]');
+            await tab.waitForFunction(() => document.querySelector('[data-action="choice"], #answer-form, [data-action="mode-start"], #quiz-intro, #chooser-overlay, #challenge-overlay, [data-action="give-up"]')
+                || (document.getElementById('dialog-overlay') && !document.querySelector('#dialog-overlay [data-goal-info]')), null, { timeout: 30000 });
             assert.deepEqual(problems, []);
             await context.close();
         });
