@@ -269,3 +269,36 @@ test('audit: tvar odpovědi, šablona, prázdná nápověda a mapa v měřítku 
     const ctx = { topic: { id: 'vlajky' }, hintTexts: new Map([['x', { text: 'Vlajka jednoho z velkých měst světa. Kterému patří?', label: 'popis', type: 'name', items: new Map([['Q1', 'A'], ['Q2', 'B'], ['Q3', 'C']]) }]]) };
     assert.deepEqual(auditTemplates(ctx).map(finding => [finding.kind, isCritical(finding)]), [['sablona', true]]);
 });
+
+test('zakrytí: název, který hráč vidí v zadání, se v popisu nezakrývá (24 hodin u otázky na desetiletí)', () => {
+    const p = require('./pipeline.js');
+    const film = p.loadContext('film');
+    const item = film.items.find(entry => entry.n === '24 hodin');
+    const [name, decade] = ['name', 'decade'].map(type => p.questionsFor(film, item).find(question => question.type === type));
+    const extract = '24 hodin je akční televizní seriál americké televize Fox. Hlavní roli agenta Jacka Bauera ztvárnil herec Kiefer Sutherland.';
+    assert.equal(decade.showName, true);
+    assert.match(p.textsFor(film, item, decade, extract).questionText, /^24 hodin je akční/, 'u desetiletí název zůstane');
+    assert.match(p.textsFor(film, item, name, extract).questionText, /^\[\*\*\*\] je akční/, 'u otázky na název se zakryje');
+    // Rok v textu se u desetiletí dál zakrývá, název ne
+    assert.equal(core.hideAnswer('24 hodin běžel od roku 2001.', decade, item, film), '24 hodin běžel od roku [***].');
+});
+
+test('audit: u všech otázek se zobrazeným názvem zůstane název v popisu vidět (vzorek úvodů všech témat)', () => {
+    const p = require('./pipeline.js');
+    const problems = [];
+    for (const [key, intro] of Object.entries(p.loadIntros())) {
+        const [topicId, qid] = key.split(':');
+        if (!p.TOPIC_IDS.includes(topicId)) continue;
+        const ctx = p.loadContext(topicId);
+        const item = ctx.byId.get(qid);
+        if (!item || !intro.extract) continue;
+        const description = core.processWikiText(intro.extract).description || '';
+        const shown = new RegExp(`(?<![\\p{L}\\p{N}])${item.n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![\\p{L}\\p{N}])`, 'iu');
+        if (!shown.test(description)) continue;
+        for (const question of p.questionsFor(ctx, item).filter(entry => entry.showName)) {
+            const text = core.hideAnswer(description, question, item, ctx);
+            if (!shown.test(text)) problems.push(`${key} ${question.type}: ${text.slice(0, 90)}`);
+        }
+    }
+    assert.deepEqual(problems, []);
+});
