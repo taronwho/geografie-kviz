@@ -541,3 +541,9 @@ select cron.schedule('turnaj-boti', '1 7,8 * * *', $$select public.tournament_ti
 
 Ve vývojářském režimu přibylo tlačítko **Boti odehrají kolo** (`dev_tournament_bots_play`, jen `dev_admins`): boti odehrají aktuální kolo hned.
 Spusť znovu celý `supabase/schema.sql` (verze 12).
+
+## Rozpis zápasů i u botů (schéma 14)
+
+Boti v turnaji ukládají odpovědi po otázkách (správně/špatně, body 4/3/2/1 podle nápověd, počet nápověd a čas na otázku) a výsledek zápasu
+je jejich součet, takže rozpis zápasu je ukáže stejně jako u hráčů. Text odpovědi server nezná (otázky skládá aplikace), u správné odpovědi
+ho aplikace doplní ze zadání, u špatné ukáže „Špatně“. Platí pro kola odehraná po aktualizaci; spusť znovu celý `supabase/schema.sql` (verze 14).

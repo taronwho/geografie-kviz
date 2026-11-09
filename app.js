@@ -63,7 +63,7 @@
     // 8 = Skupiny (group_*, my_groups, týdenní XP; se starší databází se Skupiny jen nenabídnou);
     // 9 = odměny v účtu (profiles.rewards: Truhla Mudrlanta, ochrana série, diplomy) a nové odznaky (se starší databází zůstanou jen v zařízení);
     // 10 = Rozpis otázek (podrobnosti odpovědí výzvy a zápasu turnaje, challenge_details a tournament_details; se starší databází jen vlastní odpovědi ze zařízení).
-    const REQUIRED_SCHEMA = 13;
+    const REQUIRED_SCHEMA = 14;
     const HISTORY_SIZE = 200;
     const REQUEST_TIMEOUT = 12000;
     const WIKI_TIMEOUT = 6000;
@@ -7085,12 +7085,13 @@
         return breakdownQuestions.get(key);
     };
     const hasDetails = (row) => Boolean(row) && (row.answer !== null && row.answer !== undefined || Number.isInteger(row.hints) || Number.isInteger(row.ms));
-    const breakdownCell = (row, who) => {
+    // question = zadání otázky: u správné odpovědi bez uloženého textu (boti, starší odpovědi) se ukáže správná odpověď ze zadání
+    const breakdownCell = (row, who, question = null) => {
         if (!row) {
             return `<div data-bd-cell="none" class="min-w-0 rounded-xl bg-slate-100 px-2 py-1 text-slate-500 dark:bg-slate-700/60 dark:text-slate-400"><p class="text-[12.5px] font-bold"><span class="sr-only">${escapeHtml(who)}: </span>bez odpovědi</p></div>`;
         }
         const tone = row.correct ? 'bg-emerald-50 text-emerald-900 dark:bg-emerald-900/30 dark:text-emerald-100' : 'bg-rose-50 text-rose-900 dark:bg-rose-900/30 dark:text-rose-100';
-        const text = row.answer || (row.correct ? 'Správně' : 'Špatně');
+        const text = row.answer || (row.correct ? (question && question.answer) || 'Správně' : 'Špatně');
         const facts = [`<span>${escapeHtml(`${row.points} b`)}</span>`];
         if (Number.isInteger(row.hints)) facts.push(`<span class="inline-flex items-center gap-0.5" title="Použité nápovědy"><i data-lucide="lightbulb" class="h-3 w-3"></i>${row.hints}<span class="sr-only"> nápověd</span></span>`);
         if (Number.isInteger(row.ms)) facts.push(`<span class="inline-flex items-center gap-0.5" title="Čas na otázku"><i data-lucide="timer" class="h-3 w-3"></i>${escapeHtml(formatQuestionTime(row.ms))}</span>`);
@@ -7132,7 +7133,7 @@
             return `<li data-bd-row="${index}" class="rounded-2xl bg-white p-2 shadow-sm dark:bg-slate-800">
                 ${question && isKnownRef(question) ? `<button type="button" data-bd-info data-topic="${escapeHtml(question.topic)}" data-id="${escapeHtml(question.id)}" class="flex w-full items-start gap-2 rounded-xl text-left" aria-label="${escapeHtml(`Otázka ${index + 1}: ${question.answer} – popis`)}">${head}<i data-lucide="info" class="mt-0.5 h-4 w-4 shrink-0 text-slate-400 dark:text-slate-500"></i></button>`
                     : `<div class="flex items-start gap-2">${head}</div>`}
-                <div class="mt-1.5 grid grid-cols-2 gap-1.5">${breakdownCell(mineRows[index] || null, meLabel)}${rival ? breakdownCell(rivalRows[index] || null, playerName(rival.player)) : ''}</div>
+                <div class="mt-1.5 grid grid-cols-2 gap-1.5">${breakdownCell(mineRows[index] || null, meLabel, question)}${rival ? breakdownCell(rivalRows[index] || null, playerName(rival.player), question) : ''}</div>
             </li>`;
         }).join('');
         const picker = rivals.length > 1 ? `<div role="group" aria-label="Porovnat s hráčem" class="flex gap-1.5 overflow-x-auto pb-1">${rivals.slice(0, 20).map(row => `<button type="button" data-bd-rival="${escapeHtml(row.user_id)}" aria-pressed="${rival && row.user_id === rival.user_id}" class="flex shrink-0 items-center gap-1.5 rounded-full px-2 py-1 text-[12px] font-bold ${rival && row.user_id === rival.user_id ? 'bg-brand-700 text-white' : 'bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-200'}">${avatarHtml(row.player, 'h-5 w-5 text-[11px]')}<span class="max-w-[7rem] truncate">${escapeHtml(playerName(row.player))}</span></button>`).join('')}</div>` : '';
