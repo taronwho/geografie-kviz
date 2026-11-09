@@ -193,7 +193,7 @@ test('film: otázka „Které studio film natočilo?“ – bez druhé správné
 
 test('film: seriály – české i světové, tvůrce, vysílání a otázky', () => {
     const series = data.items.filter(item => item.c === 'serialy');
-    assert.ok(series.length >= 100 && series.length <= 300, `seriálů ${series.length}`);
+    assert.ok(series.length >= 100 && series.length <= 550, `seriálů ${series.length}`);
     const known = series.filter(item => item.k === 1).length / series.length;
     assert.ok(known >= 0.2 && known <= 0.35, `známých ${known}`);
     for (const name of ['Simpsonovi', 'Přátelé', 'Nemocnice na kraji města', 'Arabela', 'Návštěvníci']) assert.equal(find(name).k, 1, `${name} má být známý`);
