@@ -564,3 +564,29 @@ dokud ho nespustíš, aplikace odpovídá postaru (bez podrobností) a rozpis uk
 Výzva má obtížnost Základní, Mudrlant nebo Mudrlant Expert (sloupec `challenges.level`, 1–3). Starší sloupec `include_hard` zůstává
 (Mudrlant a Expert ho mají zapnutý), takže výzvy založené dřív i starší verze aplikace fungují dál. Spusť znovu celý `supabase/schema.sql`
 (verze 16); dokud ho nespustíš, výzva s obtížností Expert se založí jako Mudrlant.
+
+## Zamrzlé otázky: stejné otázky pro všechny i po změně dat (schéma 17)
+
+Výzva (i výzva skupině a odveta), zápas turnaje a Kvíz dne mají všem hráčům dát stejné otázky se stejnými možnostmi. Aplikace otázku skládá
+ze semínka a z dat tématu; když se data mezi hrami hráčů změní (nasazení nových položek nebo úrovní), vyšla by ze stejného semínka jiná otázka
+nebo jiné nesprávné možnosti. Proto se otázka při prvním sestavení uloží na server a platí první uložená verze.
+
+- Tabulka `question_snapshots (seed, data, created_by, created_at)`: klíč je semínko otázky, `data` celá otázka tak, jak ji aplikace hraje
+  (zadání, možnosti v pořadí, správná odpověď, nápovědy, položka, u Seřaď a Odhadni číslo i čísla). Číst ji smí každý přihlášený, zapisovat jen funkce.
+- `question_snapshot_claim(seed, data)` (security definer, jen `authenticated`): uloží otázku, pokud pro semínko ještě žádná není, a vrátí uloženou
+  (první zápis platí, i při souběhu). Kontroluje tvar semínka a oprávnění: výzva `<semínko výzvy>:<pořadí>` jen hráč, který výzvu smí hrát
+  (semínko patří nejstarší výzvě s ním), zápas turnaje `<semínko turnaje>-r<kolo>:<pořadí>` jen hráč zápasu v tom kole, Kvíz dne
+  `mudrlant-kviz-dne-<den>:otazka:<pořadí>` jen za dnešek a včerejšek (pražský čas), ať nikdo nepřipraví otázky budoucího dne. Data: objekt nejvýš
+  150 000 bajtů; nejvýš 400 nových otázek za hodinu od jednoho hráče. Obsah otázky skládá aplikace (server ho nepřepočítává), vykresluje se escapovaný.
+- `question_snapshots_get(seeds)`: uložené otázky k semínkům (nejvýš 200 najednou), pro hru (dřívější otázky téže hry, ať se položky neopakují)
+  a pro Rozpis otázek (výzva, zápas turnaje i Kvíz dne ukážou otázky tak, jak se hrály; jen chybějící se sestaví ze semínka).
+- Aplikace: otázku nejdřív hledá na serveru; když tam není, sestaví ji, uloží a hraje tu, kterou server vrátí. Bez spojení (server neodpoví do 4 s)
+  hraje svou verzi a uloží ji později (před odesláním odpovědi, po startu aplikace); pozdní odpověď s jinou verzí otázku vymění, dokud hráč neodpověděl.
+  Bez přihlášení (Kvíz dne hosta) a se starší databází (404) se otázky skládají jen v zařízení jako dřív.
+- Hry rozehrané před aktualizací uložené otázky nemají: první hráč, který danou otázku po aktualizaci otevře, ji uloží ze své verze dat.
+  U otázek, které soupeř hrál ještě před aktualizací, server jeho verzi nezná, takže tam může shoda chybět (stejně jako dřív).
+- Upozornění „… odehrál tvoji výzvu“ ukáže výsledek soupeře, jen když ji zakladatel už sám dohrál (`push_pending`); jinak „Jeho výsledek uvidíš,
+  až výzvu dohraješ i ty.“ Okno výzvy před vlastním dohráním ukazuje u ostatních jen „dohráno“ / „ještě nehrál“ (bez bodů, pořadí a poháru).
+- Export dat (`export_my_data`) má `zamrzle_otazky` (semínka otázek, které hráč uložil jako první). Smazání účtu nechá otázky ostatním (`created_by` se vynuluje).
+- Spusť znovu celý `supabase/schema.sql` (verze 17). Testy: `tests/sql-question-snapshots.test.js`, `tests/e2e-challenge-flow.test.js`,
+  `tests/e2e-daily-quiz.test.js`, `tests/e2e-tournament.test.js`.

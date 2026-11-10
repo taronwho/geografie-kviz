@@ -69,6 +69,14 @@ const backend = async (context, db) => {
             if (name === 'friends_list') return json([]);
             if (name === 'weekly_leaderboard') return json([]);
             if (name === 'search_players') return json(Object.values(db.profiles).filter(p => p.id !== me.id && p.display_name.toLowerCase().includes(String(body.term).toLowerCase())));
+            // Zamrzlé otázky (jako question_snapshot_claim a question_snapshots_get, schéma 17): první uložená verze platí;
+            // db.snapshots = undefined → starší databáze bez nich (404)
+            if (name === 'question_snapshot_claim' || name === 'question_snapshots_get') {
+                if (!db.snapshots) return json({ code: 'PGRST202', message: 'Could not find the function' }, 404);
+                if (name === 'question_snapshots_get') return json((body.seeds || []).filter(seed => db.snapshots[seed]).map(seed => ({ seed, data: db.snapshots[seed] })));
+                if (!db.snapshots[body.seed]) db.snapshots[body.seed] = body.data;
+                return json(db.snapshots[body.seed]);
+            }
             // Turnaj (jen když ho test založil): start a konec zápasu jako v databázi
             if (db.tournaments && /^(tournament_|my_tournament)/.test(name)) {
                 if (name === 'tournament_start_match') { db.tresults.push({ match_id: body.mid, user_id: me.id, started_at: new Date().toISOString(), finished_at: null, correct: null, points: null, time_ms: null }); return route.fulfill({ status: 200, body: '' }); }
@@ -199,9 +207,11 @@ const dialogTitle = (tab) => tab.evaluate(() => { const overlay = document.getEl
 test('hra více hráčů: výzvy, obnova, okna a profil', { skip: !chromium && 'Playwright není nainstalovaný' }, async (t) => {
     const browser = await chromium.launch(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {});
     t.after(() => browser.close());
+    // options.routes(context) = vlastní obsluha adres před načtením stránky (např. jiná verze dat tématu)
     const start = async (db, token = 'tok-u1', options = {}) => {
         const page = await setup(browser, login(token), options);
         await backend(page.context, db);
+        if (options.routes) await options.routes(page.context);
         await page.tab.goto(`${ORIGIN}/`);
         await waitForHome(page.tab);
         await page.tab.waitForSelector('[data-action="new-challenge"]');
@@ -573,6 +583,124 @@ test('hra více hráčů: výzvy, obnova, okna a profil', { skip: !chromium && '
         await tab.waitForSelector('[data-challenge-outcome]');
         assert.deepEqual([db.results.length, db.results[0].correct, db.results[0].points], [1, 0, 0]);
         assert.ok(db.log.filter(key => key === 'POST /rest/v1/rpc/challenge_progress_save').length <= 1, 'po první 404 se průběh dál neposílá');
+        // Databáze bez zamrzlých otázek (404): otázky se skládají v zařízení jako dřív a po první 404 se na ně aplikace neptá
+        assert.equal(db.log.filter(key => /rpc\/question_snapshot/.test(key)).length, 1, 'zamrzlé otázky: jen jeden dotaz');
+        assert.deepEqual(log.errors, []);
+        await context.close();
+    });
+
+    await t.test('zamrzlé otázky: soupeř s jinou verzí dat dostane stejné otázky a možnosti, rozpis je shodný; bez spojení se otázka uloží později', async () => {
+        const db = newDb();
+        db.snapshots = {};
+        const seed = 'vyzva-ZZZZZZ-zmena';
+        db.challenges.ZZZZZZ = { id: 'ZZZZZZ', creator_id: 'u-1', invited_id: 'u-2', topic: 'zemepis', count: 3, seed, include_hard: false, categories: [], variant: 'choices', created_at: '2026-11-03T10:00:00Z' };
+        const pending = (tab) => tab.evaluate(() => Object.keys(JSON.parse(localStorage.getItem('mudrlant.pendingSnapshots') || '{}')));
+        // Otázka po otázce: co hráč viděl (položka, zadání, možnosti v pořadí, správná odpověď) a odpověď první možností
+        const play = async (tab, beforeAnswer = async () => {}) => {
+            const seen = [];
+            for (let i = 0; i < 3; i++) {
+                await tab.waitForSelector('[data-action="choice"]', { timeout: 30000 });
+                const data = await tab.evaluate(() => JSON.parse(localStorage.getItem('mudrlant.session')).data);
+                const shown = { id: data.id, answer: data.question.answerLabel, title: await compact(tab, '#app-content h2'), choices: await tab.$$eval('[data-action="choice"]', list => list.map(button => button.textContent.trim())) };
+                await beforeAnswer(i);
+                await tab.click('[data-action="choice"] >> nth=0');
+                await tab.waitForSelector('[data-action="next"]');
+                shown.name = await compact(tab, '#app-content h1');
+                seen.push(shown);
+                await tab.click('[data-action="next"]');
+            }
+            return seen;
+        };
+        // Jana (zakladatelka) hraje s daty verze 1. První otázku server neuloží (výpadek): hraje se místní a uloží se před odesláním odpovědi
+        const jana = await start(db, 'tok-u1');
+        await jana.tab.click('[data-action="join-challenge"]');
+        await jana.tab.fill('#challenge-code', 'ZZZZZZ');
+        await jana.tab.press('#challenge-code', 'Enter');
+        await jana.tab.waitForSelector('[data-ch-play]');
+        assert.equal(await jana.tab.locator('#dialog-overlay [data-ch-player="u-2"][data-ch-state="waiting"]').count(), 1, 'vyzvaný ještě nehrál');
+        db.fail['POST /rest/v1/rpc/question_snapshot_claim'] = 503;
+        await jana.tab.click('[data-ch-play]');
+        const first = await play(jana.tab, async (i) => {
+            if (i !== 0) return;
+            assert.deepEqual(await pending(jana.tab), [`${seed}:0`], 'nepotvrzená otázka čeká v zařízení');
+            assert.equal(db.snapshots[`${seed}:0`], undefined);
+            delete db.fail['POST /rest/v1/rpc/question_snapshot_claim'];
+        });
+        await jana.tab.waitForSelector('[data-challenge-outcome]');
+        assert.deepEqual(Object.keys(db.snapshots).sort(), [0, 1, 2].map(i => `${seed}:${i}`), 'všechny tři otázky jsou na serveru');
+        assert.deepEqual(first.map(q => q.id), [0, 1, 2].map(i => db.snapshots[`${seed}:${i}`].id), 'uložené jsou ty, které Jana hrála');
+        assert.deepEqual(db.snapshots[`${seed}:0`].question.choices.map(choice => choice.label), first[0].choices, 'i dopsaná první otázka');
+        assert.deepEqual(await pending(jana.tab), [], 'nic nečeká');
+        assert.deepEqual(jana.log.errors, []);
+        await jana.context.close();
+
+        // Data se mezitím změnila (nasazení): Petr nemá Janiny položky vůbec a zbytek je v jiném pořadí, ze semínka by mu vyšly jiné otázky
+        const original = JSON.parse(fs.readFileSync(path.join(ROOT, 'data', 'zemepis.json'), 'utf8'));
+        const used = new Set(first.map(q => q.id));
+        const changed = JSON.stringify({ ...original, items: original.items.filter(item => !used.has(item.q)).reverse() });
+        const petr = await start(db, 'tok-u2', { routes: (context) => context.route(`${ORIGIN}/data/zemepis.json`, route => route.fulfill({ contentType: 'application/json', body: changed })) });
+        // Před hrou: Jana jen „dohráno“, bez bodů, správných odpovědí, poháru a rozpisu
+        await petr.tab.click('[data-action="challenge-open"][data-code="ZZZZZZ"]');
+        await petr.tab.waitForSelector('[data-ch-play]');
+        const before = await compact(petr.tab, '#dialog-overlay');
+        assert.equal(await petr.tab.locator('#dialog-overlay [data-ch-player="u-1"][data-ch-state="done"]').count(), 1, 'Jana: dohráno');
+        assert.match(before, /dohráno/);
+        assert.equal(await petr.tab.locator('#dialog-overlay [data-place]').count(), 0, 'bez pořadí');
+        assert.doesNotMatch(before, /🏆|správně|\d+ bod/, `bez poháru, bodů a správných odpovědí: ${before}`);
+        assert.equal(await petr.tab.locator('[data-ch-breakdown]').count(), 0, 'rozpis až po dohrání');
+        await petr.tab.click('[data-ch-play]');
+        const second = await play(petr.tab);
+        assert.deepEqual(second, first, 'Petr dostal Janiny otázky: stejné položky, zadání, možnosti v pořadí i odpovědi');
+        assert.equal(Object.keys(db.snapshots).length, 3, 'nic dalšího se neuložilo');
+        await petr.tab.waitForSelector('[data-challenge-outcome]');
+        // Rozpis otázek (otevře se sám): zadání jsou ta uložená, ne nově sestavená z jiných dat
+        await petr.tab.waitForSelector('#breakdown-list [data-bd-row]', { timeout: 30000 });
+        for (let i = 0; i < 3; i++) assert.ok((await compact(petr.tab, `#breakdown-list [data-bd-row="${i}"]`)).includes(first[i].answer), `rozpis otázky ${i + 1}: ${first[i].answer}`);
+        await petr.tab.keyboard.press('Escape');
+        await petr.tab.waitForFunction(() => !document.getElementById('dialog-overlay'));
+        // Po dohrání: okno výzvy ukáže pořadí s body a rozpis
+        await petr.tab.click('[data-action="challenge-home"]');
+        await waitForHome(petr.tab);
+        await petr.tab.click('[data-action="challenge-open"][data-code="ZZZZZZ"]');
+        await petr.tab.waitForSelector('#dialog-overlay [data-place]');
+        assert.equal(await petr.tab.locator('#dialog-overlay [data-place]').count(), 2);
+        assert.match(await compact(petr.tab, '#dialog-overlay'), /správně/);
+        assert.equal(await petr.tab.locator('[data-ch-breakdown]').count(), 1);
+        assert.equal(await petr.tab.locator('#dialog-overlay [data-ch-waiting]').count(), 0);
+        assert.deepEqual(petr.log.errors, []);
+        assert.deepEqual(petr.log.csp, []);
+        await petr.context.close();
+    });
+
+    await t.test('zamrzlé otázky: pomalý server – hraje se místní otázka a pozdní odpověď ji vymění za platnou, dokud hráč neodpověděl', async () => {
+        const db = newDb();
+        const seed = 'vyzva-PMXRTZ-server';
+        db.challenges.PMXRTZ = { id: 'PMXRTZ', creator_id: 'u-2', invited_id: 'u-1', topic: 'zemepis', count: 3, seed, include_hard: false, categories: [], variant: 'choices', created_at: '2026-11-03T10:00:00Z' };
+        // Petr už první otázku uložil (jinou verzi dat), načtení předem selže a uložení odpoví až po 5 s (aplikace čeká 4 s)
+        db.snapshots = { [`${seed}:0`]: {
+            topic: 'zemepis', id: 'Q999001', title: 'Gama', name: 'Gama', category: 'stat', known: true, typeLabel: 'stát',
+            question: { type: 'name', title: 'Zamrzlá otázka výzvy', showName: false, choices: ['Alfa', 'Beta', 'Gama', 'Delta'].map((label, i) => ({ label, id: `Q99900${i + 2}`, correct: i === 2 })), accepted: ['Gama'], placeholder: 'Název', answerLabel: 'Gama' },
+            questionText: 'Zamrzlý popis.', photoUrl: null, questionImage: null, photoMasks: null, visual: null, resultVisual: null, resultFacts: [], hints: [], leadFacts: [],
+            subtitle: 'Testovací svět', coords: null, isCzech: false, description: 'Zamrzlý popis.', thin: false, funFacts: []
+        } };
+        db.fail['POST /rest/v1/rpc/question_snapshots_get'] = 503;
+        db.delay['POST /rest/v1/rpc/question_snapshot_claim'] = 5000;
+        const { context, tab, log } = await start(db);
+        await tab.click('[data-action="challenge-open"][data-code="PMXRTZ"]');
+        await tab.click('[data-ch-play]');
+        await tab.waitForSelector('[data-action="choice"]', { timeout: 30000 });
+        assert.notEqual(await compact(tab, '#app-content h2'), 'Zamrzlá otázka výzvy', 'nejdřív místní otázka (server neodpověděl)');
+        assert.deepEqual(await tab.evaluate(() => Object.keys(JSON.parse(localStorage.getItem('mudrlant.pendingSnapshots') || '{}'))), [`${seed}:0`]);
+        // Pozdní odpověď: platná otázka (Petrova) nahradí místní
+        await tab.waitForFunction(() => { const title = document.querySelector('#app-content h2'); return Boolean(title && title.textContent.trim() === 'Zamrzlá otázka výzvy'); }, null, { timeout: 15000 });
+        assert.deepEqual(await tab.$$eval('[data-action="choice"]', list => list.map(button => button.textContent.trim())), ['Alfa', 'Beta', 'Gama', 'Delta']);
+        assert.equal(await tab.evaluate(() => JSON.parse(localStorage.getItem('mudrlant.session')).data.id), 'Q999001');
+        assert.deepEqual(await tab.evaluate(() => Object.keys(JSON.parse(localStorage.getItem('mudrlant.pendingSnapshots') || '{}'))), [], 'otázka je potvrzená');
+        await tab.click('[data-action="choice"][data-index="2"]');
+        await tab.waitForSelector('[data-verdict]');
+        assert.match(await compact(tab, '[data-verdict]'), /Správně/, 'odpověď se hodnotí podle platné otázky');
+        assert.equal(await compact(tab, '#app-content h1'), 'Gama');
+        assert.equal(db.snapshots[`${seed}:0`].question.title, 'Zamrzlá otázka výzvy', 'uložená verze se nepřepsala');
         assert.deepEqual(log.errors, []);
         await context.close();
     });

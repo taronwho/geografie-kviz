@@ -1,5 +1,6 @@
 // Profil hráče a výzvy (Supabase REST přes pravidla řádků). Všechno vyžaduje přihlášení (auth.js).
 // Výzva = téma (nebo mix), semínko a počet otázek; otázky se z něj losují stejně všem hráčům, takže stačí sdílet kód.
+// Otázku sestavenou poprvé si server zapamatuje (zamrzlé otázky, schéma 17), takže ji ostatní dostanou stejnou i po změně dat.
 (function (root, factory) {
     const api = factory(root);
     if (typeof module === 'object' && module.exports) module.exports = api;
@@ -433,6 +434,36 @@
     };
     const challengeDetails = (code, count = 20) => breakdownCall('challenge_details', { code: needCode(code) }, Math.max(1, wholeNumber(count, 20)), 8);
     const tournamentDetails = (mid) => breakdownCall('tournament_details', { mid: needTournamentId(mid, 'zápas') }, 10, 4);
+    // Zamrzlé otázky (schéma 17): otázka výzvy, zápasu turnaje a Kvízu dne se při prvním sestavení uloží na server a platí pro všechny hráče,
+    // i když mají jinou verzi dat. claimQuestion(seed, data) ji uloží (když pro semínko ještě žádná není) a vrátí tu uloženou (první zápis platí);
+    // questionSnapshots(seeds) vrátí uložené otázky k semínkům ({ [semínko]: data }, chybějící semínka v něm nejsou). Databáze bez nich (404):
+    // null a dál se o ně nežádá (aplikace pak otázky skládá jen v zařízení jako dřív); chyba spojení a odmítnutí serverem (4xx) se vyhodí.
+    let snapshotsMissing = false;
+    const SNAPSHOT_SEED = /^[A-Za-z0-9._:-]{1,200}$/;
+    const isSnapshotSeed = (value) => typeof value === 'string' && SNAPSHOT_SEED.test(value);
+    const isSnapshotData = (value) => Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+    const guardSnapshots = async (run) => {
+        if (snapshotsMissing) return null;
+        try { return await run(); } catch (error) {
+            if (error.status === 404) { snapshotsMissing = true; return null; }
+            throw error;
+        }
+    };
+    const claimQuestion = (seed, data) => {
+        if (!isSnapshotSeed(seed) || !isSnapshotData(data)) return Promise.reject(new SocialError('Neplatná otázka.', 400));
+        return guardSnapshots(async () => {
+            const stored = await request('POST', 'rpc/question_snapshot_claim', { body: { seed, data } });
+            return isSnapshotData(stored) ? stored : null;
+        });
+    };
+    const questionSnapshots = (seeds) => guardSnapshots(async () => {
+        const list = [...new Set((Array.isArray(seeds) ? seeds : []).filter(isSnapshotSeed))].slice(0, 200);
+        const found = Object.create(null);
+        if (!list.length) return found;
+        const rows = await request('POST', 'rpc/question_snapshots_get', { body: { seeds: list } });
+        (Array.isArray(rows) ? rows : []).forEach(row => { if (row && list.includes(row.seed) && isSnapshotData(row.data)) found[row.seed] = row.data; });
+        return found;
+    });
     // XP za vyhrané zápasy turnaje (schéma 3): server zapíše dosud nevyplacené výhry a vrátí je ([{ id, round }]); retryKey = klíč zařízení,
     // se kterým opakované volání (ztracená odpověď) vrátí tytéž zápasy znovu. null = databáze vyplácení neeviduje (starší schéma).
     let claimMissing = false;
@@ -878,6 +909,8 @@
         challengeProgress, saveChallengeProgress, tournamentAnswers, saveTournamentAnswer, claimTournamentXp, cleanAnswerLabel,
         // Rozpis otázek (schéma 10)
         challengeDetails, tournamentDetails,
+        // Zamrzlé otázky (schéma 17)
+        claimQuestion, questionSnapshots,
         touchSeen, friendsList, addFriend, acceptFriend, removeFriend, REACTIONS, react, reactionsFor, lastReactionFrom, blockedPlayers, blockPlayer, unblockPlayer, REPORT_REASONS, reportPlayer, devReports, devResolveReport,
         submitAnswerStats, answerStatsTopic, devSuspiciousQuestions,
         // Kvíz dne (schéma 7)

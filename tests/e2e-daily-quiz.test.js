@@ -73,6 +73,13 @@ const backend = async (context, db) => {
             if (name === 'schema_version') return json(REQUIRED_SCHEMA);
             if (name === 'touch_seen') return route.fulfill({ status: 204, body: '' });
             if (name === 'friends_list') return json([]);
+            // Zamrzlé otázky (schéma 17): první uložená verze platí; db.snapshots = undefined → starší databáze bez nich (404)
+            if (name === 'question_snapshot_claim' || name === 'question_snapshots_get') {
+                if (!db.snapshots) return json({ code: 'PGRST202', message: 'Could not find the function' }, 404);
+                if (name === 'question_snapshots_get') return json((body.seeds || []).filter(seed => db.snapshots[seed]).map(seed => ({ seed, data: db.snapshots[seed] })));
+                if (!db.snapshots[body.seed]) db.snapshots[body.seed] = body.data;
+                return json(db.snapshots[body.seed]);
+            }
             if (/^daily_quiz_/.test(name)) {
                 if (db.missing) return json({ code: 'PGRST202', message: 'Could not find the function' }, 404);
                 if (db.fail[name]) return json({ code: '22023', message: db.fail[name] }, 400);
@@ -152,7 +159,14 @@ const setup = async (browser, storage, { viewport = { width: 390, height: 780 },
     return { context, tab, log };
 };
 const compact = async (tab, selector) => ((await tab.textContent(selector)) || '').replace(/\s+/g, ' ').trim();
-const quizStore = (tab) => tab.evaluate(() => JSON.parse(localStorage.getItem('mudrlant.dailyQuiz') || 'null'));
+// Otázka uložená na serveru jiným hráčem (zamrzlé otázky): tvar jako createRoundData v app.js, položka, kterou tohle zařízení v datech nemá
+const frozenQuestion = (title, labels, correct) => ({
+    topic: 'zemepis', id: 'Q999001', title: labels[correct], name: labels[correct], category: 'stat', known: true, typeLabel: 'stát',
+    question: { type: 'name', title, showName: false, choices: labels.map((label, i) => ({ label, id: `Q99900${i + 2}`, correct: i === correct })), accepted: [labels[correct]], placeholder: 'Název', answerLabel: labels[correct] },
+    questionText: 'Zamrzlý popis otázky, stejný pro všechny hráče.', photoUrl: null, questionImage: null, photoMasks: null, visual: null, resultVisual: null, resultFacts: [], hints: [], leadFacts: [],
+    subtitle: 'Testovací svět', coords: null, isCzech: false, description: 'Zamrzlý popis.', thin: false, funFacts: []
+});
+const quizStore =(tab) => tab.evaluate(() => JSON.parse(localStorage.getItem('mudrlant.dailyQuiz') || 'null'));
 const session = (tab) => tab.evaluate(() => JSON.parse(localStorage.getItem('mudrlant.session')).data);
 // Odpověď na otázku kvízu: správná (podle uložené otázky), nebo špatná; volitelně s nápovědou
 const answer = async (tab, { correct = true, hint = false, next = true } = {}) => {
@@ -365,6 +379,37 @@ test('Kvíz dne v prohlížeči', { skip: !chromium && 'Playwright není nainsta
         await tab.waitForSelector('#quiz-card[data-quiz-status="done"]');
         // 8 správně bez nápověd = 32 bodů: za Evou (40), před Petrem (30)
         assert.match(await compact(tab, '#quiz-card'), /32 bodů · 8\/10 · 2\. místo/);
+        assert.deepEqual(log.errors, []);
+        assert.deepEqual(log.csp, []);
+        await context.close();
+    });
+
+    await t.test('zamrzlé otázky: otázka uložená jiným hráčem platí i s jinými daty, ostatní se uloží, rozpis je ukáže', async () => {
+        const db = newDb();
+        const seed = (index) => DQ.questionSeed(TODAY, index);
+        db.snapshots = { [seed(0)]: frozenQuestion('Zamrzlá otázka dne', ['Alfa', 'Beta', 'Gama', 'Delta'], 2) };
+        const { context, tab, log } = await setup(browser, login('tok-u1'), { db });
+        await tab.click('#quiz-card');
+        await tab.click('[data-action="quiz-start"]');
+        await tab.waitForSelector('[data-action="choice"]', { timeout: 60000 });
+        assert.equal(await compact(tab, '#app-content h2'), 'Zamrzlá otázka dne');
+        assert.deepEqual(await tab.$$eval('[data-action="choice"]', list => list.map(button => button.textContent.trim())), ['Alfa', 'Beta', 'Gama', 'Delta'], 'možnosti v pořadí ze serveru');
+        const shown = [];
+        for (let i = 0; i < 10; i++) shown.push(await answer(tab, { correct: true }));
+        await tab.waitForSelector('#quiz-result');
+        assert.equal(shown[0].question.answerLabel, 'Gama');
+        assert.equal(db.quiz[`u-1|${TODAY}`].correct, 10, 'odpověď na uloženou otázku se počítá podle ní');
+        // Ostatní otázky sestavilo zařízení a uložilo je (pro hráče, kteří přijdou po něm), každou jednou
+        assert.equal(Object.keys(db.snapshots).length, 10);
+        for (let i = 1; i < 10; i++) assert.equal(`${db.snapshots[seed(i)].topic}:${db.snapshots[seed(i)].id}`, `${shown[i].topic}:${shown[i].id}`);
+        assert.equal(db.log.filter(name => name === 'question_snapshot_claim').length, 9, 'uložená otázka se znovu neukládá');
+        assert.equal((await quizStore(tab)).attempt.plan[0].q, 'Q999001', 'plán pokusu má položku ze serveru');
+        // Rozpis: zadání první otázky je to uložené na serveru
+        await tab.waitForSelector('[data-quiz-row="u-3"]', { timeout: 30000 });
+        await tab.click('[data-quiz-row="u-3"] [data-action="quiz-breakdown"]');
+        await tab.waitForSelector('#breakdown-list [data-bd-row]', { timeout: 30000 });
+        assert.match(await compact(tab, '#breakdown-list [data-bd-row="0"]'), /Zamrzlá otázka dne.*Gama/);
+        assert.ok((await compact(tab, '#breakdown-list [data-bd-row="5"]')).includes(shown[5].question.answerLabel));
         assert.deepEqual(log.errors, []);
         assert.deepEqual(log.csp, []);
         await context.close();
