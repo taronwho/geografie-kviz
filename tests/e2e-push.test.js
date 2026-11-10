@@ -212,9 +212,9 @@ test('upozornění (push) v Nastavení', { skip: !chromium && 'Playwright není 
         if (SHOTS) await tab.screenshot({ path: path.join(SHOTS, 'upozorneni-zapnuto-390.png') });
 
         // volba: výzvy vypnout
-        assert.equal(await tab.getAttribute('[data-push-pref="challenge"]', 'aria-pressed'), 'true');
+        assert.equal(await tab.getAttribute('[data-push-pref="challenge"]', 'aria-checked'), 'true');
         await tab.click('[data-push-pref="challenge"]');
-        await tab.waitForFunction(() => document.querySelector('[data-push-pref="challenge"]').getAttribute('aria-pressed') === 'false');
+        await tab.waitForFunction(() => document.querySelector('[data-push-pref="challenge"]').getAttribute('aria-checked') === 'false');
         assert.deepEqual(db.patches, [{ push_tournament: true, push_challenge: false }]);
 
         // vypnout
@@ -364,9 +364,11 @@ test('upozornění (push) v Nastavení', { skip: !chromium && 'Playwright není 
         await tab.click('[data-push-toggle="on"]');
         await tab.waitForSelector('[data-push-toggle="off"]');
         if (SHOTS) await tab.screenshot({ path: path.join(SHOTS, 'upozorneni-zapnuto-360-tmavy.png') });
-        // Panel s upozorněním se vejde (pás záložek Nastavení je na 360 px starší a těsný, ten se tu nehlídá)
+        // Panel s upozorněním se vejde do šířky, názvy voleb nejsou uříznuté a karta Hra se zapnutými upozorněními se vejde i na 360×640 bez posouvání
         assert.deepEqual(await tab.evaluate(() => { const panel = document.querySelector('[data-push-toggle]').parentElement; const box = document.querySelector('#settings-overlay > div'); return { page: document.documentElement.scrollWidth - document.documentElement.clientWidth, panel: panel.scrollWidth - panel.clientWidth, outside: [...panel.querySelectorAll('button')].filter(el => el.getBoundingClientRect().right > box.getBoundingClientRect().right).length }; }), { page: 0, panel: 0, outside: 0 });
-        await tab.click('#settings-overlay [data-me-tab="profile"]');
+        assert.deepEqual(await tab.$$eval('[data-push-pref] span.truncate', nodes => nodes.filter(node => node.scrollWidth > node.clientWidth).map(node => node.textContent)), []);
+        assert.equal(await tab.evaluate(() => { const box = document.querySelector('#settings-overlay > div'); return box.scrollHeight - box.clientHeight; }), 0, 'karta Hra bez posouvání na 360×640');
+        await tab.click('#settings-overlay [data-me-tab="game"]');
         await tab.click('[data-auth-logout]');
         await tab.waitForFunction(() => window.__push.unsubscribed === 1);
         assert.deepEqual(db.deleted, ['https://push.example.com/send/abc']);

@@ -1,4 +1,4 @@
-// Odměna „barva obleku sovy“ v prohlížeči: výběr v Nastavení → Vzhled, přepnutí obrázků sovy, zamčené barvy, uložení volby.
+// Odměna „barva obleku sovy“ v prohlížeči: výběr v Nastavení → Mudrlant, přepnutí obrázků sovy, zamčené barvy, uložení volby.
 // Potřebuje Playwright, jinak se přeskočí. Soubory se servírují s CSP z _headers (inline styl by se zablokoval).
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -48,7 +48,7 @@ const open = async (browser, { level, storage = {} }) => {
 };
 const openLook = async (tab) => {
     await tab.click('#btn-settings');
-    await tab.click('[data-me-tab="look"]');
+    await tab.click('[data-me-tab="owl"]');
     await tab.waitForSelector('[data-robe-pick]');
 };
 const owlSources = (tab) => tab.evaluate(() => [...document.querySelectorAll('img:not([data-keep])')].map(img => img.getAttribute('src')).filter(src => /^icons\/(logo|topics\/sova-)/.test(src)));

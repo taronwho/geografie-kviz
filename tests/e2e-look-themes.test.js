@@ -1,4 +1,4 @@
-// Test barevných témat (Nastavení → Vzhled) v prohlížeči: přepnutí, zamčené téma, pamatování volby, tmavý režim a CSP.
+// Test barevných témat (Nastavení → Hra) v prohlížeči: přepnutí, zamčené téma, pamatování volby, tmavý režim a CSP.
 // Potřebuje Playwright (viz tests/e2e.test.js), jinak se přeskočí. Soubory se servírují s CSP z _headers.
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -33,7 +33,7 @@ const startServer = () => new Promise(resolve => {
     server.listen(0, '127.0.0.1', () => resolve(server));
 });
 
-test('barevná témata ve Vzhledu', { skip: !chromium && 'Playwright není nainstalovaný' }, async (t) => {
+test('barevná témata v Nastavení → Hra', { skip: !chromium && 'Playwright není nainstalovaný' }, async (t) => {
     const server = await startServer();
     const origin = `http://127.0.0.1:${server.address().port}`;
     const browser = await chromium.launch(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {});
@@ -56,12 +56,12 @@ test('barevná témata ve Vzhledu', { skip: !chromium && 'Playwright není nains
     };
     const openLook = async (tab) => {
         await tab.click('#btn-settings');
-        await tab.click('[data-me-tab="look"]');
+        await tab.click('[data-me-tab="game"]');
         await tab.waitForSelector('[data-theme-pick]');
     };
     const brand = (tab) => tab.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--brand-600').trim());
     const dataTheme = (tab) => tab.evaluate(() => document.documentElement.getAttribute('data-theme'));
-    // Skutečná barva tlačítka s třídou bg-brand-700 (záložky Vzhledu) – ověřuje, že Tailwind bere barvu z proměnných
+    // Skutečná barva tlačítka s třídou bg-brand-700 (vybraná záložka Nastavení) – ověřuje, že Tailwind bere barvu z proměnných
     const tabColor = (tab) => tab.evaluate(() => getComputedStyle(document.querySelector('[data-me-tab][aria-selected="true"]')).backgroundColor);
 
     await t.test('výchozí vínové téma vypadá jako dřív a zamčená témata jsou šedá s úrovní', async () => {

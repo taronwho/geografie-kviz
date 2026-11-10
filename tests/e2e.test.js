@@ -1350,9 +1350,12 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         await back.tab.waitForFunction(() => !location.hash);
         await back.tab.click('#btn-settings');
         await back.tab.waitForSelector('[data-me-tab="profile"]');
-        assert.equal(await back.tab.locator('[data-auth-logout]').count(), 0, 'odhlášení je až v záložce Profil');
-        await back.tab.click('[data-me-tab="profile"]');
+        // Odhlášení je s ostatním o účtu v záložce Hra (Profil je o tom, jak mě vidí ostatní)
+        await back.tab.waitForSelector('[data-me-tab="game"][aria-selected="true"]');
         await back.tab.waitForSelector('[data-auth-logout]');
+        await back.tab.click('[data-me-tab="profile"]');
+        assert.equal(await back.tab.locator('[data-auth-logout]').count(), 0, 'v Profilu odhlášení není');
+        await back.tab.click('[data-me-tab="game"]');
         assert.match(await back.tab.textContent('#settings-overlay'), /Jana Nováková/);
         assert.match(await back.tab.textContent('#settings-overlay'), /jana@example\.com/);
         assert.ok(calls.some(call => call.startsWith('GET /auth/v1/user')));
@@ -1360,7 +1363,7 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         await back.tab.reload();
         await waitForHome(back.tab);
         await back.tab.click('#btn-settings');
-        await back.tab.click('[data-me-tab="profile"]');
+        await back.tab.click('[data-me-tab="game"]');
         await back.tab.waitForSelector('[data-auth-logout]');
         assert.equal(await back.tab.evaluate(() => JSON.parse(localStorage.getItem('mudrlant.auth')).user.id), 'u-1');
         // Odhlášení smaže uložený účet a zavolá Supabase
@@ -1521,7 +1524,7 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
             return Boolean(overlay && element) && element.getAttribute('aria-checked') === checked && /Uloženo/.test(overlay.textContent);
         }, { selector, checked });
         await one.tab.click('#btn-settings');
-        await one.tab.click('[data-me-tab="profile"]');
+        await one.tab.click('[data-me-tab="game"]');
         await one.tab.click('[data-open-accept]');
         await one.tab.waitForFunction(() => /Přijímáš: všechna témata/.test((document.getElementById('dialog-overlay') || {}).textContent || ''));
         assert.equal(await one.tab.getAttribute('[data-accept-topic="vlajky"]', 'aria-checked'), 'true');

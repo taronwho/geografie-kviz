@@ -95,6 +95,8 @@ test('sova jako obrázek profilu', { skip: !chromium && 'Playwright není nainst
         return { context, tab, problems };
     };
     const fits = (tab) => tab.evaluate(() => { const box = document.querySelector('#settings-overlay > div'); return box.scrollHeight <= box.clientHeight; });
+    // Doplněk se vybírá v otevřeném místě: nejdřív čip místa vedle sovy, pak dlaždice doplňku
+    const pickAcc = async (tab, value, options = {}) => { await tab.click(`[data-owl-slot="${value.split(':')[0]}"]`); await tab.click(`[data-owl-pick="${value}"]`, options); };
     const shot = async (tab, name) => { if (SHOTS) await tab.screenshot({ path: path.join(SHOTS, name) }); };
     const waitFor = async (check, message) => {
         for (let i = 0; i < 60; i++) { if (check()) return; await new Promise(resolve => setTimeout(resolve, 100)); }
@@ -104,14 +106,15 @@ test('sova jako obrázek profilu', { skip: !chromium && 'Playwright není nainst
     await t.test('výběr dlaždice „Moje sova“, uložení, zobrazení u druhého hráče a přeuložení po změně doplňku', async () => {
         const one = await open('tok-u1');
         await one.tab.click('#btn-settings');
-        // Barva obleku a brýle z Nastavení → Vzhled / Sova
-        await one.tab.click('[data-me-tab="look"]');
+        // Barva obleku a brýle z Nastavení → Mudrlant
+        await one.tab.click('[data-me-tab="owl"]');
         await one.tab.click('[data-robe-pick="zelena"]');
         await one.tab.click('[data-me-tab="owl"]');
-        await one.tab.click('[data-owl-pick="face:bryle"]');
+        await pickAcc(one.tab, 'face:bryle');
         await one.tab.waitForSelector('[data-owl-pick="face:bryle"][aria-pressed="true"]');
         // Profil: první dlaždice je „Moje sova“ s mým náhledem
         await one.tab.click('[data-me-tab="profile"]');
+        await one.tab.click('[data-pic-group="mudrlant"]');
         await one.tab.waitForSelector('[data-pick-owl]');
         assert.equal(await one.tab.evaluate(() => document.querySelector('[data-avatar-strip]').firstElementChild === document.querySelector('[data-pick-owl]')), true, 'dlaždice je první');
         assert.equal(await one.tab.getAttribute('[data-pick-owl]', 'aria-label'), 'Sova Mudrlant');
@@ -123,7 +126,8 @@ test('sova jako obrázek profilu', { skip: !chromium && 'Playwright není nainst
         await one.tab.waitForSelector('[data-pick-owl][aria-pressed="true"]');
         assert.equal(await one.tab.locator('[data-pick-avatar][aria-pressed="true"]').count(), 0, 'emoji není vybrané');
         // Hlavička okna už ukazuje sovu v kruhu s barvou hráče
-        assert.equal(await one.tab.locator('#settings-overlay span.rounded-full img[data-keep][src="icons/logo-zelena.webp"]').count(), 1);
+        assert.equal(await one.tab.locator('#settings-overlay > div > div:first-child span.rounded-full img[data-keep][src="icons/logo-zelena.webp"]').count(), 1);
+        assert.equal(await one.tab.locator('[data-look="frames"] [data-frame] img[data-keep][src="icons/logo-zelena.webp"]').count(), 9, 'náhledy rámečků ukazují vybraný obrázek');
         assert.equal(await fits(one.tab), true, 'okno Profil bez posouvání');
         await shot(one.tab, 'owl-avatar-profil-vybrano.png');
         assert.equal(db.profiles['u-1'].owl, null, 'nic se neuložilo před Uložit');
@@ -152,11 +156,11 @@ test('sova jako obrázek profilu', { skip: !chromium && 'Playwright není nainst
         const writes = db.writes.length;
         await one.tab.click('#btn-settings');
         await one.tab.click('[data-me-tab="owl"]');
-        await one.tab.click('[data-owl-pick="neck:sala"]');
+        await pickAcc(one.tab, 'neck:sala');
         await one.tab.waitForSelector('[data-owl-pick="neck:sala"][aria-pressed="true"]');
         await one.tab.click('[data-owl-color="neck:cervena"]');
         await one.tab.waitForSelector('[data-owl-color="neck:cervena"][aria-pressed="true"]');
-        await one.tab.click('[data-owl-pick="head:none"]');
+        await pickAcc(one.tab, 'head:none');
         await one.tab.click('#settings-overlay [data-close]');
         await one.tab.waitForSelector('#btn-settings img[src="icons/doplnky/sala-cervena.webp"]');
         await waitFor(() => db.profiles['u-1'].owl === 'robe=zelena;neck=sala.cervena;face=bryle.original', `profil se nepřeuložil: ${db.profiles['u-1'].owl}`);
@@ -172,6 +176,7 @@ test('sova jako obrázek profilu', { skip: !chromium && 'Playwright není nainst
         const { context, tab, problems } = await open('tok-u1', { extra: { 'mudrlant.look': JSON.stringify({ robe: 'zelena' }) } });
         await tab.click('#btn-settings');
         await tab.click('[data-me-tab="profile"]');
+        await tab.click('[data-pic-group="mudrlant"]');
         await tab.waitForSelector('[data-pick-owl]');
         await tab.click('[data-pick-owl]');
         await tab.waitForSelector('[data-pick-owl][aria-pressed="true"]');
@@ -193,6 +198,8 @@ test('sova jako obrázek profilu', { skip: !chromium && 'Playwright není nainst
             const { context, tab, problems } = await open('tok-u1');
             await tab.click('#btn-settings');
             await tab.click('[data-me-tab="profile"]');
+            assert.equal(await tab.locator('[data-pick-hue]').count(), 0, 'posuvník je schovaný za duhovým vzorkem');
+            await tab.click('[data-pick-hue-open]');
             await tab.waitForSelector('[data-pick-hue]');
             await tab.locator('[data-pick-hue]').evaluate((el) => { el.value = '210'; el.dispatchEvent(new Event('change', { bubbles: true })); });
             await tab.waitForSelector('[data-pick-hue]');
@@ -219,10 +226,11 @@ test('sova jako obrázek profilu', { skip: !chromium && 'Playwright není nainst
         const one = await open('tok-u1', { extra: { 'mudrlant.look': JSON.stringify({ robe: 'zelena', acc: { face: { id: 'bryle', color: 'original' } } }) } });
         await one.tab.click('#btn-settings');
         await one.tab.click('[data-me-tab="profile"]');
+        await one.tab.click('[data-pic-group="mudrlant"]');
         await one.tab.waitForSelector('[data-pick-owl="titul-1"]');
-        // Pořadí v pásu obrázků: Moje sova, sovy titulů (dosažené, pak zamčené), emoji
-        const tiles = await one.tab.$$eval('[data-avatar-strip] > button', nodes => nodes.slice(0, 13).map(node => node.dataset.pickOwl !== undefined ? `vyber:${node.dataset.pickOwl}` : node.dataset.lockedOwl ? `zamčeno:${node.dataset.lockedOwl}` : 'emoji'));
-        assert.deepEqual(tiles, ['vyber:', 'vyber:titul-1', 'vyber:titul-2', 'vyber:titul-3', 'vyber:titul-4', 'zamčeno:titul-5', 'zamčeno:titul-6', 'zamčeno:titul-7', 'zamčeno:titul-8', 'zamčeno:titul-9', 'zamčeno:titul-10', 'zamčeno:titul-11', 'emoji']);
+        // Pořadí ve skupině Mudrlant: Moje sova, sovy titulů (dosažené, pak zamčené); emoji jsou ve skupině Zvířátka
+        const tiles = await one.tab.$$eval('[data-avatar-strip] > button', nodes => nodes.map(node => node.dataset.pickOwl !== undefined ? `vyber:${node.dataset.pickOwl}` : node.dataset.lockedOwl ? `zamčeno:${node.dataset.lockedOwl}` : 'emoji'));
+        assert.deepEqual(tiles, ['vyber:', 'vyber:titul-1', 'vyber:titul-2', 'vyber:titul-3', 'vyber:titul-4', 'zamčeno:titul-5', 'zamčeno:titul-6', 'zamčeno:titul-7', 'zamčeno:titul-8', 'zamčeno:titul-9', 'zamčeno:titul-10', 'zamčeno:titul-11']);
         // Náhled je sova titulu v mém zeleném taláru, bez doplňků, oříznutá do kolečka
         assert.equal(await one.tab.getAttribute('[data-pick-owl="titul-4"] img', 'src'), 'icons/topics/sova-titul-4-zelena.webp');
         assert.equal(await one.tab.locator('[data-pick-owl="titul-4"] span.rounded-full.overflow-hidden img[data-keep]').count(), 1);
@@ -242,7 +250,9 @@ test('sova jako obrázek profilu', { skip: !chromium && 'Playwright není nainst
         await one.tab.click(locked, { force: true });
         await one.tab.waitForFunction(() => /Sova titulu Učenec se odemkne od úrovně 27\./.test(document.getElementById('settings-overlay').textContent));
         assert.equal(await one.tab.locator('[data-pick-owl][aria-pressed="true"]').count(), 0, 'zamčená sova se nevybrala');
-        assert.equal(await one.tab.getAttribute('[data-pick-avatar="🦊"]', 'aria-pressed'), 'true');
+        await one.tab.click('[data-pic-group="zviratka"]');
+        assert.equal(await one.tab.getAttribute('[data-pick-avatar="🦊"]', 'aria-pressed'), 'true', 'vybraná zůstala liška');
+        await one.tab.click('[data-pic-group="mudrlant"]');
         // Dosažená: vybere se, hlavička okna ji hned ukáže (bez uložení se nic nepošle)
         await one.tab.click('[data-pick-owl="titul-4"]');
         await one.tab.waitForSelector('[data-pick-owl="titul-4"][aria-pressed="true"]');
@@ -263,7 +273,7 @@ test('sova jako obrázek profilu', { skip: !chromium && 'Playwright není nainst
 
         // Změna barvy obleku přeuloží profil a sova titulu změní barvu (pro mě hned, pro ostatní z databáze)
         await one.tab.click('#btn-settings');
-        await one.tab.click('[data-me-tab="look"]');
+        await one.tab.click('[data-me-tab="owl"]');
         await one.tab.click('[data-robe-pick="modra"]');
         await one.tab.click('#settings-overlay [data-close]');
         await one.tab.waitForSelector('#btn-settings img[data-owl-pose="titul-4"][src="icons/topics/sova-titul-4-modra.webp"]');
@@ -294,6 +304,7 @@ test('sova jako obrázek profilu', { skip: !chromium && 'Playwright není nainst
         await one.tab.waitForSelector('#btn-settings img[data-owl-pose="titul-2"][src="icons/topics/sova-titul-2.webp"]');
         await one.tab.click('#btn-settings');
         await one.tab.click('[data-me-tab="profile"]');
+        await one.tab.click('[data-pic-group="mudrlant"]');
         await one.tab.waitForSelector('[data-pick-owl="titul-2"][aria-pressed="true"]');
         assert.equal(await one.tab.locator('[data-locked-owl="titul-4"]').count(), 1, 'Znalec je teď zamčený');
         // Po návratu úrovně je zpátky zvolená sova (volba se neztratí)
@@ -319,6 +330,7 @@ test('sova jako obrázek profilu', { skip: !chromium && 'Playwright není nainst
         const one = await open('tok-u1', { extra: { 'mudrlant.progress': progress, 'mudrlant.look': JSON.stringify({ robe: 'zlata' }) } });
         await one.tab.click('#btn-settings');
         await one.tab.click('[data-me-tab="profile"]');
+        await one.tab.click('[data-pic-group="mudrlant"]');
         await one.tab.waitForSelector('[data-pick-owl="titul-11"]');
         assert.equal(await one.tab.locator('[data-locked-owl]').count(), 0, 'na úrovni 100 nic zamčeného');
         assert.equal(await one.tab.getAttribute('[data-pick-owl="titul-11"]', 'aria-label'), 'Sova titulu Mudrlant');
@@ -353,15 +365,21 @@ test('sova jako obrázek profilu', { skip: !chromium && 'Playwright není nainst
             const one = await open('tok-u1', { viewport, scheme: 'dark', extra: { 'mudrlant.look': JSON.stringify({ robe: 'zelena', acc: { face: { id: 'bryle', color: 'original' } } }) } });
             await one.tab.click('#btn-settings');
             await one.tab.click('[data-me-tab="profile"]');
+            await one.tab.click('[data-pic-group="mudrlant"]');
             await one.tab.waitForSelector('[data-pick-owl][aria-pressed="true"]', { timeout: 5000 });
             await shot(one.tab, `owl-avatar-profil-tmavy-${viewport.width}.png`);
             const overflow = () => one.tab.evaluate(() => { const box = document.querySelector('#settings-overlay > div'); return box.scrollHeight - box.clientHeight; });
             const withOwl = await overflow();
+            await one.tab.click('[data-pic-group="zviratka"]');
             await one.tab.click('[data-pick-avatar="🐼"]');
+            await one.tab.waitForSelector('[data-pick-avatar="🐼"][aria-pressed="true"]');
+            const withEmoji = await overflow();
+            await one.tab.click('[data-pic-group="mudrlant"]');
             await one.tab.waitForSelector('[data-pick-owl][aria-pressed="false"]');
-            // Sova okno nezvětší oproti emoji; na běžném telefonu se okno vejde úplně (na 360×640 se posouvalo už předtím)
+            // Sova ani skupina okno nezvětší; Profil se vejde bez posouvání na obou velikostech
             assert.equal(withOwl, await overflow(), `sova nezvětší okno ${viewport.width}×${viewport.height}`);
-            if (viewport.height >= 780) assert.ok(withOwl <= 0, 'Profil bez posouvání');
+            assert.equal(withOwl, withEmoji, 'skupiny mají stejnou výšku');
+            assert.ok(withOwl <= 0, `Profil bez posouvání ${viewport.width}×${viewport.height}`);
             assert.equal(await one.tab.evaluate(() => document.getElementById('settings-title').closest('.flex').querySelectorAll('img[data-keep]').length), 0, 'v hlavičce okna je zase emoji');
             await one.tab.click('[data-save-profile]');
             await one.tab.waitForFunction(() => /Uloženo/.test(document.getElementById('settings-overlay').textContent));

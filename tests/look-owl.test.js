@@ -169,7 +169,7 @@ test('odměna za odznak: Look řekne, co přesně odznak odemkne (nebo že dáv�
     assert.deepEqual(Look.rewardsForBadge('vitez').map(entry => `${entry.category}:${entry.item.id}`).sort(), ['accessories:vavrin', 'frames:vavrin']);
     assert.equal(Look.badgeRewardText('vitez'), 'Odměna: Vavřínový (rámeček), Vavřínový věnec (doplněk Mudrlanta)');
     assert.equal(Look.badgeRewardText('zbehly-zemepis'), 'Odměna: Kompas (doplněk Mudrlanta)');
-    assert.equal(Look.badgeRewardText('turnaj-bronz'), 'Odměna: Medailista turnaje (rámeček), Bronz z turnaje (obrázek hráče)');
+    assert.equal(Look.badgeRewardText('turnaj-bronz'), 'Odměna: Medailista turnaje (rámeček), Pásovec rytíř (profilový obrázek)');
     assert.equal(Look.badgeRewardText('stovka'), '', 'odznak jen pro slávu: bez řádku s odměnou');
     assert.equal(Look.badgeRewardText('zbehly-zemepis-25'), '', 'další stupně zběhlosti doplněk nedávají');
     // Každý odznak z katalogu odměn skutečně existuje

@@ -252,39 +252,42 @@ test('odměny: truhla, ochrana série, diplomy, sdílení obrázku', { skip: !ch
         });
     }
 
-    // Nastavení → Vzhled (barevné téma, talár, rámeček, titul) se vejde bez posouvání na 390×780, na 360×640 nejvýš trochu;
+    // Odměny vzhledu v Nastavení (barevné téma ve Hře, talár u Mudrlanta) se vejdou bez posouvání na 390×780 i 360×640;
     // zamčená položka po klepnutí řekne, jak se odemyká, věc z truhly je odemčená
     for (const [viewport, colorScheme] of [[{ width: 390, height: 780 }, 'light'], [{ width: 390, height: 780 }, 'dark'], [{ width: 360, height: 640 }, 'light'], [{ width: 360, height: 640 }, 'dark']]) {
-        await t.test(`Vzhled bez posouvání (${viewport.width}×${viewport.height}, ${colorScheme})`, async () => {
+        await t.test(`odměny vzhledu bez posouvání (${viewport.width}×${viewport.height}, ${colorScheme})`, async () => {
             const { context, tab, problems } = await open({ viewport, colorScheme, seed: { 'mudrlant.progress': { xp: 2000, counters: {}, badges: { vitez: '2026-11-01' } }, 'mudrlant.rewards': { gifts: { themes: ['zlata'] } } } });
             await tab.click('#btn-settings');
-            await tab.click('[data-me-tab="look"]');
-            await tab.waitForSelector('[data-frame="bronz"]');
-            const scroll = await tab.evaluate(async () => {
-                await Promise.all(document.getAnimations().filter(animation => animation.effect && animation.effect.getComputedTiming().iterations !== Infinity).map(animation => animation.finished.catch(() => {})));
-                const boxes = [...document.querySelectorAll('#settings-overlay *')].filter(el => { const style = getComputedStyle(el); return /(auto|scroll)/.test(style.overflowY) && el.scrollHeight > el.clientHeight + 1; });
-                return { y: Math.max(0, ...boxes.map(el => el.scrollHeight - el.clientHeight)), x: document.documentElement.scrollWidth - document.documentElement.clientWidth };
-            });
-            await shot(tab, `vzhled-${viewport.width}-${colorScheme}`);
-            assert.equal(scroll.x, 0);
-            if (viewport.height >= 780) assert.equal(scroll.y, 0, `Vzhled bez posouvání (přetéká o ${scroll.y} px)`);
-            else assert.ok(scroll.y <= 48, `na 360×640 nejvýš trochu posouvání (${scroll.y} px)`);
-            // Dlaždice uvnitř svého oddílu (řada rámečků se posouvá do strany sama, oddíl ne)
-            const outside = await tab.evaluate(() => [...document.querySelectorAll('[data-theme-pick], [data-robe-pick], [data-title-select]')].filter(el => { const box = el.getBoundingClientRect(); const section = el.closest('section').getBoundingClientRect(); return box.left < section.left - 0.5 || box.right > section.right + 0.5; }).map(el => el.dataset.themePick || el.dataset.robePick || 'titul'));
-            assert.deepEqual(outside, [], 'dlaždice nepřetékají oddíl');
-            const sections = await tab.evaluate(() => [...document.querySelectorAll('#settings-overlay [data-look]')].filter(el => el.getBoundingClientRect().right > document.getElementById('settings-overlay').firstElementChild.getBoundingClientRect().right + 0.5).length);
-            assert.equal(sections, 0, 'oddíly nepřetékají okno');
-            // Dotykové plochy aspoň 40 px
-            const small = await tab.evaluate(() => [...document.querySelectorAll('[data-theme-pick], [data-robe-pick], [data-frame], [data-title-select]')].map(el => el.getBoundingClientRect()).filter(box => box.width < 39.5 || box.height < 39.5).length);
-            assert.equal(small, 0, 'dotykové plochy aspoň 40 px');
-            // Zlaté téma z truhly je odemčené, Diamant (úroveň 70) zamčený a po klepnutí řekne proč
+            const check = async (tabId, picks) => {
+                await tab.click(`[data-me-tab="${tabId}"]`);
+                await tab.waitForSelector(`[data-me-tab="${tabId}"][aria-selected="true"]`);
+                const scroll = await tab.evaluate(async () => {
+                    await Promise.all(document.getAnimations().filter(animation => animation.effect && animation.effect.getComputedTiming().iterations !== Infinity).map(animation => animation.finished.catch(() => {})));
+                    const boxes = [...document.querySelectorAll('#settings-overlay *')].filter(el => { const style = getComputedStyle(el); return /(auto|scroll)/.test(style.overflowY) && el.scrollHeight > el.clientHeight + 1; });
+                    return { y: Math.max(0, ...boxes.map(el => el.scrollHeight - el.clientHeight)), x: document.documentElement.scrollWidth - document.documentElement.clientWidth };
+                });
+                await shot(tab, `nastaveni-${tabId}-${viewport.width}-${colorScheme}`);
+                assert.equal(scroll.x, 0);
+                assert.equal(scroll.y, 0, `${tabId} bez posouvání (přetéká o ${scroll.y} px)`);
+                // Dlaždice uvnitř svého oddílu, oddíly uvnitř okna, dotykové plochy aspoň 40 px
+                const outside = await tab.evaluate((selector) => [...document.querySelectorAll(selector)].filter(el => { const box = el.getBoundingClientRect(); const section = el.closest('section').getBoundingClientRect(); return box.left < section.left - 0.5 || box.right > section.right + 0.5; }).length, picks);
+                assert.equal(outside, 0, 'dlaždice nepřetékají oddíl');
+                const sections = await tab.evaluate(() => [...document.querySelectorAll('#settings-overlay [data-look]')].filter(el => el.getBoundingClientRect().right > document.getElementById('settings-overlay').firstElementChild.getBoundingClientRect().right + 0.5).length);
+                assert.equal(sections, 0, 'oddíly nepřetékají okno');
+                const small = await tab.evaluate((selector) => [...document.querySelectorAll(selector)].map(el => el.getBoundingClientRect()).filter(box => box.width < 39.5 || box.height < 39.5).length, picks);
+                assert.equal(small, 0, 'dotykové plochy aspoň 40 px');
+            };
+            // Hra: barevné téma; zlaté téma z truhly je odemčené, Diamant (úroveň 70) zamčený a po klepnutí řekne proč
+            await check('game', '[data-theme-pick]');
             assert.equal(await tab.getAttribute('[data-theme-pick="zlata"]', 'aria-disabled'), null);
             await tab.click('[data-theme-pick="diamant"]', { force: true });
             await tab.waitForFunction(() => /Diamant: Úroveň 70/.test(document.querySelector('[data-look="themes"]').textContent));
-            await tab.click('[data-robe-pick="zlata"]', { force: true });
-            await tab.waitForFunction(() => /Zlatý talár: Úroveň 65/.test(document.querySelector('[data-look="robes"]').textContent));
             await tab.click('[data-theme-pick="zlata"]');
             await tab.waitForFunction(() => document.documentElement.getAttribute('data-theme') === 'zlata');
+            // Mudrlant: talár (zlatý od úrovně 65) a doplňky
+            await check('owl', '[data-robe-pick], [data-owl-pick], [data-owl-slot]');
+            await tab.click('[data-robe-pick="zlata"]', { force: true });
+            await tab.waitForFunction(() => /Zlatý talár: Úroveň 65/.test(document.querySelector('[data-look="robes"]').textContent));
             assert.deepEqual(problems, []);
             await context.close();
         });

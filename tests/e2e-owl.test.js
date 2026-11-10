@@ -50,6 +50,8 @@ test('doplňky sovy v Nastavení', { skip: !chromium && 'Playwright není nainst
         await tab.waitForSelector('#btn-settings');
         return { context, tab, problems };
     };
+    // Doplněk se vybírá v otevřeném místě: nejdřív čip místa vedle sovy, pak dlaždice doplňku
+    const pickAcc = async (tab, value, options = {}) => { await tab.click(`[data-owl-slot="${value.split(':')[0]}"]`); await tab.click(`[data-owl-pick="${value}"]`, options); };
     const layers = (tab, scope = '#status-icon-slot') => tab.$$eval(`${scope} [data-owl-layer]`, nodes => nodes.map(node => node.getAttribute('src')));
 
     await t.test('výběr doplňku a barvy se projeví na logu v hlavičce a zůstane po načtení', async () => {
@@ -58,16 +60,25 @@ test('doplňky sovy v Nastavení', { skip: !chromium && 'Playwright není nainst
         await tab.click('#btn-settings');
         await tab.click('[data-me-tab="owl"]');
         await tab.waitForSelector('[data-owl-pick]');
-        assert.equal(await tab.locator('[data-owl-pick]').count(), 28, '4 × „bez doplňku“ + 24 doplňků');
+        // Čtyři místa kolem sovy; otevřené (hlava) ukazuje své doplňky, dohromady 4 × „bez doplňku“ + 24 doplňků
+        assert.deepEqual(await tab.$$eval('[data-owl-slot]', nodes => nodes.map(node => [node.dataset.owlSlot, node.getAttribute('aria-pressed')])), [['head', 'true'], ['face', 'false'], ['neck', 'false'], ['hand', 'false']]);
+        let tiles = 0;
+        for (const slot of ['head', 'face', 'neck', 'hand']) {
+            await tab.click(`[data-owl-slot="${slot}"]`);
+            await tab.waitForSelector(`[data-owl-slot="${slot}"][aria-pressed="true"]`);
+            assert.equal(await tab.locator(`[data-owl-pick]:not([data-owl-pick^="${slot}:"])`).count(), 0, 'jen doplňky otevřeného místa');
+            tiles += await tab.locator('[data-owl-pick]').count();
+        }
+        assert.equal(tiles, 28, '4 × „bez doplňku“ + 24 doplňků');
         // Zamčený doplněk se nenasadí a ukáže, jak se odemkne
-        await tab.click('[data-owl-pick="hand:lupa"]', { force: true });
+        await pickAcc(tab, 'hand:lupa', { force: true });
         await tab.waitForFunction(() => /Lupa: Úroveň 24/.test(document.querySelector('[data-look="owl"]').textContent));
         assert.equal(await tab.getAttribute('[data-owl-pick="hand:lupa"]', 'aria-pressed'), 'false');
         assert.deepEqual(await layers(tab, '#settings-overlay'), []);
         // Odemčený se nasadí a objeví se na sově v okně i v hlavičce pod ním
-        await tab.click('[data-owl-pick="face:bryle"]');
+        await pickAcc(tab, 'face:bryle');
         await tab.waitForSelector('[data-owl-pick="face:bryle"][aria-pressed="true"]');
-        await tab.click('[data-owl-pick="neck:sala"]');
+        await pickAcc(tab, 'neck:sala');
         await tab.waitForSelector('[data-owl-pick="neck:sala"][aria-pressed="true"]');
         assert.deepEqual(await layers(tab), ['icons/doplnky/sala.webp', 'icons/doplnky/bryle.webp']);
         // Barva patří naposledy vybranému doplňku
@@ -81,7 +92,7 @@ test('doplňky sovy v Nastavení', { skip: !chromium && 'Playwright není nainst
         await tab.waitForFunction(() => /Vlastní barva \(paleta\): Úroveň 80/.test(document.querySelector('[data-look="owl"]').textContent));
         assert.deepEqual(await layers(tab), ['icons/doplnky/sala-modra.webp', 'icons/doplnky/bryle.webp'], 'zamčená barva se nenasadí');
         // V jednom místě je nejvýš jeden doplněk: sluneční brýle nahradí kulaté
-        await tab.click('[data-owl-pick="face:slunecni-bryle"]');
+        await pickAcc(tab, 'face:slunecni-bryle');
         await tab.waitForSelector('[data-owl-pick="face:slunecni-bryle"][aria-pressed="true"]');
         assert.equal(await tab.getAttribute('[data-owl-pick="face:bryle"]', 'aria-pressed'), 'false');
         // Okno se vejde bez posouvání
@@ -95,7 +106,7 @@ test('doplňky sovy v Nastavení', { skip: !chromium && 'Playwright není nainst
         // „Bez doplňku“ ho sundá
         await tab.click('#btn-settings');
         await tab.click('[data-me-tab="owl"]');
-        await tab.click('[data-owl-pick="neck:none"]');
+        await pickAcc(tab, 'neck:none');
         await tab.waitForSelector('[data-owl-pick="neck:none"][aria-pressed="true"]');
         assert.deepEqual(await layers(tab), ['icons/doplnky/slunecni-bryle.webp']);
         assert.deepEqual(problems, []);
@@ -107,13 +118,13 @@ test('doplňky sovy v Nastavení', { skip: !chromium && 'Playwright není nainst
         await tab.click('#btn-settings');
         await tab.click('[data-me-tab="owl"]');
         await tab.waitForSelector('[data-owl-pick]');
-        await tab.click('[data-owl-pick="hand:lupa"]');
+        await pickAcc(tab, 'hand:lupa');
         await tab.waitForSelector('[data-owl-pick="hand:lupa"][aria-pressed="true"]');
-        await tab.click('[data-owl-pick="neck:motylek"]');
+        await pickAcc(tab, 'neck:motylek');
         await tab.waitForSelector('[data-owl-pick="neck:motylek"][aria-pressed="true"]');
-        await tab.click('[data-owl-pick="head:kvetina"]');
+        await pickAcc(tab, 'head:kvetina');
         await tab.waitForSelector('[data-owl-pick="head:kvetina"][aria-pressed="true"]');
-        await tab.click('[data-owl-pick="face:bryle"]');
+        await pickAcc(tab, 'face:bryle');
         await tab.waitForSelector('[data-owl-pick="face:bryle"][aria-pressed="true"]');
         assert.deepEqual(await layers(tab), ['icons/doplnky/motylek.webp', 'icons/doplnky/bryle.webp', 'icons/doplnky/kvetina.webp', 'icons/doplnky/lupa.webp']);
         assert.deepEqual(problems, []);
@@ -125,7 +136,7 @@ test('doplňky sovy v Nastavení', { skip: !chromium && 'Playwright není nainst
         await tab.click('#btn-settings');
         await tab.click('[data-me-tab="owl"]');
         await tab.waitForSelector('[data-owl-pick]');
-        await tab.click('[data-owl-pick="head:koruna"]');
+        await pickAcc(tab, 'head:koruna');
         await tab.waitForSelector('[data-owl-pick="head:koruna"][aria-pressed="true"]');
         assert.equal(await tab.locator('[data-owl-hue]').count(), 0, 'posuvník je jen u vlastní barvy');
         await tab.click('[data-owl-color="head:vlastni"]');
@@ -156,8 +167,9 @@ test('doplňky sovy v Nastavení', { skip: !chromium && 'Playwright není nainst
         assert.equal(await tab.getAttribute('[data-owl-pick="head:helma"]', 'aria-disabled'), 'true');
         assert.match(await tab.getAttribute('[data-owl-pick="head:helma"]', 'title'), /Odznak: Posel bohů/);
         for (const pick of ['head:prilba', 'face:lab-bryle', 'hand:sitka']) {
+            await tab.click(`[data-owl-slot="${pick.split(':')[0]}"]`);
             assert.equal(await tab.getAttribute(`[data-owl-pick="${pick}"]`, 'aria-disabled'), null, `${pick} je odemčený`);
-            await tab.click(`[data-owl-pick="${pick}"]`);
+            await pickAcc(tab, pick);
         }
         await tab.waitForFunction(() => document.querySelectorAll('#status-icon-slot [data-owl-layer]').length === 3);
         const sources = await layers(tab);
@@ -166,12 +178,12 @@ test('doplňky sovy v Nastavení', { skip: !chromium && 'Playwright není nainst
         // Přilba nahrazuje čepici: výchozí čepice se z loga maskou skryje a s jiným doplňkem na hlavě je zase vidět
         assert.equal(await tab.evaluate(() => document.querySelector('#status-icon-slot [data-owl]').classList.contains('owl-nohat')), true);
         assert.match(await tab.evaluate(() => getComputedStyle(document.querySelector('#status-icon-slot [data-owl] > img')).maskImage || getComputedStyle(document.querySelector('#status-icon-slot [data-owl] > img')).webkitMaskImage), /logo-maska\.webp/);
-        await tab.click('[data-owl-pick="head:none"]');
+        await pickAcc(tab, 'head:none');
         await tab.waitForFunction(() => !document.querySelector('#status-icon-slot [data-owl]').classList.contains('owl-nohat'));
-        await tab.click('[data-owl-pick="head:prilba"]');
+        await pickAcc(tab, 'head:prilba');
         await tab.waitForFunction(() => document.querySelector('#status-icon-slot [data-owl]').classList.contains('owl-nohat'));
         // Zamčený doplněk se klepnutím nevybere
-        await tab.click('[data-owl-pick="head:helma"]', { force: true });
+        await pickAcc(tab, 'head:helma', { force: true });
         assert.equal((await layers(tab)).length, 3);
         assert.deepEqual(problems, []);
         await context.close();
@@ -182,8 +194,13 @@ test('doplňky sovy v Nastavení', { skip: !chromium && 'Playwright není nainst
         await tab.click('#btn-settings');
         await tab.click('[data-me-tab="owl"]');
         await tab.waitForSelector('[data-owl-pick]');
-        await tab.waitForFunction(() => [...document.querySelectorAll('[data-owl-pick] img')].every(img => img.complete));
-        const broken = await tab.$$eval('[data-owl-pick] img', images => images.filter(img => img.naturalWidth === 0).map(img => img.getAttribute('src')));
+        const broken = [];
+        for (const slot of ['head', 'face', 'neck', 'hand']) {
+            await tab.click(`[data-owl-slot="${slot}"]`);
+            await tab.waitForSelector(`[data-owl-items="${slot}"]`);
+            await tab.waitForFunction(() => [...document.querySelectorAll('[data-owl-pick] img, [data-owl-slot] img')].every(img => img.complete));
+            broken.push(...await tab.$$eval('[data-owl-pick] img, [data-owl-slot] img', images => images.filter(img => img.naturalWidth === 0).map(img => img.getAttribute('src'))));
+        }
         assert.deepEqual(broken, []);
         await context.close();
     });

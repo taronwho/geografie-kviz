@@ -29,6 +29,10 @@ const MON = '2026-11-09';
 const SIZES = [{ width: 390, height: 780 }, { width: 360, height: 640 }];
 // Na 360×640 smí okno přetéct nejvýš o tolik (víc než stejná tvrdá nula by znamenalo skládat obsah do sloupců, které se nevejdou)
 const SMALL_TOLERANCE = 24;
+// Záložky Nastavení (a jejich stavy) se musí vejít bez posouvání na obou velikostech, bez rezervy
+const SETTINGS_STRICT = /^Nastavení/;
+// FIT_SCHEME=dark projde okna v tmavém režimu (snímky pro kontrolu vzhledu)
+const SCHEME = process.env.FIT_SCHEME === 'dark' ? 'dark' : 'light';
 
 // Dlouhé seznamy, které se posouvat smí: reason = proč, size = jen na této velikosti (jinak na obou), keep = hlavní akce, která při posouvání
 // zůstane vidět (lepkavě). Lepkavý nadpis okna se zavíráním (data-dialog-head) se hlídá u všech výjimek v #dialog-overlay.
@@ -278,15 +282,15 @@ const richStorage = () => {
     };
 };
 
-const setup = async (browser, { viewport, storage = {}, db = newDb(), query = '' } = {}) => {
-    const context = await browser.newContext({ serviceWorkers: 'block', colorScheme: 'light', viewport, reducedMotion: 'reduce', deviceScaleFactor: SHOTS ? 2 : 1 });
+const setup = async (browser, { viewport, storage = {}, db = newDb(), query = '', signedOut = false } = {}) => {
+    const context = await browser.newContext({ serviceWorkers: 'block', colorScheme: SCHEME, viewport, reducedMotion: 'reduce', deviceScaleFactor: SHOTS ? 2 : 1 });
     await context.addInitScript(() => { window.MUDRLANT_NUMERIC_RATE = 0; });
     await context.addInitScript(pushStub);
     await context.addInitScript(entries => {
         if (sessionStorage.getItem('test-storage-set')) return;
         sessionStorage.setItem('test-storage-set', '1');
         Object.entries(entries).forEach(([key, value]) => localStorage.setItem(key, value));
-    }, { 'mudrlant.tutorial': JSON.stringify({ how: 'done' }), 'mudrlant.tips': JSON.stringify({ off: true }), 'mudrlant.variant': 'choices', 'mudrlant.account': JSON.stringify('host'), 'mudrlant.homeTab': JSON.stringify('multi'), ...login, ...richStorage(), ...storage });
+    }, { 'mudrlant.tutorial': JSON.stringify({ how: 'done' }), 'mudrlant.tips': JSON.stringify({ off: true }), 'mudrlant.variant': 'choices', 'mudrlant.account': JSON.stringify('host'), 'mudrlant.homeTab': JSON.stringify('multi'), ...(signedOut ? {} : login), ...richStorage(), ...storage });
     const tab = await context.newPage();
     tab.setDefaultTimeout(10000);
     const log = { errors: [], csp: [] };
@@ -447,19 +451,39 @@ test('okna se vejdou bez posouvání', { skip: !chromium && 'Playwright není na
                 await tab.click('[data-block="on"]');
                 await tab.waitForSelector('[data-block-confirm]');
             });
-            // Nastavení: čtyři záložky (Profil = můj profil)
-            for (const [id, title] of [['game', 'Hra'], ['profile', 'Profil'], ['look', 'Vzhled'], ['owl', 'Mudrlant']]) {
-                await scene(tab, `Nastavení – ${title}`, size, async () => {
-                    await tab.click('#btn-settings');
-                    await tab.waitForSelector('#settings-overlay');
-                    await tab.click(`[data-me-tab="${id}"]`);
-                    await tab.waitForSelector(`[data-me-tab="${id}"][aria-selected="true"]`);
-                    await tab.waitForTimeout(300);
-                });
+            // Nastavení: tři záložky (Hra, Profil = jak mě vidí ostatní, Mudrlant) a jejich stavy (skupiny obrázků, barva části postavičky,
+            // posuvník všech barev, doplněk s barvou); na obou velikostech bez posouvání (SETTINGS_STRICT)
+            const settingsTab = async (id) => {
+                await tab.click('#btn-settings');
+                await tab.waitForSelector('#settings-overlay');
+                await tab.click(`[data-me-tab="${id}"]`);
+                await tab.waitForSelector(`[data-me-tab="${id}"][aria-selected="true"]`);
+            };
+            const settled = () => tab.waitForFunction(() => [...document.querySelectorAll('#settings-overlay img')].every(img => img.complete));
+            for (const [id, title] of [['game', 'Hra'], ['profile', 'Profil'], ['owl', 'Mudrlant']]) {
+                await scene(tab, `Nastavení – ${title}`, size, async () => { await settingsTab(id); await settled(); await tab.waitForTimeout(300); });
             }
+            await scene(tab, 'Nastavení – Profil (Mudrlant)', size, async () => { await settingsTab('profile'); await tab.click('[data-pic-group="mudrlant"]'); await tab.waitForSelector('[data-pick-owl="titul-1"]'); await settled(); });
+            await scene(tab, 'Nastavení – Profil (Postavičky, barva části)', size, async () => {
+                await settingsTab('profile');
+                await tab.click('[data-pic-group="postavicky"]');
+                await tab.click('[data-pick-avatar="mamut"]');
+                await tab.click('[data-color-target="2"]');
+                await tab.click('[data-pick-part="2:5"]');
+                await tab.waitForSelector('[data-pick-part="2:5"][aria-pressed="true"]');
+                await settled();
+            });
+            await scene(tab, 'Nastavení – Profil (všechny barvy)', size, async () => { await settingsTab('profile'); await tab.click('[data-pick-hue-open]'); await tab.waitForSelector('[data-pick-hue]'); await settled(); });
+            await scene(tab, 'Nastavení – Mudrlant (doplněk s barvou)', size, async () => {
+                await settingsTab('owl');
+                await tab.click('[data-owl-slot="neck"]');
+                await tab.click('[data-owl-pick="neck:sala"]');
+                await tab.waitForSelector('[data-owl-color="neck:modra"]');
+                await settled();
+            });
             await scene(tab, 'Zablokovaní hráči', size, async () => {
                 await tab.click('#btn-settings');
-                await tab.click('[data-me-tab="profile"]');
+                await tab.click('[data-me-tab="game"]');
                 await tab.click('[data-open-blocked]');
                 await tab.waitForSelector('#blocked-list');
             });
@@ -571,6 +595,25 @@ test('okna se vejdou bez posouvání', { skip: !chromium && 'Playwright není na
             });
             await context.close();
         });
+
+        // Bez účtu: Nastavení má jen Hru (s přihlášením místo účtu) a Mudrlanta
+        await t.test(`Nastavení bez účtu (${size.width}×${size.height})`, async () => {
+            const { context, tab, log } = await setup(browser, { viewport: size, signedOut: true });
+            const open = async (id) => {
+                await tab.click('#btn-settings');
+                await tab.waitForSelector('#settings-overlay');
+                await tab.click(`[data-me-tab="${id}"]`);
+                await tab.waitForSelector(`[data-me-tab="${id}"][aria-selected="true"]`);
+                await tab.waitForFunction(() => [...document.querySelectorAll('#settings-overlay img')].every(img => img.complete));
+            };
+            await scene(tab, 'Nastavení bez účtu – Hra', size, async () => {
+                await open('game');
+                assert.deepEqual(await tab.$$eval('[data-me-tab]', nodes => nodes.map(node => node.dataset.meTab)), ['game', 'owl']);
+            });
+            await scene(tab, 'Nastavení bez účtu – Mudrlant', size, () => open('owl'));
+            assert.deepEqual(log.csp, []);
+            await context.close();
+        });
     }
 
     await t.test('výsledek: přetečení po oknech', () => {
@@ -579,8 +622,9 @@ test('okna se vejdou bez posouvání', { skip: !chromium && 'Playwright není na
         for (const [name, row] of Object.entries(table)) {
             const big = row['390×780'];
             const small = row['360×640'];
+            const tolerance = SETTINGS_STRICT.test(name) ? 0 : SMALL_TOLERANCE;
             if (!exempt(name, '390×780') && typeof big === 'number' && big > 0) over.push(`${name} 390×780: ${big} px`);
-            if (!exempt(name, '360×640') && typeof small === 'number' && small > SMALL_TOLERANCE) over.push(`${name} 360×640: ${small} px`);
+            if (!exempt(name, '360×640') && typeof small === 'number' && small > tolerance) over.push(`${name} 360×640: ${small} px`);
         }
         assert.deepEqual(over, [], 'okna bez posouvání');
         // Přepracovaný profil hráče a nahlášení: všechna tlačítka aspoň 40 px

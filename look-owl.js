@@ -1,6 +1,6 @@
 // Doplňky sovy: průhledné vrstvy icons/doplnky/<doplněk>[-<barva>].webp (scripts/owl-accessories.py) se kladou přes logo sovy.
 // Vrstva má rám loga rozšířený o okraje (koruna, sluchátka a lupa přesahují obrys), proto je větší než logo a posunutá do záporu.
-// Hráč si v Nastavení → Sova vybere doplněk v každém místě (hlava, obličej, krk, ruka) a jeho barvu. Používá MudrlantLook (look.js).
+// Hráč si v Nastavení → Mudrlant vybere doplněk v každém místě (hlava, obličej, krk, ruka) a jeho barvu. Používá MudrlantLook (look.js).
 (function (root, factory) {
     const isNode = typeof module === 'object' && module.exports;
     const api = factory(root.MudrlantLook || (isNode ? require('./look.js') : null), root.MudrlantCore || (isNode ? require('./quiz-core.js') : null), root.MudrlantFlags || (isNode ? require('./look-flags.js') : null));
@@ -180,9 +180,12 @@
         });
     };
 
+    // Otevřené místo (čip kolem sovy): jeho doplňky jsou v mřížce pod sovou a barva patří doplňku v něm. null = první místo
+    // s doplňkem (nebo hlava)
     let activeSlot = null;
     let note = '';
     const slotOf = (id) => (Look.find('accessories', id) || {}).slot;
+    const openSlotOf = (acc) => (activeSlot && Look.SLOTS.some(slot => slot.id === activeSlot) ? activeSlot : (Look.SLOTS.map(slot => slot.id).find(id => acc[id]) || Look.SLOTS[0].id));
 
     // Dlaždice doplňku: tlačítko vyplní celou buňku mřížky (aspoň 40 × 40 px dotykové plochy), vidět je jen vnitřní dlaždice
     // s průhledným okrajem – mezery mezi dlaždicemi jsou tak součástí dotykové plochy, ne mrtvé místo
@@ -198,61 +201,79 @@
     };
     const noneTile = (slot, selected) => `<button type="button" data-owl-pick="${slot}:none" aria-pressed="${selected}" title="Bez doplňku" aria-label="Bez doplňku" class="${TILE_HIT}">
         <span class="${TILE} text-lg font-black text-slate-500 dark:text-slate-400 ${selected ? TILE_ON : TILE_OFF}">–</span></button>`;
+    // Čip místa vedle sovy (jako výbava ve hře): název místa a ikona nasazeného doplňku (nebo pomlčka); vpravo od sovy zrcadlově
+    const slotChip = (slot, acc, open, right) => {
+        const item = acc[slot.id] ? Look.find('accessories', acc[slot.id].id) : null;
+        const icon = item ? `<img src="icons/doplnky/${item.id}-ikona.webp" alt="" class="h-6 w-6 object-contain">` : '<span class="text-base font-black leading-none text-slate-600 dark:text-slate-300">–</span>';
+        return `<button type="button" data-owl-slot="${slot.id}" aria-pressed="${open}" aria-label="${escapeHtml(`${slot.title}: ${item ? item.title : 'bez doplňku'}`)}" title="${escapeHtml(item ? item.title : 'Bez doplňku')}"
+            class="flex h-11 w-full min-w-0 items-center gap-1.5 rounded-xl border-2 px-1 active:scale-95 ${right ? 'flex-row-reverse text-right' : 'text-left'} ${open ? 'border-brand-500 bg-brand-50 text-brand-800 dark:bg-brand-950 dark:text-brand-100' : 'border-transparent bg-slate-50 text-slate-700 dark:bg-slate-700/50 dark:text-slate-200'}">
+            <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white shadow-sm dark:bg-slate-800">${icon}</span><span class="min-w-0 flex-1 truncate text-[12px] font-black leading-tight">${slot.title}</span></button>`;
+    };
 
     const render = (ctx) => {
         const acc = ctx.prefs.acc || {};
-        const slots = Look.SLOTS.map(slot => {
-            const chosen = acc[slot.id] ? acc[slot.id].id : 'none';
-            const items = Look.ACCESSORIES.filter(item => item.slot === slot.id);
-            // Štítek místa nad řádkem a pravidelná mřížka sloupců aspoň 40 px (7 na 360 px, 8 na 390 px): první dlaždice je vždy
-            // „bez doplňku“, další doplňky se jen řadí dál (hlava s osmi doplňky má na telefonu dva řádky)
-            return `<div class="flex flex-col gap-0.5"><p class="px-0.5 text-[11px] font-black uppercase leading-none tracking-wider text-slate-500 dark:text-slate-400">${slot.title}</p>
-                <div class="grid grid-cols-[repeat(auto-fill,minmax(2.5rem,1fr))]">${noneTile(slot.id, chosen === 'none')}${items.map(item => tile(item, ctx, chosen === item.id)).join('')}</div></div>`;
-        }).join('');
-        // Barva patří doplňku, který hráč naposledy vybral (nebo prvnímu nasazenému)
-        const target = activeSlot && acc[activeSlot] ? activeSlot : Look.SLOTS.map(slot => slot.id).find(id => acc[id]);
+        const open = openSlotOf(acc);
+        const [left1, left2, right1, right2] = Look.SLOTS;
+        // Sova uprostřed, místa (hlava, obličej | krk, ruka) kolem ní; vybrané místo ukáže pod sovou své doplňky
+        const owl = `<div data-owl-slots class="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-1.5">
+            <div class="flex min-w-0 flex-col gap-1.5">${slotChip(left1, acc, open === left1.id, false)}${slotChip(left2, acc, open === left2.id, false)}</div>
+            <div class="flex w-[6.25rem] justify-center pt-4 short:w-[5.25rem] short:pt-3">${logoHtml('', 'h-20 w-auto drop-shadow-lg short:h-16', acc)}</div>
+            <div class="flex min-w-0 flex-col gap-1.5">${slotChip(right1, acc, open === right1.id, true)}${slotChip(right2, acc, open === right2.id, true)}</div>
+        </div>`;
+        const chosen = acc[open] ? acc[open].id : 'none';
+        // Pravidelná mřížka sloupců aspoň 40 px (7 na 360 px, 8 na 390 px); první dlaždice je vždy „bez doplňku“. Výška na dva řádky
+        // (nejvíc doplňků má hlava), ať se okno při přepnutí místa neposkakuje.
+        const items = `<div data-owl-items="${open}" class="grid min-h-[5rem] grid-cols-[repeat(auto-fill,minmax(2.5rem,1fr))] content-start" role="group" aria-label="${escapeHtml(`Doplňky: ${(Look.SLOTS.find(slot => slot.id === open) || {}).title || ''}`)}">${noneTile(open, chosen === 'none')}${Look.ACCESSORIES.filter(item => item.slot === open).map(item => tile(item, ctx, chosen === item.id)).join('')}</div>`;
+        // Barva patří doplňku v otevřeném místě
+        const target = acc[open] ? open : null;
         const targetItem = target ? Look.find('accessories', acc[target].id) : null;
         const current = target ? acc[target].color : null;
         const custom = current !== null && Look.customHue(current) !== null;
         const customOpen = Look.ACC_COLORS.find(color => color.id === 'vlastni');
         const dot = (color) => {
-            const open = Look.isUnlocked(color, ctx);
+            const unlocked = Look.isUnlocked(color, ctx);
             const selected = color.id === 'vlastni' ? custom : current === color.id;
-            const label = open ? color.title : `${color.title}: ${Look.unlockText(color)}`;
-            return `<button type="button" data-owl-color="${target}:${color.id}" aria-pressed="${selected}" ${open ? '' : 'aria-disabled="true"'} title="${escapeHtml(label)}" aria-label="${escapeHtml(label)}"
-                class="h-8 w-8 rounded-full ${COLOR_DOT[color.id] || ''} ${selected ? 'ring-2 ring-slate-800/70 ring-offset-2 dark:ring-white/80 dark:ring-offset-slate-800' : ''} ${open ? '' : 'opacity-35 grayscale'} active:scale-95"></button>`;
+            const label = unlocked ? color.title : `${color.title}: ${Look.unlockText(color)}`;
+            return `<button type="button" data-owl-color="${target}:${color.id}" aria-pressed="${selected}" ${unlocked ? '' : 'aria-disabled="true"'} title="${escapeHtml(label)}" aria-label="${escapeHtml(label)}" class="flex h-9 min-w-0 items-center justify-center active:scale-95">
+                <span class="h-7 w-7 rounded-full ${COLOR_DOT[color.id] || ''} ${selected ? 'ring-2 ring-slate-800/70 ring-offset-2 dark:ring-white/80 dark:ring-offset-slate-800' : ''} ${unlocked ? '' : 'opacity-35 grayscale'}"></span></button>`;
         };
         const slider = custom && Look.isUnlocked(customOpen, ctx) ? `
-            <label class="flex flex-col gap-1 text-[11px] font-bold text-slate-500 dark:text-slate-400">Odstín
-                <input type="range" min="0" max="355" step="5" value="${Look.customHue(current)}" data-owl-hue aria-label="Odstín vlastní barvy" class="h-6 w-full cursor-pointer ${HUE_BAR}"></label>` : '';
-        // Vlajka státu na vlaječce: výběr se ukáže pod barvami; s vlajkou se barva plátna neuplatní, proto se paleta skryje
-        const flagSlot = Look.SLOTS.map(slot => slot.id).find(id => acc[id] && (Look.find('accessories', acc[id].id) || {}).flags);
+            <input type="range" min="0" max="355" step="5" value="${Look.customHue(current)}" data-owl-hue aria-label="Odstín vlastní barvy" class="mx-1 h-6 cursor-pointer ${HUE_BAR}">` : '';
+        // Vlajka státu na vlaječce (v otevřeném místě): s vlajkou se barva plátna neuplatní, proto se paleta skryje
+        const flagSlot = targetItem && targetItem.flags ? target : null;
         const flagChosen = flagSlot ? acc[flagSlot].flag || '' : '';
         const flagPicker = flagSlot ? `
             <label class="flex items-center gap-2 text-[11px] font-bold text-slate-500 dark:text-slate-400"><span class="shrink-0">Vlajka</span>
-                <select data-owl-flag="${flagSlot}" aria-label="Vlajka státu na vlaječce" class="h-8 min-w-0 flex-1 rounded-lg border-2 border-slate-200 bg-white px-2 text-sm font-bold text-slate-800 focus:border-brand-600 focus:outline-none dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100">
+                <select data-owl-flag="${flagSlot}" aria-label="Vlajka státu na vlaječce" class="h-9 min-w-0 flex-1 rounded-lg border-2 border-slate-200 bg-white px-2 text-sm font-bold text-slate-800 focus:border-brand-600 focus:outline-none dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100">
                     <option value=""${flagChosen ? '' : ' selected'}>Modré plátno (výchozí)</option>${Flags ? Flags.list().map(flag => `<option value="${flag.id}"${flag.id === flagChosen ? ' selected' : ''}>${escapeHtml(flag.name)}</option>`).join('') : ''}
                 </select></label>` : '';
-        const colors = targetItem && flagChosen && target === flagSlot ? '' : targetItem ? `
-            <div class="flex flex-col gap-1.5"><p class="text-[11px] font-bold text-slate-500 dark:text-slate-400">Barva: <b class="text-slate-700 dark:text-slate-200">${escapeHtml(targetItem.title)}</b></p>
-            <div class="grid grid-cols-10 justify-items-center gap-1" role="group" aria-label="Barva doplňku">${Look.ACC_COLORS.map(dot).join('')}</div>${slider}</div>`
-            : '<p class="text-[11px] font-semibold text-slate-500 dark:text-slate-400">Vyber doplněk a pak jeho barvu.</p>';
-        return `<div class="flex flex-col gap-2 short:gap-1.5">
-            <div class="flex justify-center [@media(max-height:700px)]:-mb-1">${logoHtml('mt-5 [@media(max-height:700px)]:mt-3', 'h-20 w-auto drop-shadow-lg [@media(max-height:700px)]:h-14', acc)}</div>
-            ${slots}<div class="flex flex-col gap-1.5 px-0.5">${colors}${flagPicker}</div>
-            ${note ? `<p role="status" class="px-0.5 text-[11px] font-bold text-brand-700 dark:text-brand-300">${escapeHtml(note)}</p>` : ''}
+        const colors = targetItem && flagChosen ? '' : targetItem ? `
+            <div class="flex flex-col gap-0.5"><p class="px-1 text-[11px] font-bold text-slate-500 dark:text-slate-400">Barva: <b class="text-slate-700 dark:text-slate-200">${escapeHtml(targetItem.title)}</b></p>
+            <div class="grid grid-cols-10" role="group" aria-label="Barva doplňku">${Look.ACC_COLORS.map(dot).join('')}</div>${slider}</div>`
+            : `<p class="flex min-h-[2.25rem] items-center px-1 text-[11px] font-semibold text-slate-500 dark:text-slate-400">${chosen === 'none' ? 'Vyber doplněk a pak jeho barvu.' : ''}</p>`;
+        return `<div class="flex flex-col gap-1.5">
+            ${owl}${items}<div class="flex flex-col gap-1.5">${colors}${flagPicker}</div>
+            ${note ? `<p role="status" class="px-1 text-[11px] font-bold text-brand-700 dark:text-brand-300">${escapeHtml(note)}</p>` : ''}
         </div>`;
     };
-
     // Klepnutí: zamčený doplněk jen ukáže, jak se odemyká; odemčený se nasadí (nahradí doplněk ve svém místě), „–“ ho sundá
     const click = (event, ctx) => {
+        const slotButton = event.target.closest('[data-owl-slot]');
         const pick = event.target.closest('[data-owl-pick]');
         const color = event.target.closest('[data-owl-color]');
         const acc = { ...(ctx.prefs.acc || {}) };
+        // Čip místa otevře jeho doplňky (a barvu doplňku v něm)
+        if (slotButton) {
+            if (!Look.SLOTS.some(slot => slot.id === slotButton.dataset.owlSlot)) return false;
+            activeSlot = slotButton.dataset.owlSlot;
+            note = '';
+            return true;
+        }
         if (pick) {
             const [slot, id] = pick.dataset.owlPick.split(':');
             note = '';
-            if (id === 'none') { delete acc[slot]; if (activeSlot === slot) activeSlot = null; }
+            activeSlot = slot;
+            if (id === 'none') delete acc[slot];
             else {
                 const item = Look.find('accessories', id);
                 if (!item || item.slot !== slot) return false;
@@ -291,8 +312,8 @@
         }
         const range = event.target.closest('[data-owl-hue]');
         if (!range) return false;
-        const slot = activeSlot;
         const acc = { ...(ctx.prefs.acc || {}) };
+        const slot = openSlotOf(acc);
         if (!slot || !acc[slot]) return false;
         acc[slot] = { ...acc[slot], color: `h${Math.round(Number(range.value) / 5) * 5 % 360}` };
         return Look.setPref('acc', acc, ctx);

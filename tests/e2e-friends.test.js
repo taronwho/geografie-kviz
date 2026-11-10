@@ -245,7 +245,7 @@ test('přátelé, reakce, blokování a nahlášení', { skip: !chromium && 'Pla
         assert.equal(await tab.locator('#friends-strip').count(), 0, 'blokovaný zmizel z přátel');
         // Nastavení → Zablokovaní hráči → Odblokovat
         await tab.click('#btn-settings');
-        await tab.click('[data-me-tab="profile"]');
+        await tab.click('[data-me-tab="game"]');
         await tab.click('[data-open-blocked]');
         await tab.waitForSelector('#blocked-list');
         assert.match(await compact(tab, '#blocked-list'), /Petr Svoboda/);
