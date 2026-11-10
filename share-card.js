@@ -11,7 +11,7 @@
     const SIZE = 1080;
     const PAD = 72;
     const FONT = 'system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
-    const ROBES = ['vinova', 'zelena', 'modra', 'ruzova', 'fialova', 'cerna', 'zlata'];
+    const ROBES = ['vinova', 'zelena', 'modra', 'ruzova', 'fialova', 'cerna', 'zlata', 'bila'];
     const POSES = ['vitez', 'oslava', 'radost', 'premysleni', 'smutek', 'prohra', 'serie', 'vitej', 'vyzva'];
     // Barvy aplikace: zlatá (gold-300), krémová (cream), správně / špatně (emerald-400, rose-400)
     const COLORS = { gold: '#efc55c', cream: '#fee2b0', right: '#34d399', wrong: '#fb7185', empty: 'rgba(255,255,255,0.22)' };

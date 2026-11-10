@@ -934,7 +934,7 @@
     const rewardPlace = (category) => !Look ? 'Nastavení' : `${Look.settingsPlace(category)}${Look.settingsTab(category) === 'profile' && !signedUser() ? ' (po přihlášení)' : ''}`;
     // Části vzhledu jedné záložky Nastavení (look-*.js, vlastnost tab): ve Hře barevné téma, v Profilu rámeček a titul u jména,
     // u Mudrlanta doplňky a barva obleku. card: false = bez bílé karty (řádek mezi ostatními volbami), bleed = o 4 px širší
-    // (osm barevných témat se tak i na 360 px vejde po 40 px). Nadpis si část kreslí sama (noTitle), nebo ho dostane tady.
+    // (osm kuliček barevných témat v řadě se tak i na 360 px vejde po 40 px). Nadpis si část kreslí sama (noTitle), nebo ho dostane tady.
     const lookSections = (tab, ctx = lookContext()) => !Look ? '' : Look.getSections().filter(section => (section.tab || 'owl') === tab).map(section => `
             <section data-look="${section.id}" class="min-w-0 ${section.bleed ? '-mx-1 ' : ''}${section.card === false ? '' : `rounded-2xl bg-white ${section.tight ? 'px-1.5 py-2' : 'px-2.5 py-2'} shadow-sm dark:bg-slate-800`}">
                 ${section.noTitle ? '' : `<h3 class="${ME_HEADING} mb-1${section.tight ? ' px-1' : ''}">${escapeHtml(section.title)}</h3>`}
@@ -1588,7 +1588,7 @@
                 ${tabList.map(([id, icon, label]) => `
                     <button type="button" role="tab" data-me-tab="${id}" aria-selected="${meTab === id}" class="flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-xl min-h-[2.75rem] short:min-h-[2.5rem] px-2 text-[13px] font-black ${meTab === id ? 'btn-3d bg-brand-700 text-white' : 'text-slate-600 dark:text-slate-400'}"><i data-lucide="${icon}" class="h-4 w-4 shrink-0"></i> ${label}</button>`).join('')}
             </div>`;
-        // Karta Hra: varianta a obtížnost jako kompaktní karty, barevné téma aplikace v jedné řadě, přepínače (procvičování, tipy, zvuky,
+        // Karta Hra: varianta a obtížnost jako kompaktní karty, barevná témata aplikace ve dvou řadách, přepínače (procvičování, tipy, zvuky,
         // upozornění) jako řádky jednoho seznamu a pod ním účet (přijímané výzvy, zablokovaní, odhlášení) – vejde se bez posouvání
         // Účet jako poslední řádek seznamu se třemi buňkami (ikona nad názvem): přijímané výzvy, zablokovaní hráči (počet na ikoně), odhlášení
         const ACCOUNT_CELL = 'flex min-h-[2.75rem] min-w-0 flex-col items-center justify-center gap-0.5 px-1 py-1 text-center transition-colors active:bg-slate-50 dark:active:bg-slate-700/40';
@@ -1641,7 +1641,7 @@
         const nameField = meTab === 'profile' && profileBody ? `<label class="block"><span class="sr-only">Přezdívka (jedinečná, podle ní tě ostatní najdou)</span>
                             <span class="relative block"><input id="profile-name" form="profile-form" type="text" maxlength="${Social.NAME_MAX}" value="${escapeHtml(meDraft.name)}" title="Přezdívka: jedinečná, podle ní tě ostatní najdou" class="h-9 w-full rounded-xl border-2 border-slate-200 bg-white py-0 pl-2.5 pr-8 text-base font-black text-slate-800 focus:border-brand-600 focus:outline-none dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"><i data-lucide="pencil" class="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400 dark:text-slate-500"></i></span></label>` : '';
         overlay.innerHTML = `
-            <div class="${reopened ? '' : 'fade-in '}max-h-[94dvh] w-full max-w-md overflow-y-auto rounded-[1.75rem] bg-slate-50 p-4 short:max-h-[calc(100dvh-0.75rem)] short:py-3 max-[380px]:px-3 dark:bg-slate-900">
+            <div class="${reopened ? '' : 'fade-in '}max-h-[94dvh] w-full max-w-md overflow-y-auto rounded-[1.75rem] bg-slate-50 p-4 short:max-h-[calc(100dvh-0.75rem)] short:py-2.5 max-[380px]:px-3 dark:bg-slate-900">
                 <div class="flex items-center gap-3">
                     ${shown ? avatarHtml(shown, 'h-14 w-14 text-3xl short:h-12 short:w-12') : owlLogo('shrink-0 mt-1', 'h-14 w-auto drop-shadow-md short:h-12')}
                     <div class="min-w-0 flex-1">
@@ -1652,11 +1652,11 @@
                     <button type="button" data-close aria-label="Zavřít" class="-m-0.5 self-start rounded-xl p-2.5 text-slate-500 hover:bg-slate-200 dark:text-slate-400 dark:hover:bg-slate-800"><i data-lucide="x" class="h-5 w-5"></i></button>
                 </div>
                 ${tabs}
-                <div class="mt-3 short:mt-2">${meTab === 'profile' && profileBody ? profileBody : meTab === 'owl' ? owlBody : gameBody}</div>
+                <div class="mt-3 short:mt-1.5">${meTab === 'profile' && profileBody ? profileBody : meTab === 'owl' ? owlBody : gameBody}</div>
                 <p id="settings-note" class="${noteText ? 'mt-2 ' : ''}text-xs font-semibold ${noteText.startsWith('Uloženo') || !meNote ? 'text-emerald-700 dark:text-emerald-300' : 'text-rose-700 dark:text-rose-400'}" role="status">${escapeHtml(noteText)}</p>
                 ${renderSchemaBanner()}
                 ${meTab === 'game' ? `
-                <div class="mt-2 flex flex-wrap items-center justify-center gap-x-0.5 text-xs text-slate-500 short:mt-1 dark:text-slate-400">
+                <div class="mt-2 flex flex-wrap items-center justify-center gap-x-0.5 text-xs text-slate-500 short:mt-0.5 dark:text-slate-400">
                     <span id="app-version" class="px-1">${escapeHtml(versionLabel())}</span>
                     <button type="button" data-update-app class="-my-2 inline-flex min-h-[2.5rem] items-center rounded-lg px-1.5 font-bold text-slate-600 underline underline-offset-2 hover:bg-slate-200 disabled:no-underline dark:text-slate-300 dark:hover:bg-slate-800">Aktualizovat</button>
                     <button type="button" data-tutorial-restart class="-my-2 inline-flex min-h-[2.5rem] items-center rounded-lg px-1.5 font-bold underline underline-offset-2 hover:bg-slate-200 dark:hover:bg-slate-800">Tutoriál</button>
