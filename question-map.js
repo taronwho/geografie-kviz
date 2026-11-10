@@ -691,19 +691,66 @@
             overlay.appendChild(svgElement('path', { d: marks.outline, 'fill-rule': 'evenodd', 'stroke-width': 1.5, 'vector-effect': 'non-scaling-stroke', 'stroke-linejoin': 'round', 'data-target-shape': '', class: 'fill-emerald-500/30 stroke-emerald-600 dark:fill-emerald-400/30 dark:stroke-emerald-400' }));
         } else if (marks.shape && marks.shape.length) {
             // Plocha místa (park, jezero, moře): celá je přesná trefa; kroužek přes 180. poledník zůstane v kuse
+            let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
             const d = marks.shape.map(ring => {
                 let previous = null;
                 return `M${ring.map(([lat, lon]) => {
                     let [x, y] = project({ lat, lon });
                     if (previous !== null && Math.abs(x - previous) > frame.width / 2) x += Math.sign(previous - x) * frame.width;
                     previous = x;
+                    x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y);
                     return `${x.toFixed(1)},${y.toFixed(1)}`;
                 }).join('L')}${marks.shape.line ? '' : 'Z'}`;
             }).join('');
-            // Řeka jako výrazná čára, plocha jako zelená výplň s obrysem
-            overlay.appendChild(svgElement('path', marks.shape.line
-                ? { d, 'stroke-width': 4, 'vector-effect': 'non-scaling-stroke', 'stroke-linejoin': 'round', 'stroke-linecap': 'round', 'data-target-shape': '', class: 'fill-none stroke-emerald-600 dark:stroke-emerald-400' }
-                : { d, 'fill-rule': 'evenodd', 'stroke-width': 1.5, 'vector-effect': 'non-scaling-stroke', 'stroke-linejoin': 'round', 'data-target-shape': '', class: 'fill-emerald-500/30 stroke-emerald-600 dark:fill-emerald-400/30 dark:stroke-emerald-400' }));
+            const GREEN_FILL = 'fill-emerald-500 stroke-emerald-500 dark:fill-emerald-400 dark:stroke-emerald-400';
+            const GREEN_LINE = 'fill-none stroke-emerald-600 dark:stroke-emerald-400';
+            // Obrys je z podrobnějšího zdroje než podkladová mapa (fjordy, zálivy): zvýraznění se proto ořízne podle jejího
+            // pobřeží – pevninské místo (poloostrov, park, region) na pevninu, moře a záliv na vodu – a hrana jde po nakresleném
+            // břehu. Obrys se před oříznutím o kousek rozšíří, ať u břehu nezbude nevybarvený proužek.
+            const buffer = Math.max(2, Math.min(16, Math.hypot(x1 - x0, y1 - y0) * 0.06));
+            const land = marks.clip && !marks.shape.line && x1 - x0 < frame.width / 2
+                ? [...layerRings(regionData, 'land'), ...layerRings(regionData, 'seam')].filter(ring => {
+                    let a0 = Infinity, a1 = -Infinity, b0 = Infinity, b1 = -Infinity;
+                    for (const [x, y] of ring) { a0 = Math.min(a0, x); a1 = Math.max(a1, x); b0 = Math.min(b0, y); b1 = Math.max(b1, y); }
+                    return a1 >= x0 - buffer && a0 <= x1 + buffer && b1 >= y0 - buffer && b0 <= y1 + buffer;
+                }).map(ringPath).join('') : '';
+            if (marks.shape.line) {
+                // Řeka jako výrazná čára
+                overlay.appendChild(svgElement('path', { d, 'stroke-width': 4, 'vector-effect': 'non-scaling-stroke', 'stroke-linejoin': 'round', 'stroke-linecap': 'round', 'data-target-shape': '', class: GREEN_LINE }));
+            } else if (land || marks.clip === 'water') {
+                const id = `mapa-${Math.random().toString(36).slice(2, 9)}`;
+                const sea = marks.clip === 'water';
+                const box = { x: x0 - 2 * buffer, y: y0 - 2 * buffer, width: x1 - x0 + 4 * buffer, height: y1 - y0 + 4 * buffer };
+                const units = { maskUnits: 'userSpaceOnUse', ...box };
+                const white = () => svgElement('rect', { ...box, fill: '#fff' });
+                const landShape = (fill, stroke = 'none') => svgElement('path', { d: land || 'M0,0', 'fill-rule': 'evenodd', fill, stroke, 'stroke-width': buffer, 'stroke-linejoin': 'round' });
+                const mask = (name, children) => { const element = svgElement('mask', { id: `${id}-${name}`, ...units }); children.forEach(child => element.appendChild(child)); return element; };
+                const defs = svgElement('defs');
+                // kde se vybarvuje (pevnina, nebo voda), kde jde hrana po břehu (rozšířený obrys) a kde po obrysu (dál od břehu)
+                defs.appendChild(mask('fill', sea ? [white(), landShape('#000')] : [landShape('#fff')]));
+                defs.appendChild(mask('coast', [svgElement('path', { d, 'fill-rule': 'evenodd', fill: '#fff', stroke: '#fff', 'stroke-width': buffer, 'stroke-linejoin': 'round' })]));
+                defs.appendChild(mask('edge', sea ? [white(), landShape('#000', '#000')] : [landShape('#fff', '#000')]));
+                // rozšíření obrysu jen u břehu (na otevřené vodě a ve vnitrozemí končí výplň přesně na čáře obrysu)
+                defs.appendChild(mask('near', [svgElement('path', { d: land || 'M0,0', fill: 'none', stroke: '#fff', 'stroke-width': 2 * buffer, 'stroke-linejoin': 'round' })]));
+                overlay.appendChild(defs);
+                const filled = svgElement('g', { mask: `url(#${id}-fill)`, opacity: 0.3, 'data-target-shape': '' });
+                filled.appendChild(svgElement('path', { d, 'fill-rule': 'evenodd', 'stroke-width': 0, class: GREEN_FILL }));
+                const widened = svgElement('g', { mask: `url(#${id}-near)` });
+                widened.appendChild(svgElement('path', { d, 'fill-rule': 'evenodd', 'stroke-width': buffer, 'stroke-linejoin': 'round', class: GREEN_FILL }));
+                filled.appendChild(widened);
+                overlay.appendChild(filled);
+                if (land) {
+                    const coast = svgElement('g', { mask: `url(#${id}-coast)` });
+                    coast.appendChild(svgElement('path', { d: land, 'stroke-width': 1.5, 'vector-effect': 'non-scaling-stroke', 'stroke-linejoin': 'round', class: GREEN_LINE }));
+                    overlay.appendChild(coast);
+                }
+                const edge = svgElement('g', { mask: `url(#${id}-edge)` });
+                edge.appendChild(svgElement('path', { d, 'stroke-width': 1.5, 'vector-effect': 'non-scaling-stroke', 'stroke-linejoin': 'round', class: GREEN_LINE }));
+                overlay.appendChild(edge);
+            } else {
+                // Vnitrozemská plocha: zelená výplň s obrysem
+                overlay.appendChild(svgElement('path', { d, 'fill-rule': 'evenodd', 'stroke-width': 1.5, 'vector-effect': 'non-scaling-stroke', 'stroke-linejoin': 'round', 'data-target-shape': '', class: 'fill-emerald-500/30 stroke-emerald-600 dark:fill-emerald-400/30 dark:stroke-emerald-400' }));
+            }
         } else if (marks.target && marks.full) {
             // Kruh na zeměkouli (na mapě světa u pólů protáhlý); přes okraj mapy u 180. poledníku se jen ořízne
             const points = circleAround(marks.target, marks.full).map(project);
@@ -1039,7 +1086,9 @@
             const nearest = shape && guess ? nearestOnShape(shape, guess) : null;
             const pin = nearest && !nearest.inside ? { lat: nearest.lat, lon: nearest.lon } : target;
             return createMapView(element, regionData, frame, {
-                marks: { guess, target: pin, full: question.map.full, shape, outline, noLine: Boolean(nearest && nearest.inside) },
+                marks: { guess, target: pin, full: question.map.full, shape, outline, noLine: Boolean(nearest && nearest.inside),
+                    // Na mapě světa se plocha ořízne podle pobřeží podkladové mapy: moře a zálivy na vodu, ostatní na pevninu
+                    clip: !shown.projection || !shape || shape.line ? null : question.map.kind === 'more' ? 'water' : ['ostrovy', 'priroda', 'pohori', 'regiony', 'staty'].includes(question.map.kind) ? 'land' : null },
                 // Tip za 180. poledníkem by výřez roztáhl přes celý svět: pak jen správné místo (čára vede k okraji mapy)
                 focus: [pin, ...(guess && sameSide(guess) ? [guess] : []), ...fullPoints]
             });
