@@ -1440,7 +1440,7 @@ test('týdenní turnaje', { skip: !chromium && 'Playwright není nainstalovaný'
         const second = await rowText(1);
         assert.match(second, /Týden 26\. 10\. – 1\. 11\. 2026/);
         assert.match(second, /Vítěz: Adam 1/, 'bez míst: vítěz finále');
-        assert.match(second, /Ty: hrál jsi/);
+        assert.match(second, /Ty: v turnaji/);
         const third = await rowText(2);
         assert.match(third, /Vítěz: Petr Svoboda/);
         assert.doesNotMatch(third, /Ty:/, 'turnaj, který jsem nehrál, moje místo nemá');

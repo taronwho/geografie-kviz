@@ -8740,7 +8740,7 @@
         const id = escapeHtml(tournament.id);
         const played = Boolean(mine && IN_BRACKET.includes(mine.status));
         const medal = played && mine.place >= 1 && mine.place <= 3;
-        const me = played ? `Ty: ${mine.place ? Tournament.placeLabel(mine.place) : 'hrál jsi'}` : mine && mine.status === 'excluded' ? 'Ty: nevešel ses do pavouka' : '';
+        const me = played ? `Ty: ${mine.place ? Tournament.placeLabel(mine.place) : 'v turnaji'}` : mine && mine.status === 'excluded' ? 'Ty: mimo pavouka' : '';
         const cup = '<span class="absolute -bottom-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-gradient-to-br from-gold-300 to-gold-600 text-brand-950 ring-2 ring-white dark:ring-slate-800"><i data-lucide="trophy" class="h-3 w-3"></i></span>';
         const face = winner ? avatarHtml(winner.player, 'h-11 w-11 text-xl') : '<span class="flex h-11 w-11 items-center justify-center rounded-full bg-slate-200 text-slate-400 dark:bg-slate-700 dark:text-slate-500"><i data-lucide="trophy" class="h-5 w-5"></i></span>';
         return `<li data-archive="${id}" ${played ? 'data-played' : ''}>
@@ -8877,9 +8877,9 @@
     const archiveMeHtml = (entries, meId) => {
         const mine = entries.find(entry => entry.user_id === meId);
         if (!mine) return '';
-        if (!IN_BRACKET.includes(mine.status)) return mine.status === 'excluded' ? '<p id="archive-me" class="rounded-2xl bg-slate-100 px-3 py-2 text-[13px] font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-300">Přihlásil ses, ale do pavouka ses tenkrát nevešel.</p>' : '';
+        if (!IN_BRACKET.includes(mine.status)) return mine.status === 'excluded' ? '<p id="archive-me" class="rounded-2xl bg-slate-100 px-3 py-2 text-[13px] font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-300">Přihláška byla, ale do pavouka se tenkrát nevešla.</p>' : '';
         const medal = mine.place >= 1 && mine.place <= 3;
-        return `<p id="archive-me" class="flex items-center gap-2 rounded-2xl px-3 py-2 text-[13px] font-black ring-2 ${medal ? 'bg-gold-50 text-gold-900 ring-gold-400 dark:bg-gold-900/30 dark:text-gold-100 dark:ring-gold-600' : 'bg-brand-50 text-brand-800 ring-brand-600 dark:bg-brand-900/40 dark:text-brand-100 dark:ring-brand-400'}"><i data-lucide="${medal ? 'medal' : 'user'}" class="h-4 w-4 shrink-0"></i><span>${mine.place ? `Ty: ${escapeHtml(Tournament.placeLabel(mine.place))}${mine.place === 1 ? ', vítěz turnaje!' : ''}` : 'Ty: hrál jsi'}</span></p>`;
+        return `<p id="archive-me" class="flex items-center gap-2 rounded-2xl px-3 py-2 text-[13px] font-black ring-2 ${medal ? 'bg-gold-50 text-gold-900 ring-gold-400 dark:bg-gold-900/30 dark:text-gold-100 dark:ring-gold-600' : 'bg-brand-50 text-brand-800 ring-brand-600 dark:bg-brand-900/40 dark:text-brand-100 dark:ring-brand-400'}"><i data-lucide="${medal ? 'medal' : 'user'}" class="h-4 w-4 shrink-0"></i><span>${mine.place ? `Ty: ${escapeHtml(Tournament.placeLabel(mine.place))}${mine.place === 1 ? ', vítěz turnaje!' : ''}` : 'Ty: v turnaji'}</span></p>`;
     };
     // Turnaj z archivu: přihlášky a zápasy se načtou jednou (skončený turnaj se nemění), chybějící místa se dopočítají ze zápasů
     const openArchivedTournament = async (tid) => {
