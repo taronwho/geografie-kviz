@@ -6,10 +6,12 @@
 import { inflateSync } from 'node:zlib';
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { qlever, sparql, id, values, parsePoint, fileName, thumbHash, compact, cached, inBatches, readCountries, writeTopic, sleep, CZECHIA } from './lib/wikidata.mjs';
-import { REGION_COUNTRIES, NOT_A_REGION, CITY_MIN_POPULATION, MAX_CITIES, HISTORICAL_TITLES, KNOWN_HISTORICAL, HISTORICAL_SKIP_FILE, HISTORICAL_FILES, TERRITORY_TITLES, ORGANIZATION_TITLES } from './lib/vlajky-extra.mjs';
+import { REGION_COUNTRIES, REGION_ONLY, REGION_NO_MAP, NOT_A_REGION, CITY_MIN_POPULATION, MAX_CITIES, HISTORICAL_TITLES, KNOWN_HISTORICAL, HISTORICAL_SKIP_FILE, HISTORICAL_FILES, HISTORICAL_MIN_SITELINKS, HISTORICAL_MIN_END_YEAR, HISTORICAL_SKIP_NAMES, TERRITORY_TITLES, ORGANIZATION_TITLES } from './lib/vlajky-extra.mjs';
+import { cachedByKey } from './lib/zemepis-levels.mjs';
+import { topicPageviews, assignLevels, levelGroups, levelSummary } from './lib/fame-levels.mjs';
 
-// QLever, a když je přetížený, query.wikidata.org (dotazy jsou malé, zvládne je i ten)
-const run = (query) => qlever(query, 2).catch(() => sparql(query));
+// QLever, a když je přetížený, query.wikidata.org (dotazy jsou malé, zvládne je i ten); WIKIDATA_ENDPOINT=wdqs rovnou query.wikidata.org
+const run = process.env.WIKIDATA_ENDPOINT === 'wdqs' ? (query) => sparql(query) : (query) => qlever(query, 2).catch(() => sparql(query));
 
 const countries = readCountries();
 const STATE_IDS = Object.keys(countries);
@@ -25,13 +27,24 @@ const KNOWN_FLAG_EXTRA = ['Q235', 'Q241', 'Q423', 'Q878', 'Q837', 'Q865', 'Q347'
 // známými byly i znaky Ázerbájdžánu či Thajska
 const KNOWN_ARMS = ['Q213', 'Q214', 'Q183', 'Q40', 'Q36', 'Q28', 'Q39', 'Q30', 'Q16', 'Q96', 'Q159', 'Q212', 'Q145', 'Q142', 'Q29', 'Q222', 'Q17', 'Q668', 'Q79', 'Q224', 'Q215', 'Q235', 'Q237', 'Q34', 'Q35'];
 // Známá území a organizace (ostatní mezi méně známými)
-const KNOWN_OTHERS = ['Q458', 'Q1065', 'Q7184', 'Q21', 'Q22', 'Q980', 'Q223', 'Q1183', 'Q8646', 'Q1439', 'Q99', 'Q782', 'Q1410', 'Q4628', 'Q797'];
+const KNOWN_OTHERS = ['Q458', 'Q1065', 'Q7184', 'Q223', 'Q1183', 'Q8646', 'Q1410', 'Q4628', 'Q797', 'Q782'];
 // Sousedé Česka (okruh Česko a sousedé)
 const NEIGHBOURS = ['Q213', 'Q214', 'Q36', 'Q183', 'Q40'];
 
 // Skandinávský kříž a britská vlajka v rohu se z barev poznat nedají – podle seznamu (státy i území)
 const NORDIC_CROSS = ['Q35', 'Q20', 'Q34', 'Q33', 'Q189', 'Q4628', 'Q5689'];
-const UNION_JACK = ['Q145', 'Q408', 'Q664', 'Q672', 'Q712', 'Q23635', 'Q782', 'Q5785', 'Q25228', 'Q46197', 'Q3359409'];
+// Regiony s britskou vlajkou v rohu (australské státy, Ontario, Manitoba, Britská Kolumbie)
+const UNION_JACK_MORE = ['Q3206', 'Q3224', 'Q34366', 'Q35715', 'Q36074', 'Q36687', 'Q1904', 'Q1948', 'Q1973'];
+// Zámořská území podle českého názvu (položky z TERRITORY_TITLES)
+const UNION_JACK_NAMES = ['Montserrat', 'Britské Panenské ostrovy', 'Turks a Caicos', 'Falklandy', 'Svatá Helena', 'Pitcairnovy ostrovy', 'Cookovy ostrovy', 'Niue',
+    'Jižní Georgie a Jižní Sandwichovy ostrovy', 'Britské indickooceánské území', 'Tristan da Cunha', 'Anguilla', 'Kajmanské ostrovy', 'Bermudy'];
+// Půlměsíc, který Wikidata u vlajky neuvádějí: Jižní Karolína, malajsijské státy, Osmanská říše a další zaniklé státy
+const CRESCENT = ['Q1456', 'Q183032', 'Q188947', 'Q189710', 'Q189701', 'Q185944', 'Q185221'];
+const CRESCENT_NAMES = ['Osmanská říše', 'Severní Kypr', 'Egyptské království', 'Libyjské království', 'Ázerbájdžánská demokratická republika', 'Západní Sahara',
+    'Egyptské chedivství', 'Federace arabských republik'];
+const UNION_JACK = ['Q145', 'Q408', 'Q664', 'Q672', 'Q712', 'Q23635', 'Q782', 'Q5785', 'Q25228', 'Q46197', 'Q3359409',
+    // zámořská území a regiony s britskou vlajkou v rohu (Falklandy, Montserrat, Cookovy ostrovy, australské státy, Britská Kolumbie…)
+    ...UNION_JACK_MORE];
 
 // Území a mezinárodní organizace s vlastní vlajkou (jen ty s článkem o vlajce na české Wikipedii) a další přijímané názvy;
 // Nová Kaledonie má dvě úřední vlajky a Rada Evropy stejnou vlajku jako EU – otázka by neměla jednu odpověď
@@ -40,11 +53,17 @@ const ORGANIZATIONS = {
 };
 // Sídlo organizací, u nichž Wikidata uvádějí víc měst (Evropská unie i Štrasburk a Lucemburk), a Commonwealthu (chybí)
 const ORGANIZATION_SEATS = { Q458: 'Brusel', Q7159: 'Addis Abeba', Q7785: 'Londýn' };
+// (Texas, Kalifornie, Arizona, Bavorsko, Anglie a Skotsko jsou mezi regiony – okruhy Státy USA, Německé spolkové země, Severní
+// a západní Evropa; Aljaška a Havaj zůstávají územím, slepá mapa regionu je mimo rámec USA neukáže, do okruhu Státy USA ale patří)
 const TERRITORIES = {
-    Q21: [], Q25228: [], Q25263: [], Q3995: ['Baskicko'], Q980: [], Q23635: [], Q12130: [], Q4628: ['Faerské ostrovy', 'Faery'], Q1410: [],
-    Q223: [], Q8646: [], Q1183: [], Q22: [], Q5689: ['Ålandy', 'Åland'], Q797: [], Q816: [], Q26988: [], Q30971: [], Q25230: [], Q782: ['Havajské ostrovy'],
-    Q5785: ['Kajmany'], Q99: [], Q5813: [], Q14773: ['Macau'], Q26253: [], Q31057: [], Q9676: ['Ostrov Man'], Q35672: [], Q1439: [], Q36823: []
+    Q25228: [], Q25263: [], Q3995: ['Baskicko'], Q23635: [], Q12130: [], Q4628: ['Faerské ostrovy', 'Faery'], Q1410: [],
+    Q223: [], Q8646: [], Q1183: [], Q5689: ['Ålandy', 'Åland'], Q797: [], Q26988: [], Q30971: [], Q25230: [], Q782: ['Havajské ostrovy'],
+    Q5785: ['Kajmany'], Q5813: [], Q14773: ['Macau'], Q26253: [], Q31057: [], Q9676: ['Ostrov Man'], Q35672: [], Q36823: []
 };
+const US_STATE_TERRITORIES = ['Q797', 'Q782'];
+// Regiony, které dřív byly mezi územími: položka si nechá dosavadní ID (statistiky odpovědí, nápisy na vlajce v data/photo-text.json)
+const FORMER_TERRITORY_IDS = { Q1439: 'Q19000', Q99: 'Q330517', Q816: 'Q632491', Q980: 'Q707471', Q21: 'Q171117', Q22: 'Q102392' };
+const REGION_ALIASES = {};
 // Státy, které Wikidata u území uvádějí jako celé království (Grónsko → Dánské království)
 const STATE_ALIASES = { Q756617: 'Q35', Q29999: 'Q55' };
 // Vlajky, které jsou celé nápisem s odpovědí (РСФСР, У.С.Р.Р., OSCE, SADC, FIFA, Région Île-de-France): po rozmazání nápisu
@@ -62,7 +81,7 @@ const PRAGUE = 'Q1085';
 // a krajská a statutární
 const CZ_MUNICIPALITY = 'Q5153359';
 const CZ_PRAGUE_PART = 'Q75338598';
-const CZ_MUNICIPALITY_MIN_POPULATION = 3000;
+const CZ_MUNICIPALITY_MIN_POPULATION = 2000;
 const CZ_KNOWN_POPULATION = 20000;
 // Turisticky proslulá města, která zná každý, i když jsou malá
 const CZ_KNOWN_TOWNS = ['Český Krumlov', 'Kutná Hora', 'Telč', 'Litomyšl', 'Kroměříž', 'Mikulov', 'Lednice', 'Karlštejn', 'Třeboň', 'Špindlerův Mlýn', 'Nové Město na Moravě', 'Terezín', 'Lidice', 'Kolín'];
@@ -618,7 +637,7 @@ for (const row of stateRows) {
 const symbolIds = [...states.values()].flatMap(state => [state.flag, state.arms]).filter(q => /^Q\d+$/.test(q || ''));
 
 // --- 3. krok: Česko – kraje, města a historické země ---
-const czechRows = await cached('vlajky-czech', async () => {
+const czechRows = await cached(`vlajky-czech-${CZ_MUNICIPALITY_MIN_POPULATION}`, async () => {
     const rows = await run(`
 SELECT ?item ?type ?t ?label ?pop ?img ?coord ?kraj ?sl ?area WHERE {
   VALUES ?type { wd:${CZ_REGION} wd:${CZ_TOWN} wd:${CZ_MUNICIPALITY} wd:${CZ_PRAGUE_PART} }
@@ -735,7 +754,7 @@ for (const state of stateEntries) {
     const flag = symbols.get(state.flag);
     if (flagFile && flag && flag.t) {
         items.push(compact({
-            q: state.flag, t: flag.t, ...base, c: 'vlajka',
+            q: state.flag, t: flag.t, ...base, c: 'vlajka', sl: state.sl,
             k: stateRank.get(state.q) < KNOWN_FLAGS || KNOWN_FLAG_EXTRA.includes(state.q) || state.q === CZECHIA ? 1 : 0,
             d: flag.d, im: flagFile, ih: thumbHash(flagFile),
             cw: censorWordsOf(flag.t),
@@ -747,7 +766,7 @@ for (const state of stateEntries) {
     const arms = symbols.get(state.arms);
     if (armsFile && arms && arms.t) {
         items.push(compact({
-            q: state.arms, t: arms.t, ...base, c: 'znak',
+            q: state.arms, t: arms.t, ...base, c: 'znak', sl: state.sl,
             k: KNOWN_ARMS.includes(state.q) ? 1 : 0,
             d: arms.d, im: armsFile, ih: thumbHash(armsFile),
             cw: censorWordsOf(arms.t),
@@ -786,7 +805,7 @@ for (const town of towns) {
     const kind = townKind(town);
     const known = kind === 'město' && (town.q === PRAGUE || town.pop >= CZ_KNOWN_POPULATION || regionalCapitals.has(town.q) || statutory.has(town.q) || CZ_KNOWN_TOWNS.includes(town.n));
     items.push(compact({
-        q: town.q, t: town.t, n: town.n.replace(/ \(.*\)$/, ''), c: 'cesko', k: known ? 1 : 0,
+        q: town.q, t: town.t, n: town.n.replace(/ \(.*\)$/, ''), c: 'cesko', k: known ? 1 : 0, sl: town.sl,
         ty: kind, cz: 1, co: [CZECHIA], la: point && point.lat, lo: point && point.lon,
         im: town.img, ih: thumbHash(town.img),
         f: compact({ pop: town.pop, kraj: town.q === PRAGUE ? undefined : kraj, capital: regionalCapitals.has(town.q) ? 1 : undefined, statutory: statutory.has(town.q) ? 1 : undefined })
@@ -795,7 +814,7 @@ for (const town of towns) {
 for (const region of [...czechEntries.values()].filter(entry => entry.types.has(CZ_REGION) && entry.q !== PRAGUE)) {
     const point = pointOf(region.coord);
     items.push(compact({
-        q: region.q, t: region.t, n: region.n, c: 'cesko', k: 0, ty: 'kraj', cz: 1, co: [CZECHIA],
+        q: region.q, t: region.t, n: region.n, c: 'cesko', k: 0, ty: 'kraj', cz: 1, co: [CZECHIA], sl: region.sl,
         la: point && point.lat, lo: point && point.lon, im: region.img, ih: thumbHash(region.img),
         f: compact({ pop: region.pop, area: region.area, seat: regionCapitalOf.get(region.q) })
     }));
@@ -806,7 +825,7 @@ for (const land of czechRows.lands) {
     const file = fileName(land.img);
     const [name, aliases] = CZ_LANDS[land.item];
     items.push(compact({
-        q: land.item, t: land.t, n: name, al: aliases, c: 'cesko', k: 1, ty: 'historická země', cz: 1, co: [CZECHIA],
+        q: land.item, t: land.t, n: name, al: aliases, c: 'cesko', k: 1, ty: 'historická země', cz: 1, co: [CZECHIA], sl: Number(land.sl),
         la: point && point.lat, lo: point && point.lon, im: file, ih: thumbHash(file), f: {}
     }));
 }
@@ -821,7 +840,7 @@ for (const [q, other] of others) {
     const point = pointOf(other.coord);
     const country = other.co.find(c => countries[c] && c !== q);
     items.push(compact({
-        q: other.flag, t: flag.t, n: capitalize(other.n), c: 'uzemi',
+        q: other.flag, t: flag.t, n: capitalize(other.n), c: 'uzemi', sl: Math.max(Number(other.sl) || 0, Number(flag.sl) || 0),
         k: KNOWN_OTHERS.includes(q) ? 1 : 0,
         ty: isOrganization ? 'organizace' : 'území',
         d: flag.d, im: file, ih: thumbHash(file),
@@ -856,13 +875,17 @@ const DETAIL_UNIONS = `
   UNION { ?item wdt:P1376 ?v BIND("capOf" AS ?p) }
   UNION { ?item wdt:P30 ?v BIND("cont" AS ?p) }
   UNION { ?item wikibase:sitelinks ?v BIND("sl" AS ?p) }`;
-// Podrobnosti položek: obrázky (vlajka, znak), název, souřadnice, země…
+// Podrobnosti položek: obrázky (vlajka, znak), název, souřadnice, země… (mezipaměť po položkách – nové se dostáhnou)
 const fetchDetails = async (name, qids) => {
-    const rows = await cached(name, async () => {
-        const result = [];
-        await inBatches(qids, 40, (batch) => `SELECT ?item ?p ?v ?rank ?end WHERE { VALUES ?item { ${values(batch)} } ${DETAIL_UNIONS} }`, (row) => result.push(simplify(row)), run);
+    const byId = await cachedByKey(`${name}-v2`, qids, async (missing) => {
+        const result = Object.fromEntries(missing.map(q => [q, []]));
+        await inBatches(missing, 40, (batch) => `SELECT ?item ?p ?v ?rank ?end WHERE { VALUES ?item { ${values(batch)} } ${DETAIL_UNIONS} }`, (row) => {
+            const simple = simplify(row);
+            (result[simple.item] = result[simple.item] || []).push(simple);
+        }, run);
         return result;
     });
+    const rows = [...new Set(qids)].flatMap(q => byId[q] || []);
     const details = new Map(qids.map(q => [q, { flagImgs: [], armsImgs: [], co: [], capOf: [], cont: [] }]));
     for (const row of rows) {
         const entry = details.get(row.item);
@@ -877,24 +900,30 @@ const fetchDetails = async (name, qids) => {
 const SYMBOL_EXISTS = '{ ?item wdt:P41 ?symbolFlag } UNION { ?item wdt:P94 ?symbolArms }';
 const CS_ARTICLE = '?a schema:about ?item ; schema:isPartOf <https://cs.wikipedia.org/> .';
 // Položky podle názvu článku na české Wikipedii (s vlajkou)
+// (mezipaměť po názvech – nové názvy v seznamech se dostáhnou)
 const idsByTitles = async (name, titles) => {
-    const rows = await cached(name, async () => {
-        const result = [];
-        for (let i = 0; i < titles.length; i += 60) {
-            result.push(...(await run(`SELECT DISTINCT ?item ?t ?sl WHERE { VALUES ?t { ${titles.slice(i, i + 60).map(title => `"${title}"@cs`).join(' ')} }
-  ?a schema:name ?t ; schema:isPartOf <https://cs.wikipedia.org/> ; schema:about ?item . ?item wikibase:sitelinks ?sl . ${SYMBOL_EXISTS} }`)).map(simplify));
+    const byTitle = await cachedByKey(`${name}-by-title`, titles, async (missing) => {
+        const result = Object.fromEntries(missing.map(title => [title, []]));
+        for (let i = 0; i < missing.length; i += 60) {
+            for (const row of (await run(`SELECT DISTINCT ?item ?t ?sl WHERE { VALUES ?t { ${missing.slice(i, i + 60).map(title => `"${title}"@cs`).join(' ')} }
+  ?a schema:name ?t ; schema:isPartOf <https://cs.wikipedia.org/> ; schema:about ?item . ?item wikibase:sitelinks ?sl . ${SYMBOL_EXISTS} }`)).map(simplify)) result[row.t].push(row);
         }
         return result;
     });
+    const rows = titles.flatMap(title => byTitle[title] || []);
     return [...new Map(rows.map(row => [row.item, row])).values()];
 };
 const countryOf = (entry, exclude) => entry.co.map(c => STATE_ALIASES[c] || c).find(c => countries[c] && c !== exclude);
 
-// Regiony první úrovně vybraných zemí (státy USA, spolkové země, kanadské provincie…): vlajka, jinak znak
-const regionIds = await cached('vlajky-regions', async () => (await run(`SELECT DISTINCT ?item ?c ?sl WHERE {
+// Regiony první úrovně vybraných zemí (státy USA, spolkové země, kanadské provincie…): vlajka, jinak znak;
+// u některých států jen regiony daného druhu (maďarské župy bez měst se župním právem) nebo jen vybrané (země Spojeného království)
+const regionFilters = Object.entries(REGION_ONLY).map(([c, { types = [], ids = [] }]) =>
+    `FILTER(?c != wd:${c}${types.map(type => ` || EXISTS { ?item wdt:P31 wd:${type} }`).join('')}${ids.length ? ` || ?item IN (${ids.map(q => `wd:${q}`).join(', ')})` : ''})`).join('\n  ');
+const regionIds = await cached(`vlajky-regions-${Object.keys(REGION_COUNTRIES).length}`, async () => (await run(`SELECT DISTINCT ?item ?c ?sl WHERE {
   VALUES ?c { ${values(Object.keys(REGION_COUNTRIES))} }
   ?item wdt:P17 ?c ; wdt:P31/wdt:P279* wd:Q10864048 ; wikibase:sitelinks ?sl .
   FILTER NOT EXISTS { ?item wdt:P576 ?ended }
+  ${regionFilters}
   ${SYMBOL_EXISTS}
   ${CS_ARTICLE}
 }`)).map(simplify));
@@ -912,10 +941,10 @@ for (const [q, entry] of regionDetails) {
     const flagFile = currentImage(entry.flagImgs);
     const file = flagFile || currentImage(entry.armsImgs);
     const country = regionCountry.get(q);
-    if (!file || !entry.t || !entry.n || !countries[country] || NOT_A_REGION.test(entry.n)) continue;
+    if (!file || !entry.t || !entry.n || !countries[country] || NOT_A_REGION.test(entry.n) || REGION_NO_MAP.test(entry.n.replace(/ \(.*\)$/, ''))) continue;
     const point = pointOf(entry.coord);
     extraItems.push(compact({
-        q, t: entry.t, n: entry.n.replace(/ \(.*\)$/, ''), c: 'regiony', k: 0, it: flagFile ? 'v' : 'z', co: [country], la: point && point.lat, lo: point && point.lon,
+        q: FORMER_TERRITORY_IDS[q] || q, t: entry.t, n: capitalize(entry.n.replace(/ \(.*\)$/, '')), al: REGION_ALIASES[q], c: 'regiony', k: 0, it: flagFile ? 'v' : 'z', co: [country], la: point && point.lat, lo: point && point.lon,
         im: file, ih: thumbHash(file), f: compact({ cap: entry.cap, area: entry.area ? Math.round(entry.area) : undefined, pop: entry.pop ? Math.round(entry.pop) : undefined }), sl: entry.sl
     }));
 }
@@ -943,16 +972,25 @@ for (const [q, entry] of cityDetails) {
     }));
 }
 
-// Zaniklé státy
+// Zaniklé státy: ruční seznam a další z Wikidat (historická země s vlajkou a datem zániku); ruční mají přednost
 const historicalIds = await idsByTitles('vlajky-historical', HISTORICAL_TITLES);
-const historicalDetails = await fetchDetails('vlajky-historical-details', historicalIds.map(row => row.item));
+const historicalQueried = await cached(`vlajky-historical-query-${HISTORICAL_MIN_SITELINKS}`, async () => (await run(`SELECT DISTINCT ?item ?t ?sl WHERE {
+  ?item wdt:P31/wdt:P279* wd:Q3024240 ; wdt:P41 ?flag ; wdt:P576 ?ended ; wikibase:sitelinks ?sl .
+  FILTER(?sl >= ${HISTORICAL_MIN_SITELINKS})
+  ?a schema:about ?item ; schema:isPartOf <https://cs.wikipedia.org/> ; schema:name ?t .
+}`)).map(simplify));
+const historicalAll = [...new Map([...historicalIds, ...historicalQueried.filter(row => !HISTORICAL_SKIP_NAMES.test(row.t) && !countries[row.item])
+    .sort((a, b) => Number(b.sl) - Number(a.sl))].map(row => [row.item, row])).values()];
+const historicalDetails = await fetchDetails('vlajky-historical-details', historicalAll.map(row => row.item));
+const handHistorical = new Set(historicalIds.map(row => row.item));
 for (const [q, entry] of historicalDetails) {
     const file = HISTORICAL_FILES[q] || currentImage(entry.flagImgs) || (entry.flagImgs.find(s => !/Deprecated/.test(s.rank)) || {}).file;
-    if (!file || !entry.t || !entry.n || HISTORICAL_SKIP_FILE.test(file) || q === 'Q7318') continue;
+    if (!file || !entry.t || !entry.n || HISTORICAL_SKIP_FILE.test(file) || q === 'Q7318' || HISTORICAL_SKIP_NAMES.test(entry.t)) continue;
+    if (!handHistorical.has(q) && !(yearOfDate(entry.endDate) >= HISTORICAL_MIN_END_YEAR)) continue;
     const point = pointOf(entry.coord);
     extraItems.push(compact({
         q, t: entry.t, n: capitalize(entry.n).replace(/ \(.*\)$/, ''), c: 'historie', k: KNOWN_HISTORICAL.includes(entry.t) ? 1 : 0, it: 'v', la: point && point.lat, lo: point && point.lon,
-        im: file, ih: thumbHash(file), f: compact({ from: yearOfDate(entry.start), to: yearOfDate(entry.endDate) }), sl: entry.sl
+        im: file, ih: thumbHash(file), f: compact({ from: yearOfDate(entry.start), to: yearOfDate(entry.endDate), cont: entry.cont.map(c => CONTINENT_IDS[c]).find(Boolean) }), sl: entry.sl
     }));
 }
 
@@ -977,17 +1015,31 @@ for (const [titles, kind] of [[TERRITORY_TITLES, 'území'], [ORGANIZATION_TITLE
 for (const item of extraItems.filter(entry => entry.c === 'mesta')) {
     item.k = (item.f && item.f.pop >= 4000000) || (item.f && item.f.capital && stateRank.get(item.co[0]) < 70) ? 1 : 0;
 }
-// Známější: nejznámější regiony a nová území podle počtu jazykových verzí článku
+// Známější: nejznámější regiony a nová území podle počtu jazykových verzí článku (regiony jen ze států, jejichž regiony
+// tu jsou odjakživa – prefektury Japonska či departementy Kolumbie mají jazykových verzí hodně, vlajky ale zná málokdo)
+const KNOWN_REGION_COUNTRIES = new Set(['Q30', 'Q183', 'Q16', 'Q408', 'Q40', 'Q39', 'Q36', 'Q214', 'Q159', 'Q212', 'Q29', 'Q38', 'Q142', 'Q145', 'Q55', 'Q31', 'Q34', 'Q20', 'Q33', 'Q155', 'Q96', 'Q414', 'Q298', 'Q224']);
 for (const [category, count] of Object.entries(KNOWN_EXTRA)) {
-    extraItems.filter(item => item.c === category).sort((a, b) => b.sl - a.sl).slice(0, count).forEach(item => { item.k = 1; });
+    extraItems.filter(item => item.c === category && (category !== 'regiony' || KNOWN_REGION_COUNTRIES.has(item.co[0])))
+        .sort((a, b) => b.sl - a.sl).slice(0, count).forEach(item => { item.k = 1; });
 }
-items.push(...extraItems);
+// Co vlajky regionů, území a zaniklých států zobrazují (půlměsíc, hvězdy) – z položky vlajky (P163)
+const extraShows = await cachedByKey('vlajky-extra-shows', extraItems.filter(item => item.it !== 'z').map(item => item.q), async (missing) => {
+    const result = Object.fromEntries(missing.map(q => [q, []]));
+    await inBatches(missing, 80, (batch) => `SELECT ?item ?v WHERE { VALUES ?item { ${values(batch)} } ?item wdt:P163 ?flag . ?flag wdt:P180 ?x . ?x rdfs:label ?v FILTER(LANG(?v) = "cs") }`,
+        (row) => { const simple = simplify(row); result[simple.item].push(simple.v); }, run);
+    return result;
+});
+for (const item of extraItems) if (item.it !== 'z' && (extraShows[item.q] || []).length) item.shows = [...new Set(extraShows[item.q])];
+// Město, které je zároveň regionem, zůstane tam, kde bylo dřív: Berlín, Vídeň a Moskva mezi regiony, Tokio, Soul, Bogota
+// a Bukurešť (regiony nově přidaných států) mezi městy
+const isOlderRegion = (item) => item.c === 'regiony' && KNOWN_REGION_COUNTRIES.has(item.co[0]);
+items.push(...extraItems.filter(isOlderRegion), ...extraItems.filter(item => item.c === 'mesta'), ...extraItems.filter(item => !isOlderRegion(item) && item.c !== 'mesta'));
 
 // Stejný název dvakrát v jedné kategorii (stát i území) by byl sporný – zůstane první; stejný obrázek dvakrát také
 const seen = new Set();
 const seenImages = new Set();
 const seenIds = new Set();
-const unique = items.filter(item => {
+let unique = items.filter(item => {
     const key = `${item.c}:${item.n.toLocaleLowerCase('cs')}`;
     if (seen.has(key) || seenImages.has(item.im) || seenIds.has(item.q)) return false;
     seenIds.add(item.q);
@@ -1026,11 +1078,36 @@ for (const item of unique) {
     const signature = signatures.get(item.im);
     if (signature) item.sg = signature;
 }
+// Zaniklý stát s vlajkou k nerozeznání od dnešní (Rakouské arcivévodství a Rakousko, Arménská republika 1918 a Arménie) nebo
+// od jiného zaniklého státu by otázka nerozlišila – zůstane jen dnešní, resp. známější. Stejný podpis (všech 72 políček) u vlajky
+// aspoň ze dvou výrazných barev; jednobarevná plocha se znakem (Sovětský svaz) se podpisem od jiných nerozliší
+{
+    const colorful = (signature) => [...new Set(signature)].filter(letter => letter !== '.' && signature.split(letter).length - 1 >= 8).length >= 2;
+    const nearlySame = (a, b) => a === b && colorful(a);
+    // (jen vlajky dnešních států a území – regionů je moc a hrubý podpis by spojil i odlišné vlajky: Jugoslávie a Šlesvicko-Holštýnsko)
+    const modern = unique.filter(item => item.sg && (item.c === 'vlajka' || item.c === 'uzemi'));
+    const keptHistorical = [];
+    const dropped = [];
+    unique = unique.filter(item => {
+        if (item.c !== 'historie' || !item.sg) return true;
+        const twin = modern.find(other => nearlySame(other.sg, item.sg)) || keptHistorical.find(other => nearlySame(other.sg, item.sg));
+        if (twin) { dropped.push(`${item.n} (= ${twin.n})`); return false; }
+        keptHistorical.push(item);
+        return true;
+    });
+    if (dropped.length) console.log(`Zaniklé státy s vlajkou jako jiná: ${dropped.join(', ')}`);
+}
 
 // --- 7. krok: okruhy ---
-const stateOf = (item) => (item.c === 'vlajka' || item.c === 'znak') ? item.co[0] : item.src;
+const stateOf = (item) => (item.c === 'vlajka' || item.c === 'znak') ? item.co[0] : item.src || item.q;
 const isFlag = (item) => item.c === 'vlajka';
-const continentOf = (item) => countries[item.co ? item.co[0] : ''] ? countries[item.co[0]].continent : (item.f || {}).cont;
+// Vlajka území (ne organizace) – patří i do okruhů kontinentů mimo Evropu (Grónsko, Portoriko, Guam, Nová Kaledonie);
+// v Evropě jsou území hlavně regiony států (Katalánsko, Korsika), okruh Vlajky Evropy zůstane jen pro státy
+const isTerritoryFlag = (item) => item.c === 'uzemi' && item.ty === 'území';
+const isAnyFlag = (item) => isFlag(item) || item.c === 'uzemi' || item.c === 'historie' || (item.c === 'regiony' && item.it === 'v');
+const continentFlag = (item, continent) => (isFlag(item) || (continent !== 'EU' && isTerritoryFlag(item))) && continentOf(item) === continent;
+// Území: kontinent území (Guam v Oceánii, ač patří USA), jinak státu – stejně jako v topics/vlajky.js
+const continentOf = (item) => (item.c === 'uzemi' && (item.f || {}).cont) || (countries[item.co ? item.co[0] : ''] ? countries[item.co[0]].continent : (item.f || {}).cont);
 // Trikolóra: tři stejně široké pruhy různých barev (svisle nebo vodorovně), znak uprostřed nevadí
 const isTricolour = (signature) => {
     if (!signature) return false;
@@ -1049,34 +1126,39 @@ const isTricolour = (signature) => {
 };
 const shows = (item, pattern) => (item.shows || []).some(text => pattern.test(text));
 const COLLECTIONS = [
-    { id: 'vlajky-evropy', label: 'Vlajky Evropy', test: item => isFlag(item) && continentOf(item) === 'EU' },
-    { id: 'vlajky-asie', label: 'Vlajky Asie', test: item => isFlag(item) && continentOf(item) === 'AS' },
-    { id: 'vlajky-afriky', label: 'Vlajky Afriky', test: item => isFlag(item) && continentOf(item) === 'AF' },
-    { id: 'vlajky-severni-ameriky', label: 'Vlajky Severní a Střední Ameriky', test: item => isFlag(item) && continentOf(item) === 'NA' },
-    { id: 'vlajky-jizni-ameriky', label: 'Vlajky Jižní Ameriky', test: item => isFlag(item) && continentOf(item) === 'SA' },
-    { id: 'vlajky-oceanie', label: 'Vlajky Austrálie a Oceánie', test: item => isFlag(item) && continentOf(item) === 'OC' },
+    { id: 'vlajky-evropy', label: 'Vlajky Evropy', test: item => continentFlag(item, 'EU') },
+    { id: 'vlajky-asie', label: 'Vlajky Asie', test: item => continentFlag(item, 'AS') },
+    { id: 'vlajky-afriky', label: 'Vlajky Afriky', test: item => continentFlag(item, 'AF') },
+    { id: 'vlajky-severni-ameriky', label: 'Vlajky Severní a Střední Ameriky', text: 'Státy i území (Grónsko, Portoriko, Bermudy…)', test: item => continentFlag(item, 'NA') },
+    { id: 'vlajky-jizni-ameriky', label: 'Vlajky Jižní Ameriky', test: item => continentFlag(item, 'SA') },
+    { id: 'vlajky-oceanie', label: 'Vlajky Austrálie a Oceánie', text: 'Státy i území (Guam, Nová Kaledonie, Tahiti…)', test: item => continentFlag(item, 'OC') },
     { id: 'trikolory', label: 'Trikolóry', text: 'Tři pruhy – snadno se pletou', test: item => isFlag(item) && isTricolour(item.sg) },
     { id: 'skandinavske-krize', label: 'Skandinávské kříže', test: item => (isFlag(item) || item.c === 'uzemi') && NORDIC_CROSS.includes(stateOf(item)) },
-    { id: 'britska-vlajka', label: 'S britskou vlajkou', test: item => (isFlag(item) || item.c === 'uzemi') && UNION_JACK.includes(stateOf(item)) },
-    { id: 'hvezdy', label: 'Vlajky s hvězdami', test: item => isFlag(item) && shows(item, /hvězd|souhvězdí/iu) },
-    { id: 'pulmesic', label: 'Vlajky s půlměsícem', test: item => isFlag(item) && shows(item, /půlměsíc/iu) },
-    { id: 'slunce', label: 'Vlajky se sluncem', test: item => isFlag(item) && shows(item, /slunce/iu) },
+    { id: 'britska-vlajka', label: 'S britskou vlajkou', text: 'Státy, zámořská území a regiony', test: item => isAnyFlag(item) && item.c !== 'historie' && (UNION_JACK.includes(stateOf(item)) || (item.c === 'uzemi' && UNION_JACK_NAMES.includes(item.n))) },
+    { id: 'hvezdy', label: 'Vlajky s hvězdami', test: item => (isFlag(item) || item.c === 'uzemi') && shows(item, /hvězd|souhvězdí/iu) },
+    { id: 'pulmesic', label: 'Vlajky s půlměsícem', text: 'Státy, území, regiony i zaniklé státy', test: item => isAnyFlag(item) && (shows(item, /půlměsíc/iu) || CRESCENT.includes(stateOf(item)) || (item.c !== 'vlajka' && CRESCENT_NAMES.includes(item.n))) },
+    { id: 'slunce', label: 'Vlajky se sluncem', test: item => (isFlag(item) || item.c === 'uzemi') && shows(item, /slunce/iu) },
     { id: 'cesko-a-sousede', label: 'Česko a sousedé', text: 'Vlajky a znaky', test: item => (isFlag(item) || item.c === 'znak') && NEIGHBOURS.includes(stateOf(item)) },
     { id: 'znaky-evropy', label: 'Státní znaky Evropy', test: item => item.c === 'znak' && continentOf(item) === 'EU' },
     { id: 'kraje', label: 'Kraje a historické země', test: item => item.c === 'cesko' && (item.ty === 'kraj' || item.ty === 'historická země') },
-    { id: 'velka-mesta-cesko', label: 'Velká česká města', text: 'Nad 50 000 obyvatel', test: item => item.c === 'cesko' && item.ty === 'město' && (item.f || {}).pop >= 50000 },
+    { id: 'velka-mesta-cesko', label: 'Velká česká města', text: 'Nad 40 000 obyvatel', test: item => item.c === 'cesko' && item.ty === 'město' && (item.f || {}).pop >= 40000 },
     { id: 'mensi-mesta-cesko', label: 'Menší česká města', text: 'Do 10 000 obyvatel', test: item => item.c === 'cesko' && item.ty === 'město' && (item.f || {}).pop < 10000 },
-    { id: 'obce-cesko', label: 'České obce', text: 'Obce nad 3 000 obyvatel', test: item => item.c === 'cesko' && item.ty === 'obec' },
+    { id: 'obce-cesko', label: 'České obce', text: 'Obce nad 2 000 obyvatel', test: item => item.c === 'cesko' && item.ty === 'obec' },
     { id: 'prazske-casti', label: 'Městské části Prahy', test: item => item.c === 'cesko' && item.ty === 'městská část' },
-    { id: 'staty-usa', label: 'Státy USA', test: item => item.c === 'regiony' && item.co[0] === 'Q30' },
+    { id: 'staty-usa', label: 'Státy USA', test: item => (item.c === 'regiony' && item.co[0] === 'Q30') || (item.c === 'uzemi' && US_STATE_TERRITORIES.includes(item.src)) },
     { id: 'spolkove-zeme', label: 'Německé spolkové země', test: item => item.c === 'regiony' && item.co[0] === 'Q183' },
     { id: 'kanada-australie', label: 'Kanada a Austrálie', text: 'Provincie a státy', test: item => item.c === 'regiony' && ['Q16', 'Q408'].includes(item.co[0]) },
     { id: 'alpske-zeme', label: 'Rakousko a Švýcarsko', text: 'Spolkové země a kantony', test: item => item.c === 'regiony' && ['Q40', 'Q39'].includes(item.co[0]) },
     { id: 'rusko-ukrajina', label: 'Rusko a Ukrajina', text: 'Oblasti a republiky', test: item => item.c === 'regiony' && ['Q159', 'Q212'].includes(item.co[0]) },
     { id: 'polsko-slovensko-chorvatsko', label: 'Polsko, Slovensko a Chorvatsko', test: item => item.c === 'regiony' && ['Q36', 'Q214', 'Q224'].includes(item.co[0]) },
     { id: 'jizni-evropa', label: 'Španělsko, Itálie a Francie', test: item => item.c === 'regiony' && ['Q29', 'Q38', 'Q142'].includes(item.co[0]) },
-    { id: 'severozapadni-evropa', label: 'Severní a západní Evropa', text: 'Skandinávie, Benelux, Británie', test: item => item.c === 'regiony' && ['Q34', 'Q20', 'Q33', 'Q55', 'Q31', 'Q145'].includes(item.co[0]) },
-    { id: 'latinska-amerika', label: 'Latinská Amerika', text: 'Brazílie, Mexiko, Argentina, Chile, Peru', test: item => item.c === 'regiony' && ['Q155', 'Q96', 'Q414', 'Q298', 'Q419'].includes(item.co[0]) },
+    { id: 'severozapadni-evropa', label: 'Severní a západní Evropa', text: 'Skandinávie, Estonsko, Benelux, Británie', test: item => item.c === 'regiony' && ['Q34', 'Q20', 'Q33', 'Q55', 'Q31', 'Q145', 'Q191'].includes(item.co[0]) },
+    { id: 'latinska-amerika', label: 'Latinská Amerika', text: 'Brazílie, Mexiko, Argentina, Chile', test: item => item.c === 'regiony' && ['Q155', 'Q96', 'Q414', 'Q298'].includes(item.co[0]) },
+    { id: 'andske-zeme', label: 'Kolumbie, Peru, Venezuela a Bolívie', text: 'Departementy a státy', test: item => item.c === 'regiony' && ['Q739', 'Q419', 'Q717', 'Q750'].includes(item.co[0]) },
+    { id: 'madarsko-rumunsko', label: 'Maďarsko a Rumunsko', text: 'Župy', test: item => item.c === 'regiony' && ['Q28', 'Q218'].includes(item.co[0]) },
+    { id: 'japonsko-korea', label: 'Japonsko a Jižní Korea', text: 'Prefektury a provincie', test: item => item.c === 'regiony' && ['Q17', 'Q884'].includes(item.co[0]) },
+    { id: 'indonesie-malajsie', label: 'Indonésie a Malajsie', text: 'Provincie a státy', test: item => item.c === 'regiony' && ['Q252', 'Q833'].includes(item.co[0]) },
+    { id: 'egypt', label: 'Egyptské guvernoráty', test: item => item.c === 'regiony' && item.co[0] === 'Q79' },
     { id: 'hlavni-mesta', label: 'Hlavní města světa', test: item => item.c === 'mesta' && item.f && item.f.capital === 1 },
     { id: 'mesta-evropy', label: 'Města Evropy', test: item => item.c === 'mesta' && continentOf(item) === 'EU' },
     { id: 'mesta-asie', label: 'Města Asie', test: item => item.c === 'mesta' && continentOf(item) === 'AS' },
@@ -1090,8 +1172,44 @@ for (const item of unique) {
     if (groups.length) item.g = groups;
 }
 const collections = COLLECTIONS.map(({ test, ...collection }) => collection);
-// Pomocné údaje pro okruhy už v datech nejsou potřeba
-for (const item of unique) { delete item.shows; delete item.src; delete item.sl; }
+
+// --- 8. krok: úrovně obtížnosti (lib/fame-levels.mjs) ---
+// Známost: jazykové verze článku (u vlajky a znaku státu jazykové verze článku o státu) a návštěvnost článku na české Wikipedii
+// (u vlajky státu článku o vlajce – co Češi o vlajce čtou); česká města, obce a městské části zvlášť, hlavně podle návštěvnosti.
+// Známé určí pravidla výše (nejznámější státy, krajská a velká města, ruční seznamy), okruh od 8 položek dostane aspoň
+// max(3, 25 %) známých (povýšit jde jen položka z lepší poloviny své skupiny, česká z lepší třetiny); nejméně známé jsou pro experty
+const pageviews = await topicPageviews('vlajky-pageviews', unique.map(item => item.t), { offline: process.env.PAGEVIEWS_OFFLINE === '1' });
+// Regiony se porovnávají uvnitř státu (prefektury Japonska mezi sebou – jinak by známé byly jen státy USA)
+const poolOf = (item) => item.c === 'cesko' ? `cesko:${item.ty}` : item.c === 'uzemi' ? (item.ty === 'území' ? 'uzemi' : 'organizace')
+    : item.c === 'regiony' ? `regiony:${item.co[0]}` : item.c;
+const EXPERT_SHARE = { vlajka: 0.18, znak: 0.3, uzemi: 0.28, organizace: 0.28, regiony: 0.3, mesta: 0.27, historie: 0.3, 'cesko:město': 0.22, 'cesko:obec': 0.4, 'cesko:městská část': 0.3 };
+// Vlajka státu je známá, když je stát mezi nejznámějšími a o vlajce Češi i čtou (článek o vlajce mezi 130 nejčtenějšími),
+// nebo když je článek o vlajce mezi 60 nejčtenějšími (Palestina, Mosambik); ruční seznam a Česko platí vždy
+{
+    const flags = unique.filter(item => item.c === 'vlajka').sort((a, b) => (pageviews[b.t] || 0) - (pageviews[a.t] || 0));
+    flags.forEach((item, rank) => {
+        if (KNOWN_FLAG_EXTRA.includes(item.co[0]) || item.co[0] === CZECHIA) return;
+        if (item.k && rank >= 130) item.k = 0;
+        else if (!item.k && rank < 60) item.k = 1;
+    });
+}
+for (const item of unique) {
+    // Státní znaky zná běžný člověk jen ty z ručního seznamu (KNOWN_ARMS) – spodní hranice okruhu je nepovýší
+    item._ = { sl: Number(item.sl) || 0, pv: pageviews[item.t], pool: poolOf(item), protect: item.ty === 'kraj' || item.ty === 'historická země', never: item.c === 'znak' && !item.k };
+}
+const promoted = assignLevels(unique, {
+    expertShare: (pool) => EXPERT_SHARE[pool.split(':')[0] === 'regiony' ? 'regiony' : pool] || 0,
+    pvWeight: (pool) => pool.startsWith('cesko:') ? 0.85 : 0.5,
+    // Obce zná málokdo: známé jen ty nejznámější (Lidice, Lednice, Průhonice…)
+    ceiling: (item) => item.ty === 'obec' ? 0.12 : item.cz ? 0.35 : 0.5,
+    groups: levelGroups(unique, collections)
+});
+console.log(`Povýšeno kvůli spodní hranici okruhu: ${promoted.length}`);
+for (const category of ['vlajka', 'znak', 'cesko', 'uzemi', 'regiony', 'mesta', 'historie']) console.log(levelSummary(category, unique.filter(item => item.c === category)));
+for (const collection of collections) console.log(levelSummary(`okruh ${collection.id}`, unique.filter(item => (item.g || []).includes(collection.id))));
+console.log(levelSummary('celkem', unique));
+// Pomocné údaje pro okruhy a úrovně už v datech nejsou potřeba
+for (const item of unique) { delete item.shows; delete item.src; delete item.sl; delete item._; }
 for (const item of unique) if (NO_QUESTION.has(item.q)) item.nq = 1;
 
 for (const category of ['vlajka', 'znak', 'cesko', 'uzemi', 'regiony', 'mesta', 'historie']) {

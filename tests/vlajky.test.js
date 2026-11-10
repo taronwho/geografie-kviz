@@ -150,11 +150,49 @@ test('vlajky: regiony států mají nesprávné možnosti ze stejného státu, b
     const lonely = regions.find(item => perCountry.get(item.co[0]) === 1);
     if (lonely) assert.equal(choicesOf(lonely, 'b').length, 4);
     // Sousední region je mezi podobnými výš než vzdálený (při stejném vzhledu vlajky)
-    const texas = regions.find(item => item.q === 'Q1439');
+    const texas = regions.find(item => item.n === 'Texas');
+    assert.ok(texas, 'Texas je region');
     if (texas) {
         const near = regions.find(item => item.q === 'Q1649'); // Oklahoma
         const far = regions.find(item => item.q === 'Q1066807' || item.n === 'Maine');
         if (near && far) assert.ok(vlajky.similarity(texas, { ...near, sg: far.sg }, ctx) > vlajky.similarity(texas, far, ctx));
     }
     assert.deepEqual(vlajky.sameCountry, ['regiony']);
+});
+
+test('vlajky: regiony, území a zaniklé státy v okruzích, obce a úrovně', () => {
+    // Texas, Kalifornie a Arizona jsou regiony (s dosavadním ID), Aljaška a Havaj území – všechny v okruhu Státy USA
+    const usa = inCollection('staty-usa');
+    for (const name of ['Texas', 'Kalifornie', 'Arizona', 'Aljaška', 'Havaj', 'Kansas']) assert.ok(usa.includes(name), name);
+    assert.equal(usa.length, 50);
+    assert.equal(find('Kalifornie', 'regiony').q, 'Q330517');
+    assert.ok(inCollection('spolkove-zeme').includes('Bavorsko') && inCollection('spolkove-zeme').length === 16);
+    for (const name of ['Anglie', 'Skotsko', 'Wales']) assert.ok(inCollection('severozapadni-evropa').includes(name), name);
+    const australia = inCollection('kanada-australie');
+    assert.ok(australia.includes('Severní teritorium') && australia.includes('Teritorium hlavního města Austrálie') && !australia.includes('Norfolk'));
+    // Další státy s regiony: župy Maďarska (bez měst se župním právem), prefektury Japonska, departementy And…
+    assert.ok(inCollection('japonsko-korea').length >= 55 && inCollection('madarsko-rumunsko').length >= 55 && inCollection('andske-zeme').length >= 70);
+    assert.ok(inCollection('indonesie-malajsie').length >= 40 && inCollection('egypt').length >= 20);
+    assert.ok(!data.items.some(item => item.c === 'regiony' && ['Debrecín', 'Segedín', 'Papua', 'Sarawak'].includes(item.n)));
+    // Území v okruzích kontinentů mimo Evropu, zámořská území a regiony s britskou vlajkou, půlměsíc i u regionů a zaniklých států
+    assert.ok(inCollection('vlajky-severni-ameriky').includes('Grónsko') && inCollection('vlajky-severni-ameriky').includes('Portoriko'));
+    assert.ok(inCollection('vlajky-oceanie').includes('Guam') && inCollection('vlajky-oceanie').includes('Nová Kaledonie'));
+    assert.ok(core.filterItems(data.items, { collection: 'vlajky-evropy' }).every(item => item.c === 'vlajka'));
+    for (const name of ['Falklandy', 'Nový Jižní Wales', 'Ontario']) assert.ok(inCollection('britska-vlajka').includes(name), name);
+    for (const name of ['Turecko', 'Osmanská říše', 'Jižní Karolína']) assert.ok(inCollection('pulmesic').includes(name), name);
+    assert.ok(inCollection('organizace').length >= 40 && inCollection('organizace').includes('Společnost národů'));
+    // Zaniklé státy: ruční seznam i další z Wikidat; vlajka k nerozeznání od dnešní (Česko, Polsko) tam není
+    const historical = data.items.filter(item => item.c === 'historie');
+    assert.ok(historical.length >= 150, `${historical.length}`);
+    for (const name of ['Sovětský svaz', 'Osmanská říše', 'Rakousko-Uhersko', 'Německá demokratická republika']) assert.ok(historical.some(item => item.n === name), name);
+    for (const name of ['Československo', 'České království', 'Druhá Polská republika']) assert.ok(!historical.some(item => item.n === name), name);
+    const modernFiles = new Set(data.items.filter(item => item.c === 'vlajka' || item.c === 'uzemi').map(item => item.im));
+    assert.ok(historical.every(item => !modernFiles.has(item.im)));
+    // České obce od 2 000 obyvatel a velká města od 40 000
+    assert.ok(inCollection('obce-cesko').length >= 200 && inCollection('velka-mesta-cesko').length >= 22);
+    // Úrovně: známé vlajky zůstávají, obce zná málokdo, nejméně známé vlajky jsou pro experty, i nový okruh má otázky v Základní
+    assert.equal(core.levelOf(find('Česko')), 1);
+    assert.ok(inCollection('obce-cesko').filter(name => find(name, 'cesko').k === 1).length <= 30);
+    assert.equal(core.levelOf(find('Tuvalu')), 3);
+    assert.ok(core.filterItems(data.items, { collection: 'egypt', tier: 'known' }).length >= 3);
 });
