@@ -1,4 +1,4 @@
-// Vzhled: barva obleku sovy. Sova v aplikaci jsou obrázky icons/logo.webp a icons/topics/sova-<póza>.webp (vínový talár);
+// Barva obleku sovy (Nastavení → Mudrlant). Sova v aplikaci jsou obrázky icons/logo.webp a icons/topics/sova-<póza>.webp (vínový talár);
 // ostatní barvy jsou předpřipravené varianty <název>-<barva>.webp (scripts/owl-robes.py). Po výběru se všechny obrázky sovy
 // přepnou na variantu (i ty, které se vykreslí později – hlídá je MutationObserver). Používá MudrlantLook (look.js).
 (function () {
@@ -39,9 +39,9 @@
     };
 
     Look.register({
-        id: 'robes', title: 'Barva obleku Mudrlanta', order: 20, tight: true,
-        // Kompaktně (Vzhled se vejde bez posouvání): jen sova v dlaždici 44 px, zamčená zašedlá se zámkem; název a jak se odemyká
-        // je v popisku (i pro čtečku) a v řádku pod řadou (vybraný talár, nebo zamčený, na který hráč klepl)
+        id: 'robes', tab: 'owl', title: 'Barva obleku', order: 20, tight: true, noTitle: true,
+        // Kompaktně (karta Mudrlant se vejde bez posouvání): jen sova v dlaždici 44 px, zamčená zašedlá se zámkem; název a jak se odemyká
+        // je v popisku (i pro čtečku) a vpravo v nadpisu (vybraný talár, nebo zamčený, na který hráč klepl)
         render: (ctx) => {
             const chosen = ctx.prefs.robe;
             const tiles = Look.ROBES.map(item => {
@@ -56,8 +56,8 @@
                 </button>`;
             }).join('');
             const current = Look.find('robes', chosen) || Look.ROBES[0];
-            return `<div class="grid grid-cols-7 gap-0.5">${tiles}</div>
-                <p class="mt-1 px-1 text-[11px] font-semibold leading-snug text-slate-500 dark:text-slate-400" role="status">${esc(note || current.title)}</p>`;
+            return `<div class="mb-1 flex items-baseline justify-between gap-2 px-1"><h3 class="text-[11px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">Barva obleku</h3><p class="min-w-0 truncate text-[11px] font-bold ${note ? 'text-brand-700 dark:text-brand-300' : 'text-slate-600 dark:text-slate-300'}" role="status">${esc(note || current.title)}</p></div>
+                <div class="grid grid-cols-7 gap-0.5" role="group" aria-label="Barva obleku Mudrlanta">${tiles}</div>`;
         },
         click: (event, ctx) => {
             const button = event.target.closest('[data-robe-pick]');

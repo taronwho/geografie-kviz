@@ -6,6 +6,10 @@ const CACHE_NAME = 'mudrlant-v3';
 const BADGE_ART = ['odpovedi', 'rada', 'serie', 'dny', 'dokonale', 'dnes', 'bez-napovedy', 'psani', 'tezke', 'chyby', 'vyzvy', 'vyhry', 'vyhry-v-rade', 'zalozene',
     'perfektni-vyzvy', 'uroven', 'poznane', 'vsestrannost', 'hvezdy', 'vsechna-temata', 'turnaje', 'turnaj-postupy', 'tydenni-cile', 'kviz-dne',
     'kviz-serie', 'kviz-perfekt', 'bleskovka', 'preziti', 'mapa', 'odhad', 'serad'];
+// Postavičky (profilové obrázky za odměny, icons/avatars/<id>.webp); stejný seznam má look.js (AVATARS s parts), hlídá tests/avatars.test.js.
+// Vrstvy přebarvených částí (<id>-<část><barva>.webp) se uloží až při použití.
+const AVATAR_ART = ['cervik', 'axolot', 'kaktus', 'drak', 'mamut', 'meduza', 'lenoch', 'tukan', 'lev', 'fenix', 'krecek', 'rytir', 'narval', 'zelva',
+    'hodiny', 'gepard', 'zelvus', 'tucnak', 'zabak', 'myval'];
 const APP_SHELL = [
     './', 'index.html', 'styles.css', 'config.js', 'friends.js', 'groups.js', 'soukromi.html', 'licence.html', 'licence.js', 'question-report.js', 'answer-stats.js', 'monitor.js', 'auth.js', 'social.js', 'icons.js', 'quiz-core.js', 'photo-source.js', 'visuals.js', 'question-map.js', 'numeric-questions.js', 'look-flags.js', 'look.js', 'look-themes.js', 'look-robes.js', 'look-frames.js', 'look-owl.js', 'rating.js', 'tournament.js', 'review.js', 'goals.js', 'tips.js', 'tutorial.js', 'push.js', 'daily-quiz.js', 'share-card.js', 'rewards.js', 'app.js', 'manifest.webmanifest',
     'topics/zemepis.js', 'data/zemepis.json', 'topics/historie.js', 'data/historie.json', 'topics/biologie.js', 'data/biologie.json',
@@ -17,7 +21,7 @@ const APP_SHELL = [
     // Režimy Bleskovka a Přežití, zvuky a vibrace
     'modes.js', 'sound.js',
     'icons/logo.webp', 'icons/logo-maska.webp', ...['zemepis', 'vlajky', 'historie', 'mytologie', 'biologie', 'geologie', 'chemie', 'fyzika', 'umeni', 'architektura', 'hudba', 'literatura', 'film', 'sport', 'mix', 'chyby', 'dnes', 'vyzva', 'napoveda', 'stopky', 'serie', 'sova-radost', 'sova-smutek', 'sova-premysleni', 'sova-oslava', 'sova-vitez', 'sova-prohra', 'sova-vitej', 'sova-vyzva', 'sova-serie', 'sova-spi', 'liga-bronz', 'liga-stribro', 'liga-zlato', 'liga-platina', 'liga-diamant', 'liga-mistr', 'turnaj', 'nahodny', 'kod', 'cile', 'procvicovani', 'sova-tip', 'sova-titul-1', 'sova-titul-2', 'sova-titul-3', 'sova-titul-4', 'sova-titul-5', 'sova-titul-6', 'sova-titul-7', 'sova-titul-8', 'sova-titul-9', 'sova-titul-10', 'sova-titul-11', 'truhla', 'ochrana-serie', 'diplom'].map(id => `icons/topics/${id}.webp`),
-    ...BADGE_ART.map(id => `icons/topics/odznak-${id}.webp`), 'icons/favicon-32.png', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png'
+    ...BADGE_ART.map(id => `icons/topics/odznak-${id}.webp`), ...AVATAR_ART.map(id => `icons/avatars/${id}.webp`), 'icons/favicon-32.png', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png'
 ];
 
 self.addEventListener('install', (event) => {

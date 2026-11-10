@@ -78,6 +78,8 @@ test('vlajka státu na vlaječce sovy', { skip: !chromium && 'Playwright není n
     };
     const shot = async (tab, name) => { if (SHOTS) await tab.screenshot({ path: path.join(SHOTS, name) }); };
     const fits = (tab) => tab.evaluate(() => { const box = document.querySelector('#settings-overlay > div'); return box.scrollHeight <= box.clientHeight; });
+    // Doplněk se vybírá v otevřeném místě: nejdřív čip místa vedle sovy, pak dlaždice doplňku
+    const pickAcc = async (tab, value, options = {}) => { await tab.click(`[data-owl-slot="${value.split(':')[0]}"]`); await tab.click(`[data-owl-pick="${value}"]`, options); };
     const openOwlTab = async (tab) => { await tab.click('#btn-settings'); await tab.click('[data-me-tab="owl"]'); await tab.waitForSelector('[data-owl-pick]'); };
     // Obrázek vlajky v daném místě + jestli je vidět (kontejner s maskou se odkryje až po načtení)
     const flagState = (tab, scope) => tab.evaluate((selector) => {
@@ -91,7 +93,7 @@ test('vlajka státu na vlaječce sovy', { skip: !chromium && 'Playwright není n
         const { context, tab, problems } = await open();
         await openOwlTab(tab);
         assert.equal(await tab.locator('[data-owl-flag]').count(), 0, 'výběr vlajky se ukáže až s vlaječkou');
-        await tab.click('[data-owl-pick="hand:vlajka"]');
+        await pickAcc(tab, 'hand:vlajka');
         await tab.waitForSelector('[data-owl-flag]');
         assert.equal(await tab.inputValue('[data-owl-flag]'), '', 'výchozí je modré plátno');
         assert.equal(await tab.locator('[data-owl-flag] option').first().textContent(), 'Modré plátno (výchozí)');
@@ -145,7 +147,7 @@ test('vlajka státu na vlaječce sovy', { skip: !chromium && 'Playwright není n
     await t.test('barva plátna se při výběru vlajky zachová a po návratu na modré plátno platí znovu', async () => {
         const { context, tab, problems } = await open();
         await openOwlTab(tab);
-        await tab.click('[data-owl-pick="hand:vlajka"]');
+        await pickAcc(tab, 'hand:vlajka');
         await tab.click('[data-owl-color="hand:cervena"]');
         await tab.waitForSelector('[data-owl-color="hand:cervena"][aria-pressed="true"]');
         assert.equal(await tab.locator('#status-icon-slot [data-owl-layer][src="icons/doplnky/vlajka-cervena.webp"]').count(), 1);
@@ -186,6 +188,8 @@ test('vlajka státu na vlaječce sovy', { skip: !chromium && 'Playwright není n
             const look = { acc: { hand: { id: 'vlajka', color: 'original', flag: 'q127155' }, face: { id: 'bryle', color: 'original' }, neck: { id: 'sala', color: 'original' } } };
             const { context, tab, problems } = await open({ viewport, scheme, extra: { 'mudrlant.look': JSON.stringify(look) } });
             await openOwlTab(tab);
+            // Výběr vlajky patří vlaječce v ruce: otevře se místo Ruka (první s doplňkem je obličej)
+            await tab.click('[data-owl-slot="hand"]');
             await tab.waitForSelector('[data-owl-flag]');
             const overflow = () => tab.evaluate(() => { const box = document.querySelector('#settings-overlay > div'); return box.scrollHeight - box.clientHeight; });
             const withFlag = await overflow();
@@ -193,7 +197,7 @@ test('vlajka státu na vlaječce sovy', { skip: !chromium && 'Playwright není n
             await tab.waitForSelector('[data-owl-color]');
             const without = await overflow();
             assert.ok(withFlag <= without, `vlajka okno nezvětší oproti paletě (${withFlag} × ${without})`);
-            if (viewport.height >= 780) assert.ok(without <= 0, 'bez posouvání i s paletou a výběrem vlajky');
+            assert.ok(without <= 0, 'bez posouvání i s paletou a výběrem vlajky');
             await shot(tab, `flag-okno-${viewport.width}-${scheme}.png`);
             assert.deepEqual(problems, []);
             await context.close();

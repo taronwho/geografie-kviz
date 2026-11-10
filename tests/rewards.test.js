@@ -191,7 +191,7 @@ test('nové odznaky: Kvíz dne, Bleskovka, Přežití, mapa, odhad a Seřaď pod
         assert.ok(fs.readFileSync(path.join(ROOT, 'docs', 'OBRAZKY.md'), 'utf8').includes(`odznak-${group.id}.png`), `prompt ${group.id}`);
     }
     // Některé dávají obrázek hráče, ostatní jen slávu (stejně jako dřívější odznaky)
-    assert.match(Look.badgeRewardText('kviz-tyden'), /Stopky \(obrázek hráče\)/);
+    assert.match(Look.badgeRewardText('kviz-tyden'), /Utíkající přesýpačky \(profilový obrázek\)/);
     assert.match(Look.badgeRewardText('bleskovka-16'), /Blesk/);
     assert.equal(Look.badgeRewardText('kviz-dne'), '', 'jen sláva: bez řádku s odměnou');
     for (const item of Look.AVATARS.filter(entry => entry.badge)) assert.ok(core.BADGE_BY_ID[item.badge], `${item.title}: odznak ${item.badge}`);

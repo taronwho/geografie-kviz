@@ -619,11 +619,12 @@
         return def && (def.hard === true || def.include_hard === true) ? 2 : 1;
     };
     // tight = na nízkém displeji (short:) jen název, popis zůstane v title a na vyšším displeji
-    const renderTierButtons = (on = TOGGLE_ON, topic = null, brief = false, tight = false) => Object.entries(TIERS).map(([key, tier]) => {
+    // narrow = na telefonu (do 400 px šířky) krátký název („Expert“ místo „Mudrlant Expert“ na dva řádky; celý je v popisku)
+    const renderTierButtons = (on = TOGGLE_ON, topic = null, brief = false, tight = false, narrow = false) => Object.entries(TIERS).map(([key, tier]) => {
         const text = key === 'known' && topic && topic.words && topic.words.tierKnown ? escapeHtml(topic.words.tierKnown) : tier.text;
         return `
-        <button type="button" data-tier="${key}" aria-pressed="${settings.tier === key}"${brief ? ` title="${escapeHtml(tier.text)}"` : tight ? ` title="${text}"` : ''} class="rounded-2xl border-2 px-2.5 py-2 text-left transition-colors active:scale-[0.98] ${tight ? 'short:min-h-[2.75rem] short:py-1.5 ' : ''}${settings.tier === key ? on : TOGGLE_OFF}">
-            <span class="block text-sm font-black leading-tight">${tight ? `<span class="short:hidden">${tier.title}</span><span class="hidden short:inline">${tier.short}</span>` : tier.title}</span>
+        <button type="button" data-tier="${key}" aria-pressed="${settings.tier === key}"${brief ? ` title="${escapeHtml(`${tier.title}: ${tier.text}`)}"` : tight ? ` title="${text}"` : ''} class="rounded-2xl border-2 px-2.5 py-2 text-left transition-colors active:scale-[0.98] ${tight ? 'short:min-h-[2.75rem] short:py-1.5 ' : narrow ? 'short:min-h-[2.5rem] short:py-1 ' : ''}${settings.tier === key ? on : TOGGLE_OFF}">
+            <span class="block text-sm font-black leading-tight">${tight ? `<span class="short:hidden">${tier.title}</span><span class="hidden short:inline">${tier.short}</span>` : narrow && tier.short !== tier.title ? `<span class="max-[400px]:hidden">${tier.title}</span><span class="hidden max-[400px]:inline" aria-label="${tier.title}">${tier.short}</span>` : tier.title}</span>
             <span class="mt-0.5 block text-[11px] font-semibold leading-snug opacity-90${brief || tight ? ' short:hidden' : ''}">${brief ? TIER_BRIEF[key] : text}</span>
         </button>`;
     }).join('');
@@ -867,17 +868,20 @@
     const ME_HEADING = 'text-[11px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400';
     const VARIANT_BRIEF = { choices: { short: 'Možnosti', text: '4 možnosti, až 4 body' }, typed: { short: 'Psaní', text: 'Těžší, 2× víc bodů' } };
     const renderVariantCompact = (selected) => Object.entries(VARIANTS).map(([key, variant]) => `
-        <button type="button" data-variant="${key}" aria-pressed="${selected === key}" title="${escapeHtml(variant.text)}" class="btn-3d-light flex min-w-0 flex-col items-start gap-0.5 rounded-2xl px-2.5 py-2 text-left ${selected === key ? 'bg-brand-50 ring-2 ring-brand-600 dark:bg-brand-900/40' : 'bg-white dark:bg-slate-800'}">
+        <button type="button" data-variant="${key}" aria-pressed="${selected === key}" title="${escapeHtml(variant.text)}" class="btn-3d-light flex min-w-0 flex-col items-start gap-0.5 rounded-2xl px-2.5 py-2 text-left short:py-1.5 ${selected === key ? 'bg-brand-50 ring-2 ring-brand-600 dark:bg-brand-900/40' : 'bg-white dark:bg-slate-800'}">
             <span class="flex items-center gap-1.5"><span class="rounded-md bg-brand-100 p-1 text-brand-700 dark:bg-brand-900/60 dark:text-brand-200"><i data-lucide="${variant.icon}" class="h-4 w-4"></i></span><span class="text-sm font-black leading-tight text-slate-800 dark:text-slate-100">${VARIANT_BRIEF[key].short}</span></span>
-            <span class="text-[11px] font-semibold leading-snug text-slate-500 dark:text-slate-400">${VARIANT_BRIEF[key].text}</span>
+            <span class="text-[11px] font-semibold leading-snug text-slate-500 short:hidden dark:text-slate-400">${VARIANT_BRIEF[key].text}</span>
         </button>`).join('');
-    // Řádek nastavení v kartě Hra: ikona, název, krátké vysvětlení a vpravo přepínač (on = true/false) nebo šipka (on = null)
-    const SETTING_ROW = 'flex min-h-[3rem] w-full items-center gap-3 px-3 py-2 text-left transition-colors active:bg-slate-50 disabled:opacity-60 short:min-h-[2.75rem] short:py-1.5 dark:active:bg-slate-700/40';
+    // Řádek nastavení v kartě Hra: ikona, název, krátké vysvětlení a vpravo přepínač (on = true/false) nebo šipka (on = null).
+    // Na nízkém displeji (360×640) je řádek 40 px a vysvětlení se schová (stav ukazuje přepínač), ať se karta vejde bez posouvání.
+    const SETTING_ROW = 'flex min-h-[2.75rem] w-full items-center gap-3 px-3 py-1.5 text-left transition-colors active:bg-slate-50 disabled:opacity-60 short:min-h-[2.5rem] short:py-1 dark:active:bg-slate-700/40';
+    // Poloviční buňka (dva přepínače v řádku: Zvuky a Vibrace, Turnaje a Výzvy): menší mezery, ať se název vejde i na 360 px
+    const SETTING_HALF = SETTING_ROW.replace('gap-3 px-3', 'gap-2 px-2.5');
     const switchMark = (on) => `<span aria-hidden="true" class="flex h-6 w-10 shrink-0 items-center rounded-full p-0.5 ${on ? 'justify-end bg-brand-600' : 'justify-start bg-slate-300 dark:bg-slate-600'}"><span class="h-5 w-5 rounded-full bg-white shadow-sm"></span></span>`;
     const settingRow = ({ attrs, icon, title, text = '', on = null }) => `
         <button type="button" ${attrs}${on === null ? '' : ` role="switch" aria-checked="${on}"`} class="${SETTING_ROW}">
             <i data-lucide="${icon}" class="h-5 w-5 shrink-0 ${on === false ? 'text-slate-500 dark:text-slate-400' : 'text-brand-700 dark:text-brand-300'}"></i>
-            <span class="min-w-0 flex-1"><span class="block text-[13px] font-black leading-tight text-slate-800 dark:text-slate-100">${title}</span>${text ? `<span class="mt-0.5 block text-[11px] font-semibold leading-snug text-slate-500 dark:text-slate-400">${text}</span>` : ''}</span>
+            <span class="min-w-0 flex-1"><span class="block text-[13px] font-black leading-tight text-slate-800 dark:text-slate-100">${title}</span>${text ? `<span class="mt-0.5 block text-[11px] font-semibold leading-snug text-slate-500 short:hidden dark:text-slate-400">${text}</span>` : ''}</span>
             ${on === null ? '<i data-lucide="chevron-right" class="h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400"></i>' : switchMark(on)}
         </button>`;
     // Zvuky a vibrace (sound.js): dva přepínače vedle sebe v jednom řádku karty Hra, ať se karta vejde bez posouvání;
@@ -887,7 +891,7 @@
         const prefs = Sound.prefs();
         const vibration = Sound.canVibrate();
         const cell = (attrs, icon, title, on) => `
-            <button type="button" ${attrs} role="switch" aria-checked="${on}" class="${SETTING_ROW}">
+            <button type="button" ${attrs} role="switch" aria-checked="${on}" class="${SETTING_HALF}">
                 <i data-lucide="${icon}" class="h-5 w-5 shrink-0 ${on ? 'text-brand-700 dark:text-brand-300' : 'text-slate-500 dark:text-slate-400'}"></i>
                 <span class="min-w-0 flex-1 text-[13px] font-black leading-tight text-slate-800 dark:text-slate-100">${title}</span>
                 ${switchMark(on)}
@@ -914,16 +918,17 @@
         return `Úr. ${level} · ${titleForLevel(level)}`;
     };
     const applyLook = () => { if (Look) Look.apply(lookContext()); };
-    const lookBody = (tab = 'look') => {
-        if (!Look) return '';
-        const ctx = lookContext();
-        return `<div class="flex flex-col gap-1.5">${Look.getSections().filter(section => (section.tab || 'look') === tab).map(section => `
-            <section data-look="${section.id}" class="min-w-0 rounded-2xl bg-white ${section.tight ? 'px-1.5 py-2' : 'px-2.5 py-2'} shadow-sm dark:bg-slate-800">
+    // Kde v Nastavení se odměna vybírá (oslava nové odměny, truhla): „Nastavení → Mudrlant“; Profil mají jen přihlášení
+    const rewardPlace = (category) => !Look ? 'Nastavení' : `${Look.settingsPlace(category)}${Look.settingsTab(category) === 'profile' && !signedUser() ? ' (po přihlášení)' : ''}`;
+    // Části vzhledu jedné záložky Nastavení (look-*.js, vlastnost tab): ve Hře barevné téma, v Profilu rámeček a titul u jména,
+    // u Mudrlanta doplňky a barva obleku. card: false = bez bílé karty (řádek mezi ostatními volbami), bleed = o 4 px širší
+    // (osm barevných témat se tak i na 360 px vejde po 40 px). Nadpis si část kreslí sama (noTitle), nebo ho dostane tady.
+    const lookSections = (tab, ctx = lookContext()) => !Look ? '' : Look.getSections().filter(section => (section.tab || 'owl') === tab).map(section => `
+            <section data-look="${section.id}" class="min-w-0 ${section.bleed ? '-mx-1 ' : ''}${section.card === false ? '' : `rounded-2xl bg-white ${section.tight ? 'px-1.5 py-2' : 'px-2.5 py-2'} shadow-sm dark:bg-slate-800`}">
                 ${section.noTitle ? '' : `<h3 class="${ME_HEADING} mb-1${section.tight ? ' px-1' : ''}">${escapeHtml(section.title)}</h3>`}
                 ${section.render(ctx)}
-            </section>`).join('')}</div>`;
-    };
-    // Záložka Mudrlant: moje sova s doplňky jako profilový obrázek jedním klepnutím (jinak jen v Profilu → Obrázek);
+            </section>`).join('');
+    // Záložka Mudrlant: moje sova s doplňky jako profilový obrázek jedním klepnutím (jinak v Profilu → Mudrlant);
     // když už jí je, řekne to – další změny doplňků a barvy se do profilu uloží samy
     let owlAvatarBusy = false;
     const owlAvatarRow = (user) => {
@@ -944,11 +949,12 @@
         try { await saveMeProfile(); } finally { owlAvatarBusy = false; }
         if (document.getElementById('settings-overlay')) openSettings(meNote, '[data-owl-avatar-on], [data-owl-as-avatar]');
     };
-    // Zamčený obrázek hráče (odemyká se úrovní): položka katalogu, nebo null, když je k dispozici (základní, odemčený nebo už uložený v profilu)
+    // Zamčený obrázek hráče (postavička nebo emoji za odměnu): položka katalogu, nebo null, když je k dispozici (základní, odemčený,
+    // nebo už uložený v profilu – i jako staré emoji, které postavička nahradila)
     const avatarUnlockText = (item) => item.badge ? `Odznak: ${(BADGE_BY_ID[item.badge] || {}).title || item.badge}` : `Úroveň ${item.level}`;
-    const avatarLock = (emoji) => {
-        const item = Look ? Look.find('avatars', emoji) : null;
-        if (!item || Social.AVATARS.includes(emoji) || (myProfile && myProfile.avatar === emoji) || Look.isUnlocked(item, lookContext())) return null;
+    const avatarLock = (value) => {
+        const item = Look && Look.avatarItem ? Look.avatarItem(value) : null;
+        if (!item || Social.AVATARS.includes(value) || (myProfile && Look.avatarItem(myProfile.avatar) === item) || Look.isUnlocked(item, lookContext())) return null;
         return item;
     };
     // Sovy titulů (icons/topics/sova-titul-<n>.webp): ilustrace stupně titulu podle úrovně; barvu obleku jí dá look-robes.js
@@ -958,7 +964,10 @@
     const tierTitles = (tier) => LEVEL_TITLES.filter(entry => titleOwlTier(entry.from) === tier).map(entry => entry.title);
     // Moje zvolená sova titulu omezená na dosaženou úroveň (null = sova s doplňky)
     const myPose = () => { const ctx = lookContext(); return Owl && Look ? Owl.allowedPose(ctx.prefs.pose, ctx.level) : null; };
-    // Dlaždice sov titulů v Profilu → Obrázek (hned za „Moje sova“): sova v mé barvě obleku, oříznutá do kolečka jako v profilovce;
+    // Štítek na zamčené dlaždici obrázku: od které úrovně, nebo medaile (odemyká se odznakem; který, řekne popisek a klepnutí)
+    const LOCK_PILL = 'absolute bottom-0 left-1/2 flex -translate-x-1/2 items-center whitespace-nowrap rounded-full bg-white px-1 text-[9px] font-black leading-[0.75rem] text-slate-700 dark:bg-slate-900 dark:text-slate-200';
+    const lockPill = (item) => `<span class="${LOCK_PILL}">${item.badge ? '<i data-lucide="medal" class="my-px h-2.5 w-2.5"></i>' : `úr.&nbsp;${item.level}`}</span>`;
+    // Dlaždice sov titulů v Profilu → Mudrlant (hned za „Moje sova“): sova v mé barvě obleku, oříznutá do kolečka jako v profilovce;
     // dosažené jdou vybrat, vyšší jsou zašedlé s úrovní, od které se odemknou, a klepnutí jen řekne, kdy to bude
     const poseTiles = () => {
         if (!Owl || !Owl.poseHtml || !Look || !meDraft) return '';
@@ -969,11 +978,79 @@
             const art = Owl.poseHtml(pose.id, ctx.prefs.robe);
             if (ctx.level < pose.level) {
                 return `<button type="button" data-locked-owl="${pose.id}" aria-disabled="true" aria-label="${escapeHtml(`${label} je zamčená: od úrovně ${pose.level}`)}" title="${escapeHtml(`${label}: od úrovně ${pose.level}`)}" class="${AVATAR_TILE} ${AVATAR_OFF} relative">`
-                    + `<span class="block h-full w-full opacity-40 grayscale">${art}</span><span class="absolute bottom-0 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-white px-1 text-[9px] font-black leading-[0.75rem] text-slate-700 dark:bg-slate-900 dark:text-slate-200">úr.&nbsp;${pose.level}</span></button>`;
+                    + `<span class="block h-full w-full opacity-40 grayscale">${art}</span>${lockPill(pose)}</button>`;
             }
             const on = Boolean(meDraft.owl && meDraft.pose === pose.id);
             return `<button type="button" data-pick-owl="${pose.id}" aria-label="${escapeHtml(label)}" title="${escapeHtml(label)}" aria-pressed="${on}" class="${AVATAR_TILE} ${on ? AVATAR_ON : AVATAR_OFF}">${art}</button>`;
         }).join('');
+    };
+    // --- Profil → profilový obrázek: tři skupiny (Mudrlant = moje sova a sovy titulů, Postavičky = odměny, Zvířátka = základní emoji
+    // zdarma) a pod nimi jedna řada barev: pozadí, nebo vybraná část postavičky (čipy nad řadou říkají, co se přebarvuje) ---
+    const PICTURE_GROUPS = [['mudrlant', 'Mudrlant'], ['postavicky', 'Postavičky'], ['zviratka', 'Zvířátka']];
+    let pictureGroup = null; // otevřená skupina; null = ta, ve které je vybraný obrázek
+    let colorTarget = 'bg'; // co řada barev přebarvuje: 'bg' (pozadí) nebo číslo části postavičky (1, 2)
+    let hueOpen = false; // místo barev pozadí je vidět posuvník všech odstínů
+    const pictureGroups = () => PICTURE_GROUPS.filter(([id]) => id !== 'mudrlant' || Boolean(Owl && Owl.owlAvatarHtml));
+    const pictureGroupOf = (draft) => {
+        if (draft.owl && Owl && Owl.owlAvatarHtml) return 'mudrlant';
+        return !Social.AVATARS.includes(draft.avatar) && Look && Look.avatarItem && Look.avatarItem(draft.avatar) ? 'postavicky' : 'zviratka';
+    };
+    // Dlaždice postavičky (vybraná v barvách z rozpracované volby) nebo odměny, která zatím obrázek nemá (emoji)
+    const characterTile = (item) => {
+        const chosen = !meDraft.owl && Look.avatarItem(meDraft.avatar) === item;
+        const art = item.parts ? avatarArt(chosen ? meDraft.avatar : item.id, 'h-[92%] w-[92%]') : escapeHtml(item.id);
+        const lock = avatarLock(item.id);
+        if (lock) {
+            return `<button type="button" data-locked-avatar="${escapeHtml(item.id)}" aria-disabled="true" aria-label="${escapeHtml(`${item.title} (zamčeno): ${avatarUnlockText(lock)}`)}" title="${escapeHtml(`${item.title}: ${avatarUnlockText(lock)}`)}" class="${AVATAR_TILE} ${AVATAR_OFF} relative">`
+                + `<span class="flex h-full w-full items-center justify-center opacity-40 grayscale dark:opacity-60">${art}</span>${lockPill(lock)}</button>`;
+        }
+        return `<button type="button" data-pick-avatar="${escapeHtml(item.id)}" aria-label="${escapeHtml(item.title)}" title="${escapeHtml(item.title)}" aria-pressed="${chosen}" class="${AVATAR_TILE} ${chosen ? AVATAR_ON : AVATAR_OFF}">${art}</button>`;
+    };
+    const pictureTiles = (group) => {
+        if (group === 'mudrlant') {
+            const on = Boolean(meDraft.owl && !meDraft.pose);
+            return `<button type="button" data-pick-owl aria-label="Sova Mudrlant" title="Sova Mudrlant" aria-pressed="${on}" class="${AVATAR_TILE} ${on ? AVATAR_ON : AVATAR_OFF}">${Owl.owlAvatarHtml(ownOwlText(null), 'h-full w-auto', 'h-[88%]')}</button>${poseTiles()}`;
+        }
+        if (group === 'postavicky') return Look ? Look.AVATARS.map(characterTile).join('') : '';
+        return Social.AVATARS.map(emoji => {
+            const on = !meDraft.owl && emoji === meDraft.avatar;
+            return `<button type="button" data-pick-avatar="${emoji}" aria-label="Obrázek ${emoji}" aria-pressed="${on}" class="${AVATAR_TILE} ${on ? AVATAR_ON : AVATAR_OFF}">${emoji}</button>`;
+        }).join('');
+    };
+    // Barvy pozadí profilovky (pojmenované) a jejich odstín pro posuvník všech barev
+    const BG_TITLES = { emerald: 'Smaragdová', sky: 'Nebeská', violet: 'Fialová', rose: 'Růžová', amber: 'Jantarová', teal: 'Mořská', orange: 'Oranžová', indigo: 'Indigová', cerna: 'Černá' };
+    const BG_HUES = { emerald: 160, sky: 200, violet: 260, rose: 350, amber: 40, teal: 175, orange: 25, indigo: 240, cerna: 225 };
+    const SWATCH = 'flex h-9 min-w-0 flex-1 items-center justify-center active:scale-95';
+    const SWATCH_ON = 'ring-2 ring-slate-800/70 ring-offset-2 ring-offset-white dark:ring-white/80 dark:ring-offset-slate-800';
+    const RAINBOW_DOT = 'bg-[conic-gradient(#f00,#ff0,#0f0,#0ff,#00f,#f0f,#f00)]';
+    const pictureColors = () => {
+        const pic = !meDraft.owl && Look && Look.avatarPicture ? Look.avatarPicture(meDraft.avatar) : null;
+        const parts = pic ? pic.item.parts : [];
+        const target = colorTarget !== 'bg' && Number(colorTarget) >= 1 && Number(colorTarget) <= parts.length ? Number(colorTarget) : 'bg';
+        const chip = (id, label) => {
+            const on = String(target) === String(id);
+            return `<button type="button" data-color-target="${id}" aria-pressed="${on}" class="min-h-[2rem] shrink-0 rounded-full px-3 text-[12px] font-black leading-tight active:scale-95 short:min-h-[1.75rem] ${on ? 'bg-brand-700 text-white' : 'bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-200'}">${escapeHtml(label)}</button>`;
+        };
+        let row;
+        if (target === 'bg' && hueOpen) {
+            const hue = Social.customHue(meDraft.color) ?? BG_HUES[meDraft.color] ?? 160;
+            row = `<button type="button" data-hue-close aria-label="Zpět na barvy pozadí" title="Zpět na barvy" class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-600 active:scale-95 dark:bg-slate-700 dark:text-slate-200"><i data-lucide="layout-grid" class="h-4 w-4"></i></button>`
+                + `<input type="range" min="0" max="355" step="5" value="${hue}" data-pick-hue aria-label="Všechny barvy: odstín pozadí profilovky" class="mx-1 h-6 min-w-0 flex-1 cursor-pointer appearance-none rounded-full bg-[linear-gradient(90deg,#f00,#ff0,#0f0,#0ff,#00f,#f0f,#f00)]">`;
+        } else if (target === 'bg') {
+            const custom = Social.customHue(meDraft.color) !== null;
+            row = Social.COLORS.map(color => `<button type="button" data-pick-color="${color}" aria-label="Pozadí: ${BG_TITLES[color] || color}" title="${BG_TITLES[color] || color}" aria-pressed="${color === meDraft.color}" class="${SWATCH}"><span class="h-7 w-7 rounded-full ${avatarBg(color)} ${color === meDraft.color ? SWATCH_ON : ''}"></span></button>`).join('')
+                + `<button type="button" data-pick-hue-open aria-label="Pozadí: všechny barvy (vlastní odstín)" title="Všechny barvy" aria-pressed="${custom}" class="${SWATCH}"><span class="h-7 w-7 rounded-full ${RAINBOW_DOT} ${custom ? SWATCH_ON : ''}"></span></button>`;
+        } else {
+            const part = parts[target - 1];
+            const current = pic.colors[target - 1];
+            const swatch = (color, title, dot, inner = '') => `<button type="button" data-pick-part="${target}:${color}" aria-label="${escapeHtml(`${part}: ${title}`)}" title="${escapeHtml(title)}" aria-pressed="${current === color}" class="${SWATCH}"><span class="flex h-7 w-7 items-center justify-center overflow-hidden rounded-full ${dot} ${current === color ? SWATCH_ON : ''}">${inner}</span></button>`;
+            // Nabízí se jen barvy, které se od původní dost liší (look.js colors); uložená jiná zůstane vidět vybraná
+            const offered = Look.AVATAR_COLORS.filter(color => color.id === current || Look.partColors(pic.item, target).includes(color));
+            row = swatch(0, 'Původní', 'bg-white ring-1 ring-slate-300 dark:bg-slate-600 dark:ring-slate-500', `<img src="${pic.base}" alt="" class="h-[90%] w-[90%] object-contain">`)
+                + offered.map(color => swatch(color.id, color.title, color.dot)).join('');
+        }
+        return `<div class="flex items-center gap-1 overflow-x-auto [scrollbar-width:none]" role="group" aria-label="Co přebarvit">${chip('bg', 'Pozadí')}${parts.map((part, index) => chip(index + 1, part)).join('')}</div>
+            <div data-color-row class="-mx-0.5 flex items-center" role="group" aria-label="${escapeHtml(target === 'bg' ? 'Barva pozadí' : `Barva: ${parts[target - 1]}`)}">${row}</div>`;
     };
     const refreshPush = async () => {
         const user = signedUser();
@@ -988,7 +1065,7 @@
     const PUSH_TEXTS = {
         off: 'Zápas v turnaji a nové výzvy',
         on: 'Zapnutá na tomhle zařízení',
-        denied: 'V prohlížeči zakázaná – klepni a ukážu ti, jak je povolit',
+        denied: 'V prohlížeči zakázaná – klepni pro návod',
         unsupported: 'Tenhle prohlížeč upozornění neumí',
         iphone: 'Na iPhonu nejdřív Sdílet → Přidat na plochu a otevři odtamtud'
     };
@@ -1039,18 +1116,18 @@
         const text = kind === 'unsupported' && pushState.ios ? PUSH_TEXTS.iphone : PUSH_TEXTS[kind];
         if (kind === 'unsupported') return `<div class="flex min-h-[3rem] items-center gap-3 px-3 py-2"><i data-lucide="bell-off" class="h-5 w-5 shrink-0 text-slate-500 dark:text-slate-400"></i><span class="min-w-0 flex-1"><span class="block text-[13px] font-black leading-tight text-slate-800 dark:text-slate-100">Upozornění</span><span class="mt-0.5 block text-[11px] font-semibold leading-snug text-slate-500 dark:text-slate-400">${text}</span></span></div>`;
         const on = kind === 'on';
-        const pref = (key, label) => `<button type="button" data-push-pref="${key}" aria-pressed="${Boolean(pushPrefs[key])}" class="min-h-[2.5rem] rounded-xl border-2 px-2.5 py-1.5 text-left text-[11px] font-black leading-tight transition-colors active:scale-[0.98] ${pushPrefs[key] ? TOGGLE_ON : TOGGLE_OFF}">${label}</button>`;
+        const pref = (key, icon, label, title) => `<button type="button" data-push-pref="${key}" role="switch" aria-checked="${Boolean(pushPrefs[key])}" title="${title}" aria-label="${title}" class="${SETTING_HALF}"><i data-lucide="${icon}" class="h-5 w-5 shrink-0 ${pushPrefs[key] ? 'text-brand-700 dark:text-brand-300' : 'text-slate-500 dark:text-slate-400'}"></i><span class="min-w-0 flex-1 truncate text-[13px] font-black leading-tight text-slate-800 dark:text-slate-100">${label}</span>${switchMark(Boolean(pushPrefs[key]))}</button>`;
         const busyText = pushBusy === 'on' ? 'Zapínám… (potvrď dotaz prohlížeče)' : pushBusy === 'off' ? 'Vypínám…' : '';
         const note = !busyText && pushNote ? pushNote : null;
         return `
             <div data-push-panel>
                 <button type="button" data-push-toggle="${on ? 'off' : 'on'}" role="switch" aria-checked="${on}"${pushBusy ? ' disabled aria-busy="true"' : ''} class="${SETTING_ROW}">
                     <i data-lucide="${busyText ? 'hourglass' : on ? 'bell' : 'bell-off'}" class="h-5 w-5 shrink-0 ${busyText ? 'animate-pulse text-brand-700 dark:text-brand-300' : on ? 'text-brand-700 dark:text-brand-300' : 'text-slate-500 dark:text-slate-400'}"></i>
-                    <span class="min-w-0 flex-1"><span class="block text-[13px] font-black leading-tight text-slate-800 dark:text-slate-100">Upozornění</span><span data-push-status class="mt-0.5 block text-[11px] font-semibold leading-snug ${note ? PUSH_TONE[note.tone] : 'text-slate-500 dark:text-slate-400'}">${escapeHtml(busyText || (note ? note.short : text))}</span></span>
+                    <span class="min-w-0 flex-1"><span class="block text-[13px] font-black leading-tight text-slate-800 dark:text-slate-100">Upozornění</span><span data-push-status class="mt-0.5 block text-[11px] font-semibold leading-snug ${busyText || (note && note.tone === 'error') ? 'short:truncate' : 'short:hidden'} ${note ? PUSH_TONE[note.tone] : 'text-slate-500 dark:text-slate-400'}">${escapeHtml(busyText || (note ? note.short : text))}</span></span>
                     ${switchMark(on)}
                 </button>
                 ${note && note.advice ? `<p data-push-advice role="${note.tone === 'error' ? 'alert' : 'status'}" class="mx-3 mb-2.5 rounded-xl bg-rose-50 px-2.5 py-1.5 text-[11px] font-semibold leading-snug text-rose-800 ring-1 ring-rose-200 dark:bg-rose-950/40 dark:text-rose-200 dark:ring-rose-800/60">${escapeHtml(note.advice)}</p>` : ''}
-                ${on && pushPrefs ? `<div class="grid grid-cols-2 gap-2 px-3 pb-2.5" role="group" aria-label="Co posílat">${pref('tournament', 'Turnaje: kola a zprávy')}${pref('challenge', 'Výzvy od hráčů')}</div>` : ''}
+                ${on && pushPrefs ? `<div class="grid grid-cols-2 divide-x divide-slate-100 border-t border-slate-100 dark:divide-slate-700/70 dark:border-slate-700/70" role="group" aria-label="Co posílat">${pref('tournament', 'trophy', 'Turnaje', 'Upozornění: kola a zprávy turnaje')}${pref('challenge', 'swords', 'Výzvy', 'Upozornění: výzvy od hráčů')}</div>` : ''}
             </div>`;
     };
     const togglePush = async (turnOn) => {
@@ -1457,134 +1534,147 @@
         // Zavřené Nastavení se po uložení znovu neotevře
         if (document.getElementById('settings-overlay')) openSettings(meNote, `[data-push-pref="${key}"]`);
     };
+    // Záložky Nastavení: Hra (hra a aplikace, jen pro mě), Profil (jak mě vidí ostatní; jen přihlášený) a Mudrlant (sova). Dřívější
+    // záložka Vzhled ('look', starší odkazy) se otevře jako Mudrlant: oblek a doplňky jsou tam, téma ve Hře, rámeček a titul v Profilu.
+    const SETTINGS_TABS = [['game', 'gamepad-2', 'Hra'], ['profile', 'user-round', 'Profil'], ['owl', 'sparkles', 'Mudrlant']];
+    // Po překreslení okna se fokus vrátí na ovládací prvek, na který hráč klepl (podle jeho prvního data-* atributu)
+    const focusSelectorOf = (element) => {
+        const control = element && element.closest ? element.closest('button, select, input') : null;
+        const attr = control ? [...control.attributes].find(entry => entry.name.startsWith('data-')) : null;
+        return attr ? `[${attr.name}="${typeof CSS !== 'undefined' && CSS.escape ? CSS.escape(attr.value) : attr.value}"]` : null;
+    };
     const openSettings = (note = '', focusSelector = null, tab = null) => {
         closeChooser();
         const user = signedUser();
-        if (tab) meTab = tab;
-        if (meTab === 'look' || meTab === 'owl') touchTip('look');
+        if (tab) meTab = tab === 'look' ? 'owl' : tab;
+        if (meTab === 'owl' && !Owl) meTab = 'game';
+        if (meTab === 'owl' || meTab === 'profile') touchTip('look');
         if ((!user || !Social) && meTab === 'profile') meTab = 'game';
         if (user && Social && !meDraft) {
             const base = myProfile || { display_name: user.name, avatar: '🦊', color: 'emerald' };
-            meDraft = { name: base.display_name, avatar: base.avatar, color: base.color, owl: Boolean(base.owl && Owl), pose: base.owl && Owl && Look ? myPose() : null };
+            // Staré emoji odměny se v rozpracovaném profilu rovnou ukáže jako postavička, která ho nahradila (a tak se i uloží)
+            const avatar = Look && Look.avatarCode && Look.avatarCode(base.avatar) ? Look.avatarCode(base.avatar) : base.avatar;
+            meDraft = { name: base.display_name, avatar, color: base.color, owl: Boolean(base.owl && Owl), pose: base.owl && Owl && Look ? myPose() : null };
+            pictureGroup = null;
+            colorTarget = 'bg';
+            hueOpen = false;
             if (!myProfile) loadMyProfile().then(() => { if (!meDirty && document.getElementById('settings-overlay')) { meDraft = null; openSettings(meNote); } });
         }
         let overlay = document.getElementById('settings-overlay');
         const reopened = Boolean(overlay);
         if (!reopened) refreshPush();
         const scroll = reopened && overlay.firstElementChild ? overlay.firstElementChild.scrollTop : 0;
-        const oldStrip = reopened ? overlay.querySelector('[data-avatar-strip]') : null;
-        const stripScroll = oldStrip ? oldStrip.scrollLeft : null;
         if (!overlay) overlay = createSettingsOverlay();
         const state = Auth ? Auth.getState() : { configured: false };
         const profile = user ? (myProfile || { display_name: user.name, avatar: '🦊', color: 'emerald' }) : null;
         const shown = profile && meTab === 'profile' && meDraft ? { ...profile, ...{ avatar: meDraft.avatar, color: meDraft.color, owl: meDraft.owl ? ownOwlText(meDraft.pose) : null, draft: true } } : profile;
         const level = levelProgress(loadProgress().xp);
         const noteText = note || meNote;
-        const tabList = [['game', 'gamepad-2', 'Hra'], ...(user && Social ? [['profile', 'user-round', 'Profil']] : []), ['look', 'palette', 'Vzhled'], ...(Owl ? [['owl', 'sparkles', 'Mudrlant']] : [])];
-        // Čtyři záložky (přihlášený hráč) se na telefon s ikonami nevejdou („Mudrlan“): ikony až na širším displeji, na 360 px menší písmo a okraje
-        const crowded = tabList.length > 3;
+        const tabList = SETTINGS_TABS.filter(([id]) => (id !== 'profile' || (user && Social)) && (id !== 'owl' || Owl));
         const tabs = `
-            <div role="tablist" class="mt-3 flex gap-1 rounded-2xl bg-slate-200/70 p-1 short:mt-2 dark:bg-slate-800">
+            <div role="tablist" class="mt-3 flex gap-1 rounded-2xl bg-slate-200/70 p-1 short:mt-1.5 dark:bg-slate-800">
                 ${tabList.map(([id, icon, label]) => `
-                    <button type="button" role="tab" data-me-tab="${id}" aria-selected="${meTab === id}" class="flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-xl min-h-[2.75rem] short:min-h-[2.5rem] px-2 text-[13px] font-black ${crowded ? 'max-[400px]:px-1 max-[400px]:text-[12px]' : ''} ${meTab === id ? 'btn-3d bg-brand-700 text-white' : 'text-slate-600 dark:text-slate-400'}"><i data-lucide="${icon}" class="h-4 w-4 shrink-0 ${crowded ? 'max-sm:hidden' : ''}"></i> ${label}</button>`).join('')}
+                    <button type="button" role="tab" data-me-tab="${id}" aria-selected="${meTab === id}" class="flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-xl min-h-[2.75rem] short:min-h-[2.5rem] px-2 text-[13px] font-black ${meTab === id ? 'btn-3d bg-brand-700 text-white' : 'text-slate-600 dark:text-slate-400'}"><i data-lucide="${icon}" class="h-4 w-4 shrink-0"></i> ${label}</button>`).join('')}
             </div>`;
-        // Karta Hra: varianta a známost jako dvě dvojice kompaktních karet, přepínače (procvičování, tipy, upozornění) a tutoriál
-        // jako řádky jednoho seznamu – na 390×780 se vejde bez posouvání
+        // Karta Hra: varianta a obtížnost jako kompaktní karty, barevné téma aplikace v jedné řadě, přepínače (procvičování, tipy, zvuky,
+        // upozornění) jako řádky jednoho seznamu a pod ním účet (přijímané výzvy, zablokovaní, odhlášení) – vejde se bez posouvání
+        // Účet jako poslední řádek seznamu se třemi buňkami (ikona nad názvem): přijímané výzvy, zablokovaní hráči (počet na ikoně), odhlášení
+        const ACCOUNT_CELL = 'flex min-h-[2.75rem] min-w-0 flex-col items-center justify-center gap-0.5 px-1 py-1 text-center transition-colors active:bg-slate-50 dark:active:bg-slate-700/40';
+        const ACCOUNT_LABEL = 'block max-w-full truncate text-[11px] font-black leading-tight text-slate-700 dark:text-slate-200';
+        const accountRow = user && Social ? `
+            <div data-account-row class="grid ${Friends ? 'grid-cols-3' : 'grid-cols-2'} divide-x divide-slate-100 dark:divide-slate-700/70">
+                <button type="button" data-open-accept title="${escapeHtml(`Přijímané výzvy: ${acceptSummary()}`)}" aria-label="${escapeHtml(`Přijímané výzvy: ${acceptSummary()}`)}" class="${ACCOUNT_CELL}"><i data-lucide="shield-check" class="h-4 w-4 shrink-0 text-brand-700 dark:text-brand-300"></i><span class="${ACCOUNT_LABEL}">Přijímané výzvy</span></button>
+                ${Friends ? `<button type="button" data-open-blocked aria-label="Zablokovaní hráči: ${myBlocks ? myBlocks.length : 'načítám'}" title="Zablokovaní hráči" class="${ACCOUNT_CELL}"><span class="relative"><i data-lucide="ban" class="h-4 w-4 text-brand-700 dark:text-brand-300"></i>${myBlocks && myBlocks.length ? `<span class="absolute -right-3 -top-1.5 flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-rose-600 px-1 text-[10px] font-black text-white">${myBlocks.length}</span>` : ''}</span><span class="${ACCOUNT_LABEL}">Zablokovaní</span></button>` : ''}
+                <button type="button" data-auth-logout class="${ACCOUNT_CELL}"><i data-lucide="log-out" class="h-4 w-4 shrink-0 text-brand-700 dark:text-brand-300"></i><span class="${ACCOUNT_LABEL}">Odhlásit</span></button>
+            </div>` : '';
         const gameBody = `
-            <h3 class="${ME_HEADING} mb-1.5">Varianta hry</h3>
+            <h3 class="${ME_HEADING} mb-1 short:mb-0.5">Varianta hry</h3>
             <div class="grid grid-cols-2 gap-2">${renderVariantCompact(gameVariant)}</div>
-            <h3 class="${ME_HEADING} mb-1.5 mt-3 short:mt-2">Obtížnost otázek<span class="hidden font-bold normal-case tracking-normal short:inline"> · pro témata a mix</span></h3>
-            <div class="grid grid-cols-3 gap-1.5" role="group" aria-label="Obtížnost">${renderTierButtons(TOGGLE_ON, null, true)}</div>
-            <p class="mt-1.5 text-[11px] leading-snug text-slate-500 short:hidden dark:text-slate-400">Pro témata a mix. Dnešní otázky jsou hlavně ze známých.</p>
+            <h3 class="${ME_HEADING} mb-1 mt-2 short:mb-0.5 short:mt-1.5">Obtížnost otázek<span class="font-bold normal-case tracking-normal"> · pro témata a mix</span></h3>
+            <div class="grid grid-cols-3 gap-1.5" role="group" aria-label="Obtížnost">${renderTierButtons(TOGGLE_ON, null, true, false, true)}</div>
             ${state.configured && !user ? `
-                <button type="button" data-auth-login class="mt-3 short:mt-2 flex w-full items-center gap-3 rounded-2xl btn-3d bg-brand-700 px-4 py-2 text-left text-white">
+                <button type="button" data-auth-login class="mt-2 short:mt-1.5 flex w-full items-center gap-3 rounded-2xl btn-3d bg-brand-700 px-4 py-2 text-left text-white">
                     <i data-lucide="log-in" class="h-5 w-5 shrink-0"></i>
                     <span class="min-w-0 flex-1"><span class="block text-[15px] font-black leading-tight">Přihlásit se přes Google</span><span class="block text-[11px] font-semibold leading-snug text-white/90">Uloží se postup a půjde hrát s ostatními</span></span>
                     <i data-lucide="chevron-right" class="h-4 w-4 shrink-0"></i>
                 </button>
                 ${state.error ? `<p class="mt-2 text-xs font-semibold text-rose-700 dark:text-rose-400" role="alert">${escapeHtml(state.error)}</p>` : ''}` : ''}
-            <div class="mt-3 short:mt-2 divide-y divide-slate-100 overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-200/70 dark:divide-slate-700/70 dark:bg-slate-800 dark:ring-slate-700/70">
+            ${Look ? `<div class="mt-2 short:mt-1.5">${lookSections('game')}</div>` : ''}
+            <div class="mt-2 short:mt-1.5 divide-y divide-slate-100 overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-200/70 dark:divide-slate-700/70 dark:bg-slate-800 dark:ring-slate-700/70">
                 ${Review ? settingRow({ attrs: 'data-review-toggle', icon: 'repeat', title: 'Procvičování chyb', text: reviewEnabled() ? 'Vrací se po 1, 3, 7, 14 a 30 dnech' : 'Chyby se nevrací, nic nečeká', on: reviewEnabled() }) : ''}
                 ${Tips ? settingRow({ attrs: 'data-tips-toggle', icon: 'lightbulb', title: 'Tipy od Mudrlanta', text: tipsOn() ? 'Žárovka občas ukáže funkci hry' : 'Žárovka ukáže jen zajímavost dne', on: tipsOn() }) : ''}
                 ${soundRows()}
                 ${DailyQuiz && quizSkipIntro() ? settingRow({ attrs: 'data-quiz-intro-toggle', icon: 'timer', title: 'Úvod Kvízu dne', text: 'Vypnutý, kvíz začne rovnou', on: false }) : ''}
                 ${pushPanel()}
-                ${settingRow({ attrs: 'data-tutorial-restart', icon: 'info', title: 'Projít znovu tutoriál' })}
+                ${accountRow}
             </div>
             ${renderDevPanel()}`;
-        const profileBody = user && Social && meDraft ? `
-            <form id="profile-form" class="flex flex-col gap-3 short:gap-2" autocomplete="off">
-                <label class="${ME_HEADING}">Přezdívka <span class="font-semibold normal-case tracking-normal">(jedinečná, podle ní tě najdou)</span>
-                    <input id="profile-name" type="text" maxlength="${Social.NAME_MAX}" value="${escapeHtml(meDraft.name)}" class="mt-1 w-full rounded-xl border-2 border-slate-200 bg-white px-3 py-2 text-base font-bold normal-case tracking-normal text-slate-800 focus:border-brand-600 focus:outline-none dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100">
-                </label>
-                <div>
-                    <p class="${ME_HEADING} mb-1.5">Obrázek</p>
-                    <div data-avatar-strip class="scroll-fade-x relative -mx-1 grid auto-cols-[2.5rem] grid-flow-col grid-rows-3 gap-1 overflow-x-auto overscroll-x-contain px-1 py-0.5 pr-8 short:grid-rows-2">${Owl && Owl.owlAvatarHtml ? `<button type="button" data-pick-owl aria-label="Sova Mudrlant" title="Sova Mudrlant" aria-pressed="${meDraft.owl && !meDraft.pose}" class="${AVATAR_TILE} ${meDraft.owl && !meDraft.pose ? AVATAR_ON : AVATAR_OFF}">${Owl.owlAvatarHtml(ownOwlText(null), 'h-full w-auto', 'h-[88%]')}</button>${poseTiles()}` : ''}${Social.allAvatars().map(emoji => {
-                        const lock = avatarLock(emoji);
-                        if (lock) return `<button type="button" data-locked-avatar="${emoji}" aria-disabled="true" aria-label="Obrázek ${emoji} je zamčený: ${avatarUnlockText(lock)}" title="${avatarUnlockText(lock)}" class="${AVATAR_TILE} ${AVATAR_OFF} opacity-40 grayscale">${emoji}</button>`;
-                        return `<button type="button" data-pick-avatar="${emoji}" aria-label="Obrázek ${emoji}" aria-pressed="${emoji === meDraft.avatar && !meDraft.owl}" class="${AVATAR_TILE} ${emoji === meDraft.avatar && !meDraft.owl ? AVATAR_ON : AVATAR_OFF}">${emoji}</button>`;
-                    }).join('')}</div>
-                </div>
-                <div>
-                    <p class="${ME_HEADING} mb-0.5">Barva pozadí</p>
-                    <div class="flex">${Social.COLORS.map(color => `<button type="button" data-pick-color="${color}" aria-label="Barva ${color}" aria-pressed="${color === meDraft.color}" class="flex h-10 min-w-0 flex-1 items-center justify-center active:scale-95"><span class="h-7 w-7 rounded-full ${avatarBg(color)} ${color === meDraft.color ? 'ring-2 ring-slate-800/70 ring-offset-2 dark:ring-white/80 dark:ring-offset-slate-900' : ''}"></span></button>`).join('')}</div>
-                    <input type="range" min="0" max="355" step="5" value="${Social.customHue(meDraft.color) ?? Social.customHue('h' + ({ emerald: 160, sky: 200, violet: 260, rose: 350, amber: 40, teal: 175, orange: 25, indigo: 240 }[meDraft.color] || 160))}" data-pick-hue aria-label="Všechny barvy: odstín pozadí profilovky" class="mt-2 h-6 w-full cursor-pointer appearance-none rounded-full bg-[linear-gradient(90deg,#f00,#ff0,#0f0,#0ff,#00f,#f0f,#f00)]">
-                </div>
-                <div class="flex gap-2">
-                    <button type="button" data-open-accept class="btn-3d-light flex min-w-0 flex-1 items-center gap-2 rounded-2xl bg-white px-3 py-2 text-left dark:bg-slate-800"><i data-lucide="shield-check" class="h-5 w-5 shrink-0 text-brand-700 dark:text-brand-300"></i><span class="min-w-0 flex-1 text-[13px] font-black leading-tight text-slate-800 dark:text-slate-100">Přijímané výzvy <span class="font-semibold text-slate-500 dark:text-slate-400">· ${escapeHtml(acceptSummary())}</span></span><i data-lucide="chevron-right" class="h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400"></i></button>
-                    ${Friends ? `<button type="button" data-open-blocked aria-label="Zablokovaní hráči: ${myBlocks ? myBlocks.length : 'načítám'}" title="Zablokovaní hráči" class="btn-3d-light relative flex h-auto w-11 shrink-0 items-center justify-center rounded-2xl bg-white text-brand-700 dark:bg-slate-800 dark:text-brand-300"><i data-lucide="ban" class="h-5 w-5"></i>${myBlocks && myBlocks.length ? `<span class="absolute -right-1 -top-1 flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-rose-600 px-1 text-[10px] font-black text-white">${myBlocks.length}</span>` : ''}</button>` : ''}
-                </div>
-                <div class="grid grid-cols-2 gap-2">
-                    <button type="submit" data-save-profile class="${PRIMARY_BUTTON}"><i data-lucide="check" class="h-5 w-5"></i> Uložit</button>
-                    <button type="button" data-auth-logout class="${SECONDARY_BUTTON}"><i data-lucide="log-out" class="h-5 w-5"></i> Odhlásit</button>
-                </div>
-            </form>` : '';
+        // Karta Profil (jak mě vidí ostatní): přezdívka, profilový obrázek ve třech skupinách s řadou barev, rámeček, titul u jména, Uložit.
+        // Přezdívka, obrázek a barvy se uloží tlačítkem, rámeček a titul hned po výběru (jako dřív ve Vzhledu).
+        const profileBody = user && Social && meDraft ? (() => {
+            const group = pictureGroups().some(([id]) => id === pictureGroup) ? pictureGroup : pictureGroupOf(meDraft);
+            return `
+            <form id="profile-form" class="flex flex-col gap-2 short:gap-1.5" autocomplete="off">
+                <section data-picture aria-label="Profilový obrázek" class="flex min-w-0 flex-col gap-1.5 rounded-2xl bg-white p-1.5 shadow-sm dark:bg-slate-800">
+                    <div role="tablist" aria-label="Profilový obrázek" class="grid grid-cols-3 gap-0.5 rounded-xl bg-slate-100 p-0.5 dark:bg-slate-900/60">${pictureGroups().map(([id, label]) => `<button type="button" role="tab" data-pic-group="${id}" aria-selected="${group === id}" class="min-h-[2.25rem] rounded-[0.6rem] px-1 text-[12px] font-black ${group === id ? 'bg-white text-brand-800 shadow-sm ring-1 ring-slate-200 dark:bg-slate-700 dark:text-white dark:ring-slate-600' : 'text-slate-600 dark:text-slate-300'}">${label}</button>`).join('')}</div>
+                    <div data-avatar-strip data-group="${group}" class="grid min-h-[7.75rem] grid-cols-[repeat(auto-fill,minmax(2.5rem,1fr))] content-start justify-items-center gap-0.5">${pictureTiles(group)}</div>
+                    ${pictureColors()}
+                </section>
+                ${lookSections('profile', { ...lookContext(), profile: shown })}
+                <button type="submit" data-save-profile class="${PRIMARY_BUTTON} short:py-2.5"><i data-lucide="check" class="h-5 w-5"></i> Uložit</button>
+            </form>`;
+        })() : '';
+        const owlBody = `<div class="flex flex-col gap-2 short:gap-1.5">${lookSections('owl')}${owlAvatarRow(user)}</div>`;
+        // V Profilu je přezdívka pole přímo v hlavičce vedle náhledu obrázku (patří k formuláři přes form="profile-form")
+        const nameField = meTab === 'profile' && profileBody ? `<label class="block"><span class="sr-only">Přezdívka (jedinečná, podle ní tě ostatní najdou)</span>
+                            <span class="relative block"><input id="profile-name" form="profile-form" type="text" maxlength="${Social.NAME_MAX}" value="${escapeHtml(meDraft.name)}" title="Přezdívka: jedinečná, podle ní tě ostatní najdou" class="h-9 w-full rounded-xl border-2 border-slate-200 bg-white py-0 pl-2.5 pr-8 text-base font-black text-slate-800 focus:border-brand-600 focus:outline-none dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"><i data-lucide="pencil" class="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400 dark:text-slate-500"></i></span></label>` : '';
         overlay.innerHTML = `
-            <div class="${reopened ? '' : 'fade-in '}max-h-[94dvh] w-full max-w-md overflow-y-auto rounded-[1.75rem] bg-slate-50 p-4 shadow-2xl dark:bg-slate-900">
+            <div class="${reopened ? '' : 'fade-in '}max-h-[94dvh] w-full max-w-md overflow-y-auto rounded-[1.75rem] bg-slate-50 p-4 short:max-h-[calc(100dvh-0.75rem)] short:py-3 max-[380px]:px-3 dark:bg-slate-900">
                 <div class="flex items-center gap-3">
-                    ${shown ? avatarHtml(shown, 'h-14 w-14 text-3xl') : owlLogo('shrink-0 mt-1', 'h-14 w-auto drop-shadow-md')}
+                    ${shown ? avatarHtml(shown, 'h-14 w-14 text-3xl short:h-12 short:w-12') : owlLogo('shrink-0 mt-1', 'h-14 w-auto drop-shadow-md short:h-12')}
                     <div class="min-w-0 flex-1">
-                        <h2 id="settings-title" class="truncate text-lg font-black leading-tight text-slate-800 dark:text-slate-100">${user ? escapeHtml(playerName(profile)) : 'Nastavení'}</h2>
-                        <p class="truncate text-xs text-slate-500 dark:text-slate-400">${user ? escapeHtml(user.email || user.name) : 'Hraješ bez účtu'}</p>
+                        <h2 id="settings-title" class="${nameField ? 'sr-only' : 'truncate text-lg font-black leading-tight text-slate-800 dark:text-slate-100'}">${user ? escapeHtml(playerName(profile)) : 'Nastavení'}</h2>
+                        ${nameField || `<p class="truncate text-xs text-slate-500 short:hidden dark:text-slate-400">${user ? escapeHtml(user.email || user.name) : 'Hraješ bez účtu'}</p>`}
                         <button type="button" data-open-progress class="mt-0.5 flex items-center gap-1 text-[11px] font-black text-brand-700 dark:text-cream">${escapeHtml(ownTitleText(level.level))} <i data-lucide="chevron-right" class="h-3 w-3"></i></button>
                     </div>
                     <button type="button" data-close aria-label="Zavřít" class="-m-0.5 self-start rounded-xl p-2.5 text-slate-500 hover:bg-slate-200 dark:text-slate-400 dark:hover:bg-slate-800"><i data-lucide="x" class="h-5 w-5"></i></button>
                 </div>
                 ${tabs}
-                <div class="mt-3 short:mt-2">${meTab === 'profile' && profileBody ? profileBody : meTab === 'look' ? lookBody('look') : meTab === 'owl' ? lookBody('owl') + owlAvatarRow(user) : gameBody}</div>
+                <div class="mt-3 short:mt-2">${meTab === 'profile' && profileBody ? profileBody : meTab === 'owl' ? owlBody : gameBody}</div>
                 <p id="settings-note" class="${noteText ? 'mt-2 ' : ''}text-xs font-semibold ${noteText.startsWith('Uloženo') || !meNote ? 'text-emerald-700 dark:text-emerald-300' : 'text-rose-700 dark:text-rose-400'}" role="status">${escapeHtml(noteText)}</p>
                 ${renderSchemaBanner()}
-                <div class="mt-3 flex flex-wrap items-center justify-center gap-x-1 text-xs text-slate-500 short:mt-2 dark:text-slate-400">
+                ${meTab === 'game' ? `
+                <div class="mt-2 flex flex-wrap items-center justify-center gap-x-0.5 text-xs text-slate-500 short:mt-1 dark:text-slate-400">
                     <span id="app-version" class="px-1">${escapeHtml(versionLabel())}</span>
-                    <button type="button" data-update-app class="-my-2 inline-flex min-h-[2.5rem] items-center rounded-lg px-2 font-bold text-slate-600 underline underline-offset-2 hover:bg-slate-200 disabled:no-underline dark:text-slate-300 dark:hover:bg-slate-800">Aktualizovat</button>
-                    ${meTab === 'game' ? `
-                    <a href="soukromi.html" class="-my-2 inline-flex min-h-[2.5rem] items-center rounded-lg px-2 font-bold underline underline-offset-2">Osobní údaje</a>
-                    <a href="licence.html" class="-my-2 inline-flex min-h-[2.5rem] items-center rounded-lg px-2 font-bold underline underline-offset-2">Zdroje a licence</a>
-                    ${user && Social ? '<button type="button" data-open-privacy class="-my-2 inline-flex min-h-[2.5rem] items-center rounded-lg px-2 font-bold underline underline-offset-2">Moje data</button>' : ''}` : ''}
-                </div>
+                    <button type="button" data-update-app class="-my-2 inline-flex min-h-[2.5rem] items-center rounded-lg px-1.5 font-bold text-slate-600 underline underline-offset-2 hover:bg-slate-200 disabled:no-underline dark:text-slate-300 dark:hover:bg-slate-800">Aktualizovat</button>
+                    <button type="button" data-tutorial-restart class="-my-2 inline-flex min-h-[2.5rem] items-center rounded-lg px-1.5 font-bold underline underline-offset-2 hover:bg-slate-200 dark:hover:bg-slate-800">Tutoriál</button>
+                    <a href="soukromi.html" class="-my-2 inline-flex min-h-[2.5rem] items-center rounded-lg px-1.5 font-bold underline underline-offset-2">Osobní údaje</a>
+                    <a href="licence.html" class="-my-2 inline-flex min-h-[2.5rem] items-center rounded-lg px-1.5 font-bold underline underline-offset-2">Zdroje a licence</a>
+                    ${user && Social ? '<button type="button" data-open-privacy class="-my-2 inline-flex min-h-[2.5rem] items-center rounded-lg px-1.5 font-bold underline underline-offset-2">Moje data</button>' : ''}
+                </div>` : ''}
             </div>`;
         overlay.firstElementChild.scrollTop = scroll;
-        // Pás obrázků zůstane po překreslení na stejném místě; při otevření Profilu ukáže vybraný obrázek
-        const strip = overlay.querySelector('[data-avatar-strip]');
-        if (strip && stripScroll !== null) strip.scrollLeft = stripScroll;
-        else if (strip) {
-            const picked = strip.querySelector('[aria-pressed="true"]');
-            if (picked) strip.scrollLeft = picked.offsetLeft - (strip.clientWidth - picked.offsetWidth) / 2;
-        }
         renderIcons(overlay);
-        const target = focusSelector ? overlay.querySelector(focusSelector) : (meTab === 'profile' ? null : overlay.querySelector('[data-variant][aria-pressed="true"]'));
+        const target = focusSelector ? overlay.querySelector(focusSelector) : (meTab === 'game' ? overlay.querySelector('[data-variant][aria-pressed="true"]') : null);
         (target || overlay.querySelector('[data-close]')).focus({ preventScroll: true });
     };
-    // Dlaždice obrázku v Profilu: 40 × 40 px ve třech řádcích, které se posouvají do strany (místo 12 drobných sloupců)
+    // Dlaždice obrázku v Profilu: 40 × 40 px v mřížce (skupina má nejvýš 21 obrázků = tři řádky po sedmi i na 360 px, nic se neschová)
     const AVATAR_TILE = 'flex h-10 w-10 items-center justify-center rounded-xl border-2 text-xl active:scale-95';
     const AVATAR_ON = 'border-brand-600 bg-brand-50 dark:bg-brand-900/40';
-    const AVATAR_OFF = 'border-transparent bg-white dark:bg-slate-800';
+    const AVATAR_OFF = 'border-transparent bg-slate-50 dark:bg-slate-700/50';
     const OWL_AVATAR_KEY = 'mudrlant.owlAvatar';
     const saveMeProfile = async () => {
         const user = signedUser();
         if (!user || !Social || !meDraft) return;
         const input = document.getElementById('profile-name');
         if (input) meDraft.name = input.value;
+        // Zamčený obrázek se neuloží (výběr ho nepustí; tohle hlídá i rozpracovaný profil z jiné cesty)
+        const locked = !meDraft.owl ? avatarLock(meDraft.avatar) : null;
+        if (locked) {
+            meNote = `${locked.title} se odemkne: ${avatarUnlockText(locked)}.`;
+            if (document.getElementById('settings-overlay')) openSettings(meNote, '[data-save-profile]');
+            return;
+        }
         try {
             const owlText = meDraft.owl ? ownOwlText(meDraft.pose) : null;
             myProfile = await Social.saveProfile(user.id, { ...meDraft, owl: owlText });
@@ -1606,7 +1696,7 @@
         }
         if (document.getElementById('settings-overlay')) openSettings(meNote, '[data-save-profile]');
     };
-    // --- Moje data: export a smazání účtu (Nastavení → Profil) ---
+    // --- Moje data: export a smazání účtu (Nastavení → Hra, odkaz pod oknem) ---
     const DELETED_FLAG = 'mudrlant.accountDeleted';
     // Data uložená v zařízení (bez přihlašovacích tokenů) pro export
     const localDataSnapshot = () => {
@@ -1702,24 +1792,64 @@
         overlay.setAttribute('role', 'dialog');
         overlay.setAttribute('aria-modal', 'true');
         overlay.setAttribute('aria-labelledby', 'settings-title');
-        overlay.className = 'fixed inset-0 z-50 flex items-end justify-center bg-slate-900/60 p-3 backdrop-blur-sm sm:items-center';
+        overlay.className = 'fixed inset-0 z-50 flex items-end justify-center bg-slate-900/60 p-3 backdrop-blur-sm short:p-1.5 sm:items-center';
         overlay.addEventListener('click', (event) => {
             if (event.target === overlay || event.target.closest('[data-close]')) {
                 closeSettings();
                 return;
             }
+            // Rozepsaná přezdívka přežije každé překreslení (výběr rámečku, skupiny obrázků, barvy…)
+            const input = document.getElementById('profile-name');
+            if (input && meDraft) meDraft.name = input.value;
             const lookEl = event.target.closest('[data-look]');
             if (lookEl && Look) {
                 const section = Look.getSections().find(entry => entry.id === lookEl.dataset.look);
-                if (section && section.click && section.click(event, lookContext())) { updateControlsUI(); openSettings('', null, meTab); }
+                if (section && section.click && section.click(event, lookContext())) { updateControlsUI(); openSettings('', focusSelectorOf(event.target), meTab); }
                 return;
             }
             const tabButton = event.target.closest('[data-me-tab]');
             if (tabButton) {
-                const input = document.getElementById('profile-name');
-                if (input && meDraft) meDraft.name = input.value;
                 meNote = '';
-                openSettings('', null, tabButton.dataset.meTab);
+                openSettings('', `[data-me-tab="${tabButton.dataset.meTab}"]`, tabButton.dataset.meTab);
+                return;
+            }
+            // Profil → obrázek: skupina (Mudrlant, Postavičky, Zvířátka), co přebarvit (pozadí nebo část postavičky), barva části, všechny barvy pozadí
+            const groupButton = event.target.closest('[data-pic-group]');
+            if (groupButton && meDraft) {
+                pictureGroup = groupButton.dataset.picGroup;
+                openSettings(meNote, `[data-pic-group="${pictureGroup}"]`);
+                return;
+            }
+            const targetChip = event.target.closest('[data-color-target]');
+            if (targetChip && meDraft) {
+                colorTarget = targetChip.dataset.colorTarget;
+                openSettings(meNote, `[data-color-target="${colorTarget}"]`);
+                return;
+            }
+            const partButton = event.target.closest('[data-pick-part]');
+            if (partButton && meDraft && Look) {
+                const [part, color] = partButton.dataset.pickPart.split(':').map(Number);
+                const pic = Look.avatarPicture(meDraft.avatar);
+                if (!pic || meDraft.owl || !(part >= 1 && part <= pic.item.parts.length)) return;
+                const colors = [...pic.colors];
+                colors[part - 1] = color;
+                meDraft.avatar = Look.formatAvatar(pic.item.id, colors);
+                meDirty = true;
+                meNote = '';
+                openSettings('', `[data-pick-part="${part}:${color}"]`);
+                return;
+            }
+            if (event.target.closest('[data-pick-hue-open]') && meDraft) {
+                hueOpen = true;
+                // Posuvník začne u odstínu dosavadní barvy pozadí, náhled ho hned ukáže
+                if (Social.customHue(meDraft.color) === null) { meDraft.color = `h${BG_HUES[meDraft.color] ?? 160}`; meDirty = true; }
+                meNote = '';
+                openSettings('', '[data-pick-hue]');
+                return;
+            }
+            if (event.target.closest('[data-hue-close]') && meDraft) {
+                hueOpen = false;
+                openSettings(meNote, '[data-pick-hue-open]');
                 return;
             }
             if (event.target.closest('[data-auth-login]')) { startLogin(); return; }
@@ -1803,27 +1933,21 @@
             if (devButton) { devApply(devButton.dataset.dev); updateControlsUI(); openSettings(`Hotovo: ${devButton.textContent.trim()}`, `[data-dev="${devButton.dataset.dev}"]`); return; }
             const lockedOwl = event.target.closest('[data-locked-owl]');
             if (lockedOwl && Look) {
-                const input = document.getElementById('profile-name');
-                if (input && meDraft) meDraft.name = input.value;
                 const pose = Look.findPose(lockedOwl.dataset.lockedOwl);
                 if (pose) openSettings(`Sova titulu ${tierTitles(pose.tier)[0]} se odemkne od úrovně ${pose.level}.`, `[data-locked-owl="${pose.id}"]`);
                 return;
             }
             const locked = event.target.closest('[data-locked-avatar]');
-            if (locked) {
-                const input = document.getElementById('profile-name');
-                if (input && meDraft) meDraft.name = input.value;
-                const item = Look.find('avatars', locked.dataset.lockedAvatar);
-                openSettings(item.badge ? `${item.title} se odemkne odznakem „${(BADGE_BY_ID[item.badge] || {}).title || item.badge}“.` : `${item.title} se odemkne na úrovni ${item.level}.`);
+            if (locked && Look) {
+                const item = Look.avatarItem(locked.dataset.lockedAvatar);
+                if (item) openSettings(item.badge ? `${item.title} se odemkne odznakem „${(BADGE_BY_ID[item.badge] || {}).title || item.badge}“.` : `${item.title} se odemkne na úrovni ${item.level}.`, `[data-locked-avatar="${locked.dataset.lockedAvatar}"]`);
                 return;
             }
             if (event.target.closest('[data-owl-as-avatar]')) { useOwlAsAvatar(); return; }
             const avatar = event.target.closest('[data-pick-avatar]');
             const color = event.target.closest('[data-pick-color]');
             const pickOwl = event.target.closest('[data-pick-owl]');
-            if (avatar || color || pickOwl) {
-                const input = document.getElementById('profile-name');
-                if (input && meDraft) meDraft.name = input.value;
+            if ((avatar || color || pickOwl) && meDraft) {
                 if (pickOwl) {
                     // Prázdná hodnota = sova s doplňky, jinak sova titulu (jen dosaženého)
                     const pose = Look && pickOwl.dataset.pickOwl ? Look.findPose(pickOwl.dataset.pickOwl) : null;
@@ -1832,11 +1956,18 @@
                     meDraft.avatar = '🦉';
                     meDraft.pose = pose ? pose.id : null;
                 }
-                if (avatar) { meDraft.avatar = avatar.dataset.pickAvatar; meDraft.owl = false; }
-                if (color) meDraft.color = color.dataset.pickColor;
+                if (avatar) {
+                    const value = avatar.dataset.pickAvatar;
+                    if (avatarLock(value)) return;
+                    // Znovu vybraná postavička si nechá barvy částí, jiná začne v původních
+                    const same = !meDraft.owl && Look && Look.avatarPicture && Look.avatarPicture(meDraft.avatar) && Look.avatarPicture(meDraft.avatar).item.id === value;
+                    if (!same) meDraft.avatar = value;
+                    meDraft.owl = false;
+                }
+                if (color) { meDraft.color = color.dataset.pickColor; hueOpen = false; }
                 meDirty = true;
                 meNote = '';
-                openSettings('', pickOwl ? `[data-pick-owl="${meDraft.pose || ''}"]` : avatar ? `[data-pick-avatar="${meDraft.avatar}"]` : `[data-pick-color="${meDraft.color}"]`);
+                openSettings('', pickOwl ? `[data-pick-owl="${meDraft.pose || ''}"]` : avatar ? `[data-pick-avatar="${avatar.dataset.pickAvatar}"]` : `[data-pick-color="${meDraft.color}"]`);
                 return;
             }
             const variantButton = event.target.closest('[data-variant]');
@@ -1844,12 +1975,12 @@
             const tierButton = event.target.closest('[data-tier]');
             if (tierButton) changeSettings({ tier: tierButton.dataset.tier }, `[data-tier="${tierButton.dataset.tier}"]`);
         });
-        // Výběry ve Vzhledu (např. titul u jména)
+        // Posuvníky a výběry (odstín pozadí, titul u jména, odstín doplňku, vlajka)
         overlay.addEventListener('change', (event) => {
+            const input = document.getElementById('profile-name');
+            if (input && meDraft) meDraft.name = input.value;
             const hueRange = event.target.closest('[data-pick-hue]');
             if (hueRange && meDraft) {
-                const input = document.getElementById('profile-name');
-                if (input) meDraft.name = input.value;
                 meDraft.color = `h${Math.round(Number(hueRange.value) / 5) * 5 % 360}`;
                 meDirty = true;
                 meNote = '';
@@ -1858,7 +1989,7 @@
             }
             const lookEl = event.target.closest('[data-look]');
             const section = lookEl && Look ? Look.getSections().find(entry => entry.id === lookEl.dataset.look) : null;
-            if (section && section.change && section.change(event, lookContext())) { updateControlsUI(); openSettings('', null, meTab); }
+            if (section && section.change && section.change(event, lookContext())) { updateControlsUI(); openSettings('', focusSelectorOf(event.target), meTab); }
         });
         overlay.addEventListener('submit', (event) => {
             if (event.target.id !== 'profile-form') return;
@@ -3517,7 +3648,7 @@
         card.id = 'celebration';
         card.setAttribute('role', 'status');
         card.className = 'fade-in fixed inset-x-3 bottom-24 z-[60] mx-auto flex max-w-sm cursor-pointer items-center gap-3 rounded-3xl bg-gradient-to-br from-brand-800 to-brand-950 p-3 pr-4 text-white shadow-2xl ring-2 ring-gold-400';
-        card.innerHTML = `${uiArt(`sova-${item.owl}`, 'h-20 w-20 -my-4 drop-shadow-lg')}<div class="min-w-0 flex-1"><p class="text-[11px] font-black uppercase tracking-widest text-gold-300">${escapeHtml(item.title)}</p><p class="text-base font-black leading-tight">${escapeHtml(item.text)}</p></div>`;
+        card.innerHTML = `${item.art || uiArt(`sova-${item.owl}`, 'h-20 w-20 -my-4 drop-shadow-lg')}<div class="min-w-0 flex-1"><p class="text-[11px] font-black uppercase tracking-widest text-gold-300">${escapeHtml(item.title)}</p><p class="text-base font-black leading-tight">${escapeHtml(item.text)}</p></div>`;
         document.body.appendChild(card);
         // Zvuk oslavy (nová úroveň, titul, odznak) zazní, až se karta ukáže
         if (item.sound && Sound) Sound.play(item.sound);
@@ -3550,8 +3681,9 @@
         setTimeout(() => chip.remove(), 2500);
     };
     const deferredCelebrations = [];
-    const showCelebration = (owl, title, text, sound = null) => {
-        const item = { owl, title, text, sound };
+    // art = vlastní obrázek místo sovy (HTML, např. nová postavička)
+    const showCelebration = (owl, title, text, sound = null, art = '') => {
+        const item = { owl, title, text, sound, art };
         if (!celebrationCalm()) { deferredCelebrations.push(item); miniCelebration(item); return; }
         celebrationQueue.push(item);
         if (!celebrating) nextCelebration();
@@ -3574,7 +3706,9 @@
         badgeTitles.slice(0, 3).forEach(title => showCelebration('oslava', 'Nový odznak', title, 'badge'));
         if (badgeTitles.length > 3) showCelebration('oslava', 'Další odznaky', `a ještě ${badgeTitles.length - 3}`);
         const kinds = Look.REWARD_KINDS;
-        Look.newRewards(levelBefore, levelNow, freshBadgeIds).forEach(({ category, item }) => showCelebration('vitez', 'Nová odměna', `${item.title} (${kinds[category]}) – vyber si ji v Nastavení → Vzhled`));
+        // Postavička se v oslavě ukáže místo sovy; text řekne, na které záložce Nastavení se odměna vybírá
+        Look.newRewards(levelBefore, levelNow, freshBadgeIds).forEach(({ category, item }) => showCelebration('vitez', 'Nová odměna', `${item.title} (${kinds[category]}) – vyber si ji v ${rewardPlace(category)}`, null,
+            category === 'avatars' && item.parts ? avatarArt(item.id, 'h-20 w-20 -my-4 drop-shadow-lg') : ''));
         freshBadgeIds = [];
     };
     // Po delší pauze sova uvítá hráče zpátky (jednou za spuštění)
@@ -5360,6 +5494,14 @@
         return Owl.encodeOwl({ ...ctx.prefs, pose: Owl.allowedPose(pose, ctx.level) });
     };
     const myOwlText = () => Look ? ownOwlText(Look.prefs(lookContext()).pose) : '';
+    // Postavička (look.js, icons/avatars): základní obrázek a přes něj vrstvy přebarvených částí v jedné buňce mřížky. Zabere 82 % kolečka,
+    // takže je celá vidět i s obrysem (obrázky jsou skoro čtvercové); velikost se bere z kolečka, ne z písma. Hodnota, která není postavička,
+    // dá prázdný text (vykreslí se jako emoji).
+    const avatarArt = (value, sizeClass = 'h-[82%] w-[82%]') => {
+        const picture = Look && Look.avatarPicture ? Look.avatarPicture(value) : null;
+        if (!picture) return '';
+        return `<span data-avatar-art="${picture.item.id}" class="grid shrink-0 ${sizeClass}">${[picture.base, ...picture.layers].map((src, index) => `<img src="${src}" alt=""${index ? ' data-avatar-layer' : ''} draggable="false" class="pointer-events-none h-full w-full select-none object-contain [grid-area:1/1]">`).join('')}</span>`;
+    };
     // link = klepnutím na obrázek se otevře profil hráče (klepnutí zachytí společný posluchač dole)
     const avatarHtml = (player, size = 'h-10 w-10 text-xl', link = false) => {
         const linked = link && player && player.id;
@@ -5374,7 +5516,7 @@
         const showsOwl = Boolean(player && (player.owl || (isMe && !player.draft && myProfile && myProfile.owl)));
         // Náhled v Profilu (draft) má sovu z rozpracované volby (třeba jinou sovu titulu)
         const owlHtml = showsOwl && Owl && Owl.owlAvatarHtml ? Owl.owlAvatarHtml(isMe && Look && !player.draft ? myOwlText() : player.owl) : '';
-        return `<span ${linked ? `data-player-id="${escapeHtml(player.id)}" role="button" tabindex="0" aria-label="Profil hráče ${escapeHtml(playerName(player))}"` : 'aria-hidden="true"'} class="flex shrink-0 items-center justify-center rounded-full ${size} ${avatarBg(isMe && !player.draft && myProfile && myProfile.color ? myProfile.color : player && player.color)}${frame}${linked ? ' cursor-pointer' : ''}">${owlHtml || escapeHtml((player && player.avatar) || '🦊')}</span>`;
+        return `<span ${linked ? `data-player-id="${escapeHtml(player.id)}" role="button" tabindex="0" aria-label="Profil hráče ${escapeHtml(playerName(player))}"` : 'aria-hidden="true"'} class="flex shrink-0 items-center justify-center rounded-full ${size} ${avatarBg(isMe && !player.draft && myProfile && myProfile.color ? myProfile.color : player && player.color)}${frame}${linked ? ' cursor-pointer' : ''}">${owlHtml || avatarArt(player && player.avatar) || escapeHtml((player && player.avatar) || '🦊')}</span>`;
     };
     // Téma výzvy: „mix“ (všechna), jedno téma, nebo víc témat oddělených čárkou
     const challengeTopicIds = (topic) => topic === 'mix' ? TOPICS.map(item => item.id) : String(topic).split(',').filter(id => TOPIC_BY_ID[id]);
@@ -6583,7 +6725,7 @@
                 const value = Math.min(detail.value(c, x), detail.goal);
                 return `<div class="flex items-center gap-3 rounded-2xl bg-white p-3 shadow-sm ring-2 ring-brand-600 dark:bg-slate-800">${medalHtml(detail, Boolean(earned), 'h-14 w-14', 'h-6 w-6')}
                     <div class="min-w-0 flex-1"><p class="text-sm font-black text-slate-800 dark:text-slate-100">${escapeHtml(detail.title)}</p><p class="text-xs text-slate-500 dark:text-slate-400">${escapeHtml(detail.text)}</p>
-                    ${badgeReward(detail) ? `<p class="mt-0.5 text-[11px] font-bold leading-snug text-gold-800 dark:text-gold-300" data-badge-reward>${escapeHtml(badgeReward(detail))}</p>` : ''}${earned && compactBadges(BADGES.filter(badge => progress.badges[badge.id]).map(badge => badge.id)).includes(detail.id) ? '<p class="text-[11px] leading-snug text-slate-500 dark:text-slate-400">Můžeš ho mít jako titul u svého jména (Nastavení → Vzhled).</p>' : ''}
+                    ${badgeReward(detail) ? `<p class="mt-0.5 text-[11px] font-bold leading-snug text-gold-800 dark:text-gold-300" data-badge-reward>${escapeHtml(badgeReward(detail))}</p>` : ''}${earned && compactBadges(BADGES.filter(badge => progress.badges[badge.id]).map(badge => badge.id)).includes(detail.id) ? '<p class="text-[11px] leading-snug text-slate-500 dark:text-slate-400">Můžeš ho mít jako titul u svého jména (Nastavení → Profil).</p>' : ''}
                     <p class="mt-0.5 text-[11px] font-bold ${earned ? 'text-emerald-700 dark:text-emerald-400' : 'text-slate-500 dark:text-slate-400'}">${earned ? 'Získáno' : `${value} / ${detail.goal}`}</p>${earned ? '' : goalBar(value / detail.goal)}</div></div>`;
             })() : '<p class="text-center text-xs text-slate-500 dark:text-slate-400">Klepni na medaili a uvidíš, jak ji získat.</p>';
             const sections = BADGE_GROUPS.map(group => {
@@ -8165,8 +8307,10 @@
             maxStars: Math.max(0, ...Object.values(loadLearned()).map(ids => masteryStars((ids || []).length)))
         });
     };
+    // Záložka Nastavení, kterou otevře tlačítko tipu (tip „Obleč si Mudrlanta“ → Mudrlant); bez ní poslední otevřená
+    let tipSettingsTab = null;
     const TIP_ACTIONS = {
-        settings: () => { closeDialog(); openSettings(); },
+        settings: () => { closeDialog(); openSettings('', null, tipSettingsTab); },
         learn: () => { closeDialog(); openLearn('home'); },
         progress: () => { closeDialog(); openProgress(); },
         multi: () => { closeDialog(); openHomeTabFromPush('multi'); },
@@ -8191,7 +8335,7 @@
             </div>`, {
             onClick: (event) => {
                 const go = event.target.closest('[data-tip-go]');
-                if (go && TIP_ACTIONS[go.dataset.tipGo]) { TIP_ACTIONS[go.dataset.tipGo](); return; }
+                if (go && TIP_ACTIONS[go.dataset.tipGo]) { tipSettingsTab = (tip.action && tip.action.tab) || null; TIP_ACTIONS[go.dataset.tipGo](); return; }
                 if (event.target.closest('[data-tip-off]')) { writeTipsState(Tips.setOff(readTipsState(), true)); closeDialog(); updateFactHint(); showToast('Tipy jsou vypnuté. Zapneš je v Nastavení.'); }
             }
         });

@@ -121,7 +121,7 @@ test('rozhraní na úzkém telefonu', { skip: !chromium && 'Playwright není nai
     t.after(async () => { await browser.close(); server.close(); });
 
     // fact = zajímavost dne (data/fakt.json), jinak ji server nemá
-    // signedIn = přihlášený hráč (falešné Supabase: jeho profil, jinak prázdné odpovědi) – v Nastavení má čtyři záložky
+    // signedIn = přihlášený hráč (falešné Supabase: jeho profil, jinak prázdné odpovědi) – v Nastavení má tři záložky
     const open = async (scheme, { viewport = VIEWPORT, fact = null, signedIn = false } = {}) => {
         const context = await browser.newContext({ serviceWorkers: 'block', viewport, colorScheme: scheme, reducedMotion: 'reduce', hasTouch: true });
         if (fact) await context.route('**/data/fakt.json', route => route.fulfill({ json: fact }));
@@ -192,8 +192,6 @@ test('rozhraní na úzkém telefonu', { skip: !chromium && 'Playwright není nai
             await tab.click('#btn-settings');
             await tab.waitForSelector('#settings-overlay');
             await check(tab, 'nastavení – hra', scheme);
-            await tab.click('[data-me-tab="look"]');
-            await check(tab, 'nastavení – vzhled', scheme);
             await tab.click('[data-me-tab="owl"]');
             await check(tab, 'nastavení – Mudrlant', scheme);
             await tab.keyboard.press('Escape');
@@ -327,7 +325,7 @@ test('rozhraní na úzkém telefonu', { skip: !chromium && 'Playwright není nai
             await tab.waitForSelector(signedIn ? '[data-me-tab="profile"]' : '[data-auth-login]');
             const scene = `karta Hra ${viewport.width}×${viewport.height}`;
             await check(tab, scene, scheme);
-            const size = await tab.evaluate(() => { const box = document.querySelector('#settings-overlay > div'); return { over: box.scrollHeight - box.clientHeight, switches: [...box.querySelectorAll('[role="switch"]')].map(el => el.getAttribute('aria-checked')) }; });
+            const size = await tab.evaluate(() => { const box = document.querySelector('#settings-overlay > div'); return { over: box.scrollHeight - box.clientHeight, switches: [...box.querySelectorAll('[role="switch"]:not([data-push-toggle])')].map(el => el.getAttribute('aria-checked')) }; });
             assert.ok(size.over <= limit, `${scheme} / ${scene}: posun ${size.over} px (nejvýš ${limit})`);
             assert.deepEqual(size.switches, ['true', 'false', 'true', 'true'], 'procvičování (zapnuté), tipy (v testu vypnuté), zvuky a vibrace (zapnuté) jako přepínače');
             assert.deepEqual(problems, [], 'bez chyb v konzoli a bez porušení CSP');
@@ -389,9 +387,9 @@ test('rozhraní na úzkém telefonu', { skip: !chromium && 'Playwright není nai
         });
     }
 
-    // Nastavení přihlášeného hráče: čtyři záložky (Hra, Profil, Vzhled, Mudrlant) se na 360 px vejdou celé, bez „Mudrlan“
+    // Nastavení přihlášeného hráče: tři záložky (Hra, Profil, Mudrlant) s ikonami se na 360 px vejdou celé, bez „Mudrlan“
     for (const scheme of ['light', 'dark']) {
-        await t.test(`nastavení přihlášeného hráče: čtyři záložky (${scheme})`, async () => {
+        await t.test(`nastavení přihlášeného hráče: tři záložky (${scheme})`, async () => {
             const { context, tab, problems } = await open(scheme, { signedIn: true });
             await tab.click('#btn-settings');
             await tab.waitForSelector('[data-me-tab="profile"]');
@@ -399,10 +397,10 @@ test('rozhraní na úzkém telefonu', { skip: !chromium && 'Playwright není nai
                 const list = document.querySelector('#settings-overlay [role="tablist"]');
                 return { list: [list.scrollWidth, list.clientWidth], tabs: [...list.querySelectorAll('[data-me-tab]')].map(el => ({ text: el.textContent.trim(), scroll: el.scrollWidth, client: el.clientWidth, width: el.getBoundingClientRect().width })) };
             });
-            assert.deepEqual(tabs.tabs.map(item => item.text), ['Hra', 'Profil', 'Vzhled', 'Mudrlant']);
+            assert.deepEqual(tabs.tabs.map(item => item.text), ['Hra', 'Profil', 'Mudrlant']);
             assert.ok(tabs.list[0] <= tabs.list[1] + 1, `${scheme}: pás záložek přetéká (${tabs.list[0]} > ${tabs.list[1]})`);
             for (const item of tabs.tabs) assert.ok(item.scroll <= item.client + 1 && item.width >= 44, `${scheme}: záložka ${item.text} uříznutá nebo malá (${item.scroll} > ${item.client}, šířka ${item.width})`);
-            for (const id of ['game', 'profile', 'look', 'owl']) {
+            for (const id of ['game', 'profile', 'owl']) {
                 await tab.click(`[data-me-tab="${id}"]`);
                 await check(tab, `nastavení přihlášeného – ${id}`, scheme);
             }

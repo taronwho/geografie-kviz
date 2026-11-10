@@ -1,6 +1,7 @@
-// Odměny a vzhled: katalog odměn (barevná témata, barva obleku sovy, rámečky profilu, obrázky hráče, titul u jména),
-// jejich odemykání podle úrovně nebo odznaku a uložené volby hráče. Samotné části (výběry a jejich vykreslení) se do okna
-// Nastavení → Vzhled přidávají z vlastních souborů přes Look.register(...): look-themes.js, look-robes.js, look-frames.js.
+// Odměny a vzhled: katalog odměn (barevná témata, barva obleku sovy, rámečky profilu, postavičky jako obrázek hráče, titul u jména),
+// jejich odemykání podle úrovně nebo odznaku a uložené volby hráče. Samotné části (výběry a jejich vykreslení) se do záložek
+// Nastavení (Hra, Profil, Mudrlant; vlastnost tab) přidávají z vlastních souborů přes Look.register(...): look-themes.js,
+// look-robes.js, look-frames.js, look-owl.js.
 (function (root, factory) {
     const isNode = typeof module === 'object' && module.exports;
     // Vlajky států pro vlaječku (look-flags.js) a stupně sov titulů (quiz-core.js); v prohlížeči se oba načítají před tímto souborem
@@ -42,18 +43,46 @@
         { id: 'medailista', title: 'Medailista turnaje', badge: 'turnaj-bronz' },
         { id: 'mistr-turnaje', title: 'Mistr turnaje', badge: 'turnaj-zlato' }
     ];
-    // Další obrázky hráče (k emoji ze social.js AVATARS), odemykané úrovní
+    // Postavičky: obrázky hráče za odměny (k základním emoji ze social.js AVATARS, ta jsou zdarma). Obrázek icons/avatars/<id>.webp
+    // a přes něj vrstvy přebarvených částí icons/avatars/<id>-<část><barva>.webp (scripts/avatar-icons.py; části v pořadí parts = čísla 1, 2,
+    // barvy = AVATAR_COLORS). Každá se odemyká stejně jako emoji, které nahradila (was): uložené staré emoji se ukáže jako postavička
+    // a při uložení profilu se zapíše její id. Položka bez parts je zatím emoji (nemá obrázek); až ho dostane, stačí ji v řádku
+    // nahradit postavičkou s was: '💯'. Postavička je id z malých písmen (nejvýš 6 znaků, databáze pustí 1–8 znaků celkem).
+    // colors = čísla barev (AVATAR_COLORS), které výběr u každé části nabídne (barvy moc blízko původní jsou vynechané); uložená
+    // jiná barva 1–9 se přesto vykreslí (vrstva existuje pro všechny).
+    const ALL = [1, 2, 3, 4, 5, 6, 7, 8, 9];
     const AVATARS = [
-        { id: '🦅', title: 'Orel', level: 3 }, { id: '🐺', title: 'Vlk', level: 8 }, { id: '🦈', title: 'Žralok', level: 13 },
-        { id: '🐉', title: 'Drak', level: 20 }, { id: '🦖', title: 'T-Rex', level: 28 }, { id: '🦚', title: 'Páv', level: 36 },
-        { id: '🦩', title: 'Plameňák', level: 44 }, { id: '🐅', title: 'Tygr', level: 55 }, { id: '🦁', title: 'Lev', level: 65 },
-        { id: '👑', title: 'Koruna', level: 80 },
-        { id: '🏅', title: 'Turnajový hráč', badge: 'turnaj-ucast' }, { id: '🥉', title: 'Bronz z turnaje', badge: 'turnaj-bronz' },
-        { id: '🥈', title: 'Stříbro z turnaje', badge: 'turnaj-stribro' }, { id: '🏆', title: 'Mistr turnaje', badge: 'turnaj-zlato' },
+        { id: 'cervik', title: 'Knihomol', level: 3, was: '🦅', parts: ['Kniha', 'Červík'], colors: [[2, 3, 4, 5, 6, 7, 9], [1, 2, 4, 5, 6, 7, 8, 9]] },
+        { id: 'axolot', title: 'Axolotl kosmonaut', level: 8, was: '🐺', parts: ['Axolotl', 'Skafandr'], colors: [[2, 3, 4, 5, 6, 7, 9], [1, 2, 3, 4, 6, 7, 8, 9]] },
+        { id: 'kaktus', title: 'Kaktus detektiv', level: 13, was: '🦈', parts: ['Klobouk', 'Květináč'], colors: [[3, 4, 5, 6, 7, 8, 9], [3, 4, 5, 6, 7, 8, 9]] },
+        { id: 'drak', title: 'Drak čajník', level: 20, was: '🐉', parts: ['Dráček', 'Krunýř'], colors: [[1, 2, 3, 4, 5, 6, 8, 9], [3, 4, 5, 6, 7, 8, 9]] },
+        { id: 'mamut', title: 'Mamut DJ', level: 28, was: '🦖', parts: ['Sluchátka', 'Srst'], colors: [[1, 2, 3, 4, 6, 7, 8, 9], [4, 5, 6, 7, 8, 9]] },
+        { id: 'meduza', title: 'Disko medúza', level: 36, was: '🦚', parts: ['Koule'], colors: [ALL] },
+        { id: 'lenoch', title: 'Lenochod kouzelník', level: 44, was: '🦩', parts: ['Klobouk', 'Měsíc'], colors: [[1, 2, 3, 4, 5, 6, 7, 8], [1, 4, 5, 6, 7, 8, 9]] },
+        { id: 'tukan', title: 'Robotukan', level: 55, was: '🐅', parts: ['Zobák', 'Kytička'], colors: [[1, 4, 5, 6, 7, 8, 9], [1, 4, 5, 6, 7, 8, 9]] },
+        { id: 'lev', title: 'Galaktický lev', level: 65, was: '🦁', parts: ['Hříva'], colors: [ALL] },
+        { id: 'fenix', title: 'Fénix učenec', level: 80, was: '👑', parts: ['Peří'], colors: [[3, 4, 5, 6, 7, 8, 9]] },
+        { id: 'krecek', title: 'Křeček boxer', badge: 'turnaj-ucast', was: '🏅', parts: ['Rukavice', 'Čelenka'], colors: [[3, 4, 5, 6, 7, 8, 9], ALL] },
+        { id: 'rytir', title: 'Pásovec rytíř', badge: 'turnaj-bronz', was: '🥉', parts: ['Chochol', 'Brnění'], colors: [[1, 2, 3, 4, 6, 7, 8, 9], [3, 4, 5, 6, 7, 8, 9]] },
+        { id: 'narval', title: 'Narval šermíř', badge: 'turnaj-stribro', was: '🥈', parts: ['Narval', 'Dres'], colors: [[1, 2, 3, 4, 7, 8, 9], ALL] },
+        { id: 'zelva', title: 'Želva šampion', badge: 'turnaj-zlato', was: '🏆', parts: ['Plášť', 'Pohár'], colors: [[1, 2, 3, 4, 5, 6, 8, 9], [1, 4, 5, 6, 7, 8, 9]] },
         // Odznaky Kvízu dne, Bleskovky, Přežití a otázek Ukaž na mapě, Odhadni a Seřaď
-        { id: '⏱️', title: 'Stopky', badge: 'kviz-tyden' }, { id: '💯', title: 'Stovka', badge: 'kviz-perfekt' },
-        { id: '⚡', title: 'Blesk', badge: 'bleskovka-16' }, { id: '🐻', title: 'Medvěd', badge: 'preziti-20' },
-        { id: '🗺️', title: 'Mapa', badge: 'mapa-25' }, { id: '🎯', title: 'Terč', badge: 'odhad-25' }, { id: '🧩', title: 'Skládačka', badge: 'serad-25' }
+        { id: 'hodiny', title: 'Utíkající přesýpačky', badge: 'kviz-tyden', was: '⏱️', parts: ['Tenisky', 'Písek'], colors: [[2, 3, 4, 5, 6, 7, 9], [1, 4, 5, 6, 7, 8, 9]] },
+        { id: '💯', title: 'Stovka', badge: 'kviz-perfekt' }, // Chameleon (chamel) zatím nemá obrázek
+        { id: 'gepard', title: 'Bleskový gepard', badge: 'bleskovka-16', was: '⚡', parts: ['Gepard', 'Čelenka a tenisky'], colors: [[1, 2, 3, 4, 7, 8, 9], [1, 4, 5, 6, 7, 8, 9]] },
+        { id: 'zelvus', title: 'Želvušek v brnění', badge: 'preziti-20', was: '🐻', parts: ['Tělo', 'Srdíčka'], colors: [[3, 4, 5, 6, 7, 8, 9], [2, 3, 4, 5, 6, 7, 9]] },
+        { id: 'tucnak', title: 'Tučňák badatel', badge: 'mapa-25', was: '🗺️', parts: ['Helma'], colors: [[1, 4, 5, 6, 7, 8, 9]] },
+        { id: 'zabak', title: 'Žabí lučištník', badge: 'odhad-25', was: '🎯', parts: ['Žabák', 'Terč'], colors: [[1, 2, 3, 5, 6, 7, 8, 9], [3, 4, 5, 6, 7, 8, 9]] },
+        { id: 'myval', title: 'Mýval knihovník', badge: 'serad-25', was: '🧩', parts: ['Knihy'], colors: [ALL] }
+    ];
+    // Barvy částí postaviček (číslo = číslice v uloženém obrázku, 0 = původní barva; pořadí = PALETTE ve scripts/avatar-icons.py).
+    // Všechny jsou k dispozici, jakmile je postavička odemčená. Třída dot je vzorek barvy (vypsaná celá, ať ji Tailwind najde).
+    const AVATAR_COLORS = [
+        { id: 1, title: 'Červená', hex: '#db2c3a', dot: 'bg-[#db2c3a]' }, { id: 2, title: 'Oranžová', hex: '#f57e22', dot: 'bg-[#f57e22]' },
+        { id: 3, title: 'Žlutá', hex: '#fad325', dot: 'bg-[#fad325]' }, { id: 4, title: 'Zelená', hex: '#3cbd4d', dot: 'bg-[#3cbd4d]' },
+        { id: 5, title: 'Tyrkysová', hex: '#31ccc7', dot: 'bg-[#31ccc7]' }, { id: 6, title: 'Modrá', hex: '#3a77e0', dot: 'bg-[#3a77e0]' },
+        { id: 7, title: 'Fialová', hex: '#9556cc', dot: 'bg-[#9556cc]' }, { id: 8, title: 'Růžová', hex: '#f576b9', dot: 'bg-[#f576b9]' },
+        { id: 9, title: 'Černá', hex: '#3f424c', dot: 'bg-[#3f424c] dark:ring-1 dark:ring-white/40' }
     ];
     // Doplňky sovy: každý patří do jednoho místa (slot), v každém místě je nejvýš jeden; ke každému hráč zvolí barvu
     const SLOTS = [
@@ -136,6 +165,42 @@
     const categoryOf = (item) => CATEGORY_OF.get(item) || null;
     const find = (category, id) => (CATALOG[category] || []).find(item => item.id === id) || null;
 
+    // --- Postavičky: uložený obrázek '<id><barva části 1><barva části 2>' (číslice 0–9, 0 = původní, koncové nuly se nepíšou):
+    // 'krecek' (původní), 'krecek3' (žluté rukavice), 'krecek05' (tyrkysová čelenka). Kontroluje se přísně: známé id, nejvýš tolik číslic,
+    // kolik má postavička částí. Cokoli jiného není postavička (aplikace to ukáže jako text, stejně jako emoji).
+    const CHARACTER_CODE = /^([a-z]{1,6})([0-9]{0,2})$/;
+    const characterItem = (id) => { const item = find('avatars', id); return item && item.parts ? item : null; };
+    // Staré emoji odměny → id postavičky, která ho nahradila (i bez neviditelného výběru varianty U+FE0F, např. '⏱' i '⏱️')
+    const LEGACY_AVATARS = new Map(AVATARS.filter(item => item.was).flatMap(item => [[item.was, item.id], [item.was.replace(/️/g, ''), item.id]]));
+    const migrateAvatar = (value) => (typeof value === 'string' && LEGACY_AVATARS.has(value) ? LEGACY_AVATARS.get(value) : value);
+    // { item, colors: [barva každé části] } nebo null; staré emoji odměny se tu nepřevádí (to dělá avatarPicture / avatarCode)
+    const parseAvatar = (value) => {
+        const match = typeof value === 'string' ? CHARACTER_CODE.exec(value) : null;
+        const item = match ? characterItem(match[1]) : null;
+        if (!item || match[2].length > item.parts.length) return null;
+        return { item, colors: item.parts.map((part, index) => Number(match[2][index] || 0)) };
+    };
+    // Zápis postavičky s barvami částí (neznámá barva = původní); neznámé id = null
+    const formatAvatar = (id, colors = []) => {
+        const item = characterItem(id);
+        if (!item) return null;
+        const digits = item.parts.map((part, index) => { const color = Number(colors[index]); return Number.isInteger(color) && color >= 0 && color <= 9 ? color : 0; }).join('');
+        return `${item.id}${digits.replace(/0+$/, '')}`;
+    };
+    // Uložitelný zápis postavičky (i ze starého emoji odměny), jinak null
+    const avatarCode = (value) => { const parsed = parseAvatar(migrateAvatar(value)); return parsed ? formatAvatar(parsed.item.id, parsed.colors) : null; };
+    // Obrázky k vykreslení: { item, colors, base, layers: [adresy vrstev přebarvených částí] } nebo null (není postavička)
+    const avatarPicture = (value) => {
+        const parsed = parseAvatar(migrateAvatar(value));
+        if (!parsed) return null;
+        const { item, colors } = parsed;
+        return { item, colors, base: `icons/avatars/${item.id}.webp`, layers: colors.map((color, index) => (color ? `icons/avatars/${item.id}-${index + 1}${color}.webp` : null)).filter(Boolean) };
+    };
+    // Barvy, které výběr u části nabídne (čísla AVATAR_COLORS); bez seznamu všechny
+    const partColors = (item, part) => AVATAR_COLORS.filter(color => !item || !item.colors || !item.colors[part - 1] || item.colors[part - 1].includes(color.id));
+    // Položka katalogu odměn k uloženému obrázku (postavička s libovolnými barvami, staré emoji, emoji bez obrázku), jinak null
+    const avatarItem = (value) => { const parsed = parseAvatar(migrateAvatar(value)); return parsed ? parsed.item : find('avatars', value); };
+
     // --- Uložené volby ---
     const readRaw = () => { try { return JSON.parse(root.localStorage.getItem(KEY)); } catch (e) { return null; } };
     // Neplatná nebo nedostupná volba se nahradí výchozí; titul 'level' (podle úrovně), 'none' nebo id odznaku
@@ -179,7 +244,8 @@
     };
     const onChange = (listener) => { listeners.add(listener); return () => listeners.delete(listener); };
 
-    // --- Části okna Vzhled: register({ id, title, order, render(ctx) → html, click(event, ctx) → true když klepnutí zpracovala, apply(prefs) }) ---
+    // --- Části záložek Nastavení: register({ id, tab: 'game' | 'profile' | 'owl', title, order, render(ctx) → html, click(event, ctx) → true když klepnutí zpracovala,
+    // change(event, ctx), apply(prefs); vzhled: noTitle (nadpis si kreslí sama), card: false (bez bílé karty), bleed, tight }) ---
     const register = (section) => { sections.push(section); sections.sort((a, b) => (a.order || 0) - (b.order || 0)); };
     const getSections = () => sections.slice();
     // Při startu a po každé změně dostane každá část volby (aplikuje třeba barvy)
@@ -202,7 +268,12 @@
         return result;
     };
     // Jak se druh odměny jmenuje v textech pro hráče
-    const REWARD_KINDS = { themes: 'barevné téma', robes: 'talár Mudrlanta', frames: 'rámeček', avatars: 'obrázek hráče', accessories: 'doplněk Mudrlanta', colors: 'barva doplňků' };
+    const REWARD_KINDS = { themes: 'barevné téma', robes: 'talár Mudrlanta', frames: 'rámeček', avatars: 'profilový obrázek', accessories: 'doplněk Mudrlanta', colors: 'barva doplňků' };
+    // Kde v Nastavení se odměna vybírá (záložka): téma ve Hře, rámeček a obrázek v Profilu, oblek, doplňky a jejich barvy u Mudrlanta
+    const SETTINGS_TAB = { themes: 'game', frames: 'profile', avatars: 'profile', robes: 'owl', accessories: 'owl', colors: 'owl' };
+    const TAB_TITLES = { game: 'Hra', profile: 'Profil', owl: 'Mudrlant' };
+    const settingsTab = (category) => SETTINGS_TAB[category] || 'owl';
+    const settingsPlace = (category) => `Nastavení → ${TAB_TITLES[settingsTab(category)]}`;
     // Odměny, které odemkne konkrétní odznak: [{ category, item }] (prázdné, když odznak dává jen slávu)
     const rewardsForBadge = (badgeId) => Object.entries(CATALOG).flatMap(([category, items]) => items.filter(item => item.badge === badgeId).map(item => ({ category, item })));
     // Věta o odměně za odznak: „Odměna: Kompas (doplněk Mudrlanta)“; odznak bez věci (jen pro slávu) dá prázdný text a řádek se vynechá
@@ -213,5 +284,6 @@
     // Odměny odemknuté na dané úrovni (pro přehled úrovní)
     const rewardsAtLevel = (level) => Object.entries(CATALOG).flatMap(([category, items]) => items.filter(item => !item.badge && item.level === level).map(item => ({ category, item })));
 
-    return { setGifts, isGift: (item) => isGift(item, giftState), categoryOf, CATALOG, THEMES, ROBES, FRAMES, AVATARS, ACCESSORIES, SLOTS, ACC_COLORS, POSES, findPose, customHue, colorOk, flagOk, DEFAULTS, isUnlocked, unlockText, find, normalize, prefs, setPref, onChange, register, getSections, apply, newRewards, rewardsAtLevel, REWARD_KINDS, rewardsForBadge, badgeRewardText };
+    return { setGifts, isGift: (item) => isGift(item, giftState), categoryOf, CATALOG, THEMES, ROBES, FRAMES, AVATARS, AVATAR_COLORS, ACCESSORIES, SLOTS, ACC_COLORS, POSES, findPose, customHue, colorOk, flagOk, DEFAULTS, isUnlocked, unlockText, find, normalize, prefs, setPref, onChange, register, getSections, apply, newRewards, rewardsAtLevel, REWARD_KINDS, settingsTab, settingsPlace, rewardsForBadge, badgeRewardText,
+        migrateAvatar, parseAvatar, formatAvatar, avatarCode, avatarPicture, avatarItem, partColors };
 });

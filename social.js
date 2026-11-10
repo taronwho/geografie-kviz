@@ -9,8 +9,19 @@
     // Obrázek profilu: emoji a barva (bez nahrávání fotek – bez moderace a bez cizích adres v CSP)
     // Základní obrázky (pro každého); další se odemykají úrovní (MudrlantLook.AVATARS, look.js se načítá až po tomto souboru, proto se čte až při použití)
     const AVATARS = ['🦊', '🐼', '🐸', '🦉', '🐙', '🦄', '🐯', '🐵', '🐨', '🐧', '🦋', '🐢', '🐬', '🐝', '🦔', '🐳', '🐰', '🐱', '🐶', '🦦'];
-    const unlockableAvatars = () => { const look = root.MudrlantLook || globalThis.MudrlantLook; return look && look.AVATARS ? look.AVATARS.map(item => item.id) : []; };
+    const lookModule = () => root.MudrlantLook || globalThis.MudrlantLook || null;
+    const unlockableAvatars = () => { const look = lookModule(); return look && look.AVATARS ? look.AVATARS.map(item => item.id) : []; };
     const allAvatars = () => [...AVATARS, ...unlockableAvatars().filter(id => !AVATARS.includes(id))];
+    // Obrázek k uložení: základní emoji, odměna z katalogu, nebo postavička s barvami částí ('krecek3', přísně podle look.js);
+    // staré emoji odměny se zapíše jako postavička, která ho nahradila. Cokoli jiného se neuloží (místo toho základní liška).
+    const cleanAvatar = (avatar) => {
+        const look = lookModule();
+        if (typeof avatar !== 'string') return AVATARS[0];
+        if (AVATARS.includes(avatar)) return avatar;
+        const code = look && look.avatarCode ? look.avatarCode(avatar) : null;
+        if (code) return code;
+        return unlockableAvatars().includes(avatar) ? avatar : AVATARS[0];
+    };
     const COLORS = ['emerald', 'sky', 'violet', 'rose', 'amber', 'teal', 'orange', 'indigo', 'cerna'];
     const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
     const COUNTS = [5, 10, 15];
@@ -124,7 +135,7 @@
         }
     };
     const saveProfile = async (userId, { name, avatar, color, owl }) => {
-        const patch = { display_name: cleanName(name), avatar: allAvatars().includes(avatar) ? avatar : AVATARS[0], color: cleanColor(color) };
+        const patch = { display_name: cleanName(name), avatar: cleanAvatar(avatar), color: cleanColor(color) };
         // Sova (sloupec owl) je v pozdější verzi schématu: nejdřív s ní, při 400 (sloupec chybí) bez ní; obrázek avatar zůstává jako záloha
         const cleanedOwl = cleanOwl(owl);
         if (cleanedOwl) patch.avatar = AVATARS.includes('🦉') ? '🦉' : patch.avatar;
@@ -873,7 +884,7 @@
         return true;
     });
 
-    return { AVATARS, allAvatars, cleanColor, customHue, nearestColor, cleanFrame, cleanOwl, saveOwl, cleanTitlePref, saveLook, COLORS, COUNTS, NAME_MAX, SocialError, cleanName, isValidName, newCode, parseCode, getProfile, saveProfile, createChallenge, getChallenge, getResults, submitResult, myChallenges, searchPlayers, randomOpponent, incomingChallenges, playerStats, getProgress, saveProgress, getRating, getRatingChange, weeklyLeaderboard, getAccepts, saveAccepts,
+    return { AVATARS, allAvatars, cleanAvatar, cleanColor, customHue, nearestColor, cleanFrame, cleanOwl, saveOwl, cleanTitlePref, saveLook, COLORS, COUNTS, NAME_MAX, SocialError, cleanName, isValidName, newCode, parseCode, getProfile, saveProfile, createChallenge, getChallenge, getResults, submitResult, myChallenges, searchPlayers, randomOpponent, incomingChallenges, playerStats, getProgress, saveProgress, getRating, getRatingChange, weeklyLeaderboard, getAccepts, saveAccepts,
         tournamentTick, getTournaments, tournamentArchive, ARCHIVE_PAGE, inTournament, devTournament, devClientErrors, isDevAdmin, schemaVersion, reportQuestion, getQuestionReports, deleteQuestionReport, exportMyData, deleteMyAccount, getTournamentEntries, getTournamentMatches, joinTournament, leaveTournament, startTournamentMatch, finishTournamentMatch, myTournamentStats, tournamentNotices, tournamentNoticesSeen,
         challengeProgress, saveChallengeProgress, tournamentAnswers, saveTournamentAnswer, claimTournamentXp, cleanAnswerLabel,
         // Rozpis otázek (schéma 10)

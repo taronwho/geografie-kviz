@@ -48,7 +48,7 @@ const open = async (browser, { level, storage = {} }) => {
 };
 const openLook = async (tab) => {
     await tab.click('#btn-settings');
-    await tab.click('[data-me-tab="look"]');
+    await tab.click('[data-me-tab="owl"]');
     await tab.waitForSelector('[data-robe-pick]');
 };
 const owlSources = (tab) => tab.evaluate(() => [...document.querySelectorAll('img:not([data-keep])')].map(img => img.getAttribute('src')).filter(src => /^icons\/(logo|topics\/sova-)/.test(src)));

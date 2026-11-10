@@ -358,7 +358,7 @@ test('Bleskovka, Přežití, zvuky a vibrace', { skip: !chromium && 'Playwright 
     }
 
     await t.test('Nastavení → Hra: Zvuky a Vibrace (výchozí zapnuté), volba se pamatuje, vypnuté zvuky mlčí; karta se vejde', async () => {
-        for (const [viewport, colorScheme, limit] of [[{ width: 390, height: 780 }, 'light', 0], [{ width: 360, height: 640 }, 'dark', 47]]) {
+        for (const [viewport, colorScheme, limit] of [[{ width: 390, height: 780 }, 'light', 0], [{ width: 360, height: 640 }, 'dark', 0]]) {
             const { context, tab, problems } = await open({ viewport, colorScheme });
             await tab.click('#btn-settings');
             await tab.waitForSelector('[data-sound-toggle]');
@@ -366,8 +366,9 @@ test('Bleskovka, Přežití, zvuky a vibrace', { skip: !chromium && 'Playwright 
             assert.equal(await tab.getAttribute('[data-vibration-toggle]', 'aria-checked'), 'true');
             assert.equal(await tab.getAttribute('[data-sound-toggle]', 'role'), 'switch');
             const sizes = await tab.evaluate(() => [...document.querySelectorAll('[data-sound-toggle], [data-vibration-toggle]')].map(el => { const r = el.getBoundingClientRect(); return Math.min(r.width, r.height); }));
-            for (const size of sizes) assert.ok(size >= 44, `přepínač ${size} px`);
-            // Karta Hra: host na 360×640 se neposouvá víc než před přidáním přepínačů (47 px), na 390×780 vůbec
+            // Řádek přepínače: 44 px, na nízkém displeji (360×640) 40 px, ať se karta Hra vejde bez posouvání
+            for (const size of sizes) assert.ok(size >= (viewport.height > 770 ? 44 : 40), `přepínač ${size} px`);
+            // Karta Hra se neposouvá na 390×780 ani na 360×640 (host)
             const over = await tab.evaluate(() => { const box = document.querySelector('#settings-overlay > div'); return box.scrollHeight - box.clientHeight; });
             assert.ok(over <= limit, `karta Hra ${viewport.width}×${viewport.height}: posun ${over} px (nejvýš ${limit})`);
             await shot(tab, `nastaveni-zvuky-${viewport.width}-${colorScheme}`);

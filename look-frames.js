@@ -1,5 +1,5 @@
-// Vzhled: rámečky profilu kolem obrázku hráče (CSS třídy .frame-* v src/input.css) a titul u jména (úroveň, nic, nebo získaný odznak).
-// Obrázky hráče (odemykatelná emoji) se vybírají v záložce Profil (app.js), jejich katalog je v look.js. Používá MudrlantLook (look.js).
+// Nastavení → Profil: rámečky profilu kolem obrázku hráče (CSS třídy .frame-* v src/input.css) a titul u jména (úroveň, nic, nebo
+// získaný odznak). Obrázky hráče (postavičky a emoji) vybírá Profil sám (app.js), jejich katalog je v look.js. Používá MudrlantLook (look.js).
 (function (root, factory) {
     const isNode = typeof module === 'object' && module.exports;
     const api = factory(root.MudrlantLook || (isNode ? require('./look.js') : null), root.MudrlantCore || (isNode ? require('./quiz-core.js') : null));
@@ -7,6 +7,7 @@
     else root.MudrlantLookFrames = api;
 })(typeof self !== 'undefined' ? self : this, (Look, Core) => {
     'use strict';
+    const HEADING = 'text-[11px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400';
     const SHORT = { zadny: 'Bez', bronz: 'Bronz', stribro: 'Stříbro', zlato: 'Zlato', vavrin: 'Vavřín', plamen: 'Plamen', diamant: 'Diamant', medailista: 'Medaile', 'mistr-turnaje': 'Mistr' };
     const escapeHtml = (text) => Core && Core.escapeHtml ? Core.escapeHtml(text) : String(text).replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
 
@@ -21,7 +22,7 @@
         const ids = [...earnedIds];
         if (current && current !== 'level' && current !== 'none' && !ids.includes(current)) ids.push(current);
         return [
-            { value: 'level', label: `Úroveň a titul (Úr. ${level} · ${levelTitle})` },
+            { value: 'level', label: `Úr. ${level} · ${levelTitle}` },
             { value: 'none', label: 'Nic' },
             ...ids.map(id => ({ value: id, label: badgeTitle(id) || id, badge: true }))
         ];
@@ -46,9 +47,10 @@
             </button>`;
         }).join('');
         const shown = hint || frameHint(Look.find('frames', selected), ctx, badgeTitle);
-        // Jedna řada (Vzhled se vejde bez posouvání); na úzkém displeji se řada posouvá do strany, ne celé okno
-        return `<div class="-mx-0.5 flex w-full min-w-0 snap-x gap-1 overflow-x-auto px-0.5 pb-0.5 [scrollbar-width:none]" role="group" aria-label="Rámeček profilu">${tiles}</div>
-            <p class="mt-1 text-[11px] leading-snug text-slate-500 dark:text-slate-400" role="status">${escapeHtml(shown)}${ctx.user ? '' : ' · uvidí ho hráči po přihlášení'}</p>`;
+        // Nadpis s vybraným rámečkem (nebo jak se odemkne zamčený) a jedna řada (Profil se vejde bez posouvání); na úzkém displeji
+        // se řada posouvá do strany, ne celé okno
+        return `<div class="mb-1 flex flex-wrap items-baseline justify-between gap-x-2"><h3 class="${HEADING}">Rámeček profilu</h3><p class="min-w-0 text-right text-[11px] font-bold leading-snug ${hint ? 'text-brand-700 dark:text-brand-300' : 'text-slate-600 dark:text-slate-300'}" role="status">${escapeHtml(shown)}</p></div>
+            <div class="-mx-0.5 flex w-full min-w-0 snap-x gap-1 overflow-x-auto px-0.5 pb-0.5 [scrollbar-width:none]" role="group" aria-label="Rámeček profilu">${tiles}</div>`;
     };
     const clickFrames = (event, ctx) => {
         const button = event.target.closest('[data-frame]');
@@ -71,9 +73,10 @@
             level: ctx.level, levelTitle: Core && Core.titleForLevel ? Core.titleForLevel(ctx.level) : '', earnedIds: earnedBadgeIds(ctx), current: ctx.prefs.title, badgeTitle
         });
         const optionHtml = (option) => `<option value="${escapeHtml(option.value)}"${option.value === ctx.prefs.title ? ' selected' : ''}>${escapeHtml(option.label)}</option>`;
-        return `<label class="block">
-                <span class="sr-only">Co se zobrazí u tvého jména</span>
-                <select data-title-select class="min-h-[2.5rem] w-full rounded-xl border-2 border-slate-200 bg-white px-3 py-1.5 text-sm font-bold text-slate-800 focus:border-brand-600 focus:outline-none dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100">
+        // Popisek vlevo, výběr vedle (jeden řádek); první možnost ukazuje přesně to, co bude u jména
+        return `<label class="flex items-center gap-2">
+                <span class="${HEADING} shrink-0">Titul u jména</span>
+                <select data-title-select aria-label="Titul u jména: co se zobrazí u tvého jména" class="min-h-[2.5rem] min-w-0 flex-1 rounded-xl border-2 border-slate-200 bg-white px-2.5 py-1.5 text-sm font-bold text-slate-800 focus:border-brand-600 focus:outline-none dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100">
                     ${optionHtml(options[0])}${optionHtml(options[1])}
                     ${options.length > 2 ? `<optgroup label="Získané odznaky">${options.slice(2).map(optionHtml).join('')}</optgroup>` : ''}
                 </select>
@@ -87,8 +90,8 @@
     };
 
     if (Look) {
-        Look.register({ id: 'frames', title: 'Rámeček profilu', order: 30, render: renderFrames, click: clickFrames, apply: () => {} });
-        Look.register({ id: 'title', title: 'Titul u jména', order: 40, render: renderTitle, click: () => false, change: changeTitle, apply: () => {} });
+        Look.register({ id: 'frames', tab: 'profile', title: 'Rámeček profilu', noTitle: true, order: 30, render: renderFrames, click: clickFrames, apply: () => {} });
+        Look.register({ id: 'title', tab: 'profile', title: 'Titul u jména', noTitle: true, card: false, order: 40, render: renderTitle, click: () => false, change: changeTitle, apply: () => {} });
     }
     return { frameClass, titleOptions, frameHint };
 });

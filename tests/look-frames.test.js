@@ -60,6 +60,6 @@ test('obrázky hráče: bez look.js jen základní, s ním i odemykatelné', () 
     try {
         const all = Social.allAvatars();
         assert.equal(all.length, Social.AVATARS.length + Look.AVATARS.length);
-        assert.ok(all.includes('🐉'));
+        assert.ok(all.includes('drak') && all.includes('💯') && !all.includes('🐉'));
     } finally { delete globalThis.MudrlantLook; }
 });

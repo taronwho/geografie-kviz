@@ -1,4 +1,4 @@
-// Test odměn ve Vzhledu v prohlížeči: rámečky profilu, titul u jména a zamčené obrázky hráče, s falešným Supabase v paměti.
+// Test odměn v Nastavení → Profil v prohlížeči: rámečky profilu, titul u jména a postavičky (zamčené, barvy částí, staré emoji), s falešným Supabase v paměti.
 // Potřebuje Playwright (viz tests/e2e.test.js), jinak se přeskočí.
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -104,11 +104,11 @@ const until = async (check, message) => {
 };
 const openLook = async (tab) => {
     await tab.click('#btn-settings');
-    await tab.click('[data-me-tab="look"]');
+    await tab.click('[data-me-tab="profile"]');
     await tab.waitForSelector('[data-frame="bronz"]');
 };
 
-test('odměny ve Vzhledu: rámečky, titul a obrázky hráče', { skip: !chromium && 'Playwright není nainstalovaný' }, async (t) => {
+test('odměny v Profilu: rámečky, titul a postavičky', { skip: !chromium && 'Playwright není nainstalovaný' }, async (t) => {
     const browser = await chromium.launch(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {});
     t.after(() => browser.close());
 
@@ -254,7 +254,7 @@ test('odměny ve Vzhledu: rámečky, titul a obrázky hráče', { skip: !chromiu
         await context.close();
     });
 
-    await t.test('obrázky hráče: zamčené jsou šedé s úrovní a nejdou vybrat, odemčený se uloží', async () => {
+    await t.test('postavičky: skupiny obrázků, zamčené šedé s úrovní, barva části se ukáže vrstvou a uloží', async () => {
         const db = newDb();
         const { context, tab, log } = await setup(browser, login('tok-u1'));
         await backend(context, db);
@@ -263,27 +263,90 @@ test('odměny ve Vzhledu: rámečky, titul a obrázky hráče', { skip: !chromiu
         await tab.click('#btn-settings');
         await tab.click('[data-me-tab="profile"]');
         await tab.waitForSelector('#profile-name');
-        // Úroveň 20: Orel (3), Vlk (8), Žralok (13) a Drak (20) jsou odemčené, T-Rex (28) ne
-        assert.equal(await tab.locator('[data-pick-avatar="🐉"]').count(), 1);
-        assert.equal(await tab.locator('[data-pick-avatar="🦖"]').count(), 0);
-        assert.match(await tab.getAttribute('[data-locked-avatar="🦖"]', 'aria-label'), /zamčený: Úroveň 28/);
-        assert.equal(await tab.getAttribute('[data-locked-avatar="🦖"]', 'title'), 'Úroveň 28');
-        assert.match(await tab.getAttribute('[data-locked-avatar="🦖"]', 'class'), /grayscale/);
-        assert.equal(await tab.locator('[data-pick-avatar], [data-locked-avatar]').count(), 41, '20 základních a 21 odemykaných (úroveň, turnaje, odznaky Kvízu dne, režimů a otázek)');
+        // Otevřená je skupina s vybraným obrázkem (liška = Zvířátka, 20 základních emoji zdarma)
+        assert.deepEqual(await tab.$$eval('[data-pic-group]', nodes => nodes.map(node => [node.textContent.trim(), node.getAttribute('aria-selected')])), [['Mudrlant', 'false'], ['Postavičky', 'false'], ['Zvířátka', 'true']]);
+        assert.equal(await tab.locator('[data-avatar-strip] > button').count(), 20);
+        assert.equal(await tab.getAttribute('[data-pick-avatar="🦊"]', 'aria-pressed'), 'true');
+        await tab.click('[data-pic-group="postavicky"]');
+        await tab.waitForSelector('[data-pic-group="postavicky"][aria-selected="true"]');
+        // Úroveň 20: Knihomol (3), Axolotl (8), Kaktus (13) a Drak čajník (20) jsou odemčené, Mamut DJ (28) ne; za odznaky (turnaje) zamčené s medailí
+        assert.equal(await tab.locator('[data-pick-avatar], [data-locked-avatar]').count(), 21, '20 postaviček a Stovka (zatím bez obrázku)');
+        assert.deepEqual(await tab.$$eval('[data-pick-avatar]', nodes => nodes.map(node => node.dataset.pickAvatar)), ['cervik', 'axolot', 'kaktus', 'drak']);
+        assert.equal(await tab.getAttribute('[data-locked-avatar="mamut"]', 'aria-label'), 'Mamut DJ (zamčeno): Úroveň 28');
+        assert.equal(await tab.getAttribute('[data-locked-avatar="mamut"]', 'title'), 'Mamut DJ: Úroveň 28');
+        assert.match(await tab.textContent('[data-locked-avatar="mamut"]'), /úr\.\s28/);
+        assert.equal(await tab.locator('[data-locked-avatar="mamut"] .grayscale img[src="icons/avatars/mamut.webp"]').count(), 1);
+        assert.match(await tab.getAttribute('[data-locked-avatar="krecek"]', 'title'), /^Křeček boxer: Odznak: /);
+        assert.equal(await tab.locator('[data-locked-avatar="krecek"] svg, [data-locked-avatar="krecek"] [data-lucide="medal"]').count(), 1, 'za odznak medaile místo úrovně');
         assert.equal(await tab.evaluate(() => { const box = document.querySelector('#settings-overlay > div'); return box.scrollHeight <= box.clientHeight; }), true, 'okno bez posouvání');
-        await tab.click('[data-locked-avatar="🦖"]', { force: true });
-        await tab.waitForFunction(() => /T-Rex se odemkne na úrovni 28/.test(document.getElementById('settings-note').textContent));
-        assert.equal(await tab.locator('[data-pick-avatar="🦖"]').count(), 0);
-        await tab.click('[data-pick-avatar="🐉"]');
+        await tab.waitForFunction(() => [...document.querySelectorAll('[data-avatar-strip] img')].every(img => img.complete && img.naturalWidth > 0));
+        // Zamčená se nevybere, jen řekne, jak se odemkne
+        await tab.click('[data-locked-avatar="mamut"]', { force: true });
+        await tab.waitForFunction(() => /Mamut DJ se odemkne na úrovni 28/.test(document.getElementById('settings-note').textContent));
+        assert.equal(await tab.locator('[data-pick-avatar="mamut"]').count(), 0);
+        // Odemčená: čipy barev (pozadí a dvě části), krunýř nabízí jen barvy dost odlišné od původní
+        await tab.click('[data-pick-avatar="drak"]');
+        await tab.waitForSelector('[data-pick-avatar="drak"][aria-pressed="true"]');
+        assert.deepEqual(await tab.$$eval('[data-color-target]', nodes => nodes.map(node => node.textContent.trim())), ['Pozadí', 'Dráček', 'Krunýř']);
+        assert.equal(await tab.locator('[data-pick-color="sky"]').count(), 1, 'nejdřív barvy pozadí');
+        await tab.click('[data-color-target="2"]');
+        assert.deepEqual(await tab.$$eval('[data-pick-part]', nodes => nodes.map(node => node.dataset.pickPart)), ['2:0', '2:3', '2:4', '2:5', '2:6', '2:7', '2:8', '2:9']);
+        assert.equal(await tab.getAttribute('[data-pick-part="2:0"]', 'aria-pressed'), 'true');
+        await tab.click('[data-pick-part="2:6"]');
+        await tab.waitForSelector('[data-pick-part="2:6"][aria-pressed="true"]');
+        // Náhled v hlavičce i na dlaždici: základní obrázek a vrstva modrého krunýře v jedné buňce
+        const header = await tab.$$eval('#settings-overlay [data-avatar-art] img', nodes => nodes.slice(0, 2).map(node => node.getAttribute('src')));
+        assert.deepEqual(header, ['icons/avatars/drak.webp', 'icons/avatars/drak-26.webp']);
+        assert.equal(await tab.locator('[data-pick-avatar="drak"] img[src="icons/avatars/drak-26.webp"]').count(), 1);
+        const stack = await tab.evaluate(() => { const [a, b] = [...document.querySelector('#settings-overlay [data-avatar-art]').children].map(img => img.getBoundingClientRect()); return [a.x === b.x && a.y === b.y && a.width === b.width, a.width]; });
+        assert.equal(stack[0], true, 'vrstva leží přesně na obrázku');
+        // Dráček v červené, pak zpět na původní
+        await tab.click('[data-color-target="1"]');
+        await tab.click('[data-pick-part="1:1"]');
+        await tab.waitForSelector('#settings-overlay [data-avatar-art] img[src="icons/avatars/drak-11.webp"]');
+        await tab.click('[data-pick-part="1:0"]');
+        await tab.waitForFunction(() => !document.querySelector('#settings-overlay [data-avatar-art] img[src="icons/avatars/drak-11.webp"]'));
+        // Nic se neuloží před Uložit; pak se zapíše kód postavičky s barvami (dráček původní, krunýř modrý)
+        assert.equal(db.profiles['u-1'].avatar, '🦊');
         await tab.click('[data-save-profile]');
         await tab.waitForFunction(() => /Uloženo/.test(document.getElementById('settings-overlay').textContent));
-        assert.equal(db.profiles['u-1'].avatar, '🐉');
+        assert.equal(db.profiles['u-1'].avatar, 'drak06');
         await tab.click('#settings-overlay [data-close]');
-        await tab.waitForFunction(() => document.getElementById('btn-settings').textContent.includes('🐉'));
+        await tab.waitForSelector('#btn-settings [data-avatar-art="drak"] img[src="icons/avatars/drak-26.webp"]');
+        assert.equal(await tab.evaluate(() => document.getElementById('btn-settings').textContent.trim()), '', 'v tlačítku je obrázek, ne text');
+        await tab.waitForFunction(() => [...document.querySelectorAll('#btn-settings img')].every(img => img.complete && img.naturalWidth > 0));
+        // Po novém otevření je Profil zase ve skupině Postavičky s vybraným drakem
+        await tab.click('#btn-settings');
+        await tab.waitForSelector('[data-pic-group="postavicky"][aria-selected="true"]');
+        assert.equal(await tab.getAttribute('[data-pick-avatar="drak"]', 'aria-pressed'), 'true');
         assert.deepEqual(log.errors, []);
+        assert.deepEqual(log.csp, []);
         await context.close();
     });
 
+    await t.test('staré emoji odměny: ukáže se jako postavička, která ho nahradila, a uložením se zapíše její id', async () => {
+        const db = newDb();
+        db.profiles['u-1'].avatar = '🐉';
+        db.profiles['u-2'].avatar = '🦁';
+        const { context, tab, log } = await setup(browser, login('tok-u1'));
+        await backend(context, db);
+        await tab.goto(`${ORIGIN}/`);
+        await waitForHome(tab);
+        await tab.waitForSelector('#btn-settings [data-avatar-art="drak"]');
+        // Cizí hráč se starým lvem (úroveň, kterou já nemám) se ukáže jako Galaktický lev
+        await tab.click('[data-action="home-tab"][data-tab="multi"]');
+        await tab.waitForSelector('#challenges-section [data-player-id="u-2"] [data-avatar-art="lev"] img[src="icons/avatars/lev.webp"]');
+        assert.doesNotMatch(await tab.textContent('#challenges-section [data-player-id="u-2"]'), /🦁/);
+        await tab.click('#btn-settings');
+        await tab.click('[data-me-tab="profile"]');
+        await tab.waitForSelector('[data-pic-group="postavicky"][aria-selected="true"]');
+        assert.equal(await tab.getAttribute('[data-pick-avatar="drak"]', 'aria-pressed'), 'true');
+        await tab.click('[data-save-profile]');
+        await tab.waitForFunction(() => /Uloženo/.test(document.getElementById('settings-overlay').textContent));
+        assert.equal(db.profiles['u-1'].avatar, 'drak');
+        assert.deepEqual(log.errors, []);
+        await context.close();
+    });
     await t.test('starší databáze bez sloupců frame a title_pref: nic nespadne, požadavky se zopakují bez nich', async () => {
         const db = newDb();
         const calls = [];
@@ -302,7 +365,7 @@ test('odměny ve Vzhledu: rámečky, titul a obrázky hráče', { skip: !chromiu
         assert.ok(!calls.some(call => call.includes('/challenges') && /frame/.test(call)));
         // Volba rámečku se uloží aspoň na zařízení, účet se nezmění a nic neselže
         await tab.click('#btn-settings');
-        await tab.click('[data-me-tab="look"]');
+        await tab.click('[data-me-tab="profile"]');
         await tab.click('[data-frame="bronz"]');
         await tab.waitForFunction(() => document.querySelector('[data-frame="bronz"]').getAttribute('aria-pressed') === 'true');
         await tab.waitForTimeout(300);
