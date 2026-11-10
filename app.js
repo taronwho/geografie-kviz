@@ -3877,7 +3877,7 @@
         return result;
     };
 
-    // Truhla Mudrlanta: okno přes celou obrazovku, klepnutím na truhlu (nebo Otevřít) se otevře; věc jde hned nasadit
+    // Truhla Mudrlanta: okno přes celou obrazovku, klepnutím na truhlu se otevře (animace v src/input.css, .chest-*); věc jde hned nasadit
     const closeChestOverlay = () => {
         const overlay = document.getElementById('chest-overlay');
         if (overlay) overlay.remove();
@@ -3903,8 +3903,10 @@
         overlay.setAttribute('role', 'dialog');
         overlay.setAttribute('aria-modal', 'true');
         overlay.setAttribute('aria-label', 'Truhla Mudrlanta');
-        overlay.className = 'chest-overlay fade-in fixed inset-0 z-[70] flex items-center justify-center p-4';
+        // Ukotvené shora (odsazení v .chest-overlay): po otevření truhla zůstane na místě a obsah přibude pod ní
+        overlay.className = 'chest-overlay fade-in fixed inset-0 z-[70] flex items-start justify-center overflow-y-auto px-4 pb-4';
         let opened = null;
+        let opening = false;
         const paint = () => {
             overlay.innerHTML = Rewards.chestHtml({ opened }, chestHelpers());
             renderIcons(overlay);
@@ -3912,6 +3914,8 @@
             if (focus) focus.focus({ preventScroll: true });
         };
         const reveal = () => {
+            // Okno zavřené během natřásání: truhla zůstane zavřená a čeká dál
+            if (!overlay.isConnected) return;
             const progress = loadProgress();
             const result = Rewards.openChest(loadRewards(), week, { level: levelProgress(progress.xp).level, badges: progress.badges });
             if (!result.opened) { overlay.remove(); return; }
@@ -3939,14 +3943,15 @@
                 return;
             }
             const go = event.target.closest('[data-chest-go]');
-            if (go && !opened && !go.disabled) {
-                // Krátké zatřesení, pak se víko otevře (při omezeném pohybu hned)
-                const box = overlay.querySelector('.chest-box');
+            if (go && !opened && !opening && !go.disabled) {
+                // Krátké natřesení, pak se víko otevře (při omezeném pohybu hned); další klepnutí už nic neudělají. Tlačítko se
+                // nevypíná, ať na něm zůstane fokus (Escape okno zavře i během natřásání)
+                opening = true;
+                const stage = overlay.querySelector('[data-chest-stage]');
                 const still = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-                overlay.querySelectorAll('[data-chest-go]').forEach(button => { button.disabled = true; });
-                if (still || !box) { reveal(); return; }
-                box.classList.add('chest-shake');
-                setTimeout(reveal, 450);
+                if (still || !stage) { reveal(); return; }
+                stage.classList.add('chest-shaking');
+                setTimeout(reveal, 350);
             }
         });
         overlay.addEventListener('keydown', (event) => { if (event.key === 'Escape') closeChestOverlay(); });

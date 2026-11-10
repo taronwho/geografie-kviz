@@ -11,8 +11,9 @@ root = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..')
 # a výšky: x0, y0, x1, y1) se odstraní vše, kam se od okraje dostane výplň bez přechodu přes krémový obrys nebo tmavě vínovou čáru
 GLOW = {'sova-titul-9': (0.52, 0.0, 0.92, 0.40)}
 # Samolepka s uzavřeným krémovým okrajem (sova-titul-11: kulatý odznak s tmavou galaxií): uvnitř okraje nic průhledné není
-# (tmavě modré nebe má skoro barvu pozadí, ale mezera to není) a vně okraje zmizí vše (jiskry se září vedle žezla)
-STICKER = {'sova-titul-11'}
+# (tmavě modré nebe má skoro barvu pozadí, ale mezera to není) a vně okraje zmizí vše (jiskry se září vedle žezla).
+# truhla-otevrena: jiskry kolem a světlo z mezery pod víkem by na světlém pozadí nechaly tmavé lemy; jiskry a záři kreslí CSS (.chest-*)
+STICKER = {'sova-titul-11', 'truhla-otevrena'}
 
 def cream_like(a, bg, cream, full):
     # Barva na přímce pozadí → krémový obrys (full=False: i přechod z pozadí do krémové, full=True: jen skoro krémová)
