@@ -1072,6 +1072,140 @@ Cartoon sticker character portrait in exactly the same art style as the attached
 Cartoon sticker character portrait in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole character. LEGENDARY edition: a heroic, supremely confident original character shown from the chest up, big expressive face looking at the viewer, ornate gold trim on its outfit, a dramatic golden rim light, a radiant aura burst in its signature color behind it (inside the sticker border) and a few floating sparkles, still readable as a tiny 40 px profile picture (simple bold shapes). Centered, filling about 88 % of the frame. Plain solid flat dark grey background, color #2d3034, outside the sticker. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, shading); do not draw the owl and do not copy any existing cartoon, game or movie character. Character: A powerful kangaroo champion athlete with a golden laurel wreath, a winner's gold medal on a ribbon and a flaming victory torch, sweatband on the forehead. Signature color: champion gold and orange. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
+## 12. Motivace: Sezóna Mudrlanta, série, ligové sezóny, album a vitrína
+
+Obrázky k novým odměnám. Funkce fungují i bez nich (dočasně se použijí stávající obrázky), po dodání je zapojím.
+
+### 133. `sezona.png` – Sezóna Mudrlanta (karta a okno cesty odměn)
+
+Přiložit: `branding/sova-original.jpg` (vzor stylu)
+
+```text
+Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole object. Single centered subject filling about 80 % of the frame with even empty space around it, readable even as a small 48 px icon (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow on the background, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, colors, shading); do not draw the owl and do not copy any existing cartoon or game artwork. Subject: A winding path of golden stepping stones climbing a small green hill, little colorful pennant flags along the way, and a glowing treasure chest with sparkles waiting at the top. Colors: gold, fresh green, teal and orange flags. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+### Měsíční doplňky – hlavní odměna sezóny (č. 134–145)
+
+Každý měsíc jeden exkluzivní doplněk Mudrlanta za poslední stupeň sezóny, jen v daném měsíci. Postup jako u ostatních doplňků (`scripts/owl-accessories.py`, viz `docs/DOPLNKY-TEMAT.md`): přiložit `branding/sova-original.jpg`, soubor `branding/doplnky/<id>.jpg`.
+
+#### 134. `cepice-zimni` – leden (hlava)
+
+```text
+Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same proportions, same colors, same outline style, same flat dark background. Do not redraw, move or recolor the owl. Only ADD the accessory described below, drawn in the same cartoon sticker style with the same thick dark outline and the same lighting, sitting naturally on the owl. The accessory should be mostly one dominant color (not wine red) so it can be recolored later. Do not add anything else. Accessory: A cozy knitted winter beanie in icy light blue with a big fluffy white pom-pom and a small white snowflake pattern, worn on the owl's head over its cap.
+```
+
+#### 135. `karneval` – únor (obličej)
+
+```text
+Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same proportions, same colors, same outline style, same flat dark background. Do not redraw, move or recolor the owl. Only ADD the accessory described below, drawn in the same cartoon sticker style with the same thick dark outline and the same lighting, sitting naturally on the owl. The accessory should be mostly one dominant color (not wine red) so it can be recolored later. Do not add anything else. Accessory: A shiny carnival eye mask in purple with small golden sequins and three colorful feathers on one side, worn over the owl's eyes (the monocle may be hidden under it).
+```
+
+#### 136. `jarni-venecek` – březen (hlava)
+
+```text
+Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same proportions, same colors, same outline style, same flat dark background. Do not redraw, move or recolor the owl. Only ADD the accessory described below, drawn in the same cartoon sticker style with the same thick dark outline and the same lighting, sitting naturally on the owl. The accessory should be mostly one dominant color (not wine red) so it can be recolored later. Do not add anything else. Accessory: A delicate spring flower crown of white snowdrops, yellow primroses and small green leaves, resting on top of the owl's cap.
+```
+
+#### 137. `destnik` – duben (ruka)
+
+```text
+Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same proportions, same colors, same outline style, same flat dark background. Do not redraw, move or recolor the owl. Only ADD the accessory described below, drawn in the same cartoon sticker style with the same thick dark outline and the same lighting, sitting naturally on the owl. The accessory should be mostly one dominant color (not wine red) so it can be recolored later. Do not add anything else. Accessory: An open round umbrella in bright yellow with a curved wooden handle, held above the owl's head in its wing, a few blue raindrops bouncing off it.
+```
+
+#### 138. `konvalinky` – květen (ruka)
+
+```text
+Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same proportions, same colors, same outline style, same flat dark background. Do not redraw, move or recolor the owl. Only ADD the accessory described below, drawn in the same cartoon sticker style with the same thick dark outline and the same lighting, sitting naturally on the owl. The accessory should be mostly one dominant color (not wine red) so it can be recolored later. Do not add anything else. Accessory: A small bouquet of white lily-of-the-valley flowers with green leaves tied with a thin ribbon, held in the owl's wing.
+```
+
+#### 139. `slamak` – červen (hlava)
+
+```text
+Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same proportions, same colors, same outline style, same flat dark background. Do not redraw, move or recolor the owl. Only ADD the accessory described below, drawn in the same cartoon sticker style with the same thick dark outline and the same lighting, sitting naturally on the owl. The accessory should be mostly one dominant color (not wine red) so it can be recolored later. Do not add anything else. Accessory: A wide-brimmed summer straw hat with a sky-blue ribbon band, worn on the owl's head over its cap, a small sun glint on the brim.
+```
+
+#### 140. `snorchl` – červenec (obličej)
+
+```text
+Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same proportions, same colors, same outline style, same flat dark background. Do not redraw, move or recolor the owl. Only ADD the accessory described below, drawn in the same cartoon sticker style with the same thick dark outline and the same lighting, sitting naturally on the owl. The accessory should be mostly one dominant color (not wine red) so it can be recolored later. Do not add anything else. Accessory: A diving mask with a turquoise frame and a matching snorkel tube on the side, worn over the owl's eyes, two tiny bubbles.
+```
+
+#### 141. `zmrzlina` – srpen (ruka)
+
+```text
+Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same proportions, same colors, same outline style, same flat dark background. Do not redraw, move or recolor the owl. Only ADD the accessory described below, drawn in the same cartoon sticker style with the same thick dark outline and the same lighting, sitting naturally on the owl. The accessory should be mostly one dominant color (not wine red) so it can be recolored later. Do not add anything else. Accessory: A crunchy waffle ice-cream cone with two scoops (pink strawberry and white vanilla) and a small drip, held in the owl's wing.
+```
+
+#### 142. `tuzka` – září (ruka)
+
+```text
+Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same proportions, same colors, same outline style, same flat dark background. Do not redraw, move or recolor the owl. Only ADD the accessory described below, drawn in the same cartoon sticker style with the same thick dark outline and the same lighting, sitting naturally on the owl. The accessory should be mostly one dominant color (not wine red) so it can be recolored later. Do not add anything else. Accessory: A big sharpened yellow school pencil with a pink eraser, held in the owl's wing like a scholar ready for the new school year.
+```
+
+#### 143. `dyne` – říjen (hlava)
+
+```text
+Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same proportions, same colors, same outline style, same flat dark background. Do not redraw, move or recolor the owl. Only ADD the accessory described below, drawn in the same cartoon sticker style with the same thick dark outline and the same lighting, sitting naturally on the owl. The accessory should be mostly one dominant color (not wine red) so it can be recolored later. Do not add anything else. Accessory: A funny small carved orange pumpkin worn as a hat on the owl's head over its cap, with a curly green stem and a friendly carved smile.
+```
+
+#### 144. `lampion` – listopad (ruka)
+
+```text
+Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same proportions, same colors, same outline style, same flat dark background. Do not redraw, move or recolor the owl. Only ADD the accessory described below, drawn in the same cartoon sticker style with the same thick dark outline and the same lighting, sitting naturally on the owl. The accessory should be mostly one dominant color (not wine red) so it can be recolored later. Do not add anything else. Accessory: A round glowing paper lantern in warm orange on a short wooden stick, held in the owl's wing, soft light around it.
+```
+
+#### 145. `sala-zimni` – prosinec (krk)
+
+```text
+Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same proportions, same colors, same outline style, same flat dark background. Do not redraw, move or recolor the owl. Only ADD the accessory described below, drawn in the same cartoon sticker style with the same thick dark outline and the same lighting, sitting naturally on the owl. The accessory should be mostly one dominant color (not wine red) so it can be recolored later. Do not add anything else. Accessory: A cozy knitted winter scarf in emerald green with a white snowflake pattern and a tiny golden bell, wrapped around the owl's neck with ends hanging down.
+```
+
+### Série dní
+
+Za 100 dní série připadne doplněk **Hrdinský plášť** (prompt č. 103). Za 365 dní legendární rámeček:
+
+#### 146. `ramecek-vecny-ohen.png` – Věčný oheň (série 365 dní)
+
+Přiložit: `branding/sova-original.jpg` (vzor stylu)
+
+```text
+Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading. A circular decorative frame (a ring) seen straight from the front, perfectly round and centered, filling about 92 % of the image; the ring band is about 13 % of the image width thick and may have ornaments sticking out a little on the outside, never inside. The inside of the ring is an EMPTY perfect circle showing only the plain flat dark grey background, color #2d3034: nothing drawn inside, no character, no face, no text. A thin cream-colored sticker border runs along BOTH the outer edge and the inner edge of the ring. Plain solid flat dark grey background #2d3034 everywhere outside the ring, no gradient, no shadow. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference; do not draw the owl. Ring design: a majestic ring of eternal blue-and-gold fire, flames rising outward like a phoenix's feathers, small golden sparks and a tiny phoenix-wing motif at the top. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+### Ligové sezóny, album a vitrína
+
+#### 147. `ligova-sezona.png` – Ligová sezóna (karta ligy a výsledky sezón)
+
+Přiložit: `branding/sova-original.jpg` (vzor stylu)
+
+```text
+Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole object. Single centered subject filling about 80 % of the frame with even empty space around it, readable even as a small 48 px icon (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow on the background, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, colors, shading); do not draw the owl and do not copy any existing cartoon or game artwork. Subject: A golden league trophy cup with laurel leaves standing on a small podium with three steps, a ribbon banner without text and confetti around it. Colors: gold, royal blue, cream. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+#### 148. `album.png` – Album sbírky (dlaždice a okno)
+
+Přiložit: `branding/sova-original.jpg` (vzor stylu)
+
+```text
+Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole object. Single centered subject filling about 80 % of the frame with even empty space around it, readable even as a small 48 px icon (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow on the background, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, colors, shading); do not draw the owl and do not copy any existing cartoon or game artwork. Subject: A thick open collector's album with colorful round stickers and small cards peeking out of its pages, a few stickers flying out with sparkles. Colors: teal cover, cream pages, colorful stickers. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+#### 149. `odznak-sberatel.png` – Odznak Sběratel
+
+Přiložit: `branding/sova-original.jpg` (vzor stylu)
+
+```text
+Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole object. Single centered subject filling about 80 % of the frame with even empty space around it, readable even as a small 48 px icon (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow on the background, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, colors, shading); do not draw the owl and do not copy any existing cartoon or game artwork. Subject: A round golden badge medal with a ribbon, showing an embossed stack of three collectible cards with a small star, sparkling. Colors: gold, teal ribbon. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+#### 150. `vitrina.png` – Vitrína v profilu
+
+Přiložit: `branding/sova-original.jpg` (vzor stylu)
+
+```text
+Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole object. Single centered subject filling about 80 % of the frame with even empty space around it, readable even as a small 48 px icon (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow on the background, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, colors, shading); do not draw the owl and do not copy any existing cartoon or game artwork. Subject: A small elegant glass display case on a dark wooden pedestal with three little velvet stands inside holding a gold medal, a ribbon rosette and a tiny trophy, soft light reflections on the glass. Colors: wood brown, gold, royal blue velvet, light blue glass. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
 ## Co udělám po dodání
 
 1. Uložím soubory do `branding/ikony/`, vyříznu pozadí (`python3 scripts/topic-icons.py …`) a u sov vyrobím barvy obleku (`python3 scripts/owl-robes.py`).
