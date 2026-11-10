@@ -37,9 +37,9 @@ test('sova s žárovkou má všechny barvy obleku a přebarví se jako ostatní 
     assert.equal(owlSrc.exec('icons/topics/sova-tip-zelena.webp')[1], 'icons/topics/sova-tip');
 });
 
-// Obrázky do tlačítek a prázdných míst (docs/OBRAZKY.md č. 79–89): režimy, Učení, Skupiny, Archiv turnajů a tři pózy sovy
+// Obrázky do tlačítek a prázdných míst (docs/OBRAZKY.md č. 79–91): režimy, Učení, Skupiny, Archiv turnajů a šest póz sovy
 const BUTTON_ART = ['rezim-bleskovka', 'rezim-preziti', 'rezim-mapa', 'ucit-prohlizet', 'ucit-procvicit', 'skupiny', 'archiv-turnaju'];
-const OWL_POSES = ['sova-zvonek', 'sova-dalekohled', 'sova-ceka'];
+const OWL_POSES = ['sova-zvonek', 'sova-dalekohled', 'sova-ceka', 'sova-prazdna-posta', 'sova-cisty-sesit', 'sova-prach'];
 
 test('obrázky do tlačítek a prázdných míst: zdroj, WebP, mezipaměť service workeru a použití v aplikaci', () => {
     const precached = read('sw.js').match(/\.\.\.\[([^\]]+)\]\.map\(id => `icons\/topics\/\$\{id\}\.webp`\)/)[1].match(/'[^']+'/g).map(id => id.slice(1, -1));
