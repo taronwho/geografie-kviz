@@ -670,6 +670,42 @@ Odemkne: odznak Seřaď bez chyby (místo 🧩). Přiložit: `branding/sova-orig
 Cartoon sticker character portrait in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole character. A single funny, original character shown from the chest up, big expressive face looking at the viewer, centered and filling about 85 % of the frame, readable even as a tiny 40 px profile picture (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, shading); do not draw the owl and do not copy any existing cartoon character. Character: A focused raccoon with its tongue out in concentration, carefully balancing a neat tower of rainbow-colored books stacked from the biggest to the smallest. Colors: grey and black raccoon, rainbow books (red, orange, yellow, green, blue, purple). Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
+## 10. Obrázky do tlačítek (doplnění)
+
+Místa, kde je dnes jen malá ikonka a hodila by se ilustrace. Bleskovka, Přežití a Ukaž na mapě dostanou obrázky svých odznaků, nový obrázek nepotřebují.
+
+### 79. `ucit-prohlizet.png` – Učení → Prohlížet
+
+Kam: velké tlačítko Prohlížet v okruhu Učení (místo ikony knihy). Přiložit: `branding/sova-original.jpg` (vzor stylu)
+
+```text
+Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole object. Single centered subject filling about 80 % of the frame with even empty space around it, readable even as a small 48 px button icon (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow on the background, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, colors, shading); do not draw the owl. Subject: A thick open atlas book with a colorful simple world map spread across both pages, a round brass magnifying glass resting on the right page and a wine-red ribbon bookmark hanging out. Colors: cream pages, teal and green map, wine red, brass. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+### 80. `ucit-procvicit.png` – Učení → Procvičit
+
+Kam: velké tlačítko Procvičit v okruhu Učení (místo ikony terče). Přiložit: `branding/sova-original.jpg` (vzor stylu)
+
+```text
+Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole object. Single centered subject filling about 80 % of the frame with even empty space around it, readable even as a small 48 px button icon (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow on the background, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, colors, shading); do not draw the owl. Subject: A round archery target with wine-red and cream rings and a golden center, a wooden arrow with wine-red fletching stuck right in the bullseye at a slight angle, a small golden sparkle at the hit point. Colors: wine red, cream, gold, wood brown. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+### 81. `skupiny.png` – Skupiny
+
+Kam: štítek a okno Skupiny ve Více hráčích (místo ikony postaviček). Přiložit: `branding/sova-original.jpg` (vzor stylu)
+
+```text
+Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole object. Single centered subject filling about 80 % of the frame with even empty space around it, readable even as a small 48 px button icon (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow on the background, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, colors, shading); do not draw the owl. Subject: Three chubby rounded game pawns standing close together like a little team, one teal, one golden yellow and one wine-red, each with a tiny cheerful face, a small triangular cream pennant flag on a wooden stick planted behind them. Colors: teal, golden yellow, wine red, cream. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+### 82. `archiv-turnaju.png` – Archiv turnajů
+
+Kam: tlačítko a okno Archiv turnajů (místo ikony krabice). Přiložit: `branding/sova-original.jpg` (vzor stylu)
+
+```text
+Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole object. Single centered subject filling about 80 % of the frame with even empty space around it, readable even as a small 48 px button icon (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow on the background, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, colors, shading); do not draw the owl. Subject: A small wooden display cabinet with two glass-door shelves, on the top shelf a shiny gold trophy cup, on the lower shelf a silver and a bronze medal on ribbons, an empty little brass plaque on the cabinet front. Colors: warm wood brown, gold, silver, bronze, light blue glass highlights. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
 ## Co udělám po dodání
 
 1. Uložím soubory do `branding/ikony/`, vyříznu pozadí (`python3 scripts/topic-icons.py …`) a u sov vyrobím barvy obleku (`python3 scripts/owl-robes.py`).
