@@ -67,14 +67,15 @@ test('oblast: Česko podle státu (i stadion jen s názvem státu), jinak kontin
     assert.equal(regionOf(venue('Španělsko', 41.38, 2.12)), 'evropa', 'Camp Nou: kontinent podle polohy');
 });
 
-test('položky: body a plochy s obrysem (ne řeky, pohoří, státy; moře a souostroví jen s obrysem), bez stavby ve velkém městě v Česku a bez dvojznačných jmen', () => {
+test('položky: body, plochy a čáry (moře, souostroví, pohoří, řeky, státy jen s obrysem), bez stavby ve velkém městě v Česku a bez dvojznačných jmen', () => {
     const ctx = { topic: { id: 'zemepis' }, items: [], countries };
     const CZ = ['Q213'];
     assert.ok(MapQuestion.candidate(place('Testov', 'mesto', 50, 15, { co: CZ }), ctx));
     assert.ok(MapQuestion.candidate(place('Karlštejn', 'stavba', 49.94, 14.19, { co: CZ, ty: 'hrad' }), ctx));
     assert.ok(MapQuestion.candidate(place('Sněžka', 'hora', 50.74, 15.74, { co: CZ, ty: 'hora' }), ctx));
-    assert.equal(MapQuestion.candidate(place('Krkonoše', 'hora', 50.7, 15.6, { co: CZ, ty: 'pohoří' }), ctx), null);
-    assert.equal(MapQuestion.candidate(place('Vltava', 'reka', 50.3, 14.5, { co: CZ, ty: 'řeka' }), ctx), null);
+    assert.equal(MapQuestion.candidate(place('Krkonoše', 'hora', 50.7, 15.6, { co: CZ, ty: 'pohoří' }), ctx, { shapes: {} }), null, 'pohoří bez obrysu ne');
+    assert.equal(MapQuestion.candidate(place('Vltava', 'reka', 50.3, 14.5, { co: CZ, ty: 'řeka' }), ctx, { shapes: {} }), null, 'řeka bez čáry ne');
+    assert.ok(MapQuestion.candidate(place('Vltava', 'reka', 50.3, 14.5, { co: CZ, ty: 'řeka' }), ctx, { shapes: { 'T-Vltava': '~48800,14000,1500,400' } }), 'řeka s čárou ano');
     assert.equal(MapQuestion.candidate(place('Severní moře', 'jezero', 56, 3, { co: ['Q20'], ty: 'moře' }), ctx, { shapes: {} }), null);
     assert.equal(MapQuestion.candidate(place('Baleáry', 'ostrov', 39.5, 3, { co: ['Q29'], ty: 'souostroví' }), ctx, { shapes: {} }), null);
     assert.ok(MapQuestion.candidate(place('Baleáry', 'ostrov', 39.5, 3, { co: ['Q29'], ty: 'souostroví' }), ctx, { shapes: { 'T-Baleáry': '39000,2000,0,2000,1000,0' } }), 's obrysem ano');
@@ -237,7 +238,8 @@ test('kdy přijde otázka na mapě: nejdřív po 6 vhodných otázkách, nejpozd
     const storage = { read: () => stored, write: (value) => { stored = value; } };
     const loadMap = async () => mapData;
     const brno = byName('Brno', 'mesto');
-    const river = zemepis.items.find(item => item.c === 'reka');
+    // Položka bez souřadnic na mapu nejde
+    const river = { ...zemepis.items.find(item => item.c === 'reka'), la: undefined };
     assert.equal(await MapQuestion.nextQuestion(river, zemepisCtx, { storage, rng: () => 0, loadMap }), null);
     assert.equal(stored, null, 'nevhodná položka počítadlo nemění');
     for (let i = 1; i <= 6; i++) {
@@ -336,4 +338,34 @@ test('pohled: místa v Česku na mapě Česka, jinak napůl celý svět a napůl
     }
     const ratio = counts.world / (counts.world + counts.continent);
     assert.ok(ratio > 0.4 && ratio < 0.6, `svět ${counts.world}, kontinent ${counts.continent}`);
+});
+
+test('druhy míst: město, stát, řeka, pohoří, bitva, událost, stavba, region… – každé místo má druh a otázka správné sloveso', () => {
+    assert.ok(MapQuestion.MAP_GROUPS.length >= 12);
+    for (const topic of ['zemepis', 'sport', 'historie', 'architektura', 'vlajky']) assert.ok(MapQuestion.MAP_TOPICS.includes(topic), topic);
+    // Každá položka, na kterou jde otázka na mapě, patří do druhu (pro střídání v režimu Ukaž na mapě)
+    for (const [topicId, ctx] of [['zemepis', zemepisCtx], ['sport', sportCtx]]) {
+        for (const item of ctx.items) if (MapQuestion.buildQuestion(item, ctx, mapData)) assert.ok(MapQuestion.groupOf(item), `${topicId}: ${item.n}`);
+    }
+    assert.equal(MapQuestion.titleFor({ c: 'reka', n: 'Dunaj' }), 'Kudy teče Dunaj?');
+    assert.equal(MapQuestion.titleFor({ c: 'bitva', n: 'Bitva u Slavkova' }), 'Kde se odehrála bitva u Slavkova?');
+    assert.equal(MapQuestion.titleFor({ c: 'bitva', n: 'Obléhání Vídně' }), 'Kde se odehrálo obléhání Vídně?');
+    assert.equal(MapQuestion.titleFor({ c: 'udalosti', ty: 'konference', n: 'Jaltská konference' }), 'Kde se konala Jaltská konference?');
+    assert.equal(MapQuestion.titleFor({ c: 'udalosti', ty: 'smlouva', n: 'Mnichovská dohoda' }), 'Kde byla podepsána Mnichovská dohoda?');
+    assert.equal(MapQuestion.titleFor({ c: 'udalosti', ty: 'havárie', n: 'Černobylská havárie' }), 'Černobylská havárie – kde se to stalo?');
+    assert.equal(MapQuestion.titleFor({ c: 'stavby', ty: 'hrobka', n: 'Tádž Mahal' }), 'Kde stojí Tádž Mahal?');
+    // Války a epidemie na mapu nepatří (nejsou v jednom místě)
+    const historieCtx = { topic: { id: 'historie' }, items: [], countries };
+    assert.equal(MapQuestion.candidate(place('Třicetiletá válka', 'bitva', 50, 14, { ty: 'válka', co: ['Q183'] }), historieCtx), null);
+    assert.equal(MapQuestion.candidate(place('Černá smrt', 'udalosti', 45, 10, { ty: 'epidemie', co: ['Q38'] }), historieCtx), null);
+    assert.ok(MapQuestion.candidate(place('Bitva u Lipan', 'bitva', 50.03, 15.0, { ty: 'bitva', co: ['Q213'] }), historieCtx));
+    // Řeka jako čára: vzdálenost k čáře, uvnitř být nejde; poloviční poloměry
+    const line = MapQuestion.decodeShape('~50000,14000,0,1000,0,1000');
+    assert.equal(line.line, true);
+    assert.ok(MapQuestion.distanceToShapeKm(line, { lat: 50, lon: 15 }) < 0.5, 'na řece');
+    const off = MapQuestion.distanceToShapeKm(line, { lat: 50.5, lon: 15 });
+    assert.ok(Math.abs(off - 55.6) < 2, `0,5° na sever je asi 56 km (${off})`);
+    const point = MapQuestion.radiiFor({ c: 'reka' }, 'evropa', true, false);
+    const river = MapQuestion.radiiFor({ c: 'reka' }, 'evropa', true, true);
+    assert.ok(river.full < point.full && river.zero < point.zero);
 });

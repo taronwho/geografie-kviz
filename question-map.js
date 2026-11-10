@@ -185,12 +185,46 @@
             stavba: true,
             priroda: ['vodopád', 'jeskyně', 'skála', 'skalní suk', 'národní park', 'chráněná krajinná oblast', 'národní přírodní rezervace', 'poušť', 'poloostrov']
         },
-        sport: { sportoviste: true }
+        sport: { sportoviste: true },
+        // Bitvy v jednom místě (ne války, tažení a revoluce) a události s jedním místem (konference, smlouva, havárie…)
+        historie: {
+            bitva: ['bitva', 'námořní bitva', 'obléhání', 'útok', 'letecké bombardování města', 'bombardování', 'kobercové bombardování', 'vojenská operace'],
+            udalosti: ['havárie', 'mírová smlouva', 'zemětřesení', 'smlouva', 'konference', 'masakr', 'koncil', 'požár', 'atentát', 'proces', 'výbuch sopky', 'korunovace', 'tsunami']
+        },
+        architektura: { stavby: true },
+        vlajky: { regiony: true }
     };
-    // Místa, která jsou na mapě jen jako plocha (moře, souostroví, poušť…): ptá se na ně jen s obrysem (data/mapa-tvary.json)
-    const SHAPE_ONLY = new Set(['moře', 'zátoka', 'průliv', 'souostroví', 'poušť', 'poloostrov']);
+    // Státy, řeky, pohoří a regiony se doplní do zeměpisu (jen s obrysem)
+    KINDS.zemepis.stat = true;
+    KINDS.zemepis.reka = ['řeka'];
+    KINDS.zemepis.hora = [...KINDS.zemepis.hora, 'pohoří'];
+    // Místa, která jsou na mapě jen jako plocha nebo čára (moře, stát, řeka, pohoří, region…): ptá se na ně jen s obrysem
+    // (data/mapa-tvary.json)
+    const SHAPE_ONLY = new Set(['moře', 'zátoka', 'průliv', 'souostroví', 'poušť', 'poloostrov', 'pohoří', 'řeka']);
+    const SHAPE_ONLY_CATEGORIES = new Set(['stat', 'reka', 'regiony']);
+    const needsShape = (item) => SHAPE_ONLY.has(item.ty) || SHAPE_ONLY_CATEGORIES.has(item.c);
     // Plošná místa: kdo klepne kamkoli na ostrov nebo jezero, má plné body i dál od jeho středu (poloměr podle rozlohy)
-    const AREA_CATEGORIES = new Set(['jezero', 'ostrov', 'priroda']);
+    const AREA_CATEGORIES = new Set(['jezero', 'ostrov', 'priroda', 'stat', 'reka', 'regiony', 'hora']);
+
+    // Druhy mapových otázek pro střídání v režimu Ukaž na mapě: každý druh přijde zhruba stejně často (ne samé stadiony)
+    const MAP_GROUPS = [
+        { id: 'mesta', label: 'Město', topics: ['zemepis'], test: item => item.c === 'mesto' },
+        { id: 'staty', label: 'Stát', topics: ['zemepis'], test: item => item.c === 'stat' },
+        { id: 'hory', label: 'Hora', topics: ['zemepis'], test: item => item.c === 'hora' && item.ty !== 'pohoří' },
+        { id: 'pohori', label: 'Pohoří', topics: ['zemepis'], test: item => item.c === 'hora' && item.ty === 'pohoří' },
+        { id: 'reky', label: 'Řeka', topics: ['zemepis'], test: item => item.c === 'reka' },
+        { id: 'jezera', label: 'Jezero', topics: ['zemepis'], test: item => item.c === 'jezero' && ['jezero', 'přehradní nádrž', 'laguna'].includes(item.ty) },
+        { id: 'more', label: 'Moře a zálivy', topics: ['zemepis'], test: item => item.c === 'jezero' && ['moře', 'zátoka', 'průliv'].includes(item.ty) },
+        { id: 'ostrovy', label: 'Ostrov', topics: ['zemepis'], test: item => item.c === 'ostrov' },
+        { id: 'priroda', label: 'Příroda', topics: ['zemepis'], test: item => item.c === 'priroda' },
+        { id: 'stavby', label: 'Stavba', topics: ['zemepis', 'architektura'], test: item => item.c === 'stavba' || item.c === 'stavby' },
+        { id: 'bitvy', label: 'Bitva', topics: ['historie'], test: item => item.c === 'bitva' },
+        { id: 'udalosti', label: 'Událost', topics: ['historie'], test: item => item.c === 'udalosti' },
+        { id: 'regiony', label: 'Region', topics: ['vlajky'], test: item => item.c === 'regiony' },
+        { id: 'sportoviste', label: 'Sportoviště', topics: ['sport'], test: item => item.c === 'sportoviste' }
+    ];
+    const MAP_TOPICS = [...new Set(MAP_GROUPS.flatMap(group => group.topics))];
+    const groupOf = (item) => MAP_GROUPS.find(group => group.test(item)) || null;
     // Stavba ve velkém městě by byla jen otázkou „kde je to město“ (na mapě Česka má plný počet bodů poloměr asi 17 km):
     // takové se v Česku nekladou (Pražský hrad, Špilberk, stadiony v Praze)
     const BIG_CZECH_CITIES = [{ la: 50.083, lo: 14.421 }, { la: 49.195, lo: 16.608 }, { la: 49.835, lo: 18.282 }, { la: 49.747, lo: 13.378 }];
@@ -225,9 +259,11 @@
     const candidate = (item, ctx, mapData = null) => {
         const topicId = ctx && ctx.topic && ctx.topic.id;
         if (!item || !kindAllowed(topicId, item) || item.nq) return null;
-        if (SHAPE_ONLY.has(item.ty) && mapData && !shapeOf(mapData, item)) return null;
+        if (needsShape(item) && mapData && !shapeOf(mapData, item)) return null;
         const region = regionFor(item, (ctx && ctx.countries) || {});
         if (!region) return null;
+        // „Kde leží Česko?“ na mapě Česka nemá smysl
+        if (region.id === 'cesko' && item.c === 'stat') return null;
         if (region.id === 'cesko' && item.c !== 'mesto' && BIG_CZECH_CITIES.some(city => distanceKm(item, city) < BIG_CITY_KM)) return null;
         if (isAmbiguous(item, ctx && ctx.items)) return null;
         return region;
@@ -237,10 +273,13 @@
 
     // data/mapa-tvary.json: kroužky oddělené „;“, v kroužku první bod (šířka, délka v tisícinách stupně) a pak rozdíly
     const decodedShapes = new Map();
+    // Čára (řeka) začíná „~“: úseky se neuzavírají a vzdálenost se měří k čáře (rings.line = true)
+    const isLine = (encoded) => typeof encoded === 'string' && encoded.startsWith('~');
     const decodeShape = (encoded) => {
         if (typeof encoded !== 'string' || !encoded) return [];
         if (decodedShapes.has(encoded)) return decodedShapes.get(encoded);
-        const rings = encoded.split(';').map(text => {
+        const line = isLine(encoded);
+        const rings = (line ? encoded.slice(1) : encoded).split(';').map(text => {
             const numbers = text.split(',').map(Number);
             const ring = [];
             let lat = 0, lon = 0;
@@ -250,7 +289,8 @@
                 ring.push([lat / 1000, lon / 1000]);
             }
             return ring;
-        }).filter(ring => ring.length >= 3);
+        }).filter(ring => ring.length >= (line ? 2 : 3));
+        if (line) rings.line = true;
         if (decodedShapes.size > 200) decodedShapes.clear();
         decodedShapes.set(encoded, rings);
         return rings;
@@ -270,10 +310,11 @@
         let best = Infinity;
         for (const ring of rings) {
             const points = ring.map(local);
-            for (let i = 0, j = points.length - 1; i < points.length; j = i++) {
+            // U čáry jen úseky mezi sousedními body (bez uzavření), uvnitř být nejde
+            for (let i = rings.line ? 1 : 0, j = rings.line ? 0 : points.length - 1; i < points.length; j = i++) {
                 const [xi, yi] = points[i];
                 const [xj, yj] = points[j];
-                if ((yi > 0) !== (yj > 0) && 0 < (xj - xi) * (0 - yi) / (yj - yi) + xi) inside = !inside;
+                if (!rings.line && (yi > 0) !== (yj > 0) && 0 < (xj - xi) * (0 - yi) / (yj - yi) + xi) inside = !inside;
                 const dx = xi - xj, dy = yi - yj;
                 const length = dx * dx + dy * dy;
                 const t = length ? Math.max(0, Math.min(1, -(xj * dx + yj * dy) / length)) : 0;
@@ -293,12 +334,14 @@
     // Plné body do 3 % diagonály výřezu (u plošných míst navíc poloměr místa), žádné od 20 %; mezi tím postupně ubývají
     const FULL_SHARE = 0.03;
     const ZERO_SHARE = 0.2;
-    const radiiFor = (item, region, withShape = false) => {
+    // U čáry (řeka) poloviční poloměry: řeka je dlouhá, „někde u ní“ je snazší než u bodu
+    const radiiFor = (item, region, withShape = false, line = false) => {
         const frame = frameOf(region);
         const area = (item.f || {}).area;
         // S obrysem se měří od okraje plochy, poloměr podle rozlohy už není potřeba
         const extra = !withShape && AREA_CATEGORIES.has(item.c) && area > 0 ? Math.min(Math.sqrt(area / Math.PI), frame.diagonalKm * 0.08) : 0;
-        return { full: roundKm(frame.diagonalKm * FULL_SHARE + extra), zero: roundKm(frame.diagonalKm * ZERO_SHARE + extra) };
+        const share = line ? 0.5 : 1;
+        return { full: roundKm(frame.diagonalKm * FULL_SHARE * share + extra), zero: roundKm(frame.diagonalKm * ZERO_SHARE * share + extra) };
     };
     // Nejvíc bodů: jako otázka bez nápovědy (při psaní dvojnásobek), aby otázka zapadla do bodů i XP ostatních otázek
     const maxPoints = (typed) => pointsFor(1, Boolean(typed));
@@ -342,7 +385,23 @@
 
     // „Kde stojí“ u staveb, jinak „Kde leží“ (sloveso má stejný tvar v jednotném i množném čísle: leží Niagarské vodopády)
     const LYING_BUILDINGS = new Set(['archeologická lokalita', 'starověké město', 'náměstí', 'historické centrum', 'park', 'hřbitov', 'zahrada']);
-    const titleFor = (item) => `${item.c === 'stavba' && !LYING_BUILDINGS.has(item.ty) || item.c === 'sportoviste' ? 'Kde stojí' : 'Kde leží'} ${item.n}?`;
+    const lowerFirst = (text) => text.charAt(0).toLowerCase() + text.slice(1);
+    const titleFor = (item) => {
+        const name = item.n;
+        if (item.c === 'reka') return `Kudy teče ${name}?`;
+        if (item.c === 'bitva') {
+            if (/^(Bitva|Námořní bitva) /u.test(name)) return `Kde se odehrála ${lowerFirst(name)}?`;
+            if (/^Obléhání /u.test(name)) return `Kde se odehrálo ${lowerFirst(name)}?`;
+            return `${name} – kde se to stalo?`;
+        }
+        if (item.c === 'udalosti') {
+            if (item.ty === 'konference') return `Kde se konala ${name}?`;
+            if (/smlouva|dohoda/iu.test(name)) return `Kde byla podepsána ${name}?`;
+            return `${name} – kde se to stalo?`;
+        }
+        const standing = ((item.c === 'stavba' || item.c === 'stavby') && !LYING_BUILDINGS.has(item.ty)) || item.c === 'sportoviste';
+        return `${standing ? 'Kde stojí' : 'Kde leží'} ${name}?`;
+    };
 
     // Bod uvnitř nakreslené pevniny nebo jezera (jinak by hráč hledal ostrov, který na mapě není): mapa z data/mapa.json
     const parsedRings = new WeakMap();
@@ -422,6 +481,7 @@
         const regionData = shown && mapData && mapData.regions && mapData.regions[shown.id];
         if (!regionData) return null;
         const shape = AREA_CATEGORIES.has(item.c) ? shapeOf(mapData, item) : null;
+        const group = groupOf(item);
         if (!shape && item.c !== 'jezero' && !onDrawnLand(regionData, frameOf(shown), item.la, item.lo, item.c === 'ostrov' ? ISLAND_TOLERANCE_KM : COAST_TOLERANCE_KM)) return null;
         // Pohled: u Česka mapa Česka, jinak napůl celý svět a napůl rovnou kontinent (podle místa, pro všechny hráče stejně)
         const view = region.id === 'cesko' ? 'cesko' : viewFor(item);
@@ -433,7 +493,8 @@
             accepted: [],
             placeholder: '',
             answerLabel: item.n,
-            map: { region: region.id, view, lat: item.la, lon: item.lo, ...radiiFor(item, region, Boolean(shape)), ...(shape ? { shape } : {}) }
+            map: { region: region.id, view, lat: item.la, lon: item.lo, ...radiiFor(item, region, Boolean(shape), isLine(shape)), ...(shape ? { shape } : {}),
+                ...(group && group.id === 'regiony' ? { label: group.label } : {}) }
         };
     };
 
@@ -567,9 +628,12 @@
                     if (previous !== null && Math.abs(x - previous) > frame.width / 2) x += Math.sign(previous - x) * frame.width;
                     previous = x;
                     return `${x.toFixed(1)},${y.toFixed(1)}`;
-                }).join('L')}Z`;
+                }).join('L')}${marks.shape.line ? '' : 'Z'}`;
             }).join('');
-            overlay.appendChild(svgElement('path', { d, 'fill-rule': 'evenodd', 'stroke-width': 1.5, 'vector-effect': 'non-scaling-stroke', 'stroke-linejoin': 'round', 'data-target-shape': '', class: 'fill-emerald-500/30 stroke-emerald-600 dark:fill-emerald-400/30 dark:stroke-emerald-400' }));
+            // Řeka jako výrazná čára, plocha jako zelená výplň s obrysem
+            overlay.appendChild(svgElement('path', marks.shape.line
+                ? { d, 'stroke-width': 4, 'vector-effect': 'non-scaling-stroke', 'stroke-linejoin': 'round', 'stroke-linecap': 'round', 'data-target-shape': '', class: 'fill-none stroke-emerald-600 dark:stroke-emerald-400' }
+                : { d, 'fill-rule': 'evenodd', 'stroke-width': 1.5, 'vector-effect': 'non-scaling-stroke', 'stroke-linejoin': 'round', 'data-target-shape': '', class: 'fill-emerald-500/30 stroke-emerald-600 dark:fill-emerald-400/30 dark:stroke-emerald-400' }));
         } else if (marks.target && marks.full) {
             // Kruh na zeměkouli (na mapě světa u pólů protáhlý); přes okraj mapy u 180. poledníku se jen ořízne
             const points = circleAround(marks.target, marks.full).map(project);
@@ -772,17 +836,18 @@
         const tiers = pointTiers(question.map, max);
         // Popisek oblasti: mapa Česka, nebo kontinent, když otázka začíná rovnou na něm (u celého světa žádný – nic neprozradí)
         const badge = !region.projection ? region.label : question.map.view === 'continent' ? (REGION_BY_ID[question.map.region] || {}).label : '';
-        const edge = question.map.shape ? ' od okraje' : '';
+        const line = isLine(question.map.shape);
+        const edge = line ? ' od řeky' : question.map.shape ? ' od okraje' : '';
         return `
             <div class="${ui.fresh ? 'fade-in ' : ''}flex min-h-full w-full flex-col gap-2 bg-slate-50 p-3 dark:bg-slate-900">
                 <div class="relative flex flex-col items-center gap-1 text-center">
                     ${ui.extraTop || ''}
                     <span class="inline-flex ${ui.labelClass || 'max-w-full'} items-center gap-1.5 rounded-lg border px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest text-white shadow-sm ${ui.style.solid}">
-                        <i data-lucide="${escapeHtml(ui.categoryIcon)}" class="h-3 w-3 shrink-0"></i> <span class="leading-tight">${escapeHtml(data.typeLabel)} · na mapě</span>
+                        <i data-lucide="${escapeHtml(ui.categoryIcon)}" class="h-3 w-3 shrink-0"></i> <span class="leading-tight">${escapeHtml(question.map.label || data.typeLabel)} · na mapě</span>
                     </span>
                     <h2 class="text-[22px] font-black leading-tight tracking-tight text-slate-800 dark:text-slate-50">${escapeHtml(question.title)}</h2>
                     <button type="button" data-map-tiers-toggle aria-expanded="false" aria-controls="map-tiers" class="inline-flex min-h-[1.5rem] items-center gap-1 rounded-lg px-2 text-xs font-bold text-slate-600 hover:bg-slate-200/60 dark:text-slate-300 dark:hover:bg-slate-700/60">
-                        <i data-lucide="target" class="h-3.5 w-3.5"></i> Plné ${formatPoints(max)} ${question.map.shape ? `uvnitř i do ${formatKm(tiers[0].km)} od okraje` : `do ${formatKm(tiers[0].km)}`} <i data-lucide="chevron-down" class="h-3.5 w-3.5"></i>
+                        <i data-lucide="target" class="h-3.5 w-3.5"></i> Plné ${formatPoints(max)} ${line ? `do ${formatKm(tiers[0].km)} od řeky` : question.map.shape ? `uvnitř i do ${formatKm(tiers[0].km)} od okraje` : `do ${formatKm(tiers[0].km)}`} <i data-lucide="chevron-down" class="h-3.5 w-3.5"></i>
                     </button>
                     <div id="map-tiers" data-map-tiers hidden><p class="flex flex-wrap justify-center gap-x-3 gap-y-0.5 text-xs font-semibold text-slate-500 dark:text-slate-400">${tiers.map(tier => `<span class="whitespace-nowrap">${formatPoints(tier.points)} do ${formatKm(tier.km)}${edge}</span>`).join('')}<span class="whitespace-nowrap">dál 0 bodů</span></p></div>
                 </div>
@@ -864,7 +929,8 @@
     // Výsledek: záložka s mapou (tip, správné místo, čára mezi nimi, kruh plných bodů) a vzdáleností
     const resultPane = (data, result) => {
         const question = data.question;
-        const distance = !result ? 'Bez tipu – tady to je' : question.map.shape && result.km === 0 ? 'Uvnitř – přesná trefa' : `Vedle o ${formatKm(result.km)}${question.map.shape ? ' od okraje' : ''}`;
+        const edge = isLine(question.map.shape) ? ' od řeky' : question.map.shape ? ' od okraje' : '';
+        const distance = !result ? 'Bez tipu – tady to je' : edge === ' od okraje' && result.km === 0 ? 'Uvnitř – přesná trefa' : `Vedle o ${formatKm(result.km)}${edge}`;
         return `
             <div class="absolute inset-0 ${MAP_FRAME}">
                 <div id="map-guess" class="absolute inset-0 overflow-hidden" role="img" aria-label="${escapeHtml(`${question.map.region === 'cesko' ? 'Mapa Česka' : 'Mapa světa'}: ${result ? `tvůj tip a správné místo, ${distance.toLowerCase()}` : 'správné místo'}.`)}"></div>
@@ -930,8 +996,8 @@
         const tone = good ? 'border-emerald-200 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-900/30' : 'border-rose-200 bg-rose-50 dark:border-rose-800 dark:bg-rose-900/30';
         const text = good ? 'text-emerald-800 dark:text-emerald-300' : 'text-rose-800 dark:text-rose-300';
         const heading = full ? `Trefa! +${formatPoints(result.points)}` : good ? `Blízko! +${formatPoints(result.points)}` : 'Tentokrát vedle';
-        const edge = data.question.map.shape ? ' od okraje' : '';
-        const detail = full ? (edge && result.km === 0 ? 'Tip je přímo uvnitř' : `Vedle jen o ${formatKm(result.km)}${edge}`)
+        const edge = isLine(data.question.map.shape) ? ' od řeky' : data.question.map.shape ? ' od okraje' : '';
+        const detail = full ? (edge === ' od okraje' && result.km === 0 ? 'Tip je přímo uvnitř' : `Vedle jen o ${formatKm(result.km)}${edge}`)
             : good ? `Vedle o ${formatKm(result.km)}${edge} · plné body do ${formatKm(data.question.map.full)}`
             : `Vedle o ${formatKm(result.km)}${edge} · body jen do ${formatKm(data.question.map.zero)}`;
         return `
@@ -949,7 +1015,7 @@
     const api = {
         REGIONS, REGION_BY_ID, WORLD, MAP_REGIONS, mapRegionOf, FRAME_UNITS, KINDS, GAP_KEY, MIN_GAP, MAX_GAP, MAX_ZOOM, WORLD_MAX_ZOOM,
         FULL_SHARE, ZERO_SHARE, COAST_TOLERANCE_KM, projector, equalEarth, projectionOf, frameOf, roundKm, pointTiers, destination, insideFrame, regionFor, candidate, isAmbiguous, radiiFor, maxPoints, pointsForDistance, scoreGuess, formatKm,
-        titleFor, ringsOf, onDrawnLand, areaAt, decodeShape, shapeOf, distanceToShapeKm, viewFor, SHAPE_ONLY, buildQuestion, isDue, nextQuestion, evaluate, greatCircle,
+        titleFor, ringsOf, onDrawnLand, areaAt, decodeShape, isLine, shapeOf, distanceToShapeKm, viewFor, SHAPE_ONLY, needsShape, MAP_GROUPS, MAP_TOPICS, groupOf, buildQuestion, isDue, nextQuestion, evaluate, greatCircle,
         questionScreen, mountQuestion, resultPane, mountResult, resultBanner
     };
     return api;
