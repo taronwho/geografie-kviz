@@ -62,7 +62,7 @@ test('denní zajímavost: sestaví výsledek s odkazem na českou Wikipedii a p�
     resetBudget();
     const calls = [];
     const logs = [];
-    const fact = await buildFact({ day: '2026-11-04', key: 'klíč', fetchImpl: makeFetch([{ index: 0 }, { title: 'Špatné', text: 'V roce 1999 se stalo cokoli.'.repeat(6) }, GOOD], calls), log: (line) => logs.push(line) });
+    const fact = await buildFact({ day: '2026-11-04', key: 'klíč', fetchImpl: makeFetch([{ index: 0, category: 'příroda a objevy' }, { title: 'Špatné', text: 'V roce 1999 se stalo cokoli.'.repeat(6) }, GOOD], calls), log: (line) => logs.push(line) });
     assert.equal(fact.date, '2026-11-04');
     assert.equal(fact.year, 1922);
     assert.equal(fact.title, GOOD.title);
@@ -70,7 +70,39 @@ test('denní zajímavost: sestaví výsledek s odkazem na českou Wikipedii a p�
     assert.equal(fact.source, 'Wikipedie');
     assert.ok(logs.some(line => /čísla mimo zdroje/.test(line)), 'první odpověď se zahodila');
     assert.equal(calls.filter(url => url.includes('generativelanguage') && url.includes(':generateContent')).length, 3, 'výběr + dva pokusy o text');
-    assert.ok(fact.category, 'uloží se kategorie dne');
+    assert.equal(fact.category, 'příroda a objevy', 'štítek je kategorie, kam vybraná událost opravdu patří');
+    assert.equal(fact.en, 'Tutankhamun');
+    assert.deepEqual(fact.recent, []);
+});
+
+test('denní zajímavost: štítek tématu jen s kategorií potvrzenou u vybrané události', async () => {
+    const { buildFact, resetBudget } = await load();
+    resetBudget();
+    // Model nevrátil platnou kategorii (nebo vybral mimo kategorii dne): bez štítku, ať nestojí „významné osobnosti“ u pádu zdi
+    const fact = await buildFact({ day: '2026-11-04', key: 'klíč', fetchImpl: makeFetch([{ index: 0, category: 'nesmysl' }, GOOD]) });
+    assert.equal(fact.title, GOOD.title);
+    assert.equal('category' in fact, false);
+    resetBudget();
+    // Výběr selhal (index mimo seznam): použije se první kandidát, ale bez štítku
+    const fallback = await buildFact({ day: '2026-11-04', key: 'klíč', fetchImpl: makeFetch([{ index: 99, category: 'sport' }, GOOD]) });
+    assert.equal('category' in fallback, false);
+});
+
+test('denní zajímavost: událost z posledních dnů se nezopakuje a historie se přenáší', async () => {
+    const { buildFact, resetBudget, recentFrom, sameTopic } = await load();
+    assert.equal(sameTopic('Pád Berlínské zdi', 'Berlínská zeď'), true, 'stejné téma podle výrazného slova');
+    assert.equal(sameTopic('Vznik Československa', 'Československá televize', false), false, 'starší záznamy jen podle stejné stránky');
+    const previous = { date: '2026-11-03', page: 'Tutanchamon', en: 'Tutankhamun', recent: [{ date: '2026-11-02', page: 'Pád Berlínské zdi' }, { date: '2026-08-01', page: 'Dávno' }] };
+    const recent = recentFrom(previous, '2026-11-04');
+    assert.deepEqual(recent.map(entry => entry.page), ['Tutanchamon', 'Pád Berlínské zdi'], 'nejnovější první, starší než 45 dní pryč');
+    resetBudget();
+    const logs = [];
+    // Jediný kandidát s českou stránkou byl předevčírem: nic jiného nezbývá, tak raději chyba než opakování
+    await assert.rejects(buildFact({ day: '2026-11-04', key: 'klíč', recent, fetchImpl: makeFetch([{ index: 0, category: 'sport' }, GOOD]), log: (line) => logs.push(line) }), /Žádná událost/);
+    assert.ok(logs.some(line => /bylo v posledních dnech/.test(line)));
+    resetBudget();
+    const fact = await buildFact({ day: '2026-11-04', key: 'klíč', recent: [{ date: '2026-11-03', page: 'Pád Berlínské zdi' }], fetchImpl: makeFetch([{ index: 0, category: 'sport' }, GOOD]) });
+    assert.deepEqual(fact.recent, [{ date: '2026-11-03', page: 'Pád Berlínské zdi' }], 'historie jde do dalšího dne');
 });
 
 test('denní zajímavost: bez použitelné odpovědi skončí chybou, ne vymyšleným faktem', async () => {

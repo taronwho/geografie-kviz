@@ -2,7 +2,7 @@
 // a uloží data/fakt.json (pro všechny hráče stejná). Spouští ji naplánovaný workflow .github/workflows/fakt.yml.
 //   GEMINI_API_KEY=… node scripts/daily-fact.mjs [YYYY-MM-DD] [výstupní soubor]
 // Zdroj faktů jsou jen texty z Wikipedie; Gemini je smí jen přepsat. Výsledek se ještě zkontroluje (délka, čísla, adresy).
-import { writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 const UA = 'Mudrlant/1.0 (https://github.com/taronwho/geografie-kviz; denní zajímavost)';
@@ -169,12 +169,37 @@ const askGemini = async (fetchImpl, key, text, properties = { title: { type: 'ST
     return JSON.parse(raw);
 };
 
-const pickPrompt = (category, list) => `Z očíslovaných událostí vyber jednu, která nejlépe patří do kategorie „${category}“ a bude zajímavá pro širokou veřejnost (ne příliš úzce odborná). Když žádná do kategorie nepatří, vyber nejzajímavější.
-Vrať JSON {"index": číslo}.
+const pickPrompt = (category, list, recent = []) => `Z očíslovaných událostí vyber jednu, která nejlépe patří do kategorie „${category}“ a bude zajímavá pro širokou veřejnost (ne příliš úzce odborná). Když žádná do kategorie nepatří, vyber nejzajímavější událost z jiné kategorie.${recent.length ? ` Nevybírej událost na stejné téma jako v posledních dnech (${recent.map(title => `„${title}“`).join(', ')}).` : ''}
+K vybrané události urči, do které z těchto kategorií opravdu patří: ${CATEGORIES.map(name => `„${name}“`).join(', ')}.
+Vrať JSON {"index": číslo, "category": "název kategorie"}.
 
 ${list.map((item, index) => `${index}. (${item.year}) ${item.text}`).join('\n')}`;
 
-export const buildFact = async ({ day, key, fetchImpl = fetch, log = () => {} }) => {
+// Témata posledních dnů (české a anglické názvy stránek) z předchozího fakt.json, ať se stejná událost neopakuje
+export const RECENT_DAYS = 45;
+export const recentFrom = (previous, day) => {
+    const list = previous && Array.isArray(previous.recent) ? previous.recent : [];
+    const all = previous && previous.date && previous.page ? [{ date: previous.date, page: previous.page, en: previous.en }, ...list] : list;
+    const since = Date.parse(`${day}T00:00:00Z`) - RECENT_DAYS * 86400000;
+    const seen = new Set();
+    return all.filter(entry => entry && typeof entry.page === 'string' && typeof entry.date === 'string' && Date.parse(`${entry.date}T00:00:00Z`) >= since)
+        .filter(entry => { const key = `${entry.date}|${entry.page}`; if (seen.has(key)) return false; seen.add(key); return true; })
+        .slice(0, RECENT_DAYS)
+        .map(entry => ({ date: entry.date, page: entry.page.slice(0, 120), ...(typeof entry.en === 'string' ? { en: entry.en.slice(0, 120) } : {}) }));
+};
+// Stejné téma = stejná stránka (posledních RECENT_DAYS dní), nebo v posledním týdnu názvy sdílí výrazné slovo
+// (Pád Berlínské zdi × Berlínská zeď); podobnost slov jen za týden, ať se nevyřadí třeba všechno „československé“
+const stems = (title) => new Set((String(title).toLowerCase().match(/\p{L}{5,}/gu) || []).map(word => word.slice(0, 5)));
+export const sameTopic = (a, b, fuzzy = true) => {
+    if (!a || !b) return false;
+    if (a.toLowerCase() === b.toLowerCase()) return true;
+    if (!fuzzy) return false;
+    const left = stems(a);
+    return [...stems(b)].some(stem => left.has(stem));
+};
+const SIMILAR_DAYS = 7;
+
+export const buildFact = async ({ day, key, fetchImpl = fetch, log = () => {}, recent = [] }) => {
     const [, month, date] = day.split('-');
     const feed = await getJson(fetchImpl, `https://en.wikipedia.org/api/rest_v1/feed/onthisday/all/${month}/${date}`);
     const candidates = candidatesFor(feed, day);
@@ -182,21 +207,34 @@ export const buildFact = async ({ day, key, fetchImpl = fetch, log = () => {} })
     // Kandidáti, ke kterým je česká stránka (odkaz vede na českou Wikipedii)
     const usable = [];
     let checked = 0;
+    const near = (entry) => Date.parse(`${day}T00:00:00Z`) - Date.parse(`${entry.date}T00:00:00Z`) <= SIMILAR_DAYS * 86400000;
+    const repeated = (title) => recent.some(entry => sameTopic(title, entry.page, near(entry)) || sameTopic(title, entry.en, near(entry)));
     for (const candidate of candidates) {
         if (usable.length >= 15 || checked >= 30) break;
+        if (repeated(candidate.title)) { log(`${candidate.title}: bylo v posledních dnech`); continue; }
         checked += 1;
         try {
             const article = await czechArticle(fetchImpl, candidate.title);
-            if (article) usable.push({ ...candidate, article }); else log(`${candidate.title}: bez české stránky`);
+            if (!article) log(`${candidate.title}: bez české stránky`);
+            else if (repeated(article.title)) log(`${article.title}: bylo v posledních dnech`);
+            else usable.push({ ...candidate, article });
         } catch (error) { log(`${candidate.title}: ${error.message}`); }
     }
     if (!usable.length) throw new Error('Žádná událost nemá českou stránku');
-    // Kategorie dne: Gemini vybere z kandidátů tu, která se do ní hodí; při chybě se vezme první
-    const category = categoryFor(day);
+    // Kategorie dne: Gemini vybere z kandidátů tu, která se do ní hodí, a řekne, kam vybraná událost opravdu patří.
+    // Štítek „Dnešní téma“ se uloží jen u vybrané události a jen s kategorií, kterou model u ní potvrdil (jinak žádný),
+    // aby u pádu Berlínské zdi nestálo „významné osobnosti“
+    const wanted = categoryFor(day);
     let ordered = usable;
+    let picked = null;
+    let pickedCategory = null;
     try {
-        const answer = await askGemini(fetchImpl, key, pickPrompt(category, usable), { index: { type: 'INTEGER' } });
-        if (Number.isInteger(answer.index) && usable[answer.index]) ordered = [usable[answer.index], ...usable.filter((_, i) => i !== answer.index)];
+        const answer = await askGemini(fetchImpl, key, pickPrompt(wanted, usable, recent.map(entry => entry.page).slice(0, 12)), { index: { type: 'INTEGER' }, category: { type: 'STRING' } });
+        if (Number.isInteger(answer.index) && usable[answer.index]) {
+            picked = usable[answer.index];
+            ordered = [picked, ...usable.filter((_, i) => i !== answer.index)];
+            pickedCategory = CATEGORIES.includes(answer.category) ? answer.category : null;
+        }
     } catch (error) { log(`Výběr kategorie: ${error.message}`); }
     let tried = 0;
     for (const candidate of ordered) {
@@ -207,7 +245,11 @@ export const buildFact = async ({ day, key, fetchImpl = fetch, log = () => {} })
             let fact;
             try { fact = await askGemini(fetchImpl, key, prompt(day, candidate, article)); } catch (error) { log(`Gemini: ${error.message}`); continue; }
             const problem = validateFact(fact, `${candidate.text} ${article.extract} ${candidate.year} ${day} ${yearsAgo(day, candidate)}`);
-            if (!problem) return { date: day, year: candidate.year, title: fact.title.trim(), text: fact.text.trim(), url: article.url, page: article.title, category, source: 'Wikipedie' };
+            if (!problem) {
+                const category = candidate === picked ? pickedCategory : null;
+                const history = recentFrom({ recent }, day);
+                return { date: day, year: candidate.year, title: fact.title.trim(), text: fact.text.trim(), url: article.url, page: article.title, en: candidate.title, ...(category ? { category } : {}), source: 'Wikipedie', recent: history };
+            }
             log(`${candidate.title}: ${problem}`);
         }
     }
@@ -219,8 +261,12 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     if (!key) { console.error('Chybí GEMINI_API_KEY'); process.exit(1); }
     const day = process.argv[2] || pragueDay();
     const out = process.argv[3] || 'data/fakt.json';
+    // Předchozí fakt.json (z gh-pages): z něj se vezmou témata posledních dnů, ať se neopakují
+    let previous = null;
+    try { if (process.argv[4]) previous = JSON.parse(readFileSync(process.argv[4], 'utf8')); } catch (error) { console.error(`Předchozí zajímavost: ${error.message}`); }
+    const recent = recentFrom(previous, day);
     const redact = (line) => String(line).split(key).join('***');
-    buildFact({ day, key, log: (line) => console.error(redact(line)) }).then(fact => {
+    buildFact({ day, key, recent, log: (line) => console.error(redact(line)) }).then(fact => {
         writeFileSync(out, `${JSON.stringify(fact, null, 2)}\n`);
         console.log(`${fact.date}: ${fact.title} (${fact.page})`);
     }).catch(error => { console.error(redact(error.message)); process.exit(1); });

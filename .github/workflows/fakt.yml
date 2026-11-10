@@ -39,7 +39,9 @@ jobs:
           day=$(TZ=Europe/Prague date +%F)
           git fetch -q --depth 1 origin gh-pages || true
           if [ "$FORCE" != "true" ] && git show FETCH_HEAD:app/data/fakt.json 2>/dev/null | grep -q "\"date\": \"$day\""; then echo "Zajímavost pro $day už existuje."; exit 0; fi
-          node scripts/daily-fact.mjs "$day" "$RUNNER_TEMP/fakt.json"
+          # Předchozí zajímavost nese témata posledních dnů, ať se stejná událost (např. Berlínská zeď) neopakuje
+          git show FETCH_HEAD:app/data/fakt.json > "$RUNNER_TEMP/predchozi.json" 2>/dev/null || echo '{}' > "$RUNNER_TEMP/predchozi.json"
+          node scripts/daily-fact.mjs "$day" "$RUNNER_TEMP/fakt.json" "$RUNNER_TEMP/predchozi.json"
           echo "ready=true" >> "$GITHUB_OUTPUT"
 
       - name: Zápis do gh-pages
