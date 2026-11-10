@@ -125,6 +125,39 @@ const bigTournament = (db, { size, done, finished = false, meOut = 0 }) => {
     return ids;
 };
 
+// Skončený turnaj do archivu: hráči v pořadí nasazení, v zápase vyhrává ten, kdo je v seznamu dřív (já, u-1, prohraju v kole meOut);
+// poražený má tím víc bodů, čím vyšší je číslo zápasu. places = místa zapsaná serverem (jinak je aplikace dopočítá ze zápasů).
+const archivedTournament = (db, { id, week, players, meOut = 0, places = true, base }) => {
+    const size = players.length;
+    const rounds = Math.round(Math.log2(size));
+    db.tournaments.push({ id, topic: 'mix', week_start: week, started_on: week, capacity: 128, status: 'finished', size, rounds, seed: `seed-${id.slice(-3)}` });
+    players.forEach(user => addEntry(db, id, user, 'finished'));
+    const entryOf = (user) => db.entries.find(entry => entry.tournament_id === id && entry.user_id === user);
+    const set = new Map();
+    let count = 0;
+    const play = (round, slot, third, a, b) => {
+        const forced = round === meOut && !third && (a === 'u-1' || b === 'u-1');
+        const winner = forced ? (a === 'u-1' ? b : a) : players.indexOf(a) < players.indexOf(b) ? a : b;
+        const loser = winner === a ? b : a;
+        const match = { id: uuid(base + count++), tournament_id: id, round, slot, third, p1: a, p2: b, winner, decided_by: 'played' };
+        db.matches.push(match);
+        db.results.push({ match_id: match.id, user_id: winner, started_at: 'x', finished_at: 'y', correct: 8, points: 20, time_ms: 60000 },
+            { match_id: match.id, user_id: loser, started_at: 'x', finished_at: 'y', correct: 2, points: 2 + slot, time_ms: 70000 });
+        return { match, winner, loser };
+    };
+    let alive = players;
+    for (let round = 1; round <= rounds; round++) {
+        const played = [];
+        for (let slot = 1; slot <= alive.length / 2; slot++) played.push(play(round, slot, false, alive[2 * slot - 2], alive[2 * slot - 1]));
+        if (round < rounds - 1) played.forEach(game => set.set(game.loser, (size >> round) + 1));
+        if (round === rounds - 1) { const bronze = play(rounds, 1, true, played[0].loser, played[1].loser); set.set(bronze.winner, 3).set(bronze.loser, 4); }
+        if (round === rounds) set.set(played[0].winner, 1).set(played[0].loser, 2);
+        alive = played.map(game => game.winner);
+    }
+    if (places) set.forEach((place, user) => { entryOf(user).place = place; });
+    return db.matches.filter(match => match.tournament_id === id);
+};
+
 const backend = async (context, db) => {
     await context.route('**/config.js', route => route.fulfill({ contentType: 'text/javascript', body: CONFIG }));
     await context.route('https://proj.supabase.co/**', route => {
@@ -250,15 +283,25 @@ const backend = async (context, db) => {
             if (db.missing) return json({ code: 'PGRST205', message: 'Could not find the table' }, 404);
             db.gets.push(`${url.pathname.split('/').pop()}?${url.search}`);
             if (url.pathname === '/rest/v1/tournaments') {
-                const allowed = param('status').replace(/^in\.\(|\)$/g, '').split(',');
-                return json(db.tournaments.filter(item => allowed.includes(item.status)).sort((a, b) => b.week_start.localeCompare(a.week_start)));
+                // archiv: status=eq.finished po stránkách (limit, offset); karta: status=in.(…) celé
+                const status = param('status');
+                const allowed = status.startsWith('eq.') ? [status.slice(3)] : status.replace(/^in\.\(|\)$/g, '').split(',');
+                const rows = db.tournaments.filter(item => allowed.includes(item.status)).sort((a, b) => b.week_start.localeCompare(a.week_start) || b.id.localeCompare(a.id));
+                if (!status.startsWith('eq.')) return json(rows);
+                const offset = Number(param('offset') || 0);
+                return json(rows.slice(offset, offset + Number(param('limit') || rows.length)));
             }
             if (url.pathname === '/rest/v1/tournament_entries') {
-                const rows = db.entries.filter(entry => entry.tournament_id === eq('tournament_id') && (!eq('user_id') || entry.user_id === eq('user_id'))).sort((a, b) => a.joined_at.localeCompare(b.joined_at));
-                return json(rows.map(entry => ({ user_id: entry.user_id, joined_at: entry.joined_at, status: entry.status, place: entry.place, player: profile(entry.user_id) })));
+                // tournament_id=eq.X nebo in.(X,Y); archiv: or=(place.eq.1,user_id.eq.JÁ)
+                const tids = param('tournament_id').startsWith('in.(') ? param('tournament_id').slice(4, -1).split(',') : [eq('tournament_id')];
+                const either = /^\(place\.eq\.1,user_id\.eq\.(.+)\)$/.exec(param('or'));
+                const rows = db.entries.filter(entry => tids.includes(entry.tournament_id) && (!eq('user_id') || entry.user_id === eq('user_id')) && (!either || entry.place === 1 || entry.user_id === either[1])).sort((a, b) => a.joined_at.localeCompare(b.joined_at));
+                return json(rows.map(entry => ({ tournament_id: entry.tournament_id, user_id: entry.user_id, joined_at: entry.joined_at, status: entry.status, place: entry.place, player: profile(entry.user_id) })));
             }
             if (url.pathname === '/rest/v1/tournament_matches') {
-                const rows = db.matches.filter(item => item.tournament_id === eq('tournament_id')).sort((a, b) => a.round - b.round || a.slot - b.slot);
+                const rows = db.matches.filter(item => item.tournament_id === eq('tournament_id') && (!eq('round') || item.round === Number(eq('round'))) && (param('third') !== 'is.false' || !item.third)).sort((a, b) => a.round - b.round || a.slot - b.slot);
+                // finále pro archiv (místa nevyplněná): vítěz s profilem
+                if (/profiles!winner/.test(param('select'))) return json(rows.map(item => ({ winner: item.winner, player: profile(item.winner) })));
                 // pravidla řádků: cizí výsledek je vidět až po rozhodnutí zápasu
                 return json(rows.map(item => ({ ...item, results: db.results.filter(row => row.match_id === item.id && (row.user_id === me.id || item.winner)).map(({ match_id, ...rest }) => rest) })));
             }
@@ -1348,6 +1391,131 @@ test('týdenní turnaje', { skip: !chromium && 'Playwright není nainstalovaný'
         await tab.waitForSelector('#tournament-ranking li[data-me]');
         assert.equal(await tab.locator('#tournament-ranking li[data-me]').evaluate(item => item.closest('section').dataset.rgroup), 'p33');
         assert.ok((await groupTitles(tab)).includes('33.–64. místo'));
+        assert.deepEqual(log.errors, []);
+        assert.deepEqual(log.csp, []);
+        await context.close();
+    });
+
+    await t.test('archiv turnajů: skončené turnaje po stránkách s vítězem a mým místem, detail s pódiem, pavoukem a rozpisem, cesta zpět', async () => {
+        const db = newDb();
+        runningEight(db);
+        const fillers = addPlayers(db, 8);
+        const [f1, f2, f3, f4, f5, f6, f7, f8] = fillers;
+        const weekOf = (k) => new Date(Date.UTC(2026, 10, 2) - k * 7 * 86400000).toISOString().slice(0, 10);
+        const archiveId = (k) => uuid(200 + k);
+        // 0: Petr vyhrál, já jsem prohrál finále (2. místo); 1: místa server nevyplnil, vyhrál Adam, já jsem vypadl ve čtvrtfinále s nejméně body;
+        // 2: nehrál jsem; 3–11: další týdny (vyhrávám já, kdo je v seznamu první)
+        const lineups = [
+            [['u-2', f1, f2, f3, 'u-1', f4, f5, f6], {}],
+            [[f1, 'u-1', f2, f3, f4, f5, f6, f7], { places: false }],
+            [['u-2', f1, f2, f3, f4, f5, f6, f7], {}]
+        ];
+        for (let k = 3; k < 12; k++) lineups.push([k % 2 ? ['u-1', 'u-2', f1, f2, f3, f4, f5, f6] : [f8, f1, 'u-1', f2, f3, f4, f5, f6], {}]);
+        const tours = lineups.map(([players, options], k) => archivedTournament(db, { id: archiveId(k), week: weekOf(k), players, base: 10000 + 100 * k, ...options }));
+        // zrušený turnaj (málo hráčů) v archivu není
+        db.tournaments.push({ id: uuid(299), topic: 'mix', week_start: '2026-10-05', started_on: null, capacity: 128, status: 'cancelled', size: null, rounds: null, seed: 'zrus' });
+        // rozpis mého finále v turnaji 0: odpovědi obou hráčů
+        const final = tours[0].find(match => match.round === 3 && !match.third);
+        for (let idx = 0; idx < 10; idx++) {
+            db.answers.push({ match_id: final.id, user_id: 'u-1', idx, correct: idx < 2, points: idx < 2 ? 2 : 0, answer: idx < 2 ? null : 'Vedle', hints: 1, ms: 5000 },
+                { match_id: final.id, user_id: 'u-2', idx, correct: idx < 8, points: idx < 8 ? 2 : 0, answer: null, hints: 0, ms: 4000 });
+        }
+        const { context, tab, log } = await start(db, { viewport: { width: 390, height: 780 }, colorScheme: 'dark' });
+        const title = () => tab.textContent('#dialog-title');
+
+        // Vstup z karty turnaje (ikona archivu vedle nápovědy)
+        await tab.waitForSelector('#tournament-card [data-action="tournament-archive"]');
+        await tab.click('#tournament-card [data-action="tournament-archive"]');
+        await tab.waitForSelector('#tournament-archive li[data-archive]');
+        assert.equal(await title(), 'Archiv turnajů');
+        assert.equal(await tab.locator('#tournament-archive li[data-archive]').count(), 10, 'první stránka: 10 turnajů');
+        assert.ok(db.gets.some(get => /^tournaments\?.*status=eq\.finished.*limit=10&offset=0/.test(get)), 'jen skončené, po stránkách');
+        const rowText = (k) => tab.locator(`#tournament-archive li[data-archive="${archiveId(k)}"]`).innerText().then(text => text.replace(/\s+/g, ' ').trim());
+        assert.deepEqual(await tab.locator('#tournament-archive li[data-archive]').evaluateAll(list => list.slice(0, 3).map(item => item.dataset.archive)), [0, 1, 2].map(archiveId), 'nejnovější nahoře');
+        const first = await rowText(0);
+        assert.match(first, /Týden 2\.–8\. 11\. 2026/);
+        assert.match(first, /Mix všech témat · 8 hráčů/);
+        assert.match(first, /Vítěz: Petr Svoboda/);
+        assert.match(first, /Ty: 2\. místo/);
+        const second = await rowText(1);
+        assert.match(second, /Týden 26\. 10\. – 1\. 11\. 2026/);
+        assert.match(second, /Vítěz: Adam 1/, 'bez míst: vítěz finále');
+        assert.match(second, /Ty: hrál jsi/);
+        const third = await rowText(2);
+        assert.match(third, /Vítěz: Petr Svoboda/);
+        assert.doesNotMatch(third, /Ty:/, 'turnaj, který jsem nehrál, moje místo nemá');
+        assert.match(await rowText(3), /Vítěz: Jana Nováková \(ty\).*Ty: 1\. místo/);
+        assert.deepEqual(await noHorizontalScroll(tab), { page: 0, content: 0, dialog: 0 });
+        await shot(tab, 'archiv-seznam');
+        // Posunutí na konec načte další stránku (zbývají dva turnaje), pak už nic
+        await tab.evaluate(() => document.querySelector('[data-archive-sentinel]').scrollIntoView({ block: 'end' }));
+        await tab.waitForFunction(() => document.querySelectorAll('#tournament-archive li[data-archive]').length === 12);
+        await tab.waitForSelector('[data-archive-end]');
+        assert.ok(db.gets.some(get => /^tournaments\?.*offset=10/.test(get)));
+        assert.equal(await tab.locator(`#tournament-archive li[data-archive="${uuid(299)}"]`).count(), 0, 'zrušený turnaj v archivu není');
+        assert.equal(await tab.locator('[data-archive-more]').count(), 0);
+
+        // Detail turnaje 0: pódium (Petr, já, Barbora), moje místo, pavouk s vítězem
+        await tab.evaluate(() => { document.querySelector('#dialog-overlay > div').scrollTop = 0; });
+        await tab.click(`[data-archive-open="${archiveId(0)}"]`);
+        await tab.waitForSelector('#archive-podium');
+        assert.equal(await title(), 'Turnaj z archivu');
+        assert.match((await tab.locator('#dialog-overlay').innerText()).replace(/\s+/g, ' '), /Týden 2\.–8\. 11\. 2026 · 8 hráčů · Mix všech témat/);
+        const podiumOf = () => tab.locator('#archive-podium li[data-podium]').evaluateAll(list => list.map(item => [item.dataset.podium, item.querySelector('span.line-clamp-2').textContent.trim(), item.hasAttribute('data-me')]));
+        assert.deepEqual(await podiumOf(), [['1', 'Petr Svoboda', false], ['2', 'Jana Nováková (ty)', true], ['3', 'Barbora 2', false]]);
+        // 2. vlevo, 1. uprostřed a nejvýš, 3. vpravo
+        const spots = await tab.locator('#archive-podium li[data-podium]').evaluateAll(list => list.map(item => { const rect = item.getBoundingClientRect(); return { left: rect.left, top: rect.top }; }));
+        assert.ok(spots[1].left < spots[0].left && spots[0].left < spots[2].left, 'pořadí sloupků 2–1–3');
+        assert.ok(spots[0].top < spots[1].top && spots[0].top < spots[2].top, 'vítěz nejvýš');
+        assert.match(await tab.textContent('#archive-me'), /Ty: 2\. místo/);
+        // celé pořadí je u malého turnaje rozbalené, já zvýrazněný
+        assert.equal(await tab.locator('details[data-keep="ranking"]').evaluate(item => item.open), true);
+        assert.equal(await tab.locator('#tournament-ranking li[data-me]').count(), 1);
+        assert.equal(await tab.locator('#tournament-ranking li[data-rank]').count(), 8);
+        await tab.waitForSelector('#tournament-bracket [data-bcard]');
+        assert.deepEqual(await columnsOf(tab), ['1', '2', '3', 'cup']);
+        assert.match(await tab.locator('#bracket-scroll [data-bcol="cup"]').innerText(), /Petr Svoboda/);
+        assert.equal(await tab.locator('[data-t-play], [data-t-join], [data-t-leave]').count(), 0, 'jen ke čtení');
+        assert.deepEqual(await noHorizontalScroll(tab), { page: 0, content: 0, dialog: 0 });
+        await shot(tab, 'archiv-detail');
+        await showBracket(tab);
+        await shot(tab, 'archiv-detail-pavouk');
+        // Rozpis mého finále z pavouku a zpět do turnaje z archivu
+        await tab.click(`#bracket-scroll [data-bcard][data-match="${final.id}"] [data-action="tournament-breakdown"]`);
+        await tab.waitForSelector('#breakdown-list li');
+        assert.equal(await title(), 'Rozpis otázek');
+        assert.equal(await tab.locator('#breakdown-list li').count(), 10);
+        assert.ok(db.calls.some(call => call.name === 'tournament_details' && call.body.mid === final.id));
+        await tab.click('[data-bd-back]');
+        await tab.waitForSelector('#archive-podium');
+        assert.equal(await title(), 'Turnaj z archivu');
+        // Cizí zápas v turnaji, který jsem nehrál: rozpis jde otevřít (všechny zápasy jsou rozhodnuté)
+        await tab.click('[data-t-archive-back]');
+        await tab.waitForSelector('#tournament-archive');
+        assert.equal(await tab.locator('#tournament-archive li[data-archive]').count(), 12, 'zpět na celý načtený archiv');
+        await tab.click(`[data-archive-open="${archiveId(2)}"]`);
+        await tab.waitForSelector('#tournament-bracket [data-bcard]');
+        assert.equal(await tab.locator('#archive-me').count(), 0);
+        assert.ok(await tab.locator('#bracket-scroll [data-action="tournament-breakdown"]').count() >= 7, 'rozpis u každého odehraného zápasu');
+        await tab.locator('#bracket-scroll [data-action="tournament-breakdown"]').first().click();
+        await tab.waitForSelector('#breakdown-list li');
+        await tab.click('[data-bd-back]');
+        await tab.waitForSelector('#tournament-bracket');
+        // Turnaj bez míst ze serveru: místa dopočítaná ze zápasů (já s nejméně body ve čtvrtfinále: 8. místo)
+        await tab.click('[data-t-archive-back]');
+        await tab.click(`[data-archive-open="${archiveId(1)}"]`);
+        await tab.waitForSelector('#archive-podium');
+        assert.deepEqual((await podiumOf()).map(([place, name]) => [place, name]), [['1', 'Adam 1'], ['2', 'Dana 4'], ['3', 'Barbora 2']]);
+        assert.match(await tab.textContent('#archive-me'), /Ty: 8\. místo/);
+        assert.deepEqual(await groupTitles(tab), ['1.–4. místo', '5.–8. místo']);
+        // Zpět na aktuální turnaj
+        await tab.click('[data-t-current]');
+        await tab.waitForSelector('#tournament-status');
+        assert.equal(await title(), 'Týdenní turnaj');
+        // a z okna aktuálního turnaje znovu do archivu
+        await tab.click('[data-t-archive]');
+        await tab.waitForSelector('#tournament-archive');
+        assert.equal(await title(), 'Archiv turnajů');
         assert.deepEqual(log.errors, []);
         assert.deepEqual(log.csp, []);
         await context.close();

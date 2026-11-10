@@ -380,3 +380,51 @@ test('lastDecidedRound: poslední kolo, ve kterém jsou všechny hlavní zápasy
     assert.equal(T.lastDecidedRound([]), 0);
     assert.equal(T.lastDecidedRound(matches.map(match => ({ ...match, winner: match.winner || 'z' }))), 2, 'zápas o 3. místo se nepočítá');
 });
+
+test('archiv: týden i s rokem, přes konec měsíce a roku', () => {
+    assert.equal(T.archiveWeekLabel('2026-11-02'), '2.–8. 11. 2026');
+    assert.equal(T.archiveWeekLabel('2026-11-30'), '30. 11. – 6. 12. 2026');
+    assert.equal(T.archiveWeekLabel('2026-12-28'), '28. 12. 2026 – 3. 1. 2027');
+    assert.equal(T.archiveWeekLabel('nesmysl'), '');
+});
+
+test('pořadí skončeného turnaje s přesnými místy z databáze (5, 6, 7, 8): jedna skupina na kolo, ne skupina na každé místo', () => {
+    const { tournament, entries, matches } = simulate(32, 5, { finished: true });
+    // databáze při konci turnaje přepíše místa vypadlých na přesná (5.–8., 9.–16., …) podle bodů; tady podle pořadí v seznamu
+    const exact = new Map();
+    [5, 9, 17].forEach(from => entries.filter(e => e.place === from).reverse().forEach((e, i) => exact.set(e.user_id, from + i)));
+    const precise = entries.map(e => exact.has(e.user_id) ? { ...e, place: exact.get(e.user_id) } : e);
+    const result = T.standings(precise, tournament, matches);
+    assert.deepEqual(result.groups.map(g => g.label), ['1.–4. místo', '5.–8. místo', '9.–16. místo', '17.–32. místo']);
+    assert.deepEqual(result.groups.map(g => g.roundName), ['', 'Čtvrtfinále', 'Osmifinále', 'Šestnáctifinále']);
+    const nine = result.groups.find(g => g.key === 'p9');
+    assert.deepEqual(nine.rows.map(r => r.place), [9, 10, 11, 12, 13, 14, 15, 16]);
+    assert.deepEqual(nine.rows.map(r => r.entry.user_id), [...exact].filter(([, place]) => place >= 9 && place <= 16).sort((a, b) => a[1] - b[1]).map(([id]) => id), 'přesné místo z databáze má přednost');
+    assert.equal(T.placeGroupStart(32, 12), 9);
+    assert.equal(T.placeGroupStart(128, 100), 65);
+    assert.equal(T.placeGroupStart(128, 5), 5);
+    assert.equal(T.placeGroupStart(8, 3), 3);
+});
+
+test('archiv: chybějící místa skončeného turnaje se dopočítají ze zápasů, místa z databáze mají přednost', () => {
+    const { tournament, entries, matches } = simulate(16, 4, { finished: true });
+    const blank = entries.map(e => ({ ...e, place: null, status: e.user_id === 'p2' ? 'out' : e.status }));
+    const filled = T.finalPlaces(blank, tournament, matches);
+    const placeOf = (id) => filled.find(e => e.user_id === id).place;
+    // simulate: vyhrává nižší číslo; finále p1–p9, o 3. místo p5–p13
+    assert.deepEqual(['p1', 'p9', 'p5', 'p13'].map(placeOf), [1, 2, 3, 4]);
+    assert.ok(filled.every(e => e.status === 'finished'), 'hráči pavouku jsou skončení');
+    assert.deepEqual(filled.map(e => e.place).sort((a, b) => a - b), Array.from({ length: 16 }, (_, i) => i + 1), 'každé místo právě jednou');
+    assert.ok([5, 6, 7, 8].includes(placeOf('p3')) && [9, 10, 11, 12, 13, 14, 15, 16].includes(placeOf('p2')));
+    assert.equal(T.championOf(filled, tournament, matches), 'p1');
+    assert.equal(T.championOf(blank, tournament, matches), 'p1', 'bez míst vítěz finále');
+    // místo z databáze zůstane, i když by výpočet dal jiné
+    const server = blank.map(e => e.user_id === 'p3' ? { ...e, place: 7 } : e);
+    assert.equal(T.finalPlaces(server, tournament, matches).find(e => e.user_id === 'p3').place, 7);
+    // běžící turnaj a vyloučení hráči se nemění
+    assert.equal(T.finalPlaces(blank, { ...tournament, status: 'running' }, matches), blank);
+    const excluded = { user_id: 'x', status: 'excluded', place: null, player: null };
+    assert.equal(T.finalPlaces([...blank, excluded], tournament, matches).find(e => e.user_id === 'x'), excluded);
+    // pódium skončeného turnaje z dopočítaných míst
+    assert.deepEqual(T.podium(filled).map(e => e.user_id), ['p1', 'p9', 'p5', 'p13']);
+});

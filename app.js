@@ -7413,12 +7413,15 @@
     // players: výsledky hráčů (user_id, player, correct, points); load: odpovědi ze serveru; local: moje odpovědi z tohoto zařízení
     // viewAs = divák cizího zápasu: první sloupec patří tomuto hráči (jménem, ne „Ty“)
     // questions = vlastní seznam zadání (Kvíz dne); jinak se otázky vyberou ze semínka výzvy (def)
-    const openBreakdown = async ({ def, players, load, local = null, viewAs = null, questions: questionList = null }) => {
+    // back = { label, run }: nahoře tlačítko zpět do okna, ze kterého se rozpis otevřel (okno turnaje, turnaj z archivu)
+    const openBreakdown = async ({ def, players, load, local = null, viewAs = null, questions: questionList = null, back = null }) => {
         const user = signedUser();
         if (!user || !Social) return;
         const token = ++breakdownToken;
         const stillOpen = () => { const overlay = document.getElementById('dialog-overlay'); return token === breakdownToken && Boolean(overlay && overlay.dataset.title === BREAKDOWN_TITLE); };
-        showDialog(BREAKDOWN_TITLE, '<p class="py-6 text-center text-sm font-semibold text-slate-500 dark:text-slate-400">Načítám rozpis…</p>');
+        const backHtml = back ? `<button type="button" data-bd-back class="mb-2 inline-flex min-h-[2.5rem] items-center gap-1 rounded-xl bg-white px-2.5 text-[12px] font-black text-slate-700 ring-1 ring-slate-300/70 active:scale-95 dark:bg-slate-800 dark:text-slate-200 dark:ring-slate-600"><i data-lucide="chevron-left" class="h-4 w-4"></i>${escapeHtml(back.label)}</button>` : '';
+        const goBack = (event) => { if (back && event.target.closest('[data-bd-back]')) { back.run(); return true; } return false; };
+        showDialog(BREAKDOWN_TITLE, `${backHtml}<p class="py-6 text-center text-sm font-semibold text-slate-500 dark:text-slate-400">Načítám rozpis…</p>`, { onClick: goBack });
         const [answers, questions] = await Promise.all([
             Promise.resolve().then(load).then(value => ({ value }), error => ({ error })),
             (questionList || challengeQuestionList(def)).catch(error => { console.error(error); return null; })
@@ -7427,7 +7430,7 @@
         if (answers.error) {
             const denied = answers.error.status === 403 || answers.error.status === 401;
             const deniedText = viewAs ? 'Rozpis zápasů tohoto kola uvidíš, až odehraješ svůj zápas (a databáze je ve verzi 13).' : 'Rozpis otázek uvidíš, až hru dohraješ ty i soupeř.';
-            showDialog(BREAKDOWN_TITLE, DIALOG_NOTE(denied ? deniedText : 'Rozpis se nepodařilo načíst. Zkontroluj připojení a zkus to znovu.'));
+            showDialog(BREAKDOWN_TITLE, backHtml + DIALOG_NOTE(denied ? deniedText : 'Rozpis se nepodařilo načíst. Zkontroluj připojení a zkus to znovu.'), { onClick: goBack });
             return;
         }
         const ranked = players.map(row => ({ user_id: row.user_id, player: row.player || null, correct: Number.isInteger(row.correct) ? row.correct : null, points: Number.isInteger(row.points) ? row.points : null, time_ms: Number.isInteger(row.time_ms) ? row.time_ms : null }));
@@ -7436,8 +7439,9 @@
         // Výchozí soupeř: ten, kdo má odpovědi (u výzvy pro víc hráčů první v pořadí)
         const withRows = ranked.filter(row => row.user_id !== meId && state.answers && state.answers[row.user_id]);
         state.rivalId = (withRows[0] || ranked.find(row => row.user_id !== meId) || {}).user_id || null;
-        const draw = () => showDialog(BREAKDOWN_TITLE, renderBreakdown(state), {
+        const draw = () => showDialog(BREAKDOWN_TITLE, backHtml + renderBreakdown(state), {
             onClick: (event) => {
+                if (goBack(event)) return;
                 const info = event.target.closest('[data-bd-info]');
                 if (info) { openItemInfo(info.dataset.topic, info.dataset.id); return; }
                 const pick = event.target.closest('[data-bd-rival]');
@@ -7457,7 +7461,8 @@
         });
     };
     // Rozpis zápasu turnaje: otázky ze semínka turnaje a kola (stejně jako tournamentChallengeDef)
-    const openTournamentBreakdown = (tid, mid) => {
+    // back = { label, run }: tlačítko zpět do okna turnaje (z okna turnaje i z archivu)
+    const openTournamentBreakdown = (tid, mid, back = null) => {
         const view = findTournament(tid);
         const match = view && view.matches.find(item => item.id === mid);
         if (!view || !match || !Tournament) return;
@@ -7473,7 +7478,7 @@
         openBreakdown({
             def: { topic: view.tournament.topic, seed: `${view.tournament.seed}-r${match.round}`, count: Tournament.QUESTIONS, level: 1, categories: [],
                 tournament: { seedBase: view.tournament.seed, round: match.round } },
-            players, load: () => Social.tournamentDetails(mid), local, viewAs: spectator ? match.p1 : null
+            players, load: () => Social.tournamentDetails(mid), local, viewAs: spectator ? match.p1 : null, back
         });
     };
     // Rozpis zápasu jde otevřít, když ho hráč dohrál a soupeř také (nebo je zápas rozhodnutý). Cizí zápas (stejně jako
@@ -8002,7 +8007,14 @@
     let bracketFull = true; // výchozí je celý pavouk; tlačítko Celý pavouk přepne na pohled od osmifinále (volba hráče)
     let bracketFocus = ''; // hráč, jehož cesta pavoukem je zvýrazněná (klepnutí na hráče)
     let bracketReset = true; // po otevření a změně pohledu se pavouk posune na moje kolo, při dalším překreslení zůstane, kde je
-    const resetTournaments = () => { tournamentOffer = null; tournamentView = null; tournamentTickAt = 0; tournamentStatsAt = 0; tournamentBusy = ''; tournamentAgain = null; tournamentServerResume.clear(); };
+    // Archiv turnajů: načtené stránky skončených turnajů (rows) a otevřené turnaje z archivu (archiveViews, skončený turnaj se už nemění)
+    const newArchive = () => ({ user: '', rows: [], loading: false, done: false, error: false, at: 0, scroll: 0 });
+    let archive = newArchive();
+    const archiveViews = new Map();
+    let tournamentArchived = false; // okno turnaje ukazuje turnaj z archivu (nahoře Zpět na archiv a Aktuální turnaj)
+    let archiveObserver = null;
+    const resetArchive = () => { archive = newArchive(); archiveViews.clear(); };
+    const resetTournaments = () => { resetArchive(); tournamentOffer = null; tournamentView = null; tournamentTickAt = 0; tournamentStatsAt = 0; tournamentBusy = ''; tournamentAgain = null; tournamentServerResume.clear(); };
     const plainText = (text) => String(text || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
     // Za vyhraný zápas XP, jednou za účet: vyplacení eviduje server (claim_tournament_xp, schéma 3) a XP se připíše jen za zápasy, které právě vrátil,
@@ -8275,7 +8287,7 @@
             if (again) refreshTournaments(again);
         }
     };
-    const findTournament = (tid) => (tournamentView || []).find(view => view.tournament.id === tid) || null;
+    const findTournament = (tid) => (tournamentView || []).find(view => view.tournament.id === tid) || archiveViews.get(tid) || null;
     // Stav karty z toho, co spočítal server, plus rozehraný zápas tohoto zařízení (uložená relace → krok 'resume')
     // Bez uložené relace (smazaná data, jiné zařízení) jde rozehraný zápas dohrát, když jeho odpovědi eviduje server (schéma 3, tournamentServerResume);
     // ve starší databázi se kolo počítá jako neodehrané
@@ -8349,7 +8361,10 @@
             <div id="tournament-card" class="relative overflow-hidden rounded-2xl bg-gradient-to-br from-gold-100 via-gold-50 to-emerald-100 p-2.5 shadow-md ring-1 ring-gold-300/80 dark:from-gold-900/50 dark:via-slate-800 dark:to-emerald-900/40 dark:ring-gold-700/60 ${invite ? 'tour-glow' : ''}">
                 <div class="relative mb-1.5 flex items-center justify-between gap-2">
                     <p class="flex items-center gap-1.5 text-[11px] font-black uppercase tracking-widest text-gold-800 dark:text-gold-200"><i data-lucide="trophy" class="h-3.5 w-3.5"></i>Týdenní turnaj</p>
-                    <button type="button" data-action="tournament-help" aria-label="Jak to funguje" title="Jak to funguje" class="flex h-7 w-7 items-center justify-center rounded-full bg-white/70 text-[13px] font-black text-brand-700 ring-1 ring-gold-300/70 active:scale-95 dark:bg-slate-900/40 dark:text-gold-200 dark:ring-gold-700/60">?</button>
+                    <div class="flex items-center gap-1.5">
+                        <button type="button" data-action="tournament-archive" aria-label="Archiv turnajů" title="Archiv turnajů" class="flex h-7 w-7 items-center justify-center rounded-full bg-white/70 text-brand-700 ring-1 ring-gold-300/70 active:scale-95 dark:bg-slate-900/40 dark:text-gold-200 dark:ring-gold-700/60"><i data-lucide="archive" class="h-3.5 w-3.5"></i></button>
+                        <button type="button" data-action="tournament-help" aria-label="Jak to funguje" title="Jak to funguje" class="flex h-7 w-7 items-center justify-center rounded-full bg-white/70 text-[13px] font-black text-brand-700 ring-1 ring-gold-300/70 active:scale-95 dark:bg-slate-900/40 dark:text-gold-200 dark:ring-gold-700/60">?</button>
+                    </div>
                 </div>
                 <div class="relative flex flex-col divide-y divide-gold-300/50 dark:divide-slate-700">${tournamentView.map(tournamentRow).join('')}</div>
             </div>`;
@@ -8395,7 +8410,7 @@
         }).join('');
     };
     // --- Celé pořadí: místa 1.–4., pak skupiny podle kola vyřazení (za běhu nahoře ti, kdo ještě hrají) ---
-    const rankingHtml = (view, meId) => {
+    const rankingHtml = (view, meId, { open = false } = {}) => {
         const { tournament, entries, matches } = view;
         const result = Tournament.standings(entries, tournament, matches);
         if (!result.total) return '';
@@ -8418,7 +8433,7 @@
         if (result.playing.length) parts.push(section('playing', 'Ještě hrají', String(result.playing.length), result.playing, true));
         result.groups.forEach(group => parts.push(section(group.key, group.label, group.key === 'top' ? '' : `${group.roundName ? `${group.roundName} · ` : ''}${group.rows.length}`, group.rows.map(item => group.key === 'top' || group.key === 'none' ? item : { ...item, label: '' }), group.individual)));
         return `
-            <details data-keep="ranking" class="group rounded-2xl bg-slate-100/70 p-1.5 dark:bg-slate-800/50">
+            <details data-keep="ranking" ${open ? 'open' : ''} class="group rounded-2xl bg-slate-100/70 p-1.5 dark:bg-slate-800/50">
                 <summary data-ranking class="flex cursor-pointer list-none items-center gap-2 rounded-xl px-1.5 py-1 text-[13px] font-black text-slate-800 dark:text-slate-100 [&::-webkit-details-marker]:hidden"><i data-lucide="medal" class="h-4 w-4 shrink-0 text-gold-600 dark:text-gold-300"></i><span class="flex-1">Celé pořadí (${escapeHtml(Tournament.playersWord(result.total))})</span><i data-lucide="chevron-down" class="h-4 w-4 shrink-0 text-slate-500 transition-transform group-open:rotate-180 dark:text-slate-400"></i></summary>
                 <div id="tournament-ranking" class="mt-1.5 flex flex-col gap-2">${parts.join('')}</div>
             </details>`;
@@ -8530,12 +8545,17 @@
     };
     const renderTournamentDialog = () => {
         const user = signedUser();
-        const view = findTournament(tournamentDialogId);
-        if (!user || !view) { showDialog(TOUR_DIALOG, '<p class="py-6 text-center text-sm font-semibold text-slate-500 dark:text-slate-400">Načítám turnaj…</p>'); return; }
+        // Turnaj z archivu má vlastní nadpis (pozadí ho nepřekresluje) a nahoře cestu zpět na archiv a na aktuální turnaj
+        const view = tournamentArchived ? archiveViews.get(tournamentDialogId) || null : findTournament(tournamentDialogId);
+        const archived = Boolean(tournamentArchived && view);
+        const title = tournamentArchived ? ARCHIVE_DETAIL : TOUR_DIALOG;
+        if (!user || !view) { showDialog(title, '<p class="py-6 text-center text-sm font-semibold text-slate-500 dark:text-slate-400">Načítám turnaj…</p>'); return null; }
         const { tournament, entries, matches, state } = view;
         const today = Tournament.pragueToday();
         const names = Tournament.nameMap(entries);
-        const rules = `<button type="button" data-t-help class="${TOUR_LINK} self-start">Jak turnaje fungují</button>`;
+        const rules = archived
+            ? `<button type="button" data-t-help class="${TOUR_LINK} self-start">Jak turnaje fungují</button>`
+            : `<div class="flex flex-wrap items-center justify-between gap-x-3"><button type="button" data-t-help class="${TOUR_LINK}">Jak turnaje fungují</button><button type="button" data-t-archive class="${TOUR_LINK} gap-1"><i data-lucide="archive" class="h-3.5 w-3.5 shrink-0"></i>Archiv turnajů</button></div>`;
         let body;
         if (state.phase === 'open') {
             body = `
@@ -8559,12 +8579,19 @@
             const hasBracket = Boolean(matches.length && tournament.size >= 2);
             const bracketOn = hasBracket && tournamentMode === 'bracket';
             const medals = ['text-gold-600 dark:text-gold-300', 'text-slate-500 dark:text-slate-300', 'text-amber-700 dark:text-amber-500', 'text-slate-500 dark:text-slate-400'];
-            body = `
+            body = archived ? `
+                ${archiveNavHtml()}
+                <p class="text-xs font-semibold leading-snug text-slate-500 dark:text-slate-400">Týden ${escapeHtml(Tournament.archiveWeekLabel(tournament.week_start))} · ${tournament.size ? `${Tournament.playersWord(tournament.size)}` : ''} · ${escapeHtml(challengeTopicTitle(tournament.topic))}, ${Tournament.QUESTIONS} otázek v kole</p>
+                ${archivePodiumHtml(entries, user.id)}
+                ${archiveMeHtml(entries, user.id)}
+                ${lastBreakdown}
+                ${rankingHtml(view, user.id, { open: tournament.size <= 16 })}` : `
                 <p class="text-xs font-semibold leading-snug text-slate-500 dark:text-slate-400">Týden ${escapeHtml(Tournament.weekLabel(tournament.week_start))} · ${tournament.size ? `${Tournament.playersWord(tournament.size)}` : ''} · Mix všech témat, ${Tournament.QUESTIONS} otázek v kole</p>
                 ${state.role === 'player' || (state.phase === 'finished' && state.playing) ? `<div class="sticky top-11 z-20 -mx-1 -my-1 bg-slate-50 px-1 py-1 dark:bg-slate-900"><div id="tournament-status" class="flex items-center gap-2.5 rounded-2xl bg-gold-50 p-2.5 ring-1 ring-gold-300/70 dark:bg-gold-900/20 dark:ring-gold-700/60"><p class="min-w-0 flex-1 text-[13px] font-bold leading-snug text-slate-800 dark:text-slate-100">${state.roundName ? `<span class="font-black">${escapeHtml(state.roundName)}:</span> ` : ''}${escapeHtml(status)}</p>${state.step === 'play' || state.step === 'resume' ? `<button type="button" data-t-play class="shrink-0 rounded-xl bg-gold-500 px-3.5 py-2 text-[13px] font-black text-brand-950 shadow-sm active:scale-[0.97]">${state.step === 'resume' ? 'Pokračovat' : 'Hrát'}</button>` : ''}</div></div>` : `<p id="tournament-status" class="text-sm font-semibold text-slate-600 dark:text-slate-300">${escapeHtml(status)}</p>`}
                 ${lastBreakdown}
                 ${podium.length ? `<ol id="tournament-podium" class="flex flex-col gap-1">${podium.map(entry => `<li class="flex items-center gap-2 rounded-xl bg-white px-2.5 py-1.5 shadow-sm dark:bg-slate-800 ${entry.user_id === user.id ? 'ring-2 ring-brand-600' : 'ring-1 ring-slate-200/70 dark:ring-slate-700/70'}"><span class="flex w-8 shrink-0 items-center justify-center gap-0.5 text-sm font-black ${medals[entry.place - 1]}">${entry.place}.${entry.place === 1 ? '<i data-lucide="trophy" class="h-3.5 w-3.5"></i>' : ''}</span>${avatarHtml(entry.player, 'h-8 w-8 text-base')}<span class="min-w-0 flex-1 truncate text-[13px] font-black text-slate-800 dark:text-slate-100">${escapeHtml(playerName(entry.player))}${entry.user_id === user.id ? ' (ty)' : ''}</span></li>`).join('')}</ol>` : ''}
-                ${rankingHtml(view, user.id)}
+                ${rankingHtml(view, user.id)}`;
+            body += `
                 ${hasBracket ? `<div role="group" aria-label="Pohled na turnaj" class="grid grid-cols-2 gap-1 rounded-xl bg-slate-200/70 p-1 dark:bg-slate-800">${[['rounds', 'Seznam kol'], ['bracket', 'Pavouk']].map(([mode, title]) => `<button type="button" data-t-mode="${mode}" aria-pressed="${(mode === 'bracket') === bracketOn}" class="rounded-lg px-2 py-1.5 text-[13px] font-black ${(mode === 'bracket') === bracketOn ? 'bg-white text-brand-700 shadow-sm dark:bg-slate-700 dark:text-white' : 'text-slate-600 dark:text-slate-300'}">${title}</button>`).join('')}</div>` : ''}
                 ${tournament.size >= 16 ? `<input id="tournament-search" type="search" value="${escapeHtml(tournamentQuery)}" placeholder="Najít hráče…" autocomplete="off" maxlength="24" aria-label="Najít hráče v pavouku" class="w-full rounded-xl bg-white px-3 py-2 text-sm font-semibold text-slate-800 ring-1 ring-slate-300 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-600 dark:bg-slate-800 dark:text-slate-100 dark:ring-slate-600">` : ''}
                 ${bracketOn ? `<div id="tournament-bracket" class="flex flex-col gap-2">${bracketHtml(view, user.id, today)}</div>` : `<div id="tournament-rounds" class="flex flex-col gap-1.5">${matches.length ? tournamentRoundsHtml(view, user.id, today) : '<p class="text-sm text-slate-500 dark:text-slate-400">Zápasy zatím nejsou.</p>'}</div>`}
@@ -8573,20 +8600,30 @@
         }
         // Překreslení po načtení nových dat nesmí sbalit kola, která hráč rozbalil ani posunout pavouk
         const before = document.getElementById('dialog-overlay');
-        const sameDialog = Boolean(before && before.dataset.title === TOUR_DIALOG);
+        const sameDialog = Boolean(before && before.dataset.title === title);
         const opened = sameDialog ? Object.fromEntries([...before.querySelectorAll('details[data-keep]')].map(item => [item.dataset.keep, item.open])) : {};
         const oldBox = sameDialog ? before.querySelector('#bracket-scroll') : null;
         const oldScroll = oldBox ? { left: oldBox.scrollLeft, top: oldBox.scrollTop } : null;
         const oldFocus = sameDialog && before.contains(document.activeElement) && document.activeElement.dataset.bp ? { bp: document.activeElement.dataset.bp, bk: document.activeElement.dataset.bk } : null;
         const rerender = () => renderTournamentDialog();
-        const overlay = showDialog(TOUR_DIALOG, `<div class="flex flex-col gap-3">${body}</div>`, {
+        const overlay = showDialog(title, `<div class="flex flex-col gap-3">${body}</div>`, {
             onClick: (event) => {
                 const target = event.target;
-                if (target.closest('[data-t-join]')) changeTournamentEntry(tournamentDialogId, true);
+                if (target.closest('[data-t-archive]')) openTournamentArchive();
+                else if (target.closest('[data-t-archive-back]')) backToArchive();
+                else if (target.closest('[data-t-current]')) openTournament(currentTournamentId());
+                else if (target.closest('[data-t-join]')) changeTournamentEntry(tournamentDialogId, true);
                 else if (target.closest('[data-t-leave]')) changeTournamentEntry(tournamentDialogId, false);
                 else if (target.closest('[data-t-play]')) { const view = findTournament(tournamentDialogId); if (view && view.state.step === 'resume') resumeTournament(tournamentDialogId); else playTournament(tournamentDialogId); }
                 else if (target.closest('[data-t-help]')) openTournamentHelp(true);
-                else if (target.closest('[data-action="tournament-breakdown"]')) { const button = target.closest('[data-action="tournament-breakdown"]'); openTournamentBreakdown(button.dataset.tid, button.dataset.mid); }
+                else if (target.closest('[data-action="tournament-breakdown"]')) {
+                    // Z rozpisu se jde zpět do tohoto okna na stejné místo (posun okna i pavouku)
+                    const button = target.closest('[data-action="tournament-breakdown"]');
+                    const panel = document.querySelector('#dialog-overlay > div');
+                    const box = document.getElementById('bracket-scroll');
+                    const memo = { panel: panel ? panel.scrollTop : 0, box: box ? { left: box.scrollLeft, top: box.scrollTop } : null, archived: tournamentArchived, tid: tournamentDialogId };
+                    openTournamentBreakdown(button.dataset.tid, button.dataset.mid, { label: tournamentArchived ? 'Zpět na turnaj z archivu' : 'Zpět na turnaj', run: () => returnToTournament(memo) });
+                }
                 else if (target.closest('[data-t-mode]')) { tournamentMode = target.closest('[data-t-mode]').dataset.tMode === 'rounds' ? 'rounds' : 'bracket'; bracketReset = true; rerender(); }
                 else if (target.closest('[data-b-full]')) { bracketFull = target.closest('[data-b-full]').getAttribute('aria-pressed') !== 'true'; bracketReset = true; rerender(); }
                 else if (target.closest('[data-b-me]')) { const box = document.getElementById('bracket-scroll'); scrollBracketTo(box && box.querySelector('[data-bfocus]'), 'smooth'); }
@@ -8661,14 +8698,16 @@
         if (empty) empty.classList.toggle('hidden', !needle || total > 0);
     };
     const openTournament = (tid) => {
-        if (!signedUser() || !Tournament) return;
+        if (!signedUser() || !Tournament || !tid) return;
         tournamentDialogId = tid;
+        tournamentArchived = false;
         tournamentQuery = '';
         tournamentMode = 'bracket';
         bracketFull = true;
         bracketFocus = '';
         bracketReset = true;
         renderTournamentDialog();
+        dialogScrollTo(0);
         refreshTournaments({ force: true });
     };
     const openTournamentHelp = (back = false) => {
@@ -8678,6 +8717,211 @@
                 <p class="text-xs leading-snug text-slate-500 short:text-[11px] short:leading-tight dark:text-slate-400">Názvy kol podle počtu hráčů v kole: 128 hráčů 1. kolo, 64 2. kolo, 32 šestnáctifinále, 16 osmifinále, 8 čtvrtfinále, 4 semifinále, 2 finále a zápas o 3. místo.</p>
                 ${back && findTournament(tournamentDialogId) ? `<button type="button" data-t-back class="${SECONDARY_BUTTON}">Zpět na turnaj</button>` : ''}
             </div>`, { onClick: (event) => { if (event.target.closest('[data-t-back]')) { bracketReset = true; renderTournamentDialog(); } } });
+    };
+
+    // --- Archiv turnajů: skončené turnaje od nejnovějšího (po stránkách, další se načte při posouvání), u každého vítěz a moje místo.
+    // Otevřený turnaj z archivu ukáže pódium, celé pořadí a pavouk jen ke čtení se stejným rozpisem zápasů jako běžící turnaj
+    // (všechny zápasy jsou rozhodnuté, takže pravidlo pro diváky nic neblokuje). Data jsou v databázi napořád, čtou se přes pravidla řádků.
+    const ARCHIVE_TITLE = 'Archiv turnajů';
+    const ARCHIVE_DETAIL = 'Turnaj z archivu';
+    const ARCHIVE_FRESH = 5 * 60000; // načtený archiv platí 5 minut (nový skončený turnaj přibude nejvýš jednou za týden)
+    const IN_BRACKET = ['playing', 'out', 'finished'];
+    const dialogScrollTo = (top) => { const panel = document.querySelector('#dialog-overlay > div'); if (panel) panel.scrollTop = top; };
+    const dialogScroll = () => { const panel = document.querySelector('#dialog-overlay > div'); return panel ? panel.scrollTop : 0; };
+    const dialogTitled = (title) => { const overlay = document.getElementById('dialog-overlay'); return Boolean(overlay && overlay.dataset.title === title); };
+    // Aktuální turnaj z karty: běžící, jinak s otevřenými přihláškami, jinak poslední skončený
+    const currentTournamentId = () => {
+        const list = tournamentView || [];
+        const pick = list.find(view => view.tournament.status === 'running') || list.find(view => view.tournament.status === 'open') || list[0];
+        return pick ? pick.tournament.id : '';
+    };
+    const archiveRowHtml = (row, meId) => {
+        const { tournament, winner, mine } = row;
+        const id = escapeHtml(tournament.id);
+        const played = Boolean(mine && IN_BRACKET.includes(mine.status));
+        const medal = played && mine.place >= 1 && mine.place <= 3;
+        const me = played ? `Ty: ${mine.place ? Tournament.placeLabel(mine.place) : 'hrál jsi'}` : mine && mine.status === 'excluded' ? 'Ty: nevešel ses do pavouka' : '';
+        const cup = '<span class="absolute -bottom-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-gradient-to-br from-gold-300 to-gold-600 text-brand-950 ring-2 ring-white dark:ring-slate-800"><i data-lucide="trophy" class="h-3 w-3"></i></span>';
+        const face = winner ? avatarHtml(winner.player, 'h-11 w-11 text-xl') : '<span class="flex h-11 w-11 items-center justify-center rounded-full bg-slate-200 text-slate-400 dark:bg-slate-700 dark:text-slate-500"><i data-lucide="trophy" class="h-5 w-5"></i></span>';
+        return `<li data-archive="${id}" ${played ? 'data-played' : ''}>
+            <button type="button" data-archive-open="${id}" class="flex w-full items-center gap-2.5 rounded-2xl bg-white p-2.5 text-left shadow-sm active:scale-[0.99] dark:bg-slate-800 ${played ? 'ring-2 ring-brand-600/70 dark:ring-brand-400/70' : 'ring-1 ring-slate-200/70 dark:ring-slate-700/70'}">
+                <span class="relative shrink-0">${face}${winner ? cup : ''}</span>
+                <span class="min-w-0 flex-1">
+                    <span data-archive-week class="block truncate text-[13.5px] font-black leading-tight text-slate-800 dark:text-slate-100">Týden ${escapeHtml(Tournament.archiveWeekLabel(tournament.week_start))}</span>
+                    <span class="block truncate text-[11px] font-semibold text-slate-500 dark:text-slate-400">${escapeHtml(challengeTopicTitle(tournament.topic))}${tournament.size ? ` · ${escapeHtml(Tournament.playersWord(tournament.size))}` : ''}</span>
+                    <span data-archive-winner class="mt-0.5 flex min-w-0 items-center gap-1 text-[12px] font-bold text-slate-700 dark:text-slate-200"><span class="shrink-0 font-black text-gold-700 dark:text-gold-300">Vítěz:</span><span class="truncate">${winner ? `${escapeHtml(playerName(winner.player))}${winner.user_id === meId ? ' (ty)' : ''}` : 'neznámý'}</span></span>
+                    ${me ? `<span data-archive-me class="mt-1 inline-flex max-w-full items-center gap-1 truncate rounded-full px-2 py-0.5 text-[11px] font-black ${medal ? 'bg-gold-100 text-gold-900 dark:bg-gold-900/50 dark:text-gold-100' : 'bg-brand-50 text-brand-800 dark:bg-brand-900/50 dark:text-brand-100'}">${medal ? '<i data-lucide="medal" class="h-3 w-3 shrink-0"></i>' : ''}${escapeHtml(me)}</span>` : ''}
+                </span>
+                <i data-lucide="chevron-right" class="h-4 w-4 shrink-0 text-slate-400 dark:text-slate-500"></i>
+            </button>
+        </li>`;
+    };
+    const renderArchive = () => {
+        const user = signedUser();
+        if (!user || !Tournament) return null;
+        const { rows } = archive;
+        const current = currentTournamentId();
+        const note = (text, extra = '') => `<p ${extra} class="py-4 text-center text-sm font-semibold text-slate-500 dark:text-slate-400">${escapeHtml(text)}</p>`;
+        const retry = `<button type="button" data-archive-more class="${SECONDARY_BUTTON}">Zkusit znovu</button>`;
+        let list = '';
+        if (rows.length) list = `<ol id="tournament-archive" class="flex flex-col gap-2">${rows.map(row => archiveRowHtml(row, user.id)).join('')}</ol>`;
+        else if (archive.error) list = `${DIALOG_NOTE('Archiv se nepodařilo načíst. Zkontroluj připojení a zkus to znovu.')}${retry}`;
+        else if (archive.done) list = note('Zatím žádný turnaj neskončil. Až první dohraje, najdeš ho tady.', 'id="archive-empty"');
+        else list = note('Načítám archiv…', 'data-archive-loading');
+        let foot = '';
+        if (rows.length) {
+            if (archive.loading) foot = note('Načítám starší turnaje…', 'data-archive-loading');
+            else if (archive.error) foot = `${DIALOG_NOTE('Starší turnaje se nepodařilo načíst.')}${retry}`;
+            else if (archive.done) foot = `<p data-archive-end class="text-center text-xs font-semibold text-slate-500 dark:text-slate-400">${rows.length > 1 ? 'Starší turnaje už nejsou.' : 'Jiné skončené turnaje zatím nejsou.'}</p>`;
+            else foot = `<div data-archive-sentinel></div><button type="button" data-archive-more class="${SECONDARY_BUTTON}">Starší turnaje</button>`;
+        }
+        const overlay = showDialog(ARCHIVE_TITLE, `
+            <div class="flex flex-col gap-3">
+                <p class="text-xs font-semibold leading-snug text-slate-500 dark:text-slate-400">Výsledky skončených týdenních turnajů, nejnovější nahoře. Klepni na turnaj a uvidíš pódium, celé pořadí, pavouk i rozpis zápasů.</p>
+                ${list}
+                ${foot}
+                ${current ? `<button type="button" data-t-current class="${SECONDARY_BUTTON}"><i data-lucide="trophy" class="h-5 w-5"></i> Aktuální turnaj</button>` : ''}
+            </div>`, {
+            onClick: (event) => {
+                const target = event.target;
+                const row = target.closest('[data-archive-open]');
+                if (row) { archive.scroll = dialogScroll(); openArchivedTournament(row.dataset.archiveOpen); }
+                else if (target.closest('[data-archive-more]')) { archive.error = false; loadArchive(); }
+                else if (target.closest('[data-t-current]')) openTournament(currentTournamentId());
+            }
+        });
+        watchArchiveEnd(overlay);
+        return overlay;
+    };
+    // Hlídka na konci seznamu: jakmile se při posouvání okna ukáže, načte se další stránka
+    const watchArchiveEnd = (overlay) => {
+        if (archiveObserver) { archiveObserver.disconnect(); archiveObserver = null; }
+        const sentinel = overlay && overlay.querySelector('[data-archive-sentinel]');
+        if (!sentinel || archive.loading || archive.error || archive.done || typeof IntersectionObserver === 'undefined') return;
+        archiveObserver = new IntersectionObserver((items) => {
+            if (items.some(item => item.isIntersecting)) { archiveObserver.disconnect(); archiveObserver = null; loadArchive(); }
+        }, { root: overlay.firstElementChild, rootMargin: '0px 0px 200px 0px' });
+        archiveObserver.observe(sentinel);
+    };
+    const loadArchive = async () => {
+        const user = signedUser();
+        if (!user || !Social || archive.loading || archive.done) return;
+        if (archive.user !== user.id) { resetArchive(); archive.user = user.id; }
+        const mine = archive;
+        mine.loading = true;
+        mine.error = false;
+        if (dialogTitled(ARCHIVE_TITLE)) renderArchive();
+        try {
+            const page = await Social.tournamentArchive(user.id, mine.rows.length, Social.ARCHIVE_PAGE);
+            if (archive !== mine || !signedUser() || signedUser().id !== user.id) return;
+            if (page === null) mine.done = true;
+            else {
+                const known = new Set(mine.rows.map(row => row.tournament.id));
+                mine.rows = [...mine.rows, ...page.filter(row => !known.has(row.tournament.id))];
+                if (page.length < Social.ARCHIVE_PAGE) mine.done = true;
+            }
+            mine.at = Date.now();
+        } catch (error) {
+            mine.error = true;
+        } finally {
+            mine.loading = false;
+            if (archive === mine && dialogTitled(ARCHIVE_TITLE)) renderArchive();
+        }
+    };
+    const openTournamentArchive = () => {
+        const user = signedUser();
+        if (!user || !Social || !Tournament) return;
+        if (archive.user !== user.id || (!archive.loading && archive.at && Date.now() - archive.at > ARCHIVE_FRESH)) { archive = newArchive(); archive.user = user.id; }
+        tournamentArchived = false;
+        renderArchive();
+        dialogScrollTo(0);
+        if (!archive.rows.length && !archive.done) loadArchive();
+    };
+    const backToArchive = () => {
+        tournamentArchived = false;
+        if (!archive.rows.length) { openTournamentArchive(); return; }
+        renderArchive();
+        dialogScrollTo(archive.scroll || 0);
+    };
+    // Navigace nahoře v turnaji z archivu
+    const archiveNavHtml = () => {
+        const current = currentTournamentId();
+        return `<div class="flex items-center justify-between gap-2">
+            <button type="button" data-t-archive-back class="${TOUR_SMALL} min-h-[2.5rem] px-2.5"><i data-lucide="chevron-left" class="h-4 w-4"></i>Archiv</button>
+            ${current ? `<button type="button" data-t-current class="${TOUR_SMALL} min-h-[2.5rem] px-2.5"><i data-lucide="trophy" class="h-3.5 w-3.5"></i>Aktuální turnaj</button>` : ''}
+        </div>`;
+    };
+    // Pódium: 2. vlevo, 1. uprostřed a nejvýš, 3. vpravo (v pořadí čtení 1., 2., 3.); můj sloupek je zvýrazněný
+    const archivePodiumHtml = (entries, meId) => {
+        const spots = [1, 2, 3].map(place => ({ place, entry: entries.find(entry => entry.place === place && entry.status === 'finished') || null }));
+        if (!spots.some(spot => spot.entry)) return '';
+        const looks = {
+            1: { order: 'order-2', step: 'h-16', face: 'h-14 w-14 text-2xl', tone: 'bg-gradient-to-b from-gold-300 to-gold-500 text-brand-950' },
+            2: { order: 'order-1', step: 'h-11', face: 'h-11 w-11 text-xl', tone: 'bg-gradient-to-b from-slate-200 to-slate-400 text-slate-800 dark:from-slate-400 dark:to-slate-600 dark:text-slate-50' },
+            3: { order: 'order-3', step: 'h-8', face: 'h-11 w-11 text-xl', tone: 'bg-gradient-to-b from-amber-500 to-amber-700 text-white' }
+        };
+        const spot = ({ place, entry }) => {
+            const look = looks[place];
+            if (!entry) return `<li class="${look.order} min-w-0 flex-1"></li>`;
+            const mine = entry.user_id === meId;
+            return `<li data-podium="${place}" ${mine ? 'data-me' : ''} class="${look.order} flex min-w-0 flex-1 flex-col items-center justify-end gap-1">
+                ${place === 1 ? '<i data-lucide="crown" class="h-5 w-5 text-gold-500 dark:text-gold-300"></i>' : ''}
+                ${avatarHtml(entry.player, look.face)}
+                <span class="line-clamp-2 w-full break-words text-center text-[12px] font-black leading-tight ${mine ? 'text-brand-700 dark:text-brand-200' : 'text-slate-800 dark:text-slate-100'}">${escapeHtml(playerName(entry.player))}${mine ? ' (ty)' : ''}</span>
+                <span class="flex w-full ${look.step} items-start justify-center rounded-t-xl pt-1 text-base font-black ${look.tone} ${mine ? 'ring-2 ring-brand-600 dark:ring-brand-400' : ''}"><span class="sr-only">místo </span>${place}.</span>
+            </li>`;
+        };
+        return `<ol id="archive-podium" aria-label="Pódium" class="flex items-end gap-2 rounded-2xl bg-gradient-to-b from-gold-50 to-white px-2.5 pt-2.5 ring-1 ring-gold-300/60 dark:from-gold-900/30 dark:to-slate-800 dark:ring-gold-700/50">${spots.map(spot).join('')}</ol>`;
+    };
+    // Moje umístění v turnaji z archivu (ve skupině vypadlých i s rozmezím skupiny)
+    const archiveMeHtml = (entries, meId) => {
+        const mine = entries.find(entry => entry.user_id === meId);
+        if (!mine) return '';
+        if (!IN_BRACKET.includes(mine.status)) return mine.status === 'excluded' ? '<p id="archive-me" class="rounded-2xl bg-slate-100 px-3 py-2 text-[13px] font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-300">Přihlásil ses, ale do pavouka ses tenkrát nevešel.</p>' : '';
+        const medal = mine.place >= 1 && mine.place <= 3;
+        return `<p id="archive-me" class="flex items-center gap-2 rounded-2xl px-3 py-2 text-[13px] font-black ring-2 ${medal ? 'bg-gold-50 text-gold-900 ring-gold-400 dark:bg-gold-900/30 dark:text-gold-100 dark:ring-gold-600' : 'bg-brand-50 text-brand-800 ring-brand-600 dark:bg-brand-900/40 dark:text-brand-100 dark:ring-brand-400'}"><i data-lucide="${medal ? 'medal' : 'user'}" class="h-4 w-4 shrink-0"></i><span>${mine.place ? `Ty: ${escapeHtml(Tournament.placeLabel(mine.place))}${mine.place === 1 ? ', vítěz turnaje!' : ''}` : 'Ty: hrál jsi'}</span></p>`;
+    };
+    // Turnaj z archivu: přihlášky a zápasy se načtou jednou (skončený turnaj se nemění), chybějící místa se dopočítají ze zápasů
+    const openArchivedTournament = async (tid) => {
+        const user = signedUser();
+        if (!user || !Social || !Tournament || !tid) return;
+        tournamentDialogId = tid;
+        tournamentArchived = true;
+        tournamentQuery = '';
+        tournamentMode = 'bracket';
+        bracketFull = true;
+        bracketFocus = '';
+        bracketReset = true;
+        const row = archive.rows.find(item => item.tournament.id === tid);
+        if (archiveViews.has(tid) || !row) { renderTournamentDialog(); dialogScrollTo(0); return; }
+        const back = `<button type="button" data-t-archive-back class="${SECONDARY_BUTTON}"><i data-lucide="chevron-left" class="h-5 w-5"></i> Zpět na archiv</button>`;
+        showDialog(ARCHIVE_DETAIL, `<p class="py-6 text-center text-sm font-semibold text-slate-500 dark:text-slate-400">Načítám turnaj…</p>${back}`, { onClick: (event) => { if (event.target.closest('[data-t-archive-back]')) backToArchive(); } });
+        dialogScrollTo(0);
+        const still = () => tournamentArchived && tournamentDialogId === tid && dialogTitled(ARCHIVE_DETAIL) && signedUser() && signedUser().id === user.id;
+        try {
+            const [entries, matches] = await Promise.all([Social.getTournamentEntries(tid), Social.getTournamentMatches(tid)]);
+            if (!still()) return;
+            const { tournament } = row;
+            const placed = Tournament.finalPlaces(entries || [], tournament, matches || []);
+            archiveViews.set(tid, { tournament, entries: placed, matches: matches || [], archived: true,
+                state: Tournament.cardState({ tournament, entries: placed, matches: matches || [], me: user.id, today: Tournament.pragueToday() }) });
+            renderTournamentDialog();
+        } catch (error) {
+            if (!still()) return;
+            showDialog(ARCHIVE_DETAIL, `${DIALOG_NOTE('Turnaj se nepodařilo načíst. Zkontroluj připojení a zkus to znovu.')}<div class="mt-2 flex flex-col gap-2"><button type="button" data-archive-retry class="${PRIMARY_BUTTON}">Zkusit znovu</button>${back}</div>`, {
+                onClick: (event) => { if (event.target.closest('[data-t-archive-back]')) backToArchive(); else if (event.target.closest('[data-archive-retry]')) openArchivedTournament(tid); }
+            });
+        }
+    };
+    // Z rozpisu zápasu zpět do okna turnaje (běžícího i z archivu) na stejné místo
+    const returnToTournament = (memo) => {
+        tournamentDialogId = memo.tid;
+        tournamentArchived = memo.archived;
+        const overlay = renderTournamentDialog();
+        if (!overlay) return;
+        dialogScrollTo(memo.panel);
+        const box = overlay.querySelector('#bracket-scroll');
+        if (box && memo.box) box.scrollTo({ left: memo.box.left, top: memo.box.top, behavior: 'auto' });
     };
 
     // Přihlášení a odhlášení: hlášku (i chybu) ukáže toast, pak se turnaje načtou znovu
@@ -8900,6 +9144,7 @@
     const tournamentActions = {
         'tournament-open': (button) => openTournament(button.dataset.tid),
         'tournament-help': () => openTournamentHelp(),
+        'tournament-archive': () => openTournamentArchive(),
         'tournament-join': (button) => changeTournamentEntry(button.dataset.tid, true),
         'tournament-leave': (button) => changeTournamentEntry(button.dataset.tid, false),
         'tournament-play': (button) => playTournament(button.dataset.tid),

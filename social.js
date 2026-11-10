@@ -286,6 +286,36 @@
         const rows = await request('GET', 'tournaments?status=in.(open,running,finished)&order=week_start.desc&limit=6&select=id,topic,week_start,started_on,capacity,status,size,rounds,seed') || [];
         return rows.map(cleanTournament);
     }, null);
+    // Archiv turnajů: skončené turnaje od nejnovějšího po stránkách (offset, limit nejvýš 20; zrušené se nehrály, v archivu nejsou). Ke každému
+    // vítěz (přihláška s 1. místem; kde místa chybí, vítěz finále) a moje přihláška (místo, stav). Jen čtení přes pravidla řádků, bez funkce
+    // v databázi: [{ tournament, winner: { user_id, player } | null, mine: { place, status } | null }]; null = databáze turnaje nemá
+    const ARCHIVE_PAGE = 10;
+    const tournamentArchive = (userId, offset = 0, limit = ARCHIVE_PAGE) => guardTournaments(async () => {
+        const count = Math.max(1, Math.min(20, wholeOrNull(limit) || ARCHIVE_PAGE));
+        const from = Math.max(0, wholeOrNull(offset) || 0);
+        const rows = await request('GET', `tournaments?status=eq.finished&order=week_start.desc,id.desc&limit=${count}&offset=${from}&select=id,topic,week_start,started_on,capacity,status,size,rounds,seed`) || [];
+        const list = rows.filter(row => row && isTournamentId(row.id)).map(cleanTournament);
+        if (!list.length) return [];
+        const ids = list.map(item => item.id).join(',');
+        const me = encodeURIComponent(String(userId || ''));
+        const entries = await withExtras(extras => request('GET', `tournament_entries?tournament_id=in.(${ids})&or=(place.eq.1,user_id.eq.${me})&limit=${count * 4}&select=tournament_id,user_id,status,place,player:profiles!user_id(${profileFields(extras)})`)) || [];
+        const of = (tid) => entries.filter(row => row && row.tournament_id === tid);
+        return Promise.all(list.map(async (tournament) => {
+            const own = of(tournament.id).find(row => row.user_id === userId) || null;
+            let winner = of(tournament.id).find(row => wholeOrNull(row.place) === 1) || null;
+            // Místa nevyplněná (starší data): vítěz finále
+            if (!winner && tournament.rounds) {
+                const finals = await withExtras(extras => request('GET', `tournament_matches?tournament_id=eq.${encodeURIComponent(tournament.id)}&round=eq.${tournament.rounds}&third=is.false&limit=1&select=winner,player:profiles!winner(${profileFields(extras)})`)).catch(() => []) || [];
+                const final = finals[0];
+                if (final && final.winner) winner = { user_id: String(final.winner), player: final.player || null };
+            }
+            return {
+                tournament,
+                winner: winner ? { user_id: String(winner.user_id), player: winner.player || null } : null,
+                mine: own ? { place: wholeOrNull(own.place), status: String(own.status || '') } : null
+            };
+        }));
+    }, null);
     // Přihlášky s profilem hráče, v pořadí přihlášení
     const getTournamentEntries = (tid) => guardTournaments(async () => {
         const rows = await withExtras(extras => request('GET', `tournament_entries?tournament_id=eq.${encodeURIComponent(needTournamentId(tid))}&order=joined_at.asc&limit=300&select=user_id,joined_at,status,place,player:profiles!user_id(${profileFields(extras)})`)) || [];
@@ -844,7 +874,7 @@
     });
 
     return { AVATARS, allAvatars, cleanColor, customHue, nearestColor, cleanFrame, cleanOwl, saveOwl, cleanTitlePref, saveLook, COLORS, COUNTS, NAME_MAX, SocialError, cleanName, isValidName, newCode, parseCode, getProfile, saveProfile, createChallenge, getChallenge, getResults, submitResult, myChallenges, searchPlayers, randomOpponent, incomingChallenges, playerStats, getProgress, saveProgress, getRating, getRatingChange, weeklyLeaderboard, getAccepts, saveAccepts,
-        tournamentTick, getTournaments, inTournament, devTournament, devClientErrors, isDevAdmin, schemaVersion, reportQuestion, getQuestionReports, deleteQuestionReport, exportMyData, deleteMyAccount, getTournamentEntries, getTournamentMatches, joinTournament, leaveTournament, startTournamentMatch, finishTournamentMatch, myTournamentStats, tournamentNotices, tournamentNoticesSeen,
+        tournamentTick, getTournaments, tournamentArchive, ARCHIVE_PAGE, inTournament, devTournament, devClientErrors, isDevAdmin, schemaVersion, reportQuestion, getQuestionReports, deleteQuestionReport, exportMyData, deleteMyAccount, getTournamentEntries, getTournamentMatches, joinTournament, leaveTournament, startTournamentMatch, finishTournamentMatch, myTournamentStats, tournamentNotices, tournamentNoticesSeen,
         challengeProgress, saveChallengeProgress, tournamentAnswers, saveTournamentAnswer, claimTournamentXp, cleanAnswerLabel,
         // Rozpis otázek (schéma 10)
         challengeDetails, tournamentDetails,

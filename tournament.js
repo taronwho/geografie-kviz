@@ -46,6 +46,16 @@
     };
     // Týden turnaje: „9. 11. – 15. 11.“
     const weekLabel = (weekStart) => `${formatDay(weekStart)} – ${formatDay(addDays(weekStart, 6))}`;
+    // Týden v archivu i s rokem: „2.–8. 11. 2026“, přes konec měsíce „30. 11. – 6. 12. 2026“, přes konec roku „28. 12. 2026 – 3. 1. 2027“
+    const archiveWeekLabel = (weekStart) => {
+        const from = parseDay(weekStart);
+        const to = parseDay(addDays(weekStart, 6));
+        if (!from || !to) return '';
+        const [d1, m1, y1, d2, m2, y2] = [from.getUTCDate(), from.getUTCMonth() + 1, from.getUTCFullYear(), to.getUTCDate(), to.getUTCMonth() + 1, to.getUTCFullYear()];
+        if (y1 !== y2) return `${d1}. ${m1}. ${y1} – ${d2}. ${m2}. ${y2}`;
+        if (m1 !== m2) return `${d1}. ${m1}. – ${d2}. ${m2}. ${y2}`;
+        return `${d1}.–${d2}. ${m2}. ${y2}`;
+    };
 
     // --- Kola ---
     const NAMES = { 128: '1. kolo', 64: '2. kolo', 32: 'Šestnáctifinále', 16: 'Osmifinále', 8: 'Čtvrtfinále', 4: 'Semifinále', 2: 'Finále' };
@@ -212,6 +222,14 @@
         const to = from + Math.max(1, Math.floor(Number(count) || 1)) - 1;
         return { from, to, label: to > from ? `${from}.–${to}. místo` : placeLabel(from) };
     };
+    // První místo skupiny vypadlých, do které místo patří: skončený turnaj má v databázi přesná místa (5, 6, 7, 8), za běhu
+    // první místo skupiny ((velikost >> kolo) + 1); obojí patří do stejné skupiny „5.–8. místo“. Místa 1.–4. jsou každé samo.
+    const placeGroupStart = (size, place) => {
+        const value = Math.floor(Number(place));
+        if (!(Number(size) >= 2) || !(value > 4)) return value;
+        for (let round = 1; (size >> round) >= 4; round++) { const from = (size >> round) + 1; if (value >= from) return from; }
+        return value;
+    };
     // Kolo, ve kterém vypadl hráč s tímto místem (v databázi (velikost >> kolo) + 1); místa 1.–4. patří finálovému kolu
     const roundOfPlace = (size, place) => {
         if (!(size >= 2) || !(place >= 1)) return null;
@@ -238,9 +256,10 @@
             groups.push({ key: 'top', from: 1, to: 4, label: '1.–4. místo', roundName: '', individual: true, rows: top.map(entry => withTotals(entry, entry.place, entry.place === 1 ? 'Vítěz' : roundLabel(roundOfPlace(tournament.size, entry.place)))) });
         }
         const byPlace = new Map();
-        placed.filter(entry => entry.place > 4).forEach(entry => { if (!byPlace.has(entry.place)) byPlace.set(entry.place, []); byPlace.get(entry.place).push(entry); });
+        placed.filter(entry => entry.place > 4).forEach(entry => { const start = placeGroupStart(tournament.size, entry.place); if (!byPlace.has(start)) byPlace.set(start, []); byPlace.get(start).push(entry); });
         [...byPlace.keys()].sort((a, b) => a - b).forEach(place => {
-            const list = byPlace.get(place).sort(byTotals(totals));
+            // přesná místa z databáze mají přednost, jinak (stejné místo celé skupiny) rozhodnou celkové body a čas
+            const list = byPlace.get(place).sort((a, b) => a.place - b.place || byTotals(totals)(a, b));
             const range = placeRange(place, list.length);
             const name = roundLabel(roundOfPlace(tournament.size, place));
             // přesná místa uvnitř skupiny podle celkových bodů a času
@@ -248,6 +267,42 @@
         });
         if (unplaced.length) groups.push({ key: 'none', from: null, to: null, label: 'Bez umístění', roundName: '', individual: false, rows: unplaced.map(entry => ({ entry, place: null, label: '' })) });
         return { playing, groups, total: inGame.length };
+    };
+
+    // Místa skončeného turnaje (archiv): databáze je zapíše při konci turnaje (tournament_progress) a ty mají přednost. Kde chybí, dopočítají se
+    // ze zápasů: vítěz finále 1., poražený finalista 2., zápas o 3. místo 3. a 4., ostatní podle kola vyřazení ((velikost >> kolo) + 1)
+    // a uvnitř skupiny podle celkových bodů, času a přihlášení (stejně jako v databázi). Hráči pavouku mají pak stav 'finished'.
+    const finalPlaces = (entries, tournament, matches = []) => {
+        if (!tournament || tournament.status !== 'finished') return entries;
+        const size = Number(tournament.size) || 0;
+        const rounds = Number(tournament.rounds) || (size >= 2 ? Math.round(Math.log2(size)) : 0);
+        const loserOf = (match) => match && match.winner ? (match.winner === match.p1 ? match.p2 : match.p1) : null;
+        const byId = new Map(entries.map(entry => [entry.user_id, entry]));
+        const ids = new Set([...byId.keys(), ...matches.flatMap(match => [match.p1, match.p2])]);
+        const totals = new Map([...ids].map(id => [id, totalsOf(matches, id)]));
+        const derived = new Map();
+        const final = matches.find(match => !match.third && match.round === rounds);
+        const bronze = matches.find(match => match.third);
+        if (final && final.winner) { derived.set(final.winner, 1); derived.set(loserOf(final), 2); }
+        if (bronze && bronze.winner) { derived.set(bronze.winner, 3); derived.set(loserOf(bronze), 4); }
+        for (let round = rounds - 1; round >= 1; round--) {
+            const from = round === rounds - 1 ? 3 : (size >> round) + 1;
+            const out = matches.filter(match => !match.third && match.round === round).map(loserOf).filter(id => id && !derived.has(id))
+                .map(id => byId.get(id) || { user_id: id, player: null }).sort(byTotals(totals));
+            out.forEach((entry, index) => derived.set(entry.user_id, from + index));
+        }
+        return entries.map(entry => {
+            if (!IN_GAME.includes(entry.status)) return entry;
+            const place = entry.place >= 1 ? entry.place : derived.get(entry.user_id) || null;
+            return { ...entry, place, status: 'finished' };
+        });
+    };
+    // Vítěz skončeného turnaje: hráč s 1. místem, jinak vítěz finále
+    const championOf = (entries, tournament, matches = []) => {
+        const first = entries.find(entry => entry.place === 1);
+        if (first) return first.user_id;
+        const final = matches.find(match => !match.third && match.round === Number(tournament.rounds));
+        return final && final.winner ? final.winner : null;
     };
 
     // --- Pavouk (sloupce kol) ---
@@ -343,10 +398,10 @@
 
     return {
         QUESTIONS, MIN_PLAYERS, MAX_PLAYERS, WIN_XP, WIN_XP_STEP, winXp, RULES,
-        parseDay, addDays, totalsOf, formatDuration, diffDays, pragueToday, formatDay, weekdayName, dayWord, weekLabel,
+        parseDay, addDays, totalsOf, formatDuration, diffDays, pragueToday, formatDay, weekdayName, dayWord, weekLabel, archiveWeekLabel,
         roundName, playersInRound, tournamentRoundName, roundDay, plural, playersWord, placeLabel, eliminatedLabel,
         groupRounds, currentRound, decided, involves, opponentOf, myMatch, resultOf, winnerPlace,
         cardState, statusText, noticeText, podium, nameMap, xpMatches, xpRounds,
-        placeRange, roundOfPlace, standings, bracketStartRound, lastDecidedRound, bracketColumns, playerPath, dayShort
+        placeRange, placeGroupStart, roundOfPlace, standings, finalPlaces, championOf, bracketStartRound, lastDecidedRound, bracketColumns, playerPath, dayShort
     };
 });
