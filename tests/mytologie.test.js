@@ -223,3 +223,30 @@ test('mytologie: nové postavy, bytosti, místa a předměty a jejich okruhy', (
     const known = data.items.filter(item => item.k === 1).length;
     assert.ok(known >= 300 && known <= 400, `známých ${known}`);
 });
+
+test('mytologie: trojská válka, hrdinové, bájní tvorové, české pověsti a úrovně', () => {
+    // Trojská válka i s méně známými postavami Íliady (Kalchás, Sinón, Sarpédón) a trójským koněm, bez bohů
+    const troy = inCollection('trojska-valka');
+    for (const name of ['Achilles', 'Hektór', 'Kalchás', 'Sinón', 'Astyanax', 'Trójský kůň']) assert.ok(troy.includes(name), name);
+    assert.ok(troy.length >= 35 && !troy.includes('Zeus') && !troy.includes('Athéna'), `${troy.length}`);
+    const heroes = inCollection('recti-hrdinove');
+    for (const name of ['Oidipus', 'Orestés', 'Pelops']) assert.ok(heroes.includes(name), name);
+    assert.equal(find('Oidipus').ty, 'hrdina');
+    // Bájní tvorové pověstí mnoha národů – bez řeckých a slovanských bytostí, které mají vlastní okruh
+    const creatures = inCollection('bajni-tvorove');
+    for (const name of ['Drak', 'Jednorožec', 'Fénix', 'Gryf', 'Upír', 'Mořská panna', 'Bazilišek', 'Džin', 'Krampus', 'Mantikora']) assert.ok(creatures.includes(name), name);
+    assert.ok(!creatures.includes('Vodník') && !creatures.includes('Pegas') && !creatures.includes('Rusalka'));
+    // České pověsti a strašidla s málo jazykovými verzemi (Fext, Ohnivý muž) i rabi Löw
+    assert.ok(inCollection('ceske-povesti').includes('Jehuda ben Becalel') && inCollection('ceske-povesti').includes('Mistr Hanuš'));
+    for (const name of ['Fext', 'Ohnivý muž', 'Karzelek']) assert.ok(inCollection('slovanske-bytosti').includes(name), name);
+    assert.ok(inCollection('andele-a-demoni').includes('Mefistofeles'));
+    // Úrovně: všech devět múz je známých, olympští bohové jsou v Základní, nejméně známé postavy pro experty
+    assert.deepEqual(data.items.filter(item => item.ty === 'múza').map(item => item.k), Array(9).fill(1));
+    assert.ok(inCollection('olympsti-bohove').every(name => find(name).k === 1));
+    assert.ok(inCollection('japonska-mytologie').filter(name => find(name).k === 1).length >= 6);
+    assert.ok(core.levelOf(find('Mnata')) >= 2, 'bájné kníže z výčtu není v Základní');
+    assert.ok(inCollection('recke-baje').filter(name => core.levelOf(find(name)) === 3).length >= 40, 'méně známé postavy řeckých bájí pro experty');
+    // Jeden obrázek u dvou postav by otázka nerozlišila (Boreás a Óreithýia na jedné váze)
+    const images = data.items.filter(item => item.im).map(item => item.im);
+    assert.equal(new Set(images).size, images.length);
+});
