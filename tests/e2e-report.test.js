@@ -197,6 +197,8 @@ test('Nahlásit chybu v otázce', { skip: !chromium && 'Playwright není nainsta
         const { context, tab, backend, problems } = await open({ signedIn: true, dev: true });
         backend.rows = [{ id: 7, user_id: 'u-2', topic: 'historie', item_id: 'Q1', question_type: 'name', reason: 'spatna-odpoved', note: 'Správně je <b>jiný</b> panovník', title: 'Který panovník to byl?', answer: 'Karel IV.', created_at: '2026-11-04T10:00:00Z', author: { display_name: 'Petr' } }];
         await tab.click('#btn-settings');
+        // Panel ukazuje verzi schématu v databázi vedle verze, kterou aplikace potřebuje
+        assert.match(await tab.locator('[data-dev-schema]').innerText(), /Databáze: .+ · aplikace potřebuje \d+/);
         await tab.click('[data-dev="reports"]');
         await tab.waitForSelector('[data-report-done="7"]');
         const text = await tab.locator('#dialog-overlay').innerText();
