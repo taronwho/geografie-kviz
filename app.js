@@ -496,7 +496,7 @@
     // Otázka „Ukaž na mapě“ (question-map.js): jen v tréninku, asi každá osmá vhodná otázka. Dnešní otázky, výzvy a turnaje ji
     // nemají (stejné otázky pro všechny hráče i starší verze aplikace), chyby a opakování také ne. Los nebere z rng otázky.
     // Témata s otázkami na mapě (question-map.js KINDS); režim Ukaž na mapě dává jen je a otázku na mapě pokaždé
-    const MAP_TOPICS = ['zemepis', 'sport'];
+    const MAP_TOPICS = MapQuestion ? MapQuestion.MAP_TOPICS : [];
     const mapQuestionFor = (item, ctx) => MapQuestion && mode === 'practice' && pool.kind === 'map' ? loadMapData().then(map => MapQuestion.buildQuestion(item, ctx, map)).catch(() => null)
         : !MapQuestion || mode !== 'practice' || pool.kind === 'mistakes' || pool.kind === 'review' ? null
         : MapQuestion.nextQuestion(item, ctx, { storage: { read: () => readJson(MapQuestion.GAP_KEY), write: (value) => writeJson(MapQuestion.GAP_KEY, value) }, loadMap: loadMapData });
@@ -4428,12 +4428,19 @@
             }
             if (pool.kind === 'map') {
                 // Jen místa, která jde ukázat na mapě (podle známosti z nastavení, když jich je dost); pár pokusů, kdyby místo nebylo na kreslené mapě
+                // Nejdřív druh místa (město, řeka, bitva, stát…) – každý přijde zhruba stejně často, ne samé stadiony –, pak místo
+                // z jeho tématu; druh bez vhodných míst se pro tuto otázku vynechá
                 const map = await loadMapData();
-                for (let attempt = 0; attempt < 8 && !item; attempt++) {
-                    ctx = await loadTopic(pool.topic || pickRandom(MAP_TOPICS, Math.random));
-                    const all = ctx.items.filter(entry => MapQuestion.candidate(entry, ctx, map));
+                let groups = MapQuestion.MAP_GROUPS.filter(group => !pool.topic || group.topics.includes(pool.topic));
+                for (let attempt = 0; attempt < 10 && !item && groups.length; attempt++) {
+                    const group = pickRandom(groups, Math.random);
+                    const topicIds = pool.topic ? [pool.topic] : group.topics;
+                    ctx = await loadTopic(pickRandom(topicIds, Math.random));
+                    const all = ctx.items.filter(entry => group.test(entry) && MapQuestion.candidate(entry, ctx, map));
                     const tiered = filterItems(all, { tier: settings.tier });
-                    const pickedItem = pickItem(tiered.length >= 20 ? tiered : all, Math.random, history, ctx.topic.categories.map(c => c.key));
+                    const choices = tiered.length >= 8 ? tiered : all;
+                    if (!choices.length) { groups = groups.filter(other => other !== group); continue; }
+                    const pickedItem = pickItem(choices, Math.random, history, ctx.topic.categories.map(c => c.key));
                     if (pickedItem && MapQuestion.buildQuestion(pickedItem, ctx, map)) item = pickedItem;
                 }
             }
