@@ -4076,7 +4076,7 @@
             if (event.target.closest('[data-chest-wear]') && opened && opened.gift) {
                 wearGift(opened.gift);
                 closeChestOverlay();
-                showToast(`${opened.gift.item.title}: hotovo. Změníš to v Nastavení → Vzhled.`);
+                showToast(`${opened.gift.item.title}: hotovo. Změníš to v ${rewardPlace(opened.gift.category)}.`);
                 return;
             }
             const go = event.target.closest('[data-chest-go]');
