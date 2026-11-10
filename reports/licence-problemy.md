@@ -1,20 +1,21 @@
 # Obrázky k nahrazení před komerčním vydáním
 
-Sestaveno 2026-11-09 skriptem `scripts/build-licenses.mjs` z metadat Wikimedia Commons (`data/licenses.json`).
+Sestaveno 2026-11-10 skriptem `scripts/build-licenses.mjs` z metadat Wikimedia Commons (`data/licenses.json`).
 Uvedené soubory mají licenci, která nedovoluje komerční užití nebo úpravy (ořez, překrytí), jsou „fair use“, nebo licenci neuvádějí.
 Před vydáním v Google Play je nutné je nahradit jiným obrázkem (nebo položku ponechat bez fotky). Licence CC BY, CC BY-SA, CC0 a volná díla jsou v pořádku,
 vyžadují jen uvedení autora a licence – to dělá stránka Zdroje a licence (`licence.html`).
 
 ## Souhrn
 
-- souborů celkem: **30232**, s načtenými metadaty: **30232**, zatím nestaženo: **0**
-- problémových: **0**
+- souborů celkem: **31152**, s načtenými metadaty: **31152**, zatím nestaženo: **0**
+- problémových: **1**
+  - soubor na Commons neexistuje: 1
 
 ## Počty podle témat
 
 | Téma | Souborů | Problémových | NC | ND | NC-ND | fair use | bez licence | chybí |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| architektura | 1668 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| architektura | 2366 | 1 | 0 | 0 | 0 | 0 | 0 | 1 |
 | biologie | 5022 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | chemie | 1042 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | film | 848 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
@@ -25,10 +26,14 @@ vyžadují jen uvedení autora a licence – to dělá stránka Zdroje a licence
 | literatura | 2172 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | mytologie | 956 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | sport | 2127 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| umeni | 1476 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| umeni | 1704 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | vlajky | 1889 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | zemepis | 5353 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 
 ## Seznam souborů
 
-Žádný problémový soubor.
+### soubor na Commons neexistuje (1)
+
+| Soubor | Témata | Licence | Autor |
+| --- | --- | --- | --- |
+| [Centre-Pompidou-metz-esplanade.png](https://commons.wikimedia.org/wiki/File:Centre-Pompidou-metz-esplanade.png) | architektura | – | – |
