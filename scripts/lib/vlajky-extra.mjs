@@ -5,11 +5,21 @@
 
 // Země, jejichž regiony první úrovně do okruhu patří, a nejvyšší počet regionů z jedné země (podle počtu jazykových verzí článku)
 export const REGION_COUNTRIES = {
-    Q30: 51, Q183: 16, Q16: 13, Q408: 8, Q40: 9, Q39: 26, Q36: 16, Q214: 8, Q159: 40, Q212: 27, Q29: 19, Q38: 20, Q142: 27, Q145: 6,
-    Q55: 12, Q31: 6, Q34: 21, Q20: 15, Q33: 19, Q155: 27, Q96: 32, Q414: 24, Q298: 16, Q224: 20
+    Q30: 51, Q183: 16, Q16: 13, Q408: 13, Q40: 9, Q39: 26, Q36: 16, Q214: 8, Q159: 40, Q212: 27, Q29: 19, Q38: 20, Q142: 27, Q145: 4,
+    Q55: 12, Q31: 6, Q34: 21, Q20: 15, Q33: 19, Q155: 27, Q96: 32, Q414: 24, Q298: 16, Q224: 20,
+    // Další státy, jejichž regiony mají vlajku nebo znak a článek na české Wikipedii (prefektury, župy, departementy, provincie)
+    Q17: 47, Q28: 20, Q218: 42, Q252: 38, Q833: 16, Q884: 17, Q739: 33, Q419: 25, Q717: 24, Q750: 9, Q79: 27, Q191: 15
 };
+// Regiony, které Wikidata vedou jako regiony první úrovně, ale do okruhu nepatří: maďarská města se župním právem (jen župy
+// a Budapešť), zámořská území Spojeného království a vnější území Austrálie (mají vlastní okruh nebo vlajku státu);
+// indonéské provincie vzniklé rozdělením Papuy roku 2022 nemají v mapových podkladech (Natural Earth) obrys
+export const REGION_ONLY = { Q28: { types: ['Q188604'], ids: ['Q1781'] }, Q145: { ids: ['Q21', 'Q22', 'Q25', 'Q26'] } };
 // Wikidata mezi regiony první úrovně uvádějí i obce (Papeete) a zámořská či sporná území, která mají vlastní okruh
-export const NOT_A_REGION = /^(?:Papeete|Faaa|Gibraltar|Bermudy|Norfolk|Falklandy|Jan Mayen|Špicberky|Vánoční ostrov|Svatý Bartoloměj|Svatý Martin|Saint Pierre a Miquelon|Wallis a Futuna|Francouzská Polynésie|Nová Kaledonie|Mayotte|Réunion|Martinik|Guadeloupe|Francouzská Guyana|Portoriko)$/u;
+export const NOT_A_REGION = /^(?:Papeete|Faaa|Gibraltar|Bermudy|Norfolk|Falklandy|Kokosové ostrovy|Ashmorovy a Cartierovy ostrovy|Heardův ostrov a McDonaldovy ostrovy|Teritorium Jervisova zátoka|Jervis Bay|Australské antarktické území|Teritorium ostrovů Korálového moře|Jan Mayen|Špicberky|Vánoční ostrov|Svatý Bartoloměj|Svatý Martin|Saint Pierre a Miquelon|Wallis a Futuna|Francouzská Polynésie|Nová Kaledonie|Mayotte|Réunion|Martinik|Guadeloupe|Francouzská Guyana|Portoriko)$/u;
+// Regiony, které mapové podklady (Natural Earth 5.1) ještě nemají: indonéské provincie z let 2012 a 2022 (a Papua, jejíž obrys
+// tam zahrnuje i z ní vydělené provincie) a egyptský guvernorát Luxor (od roku 2009) – slepá mapa by je neukázala; malajsijské
+// státy na Borneu (Sabah, Sarawak, Labuan) jsou mimo rámec státu a mapa jejich okolí by neměla žádné hranice regionů
+export const REGION_NO_MAP = /^(?:Severní Kalimantan|Horská Papua|Jihozápadní Papua|Jižní Papua|Střední Papua|Papua|Luxor|Sabah|Sarawak|Labuan)$/u;
 export const CITY_MIN_POPULATION = 1000000;
 export const MAX_CITIES = 230;
 
@@ -33,14 +43,26 @@ export const HISTORICAL_TITLES = [
 export const KNOWN_HISTORICAL = ['Sovětský svaz', 'Československo', 'Jugoslávie', 'Německá demokratická republika', 'Osmanská říše', 'Ruské impérium', 'Rakousko-Uhersko', 'Pruské království', 'Konfederované státy americké', 'Západní Německo', 'Srbsko a Černá Hora', 'Německé císařství'];
 // Wikidata u některých zaniklých států uvádějí dnešní vlajku nebo žádnou (Československo má vlajku Česka, Rakousko-Uhersko žádnou) –
 // u Československa to nejde (vlajka je táž jako česká, otázka by neměla jedinou odpověď), u Rakouska-Uherska je soubor ručně
-export const HISTORICAL_FILES = { Q28513: 'Flag of Austria-Hungary (1867–1918).svg' };
-export const HISTORICAL_SKIP_FILE = /nazi|hakenkreuz|swastika|reichskriegs|reichsdienst/i;
+// U Habsburské monarchie a Uherska mají Wikidata víc ukončených vlajek bez pořadí – ručně ta, která tu byla dosud
+export const HISTORICAL_FILES = { Q28513: 'Flag of Austria-Hungary (1867–1918).svg', Q153136: 'Banner of the Holy Roman Emperor with Arms (1437-1493).svg',
+    Q171150: 'Flag of Hungary (1848-1849, 1867-1869).svg' };
+export const HISTORICAL_SKIP_FILE = /nazi|hakenkreuz|swastika|reichskriegs|reichsdienst|reichskommissariat|generalgouvernement/i;
+// Další zaniklé státy z Wikidat (třída „historická země“ s vlajkou, datem zániku a článkem na české Wikipedii) od tohoto počtu
+// jazykových verzí; bez států nacistického Německa a jeho okupačních správ (vlajka s hákovým křížem)
+export const HISTORICAL_MIN_SITELINKS = 45;
+// Státy zaniklé před tímto rokem vlajku v dnešním smyslu neměly – Wikidata u nich uvádějí novodobé rekonstrukce či pozdější
+// vlajky území (Tibetská říše, Sussexské království, Siungnuové); z ručního seznamu ano (Mongolská říše, Zlatá horda)
+export const HISTORICAL_MIN_END_YEAR = 1500;
+export const HISTORICAL_SKIP_NAMES = /^(?:Nacistické Německo|Generální gouvernement|Říšský komisariát.*|Protektorát Bohemia.*)$/u;
 
 // Další území a organizace: názvy článků na české Wikipedii
 export const TERRITORY_TITLES = ['Guam', 'Americká Samoa', 'Severní Mariany', 'Americké Panenské ostrovy', 'Britské Panenské ostrovy', 'Montserrat (ostrov)', 'Turks a Caicos', 'Falklandy', 'Svatá Helena (ostrov)',
     'Aruba', 'Curaçao', 'Sint Maarten', 'Martinik', 'Réunion', 'Guadeloupe', 'Mayotte', 'Francouzská Guyana', 'Wallis a Futuna', 'Niue', 'Vánoční ostrov', 'Špicberky', 'Madeira (souostroví)', 'Azory',
     'Abcházie', 'Jižní Osetie', 'Severní Kypr', 'Podněstří', 'Pásmo Gazy', 'Nová Kaledonie', 'Kokosové ostrovy', 'Saint-Pierre a Miquelon', 'Svatý Bartoloměj (ostrov)', 'Svatý Martin (ostrov)',
-    'Jersey', 'Alderney', 'Kanárské ostrovy', 'Baleáry', 'Korsika', 'Sardinie', 'Sicílie', 'Kréta', 'Grónsko', 'Zanzibar', 'Zanzibarské souostroví', 'Tchaj-wan', 'Kosovo', 'Palestina', 'Západní Sahara', 'Somaliland', 'Tibet'];
+    'Jersey', 'Alderney', 'Kanárské ostrovy', 'Baleáry', 'Korsika', 'Sardinie', 'Sicílie', 'Kréta', 'Grónsko', 'Zanzibar', 'Zanzibarské souostroví', 'Tchaj-wan', 'Kosovo', 'Palestina', 'Západní Sahara', 'Somaliland', 'Tibet',
+    'Britské indickooceánské území', 'Jižní Georgie a Jižní Sandwichovy ostrovy', 'Tristan da Cunha', 'Bonaire', 'Sint Eustatius', 'Saba (ostrov)', 'Cookovy ostrovy', 'Tokelau',
+    'Velikonoční ostrov', 'Autonomní region Bougainville', 'Ceuta', 'Melilla', 'Irácký Kurdistán', 'Francouzská Polynésie', 'Anguilla', 'Kajmanské ostrovy', 'Pitcairnovy ostrovy',
+    'Portoriko', 'Bermudy', 'Gibraltar', 'Hongkong', 'Macao', 'Guernsey', 'Man (ostrov)'];
 export const ORGANIZATION_TITLES = ['Liga arabských států', 'Organizace zemí vyvážejících ropu', 'UNESCO', 'Světová zdravotnická organizace', 'FIFA', 'Benelux', 'Společenství nezávislých států', 'Organizace amerických států',
     'Mercosur', 'Severská rada', 'Karibské společenství', 'NAFTA', 'Mezinárodní organizace frankofonie', 'Dětský fond Organizace spojených národů', 'Mezinárodní agentura pro atomovou energii', 'Mezinárodní organizace práce',
     'Organizace pro bezpečnost a spolupráci v Evropě', 'Organizace islámské spolupráce', 'Světová meteorologická organizace', 'Unie jihoamerických národů', 'Světová poštovní unie', 'Eurasijský ekonomický svaz',
@@ -48,4 +70,8 @@ export const ORGANIZATION_TITLES = ['Liga arabských států', 'Organizace zemí
     'Jihoafrické rozvojové společenství', 'Mezinárodní olympijský výbor', 'Mezinárodní měnový fond', 'Světová banka', 'Světová obchodní organizace', 'Mezinárodní červený kříž a červený půlměsíc', 'ASEAN',
     'Sdružení národů jihovýchodní Asie', 'Evropská rada', 'Rada Evropy', 'OECD', 'Organizace pro hospodářskou spolupráci a rozvoj', 'Visegrádská skupina', 'Evropská hospodářská oblast', 'Evropská asociace volného obchodu',
     'Mezinárodní unie pro ochranu přírody', 'Mezinárodní paralympijský výbor', 'UEFA', 'Mezinárodní hokejová federace', 'Mezinárodní basketbalová federace', 'Mezinárodní tenisová federace', 'Antarktický smluvní systém', 'Arktická rada',
-    'Africká rozvojová banka', 'Šanghajská organizace spolupráce', 'BRICS', 'G20', 'Skupina G7', 'Evropská organizace pro jaderný výzkum', 'Mezinárodní telekomunikační unie', 'Interpol', 'Europol', 'Evropská kosmická agentura'];
+    'Africká rozvojová banka', 'Šanghajská organizace spolupráce', 'BRICS', 'G20', 'Skupina G7', 'Evropská organizace pro jaderný výzkum', 'Mezinárodní telekomunikační unie', 'Interpol', 'Europol', 'Evropská kosmická agentura',
+    // Další organizace s vlajkou ve Wikidatech (i zaniklé: Společnost národů, Varšavská smlouva, RVHP)
+    'Společnost národů', 'Evropské společenství uhlí a oceli', 'Evropské hospodářské společenství', 'Organizace africké jednoty', 'Západoevropská unie', 'Suverénní řád Maltézských rytířů',
+    'Panevropská unie', 'Svaz arabského Maghrebu', 'Mezinárodní federace vexilologických asociací', 'Varšavská smlouva', 'Rada vzájemné hospodářské pomoci', 'Bagdádský pakt',
+    'Andské společenství', 'Středoamerický integrační systém', 'Organizace východokaribských států'];

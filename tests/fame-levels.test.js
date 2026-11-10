@@ -33,7 +33,7 @@ test('fame-levels: pořadí známosti, známé, spodní hranice okruhu, experti 
     assert.ok(items.every(item => !(item.k === 1 && item.x)), 'známá položka není pro experty');
 });
 
-for (const topic of ['geologie', 'mytologie']) {
+for (const topic of ['vlajky', 'geologie', 'mytologie']) {
     test(`${topic}: úrovně Základní, Mudrlant a Expert v každém okruhu`, () => {
         const data = load(topic);
         const known = data.items.filter(item => core.levelOf(item) === 1).length;
