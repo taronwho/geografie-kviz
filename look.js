@@ -46,8 +46,8 @@
     // Postavičky: obrázky hráče za odměny (k základním emoji ze social.js AVATARS, ta jsou zdarma). Obrázek icons/avatars/<id>.webp
     // a přes něj vrstvy přebarvených částí icons/avatars/<id>-<část><barva>.webp (scripts/avatar-icons.py; části v pořadí parts = čísla 1, 2,
     // barvy = AVATAR_COLORS). Každá se odemyká stejně jako emoji, které nahradila (was): uložené staré emoji se ukáže jako postavička
-    // a při uložení profilu se zapíše její id. Položka bez parts je zatím emoji (nemá obrázek); až ho dostane, stačí ji v řádku
-    // nahradit postavičkou s was: '💯'. Postavička je id z malých písmen (nejvýš 6 znaků, databáze pustí 1–8 znaků celkem).
+    // a při uložení profilu se zapíše její id. Položka bez parts by byla emoji bez obrázku (žádná taková teď není).
+    // Postavička je id z malých písmen (nejvýš 6 znaků, databáze pustí 1–8 znaků celkem).
     // colors = čísla barev (AVATAR_COLORS), které výběr u každé části nabídne (barvy moc blízko původní jsou vynechané); uložená
     // jiná barva 1–9 se přesto vykreslí (vrstva existuje pro všechny).
     const ALL = [1, 2, 3, 4, 5, 6, 7, 8, 9];
@@ -68,7 +68,7 @@
         { id: 'zelva', title: 'Želva šampion', badge: 'turnaj-zlato', was: '🏆', parts: ['Plášť', 'Pohár'], colors: [[1, 2, 3, 4, 5, 6, 8, 9], [1, 4, 5, 6, 7, 8, 9]] },
         // Odznaky Kvízu dne, Bleskovky, Přežití a otázek Ukaž na mapě, Odhadni a Seřaď
         { id: 'hodiny', title: 'Utíkající přesýpačky', badge: 'kviz-tyden', was: '⏱️', parts: ['Tenisky', 'Písek'], colors: [[2, 3, 4, 5, 6, 7, 9], [1, 4, 5, 6, 7, 8, 9]] },
-        { id: '💯', title: 'Stovka', badge: 'kviz-perfekt' }, // Chameleon (chamel) zatím nemá obrázek
+        { id: 'chamel', title: 'Chameleon jednička', badge: 'kviz-perfekt', was: '💯', parts: ['Kůže', 'Bříško'], colors: [[1, 2, 3, 5, 6, 7, 8, 9], [1, 4, 5, 6, 7, 8, 9]] },
         { id: 'gepard', title: 'Bleskový gepard', badge: 'bleskovka-16', was: '⚡', parts: ['Gepard', 'Čelenka a tenisky'], colors: [[1, 2, 3, 4, 7, 8, 9], [1, 4, 5, 6, 7, 8, 9]] },
         { id: 'zelvus', title: 'Želvušek v brnění', badge: 'preziti-20', was: '🐻', parts: ['Tělo', 'Srdíčka'], colors: [[3, 4, 5, 6, 7, 8, 9], [2, 3, 4, 5, 6, 7, 9]] },
         { id: 'tucnak', title: 'Tučňák badatel', badge: 'mapa-25', was: '🗺️', parts: ['Helma'], colors: [[1, 4, 5, 6, 7, 8, 9]] },

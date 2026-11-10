@@ -93,12 +93,19 @@
     const DANGER_BUTTON = `${SMALL_BUTTON} bg-rose-50 text-rose-700 ring-1 ring-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:ring-rose-900`;
     const INPUT = 'w-full rounded-xl border-2 border-slate-200 bg-white px-3 py-2.5 text-base font-bold text-slate-800 focus:border-brand-600 focus:outline-none dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100';
     const iconBubble = (icon, size = 'h-10 w-10 text-xl') => `<span aria-hidden="true" class="flex ${size} shrink-0 items-center justify-center rounded-xl bg-gold-50 ring-1 ring-gold-200 dark:bg-slate-700 dark:ring-slate-600">${esc(cleanIcon(icon))}</span>`;
-    const note = (text) => `<p class="rounded-2xl bg-white px-3 py-3 text-center text-sm font-semibold text-slate-500 shadow-sm dark:bg-slate-800 dark:text-slate-400">${esc(text)}</p>`;
+    // Ilustrace (icons/topics/<název>.webp, jako uiArt v app.js); sova-* se přebarví podle obleku (look-robes.js)
+    const art = (name, cls) => `<img src="icons/topics/${name}.webp" alt="" class="${cls} shrink-0 object-contain drop-shadow-sm">`;
+    // Poznámka v bílé kartě; s obrázkem (owl = póza sovy, např. 'sova-ceka') vlevo od textu
+    const note = (text, owl = '') => (owl
+        ? `<div class="flex items-center gap-3 rounded-2xl bg-white p-2 pr-3 shadow-sm dark:bg-slate-800">${art(owl, 'h-14 w-14')}<p class="min-w-0 text-sm font-semibold leading-snug text-slate-500 dark:text-slate-400">${esc(text)}</p></div>`
+        : `<p class="rounded-2xl bg-white px-3 py-3 text-center text-sm font-semibold text-slate-500 shadow-sm dark:bg-slate-800 dark:text-slate-400">${esc(text)}</p>`);
+    // Nikdo další ve skupině (správa): sova s dalekohledem vyhlíží členy
+    const nobodyHtml = () => `<div class="flex items-center gap-3 px-1">${art('sova-dalekohled', 'h-14 w-14')}<p class="min-w-0 text-[13px] leading-snug text-slate-500 dark:text-slate-400">Zatím tu nikdo další není. Pošli ostatním kód skupiny.</p></div>`;
     const errorNote = (text) => (text ? `<p class="min-h-[1.25rem] text-sm font-semibold text-rose-700 dark:text-rose-400" role="status">${esc(text)}</p>` : '');
 
     // Čip na záložce Více hráčů (vedle „Přijímám výzvy z“): otevře okno Skupiny; count = počet mých skupin (null = ještě nenačteno)
     const chipHtml = (count) => `
-        <button type="button" id="groups-chip" data-action="groups-open" title="Skupiny: soukromé pořadí pro třídu, rodinu nebo kamarády" class="flex min-h-[2rem] shrink-0 items-center gap-1.5 rounded-full bg-gold-50 px-3 py-1 text-[11.5px] font-black text-brand-950 ring-1 ring-gold-300/70 active:scale-95 dark:bg-gold-900/20 dark:text-gold-200 dark:ring-gold-700/60"><i data-lucide="users" class="h-3.5 w-3.5 shrink-0"></i>Skupiny${count ? `<span class="rounded-full bg-brand-700 px-1.5 py-px text-[10px] leading-none text-white">${count}</span>` : ''}</button>`;
+        <button type="button" id="groups-chip" data-action="groups-open" title="Skupiny: soukromé pořadí pro třídu, rodinu nebo kamarády" class="flex min-h-[2rem] shrink-0 items-center gap-1.5 rounded-full bg-gold-50 px-3 py-1 text-[11.5px] font-black text-brand-950 ring-1 ring-gold-300/70 active:scale-95 dark:bg-gold-900/20 dark:text-gold-200 dark:ring-gold-700/60">${art('skupiny', '-my-1 -ml-1.5 h-6 w-6')}Skupiny${count ? `<span class="rounded-full bg-brand-700 px-1.5 py-px text-[10px] leading-none text-white">${count}</span>` : ''}</button>`;
 
     const groupRowHtml = (group) => `
         <li><button type="button" data-group-open="${esc(group.id)}" class="flex w-full items-center gap-2.5 ${CARD} p-2 text-left active:scale-[0.99]">
@@ -116,7 +123,7 @@
         const body = groups === undefined ? note('Načítám skupiny…')
             : groups === false ? note('Skupiny se nepodařilo načíst. Zkontroluj připojení.')
                 : groups === null ? note('Skupiny zatím nejsou k dispozici.')
-                : !groups.length ? `<div class="flex flex-col gap-1.5 ${CARD} p-3"><p class="text-[14px] font-black text-slate-800 dark:text-slate-100">Soukromé pořadí pro třídu, rodinu nebo kamarády</p><p class="text-[13px] leading-snug text-slate-600 dark:text-slate-300">Založ skupinu a pošli ostatním kód. Uvidíte, kdo dnes vede v Kvízu dne, kdo má nejvíc bodů za týden a kdo získal nejvíc XP.</p></div>`
+                : !groups.length ? `<div class="flex items-start gap-3 ${CARD} p-3">${art('skupiny', 'h-14 w-14')}<div class="flex min-w-0 flex-col gap-1.5"><p class="text-[14px] font-black leading-snug text-slate-800 dark:text-slate-100">Soukromé pořadí pro třídu, rodinu nebo kamarády</p><p class="text-[13px] leading-snug text-slate-600 dark:text-slate-300">Založ skupinu a pošli ostatním kód. Uvidíte, kdo dnes vede v Kvízu dne, kdo má nejvíc bodů za týden a kdo získal nejvíc XP.</p></div></div>`
                     : `<ul id="groups-list" class="flex flex-col gap-1.5">${groups.map(groupRowHtml).join('')}</ul>`;
         return `
             <div class="flex flex-col gap-3">
@@ -182,12 +189,12 @@
             const list = ranked.map(row => (view.by === 'xp'
                 ? boardRowHtml(row, `+${formatXp(row.week_xp)} XP`, '', h)
                 : boardRowHtml(row, pointsWord(row.week_score), `${daysWord(row.week_days)} · ${row.week_correct} správně`, h))).join('');
-            return `${ranked.length ? `<ol class="flex flex-col gap-1.5">${list}</ol>` : note(view.by === 'xp' ? 'Tento týden zatím nikdo nezískal XP.' : 'Tento týden zatím nikdo nehrál Kvíz dne.')}
+            return `${ranked.length ? `<ol class="flex flex-col gap-1.5">${list}</ol>` : note(view.by === 'xp' ? 'Tento týden zatím nikdo nezískal XP.' : 'Tento týden zatím nikdo nehrál Kvíz dne.', 'sova-ceka')}
                 ${waitingHtml(waiting, view.by === 'xp' ? 'Bez XP:' : 'Nehráli:', h)}`;
         }
         const { ranked, waiting } = rankToday(detail.rows);
         const list = ranked.map(row => boardRowHtml(row, pointsWord(row.today.score), `${row.today.correct}/${QUESTIONS} · ${formatTime(row.today.time_ms)}`, h)).join('');
-        return `${ranked.length ? `<ol class="flex flex-col gap-1.5">${list}</ol>` : note('Dnešní Kvíz dne zatím nikdo ze skupiny nedohrál.')}
+        return `${ranked.length ? `<ol class="flex flex-col gap-1.5">${list}</ol>` : note('Dnešní Kvíz dne zatím nikdo ze skupiny nedohrál.', 'sova-ceka')}
             ${waitingHtml(waiting, 'Ještě nehráli:', h)}`;
     };
     // Výzva skupině: téma, od koho, kolik členů už hrálo, tlačítko na detail výzvy
@@ -245,7 +252,7 @@
                 ${h.avatarHtml(row, 'h-8 w-8 text-base', false)}
                 <span class="min-w-0 flex-1 truncate text-sm font-bold text-slate-800 dark:text-slate-100">${esc(row.display_name || 'Hráč')}</span>
                 <button type="button" data-group-remove="${esc(row.id)}" class="${confirm === `remove:${row.id}` ? DANGER_BUTTON : LIGHT_BUTTON} shrink-0 px-2.5"><i data-lucide="user-minus" class="h-4 w-4"></i>${confirm === `remove:${row.id}` ? 'Opravdu?' : '<span class="sr-only">Odebrat</span>'}</button>
-            </li>`).join('')}</ul>` : '<p class="px-1 text-[13px] text-slate-500 dark:text-slate-400">Zatím tu nikdo další není. Pošli ostatním kód skupiny.</p>';
+            </li>`).join('')}</ul>` : nobodyHtml();
         return `
             <div id="group-manage" class="flex flex-col gap-3">
                 ${formHtml({ name: view.name, icon: view.icon, busy: view.busy, error: view.formError, submit: 'Uložit název a ikonu' })}

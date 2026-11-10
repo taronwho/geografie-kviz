@@ -672,7 +672,7 @@ Cartoon sticker character portrait in exactly the same art style as the attached
 
 ## 10. Obrázky do tlačítek a prázdných míst
 
-Všechno vlastní a nové: režimy Bleskovka, Přežití a Ukaž na mapě dostanou vlastní ilustrace (jejich odznaky zůstanou odznaky), Učení, Skupiny a Archiv turnajů obrázek místo ikonky a prázdné stavy (zatím žádné výzvy, nikdo tu není…) a okno upozornění vlastní pózy sovy. Pózy sovy dostanou barvy obleku jako ostatní sovy. Chybí ještě č. 73 Chameleon.
+Všechno vlastní a nové: režimy Bleskovka, Přežití a Ukaž na mapě dostanou vlastní ilustrace (jejich odznaky zůstanou odznaky), Učení, Skupiny a Archiv turnajů obrázek místo ikonky a prázdné stavy (zatím žádné výzvy, nikdo tu není…) a okno upozornění vlastní pózy sovy. Pózy sovy dostanou barvy obleku jako ostatní sovy. Zapojené jsou č. 79–86, 88 a 89 (i Chameleon č. 73); chybí ještě č. 87, 90 a 91.
 
 ### 79. `rezim-bleskovka.png` – Bleskovka
 
