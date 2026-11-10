@@ -63,6 +63,9 @@ const buildRegion = (region, sources) => {
         const seam = [];
         const seamStroke = [];
         for (const polygon of polygons) {
+            // Kroužky jednoho mnohoúhelníku (obrys a díry – Kaspické moře je díra v Eurasii) musí zůstat v jedné cestě,
+            // jinak by se díra vykreslila jako pevnina: má-li některý kroužek šev, jde do vrstvy se švem celý mnohoúhelník
+            const prepared = [];
             for (const ring of polygon) {
                 const projected = project(ring);
                 if (!projected) continue;
@@ -73,8 +76,13 @@ const buildRegion = (region, sources) => {
                 const closed = simplified.slice(0, -1);
                 // Šev na 180. poledníku (Fidži, Čukotka): výplň bez obrysu, obrys zvlášť bez úseků podél švu
                 const seamEdge = (i) => closed[i].seam && closed[(i + 1) % closed.length].seam;
-                if (!closed.some((_, i) => seamEdge(i))) { plain.push(encode(closed, true)); continue; }
+                prepared.push({ closed, seamEdge, onSeam: closed.some((_, i) => seamEdge(i)) });
+            }
+            const polygonOnSeam = prepared.some(entry => entry.onSeam);
+            for (const { closed, seamEdge, onSeam } of prepared) {
+                if (!polygonOnSeam) { plain.push(encode(closed, true)); continue; }
                 seam.push(encode(closed, true));
+                if (!onSeam) { seamStroke.push(encode(closed, true)); continue; }
                 // Obrys začne hned za úsekem švu, ať se kus podél pobřeží nerozdělí
                 const start = (closed.findIndex((_, i) => seamEdge(i)) + 1) % closed.length;
                 let piece = [closed[start]];

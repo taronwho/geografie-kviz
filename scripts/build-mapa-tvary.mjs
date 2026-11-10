@@ -240,7 +240,7 @@ const buildShape = (item, polygons, options = AREA_OPTIONS, areaFactor = 3) => {
     if (!(area0 > 0) && area > 15e6) return { reason: `nesmyslně velká plocha ${Math.round(area)} km²` };
     const rings = options.dissolve ? dissolve(prepared.flat()) : prepared.flat();
     const big = item.ty === 'moře' || sizeKm(bboxOf(rings)) > BIG_KM;
-    const { maxPoints, maxPointsBig, dissolve: _, trustInside, nearShare = 0.05, ...rest } = options;
+    const { maxPoints, maxPointsBig, dissolve: _, trustInside, insideWithoutArea, nearShare = 0.05, ...rest } = options;
     // Drobné ostrůvky (pár set metrů) by se při běžné toleranci slily do bodu – pak jemněji
     const shape = compress(rings, { ...rest, maxPoints: big ? maxPointsBig : maxPoints })
         || compress(rings, { ...rest, maxPoints, minTolerance: 0.0005 });
@@ -248,6 +248,9 @@ const buildShape = (item, polygons, options = AREA_OPTIONS, areaFactor = 3) => {
     const distance = distanceKm(shape.rings, point);
     const limit = Math.max(NEAR_KM, nearShare * sizeKm(bboxOf(shape.rings)));
     if (distance > limit) return { reason: `bod ${Math.round(distance)} km od obrysu (mez ${Math.round(limit)} km)` };
+    // Pohoří bez známé rozlohy: obrys z OSM bývá jen část (rezervace, přírodní park) – bere se, jen když bod leží uvnitř
+    // (Moravskoslezské Beskydy měly obrys 23 km² devět kilometrů od bodu)
+    if (insideWithoutArea && !(area0 > 0) && distance > 1) return { reason: `bez rozlohy a bod ${Math.round(distance)} km mimo obrys` };
     return { shape, area, distance };
 };
 
@@ -454,7 +457,7 @@ const main = async () => {
     // Plochy (jezera, ostrovy, příroda) a pohoří
     const ne = await naturalEarth(NE_LAYERS);
     await buildAreas('Plochy', groupItems.plochy, { ...context, ne, relationsCache: 'mapa-tvary-p402', options: () => AREA_OPTIONS });
-    await buildAreas('Pohoří', groupItems.pohori, { ...context, ne, relationsCache: 'mapa-tvary-p402-pohori', options: () => AREA_OPTIONS });
+    await buildAreas('Pohoří', groupItems.pohori, { ...context, ne, relationsCache: 'mapa-tvary-p402-pohori', options: () => ({ ...AREA_OPTIONS, insideWithoutArea: true }) });
 
     // Státy: Natural Earth 1 : 50 mil., drobné státy, které tam nejsou, z 1 : 10 mil.
     const countries = await naturalEarth(['ne_50m_admin_0_countries', 'ne_10m_admin_0_countries']);
