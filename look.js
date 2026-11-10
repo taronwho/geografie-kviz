@@ -13,15 +13,24 @@
     const KEY = 'mudrlant.look';
 
     // Katalog: level = od jaké úrovně je odměna k dispozici, badge = po kterém odznaku (id z quiz-core). Každá položka má id a title.
+    // Barevná témata v pořadí úrovní (v tomto pořadí je ukazuje výběr v Nastavení → Hra, dvě řady po osmi)
     const THEMES = [
         { id: 'vinova', title: 'Vínová', level: 1 },
         { id: 'les', title: 'Hluboký les', level: 8 },
+        { id: 'matova', title: 'Mátová', level: 11 },
         { id: 'ocean', title: 'Oceán', level: 16 },
+        { id: 'limetka', title: 'Limetková', level: 22 },
         { id: 'zapad', title: 'Západ slunce', level: 26 },
+        { id: 'levandule', title: 'Levandulová', level: 33 },
         { id: 'fialova', title: 'Fialová noc', level: 38 },
+        { id: 'poust', title: 'Pouštní', level: 47 },
         { id: 'zlata', title: 'Zlatá', level: 52 },
+        { id: 'sakura', title: 'Sakura', level: 62 },
         { id: 'diamant', title: 'Diamant', level: 70 },
-        { id: 'legenda', title: 'Legenda', level: 90 }
+        { id: 'pulnoc', title: 'Půlnoční', level: 75 },
+        { id: 'lava', title: 'Lávová', level: 85 },
+        { id: 'legenda', title: 'Legenda', level: 90 },
+        { id: 'zare', title: 'Polární záře', level: 95 }
     ];
     const ROBES = [
         { id: 'vinova', title: 'Vínový talár', level: 1 },
@@ -30,7 +39,8 @@
         { id: 'ruzova', title: 'Růžový talár', level: 20 },
         { id: 'fialova', title: 'Fialový talár', level: 30 },
         { id: 'cerna', title: 'Černý talár', level: 45 },
-        { id: 'zlata', title: 'Zlatý talár', level: 65 }
+        { id: 'zlata', title: 'Zlatý talár', level: 65 },
+        { id: 'bila', title: 'Bílý talár', level: 100 }
     ];
     const FRAMES = [
         { id: 'zadny', title: 'Bez rámečku', level: 1 },
