@@ -171,6 +171,11 @@ Jádro a aplikace je uplatní samy, téma pro ně nemusí nic dělat:
     s hranicemi městských částí z OpenStreetMap, `npm run build:casti`); tlačítka +/− mapu přiblíží či oddálí.
   Zapíše `reports/audit-otazek.md` (souhrn) a `reports/audit-otazek.json` (vše); exit kód je nenulový jen u jistých chyb, které nejsou
   v `scripts/audit-allowlist.json`.
+- **Audit mapy:** `npm run audit:mapa` (volitelně `-- --source`, `--wikidata`, `--only=svet,staty`) zkontroluje mapu otázky „Ukaž na
+  mapě“: podkladovou mapu (moře a pevnina na známých místech, hranice končící „do ztracena“, jezera, plochy států), polohy
+  položek, obrysy z `data/mapa-tvary.json`, sestavení otázek a pokrytí. Zapíše `reports/audit-mapy.md` a `reports/audit-mapy.json`;
+  exit kód je nenulový při kritickém nálezu. Opravy poloh a vyřazená místa jsou v `data/mapa-opravy.json`. Podrobně v
+  [docs/MAPA.md](docs/MAPA.md).
 
 ## Účty a hra více hráčů
 
@@ -212,7 +217,7 @@ Data témat se generují z Wikidat (zeměpis a historie přes query.wikidata.org
 ```sh
 npm run build:countries  # data/countries.json
 npm run build:world      # data/world.json (Natural Earth 1:110m)
-npm run build:mapa       # data/mapa.json (Natural Earth 1:50m, Česko 1:10m s kraji a řekami)
+npm run build:mapa       # data/mapa.json (Natural Earth 1:50m, ostrovy a jezera z otázek 1:10m, Česko 1:10m s kraji a řekami; po datech témat)
 npm run build:regiony    # data/regiony.json (Natural Earth 1:10m: regiony států z okruhu Regiony států a české kraje; po build:vlajky)
 npm run build:casti      # data/regiony.json, cities: hranice pražských městských částí (OpenStreetMap přes Nominatim; po build:regiony)
 npm run build:zemepis    # data/zemepis.json

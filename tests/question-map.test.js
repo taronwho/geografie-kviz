@@ -117,10 +117,12 @@ test('skutečná data: tisíce míst ze zeměpisu a stovky stadionů, všechna n
     assert.equal(MapQuestion.mapRegionOf('evropa').id, 'svet');
     assert.equal(MapQuestion.mapRegionOf('cesko').id, 'cesko');
     assert.ok(counts.cesko >= 300, 'Česko má stovky míst');
-    // Ostrov, který na mapě není (Capri do 1:50m nepatří), se neptá; Kréta a Mallorca ano
+    // Ostrov, který na mapě není (Hadí ostrov je menší než nejmenší kreslený tvar), se neptá; Kréta a Mallorca ano
+    // a od úpravy scripts/build-mapa.mjs i malé ostrovy z položek otázek (Capri z vrstvy 1:10m)
     assert.ok(MapQuestion.buildQuestion(byName('Kréta', 'ostrov'), zemepisCtx, mapData));
     assert.ok(MapQuestion.buildQuestion(byName('Mallorca', 'ostrov'), zemepisCtx, mapData));
-    assert.equal(MapQuestion.buildQuestion(byName('Capri', 'ostrov'), zemepisCtx, mapData), null);
+    assert.ok(MapQuestion.buildQuestion(byName('Capri', 'ostrov'), zemepisCtx, mapData));
+    assert.equal(MapQuestion.buildQuestion(byName('Hadí ostrov', 'ostrov'), zemepisCtx, mapData), null);
     assert.equal(MapQuestion.buildQuestion(byName('Brno', 'mesto'), zemepisCtx, null), null, 'bez mapových dat žádná otázka');
     const frame = MapQuestion.frameOf('svet');
     assert.equal(MapQuestion.onDrawnLand(mapData.regions.svet, frame, 48.86, 2.35), true, 'Paříž na pevnině');
@@ -373,4 +375,18 @@ test('druhy míst: město, stát, řeka, pohoří, bitva, událost, stavba, regi
     const point = MapQuestion.radiiFor({ c: 'reka' }, 'evropa', true, false);
     const river = MapQuestion.radiiFor({ c: 'reka' }, 'evropa', true, true);
     assert.ok(river.full < point.full && river.zero < point.zero);
+});
+
+test('opravy z kontroly mapy: vyřazené místo se neptá, opravená poloha se použije', () => {
+    const brno = byName('Brno', 'mesto');
+    assert.ok(MapQuestion.buildQuestion(brno, zemepisCtx, mapData));
+    assert.equal(MapQuestion.buildQuestion(brno, zemepisCtx, { ...mapData, skip: { [brno.q]: 'zkouška' } }), null);
+    assert.equal(MapQuestion.candidate(brno, zemepisCtx, { ...mapData, skip: { [brno.q]: 'zkouška' } }), null);
+    const moved = MapQuestion.buildQuestion(brno, zemepisCtx, { ...mapData, points: { [brno.q]: [49.2, 16.61] } });
+    assert.deepEqual([moved.map.lat, moved.map.lon], [49.2, 16.61]);
+    // Soubor oprav má očekávaný tvar a jen položky, které v datech jsou
+    const fixes = JSON.parse(read('data/mapa-opravy.json'));
+    assert.equal(typeof fixes.skip, 'object');
+    assert.equal(typeof fixes.points, 'object');
+    for (const point of Object.values(fixes.points)) assert.ok(Array.isArray(point) && point.length === 2 && Math.abs(point[0]) <= 90 && Math.abs(point[1]) <= 180);
 });
