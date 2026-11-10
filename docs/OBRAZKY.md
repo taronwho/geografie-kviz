@@ -778,6 +778,300 @@ Kam: Archiv turnajů, dokud žádný turnaj neskončil. Přiložit: `branding/so
 Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole object. Single centered subject filling about 80 % of the frame with even empty space around it. Plain solid flat dark grey background, color #2d3034, no gradient, no shadow on the background, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl mascot as the character: keep its face, monocle with chain, white eyebrows and whiskers, golden-brown feathers and wine-red academic robe with cap exactly as they are; change only the pose and props described here. The wine-red color must appear only on the robe and cap: all props must be in other colors (no red, pink or wine-colored props). Subject: The owl mascot dusting an empty wooden trophy shelf with a fluffy sky-blue feather duster, little puffs of dust in the air, the owl looking at the empty shelf with an optimistic, determined expression. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
+## 11. Další odměny: doplňky Mudrlanta, rámečky a legendární postavy
+
+### Doplňky Mudrlanta (č. 92–108)
+
+Postup jako u dosavadních doplňků (`scripts/owl-accessories.py`, viz `docs/DOPLNKY-TEMAT.md`): přiložit `branding/sova-original.jpg` a zadat prompt. Soubor pojmenuj `branding/doplnky/<id>.jpg`. Způsob odemčení je návrh, doladím ho při zapojení.
+
+#### 92. `cylindr` – Cylindr (hlava)
+
+Odemkne: úroveň 62.
+
+```text
+Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same proportions, same colors, same outline style, same flat dark background. Do not redraw, move or recolor the owl. Only ADD the accessory described below, drawn in the same cartoon sticker style with the same thick dark outline and the same lighting, sitting naturally on the owl. The accessory should be mostly one dominant color (not wine red) so it can be recolored later. Do not add anything else. Accessory: A tall classy black top hat with a shiny golden band, sitting slightly tilted on the owl's head over its cap, ear tufts poking out on the sides.
+```
+
+#### 93. `piratsky-klobouk` – Pirátský klobouk (hlava)
+
+Odemkne: odznak 30 výher ve výzvách (návrh).
+
+```text
+Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same proportions, same colors, same outline style, same flat dark background. Do not redraw, move or recolor the owl. Only ADD the accessory described below, drawn in the same cartoon sticker style with the same thick dark outline and the same lighting, sitting naturally on the owl. The accessory should be mostly one dominant color (not wine red) so it can be recolored later. Do not add anything else. Accessory: A black pirate tricorn hat with golden edging and one big curly white feather, worn on the owl's head over its cap.
+```
+
+#### 94. `kouzelnicky-klobouk` – Kouzelnický klobouk (hlava)
+
+Odemkne: úroveň 76.
+
+```text
+Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same proportions, same colors, same outline style, same flat dark background. Do not redraw, move or recolor the owl. Only ADD the accessory described below, drawn in the same cartoon sticker style with the same thick dark outline and the same lighting, sitting naturally on the owl. The accessory should be mostly one dominant color (not wine red) so it can be recolored later. Do not add anything else. Accessory: A tall pointed deep-blue wizard hat with small silver stars and a crescent moon, its tip bending playfully, worn on the owl's head over its cap.
+```
+
+#### 95. `svatozar` – Svatozář (hlava)
+
+Odemkne: úroveň 99.
+
+```text
+Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same proportions, same colors, same outline style, same flat dark background. Do not redraw, move or recolor the owl. Only ADD the accessory described below, drawn in the same cartoon sticker style with the same thick dark outline and the same lighting, sitting naturally on the owl. The accessory should be mostly one dominant color (not wine red) so it can be recolored later. Do not add anything else. Accessory: A glowing golden halo ring floating just above the owl's cap, with a soft light glow and two tiny sparkles.
+```
+
+#### 96. `vrtulka` – Čepice s vrtulkou (hlava)
+
+Odemkne: Truhla Mudrlanta.
+
+```text
+Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same proportions, same colors, same outline style, same flat dark background. Do not redraw, move or recolor the owl. Only ADD the accessory described below, drawn in the same cartoon sticker style with the same thick dark outline and the same lighting, sitting naturally on the owl. The accessory should be mostly one dominant color (not wine red) so it can be recolored later. Do not add anything else. Accessory: A funny propeller beanie in bright yellow with a small red-blue propeller on top, worn on the owl's head over its cap, motion lines around the propeller.
+```
+
+#### 97. `paska` – Pirátská páska (obličej)
+
+Odemkne: Truhla Mudrlanta.
+
+```text
+Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same proportions, same colors, same outline style, same flat dark background. Do not redraw, move or recolor the owl. Only ADD the accessory described below, drawn in the same cartoon sticker style with the same thick dark outline and the same lighting, sitting naturally on the owl. The accessory should be mostly one dominant color (not wine red) so it can be recolored later. Do not add anything else. Accessory: A black pirate eye patch with a thin strap, covering the owl's eye WITHOUT the monocle; the monocle stays on the other eye.
+```
+
+#### 98. `letecke-bryle` – Letecké brýle (obličej)
+
+Odemkne: úroveň 68.
+
+```text
+Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same proportions, same colors, same outline style, same flat dark background. Do not redraw, move or recolor the owl. Only ADD the accessory described below, drawn in the same cartoon sticker style with the same thick dark outline and the same lighting, sitting naturally on the owl. The accessory should be mostly one dominant color (not wine red) so it can be recolored later. Do not add anything else. Accessory: Vintage brown leather aviator flight goggles with round amber lenses, worn over the owl's eyes, strap going around the head.
+```
+
+#### 99. `srdickove-bryle` – Srdíčkové brýle (obličej)
+
+Odemkne: Truhla Mudrlanta.
+
+```text
+Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same proportions, same colors, same outline style, same flat dark background. Do not redraw, move or recolor the owl. Only ADD the accessory described below, drawn in the same cartoon sticker style with the same thick dark outline and the same lighting, sitting naturally on the owl. The accessory should be mostly one dominant color (not wine red) so it can be recolored later. Do not add anything else. Accessory: Playful heart-shaped sunglasses with a hot-pink frame and dark lenses, worn over the owl's eyes.
+```
+
+#### 100. `maska` – Maska hrdiny (obličej)
+
+Odemkne: odznak Mistr turnaje (návrh).
+
+```text
+Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same proportions, same colors, same outline style, same flat dark background. Do not redraw, move or recolor the owl. Only ADD the accessory described below, drawn in the same cartoon sticker style with the same thick dark outline and the same lighting, sitting naturally on the owl. The accessory should be mostly one dominant color (not wine red) so it can be recolored later. Do not add anything else. Accessory: A simple domino superhero eye mask in solid bright blue with two eye holes, worn over the owl's eyes (the monocle may be hidden under it).
+```
+
+#### 101. `zlaty-retez` – Zlatý řetěz (krk)
+
+Odemkne: úroveň 84.
+
+```text
+Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same proportions, same colors, same outline style, same flat dark background. Do not redraw, move or recolor the owl. Only ADD the accessory described below, drawn in the same cartoon sticker style with the same thick dark outline and the same lighting, sitting naturally on the owl. The accessory should be mostly one dominant color (not wine red) so it can be recolored later. Do not add anything else. Accessory: A thick shiny gold chain hanging around the owl's neck with a big round gold medallion showing a simple embossed star, very bling.
+```
+
+#### 102. `vencek` – Květinový věnec (krk)
+
+Odemkne: Truhla Mudrlanta.
+
+```text
+Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same proportions, same colors, same outline style, same flat dark background. Do not redraw, move or recolor the owl. Only ADD the accessory described below, drawn in the same cartoon sticker style with the same thick dark outline and the same lighting, sitting naturally on the owl. The accessory should be mostly one dominant color (not wine red) so it can be recolored later. Do not add anything else. Accessory: A Hawaiian lei garland of bright tropical flowers in yellow, orange and white hanging around the owl's neck and resting on its chest.
+```
+
+#### 103. `plast` – Hrdinský plášť (krk)
+
+Odemkne: série 100 dní (návrh).
+
+```text
+Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same proportions, same colors, same outline style, same flat dark background. Do not redraw, move or recolor the owl. Only ADD the accessory described below, drawn in the same cartoon sticker style with the same thick dark outline and the same lighting, sitting naturally on the owl. The accessory should be mostly one dominant color (not wine red) so it can be recolored later. Do not add anything else. Accessory: A short flowing superhero cape in solid royal blue tied at the owl's neck with a small gold clasp, fluttering behind its shoulders to the sides.
+```
+
+#### 104. `stetoskop` – Stetoskop (krk)
+
+Odemkne: úroveň 72.
+
+```text
+Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same proportions, same colors, same outline style, same flat dark background. Do not redraw, move or recolor the owl. Only ADD the accessory described below, drawn in the same cartoon sticker style with the same thick dark outline and the same lighting, sitting naturally on the owl. The accessory should be mostly one dominant color (not wine red) so it can be recolored later. Do not add anything else. Accessory: A doctor's stethoscope in silver and bright teal hanging around the owl's neck, the round chest piece resting on its chest.
+```
+
+#### 105. `hulka` – Kouzelná hůlka (ruka)
+
+Odemkne: úroveň 88.
+
+```text
+Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same proportions, same colors, same outline style, same flat dark background. Do not redraw, move or recolor the owl. Only ADD the accessory described below, drawn in the same cartoon sticker style with the same thick dark outline and the same lighting, sitting naturally on the owl. The accessory should be mostly one dominant color (not wine red) so it can be recolored later. Do not add anything else. Accessory: A slim dark wooden magic wand with a glowing golden star at the tip and a trail of tiny sparkles, held up in the owl's wing.
+```
+
+#### 106. `mec` – Rytířský meč (ruka)
+
+Odemkne: odznak Turnaje – vyhrané zápasy (návrh).
+
+```text
+Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same proportions, same colors, same outline style, same flat dark background. Do not redraw, move or recolor the owl. Only ADD the accessory described below, drawn in the same cartoon sticker style with the same thick dark outline and the same lighting, sitting naturally on the owl. The accessory should be mostly one dominant color (not wine red) so it can be recolored later. Do not add anything else. Accessory: A shiny silver knight's sword with a golden cross-guard, raised proudly in the owl's wing, a small glint on the blade.
+```
+
+#### 107. `pochoden` – Pochodeň vítěze (ruka)
+
+Odemkne: liga Diamant (návrh).
+
+```text
+Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same proportions, same colors, same outline style, same flat dark background. Do not redraw, move or recolor the owl. Only ADD the accessory described below, drawn in the same cartoon sticker style with the same thick dark outline and the same lighting, sitting naturally on the owl. The accessory should be mostly one dominant color (not wine red) so it can be recolored later. Do not add anything else. Accessory: A golden victory torch with a bright orange-yellow flame held high in the owl's wing like an athlete.
+```
+
+#### 108. `hrnek` – Hrnek kakaa (ruka)
+
+Odemkne: Truhla Mudrlanta.
+
+```text
+Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same proportions, same colors, same outline style, same flat dark background. Do not redraw, move or recolor the owl. Only ADD the accessory described below, drawn in the same cartoon sticker style with the same thick dark outline and the same lighting, sitting naturally on the owl. The accessory should be mostly one dominant color (not wine red) so it can be recolored later. Do not add anything else. Accessory: A cozy round mug of hot cocoa in solid teal with a tiny marshmallow and a curl of steam, held in the owl's wing.
+```
+
+### Obrázkové rámečky (č. 109–118)
+
+Extrémní rámečky jako obrázek kolem profilovky (prsten s prázdným středem, střed se vyřízne). Jednodušší „zajímavé“ rámečky (neon, hologram, duha, pixely) udělám přímo v CSS, obrázek nepotřebují. Přiložit `branding/sova-original.jpg` (vzor stylu).
+
+#### 109. `ramecek-ohen.png` – Ohnivý prstenec
+
+```text
+Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading. A circular decorative frame (a ring) seen straight from the front, perfectly round and centered, filling about 92 % of the image; the ring band is about 13 % of the image width thick and may have ornaments sticking out a little on the outside, never inside. The inside of the ring is an EMPTY perfect circle showing only the plain flat dark grey background, color #2d3034: nothing drawn inside, no character, no face, no text. A thin cream-colored sticker border runs along BOTH the outer edge and the inner edge of the ring. Plain solid flat dark grey background #2d3034 everywhere outside the ring, no gradient, no shadow. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference; do not draw the owl. Ring design: a ring of roaring stylized flames in orange, yellow and red licking outward, with small embers flying off the outer edge. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+#### 110. `ramecek-led.png` – Ledová koruna
+
+```text
+Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading. A circular decorative frame (a ring) seen straight from the front, perfectly round and centered, filling about 92 % of the image; the ring band is about 13 % of the image width thick and may have ornaments sticking out a little on the outside, never inside. The inside of the ring is an EMPTY perfect circle showing only the plain flat dark grey background, color #2d3034: nothing drawn inside, no character, no face, no text. A thin cream-colored sticker border runs along BOTH the outer edge and the inner edge of the ring. Plain solid flat dark grey background #2d3034 everywhere outside the ring, no gradient, no shadow. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference; do not draw the owl. Ring design: a ring of clear icy-blue crystal shards and frost, sharp ice crystals pointing outward, a few white snowflakes, cold glow. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+#### 111. `ramecek-galaxie.png` – Galaxie
+
+```text
+Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading. A circular decorative frame (a ring) seen straight from the front, perfectly round and centered, filling about 92 % of the image; the ring band is about 13 % of the image width thick and may have ornaments sticking out a little on the outside, never inside. The inside of the ring is an EMPTY perfect circle showing only the plain flat dark grey background, color #2d3034: nothing drawn inside, no character, no face, no text. A thin cream-colored sticker border runs along BOTH the outer edge and the inner edge of the ring. Plain solid flat dark grey background #2d3034 everywhere outside the ring, no gradient, no shadow. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference; do not draw the owl. Ring design: a swirling deep-violet and indigo galaxy band full of tiny stars, with three small colorful planets with rings orbiting along it. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+#### 112. `ramecek-drak.png` – Strážný drak
+
+```text
+Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading. A circular decorative frame (a ring) seen straight from the front, perfectly round and centered, filling about 92 % of the image; the ring band is about 13 % of the image width thick and may have ornaments sticking out a little on the outside, never inside. The inside of the ring is an EMPTY perfect circle showing only the plain flat dark grey background, color #2d3034: nothing drawn inside, no character, no face, no text. A thin cream-colored sticker border runs along BOTH the outer edge and the inner edge of the ring. Plain solid flat dark grey background #2d3034 everywhere outside the ring, no gradient, no shadow. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference; do not draw the owl. Ring design: a friendly emerald-green dragon curled around in a full circle, its head at the top looking out proudly and its tail tip meeting its head, golden belly scales and small wings. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+#### 113. `ramecek-vavrin.png` – Královský vavřín
+
+```text
+Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading. A circular decorative frame (a ring) seen straight from the front, perfectly round and centered, filling about 92 % of the image; the ring band is about 13 % of the image width thick and may have ornaments sticking out a little on the outside, never inside. The inside of the ring is an EMPTY perfect circle showing only the plain flat dark grey background, color #2d3034: nothing drawn inside, no character, no face, no text. A thin cream-colored sticker border runs along BOTH the outer edge and the inner edge of the ring. Plain solid flat dark grey background #2d3034 everywhere outside the ring, no gradient, no shadow. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference; do not draw the owl. Ring design: two branches of polished gold laurel leaves forming the ring, set with small red, blue and green gems, a small golden crown at the very top and a ribbon bow at the bottom. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+#### 114. `ramecek-soukoli.png` – Steampunk soukolí
+
+```text
+Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading. A circular decorative frame (a ring) seen straight from the front, perfectly round and centered, filling about 92 % of the image; the ring band is about 13 % of the image width thick and may have ornaments sticking out a little on the outside, never inside. The inside of the ring is an EMPTY perfect circle showing only the plain flat dark grey background, color #2d3034: nothing drawn inside, no character, no face, no text. A thin cream-colored sticker border runs along BOTH the outer edge and the inner edge of the ring. Plain solid flat dark grey background #2d3034 everywhere outside the ring, no gradient, no shadow. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference; do not draw the owl. Ring design: a ring of interlocking brass and copper gears of different sizes with rivets, two tiny steam puffs and a small pressure gauge at the top. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+#### 115. `ramecek-ruze.png` – Růže a trny
+
+```text
+Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading. A circular decorative frame (a ring) seen straight from the front, perfectly round and centered, filling about 92 % of the image; the ring band is about 13 % of the image width thick and may have ornaments sticking out a little on the outside, never inside. The inside of the ring is an EMPTY perfect circle showing only the plain flat dark grey background, color #2d3034: nothing drawn inside, no character, no face, no text. A thin cream-colored sticker border runs along BOTH the outer edge and the inner edge of the ring. Plain solid flat dark grey background #2d3034 everywhere outside the ring, no gradient, no shadow. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference; do not draw the owl. Ring design: a ring of dark green thorny vines with three big blooming red roses and a few rose buds, small leaves. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+#### 116. `ramecek-blesk.png` – Bleskový prstenec
+
+```text
+Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading. A circular decorative frame (a ring) seen straight from the front, perfectly round and centered, filling about 92 % of the image; the ring band is about 13 % of the image width thick and may have ornaments sticking out a little on the outside, never inside. The inside of the ring is an EMPTY perfect circle showing only the plain flat dark grey background, color #2d3034: nothing drawn inside, no character, no face, no text. A thin cream-colored sticker border runs along BOTH the outer edge and the inner edge of the ring. Plain solid flat dark grey background #2d3034 everywhere outside the ring, no gradient, no shadow. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference; do not draw the owl. Ring design: a crackling ring of electric-blue and white lightning bolts with bright sparks jumping off the outer edge. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+#### 117. `ramecek-more.png` – Mořská vlna
+
+```text
+Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading. A circular decorative frame (a ring) seen straight from the front, perfectly round and centered, filling about 92 % of the image; the ring band is about 13 % of the image width thick and may have ornaments sticking out a little on the outside, never inside. The inside of the ring is an EMPTY perfect circle showing only the plain flat dark grey background, color #2d3034: nothing drawn inside, no character, no face, no text. A thin cream-colored sticker border runs along BOTH the outer edge and the inner edge of the ring. Plain solid flat dark grey background #2d3034 everywhere outside the ring, no gradient, no shadow. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference; do not draw the owl. Ring design: a ring made of a curling teal ocean wave with white foam crests, small pearls, two seashells and a starfish attached to it. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+#### 118. `ramecek-duha.png` – Duha s mráčky
+
+```text
+Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading. A circular decorative frame (a ring) seen straight from the front, perfectly round and centered, filling about 92 % of the image; the ring band is about 13 % of the image width thick and may have ornaments sticking out a little on the outside, never inside. The inside of the ring is an EMPTY perfect circle showing only the plain flat dark grey background, color #2d3034: nothing drawn inside, no character, no face, no text. A thin cream-colored sticker border runs along BOTH the outer edge and the inner edge of the ring. Plain solid flat dark grey background #2d3034 everywhere outside the ring, no gradient, no shadow. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference; do not draw the owl. Ring design: a cheerful rainbow ring in bold stripes with fluffy white cartoon clouds at the bottom left and right and a small sun at the top. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+### Legendární postavy za diplomy (č. 119–132)
+
+Za diplom v tématu (plné mistrovství, 5 hvězdiček) jedna legendární postavička do profilovky, extrémně nastylovaná (zlatá záře, aura v barvě tématu). Budou mít přebarvitelné části jako ostatní postavičky. Přiložit `branding/sova-original.jpg` (vzor stylu).
+
+#### 119. `avatar-albatros.png` – Albatros mořeplavec (Zeměpis)
+
+```text
+Cartoon sticker character portrait in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole character. LEGENDARY edition: a heroic, supremely confident original character shown from the chest up, big expressive face looking at the viewer, ornate gold trim on its outfit, a dramatic golden rim light, a radiant aura burst in its signature color behind it (inside the sticker border) and a few floating sparkles, still readable as a tiny 40 px profile picture (simple bold shapes). Centered, filling about 88 % of the frame. Plain solid flat dark grey background, color #2d3034, outside the sticker. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, shading); do not draw the owl and do not copy any existing cartoon, game or movie character. Character: A majestic albatross sea captain in a deep-blue captain's coat with a golden compass-rose emblem on the chest, holding up a glowing miniature globe like a lantern, swirling wind ribbons around. Signature color: ocean blue. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+#### 120. `avatar-gryf.png` – Gryf praporečník (Vlajky a znaky)
+
+```text
+Cartoon sticker character portrait in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole character. LEGENDARY edition: a heroic, supremely confident original character shown from the chest up, big expressive face looking at the viewer, ornate gold trim on its outfit, a dramatic golden rim light, a radiant aura burst in its signature color behind it (inside the sticker border) and a few floating sparkles, still readable as a tiny 40 px profile picture (simple bold shapes). Centered, filling about 88 % of the frame. Plain solid flat dark grey background, color #2d3034, outside the sticker. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, shading); do not draw the owl and do not copy any existing cartoon, game or movie character. Character: A proud heraldic griffin herald with a golden feathered mane and an eagle beak, holding two crossed banners in plain bright colors (simple stripes only, no real flags, no symbols, no text). Signature color: royal red and gold. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+#### 121. `avatar-slon.png` – Slon kronikář (Historie)
+
+```text
+Cartoon sticker character portrait in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole character. LEGENDARY edition: a heroic, supremely confident original character shown from the chest up, big expressive face looking at the viewer, ornate gold trim on its outfit, a dramatic golden rim light, a radiant aura burst in its signature color behind it (inside the sticker border) and a few floating sparkles, still readable as a tiny 40 px profile picture (simple bold shapes). Centered, filling about 88 % of the frame. Plain solid flat dark grey background, color #2d3034, outside the sticker. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, shading); do not draw the owl and do not copy any existing cartoon, game or movie character. Character: A wise elephant chronicler with a golden laurel crown, wearing a cape made of old parchment scrolls, a glowing hourglass amulet on its chest. Signature color: amber. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+#### 122. `avatar-sfinga.png` – Sfinga strážkyně (Mytologie)
+
+```text
+Cartoon sticker character portrait in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole character. LEGENDARY edition: a heroic, supremely confident original character shown from the chest up, big expressive face looking at the viewer, ornate gold trim on its outfit, a dramatic golden rim light, a radiant aura burst in its signature color behind it (inside the sticker border) and a few floating sparkles, still readable as a tiny 40 px profile picture (simple bold shapes). Centered, filling about 88 % of the frame. Plain solid flat dark grey background, color #2d3034, outside the sticker. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, shading); do not draw the owl and do not copy any existing cartoon, game or movie character. Character: A majestic winged sphinx cat (original design) with a striped golden headdress and wide feathered wings, glowing ancient runes floating around it. Signature color: turquoise and gold. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+#### 123. `avatar-jelen.png` – Jelen pán lesa (Biologie)
+
+```text
+Cartoon sticker character portrait in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole character. LEGENDARY edition: a heroic, supremely confident original character shown from the chest up, big expressive face looking at the viewer, ornate gold trim on its outfit, a dramatic golden rim light, a radiant aura burst in its signature color behind it (inside the sticker border) and a few floating sparkles, still readable as a tiny 40 px profile picture (simple bold shapes). Centered, filling about 88 % of the frame. Plain solid flat dark grey background, color #2d3034, outside the sticker. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, shading); do not draw the owl and do not copy any existing cartoon, game or movie character. Character: A regal stag whose huge antlers grow flowers, leaves and tiny butterflies, a moss collar, a glowing green forest aura. Signature color: emerald green. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+#### 124. `avatar-golem.png` – Krystalový golem (Geologie)
+
+```text
+Cartoon sticker character portrait in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole character. LEGENDARY edition: a heroic, supremely confident original character shown from the chest up, big expressive face looking at the viewer, ornate gold trim on its outfit, a dramatic golden rim light, a radiant aura burst in its signature color behind it (inside the sticker border) and a few floating sparkles, still readable as a tiny 40 px profile picture (simple bold shapes). Centered, filling about 88 % of the frame. Plain solid flat dark grey background, color #2d3034, outside the sticker. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, shading); do not draw the owl and do not copy any existing cartoon, game or movie character. Character: A friendly golem made of layered rock strata with big glittering purple and blue gem crystals growing from its shoulders, glowing gem eyes and a warm smile. Signature color: amethyst violet. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+#### 125. `avatar-liska.png` – Liška alchymistka (Chemie)
+
+```text
+Cartoon sticker character portrait in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole character. LEGENDARY edition: a heroic, supremely confident original character shown from the chest up, big expressive face looking at the viewer, ornate gold trim on its outfit, a dramatic golden rim light, a radiant aura burst in its signature color behind it (inside the sticker border) and a few floating sparkles, still readable as a tiny 40 px profile picture (simple bold shapes). Centered, filling about 88 % of the frame. Plain solid flat dark grey background, color #2d3034, outside the sticker. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, shading); do not draw the owl and do not copy any existing cartoon, game or movie character. Character: A clever fox alchemist with brass goggles pushed up on its head, a bandolier of small glowing potion flasks across the chest, swirling rainbow potion vapors around. Signature color: potion green and magenta. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+#### 126. `avatar-chobotnice.png` – Chobotnice fyzička (Fyzika)
+
+```text
+Cartoon sticker character portrait in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole character. LEGENDARY edition: a heroic, supremely confident original character shown from the chest up, big expressive face looking at the viewer, ornate gold trim on its outfit, a dramatic golden rim light, a radiant aura burst in its signature color behind it (inside the sticker border) and a few floating sparkles, still readable as a tiny 40 px profile picture (simple bold shapes). Centered, filling about 88 % of the frame. Plain solid flat dark grey background, color #2d3034, outside the sticker. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, shading); do not draw the owl and do not copy any existing cartoon, game or movie character. Character: A brilliant octopus physicist in a white lab coat, its tentacles juggling a glowing atom, a tiny ringed planet, a horseshoe magnet and a lightning bolt. Signature color: electric cyan. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+#### 127. `avatar-pav.png` – Páv malíř (Výtvarné umění)
+
+```text
+Cartoon sticker character portrait in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole character. LEGENDARY edition: a heroic, supremely confident original character shown from the chest up, big expressive face looking at the viewer, ornate gold trim on its outfit, a dramatic golden rim light, a radiant aura burst in its signature color behind it (inside the sticker border) and a few floating sparkles, still readable as a tiny 40 px profile picture (simple bold shapes). Centered, filling about 88 % of the frame. Plain solid flat dark grey background, color #2d3034, outside the sticker. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, shading); do not draw the owl and do not copy any existing cartoon, game or movie character. Character: A flamboyant peacock painter whose fanned tail feathers end in paintbrushes dripping rainbow paint, wearing a velvet beret and holding a palette. Signature color: rainbow with deep teal. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+#### 128. `avatar-bobr.png` – Bobr stavitel (Architektura)
+
+```text
+Cartoon sticker character portrait in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole character. LEGENDARY edition: a heroic, supremely confident original character shown from the chest up, big expressive face looking at the viewer, ornate gold trim on its outfit, a dramatic golden rim light, a radiant aura burst in its signature color behind it (inside the sticker border) and a few floating sparkles, still readable as a tiny 40 px profile picture (simple bold shapes). Centered, filling about 88 % of the frame. Plain solid flat dark grey background, color #2d3034, outside the sticker. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, shading); do not draw the owl and do not copy any existing cartoon, game or movie character. Character: A master-builder beaver with a golden hard hat and a cape made of blue blueprint paper, holding a glowing golden trowel, a tiny cathedral silhouette in the aura behind. Signature color: blueprint blue and gold. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+#### 129. `avatar-vlk.png` – Vlk dirigent (Hudba)
+
+```text
+Cartoon sticker character portrait in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole character. LEGENDARY edition: a heroic, supremely confident original character shown from the chest up, big expressive face looking at the viewer, ornate gold trim on its outfit, a dramatic golden rim light, a radiant aura burst in its signature color behind it (inside the sticker border) and a few floating sparkles, still readable as a tiny 40 px profile picture (simple bold shapes). Centered, filling about 88 % of the frame. Plain solid flat dark grey background, color #2d3034, outside the sticker. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, shading); do not draw the owl and do not copy any existing cartoon, game or movie character. Character: A dashing wolf conductor in a black tuxedo with golden lapels, raising a sparkling baton, glowing music notes swirling around. Signature color: midnight blue and gold. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+#### 130. `avatar-knizni-drak.png` – Knižní drak (Literatura)
+
+```text
+Cartoon sticker character portrait in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole character. LEGENDARY edition: a heroic, supremely confident original character shown from the chest up, big expressive face looking at the viewer, ornate gold trim on its outfit, a dramatic golden rim light, a radiant aura burst in its signature color behind it (inside the sticker border) and a few floating sparkles, still readable as a tiny 40 px profile picture (simple bold shapes). Centered, filling about 88 % of the frame. Plain solid flat dark grey background, color #2d3034, outside the sticker. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, shading); do not draw the owl and do not copy any existing cartoon, game or movie character. Character: A small charming dragon whose wings are made of open book pages, round reading glasses on its snout, its tail ending in a quill dripping ink. Signature color: parchment cream and ink blue. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+#### 131. `avatar-panda.png` – Panda režisér (Film)
+
+```text
+Cartoon sticker character portrait in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole character. LEGENDARY edition: a heroic, supremely confident original character shown from the chest up, big expressive face looking at the viewer, ornate gold trim on its outfit, a dramatic golden rim light, a radiant aura burst in its signature color behind it (inside the sticker border) and a few floating sparkles, still readable as a tiny 40 px profile picture (simple bold shapes). Centered, filling about 88 % of the frame. Plain solid flat dark grey background, color #2d3034, outside the sticker. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, shading); do not draw the owl and do not copy any existing cartoon, game or movie character. Character: A cool panda film director with a golden megaphone, sunglasses with film-reel shaped frames, a director's scarf, bright spotlight beams behind. Signature color: spotlight gold and red. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+#### 132. `avatar-klokan.png` – Klokan šampion (Sport)
+
+```text
+Cartoon sticker character portrait in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole character. LEGENDARY edition: a heroic, supremely confident original character shown from the chest up, big expressive face looking at the viewer, ornate gold trim on its outfit, a dramatic golden rim light, a radiant aura burst in its signature color behind it (inside the sticker border) and a few floating sparkles, still readable as a tiny 40 px profile picture (simple bold shapes). Centered, filling about 88 % of the frame. Plain solid flat dark grey background, color #2d3034, outside the sticker. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, shading); do not draw the owl and do not copy any existing cartoon, game or movie character. Character: A powerful kangaroo champion athlete with a golden laurel wreath, a winner's gold medal on a ribbon and a flaming victory torch, sweatband on the forehead. Signature color: champion gold and orange. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
 ## Co udělám po dodání
 
 1. Uložím soubory do `branding/ikony/`, vyříznu pozadí (`python3 scripts/topic-icons.py …`) a u sov vyrobím barvy obleku (`python3 scripts/owl-robes.py`).
