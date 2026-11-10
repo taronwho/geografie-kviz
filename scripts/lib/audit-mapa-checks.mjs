@@ -833,7 +833,7 @@ export const checkShapes = (world, data, asked, add) => {
 const TITLE_PATTERNS = [
     ['Kde leží …?', /^Kde leží .+\?$/u], ['Kde stojí …?', /^Kde stojí .+\?$/u], ['Kudy teče …?', /^Kudy teče .+\?$/u],
     ['Kde se odehrála bitva …?', /^Kde se odehrála (bitva|námořní bitva) .+\?$/u], ['Kde se odehrálo obléhání …?', /^Kde se odehrálo obléhání .+\?$/u],
-    ['Kde se konala …?', /^Kde se konala .+\?$/u], ['Kde byla podepsána …?', /^Kde byla podepsána .+\?$/u], ['… – kde se to stalo?', /^.+ – kde se to stalo\?$/u]
+    ['Kde se konala …?', /^Kde se konala .+\?$/u], ['Kde se konal …?', /^Kde se konal .+\?$/u], ['Kde byla podepsána …?', /^Kde byla podepsána .+\?$/u], ['… – kde se to stalo?', /^.+ – kde se to stalo\?$/u]
 ];
 const FEMININE_MEETING = /(konference|schůzka|schůze|rada|porada)(\s|$)/iu;
 const FEMININE_TREATY = /(smlouva|dohoda|úmluva|charta|deklarace)(\s|$)/iu;
@@ -853,7 +853,10 @@ export const checkQuestions = (data, asked, all, add) => {
         const region = MQ.REGION_BY_ID[map.region];
         if (!region || region.id === 'svet') add('critical', 'otazky', 'oblast', `${item.n}: neznámá oblast ${map.region}`, base);
         else {
-            if (!MQ.insideFrame(region, map.lat, map.lon)) add('critical', 'otazky', 'mimo-vyrez', `${item.n}: bod leží mimo výřez oblasti ${region.label}`, base);
+            // Mimo výřez kontinentu smí být jen plocha nebo čára (začíná na mapě světa); bod musí ležet na mapě světa
+            const onWorld = region.id === 'cesko' || MQ.insideFrame(MQ.WORLD, map.lat, map.lon);
+            if (!onWorld || (!MQ.insideFrame(region, map.lat, map.lon) && !map.shape)) add('critical', 'otazky', 'mimo-vyrez', `${item.n}: bod leží mimo výřez oblasti ${region.label}`, base);
+            else if (!MQ.insideFrame(region, map.lat, map.lon) && map.view === 'continent') add('critical', 'otazky', 'mimo-vyrez', `${item.n}: začíná na kontinentu, ale leží mimo jeho výřez`, base);
             const frame = MQ.frameOf(region);
             const [x, y] = frame.toMap(map.lat, map.lon);
             const edge = Math.min(x / frame.width, 1 - x / frame.width, y / frame.height, 1 - y / frame.height);

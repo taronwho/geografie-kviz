@@ -38,8 +38,8 @@
     // (kontinent) dál určuje poloměry bodů. Svět je v zobrazení Equal Earth (stejnoploché, kontinenty bez velkého zkreslení),
     // bez Antarktidy dole; víc jednotek mapy, ať jsou obrysy i při velkém přiblížení přesné.
     // Svět v Mercatorově zobrazení (jako mapy v telefonu): tvary pevnin jsou všude věrné, jen sever a jih vycházejí větší;
-    // od 83° s. š. do 57° j. š. (bez Antarktidy)
-    const WORLD = { id: 'svet', label: 'Svět', projection: 'mercator', center: [0, 0], units: 8000, bounds: [[83, -180], [83, 180], [-57, -180], [-57, 180], [0, -180], [0, 180]] };
+    // od 83° s. š. do 61° j. š. (s Drakeovým průlivem, bez Antarktidy)
+    const WORLD = { id: 'svet', label: 'Svět', projection: 'mercator', center: [0, 0], units: 8000, bounds: [[83, -180], [83, 180], [-61, -180], [-61, 180], [0, -180], [0, 180]] };
     // Okraj výřezu kolem krajních míst (podíl delší strany), ať místo na hranici oblasti není přímo na kraji mapy
     const FRAME_MARGIN = 0.04;
     const REGION_BY_ID = Object.fromEntries([...REGIONS, WORLD].map(region => [region.id, region]));
@@ -180,10 +180,20 @@
     const regionFor = (item, countries = {}) => {
         if (!item || !Number.isFinite(item.la) || !Number.isFinite(item.lo)) return null;
         const czech = (item.co || []).includes(CZECHIA_QID) || (!item.co && (item.f || {}).land === 'Česko');
-        if (czech) return insideFrame(REGION_BY_ID.cesko, item.la, item.lo) ? REGION_BY_ID.cesko : null;
-        const continent = (item.co || []).length ? getContinent(item, countries) : continentAt(item.la, item.lo);
-        const region = REGIONS.find(candidate => candidate.continent && candidate.continent === continent);
-        return region && insideFrame(region, item.la, item.lo) ? region : null;
+        if (czech && insideFrame(REGION_BY_ID.cesko, item.la, item.lo)) return REGION_BY_ID.cesko;
+        // Jen v Česku, ale mimo mapu Česka: žádná; Česko mezi více státy (Karpaty) jde na kontinent
+        if (czech && (item.co || []).length <= 1) return null;
+        // Kontinent podle státu; stát, který hra nezná (SSSR u bitev), podle polohy. Mimo výřez kontinentu zkusí kontinent
+        // podle polohy (Rusko má bod na Sibiři) a plocha s obrysem (stát, řeka) se bere i tak – začíná na mapě světa
+        const byState = (item.co || []).length ? getContinent(item, countries) : '';
+        const regionOf = (continent) => REGIONS.find(candidate => candidate.continent && candidate.continent === continent) || null;
+        // Hledá se na mapě světa: místo mimo ni (Antarktida pod 61° j. š.) se neptá
+        if (!insideFrame(WORLD, item.la, item.lo)) return null;
+        const first = regionOf(byState || continentAt(item.la, item.lo));
+        if (first && insideFrame(first, item.la, item.lo)) return first;
+        const second = regionOf(continentAt(item.la, item.lo));
+        if (second && insideFrame(second, item.la, item.lo)) return second;
+        return needsShape(item) ? first || second : null;
     };
 
     // --- Které položky ---
@@ -254,8 +264,22 @@
     // by otázka nerozlišila; jiný druh rozliší štítek nad otázkou (Moskva město × řeka)
     const sameNames = new WeakMap();
     // Stejné jméno u jiného druhu (ostrov Irsko × stát Irsko): otázka doplní druh, ať je jasné, na co se ptá
-    const sameNameElsewhere = (item, items) => Array.isArray(items) && items.some(other => other !== item && other.q !== item.q && other.c !== item.c
-        && Number.isFinite(other.la) && normalizeAnswer(other.n) === normalizeAnswer(item.n));
+    const namesByCategory = new WeakMap();
+    const sameNameElsewhere = (item, items) => {
+        if (!Array.isArray(items)) return false;
+        if (!namesByCategory.has(items)) {
+            const names = new Map();
+            for (const other of items) {
+                if (!Number.isFinite(other.la)) continue;
+                const key = normalizeAnswer(other.n);
+                if (!names.has(key)) names.set(key, new Set());
+                names.get(key).add(other.c);
+            }
+            namesByCategory.set(items, names);
+        }
+        const categories = namesByCategory.get(items).get(normalizeAnswer(item.n));
+        return Boolean(categories && [...categories].some(category => category !== item.c));
+    };
     const KIND_WORDS = { 'suverénní stát': 'stát', velkoměsto: 'město', 'hlavní město': 'město', metropole: 'město', stratovulkán: 'sopka' };
     const isAmbiguous = (item, items) => {
         if (!Array.isArray(items)) return false;
@@ -291,7 +315,7 @@
         if (!region) return null;
         // „Kde leží Česko?“ na mapě Česka nemá smysl
         if (region.id === 'cesko' && item.c === 'stat') return null;
-        if (region.id === 'cesko' && item.c !== 'mesto' && BIG_CZECH_CITIES.some(city => distanceKm(item, city) < BIG_CITY_KM)) return null;
+        if (region.id === 'cesko' && !['mesto', 'reka', 'jezero', 'regiony'].includes(item.c) && BIG_CZECH_CITIES.some(city => distanceKm(item, city) < BIG_CITY_KM)) return null;
         if (isAmbiguous(original, ctx && ctx.items)) return null;
         return region;
     };
@@ -444,7 +468,12 @@
             return `${name} – kde se to stalo?`;
         }
         if (item.c === 'udalosti') {
-            if (item.ty === 'konference') return `Kde se konala ${name}?`;
+            // Rod podle podstatného jména v názvu: Vídeňský kongres se konal, Jaltská konference se konala
+            if (item.ty === 'konference' || item.ty === 'koncil') {
+                const verb = /(kongres|summit|sjezd|koncil|sněm|mítink)/iu.test(name) ? 'konal' : /(konference|schůzka|porada)/iu.test(name) ? 'konala' : '';
+                if (verb) return `Kde se ${verb} ${name}?`;
+                return `${name} – kde se to stalo?`;
+            }
             if (/smlouva|dohoda/iu.test(name)) return `Kde byla podepsána ${name}?`;
             return `${name} – kde se to stalo?`;
         }
@@ -558,6 +587,8 @@
         const shape = AREA_CATEGORIES.has(item.c) ? shapeOf(mapData, item) : null;
         const group = groupOf(item);
         if (!shape && item.c !== 'jezero' && !onDrawnLand(regionData, frameOf(shown), item.la, item.lo, item.c === 'ostrov' ? ISLAND_TOLERANCE_KM : COAST_TOLERANCE_KM)) return null;
+        // Ostrov s obrysem musí být na podkladové mapě nakreslený (jinak by hráč hledal v moři místo, které nevidí)
+        if (shape && item.ty === 'ostrov' && !onDrawnLand(regionData, frameOf(shown), item.la, item.lo, COAST_TOLERANCE_KM)) return null;
         // Pohled: u Česka mapa Česka, jinak napůl celý svět a napůl rovnou kontinent (podle místa, pro všechny hráče stejně);
         // kontinent jen tehdy, když místo i celý jeho obrys leží pohodlně uvnitř výřezu (Tatarstán u okraje Evropy ne)
         const view = region.id === 'cesko' ? 'cesko' : viewFor(item) === 'continent' && wellInside(region, item, shape) ? 'continent' : 'world';
@@ -723,6 +754,9 @@
                     for (const [x, y] of ring) { a0 = Math.min(a0, x); a1 = Math.max(a1, x); b0 = Math.min(b0, y); b1 = Math.max(b1, y); }
                     return a1 >= x0 - buffer && a0 <= x1 + buffer && b1 >= y0 - buffer && b0 <= y1 + buffer;
                 }).map(ringPath).join('') : '';
+            // Záliv jezera (Georgian Bay): jezero je na mapě voda uvnitř pevniny, do masky vody se vrací
+            const nearRings = (layer) => layerRings(regionData, layer).filter(ring => ring.some(([x, y]) => x >= x0 - buffer && x <= x1 + buffer && y >= y0 - buffer && y <= y1 + buffer)).map(ringPath).join('');
+            const lakes = marks.clip === 'water' && !marks.shape.line ? nearRings('lakes') : '';
             if (marks.shape.line) {
                 // Řeka jako výrazná čára
                 overlay.appendChild(svgElement('path', { d, 'stroke-width': 4, 'vector-effect': 'non-scaling-stroke', 'stroke-linejoin': 'round', 'stroke-linecap': 'round', 'data-target-shape': '', class: GREEN_LINE }));
@@ -736,9 +770,10 @@
                 const mask = (name, children) => { const element = svgElement('mask', { id: `${id}-${name}`, ...units }); children.forEach(child => element.appendChild(child)); return element; };
                 const defs = svgElement('defs');
                 // kde se vybarvuje (pevnina, nebo voda), kde jde hrana po břehu (rozšířený obrys) a kde po obrysu (dál od břehu)
-                defs.appendChild(mask('fill', sea ? [white(), landShape('#000')] : [landShape('#fff')]));
+                const lakeShape = () => svgElement('path', { d: lakes || 'M0,0', 'fill-rule': 'evenodd', fill: '#fff' });
+                defs.appendChild(mask('fill', sea ? [white(), landShape('#000'), lakeShape()] : [landShape('#fff')]));
                 defs.appendChild(mask('coast', [svgElement('path', { d, 'fill-rule': 'evenodd', fill: '#fff', stroke: '#fff', 'stroke-width': buffer, 'stroke-linejoin': 'round' })]));
-                defs.appendChild(mask('edge', sea ? [white(), landShape('#000', '#000')] : [landShape('#fff', '#000')]));
+                defs.appendChild(mask('edge', sea ? [white(), landShape('#000', '#000'), lakeShape()] : [landShape('#fff', '#000')]));
                 // rozšíření obrysu jen u břehu (na otevřené vodě a ve vnitrozemí končí výplň přesně na čáře obrysu)
                 defs.appendChild(mask('near', [svgElement('path', { d: land || 'M0,0', fill: 'none', stroke: '#fff', 'stroke-width': 2 * buffer, 'stroke-linejoin': 'round' })]));
                 overlay.appendChild(defs);
@@ -750,7 +785,7 @@
                 overlay.appendChild(filled);
                 if (land) {
                     const coast = svgElement('g', { mask: `url(#${id}-coast)` });
-                    coast.appendChild(svgElement('path', { d: land, 'stroke-width': 1.5, 'vector-effect': 'non-scaling-stroke', 'stroke-linejoin': 'round', class: GREEN_LINE }));
+                    coast.appendChild(svgElement('path', { d: land + lakes, 'stroke-width': 1.5, 'vector-effect': 'non-scaling-stroke', 'stroke-linejoin': 'round', class: GREEN_LINE }));
                     overlay.appendChild(coast);
                 }
                 const edge = svgElement('g', { mask: `url(#${id}-edge)` });
@@ -1079,10 +1114,25 @@
             if (!element.isConnected) return null;
             const frame = frameOf(shown);
             // Bez tipu jen správné místo s kruhem plných bodů
-            const sameSide = (point) => shown.id === 'cesko' || Math.abs(point.lon - target.lon) <= 180;
+            // Jen body na stejné straně mapy jako správné místo (obrys přes 180. poledník má délky i mimo ±180°)
+            const sameSide = (point) => shown.id === 'cesko' || (Math.abs(point.lon - target.lon) <= 180 && Math.abs(point.lon) <= 180);
             // U plochy výřez podle jejího obrysu (okraj kolem ní dá focus), jinak kruh plných bodů
             const shape = question.map.shape ? decodeShape(question.map.shape) : null;
-            const shapePoints = shape ? shape.flat().filter((_, i, all) => i % Math.max(1, Math.floor(all.length / 64)) === 0).map(([lat, lon]) => ({ lat, lon: lon - Math.round((lon - target.lon) / 360) * 360 })) : [];
+            // Výřez jen podle části obrysu u správného místa: zámořská území (Francie a Francouzská Guyana) ho neroztáhnou
+            const nearby = (rings) => {
+                const boxes = rings.map(ring => {
+                    const lats = ring.map(point => point[0]);
+                    const lons = ring.map(point => point[1] - Math.round((point[1] - target.lon) / 360) * 360);
+                    const box = { ring, lat0: Math.min(...lats), lat1: Math.max(...lats), lon0: Math.min(...lons), lon1: Math.max(...lons) };
+                    box.size = Math.hypot(box.lat1 - box.lat0, box.lon1 - box.lon0);
+                    box.gap = Math.hypot(Math.max(box.lat0 - target.lat, 0, target.lat - box.lat1), Math.max(box.lon0 - target.lon, 0, target.lon - box.lon1));
+                    return box;
+                });
+                const main = boxes.reduce((a, b) => (b.gap < a.gap || (b.gap === a.gap && b.size > a.size) ? b : a));
+                const reach = Math.max(main.size * 1.2, 6);
+                return boxes.filter(box => box === main || box.gap <= reach).map(box => box.ring);
+            };
+            const shapePoints = shape ? nearby(shape).flat().filter((_, i, all) => i % Math.max(1, Math.floor(all.length / 64)) === 0).map(([lat, lon]) => ({ lat, lon: lon - Math.round((lon - target.lon) / 360) * 360 })) : [];
             const fullPoints = shape ? shapePoints.filter(sameSide) : [0, 90, 180, 270].map(bearing => destination(target, question.map.full, bearing)).filter(sameSide);
             const guess = result ? { lat: result.lat, lon: result.lon } : null;
             // Kam hráč klepl: „Tvůj tip · Thajsko“ (u míst v Česku kraj)
