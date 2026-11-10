@@ -85,10 +85,24 @@ test('odměny: truhla, ochrana série, diplomy, sdílení obrázku', { skip: !ch
             await shot(tab, `truhla-zavrena-${tag}`);
             const card = await tab.locator('[data-chest-card]').boundingBox();
             assert.ok(card.y >= 0 && card.y + card.height <= viewport.height && card.width <= viewport.width - 16, 'okno truhly se vejde');
+            // Zavřená truhla čeká na klepnutí: pulzuje, nápověda, jediné tlačítko otevření je truhla sama
+            assert.match(await tab.textContent('#chest-overlay .chest-hint'), /Klepni na truhlu/);
+            assert.equal(await tab.locator('#chest-overlay [data-chest-go]').count(), 1);
+            assert.equal(await tab.getAttribute('#chest-overlay .chest-box', 'aria-label'), 'Otevřít truhlu');
+            assert.notEqual(await tab.evaluate(() => getComputedStyle(document.querySelector('#chest-overlay .chest-halo')).animationName), 'none', 'záře pulzuje');
+            const closed = await tab.locator('#chest-overlay .chest-box').boundingBox();
             await tab.click('#chest-overlay button.chest-box');
+            // Další klepnutí během natřásání a otevírání nic neudělají (truhla se neotevře dvakrát)
+            await tab.evaluate(() => document.querySelector('#chest-overlay .chest-lid-closed').click());
             await tab.waitForSelector('[data-chest-reveal] [data-chest-item]');
-            await tab.waitForTimeout(1200);
+            await tab.evaluate(() => document.querySelector('#chest-overlay .chest-lid-open').click());
+            await tab.waitForTimeout(500);
+            await shot(tab, `truhla-otevira-${tag}`);
+            await tab.waitForTimeout(1100);
             await shot(tab, `truhla-otevrena-${tag}`);
+            const opened = await tab.locator('#chest-overlay .chest-box').boundingBox();
+            assert.ok(Math.abs(opened.y - closed.y) < 1 && Math.abs(opened.x - closed.x) < 1, 'truhla zůstane po otevření na místě');
+            assert.ok(await tab.locator('[data-chest-prize]').isVisible(), 'věc vystoupala z truhly');
             const item = (await tab.textContent('[data-chest-item]')).trim();
             assert.ok(item.length > 2, `věc: ${item}`);
             assert.equal(await tab.locator('[data-chest-freeze]').count(), 1, 'k věci ochrana série (měl jen jednu)');
@@ -121,11 +135,30 @@ test('odměny: truhla, ochrana série, diplomy, sdílení obrázku', { skip: !ch
         const { context, tab, problems } = await open({ reducedMotion: 'reduce', seed: { 'mudrlant.rewards': { ready: [week], freezes: 2 } } });
         await tab.click('[data-chest-ready]');
         await tab.waitForSelector('#chest-overlay .chest-box');
-        assert.equal(await tab.evaluate(() => getComputedStyle(document.querySelector('#chest-overlay .chest-svg')).animationName), 'none');
-        await tab.click('#chest-overlay [data-chest-go]:not(.chest-box)');
+        const still = (selector) => tab.evaluate((css) => [...document.querySelectorAll(css)].every(el => getComputedStyle(el).animationName === 'none'), selector);
+        assert.ok(await still('#chest-overlay .chest-body, #chest-overlay .chest-halo, #chest-overlay .chest-spark, #chest-overlay .chest-hint'), 'zavřená truhla bez pohybu');
+        await tab.click('#chest-overlay .chest-box');
         await tab.waitForSelector('[data-chest-reveal]', { timeout: 300 });
-        assert.equal(await tab.evaluate(() => getComputedStyle(document.querySelector('[data-chest-reveal]')).animationName), 'none');
+        assert.ok(await still('#chest-overlay [data-chest-card] *'), 'otevřená truhla a věc bez pohybu');
+        assert.equal(await tab.evaluate(() => getComputedStyle(document.querySelector('#chest-overlay .chest-lid-open')).opacity), '1', 'hned otevřená truhla');
+        assert.ok(await tab.locator('[data-chest-prize]').isVisible());
         assert.equal(await tab.locator('[data-chest-freeze]').count(), 0, 'plný počet ochran: žádná navíc');
+        assert.deepEqual(problems, []);
+        await context.close();
+    });
+
+    await t.test('truhla zavřená během natřásání zůstane zavřená a čeká dál', async () => {
+        const { context, tab, problems } = await open({ seed: { 'mudrlant.rewards': { ready: [week], freezes: 1 } } });
+        await tab.click('[data-chest-ready]');
+        await tab.waitForSelector('#chest-overlay .chest-box');
+        await tab.click('#chest-overlay .chest-box');
+        await tab.keyboard.press('Escape');
+        await tab.waitForTimeout(700);
+        assert.equal(await tab.locator('#chest-overlay').count(), 0);
+        const rewards = await storage(tab, 'mudrlant.rewards');
+        assert.deepEqual(rewards.ready, [week], 'truhla dál čeká');
+        assert.equal(rewards.chests[week], undefined);
+        assert.equal(await tab.locator('[data-chest-ready]').count(), 1, 'pruh s truhlou na úvodu zůstal');
         assert.deepEqual(problems, []);
         await context.close();
     });

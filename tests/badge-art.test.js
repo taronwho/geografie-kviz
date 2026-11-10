@@ -1,4 +1,4 @@
-// Ilustrované symboly odznaků, truhla a ochrana série: každá skupina se symbolem v app.js (BADGE_ART) existuje, má obrázek
+// Ilustrované symboly odznaků, truhla (zavřená i otevřená) a ochrana série: každá skupina se symbolem v app.js (BADGE_ART) existuje, má obrázek
 // v icons/topics, zdroj v branding/ikony a je v mezipaměti service workeru (aplikace offline)
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -21,9 +21,9 @@ test('symboly odznaků: skupiny, obrázky, zdroje a mezipaměť', () => {
     const swArt = listed(sw, /const BADGE_ART = \[([^\]]+)\]/);
     assert.match(sw, /\.\.\.BADGE_ART\.map\(id => `icons\/topics\/odznak-\$\{id\}\.webp`\)/);
     assert.deepEqual([...swArt].sort(), [...art].sort(), 'sw.js má stejný seznam');
-    for (const name of [...art.map(id => `odznak-${id}`), 'truhla', 'ochrana-serie', 'diplom']) {
+    for (const name of [...art.map(id => `odznak-${id}`), 'truhla', 'truhla-otevrena', 'ochrana-serie', 'diplom']) {
         assert.ok(fs.existsSync(path.join(ROOT, 'icons', 'topics', `${name}.webp`)), `${name}.webp`);
         assert.ok(fs.existsSync(path.join(ROOT, 'branding', 'ikony', `${name}.png`)), `${name}.png`);
     }
-    assert.match(sw, /'truhla', 'ochrana-serie', 'diplom'/);
+    assert.match(sw, /'truhla', 'ochrana-serie', 'diplom', 'truhla-otevrena'/);
 });

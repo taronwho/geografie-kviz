@@ -208,15 +208,10 @@
     const freezeWord = (count) => (count === 1 ? 'ochrana' : count >= 2 && count <= 4 ? 'ochrany' : 'ochran');
     // Štít s počtem ochran u série (jen když nějakou má)
     const freezeChip = (count, attrs = '') => (count > 0 ? `<span ${attrs} data-freeze-chip class="inline-flex shrink-0 items-center gap-0.5 rounded-md bg-sky-100 px-1 py-px text-[10px] font-black leading-tight text-sky-800 ring-1 ring-sky-200 dark:bg-sky-900/50 dark:text-sky-200 dark:ring-sky-800" title="Ochrana série: ${count} z ${MAX_FREEZES}" aria-label="Ochrana série: ${count} z ${MAX_FREEZES}"><i data-lucide="shield-check" class="h-3 w-3"></i>${count}</span>` : '');
-    // Truhla: obrázek (icons/topics/truhla.webp), za ní záře a jiskry (SVG); při otevření truhla poskočí a rozzáří se
-    // (animace v src/input.css, .chest-*)
+    // Malá truhla (pruh na úvodu, Můj postup, vysvětlení): obrázek icons/topics/truhla.webp; v pruhu se pohupuje (src/input.css, .chest-mini)
     const chestSvg = (cls = 'h-40 w-40') => `
         <span class="${cls} chest-svg relative inline-flex items-center justify-center" aria-hidden="true">
-            <svg viewBox="0 0 200 180" class="absolute inset-[-12%] h-[124%] w-[124%] overflow-visible">
-                <g class="chest-glow"><circle cx="100" cy="92" r="78" fill="#efc55c" opacity="0.28"></circle><circle cx="100" cy="92" r="52" fill="#fee2b0" opacity="0.35"></circle></g>
-                <g class="chest-sparks" fill="#fee2b0"><path d="M40 40l4 10 10 4-10 4-4 10-4-10-10-4 10-4z"></path><path d="M162 30l3 7 7 3-7 3-3 7-3-7-7-3 7-3z"></path><path d="M170 96l2 5 5 2-5 2-2 5-2-5-5-2 5-2z"></path><path d="M28 104l2 5 5 2-5 2-2 5-2-5-5-2 5-2z"></path></g>
-            </svg>
-            <img src="icons/topics/truhla.webp" alt="" class="chest-img relative h-full w-full object-contain drop-shadow-md">
+            <img src="icons/topics/truhla.webp" alt="" class="relative h-full w-full object-contain drop-shadow-md">
         </span>`;
     // Ochrana série: obrázek štítu s plamenem (icons/topics/ochrana-serie.webp)
     const freezeArt = (cls = 'h-7 w-7') => `<img src="icons/topics/ochrana-serie.webp" alt="" class="${cls} shrink-0 object-contain drop-shadow-sm">`;
@@ -224,7 +219,7 @@
     const chestStripHtml = () => `
         <button type="button" id="weekly-goals" data-action="chest-open" data-chest-ready class="chest-strip flex min-h-[2.5rem] w-full items-center gap-2 rounded-2xl bg-gradient-to-r from-gold-400 to-gold-500 px-2.5 py-1.5 text-left text-brand-950 shadow-md ring-2 ring-gold-300 transition-all active:scale-[0.98] dark:ring-gold-600">
             ${chestSvg('h-8 w-8 -my-1.5 -ml-1 shrink-0 chest-mini')}
-            <span class="min-w-0 flex-1 truncate text-[12px] font-black leading-tight" title="Splnil jsi všechny cíle týdne. Otevři ji!">Truhla Mudrlanta čeká</span>
+            <span class="min-w-0 flex-1 truncate text-[12px] font-black leading-tight" title="Všechny cíle týdne jsou splněné. Otevři ji!">Truhla Mudrlanta čeká</span>
             <span class="shrink-0 rounded-lg bg-brand-900 px-2 py-1 text-[11px] font-black text-gold-200">Otevřít</span>
         </button>`;
     // Ukázka věci (obrázek doplňku, sova v taláru, kulička tématu, barva, rámeček)
@@ -235,34 +230,62 @@
     const previewHtml = ({ category, item }, h = {}, size = 'h-20 w-20') => {
         if (category === 'accessories') return `<img src="icons/doplnky/${esc(item.id)}-ikona.webp" alt="" class="${size} object-contain drop-shadow-lg">`;
         if (category === 'robes') return `<img src="icons/topics/sova-vitej${item.id === 'vinova' ? '' : `-${esc(item.id)}`}.webp" alt="" data-keep class="${size} object-contain drop-shadow-lg">`;
-        if (category === 'themes') return `<span data-theme="${esc(item.id)}" class="block ${size} rounded-full bg-gradient-to-br from-brand-400 to-brand-800 shadow-lg ring-4 ring-white/70"></span>`;
+        if (category === 'themes') return `<span data-theme="${esc(item.id)}" class="block ${size} rounded-full bg-gradient-to-br from-brand-300 via-brand-500 to-brand-800 shadow-lg ring-4 ring-white/70"></span>`;
         if (category === 'colors') return `<span class="block ${size} rounded-full ${COLOR_DOT[item.id] || 'bg-slate-400'} shadow-lg ring-4 ring-white/70"></span>`;
         if (category === 'frames') return `<span class="relative flex ${size} items-center justify-center rounded-full bg-white${h.frameClass ? h.frameClass(item.id) : ''}"><img src="icons/logo.webp" alt="" class="h-[78%] w-[78%] object-contain"></span>`;
         return '';
     };
-    // Okno truhly: zavřená truhla s tlačítkem Otevřít; po otevření (open) věc nebo XP a ochrana série
+    // Okno truhly (animace v src/input.css, .chest-*). Zavřená: truhla je velké tlačítko, za ní pulzuje zlatá záře, kolem se třpytí
+    // jiskry a pod ní je nápověda. Po otevření (opened) je na stejném místě otevřená truhla: obě truhly leží v jedné buňce mřížky ve
+    // stejném měřítku (.chest-lid-open), takže výměna vypadá jako zvednutí víka; za ní paprsky a kruh světla, jiskry vyletí ven, z truhly
+    // vystoupá věc (nebo XP) a pod ní se objeví popis, ochrana série a tlačítka. Otevřená truhla je v HTML už předem (načte se dopředu).
+    const SPARKS = 8;
+    const chestStageHtml = (opened, h) => {
+        // Kulatá věc (téma, barva, rámeček, XP) je menší a výš, ať nezakryje víko; téma a barva se lesknou (.chest-orb)
+        const category = opened && opened.gift ? opened.gift.category : 'xp';
+        const round = ['themes', 'colors', 'frames', 'xp'].includes(category);
+        // (u rámečku větší písmo = silnější kroužek, .frame v src/input.css)
+        const size = round ? `h-[4.5rem] w-[4.5rem]${category === 'frames' ? ' text-[2.5rem]' : ''}` : 'h-[5.5rem] w-[5.5rem]';
+        const prize = !opened ? '' : opened.gift ? previewHtml(opened.gift, h, size) : `
+            <span class="flex ${size} flex-col items-center justify-center rounded-full bg-gradient-to-br from-gold-200 to-gold-500 text-brand-950 shadow-lg ring-4 ring-white/70"><i data-lucide="star" class="h-7 w-7"></i><span class="text-sm font-black leading-none">+${opened.xp}</span></span>`;
+        return `
+            <div data-chest-stage class="chest-stage ${opened ? 'chest-opened' : 'chest-waiting'} relative flex w-full flex-col items-center">
+                <div class="relative z-10 flex h-24 w-full items-end justify-center">${opened ? `<div data-chest-prize class="chest-prize${round ? ' mb-3' : ''}${category === 'themes' || category === 'colors' ? ' chest-orb' : ''}">${prize}</div>` : ''}</div>
+                <button type="button" data-chest-go aria-label="Otevřít truhlu" class="chest-box relative -mt-10 block h-40 w-40 rounded-3xl" ${opened ? 'disabled' : ''}>
+                    <span class="chest-halo" aria-hidden="true"></span>
+                    ${opened ? '<span class="chest-rays" aria-hidden="true"></span>' : ''}
+                    <span class="chest-ring" aria-hidden="true"></span>
+                    <span class="chest-sparks" aria-hidden="true">${'<span class="chest-spark"></span>'.repeat(SPARKS)}</span>
+                    <span class="chest-body grid h-full w-full" aria-hidden="true">
+                        <img src="icons/topics/truhla.webp" alt="" class="chest-lid-closed h-full w-full object-contain drop-shadow-lg">
+                        <img src="icons/topics/truhla-otevrena.webp" alt="" class="chest-lid-open h-full w-full object-contain drop-shadow-lg">
+                    </span>
+                </button>
+            </div>`;
+    };
     const chestHtml = ({ opened = null } = {}, h = {}) => {
         const result = opened ? (opened.gift ? `
-            <div data-chest-reveal class="chest-reveal flex flex-col items-center gap-2 text-center">
-                <div class="flex h-24 items-center justify-center">${previewHtml(opened.gift, h)}</div>
+            <div data-chest-reveal class="chest-show-1 relative z-10 flex flex-col items-center gap-1 text-center">
                 <p class="text-[11px] font-black uppercase tracking-widest text-gold-300">${esc(KIND_NAMES[opened.gift.category])}</p>
                 <p data-chest-item class="text-2xl font-black leading-tight text-white">${esc(opened.gift.item.title)}</p>
                 <p class="text-xs font-semibold leading-snug text-white/80">Jinak by se odemkl až na úrovni ${opened.gift.item.level}. Teď je tvůj.</p>
             </div>` : `
-            <div data-chest-reveal class="chest-reveal flex flex-col items-center gap-2 text-center">
-                <p data-chest-item class="text-4xl font-black text-gold-300">+${opened.xp} XP</p>
+            <div data-chest-reveal class="chest-show-1 relative z-10 flex flex-col items-center gap-1 text-center">
+                <p data-chest-item class="text-3xl font-black text-gold-300">+${opened.xp} XP</p>
                 <p class="text-xs font-semibold leading-snug text-white/80">Všechny věci pro Mudrlanta už máš, tak aspoň body zkušeností.</p>
             </div>`) : '';
-        const freeze = opened && opened.freeze ? `<p data-chest-freeze class="chest-reveal flex items-center gap-1.5 rounded-xl bg-sky-500/20 px-3 py-1.5 text-xs font-black text-sky-100 ring-1 ring-sky-300/40">${freezeArt('h-6 w-6 -my-1')} A navíc ochrana série</p>` : '';
+        const freeze = opened && opened.freeze ? `<p data-chest-freeze class="chest-show-2 relative z-10 flex items-center gap-1.5 rounded-xl bg-sky-500/20 px-3 py-1.5 text-xs font-black text-sky-100 ring-1 ring-sky-300/40">${freezeArt('h-6 w-6 -my-1')} A navíc ochrana série</p>` : '';
         const actions = opened
-            ? `<div class="flex w-full gap-2">${opened.gift && opened.gift.category !== 'colors' ? `<button type="button" data-chest-wear class="flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-2xl btn-3d bg-gold-500 px-3 py-3 text-base font-black text-brand-950"><i data-lucide="sparkles" class="h-5 w-5"></i> ${opened.gift.category === 'themes' ? 'Použít' : 'Nasadit'}</button>` : ''}<button type="button" data-chest-close class="flex min-w-0 flex-1 items-center justify-center rounded-2xl bg-white/15 px-3 py-3 text-base font-bold text-white">${opened.gift && opened.gift.category !== 'colors' ? 'Později' : 'Super!'}</button></div>`
-            : `<button type="button" data-chest-go class="flex w-full items-center justify-center gap-2 rounded-2xl btn-3d bg-gold-500 px-4 py-3.5 text-lg font-black text-brand-950"><i data-lucide="sparkles" class="h-5 w-5"></i> Otevřít truhlu</button>
-               <button type="button" data-chest-close class="text-xs font-bold text-white/70 underline underline-offset-2">Otevřu ji později</button>`;
+            ? `<div class="chest-show-3 relative z-10 flex w-full gap-2">${opened.gift && opened.gift.category !== 'colors' ? `<button type="button" data-chest-wear class="flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-2xl btn-3d bg-gold-500 px-3 py-3 text-base font-black text-brand-950"><i data-lucide="sparkles" class="h-5 w-5"></i> ${opened.gift.category === 'themes' ? 'Použít' : 'Nasadit'}</button>` : ''}<button type="button" data-chest-close class="flex min-w-0 flex-1 items-center justify-center rounded-2xl bg-white/15 px-3 py-3 text-base font-bold text-white">${opened.gift && opened.gift.category !== 'colors' ? 'Později' : 'Super!'}</button></div>`
+            : `<p class="chest-hint relative z-10 flex items-center gap-1.5 rounded-full bg-gold-400/15 px-3.5 py-1.5 text-sm font-black text-gold-200 ring-1 ring-gold-300/40"><i data-lucide="sparkles" class="h-4 w-4"></i> Klepni na truhlu</p>
+               <button type="button" data-chest-close class="relative z-10 -mb-2 min-h-[2.5rem] px-4 text-xs font-bold text-white/70 underline underline-offset-2">Otevřu ji později</button>`;
         return `
             <div data-chest-card class="flex w-full max-w-xs flex-col items-center gap-3 rounded-[1.8rem] bg-gradient-to-b from-brand-800 to-brand-950 p-5 text-white shadow-2xl ring-2 ring-gold-400">
-                <p class="text-[11px] font-black uppercase tracking-widest text-gold-300">Cíle týdne splněné</p>
-                <h2 class="text-xl font-black leading-tight">Truhla Mudrlanta</h2>
-                <button type="button" data-chest-go aria-label="Otevřít truhlu" class="chest-box ${opened ? 'chest-open' : ''} -my-2 rounded-3xl" ${opened ? 'disabled' : ''}>${chestSvg('h-36 w-36 short:h-28 short:w-28')}</button>
+                <div class="relative z-10 text-center">
+                    <p class="text-[11px] font-black uppercase tracking-widest text-gold-300">Cíle týdne splněné</p>
+                    <h2 class="text-xl font-black leading-tight">Truhla Mudrlanta</h2>
+                </div>
+                ${chestStageHtml(opened, h)}
                 ${result}${freeze}${actions}
             </div>`;
     };

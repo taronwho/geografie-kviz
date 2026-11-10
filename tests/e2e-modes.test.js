@@ -154,7 +154,7 @@ test('Bleskovka, Přežití, zvuky a vibrace', { skip: !chromium && 'Playwright 
         assert.match(intro, /Bleskovka/);
         assert.match(intro, /60 sekund/);
         assert.match(intro, /ubere 3 sekundy/);
-        assert.match(intro, /Zeměpis · všechny kategorie · jen známé/);
+        assert.match(intro, /Zeměpis · všechny kategorie · Základní/);
         assert.match(intro, /\+3\sXP za každou správnou odpověď \(dnes ještě až 150\sXP\)/);
         assert.equal((await tab.textContent('[data-mode-record-scope]')).replace(/\s+/g, ' ').trim(), 'Rekord tématu –');
         assert.match(await tab.textContent('#status-badge'), /Bleskovka · Zeměpis/i);

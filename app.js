@@ -1957,7 +1957,7 @@
                     <i data-lucide="play" class="h-6 w-6"></i> Hrát
                 </button>
                 ${Modes ? `<div class="mt-2 grid grid-cols-2 gap-2">${modeChooserButtons()}</div>` : ''}
-                ${MapQuestion && (isMix || MAP_TOPICS.includes(chooser.topic)) ? `<button type="button" data-chooser-map class="btn-3d-light mt-2 flex min-h-[2.75rem] w-full items-center gap-2.5 rounded-[1.2rem] bg-white px-3 py-1.5 text-left text-slate-800 short:min-h-[2.5rem] dark:bg-slate-800 dark:text-slate-100"><span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-sky-100 text-sky-700 dark:bg-sky-900/50 dark:text-sky-200"><i data-lucide="crosshair" class="h-4 w-4"></i></span><span class="min-w-0 flex-1"><span class="block text-[14px] font-black leading-tight">Ukaž na mapě</span><span class="block text-[11px] font-semibold leading-tight text-slate-500 dark:text-slate-400">jen otázky na mapě · zkušební režim</span></span></button>` : ''}
+                ${MapQuestion && (isMix || MAP_TOPICS.includes(chooser.topic)) ? `<button type="button" data-chooser-map class="btn-3d-light mt-2 flex min-h-[2.75rem] w-full items-center gap-2.5 rounded-[1.2rem] bg-white px-3 py-1.5 text-left text-slate-800 short:min-h-[2.5rem] dark:bg-slate-800 dark:text-slate-100">${uiArt('odznak-mapa', 'h-8 w-8')}<span class="min-w-0 flex-1"><span class="block text-[14px] font-black leading-tight">Ukaž na mapě</span><span class="block text-[11px] font-semibold leading-tight text-slate-500 dark:text-slate-400">jen otázky na mapě · zkušební režim</span></span></button>` : ''}
                 </div>
                 <div class="mb-1.5 mt-2 flex items-center justify-between short:mb-1 short:mt-1">
                     <h3 class="${SETTINGS_HEADING}">${isMix ? 'Témata' : 'Kategorie'}</h3>
@@ -3880,7 +3880,7 @@
         return result;
     };
 
-    // Truhla Mudrlanta: okno přes celou obrazovku, klepnutím na truhlu (nebo Otevřít) se otevře; věc jde hned nasadit
+    // Truhla Mudrlanta: okno přes celou obrazovku, klepnutím na truhlu se otevře (animace v src/input.css, .chest-*); věc jde hned nasadit
     const closeChestOverlay = () => {
         const overlay = document.getElementById('chest-overlay');
         if (overlay) overlay.remove();
@@ -3906,8 +3906,10 @@
         overlay.setAttribute('role', 'dialog');
         overlay.setAttribute('aria-modal', 'true');
         overlay.setAttribute('aria-label', 'Truhla Mudrlanta');
-        overlay.className = 'chest-overlay fade-in fixed inset-0 z-[70] flex items-center justify-center p-4';
+        // Ukotvené shora (odsazení v .chest-overlay): po otevření truhla zůstane na místě a obsah přibude pod ní
+        overlay.className = 'chest-overlay fade-in fixed inset-0 z-[70] flex items-start justify-center overflow-y-auto px-4 pb-4';
         let opened = null;
+        let opening = false;
         const paint = () => {
             overlay.innerHTML = Rewards.chestHtml({ opened }, chestHelpers());
             renderIcons(overlay);
@@ -3915,6 +3917,8 @@
             if (focus) focus.focus({ preventScroll: true });
         };
         const reveal = () => {
+            // Okno zavřené během natřásání: truhla zůstane zavřená a čeká dál
+            if (!overlay.isConnected) return;
             const progress = loadProgress();
             const result = Rewards.openChest(loadRewards(), week, { level: levelProgress(progress.xp).level, badges: progress.badges });
             if (!result.opened) { overlay.remove(); return; }
@@ -3942,14 +3946,15 @@
                 return;
             }
             const go = event.target.closest('[data-chest-go]');
-            if (go && !opened && !go.disabled) {
-                // Krátké zatřesení, pak se víko otevře (při omezeném pohybu hned)
-                const box = overlay.querySelector('.chest-box');
+            if (go && !opened && !opening && !go.disabled) {
+                // Krátké natřesení, pak se víko otevře (při omezeném pohybu hned); další klepnutí už nic neudělají. Tlačítko se
+                // nevypíná, ať na něm zůstane fokus (Escape okno zavře i během natřásání)
+                opening = true;
+                const stage = overlay.querySelector('[data-chest-stage]');
                 const still = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-                overlay.querySelectorAll('[data-chest-go]').forEach(button => { button.disabled = true; });
-                if (still || !box) { reveal(); return; }
-                box.classList.add('chest-shake');
-                setTimeout(reveal, 450);
+                if (still || !stage) { reveal(); return; }
+                stage.classList.add('chest-shaking');
+                setTimeout(reveal, 350);
             }
         });
         overlay.addEventListener('keydown', (event) => { if (event.key === 'Escape') closeChestOverlay(); });
@@ -5217,7 +5222,11 @@
     };
 
     // --- Obrazovky režimu ---
-    const modeBadge = (kind, cls = 'h-7 w-7', icon = 'h-4 w-4') => `<span class="flex ${cls} shrink-0 items-center justify-center rounded-full ${MODE_BADGE[kind]}"><i data-lucide="${Modes.MODES[kind].icon}" class="${icon}"></i></span>`;
+    // Symbol režimu: obrázek jeho odznaku (Bleskovka, Přežití); bez obrázku barevné kolečko s ikonou
+    const MODE_ART = { blitz: 'odznak-bleskovka', survival: 'odznak-preziti' };
+    const modeBadge = (kind, cls = 'h-7 w-7', icon = 'h-4 w-4') => MODE_ART[kind]
+        ? uiArt(MODE_ART[kind], cls)
+        : `<span class="flex ${cls} shrink-0 items-center justify-center rounded-full ${MODE_BADGE[kind]}"><i data-lucide="${Modes.MODES[kind].icon}" class="${icon}"></i></span>`;
     const modeStat = (label, value, attrs = '') => `
         <div ${attrs} class="flex flex-col justify-between rounded-2xl bg-white px-2 py-2 text-center shadow-sm ring-1 ring-slate-200/70 dark:bg-slate-800 dark:ring-slate-700/70">
             <p class="text-[10px] font-black uppercase leading-tight tracking-wider text-slate-500 dark:text-slate-400">${escapeHtml(label)}</p>
@@ -5263,8 +5272,8 @@
             <div data-mode-intro="${game.kind}" class="fade-in flex min-h-full w-full flex-col gap-3 bg-slate-50 p-4 short:gap-2 short:p-3 dark:bg-slate-900">
                 <div class="flex items-center gap-3">
                     <span class="relative shrink-0">
-                        ${topicIcon(topic, 'h-14 w-14', `flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br text-white ${style.tile}`, 'h-7 w-7')}
-                        <span class="absolute -bottom-1 -right-1 rounded-full ring-2 ring-slate-50 dark:ring-slate-900">${modeBadge(game.kind)}</span>
+                        ${modeBadge(game.kind, 'h-14 w-14', 'h-7 w-7')}
+                        <span class="absolute -bottom-1 -right-1">${topicIcon(topic, 'h-7 w-7', `flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br text-white ${style.tile}`, 'h-4 w-4')}</span>
                     </span>
                     <div class="min-w-0">
                         <h2 class="text-2xl font-black leading-tight text-slate-800 dark:text-slate-50">${escapeHtml(def.title)}</h2>
