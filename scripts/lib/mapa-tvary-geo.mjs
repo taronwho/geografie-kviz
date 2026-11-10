@@ -269,7 +269,8 @@ export const joinLines = (lines) => {
 
 // Zjednodušení čar pod strop počtu bodů; krátké odbočky (rameno delty, kus kanálu) pod minShare celkové délky odpadnou
 // Vrací { text (s předponou „~“), lines (stupně [lon, lat]), points }
-export const compressLines = (lines, { maxPoints = 200, toleranceShare = 0.004, minTolerance = 0.003, minShare = 0.02 } = {}) => {
+// postprocess(čára ve stupních) → čára: úprava zjednodušené čáry před zaokrouhlením (odstranění ostnů u řek z OpenStreetMap)
+export const compressLines = (lines, { maxPoints = 200, toleranceShare = 0.004, minTolerance = 0.003, minShare = 0.02, postprocess = null } = {}) => {
     const lengths = lines.map(lineKm);
     const total = lengths.reduce((a, b) => a + b, 0);
     const longest = Math.max(...lengths);
@@ -279,7 +280,9 @@ export const compressLines = (lines, { maxPoints = 200, toleranceShare = 0.004, 
         const kept = [];
         lines.forEach((line, i) => {
             if (lengths[i] < share * total && lengths[i] !== longest) return;
-            const q = quantize(simplify(line, tolerance), false);
+            let q = quantize(simplify(line, tolerance), false);
+            // Úprava až na zaokrouhlených bodech (zaokrouhlení úhly mírně mění)
+            if (postprocess) q = quantize(postprocess(q.map(([x, y]) => [x / UNIT, y / UNIT])), false);
             if (q.length >= 2) kept.push(q);
         });
         const points = kept.reduce((sum, line) => sum + line.length, 0);
@@ -291,4 +294,123 @@ export const compressLines = (lines, { maxPoints = 200, toleranceShare = 0.004, 
         if (kept.length > 6) share *= 1.5;
     }
     return null;
+};
+
+// --- doplňky: obal čáry, podíl pevniny, orientace prstenců -------------------------------------------------------------
+
+// Obal lomené čáry o poloměru radiusKm (průliv nakreslený v OpenStreetMap jen osou): jeden prstenec [lon, lat] –
+// levá strana, půlkruh na konci, pravá strana zpět, půlkruh na začátku. Čára se nejdřív zjednoduší na třetinu poloměru,
+// aby se obal v zatáčkách nekřížil.
+export const bufferLine = (line, radiusKm) => {
+    if (!line || line.length < 2 || !(radiusKm > 0)) return null;
+    const lat0 = line.reduce((sum, p) => sum + p[1], 0) / line.length;
+    const kx = 111.32 * Math.cos(lat0 * Math.PI / 180), ky = 110.57;
+    let points = simplify(line.map(([x, y]) => [x * kx, y * ky]), radiusKm / 3);
+    points = points.filter((p, i) => !i || Math.hypot(p[0] - points[i - 1][0], p[1] - points[i - 1][1]) > 1e-6);
+    if (points.length < 2) return null;
+    const normals = [];
+    for (let i = 0; i < points.length - 1; i++) {
+        const dx = points[i + 1][0] - points[i][0], dy = points[i + 1][1] - points[i][1];
+        const length = Math.hypot(dx, dy);
+        normals.push([-dy / length, dx / length]);
+    }
+    const side = (sign) => points.map((p, i) => {
+        const a = normals[Math.max(0, i - 1)], b = normals[Math.min(normals.length - 1, i)];
+        let nx = a[0] + b[0], ny = a[1] + b[1];
+        const length = Math.hypot(nx, ny) || 1;
+        nx /= length; ny /= length;
+        const miter = Math.min(2, 1 / Math.max(0.2, nx * a[0] + ny * a[1]));
+        return [p[0] + sign * nx * radiusKm * miter, p[1] + sign * ny * radiusKm * miter];
+    });
+    const cap = (center, from, to) => {
+        // půlkruh od bodu from k bodu to kolem středu (ve směru z levé strany na pravou přes čelo)
+        const a0 = Math.atan2(from[1] - center[1], from[0] - center[0]);
+        let a1 = Math.atan2(to[1] - center[1], to[0] - center[0]);
+        while (a1 > a0) a1 -= 2 * Math.PI;
+        const out = [];
+        for (let step = 1; step < 6; step++) { const a = a0 + (a1 - a0) * step / 6; out.push([center[0] + radiusKm * Math.cos(a), center[1] + radiusKm * Math.sin(a)]); }
+        return out;
+    };
+    const left = side(1), right = side(-1);
+    const last = points.length - 1;
+    const ring = [...left, ...cap(points[last], left[last], right[last]), ...right.reverse(), ...cap(points[0], right[right.length - 1], left[0])];
+    return ring.map(([x, y]) => [x / kx, y / ky]);
+};
+
+// Rejstřík pevniny z mnohoúhelníků ([[prstenec, díry…], …], [lon, lat]): isLand(bod), share(prstence obrysu) = podíl
+// vzorků uvnitř obrysu, které leží na pevnině (null, když se do obrysu žádný vzorek netrefil), coastKm(bod, strop) =
+// vzdálenost k nejbližšímu pobřeží
+export const landIndex = (polygons) => {
+    const rings = polygons.flat().filter(ring => ring.length >= 3).map(ring => ({ ring, box: bboxOf([ring]) }));
+    const CELL = 2;
+    const grid = new Map();
+    for (const entry of rings) {
+        for (let gx = Math.floor(entry.box[0] / CELL); gx <= Math.floor(entry.box[2] / CELL); gx++) {
+            for (let gy = Math.floor(entry.box[1] / CELL); gy <= Math.floor(entry.box[3] / CELL); gy++) {
+                const key = `${gx},${gy}`;
+                if (!grid.has(key)) grid.set(key, []);
+                grid.get(key).push(entry);
+            }
+        }
+    }
+    const wrap = (lon) => ((lon + 180) % 360 + 360) % 360 - 180;
+    const isLand = ([lon0, lat]) => {
+        const lon = wrap(lon0);
+        let inside = false;
+        for (const { ring, box } of grid.get(`${Math.floor(lon / CELL)},${Math.floor(lat / CELL)}`) || []) {
+            if (lon < box[0] || lon > box[2] || lat < box[1] || lat > box[3]) continue;
+            if (inRings([ring], [lon, lat])) inside = !inside;
+        }
+        return inside;
+    };
+    const share = (shape, samples = 18) => {
+        const box = bboxOf(shape);
+        let total = 0, land = 0;
+        for (let i = 0; i < samples; i++) for (let j = 0; j < samples; j++) {
+            const point = [box[0] + (box[2] - box[0]) * (i + 0.5) / samples, box[1] + (box[3] - box[1]) * (j + 0.5) / samples];
+            if (!inRings(shape, point)) continue;
+            total++;
+            if (isLand(point)) land++;
+        }
+        return total >= 8 ? land / total : null;
+    };
+    const coastKm = ([lon0, lat], maxKm = 150) => {
+        const lon = wrap(lon0);
+        const reach = Math.ceil(maxKm / 111 / CELL / Math.max(0.2, Math.cos(lat * Math.PI / 180)));
+        const seen = new Set();
+        let best = maxKm;
+        for (let dx = -reach; dx <= reach; dx++) for (let dy = -1; dy <= 1; dy++) {
+            for (const entry of grid.get(`${Math.floor(lon / CELL) + dx},${Math.floor(lat / CELL) + dy}`) || []) {
+                if (seen.has(entry)) continue;
+                seen.add(entry);
+                best = Math.min(best, segmentsKm([entry.ring], [lon, lat], true));
+            }
+        }
+        return best;
+    };
+    return { isLand, share, coastKm };
+};
+
+// Prstence ze shapefile (vnější a díry podle směru oběhu) → mnohoúhelníky [[vnější], …] s dírami u největšího;
+// díry menší než minHoleShare celkové plochy se zahodí (zářezy údolí uvnitř pohoří)
+export const polygonsFromOrientedRings = (rings, minHoleShare = 0.08) => {
+    const signed = (ring) => { let sum = 0; for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) sum += (ring[j][0] - ring[i][0]) * (ring[j][1] + ring[i][1]); return sum; };
+    const measured = rings.filter(ring => ring.length >= 4).map(ring => ({ ring, signed: signed(ring) })).sort((a, b) => Math.abs(b.signed) - Math.abs(a.signed));
+    if (!measured.length) return [];
+    const outerSign = Math.sign(measured[0].signed) || 1;
+    const outers = measured.filter(m => Math.sign(m.signed) === outerSign);
+    const total = outers.reduce((sum, m) => sum + Math.abs(m.signed), 0);
+    const holes = measured.filter(m => Math.sign(m.signed) !== outerSign && Math.abs(m.signed) >= minHoleShare * total);
+    return outers.map((m, i) => (i ? [m.ring] : [m.ring, ...holes.map(h => h.ring)]));
+};
+
+// Rozloha obrysu podle pravidla sudá–lichá v km²: prstenec ležící uvnitř lichého počtu větších je díra
+export const evenOddKm2 = (rings) => {
+    const sorted = rings.map(ring => ({ ring, area: sphericalKm2(ring) })).sort((a, b) => b.area - a.area);
+    let total = 0;
+    sorted.forEach((entry, index) => {
+        const depth = sorted.slice(0, index).filter(other => inRings([other.ring], entry.ring[0])).length;
+        total += depth % 2 ? -entry.area : entry.area;
+    });
+    return Math.max(0, total);
 };
