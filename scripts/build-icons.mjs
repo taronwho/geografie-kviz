@@ -26,7 +26,9 @@ const ICONS = [
     // Přežití (životy) a Nastavení → Zvuky a Vibrace (sound.js)
     'heart', 'volume-2', 'volume-x', 'vibrate',
     // Odměny (rewards.js) a odznak Seřaď
-    'list-ordered'
+    'list-ordered',
+    // Archiv turnajů
+    'archive'
 ];
 
 const toPascalCase = (name) => name.replace(/(^|-)(\w)/g, (_, __, letter) => letter.toUpperCase());
