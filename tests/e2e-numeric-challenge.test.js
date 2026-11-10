@@ -1,6 +1,7 @@
 // Číselné otázky ve výzvě (numeric-questions.js): dva hráči se stejným kódem dostanou stejné otázky Seřaď a Odhadni číslo
 // ve stejném pořadí (plán ze semínka výzvy) a server přijme body podle pravidel průběhu (schéma 3: nejvýš 4 body u výzvy
-// s výběrem z možností, správně právě když jsou body). Falešný Supabase v paměti jen s tím, co výzva potřebuje.
+// s výběrem z možností, správně právě když jsou body); druhý hráč s jinou verzí dat dostane otázky uložené na serveru (zamrzlé otázky, schéma 17).
+// Falešný Supabase v paměti jen s tím, co výzva potřebuje.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -45,6 +46,9 @@ const backend = async (context, db) => {
             if (rpc[1] === 'schema_version') return json(REQUIRED_SCHEMA);
             if (rpc[1] === 'touch_seen') return route.fulfill({ status: 204, body: '' });
             if (['friends_list', 'weekly_leaderboard'].includes(rpc[1])) return json([]);
+            // Zamrzlé otázky (schéma 17): první uložená verze platí
+            if (rpc[1] === 'question_snapshots_get') return json((body.seeds || []).filter(seed => db.snapshots[seed]).map(seed => ({ seed, data: db.snapshots[seed] })));
+            if (rpc[1] === 'question_snapshot_claim') { if (!db.snapshots[body.seed]) db.snapshots[body.seed] = body.data; return json(db.snapshots[body.seed]); }
             if (rpc[1] === 'challenge_progress_save') {
                 const c = db.challenges[body.code];
                 const mine = db.progress.filter(row => row.challenge_id === body.code && row.user_id === me.id);
@@ -85,10 +89,11 @@ test('výzva s číselnými otázkami: oba hráči mají stejné otázky, server
     t.after(() => browser.close());
     const db = {
         challenges: { CSNMRX: { id: 'CSNMRX', creator_id: 'u-1', invited_id: null, topic: 'zemepis', count: 4, seed: 'cisla-vyzva', include_hard: false, categories: ['hora', 'reka'], variant: 'choices', created_at: '2026-11-04T09:00:00Z' } },
-        progress: [], results: [], rejected: []
+        progress: [], results: [], rejected: [], snapshots: {}
     };
     // Každá otázka výzvy číselná (jinak asi každá osmá); force se nastaví hned, jak se skript načte, ještě před otevřením výzvy
-    const play = async (token, answers) => {
+    // data = jiná verze dat Zeměpisu (jiné položky): otázky přesto platí ty, které server uložil od prvního hráče
+    const play = async (token, answers, data = null) => {
         const context = await browser.newContext({ serviceWorkers: 'block', viewport: { width: 390, height: 780 } });
         await context.addInitScript(({ auth }) => {
             let numeric;
@@ -107,6 +112,7 @@ test('výzva s číselnými otázkami: oba hráči mají stejné otázky, server
             return route.abort();
         });
         await backend(context, db);
+        if (data) await context.route(`${ORIGIN}/data/zemepis.json`, route => route.fulfill({ contentType: 'application/json', body: data }));
         const tab = await context.newPage();
         const problems = [];
         tab.on('pageerror', error => problems.push(error.message));
@@ -132,8 +138,13 @@ test('výzva s číselnými otázkami: oba hráči mají stejné otázky, server
         return questions;
     };
     const first = await play('tok-u1', ['ok', 'swap', 'wrong', 'ok']);
-    const second = await play('tok-u2', ['wrong', 'ok', 'ok', 'swap']);
+    assert.equal(Object.keys(db.snapshots).length, 4, 'číselné otázky jsou uložené na serveru');
+    // Druhý hráč má data bez položek z otázek prvního (nasazení nových dat): dostane přesto stejné otázky
+    const original = JSON.parse(fs.readFileSync(path.join(ROOT, 'data', 'zemepis.json'), 'utf8'));
+    const used = new Set(first.flatMap(question => question.items));
+    const second = await play('tok-u2', ['wrong', 'ok', 'ok', 'swap'], JSON.stringify({ ...original, items: original.items.filter(item => !used.has(item.q)) }));
     assert.deepEqual(second, first, 'stejné otázky, stejné položky, stejné pořadí na obrazovce');
+    assert.equal(Object.keys(db.snapshots).length, 4);
     assert.equal(new Set(first.flatMap(question => question.items)).size, 16, 'žádná položka se ve výzvě nezopakuje');
     assert.ok(first.every(question => ['zemepis-hora-vyska', 'zemepis-reka-delka'].includes(question.spec)), 'jen z kategorií výzvy');
     assert.deepEqual(db.rejected, [], 'server žádnou odpověď neodmítl');

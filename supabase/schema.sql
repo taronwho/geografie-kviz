@@ -1107,8 +1107,11 @@ begin
         where c.invited_id is not null and c.created_at > now() - interval '3 days'
             and not exists (select 1 from public.challenge_results r where r.challenge_id = c.id and r.user_id = c.invited_id)
         union all
+        -- výsledek soupeře jen zakladateli, který výzvu už sám dohrál (jinak by věděl, kolik potřebuje, a mohl taktizovat)
         select c.creator_id, 'challenge', coalesce(op.display_name, 'Hráč') || ' odehrál tvoji výzvu',
-            'Dal ' || r.correct || ' z ' || c.count || ' správně. Podívej se, jak jsi na tom ty.', './?tab=multi&vyzva=' || c.id,
+            case when exists (select 1 from public.challenge_results mine where mine.challenge_id = c.id and mine.user_id = c.creator_id)
+                then 'Dal ' || r.correct || ' z ' || c.count || ' správně. Podívej se, jak jsi na tom ty.'
+                else 'Jeho výsledek uvidíš, až výzvu dohraješ i ty.' end, './?tab=multi&vyzva=' || c.id,
             'chalr:' || c.id || ':' || c.creator_id, r.finished_at::text
         from public.challenges c
         join public.challenge_results r on r.challenge_id = c.id and r.user_id = c.invited_id
@@ -1490,7 +1493,10 @@ begin
             'zalozena', g.created_at, 'clenem_od', m.joined_at) order by m.joined_at) from public.group_members m join public.groups g on g.id = m.group_id where m.user_id = uid), '[]'::jsonb),
         'skupiny_vyzvy', coalesce((select jsonb_agg(jsonb_build_object('vyzva', gc.challenge_id, 'skupina', gc.group_id, 'vytvoreno', gc.created_at) order by gc.created_at)
             from public.group_challenges gc join public.challenges c on c.id = gc.challenge_id where c.creator_id = uid), '[]'::jsonb),
-        'xp_tydny', coalesce((select jsonb_agg(to_jsonb(x) order by x.week) from public.xp_weekly x where x.user_id = uid), '[]'::jsonb)
+        'xp_tydny', coalesce((select jsonb_agg(to_jsonb(x) order by x.week) from public.xp_weekly x where x.user_id = uid), '[]'::jsonb),
+        -- Zamrzlé otázky (schéma 17), které hráč sestavil jako první (jen semínko a čas; otázka sama osobní údaj není)
+        'zamrzle_otazky', coalesce((select jsonb_agg(jsonb_build_object('seminko', s.seed, 'vytvoreno', s.created_at) order by s.created_at)
+            from public.question_snapshots s where s.created_by = uid), '[]'::jsonb)
     ) into result;
     return result;
 end;
@@ -3043,6 +3049,99 @@ revoke all on function public.daily_quiz_answer(date, integer, boolean, integer,
 grant execute on function public.daily_quiz_answer(date, integer, boolean, integer, integer, text, integer), public.daily_quiz_details(date, uuid[]) to authenticated;
 -- ===== Rozpis Kvízu dne (schéma 15) — KONEC BLOKU =====
 
+-- ===== Zamrzlé otázky (schéma 17) =====
+-- Výzva (i výzva skupině a odveta), zápas turnaje a Kvíz dne mají dát všem hráčům stejné otázky se stejnými možnostmi. Aplikace otázku sestaví
+-- ze semínka a z dat tématu; když se data mezi hrami hráčů změní (nové položky, jiné úrovně), vyšla by ze stejného semínka jiná otázka.
+-- Proto se otázka při prvním sestavení uloží (klíč = semínko otázky) a platí první zápis: question_snapshot_claim vrátí vždy uloženou verzi
+-- a aplikace hraje ji (svou sestavenou zahodí). Rozpis otázek čte uložené otázky přes question_snapshots_get.
+-- Semínka otázek:
+--   výzva            <semínko výzvy>:<pořadí>                       jen hráč, který výzvu smí hrát; semínko patří nejstarší výzvě s ním (kopie semínka
+--                                                                   v nové výzvě ho nepřevezme), pořadí menší než počet otázek
+--   zápas turnaje    <semínko turnaje>-r<kolo>:<pořadí>             jen hráč zápasu v tomto kole turnaje
+--   Kvíz dne         mudrlant-kviz-dne-<YYYY-MM-DD>:otazka:<pořadí>  jen za dnešek a včerejšek (pražský čas), ať nikdo nepřipraví otázky budoucího dne
+-- Číst smí každý přihlášený (otázky jsou pro všechny stejné a semínka jsou veřejná i bez toho), zapisovat jen funkce. Otázku skládá klient,
+-- server kontroluje jen tvar (objekt, nejvýš 150 000 bajtů) a nejvýš 400 nových otázek za hodinu od jednoho hráče.
+create table if not exists public.question_snapshots (
+    seed text primary key check (char_length(seed) between 1 and 200),
+    data jsonb not null check (jsonb_typeof(data) = 'object'),
+    created_by uuid references public.profiles (id) on delete set null,
+    created_at timestamptz not null default now()
+);
+create index if not exists question_snapshots_author_idx on public.question_snapshots (created_by, created_at desc);
+-- question_snapshot_claim hledá výzvu podle semínka
+create index if not exists challenges_seed_idx on public.challenges (seed, created_at);
+alter table public.question_snapshots enable row level security;
+drop policy if exists "zamrzlé otázky: čtení pro přihlášené" on public.question_snapshots;
+create policy "zamrzlé otázky: čtení pro přihlášené" on public.question_snapshots for select to authenticated using (true);
+revoke all on public.question_snapshots from anon;
+revoke insert, update, delete, truncate on public.question_snapshots from authenticated;
+
+-- Uloží otázku, pokud pro semínko ještě žádná není, a vrátí uloženou (první zápis platí; souběžný druhý zápis dostane tu první)
+create or replace function public.question_snapshot_claim(seed text, data jsonb) returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare
+    uid uuid := auth.uid();
+    s text := question_snapshot_claim.seed;
+    payload jsonb := question_snapshot_claim.data;
+    today date := public.daily_quiz_today();
+    m text[];
+    d date;
+    allowed boolean := false;
+    stored jsonb;
+begin
+    if uid is null then raise exception 'Přihlas se.' using errcode = '42501'; end if;
+    if s is null or char_length(s) not between 1 and 200 or s !~ '^[A-Za-z0-9._:-]+$' then raise exception 'Neplatné semínko otázky.' using errcode = '22023'; end if;
+    if payload is null or jsonb_typeof(payload) <> 'object' then raise exception 'Neplatná otázka.' using errcode = '22023'; end if;
+    if octet_length(payload::text) > 150000 then raise exception 'Otázka je příliš velká.' using errcode = '22023'; end if;
+    -- Uložená otázka se jen vrátí (bez dalších kontrol: kdo smí hrát, dostane stejnou, jakou dostali ostatní)
+    select q.data into stored from public.question_snapshots q where q.seed = s;
+    if stored is not null then return stored; end if;
+    -- Kvíz dne: jen dnešek a včerejšek (pokus začatý před půlnocí se dohrává po ní)
+    m := regexp_match(s, '^mudrlant-kviz-dne-([0-9]{4}-[0-9]{2}-[0-9]{2}):otazka:([0-9])$');
+    if m is not null then
+        begin d := m[1]::date; exception when others then d := null; end;
+        if d is null or d not in (today, today - 1) then raise exception 'Otázky Kvízu dne jde uložit jen za dnešek.' using errcode = '22023'; end if;
+        allowed := true;
+    end if;
+    -- Zápas turnaje: jen hráč zápasu v tom kole
+    if not allowed then
+        m := regexp_match(s, '^(.+)-r([0-9]{1,2}):([0-9]{1,2})$');
+        if m is not null and m[3]::integer < 20 then
+            allowed := exists (select 1 from public.tournaments t join public.tournament_matches mm on mm.tournament_id = t.id
+                where t.seed = m[1] and mm.round = m[2]::integer and uid in (mm.p1, mm.p2));
+        end if;
+    end if;
+    -- Výzva: nejstarší výzva s tímhle semínkem, kterou hráč smí hrát (jako pravidlo zápisu výsledku), a pořadí v rozsahu jejích otázek
+    if not allowed then
+        m := regexp_match(s, '^(.+):([0-9]{1,2})$');
+        if m is not null then
+            select (c.invited_id is null or uid in (c.invited_id, c.creator_id)) and m[2]::integer < c.count into allowed
+            from public.challenges c where c.seed = m[1] order by c.created_at, c.id limit 1;
+            allowed := coalesce(allowed, false);
+        end if;
+    end if;
+    if not allowed then raise exception 'Tuhle otázku uložit nejde.' using errcode = '42501'; end if;
+    if (select count(*) from public.question_snapshots q where q.created_by = uid and q.created_at > now() - interval '1 hour') >= 400 then
+        raise exception 'Příliš mnoho nových otázek, zkus to za chvíli.' using errcode = '22023';
+    end if;
+    insert into public.question_snapshots (seed, data, created_by) values (s, payload, uid) on conflict on constraint question_snapshots_pkey do nothing;
+    select q.data into stored from public.question_snapshots q where q.seed = s;
+    return stored;
+end;
+$$;
+
+-- Uložené otázky k semínkům (nejvýš 200 najednou); semínko bez uložené otázky ve výsledku chybí
+create or replace function public.question_snapshots_get(seeds text[]) returns table (seed text, data jsonb)
+language plpgsql stable security definer set search_path = public as $$
+begin
+    if auth.uid() is null then raise exception 'Přihlas se.' using errcode = '42501'; end if;
+    return query select q.seed, q.data from public.question_snapshots q where q.seed = any((coalesce(question_snapshots_get.seeds, '{}'::text[]))[1:200]);
+end;
+$$;
+revoke all on function public.question_snapshot_claim(text, jsonb), public.question_snapshots_get(text[]) from public, anon;
+grant execute on function public.question_snapshot_claim(text, jsonb), public.question_snapshots_get(text[]) to authenticated;
+-- ===== Zamrzlé otázky (schéma 17) — KONEC BLOKU =====
+
 -- ===== Verze schématu =====
 -- Číslo se zvyšuje při KAŽDÉ změně tohoto souboru (tabulka, sloupec, funkce, pravidlo) a zároveň konstanta REQUIRED_SCHEMA v app.js.
 -- Aplikace ho po přihlášení porovná a správci (dev_admins nebo vývojářský režim) ukáže v Nastavení, že má schéma spustit znovu;
@@ -3065,7 +3164,10 @@ grant execute on function public.daily_quiz_answer(date, integer, boolean, integ
 -- 14: boti v turnaji ukládají odpovědi po otázkách (správně, body, nápovědy, čas) – rozpis zápasu je ukáže i u nich.
 -- 15: Rozpis Kvízu dne (daily_quiz_answers, daily_quiz_answer s textem odpovědi a nápovědami, daily_quiz_details).
 -- 16: Obtížnost výzvy ve třech úrovních (challenges.level: Základní, Mudrlant, Mudrlant Expert).
+-- 17: Zamrzlé otázky (question_snapshots, question_snapshot_claim, question_snapshots_get: otázka výzvy, zápasu turnaje a Kvízu dne platí pro všechny
+--     tak, jak ji sestavil první hráč; export_my_data má i 'zamrzle_otazky'); upozornění „… odehrál tvoji výzvu“ ukáže výsledek, až když
+--     zakladatel výzvu sám dohrál (push_pending).
 create or replace function public.schema_version() returns integer
-language sql immutable as $$ select 16 $$;
+language sql immutable as $$ select 17 $$;
 revoke all on function public.schema_version() from public, anon;
 grant execute on function public.schema_version() to authenticated;

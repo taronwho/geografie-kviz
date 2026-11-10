@@ -195,6 +195,14 @@ const backend = async (context, db) => {
             if (db.claimLost > 0) { db.claimLost -= 1; return json({ message: 'boom' }, 503); }
             return json([...again, ...fresh.map(m => ({ match_id: m.id, round: m.round }))].map(claim => ({ id: claim.match_id, round: claim.round })));
         }
+        // Zamrzlé otázky (schéma 17): první uložená verze platí; db.snapshots = undefined → starší databáze bez nich (404)
+        if (rpc && (rpc[1] === 'question_snapshot_claim' || rpc[1] === 'question_snapshots_get')) {
+            if (!db.snapshots) return json({ code: 'PGRST202', message: 'Could not find the function' }, 404);
+            db.calls.push({ name: rpc[1], body });
+            if (rpc[1] === 'question_snapshots_get') return json((body.seeds || []).filter(seed => db.snapshots[seed]).map(seed => ({ seed, data: db.snapshots[seed] })));
+            if (!db.snapshots[body.seed]) db.snapshots[body.seed] = body.data;
+            return json(db.snapshots[body.seed]);
+        }
         if (rpc && /^(tournament_|my_tournament)/.test(rpc[1])) {
             if (db.missing) return json({ code: 'PGRST202', message: 'Could not find the function' }, 404);
             db.calls.push({ name: rpc[1], body });
@@ -354,6 +362,13 @@ const noHorizontalScroll = (tab) => tab.evaluate(() => {
     const content = document.getElementById('app-content');
     const overlay = document.querySelector('#dialog-overlay > div');
     return { page: document.documentElement.scrollWidth - document.documentElement.clientWidth, content: content.scrollWidth - content.clientWidth, dialog: overlay ? overlay.scrollWidth - overlay.clientWidth : 0 };
+});
+// Otázka uložená na serveru soupeřem (zamrzlé otázky): tvar jako createRoundData v app.js, položka, kterou tohle zařízení v datech nemá
+const frozenQuestion = (title, labels, correct) => ({
+    topic: 'zemepis', id: 'Q999001', title: labels[correct], name: labels[correct], category: 'stat', known: true, typeLabel: 'stát',
+    question: { type: 'name', title, showName: false, choices: labels.map((label, i) => ({ label, id: `Q99900${i + 2}`, correct: i === correct })), accepted: [labels[correct]], placeholder: 'Název', answerLabel: labels[correct] },
+    questionText: 'Zamrzlý popis otázky, stejný pro oba hráče.', photoUrl: null, questionImage: null, photoMasks: null, visual: null, resultVisual: null, resultFacts: [], hints: [], leadFacts: [],
+    subtitle: 'Testovací svět', coords: null, isCzech: false, description: 'Zamrzlý popis.', thin: false, funFacts: []
 });
 const playMatch = async (tab, questions = 10, beforeLast = null) => {
     await tab.waitForSelector('[data-action="give-up"]');
@@ -663,6 +678,30 @@ test('týdenní turnaje', { skip: !chromium && 'Playwright není nainstalovaný'
         await waitForHome(tab);
         await tab.waitForSelector('#tournament-card');
         assert.equal((await progressOf(tab)).xp, 20);
+        assert.deepEqual(log.errors, []);
+        assert.deepEqual(log.csp, []);
+        await context.close();
+    });
+
+    await t.test('zamrzlé otázky: zápas hraje otázku, kterou uložil soupeř, ostatní uloží a rozpis je ukáže', async () => {
+        const db = newDb();
+        runningEight(db, { opponentResult: { correct: 0, points: 0, time_ms: 3600000 } });
+        db.snapshots = { 'seed-abc-r1:0': frozenQuestion('Zamrzlá otázka turnaje', ['Alfa', 'Beta', 'Gama', 'Delta'], 1) };
+        const { context, tab, log } = await start(db);
+        await tab.waitForSelector('#tournament-card [data-action="tournament-play"]');
+        await tab.click('[data-action="tournament-play"]');
+        await tab.waitForSelector('[data-action="give-up"]');
+        assert.equal((await tab.textContent('#app-content h2')).trim(), 'Zamrzlá otázka turnaje');
+        assert.deepEqual(await tab.$$eval('[data-action="choice"]', list => list.map(button => button.textContent.trim())), ['Alfa', 'Beta', 'Gama', 'Delta']);
+        await playMatch(tab, 10);
+        await tab.waitForSelector('[data-tournament-outcome]');
+        // Semínka zápasu: <semínko turnaje>-r<kolo>:<pořadí>; uložená otázka se znovu neukládá, ostatní ano
+        assert.deepEqual(Object.keys(db.snapshots).sort(), Array.from({ length: 10 }, (_, i) => `seed-abc-r1:${i}`).sort());
+        assert.ok(!db.calls.some(call => call.name === 'question_snapshot_claim' && call.body.seed === 'seed-abc-r1:0'));
+        assert.equal(db.snapshots['seed-abc-r1:0'].question.title, 'Zamrzlá otázka turnaje', 'první uložená zůstává');
+        await tab.waitForSelector('#breakdown-list [data-bd-row]', { timeout: 30000 });
+        assert.match((await tab.textContent('#breakdown-list [data-bd-row="0"]')).replace(/\s+/g, ' '), /Zamrzlá otázka turnaje.*Beta/);
+        assert.ok((await tab.textContent('#breakdown-list [data-bd-row="4"]')).includes(db.snapshots['seed-abc-r1:4'].question.answerLabel));
         assert.deepEqual(log.errors, []);
         assert.deepEqual(log.csp, []);
         await context.close();

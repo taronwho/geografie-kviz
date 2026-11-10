@@ -1729,7 +1729,9 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         await two.tab.click(`#challenges-section [data-action="challenge-open"][data-code="${code}"]`);
         await two.tab.waitForSelector('#dialog-overlay [data-ch-play]');
         assert.match(await two.tab.textContent('#dialog-overlay'), /Janička tě vyzývá/);
-        assert.match(await two.tab.textContent('#dialog-overlay'), /0\/5/);
+        // Výsledek soupeře se před vlastním dohráním neukazuje (jen že dohrála), ať neovlivní hru
+        assert.match(await two.tab.textContent('#dialog-overlay'), /dohráno/);
+        assert.doesNotMatch(await two.tab.textContent('#dialog-overlay'), /0\/5|správně|🏆/);
         await two.tab.click('[data-ch-play]');
         await waitForQuestion(two.tab);
         assert.equal((await readRound(two.tab)).id, firstId, 'stejná první otázka jako u soupeře');
