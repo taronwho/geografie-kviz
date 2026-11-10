@@ -117,10 +117,12 @@ test('skutečná data: tisíce míst ze zeměpisu a stovky stadionů, všechna n
     assert.equal(MapQuestion.mapRegionOf('evropa').id, 'svet');
     assert.equal(MapQuestion.mapRegionOf('cesko').id, 'cesko');
     assert.ok(counts.cesko >= 300, 'Česko má stovky míst');
-    // Ostrov, který na mapě není (Capri do 1:50m nepatří), se neptá; Kréta a Mallorca ano
+    // Ostrov, který na mapě není (Hadí ostrov je menší než nejmenší kreslený tvar), se neptá; Kréta a Mallorca ano
+    // a od úpravy scripts/build-mapa.mjs i malé ostrovy z položek otázek (Capri z vrstvy 1:10m)
     assert.ok(MapQuestion.buildQuestion(byName('Kréta', 'ostrov'), zemepisCtx, mapData));
     assert.ok(MapQuestion.buildQuestion(byName('Mallorca', 'ostrov'), zemepisCtx, mapData));
-    assert.equal(MapQuestion.buildQuestion(byName('Capri', 'ostrov'), zemepisCtx, mapData), null);
+    assert.ok(MapQuestion.buildQuestion(byName('Capri', 'ostrov'), zemepisCtx, mapData));
+    assert.equal(MapQuestion.buildQuestion(byName('Hadí ostrov', 'ostrov'), zemepisCtx, mapData), null);
     assert.equal(MapQuestion.buildQuestion(byName('Brno', 'mesto'), zemepisCtx, null), null, 'bez mapových dat žádná otázka');
     const frame = MapQuestion.frameOf('svet');
     assert.equal(MapQuestion.onDrawnLand(mapData.regions.svet, frame, 48.86, 2.35), true, 'Paříž na pevnině');
