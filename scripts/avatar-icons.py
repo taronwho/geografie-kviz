@@ -5,7 +5,7 @@
 # a stínování) nebo obarvením (bílé a šedé části, např. čelenka). Spuštění: python3 scripts/avatar-icons.py [id …] [--preview]
 import os, sys, importlib.util
 import numpy as np
-from PIL import Image, ImageFilter
+from PIL import Image, ImageDraw, ImageFilter
 
 root = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..')
 spec = importlib.util.spec_from_file_location('topic_icons', os.path.join(root, 'scripts', 'topic-icons.py'))
@@ -14,6 +14,7 @@ spec.loader.exec_module(topic_icons)
 
 SIZE = 192
 WORK = 768  # části se hledají a přebarvují ve větším rozlišení, zmenší se až výsledek
+EDGE = 17   # šířka krémového okraje samolepky v pixelech plátna WORK (liché číslo)
 # Barvy částí: (odstín 0–360, sytost, jas); pořadí = číslo barvy v uloženém obrázku (look.js AVATAR_COLORS)
 PALETTE = [
     (355, 0.80, 0.86),  # 1 červená
@@ -28,7 +29,7 @@ PALETTE = [
 ]
 
 # Postavičky: id → zdroj a části. Pravidlo části: hue (od, do; přes 360 = zabalí se), smin/smax (sytost), vmin/vmax (jas),
-# box/out = výřezy v podílech šířky a výšky (x0, y0, x1, y1), kde se část hledá / nehledá. Části jedné postavičky se nepřekrývají.
+# box/out = výřezy v podílech šířky a výšky (x0, y0, x1, y1), kde se část hledá / nehledá, outpoly = mnohoúhelníky [(x, y), …], kde ne. Části jedné postavičky se nepřekrývají.
 CHARACTERS = {
     'cervik': {'src': 'knihomol', 'parts': [
         {'title': 'Kniha', 'rules': [{'hue': (335, 15), 'smin': 0.45}]},
@@ -57,19 +58,21 @@ CHARACTERS = {
     'lev': {'src': 'lev-galaxie', 'parts': [
         {'title': 'Hříva', 'rules': [{'hue': (225, 305), 'smin': 0.28, 'vmin': 0.12}]}]},
     'fenix': {'src': 'fenix', 'parts': [
-        {'title': 'Peří', 'rules': [{'hue': (340, 40), 'smin': 0.5, 'vmin': 0.35}]}]},
+        {'title': 'Peří', 'rules': [{'hue': (340, 25), 'smin': 0.5, 'vmin': 0.35},
+                                    {'hue': (25, 40), 'smin': 0.5, 'vmin': 0.35, 'out': [(0.28, 0.33, 0.54, 0.53)]}]}]},
     'krecek': {'src': 'krecek-boxer', 'parts': [
         {'title': 'Rukavice', 'rules': [{'hue': (340, 15), 'smin': 0.45, 'vmin': 0.3}]},
         {'title': 'Čelenka', 'rules': [{'smin': 0, 'smax': 0.13, 'vmin': 0.8, 'box': [(0.2, 0.18, 0.8, 0.38)]}]}]},
     'rytir': {'src': 'pasovec-rytir', 'parts': [
         {'title': 'Chochol', 'rules': [{'hue': (155, 205), 'smin': 0.3}]},
-        {'title': 'Brnění', 'rules': [{'hue': (12, 42), 'smin': 0.35, 'vmin': 0.3}]}]},
+        {'title': 'Brnění', 'rules': [{'hue': (12, 42), 'smin': 0.35, 'vmin': 0.3, 'out': [(0.53, 0.34, 0.84, 0.57)],
+                                       'outpoly': [[(0.40, 0.81), (0.46, 0.72), (0.82, 0.55), (0.87, 0.60), (0.53, 0.85), (0.46, 0.92)]]}]}]},
     'narval': {'src': 'narval-serman', 'parts': [
         {'title': 'Narval', 'rules': [{'hue': (185, 220), 'smin': 0.18, 'vmin': 0.55}]},
         {'title': 'Dres', 'rules': [{'smin': 0, 'smax': 0.12, 'vmin': 0.78, 'box': [(0, 0.62, 1, 1)]}]}]},
     'zelva': {'src': 'zelva-sampion', 'parts': [
         {'title': 'Plášť', 'rules': [{'hue': (255, 310), 'smin': 0.3}]},
-        {'title': 'Pohár', 'rules': [{'hue': (36, 60), 'smin': 0.5, 'vmin': 0.45}]}]},
+        {'title': 'Pohár', 'rules': [{'hue': (36, 60), 'smin': 0.72, 'vmin': 0.45}]}]},
     'hodiny': {'src': 'presypaci-hodiny', 'parts': [
         {'title': 'Tenisky', 'rules': [{'hue': (345, 12), 'smin': 0.5, 'box': [(0, 0.78, 1, 1)]}]},
         {'title': 'Písek', 'rules': [{'hue': (28, 50), 'smin': 0.4, 'vmin': 0.6, 'box': [(0.28, 0.25, 0.72, 0.85)]}]}]},
@@ -77,10 +80,10 @@ CHARACTERS = {
         {'title': 'Gepard', 'rules': [{'hue': (180, 228), 'smin': 0.4}]},
         {'title': 'Čelenka a tenisky', 'rules': [{'hue': (38, 62), 'smin': 0.5, 'vmin': 0.5}]}]},
     'zelvus': {'src': 'zelvusek', 'parts': [
-        {'title': 'Tělo', 'rules': [{'hue': (3, 32), 'smin': 0.18, 'vmin': 0.65}]},
+        {'title': 'Tělo', 'rules': [{'hue': (3, 28), 'smin': 0.33, 'vmin': 0.65}]},
         {'title': 'Srdíčka', 'rules': [{'hue': (343, 10), 'smin': 0.6}]}]},
     'tucnak': {'src': 'tucnak-badatel', 'parts': [
-        {'title': 'Helma', 'rules': [{'hue': (30, 75), 'smin': 0.12, 'smax': 0.65, 'box': [(0.12, 0.03, 0.88, 0.33)]}]}]},
+        {'title': 'Helma', 'rules': [{'hue': (30, 75), 'smin': 0.26, 'smax': 0.65, 'box': [(0.12, 0.03, 0.88, 0.33)]}]}]},
     'zabak': {'src': 'zabi-lucistnik', 'parts': [
         {'title': 'Žabák', 'rules': [{'hue': (65, 145), 'smin': 0.35}]},
         {'title': 'Terč', 'rules': [{'hue': (345, 12), 'smin': 0.5, 'box': [(0.15, 0.1, 0.55, 0.45)]}]}]},
@@ -129,6 +132,13 @@ def box_mask(shape, boxes):
     for x0, y0, x1, y1 in boxes: m[int(y0 * H):int(y1 * H), int(x0 * W):int(x1 * W)] = True
     return m
 
+def poly_mask(shape, polys):
+    H, W = shape
+    img = Image.new('L', (W, H), 0)
+    draw = ImageDraw.Draw(img)
+    for poly in polys: draw.polygon([(x * W, y * H) for x, y in poly], fill=255)
+    return np.asarray(img) > 0
+
 def part_mask(a, rules):
     h, s, v = rgb_to_hsv(a[..., :3])
     m = np.zeros(h.shape, bool)
@@ -137,8 +147,11 @@ def part_mask(a, rules):
         r &= (v >= rule.get('vmin', 0.3)) & (v <= rule.get('vmax', 1.01))
         if 'box' in rule: r &= box_mask(h.shape, rule['box'])
         if 'out' in rule: r &= ~box_mask(h.shape, rule['out'])
+        if 'outpoly' in rule: r &= ~poly_mask(h.shape, rule['outpoly'])
         m |= r
-    m &= a[..., 3] > 0.5
+    # Krémový okraj samolepky (pruh u průhledného pozadí) nikdy nepatří k části, i když má podobnou barvu (helma tučňáka)
+    inner = Image.fromarray(((a[..., 3] > 0.5) * 255).astype(np.uint8)).filter(ImageFilter.MinFilter(EDGE))
+    m &= np.asarray(inner) > 0
     img = Image.fromarray((m * 255).astype(np.uint8))
     # Drobné tečky pryč, drobné díry (odlesky, šum) zalepit; okraj změkčit
     img = img.filter(ImageFilter.MinFilter(3)).filter(ImageFilter.MaxFilter(3))
@@ -181,8 +194,10 @@ def build(cid, preview=False):
     base_small.save(os.path.join(out_dir, f'{cid}.webp'), 'WEBP', quality=88, method=6)
     a = np.asarray(base).astype(np.float32) / 255
     layers = []
+    offered = []
     for pi, part in enumerate(conf.get('parts', []), start=1):
         w = part_mask(a, part['rules'])
+        offered.append(offered_colors(a, w, part.get('mode')))
         row = []
         for ci, color in enumerate(PALETTE, start=1):
             layer = shrink(recolor(a, w, color, part.get('mode')))
@@ -190,10 +205,32 @@ def build(cid, preview=False):
             row.append(layer)
         layers.append((w, row))
     if preview: return base_small, layers
-    return None
+    return offered
+
+def offered_colors(a, w, mode=None):
+    # Barvy palety, které se od původní barvy části viditelně liší: jiný odstín (o víc než 28°) nebo stejný odstín, ale
+    # jinak světlý (hnědá × oranžová, vínová × červená). U bílé a šedé části a u obarvení (mode 'tint') všechny;
+    # černá jen u částí, které nejsou samy tmavé
+    h, s, v = rgb_to_hsv(a[..., :3])
+    sel = w > 0.5
+    s0 = float(np.median(s[sel])); v0 = float(np.median(v[sel]))
+    ang = np.deg2rad(h[sel])
+    h0 = np.rad2deg(np.arctan2((np.sin(ang) * s[sel]).sum(), (np.cos(ang) * s[sel]).sum())) % 360
+    out = []
+    for i, (ht, st, vt) in enumerate(PALETTE, start=1):
+        if st < 0.3: keep = v0 > 0.45
+        elif s0 < 0.22 or mode == 'tint': keep = True
+        else: keep = min(abs(ht - h0), 360 - abs(ht - h0)) > 28 or abs(vt - v0) > 0.25
+        if keep: out.append(i)
+    return out
+
+def colors_only(cid):
+    conf = CHARACTERS[cid]
+    a = np.asarray(base_image(conf['src'])).astype(np.float32) / 255
+    return [offered_colors(a, part_mask(a, part['rules']), part.get('mode')) for part in conf.get('parts', [])]
 
 if __name__ == '__main__':
     args = [x for x in sys.argv[1:] if not x.startswith('--')]
+    # --colors: jen vypíše nabízené barvy částí (look.js CHARACTERS → colors), obrázky nezapisuje
     for cid in (args or CHARACTERS):
-        build(cid)
-        print(cid, 'ok')
+        print(cid, colors_only(cid) if '--colors' in sys.argv else build(cid))
