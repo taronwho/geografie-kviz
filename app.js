@@ -620,13 +620,19 @@
         if ([1, 2, 3].includes(level)) return level;
         return def && (def.hard === true || def.include_hard === true) ? 2 : 1;
     };
-    // tight = na nízkém displeji (short:) jen název, popis zůstane v title a na vyšším displeji
+    // tight = na nízkém displeji (short:) jen krátký název, popis zůstane v title a na vyšším displeji
     // narrow = na telefonu (do 400 px šířky) krátký název („Expert“ místo „Mudrlant Expert“ na dva řádky; celý je v popisku)
+    // U brief je v title celý popis (u tématu jeho příklady), takže se neztratí ani v kompaktním okně Co hrát
     const renderTierButtons = (on = TOGGLE_ON, topic = null, brief = false, tight = false, narrow = false) => Object.entries(TIERS).map(([key, tier]) => {
-        const text = key === 'known' && topic && topic.words && topic.words.tierKnown ? escapeHtml(topic.words.tierKnown) : tier.text;
+        const raw = key === 'known' && topic && topic.words && topic.words.tierKnown ? topic.words.tierKnown : tier.text;
+        const text = escapeHtml(raw);
+        // Celý název schovaný tam, kde se ukáže krátký (třídy vypsané celé kvůli Tailwindu)
+        const hideFull = tight && narrow ? 'short:hidden max-[400px]:hidden' : tight ? 'short:hidden' : 'max-[400px]:hidden';
+        const showShort = tight && narrow ? 'short:inline max-[400px]:inline' : tight ? 'short:inline' : 'max-[400px]:inline';
+        const name = (tight || narrow) && tier.short !== tier.title ? `<span class="${hideFull}">${tier.title}</span><span class="hidden ${showShort}" aria-label="${tier.title}">${tier.short}</span>` : tier.title;
         return `
-        <button type="button" data-tier="${key}" aria-pressed="${settings.tier === key}"${brief ? ` title="${escapeHtml(`${tier.title}: ${tier.text}`)}"` : tight ? ` title="${text}"` : ''} class="rounded-2xl border-2 px-2.5 py-2 text-left transition-colors active:scale-[0.98] ${tight ? 'short:min-h-[2.75rem] short:py-1.5 ' : narrow ? 'short:min-h-[2.5rem] short:py-1 ' : ''}${settings.tier === key ? on : TOGGLE_OFF}">
-            <span class="block text-sm font-black leading-tight">${tight ? `<span class="short:hidden">${tier.title}</span><span class="hidden short:inline">${tier.short}</span>` : narrow && tier.short !== tier.title ? `<span class="max-[400px]:hidden">${tier.title}</span><span class="hidden max-[400px]:inline" aria-label="${tier.title}">${tier.short}</span>` : tier.title}</span>
+        <button type="button" data-tier="${key}" aria-pressed="${settings.tier === key}"${brief ? ` title="${escapeHtml(`${tier.title}: ${raw}`)}"` : tight ? ` title="${text}"` : ''} class="rounded-2xl border-2 px-2.5 py-2 text-left transition-colors active:scale-[0.98] ${tight ? 'short:min-h-[2.75rem] short:py-1.5 ' : narrow ? 'short:min-h-[2.5rem] short:py-1 ' : ''}${settings.tier === key ? on : TOGGLE_OFF}">
+            <span class="block text-sm font-black leading-tight">${name}</span>
             <span class="mt-0.5 block text-[11px] font-semibold leading-snug opacity-90${brief || tight ? ' short:hidden' : ''}">${brief ? TIER_BRIEF[key] : text}</span>
         </button>`;
     }).join('');
@@ -2071,24 +2077,29 @@
         // Překreslení po klepnutí bez úvodní animace a se stejným posunutím
         const previous = overlay.firstElementChild;
         const scroll = previous ? previous.scrollTop : 0;
-        // Nahoře velká tlačítka Hrát, Bleskovka a Přežití (lepkavě: při posouvání dlouhého výběru zůstanou vidět), pod nimi výběr témat či kategorií a známosti
+        // Upozornění („Vyber aspoň jedno téma.“) místo podnadpisu, ať okno nenaroste a nezačne se posouvat; v posunutém okně
+        // (nízký displej na šířku) zůstane v lepkavé části u Hrát, kde je vidět
+        const noteInHead = Boolean(note) && scroll === 0;
+        // Nahoře velká tlačítka Hrát, pod ním v jednom řádku Bleskovka, Přežití a Ukaž na mapě (lepkavě: při posouvání dlouhého výběru
+        // zůstanou vidět), pod nimi výběr témat či kategorií a obtížnost. Okno jako Nastavení: skoro přes celou výšku, ať se vejde bez posouvání.
         overlay.innerHTML = `
-            <div class="${previous ? '' : 'fade-in '}max-h-[92dvh] w-full max-w-md overflow-y-auto rounded-[1.75rem] bg-slate-50 px-4 pb-4 pt-4 shadow-2xl dark:bg-slate-900">
-                <div class="mb-2 flex items-center gap-3">
+            <div class="${previous ? '' : 'fade-in '}max-h-[94dvh] w-full max-w-md overflow-y-auto rounded-[1.75rem] bg-slate-50 px-4 pb-4 pt-4 shadow-2xl short:max-h-[calc(100dvh-0.75rem)] short:pb-3 short:pt-3 dark:bg-slate-900">
+                <div class="mb-2 flex items-center gap-3 short:mb-1.5">
                     ${topicIcon(topic, 'h-12 w-12 short:h-10 short:w-10', `shrink-0 rounded-2xl bg-gradient-to-br p-2.5 short:p-2 text-white ${style.tile}`, 'h-6 w-6')}
                     <div class="min-w-0 flex-1">
                         <h2 id="chooser-title" class="text-lg font-black leading-tight text-slate-800 dark:text-slate-100">${escapeHtml(topic.title)}</h2>
-                        <p class="text-sm leading-snug text-slate-500 short:text-xs dark:text-slate-400">${isMix ? 'Z jakých témat chceš otázky?' : 'Co chceš hrát?'}</p>
+                        ${noteInHead
+                            ? `<p id="chooser-note" class="text-sm font-semibold leading-snug text-rose-700 short:text-xs dark:text-rose-400" role="status">${escapeHtml(note)}</p>`
+                            : `<p class="text-sm leading-snug text-slate-500 short:text-xs dark:text-slate-400">${isMix ? 'Z jakých témat chceš otázky?' : 'Co chceš hrát?'}</p>`}
                     </div>
                     <button type="button" data-close aria-label="Zavřít" class="-m-0.5 rounded-xl p-2.5 text-slate-500 hover:bg-slate-200 dark:text-slate-400 dark:hover:bg-slate-800"><i data-lucide="x" class="h-5 w-5"></i></button>
                 </div>
-                <div data-chooser-actions class="sticky -top-4 z-10 -mx-4 bg-slate-50 px-4 pb-2 pt-1 dark:bg-slate-900">
-                <p id="chooser-note" class="${note ? 'mb-1.5 ' : ''}text-sm font-semibold text-rose-700 dark:text-rose-400" role="status">${escapeHtml(note)}</p>
+                <div data-chooser-actions class="sticky -top-4 z-10 -mx-4 bg-slate-50 px-4 pb-2 pt-1 short:-top-3 dark:bg-slate-900">
+                ${noteInHead ? '' : `<p id="chooser-note" class="${note ? 'mb-1.5 ' : ''}text-sm font-semibold text-rose-700 dark:text-rose-400" role="status">${escapeHtml(note)}</p>`}
                 <button type="button" data-chooser-play class="flex w-full items-center justify-center gap-2 rounded-[1.2rem] py-3.5 text-xl font-black text-white shadow-lg transition-all active:scale-95 short:py-2 ${style.button} btn-3d">
                     <i data-lucide="play" class="h-6 w-6"></i> Hrát
                 </button>
-                ${Modes ? `<div class="mt-2 grid grid-cols-2 gap-2">${modeChooserButtons()}</div>` : ''}
-                ${MapQuestion && (isMix || MAP_TOPICS.includes(chooser.topic)) ? `<button type="button" data-chooser-map class="btn-3d-light mt-2 flex min-h-[2.75rem] w-full items-center gap-2.5 rounded-[1.2rem] bg-white px-3 py-1.5 text-left text-slate-800 short:min-h-[2.5rem] dark:bg-slate-800 dark:text-slate-100">${uiArt('odznak-mapa', 'h-8 w-8')}<span class="min-w-0 flex-1"><span class="block text-[14px] font-black leading-tight">Ukaž na mapě</span><span class="block text-[11px] font-semibold leading-tight text-slate-500 dark:text-slate-400">jen otázky na mapě · zkušební režim</span></span></button>` : ''}
+                ${modeChooserButtons(Boolean(MapQuestion && (isMix || MAP_TOPICS.includes(chooser.topic))))}
                 </div>
                 <div class="mb-1.5 mt-2 flex items-center justify-between short:mb-1 short:mt-1">
                     <h3 class="${SETTINGS_HEADING}">${isMix ? 'Témata' : 'Kategorie'}</h3>
@@ -2096,7 +2107,7 @@
                 </div>
                 <div class="grid grid-cols-2 gap-1.5 short:gap-1" role="group" aria-label="${isMix ? 'Témata' : 'Kategorie'}">${options}</div>
                 <h3 class="${SETTINGS_HEADING} mb-1.5 mt-3 short:mb-1 short:mt-1.5">Obtížnost</h3>
-                <div class="grid grid-cols-3 gap-1.5" role="group" aria-label="Obtížnost">${renderTierButtons(style.on, isMix ? null : topic, false, true)}</div>
+                <div class="grid grid-cols-3 gap-1.5" role="group" aria-label="Obtížnost">${renderTierButtons(style.on, isMix ? null : topic, true, true, true)}</div>
             </div>`;
         overlay.firstElementChild.scrollTop = scroll;
         renderIcons(overlay);
@@ -2113,7 +2124,7 @@
         overlay.setAttribute('role', 'dialog');
         overlay.setAttribute('aria-modal', 'true');
         overlay.setAttribute('aria-labelledby', 'chooser-title');
-        overlay.className = 'fixed inset-0 z-50 flex items-end justify-center bg-slate-900/60 p-4 backdrop-blur-sm sm:items-center';
+        overlay.className = 'fixed inset-0 z-50 flex items-end justify-center bg-slate-900/60 p-3 backdrop-blur-sm short:p-1.5 sm:items-center';
         overlay.addEventListener('click', (event) => {
             if (event.target === overlay || event.target.closest('[data-close]')) return closeChooser();
             // Po překreslení okna zůstane fokus na stejném tlačítku
@@ -5552,14 +5563,29 @@
         }
         updateControlsUI();
     };
-    // Tlačítka Bleskovka a Přežití v okně Co hrát (vedle Hrát)
-    const modeChooserButtons = () => Modes ? Modes.IDS.map(id => {
-        const def = Modes.MODES[id];
-        return `
-            <button type="button" data-chooser-mode="${id}" title="${escapeHtml(`${def.title}: ${def.tagline}`)}" aria-label="${escapeHtml(`${def.title}: ${def.tagline}`)}" class="btn-3d-light flex min-h-[3.5rem] min-w-0 items-center gap-2.5 rounded-[1.2rem] bg-white px-3 py-2 text-left short:min-h-[2.75rem] short:py-1 text-slate-800 dark:bg-slate-800 dark:text-slate-100">
-                ${modeBadge(id, 'h-9 w-9', 'h-5 w-5')}<span class="min-w-0"><span class="block text-[15px] font-black leading-tight">${escapeHtml(def.title)}</span><span class="block text-[11px] font-semibold leading-tight text-slate-500 dark:text-slate-400">${id === 'blitz' ? '60 sekund' : id === 'survival' ? '3 životy' : ''}</span></span>
+    // Tlačítko režimu v okně Co hrát (pod Hrát, všechna v jednom řádku): po dvou široké s obrázkem vedle názvu,
+    // po třech (s Ukaž na mapě) svislé dlaždice s obrázkem nad názvem, ať se okno vejde na telefon bez posouvání
+    // (na nejužších telefonech bez podtitulku; celý popis je v title a aria-label)
+    const chooserTile = ({ attrs, art, title, sub, subCompact = sub }, compact) => compact ? `
+            <button type="button" ${attrs} class="btn-3d-light flex min-h-[2.75rem] min-w-0 flex-col items-center justify-center gap-0.5 rounded-[1.2rem] bg-white px-1 pb-1 pt-1.5 text-center text-slate-800 short:pt-1 dark:bg-slate-800 dark:text-slate-100">
+                ${art('h-8 w-8 short:h-7 short:w-7')}<span class="block max-w-full text-[13px] font-black leading-tight max-[380px]:text-[12px]">${escapeHtml(title)}</span><span class="block max-w-full text-[11px] font-semibold leading-tight text-slate-500 max-[340px]:hidden dark:text-slate-400">${escapeHtml(subCompact)}</span>
+            </button>` : `
+            <button type="button" ${attrs} class="btn-3d-light flex min-h-[3.5rem] min-w-0 items-center gap-2.5 rounded-[1.2rem] bg-white px-3 py-2 text-left short:min-h-[2.75rem] short:py-1 text-slate-800 dark:bg-slate-800 dark:text-slate-100">
+                ${art('h-9 w-9')}<span class="min-w-0"><span class="block text-[15px] font-black leading-tight">${escapeHtml(title)}</span><span class="block text-[11px] font-semibold leading-tight text-slate-500 dark:text-slate-400">${escapeHtml(sub)}</span></span>
             </button>`;
-    }).join('') : '';
+    // Řádek Bleskovka a Přežití (u Mixu a témat s mapou i Ukaž na mapě) pro okno Co hrát
+    const modeChooserButtons = (withMap = false) => {
+        const tiles = (Modes ? Modes.IDS : []).map(id => {
+            const def = Modes.MODES[id];
+            const label = escapeHtml(`${def.title}: ${def.tagline}`);
+            return { attrs: `data-chooser-mode="${id}" title="${label}" aria-label="${label}"`, art: (cls) => modeBadge(id, cls, 'h-5 w-5'), title: def.title, sub: id === 'blitz' ? '60 sekund' : id === 'survival' ? '3 životy' : '' };
+        });
+        const mapLabel = 'Ukaž na mapě: jen otázky na mapě, zkušební režim';
+        if (withMap) tiles.push({ attrs: `data-chooser-map title="${mapLabel}" aria-label="${mapLabel}"`, art: (cls) => uiArt('odznak-mapa', cls), title: 'Ukaž na mapě', sub: 'jen otázky na mapě · zkušební režim', subCompact: 'zkušební režim' });
+        if (!tiles.length) return '';
+        const compact = tiles.length > 2;
+        return `<div class="mt-2 grid ${compact ? 'grid-cols-3' : tiles.length === 2 ? 'grid-cols-2' : 'grid-cols-1'} gap-2 short:mt-1.5">${tiles.map(tile => chooserTile(tile, compact)).join('')}</div>`;
+    };
     const modeActions = {
         'mode-start': () => startModeGame(),
         'mode-choice': (button) => answerMode(Number(button.dataset.index)),
