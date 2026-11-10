@@ -7,8 +7,9 @@ vyžadují jen uvedení autora a licence – to dělá stránka Zdroje a licence
 
 ## Souhrn
 
-- souborů celkem: **31152**, s načtenými metadaty: **31152**, zatím nestaženo: **0**
-- problémových: **1**
+- souborů celkem: **31786**, s načtenými metadaty: **31786**, zatím nestaženo: **0**
+- problémových: **2**
+  - bez uvedené licence: 1
   - soubor na Commons neexistuje: 1
 
 ## Počty podle témat
@@ -20,17 +21,23 @@ vyžadují jen uvedení autora a licence – to dělá stránka Zdroje a licence
 | chemie | 1042 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | film | 848 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | fyzika | 1803 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| geologie | 539 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| geologie | 578 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | historie | 4028 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | hudba | 2016 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | literatura | 2172 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| mytologie | 956 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| mytologie | 977 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | sport | 2127 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | umeni | 1704 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| vlajky | 1889 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| vlajky | 2466 | 1 | 0 | 0 | 0 | 0 | 1 | 0 |
 | zemepis | 5353 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 
 ## Seznam souborů
+
+### bez uvedené licence (1)
+
+| Soubor | Témata | Licence | Autor |
+| --- | --- | --- | --- |
+| [Flag of Hiroshima Prefecture.svg](https://commons.wikimedia.org/wiki/File:Flag_of_Hiroshima_Prefecture.svg) | vlajky | – | Unknown |
 
 ### soubor na Commons neexistuje (1)
 
