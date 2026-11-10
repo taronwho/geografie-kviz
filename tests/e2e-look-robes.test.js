@@ -65,8 +65,9 @@ test('barva obleku sovy', { skip: !chromium && 'Playwright není nainstalovaný'
 
         await openLook(tab);
         const tiles = await tab.$$eval('[data-robe-pick]', nodes => nodes.map(node => ({ id: node.dataset.robePick, locked: node.getAttribute('aria-disabled') === 'true', selected: node.getAttribute('aria-pressed') === 'true' })));
-        assert.deepEqual(tiles.map(tile => tile.id), ['vinova', 'zelena', 'modra', 'ruzova', 'fialova', 'cerna', 'zlata']);
-        assert.deepEqual(tiles.filter(tile => tile.locked).map(tile => tile.id), ['ruzova', 'fialova', 'cerna', 'zlata'], 'na 12. úrovni jsou zamčené růžová a výš');
+        assert.deepEqual(tiles.map(tile => tile.id), ['vinova', 'zelena', 'modra', 'ruzova', 'fialova', 'cerna', 'zlata', 'bila']);
+        assert.deepEqual(tiles.filter(tile => tile.locked).map(tile => tile.id), ['ruzova', 'fialova', 'cerna', 'zlata', 'bila'], 'na 12. úrovni jsou zamčené růžová a výš');
+        assert.match(await tab.textContent('[data-robe-pick="bila"]'), /Úr\. 100/);
         assert.equal(tiles.find(tile => tile.selected).id, 'vinova');
         assert.match(await tab.textContent('[data-robe-pick="ruzova"]'), /Úr\. 20/);
 
@@ -112,10 +113,29 @@ test('barva obleku sovy', { skip: !chromium && 'Playwright není nainstalovaný'
         assert.equal(await locked.tab.evaluate(() => document.documentElement.dataset.robe), 'vinova');
         await locked.context.close();
 
-        const high = await open(browser, { level: 70, storage: { 'mudrlant.look': JSON.stringify({ robe: 'zlata' }) } });
-        assert.equal(await high.tab.evaluate(() => document.documentElement.dataset.robe), 'zlata');
+        // Na 70. úrovni je všechno kromě bílého taláru (úroveň 100); uložený bílý se nepoužije
+        const high = await open(browser, { level: 70, storage: { 'mudrlant.look': JSON.stringify({ robe: 'bila' }) } });
+        assert.equal(await high.tab.evaluate(() => document.documentElement.dataset.robe), 'vinova');
         await openLook(high.tab);
-        assert.equal(await high.tab.$$eval('[data-robe-pick][aria-disabled="true"]', nodes => nodes.length), 0);
+        assert.deepEqual(await high.tab.$$eval('[data-robe-pick][aria-disabled="true"]', nodes => nodes.map(node => node.dataset.robePick)), ['bila']);
         await high.context.close();
+    });
+
+    await t.test('bílý talár na 100. úrovni: sovy v aplikaci i výběr se vejde do řady osmi dlaždic', async () => {
+        const { context, tab, problems } = await open(browser, { level: 100 });
+        await openLook(tab);
+        assert.equal(await tab.$$eval('[data-robe-pick][aria-disabled="true"]', nodes => nodes.length), 0);
+        await tab.click('[data-robe-pick="bila"]');
+        assert.equal(await tab.evaluate(() => document.documentElement.dataset.robe), 'bila');
+        assert.equal(await tab.evaluate(() => JSON.parse(localStorage.getItem('mudrlant.look')).robe), 'bila');
+        const sources = await owlSources(tab);
+        assert.ok(sources.length > 0 && sources.every(src => /-bila\.webp$/.test(src)), `sova v bílém: ${sources}`);
+        await tab.waitForFunction(() => [...document.querySelectorAll('img')].filter(img => /-bila\.webp$/.test(img.getAttribute('src'))).every(img => img.complete && img.naturalWidth > 0));
+        // Osm dlaždic v jedné řadě, obrázek nepřetéká z dlaždice
+        const layout = await tab.$$eval('[data-robe-pick]', nodes => nodes.map(node => { const box = node.getBoundingClientRect(); const img = node.querySelector('img').getBoundingClientRect(); return { top: Math.round(box.top), inside: img.left >= box.left - 0.5 && img.right <= box.right + 0.5 }; }));
+        assert.equal(new Set(layout.map(tile => tile.top)).size, 1, 'jedna řada');
+        assert.ok(layout.every(tile => tile.inside), 'sova se vejde do dlaždice');
+        assert.deepEqual(problems, []);
+        await context.close();
     });
 });
