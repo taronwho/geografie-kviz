@@ -374,3 +374,17 @@ test('druhy míst: město, stát, řeka, pohoří, bitva, událost, stavba, regi
     const river = MapQuestion.radiiFor({ c: 'reka' }, 'evropa', true, true);
     assert.ok(river.full < point.full && river.zero < point.zero);
 });
+
+test('opravy z kontroly mapy: vyřazené místo se neptá, opravená poloha se použije', () => {
+    const brno = byName('Brno', 'mesto');
+    assert.ok(MapQuestion.buildQuestion(brno, zemepisCtx, mapData));
+    assert.equal(MapQuestion.buildQuestion(brno, zemepisCtx, { ...mapData, skip: { [brno.q]: 'zkouška' } }), null);
+    assert.equal(MapQuestion.candidate(brno, zemepisCtx, { ...mapData, skip: { [brno.q]: 'zkouška' } }), null);
+    const moved = MapQuestion.buildQuestion(brno, zemepisCtx, { ...mapData, points: { [brno.q]: [49.2, 16.61] } });
+    assert.deepEqual([moved.map.lat, moved.map.lon], [49.2, 16.61]);
+    // Soubor oprav má očekávaný tvar a jen položky, které v datech jsou
+    const fixes = JSON.parse(read('data/mapa-opravy.json'));
+    assert.equal(typeof fixes.skip, 'object');
+    assert.equal(typeof fixes.points, 'object');
+    for (const point of Object.values(fixes.points)) assert.ok(Array.isArray(point) && point.length === 2 && Math.abs(point[0]) <= 90 && Math.abs(point[1]) <= 180);
+});

@@ -1,0 +1,6 @@
+{
+  "source": "Kontrola mapy (scripts/audit-mapa.mjs): místa, která se na mapě neptají (skip: QID → důvod), a opravené polohy (points: QID → [šířka, délka]).",
+  "generated": "2026-11-10",
+  "skip": {},
+  "points": {}
+}

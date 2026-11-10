@@ -402,8 +402,9 @@
     const loadWorld = memoizeBy(() => fetchJson('data/world.json'));
     // Slepé mapy otázky „Ukaž na mapě“ (data/mapa.json), načtou se s první takovou otázkou
     // s obrysy plošných míst (data/mapa-tvary.json); bez nich se plochy počítají jako bod s poloměrem
-    const loadMapData = memoizeBy(() => Promise.all([fetchJson('data/mapa.json'), fetchJson('data/mapa-tvary.json').catch(() => ({ shapes: {} }))])
-        .then(([map, shapes]) => ({ ...map, shapes: shapes.shapes || {} })));
+    // a opravy z kontroly mapy (data/mapa-opravy.json: místa, která se na mapě neptají, a opravené polohy)
+    const loadMapData = memoizeBy(() => Promise.all([fetchJson('data/mapa.json'), fetchJson('data/mapa-tvary.json').catch(() => ({ shapes: {} })), fetchJson('data/mapa-opravy.json').catch(() => ({}))])
+        .then(([map, shapes, fixes]) => ({ ...map, shapes: shapes.shapes || {}, skip: fixes.skip || {}, points: fixes.points || {} })));
     // Slepé mapy regionů (kraje, spolkové země, státy USA… – data/regiony.json), načtou se s první mapou regionu nebo města
     const loadRegions = memoizeBy(() => fetchJson('data/regiony.json'));
     // Fotky, na kterých je napsaná odpověď (jméno na dresu, název na plakátu) – najde je OCR při sestavení dat

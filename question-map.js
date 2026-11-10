@@ -275,16 +275,24 @@
     // Může se na položku ptát mapou? Vrací oblast, nebo null. Nepotřebuje mapová data (to, jestli místo není v moři mimo
     // nakreslenou pevninu, zkontroluje buildQuestion).
     // S mapovými daty (mapData) se plošná místa bez obrysu vyřadí hned (výběr v režimu Ukaž na mapě)
-    const candidate = (item, ctx, mapData = null) => {
+    // Opravy z kontroly mapy (data/mapa-opravy.json, scripts/audit-mapa.mjs): skip = místo se na mapě neptá (špatná nebo
+    // nejasná poloha), points = opravená poloha [šířka, délka] místo té z dat tématu
+    const isSkipped = (item, mapData) => Boolean(mapData && mapData.skip && item && mapData.skip[item.q]);
+    const placed = (item, mapData) => {
+        const fixed = mapData && mapData.points && item && mapData.points[item.q];
+        return Array.isArray(fixed) && Number.isFinite(fixed[0]) && Number.isFinite(fixed[1]) ? { ...item, la: fixed[0], lo: fixed[1] } : item;
+    };
+    const candidate = (original, ctx, mapData = null) => {
         const topicId = ctx && ctx.topic && ctx.topic.id;
-        if (!item || !kindAllowed(topicId, item) || item.nq) return null;
+        const item = placed(original, mapData);
+        if (!item || !kindAllowed(topicId, item) || item.nq || isSkipped(item, mapData)) return null;
         if (needsShape(item) && mapData && !shapeOf(mapData, item)) return null;
         const region = regionFor(item, (ctx && ctx.countries) || {});
         if (!region) return null;
         // „Kde leží Česko?“ na mapě Česka nemá smysl
         if (region.id === 'cesko' && item.c === 'stat') return null;
         if (region.id === 'cesko' && item.c !== 'mesto' && BIG_CZECH_CITIES.some(city => distanceKm(item, city) < BIG_CITY_KM)) return null;
-        if (isAmbiguous(item, ctx && ctx.items)) return null;
+        if (isAmbiguous(original, ctx && ctx.items)) return null;
         return region;
     };
 
@@ -541,8 +549,9 @@
     };
 
     // Otázka na mapě pro položku, nebo null (místo v moři mimo nakreslenou pevninu, chybějící mapa oblasti)
-    const buildQuestion = (item, ctx, mapData) => {
-        const region = candidate(item, ctx, mapData);
+    const buildQuestion = (original, ctx, mapData) => {
+        const region = candidate(original, ctx, mapData);
+        const item = placed(original, mapData);
         const shown = region && mapRegionOf(region.id);
         const regionData = shown && mapData && mapData.regions && mapData.regions[shown.id];
         if (!regionData) return null;
@@ -554,7 +563,7 @@
         const view = region.id === 'cesko' ? 'cesko' : viewFor(item) === 'continent' && wellInside(region, item, shape) ? 'continent' : 'world';
         return {
             type: 'map',
-            title: sameNameElsewhere(item, ctx && ctx.items) && item.ty && !normalizeAnswer(item.n).includes(normalizeAnswer(item.ty))
+            title: sameNameElsewhere(original, ctx && ctx.items) && item.ty && !normalizeAnswer(item.n).includes(normalizeAnswer(item.ty))
                 ? titleFor({ ...item, n: `${KIND_WORDS[item.ty] || item.ty} ${item.n}` }) : titleFor(item),
             showName: true,
             choices: [],
