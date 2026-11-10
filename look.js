@@ -40,7 +40,7 @@
         { id: 'fialova', title: 'Fialový talár', level: 30 },
         { id: 'cerna', title: 'Černý talár', level: 45 },
         { id: 'zlata', title: 'Zlatý talár', level: 65 },
-        { id: 'bila', title: 'Bílý talár', level: 100 }
+        { id: 'bila', title: 'Bílý talár', level: 100, noGift: true }
     ];
     const FRAMES = [
         { id: 'zadny', title: 'Bez rámečku', level: 1 },
