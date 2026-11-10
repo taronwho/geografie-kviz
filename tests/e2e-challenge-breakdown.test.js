@@ -227,7 +227,7 @@ test('Rozpis otázek po výzvě a průběžné body', { skip: !chromium && 'Play
                 await tab.waitForFunction(() => document.querySelector('[data-score-total]') !== null);
                 if (i === 0) await shot(tab, `vyzva-body-vysledek-${size}`);
                 total = await tab.evaluate(() => JSON.parse(localStorage.getItem('mudrlant.session')).challenge.results.reduce((sum, row) => sum + (row ? row.points : 0), 0));
-                assert.match(await compact(tab, '[data-score-total]'), new RegExp(`Celkem ve hře: ${total} `), 'součet ve výsledku otázky');
+                assert.match(await compact(tab, '[data-score-total]'), new RegExp(`V této hře zatím: ${total} `), 'součet ve výsledku otázky');
                 if (progressRow) assert.ok(typeof progressRow.ms === 'number' && progressRow.ms >= 0, 'čas odpovědi');
                 await tab.click('[data-action="next"]');
             }

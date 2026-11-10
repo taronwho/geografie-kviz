@@ -2824,7 +2824,7 @@
     // Řádek „Celkem: 16 bodů“ do výsledku otázky (jen tam, kde je čip)
     const scoreTotalLine = (tone) => {
         const total = runningScore();
-        return total === null ? '' : `<p data-score-total class="text-sm font-bold ${tone}">Celkem ve hře: ${escapeHtml(formatPoints(total))}</p>`;
+        return total === null ? '' : `<p data-score-total class="text-sm font-bold ${tone}">V této hře zatím: ${escapeHtml(formatPoints(total))}</p>`;
     };
     const renderQuestion = (keepScroll) => {
         if (isNumeric(current)) return renderNumeric(keepScroll);

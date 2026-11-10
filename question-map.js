@@ -37,7 +37,9 @@
     // Mapa, na které hráč hledá: celý svět (neprozradí ani kontinent), u míst v Česku podrobná mapa Česka. Oblast místa
     // (kontinent) dál určuje poloměry bodů. Svět je v zobrazení Equal Earth (stejnoploché, kontinenty bez velkého zkreslení),
     // bez Antarktidy dole; víc jednotek mapy, ať jsou obrysy i při velkém přiblížení přesné.
-    const WORLD = { id: 'svet', label: 'Svět', projection: 'equalEarth', center: [0, 0], units: 8000, bounds: [[84, -180], [84, 180], [-58, -180], [-58, 180], [0, -180], [0, 180]] };
+    // Svět v Mercatorově zobrazení (jako mapy v telefonu): tvary pevnin jsou všude věrné, jen sever a jih vycházejí větší;
+    // od 83° s. š. do 57° j. š. (bez Antarktidy)
+    const WORLD = { id: 'svet', label: 'Svět', projection: 'mercator', center: [0, 0], units: 8000, bounds: [[83, -180], [83, 180], [-57, -180], [-57, 180], [0, -180], [0, 180]] };
     // Okraj výřezu kolem krajních míst (podíl delší strany), ať místo na hranici oblasti není přímo na kraji mapy
     const FRAME_MARGIN = 0.04;
     const REGION_BY_ID = Object.fromEntries([...REGIONS, WORLD].map(region => [region.id, region]));
@@ -117,7 +119,18 @@
         // Celý svět je vidět (nic není „za polokoulí“)
         return { forward, inverse, angle: () => 0 };
     };
-    const projectionOf = (region) => (region.projection === 'equalEarth' ? equalEarth(region.center[1]) : projector(region.center[0], region.center[1]));
+    // Mercatorovo zobrazení se středním poledníkem lon0 (x, y na jednotkové kouli, y nahoru)
+    const mercator = (lon0 = 0) => {
+        const forward = (lat, lon) => {
+            const delta = lon - lon0;
+            const lambda = (delta > 180 ? delta - 360 : delta < -180 ? delta + 360 : delta) * RAD;
+            const phi = Math.max(-85, Math.min(85, lat)) * RAD;
+            return [lambda, Math.log(Math.tan(Math.PI / 4 + phi / 2))];
+        };
+        const inverse = (x, y) => [(2 * Math.atan(Math.exp(y)) - Math.PI / 2) / RAD, Math.max(-180, Math.min(180, lon0 + x / RAD))];
+        return { forward, inverse, angle: () => 0 };
+    };
+    const projectionOf = (region) => (region.projection === 'mercator' ? mercator(region.center[1]) : region.projection === 'equalEarth' ? equalEarth(region.center[1]) : projector(region.center[0], region.center[1]));
 
     // Výřez oblasti v jednotkách mapy: obdélník kolem promítnutého boxu, delší strana FRAME_UNITS (u světa víc); diagonála
     // v km určuje body. Nejvíc přiblížení: kolem 150 km na šířku displeje (jako dřív 32× u kontinentu), u Česka 32×.
@@ -146,6 +159,8 @@
             fromMap: (mx, my) => { const [lat, lon] = inverse(mx / scale + x0, y1 - my / scale); return { lat, lon }; },
             // Kolik jednotek mapy je jeden kilometr (u středu výřezu; tolerance pobřeží)
             unitsPerKm: scale / EARTH_KM,
+            // Kolik jednotek je kilometr na dané šířce (v Mercatorově zobrazení k pólům přibývá)
+            unitsPerKmAt: (lat) => scale / EARTH_KM / (region.projection === 'mercator' ? Math.max(0.1, Math.cos(lat * RAD)) : 1),
             maxZoom: region.projection ? WORLD_MAX_ZOOM : MAX_ZOOM
         };
         frames.set(region.id, frame);
@@ -238,6 +253,10 @@
     // Stejně pojmenovaná místa stejného druhu daleko od sebe (Smrk v Jizerských horách i v Beskydech, Birmingham, Victoria)
     // by otázka nerozlišila; jiný druh rozliší štítek nad otázkou (Moskva město × řeka)
     const sameNames = new WeakMap();
+    // Stejné jméno u jiného druhu (ostrov Irsko × stát Irsko): otázka doplní druh, ať je jasné, na co se ptá
+    const sameNameElsewhere = (item, items) => Array.isArray(items) && items.some(other => other !== item && other.q !== item.q && other.c !== item.c
+        && Number.isFinite(other.la) && normalizeAnswer(other.n) === normalizeAnswer(item.n));
+    const KIND_WORDS = { 'suverénní stát': 'stát', velkoměsto: 'město', 'hlavní město': 'město', metropole: 'město', stratovulkán: 'sopka' };
     const isAmbiguous = (item, items) => {
         if (!Array.isArray(items)) return false;
         if (!sameNames.has(items)) {
@@ -298,7 +317,9 @@
     const shapeOf = (mapData, item) => (mapData && mapData.shapes && item && typeof mapData.shapes[item.q] === 'string' ? mapData.shapes[item.q] : null);
     // Vzdálenost tipu od plochy v km: uvnitř 0, jinak k nejbližšímu okraji (rovinně kolem tipu, na pár set km přesné dost)
     const KM_PER_DEGREE = Math.PI * EARTH_KM / 180;
-    const distanceToShapeKm = (rings, { lat, lon }) => {
+    // Nejbližší bod plochy nebo čáry k tipu: { km, lat, lon, inside } – uvnitř plochy km = 0 (čára ve výsledku pak vede
+    // k nejbližšímu místu řeky nebo břehu, ne k prameni či středu)
+    const nearestOnShape = (rings, { lat, lon }) => {
         const cos = Math.max(0.05, Math.cos(lat * RAD));
         // Bod kroužku v km kolem tipu (délka přes 180. poledník k tipu nejblíž)
         const local = ([la, lo]) => {
@@ -307,7 +328,7 @@
             return [dlon * cos * KM_PER_DEGREE, (la - lat) * KM_PER_DEGREE];
         };
         let inside = false;
-        let best = Infinity;
+        let best = { km: Infinity, x: 0, y: 0 };
         for (const ring of rings) {
             const points = ring.map(local);
             // U čáry jen úseky mezi sousedními body (bez uzavření), uvnitř být nejde
@@ -318,11 +339,16 @@
                 const dx = xi - xj, dy = yi - yj;
                 const length = dx * dx + dy * dy;
                 const t = length ? Math.max(0, Math.min(1, -(xj * dx + yj * dy) / length)) : 0;
-                best = Math.min(best, Math.hypot(xj + t * dx, yj + t * dy));
+                const x = xj + t * dx, y = yj + t * dy;
+                const km = Math.hypot(x, y);
+                if (km < best.km) best = { km, x, y };
             }
         }
-        return inside ? 0 : best;
+        const nearest = { lat: lat + best.y / KM_PER_DEGREE, lon: ((lon + best.x / (cos * KM_PER_DEGREE) + 540) % 360) - 180 };
+        return inside ? { km: 0, inside: true, lat, lon } : { km: best.km, inside: false, ...nearest };
     };
+    // Vzdálenost tipu od plochy v km: uvnitř 0, jinak k nejbližšímu okraji (rovinně kolem tipu, na pár set km přesné dost)
+    const distanceToShapeKm = (rings, point) => nearestOnShape(rings, point).km;
 
     // --- Body ---
 
@@ -375,6 +401,21 @@
 
     // --- Otázka ---
 
+    // Místo daleko od okraje výřezu kontinentu (okraj 18 %) a celý obrys uvnitř (okraj 6 %) – jinak by bylo na kraji mapy
+    // nebo z ní vyčuhovalo a popisek kontinentu by mátl (Tatarstán na východním okraji Evropy)
+    const CENTER_EDGE = 0.18;
+    const SHAPE_EDGE = 0.06;
+    const wellInside = (region, item, shape) => {
+        const frame = frameOf(region);
+        const projection = projectionOf(region);
+        const inside = (edge) => ([lat, lon]) => {
+            if (projection.angle(lat, lon) > 80) return false;
+            const [x, y] = frame.toMap(lat, lon);
+            return x >= frame.width * edge && x <= frame.width * (1 - edge) && y >= frame.height * edge && y <= frame.height * (1 - edge);
+        };
+        if (!inside(CENTER_EDGE)([item.la, item.lo])) return false;
+        return !shape || decodeShape(shape).every(ring => ring.every(inside(SHAPE_EDGE)));
+    };
     // Pohled na začátku: celý svět (těžší, neprozradí kontinent), nebo rovnou kontinent místa. Střídá se napůl podle QID místa,
     // takže stejné místo má u všech hráčů (výzva, zápas) stejný pohled.
     const viewFor = (item) => {
@@ -457,7 +498,7 @@
     const ISLAND_TOLERANCE_KM = 3;
     const onDrawnLand = (regionData, frame, lat, lon, toleranceKm = COAST_TOLERANCE_KM) => {
         const [x, y] = frame.toMap(lat, lon);
-        const tolerance = toleranceKm * frame.unitsPerKm;
+        const tolerance = toleranceKm * frame.unitsPerKmAt(lat);
         const rings = [...layerRings(regionData, 'land'), ...layerRings(regionData, 'seam')];
         let inside = false;
         for (const ring of rings) if (insideRing(x, y, ring)) inside = !inside;
@@ -474,6 +515,31 @@
         return hit ? hit.name : null;
     };
 
+    // Obrys z podkladové mapy (cesta SVG v jednotkách mapy): stát podle plochy státu (areas), ostrov nejmenší kroužek pevniny
+    // a jezero kroužek jezer, které obsahují místo a mají podobnou velikost jako obrys z data/mapa-tvary.json; jinak null
+    const ringArea = (ring) => {
+        let sum = 0;
+        for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) sum += (ring[j][0] + ring[i][0]) * (ring[j][1] - ring[i][1]);
+        return Math.abs(sum / 2);
+    };
+    const ringPath = (ring) => `M${ring.map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join('L')}Z`;
+    const basemapOutline = (regionData, frame, question, shape) => {
+        if (!regionData) return null;
+        const kind = question.map.kind;
+        if (kind === 'staty') {
+            const area = (regionData.areas || []).find(entry => normalizeAnswer(entry.n) === normalizeAnswer(question.answerLabel));
+            return area ? area.d : null;
+        }
+        const layer = kind === 'ostrovy' ? 'land' : kind === 'jezera' ? 'lakes' : null;
+        if (!layer) return null;
+        const [x, y] = frame.toMap(question.map.lat, question.map.lon);
+        const wanted = shape.reduce((sum, ring) => sum + ringArea(ring.map(([lat, lon]) => frame.toMap(lat, lon))), 0);
+        const ring = layerRings(regionData, layer).filter(candidate => insideRing(x, y, candidate)).sort((a, b) => ringArea(a) - ringArea(b))[0];
+        if (!ring || !wanted) return null;
+        const ratio = ringArea(ring) / wanted;
+        return ratio > 0.5 && ratio < 2 ? ringPath(ring) : null;
+    };
+
     // Otázka na mapě pro položku, nebo null (místo v moři mimo nakreslenou pevninu, chybějící mapa oblasti)
     const buildQuestion = (item, ctx, mapData) => {
         const region = candidate(item, ctx, mapData);
@@ -483,18 +549,20 @@
         const shape = AREA_CATEGORIES.has(item.c) ? shapeOf(mapData, item) : null;
         const group = groupOf(item);
         if (!shape && item.c !== 'jezero' && !onDrawnLand(regionData, frameOf(shown), item.la, item.lo, item.c === 'ostrov' ? ISLAND_TOLERANCE_KM : COAST_TOLERANCE_KM)) return null;
-        // Pohled: u Česka mapa Česka, jinak napůl celý svět a napůl rovnou kontinent (podle místa, pro všechny hráče stejně)
-        const view = region.id === 'cesko' ? 'cesko' : viewFor(item);
+        // Pohled: u Česka mapa Česka, jinak napůl celý svět a napůl rovnou kontinent (podle místa, pro všechny hráče stejně);
+        // kontinent jen tehdy, když místo i celý jeho obrys leží pohodlně uvnitř výřezu (Tatarstán u okraje Evropy ne)
+        const view = region.id === 'cesko' ? 'cesko' : viewFor(item) === 'continent' && wellInside(region, item, shape) ? 'continent' : 'world';
         return {
             type: 'map',
-            title: titleFor(item),
+            title: sameNameElsewhere(item, ctx && ctx.items) && item.ty && !normalizeAnswer(item.n).includes(normalizeAnswer(item.ty))
+                ? titleFor({ ...item, n: `${KIND_WORDS[item.ty] || item.ty} ${item.n}` }) : titleFor(item),
             showName: true,
             choices: [],
             accepted: [],
             placeholder: '',
             answerLabel: item.n,
             map: { region: region.id, view, lat: item.la, lon: item.lo, ...radiiFor(item, region, Boolean(shape), isLine(shape)), ...(shape ? { shape } : {}),
-                ...(group && group.id === 'regiony' ? { label: group.label } : {}) }
+                ...(group ? { kind: group.id } : {}), ...(group && group.id === 'regiony' ? { label: group.label } : {}) }
         };
     };
 
@@ -619,7 +687,9 @@
         let circle = null;
         const project = ({ lat, lon }) => frame.toMap(lat, lon);
         // Kruh plných bodů a čára mezi tipem a správným místem (v jednotkách mapy, s přiblížením rostou)
-        if (marks.shape && marks.shape.length) {
+        if (marks.outline) {
+            overlay.appendChild(svgElement('path', { d: marks.outline, 'fill-rule': 'evenodd', 'stroke-width': 1.5, 'vector-effect': 'non-scaling-stroke', 'stroke-linejoin': 'round', 'data-target-shape': '', class: 'fill-emerald-500/30 stroke-emerald-600 dark:fill-emerald-400/30 dark:stroke-emerald-400' }));
+        } else if (marks.shape && marks.shape.length) {
             // Plocha místa (park, jezero, moře): celá je přesná trefa; kroužek přes 180. poledník zůstane v kuse
             const d = marks.shape.map(ring => {
                 let previous = null;
@@ -642,7 +712,7 @@
             circle = svgElement('polygon', { points: unwrapped.map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join(' '), 'stroke-width': 1.5, 'stroke-dasharray': '5 4', 'vector-effect': 'non-scaling-stroke', 'data-full-circle': '', class: 'fill-emerald-500/15 stroke-emerald-600 dark:fill-emerald-400/15 dark:stroke-emerald-400' });
             overlay.appendChild(circle);
         }
-        if (marks.target && marks.guess) {
+        if (marks.target && marks.guess && !marks.noLine) {
             // Přes 180. poledník (Fidži, Samoa) se čára na okraji mapy přeruší a pokračuje z druhého okraje
             const pieces = [[]];
             greatCircle(marks.guess, marks.target).map(project).forEach((point, i, all) => {
@@ -720,7 +790,7 @@
             const xs = points.map(p => p[0]);
             const ys = points.map(p => p[1]);
             const pad = Math.max(...[Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys)].map(span => span * focusPad),
-                focusPad < 0.2 ? frame.width * 0.01 : frame.region.projection ? 300 * frame.unitsPerKm : frame.width * 0.06);
+                focusPad < 0.2 ? frame.width * 0.01 : frame.region.projection ? 300 * frame.unitsPerKmAt(focus[0].lat) : frame.width * 0.06);
             const spanW = Math.max(...xs) - Math.min(...xs) + 2 * pad;
             const spanH = Math.max(...ys) - Math.min(...ys) + 2 * pad;
             const zoom = Math.min(box.base.w / spanW, box.base.h / spanH, frame.maxZoom / 8);
@@ -963,10 +1033,15 @@
             const areaLabel = guess && element.parentElement && element.parentElement.querySelector('[data-map-guess-area]');
             const area = areaLabel && areaAt(regionData, frame, guess.lat, guess.lon);
             if (area) areaLabel.textContent = ` · ${area}`;
+            // Obrys plochy z podkladové mapy (stát, ostrov, jezero), ať zvýrazněná plocha sedí přesně s mapou; jinak z obrysů
+            const outline = shape && !shape.line ? basemapOutline(regionData, frame, question, shape) : null;
+            // U plochy nebo řeky vede čára k nejbližšímu místu (břeh, řeka), tam je i zelený špendlík; tip uvnitř plochy čáru nemá
+            const nearest = shape && guess ? nearestOnShape(shape, guess) : null;
+            const pin = nearest && !nearest.inside ? { lat: nearest.lat, lon: nearest.lon } : target;
             return createMapView(element, regionData, frame, {
-                marks: { guess, target, full: question.map.full, shape },
+                marks: { guess, target: pin, full: question.map.full, shape, outline, noLine: Boolean(nearest && nearest.inside) },
                 // Tip za 180. poledníkem by výřez roztáhl přes celý svět: pak jen správné místo (čára vede k okraji mapy)
-                focus: [target, ...(guess && sameSide(guess) ? [guess] : []), ...fullPoints]
+                focus: [pin, ...(guess && sameSide(guess) ? [guess] : []), ...fullPoints]
             });
         } catch (error) {
             console.error(error);
@@ -1015,7 +1090,7 @@
     const api = {
         REGIONS, REGION_BY_ID, WORLD, MAP_REGIONS, mapRegionOf, FRAME_UNITS, KINDS, GAP_KEY, MIN_GAP, MAX_GAP, MAX_ZOOM, WORLD_MAX_ZOOM,
         FULL_SHARE, ZERO_SHARE, COAST_TOLERANCE_KM, projector, equalEarth, projectionOf, frameOf, roundKm, pointTiers, destination, insideFrame, regionFor, candidate, isAmbiguous, radiiFor, maxPoints, pointsForDistance, scoreGuess, formatKm,
-        titleFor, ringsOf, onDrawnLand, areaAt, decodeShape, isLine, shapeOf, distanceToShapeKm, viewFor, SHAPE_ONLY, needsShape, MAP_GROUPS, MAP_TOPICS, groupOf, buildQuestion, isDue, nextQuestion, evaluate, greatCircle,
+        titleFor, ringsOf, onDrawnLand, areaAt, decodeShape, isLine, shapeOf, distanceToShapeKm, nearestOnShape, mercator, viewFor, SHAPE_ONLY, needsShape, MAP_GROUPS, MAP_TOPICS, groupOf, buildQuestion, isDue, nextQuestion, evaluate, greatCircle,
         questionScreen, mountQuestion, resultPane, mountResult, resultBanner
     };
     return api;

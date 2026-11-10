@@ -140,7 +140,7 @@ test('otázka je čistá funkce položky (stejná pro všechny hráče) a ptá s
     const brno = byName('Brno', 'mesto');
     const first = MapQuestion.buildQuestion(brno, zemepisCtx, mapData);
     assert.deepEqual(first, MapQuestion.buildQuestion(brno, zemepisCtx, mapData));
-    assert.deepEqual(first.map, { region: 'cesko', view: 'cesko', lat: brno.la, lon: brno.lo, ...MapQuestion.radiiFor(brno, MapQuestion.REGION_BY_ID.cesko) });
+    assert.deepEqual(first.map, { region: 'cesko', view: 'cesko', lat: brno.la, lon: brno.lo, ...MapQuestion.radiiFor(brno, MapQuestion.REGION_BY_ID.cesko), kind: 'mesta' });
     assert.equal(first.title, 'Kde leží Brno?');
     assert.equal(first.answerLabel, 'Brno');
     assert.equal(MapQuestion.titleFor({ n: 'Karlštejn', c: 'stavba', ty: 'hrad' }), 'Kde stojí Karlštejn?');
@@ -334,10 +334,15 @@ test('pohled: místa v Česku na mapě Česka, jinak napůl celý svět a napůl
         if (!question) continue;
         counts[question.map.view]++;
         if (question.map.region === 'cesko') assert.equal(question.map.view, 'cesko');
-        else assert.equal(question.map.view, MapQuestion.viewFor(item));
+        else if (question.map.view === 'continent') assert.equal(MapQuestion.viewFor(item), 'continent', 'kontinent jen u míst, kterým připadl');
     }
-    const ratio = counts.world / (counts.world + counts.continent);
-    assert.ok(ratio > 0.4 && ratio < 0.6, `svět ${counts.world}, kontinent ${counts.continent}`);
+    // Kontinent zhruba u třetiny až poloviny míst: jen u těch, která leží pohodlně uvnitř výřezu
+    const ratio = counts.continent / (counts.world + counts.continent);
+    assert.ok(ratio > 0.25 && ratio < 0.5, `svět ${counts.world}, kontinent ${counts.continent}`);
+    // Místo na kraji výřezu (Ural, Kavkaz, Grónsko) začíná na celém světě, ne na kontinentu
+    const edge = { ...place('Na okraji', 'mesto', 56.8, 60.6, { co: ['Q159'] }), q: 'Q2' };
+    assert.equal(MapQuestion.viewFor(edge), 'continent');
+    assert.equal(MapQuestion.buildQuestion(edge, { ...zemepisCtx, items: [edge] }, mapData).map.view, 'world');
 });
 
 test('druhy míst: město, stát, řeka, pohoří, bitva, událost, stavba, region… – každé místo má druh a otázka správné sloveso', () => {
