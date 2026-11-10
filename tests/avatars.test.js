@@ -16,12 +16,12 @@ const REPLACED = {
     '🦅': ['cervik', { level: 3 }], '🐺': ['axolot', { level: 8 }], '🦈': ['kaktus', { level: 13 }], '🐉': ['drak', { level: 20 }], '🦖': ['mamut', { level: 28 }],
     '🦚': ['meduza', { level: 36 }], '🦩': ['lenoch', { level: 44 }], '🐅': ['tukan', { level: 55 }], '🦁': ['lev', { level: 65 }], '👑': ['fenix', { level: 80 }],
     '🏅': ['krecek', { badge: 'turnaj-ucast' }], '🥉': ['rytir', { badge: 'turnaj-bronz' }], '🥈': ['narval', { badge: 'turnaj-stribro' }], '🏆': ['zelva', { badge: 'turnaj-zlato' }],
-    '⏱️': ['hodiny', { badge: 'kviz-tyden' }], '⚡': ['gepard', { badge: 'bleskovka-16' }], '🐻': ['zelvus', { badge: 'preziti-20' }], '🗺️': ['tucnak', { badge: 'mapa-25' }],
+    '⏱️': ['hodiny', { badge: 'kviz-tyden' }], '💯': ['chamel', { badge: 'kviz-perfekt' }], '⚡': ['gepard', { badge: 'bleskovka-16' }], '🐻': ['zelvus', { badge: 'preziti-20' }], '🗺️': ['tucnak', { badge: 'mapa-25' }],
     '🎯': ['zabak', { badge: 'odhad-25' }], '🧩': ['myval', { badge: 'serad-25' }]
 };
 
-test('katalog: 20 postaviček s 1–2 částmi, id do 6 písmen, Stovka zatím jako emoji', () => {
-    assert.equal(CHARACTERS.length, 20);
+test('katalog: 21 postaviček s 1–2 částmi, id do 6 písmen, žádná odměna už není emoji', () => {
+    assert.equal(CHARACTERS.length, 21);
     assert.equal(Look.AVATARS.length, 21);
     for (const item of CHARACTERS) {
         assert.match(item.id, /^[a-z]{1,6}$/, item.id);
@@ -32,8 +32,12 @@ test('katalog: 20 postaviček s 1–2 částmi, id do 6 písmen, Stovka zatím j
         for (const list of item.colors) assert.ok(list.length >= 6 && list.every(color => Number.isInteger(color) && color >= 1 && color <= 9) && new Set(list).size === list.length, item.id);
     }
     assert.equal(new Set(Look.AVATARS.map(item => item.id)).size, 21);
-    const hundred = Look.find('avatars', '💯');
-    assert.deepEqual([hundred.badge, hundred.parts], ['kviz-perfekt', undefined]);
+    // Chameleon jednička nahradil Stovku (💯): stejný odznak, obě části s vlastním výběrem barev
+    const chameleon = Look.find('avatars', 'chamel');
+    assert.deepEqual([chameleon.title, chameleon.badge, chameleon.parts], ['Chameleon jednička', 'kviz-perfekt', ['Kůže', 'Bříško']]);
+    assert.deepEqual(Look.partColors(chameleon, 1).map(color => color.id), [1, 2, 3, 5, 6, 7, 8, 9]);
+    assert.deepEqual(Look.partColors(chameleon, 2).map(color => color.id), [1, 4, 5, 6, 7, 8, 9]);
+    assert.equal(Look.find('avatars', '💯'), null);
     assert.deepEqual(Look.AVATAR_COLORS.map(color => [color.id, color.hex]), [[1, '#db2c3a'], [2, '#f57e22'], [3, '#fad325'], [4, '#3cbd4d'], [5, '#31ccc7'], [6, '#3a77e0'], [7, '#9556cc'], [8, '#f576b9'], [9, '#3f424c']]);
     assert.deepEqual(Look.partColors(Look.find('avatars', 'mamut'), 2).map(color => color.id), [4, 5, 6, 7, 8, 9]);
     assert.equal(Look.partColors(Look.find('avatars', 'lev'), 1).length, 9);
@@ -72,11 +76,12 @@ test('zápis: id + číslice barev částí (0 = původní, koncové nuly pryč)
     assert.equal(Look.formatAvatar('lev', [4, 7]), 'lev4', 'lev má jen hřívu');
     assert.equal(Look.formatAvatar('krecek', [12, -1]), 'krecek', 'neplatné barvy = původní');
     assert.equal(Look.formatAvatar('neznamy', [1]), null);
-    assert.equal(Look.formatAvatar('💯', [1]), null, 'emoji bez obrázku nemá části');
+    assert.equal(Look.formatAvatar('💯', [1]), null, 'staré emoji není id postavičky');
+    assert.equal(Look.formatAvatar('chamel', [9, 9]), 'chamel99');
     assert.deepEqual(Look.parseAvatar('krecek05').colors, [0, 5]);
     assert.deepEqual(Look.parseAvatar('krecek').colors, [0, 0]);
     assert.deepEqual(Look.parseAvatar('lev9').colors, [9]);
-    for (const bad of ['lev12', 'krecek123', 'KRECEK', 'krecek-1', 'krecek a', ' krecek', 'neznamy', 'krec', '', null, undefined, 42, '🦊', '💯', '<img>', 'krecek\n1', 'toString', 'constructor']) {
+    for (const bad of ['lev12', 'krecek123', 'KRECEK', 'krecek-1', 'krecek a', ' krecek', 'neznamy', 'krec', '', null, undefined, 42, '🦊', '<img>', 'krecek\n1', 'toString', 'constructor']) {
         assert.equal(Look.parseAvatar(bad), null, String(bad));
         assert.equal(Look.avatarPicture(bad), null, String(bad));
         assert.equal(Look.avatarCode(bad), null, String(bad));
@@ -101,9 +106,10 @@ test('obrázek: základ a vrstvy přebarvených částí; staré emoji odměny =
     // I bez neviditelného výběru varianty (U+FE0F)
     assert.equal(Look.migrateAvatar('⏱'), 'hodiny');
     assert.equal(Look.migrateAvatar('🗺'), 'tucnak');
-    // Základní emoji a Stovka zůstávají, jak jsou
-    for (const value of ['🦊', '🦉', '💯', 'nesmysl']) assert.equal(Look.migrateAvatar(value), value);
-    assert.equal(Look.avatarItem('💯'), Look.find('avatars', '💯'));
+    // Základní emoji zůstávají, jak jsou; Stovka (💯) je teď Chameleon jednička
+    for (const value of ['🦊', '🦉', 'nesmysl']) assert.equal(Look.migrateAvatar(value), value);
+    assert.equal(Look.avatarCode('💯'), 'chamel');
+    assert.deepEqual(Look.avatarPicture('chamel12').layers, ['icons/avatars/chamel-11.webp', 'icons/avatars/chamel-22.webp']);
     assert.equal(Look.avatarItem('🦊'), null);
     assert.equal(Look.avatarItem('krecek38'), Look.find('avatars', 'krecek'));
 });
@@ -115,7 +121,7 @@ test('ukládání (social.js): postavička s barvami projde, staré emoji se ulo
         assert.equal(Social.cleanAvatar('krecek50'), 'krecek5', 'koncová nula pryč');
         assert.equal(Social.cleanAvatar('🦁'), 'lev');
         assert.equal(Social.cleanAvatar('🐼'), '🐼');
-        assert.equal(Social.cleanAvatar('💯'), '💯');
+        assert.equal(Social.cleanAvatar('💯'), 'chamel');
         for (const bad of ['lev12', 'krecek123', 'neznamy', '<b>x</b>', '', null, 7, '🍕']) assert.equal(Social.cleanAvatar(bad), '🦊', String(bad));
     } finally { delete globalThis.MudrlantLook; }
     // Uložení profilu pošle do databáze vyčištěnou hodnotu (social.js v falešném okně s přihlášením, look.js a fetch)

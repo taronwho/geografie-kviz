@@ -77,15 +77,16 @@ test('texty: počet členů, dnešní vedoucí, čas', () => {
 test('vykreslení escapuje název skupiny a jména hráčů', () => {
     const evil = '<img src=x onerror=alert(1)>';
     const list = Groups.listHtml([{ id: 'g1', name: evil, icon: '🏫', code: 'K7M2QX', members: 2, played_today: true, leader: { display_name: evil, score: 3, me: false } }]);
-    assert.ok(!list.includes('<img'), 'seznam');
+    // Skupiny mají vlastní obrázky (icons/topics); escapování hlídá, že se nevloží ten podstrčený
+    assert.ok(!list.includes('<img src=x'), 'seznam');
     const detail = {
         id: 'g1', name: evil, icon: '🏫', code: 'K7M2QX', members: 2, is_owner: true, challenge: null,
         rows: [row('u1', { display_name: evil, me: true, today: { score: 3, correct: 1, time_ms: 1000 } }), row('u2', { display_name: evil })]
     };
     for (const html of [Groups.detailHtml(detail, { tab: 'day', by: 'quiz' }, h), Groups.detailHtml(detail, { tab: 'week', by: 'xp' }, h), Groups.manageHtml(detail, { name: evil, icon: '🏫' }, h)]) {
-        assert.ok(!html.includes('<img'), 'detail a správa');
+        assert.ok(!html.includes('<img src=x'), 'detail a správa');
     }
-    assert.ok(!Groups.joinHtml({ code: evil, preview: { id: 'g', name: evil, icon: '🏫', members: 1, owner: { display_name: evil }, member: false } }).includes('<img'));
+    assert.ok(!Groups.joinHtml({ code: evil, preview: { id: 'g', name: evil, icon: '🏫', members: 1, owner: { display_name: evil }, member: false } }).includes('<img src=x'));
     // Zakladatel vidí Spravovat, člen Opustit
     assert.match(Groups.detailHtml(detail, { tab: 'day', by: 'quiz' }, h), /data-group-manage/);
     assert.match(Groups.detailHtml({ ...detail, is_owner: false }, { tab: 'day', by: 'quiz' }, h), /data-group-leave/);
