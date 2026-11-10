@@ -1470,7 +1470,7 @@
         showDialog(PUSH_OFFER_TITLE, `
             <div id="push-offer" data-context="${escapeHtml(pushOffer.context)}" class="flex flex-col gap-3">
                 <div class="flex items-center gap-3">
-                    ${uiArt('sova-vitej', 'h-20 w-20 -my-1')}
+                    ${uiArt('sova-zvonek', 'h-20 w-20 -my-1')}
                     <div class="min-w-0"><p class="text-lg font-black leading-tight text-slate-800 dark:text-slate-100">Mám ti dát vědět?</p>
                         <p class="mt-1 text-sm font-semibold leading-snug text-slate-600 dark:text-slate-300">${escapeHtml(PUSH_OFFER_LEAD[pushOffer.context] || PUSH_OFFER_LEAD.multi)} Pošlu ti krátké upozornění, když:</p></div>
                 </div>
@@ -1511,7 +1511,7 @@
     };
     const showPushIphoneHint = () => showDialog(PUSH_OFFER_TITLE, `
         <div id="push-offer-ios" class="flex flex-col gap-3">
-            <div class="flex items-center gap-3">${uiArt('sova-vitej', 'h-20 w-20 -my-1')}
+            <div class="flex items-center gap-3">${uiArt('sova-zvonek', 'h-20 w-20 -my-1')}
                 <p class="min-w-0 text-sm font-semibold leading-snug text-slate-600 dark:text-slate-300">Umím ti dát vědět, když začíná tvůj zápas v turnaji nebo tě někdo vyzve. Na iPhonu to jde jen v aplikaci na ploše.</p></div>
             <p class="flex items-center gap-2 rounded-2xl bg-white p-3 text-sm font-black leading-snug text-slate-700 shadow-sm ring-1 ring-slate-200/70 dark:bg-slate-800 dark:text-slate-200 dark:ring-slate-700/70"><i data-lucide="info" class="h-5 w-5 shrink-0 text-brand-700 dark:text-brand-300"></i>${escapeHtml(PUSH_TEXTS.iphone)}.</p>
             <p class="text-xs font-semibold leading-snug text-slate-500 dark:text-slate-400">Pak zapni upozornění v Nastavení → Hra.</p>
@@ -2235,7 +2235,7 @@
         if (mode === 'challenge' && challenge) return { icon: challenge.tournament ? 'trophy' : 'swords', text: `${challenge.tournament ? 'Turnaj' : 'Výzva'} · ${challenge.index + 1}/${challenge.count}`, topic };
         if (mode === 'quiz') return { icon: topic.icon, text: `Kvíz dne · ${quizIndex + 1}/${DailyQuiz.QUESTIONS}`, topic };
         if (pool.kind === 'mistakes') return { icon: 'repeat', text: `Procvičování chyb · ${loadMistakes().length}`, topic };
-        if (pool.kind === 'map') return { icon: 'crosshair', text: `Ukaž na mapě · ${pool.topic ? topic.title : 'Mix'}`, topic };
+        if (pool.kind === 'map') return { icon: 'crosshair', art: 'rezim-mapa', text: `Ukaž na mapě · ${pool.topic ? topic.title : 'Mix'}`, topic };
         if (pool.kind === 'review') return { icon: 'repeat', text: `Procvičování · ${Math.min(pool.done + 1, pool.total)}/${pool.total}`, topic };
         if (pool.kind === 'collection') {
             const ctx = loadedTopics.get(pool.topic);
@@ -2300,8 +2300,10 @@
         const iconSlot = document.getElementById('status-icon-slot');
         // Ikona na úzkém displeji ustoupí delšímu názvu tématu; sova na úvodu zůstává
         iconSlot.className = `flex shrink-0 ${place.logo ? '' : 'max-[430px]:hidden'}`;
+        // Režim (Bleskovka, Přežití, Ukaž na mapě) má vlastní ilustraci, téma svou ilustraci, jinak čárová ikona
         iconSlot.innerHTML = place.logo
             ? owlLogo('-my-1', 'h-11 w-auto drop-shadow-md')
+            : place.art ? uiArt(place.art, 'h-7 w-7 -my-1')
             : place.topic && topicArt(place.topic) && place.icon === place.topic.icon ? topicIcon(place.topic, 'h-7 w-7 -my-1')
             : `<i data-lucide="${place.icon}" class="w-5 h-5 ${style ? '' : 'text-slate-600 dark:text-slate-300'}"></i>`;
         renderIcons(iconSlot);
@@ -4906,11 +4908,11 @@
                 ${progressBar(done, items.length)}
             </section>
             <button type="button" data-action="learn-browse" class="flex w-full items-center gap-3 rounded-[1.5rem] border-2 bg-white p-4 text-left shadow-sm transition-all active:scale-[0.98] dark:bg-slate-800 ${styleOf(ctx.topic).on}">
-                <i data-lucide="book-open" class="h-7 w-7 shrink-0"></i>
+                ${uiArt('ucit-prohlizet', 'h-12 w-12')}
                 <span><span class="block text-lg font-black">Prohlížet</span><span class="block text-sm opacity-80">${learn.collection ? 'Popořadě, s fotkou, mapou a fakty' : 'Náhodně, s fotkou, mapou a fakty'}</span></span>
             </button>
             <button type="button" data-action="learn-practice" class="flex w-full items-center gap-3 rounded-[1.5rem] p-4 text-left text-white shadow-lg transition-all active:scale-[0.98] ${styleOf(ctx.topic).button} btn-3d">
-                <i data-lucide="target" class="h-7 w-7 shrink-0"></i>
+                ${uiArt('ucit-procvicit', 'h-12 w-12')}
                 <span><span class="block text-lg font-black">Procvičit</span><span class="block text-sm text-white/90">Otázky jen z tohoto okruhu</span></span>
             </button>`;
     };
@@ -5097,7 +5099,7 @@
         const def = Modes.MODES[game.kind];
         const scopeTopic = modeTopicOf(game);
         const playing = current && (game.phase === 'question' || game.phase === 'feedback') ? TOPIC_BY_ID[current.topic] : null;
-        return { icon: def.icon, text: `${def.title} · ${scopeTopic.title}`, topic: playing || scopeTopic };
+        return { icon: def.icon, art: MODE_ART[game.kind], text: `${def.title} · ${scopeTopic.title}`, topic: playing || scopeTopic };
     };
     // Co se hraje: kategorie tématu (nebo témata mixu), u Bleskovky i známost z výběru; Přežití má vlastní obtížnost
     const modeScopeText = (game) => {
@@ -5367,8 +5369,8 @@
     };
 
     // --- Obrazovky režimu ---
-    // Symbol režimu: obrázek jeho odznaku (Bleskovka, Přežití); bez obrázku barevné kolečko s ikonou
-    const MODE_ART = { blitz: 'odznak-bleskovka', survival: 'odznak-preziti' };
+    // Symbol režimu: vlastní ilustrace (Bleskovka, Přežití; jejich odznaky zůstávají odznakům); bez obrázku barevné kolečko s ikonou
+    const MODE_ART = { blitz: 'rezim-bleskovka', survival: 'rezim-preziti' };
     const modeBadge = (kind, cls = 'h-7 w-7', icon = 'h-4 w-4') => MODE_ART[kind]
         ? uiArt(MODE_ART[kind], cls)
         : `<span class="flex ${cls} shrink-0 items-center justify-center rounded-full ${MODE_BADGE[kind]}"><i data-lucide="${Modes.MODES[kind].icon}" class="${icon}"></i></span>`;
@@ -5523,7 +5525,7 @@
                     <div data-verdict tabindex="-1" class="flex items-center gap-3 rounded-2xl bg-white p-3 shadow-sm outline-none ring-1 ring-slate-200/70 dark:bg-slate-800 dark:ring-slate-700/70">
                         ${uiArt(owl, 'h-20 w-20 -my-2')}
                         <div class="min-w-0 flex-1">
-                            <p class="flex items-center gap-1.5 text-[11px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">${modeBadge(game.kind, 'h-5 w-5', 'h-3 w-3')} ${escapeHtml(def.title)} · ${escapeHtml(topic.title)}</p>
+                            <p class="flex items-center gap-1.5 text-[11px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">${modeBadge(game.kind, 'h-7 w-7 -my-1.5', 'h-3 w-3')} ${escapeHtml(def.title)} · ${escapeHtml(topic.title)}</p>
                             <p class="mt-1 flex items-baseline gap-2"><span data-mode-score class="text-5xl font-black tabular-nums leading-none text-slate-800 dark:text-slate-50">${game.score}</span><span class="text-sm font-bold leading-tight text-slate-600 dark:text-slate-300">${escapeHtml(unit)}</span></p>
                             ${recordLine}
                         </div>
@@ -5568,10 +5570,10 @@
     // (na nejužších telefonech bez podtitulku; celý popis je v title a aria-label)
     const chooserTile = ({ attrs, art, title, sub, subCompact = sub }, compact) => compact ? `
             <button type="button" ${attrs} class="btn-3d-light flex min-h-[2.75rem] min-w-0 flex-col items-center justify-center gap-0.5 rounded-[1.2rem] bg-white px-1 pb-1 pt-1.5 text-center text-slate-800 short:pt-1 dark:bg-slate-800 dark:text-slate-100">
-                ${art('h-8 w-8 short:h-7 short:w-7')}<span class="block max-w-full text-[13px] font-black leading-tight max-[380px]:text-[12px]">${escapeHtml(title)}</span><span class="block max-w-full text-[11px] font-semibold leading-tight text-slate-500 max-[340px]:hidden dark:text-slate-400">${escapeHtml(subCompact)}</span>
+                ${art('-my-0.5 h-9 w-9 short:h-8 short:w-8')}<span class="block max-w-full text-[13px] font-black leading-tight max-[380px]:text-[12px]">${escapeHtml(title)}</span><span class="block max-w-full text-[11px] font-semibold leading-tight text-slate-500 max-[340px]:hidden dark:text-slate-400">${escapeHtml(subCompact)}</span>
             </button>` : `
             <button type="button" ${attrs} class="btn-3d-light flex min-h-[3.5rem] min-w-0 items-center gap-2.5 rounded-[1.2rem] bg-white px-3 py-2 text-left short:min-h-[2.75rem] short:py-1 text-slate-800 dark:bg-slate-800 dark:text-slate-100">
-                ${art('h-9 w-9')}<span class="min-w-0"><span class="block text-[15px] font-black leading-tight">${escapeHtml(title)}</span><span class="block text-[11px] font-semibold leading-tight text-slate-500 dark:text-slate-400">${escapeHtml(sub)}</span></span>
+                ${art('h-10 w-10 short:h-9 short:w-9')}<span class="min-w-0"><span class="block text-[15px] font-black leading-tight">${escapeHtml(title)}</span><span class="block text-[11px] font-semibold leading-tight text-slate-500 dark:text-slate-400">${escapeHtml(sub)}</span></span>
             </button>`;
     // Řádek Bleskovka a Přežití (u Mixu a témat s mapou i Ukaž na mapě) pro okno Co hrát
     const modeChooserButtons = (withMap = false) => {
@@ -5581,7 +5583,7 @@
             return { attrs: `data-chooser-mode="${id}" title="${label}" aria-label="${label}"`, art: (cls) => modeBadge(id, cls, 'h-5 w-5'), title: def.title, sub: id === 'blitz' ? '60 sekund' : id === 'survival' ? '3 životy' : '' };
         });
         const mapLabel = 'Ukaž na mapě: jen otázky na mapě, zkušební režim';
-        if (withMap) tiles.push({ attrs: `data-chooser-map title="${mapLabel}" aria-label="${mapLabel}"`, art: (cls) => uiArt('odznak-mapa', cls), title: 'Ukaž na mapě', sub: 'jen otázky na mapě · zkušební režim', subCompact: 'zkušební režim' });
+        if (withMap) tiles.push({ attrs: `data-chooser-map title="${mapLabel}" aria-label="${mapLabel}"`, art: (cls) => uiArt('rezim-mapa', cls), title: 'Ukaž na mapě', sub: 'jen otázky na mapě · zkušební režim', subCompact: 'zkušební režim' });
         if (!tiles.length) return '';
         const compact = tiles.length > 2;
         return `<div class="mt-2 grid ${compact ? 'grid-cols-3' : tiles.length === 2 ? 'grid-cols-2' : 'grid-cols-1'} gap-2 short:mt-1.5">${tiles.map(tile => chooserTile(tile, compact)).join('')}</div>`;
@@ -6516,6 +6518,9 @@
         return 'Výzvu se nepodařilo založit. Zkontroluj připojení a zkus to znovu.';
     };
     let newChallengeToken = 0;
+    // Náhodný soupeř se nenašel: místo červené hlášky sova s dalekohledem, která hráče vyhlíží
+    const NO_RANDOM_OPPONENT = { all: 'Zatím tu nejsou žádní jiní hráči. Zkus „Kamaráda přes odkaz“.', topics: 'Nikdo, kdo přijímá tato témata, teď není k dispozici. Zkus jiné téma nebo „Kamaráda přes odkaz“.' };
+    const lookoutNote = (text) => `<div data-no-opponent class="mt-2 flex items-center gap-2.5" role="status">${uiArt('sova-dalekohled', 'h-14 w-14 -my-1')}<p class="min-w-0 text-sm font-semibold leading-snug text-slate-600 dark:text-slate-300">${escapeHtml(text)}</p></div>`;
     const openNewChallenge = (preset = null) => {
         if (!signedUser()) return;
         // group = výzva skupině (groups.js): výzva pro kohokoli s kódem, kterou server připojí ke skupině
@@ -6538,7 +6543,7 @@
         const foundRows = () => {
             // Prázdné pole nic nepíše (radí zástupný text), rada o dvou znacích až po prvním písmenu
             if (draft.found === null) return draft.query.trim().length >= 2 ? '<p class="px-1 text-xs font-semibold text-slate-500 dark:text-slate-400">Hledám…</p>' : draft.query.trim() ? '<p class="px-1 text-xs text-slate-500 dark:text-slate-400">Napiš aspoň 2 znaky přezdívky.</p>' : '';
-            if (!draft.found.length) return '<p class="px-1 text-xs font-semibold text-slate-500 dark:text-slate-400">Žádný takový hráč. Zkus jinou přezdívku.</p>';
+            if (!draft.found.length) return `<div class="flex items-center gap-2.5 px-1">${uiArt('sova-dalekohled', 'h-12 w-12')}<p class="min-w-0 text-xs font-semibold text-slate-500 dark:text-slate-400">Žádný takový hráč. Zkus jinou přezdívku.</p></div>`;
             return draft.found.map(player => `
                 <button type="button" data-pick-opp="${escapeHtml(player.id)}" class="flex w-full items-center gap-3 rounded-xl bg-white p-2 text-left shadow-sm active:scale-[0.99] dark:bg-slate-800">
                     ${avatarHtml(player, 'h-8 w-8 text-base')}<span class="min-w-0 flex-1 truncate text-sm font-bold text-slate-800 dark:text-slate-100">${escapeHtml(playerName(player))}</span>
@@ -6645,7 +6650,7 @@
                 ${accordion('settings', 'pencil', 'Nastavení', settingsSummary(), settingsBody())}
                 <div class="sticky -bottom-5 -mx-5 mt-1 bg-slate-50/95 px-5 pb-5 pt-3 backdrop-blur short:pt-2 dark:bg-slate-900/95">
                     <button type="button" data-ch-create ${busy ? 'disabled' : ''} class="${PRIMARY_BUTTON} short:py-2.5">${uiArt('vyzva', 'h-7 w-7')} ${busy ? 'Zakládám…' : 'Vytvořit a hrát'}</button>
-                    ${note ? DIALOG_NOTE(note) : ''}
+                    ${note ? (Object.values(NO_RANDOM_OPPONENT).includes(note) ? lookoutNote(note) : DIALOG_NOTE(note)) : ''}
                 </div>
             </div>`, {
             onClick: async (event) => {
@@ -6709,7 +6714,7 @@
                             // Náhodný soupeř přeskočí hráče, kteří nepřijímají vybraná témata (u Mixu se zúží výzva)
                             const explicit = draft.topics.length && draft.topics.length < ALL.length ? draft.topics : [];
                             opponent = await Social.randomOpponent(explicit, !explicit.length);
-                            if (!opponent) { busy = false; note = explicit.length ? 'Nikdo, kdo přijímá tato témata, teď není k dispozici. Zkus jiné téma nebo „Kamaráda přes odkaz“.' : 'Zatím tu nejsou žádní jiní hráči. Zkus „Kamaráda přes odkaz“.'; render(); return; }
+                            if (!opponent) { busy = false; note = explicit.length ? NO_RANDOM_OPPONENT.topics : NO_RANDOM_OPPONENT.all; render(); return; }
                             blocked = Array.isArray(opponent.blocked_topics) ? opponent.blocked_topics : [];
                             mixOk = opponent.accepts_mix !== false;
                         }
@@ -6810,6 +6815,8 @@
             <span class="min-w-0 flex-1 truncate text-sm font-bold text-slate-800 dark:text-slate-100">${escapeHtml(playerName(row.player))}${row.user_id === meId ? ' (ty)' : ''}</span>
             <span class="text-right"><span class="block text-base font-black text-slate-800 dark:text-slate-100">${escapeHtml(formatPoints(row.points))}</span><span class="block text-[10px] font-semibold text-slate-500 dark:text-slate-400">${row.correct}/${count} správně</span></span>
         </li>`).join('');
+    // Výzvu zatím nikdo nehrál: sova s kapesními hodinkami trpělivě čeká
+    const NOBODY_PLAYED = `<div data-nobody-played class="flex items-center gap-3">${uiArt('sova-ceka', 'h-16 w-16 -my-1')}<p class="min-w-0 text-sm font-semibold text-slate-500 dark:text-slate-400">Zatím nikdo nehrál.</p></div>`;
     // Výzva, kterou hráč ještě nedohrál: u ostatních jen „dohráno“ / „ještě nehrál“, bez bodů, správných odpovědí, poháru a pořadí podle výsledku
     // (seřazené podle času dohrání), ať výsledek soupeře neovlivní hru ani taktiku. Výsledky se ukážou, až výzvu dohraje (rankingRows).
     const waitingPlayers = (def, results, meId) => {
@@ -6818,7 +6825,7 @@
         const waiting = [def.creator, def.invited].filter(player => player && player.id && player.id !== meId && !done.some(row => row.id === player.id))
             .filter((player, index, list) => list.findIndex(other => other.id === player.id) === index).map(player => ({ id: player.id, player, done: false }));
         const rows = [...done, ...waiting];
-        if (!rows.length) return '<p class="text-sm text-slate-500 dark:text-slate-400">Zatím nikdo nehrál.</p>';
+        if (!rows.length) return NOBODY_PLAYED;
         return `<ol data-ch-waiting class="flex flex-col gap-1.5">${rows.map(row => `
             <li data-ch-player="${escapeHtml(row.id)}" data-ch-state="${row.done ? 'done' : 'waiting'}" class="flex items-center gap-3 rounded-2xl bg-white p-2.5 shadow-sm dark:bg-slate-800">
                 ${avatarHtml(row.player, 'h-9 w-9 text-lg', true)}
@@ -7438,7 +7445,7 @@
                     return `<div class="flex flex-wrap gap-1.5">${tags.map(tag => `<span class="rounded-full bg-slate-200 px-2.5 py-1 text-[11px] font-bold text-slate-600 dark:bg-slate-700 dark:text-slate-300">${escapeHtml(tag)}</span>`).join('')}</div>`;
                 })()}
                 ${def.invited ? `<p class="flex items-center gap-2 text-sm font-semibold text-slate-600 dark:text-slate-300">Vyzvaný hráč: ${avatarHtml(def.invited, 'h-6 w-6 text-sm')} <b>${escapeHtml(def.invited.id === user.id ? 'ty' : playerName(def.invited))}</b></p>` : ''}
-                ${mine || !canPlay ? (results.length ? `<ol class="flex flex-col gap-1.5">${rankingRows(results, def.count, user.id)}</ol>` : '<p class="text-sm text-slate-500 dark:text-slate-400">Zatím nikdo nehrál.</p>') : waitingPlayers(def, results, user.id)}
+                ${mine || !canPlay ? (results.length ? `<ol class="flex flex-col gap-1.5">${rankingRows(results, def.count, user.id)}</ol>` : NOBODY_PLAYED) : waitingPlayers(def, results, user.id)}
                 ${myChange ? `<p class="text-sm font-bold text-slate-600 dark:text-slate-300">Tvůj rating: <b class="${myChange.delta > 0 ? 'text-emerald-700 dark:text-emerald-400' : myChange.delta < 0 ? 'text-rose-700 dark:text-rose-400' : ''}">${Rating.formatDelta(myChange.delta)}</b> (${myChange.after})</p>` : ''}
                 ${mine && results.some(row => row.user_id !== user.id) ? `<button type="button" data-ch-breakdown class="${SECONDARY_BUTTON}"><i data-lucide="list-ordered" class="h-5 w-5"></i> Rozpis otázek</button>` : ''}
                 ${mine ? '' : `<button type="button" data-ch-play class="${PRIMARY_BUTTON}"><i data-lucide="play" class="h-5 w-5"></i> ${resumable ? resumeLabel(resumable) : 'Hrát výzvu'}</button>`}
@@ -7569,12 +7576,12 @@
         const user = signedUser();
         const correct = c.results.filter(row => row && row.correct).length;
         const points = c.results.reduce((sum, row) => sum + (row ? row.points : 0), 0);
-        // Sova podle výsledku: vítěz s pohárem, poražený s „dobrá hra“, remíza s radostí, sám s oslavou
+        // Sova podle výsledku: vítěz s pohárem, poražený s „dobrá hra“, remíza s radostí, čekání na soupeře s hodinkami (bez výsledku oslava)
         const rivals = user && results ? results.filter(row => row.user_id !== user.id) : [];
         const bestRival = rivals.reduce((top, row) => !top || compareResults(row, top) > 0 ? row : top, null);
         // Výsledek slovy a hláška (stejná pro tutéž výzvu); bez soupeře se čeká, až dohraje
         const outcome = Rating && state === 'ok' ? Rating.outcomeOf({ correct, points }, bestRival) : null;
-        const outcomeOwl = !outcome || outcome === 'cekani' ? 'oslava' : outcome === 'vyhra' ? 'vitez' : outcome === 'remiza' ? 'radost' : 'prohra';
+        const outcomeOwl = !outcome ? 'oslava' : outcome === 'cekani' ? 'ceka' : outcome === 'vyhra' ? 'vitez' : outcome === 'remiza' ? 'radost' : 'prohra';
         const verdictTone = { vyhra: 'text-gold-300', prohra: 'text-white', remiza: 'text-white', cekani: 'text-white' };
         const verdictHtml = outcome ? `
                     <p data-challenge-outcome="${outcome}" class="mt-1 text-xl font-black leading-tight ${verdictTone[outcome]}">${escapeHtml(Rating.HEADLINES[outcome])}</p>
@@ -8710,7 +8717,7 @@
                 <div class="relative mb-1.5 flex items-center justify-between gap-2">
                     <p class="flex items-center gap-1.5 text-[11px] font-black uppercase tracking-widest text-gold-800 dark:text-gold-200"><i data-lucide="trophy" class="h-3.5 w-3.5"></i>Týdenní turnaj</p>
                     <div class="flex items-center gap-1.5">
-                        <button type="button" data-action="tournament-archive" aria-label="Archiv turnajů" title="Archiv turnajů" class="flex h-7 w-7 items-center justify-center rounded-full bg-white/70 text-brand-700 ring-1 ring-gold-300/70 active:scale-95 dark:bg-slate-900/40 dark:text-gold-200 dark:ring-gold-700/60"><i data-lucide="archive" class="h-3.5 w-3.5"></i></button>
+                        <button type="button" data-action="tournament-archive" aria-label="Archiv turnajů" title="Archiv turnajů" class="flex h-7 w-7 items-center justify-center rounded-full active:scale-95">${uiArt('archiv-turnaju', 'h-9 w-9 -m-1')}</button>
                         <button type="button" data-action="tournament-help" aria-label="Jak to funguje" title="Jak to funguje" class="flex h-7 w-7 items-center justify-center rounded-full bg-white/70 text-[13px] font-black text-brand-700 ring-1 ring-gold-300/70 active:scale-95 dark:bg-slate-900/40 dark:text-gold-200 dark:ring-gold-700/60">?</button>
                     </div>
                 </div>
@@ -8903,7 +8910,7 @@
         const names = Tournament.nameMap(entries);
         const rules = archived
             ? `<button type="button" data-t-help class="${TOUR_LINK} self-start">Jak turnaje fungují</button>`
-            : `<div class="flex flex-wrap items-center justify-between gap-x-3"><button type="button" data-t-help class="${TOUR_LINK}">Jak turnaje fungují</button><button type="button" data-t-archive class="${TOUR_LINK} gap-1"><i data-lucide="archive" class="h-3.5 w-3.5 shrink-0"></i>Archiv turnajů</button></div>`;
+            : `<div class="flex flex-wrap items-center justify-between gap-x-3"><button type="button" data-t-help class="${TOUR_LINK}">Jak turnaje fungují</button><button type="button" data-t-archive class="${TOUR_LINK} gap-1">${uiArt('archiv-turnaju', 'h-7 w-7')}Archiv turnajů</button></div>`;
         let body;
         if (state.phase === 'open') {
             body = `
@@ -9125,7 +9132,7 @@
         }
         const overlay = showDialog(ARCHIVE_TITLE, `
             <div class="flex flex-col gap-3">
-                <p class="text-xs font-semibold leading-snug text-slate-500 dark:text-slate-400">Výsledky skončených týdenních turnajů, nejnovější nahoře. Klepni na turnaj a uvidíš pódium, celé pořadí, pavouk i rozpis zápasů.</p>
+                <div class="flex items-center gap-3">${uiArt('archiv-turnaju', 'h-14 w-14')}<p class="min-w-0 text-xs font-semibold leading-snug text-slate-500 dark:text-slate-400">Výsledky skončených týdenních turnajů, nejnovější nahoře. Klepni na turnaj a uvidíš pódium, celé pořadí, pavouk i rozpis zápasů.</p></div>
                 ${list}
                 ${foot}
                 ${current ? `<button type="button" data-t-current class="${SECONDARY_BUTTON}"><i data-lucide="trophy" class="h-5 w-5"></i> Aktuální turnaj</button>` : ''}
