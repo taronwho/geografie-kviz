@@ -89,6 +89,9 @@ CHARACTERS = {
         {'title': 'Terč', 'rules': [{'hue': (345, 12), 'smin': 0.5, 'box': [(0.15, 0.1, 0.55, 0.45)]}]}]},
     'myval': {'src': 'myval-knihovnik', 'parts': [
         {'title': 'Knihy', 'mode': 'tint', 'rules': [{'smin': 0.35, 'box': [(0.28, 0.0, 0.78, 0.36)]}]}]},
+    'chamel': {'src': 'chameleon', 'parts': [
+        {'title': 'Kůže', 'rules': [{'hue': (75, 165), 'smin': 0.3, 'vmin': 0.3}]},
+        {'title': 'Bříško', 'rules': [{'hue': (40, 68), 'smin': 0.35, 'vmin': 0.6}]}]},
 }
 
 def rgb_to_hsv(a):
