@@ -306,6 +306,12 @@ test('odměny v Profilu: rámečky, titul a postavičky', { skip: !chromium && '
         await tab.waitForSelector('#settings-overlay [data-avatar-art] img[src="icons/avatars/drak-11.webp"]');
         await tab.click('[data-pick-part="1:0"]');
         await tab.waitForFunction(() => !document.querySelector('#settings-overlay [data-avatar-art] img[src="icons/avatars/drak-11.webp"]'));
+        // Jiná postavička a zpět: drak má pořád modrý krunýř (barvy se pamatují pro každou postavičku zvlášť)
+        await tab.click('[data-pick-avatar="kaktus"]');
+        await tab.waitForSelector('#settings-overlay [data-avatar-art="kaktus"]');
+        assert.deepEqual(await tab.evaluate(() => [...document.querySelector('#settings-overlay [data-avatar-art]').children].map(img => img.getAttribute('src'))), ['icons/avatars/kaktus.webp'], 'kaktus bez nastavených barev v původních');
+        await tab.click('[data-pick-avatar="drak"]');
+        await tab.waitForSelector('#settings-overlay [data-avatar-art="drak"] img[src="icons/avatars/drak-26.webp"]');
         // Nic se neuloží před Uložit; pak se zapíše kód postavičky s barvami (dráček původní, krunýř modrý)
         assert.equal(db.profiles['u-1'].avatar, '🦊');
         await tab.click('[data-save-profile]');

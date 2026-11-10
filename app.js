@@ -1846,6 +1846,7 @@
                 const colors = [...pic.colors];
                 colors[part - 1] = color;
                 meDraft.avatar = Look.formatAvatar(pic.item.id, colors);
+                rememberPartColors(meDraft.avatar);
                 meDirty = true;
                 meNote = '';
                 openSettings('', `[data-pick-part="${part}:${color}"]`);
@@ -1971,9 +1972,9 @@
                 if (avatar) {
                     const value = avatar.dataset.pickAvatar;
                     if (avatarLock(value)) return;
-                    // Znovu vybraná postavička si nechá barvy částí, jiná začne v původních
+                    // Znovu vybraná postavička si nechá barvy částí, jiná dostane barvy, které jí hráč nastavil naposledy (jinak původní)
                     const same = !meDraft.owl && Look && Look.avatarPicture && Look.avatarPicture(meDraft.avatar) && Look.avatarPicture(meDraft.avatar).item.id === value;
-                    if (!same) meDraft.avatar = value;
+                    if (!same) { rememberPartColors(meDraft.avatar); meDraft.avatar = rememberedPartColors(value); }
                     meDraft.owl = false;
                 }
                 if (color) { meDraft.color = color.dataset.pickColor; hueOpen = false; }
@@ -4961,7 +4962,7 @@
             return `${back}
                 <h2 class="text-2xl font-black tracking-tight text-slate-800 dark:text-slate-50">Moje chyby</h2>
                 <section class="${CARD} flex flex-col items-center gap-2 p-8 text-center">
-                    <i data-lucide="circle-check" class="h-12 w-12 text-emerald-500"></i>
+                    ${uiArt('sova-cisty-sesit', 'h-24 w-24')}
                     <h3 class="text-lg font-black text-slate-800 dark:text-slate-100">Zatím tu nic není</h3>
                     <p class="text-sm text-slate-500 dark:text-slate-400">Co v kvízu neuhodneš, se sem uloží. Tady si to pak můžeš prohlédnout a procvičit.</p>
                     <button type="button" data-action="play-mix" class="mt-3 flex items-center gap-2 rounded-[1.2rem] px-5 py-3 font-bold text-white shadow-lg transition-all active:scale-95 ${styleOf(MIX).button} btn-3d">
@@ -5612,6 +5613,23 @@
     const HUE_BG = { 0: 'bg-[hsl(0deg_75%_50%)]', 5: 'bg-[hsl(5deg_75%_50%)]', 10: 'bg-[hsl(10deg_75%_50%)]', 15: 'bg-[hsl(15deg_75%_50%)]', 20: 'bg-[hsl(20deg_75%_50%)]', 25: 'bg-[hsl(25deg_75%_50%)]', 30: 'bg-[hsl(30deg_75%_50%)]', 35: 'bg-[hsl(35deg_75%_50%)]', 40: 'bg-[hsl(40deg_75%_50%)]', 45: 'bg-[hsl(45deg_75%_50%)]', 50: 'bg-[hsl(50deg_75%_50%)]', 55: 'bg-[hsl(55deg_75%_50%)]', 60: 'bg-[hsl(60deg_75%_50%)]', 65: 'bg-[hsl(65deg_75%_50%)]', 70: 'bg-[hsl(70deg_75%_50%)]', 75: 'bg-[hsl(75deg_75%_50%)]', 80: 'bg-[hsl(80deg_75%_50%)]', 85: 'bg-[hsl(85deg_75%_50%)]', 90: 'bg-[hsl(90deg_75%_50%)]', 95: 'bg-[hsl(95deg_75%_50%)]', 100: 'bg-[hsl(100deg_75%_50%)]', 105: 'bg-[hsl(105deg_75%_50%)]', 110: 'bg-[hsl(110deg_75%_50%)]', 115: 'bg-[hsl(115deg_75%_50%)]', 120: 'bg-[hsl(120deg_75%_50%)]', 125: 'bg-[hsl(125deg_75%_50%)]', 130: 'bg-[hsl(130deg_75%_50%)]', 135: 'bg-[hsl(135deg_75%_50%)]', 140: 'bg-[hsl(140deg_75%_50%)]', 145: 'bg-[hsl(145deg_75%_50%)]', 150: 'bg-[hsl(150deg_75%_50%)]', 155: 'bg-[hsl(155deg_75%_50%)]', 160: 'bg-[hsl(160deg_75%_50%)]', 165: 'bg-[hsl(165deg_75%_50%)]', 170: 'bg-[hsl(170deg_75%_50%)]', 175: 'bg-[hsl(175deg_75%_50%)]', 180: 'bg-[hsl(180deg_75%_50%)]', 185: 'bg-[hsl(185deg_75%_50%)]', 190: 'bg-[hsl(190deg_75%_50%)]', 195: 'bg-[hsl(195deg_75%_50%)]', 200: 'bg-[hsl(200deg_75%_50%)]', 205: 'bg-[hsl(205deg_75%_50%)]', 210: 'bg-[hsl(210deg_75%_50%)]', 215: 'bg-[hsl(215deg_75%_50%)]', 220: 'bg-[hsl(220deg_75%_50%)]', 225: 'bg-[hsl(225deg_75%_50%)]', 230: 'bg-[hsl(230deg_75%_50%)]', 235: 'bg-[hsl(235deg_75%_50%)]', 240: 'bg-[hsl(240deg_75%_50%)]', 245: 'bg-[hsl(245deg_75%_50%)]', 250: 'bg-[hsl(250deg_75%_50%)]', 255: 'bg-[hsl(255deg_75%_50%)]', 260: 'bg-[hsl(260deg_75%_50%)]', 265: 'bg-[hsl(265deg_75%_50%)]', 270: 'bg-[hsl(270deg_75%_50%)]', 275: 'bg-[hsl(275deg_75%_50%)]', 280: 'bg-[hsl(280deg_75%_50%)]', 285: 'bg-[hsl(285deg_75%_50%)]', 290: 'bg-[hsl(290deg_75%_50%)]', 295: 'bg-[hsl(295deg_75%_50%)]', 300: 'bg-[hsl(300deg_75%_50%)]', 305: 'bg-[hsl(305deg_75%_50%)]', 310: 'bg-[hsl(310deg_75%_50%)]', 315: 'bg-[hsl(315deg_75%_50%)]', 320: 'bg-[hsl(320deg_75%_50%)]', 325: 'bg-[hsl(325deg_75%_50%)]', 330: 'bg-[hsl(330deg_75%_50%)]', 335: 'bg-[hsl(335deg_75%_50%)]', 340: 'bg-[hsl(340deg_75%_50%)]', 345: 'bg-[hsl(345deg_75%_50%)]', 350: 'bg-[hsl(350deg_75%_50%)]', 355: 'bg-[hsl(355deg_75%_50%)]' };
     const avatarBg = (color) => AVATAR_BG[color] || (Social && Social.customHue(color) !== null ? HUE_BG[Social.customHue(color)] : AVATAR_BG.emerald);
     const AVATAR_COLOR_KEY = 'mudrlant.avatarColor';
+    // Barvy částí postaviček, které si hráč nastavil, pro každou postavičku zvlášť ({ id: zápis jako 'krecek13' }); po přepnutí
+    // na jinou postavičku a zpět se vrátí. Jen v tomto zařízení; v účtu je uložená jen právě zvolená postavička.
+    const AVATAR_PARTS_KEY = 'mudrlant.avatarParts';
+    const rememberPartColors = (value) => {
+        const pic = Look && Look.avatarPicture ? Look.avatarPicture(value) : null;
+        if (!pic) return;
+        const saved = readJson(AVATAR_PARTS_KEY);
+        const map = saved && typeof saved === 'object' && !Array.isArray(saved) ? saved : {};
+        map[pic.item.id] = Look.formatAvatar(pic.item.id, pic.colors);
+        writeJson(AVATAR_PARTS_KEY, map);
+    };
+    const rememberedPartColors = (id) => {
+        const saved = readJson(AVATAR_PARTS_KEY);
+        const code = saved && typeof saved === 'object' && typeof saved[id] === 'string' ? saved[id] : null;
+        const pic = code && Look && Look.avatarPicture ? Look.avatarPicture(code) : null;
+        return pic && pic.item.id === id ? Look.formatAvatar(id, pic.colors) : id;
+    };
     let myProfile = null;
     let myChallenges = null;
     let myRating = null;
@@ -6058,7 +6076,7 @@
         const body = myChallenges === null
             ? '<p class="px-1 text-xs font-semibold text-slate-500 dark:text-slate-400">Načítám výzvy…</p>'
             : rows.length ? `<div data-recent-list class="flex flex-col gap-1.5">${(recentExpanded ? rows : rows.slice(0, 3)).map(challengeRow).join('')}${tail}</div>`
-                : `<div class="flex items-center gap-3 rounded-2xl bg-white p-2.5 shadow-sm ring-1 ring-slate-200/70 dark:bg-slate-800/70 dark:ring-slate-700/70">${uiArt('sova-vyzva', 'h-10 w-10')}<p class="text-sm text-slate-600 dark:text-slate-300">Zatím žádné výzvy. Založ první tlačítkem Vyzvat.</p></div>`;
+                : `<div class="flex items-center gap-3 rounded-2xl bg-white p-2.5 shadow-sm ring-1 ring-slate-200/70 dark:bg-slate-800/70 dark:ring-slate-700/70">${uiArt('sova-prazdna-posta', 'h-12 w-12 -my-1')}<p class="text-sm text-slate-600 dark:text-slate-300">Zatím žádné výzvy. Založ první tlačítkem Vyzvat.</p></div>`;
         return `<div class="flex flex-col gap-1"><div class="flex min-h-[2rem] items-center justify-between gap-2"><p class="${LABEL}">Poslední výzvy</p>${toggle}</div>${body}</div>`;
     };
     // První nezodpovězená otázka rozehrané výzvy (-1 = všechny zodpovězené)
@@ -9125,7 +9143,7 @@
         let list = '';
         if (rows.length) list = `<ol id="tournament-archive" class="flex flex-col gap-2">${rows.map(row => archiveRowHtml(row, user.id)).join('')}</ol>`;
         else if (archive.error) list = `${DIALOG_NOTE('Archiv se nepodařilo načíst. Zkontroluj připojení a zkus to znovu.')}${retry}`;
-        else if (archive.done) list = note('Zatím žádný turnaj neskončil. Až první dohraje, najdeš ho tady.', 'id="archive-empty"');
+        else if (archive.done) list = `<div id="archive-empty" class="flex flex-col items-center gap-1 py-2 text-center">${uiArt('sova-prach', 'h-24 w-24')}<p class="text-sm font-semibold text-slate-500 dark:text-slate-400">Zatím žádný turnaj neskončil. Až první dohraje, najdeš ho tady.</p></div>`;
         else list = note('Načítám archiv…', 'data-archive-loading');
         let foot = '';
         if (rows.length) {

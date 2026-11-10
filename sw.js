@@ -22,7 +22,7 @@ const APP_SHELL = [
     'modes.js', 'sound.js',
     'icons/logo.webp', 'icons/logo-maska.webp', ...['zemepis', 'vlajky', 'historie', 'mytologie', 'biologie', 'geologie', 'chemie', 'fyzika', 'umeni', 'architektura', 'hudba', 'literatura', 'film', 'sport', 'mix', 'chyby', 'dnes', 'vyzva', 'napoveda', 'stopky', 'serie', 'sova-radost', 'sova-smutek', 'sova-premysleni', 'sova-oslava', 'sova-vitez', 'sova-prohra', 'sova-vitej', 'sova-vyzva', 'sova-serie', 'sova-spi', 'liga-bronz', 'liga-stribro', 'liga-zlato', 'liga-platina', 'liga-diamant', 'liga-mistr', 'turnaj', 'nahodny', 'kod', 'cile', 'procvicovani', 'sova-tip', 'sova-titul-1', 'sova-titul-2', 'sova-titul-3', 'sova-titul-4', 'sova-titul-5', 'sova-titul-6', 'sova-titul-7', 'sova-titul-8', 'sova-titul-9', 'sova-titul-10', 'sova-titul-11', 'truhla', 'ochrana-serie', 'diplom', 'truhla-otevrena',
         // Režimy, Učení, Skupiny, Archiv turnajů a pózy sovy do prázdných míst (docs/OBRAZKY.md č. 79–89)
-        'rezim-bleskovka', 'rezim-preziti', 'rezim-mapa', 'ucit-prohlizet', 'ucit-procvicit', 'skupiny', 'archiv-turnaju', 'sova-zvonek', 'sova-dalekohled', 'sova-ceka'].map(id => `icons/topics/${id}.webp`),
+        'rezim-bleskovka', 'rezim-preziti', 'rezim-mapa', 'ucit-prohlizet', 'ucit-procvicit', 'skupiny', 'archiv-turnaju', 'sova-zvonek', 'sova-dalekohled', 'sova-ceka', 'sova-prazdna-posta', 'sova-cisty-sesit', 'sova-prach'].map(id => `icons/topics/${id}.webp`),
     ...BADGE_ART.map(id => `icons/topics/odznak-${id}.webp`), ...AVATAR_ART.map(id => `icons/avatars/${id}.webp`), 'icons/favicon-32.png', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png'
 ];
 
