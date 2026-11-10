@@ -1,7 +1,11 @@
 // Téma Výtvarné umění: data/umeni.json z Wikidat – obrazy, sochy, malíři a sochaři
-// Spuštění: npm run build:umeni (s BUILD_CACHE=složka jde pravidla ladit bez opakovaného stahování)
+// Spuštění: npm run build:umeni (s BUILD_CACHE=složka jde pravidla ladit bez opakovaného stahování).
+// Dosud známé položky z data/umeni.json se nestanou expertními.
+import { readFileSync, existsSync } from 'node:fs';
 import { sparql, qlever, id, values, imageFields, yearOf, compact, cached, inBatches, writeTopic } from './lib/wikidata.mjs';
 import { repsQuery, repOfRow, pickReps, architectIds, czechWorkName } from './lib/umeni-rules.mjs';
+import { assignLevels, levelSummary, fameOf, fameQuantiles, czechPageviewsBatch } from './lib/umeni-levels.mjs';
+import { cachedByKey } from './lib/zemepis-levels.mjs';
 
 const PAINTING = 'Q3305213';
 const HUMAN = 'Q5';
@@ -67,6 +71,22 @@ const oldCzech = await cached('umeni-old-czech', async () => fromRows(await qlev
   ?x schema:description ?desc FILTER(LANG(?desc) = "cs" && REGEX(?desc, "^(český|česká|moravský|moravská)", "i")) ${csArticle('?x')} FILTER(?sl >= 4) }`)));
 for (const entry of oldCzech) if (!candidates.artists.some(([qid]) => qid === entry[0])) candidates.artists.push(entry);
 candidates.artists.sort((a, b) => b[1] - a[1]);
+// Pravěká a antická díla (vznik do roku 500): mnohá nemají druh ze SCULPTURE_TYPES (Níké Samothrácká je „artefakt“, Lví muž
+// a Láokoón „skulptura“ jako podtřída) – berou se z celého stromu soch, obrazů, mozaik a výtvarných děl a druh se ověří až
+// podle českých názvů typů (ANCIENT_KIND); obraz = malba, freska nebo mozaika
+const ancient = await cached('umeni-ancient', async () => (await qlever(`SELECT ?x (MAX(?sl) AS ?links) (MAX(?isPainting) AS ?pt) WHERE {
+  VALUES ?cls { wd:Q860861 wd:Q3305213 wd:Q133067 wd:Q4502142 }
+  ?x wdt:P31/wdt:P279* ?cls . ?x wdt:P571 ?d . FILTER(YEAR(?d) < 500)
+  ?x wdt:P18 ?image . ${csArticle('?x')}
+  BIND(IF(EXISTS { VALUES ?pc { wd:Q3305213 wd:Q134194 wd:Q133067 } ?x wdt:P31/wdt:P279* ?pc }, 1, 0) AS ?isPainting)
+} GROUP BY ?x`)).map(row => [id(row.x.value), Number(row.links.value), Number(row.pt.value)]));
+const ancientIds = new Set();
+const knownWorkIds = new Set([...candidates.paintings, ...candidates.sculptures].map(([qid]) => qid));
+for (const [qid, links, painting] of ancient) {
+    ancientIds.add(qid);
+    if (!knownWorkIds.has(qid)) (painting ? candidates.paintings : candidates.sculptures).push([qid, links]);
+}
+for (const list of [candidates.paintings, candidates.sculptures]) list.sort((a, b) => b[1] - a[1]);
 console.log(`Kandidáti: ${candidates.paintings.length} obrazů, ${candidates.sculptures.length} soch, ${candidates.artists.length} umělců`);
 
 // --- 2. krok: podrobnosti po dávkách ---
@@ -124,13 +144,18 @@ const fetchDetails = async (list, query, size) => {
 };
 const workIds = [...candidates.paintings, ...candidates.sculptures].map(([qid]) => qid);
 const works = new Map(await cached('umeni-works', () => fetchDetails(workIds, workDetails, 60)));
+// Díla přidaná po uložení mezipaměti (antická) se dočtou zvlášť
+const extraWorks = await cachedByKey('umeni-works-extra', workIds.filter(qid => !works.has(qid)), async (qids) => Object.fromEntries(await fetchDetails(qids, workDetails, 60)));
+for (const [qid, detail] of Object.entries(extraWorks)) if (!works.has(qid)) works.set(qid, detail);
 // Autoři děl patří k umělcům, i když sami nejsou mezi kandidáty (nápověda a možnosti u otázky „Kdo to vytvořil?“)
 const creatorIds = [...new Set([...works.values()].flatMap(work => (work.cr || []).map(creator => creator.id)))].filter(q => /^Q\d+$/.test(q));
 const personIds = [...new Set([...candidates.artists, ...candidates.photographers, ...candidates.illustrators].map(([qid]) => qid).concat(creatorIds))];
 const people = new Map(await cached('umeni-people', () => fetchDetails(personIds, personDetails, 100)));
 // Kandidáti přidaní po uložení mezipaměti se dočtou zvlášť
 const missingPeople = personIds.filter(qid => !people.has(qid));
-for (const [qid, detail] of await cached('umeni-people-extra', () => fetchDetails(missingPeople, personDetails, 100))) people.set(qid, detail);
+for (const [qid, detail] of Object.entries(await cachedByKey('umeni-people-more', missingPeople, async (qids) => Object.fromEntries(await fetchDetails(qids, personDetails, 100))))) {
+    if (!people.has(qid) && personIds.includes(qid)) people.set(qid, detail);
+}
 console.log(`Podrobnosti: ${works.size} děl, ${people.size} osob`);
 
 // Směry: popis, vznik a zánik, země a nejznámější představitelé (lidé, kteří se k směru hlásí – P135)
@@ -150,10 +175,11 @@ const movementDetails = new Map(await cached('umeni-movements', async () => {
 }`, collect(result));
     // Představitelé: lidé s tímto směrem, kteří mají český článek (všichni kandidáti – vybírá se až podle položek tématu, pickReps)
     const reps = new Map();
-    await inBatches(candidates.movements.map(([qid]) => qid), 40, (qids) => repsQuery(qids, [...ARTIST_OCCUPATIONS, ...PHOTOGRAPHER_OCCUPATIONS, 'Q42973'], HUMAN), (row) => {
+    // Přes QLever – query.wikidata.org dotaz na všechny představitele směrů nestihne (HTTP 504)
+    await inBatches(candidates.movements.map(([qid]) => qid), 20, (qids) => repsQuery(qids, [...ARTIST_OCCUPATIONS, ...PHOTOGRAPHER_OCCUPATIONS, 'Q42973'], HUMAN), (row) => {
         const key = id(row.item.value);
         reps.set(key, [...(reps.get(key) || []), repOfRow(row, id)]);
-    });
+    }, qlever);
     for (const [qid, list] of reps) result.get(qid).reps = list.sort((a, b) => b.sl - a.sl);
     return [...result];
 }));
@@ -170,15 +196,17 @@ const labels = new Map(await cached('umeni-labels', async () => {
         (row) => result.push([`${row.lang.value}:${id(row.item.value)}`, row.l.value]));
     return result;
 }));
-// Názvy položek, na které odkazují dočtení umělci
-const missingLabels = [...new Set([...people.values()].flatMap(person => ['cit', 'mov', 'works', 'occ'].flatMap(key => person[key] || [])))]
+// Názvy položek, na které odkazují dočtení umělci a díla (null = položka bez českého i anglického názvu)
+const missingLabels = [...new Set([...[...people.values()].flatMap(person => ['cit', 'mov', 'works', 'occ'].flatMap(key => person[key] || [])),
+    ...[...works.values()].flatMap(work => ['mov', 'coll', 'loc', 'mat', 'genre', 'co', 'land', 'type', 'attr'].flatMap(key => work[key] || []))])]
     .filter(qid => /^Q\d+$/.test(qid) && !labels.has(`cs:${qid}`) && !labels.has(`en:${qid}`));
-for (const [key, label] of await cached('umeni-labels-extra', async () => {
-    const result = [];
-    await inBatches(missingLabels, 300, (qids) => `SELECT ?item ?lang ?l WHERE { VALUES ?item { ${values(qids)} } ?item rdfs:label ?l . BIND(LANG(?l) AS ?lang) FILTER(?lang = "cs" || ?lang = "en") }`,
-        (row) => result.push([`${row.lang.value}:${id(row.item.value)}`, row.l.value]));
+const extraLabels = await cachedByKey('umeni-labels-more', missingLabels, async (qids) => {
+    const result = Object.fromEntries(qids.map(qid => [qid, null]));
+    await inBatches(qids, 300, (batch) => `SELECT ?item ?lang ?l WHERE { VALUES ?item { ${values(batch)} } ?item rdfs:label ?l . BIND(LANG(?l) AS ?lang) FILTER(?lang = "cs" || ?lang = "en") }`,
+        (row) => { const qid = id(row.item.value); result[qid] = { ...(result[qid] || {}), [row.lang.value]: row.l.value }; }, qlever);
     return result;
-})) labels.set(key, label);
+});
+for (const [qid, found] of Object.entries(extraLabels)) for (const [lang, label] of Object.entries(found || {})) labels.set(`${lang}:${qid}`, label);
 const cs = (qid) => labels.get(`cs:${qid}`);
 const en = (qid) => labels.get(`en:${qid}`) || '';
 
@@ -191,6 +219,14 @@ const mulNames = await cached('umeni-mul', async () => {
     return result;
 });
 for (const [qid, name] of mulNames) for (const map of [works, people]) if (map.has(qid) && !map.get(qid).n) map.get(qid).n = name;
+const stillNameless = [...works, ...people].filter(([, detail]) => !detail.n).map(([qid]) => qid);
+const moreMul = await cachedByKey('umeni-mul-more', stillNameless, async (qids) => {
+    const result = Object.fromEntries(qids.map(qid => [qid, null]));
+    await inBatches(qids, 300, (batch) => `SELECT ?item ?l WHERE { VALUES ?item { ${values(batch)} } ?item rdfs:label ?l FILTER(LANG(?l) = "mul") }`,
+        (row) => { result[id(row.item.value)] = row.l.value; }, qlever);
+    return result;
+});
+for (const [qid, name] of Object.entries(moreMul)) for (const map of [works, people]) if (name && map.has(qid) && !map.get(qid).n) map.get(qid).n = name;
 // Název bez upřesnění v závorce („Astronom (Vermeer)“ → Astronom), s velkým písmenem
 const nameOf = (detail) => {
     const name = (detail.n || detail.t || '').replace(/ \(.*\)$/, '');
@@ -198,7 +234,7 @@ const nameOf = (detail) => {
 };
 // Název díla: cizí štítek Wikidat (Portinari Altarpiece) → název českého článku (czechWorkName v scripts/lib/umeni-rules.mjs)
 const workNames = (detail) => czechWorkName(nameOf(detail), nameOf({ t: detail.t }));
-const sitelinks = new Map([...candidates.paintings, ...candidates.sculptures, ...candidates.artists]);
+const sitelinks = new Map([...candidates.photographers, ...candidates.illustrators, ...candidates.paintings, ...candidates.sculptures, ...candidates.artists]);
 
 // --- 3. krok: pravidla ---
 // Umělecké směry: podrobný směr z Wikidat → hrubé období (okruhy, nesprávné možnosti, otázka na směr);
@@ -318,7 +354,11 @@ const kindOf = (types = [], isSculpture) => {
 const NOT_SCULPTURE = /fontán|fountain|kašn|sloup|column|stél|nápis|inscription|archeologická lokalita|stavba|building|park|hodiny|clock|orloj|mauzoleum|budova|brán|oblouk|obelisk|studn|jeskyn|diorama|muzeum|psané dílo|baldachýn|katedra|lost|hypothetical|chrám|klášter|pítko|vila|automat|instalace|land art|model|kalvári|krucifix/iu;
 // Další díla, která sem nepatří: lisované mince, krystalová lebka, Pomník Wikipedie, nevhodné akty (Původ světa) a zdi
 const NOT_WORKS = new Set(['Q41553', 'Q46239', 'Q786806', 'Q254170', 'Q761739', 'Q776429', 'Q949076', 'Q1394918', 'Q1632877', 'Q685524', 'Q18201640',
-    'Q924174', 'Q334138', 'Q167536', 'Q19697889', 'Q326503', 'Q10860702', 'Q134611583']);
+    'Q924174', 'Q334138', 'Q167536', 'Q19697889', 'Q326503', 'Q10860702', 'Q134611583',
+    // Athéna Parthenos zanikla (fotka ukazuje novodobou repliku)
+    'Q2070605']);
+// Pravěká a antická díla z širšího dotazu: jen sochy, sošky, venuše, masky, reliéfy, fresky a mozaiky (ne nápisy, papyry, brány, sloupy)
+const ANCIENT_KIND = /socha|skulptur|venuše|figur|soška|sousoší|maska|busta|sfing|reliéf|artefakt|idol|freska|mozaik|nástěnná malba|daibucu|statue|sculpture|figurine|mosaic|fresco/iu;
 // Moderní sochu bez známého umělce vezmeme, jen když je opravdu slavná (Socha svobody), jinak by mezi sochy pronikly turistické atrakce
 const FAMOUS_LINKS = 45;
 // Obrazy: skalní malby, naleziště a stavby ne
@@ -413,37 +453,48 @@ const sureCreator = (detail) => {
 };
 
 // --- 4. krok: položky ---
-// Kolik vzít, kolik nejznámějších je „známých“, od kolika jazykových verzí; české položky navíc až do czLimit
-// (czKnown = nejznámější české, které jsou známé)
+// Kolik vzít, od kolika jazykových verzí; české položky navíc až do czLimit. Dílo ve sbírce muzea z okruhů stačí s museumMinLinks
+// (sbírky Louvru, Prada či Uffizi mají české články i u méně známých obrazů). Úrovně se určí až na konci (assignLevels).
+// České obrazy i s jedinou jazykovou verzí: Zbraslavská madona, Roudnický oltář, Theodorikovi světci z Karlštejna
 const LIMITS = {
-    obrazy: { limit: 360, known: 90, czLimit: 40, czKnown: 6, minLinks: 5, czMinLinks: 3 },
-    sochy: { limit: 230, known: 40, czLimit: 30, czKnown: 7, minLinks: 5, czMinLinks: 3 },
-    umelci: { limit: 650, known: 200, czLimit: 130, czKnown: 25 },
-    fotografove: { limit: 220, known: 40, czLimit: 45, czKnown: 8 },
-    ilustratori: { limit: 150, known: 30, czLimit: 40, czKnown: 8 },
-    smery: { limit: 120, known: 40, czLimit: 0, czKnown: 0 }
+    obrazy: { limit: 420, czLimit: 80, minLinks: 5, czMinLinks: 1, museumMinLinks: 2 },
+    sochy: { limit: 230, czLimit: 55, minLinks: 5, czMinLinks: 3, museumMinLinks: 2 },
+    umelci: { limit: 650, czLimit: 130 },
+    fotografove: { limit: 220, czLimit: 45 },
+    ilustratori: { limit: 150, czLimit: 40 },
+    smery: { limit: 120, czLimit: 0 }
 };
 // Sbírka chebské galerie; stát díla jen dnešní Česko (Československo by vzalo i sochy na Slovensku)
 const CZECH_PLACES = new Set(['Q101017512', 'Q44385654']);
 const CZECHIA = 'Q213';
 const names = new Set();
-const nameKey = (name) => name.toLocaleLowerCase('cs');
+// Klíč jména: bez velikosti písmen a bez „sv.“/„svatý“ (Klanění sv. Tří králů = Klanění tří králů)
+const nameKey = (name) => name.toLocaleLowerCase('cs').replace(/(?<!\p{L})(?:sv\.|svat(?:ý|á|é|í|ých))\s*/gu, '').replace(/\s+/g, ' ').trim();
 const items = [];
 const rank = {};
 const czechRank = {};
-// Přidá položku, pokud se vejde do limitu (české do vlastního); isKnown(pořadí, počet už známých českých) rozhodne o známosti
-const add = (category, item, isCzech, isKnown) => {
+// Položky, které jsou známé vždy (nejznámější čeští výtvarníci, fotografové a ilustrátoři) a které známé nejsou nikdy
+const alwaysKnown = new Set();
+const neverKnown = new Set();
+const renamed = new Map();
+// Přidá položku, pokud se vejde do limitu (české do vlastního); force = mimo limit (kvóta okruhu, viz OKRUH_QUOTA)
+const add = (category, item, isCzech, force = false) => {
     const settings = LIMITS[category];
     const position = rank[category] || 0;
     const czechPosition = czechRank[category] || 0;
-    if (isCzech ? czechPosition >= settings.czLimit : position >= settings.limit) return false;
-    // Jedna položka na jméno (Zrození Venuše od Botticelliho, ne od Cabanela)
-    if (names.has(nameKey(item.n))) return false;
+    if (!force && (isCzech ? czechPosition >= settings.czLimit : position >= settings.limit)) return false;
+    // Jedna položka na jméno (Zrození Venuše od Botticelliho, ne od Cabanela) – stejnojmenné dílo jiného jistého autora z dat
+    // (pět Klanění tří králů v Uffizi) dostane do názvu autora; otázka „Kdo to namaloval?“ pak u něj není (název by autora prozradil)
+    if (names.has(nameKey(item.n))) {
+        const named = item.f && item.f.bq && item.f.by ? `${item.n} – ${item.f.by}` : null;
+        if (!named || names.has(nameKey(named)) || !items.some(other => nameKey(other.n) === nameKey(item.n) && (other.c === 'obrazy' || other.c === 'sochy'))) return false;
+        item = { ...item, n: named, al: [...new Set([...(item.al || []), item.n])], f: { ...item.f, bq: undefined } };
+        renamed.set(named, item.al[item.al.length - 1]);
+    }
     names.add(nameKey(item.n));
     rank[category] = position + 1;
     if (isCzech) czechRank[category] = czechPosition + 1;
-    const czechKnown = items.filter(other => other.c === category && other.cz && other.k).length;
-    items.push(compact({ ...item, c: category, k: isKnown(position, czechKnown) ? 1 : 0, cz: isCzech ? 1 : undefined }));
+    items.push(compact({ ...item, f: compact(item.f), c: category, k: 0, cz: isCzech ? 1 : undefined }));
     return true;
 };
 
@@ -471,18 +522,24 @@ for (const [qid, links] of workList) {
     const detail = works.get(qid);
     if (!detail || !detail.t || !detail.im) continue;
     if ((isSculpture ? NOT_SCULPTURE : NOT_PAINTING).test(typeTexts(detail))) continue;
+    // Díla jen z dotazu na pravěk a antiku: druh musí být socha, soška, maska, freska či mozaika
+    const ancientOnly = ancientIds.has(qid) && !knownWorkIds.has(qid);
+    if (ancientOnly && !ANCIENT_KIND.test(typeTexts(detail))) continue;
     const creators = creatorsOf(detail).map(creator => people.get(creator.id)).filter(person => person && person.n);
     const { year, approx, century } = workYear(detail);
-    // Obraz bez autora jen jako ikona; socha aspoň s autorem, dobou vzniku, směrem nebo sbírkou
-    if (!isSculpture && !creators.length && !(detail.type || []).includes('Q132137')) continue;
+    const isAncient = (year ?? (century !== undefined ? century * 100 : 2000)) < 500;
     if (isSculpture && !creators.length && year === undefined && century === undefined && !detail.mov && !detail.coll) continue;
     const museum = museumOf(detail);
     const author = sureCreator(detail);
     const authorDetail = author && people.get(author);
     const isCzech = (authorDetail && isCzechPerson(authorDetail)) || ['ng-praha', 'moravska-galerie', 'ajg'].includes(museum)
         || placesOf(detail).some(place => CZECH_PLACES.has(place)) || [...(detail.land || []), ...(detail.co || [])].some(state => state === CZECHIA);
+    // Obraz bez autora jen jako ikona, antická freska či mozaika nebo český gotický deskový obraz s datací (Madona z Vyššího Brodu);
+    // socha aspoň s autorem, dobou vzniku, směrem nebo sbírkou
+    const czechMedieval = isCzech && (year ?? (century !== undefined ? century * 100 : 2000)) < 1530;
+    if (!isSculpture && !creators.length && !(detail.type || []).includes('Q132137') && !isAncient && !czechMedieval) continue;
     const settings = LIMITS[category];
-    if (links < (isCzech ? settings.czMinLinks : settings.minLinks)) continue;
+    if (links < (isCzech ? settings.czMinLinks : museum ? settings.museumMinLinks : settings.minLinks)) continue;
     // Moderní socha (od roku 1850) jen od umělce z dat, česká nebo opravdu slavná
     const isModern = (year ?? (century !== undefined ? century * 100 : 2000)) >= 1850;
     if (isSculpture && isModern && !isCzech && links < FAMOUS_LINKS && !creatorsOf(detail).some(creator => artistIds.has(creator.id))) continue;
@@ -495,7 +552,8 @@ for (const [qid, links] of workList) {
         t: detail.t,
         ...workNames(detail),
         ty: kindOf(detail.type, isSculpture),
-        d: detail.d,
+        // Popis osoby místo díla („malíř José (Jusepe) Ribera“) se nepoužije
+        d: /^(malíř|sochař|malířka|sochařka)(?!\p{L})/u.test(detail.d || '') ? undefined : detail.d,
         ...imageFields(detail.im),
         f: compact({
             year,
@@ -514,12 +572,37 @@ for (const [qid, links] of workList) {
         }),
         museum
     };
-    // Mezi známá česká díla jen díla českých autorů (Dürerova Růžencová slavnost v Národní galerii ne)
-    const czechAuthor = isCzech && Boolean(authorDetail && isCzechPerson(authorDetail));
-    if (add(category, item, isCzech, (position, czechKnown) => position < settings.known || (czechAuthor && czechKnown < settings.czKnown))) {
-        workItems.push(items[items.length - 1]);
-    }
+    if (add(category, item, isCzech)) workItems.push(items[items.length - 1]);
 }
+
+// Okruhy směrů (stejné jako COLLECTIONS níž): směr z Wikidat, gotika i podle doby (díla 1150–1450 a umělci narození 1150–1400
+// bez jiného směru ze západní a střední Evropy – Cimabue, Gentile da Fabriano, Mistr třeboňského oltáře, Krumlovská madona)
+const MOVEMENT_OKRUH = { gotika: 'gotika', renesance: 'renesance', manyrismus: 'renesance', baroko: 'baroko', rokoko: 'baroko',
+    klasicismus: 'klasicismus-romantismus', romantismus: 'klasicismus-romantismus', realismus: 'realismus', akademismus: 'realismus',
+    impresionismus: 'impresionismus', postimpresionismus: 'impresionismus', secese: 'secese', symbolismus: 'secese',
+    expresionismus: 'moderni-umeni', kubismus: 'moderni-umeni', avantgarda: 'moderni-umeni', surrealismus: 'moderni-umeni', abstrakce: 'moderni-umeni', popart: 'moderni-umeni' };
+const GOTHIC_LANDS = new Set(['Itálie', 'Francie', 'Německo', 'Česko', 'Nizozemsko', 'Flandry', 'Belgie', 'Rakousko', 'Španělsko', 'Anglie', 'Spojené království',
+    'Polsko', 'Maďarsko', 'Švýcarsko', 'Portugalsko', 'Švédsko', 'Dánsko', 'Slovensko', 'Skotsko']);
+const isGothicByDate = (item, category = item.c) => {
+    const f = item.f || {};
+    // Bez země jen díla anonymních mistrů (Mistr Krumlovské madony)
+    if ((f.mk || []).length || !(item.cz || GOTHIC_LANDS.has(f.land) || (!f.land && /^Mistr /u.test(f.by || item.n)))) return false;
+    // V Itálii začíná renesance dřív (Masaccio, Brunelleschi)
+    const italian = f.land === 'Itálie';
+    if (category === 'umelci') return f.born >= 1150 && f.born <= (italian ? 1380 : 1400);
+    return (category === 'obrazy' || category === 'sochy') && item.ty !== 'ikona' && f.y >= 1150 && f.y <= (italian ? 1420 : 1450);
+};
+// Sienská škola vede ve Wikidatech ke gotice i renesanční malíře (Signorelli, Sodoma, Beccafumi) – gotický umělec se narodil
+// v Itálii nejpozději 1405, jinde 1460 (Veit Stoss)
+const lateForGothic = (item, category) => category === 'umelci' && (item.f || {}).born > ((item.f || {}).land === 'Itálie' ? 1405 : 1460);
+const okruhyOf = (item, category = item.c) => [...new Set([...((item.f || {}).mk || []).map(key => MOVEMENT_OKRUH[key]).filter(Boolean),
+    ...(isGothicByDate(item, category) ? ['gotika'] : [])])].filter(okruh => okruh !== 'gotika' || !lateForGothic(item, category));
+// Kvóty okruhů směrů: umělci nad limit kategorie, dokud okruh nemá tolik položek
+const OKRUH_QUOTA = { gotika: 55, 'klasicismus-romantismus': 110, realismus: 105, impresionismus: 115, secese: 105 };
+const OKRUH_QUOTA_MIN_LINKS = 15;
+const okruhCounts = new Map();
+for (const work of workItems) for (const okruh of okruhyOf(work)) okruhCounts.set(okruh, (okruhCounts.get(okruh) || 0) + 1);
+const okruhCount = (okruh) => okruhCounts.get(okruh) || 0;
 
 // Díla v datech podle autora (nejznámější první) – nápověda „slavná díla“ a směr umělce, který ho ve Wikidatech nemá
 const worksBy = new Map();
@@ -535,7 +618,8 @@ for (const [qid] of candidates.artists) {
     const keys = movementKeys(detail.mov);
     const fromWorks = [...new Set(own.flatMap(work => work.f.mk || []))];
     // Slavná díla: z dat, jinak „významná díla“ z Wikidat (Hokusaiova Velká vlna je dřevoryt, mezi obrazy není)
-    const famous = own.length ? own.map(work => work.n) : (detail.works || []).map(cs).filter(name => name && name.length <= 40);
+    // (dílo se jménem autora v názvu jen pod původním názvem – nápověda by umělce prozradila)
+    const famous = own.length ? own.map(work => renamed.get(work.n) || work.n) : (detail.works || []).map(cs).filter(name => name && name.length <= 40);
     const item = {
         q: qid,
         t: detail.t,
@@ -550,14 +634,21 @@ for (const [qid] of candidates.artists) {
             land: landOf(detail),
             mov: (detail.mov || []).map(cs).filter(Boolean).slice(0, 2),
             mk: keys.length ? keys : fromWorks,
-            works: famous.slice(0, 3),
+            // Dílo se jménem autora v názvu („Za naši svobodu!, Vojtěch Preissig“) by nápovědu prozradilo
+            works: famous.filter(name => !name.includes(nameOf(detail))).slice(0, 3),
             y: born + 35
         })
     };
-    // Známí: z nejznámějších jen ti, o kterých data něco vědí (směr nebo díla); z Čechů ti nejznámější
+    // Známí jsou jen ti, o kterých data něco vědí (směr nebo díla); z Čechů vždy ti nejznámější
     const isCzech = isCzechPerson(detail);
-    const isKnown = (position) => isCzech ? CZECH_KNOWN.includes(item.n) : position < LIMITS.umelci.known && Boolean(item.f.mk || item.f.works);
-    if (!add('umelci', item, isCzech, isKnown)) artistIds.delete(qid);
+    if (isCzech && CZECH_KNOWN.includes(item.n)) alwaysKnown.add(qid);
+    if (!(item.f.mk || []).length && !(item.f.works || []).length && !alwaysKnown.has(qid)) neverKnown.add(qid);
+    // Nad limit umělců jen do kvóty okruhu směru (realismus, impresionismus, secese…), s aspoň 15 jazykovými verzemi
+    const quotaOkruh = !isCzech && (sitelinks.get(qid) || 0) >= OKRUH_QUOTA_MIN_LINKS
+        && okruhyOf(item, 'umelci').some(okruh => OKRUH_QUOTA[okruh] && okruhCount(okruh) < OKRUH_QUOTA[okruh]);
+    if (add('umelci', item, isCzech) || (quotaOkruh && add('umelci', item, isCzech, true))) {
+        for (const okruh of okruhyOf(items[items.length - 1], 'umelci')) okruhCounts.set(okruh, okruhCount(okruh) + 1);
+    } else artistIds.delete(qid);
 }
 // Fotografové a ilustrátoři: stejné údaje jako u umělců, obor podle popisu (kdo je hlavně něco jiného, vypadne)
 const PERSON_CATEGORIES = [
@@ -610,13 +701,14 @@ for (const kind of PERSON_CATEGORIES) {
                 died,
                 land: landOf(detail),
                 mov: (detail.mov || []).map(cs).filter(Boolean).slice(0, 2),
-                works: (detail.works || []).map(cs).filter(name => name && name.length <= 40).slice(0, 3),
+                works: (detail.works || []).map(cs).filter(name => name && name.length <= 40 && !name.includes(nameOf(detail))).slice(0, 3),
                 y: born + 35
             })
         };
         const isCzech = isCzechPerson(detail);
-        const isKnown = (position) => isCzech ? CZECH_KNOWN_EXTRA.includes(item.n) : position < LIMITS[kind.category].known && !NOT_KNOWN_PEOPLE.has(item.n);
-        if (add(kind.category, item, isCzech, isKnown)) usedPeople.add(qid);
+        if (isCzech && CZECH_KNOWN_EXTRA.includes(item.n)) alwaysKnown.add(qid);
+        if (NOT_KNOWN_PEOPLE.has(item.n)) neverKnown.add(qid);
+        if (add(kind.category, item, isCzech)) usedPeople.add(qid);
     }
 }
 
@@ -635,7 +727,7 @@ for (const [qid] of candidates.movements) {
     // Jen výtvarníci a architekti, které témata vedou jako položky (ne Hermann Hesse u secese), hlavní představitelé směru napřed
     const reps = pickReps(detail.reps || [], repAllowed);
     const bornYears = reps.map(rep => yearOf(rep.born)).filter(year => year !== undefined).sort((a, b) => a - b);
-    const middle = bornYears.length >= 2 ? bornYears[Math.floor(bornYears.length / 2)] + 30 : undefined;
+    const middle = bornYears.length ? bornYears[Math.floor(bornYears.length / 2)] + 30 : undefined;
     const start = from ?? middle;
     if (start === undefined) continue;
     const span = from !== undefined && to !== undefined && to > from && to - from <= 600;
@@ -657,7 +749,7 @@ for (const [qid] of candidates.movements) {
             y: start
         })
     };
-    add('smery', item, false, (position) => position < LIMITS.smery.known);
+    add('smery', item, false);
 }
 
 // Autor díla, který se do umělců nevešel, odkaz nemá
@@ -668,8 +760,9 @@ const hasMovement = (...keys) => (item) => (item.f.mk || []).some(key => keys.in
 const BY_YEAR = { by: 'y' };
 const COLLECTIONS = [
     { id: 'ceske-umeni', label: 'České umění', text: 'Čeští výtvarníci, fotografové a jejich díla', sort: BY_YEAR, test: item => item.cz },
-    { id: 'pravek-starovek', label: 'Pravěk a starověk', text: 'Pravěké venuše a antické sochy', sort: BY_YEAR, test: item => (item.c === 'obrazy' || item.c === 'sochy') && item.f.y < 500 },
-    { id: 'gotika', label: 'Gotika', sort: BY_YEAR, test: hasMovement('gotika') },
+    { id: 'pravek-starovek', label: 'Pravěk a starověk', text: 'Pravěké venuše, antické sochy a jejich autoři', sort: BY_YEAR,
+        test: item => ((item.c === 'obrazy' || item.c === 'sochy') && item.f.y < 500) || (item.c === 'umelci' && item.f.born < 400) },
+    { id: 'gotika', label: 'Gotika', sort: BY_YEAR, test: item => okruhyOf(item).includes('gotika') },
     { id: 'renesance', label: 'Renesance', text: 'I manýrismus', sort: BY_YEAR, test: hasMovement('renesance', 'manyrismus') },
     { id: 'baroko', label: 'Baroko a rokoko', sort: BY_YEAR, test: hasMovement('baroko', 'rokoko') },
     { id: 'klasicismus-romantismus', label: 'Klasicismus a romantismus', sort: BY_YEAR, test: hasMovement('klasicismus', 'romantismus') },
@@ -697,11 +790,38 @@ for (const item of items) {
     if (!item.g.length) delete item.g;
 }
 
+// --- 6. krok: úrovně obtížnosti (scripts/lib/umeni-levels.mjs) ---
+// Sláva = geometrický průměr návštěvnosti článku české Wikipedie (60 dní přepočtených na rok) a počtu jazykových verzí (české ×1,3)
+const pageviews = await cachedByKey('umeni-pageviews-60d', items.map(item => item.t), czechPageviewsBatch);
+console.log(`Návštěvnost článků: ${items.filter(item => Object.hasOwn(pageviews, item.t)).length} z ${items.length}`);
+const movementLinks = new Map(candidates.movements);
+const PUBLISHED_FILE = new URL('../data/umeni.json', import.meta.url);
+const PUBLISHED_KNOWN = new Set(existsSync(PUBLISHED_FILE) ? JSON.parse(readFileSync(PUBLISHED_FILE, 'utf8')).items.filter(item => item.k === 1).map(item => item.q) : []);
+for (const item of items) {
+    const sl = sitelinks.get(item.q) ?? movementLinks.get(item.q) ?? 0;
+    item._ = { fame: fameOf({ pv: pageviews[item.t], sl, cz: item.cz }), always: alwaysKnown.has(item.q), never: neverKnown.has(item.q), protect: PUBLISHED_KNOWN.has(item.q) };
+}
+// Podíl známých (Základní) a expertních v každé skupině kategorie (české a ostatní zvlášť), minimální sláva známé položky
+const LEVELS = {
+    obrazy: { known: 0.27, czechKnown: 0.3, minKnown: 60, expert: 0.24, czechExpert: 0.15 },
+    sochy: { known: 0.27, czechKnown: 0.3, minKnown: 50, expert: 0.24, czechExpert: 0.15 },
+    umelci: { known: 0.22, czechKnown: 0.2, minKnown: 60, expert: 0.27, czechExpert: 0.15 },
+    fotografove: { known: 0.2, czechKnown: 0.2, minKnown: 40, expert: 0.27, czechExpert: 0.15 },
+    ilustratori: { known: 0.25, czechKnown: 0.3, minKnown: 40, expert: 0.25, czechExpert: 0.15 },
+    smery: { known: 0.3, minKnown: 60, expert: 0.25 }
+};
+for (const category of Object.keys(LEVELS)) console.log(`sláva ${category}: ${fameQuantiles(items, category)}`);
+const levelGroups = collections.map(collection => ({ id: collection.id, members: items.filter(item => (item.g || []).includes(collection.id)) }));
+const promoted = assignLevels(items, { categories: LEVELS, groups: levelGroups });
+if (promoted.length) console.log(`povýšené kvůli minimu okruhu: ${promoted.map(([okruh, name]) => `${okruh}: ${name}`).join('; ')}`);
+for (const item of items) delete item._;
 for (const category of Object.keys(LIMITS)) {
     const inCategory = items.filter(item => item.c === category);
-    console.log(`${category}: ${inCategory.length} (${inCategory.filter(item => item.k).length} známých, ${inCategory.filter(item => item.cz).length} českých)`);
+    console.log(`${levelSummary(category, inCategory)}, českých ${inCategory.filter(item => item.cz).length}`);
 }
-for (const collection of collections) console.log(`okruh ${collection.label}: ${sizeOf(collection)}`);
+for (const group of levelGroups) console.log(levelSummary(`okruh ${group.id}`, group.members));
+console.log(levelSummary('celkem', items));
+if (renamed.size) console.log(`stejnojmenná díla s autorem v názvu: ${[...renamed.keys()].join('; ')}`);
 
 // Popisy, které by prozradily odpověď (Čurající chlapeček / Manneken Pis = „chlapeček“, Kubištův Svatý Šebestián = „kubistický“ ~ Kubišta)
 for (const item of items) {
