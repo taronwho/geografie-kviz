@@ -64,8 +64,10 @@
     // 7 = Kvíz dne (daily_quiz_*; se starší databází se Kvíz dne hraje jen v zařízení, bez pořadí);
     // 8 = Skupiny (group_*, my_groups, týdenní XP; se starší databází se Skupiny jen nenabídnou);
     // 9 = odměny v účtu (profiles.rewards: Truhla Mudrlanta, ochrana série, diplomy) a nové odznaky (se starší databází zůstanou jen v zařízení);
-    // 10 = Rozpis otázek (podrobnosti odpovědí výzvy a zápasu turnaje, challenge_details a tournament_details; se starší databází jen vlastní odpovědi ze zařízení).
-    const REQUIRED_SCHEMA = 16;
+    // 10 = Rozpis otázek (podrobnosti odpovědí výzvy a zápasu turnaje, challenge_details a tournament_details; se starší databází jen vlastní odpovědi ze zařízení);
+    // 17 = zamrzlé otázky (question_snapshot_claim, question_snapshots_get: výzva, turnaj a Kvíz dne mají pro všechny stejné otázky i po změně dat;
+    // se starší databází se otázky skládají jen v zařízení jako dřív).
+    const REQUIRED_SCHEMA = 17;
     const HISTORY_SIZE = 200;
     const REQUEST_TIMEOUT = 12000;
     const WIKI_TIMEOUT = 6000;
@@ -2086,7 +2088,7 @@
                     <i data-lucide="play" class="h-6 w-6"></i> Hrát
                 </button>
                 ${Modes ? `<div class="mt-2 grid grid-cols-2 gap-2">${modeChooserButtons()}</div>` : ''}
-                ${MapQuestion && (isMix || MAP_TOPICS.includes(chooser.topic)) ? `<button type="button" data-chooser-map class="btn-3d-light mt-2 flex min-h-[2.75rem] w-full items-center gap-2.5 rounded-[1.2rem] bg-white px-3 py-1.5 text-left text-slate-800 short:min-h-[2.5rem] dark:bg-slate-800 dark:text-slate-100"><span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-sky-100 text-sky-700 dark:bg-sky-900/50 dark:text-sky-200"><i data-lucide="crosshair" class="h-4 w-4"></i></span><span class="min-w-0 flex-1"><span class="block text-[14px] font-black leading-tight">Ukaž na mapě</span><span class="block text-[11px] font-semibold leading-tight text-slate-500 dark:text-slate-400">jen otázky na mapě · zkušební režim</span></span></button>` : ''}
+                ${MapQuestion && (isMix || MAP_TOPICS.includes(chooser.topic)) ? `<button type="button" data-chooser-map class="btn-3d-light mt-2 flex min-h-[2.75rem] w-full items-center gap-2.5 rounded-[1.2rem] bg-white px-3 py-1.5 text-left text-slate-800 short:min-h-[2.5rem] dark:bg-slate-800 dark:text-slate-100">${uiArt('odznak-mapa', 'h-8 w-8')}<span class="min-w-0 flex-1"><span class="block text-[14px] font-black leading-tight">Ukaž na mapě</span><span class="block text-[11px] font-semibold leading-tight text-slate-500 dark:text-slate-400">jen otázky na mapě · zkušební režim</span></span></button>` : ''}
                 </div>
                 <div class="mb-1.5 mt-2 flex items-center justify-between short:mb-1 short:mt-1">
                     <h3 class="${SETTINGS_HEADING}">${isMix ? 'Témata' : 'Kategorie'}</h3>
@@ -3575,7 +3577,8 @@
     const syncAnswers = (c) => {
         if (!c) return Promise.resolve(false);
         const key = openChallengeKey(c);
-        const run = (answerQueues.get(key) || Promise.resolve()).then(() => pushAnswers(c)).catch(() => false);
+        // Nepotvrzené otázky (bez spojení při sestavení) se uloží dřív než odpovědi na ně
+        const run = (answerQueues.get(key) || Promise.resolve()).then(() => flushPendingSnapshots()).then(() => pushAnswers(c)).catch(() => false);
         answerQueues.set(key, run);
         return run;
     };
@@ -4011,7 +4014,7 @@
         return result;
     };
 
-    // Truhla Mudrlanta: okno přes celou obrazovku, klepnutím na truhlu (nebo Otevřít) se otevře; věc jde hned nasadit
+    // Truhla Mudrlanta: okno přes celou obrazovku, klepnutím na truhlu se otevře (animace v src/input.css, .chest-*); věc jde hned nasadit
     const closeChestOverlay = () => {
         const overlay = document.getElementById('chest-overlay');
         if (overlay) overlay.remove();
@@ -4037,8 +4040,10 @@
         overlay.setAttribute('role', 'dialog');
         overlay.setAttribute('aria-modal', 'true');
         overlay.setAttribute('aria-label', 'Truhla Mudrlanta');
-        overlay.className = 'chest-overlay fade-in fixed inset-0 z-[70] flex items-center justify-center p-4';
+        // Ukotvené shora (odsazení v .chest-overlay): po otevření truhla zůstane na místě a obsah přibude pod ní
+        overlay.className = 'chest-overlay fade-in fixed inset-0 z-[70] flex items-start justify-center overflow-y-auto px-4 pb-4';
         let opened = null;
+        let opening = false;
         const paint = () => {
             overlay.innerHTML = Rewards.chestHtml({ opened }, chestHelpers());
             renderIcons(overlay);
@@ -4046,6 +4051,8 @@
             if (focus) focus.focus({ preventScroll: true });
         };
         const reveal = () => {
+            // Okno zavřené během natřásání: truhla zůstane zavřená a čeká dál
+            if (!overlay.isConnected) return;
             const progress = loadProgress();
             const result = Rewards.openChest(loadRewards(), week, { level: levelProgress(progress.xp).level, badges: progress.badges });
             if (!result.opened) { overlay.remove(); return; }
@@ -4073,14 +4080,15 @@
                 return;
             }
             const go = event.target.closest('[data-chest-go]');
-            if (go && !opened && !go.disabled) {
-                // Krátké zatřesení, pak se víko otevře (při omezeném pohybu hned)
-                const box = overlay.querySelector('.chest-box');
+            if (go && !opened && !opening && !go.disabled) {
+                // Krátké natřesení, pak se víko otevře (při omezeném pohybu hned); další klepnutí už nic neudělají. Tlačítko se
+                // nevypíná, ať na něm zůstane fokus (Escape okno zavře i během natřásání)
+                opening = true;
+                const stage = overlay.querySelector('[data-chest-stage]');
                 const still = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-                overlay.querySelectorAll('[data-chest-go]').forEach(button => { button.disabled = true; });
-                if (still || !box) { reveal(); return; }
-                box.classList.add('chest-shake');
-                setTimeout(reveal, 450);
+                if (still || !stage) { reveal(); return; }
+                stage.classList.add('chest-shaking');
+                setTimeout(reveal, 350);
             }
         });
         overlay.addEventListener('keydown', (event) => { if (event.key === 'Escape') closeChestOverlay(); });
@@ -4389,7 +4397,101 @@
     };
     const savedTournamentMatch = () => { const saved = savedTournamentChallenge(); return saved ? saved.mid : null; };
 
+    // --- Zamrzlé otázky (schéma 17): výzva (i skupině a odveta), zápas turnaje a Kvíz dne dávají všem hráčům stejné otázky se stejnými možnostmi ---
+    // Otázka se sestaví v zařízení ze semínka a dat tématu jako dřív, pak se uloží na server (Social.claimQuestion) a hraje se ta, kterou server
+    // vrátí: platí první uložená, takže hráč s jinou verzí dat (po aktualizaci) dostane přesně tu otázku, kterou hrál soupeř. Uloženou otázku
+    // aplikace stáhne i předem (Social.questionSnapshots; s ní i dřívější otázky téže hry, ať se jejich položky neopakují) a Rozpis otázek
+    // ji vezme místo nového sestavení. Bez přihlášení a se starší databází se hraje otázka ze zařízení jako dřív; bez spojení (server neodpoví
+    // do SNAPSHOT_WAIT) také, jen se zapamatuje jako nepotvrzená (PENDING_SNAPSHOTS_KEY) a uloží se později (pozdní odpověď, před odesláním
+    // odpovědi na server), ať platí aspoň pro hráče, kteří ji budou hrát po ní. Pozdní odpověď s jinou otázkou ji vymění, dokud hráč neodpověděl.
+    const SNAPSHOT_WAIT = 4000;
+    const PENDING_SNAPSHOTS_KEY = 'mudrlant.pendingSnapshots';
+    const snapshotsReady = () => Boolean(Social && Social.claimQuestion && Social.questionSnapshots && signedUser());
+    // Otázka ze serveru jde hrát: tvarově úplná a z tématu, které aplikace zná (jinak se hraje otázka ze zařízení)
+    const playableSnapshot = (data) => Boolean(data && typeof data === 'object' && !Array.isArray(data) && TOPIC_BY_ID[data.topic] && typeof data.id === 'string'
+        && data.question && typeof data.question === 'object' && typeof data.question.title === 'string' && typeof data.question.answerLabel === 'string'
+        && Array.isArray(data.hints) && Array.isArray(data.funFacts) && Array.isArray(data.resultFacts) && typeof data.typeLabel === 'string'
+        && (isNumeric(data) || (Array.isArray(data.question.choices) && data.question.choices.length > 0 && Array.isArray(data.question.accepted))));
+    // Otázku na server ukládá klient (soupeř): texty se vykreslují escapované, pole vkládaná do atributů (ikony, klíče záložek, druhy)
+    // se z ní berou jen s bezpečnými znaky
+    const SNAPSHOT_TOKENS = new Set(['icon', 'key', 'kind', 'type', 'category', 'categoryIcon', 'spec', 'dir', 'mode', 'inputmode']);
+    const cleanSnapshot = (value, name = '') => {
+        if (Array.isArray(value)) return value.map(entry => cleanSnapshot(entry));
+        if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).filter(([key]) => key !== '__proto__').map(([key, entry]) => [key, cleanSnapshot(entry, key)]));
+        return typeof value === 'string' && SNAPSHOT_TOKENS.has(name) ? value.replace(/[^A-Za-z0-9_.:-]/g, '').slice(0, 80) : value;
+    };
+    // Položky, na které se uložená otázka ptá (u Seřaď všechny čtyři): dál ve hře se už neopakují
+    const snapshotIds = (data) => [data.id, ...(data.numeric && Array.isArray(data.numeric.items) ? data.numeric.items.map(entry => entry && entry.id) : []),
+        ...(data.numeric && data.numeric.item ? [data.numeric.item.id] : [])].filter(id => typeof id === 'string');
+    // Porovnání dvou verzí otázky bez ohledu na pořadí klíčů (databáze je v jsonb přeskládá)
+    const stableText = (value) => (Array.isArray(value) ? `[${value.map(stableText).join(',')}]`
+        : value && typeof value === 'object' ? `{${Object.keys(value).sort().map(key => `${JSON.stringify(key)}:${stableText(value[key])}`).join(',')}}` : JSON.stringify(value));
+    // Odmítnutí serverem (neplatné semínko, cizí výzva, budoucí den): uložení se nezkouší znovu; síť, 5xx a vypršené přihlášení ano
+    const claimRefused = (error) => Boolean(error && error.status >= 400 && error.status < 500 && ![401, 408, 429].includes(error.status));
+    const pendingSnapshots = () => { const saved = readJson(PENDING_SNAPSHOTS_KEY); return saved && typeof saved === 'object' && !Array.isArray(saved) ? saved : {}; };
+    const rememberPendingSnapshot = (seed, data) => {
+        const user = signedUser();
+        if (!user) return;
+        const kept = Object.entries(pendingSnapshots()).filter(([key, entry]) => key !== seed && entry && entry.data && Date.now() - Number(entry.at) < 2 * 86400000).slice(-11);
+        writeJson(PENDING_SNAPSHOTS_KEY, Object.fromEntries([...kept, [seed, { data, owner: user.id, at: Date.now() }]]));
+    };
+    const forgetPendingSnapshot = (seed) => {
+        const all = pendingSnapshots();
+        if (!Object.prototype.hasOwnProperty.call(all, seed)) return;
+        delete all[seed];
+        writeJson(PENDING_SNAPSHOTS_KEY, all);
+    };
+    // Nepotvrzené otázky se dopošlou (nejvýš SNAPSHOT_WAIT): uloží se, když je server ještě nemá; odmítnutá se zahodí, při chybě spojení počká na příště
+    let snapshotFlush = null;
+    const flushPendingSnapshots = () => {
+        if (snapshotFlush) return snapshotFlush;
+        const user = signedUser();
+        const entries = Object.entries(pendingSnapshots()).filter(([, entry]) => entry && entry.data && user && entry.owner === user.id);
+        if (!snapshotsReady() || !entries.length) return Promise.resolve();
+        const run = Promise.all(entries.map(([seed, entry]) => Social.claimQuestion(seed, entry.data)
+            .then(() => forgetPendingSnapshot(seed), (error) => { if (claimRefused(error)) forgetPendingSnapshot(seed); })));
+        snapshotFlush = within(run, SNAPSHOT_WAIT).finally(() => { snapshotFlush = null; });
+        return snapshotFlush;
+    };
+    // Uložené otázky k semínkům ({ [semínko]: data }, jen ty, které jde hrát); bez přihlášení, spojení nebo se starší databází prázdné
+    const frozenQuestions = async (seeds) => {
+        const usable = Object.create(null);
+        if (!snapshotsReady() || !seeds.length) return usable;
+        try {
+            const found = await within(Social.questionSnapshots(seeds), SNAPSHOT_WAIT);
+            Object.entries(found || {}).forEach(([seed, data]) => { if (playableSnapshot(data)) usable[seed] = cleanSnapshot(data); });
+        } catch (error) { /* bez spojení se otázky sestaví v zařízení */ }
+        return usable;
+    };
+    // Otázka sestavená v zařízení se uloží na server a vrátí se ta, která platí (první uložená). late = odpověď serveru, která nestihla SNAPSHOT_WAIT
+    const settleSnapshot = async (seed, local) => {
+        const data = JSON.parse(JSON.stringify(local));
+        if (!seed || !snapshotsReady()) return { data, late: null };
+        const claim = Social.claimQuestion(seed, data).then(stored => ({ stored }), error => ({ error }));
+        const settled = await within(claim, SNAPSHOT_WAIT);
+        if (settled && !settled.error) return { data: playableSnapshot(settled.stored) ? upgradeRoundData(cleanSnapshot(settled.stored)) : data, late: null };
+        if (settled && claimRefused(settled.error)) return { data, late: null };
+        rememberPendingSnapshot(seed, data);
+        return { data, late: settled ? null : claim };
+    };
+    // Pozdní odpověď serveru: otázka je potvrzená; má-li server jinou (soupeř ji uložil dřív), vymění se, dokud hráč neodpověděl
+    const lateSnapshot = (seed, shown, outcome) => {
+        if (!outcome || (outcome.error && !claimRefused(outcome.error))) return;
+        forgetPendingSnapshot(seed);
+        const stored = !outcome.error && playableSnapshot(outcome.stored) ? cleanSnapshot(outcome.stored) : null;
+        if (!stored || stableText(stored) === stableText(shown)) return;
+        if (current !== shown || !round || round.answered) return;
+        const keep = { timerStart: round.timerStart, shownAt: round.shownAt, variant: round.variant };
+        current = upgradeRoundData(stored);
+        round = Object.assign(createRound(), keep);
+        // Nápovědy ukázané k předchozí verzi se nepočítají
+        if (mode === 'quiz' && quiz && quiz.open && quiz.open.index === quizIndex) quiz.open.hint = 1;
+        if (mode === 'quiz') quizRoundReady();
+        if (screen === 'round') { renderRound(); showToast('Otázka se upravila, ať je stejná pro všechny hráče'); } else persistState();
+    };
+
     // Průběh načtení otázky: vybrat položku, dotáhnout popis a fotku, zobrazit
+    // pick() vrací { item, ctx, rng, numeric? }, u hry pro víc hráčů i snapshotSeed (semínko otázky) a případně frozen (otázka uložená na serveru)
     const runRound = async (pick, loadingTopic = null) => {
         if (isLoading) return;
         if (!gameVariant) {
@@ -4409,17 +4511,24 @@
         try {
             let picked = await pick(0);
             if (picked.abort) { isLoading = false; picked.abort(); return; }
-            if (!picked.item) throw new Error('Není z čeho vybírat');
-            // Číselná otázka, když ji výběr naplánoval (bez popisu z Wikipedie, takže chudý popis se jí netýká)
-            let data = (picked.numeric && Numeric && Numeric.buildRound(picked.numeric, picked.ctx)) || await createRoundData(picked.item, picked.ctx, picked.rng);
-            // Chudý popis: vybere se jiná otázka (u dnešní otázky další určená položka), nejvýš třikrát; pak se vezme, co je
-            // (výzva ne: všichni hráči musí dostat stejné otázky, i když se někomu Wikipedie nenačte)
-            for (let attempt = 1; data.thin && mode !== 'challenge' && mode !== 'quiz' && !wikiPaused() && attempt <= MAX_THIN_RETRIES; attempt++) {
-                const next = await pick(attempt);
-                if (!next.item) break;
-                const candidate = await createRoundData(next.item, next.ctx, next.rng);
-                picked = next;
-                data = candidate;
+            // Otázka uložená na serveru (soupeř ji hrál dřív): hraje se ta, místní se nesestavuje
+            let data = picked.frozen && playableSnapshot(picked.frozen) ? upgradeRoundData(picked.frozen) : null;
+            let late = null;
+            if (!data) {
+                if (!picked.item) throw new Error('Není z čeho vybírat');
+                // Číselná otázka, když ji výběr naplánoval (bez popisu z Wikipedie, takže chudý popis se jí netýká)
+                data = (picked.numeric && Numeric && Numeric.buildRound(picked.numeric, picked.ctx)) || await createRoundData(picked.item, picked.ctx, picked.rng);
+                // Chudý popis: vybere se jiná otázka (u dnešní otázky další určená položka), nejvýš třikrát; pak se vezme, co je
+                // (výzva ne: všichni hráči musí dostat stejné otázky, i když se někomu Wikipedie nenačte)
+                for (let attempt = 1; data.thin && mode !== 'challenge' && mode !== 'quiz' && !wikiPaused() && attempt <= MAX_THIN_RETRIES; attempt++) {
+                    const next = await pick(attempt);
+                    if (!next.item) break;
+                    const candidate = await createRoundData(next.item, next.ctx, next.rng);
+                    picked = next;
+                    data = candidate;
+                }
+                // Hra pro víc hráčů: platí otázka uložená na serveru jako první (možná soupeřova), místní verze je jen záloha
+                if (picked.snapshotSeed) ({ data, late } = await settleSnapshot(picked.snapshotSeed, data));
             }
             const { dailyDate } = picked;
             current = dailyDate ? { ...data, dailyDate } : data;
@@ -4432,6 +4541,8 @@
             if (mode === 'quiz') quizRoundReady();
             isLoading = false;
             renderRound();
+            // Server neodpověděl včas: jeho pozdní odpověď otázku potvrdí, nebo vymění za platnou
+            if (late) { const shown = current; const seed = picked.snapshotSeed; late.then(outcome => lateSnapshot(seed, shown, outcome)); }
             // Souhrn odpovědí ostatních k tématu (stáhne se, jen když v zařízení chybí nebo je starší než den)
             refreshAnswerStats(current.topic);
             // Obrysy států pro slepou mapu stáhneme dopředu, ať je nápověda hned po ruce
@@ -5245,7 +5356,11 @@
     };
 
     // --- Obrazovky režimu ---
-    const modeBadge = (kind, cls = 'h-7 w-7', icon = 'h-4 w-4') => `<span class="flex ${cls} shrink-0 items-center justify-center rounded-full ${MODE_BADGE[kind]}"><i data-lucide="${Modes.MODES[kind].icon}" class="${icon}"></i></span>`;
+    // Symbol režimu: obrázek jeho odznaku (Bleskovka, Přežití); bez obrázku barevné kolečko s ikonou
+    const MODE_ART = { blitz: 'odznak-bleskovka', survival: 'odznak-preziti' };
+    const modeBadge = (kind, cls = 'h-7 w-7', icon = 'h-4 w-4') => MODE_ART[kind]
+        ? uiArt(MODE_ART[kind], cls)
+        : `<span class="flex ${cls} shrink-0 items-center justify-center rounded-full ${MODE_BADGE[kind]}"><i data-lucide="${Modes.MODES[kind].icon}" class="${icon}"></i></span>`;
     const modeStat = (label, value, attrs = '') => `
         <div ${attrs} class="flex flex-col justify-between rounded-2xl bg-white px-2 py-2 text-center shadow-sm ring-1 ring-slate-200/70 dark:bg-slate-800 dark:ring-slate-700/70">
             <p class="text-[10px] font-black uppercase leading-tight tracking-wider text-slate-500 dark:text-slate-400">${escapeHtml(label)}</p>
@@ -5291,8 +5406,8 @@
             <div data-mode-intro="${game.kind}" class="fade-in flex min-h-full w-full flex-col gap-3 bg-slate-50 p-4 short:gap-2 short:p-3 dark:bg-slate-900">
                 <div class="flex items-center gap-3">
                     <span class="relative shrink-0">
-                        ${topicIcon(topic, 'h-14 w-14', `flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br text-white ${style.tile}`, 'h-7 w-7')}
-                        <span class="absolute -bottom-1 -right-1 rounded-full ring-2 ring-slate-50 dark:ring-slate-900">${modeBadge(game.kind)}</span>
+                        ${modeBadge(game.kind, 'h-14 w-14', 'h-7 w-7')}
+                        <span class="absolute -bottom-1 -right-1">${topicIcon(topic, 'h-7 w-7', `flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br text-white ${style.tile}`, 'h-4 w-4')}</span>
                     </span>
                     <div class="min-w-0">
                         <h2 class="text-2xl font-black leading-tight text-slate-800 dark:text-slate-50">${escapeHtml(def.title)}</h2>
@@ -6054,6 +6169,8 @@
                 Social.getRating(user.id).catch(() => null)
             ]);
             if (!signedUser() || signedUser().id !== user.id) return;
+            // Otázky, které se minule nepodařilo uložit (bez spojení), se uloží teď
+            flushPendingSnapshots();
             myChallenges = mine;
             recentOlder = { rows: [], loading: false, done: false, error: false };
             myRating = rating;
@@ -6667,6 +6784,23 @@
             <span class="min-w-0 flex-1 truncate text-sm font-bold text-slate-800 dark:text-slate-100">${escapeHtml(playerName(row.player))}${row.user_id === meId ? ' (ty)' : ''}</span>
             <span class="text-right"><span class="block text-base font-black text-slate-800 dark:text-slate-100">${escapeHtml(formatPoints(row.points))}</span><span class="block text-[10px] font-semibold text-slate-500 dark:text-slate-400">${row.correct}/${count} správně</span></span>
         </li>`).join('');
+    // Výzva, kterou hráč ještě nedohrál: u ostatních jen „dohráno“ / „ještě nehrál“, bez bodů, správných odpovědí, poháru a pořadí podle výsledku
+    // (seřazené podle času dohrání), ať výsledek soupeře neovlivní hru ani taktiku. Výsledky se ukážou, až výzvu dohraje (rankingRows).
+    const waitingPlayers = (def, results, meId) => {
+        const done = [...results].filter(row => row.user_id !== meId).sort((a, b) => String(a.finished_at || '').localeCompare(String(b.finished_at || '')))
+            .map(row => ({ id: row.user_id, player: row.player, done: true }));
+        const waiting = [def.creator, def.invited].filter(player => player && player.id && player.id !== meId && !done.some(row => row.id === player.id))
+            .filter((player, index, list) => list.findIndex(other => other.id === player.id) === index).map(player => ({ id: player.id, player, done: false }));
+        const rows = [...done, ...waiting];
+        if (!rows.length) return '<p class="text-sm text-slate-500 dark:text-slate-400">Zatím nikdo nehrál.</p>';
+        return `<ol data-ch-waiting class="flex flex-col gap-1.5">${rows.map(row => `
+            <li data-ch-player="${escapeHtml(row.id)}" data-ch-state="${row.done ? 'done' : 'waiting'}" class="flex items-center gap-3 rounded-2xl bg-white p-2.5 shadow-sm dark:bg-slate-800">
+                ${avatarHtml(row.player, 'h-9 w-9 text-lg', true)}
+                <span class="min-w-0 flex-1 truncate text-sm font-bold text-slate-800 dark:text-slate-100">${escapeHtml(playerName(row.player))}</span>
+                <span class="shrink-0 rounded-full px-2.5 py-1 text-[11px] font-black ${row.done ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300' : 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300'}">${row.done ? 'dohráno' : 'ještě nehrál'}</span>
+            </li>`).join('')}</ol>
+            ${done.length ? '<p class="text-xs font-semibold leading-snug text-slate-500 dark:text-slate-400">Výsledky ostatních uvidíš, až výzvu dohraješ.</p>' : ''}`;
+    };
 
     // Odznak jako medaile ve stylu hry: získaný zlatý nebo vínový se ikonou, nezískaný šedý
     const MEDAL_TONES = {
@@ -7255,6 +7389,8 @@
         const myChange = mine && Rating && results.length > 1 ? await Social.getRatingChange(user.id, code).catch(() => null) : null;
         if (!stillOpen()) return;
         const own = def.creator && def.creator.id === user.id;
+        // Výsledky ostatních (body, správné, pořadí) až po vlastním dohrání; kdo výzvu hrát nemůže (je určená jinému), je jen divák a vidí je hned
+        const canPlay = !def.invited || def.invited.id === user.id || Boolean(own);
         // Rozehraná výzva (v paměti, nebo uložená mezi rozehranými): pokračuje se, nehraje se znovu od první otázky
         let resumable = mine ? null : ownChallengeInProgress() && challenge.code === code ? challenge
             : savedOpenChallenges().find(saved => !saved.tournament && saved.code === code && (!saved.owner || saved.owner === user.id)) || null;
@@ -7276,7 +7412,7 @@
                     return `<div class="flex flex-wrap gap-1.5">${tags.map(tag => `<span class="rounded-full bg-slate-200 px-2.5 py-1 text-[11px] font-bold text-slate-600 dark:bg-slate-700 dark:text-slate-300">${escapeHtml(tag)}</span>`).join('')}</div>`;
                 })()}
                 ${def.invited ? `<p class="flex items-center gap-2 text-sm font-semibold text-slate-600 dark:text-slate-300">Vyzvaný hráč: ${avatarHtml(def.invited, 'h-6 w-6 text-sm')} <b>${escapeHtml(def.invited.id === user.id ? 'ty' : playerName(def.invited))}</b></p>` : ''}
-                ${results.length ? `<ol class="flex flex-col gap-1.5">${rankingRows(results, def.count, user.id)}</ol>` : '<p class="text-sm text-slate-500 dark:text-slate-400">Zatím nikdo nehrál.</p>'}
+                ${mine || !canPlay ? (results.length ? `<ol class="flex flex-col gap-1.5">${rankingRows(results, def.count, user.id)}</ol>` : '<p class="text-sm text-slate-500 dark:text-slate-400">Zatím nikdo nehrál.</p>') : waitingPlayers(def, results, user.id)}
                 ${myChange ? `<p class="text-sm font-bold text-slate-600 dark:text-slate-300">Tvůj rating: <b class="${myChange.delta > 0 ? 'text-emerald-700 dark:text-emerald-400' : myChange.delta < 0 ? 'text-rose-700 dark:text-rose-400' : ''}">${Rating.formatDelta(myChange.delta)}</b> (${myChange.after})</p>` : ''}
                 ${mine && results.some(row => row.user_id !== user.id) ? `<button type="button" data-ch-breakdown class="${SECONDARY_BUTTON}"><i data-lucide="list-ordered" class="h-5 w-5"></i> Rozpis otázek</button>` : ''}
                 ${mine ? '' : `<button type="button" data-ch-play class="${PRIMARY_BUTTON}"><i data-lucide="play" class="h-5 w-5"></i> ${resumable ? resumeLabel(resumable) : 'Hrát výzvu'}</button>`}
@@ -7311,7 +7447,8 @@
     // otázky nezopakují. Stejná položka bývá ve dvou tématech (stavba v Architektuře i Zeměpisu): v Mixu a turnaji se nezopakuje ani napříč tématy.
     // step(semínko) vybere otázku daného semínka (s remember = true si její položky zapamatuje jako použité); earlierSeeds(index) = semínka otázek
     // před otázkou index (u turnaje i všech dřívějších kol). Hra i Rozpis otázek procházejí semínka ve stejném pořadí, takže vyjdou stejné otázky.
-    const challengePicker = (c) => {
+    // frozen = otázky uložené na serveru podle semínka (zamrzlé otázky): jejich položky se dál nezopakují, i když místní výběr vyšel jinak (jiná data).
+    const challengePicker = (c, frozen = {}) => {
         const usedIds = new Set();
         const offered = (candidate) => levelOf(candidate) <= challengeLevel(c) && (!c.categories.length || c.categories.includes(candidate.c));
         const pickFor = (ctx, rng, history) => {
@@ -7337,6 +7474,8 @@
             if (remember) {
                 if (item) { historyOf(topicId).push(item.q); usedIds.add(item.q); }
                 if (numeric) numeric.ids.forEach(id => usedIds.add(id));
+                const snapshot = frozen[seedText];
+                if (snapshot) { snapshotIds(snapshot).forEach(id => usedIds.add(id)); historyOf(snapshot.topic).push(snapshot.id); }
             }
             return { item, ctx, rng, numeric };
         };
@@ -7367,10 +7506,16 @@
         mode = 'challenge';
         closeDialog();
         runRound(async () => {
+            const seed = `${challenge.seed}:${index}`;
+            const frozen = Object.create(null);
+            const picker = challengePicker(challenge, frozen);
+            const earlier = picker.earlierSeeds(index);
+            // Otázky uložené na serveru (tahle i dřívější): tahle se hraje taková, jakou ji dostal soupeř
+            Object.assign(frozen, await frozenQuestions([...earlier, seed]));
+            if (frozen[seed]) { await loadTopic(frozen[seed].topic).catch(() => null); return { frozen: frozen[seed], snapshotSeed: seed }; }
             // Dřívější otázky se přehrají se stejným semínkem (i u Mixu a turnaje, kde se téma losuje), takže se žádná položka v rámci výzvy nezopakuje
-            const picker = challengePicker(challenge);
-            for (const earlierSeed of picker.earlierSeeds(index)) await picker.step(earlierSeed);
-            return picker.step(`${challenge.seed}:${index}`, false);
+            for (const earlierSeed of earlier) await picker.step(earlierSeed);
+            return { ...(await picker.step(seed, false)), snapshotSeed: seed };
         }, challengeTopicIds(challenge.topic).length === 1 ? TOPIC_BY_ID[challengeTopicIds(challenge.topic)[0]] : MIX);
     };
 
@@ -7466,25 +7611,45 @@
             subject: special && special.showName ? item.n : '', answer: special ? special.answerLabel : item.n
         };
     };
+    // Zadání do rozpisu z otázky uložené na serveru (zamrzlé otázky): stejné údaje jako describeChallengeQuestion
+    const describeSnapshot = (data) => ({
+        topic: data.topic, id: data.id, title: data.question.title, answer: data.question.answerLabel,
+        subject: isNumeric(data) ? (data.numeric.kind === 'estimate' ? data.name || '' : '') : data.question.showName ? data.name || '' : ''
+    });
+    // Otázky výzvy (zápasu) do rozpisu: uložené na serveru, jak je hráči opravdu hráli; jen chybějící (starší hry, databáze bez nich) se sestaví ze semínka
     const challengeQuestionList = (def) => {
         const c = { ...def, level: challengeLevel(def), categories: Array.isArray(def.categories) ? def.categories : [] };
         const tour = c.tournament;
         const key = [c.topic, c.seed, c.count, c.level, c.categories.join(','), tour ? `${tour.seedBase}:${tour.round}` : ''].join('|');
         if (!breakdownQuestions.has(key)) {
+            let complete = false;
             const promise = (async () => {
-                const picker = challengePicker(c);
-                for (const seed of picker.earlierSeeds(0)) await picker.step(seed);
+                const seeds = Array.from({ length: c.count }, (_, index) => `${c.seed}:${index}`);
+                const frozen = Object.create(null);
+                const picker = challengePicker(c, frozen);
+                const earlier = picker.earlierSeeds(0);
+                Object.assign(frozen, await frozenQuestions([...earlier, ...seeds]));
+                complete = seeds.every(seed => frozen[seed]);
+                // Všechny otázky uložené: nic se nesestavuje (stačí načíst jejich témata kvůli oknu s popisem)
+                if (!complete) for (const seed of earlier) await picker.step(seed);
                 const list = [];
-                for (let index = 0; index < c.count; index++) {
-                    const step = await picker.step(`${c.seed}:${index}`);
+                for (const seed of seeds) {
                     let question = null;
-                    try { question = describeChallengeQuestion(step); } catch (error) { console.error(error); }
+                    if (frozen[seed]) {
+                        try { question = describeSnapshot(frozen[seed]); } catch (error) { console.error(error); }
+                        if (!complete) await picker.step(seed);
+                    } else {
+                        const step = await picker.step(seed);
+                        try { question = describeChallengeQuestion(step); } catch (error) { console.error(error); }
+                    }
                     list.push(question);
                 }
+                await Promise.all([...new Set(list.filter(Boolean).map(question => question.topic))].map(id => loadTopic(id).catch(() => null)));
                 return list;
             })();
             breakdownQuestions.set(key, promise);
-            promise.catch(() => breakdownQuestions.delete(key));
+            // Sestavené ze semínka (server otázky neměl nebo nebyl k zastižení) se příště zkusí načíst znovu
+            promise.then(() => { if (!complete) breakdownQuestions.delete(key); }, () => breakdownQuestions.delete(key));
         }
         return breakdownQuestions.get(key);
     };
@@ -7793,7 +7958,7 @@
             }
         }
     };
-    const syncQuiz = (attempt = quiz) => { quizSync = quizSync.then(() => pushQuiz(attempt)).catch(() => false); return quizSync; };
+    const syncQuiz = (attempt = quiz) => { quizSync = quizSync.then(() => flushPendingSnapshots()).then(() => pushQuiz(attempt)).catch(() => false); return quizSync; };
 
     // Stav serveru pro kartu na úvodu (nejvýš jednou za 5 minut; po dohrání a přihlášení hned)
     const refreshQuizServer = async (force = false) => {
@@ -7838,14 +8003,18 @@
     };
 
     // Zadání deseti otázek Kvízu dne pro rozpis: položky z plánu dne (u mého pokusu uložené), otázka se stejným semínkem jako ve hře
+    // Otázka uložená na serveru (zamrzlé otázky) má přednost: je přesně ta, kterou hráči hráli, i když se data mezitím změnila
     const quizQuestionList = async (day) => {
         const groups = quizGroups();
         const slots = DailyQuiz.slotsFor(day, groups);
+        const seeds = Array.from({ length: DailyQuiz.QUESTIONS }, (_, index) => DailyQuiz.questionSeed(day, index));
         const ids = [...new Set(slots.map(slot => slot.topic))].filter(id => TOPIC_BY_ID[id]);
-        const contexts = new Map((await Promise.all(ids.map(id => loadTopic(id)))).map(ctx => [ctx.topic.id, ctx]));
+        const [frozen, loaded] = await Promise.all([frozenQuestions(seeds), Promise.all(ids.map(id => loadTopic(id)))]);
+        const contexts = new Map(loaded.map(ctx => [ctx.topic.id, ctx]));
         const own = quiz && quiz.day === day ? quiz.plan : [];
         const plan = DailyQuiz.planDay(day, groups, (id) => { const ctx = contexts.get(id); return ctx ? { items: ctx.items, categories: ctx.topic.categories.map(category => category.key) } : null; }, DailyQuiz.QUESTIONS - 1);
         return Array.from({ length: DailyQuiz.QUESTIONS }, (_, index) => {
+            if (frozen[seeds[index]]) { try { return describeSnapshot(frozen[seeds[index]]); } catch (error) { console.error(error); } }
             const pick = own[index] && contexts.get(own[index].topic) ? own[index] : plan[index];
             const ctx = pick ? contexts.get(pick.topic) : null;
             const item = ctx ? ctx.byId.get(pick.q) : null;
@@ -7936,19 +8105,26 @@
         const groups = quizGroups();
         const slot = DailyQuiz.slotsFor(attempt.day, groups)[index];
         runRound(async () => {
-            const rng = createSeededRandom(DailyQuiz.questionSeed(attempt.day, index));
-            const saved = attempt.plan[index];
-            if (saved && TOPIC_BY_ID[saved.topic]) {
-                const ctx = await loadTopic(saved.topic);
-                const item = ctx.byId.get(saved.q);
-                if (item) return { item, ctx, rng };
-            }
-            const ids = [...new Set(DailyQuiz.slotsFor(attempt.day, groups).slice(0, index + 1).map(entry => entry.topic))].filter(id => TOPIC_BY_ID[id]);
-            const contexts = new Map((await Promise.all(ids.map(id => loadTopic(id)))).map(ctx => [ctx.topic.id, ctx]));
-            const plan = DailyQuiz.planDay(attempt.day, groups, (id) => { const ctx = contexts.get(id); return ctx ? { items: ctx.items, categories: ctx.topic.categories.map(category => category.key) } : null; }, index);
-            const pick = plan[index];
-            const ctx = pick ? contexts.get(pick.topic) : null;
-            return { item: ctx ? ctx.byId.get(pick.q) : null, ctx, rng };
+            const seed = DailyQuiz.questionSeed(attempt.day, index);
+            // Otázka uložená na serveru (zamrzlé otázky): stejná pro všechny, i když má tohle zařízení jinou verzi dat
+            const frozen = (await frozenQuestions([seed]))[seed];
+            if (frozen) { await loadTopic(frozen.topic).catch(() => null); return { frozen, snapshotSeed: seed }; }
+            const rng = createSeededRandom(seed);
+            const local = async () => {
+                const saved = attempt.plan[index];
+                if (saved && TOPIC_BY_ID[saved.topic]) {
+                    const ctx = await loadTopic(saved.topic);
+                    const item = ctx.byId.get(saved.q);
+                    if (item) return { item, ctx, rng };
+                }
+                const ids = [...new Set(DailyQuiz.slotsFor(attempt.day, groups).slice(0, index + 1).map(entry => entry.topic))].filter(id => TOPIC_BY_ID[id]);
+                const contexts = new Map((await Promise.all(ids.map(id => loadTopic(id)))).map(ctx => [ctx.topic.id, ctx]));
+                const plan = DailyQuiz.planDay(attempt.day, groups, (id) => { const ctx = contexts.get(id); return ctx ? { items: ctx.items, categories: ctx.topic.categories.map(category => category.key) } : null; }, index);
+                const pick = plan[index];
+                const ctx = pick ? contexts.get(pick.topic) : null;
+                return { item: ctx ? ctx.byId.get(pick.q) : null, ctx, rng };
+            };
+            return { ...(await local()), snapshotSeed: seed };
         }, slot ? TOPIC_BY_ID[slot.topic] || null : null);
     };
     // Otázka je na obrazovce: vždy výběr z možností, čas od prvního zobrazení (po návratu běží dál), nápovědy jako před zavřením
@@ -7959,7 +8135,8 @@
         round.timerStart = open.at;
         round.hintLevel = Math.min(Math.max(1, open.hint || 1), getLevelCount(current));
         quiz.open = open;
-        if (!quiz.plan[quizIndex]) quiz.plan[quizIndex] = { topic: current.topic, q: current.id };
+        // Položka otázky do plánu pokusu (u otázky ze serveru platí její, i kdyby ji místní plán vybral jinak)
+        if (!quiz.plan[quizIndex] || quiz.plan[quizIndex].topic !== current.topic || quiz.plan[quizIndex].q !== current.id) quiz.plan[quizIndex] = { topic: current.topic, q: current.id };
         storeQuiz(quiz);
     };
     // Při každém překreslení otázky: použité nápovědy do uloženého stavu (zavření aplikace je nevrátí)

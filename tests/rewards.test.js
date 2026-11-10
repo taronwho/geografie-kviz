@@ -176,8 +176,14 @@ test('napojení: rewards.js v index.html, service workeru, nasazení a Tailwindu
     assert.match(sql, /add column if not exists rewards jsonb/);
     assert.match(sql, /grant update \(rewards\) on public\.profiles to authenticated/);
     for (const badge of core.BADGES) assert.ok(sql.includes(`'${badge.id}'`), `${badge.id} v badge_catalog()`);
-    // Truhla a štít se kreslí bez inline stylů (CSP)
-    assert.doesNotMatch(Rewards.chestHtml({}, {}) + Rewards.chestStripHtml() + Rewards.freezeChip(2), /style=/);
+    // Truhla (zavřená i otevřená s věcí nebo XP) a štít se kreslí bez inline stylů (CSP)
+    const robe = { category: 'robes', item: Look.find('robes', 'zelena') };
+    const opened = Rewards.chestHtml({ opened: { gift: robe, xp: 0, freeze: true } }, {}) + Rewards.chestHtml({ opened: { gift: null, xp: Rewards.CHEST_XP, freeze: false } }, {});
+    assert.doesNotMatch(Rewards.chestHtml({}, {}) + opened + Rewards.chestStripHtml() + Rewards.freezeChip(2), /style=/);
+    // Zavřená truhla je tlačítko s nápovědou a obě podoby truhly jsou v okně (otevřená se načte dopředu)
+    assert.match(Rewards.chestHtml({}, {}), /data-chest-go aria-label="Otevřít truhlu"[^>]*class="chest-box/);
+    for (const html of [Rewards.chestHtml({}, {}), opened]) assert.match(html, /truhla\.webp[\s\S]*truhla-otevrena\.webp/);
+    assert.match(opened, /data-chest-prize/);
 });
 
 test('nové odznaky: Kvíz dne, Bleskovka, Přežití, mapa, odhad a Seřaď podle počítadel, s odměnou a ikonou', () => {

@@ -225,23 +225,113 @@ html.kb-open #settings-overlay > *, html.kb-open #dialog-overlay > * { max-heigh
 @keyframes modeHeartLost { 0% { scale: 1.35; opacity: 1; } 60% { scale: 0.8; } 100% { scale: 1; opacity: 1; } }
 @keyframes modeUrgent { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
 
-/* Truhla Mudrlanta (rewards.js, app.js): zavřená se pohupuje, po otevření poskočí, za truhlou se rozzáří světlo
-   a jiskry, věc vyskočí. Při „omezit pohyb“ se záře jen ukáže a věc se objeví bez pohybu (žádné kývání ani skoky) */
-.chest-svg .chest-glow, .chest-svg .chest-sparks { opacity: 0; }
-.chest-open .chest-svg .chest-glow, .chest-open .chest-svg .chest-sparks { opacity: 1; }
-.chest-overlay { background: rgb(22 23 25 / 0.82); }
+/* Truhla Mudrlanta (rewards.js chestHtml, app.js openChestOverlay). Okno je ukotvené shora (ne na střed), aby truhla po otevření
+   zůstala na místě, i když pod ní přibude popis a tlačítka; 31rem ≈ výška otevřené truhly s věcí, ochranou a tlačítky.
+   1. Čeká (.chest-waiting): truhla dýchá a pohupuje se, za ní pulzuje zlatá záře a vlna, kolem se třpytí jiskry, nápověda pulzuje.
+   2. Klepnutí (.chest-shaking, app.js): truhla se 0,35 s natřásá a záře zesílí.
+   3. Otevřená (.chest-opened): zavřená truhla se prolne s otevřenou (stejné měřítko: otevřená je oříznutá bez jisker, proto 0,915),
+      truhla poskočí, rozletí se kruh světla a jiskry, za truhlou se točí paprsky, věc vystoupá z truhly s lehkým odskokem
+      a pak se objeví popis (.chest-show-1), ochrana série (-2) a tlačítka (-3); celkem asi 1,7 s.
+   Při „omezit pohyb“ bez pohybu: jen klidné stavy zavřená → otevřená s věcí. Všechny rozměry jsou vůči truhle 10rem × 10rem. */
+.chest-overlay { background: rgb(22 23 25 / 0.82); padding-top: max(1rem, calc((var(--app-h, 100vh) - 31rem) / 2)); }
+@supports (height: 100dvh) { .chest-overlay { padding-top: max(1rem, calc((var(--app-h, 100dvh) - 31rem) / 2)); } }
+.chest-box:disabled { cursor: default; }
+.chest-body { position: relative; transform-origin: 50% 90%; }
+.chest-body > img { grid-area: 1 / 1; }
+.chest-lid-open { scale: 0.915; opacity: 0; }
+.chest-opened .chest-lid-closed { opacity: 0; }
+.chest-opened .chest-lid-open { opacity: 1; }
+/* Záře, paprsky a kruh: středem v otvoru truhly (50 %, 45 %) */
+.chest-halo, .chest-rays, .chest-ring, .chest-spark { position: absolute; left: 50%; top: 45%; pointer-events: none; }
+.chest-halo {
+    width: 15rem; height: 15rem; margin: -7.5rem 0 0 -7.5rem; border-radius: 9999px; opacity: 0.8;
+    background: radial-gradient(closest-side, rgb(255 240 200 / 0.85), rgb(239 197 92 / 0.5) 38%, rgb(239 197 92 / 0.16) 68%, rgb(239 197 92 / 0) 100%);
+}
+.chest-rays {
+    width: 19rem; height: 19rem; margin: -9.5rem 0 0 -9.5rem; border-radius: 9999px; opacity: 0.5;
+    background: repeating-conic-gradient(from 0deg, rgb(255 236 179 / 0.85) 0deg 3deg, rgb(255 236 179 / 0) 10deg 20deg, rgb(255 236 179 / 0.85) 27deg 30deg);
+    -webkit-mask-image: radial-gradient(closest-side, #000 18%, rgb(0 0 0 / 0.55) 50%, transparent 100%);
+    mask-image: radial-gradient(closest-side, #000 18%, rgb(0 0 0 / 0.55) 50%, transparent 100%);
+}
+.chest-ring {
+    width: 8rem; height: 8rem; margin: -4rem 0 0 -4rem; border-radius: 9999px; opacity: 0;
+    border: 3px solid rgb(254 226 176 / 0.9); box-shadow: 0 0 1.1rem rgb(239 197 92 / 0.8), inset 0 0 0.75rem rgb(239 197 92 / 0.6);
+}
+/* Jiskry: čtyřcípá hvězdička, poloha (--x, --y) od středu otvoru, velikost --s */
+.chest-spark {
+    width: var(--s); height: var(--s); margin: calc(var(--s) / -2) 0 0 calc(var(--s) / -2); translate: var(--x) var(--y);
+    background: linear-gradient(135deg, #fff7e0, #f5dc93 55%, #e8ae38);
+    clip-path: polygon(50% 0, 61% 39%, 100% 50%, 61% 61%, 50% 100%, 39% 61%, 0 50%, 39% 39%);
+}
+.chest-spark:nth-child(1) { --x: -4.9rem; --y: -2.6rem; --s: 0.95rem; }
+.chest-spark:nth-child(2) { --x: 4.6rem; --y: -3.7rem; --s: 1.2rem; }
+.chest-spark:nth-child(3) { --x: 5.3rem; --y: 0.7rem; --s: 0.7rem; }
+.chest-spark:nth-child(4) { --x: -5.2rem; --y: 1.7rem; --s: 0.75rem; }
+.chest-spark:nth-child(5) { --x: -2.3rem; --y: -4.7rem; --s: 0.6rem; }
+.chest-spark:nth-child(6) { --x: 1.5rem; --y: -5.1rem; --s: 0.85rem; }
+.chest-spark:nth-child(7) { --x: 4.6rem; --y: 4.3rem; --s: 0.6rem; }
+.chest-spark:nth-child(8) { --x: -4.4rem; --y: 4.5rem; --s: 0.55rem; }
+.chest-opened .chest-spark { translate: calc(var(--x) * 1.4) calc(var(--y) * 1.4); }
+.chest-prize { filter: drop-shadow(0 0 0.8rem rgb(254 226 176 / 0.6)); }
+/* Téma a barva v truhle: lesklá kulička (odlesk vlevo nahoře) */
+.chest-orb > span { position: relative; }
+.chest-orb > span::after { content: ''; position: absolute; inset: 0; border-radius: 9999px; background: radial-gradient(circle at 32% 28%, rgb(255 255 255 / 0.6), rgb(255 255 255 / 0) 42%); }
 @media (prefers-reduced-motion: no-preference) {
-    .chest-box:not(.chest-open) .chest-svg { animation: chestWobble 2.4s ease-in-out infinite; transform-origin: 50% 90%; }
-    .chest-shake .chest-svg { animation: chestShake 0.5s ease-in-out both !important; }
-    .chest-open .chest-svg .chest-img { animation: chestPop 0.7s cubic-bezier(0.2, 1.3, 0.4, 1) both; transform-origin: 50% 90%; }
-    .chest-open .chest-svg .chest-glow { animation: chestGlow 0.9s ease-out both; transform-box: fill-box; transform-origin: 50% 50%; }
-    .chest-open .chest-svg .chest-sparks { animation: chestSparks 1.6s ease-in-out 0.3s infinite; }
-    .chest-reveal { animation: chestReveal 0.55s cubic-bezier(0.2, 1.4, 0.4, 1) 0.35s both; }
     .chest-strip .chest-mini { animation: chestWobble 2.4s ease-in-out infinite; transform-origin: 50% 90%; }
+    .chest-waiting .chest-body { animation: chestIdle 2.6s ease-in-out infinite; }
+    .chest-waiting .chest-halo { animation: chestHalo 2.6s ease-in-out infinite; }
+    .chest-waiting .chest-ring { animation: chestRipple 2.6s ease-out 0.4s infinite; }
+    .chest-waiting .chest-spark { animation: chestTwinkle 1.8s ease-in-out infinite; }
+    .chest-hint { animation: chestHint 1.3s ease-in-out infinite; }
+    .chest-shaking .chest-body { animation: chestShake 0.35s ease-in-out both; }
+    .chest-shaking .chest-halo { animation: chestCharge 0.35s ease-in both; }
+    .chest-shaking ~ .chest-hint { animation: chestOut 0.2s ease-out both; }
+    .chest-opened .chest-body { animation: chestPop 0.6s cubic-bezier(0.3, 1.5, 0.5, 1) both; }
+    .chest-opened .chest-lid-closed { animation: chestOut 0.14s linear both; }
+    .chest-opened .chest-lid-open { animation: chestIn 0.14s linear both; }
+    .chest-opened .chest-halo { animation: chestFlash 0.8s ease-out both, chestGlowOpen 3s ease-in-out 0.8s infinite; }
+    .chest-opened .chest-rays { animation: chestRaysIn 0.7s ease-out both, chestSpin 24s linear infinite; }
+    .chest-opened .chest-ring { animation: chestBurst 0.75s ease-out both; }
+    .chest-opened .chest-spark { animation: chestFly 0.9s cubic-bezier(0.2, 0.8, 0.3, 1) both, chestTwinkle 1.8s ease-in-out 1s infinite; }
+    .chest-opened .chest-prize { animation: chestRise 0.8s cubic-bezier(0.25, 1.4, 0.5, 1) 0.12s both, chestFloat 3s ease-in-out 1.2s infinite; }
+    .chest-show-1 { animation: chestFadeUp 0.4s ease-out 0.5s both; }
+    .chest-show-2 { animation: chestFadeUp 0.4s ease-out 0.7s both; }
+    .chest-show-3 { animation: chestFadeUp 0.35s ease-out 0.85s both; }
+    /* Jiskry se nepohnou všechny naráz */
+    .chest-spark:nth-child(2n) { animation-delay: -0.6s; }
+    .chest-spark:nth-child(3n) { animation-delay: -1.1s; }
+    .chest-opened .chest-spark:nth-child(2n) { animation-delay: 0.05s, 1.3s; }
+    .chest-opened .chest-spark:nth-child(3n) { animation-delay: 0.1s, 1.6s; }
 }
 @keyframes chestWobble { 0%, 70%, 100% { rotate: 0deg; } 76% { rotate: -6deg; } 82% { rotate: 6deg; } 88% { rotate: -4deg; } 94% { rotate: 3deg; } }
-@keyframes chestShake { 0%, 100% { translate: 0 0; rotate: 0deg; } 20% { translate: -4px 0; rotate: -5deg; } 40% { translate: 4px 0; rotate: 5deg; } 60% { translate: -3px 0; rotate: -3deg; } 80% { translate: 3px 0; rotate: 2deg; } }
-@keyframes chestPop { 0% { scale: 1; translate: 0 0; } 35% { scale: 1.12 0.9; translate: 0 4%; } 65% { scale: 0.95 1.1; translate: 0 -10%; } 100% { scale: 1; translate: 0 0; } }
-@keyframes chestGlow { from { opacity: 0; transform: scale(0.3); } to { opacity: 1; transform: scale(1); } }
-@keyframes chestSparks { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
-@keyframes chestReveal { from { opacity: 0; scale: 0.6; translate: 0 18px; } to { opacity: 1; scale: 1; translate: 0 0; } }
+@keyframes chestIdle {
+    0%, 56%, 100% { translate: 0 0; scale: 1; rotate: 0deg; }
+    28% { translate: 0 -0.45rem; scale: 1.03 0.99; }
+    64% { rotate: -4deg; } 71% { rotate: 4deg; } 78% { rotate: -2.5deg; } 85% { rotate: 1.5deg; } 92% { rotate: 0deg; }
+}
+@keyframes chestHalo { 0%, 100% { scale: 0.82; opacity: 0.55; } 50% { scale: 1.06; opacity: 1; } }
+@keyframes chestRipple { 0% { scale: 0.7; opacity: 0; } 20% { opacity: 0.6; } 100% { scale: 1.6; opacity: 0; } }
+@keyframes chestTwinkle { 0%, 100% { scale: 0.35; opacity: 0.25; } 50% { scale: 1; opacity: 1; } }
+@keyframes chestHint { 0%, 100% { opacity: 0.8; scale: 1; } 50% { opacity: 1; scale: 1.05; } }
+@keyframes chestShake {
+    0%, 100% { translate: 0 0; rotate: 0deg; scale: 1; }
+    20% { translate: -3px 0; rotate: -6deg; scale: 1.04 0.97; } 40% { translate: 3px 0; rotate: 6deg; }
+    60% { translate: -3px 0; rotate: -5deg; } 80% { translate: 2px 0; rotate: 4deg; scale: 1.06 0.95; }
+}
+@keyframes chestCharge { from { scale: 0.95; opacity: 0.8; } to { scale: 1.2; opacity: 1; } }
+@keyframes chestPop { 0% { scale: 1.08 0.9; translate: 0 3%; } 40% { scale: 0.96 1.06; translate: 0 -6%; } 100% { scale: 1; translate: 0 0; } }
+@keyframes chestOut { from { opacity: 1; } to { opacity: 0; } }
+@keyframes chestIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes chestFlash { 0% { scale: 0.6; opacity: 1; } 35% { scale: 1.35; opacity: 1; } 100% { scale: 1.05; opacity: 0.9; } }
+@keyframes chestGlowOpen { 0%, 100% { scale: 1.05; opacity: 0.9; } 50% { scale: 1.13; opacity: 1; } }
+@keyframes chestRaysIn { from { scale: 0.2; opacity: 0; } to { scale: 1; opacity: 0.5; } }
+@keyframes chestSpin { to { rotate: 360deg; } }
+@keyframes chestBurst { from { scale: 0.4; opacity: 1; } to { scale: 2.8; opacity: 0; } }
+@keyframes chestFly {
+    from { translate: 0 0; scale: 0.3; opacity: 0; }
+    15% { opacity: 1; }
+    to { translate: calc(var(--x) * 1.4) calc(var(--y) * 1.4); scale: 1; opacity: 0.9; }
+}
+@keyframes chestRise { 0% { translate: 0 4.75rem; scale: 0.15; opacity: 0; } 20% { opacity: 1; } 100% { translate: 0 0; scale: 1; opacity: 1; } }
+@keyframes chestFloat { 0%, 100% { translate: 0 0; } 50% { translate: 0 -0.3rem; } }
+@keyframes chestFadeUp { from { opacity: 0; translate: 0 0.5rem; } to { opacity: 1; translate: 0 0; } }

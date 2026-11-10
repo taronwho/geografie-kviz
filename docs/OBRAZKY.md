@@ -402,7 +402,7 @@ Wide horizontal banner in exactly the same cartoon sticker art style as the atta
 
 ## 6. Nové odznaky a odměny
 
-**Stav: hotovo.** Všech 31 symbolů odznaků (oddíl 3 i 6), truhla, ochrana série a diplom (č. 57) jsou v `branding/ikony/` a zpracované do `icons/topics/` (`python3 scripts/topic-icons.py odznak-… truhla ochrana-serie`). Medaile je ukazují místo čárových ikon (`BADGE_ART` v `app.js`, stejný seznam v `sw.js`, kontroluje `tests/badge-art.test.js`); truhla je obrázek se září a jiskrami, při otevření poskočí. Symbol odznaku se kreslí bez kolečka medaile, stejně jako v oddíle 3.
+**Stav: hotovo.** Všech 31 symbolů odznaků (oddíl 3 i 6), truhla, ochrana série a diplom (č. 57) jsou v `branding/ikony/` a zpracované do `icons/topics/` (`python3 scripts/topic-icons.py odznak-… truhla ochrana-serie`). Medaile je ukazují místo čárových ikon (`BADGE_ART` v `app.js`, stejný seznam v `sw.js`, kontroluje `tests/badge-art.test.js`); truhla je obrázek se září a jiskrami; při otevření se prolne s otevřenou truhlou (`truhla-otevrena.png`, vyříznutá jako samolepka bez jisker, `STICKER` ve skriptu) a vystoupá z ní věc (animace `.chest-*` v `src/input.css`). Symbol odznaku se kreslí bez kolečka medaile, stejně jako v oddíle 3.
 
 ### 47. `odznak-kviz-dne.png` – Kvíz dne
 
@@ -668,6 +668,114 @@ Odemkne: odznak Seřaď bez chyby (místo 🧩). Přiložit: `branding/sova-orig
 
 ```text
 Cartoon sticker character portrait in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole character. A single funny, original character shown from the chest up, big expressive face looking at the viewer, centered and filling about 85 % of the frame, readable even as a tiny 40 px profile picture (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, shading); do not draw the owl and do not copy any existing cartoon character. Character: A focused raccoon with its tongue out in concentration, carefully balancing a neat tower of rainbow-colored books stacked from the biggest to the smallest. Colors: grey and black raccoon, rainbow books (red, orange, yellow, green, blue, purple). Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+## 10. Obrázky do tlačítek a prázdných míst
+
+Všechno vlastní a nové: režimy Bleskovka, Přežití a Ukaž na mapě dostanou vlastní ilustrace (jejich odznaky zůstanou odznaky), Učení, Skupiny a Archiv turnajů obrázek místo ikonky a prázdné stavy (zatím žádné výzvy, nikdo tu není…) a okno upozornění vlastní pózy sovy. Pózy sovy dostanou barvy obleku jako ostatní sovy. Chybí ještě č. 73 Chameleon.
+
+### 79. `rezim-bleskovka.png` – Bleskovka
+
+Kam: výběr Co hrát, úvod a výsledek Bleskovky (odznak Bleskovka zůstane jen odznakem). Přiložit: `branding/sova-original.jpg` (vzor stylu)
+
+```text
+Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole object. Single centered subject filling about 80 % of the frame with even empty space around it, readable even as a small 48 px button icon (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow on the background, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, colors, shading); do not draw the owl and do not copy any existing cartoon or game artwork. Subject: A big round golden quiz-show buzzer button on a short teal base, being pressed so hard that bright yellow and electric-blue lightning bolts burst out around its rim, a thin glowing countdown ring circling the button and a few speed streaks behind it. Colors: gold, teal, electric blue, bright yellow. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+### 80. `rezim-preziti.png` – Přežití
+
+Kam: výběr Co hrát, úvod a výsledek Přežití. Přiložit: `branding/sova-original.jpg` (vzor stylu)
+
+```text
+Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole object. Single centered subject filling about 80 % of the frame with even empty space around it, readable even as a small 48 px button icon (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow on the background, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, colors, shading); do not draw the owl and do not copy any existing cartoon or game artwork. Subject: A small sturdy wooden raft riding the crest of a big curling teal wave, a short mast in the middle with three glossy red cartoon hearts tied to it like balloons, a little cream sail patched with one golden star patch, water droplets splashing. Colors: wood brown, teal and white foam, glossy red, cream. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+### 81. `rezim-mapa.png` – Ukaž na mapě
+
+Kam: tlačítko Ukaž na mapě ve výběru Co hrát a štítek otázky na mapě. Přiložit: `branding/sova-original.jpg` (vzor stylu)
+
+```text
+Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole object. Single centered subject filling about 80 % of the frame with even empty space around it, readable even as a small 48 px button icon (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow on the background, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, colors, shading); do not draw the owl and do not copy any existing cartoon or game artwork. Subject: An open brass explorer's compass lying on the corner of a curling parchment map, the compass needle replaced by a tiny glossy red map pin, a dotted trail on the map winding from the compass to a small golden X. Colors: brass, cream parchment, sage green and light blue map shapes, glossy red pin. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+### 82. `ucit-prohlizet.png` – Učení → Prohlížet
+
+Kam: velké tlačítko Prohlížet v okruhu Učení. Přiložit: `branding/sova-original.jpg` (vzor stylu)
+
+```text
+Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole object. Single centered subject filling about 80 % of the frame with even empty space around it, readable even as a small 48 px button icon (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow on the background, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, colors, shading); do not draw the owl and do not copy any existing cartoon or game artwork. Subject: A thick open atlas book standing slightly upright, a colorful simple world map spread across both pages, a round brass magnifying glass leaning on the right page and enlarging one tiny island, a teal ribbon bookmark hanging out at the bottom. Colors: cream pages, teal and green map, brass, deep blue cover. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+### 83. `ucit-procvicit.png` – Učení → Procvičit
+
+Kam: velké tlačítko Procvičit v okruhu Učení. Přiložit: `branding/sova-original.jpg` (vzor stylu)
+
+```text
+Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole object. Single centered subject filling about 80 % of the frame with even empty space around it, readable even as a small 48 px button icon (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow on the background, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, colors, shading); do not draw the owl and do not copy any existing cartoon or game artwork. Subject: Three plump flash cards fanned out like a hand of cards, the front card mid-flip with a small golden star and a green check-mark sparkle popping off it, a short yellow pencil tucked behind the cards. Colors: cream cards with teal and sky-blue edges, gold, fresh green, yellow pencil. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+### 84. `skupiny.png` – Skupiny
+
+Kam: štítek a okno Skupiny ve Více hráčích. Přiložit: `branding/sova-original.jpg` (vzor stylu)
+
+```text
+Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole object. Single centered subject filling about 80 % of the frame with even empty space around it, readable even as a small 48 px button icon (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow on the background, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, colors, shading); do not draw the owl and do not copy any existing cartoon or game artwork. Subject: Three chubby rounded game pawns standing close together like a little team on a round wooden base, one teal, one golden yellow and one sky blue, each with a tiny cheerful smiling face, a small triangular cream pennant flag on a wooden stick planted behind them. Colors: teal, golden yellow, sky blue, cream, wood brown. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+### 85. `archiv-turnaju.png` – Archiv turnajů
+
+Kam: tlačítko a okno Archiv turnajů. Přiložit: `branding/sova-original.jpg` (vzor stylu)
+
+```text
+Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole object. Single centered subject filling about 80 % of the frame with even empty space around it, readable even as a small 48 px button icon (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow on the background, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, colors, shading); do not draw the owl and do not copy any existing cartoon or game artwork. Subject: A small wooden display cabinet with two glass-door shelves, on the top shelf a shiny gold trophy cup, on the lower shelf a silver and a bronze medal hanging on teal ribbons, an empty little brass plaque on the cabinet front, light reflections on the glass. Colors: warm wood brown, gold, silver, bronze, teal, light blue glass highlights. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+### 86. `sova-zvonek.png` – Upozornění
+
+Kam: okno „Mám ti dát vědět?“ (místo uvítací sovy). Přiložit: `branding/sova-original.jpg` (postava)
+
+```text
+Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole object. Single centered subject filling about 80 % of the frame with even empty space around it. Plain solid flat dark grey background, color #2d3034, no gradient, no shadow on the background, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl mascot as the character: keep its face, monocle with chain, white eyebrows and whiskers, golden-brown feathers and wine-red academic robe with cap exactly as they are; change only the pose and props described here. The wine-red color must appear only on the robe and cap: all props must be in other colors (no red, pink or wine-colored props). Subject: The owl mascot cheerfully ringing a big polished brass hand bell held high in one wing, a small cream paper envelope with a sky-blue star seal flying out of the bell's sound waves, the owl winking. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+### 87. `sova-prazdna-posta.png` – Zatím žádné výzvy
+
+Kam: prázdný seznam výzev a pozvánek. Přiložit: `branding/sova-original.jpg` (postava)
+
+```text
+Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole object. Single centered subject filling about 80 % of the frame with even empty space around it. Plain solid flat dark grey background, color #2d3034, no gradient, no shadow on the background, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl mascot as the character: keep its face, monocle with chain, white eyebrows and whiskers, golden-brown feathers and wine-red academic robe with cap exactly as they are; change only the pose and props described here. The wine-red color must appear only on the robe and cap: all props must be in other colors (no red, pink or wine-colored props). Subject: The owl mascot peeking with one eye into an open, completely empty wooden mailbox on a short post, one wing lifted in a puzzled little shrug, a single tiny golden feather floating out of the mailbox. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+### 88. `sova-dalekohled.png` – Zatím tu nikdo není
+
+Kam: prázdný seznam hráčů, přátel nebo členů skupiny. Přiložit: `branding/sova-original.jpg` (postava)
+
+```text
+Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole object. Single centered subject filling about 80 % of the frame with even empty space around it. Plain solid flat dark grey background, color #2d3034, no gradient, no shadow on the background, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl mascot as the character: keep its face, monocle with chain, white eyebrows and whiskers, golden-brown feathers and wine-red academic robe with cap exactly as they are; change only the pose and props described here. The wine-red color must appear only on the robe and cap: all props must be in other colors (no red, pink or wine-colored props). Subject: The owl mascot standing on tiptoes and looking through a long brass telescope pointed to the side, searching the horizon with a hopeful smile, a small teal speech-bubble shape with three dots floating next to it. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+### 89. `sova-ceka.png` – Zatím nikdo nehrál
+
+Kam: výsledky výzvy nebo zápasu, kde ještě nikdo nedohrál. Přiložit: `branding/sova-original.jpg` (postava)
+
+```text
+Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole object. Single centered subject filling about 80 % of the frame with even empty space around it. Plain solid flat dark grey background, color #2d3034, no gradient, no shadow on the background, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl mascot as the character: keep its face, monocle with chain, white eyebrows and whiskers, golden-brown feathers and wine-red academic robe with cap exactly as they are; change only the pose and props described here. The wine-red color must appear only on the robe and cap: all props must be in other colors (no red, pink or wine-colored props). Subject: The owl mascot sitting patiently on a small teal travel suitcase, holding up a round golden pocket watch on a chain and checking the time with a calm, slightly amused smile, one foot tapping. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+### 90. `sova-cisty-sesit.png` – Žádné chyby
+
+Kam: Učení → Moje chyby, když tam nic není. Přiložit: `branding/sova-original.jpg` (postava)
+
+```text
+Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole object. Single centered subject filling about 80 % of the frame with even empty space around it. Plain solid flat dark grey background, color #2d3034, no gradient, no shadow on the background, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl mascot as the character: keep its face, monocle with chain, white eyebrows and whiskers, golden-brown feathers and wine-red academic robe with cap exactly as they are; change only the pose and props described here. The wine-red color must appear only on the robe and cap: all props must be in other colors (no red, pink or wine-colored props). Subject: The owl mascot proudly holding up an open clean teal notebook with one big shiny golden star sticker on the empty page, giving a thumbs-up with the other wing, small sparkles around the star. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+### 91. `sova-prach.png` – Prázdný archiv
+
+Kam: Archiv turnajů, dokud žádný turnaj neskončil. Přiložit: `branding/sova-original.jpg` (postava)
+
+```text
+Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole object. Single centered subject filling about 80 % of the frame with even empty space around it. Plain solid flat dark grey background, color #2d3034, no gradient, no shadow on the background, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl mascot as the character: keep its face, monocle with chain, white eyebrows and whiskers, golden-brown feathers and wine-red academic robe with cap exactly as they are; change only the pose and props described here. The wine-red color must appear only on the robe and cap: all props must be in other colors (no red, pink or wine-colored props). Subject: The owl mascot dusting an empty wooden trophy shelf with a fluffy sky-blue feather duster, little puffs of dust in the air, the owl looking at the empty shelf with an optimistic, determined expression. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
 ## Co udělám po dodání

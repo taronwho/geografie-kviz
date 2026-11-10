@@ -237,12 +237,15 @@ test('SQL: web push (odběry, tajemství, push_due, push_mark)', { skip: !availa
         const rows = mine();
         assert.equal(rows.length, 1);
         assert.equal(rows[0].title, 'Hráč 1 odehrál tvoji výzvu');
-        assert.equal(rows[0].body, 'Dal 7 z 10 správně. Podívej se, jak jsi na tom ty.');
+        // zakladatel výzvu ještě nedohrál: výsledek soupeře v upozornění není (mohl by podle něj taktizovat)
+        assert.equal(rows[0].body, 'Jeho výsledek uvidíš, až výzvu dohraješ i ty.');
+        assert.doesNotMatch(rows[0].body, /7/);
         assert.equal(rows[0].key, `chalr:ABCDE3:${id(3)}`);
         assert.equal(rows[0].url, './?tab=multi&vyzva=ABCDE3', 'klepnutí otevře výsledky výzvy');
-        // výsledek zakladatele samotného nic nespouští
+        // výsledek zakladatele samotného nic nespouští; po jeho dohrání upozornění výsledek soupeře ukáže
         ok(as(id(3), TUE, `${challengeProgressSql('ABCDE3', 10, 4, 8)} insert into challenge_results (challenge_id, user_id, correct, points) values ('ABCDE3', '${id(3)}', 4, 8);`));
         assert.equal(mine().length, 1);
+        assert.equal(mine()[0].body, 'Dal 7 z 10 správně. Podívej se, jak jsi na tom ty.');
         mark([rows[0].key], { okEndpoints: [rows[0].endpoint] });
         assert.equal(mine().length, 0, 'odeslané se neopakuje');
         assert.equal(q(`select kind from push_sent where dedupe_key = '${rows[0].key}'`), 'challenge');

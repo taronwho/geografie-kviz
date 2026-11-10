@@ -1,4 +1,4 @@
-// Odměna „barva obleku sovy“ v prohlížeči: výběr v Nastavení → Vzhled, přepnutí obrázků sovy, zamčené barvy, uložení volby.
+// Odměna „barva obleku sovy“ v prohlížeči: výběr v Nastavení → Mudrlant, přepnutí obrázků sovy, zamčené barvy, uložení volby.
 // Potřebuje Playwright, jinak se přeskočí. Soubory se servírují s CSP z _headers (inline styl by se zablokoval).
 const test = require('node:test');
 const assert = require('node:assert/strict');
