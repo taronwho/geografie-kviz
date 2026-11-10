@@ -31,7 +31,8 @@
     "audit:photo-text": "node scripts/photo-text.mjs",
     "audit:photo-masks": "node scripts/photo-masks.mjs",
     "audit:questions": "node scripts/audit-questions.mjs",
-    "audit:otazky": "node scripts/audit-questions.mjs"
+    "audit:otazky": "node scripts/audit-questions.mjs",
+    "audit:mapa": "node scripts/audit-mapa.mjs"
   },
   "devDependencies": {
     "web-push": "^3.6.7"
