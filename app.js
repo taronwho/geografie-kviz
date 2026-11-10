@@ -815,6 +815,8 @@
     // upozornění dostane každý jednou denně, správce (dev_admins nebo vývojářský režim) navíc v Nastavení návod, co spustit)
     const SCHEMA_SEEN_KEY = 'mudrlant.schemaSeen';
     let schemaOutdated = null; // { have, need } nebo null
+    // Verze schématu v databázi z poslední kontroly (pro vývojářský panel): undefined = zatím nezjištěno, null = databáze funkci nemá
+    let schemaHave;
     let schemaNoticeClosed = false;
     const SCHEMA_NOTICE = {
         client: { text: 'Aplikace je starší než databáze. Aktualizuj stránku, ať všechno funguje.', action: 'schema-update', label: 'Aktualizovat' },
@@ -843,6 +845,7 @@
         try {
             const have = await Social.schemaVersion();
             if (have === undefined || !signedUser() || signedUser().id !== user.id) return;
+            schemaHave = have;
             if (have !== null && have > REQUIRED_SCHEMA) { schemaOutdated = null; showSchemaNotice('client'); return; }
             if (have === REQUIRED_SCHEMA) { schemaOutdated = null; return; }
             // Zastaralou databázi umí opravit jen správce, proto se hlásí jen jemu (běžný hráč s tím nic nenadělá)
@@ -861,6 +864,7 @@
     const renderDevPanel = () => !devOn() ? '' : `
         <div class="mt-3 rounded-2xl border-2 border-dashed border-amber-400/70 p-2.5">
             <p class="mb-1.5 flex items-center justify-between text-[11px] font-black uppercase tracking-widest text-amber-700 dark:text-amber-400"><span>Vývojářský režim</span><span class="font-bold normal-case tracking-normal">${devActive() ? 'zkušební postup' : 'tvůj postup'}</span></p>
+            ${Social ? `<p data-dev-schema class="mb-1.5 text-[11px] font-semibold leading-snug ${schemaHave === REQUIRED_SCHEMA ? 'text-emerald-700 dark:text-emerald-300' : 'text-amber-800 dark:text-amber-200'}">Databáze: ${schemaHave === undefined ? 'verze schématu zatím nezjištěna' : schemaHave === null ? 'schéma bez verze (starší než 1)' : `schéma ${schemaHave}`} · aplikace potřebuje ${REQUIRED_SCHEMA}${schemaHave === REQUIRED_SCHEMA ? ' ✓' : schemaHave === undefined ? '' : schemaHave > REQUIRED_SCHEMA ? ' – aplikace je starší, obnov ji' : ' – spusť supabase/schema.sql'}</p>` : ''}
             <div class="flex flex-wrap gap-1">${[['max', 'Vše (úr. 100)'], ['level:10', 'Úr. 10'], ['level:25', 'Úr. 25'], ['level:50', 'Úr. 50'], ['level:75', 'Úr. 75'], ['badges', 'Všechny odznaky'], ['nobadges', 'Žádné odznaky'], ['nostars', 'Vymazat hvězdičky'], ['bulb', 'Vrátit žárovku'], ['tips', 'Obnovit tipy']].map(([kind, label]) => `<button type="button" data-dev="${kind}" class="rounded-lg bg-slate-200 px-2 py-1 text-[11px] font-bold text-slate-700 active:scale-95 dark:bg-slate-700 dark:text-slate-200">${label}</button>`).join('')}${devActive() ? '<button type="button" data-dev="restore" class="rounded-lg bg-amber-700 px-2 py-1 text-[11px] font-black text-white active:scale-95">Vrátit můj postup</button>' : ''}</div>
             ${Social ? `<p class="mb-1 mt-2 text-[11px] font-black uppercase tracking-widest text-amber-700 dark:text-amber-400">Turnaj (boti)</p>
             <div class="flex flex-wrap gap-1">${[['tour-bots', '+31 botů'], ['tour-start', 'Spustit hned'], ['tour-play', 'Boti odehrají kolo'], ['tour-next', 'Další kolo'], ['tour-reset', 'Smazat odehraný turnaj'], ['tour-clear', 'Smazat boty']].map(([kind, label]) => `<button type="button" data-dev="${kind}" class="rounded-lg bg-emerald-100 px-2 py-1 text-[11px] font-bold text-emerald-900 active:scale-95 dark:bg-emerald-900/50 dark:text-emerald-100">${label}</button>`).join('')}</div>
