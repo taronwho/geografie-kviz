@@ -37,8 +37,13 @@
     const BUNDLE_TIER = 20;
     // Když už hráč všechno má (a ochran má plno): body zkušeností místo věci
     const FALLBACK_XP = 150;
-    // Obrázky Sezónní truhly, až budou (icons/topics/<jméno>.webp); do té doby obyčejná truhla ve fialovo-stříbrném světle
-    const SEASON_CHEST_ART = null; // { closed: 'sezonni-truhla', open: 'sezonni-truhla-otevrena' }
+    // Sezónní truhla podle ročního období měsíce (docs/OBRAZKY.md č. 175–176): zima prosinec–únor, jaro březen–květen, léto červen–srpen,
+    // podzim září–listopad; obrázky icons/topics/truhla-<období>.webp a truhla-<období>-otevrena.webp. CHEST_READY = období, jejichž
+    // obrázky už jsou dodané (přidat sem a do sw.js); ostatní zatím ukážou obyčejnou truhlu ve fialovo-stříbrném světle sezóny.
+    const CHEST_PERIODS = ['zima', 'zima', 'jaro', 'jaro', 'jaro', 'leto', 'leto', 'leto', 'podzim', 'podzim', 'podzim', 'zima'];
+    const CHEST_READY = [];
+    const periodOf = (id) => CHEST_PERIODS[Number(String(id).slice(5, 7)) - 1] || null;
+    const seasonChestArt = (id) => { const period = periodOf(id); return period && CHEST_READY.includes(period) ? { closed: `truhla-${period}`, open: `truhla-${period}-otevrena` } : null; };
     const MONTHS = Look ? Look.SEASON_MONTHS : ['Leden', 'Únor', 'Březen', 'Duben', 'Květen', 'Červen', 'Červenec', 'Srpen', 'Září', 'Říjen', 'Listopad', 'Prosinec'];
     // 2. pád měsíce („odměny listopadu“)
     const MONTHS_GEN = ['ledna', 'února', 'března', 'dubna', 'května', 'června', 'července', 'srpna', 'září', 'října', 'listopadu', 'prosince'];
@@ -364,7 +369,7 @@
         const fan = parts.length > 1;
         const size = fan ? (parts.length > 2 ? 'h-[3.4rem] w-[3.4rem]' : 'h-16 w-16') : 'h-[5rem] w-[5rem]';
         const prizes = parts.map((part, index) => `<div data-season-prize class="chest-prize season-fan-${index + 1}${part.category === 'frames' ? ' text-[2.2rem]' : ''}">${prizeHtml(part, h, size)}</div>`).join('');
-        const art = SEASON_CHEST_ART && kind === 'bundle' ? SEASON_CHEST_ART : { closed: 'truhla', open: 'truhla-otevrena' };
+        const art = (kind === 'bundle' && seasonChestArt(id)) || { closed: 'truhla', open: 'truhla-otevrena' };
         const body = chest ? `
                         <img src="icons/topics/${art.closed}.webp" alt="" class="chest-lid-closed h-full w-full object-contain drop-shadow-lg">
                         <img src="icons/topics/${art.open}.webp" alt="" class="chest-lid-open h-full w-full object-contain drop-shadow-lg">` : `
@@ -406,7 +411,7 @@
     };
 
     return {
-        TIERS, STEPS, THRESHOLDS, GRACE_DAYS, FREEZE_TIERS, DOUBLE_TIER, BUNDLE_TIER, FALLBACK_XP, SEASON_CHEST_ART, MONTHS, MONTHS_GEN,
+        TIERS, STEPS, THRESHOLDS, GRACE_DAYS, FREEZE_TIERS, DOUBLE_TIER, BUNDLE_TIER, FALLBACK_XP, CHEST_PERIODS, CHEST_READY, periodOf, seasonChestArt, MONTHS, MONTHS_GEN,
         pragueDay, isSeason, seasonOf, monthOf, shiftSeason, label, monthName, lastDay, daysLeft, graceEnd, inGrace, formatDay, LAUNCH, availability,
         tierOf, progressOf, kindOf, xpOf, ensure, shift, pending, info, rngFor, encode, decode, pickItem, claim,
         emblemHtml, prizeHtml, partName, partKind, tierText, stripHtml, cardHtml, pathHtml, revealHtml

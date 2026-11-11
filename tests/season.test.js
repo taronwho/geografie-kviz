@@ -317,7 +317,19 @@ test('napojení a HTML: season.js v index.html, service workeru, nasazení a Tai
     assert.match(Season.revealHtml({ id: NOV, tier: 20, opened, h }), /Sezóna Listopad 2026[\s\S]*Sezónní truhla[\s\S]*Listopadový rámeček · titul Šampion sezóny/);
     // Jen obrázky, které existují (doplňky a postavičky sezóny se objeví, až budou v katalogu a na disku)
     for (const src of new Set([...html.matchAll(/src="([^"]+)"/g)].map(match => match[1]))) assert.ok(fs.existsSync(path.join(ROOT, src)), `obrázek ${src}`);
-    assert.equal(Season.SEASON_CHEST_ART, null, 'obrázky Sezónní truhly zatím nejsou');
+    // Sezónní truhla podle ročního období; dokud obrázky období nejsou dodané, obyčejná truhla
+    assert.deepEqual(['2026-12', '2027-01', '2027-02', '2027-03', '2027-05', '2027-06', '2027-08', '2027-09', '2027-11'].map(Season.periodOf), ['zima', 'zima', 'zima', 'jaro', 'jaro', 'leto', 'leto', 'podzim', 'podzim']);
+    const sw = fs.readFileSync(path.join(ROOT, 'sw.js'), 'utf8');
+    for (const period of ['zima', 'jaro', 'leto', 'podzim']) {
+        const id = `2026-${String(Season.CHEST_PERIODS.indexOf(period) + 1).padStart(2, '0')}`;
+        const art = Season.seasonChestArt(id);
+        if (!Season.CHEST_READY.includes(period)) { assert.equal(art, null, `${period}: zatím obyčejná truhla`); continue; }
+        for (const name of [art.closed, art.open]) {
+            assert.ok(fs.existsSync(path.join(ROOT, 'icons', 'topics', `${name}.webp`)), `${name}.webp`);
+            assert.ok(sw.includes(`'${name}'`), `${name} v mezipaměti service workeru`);
+        }
+        assert.match(Season.revealHtml({ id, tier: 20, h }), new RegExp(`icons/topics/${art.closed}\\.webp`));
+    }
     // Texty bez rodu hráče
     assert.doesNotMatch(html, /\b(získal|vyzvedl|dosáhl|hrál) jsi\b/);
 });
