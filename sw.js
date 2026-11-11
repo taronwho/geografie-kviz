@@ -3,15 +3,15 @@
 // a otevřenou aplikaci obnoví (jinak by se o nové verzi nedozvěděla)
 const CACHE_NAME = 'mudrlant-v3';
 // Symboly odznaků (icons/topics/odznak-<skupina>.webp); stejný seznam má app.js (BADGE_ART), hlídá tests/badge-art.test.js
-const BADGE_ART = ['odpovedi', 'rada', 'serie', 'dny', 'dokonale', 'dnes', 'bez-napovedy', 'psani', 'tezke', 'chyby', 'vyzvy', 'vyhry', 'vyhry-v-rade', 'zalozene',
+const BADGE_ART = ['sberatel', 'odpovedi', 'rada', 'serie', 'dny', 'dokonale', 'dnes', 'bez-napovedy', 'psani', 'tezke', 'chyby', 'vyzvy', 'vyhry', 'vyhry-v-rade', 'zalozene',
     'perfektni-vyzvy', 'uroven', 'poznane', 'vsestrannost', 'hvezdy', 'vsechna-temata', 'turnaje', 'turnaj-postupy', 'tydenni-cile', 'kviz-dne',
     'kviz-serie', 'kviz-perfekt', 'bleskovka', 'preziti', 'mapa', 'odhad', 'serad'];
 // Postavičky (profilové obrázky za odměny, icons/avatars/<id>.webp); stejný seznam má look.js (AVATARS s parts), hlídá tests/avatars.test.js.
 // Vrstvy přebarvených částí (<id>-<část><barva>.webp) se uloží až při použití.
 const AVATAR_ART = ['cervik', 'axolot', 'kaktus', 'drak', 'mamut', 'meduza', 'lenoch', 'tukan', 'lev', 'fenix', 'krecek', 'rytir', 'narval', 'zelva',
     'hodiny', 'chamel', 'gepard', 'zelvus', 'tucnak', 'zabak', 'myval'];
-// Obrázkové rámečky profilu (icons/frames/<id>.webp); stejný seznam má look.js (ART_FRAMES), hlídá tests/look-frames.test.js
-const FRAME_ART = ['ohen', 'more', 'soukoli', 'galaxie', 'kralovsky-vavrin', 'blesk', 'led', 'drak', 'duha-mracky', 'ruze'];
+// Obrázkové rámečky profilu (icons/frames/<id>.webp); stejný seznam má look.js (FRAMES s art: true), hlídá tests/look-frames.test.js
+const FRAME_ART = ['vecny-ohen', 'ohen', 'more', 'soukoli', 'galaxie', 'kralovsky-vavrin', 'blesk', 'led', 'drak', 'duha-mracky', 'ruze'];
 const APP_SHELL = [
     './', 'index.html', 'styles.css', 'config.js', 'friends.js', 'groups.js', 'soukromi.html', 'licence.html', 'licence.js', 'question-report.js', 'answer-stats.js', 'monitor.js', 'auth.js', 'social.js', 'icons.js', 'quiz-core.js', 'photo-source.js', 'visuals.js', 'question-map.js', 'numeric-questions.js', 'look-flags.js', 'look.js', 'look-themes.js', 'look-robes.js', 'look-frames.js', 'look-owl.js', 'rating.js', 'league-seasons.js', 'showcase.js', 'tournament.js', 'review.js', 'goals.js', 'tips.js', 'tutorial.js', 'push.js', 'daily-quiz.js', 'share-card.js', 'rewards.js', 'season.js', 'app.js', 'manifest.webmanifest', 'album.js',
     'topics/zemepis.js', 'data/zemepis.json', 'topics/historie.js', 'data/historie.json', 'topics/biologie.js', 'data/biologie.json',
@@ -25,7 +25,9 @@ const APP_SHELL = [
     // Masky loga (čepice, ruka, obojí: bez načtené masky by se sova nevykreslila) a logo bez monoklu
     'icons/logo.webp', 'icons/logo-maska.webp', 'icons/logo-maska-ruka.webp', 'icons/logo-maska-oba.webp', 'icons/logo-bez-monoklu.webp', ...['zemepis', 'vlajky', 'historie', 'mytologie', 'biologie', 'geologie', 'chemie', 'fyzika', 'umeni', 'architektura', 'hudba', 'literatura', 'film', 'sport', 'mix', 'chyby', 'dnes', 'vyzva', 'napoveda', 'stopky', 'serie', 'sova-radost', 'sova-smutek', 'sova-premysleni', 'sova-oslava', 'sova-vitez', 'sova-prohra', 'sova-vitej', 'sova-vyzva', 'sova-serie', 'sova-spi', 'liga-bronz', 'liga-stribro', 'liga-zlato', 'liga-platina', 'liga-diamant', 'liga-mistr', 'turnaj', 'nahodny', 'kod', 'cile', 'procvicovani', 'sova-tip', 'sova-titul-1', 'sova-titul-2', 'sova-titul-3', 'sova-titul-4', 'sova-titul-5', 'sova-titul-6', 'sova-titul-7', 'sova-titul-8', 'sova-titul-9', 'sova-titul-10', 'sova-titul-11', 'truhla', 'ochrana-serie', 'diplom', 'truhla-otevrena',
         // Režimy, Učení, Skupiny, Archiv turnajů a pózy sovy do prázdných míst (docs/OBRAZKY.md č. 79–89)
-        'rezim-bleskovka', 'rezim-preziti', 'rezim-mapa', 'ucit-prohlizet', 'ucit-procvicit', 'skupiny', 'archiv-turnaju', 'sova-zvonek', 'sova-dalekohled', 'sova-ceka', 'sova-prazdna-posta', 'sova-cisty-sesit', 'sova-prach'].map(id => `icons/topics/${id}.webp`),
+        'rezim-bleskovka', 'rezim-preziti', 'rezim-mapa', 'ucit-prohlizet', 'ucit-procvicit', 'skupiny', 'archiv-turnaju', 'sova-zvonek', 'sova-dalekohled', 'sova-ceka', 'sova-prazdna-posta', 'sova-cisty-sesit', 'sova-prach',
+        // Sezóna, album sbírky a vitrína (docs/OBRAZKY.md č. 133, 148, 150; odznak Sběratel č. 149 je v BADGE_ART)
+        'sezona', 'album', 'vitrina'].map(id => `icons/topics/${id}.webp`),
     ...BADGE_ART.map(id => `icons/topics/odznak-${id}.webp`), ...AVATAR_ART.map(id => `icons/avatars/${id}.webp`), ...FRAME_ART.map(id => `icons/frames/${id}.webp`), 'icons/favicon-32.png', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png'
 ];
 

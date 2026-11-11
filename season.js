@@ -231,6 +231,8 @@
     const KIND_NAMES = { ...(Rewards ? Rewards.KIND_NAMES : {}), titles: 'titul u jména', avatars: 'postavička' };
     const mm = (id) => pad2(monthOf(id));
     // Znak sezóny: logo Mudrlanta v rámečku měsíce (CSS .frame-sezona-MM)
+    // Obrázek Sezóny (cesta se stupni a truhlou na vrcholu, docs/OBRAZKY.md č. 133): karta v Mém postupu a záhlaví okna sezóny
+    const artHtml = (cls) => `<img src="icons/topics/sezona.webp" alt="" class="${cls} shrink-0 object-contain drop-shadow-md" data-season-art>`;
     const emblemHtml = (id, cls = 'h-10 w-10', text = 'text-[1.6rem]') => `<span class="relative flex ${cls} ${text} shrink-0 items-center justify-center rounded-full bg-white frame frame-sezona-${mm(id)}" aria-hidden="true"><img src="icons/logo.webp" alt="" class="h-[80%] w-[80%] object-contain"></span>`;
     // Ukázka části odměny (věc, ochrana, XP, titul, postavička)
     const prizeHtml = (part, h = {}, size = 'h-16 w-16') => {
@@ -294,7 +296,7 @@
         return `
         <div data-season-card class="season-card season-m${mm(id)} relative flex items-center gap-1.5 overflow-hidden rounded-2xl p-1.5 pl-2 text-white shadow-sm">
             <button type="button" data-season-open aria-label="Sezóna ${esc(label(id))}: stupeň ${progress.tier} z ${TIERS}, ${step}, ${left} ${daysWord(left)} do konce. Zobrazit cestu odměn" class="flex min-w-0 flex-1 items-center gap-2 text-left">
-                ${emblemHtml(id, 'h-10 w-10', 'text-[1.5rem]')}
+                ${artHtml('h-11 w-11 -my-1')}
                 <span class="min-w-0 flex-1">
                     <span class="flex items-baseline justify-between gap-2"><span class="truncate text-[13px] font-black leading-tight">Sezóna ${esc(monthName(id))}</span><span class="shrink-0 text-[11px] font-black text-white/90" data-season-level title="Stupeň ${progress.tier} z ${TIERS}">${progress.tier}/${TIERS}</span></span>
                     <span class="mt-1 block h-1.5 overflow-hidden rounded-full bg-white/25" aria-hidden="true"><span class="season-bar block h-full w-0 rounded-full" data-progress="${Math.round(progress.ratio * 100)}"></span></span>
@@ -337,7 +339,7 @@
         return `
         <div class="flex flex-col gap-2" data-season-path="${esc(id)}">
             <div class="season-card season-m${mm(id)} flex items-center gap-2.5 rounded-2xl p-2.5 text-white shadow-sm">
-                ${emblemHtml(id, 'h-14 w-14', 'text-[2rem]')}
+                ${artHtml('h-16 w-16 -my-1.5')}
                 <div class="min-w-0 flex-1">
                     <p class="flex items-baseline justify-between gap-2"><span class="text-lg font-black leading-tight">Stupeň ${progress.tier} <span class="text-sm text-white/80">z ${TIERS}</span></span><span class="shrink-0 text-[11px] font-bold text-white/85" title="XP získané v této sezóně">${formatXp(progress.xp)} XP</span></p>
                     <span class="mt-1 block h-2 overflow-hidden rounded-full bg-white/25" aria-hidden="true"><span class="season-bar block h-full w-0 rounded-full" data-progress="${Math.round(progress.ratio * 100)}"></span></span>

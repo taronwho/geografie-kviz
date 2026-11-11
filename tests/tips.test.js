@@ -58,7 +58,7 @@ test('funkci, kterou hráč už používá, tip nenabídne; tip se ukáže jen j
         quizDone: 9, blitzGames: 2, orderAnswered: 8, mapAnswered: 6, sharedImages: 1, freezesUsed: 1, chestsOpened: 1 };
     const ctx = base({ counters: player, signedIn: true });
     const offered = [];
-    let state = { ...Tips.EMPTY, visited: { learn: true, progress: true, look: true, diplomas: true } };
+    let state = { ...Tips.EMPTY, visited: { learn: true, progress: true, look: true, diplomas: true, season: true, album: true, showcase: true } };
     let now = NOW;
     for (let day = 0; day < 20; day++) {
         const tip = Tips.pick(state, { ...ctx, today: `2026-12-${String(day + 1).padStart(2, '0')}`, now });

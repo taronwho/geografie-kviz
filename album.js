@@ -32,9 +32,10 @@
 })(typeof self !== 'undefined' ? self : this, (Look, Core, Rewards) => {
     'use strict';
     // Obrázek alba (dlaždice v Mém postupu, hlavička alba) a zatím i symbol odznaků alba: otevřená kniha s hvězdami.
-    // TODO(obrázek): icons/topics/odznak-sberatel.webp dodá vedoucí – pak ALBUM_ART = 'odznak-sberatel', v app.js a sw.js přidat 'sberatel'
     // do BADGE_ART a odebrat zástupce v badgeArtOf (app.js) a v tests/badge-art.test.js.
-    const ALBUM_ART = 'odznak-poznane';
+    // Obrázek alba (dlaždice v Mém postupu, záhlaví okna) a symbol odznaků alba Sběratel (docs/OBRAZKY.md č. 148–149)
+    const ALBUM_ART = 'album';
+    const BADGE_ART = 'odznak-sberatel';
 
     // Sekce alba v pořadí záložek (catalog = druh v Look.CATALOG); kind = jak se věc jmenuje v podrobnostech
     const SECTIONS = [
@@ -370,7 +371,7 @@
     const tileValue = (album) => `${album.percent} %`;
 
     return {
-        ALBUM_ART, SECTIONS, MILESTONES, sections, sectionTitle, nextMilestone, isAlbumBadge, isAlbumGroup, isLimited, availability, setAvailability, isStarter,
+        ALBUM_ART, BADGE_ART, SECTIONS, MILESTONES, sections, sectionTitle, nextMilestone, isAlbumBadge, isAlbumGroup, isLimited, availability, setAvailability, isStarter,
         build, badgeContext, dueBadges, section, findEntry, howText, artHtml, tileHtml, albumHtml, detailHtml, rewardsHtml, tileValue
     };
 });

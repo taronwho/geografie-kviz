@@ -4307,6 +4307,7 @@
     // Okno sezóny: celá cesta odměn; klepnutí na stupeň ukáže, co dává (čekající rovnou vyzvedne)
     const openSeason = (selected = null) => {
         if (!Season || !Rewards) return;
+        touchTip('season');
         const view = seasonView();
         showDialog(`Sezóna ${Season.label(view.id)}`, `${Season.pathHtml(view, { selected, h: chestHelpers() })}${dialogBackButton('mt-2')}`, {
             onClick: (event) => {
@@ -6391,6 +6392,7 @@
     const openShowcase = async () => {
         const user = signedUser();
         if (!user || !Social || !Showcase) return;
+        touchTip('showcase');
         let opened = false;
         let loading = myShowcase === null;
         const ROW = 'btn-3d-light flex min-h-[2.75rem] w-full items-center gap-2.5 rounded-2xl bg-white px-2.5 py-1.5 text-left dark:bg-slate-800';
@@ -6402,7 +6404,7 @@
             const body = myShowcase === null
                 ? `<p class="py-4 text-center text-sm font-semibold text-slate-500 dark:text-slate-400">${loading ? 'Načítám…' : 'Vitrína zatím není k dispozici (databáze potřebuje nejnovější schema.sql).'}</p>`
                 : `<div class="flex flex-col gap-3" data-showcase-dialog>
-                    <p class="text-[13px] leading-snug text-slate-600 dark:text-slate-300">Vyber až ${Showcase.MAX} trofeje, které uvidí ostatní ve tvém profilu. Přidáš je tlačítkem <b class="text-slate-800 dark:text-slate-100">Vystavit</b> u odznaku, diplomu nebo ligové sezóny.</p>
+                    <div class="flex items-center gap-3">${uiArt('vitrina', 'h-14 w-14 -my-1')}<p class="min-w-0 flex-1 text-[13px] leading-snug text-slate-600 dark:text-slate-300">Vyber až ${Showcase.MAX} trofeje, které uvidí ostatní ve tvém profilu. Přidáš je tlačítkem <b class="text-slate-800 dark:text-slate-100">Vystavit</b> u odznaku, diplomu nebo ligové sezóny.</p></div>
                     ${Showcase.tilesHtml(myShowcase, showcaseHelpers(), { remove: true, slots: true, label: 'Moje vitrína' })}
                     <div class="flex flex-col gap-1.5">
                         ${link('badges', '<i data-lucide="medal" class="h-6 w-6 shrink-0 text-gold-600"></i>', 'Odznaky', 'Vystavit jde nejvyšší získaný stupeň')}
@@ -7352,11 +7354,11 @@
         diamond: 'bg-gradient-to-br from-sky-300 to-indigo-500 text-white ring-cyan-100'
     };
     // Skupiny odznaků s ilustrovaným symbolem (branding/ikony/odznak-<skupina>.png → scripts/topic-icons.py; stejný seznam má sw.js)
-    const BADGE_ART = new Set(['odpovedi', 'rada', 'serie', 'dny', 'dokonale', 'dnes', 'bez-napovedy', 'psani', 'tezke', 'chyby', 'vyzvy', 'vyhry',
+    const BADGE_ART = new Set(['sberatel', 'odpovedi', 'rada', 'serie', 'dny', 'dokonale', 'dnes', 'bez-napovedy', 'psani', 'tezke', 'chyby', 'vyzvy', 'vyhry',
         'vyhry-v-rade', 'zalozene', 'perfektni-vyzvy', 'uroven', 'poznane', 'vsestrannost', 'hvezdy', 'vsechna-temata', 'turnaje', 'turnaj-postupy',
         'tydenni-cile', 'kviz-dne', 'kviz-serie', 'kviz-perfekt', 'bleskovka', 'preziti', 'mapa', 'odhad', 'serad']);
-    // Obrázek symbolu skupiny (bez přípony); odznaky alba sbírky zatím mají zástupný obrázek alba (Album.ALBUM_ART, TODO odznak-sberatel v album.js)
-    const badgeArtOf = (group) => BADGE_ART.has(group) ? `odznak-${group}` : Album && Album.isAlbumGroup(BADGE_GROUPS.find(entry => entry.id === group)) ? Album.ALBUM_ART : null;
+    // Obrázek symbolu skupiny (bez přípony); odznaky alba sbírky mají obrázek Sběratel (Album.BADGE_ART)
+    const badgeArtOf = (group) => BADGE_ART.has(group) ? `odznak-${group}` : Album && Album.isAlbumGroup(BADGE_GROUPS.find(entry => entry.id === group)) ? Album.BADGE_ART : null;
     // Nezískaný odznak ukazuje svou ikonu zašedlou a ztlumenou, přes ni malý zámek v rohu
     const medalHtml = (badge, earned, size = 'h-11 w-11', iconSize = 'h-5 w-5') => {
         const dim = earned ? '' : ' opacity-50 grayscale';
@@ -7646,6 +7648,7 @@
     let albumView = { section: 'avatars', detail: null, rewards: false, note: '', scroll: 0 };
     const openAlbum = (section = null) => {
         if (!Album) return;
+        touchTip('album');
         noteAlbum();
         albumView = { ...albumView, section: section || albumView.section, detail: null, rewards: false, note: '', scroll: 0 };
         renderAlbum(0);
@@ -9186,6 +9189,7 @@
             counters: loadProgress().counters, today: getDayKey(), now: Date.now(), launches: promoLaunches,
             signedIn: Boolean(signedUser()), multiAvailable: Boolean(Auth && Auth.isConfigured() && Social), reviewOn: reviewEnabled(),
             quiz: Boolean(DailyQuiz), modes: Boolean(Modes), goals: Boolean(Goals && Rewards), freezes: Rewards ? loadRewards().freezes : 0,
+            season: Boolean(Season && Rewards), album: Boolean(Album), showcase: Boolean(Showcase && myShowcase !== null),
             maxStars: Math.max(0, ...Object.values(loadLearned()).map(ids => masteryStars((ids || []).length)))
         });
     };
@@ -9208,7 +9212,7 @@
         showDialog('Tip od Mudrlanta', `
             <div id="tip-dialog" data-tip="${escapeHtml(tip.id)}" class="flex flex-col gap-3">
                 <div class="flex items-start gap-3">
-                    ${uiArt('sova-tip', 'h-[4.5rem] w-[4.5rem] -my-1')}
+                    ${tip.art ? uiArt(tip.art, 'h-[4.5rem] w-[4.5rem] -my-1') : uiArt('sova-tip', 'h-[4.5rem] w-[4.5rem] -my-1')}
                     <div class="min-w-0"><p class="text-base font-black leading-tight text-slate-800 dark:text-slate-100">${escapeHtml(tip.title)}</p>
                         <p class="mt-1 text-sm font-semibold leading-snug text-slate-600 dark:text-slate-300">${escapeHtml(Tips.textFor(tip, Boolean(signedUser())))}</p></div>
                 </div>

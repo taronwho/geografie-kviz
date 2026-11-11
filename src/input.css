@@ -198,12 +198,9 @@ html.kb-open #settings-overlay > *, html.kb-open #dialog-overlay > * { max-heigh
 .frame-jiskra::after { content: '✨'; position: absolute; right: calc(var(--fr) * -1 - 0.12em); top: calc(var(--fr) * -1 - 0.12em); font-size: 0.36em; line-height: 1; pointer-events: none; }
 .frame-stovka { --fr: max(2.5px, 0.12em); --frame-bg: conic-gradient(from 0deg, #b45309, #fde68a 12%, #f59e0b 25%, #dc2626 38%, #fbbf24 52%, #fff7cc 60%, #ea580c 74%, #facc15 88%, #b45309); filter: drop-shadow(0 0 0.2em rgb(245 158 11 / 0.9)); }
 .frame-stovka::after { content: '💯'; position: absolute; left: 50%; bottom: calc(var(--fr) * -1 - 0.2em); transform: translateX(-50%); font-size: 0.38em; line-height: 1; pointer-events: none; }
-.frame-vecny-ohen { --fr: max(2.5px, 0.12em); --frame-bg: conic-gradient(from 0deg, #7c3aed, #f43f5e 14%, #f97316 28%, #fde047 40%, #fffbeb 46%, #38bdf8 60%, #6366f1 74%, #f43f5e 88%, #7c3aed); filter: drop-shadow(0 0 0.2em rgb(249 115 22 / 0.85)) drop-shadow(0 0 0.08em rgb(124 58 237 / 0.9)); }
-.frame-vecny-ohen::after { content: '🔥'; position: absolute; left: 50%; bottom: calc(var(--fr) * -1 - 0.24em); transform: translateX(-50%); font-size: 0.42em; line-height: 1; pointer-events: none; }
 @media (prefers-reduced-motion: no-preference) {
     .frame-jiskra::before { animation: frameSpin 5s linear infinite; }
     .frame-stovka::before { animation: frameSpin 7s linear infinite, frameGlow 1.6s ease-in-out infinite; }
-    .frame-vecny-ohen::before { animation: frameSpin 3.2s linear infinite; }
     .frame-vecny-ohen { animation: frameFlare 1.8s ease-in-out infinite; }
 }
 @keyframes frameSpin { to { rotate: 360deg; } }
@@ -230,6 +227,8 @@ html.kb-open #settings-overlay > *, html.kb-open #dialog-overlay > * { max-heigh
 .frame-drak::after { background-image: url(icons/frames/drak.webp); }
 .frame-duha-mracky::after { background-image: url(icons/frames/duha-mracky.webp); }
 .frame-ruze::after { background-image: url(icons/frames/ruze.webp); }
+/* Věčný oheň (série 365 dní): obrázkový prsten, který plápolá (záře frameFlare jen bez omezení pohybu) */
+.frame-vecny-ohen::after { background-image: url(icons/frames/vecny-ohen.webp); }
 
 /* Sezóna Mudrlanta (season.js): barvy měsíce pro rámeček sezóny (.frame-sezona-MM, look.js SEASON_FRAMES), kartu, pruh a odhalení
    odměny (.season-mMM). --s1 tmavá (pozadí s bílým písmem), --s2 hlavní, --s3 světlá, --s4 doplňková, --sx ozdoba rámečku. */
