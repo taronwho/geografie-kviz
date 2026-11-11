@@ -245,7 +245,7 @@ test('vlajka státu na vlaječce sovy', { skip: !chromium && 'Playwright není n
         assert.equal(await tab.locator('#challenges-section [data-player-id="u-1"] [data-owl-layer]').count(), 0, 'cizí sova nemá vrstvy živé sovy');
         assert.equal(await tab.locator('#challenges-section [data-player-id="u-1"] [data-owl-flag-img][data-keep]').count(), 1);
         await tab.waitForTimeout(300);
-        assert.equal(await tab.locator('#challenges-section [data-player-id="u-1"] img[data-keep]').first().getAttribute('src'), 'icons/logo-zelena.webp', 'oblek cizí sovy se nepřebarvil');
+        assert.equal(await tab.locator('#challenges-section [data-player-id="u-1"] img[data-keep]').first().getAttribute('src'), 'icons/logo-bez-monoklu-zelena.webp', 'oblek cizí sovy se nepřebarvil (brýle monokl nahradí)');
         // Hlavička se po načtení profilu ještě jednou překreslí: počká se na ustálený stav místo okamžitého počítání
         await tab.waitForFunction(() => document.querySelectorAll('#status-icon-slot [data-owl-flag-img]').length === 1);
         assert.equal(await tab.locator('#status-icon-slot [data-owl-flag-img]').count(), 1, 'můj Mudrlant má vlajku z lokální volby');

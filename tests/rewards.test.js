@@ -60,9 +60,12 @@ test('truhla: bez duplicit, po všem XP; ochrana jen do stropu', () => {
         assert.ok(state.freezes <= Rewards.MAX_FREEZES, 'strop ochran');
     }
     assert.equal(Rewards.chestReward(state, Object.keys(state.chests).pop()).xp, Rewards.CHEST_XP);
-    // Hráč s vysokou úrovní: věci, které už má odemčené, truhla nedává
-    assert.ok(Rewards.candidates(Rewards.empty(), ctx(100)).length === 0);
-    assert.equal(Rewards.openChest(Rewards.addChest(Rewards.empty(), '2026-11-02'), '2026-11-02', ctx(100)).xp, Rewards.CHEST_XP);
+    // Hráč s vysokou úrovní: věci, které už má odemčené, truhla nedává; zbývají jen věci jen z truhly (chest v look.js)
+    const chestOnly = Look.ACCESSORIES.filter(item => item.chest).map(item => item.id);
+    assert.deepEqual(Rewards.candidates(Rewards.empty(), ctx(100)).map(entry => entry.item.id).sort(), [...chestOnly].sort());
+    const owned = { ...Rewards.empty(), gifts: { ...Rewards.empty().gifts, accessories: chestOnly } };
+    assert.ok(Rewards.candidates(owned, ctx(100)).length === 0);
+    assert.equal(Rewards.openChest(Rewards.addChest(owned, '2026-11-02'), '2026-11-02', ctx(100)).xp, Rewards.CHEST_XP);
 });
 
 test('truhla nedá Bílý talár (noGift): ten je jen za úroveň 100', () => {

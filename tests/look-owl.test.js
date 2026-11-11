@@ -5,8 +5,9 @@ const path = require('node:path');
 const Look = require('../look.js');
 const Owl = require('../look-owl.js');
 
-test('doplňky sovy: katalog má 24 doplňků ve čtyřech místech a každý má obrázky ve všech barvách', () => {
-    assert.equal(Look.ACCESSORIES.length, 24);
+test('doplňky sovy: katalog má 41 doplňků ve čtyřech místech a každý má obrázky ve všech barvách', () => {
+    assert.equal(Look.ACCESSORIES.length, 41);
+    assert.equal(new Set(Look.ACCESSORIES.map(item => item.id)).size, 41, 'id jsou jedinečná');
     assert.deepEqual(Look.SLOTS.map(slot => slot.id), ['head', 'face', 'neck', 'hand']);
     for (const item of Look.ACCESSORIES) {
         assert.ok(Look.SLOTS.some(slot => slot.id === item.slot), item.id);
@@ -43,15 +44,132 @@ test('doplňky sovy: barevné varianty mají stejný rám jako vrstva a skutečn
     }
 });
 
-test('doplňky sovy: výchozí čepici skrývá jen doplněk, který ji nahrazuje (helma, přilba, baret); koruna a síťka sedí na čepici nebo vedle ní', () => {
+test('doplňky sovy: výchozí čepici skrývá jen doplněk, který ji nahrazuje (helma, přilba, baret, klobouky); koruna, svatozář a síťka sedí na čepici nebo vedle ní', () => {
     const hiding = Look.ACCESSORIES.filter(item => item.hidesHat).map(item => item.id).sort();
-    assert.deepEqual(hiding, ['baret', 'helma', 'prilba']);
-    for (const id of ['koruna', 'sitka', 'kvetina', 'vavrin', 'sluchatka', 'celenka']) assert.ok(!Look.find('accessories', id).hidesHat, id);
+    assert.deepEqual(hiding, ['baret', 'cylindr', 'helma', 'kouzelnicky-klobouk', 'piratsky-klobouk', 'prilba', 'vrtulka']);
+    for (const id of ['koruna', 'sitka', 'kvetina', 'vavrin', 'sluchatka', 'celenka', 'svatozar']) assert.ok(!Look.find('accessories', id).hidesHat, id);
+    assert.ok(Look.ACCESSORIES.filter(item => item.hidesHat).every(item => item.slot === 'head'));
     assert.match(Owl.logoHtml('', '', { head: { id: 'helma', color: 'cerna' } }), /data-owl class="[^"]*owl-nohat/);
     assert.doesNotMatch(Owl.logoHtml('', '', { head: { id: 'koruna', color: 'cerna' } }), /owl-nohat/);
     // síťka v ruce nic nemění: čepici skrývá dál baret na hlavě
     assert.match(Owl.logoHtml('', '', { head: { id: 'baret', color: 'cerna' }, hand: { id: 'sitka', color: 'modra' } }), /owl-nohat/);
     assert.doesNotMatch(Owl.logoHtml('', '', { hand: { id: 'sitka', color: 'modra' } }), /owl-nohat/);
+});
+
+test('doplňky sovy: ruku se vztyčeným prstem skryje jen doplněk v ruce, který ji kreslí jinak (hrnek, hůlka, meč, pochodeň)', () => {
+    const hiding = Look.ACCESSORIES.filter(item => item.hidesHand).map(item => item.id).sort();
+    assert.deepEqual(hiding, ['hrnek', 'hulka', 'mec', 'pochoden']);
+    assert.ok(Look.ACCESSORIES.filter(item => item.hidesHand).every(item => item.slot === 'hand'));
+    assert.match(Owl.logoHtml('', '', { hand: { id: 'hrnek', color: 'original' } }), /data-owl class="[^"]*owl-nohand/);
+    assert.doesNotMatch(Owl.logoHtml('', '', { hand: { id: 'lupa', color: 'original' } }), /owl-nohand/);
+    // Čepice i ruka najednou: obě třídy (src/input.css má pro ně společnou masku), u cizí sovy stejně
+    assert.match(Owl.logoHtml('', '', { head: { id: 'cylindr', color: 'original' }, hand: { id: 'mec', color: 'original' } }), /owl-nohat owl-nohand/);
+    assert.match(Owl.owlAvatarHtml('robe=modra;hand=pochoden.original'), /owl-nohand/);
+    const css = fs.readFileSync(path.join(__dirname, '..', 'styles.css'), 'utf8');
+    for (const mask of ['logo-maska.webp', 'logo-maska-ruka.webp', 'logo-maska-oba.webp']) {
+        assert.ok(css.includes(`icons/${mask}`), `styles.css používá ${mask}`);
+        assert.ok(fs.existsSync(path.join(__dirname, '..', 'icons', mask)), mask);
+    }
+});
+
+test('monokl: výchozí sova ho nosí, „Bez monoklu“ a doplněk v obličeji ho sundají, knír a páska ho nechají', () => {
+    assert.equal(Look.NO_MONOCLE, 'bez-monoklu');
+    assert.equal(Look.monocleShown({}), true, 'bez doplňku v obličeji (i staré uložené volby) je monokl');
+    assert.equal(Look.monocleShown(null), true);
+    assert.equal(Look.monocleShown({ head: { id: 'koruna', color: 'original' }, hand: { id: 'lupa', color: 'original' } }), true, 'doplňky jinde monokl nechají');
+    assert.equal(Look.monocleShown({ face: { id: 'bez-monoklu' } }), false);
+    for (const id of ['bryle', 'slunecni-bryle', 'lab-bryle', '3d-bryle', 'letecke-bryle', 'srdickove-bryle', 'maska']) assert.equal(Look.monocleShown({ face: { id, color: 'original' } }), false, id);
+    for (const id of ['knir', 'paska']) assert.equal(Look.monocleShown({ face: { id, color: 'modra' } }), true, id);
+    assert.deepEqual(Look.ACCESSORIES.filter(item => item.keepsMonocle).map(item => item.id).sort(), ['knir', 'paska']);
+    assert.equal(Look.monocleShown({ face: { id: 'neexistuje' } }), true, 'neznámý doplněk se nevykreslí, monokl zůstane');
+    // Logo: s monoklem icons/logo.webp, bez něj icons/logo-bez-monoklu.webp (a jeho barvy obleku)
+    assert.match(Owl.logoHtml('', '', {}), /<img src="icons\/logo\.webp"/);
+    assert.match(Owl.logoHtml('', '', { face: { id: 'bez-monoklu' } }), /<img src="icons\/logo-bez-monoklu\.webp"/);
+    assert.match(Owl.logoHtml('', '', { face: { id: 'maska', color: 'modra' } }), /<img src="icons\/logo-bez-monoklu\.webp".*doplnky\/maska-modra\.webp/);
+    assert.match(Owl.logoHtml('', '', { face: { id: 'knir', color: 'original' } }), /<img src="icons\/logo\.webp".*doplnky\/knir\.webp/);
+    assert.equal(Owl.layersHtml({ face: { id: 'bez-monoklu' } }), '', '„Bez monoklu“ nemá vrstvu');
+    const dir = path.join(__dirname, '..', 'icons');
+    for (const robe of Look.ROBES) assert.ok(fs.existsSync(path.join(dir, `logo-bez-monoklu${robe.id === 'vinova' ? '' : `-${robe.id}`}.webp`)), `logo bez monoklu: ${robe.id}`);
+    assert.ok(fs.existsSync(path.join(dir, 'doplnky', 'monokl-ikona.webp')), 'ikona volby Monokl');
+    // Cizí sova: zápis a vykreslení
+    assert.equal(Owl.encodeOwl({ robe: 'modra', acc: { face: { id: 'bez-monoklu' } } }), 'robe=modra;face=bez-monoklu');
+    assert.deepEqual(Owl.parseOwl('robe=modra;face=bez-monoklu'), { robe: 'modra', acc: { face: { id: 'bez-monoklu' } } });
+    assert.deepEqual(Owl.parseOwl('robe=modra;head=bez-monoklu'), { robe: 'modra', acc: {} }, 'jen v obličeji');
+    assert.match(Owl.owlAvatarHtml('robe=modra;face=bez-monoklu'), /src="icons\/logo-bez-monoklu-modra\.webp"/);
+    assert.match(Owl.owlAvatarHtml('robe=modra;face=paska.original'), /src="icons\/logo-modra\.webp".*doplnky\/paska\.webp/);
+    // Uložená volba: „Bez monoklu“ je vždy k dispozici (bez barvy), jinde se zahodí
+    assert.deepEqual(Look.normalize({ acc: { face: { id: 'bez-monoklu', color: 'modra' } } }, { level: 1, badges: {} }).acc, { face: { id: 'bez-monoklu' } });
+    assert.deepEqual(Look.normalize({ acc: { neck: { id: 'bez-monoklu' } } }, { level: 1, badges: {} }).acc, {});
+    assert.deepEqual(Look.normalize({ acc: {} }, { level: 1, badges: {} }).acc, {}, 'starší volby bez obličeje = monokl');
+});
+
+test('výběr doplňků: v obličeji jsou volby Monokl a Bez monoklu, klepnutí je uloží', () => {
+    const store = {};
+    global.localStorage = { getItem: (key) => store[key] ?? null, setItem: (key, value) => { store[key] = value; } };
+    try {
+        const section = Look.getSections().find(entry => entry.id === 'owl');
+        const ctx = () => ({ level: 100, badges: { 'zbehly-fyzika': 'x' }, prefs: Look.prefs({ level: 100, badges: { 'zbehly-fyzika': 'x' } }) });
+        const press = (selector) => section.click({ target: { closest: (query) => (query === selector.split('|')[0] ? { dataset: JSON.parse(selector.split('|')[1]) } : null) } }, ctx());
+        assert.ok(press('[data-owl-slot]|{"owlSlot":"face"}'));
+        let html = section.render(ctx());
+        assert.match(html, /data-owl-pick="face:none" aria-pressed="true" title="Monokl"/);
+        assert.match(html, /data-owl-pick="face:bez-monoklu" aria-pressed="false" title="Bez monoklu"/);
+        assert.match(html, /aria-label="Obličej: monokl"/);
+        assert.ok(press('[data-owl-pick]|{"owlPick":"face:bez-monoklu"}'));
+        assert.deepEqual(Look.prefs(ctx()).acc, { face: { id: 'bez-monoklu' } });
+        html = section.render(ctx());
+        assert.match(html, /data-owl-pick="face:bez-monoklu" aria-pressed="true"/);
+        assert.match(html, /aria-label="Obličej: bez monoklu"/);
+        assert.doesNotMatch(html, /data-owl-color=/, '„Bez monoklu“ nemá barvu');
+        assert.ok(press('[data-owl-pick]|{"owlPick":"face:knir"}'));
+        assert.deepEqual(Look.prefs(ctx()).acc, { face: { id: 'knir', color: 'original' } }, 'doplněk volbu nahradí');
+        assert.ok(press('[data-owl-pick]|{"owlPick":"face:none"}'));
+        assert.deepEqual(Look.prefs(ctx()).acc, {}, 'Monokl = nic uloženo');
+        Look.setPref('acc', {}, ctx());
+    } finally { delete global.localStorage; }
+});
+
+test('nové doplňky (obrázky č. 92–108): odemykání úrovní, odznakem, ligovou sezónou a jen z Truhly Mudrlanta', () => {
+    const Core = require('../quiz-core.js');
+    const of = (id) => Look.find('accessories', id);
+    const levels = { cylindr: 62, 'letecke-bryle': 68, stetoskop: 72, 'kouzelnicky-klobouk': 76, 'zlaty-retez': 84, hulka: 88, svatozar: 99 };
+    for (const [id, level] of Object.entries(levels)) {
+        assert.equal(of(id).level, level, id);
+        assert.equal(Look.isUnlocked(of(id), { level: level - 1, badges: {} }), false, `${id} před úrovní`);
+        assert.equal(Look.isUnlocked(of(id), { level, badges: {} }), true, `${id} na úrovni`);
+        assert.ok(Look.newRewards(level - 1, level, []).some(entry => entry.item.id === id), `${id} se oslaví`);
+    }
+    const badges = { 'piratsky-klobouk': 'vyhry-25', maska: 'turnaj-zlato', mec: 'turnaj-postupy-15', plast: 'serie-100' };
+    for (const [id, badge] of Object.entries(badges)) {
+        assert.equal(of(id).badge, badge, id);
+        assert.ok(Core.BADGE_BY_ID[badge], `odznak ${badge} existuje`);
+        assert.equal(Look.isUnlocked(of(id), { level: 100, badges: {} }), false, `${id} bez odznaku`);
+        assert.equal(Look.isUnlocked(of(id), { level: 1, badges: { [badge]: 'x' } }), true, `${id} s odznakem`);
+    }
+    assert.match(Look.badgeRewardText('serie-100'), /Hrdinský plášť \(doplněk Mudrlanta\)/);
+    assert.match(Look.badgeRewardText('vyhry-25'), /Pirátský klobouk/);
+    // Pochodeň: vrchol ligové sezóny Diamant (nebo Mistr), jako rámeček Diamantová sezóna
+    const torch = of('pochoden');
+    assert.equal(torch.league, 'diamant');
+    assert.equal(Look.isUnlocked(torch, { level: 100, badges: {}, leagueBest: 'platina' }), false);
+    assert.equal(Look.isUnlocked(torch, { level: 1, badges: {}, leagueBest: 'diamant' }), true);
+    assert.equal(Look.isUnlocked(torch, { level: 1, badges: {}, leagueBest: 'mistr' }), true);
+    assert.equal(Look.unlockText(torch), 'Ligová sezóna: vrchol Diamant');
+    // Jen z Truhly Mudrlanta: úrovní ani odznakem ne, z truhly ano
+    const chest = Look.ACCESSORIES.filter(item => item.chest).map(item => item.id).sort();
+    assert.deepEqual(chest, ['hrnek', 'paska', 'srdickove-bryle', 'vencek', 'vrtulka']);
+    for (const id of chest) {
+        const item = of(id);
+        assert.ok(!item.level && !item.badge && !item.exclusive, id);
+        assert.equal(Look.isUnlocked(item, { level: 100, badges: Object.fromEntries(Core.BADGES.map(badge => [badge.id, 'x'])), gifts: null }), false, `${id} úrovní ne`);
+        assert.equal(Look.isUnlocked(item, { level: 1, badges: {}, gifts: { accessories: [id] } }), true, `${id} z truhly`);
+        assert.equal(Look.unlockText(item), 'Z Truhly Mudrlanta');
+        assert.ok(!Look.rewardsAtLevel(100).some(entry => entry.item.id === id) && !Look.newRewards(0, 100, []).some(entry => entry.item.id === id), `${id} se úrovní neoslaví`);
+    }
+    // Každý nový doplněk má hue (vlastní barva z palety) a sedí ve svém místě
+    const counts = {};
+    for (const item of Look.ACCESSORIES) counts[item.slot] = (counts[item.slot] || 0) + 1;
+    assert.deepEqual(counts, { head: 13, face: 9, neck: 9, hand: 10 });
 });
 
 test('doplňky sovy: uložená volba se očistí (zamčené, špatné místo, neznámé id a barva)', () => {
@@ -84,7 +202,7 @@ test('doplňky sovy: vrstvy se kreslí v pořadí krk → obličej → hlava →
 test('doplňky sovy: logo je obal s vrstvami a odměny doplňků se hlásí při získání úrovně', () => {
     const html = Owl.logoHtml('mx-auto', 'h-11 w-auto', { face: { id: 'bryle', color: 'original' } });
     assert.match(html, /data-owl /);
-    assert.match(html, /icons\/logo\.webp/);
+    assert.match(html, /icons\/logo-bez-monoklu\.webp/, 'brýle monokl nahradí');
     assert.match(html, /doplnky\/bryle\.webp/);
     const rewards = Look.newRewards(3, 4, []);
     assert.deepEqual(rewards.map(entry => `${entry.category}:${entry.item.id}`), ['accessories:bryle']);

@@ -118,16 +118,18 @@
         if (!isDay(week) || s.chests[week] || s.ready.includes(week)) return s;
         return { ...s, ready: [...s.ready, week].sort().slice(-LIMITS.ready) };
     };
-    // Kandidáti do truhly: věci odemykané úrovní (ne odznakem), které hráč ještě nemá; od těch, které by odemkl nejdřív.
-    // ctx = { level, badges } jako u look.js
+    // Kandidáti do truhly: věci odemykané úrovní (ne odznakem) a věci jen z truhly (chest v look.js), které hráč ještě nemá; od těch,
+    // které by odemkl nejdřív. Věc jen z truhly se řadí podle svého čísla chest, jako by se odemykala na té úrovni (když už ji hráč
+    // přerostl, je mezi nejbližšími, dokud ji nedostane). ctx = { level, badges } jako u look.js
+    const giftRank = (item) => item.chest || item.level || 1;
     const candidates = (state, ctx) => {
         const s = parse(state);
         if (!Look) return [];
         return GIFT_CATEGORIES.flatMap(category => (Look.CATALOG[category] || [])
             // noGift: odměna jen za svůj cíl (Bílý talár až na úrovni 100), truhla ani sezóna ji nedají dřív
-            .filter(item => !item.badge && !item.noGift && (item.level || 1) > 1 && !s.gifts[category].includes(item.id) && !Look.isUnlocked(item, { ...ctx, gifts: null }))
+            .filter(item => !item.badge && !item.noGift && !item.league && (item.chest || (item.level || 1) > 1) && !s.gifts[category].includes(item.id) && !Look.isUnlocked(item, { ...ctx, gifts: null }))
             .map(item => ({ category, item })))
-            .sort((a, b) => a.item.level - b.item.level || GIFT_CATEGORIES.indexOf(a.category) - GIFT_CATEGORIES.indexOf(b.category));
+            .sort((a, b) => giftRank(a.item) - giftRank(b.item) || GIFT_CATEGORIES.indexOf(a.category) - GIFT_CATEGORIES.indexOf(b.category));
     };
     // Výběr věci: los z NEAREST nejbližších, jiný druh než minulá truhla, když to jde
     const pickGift = (state, ctx, rng = Math.random) => {
@@ -334,7 +336,7 @@
             <div data-chest-reveal class="chest-show-1 relative z-10 flex flex-col items-center gap-1 text-center">
                 <p class="text-[11px] font-black uppercase tracking-widest text-gold-300">${esc(KIND_NAMES[opened.gift.category])}</p>
                 <p data-chest-item class="text-2xl font-black leading-tight text-white">${esc(opened.gift.item.title)}</p>
-                <p class="text-xs font-semibold leading-snug text-white/80">Jinak by se odemkl až na úrovni ${opened.gift.item.level}. Teď je tvůj.</p>
+                <p class="text-xs font-semibold leading-snug text-white/80">${opened.gift.item.chest ? 'Tahle věc je jen v Truhle Mudrlanta. Teď je tvoje.' : `Jinak by se odemkl až na úrovni ${opened.gift.item.level}. Teď je tvůj.`}</p>
             </div>` : `
             <div data-chest-reveal class="chest-show-1 relative z-10 flex flex-col items-center gap-1 text-center">
                 <p data-chest-item class="text-3xl font-black text-gold-300">+${opened.xp} XP</p>

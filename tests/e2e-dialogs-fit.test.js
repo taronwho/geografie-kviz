@@ -39,6 +39,7 @@ const SCHEME = process.env.FIT_SCHEME === 'dark' ? 'dark' : 'light';
 const EXEMPT = {
     'Všechny odznaky': { reason: 'seznam všech odznaků (stovky medailí po skupinách)', keep: '[data-back-progress]' },
     'Album – Odznaky': { reason: 'všechny skupiny odznaků v albu sbírky (přes 50 dlaždic)', keep: '[data-back-progress]' },
+    'Album sbírky': { reason: 'sekce Doplňky Mudrlanta (41 dlaždic aspoň 40 px; na 390×780 se vejde)', size: '360×640', keep: '[data-back-progress]' },
     'Úrovně a tituly': { reason: 'seznam všech úrovní s tituly', keep: '[data-back-progress]' },
     'Rozpis otázek výzvy': { reason: 'seznam všech otázek s odpověďmi obou hráčů (záhlaví sloupců lepkavě)' },
     'Týdenní žebříček': { reason: 'žebříček hráčů' },

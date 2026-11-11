@@ -112,7 +112,12 @@
         { id: 7, title: 'Fialová', hex: '#9556cc', dot: 'bg-[#9556cc]' }, { id: 8, title: 'Růžová', hex: '#f576b9', dot: 'bg-[#f576b9]' },
         { id: 9, title: 'Černá', hex: '#3f424c', dot: 'bg-[#3f424c] dark:ring-1 dark:ring-white/40' }
     ];
-    // Doplňky sovy: každý patří do jednoho místa (slot), v každém místě je nejvýš jeden; ke každému hráč zvolí barvu
+    // Doplňky sovy: každý patří do jednoho místa (slot), v každém místě je nejvýš jeden; ke každému hráč zvolí barvu.
+    // hidesHat = doplněk nahrazuje výchozí čepici (look-owl.js ji z loga skryje maskou), hidesHand = doplněk v ruce kreslí ruku jinak
+    // (výchozí zvednutá ruka se skryje), keepsMonocle = doplněk v obličeji nezakrývá oči, takže sova k němu nosí monokl (viz monocleShown).
+    // chest = věc jen z Truhly Mudrlanta (rewards.js) a stupňů Sezóny Mudrlanta (season.js), úrovní ani odznakem se neodemkne; číslo je
+    // úroveň, podle které se v truhle řadí mezi věci odemykané úrovní (truhla losuje z nejbližších nad úrovní hráče).
+    // league = jako rámečky ligových sezón (LEAGUE_FRAMES): vrchol skončené ligové sezóny aspoň v této lize.
     const SLOTS = [
         { id: 'head', title: 'Hlava' },
         { id: 'face', title: 'Obličej' },
@@ -137,14 +142,36 @@
         { id: 'sitka', title: 'Síťka na motýly', slot: 'hand', hue: 35, badge: 'zbehly-biologie' },
         { id: 'prilba', hidesHat: true, title: 'Horolezecká přilba', slot: 'head', hue: 50, badge: 'zbehly-geologie' },
         { id: 'lab-bryle', title: 'Laboratorní brýle', slot: 'face', hue: 120, badge: 'zbehly-chemie' },
-        { id: 'knir', title: 'Einsteinův knír', slot: 'face', hue: 0, badge: 'zbehly-fyzika' },
+        { id: 'knir', keepsMonocle: true, title: 'Einsteinův knír', slot: 'face', hue: 0, badge: 'zbehly-fyzika' },
         { id: 'baret', hidesHat: true, title: 'Malířský baret', slot: 'head', hue: 225, badge: 'zbehly-umeni' },
         { id: 'metr', title: 'Svinovací metr', slot: 'neck', hue: 50, badge: 'zbehly-architektura' },
         { id: 'mikrofon', title: 'Mikrofon', slot: 'hand', hue: 0, badge: 'zbehly-hudba' },
         { id: 'brk', title: 'Brk a kalamář', slot: 'hand', hue: 40, badge: 'zbehly-literatura' },
         { id: '3d-bryle', title: '3D brýle', slot: 'face', hue: 0, badge: 'zbehly-film' },
-        { id: 'celenka', title: 'Sportovní čelenka', slot: 'head', hue: 215, badge: 'zbehly-sport' }
+        { id: 'celenka', title: 'Sportovní čelenka', slot: 'head', hue: 215, badge: 'zbehly-sport' },
+        // Doplňky z obrázků č. 92–108 (docs/OBRAZKY.md): úrovně, odznaky výzev, turnajů a série dní, ligová sezóna a Truhla Mudrlanta
+        { id: 'cylindr', hidesHat: true, title: 'Cylindr', slot: 'head', hue: 45, level: 62 },
+        { id: 'letecke-bryle', title: 'Letecké brýle', slot: 'face', hue: 30, level: 68 },
+        { id: 'stetoskop', title: 'Stetoskop', slot: 'neck', hue: 175, level: 72 },
+        { id: 'kouzelnicky-klobouk', hidesHat: true, title: 'Kouzelnický klobouk', slot: 'head', hue: 225, level: 76 },
+        { id: 'zlaty-retez', title: 'Zlatý řetěz', slot: 'neck', hue: 45, level: 84 },
+        { id: 'hulka', hidesHand: true, title: 'Kouzelná hůlka', slot: 'hand', hue: 45, level: 88 },
+        { id: 'svatozar', title: 'Svatozář', slot: 'head', hue: 45, level: 99 },
+        { id: 'piratsky-klobouk', hidesHat: true, title: 'Pirátský klobouk', slot: 'head', hue: 40, badge: 'vyhry-25' },
+        { id: 'maska', title: 'Maska hrdiny', slot: 'face', hue: 215, badge: 'turnaj-zlato' },
+        { id: 'mec', hidesHand: true, title: 'Rytířský meč', slot: 'hand', hue: 45, badge: 'turnaj-postupy-15' },
+        { id: 'plast', title: 'Hrdinský plášť', slot: 'neck', hue: 225, badge: 'serie-100' },
+        { id: 'pochoden', hidesHand: true, title: 'Pochodeň vítěze', slot: 'hand', hue: 30, league: 'diamant', leagueName: 'Diamant' },
+        { id: 'vrtulka', hidesHat: true, title: 'Čepice s vrtulkou', slot: 'head', hue: 50, chest: 10 },
+        { id: 'srdickove-bryle', title: 'Srdíčkové brýle', slot: 'face', hue: 330, chest: 20 },
+        { id: 'vencek', title: 'Květinový věnec', slot: 'neck', hue: 35, chest: 30 },
+        { id: 'paska', keepsMonocle: true, title: 'Pirátská páska', slot: 'face', hue: 0, chest: 40 },
+        { id: 'hrnek', hidesHand: true, title: 'Hrnek kakaa', slot: 'hand', hue: 180, chest: 50 }
     ];
+    // Monokl: výchozí sova ho nosí (icons/logo.webp). V místě obličeje si hráč místo něj může vybrat „Bez monoklu“ (uloží se jako
+    // { id: NO_MONOCLE }, logo icons/logo-bez-monoklu.webp) nebo doplněk, který monokl nahradí (brýle a maska; knír a páska ho nechají).
+    // Uložené volby bez doplňku v obličeji dál znamenají monokl.
+    const NO_MONOCLE = 'bez-monoklu';
     // Barvy doplňků (původní je barva z obrázku); každá se odemyká úrovní. „Vlastní barva“ je paleta: hráč si zvolí libovolný odstín
     // (uloží se jako h<stupně>, např. h210), doplněk se přebarví z původního obrázku otočením odstínu.
     const ACC_COLORS = [
@@ -162,8 +189,7 @@
     const SEASON_FRAMES = SEASON_ADJECTIVES.map((title, index) => ({ id: `sezona-${pad2(index + 1)}`, title, month: index + 1, exclusive: true, source: 'season' }));
     // Rámečky za sérii dní dnešních otázek (odznaky skupiny 'serie' v quiz-core): 7 dní Jiskra, 30 dní Plamenný (výš ve FRAMES),
     // 100 dní Stovka, 365 dní Věčný oheň. Animace v src/input.css (.frame-jiskra, .frame-stovka, .frame-vecny-ohen).
-    // TODO(obrázek): za 100 dní ještě doplněk „Hrdinský plášť“ – až bude obrázek icons/doplnky/plast-*.webp, stačí do ACCESSORIES
-    // přidat { id: 'plast', title: 'Hrdinský plášť', slot: 'neck', hue: 0, badge: 'serie-100' } (řádek o další odměně ho ukáže sám).
+    // Za 100 dní je i doplněk Hrdinský plášť (ACCESSORIES, badge serie-100).
     const STREAK_FRAMES = [
         { id: 'jiskra', title: 'Jiskra', badge: 'tyden' },
         { id: 'stovka', title: 'Stovka', badge: 'serie-100' },
@@ -228,15 +254,24 @@
     const isUnlocked = (item, ctx) => {
         if (!item) return false;
         if (ctx && isGift(item, ctx.gifts !== undefined ? ctx.gifts : giftState)) return true;
-        if (item.exclusive) return false;
+        if (item.exclusive || item.chest) return false;
         if (item.league) return leagueUnlocked(item, ctx);
         if (item.badge) return Boolean(ctx && ctx.badges && ctx.badges[item.badge]);
         return Boolean(ctx) && ctx.level >= (item.level || 1);
     };
     const unlockText = (item, badgeTitle = null) => item.exclusive ? (item.month ? `Sezóna Mudrlanta (${SEASON_MONTHS[item.month - 1].toLocaleLowerCase('cs')}, Sezónní truhla na 20. stupni)` : 'Sezóna Mudrlanta (celá cesta sezóny)')
-        : item.league ? `Ligová sezóna: vrchol ${item.leagueName}` : item.badge ? `Odznak: ${badgeTitle || item.badge}` : `Úroveň ${item.level}`;
+        : item.chest ? 'Z Truhly Mudrlanta' : item.league ? `Ligová sezóna: vrchol ${item.leagueName}` : item.badge ? `Odznak: ${badgeTitle || item.badge}` : `Úroveň ${item.level}`;
     const categoryOf = (item) => CATEGORY_OF.get(item) || null;
     const find = (category, id) => (CATALOG[category] || []).find(item => item.id === id) || null;
+    // Nosí sova k doplňkům { místo: { id, … } } monokl? Ano bez doplňku v obličeji (i s neznámým id) a s doplňkem keepsMonocle;
+    // ne s volbou „Bez monoklu“ a s doplňkem, který monokl nahradí
+    const monocleShown = (acc) => {
+        const face = acc && typeof acc === 'object' ? acc.face : null;
+        if (!face || typeof face !== 'object') return true;
+        if (face.id === NO_MONOCLE) return false;
+        const item = find('accessories', face.id);
+        return !item || item.slot !== 'face' || Boolean(item.keepsMonocle);
+    };
 
     // --- Postavičky: uložený obrázek '<id><barva části 1><barva části 2>' (číslice 0–9, 0 = původní, koncové nuly se nepíšou):
     // 'krecek' (původní), 'krecek3' (žluté rukavice), 'krecek05' (tyrkysová čelenka). Kontroluje se přísně: známé id, nejvýš tolik číslic,
@@ -289,6 +324,7 @@
         const accSource = source.acc && typeof source.acc === 'object' ? source.acc : {};
         for (const slot of SLOTS) {
             const entry = accSource[slot.id];
+            if (slot.id === 'face' && entry && typeof entry === 'object' && entry.id === NO_MONOCLE) { value.acc.face = { id: NO_MONOCLE }; continue; }
             const item = entry && typeof entry === 'object' ? find('accessories', entry.id) : null;
             if (item && item.slot === slot.id && (!ctx || isUnlocked(item, ctx))) {
                 value.acc[slot.id] = { id: item.id, color: colorOk(entry.color, ctx) ? entry.color : 'original' };
@@ -366,7 +402,7 @@
     // Vlastní titul (ne odznak) podle id, nebo null
     const titleItem = (id) => find('titles', id);
 
-    return { setGifts, isGift: (item) => isGift(item, giftState), categoryOf, CATALOG, THEMES, ROBES, FRAMES, AVATARS, AVATAR_COLORS, ACCESSORIES, SLOTS, ACC_COLORS, POSES, findPose, customHue, colorOk, flagOk, DEFAULTS, isUnlocked, unlockText, find, normalize, prefs, setPref, onChange, register, getSections, apply, newRewards, rewardsAtLevel, REWARD_KINDS, settingsTab, settingsPlace, rewardsForBadge, badgeRewardText,
+    return { setGifts, isGift: (item) => isGift(item, giftState), categoryOf, CATALOG, THEMES, ROBES, FRAMES, AVATARS, AVATAR_COLORS, ACCESSORIES, SLOTS, ACC_COLORS, NO_MONOCLE, monocleShown, POSES, findPose, customHue, colorOk, flagOk, DEFAULTS, isUnlocked, unlockText, find, normalize, prefs, setPref, onChange, register, getSections, apply, newRewards, rewardsAtLevel, REWARD_KINDS, settingsTab, settingsPlace, rewardsForBadge, badgeRewardText,
         migrateAvatar, parseAvatar, formatAvatar, avatarCode, avatarPicture, avatarItem, partColors,
         // Sezóna a série dní
         SEASON_MONTHS, SEASON_ADJECTIVES, SEASON_FRAMES, STREAK_FRAMES, TITLES, SEASON_BUNDLES, seasonBundle, titleItem,

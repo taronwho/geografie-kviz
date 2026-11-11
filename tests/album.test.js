@@ -23,9 +23,11 @@ const allBadges = () => Object.fromEntries(Core.BADGES.filter(badge => !Core.isA
 // Celá sbírka: úroveň 100, všechny odznaky (bez odznaků alba) a diplomy, rámeček letošní sezóny (listopad, ze Sezónní truhly) a ligový vrchol
 // Mistr (rámečky ligových sezón jdou získat každý měsíc, takže k celému albu patří); run dostane vstup, ligový stav se pak vrátí
 const ALL_DIPLOMAS = Object.fromEntries(TOPICS.map(topic => [topic.id, '2026-11-01']));
+// Věci jen z Truhly Mudrlanta (chest v look.js): ty dá jen truhla, úroveň 100 nestačí
+const CHEST_ONLY = Look.ACCESSORIES.filter(item => item.chest).map(item => item.id);
 const withEverything = (run, extra = {}) => {
     Look.setLeagueBest('mistr');
-    try { return run(input({ level: 100, badges: allBadges(), gifts: { frames: ['sezona-11'] }, diplomas: ALL_DIPLOMAS, ...extra })); } finally { Look.setLeagueBest(null); }
+    try { return run(input({ level: 100, badges: allBadges(), gifts: { frames: ['sezona-11'], accessories: CHEST_ONLY }, diplomas: ALL_DIPLOMAS, ...extra })); } finally { Look.setLeagueBest(null); }
 };
 // Dočasně přidané položky katalogu (jako sezónní permanentka jiného modulu); po testu se vrátí
 const withItems = (category, items, run) => {
@@ -97,7 +99,8 @@ test('100 % je opravdu všechno: celé album, každá sekce kompletní; odznaky 
     assert.equal(Album.build({ ...full, diplomas }).percent, 99, 'průměr sekcí: 7 × 100 % a 13/14 diplomů');
     assert.ok(!Album.build({ ...full, diplomas }).complete.includes('diplomas'));
     // Bez rámečku letošní sezóny ani bez ligového vrcholu není album celé (obojí teď jde získat)
-    assert.ok(Album.build({ ...full, gifts: {} }).percent < 100, 'chybí listopadový rámeček');
+    assert.ok(Album.build({ ...full, gifts: { accessories: CHEST_ONLY } }).percent < 100, 'chybí listopadový rámeček');
+    assert.ok(Album.build({ ...full, gifts: { frames: ['sezona-11'] } }).percent < 100, 'chybí věci z Truhly Mudrlanta');
     });
     assert.ok(Album.build(input({ level: 100, badges: allBadges(), gifts: { frames: ['sezona-11'] }, diplomas: ALL_DIPLOMAS })).percent < 100, 'chybí ligové rámečky');
 });

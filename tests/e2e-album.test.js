@@ -10,6 +10,9 @@ const path = require('node:path');
 const fixtures = require('./fixtures.js');
 const Core = require('../quiz-core.js');
 const Season = require('../season.js');
+const Look = require('../look.js');
+// Doplňky jen z Truhly Mudrlanta (chest v look.js): sběratel je má z truhly
+const CHEST_ONLY = Look.ACCESSORIES.filter(item => item.chest).map(item => item.id);
 
 let chromium = null;
 try { ({ chromium } = require('playwright')); } catch (e) {}
@@ -49,7 +52,7 @@ const player = () => ({
 const SEASON_FRAME = `sezona-${Season.pragueDay().slice(5, 7)}`;
 const collector = () => ({
     'mudrlant.progress': { xp: Core.xpForLevel(100), counters: {}, badges: Object.fromEntries(Core.BADGES.filter(badge => !Core.isAlbumBadge(badge.id)).map(badge => [badge.id, DAY])) },
-    'mudrlant.rewards': { freezes: 2, diplomas: Object.fromEntries(TOPICS.map(id => [id, DAY])), gifts: { frames: [SEASON_FRAME] } },
+    'mudrlant.rewards': { freezes: 2, diplomas: Object.fromEntries(TOPICS.map(id => [id, DAY])), gifts: { frames: [SEASON_FRAME], accessories: CHEST_ONLY } },
     'mudrlant.leagueSeasons': { v: 1, best: 'mistr', bestMonth: '2026-10' }
 });
 
@@ -149,7 +152,8 @@ test('album sbírky: sekce, podrobnosti, Nasadit a oslava milníku', { skip: !ch
                 }
                 const box = await overflow(tab);
                 assert.equal(box.x, 0, `${section}: bez vodorovného posouvání`);
-                if (section === 'badges') {
+                // Doplňků Mudrlanta je 41: na 360×640 se sekce posouvá (dlaždice aspoň 40 px), na 390×780 se vejde
+                if (section === 'badges' || (section === 'accessories' && viewport.height < 780)) {
                     // Dlouhý seznam se posouvá, tlačítko zpět je lepkavé a zůstane vidět
                     assert.ok(box.y > 0);
                     await tab.evaluate(() => { const panel = document.getElementById('dialog-overlay').firstElementChild; panel.scrollTop = panel.scrollHeight / 2; });

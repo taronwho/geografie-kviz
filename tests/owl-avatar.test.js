@@ -33,7 +33,8 @@ test('sova jako obrázek profilu: parseOwl zahodí neznámé a špatně umístě
 
 test('sova jako obrázek profilu: owlAvatarHtml kreslí zadanou sovu s data-keep a jen platné vrstvy', () => {
     const html = Owl.owlAvatarHtml('robe=zelena;head=koruna.modra;face=bryle.original;hand=neznamy.cervena');
-    assert.match(html, /^<span class="relative inline-flex shrink-0 h-\[88%\]"><img data-keep src="icons\/logo-zelena\.webp" alt="" class="h-full w-auto">/);
+    // Brýle monokl nahradí: cizí sova je bez něj (logo bez monoklu v barvě obleku)
+    assert.match(html, /^<span class="relative inline-flex shrink-0 h-\[88%\]"><img data-keep src="icons\/logo-bez-monoklu-zelena\.webp" alt="" class="h-full w-auto">/);
     assert.ok(html.includes('src="icons/doplnky/bryle.webp"') && html.includes('src="icons/doplnky/koruna-modra.webp"'));
     assert.ok(!html.includes('neznamy'));
     const layers = html.match(/<img [^>]+>/g).slice(1);

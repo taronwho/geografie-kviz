@@ -177,6 +177,11 @@ test('sova titulu jako profilovka: starší aplikace (dnešní parseOwl bez znal
     assert.deepEqual(JSON.parse(JSON.stringify(Old.parseOwl(text))), { robe: 'zelena', acc: { face: { id: 'bryle', color: 'original' } } });
     assert.match(Old.owlAvatarHtml(text), /src="icons\/logo-zelena\.webp"/);
     assert.ok(!Old.owlAvatarHtml(text).includes('titul'));
+    // „Bez monoklu“ starší verze nezná: přeskočí ho a ukáže sovu s monoklem, ostatní doplňky zůstanou
+    const bare = Owl.encodeOwl({ robe: 'zelena', acc: { face: { id: Look.NO_MONOCLE }, head: { id: 'koruna', color: 'modra' } } });
+    assert.equal(bare, 'robe=zelena;face=bez-monoklu;head=koruna.modra');
+    assert.deepEqual(JSON.parse(JSON.stringify(Old.parseOwl(bare))), { robe: 'zelena', acc: { head: { id: 'koruna', color: 'modra' } } });
+    assert.match(Old.owlAvatarHtml(bare), /src="icons\/logo-zelena\.webp"/);
 });
 
 test('sova Mudrlanta (titul-11): aplikace s deseti sovami titulů neznámou pózu přeskočí a nespadne', () => {
@@ -208,7 +213,7 @@ test('sova titulu jako profilovka: owlAvatarHtml vykreslí ilustraci titulu v ba
     assert.match(Owl.owlAvatarHtml('robe=vinova;pose=titul-10'), /src="icons\/topics\/sova-titul-10\.webp"/);
     assert.match(Owl.owlAvatarHtml('robe=modra;pose=titul-11'), /data-owl-pose="titul-11" src="icons\/topics\/sova-titul-11-modra\.webp"/);
     // Neplatná póza = obyčejná sova s doplňky
-    assert.match(Owl.owlAvatarHtml('robe=zelena;pose=titul-99;face=bryle.original'), /src="icons\/logo-zelena\.webp".*icons\/doplnky\/bryle\.webp/);
+    assert.match(Owl.owlAvatarHtml('robe=zelena;pose=titul-99;face=bryle.original'), /src="icons\/logo-bez-monoklu-zelena\.webp".*icons\/doplnky\/bryle\.webp/);
     // Výřezy jsou celé třídy Tailwindu (styles.css je musí obsahovat, CSP nepustí inline styl)
     const css = fs.readFileSync(path.join(ROOT, 'styles.css'), 'utf8');
     for (const cls of Object.values(Owl.POSE_CROP).join(' ').split(' ')) {
