@@ -374,8 +374,13 @@
     };
     // ctx = { level, badges, gifts?, diplomas? } (badges: objekt id → datum nebo true; gifts: věci z truhly, výchozí ze setGifts, null = bez nich;
     // diplomas: téma → den zisku diplomu, odemyká legendární postavičky)
+    // Vývojářské „Odemknout úplně vše“ (app.js, jen na zkušebním postupu, který se nesynchronizuje): odemčené je všechno, i sezónní
+    // a vzácné věci. Kontroly s gifts: null (co ještě dát do truhly, co má hráč od začátku) dál počítají poctivě.
+    let devAll = false;
+    const setDevUnlockAll = (on) => { devAll = Boolean(on); };
     const isUnlocked = (item, ctx) => {
         if (!item) return false;
+        if (devAll && !(ctx && ctx.gifts === null)) return true;
         if (ctx && isGift(item, ctx.gifts !== undefined ? ctx.gifts : giftState)) return true;
         if (item.exclusive || item.chest || item.rare) return false;
         if (item.league) return leagueUnlocked(item, ctx);
@@ -542,5 +547,7 @@
         // Obrázkové rámečky
         ART_FRAMES,
         // Sady doplňků k tématům
-        topicSet };
+        topicSet,
+        // Vývojářské odemčení všeho
+        setDevUnlockAll, devUnlockAll: () => devAll };
 });
