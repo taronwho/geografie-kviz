@@ -4042,8 +4042,8 @@
                 applyLook();
                 syncLookWithAccount();
             }
-            // Prázdné odměny (hráč zatím nic nezískal) se do účtu nezapisují – zbytečný zápis při každém prvním přihlášení
-            const nothing = Rewards.samePayload(merged, Rewards.merge({}, {}));
+            // Prázdné odměny (hráč zatím nic nezískal, sezóna jen založená) se do účtu nezapisují – zbytečný zápis při každém prvním přihlášení
+            const nothing = Rewards.isEmpty(merged);
             if (!nothing && (!remote.rewards || !Rewards.samePayload(merged, remote.rewards))) await Social.saveRewards(user.id, Rewards.payload(merged));
         } catch (error) { /* bez sítě nebo sloupce zůstanou odměny v zařízení */ } finally { syncingRewards = false; }
     };

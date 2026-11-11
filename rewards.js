@@ -259,6 +259,9 @@
     };
     const stable = (value) => JSON.stringify(value, (key, item) => item && typeof item === 'object' && !Array.isArray(item) ? Object.fromEntries(Object.entries(item).sort(([a], [b]) => a.localeCompare(b))) : item);
     const samePayload = (a, b) => stable(payload(a)) === stable(payload(b));
+    // Nic k uložení do účtu: žádná odměna a sezóna jen založená (bez vyzvednutého stupně, bez minulé). Začátek sezóny se do účtu zapíše
+    // s první skutečnou odměnou; do té doby ho jiné zařízení počítá samo (season.js shift), ať první přihlášení nic zbytečně nezapisuje
+    const isEmpty = (state) => { const s = parse(state); return !s.past && (!s.season || !Object.keys(s.season.claimed).length) && samePayload({ ...s, season: null }, empty()); };
 
     // --- HTML (h = pomocné funkce z app.js: esc, art, topicIcon, styleOf, frameClass) ---
     const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
@@ -419,7 +422,7 @@
     return {
         KEY, MAX_FREEZES, MIN_PROTECTED, FREEZE_EVERY, CHEST_XP, NEAREST, GIFT_CATEGORIES, OWN_CATEGORIES, KIND_NAMES, DIPLOMA_NAMES, SEASON_TIERS, SEASON_REWARD, cleanSeason, mergeSeasons,
         isDay, addDays, formatDay, empty, parse, gifts, owns, pendingChest, addChest, candidates, pickGift, openChest, chestReward,
-        earnFreeze, streakEndingAt, bridgedStreak, checkFreeze, streakFreeze, diplomaTitle, noteDiplomas, setName, payload, merge, samePayload,
+        earnFreeze, streakEndingAt, bridgedStreak, checkFreeze, streakFreeze, diplomaTitle, noteDiplomas, setName, payload, merge, samePayload, isEmpty,
         nextStreakReward, streakRewardText, streakRewardHtml,
         freezeWord, freezeChip, freezeArt, chestSvg, chestStripHtml, previewHtml, chestHtml, progressHtml, freezeHelpHtml, chestHelpHtml, diplomasHtml, diplomaDialogHtml
     };

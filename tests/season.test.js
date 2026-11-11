@@ -214,6 +214,14 @@ test('XP z účtu se do sezóny nepočítá: posun začátku o XP načtené z ú
     assert.deepEqual(Season.shift(local, 0), Rewards.parse(local), 'bez posunu beze změny');
 });
 
+test('účet: jen založená sezóna se do účtu nezapisuje (první přihlášení bez zápisu), s vyzvednutým stupněm ano', () => {
+    assert.equal(Rewards.isEmpty({}), true);
+    assert.equal(Rewards.isEmpty({ season: { id: NOV, startXp: 5000, claimed: {} } }), true);
+    assert.equal(Rewards.isEmpty({ season: { id: NOV, startXp: 5000, claimed: { 1: 'freeze' } } }), false);
+    assert.equal(Rewards.isEmpty({ past: { id: '2026-10', startXp: 0, endXp: 900, claimed: {} } }), false);
+    assert.equal(Rewards.isEmpty({ freezes: 1 }), false);
+});
+
 test('exkluzivní věci: rámečky sezóny a titul jen jako dárek, Sezónní truhla podle dat měsíce, katalog pro album', () => {
     assert.equal(Look.SEASON_FRAMES.length, 12);
     for (const frame of Look.SEASON_FRAMES) {
