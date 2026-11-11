@@ -20,12 +20,14 @@ const input = (extra = {}) => ({ level: 1, badges: {}, gifts: {}, diplomas: {}, 
 const sectionOf = (album, id) => album.sections.find(section => section.id === id);
 // Všechny odznaky kromě odznaků alba (ty si album dopočítá samo)
 const allBadges = () => Object.fromEntries(Core.BADGES.filter(badge => !Core.isAlbumBadge(badge.id)).map(badge => [badge.id, '2026-11-01']));
-// Celá sbírka: úroveň 100, všechny odznaky (bez odznaků alba) a diplomy, rámeček letošní sezóny (listopad, ze Sezónní truhly) a ligový vrchol
-// Mistr (rámečky ligových sezón jdou získat každý měsíc, takže k celému albu patří); run dostane vstup, ligový stav se pak vrátí
+// Celá sbírka: úroveň 100, všechny odznaky (bez odznaků alba) a diplomy, rámeček letošní sezóny (listopad, ze Sezónní truhly), vzácné
+// rámečky z Truhly Mudrlanta (chest) a ligový vrchol Mistr (rámečky ligových sezón jdou získat každý měsíc, takže k celému albu patří);
+// run dostane vstup, ligový stav se pak vrátí
 const ALL_DIPLOMAS = Object.fromEntries(TOPICS.map(topic => [topic.id, '2026-11-01']));
+const CHEST_FRAMES = Look.FRAMES.filter(item => item.chest).map(item => item.id);
 const withEverything = (run, extra = {}) => {
     Look.setLeagueBest('mistr');
-    try { return run(input({ level: 100, badges: allBadges(), gifts: { frames: ['sezona-11'] }, diplomas: ALL_DIPLOMAS, ...extra })); } finally { Look.setLeagueBest(null); }
+    try { return run(input({ level: 100, badges: allBadges(), gifts: { frames: ['sezona-11', ...CHEST_FRAMES] }, diplomas: ALL_DIPLOMAS, ...extra })); } finally { Look.setLeagueBest(null); }
 };
 // Dočasně přidané položky katalogu (jako sezónní permanentka jiného modulu); po testu se vrátí
 const withItems = (category, items, run) => {

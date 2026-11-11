@@ -924,7 +924,11 @@ Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same p
 
 Extrémní rámečky jako obrázek kolem profilovky (prsten s prázdným středem, střed se vyřízne). Jednodušší „zajímavé“ rámečky (neon, hologram, duha, pixely) udělám přímo v CSS, obrázek nepotřebují. Přiložit `branding/sova-original.jpg` (vzor stylu).
 
+**Stav: všech deset je dodaných a zapojených do hry.** Zdroje jsou v `branding/ramecky/<id>.jpg`, `python3 scripts/frame-images.py` z nich vyřízne pozadí vně prstenu i jeho střed a uloží `icons/frames/<id>.webp` (256 × 256, díra vždy uprostřed a stejně velká; změřené rozměry v `branding/ramecky/rozmery.json`). V katalogu jsou jako `ART_FRAMES` v `look.js`, kreslí je třída `.frame-art` v `src/input.css` (prsten dvakrát širší než obrázek hráče, obrázek přesně vyplní díru; obojí se zmenší na 80 %, ať prsten nepřekrývá okolí) a service worker je ukládá předem (`FRAME_ART` v `sw.js`). Pět je za vysoké úrovně, tři za těžké odznaky a dva jsou vzácný dárek z Truhly Mudrlanta (truhla dá vzácnou věc zhruba jednou z deseti, `RARE_CHANCE` v `rewards.js`; úrovní, odznakem ani Sezónou se nezískají).
+
 #### 109. `ramecek-ohen.png` – Ohnivý prstenec
+
+Odemkne: úroveň 37 (id `ohen`). Dodáno a zapojeno.
 
 ```text
 Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading. A circular decorative frame (a ring) seen straight from the front, perfectly round and centered, filling about 92 % of the image; the ring band is about 13 % of the image width thick and may have ornaments sticking out a little on the outside, never inside. The inside of the ring is an EMPTY perfect circle showing only the plain flat dark grey background, color #2d3034: nothing drawn inside, no character, no face, no text. A thin cream-colored sticker border runs along BOTH the outer edge and the inner edge of the ring. Plain solid flat dark grey background #2d3034 everywhere outside the ring, no gradient, no shadow. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference; do not draw the owl. Ring design: a ring of roaring stylized flames in orange, yellow and red licking outward, with small embers flying off the outer edge. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
@@ -932,11 +936,15 @@ Cartoon sticker illustration in exactly the same art style as the attached owl m
 
 #### 110. `ramecek-led.png` – Ledová koruna
 
+Odemkne: odznak Nesmrtelný – v Přežití přežij 50 otázek v jedné hře (`preziti-50`; id `led`). Dodáno a zapojeno.
+
 ```text
 Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading. A circular decorative frame (a ring) seen straight from the front, perfectly round and centered, filling about 92 % of the image; the ring band is about 13 % of the image width thick and may have ornaments sticking out a little on the outside, never inside. The inside of the ring is an EMPTY perfect circle showing only the plain flat dark grey background, color #2d3034: nothing drawn inside, no character, no face, no text. A thin cream-colored sticker border runs along BOTH the outer edge and the inner edge of the ring. Plain solid flat dark grey background #2d3034 everywhere outside the ring, no gradient, no shadow. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference; do not draw the owl. Ring design: a ring of clear icy-blue crystal shards and frost, sharp ice crystals pointing outward, a few white snowflakes, cold glow. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
 #### 111. `ramecek-galaxie.png` – Galaxie
+
+Odemkne: úroveň 77 (id `galaxie`). Dodáno a zapojeno.
 
 ```text
 Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading. A circular decorative frame (a ring) seen straight from the front, perfectly round and centered, filling about 92 % of the image; the ring band is about 13 % of the image width thick and may have ornaments sticking out a little on the outside, never inside. The inside of the ring is an EMPTY perfect circle showing only the plain flat dark grey background, color #2d3034: nothing drawn inside, no character, no face, no text. A thin cream-colored sticker border runs along BOTH the outer edge and the inner edge of the ring. Plain solid flat dark grey background #2d3034 everywhere outside the ring, no gradient, no shadow. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference; do not draw the owl. Ring design: a swirling deep-violet and indigo galaxy band full of tiny stars, with three small colorful planets with rings orbiting along it. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
@@ -944,11 +952,15 @@ Cartoon sticker illustration in exactly the same art style as the attached owl m
 
 #### 112. `ramecek-drak.png` – Strážný drak
 
+Odemkne: odznak Všude hvězdář – 3 hvězdy mistrovství ve všech tématech (`vsechna-temata-3`; id `drak`). Dodáno a zapojeno.
+
 ```text
 Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading. A circular decorative frame (a ring) seen straight from the front, perfectly round and centered, filling about 92 % of the image; the ring band is about 13 % of the image width thick and may have ornaments sticking out a little on the outside, never inside. The inside of the ring is an EMPTY perfect circle showing only the plain flat dark grey background, color #2d3034: nothing drawn inside, no character, no face, no text. A thin cream-colored sticker border runs along BOTH the outer edge and the inner edge of the ring. Plain solid flat dark grey background #2d3034 everywhere outside the ring, no gradient, no shadow. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference; do not draw the owl. Ring design: a friendly emerald-green dragon curled around in a full circle, its head at the top looking out proudly and its tail tip meeting its head, golden belly scales and small wings. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
 #### 113. `ramecek-vavrin.png` – Královský vavřín
+
+Odemkne: úroveň 94 (id `kralovsky-vavrin`; `vavrin` je starší rámeček z přechodu za odznak Vítěz). Dodáno a zapojeno.
 
 ```text
 Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading. A circular decorative frame (a ring) seen straight from the front, perfectly round and centered, filling about 92 % of the image; the ring band is about 13 % of the image width thick and may have ornaments sticking out a little on the outside, never inside. The inside of the ring is an EMPTY perfect circle showing only the plain flat dark grey background, color #2d3034: nothing drawn inside, no character, no face, no text. A thin cream-colored sticker border runs along BOTH the outer edge and the inner edge of the ring. Plain solid flat dark grey background #2d3034 everywhere outside the ring, no gradient, no shadow. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference; do not draw the owl. Ring design: two branches of polished gold laurel leaves forming the ring, set with small red, blue and green gems, a small golden crown at the very top and a ribbon bow at the bottom. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
@@ -956,11 +968,15 @@ Cartoon sticker illustration in exactly the same art style as the attached owl m
 
 #### 114. `ramecek-soukoli.png` – Steampunk soukolí
 
+Odemkne: úroveň 63 (id `soukoli`). Dodáno a zapojeno.
+
 ```text
 Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading. A circular decorative frame (a ring) seen straight from the front, perfectly round and centered, filling about 92 % of the image; the ring band is about 13 % of the image width thick and may have ornaments sticking out a little on the outside, never inside. The inside of the ring is an EMPTY perfect circle showing only the plain flat dark grey background, color #2d3034: nothing drawn inside, no character, no face, no text. A thin cream-colored sticker border runs along BOTH the outer edge and the inner edge of the ring. Plain solid flat dark grey background #2d3034 everywhere outside the ring, no gradient, no shadow. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference; do not draw the owl. Ring design: a ring of interlocking brass and copper gears of different sizes with rivets, two tiny steam puffs and a small pressure gauge at the top. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
 #### 115. `ramecek-ruze.png` – Růže a trny
+
+Odemkne: vzácný dárek z Truhly Mudrlanta (id `ruze`). Dodáno a zapojeno.
 
 ```text
 Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading. A circular decorative frame (a ring) seen straight from the front, perfectly round and centered, filling about 92 % of the image; the ring band is about 13 % of the image width thick and may have ornaments sticking out a little on the outside, never inside. The inside of the ring is an EMPTY perfect circle showing only the plain flat dark grey background, color #2d3034: nothing drawn inside, no character, no face, no text. A thin cream-colored sticker border runs along BOTH the outer edge and the inner edge of the ring. Plain solid flat dark grey background #2d3034 everywhere outside the ring, no gradient, no shadow. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference; do not draw the owl. Ring design: a ring of dark green thorny vines with three big blooming red roses and a few rose buds, small leaves. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
@@ -968,17 +984,23 @@ Cartoon sticker illustration in exactly the same art style as the attached owl m
 
 #### 116. `ramecek-blesk.png` – Bleskový prstenec
 
+Odemkne: odznak Hromovládce – v Bleskovce 20 správných odpovědí za 60 sekund (`bleskovka-20`; id `blesk`). Dodáno a zapojeno.
+
 ```text
 Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading. A circular decorative frame (a ring) seen straight from the front, perfectly round and centered, filling about 92 % of the image; the ring band is about 13 % of the image width thick and may have ornaments sticking out a little on the outside, never inside. The inside of the ring is an EMPTY perfect circle showing only the plain flat dark grey background, color #2d3034: nothing drawn inside, no character, no face, no text. A thin cream-colored sticker border runs along BOTH the outer edge and the inner edge of the ring. Plain solid flat dark grey background #2d3034 everywhere outside the ring, no gradient, no shadow. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference; do not draw the owl. Ring design: a crackling ring of electric-blue and white lightning bolts with bright sparks jumping off the outer edge. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
 #### 117. `ramecek-more.png` – Mořská vlna
 
+Odemkne: úroveň 49 (id `more`). Dodáno a zapojeno.
+
 ```text
 Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading. A circular decorative frame (a ring) seen straight from the front, perfectly round and centered, filling about 92 % of the image; the ring band is about 13 % of the image width thick and may have ornaments sticking out a little on the outside, never inside. The inside of the ring is an EMPTY perfect circle showing only the plain flat dark grey background, color #2d3034: nothing drawn inside, no character, no face, no text. A thin cream-colored sticker border runs along BOTH the outer edge and the inner edge of the ring. Plain solid flat dark grey background #2d3034 everywhere outside the ring, no gradient, no shadow. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference; do not draw the owl. Ring design: a ring made of a curling teal ocean wave with white foam crests, small pearls, two seashells and a starfish attached to it. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
 #### 118. `ramecek-duha.png` – Duha s mráčky
+
+Odemkne: vzácný dárek z Truhly Mudrlanta (id `duha-mracky`). Dodáno a zapojeno.
 
 ```text
 Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading. A circular decorative frame (a ring) seen straight from the front, perfectly round and centered, filling about 92 % of the image; the ring band is about 13 % of the image width thick and may have ornaments sticking out a little on the outside, never inside. The inside of the ring is an EMPTY perfect circle showing only the plain flat dark grey background, color #2d3034: nothing drawn inside, no character, no face, no text. A thin cream-colored sticker border runs along BOTH the outer edge and the inner edge of the ring. Plain solid flat dark grey background #2d3034 everywhere outside the ring, no gradient, no shadow. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference; do not draw the owl. Ring design: a cheerful rainbow ring in bold stripes with fluffy white cartoon clouds at the bottom left and right and a small sun at the top. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1

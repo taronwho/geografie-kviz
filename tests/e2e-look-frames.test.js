@@ -122,7 +122,7 @@ test('odměny v Profilu: rámečky, titul a postavičky', { skip: !chromium && '
         assert.doesNotMatch(await tab.getAttribute('#btn-settings span', 'class'), /frame/, 'na začátku bez rámečku');
         await openLook(tab);
 
-        // Řada rámečků z katalogu (devět základních, za sérii dní, ligové sezóny, Sběratelský za album sbírky); zamčené jsou šedé
+        // Řada rámečků z katalogu (devět základních, za sérii dní, ligové sezóny, Sběratelský za album sbírky, obrázkové); zamčené jsou šedé
         // s podmínkou v popisku. Rámečky Sezóny Mudrlanta (exclusive) jsou v řadě, jen když je hráč má
         assert.equal(await tab.locator('[data-frame]').count(), await tab.evaluate(() => window.MudrlantLook.FRAMES.filter(item => !item.exclusive).length));
         assert.ok(await tab.locator('[data-frame]').count() >= 10);
@@ -181,6 +181,72 @@ test('odměny v Profilu: rámečky, titul a postavičky', { skip: !chromium && '
         await openLook(tab);
         assert.equal(await tab.getAttribute('[data-frame="stribro"]', 'aria-pressed'), 'true');
         assert.equal(JSON.parse(await tab.evaluate(() => localStorage.getItem('mudrlant.look'))).frame, 'stribro');
+        assert.deepEqual(log.errors, []);
+        assert.deepEqual(log.csp, []);
+        await context.close();
+    });
+
+    // Obrázkové rámečky (look.js ART_FRAMES): prsten z obrázku icons/frames/<id>.webp, dvakrát širší než obrázek hráče (díra = obrázek)
+    await t.test('obrázkové rámečky: zamčené s podmínkou, odemčený se nasadí jako prsten z obrázku kolem obrázku hráče', async () => {
+        const db = newDb();
+        db.profiles['u-2'].frame = 'galaxie';
+        // Úroveň 40 (Ohnivý prstenec od 37), odznak Hromovládce (Bleskový prstenec) a z truhly vzácné Růže a trny
+        const { context, tab, log } = await setup(browser, { ...login('tok-u1', { level: 40, badges: { vitez: '2026-10-01', 'bleskovka-20': '2026-10-02' } }), 'mudrlant.rewards': JSON.stringify({ gifts: { frames: ['ruze'] } }) });
+        await backend(context, db);
+        await tab.goto(`${ORIGIN}/`);
+        await waitForHome(tab);
+        await openLook(tab);
+        const art = await tab.evaluate(() => window.MudrlantLook.ART_FRAMES.map(item => item.id));
+        assert.equal(art.length, 10);
+        for (const id of art) assert.equal(await tab.locator(`[data-frame="${id}"] .frame-art.frame-${id}`).count(), 1, `náhled ${id}`);
+        const locked = async (id) => /grayscale/.test(await tab.getAttribute(`[data-frame="${id}"]`, 'class'));
+        assert.deepEqual(await Promise.all(['ohen', 'blesk', 'ruze', 'more', 'led', 'duha-mracky', 'kralovsky-vavrin'].map(locked)), [false, false, false, true, true, true, true]);
+        assert.match(await tab.getAttribute('[data-frame="more"]', 'aria-label'), /Mořská vlna: Úroveň 49 \(zamčeno\)/);
+        assert.match(await tab.getAttribute('[data-frame="led"]', 'aria-label'), /Ledová koruna: Odznak: Nesmrtelný \(zamčeno\)/);
+        assert.match(await tab.getAttribute('[data-frame="duha-mracky"]', 'aria-label'), /Duha s mráčky: Vzácný dárek z Truhly Mudrlanta \(zamčeno\)/);
+        await tab.click('[data-frame="duha-mracky"]');
+        await tab.waitForFunction(() => /Duha s mráčky: Vzácný dárek z Truhly Mudrlanta/.test(document.querySelector('[data-look="frames"] p').textContent));
+        // Náhled v dlaždici: menší obrázek, ať se celý prsten (i s ozdobami) vejde do dlaždice
+        const tile = await tab.evaluate(() => {
+            const button = document.querySelector('[data-frame="drak"]').getBoundingClientRect();
+            const avatar = document.querySelector('[data-frame="drak"] .frame-art').getBoundingClientRect();
+            return { button: [button.left, button.top, button.right, button.bottom], ring: [avatar.left - avatar.width / 2, avatar.top - avatar.height / 2, avatar.right + avatar.width / 2, avatar.bottom + avatar.height / 2] };
+        });
+        assert.ok(tile.ring[0] >= tile.button[0] - 0.5 && tile.ring[1] >= tile.button[1] - 0.5 && tile.ring[2] <= tile.button[2] + 0.5 && tile.ring[3] <= tile.button[3] + 0.5, `prsten v dlaždici: ${JSON.stringify(tile)}`);
+        assert.equal(await tab.evaluate(() => { const box = document.querySelector('#settings-overlay > div'); return box.scrollHeight <= box.clientHeight; }), true, 'okno bez posouvání');
+
+        await tab.click('[data-frame="ohen"]');
+        await until(() => db.profiles['u-1'].frame === 'ohen', 'rámeček v účtu');
+        await tab.waitForFunction(() => /frame-ohen/.test(document.querySelector('#btn-settings span').className));
+        // Prsten: ::after o polovinu obrázku hráče na každou stranu, obrázek z icons/frames; kroužek z přechodu (::before) není.
+        // Místo v rozložení stránky zůstane (44 px), obrázek i s prstenem se zmenší (scale), ať prsten nepřekryje sousedy
+        const geometry = await tab.evaluate(() => {
+            const avatar = document.querySelector('#btn-settings span.frame');
+            const after = getComputedStyle(avatar, '::after');
+            return { w: avatar.offsetWidth, h: avatar.offsetHeight, shown: avatar.getBoundingClientRect().width, scale: getComputedStyle(avatar).scale, cls: avatar.className, image: after.backgroundImage, top: after.top, left: after.left, right: after.right, bottom: after.bottom, before: getComputedStyle(avatar, '::before').content };
+        });
+        assert.equal(geometry.w, 44);
+        assert.equal(geometry.h, 44);
+        assert.equal(geometry.scale, '0.8');
+        assert.ok(Math.abs(geometry.shown - 44 * 0.8) < 0.5, `zmenšený obrázek ${geometry.shown}`);
+        assert.match(geometry.cls, /\bframe frame-art frame-ohen\b/);
+        assert.match(geometry.image, /icons\/frames\/ohen\.webp/);
+        assert.deepEqual([geometry.top, geometry.left, geometry.right, geometry.bottom], ['-22px', '-22px', '-22px', '-22px']);
+        assert.equal(geometry.before, 'none');
+        // Obrázek prstenu se opravdu načte (256 × 256)
+        assert.equal(await tab.evaluate(() => new Promise(resolve => { const image = new Image(); image.onload = () => resolve(image.naturalWidth); image.onerror = () => resolve(0); image.src = 'icons/frames/ohen.webp'; })), 256);
+        if (process.env.SCREENSHOT_DIR) await tab.screenshot({ path: path.join(process.env.SCREENSHOT_DIR, 'ramecky-vyber.png') });
+        // Vzácný rámeček z truhly jde nasadit taky
+        await tab.click('[data-frame="ruze"]');
+        await until(() => db.profiles['u-1'].frame === 'ruze', 'vzácný rámeček v účtu');
+
+        // Cizí hráč s obrázkovým rámečkem (pozvánka do výzvy ve Více hráčích) a můj obrázek v záhlaví
+        await tab.click('#settings-overlay [data-close]');
+        await tab.click('[data-action="home-tab"][data-tab="multi"]');
+        await tab.waitForSelector('#challenges-section [data-player-id="u-2"]');
+        assert.match(await tab.getAttribute('#challenges-section [data-player-id="u-2"]', 'class'), /frame-art frame-galaxie/);
+        assert.match(await tab.getAttribute('#btn-settings span', 'class'), /frame-art frame-ruze/);
+        if (process.env.SCREENSHOT_DIR) await tab.screenshot({ path: path.join(process.env.SCREENSHOT_DIR, 'ramecky-vice-hracu.png') });
         assert.deepEqual(log.errors, []);
         assert.deepEqual(log.csp, []);
         await context.close();
