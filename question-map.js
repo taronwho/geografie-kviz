@@ -1164,10 +1164,10 @@
         const name = escapeHtml(data.question.answerLabel);
         if (!result) {
             return `
-                <div data-verdict tabindex="-1" class="flex items-center gap-3 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 outline-none dark:border-rose-800 dark:bg-rose-900/30">
+                <div data-verdict tabindex="-1" class="relative flex items-center gap-3 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 outline-none dark:border-rose-800 dark:bg-rose-900/30">
                     ${ui.uiArt('sova-smutek', 'h-[4.5rem] w-[4.5rem] -my-3')}
                     <div>
-                        <p class="font-black text-rose-800 dark:text-rose-200">Tentokrát bez odpovědi</p>
+                        <p class="pr-10 font-black text-rose-800 dark:text-rose-200">Tentokrát bez odpovědi</p>
                         <p class="text-sm text-rose-800 dark:text-rose-300">${name} je na mapě zeleně</p>
                         ${ui.totalLine ? ui.totalLine('text-rose-800 dark:text-rose-300') : ''}
                         ${ui.xpLine(round.xp, 'text-rose-800 dark:text-rose-300')}
@@ -1184,10 +1184,10 @@
             : good ? `Vedle o ${formatKm(result.km)}${edge} · plné body do ${formatKm(data.question.map.full)}`
             : `Vedle o ${formatKm(result.km)}${edge} · body jen do ${formatKm(data.question.map.zero)}`;
         return `
-            <div data-verdict tabindex="-1" class="flex items-center gap-3 rounded-2xl border px-4 py-3 outline-none ${tone}">
+            <div data-verdict tabindex="-1" class="relative flex items-center gap-3 rounded-2xl border px-4 py-3 outline-none ${tone}">
                 ${ui.uiArt(good ? 'sova-radost' : 'sova-smutek', 'h-[4.5rem] w-[4.5rem] -my-3')}
                 <div>
-                    <p class="font-black ${good ? 'text-emerald-800 dark:text-emerald-200' : 'text-rose-800 dark:text-rose-200'}">${heading}</p>
+                    <p class="pr-10 font-black ${good ? 'text-emerald-800 dark:text-emerald-200' : 'text-rose-800 dark:text-rose-200'}">${heading}</p>
                     <p class="text-sm ${text}">${escapeHtml(detail)}</p>
                     ${ui.totalLine ? ui.totalLine(text) : ''}
                     ${ui.xpLine(round.xp, text)}
