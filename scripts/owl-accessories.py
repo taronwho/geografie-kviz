@@ -7,6 +7,7 @@
 # Sova bez monoklu: python3 scripts/owl-accessories.py --logo vyrobí icons/logo-bez-monoklu.webp (z branding/sova-bez-monoklu.jpg, viz monocle_free)
 # a ikonu volby Monokl icons/doplnky/monokl-ikona.webp; barvy obleku loga bez monoklu pak dělá scripts/owl-robes.py.
 # Ladění: WARP_CACHE=<složka> uloží zarovnání obrázků (pomalé) pro další běhy, DEBUG_DIR=<složka> uloží masky.
+# Sezónní doplňky (č. 134–145, branding/doplnky/<id>.png): průhledná PNG, viz load_png a season_reference.
 import os, sys, glob, json
 import numpy as np
 import cv2
@@ -83,6 +84,45 @@ HULL = {'sitka': 0.6}
 CLOSE = {'koruna': 45, 'medaile': 77, 'kvetina': 21, 'sala': 25}
 BORDER = 360  # okraj plátna při zarovnání, aby se vešlo i to, co přesahuje původní obrázek
 
+# --- Sezónní doplňky (Sezónní truhla, č. 134–145): branding/doplnky/<id>.png ---
+# Dodané jako průhledná PNG 1024×1024 (ne na tmavém pozadí) a sova je na všech bez monoklu. Všechny vznikly úpravou jedné kresby sovy:
+# mimo doplněk jsou pixel po pixelu stejné (deštník sovu zmenšil a posunul). Rozdíl se proto nepočítá proti původní sově, ale proti
+# „sezónní sově“ (season_reference): medián všech PNG obrázků (doplněk je na každém jinde, takže medián je čistá sova), zarovnaný na
+# sovu bez monoklu. Každý obrázek se na sezónní sovu zarovná podle shodných bodů (SIFT + RANSAC, doladí ECC) a teprve pak do rámu loga.
+# Tmavá plocha kolem sovy, kterou generátor nevyřízl (zmrzlina), se při načtení zahodí jako pozadí (load_png).
+SEASON = {'cepice-zimni', 'karneval', 'jarni-venecek', 'destnik', 'konvalinky', 'slamak', 'snorchl', 'zmrzlina', 'tuzka', 'dyne', 'lampion', 'sala-zimni'}
+NO_MONOCLE |= SEASON
+# Zimní čepice a slaměný klobouk čepici nahrazují; věneček, dýně a deštník sedí na čepici nebo nad ní (čepice zůstává, v barvě obleku)
+HATS |= {'cepice-zimni', 'slamak'}
+FILL |= {'cepice-zimni', 'karneval', 'snorchl', 'dyne'}
+# Nová ruka drží deštník, kytičku, kornout, tužku a lampion (výchozí ruka se skryje, look.js hidesHand)
+HAND_POSE |= {'destnik', 'konvalinky', 'zmrzlina', 'tuzka', 'lampion'}
+# Vínová čepice a rukáv z obrázku se do vrstvy nedostanou (pod věnečkem, dýní a deštníkem je čepice sovy v barvě obleku)
+ROBE_FREE |= SEASON  # u PNG jen souvislé tmavé vínové plochy ležící na obleku sezónní sovy (owl_robe)
+# Lampion: záře kolem papírového lampionu jako průhledná teplá barva; tyčka je tmavé dřevo (pevná je celá maska kromě záře)
+GLOW['lampion'] = (255, 170, 70)
+GLOW_SOLID |= {'lampion'}
+CLOSE.update({'sala-zimni': 25, 'jarni-venecek': 15, 'konvalinky': 15})
+# Doplňky s pevnými barvami (look.js noColors): více barev je jejich podstata (bílé a žluté kvítky se zelenými lístky, konvalinky,
+# oranžová dýně se zelenou stopkou); přebarvení na jeden odstín by vypadalo špatně, barevné varianty se nevyrábí a výběr barvy se skryje
+NO_COLORS = {'jarni-venecek', 'konvalinky', 'dyne'}
+# Přebarví se jen část doplňku, zbytek zůstane jako na obrázku (protect): slaměný klobouk mění jen stuhu (sláma zůstává), zmrzlina jen
+# kopečky (kornout zůstává), deštníku zůstanou modré kapky, tužce růžová guma. Rozsahy odstínu v Lab (od, do ve stupních −180…180)
+# a nejmenší chroma.
+KEEP_HUE = {'slamak': [(40, 100, 8)], 'zmrzlina': [(55, 95, 18)], 'destnik': [(-140, -60, 8)], 'tuzka': [(-25, 40, 15)]}
+# Peří sovy (ruka, hlava pod čepicí) se u sezónních doplňků chrání podle barvy: zlatohnědá střední světlosti a sytosti (feather_pixels).
+# Sytě žlutá tužka, oranžový lampion a žlutý deštník jsou světlejší a sytější, ty se přebarví; dřevo (tyčka, rukojeť) zůstane jako peří.
+FEATHER = {'hue': (50, 90), 'chroma': (14, 56), 'light': (28, 84)}
+# Zimní čepice je světle modrá (málo sytá): koloruje se i neutrální plocha (TINT), jen bílý bambule a vločka zůstanou bílé
+WHITE_KEEP = {'cepice-zimni'}
+# Dřevěná tyčka deštníku vede přes celý obrázek (ne jen u ruky): barva peří a dřeva se chrání v celé vrstvě
+WOOD = {'destnik'}
+# Deštník: sovu generátor překreslil menší (zarovnaná se od sezónní sovy o kousek liší), tenké zbytky rozdílu po obrysech se otevřou
+OPENING = {'destnik': 11}
+# Slaměný klobouk: mezi krempou a hlavou je na obrázku průhledná mezera (bez čepice pod kloboukem by tam byla vidět stránka jako díra
+# v hlavě); uzavřená díra ve vrstvě se vyplní stínem pod krempou (tmavá sláma)
+HOLE_SHADE = {'slamak': (96, 70, 44)}
+
 
 def load_base():
     img = Image.open(BASE).convert('RGB')
@@ -128,6 +168,20 @@ def hat_box(a):
 
 def align(base, img, border=BORDER, hat=False):
     """Zarovná img (2048²) na souřadnice base; vrátí obraz o rozměru base."""
+    return warp_to(base, img, align_map(base, img, hat), border)
+
+
+def warp_to(base, img, refined, border=BORDER, flags=cv2.INTER_LINEAR):
+    """Obraz img v souřadnicích base rozšířených o okraj border; refined = zobrazení base → img (2×3)."""
+    # plátno rozšířené o okraj: souřadnice e = x + border
+    ext = refined.copy()
+    ext[:, 2] = refined[:, 2] - refined[:, :2] @ np.array([border, border], np.float32)
+    size = (base.shape[1] + 2 * border, base.shape[0] + 2 * border)
+    return cv2.warpAffine(img, ext, size, flags=flags | cv2.WARP_INVERSE_MAP, borderMode=cv2.BORDER_REPLICATE)
+
+
+def align_map(base, img, hat=False):
+    """Zobrazení base → img (2×3, plné rozlišení): odhad podle obdélníku sovy (nebo čepice) doladěný ECC."""
     bx0, by0, bx1, by1, _ = owl_bbox(base)
     ix0, iy0, ix1, iy1, ibg = owl_bbox(img)
     # počáteční odhad: stejná výška a střed obdélníku sovy
@@ -166,21 +220,108 @@ def align(base, img, border=BORDER, hat=False):
         print('  ECC selhalo, použit odhad:', error)
     refined = inv_small.copy()
     refined[:, 2] = inv_small[:, 2] / k
-    # plátno rozšířené o okraj: souřadnice e = x + border
-    ext = refined.copy()
-    ext[:, 2] = refined[:, 2] - refined[:, :2] @ np.array([border, border], np.float32)
-    size = (base.shape[1] + 2 * border, base.shape[0] + 2 * border)
-    warped = cv2.warpAffine(img, ext, size, flags=cv2.INTER_LINEAR | cv2.WARP_INVERSE_MAP, borderMode=cv2.BORDER_REPLICATE)
-    return warped
+    return refined
 
 
-def hat_zone(frame, shape, border=BORDER, mask='logo-maska.webp'):
-    """Plocha výchozí čepice (nebo s mask='logo-maska-ruka.webp' zvednuté ruky) v souřadnicích rozšířeného plátna (z masky loga)."""
+def load_png(path, bg):
+    """Sezónní doplněk z průhledného PNG: barvy položené na barvu pozadí původní sovy (bg) a průhlednost. Neprůhledné pixely skoro
+    v barvě pozadí, které souvisí s průhledným okolím (tmavá plocha kolem sovy, kterou generátor nevyřízl), jsou také pozadí."""
+    rgba = np.asarray(Image.open(path).convert('RGBA')).astype(np.float32)
+    alpha = rgba[..., 3] / 255.0
+    rgb = rgba[..., :3]
+    dist = np.sqrt(((rgb - np.asarray(bg, np.float32)) ** 2).sum(axis=2))
+    # skoro barva pozadí, nebo tmavě šedá bez barvy (stín v ploše kolem sovy); tmavý vínový obrys sovy je sytý, ten zůstane
+    near = (dist < 14) | ((dist < 30) & (rgb.max(axis=2) < 80) & (rgb.max(axis=2) - rgb.min(axis=2) < 16))
+    outside = ((alpha < 0.5) | near).astype(np.uint8)
+    n, labels = cv2.connectedComponents(outside, connectivity=4)
+    h, w = outside.shape
+    edge = set(np.unique(np.concatenate([labels[0], labels[-1], labels[:, 0], labels[:, -1]]))) - {0}
+    blob = np.isin(labels, list(edge)) & (alpha >= 0.5)
+    if blob.sum():
+        print(f'  {os.path.basename(path)}: zbytek pozadí {int(blob.sum())} px')
+    alpha = np.where(blob, 0.0, alpha)
+    # drobné neprůhledné zbytky mimo sovu (kapky deště a bublinky mají stovky pixelů, zbytky tmavé plochy desítky)
+    n, labels, stats, _ = cv2.connectedComponentsWithStats((alpha >= 0.5).astype(np.uint8), 8)
+    specks = np.isin(labels, [i for i in range(1, n) if stats[i, cv2.CC_STAT_AREA] < 300])
+    alpha = np.where(specks, 0.0, alpha)
+    out = rgb * alpha[..., None] + np.asarray(bg, np.float32) * (1 - alpha[..., None])
+    return np.clip(out, 0, 255).astype(np.uint8), alpha
+
+
+def sift_map(src, dst):
+    """Afinní zobrazení src → dst (2×3) podle shodných bodů (SIFT, RANSAC)."""
+    sift = cv2.SIFT_create()
+    ks, ds = sift.detectAndCompute(cv2.cvtColor(src, cv2.COLOR_RGB2GRAY), None)
+    kd, dd = sift.detectAndCompute(cv2.cvtColor(dst, cv2.COLOR_RGB2GRAY), None)
+    pairs = [a for a, b in cv2.BFMatcher().knnMatch(ds, dd, k=2) if a.distance < 0.75 * b.distance]
+    p_src = np.float32([ks[p.queryIdx].pt for p in pairs])
+    p_dst = np.float32([kd[p.trainIdx].pt for p in pairs])
+    m, _ = cv2.estimateAffine2D(p_src, p_dst, ransacReprojThreshold=2.0)
+    return m.astype(np.float32)
+
+
+def refine_to(ref, img, init):
+    """Doladění zobrazení ref → img (2×3, init) metodou ECC jen podle míst, kde img po zarovnání odpovídá ref (doplněk se nepočítá)."""
+    seen = cv2.warpAffine(img, init, (ref.shape[1], ref.shape[0]), flags=cv2.INTER_LINEAR | cv2.WARP_INVERSE_MAP, borderMode=cv2.BORDER_REPLICATE)
+    same = (np.abs(seen.astype(np.int16) - ref.astype(np.int16)).max(axis=2) < 40).astype(np.uint8)
+    same = cv2.erode(same, np.ones((9, 9), np.uint8))
+    # maska ECC je v souřadnicích img: mask_img(x) = same(init⁻¹ x)
+    mask = cv2.warpAffine(same, cv2.invertAffineTransform(init), (img.shape[1], img.shape[0]), flags=cv2.INTER_NEAREST | cv2.WARP_INVERSE_MAP)
+    g_ref = cv2.GaussianBlur(cv2.cvtColor(ref, cv2.COLOR_RGB2GRAY), (0, 0), 1.5).astype(np.float32)
+    g_img = cv2.GaussianBlur(cv2.cvtColor(img, cv2.COLOR_RGB2GRAY), (0, 0), 1.5).astype(np.float32)
+    crit = (cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 200, 1e-7)
+    try:
+        _, out = cv2.findTransformECC(g_ref, g_img, init.copy(), cv2.MOTION_AFFINE, crit, mask, 3)
+        return out
+    except cv2.error as error:
+        print('  ECC selhalo, použity shodné body:', error)
+        return init
+
+
+def compose(outer, inner):
+    """Složení afinních zobrazení: nejdřív inner, pak outer (obě 2×3)."""
+    return np.hstack([outer[:, :2] @ inner[:, :2], (outer[:, :2] @ inner[:, 2] + outer[:, 2])[:, None]]).astype(np.float32)
+
+
+SEASON_REF = None
+
+
+def season_reference(base, bg):
+    """Sezónní sova: medián všech PNG obrázků doplňků (po zarovnání na první medián) a zobrazení base → sezónní sova (ECC proti sově
+    bez monoklu). Vrací (sezónní sova 1024², zobrazení base → ní, sezónní sova v souřadnicích base)."""
+    global SEASON_REF
+    if SEASON_REF is not None:
+        return SEASON_REF
+    images = [load_png(p, bg)[0] for p in sorted(glob.glob(os.path.join(SRC, '*.png')))]
+    first = np.median(np.stack(images), axis=0).astype(np.uint8)
+    aligned = [cv2.warpAffine(img, sift_map(img, first), (first.shape[1], first.shape[0]), flags=cv2.INTER_LINEAR, borderMode=cv2.BORDER_REPLICATE) for img in images]
+    ref = np.median(np.stack(aligned), axis=0).astype(np.uint8)
+    to_ref = align_map(base, ref)
+    SEASON_REF = (ref, to_ref, warp_to(base, ref, to_ref, border=0))
+    if os.environ.get('DEBUG_DIR'):
+        os.makedirs(os.environ['DEBUG_DIR'], exist_ok=True)
+        Image.fromarray(ref).save(os.path.join(os.environ['DEBUG_DIR'], 'sezonni-sova.png'))
+    return SEASON_REF
+
+
+def align_png(base, img, alpha, bg):
+    """Sezónní doplněk v souřadnicích base rozšířených o okraj, jeho průhlednost tamtéž a sezónní sova v souřadnicích base
+    (proti ní se počítá rozdíl)."""
+    ref, to_ref, ref_base = season_reference(base, bg)
+    to_img = refine_to(ref, img, cv2.invertAffineTransform(sift_map(img, ref)))  # sezónní sova → obrázek
+    print('  posun proti sezónní sově:', np.round(to_img, 3).tolist())
+    full = compose(to_img, to_ref)
+    return warp_to(base, img, full), warp_to(base, alpha.astype(np.float32), full), ref_base
+
+
+def hat_zone(frame, shape, border=BORDER, mask='logo-maska.webp', cover=False):
+    """Plocha výchozí čepice (nebo s mask='logo-maska-ruka.webp' zvednuté ruky) v souřadnicích rozšířeného plátna (z masky loga).
+    S cover i s měkkým okrajem masky (kde je logo jen zčásti skryté) a o kousek širší, ať mezi logem a vrstvou nezůstane průsvitný šev."""
     x0, y0, w, h = frame
     m = np.asarray(Image.open(os.path.join(ROOT, 'icons', mask)).convert('RGBA').getchannel('A').resize((w, h), Image.LANCZOS))
     zone = np.zeros(shape[:2], np.uint8)
-    zone[y0 + border:y0 + border + h, x0 + border:x0 + border + w] = (m < 128).astype(np.uint8)
-    return zone
+    zone[y0 + border:y0 + border + h, x0 + border:x0 + border + w] = (m < (250 if cover else 128)).astype(np.uint8)
+    return cv2.dilate(zone, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (9, 9))) if cover else zone
 
 
 def monocle_free(base, frame):
@@ -259,9 +400,11 @@ def write_logo_nomono(base, frame):
     return nomono
 
 
-def background_of(warped, outer=False):
+def background_of(warped, outer=False, alpha=None):
     """Barva pozadí obrázku doplňku (medián okraje) a vzdálenost každého pixelu od ní. S outer (OUTER_BG) je pozadím jen tmavá plocha
-    souvislá s okrajem obrázku: uzavřená tmavá plocha (černý klobouk, páska přes oko) dostane velkou vzdálenost, ať se nezahodí."""
+    souvislá s okrajem obrázku: uzavřená tmavá plocha (černý klobouk, páska přes oko) dostane velkou vzdálenost, ať se nezahodí.
+    S alpha (průhlednost PNG obrázku v souřadnicích warped) je pozadím jen to, co je v PNG průhledné: tmavý obrys skoro v barvě
+    pozadí (obrys deštníku) dostane vzdálenost aspoň 40."""
     border_px = np.concatenate([warped[:8].reshape(-1, 3), warped[-8:].reshape(-1, 3), warped[:, :8].reshape(-1, 3), warped[:, -8:].reshape(-1, 3)])
     bgc = np.median(border_px.reshape(-1, 3), axis=0)
     away = np.sqrt(((warped.astype(np.float32) - bgc) ** 2).sum(axis=2))
@@ -271,6 +414,8 @@ def background_of(warped, outer=False):
         h, w = bgish.shape
         edge = (stats[:, 0] == 0) | (stats[:, 1] == 0) | (stats[:, 0] + stats[:, 2] >= w) | (stats[:, 1] + stats[:, 3] >= h)
         away = np.where((bgish > 0) & ~edge[labels], 255.0, away)
+    if alpha is not None:
+        away = np.where(alpha >= 0.5, np.maximum(away, 40.0), away)
     return away
 
 
@@ -427,7 +572,7 @@ def hull_top(keep, away, warped, top=0.6):
     return out
 
 
-def extract(base, warped, fill=False, border=BORDER, close=9, knob=False, zone=None, hull=None, mode=None, outer=False):
+def extract(base, warped, fill=False, border=BORDER, close=9, knob=False, zone=None, hull=None, mode=None, outer=False, alpha=None, opening=0):
     base = cv2.copyMakeBorder(base, border, border, border, border, cv2.BORDER_REPLICATE)
     diff = np.abs(warped.astype(np.int16) - base.astype(np.int16)).max(axis=2).astype(np.uint8)
     diff = cv2.GaussianBlur(diff, (0, 0), 1.2)
@@ -450,8 +595,20 @@ def extract(base, warped, fill=False, border=BORDER, close=9, knob=False, zone=N
         gold = cv2.dilate(gold.astype(np.uint8), np.ones((9, 9), np.uint8))
         keep = np.maximum(keep, gold)
     # tam, kde je v obrázku doplňku jen pozadí, doplněk není (nic se nepřekrývá tmavou barvou pozadí)
-    away = background_of(warped, outer)
+    away = background_of(warped, outer, alpha)
+    if alpha is not None:
+        # PNG: co je neprůhledné tam, kde má sova pozadí, je doplněk (i tmavý obrys, který se od tmavého pozadí liší málo)
+        beyond = ((alpha >= 0.5) & (background_of(base) < 28)).astype(np.uint8)
+        keep = np.maximum(keep, cv2.morphologyEx(beyond, cv2.MORPH_OPEN, np.ones((5, 5), np.uint8)))
     keep = np.where(away < 28, 0, keep).astype(np.uint8)
+    if opening:
+        # obrázek s překreslenou sovou (deštník): tenké zbytky rozdílu po obrysech sovy se otevřením odstraní, zůstanou jen souvislé
+        # plochy doplňku (a vše v ploše výchozí čepice nebo ruky, viz níže)
+        body = cv2.morphologyEx(keep, cv2.MORPH_OPEN, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (opening, opening)))
+        n, labels, stats, _ = cv2.connectedComponentsWithStats(body, 8)
+        body = np.isin(labels, [i for i in range(1, n) if stats[i, cv2.CC_STAT_AREA] >= 2500]).astype(np.uint8)
+        # špičky a obrys doplňku těsně u souvislé plochy se vrátí
+        keep = keep & cv2.dilate(body, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5)))
     protect = np.zeros_like(keep)
     if mode == 'hat':
         keep, protect = head_object(base, warped, away, zone)
@@ -499,6 +656,26 @@ def robe_pixels(warped):
     return cv2.morphologyEx(robe.astype(np.uint8), cv2.MORPH_OPEN, np.ones((3, 3), np.uint8)) > 0
 
 
+def owl_robe(warped, ref):
+    """Sezónní doplňky (PNG): vínová místa obleku a čepice sovy z obrázku (robe_pixels) jen po souvislých plochách, které aspoň zčásti leží
+    na obleku nebo čepici sezónní sovy (ref, bez okraje). Růžový kopeček zmrzliny a guma tužky mají podobný odstín, ale s oblekem nesouvisí."""
+    robe = robe_pixels(warped).astype(np.uint8)
+    on_owl = robe_pixels(cv2.copyMakeBorder(ref, BORDER, BORDER, BORDER, BORDER, cv2.BORDER_REPLICATE))
+    # sousední vínová místa jedné plochy (tmavší stín gumy u jejího okraje) se rozhodují spolu
+    n, labels, stats, _ = cv2.connectedComponentsWithStats(cv2.morphologyEx(robe, cv2.MORPH_CLOSE, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (9, 9))), 8)
+    labels = np.where(robe > 0, labels, 0)
+    stats[:, cv2.CC_STAT_AREA] = np.bincount(labels.ravel(), minlength=n)
+    overlap = np.bincount(labels[on_owl & (robe > 0)], minlength=n)
+    # světlost: oblek je tmavý (L do ~48), růžová guma tužky leží na místě rukávu, ale je světlá (L přes 50)
+    light = cv2.cvtColor(warped.astype(np.float32) / 255, cv2.COLOR_RGB2Lab)[..., 0]
+    order = np.argsort(labels.ravel(), kind='stable')
+    bounds = np.searchsorted(labels.ravel()[order], np.arange(n + 1))
+    median_l = np.array([np.median(light.ravel()[order[bounds[i]:bounds[i + 1]]]) if bounds[i + 1] > bounds[i] else 0 for i in range(n)])
+    drop = (overlap >= np.maximum(40, 0.15 * stats[:, cv2.CC_STAT_AREA])) & (median_l <= 50)
+    drop[0] = False
+    return drop[labels]
+
+
 def hand_pixels(warped, zone):
     """Ruka sovy převzatá z obrázku doplňku (HAND_POSE): zlatohnědé peří (odstín v Lab 35–100°) v ploše výchozí ruky a kousek kolem ní.
     Při přebarvení doplňku (recolor_layer, protect) zůstane v barvě sovy; zlaté části předmětu v ruce (rukojeť pochodně, záštita meče)
@@ -509,6 +686,38 @@ def hand_pixels(warped, zone):
     feather = (chroma > 12) & (hue >= 35) & (hue <= 100)
     near = cv2.dilate(zone, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (81, 81))) > 0
     return (feather & near).astype(np.uint8)
+
+
+def hue_pixels(warped, ranges):
+    """Části doplňku, které se nepřebarvují (KEEP_HUE): pixely s odstínem v Lab v některém z rozsahů (od, do, nejmenší chroma)."""
+    lab = cv2.cvtColor(warped.astype(np.float32) / 255, cv2.COLOR_RGB2Lab)
+    c = np.hypot(lab[..., 1], lab[..., 2])
+    hue = np.degrees(np.arctan2(lab[..., 2], lab[..., 1]))
+    keep = np.zeros(c.shape, bool)
+    for lo, hi, chroma in ranges:
+        keep |= (c > chroma) & (hue >= lo) & (hue <= hi)
+    return cv2.morphologyEx(keep.astype(np.uint8), cv2.MORPH_OPEN, np.ones((3, 3), np.uint8))
+
+
+def feather_pixels(warped, zone=None):
+    """Sezónní doplňky: peří sovy (ruka, hlava v místě čepice) podle barvy (FEATHER) v ploše zone a kousek kolem ní; nepřebarví se."""
+    lab = cv2.cvtColor(warped.astype(np.float32) / 255, cv2.COLOR_RGB2Lab)
+    c = np.hypot(lab[..., 1], lab[..., 2])
+    hue = np.degrees(np.arctan2(lab[..., 2], lab[..., 1]))
+    (h0, h1), (c0, c1), (l0, l1) = FEATHER['hue'], FEATHER['chroma'], FEATHER['light']
+    feather = (hue >= h0) & (hue <= h1) & (c >= c0) & (c <= c1) & (lab[..., 0] >= l0) & (lab[..., 0] <= l1)
+    if zone is not None:
+        feather &= cv2.dilate(zone, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (81, 81))) > 0
+        return cv2.morphologyEx(feather.astype(np.uint8), cv2.MORPH_OPEN, np.ones((3, 3), np.uint8))
+    # v celé vrstvě (WOOD): jen silné plochy (tyčka, ruka), tenké hnědé linky žeber deštníku se přebarví s ním
+    return cv2.morphologyEx(feather.astype(np.uint8), cv2.MORPH_OPEN, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (9, 9)))
+    return feather
+
+
+def white_pixels(warped):
+    """Bílá místa (bambule, vločka): světlá a skoro bez barvy; při kolorování neutrálních ploch (TINT) zůstanou bílá."""
+    lab = cv2.cvtColor(warped.astype(np.float32) / 255, cv2.COLOR_RGB2Lab)
+    return ((lab[..., 0] > 86) & (np.hypot(lab[..., 1], lab[..., 2]) < 9)).astype(np.uint8)
 
 
 def bleed_colors(rgb, mask, reach=5):
@@ -701,7 +910,8 @@ LAB_COLORS = {
     'ruzova': (350, 0.85, 10, 1.0),
     'cerna': None,  # bez chroma a tmavší: stínování zůstane
 }
-TINT = {'knir': 1.0, 'mikrofon': 1.0, 'metr': 0.7, 'brk': 1.2, 'svitek': 0.6, 'kompas': 0.65, 'sitka': 0.5, 'lab-bryle': 0.9, 'mec': 0.7, 'stetoskop': 0.5}
+TINT = {'knir': 1.0, 'mikrofon': 1.0, 'metr': 0.7, 'brk': 1.2, 'svitek': 0.6, 'kompas': 0.65, 'sitka': 0.5, 'lab-bryle': 0.9, 'mec': 0.7, 'stetoskop': 0.5,
+        'cepice-zimni': 1.2}
 # Z nich krémový papír, brk a síť se koloruje celý (krémová je jejich plocha); u ostatních zůstává krémová vždy (nálepkový okraj, bílá nenasycená)
 CREAM_TINT = {'brk', 'svitek', 'kompas', 'sitka', 'lab-bryle'}
 TINT_DEFAULT = 0.0
@@ -822,7 +1032,8 @@ def main(ids):
         ids = ids - {'--logo'}
         if not ids:
             return
-    files = sorted(glob.glob(os.path.join(SRC, '*.jpg')))
+    files = sorted(glob.glob(os.path.join(SRC, '*.jpg')) + glob.glob(os.path.join(SRC, '*.png')))
+    bg = owl_bbox(original)[4]
     for f in files:
         name = os.path.splitext(os.path.basename(f))[0]
         if ids and name not in ids:
@@ -831,27 +1042,74 @@ def main(ids):
         if name in NO_MONOCLE and nomono is None:
             nomono, _ = monocle_free(original, frame)
         base = nomono if name in NO_MONOCLE else original
-        img = np.asarray(Image.open(f).convert('RGB'))
         cache = os.path.join(os.environ['WARP_CACHE'], name + '.npy') if os.environ.get('WARP_CACHE') else None  # jen pro ladění: zarovnání je pomalé
-        if cache and os.path.exists(cache):
+        alpha = None
+        if f.endswith('.png'):
+            # sezónní doplněk: zarovnání přes sezónní sovu a rozdíl proti ní (ta je ve stejné kresbě jako obrázek doplňku)
+            img, alpha_src = load_png(f, bg)
+            if cache and os.path.exists(cache):
+                warped, alpha = np.load(cache), np.load(cache.replace('.npy', '-alpha.npy'))
+                base = season_reference(nomono, bg)[2]
+            else:
+                warped, alpha, base = align_png(nomono, img, alpha_src, bg)
+                if cache:
+                    os.makedirs(os.path.dirname(cache), exist_ok=True)
+                    np.save(cache.replace('.npy', '-alpha.npy'), alpha)
+        elif cache and os.path.exists(cache):
             warped = np.load(cache)
         else:
+            img = np.asarray(Image.open(f).convert('RGB'))
             warped = align(base, img, hat=name in HAND or name in WIDE)
-            if cache:
-                os.makedirs(os.path.dirname(cache), exist_ok=True)
-                np.save(cache, warped)
-        mask, diff, protect = extract(base, warped, fill=name in FILL, close=CLOSE.get(name, 9), knob=name in KNOB, zone=hat_zone(frame, warped.shape) if name in HATS else hat_zone(frame, warped.shape, mask='logo-maska-ruka.webp') if name in HAND_POSE else None,
-                                      hull=HULL.get(name), mode=MODE.get(name), outer=name in OUTER_BG)
+        if cache and not os.path.exists(cache):
+            os.makedirs(os.path.dirname(cache), exist_ok=True)
+            np.save(cache, warped)
+        mask, diff, protect = extract(base, warped, fill=name in FILL, close=CLOSE.get(name, 9), knob=name in KNOB, zone=hat_zone(frame, warped.shape, cover=name in SEASON) if name in HATS else hat_zone(frame, warped.shape, mask='logo-maska-ruka.webp', cover=name in SEASON) if name in HAND_POSE else None,
+                                      hull=HULL.get(name), mode=MODE.get(name), outer=name in OUTER_BG, alpha=alpha, opening=OPENING.get(name, 0))
+        if name in HOLE_SHADE:
+            flood = (1 - mask).astype(np.uint8)
+            cv2.floodFill(flood, np.zeros((flood.shape[0] + 2, flood.shape[1] + 2), np.uint8), (0, 0), 2)
+            hole = flood == 1
+            print(f'  stín pod krempou: {int(hole.sum())} px')
+            warped = warped.copy()
+            warped[hole] = HOLE_SHADE[name]
+            mask = np.where(hole, 1, mask).astype(np.uint8)
         if name in SQUEEZE:
             warped, mask, protect = squeeze_right(frame, mask, [warped, mask, protect])
         if name in ROBE_FREE:
-            mask = np.where(robe_pixels(warped), 0, mask).astype(np.uint8)
+            mask = np.where(owl_robe(warped, base) if alpha is not None else robe_pixels(warped), 0, mask).astype(np.uint8)
         if name in HAND_POSE:
-            protect = np.maximum(protect, hand_pixels(warped, hat_zone(frame, warped.shape, mask='logo-maska-ruka.webp')))
+            hand = hat_zone(frame, warped.shape, mask='logo-maska-ruka.webp')
+            protect = np.maximum(protect, feather_pixels(warped, None if name in WOOD else hand) if name in SEASON else hand_pixels(warped, hand))
+        if name in HATS and name in SEASON:
+            protect = np.maximum(protect, feather_pixels(warped, hat_zone(frame, warped.shape)))
+        if name in KEEP_HUE:
+            protect = np.maximum(protect, hue_pixels(warped, KEEP_HUE[name]))
+        if name in WHITE_KEEP:
+            protect = np.maximum(protect, white_pixels(warped))
         glow = None
-        if name in GLOW:
+        if name in GLOW and alpha is not None:
+            # PNG: záře je v obrázku poloprůhledná, její barva a průhlednost se vezmou přímo (pevné je to, co je v PNG neprůhledné)
+            # Nad sovou (mimo novou ruku) je záře jen zabarvení: pixel, který je sezónní sova + trocha barvy záře, není pevný, ale
+            # poloprůhledná záře přes logo (jinak by se do vrstvy dostala vínová čepice a rukáv zabarvené září)
+            ref = cv2.copyMakeBorder(base, BORDER, BORDER, BORDER, BORDER, cv2.BORDER_REPLICATE).astype(np.float32)
+            seen, g = warped.astype(np.float32), np.asarray(GLOW[name], np.float32)
+            d = g - ref
+            tint = np.clip(((seen - ref) * d).sum(axis=2) / np.maximum((d * d).sum(axis=2), 1.0), 0, 1)
+            residual = np.sqrt(((seen - ref - tint[..., None] * d) ** 2).sum(axis=2))
+            over_owl = cv2.copyMakeBorder((background_of(base) >= 28).astype(np.uint8), BORDER, BORDER, BORDER, BORDER, cv2.BORDER_CONSTANT, value=0) > 0
+            hand = hat_zone(frame, warped.shape, mask='logo-maska-ruka.webp', cover=True) > 0
+            tinted = over_owl & ~hand & (residual < 24)
+            solid = (mask > 0) & (alpha >= 0.92) & ~tinted
+            near = cv2.dilate(mask, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (61, 61))) > 0
+            own = (seen - np.asarray(bg, np.float32) * (1 - alpha[..., None])) / np.maximum(alpha, 0.03)[..., None]
+            on_logo = over_owl & ~hand
+            alpha_glow = np.where(on_logo, np.where(tinted & near, tint, 0), np.where(near & ~solid & (alpha > 0.03), alpha, 0)).astype(np.float32)
+            alpha_glow = np.where(solid, 0, alpha_glow)
+            color_glow = np.where(on_logo[..., None], g, np.clip(own, 0, 255))
+            glow = (cv2.morphologyEx(solid.astype(np.uint8), cv2.MORPH_OPEN, np.ones((3, 3), np.uint8)), alpha_glow, color_glow)
+        elif name in GLOW:
             ext = cv2.copyMakeBorder(base, BORDER, BORDER, BORDER, BORDER, cv2.BORDER_REPLICATE)
-            solid, alpha_glow, _ = glow_alpha(ext, warped, mask, background_of(warped, name in OUTER_BG), GLOW[name], solid_all=name in GLOW_SOLID)
+            solid, alpha_glow, _ = glow_alpha(ext, warped, mask, background_of(warped, name in OUTER_BG, alpha), GLOW[name], solid_all=name in GLOW_SOLID)
             glow = (solid, alpha_glow, GLOW[name])
         out, protect_layer = layer(base, warped, mask, frame, protect=protect, bleed=name not in SPLIT, glow=glow)
         if name in SPLIT:
@@ -868,6 +1126,8 @@ def main(ids):
         save_webp(out, os.path.join(OUT, name + '.webp'))
         # ikony do výběru (<id>-ikona.webp) dělá scripts/owl-accessory-icons.py z vlastních obrázků doplňků
         for color, (hue, sat_mul, val_mul) in COLORS.items():
+            if name in NO_COLORS:
+                break  # pevné barvy: bez barevných variant
             recolored = recolor(out, hue, sat_mul, val_mul) if name in SPLIT else recolor_layer(out, name, color, protect_layer)
             save_webp(recolored, os.path.join(OUT, f'{name}-{color}.webp'))
         covered = int(mask.sum())

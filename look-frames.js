@@ -17,6 +17,11 @@
     SHORT.sberatel = 'Sběratel';
     // Obrázkové rámečky (look.js ART_FRAMES)
     Object.assign(SHORT, { ohen: 'Ohnivý', more: 'Vlna', soukoli: 'Soukolí', galaxie: 'Galaxie', 'kralovsky-vavrin': 'Král. vavřín', blesk: 'Blesk', led: 'Led', drak: 'Drak', 'duha-mracky': 'Duha', ruze: 'Růže' });
+    // Rámečky sezóny (look.js SEASON_FRAMES: měsíc, SEASON_MID_FRAMES: čím je druhý rámeček měsíce ozdobený)
+    Object.assign(SHORT, { 'sezona-01': 'Leden', 'sezona-02': 'Únor', 'sezona-03': 'Březen', 'sezona-04': 'Duben', 'sezona-05': 'Květen', 'sezona-06': 'Červen',
+        'sezona-07': 'Červenec', 'sezona-08': 'Srpen', 'sezona-09': 'Září', 'sezona-10': 'Říjen', 'sezona-11': 'Listopad', 'sezona-12': 'Prosinec',
+        'sezona-01-b': 'Rampouchy', 'sezona-02-b': 'Masky', 'sezona-03-b': 'Sněženky', 'sezona-04-b': 'Kapky', 'sezona-05-b': 'Máj', 'sezona-06-b': 'Slunečnice',
+        'sezona-07-b': 'Pláž', 'sezona-08-b': 'Noc', 'sezona-09-b': 'Pastelky', 'sezona-10-b': 'Draci', 'sezona-11-b': 'Lampiony', 'sezona-12-b': 'Perníčky' });
     const escapeHtml = (text) => Core && Core.escapeHtml ? Core.escapeHtml(text) : String(text).replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
 
     // Třídy rámečku pro obrázek hráče; neznámé id (a „bez rámečku“) nedá nic, takže cizí hodnota z databáze nic nerozbije.

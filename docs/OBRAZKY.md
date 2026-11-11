@@ -1008,7 +1008,26 @@ Cartoon sticker illustration in exactly the same art style as the attached owl m
 
 ### Legendární postavy za diplomy (č. 119–132)
 
-Za diplom v tématu (plné mistrovství, 5 hvězdiček) jedna legendární postavička do profilovky, extrémně nastylovaná (zlatá záře, aura v barvě tématu). Budou mít přebarvitelné části jako ostatní postavičky. Přiložit `branding/sova-original.jpg` (vzor stylu).
+Za diplom v tématu (plné mistrovství, 5 hvězdiček) jedna legendární postavička do profilovky, extrémně nastylovaná (zlatá záře, aura v barvě tématu). Přiložit `branding/sova-original.jpg` (vzor stylu).
+
+**Dodáno a zapojeno všech 14.** Zdroje `branding/ikony/avatar-<název>.png`, obrázky a vrstvy částí vyrábí `scripts/avatar-icons.py` (`icons/avatars/<id>.webp`, `<id>-<část><barva>.webp`), katalog `look.js` AVATARS (`diploma: '<téma>'`), seznam v `sw.js` AVATAR_ART. Odemyká je jen diplom tématu (ne úroveň, odznak, truhla ani Sezóna), v Nastavení → Profil mají vlastní skupinu Legendy (zlatý lem), oslava diplomu i okno diplomu je ukazují. Id a přebarvitelné části:
+
+| č. | id | téma | části |
+|---|---|---|---|
+| 119 | `albatr` | Zeměpis | Uniforma, Moře a nebe |
+| 120 | `gryf` | Vlajky a znaky | Kabátec, Záře a prapory |
+| 121 | `slon` | Historie | Slon, Záře |
+| 122 | `sfinga` | Mytologie | Sfinga, Záře |
+| 123 | `jelen` | Biologie | Plášť, Les |
+| 124 | `golem` | Geologie | Krystaly, Záře |
+| 125 | `liska` | Chemie | Kabát, Brýle |
+| 126 | `chobot` | Fyzika | Chobotnice, Záře |
+| 127 | `pav` | Výtvarné umění | Baret a peří, Kabátek |
+| 128 | `bobr` | Architektura | Přilba, Plány a nebe |
+| 129 | `vlk` | Hudba | Frak, Nebe |
+| 130 | `kndrak` | Literatura | Dráček, Záře |
+| 131 | `panda` | Film | Šála, Záře |
+| 132 | `klokan` | Sport | Dres a čelenka, Záře |
 
 #### 119. `avatar-albatros.png` – Albatros mořeplavec (Zeměpis)
 
@@ -1110,7 +1129,11 @@ Cartoon sticker illustration in exactly the same art style as the attached owl m
 
 Každý měsíc jeden exkluzivní doplněk Mudrlanta za poslední stupeň sezóny, jen v daném měsíci. Postup jako u ostatních doplňků (`scripts/owl-accessories.py`, viz `docs/DOPLNKY-TEMAT.md`): přiložit `branding/sova-original.jpg`, soubor `branding/doplnky/<id>.jpg`.
 
+**Stav: všech dvanáct je dodaných a zapojených do hry.** Dodané byly jako průhledná PNG 1024 × 1024 se sovou bez monoklu; zdroje jsou v `branding/doplnky/<id>.png` (zmrzlina i s tmavou plochou kolem sovy, kterou skript zahodí jako pozadí). Vrstvy, barvy a ikony dělá `python3 scripts/owl-accessories.py <id>` a `python3 scripts/owl-accessory-icons.py <id>`: rozdíl se počítá proti „sezónní sově“ (medián všech dvanácti obrázků, sova je na nich kromě deštníku pixel po pixelu stejná), zarovnané na sovu bez monoklu. V katalogu jsou jako `SEASON_ACCESSORIES` v `look.js` (`exclusive`, `month`, `source: 'season'`): dá je jen Sezónní truhla na 20. stupni sezóny svého měsíce (s rámečkem měsíce a titulem), Truhla Mudrlanta, úrovně ani odznaky ne. V Albu sbírky jsou mezi sezónními věcmi (budoucí měsíce skryté, skončené šedé) a ve výběru doplňků v Nastavení → Mudrlant jen ty, které hráč má. Přebarvují se (8 barev) všechny kromě tří s pevnými barvami (`noColors`: věneček, konvalinky, dýně – více barev je jejich podstata, výběr barvy se u nich skryje).
+
 #### 134. `cepice-zimni` – leden (hlava)
+
+Dodáno a zapojeno: nahrazuje čepici (`hidesHat`); přebarví se pletená čepice (pastelové tóny), bambule a vločka zůstanou bílé.
 
 ```text
 Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same proportions, same colors, same outline style, same flat dark background. Do not redraw, move or recolor the owl. Only ADD the accessory described below, drawn in the same cartoon sticker style with the same thick dark outline and the same lighting, sitting naturally on the owl. The accessory should be mostly one dominant color (not wine red) so it can be recolored later. Do not add anything else. Accessory: A cozy knitted winter beanie in icy light blue with a big fluffy white pom-pom and a small white snowflake pattern, worn on the owl's head over its cap.
@@ -1118,11 +1141,15 @@ Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same p
 
 #### 135. `karneval` – únor (obličej)
 
+Dodáno a zapojeno: nahrazuje monokl; přebarví se maska, flitry i pera do jednoho odstínu.
+
 ```text
 Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same proportions, same colors, same outline style, same flat dark background. Do not redraw, move or recolor the owl. Only ADD the accessory described below, drawn in the same cartoon sticker style with the same thick dark outline and the same lighting, sitting naturally on the owl. The accessory should be mostly one dominant color (not wine red) so it can be recolored later. Do not add anything else. Accessory: A shiny carnival eye mask in purple with small golden sequins and three colorful feathers on one side, worn over the owl's eyes (the monocle may be hidden under it).
 ```
 
 #### 136. `jarni-venecek` – březen (hlava)
+
+Dodáno a zapojeno: sedí na čepici (ta je pod ním vidět v barvě obleku); pevné barvy (`noColors`).
 
 ```text
 Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same proportions, same colors, same outline style, same flat dark background. Do not redraw, move or recolor the owl. Only ADD the accessory described below, drawn in the same cartoon sticker style with the same thick dark outline and the same lighting, sitting naturally on the owl. The accessory should be mostly one dominant color (not wine red) so it can be recolored later. Do not add anything else. Accessory: A delicate spring flower crown of white snowdrops, yellow primroses and small green leaves, resting on top of the owl's cap.
@@ -1130,11 +1157,15 @@ Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same p
 
 #### 137. `destnik` – duben (ruka)
 
+Dodáno a zapojeno: nová ruka drží rukojeť (`hidesHand`), stříška je nad čepicí; přebarví se stříška, dřevěná tyčka, ruka a modré kapky zůstanou. Generátor sovu na obrázku zmenšil a posunul, zarovná se podle shodných bodů.
+
 ```text
 Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same proportions, same colors, same outline style, same flat dark background. Do not redraw, move or recolor the owl. Only ADD the accessory described below, drawn in the same cartoon sticker style with the same thick dark outline and the same lighting, sitting naturally on the owl. The accessory should be mostly one dominant color (not wine red) so it can be recolored later. Do not add anything else. Accessory: An open round umbrella in bright yellow with a curved wooden handle, held above the owl's head in its wing, a few blue raindrops bouncing off it.
 ```
 
 #### 138. `konvalinky` – květen (ruka)
+
+Dodáno a zapojeno: kytička v nové ruce (`hidesHand`); pevné barvy (`noColors`).
 
 ```text
 Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same proportions, same colors, same outline style, same flat dark background. Do not redraw, move or recolor the owl. Only ADD the accessory described below, drawn in the same cartoon sticker style with the same thick dark outline and the same lighting, sitting naturally on the owl. The accessory should be mostly one dominant color (not wine red) so it can be recolored later. Do not add anything else. Accessory: A small bouquet of white lily-of-the-valley flowers with green leaves tied with a thin ribbon, held in the owl's wing.
@@ -1142,11 +1173,15 @@ Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same p
 
 #### 139. `slamak` – červen (hlava)
 
+Dodáno a zapojeno: nahrazuje čepici (`hidesHat`); mezera mezi krempou a hlavou je vyplněná stínem pod krempou. Přebarví se jen stuha, sláma zůstane.
+
 ```text
 Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same proportions, same colors, same outline style, same flat dark background. Do not redraw, move or recolor the owl. Only ADD the accessory described below, drawn in the same cartoon sticker style with the same thick dark outline and the same lighting, sitting naturally on the owl. The accessory should be mostly one dominant color (not wine red) so it can be recolored later. Do not add anything else. Accessory: A wide-brimmed summer straw hat with a sky-blue ribbon band, worn on the owl's head over its cap, a small sun glint on the brim.
 ```
 
 #### 140. `snorchl` – červenec (obličej)
+
+Dodáno a zapojeno: nahrazuje monokl; přebarví se rámeček masky a šnorchl.
 
 ```text
 Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same proportions, same colors, same outline style, same flat dark background. Do not redraw, move or recolor the owl. Only ADD the accessory described below, drawn in the same cartoon sticker style with the same thick dark outline and the same lighting, sitting naturally on the owl. The accessory should be mostly one dominant color (not wine red) so it can be recolored later. Do not add anything else. Accessory: A diving mask with a turquoise frame and a matching snorkel tube on the side, worn over the owl's eyes, two tiny bubbles.
@@ -1154,11 +1189,15 @@ Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same p
 
 #### 141. `zmrzlina` – srpen (ruka)
 
+Dodáno a zapojeno: kornout v nové ruce (`hidesHand`); přebarví se kopečky (příchuť), kornout zůstane.
+
 ```text
 Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same proportions, same colors, same outline style, same flat dark background. Do not redraw, move or recolor the owl. Only ADD the accessory described below, drawn in the same cartoon sticker style with the same thick dark outline and the same lighting, sitting naturally on the owl. The accessory should be mostly one dominant color (not wine red) so it can be recolored later. Do not add anything else. Accessory: A crunchy waffle ice-cream cone with two scoops (pink strawberry and white vanilla) and a small drip, held in the owl's wing.
 ```
 
 #### 142. `tuzka` – září (ruka)
+
+Dodáno a zapojeno: tužka v nové ruce (`hidesHand`); přebarví se tělo tužky (pastelky), růžová guma a ruka zůstanou.
 
 ```text
 Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same proportions, same colors, same outline style, same flat dark background. Do not redraw, move or recolor the owl. Only ADD the accessory described below, drawn in the same cartoon sticker style with the same thick dark outline and the same lighting, sitting naturally on the owl. The accessory should be mostly one dominant color (not wine red) so it can be recolored later. Do not add anything else. Accessory: A big sharpened yellow school pencil with a pink eraser, held in the owl's wing like a scholar ready for the new school year.
@@ -1166,17 +1205,23 @@ Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same p
 
 #### 143. `dyne` – říjen (hlava)
 
+Dodáno a zapojeno: sedí na čepici (ta je kolem dýně vidět v barvě obleku); pevné barvy (`noColors`).
+
 ```text
 Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same proportions, same colors, same outline style, same flat dark background. Do not redraw, move or recolor the owl. Only ADD the accessory described below, drawn in the same cartoon sticker style with the same thick dark outline and the same lighting, sitting naturally on the owl. The accessory should be mostly one dominant color (not wine red) so it can be recolored later. Do not add anything else. Accessory: A funny small carved orange pumpkin worn as a hat on the owl's head over its cap, with a curly green stem and a friendly carved smile.
 ```
 
 #### 144. `lampion` – listopad (ruka)
 
+Dodáno a zapojeno: lampion na tyčce v nové ruce (`hidesHand`); záře je poloprůhledná barva, přebarví se papír lampionu i se září.
+
 ```text
 Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same proportions, same colors, same outline style, same flat dark background. Do not redraw, move or recolor the owl. Only ADD the accessory described below, drawn in the same cartoon sticker style with the same thick dark outline and the same lighting, sitting naturally on the owl. The accessory should be mostly one dominant color (not wine red) so it can be recolored later. Do not add anything else. Accessory: A round glowing paper lantern in warm orange on a short wooden stick, held in the owl's wing, soft light around it.
 ```
 
 #### 145. `sala-zimni` – prosinec (krk)
+
+Dodáno a zapojeno: přebarví se šála, bílé vločky zůstanou.
 
 ```text
 Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same proportions, same colors, same outline style, same flat dark background. Do not redraw, move or recolor the owl. Only ADD the accessory described below, drawn in the same cartoon sticker style with the same thick dark outline and the same lighting, sitting naturally on the owl. The accessory should be mostly one dominant color (not wine red) so it can be recolored later. Do not add anything else. Accessory: A cozy knitted winter scarf in emerald green with a white snowflake pattern and a tiny golden bell, wrapped around the owl's neck with ends hanging down.
@@ -1232,7 +1277,13 @@ Cartoon sticker illustration in exactly the same art style as the attached owl m
 
 Za poslední stupeň sezóny hráč dostane **balík**: měsíční doplněk Mudrlanta (č. 134–145), sezónní rámeček a podivnou sezónní postavičku do profilovky. Postavička není zvíře, je to oživlý předmět nebo jídlo. Balík se otevírá ze speciální **Sezónní truhly**. Stačí začít aktuálním měsícem (listopad, prosinec), ostatní můžeš dodávat průběžně.
 
+**Stav postaviček: všech dvanáct (č. 151–162) je dodaných a zapojených do hry.** Zdroje jsou v `branding/ikony/avatar-<id>.png` (dodané s průhledným pozadím jsou uložené položené na #2d3034; tmavý kruh nebo dlaždice za postavičkou má skoro barvu pozadí a vyřízne se s ním), `python3 scripts/avatar-icons.py <id>` z nich vyrobí `icons/avatars/<id>.webp` a vrstvy dvou přebarvitelných částí v devíti barvách. V katalogu jsou jako `SEASON_AVATARS` v `look.js` (jen dárek, `month` = měsíc sezóny), do Sezónní truhly jdou podle `SEASON_BUNDLES`; Truhla Mudrlanta, úrovně ani odznaky je nedají. Ve výběru obrázku (Nastavení → Profil → Postavičky) jsou jen vlastněné (víc než tři řádky se posouvají uvnitř mřížky), cizí profil je ukáže vždy a Album sbírky je má jako sezónní věci. Service worker ukládá jejich obrázky předem (`AVATAR_ART` v `sw.js`).
+
+**Rámečky sezóny (č. 163–174): ✅ dodané všechny, každý měsíc ve dvou variantách, obě jsou na cestě sezóny.** Zdobnější kresba je `sezona-MM` (jméno = přídavné jméno měsíce, „Lednový“): má stejné id jako dřívější kroužek z CSS, takže kdo ho už má, má teď obrázek, a dává ho **Sezónní truhla na 20. stupni** spolu s doplňkem, postavičkou a titulem. Jednodušší kresba je `sezona-MM-b` s vlastním jménem („Lednové rampouchy“) a dává ji **Truhla v půli sezóny na 10. stupni**: jedna z jejích dvou věcí je tenhle rámeček (dokud ho hráč nemá, jinak dvě běžné věci jako dřív), druhá věc jiného druhu. Na cestě je to vidět dopředu (popis stupně 10 a 20, dlaždice 20. stupně ukazuje zdobnější rámeček). Oba jsou exkluzivní: jen ze Sezóny svého měsíce (každý rok znovu), Truhla Mudrlanta, úrovně ani odznaky je nedají; v řadě rámečků v Profilu jsou, až když je hráč má, v Albu sbírky jsou oba mezi sezónními věcmi. Zdroje: průhledná PNG složená na tmavé pozadí `#2d3034` (s úklidem okraje, tmavého čtverce z generátoru a záře lampionů v díře) v `branding/ramecky/sezona-MM[-b].jpg`, obrázky `icons/frames/sezona-MM[-b].webp` ze `scripts/frame-images.py` (rozměry v `branding/ramecky/rozmery.json`), třída `.frame-art .frame-sezona-…` v `src/input.css`, předem uložené v `sw.js` (`FRAME_ART`). Znak sezóny (logo Mudrlanta v rámečku měsíce: pruh na úvodu, 20. stupeň, odkaz na minulou sezónu) teď ukazuje zdobnější obrázkový rámeček.
+
 #### 151. `avatar-ramp.png` – Rampouch (leden)
+
+Odemkne: Sezónní truhla v lednu (20. stupeň Sezóny Mudrlanta; id `ramp`, přebarvitelné části Šála a Led). Dodáno a zapojeno.
 
 Přiložit: `branding/sova-original.jpg` (vzor stylu)
 
@@ -1242,6 +1293,8 @@ Cartoon sticker character portrait in exactly the same art style as the attached
 
 #### 152. `avatar-kobliz.png` – Masopustní koblížek (únor)
 
+Odemkne: Sezónní truhla v únoru (20. stupeň Sezóny Mudrlanta; id `kobliz`, přebarvitelné části Maska a Serpentina). Dodáno a zapojeno. Dodaný koblížek má uprostřed díru (spíš americká kobliha); případná nová verze může být plný český koblížek bez díry.
+
 Přiložit: `branding/sova-original.jpg` (vzor stylu)
 
 ```text
@@ -1249,6 +1302,8 @@ Cartoon sticker character portrait in exactly the same art style as the attached
 ```
 
 #### 153. `avatar-snezen.png` – Sněženka (březen)
+
+Odemkne: Sezónní truhla ve březnu (20. stupeň Sezóny Mudrlanta; id `snezen`, přebarvitelné části Květ a Listy). Dodáno a zapojeno. Dodaný květ připomíná spíš poupě tulipánu; případná nová verze může mít převislé bílé zvonky sněženky. Paprsek slunce nemá krémový okraj.
 
 Přiložit: `branding/sova-original.jpg` (vzor stylu)
 
@@ -1258,6 +1313,8 @@ Cartoon sticker character portrait in exactly the same art style as the attached
 
 #### 154. `avatar-kapka.png` – Aprílová kapka (duben)
 
+Odemkne: Sezónní truhla v dubnu (20. stupeň Sezóny Mudrlanta; id `kapka`, přebarvitelné části Kapka a Deštník). Dodáno a zapojeno.
+
 Přiložit: `branding/sova-original.jpg` (vzor stylu)
 
 ```text
@@ -1265,6 +1322,8 @@ Cartoon sticker character portrait in exactly the same art style as the attached
 ```
 
 #### 155. `avatar-pampel.png` – Pampeliška (květen)
+
+Odemkne: Sezónní truhla v květnu (20. stupeň Sezóny Mudrlanta; id `pampel`, přebarvitelné části Chmýří a Listy). Dodáno a zapojeno. Šedý oblouk (chyba generátoru) vpravo nahoře je ze zdroje smazaný.
 
 Přiložit: `branding/sova-original.jpg` (vzor stylu)
 
@@ -1274,6 +1333,8 @@ Cartoon sticker character portrait in exactly the same art style as the attached
 
 #### 156. `avatar-vysved.png` – Vysvědčení (červen)
 
+Odemkne: Sezónní truhla v červnu (20. stupeň Sezóny Mudrlanta; id `vysved`, přebarvitelné části Mašle a Brýle). Dodáno a zapojeno.
+
 Přiložit: `branding/sova-original.jpg` (vzor stylu)
 
 ```text
@@ -1281,6 +1342,8 @@ Cartoon sticker character portrait in exactly the same art style as the attached
 ```
 
 #### 157. `avatar-meloun.png` – Meloun (červenec)
+
+Odemkne: Sezónní truhla v červenci (20. stupeň Sezóny Mudrlanta; id `meloun`, přebarvitelné části Dužina a Brýle). Dodáno a zapojeno.
 
 Přiložit: `branding/sova-original.jpg` (vzor stylu)
 
@@ -1290,6 +1353,8 @@ Cartoon sticker character portrait in exactly the same art style as the attached
 
 #### 158. `avatar-hvezda.png` – Padající hvězda (srpen)
 
+Odemkne: Sezónní truhla v srpnu (20. stupeň Sezóny Mudrlanta; id `hvezda`, přebarvitelné části Hvězda a Ohon). Dodáno a zapojeno.
+
 Přiložit: `branding/sova-original.jpg` (vzor stylu)
 
 ```text
@@ -1297,6 +1362,8 @@ Cartoon sticker character portrait in exactly the same art style as the attached
 ```
 
 #### 159. `avatar-aktovk.png` – Školní aktovka (září)
+
+Odemkne: Sezónní truhla v září (20. stupeň Sezóny Mudrlanta; id `aktovk`, přebarvitelné části Aktovka a Kapsa). Dodáno a zapojeno.
 
 Přiložit: `branding/sova-original.jpg` (vzor stylu)
 
@@ -1306,6 +1373,8 @@ Cartoon sticker character portrait in exactly the same art style as the attached
 
 #### 160. `avatar-drakpa.png` – Papírový drak (říjen)
 
+Odemkne: Sezónní truhla v říjnu (20. stupeň Sezóny Mudrlanta; id `drakpa`, přebarvitelné části Drak a Mašličky). Dodáno a zapojeno.
+
 Přiložit: `branding/sova-original.jpg` (vzor stylu)
 
 ```text
@@ -1313,6 +1382,8 @@ Cartoon sticker character portrait in exactly the same art style as the attached
 ```
 
 #### 161. `avatar-caj.png` – Hrnek čaje (listopad)
+
+Odemkne: Sezónní truhla v listopadu (20. stupeň Sezóny Mudrlanta; id `caj`, přebarvitelné části Hrnek a Citron). Dodáno a zapojeno.
 
 Přiložit: `branding/sova-original.jpg` (vzor stylu)
 
@@ -1322,13 +1393,17 @@ Cartoon sticker character portrait in exactly the same art style as the attached
 
 #### 162. `avatar-pernik.png` – Perníček (prosinec)
 
+Odemkne: Sezónní truhla v prosinci (20. stupeň Sezóny Mudrlanta; id `pernik`, přebarvitelné části Poleva a Knoflíky). Dodáno a zapojeno.
+
 Přiložit: `branding/sova-original.jpg` (vzor stylu)
 
 ```text
 Cartoon sticker character portrait in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole character. A single funny, delightfully weird, original seasonal character (an object or food brought to life, NOT an animal and NOT a person), shown from the chest up or as a whole small figure, big expressive face looking at the viewer, centered and filling about 85 % of the frame, readable even as a tiny 40 px profile picture (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, shading); do not draw the owl and do not copy any existing cartoon character. Character: A gingerbread cookie figure with white icing decorations, gumdrop buttons and a mischievous grin, one bite missing from its ear. Colors: warm gingerbread brown, white icing, red and green gumdrops. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
-#### 163. `ramecek-sezona-01.png` – sezónní rámeček (leden)
+#### 163. `ramecek-sezona-01.png` – sezónní rámeček (leden) – ✅ dodáno ve dvou variantách, zapojeno
+
+Zapojeno: `sezona-01` Lednový – ledový krystalový prsten s velkými vločkami a rampouchy (Sezónní truhla, 20. stupeň); `sezona-01-b` Lednové rampouchy – šedý prsten s vločkami, krystaly a rampouchy (Truhla v půli sezóny, 10. stupeň).
 
 Přiložit: `branding/sova-original.jpg` (vzor stylu)
 
@@ -1336,7 +1411,9 @@ Přiložit: `branding/sova-original.jpg` (vzor stylu)
 Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading. A circular decorative frame (a ring) seen straight from the front, perfectly round and centered, filling about 92 % of the image; the ring band is about 13 % of the image width thick and may have ornaments sticking out a little on the outside, never inside. The inside of the ring is an EMPTY perfect circle showing only the plain flat dark grey background, color #2d3034: nothing drawn inside, no character, no face, no text. A thin cream-colored sticker border runs along BOTH the outer edge and the inner edge of the ring. Plain solid flat dark grey background #2d3034 everywhere outside the ring, no gradient, no shadow. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference; do not draw the owl. Ring design: a ring of sparkling snowflakes and frosty ice crystals with small icicles hanging from the bottom edge. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
-#### 164. `ramecek-sezona-02.png` – sezónní rámeček (únor)
+#### 164. `ramecek-sezona-02.png` – sezónní rámeček (únor) – ✅ dodáno ve dvou variantách, zapojeno
+
+Zapojeno: `sezona-02` Únorový – hustý karnevalový věnec z konfet, serpentin a dvou masek (Sezónní truhla, 20. stupeň); `sezona-02-b` Únorové masky – tmavý prsten s konfetami a dvěma maskami (Truhla v půli sezóny, 10. stupeň).
 
 Přiložit: `branding/sova-original.jpg` (vzor stylu)
 
@@ -1344,7 +1421,9 @@ Přiložit: `branding/sova-original.jpg` (vzor stylu)
 Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading. A circular decorative frame (a ring) seen straight from the front, perfectly round and centered, filling about 92 % of the image; the ring band is about 13 % of the image width thick and may have ornaments sticking out a little on the outside, never inside. The inside of the ring is an EMPTY perfect circle showing only the plain flat dark grey background, color #2d3034: nothing drawn inside, no character, no face, no text. A thin cream-colored sticker border runs along BOTH the outer edge and the inner edge of the ring. Plain solid flat dark grey background #2d3034 everywhere outside the ring, no gradient, no shadow. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference; do not draw the owl. Ring design: a festive carnival ring of colorful confetti, streamers and small feathered masks. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
-#### 165. `ramecek-sezona-03.png` – sezónní rámeček (březen)
+#### 165. `ramecek-sezona-03.png` – sezónní rámeček (březen) – ✅ dodáno ve dvou variantách, zapojeno
+
+Zapojeno: `sezona-03` Březnový – věneček z růžových, žlutých a bílých petrklíčů a sněženek (Sezónní truhla, 20. stupeň); `sezona-03-b` Březnové sněženky – zelený věneček se sněženkami a žlutými petrklíči (Truhla v půli sezóny, 10. stupeň).
 
 Přiložit: `branding/sova-original.jpg` (vzor stylu)
 
@@ -1352,7 +1431,9 @@ Přiložit: `branding/sova-original.jpg` (vzor stylu)
 Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading. A circular decorative frame (a ring) seen straight from the front, perfectly round and centered, filling about 92 % of the image; the ring band is about 13 % of the image width thick and may have ornaments sticking out a little on the outside, never inside. The inside of the ring is an EMPTY perfect circle showing only the plain flat dark grey background, color #2d3034: nothing drawn inside, no character, no face, no text. A thin cream-colored sticker border runs along BOTH the outer edge and the inner edge of the ring. Plain solid flat dark grey background #2d3034 everywhere outside the ring, no gradient, no shadow. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference; do not draw the owl. Ring design: a ring of fresh spring flowers: snowdrops, primroses, small green leaves and buds. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
-#### 166. `ramecek-sezona-04.png` – sezónní rámeček (duben)
+#### 166. `ramecek-sezona-04.png` – sezónní rámeček (duben) – ✅ dodáno ve dvou variantách, zapojeno
+
+Zapojeno: `sezona-04` Dubnový – tmavý prsten s velkou duhou nahoře, mráčky a kapkami (Sezónní truhla, 20. stupeň); `sezona-04-b` Dubnové kapky – modrý prsten plný kapek s malou duhou a mráčky (Truhla v půli sezóny, 10. stupeň).
 
 Přiložit: `branding/sova-original.jpg` (vzor stylu)
 
@@ -1360,7 +1441,9 @@ Přiložit: `branding/sova-original.jpg` (vzor stylu)
 Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading. A circular decorative frame (a ring) seen straight from the front, perfectly round and centered, filling about 92 % of the image; the ring band is about 13 % of the image width thick and may have ornaments sticking out a little on the outside, never inside. The inside of the ring is an EMPTY perfect circle showing only the plain flat dark grey background, color #2d3034: nothing drawn inside, no character, no face, no text. A thin cream-colored sticker border runs along BOTH the outer edge and the inner edge of the ring. Plain solid flat dark grey background #2d3034 everywhere outside the ring, no gradient, no shadow. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference; do not draw the owl. Ring design: a ring of playful blue raindrops and small clouds with a rainbow arching over the top. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
-#### 167. `ramecek-sezona-05.png` – sezónní rámeček (květen)
+#### 167. `ramecek-sezona-05.png` – sezónní rámeček (květen) – ✅ dodáno ve dvou variantách, zapojeno
+
+Zapojeno: `sezona-05` Květnový – hustě rozkvetlé třešňové květy s chmýřím (Sezónní truhla, 20. stupeň); `sezona-05-b` Májové květy – tmavý prsten s několika trsy třešňových květů a chmýřím (Truhla v půli sezóny, 10. stupeň).
 
 Přiložit: `branding/sova-original.jpg` (vzor stylu)
 
@@ -1368,7 +1451,9 @@ Přiložit: `branding/sova-original.jpg` (vzor stylu)
 Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading. A circular decorative frame (a ring) seen straight from the front, perfectly round and centered, filling about 92 % of the image; the ring band is about 13 % of the image width thick and may have ornaments sticking out a little on the outside, never inside. The inside of the ring is an EMPTY perfect circle showing only the plain flat dark grey background, color #2d3034: nothing drawn inside, no character, no face, no text. A thin cream-colored sticker border runs along BOTH the outer edge and the inner edge of the ring. Plain solid flat dark grey background #2d3034 everywhere outside the ring, no gradient, no shadow. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference; do not draw the owl. Ring design: a ring of blooming apple blossoms in pink and white with fluttering petals and dandelion seeds. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
-#### 168. `ramecek-sezona-06.png` – sezónní rámeček (červen)
+#### 168. `ramecek-sezona-06.png` – sezónní rámeček (červen) – ✅ dodáno ve dvou variantách, zapojeno
+
+Zapojeno: `sezona-06` Červnový – hustý věnec slunečnic se sluncem nahoře a konfetami (Sezónní truhla, 20. stupeň); `sezona-06-b` Červnové slunečnice – žlutý prsten se slunečnicemi, sluncem a konfetami (Truhla v půli sezóny, 10. stupeň).
 
 Přiložit: `branding/sova-original.jpg` (vzor stylu)
 
@@ -1376,7 +1461,9 @@ Přiložit: `branding/sova-original.jpg` (vzor stylu)
 Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading. A circular decorative frame (a ring) seen straight from the front, perfectly round and centered, filling about 92 % of the image; the ring band is about 13 % of the image width thick and may have ornaments sticking out a little on the outside, never inside. The inside of the ring is an EMPTY perfect circle showing only the plain flat dark grey background, color #2d3034: nothing drawn inside, no character, no face, no text. A thin cream-colored sticker border runs along BOTH the outer edge and the inner edge of the ring. Plain solid flat dark grey background #2d3034 everywhere outside the ring, no gradient, no shadow. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference; do not draw the owl. Ring design: a ring of bright summer sunflowers with school-end confetti and a small sun at the top. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
-#### 169. `ramecek-sezona-07.png` – sezónní rámeček (červenec)
+#### 169. `ramecek-sezona-07.png` – sezónní rámeček (červenec) – ✅ dodáno ve dvou variantách, zapojeno
+
+Zapojeno: `sezona-07` Červencový – moře a pláž se dvěma vlnami, třemi mušlemi, hvězdicí a slunečníkem (Sezónní truhla, 20. stupeň); `sezona-07-b` Červencová pláž – písečný prsten s vlnou, mušlemi, hvězdicí a slunečníkem (Truhla v půli sezóny, 10. stupeň).
 
 Přiložit: `branding/sova-original.jpg` (vzor stylu)
 
@@ -1384,7 +1471,9 @@ Přiložit: `branding/sova-original.jpg` (vzor stylu)
 Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading. A circular decorative frame (a ring) seen straight from the front, perfectly round and centered, filling about 92 % of the image; the ring band is about 13 % of the image width thick and may have ornaments sticking out a little on the outside, never inside. The inside of the ring is an EMPTY perfect circle showing only the plain flat dark grey background, color #2d3034: nothing drawn inside, no character, no face, no text. A thin cream-colored sticker border runs along BOTH the outer edge and the inner edge of the ring. Plain solid flat dark grey background #2d3034 everywhere outside the ring, no gradient, no shadow. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference; do not draw the owl. Ring design: a beach ring made of a curling turquoise wave, seashells, a starfish and a tiny beach umbrella. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
-#### 170. `ramecek-sezona-08.png` – sezónní rámeček (srpen)
+#### 170. `ramecek-sezona-08.png` – sezónní rámeček (srpen) – ✅ dodáno ve dvou variantách, zapojeno
+
+Zapojeno: `sezona-08` Srpnový – noční nebe se zlatými padajícími hvězdami (Sezónní truhla, 20. stupeň); `sezona-08-b` Srpnová noc – noční nebe s fialovými kometami a hvězdami (Truhla v půli sezóny, 10. stupeň).
 
 Přiložit: `branding/sova-original.jpg` (vzor stylu)
 
@@ -1392,7 +1481,9 @@ Přiložit: `branding/sova-original.jpg` (vzor stylu)
 Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading. A circular decorative frame (a ring) seen straight from the front, perfectly round and centered, filling about 92 % of the image; the ring band is about 13 % of the image width thick and may have ornaments sticking out a little on the outside, never inside. The inside of the ring is an EMPTY perfect circle showing only the plain flat dark grey background, color #2d3034: nothing drawn inside, no character, no face, no text. A thin cream-colored sticker border runs along BOTH the outer edge and the inner edge of the ring. Plain solid flat dark grey background #2d3034 everywhere outside the ring, no gradient, no shadow. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference; do not draw the owl. Ring design: a ring of deep night sky with shooting stars streaking around it and twinkling golden stars. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
-#### 171. `ramecek-sezona-09.png` – sezónní rámeček (září)
+#### 171. `ramecek-sezona-09.png` – sezónní rámeček (září) – ✅ dodáno ve dvou variantách, zapojeno
+
+Zapojeno: `sezona-09` Zářijový – tmavý prsten plný pastelek s pravítkem a listím (Sezónní truhla, 20. stupeň); `sezona-09-b` Zářijové pastelky – tmavý prsten s několika pastelkami, pravítkem a listím (Truhla v půli sezóny, 10. stupeň).
 
 Přiložit: `branding/sova-original.jpg` (vzor stylu)
 
@@ -1400,7 +1491,9 @@ Přiložit: `branding/sova-original.jpg` (vzor stylu)
 Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading. A circular decorative frame (a ring) seen straight from the front, perfectly round and centered, filling about 92 % of the image; the ring band is about 13 % of the image width thick and may have ornaments sticking out a little on the outside, never inside. The inside of the ring is an EMPTY perfect circle showing only the plain flat dark grey background, color #2d3034: nothing drawn inside, no character, no face, no text. A thin cream-colored sticker border runs along BOTH the outer edge and the inner edge of the ring. Plain solid flat dark grey background #2d3034 everywhere outside the ring, no gradient, no shadow. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference; do not draw the owl. Ring design: a ring of colored pencils, a ruler and a few early autumn leaves around a school theme. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
-#### 172. `ramecek-sezona-10.png` – sezónní rámeček (říjen)
+#### 172. `ramecek-sezona-10.png` – sezónní rámeček (říjen) – ✅ dodáno ve dvou variantách, zapojeno
+
+Zapojeno: `sezona-10` Říjnový – hustý věnec podzimního listí se dvěma malými draky (Sezónní truhla, 20. stupeň); `sezona-10-b` Říjnoví draci – tmavý prsten s listím a dvěma velkými draky (Truhla v půli sezóny, 10. stupeň).
 
 Přiložit: `branding/sova-original.jpg` (vzor stylu)
 
@@ -1408,7 +1501,9 @@ Přiložit: `branding/sova-original.jpg` (vzor stylu)
 Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading. A circular decorative frame (a ring) seen straight from the front, perfectly round and centered, filling about 92 % of the image; the ring band is about 13 % of the image width thick and may have ornaments sticking out a little on the outside, never inside. The inside of the ring is an EMPTY perfect circle showing only the plain flat dark grey background, color #2d3034: nothing drawn inside, no character, no face, no text. A thin cream-colored sticker border runs along BOTH the outer edge and the inner edge of the ring. Plain solid flat dark grey background #2d3034 everywhere outside the ring, no gradient, no shadow. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference; do not draw the owl. Ring design: a ring of swirling orange, red and brown autumn leaves with two small paper kites flying along it. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
-#### 173. `ramecek-sezona-11.png` – sezónní rámeček (listopad)
+#### 173. `ramecek-sezona-11.png` – sezónní rámeček (listopad) – ✅ dodáno ve dvou variantách, zapojeno
+
+Zapojeno: `sezona-11` Listopadový – tmavý prsten s mnoha svítícími lampiony, listím a mlhou (Sezónní truhla, 20. stupeň); `sezona-11-b` Listopadové lampiony – tmavý prsten se sedmi velkými lampiony a mlhou (Truhla v půli sezóny, 10. stupeň).
 
 Přiložit: `branding/sova-original.jpg` (vzor stylu)
 
@@ -1416,7 +1511,9 @@ Přiložit: `branding/sova-original.jpg` (vzor stylu)
 Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading. A circular decorative frame (a ring) seen straight from the front, perfectly round and centered, filling about 92 % of the image; the ring band is about 13 % of the image width thick and may have ornaments sticking out a little on the outside, never inside. The inside of the ring is an EMPTY perfect circle showing only the plain flat dark grey background, color #2d3034: nothing drawn inside, no character, no face, no text. A thin cream-colored sticker border runs along BOTH the outer edge and the inner edge of the ring. Plain solid flat dark grey background #2d3034 everywhere outside the ring, no gradient, no shadow. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference; do not draw the owl. Ring design: a ring of glowing paper lanterns on a string with soft mist and falling autumn leaves. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
-#### 174. `ramecek-sezona-12.png` – sezónní rámeček (prosinec)
+#### 174. `ramecek-sezona-12.png` – sezónní rámeček (prosinec) – ✅ dodáno ve dvou variantách, zapojeno
+
+Zapojeno: `sezona-12` Prosincový – jehličnatý věnec s mnoha baňkami, perníčky a světýlky (Sezónní truhla, 20. stupeň); `sezona-12-b` Prosincové perníčky – jehličnatý věnec se dvěma velkými perníčky, baňkami a světýlky (Truhla v půli sezóny, 10. stupeň).
 
 Přiložit: `branding/sova-original.jpg` (vzor stylu)
 
@@ -1424,7 +1521,7 @@ Přiložit: `branding/sova-original.jpg` (vzor stylu)
 Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading. A circular decorative frame (a ring) seen straight from the front, perfectly round and centered, filling about 92 % of the image; the ring band is about 13 % of the image width thick and may have ornaments sticking out a little on the outside, never inside. The inside of the ring is an EMPTY perfect circle showing only the plain flat dark grey background, color #2d3034: nothing drawn inside, no character, no face, no text. A thin cream-colored sticker border runs along BOTH the outer edge and the inner edge of the ring. Plain solid flat dark grey background #2d3034 everywhere outside the ring, no gradient, no shadow. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference; do not draw the owl. Ring design: a festive ring of evergreen garland with red and gold baubles, gingerbread cookies and small twinkling lights. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
-#### 175–176. Sezónní truhly podle ročních období (zavřená a otevřená)
+#### 175–176. Sezónní truhly podle ročních období (zavřená a otevřená) – ✅ dodáno, zapojeno (všechna čtyři období)
 
 Sezónní truhla na 20. stupni sezóny má čtyři podoby podle ročního období měsíce: **zima** (prosinec–únor), **jaro** (březen–květen), **léto** (červen–srpen), **podzim** (září–listopad). Každá je zavřená (č. 175) a otevřená (č. 176). Soubory pojmenuj `branding/ikony/truhla-<období>.png` a `truhla-<období>-otevrena.png` (období: `zima`, `jaro`, `leto`, `podzim`). Dokud obrázky období nejsou, ukáže se obyčejná truhla. Dodat jde po jednom období.
 
@@ -1482,12 +1579,15 @@ Edit the attached image. Keep the chest EXACTLY the same size, position, perspec
 
 Každé téma dostane ke stávajícímu doplňku za zběhlost ještě dva kusy na jiných místech, takže jedna sada obsadí tři ze čtyř míst (hlava, obličej, krk, ruka) a dá dohromady celý look Mudrlanta v tématu. Kusy jedné sady se k sobě hodí a nepřekážejí si.
 
-**Jak se kusy získají (návrh, doladím při zapojení):**
+**Stav: 27 z 28 dodáno a zapojeno** (`look.js` ACCESSORIES, vrstvy `scripts/owl-accessories.py`, podrobnosti v `docs/DOPLNKY-TEMAT.md`). Čeká jen č. 181 `dvourohy-klobouk` (Historie).
+
+**Jak se kusy získají:**
 
 1. První kus (stávající): zběhlost v tématu – 12 správně v řadě nebo 3 hvězdy mistrovství.
-2. Druhý kus: odznak tématu 3. stupně (300 správných odpovědí v tématu).
-3. Třetí kus: odznak tématu 5. stupně (1000 správných odpovědí v tématu). Odznaky počítají odpovědi, ne různé položky, takže je jde získat v každém tématu.
-4. Kompletní sada: v albu sbírky nová sekce Sady témat; kdo má všechny tři kusy a nasadí je najednou, Mudrlant v Profilu hráče ukáže název looku (např. „Cestovatel“).
+2. Druhý kus: odznak tématu 3. stupně (300 správných odpovědí v tématu, `tema-<téma>-300`).
+3. Třetí kus: odznak tématu 5. stupně (1000 správných odpovědí v tématu, `tema-<téma>-1000`). Odznaky počítají odpovědi, ne různé položky, takže je jde získat v každém tématu.
+4. Okno Mistrovství tématu (Můj postup) ukazuje celou sadu a jak se který kus získá.
+5. Zatím nezapojeno (nápad): v albu sbírky sekce Sady témat; kdo má všechny tři kusy a nasadí je najednou, Mudrlant v Profilu hráče ukáže název looku (např. „Cestovatel“).
 
 **Postup:** stejně jako u ostatních doplňků (`scripts/owl-accessories.py`). Soubor pojmenuj `branding/doplnky/<id>.jpg`.
 
@@ -1515,17 +1615,17 @@ Každé téma dostane ke stávajícímu doplňku za zběhlost ještě dva kusy n
 
 Stávající kus: Kompas (krk).
 
-#### 177. `cestovatelsky-klobouk` – Cestovatelský klobouk (hlava)
+#### 177. `cestovatelsky-klobouk` – Cestovatelský klobouk (hlava) – ✅ dodáno, zapojeno
 
-Odemkne: 300 správných v tématu (návrh). Přiložit: `branding/sova-original.jpg`
+Odemkne: odznak Objevitel – 300 správných odpovědí v tématu (`tema-zemepis-300`). Přiložit: `branding/sova-original.jpg`
 
 ```text
 Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same proportions, same colors, same outline style, same flat dark background. Do not redraw, move or recolor the owl. Only ADD the accessory described below, drawn in the same cartoon sticker style with the same thick dark outline and the same lighting, sitting naturally on the owl. The accessory should be mostly one dominant color (not wine red) so it can be recolored later. Do not add anything else. Accessory: A khaki explorer's pith helmet with a thin darker band, worn on the owl's head over its cap, like a 19th-century expedition explorer.
 ```
 
-#### 178. `globus` – Globus (ruka)
+#### 178. `globus` – Globus (ruka) – ✅ dodáno, zapojeno
 
-Odemkne: 1000 správných v tématu (návrh). Přiložit: `branding/sova-original.jpg`
+Odemkne: odznak Pán zeměkoule – 1000 správných odpovědí v tématu (`tema-zemepis-1000`). Přiložit: `branding/sova-original.jpg`
 
 ```text
 Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same proportions, same colors, same outline style, same flat dark background. Do not redraw, move or recolor the owl. Only ADD the accessory described below, drawn in the same cartoon sticker style with the same thick dark outline and the same lighting, sitting naturally on the owl. The accessory should be mostly one dominant color (not wine red) so it can be recolored later. Do not add anything else. Accessory: A small desk globe on a curved golden stand, held up in the owl's wing, the oceans in one solid blue color and the continents as simple light shapes without any text.
@@ -1535,17 +1635,17 @@ Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same p
 
 Stávající kus: Vlaječka (ruka).
 
-#### 179. `namornicka-cepice` – Námořnická čepice (hlava)
+#### 179. `namornicka-cepice` – Námořnická čepice (hlava) – ✅ dodáno, zapojeno
 
-Odemkne: 300 správných v tématu (návrh). Přiložit: `branding/sova-original.jpg`
+Odemkne: odznak Heraldik – 300 správných odpovědí v tématu (`tema-vlajky-300`). Přiložit: `branding/sova-original.jpg`
 
 ```text
 Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same proportions, same colors, same outline style, same flat dark background. Do not redraw, move or recolor the owl. Only ADD the accessory described below, drawn in the same cartoon sticker style with the same thick dark outline and the same lighting, sitting naturally on the owl. The accessory should be mostly one dominant color (not wine red) so it can be recolored later. Do not add anything else. Accessory: A white sailor's cap with a navy-blue band and a small golden anchor badge on the front, worn slightly tilted on the owl's head.
 ```
 
-#### 180. `praporky` – Signální praporky (krk)
+#### 180. `praporky` – Signální praporky (krk) – ✅ dodáno, zapojeno
 
-Odemkne: 1000 správných v tématu (návrh). Přiložit: `branding/sova-original.jpg`
+Odemkne: odznak Pán vlajek – 1000 správných odpovědí v tématu (`tema-vlajky-1000`). Přiložit: `branding/sova-original.jpg`
 
 ```text
 Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same proportions, same colors, same outline style, same flat dark background. Do not redraw, move or recolor the owl. Only ADD the accessory described below, drawn in the same cartoon sticker style with the same thick dark outline and the same lighting, sitting naturally on the owl. The accessory should be mostly one dominant color (not wine red) so it can be recolored later. Do not add anything else. Accessory: A garland of small triangular pennant flags on a thin rope, draped around the owl's neck and chest like a festive necklace, all pennants in one solid color with thin white edges, no symbols or real national flags.
@@ -1555,17 +1655,17 @@ Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same p
 
 Stávající kus: Svitek s pečetí (ruka).
 
-#### 181. `dvourohy-klobouk` – Dvourohý klobouk (hlava)
+#### 181. `dvourohy-klobouk` – Dvourohý klobouk (hlava) – ⏳ čeká na obrázek
 
-Odemkne: 300 správných v tématu (návrh). Přiložit: `branding/sova-original.jpg`
+Odemkne: odznak Pán času – 300 správných odpovědí v tématu (`tema-historie-300`). Přiložit: `branding/sova-original.jpg`
 
 ```text
 Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same proportions, same colors, same outline style, same flat dark background. Do not redraw, move or recolor the owl. Only ADD the accessory described below, drawn in the same cartoon sticker style with the same thick dark outline and the same lighting, sitting naturally on the owl. The accessory should be mostly one dominant color (not wine red) so it can be recolored later. Do not add anything else. Accessory: A big black bicorne hat worn sideways across the owl's head like a 19th-century general, with a small round cockade on the side and thin golden edging.
 ```
 
-#### 182. `krejzlik` – Krejzlík (krk)
+#### 182. `krejzlik` – Krejzlík (krk) – ✅ dodáno, zapojeno
 
-Odemkne: 1000 správných v tématu (návrh). Přiložit: `branding/sova-original.jpg`
+Odemkne: odznak Pán dějin – 1000 správných odpovědí v tématu (`tema-historie-1000`). Přiložit: `branding/sova-original.jpg`
 
 ```text
 Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same proportions, same colors, same outline style, same flat dark background. Do not redraw, move or recolor the owl. Only ADD the accessory described below, drawn in the same cartoon sticker style with the same thick dark outline and the same lighting, sitting naturally on the owl. The accessory should be mostly one dominant color (not wine red) so it can be recolored later. Do not add anything else. Accessory: A large white pleated Renaissance ruff collar around the owl's neck, like in old royal portraits, crisp and round.
@@ -1575,17 +1675,17 @@ Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same p
 
 Stávající kus: Okřídlená helma (hlava).
 
-#### 183. `blesk` – Blesk vládce hromu (ruka)
+#### 183. `blesk` – Blesk vládce hromu (ruka) – ✅ dodáno, zapojeno
 
-Odemkne: 300 správných v tématu (návrh). Přiložit: `branding/sova-original.jpg`
+Odemkne: odznak Zasvěcenec – 300 správných odpovědí v tématu (`tema-mytologie-300`). Přiložit: `branding/sova-original.jpg`
 
 ```text
 Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same proportions, same colors, same outline style, same flat dark background. Do not redraw, move or recolor the owl. Only ADD the accessory described below, drawn in the same cartoon sticker style with the same thick dark outline and the same lighting, sitting naturally on the owl. The accessory should be mostly one dominant color (not wine red) so it can be recolored later. Do not add anything else. Accessory: A big golden zigzag lightning bolt held up in the owl's wing like a thunder god, with a few tiny sparks around it.
 ```
 
-#### 184. `zlate-rouno` – Zlaté rouno (krk)
+#### 184. `zlate-rouno` – Zlaté rouno (krk) – ✅ dodáno, zapojeno
 
-Odemkne: 1000 správných v tématu (návrh). Přiložit: `branding/sova-original.jpg`
+Odemkne: odznak Pán Olympu – 1000 správných odpovědí v tématu (`tema-mytologie-1000`). Přiložit: `branding/sova-original.jpg`
 
 ```text
 Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same proportions, same colors, same outline style, same flat dark background. Do not redraw, move or recolor the owl. Only ADD the accessory described below, drawn in the same cartoon sticker style with the same thick dark outline and the same lighting, sitting naturally on the owl. The accessory should be mostly one dominant color (not wine red) so it can be recolored later. Do not add anything else. Accessory: A fluffy shining golden fleece draped over the owl's shoulders and around its neck like a short cape, with soft curly wool texture and a little sparkle.
@@ -1595,17 +1695,17 @@ Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same p
 
 Stávající kus: Síťka na motýly (ruka).
 
-#### 185. `hnizdo` – Ptačí hnízdo (hlava)
+#### 185. `hnizdo` – Ptačí hnízdo (hlava) – ✅ dodáno, zapojeno
 
-Odemkne: 300 správných v tématu (návrh). Přiložit: `branding/sova-original.jpg`
+Odemkne: odznak Pán přírody – 300 správných odpovědí v tématu (`tema-biologie-300`). Přiložit: `branding/sova-original.jpg`
 
 ```text
 Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same proportions, same colors, same outline style, same flat dark background. Do not redraw, move or recolor the owl. Only ADD the accessory described below, drawn in the same cartoon sticker style with the same thick dark outline and the same lighting, sitting naturally on the owl. The accessory should be mostly one dominant color (not wine red) so it can be recolored later. Do not add anything else. Accessory: A cozy round bird's nest of woven twigs sitting on top of the owl's head, with one small speckled egg peeking out of it.
 ```
 
-#### 186. `dalekohled` – Dalekohled (krk)
+#### 186. `dalekohled` – Dalekohled (krk) – ✅ dodáno, zapojeno
 
-Odemkne: 1000 správných v tématu (návrh). Přiložit: `branding/sova-original.jpg`
+Odemkne: odznak Pán života – 1000 správných odpovědí v tématu (`tema-biologie-1000`). Přiložit: `branding/sova-original.jpg`
 
 ```text
 Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same proportions, same colors, same outline style, same flat dark background. Do not redraw, move or recolor the owl. Only ADD the accessory described below, drawn in the same cartoon sticker style with the same thick dark outline and the same lighting, sitting naturally on the owl. The accessory should be mostly one dominant color (not wine red) so it can be recolored later. Do not add anything else. Accessory: A pair of birdwatching binoculars hanging on a strap around the owl's neck, resting on its chest, in one solid color with dark lenses.
@@ -1615,17 +1715,17 @@ Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same p
 
 Stávající kus: Horolezecká přilba (hlava).
 
-#### 187. `kladivko` – Geologické kladívko (ruka)
+#### 187. `kladivko` – Geologické kladívko (ruka) – ✅ dodáno, zapojeno
 
-Odemkne: 300 správných v tématu (návrh). Přiložit: `branding/sova-original.jpg`
+Odemkne: odznak Pán kamenů – 300 správných odpovědí v tématu (`tema-geologie-300`). Přiložit: `branding/sova-original.jpg`
 
 ```text
 Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same proportions, same colors, same outline style, same flat dark background. Do not redraw, move or recolor the owl. Only ADD the accessory described below, drawn in the same cartoon sticker style with the same thick dark outline and the same lighting, sitting naturally on the owl. The accessory should be mostly one dominant color (not wine red) so it can be recolored later. Do not add anything else. Accessory: A geologist's rock hammer with a wooden handle and a pointed steel head, held in the owl's wing, with a small chip of rock flying off.
 ```
 
-#### 188. `krystal` – Krystal na šňůrce (krk)
+#### 188. `krystal` – Krystal na šňůrce (krk) – ✅ dodáno, zapojeno
 
-Odemkne: 1000 správných v tématu (návrh). Přiložit: `branding/sova-original.jpg`
+Odemkne: odznak Pán země – 1000 správných odpovědí v tématu (`tema-geologie-1000`). Přiložit: `branding/sova-original.jpg`
 
 ```text
 Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same proportions, same colors, same outline style, same flat dark background. Do not redraw, move or recolor the owl. Only ADD the accessory described below, drawn in the same cartoon sticker style with the same thick dark outline and the same lighting, sitting naturally on the owl. The accessory should be mostly one dominant color (not wine red) so it can be recolored later. Do not add anything else. Accessory: A large glowing pointed crystal pendant (like an amethyst point) hanging on a thin leather cord around the owl's neck, resting on its chest.
@@ -1635,17 +1735,17 @@ Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same p
 
 Stávající kus: Laboratorní brýle (obličej).
 
-#### 189. `banka` – Baňka s lektvarem (ruka)
+#### 189. `banka` – Baňka s lektvarem (ruka) – ✅ dodáno, zapojeno
 
-Odemkne: 300 správných v tématu (návrh). Přiložit: `branding/sova-original.jpg`
+Odemkne: odznak Alchymista – 300 správných odpovědí v tématu (`tema-chemie-300`). Přiložit: `branding/sova-original.jpg`
 
 ```text
 Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same proportions, same colors, same outline style, same flat dark background. Do not redraw, move or recolor the owl. Only ADD the accessory described below, drawn in the same cartoon sticker style with the same thick dark outline and the same lighting, sitting naturally on the owl. The accessory should be mostly one dominant color (not wine red) so it can be recolored later. Do not add anything else. Accessory: A glass Erlenmeyer flask held in the owl's wing, filled with a bright bubbling liquid in one solid color, with a few bubbles and a tiny puff of vapor rising from the top.
 ```
 
-#### 190. `vybuch` – Po výbuchu (hlava)
+#### 190. `vybuch` – Po výbuchu (hlava) – ✅ dodáno, zapojeno
 
-Odemkne: 1000 správných v tématu (návrh). Přiložit: `branding/sova-original.jpg`
+Odemkne: odznak Pán prvků – 1000 správných odpovědí v tématu (`tema-chemie-1000`). Přiložit: `branding/sova-original.jpg`
 
 ```text
 Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same proportions, same colors, same outline style, same flat dark background. Do not redraw, move or recolor the owl. Only ADD the accessory described below, drawn in the same cartoon sticker style with the same thick dark outline and the same lighting, sitting naturally on the owl. The accessory should be mostly one dominant color (not wine red) so it can be recolored later. Do not add anything else. Accessory: A small comic cloud of grey smoke puffing above the owl's head with a few singed, frizzy feather tufts sticking up, as if a lab experiment just went boom. Keep it funny, no fire.
@@ -1655,17 +1755,17 @@ Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same p
 
 Stávající kus: Einsteinův knír (obličej).
 
-#### 191. `magnet` – Magnet (ruka)
+#### 191. `magnet` – Magnet (ruka) – ✅ dodáno, zapojeno
 
-Odemkne: 300 správných v tématu (návrh). Přiložit: `branding/sova-original.jpg`
+Odemkne: odznak Pán energie – 300 správných odpovědí v tématu (`tema-fyzika-300`). Přiložit: `branding/sova-original.jpg`
 
 ```text
 Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same proportions, same colors, same outline style, same flat dark background. Do not redraw, move or recolor the owl. Only ADD the accessory described below, drawn in the same cartoon sticker style with the same thick dark outline and the same lighting, sitting naturally on the owl. The accessory should be mostly one dominant color (not wine red) so it can be recolored later. Do not add anything else. Accessory: A big red horseshoe magnet with silver tips held in the owl's wing, with two small curved lines showing the magnetic pull and a tiny paperclip stuck to it.
 ```
 
-#### 192. `jablko` – Newtonovo jablko (hlava)
+#### 192. `jablko` – Newtonovo jablko (hlava) – ✅ dodáno, zapojeno
 
-Odemkne: 1000 správných v tématu (návrh). Přiložit: `branding/sova-original.jpg`
+Odemkne: odznak Pán vesmíru – 1000 správných odpovědí v tématu (`tema-fyzika-1000`). Přiložit: `branding/sova-original.jpg`
 
 ```text
 Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same proportions, same colors, same outline style, same flat dark background. Do not redraw, move or recolor the owl. Only ADD the accessory described below, drawn in the same cartoon sticker style with the same thick dark outline and the same lighting, sitting naturally on the owl. The accessory should be mostly one dominant color (not wine red) so it can be recolored later. Do not add anything else. Accessory: A shiny round apple with one leaf sitting on top of the owl's head, as if it just fell from a tree, with a tiny bump star next to it.
@@ -1675,17 +1775,17 @@ Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same p
 
 Stávající kus: Malířský baret (hlava).
 
-#### 193. `paleta` – Malířská paleta (ruka)
+#### 193. `paleta` – Malířská paleta (ruka) – ✅ dodáno, zapojeno
 
-Odemkne: 300 správných v tématu (návrh). Přiložit: `branding/sova-original.jpg`
+Odemkne: odznak Mecenáš – 300 správných odpovědí v tématu (`tema-umeni-300`). Přiložit: `branding/sova-original.jpg`
 
 ```text
 Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same proportions, same colors, same outline style, same flat dark background. Do not redraw, move or recolor the owl. Only ADD the accessory described below, drawn in the same cartoon sticker style with the same thick dark outline and the same lighting, sitting naturally on the owl. The accessory should be mostly one dominant color (not wine red) so it can be recolored later. Do not add anything else. Accessory: A wooden painter's palette with a thumb hole held in the owl's wing, with a few dabs of paint and a thin paintbrush tucked into it. Keep the palette wood as the main color.
 ```
 
-#### 194. `dali-knir` – Kroucený knír (obličej)
+#### 194. `dali-knir` – Kroucený knír (obličej) – ✅ dodáno, zapojeno
 
-Odemkne: 1000 správných v tématu (návrh). Přiložit: `branding/sova-bez-monoklu.jpg`
+Odemkne: odznak Pán galerií – 1000 správných odpovědí v tématu (`tema-umeni-1000`). Přiložit: `branding/sova-bez-monoklu.jpg`
 
 ```text
 Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same proportions, same colors, same outline style, same flat dark background. Do not redraw, move or recolor the owl. Only ADD the accessory described below, drawn in the same cartoon sticker style with the same thick dark outline and the same lighting, sitting naturally on the owl. The accessory should be mostly one dominant color (not wine red) so it can be recolored later. Do not add anything else. Accessory: A thin, long, glossy black waxed mustache with both ends curled sharply upward like a surrealist painter, placed under the owl's beak. Keep it elegant and funny.
@@ -1695,17 +1795,17 @@ Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same p
 
 Stávající kus: Svinovací metr (krk).
 
-#### 195. `plany` – Stavební plány (ruka)
+#### 195. `plany` – Stavební plány (ruka) – ✅ dodáno, zapojeno
 
-Odemkne: 300 správných v tématu (návrh). Přiložit: `branding/sova-original.jpg`
+Odemkne: odznak Pán katedrál – 300 správných odpovědí v tématu (`tema-architektura-300`). Přiložit: `branding/sova-original.jpg`
 
 ```text
 Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same proportions, same colors, same outline style, same flat dark background. Do not redraw, move or recolor the owl. Only ADD the accessory described below, drawn in the same cartoon sticker style with the same thick dark outline and the same lighting, sitting naturally on the owl. The accessory should be mostly one dominant color (not wine red) so it can be recolored later. Do not add anything else. Accessory: A rolled-up blue blueprint held under the owl's wing, partly unrolled at one end showing simple white lines of a building plan (no text, no numbers).
 ```
 
-#### 196. `tesarska-tuzka` – Tesařská tužka (hlava)
+#### 196. `tesarska-tuzka` – Tesařská tužka (hlava) – ✅ dodáno, zapojeno
 
-Odemkne: 1000 správných v tématu (návrh). Přiložit: `branding/sova-original.jpg`
+Odemkne: odznak Pán měst – 1000 správných odpovědí v tématu (`tema-architektura-1000`). Přiložit: `branding/sova-original.jpg`
 
 ```text
 Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same proportions, same colors, same outline style, same flat dark background. Do not redraw, move or recolor the owl. Only ADD the accessory described below, drawn in the same cartoon sticker style with the same thick dark outline and the same lighting, sitting naturally on the owl. The accessory should be mostly one dominant color (not wine red) so it can be recolored later. Do not add anything else. Accessory: A flat carpenter's pencil tucked behind the owl's ear tuft on its head, sharpened tip pointing forward, in one solid color.
@@ -1715,17 +1815,17 @@ Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same p
 
 Stávající kus: Mikrofon (ruka).
 
-#### 197. `hvezdne-bryle` – Hvězdné brýle (obličej)
+#### 197. `hvezdne-bryle` – Hvězdné brýle (obličej) – ✅ dodáno, zapojeno
 
-Odemkne: 300 správných v tématu (návrh). Přiložit: `branding/sova-bez-monoklu.jpg`
+Odemkne: odznak Mistr tónů – 300 správných odpovědí v tématu (`tema-hudba-300`). Přiložit: `branding/sova-bez-monoklu.jpg`
 
 ```text
 Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same proportions, same colors, same outline style, same flat dark background. Do not redraw, move or recolor the owl. Only ADD the accessory described below, drawn in the same cartoon sticker style with the same thick dark outline and the same lighting, sitting naturally on the owl. The accessory should be mostly one dominant color (not wine red) so it can be recolored later. Do not add anything else. Accessory: Big star-shaped rock-star sunglasses worn over the owl's eyes, with a shiny frame in one solid color and dark lenses with a small glint.
 ```
 
-#### 198. `kytara` – Elektrická kytara (krk)
+#### 198. `kytara` – Elektrická kytara (krk) – ✅ dodáno, zapojeno
 
-Odemkne: 1000 správných v tématu (návrh). Přiložit: `branding/sova-original.jpg`
+Odemkne: odznak Pán symfonií – 1000 správných odpovědí v tématu (`tema-hudba-1000`). Přiložit: `branding/sova-original.jpg`
 
 ```text
 Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same proportions, same colors, same outline style, same flat dark background. Do not redraw, move or recolor the owl. Only ADD the accessory described below, drawn in the same cartoon sticker style with the same thick dark outline and the same lighting, sitting naturally on the owl. The accessory should be mostly one dominant color (not wine red) so it can be recolored later. Do not add anything else. Accessory: A small electric guitar hanging on a strap across the owl's chest, the guitar body in one solid bright color, the neck pointing up past the owl's shoulder.
@@ -1735,17 +1835,17 @@ Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same p
 
 Stávající kus: Brk a kalamář (ruka).
 
-#### 199. `knihy` – Komínek knih (hlava)
+#### 199. `knihy` – Komínek knih (hlava) – ✅ dodáno, zapojeno
 
-Odemkne: 300 správných v tématu (návrh). Přiložit: `branding/sova-original.jpg`
+Odemkne: odznak Literát – 300 správných odpovědí v tématu (`tema-literatura-300`). Přiložit: `branding/sova-original.jpg`
 
 ```text
 Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same proportions, same colors, same outline style, same flat dark background. Do not redraw, move or recolor the owl. Only ADD the accessory described below, drawn in the same cartoon sticker style with the same thick dark outline and the same lighting, sitting naturally on the owl. The accessory should be mostly one dominant color (not wine red) so it can be recolored later. Do not add anything else. Accessory: A small wobbly stack of three old hardcover books balanced on top of the owl's head, the books in one main color with lighter page edges and no text.
 ```
 
-#### 200. `pulmesicove-bryle` – Půlměsícové brýle (obličej)
+#### 200. `pulmesicove-bryle` – Půlměsícové brýle (obličej) – ✅ dodáno, zapojeno
 
-Odemkne: 1000 správných v tématu (návrh). Přiložit: `branding/sova-bez-monoklu.jpg`
+Odemkne: odznak Pán knihovny – 1000 správných odpovědí v tématu (`tema-literatura-1000`). Přiložit: `branding/sova-bez-monoklu.jpg`
 
 ```text
 Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same proportions, same colors, same outline style, same flat dark background. Do not redraw, move or recolor the owl. Only ADD the accessory described below, drawn in the same cartoon sticker style with the same thick dark outline and the same lighting, sitting naturally on the owl. The accessory should be mostly one dominant color (not wine red) so it can be recolored later. Do not add anything else. Accessory: Small half-moon reading glasses perched low on the owl's beak, with a thin golden frame and a thin chain hanging down from the sides, like a wise old professor.
@@ -1755,17 +1855,17 @@ Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same p
 
 Stávající kus: 3D brýle (obličej).
 
-#### 201. `popcorn` – Kornout popcornu (ruka)
+#### 201. `popcorn` – Kornout popcornu (ruka) – ✅ dodáno, zapojeno
 
-Odemkne: 300 správných v tématu (návrh). Přiložit: `branding/sova-original.jpg`
+Odemkne: odznak Režisér – 300 správných odpovědí v tématu (`tema-film-300`). Přiložit: `branding/sova-original.jpg`
 
 ```text
 Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same proportions, same colors, same outline style, same flat dark background. Do not redraw, move or recolor the owl. Only ADD the accessory described below, drawn in the same cartoon sticker style with the same thick dark outline and the same lighting, sitting naturally on the owl. The accessory should be mostly one dominant color (not wine red) so it can be recolored later. Do not add anything else. Accessory: A striped cinema popcorn bucket overflowing with popcorn, held in the owl's wing, a few popcorn pieces popping out. The stripes in one solid color with white.
 ```
 
-#### 202. `filmovy-pas` – Filmový pás (krk)
+#### 202. `filmovy-pas` – Filmový pás (krk) – ✅ dodáno, zapojeno
 
-Odemkne: 1000 správných v tématu (návrh). Přiložit: `branding/sova-original.jpg`
+Odemkne: odznak Pán Hollywoodu – 1000 správných odpovědí v tématu (`tema-film-1000`). Přiložit: `branding/sova-original.jpg`
 
 ```text
 Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same proportions, same colors, same outline style, same flat dark background. Do not redraw, move or recolor the owl. Only ADD the accessory described below, drawn in the same cartoon sticker style with the same thick dark outline and the same lighting, sitting naturally on the owl. The accessory should be mostly one dominant color (not wine red) so it can be recolored later. Do not add anything else. Accessory: A strip of old cinema film with sprocket holes draped around the owl's neck like a scarf, the frames empty (no pictures, no text).
@@ -1775,17 +1875,17 @@ Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same p
 
 Stávající kus: Sportovní čelenka (hlava).
 
-#### 203. `pistalka` – Píšťalka (krk)
+#### 203. `pistalka` – Píšťalka (krk) – ✅ dodáno, zapojeno
 
-Odemkne: 300 správných v tématu (návrh). Přiložit: `branding/sova-original.jpg`
+Odemkne: odznak Šampion sportu – 300 správných odpovědí v tématu (`tema-sport-300`). Přiložit: `branding/sova-original.jpg`
 
 ```text
 Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same proportions, same colors, same outline style, same flat dark background. Do not redraw, move or recolor the owl. Only ADD the accessory described below, drawn in the same cartoon sticker style with the same thick dark outline and the same lighting, sitting naturally on the owl. The accessory should be mostly one dominant color (not wine red) so it can be recolored later. Do not add anything else. Accessory: A shiny referee whistle hanging on a lanyard around the owl's neck, resting on its chest.
 ```
 
-#### 204. `pohar` – Vítězný pohár (ruka)
+#### 204. `pohar` – Vítězný pohár (ruka) – ✅ dodáno, zapojeno
 
-Odemkne: 1000 správných v tématu (návrh). Přiložit: `branding/sova-original.jpg`
+Odemkne: odznak Pán stadionů – 1000 správných odpovědí v tématu (`tema-sport-1000`). Přiložit: `branding/sova-original.jpg`
 
 ```text
 Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same proportions, same colors, same outline style, same flat dark background. Do not redraw, move or recolor the owl. Only ADD the accessory described below, drawn in the same cartoon sticker style with the same thick dark outline and the same lighting, sitting naturally on the owl. The accessory should be mostly one dominant color (not wine red) so it can be recolored later. Do not add anything else. Accessory: A shiny golden trophy cup with two handles held up proudly in the owl's wing, with a small sparkle on it, no text.

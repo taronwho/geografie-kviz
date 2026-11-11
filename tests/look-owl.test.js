@@ -5,9 +5,9 @@ const path = require('node:path');
 const Look = require('../look.js');
 const Owl = require('../look-owl.js');
 
-test('doplňky sovy: katalog má 41 doplňků ve čtyřech místech a každý má obrázky ve všech barvách', () => {
-    assert.equal(Look.ACCESSORIES.length, 41);
-    assert.equal(new Set(Look.ACCESSORIES.map(item => item.id)).size, 41, 'id jsou jedinečná');
+test('doplňky sovy: katalog má 80 doplňků ve čtyřech místech a každý má obrázky ve všech barvách (kromě doplňků s pevnými barvami)', () => {
+    assert.equal(Look.ACCESSORIES.length, 80);
+    assert.equal(new Set(Look.ACCESSORIES.map(item => item.id)).size, 80, 'id jsou jedinečná');
     assert.deepEqual(Look.SLOTS.map(slot => slot.id), ['head', 'face', 'neck', 'hand']);
     for (const item of Look.ACCESSORIES) {
         assert.ok(Look.SLOTS.some(slot => slot.id === item.slot), item.id);
@@ -15,7 +15,8 @@ test('doplňky sovy: katalog má 41 doplňků ve čtyřech místech a každý m�
         assert.ok(fs.existsSync(path.join(__dirname, '..', 'icons', 'doplnky', `${item.id}-ikona.webp`)), `${item.id} ikona`);
         if (item.fixed) assert.ok(fs.existsSync(path.join(__dirname, '..', 'icons', 'doplnky', `${item.id}-zaklad.webp`)), `${item.id} pevná část`);
         for (const color of Look.ACC_COLORS.filter(entry => entry.id !== 'original' && entry.id !== 'vlastni')) {
-            assert.ok(fs.existsSync(path.join(__dirname, '..', 'icons', 'doplnky', `${item.id}-${color.id}.webp`)), `${item.id}-${color.id}`);
+            // Pevné barvy (noColors): barevné varianty nejsou (a aplikace je nikdy nechce)
+            assert.equal(fs.existsSync(path.join(__dirname, '..', 'icons', 'doplnky', `${item.id}-${color.id}.webp`)), !item.noColors, `${item.id}-${color.id}`);
         }
     }
 });
@@ -36,6 +37,7 @@ test('doplňky sovy: barevné varianty mají stejný rám jako vrstva a skutečn
         const original = path.join(dir, `${item.id}.webp`);
         const [width, height] = webpSize(original);
         assert.equal(width, 402, `${item.id} šířka rámu`);
+        if (item.noColors) continue;
         for (const color of Look.ACC_COLORS.filter(entry => entry.id !== 'original' && entry.id !== 'vlastni')) {
             const file = path.join(dir, `${item.id}-${color.id}.webp`);
             assert.deepEqual(webpSize(file), [width, height], `${item.id}-${color.id} rám`);
@@ -46,8 +48,8 @@ test('doplňky sovy: barevné varianty mají stejný rám jako vrstva a skutečn
 
 test('doplňky sovy: výchozí čepici skrývá jen doplněk, který ji nahrazuje (helma, přilba, baret, klobouky); koruna, svatozář a síťka sedí na čepici nebo vedle ní', () => {
     const hiding = Look.ACCESSORIES.filter(item => item.hidesHat).map(item => item.id).sort();
-    assert.deepEqual(hiding, ['baret', 'cylindr', 'helma', 'kouzelnicky-klobouk', 'piratsky-klobouk', 'prilba', 'vrtulka']);
-    for (const id of ['koruna', 'sitka', 'kvetina', 'vavrin', 'sluchatka', 'celenka', 'svatozar']) assert.ok(!Look.find('accessories', id).hidesHat, id);
+    assert.deepEqual(hiding, ['baret', 'cepice-zimni', 'cestovatelsky-klobouk', 'cylindr', 'helma', 'hnizdo', 'knihy', 'kouzelnicky-klobouk', 'namornicka-cepice', 'piratsky-klobouk', 'prilba', 'slamak', 'vrtulka']);
+    for (const id of ['koruna', 'sitka', 'kvetina', 'vavrin', 'sluchatka', 'celenka', 'svatozar', 'jarni-venecek', 'dyne', 'destnik', 'vybuch', 'jablko', 'tesarska-tuzka']) assert.ok(!Look.find('accessories', id).hidesHat, id);
     assert.ok(Look.ACCESSORIES.filter(item => item.hidesHat).every(item => item.slot === 'head'));
     assert.match(Owl.logoHtml('', '', { head: { id: 'helma', color: 'cerna' } }), /data-owl class="[^"]*owl-nohat/);
     assert.doesNotMatch(Owl.logoHtml('', '', { head: { id: 'koruna', color: 'cerna' } }), /owl-nohat/);
@@ -56,9 +58,10 @@ test('doplňky sovy: výchozí čepici skrývá jen doplněk, který ji nahrazuj
     assert.doesNotMatch(Owl.logoHtml('', '', { hand: { id: 'sitka', color: 'modra' } }), /owl-nohat/);
 });
 
-test('doplňky sovy: ruku se vztyčeným prstem skryje jen doplněk v ruce, který ji kreslí jinak (hrnek, hůlka, meč, pochodeň)', () => {
+test('doplňky sovy: ruku se vztyčeným prstem skryje jen doplněk v ruce, který ji kreslí jinak (hrnek, hůlka, meč, pochodeň, sezónní)', () => {
     const hiding = Look.ACCESSORIES.filter(item => item.hidesHand).map(item => item.id).sort();
-    assert.deepEqual(hiding, ['hrnek', 'hulka', 'mec', 'pochoden']);
+    assert.deepEqual(hiding, ['banka', 'blesk', 'destnik', 'globus', 'hrnek', 'hulka', 'konvalinky', 'lampion', 'magnet', 'mec', 'paleta', 'plany', 'pochoden', 'pohar', 'popcorn', 'tuzka', 'zmrzlina']);
+    assert.ok(!Look.find('accessories', 'kladivko').hidesHand, 'kladívko drží druhá ruka, prst zůstává');
     assert.ok(Look.ACCESSORIES.filter(item => item.hidesHand).every(item => item.slot === 'hand'));
     assert.match(Owl.logoHtml('', '', { hand: { id: 'hrnek', color: 'original' } }), /data-owl class="[^"]*owl-nohand/);
     assert.doesNotMatch(Owl.logoHtml('', '', { hand: { id: 'lupa', color: 'original' } }), /owl-nohand/);
@@ -78,9 +81,10 @@ test('monokl: výchozí sova ho nosí, „Bez monoklu“ a doplněk v obličeji 
     assert.equal(Look.monocleShown(null), true);
     assert.equal(Look.monocleShown({ head: { id: 'koruna', color: 'original' }, hand: { id: 'lupa', color: 'original' } }), true, 'doplňky jinde monokl nechají');
     assert.equal(Look.monocleShown({ face: { id: 'bez-monoklu' } }), false);
-    for (const id of ['bryle', 'slunecni-bryle', 'lab-bryle', '3d-bryle', 'letecke-bryle', 'srdickove-bryle', 'maska']) assert.equal(Look.monocleShown({ face: { id, color: 'original' } }), false, id);
-    for (const id of ['knir', 'paska']) assert.equal(Look.monocleShown({ face: { id, color: 'modra' } }), true, id);
-    assert.deepEqual(Look.ACCESSORIES.filter(item => item.keepsMonocle).map(item => item.id).sort(), ['knir', 'paska']);
+    for (const id of ['bryle', 'slunecni-bryle', 'lab-bryle', '3d-bryle', 'letecke-bryle', 'srdickove-bryle', 'maska', 'karneval', 'snorchl']) assert.equal(Look.monocleShown({ face: { id, color: 'original' } }), false, id);
+    for (const id of ['knir', 'paska', 'dali-knir']) assert.equal(Look.monocleShown({ face: { id, color: 'modra' } }), true, id);
+    for (const id of ['hvezdne-bryle', 'pulmesicove-bryle']) assert.equal(Look.monocleShown({ face: { id, color: 'original' } }), false, id);
+    assert.deepEqual(Look.ACCESSORIES.filter(item => item.keepsMonocle).map(item => item.id).sort(), ['dali-knir', 'knir', 'paska']);
     assert.equal(Look.monocleShown({ face: { id: 'neexistuje' } }), true, 'neznámý doplněk se nevykreslí, monokl zůstane');
     // Logo: s monoklem icons/logo.webp, bez něj icons/logo-bez-monoklu.webp (a jeho barvy obleku)
     assert.match(Owl.logoHtml('', '', {}), /<img src="icons\/logo\.webp"/);
@@ -166,10 +170,11 @@ test('nové doplňky (obrázky č. 92–108): odemykání úrovní, odznakem, li
         assert.equal(Look.unlockText(item), 'Z Truhly Mudrlanta');
         assert.ok(!Look.rewardsAtLevel(100).some(entry => entry.item.id === id) && !Look.newRewards(0, 100, []).some(entry => entry.item.id === id), `${id} se úrovní neoslaví`);
     }
-    // Každý nový doplněk má hue (vlastní barva z palety) a sedí ve svém místě
+    // Každý doplněk má hue (vlastní barva z palety) a sedí ve svém místě
     const counts = {};
     for (const item of Look.ACCESSORIES) counts[item.slot] = (counts[item.slot] || 0) + 1;
-    assert.deepEqual(counts, { head: 13, face: 9, neck: 9, hand: 10 });
+    assert.deepEqual(counts, { head: 24, face: 14, neck: 18, hand: 24 });
+    assert.ok(Look.ACCESSORIES.every(item => Number.isInteger(item.hue)), 'hue');
 });
 
 test('doplňky sovy: uložená volba se očistí (zamčené, špatné místo, neznámé id a barva)', () => {
@@ -292,4 +297,94 @@ test('odměna za odznak: Look řekne, co přesně odznak odemkne (nebo že dáv�
     assert.equal(Look.badgeRewardText('zbehly-zemepis-25'), '', 'další stupně zběhlosti doplněk nedávají');
     // Každý odznak z katalogu odměn skutečně existuje
     for (const items of Object.values(Look.CATALOG)) for (const item of items.filter(entry => entry.badge)) assert.ok(Core.BADGE_BY_ID[item.badge], item.badge);
+});
+
+test('sezónní doplňky (obrázky č. 134–145): jen ze Sezónní truhly svého měsíce, ve výběru jen vlastněné, pevné barvy u věnečku, konvalinek a dýně', () => {
+    const season = Look.ACCESSORIES.filter(item => item.exclusive);
+    // V pořadí měsíců, každý je doplněk Sezónní truhly svého měsíce
+    assert.deepEqual(season.map(item => [item.month, item.id, item.slot]), [
+        [1, 'cepice-zimni', 'head'], [2, 'karneval', 'face'], [3, 'jarni-venecek', 'head'], [4, 'destnik', 'hand'], [5, 'konvalinky', 'hand'], [6, 'slamak', 'head'],
+        [7, 'snorchl', 'face'], [8, 'zmrzlina', 'hand'], [9, 'tuzka', 'hand'], [10, 'dyne', 'head'], [11, 'lampion', 'hand'], [12, 'sala-zimni', 'neck']]);
+    for (const item of season) {
+        assert.equal(Look.SEASON_BUNDLES[String(item.month).padStart(2, '0')].accessory, item.id);
+        assert.equal(item.source, 'season');
+        assert.ok(!item.level && !item.badge && !item.chest && !item.league && !item.rare, item.id);
+        assert.ok(Look.seasonBundle(item.month).some(entry => entry.category === 'accessories' && entry.item === item), `${item.id} v Sezónní truhle`);
+        assert.ok(!Look.rewardsAtLevel(item.month).some(entry => entry.item === item));
+    }
+    // Pevné barvy: jarní věneček, konvalinky a dýně (bez barevných variant, uloží se původní barva, výběr barvy se skryje)
+    assert.deepEqual(Look.ACCESSORIES.filter(item => item.noColors).map(item => item.id), ['jarni-venecek', 'konvalinky', 'dyne']);
+    const owner = { level: 100, badges: {}, gifts: { accessories: ['dyne', 'lampion'] } };
+    assert.deepEqual(Look.normalize({ acc: { head: { id: 'dyne', color: 'modra' }, hand: { id: 'lampion', color: 'modra' } } }, owner).acc,
+        { head: { id: 'dyne', color: 'original' }, hand: { id: 'lampion', color: 'modra' } });
+    assert.deepEqual(Look.normalize({ acc: { head: { id: 'dyne' }, hand: { id: 'lampion' } } }, { level: 100, badges: {}, gifts: {} }).acc, {}, 'bez Sezónní truhly ne');
+    assert.equal(Owl.layerSrc('dyne', 'modra'), 'icons/doplnky/dyne.webp');
+    assert.equal(Owl.layerSrc('lampion', 'modra'), 'icons/doplnky/lampion-modra.webp');
+    assert.doesNotMatch(Owl.layersHtml({ head: { id: 'dyne', color: 'h120' } }), /hue-rotate/, 'pevné barvy ani vlastní odstín');
+    assert.deepEqual(Owl.parseOwl('robe=modra;head=dyne.cervena;hand=zmrzlina.zelena'), { robe: 'modra', acc: { head: { id: 'dyne', color: 'original' }, hand: { id: 'zmrzlina', color: 'zelena' } } });
+    // Čepici skryje zimní čepice a slaměný klobouk, dýně ne; ruku skryje lampion
+    assert.match(Owl.owlAvatarHtml('robe=zelena;head=slamak.original;hand=lampion.zluta'), /owl-nohat owl-nohand.*doplnky\/slamak\.webp.*doplnky\/lampion-zluta\.webp/);
+    assert.doesNotMatch(Owl.logoHtml('', '', { head: { id: 'dyne', color: 'original' } }), /owl-nohat/);
+    // Výběr v Nastavení: sezónní doplněk jen vlastněný; u pevných barev místo palety věta
+    const store = {};
+    global.localStorage = { getItem: (key) => store[key] ?? null, setItem: (key, value) => { store[key] = value; } };
+    try {
+        const section = Look.getSections().find(entry => entry.id === 'owl');
+        const press = (ctx, selector) => section.click({ target: { closest: (query) => (query === selector.split('|')[0] ? { dataset: JSON.parse(selector.split('|')[1]) } : null) } }, ctx);
+        const ctxOf = (gifts) => { const base = { level: 100, badges: {}, gifts }; return { ...base, prefs: Look.prefs(base) }; };
+        press(ctxOf({}), '[data-owl-slot]|{"owlSlot":"head"}');
+        let html = section.render(ctxOf({}));
+        assert.doesNotMatch(html, /data-owl-pick="head:(dyne|cepice-zimni|slamak|jarni-venecek)"/, 'nevlastněné sezónní doplňky ve výběru nejsou');
+        html = section.render(ctxOf({ accessories: ['dyne'] }));
+        assert.match(html, /data-owl-pick="head:dyne"/);
+        assert.doesNotMatch(html, /data-owl-pick="head:slamak"/);
+        assert.ok(press(ctxOf({ accessories: ['dyne'] }), '[data-owl-pick]|{"owlPick":"head:dyne"}'));
+        html = section.render(ctxOf({ accessories: ['dyne'] }));
+        assert.match(html, /data-owl-fixed[^>]*>[\s\S]*Dýně<\/b> má pevné barvy/);
+        assert.doesNotMatch(html, /data-owl-color=/, 'u pevných barev paleta není');
+        assert.equal(press(ctxOf({ accessories: ['dyne'] }), '[data-owl-color]|{"owlColor":"head:modra"}'), false, 'barva se nenasadí');
+        assert.deepEqual(Look.prefs(ctxOf({ accessories: ['dyne'] })).acc, { head: { id: 'dyne', color: 'original' } });
+        Look.setPref('acc', {}, ctxOf({}));
+    } finally { delete global.localStorage; }
+});
+
+test('sady doplňků k tématům: ke kusu za zběhlost kus za 300 a za 1000 správných odpovědí v tématu, každý kus na jiném místě', () => {
+    const Core = require('../quiz-core.js');
+    const topics = ['zemepis', 'vlajky', 'historie', 'mytologie', 'biologie', 'geologie', 'chemie', 'fyzika', 'umeni', 'architektura', 'hudba', 'literatura', 'film', 'sport'];
+    const sets = {};
+    for (const topic of topics) {
+        const set = Look.topicSet(topic);
+        sets[topic] = set.map(entry => entry.item.id);
+        assert.equal(set[0].step, 'skill', topic);
+        assert.equal(new Set(set.map(entry => entry.item.slot)).size, set.length, `${topic}: každý kus na jiném místě`);
+        for (const entry of set.slice(1)) {
+            const badge = Core.BADGE_BY_ID[entry.badge];
+            assert.ok(badge, entry.badge);
+            assert.equal(badge.group, `tema-${topic}`, entry.badge);
+            assert.equal(badge.goal, entry.step, entry.badge);
+            // odznak dává jen tenhle doplněk a oslava odznaku ho zmíní
+            assert.deepEqual(Look.rewardsForBadge(entry.badge).map(reward => reward.item.id), [entry.item.id]);
+            assert.equal(Look.badgeRewardText(entry.badge), `Odměna: ${entry.item.title} (doplněk Mudrlanta)`);
+            assert.equal(Look.isUnlocked(entry.item, { level: 100, badges: { [`zbehly-${topic}`]: 'x' } }), false, `${entry.item.id} zamčený`);
+            assert.equal(Look.isUnlocked(entry.item, { level: 1, badges: { [entry.badge]: '2026-11-11' } }), true, `${entry.item.id} odznakem`);
+            assert.deepEqual(Look.newRewards(1, 1, [entry.badge]).map(reward => reward.item.id), [entry.item.id]);
+        }
+        // nižší stupně odznaku tématu dál nic nedávají
+        for (const goal of [25, 100, 600]) assert.equal(Look.badgeRewardText(`tema-${topic}-${goal}`), '', `tema-${topic}-${goal}`);
+    }
+    assert.deepEqual(sets, {
+        zemepis: ['kompas', 'cestovatelsky-klobouk', 'globus'], vlajky: ['vlajka', 'namornicka-cepice', 'praporky'],
+        historie: ['svitek', 'krejzlik'], mytologie: ['helma', 'blesk', 'zlate-rouno'], biologie: ['sitka', 'hnizdo', 'dalekohled'],
+        geologie: ['prilba', 'kladivko', 'krystal'], chemie: ['lab-bryle', 'banka', 'vybuch'], fyzika: ['knir', 'magnet', 'jablko'],
+        umeni: ['baret', 'paleta', 'dali-knir'], architektura: ['metr', 'plany', 'tesarska-tuzka'], hudba: ['mikrofon', 'hvezdne-bryle', 'kytara'],
+        literatura: ['brk', 'knihy', 'pulmesicove-bryle'], film: ['3d-bryle', 'popcorn', 'filmovy-pas'], sport: ['celenka', 'pistalka', 'pohar']
+    }, 'Historii zatím chybí dvourohý klobouk (odznak tema-historie-300 nic nedává)');
+    assert.equal(Look.badgeRewardText('tema-historie-300'), '');
+    assert.deepEqual(Look.topicSet('neexistuje'), []);
+    // Pevná část (nová ruka, popcorn) je samostatná vrstva bez otočení odstínu, jako tyčka vlaječky
+    const imgs = Owl.layersHtml({ hand: { id: 'popcorn', color: 'h120' } }).match(/<img [^>]*>/g);
+    assert.equal(imgs.length, 2);
+    assert.match(imgs[0], /popcorn\.webp.*hue-rotate-/);
+    assert.match(imgs[1], /popcorn-zaklad\.webp/);
+    assert.doesNotMatch(imgs[1], /hue-rotate-/);
 });

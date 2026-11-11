@@ -53,6 +53,8 @@ test('truhla: bez duplicit, po všem XP; ochrana jen do stropu', () => {
             assert.ok(result.gift, `týden ${week}: věc`);
             const id = `${result.gift.category}:${result.gift.item.id}`;
             assert.ok(!seen.has(id), `duplicita ${id}`);
+            // Postavičky (i sezónní ze Sezónní truhly) a jiné exkluzivní věci truhla nedává
+            assert.ok(result.gift.category !== 'avatars' && !result.gift.item.exclusive, `týden ${week}: ${id} není z truhly`);
             seen.add(id);
         } else {
             assert.equal(result.gift, null, 'všechno má');
@@ -61,6 +63,9 @@ test('truhla: bez duplicit, po všem XP; ochrana jen do stropu', () => {
         assert.ok(state.freezes <= Rewards.MAX_FREEZES, 'strop ochran');
     }
     assert.equal(Rewards.chestReward(state, Object.keys(state.chests).pop()).xp, Rewards.CHEST_XP);
+    // Rámečky sezóny (dva obrázkové na každý měsíc) truhla nedá nikdy, ani když všechno ostatní dojde: jsou jen na cestě Sezóny Mudrlanta
+    assert.equal(Look.FRAMES.filter(item => item.source === 'season' && item.art).length, 24);
+    assert.ok(![...seen].some(key => key.startsWith('frames:sezona-')), 'rámečky sezóny jen ze Sezóny Mudrlanta');
     // Hráč s vysokou úrovní: věci, které už má odemčené, truhla nedává; zbývají věci jen z truhly (chest v look.js), pak vzácné
     // rámečky (rare) a po nich XP
     const chestOnly = Look.ACCESSORIES.filter(item => item.chest).map(item => item.id);

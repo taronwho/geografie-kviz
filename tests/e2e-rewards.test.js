@@ -200,7 +200,18 @@ test('odměny: truhla, ochrana série, diplomy, sdílení obrázku', { skip: !ch
             // Plné mistrovství zeměpisu: diplom se zapíše (a oslaví) při přepočtu odznaků
             await tab.evaluate(() => document.getElementById('status-badge').click());
             await tab.waitForSelector('[data-rewards-section]');
+            // Oslava diplomu ukáže legendární postavičku za něj (místo sovy) a řekne, kde se vybírá
+            const cards = [];
+            for (let i = 0; i < 8 && await tab.locator('#celebration').count(); i++) {
+                cards.push({ text: await tab.textContent('#celebration').catch(() => ''), art: await tab.locator('#celebration [data-avatar-art="albatr"]').count() });
+                await tab.locator('#celebration').click({ timeout: 1500 }).catch(() => {});
+                await tab.waitForTimeout(300);
+            }
             await clearCelebrations(tab);
+            const diplomaCard = cards.find(card => /Nový diplom/.test(card.text));
+            assert.ok(diplomaCard, `oslava diplomu (${cards.map(card => card.text).join(' | ')})`);
+            assert.match(diplomaCard.text, /Mistr zeměpisu – najdeš ho v Mém postupu\. Odměna: legendární postavička Albatros mořeplavec – vyber si ji v Nastavení → Profil \(po přihlášení\)/);
+            assert.equal(diplomaCard.art, 1, 'v oslavě je obrázek Albatrose');
             const scroll = await overflow(tab);
             await shot(tab, `muj-postup-${tag}`);
             assert.equal(scroll.x, 0, 'bez vodorovného posouvání');
@@ -227,6 +238,8 @@ test('odměny: truhla, ochrana série, diplomy, sdílení obrázku', { skip: !ch
             await tab.click('[data-diploma="historie"]');
             await tab.waitForSelector('[data-diploma-locked]');
             assert.match(await tab.textContent('[data-diploma-locked]'), /Chybí ti ještě 230/);
+            assert.match(await tab.textContent('[data-diploma-legend-info="slon"]'), /Odměna: legendární postavička Slon kronikář/);
+            assert.ok((await overflow(tab)).y <= 0, 'zamčený diplom s odměnou bez posouvání');
             await tab.click('[data-dialog-back]');
             // Získaný diplom: plátno 1080 × 1350 se sovou a ikonou tématu, jméno, Stáhnout
             const rewards = await storage(tab, 'mudrlant.rewards');
@@ -247,6 +260,10 @@ test('odměny: truhla, ochrana série, diplomy, sdílení obrázku', { skip: !ch
             await tab.fill('[data-diploma-name]', 'Jan Novák');
             await tab.waitForTimeout(500);
             assert.equal((await storage(tab, 'mudrlant.rewards')).name, 'Jan Novák');
+            // Legendární postavička vedle Sdílet a Stáhnout; bez účtu jen řekne, že profilový obrázek je po přihlášení
+            assert.equal(await tab.locator('[data-diploma-legend="albatr"] [data-avatar-art="albatr"]').count(), 1);
+            await tab.click('[data-diploma-legend="albatr"]');
+            await tab.waitForFunction(() => /Legendární postavičku si dáš jako profilový obrázek po přihlášení/.test((document.getElementById('toast') || {}).textContent || ''));
             assert.deepEqual(problems, []);
             await context.close();
         });

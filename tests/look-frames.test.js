@@ -70,13 +70,16 @@ test('obrázky hráče: bez look.js jen základní, s ním i odemykatelné', () 
 });
 
 // --- Obrázkové rámečky (docs/OBRAZKY.md č. 109–118): look.js ART_FRAMES, icons/frames/<id>.webp, .frame-art v src/input.css ---
-// Odměny (pět za úroveň, tři za odznak, dva z truhly) jsou v ART_FRAMES; obrázkový je i Věčný oheň za sérii 365 dní (č. 146)
+// Odměny (pět za úroveň, tři za odznak, dva z truhly) jsou v ART_FRAMES; obrázkový je i Věčný oheň za sérii 365 dní (č. 146) a oba
+// rámečky každého měsíce Sezóny Mudrlanta (č. 163–174: sezona-MM ze Sezónní truhly, sezona-MM-b z Truhly v půli sezóny)
 const ART = Look.ART_FRAMES;
 const ALL_ART = Look.FRAMES.filter(item => item.art);
+const MONTHS = Array.from({ length: 12 }, (_, index) => String(index + 1).padStart(2, '0'));
+const SEASON_ART = MONTHS.flatMap(month => [`sezona-${month}`, `sezona-${month}-b`]);
 
 test('obrázkové rámečky: deset, pět za úroveň (35–95, každý na jiné úrovni než ostatní odměny), tři za těžké odznaky, dva z truhly', () => {
     assert.equal(ART.length, 10);
-    assert.deepEqual(ALL_ART.map(item => item.id), ['vecny-ohen', ...ART.map(item => item.id)], 'obrázkové jsou odměny a Věčný oheň');
+    assert.deepEqual(ALL_ART.map(item => item.id), ['vecny-ohen', ...SEASON_ART, ...ART.map(item => item.id)], 'obrázkové jsou odměny, Věčný oheň a rámečky sezóny');
     assert.equal(Look.find('frames', 'vecny-ohen').badge, 'serie-365');
     assert.deepEqual(ART.map(item => item.id), ['ohen', 'more', 'soukoli', 'galaxie', 'kralovsky-vavrin', 'blesk', 'led', 'drak', 'duha-mracky', 'ruze']);
     for (const item of ART) assert.equal(Social.cleanFrame(item.id), item.id, 'id projde profiles_frame_format i Social.cleanFrame');
@@ -124,6 +127,42 @@ test('obrázkové rámečky: odemčení úrovní, odznakem a jen z truhly; text,
     assert.equal(Look.normalize({ frame: 'galaxie' }, { level: 77, badges: {}, gifts: null }).frame, 'galaxie');
     assert.ok(Look.newRewards(36, 37).some(entry => entry.item.id === 'ohen'), 'oslava na úrovni 37');
     assert.ok(Look.newRewards(1, 1, ['preziti-50']).some(entry => entry.item.id === 'led'), 'oslava za odznak');
+});
+
+test('rámečky sezóny: dva obrázkové na každý měsíc, jen ze Sezóny (zdobnější na 20. stupni, druhý na 10.), v řadě jen ty, které hráč má', () => {
+    const season = Look.FRAMES.filter(item => item.source === 'season');
+    assert.deepEqual(season.map(item => item.id), SEASON_ART, 'po měsících: sezona-MM, sezona-MM-b');
+    assert.deepEqual(Look.SEASON_FRAMES.map(item => item.id), MONTHS.map(month => `sezona-${month}`));
+    assert.deepEqual(Look.SEASON_MID_FRAMES.map(item => item.id), MONTHS.map(month => `sezona-${month}-b`));
+    const everyBadge = Object.fromEntries(Core.BADGES.map(badge => [badge.id, '2026-11-01']));
+    for (const item of season) {
+        const month = Number(item.id.slice(7, 9));
+        assert.deepEqual([item.art, item.exclusive, item.month, item.seasonTier], [true, true, month, item.id.endsWith('-b') ? 10 : 20], item.id);
+        assert.equal(Social.cleanFrame(item.id), item.id, 'id projde profiles_frame_format i Social.cleanFrame (bez změny schématu)');
+        assert.equal(Look.isUnlocked(item, { level: 100, badges: everyBadge, gifts: null }), false, 'úrovní ani odznakem ne');
+        assert.equal(Look.isUnlocked(item, { level: 1, badges: {}, gifts: { frames: [item.id] } }), true, 'jako dárek ze sezóny');
+        assert.equal(Frames.frameClass(item.id), ` frame frame-art frame-${item.id}`);
+    }
+    // Jména: zdobnější = přídavné jméno měsíce (jako dřív), druhý vlastní jméno s měsícem; všechna různá
+    assert.deepEqual(Look.SEASON_FRAMES.map(item => item.title), Look.SEASON_ADJECTIVES);
+    assert.equal(new Set(season.map(item => item.title)).size, 24);
+    assert.equal(Look.find('frames', 'sezona-11-b').title, 'Listopadové lampiony');
+    assert.equal(Look.seasonMidFrame(11), Look.find('frames', 'sezona-11-b'));
+    assert.equal(Look.seasonMidFrame(1).id, 'sezona-01-b');
+    // Kde se získají
+    assert.equal(Look.unlockText(Look.find('frames', 'sezona-11')), 'Sezóna Mudrlanta (listopad, Sezónní truhla na 20. stupni)');
+    assert.equal(Look.unlockText(Look.find('frames', 'sezona-11-b')), 'Sezóna Mudrlanta (listopad, Truhla v půli sezóny na 10. stupni)');
+    assert.equal(Frames.frameHint(Look.find('frames', 'sezona-03-b'), { level: 50, badges: {}, gifts: null }, () => ''), 'Březnové sněženky: Sezóna Mudrlanta (březen, Truhla v půli sezóny na 10. stupni)');
+    // Sezónní truhla dá zdobnější rámeček, druhý do ní nepatří
+    for (const month of MONTHS) {
+        assert.deepEqual(Look.seasonBundle(Number(month)).filter(entry => entry.category === 'frames').map(entry => entry.item.id), [`sezona-${month}`]);
+    }
+    // Řada rámečků v Profilu: sezónní jen vlastněné (a vybraný), krátký popisek pro čtečku
+    const render = (gifts, frame = 'zadny') => Look.getSections().find(section => section.id === 'frames').render({ level: 50, badges: {}, gifts, prefs: { frame }, profile: { avatar: '🦉', color: 'emerald' }, avatarHtml: () => '' });
+    const ids = (html) => [...html.matchAll(/data-frame="([^"]+)"/g)].map(match => match[1]);
+    assert.ok(!ids(render({})).some(id => id.startsWith('sezona-')));
+    assert.deepEqual(ids(render({ frames: ['sezona-11-b', 'sezona-02'] })).filter(id => id.startsWith('sezona-')), ['sezona-02', 'sezona-11-b']);
+    assert.match(render({ frames: ['sezona-11-b'] }, 'sezona-11-b'), /aria-label="Listopadové lampiony"[^>]*>[\s\S]*?<span class="sr-only">Lampiony<\/span>/);
 });
 
 test('obrázkové rámečky: třída frame-art, obrázky, CSS a service worker', () => {

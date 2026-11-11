@@ -29,7 +29,23 @@ PALETTE = [
 ]
 
 # Postavičky: id → zdroj a části. Pravidlo části: hue (od, do; přes 360 = zabalí se), smin/smax (sytost), vmin/vmax (jas),
-# box/out = výřezy v podílech šířky a výšky (x0, y0, x1, y1), kde se část hledá / nehledá, outpoly = mnohoúhelníky [(x, y), …], kde ne. Části jedné postavičky se nepřekrývají.
+# box/out = výřezy v podílech šířky a výšky (x0, y0, x1, y1), kde se část hledá / nehledá, poly/outpoly = mnohoúhelníky [(x, y), …], kde ano / kde ne. Části jedné postavičky se nepřekrývají.
+# outer = jen plochy, které sahají až ke krémovému okraji samolepky (záře za postavičkou); číslo = jak hluboko pod okrajem (px plátna WORK)
+# se plocha musí objevit. Postavička má vlastní tmavý obrys, takže její stejně barevné věci (zlaté vavříny, svitky) do části nepatří.
+# inner = naopak jen plochy, které ke krémovému okraji nesahají (krystaly bez záře za nimi).
+# Část může mít edge = užší ochranný pruh u okraje místo EDGE (záře s tenkými paprsky až k okraji; krémovou barvu odstín části stejně nevybere).
+
+# Mnohoúhelníky legendárních postaviček (podíly šířky a výšky): kde část je, když má stejnou barvu jako záře nebo věci kolem ní
+SFINGA = [(0, 0.37), (0.1, 0.4), (0.16, 0.44), (0.21, 0.5), (0.24, 0.42), (0.28, 0.21), (0.37, 0.25), (0.63, 0.25), (0.72, 0.21), (0.76, 0.42), (0.79, 0.5), (0.84, 0.44), (0.9, 0.4), (1, 0.37), (1, 1), (0, 1)]  # sfinga s křídly; tyrkysová venku je záře
+JELEN_PLAST = [(0.2, 0.86), (0.26, 0.71), (0.4, 0.66), (0.6, 0.66), (0.76, 0.71), (0.82, 0.86), (0.6, 0.99), (0.4, 0.99)]  # zelený plášť; zelená venku je les
+# Krystaly na ramenou golema mají vlastní krémový lem (mnohoúhelníky těsně uvnitř něj), za nimi je stejně fialová záře
+GOLEM_KRYSTALY_L = [(0.125, 0.5), (0.17, 0.495), (0.2, 0.515), (0.235, 0.515), (0.27, 0.55), (0.3, 0.59), (0.31, 0.76), (0.07, 0.76), (0.07, 0.625), (0.12, 0.615)]
+GOLEM_KRYSTALY_R = [(0.66, 0.56), (0.7, 0.51), (0.74, 0.49), (0.77, 0.52), (0.8, 0.5), (0.86, 0.48), (0.875, 0.52), (0.875, 0.6), (0.9, 0.615), (0.915, 0.66), (0.9, 0.76), (0.66, 0.76)]
+BOBR_PRILBA = [(0.3, 0.44), (0.31, 0.415), (0.355, 0.395), (0.375, 0.33), (0.41, 0.295), (0.47, 0.275), (0.54, 0.275), (0.6, 0.295), (0.645, 0.33), (0.665, 0.38), (0.705, 0.41), (0.705, 0.445), (0.6, 0.445), (0.5, 0.43), (0.4, 0.43), (0.32, 0.45)]  # přilba bez záře kolem ní
+VLK_FRAK = [(0.12, 0.76), (0.12, 0.71), (0.23, 0.7), (0.26, 0.65), (0.29, 0.6), (0.34, 0.57), (0.66, 0.57), (0.74, 0.585), (0.79, 0.63), (0.82, 0.68), (0.85, 0.74), (0.87, 0.8), (0.87, 0.88), (0.6, 0.98), (0.4, 0.98), (0.14, 0.88), (0.11, 0.8)]  # frak bez nebe
+VLK_TLAPKA = [(0.43, 0.78), (0.47, 0.755), (0.58, 0.775), (0.64, 0.8), (0.64, 0.87), (0.48, 0.89), (0.43, 0.85)]  # šedá tlapka s manžetou přes frak
+KNIHA_L = [(0.02, 0.48), (0.1, 0.41), (0.32, 0.41), (0.37, 0.5), (0.37, 0.58), (0.3, 0.63), (0.22, 0.73), (0.02, 0.66)]  # knihy knižního draka (tmavě modré hřbety)
+KNIHA_R = [(0.98, 0.48), (0.9, 0.4), (0.66, 0.4), (0.62, 0.5), (0.63, 0.6), (0.72, 0.62), (0.8, 0.7), (0.98, 0.66)]
 CHARACTERS = {
     'cervik': {'src': 'knihomol', 'parts': [
         {'title': 'Kniha', 'rules': [{'hue': (335, 15), 'smin': 0.45}]},
@@ -92,7 +108,110 @@ CHARACTERS = {
     'chamel': {'src': 'chameleon', 'parts': [
         {'title': 'Kůže', 'rules': [{'hue': (75, 165), 'smin': 0.3, 'vmin': 0.3}]},
         {'title': 'Bříško', 'rules': [{'hue': (40, 68), 'smin': 0.35, 'vmin': 0.6}]}]},
+    # Legendární postavičky za diplom tématu (docs/OBRAZKY.md č. 119–132): zlatá záře za postavičkou zůstává, přebarvuje se oblečení
+    # nebo barevné pozadí samolepky
+    'albatr': {'src': 'albatros', 'parts': [
+        {'title': 'Uniforma', 'rules': [{'hue': (205, 250), 'smin': 0.3, 'vmin': 0.05, 'vmax': 0.55, 'out': [(0, 0.85, 1, 1)]}]},
+        {'title': 'Moře a nebe', 'rules': [{'hue': (185, 245), 'smin': 0.2, 'vmin': 0.56, 'out': [(0.1, 0.38, 0.34, 0.63)]},
+                                           {'hue': (185, 245), 'smin': 0.2, 'vmin': 0.05, 'vmax': 0.56, 'box': [(0, 0.85, 1, 1), (0, 0.4, 0.2, 0.85), (0.83, 0.4, 1, 0.85)]}]}]},
+    'gryf': {'src': 'gryf', 'parts': [
+        {'title': 'Kabátec', 'rules': [{'hue': (320, 15), 'smin': 0.4, 'vmin': 0.42, 'box': [(0.1, 0.66, 0.9, 1), (0.17, 0.6, 0.83, 0.66), (0.3, 0.5, 0.7, 0.6)]}]},
+        {'title': 'Záře a prapory', 'edge': 5, 'rules': [{'hue': (320, 15), 'smin': 0.4, 'vmin': 0.42, 'out': [(0.1, 0.66, 0.9, 1), (0.17, 0.6, 0.83, 0.66), (0.3, 0.5, 0.7, 0.6)]}]}]},
+    'slon': {'src': 'slon', 'parts': [
+        {'title': 'Slon', 'mode': 'tint', 'rules': [{'smin': 0, 'smax': 0.5, 'vmin': 0.2, 'vmax': 0.8, 'box': [(0.18, 0.2, 0.82, 0.66)]},
+                                                    {'hue': (0, 60), 'smin': 0, 'smax': 0.7, 'vmin': 0.25, 'vmax': 0.8, 'box': [(0.18, 0.27, 0.3, 0.5)]}]},
+        {'title': 'Záře', 'rules': [{'hue': (15, 60), 'smin': 0.3, 'vmin': 0.55, 'outer': 6, 'out': [(0.12, 0.62, 0.88, 1)]}]}]},
+    'sfinga': {'src': 'sfinga', 'parts': [
+        {'title': 'Sfinga', 'rules': [{'hue': (140, 210), 'smin': 0.25, 'vmin': 0.15, 'poly': [SFINGA]}]},
+        {'title': 'Záře', 'rules': [{'hue': (140, 210), 'smin': 0.12, 'vmin': 0.3, 'outpoly': [SFINGA]}]}]},
+    'jelen': {'src': 'jelen', 'parts': [
+        {'title': 'Plášť', 'rules': [{'hue': (110, 190), 'smin': 0.25, 'vmin': 0.12, 'poly': [JELEN_PLAST]}]},
+        {'title': 'Les', 'rules': [{'hue': (60, 165), 'smin': 0.15, 'vmin': 0.2, 'outer': 6, 'outpoly': [JELEN_PLAST]}]}]},
+    'golem': {'src': 'golem', 'parts': [
+        {'title': 'Krystaly', 'rules': [{'hue': (190, 300), 'smin': 0.2, 'vmin': 0.2, 'poly': [GOLEM_KRYSTALY_L, GOLEM_KRYSTALY_R]}]},
+        {'title': 'Záře', 'edge': 3, 'rules': [{'hue': (230, 335), 'smin': 0.2, 'vmin': 0.2, 'outer': 6, 'out': [(0.3, 0.42, 0.65, 0.58), (0.15, 0.75, 0.85, 1)],
+                                               'outpoly': [GOLEM_KRYSTALY_L, GOLEM_KRYSTALY_R]}]}]},
+    'liska': {'src': 'liska', 'parts': [
+        {'title': 'Kabát', 'rules': [{'hue': (80, 165), 'smin': 0.25, 'vmin': 0.1, 'vmax': 0.6, 'box': [(0.15, 0.68, 0.85, 1)]}]},
+        {'title': 'Brýle', 'rules': [{'hue': (28, 60), 'smin': 0.3, 'vmin': 0.25, 'box': [(0.3, 0.175, 0.7, 0.32)]}]}]},
+    'chobot': {'src': 'chobotnice', 'parts': [
+        {'title': 'Chobotnice', 'mode': 'tint', 'rules': [{'hue': (15, 50), 'smin': 0.1, 'smax': 0.45, 'vmin': 0.45, 'out': [(0.68, 0.42, 0.9, 0.56)]}]},
+        {'title': 'Záře', 'edge': 5, 'rules': [{'hue': (160, 205), 'smin': 0.25, 'vmin': 0.2}]}]},
+    'pav': {'src': 'pav', 'parts': [
+        {'title': 'Baret a peří', 'rules': [{'hue': (170, 215), 'smin': 0.3, 'vmin': 0.12, 'box': [(0.25, 0.08, 0.72, 0.42), (0.18, 0.42, 0.55, 0.8), (0.6, 0.72, 0.82, 0.95)]}]},
+        {'title': 'Kabátek', 'rules': [{'hue': (325, 10), 'smin': 0.35, 'vmin': 0.15, 'box': [(0.12, 0.7, 0.85, 1), (0.28, 0.3, 0.68, 0.42)], 'out': [(0.5, 0.58, 0.9, 0.75)]}]}]},
+    'bobr': {'src': 'bobr', 'parts': [
+        {'title': 'Přilba', 'rules': [{'hue': (30, 62), 'smin': 0.18, 'vmin': 0.45, 'poly': [BOBR_PRILBA]}]},
+        {'title': 'Plány a nebe', 'rules': [{'hue': (195, 235), 'smin': 0.2, 'vmin': 0.15}]}]},
+    'vlk': {'src': 'vlk', 'parts': [
+        {'title': 'Frak', 'mode': 'tint', 'rules': [{'hue': (180, 280), 'smin': 0.1, 'vmin': 0.03, 'vmax': 0.5, 'poly': [VLK_FRAK], 'outpoly': [VLK_TLAPKA]},
+                                                    {'smin': 0, 'smax': 0.1, 'vmin': 0.03, 'vmax': 0.22, 'poly': [VLK_FRAK], 'outpoly': [VLK_TLAPKA]}]},
+        {'title': 'Nebe', 'rules': [{'hue': (195, 240), 'smin': 0.15, 'vmin': 0.12, 'outer': 6, 'out': [(0.1, 0.6, 0.9, 1)]}]}]},
+    'kndrak': {'src': 'knizni-drak', 'parts': [
+        {'title': 'Dráček', 'rules': [{'hue': (185, 240), 'smin': 0.2, 'vmin': 0.08, 'outpoly': [KNIHA_L, KNIHA_R]}]},
+        {'title': 'Záře', 'rules': [{'hue': (25, 60), 'smin': 0.28, 'vmin': 0.5, 'outer': 6}]}]},
+    'panda': {'src': 'panda', 'parts': [
+        {'title': 'Šála', 'rules': [{'hue': (340, 15), 'smin': 0.5, 'vmin': 0.3, 'box': [(0.25, 0.6, 0.75, 1)]}]},
+        {'title': 'Záře', 'rules': [{'hue': (340, 40), 'smin': 0.35, 'vmin': 0.4, 'outer': 6, 'out': [(0.25, 0.6, 0.75, 1)]}]}]},
+    'klokan': {'src': 'klokan', 'parts': [
+        {'title': 'Dres a čelenka', 'rules': [{'hue': (320, 360), 'smin': 0.4, 'vmin': 0.3, 'box': [(0.12, 0.55, 0.82, 1), (0.36, 0.25, 0.64, 0.36)], 'out': [(0.735, 0.62, 0.9, 1)]}]},
+        {'title': 'Záře', 'rules': [{'hue': (18, 48), 'smin': 0.3, 'vmin': 0.5, 'outer': 6, 'out': [(0.72, 0.24, 1, 0.58)]}]}]},
 }
+
+# Sezónní postavičky (Sezónní truhla měsíce, look.js SEASON_AVATARS; docs/OBRAZKY.md č. 151–162). Zdroje dodané s průhledným
+# pozadím (kobliz, snezen, aktovk, drakpa, caj, pernik) jsou v branding/ikony uložené už položené na #2d3034, tmavý kruh
+# nebo dlaždice za postavičkou (snezen, aktovk) má skoro barvu pozadí a vyřízne se s ním. U pampel je ze zdroje smazaný šedý oblouk
+# (chyba generátoru) vpravo nahoře u krémového okraje.
+# Přední kapsa aktovky (výřez uvnitř jejího obrysu, rohy seříznuté): k aktovce nepatří, je to druhá část
+AKTOVKA_KAPSA = [(0.307, 0.604), (0.555, 0.604), (0.573, 0.622), (0.573, 0.794), (0.555, 0.812), (0.307, 0.812), (0.289, 0.794), (0.289, 0.622)]
+AKTOVKA_ROHY = [[(0.289, 0.604), (0.307, 0.604), (0.289, 0.622)], [(0.555, 0.604), (0.573, 0.604), (0.573, 0.622)],
+                [(0.573, 0.794), (0.573, 0.812), (0.555, 0.812)], [(0.289, 0.794), (0.307, 0.812), (0.289, 0.812)]]
+# Pampeliška: odlétající semínka vpravo nahoře, bělma očí a krémový okraj mezi chmýřím a pravým listem do chmýří nepatří
+PAMPEL_OUT = [(0.7, 0.0, 1.0, 0.15), (0.8, 0.15, 1.0, 0.31), (0.262, 0.474, 0.37, 0.604), (0.428, 0.476, 0.56, 0.613), (0.55, 0.698, 0.67, 0.75)]
+CHARACTERS.update({
+    'ramp': {'src': 'ramp', 'parts': [
+        {'title': 'Šála', 'rules': [{'hue': (340, 20), 'smin': 0.45, 'vmin': 0.3}]},
+        {'title': 'Led', 'mode': 'tint', 'rules': [{'hue': (180, 230), 'smin': 0.06, 'vmin': 0.55, 'box': [(0.25, 0.05, 0.75, 0.95)]}]}]},
+    'kobliz': {'src': 'kobliz', 'parts': [
+        {'title': 'Maska', 'rules': [{'hue': (245, 305), 'smin': 0.25, 'vmin': 0.3}]},
+        {'title': 'Serpentina', 'rules': [{'hue': (320, 20), 'smin': 0.4, 'vmin': 0.35, 'box': [(0.76, 0.0, 1.0, 0.48)]}]}]},
+    'snezen': {'src': 'snezen', 'parts': [
+        {'title': 'Květ', 'rules': [{'smin': 0, 'smax': 0.16, 'vmin': 0.6, 'box': [(0.2, 0.12, 0.72, 0.66)]}]},
+        {'title': 'Listy', 'rules': [{'hue': (65, 150), 'smin': 0.3, 'vmin': 0.25, 'out': [(0.36, 0.3, 0.56, 0.46)]}]}]},
+    'kapka': {'src': 'kapka', 'parts': [
+        {'title': 'Kapka', 'rules': [{'hue': (185, 228), 'smin': 0.3, 'vmin': 0.3}]},
+        {'title': 'Deštník', 'rules': [{'hue': (35, 62), 'smin': 0.4, 'vmin': 0.4, 'box': [(0.0, 0.64, 0.42, 1.0)]}]}]},
+    'pampel': {'src': 'pampel', 'parts': [
+        {'title': 'Chmýří', 'rules': [{'smin': 0, 'smax': 0.1, 'vmin': 0.62, 'out': PAMPEL_OUT},
+                                       {'smin': 0, 'smax': 0.14, 'vmin': 0.62, 'out': PAMPEL_OUT, 'edge': 45}]},
+        {'title': 'Listy', 'rules': [{'hue': (70, 150), 'smin': 0.3, 'vmin': 0.25, 'box': [(0, 0.6, 1, 1)]}]}]},
+    'vysved': {'src': 'vysved', 'parts': [
+        {'title': 'Mašle', 'rules': [{'hue': (345, 18), 'smin': 0.45, 'vmin': 0.35, 'box': [(0.2, 0.45, 0.8, 0.86)]}]},
+        {'title': 'Brýle', 'rules': [{'smin': 0, 'smax': 0.3, 'vmin': 0, 'vmax': 0.42, 'box': [(0.2, 0.27, 0.72, 0.47)]}]}]},
+    'meloun': {'src': 'meloun', 'parts': [
+        {'title': 'Dužina', 'rules': [{'hue': (340, 20), 'smin': 0.3, 'vmin': 0.5, 'outpoly': [[(0.393, 0.66), (0.43, 0.62), (0.575, 0.62), (0.575, 0.65), (0.53, 0.68), (0.49, 0.693), (0.43, 0.694), (0.393, 0.69)]]}]},
+        {'title': 'Brýle', 'rules': [{'smin': 0, 'smax': 0.3, 'vmin': 0, 'vmax': 0.42, 'box': [(0.2, 0.15, 0.8, 0.38)]}]}]},
+    'hvezda': {'src': 'hvezda', 'parts': [
+        {'title': 'Hvězda', 'rules': [{'hue': (26, 64), 'smin': 0.4, 'vmin': 0.5, 'box': [(0.23, 0.08, 0.96, 0.7)],
+                                        'out': [(0.08, 0.545, 0.355, 0.88), (0.78, 0.08, 0.97, 0.3), (0.815, 0.555, 0.95, 0.66), (0.15, 0.2, 0.27, 0.31)]}]},
+        {'title': 'Ohon', 'rules': [{'hue': (205, 255), 'smin': 0.35, 'vmin': 0.1, 'vmax': 0.55}]}]},
+    'aktovk': {'src': 'aktovk', 'parts': [
+        {'title': 'Aktovka', 'rules': [{'hue': (10, 36), 'smin': 0.45, 'vmin': 0.3, 'box': [(0, 0.31, 1, 1)], 'outpoly': [AKTOVKA_KAPSA]}]},
+        {'title': 'Kapsa', 'rules': [{'hue': (10, 36), 'smin': 0.45, 'vmin': 0.3, 'box': [(0.289, 0.604, 0.573, 0.812)], 'outpoly': AKTOVKA_ROHY}]}]},
+    'drakpa': {'src': 'drakpa', 'parts': [
+        {'title': 'Drak', 'rules': [{'hue': (345, 62), 'smin': 0.45, 'vmin': 0.4, 'box': [(0.08, 0.0, 0.92, 0.68)],
+                                     'out': [(0.1, 0.03, 0.35, 0.21), (0.06, 0.46, 0.26, 0.63), (0.55, 0.6, 0.73, 0.76)]}]},
+        {'title': 'Mašličky', 'rules': [{'hue': (345, 62), 'smin': 0.45, 'vmin': 0.4, 'box': [(0.12, 0.68, 0.9, 0.97)],
+                                         'out': [(0.55, 0.6, 0.73, 0.76)]}]}]},
+    'caj': {'src': 'caj', 'parts': [
+        {'title': 'Hrnek', 'rules': [{'hue': (150, 205), 'smin': 0.18, 'vmin': 0.25}]},
+        {'title': 'Citron', 'rules': [{'hue': (38, 64), 'smin': 0.4, 'vmin': 0.5, 'box': [(0.0, 0.18, 0.44, 0.62)]}]}]},
+    'pernik': {'src': 'pernik', 'parts': [
+        {'title': 'Poleva', 'rules': [{'smin': 0, 'smax': 0.11, 'vmin': 0.7, 'outpoly': [[(0.26, 0.36), (0.45, 0.35), (0.51, 0.335), (0.66, 0.295),
+                                                                                         (0.71, 0.31), (0.71, 0.45), (0.65, 0.62), (0.42, 0.62), (0.26, 0.53)]]}]},
+        {'title': 'Knoflíky', 'mode': 'tint', 'rules': [{'hue': (330, 20), 'smin': 0.4, 'vmin': 0.45, 'box': [(0.42, 0.66, 0.58, 0.8)]},
+                                                        {'hue': (60, 160), 'smin': 0.3, 'vmin': 0.3, 'box': [(0.43, 0.8, 0.57, 0.91)]}]}]},
+})
 
 def rgb_to_hsv(a):
     r, g, b = a[..., 0], a[..., 1], a[..., 2]
@@ -142,7 +261,21 @@ def poly_mask(shape, polys):
     for poly in polys: draw.polygon([(x * W, y * H) for x, y in poly], fill=255)
     return np.asarray(img) > 0
 
-def part_mask(a, rules):
+def outer_mask(sel, alpha, reach):
+    # Souvislé plochy výběru, které začínají v pruhu hned pod krémovým okrajem (EDGE až EDGE + reach px od průhledného pozadí)
+    solid = Image.fromarray(((alpha > 0.5) * 255).astype(np.uint8)).filter(ImageFilter.MinFilter(EDGE))
+    inner = np.asarray(solid) > 0
+    for _ in range(max(1, round(reach / 2))): solid = solid.filter(ImageFilter.MinFilter(5))
+    grown = sel & inner & ~(np.asarray(solid) > 0)
+    # Rekonstrukce: semínka se rozrůstají o pixel (i úhlopříčně) jen po výběru, dokud se plocha mění
+    for step in range(4 * WORK):
+        img = Image.fromarray((grown * 255).astype(np.uint8)).filter(ImageFilter.MaxFilter(3))
+        nxt = (np.asarray(img) > 0) & sel
+        if step % 8 == 0 and np.array_equal(nxt, grown): break
+        grown = nxt
+    return grown
+
+def part_mask(a, rules, edge=EDGE):
     h, s, v = rgb_to_hsv(a[..., :3])
     m = np.zeros(h.shape, bool)
     for rule in rules:
@@ -150,10 +283,15 @@ def part_mask(a, rules):
         r &= (v >= rule.get('vmin', 0.3)) & (v <= rule.get('vmax', 1.01))
         if 'box' in rule: r &= box_mask(h.shape, rule['box'])
         if 'out' in rule: r &= ~box_mask(h.shape, rule['out'])
+        if 'poly' in rule: r &= poly_mask(h.shape, rule['poly'])
         if 'outpoly' in rule: r &= ~poly_mask(h.shape, rule['outpoly'])
+        # edge = širší pruh u okraje samolepky (liché číslo v pixelech plátna WORK), kde pravidlo nehledá: krémový okraj bývá místy širší než EDGE
+        if 'edge' in rule: r &= np.asarray(Image.fromarray(((a[..., 3] > 0.5) * 255).astype(np.uint8)).filter(ImageFilter.MinFilter(rule['edge']))) > 0
+        if rule.get('outer'): r = outer_mask(r, a[..., 3], rule['outer'])
+        if rule.get('inner'): r &= ~outer_mask(r, a[..., 3], rule['inner'])
         m |= r
     # Krémový okraj samolepky (pruh u průhledného pozadí) nikdy nepatří k části, i když má podobnou barvu (helma tučňáka)
-    inner = Image.fromarray(((a[..., 3] > 0.5) * 255).astype(np.uint8)).filter(ImageFilter.MinFilter(EDGE))
+    inner = Image.fromarray(((a[..., 3] > 0.5) * 255).astype(np.uint8)).filter(ImageFilter.MinFilter(edge))
     m &= np.asarray(inner) > 0
     img = Image.fromarray((m * 255).astype(np.uint8))
     # Drobné tečky pryč, drobné díry (odlesky, šum) zalepit; okraj změkčit
@@ -161,6 +299,10 @@ def part_mask(a, rules):
     img = img.filter(ImageFilter.MaxFilter(3)).filter(ImageFilter.MinFilter(3))
     soft = np.asarray(img.filter(ImageFilter.GaussianBlur(1.2))).astype(np.float32) / 255
     return soft * a[..., 3]
+
+def part_masks(a, parts):
+    # Masky všech částí postavičky (každá s vlastním ochranným pruhem u okraje, výchozí EDGE)
+    return [part_mask(a, part['rules'], part.get('edge', EDGE)) for part in parts]
 
 def recolor(a, w, color, mode=None):
     ht, st, vt = color
@@ -198,8 +340,7 @@ def build(cid, preview=False):
     a = np.asarray(base).astype(np.float32) / 255
     layers = []
     offered = []
-    for pi, part in enumerate(conf.get('parts', []), start=1):
-        w = part_mask(a, part['rules'])
+    for pi, (part, w) in enumerate(zip(conf.get('parts', []), part_masks(a, conf.get('parts', []))), start=1):
         offered.append(offered_colors(a, w, part.get('mode')))
         row = []
         for ci, color in enumerate(PALETTE, start=1):
@@ -230,7 +371,8 @@ def offered_colors(a, w, mode=None):
 def colors_only(cid):
     conf = CHARACTERS[cid]
     a = np.asarray(base_image(conf['src'])).astype(np.float32) / 255
-    return [offered_colors(a, part_mask(a, part['rules']), part.get('mode')) for part in conf.get('parts', [])]
+    parts = conf.get('parts', [])
+    return [offered_colors(a, w, part.get('mode')) for part, w in zip(parts, part_masks(a, parts))]
 
 if __name__ == '__main__':
     args = [x for x in sys.argv[1:] if not x.startswith('--')]

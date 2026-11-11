@@ -919,12 +919,16 @@
     // Logo sovy s vybranými doplňky (bez modulu jen obrázek)
     const owlLogo = (wrapClass, imgClass) => Owl ? Owl.logoHtml(wrapClass, imgClass) : `<img src="icons/logo.webp" alt="" class="${wrapClass} ${imgClass}">`;
     const lookContext = () => {
-        if (Look && window.MudrlantRewards) Look.setGifts(window.MudrlantRewards.gifts(readJson(window.MudrlantRewards.KEY)));
+        // Věci z truhly a diplomy témat (odemykají legendární postavičky) ze stavu odměn v zařízení
+        const rewards = window.MudrlantRewards ? window.MudrlantRewards.parse(readJson(window.MudrlantRewards.KEY)) : null;
+        if (Look && rewards) Look.setGifts(rewards.gifts);
         // Rámečky ligových sezón: nejlepší liga skončené sezóny zapamatovaná v zařízení (league-seasons.js, platí i bez připojení)
         if (Look && Look.setLeagueBest && window.MudrlantLeagueSeasons) Look.setLeagueBest(window.MudrlantLeagueSeasons.cachedBest(readJson(window.MudrlantLeagueSeasons.KEY)));
         const progress = loadProgress();
         const user = Auth && Auth.isConfigured() && Social ? signedUser() : null;
-        return { level: levelProgress(progress.xp).level, badges: progress.badges, user, profile: user ? myProfile : null, avatarHtml, prefs: Look ? Look.prefs({ level: levelProgress(progress.xp).level, badges: progress.badges }) : {} };
+        const level = levelProgress(progress.xp).level;
+        const diplomas = rewards ? rewards.diplomas : {};
+        return { level, badges: progress.badges, diplomas, user, profile: user ? myProfile : null, avatarHtml, prefs: Look ? Look.prefs({ level, badges: progress.badges, diplomas }) : {} };
     };
     // Titul u mého jména podle volby ve Vzhledu: úroveň a její titul (výchozí), nic, nebo název získaného odznaku
     const ownTitleText = (level) => {
@@ -968,7 +972,7 @@
     };
     // Zamčený obrázek hráče (postavička nebo emoji za odměnu): položka katalogu, nebo null, když je k dispozici (základní, odemčený,
     // nebo už uložený v profilu – i jako staré emoji, které postavička nahradila)
-    const avatarUnlockText = (item) => item.exclusive && Look ? Look.unlockText(item) : item.badge ? `Odznak: ${(BADGE_BY_ID[item.badge] || {}).title || item.badge}` : `Úroveň ${item.level}`;
+    const avatarUnlockText = (item) => (item.exclusive || item.diploma) && Look ? Look.unlockText(item) : item.badge ? `Odznak: ${(BADGE_BY_ID[item.badge] || {}).title || item.badge}` : `Úroveň ${item.level}`;
     const avatarLock = (value) => {
         const item = Look && Look.avatarItem ? Look.avatarItem(value) : null;
         if (!item || Social.AVATARS.includes(value) || (myProfile && Look.avatarItem(myProfile.avatar) === item) || Look.isUnlocked(item, lookContext())) return null;
@@ -981,9 +985,10 @@
     const tierTitles = (tier) => LEVEL_TITLES.filter(entry => titleOwlTier(entry.from) === tier).map(entry => entry.title);
     // Moje zvolená sova titulu omezená na dosaženou úroveň (null = sova s doplňky)
     const myPose = () => { const ctx = lookContext(); return Owl && Look ? Owl.allowedPose(ctx.prefs.pose, ctx.level) : null; };
-    // Štítek na zamčené dlaždici obrázku: od které úrovně, nebo medaile (odemyká se odznakem; který, řekne popisek a klepnutí)
+    // Štítek na zamčené dlaždici obrázku: od které úrovně, nebo medaile (odemyká se odznakem; který, řekne popisek a klepnutí),
+    // u legendární postavičky čepice absolventa (odemyká ji diplom tématu)
     const LOCK_PILL = 'absolute bottom-0 left-1/2 flex -translate-x-1/2 items-center whitespace-nowrap rounded-full bg-white px-1 text-[9px] font-black leading-[0.75rem] text-slate-700 dark:bg-slate-900 dark:text-slate-200';
-    const lockPill = (item) => `<span class="${LOCK_PILL}">${item.badge ? '<i data-lucide="medal" class="my-px h-2.5 w-2.5"></i>' : `úr.&nbsp;${item.level}`}</span>`;
+    const lockPill = (item) => `<span class="${LOCK_PILL}">${item.diploma ? '<i data-lucide="graduation-cap" class="my-px h-2.5 w-2.5"></i>' : item.badge ? '<i data-lucide="medal" class="my-px h-2.5 w-2.5"></i>' : `úr.&nbsp;${item.level}`}</span>`;
     // Dlaždice sov titulů v Profilu → Mudrlant (hned za „Moje sova“): sova v mé barvě obleku, oříznutá do kolečka jako v profilovce;
     // dosažené jdou vybrat, vyšší jsou zašedlé s úrovní, od které se odemknou, a klepnutí jen řekne, kdy to bude
     const poseTiles = () => {
@@ -1001,35 +1006,47 @@
             return `<button type="button" data-pick-owl="${pose.id}" aria-label="${escapeHtml(label)}" title="${escapeHtml(label)}" aria-pressed="${on}" class="${AVATAR_TILE} ${on ? AVATAR_ON : AVATAR_OFF}">${art}</button>`;
         }).join('');
     };
-    // --- Profil → profilový obrázek: tři skupiny (Mudrlant = moje sova a sovy titulů, Postavičky = odměny, Zvířátka = základní emoji
-    // zdarma) a pod nimi jedna řada barev: pozadí, nebo vybraná část postavičky (čipy nad řadou říkají, co se přebarvuje) ---
-    const PICTURE_GROUPS = [['mudrlant', 'Mudrlant'], ['postavicky', 'Postavičky'], ['zviratka', 'Zvířátka']];
+    // --- Profil → profilový obrázek: čtyři skupiny (Mudrlant = moje sova a sovy titulů, Postavičky = odměny, Legendy = legendární postavičky
+    // za diplomy témat, Zvířátka = základní emoji zdarma) a pod nimi jedna řada barev: pozadí, nebo vybraná část postavičky (čipy nad řadou
+    // říkají, co se přebarvuje). Legendy mají vlastní skupinu: 14 dlaždic jsou dvě řady, Postavičky tak zůstanou na třech řadách ---
+    const PICTURE_GROUPS = [['mudrlant', 'Mudrlant'], ['postavicky', 'Postavičky'], ['legendy', 'Legendy'], ['zviratka', 'Zvířátka']];
     let pictureGroup = null; // otevřená skupina; null = ta, ve které je vybraný obrázek
     let colorTarget = 'bg'; // co řada barev přebarvuje: 'bg' (pozadí) nebo číslo části postavičky (1, 2)
     let hueOpen = false; // místo barev pozadí je vidět posuvník všech odstínů
     const pictureGroups = () => PICTURE_GROUPS.filter(([id]) => id !== 'mudrlant' || Boolean(Owl && Owl.owlAvatarHtml));
     const pictureGroupOf = (draft) => {
         if (draft.owl && Owl && Owl.owlAvatarHtml) return 'mudrlant';
-        return !Social.AVATARS.includes(draft.avatar) && Look && Look.avatarItem && Look.avatarItem(draft.avatar) ? 'postavicky' : 'zviratka';
+        const item = !Social.AVATARS.includes(draft.avatar) && Look && Look.avatarItem ? Look.avatarItem(draft.avatar) : null;
+        return !item ? 'zviratka' : item.diploma ? 'legendy' : 'postavicky';
     };
-    // Dlaždice postavičky (vybraná v barvách z rozpracované volby) nebo odměny, která zatím obrázek nemá (emoji)
+    // Dlaždice postavičky (vybraná v barvách z rozpracované volby) nebo odměny, která zatím obrázek nemá (emoji).
+    // Odemčená legendární postavička má zlatý lem (LEGEND_OFF), zamčená je šedá jako ostatní
     const characterTile = (item) => {
         const chosen = !meDraft.owl && Look.avatarItem(meDraft.avatar) === item;
         const art = item.parts ? avatarArt(chosen ? meDraft.avatar : item.id, 'h-[92%] w-[92%]') : escapeHtml(item.id);
         const lock = avatarLock(item.id);
+        const label = item.diploma ? `${item.title} (legendární)` : item.title;
         if (lock) {
-            return `<button type="button" data-locked-avatar="${escapeHtml(item.id)}" aria-disabled="true" aria-label="${escapeHtml(`${item.title} (zamčeno): ${avatarUnlockText(lock)}`)}" title="${escapeHtml(`${item.title}: ${avatarUnlockText(lock)}`)}" class="${AVATAR_TILE} ${AVATAR_OFF} relative">`
+            return `<button type="button" data-locked-avatar="${escapeHtml(item.id)}" aria-disabled="true" aria-label="${escapeHtml(`${label} (zamčeno): ${avatarUnlockText(lock)}`)}" title="${escapeHtml(`${item.title}: ${avatarUnlockText(lock)}`)}" class="${AVATAR_TILE} ${AVATAR_OFF} relative">`
                 + `<span class="flex h-full w-full items-center justify-center opacity-40 grayscale dark:opacity-60">${art}</span>${lockPill(lock)}</button>`;
         }
-        return `<button type="button" data-pick-avatar="${escapeHtml(item.id)}" aria-label="${escapeHtml(item.title)}" title="${escapeHtml(item.title)}" aria-pressed="${chosen}" class="${AVATAR_TILE} ${chosen ? AVATAR_ON : AVATAR_OFF}">${art}</button>`;
+        return `<button type="button" data-pick-avatar="${escapeHtml(item.id)}"${item.diploma ? ' data-legendary' : ''} aria-label="${escapeHtml(label)}" title="${escapeHtml(label)}" aria-pressed="${chosen}" class="${AVATAR_TILE} ${chosen ? AVATAR_ON : item.diploma ? LEGEND_OFF : AVATAR_OFF}">${art}</button>`;
+    };
+    // Skupina Legendy: 14 postaviček za diplomy (dvě řady) a pod nimi věta, jak se získají (vejde se do výšky tří řad jako ostatní skupiny)
+    const legendTiles = () => {
+        const items = Look.AVATARS.filter(item => item.diploma);
+        return items.map(characterTile).join('')
+            + `<p data-legend-note class="col-span-full flex items-center gap-1 self-center justify-self-stretch px-1 text-[11px] font-semibold leading-tight text-slate-500 dark:text-slate-400"><i data-lucide="graduation-cap" class="h-3.5 w-3.5 shrink-0 text-gold-600 dark:text-gold-300"></i><span>Legendární postavička za diplom tématu (plné mistrovství, 5 hvězdiček).</span></p>`;
     };
     const pictureTiles = (group) => {
         if (group === 'mudrlant') {
             const on = Boolean(meDraft.owl && !meDraft.pose);
             return `<button type="button" data-pick-owl aria-label="Sova Mudrlant" title="Sova Mudrlant" aria-pressed="${on}" class="${AVATAR_TILE} ${on ? AVATAR_ON : AVATAR_OFF}">${Owl.owlAvatarHtml(ownOwlText(null), 'h-full w-auto', 'h-[88%]')}</button>${poseTiles()}`;
         }
-        // Sezónní postavičky (exclusive) jen ty, které hráč má (ze Sezónní truhly), jinak by tu visely zamčené bez cesty k nim
-        if (group === 'postavicky') return Look ? Look.AVATARS.filter(item => !item.exclusive || Look.isUnlocked(item, lookContext())).map(characterTile).join('') : '';
+        // Sezónní postavičky (exclusive) jen ty, které hráč má (ze Sezónní truhly) nebo už má v profilu, jinak by tu visely zamčené bez cesty k nim;
+        // legendární (diploma) mají vlastní skupinu
+        if (group === 'postavicky') return Look ? Look.AVATARS.filter(item => !item.diploma && (!item.exclusive || Look.isUnlocked(item, lookContext()) || (myProfile && Look.avatarItem(myProfile.avatar) === item))).map(characterTile).join('') : '';
+        if (group === 'legendy') return Look ? legendTiles() : '';
         return Social.AVATARS.map(emoji => {
             const on = !meDraft.owl && emoji === meDraft.avatar;
             return `<button type="button" data-pick-avatar="${emoji}" aria-label="Obrázek ${emoji}" aria-pressed="${on}" class="${AVATAR_TILE} ${on ? AVATAR_ON : AVATAR_OFF}">${emoji}</button>`;
@@ -1588,6 +1605,9 @@
         const scroll = reopened && overlay.firstElementChild ? overlay.firstElementChild.scrollTop : 0;
         // Vodorovné řady (rámečky, doplňky, barvy…) si po překreslení nechají posun, ať klepnutí na zamčenou věc neskočí na začátek řady
         const stripScroll = reopened && overlay.dataset.stripTab === meTab ? [...overlay.querySelectorAll('.overflow-x-auto')].map(el => el.scrollLeft) : null;
+        // Mřížka obrázků (víc než tři řádky se posouvají uvnitř): posun zůstane, dokud je otevřená stejná skupina
+        const oldStrip = reopened ? overlay.querySelector('[data-avatar-strip]') : null;
+        const pictureScroll = oldStrip && overlay.dataset.stripTab === meTab ? { group: oldStrip.dataset.group, top: oldStrip.scrollTop } : null;
         if (!overlay) overlay = createSettingsOverlay();
         const state = Auth ? Auth.getState() : { configured: false };
         const profile = user ? (myProfile || { display_name: user.name, avatar: '🦊', color: 'emerald' }) : null;
@@ -1640,8 +1660,8 @@
             return `
             <form id="profile-form" class="flex flex-col gap-2 short:gap-1.5" autocomplete="off">
                 <section data-picture aria-label="Profilový obrázek" class="flex min-w-0 flex-col gap-1.5 rounded-2xl bg-white p-1.5 shadow-sm dark:bg-slate-800">
-                    <div role="tablist" aria-label="Profilový obrázek" class="grid grid-cols-3 gap-0.5 rounded-xl bg-slate-100 p-0.5 dark:bg-slate-900/60">${pictureGroups().map(([id, label]) => `<button type="button" role="tab" data-pic-group="${id}" aria-selected="${group === id}" class="min-h-[2.25rem] rounded-[0.6rem] px-1 text-[12px] font-black ${group === id ? 'bg-white text-brand-800 shadow-sm ring-1 ring-slate-200 dark:bg-slate-700 dark:text-white dark:ring-slate-600' : 'text-slate-600 dark:text-slate-300'}">${label}</button>`).join('')}</div>
-                    <div data-avatar-strip data-group="${group}" class="grid min-h-[7.75rem] grid-cols-[repeat(auto-fill,minmax(2.5rem,1fr))] content-start justify-items-center gap-0.5">${pictureTiles(group)}</div>
+                    <div role="tablist" aria-label="Profilový obrázek" class="grid ${pictureGroups().length > 3 ? 'grid-cols-4' : 'grid-cols-3'} gap-0.5 rounded-xl bg-slate-100 p-0.5 dark:bg-slate-900/60">${pictureGroups().map(([id, label]) => `<button type="button" role="tab" data-pic-group="${id}" aria-selected="${group === id}" class="min-h-[2.25rem] min-w-0 truncate rounded-[0.6rem] px-1 text-[12px] font-black max-[380px]:px-0.5 max-[380px]:text-[11.5px] ${group === id ? 'bg-white text-brand-800 shadow-sm ring-1 ring-slate-200 dark:bg-slate-700 dark:text-white dark:ring-slate-600' : 'text-slate-600 dark:text-slate-300'}">${label}</button>`).join('')}</div>
+                    <div data-avatar-strip data-group="${group}" class="grid max-h-[9.125rem] min-h-[7.75rem] grid-cols-[repeat(auto-fill,minmax(2.5rem,1fr))] content-start justify-items-center gap-0.5 overflow-y-auto overscroll-contain">${pictureTiles(group)}</div>
                     ${pictureColors()}
                 </section>
                 ${lookSections('profile', { ...lookContext(), profile: shown })}
@@ -1680,15 +1700,25 @@
             </div>`;
         overlay.firstElementChild.scrollTop = scroll;
         if (stripScroll) overlay.querySelectorAll('.overflow-x-auto').forEach((el, index) => { if (stripScroll[index]) el.scrollLeft = stripScroll[index]; });
+        const strip = overlay.querySelector('[data-avatar-strip]');
+        if (strip && pictureScroll && pictureScroll.group === strip.dataset.group) strip.scrollTop = pictureScroll.top;
+        else if (strip) {
+            // Nově otevřená skupina: vybraný obrázek, který je až pod viditelnými řádky, se posune do mřížky
+            const on = strip.querySelector('[aria-pressed="true"]');
+            const below = on ? on.getBoundingClientRect().bottom - strip.getBoundingClientRect().bottom : 0;
+            if (below > 0) strip.scrollTop += below + 2;
+        }
         overlay.dataset.stripTab = meTab;
         renderIcons(overlay);
         const target = focusSelector ? overlay.querySelector(focusSelector) : (meTab === 'game' ? overlay.querySelector('[data-variant][aria-pressed="true"]') : null);
         (target || overlay.querySelector('[data-close]')).focus({ preventScroll: true });
     };
-    // Dlaždice obrázku v Profilu: 40 × 40 px v mřížce (skupina má nejvýš 21 obrázků = tři řádky po sedmi i na 360 px, nic se neschová)
+    // Dlaždice obrázku v Profilu: 40 × 40 px v mřížce (21 obrázků = tři řádky po sedmi i na 360 px). Víc obrázků (vlastněné sezónní
+    // postavičky) se posouvá uvnitř mřížky: vidět je půl čtvrtého řádku, ať je jasné, že jich je víc, a okno Nastavení se neposouvá
     const AVATAR_TILE = 'flex h-10 w-10 items-center justify-center rounded-xl border-2 text-xl active:scale-95';
     const AVATAR_ON = 'border-brand-600 bg-brand-50 dark:bg-brand-900/40';
     const AVATAR_OFF = 'border-transparent bg-slate-50 dark:bg-slate-700/50';
+    const LEGEND_OFF = 'border-gold-300 bg-gold-50 dark:border-gold-600/70 dark:bg-gold-900/20';
     const OWL_AVATAR_KEY = 'mudrlant.owlAvatar';
     const saveMeProfile = async () => {
         const user = signedUser();
@@ -1971,7 +2001,9 @@
             const locked = event.target.closest('[data-locked-avatar]');
             if (locked && Look) {
                 const item = Look.avatarItem(locked.dataset.lockedAvatar);
-                if (item) openSettings(item.badge ? `${item.title} se odemkne odznakem „${(BADGE_BY_ID[item.badge] || {}).title || item.badge}“.` : `${item.title} se odemkne na úrovni ${item.level}.`, `[data-locked-avatar="${locked.dataset.lockedAvatar}"]`);
+                const topic = item && item.diploma ? TOPIC_BY_ID[item.diploma] : null;
+                if (item) openSettings(item.diploma ? (topic && Rewards ? `${item.title} se odemkne diplomem „${Rewards.diplomaTitle(topic)}“ (plné mistrovství tématu ${topic.title}).` : `${item.title}: ${Look.unlockText(item)}.`)
+                    : item.badge ?`${item.title} se odemkne odznakem „${(BADGE_BY_ID[item.badge] || {}).title || item.badge}“.` : `${item.title} se odemkne na úrovni ${item.level}.`, `[data-locked-avatar="${locked.dataset.lockedAvatar}"]`);
                 return;
             }
             if (event.target.closest('[data-owl-as-avatar]')) { useOwlAsAvatar(); return; }
@@ -4047,7 +4079,13 @@
         const result = Rewards.noteDiplomas(loadRewards(), topicStars, getDayKey(), MASTERY_STEPS.length);
         if (!result.fresh.length) return;
         saveRewards(result.state);
-        result.fresh.forEach(id => { if (TOPIC_BY_ID[id]) showCelebration('vitez', 'Nový diplom', `${Rewards.diplomaTitle(TOPIC_BY_ID[id])} – najdeš ho v Mém postupu`, 'badge'); });
+        // K diplomu patří legendární postavička (look.js diploma): oslava ji ukáže místo sovy a řekne, kde se vybírá
+        result.fresh.forEach(id => {
+            if (!TOPIC_BY_ID[id]) return;
+            const legend = Look && Look.rewardsForDiploma ? Look.rewardsForDiploma(id).find(entry => entry.category === 'avatars') : null;
+            showCelebration('vitez', 'Nový diplom', `${Rewards.diplomaTitle(TOPIC_BY_ID[id])} – najdeš ho v Mém postupu${legend ? `. Odměna: legendární postavička ${legend.item.title} – vyber si ji v ${rewardPlace('avatars')}` : ''}`, 'badge',
+                legend ? avatarArt(legend.item.id, 'h-20 w-20 -my-4 drop-shadow-lg') : '');
+        });
         syncRewards();
     };
     // Odměny v účtu: sjednocení se zařízením (věci a truhly se sčítají, počet ochran platí z novější změny); bez sloupce nic
@@ -4329,6 +4367,15 @@
         const past = view.pastPending.length > 0;
         return Season.stripHtml({ id: past ? view.past.id : view.id, count: past ? view.pastPending.length : view.pending.length, past, until: view.pastUntil });
     };
+    // Legendární postavička z okna diplomu: Nastavení → Profil se skupinou Legendy a fokusem na ní (vybere a uloží si ji hráč sám);
+    // bez účtu jen věta (profilový obrázek mají přihlášení)
+    const openLegend = (id) => {
+        if (!(signedUser() && Social)) { showToast('Legendární postavičku si dáš jako profilový obrázek po přihlášení.'); return; }
+        closeDialog();
+        openSettings('', null, 'profile');
+        pictureGroup = 'legendy';
+        openSettings('', `[data-pick-avatar="${id}"], [data-locked-avatar="${id}"]`, 'profile');
+    };
     // Diplomy: řádek za každé téma (získaný, kdy, kolik chybí do plného mistrovství)
     const diplomaRows = () => {
         const learned = loadLearned();
@@ -4382,7 +4429,7 @@
             } catch (error) { box.innerHTML = '<p class="text-xs font-semibold text-slate-500 dark:text-slate-400">Diplom se nepodařilo nakreslit.</p>'; }
         };
         let typing = null;
-        showDialog(row.earned ? 'Diplom' : row.title, Rewards.diplomaDialogHtml(row, { name, needName: !name }, { topicIcon, styleOf }) + back, {
+        showDialog(row.earned ? 'Diplom' : row.title, Rewards.diplomaDialogHtml(row, { name, needName: !name }, { topicIcon, styleOf, avatar: (id, cls) => avatarArt(id, cls) }) + back, {
             onClick: (event) => {
                 // Vystavit: překreslí se jen řádek s tlačítky (náhled diplomu zůstane)
                 const toggle = event.target.closest('[data-showcase-toggle]');
@@ -4393,6 +4440,8 @@
                     });
                     return;
                 }
+                const legend = event.target.closest('[data-diploma-legend]');
+                if (legend) { openLegend(legend.dataset.diplomaLegend); return; }
                 if (!ShareCard) return;
                 if (event.target.closest('[data-diploma-share]')) shareImageCounted(diplomaInput(row, name), { name: fileName(), text: `${row.title} · ${APP_NAME}`, toast: showToast });
                 if (event.target.closest('[data-diploma-download]')) ShareCard.saveImage(diplomaInput(row, name), { name: fileName(), toast: showToast }).then(result => { if (result === 'downloaded') bumpCounter('sharedImages'); });
@@ -7712,6 +7761,22 @@
         const skill = BADGE_BY_ID[`zbehly-${topic.id}`];
         const accessory = Look ? Look.ACCESSORIES.find(item => item.badge === `zbehly-${topic.id}`) : null;
         const master = BADGE_BY_ID['mistr-oboru'];
+        // Sada doplňků tématu (look.js topicSet): kus za zběhlost, za 300 a za 1000 správných odpovědí v tématu; získané s fajfkou
+        const ctx = Look ? lookContext() : null;
+        const correct = (loadProgress().counters.topics || {})[topic.id] || 0;
+        const pieces = Look && Look.topicSet ? Look.topicSet(topic.id) : [];
+        const pieceHow = ({ step, badge }) => step === 'skill' ? '3 hvězdičky nebo 12 správně v řadě' : `${step} správných${BADGE_BY_ID[badge] ? ` (odznak ${BADGE_BY_ID[badge].title})` : ''}`;
+        const piece = (entry) => {
+            const owned = Look.isUnlocked(entry.item, ctx);
+            return `<li data-set-piece="${entry.item.id}" class="flex min-w-0 flex-col items-center gap-0.5 rounded-xl bg-slate-50 px-1 py-1.5 text-center dark:bg-slate-700/50">
+                <span class="relative"><img src="icons/doplnky/${entry.item.id}-ikona.webp" alt="" class="h-8 w-8 object-contain ${owned ? '' : 'opacity-50 grayscale'}">${owned ? '<i data-lucide="circle-check" class="absolute -bottom-1 -right-1.5 h-4 w-4 rounded-full bg-white text-emerald-600 dark:bg-slate-800 dark:text-emerald-400"></i>' : ''}</span>
+                <b class="text-[11px] leading-tight text-slate-800 dark:text-slate-100">${escapeHtml(entry.item.title)}</b>
+                <span class="text-[10px] font-semibold leading-tight text-slate-600 dark:text-slate-300">${escapeHtml(pieceHow(entry))}</span></li>`;
+        };
+        const setHtml = pieces.length > 1 ? `<div data-mastery-set class="flex flex-col gap-1">
+                <p class="flex items-baseline justify-between gap-2 text-[11px] font-black text-slate-700 dark:text-slate-200"><span>Sada pro Mudrlanta</span><span class="font-semibold text-slate-500 dark:text-slate-400">správně v tématu: ${correct}</span></p>
+                <ul class="grid grid-cols-3 gap-1.5" aria-label="Sada doplňků tématu">${pieces.map(piece).join('')}</ul>
+            </div>` : '';
         const star = (filled) => `<i data-lucide="star" class="h-4 w-4 ${filled ? 'fill-gold-500 text-gold-500' : 'text-slate-300 dark:text-slate-600'}"></i>`;
         const reward = (needed, html) => `<li class="flex items-start gap-2 text-[12px] leading-snug text-slate-700 dark:text-slate-200"><i data-lucide="${stars >= needed ? 'circle-check' : 'star'}" class="mt-0.5 h-4 w-4 shrink-0 ${stars >= needed ? 'text-emerald-600 dark:text-emerald-400' : 'text-gold-600 dark:text-gold-400'}"></i><span><b>${needed} ${needed < 5 ? 'hvězdičky' : 'hvězdiček'}:</b> ${html}</span></li>`;
         showDialog(`Mistrovství: ${topic.title}`, `
@@ -7730,6 +7795,7 @@
                     ${reward(3, `odznak ${skill ? `„${escapeHtml(skill.title)}“` : 'Zběhlost'}${accessory ? ` a doplněk pro Mudrlanta: ${escapeHtml(accessory.title)}` : ''}. Doplněk získáš i tak, že v tématu 12× správně odpovíš za sebou.`)}
                     ${reward(5, `odznak${master ? ` „${escapeHtml(master.title)}“` : ''}, nejvyšší mistrovství v oboru.`)}
                 </ul>
+                ${setHtml}
                 ${dialogBackButton()}
             </div>`);
         applyProgress(document.getElementById('dialog-overlay'));
