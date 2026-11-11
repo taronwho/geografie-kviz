@@ -163,7 +163,7 @@ test('ligové sezóny a vitrína v profilu', { skip: !chromium && 'Playwright ne
             await tab.waitForSelector('#celebration');
             const party = await text(tab, '#celebration');
             assert.match(party, /Nová odměna/);
-            assert.match(party, /Rámeček Diamantová sezóna \(říjen 2026\) a 3 další – vyber si je v Nastavení → Profil/);
+            assert.match(party, /Rámeček Diamantová sezóna \(říjen 2026\) a 3 další a doplněk Pochodeň vítěze – vyber si je v Nastavení → Profil a Nastavení → Mudrlant/);
             assert.equal(await tab.locator('#celebration .frame-liga-diamant').count(), 1, 'oslava ukazuje můj obrázek v novém rámečku');
             await shot(tab, 'sezona-oslava', scheme);
             await tab.click('#celebration');

@@ -1665,7 +1665,7 @@ Odemkne: 300 správných v tématu (návrh). Přiložit: `branding/sova-original
 Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same proportions, same colors, same outline style, same flat dark background. Do not redraw, move or recolor the owl. Only ADD the accessory described below, drawn in the same cartoon sticker style with the same thick dark outline and the same lighting, sitting naturally on the owl. The accessory should be mostly one dominant color (not wine red) so it can be recolored later. Do not add anything else. Accessory: A rolled-up blue blueprint held under the owl's wing, partly unrolled at one end showing simple white lines of a building plan (no text, no numbers).
 ```
 
-#### 196. `tuzka` – Tesařská tužka (hlava)
+#### 196. `tesarska-tuzka` – Tesařská tužka (hlava)
 
 Odemkne: 1000 správných v tématu (návrh). Přiložit: `branding/sova-original.jpg`
 
