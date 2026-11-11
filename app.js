@@ -498,17 +498,21 @@
 
     // Data jedné otázky – vše, co se uloží a po obnovení stránky zobrazí znovu
     const MAX_THIN_RETRIES = 3;
-    // Otázka „Ukaž na mapě“ (question-map.js): jen v tréninku, asi každá osmá vhodná otázka. Dnešní otázky, výzvy a turnaje ji
-    // nemají (stejné otázky pro všechny hráče i starší verze aplikace), chyby a opakování také ne. Los nebere z rng otázky.
+    // Otázka „Ukaž na mapě“ (question-map.js): v tréninku asi každá osmá vhodná otázka (počítadlo v zařízení), ve výzvě a zápasu turnaje
+    // asi desetina vhodných otázek podle semínka otázky (výběr výzvy: challengePicker, options.map), a jen ve hrách, které to nesou
+    // (MapQuestion.seedAllowsMaps, tournamentAllowsMaps). Dnešní otázky a Kvíz dne ji nemají, chyby a opakování také ne. Los nebere z rng otázky.
     // Témata s otázkami na mapě (question-map.js KINDS); režim Ukaž na mapě dává jen je a otázku na mapě pokaždé
     const MAP_TOPICS = MapQuestion ? MapQuestion.MAP_TOPICS : [];
-    const mapQuestionFor = (item, ctx) => MapQuestion && mode === 'practice' && pool.kind === 'map' ? loadMapData().then(map => MapQuestion.buildQuestion(item, ctx, map)).catch(() => null)
-        : !MapQuestion || mode !== 'practice' || pool.kind === 'mistakes' || pool.kind === 'review' ? null
+    const mapQuestionFor = (item, ctx, options = {}) => !MapQuestion ? null
+        : mode === 'challenge' ? (options.map ? loadMapData().then(map => MapQuestion.multiplayerQuestion(item, ctx, map)).catch(() => null) : null)
+        : mode === 'practice' && pool.kind === 'map' ? loadMapData().then(map => MapQuestion.buildQuestion(item, ctx, map)).catch(() => null)
+        : mode !== 'practice' || pool.kind === 'mistakes' || pool.kind === 'review' ? null
         : MapQuestion.nextQuestion(item, ctx, { storage: { read: () => readJson(MapQuestion.GAP_KEY), write: (value) => writeJson(MapQuestion.GAP_KEY, value) }, loadMap: loadMapData });
-        const createRoundData = async (item, ctx, rng) => {
+    // options.map = výzva (zápas turnaje) určila podle semínka, že otázka má být na mapě (když na ni položka jde)
+    const createRoundData = async (item, ctx, rng, options = {}) => {
         const { topic, items } = ctx;
         // Pořadí volání rng je stálé, aby dnešní otázka vyšla všem stejně
-        const special = (await mapQuestionFor(item, ctx)) || (topic.specialQuestion ? topic.specialQuestion(item, ctx, rng) : null);
+        const special = (await mapQuestionFor(item, ctx, options)) || (topic.specialQuestion ? topic.specialQuestion(item, ctx, rng) : null);
         const category = categoryOf(topic, item.c);
         const question = special || {
             type: 'name',
@@ -2952,12 +2956,16 @@
     const renderMapQuestion = (keepScroll) => {
         const data = current;
         const topic = TOPIC_BY_ID[data.topic];
-        const header = questionHeaderTop();
+        // Zápas turnaje: čas běží i u otázky na mapě (jako u ostatních otázek zápasu)
+        const header = questionHeaderTop({ timed: Boolean(mode === 'challenge' && challenge && challenge.tournament) });
         appContent.innerHTML = MapQuestion.questionScreen(data, { style: styleOf(topic), categoryIcon: categoryOf(topic, data.category).icon, typed: round.variant === 'typed',
             extraTop: header.top, labelClass: header.label,
             guess: round.mapGuess, fresh: !keepScroll, report: canReport() && mode !== 'challenge' ? REPORT_ICON_BUTTON : '' });
         renderIcons(appContent);
-        clearInterval(tourTimer);
+        if (appContent.querySelector('[data-tour-timer]')) {
+            if (!round.timerStart) round.timerStart = Date.now();
+            startTourTimer(round.timerStart);
+        } else clearInterval(tourTimer);
         if (!keepScroll) appContent.scrollTo(0, 0);
         MapQuestion.mountQuestion(appContent, data, { guess: round.mapGuess || null, loadMap: loadMapData, onConfirm: () => ACTIONS['map-confirm'](),
             onPlace: (guess) => { if (current === data && round && !round.answered) { round.mapGuess = guess; persistState(); } } });
@@ -4707,10 +4715,12 @@
     const PENDING_SNAPSHOTS_KEY = 'mudrlant.pendingSnapshots';
     const snapshotsReady = () => Boolean(Social && Social.claimQuestion && Social.questionSnapshots && signedUser());
     // Otázka ze serveru jde hrát: tvarově úplná a z tématu, které aplikace zná (jinak se hraje otázka ze zařízení)
+    // Otázka na mapě (výzva, turnaj) jde hrát jen s úplnými údaji o místě a s aplikací, která mapu umí
     const playableSnapshot = (data) => Boolean(data && typeof data === 'object' && !Array.isArray(data) && TOPIC_BY_ID[data.topic] && typeof data.id === 'string'
         && data.question && typeof data.question === 'object' && typeof data.question.title === 'string' && typeof data.question.answerLabel === 'string'
         && Array.isArray(data.hints) && Array.isArray(data.funFacts) && Array.isArray(data.resultFacts) && typeof data.typeLabel === 'string'
-        && (isNumeric(data) || (Array.isArray(data.question.choices) && data.question.choices.length > 0 && Array.isArray(data.question.accepted))));
+        && (isNumeric(data) || (data.question.type === 'map' ? Boolean(MapQuestion && MapQuestion.playableMap(data.question))
+            : Array.isArray(data.question.choices) && data.question.choices.length > 0 && Array.isArray(data.question.accepted))));
     // Otázku na server ukládá klient (soupeř): texty se vykreslují escapované, pole vkládaná do atributů (ikony, klíče záložek, druhy)
     // se z ní berou jen s bezpečnými znaky
     const SNAPSHOT_TOKENS = new Set(['icon', 'key', 'kind', 'type', 'category', 'categoryIcon', 'spec', 'dir', 'mode', 'inputmode']);
@@ -4816,7 +4826,7 @@
             if (!data) {
                 if (!picked.item) throw new Error('Není z čeho vybírat');
                 // Číselná otázka, když ji výběr naplánoval (bez popisu z Wikipedie, takže chudý popis se jí netýká)
-                data = (picked.numeric && Numeric && Numeric.buildRound(picked.numeric, picked.ctx)) || await createRoundData(picked.item, picked.ctx, picked.rng);
+                data = (picked.numeric && Numeric && Numeric.buildRound(picked.numeric, picked.ctx)) || await createRoundData(picked.item, picked.ctx, picked.rng, { map: Boolean(picked.map) });
                 // Chudý popis: vybere se jiná otázka (u dnešní otázky další určená položka), nejvýš třikrát; pak se vezme, co je
                 // (výzva ne: všichni hráči musí dostat stejné otázky, i když se někomu Wikipedie nenačte)
                 for (let attempt = 1; data.thin && mode !== 'challenge' && mode !== 'quiz' && !wikiPaused() && attempt <= MAX_THIN_RETRIES; attempt++) {
@@ -8227,6 +8237,9 @@
         // Kolik odpovědí má server (průběh, schéma 3); právě založená výzva žádné, jinak -1 = neví se (před prvním uložením se načte)
         synced: def.fresh ? 0 : knownSynced(def)
     });
+    // Smí výzva (zápas turnaje) mít otázky na mapě: výzva nové aplikace (konec semínka), turnaj od týdne MULTIPLAYER_TOURNAMENTS_FROM
+    // (tournament.maps z tournamentChallengeDef); výzvy a turnaje starších verzí aplikace ne (viz question-map.js)
+    const challengeAllowsMaps = (c) => Boolean(MapQuestion && c && (c.tournament ? c.tournament.maps === true : MapQuestion.seedAllowsMaps(c.seed)));
     // Výběr otázek výzvy (i zápasu turnaje): stejná otázka pro všechny, položku určuje semínko výzvy a pořadí; u jednoho tématu se dřívější
     // otázky nezopakují. Stejná položka bývá ve dvou tématech (stavba v Architektuře i Zeměpisu): v Mixu a turnaji se nezopakuje ani napříč tématy.
     // step(semínko) vybere otázku daného semínka (s remember = true si její položky zapamatuje jako použité); earlierSeeds(index) = semínka otázek
@@ -8245,6 +8258,10 @@
         // Číselná otázka (Seřaď, Odhadni číslo): vlastní řada náhodných čísel ze semínka otázky (výběr položky se nemění)
         // a jen položky, které výzva nabízí a které v ní ještě nebyly; všichni hráči tak dostanou stejnou
         const challengeNumeric = (ctx, item, seedText) => numericPlan(ctx, item, ctx.items.filter(candidate => offered(candidate) && !usedIds.has(candidate.q)), createSeededRandom(`${seedText}:cisla`));
+        // Otázka na mapě (question-map.js): jen ve hře, která to nese, ne místo číselné otázky a jen s položkou, která na mapu jde
+        // (vlastní řada čísel ze semínka otázky, rng otázky se nemění); jestli otázka na mapě opravdu vyjde, rozhodne až buildQuestion s mapou
+        const mapsOn = challengeAllowsMaps(c);
+        const challengeMap = (ctx, item, numeric, seedText) => Boolean(mapsOn && item && !numeric && MapQuestion.multiplayerDue(seedText) && MapQuestion.candidate(item, ctx));
         const ids = challengeTopicIds(c.topic);
         const histories = new Map();
         const historyOf = (topicId) => { if (!histories.has(topicId)) histories.set(topicId, []); return histories.get(topicId); };
@@ -8255,13 +8272,14 @@
             const item = pickFor(ctx, rng, historyOf(topicId));
             // Číselná otázka dřívějšího pořadí (stejné semínko, stejný plán): ani její položky se nezopakují
             const numeric = challengeNumeric(ctx, item, seedText);
+            const map = challengeMap(ctx, item, numeric, seedText);
             if (remember) {
                 if (item) { historyOf(topicId).push(item.q); usedIds.add(item.q); }
                 if (numeric) numeric.ids.forEach(id => usedIds.add(id));
                 const snapshot = frozen[seedText];
                 if (snapshot) { snapshotIds(snapshot).forEach(id => usedIds.add(id)); historyOf(snapshot.topic).push(snapshot.id); }
             }
-            return { item, ctx, rng, numeric };
+            return { item, ctx, rng, numeric, map };
         };
         // Turnaj: otázky se nesmí zopakovat ani v dřívějších kolech (každé kolo má semínko `<turnaj>-r<kolo>`)
         const earlierSeeds = (index) => {
@@ -8383,11 +8401,13 @@
     const BREAKDOWN_TITLE = 'Rozpis otázek';
     const breakdownQuestions = new Map();
     // Otázka do rozpisu: zadání, u otázky „ve kterém státě“ i místo, správná odpověď a položka pro okno s popisem
+    // Otázka na mapě v rozpisu: „Ukaž na mapě“ a místo (odpověď hráče je „Vedle o 312 km“ a body)
+    const MAP_BREAKDOWN_TITLE = 'Ukaž na mapě';
     const describeChallengeQuestion = ({ item, ctx, rng, numeric }) => {
         if (!item || !ctx) return null;
         const built = numeric && Numeric ? Numeric.buildRound(numeric, ctx) : null;
         if (built) return { topic: ctx.topic.id, id: built.id, title: built.question.title, subject: built.numeric.kind === 'estimate' ? built.name : '', answer: built.question.answerLabel };
-        // Stejné pořadí losování jako createRoundData (výzva nemá otázku na mapě, ta rng nebere)
+        // Stejné pořadí losování jako createRoundData (otázka na mapě rng nebere, tu řeší describeChallengeStep)
         const special = ctx.topic.specialQuestion ? ctx.topic.specialQuestion(item, ctx, rng) : null;
         const category = categoryOf(ctx.topic, item.c);
         return {
@@ -8395,8 +8415,14 @@
             subject: special && special.showName ? item.n : '', answer: special ? special.answerLabel : item.n
         };
     };
+    // Otázka výzvy ze semínka: stejně jako createRoundData otázka na mapě, když ji semínko určilo a položka na mapu jde, jinak obyčejná
+    const describeChallengeStep = async (step) => {
+        const onMap = step && step.map && step.item && !step.numeric && MapQuestion
+            ? await loadMapData().then(data => MapQuestion.multiplayerQuestion(step.item, step.ctx, data)).catch(() => null) : null;
+        return onMap ? { topic: step.ctx.topic.id, id: step.item.q, title: MAP_BREAKDOWN_TITLE, subject: '', answer: onMap.answerLabel, map: true } : describeChallengeQuestion(step);
+    };
     // Zadání do rozpisu z otázky uložené na serveru (zamrzlé otázky): stejné údaje jako describeChallengeQuestion
-    const describeSnapshot = (data) => ({
+    const describeSnapshot = (data) => (data.question.type === 'map' ? { topic: data.topic, id: data.id, title: MAP_BREAKDOWN_TITLE, subject: '', answer: data.question.answerLabel, map: true } : {
         topic: data.topic, id: data.id, title: data.question.title, answer: data.question.answerLabel,
         subject: isNumeric(data) ? (data.numeric.kind === 'estimate' ? data.name || '' : '') : data.question.showName ? data.name || '' : ''
     });
@@ -8404,7 +8430,7 @@
     const challengeQuestionList = (def) => {
         const c = { ...def, level: challengeLevel(def), categories: Array.isArray(def.categories) ? def.categories : [] };
         const tour = c.tournament;
-        const key = [c.topic, c.seed, c.count, c.level, c.categories.join(','), tour ? `${tour.seedBase}:${tour.round}` : ''].join('|');
+        const key = [c.topic, c.seed, c.count, c.level, c.categories.join(','), tour ? `${tour.seedBase}:${tour.round}:${tour.maps === true}` : ''].join('|');
         if (!breakdownQuestions.has(key)) {
             let complete = false;
             const promise = (async () => {
@@ -8424,7 +8450,7 @@
                         if (!complete) await picker.step(seed);
                     } else {
                         const step = await picker.step(seed);
-                        try { question = describeChallengeQuestion(step); } catch (error) { console.error(error); }
+                        try { question = await describeChallengeStep(step); } catch (error) { console.error(error); }
                     }
                     list.push(question);
                 }
@@ -8569,7 +8595,7 @@
         const local = !spectator && challenge && challenge.tournament && challenge.tournament.mid === mid ? challenge.results : null;
         openBreakdown({
             def: { topic: view.tournament.topic, seed: `${view.tournament.seed}-r${match.round}`, count: Tournament.QUESTIONS, level: 1, categories: [],
-                tournament: { seedBase: view.tournament.seed, round: match.round } },
+                tournament: { seedBase: view.tournament.seed, round: match.round, maps: tournamentMaps(view.tournament) } },
             players, load: () => Social.tournamentDetails(mid), local, viewAs: spectator ? match.p1 : null, back
         });
     };
@@ -10083,11 +10109,14 @@
     };
     // Zápas turnaje jako výzva: otázky ze semínka turnaje a kola, vždy výběr z možností a jen známější položky
     // entries = přihlášení hráči: soupeř se uloží k zápasu (záhlaví otázky ho ukáže, i kdyby se turnaje nenačetly)
+    // Turnaj s otázkami na mapě (od týdne MULTIPLAYER_TOURNAMENTS_FROM, question-map.js): pro všechny hráče stejně podle týdne turnaje
+    const tournamentMaps = (tournament) => Boolean(MapQuestion && MapQuestion.tournamentAllowsMaps(tournament));
     const tournamentChallengeDef = (tournament, state, entries = []) => {
         const opponent = state.opponent ? (entries || []).find(entry => entry.user_id === state.opponent) : null;
         return {
             code: 'turnaj', topic: tournament.topic, seed: `${tournament.seed}-r${state.round}`, count: Tournament.QUESTIONS, variant: 'choices', include_hard: false,
-            tournament: { tid: tournament.id, mid: state.matchId, round: state.round, name: state.roundName, seedBase: tournament.seed, opponent: opponent && opponent.player ? opponent.player : null }
+            tournament: { tid: tournament.id, mid: state.matchId, round: state.round, name: state.roundName, seedBase: tournament.seed, opponent: opponent && opponent.player ? opponent.player : null,
+                maps: tournamentMaps(tournament) }
         };
     };
     // Pokračování rozehraného zápasu od první nezodpovězené otázky; server měří čas od začátku zápasu. Odpovědi se vezmou ze serveru (schéma 3),
@@ -10114,6 +10143,8 @@
             return;
         }
         const def = { ...(local || tournamentChallengeDef(view.tournament, view.state, view.entries)) };
+        // Zápas rozehraný ve starší verzi aplikace (bez údaje o mapě): údaj podle týdne turnaje, jako u nově začatého
+        if (def.tournament && typeof def.tournament.maps !== 'boolean') def.tournament = { ...def.tournament, maps: tournamentMaps(view.tournament) };
         def.results = Array.from({ length: def.count }, (_, index) => (local && local.results[index]) || null);
         // Odpovědi ze serveru platí (mohly přibýt na jiném zařízení); bez spojení se pokračuje podle zařízení
         const user = signedUser();

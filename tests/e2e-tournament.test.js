@@ -707,6 +707,65 @@ test('týdenní turnaje', { skip: !chromium && 'Playwright není nainstalovaný'
         await context.close();
     });
 
+    // Turnaj od týdne 16. 11. (question-map.js MULTIPLAYER_TOURNAMENTS_FROM): asi desetina otázek na mapě podle semínka zápasu, stejně pro oba hráče;
+    // čas běží i u otázky na mapě, body (nejvýš 4, správně = aspoň bod) projdou kontrolou tournament_answer_save, rozpis ukáže „Ukaž na mapě“.
+    // Semínko 'mapa-turnaj-20': podle čísel na mapě otázky 2, 5 a 6 (když na mapu jde položka)
+    await t.test('otázky na mapě v turnaji od 16. 11.: čas běží, body se uloží, rozpis je ukáže', async () => {
+        const WEEK = '2026-11-16';
+        const db = newDb({ today: WEEK });
+        db.tournaments.push({ id: T_RUN, topic: 'zemepis', week_start: WEEK, started_on: WEEK, capacity: 128, status: 'running', size: 8, rounds: 3, seed: 'mapa-turnaj-20' });
+        const fillers = addPlayers(db, 6);
+        ['u-1', 'u-2', ...fillers].forEach(user => addEntry(db, T_RUN, user, 'playing'));
+        db.matches.push({ id: uuid(101), tournament_id: T_RUN, round: 1, slot: 1, third: false, p1: 'u-1', p2: 'u-2', winner: null, decided_by: null });
+        db.results.push({ match_id: uuid(101), user_id: 'u-2', started_at: `${WEEK}T07:00:00Z`, finished_at: `${WEEK}T07:01:00Z`, time_ms: 60000, correct: 0, points: 0 });
+        db.snapshots = {};
+        const { context, tab, log } = await start(db, { now: `${WEEK}T10:00:00Z` });
+        await tab.waitForSelector('#tournament-card [data-action="tournament-play"]');
+        await tab.click('[data-action="tournament-play"]');
+        const types = [];
+        for (let i = 0; i < 10; i++) {
+            await tab.waitForSelector('[data-map-question] svg path, [data-action="choice"]', { timeout: 30000 });
+            const data = await tab.evaluate(() => JSON.parse(localStorage.getItem('mudrlant.session')).data);
+            types.push(data.question.type === 'map' ? 'map' : 'other');
+            if (data.question.type === 'map') {
+                assert.equal(await tab.locator('[data-tour-timer]').count(), 1, 'u otázky na mapě běží čas zápasu');
+                assert.match(await tab.textContent('[data-map-tiers-toggle]'), /Plné 4 body/);
+                const point = await tab.evaluate(() => {
+                    const question = JSON.parse(localStorage.getItem('mudrlant.session')).data.question;
+                    const svg = document.querySelector('[data-map-question] svg');
+                    const [mx, my] = window.MudrlantMapQuestion.frameOf(window.MudrlantMapQuestion.mapRegionOf(question.map.region)).toMap(question.map.lat, question.map.lon);
+                    const [vx, vy, vw, vh] = svg.getAttribute('viewBox').split(' ').map(Number);
+                    const rect = svg.getBoundingClientRect();
+                    return { x: rect.left + (mx - vx) / vw * rect.width, y: rect.top + (my - vy) / vh * rect.height };
+                });
+                await tab.mouse.click(point.x, point.y);
+                if (types.filter(type => type === 'map').length === 1) await shot(tab, 'turnaj-mapa');
+                await tab.click('[data-action="map-confirm"]');
+            } else await tab.click('[data-action="give-up"]');
+            await tab.waitForSelector('[data-action="next"]');
+            await tab.click('[data-action="next"]');
+        }
+        await tab.waitForSelector('[data-tournament-outcome]');
+        const mapIndexes = types.map((type, i) => (type === 'map' ? i : -1)).filter(i => i >= 0);
+        assert.ok(mapIndexes.length >= 1, `aspoň jedna otázka na mapě: ${types}`);
+        assert.ok(mapIndexes.every(i => [1, 4, 5].includes(i)), `jen otázky určené semínkem: ${mapIndexes}`);
+        // Uložené otázky (zamrzlé): na mapě s jednou možností, aby je přijala i starší aplikace
+        mapIndexes.forEach(i => { const stored = db.snapshots[`mapa-turnaj-20-r1:${i}`]; assert.equal(stored.question.type, 'map'); assert.equal(stored.question.choices.length, 1); });
+        const mine = db.answers.filter(row => row.match_id === uuid(101) && row.user_id === 'u-1').sort((a, b) => a.idx - b.idx);
+        assert.equal(mine.length, 10);
+        for (const i of mapIndexes) {
+            assert.ok(mine[i].points >= 1 && mine[i].points <= 4 && mine[i].correct, JSON.stringify(mine[i]));
+            assert.match(mine[i].answer, /^Vedle o .*km$/);
+        }
+        await tab.waitForSelector('#breakdown-list [data-bd-row]', { timeout: 30000 });
+        const row = (await tab.textContent(`#breakdown-list [data-bd-row="${mapIndexes[0]}"]`)).replace(/\s+/g, ' ');
+        assert.match(row, new RegExp(`Ukaž na mapě ${db.snapshots[`mapa-turnaj-20-r1:${mapIndexes[0]}`].question.answerLabel}`));
+        assert.match(row, new RegExp(`${mine[mapIndexes[0]].answer} .*${mine[mapIndexes[0]].points} b`));
+        assert.deepEqual(log.errors, []);
+        assert.deepEqual(log.csp, []);
+        await context.close();
+    });
+
     await t.test('XP za vyhraný zápas jednou za účet: nové zařízení ho nepřipíše znovu, ztracená odpověď serveru se dožene jednou, starší databáze jako dřív', async () => {
         const until = async (check, what) => { const end = Date.now() + 15000; while (!check()) { if (Date.now() > end) throw new Error(`nedočkal jsem se: ${what}`); await new Promise(resolve => setTimeout(resolve, 50)); } };
         const paidList = (tab) => tab.evaluate(() => JSON.parse(localStorage.getItem('mudrlant.tourXp') || '[]'));

@@ -300,7 +300,7 @@ test('zapojení: skript ve stránce před aplikací, data i skript v mezipaměti
     // Bez inline stylů (CSP): v šablonách modulu žádný atribut style
     assert.doesNotMatch(read('question-map.js'), /[\s"']style=|\.style\.\w+\s*=[^=]/);
     const app = read('app.js');
-    assert.match(app, /mode !== 'practice' \|\| pool\.kind === 'mistakes' \|\| pool\.kind === 'review'/, 'jen trénink, ne dnešní otázky, výzvy, turnaje, chyby ani opakování');
+    assert.match(app, /mode !== 'practice' \|\| pool\.kind === 'mistakes' \|\| pool\.kind === 'review'/, 'počítadlo jen v tréninku, ne v dnešních otázkách, chybách ani opakování (výzvy a turnaje podle semínka)');
 });
 
 test('plochy: obrys z data/mapa-tvary.json – uvnitř přesná trefa, jinak vzdálenost od okraje; moře jen s obrysem', () => {

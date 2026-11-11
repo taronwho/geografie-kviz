@@ -10,7 +10,7 @@
 })(typeof self !== 'undefined' ? self : this, (core, root) => {
     'use strict';
 
-    const { distanceKm, getContinent, continentAt, CZECHIA_QID, normalizeAnswer, escapeHtml, formatPoints, pointsFor } = core;
+    const { distanceKm, getContinent, continentAt, CZECHIA_QID, normalizeAnswer, escapeHtml, formatPoints, pointsFor, createSeededRandom } = core;
 
     // --- Výřezy map ---
 
@@ -624,6 +624,36 @@
         return question;
     };
 
+    // --- Otázky na mapě ve hře pro víc hráčů (výzva i výzva skupině a odveta, zápas turnaje) ---
+    // Oba hráči musí dostat stejnou otázku, proto o otázce na mapě nerozhoduje počítadlo v zařízení, ale semínko otázky: vlastní řada
+    // náhodných čísel ze semínka `<semínko otázky>:mapa` (rng otázky se nemění, takže ostatní otázky vyjdou jako dřív). Na mapě je asi
+    // desetina otázek, a jen z těch, jejichž položka na mapu jde (candidate a buildQuestion); ostatní zůstanou obyčejné, takže otázek
+    // na mapě je ve hře nejvýš asi desetina. Testy: api.multiplayerShare, nebo window.MUDRLANT_MAP_SHARE nastavené před načtením skriptu.
+    // Starší aplikace o otázkách na mapě ve výzvě neví (ze stejného semínka sestaví obyčejnou otázku), proto je mají jen hry, které
+    // to výslovně nesou: výzva se semínkem končícím MULTIPLAYER_SEED_MARK (zakládá ji nová aplikace, social.js createChallenge)
+    // a turnaj s týdnem od MULTIPLAYER_TOURNAMENTS_FROM (semínko turnaje skládá databáze). Výzvy a turnaje starších verzí zůstanou
+    // bez mapy na všech zařízeních. Hru s mapou ve starší aplikaci srovná uložená otázka na serveru (zamrzlé otázky, schéma 17): platí
+    // otázka toho, kdo ji sestavil první, a otázka na mapě má proto i jednu možnost (správnou), aby ji starší aplikace přijala a zahrála.
+    const MULTIPLAYER_SHARE = 0.1;
+    const START_SHARE = root && typeof root.MUDRLANT_MAP_SHARE === 'number' ? root.MUDRLANT_MAP_SHARE : MULTIPLAYER_SHARE;
+    const MULTIPLAYER_SEED_MARK = '.mapa';
+    const MULTIPLAYER_TOURNAMENTS_FROM = '2026-11-16';
+    const seedAllowsMaps = (seed) => typeof seed === 'string' && seed.endsWith(MULTIPLAYER_SEED_MARK);
+    const tournamentAllowsMaps = (tournament) => Boolean(tournament) && typeof tournament.week_start === 'string'
+        && /^\d{4}-\d{2}-\d{2}/.test(tournament.week_start) && tournament.week_start.slice(0, 10) >= MULTIPLAYER_TOURNAMENTS_FROM;
+    // Má být otázka s tímto semínkem na mapě (když na ni její položka jde)? Pro všechny hráče stejně.
+    const multiplayerDue = (seedText, share = api.multiplayerShare) => typeof seedText === 'string' && seedText.length > 0
+        && createSeededRandom(`${seedText}:mapa`)() < share;
+    // Otázka na mapě do hry pro víc hráčů, nebo null (položka na mapu nejde: hraje se obyčejná otázka)
+    const multiplayerQuestion = (item, ctx, mapData) => {
+        const question = buildQuestion(item, ctx, mapData);
+        return question ? { ...question, choices: [{ id: item.q, label: question.answerLabel, correct: true }] } : null;
+    };
+    // Uložená otázka na mapě (ze serveru) jde zahrát: úplné údaje o místě
+    const playableMap = (question) => Boolean(question && question.type === 'map' && question.map && typeof question.map === 'object'
+        && typeof question.map.region === 'string' && Number.isFinite(question.map.lat) && Number.isFinite(question.map.lon)
+        && Number.isFinite(question.map.full) && Number.isFinite(question.map.zero) && question.map.full >= 0 && question.map.zero >= question.map.full);
+
     // Výsledek odpovědi pro uložení do kola (round.map): kam hráč klepl, jak daleko to bylo a za kolik bodů
     const evaluate = (question, guess, typed) => {
         if (!question || !question.map || !guess || !Number.isFinite(guess.lat) || !Number.isFinite(guess.lon)) return null;
@@ -1199,7 +1229,9 @@
         REGIONS, REGION_BY_ID, WORLD, MAP_REGIONS, mapRegionOf, FRAME_UNITS, KINDS, GAP_KEY, MIN_GAP, MAX_GAP, MAX_ZOOM, WORLD_MAX_ZOOM,
         FULL_SHARE, ZERO_SHARE, COAST_TOLERANCE_KM, projector, equalEarth, projectionOf, frameOf, roundKm, pointTiers, destination, insideFrame, regionFor, candidate, isAmbiguous, radiiFor, maxPoints, pointsForDistance, scoreGuess, formatKm,
         titleFor, ringsOf, onDrawnLand, areaAt, decodeShape, isLine, shapeOf, distanceToShapeKm, nearestOnShape, mercator, viewFor, SHAPE_ONLY, needsShape, MAP_GROUPS, MAP_TOPICS, groupOf, buildQuestion, isDue, nextQuestion, evaluate, greatCircle,
-        questionScreen, mountQuestion, resultPane, mountResult, resultBanner
+        questionScreen, mountQuestion, resultPane, mountResult, resultBanner,
+        MULTIPLAYER_SHARE, multiplayerShare: START_SHARE, MULTIPLAYER_SEED_MARK, MULTIPLAYER_TOURNAMENTS_FROM, seedAllowsMaps, tournamentAllowsMaps, multiplayerDue,
+        multiplayerQuestion, playableMap
     };
     return api;
 });
