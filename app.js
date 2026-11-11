@@ -2312,7 +2312,8 @@
             const ctx = loadedTopics.get(pool.topic);
             return { icon: 'layers', text: ctx ? `${ctx.topic.title} · ${collectionLabel(ctx, pool.collection)}` : 'Procvičování', topic };
         }
-        if (pool.kind === 'mix') return { icon: 'shuffle', text: `Mix · ${topic.title}`, topic, switch: true };
+        // Mix: symbol tématu právě hrané otázky (bez obrázku tématu šipky Mixu)
+        if (pool.kind === 'mix') return { icon: 'shuffle', topicArt: true, text: `Mix · ${topic.title}`, topic, switch: true };
         const chosen = selectedCategories(topic);
         const scope = chosen.length === topic.categories.length ? '' : chosen.length === 1
             ? ` · ${categoryOf(topic, chosen[0]).label}` : ` · ${chosen.length} z ${topic.categories.length}`;
@@ -2369,13 +2370,13 @@
         badge.setAttribute('aria-label', place.switch ? `${place.text} – změnit téma` : place.logo ? `${place.text} – můj postup` : place.text);
         document.getElementById('status-switch').classList.toggle('hidden', !place.switch);
         const iconSlot = document.getElementById('status-icon-slot');
-        // Ikona na úzkém displeji ustoupí delšímu názvu tématu; sova na úvodu zůstává
-        iconSlot.className = `flex shrink-0 ${place.logo ? '' : 'max-[430px]:hidden'}`;
+        // Symbol tématu (okruhu) je vidět i na úzkém displeji, jen menší; sova na úvodu zůstává
+        iconSlot.className = 'flex shrink-0';
         // Režim (Bleskovka, Přežití, Ukaž na mapě) má vlastní ilustraci, téma svou ilustraci, jinak čárová ikona
         iconSlot.innerHTML = place.logo
             ? owlLogo('-my-1', 'h-11 w-auto drop-shadow-md')
-            : place.art ? uiArt(place.art, 'h-7 w-7 -my-1')
-            : place.topic && topicArt(place.topic) && place.icon === place.topic.icon ? topicIcon(place.topic, 'h-7 w-7 -my-1')
+            : place.art ? uiArt(place.art, 'h-7 w-7 -my-1 max-[430px]:h-6 max-[430px]:w-6')
+            : place.topic && topicArt(place.topic) && (place.icon === place.topic.icon || place.topicArt) ? topicIcon(place.topic, 'h-7 w-7 -my-1 max-[430px]:h-6 max-[430px]:w-6')
             : `<i data-lucide="${place.icon}" class="w-5 h-5 ${style ? '' : 'text-slate-600 dark:text-slate-300'}"></i>`;
         renderIcons(iconSlot);
         const text = document.getElementById('status-text');

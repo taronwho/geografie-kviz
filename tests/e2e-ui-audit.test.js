@@ -176,6 +176,9 @@ test('rozhraní na úzkém telefonu', { skip: !chromium && 'Playwright není nai
             await tab.waitForSelector('[data-action="give-up"]', { timeout: 30000 });
             await check(tab, 'otázka', scheme);
             await fitsScreen(tab, 'otázka', scheme);
+            // Symbol tématu je v hlavičce i na úzkém displeji (vedle názvu tématu, nic se neořízne – hlídá check)
+            assert.equal(await tab.isVisible('#status-icon-slot img'), true, `${scheme}: symbol tématu v hlavičce`);
+            if (process.env.SCREENSHOT_DIR) await tab.screenshot({ path: require('node:path').join(process.env.SCREENSHOT_DIR, `hlavicka-otazka-${scheme}.png`), clip: { x: 0, y: 0, width: 360, height: 90 } });
             // Všechny nápovědy postupně: žádná nesmí stránku natáhnout
             for (let step = 1; await tab.$('[data-action="hint"]'); step++) {
                 await tab.click('[data-action="hint"]');
