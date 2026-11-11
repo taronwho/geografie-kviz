@@ -43,6 +43,24 @@
         { id: 'medailista', title: 'Medailista turnaje', badge: 'turnaj-bronz' },
         { id: 'mistr-turnaje', title: 'Mistr turnaje', badge: 'turnaj-zlato' }
     ];
+    // Rámečky ligových sezón (league-seasons.js, schéma 18): za ligu Zlato, Platina, Diamant nebo Mistr jako vrchol skončené ligové sezóny
+    // (kalendářního měsíce); vyšší liga odemkne i rámečky nižších a rámeček zůstane navždy. Odemyká je setLeagueBest (nejlepší liga skončené
+    // sezóny, kterou app.js pamatuje v zařízení), ne úroveň ani odznak, takže je truhla nedává. leagueName = název ligy v textech.
+    const LEAGUE_FRAMES = [
+        { id: 'liga-zlato', title: 'Zlatá sezóna', league: 'zlato', leagueName: 'Zlato' },
+        { id: 'liga-platina', title: 'Platinová sezóna', league: 'platina', leagueName: 'Platina' },
+        { id: 'liga-diamant', title: 'Diamantová sezóna', league: 'diamant', leagueName: 'Diamant' },
+        { id: 'liga-mistr', title: 'Mistrovská sezóna', league: 'mistr', leagueName: 'Mistr' }
+    ];
+    FRAMES.push(...LEAGUE_FRAMES);
+    const LEAGUE_ORDER = ['bronz', 'stribro', 'zlato', 'platina', 'diamant', 'mistr'];
+    let leagueBest = null;
+    const setLeagueBest = (league) => { leagueBest = LEAGUE_ORDER.includes(league) ? league : null; };
+    // ctx.leagueBest (testy) má přednost před uloženou hodnotou
+    const leagueUnlocked = (item, ctx) => {
+        const best = ctx && ctx.leagueBest !== undefined ? ctx.leagueBest : leagueBest;
+        return LEAGUE_ORDER.includes(best) && LEAGUE_ORDER.indexOf(best) >= LEAGUE_ORDER.indexOf(item.league);
+    };
     // Postavičky: obrázky hráče za odměny (k základním emoji ze social.js AVATARS, ta jsou zdarma). Obrázek icons/avatars/<id>.webp
     // a přes něj vrstvy přebarvených částí icons/avatars/<id>-<část><barva>.webp (scripts/avatar-icons.py; části v pořadí parts = čísla 1, 2,
     // barvy = AVATAR_COLORS). Každá se odemyká stejně jako emoji, které nahradila (was): uložené staré emoji se ukáže jako postavička
@@ -158,10 +176,11 @@
     const isUnlocked = (item, ctx) => {
         if (!item) return false;
         if (ctx && isGift(item, ctx.gifts !== undefined ? ctx.gifts : giftState)) return true;
+        if (item.league) return leagueUnlocked(item, ctx);
         if (item.badge) return Boolean(ctx && ctx.badges && ctx.badges[item.badge]);
         return Boolean(ctx) && ctx.level >= (item.level || 1);
     };
-    const unlockText = (item, badgeTitle = null) => item.badge ? `Odznak: ${badgeTitle || item.badge}` : `Úroveň ${item.level}`;
+    const unlockText = (item, badgeTitle = null) => item.league ? `Ligová sezóna: vrchol ${item.leagueName}` : item.badge ? `Odznak: ${badgeTitle || item.badge}` : `Úroveň ${item.level}`;
     const categoryOf = (item) => CATEGORY_OF.get(item) || null;
     const find = (category, id) => (CATALOG[category] || []).find(item => item.id === id) || null;
 
@@ -285,5 +304,7 @@
     const rewardsAtLevel = (level) => Object.entries(CATALOG).flatMap(([category, items]) => items.filter(item => !item.badge && item.level === level).map(item => ({ category, item })));
 
     return { setGifts, isGift: (item) => isGift(item, giftState), categoryOf, CATALOG, THEMES, ROBES, FRAMES, AVATARS, AVATAR_COLORS, ACCESSORIES, SLOTS, ACC_COLORS, POSES, findPose, customHue, colorOk, flagOk, DEFAULTS, isUnlocked, unlockText, find, normalize, prefs, setPref, onChange, register, getSections, apply, newRewards, rewardsAtLevel, REWARD_KINDS, settingsTab, settingsPlace, rewardsForBadge, badgeRewardText,
-        migrateAvatar, parseAvatar, formatAvatar, avatarCode, avatarPicture, avatarItem, partColors };
+        migrateAvatar, parseAvatar, formatAvatar, avatarCode, avatarPicture, avatarItem, partColors,
+        // Rámečky ligových sezón (schéma 18)
+        LEAGUE_FRAMES, setLeagueBest, leagueBest: () => leagueBest };
 });

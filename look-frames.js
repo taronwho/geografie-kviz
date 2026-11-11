@@ -8,7 +8,9 @@
 })(typeof self !== 'undefined' ? self : this, (Look, Core) => {
     'use strict';
     const HEADING = 'text-[11px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400';
-    const SHORT = { zadny: 'Bez', bronz: 'Bronz', stribro: 'Stříbro', zlato: 'Zlato', vavrin: 'Vavřín', plamen: 'Plamen', diamant: 'Diamant', medailista: 'Medaile', 'mistr-turnaje': 'Mistr' };
+    const SHORT = { zadny: 'Bez', bronz: 'Bronz', stribro: 'Stříbro', zlato: 'Zlato', vavrin: 'Vavřín', plamen: 'Plamen', diamant: 'Diamant', medailista: 'Medaile', 'mistr-turnaje': 'Mistr',
+        // Rámečky ligových sezón (look.js LEAGUE_FRAMES)
+        'liga-zlato': 'Sezóna Zlato', 'liga-platina': 'Sezóna Platina', 'liga-diamant': 'Sezóna Diamant', 'liga-mistr': 'Sezóna Mistr' };
     const escapeHtml = (text) => Core && Core.escapeHtml ? Core.escapeHtml(text) : String(text).replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
 
     // Třídy rámečku pro obrázek hráče; neznámé id (a „bez rámečku“) nedá nic, takže cizí hodnota z databáze nic nerozbije
@@ -40,7 +42,7 @@
         const selected = ctx.prefs.frame;
         const tiles = Look.FRAMES.map(item => {
             const unlocked = Look.isUnlocked(item, ctx);
-            const label = unlocked || item.id === 'zadny' ? SHORT[item.id] : (item.badge ? 'Odznak' : `Úr. ${item.level}`);
+            const label = unlocked || item.id === 'zadny' ? SHORT[item.id] : (item.league ? 'Ligová sezóna' : item.badge ? 'Odznak' : `Úr. ${item.level}`);
             const text = unlocked ? item.title : `${item.title}: ${Look.unlockText(item, item.badge ? badgeTitle(item.badge) : null)}`;
             return `<button type="button" data-frame="${item.id}" aria-pressed="${item.id === selected}" aria-label="${escapeHtml(unlocked ? item.title : `${text} (zamčeno)`)}" title="${escapeHtml(text)}" class="flex h-11 w-11 shrink-0 snap-start items-center justify-center rounded-xl border-2 active:scale-95 ${item.id === selected ? 'border-brand-600 bg-brand-50 dark:bg-brand-900/40' : 'border-transparent bg-slate-100 dark:bg-slate-700/60'} ${unlocked ? '' : 'opacity-50 grayscale'}">
                 ${ctx.avatarHtml ? ctx.avatarHtml({ ...player, id: null, frame: item.id }, 'h-8 w-8 text-base') : ''}<span class="sr-only">${escapeHtml(label)}</span>

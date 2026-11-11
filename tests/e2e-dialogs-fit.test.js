@@ -76,8 +76,8 @@ const CODES = ['ABC234', 'DEF567', 'GHJ892', 'KMN345', 'PQR678', 'STU923', 'VWX2
 const newDb = ({ quizDone = true } = {}) => {
     const db = {
         profiles: {
-            [ME]: player(1, 'Jana Nováková', '🦊', { color: 'emerald', xp: 26000, badges: BADGES.slice(0, 16), rating: 1380, rated_games: 40, rewards: null }),
-            [PETR]: player(2, 'Petr Svoboda', '🐼', { xp: 14200, badges: BADGES, rating: 1520, rated_games: 60 }),
+            [ME]: player(1, 'Jana Nováková', '🦊', { color: 'emerald', xp: 26000, badges: BADGES.slice(0, 16), rating: 1380, rated_games: 40, rewards: null, showcase: ['l:2026-10:diamant', 'b:vyhry-50'] }),
+            [PETR]: player(2, 'Petr Svoboda', '🐼', { xp: 14200, badges: BADGES, rating: 1520, rated_games: 60, showcase: ['l:2026-10:mistr', 'b:dokonale-14', 'd:zemepis'] }),
             [EVA]: player(3, 'Eva Mistrová', '🦉', { color: 'violet', xp: 90000, badges: BADGES, rating: 1720, rated_games: 120 }),
             [uid(4)]: player(4, 'Lenka Dvořáková', '🐸', { xp: 3000, rating: 1150 }),
             [TOMAS]: player(5, 'Tomáš Malý', '🐯', { xp: 9000, badges: BADGES.slice(4), rating: 1290, rated_games: 22 })
@@ -174,6 +174,11 @@ const backend = async (context, db) => {
             }
             if (name === 'search_players') return json([]);
             if (name === 'weekly_leaderboard') return json(db.weekly);
+            if (name === 'league_seasons') {
+                const leagues = ['diamant', 'platina', 'zlato', 'mistr', 'stribro', 'zlato', 'bronz', 'platina', 'zlato', 'diamant', 'stribro', 'zlato'];
+                const months = ['2026-10', '2026-09', '2026-08', '2026-07', '2026-06', '2026-05', '2026-04', '2026-03', '2026-02', '2026-01', '2025-12', '2025-11'];
+                return json({ month: '2026-11', seasons: [{ month: '2026-11', league: 'zlato', peak: 1380, games: 7, finished: false }, ...months.map((month, i) => ({ month, league: leagues[i], peak: 1100 + 50 * i, games: 3 + i, finished: true }))], best: { month: '2026-07', league: 'mistr', peak: 1720 } });
+            }
             if (name === 'claim_tournament_xp') return json([]);
             if (name === 'challenge_details') {
                 return json(db.progress.filter(r => r.challenge_id === body.code).map(({ challenge_id, ...rest }) => rest));
@@ -420,7 +425,7 @@ test('okna se vejdou bez posouvání', { skip: !chromium && 'Playwright není na
             await scene(tab, 'Profil hráče (přítel)', size, async () => {
                 await tab.click(`#friends-strip [data-player-id="${PETR}"]`);
                 await tab.waitForSelector('[data-rematch]');
-                await tab.waitForFunction(() => document.getElementById('player-league') && document.querySelector('#dialog-overlay [aria-label="Odznaky"]') && /Poslední reakce/.test(document.getElementById('dialog-overlay').textContent));
+                await tab.waitForFunction(() => document.getElementById('player-league') && document.querySelector('#dialog-overlay [aria-label="Odznaky"]') && /Poslední reakce/.test(document.getElementById('dialog-overlay').textContent) && document.querySelectorAll('#dialog-overlay [data-showcase-item]').length === 3);
             });
             await scene(tab, 'Profil hráče (žádost odeslána)', size, async () => {
                 await action(tab, 'challenge-open', { code: 'VWX234' });
@@ -542,6 +547,20 @@ test('okna se vejdou bez posouvání', { skip: !chromium && 'Playwright není na
             });
             await scene(tab, 'Týdenní žebříček', size, async () => { await action(tab, 'weekly-board'); await waitTitle(tab, 'Týdenní žebříček'); await tab.waitForFunction(() => !/Načítám/.test(document.getElementById('dialog-overlay').textContent)); });
             await scene(tab, 'Jak fungují ligy', size, async () => { await action(tab, 'league-help'); await waitTitle(tab, 'Jak fungují ligy'); });
+            // Ligové sezóny a vitrína (schéma 18)
+            await scene(tab, 'Ligové sezóny', size, async () => { await action(tab, 'league-seasons'); await tab.waitForSelector('[data-league-seasons]'); await tab.waitForSelector('[data-season-month="2026-07"]:not([disabled])'); });
+            await scene(tab, 'Ligové sezóny (vybraná sezóna)', size, async () => {
+                await action(tab, 'league-seasons');
+                await tab.waitForSelector('[data-season-month="2026-07"]:not([disabled])');
+                await tab.click('[data-season-month="2026-07"]');
+                await tab.waitForSelector('[data-season-detail="2026-07"] [data-showcase-toggle]');
+            });
+            await scene(tab, 'Vitrína', size, async () => {
+                await tab.click('#btn-settings');
+                await tab.click('[data-me-tab="profile"]');
+                await tab.click('#settings-overlay [data-open-showcase]');
+                await tab.waitForSelector('[data-showcase-dialog] [data-showcase-item]');
+            });
             // Skupiny
             await scene(tab, 'Skupiny – seznam', size, async () => { await action(tab, 'groups-open'); await waitTitle(tab, 'Skupiny'); await tab.waitForSelector('[data-group-open]'); });
             await scene(tab, 'Skupiny – detail', size, async () => { await action(tab, 'groups-open'); await tab.waitForSelector('[data-group-open]'); await tab.click('[data-group-open]'); await tab.waitForSelector('[data-group-manage]'); await tab.waitForTimeout(300); });

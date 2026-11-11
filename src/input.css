@@ -132,6 +132,39 @@ html.kb-open #settings-overlay > *, html.kb-open #dialog-overlay > * { max-heigh
 }
 @keyframes frameGlow { 0%, 100% { opacity: 1; } 50% { opacity: 0.78; } }
 
+/* Rámečky ligových sezón (look.js LEAGUE_FRAMES, league-seasons.js): silnější kroužek v barvách ligy a dole malý erb ligy (icons/topics/liga-*.webp).
+   Každý o stupeň víc: Zlato, Platina s leskem, Diamant se září a druhým průsvitným kroužkem, Mistr s točícím se duhovým kroužkem, pulzující září
+   a korunovaným erbem. Bez animace, když systém žádá omezit pohyb. */
+.frame-liga-zlato, .frame-liga-platina, .frame-liga-diamant, .frame-liga-mistr { --fr: max(2.5px, 0.12em); }
+.frame-liga-zlato::after, .frame-liga-platina::after, .frame-liga-diamant::after, .frame-liga-mistr::after {
+    content: ''; position: absolute; left: 50%; bottom: calc(var(--fr) * -1 - 0.24em); width: 0.62em; height: 0.62em; transform: translateX(-50%);
+    background: center / contain no-repeat; pointer-events: none; filter: drop-shadow(0 1px 1px rgb(0 0 0 / 0.35));
+}
+.frame-liga-zlato { --frame-bg: conic-gradient(from 0deg, #a86f00, #ffe680, #d4a017, #fff6c2, #b8860b, #ffe066, #a86f00); filter: drop-shadow(0 0 0.12em rgb(250 204 21 / 0.55)); }
+.frame-liga-zlato::after { background-image: url(icons/topics/liga-zlato.webp); }
+.frame-liga-platina { --fr: max(3px, 0.135em); --frame-bg: conic-gradient(from 20deg, #0f766e, #ccfbf1, #5eead4, #ffffff, #14b8a6, #e0f2f1, #0f766e); filter: drop-shadow(0 0 0.16em rgb(45 212 191 / 0.65)); }
+.frame-liga-platina::after { background-image: url(icons/topics/liga-platina.webp); width: 0.68em; height: 0.68em; }
+.frame-liga-diamant {
+    --fr: max(3px, 0.15em); --frame-bg: conic-gradient(from 0deg, #38bdf8, #ffffff, #818cf8, #e0f2fe, #22d3ee, #ffffff, #a78bfa, #38bdf8);
+    filter: drop-shadow(0 0 0.22em rgb(56 189 248 / 0.8)); box-shadow: 0 0 0 calc(var(--fr) * 2) rgb(125 211 252 / 0.35);
+}
+.frame-liga-diamant::after { background-image: url(icons/topics/liga-diamant.webp); width: 0.72em; height: 0.72em; }
+.frame-liga-mistr {
+    --fr: max(3.5px, 0.17em); --frame-bg: conic-gradient(from 0deg, #f472b6, #fde047, #a855f7, #ffffff, #7c3aed, #f9a8d4, #facc15, #f472b6);
+    filter: drop-shadow(0 0 0.26em rgb(217 70 239 / 0.85)); box-shadow: 0 0 0 calc(var(--fr) * 1.6) rgb(253 224 71 / 0.8), 0 0 0 calc(var(--fr) * 2.5) rgb(216 180 254 / 0.4);
+}
+.frame-liga-mistr::after { background-image: url(icons/topics/liga-mistr.webp); width: 0.8em; height: 0.8em; bottom: calc(var(--fr) * -1 - 0.32em); }
+@media (prefers-reduced-motion: no-preference) {
+    .frame-liga-diamant::before { animation: frameGlow 3s ease-in-out infinite; }
+    .frame-liga-mistr::before { animation: frameSpin 5s linear infinite; }
+    .frame-liga-mistr { animation: frameAura 2.6s ease-in-out infinite; }
+}
+@keyframes frameSpin { to { transform: rotate(360deg); } }
+@keyframes frameAura {
+    0%, 100% { filter: drop-shadow(0 0 0.2em rgb(217 70 239 / 0.75)); }
+    50% { filter: drop-shadow(0 0 0.45em rgb(250 204 21 / 0.95)); }
+}
+
 /* Ligy (rating.js): barevný kroužek s ikonou (.league-*) a barva textu (.league-fg-*); světlé i tmavé pozadí */
 .league-bronz { background: linear-gradient(135deg, #d9924f, #8c5a2b); color: #fff7ed; }
 .league-stribro { background: linear-gradient(135deg, #e2e8f0, #8d98a8); color: #1e293b; }

@@ -3142,6 +3142,109 @@ revoke all on function public.question_snapshot_claim(text, jsonb), public.quest
 grant execute on function public.question_snapshot_claim(text, jsonb), public.question_snapshots_get(text[]) to authenticated;
 -- ===== Zamrzlé otázky (schéma 17) — KONEC BLOKU =====
 
+-- ===== Ligové sezóny a vitrína v profilu (schéma 18) — ZAČÁTEK BLOKU =====
+-- Ligová sezóna = kalendářní měsíc podle pražského času. Výsledek hráče v sezóně = nejvyšší liga, které v měsíci dosáhl: liga podle nejvyššího
+-- ratingu po ohodnocené výzvě (rating_history.rating_after) v tom měsíci. Kdo v měsíci žádnou ohodnocenou výzvu nedohrál, výsledek nemá.
+-- Skončená sezóna se už nezmění. Za vrchol skončené sezóny Zlato, Platina, Diamant nebo Mistr má hráč rámeček profilu (look.js, liga-zlato …
+-- liga-mistr; vyšší liga dává i rámečky nižších) navždy: počítá se z celé historie (best), ne jen z posledního roku.
+
+-- Nejvyšší rating hráče v měsíci RRRR-MM (pražský čas); null = v měsíci nedohrál ohodnocenou výzvu (nebo neplatný měsíc)
+create or replace function public.league_month_peak(uid uuid, month text) returns integer
+language plpgsql stable security definer set search_path = public as $$
+declare start_at timestamptz;
+begin
+    if month is null or month !~ '^[0-9]{4}-(0[1-9]|1[0-2])$' then return null; end if;
+    start_at := to_date(month, 'YYYY-MM')::timestamp at time zone 'Europe/Prague';
+    return (select max(h.rating_after)::integer from public.rating_history h
+            where h.user_id = uid and h.created_at >= start_at
+              and h.created_at < ((to_date(month, 'YYYY-MM') + interval '1 month')::timestamp at time zone 'Europe/Prague'));
+end;
+$$;
+
+-- Sezóny hráče po měsících (pražský čas): měsíc, nejvyšší rating a počet ohodnocených výzev
+create or replace function public.league_peaks(uid uuid) returns table (month text, peak integer, games integer)
+language sql stable security definer set search_path = public as $$
+    select to_char(h.created_at at time zone 'Europe/Prague', 'YYYY-MM'), max(h.rating_after)::integer, count(*)::integer
+    from public.rating_history h where h.user_id = uid
+    group by 1;
+$$;
+
+-- Ligové sezóny hráče (bez parametru přihlášeného, s parametrem kohokoli – jen veřejné údaje, které stejně jsou v rating_history):
+-- { month: běžící měsíc, seasons: [běžící a posledních 12 skončených sezón s výsledkem, nejnovější první: month, league, peak, games, finished],
+--   best: nejlepší skončená sezóna vůbec (month, league, peak; při shodě ratingu ta dřívější) nebo null }
+drop function if exists public.league_seasons(uuid);
+create or replace function public.league_seasons(player uuid default null) returns jsonb
+language plpgsql stable security definer set search_path = public as $$
+declare
+    uid uuid := coalesce(player, auth.uid());
+    now_month text := to_char(now() at time zone 'Europe/Prague', 'YYYY-MM');
+    first_month text := to_char(date_trunc('month', now() at time zone 'Europe/Prague') - interval '12 months', 'YYYY-MM');
+begin
+    if auth.uid() is null then raise exception 'Přihlas se.' using errcode = '42501'; end if;
+    return jsonb_build_object(
+        'month', now_month,
+        'seasons', coalesce((select jsonb_agg(jsonb_build_object('month', p.month, 'league', public.rating_league(p.peak), 'peak', p.peak, 'games', p.games,
+                'finished', p.month < now_month) order by p.month desc)
+            from public.league_peaks(uid) p where p.month >= first_month and p.month <= now_month), '[]'::jsonb),
+        'best', (select jsonb_build_object('month', p.month, 'league', public.rating_league(p.peak), 'peak', p.peak)
+            from public.league_peaks(uid) p where p.month < now_month order by p.peak desc, p.month limit 1)
+    );
+end;
+$$;
+
+-- Vitrína v profilu: nejvýš 3 trofeje, které uvidí ostatní v profilu hráče. Položky:
+--   b:<odznak>                odznak z katalogu, který hráč má v profiles.badges (aplikace nabízí nejvyšší získaný stupeň skupiny, ten je v účtu)
+--   d:<téma>                  diplom za mistrovství tématu (drží ho aplikace v profiles.rewards, server kontroluje jen tvar)
+--   l:<RRRR-MM>:<liga>        skončená ligová sezóna a liga, která byla jejím vrcholem (server ověří v rating_history)
+alter table public.profiles add column if not exists showcase text[] not null default '{}';
+create or replace function public.showcase_format_ok(items text[]) returns boolean
+language sql immutable set search_path = public as $$
+    select items is not null and coalesce(array_ndims(items), 1) = 1 and cardinality(items) <= 3
+        and (select count(distinct x) = count(*)
+                and coalesce(bool_and(x ~ '^(b:[a-z0-9-]{1,40}|d:[a-z0-9-]{1,24}|l:[0-9]{4}-(0[1-9]|1[0-2]):(bronz|stribro|zlato|platina|diamant|mistr))$'), true)
+             from unnest(items) x);
+$$;
+alter table public.profiles drop constraint if exists profiles_showcase_format;
+alter table public.profiles add constraint profiles_showcase_format check (public.showcase_format_ok(showcase));
+
+-- Obsah vitríny: odznak, který hráč nemá, a sezóna, která nebyla (běžící měsíc, jiná liga než vrchol, měsíc bez ohodnocené výzvy), se tiše vyřadí
+-- (stejně jako odznaky mimo katalog); opakovaná položka taky. Špatný tvar a víc než 3 položky odmítne kontrola profiles_showcase_format.
+-- Trigger běží po profiles_protect_rating (abecedně), takže odznaky poslané ve stejné změně už jsou sjednocené.
+create or replace function public.check_showcase() returns trigger
+language plpgsql security definer set search_path = public as $$
+declare
+    kept text[] := '{}';
+    item text;
+    now_month text := to_char(now() at time zone 'Europe/Prague', 'YYYY-MM');
+    peak integer;
+begin
+    if new.showcase is not distinct from old.showcase or new.showcase is null then return new; end if;
+    foreach item in array new.showcase loop
+        if item is not null and public.showcase_format_ok(array[item]) then
+            continue when item = any (kept);
+            if left(item, 2) = 'b:' then
+                continue when not (substr(item, 3) = any (coalesce(new.badges, '{}')));
+            elsif left(item, 2) = 'l:' then
+                continue when substr(item, 3, 7) >= now_month;
+                peak := public.league_month_peak(new.id, substr(item, 3, 7));
+                continue when peak is null or public.rating_league(peak) <> substr(item, 11);
+            end if;
+        end if;
+        kept := kept || item;
+    end loop;
+    new.showcase := kept;
+    return new;
+end;
+$$;
+drop trigger if exists profiles_showcase_check on public.profiles;
+create trigger profiles_showcase_check before update of showcase on public.profiles for each row execute function public.check_showcase();
+grant update (showcase) on public.profiles to authenticated;
+
+revoke all on function public.league_month_peak(uuid, text), public.league_peaks(uuid), public.check_showcase() from public, anon, authenticated;
+revoke all on function public.league_seasons(uuid) from public, anon;
+grant execute on function public.league_seasons(uuid) to authenticated;
+-- ===== Ligové sezóny a vitrína v profilu (schéma 18) — KONEC BLOKU =====
+
 -- ===== Verze schématu =====
 -- Číslo se zvyšuje při KAŽDÉ změně tohoto souboru (tabulka, sloupec, funkce, pravidlo) a zároveň konstanta REQUIRED_SCHEMA v app.js.
 -- Aplikace ho po přihlášení porovná a správci (dev_admins nebo vývojářský režim) ukáže v Nastavení, že má schéma spustit znovu;
@@ -3167,7 +3270,10 @@ grant execute on function public.question_snapshot_claim(text, jsonb), public.qu
 -- 17: Zamrzlé otázky (question_snapshots, question_snapshot_claim, question_snapshots_get: otázka výzvy, zápasu turnaje a Kvízu dne platí pro všechny
 --     tak, jak ji sestavil první hráč; export_my_data má i 'zamrzle_otazky'); upozornění „… odehrál tvoji výzvu“ ukáže výsledek, až když
 --     zakladatel výzvu sám dohrál (push_pending).
+-- 18: Ligové sezóny (league_seasons: nejvyšší liga hráče v každém měsíci podle pražského času, nejlepší skončená sezóna; pomocné league_peaks
+--     a league_month_peak) a vitrína v profilu (profiles.showcase: nejvýš 3 položky b:<odznak>, d:<téma>, l:<RRRR-MM>:<liga>; kontrola tvaru
+--     showcase_format_ok a obsahu check_showcase).
 create or replace function public.schema_version() returns integer
-language sql immutable as $$ select 17 $$;
+language sql immutable as $$ select 18 $$;
 revoke all on function public.schema_version() from public, anon;
 grant execute on function public.schema_version() to authenticated;

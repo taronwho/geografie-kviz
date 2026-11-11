@@ -122,8 +122,9 @@ test('odměny v Profilu: rámečky, titul a postavičky', { skip: !chromium && '
         assert.doesNotMatch(await tab.getAttribute('#btn-settings span', 'class'), /frame/, 'na začátku bez rámečku');
         await openLook(tab);
 
-        // Řada devíti rámečků; zamčené jsou šedé s podmínkou v popisku
-        assert.equal(await tab.locator('[data-frame]').count(), 9);
+        // Řada devíti rámečků a čtyř rámečků ligových sezón (schéma 18); zamčené jsou šedé s podmínkou v popisku
+        assert.equal(await tab.locator('[data-frame]').count(), 9 + 4);
+        assert.match(await tab.getAttribute('[data-frame="liga-mistr"]', 'aria-label'), /Mistrovská sezóna: Ligová sezóna: vrchol Mistr \(zamčeno\)/);
         assert.equal(await tab.getAttribute('[data-frame="zadny"]', 'aria-pressed'), 'true');
         assert.match(await tab.getAttribute('[data-frame="zlato"]', 'aria-label'), /Zlatý: Úroveň 25 \(zamčeno\)/);
         assert.match(await tab.getAttribute('[data-frame="plamen"]', 'title'), /Odznak: .+/);
