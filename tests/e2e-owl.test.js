@@ -35,13 +35,13 @@ test('doplňky sovy v Nastavení', { skip: !chromium && 'Playwright není nainst
     const browser = await chromium.launch(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {});
     t.after(async () => { await browser.close(); server.close(); });
 
-    const open = async (progress = PROGRESS) => {
-        const context = await browser.newContext({ serviceWorkers: 'block', viewport: { width: 390, height: 780 } });
+    const open = async (progress = PROGRESS, { viewport = { width: 390, height: 780 }, extra = {} } = {}) => {
+        const context = await browser.newContext({ serviceWorkers: 'block', viewport });
         await context.addInitScript(entries => {
             if (sessionStorage.getItem('seeded')) return;
             sessionStorage.setItem('seeded', '1');
             Object.entries(entries).forEach(([key, value]) => localStorage.setItem(key, value));
-        }, { 'mudrlant.account': JSON.stringify('host'), 'mudrlant.variant': 'choices', 'mudrlant.progress': progress, 'mudrlant.tutorial': JSON.stringify({ how: 'done' }) });
+        }, { 'mudrlant.account': JSON.stringify('host'), 'mudrlant.variant': 'choices', 'mudrlant.progress': progress, 'mudrlant.tutorial': JSON.stringify({ how: 'done' }), ...extra });
         const tab = await context.newPage();
         const problems = [];
         tab.on('pageerror', error => problems.push(error.message));
@@ -187,6 +187,127 @@ test('doplňky sovy v Nastavení', { skip: !chromium && 'Playwright není nainst
         assert.equal((await layers(tab)).length, 3);
         assert.deepEqual(problems, []);
         await context.close();
+    });
+
+    await t.test('celý look tématu: štítek pod sovou, oslava poprvé (jen jednou), Obléknout celou sadu v Mistrovství a Sady témat v albu', async () => {
+        const SHOTS = process.env.SHOTS_DIR || '';
+        const shot = async (tab, name) => { if (SHOTS) await tab.screenshot({ path: path.join(SHOTS, name) }); };
+        // Celá sada Zeměpis (kompas, klobouk, globus) a Historie (svitek, krejzlík; dvourohý klobouk zatím chybí), z Vlajek jen vlaječka
+        const badges = Object.fromEntries(['zbehly-zemepis', 'tema-zemepis-300', 'tema-zemepis-1000', 'zbehly-historie', 'tema-historie-1000', 'zbehly-vlajky'].map(id => [id, '2026-11-01']));
+        const progress = JSON.stringify({ xp: 11000, counters: { topics: { zemepis: 1200, historie: 1000 } }, badges });
+        const { context, tab, problems } = await open(progress);
+        await tab.click('#btn-settings');
+        await tab.click('[data-me-tab="owl"]');
+        await tab.waitForSelector('[data-owl-pick]');
+        await pickAcc(tab, 'neck:kompas');
+        await tab.click('[data-owl-color="neck:modra"]');
+        await pickAcc(tab, 'head:cestovatelsky-klobouk');
+        await tab.waitForSelector('[data-owl-pick="head:cestovatelsky-klobouk"][aria-pressed="true"]');
+        assert.equal(await tab.locator('[data-owl-look-line]').count(), 0, 'dva kusy ze tří: look ještě není');
+        // Poslední kus: štítek pod sovou a hned malá oslava (okno Nastavení je otevřené, celá karta počká)
+        await pickAcc(tab, 'hand:globus');
+        await tab.waitForSelector('[data-look="owl"] [data-owl-look-line] [data-owl-look="zemepis"]');
+        assert.equal((await tab.textContent('[data-owl-look-line]')).trim(), 'Celý look: Cestovatel');
+        await tab.waitForFunction(() => /Celý look: Cestovatel – celá sada tématu Zeměpis/.test((document.getElementById('celebration-mini') || {}).textContent || ''));
+        assert.equal(await tab.evaluate(() => { const box = document.querySelector('#settings-overlay > div'); return box.scrollHeight <= box.clientHeight; }), true, 'okno Mudrlant se štítkem bez posouvání');
+        await shot(tab, 'look-nastaveni-390.png');
+        // Po zavření okna celá oslava se sovou v celém looku
+        await tab.click('#settings-overlay [data-close]');
+        await tab.waitForSelector('#celebration');
+        assert.match(await tab.textContent('#celebration'), /Celý look\s*Cestovatel – celá sada tématu Zeměpis/);
+        assert.ok(await tab.locator('#celebration img[data-keep][src="icons/doplnky/globus.webp"]').count(), 'oslava ukazuje sovu v looku');
+        await shot(tab, 'look-oslava-390.png');
+        await tab.click('#celebration');
+        await tab.waitForSelector('#celebration', { state: 'detached' });
+        assert.deepEqual(await tab.evaluate(() => JSON.parse(localStorage.getItem('mudrlant.looks'))), ['zemepis']);
+        // Znovu oblečený look se už neslaví
+        await tab.waitForSelector('#celebration-mini', { state: 'detached' });
+        await tab.click('#btn-settings');
+        await tab.click('[data-me-tab="owl"]');
+        await pickAcc(tab, 'hand:none');
+        await tab.waitForFunction(() => !document.querySelector('[data-owl-look-line]'));
+        await pickAcc(tab, 'hand:globus');
+        await tab.waitForSelector('[data-owl-look-line]');
+        await tab.waitForTimeout(400);
+        assert.equal(await tab.locator('#celebration-mini').count(), 0, 'podruhé bez oslavy');
+        await tab.click('#settings-overlay [data-close]');
+        await tab.waitForTimeout(1500);
+        assert.equal(await tab.locator('#celebration').count(), 0);
+
+        // Mistrovství tématu: řádek looku pod sadou; Vlajky bez dvou kusů, Historie celá s tlačítkem Obléknout celou sadu
+        await tab.evaluate(() => document.getElementById('status-badge').click());
+        await tab.waitForSelector('[data-mastery="vlajky"]');
+        await tab.click('[data-mastery="vlajky"]');
+        await tab.waitForSelector('[data-mastery-look="missing"]');
+        assert.match(await tab.textContent('[data-mastery-look]'), /Celý look: Praporečník · chybí 2 kusy/);
+        assert.equal(await tab.locator('[data-wear-set]').count(), 0);
+        await tab.click('[data-dialog-back]');
+        await tab.click('[data-mastery="zemepis"]');
+        await tab.waitForSelector('[data-mastery-look="worn"]');
+        assert.match(await tab.textContent('[data-mastery-look]'), /Celý look: Cestovatel · Mudrlant ho právě nosí/);
+        await tab.click('[data-dialog-back]');
+        await tab.click('[data-mastery="historie"]');
+        await tab.waitForSelector('[data-mastery-look="complete"] [data-wear-set="historie"]');
+        assert.match(await tab.textContent('[data-mastery-look]'), /Celý look: Vojevůdce · máš všechny kusy/);
+        await shot(tab, 'look-mistrovstvi-390.png');
+        await tab.click('[data-wear-set="historie"]');
+        await tab.waitForSelector('[data-mastery-look="worn"]');
+        assert.match(await tab.textContent('[data-mastery-look]'), /Vojevůdce · Mudrlant ho právě nosí/);
+        assert.match(await tab.textContent('#dialog-overlay'), /Mistrovství: Historie/, 'okno zůstane otevřené');
+        assert.equal(await tab.locator('#dialog-overlay [data-dialog-back]').count(), 1, 'cesta zpět zůstane');
+        // Svitek a krejzlík nasazené (klobouk Zeměpisu na hlavě zůstal, Historie hlavu zatím nemá), kompas nahradil krejzlík
+        await tab.waitForFunction(() => document.querySelectorAll('#status-icon-slot [data-owl-layer]').length >= 3);
+        const header = (await layers(tab)).map(src => src.replace('icons/doplnky/', '').replace('.webp', ''));
+        assert.deepEqual(header.filter(src => !src.endsWith('-zaklad')), ['krejzlik', 'cestovatelsky-klobouk', 'svitek']);
+        await tab.waitForFunction(() => /Celý look: Vojevůdce/.test((document.getElementById('celebration-mini') || {}).textContent || ''));
+        await shot(tab, 'look-mistrovstvi-obleceno-390.png');
+
+        // Album sbírky → Doplňky: Sady témat (14 looků), Historie nošená, Zeměpis celý; klepnutí vede do Mistrovství a zpět do alba
+        await tab.click('[data-dialog-back]');
+        await tab.waitForSelector('[data-rewards-info="album"]');
+        await tab.click('[data-rewards-info="album"]');
+        await tab.click('[data-album-tab="accessories"]');
+        await tab.waitForSelector('[data-album-looks]');
+        assert.equal(await tab.locator('[data-album-look]').count(), 14);
+        assert.match(await tab.textContent('[data-album-looks-count]'), /2 \/ 14 celých/);
+        assert.equal(await tab.getAttribute('[data-album-look="historie"]', 'data-state'), 'worn');
+        assert.equal(await tab.getAttribute('[data-album-look="zemepis"]', 'data-state'), 'complete');
+        assert.equal(await tab.getAttribute('[data-album-look="vlajky"]', 'aria-label'), 'Praporečník (Vlajky a znaky): 1 z 3 kusů');
+        for (const box of await tab.locator('[data-album-look]').evaluateAll(nodes => nodes.map(node => node.getBoundingClientRect().height))) assert.ok(box >= 40, 'dotyková plocha aspoň 40 px');
+        await tab.locator('[data-album-looks]').scrollIntoViewIfNeeded();
+        await shot(tab, 'look-album-390.png');
+        await tab.click('[data-album-look="zemepis"]');
+        await tab.waitForSelector('[data-mastery-look="complete"] [data-wear-set="zemepis"]');
+        assert.match(await tab.textContent('#dialog-overlay [data-dialog-back]'), /Zpět do alba/);
+        await tab.click('[data-wear-set="zemepis"]');
+        await tab.waitForSelector('[data-mastery-look="worn"]');
+        await tab.click('[data-dialog-back]');
+        await tab.waitForSelector('[data-album-look="zemepis"][data-state="worn"]');
+        assert.equal(await tab.getAttribute('[data-album-look="historie"]', 'data-state'), 'complete');
+        assert.deepEqual(problems, []);
+        await context.close();
+
+        // Malý telefon 360×640 se staženým lookem: Nastavení → Mudrlant i Mistrovství se vejdou bez posouvání
+        const look = JSON.stringify({ acc: { neck: { id: 'kompas', color: 'modra' }, head: { id: 'cestovatelsky-klobouk', color: 'original' }, hand: { id: 'globus', color: 'original' } } });
+        const small = await open(progress, { viewport: { width: 360, height: 640 }, extra: { 'mudrlant.look': look } });
+        await small.tab.click('#btn-settings');
+        await small.tab.click('[data-me-tab="owl"]');
+        await small.tab.waitForSelector('[data-owl-look-line] [data-owl-look="zemepis"]');
+        await small.tab.click('[data-owl-slot="hand"]');
+        await small.tab.waitForSelector('[data-owl-color="hand:modra"]');
+        assert.equal(await small.tab.evaluate(() => { const box = document.querySelector('#settings-overlay > div'); return box.scrollHeight - box.clientHeight; }), 0, 'okno Mudrlant se štítkem bez posouvání (360×640)');
+        await shot(small.tab, 'look-nastaveni-360.png');
+        await small.tab.click('#settings-overlay [data-close]');
+        await small.tab.evaluate(() => document.getElementById('status-badge').click());
+        await small.tab.click('[data-mastery="historie"]');
+        await small.tab.waitForSelector('[data-wear-set="historie"]');
+        const over = await small.tab.evaluate(() => { const box = document.querySelector('#dialog-overlay > div'); return box.scrollHeight - box.clientHeight; });
+        assert.ok(over <= 24, `Mistrovství s tlačítkem přeteče nejvýš o malou rezervu (${over} px)`);
+        const button = await small.tab.locator('[data-wear-set]').boundingBox();
+        assert.ok(button.height >= 40 && button.x + button.width <= 360 - 16, 'tlačítko aspoň 40 px a v okně');
+        await shot(small.tab, 'look-mistrovstvi-360.png');
+        assert.deepEqual(small.problems, []);
+        await small.context.close();
     });
 
     await t.test('monokl: doplněk v obličeji a „Bez monoklu“ ho sundají, knír ho nechá; logo bez monoklu i v barvě obleku', async () => {

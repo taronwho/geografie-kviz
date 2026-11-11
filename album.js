@@ -18,6 +18,8 @@
 //   pravidlo přes setAvailability((item, category, today) => 'active' | 'ended' | 'upcoming'); Sezóna Mudrlanta to dělá (season.js
 //   availability, napojuje app.js): věci letošního měsíce jdou získat, dřívější měsíce od spuštění skončily, ostatní jsou skryté.
 // - Odznaky se počítají po jednom (každý stupeň), v albu jsou ale po skupinách (59 dlaždic místo 300 medailí).
+// - Sady témat (celé looky Mudrlanta, look.js topicLooks) jsou v sekci Doplňky pod mřížkou jako přehled: kolik kusů sady hráč má.
+//   Do procent se nepočítají (jsou odvozené z doplňků, které se počítají samy), takže 100 % zůstává stejně dosažitelných.
 // - Celková procenta = průměr procent sekcí: každá sekce má stejnou váhu (odznaků je přes 300, jinak by album bylo jen počítadlo odznaků).
 //   Zaokrouhluje se dolů, takže 100 % je opravdu všechno.
 // - Milníky 25, 50, 75 a 100 % a celé sekce dávají odznaky Album sbírky (quiz-core.js: tituly Sběratel … Legenda sbírky, Celý zvěřinec …);
@@ -131,6 +133,16 @@
         key: `diplomas:${topic.id}`, category: 'diplomas', id: topic.id, topic, title: Rewards ? Rewards.diplomaTitle(topic) : topic.title,
         owned: Boolean(input.diplomas[topic.id]), day: input.diplomas[topic.id] || '', state: input.diplomas[topic.id] ? 'owned' : 'missing', counted: true
     }));
+    // Sady témat (celé looky): { topic, title, topicTitle, pieces: [{ id, title, owned }], owned, total, complete }; do procent se nepočítají
+    const lookEntries = (input) => {
+        if (!Look || !Look.topicLooks) return [];
+        const ctx = { level: input.level, badges: input.badges, gifts: input.gifts, diplomas: input.diplomas };
+        return Look.topicLooks().map(look => {
+            const pieces = look.pieces.map(({ item }) => ({ id: item.id, title: item.title, owned: Look.isUnlocked(item, ctx) }));
+            const owned = pieces.filter(piece => piece.owned).length;
+            return { topic: look.topic, title: look.title, topicTitle: look.topicTitle, pieces, owned, total: pieces.length, complete: owned === pieces.length };
+        });
+    };
     const percentOf = (ratio) => Math.floor(ratio * 100 + 1e-9);
     // Vstup: { level, badges: { id: den }, gifts: { druh: [id] }, diplomas: { téma: den }, topics: [{ id, title }], today: 'RRRR-MM-DD' }
     const clean = (input = {}) => ({
@@ -163,7 +175,7 @@
         const scored = list.filter(section => section.total > 0);
         const ratio = scored.length ? scored.reduce((sum, section) => sum + section.ratio, 0) / scored.length : 0;
         const value = { sections: list, ratio, percent: percentOf(ratio), complete: list.filter(section => section.complete).map(section => section.id),
-            owned: scored.reduce((sum, section) => sum + section.owned, 0), total: scored.reduce((sum, section) => sum + section.total, 0) };
+            owned: scored.reduce((sum, section) => sum + section.owned, 0), total: scored.reduce((sum, section) => sum + section.total, 0), looks: lookEntries(input) };
         memo = { key, value };
         return value;
     };
@@ -293,10 +305,32 @@
             <span class="flex items-center gap-1"><span class="shrink-0 text-[10px] font-bold leading-none tabular-nums ${on ? 'text-white/85' : 'text-slate-500 dark:text-slate-400'}">${entry.owned}/${entry.total}</span><span class="min-w-0 flex-1">${BAR(entry.percent, entry.complete ? 'bg-emerald-500' : on ? 'bg-gold-400' : 'bg-gold-500', on ? 'bg-white/25' : 'bg-slate-200 dark:bg-slate-700', 'h-1')}</span></span>
         </button>`;
     }).join('')}</div>`;
+    // Sady témat pod mřížkou doplňků: 14 looků ve dvou sloupcích (ikony kusů, název looku a téma, kolik kusů mám); celá sada se zlatým lemem,
+    // ta, kterou Mudrlant právě nosí, s fajfkou. Klepnutím Mistrovství tématu (tam jde sada obléknout najednou). Do procent se nepočítají.
+    const looksHtml = (looks, wornLook = null) => {
+        if (!looks || !looks.length) return '';
+        const done = looks.filter(look => look.complete).length;
+        const card = (look) => {
+            const on = wornLook === look.topic;
+            const tone = on ? 'bg-brand-50 ring-2 ring-brand-600 dark:bg-brand-900/40' : look.complete ? 'bg-gold-50 ring-1 ring-gold-400 dark:bg-gold-900/20 dark:ring-gold-600' : 'bg-white ring-1 ring-slate-200 dark:bg-slate-700/70 dark:ring-slate-600';
+            const icons = look.pieces.map(piece => `<img src="icons/doplnky/${esc(piece.id)}-ikona.webp" alt="" class="h-4 w-4 object-contain ${piece.owned ? '' : 'opacity-40 grayscale'}">`).join('');
+            const state = on ? 'Mudrlant ho nosí' : look.complete ? 'celá sada' : `${look.owned} z ${look.total} kusů`;
+            // Nahoře název looku a počet kusů, dole ikony kusů a téma (název se tak vejde celý i na 360 px)
+            return `<li class="min-w-0"><button type="button" data-album-look="${esc(look.topic)}" data-state="${on ? 'worn' : look.complete ? 'complete' : 'missing'}" aria-label="${esc(`${look.title} (${look.topicTitle}): ${state}`)}" class="flex min-h-[2.75rem] w-full flex-col justify-center gap-0.5 rounded-xl px-1.5 py-1 text-left active:scale-95 ${tone}">
+                <span class="flex w-full items-center gap-1"><span class="min-w-0 flex-1 truncate text-[11.5px] font-black leading-tight text-slate-800 dark:text-slate-100">${esc(look.title)}</span><span class="shrink-0 text-[10.5px] font-black leading-none tabular-nums ${on || look.complete ? 'text-emerald-700 dark:text-emerald-400' : 'text-slate-500 dark:text-slate-400'}">${on ? '<i data-lucide="circle-check" class="h-3.5 w-3.5"></i>' : `${look.owned}/${look.total}`}</span></span>
+                <span class="flex w-full items-center gap-1"><span class="flex shrink-0 -space-x-0.5" aria-hidden="true">${icons}</span><span class="min-w-0 flex-1 truncate text-[10px] font-semibold leading-tight text-slate-500 dark:text-slate-400">${esc(look.topicTitle)}</span></span>
+            </button></li>`;
+        };
+        return `<div data-album-looks class="flex flex-col gap-1 border-t border-slate-200 pt-2 dark:border-slate-700">
+            <div class="flex items-baseline justify-between gap-2 px-0.5"><h4 class="flex min-w-0 items-center gap-1 truncate text-[12.5px] font-black text-slate-800 dark:text-slate-100"><i data-lucide="sparkles" class="h-3.5 w-3.5 shrink-0 text-gold-600 dark:text-gold-300"></i>Sady témat</h4><span data-album-looks-count class="shrink-0 text-[11px] font-black tabular-nums ${done === looks.length ? 'text-emerald-700 dark:text-emerald-400' : 'text-slate-600 dark:text-slate-300'}">${done} / ${looks.length} celých</span></div>
+            <p class="px-0.5 text-[10.5px] font-semibold leading-snug text-slate-500 dark:text-slate-400">Všechny kusy sady najednou = celý look Mudrlanta. Do procent sbírky se nepočítají.</p>
+            <ul class="grid grid-cols-2 gap-1" aria-label="Sady témat">${looks.map(card).join('')}</ul>
+        </div>`;
+    };
     // Sekce: název, počet, ukazatel, titul za celou sekci a mřížka věcí
     // Sekce s víc než DENSE věcmi (doplňky Mudrlanta) má na širším telefonu sedm sloupců (méně posouvání); od sad doplňků k tématům
     // (68 doplňků) se posouvá na obou velikostech (jako Odznaky), dlaždice by jinak byly menší než 40 px
-    const sectionHtml = (entry, badges, h, worn) => {
+    const sectionHtml = (entry, badges, h, worn, extra = '') => {
         const dense = entry.entries.length > DENSE;
         const reward = entry.reward;
         const earned = reward && badges[reward.id];
@@ -306,16 +340,17 @@
             <span class="px-0.5">${BAR(entry.percent, entry.complete ? 'bg-emerald-500' : 'bg-gold-500')}</span>
             ${reward ? `<p data-album-section-title class="flex items-center gap-1 px-0.5 text-[11px] font-bold leading-snug ${earned ? 'text-emerald-700 dark:text-emerald-400' : 'text-slate-500 dark:text-slate-400'}"><i data-lucide="${earned ? 'circle-check' : 'award'}" class="h-3.5 w-3.5 shrink-0"></i><span class="min-w-0 truncate">${earned ? `Celá sekce: titul „${esc(reward.title)}“ je tvůj` : `Za celou sekci titul „${esc(reward.title)}“`}</span></p>` : ''}
             <ul class="grid grid-cols-6 gap-1 pt-0.5 ${dense ? 'min-[385px]:grid-cols-7' : ''}" aria-label="${esc(entry.title)}">${entry.entries.map(item => tileHtml(item, h, worn)).join('')}</ul>
-            ${note}
+            ${note}${extra}
         </section>`;
     };
     // Celé okno alba (bez tlačítka zpět, to přidá app.js)
-    const albumHtml = (album, { section: current = 'avatars', badges = {}, worn = new Set() } = {}, h = {}) => {
+    // wornLook = téma looku, který Mudrlant právě nosí (Sady témat v sekci Doplňky), nebo null
+    const albumHtml = (album, { section: current = 'avatars', badges = {}, worn = new Set(), wornLook = null } = {}, h = {}) => {
         const shown = section(album, current);
         return `<div data-album data-album-current="${esc(shown.id)}" class="flex flex-col gap-2">
             ${headHtml(album, badges, h)}
             ${tabsHtml(album, shown.id)}
-            ${sectionHtml(shown, badges, h, worn)}
+            ${sectionHtml(shown, badges, h, worn, shown.id === 'accessories' ? looksHtml(album.looks, wornLook) : '')}
             <p class="text-center text-[10.5px] font-semibold text-slate-500 short:hidden dark:text-slate-400">Klepni na věc a uvidíš, jak ji získat.</p>
         </div>`;
     };
@@ -380,6 +415,6 @@
 
     return {
         ALBUM_ART, BADGE_ART, SECTIONS, MILESTONES, sections, sectionTitle, nextMilestone, isAlbumBadge, isAlbumGroup, isLimited, availability, setAvailability, isStarter,
-        build, badgeContext, dueBadges, section, findEntry, howText, artHtml, tileHtml, albumHtml, detailHtml, rewardsHtml, tileValue
+        build, badgeContext, dueBadges, section, findEntry, howText, artHtml, tileHtml, looksHtml, albumHtml, detailHtml, rewardsHtml, tileValue
     };
 });

@@ -164,6 +164,15 @@
         return `<span class="relative inline-flex shrink-0 ${wrapClass}${maskClass(parsed.acc)}"><img data-keep src="${src}" alt="" class="${imgClass}">${layersHtml(parsed.acc, 'data-keep')}</span>`;
     };
 
+    // Celý look tématu na sově z textu profilu (nebo z { robe, acc }): { topic, title, topicTitle } nebo null. Sova titulu (póza) doplňky
+    // neukazuje, takže look nemá. Odvozuje se jen z uložených doplňků (bez sloupce v databázi).
+    const lookOf = (owl) => {
+        const parsed = typeof owl === 'string' || (owl && typeof owl === 'object') ? parseOwl(owl) : null;
+        return parsed && !parsed.pose && Look && Look.activeTopicLook ? Look.activeTopicLook(parsed.acc) : null;
+    };
+    // Zlatý štítek „Celý look: Cestovatel“ (Profil hráče, Nastavení → Mudrlant); bez looku prázdný
+    const lookTagHtml = (look, extra = '') => look && look.title ? `<span data-owl-look="${escapeHtml(look.topic)}" class="inline-flex max-w-full items-center gap-1 rounded-full bg-gold-100 px-2 py-0.5 text-[11px] font-black leading-tight text-gold-900 ring-1 ring-gold-300 dark:bg-gold-900/40 dark:text-gold-100 dark:ring-gold-700 ${extra}"><i data-lucide="sparkles" class="h-3 w-3 shrink-0 text-gold-600 dark:text-gold-300"></i><span class="truncate">Celý look: ${escapeHtml(look.title)}</span></span>` : '';
+
     const currentAcc = () => (Look ? Look.prefs().acc : null) || {};
     // Logo sovy s vybranými doplňky; wrapClass patří obalu (okraje), imgClass samotné sově
     // Doplněk na hlavě, který nahrazuje čepici (helma, přilba, baret, klobouky): výchozí čepice se z loga maskou skryje (třída owl-nohat,
@@ -282,8 +291,11 @@
             <div class="flex flex-col gap-0.5"><p class="px-1 text-[11px] font-bold text-slate-500 dark:text-slate-400">Barva: <b class="text-slate-700 dark:text-slate-200">${escapeHtml(targetItem.title)}</b></p>
             <div class="grid grid-cols-10" role="group" aria-label="Barva doplňku">${Look.ACC_COLORS.map(dot).join('')}</div>${slider}</div>`
             : `<p class="flex min-h-[2.25rem] items-center px-1 text-[11px] font-semibold text-slate-500 dark:text-slate-400">${chosen === 'none' ? 'Vyber doplněk a pak jeho barvu.' : ''}</p>`;
+        // Celý look tématu (všechny kusy jedné sady najednou): zlatý štítek pod sovou
+        const look = Look.activeTopicLook ? Look.activeTopicLook(acc) : null;
+        const lookLine = look ? `<p data-owl-look-line class="-my-0.5 flex justify-center">${lookTagHtml(look)}</p>` : '';
         return `<div class="flex flex-col gap-1.5">
-            ${owl}${items}<div class="flex flex-col gap-1.5">${colors}${flagPicker}</div>
+            ${owl}${lookLine}${items}<div class="flex flex-col gap-1.5">${colors}${flagPicker}</div>
             ${note ? `<p role="status" class="px-1 text-[11px] font-bold text-brand-700 dark:text-brand-300">${escapeHtml(note)}</p>` : ''}
         </div>`;
     };
@@ -352,5 +364,5 @@
     };
 
     if (Look) Look.register({ id: 'owl', tab: 'owl', title: 'Doplňky Mudrlanta', noTitle: true, tight: true, order: 5, render, click, change, apply: (prefs) => refresh(prefs.acc || {}) });
-    return { logoHtml, layersHtml, layerSrc, flagSrc, refresh, PAD, slotOf, encodeOwl, parseOwl, owlAvatarHtml, allowedPose, poseSrc, poseHtml, POSE_CROP, OWL_MAX };
+    return { lookOf, lookTagHtml, logoHtml, layersHtml, layerSrc, flagSrc, refresh, PAD, slotOf, encodeOwl, parseOwl, owlAvatarHtml, allowedPose, poseSrc, poseHtml, POSE_CROP, OWL_MAX };
 });

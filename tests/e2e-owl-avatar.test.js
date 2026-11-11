@@ -409,4 +409,37 @@ test('sova jako obrázek profilu', { skip: !chromium && 'Playwright není nainst
         assert.deepEqual(one.problems, []);
         await one.context.close();
     });
+
+    await t.test('celý look tématu na cizí sově: Profil hráče ukáže zlatý štítek „Celý look: Cestovatel“ (odvozený z uložené sovy)', async () => {
+        // Hráčka 1 má v profilu sovu s celou sadou Zeměpis (barvy nevadí); look se odvodí jen z textu sovy, databáze nic dalšího nemá
+        db.profiles['u-1'].owl = 'robe=zelena;head=cestovatelsky-klobouk.modra;neck=kompas.original;hand=globus.h40';
+        db.profiles['u-1'].avatar = '🦉';
+        for (const viewport of [{ width: 390, height: 780 }, { width: 360, height: 640 }]) {
+            const two = await open('tok-u2', { viewport });
+            await two.tab.click('[data-action="home-tab"][data-tab="multi"]');
+            await two.tab.waitForSelector('#challenges-section [data-player-id="u-1"]');
+            await two.tab.click('#challenges-section [data-player-id="u-1"]');
+            await two.tab.waitForSelector('#dialog-overlay [data-profile-head] [data-owl-look="zemepis"]');
+            assert.equal((await two.tab.textContent('#dialog-overlay [data-owl-look]')).trim(), 'Celý look: Cestovatel');
+            assert.ok(await two.tab.locator('#dialog-overlay [data-profile-head] img[data-keep][src="icons/doplnky/globus.webp"]').count(), 'sova v profilu má globus');
+            const box = await two.tab.locator('#dialog-overlay [data-owl-look]').boundingBox();
+            assert.ok(box && box.x + box.width <= viewport.width - 16, 'štítek se vejde do okna');
+            await shot(two.tab, `owl-look-profil-hrace-${viewport.width}.png`);
+            assert.deepEqual(two.problems, []);
+            await two.context.close();
+        }
+        // Bez jednoho kusu (a se sovou titulu, která doplňky neukazuje) štítek není
+        for (const owl of ['robe=zelena;head=cestovatelsky-klobouk.modra;neck=kompas.original', 'robe=zelena;pose=titul-1;head=cestovatelsky-klobouk.modra;neck=kompas.original;hand=globus.h40']) {
+            db.profiles['u-1'].owl = owl;
+            const two = await open('tok-u2');
+            await two.tab.click('[data-action="home-tab"][data-tab="multi"]');
+            await two.tab.waitForSelector('#challenges-section [data-player-id="u-1"]');
+            await two.tab.click('#challenges-section [data-player-id="u-1"]');
+            await two.tab.waitForSelector('#dialog-overlay [data-profile-head]');
+            assert.equal(await two.tab.locator('#dialog-overlay [data-owl-look]').count(), 0, owl);
+            await two.context.close();
+        }
+        db.profiles['u-1'].owl = null;
+        db.profiles['u-1'].avatar = '🦊';
+    });
 });

@@ -39,7 +39,7 @@ const SCHEME = process.env.FIT_SCHEME === 'dark' ? 'dark' : 'light';
 const EXEMPT = {
     'Všechny odznaky': { reason: 'seznam všech odznaků (stovky medailí po skupinách)', keep: '[data-dialog-back]' },
     'Album – Odznaky': { reason: 'všechny skupiny odznaků v albu sbírky (přes 50 dlaždic)', keep: '[data-dialog-back]' },
-    'Album sbírky': { reason: 'sekce Doplňky Mudrlanta (přes 60 dlaždic aspoň 40 px, se sadami k tématům a sezónními)', keep: '[data-dialog-back]' },
+    'Album sbírky': { reason: 'sekce Doplňky Mudrlanta (přes 60 dlaždic aspoň 40 px, se sadami k tématům a sezónními) a pod nimi Sady témat (14 looků)', keep: '[data-dialog-back]' },
     'Úrovně a tituly': { reason: 'seznam všech úrovní s tituly', keep: '[data-dialog-back]' },
     'Rozpis otázek výzvy': { reason: 'seznam všech otázek s odpověďmi obou hráčů (záhlaví sloupců lepkavě)' },
     'Týdenní žebříček': { reason: 'žebříček hráčů' },
@@ -84,7 +84,8 @@ const newDb = ({ quizDone = true } = {}) => {
             [PETR]: player(2, 'Petr Svoboda', 'caj7', { frame: 'drak', xp: 14200, badges: BADGES, rating: 1520, rated_games: 60, showcase: ['l:2026-10:mistr', 'b:dokonale-14', 'd:zemepis'] }),
             [EVA]: player(3, 'Eva Mistrová', '🦉', { color: 'violet', xp: 90000, badges: BADGES, rating: 1720, rated_games: 120 }),
             [uid(4)]: player(4, 'Lenka Dvořáková', '🐸', { xp: 3000, rating: 1150 }),
-            [TOMAS]: player(5, 'Tomáš Malý', '🐯', { xp: 9000, badges: BADGES.slice(4), rating: 1290, rated_games: 22 })
+            // Tomáš má jako obrázek sovu v celém looku Trenér (sada Sport): v jeho profilu zlatý štítek „Celý look: Trenér“
+            [TOMAS]: player(5, 'Tomáš Malý', '🐯', { owl: 'robe=modra;head=celenka.original;neck=pistalka.cervena;hand=pohar.original', xp: 9000, badges: BADGES.slice(4), rating: 1290, rated_games: 22 })
         },
         // Přátelství: Petr a Lenka přijatí, Tomášovi jsem poslala žádost, Eva čeká na mě
         friendships: [{ user_id: ME, friend_id: PETR, status: 'accepted' }, { user_id: uid(4), friend_id: ME, status: 'accepted' }, { user_id: ME, friend_id: TOMAS, status: 'pending' }, { user_id: EVA, friend_id: ME, status: 'pending' }],
@@ -283,11 +284,14 @@ const pushStub = () => {
 // Bohatý stav v zařízení: úroveň, odznaky, naučená místa (hvězdy mistrovství), odměny (ochrana série, čekající truhla, diplom), cíle týdne
 const richStorage = () => {
     // + milník alba sbírky, který tahle sbírka (asi 30 %) už má – oslava milníku by jinak na úvodu odsunula nabídku přezdívky
-    const badges = Object.fromEntries([...BADGES, 'sberatel-25'].map((id, i) => [id, `2026-10-${String(1 + i).padStart(2, '0')}`]));
+    // + celá sada doplňků Zeměpis (zběhlost, 300 a 1000 správných): Mistrovství Zeměpisu ukáže tlačítko Obléknout celou sadu
+    const badges = Object.fromEntries([...BADGES, 'sberatel-25', 'zbehly-zemepis', 'tema-zemepis-300', 'tema-zemepis-1000'].map((id, i) => [id, `2026-10-${String(1 + i).padStart(2, '0')}`]));
     const learned = { zemepis: Array.from({ length: 320 }, (_, i) => `Q${900000 + i}`), historie: Array.from({ length: 140 }, (_, i) => `Q${800000 + i}`), vlajky: Array.from({ length: 60 }, (_, i) => `Q${700000 + i}`), biologie: Array.from({ length: 40 }, (_, i) => `Q${600000 + i}`) };
     return {
         'mudrlant.progress': JSON.stringify({ xp: 26000, counters: { correct: 2600, answered: 3400, bestRun: 52, topicBest: { zemepis: 10, historie: 9 }, challengesPlayed: 120, challengeWins: 64 }, badges }),
         'mudrlant.learned': JSON.stringify(learned),
+        // Celý look Cestovatel už oslavený (oblečení v okně Nastavení by jinak po zavření ukázalo oslavu přes další okna)
+        'mudrlant.looks': JSON.stringify(['zemepis']),
         // Sezóna Mudrlanta: od 15 000 XP (11 000 XP sezóny = stupeň 14), pět stupňů vyzvednutých; oba rámečky, postavička a titul z minulé sezóny
         'mudrlant.rewards': JSON.stringify({ v: 1, freezes: 2, name: 'Jana Nováková', ready: ['2026-11-02'], chests: { '2026-10-26': 'xp' }, diplomas: { zemepis: '2026-10-20' },
             gifts: { frames: ['sezona-10', 'sezona-10-b', 'duha-mracky'], avatars: ['drakpa'], titles: ['sampion-sezony'] },
@@ -443,6 +447,7 @@ test('okna se vejdou bez posouvání', { skip: !chromium && 'Playwright není na
                 await tab.click(`#dialog-overlay [data-player-id="${TOMAS}"]`);
                 await tab.waitForSelector('[data-rematch]');
                 await tab.waitForFunction(() => document.querySelector('[data-friend="cancel"]') && document.getElementById('player-league') && /Poslední reakce/.test(document.getElementById('dialog-overlay').textContent));
+                assert.equal((await tab.textContent('#dialog-overlay [data-profile-head] [data-owl-look="sport"]')).trim(), 'Celý look: Trenér');
             });
             await scene(tab, 'Profil hráče – menu ⋯', size, async () => {
                 await tab.click(`#friends-strip [data-player-id="${PETR}"]`);
@@ -507,6 +512,18 @@ test('okna se vejdou bez posouvání', { skip: !chromium && 'Playwright není na
                 await settled();
             });
             await scene(tab, 'Nastavení – Profil (všechny barvy)', size, async () => { await settingsTab('profile'); await tab.click('[data-pick-hue-open]'); await tab.waitForSelector('[data-pick-hue]'); await settled(); });
+            // Celý look (Cestovatel): zlatý štítek pod sovou, otevřená ruka s paletou barev globusu
+            await scene(tab, 'Nastavení – Mudrlant (celý look)', size, async () => {
+                await settingsTab('owl');
+                for (const pick of ['neck:kompas', 'head:cestovatelsky-klobouk', 'hand:globus']) {
+                    await tab.click(`[data-owl-slot="${pick.split(':')[0]}"]`);
+                    await tab.click(`[data-owl-pick="${pick}"]`);
+                    await tab.waitForSelector(`[data-owl-pick="${pick}"][aria-pressed="true"]`);
+                }
+                await tab.waitForSelector('[data-owl-look-line] [data-owl-look="zemepis"]');
+                await tab.waitForSelector('[data-owl-color="hand:modra"]');
+                await settled();
+            });
             await scene(tab, 'Nastavení – Mudrlant (doplněk s barvou)', size, async () => {
                 await settingsTab('owl');
                 await tab.click('[data-owl-slot="neck"]');
@@ -550,7 +567,8 @@ test('okna se vejdou bez posouvání', { skip: !chromium && 'Playwright není na
             await scene(tab, 'Můj postup', size, progress);
             await scene(tab, 'Úrovně a tituly', size, async () => { await progress(); await tab.click('[data-open-levels]'); await waitTitle(tab, 'Úrovně a tituly'); });
             await scene(tab, 'Všechny odznaky', size, async () => { await progress(); await tab.click('[data-open-badges]'); await waitTitle(tab, 'Odznaky'); });
-            await scene(tab, 'Mistrovství tématu', size, async () => { await progress(); await tab.click('[data-mastery="zemepis"]'); await tab.waitForFunction(() => /^Mistrovství/.test(document.getElementById('dialog-overlay').dataset.title)); });
+            // Mistrovství Zeměpisu: celá sada doplňků s tlačítkem Obléknout celou sadu (nejvyšší podoba okna)
+            await scene(tab, 'Mistrovství tématu', size, async () => { await progress(); await tab.click('[data-mastery="zemepis"]'); await tab.waitForFunction(() => /^Mistrovství/.test(document.getElementById('dialog-overlay').dataset.title)); await tab.waitForSelector('[data-mastery-look] [data-wear-set="zemepis"]'); });
             await scene(tab, 'Diplomy', size, async () => { await progress(); await tab.click('[data-rewards-info="diplomas"]'); await tab.waitForSelector('[data-diplomas]'); });
             await scene(tab, 'Diplom', size, async () => { await progress(); await tab.click('[data-rewards-info="diplomas"]'); await tab.click('[data-diploma="zemepis"]'); await tab.waitForSelector('[data-diploma-preview] canvas'); });
             await scene(tab, 'Diplom (zamčený)', size, async () => { await progress(); await tab.click('[data-rewards-info="diplomas"]'); await tab.click('[data-diploma="historie"]'); await tab.waitForSelector('[data-diploma-locked]'); });

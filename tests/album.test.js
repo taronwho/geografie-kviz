@@ -339,3 +339,37 @@ test('napojení: album.js v index.html, service workeru, nasazení a Tailwindu; 
     const titles = Core.BADGES.filter(badge => Core.isAlbumBadge(badge.id)).map(badge => badge.title);
     for (const title of titles) assert.equal(Core.BADGES.filter(badge => badge.title === title).length, 1, `${title} je jedinečný`);
 });
+
+test('Sady témat: 14 looků s počtem kusů pod doplňky, celá sada se zlatým lemem, nošená s fajfkou; procenta alba se nemění', () => {
+    const badges = { 'zbehly-zemepis': 'x', 'tema-zemepis-300': 'x', 'tema-zemepis-1000': 'x', 'zbehly-historie': 'x', 'tema-historie-1000': 'x', 'zbehly-sport': 'x' };
+    const album = Album.build(input({ badges }));
+    assert.equal(album.looks.length, 14);
+    const byTopic = Object.fromEntries(album.looks.map(look => [look.topic, look]));
+    assert.deepEqual([byTopic.zemepis.title, byTopic.zemepis.owned, byTopic.zemepis.total, byTopic.zemepis.complete], ['Cestovatel', 3, 3, true]);
+    assert.deepEqual([byTopic.historie.title, byTopic.historie.owned, byTopic.historie.total, byTopic.historie.complete], ['Vojevůdce', 2, 2, true], 'Historie zatím bez dvourohého klobouku');
+    assert.deepEqual([byTopic.sport.owned, byTopic.sport.total, byTopic.sport.complete], [1, 3, false]);
+    assert.deepEqual(byTopic.sport.pieces.map(piece => [piece.id, piece.owned]), [['celenka', true], ['pistalka', false], ['pohar', false]]);
+    assert.equal(album.looks.filter(look => look.complete).length, 2);
+    // Looky nejsou věci sbírky: počty sekcí ani procenta se s nimi nemění (stejné jako výpočet bez nich)
+    assert.equal(album.sections.length, 8);
+    assert.equal(sectionOf(album, 'accessories').total, Look.ACCESSORIES.length - 11);
+    withEverything((full) => {
+        const all = Album.build(full);
+        assert.equal(all.percent, 100);
+        assert.ok(all.looks.every(look => look.complete), 's celou sbírkou jsou celé i všechny sady');
+    });
+    // HTML: jen v sekci Doplňky, pod mřížkou; klepnutí vede na Mistrovství tématu (data-album-look), ne na věc alba
+    const h = { medal: () => '', avatar: () => '', topicIcon: () => '', styleOf: () => ({ soft: '' }) };
+    const html = Album.albumHtml(album, { section: 'accessories', wornLook: 'historie' }, h);
+    assert.doesNotMatch(html, /style=/);
+    assert.ok(html.indexOf('data-album-looks') > html.lastIndexOf('data-album-item='), 'pod mřížkou doplňků');
+    assert.equal((html.match(/data-album-look=/g) || []).length, 14);
+    assert.match(html, /data-album-looks-count[^>]*>2 \/ 14 celých/);
+    assert.match(html, /data-album-look="zemepis" data-state="complete"[^>]*class="[^"]*ring-gold-400/);
+    assert.match(html, /data-album-look="historie" data-state="worn"[^>]*aria-label="Vojevůdce \(Historie\): Mudrlant ho nosí"[^>]*class="[^"]*ring-brand-600/);
+    assert.match(html, /data-album-look="sport" data-state="missing" aria-label="Trenér \(Sport\): 1 z 3 kusů"/);
+    assert.match(html, /icons\/doplnky\/pistalka-ikona\.webp" alt="" class="[^"]*grayscale/);
+    assert.match(html, /Do procent sbírky se nepočítají/);
+    assert.doesNotMatch(Album.albumHtml(album, { section: 'avatars' }, h), /data-album-looks/);
+    assert.equal(Album.looksHtml([], null), '');
+});
