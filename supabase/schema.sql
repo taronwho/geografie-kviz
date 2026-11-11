@@ -3148,7 +3148,7 @@ grant execute on function public.question_snapshot_claim(text, jsonb), public.qu
 -- ===== Ligové sezóny a vitrína v profilu (schéma 18) — ZAČÁTEK BLOKU =====
 -- Ligová sezóna = kalendářní měsíc podle pražského času. Výsledek hráče v sezóně = nejvyšší liga, které v měsíci dosáhl: liga podle nejvyššího
 -- ratingu po ohodnocené výzvě (rating_history.rating_after) v tom měsíci. Kdo v měsíci žádnou ohodnocenou výzvu nedohrál, výsledek nemá.
--- Skončená sezóna se už nezmění. Za vrchol skončené sezóny Zlato, Platina, Diamant nebo Mistr má hráč rámeček profilu (look.js, liga-zlato …
+-- Skončená sezóna se už nezmění. Za vrchol skončené sezóny Stříbro, Zlato, Platina, Diamant nebo Mistr má hráč rámeček profilu (look.js, liga-zlato …
 -- liga-mistr; vyšší liga dává i rámečky nižších) navždy: počítá se z celé historie (best), ne jen z posledního roku.
 
 -- Nejvyšší rating hráče v měsíci RRRR-MM (pražský čas); null = v měsíci nedohrál ohodnocenou výzvu (nebo neplatný měsíc)

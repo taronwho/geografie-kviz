@@ -139,9 +139,12 @@ test('odměny v Profilu: rámečky, titul a postavičky', { skip: !chromium && '
         // Řada i titul se vejdou do okna bez posouvání
         assert.equal(await tab.evaluate(() => { const box = document.querySelector('#settings-overlay > div'); return box.scrollHeight <= box.clientHeight; }), true, 'okno bez posouvání');
 
-        // Zamčený: nic se nevybere ani neuloží, ukáže se, jak se odemkne
-        await tab.click('[data-frame="zlato"]');
+        // Zamčený: nic se nevybere ani neuloží, ukáže se, jak se odemkne. Posunutá řada po klepnutí neskočí na začátek
+        const stripLeft = await tab.$eval('[data-frame="zlato"]', el => { const strip = el.closest('.overflow-x-auto'); strip.scrollLeft = 120; return strip.scrollLeft; });
+        assert.ok(stripLeft > 0, 'řada rámečků jde posunout do strany');
+        await tab.$eval('[data-frame="zlato"]', el => el.click());
         await tab.waitForFunction(() => /Zlatý: Úroveň 25/.test(document.querySelector('[data-look="frames"] p').textContent));
+        assert.equal(await tab.$eval('[data-frame="zlato"]', el => el.closest('.overflow-x-auto').scrollLeft), stripLeft, 'řada zůstane posunutá');
         assert.equal(await tab.getAttribute('[data-frame="zadny"]', 'aria-pressed'), 'true');
         assert.equal(await tab.getAttribute('[data-frame="zlato"]', 'aria-pressed'), 'false');
         assert.equal(db.profiles['u-1'].frame, undefined);

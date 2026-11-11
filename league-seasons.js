@@ -1,5 +1,5 @@
 // Ligové sezóny (schéma 18): sezóna = kalendářní měsíc podle pražského času, výsledek hráče = nejvyšší liga, které v měsíci dosáhl
-// (počítá databáze z rating_history, funkce league_seasons). Za vrchol skončené sezóny Zlato, Platina, Diamant nebo Mistr má hráč rámeček
+// (počítá databáze z rating_history, funkce league_seasons). Za vrchol skončené sezóny Stříbro, Zlato, Platina, Diamant nebo Mistr má hráč rámeček
 // profilu (look.js LEAGUE_FRAMES, liga-*); vyšší liga dává i rámečky nižších a rámeček zůstane navždy. Nejlepší liga se pamatuje v zařízení
 // (KEY), takže rámečky platí i bez připojení a oslava nového rámečku přijde jen jednou.
 // Čistá logika a HTML bez DOMu (jako rewards.js); okno Ligové sezóny, pruh na kartě ligy, oslavu a vitrínu napojuje app.js.
@@ -15,17 +15,18 @@
     const NAMES = { bronz: 'Bronz', stribro: 'Stříbro', zlato: 'Zlato', platina: 'Platina', diamant: 'Diamant', mistr: 'Mistr' };
     // Odměny za vrchol skončené sezóny: liga → rámeček (look.js); genitive pro „Dosáhni Platiny…“
     const REWARDS = [
+        { league: 'stribro', frame: 'liga-stribro', genitive: 'Stříbra' },
         { league: 'zlato', frame: 'liga-zlato', genitive: 'Zlata' },
         { league: 'platina', frame: 'liga-platina', genitive: 'Platiny' },
         { league: 'diamant', frame: 'liga-diamant', genitive: 'Diamantu' },
         { league: 'mistr', frame: 'liga-mistr', genitive: 'Mistra' }
     ];
-    const FRAME_TITLES = { 'liga-zlato': 'Zlatá sezóna', 'liga-platina': 'Platinová sezóna', 'liga-diamant': 'Diamantová sezóna', 'liga-mistr': 'Mistrovská sezóna' };
+    const FRAME_TITLES = { 'liga-stribro': 'Stříbrná sezóna', 'liga-zlato': 'Zlatá sezóna', 'liga-platina': 'Platinová sezóna', 'liga-diamant': 'Diamantová sezóna', 'liga-mistr': 'Mistrovská sezóna' };
     const frameTitle = (frame) => { const item = Look && Look.find ? Look.find('frames', frame) : null; return item ? item.title : (FRAME_TITLES[frame] || frame); };
     const leagueName = (id) => NAMES[id] || '';
     const rank = (league) => LEAGUES.indexOf(league);
     const higher = (a, b) => (rank(a) >= rank(b) ? a : b);
-    const leagueFrom = (league) => (Rating && Rating.leagueById ? Rating.leagueById(league).from : { zlato: 1250, platina: 1400, diamant: 1550, mistr: 1700 }[league]);
+    const leagueFrom = (league) => (Rating && Rating.leagueById ? Rating.leagueById(league).from : { stribro: 1100, zlato: 1250, platina: 1400, diamant: 1550, mistr: 1700 }[league]);
 
     // --- Měsíce podle pražského času ---
     const MONTHS = ['leden', 'únor', 'březen', 'duben', 'květen', 'červen', 'červenec', 'srpen', 'září', 'říjen', 'listopad', 'prosinec'];
@@ -167,7 +168,7 @@
         const rewards = `
             <section>
                 <h3 class="${HEADING} mb-1 px-0.5">Rámečky za vrchol sezóny</h3>
-                <ul class="grid grid-cols-4 gap-1.5">${REWARDS.map(reward => {
+                <ul class="grid grid-cols-5 gap-1">${REWARDS.map(reward => {
                     const earned = rank(best) >= rank(reward.league);
                     return `<li data-season-reward="${reward.league}" ${earned ? 'data-earned' : ''} class="flex min-w-0 flex-col items-center gap-1 rounded-xl px-0.5 pb-1 pt-2 shadow-sm ${earned ? 'bg-gold-50 ring-2 ring-gold-400 dark:bg-slate-800' : 'bg-white dark:bg-slate-800'}" title="${h.esc(frameTitle(reward.frame))}">
                         <span class="flex h-11 w-11 items-center justify-center short:h-10 short:w-10 ${earned ? '' : 'opacity-50 grayscale'}">${h.frameAvatar(reward.frame, 'h-9 w-9 text-lg')}</span>

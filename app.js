@@ -1586,6 +1586,8 @@
         const reopened = Boolean(overlay);
         if (!reopened) refreshPush();
         const scroll = reopened && overlay.firstElementChild ? overlay.firstElementChild.scrollTop : 0;
+        // Vodorovné řady (rámečky, doplňky, barvy…) si po překreslení nechají posun, ať klepnutí na zamčenou věc neskočí na začátek řady
+        const stripScroll = reopened && overlay.dataset.stripTab === meTab ? [...overlay.querySelectorAll('.overflow-x-auto')].map(el => el.scrollLeft) : null;
         if (!overlay) overlay = createSettingsOverlay();
         const state = Auth ? Auth.getState() : { configured: false };
         const profile = user ? (myProfile || { display_name: user.name, avatar: '🦊', color: 'emerald' }) : null;
@@ -1657,7 +1659,7 @@
                     <div class="min-w-0 flex-1">
                         <h2 id="settings-title" class="${nameField ? 'sr-only' : 'truncate text-lg font-black leading-tight text-slate-800 dark:text-slate-100'}">${user ? escapeHtml(playerName(profile)) : 'Nastavení'}</h2>
                         ${nameField || `<p class="truncate text-xs text-slate-500 short:hidden dark:text-slate-400">${user ? escapeHtml(user.email || user.name) : 'Hraješ bez účtu'}</p>`}
-                        ${meTab === 'profile' && profileBody && showcaseMiniButton() ? `<div class="mt-0.5 flex items-center justify-between gap-2"><button type="button" data-open-progress class="flex min-w-0 items-center gap-1 text-left text-[11px] font-black text-brand-700 dark:text-cream">${escapeHtml(ownTitleText(level.level))} <i data-lucide="chevron-right" class="h-3 w-3 shrink-0"></i></button>${showcaseMiniButton()}</div>`
+                        ${meTab === 'profile' && profileBody && showcaseMiniButton() ? `<div class="mt-1.5 flex items-center justify-between gap-2"><button type="button" data-open-progress class="flex min-w-0 items-center gap-1 text-left text-[11px] font-black text-brand-700 dark:text-cream">${escapeHtml(ownTitleText(level.level))} <i data-lucide="chevron-right" class="h-3 w-3 shrink-0"></i></button>${showcaseMiniButton()}</div>`
                             : `<button type="button" data-open-progress class="mt-0.5 flex items-center gap-1 text-[11px] font-black text-brand-700 dark:text-cream">${escapeHtml(ownTitleText(level.level))} <i data-lucide="chevron-right" class="h-3 w-3"></i></button>`}
                     </div>
                     <button type="button" data-close aria-label="Zavřít" class="-m-0.5 self-start rounded-xl p-2.5 text-slate-500 hover:bg-slate-200 dark:text-slate-400 dark:hover:bg-slate-800"><i data-lucide="x" class="h-5 w-5"></i></button>
@@ -1677,6 +1679,8 @@
                 </div>` : ''}
             </div>`;
         overlay.firstElementChild.scrollTop = scroll;
+        if (stripScroll) overlay.querySelectorAll('.overflow-x-auto').forEach((el, index) => { if (stripScroll[index]) el.scrollLeft = stripScroll[index]; });
+        overlay.dataset.stripTab = meTab;
         renderIcons(overlay);
         const target = focusSelector ? overlay.querySelector(focusSelector) : (meTab === 'game' ? overlay.querySelector('[data-variant][aria-pressed="true"]') : null);
         (target || overlay.querySelector('[data-close]')).focus({ preventScroll: true });
