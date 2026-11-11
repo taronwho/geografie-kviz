@@ -617,6 +617,43 @@ test('odměny v Profilu: rámečky, titul a postavičky', { skip: !chromium && '
         assert.deepEqual(log.csp, []);
         await context.close();
     });
+    await t.test('vývojářské „Odemknout úplně vše“: sezónní, legendární i vzácné věci jsou k výběru, Vrátit můj postup vše vrátí', async () => {
+        const db = newDb();
+        const { context, tab, log } = await setup(browser, { ...login('tok-u1'), 'mudrlant.dev': '1' });
+        await backend(context, db);
+        await tab.goto(`${ORIGIN}/`);
+        await waitForHome(tab);
+        const before = await tab.evaluate(() => localStorage.getItem('mudrlant.progress'));
+        await tab.click('#btn-settings');
+        await tab.click('[data-dev="all"]');
+        await tab.waitForFunction(() => /Hotovo: Odemknout úplně vše/.test(document.getElementById('settings-overlay').textContent));
+        await tab.click('[data-me-tab="profile"]');
+        // Sezónní a vzácné rámečky odemčené, sezónní postavičky ve výběru, legendární bez zámku
+        await tab.waitForSelector('[data-frame="sezona-01"]');
+        assert.doesNotMatch(await tab.getAttribute('[data-frame="ruze"]', 'class'), /grayscale/);
+        await tab.click('[data-pic-group="postavicky"]');
+        await tab.waitForSelector('[data-pick-avatar="ramp"]');
+        await tab.click('[data-pic-group="legendy"]');
+        await tab.waitForSelector('[data-pick-avatar="albatr"]');
+        assert.equal(await tab.locator('[data-locked-avatar]').count(), 0);
+        // Po novém spuštění platí dál
+        await tab.reload();
+        await waitForHome(tab);
+        assert.equal(await tab.evaluate(() => window.MudrlantLook.devUnlockAll()), true);
+        // Vrátit můj postup: postup i zámky jako dřív
+        await tab.click('#btn-settings');
+        await tab.click('[data-me-tab="game"]');
+        await tab.click('[data-dev="restore"]');
+        await tab.waitForFunction(() => !window.MudrlantLook.devUnlockAll());
+        assert.equal(await tab.evaluate(() => localStorage.getItem('mudrlant.progress')), before);
+        await tab.click('[data-me-tab="profile"]');
+        await tab.waitForSelector('[data-frame="ruze"]');
+        assert.match(await tab.getAttribute('[data-frame="ruze"]', 'class'), /grayscale/);
+        assert.equal(await tab.locator('[data-frame="sezona-01"]').count(), 0);
+        assert.deepEqual(log.errors, []);
+        assert.deepEqual(log.csp, []);
+        await context.close();
+    });
     await t.test('starší databáze bez sloupců frame a title_pref: nic nespadne, požadavky se zopakují bez nich', async () => {
         const db = newDb();
         const calls = [];

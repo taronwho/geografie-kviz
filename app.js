@@ -719,12 +719,16 @@
     // hra s nimi. Původní postup se zazálohuje, vrací se tlačítkem a při vývojářském postupu se nic neukládá do účtu.
     const DEV_KEY = 'mudrlant.dev';
     const DEV_BACKUP = 'mudrlant.dev.backup';
+    // „Odemknout úplně vše“: příznak v zařízení; platí jen se zkušebním postupem (záloha DEV_BACKUP), zruší ho Vrátit můj postup
+    const DEV_ALL = 'mudrlant.dev.all';
     const DEV_LEARNED_BACKUP = 'mudrlant.dev.backup.learned';
     const devOn = () => { try { return localStorage.getItem(DEV_KEY) === '1'; } catch (e) { return false; } };
     const devActive = () => { try { return localStorage.getItem(DEV_BACKUP) !== null; } catch (e) { return false; } };
     const devApply = (kind) => {
         try {
             if (kind === 'restore') {
+                localStorage.removeItem(DEV_ALL);
+                if (Look && Look.setDevUnlockAll) Look.setDevUnlockAll(false);
                 const backup = localStorage.getItem(DEV_BACKUP);
                 if (backup !== null) { if (backup === 'null') localStorage.removeItem(KEYS.progress); else localStorage.setItem(KEYS.progress, backup); localStorage.removeItem(DEV_BACKUP); }
                 // Poznané položky se vrátí také (vývojářské „Vše“ je přepisuje); bez zálohy se vymyšlené jen odstraní
@@ -738,7 +742,13 @@
             const today = getDayKey();
             const allBadges = () => Object.fromEntries(BADGES.map(badge => [badge.id, today]));
             const topics = Object.fromEntries(TOPICS.map(topic => [topic.id, 400]));
-            if (kind === 'max') {
+            if (kind === 'all') {
+                // Úroveň 100, všechny odznaky a hvězdičky jako „Vše“ a k tomu odemčené i věci za diplomy, sezóny, ligy a z truhel
+                // (jen v tomto zařízení; účet se se zkušebním postupem nesynchronizuje)
+                localStorage.setItem(DEV_ALL, '1');
+                if (Look && Look.setDevUnlockAll) Look.setDevUnlockAll(true);
+            }
+            if (kind === 'max' || kind === 'all') {
                 Object.assign(progress, { xp: xpForLevel(MAX_LEVEL), badges: allBadges() });
                 progress.counters = normalizeCounters({ answered: 15000, correct: 12000, typedCorrect: 800, noHint: 1000, hardCorrect: 300, bestRun: 120, bestStreak: 400, perfectDays: 40, dailyCorrect: 400, fixed: 300,
                     challenges: 150, wins: 120, bestWinRun: 12, created: 60, perfectChallenges: 30, days: 400, lastDay: today, topics });
@@ -867,7 +877,7 @@
         <div class="mt-3 rounded-2xl border-2 border-dashed border-amber-400/70 p-2.5">
             <p class="mb-1.5 flex items-center justify-between text-[11px] font-black uppercase tracking-widest text-amber-700 dark:text-amber-400"><span>Vývojářský režim</span><span class="font-bold normal-case tracking-normal">${devActive() ? 'zkušební postup' : 'tvůj postup'}</span></p>
             ${Social ? `<p data-dev-schema class="mb-1.5 text-[11px] font-semibold leading-snug ${schemaHave === REQUIRED_SCHEMA ? 'text-emerald-700 dark:text-emerald-300' : 'text-amber-800 dark:text-amber-200'}">Databáze: ${schemaHave === undefined ? 'verze schématu zatím nezjištěna' : schemaHave === null ? 'schéma bez verze (starší než 1)' : `schéma ${schemaHave}`} · aplikace potřebuje ${REQUIRED_SCHEMA}${schemaHave === REQUIRED_SCHEMA ? ' ✓' : schemaHave === undefined ? '' : schemaHave > REQUIRED_SCHEMA ? ' – aplikace je starší, obnov ji' : ' – spusť supabase/schema.sql'}</p>` : ''}
-            <div class="flex flex-wrap gap-1">${[['max', 'Vše (úr. 100)'], ['level:10', 'Úr. 10'], ['level:25', 'Úr. 25'], ['level:50', 'Úr. 50'], ['level:75', 'Úr. 75'], ['badges', 'Všechny odznaky'], ['nobadges', 'Žádné odznaky'], ['nostars', 'Vymazat hvězdičky'], ['bulb', 'Vrátit žárovku'], ['tips', 'Obnovit tipy']].map(([kind, label]) => `<button type="button" data-dev="${kind}" class="rounded-lg bg-slate-200 px-2 py-1 text-[11px] font-bold text-slate-700 active:scale-95 dark:bg-slate-700 dark:text-slate-200">${label}</button>`).join('')}${devActive() ? '<button type="button" data-dev="restore" class="rounded-lg bg-amber-700 px-2 py-1 text-[11px] font-black text-white active:scale-95">Vrátit můj postup</button>' : ''}</div>
+            <div class="flex flex-wrap gap-1">${[['all', 'Odemknout úplně vše'], ['max', 'Vše (úr. 100)'], ['level:10', 'Úr. 10'], ['level:25', 'Úr. 25'], ['level:50', 'Úr. 50'], ['level:75', 'Úr. 75'], ['badges', 'Všechny odznaky'], ['nobadges', 'Žádné odznaky'], ['nostars', 'Vymazat hvězdičky'], ['bulb', 'Vrátit žárovku'], ['tips', 'Obnovit tipy']].map(([kind, label]) => `<button type="button" data-dev="${kind}" class="rounded-lg bg-slate-200 px-2 py-1 text-[11px] font-bold text-slate-700 active:scale-95 dark:bg-slate-700 dark:text-slate-200">${label}</button>`).join('')}${devActive() ? '<button type="button" data-dev="restore" class="rounded-lg bg-amber-700 px-2 py-1 text-[11px] font-black text-white active:scale-95">Vrátit můj postup</button>' : ''}</div>
             ${Social ? `<p class="mb-1 mt-2 text-[11px] font-black uppercase tracking-widest text-amber-700 dark:text-amber-400">Turnaj (boti)</p>
             <div class="flex flex-wrap gap-1">${[['tour-bots', '+31 botů'], ['tour-start', 'Spustit hned'], ['tour-play', 'Boti odehrají kolo'], ['tour-next', 'Další kolo'], ['tour-reset', 'Smazat odehraný turnaj'], ['tour-clear', 'Smazat boty']].map(([kind, label]) => `<button type="button" data-dev="${kind}" class="rounded-lg bg-emerald-100 px-2 py-1 text-[11px] font-bold text-emerald-900 active:scale-95 dark:bg-emerald-900/50 dark:text-emerald-100">${label}</button>`).join('')}</div>
             <p class="mb-1 mt-2 text-[11px] font-black uppercase tracking-widest text-amber-700 dark:text-amber-400">Provoz</p>
@@ -914,6 +924,8 @@
     };
     // --- Vzhled: odměny (barevná témata, barva obleku sovy, rámečky, obrázky, titul) – části dodávají look-*.js přes MudrlantLook ---
     const Look = window.MudrlantLook;
+    // Odemčení všeho platí po novém spuštění dál, dokud hráč nevrátí svůj postup (bez zkušebního postupu se nezapne)
+    try { if (Look && Look.setDevUnlockAll && devOn() && devActive() && localStorage.getItem(DEV_ALL) === '1') Look.setDevUnlockAll(true); } catch (e) { /* bez úložiště nic */ }
     const Tutorial = window.MudrlantTutorial;
     const Owl = window.MudrlantOwl;
     // Logo sovy s vybranými doplňky (bez modulu jen obrázek)
