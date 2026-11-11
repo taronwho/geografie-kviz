@@ -300,7 +300,7 @@ test('napojení a HTML: season.js v index.html, service workeru, nasazení a Tai
     const css = fs.readFileSync(path.join(ROOT, 'src', 'input.css'), 'utf8');
     for (let month = 1; month <= 12; month++) assert.match(css, new RegExp(`\\.season-m${String(month).padStart(2, '0')}, \\.frame-sezona-${String(month).padStart(2, '0')} \\{`));
     for (const id of ['jiskra', 'stovka', 'vecny-ohen']) assert.match(css, new RegExp(`\\.frame-${id} \\{`));
-    assert.match(css, /prefers-reduced-motion: no-preference[\s\S]*\.frame-vecny-ohen::before \{ animation/);
+    assert.match(css, /prefers-reduced-motion: no-preference[\s\S]*\.frame-vecny-ohen \{ animation: frameFlare/, 'Věčný oheň plápolá jen bez omezení pohybu');
     const h = { frameClass: Frames.frameClass };
     const state = Rewards.parse({ season: { id: NOV, startXp: 0, claimed: { 1: 'robes:modra', 2: 'freeze', 10: 'themes:les+colors:zelena' } }, past: { id: '2026-10', startXp: 0, endXp: 900, claimed: {} } });
     const view = Season.info(state, { today: '2026-11-03', xp: 6000 });

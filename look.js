@@ -190,12 +190,13 @@
     // Rámečky sezóny: CSS .frame-sezona-01 … -12 (barvy měsíce v src/input.css), jen ze Sezónní truhly svého měsíce
     const SEASON_FRAMES = SEASON_ADJECTIVES.map((title, index) => ({ id: `sezona-${pad2(index + 1)}`, title, month: index + 1, exclusive: true, source: 'season' }));
     // Rámečky za sérii dní dnešních otázek (odznaky skupiny 'serie' v quiz-core): 7 dní Jiskra, 30 dní Plamenný (výš ve FRAMES),
-    // 100 dní Stovka, 365 dní Věčný oheň. Animace v src/input.css (.frame-jiskra, .frame-stovka, .frame-vecny-ohen).
+    // 100 dní Stovka, 365 dní Věčný oheň. Animace v src/input.css (.frame-jiskra, .frame-stovka); Věčný oheň je obrázkový prsten
+    // (art: true, icons/frames/vecny-ohen.webp ze scripts/frame-images.py, docs/OBRAZKY.md č. 146), který v CSS plápolá (.frame-vecny-ohen).
     // Za 100 dní je i doplněk Hrdinský plášť (ACCESSORIES, badge serie-100).
     const STREAK_FRAMES = [
         { id: 'jiskra', title: 'Jiskra', badge: 'tyden' },
         { id: 'stovka', title: 'Stovka', badge: 'serie-100' },
-        { id: 'vecny-ohen', title: 'Věčný oheň', badge: 'serie-365' }
+        { id: 'vecny-ohen', title: 'Věčný oheň', badge: 'serie-365', art: true }
     ];
     FRAMES.push(...STREAK_FRAMES, ...SEASON_FRAMES);
     // Titul u jména za celou sezónu (Sezónní truhla na 20. stupni); ukládá se jako title_pref stejně jako odznak

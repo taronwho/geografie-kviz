@@ -64,13 +64,20 @@
         { id: 'truhla', icon: 'sparkles', after: 60, title: 'Truhla Mudrlanta', text: 'Za všechny tři cíle týdne dostaneš truhlu. Vždy v ní je něco, co ještě nemáš: doplněk, barva, rámeček, talár nebo barevné téma, které by se ti jinak odemklo až později. Často i ochrana série.',
             action: { kind: 'goals', label: 'Ukázat cíle' }, ready: (u) => u.goals, used: (u) => num(u.counters.chestsOpened) > 0 },
         { id: 'diplomy', icon: 'award', after: 50, title: 'Diplomy', text: 'Za plné mistrovství tématu (5 hvězdiček) dostaneš diplom s Mudrlantem a svým jménem. Najdeš ho v Mém postupu v části Diplomy a můžeš ho sdílet nebo stáhnout.',
-            action: { kind: 'progress', label: 'Můj postup' }, ready: (u) => num(u.maxStars) >= 3, used: (u) => Boolean(u.visited.diplomas) }
+            action: { kind: 'progress', label: 'Můj postup' }, ready: (u) => num(u.maxStars) >= 3, used: (u) => Boolean(u.visited.diplomas) },
+        // art = obrázek místo sovy s žárovkou (icons/topics/<art>.webp, docs/OBRAZKY.md č. 133, 148, 150)
+        { id: 'sezona', icon: 'sparkles', art: 'sezona', after: 30, title: 'Sezóna Mudrlanta', text: 'Každý měsíc běží Sezóna Mudrlanta: XP z hraní tě posouvají po cestě 20 stupňů a na každém čeká odměna. Na konci je Sezónní truhla s doplňkem, rámečkem a postavičkou, které jde získat jen v tom měsíci.',
+            action: { kind: 'progress', label: 'Můj postup' }, ready: (u) => u.season, used: (u) => Boolean(u.visited.season) },
+        { id: 'album', icon: 'book-open', art: 'album', after: 70, title: 'Album sbírky', text: 'V Mém postupu najdeš Album sbírky se vším, co jde pro Mudrlanta a tvůj profil získat. Uvidíš, co ti ještě chybí, a za milníky sbírky dostaneš odznaky Sběratel.',
+            action: { kind: 'progress', label: 'Můj postup' }, ready: (u) => u.album, used: (u) => Boolean(u.visited.album) },
+        { id: 'vitrina', icon: 'gem', art: 'vitrina', multi: true, account: true, after: 80, title: 'Vitrína v profilu', text: 'V Nastavení → Profil si vyber až 3 trofeje, které ostatní uvidí ve tvém profilu: odznak, diplom nebo výsledek ligové sezóny.',
+            action: { kind: 'settings', label: 'Nastavení', tab: 'profile' }, ready: (u) => u.showcase, used: (u) => Boolean(u.visited.showcase) }
     ];
     const BY_ID = new Map(TIPS.map(tip => [tip.id, tip]));
 
     const EMPTY = { seen: [], day: '', n: 0, lastAt: 0, off: false, visited: {} };
-    // Navštívené části hry (tip o nich už není potřeba): Učení, Můj postup, Vzhled, Diplomy
-    const VISITED = ['learn', 'progress', 'look', 'diplomas'];
+    // Navštívené části hry (tip o nich už není potřeba): Učení, Můj postup, Vzhled, Diplomy, Sezóna, Album, Vitrína
+    const VISITED = ['learn', 'progress', 'look', 'diplomas', 'season', 'album', 'showcase'];
     const parse = (value) => {
         const v = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
         const visited = {};
@@ -103,7 +110,8 @@
         if (!allowedToday(state, today, num(ctx.launches))) return null;
         if (ctx.now - state.lastAt < MIN_GAP_MS) return null;
         const u = { counters: ctx.counters || {}, visited: state.visited, reviewOn: ctx.reviewOn !== false, friends: ctx.friends, signedIn: Boolean(ctx.signedIn),
-            quiz: ctx.quiz !== false, modes: ctx.modes !== false, goals: ctx.goals !== false, freezes: ctx.freezes, maxStars: ctx.maxStars };
+            quiz: ctx.quiz !== false, modes: ctx.modes !== false, goals: ctx.goals !== false, freezes: ctx.freezes, maxStars: ctx.maxStars,
+            season: ctx.season !== false, album: ctx.album !== false, showcase: ctx.showcase !== false };
         const answered = num(u.counters.answered);
         return TIPS.find(tip => {
             if (state.seen.includes(tip.id)) return false;

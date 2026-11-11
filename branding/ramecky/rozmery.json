@@ -8,5 +8,6 @@
   "more": {"hole": 0.9709, "ring": 1.5412, "reach": 1.6529, "round": [0.996, 1.005], "bytes": 18910},
   "ohen": {"hole": 0.9709, "ring": 1.4714, "reach": 1.6366, "round": [0.996, 1.005], "bytes": 17950},
   "ruze": {"hole": 0.9709, "ring": 1.5509, "reach": 1.6932, "round": [0.902, 1.013], "bytes": 19378},
-  "soukoli": {"hole": 0.9709, "ring": 1.5775, "reach": 1.7576, "round": [0.995, 1.005], "bytes": 20694}
+  "soukoli": {"hole": 0.9709, "ring": 1.5775, "reach": 1.7576, "round": [0.995, 1.005], "bytes": 20694},
+  "vecny-ohen": {"hole": 0.9709, "ring": 1.5368, "reach": 1.6679, "round": [0.977, 1.023], "bytes": 17562}
 }}

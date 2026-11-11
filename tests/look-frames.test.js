@@ -70,11 +70,14 @@ test('obrázky hráče: bez look.js jen základní, s ním i odemykatelné', () 
 });
 
 // --- Obrázkové rámečky (docs/OBRAZKY.md č. 109–118): look.js ART_FRAMES, icons/frames/<id>.webp, .frame-art v src/input.css ---
-const ART = Look.FRAMES.filter(item => item.art);
+// Odměny (pět za úroveň, tři za odznak, dva z truhly) jsou v ART_FRAMES; obrázkový je i Věčný oheň za sérii 365 dní (č. 146)
+const ART = Look.ART_FRAMES;
+const ALL_ART = Look.FRAMES.filter(item => item.art);
 
 test('obrázkové rámečky: deset, pět za úroveň (35–95, každý na jiné úrovni než ostatní odměny), tři za těžké odznaky, dva z truhly', () => {
     assert.equal(ART.length, 10);
-    assert.deepEqual(ART, Look.ART_FRAMES);
+    assert.deepEqual(ALL_ART.map(item => item.id), ['vecny-ohen', ...ART.map(item => item.id)], 'obrázkové jsou odměny a Věčný oheň');
+    assert.equal(Look.find('frames', 'vecny-ohen').badge, 'serie-365');
     assert.deepEqual(ART.map(item => item.id), ['ohen', 'more', 'soukoli', 'galaxie', 'kralovsky-vavrin', 'blesk', 'led', 'drak', 'duha-mracky', 'ruze']);
     for (const item of ART) assert.equal(Social.cleanFrame(item.id), item.id, 'id projde profiles_frame_format i Social.cleanFrame');
     const byLevel = ART.filter(item => item.level);
@@ -133,9 +136,9 @@ test('obrázkové rámečky: třída frame-art, obrázky, CSS a service worker',
     assert.match(css, new RegExp(`\\.frame-art::after \\{[^}]*inset: ${inset}%`));
     assert.match(css, /\.frame-art::before \{ content: none; \}/, 'kroužek z přechodu se u obrázkového rámečku nekreslí');
     const listed = /const FRAME_ART = \[([^\]]+)\]/.exec(sw)[1].match(/'([a-z0-9-]+)'/g).map(entry => entry.slice(1, -1));
-    assert.deepEqual(listed, ART.map(item => item.id), 'sw.js FRAME_ART = look.js ART_FRAMES');
+    assert.deepEqual(listed, ALL_ART.map(item => item.id), 'sw.js FRAME_ART = obrázkové rámečky v look.js');
     assert.match(sw, /\.\.\.FRAME_ART\.map\(id => `icons\/frames\/\$\{id\}\.webp`\)/);
-    for (const item of ART) {
+    for (const item of ALL_ART) {
         assert.equal(Frames.frameClass(item.id), ` frame frame-art frame-${item.id}`);
         assert.match(css, new RegExp(`\\.frame-${item.id}::after \\{ background-image: url\\(icons/frames/${item.id}\\.webp\\); \\}`));
         assert.ok(built.includes(`.frame-${item.id}:after{background-image:url(icons/frames/${item.id}.webp)}`), `styles.css s .frame-${item.id} (npm run build:css)`);

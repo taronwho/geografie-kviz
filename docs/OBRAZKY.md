@@ -1098,7 +1098,7 @@ Cartoon sticker character portrait in exactly the same art style as the attached
 
 Obrázky k novým odměnám. Funkce fungují i bez nich (dočasně se použijí stávající obrázky), po dodání je zapojím.
 
-### 133. `sezona.png` – Sezóna Mudrlanta (karta a okno cesty odměn)
+### 133. `sezona.png` – Sezóna Mudrlanta (karta a okno cesty odměn) – ✅ dodáno, zapojeno (karta, okno sezóny, tip)
 
 Přiložit: `branding/sova-original.jpg` (vzor stylu)
 
@@ -1186,7 +1186,7 @@ Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same p
 
 Za 100 dní série připadne doplněk **Hrdinský plášť** (prompt č. 103). Za 365 dní legendární rámeček:
 
-#### 146. `ramecek-vecny-ohen.png` – Věčný oheň (série 365 dní)
+#### 146. `ramecek-vecny-ohen.png` – Věčný oheň (série 365 dní) – ✅ dodáno, zapojeno (obrázkový rámeček)
 
 Přiložit: `branding/sova-original.jpg` (vzor stylu)
 
@@ -1204,7 +1204,7 @@ Přiložit: `branding/sova-original.jpg` (vzor stylu)
 Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole object. Single centered subject filling about 80 % of the frame with even empty space around it, readable even as a small 48 px icon (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow on the background, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, colors, shading); do not draw the owl and do not copy any existing cartoon or game artwork. Subject: A golden league trophy cup with laurel leaves standing on a small podium with three steps, a ribbon banner without text and confetti around it. Colors: gold, royal blue, cream. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
-#### 148. `album.png` – Album sbírky (dlaždice a okno)
+#### 148. `album.png` – Album sbírky (dlaždice a okno) – ✅ dodáno, zapojeno (dlaždice, okno, tip)
 
 Přiložit: `branding/sova-original.jpg` (vzor stylu)
 
@@ -1212,7 +1212,7 @@ Přiložit: `branding/sova-original.jpg` (vzor stylu)
 Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole object. Single centered subject filling about 80 % of the frame with even empty space around it, readable even as a small 48 px icon (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow on the background, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, colors, shading); do not draw the owl and do not copy any existing cartoon or game artwork. Subject: A thick open collector's album with colorful round stickers and small cards peeking out of its pages, a few stickers flying out with sparkles. Colors: teal cover, cream pages, colorful stickers. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
-#### 149. `odznak-sberatel.png` – Odznak Sběratel
+#### 149. `odznak-sberatel.png` – Odznak Sběratel – ✅ dodáno, zapojeno (symbol odznaků alba)
 
 Přiložit: `branding/sova-original.jpg` (vzor stylu)
 
@@ -1220,7 +1220,7 @@ Přiložit: `branding/sova-original.jpg` (vzor stylu)
 Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole object. Single centered subject filling about 80 % of the frame with even empty space around it, readable even as a small 48 px icon (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow on the background, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, colors, shading); do not draw the owl and do not copy any existing cartoon or game artwork. Subject: A round golden badge medal with a ribbon, showing an embossed stack of three collectible cards with a small star, sparkling. Colors: gold, teal ribbon. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
-#### 150. `vitrina.png` – Vitrína v profilu
+#### 150. `vitrina.png` – Vitrína v profilu – ✅ dodáno, zapojeno (okno Vitrína, tip)
 
 Přiložit: `branding/sova-original.jpg` (vzor stylu)
 
