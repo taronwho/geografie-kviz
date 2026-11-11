@@ -251,6 +251,9 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         assert.match(await tab.textContent('#dialog-overlay'), /Můj postup/);
         assert.match(await tab.textContent('#dialog-overlay'), /Zvědavec/);
         assert.match(await tab.textContent('#dialog-overlay'), /XP\s*do úr\. 2/);
+        // Celkové XP malým písmem vedle titulu (stejné číslo, jaké je uložené v postupu)
+        const totalXp = await tab.evaluate(() => JSON.parse(localStorage.getItem('mudrlant.progress')).xp);
+        assert.equal((await tab.textContent('[data-total-xp]')).replace(/\s/g, ''), `celkem${totalXp}XP`);
         // Klepnutí na úroveň otevře tabulku všech úrovní (čtyři sloupce, 100 úrovní)
         await tab.click('[data-open-levels]');
         await tab.waitForSelector('#dialog-overlay [data-title-row]');

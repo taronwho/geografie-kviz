@@ -250,7 +250,7 @@ test('Kvíz dne v prohlížeči', { skip: !chromium && 'Playwright není nainsta
         await tab.click('[data-action="quiz-share"]');
         await tab.waitForSelector('#toast:not(.opacity-0)');
         const url = `${ORIGIN}/`;
-        assert.equal(await tab.evaluate(() => navigator.clipboard.readText()), `Mudrlant · Kvíz dne 8. 11. · 9/10 🟩🟩🟥🟩🟩🟩🟩🟩🟩🟩 · ${url}`);
+        assert.equal(await tab.evaluate(() => navigator.clipboard.readText()), `Mudrlant · Kvíz dne 8. 11. · 36 bodů · 9/10 🟩🟩🟥🟩🟩🟩🟩🟩🟩🟩 · ${url}`);
         // Obrázek: PNG z plátna (nezašpiněného, obrázky z vlastního původu) se bez sdílení souborů stáhne
         const [download] = await Promise.all([tab.waitForEvent('download'), tab.click('[data-action="quiz-share-image"]')]);
         assert.equal(download.suggestedFilename(), `mudrlant-kviz-dne-${TODAY}.png`);

@@ -3709,7 +3709,7 @@
         if (mode === 'challenge' || mode === 'quiz') return false;
         return Boolean(round && round.answered);
     };
-    const MINI_CELEBRATION = 'pointer-events-none fixed right-3 top-[4.5rem] z-[60] flex max-w-[70vw] items-center gap-1.5 rounded-full bg-brand-900/90 px-3 py-1.5 text-xs font-black text-gold-200 shadow-lg ring-1 ring-gold-400/60';
+    const MINI_CELEBRATION = 'pointer-events-none fixed right-3 top-[4.5rem] z-[60] flex max-w-[70vw] items-center gap-1.5 rounded-2xl bg-brand-900/90 px-3 py-1.5 text-xs font-black leading-tight text-gold-200 shadow-lg ring-1 ring-gold-400/60';
     const miniCelebration = (item) => {
         const old = document.getElementById('celebration-mini');
         if (old) old.remove();
@@ -3717,7 +3717,8 @@
         chip.id = 'celebration-mini';
         chip.setAttribute('role', 'status');
         chip.className = `fade-in ${MINI_CELEBRATION}`;
-        chip.innerHTML = `<i data-lucide="sparkles" class="h-3.5 w-3.5 shrink-0"></i><span class="truncate">${escapeHtml(item.title)}: ${escapeHtml(item.text)}</span>`;
+        // Krátký štítek během hry: text se zalomí nejvýš do dvou řádků (celá karta se ukáže, až bude klid)
+        chip.innerHTML = `<i data-lucide="sparkles" class="h-3.5 w-3.5 shrink-0"></i><span class="line-clamp-2">${escapeHtml(item.title)}: ${escapeHtml(item.text)}</span>`;
         document.body.appendChild(chip);
         renderIcons(chip);
         setTimeout(() => chip.remove(), 2500);
@@ -4206,7 +4207,7 @@
         const view = seasonView();
         if (!view) return;
         const tier = view.progress.tier;
-        if (seasonTierSeen !== null && tier > seasonTierSeen) showCelebration('oslava', `Sezóna: stupeň ${tier}`, `Čeká na tebe odměna – vyzvedneš ji na úvodu.`, 'badge');
+        if (seasonTierSeen !== null && tier > seasonTierSeen) showCelebration('oslava', `Sezóna: stupeň ${tier}`, 'Odměna čeká na úvodu.', 'badge');
         seasonTierSeen = tier;
     };
     // Nasazení věcí ze sezóny (talár, téma, rámeček, doplněk, titul); postavička a barvy se volí v Nastavení
@@ -7455,7 +7456,7 @@
                 <button type="button" data-open-levels class="btn-3d flex w-full items-center gap-2.5 rounded-2xl bg-gradient-to-br from-brand-700 to-brand-900 p-2.5 text-left text-white" aria-label="Tabulka úrovní">
                     <span class="relative h-14 w-14 shrink-0" data-title-owl>${uiArt(titleOwlArt(level.level), 'h-full w-full')}<span class="absolute -bottom-1 -right-1.5 flex h-8 w-8 flex-col items-center justify-center rounded-full bg-gold-500 text-brand-950 shadow-md ring-2 ring-brand-800"><span class="text-[7px] font-black uppercase leading-none">úr.</span><span class="text-[13px] font-black leading-none">${level.level}</span></span></span>
                     <span class="min-w-0 flex-1">
-                        <span class="block truncate text-lg font-black leading-tight">${escapeHtml(titleForLevel(level.level))}</span>
+                        <span class="flex items-baseline justify-between gap-2"><span class="min-w-0 truncate text-lg font-black leading-tight">${escapeHtml(titleForLevel(level.level))}</span><span data-total-xp class="shrink-0 rounded-full bg-white/15 px-2 py-0.5 text-[10px] font-black leading-tight text-gold-200" title="Celkem získané XP">celkem ${formatXp(xp)} XP</span></span>
                         <span class="mt-1 block h-2 overflow-hidden rounded-full bg-white/25" aria-hidden="true"><span class="block h-full w-0 rounded-full bg-gold-400" data-progress="${Math.round(level.ratio * 100)}"></span></span>
                         <span class="mt-0.5 flex items-center justify-between gap-2 text-[11px] font-bold text-white/85"><span>${level.needed ? `${formatXp(level.into)} / ${formatXp(level.needed)} XP` : 'Nejvyšší úroveň'}</span>${level.needed ? `<span>do úr. ${level.level + 1}</span>` : ''}</span>
                         ${next ? `<span class="block truncate text-[11px] font-semibold leading-tight text-gold-300">Další titul: ${escapeHtml(next.title)} (úr. ${next.from})</span>` : ''}
@@ -8852,7 +8853,7 @@
         loadQuizBoard();
     };
     const quizCardInput = (attempt, summary, streak) => ({
-        kicker: 'Kvíz dne', headline: `${summary.correct}/${DailyQuiz.QUESTIONS}`, detail: `${formatPoints(summary.score)} · čas ${DailyQuiz.formatTime(summary.time_ms)}`,
+        kicker: 'Kvíz dne', headline: formatPoints(summary.score), detail: `${summary.correct}/${DailyQuiz.QUESTIONS} správně · čas ${DailyQuiz.formatTime(summary.time_ms)}`,
         grid: DailyQuiz.bitsOf(summary.bitmap, summary.answered),
         note: attempt.rank ? `${attempt.rank.rank}. místo z ${attempt.rank.total}` : streak > 1 ? `Série ${DailyQuiz.daysWord(streak)}` : 'Stejných 10 otázek pro všechny',
         day: attempt.day, robe: robeNow(), pose: DailyQuiz.poseFor(summary.correct), url: appUrl(), appName: APP_NAME

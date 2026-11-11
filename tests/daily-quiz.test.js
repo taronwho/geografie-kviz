@@ -108,8 +108,8 @@ test('součty, mřížka a text ke sdílení', () => {
     assert.deepEqual(DQ.bitsOf(summary.bitmap, 10), [true, true, false, true, true, true, false, true, true, true]);
     assert.deepEqual(DQ.bitsOf(0b101, 3), [true, false, true, null, null, null, null, null, null, null]);
     assert.equal(DQ.shareText({ day: '2026-11-08', summary, url: 'https://taronwho.github.io/geografie-kviz/app/' }),
-        'Mudrlant · Kvíz dne 8. 11. · 8/10 🟩🟩🟥🟩🟩🟩🟥🟩🟩🟩 · https://taronwho.github.io/geografie-kviz/app/');
-    assert.equal(DQ.shareText({ day: '2026-11-08', summary: DQ.summarize(results.slice(0, 3)) }), 'Mudrlant · Kvíz dne 8. 11. · 2/10 🟩🟩🟥⬜⬜⬜⬜⬜⬜⬜');
+        'Mudrlant · Kvíz dne 8. 11. · 17 bodů · 8/10 🟩🟩🟥🟩🟩🟩🟥🟩🟩🟩 · https://taronwho.github.io/geografie-kviz/app/');
+    assert.equal(DQ.shareText({ day: '2026-11-08', summary: DQ.summarize(results.slice(0, 3)) }), 'Mudrlant · Kvíz dne 8. 11. · 3 body · 2/10 🟩🟩🟥⬜⬜⬜⬜⬜⬜⬜');
     // Nesmyslné body od klienta se ořežou na 0–4
     assert.equal(DQ.summarize([{ correct: true, points: 99, ms: 1 }]).score, 4);
     assert.equal(DQ.poseFor(10), 'vitez');
