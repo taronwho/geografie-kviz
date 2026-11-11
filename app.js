@@ -7761,6 +7761,22 @@
         const skill = BADGE_BY_ID[`zbehly-${topic.id}`];
         const accessory = Look ? Look.ACCESSORIES.find(item => item.badge === `zbehly-${topic.id}`) : null;
         const master = BADGE_BY_ID['mistr-oboru'];
+        // Sada doplňků tématu (look.js topicSet): kus za zběhlost, za 300 a za 1000 správných odpovědí v tématu; získané s fajfkou
+        const ctx = Look ? lookContext() : null;
+        const correct = (loadProgress().counters.topics || {})[topic.id] || 0;
+        const pieces = Look && Look.topicSet ? Look.topicSet(topic.id) : [];
+        const pieceHow = ({ step, badge }) => step === 'skill' ? '3 hvězdičky nebo 12 správně v řadě' : `${step} správných${BADGE_BY_ID[badge] ? ` (odznak ${BADGE_BY_ID[badge].title})` : ''}`;
+        const piece = (entry) => {
+            const owned = Look.isUnlocked(entry.item, ctx);
+            return `<li data-set-piece="${entry.item.id}" class="flex min-w-0 flex-col items-center gap-0.5 rounded-xl bg-slate-50 px-1 py-1.5 text-center dark:bg-slate-700/50">
+                <span class="relative"><img src="icons/doplnky/${entry.item.id}-ikona.webp" alt="" class="h-8 w-8 object-contain ${owned ? '' : 'opacity-50 grayscale'}">${owned ? '<i data-lucide="circle-check" class="absolute -bottom-1 -right-1.5 h-4 w-4 rounded-full bg-white text-emerald-600 dark:bg-slate-800 dark:text-emerald-400"></i>' : ''}</span>
+                <b class="text-[11px] leading-tight text-slate-800 dark:text-slate-100">${escapeHtml(entry.item.title)}</b>
+                <span class="text-[10px] font-semibold leading-tight text-slate-600 dark:text-slate-300">${escapeHtml(pieceHow(entry))}</span></li>`;
+        };
+        const setHtml = pieces.length > 1 ? `<div data-mastery-set class="flex flex-col gap-1">
+                <p class="flex items-baseline justify-between gap-2 text-[11px] font-black text-slate-700 dark:text-slate-200"><span>Sada pro Mudrlanta</span><span class="font-semibold text-slate-500 dark:text-slate-400">správně v tématu: ${correct}</span></p>
+                <ul class="grid grid-cols-3 gap-1.5" aria-label="Sada doplňků tématu">${pieces.map(piece).join('')}</ul>
+            </div>` : '';
         const star = (filled) => `<i data-lucide="star" class="h-4 w-4 ${filled ? 'fill-gold-500 text-gold-500' : 'text-slate-300 dark:text-slate-600'}"></i>`;
         const reward = (needed, html) => `<li class="flex items-start gap-2 text-[12px] leading-snug text-slate-700 dark:text-slate-200"><i data-lucide="${stars >= needed ? 'circle-check' : 'star'}" class="mt-0.5 h-4 w-4 shrink-0 ${stars >= needed ? 'text-emerald-600 dark:text-emerald-400' : 'text-gold-600 dark:text-gold-400'}"></i><span><b>${needed} ${needed < 5 ? 'hvězdičky' : 'hvězdiček'}:</b> ${html}</span></li>`;
         showDialog(`Mistrovství: ${topic.title}`, `
@@ -7779,6 +7795,7 @@
                     ${reward(3, `odznak ${skill ? `„${escapeHtml(skill.title)}“` : 'Zběhlost'}${accessory ? ` a doplněk pro Mudrlanta: ${escapeHtml(accessory.title)}` : ''}. Doplněk získáš i tak, že v tématu 12× správně odpovíš za sebou.`)}
                     ${reward(5, `odznak${master ? ` „${escapeHtml(master.title)}“` : ''}, nejvyšší mistrovství v oboru.`)}
                 </ul>
+                ${setHtml}
                 ${dialogBackButton()}
             </div>`);
         applyProgress(document.getElementById('dialog-overlay'));

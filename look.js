@@ -191,7 +191,37 @@
         { id: 'srdickove-bryle', title: 'Srdíčkové brýle', slot: 'face', hue: 330, chest: 20 },
         { id: 'vencek', title: 'Květinový věnec', slot: 'neck', hue: 35, chest: 30 },
         { id: 'paska', keepsMonocle: true, title: 'Pirátská páska', slot: 'face', hue: 0, chest: 40 },
-        { id: 'hrnek', hidesHand: true, title: 'Hrnek kakaa', slot: 'hand', hue: 180, chest: 50 }
+        { id: 'hrnek', hidesHand: true, title: 'Hrnek kakaa', slot: 'hand', hue: 180, chest: 50 },
+        // Sady doplňků k tématům (docs/OBRAZKY.md č. 177–204, docs/DOPLNKY-TEMAT.md): ke kusu za zběhlost (výše) dva další kusy na jiných místech,
+        // první za odznak tématu 3. stupně (300 správných odpovědí v tématu), druhý za 5. stupeň (1000). Pořadí v tématu = pořadí v sadě (topicSet).
+        // fixed = nová ruka a nepřebarvitelné části jsou i ve vrstvě <id>-zaklad.webp (scripts/owl-accessories.py FIXED_SPLIT)
+        { id: 'cestovatelsky-klobouk', hidesHat: true, title: 'Cestovatelský klobouk', slot: 'head', hue: 35, badge: 'tema-zemepis-300' },
+        { id: 'globus', hidesHand: true, fixed: true, title: 'Globus', slot: 'hand', hue: 205, badge: 'tema-zemepis-1000' },
+        { id: 'namornicka-cepice', hidesHat: true, title: 'Námořnická čepice', slot: 'head', hue: 220, badge: 'tema-vlajky-300' },
+        { id: 'praporky', title: 'Signální praporky', slot: 'neck', hue: 0, badge: 'tema-vlajky-1000' },
+        { id: 'krejzlik', title: 'Krejzlík', slot: 'neck', hue: 0, badge: 'tema-historie-1000' },
+        { id: 'blesk', hidesHand: true, fixed: true, title: 'Blesk vládce hromu', slot: 'hand', hue: 45, badge: 'tema-mytologie-300' },
+        { id: 'zlate-rouno', title: 'Zlaté rouno', slot: 'neck', hue: 40, badge: 'tema-mytologie-1000' },
+        { id: 'hnizdo', hidesHat: true, title: 'Ptačí hnízdo', slot: 'head', hue: 30, badge: 'tema-biologie-300' },
+        { id: 'dalekohled', title: 'Dalekohled', slot: 'neck', hue: 35, badge: 'tema-biologie-1000' },
+        { id: 'kladivko', fixed: true, title: 'Geologické kladívko', slot: 'hand', hue: 30, badge: 'tema-geologie-300' },
+        { id: 'krystal', title: 'Krystal na šňůrce', slot: 'neck', hue: 275, badge: 'tema-geologie-1000' },
+        { id: 'banka', hidesHand: true, fixed: true, title: 'Baňka s lektvarem', slot: 'hand', hue: 185, badge: 'tema-chemie-300' },
+        { id: 'vybuch', title: 'Po výbuchu', slot: 'head', hue: 0, badge: 'tema-chemie-1000' },
+        { id: 'magnet', hidesHand: true, fixed: true, title: 'Magnet', slot: 'hand', hue: 0, badge: 'tema-fyzika-300' },
+        { id: 'jablko', title: 'Newtonovo jablko', slot: 'head', hue: 50, badge: 'tema-fyzika-1000' },
+        { id: 'paleta', hidesHand: true, fixed: true, title: 'Malířská paleta', slot: 'hand', hue: 30, badge: 'tema-umeni-300' },
+        { id: 'dali-knir', keepsMonocle: true, title: 'Kroucený knír', slot: 'face', hue: 0, badge: 'tema-umeni-1000' },
+        { id: 'plany', hidesHand: true, fixed: true, title: 'Stavební plány', slot: 'hand', hue: 215, badge: 'tema-architektura-300' },
+        { id: 'tesarska-tuzka', title: 'Tesařská tužka', slot: 'head', hue: 15, badge: 'tema-architektura-1000' },
+        { id: 'hvezdne-bryle', title: 'Hvězdné brýle', slot: 'face', hue: 0, badge: 'tema-hudba-300' },
+        { id: 'kytara', title: 'Elektrická kytara', slot: 'neck', hue: 45, badge: 'tema-hudba-1000' },
+        { id: 'knihy', hidesHat: true, title: 'Komínek knih', slot: 'head', hue: 30, badge: 'tema-literatura-300' },
+        { id: 'pulmesicove-bryle', title: 'Půlměsícové brýle', slot: 'face', hue: 45, badge: 'tema-literatura-1000' },
+        { id: 'popcorn', hidesHand: true, fixed: true, title: 'Kornout popcornu', slot: 'hand', hue: 215, badge: 'tema-film-300' },
+        { id: 'filmovy-pas', title: 'Filmový pás', slot: 'neck', hue: 0, badge: 'tema-film-1000' },
+        { id: 'pistalka', title: 'Píšťalka', slot: 'neck', hue: 215, badge: 'tema-sport-300' },
+        { id: 'pohar', hidesHand: true, fixed: true, title: 'Vítězný pohár', slot: 'hand', hue: 45, badge: 'tema-sport-1000' }
     ];
     // Měsíční doplňky Sezóny Mudrlanta (docs/OBRAZKY.md č. 134–145): jen ze Sezónní truhly svého měsíce (SEASON_BUNDLES níže),
     // úrovní, odznakem ani Truhlou Mudrlanta ne (exclusive, month a source jako rámečky sezóny SEASON_FRAMES). Ve výběru doplňků
@@ -212,6 +242,10 @@
         { id: 'sala-zimni', title: 'Zimní šála', slot: 'neck', hue: 140 }
     ].map((item, index) => ({ ...item, month: index + 1, exclusive: true, source: 'season' }));
     ACCESSORIES.push(...SEASON_ACCESSORIES);
+    // Sada doplňků tématu: kus za zběhlost (zbehly-<téma>), za 300 a za 1000 správných odpovědí v tématu (tema-<téma>-300, -1000);
+    // [{ item, badge, step }] jen s kusy, které v katalogu jsou (dvourohý klobouk Historie zatím chybí). step: 'skill' | 300 | 1000
+    const TOPIC_SET_STEPS = [['skill', (topic) => `zbehly-${topic}`], [300, (topic) => `tema-${topic}-300`], [1000, (topic) => `tema-${topic}-1000`]];
+    const topicSet = (topic) => TOPIC_SET_STEPS.flatMap(([step, badgeOf]) => ACCESSORIES.filter(item => item.badge === badgeOf(topic)).map(item => ({ item, badge: item.badge, step })));
     // Monokl: výchozí sova ho nosí (icons/logo.webp). V místě obličeje si hráč místo něj může vybrat „Bez monoklu“ (uloží se jako
     // { id: NO_MONOCLE }, logo icons/logo-bez-monoklu.webp) nebo doplněk, který monokl nahradí (brýle a maska; knír a páska ho nechají).
     // Uložené volby bez doplňku v obličeji dál znamenají monokl.
@@ -506,5 +540,7 @@
         // Rámečky ligových sezón (schéma 18)
         LEAGUE_FRAMES, setLeagueBest, leagueBest: () => leagueBest,
         // Obrázkové rámečky
-        ART_FRAMES };
+        ART_FRAMES,
+        // Sady doplňků k tématům
+        topicSet };
 });

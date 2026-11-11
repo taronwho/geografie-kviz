@@ -294,8 +294,8 @@
         </button>`;
     }).join('')}</div>`;
     // Sekce: název, počet, ukazatel, titul za celou sekci a mřížka věcí
-    // Sekce s víc než DENSE věcmi (doplňky Mudrlanta) má na širším telefonu sedm sloupců, ať se okno na 390 × 780 vejde bez posouvání;
-    // na 360 × 640 se posouvá (jako Odznaky), dlaždice by jinak byly menší než 40 px
+    // Sekce s víc než DENSE věcmi (doplňky Mudrlanta) má na širším telefonu sedm sloupců (méně posouvání); od sad doplňků k tématům
+    // (68 doplňků) se posouvá na obou velikostech (jako Odznaky), dlaždice by jinak byly menší než 40 px
     const sectionHtml = (entry, badges, h, worn) => {
         const dense = entry.entries.length > DENSE;
         const reward = entry.reward;
