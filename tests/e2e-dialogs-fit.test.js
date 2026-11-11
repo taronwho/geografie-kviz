@@ -288,9 +288,9 @@ const richStorage = () => {
     return {
         'mudrlant.progress': JSON.stringify({ xp: 26000, counters: { correct: 2600, answered: 3400, bestRun: 52, topicBest: { zemepis: 10, historie: 9 }, challengesPlayed: 120, challengeWins: 64 }, badges }),
         'mudrlant.learned': JSON.stringify(learned),
-        // Sezóna Mudrlanta: od 15 000 XP (11 000 XP sezóny = stupeň 14), pět stupňů vyzvednutých; rámeček, postavička a titul z minulé sezóny
+        // Sezóna Mudrlanta: od 15 000 XP (11 000 XP sezóny = stupeň 14), pět stupňů vyzvednutých; oba rámečky, postavička a titul z minulé sezóny
         'mudrlant.rewards': JSON.stringify({ v: 1, freezes: 2, name: 'Jana Nováková', ready: ['2026-11-02'], chests: { '2026-10-26': 'xp' }, diplomas: { zemepis: '2026-10-20' },
-            gifts: { frames: ['sezona-10', 'duha-mracky'], avatars: ['drakpa'], titles: ['sampion-sezony'] },
+            gifts: { frames: ['sezona-10', 'sezona-10-b', 'duha-mracky'], avatars: ['drakpa'], titles: ['sampion-sezony'] },
             season: { id: '2026-11', startXp: 15000, claimed: { 1: 'robes:fialova', 2: 'accessories:kvetina', 3: 'freeze', 4: 'themes:fialova', 5: 'colors:ruzova' } } })
     };
 };

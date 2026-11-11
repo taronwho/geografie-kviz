@@ -255,6 +255,53 @@ test('odměny v Profilu: rámečky, titul a postavičky', { skip: !chromium && '
         await context.close();
     });
 
+    // Rámečky Sezóny Mudrlanta (look.js SEASON_FRAMES a SEASON_MID_FRAMES): obrázkové prsteny, v řadě jen ty, které hráč má
+    await t.test('rámečky sezóny: v řadě jen vlastněné, obrázkový prsten, nasazení do účtu, cizí hráč s nimi', async () => {
+        const db = newDb();
+        db.profiles['u-2'].frame = 'sezona-11';
+        const owned = ['sezona-11-b', 'sezona-02', 'sezona-11'];
+        const { context, tab, log } = await setup(browser, { ...login('tok-u1'), 'mudrlant.rewards': JSON.stringify({ gifts: { frames: owned } }) });
+        await backend(context, db);
+        await tab.goto(`${ORIGIN}/`);
+        await waitForHome(tab);
+        await openLook(tab);
+        // Po měsících (Únorový, Listopadový, Listopadové lampiony), každý jako obrázkový prsten; nevlastněné sezónní v řadě nejsou
+        assert.deepEqual(await tab.$$eval('[data-frame^="sezona-"]', nodes => nodes.map(node => node.dataset.frame)), ['sezona-02', 'sezona-11', 'sezona-11-b']);
+        for (const id of owned) {
+            assert.equal(await tab.locator(`[data-frame="${id}"] .frame-art.frame-${id}`).count(), 1, `náhled ${id}`);
+            assert.doesNotMatch(await tab.getAttribute(`[data-frame="${id}"]`, 'class'), /grayscale/, `${id} odemčený`);
+        }
+        assert.equal(await tab.getAttribute('[data-frame="sezona-11-b"]', 'aria-label'), 'Listopadové lampiony');
+        assert.equal(await tab.getAttribute('[data-frame="sezona-02"]', 'aria-label'), 'Únorový');
+        // Prsten s ozdobami (Únorový sahá nejdál) se vejde do dlaždice
+        const tile = await tab.evaluate(() => {
+            const button = document.querySelector('[data-frame="sezona-02"]').getBoundingClientRect();
+            const avatar = document.querySelector('[data-frame="sezona-02"] .frame-art').getBoundingClientRect();
+            return { button: [button.left, button.top, button.right, button.bottom], ring: [avatar.left - avatar.width / 2, avatar.top - avatar.height / 2, avatar.right + avatar.width / 2, avatar.bottom + avatar.height / 2] };
+        });
+        assert.ok(tile.ring[0] >= tile.button[0] - 0.5 && tile.ring[1] >= tile.button[1] - 0.5 && tile.ring[2] <= tile.button[2] + 0.5 && tile.ring[3] <= tile.button[3] + 0.5, `prsten v dlaždici: ${JSON.stringify(tile)}`);
+        assert.equal(await tab.evaluate(() => { const box = document.querySelector('#settings-overlay > div'); return box.scrollHeight <= box.clientHeight; }), true, 'okno bez posouvání');
+        await tab.click('[data-frame="sezona-11-b"]');
+        await until(() => db.profiles['u-1'].frame === 'sezona-11-b', 'rámeček sezóny v účtu');
+        await tab.waitForFunction(() => /frame-sezona-11-b/.test(document.querySelector('#btn-settings span').className));
+        assert.match(await tab.textContent('[data-look="frames"] p'), /Listopadové lampiony/);
+        const ring = await tab.evaluate(() => { const avatar = document.querySelector('#btn-settings span.frame'); return { cls: avatar.className, image: getComputedStyle(avatar, '::after').backgroundImage, before: getComputedStyle(avatar, '::before').content }; });
+        assert.match(ring.cls, /\bframe frame-art frame-sezona-11-b\b/);
+        assert.match(ring.image, /icons\/frames\/sezona-11-b\.webp/);
+        assert.equal(ring.before, 'none', 'žádný kroužek z přechodu');
+        assert.equal(await tab.evaluate(() => new Promise(resolve => { const image = new Image(); image.onload = () => resolve(image.naturalWidth); image.onerror = () => resolve(0); image.src = 'icons/frames/sezona-11-b.webp'; })), 256);
+        if (process.env.SCREENSHOT_DIR) await tab.screenshot({ path: path.join(process.env.SCREENSHOT_DIR, 'ramecky-sezona.png') });
+        // Cizí hráč se zdobnějším rámečkem listopadu (ze Sezónní truhly)
+        await tab.click('#settings-overlay [data-close]');
+        await tab.click('[data-action="home-tab"][data-tab="multi"]');
+        await tab.waitForSelector('#challenges-section [data-player-id="u-2"]');
+        assert.match(await tab.getAttribute('#challenges-section [data-player-id="u-2"]', 'class'), /frame-art frame-sezona-11(?!-)/);
+        assert.match(await tab.getAttribute('#btn-settings span', 'class'), /frame-art frame-sezona-11-b/);
+        assert.deepEqual(log.errors, []);
+        assert.deepEqual(log.csp, []);
+        await context.close();
+    });
+
     await t.test('nové zařízení převezme rámeček a titul z účtu', async () => {
         const db = newDb();
         Object.assign(db.profiles['u-1'], { frame: 'vavrin', title_pref: 'none' });

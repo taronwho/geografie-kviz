@@ -20,7 +20,8 @@ const input = (extra = {}) => ({ level: 1, badges: {}, gifts: {}, diplomas: {}, 
 const sectionOf = (album, id) => album.sections.find(section => section.id === id);
 // Všechny odznaky kromě odznaků alba (ty si album dopočítá samo)
 const allBadges = () => Object.fromEntries(Core.BADGES.filter(badge => !Core.isAlbumBadge(badge.id)).map(badge => [badge.id, '2026-11-01']));
-// Celá sbírka: úroveň 100, všechny odznaky (bez odznaků alba) a diplomy, rámeček letošní sezóny (listopad, ze Sezónní truhly), vzácné
+// Celá sbírka: úroveň 100, všechny odznaky (bez odznaků alba) a diplomy, oba rámečky letošní sezóny (listopad: ze Sezónní truhly
+// a z Truhly v půli sezóny), vzácné
 // rámečky z Truhly Mudrlanta (chest) a ligový vrchol Mistr (rámečky ligových sezón jdou získat každý měsíc, takže k celému albu patří);
 // run dostane vstup, ligový stav se pak vrátí
 const ALL_DIPLOMAS = Object.fromEntries(TOPICS.map(topic => [topic.id, '2026-11-01']));
@@ -29,9 +30,10 @@ const RARE_FRAMES = Look.FRAMES.filter(item => item.rare).map(item => item.id);
 const CHEST_ONLY = Look.ACCESSORIES.filter(item => item.chest).map(item => item.id);
 // Sezónní doplněk letošního listopadu (Lampion, jen ze Sezónní truhly): jde získat, takže k celému albu patří
 const NOVEMBER_ACC = Look.ACCESSORIES.filter(item => item.month === 11).map(item => item.id);
+const NOVEMBER_FRAMES = ['sezona-11', 'sezona-11-b'];
 const withEverything = (run, extra = {}) => {
     Look.setLeagueBest('mistr');
-    try { return run(input({ level: 100, badges: allBadges(), gifts: { frames: ['sezona-11', ...RARE_FRAMES], accessories: [...CHEST_ONLY, ...NOVEMBER_ACC], avatars: ['caj'] }, diplomas: ALL_DIPLOMAS, ...extra })); } finally { Look.setLeagueBest(null); }
+    try { return run(input({ level: 100, badges: allBadges(), gifts: { frames: [...NOVEMBER_FRAMES, ...RARE_FRAMES], accessories: [...CHEST_ONLY, ...NOVEMBER_ACC], avatars: ['caj'] }, diplomas: ALL_DIPLOMAS, ...extra })); } finally { Look.setLeagueBest(null); }
 };
 // Dočasně přidané položky katalogu (jako sezónní permanentka jiného modulu); po testu se vrátí
 const withItems = (category, items, run) => {
@@ -59,11 +61,18 @@ test('sekce v pořadí a počty z katalogu: věci od začátku se nepočítají,
     const reward = sectionOf(album, 'frames').entries.find(entry => entry.id === 'sberatel');
     assert.equal(reward.state, 'reward');
     assert.equal(reward.counted, false);
-    // Rámečky: bez „Bez rámečku“, bez rámečku za album a bez sezónních z měsíců, které ještě nebyly (10. 11. 2026 jde získat jen listopadový)
+    // Rámečky: bez „Bez rámečku“, bez rámečku za album a bez sezónních z měsíců, které ještě nebyly (10. 11. 2026 jdou získat jen dva
+    // listopadové: ze Sezónní truhly a z Truhly v půli sezóny)
     assert.equal(sectionOf(album, 'frames').total, Look.FRAMES.filter(item => item.id !== 'zadny' && !item.album && Album.availability(item, 'frames', TODAY) !== 'upcoming').length);
-    assert.equal(sectionOf(album, 'frames').total, Look.FRAMES.length - 2 - 11, 'jedenáct sezónních rámečků je zatím skrytých');
+    assert.equal(Look.FRAMES.filter(item => item.source === 'season').length, 24, 'dva rámečky na měsíc');
+    assert.equal(sectionOf(album, 'frames').total, Look.FRAMES.length - 2 - 22, 'dvaadvacet sezónních rámečků je zatím skrytých');
     const keys2 = keys('frames');
-    assert.ok(keys2.includes('sezona-11') && !keys2.includes('sezona-12') && keys2.includes('liga-mistr'), 'listopadový sezónní a ligové rámečky jsou běžně ke sbírání');
+    assert.ok(NOVEMBER_FRAMES.every(id => keys2.includes(id)) && !keys2.includes('sezona-12') && !keys2.includes('sezona-12-b') && keys2.includes('liga-mistr'), 'listopadové sezónní a ligové rámečky jsou běžně ke sbírání');
+    // Oba listopadové jsou omezené (sezónní věc) a chybí, dokud je hráč nemá; text říká, na kterém stupni sezóny čekají
+    const november = NOVEMBER_FRAMES.map(id => sectionOf(album, 'frames').entries.find(entry => entry.id === id));
+    assert.deepEqual(november.map(entry => [entry.state, entry.limited, entry.counted]), [['missing', true, true], ['missing', true, true]]);
+    assert.match(Album.howText(november[0]), /Sezónní truhla na 20\. stupni\)\. Sezónní věc\./);
+    assert.match(Album.howText(november[1]), /Truhla v půli sezóny na 10\. stupni\)\. Sezónní věc\./);
     assert.equal(sectionOf(album, 'frames').entries.find(entry => entry.id === 'liga-mistr').state, 'missing');
     // Tituly u jména (Šampion sezóny) nejsou sekce alba
     assert.ok(!album.sections.some(section => section.id === 'titles'));
@@ -114,13 +123,14 @@ test('100 % je opravdu všechno: celé album, každá sekce kompletní; odznaky 
     assert.equal(Album.build({ ...full, diplomas }).percent, Math.floor((6 + (avatars - 1) / avatars + 13 / 14) / 8 * 100 + 1e-9), 'průměr sekcí: 6 × 100 %, postavičky bez jedné a 13/14 diplomů');
     assert.ok(!Album.build({ ...full, diplomas }).complete.includes('diplomas'));
     assert.ok(!Album.build({ ...full, diplomas }).complete.includes('avatars'));
-    // Bez rámečku letošní sezóny ani bez ligového vrcholu není album celé (obojí teď jde získat)
-    assert.ok(Album.build({ ...full, gifts: { accessories: [...CHEST_ONLY, ...NOVEMBER_ACC], avatars: ['caj'] } }).percent < 100, 'chybí listopadový rámeček');
+    // Bez rámečků letošní sezóny ani bez ligového vrcholu není album celé (obojí teď jde získat)
+    assert.ok(Album.build({ ...full, gifts: { accessories: [...CHEST_ONLY, ...NOVEMBER_ACC], avatars: ['caj'] } }).percent < 100, 'chybí listopadové rámečky');
+    assert.ok(Album.build({ ...full, gifts: { ...full.gifts, frames: ['sezona-11', ...RARE_FRAMES] } }).percent < 100, 'chybí rámeček z Truhly v půli sezóny');
     assert.ok(Album.build({ ...full, gifts: { ...full.gifts, accessories: CHEST_ONLY } }).percent < 100, 'chybí listopadový doplněk (Lampion)');
-    assert.ok(Album.build({ ...full, gifts: { frames: ['sezona-11'], avatars: ['caj'] } }).percent < 100, 'chybí věci z Truhly Mudrlanta');
+    assert.ok(Album.build({ ...full, gifts: { frames: NOVEMBER_FRAMES, avatars: ['caj'] } }).percent < 100, 'chybí věci z Truhly Mudrlanta');
     assert.ok(Album.build({ ...full, gifts: { ...full.gifts, avatars: [] } }).percent < 100, 'chybí listopadová postavička');
     });
-    assert.ok(Album.build(input({ level: 100, badges: allBadges(), gifts: { frames: ['sezona-11'] }, diplomas: ALL_DIPLOMAS })).percent < 100, 'chybí ligové rámečky');
+    assert.ok(Album.build(input({ level: 100, badges: allBadges(), gifts: { frames: NOVEMBER_FRAMES }, diplomas: ALL_DIPLOMAS })).percent < 100, 'chybí ligové rámečky');
 });
 
 test('časově omezené věci: aktivní chybí, skončené se nepočítají („Sezónní – už nejde získat“), budoucí jsou skryté', () => {
@@ -169,7 +179,9 @@ test('časově omezené věci: aktivní chybí, skončené se nepočítají („
     assert.equal(Album.availability(Look.find('frames', 'sezona-01'), 'frames', '2026-12-03'), 'upcoming');
     const december = sectionOf(Album.build(input({ today: '2026-12-03' })), 'frames');
     assert.equal(december.entries.find(entry => entry.id === 'sezona-11').state, 'ended');
+    assert.equal(december.entries.find(entry => entry.id === 'sezona-11-b').state, 'ended');
     assert.equal(december.entries.find(entry => entry.id === 'sezona-12').state, 'missing');
+    assert.equal(december.entries.find(entry => entry.id === 'sezona-12-b').state, 'missing');
     assert.match(Album.howText(december.entries.find(entry => entry.id === 'sezona-11')), /^Sezónní – už nejde získat/);
     assert.equal(sectionOf(Album.build(input({ today: '2026-12-03', gifts: { frames: ['sezona-11'] } })), 'frames').entries.find(entry => entry.id === 'sezona-11').state, 'owned', 'kdo ho má, má ho navždy');
 });

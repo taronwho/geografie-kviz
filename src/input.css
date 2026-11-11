@@ -230,22 +230,47 @@ html.kb-open #settings-overlay > *, html.kb-open #dialog-overlay > * { max-heigh
 /* Věčný oheň (série 365 dní): obrázkový prsten, který plápolá (záře frameFlare jen bez omezení pohybu) */
 .frame-vecny-ohen::after { background-image: url(icons/frames/vecny-ohen.webp); }
 
-/* Sezóna Mudrlanta (season.js): barvy měsíce pro rámeček sezóny (.frame-sezona-MM, look.js SEASON_FRAMES), kartu, pruh a odhalení
-   odměny (.season-mMM). --s1 tmavá (pozadí s bílým písmem), --s2 hlavní, --s3 světlá, --s4 doplňková, --sx ozdoba rámečku. */
-.season-m01, .frame-sezona-01 { --s1: #0c4a6e; --s2: #38bdf8; --s3: #f0f9ff; --s4: #a5f3fc; --sx: '❄️'; }
-.season-m02, .frame-sezona-02 { --s1: #4c1d95; --s2: #a78bfa; --s3: #fce7f3; --s4: #f472b6; --sx: '🎭'; }
-.season-m03, .frame-sezona-03 { --s1: #14532d; --s2: #4ade80; --s3: #fef9c3; --s4: #facc15; --sx: '🌱'; }
-.season-m04, .frame-sezona-04 { --s1: #1e3a8a; --s2: #60a5fa; --s3: #dcfce7; --s4: #34d399; --sx: '☔'; }
-.season-m05, .frame-sezona-05 { --s1: #831843; --s2: #f472b6; --s3: #fdf2f8; --s4: #c084fc; --sx: '🌸'; }
-.season-m06, .frame-sezona-06 { --s1: #854d0e; --s2: #fbbf24; --s3: #fefce8; --s4: #38bdf8; --sx: '☀️'; }
-.season-m07, .frame-sezona-07 { --s1: #134e4a; --s2: #2dd4bf; --s3: #f0fdfa; --s4: #fb7185; --sx: '🌊'; }
-.season-m08, .frame-sezona-08 { --s1: #1e1b4b; --s2: #f97316; --s3: #fef3c7; --s4: #818cf8; --sx: '⭐'; }
-.season-m09, .frame-sezona-09 { --s1: #78350f; --s2: #f59e0b; --s3: #fffbeb; --s4: #dc2626; --sx: '🍎'; }
-.season-m10, .frame-sezona-10 { --s1: #7c2d12; --s2: #ea580c; --s3: #ffedd5; --s4: #a16207; --sx: '🍂'; }
-.season-m11, .frame-sezona-11 { --s1: #3b0764; --s2: #f59e0b; --s3: #fef3c7; --s4: #a855f7; --sx: '🏮'; }
-.season-m12, .frame-sezona-12 { --s1: #7f1d1d; --s2: #16a34a; --s3: #fef9c3; --s4: #dc2626; --sx: '🎄'; }
-.frame[class*="frame-sezona-"] { --frame-bg: conic-gradient(from 20deg, var(--s2), var(--s3) 14%, var(--s4) 30%, var(--s2) 46%, var(--s3) 62%, var(--s4) 80%, var(--s2)); filter: drop-shadow(0 0 0.12em var(--s2)); }
-.frame[class*="frame-sezona-"]::after { content: var(--sx); position: absolute; left: 50%; bottom: calc(var(--fr) * -1 - 0.22em); transform: translateX(-50%); font-size: 0.4em; line-height: 1; pointer-events: none; }
+/* Rámečky sezóny (look.js SEASON_FRAMES a SEASON_MID_FRAMES, docs/OBRAZKY.md č. 163–174): dva obrázkové prsteny na měsíc (.frame-art výš),
+   sezona-MM ze Sezónní truhly na 20. stupni, sezona-MM-b z Truhly v půli sezóny na 10. stupni */
+.frame-sezona-01::after { background-image: url(icons/frames/sezona-01.webp); }
+.frame-sezona-01-b::after { background-image: url(icons/frames/sezona-01-b.webp); }
+.frame-sezona-02::after { background-image: url(icons/frames/sezona-02.webp); }
+.frame-sezona-02-b::after { background-image: url(icons/frames/sezona-02-b.webp); }
+.frame-sezona-03::after { background-image: url(icons/frames/sezona-03.webp); }
+.frame-sezona-03-b::after { background-image: url(icons/frames/sezona-03-b.webp); }
+.frame-sezona-04::after { background-image: url(icons/frames/sezona-04.webp); }
+.frame-sezona-04-b::after { background-image: url(icons/frames/sezona-04-b.webp); }
+.frame-sezona-05::after { background-image: url(icons/frames/sezona-05.webp); }
+.frame-sezona-05-b::after { background-image: url(icons/frames/sezona-05-b.webp); }
+.frame-sezona-06::after { background-image: url(icons/frames/sezona-06.webp); }
+.frame-sezona-06-b::after { background-image: url(icons/frames/sezona-06-b.webp); }
+.frame-sezona-07::after { background-image: url(icons/frames/sezona-07.webp); }
+.frame-sezona-07-b::after { background-image: url(icons/frames/sezona-07-b.webp); }
+.frame-sezona-08::after { background-image: url(icons/frames/sezona-08.webp); }
+.frame-sezona-08-b::after { background-image: url(icons/frames/sezona-08-b.webp); }
+.frame-sezona-09::after { background-image: url(icons/frames/sezona-09.webp); }
+.frame-sezona-09-b::after { background-image: url(icons/frames/sezona-09-b.webp); }
+.frame-sezona-10::after { background-image: url(icons/frames/sezona-10.webp); }
+.frame-sezona-10-b::after { background-image: url(icons/frames/sezona-10-b.webp); }
+.frame-sezona-11::after { background-image: url(icons/frames/sezona-11.webp); }
+.frame-sezona-11-b::after { background-image: url(icons/frames/sezona-11-b.webp); }
+.frame-sezona-12::after { background-image: url(icons/frames/sezona-12.webp); }
+.frame-sezona-12-b::after { background-image: url(icons/frames/sezona-12-b.webp); }
+
+/* Sezóna Mudrlanta (season.js): barvy měsíce pro kartu, pruh a odhalení odměny (.season-mMM). --s1 tmavá (pozadí s bílým písmem),
+   --s2 hlavní, --s3 světlá, --s4 doplňková. */
+.season-m01 { --s1: #0c4a6e; --s2: #38bdf8; --s3: #f0f9ff; --s4: #a5f3fc; }
+.season-m02 { --s1: #4c1d95; --s2: #a78bfa; --s3: #fce7f3; --s4: #f472b6; }
+.season-m03 { --s1: #14532d; --s2: #4ade80; --s3: #fef9c3; --s4: #facc15; }
+.season-m04 { --s1: #1e3a8a; --s2: #60a5fa; --s3: #dcfce7; --s4: #34d399; }
+.season-m05 { --s1: #831843; --s2: #f472b6; --s3: #fdf2f8; --s4: #c084fc; }
+.season-m06 { --s1: #854d0e; --s2: #fbbf24; --s3: #fefce8; --s4: #38bdf8; }
+.season-m07 { --s1: #134e4a; --s2: #2dd4bf; --s3: #f0fdfa; --s4: #fb7185; }
+.season-m08 { --s1: #1e1b4b; --s2: #f97316; --s3: #fef3c7; --s4: #818cf8; }
+.season-m09 { --s1: #78350f; --s2: #f59e0b; --s3: #fffbeb; --s4: #dc2626; }
+.season-m10 { --s1: #7c2d12; --s2: #ea580c; --s3: #ffedd5; --s4: #a16207; }
+.season-m11 { --s1: #3b0764; --s2: #f59e0b; --s3: #fef3c7; --s4: #a855f7; }
+.season-m12 { --s1: #7f1d1d; --s2: #16a34a; --s3: #fef9c3; --s4: #dc2626; }
 /* Karta v Mém postupu, hlavička okna sezóny a pruh na úvodu: tmavá barva měsíce do královské fialové */
 .season-card { background: linear-gradient(120deg, var(--s1), #2e1065 75%); }
 .season-strip { background: linear-gradient(100deg, var(--s1), #4c1d95); --tw-ring-color: var(--s2); }
@@ -294,7 +319,9 @@ html.kb-open #settings-overlay > *, html.kb-open #dialog-overlay > * { max-heigh
     .season-royal.season-reveal { animation: seasonRoyal 3.2s ease-in-out infinite; }
 }
 @keyframes seasonGlow { 0%, 100% { opacity: 0; } 50% { opacity: 1; } }
-@keyframes seasonGlint { 0%, 70%, 100% { rotate: 0deg; scale: 1; } 78% { rotate: -10deg; scale: 1.08; } 86% { rotate: 8deg; scale: 1.08; } 94% { rotate: 0deg; scale: 1; } }
+/* Zablýsknutí znaku v pruhu: měřítko násobí --glint (znak v obrázkovém rámečku .frame-art je zmenšený na 80 %) */
+.season-mini.frame-art { --glint: 0.8; }
+@keyframes seasonGlint { 0%, 70%, 100% { rotate: 0deg; scale: var(--glint, 1); } 78% { rotate: -10deg; scale: calc(var(--glint, 1) * 1.08); } 86% { rotate: 8deg; scale: calc(var(--glint, 1) * 1.08); } 94% { rotate: 0deg; scale: var(--glint, 1); } }
 @keyframes seasonRoyal { 0%, 100% { filter: drop-shadow(0 0 1.1rem rgb(167 139 250 / 0.4)); } 50% { filter: drop-shadow(0 0 1.8rem rgb(216 180 254 / 0.65)); } }
 
 /* Ligy (rating.js): barevný kroužek s ikonou (.league-*) a barva textu (.league-fg-*); světlé i tmavé pozadí */

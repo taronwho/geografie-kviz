@@ -15,7 +15,8 @@ const AVATAR_ART = ['cervik', 'axolot', 'kaktus', 'drak', 'mamut', 'meduza', 'le
     // Sezónní postavičky ze Sezónní truhly (look.js SEASON_AVATARS)
     'ramp', 'kobliz', 'snezen', 'kapka', 'pampel', 'vysved', 'meloun', 'hvezda', 'aktovk', 'drakpa', 'caj', 'pernik'];
 // Obrázkové rámečky profilu (icons/frames/<id>.webp); stejný seznam má look.js (FRAMES s art: true), hlídá tests/look-frames.test.js
-const FRAME_ART = ['vecny-ohen', 'ohen', 'more', 'soukoli', 'galaxie', 'kralovsky-vavrin', 'blesk', 'led', 'drak', 'duha-mracky', 'ruze'];
+const FRAME_ART = ['vecny-ohen', 'sezona-01', 'sezona-01-b', 'sezona-02', 'sezona-02-b', 'sezona-03', 'sezona-03-b', 'sezona-04', 'sezona-04-b', 'sezona-05', 'sezona-05-b', 'sezona-06', 'sezona-06-b', 'sezona-07', 'sezona-07-b', 'sezona-08', 'sezona-08-b', 'sezona-09', 'sezona-09-b', 'sezona-10', 'sezona-10-b', 'sezona-11', 'sezona-11-b', 'sezona-12', 'sezona-12-b',
+    'ohen', 'more', 'soukoli', 'galaxie', 'kralovsky-vavrin', 'blesk', 'led', 'drak', 'duha-mracky', 'ruze'];
 const APP_SHELL = [
     './', 'index.html', 'styles.css', 'config.js', 'friends.js', 'groups.js', 'soukromi.html', 'licence.html', 'licence.js', 'question-report.js', 'answer-stats.js', 'monitor.js', 'auth.js', 'social.js', 'icons.js', 'quiz-core.js', 'photo-source.js', 'visuals.js', 'question-map.js', 'numeric-questions.js', 'look-flags.js', 'look.js', 'look-themes.js', 'look-robes.js', 'look-frames.js', 'look-owl.js', 'rating.js', 'league-seasons.js', 'showcase.js', 'tournament.js', 'review.js', 'goals.js', 'tips.js', 'tutorial.js', 'push.js', 'daily-quiz.js', 'share-card.js', 'rewards.js', 'season.js', 'app.js', 'manifest.webmanifest', 'album.js',
     'topics/zemepis.js', 'data/zemepis.json', 'topics/historie.js', 'data/historie.json', 'topics/biologie.js', 'data/biologie.json',

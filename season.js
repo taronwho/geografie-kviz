@@ -3,9 +3,11 @@
 // s rostoucími kroky; každý dosažený stupeň se vyzvedne klepnutím a dá odměnu:
 // - většina stupňů věc pro Mudrlanta, kterou hráč ještě nemá (stejný výběr jako Truhla Mudrlanta: nejbližší věci odemykané úrovní,
 //   nikdy věci za odznaky), na stupních FREEZE_TIERS ochranu série (když jich hráč nemá plný počet, jinak věc);
-// - 10. stupeň „Truhla v půli sezóny“: dvě věci naráz (truhla s obřadem jako Truhla Mudrlanta);
+// - 10. stupeň „Truhla v půli sezóny“: dvě věci naráz (truhla s obřadem jako Truhla Mudrlanta); jedna z nich je druhý rámeček měsíce
+//   (Look.seasonMidFrame, sezona-MM-b), dokud ho hráč nemá, druhá věc jiného druhu;
 // - 20. stupeň „Sezónní truhla“: doplněk, rámeček a postavička toho měsíce (Look.SEASON_BUNDLES, jen co už v katalogu je) a titul
-//   „Šampion sezóny“. Věci ze sezóny má hráč navždy, jinak se získat nedají (exclusive v look.js).
+//   „Šampion sezóny“. Věci ze sezóny má hráč navždy, jinak se získat nedají (exclusive v look.js). Oba rámečky měsíce jsou tedy na cestě:
+//   jednodušší v půli, zdobnější na vrcholu; Truhla Mudrlanta ani úrovně je nedají.
 // Výběr věci je losovaný, ale stejný na všech zařízeních: los je určený sezónou, stupněm a hráčem (rngFor).
 // Po konci měsíce jde dosažené a nevyzvednuté stupně minulé sezóny vyzvednout ještě GRACE_DAYS dní, pak propadnou.
 // Stav je v odměnách (rewards.js: season, past; sloučení mezi zařízeními tam). Okna a napojení na hru dělá app.js (oddíl „Sezóna“).
@@ -112,6 +114,9 @@
     // XP sezóny: běžící = od začátku do teď, minulá = od začátku do konce (endXp)
     const xpOf = (record, xp, past = false) => (!record ? 0 : Math.max(0, (past ? record.endXp ?? record.startXp : Math.floor(Number(xp) || 0)) - record.startXp));
 
+    // Druhý rámeček měsíce sezóny (Truhla v půli sezóny), nebo null
+    const midFrame = (id) => (Look && Look.seasonMidFrame && isSeason(id) ? Look.seasonMidFrame(monthOf(id)) : null);
+
     // --- Stav (v rewards.js) ---
     const parse = (state) => Rewards.parse(state);
     // Sezóna podle dneška: první spuštění v měsíci ji založí od teď, nový měsíc přesune běžící do past (s XP na konci). Vrátí { state, changed }
@@ -157,8 +162,11 @@
         const list = pending(s, { today, xp });
         const record = s.season && s.season.id === seasonOf(today) ? s.season : null;
         const past = s.past && inGrace(s.past.id, today) ? s.past : null;
+        const frame = midFrame(seasonOf(today));
         return {
             record, id: record ? record.id : seasonOf(today), progress: progressOf(xpOf(record, xp)), daysLeft: daysLeft(seasonOf(today), today),
+            // Druhý rámeček měsíce, který hráč ještě nemá (čeká v Truhle v půli sezóny), jinak null
+            midFrame: frame && !(s.gifts.frames || []).includes(frame.id) ? frame : null,
             pending: list, current: list.filter(entry => entry.which === 'season'), pastPending: list.filter(entry => entry.which === 'past'),
             past, pastUntil: past ? graceEnd(past.id) : '', pastProgress: past ? progressOf(xpOf(past, xp, true)) : null
         };
@@ -214,8 +222,12 @@
             // Truhla nesmí být prázdná (hráč už měsíc kdysi dohrál): aspoň jedna věc navíc
             if (!parts.some(part => part.category !== 'titles')) { if (!addItem([])) addSmall(); }
         } else if (kind === 'double') {
-            // Dvě věci různého druhu; když chybí, ochrana série nebo body
-            if (addItem(lastCategory ? [lastCategory] : [])) { if (!addItem(parts.map(part => part.category))) addSmall(); } else { if (roomForFreeze()) parts.push({ freeze: true }); parts.push({ xp: FALLBACK_XP }); }
+            // Druhý rámeček měsíce (dokud ho hráč nemá) a k němu věc jiného druhu; jinak dvě věci různého druhu; když chybí, ochrana série nebo body
+            const frame = midFrame(record.id);
+            if (frame && !owns(s, 'frames', frame.id)) {
+                parts.push({ category: 'frames', item: frame });
+                if (!addItem(['frames', lastCategory].filter(Boolean))) addSmall();
+            } else if (addItem(lastCategory ? [lastCategory] : [])) { if (!addItem(parts.map(part => part.category))) addSmall(); } else { if (roomForFreeze()) parts.push({ freeze: true }); parts.push({ xp: FALLBACK_XP }); }
         } else if (kind === 'freeze') {
             if (roomForFreeze()) parts.push({ freeze: true });
             else if (!addItem(lastCategory ? [lastCategory] : [])) parts.push({ xp: FALLBACK_XP });
@@ -235,10 +247,11 @@
     const formatXp = (value) => Math.round(value).toLocaleString('cs-CZ').replace(/\s/g, ' ');
     const KIND_NAMES = { ...(Rewards ? Rewards.KIND_NAMES : {}), titles: 'titul u jména', avatars: 'postavička' };
     const mm = (id) => pad2(monthOf(id));
-    // Znak sezóny: logo Mudrlanta v rámečku měsíce (CSS .frame-sezona-MM)
     // Obrázek Sezóny (cesta se stupni a truhlou na vrcholu, docs/OBRAZKY.md č. 133): karta v Mém postupu a záhlaví okna sezóny
     const artHtml = (cls) => `<img src="icons/topics/sezona.webp" alt="" class="${cls} shrink-0 object-contain drop-shadow-md" data-season-art>`;
-    const emblemHtml = (id, cls = 'h-10 w-10', text = 'text-[1.6rem]') => `<span class="relative flex ${cls} ${text} shrink-0 items-center justify-center rounded-full bg-white frame frame-sezona-${mm(id)}" aria-hidden="true"><img src="icons/logo.webp" alt="" class="h-[80%] w-[80%] object-contain"></span>`;
+    // Znak sezóny (pruh na úvodu, 20. stupeň na cestě, odkaz na minulou sezónu): logo Mudrlanta ve zdobnějším rámečku měsíce ze Sezónní
+    // truhly (obrázkový prsten .frame-art .frame-sezona-MM v src/input.css; text = velikost písma, dřív tloušťka kroužku z CSS)
+    const emblemHtml = (id, cls = 'h-10 w-10', text = 'text-[1.6rem]') => `<span class="relative flex ${cls} ${text} shrink-0 items-center justify-center rounded-full bg-white frame frame-art frame-sezona-${mm(id)}" aria-hidden="true"><img src="icons/logo.webp" alt="" class="h-[80%] w-[80%] object-contain"></span>`;
     // Ukázka části odměny (věc, ochrana, XP, titul, postavička)
     const prizeHtml = (part, h = {}, size = 'h-16 w-16') => {
         if (part.freeze) return Rewards.freezeArt(`${size} drop-shadow-lg`);
@@ -263,6 +276,9 @@
     const revealNote = (kind, parts) => {
         if (kind === 'bundle') return `Věci sezóny se jinak získat nedají. Patří ti navždy${parts.some(part => part.category === 'avatars') ? ', postavičku najdeš v Nastavení → Profil' : ''}.`;
         const items = parts.filter(part => part.item);
+        // Truhla v půli sezóny s druhým rámečkem měsíce
+        const exclusive = items.find(part => part.item.exclusive);
+        if (exclusive) return `${exclusive.category === 'frames' ? 'Rámeček sezóny' : 'Věc sezóny'} se jinak získat nedá. ${items.length > 1 ? 'Obě věci ti patří' : 'Patří ti'} navždy.`;
         if (items.length === 1 && items[0].item.chest) return 'Tahle věc je jen v Truhle Mudrlanta a v Sezóně. Patří ti navždy.';
         if (items.length === 1 && items[0].item.level) return `Odemčeno dřív, jinak až od úrovně ${items[0].item.level}.`;
         if (items.length) return 'Odemčeno dřív, než by přišlo s úrovní.';
@@ -279,11 +295,13 @@
         return `<span class="flex h-7 w-7 items-center justify-center rounded-full ${ready ? 'bg-white/80 text-violet-700' : 'bg-violet-100 text-violet-700 dark:bg-violet-900/50 dark:text-violet-200'}"><i data-lucide="sparkles" class="h-4 w-4"></i></span>`;
     };
     const TIER_TEXT = { item: 'Věc pro Mudrlanta, kterou ještě nemáš', freeze: 'Ochrana série (při plném počtu věc)', double: 'Truhla v půli sezóny: dvě věci naráz', bundle: 'Sezónní truhla: rámeček měsíce a titul Šampion sezóny' };
+    // 10. stupeň: druhý rámeček měsíce a k němu další věc; frame = ten rámeček, null = hráč ho už má (pak dvě věci), bez něj podle sezóny
+    const doubleText = (id, frame = midFrame(id)) => (frame ? `Truhla v půli sezóny: ${partLabel({ category: 'frames', item: frame })} a k tomu další věc` : TIER_TEXT.double);
     const bundleText = (id) => {
         const names = (Look ? Look.seasonBundle(monthOf(id)) : []).map(entry => (entry.category === 'titles' ? `titul ${entry.item.title}` : entry.category === 'frames' ? `${entry.item.title} rámeček` : entry.category === 'avatars' ? `postavička ${entry.item.title}` : entry.item.title));
         return names.length ? `Sezónní truhla: ${names.join(', ')}` : TIER_TEXT.bundle;
     };
-    const tierText = (tier, id) => (kindOf(tier) === 'bundle' ? bundleText(id) : TIER_TEXT[kindOf(tier)]);
+    const tierText = (tier, id, frame) => (kindOf(tier) === 'bundle' ? bundleText(id) : kindOf(tier) === 'double' ? doubleText(id, frame) : TIER_TEXT[kindOf(tier)]);
     const countText = (n) => `${n} ${n === 1 ? 'odměna' : n >= 2 && n <= 4 ? 'odměny' : 'odměn'}`;
 
     // Pruh na úvodu (místo cílů týdne, jako Truhla Mudrlanta): čekající odměny sezóny, klepnutím se vyzvedne první
@@ -318,6 +336,8 @@
     // a pod ní popis zvoleného stupně. Dlaždice: zamčená (šedá, XP potřebné na stupeň), čeká (zlatá, svítí), vyzvednutá (co dala).
     const pathHtml = (view, { selected = null, h = {} } = {}) => {
         const { id, record, progress, daysLeft: left, current, pastPending, past, pastUntil } = view;
+        // Co čeká na 10. stupni: druhý rámeček měsíce, dokud ho hráč nemá (view.midFrame; starší přehled bez něj = podle sezóny)
+        const frame = 'midFrame' in view ? view.midFrame : undefined;
         const claimed = record ? record.claimed : {};
         const waiting = new Set(current.map(entry => entry.tier));
         const pick = selected || (current[0] ? current[0].tier : Math.min(TIERS, progress.tier + 1));
@@ -328,7 +348,7 @@
             const special = tier === DOUBLE_TIER || tier === BUNDLE_TIER;
             const icon = got && got.length ? `<span class="flex h-7 w-7 items-center justify-center">${prizeHtml(got[0], h, 'h-7 w-7')}</span>` : tierIconHtml(tier, id, ready);
             const foot = got ? '<i data-lucide="check" class="h-3 w-3 stroke-[3]"></i>' : ready ? 'Vzít!' : `${THRESHOLDS[tier - 1] >= 10000 ? `${String(Math.round(THRESHOLDS[tier - 1] / 100) / 10).replace('.', ',')}k` : formatXp(THRESHOLDS[tier - 1])}`;
-            const text = `Stupeň ${tier}: ${got ? `vyzvednuto – ${got.map(partName).join(', ')}` : ready ? 'odměna čeká, klepni a vyzvedni ji' : `za ${formatXp(THRESHOLDS[tier - 1])} XP v sezóně`}`;
+            const text = `Stupeň ${tier}: ${got ? `vyzvednuto – ${got.map(partName).join(', ')}` : `${special ? `${tierText(tier, id, frame)}, ` : ''}${ready ? 'odměna čeká, klepni a vyzvedni ji' : `za ${formatXp(THRESHOLDS[tier - 1])} XP v sezóně`}`}`;
             const tone = state === 'ready' ? 'season-ready bg-gradient-to-b from-gold-100 to-gold-300 text-brand-950 ring-2 ring-gold-500 shadow-md'
                 : state === 'claimed' ? 'bg-white text-emerald-700 shadow-sm ring-1 ring-emerald-300 dark:bg-slate-800 dark:text-emerald-300 dark:ring-emerald-700'
                     : `bg-slate-100 text-slate-500 dark:bg-slate-800/80 dark:text-slate-400${special ? ' ring-1 ring-violet-300 dark:ring-violet-700' : ''}`;
@@ -340,7 +360,7 @@
         };
         const tiers = Array.from({ length: TIERS }, (_, index) => tile(index + 1)).join('');
         const got = claimed[pick] ? decode(claimed[pick]) : null;
-        const detail = got ? `Vyzvednuto: ${got.map(part => `${partName(part)} (${partKind(part)})`).join(', ')}` : waiting.has(pick) ? `${tierText(pick, id)}. Čeká na tebe!` : `${tierText(pick, id)}. Za ${formatXp(THRESHOLDS[pick - 1])} XP v sezóně${progress.xp < THRESHOLDS[pick - 1] ? ` (chybí ${formatXp(THRESHOLDS[pick - 1] - progress.xp)})` : ''}.`;
+        const detail = got ? `Vyzvednuto: ${got.map(part => `${partName(part)} (${partKind(part)})`).join(', ')}` : waiting.has(pick) ? `${tierText(pick, id, frame)}. Čeká na tebe!` : `${tierText(pick, id, frame)}. Za ${formatXp(THRESHOLDS[pick - 1])} XP v sezóně${progress.xp < THRESHOLDS[pick - 1] ? ` (chybí ${formatXp(THRESHOLDS[pick - 1] - progress.xp)})` : ''}.`;
         const total = pastPending.length + current.length;
         return `
         <div class="flex flex-col gap-2" data-season-path="${esc(id)}">
@@ -369,7 +389,9 @@
         const parts = opened ? opened.parts : [];
         const fan = parts.length > 1;
         const size = fan ? (parts.length > 2 ? 'h-[3.4rem] w-[3.4rem]' : 'h-16 w-16') : 'h-[5rem] w-[5rem]';
-        const prizes = parts.map((part, index) => `<div data-season-prize class="chest-prize season-fan-${index + 1}${part.category === 'frames' ? ' text-[2.2rem]' : ''}">${prizeHtml(part, h, size)}</div>`).join('');
+        // Obrázkový prsten rámečku (.frame-art) je skoro dvakrát širší než obrázek uvnitř: menší obrázek, ať prsten nepřekryje sousední věc
+        const artSize = fan ? (parts.length > 2 ? 'h-12 w-12' : 'h-14 w-14') : 'h-16 w-16';
+        const prizes = parts.map((part, index) => `<div data-season-prize class="chest-prize season-fan-${index + 1}${part.category === 'frames' ? ' text-[2.2rem]' : ''}">${prizeHtml(part, h, part.category === 'frames' && part.item.art ? artSize : size)}</div>`).join('');
         const art = (kind === 'bundle' && seasonChestArt(id)) || { closed: 'truhla', open: 'truhla-otevrena' };
         const body = chest ? `
                         <img src="icons/topics/${art.closed}.webp" alt="" class="chest-lid-closed h-full w-full object-contain drop-shadow-lg">

@@ -229,8 +229,14 @@
     const SEASON_MONTHS = ['Leden', 'Únor', 'Březen', 'Duben', 'Květen', 'Červen', 'Červenec', 'Srpen', 'Září', 'Říjen', 'Listopad', 'Prosinec'];
     const SEASON_ADJECTIVES = ['Lednový', 'Únorový', 'Březnový', 'Dubnový', 'Květnový', 'Červnový', 'Červencový', 'Srpnový', 'Zářijový', 'Říjnový', 'Listopadový', 'Prosincový'];
     const pad2 = (month) => String(month).padStart(2, '0');
-    // Rámečky sezóny: CSS .frame-sezona-01 … -12 (barvy měsíce v src/input.css), jen ze Sezónní truhly svého měsíce
-    const SEASON_FRAMES = SEASON_ADJECTIVES.map((title, index) => ({ id: `sezona-${pad2(index + 1)}`, title, month: index + 1, exclusive: true, source: 'season' }));
+    // Rámečky sezóny: dva obrázkové prsteny na měsíc (art: true, icons/frames/<id>.webp ze scripts/frame-images.py, docs/OBRAZKY.md
+    // č. 163–174), oba jen ze Sezóny svého měsíce. Zdobnější sezona-MM (jméno = přídavné jméno měsíce) je v Sezónní truhle na 20. stupni
+    // (SEASON_BUNDLES); dřív to byl kroužek z CSS stejného id, kdo ho má, má teď obrázek. Jednodušší sezona-MM-b (vlastní jméno) dává
+    // Truhla v půli sezóny na 10. stupni (season.js, seasonMidFrame). seasonTier = stupeň, na kterém rámeček čeká (text, jak ho získat).
+    const SEASON_FRAMES = SEASON_ADJECTIVES.map((title, index) => ({ id: `sezona-${pad2(index + 1)}`, title, month: index + 1, exclusive: true, source: 'season', art: true, seasonTier: 20 }));
+    const SEASON_MID_TITLES = ['Lednové rampouchy', 'Únorové masky', 'Březnové sněženky', 'Dubnové kapky', 'Májové květy', 'Červnové slunečnice',
+        'Červencová pláž', 'Srpnová noc', 'Zářijové pastelky', 'Říjnoví draci', 'Listopadové lampiony', 'Prosincové perníčky'];
+    const SEASON_MID_FRAMES = SEASON_MID_TITLES.map((title, index) => ({ id: `sezona-${pad2(index + 1)}-b`, title, month: index + 1, exclusive: true, source: 'season', art: true, seasonTier: 10 }));
     // Rámečky za sérii dní dnešních otázek (odznaky skupiny 'serie' v quiz-core): 7 dní Jiskra, 30 dní Plamenný (výš ve FRAMES),
     // 100 dní Stovka, 365 dní Věčný oheň. Animace v src/input.css (.frame-jiskra, .frame-stovka); Věčný oheň je obrázkový prsten
     // (art: true, icons/frames/vecny-ohen.webp ze scripts/frame-images.py, docs/OBRAZKY.md č. 146), který v CSS plápolá (.frame-vecny-ohen).
@@ -240,14 +246,14 @@
         { id: 'stovka', title: 'Stovka', badge: 'serie-100' },
         { id: 'vecny-ohen', title: 'Věčný oheň', badge: 'serie-365', art: true }
     ];
-    FRAMES.push(...STREAK_FRAMES, ...SEASON_FRAMES);
+    // Rámečky sezóny po měsících: Lednový, Lednové rampouchy, Únorový, …
+    FRAMES.push(...STREAK_FRAMES, ...SEASON_FRAMES.flatMap((item, index) => [item, SEASON_MID_FRAMES[index]]));
     // Titul u jména za celou sezónu (Sezónní truhla na 20. stupni); ukládá se jako title_pref stejně jako odznak
     const TITLES = [{ id: 'sampion-sezony', title: 'Šampion sezóny', exclusive: true, source: 'season' }];
     // Sezónní truhla (20. stupeň sezóny): pro každý měsíc doplněk, rámeček a postavička. Do truhly jde jen to, co už v katalogu je
     // (doplněk v ACCESSORIES s obrázky v icons/doplnky, postavička v AVATARS s obrázky v icons/avatars, rámeček ve FRAMES), takže přidat
-    // novou věc = jen přidat její položku s exclusive: true a month (a obrázky). Doplňky (SEASON_ACCESSORIES) a rámečky už v katalogu
-    // jsou, postavičky jsou plánovaná id (jen písmena, nejvýš 6 znaků); obrázkový rámeček ramecek-sezona-01 … -12 může později nahradit
-    // CSS rámeček stejného id.
+    // novou věc = jen přidat její položku s exclusive: true a month (a obrázky). Doplňky (SEASON_ACCESSORIES), rámečky a postavičky
+    // (SEASON_AVATARS) už v katalogu jsou. Druhý rámeček měsíce (sezona-MM-b) do Sezónní truhly nepatří: dává ho Truhla v půli sezóny (seasonMidFrame).
     const SEASON_BUNDLES = {
         '01': { accessory: 'cepice-zimni', frame: 'sezona-01', character: 'ramp' },
         '02': { accessory: 'karneval', frame: 'sezona-02', character: 'kobliz' },
@@ -343,7 +349,7 @@
         if (item.badge) return Boolean(ctx && ctx.badges && ctx.badges[item.badge]);
         return Boolean(ctx) && ctx.level >= (item.level || 1);
     };
-    const unlockText = (item, badgeTitle = null) => item.exclusive ? (item.month ? `Sezóna Mudrlanta (${SEASON_MONTHS[item.month - 1].toLocaleLowerCase('cs')}, Sezónní truhla na 20. stupni)` : 'Sezóna Mudrlanta (celá cesta sezóny)')
+    const unlockText = (item, badgeTitle = null) => item.exclusive ? (item.month ? `Sezóna Mudrlanta (${SEASON_MONTHS[item.month - 1].toLocaleLowerCase('cs')}, ${item.seasonTier === 10 ? 'Truhla v půli sezóny na 10. stupni' : 'Sezónní truhla na 20. stupni'})` : 'Sezóna Mudrlanta (celá cesta sezóny)')
         : item.rare ? 'Vzácný dárek z Truhly Mudrlanta' : item.chest ? 'Z Truhly Mudrlanta' : item.diploma ? `Diplom: ${DIPLOMA_TOPICS[item.diploma] || item.diploma}`
             : item.league ? `Ligová sezóna: vrchol ${item.leagueName}` : item.badge ? `Odznak: ${badgeTitle || item.badge}` : `Úroveň ${item.level}`;
     const categoryOf = (item) => CATEGORY_OF.get(item) || null;
@@ -486,6 +492,8 @@
             .map(([category, id]) => ({ category, item: id ? find(category, id) : null }))
             .filter(({ item }) => item && (item.exclusive || item.id === TITLES[0].id));
     };
+    // Druhý rámeček měsíce (1–12) pro Truhlu v půli sezóny (season.js, 10. stupeň), nebo null
+    const seasonMidFrame = (month) => find('frames', `sezona-${pad2(month)}-b`);
     // Vlastní titul (ne odznak) podle id, nebo null
     const titleItem = (id) => find('titles', id);
 
@@ -494,7 +502,7 @@
         // Legendární postavičky za diplom tématu
         DIPLOMA_TOPICS, isLegendary, rewardsForDiploma,
         // Sezóna a série dní
-        SEASON_MONTHS, SEASON_ADJECTIVES, SEASON_FRAMES, SEASON_AVATARS, STREAK_FRAMES, TITLES, SEASON_BUNDLES, seasonBundle, titleItem,
+        SEASON_MONTHS, SEASON_ADJECTIVES, SEASON_FRAMES, SEASON_MID_FRAMES, SEASON_AVATARS, STREAK_FRAMES, TITLES, SEASON_BUNDLES, seasonBundle, seasonMidFrame, titleItem,
         // Rámečky ligových sezón (schéma 18)
         LEAGUE_FRAMES, setLeagueBest, leagueBest: () => leagueBest,
         // Obrázkové rámečky

@@ -1279,6 +1279,8 @@ Za poslední stupeň sezóny hráč dostane **balík**: měsíční doplněk Mud
 
 **Stav postaviček: všech dvanáct (č. 151–162) je dodaných a zapojených do hry.** Zdroje jsou v `branding/ikony/avatar-<id>.png` (dodané s průhledným pozadím jsou uložené položené na #2d3034; tmavý kruh nebo dlaždice za postavičkou má skoro barvu pozadí a vyřízne se s ním), `python3 scripts/avatar-icons.py <id>` z nich vyrobí `icons/avatars/<id>.webp` a vrstvy dvou přebarvitelných částí v devíti barvách. V katalogu jsou jako `SEASON_AVATARS` v `look.js` (jen dárek, `month` = měsíc sezóny), do Sezónní truhly jdou podle `SEASON_BUNDLES`; Truhla Mudrlanta, úrovně ani odznaky je nedají. Ve výběru obrázku (Nastavení → Profil → Postavičky) jsou jen vlastněné (víc než tři řádky se posouvají uvnitř mřížky), cizí profil je ukáže vždy a Album sbírky je má jako sezónní věci. Service worker ukládá jejich obrázky předem (`AVATAR_ART` v `sw.js`).
 
+**Rámečky sezóny (č. 163–174): ✅ dodané všechny, každý měsíc ve dvou variantách, obě jsou na cestě sezóny.** Zdobnější kresba je `sezona-MM` (jméno = přídavné jméno měsíce, „Lednový“): má stejné id jako dřívější kroužek z CSS, takže kdo ho už má, má teď obrázek, a dává ho **Sezónní truhla na 20. stupni** spolu s doplňkem, postavičkou a titulem. Jednodušší kresba je `sezona-MM-b` s vlastním jménem („Lednové rampouchy“) a dává ji **Truhla v půli sezóny na 10. stupni**: jedna z jejích dvou věcí je tenhle rámeček (dokud ho hráč nemá, jinak dvě běžné věci jako dřív), druhá věc jiného druhu. Na cestě je to vidět dopředu (popis stupně 10 a 20, dlaždice 20. stupně ukazuje zdobnější rámeček). Oba jsou exkluzivní: jen ze Sezóny svého měsíce (každý rok znovu), Truhla Mudrlanta, úrovně ani odznaky je nedají; v řadě rámečků v Profilu jsou, až když je hráč má, v Albu sbírky jsou oba mezi sezónními věcmi. Zdroje: průhledná PNG složená na tmavé pozadí `#2d3034` (s úklidem okraje, tmavého čtverce z generátoru a záře lampionů v díře) v `branding/ramecky/sezona-MM[-b].jpg`, obrázky `icons/frames/sezona-MM[-b].webp` ze `scripts/frame-images.py` (rozměry v `branding/ramecky/rozmery.json`), třída `.frame-art .frame-sezona-…` v `src/input.css`, předem uložené v `sw.js` (`FRAME_ART`). Znak sezóny (logo Mudrlanta v rámečku měsíce: pruh na úvodu, 20. stupeň, odkaz na minulou sezónu) teď ukazuje zdobnější obrázkový rámeček.
+
 #### 151. `avatar-ramp.png` – Rampouch (leden)
 
 Odemkne: Sezónní truhla v lednu (20. stupeň Sezóny Mudrlanta; id `ramp`, přebarvitelné části Šála a Led). Dodáno a zapojeno.
@@ -1399,7 +1401,9 @@ Přiložit: `branding/sova-original.jpg` (vzor stylu)
 Cartoon sticker character portrait in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole character. A single funny, delightfully weird, original seasonal character (an object or food brought to life, NOT an animal and NOT a person), shown from the chest up or as a whole small figure, big expressive face looking at the viewer, centered and filling about 85 % of the frame, readable even as a tiny 40 px profile picture (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, shading); do not draw the owl and do not copy any existing cartoon character. Character: A gingerbread cookie figure with white icing decorations, gumdrop buttons and a mischievous grin, one bite missing from its ear. Colors: warm gingerbread brown, white icing, red and green gumdrops. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
-#### 163. `ramecek-sezona-01.png` – sezónní rámeček (leden)
+#### 163. `ramecek-sezona-01.png` – sezónní rámeček (leden) – ✅ dodáno ve dvou variantách, zapojeno
+
+Zapojeno: `sezona-01` Lednový – ledový krystalový prsten s velkými vločkami a rampouchy (Sezónní truhla, 20. stupeň); `sezona-01-b` Lednové rampouchy – šedý prsten s vločkami, krystaly a rampouchy (Truhla v půli sezóny, 10. stupeň).
 
 Přiložit: `branding/sova-original.jpg` (vzor stylu)
 
@@ -1407,7 +1411,9 @@ Přiložit: `branding/sova-original.jpg` (vzor stylu)
 Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading. A circular decorative frame (a ring) seen straight from the front, perfectly round and centered, filling about 92 % of the image; the ring band is about 13 % of the image width thick and may have ornaments sticking out a little on the outside, never inside. The inside of the ring is an EMPTY perfect circle showing only the plain flat dark grey background, color #2d3034: nothing drawn inside, no character, no face, no text. A thin cream-colored sticker border runs along BOTH the outer edge and the inner edge of the ring. Plain solid flat dark grey background #2d3034 everywhere outside the ring, no gradient, no shadow. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference; do not draw the owl. Ring design: a ring of sparkling snowflakes and frosty ice crystals with small icicles hanging from the bottom edge. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
-#### 164. `ramecek-sezona-02.png` – sezónní rámeček (únor)
+#### 164. `ramecek-sezona-02.png` – sezónní rámeček (únor) – ✅ dodáno ve dvou variantách, zapojeno
+
+Zapojeno: `sezona-02` Únorový – hustý karnevalový věnec z konfet, serpentin a dvou masek (Sezónní truhla, 20. stupeň); `sezona-02-b` Únorové masky – tmavý prsten s konfetami a dvěma maskami (Truhla v půli sezóny, 10. stupeň).
 
 Přiložit: `branding/sova-original.jpg` (vzor stylu)
 
@@ -1415,7 +1421,9 @@ Přiložit: `branding/sova-original.jpg` (vzor stylu)
 Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading. A circular decorative frame (a ring) seen straight from the front, perfectly round and centered, filling about 92 % of the image; the ring band is about 13 % of the image width thick and may have ornaments sticking out a little on the outside, never inside. The inside of the ring is an EMPTY perfect circle showing only the plain flat dark grey background, color #2d3034: nothing drawn inside, no character, no face, no text. A thin cream-colored sticker border runs along BOTH the outer edge and the inner edge of the ring. Plain solid flat dark grey background #2d3034 everywhere outside the ring, no gradient, no shadow. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference; do not draw the owl. Ring design: a festive carnival ring of colorful confetti, streamers and small feathered masks. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
-#### 165. `ramecek-sezona-03.png` – sezónní rámeček (březen)
+#### 165. `ramecek-sezona-03.png` – sezónní rámeček (březen) – ✅ dodáno ve dvou variantách, zapojeno
+
+Zapojeno: `sezona-03` Březnový – věneček z růžových, žlutých a bílých petrklíčů a sněženek (Sezónní truhla, 20. stupeň); `sezona-03-b` Březnové sněženky – zelený věneček se sněženkami a žlutými petrklíči (Truhla v půli sezóny, 10. stupeň).
 
 Přiložit: `branding/sova-original.jpg` (vzor stylu)
 
@@ -1423,7 +1431,9 @@ Přiložit: `branding/sova-original.jpg` (vzor stylu)
 Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading. A circular decorative frame (a ring) seen straight from the front, perfectly round and centered, filling about 92 % of the image; the ring band is about 13 % of the image width thick and may have ornaments sticking out a little on the outside, never inside. The inside of the ring is an EMPTY perfect circle showing only the plain flat dark grey background, color #2d3034: nothing drawn inside, no character, no face, no text. A thin cream-colored sticker border runs along BOTH the outer edge and the inner edge of the ring. Plain solid flat dark grey background #2d3034 everywhere outside the ring, no gradient, no shadow. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference; do not draw the owl. Ring design: a ring of fresh spring flowers: snowdrops, primroses, small green leaves and buds. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
-#### 166. `ramecek-sezona-04.png` – sezónní rámeček (duben)
+#### 166. `ramecek-sezona-04.png` – sezónní rámeček (duben) – ✅ dodáno ve dvou variantách, zapojeno
+
+Zapojeno: `sezona-04` Dubnový – tmavý prsten s velkou duhou nahoře, mráčky a kapkami (Sezónní truhla, 20. stupeň); `sezona-04-b` Dubnové kapky – modrý prsten plný kapek s malou duhou a mráčky (Truhla v půli sezóny, 10. stupeň).
 
 Přiložit: `branding/sova-original.jpg` (vzor stylu)
 
@@ -1431,7 +1441,9 @@ Přiložit: `branding/sova-original.jpg` (vzor stylu)
 Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading. A circular decorative frame (a ring) seen straight from the front, perfectly round and centered, filling about 92 % of the image; the ring band is about 13 % of the image width thick and may have ornaments sticking out a little on the outside, never inside. The inside of the ring is an EMPTY perfect circle showing only the plain flat dark grey background, color #2d3034: nothing drawn inside, no character, no face, no text. A thin cream-colored sticker border runs along BOTH the outer edge and the inner edge of the ring. Plain solid flat dark grey background #2d3034 everywhere outside the ring, no gradient, no shadow. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference; do not draw the owl. Ring design: a ring of playful blue raindrops and small clouds with a rainbow arching over the top. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
-#### 167. `ramecek-sezona-05.png` – sezónní rámeček (květen)
+#### 167. `ramecek-sezona-05.png` – sezónní rámeček (květen) – ✅ dodáno ve dvou variantách, zapojeno
+
+Zapojeno: `sezona-05` Květnový – hustě rozkvetlé třešňové květy s chmýřím (Sezónní truhla, 20. stupeň); `sezona-05-b` Májové květy – tmavý prsten s několika trsy třešňových květů a chmýřím (Truhla v půli sezóny, 10. stupeň).
 
 Přiložit: `branding/sova-original.jpg` (vzor stylu)
 
@@ -1439,7 +1451,9 @@ Přiložit: `branding/sova-original.jpg` (vzor stylu)
 Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading. A circular decorative frame (a ring) seen straight from the front, perfectly round and centered, filling about 92 % of the image; the ring band is about 13 % of the image width thick and may have ornaments sticking out a little on the outside, never inside. The inside of the ring is an EMPTY perfect circle showing only the plain flat dark grey background, color #2d3034: nothing drawn inside, no character, no face, no text. A thin cream-colored sticker border runs along BOTH the outer edge and the inner edge of the ring. Plain solid flat dark grey background #2d3034 everywhere outside the ring, no gradient, no shadow. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference; do not draw the owl. Ring design: a ring of blooming apple blossoms in pink and white with fluttering petals and dandelion seeds. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
-#### 168. `ramecek-sezona-06.png` – sezónní rámeček (červen)
+#### 168. `ramecek-sezona-06.png` – sezónní rámeček (červen) – ✅ dodáno ve dvou variantách, zapojeno
+
+Zapojeno: `sezona-06` Červnový – hustý věnec slunečnic se sluncem nahoře a konfetami (Sezónní truhla, 20. stupeň); `sezona-06-b` Červnové slunečnice – žlutý prsten se slunečnicemi, sluncem a konfetami (Truhla v půli sezóny, 10. stupeň).
 
 Přiložit: `branding/sova-original.jpg` (vzor stylu)
 
@@ -1447,7 +1461,9 @@ Přiložit: `branding/sova-original.jpg` (vzor stylu)
 Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading. A circular decorative frame (a ring) seen straight from the front, perfectly round and centered, filling about 92 % of the image; the ring band is about 13 % of the image width thick and may have ornaments sticking out a little on the outside, never inside. The inside of the ring is an EMPTY perfect circle showing only the plain flat dark grey background, color #2d3034: nothing drawn inside, no character, no face, no text. A thin cream-colored sticker border runs along BOTH the outer edge and the inner edge of the ring. Plain solid flat dark grey background #2d3034 everywhere outside the ring, no gradient, no shadow. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference; do not draw the owl. Ring design: a ring of bright summer sunflowers with school-end confetti and a small sun at the top. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
-#### 169. `ramecek-sezona-07.png` – sezónní rámeček (červenec)
+#### 169. `ramecek-sezona-07.png` – sezónní rámeček (červenec) – ✅ dodáno ve dvou variantách, zapojeno
+
+Zapojeno: `sezona-07` Červencový – moře a pláž se dvěma vlnami, třemi mušlemi, hvězdicí a slunečníkem (Sezónní truhla, 20. stupeň); `sezona-07-b` Červencová pláž – písečný prsten s vlnou, mušlemi, hvězdicí a slunečníkem (Truhla v půli sezóny, 10. stupeň).
 
 Přiložit: `branding/sova-original.jpg` (vzor stylu)
 
@@ -1455,7 +1471,9 @@ Přiložit: `branding/sova-original.jpg` (vzor stylu)
 Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading. A circular decorative frame (a ring) seen straight from the front, perfectly round and centered, filling about 92 % of the image; the ring band is about 13 % of the image width thick and may have ornaments sticking out a little on the outside, never inside. The inside of the ring is an EMPTY perfect circle showing only the plain flat dark grey background, color #2d3034: nothing drawn inside, no character, no face, no text. A thin cream-colored sticker border runs along BOTH the outer edge and the inner edge of the ring. Plain solid flat dark grey background #2d3034 everywhere outside the ring, no gradient, no shadow. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference; do not draw the owl. Ring design: a beach ring made of a curling turquoise wave, seashells, a starfish and a tiny beach umbrella. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
-#### 170. `ramecek-sezona-08.png` – sezónní rámeček (srpen)
+#### 170. `ramecek-sezona-08.png` – sezónní rámeček (srpen) – ✅ dodáno ve dvou variantách, zapojeno
+
+Zapojeno: `sezona-08` Srpnový – noční nebe se zlatými padajícími hvězdami (Sezónní truhla, 20. stupeň); `sezona-08-b` Srpnová noc – noční nebe s fialovými kometami a hvězdami (Truhla v půli sezóny, 10. stupeň).
 
 Přiložit: `branding/sova-original.jpg` (vzor stylu)
 
@@ -1463,7 +1481,9 @@ Přiložit: `branding/sova-original.jpg` (vzor stylu)
 Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading. A circular decorative frame (a ring) seen straight from the front, perfectly round and centered, filling about 92 % of the image; the ring band is about 13 % of the image width thick and may have ornaments sticking out a little on the outside, never inside. The inside of the ring is an EMPTY perfect circle showing only the plain flat dark grey background, color #2d3034: nothing drawn inside, no character, no face, no text. A thin cream-colored sticker border runs along BOTH the outer edge and the inner edge of the ring. Plain solid flat dark grey background #2d3034 everywhere outside the ring, no gradient, no shadow. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference; do not draw the owl. Ring design: a ring of deep night sky with shooting stars streaking around it and twinkling golden stars. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
-#### 171. `ramecek-sezona-09.png` – sezónní rámeček (září)
+#### 171. `ramecek-sezona-09.png` – sezónní rámeček (září) – ✅ dodáno ve dvou variantách, zapojeno
+
+Zapojeno: `sezona-09` Zářijový – tmavý prsten plný pastelek s pravítkem a listím (Sezónní truhla, 20. stupeň); `sezona-09-b` Zářijové pastelky – tmavý prsten s několika pastelkami, pravítkem a listím (Truhla v půli sezóny, 10. stupeň).
 
 Přiložit: `branding/sova-original.jpg` (vzor stylu)
 
@@ -1471,7 +1491,9 @@ Přiložit: `branding/sova-original.jpg` (vzor stylu)
 Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading. A circular decorative frame (a ring) seen straight from the front, perfectly round and centered, filling about 92 % of the image; the ring band is about 13 % of the image width thick and may have ornaments sticking out a little on the outside, never inside. The inside of the ring is an EMPTY perfect circle showing only the plain flat dark grey background, color #2d3034: nothing drawn inside, no character, no face, no text. A thin cream-colored sticker border runs along BOTH the outer edge and the inner edge of the ring. Plain solid flat dark grey background #2d3034 everywhere outside the ring, no gradient, no shadow. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference; do not draw the owl. Ring design: a ring of colored pencils, a ruler and a few early autumn leaves around a school theme. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
-#### 172. `ramecek-sezona-10.png` – sezónní rámeček (říjen)
+#### 172. `ramecek-sezona-10.png` – sezónní rámeček (říjen) – ✅ dodáno ve dvou variantách, zapojeno
+
+Zapojeno: `sezona-10` Říjnový – hustý věnec podzimního listí se dvěma malými draky (Sezónní truhla, 20. stupeň); `sezona-10-b` Říjnoví draci – tmavý prsten s listím a dvěma velkými draky (Truhla v půli sezóny, 10. stupeň).
 
 Přiložit: `branding/sova-original.jpg` (vzor stylu)
 
@@ -1479,7 +1501,9 @@ Přiložit: `branding/sova-original.jpg` (vzor stylu)
 Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading. A circular decorative frame (a ring) seen straight from the front, perfectly round and centered, filling about 92 % of the image; the ring band is about 13 % of the image width thick and may have ornaments sticking out a little on the outside, never inside. The inside of the ring is an EMPTY perfect circle showing only the plain flat dark grey background, color #2d3034: nothing drawn inside, no character, no face, no text. A thin cream-colored sticker border runs along BOTH the outer edge and the inner edge of the ring. Plain solid flat dark grey background #2d3034 everywhere outside the ring, no gradient, no shadow. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference; do not draw the owl. Ring design: a ring of swirling orange, red and brown autumn leaves with two small paper kites flying along it. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
-#### 173. `ramecek-sezona-11.png` – sezónní rámeček (listopad)
+#### 173. `ramecek-sezona-11.png` – sezónní rámeček (listopad) – ✅ dodáno ve dvou variantách, zapojeno
+
+Zapojeno: `sezona-11` Listopadový – tmavý prsten s mnoha svítícími lampiony, listím a mlhou (Sezónní truhla, 20. stupeň); `sezona-11-b` Listopadové lampiony – tmavý prsten se sedmi velkými lampiony a mlhou (Truhla v půli sezóny, 10. stupeň).
 
 Přiložit: `branding/sova-original.jpg` (vzor stylu)
 
@@ -1487,7 +1511,9 @@ Přiložit: `branding/sova-original.jpg` (vzor stylu)
 Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading. A circular decorative frame (a ring) seen straight from the front, perfectly round and centered, filling about 92 % of the image; the ring band is about 13 % of the image width thick and may have ornaments sticking out a little on the outside, never inside. The inside of the ring is an EMPTY perfect circle showing only the plain flat dark grey background, color #2d3034: nothing drawn inside, no character, no face, no text. A thin cream-colored sticker border runs along BOTH the outer edge and the inner edge of the ring. Plain solid flat dark grey background #2d3034 everywhere outside the ring, no gradient, no shadow. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference; do not draw the owl. Ring design: a ring of glowing paper lanterns on a string with soft mist and falling autumn leaves. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
-#### 174. `ramecek-sezona-12.png` – sezónní rámeček (prosinec)
+#### 174. `ramecek-sezona-12.png` – sezónní rámeček (prosinec) – ✅ dodáno ve dvou variantách, zapojeno
+
+Zapojeno: `sezona-12` Prosincový – jehličnatý věnec s mnoha baňkami, perníčky a světýlky (Sezónní truhla, 20. stupeň); `sezona-12-b` Prosincové perníčky – jehličnatý věnec se dvěma velkými perníčky, baňkami a světýlky (Truhla v půli sezóny, 10. stupeň).
 
 Přiložit: `branding/sova-original.jpg` (vzor stylu)
 
