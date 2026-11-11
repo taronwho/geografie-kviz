@@ -3794,8 +3794,8 @@
     // místo ní se ukáže jen malé okénko nahoře a celé oslavy přijdou až na klidné obrazovce (výsledek otázky v tréninku,
     // konec výzvy či Kvízu dne, výsledek režimu, úvod). Kontroluje se každou sekundu.
     const celebrationCalm = () => {
-        // Otevřené okno (třeba rozpis otázek po výzvě) má přednost: oslavy počkají, až se zavře
-        if (document.getElementById('dialog-overlay')) return false;
+        // Otevřené okno (třeba rozpis otázek po výzvě, nebo Nastavení, kde hráč obléká Mudrlanta) má přednost: oslavy počkají, až se zavře
+        if (document.getElementById('dialog-overlay') || document.getElementById('settings-overlay')) return false;
         if (mode === 'blitz' || mode === 'survival') return !modeGame || modeGame.phase === 'result' || screen !== 'mode';
         if (screen === 'home' || screen === 'learn' || screen === 'challenge-done' || screen === 'quiz-done' || screen === 'welcome') return true;
         if (mode === 'challenge' || mode === 'quiz') return false;
@@ -6134,7 +6134,20 @@
         myProfile = { ...myProfile, owl };
         Social.saveOwl(user.id, owl).catch(() => {});
     };
+    // Celý look tématu (look.js activeTopicLook): když sova poprvé oblékne celou sadu tématu (nasadí poslední kus), oslava s její podobou.
+    // Které looky už slavila, si pamatuje zařízení (mudrlant.looks); znovu oblečený look se neslaví.
+    const LOOKS_KEY = 'mudrlant.looks';
+    const celebrateLook = (prefs) => {
+        const look = Look && Look.activeTopicLook ? Look.activeTopicLook(prefs.acc) : null;
+        if (!look) return;
+        const seen = Array.isArray(readJson(LOOKS_KEY)) ? readJson(LOOKS_KEY) : [];
+        if (seen.includes(look.topic)) return;
+        writeJson(LOOKS_KEY, [...seen, look.topic]);
+        const art = Owl && Owl.owlAvatarHtml ? Owl.owlAvatarHtml({ robe: prefs.robe, acc: prefs.acc }, 'h-full w-auto', 'h-20 -my-4 drop-shadow-lg') : '';
+        showCelebration('vitez', 'Celý look', `${look.title} – celá sada tématu ${look.topicTitle}`, 'badge', art);
+    };
     if (Look) Look.onChange((prefs, key) => {
+        if (key === 'acc') celebrateLook(prefs);
         if ((key === 'acc' || key === 'robe') && myProfile && myProfile.owl) {
             updateProfileButton();
             paintChallenges();
@@ -7774,7 +7787,10 @@
         let body;
         if (albumView.rewards) body = `${Album.rewardsHtml(album, progress.badges, h)}<div class="mt-2.5">${ALBUM_BACK}</div>`;
         else if (found) body = `${Album.detailHtml(found, { badges: progress.badges, wear: albumWear(found.entry, albumWorn()), note: albumView.note || albumHint(found.entry) }, h)}<div class="mt-2.5">${ALBUM_BACK}</div>`;
-        else body = `${Album.albumHtml(album, { section: albumView.section, badges: progress.badges, worn: albumWorn() }, h)}${STICKY_BACK()}`;
+        else {
+            const look = Look && Look.activeTopicLook ? Look.activeTopicLook(lookContext().prefs.acc) : null;
+            body = `${Album.albumHtml(album, { section: albumView.section, badges: progress.badges, worn: albumWorn(), wornLook: look ? look.topic : null }, h)}${STICKY_BACK()}`;
+        }
         const overlay = showDialog('Album sbírky', body, { onClick: albumClick });
         applyProgress(overlay);
         if (scrollTo !== null) overlay.firstElementChild.scrollTop = scrollTo;
@@ -7792,6 +7808,13 @@
         const tab = event.target.closest('[data-album-tab]');
         if (tab) { albumView = { ...albumView, section: tab.dataset.albumTab, scroll: 0 }; renderAlbum(0, `[data-album-tab="${CSS.escape(tab.dataset.albumTab)}"]`); return; }
         if (event.target.closest('[data-album-rewards]')) { albumView = { ...albumView, rewards: true, scroll: panel.scrollTop }; renderAlbum(0, '[data-album-back]'); return; }
+        // Sada tématu (Sady témat v sekci Doplňky): Mistrovství tématu se sadou a tlačítkem Obléknout celou sadu, zpět do alba na stejné místo
+        const look = event.target.closest('[data-album-look]');
+        if (look) {
+            const scroll = panel.scrollTop;
+            openChild('Zpět do alba', () => renderAlbum(scroll), () => openMastery(look.dataset.albumLook));
+            return;
+        }
         const item = event.target.closest('[data-album-item]');
         if (item) { albumView = { ...albumView, detail: item.dataset.albumItem, note: '', scroll: panel.scrollTop }; renderAlbum(0, '[data-album-wear], [data-album-back]'); return; }
         if (event.target.closest('[data-album-wear]') && albumView.detail) {
@@ -7835,9 +7858,20 @@
                 <b class="text-[11px] leading-tight text-slate-800 dark:text-slate-100">${escapeHtml(entry.item.title)}</b>
                 <span class="text-[10px] font-semibold leading-tight text-slate-600 dark:text-slate-300">${escapeHtml(pieceHow(entry))}</span></li>`;
         };
+        // Celý look sady (look.js topicLook): název, jestli ho Mudrlant nosí, nebo kolik kusů chybí; s celou sadou tlačítko, které ji oblékne najednou
+        const look = Look && Look.topicLook ? Look.topicLook(topic.id) : null;
+        const lookState = look ? Look.topicLookProgress(topic.id, ctx) : null;
+        const lookWorn = Boolean(look && Look.wearsTopicSet(ctx.prefs.acc, topic.id));
+        const lookStatus = !look ? '' : lookWorn ? 'Mudrlant ho právě nosí' : lookState.complete ? 'máš všechny kusy' : `chybí ${plural(lookState.total - lookState.owned, 'kus', 'kusy', 'kusů')}`;
+        const lookHtml = look ? `<div data-mastery-look="${lookWorn ? 'worn' : lookState.complete ? 'complete' : 'missing'}" class="flex items-center gap-2 rounded-xl px-2 py-1 ${lookWorn || lookState.complete ? 'bg-gold-50 ring-1 ring-gold-300 dark:bg-gold-900/20 dark:ring-gold-700' : 'bg-slate-50 dark:bg-slate-700/50'}">
+                <i data-lucide="${lookWorn ? 'circle-check' : 'sparkles'}" class="h-4 w-4 shrink-0 ${lookWorn ? 'text-emerald-600 dark:text-emerald-400' : lookState.complete ? 'text-gold-600 dark:text-gold-300' : 'text-slate-400 dark:text-slate-500'}"></i>
+                <p role="status" class="line-clamp-2 min-w-0 flex-1 text-[11px] leading-tight text-slate-600 dark:text-slate-300"><b class="text-slate-800 dark:text-slate-100">Celý look: ${escapeHtml(look.title)}</b> · ${escapeHtml(lookStatus)}</p>
+                ${lookState.complete && !lookWorn ? `<button type="button" data-wear-set="${topic.id}" class="flex min-h-[2.5rem] shrink-0 items-center gap-1.5 rounded-xl btn-3d bg-brand-700 px-2 py-1 text-left text-[11.5px] font-black leading-tight text-white"><i data-lucide="sparkles" class="h-4 w-4 shrink-0"></i><span class="max-w-[5.5rem]">Obléknout celou sadu</span></button>` : ''}
+            </div>` : '';
         const setHtml = pieces.length > 1 ? `<div data-mastery-set class="flex flex-col gap-1">
                 <p class="flex items-baseline justify-between gap-2 text-[11px] font-black text-slate-700 dark:text-slate-200"><span>Sada pro Mudrlanta</span><span class="font-semibold text-slate-500 dark:text-slate-400">správně v tématu: ${correct}</span></p>
                 <ul class="grid grid-cols-3 gap-1.5" aria-label="Sada doplňků tématu">${pieces.map(piece).join('')}</ul>
+                ${lookHtml}
             </div>` : '';
         const star = (filled) => `<i data-lucide="star" class="h-4 w-4 ${filled ? 'fill-gold-500 text-gold-500' : 'text-slate-300 dark:text-slate-600'}"></i>`;
         const reward = (needed, html) => `<li class="flex items-start gap-2 text-[12px] leading-snug text-slate-700 dark:text-slate-200"><i data-lucide="${stars >= needed ? 'circle-check' : 'star'}" class="mt-0.5 h-4 w-4 shrink-0 ${stars >= needed ? 'text-emerald-600 dark:text-emerald-400' : 'text-gold-600 dark:text-gold-400'}"></i><span><b>${needed} ${needed < 5 ? 'hvězdičky' : 'hvězdiček'}:</b> ${html}</span></li>`;
@@ -7859,7 +7893,16 @@
                 </ul>
                 ${setHtml}
                 ${dialogBackButton()}
-            </div>`);
+            </div>`, { onClick: (event) => {
+            // Obléknout celou sadu: všechny kusy najednou do svých míst (nasazený kus si nechá barvu), okno se překreslí na místě
+            if (!event.target.closest('[data-wear-set]') || !Look) return;
+            const now = lookContext();
+            if (!Look.topicLookProgress(topic.id, now).complete) return;
+            Look.setPref('acc', Look.wearTopicSet(now.prefs.acc, topic.id), now);
+            applyLook();
+            updateControlsUI();
+            openMastery(topic.id);
+        } });
         applyProgress(document.getElementById('dialog-overlay'));
     };
 
@@ -8030,11 +8073,13 @@
                 body = Friends.reportBody(Social.REPORT_REASONS, reportReason, reportNote, { busy: reportBusy }) + `<button type="button" data-report-back data-x-back class="mt-2 flex min-h-[2.5rem] w-full items-center justify-center gap-1.5 rounded-2xl px-3 py-2 text-[13px] font-black text-slate-600 dark:text-slate-300"><i data-lucide="chevron-left" class="h-4 w-4"></i> Zpět na profil</button>`;
             }
             // Vitrína hráče (schéma 18): tři trofeje pod hlavičkou; na nízkém displeji místo řady všech odznaků a s hustším oknem, ať se vejde
+            // Celý look tématu na jeho sově (odvozený z uloženého textu sovy v profilu, look-owl.js lookOf): zlatý štítek vedle ligy
+            const look = player.owl && Owl && Owl.lookOf ? Owl.lookOf(player.owl) : null;
             const showcaseRow = theirShowcase && Showcase && view !== 'report' ? Showcase.tilesHtml(theirShowcase, showcaseHelpers(), { label: `Vitrína hráče ${playerName(player)}` }) : '';
             showDialog(view === 'report' ? 'Nahlásit hráče' : 'Profil hráče', `
                 <div class="flex flex-col gap-3${showcaseRow ? ' short:gap-2' : ''}">
                     <div class="flex items-center gap-3" data-profile-head>${avatarHtml(player, 'h-16 w-16 text-4xl')}
-                        <div class="min-w-0 flex-1"><p class="truncate text-xl font-black leading-tight text-slate-800 dark:text-slate-100">${escapeHtml(playerName(player))}</p>${theirProgress ? titleLine(theirProgress) : ''}${theirRating ? `<p id="player-league" class="mt-0.5">${leagueChip(theirRating.rating)}</p>` : ''}</div>
+                        <div class="min-w-0 flex-1"><p class="truncate text-xl font-black leading-tight text-slate-800 dark:text-slate-100">${escapeHtml(playerName(player))}</p>${theirProgress ? titleLine(theirProgress) : ''}${theirRating || look ? `<p class="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5">${theirRating ? `<span id="player-league">${leagueChip(theirRating.rating)}</span>` : ''}${look ? Owl.lookTagHtml(look) : ''}</p>` : ''}</div>
                     </div>
                     ${showcaseRow}
                     ${theirProgress && view !== 'report' && badgesRow(theirProgress) ? (showcaseRow ? `<div class="short:hidden">${badgesRow(theirProgress)}</div>` : badgesRow(theirProgress)) : ''}

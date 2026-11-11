@@ -75,6 +75,10 @@ Dodáno a zapojeno 27 z 28 kusů. Kus sady se odemkne odznakem tématu: první n
 i jeho popis odměnu zmíní samy (`Look.badgeRewardText`), okno Mistrovství tématu (Můj postup) ukazuje celou sadu tématu s tím,
 jak se který kus získá, a kolik správných odpovědí v tématu hráč má (`Look.topicSet`).
 
+Celý look tématu (všechny kusy sady najednou, `Look.activeTopicLook`, názvy `Look.TOPIC_LOOKS`): zlatý štítek pod sovou v Nastavení → Mudrlant
+a v Profilu hráče (z uložené sovy, `MudrlantOwl.lookOf`), oslava poprvé (zařízení si pamatuje `mudrlant.looks`), v Mistrovství tématu řádek looku
+s tlačítkem Obléknout celou sadu (`Look.wearTopicSet`) a v Albu sbírky (sekce Doplňky) přehled Sady témat, který se do procent nepočítá.
+
 | Téma | Za 300 správných | Za 1000 správných |
 |---|---|---|
 | Zeměpis | Cestovatelský klobouk (hlava, místo čepice) | Globus (ruka, nová ruka) |

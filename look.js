@@ -246,6 +246,50 @@
     // [{ item, badge, step }] jen s kusy, které v katalogu jsou (dvourohý klobouk Historie zatím chybí). step: 'skill' | 300 | 1000
     const TOPIC_SET_STEPS = [['skill', (topic) => `zbehly-${topic}`], [300, (topic) => `tema-${topic}-300`], [1000, (topic) => `tema-${topic}-1000`]];
     const topicSet = (topic) => TOPIC_SET_STEPS.flatMap(([step, badgeOf]) => ACCESSORIES.filter(item => item.badge === badgeOf(topic)).map(item => ({ item, badge: item.badge, step })));
+    // Celý look tématu (docs/OBRAZKY.md č. 177–204): název sady, když sova nosí všechny její kusy najednou (v jakýchkoli barvách).
+    // Look se odvozuje jen z doplňků (bez změny databáze): u cizí sovy z uloženého textu profilu (look-owl.js parseOwl). Platí pro kusy,
+    // které v katalogu opravdu jsou: Historie má zatím dva (dvourohý klobouk chybí), jakmile přibude, look bude chtít i jeho.
+    // Sada s méně než dvěma kusy look nedává. Pořadí = pořadí témat (DIPLOMA_TOPICS).
+    const TOPIC_LOOKS = {
+        zemepis: 'Cestovatel', vlajky: 'Praporečník', historie: 'Vojevůdce', mytologie: 'Hrdina bájí', biologie: 'Přírodovědec', geologie: 'Badatel podzemí',
+        chemie: 'Šílený chemik', fyzika: 'Génius', umeni: 'Umělec', architektura: 'Stavitel', hudba: 'Rocková hvězda', literatura: 'Spisovatel',
+        film: 'Filmový fanoušek', sport: 'Trenér'
+    };
+    const LOOK_MIN_PIECES = 2;
+    // Všechny looky: [{ topic, title, topicTitle, pieces: topicSet(topic) }] (jen sady aspoň se dvěma kusy)
+    const topicLooks = () => Object.keys(TOPIC_LOOKS).map(topic => ({ topic, title: TOPIC_LOOKS[topic], topicTitle: DIPLOMA_TOPICS[topic] || topic, pieces: topicSet(topic) }))
+        .filter(look => look.pieces.length >= LOOK_MIN_PIECES);
+    const topicLook = (topic) => topicLooks().find(look => look.topic === topic) || null;
+    // Nosí doplňky { místo: { id, … } } celou sadu tématu?
+    const wearsTopicSet = (acc, topic) => {
+        const look = topicLook(topic);
+        const source = acc && typeof acc === 'object' ? acc : {};
+        return Boolean(look) && look.pieces.every(({ item }) => source[item.slot] && typeof source[item.slot] === 'object' && source[item.slot].id === item.id);
+    };
+    // Celý look, který sova nosí: { topic, title, topicTitle } nebo null (sady obsazují různá místa, takže najednou jde nosit jen jeden)
+    const activeTopicLook = (acc) => {
+        const look = topicLooks().find(entry => wearsTopicSet(acc, entry.topic));
+        return look ? { topic: look.topic, title: look.title, topicTitle: look.topicTitle } : null;
+    };
+    // Kolik kusů sady hráč má (ctx jako u isUnlocked): { owned, total, complete }
+    const topicLookProgress = (topic, ctx) => {
+        const look = topicLook(topic);
+        const pieces = look ? look.pieces : [];
+        const owned = pieces.filter(({ item }) => isUnlocked(item, ctx)).length;
+        return { owned, total: pieces.length, complete: pieces.length >= LOOK_MIN_PIECES && owned === pieces.length };
+    };
+    // Doplňky s nasazenou celou sadou: každý kus do svého místa (kus, který už sova nosí, si nechá barvu i vlajku), ostatní místa zůstanou.
+    // Sady obsazují různá místa a kus v obličeji nahradí i „Bez monoklu“; čepici a ruku skryje vykreslení samo (hidesHat, hidesHand).
+    const wearTopicSet = (acc, topic) => {
+        const next = { ...(acc && typeof acc === 'object' ? acc : {}) };
+        const look = topicLook(topic);
+        if (!look) return next;
+        for (const { item } of look.pieces) {
+            const worn = next[item.slot];
+            next[item.slot] = worn && typeof worn === 'object' && worn.id === item.id ? { ...worn } : { id: item.id, color: 'original' };
+        }
+        return next;
+    };
     // Monokl: výchozí sova ho nosí (icons/logo.webp). V místě obličeje si hráč místo něj může vybrat „Bez monoklu“ (uloží se jako
     // { id: NO_MONOCLE }, logo icons/logo-bez-monoklu.webp) nebo doplněk, který monokl nahradí (brýle a maska; knír a páska ho nechají).
     // Uložené volby bez doplňku v obličeji dál znamenají monokl.
@@ -547,7 +591,7 @@
         // Obrázkové rámečky
         ART_FRAMES,
         // Sady doplňků k tématům
-        topicSet,
+        topicSet, TOPIC_LOOKS, topicLooks, topicLook, wearsTopicSet, activeTopicLook, topicLookProgress, wearTopicSet,
         // Vývojářské odemčení všeho
         setDevUnlockAll, devUnlockAll: () => devAll };
 });

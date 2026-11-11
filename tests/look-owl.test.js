@@ -388,3 +388,59 @@ test('sady doplňků k tématům: ke kusu za zběhlost kus za 300 a za 1000 spr�
     assert.match(imgs[1], /popcorn-zaklad\.webp/);
     assert.doesNotMatch(imgs[1], /hue-rotate-/);
 });
+
+test('celý look tématu: sova nosí všechny kusy sady (v jakýchkoli barvách), Historie zatím se dvěma kusy', () => {
+    const topics = ['zemepis', 'vlajky', 'historie', 'mytologie', 'biologie', 'geologie', 'chemie', 'fyzika', 'umeni', 'architektura', 'hudba', 'literatura', 'film', 'sport'];
+    assert.deepEqual(Look.topicLooks().map(look => look.topic), topics, 'všech 14 témat v pořadí');
+    assert.deepEqual(Look.topicLooks().map(look => look.title), ['Cestovatel', 'Praporečník', 'Vojevůdce', 'Hrdina bájí', 'Přírodovědec', 'Badatel podzemí', 'Šílený chemik', 'Génius', 'Umělec', 'Stavitel', 'Rocková hvězda', 'Spisovatel', 'Filmový fanoušek', 'Trenér']);
+    const full = (topic, color = 'original') => Object.fromEntries(Look.topicSet(topic).map(({ item }) => [item.slot, { id: item.id, color }]));
+    for (const topic of topics) {
+        assert.deepEqual(Look.activeTopicLook(full(topic)), { topic, title: Look.TOPIC_LOOKS[topic], topicTitle: Look.DIPLOMA_TOPICS[topic] }, topic);
+        assert.deepEqual(Look.activeTopicLook(full(topic, 'h120')), Look.activeTopicLook(full(topic)), `${topic}: barvy nevadí`);
+        assert.equal(Look.wearsTopicSet(full(topic), topic), true);
+        // bez jednoho kusu look není
+        for (const { item } of Look.topicSet(topic)) {
+            const acc = full(topic);
+            delete acc[item.slot];
+            assert.equal(Look.activeTopicLook(acc), null, `${topic} bez ${item.id}`);
+        }
+    }
+    // Zeměpis i se čtvrtým doplňkem (brýle v obličeji); cizí doplněk v místě kusu sady look zruší
+    assert.equal(Look.activeTopicLook({ ...full('zemepis'), face: { id: 'bryle', color: 'modra' } }).title, 'Cestovatel');
+    assert.equal(Look.activeTopicLook({ ...full('zemepis'), hand: { id: 'lupa', color: 'original' } }), null);
+    // Historie: svitek + krejzlík stačí, dokud dvourohý klobouk není v katalogu (pak ho topicSet vrátí a look ho bude chtít)
+    assert.equal(Look.activeTopicLook({ hand: { id: 'svitek', color: 'original' }, neck: { id: 'krejzlik', color: 'cervena' } }).title, 'Vojevůdce');
+    assert.equal(Look.activeTopicLook({ hand: { id: 'svitek', color: 'original' } }), null, 'jeden kus nestačí');
+    // Neplatné vstupy
+    for (const value of [null, undefined, {}, 'text', { head: null }, { hand: 'svitek' }]) assert.equal(Look.activeTopicLook(value), null);
+    assert.equal(Look.topicLook('neexistuje'), null);
+    assert.equal(Look.wearsTopicSet(full('zemepis'), 'neexistuje'), false);
+    // Kolik kusů hráč má (odznaky zběhlosti a témat)
+    assert.deepEqual(Look.topicLookProgress('zemepis', { level: 1, badges: {} }), { owned: 0, total: 3, complete: false });
+    assert.deepEqual(Look.topicLookProgress('zemepis', { level: 1, badges: { 'zbehly-zemepis': 'x', 'tema-zemepis-300': 'x' } }), { owned: 2, total: 3, complete: false });
+    assert.deepEqual(Look.topicLookProgress('zemepis', { level: 1, badges: { 'zbehly-zemepis': 'x', 'tema-zemepis-300': 'x', 'tema-zemepis-1000': 'x' } }), { owned: 3, total: 3, complete: true });
+    assert.deepEqual(Look.topicLookProgress('historie', { level: 1, badges: { 'zbehly-historie': 'x', 'tema-historie-1000': 'x' } }), { owned: 2, total: 2, complete: true });
+    assert.deepEqual(Look.topicLookProgress('neexistuje', { level: 1, badges: {} }), { owned: 0, total: 0, complete: false });
+    // Obléknout celou sadu: kusy do svých míst, už nasazený kus si nechá barvu, čtvrté místo zůstane, „Bez monoklu“ nahradí kus v obličeji
+    assert.deepEqual(Look.wearTopicSet({ neck: { id: 'kompas', color: 'modra' }, face: { id: 'bryle', color: 'zelena' }, head: { id: 'koruna', color: 'cervena' } }, 'zemepis'), {
+        neck: { id: 'kompas', color: 'modra' }, face: { id: 'bryle', color: 'zelena' }, head: { id: 'cestovatelsky-klobouk', color: 'original' }, hand: { id: 'globus', color: 'original' }
+    });
+    assert.deepEqual(Look.wearTopicSet({ face: { id: Look.NO_MONOCLE } }, 'chemie'), { face: { id: 'lab-bryle', color: 'original' }, hand: { id: 'banka', color: 'original' }, head: { id: 'vybuch', color: 'original' } });
+    assert.deepEqual(Look.wearTopicSet({ hand: { id: 'vlajka', color: 'original', flag: 'q213' } }, 'vlajky').hand, { id: 'vlajka', color: 'original', flag: 'q213' }, 'vlajka státu zůstane');
+    assert.deepEqual(Look.wearTopicSet(null, 'neexistuje'), {});
+    for (const topic of topics) assert.equal(Look.activeTopicLook(Look.wearTopicSet({}, topic)).topic, topic);
+    // Cizí sova z textu profilu (look-owl.js parseOwl): look se odvodí z uložených doplňků
+    const text = 'robe=zelena;head=cestovatelsky-klobouk.modra;neck=kompas.original;hand=globus.h40';
+    assert.equal(Look.activeTopicLook(Owl.parseOwl(text).acc).title, 'Cestovatel');
+    assert.equal(Owl.lookOf(text).title, 'Cestovatel');
+    assert.equal(Owl.lookOf('robe=zelena;head=cestovatelsky-klobouk.modra;neck=kompas.original'), null);
+    assert.equal(Owl.lookOf('robe=zelena;pose=titul-3;head=cestovatelsky-klobouk.modra;neck=kompas.original;hand=globus.h40'), null, 'sova titulu doplňky neukazuje');
+    for (const value of [null, '', 'nesmysl', 42]) assert.equal(Owl.lookOf(value), null);
+    // Štítek looku (Profil hráče, Nastavení → Mudrlant): zlatý, s názvem a bez HTML z cizích dat
+    const tag = Owl.lookTagHtml(Owl.lookOf(text));
+    assert.match(tag, /data-owl-look="zemepis"/);
+    assert.match(tag, /Celý look: Cestovatel/);
+    assert.match(tag, /bg-gold-/);
+    assert.equal(Owl.lookTagHtml(null), '');
+    assert.doesNotMatch(Owl.lookTagHtml({ topic: '<b>', title: '<script>' }), /<script>|<b>/);
+});

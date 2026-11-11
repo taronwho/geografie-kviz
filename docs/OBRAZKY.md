@@ -1587,7 +1587,7 @@ Každé téma dostane ke stávajícímu doplňku za zběhlost ještě dva kusy n
 2. Druhý kus: odznak tématu 3. stupně (300 správných odpovědí v tématu, `tema-<téma>-300`).
 3. Třetí kus: odznak tématu 5. stupně (1000 správných odpovědí v tématu, `tema-<téma>-1000`). Odznaky počítají odpovědi, ne různé položky, takže je jde získat v každém tématu.
 4. Okno Mistrovství tématu (Můj postup) ukazuje celou sadu a jak se který kus získá.
-5. Zatím nezapojeno (nápad): v albu sbírky sekce Sady témat; kdo má všechny tři kusy a nasadí je najednou, Mudrlant v Profilu hráče ukáže název looku (např. „Cestovatel“).
+5. Celý look (zapojeno): kdo nasadí všechny kusy sady najednou (v jakýchkoli barvách), má celý look tématu (`Look.activeTopicLook`, názvy v tabulce níže). Ukáže se zlatým štítkem „Celý look: Cestovatel“ pod sovou v Nastavení → Mudrlant a u sovy v Profilu hráče (odvozeno z uložené sovy, bez změny databáze), poprvé ho oslaví oslava, Mistrovství tématu má řádek looku s tlačítkem Obléknout celou sadu a Album sbírky v sekci Doplňky přehled Sady témat (do procent se nepočítá). Look chce všechny kusy, které v katalogu jsou: Historii zatím stačí svitek a krejzlík, po dodání dvourohého klobouku bude chtít i ten. Odznak za celé sady (Módní ikona) není: nové odznaky musí být v `badge_catalog()` ve schématu.
 
 **Postup:** stejně jako u ostatních doplňků (`scripts/owl-accessories.py`). Soubor pojmenuj `branding/doplnky/<id>.jpg`.
 
