@@ -3,6 +3,8 @@
 Ke každému ze 14 témat jeden vtipný doplněk. Hráč ho získá, když je v tématu zběhlý. Doplňky jsou ve čtyřech stávajících místech
 (hlava, obličej, krk, ruka), takže se vybírají stejně jako ostatní: v každém místě nejvýš jeden.
 
+Ke každému tématu přibudou ještě dva kusy na jiných místech, aby šel složit celý look v tématu (sady, prompty č. 177–204 v `docs/OBRAZKY.md`, oddíl 13).
+
 ## Jak se doplněk získá
 
 Dvě cesty, platí ta, která přijde dřív:
