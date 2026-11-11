@@ -57,6 +57,7 @@
     // (kalendářního měsíce); vyšší liga odemkne i rámečky nižších a rámeček zůstane navždy. Odemyká je setLeagueBest (nejlepší liga skončené
     // sezóny, kterou app.js pamatuje v zařízení), ne úroveň ani odznak, takže je truhla nedává. leagueName = název ligy v textech.
     const LEAGUE_FRAMES = [
+        { id: 'liga-stribro', title: 'Stříbrná sezóna', league: 'stribro', leagueName: 'Stříbro' },
         { id: 'liga-zlato', title: 'Zlatá sezóna', league: 'zlato', leagueName: 'Zlato' },
         { id: 'liga-platina', title: 'Platinová sezóna', league: 'platina', leagueName: 'Platina' },
         { id: 'liga-diamant', title: 'Diamantová sezóna', league: 'diamant', leagueName: 'Diamant' },

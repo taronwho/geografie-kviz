@@ -77,7 +77,7 @@ test('odpověď serveru se vyčistí: tvar, rozsah 12 měsíců, skončená jen 
 test('uložený stav: nejlepší liga jen roste, nový rámeček se oslaví jednou, na novém zařízení jen čerstvá sezóna', () => {
     // Nové zařízení, nejlepší sezóna je ta právě skončená: oslava (nejvyšší první)
     let step = Seasons.adopt(null, DATA, 'u-1');
-    assert.deepEqual(step.fresh.map(reward => reward.league), ['diamant', 'platina', 'zlato']);
+    assert.deepEqual(step.fresh.map(reward => reward.league), ['diamant', 'platina', 'zlato', 'stribro']);
     assert.equal(step.cache.best, 'diamant');
     assert.equal(step.cache.bestMonth, '2026-10');
     assert.equal(Seasons.cachedBest(step.cache), 'diamant');
@@ -99,8 +99,9 @@ test('uložený stav: nejlepší liga jen roste, nový rámeček se oslaví jedn
     assert.equal(step.cache.best, 'platina');
     // Bez odpovědi serveru se nic nemění
     assert.deepEqual(Seasons.adopt({ best: 'zlato' }, null, 'u-1'), { cache: Seasons.parseCache({ best: 'zlato' }), fresh: [] });
-    assert.deepEqual(Seasons.unlockedFrames('platina'), ['liga-zlato', 'liga-platina']);
-    assert.deepEqual(Seasons.unlockedFrames('stribro'), []);
+    assert.deepEqual(Seasons.unlockedFrames('platina'), ['liga-stribro', 'liga-zlato', 'liga-platina']);
+    assert.deepEqual(Seasons.unlockedFrames('stribro'), ['liga-stribro']);
+    assert.deepEqual(Seasons.unlockedFrames('bronz'), []);
     assert.deepEqual(Seasons.unlockedFrames(null), []);
 });
 
@@ -113,7 +114,7 @@ test('další odměna: jistý rámeček po konci sezóny, nejbližší vyšší 
     assert.equal(Seasons.nextText(g, data.month), 'Dosáhni Mistra do konce listopadu a získáš rámeček Mistrovská sezóna.');
     // Bez rámečků: Zlato v běžícím měsíci už je jisté, další je Platina
     g = Seasons.goal(data, null, 1380);
-    assert.deepEqual(g.secured.map(reward => reward.league), ['zlato']);
+    assert.deepEqual(g.secured.map(reward => reward.league), ['stribro', 'zlato']);
     assert.equal(g.next.league, 'platina');
     assert.equal(g.need, 20);
     assert.equal(Seasons.securedText(g, data.month), 'Rámeček Zlatá sezóna máš jistý, dostaneš ho 1. prosince.');
@@ -126,7 +127,7 @@ test('další odměna: jistý rámeček po konci sezóny, nejbližší vyšší 
     g = Seasons.goal({ month: '2026-11', seasons: [], best: null }, null, null);
     assert.equal(g.need, null);
     assert.deepEqual(g.secured, []);
-    assert.equal(g.next.league, 'zlato');
+    assert.equal(g.next.league, 'stribro');
 });
 
 test('HTML pruhu a okna: bez inline stylů (CSP), escapované texty, vystavení jen se zapnutou vitrínou', () => {
@@ -140,7 +141,7 @@ test('HTML pruhu a okna: bez inline stylů (CSP), escapované texty, vystavení 
     assert.match(dialog, /data-season-detail="2026-10"[\s\S]*data-showcase-toggle="l:2026-10:diamant"/);
     assert.match(dialog, /data-season-shown/);
     assert.equal((dialog.match(/data-season-month=/g) || []).length, 12);
-    assert.equal((dialog.match(/data-earned/g) || []).length, 3);
+    assert.equal((dialog.match(/data-earned/g) || []).length, 4);
     const plain = Seasons.dialogHtml({ data, best: null, rating: null, now: new Date('2026-11-11T10:00:00Z') }, h);
     assert.doesNotMatch(plain, /data-showcase-toggle/);
     assert.match(plain, /uvidíš její výsledek/);

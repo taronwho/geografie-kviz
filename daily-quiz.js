@@ -198,7 +198,8 @@
     // „Mudrlant · Kvíz dne 8. 11. · 8/10 🟩🟩🟥… · https://…“
     const shareText = ({ appName = 'Mudrlant', day, summary, url = '' }) => [
         `${appName} · Kvíz dne ${formatDay(day)}`,
-        `${summary.correct}/${QUESTIONS} ${emojiGrid(bitsOf(summary.bitmap, summary.answered))}`,
+        // Pořadí rozhodují body, proto jsou první; pak správně a mřížka odpovědí
+        `${pointsWord(summary.score)} · ${summary.correct}/${QUESTIONS} ${emojiGrid(bitsOf(summary.bitmap, summary.answered))}`,
         url
     ].filter(Boolean).join(' · ');
     // Sova k výsledku (obrázky icons/topics/sova-<póza>.webp)

@@ -163,7 +163,7 @@ test('ligové sezóny a vitrína v profilu', { skip: !chromium && 'Playwright ne
             await tab.waitForSelector('#celebration');
             const party = await text(tab, '#celebration');
             assert.match(party, /Nová odměna/);
-            assert.match(party, /Rámeček Diamantová sezóna \(říjen 2026\) a 2 další – vyber si je v Nastavení → Profil/);
+            assert.match(party, /Rámeček Diamantová sezóna \(říjen 2026\) a 3 další – vyber si je v Nastavení → Profil/);
             assert.equal(await tab.locator('#celebration .frame-liga-diamant').count(), 1, 'oslava ukazuje můj obrázek v novém rámečku');
             await shot(tab, 'sezona-oslava', scheme);
             await tab.click('#celebration');
@@ -183,7 +183,7 @@ test('ligové sezóny a vitrína v profilu', { skip: !chromium && 'Playwright ne
             await tab.waitForSelector('[data-league-seasons]');
             assert.match(await text(tab, '[data-season-now]'), /Ligová sezóna listopad 2026 Nejvýš zatím: Zlato 1380 · 7 výzev · ještě 20 dní/);
             assert.equal(await text(tab, '[data-season-goal] p'), 'Dosáhni Mistra do konce listopadu a získáš rámeček Mistrovská sezóna. Chybí ti 320 bodů ratingu.');
-            assert.deepEqual(await tab.$$eval('[data-season-reward]', nodes => nodes.map(node => `${node.dataset.seasonReward}:${node.hasAttribute('data-earned')}`)), ['zlato:true', 'platina:true', 'diamant:true', 'mistr:false']);
+            assert.deepEqual(await tab.$$eval('[data-season-reward]', nodes => nodes.map(node => `${node.dataset.seasonReward}:${node.hasAttribute('data-earned')}`)), ['stribro:true', 'zlato:true', 'platina:true', 'diamant:true', 'mistr:false']);
             assert.equal(await tab.locator('[data-season-month]').count(), 12, '12 skončených měsíců');
             assert.deepEqual(await tab.$$eval('[data-season-month]:not([disabled])', nodes => nodes.map(node => node.dataset.seasonMonth)), ['2026-10', '2026-09', '2026-07']);
             assert.equal(await tab.locator('[data-season-month="2026-10"] img[data-league-emblem="diamant"]').count(), 1);

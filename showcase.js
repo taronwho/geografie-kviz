@@ -81,8 +81,8 @@
     const miniHtml = (list, h) => {
         const items = described(list, h, 'h-full w-full');
         const slot = (item) => item
-            ? `<span class="flex h-7 w-7 items-center justify-center rounded-full bg-white p-0.5 shadow-sm ring-1 ring-gold-300 dark:bg-slate-800 dark:ring-gold-700">${item.art}</span>`
-            : '<span class="flex h-7 w-7 items-center justify-center rounded-full border-2 border-dashed border-slate-300 text-slate-400 dark:border-slate-600 dark:text-slate-500"><i data-lucide="plus" class="h-3 w-3"></i></span>';
+            ? `<span class="flex h-6 w-6 items-center justify-center rounded-full bg-white p-0.5 shadow-sm ring-1 ring-gold-300 dark:bg-slate-800 dark:ring-gold-700">${item.art}</span>`
+            : '<span class="flex h-6 w-6 items-center justify-center rounded-full border-2 border-dashed border-slate-300 text-slate-400 dark:border-slate-600 dark:text-slate-500"><i data-lucide="plus" class="h-3 w-3"></i></span>';
         return `<span class="flex items-center gap-0.5" aria-hidden="true">${[0, 1, 2].map(index => slot(items[index])).join('')}</span>`;
     };
     // Přepínač „Vystavit“ u odznaku, diplomu nebo sezóny; full = vitrína je plná (klepnutí řekne, ať hráč nejdřív něco odebere)

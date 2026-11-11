@@ -12,7 +12,7 @@
         // Rámečky za sérii dní (look.js STREAK_FRAMES)
         jiskra: 'Jiskra', stovka: 'Stovka', 'vecny-ohen': 'Oheň',
         // Rámečky ligových sezón (look.js LEAGUE_FRAMES)
-        'liga-zlato': 'Sezóna Zlato', 'liga-platina': 'Sezóna Platina', 'liga-diamant': 'Sezóna Diamant', 'liga-mistr': 'Sezóna Mistr' };
+        'liga-stribro': 'Sezóna Stříbro', 'liga-zlato': 'Sezóna Zlato', 'liga-platina': 'Sezóna Platina', 'liga-diamant': 'Sezóna Diamant', 'liga-mistr': 'Sezóna Mistr' };
     // Rámeček za celé album sbírky (album.js)
     SHORT.sberatel = 'Sběratel';
     const escapeHtml = (text) => Core && Core.escapeHtml ? Core.escapeHtml(text) : String(text).replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
