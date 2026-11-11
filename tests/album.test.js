@@ -123,6 +123,19 @@ test('časově omezené věci: aktivní chybí, skončené se nepočítají („
     });
 });
 
+test('Bílý talár (noGift) je v albu běžný talár za úroveň 100, bez nabídky truhly', () => {
+    const robe = Look.find('robes', 'bila');
+    assert.ok(robe && robe.noGift && robe.level === 100);
+    const missing = Album.findEntry(Album.build(input({ level: 99 })), 'robes:bila');
+    assert.equal(missing.entry.state, 'missing');
+    assert.equal(Album.howText(missing.entry), 'Od úrovně 100.');
+    assert.match(Album.howText(Album.findEntry(Album.build(input({ level: 10 })), 'robes:zelena').entry), /Od úrovně \d+\.|Nebo dřív z Truhly/);
+    assert.equal(Album.findEntry(Album.build(input({ level: 100 })), 'robes:bila').entry.state, 'owned');
+    assert.equal(sectionOf(Album.build(input({ level: 100 })), 'robes').complete, true);
+    assert.ok(Look.THEMES.length >= 16, 'všechna barevná témata');
+    assert.equal(sectionOf(Album.build(input({ level: 100 })), 'themes').total, Look.THEMES.filter(item => !Album.isStarter(item)).length);
+});
+
 test('nové věci v katalogu i nový druh se v albu objeví samy (obecná sekce před odznaky)', () => {
     const robe = { id: 'test-bila', title: 'Bílý talár', level: 70 };
     const before = sectionOf(Album.build(input({ level: 80 })), 'robes');

@@ -195,7 +195,7 @@
         let text = item.album ? `Odměna za celé album sbírky (100${NB}%) spolu s titulem „${badgeTitle(item.badge)}“.`
             : badge ? `Za odznak „${badge.title}“: ${badge.text}`
                 : item.badge || !Number.isFinite(item.level) ? `${Look ? Look.unlockText(item, item.badge ? badgeTitle(item.badge) : null) : ''}.`
-                    : `Od úrovně ${item.level}.${!entry.owned && CHEST_KINDS.includes(entry.category) && !entry.limited ? ' Nebo dřív z Truhly Mudrlanta za splněné cíle týdne.' : ''}`;
+                    : `Od úrovně ${item.level}.${!entry.owned && CHEST_KINDS.includes(entry.category) && !entry.limited && !item.noGift ? ' Nebo dřív z Truhly Mudrlanta za splněné cíle týdne.' : ''}`;
         if (entry.limited) text += ` Sezónní věc${entry.until ? `, jde získat do ${formatDay(entry.until)}` : ''}.`;
         return text.replace(/\.\.$/, '.');
     };

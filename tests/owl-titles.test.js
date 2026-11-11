@@ -115,7 +115,7 @@ KEEP = {'mlhovina': [(14, 130, 60, 210), (240, 50, 300, 150), (255, 180, 300, 25
 ROBE = {'čepice': (100, 80, 225, 108), 'talár': (110, 200, 150, 270)}
 a = np.asarray(Image.open('icons/topics/sova-titul-11.webp').convert('RGBA')).astype(np.float32)
 out = {}
-for robe in ['zelena', 'modra', 'ruzova', 'fialova', 'cerna', 'zlata']:
+for robe in ['zelena', 'modra', 'ruzova', 'fialova', 'cerna', 'zlata', 'bila']:
     b = np.asarray(Image.open(f'icons/topics/sova-titul-11-{robe}.webp').convert('RGBA')).astype(np.float32)
     changed = (np.abs(a[..., :3] - b[..., :3]).max(-1) > 40) & (a[..., 3] > 200)
     share = lambda box: float(changed[box[1]:box[3], box[0]:box[2]].mean())

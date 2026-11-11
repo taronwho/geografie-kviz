@@ -2092,13 +2092,13 @@
     // získat. Tituly jsou bez rodu (popisují sbírku, ne hráče; „Sběratel“ už je odznak geologie), jde je mít jako titul u jména.
     // Za 100 % je navíc rámeček Sběratelský (look.js).
     const ALBUM_MILESTONES = [[25, 'Sběratelská vášeň'], [50, 'Velká sbírka'], [75, 'Mistrovská sbírka'], [100, 'Legenda sbírky']];
-    addGroup('sberatel', 'Sběratel', 'library', (c, x) => (x && x.album ? x.album.percent : 0), (g) => g >= 100 ? 'Celé album sbírky: všechno, co jde sbírat.' : `Album sbírky na ${g} %.`,
+    addGroup('sberatel', 'Sběratel', 'library', (c, x) => (x && x.album ? x.album.percent : 0), (g) => g >= 100 ? 'Celé album sbírky: všechno, co jde sbírat.' : `Album sbírky na ${g}\u00a0%.`,
         ALBUM_MILESTONES.map(([goal, title]) => T(goal, title, `sberatel-${goal}`)));
     // Celá sekce alba (krátký seznam: sekce, kde je celá sbírka opravdu úspěch; taláry, rámečky a barvy doplňků titul nemají)
     const ALBUM_SECTION_TITLES = [['avatars', 'Postavičky', 'Celý zvěřinec'], ['accessories', 'Doplňky Mudrlanta', 'Módní ikona'], ['themes', 'Barevná témata', 'Duhová duše'],
         ['badges', 'Odznaky', 'Síň slávy'], ['diplomas', 'Diplomy', 'Živá encyklopedie']];
     ALBUM_SECTION_TITLES.forEach(([section, label, title]) => addGroup(`album-${section}`, `Album: ${label}`, 'library',
-        (c, x) => (x && x.album && x.album.sections ? x.album.sections[section] || 0 : 0), () => `Celá sekce alba ${label} (100 %).`, [T(100, title, `album-${section}`)]));
+        (c, x) => (x && x.album && x.album.sections ? x.album.sections[section] || 0 : 0), () => `Celá sekce alba ${label} (100\u00a0%).`, [T(100, title, `album-${section}`)]));
     const isAlbumBadge = (id) => /^(sberatel-\d+|album-[a-z]+)$/.test(String(id));
     // Barvy medailí alba: 25 % bronz, 50 % zlato, 75 % vínová, 100 % diamant; celá sekce zlatá
     BADGES.filter(badge => isAlbumBadge(badge.id) && (badge.group !== 'sberatel' || badge.goal === 50)).forEach(badge => { badge.tone = 'gold'; });
