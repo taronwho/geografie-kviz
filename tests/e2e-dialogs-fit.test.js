@@ -688,12 +688,12 @@ test('okna se vejdou bez posouvání', { skip: !chromium && 'Playwright není na
             };
             await scene(tab, 'Nastavení – Mudrlant (všechny sezónní, hlava)', size, async () => {
                 await openSlot('head', 'slamak');
-                assert.equal(await tab.locator('[data-owl-pick^="head:"]').count(), 18, '„bez doplňku“ a 17 doplňků na hlavu');
+                assert.equal(await tab.locator('[data-owl-pick^="head:"]').count(), 25, '„bez doplňku“ a 24 doplňků na hlavu (se sadami k tématům)');
                 await tab.waitForSelector('[data-owl-color="head:modra"]');
             });
             await scene(tab, 'Nastavení – Mudrlant (všechny sezónní, ruka)', size, async () => {
                 await openSlot('hand', 'lampion');
-                assert.equal(await tab.locator('[data-owl-pick^="hand:"]').count(), 16, '„bez doplňku“ a 15 doplňků do ruky');
+                assert.equal(await tab.locator('[data-owl-pick^="hand:"]').count(), 25, '„bez doplňku“ a 24 doplňků do ruky (se sadami k tématům)');
             });
             await scene(tab, 'Nastavení – Mudrlant (pevné barvy)', size, async () => {
                 await openSlot('head', 'dyne');
