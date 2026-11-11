@@ -1,6 +1,6 @@
 // Sezóna Mudrlanta (season.js) a odměny za sérii dní: stupně podle XP sezóny (kalibrace), měsíce v Praze, založení a přechod sezóny,
 // sloučení se zařízením a účtem (rewards.js), dovybrání minulé sezóny 7 dní, odměny stupňů (stejné na všech zařízeních, Truhla v půli
-// sezóny, Sezónní truhla s exkluzivním rámečkem a titulem), exkluzivní věci v look.js a řádek „Další odměna za sérii“.
+// sezóny s druhým rámečkem měsíce, Sezónní truhla se zdobnějším rámečkem a titulem), exkluzivní věci v look.js a řádek „Další odměna za sérii“.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -133,7 +133,7 @@ test('vyzvednutí: jen dosažený stupeň, každý jednou; ochrana série na sv�
     assert.equal(Season.claim(state, { tier: 2, ctx: ctx(), xp, today: '2026-12-02' }).opened, false);
 });
 
-test('celá cesta: pestré věci bez duplicit, Truhla v půli sezóny dvě věci, Sezónní truhla rámeček měsíce a titul', () => {
+test('celá cesta: pestré věci bez duplicit, Truhla v půli sezóny druhý rámeček měsíce a věc, Sezónní truhla zdobnější rámeček a titul', () => {
     const { state, results } = claimAll(started(0), { xp: 25000, level: 20 });
     assert.equal(results.length, 20);
     const items = results.flatMap(result => result.parts.filter(part => part.item));
@@ -146,6 +146,9 @@ test('celá cesta: pestré věci bez duplicit, Truhla v půli sezóny dvě věci
     assert.equal(mid.kind, 'double');
     assert.equal(mid.parts.filter(part => part.item).length, 2);
     assert.notEqual(mid.parts[0].category, mid.parts[1].category, 'dvě věci různého druhu');
+    assert.equal(`${mid.parts[0].category}:${mid.parts[0].item.id}`, 'frames:sezona-11-b', 'první je druhý rámeček listopadu');
+    assert.ok(!mid.parts[1].item.exclusive && !mid.parts[1].item.badge, 'druhá věc jako jinde na cestě');
+    assert.ok(Rewards.owns(state, 'frames', 'sezona-11-b'));
     const crown = results.find(result => result.tier === 20);
     assert.equal(crown.kind, 'bundle');
     assert.deepEqual(crown.parts.map(part => `${part.category}:${part.item.id}`), ['frames:sezona-11', 'titles:sampion-sezony']);
@@ -158,8 +161,84 @@ test('celá cesta: pestré věci bez duplicit, Truhla v půli sezóny dvě věci
     // Hráč, který má všechno: body místo věci, Sezónní truhla přidá aspoň něco mimo titul
     const rich = Rewards.parse({ gifts: Object.fromEntries(Object.entries(Look.CATALOG).map(([key, list]) => [key, list.map(entry => entry.id)])), freezes: Rewards.MAX_FREEZES, season: { id: NOV, startXp: 0, claimed: {} } });
     const again = claimAll(rich, { xp: 25000, level: 100 });
-    assert.ok(again.results.filter(result => result.tier < 20).every(result => result.parts.every(part => part.xp === Season.FALLBACK_XP)), 'jen body');
+    assert.ok(again.results.filter(result => result.tier < 20).every(result => result.parts.every(part => part.xp === Season.FALLBACK_XP)), 'jen body (rámeček měsíce už má)');
     assert.ok(again.results.find(result => result.tier === 20).parts.some(part => part.xp), 'prázdná truhla dá aspoň body');
+});
+
+test('Truhla v půli sezóny: druhý rámeček měsíce, dokud ho hráč nemá, k němu věc jiného druhu; starý zápis stupně platí dál', () => {
+    const xp = 4600; // stupeň 10 (4 550 XP)
+    const at = (state, extra = {}) => Season.claim(state, { tier: 10, ctx: ctx(), xp, today: '2026-11-20', user: 'u1', ...extra });
+    const first = at(started(0));
+    assert.equal(first.kind, 'double');
+    assert.deepEqual(first.parts.map(part => part.category), ['frames', first.parts[1].category]);
+    assert.equal(first.parts[0].item, Look.find('frames', 'sezona-11-b'));
+    assert.ok(first.parts[1].item && first.parts[1].category !== 'frames' && !first.parts[1].item.exclusive);
+    assert.match(first.state.season.claimed[10], /^frames:sezona-11-b\+(accessories|colors|robes|themes):[a-z0-9-]+$/);
+    assert.ok(Rewards.owns(first.state, 'frames', 'sezona-11-b') && !Rewards.owns(first.state, 'frames', 'sezona-11'), 'zdobnější rámeček až na 20. stupni');
+    // Vypadá stejně na všech zařízeních a po sloučení s účtem
+    assert.equal(Season.encode(at(started(0)).parts), first.state.season.claimed[10]);
+    assert.deepEqual(Rewards.parse(Rewards.payload(first.state)).gifts.frames, ['sezona-11-b']);
+    assert.deepEqual(Season.decode(first.state.season.claimed[10]).map(part => part.item.id), first.parts.map(part => part.item.id));
+    // Kdo rámeček už má (minulý rok), dostane dvě běžné věci různého druhu jako dřív
+    const owner = at(Rewards.parse({ gifts: { frames: ['sezona-11-b'] }, season: { id: NOV, startXp: 0, claimed: {} } }));
+    assert.equal(owner.parts.filter(part => part.item).length, 2);
+    assert.ok(owner.parts.every(part => !part.item.exclusive));
+    assert.notEqual(owner.parts[0].category, owner.parts[1].category);
+    // Když běžné věci došly: rámeček a ochrana série nebo body
+    const all = Object.fromEntries(Object.entries(Look.CATALOG).map(([key, list]) => [key, list.filter(entry => !entry.exclusive).map(entry => entry.id)]));
+    const rich = at(Rewards.parse({ gifts: all, freezes: Rewards.MAX_FREEZES, season: { id: NOV, startXp: 0, claimed: {} } }), { ctx: ctx(100) });
+    assert.deepEqual(Season.encode(rich.parts), `frames:sezona-11-b+xp:${Season.FALLBACK_XP}`);
+    // Minulá sezóna (dovybrání v prosinci): rámeček jejího měsíce, ne prosincový
+    const past = Season.claim(Rewards.parse({ season: { id: '2026-12', startXp: 9000, claimed: {} }, past: { id: NOV, startXp: 0, endXp: 9000, claimed: {} } }),
+        { which: 'past', tier: 10, ctx: ctx(), xp: 9000, today: '2026-12-03', user: 'u1' });
+    assert.equal(past.parts[0].item.id, 'sezona-11-b');
+    // Jiný měsíc: jeho rámeček
+    const january = Season.claim(Rewards.parse({ season: { id: '2027-01', startXp: 0, claimed: {} } }), { tier: 10, ctx: ctx(), xp, today: '2027-01-15', user: 'u1' });
+    assert.equal(january.parts[0].item.id, 'sezona-01-b');
+    // Uložený stav z doby před rámečkem (dvě věci na 10. stupni) se přečte a nic se nevyzvedne znovu
+    const old = Rewards.parse({ season: { id: NOV, startXp: 0, claimed: { 10: 'themes:les+colors:zelena' } }, gifts: { themes: ['les'], colors: ['zelena'] } });
+    assert.equal(old.season.claimed[10], 'themes:les+colors:zelena');
+    assert.equal(at(old).opened, false, 'stupeň už je vyzvednutý');
+    assert.ok(!Season.pending(old, { today: '2026-11-20', xp }).some(entry => entry.tier === 10));
+    // Text na cestě: co na 10. stupni čeká (a když rámeček hráč má, dvě věci)
+    assert.equal(Season.tierText(10, NOV), 'Truhla v půli sezóny: rámeček Listopadové lampiony a k tomu další věc');
+    assert.equal(Season.tierText(10, NOV, null), 'Truhla v půli sezóny: dvě věci naráz');
+    assert.equal(Season.tierText(20, NOV), 'Sezónní truhla: Listopadový rámeček, titul Šampion sezóny');
+    assert.equal(Season.info(started(0), { today: '2026-11-20', xp }).midFrame.id, 'sezona-11-b');
+    assert.equal(Season.info(first.state, { today: '2026-11-20', xp }).midFrame, null, 'už ho má');
+    // Odhalení: obě věci vějířem, rámeček jako obrázkový prsten, věta bez rodu
+    const html = Season.revealHtml({ id: NOV, tier: 10, opened: first, h: { frameClass: Frames.frameClass } });
+    assert.match(html, /Truhla v půli sezóny/);
+    assert.match(html, /data-season-item[^>]*>rámeček Listopadové lampiony · /);
+    assert.match(html, /frame frame-art frame-sezona-11-b/);
+    assert.match(html, /Rámeček sezóny se jinak získat nedá\. Obě věci ti patří navždy\./);
+    assert.match(html, /data-season-wear/, 'Nasadit');
+});
+
+test('rámečky sezóny se nedají získat jinde: Truhla Mudrlanta, úrovně ani odznaky', () => {
+    const season = Look.FRAMES.filter(item => item.source === 'season');
+    assert.equal(season.length, 24);
+    const keys = new Set(season.map(item => `frames:${item.id}`));
+    // Kandidáti truhly a vzácné věci (žádný hráč, žádná úroveň)
+    for (const level of [1, 20, 60, 100]) assert.ok(Rewards.candidates(Rewards.empty(), ctx(level)).every(entry => !keys.has(`${entry.category}:${entry.item.id}`)));
+    assert.ok(Rewards.rareCandidates(Rewards.empty()).every(entry => entry.item.source !== 'season'));
+    // Tisíc truhel týdne po sobě: ani jednou
+    let state = Rewards.empty();
+    let seed = 7;
+    const rng = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
+    for (let week = 0; week < 120; week++) {
+        const day = new Date(Date.UTC(2026, 0, 5) + week * 7 * 86400000).toISOString().slice(0, 10);
+        state = Rewards.addChest(state, day);
+        const opened = Rewards.openChest(state, day, ctx(30), { rng });
+        state = opened.state;
+        if (opened.gift) assert.ok(!keys.has(`${opened.gift.category}:${opened.gift.item.id}`), opened.gift.item.id);
+    }
+    // Úrovně a odznaky je neodemknou ani neoslaví
+    assert.ok(Look.newRewards(0, 200, Object.keys(core.BADGE_BY_ID)).every(entry => !keys.has(`${entry.category}:${entry.item.id}`)));
+    assert.ok(Look.rewardsAtLevel(1).every(entry => entry.item.source !== 'season'));
+    // Běžné stupně sezóny (ne 10. a 20.) je nedají
+    const { results } = claimAll(started(0), { xp: 25000, level: 20 });
+    for (const result of results.filter(entry => entry.tier !== 10 && entry.tier !== 20)) assert.ok(result.parts.every(part => !part.item || !keys.has(`${part.category}:${part.item.id}`)), `stupeň ${result.tier}`);
 });
 
 test('stejná odměna na všech zařízeních: los podle sezóny, stupně a hráče', () => {
@@ -235,14 +314,15 @@ test('účet: jen založená sezóna se do účtu nezapisuje (první přihláše
 
 test('exkluzivní věci: rámečky sezóny a titul jen jako dárek, Sezónní truhla podle dat měsíce, katalog pro album', () => {
     assert.equal(Look.SEASON_FRAMES.length, 12);
-    for (const frame of Look.SEASON_FRAMES) {
-        assert.match(frame.id, /^sezona-(0[1-9]|1[0-2])$/);
+    assert.equal(Look.SEASON_MID_FRAMES.length, 12);
+    for (const frame of [...Look.SEASON_FRAMES, ...Look.SEASON_MID_FRAMES]) {
+        assert.match(frame.id, /^sezona-(0[1-9]|1[0-2])(-b)?$/);
         assert.equal(frame.exclusive, true);
         assert.equal(Look.find('frames', frame.id), frame, 've FRAMES (album, rámeček u jména)');
         assert.equal(Look.isUnlocked(frame, { level: 100, badges: {}, gifts: null }), false, 'úrovní se neodemkne');
         assert.equal(Look.isUnlocked(frame, { level: 1, badges: {}, gifts: { frames: [frame.id] } }), true);
         assert.match(Look.unlockText(frame), /^Sezóna Mudrlanta/);
-        assert.equal(Frames.frameClass(frame.id), ` frame frame-${frame.id}`);
+        assert.equal(Frames.frameClass(frame.id), ` frame frame-art frame-${frame.id}`, 'obrázkový prsten');
     }
     // Každý měsíc má svou Sezónní truhlu; do ní jde jen to, co v katalogu je (doplněk a postavička zatím chybí)
     assert.deepEqual(Object.keys(Look.SEASON_BUNDLES).sort(), ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12']);
@@ -298,7 +378,8 @@ test('napojení a HTML: season.js v index.html, service workeru, nasazení a Tai
     assert.match(fs.readFileSync(path.join(ROOT, '.github', 'workflows', 'pages.yml'), 'utf8'), /\bseason\.js\b/);
     assert.match(fs.readFileSync(path.join(ROOT, 'tailwind.config.js'), 'utf8'), /'\.\/season\.js'/);
     const css = fs.readFileSync(path.join(ROOT, 'src', 'input.css'), 'utf8');
-    for (let month = 1; month <= 12; month++) assert.match(css, new RegExp(`\\.season-m${String(month).padStart(2, '0')}, \\.frame-sezona-${String(month).padStart(2, '0')} \\{`));
+    for (let month = 1; month <= 12; month++) assert.match(css, new RegExp(`\\.season-m${String(month).padStart(2, '0')} \\{ --s1: `), 'barvy měsíce pro kartu, pruh a odhalení');
+    assert.doesNotMatch(css, /frame-sezona-[^{]*\{[^}]*(conic-gradient|content: var)/, 'rámečky sezóny jsou obrázky, ne kroužek z CSS');
     for (const id of ['jiskra', 'stovka', 'vecny-ohen']) assert.match(css, new RegExp(`\\.frame-${id} \\{`));
     assert.match(css, /prefers-reduced-motion: no-preference[\s\S]*\.frame-vecny-ohen \{ animation: frameFlare/, 'Věčný oheň plápolá jen bez omezení pohybu');
     const h = { frameClass: Frames.frameClass };

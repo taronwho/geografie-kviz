@@ -66,7 +66,7 @@
         { id: 'diplomy', icon: 'award', after: 50, title: 'Diplomy', text: 'Za plné mistrovství tématu (5 hvězdiček) dostaneš diplom s Mudrlantem a svým jménem. Najdeš ho v Mém postupu v části Diplomy a můžeš ho sdílet nebo stáhnout.',
             action: { kind: 'progress', label: 'Můj postup' }, ready: (u) => num(u.maxStars) >= 3, used: (u) => Boolean(u.visited.diplomas) },
         // art = obrázek místo sovy s žárovkou (icons/topics/<art>.webp, docs/OBRAZKY.md č. 133, 148, 150)
-        { id: 'sezona', icon: 'sparkles', art: 'sezona', after: 30, title: 'Sezóna Mudrlanta', text: 'Každý měsíc běží Sezóna Mudrlanta: XP z hraní tě posouvají po cestě 20 stupňů a na každém čeká odměna. Na konci je Sezónní truhla s doplňkem, rámečkem a postavičkou, které jde získat jen v tom měsíci.',
+        { id: 'sezona', icon: 'sparkles', art: 'sezona', after: 30, title: 'Sezóna Mudrlanta', text: 'Každý měsíc běží Sezóna Mudrlanta: XP z hraní tě posouvají po cestě 20 stupňů a na každém čeká odměna. V půli cesty čeká rámeček měsíce, na konci Sezónní truhla s druhým, zdobnějším rámečkem, doplňkem a postavičkou. Ty jdou získat jen v tom měsíci.',
             action: { kind: 'progress', label: 'Můj postup' }, ready: (u) => u.season, used: (u) => Boolean(u.visited.season) },
         { id: 'album', icon: 'book-open', art: 'album', after: 70, title: 'Album sbírky', text: 'V Mém postupu najdeš Album sbírky se vším, co jde pro Mudrlanta a tvůj profil získat. Uvidíš, co ti ještě chybí, a za milníky sbírky dostaneš odznaky Sběratel.',
             action: { kind: 'progress', label: 'Můj postup' }, ready: (u) => u.album, used: (u) => Boolean(u.visited.album) },
