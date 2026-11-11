@@ -266,7 +266,11 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         assert.doesNotMatch(await tab.textContent('#dialog-overlay'), /otázek/);
         assert.match(await tab.textContent('#dialog-overlay [data-title-row="1"]'), /od 0 XP/);
         assert.ok(await tab.locator('#dialog-overlay [data-title-row] img.grayscale').count() > 20, 'nedosažené tituly zešedlé');
+        // Escape (jako křížek a Zpět na mobilu) vrátí do okna, odkud tabulka vedla, další Escape okno zavře
         await tab.keyboard.press('Escape');
+        await tab.waitForSelector('#dialog-overlay [data-progress-dialog]');
+        await tab.keyboard.press('Escape');
+        await tab.waitForSelector('#dialog-overlay', { state: 'detached' });
         await tab.click('#status-badge');
         await tab.waitForSelector('#dialog-overlay');
         assert.equal(await tab.locator('#dialog-overlay li').count(), 14 + 2, 'mistrovství všech témat a dva nejbližší odznaky');
@@ -284,7 +288,7 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         assert.match(mastery, /Do další hvězdičky chybí \d+ polož/);
         assert.match(mastery, /3 hvězdičky:.*Navigátor.*Kompas/);
         assert.match(mastery, /5 hvězdiček:.*Mistr oboru/);
-        await tab.click('[data-back-progress]');
+        await tab.click('[data-dialog-back]');
         await tab.waitForSelector('[data-open-badges]');
         // Okno se všemi odznaky: skupiny se stupni, klepnutím na medaili podrobnosti
         await tab.click('[data-open-badges]');
@@ -305,11 +309,11 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         assert.match(await tab.textContent('#dialog-overlay [data-badge-reward]'), /Vavřínový \(rámeček\), Vavřínový věnec \(doplněk Mudrlanta\)/);
         await tab.click('[data-badge="stovka"]');
         // Z odznaků i z tabulky úrovní vede cesta zpět na Můj postup (jako z mistrovství)
-        await tab.click('#dialog-overlay [data-back-progress]');
+        await tab.click('#dialog-overlay [data-dialog-back]');
         await tab.waitForSelector('#dialog-overlay [data-open-levels]');
         await tab.click('[data-open-levels]');
         await tab.waitForSelector('#dialog-overlay [data-title-row]');
-        await tab.click('#dialog-overlay [data-back-progress]');
+        await tab.click('#dialog-overlay [data-dialog-back]');
         await tab.waitForSelector('#dialog-overlay [data-open-badges]');
         await tab.keyboard.press('Escape');
         // Výsledek u dnešní otázky je vidět celý (ne zkrácený na „4 bod…“)
@@ -1548,7 +1552,10 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         await one.tab.click('[data-accept-mix]');
         await acceptSaved('[data-accept-mix]', 'true');
         assert.equal(db.profiles['u-1'].accepts_mix, true);
+        // Křížek vrátí do Nastavení, odkud okno vedlo
         await one.tab.click('#dialog-overlay [data-close]');
+        await one.tab.waitForSelector('#settings-overlay');
+        await one.tab.keyboard.press('Escape');
         await one.tab.waitForFunction(() => /Přijímám výzvy z:\s*všechna témata/.test((document.getElementById('challenges-section') || {}).textContent || ''));
 
         // Výzva konkrétnímu hráči: hledání podle přezdívky (Petr), téma zeměpis, 5 otázek
@@ -1865,6 +1872,8 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         assert.deepEqual([...new Set(rows.map(row => row[1]))].length, 11, 'jedenáct různých sov');
         assert.deepEqual(rows.filter(row => row[1].includes('sova-titul-11')).map(row => row[0]), [100], 'vlastní sovu má jen Mudrlant (úroveň 100)');
         await tab.waitForFunction(() => [...document.querySelectorAll('#dialog-overlay [data-title-row] img')].every(img => img.complete && img.naturalWidth > 0), null, { timeout: 10000 });
+        await tab.keyboard.press('Escape');
+        await tab.waitForSelector('#dialog-overlay [data-progress-dialog]');
         await tab.keyboard.press('Escape');
 
         // Správná odpověď → úroveň 7 → oslava „Nový titul: Učeň“ se sovou druhého stupně v zeleném taláru

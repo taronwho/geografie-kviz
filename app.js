@@ -1933,10 +1933,12 @@
                 if (Tutorial) Tutorial.restart();
                 return;
             }
-            if (event.target.closest('[data-open-progress]')) { closeSettings(); openProgress(); return; }
-            if (event.target.closest('[data-open-showcase]')) { closeSettings(); openShowcase(); return; }
-            if (event.target.closest('[data-open-accept]')) { closeSettings(); openAccepted(); return; }
-            if (event.target.closest('[data-open-blocked]')) { closeSettings(); openBlockedList(); return; }
+            // Okna z Nastavení se křížkem i tlačítkem zpět vrací do Nastavení (na stejnou záložku)
+            const fromSettings = (open) => { closeSettings(); openChild('Zpět do Nastavení', () => { closeDialog(); openSettings(); }, open); };
+            if (event.target.closest('[data-open-progress]')) { fromSettings(openProgress); return; }
+            if (event.target.closest('[data-open-showcase]')) { fromSettings(openShowcase); return; }
+            if (event.target.closest('[data-open-accept]')) { fromSettings(openAccepted); return; }
+            if (event.target.closest('[data-open-blocked]')) { fromSettings(openBlockedList); return; }
             const devButton = event.target.closest('[data-dev]');
             if (devButton && devButton.dataset.dev.startsWith('tour-')) { devTournamentAction(devButton.dataset.dev); return; }
             if (devButton && devButton.dataset.dev === 'errors') { closeSettings(); openClientErrors(); return; }
@@ -3920,7 +3922,7 @@
             onClick: (event) => {
                 if (event.target.closest('[data-chest-open]')) { closeDialog(); openChestOverlay(); return; }
                 const detail = event.target.closest('[data-goal-detail]');
-                if (detail) openGoalDetail(detail.dataset.goalDetail);
+                if (detail) openChild('Zpět na cíle týdne', openGoals, () => openGoalDetail(detail.dataset.goalDetail));
             }
         });
         applyProgress(document.getElementById('dialog-overlay'));
@@ -3966,10 +3968,9 @@
                 </div>
                 <p data-goal-text class="text-[13px] leading-snug text-slate-700 dark:text-slate-200">${escapeHtml(plan.text)}</p>
                 ${plan.run ? `<button type="button" data-goal-play class="${PRIMARY_BUTTON}"><i data-lucide="play" class="h-5 w-5"></i> ${escapeHtml(plan.label)}</button>` : ''}
-                <button type="button" data-goal-back class="${SECONDARY_BUTTON} !py-2.5 text-sm"><i data-lucide="chevron-left" class="h-4 w-4"></i> Všechny cíle</button>
+                ${dialogBackButton()}
             </div>`, {
             onClick: (event) => {
-                if (event.target.closest('[data-goal-back]')) { openGoals(); return; }
                 if (event.target.closest('[data-goal-play]') && plan.run) { closeDialog(); plan.run(); }
             }
         });
@@ -4171,8 +4172,7 @@
     };
     const openFreezeHelp = () => {
         if (!Rewards) return;
-        showDialog('Ochrana série', `${Rewards.freezeHelpHtml(loadRewards().freezes)}${streakRewardLine(longestStreak(), 'mt-2.5 rounded-xl bg-white px-2.5 py-2 shadow-sm dark:bg-slate-800')}<button type="button" data-back-progress class="${SECONDARY_BUTTON} mt-3 !py-2.5 text-sm"><i data-lucide="chevron-left" class="h-4 w-4"></i> Můj postup</button>`,
-            { onClick: (event) => { if (event.target.closest('[data-back-progress]')) openProgress(); } });
+        showDialog('Ochrana série', `${Rewards.freezeHelpHtml(loadRewards().freezes)}${streakRewardLine(longestStreak(), 'mt-2.5 rounded-xl bg-white px-2.5 py-2 shadow-sm dark:bg-slate-800')}${dialogBackButton('mt-3')}`);
     };
     const lastChestText = (state) => {
         const week = Object.keys(state.chests).sort().pop();
@@ -4182,8 +4182,8 @@
     const openChestHelp = () => {
         if (!Rewards) return;
         if (Rewards.pendingChest(loadRewards())) { closeDialog(); openChestOverlay(); return; }
-        showDialog('Truhla Mudrlanta', `${Rewards.chestHelpHtml(lastChestText(loadRewards()))}<div class="mt-3 grid grid-cols-2 gap-2"><button type="button" data-goals-open class="${SECONDARY_BUTTON} !py-2.5 text-sm"><i data-lucide="target" class="h-4 w-4"></i> Cíle týdne</button><button type="button" data-back-progress class="${SECONDARY_BUTTON} !py-2.5 text-sm"><i data-lucide="chevron-left" class="h-4 w-4"></i> Můj postup</button></div>`,
-            { onClick: (event) => { if (event.target.closest('[data-back-progress]')) openProgress(); if (event.target.closest('[data-goals-open]')) openGoals(); } });
+        showDialog('Truhla Mudrlanta', `${Rewards.chestHelpHtml(lastChestText(loadRewards()))}<div class="mt-3 grid ${dialogTrail.length ? 'grid-cols-2' : 'grid-cols-1'} gap-2"><button type="button" data-goals-open class="${SECONDARY_BUTTON} !py-2.5 text-sm"><i data-lucide="target" class="h-4 w-4"></i> Cíle týdne</button>${dialogTrail.length ? dialogBackButton().replace('Zpět na ', '') : ''}</div>`,
+            { onClick: (event) => { if (event.target.closest('[data-goals-open]')) openChild('Zpět na Truhlu', openChestHelp, openGoals); } });
     };
 
     // --- Sezóna Mudrlanta (season.js): měsíční cesta 20 stupňů odměn; stav je v odměnách (rewards.js season, past) ---
@@ -4234,6 +4234,13 @@
         const view = seasonView();
         const entry = target ? view.pending.find(item => item.which === target.which && item.tier === target.tier) : view.pending[0];
         if (!entry) return;
+        // Návrat po zavření vrátí i cestu mezi okny (okno sezóny z Mého postupu má dál tlačítko zpět)
+        if (back && !back.keepsTrail) {
+            const to = back;
+            const trail = dialogTrail;
+            back = () => { dialogNavigating = true; try { dialogTrail = trail; to(); } finally { dialogNavigating = false; } dialogTrail = trail; };
+            back.keepsTrail = true;
+        }
         closeDialog();
         const overlay = document.createElement('div');
         overlay.id = 'season-overlay';
@@ -4301,9 +4308,8 @@
     const openSeason = (selected = null) => {
         if (!Season || !Rewards) return;
         const view = seasonView();
-        showDialog(`Sezóna ${Season.label(view.id)}`, `${Season.pathHtml(view, { selected, h: chestHelpers() })}<button type="button" data-back-progress class="${SECONDARY_BUTTON} mt-2 !py-2.5 text-sm"><i data-lucide="chevron-left" class="h-4 w-4"></i> Můj postup</button>`, {
+        showDialog(`Sezóna ${Season.label(view.id)}`, `${Season.pathHtml(view, { selected, h: chestHelpers() })}${dialogBackButton('mt-2')}`, {
             onClick: (event) => {
-                if (event.target.closest('[data-back-progress]')) { openProgress(); return; }
                 if (event.target.closest('[data-season-claim-past]')) { openSeasonReveal(view.pastPending[0], () => openSeason()); return; }
                 if (event.target.closest('[data-season-claim]')) { openSeasonReveal(null, () => openSeason()); return; }
                 const tile = event.target.closest('[data-season-tier]');
@@ -4351,8 +4357,8 @@
         let name = diplomaName();
         // Získaný diplom jde vystavit ve vitríně profilu (schéma 18): Vystavit vedle tlačítka Diplomy, okno se tím nezvětší
         const entry = Showcase ? Showcase.diploma(row.topic.id) : '';
-        const backButton = `<button type="button" data-back-diplomas class="${SECONDARY_BUTTON} !py-2.5 text-sm"><i data-lucide="chevron-left" class="h-4 w-4"></i> Diplomy</button>`;
-        const backRow = () => (row.earned && showcaseToggle(entry) ? `<div class="mt-2.5 grid grid-cols-2 gap-2" data-diploma-showcase>${backButton}${showcaseToggle(entry, true)}</div>` : `<div class="mt-2.5">${backButton}</div>`);
+        const backButton = dialogBackButton();
+        const backRow = () => (row.earned && showcaseToggle(entry) ? `<div class="mt-2.5 grid ${backButton ? 'grid-cols-2' : 'grid-cols-1'} gap-2" data-diploma-showcase>${backButton}${showcaseToggle(entry, true)}</div>` : `<div class="mt-2.5">${backButton}</div>`);
         const back = backRow();
         if (row.earned && myShowcase === null && signedUser()) loadMyShowcase(signedUser()).then(() => {
             const box = document.querySelector('#dialog-overlay [data-diploma-dialog]');
@@ -4377,7 +4383,6 @@
         let typing = null;
         showDialog(row.earned ? 'Diplom' : row.title, Rewards.diplomaDialogHtml(row, { name, needName: !name }, { topicIcon, styleOf }) + back, {
             onClick: (event) => {
-                if (event.target.closest('[data-back-diplomas]')) { openDiplomas(); return; }
                 // Vystavit: překreslí se jen řádek s tlačítky (náhled diplomu zůstane)
                 const toggle = event.target.closest('[data-showcase-toggle]');
                 if (toggle) {
@@ -6181,10 +6186,13 @@
             </div>`;
     };
     // Vysvětlení ratingu a lig (z karty ligy i z týdenního žebříčku). Hranice a vzhled lig se čtou z rating.js. fromBoard = tlačítko Zpět na žebříček.
-    const openLeagueHelp = (fromBoard = false) => {
+    const openLeagueHelp = () => {
         if (!Rating) return;
-        // Ligové sezóny (schéma 18): bod s pravidlem a tlačítko do okna sezón, jen když je databáze zná
+        // Ligové sezóny (schéma 18): bod s pravidlem a tlačítko do okna sezón, jen když je databáze zná. Zpět vede tam, odkud hráč přišel
+        // (žebříček, Ligové sezóny); z Ligových sezón stačí tlačítko zpět, druhé tlačítko do sezón by bylo navíc
         const seasons = Boolean(LeagueSeasons && leagueSeasons);
+        const hasBack = dialogTrail.length > 0;
+        const seasonsLink = seasons && !(hasBack && dialogTrail[dialogTrail.length - 1].title === 'Ligové sezóny');
         const mine = myRating ? Rating.leagueFor(myRating.rating) : null;
         const range = (league, index) => {
             const next = Rating.LEAGUES[index + 1];
@@ -6210,14 +6218,13 @@
                     <ol class="grid grid-cols-2 gap-1.5">${leagues}</ol>
                 </div>
                 <p class="${POINT}">${DOT}<span><b class="text-slate-800 dark:text-slate-100">Týdenní žebříček</b> řadí hráče podle změny ratingu za týden. V pondělí se počítá znovu od nuly.</span></p>
-                ${seasons ? `<p class="${POINT}" data-help-seasons>${DOT}<span><b class="text-slate-800 dark:text-slate-100">Ligová sezóna</b> trvá kalendářní měsíc. Výsledek je nejvyšší liga, které v něm dosáhneš. Za Zlato a výš dostaneš rámeček profilu navždy.</span></p>` : ''}
-                ${fromBoard || seasons ? `<div class="grid ${fromBoard && seasons ? 'grid-cols-2' : 'grid-cols-1'} gap-2">
-                    ${fromBoard ? '<button type="button" data-help-back class="flex w-full items-center justify-center gap-2 rounded-2xl btn-3d bg-brand-700 px-3 py-2.5 text-sm font-black text-white"><i data-lucide="chevron-left" class="h-4 w-4"></i> Zpět na žebříček</button>' : ''}
-                    ${seasons ? `<button type="button" data-help-seasons-open class="flex w-full items-center justify-center gap-2 rounded-2xl ${fromBoard ? 'btn-3d-light bg-white text-slate-800 dark:bg-slate-800 dark:text-slate-100' : 'btn-3d bg-brand-700 text-white'} px-3 py-2.5 text-sm font-black"><i data-lucide="calendar-days" class="h-4 w-4"></i> Ligové sezóny</button>` : ''}
+                ${seasons ? `<p class="${POINT}" data-help-seasons>${DOT}<span><b class="text-slate-800 dark:text-slate-100">Ligová sezóna</b> trvá kalendářní měsíc. Výsledek je nejvyšší liga, které v něm dosáhneš. Za Stříbro a výš dostaneš rámeček profilu navždy.</span></p>` : ''}
+                ${hasBack || seasonsLink ? `<div class="grid ${hasBack && seasonsLink ? 'grid-cols-2' : 'grid-cols-1'} gap-2">
+                    ${hasBack ? `<button type="button" data-dialog-back class="flex w-full items-center justify-center gap-2 rounded-2xl btn-3d bg-brand-700 px-3 py-2.5 text-sm font-black text-white"><i data-lucide="chevron-left" class="h-4 w-4"></i> ${escapeHtml(backLabel())}</button>` : ''}
+                    ${seasonsLink ? `<button type="button" data-help-seasons-open class="flex w-full items-center justify-center gap-2 rounded-2xl ${hasBack ? 'btn-3d-light bg-white text-slate-800 dark:bg-slate-800 dark:text-slate-100' : 'btn-3d bg-brand-700 text-white'} px-3 py-2.5 text-sm font-black"><i data-lucide="calendar-days" class="h-4 w-4"></i> Ligové sezóny</button>` : ''}
                 </div>` : ''}
             </div>`, { onClick: (event) => {
-            if (event.target.closest('[data-help-back]')) openWeeklyBoard();
-            if (event.target.closest('[data-help-seasons-open]')) openLeagueSeasons();
+            if (event.target.closest('[data-help-seasons-open]')) openChild('Zpět na Jak fungují ligy', () => openLeagueHelp(), openLeagueSeasons);
         } });
         renderIcons(document.getElementById('dialog-overlay'));
     };
@@ -6226,7 +6233,7 @@
         const user = signedUser();
         if (!user || !Social || !Rating) { openLoginDialog(); return; }
         const head = `<div class="flex items-start gap-2"><p class="min-w-0 flex-1 text-xs font-semibold leading-snug text-slate-500 dark:text-slate-400">Týden ${escapeHtml(Rating.weekLabel())} · řazeno podle změny ratingu ve výzvách proti jiným hráčům. V pondělí se počítá znovu.</p><button type="button" data-league-help aria-label="Jak fungují ligy" title="Jak to funguje?" class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gold-50 text-base font-black text-brand-950 ring-1 ring-gold-300/70 active:scale-95 dark:bg-gold-900/20 dark:text-gold-200 dark:ring-gold-700/60">?</button></div>`;
-        const onClick = (event) => { if (event.target.closest('[data-league-help]')) openLeagueHelp(true); };
+        const onClick = (event) => { if (event.target.closest('[data-league-help]')) openChild('Zpět na žebříček', openWeeklyBoard, () => openLeagueHelp()); };
         showDialog('Týdenní žebříček', `<div class="flex flex-col gap-3">${head}<p class="py-4 text-center text-sm font-semibold text-slate-500 dark:text-slate-400">Načítám…</p></div>`, { onClick });
         let rows;
         try { rows = await Social.weeklyLeaderboard(); } catch (error) { rows = undefined; }
@@ -6254,7 +6261,7 @@
         renderIcons(document.getElementById('dialog-overlay'));
     };
     // ===== Ligové sezóny a vitrína v profilu (schéma 18; league-seasons.js, showcase.js) =====
-    // Sezóna = kalendářní měsíc (pražský čas), výsledek = nejvyšší liga v měsíci; za vrchol skončené sezóny Zlato a výš rámeček profilu.
+    // Sezóna = kalendářní měsíc (pražský čas), výsledek = nejvyšší liga v měsíci; za vrchol skončené sezóny Stříbro a výš rámeček profilu.
     // Vitrína = nejvýš 3 trofeje (odznak, diplom, ligová sezóna), které ostatní uvidí v Profilu hráče. Se starší databází se nic z toho neukáže.
     const LeagueSeasons = window.MudrlantLeagueSeasons || null;
     const Showcase = window.MudrlantShowcase || null;
@@ -6402,7 +6409,7 @@
             showDialog('Vitrína', body, {
                 onClick: async (event) => {
                     const go = event.target.closest('[data-showcase-go]');
-                    if (go) { ({ badges: openBadges, diplomas: openDiplomas, seasons: openLeagueSeasons })[go.dataset.showcaseGo](); return; }
+                    if (go) { openChild('Zpět na Vitrínu', openShowcase, ({ badges: openBadges, diplomas: openDiplomas, seasons: openLeagueSeasons })[go.dataset.showcaseGo]); return; }
                     const remove = event.target.closest('[data-showcase-remove]');
                     if (!remove) return;
                     const pending = toggleShowcase(remove.dataset.showcaseRemove);
@@ -6434,7 +6441,12 @@
             showDialog('Ligové sezóny', `${body}
                 <button type="button" data-league-help class="mt-1 flex short:mt-0 min-h-[2.5rem] w-full items-center justify-center gap-1.5 rounded-xl text-[13px] font-black text-brand-700 dark:text-cream"><i data-lucide="info" class="h-4 w-4"></i> Jak fungují ligy a sezóny</button>`, {
                 onClick: (event) => {
-                    if (event.target.closest('[data-league-help]')) { openLeagueHelp(); return; }
+                    if (event.target.closest('[data-league-help]')) {
+                        // Z nápovědy otevřené z této nápovědy jen zpět (bez nekonečné cesty tam a zpátky)
+                        if (dialogTrail.length && dialogTrail[dialogTrail.length - 1].title === 'Jak fungují ligy') dialogBack();
+                        else openChild('Zpět na Ligové sezóny', openLeagueSeasons, () => openLeagueHelp());
+                        return;
+                    }
                     const toggle = event.target.closest('[data-showcase-toggle]');
                     if (toggle) { onShowcaseToggle(toggle, render); return; }
                     const month = event.target.closest('[data-season-month]');
@@ -6719,19 +6731,59 @@
     let dialogHandler = null;
     let dialogSubmit = null;
     let dialogInput = null;
+    // Cesta mezi okny: okno otevřené z jiného okna (openChild) si pamatuje, kam se vrátit. Křížek, Escape, Zpět na mobilu i tlačítko
+    // „Zpět na …“ (data-dialog-back) vrátí do rodičovského okna (Vitrína, Můj postup, Nastavení…), klepnutí vedle okna zavře všechno.
+    // Okno s vlastním krokem zpět uvnitř (detail v albu, cíl týdne…) ho označí data-x-back a křížek udělá nejdřív ten.
+    // dialogTrail = [{ label, reopen, title, scroll }]: label tlačítka zpět, reopen otevře rodiče znovu (s čerstvými daty)
+    let dialogTrail = [];
+    let dialogNavigating = false;
     const closeDialog = () => {
         const overlay = document.getElementById('dialog-overlay');
         if (overlay) overlay.remove();
         dialogHandler = null;
         dialogSubmit = null;
         dialogInput = null;
+        if (!dialogNavigating) dialogTrail = [];
     };
-    const showDialog = (title, body, { onClick = null, onSubmit = null, onInput = null } = {}) => {
+    const openChild = (label, reopen, open) => {
+        const overlay = document.getElementById('dialog-overlay');
+        const entry = { label, reopen, title: overlay ? overlay.dataset.title : '', scroll: overlay && overlay.firstElementChild ? overlay.firstElementChild.scrollTop : 0 };
+        const before = dialogTrail;
+        const trail = [...before, entry];
+        dialogNavigating = true;
+        try { dialogTrail = trail; open(); } finally { dialogNavigating = false; }
+        // Okno se neotevřelo (chybí modul, přihlášení, místo okna přišla truhla): cesta zůstane, jak byla
+        const after = document.getElementById('dialog-overlay');
+        dialogTrail = after && after.dataset.title !== entry.title ? trail : (after ? before : []);
+    };
+    const dialogBack = () => {
+        const entry = dialogTrail[dialogTrail.length - 1];
+        if (!entry) { closeDialog(); return; }
+        const rest = dialogTrail.slice(0, -1);
+        dialogNavigating = true;
+        try { dialogTrail = rest; entry.reopen(); } finally { dialogNavigating = false; }
+        dialogTrail = rest;
+        const overlay = document.getElementById('dialog-overlay');
+        if (overlay && entry.scroll && overlay.dataset.title === entry.title) overlay.firstElementChild.scrollTop = entry.scroll;
+    };
+    // Křížek (a Escape, Zpět na mobilu): nejdřív krok zpět uvnitř okna, pak do rodičovského okna, jinak zavřít
+    const dialogStepBack = () => {
+        const overlay = document.getElementById('dialog-overlay');
+        const local = overlay && overlay.querySelector('[data-x-back]');
+        if (local) local.click();
+        else dialogBack();
+    };
+    // Tlačítko zpět do rodičovského okna; bez rodiče nic (okno se zavírá křížkem)
+    const backLabel = () => (dialogTrail.length ? dialogTrail[dialogTrail.length - 1].label : '');
+    const dialogBackButton = (extra = '') => (dialogTrail.length ? `<button type="button" data-dialog-back class="${SECONDARY_BUTTON} !py-2.5 text-sm ${extra}"><i data-lucide="chevron-left" class="h-4 w-4"></i> ${escapeHtml(backLabel())}</button>` : '');
+    // aside = drobný údaj v záhlaví vedle nadpisu (Můj postup: celkové XP)
+    const showDialog = (title, body, { onClick = null, onSubmit = null, onInput = null, aside = '' } = {}) => {
         closeChooser();
         closeSettings();
         let overlay = document.getElementById('dialog-overlay');
         const created = !overlay;
         if (!overlay) {
+            if (!dialogNavigating) dialogTrail = [];
             overlay = document.createElement('div');
             overlay.id = 'dialog-overlay';
             overlay.setAttribute('role', 'dialog');
@@ -6739,7 +6791,9 @@
             overlay.setAttribute('aria-labelledby', 'dialog-title');
             overlay.className = 'fixed inset-0 z-50 flex items-end justify-center bg-slate-900/60 p-4 backdrop-blur-sm sm:items-center';
             overlay.addEventListener('click', (event) => {
-                if (event.target === overlay || event.target.closest('[data-close]')) { closeDialog(); return; }
+                if (event.target === overlay) { closeDialog(); return; }
+                if (event.target.closest('[data-close]')) { dialogStepBack(); return; }
+                if (event.target.closest('[data-dialog-back]')) { dialogBack(); return; }
                 if (dialogHandler) dialogHandler(event);
             });
             overlay.addEventListener('submit', (event) => { event.preventDefault(); if (dialogSubmit) dialogSubmit(event); });
@@ -6759,6 +6813,7 @@
             <div class="relative max-h-[92dvh] w-full max-w-md overflow-y-auto rounded-[1.75rem] bg-slate-50 p-5 shadow-2xl dark:bg-slate-900">
                 <div data-dialog-head class="sticky -top-5 z-20 -mx-5 -mt-5 mb-2 flex items-center justify-between bg-slate-50 px-5 pb-2 pt-5 dark:bg-slate-900">
                     <h2 id="dialog-title" class="text-lg font-black text-slate-800 dark:text-slate-100">${escapeHtml(title)}</h2>
+                    ${aside ? `<span class="ml-auto mr-1 shrink-0">${aside}</span>` : ''}
                     <button type="button" data-close aria-label="Zavřít" class="-m-0.5 rounded-xl p-2.5 text-slate-500 hover:bg-slate-200 dark:text-slate-400 dark:hover:bg-slate-800"><i data-lucide="x" class="h-5 w-5"></i></button>
                 </div>
                 ${body}
@@ -7327,7 +7382,8 @@
     };
     const goalBar = (ratio) => `<span class="mt-1 block h-1.5 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700" aria-hidden="true"><span class="block h-full w-0 rounded-full bg-gold-500" data-progress="${Math.round(ratio * 100)}"></span></span>`;
     // Tlačítko Zpět dole v dlouhém seznamu (odznaky, úrovně): lepkavé, při posouvání zůstane vidět
-    const STICKY_BACK = (label) => `<div class="sticky -bottom-5 z-10 -mx-5 -mb-5 bg-slate-50 px-5 pb-5 pt-2 dark:bg-slate-900"><button type="button" data-back-progress class="${SECONDARY_BUTTON} !py-2.5 text-sm"><i data-lucide="chevron-left" class="h-4 w-4"></i> ${label}</button></div>`;
+    // Tlačítko zpět do okna, odkud hráč přišel (Můj postup, Vitrína…), přilepené dole; bez rodičovského okna nic
+    const STICKY_BACK = () => (dialogTrail.length ? `<div class="sticky -bottom-5 z-10 -mx-5 -mb-5 bg-slate-50 px-5 pb-5 pt-2 dark:bg-slate-900">${dialogBackButton()}</div>` : '');
     // Vitrína (schéma 18): u získaného odznaku přepínač Vystavit; vystavit jde nejvyšší získaný stupeň skupiny (ten je v účtu), u nižšího jen věta
     const showcaseBadge = (badge, progress) => {
         if (!progress.badges[badge.id] || !Showcase || myShowcase === null || !signedUser()) return '';
@@ -7366,11 +7422,9 @@
                     <p class="text-sm font-black text-slate-800 dark:text-slate-100">${have} / ${total} <span class="font-semibold text-slate-500 dark:text-slate-400">získaných odznaků</span></p>
                     <div class="sticky top-11 z-10 -mx-1 bg-slate-50 px-1 pb-2 dark:bg-slate-900">${detailHtml}</div>
                     <div class="grid grid-cols-2 gap-1.5">${sections}</div>
-                    ${STICKY_BACK('Zpět na Můj postup')}
+                    ${STICKY_BACK()}
                 </div>`, {
                 onClick: (event) => {
-                    // Zpět na přehled jako u mistrovství (jinak by šlo okno jen zavřít)
-                    if (event.target.closest('[data-back-progress]')) { openProgress(); return; }
                     const toggle = event.target.closest('[data-showcase-toggle]');
                     if (toggle) { onShowcaseToggle(toggle, render); return; }
                     const medal = event.target.closest('[data-badge]');
@@ -7415,8 +7469,8 @@
                 <p class="text-xs leading-snug text-slate-600 dark:text-slate-300">Za správné odpovědi sbíráš body zkušeností (XP) a stoupáš o úrovně. Každých pár úrovní dostaneš nový titul a odměny: doplňky, rámečky nebo barvy.</p>
                 <p class="text-[11px] font-semibold leading-snug text-slate-500 dark:text-slate-400" data-my-xp>Tvoje XP: <b class="text-slate-700 dark:text-slate-200">${formatXp(xp)} XP</b> · úroveň ${current} · ${escapeHtml(titleForLevel(current))}</p>
                 <ul class="flex flex-col gap-1.5">${rows}</ul>
-                ${STICKY_BACK('Zpět na Můj postup')}
-            </div>`, { onClick: (event) => { if (event.target.closest('[data-back-progress]')) openProgress(); } });
+                ${STICKY_BACK()}
+            </div>`);
         const here = document.querySelector('#dialog-overlay [data-here]');
         if (here) here.scrollIntoView({ block: 'center' });
     };
@@ -7460,7 +7514,7 @@
                 <button type="button" data-open-levels class="btn-3d flex w-full items-center gap-2.5 rounded-2xl bg-gradient-to-br from-brand-700 to-brand-900 p-2.5 text-left text-white" aria-label="Tabulka úrovní">
                     <span class="relative h-14 w-14 shrink-0" data-title-owl>${uiArt(titleOwlArt(level.level), 'h-full w-full')}<span class="absolute -bottom-1 -right-1.5 flex h-8 w-8 flex-col items-center justify-center rounded-full bg-gold-500 text-brand-950 shadow-md ring-2 ring-brand-800"><span class="text-[7px] font-black uppercase leading-none">úr.</span><span class="text-[13px] font-black leading-none">${level.level}</span></span></span>
                     <span class="min-w-0 flex-1">
-                        <span class="flex items-baseline justify-between gap-2"><span class="min-w-0 truncate text-lg font-black leading-tight">${escapeHtml(titleForLevel(level.level))}</span><span data-total-xp class="shrink-0 rounded-full bg-white/15 px-2 py-0.5 text-[10px] font-black leading-tight text-gold-200" title="Celkem získané XP">celkem ${formatXp(xp)} XP</span></span>
+                        <span class="block truncate text-lg font-black leading-tight">${escapeHtml(titleForLevel(level.level))}</span>
                         <span class="mt-1 block h-2 overflow-hidden rounded-full bg-white/25" aria-hidden="true"><span class="block h-full w-0 rounded-full bg-gold-400" data-progress="${Math.round(level.ratio * 100)}"></span></span>
                         <span class="mt-0.5 flex items-center justify-between gap-2 text-[11px] font-bold text-white/85"><span>${level.needed ? `${formatXp(level.into)} / ${formatXp(level.needed)} XP` : 'Nejvyšší úroveň'}</span>${level.needed ? `<span>do úr. ${level.level + 1}</span>` : ''}</span>
                         ${next ? `<span class="block truncate text-[11px] font-semibold leading-tight text-gold-300">Další titul: ${escapeHtml(next.title)} (úr. ${next.from})</span>` : ''}
@@ -7479,15 +7533,16 @@
                 </div>
                 ${Rewards ? Rewards.progressHtml({ freezes: rewardsState.freezes, chest: Rewards.pendingChest(rewardsState), lastReward: lastChestText(rewardsState), diplomas: Object.keys(rewardsState.diplomas).filter(id => TOPIC_BY_ID[id]).length, topics: TOPICS.length,
                     album: Album ? { percent: Album.build(albumInput(progress)).percent, art: Album.ALBUM_ART } : null }) : ''}
-            </div>`, { onClick: (event) => {
-            if (event.target.closest('[data-open-badges]')) openBadges();
-            if (event.target.closest('[data-open-levels]')) openLevels();
+            </div>`, { aside: `<span data-total-xp class="rounded-full bg-gold-100 px-2 py-0.5 text-[11px] font-black leading-tight text-gold-800 dark:bg-slate-800 dark:text-gold-300" title="Celkem získané XP">celkem ${formatXp(xp)} XP</span>`, onClick: (event) => {
+            const child = (open) => openChild('Zpět na Můj postup', openProgress, open);
+            if (event.target.closest('[data-open-badges]')) child(openBadges);
+            if (event.target.closest('[data-open-levels]')) child(openLevels);
             if (event.target.closest('[data-season-claim]')) { openSeasonReveal(null, openProgress); return; }
-            if (event.target.closest('[data-season-open]')) { openSeason(); return; }
+            if (event.target.closest('[data-season-open]')) { child(() => openSeason()); return; }
             const info = event.target.closest('[data-rewards-info]');
-            if (info) ({ freeze: openFreezeHelp, chest: openChestHelp, diplomas: openDiplomas, album: () => openAlbum() })[info.dataset.rewardsInfo]();
+            if (info) child(({ freeze: openFreezeHelp, chest: openChestHelp, diplomas: openDiplomas, album: () => openAlbum() })[info.dataset.rewardsInfo]);
             const mastery = event.target.closest('[data-mastery]');
-            if (mastery) openMastery(mastery.dataset.mastery);
+            if (mastery) child(() => openMastery(mastery.dataset.mastery));
         } });
         applyProgress(document.getElementById('dialog-overlay'));
     };
@@ -7495,11 +7550,10 @@
     const openDiplomas = () => {
         if (!Rewards) return;
         touchTip('diplomas');
-        showDialog('Diplomy', `${Rewards.diplomasHtml(diplomaRows(), { topicIcon, styleOf })}<button type="button" data-back-progress class="${SECONDARY_BUTTON} mt-3 !py-2.5 text-sm"><i data-lucide="chevron-left" class="h-4 w-4"></i> Můj postup</button>`, {
+        showDialog('Diplomy', `${Rewards.diplomasHtml(diplomaRows(), { topicIcon, styleOf })}${dialogBackButton('mt-3')}`, {
             onClick: (event) => {
-                if (event.target.closest('[data-back-progress]')) { openProgress(); return; }
                 const diploma = event.target.closest('[data-diploma]');
-                if (diploma) openDiploma(diploma.dataset.diploma);
+                if (diploma) openChild('Zpět na Diplomy', openDiplomas, () => openDiploma(diploma.dataset.diploma));
             }
         });
     };
@@ -7592,7 +7646,7 @@
         albumView = { ...albumView, section: section || albumView.section, detail: null, rewards: false, note: '', scroll: 0 };
         renderAlbum(0);
     };
-    const ALBUM_BACK = `<button type="button" data-album-back class="${SECONDARY_BUTTON} !py-2.5 text-sm"><i data-lucide="chevron-left" class="h-4 w-4"></i> Zpět do alba</button>`;
+    const ALBUM_BACK = `<button type="button" data-album-back data-x-back class="${SECONDARY_BUTTON} !py-2.5 text-sm"><i data-lucide="chevron-left" class="h-4 w-4"></i> Zpět do alba</button>`;
     // Překreslí okno; scrollTo = posun panelu (null = nechat), focus = co dostane fokus (klávesnice a čtečka zůstanou na místě)
     const renderAlbum = (scrollTo = null, focus = null) => {
         const progress = loadProgress();
@@ -7602,7 +7656,7 @@
         let body;
         if (albumView.rewards) body = `${Album.rewardsHtml(album, progress.badges, h)}<div class="mt-2.5">${ALBUM_BACK}</div>`;
         else if (found) body = `${Album.detailHtml(found, { badges: progress.badges, wear: albumWear(found.entry, albumWorn()), note: albumView.note || albumHint(found.entry) }, h)}<div class="mt-2.5">${ALBUM_BACK}</div>`;
-        else body = `${Album.albumHtml(album, { section: albumView.section, badges: progress.badges, worn: albumWorn() }, h)}${STICKY_BACK('Zpět na Můj postup')}`;
+        else body = `${Album.albumHtml(album, { section: albumView.section, badges: progress.badges, worn: albumWorn() }, h)}${STICKY_BACK()}`;
         const overlay = showDialog('Album sbírky', body, { onClick: albumClick });
         applyProgress(overlay);
         if (scrollTo !== null) overlay.firstElementChild.scrollTop = scrollTo;
@@ -7611,7 +7665,6 @@
     };
     const albumClick = (event) => {
         const panel = document.getElementById('dialog-overlay').firstElementChild;
-        if (event.target.closest('[data-back-progress]')) { openProgress(); return; }
         if (event.target.closest('[data-album-back]')) {
             const from = albumView.detail;
             albumView = { ...albumView, detail: null, rewards: false, note: '' };
@@ -7628,7 +7681,7 @@
             if (!found || !found.entry.owned) return;
             const { entry } = found;
             if (entry.category === 'avatars') { wearAlbumAvatar(entry.id); return; }
-            if (entry.category === 'diplomas') { openDiploma(entry.id); return; }
+            if (entry.category === 'diplomas') { const back = albumView.detail; openChild('Zpět do alba', () => { albumView = { ...albumView, detail: back }; renderAlbum(0); }, () => openDiploma(entry.id)); return; }
             if (entry.category === 'badges') {
                 Look.setPref('title', entry.top.id, lookContext());
                 albumView.note = 'Titul se ukáže u tvého jména. Změníš ho v Nastavení → Profil.';
@@ -7670,8 +7723,8 @@
                     ${reward(3, `odznak ${skill ? `„${escapeHtml(skill.title)}“` : 'Zběhlost'}${accessory ? ` a doplněk pro Mudrlanta: ${escapeHtml(accessory.title)}` : ''}. Doplněk získáš i tak, že v tématu 12× správně odpovíš za sebou.`)}
                     ${reward(5, `odznak${master ? ` „${escapeHtml(master.title)}“` : ''}, nejvyšší mistrovství v oboru.`)}
                 </ul>
-                <button type="button" data-back-progress class="${SECONDARY_BUTTON} !py-2.5 text-sm"><i data-lucide="chevron-left" class="h-4 w-4"></i> Zpět na Můj postup</button>
-            </div>`, { onClick: (event) => { if (event.target.closest('[data-back-progress]')) openProgress(); } });
+                ${dialogBackButton()}
+            </div>`);
         applyProgress(document.getElementById('dialog-overlay'));
     };
 
@@ -7839,7 +7892,7 @@
                     </div>`;
             }
             if (view === 'report' && Friends) {
-                body = Friends.reportBody(Social.REPORT_REASONS, reportReason, reportNote, { busy: reportBusy }) + `<button type="button" data-report-back class="mt-2 flex min-h-[2.5rem] w-full items-center justify-center gap-1.5 rounded-2xl px-3 py-2 text-[13px] font-black text-slate-600 dark:text-slate-300"><i data-lucide="chevron-left" class="h-4 w-4"></i> Zpět na profil</button>`;
+                body = Friends.reportBody(Social.REPORT_REASONS, reportReason, reportNote, { busy: reportBusy }) + `<button type="button" data-report-back data-x-back class="mt-2 flex min-h-[2.5rem] w-full items-center justify-center gap-1.5 rounded-2xl px-3 py-2 text-[13px] font-black text-slate-600 dark:text-slate-300"><i data-lucide="chevron-left" class="h-4 w-4"></i> Zpět na profil</button>`;
             }
             // Vitrína hráče (schéma 18): tři trofeje pod hlavičkou; na nízkém displeji místo řady všech odznaků a s hustším oknem, ať se vejde
             const showcaseRow = theirShowcase && Showcase && view !== 'report' ? Showcase.tilesHtml(theirShowcase, showcaseHelpers(), { label: `Vitrína hráče ${playerName(player)}` }) : '';
@@ -8373,7 +8426,7 @@
         if (!user || !Social) return;
         const token = ++breakdownToken;
         const stillOpen = () => { const overlay = document.getElementById('dialog-overlay'); return token === breakdownToken && Boolean(overlay && overlay.dataset.title === BREAKDOWN_TITLE); };
-        const backHtml = back ? `<button type="button" data-bd-back class="mb-2 inline-flex min-h-[2.5rem] items-center gap-1 rounded-xl bg-white px-2.5 text-[12px] font-black text-slate-700 ring-1 ring-slate-300/70 active:scale-95 dark:bg-slate-800 dark:text-slate-200 dark:ring-slate-600"><i data-lucide="chevron-left" class="h-4 w-4"></i>${escapeHtml(back.label)}</button>` : '';
+        const backHtml = back ? `<button type="button" data-bd-back data-x-back class="mb-2 inline-flex min-h-[2.5rem] items-center gap-1 rounded-xl bg-white px-2.5 text-[12px] font-black text-slate-700 ring-1 ring-slate-300/70 active:scale-95 dark:bg-slate-800 dark:text-slate-200 dark:ring-slate-600"><i data-lucide="chevron-left" class="h-4 w-4"></i>${escapeHtml(back.label)}</button>` : '';
         const goBack = (event) => { if (back && event.target.closest('[data-bd-back]')) { back.run(); return true; } return false; };
         showDialog(BREAKDOWN_TITLE, `${backHtml}<p class="py-6 text-center text-sm font-semibold text-slate-500 dark:text-slate-400">Načítám rozpis…</p>`, { onClick: goBack });
         const [answers, questions] = await Promise.all([
@@ -9817,7 +9870,7 @@
     const archiveNavHtml = () => {
         const current = currentTournamentId();
         return `<div class="flex items-center justify-between gap-2">
-            <button type="button" data-t-archive-back class="${TOUR_SMALL} min-h-[2.5rem] px-2.5"><i data-lucide="chevron-left" class="h-4 w-4"></i>Archiv</button>
+            <button type="button" data-t-archive-back data-x-back class="${TOUR_SMALL} min-h-[2.5rem] px-2.5"><i data-lucide="chevron-left" class="h-4 w-4"></i>Archiv</button>
             ${current ? `<button type="button" data-t-current class="${TOUR_SMALL} min-h-[2.5rem] px-2.5"><i data-lucide="trophy" class="h-3.5 w-3.5"></i>Aktuální turnaj</button>` : ''}
         </div>`;
     };
@@ -9864,7 +9917,7 @@
         bracketReset = true;
         const row = archive.rows.find(item => item.tournament.id === tid);
         if (archiveViews.has(tid) || !row) { renderTournamentDialog(); dialogScrollTo(0); return; }
-        const back = `<button type="button" data-t-archive-back class="${SECONDARY_BUTTON}"><i data-lucide="chevron-left" class="h-5 w-5"></i> Zpět na archiv</button>`;
+        const back = `<button type="button" data-t-archive-back data-x-back class="${SECONDARY_BUTTON}"><i data-lucide="chevron-left" class="h-5 w-5"></i> Zpět na archiv</button>`;
         showDialog(ARCHIVE_DETAIL, `<p class="py-6 text-center text-sm font-semibold text-slate-500 dark:text-slate-400">Načítám turnaj…</p>${back}`, { onClick: (event) => { if (event.target.closest('[data-t-archive-back]')) backToArchive(); } });
         dialogScrollTo(0);
         const still = () => tournamentArchived && tournamentDialogId === tid && dialogTitled(ARCHIVE_DETAIL) && signedUser() && signedUser().id === user.id;
@@ -10396,7 +10449,7 @@
     const goBack = () => {
         if (document.getElementById('photo-source')) closePhotoSource();
         else if (document.getElementById('fact-overlay')) closeFact();
-        else if (document.getElementById('dialog-overlay')) closeDialog();
+        else if (document.getElementById('dialog-overlay')) dialogStepBack();
         else if (document.getElementById('photo-zoom')) closePhotoZoom();
         else if (document.getElementById('place-info')) closePlaceInfo();
         else if (document.getElementById('play-chooser')) closeChooser();
@@ -10435,7 +10488,7 @@
         if (event.key !== 'Escape') return;
         if (document.getElementById('photo-source')) closePhotoSource();
         else if (document.getElementById('fact-overlay')) closeFact();
-        else if (document.getElementById('dialog-overlay')) closeDialog();
+        else if (document.getElementById('dialog-overlay')) dialogStepBack();
         else if (document.getElementById('photo-zoom')) closePhotoZoom();
         else if (document.getElementById('place-info')) closePlaceInfo();
         else if (document.getElementById('play-chooser')) closeChooser();

@@ -72,7 +72,7 @@ test('opakování s rozestupy a týdenní cíle', { skip: !chromium && 'Playwrig
             await tab.waitForSelector(`#dialog-overlay [data-goal-info="${first}"]`);
             assert.ok((await tab.textContent('#dialog-overlay [data-goal-text]')).length > 30, 'popis cíle');
             assert.equal(await tab.locator('#dialog-overlay [data-goal-info] img').count(), 1, 'obrázek cíle');
-            await tab.click('#dialog-overlay [data-goal-back]');
+            await tab.click('#dialog-overlay [data-dialog-back]');
             await tab.waitForSelector('#dialog-overlay [data-goal-row]');
             await tab.keyboard.press('Escape');
             await tab.waitForSelector('#dialog-overlay', { state: 'detached' });

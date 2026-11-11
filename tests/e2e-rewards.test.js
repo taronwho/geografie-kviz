@@ -214,10 +214,10 @@ test('odměny: truhla, ochrana série, diplomy, sdílení obrázku', { skip: !ch
             await tab.waitForSelector('[data-freeze-help]');
             assert.match(await tab.textContent('[data-freeze-help]'), /jeden den vynecháš/);
             await shot(tab, `ochrana-vysvetleni-${tag}`);
-            await tab.click('[data-back-progress]');
+            await tab.click('[data-dialog-back]');
             await tab.click('[data-rewards-info="chest"]');
             await tab.waitForSelector('[data-chest-help]');
-            await tab.click('[data-back-progress]');
+            await tab.click('[data-dialog-back]');
             // Diplomy: vlastní okno se všemi tématy
             await tab.click('[data-rewards-info="diplomas"]');
             await tab.waitForSelector('[data-diplomas] [data-diploma="zemepis"]');
@@ -227,7 +227,7 @@ test('odměny: truhla, ochrana série, diplomy, sdílení obrázku', { skip: !ch
             await tab.click('[data-diploma="historie"]');
             await tab.waitForSelector('[data-diploma-locked]');
             assert.match(await tab.textContent('[data-diploma-locked]'), /Chybí ti ještě 230/);
-            await tab.click('[data-back-diplomas]');
+            await tab.click('[data-dialog-back]');
             // Získaný diplom: plátno 1080 × 1350 se sovou a ikonou tématu, jméno, Stáhnout
             const rewards = await storage(tab, 'mudrlant.rewards');
             assert.ok(rewards.diplomas.zemepis, 'diplom ze zeměpisu zapsaný');

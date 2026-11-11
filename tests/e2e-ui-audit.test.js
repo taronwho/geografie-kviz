@@ -212,16 +212,21 @@ test('rozhraní na úzkém telefonu', { skip: !chromium && 'Playwright není nai
             await check(tab, 'mistrovství tématu', scheme);
             const fits = await tab.evaluate(() => { const box = document.getElementById('dialog-overlay').firstElementChild; return { scroll: box.scrollHeight, client: box.clientHeight }; });
             assert.ok(fits.scroll <= fits.client + 1, `${scheme}: vysvětlení mistrovství se vejde bez posouvání (${fits.scroll} > ${fits.client})`);
-            await tab.click('[data-back-progress]');
+            await tab.click('[data-dialog-back]');
             await tab.click('[data-open-levels]');
             await tab.waitForSelector('[data-title-row]');
             await check(tab, 'úrovně a tituly', scheme);
+            // Escape vrátí na Můj postup, odkud tabulka vedla
             await tab.keyboard.press('Escape');
-            await tab.click('#status-badge');
+            await tab.waitForSelector('#dialog-overlay [data-open-badges]');
             await tab.click('[data-open-badges]');
             await tab.click('[data-badge="zbehly-zemepis"]');
             await check(tab, 'všechny odznaky', scheme);
+            // Odznaky → Můj postup → zavřeno
             await tab.keyboard.press('Escape');
+            await tab.waitForSelector('#dialog-overlay [data-progress-dialog]');
+            await tab.keyboard.press('Escape');
+            await tab.waitForSelector('#dialog-overlay', { state: 'detached' });
 
             await tab.click('[data-action="play-topic"][data-topic="zemepis"]');
             await tab.waitForSelector('#play-chooser [data-chooser-play]');

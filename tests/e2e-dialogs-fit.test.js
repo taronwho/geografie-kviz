@@ -37,9 +37,9 @@ const SCHEME = process.env.FIT_SCHEME === 'dark' ? 'dark' : 'light';
 // Dlouhé seznamy, které se posouvat smí: reason = proč, size = jen na této velikosti (jinak na obou), keep = hlavní akce, která při posouvání
 // zůstane vidět (lepkavě). Lepkavý nadpis okna se zavíráním (data-dialog-head) se hlídá u všech výjimek v #dialog-overlay.
 const EXEMPT = {
-    'Všechny odznaky': { reason: 'seznam všech odznaků (stovky medailí po skupinách)', keep: '[data-back-progress]' },
-    'Album – Odznaky': { reason: 'všechny skupiny odznaků v albu sbírky (přes 50 dlaždic)', keep: '[data-back-progress]' },
-    'Úrovně a tituly': { reason: 'seznam všech úrovní s tituly', keep: '[data-back-progress]' },
+    'Všechny odznaky': { reason: 'seznam všech odznaků (stovky medailí po skupinách)', keep: '[data-dialog-back]' },
+    'Album – Odznaky': { reason: 'všechny skupiny odznaků v albu sbírky (přes 50 dlaždic)', keep: '[data-dialog-back]' },
+    'Úrovně a tituly': { reason: 'seznam všech úrovní s tituly', keep: '[data-dialog-back]' },
     'Rozpis otázek výzvy': { reason: 'seznam všech otázek s odpověďmi obou hráčů (záhlaví sloupců lepkavě)' },
     'Týdenní žebříček': { reason: 'žebříček hráčů' },
     'Turnaj (běží)': { reason: 'pavouk a pořadí desítek hráčů', keep: '[data-t-play]' },

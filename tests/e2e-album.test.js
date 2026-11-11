@@ -154,8 +154,8 @@ test('album sbírky: sekce, podrobnosti, Nasadit a oslava milníku', { skip: !ch
                     // Dlouhý seznam se posouvá, tlačítko zpět je lepkavé a zůstane vidět
                     assert.ok(box.y > 0);
                     await tab.evaluate(() => { const panel = document.getElementById('dialog-overlay').firstElementChild; panel.scrollTop = panel.scrollHeight / 2; });
-                    assert.ok(await tab.locator('[data-back-progress]').isVisible());
-                    const backBox = await tab.locator('[data-back-progress]').boundingBox();
+                    assert.ok(await tab.locator('[data-dialog-back]').isVisible());
+                    const backBox = await tab.locator('[data-dialog-back]').boundingBox();
                     assert.ok(backBox.y + backBox.height <= viewport.height, 'tlačítko zpět na obrazovce');
                 } else if (viewport.height >= 780) assert.equal(box.y, 0, `${section}: bez posouvání (${box.y} px)`);
                 else assert.ok(box.y <= 24, `${section}: na 360×640 nejvýš trochu (${box.y} px)`);
@@ -174,7 +174,7 @@ test('album sbírky: sekce, podrobnosti, Nasadit a oslava milníku', { skip: !ch
             await tab.click('[data-album-back]');
             await tab.waitForSelector('[data-album]');
             // Zpět na Můj postup
-            await tab.click('[data-back-progress]');
+            await tab.click('[data-dialog-back]');
             await tab.waitForSelector('[data-progress-dialog]');
             assert.deepEqual(problems, []);
             await context.close();
