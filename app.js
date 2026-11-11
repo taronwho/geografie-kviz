@@ -725,6 +725,9 @@
     const DEV_BACKUP = 'mudrlant.dev.backup';
     // „Odemknout úplně vše“: příznak v zařízení; platí jen se zkušebním postupem (záloha DEV_BACKUP), zruší ho Vrátit můj postup
     const DEV_ALL = 'mudrlant.dev.all';
+    // Zkušební odměny (truhly, sezóna) se zálohují jako postup a XP sezóny se ve zkušebním postupu dá přidat (DEV_SEASON_XP)
+    const DEV_REWARDS_BACKUP = 'mudrlant.dev.rewardsBackup';
+    const DEV_SEASON_XP = 'mudrlant.dev.seasonXp';
     const DEV_LEARNED_BACKUP = 'mudrlant.dev.backup.learned';
     const devOn = () => { try { return localStorage.getItem(DEV_KEY) === '1'; } catch (e) { return false; } };
     const devActive = () => { try { return localStorage.getItem(DEV_BACKUP) !== null; } catch (e) { return false; } };
@@ -732,6 +735,15 @@
         try {
             if (kind === 'restore') {
                 localStorage.removeItem(DEV_ALL);
+                localStorage.removeItem(DEV_SEASON_XP);
+                // Odměny jako před zkušebním postupem (truhly a stupně sezóny otevřené na zkoušku zmizí)
+                const rewardsBackup = localStorage.getItem(DEV_REWARDS_BACKUP);
+                if (rewardsBackup !== null && Rewards) {
+                    if (rewardsBackup === 'null') localStorage.removeItem(Rewards.KEY); else localStorage.setItem(Rewards.KEY, rewardsBackup);
+                    localStorage.removeItem(DEV_REWARDS_BACKUP);
+                    if (Look) Look.setGifts(Rewards.gifts(loadRewards()));
+                    applyLook();
+                }
                 if (Look && Look.setDevUnlockAll) Look.setDevUnlockAll(false);
                 const backup = localStorage.getItem(DEV_BACKUP);
                 if (backup !== null) { if (backup === 'null') localStorage.removeItem(KEYS.progress); else localStorage.setItem(KEYS.progress, backup); localStorage.removeItem(DEV_BACKUP); }
@@ -742,6 +754,24 @@
                 return;
             }
             if (localStorage.getItem(DEV_BACKUP) === null) { localStorage.setItem(DEV_BACKUP, localStorage.getItem(KEYS.progress) ?? 'null'); localStorage.setItem(DEV_LEARNED_BACKUP, localStorage.getItem(KEYS.learned) ?? 'null'); }
+            if (Rewards && localStorage.getItem(DEV_REWARDS_BACKUP) === null) localStorage.setItem(DEV_REWARDS_BACKUP, localStorage.getItem(Rewards.KEY) ?? 'null');
+            // Truhla Mudrlanta na zkoušku: připravená truhla v den, který ještě žádnou nemá (otevře ji app.js hned po tlačítku)
+            if (kind === 'chest' && Rewards) {
+                let state = loadRewards();
+                const day = new Date(`${getDayKey()}T12:00:00Z`);
+                for (let i = 0; i < 4000; i++) {
+                    const key = day.toISOString().slice(0, 10);
+                    if (!state.chests[key] && !state.ready.includes(key)) { state = Rewards.addChest(state, key); break; }
+                    day.setUTCDate(day.getUTCDate() + 1);
+                }
+                saveRewards(state);
+                return;
+            }
+            // Sezóna na zkoušku: XP sezóny navíc, aby byly dosažené všechny stupně (vyzvednou se v okně sezóny)
+            if (kind === 'season') {
+                localStorage.setItem(DEV_SEASON_XP, String(Season ? Season.THRESHOLDS[Season.THRESHOLDS.length - 1] : 0));
+                return;
+            }
             const progress = loadProgress();
             const today = getDayKey();
             const allBadges = () => Object.fromEntries(BADGES.map(badge => [badge.id, today]));
@@ -881,7 +911,7 @@
         <div class="mt-3 rounded-2xl border-2 border-dashed border-amber-400/70 p-2.5">
             <p class="mb-1.5 flex items-center justify-between text-[11px] font-black uppercase tracking-widest text-amber-700 dark:text-amber-400"><span>Vývojářský režim</span><span class="font-bold normal-case tracking-normal">${devActive() ? 'zkušební postup' : 'tvůj postup'}</span></p>
             ${Social ? `<p data-dev-schema class="mb-1.5 text-[11px] font-semibold leading-snug ${schemaHave === REQUIRED_SCHEMA ? 'text-emerald-700 dark:text-emerald-300' : 'text-amber-800 dark:text-amber-200'}">Databáze: ${schemaHave === undefined ? 'verze schématu zatím nezjištěna' : schemaHave === null ? 'schéma bez verze (starší než 1)' : `schéma ${schemaHave}`} · aplikace potřebuje ${REQUIRED_SCHEMA}${schemaHave === REQUIRED_SCHEMA ? ' ✓' : schemaHave === undefined ? '' : schemaHave > REQUIRED_SCHEMA ? ' – aplikace je starší, obnov ji' : ' – spusť supabase/schema.sql'}</p>` : ''}
-            <div class="flex flex-wrap gap-1">${[['all', 'Odemknout úplně vše'], ['max', 'Vše (úr. 100)'], ['level:10', 'Úr. 10'], ['level:25', 'Úr. 25'], ['level:50', 'Úr. 50'], ['level:75', 'Úr. 75'], ['badges', 'Všechny odznaky'], ['nobadges', 'Žádné odznaky'], ['nostars', 'Vymazat hvězdičky'], ['bulb', 'Vrátit žárovku'], ['tips', 'Obnovit tipy']].map(([kind, label]) => `<button type="button" data-dev="${kind}" class="rounded-lg bg-slate-200 px-2 py-1 text-[11px] font-bold text-slate-700 active:scale-95 dark:bg-slate-700 dark:text-slate-200">${label}</button>`).join('')}${devActive() ? '<button type="button" data-dev="restore" class="rounded-lg bg-amber-700 px-2 py-1 text-[11px] font-black text-white active:scale-95">Vrátit můj postup</button>' : ''}</div>
+            <div class="flex flex-wrap gap-1">${[['all', 'Odemknout úplně vše'], ['chest', 'Otevřít Truhlu Mudrlanta'], ['season', 'Sezóna: všech 20 stupňů'], ['max', 'Vše (úr. 100)'], ['level:10', 'Úr. 10'], ['level:25', 'Úr. 25'], ['level:50', 'Úr. 50'], ['level:75', 'Úr. 75'], ['badges', 'Všechny odznaky'], ['nobadges', 'Žádné odznaky'], ['nostars', 'Vymazat hvězdičky'], ['bulb', 'Vrátit žárovku'], ['tips', 'Obnovit tipy']].map(([kind, label]) => `<button type="button" data-dev="${kind}" class="rounded-lg bg-slate-200 px-2 py-1 text-[11px] font-bold text-slate-700 active:scale-95 dark:bg-slate-700 dark:text-slate-200">${label}</button>`).join('')}${devActive() ? '<button type="button" data-dev="restore" class="rounded-lg bg-amber-700 px-2 py-1 text-[11px] font-black text-white active:scale-95">Vrátit můj postup</button>' : ''}</div>
             ${Social ? `<p class="mb-1 mt-2 text-[11px] font-black uppercase tracking-widest text-amber-700 dark:text-amber-400">Turnaj (boti)</p>
             <div class="flex flex-wrap gap-1">${[['tour-bots', '+31 botů'], ['tour-start', 'Spustit hned'], ['tour-play', 'Boti odehrají kolo'], ['tour-next', 'Další kolo'], ['tour-reset', 'Smazat odehraný turnaj'], ['tour-clear', 'Smazat boty']].map(([kind, label]) => `<button type="button" data-dev="${kind}" class="rounded-lg bg-emerald-100 px-2 py-1 text-[11px] font-bold text-emerald-900 active:scale-95 dark:bg-emerald-900/50 dark:text-emerald-100">${label}</button>`).join('')}</div>
             <p class="mb-1 mt-2 text-[11px] font-black uppercase tracking-widest text-amber-700 dark:text-amber-400">Provoz</p>
@@ -2007,6 +2037,8 @@
                 openSettings(dailyFact ? 'Hotovo: žárovka je zpátky' : 'Dnes žádná událost není (žárovka se neukáže)', '[data-dev="bulb"]');
                 return;
             }
+            if (devButton && devButton.dataset.dev === 'chest') { devApply('chest'); closeSettings(); updateControlsUI(); openChestOverlay(); return; }
+            if (devButton && devButton.dataset.dev === 'season') { devApply('season'); closeSettings(); updateControlsUI(); openSeason(); return; }
             if (devButton) { devApply(devButton.dataset.dev); updateControlsUI(); openSettings(`Hotovo: ${devButton.textContent.trim()}`, `[data-dev="${devButton.dataset.dev}"]`); return; }
             const lockedOwl = event.target.closest('[data-locked-owl]');
             if (lockedOwl && Look) {
@@ -4252,7 +4284,13 @@
     if (Album && Season) Album.setAvailability(Season.availability);
     // XP pro sezónu: ve vývojářském režimu skutečné XP ze zálohy (zkušební úroveň se do sezóny nepočítá)
     const seasonXp = () => {
-        if (devActive()) { try { const backup = JSON.parse(localStorage.getItem(DEV_BACKUP)); return backup && Number.isFinite(backup.xp) ? Math.max(0, Math.floor(backup.xp)) : 0; } catch (e) { return 0; } }
+        if (devActive()) {
+            try {
+                const backup = JSON.parse(localStorage.getItem(DEV_BACKUP));
+                const extra = Math.max(0, Math.floor(Number(localStorage.getItem(DEV_SEASON_XP)) || 0));
+                return (backup && Number.isFinite(backup.xp) ? Math.max(0, Math.floor(backup.xp)) : 0) + extra;
+            } catch (e) { return 0; }
+        }
         return loadProgress().xp;
     };
     const seasonNow = () => ({ today: Season.pragueDay(), xp: seasonXp() });

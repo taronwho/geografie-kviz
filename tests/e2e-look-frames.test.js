@@ -654,6 +654,41 @@ test('odměny v Profilu: rámečky, titul a postavičky', { skip: !chromium && '
         assert.deepEqual(log.csp, []);
         await context.close();
     });
+    await t.test('vývojářské truhly: Truhla Mudrlanta a všech 20 stupňů sezóny na zkoušku, Vrátit můj postup vrátí odměny', async () => {
+        const db = newDb();
+        const { context, tab, log } = await setup(browser, { ...login('tok-u1'), 'mudrlant.dev': '1' });
+        await backend(context, db);
+        await tab.goto(`${ORIGIN}/`);
+        await waitForHome(tab);
+        const before = await tab.evaluate(() => localStorage.getItem('mudrlant.rewards'));
+        await tab.click('#btn-settings');
+        await tab.click('[data-dev="chest"]');
+        await tab.waitForSelector('#chest-overlay [data-chest-go]');
+        await tab.click('#chest-overlay [data-chest-go]');
+        await tab.waitForSelector('#chest-overlay [data-chest-reveal]');
+        await tab.click('#chest-overlay [data-chest-close]');
+        // Sezóna: okno s cestou, všechny stupně čekají na vyzvednutí
+        await tab.click('#btn-settings');
+        await tab.click('[data-dev="season"]');
+        await tab.waitForSelector('#dialog-overlay [data-season-tier="20"][data-state="ready"]');
+        assert.equal(await tab.locator('#dialog-overlay [data-season-tier][data-state="ready"]').count(), 20);
+        await tab.click('#dialog-overlay [data-season-tier="20"]');
+        await tab.waitForSelector('#season-overlay [data-season-go]');
+        await tab.click('#season-overlay [data-season-go]');
+        await tab.waitForSelector('#season-overlay [data-season-reveal]');
+        await tab.click('#season-overlay [data-season-x]');
+        await tab.waitForSelector('#season-overlay', { state: 'detached' });
+        await tab.keyboard.press('Escape');
+        assert.equal(db.profiles['u-1'].rewards, undefined, 'zkušební odměny se do účtu nezapíšou');
+        // Vrátit můj postup: odměny jako předtím
+        await tab.click('#btn-settings');
+        await tab.click('[data-dev="restore"]');
+        await tab.waitForFunction((value) => localStorage.getItem('mudrlant.rewards') === value, before);
+        assert.equal(await tab.evaluate(() => localStorage.getItem('mudrlant.dev.seasonXp')), null);
+        assert.deepEqual(log.errors, []);
+        assert.deepEqual(log.csp, []);
+        await context.close();
+    });
     await t.test('starší databáze bez sloupců frame a title_pref: nic nespadne, požadavky se zopakují bez nich', async () => {
         const db = newDb();
         const calls = [];
