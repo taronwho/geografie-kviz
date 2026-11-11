@@ -590,3 +590,31 @@ nebo jiné nesprávné možnosti. Proto se otázka při prvním sestavení ulož
 - Export dat (`export_my_data`) má `zamrzle_otazky` (semínka otázek, které hráč uložil jako první). Smazání účtu nechá otázky ostatním (`created_by` se vynuluje).
 - Spusť znovu celý `supabase/schema.sql` (verze 17). Testy: `tests/sql-question-snapshots.test.js`, `tests/e2e-challenge-flow.test.js`,
   `tests/e2e-daily-quiz.test.js`, `tests/e2e-tournament.test.js`.
+
+## Ligové sezóny a vitrína v profilu (schéma 18)
+
+**Po aktualizaci spusť znovu celý `supabase/schema.sql` (verze 18).** Dokud ho nespustíš, aplikace sezóny ani vitrínu neukáže (funkce vrátí 404,
+sloupec 400) a jinak funguje jako dřív; rámečky ligových sezón zůstanou zamčené.
+
+- **Ligová sezóna** = kalendářní měsíc podle pražského času. Výsledek hráče v sezóně je nejvyšší liga, které v měsíci dosáhl: liga podle nejvyššího
+  `rating_history.rating_after` v tom měsíci (`rating_league`). Kdo v měsíci žádnou ohodnocenou výzvu nedohrál, výsledek nemá. Skončená sezóna se už nemění.
+- `league_seasons(player uuid default null)` (security definer, jen `authenticated`): bez parametru sezóny přihlášeného, s parametrem kohokoli – jen veřejné
+  údaje, které stejně jsou v `rating_history`. Vrací `{ month: běžící měsíc RRRR-MM, seasons: [běžící a posledních 12 skončených měsíců s výsledkem,
+  nejnovější první: month, league, peak, games, finished], best: nejlepší skončená sezóna z celé historie (month, league, peak; při shodě ta dřívější) | null }`.
+  Pomocné `league_peaks(uid)` (vrchol a počet výzev po měsících) a `league_month_peak(uid, měsíc)` klient volat nesmí.
+- **Rámečky za sezónu** (look.js `LEAGUE_FRAMES`, styly `.frame-liga-*` v `src/input.css`): Zlatá, Platinová, Diamantová a Mistrovská sezóna za ligu
+  Zlato, Platina, Diamant nebo Mistr jako vrchol **skončené** sezóny; vyšší liga dává i rámečky nižších. Odemyká je `best`, takže zůstanou navždy.
+  Aplikace si nejlepší ligu pamatuje v zařízení (`mudrlant.leagueSeasons`), rámečky proto platí i bez připojení; nový rámeček oslaví „Nová odměna“
+  jednou (na novém zařízení jen úspěch z právě skončené sezóny). Rámeček se ukládá do `profiles.frame` jako ostatní (tvar `^[a-z0-9-]{1,24}$` stačí).
+- **Vitrína** – sloupec `profiles.showcase text[]` (výchozí prázdné pole): nejvýš 3 trofeje, které ostatní uvidí v Profilu hráče. Položky
+  `b:<odznak>` (odznak, který hráč má v `profiles.badges`; aplikace nabízí nejvyšší získaný stupeň skupiny, ten je v účtu), `d:<téma>` (diplom za
+  mistrovství tématu, drží ho aplikace v `profiles.rewards`, server kontroluje jen tvar) a `l:<RRRR-MM>:<liga>` (skončená sezóna a liga, která byla
+  jejím vrcholem). Kontrola `profiles_showcase_format` (`showcase_format_ok`): nejvýš 3, bez opakování, jen tyhle tvary – jinak se změna odmítne.
+  Trigger `profiles_showcase_check` (`check_showcase`, po `profiles_protect_rating`) tiše vyřadí odznak, který hráč nemá, a sezónu, která nebyla
+  (běžící nebo budoucí měsíc, jiná liga než vrchol). Měnit smí jen vlastník (`grant update (showcase)` a pravidlo řádků „vlastní změna“), číst každý
+  přihlášený; export dat ji obsahuje (celý řádek profilu).
+- Aplikace: pod kartou ligy (Více hráčů) pruh sezóny (měsíc, kolik dní zbývá, další odměna) → okno **Ligové sezóny** (vrchol běžící sezóny, „Dosáhni
+  Platiny do konce listopadu a získáš rámeček…“, rámečky za sezónu, 12 minulých sezón; minulou sezónu jde vystavit). Vystavit jde i odznak
+  (Můj postup → Odznaky) a diplom (okno diplomu). Svou vitrínu vidíš v hlavičce Nastavení → Profil (okno **Vitrína** s Odebrat), cizí v Profilu hráče.
+- Testy: `tests/sql-league-seasons.test.js` (hranice pražského měsíce, skončená a běžící sezóna, kontrola vitríny, pravidla řádků),
+  `tests/league-seasons.test.js`, `tests/e2e-league-seasons.test.js`, okna v `tests/e2e-dialogs-fit.test.js`.

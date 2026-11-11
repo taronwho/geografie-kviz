@@ -67,7 +67,9 @@
     // 10 = Rozpis otázek (podrobnosti odpovědí výzvy a zápasu turnaje, challenge_details a tournament_details; se starší databází jen vlastní odpovědi ze zařízení);
     // 17 = zamrzlé otázky (question_snapshot_claim, question_snapshots_get: výzva, turnaj a Kvíz dne mají pro všechny stejné otázky i po změně dat;
     // se starší databází se otázky skládají jen v zařízení jako dřív).
-    const REQUIRED_SCHEMA = 17;
+    // 18 = ligové sezóny (league_seasons) a vitrína v profilu (profiles.showcase), odznaky Album sbírky v katalogu odznaků (se starší databází
+    // se sezóny a vitrína jen nenabídnou, odznaky alba zůstanou v zařízení a album je spočítá znovu).
+    const REQUIRED_SCHEMA = 18;
     const HISTORY_SIZE = 200;
     const REQUEST_TIMEOUT = 12000;
     const WIKI_TIMEOUT = 6000;
@@ -918,6 +920,8 @@
     const owlLogo = (wrapClass, imgClass) => Owl ? Owl.logoHtml(wrapClass, imgClass) : `<img src="icons/logo.webp" alt="" class="${wrapClass} ${imgClass}">`;
     const lookContext = () => {
         if (Look && window.MudrlantRewards) Look.setGifts(window.MudrlantRewards.gifts(readJson(window.MudrlantRewards.KEY)));
+        // Rámečky ligových sezón: nejlepší liga skončené sezóny zapamatovaná v zařízení (league-seasons.js, platí i bez připojení)
+        if (Look && Look.setLeagueBest && window.MudrlantLeagueSeasons) Look.setLeagueBest(window.MudrlantLeagueSeasons.cachedBest(readJson(window.MudrlantLeagueSeasons.KEY)));
         const progress = loadProgress();
         const user = Auth && Auth.isConfigured() && Social ? signedUser() : null;
         return { level: levelProgress(progress.xp).level, badges: progress.badges, user, profile: user ? myProfile : null, avatarHtml, prefs: Look ? Look.prefs({ level: levelProgress(progress.xp).level, badges: progress.badges }) : {} };
@@ -927,6 +931,7 @@
         const pick = Look ? Look.prefs(lookContext()).title : 'level';
         if (pick === 'none') return 'Můj postup';
         if (pick && pick !== 'level' && BADGE_BY_ID[pick]) return BADGE_BY_ID[pick].title;
+        if (pick && Look && Look.titleItem && Look.titleItem(pick)) return Look.titleItem(pick).title;
         return `Úr. ${level} · ${titleForLevel(level)}`;
     };
     const applyLook = () => { if (Look) Look.apply(lookContext()); };
@@ -963,7 +968,7 @@
     };
     // Zamčený obrázek hráče (postavička nebo emoji za odměnu): položka katalogu, nebo null, když je k dispozici (základní, odemčený,
     // nebo už uložený v profilu – i jako staré emoji, které postavička nahradila)
-    const avatarUnlockText = (item) => item.badge ? `Odznak: ${(BADGE_BY_ID[item.badge] || {}).title || item.badge}` : `Úroveň ${item.level}`;
+    const avatarUnlockText = (item) => item.exclusive && Look ? Look.unlockText(item) : item.badge ? `Odznak: ${(BADGE_BY_ID[item.badge] || {}).title || item.badge}` : `Úroveň ${item.level}`;
     const avatarLock = (value) => {
         const item = Look && Look.avatarItem ? Look.avatarItem(value) : null;
         if (!item || Social.AVATARS.includes(value) || (myProfile && Look.avatarItem(myProfile.avatar) === item) || Look.isUnlocked(item, lookContext())) return null;
@@ -1023,7 +1028,8 @@
             const on = Boolean(meDraft.owl && !meDraft.pose);
             return `<button type="button" data-pick-owl aria-label="Sova Mudrlant" title="Sova Mudrlant" aria-pressed="${on}" class="${AVATAR_TILE} ${on ? AVATAR_ON : AVATAR_OFF}">${Owl.owlAvatarHtml(ownOwlText(null), 'h-full w-auto', 'h-[88%]')}</button>${poseTiles()}`;
         }
-        if (group === 'postavicky') return Look ? Look.AVATARS.map(characterTile).join('') : '';
+        // Sezónní postavičky (exclusive) jen ty, které hráč má (ze Sezónní truhly), jinak by tu visely zamčené bez cesty k nim
+        if (group === 'postavicky') return Look ? Look.AVATARS.filter(item => !item.exclusive || Look.isUnlocked(item, lookContext())).map(characterTile).join('') : '';
         return Social.AVATARS.map(emoji => {
             const on = !meDraft.owl && emoji === meDraft.avatar;
             return `<button type="button" data-pick-avatar="${emoji}" aria-label="Obrázek ${emoji}" aria-pressed="${on}" class="${AVATAR_TILE} ${on ? AVATAR_ON : AVATAR_OFF}">${emoji}</button>`;
@@ -1128,18 +1134,22 @@
         const text = kind === 'unsupported' && pushState.ios ? PUSH_TEXTS.iphone : PUSH_TEXTS[kind];
         if (kind === 'unsupported') return `<div class="flex min-h-[3rem] items-center gap-3 px-3 py-2"><i data-lucide="bell-off" class="h-5 w-5 shrink-0 text-slate-500 dark:text-slate-400"></i><span class="min-w-0 flex-1"><span class="block text-[13px] font-black leading-tight text-slate-800 dark:text-slate-100">Upozornění</span><span class="mt-0.5 block text-[11px] font-semibold leading-snug text-slate-500 dark:text-slate-400">${text}</span></span></div>`;
         const on = kind === 'on';
-        const pref = (key, icon, label, title) => `<button type="button" data-push-pref="${key}" role="switch" aria-checked="${Boolean(pushPrefs[key])}" title="${title}" aria-label="${title}" class="${SETTING_HALF}"><i data-lucide="${icon}" class="h-5 w-5 shrink-0 ${pushPrefs[key] ? 'text-brand-700 dark:text-brand-300' : 'text-slate-500 dark:text-slate-400'}"></i><span class="min-w-0 flex-1 truncate text-[13px] font-black leading-tight text-slate-800 dark:text-slate-100">${label}</span>${switchMark(Boolean(pushPrefs[key]))}</button>`;
+        // Co posílat: dvě malé přepínací dlaždice (ikona a popisek) vedle spínače upozornění, ne další řádek – karta Hra se šestnácti
+        // barevnými tématy se tak i se zapnutými upozorněními vejde bez posouvání (390×780 i 360×640)
+        const pref = (key, icon, label, title) => { const yes = Boolean(pushPrefs[key]); return `<button type="button" data-push-pref="${key}" role="switch" aria-checked="${yes}" title="${title}" aria-label="${title}" class="flex h-11 w-12 shrink-0 flex-col items-center justify-center gap-0.5 rounded-xl transition-colors active:scale-95 ${yes ? 'bg-brand-50 text-brand-700 ring-1 ring-brand-300 dark:bg-brand-900/40 dark:text-brand-200 dark:ring-brand-700' : 'bg-slate-100 text-slate-500 dark:bg-slate-700/60 dark:text-slate-400'}"><i data-lucide="${icon}" class="h-4 w-4"></i><span class="text-[9.5px] font-black leading-none ${yes ? '' : 'line-through decoration-2'}">${label}</span></button>`; };
         const busyText = pushBusy === 'on' ? 'Zapínám… (potvrď dotaz prohlížeče)' : pushBusy === 'off' ? 'Vypínám…' : '';
         const note = !busyText && pushNote ? pushNote : null;
         return `
             <div data-push-panel>
-                <button type="button" data-push-toggle="${on ? 'off' : 'on'}" role="switch" aria-checked="${on}"${pushBusy ? ' disabled aria-busy="true"' : ''} class="${SETTING_ROW}">
+                <div class="flex items-center${on && pushPrefs ? ' gap-1 pr-2' : ''}">
+                <button type="button" data-push-toggle="${on ? 'off' : 'on'}" role="switch" aria-checked="${on}"${pushBusy ? ' disabled aria-busy="true"' : ''} class="${SETTING_ROW} min-w-0 flex-1">
                     <i data-lucide="${busyText ? 'hourglass' : on ? 'bell' : 'bell-off'}" class="h-5 w-5 shrink-0 ${busyText ? 'animate-pulse text-brand-700 dark:text-brand-300' : on ? 'text-brand-700 dark:text-brand-300' : 'text-slate-500 dark:text-slate-400'}"></i>
                     <span class="min-w-0 flex-1"><span class="block text-[13px] font-black leading-tight text-slate-800 dark:text-slate-100">Upozornění</span><span data-push-status class="mt-0.5 block text-[11px] font-semibold leading-snug ${busyText || (note && note.tone === 'error') ? 'short:truncate' : 'short:hidden'} ${note ? PUSH_TONE[note.tone] : 'text-slate-500 dark:text-slate-400'}">${escapeHtml(busyText || (note ? note.short : text))}</span></span>
                     ${switchMark(on)}
                 </button>
+                ${on && pushPrefs ? `<div class="flex shrink-0 gap-1" role="group" aria-label="Co posílat">${pref('tournament', 'trophy', 'Turnaje', 'Upozornění: kola a zprávy turnaje')}${pref('challenge', 'swords', 'Výzvy', 'Upozornění: výzvy od hráčů')}</div>` : ''}
+                </div>
                 ${note && note.advice ? `<p data-push-advice role="${note.tone === 'error' ? 'alert' : 'status'}" class="mx-3 mb-2.5 rounded-xl bg-rose-50 px-2.5 py-1.5 text-[11px] font-semibold leading-snug text-rose-800 ring-1 ring-rose-200 dark:bg-rose-950/40 dark:text-rose-200 dark:ring-rose-800/60">${escapeHtml(note.advice)}</p>` : ''}
-                ${on && pushPrefs ? `<div class="grid grid-cols-2 divide-x divide-slate-100 border-t border-slate-100 dark:divide-slate-700/70 dark:border-slate-700/70" role="group" aria-label="Co posílat">${pref('tournament', 'trophy', 'Turnaje', 'Upozornění: kola a zprávy turnaje')}${pref('challenge', 'swords', 'Výzvy', 'Upozornění: výzvy od hráčů')}</div>` : ''}
             </div>`;
     };
     const togglePush = async (turnOn) => {
@@ -1647,7 +1657,8 @@
                     <div class="min-w-0 flex-1">
                         <h2 id="settings-title" class="${nameField ? 'sr-only' : 'truncate text-lg font-black leading-tight text-slate-800 dark:text-slate-100'}">${user ? escapeHtml(playerName(profile)) : 'Nastavení'}</h2>
                         ${nameField || `<p class="truncate text-xs text-slate-500 short:hidden dark:text-slate-400">${user ? escapeHtml(user.email || user.name) : 'Hraješ bez účtu'}</p>`}
-                        <button type="button" data-open-progress class="mt-0.5 flex items-center gap-1 text-[11px] font-black text-brand-700 dark:text-cream">${escapeHtml(ownTitleText(level.level))} <i data-lucide="chevron-right" class="h-3 w-3"></i></button>
+                        ${meTab === 'profile' && profileBody && showcaseMiniButton() ? `<div class="mt-0.5 flex items-center justify-between gap-2"><button type="button" data-open-progress class="flex min-w-0 items-center gap-1 text-left text-[11px] font-black text-brand-700 dark:text-cream">${escapeHtml(ownTitleText(level.level))} <i data-lucide="chevron-right" class="h-3 w-3 shrink-0"></i></button>${showcaseMiniButton()}</div>`
+                            : `<button type="button" data-open-progress class="mt-0.5 flex items-center gap-1 text-[11px] font-black text-brand-700 dark:text-cream">${escapeHtml(ownTitleText(level.level))} <i data-lucide="chevron-right" class="h-3 w-3"></i></button>`}
                     </div>
                     <button type="button" data-close aria-label="Zavřít" class="-m-0.5 self-start rounded-xl p-2.5 text-slate-500 hover:bg-slate-200 dark:text-slate-400 dark:hover:bg-slate-800"><i data-lucide="x" class="h-5 w-5"></i></button>
                 </div>
@@ -1656,7 +1667,7 @@
                 <p id="settings-note" class="${noteText ? 'mt-2 ' : ''}text-xs font-semibold ${noteText.startsWith('Uloženo') || !meNote ? 'text-emerald-700 dark:text-emerald-300' : 'text-rose-700 dark:text-rose-400'}" role="status">${escapeHtml(noteText)}</p>
                 ${renderSchemaBanner()}
                 ${meTab === 'game' ? `
-                <div class="mt-2 flex flex-wrap items-center justify-center gap-x-0.5 text-xs text-slate-500 short:mt-0.5 dark:text-slate-400">
+                <div class="mt-1 flex flex-wrap items-center justify-center gap-x-0.5 text-xs text-slate-500 short:mt-0.5 dark:text-slate-400">
                     <span id="app-version" class="px-1">${escapeHtml(versionLabel())}</span>
                     <button type="button" data-update-app class="-my-2 inline-flex min-h-[2.5rem] items-center rounded-lg px-1.5 font-bold text-slate-600 underline underline-offset-2 hover:bg-slate-200 disabled:no-underline dark:text-slate-300 dark:hover:bg-slate-800">Aktualizovat</button>
                     <button type="button" data-tutorial-restart class="-my-2 inline-flex min-h-[2.5rem] items-center rounded-lg px-1.5 font-bold underline underline-offset-2 hover:bg-slate-200 dark:hover:bg-slate-800">Tutoriál</button>
@@ -1919,6 +1930,7 @@
                 return;
             }
             if (event.target.closest('[data-open-progress]')) { closeSettings(); openProgress(); return; }
+            if (event.target.closest('[data-open-showcase]')) { closeSettings(); openShowcase(); return; }
             if (event.target.closest('[data-open-accept]')) { closeSettings(); openAccepted(); return; }
             if (event.target.closest('[data-open-blocked]')) { closeSettings(); openBlockedList(); return; }
             const devButton = event.target.closest('[data-dev]');
@@ -2466,7 +2478,10 @@
         notePushHomeTab();
         checkStreakFreeze();
         noteDiplomas(topicStarsNow());
+        noteAlbum();
         settleGoals();
+        // Sezóna: založí se (nebo přejde do nového měsíce) a zapamatuje se stupeň, ať se nový stupeň během hry oslaví
+        noteSeasonTier();
         const stats = loadStats();
         const today = getDayKey();
         // Dnešní otázky: ikona tématu a stav, název v popisku (14 témat se vejde do dvou řádků). Na nízkém displeji (short:)
@@ -2478,6 +2493,7 @@
                 ? `<span aria-hidden="true" class="${badge} h-4 w-4 bg-emerald-600 text-white"><i data-lucide="check" class="h-3 w-3 stroke-[3]"></i></span>`
                 : `<span aria-hidden="true" class="${badge} h-4 w-4 bg-rose-600 text-white"><i data-lucide="x" class="h-3 w-3 stroke-[3]"></i></span>`;
         };
+        const homeBadges = loadProgress().badges;
         const dailyButtons = TOPICS.map(topic => {
             const status = dailyStatus(topic.id, stats);
             const streak = topicStreak(stats.daily[topic.id], today);
@@ -2486,7 +2502,7 @@
                     ${topicIcon(topic, 'h-7 w-7', `rounded-lg p-1 ${styleOf(topic).soft}`, 'h-[1.125rem] w-[1.125rem]')}
                     <span class="flex max-w-full items-center gap-0.5 truncate text-[10px] font-bold short:hidden ${status.tone}">${status.icon ? `<i data-lucide="${status.icon}" class="h-3 w-3 shrink-0"></i>` : ''}${status.text}</span>
                     ${dailyBadge((stats.daily[topic.id] || {})[today])}
-                    ${streak ? `<span class="absolute -right-1.5 -top-2 flex items-center rounded-lg bg-slate-900/85 py-px pl-0 pr-1.5 text-[10px] font-black text-white shadow ring-1 ring-white/20" title="Série dní">${uiArt('serie', 'h-4 w-4')}${streak}</span>` : ''}
+                    ${streak ? `<span class="absolute -right-1.5 -top-2 flex items-center rounded-lg bg-slate-900/85 py-px pl-0 pr-1.5 text-[10px] font-black text-white shadow ring-1 ring-white/20" title="${escapeHtml(streakRewardTitle(streak, homeBadges))}">${uiArt('serie', 'h-4 w-4')}${streak}</span>` : ''}
                 </button>`;
         }).join('');
         const answered = TOPICS.filter(topic => (stats.daily[topic.id] || {})[today]).length;
@@ -3244,6 +3260,7 @@
                         <div><p class="text-xl font-black text-slate-800 dark:text-slate-100">${results.length}</p><p class="${label}">Hráno</p></div>
                         <div><p class="text-xl font-black text-slate-800 dark:text-slate-100">${wins}</p><p class="${label}">Uhodnuto</p></div>
                     </div>
+                    ${streakRewardLine(topicStreak(stats.daily[data.topic]), 'justify-center')}
                     <div class="grid grid-cols-2 gap-2">
                         <button type="button" data-action="share" aria-label="Sdílet výsledek" class="flex min-w-0 items-center justify-center gap-1.5 rounded-xl px-3 py-2.5 text-sm font-bold text-white shadow-md transition-all active:scale-95 ${styleOf(TOPIC_BY_ID[data.topic]).button}">
                             <i data-lucide="share-2" class="h-4 w-4 shrink-0"></i> Sdílet
@@ -3643,7 +3660,9 @@
             level: levelProgress(progress.xp).level,
             learned: TOPICS.reduce((sum, topic) => sum + (learnedMap[topic.id] || []).length, 0),
             topicStars: Object.fromEntries(TOPICS.map(topic => [topic.id, masteryStars((learnedMap[topic.id] || []).length)])),
-            topicCount: TOPICS.length
+            topicCount: TOPICS.length,
+            // Album sbírky: procenta celé sbírky a sekcí pro odznaky Sběratel (album.js)
+            album: albumBadgeContext(progress)
         };
     };
     // Získané odznaky podle počítadel; vrátí názvy nově získaných (a uloží je s dnešním dnem)
@@ -3653,6 +3672,8 @@
         const fresh = earnedBadgeIds(progress.counters, context).filter(id => !progress.badges[id]);
         fresh.forEach(id => { progress.badges[id] = getDayKey(); });
         noteDiplomas(context.topicStars);
+        // Album sbírky: nové odznaky a diplomy sbírku zvednou – milník nebo celá sekce se připíše hned, ne až po další odpovědi
+        albumDueBadges(progress).forEach(id => { progress.badges[id] = getDayKey(); fresh.push(id); });
         freshBadgeIds = fresh;
         return fresh.map(id => BADGE_BY_ID[id].title);
     };
@@ -3719,6 +3740,9 @@
         }
     }, 1000);
     const announce = (levelBefore, levelNow, badgeTitles) => {
+        // Album sbírky: milník sbírky a celá sekce mají vlastní oslavu (po ostatních odznacích) místo obecného „Nový odznak“
+        const albumFresh = freshBadgeIds.filter(id => Album && Album.isAlbumBadge(id) && BADGE_BY_ID[id]);
+        if (albumFresh.length) badgeTitles = badgeTitles.filter(title => !albumFresh.some(id => BADGE_BY_ID[id].title === title));
         if (levelNow > levelBefore) {
             const newTitle = titleForLevel(levelNow) !== titleForLevel(levelBefore);
             // Nový titul slaví sova jeho stupně (sova titulu v barvě mého obleku)
@@ -3726,11 +3750,13 @@
         }
         badgeTitles.slice(0, 3).forEach(title => showCelebration('oslava', 'Nový odznak', title, 'badge'));
         if (badgeTitles.length > 3) showCelebration('oslava', 'Další odznaky', `a ještě ${badgeTitles.length - 3}`);
+        albumFresh.forEach(celebrateAlbum);
         const kinds = Look.REWARD_KINDS;
         // Postavička se v oslavě ukáže místo sovy; text řekne, na které záložce Nastavení se odměna vybírá
         Look.newRewards(levelBefore, levelNow, freshBadgeIds).forEach(({ category, item }) => showCelebration('vitez', 'Nová odměna', `${item.title} (${kinds[category]}) – vyber si ji v ${rewardPlace(category)}`, null,
             category === 'avatars' && item.parts ? avatarArt(item.id, 'h-20 w-20 -my-4 drop-shadow-lg') : ''));
         freshBadgeIds = [];
+        noteSeasonTier();
     };
     // Po delší pauze sova uvítá hráče zpátky (jednou za spuštění)
     const welcomeBack = () => {
@@ -3741,6 +3767,9 @@
     };
     // Úroveň a odznaky se po přihlášení ukládají i do účtu (viditelné ostatním, platí na všech zařízeních); chyba spojení nevadí
     let syncingProgress = false;
+    // Účet, jehož postup se v tomto spuštění už sloučil se zařízením: odměny (se sezónou) se slučují až po něm, ať začátek sezóny
+    // počítaný z XP zařízení před načtením XP z účtu nevyhraje jako „menší“
+    let progressSyncedFor = null;
     const syncProgress = async () => {
         const user = signedUser();
         if (!user || !Social || syncingProgress || devActive()) return;
@@ -3756,7 +3785,11 @@
             const remoteIds = expandBadges((remote.badges || []).filter(id => BADGE_BY_ID[id]));
             remoteIds.forEach(id => { if (!merged.badges[id]) merged.badges[id] = getDayKey(); });
             const changedLocal = merged.xp !== local.xp || Object.keys(merged.badges).length !== Object.keys(local.badges).length;
+            // XP z účtu (získané na jiném zařízení) se do sezóny tady nepočítá: začátek sezóny se posune o totéž (season.js shift);
+            // sloučení odměn s účtem pak vezme menší začátek, takže XP sezóny z jiného zařízení se vrátí přes jeho zápis v účtu
+            if (Season && Rewards && merged.xp > local.xp) saveRewards(Season.shift(loadRewards(), merged.xp - local.xp));
             if (changedLocal) { saveProgress(merged); updateControlsUI(); }
+            progressSyncedFor = user.id;
             const compact = compactBadges(Object.keys(merged.badges));
             const sameRemote = (remote.xp || 0) === merged.xp && [...compact].sort().join() === [...(remote.badges || [])].filter(id => BADGE_BY_ID[id]).sort().join();
             if (!sameRemote) await Social.saveProgress(user.id, { xp: merged.xp, badges: compact });
@@ -3837,6 +3870,9 @@
         if (!Goals) return '';
         // Čekající truhla má přednost: místo pruhu cílů zlaté tlačítko Otevřít (cíle jsou dál v okně po otevření truhly)
         if (Rewards && Rewards.pendingChest(loadRewards())) return Rewards.chestStripHtml();
+        // Čekající odměna Sezóny Mudrlanta: stejný pruh (vyzvedne se jedním klepnutím, pak jsou tu zase cíle)
+        const seasonStrip = seasonStripHtml();
+        if (seasonStrip) return seasonStrip;
         const { state, rows } = goalRows();
         const done = rows.filter(row => row.done).length;
         const chip = ({ goal, value, done }) => `
@@ -3938,6 +3974,8 @@
     // --- Odměny (rewards.js): Truhla Mudrlanta za cíle týdne, ochrana série a diplomy za mistrovství tématu ---
     // Stav v zařízení (mudrlant.rewards), po přihlášení i v účtu (profiles.rewards, schéma 9; se starší databází jen v zařízení)
     const Rewards = window.MudrlantRewards || null;
+    // Album sbírky (album.js): co všechno jde sbírat, co hráč má a co chybí; okno a napojení v oddílu „Album sbírky“ u Mého postupu
+    const Album = window.MudrlantAlbum || null;
     const loadRewards = () => (Rewards ? Rewards.parse(readJson(Rewards.KEY)) : null);
     const saveRewards = (state) => {
         if (!Rewards) return;
@@ -3947,6 +3985,17 @@
     // Dny zachráněné ochranou série: série dnešních otázek i Kvízu dne přes ně pokračují
     const frozenDays = () => (Rewards ? loadRewards().frozen : []);
     const topicStreak = (results, today = getDayKey()) => computeStreak(results || {}, today, frozenDays());
+    // Řádek „Další odměna za sérii: Stovka za 100 dní (zbývá 37)“ (rewards.js); prázdný, když už má hráč všechny odměny za sérii
+    const nextStreakReward = (streak, badges = loadProgress().badges) => {
+        if (!Rewards || !Look) return null;
+        const group = BADGE_GROUPS.find(entry => entry.id === 'serie');
+        return group ? Rewards.nextStreakReward(group.badges, badges, streak) : null;
+    };
+    const streakRewardLine = (streak, cls = '') => { const next = nextStreakReward(streak); return next ? Rewards.streakRewardHtml(next, chestHelpers(), cls) : ''; };
+    // Nejdelší běžící série dnešních otázek (přes všechna témata), podle ní se počítá odznak série
+    const longestStreak = () => { const stats = loadStats(); return Math.max(0, ...TOPICS.map(topic => topicStreak(stats.daily[topic.id]))); };
+    // Popisek štítku série na úvodu (úvod je bez posouvání plný, řádek se tam nevejde)
+    const streakRewardTitle = (streak, badges) => { const next = nextStreakReward(streak, badges); return `Série ${streak} ${streak === 1 ? 'den' : streak <= 4 ? 'dny' : 'dní'}${next ? ` · ${Rewards.streakRewardText(next)}` : ''}`; };
     const quizStreakOf = (played, today) => (DailyQuiz ? DailyQuiz.streakOf(played, today, frozenDays()) : 0);
     // Počítadla odměn (otevřené truhly, použité ochrany, sdílené obrázky) jsou s ostatními počítadly postupu (tipy, odznaky)
     const bumpCounter = (key, by = 1) => {
@@ -4000,6 +4049,7 @@
     const syncRewards = async () => {
         const user = signedUser();
         if (!Rewards || !user || !Social || syncingRewards || devActive()) return;
+        if (Season && progressSyncedFor !== user.id) return;
         syncingRewards = true;
         try {
             const remote = await Social.getRewards(user.id);
@@ -4013,8 +4063,8 @@
                 applyLook();
                 syncLookWithAccount();
             }
-            // Prázdné odměny (hráč zatím nic nezískal) se do účtu nezapisují – zbytečný zápis při každém prvním přihlášení
-            const nothing = Rewards.samePayload(merged, Rewards.merge({}, {}));
+            // Prázdné odměny (hráč zatím nic nezískal, sezóna jen založená) se do účtu nezapisují – zbytečný zápis při každém prvním přihlášení
+            const nothing = Rewards.isEmpty(merged);
             if (!nothing && (!remote.rewards || !Rewards.samePayload(merged, remote.rewards))) await Social.saveRewards(user.id, Rewards.payload(merged));
         } catch (error) { /* bez sítě nebo sloupce zůstanou odměny v zařízení */ } finally { syncingRewards = false; }
     };
@@ -4116,7 +4166,7 @@
     };
     const openFreezeHelp = () => {
         if (!Rewards) return;
-        showDialog('Ochrana série', `${Rewards.freezeHelpHtml(loadRewards().freezes)}<button type="button" data-back-progress class="${SECONDARY_BUTTON} mt-3 !py-2.5 text-sm"><i data-lucide="chevron-left" class="h-4 w-4"></i> Můj postup</button>`,
+        showDialog('Ochrana série', `${Rewards.freezeHelpHtml(loadRewards().freezes)}${streakRewardLine(longestStreak(), 'mt-2.5 rounded-xl bg-white px-2.5 py-2 shadow-sm dark:bg-slate-800')}<button type="button" data-back-progress class="${SECONDARY_BUTTON} mt-3 !py-2.5 text-sm"><i data-lucide="chevron-left" class="h-4 w-4"></i> Můj postup</button>`,
             { onClick: (event) => { if (event.target.closest('[data-back-progress]')) openProgress(); } });
     };
     const lastChestText = (state) => {
@@ -4129,6 +4179,143 @@
         if (Rewards.pendingChest(loadRewards())) { closeDialog(); openChestOverlay(); return; }
         showDialog('Truhla Mudrlanta', `${Rewards.chestHelpHtml(lastChestText(loadRewards()))}<div class="mt-3 grid grid-cols-2 gap-2"><button type="button" data-goals-open class="${SECONDARY_BUTTON} !py-2.5 text-sm"><i data-lucide="target" class="h-4 w-4"></i> Cíle týdne</button><button type="button" data-back-progress class="${SECONDARY_BUTTON} !py-2.5 text-sm"><i data-lucide="chevron-left" class="h-4 w-4"></i> Můj postup</button></div>`,
             { onClick: (event) => { if (event.target.closest('[data-back-progress]')) openProgress(); if (event.target.closest('[data-goals-open]')) openGoals(); } });
+    };
+
+    // --- Sezóna Mudrlanta (season.js): měsíční cesta 20 stupňů odměn; stav je v odměnách (rewards.js season, past) ---
+    const Season = window.MudrlantSeason || null;
+    // Album sbírky: sezónní věci (rámeček, doplněk a postavička měsíce) jdou získat jen v sezóně svého měsíce, dřívější jsou „už nejde získat“
+    if (Album && Season) Album.setAvailability(Season.availability);
+    // XP pro sezónu: ve vývojářském režimu skutečné XP ze zálohy (zkušební úroveň se do sezóny nepočítá)
+    const seasonXp = () => {
+        if (devActive()) { try { const backup = JSON.parse(localStorage.getItem(DEV_BACKUP)); return backup && Number.isFinite(backup.xp) ? Math.max(0, Math.floor(backup.xp)) : 0; } catch (e) { return 0; } }
+        return loadProgress().xp;
+    };
+    const seasonNow = () => ({ today: Season.pragueDay(), xp: seasonXp() });
+    // Sezóna podle dneška (založí ji, nebo přejde do nového měsíce) a přehled pro okna; null bez modulů
+    const seasonView = () => {
+        if (!Season || !Rewards) return null;
+        const now = seasonNow();
+        const result = Season.ensure(loadRewards(), now);
+        if (result.changed) { saveRewards(result.state); syncRewards(); }
+        return Season.info(result.state, now);
+    };
+    const seasonUser = () => { const user = signedUser(); return user ? user.id : 'host'; };
+    // Nový dosažený stupeň během hry: oslava (jednou za stupeň; po spuštění se jen zapamatuje, kde hráč je)
+    let seasonTierSeen = null;
+    const noteSeasonTier = () => {
+        const view = seasonView();
+        if (!view) return;
+        const tier = view.progress.tier;
+        if (seasonTierSeen !== null && tier > seasonTierSeen) showCelebration('oslava', `Sezóna: stupeň ${tier}`, `Čeká na tebe odměna – vyzvedneš ji na úvodu.`, 'badge');
+        seasonTierSeen = tier;
+    };
+    // Nasazení věcí ze sezóny (talár, téma, rámeček, doplněk, titul); postavička a barvy se volí v Nastavení
+    const wearSeasonParts = (parts) => {
+        if (!Look) return;
+        parts.filter(part => part.item && ['robes', 'themes', 'frames', 'accessories'].includes(part.category)).forEach(part => wearGift(part));
+        const title = parts.find(part => part.category === 'titles');
+        if (title) { Look.setPref('title', title.item.id, lookContext()); applyLook(); }
+    };
+    const closeSeasonOverlay = () => {
+        const overlay = document.getElementById('season-overlay');
+        if (overlay) overlay.remove();
+        if (screen === 'home') paintGoalsCard();
+    };
+    // Odhalení odměny stupně: pečeť (nebo truhla na 10. a 20. stupni) přes celou obrazovku; klepnutím se odměna vyzvedne
+    // (jako Truhla Mudrlanta: krátké natřesení, při omezeném pohybu hned). „Další“ otevře další čekající stupeň.
+    // back = kam se po zavření vrátit (okno sezóny nebo Můj postup, odkud se vyzvedávalo); z úvodu nikam
+    const openSeasonReveal = (target = null, back = null) => {
+        if (!Season || document.getElementById('season-overlay') || document.getElementById('chest-overlay')) return;
+        const view = seasonView();
+        const entry = target ? view.pending.find(item => item.which === target.which && item.tier === target.tier) : view.pending[0];
+        if (!entry) return;
+        closeDialog();
+        const overlay = document.createElement('div');
+        overlay.id = 'season-overlay';
+        overlay.setAttribute('role', 'dialog');
+        overlay.setAttribute('aria-modal', 'true');
+        overlay.setAttribute('aria-label', `Sezóna ${Season.label(entry.id)}: stupeň ${entry.tier}`);
+        overlay.className = 'chest-overlay fade-in fixed inset-0 z-[70] flex items-start justify-center overflow-y-auto px-4 pb-4';
+        let opened = null;
+        let opening = false;
+        const left = () => Math.max(0, seasonView().pending.length);
+        const paint = () => {
+            overlay.innerHTML = Season.revealHtml({ id: entry.id, tier: entry.tier, opened, next: opened ? left() : 0, h: chestHelpers() });
+            renderIcons(overlay);
+            // Fokus na hlavní akci (ne na křížek v rohu, ten je v pořadí první)
+            const focus = opened ? ['[data-season-wear]', '[data-season-next]', '[data-season-close]:not([data-season-x])'].map(css => overlay.querySelector(css)).find(Boolean) : overlay.querySelector('button[data-season-go]:not([disabled])');
+            if (focus) focus.focus({ preventScroll: true });
+        };
+        const reveal = () => {
+            if (!overlay.isConnected) return;
+            const progress = loadProgress();
+            const result = Season.claim(loadRewards(), { which: entry.which, tier: entry.tier, ctx: { level: levelProgress(progress.xp).level, badges: progress.badges }, xp: seasonXp(), today: Season.pragueDay(), user: seasonUser() });
+            if (!result.opened) { overlay.remove(); return; }
+            saveRewards(result.state);
+            const levelBefore = levelProgress(progress.xp).level;
+            if (result.xp) progress.xp += result.xp;
+            const titles = grantBadges(progress);
+            saveProgress(progress);
+            opened = result;
+            paint();
+            if (Sound) Sound.play('record');
+            announce(levelBefore, levelProgress(progress.xp).level, titles);
+            applyLook();
+            updateControlsUI();
+            syncRewards();
+            if (result.xp) syncProgress();
+        };
+        overlay.addEventListener('click', (event) => {
+            if (event.target.closest('[data-season-close]') || event.target === overlay) { closeSeasonOverlay(); if (back) back(); return; }
+            if (event.target.closest('[data-season-next]')) { closeSeasonOverlay(); openSeasonReveal(null, back); return; }
+            if (event.target.closest('[data-season-wear]') && opened) {
+                wearSeasonParts(opened.parts);
+                const more = left();
+                closeSeasonOverlay();
+                const first = opened.parts.find(part => part.item);
+                showToast(`${opened.parts.filter(part => part.item && part.category !== 'colors' && part.category !== 'avatars').map(part => part.item.title).join(', ')}: hotovo. Změníš to v ${rewardPlace(first ? first.category : 'frames')}.`);
+                if (more) setTimeout(() => openSeasonReveal(null, back), 250); else if (back) back();
+                return;
+            }
+            const go = event.target.closest('[data-season-go]');
+            if (go && !opened && !opening && !go.disabled) {
+                opening = true;
+                const stage = overlay.querySelector('[data-chest-stage]');
+                const still = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+                if (still || !stage) { reveal(); return; }
+                stage.classList.add('chest-shaking');
+                setTimeout(reveal, 350);
+            }
+        });
+        overlay.addEventListener('keydown', (event) => { if (event.key === 'Escape') { closeSeasonOverlay(); if (back) back(); } });
+        trapFocus(overlay);
+        document.body.appendChild(overlay);
+        paint();
+    };
+    // Okno sezóny: celá cesta odměn; klepnutí na stupeň ukáže, co dává (čekající rovnou vyzvedne)
+    const openSeason = (selected = null) => {
+        if (!Season || !Rewards) return;
+        const view = seasonView();
+        showDialog(`Sezóna ${Season.label(view.id)}`, `${Season.pathHtml(view, { selected, h: chestHelpers() })}<button type="button" data-back-progress class="${SECONDARY_BUTTON} mt-2 !py-2.5 text-sm"><i data-lucide="chevron-left" class="h-4 w-4"></i> Můj postup</button>`, {
+            onClick: (event) => {
+                if (event.target.closest('[data-back-progress]')) { openProgress(); return; }
+                if (event.target.closest('[data-season-claim-past]')) { openSeasonReveal(view.pastPending[0], () => openSeason()); return; }
+                if (event.target.closest('[data-season-claim]')) { openSeasonReveal(null, () => openSeason()); return; }
+                const tile = event.target.closest('[data-season-tier]');
+                if (!tile) return;
+                const tier = Number(tile.dataset.seasonTier);
+                if (tile.dataset.state === 'ready') openSeasonReveal({ which: 'season', tier }, () => openSeason());
+                else openSeason(tier);
+            }
+        });
+        applyProgress(document.getElementById('dialog-overlay'));
+    };
+    // Pruh na úvodu, když čeká odměna sezóny (místo cílů týdne; Truhla Mudrlanta má přednost)
+    const seasonStripHtml = () => {
+        const view = seasonView();
+        if (!view || !view.pending.length) return '';
+        const past = view.pastPending.length > 0;
+        return Season.stripHtml({ id: past ? view.past.id : view.id, count: past ? view.pastPending.length : view.pending.length, past, until: view.pastUntil });
     };
     // Diplomy: řádek za každé téma (získaný, kdy, kolik chybí do plného mistrovství)
     const diplomaRows = () => {
@@ -4157,7 +4344,15 @@
         const row = diplomaRows().find(entry => entry.topic.id === topicId);
         if (!row) return;
         let name = diplomaName();
-        const back = `<button type="button" data-back-diplomas class="${SECONDARY_BUTTON} mt-2.5 !py-2.5 text-sm"><i data-lucide="chevron-left" class="h-4 w-4"></i> Diplomy</button>`;
+        // Získaný diplom jde vystavit ve vitríně profilu (schéma 18): Vystavit vedle tlačítka Diplomy, okno se tím nezvětší
+        const entry = Showcase ? Showcase.diploma(row.topic.id) : '';
+        const backButton = `<button type="button" data-back-diplomas class="${SECONDARY_BUTTON} !py-2.5 text-sm"><i data-lucide="chevron-left" class="h-4 w-4"></i> Diplomy</button>`;
+        const backRow = () => (row.earned && showcaseToggle(entry) ? `<div class="mt-2.5 grid grid-cols-2 gap-2" data-diploma-showcase>${backButton}${showcaseToggle(entry, true)}</div>` : `<div class="mt-2.5">${backButton}</div>`);
+        const back = backRow();
+        if (row.earned && myShowcase === null && signedUser()) loadMyShowcase(signedUser()).then(() => {
+            const box = document.querySelector('#dialog-overlay [data-diploma-dialog]');
+            if (box && box.parentElement && box.nextElementSibling && myShowcase) { box.nextElementSibling.outerHTML = backRow(); renderIcons(document.getElementById('dialog-overlay')); }
+        });
         const fileName = () => ShareCard.fileName(`diplom-${row.topic.id}`, row.day);
         let drawn = 0;
         // Náhled je samotné plátno (obrázek z adresy blob: by CSP nepustila)
@@ -4178,6 +4373,15 @@
         showDialog(row.earned ? 'Diplom' : row.title, Rewards.diplomaDialogHtml(row, { name, needName: !name }, { topicIcon, styleOf }) + back, {
             onClick: (event) => {
                 if (event.target.closest('[data-back-diplomas]')) { openDiplomas(); return; }
+                // Vystavit: překreslí se jen řádek s tlačítky (náhled diplomu zůstane)
+                const toggle = event.target.closest('[data-showcase-toggle]');
+                if (toggle) {
+                    onShowcaseToggle(toggle, () => {
+                        const rowBox = document.querySelector('#dialog-overlay [data-diploma-showcase]');
+                        if (rowBox) { rowBox.outerHTML = backRow(); renderIcons(document.getElementById('dialog-overlay')); }
+                    });
+                    return;
+                }
                 if (!ShareCard) return;
                 if (event.target.closest('[data-diploma-share]')) shareImageCounted(diplomaInput(row, name), { name: fileName(), text: `${row.title} · ${APP_NAME}`, toast: showToast });
                 if (event.target.closest('[data-diploma-download]')) ShareCard.saveImage(diplomaInput(row, name), { name: fileName(), toast: showToast }).then(result => { if (result === 'downloaded') bumpCounter('sharedImages'); });
@@ -4233,7 +4437,12 @@
             }
             const dayStreak = topicStreak(stats.daily[current.topic]);
             counters.bestStreak = Math.max(counters.bestStreak, dayStreak);
-            if (round.correct && [3, 7, 14, 30, 60, 100, 200, 365].includes(dayStreak)) showCelebration('serie', `Série ${dayStreak} dní`, 'Dnešní otázky ti jdou! Jen tak dál.');
+            if (round.correct && [3, 7, 14, 30, 60, 100, 200, 365].includes(dayStreak)) {
+                // S výhledem na další odměnu za sérii (odznaky do této délky se počítají jako získané, dostane je hráč právě teď)
+                const serie = BADGE_GROUPS.find(group => group.id === 'serie');
+                const upcoming = nextStreakReward(dayStreak, { ...before.badges, ...Object.fromEntries((serie ? serie.badges : []).filter(badge => badge.goal <= dayStreak).map(badge => [badge.id, true])) });
+                showCelebration('serie', `Série ${dayStreak} dní`, upcoming ? `Dnešní otázky ti jdou! ${Rewards.streakRewardText(upcoming)}.` : 'Dnešní otázky ti jdou! Jen tak dál.');
+            }
             // Každých 7 dní v řadě (v některém tématu) ochrana série, nejvýš jedna za den
             if (round.correct) earnStreakFreeze('d', getDayKey(), dayStreak);
             const done = TOPICS.filter(topic => (stats.daily[topic.id] || {})[current.dailyDate]).length;
@@ -5949,8 +6158,11 @@
         if (!Rating || !myRating) return '';
         const progress = Rating.leagueProgress(myRating.rating);
         const hint = progress.next ? `Do ligy ${progress.next.name} ještě ${progress.toNext}` : 'Nejvyšší liga';
+        // Pod řádkem ligy pruh ligové sezóny (schéma 18): sezóna, kolik dní zbývá a další odměna
+        const strip = leagueSeasonStrip();
         return `
-            <div id="league-card" class="flex items-center gap-2.5 rounded-2xl bg-white p-2 shadow-sm ring-1 ring-slate-200/70 dark:bg-slate-800/70 dark:ring-slate-700/70">
+            <div id="league-card" class="rounded-2xl bg-white p-2 shadow-sm ring-1 ring-slate-200/70 dark:bg-slate-800/70 dark:ring-slate-700/70">
+              <div class="flex items-center gap-2.5">
                 ${leagueBubble(progress.league, 'h-10 w-10')}
                 <div class="min-w-0 flex-1">
                     <p class="truncate text-[15px] font-black leading-tight text-slate-800 dark:text-slate-100"><span class="sr-only">Moje liga </span>${escapeHtml(progress.league.name)} · ${myRating.rating}</p>
@@ -5959,11 +6171,15 @@
                 </div>
                 <button type="button" data-action="weekly-board" class="flex h-10 shrink-0 items-center justify-center gap-1.5 rounded-xl bg-gold-50 px-3 text-[12px] font-black text-brand-950 ring-1 ring-gold-300/70 active:scale-95 dark:bg-gold-900/20 dark:text-gold-200 dark:ring-gold-700/60"><i data-lucide="trophy" class="h-4 w-4"></i> Týden</button>
                 <button type="button" data-action="league-help" aria-label="Jak fungují ligy" title="Jak to funguje?" class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-100 text-[13px] font-black text-brand-700 active:scale-95 dark:bg-slate-700 dark:text-cream">?</button>
+              </div>
+              ${strip ? `<div class="mt-1.5">${strip}</div>` : ''}
             </div>`;
     };
     // Vysvětlení ratingu a lig (z karty ligy i z týdenního žebříčku). Hranice a vzhled lig se čtou z rating.js. fromBoard = tlačítko Zpět na žebříček.
     const openLeagueHelp = (fromBoard = false) => {
         if (!Rating) return;
+        // Ligové sezóny (schéma 18): bod s pravidlem a tlačítko do okna sezón, jen když je databáze zná
+        const seasons = Boolean(LeagueSeasons && leagueSeasons);
         const mine = myRating ? Rating.leagueFor(myRating.rating) : null;
         const range = (league, index) => {
             const next = Rating.LEAGUES[index + 1];
@@ -5989,8 +6205,15 @@
                     <ol class="grid grid-cols-2 gap-1.5">${leagues}</ol>
                 </div>
                 <p class="${POINT}">${DOT}<span><b class="text-slate-800 dark:text-slate-100">Týdenní žebříček</b> řadí hráče podle změny ratingu za týden. V pondělí se počítá znovu od nuly.</span></p>
-                ${fromBoard ? '<button type="button" data-help-back class="flex w-full items-center justify-center gap-2 rounded-2xl btn-3d bg-brand-700 px-4 py-2.5 text-sm font-black text-white"><i data-lucide="chevron-left" class="h-4 w-4"></i> Zpět na žebříček</button>' : ''}
-            </div>`, { onClick: (event) => { if (event.target.closest('[data-help-back]')) openWeeklyBoard(); } });
+                ${seasons ? `<p class="${POINT}" data-help-seasons>${DOT}<span><b class="text-slate-800 dark:text-slate-100">Ligová sezóna</b> trvá kalendářní měsíc. Výsledek je nejvyšší liga, které v něm dosáhneš. Za Zlato a výš dostaneš rámeček profilu navždy.</span></p>` : ''}
+                ${fromBoard || seasons ? `<div class="grid ${fromBoard && seasons ? 'grid-cols-2' : 'grid-cols-1'} gap-2">
+                    ${fromBoard ? '<button type="button" data-help-back class="flex w-full items-center justify-center gap-2 rounded-2xl btn-3d bg-brand-700 px-3 py-2.5 text-sm font-black text-white"><i data-lucide="chevron-left" class="h-4 w-4"></i> Zpět na žebříček</button>' : ''}
+                    ${seasons ? `<button type="button" data-help-seasons-open class="flex w-full items-center justify-center gap-2 rounded-2xl ${fromBoard ? 'btn-3d-light bg-white text-slate-800 dark:bg-slate-800 dark:text-slate-100' : 'btn-3d bg-brand-700 text-white'} px-3 py-2.5 text-sm font-black"><i data-lucide="calendar-days" class="h-4 w-4"></i> Ligové sezóny</button>` : ''}
+                </div>` : ''}
+            </div>`, { onClick: (event) => {
+            if (event.target.closest('[data-help-back]')) openWeeklyBoard();
+            if (event.target.closest('[data-help-seasons-open]')) openLeagueSeasons();
+        } });
         renderIcons(document.getElementById('dialog-overlay'));
     };
     // Okno Týdenní žebříček: top hráči týdne podle součtu změn ratingu (server vrací jen veřejné údaje)
@@ -6024,6 +6247,202 @@
         }
         showDialog('Týdenní žebříček', `<div class="flex flex-col gap-3">${head}${body}</div>`, { onClick });
         renderIcons(document.getElementById('dialog-overlay'));
+    };
+    // ===== Ligové sezóny a vitrína v profilu (schéma 18; league-seasons.js, showcase.js) =====
+    // Sezóna = kalendářní měsíc (pražský čas), výsledek = nejvyšší liga v měsíci; za vrchol skončené sezóny Zlato a výš rámeček profilu.
+    // Vitrína = nejvýš 3 trofeje (odznak, diplom, ligová sezóna), které ostatní uvidí v Profilu hráče. Se starší databází se nic z toho neukáže.
+    const LeagueSeasons = window.MudrlantLeagueSeasons || null;
+    const Showcase = window.MudrlantShowcase || null;
+    // Sezóny přihlášeného hráče (null = nenačtené nebo je databáze nemá), kdy se načetly, a moje vitrína (null = nenačtená nebo ji databáze nemá)
+    let leagueSeasons = null;
+    let leagueSeasonsAt = 0;
+    let myShowcase = null;
+    let myShowcaseAt = 0;
+    let showcaseBusy = false;
+    const leagueCache = () => readJson(LeagueSeasons.KEY);
+    const leagueBestNow = () => (LeagueSeasons ? LeagueSeasons.cachedBest(leagueCache()) : null);
+    // Náhled rámečku sezóny na mém obrázku (bez id, ať se nevezme můj vybraný rámeček)
+    const framePreview = (frame, cls) => {
+        const me = myProfile || { avatar: '🦉', color: 'emerald' };
+        return avatarHtml({ avatar: me.avatar, color: me.color, owl: me.owl ? myOwlText() || me.owl : null, frame }, cls);
+    };
+    const seasonHelpers = () => ({ esc: escapeHtml, emblem: (league, cls) => leagueEmblem({ id: league }, cls), frameAvatar: framePreview });
+    // Pruh sezóny pod kartou ligy (jen když databáze sezóny zná)
+    const leagueSeasonStrip = () => (LeagueSeasons && leagueSeasons
+        ? LeagueSeasons.stripHtml({ data: leagueSeasons, best: leagueBestNow(), rating: myRating ? myRating.rating : null, now: new Date() }, seasonHelpers()) : '');
+    // Nový rámeček za skončenou sezónu: oslava „Nová odměna“ jednou (nejvyšší nový rámeček, ostatní v textu)
+    const celebrateLeagueFrames = (fresh, cache) => {
+        if (!fresh.length || !Look) return;
+        const top = Look.find('frames', fresh[0].frame);
+        if (!top) return;
+        const when = cache.bestMonth && cache.best === fresh[0].league ? ` (${LeagueSeasons.monthLabel(cache.bestMonth)})` : '';
+        const more = fresh.length - 1;
+        showCelebration('vitez', 'Nová odměna', `Rámeček ${top.title}${when}${more ? ` a ${more} další` : ''} – vyber si ${more ? 'je' : 'ho'} v ${rewardPlace('frames')}`, 'badge',
+            framePreview(top.id, 'h-16 w-16 text-3xl -my-1 ml-1'));
+    };
+    // Sezóny ze serveru (nejvýš jednou za 5 minut, force po ohodnocené výzvě): nejlepší liga se zapamatuje v zařízení (rámečky platí i bez připojení)
+    let seasonsRender = null;
+    const refreshLeagueSeasons = async (user, force = false) => {
+        if (!LeagueSeasons || !Social || !Social.leagueSeasons || !user) return;
+        // Uložené sezóny se ukážou hned (i bez připojení), čerstvé je pak přepíšou
+        if (!leagueSeasons) { leagueSeasons = LeagueSeasons.cachedData(leagueCache(), user.id); if (leagueSeasons) paintChallenges(); }
+        if (!force && leagueSeasonsAt && Date.now() - leagueSeasonsAt < 5 * 60 * 1000) return;
+        leagueSeasonsAt = Date.now();
+        let response;
+        try { response = await Social.leagueSeasons(); } catch (error) { return; }
+        if (!signedUser() || signedUser().id !== user.id) return;
+        // Databáze sezóny nemá (starší schéma): nic se neukáže
+        if (response === null) { leagueSeasons = null; paintChallenges(); return; }
+        const { cache, fresh } = LeagueSeasons.adopt(leagueCache(), response, user.id);
+        if (!cache.data) { leagueSeasons = null; paintChallenges(); return; }
+        writeJson(LeagueSeasons.KEY, cache);
+        leagueSeasons = cache.data;
+        if (Look && Look.setLeagueBest) Look.setLeagueBest(cache.best);
+        celebrateLeagueFrames(fresh, cache);
+        paintChallenges();
+        const overlay = document.getElementById('dialog-overlay');
+        if (overlay && overlay.dataset.title === 'Ligové sezóny' && seasonsRender) seasonsRender();
+    };
+    // Moje vitrína ze serveru (nejvýš jednou za 5 minut)
+    const loadMyShowcase = async (user, force = false) => {
+        if (!Showcase || !Social || !Social.getShowcase || !user) return myShowcase;
+        if (!force && myShowcaseAt && Date.now() - myShowcaseAt < 5 * 60 * 1000) return myShowcase;
+        myShowcaseAt = Date.now();
+        try {
+            const list = await Social.getShowcase(user.id);
+            if (signedUser() && signedUser().id === user.id && !showcaseBusy) myShowcase = list;
+        } catch (error) { myShowcaseAt = 0; }
+        return myShowcase;
+    };
+    // Diplom jako trofej: svitek a na něm ikona tématu
+    const diplomaArt = (topic, cls) => `<span class="relative flex ${cls} shrink-0 items-center justify-center">${uiArt('diplom', 'h-full w-full')}<span class="absolute -bottom-1 -right-1 flex h-[58%] w-[58%] items-center justify-center rounded-full bg-white shadow-sm ring-1 ring-gold-300 dark:bg-slate-800 dark:ring-gold-700">${topicIcon(topic, 'h-[78%] w-[78%]', '', 'h-3 w-3')}</span></span>`;
+    const showcaseHelpers = () => ({
+        badge: (id) => BADGE_BY_ID[id] || null,
+        medal: (badge, cls) => medalHtml(badge, true, cls, 'h-4 w-4'),
+        topic: (id) => TOPIC_BY_ID[id] || null,
+        diplomaTitle: (topic) => (Rewards ? Rewards.diplomaTitle(topic) : topic.title),
+        diplomaArt,
+        leagueName: (id) => (LeagueSeasons ? LeagueSeasons.leagueName(id) : ''),
+        emblem: (league, cls) => leagueEmblem({ id: league }, cls),
+        monthLabel: (month) => (LeagueSeasons ? LeagueSeasons.monthLabel(month) : month)
+    });
+    // Přepínač Vystavit (prázdný, když vitrína není: bez přihlášení, starší databáze, ještě nenačtená)
+    const showcaseToggle = (entry, wide = false) => (Showcase && myShowcase && signedUser()
+        ? Showcase.toggleHtml({ entry, on: myShowcase.includes(entry), count: myShowcase.length, busy: showcaseBusy, wide }) : '');
+    // Vystavit / odebrat trofej: hned se ukáže, pak se uloží (server vrátí, co přijal); vrátí hlášku pro hráče
+    const toggleShowcase = async (entry) => {
+        const user = signedUser();
+        if (!user || !Showcase || myShowcase === null || showcaseBusy) return '';
+        const result = Showcase.toggle(myShowcase, entry);
+        if (result.full) return `Vitrína je plná (${Showcase.MAX} z ${Showcase.MAX}). Nejdřív něco odeber v okně Vitrína (Nastavení → Profil).`;
+        if (!result.changed) return '';
+        const before = myShowcase;
+        myShowcase = result.list;
+        showcaseBusy = true;
+        try {
+            // Odznak musí být v účtu: nově získaný se tam nejdřív nahraje
+            if (result.added && entry.startsWith('b:')) await syncProgress();
+            const saved = await Social.saveShowcase(user.id, result.list);
+            if (saved === null) { myShowcase = null; return 'Vitrína zatím není k dispozici (databáze potřebuje nejnovější schema.sql).'; }
+            myShowcase = saved;
+            myShowcaseAt = Date.now();
+            if (result.added && !saved.includes(entry)) return 'Tuhle trofej server nepřijal. Zkus to za chvíli znovu.';
+            return result.added ? 'Vystaveno ve tvém profilu.' : 'Odebráno z vitríny.';
+        } catch (error) {
+            myShowcase = before;
+            return 'Uložení se nepodařilo. Zkontroluj připojení.';
+        } finally {
+            showcaseBusy = false;
+        }
+    };
+    // Klepnutí na Vystavit v okně: překreslí se hned (vystaveno) i po uložení, ale jen dokud je to okno otevřené; hláška jako toast
+    const onShowcaseToggle = async (button, rerender) => {
+        const overlay = document.getElementById('dialog-overlay');
+        const title = overlay ? overlay.dataset.title : '';
+        const stillOpen = () => { const now = document.getElementById('dialog-overlay'); return Boolean(now && now.dataset.title === title); };
+        const pending = toggleShowcase(button.dataset.showcaseToggle);
+        rerender();
+        const message = await pending;
+        if (message) showToast(message);
+        if (stillOpen()) rerender();
+    };
+    // Malý náhled vitríny v hlavičce Nastavení → Profil (jak mě vidí ostatní); klepnutí otevře okno Vitrína
+    const showcaseMiniButton = () => {
+        if (!Showcase || myShowcase === null) return '';
+        return `<button type="button" data-open-showcase aria-label="Vitrína v profilu: ${myShowcase.length} ze ${Showcase.MAX} trofejí" title="Vitrína: trofeje, které uvidí ostatní" class="-my-2.5 flex min-h-[2.5rem] shrink-0 items-center gap-1 rounded-xl px-1 active:scale-95">${Showcase.miniHtml(myShowcase, showcaseHelpers())}</button>`;
+    };
+    // Okno Vitrína: moje tři místa (s Odebrat) a kde trofeje přidat (odznaky, diplomy, ligové sezóny)
+    const openShowcase = async () => {
+        const user = signedUser();
+        if (!user || !Social || !Showcase) return;
+        let opened = false;
+        let loading = myShowcase === null;
+        const ROW = 'btn-3d-light flex min-h-[2.75rem] w-full items-center gap-2.5 rounded-2xl bg-white px-2.5 py-1.5 text-left dark:bg-slate-800';
+        const link = (go, art, title, text) => `<button type="button" data-showcase-go="${go}" class="${ROW}">${art}<span class="min-w-0 flex-1"><span class="block text-[13px] font-black leading-tight text-slate-800 dark:text-slate-100">${title}</span><span class="block text-[11px] font-semibold leading-snug text-slate-500 dark:text-slate-400">${text}</span></span><i data-lucide="chevron-right" class="h-4 w-4 shrink-0 text-slate-400"></i></button>`;
+        const render = () => {
+            const overlay = document.getElementById('dialog-overlay');
+            if (opened && !(overlay && overlay.dataset.title === 'Vitrína')) return;
+            opened = true;
+            const body = myShowcase === null
+                ? `<p class="py-4 text-center text-sm font-semibold text-slate-500 dark:text-slate-400">${loading ? 'Načítám…' : 'Vitrína zatím není k dispozici (databáze potřebuje nejnovější schema.sql).'}</p>`
+                : `<div class="flex flex-col gap-3" data-showcase-dialog>
+                    <p class="text-[13px] leading-snug text-slate-600 dark:text-slate-300">Vyber až ${Showcase.MAX} trofeje, které uvidí ostatní ve tvém profilu. Přidáš je tlačítkem <b class="text-slate-800 dark:text-slate-100">Vystavit</b> u odznaku, diplomu nebo ligové sezóny.</p>
+                    ${Showcase.tilesHtml(myShowcase, showcaseHelpers(), { remove: true, slots: true, label: 'Moje vitrína' })}
+                    <div class="flex flex-col gap-1.5">
+                        ${link('badges', '<i data-lucide="medal" class="h-6 w-6 shrink-0 text-gold-600"></i>', 'Odznaky', 'Vystavit jde nejvyšší získaný stupeň')}
+                        ${Rewards ? link('diplomas', uiArt('diplom', 'h-7 w-7'), 'Diplomy', 'Za plné mistrovství tématu') : ''}
+                        ${LeagueSeasons && leagueSeasons ? link('seasons', leagueEmblem({ id: leagueBestNow() || 'zlato' }, 'h-7 w-7'), 'Ligové sezóny', 'Vrchol skončeného měsíce') : ''}
+                    </div>
+                </div>`;
+            showDialog('Vitrína', body, {
+                onClick: async (event) => {
+                    const go = event.target.closest('[data-showcase-go]');
+                    if (go) { ({ badges: openBadges, diplomas: openDiplomas, seasons: openLeagueSeasons })[go.dataset.showcaseGo](); return; }
+                    const remove = event.target.closest('[data-showcase-remove]');
+                    if (!remove) return;
+                    const pending = toggleShowcase(remove.dataset.showcaseRemove);
+                    render();
+                    const message = await pending;
+                    if (message) showToast(message);
+                    render();
+                }
+            });
+            renderIcons(document.getElementById('dialog-overlay'));
+        };
+        render();
+        await loadMyShowcase(user, loading);
+        loading = false;
+        render();
+    };
+    // Okno Ligové sezóny (z pruhu pod kartou ligy, z Jak fungují ligy a z Vitríny)
+    let seasonPick = null;
+    const openLeagueSeasons = async () => {
+        const user = signedUser();
+        if (!user || !Social || !LeagueSeasons) { openLoginDialog(); return; }
+        if (!leagueSeasons) leagueSeasons = LeagueSeasons.cachedData(leagueCache(), user.id);
+        if (seasonPick && !(leagueSeasons && LeagueSeasons.seasonOf(leagueSeasons, seasonPick))) seasonPick = null;
+        const render = () => {
+            const showcase = Showcase && myShowcase && signedUser() ? { on: (entry) => myShowcase.includes(entry), toggle: (entry) => showcaseToggle(entry) } : null;
+            const body = leagueSeasons
+                ? LeagueSeasons.dialogHtml({ data: leagueSeasons, best: leagueBestNow(), rating: myRating ? myRating.rating : null, now: new Date(), selected: seasonPick, showcase }, seasonHelpers())
+                : '<p class="py-4 text-center text-sm font-semibold text-slate-500 dark:text-slate-400">Načítám…</p>';
+            showDialog('Ligové sezóny', `${body}
+                <button type="button" data-league-help class="mt-1 flex short:mt-0 min-h-[2.5rem] w-full items-center justify-center gap-1.5 rounded-xl text-[13px] font-black text-brand-700 dark:text-cream"><i data-lucide="info" class="h-4 w-4"></i> Jak fungují ligy a sezóny</button>`, {
+                onClick: (event) => {
+                    if (event.target.closest('[data-league-help]')) { openLeagueHelp(); return; }
+                    const toggle = event.target.closest('[data-showcase-toggle]');
+                    if (toggle) { onShowcaseToggle(toggle, render); return; }
+                    const month = event.target.closest('[data-season-month]');
+                    if (month && !month.disabled) { seasonPick = seasonPick === month.dataset.seasonMonth ? null : month.dataset.seasonMonth; render(); }
+                }
+            });
+            renderIcons(document.getElementById('dialog-overlay'));
+        };
+        seasonsRender = render;
+        render();
+        await Promise.all([refreshLeagueSeasons(user), loadMyShowcase(user)]);
+        const overlay = document.getElementById('dialog-overlay');
+        if (overlay && overlay.dataset.title === 'Ligové sezóny') render();
     };
     // Přepínač nahoře na úvodní stránce: Jeden hráč (dnešní otázky a témata) / Více hráčů (výzvy); bez Supabase se nezobrazuje
     const homeTab = () => {
@@ -6226,6 +6645,9 @@
             myRating = rating;
             incomingList = incoming;
             paintChallenges();
+            // Ligové sezóny a moje vitrína (schéma 18; starší databáze vrátí null a nic se neukáže)
+            refreshLeagueSeasons(user);
+            loadMyShowcase(user);
             // Přátelé a reakce až po hlavním obsahu (záložka se vykreslí dřív); poslední aktivita se zapíše nejvýš jednou za 5 minut
             if (Friends) Social.touchSeen().catch(() => {});
             if (GroupsUI) GroupsUI.refresh();
@@ -6869,14 +7291,16 @@
     const BADGE_ART = new Set(['odpovedi', 'rada', 'serie', 'dny', 'dokonale', 'dnes', 'bez-napovedy', 'psani', 'tezke', 'chyby', 'vyzvy', 'vyhry',
         'vyhry-v-rade', 'zalozene', 'perfektni-vyzvy', 'uroven', 'poznane', 'vsestrannost', 'hvezdy', 'vsechna-temata', 'turnaje', 'turnaj-postupy',
         'tydenni-cile', 'kviz-dne', 'kviz-serie', 'kviz-perfekt', 'bleskovka', 'preziti', 'mapa', 'odhad', 'serad']);
+    // Obrázek symbolu skupiny (bez přípony); odznaky alba sbírky zatím mají zástupný obrázek alba (Album.ALBUM_ART, TODO odznak-sberatel v album.js)
+    const badgeArtOf = (group) => BADGE_ART.has(group) ? `odznak-${group}` : Album && Album.isAlbumGroup(BADGE_GROUPS.find(entry => entry.id === group)) ? Album.ALBUM_ART : null;
     // Nezískaný odznak ukazuje svou ikonu zašedlou a ztlumenou, přes ni malý zámek v rohu
     const medalHtml = (badge, earned, size = 'h-11 w-11', iconSize = 'h-5 w-5') => {
         const dim = earned ? '' : ' opacity-50 grayscale';
         // Symbol odznaku: ikona tématu, ilustrace skupiny (icons/topics/odznak-<skupina>.webp), jinak čárová ikona
         const art = badge.topic && topicArt({ id: badge.topic })
             ? `<img src="icons/topics/${badge.topic}.webp" alt="" class="h-[72%] w-[72%] object-contain${dim}">`
-            : BADGE_ART.has(badge.group)
-                ? `<img src="icons/topics/odznak-${badge.group}.webp" alt="" data-badge-art class="h-[74%] w-[74%] object-contain drop-shadow-sm${dim}">`
+            : badgeArtOf(badge.group)
+                ? `<img src="icons/topics/${badgeArtOf(badge.group)}.webp" alt="" data-badge-art class="h-[74%] w-[74%] object-contain drop-shadow-sm${dim}">`
                 : `<i data-lucide="${badge.icon}" class="${iconSize}${dim}"></i>`;
         const lock = earned ? '' : '<span class="absolute -bottom-0.5 -right-0.5 flex h-[46%] w-[46%] items-center justify-center rounded-full bg-slate-600 text-white ring-1 ring-white dark:bg-slate-300 dark:text-slate-900 dark:ring-slate-800" data-medal-lock><i data-lucide="lock" class="h-[62%] w-[62%]"></i></span>';
         return `<span class="relative flex ${size} shrink-0 items-center justify-center rounded-full ring-2 ${earned
@@ -6899,9 +7323,17 @@
     const goalBar = (ratio) => `<span class="mt-1 block h-1.5 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700" aria-hidden="true"><span class="block h-full w-0 rounded-full bg-gold-500" data-progress="${Math.round(ratio * 100)}"></span></span>`;
     // Tlačítko Zpět dole v dlouhém seznamu (odznaky, úrovně): lepkavé, při posouvání zůstane vidět
     const STICKY_BACK = (label) => `<div class="sticky -bottom-5 z-10 -mx-5 -mb-5 bg-slate-50 px-5 pb-5 pt-2 dark:bg-slate-900"><button type="button" data-back-progress class="${SECONDARY_BUTTON} !py-2.5 text-sm"><i data-lucide="chevron-left" class="h-4 w-4"></i> ${label}</button></div>`;
+    // Vitrína (schéma 18): u získaného odznaku přepínač Vystavit; vystavit jde nejvyšší získaný stupeň skupiny (ten je v účtu), u nižšího jen věta
+    const showcaseBadge = (badge, progress) => {
+        if (!progress.badges[badge.id] || !Showcase || myShowcase === null || !signedUser()) return '';
+        if (!compactBadges(BADGES.filter(item => progress.badges[item.id]).map(item => item.id)).includes(badge.id)) return '<p class="mt-1 text-[11px] leading-snug text-slate-500 dark:text-slate-400">Do vitríny v profilu jde vystavit nejvyšší získaný stupeň.</p>';
+        return `<div class="mt-1.5">${showcaseToggle(Showcase.badge(badge.id))}</div>`;
+    };
     // Všechny odznaky po skupinách: řada medailí (získané barevné, další šedé), klepnutím na medaili podrobnosti
     const openBadges = () => {
         let selected = null;
+        const user = signedUser();
+        if (user && myShowcase === null) loadMyShowcase(user).then(() => { const overlay = document.getElementById('dialog-overlay'); if (overlay && overlay.dataset.title === 'Odznaky' && selected) render(); });
         const render = () => {
             const progress = loadProgress();
             const c = normalizeCounters(progress.counters);
@@ -6915,7 +7347,7 @@
                 return `<div class="flex items-center gap-3 rounded-2xl bg-white p-3 shadow-sm ring-2 ring-brand-600 dark:bg-slate-800">${medalHtml(detail, Boolean(earned), 'h-14 w-14', 'h-6 w-6')}
                     <div class="min-w-0 flex-1"><p class="text-sm font-black text-slate-800 dark:text-slate-100">${escapeHtml(detail.title)}</p><p class="text-xs text-slate-500 dark:text-slate-400">${escapeHtml(detail.text)}</p>
                     ${badgeReward(detail) ? `<p class="mt-0.5 text-[11px] font-bold leading-snug text-gold-800 dark:text-gold-300" data-badge-reward>${escapeHtml(badgeReward(detail))}</p>` : ''}${earned && compactBadges(BADGES.filter(badge => progress.badges[badge.id]).map(badge => badge.id)).includes(detail.id) ? '<p class="text-[11px] leading-snug text-slate-500 dark:text-slate-400">Můžeš ho mít jako titul u svého jména (Nastavení → Profil).</p>' : ''}
-                    <p class="mt-0.5 text-[11px] font-bold ${earned ? 'text-emerald-700 dark:text-emerald-400' : 'text-slate-500 dark:text-slate-400'}">${earned ? 'Získáno' : `${value} / ${detail.goal}`}</p>${earned ? '' : goalBar(value / detail.goal)}</div></div>`;
+                    <p class="mt-0.5 text-[11px] font-bold ${earned ? 'text-emerald-700 dark:text-emerald-400' : 'text-slate-500 dark:text-slate-400'}">${earned ? 'Získáno' : `${value} / ${detail.goal}`}</p>${earned ? '' : goalBar(value / detail.goal)}${showcaseBadge(detail, progress)}</div></div>`;
             })() : '<p class="text-center text-xs text-slate-500 dark:text-slate-400">Klepni na medaili a uvidíš, jak ji získat.</p>';
             const sections = BADGE_GROUPS.map(group => {
                 const earned = group.badges.filter(badge => progress.badges[badge.id]).length;
@@ -6934,6 +7366,8 @@
                 onClick: (event) => {
                     // Zpět na přehled jako u mistrovství (jinak by šlo okno jen zavřít)
                     if (event.target.closest('[data-back-progress]')) { openProgress(); return; }
+                    const toggle = event.target.closest('[data-showcase-toggle]');
+                    if (toggle) { onShowcaseToggle(toggle, render); return; }
                     const medal = event.target.closest('[data-badge]');
                     if (medal) { selected = medal.dataset.badge; render(); }
                 }
@@ -6988,6 +7422,7 @@
     const openProgress = () => {
         touchTip('progress');
         noteDiplomas(topicStarsNow());
+        noteAlbum();
         const progress = loadProgress();
         const xp = progress.xp;
         const earnedCount = BADGES.filter(badge => progress.badges[badge.id]).length;
@@ -7014,8 +7449,9 @@
                 : `<span class="block truncate text-[10px] font-semibold leading-tight text-slate-500 dark:text-slate-400">${escapeHtml(goal.badge.text)}</span>`}${goalBar(goal.ratio)}</span></li>`;
         };
         const rewardsState = Rewards ? loadRewards() : null;
+        const season = seasonView();
         showDialog('Můj postup', `
-            <div class="flex flex-col gap-2.5" data-progress-dialog>
+            <div class="flex flex-col gap-2.5 short:gap-1.5" data-progress-dialog>
                 <button type="button" data-open-levels class="btn-3d flex w-full items-center gap-2.5 rounded-2xl bg-gradient-to-br from-brand-700 to-brand-900 p-2.5 text-left text-white" aria-label="Tabulka úrovní">
                     <span class="relative h-14 w-14 shrink-0" data-title-owl>${uiArt(titleOwlArt(level.level), 'h-full w-full')}<span class="absolute -bottom-1 -right-1.5 flex h-8 w-8 flex-col items-center justify-center rounded-full bg-gold-500 text-brand-950 shadow-md ring-2 ring-brand-800"><span class="text-[7px] font-black uppercase leading-none">úr.</span><span class="text-[13px] font-black leading-none">${level.level}</span></span></span>
                     <span class="min-w-0 flex-1">
@@ -7026,6 +7462,7 @@
                     </span>
                     <i data-lucide="chevron-right" class="h-5 w-5 shrink-0 text-white/60"></i>
                 </button>
+                ${season ? Season.cardHtml(season) : ''}
                 <div>
                     <div class="mb-1 flex items-center justify-between gap-2"><h3 class="${CARD_TITLE} whitespace-nowrap">Nejbližší odznaky</h3>
                         <button type="button" data-open-badges aria-label="Všechny odznaky ${earnedCount} / ${BADGES.length}" class="-my-1.5 flex min-h-[2.25rem] shrink-0 items-center gap-1 whitespace-nowrap rounded-lg px-1.5 text-[12px] font-black text-brand-700 dark:text-brand-300"><i data-lucide="medal" class="h-3.5 w-3.5"></i>Všechny ${earnedCount} / ${BADGES.length}<i data-lucide="chevron-right" class="h-3.5 w-3.5"></i></button></div>
@@ -7035,12 +7472,15 @@
                     <div class="mb-1 flex items-baseline justify-between gap-2"><h3 class="${CARD_TITLE}">Mistrovství témat</h3><span class="text-[10px] font-semibold text-slate-500 dark:text-slate-400">klepni na téma</span></div>
                     <ul class="grid grid-cols-7 gap-1">${rows}</ul>
                 </div>
-                ${Rewards ? Rewards.progressHtml({ freezes: rewardsState.freezes, chest: Rewards.pendingChest(rewardsState), lastReward: lastChestText(rewardsState), diplomas: Object.keys(rewardsState.diplomas).filter(id => TOPIC_BY_ID[id]).length, topics: TOPICS.length }) : ''}
+                ${Rewards ? Rewards.progressHtml({ freezes: rewardsState.freezes, chest: Rewards.pendingChest(rewardsState), lastReward: lastChestText(rewardsState), diplomas: Object.keys(rewardsState.diplomas).filter(id => TOPIC_BY_ID[id]).length, topics: TOPICS.length,
+                    album: Album ? { percent: Album.build(albumInput(progress)).percent, art: Album.ALBUM_ART } : null }) : ''}
             </div>`, { onClick: (event) => {
             if (event.target.closest('[data-open-badges]')) openBadges();
             if (event.target.closest('[data-open-levels]')) openLevels();
+            if (event.target.closest('[data-season-claim]')) { openSeasonReveal(null, openProgress); return; }
+            if (event.target.closest('[data-season-open]')) { openSeason(); return; }
             const info = event.target.closest('[data-rewards-info]');
-            if (info) ({ freeze: openFreezeHelp, chest: openChestHelp, diplomas: openDiplomas })[info.dataset.rewardsInfo]();
+            if (info) ({ freeze: openFreezeHelp, chest: openChestHelp, diplomas: openDiplomas, album: () => openAlbum() })[info.dataset.rewardsInfo]();
             const mastery = event.target.closest('[data-mastery]');
             if (mastery) openMastery(mastery.dataset.mastery);
         } });
@@ -7057,6 +7497,143 @@
                 if (diploma) openDiploma(diploma.dataset.diploma);
             }
         });
+    };
+
+    // --- Album sbírky (album.js): okno z Mého postupu (dlaždice Album v řádku Odměny) se sekcemi, podrobnostmi věci a Nasadit,
+    // odznaky Sběratel za milníky sbírky (oslava jednou, při získání odznaku) ---
+    // Vstup alba z postupu (úroveň, odznaky) a odměn (věci z truhly, diplomy); výpočet si album pamatuje, opakované volání nic nestojí
+    const albumInput = (progress = loadProgress()) => {
+        const rewards = loadRewards();
+        return { level: levelProgress(progress.xp).level, badges: progress.badges, gifts: rewards ? rewards.gifts : {}, diplomas: rewards ? rewards.diplomas : {}, topics: TOPICS, today: getDayKey() };
+    };
+    const albumBadgeContext = (progress) => (Album ? Album.badgeContext(albumInput(progress)) : { percent: 0, sections: {} });
+    const albumDueBadges = (progress) => (Album ? Album.dueBadges(albumInput(progress)).filter(id => !progress.badges[id]) : []);
+    // Kontrola na úvodu, v Mém postupu a v albu: dosažený milník (třeba po truhle nebo po synchronizaci s účtem) se připíše a oslaví hned.
+    // Jen odznaky alba – ostatní odznaky přibývají při hře (grantBadges), tady se nepřepočítávají
+    const noteAlbum = () => {
+        if (!Album) return;
+        try {
+            const progress = loadProgress();
+            const due = albumDueBadges(progress);
+            if (!due.length) return;
+            due.forEach(id => { progress.badges[id] = getDayKey(); });
+            saveProgress(progress);
+            freshBadgeIds = due;
+            const level = levelProgress(progress.xp).level;
+            announce(level, level, due.map(id => BADGE_BY_ID[id].title));
+            syncProgress();
+        } catch (error) { console.error(error); }
+    };
+    // Oslava milníku alba nebo celé sekce (volá announce pro čerstvé odznaky alba)
+    const celebrateAlbum = (id) => {
+        const badge = BADGE_BY_ID[id];
+        if (!badge || !Album) return;
+        const milestone = Album.MILESTONES.find(entry => entry.id === id);
+        const owner = milestone ? null : Album.SECTIONS.find(entry => `album-${entry.id}` === id);
+        if (milestone) showCelebration('vitez', `Album sbírky: ${milestone.goal} %`, `Nový titul „${badge.title}“ – můžeš ho mít u jména`, 'badge');
+        else showCelebration('oslava', `Celá sekce: ${owner ? owner.title : 'album'}`, `Nový titul „${badge.title}“ – můžeš ho mít u jména`, 'badge');
+    };
+    const albumHelpers = () => ({
+        medal: medalHtml, avatar: (id, cls) => avatarArt(id, cls), topicIcon, styleOf,
+        frameClass: (id) => (window.MudrlantLookFrames ? window.MudrlantLookFrames.frameClass(id) : '')
+    });
+    // Co mám teď nasazené (klíče položek alba): téma, talár, rámeček, doplňky, titul u jména a postavička v profilu
+    const albumWorn = () => {
+        const worn = new Set();
+        if (!Look) return worn;
+        const prefs = lookContext().prefs;
+        ['theme:themes', 'robe:robes', 'frame:frames'].forEach(pair => { const [key, category] = pair.split(':'); if (prefs[key]) worn.add(`${category}:${prefs[key]}`); });
+        Object.values(prefs.acc || {}).forEach(entry => worn.add(`accessories:${entry.id}`));
+        if (prefs.title && BADGE_BY_ID[prefs.title]) worn.add(`badges:${BADGE_BY_ID[prefs.title].group}`);
+        const picture = signedUser() && myProfile && !myProfile.owl && Look.avatarPicture ? Look.avatarPicture(myProfile.avatar) : null;
+        if (picture) worn.add(`avatars:${picture.item.id}`);
+        return worn;
+    };
+    // Co jde s věcí ve sbírce udělat (tlačítko v podrobnostech): nasadit jako v Nastavení a v truhle, dát odznak jako titul, ukázat diplom
+    const albumWear = (entry, worn) => {
+        if (!entry.owned || !Look) return null;
+        const on = worn.has(entry.key);
+        if (entry.category === 'themes') return { label: 'Použít', on, onLabel: 'Používáš ho' };
+        if (['robes', 'frames', 'accessories'].includes(entry.category)) return { label: 'Nasadit', on, onLabel: 'Nasazeno' };
+        if (entry.category === 'avatars') return signedUser() && Social ? { label: 'Nasadit jako profilový obrázek', on, onLabel: 'Je to tvůj profilový obrázek' } : null;
+        if (entry.category === 'badges') return entry.top ? { label: `Titul u jména: ${entry.top.title}`, on: lookContext().prefs.title === entry.top.id, onLabel: `Titul u jména: ${entry.top.title}` } : null;
+        if (entry.category === 'diplomas') return Rewards ? { label: 'Ukázat diplom', on: false } : null;
+        return null;
+    };
+    // Věta pod tlačítkem, když věc nejde nasadit z alba
+    const albumHint = (entry) => {
+        if (!entry.owned) return '';
+        if (entry.category === 'avatars' && !(signedUser() && Social)) return 'Postavičku si dáš jako profilový obrázek po přihlášení.';
+        if (entry.category === 'colors') return `Barvu doplňku vybereš v ${rewardPlace('colors')}.`;
+        return '';
+    };
+    // Postavička jako profilový obrázek: stejně jako výběr v Nastavení → Profil (barvy částí, které hráč postavičce dal naposledy) a uložení
+    const wearAlbumAvatar = (id) => {
+        closeDialog();
+        openSettings('', null, 'profile');
+        if (!meDraft) return;
+        const same = !meDraft.owl && Look.avatarPicture(meDraft.avatar) && Look.avatarPicture(meDraft.avatar).item.id === id;
+        if (!same) { rememberPartColors(meDraft.avatar); meDraft.avatar = rememberedPartColors(id); }
+        meDraft.owl = false;
+        meDirty = true;
+        meNote = '';
+        saveMeProfile();
+    };
+    // Stav okna alba: sekce, otevřená věc (klíč), odměny alba, hláška po nasazení a posun mřížky (vrátí se po návratu z podrobností)
+    let albumView = { section: 'avatars', detail: null, rewards: false, note: '', scroll: 0 };
+    const openAlbum = (section = null) => {
+        if (!Album) return;
+        noteAlbum();
+        albumView = { ...albumView, section: section || albumView.section, detail: null, rewards: false, note: '', scroll: 0 };
+        renderAlbum(0);
+    };
+    const ALBUM_BACK = `<button type="button" data-album-back class="${SECONDARY_BUTTON} !py-2.5 text-sm"><i data-lucide="chevron-left" class="h-4 w-4"></i> Zpět do alba</button>`;
+    // Překreslí okno; scrollTo = posun panelu (null = nechat), focus = co dostane fokus (klávesnice a čtečka zůstanou na místě)
+    const renderAlbum = (scrollTo = null, focus = null) => {
+        const progress = loadProgress();
+        const album = Album.build(albumInput(progress));
+        const h = albumHelpers();
+        const found = albumView.detail ? Album.findEntry(album, albumView.detail) : null;
+        let body;
+        if (albumView.rewards) body = `${Album.rewardsHtml(album, progress.badges, h)}<div class="mt-2.5">${ALBUM_BACK}</div>`;
+        else if (found) body = `${Album.detailHtml(found, { badges: progress.badges, wear: albumWear(found.entry, albumWorn()), note: albumView.note || albumHint(found.entry) }, h)}<div class="mt-2.5">${ALBUM_BACK}</div>`;
+        else body = `${Album.albumHtml(album, { section: albumView.section, badges: progress.badges, worn: albumWorn() }, h)}${STICKY_BACK('Zpět na Můj postup')}`;
+        const overlay = showDialog('Album sbírky', body, { onClick: albumClick });
+        applyProgress(overlay);
+        if (scrollTo !== null) overlay.firstElementChild.scrollTop = scrollTo;
+        const target = focus ? overlay.querySelector(focus) : null;
+        if (target) target.focus({ preventScroll: scrollTo !== null });
+    };
+    const albumClick = (event) => {
+        const panel = document.getElementById('dialog-overlay').firstElementChild;
+        if (event.target.closest('[data-back-progress]')) { openProgress(); return; }
+        if (event.target.closest('[data-album-back]')) {
+            const from = albumView.detail;
+            albumView = { ...albumView, detail: null, rewards: false, note: '' };
+            renderAlbum(albumView.scroll, from ? `[data-album-item="${CSS.escape(from)}"]` : '[data-album-rewards]');
+            return;
+        }
+        const tab = event.target.closest('[data-album-tab]');
+        if (tab) { albumView = { ...albumView, section: tab.dataset.albumTab, scroll: 0 }; renderAlbum(0, `[data-album-tab="${CSS.escape(tab.dataset.albumTab)}"]`); return; }
+        if (event.target.closest('[data-album-rewards]')) { albumView = { ...albumView, rewards: true, scroll: panel.scrollTop }; renderAlbum(0, '[data-album-back]'); return; }
+        const item = event.target.closest('[data-album-item]');
+        if (item) { albumView = { ...albumView, detail: item.dataset.albumItem, note: '', scroll: panel.scrollTop }; renderAlbum(0, '[data-album-wear], [data-album-back]'); return; }
+        if (event.target.closest('[data-album-wear]') && albumView.detail) {
+            const found = Album.findEntry(Album.build(albumInput()), albumView.detail);
+            if (!found || !found.entry.owned) return;
+            const { entry } = found;
+            if (entry.category === 'avatars') { wearAlbumAvatar(entry.id); return; }
+            if (entry.category === 'diplomas') { openDiploma(entry.id); return; }
+            if (entry.category === 'badges') {
+                Look.setPref('title', entry.top.id, lookContext());
+                albumView.note = 'Titul se ukáže u tvého jména. Změníš ho v Nastavení → Profil.';
+            } else {
+                wearGift({ category: entry.category, item: entry.item });
+                albumView.note = `${entry.title}: hotovo. Změníš to v ${rewardPlace(entry.category)}.`;
+            }
+            updateControlsUI();
+            renderAlbum(null, '[data-album-back]');
+        }
     };
 
     // Mistrovství jednoho tématu: co to je, kolik už hráč poznal, kolik chybí do další hvězdičky a co hvězdičky přinášejí (jen to, co hra opravdu dává)
@@ -7109,6 +7686,8 @@
         let stats = null;
         let theirProgress = null;
         let theirRating = null;
+        // Vitrína hráče (schéma 18): nejvýš 3 trofeje; null = nenačtená nebo databáze vitrínu nemá
+        let theirShowcase = null;
         let failed = false;
         let busy = false;
         let note = '';
@@ -7207,6 +7786,9 @@
             const pref = titlePref(value);
             if (pref === 'none') return '';
             if (pref !== 'level' && BADGE_BY_ID[pref]) return `<p class="flex min-w-0 items-center gap-1.5 text-sm font-bold text-brand-700 dark:text-cream">${medalHtml(BADGE_BY_ID[pref], true, 'h-6 w-6', 'h-3 w-3')}<span class="truncate">${escapeHtml(BADGE_BY_ID[pref].title)}</span></p>`;
+            // Vlastní titul (Šampion sezóny ze Sezóny Mudrlanta): zlatá korunka
+            const ownTitle = pref !== 'level' && Look && Look.titleItem ? Look.titleItem(pref) : null;
+            if (ownTitle) return `<p class="flex min-w-0 items-center gap-1.5 text-sm font-bold text-brand-700 dark:text-cream" data-own-title><span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-gold-200 to-gold-500 text-brand-950 ring-2 ring-gold-300 shadow-sm"><i data-lucide="crown" class="h-3.5 w-3.5"></i></span><span class="truncate">${escapeHtml(ownTitle.title)}</span></p>`;
             const level = levelProgress(value.xp || 0).level;
             return `<p class="truncate text-sm font-bold text-brand-700 dark:text-cream">Úr. ${level} · ${escapeHtml(titleForLevel(level))}</p>`;
         };
@@ -7254,12 +7836,15 @@
             if (view === 'report' && Friends) {
                 body = Friends.reportBody(Social.REPORT_REASONS, reportReason, reportNote, { busy: reportBusy }) + `<button type="button" data-report-back class="mt-2 flex min-h-[2.5rem] w-full items-center justify-center gap-1.5 rounded-2xl px-3 py-2 text-[13px] font-black text-slate-600 dark:text-slate-300"><i data-lucide="chevron-left" class="h-4 w-4"></i> Zpět na profil</button>`;
             }
+            // Vitrína hráče (schéma 18): tři trofeje pod hlavičkou; na nízkém displeji místo řady všech odznaků a s hustším oknem, ať se vejde
+            const showcaseRow = theirShowcase && Showcase && view !== 'report' ? Showcase.tilesHtml(theirShowcase, showcaseHelpers(), { label: `Vitrína hráče ${playerName(player)}` }) : '';
             showDialog(view === 'report' ? 'Nahlásit hráče' : 'Profil hráče', `
-                <div class="flex flex-col gap-3">
+                <div class="flex flex-col gap-3${showcaseRow ? ' short:gap-2' : ''}">
                     <div class="flex items-center gap-3" data-profile-head>${avatarHtml(player, 'h-16 w-16 text-4xl')}
                         <div class="min-w-0 flex-1"><p class="truncate text-xl font-black leading-tight text-slate-800 dark:text-slate-100">${escapeHtml(playerName(player))}</p>${theirProgress ? titleLine(theirProgress) : ''}${theirRating ? `<p id="player-league" class="mt-0.5">${leagueChip(theirRating.rating)}</p>` : ''}</div>
                     </div>
-                    ${theirProgress && view !== 'report' ? badgesRow(theirProgress) : ''}
+                    ${showcaseRow}
+                    ${theirProgress && view !== 'report' && badgesRow(theirProgress) ? (showcaseRow ? `<div class="short:hidden">${badgesRow(theirProgress)}</div>` : badgesRow(theirProgress)) : ''}
                     ${view === 'report' ? '' : socialRow()}
                     ${isBlocked() && view !== 'report' ? '' : body}
                     ${note ? DIALOG_NOTE(note, /přijali|přítel|odeslána|odblokovaný|zablokovaný/.test(note) ? 'text-emerald-700 dark:text-emerald-300' : undefined) : ''}
@@ -7316,6 +7901,7 @@
         // Úroveň a odznaky hráče (bez nových sloupců v databázi se prostě nezobrazí)
         if (Rating) Social.getRating(playerId).then(value => { theirRating = value; if (document.getElementById('dialog-overlay')) render(); }).catch(() => {});
         Social.getProgress(playerId).then(value => { theirProgress = value; if (stats && document.getElementById('dialog-overlay')) render(); }).catch(() => {});
+        if (Showcase && Social.getShowcase) Social.getShowcase(playerId).then(value => { theirShowcase = value; if (value && value.length && document.getElementById('dialog-overlay')) render(); }).catch(() => {});
         try {
             stats = await Social.playerStats(user.id, playerId);
         } catch (error) {
@@ -7904,6 +8490,8 @@
             if (Rating && results.length > 1 && !c.ratingChange) {
                 c.ratingChange = await Social.getRatingChange(user.id, c.code).catch(() => null);
                 if (c.ratingChange) myRating = await Social.getRating(user.id).catch(() => myRating);
+                // Vrchol ligové sezóny se mohl zvýšit
+                if (c.ratingChange) refreshLeagueSeasons(user, true);
             }
             if (!c.counted) {
                 c.counted = true;
@@ -9596,6 +10184,7 @@
         react: (button) => sendReaction(button.dataset.emoji, button.dataset.to),
         'weekly-board': () => openWeeklyBoard(),
         'league-help': () => openLeagueHelp(),
+        'league-seasons': () => openLeagueSeasons(),
         'home-tab': (button) => { writeJson(KEYS.homeTab, button.dataset.tab === 'multi' ? 'multi' : 'single'); renderHome(); refreshTournaments(); },
         ...tournamentActions,
         ...modeActions,
@@ -9672,6 +10261,8 @@
         'review-start': () => startReview(),
         'goals-open': () => openGoals(),
         'chest-open': () => openChestOverlay(),
+        'season-claim': () => openSeasonReveal(),
+        'season-open': () => openSeason(),
         'freeze-info': () => openFreezeHelp(),
         'clear-mistakes': () => clearMistakes(),
         'order-pick': (button) => numericPick(Number(button.dataset.index)),
@@ -9919,6 +10510,7 @@
                 shownUserId = userId;
                 myProfile = null; myBlocked = null; myAcceptsMix = true; acceptsConfirmed = null; myChallenges = null; myRating = null; incomingList = null; friendRows = null; recentReactions = []; myBlocks = null; resetTournaments();
                 quizServer = null; quizServerAt = 0;
+                leagueSeasons = null; leagueSeasonsAt = 0; myShowcase = null; myShowcaseAt = 0; seasonPick = null;
                 if (GroupsUI) GroupsUI.reset();
                 updateProfileButton();
                 paintChallenges();

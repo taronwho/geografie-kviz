@@ -2087,7 +2087,22 @@
         [T(5, 'Odhadce'), T(25, 'Bystré oko'), T(100, 'Živé měřidlo'), T(250, 'Mistr odhadu'), T(500, 'Lidská kalkulačka')]);
     addGroup('serad', 'Seřaď bez chyby', 'list-ordered', (c) => c.orderPerfect, (g) => `${g}× celé pořadí správně v otázce Seřaď.`,
         [T(5, 'Pořádkumilovný'), T(25, 'Srovnávač'), T(100, 'Mistr pořadí'), T(250, 'Dokonalý pořádek'), T(500, 'Vládce pořadí')]);
-    const BADGE_BY_ID = Object.fromEntries(BADGES.map(badge => [badge.id, badge]));
+    // --- Album sbírky (album.js): milníky celé sbírky a celé sekce alba. Hodnotu dosazuje aplikace: x.album = { percent, sections: { sekce: procenta } }
+    // (procenta jsou zaokrouhlená dolů, 100 znamená opravdu všechno). Odznaky alba se do alba samy nepočítají (album.js), jinak by 100 % nešlo
+    // získat. Tituly jsou bez rodu (popisují sbírku, ne hráče; „Sběratel“ už je odznak geologie), jde je mít jako titul u jména.
+    // Za 100 % je navíc rámeček Sběratelský (look.js).
+    const ALBUM_MILESTONES = [[25, 'Sběratelská vášeň'], [50, 'Velká sbírka'], [75, 'Mistrovská sbírka'], [100, 'Legenda sbírky']];
+    addGroup('sberatel', 'Sběratel', 'library', (c, x) => (x && x.album ? x.album.percent : 0), (g) => g >= 100 ? 'Celé album sbírky: všechno, co jde sbírat.' : `Album sbírky na ${g}\u00a0%.`,
+        ALBUM_MILESTONES.map(([goal, title]) => T(goal, title, `sberatel-${goal}`)));
+    // Celá sekce alba (krátký seznam: sekce, kde je celá sbírka opravdu úspěch; taláry, rámečky a barvy doplňků titul nemají)
+    const ALBUM_SECTION_TITLES = [['avatars', 'Postavičky', 'Celý zvěřinec'], ['accessories', 'Doplňky Mudrlanta', 'Módní ikona'], ['themes', 'Barevná témata', 'Duhová duše'],
+        ['badges', 'Odznaky', 'Síň slávy'], ['diplomas', 'Diplomy', 'Živá encyklopedie']];
+    ALBUM_SECTION_TITLES.forEach(([section, label, title]) => addGroup(`album-${section}`, `Album: ${label}`, 'library',
+        (c, x) => (x && x.album && x.album.sections ? x.album.sections[section] || 0 : 0), () => `Celá sekce alba ${label} (100\u00a0%).`, [T(100, title, `album-${section}`)]));
+    const isAlbumBadge = (id) => /^(sberatel-\d+|album-[a-z]+)$/.test(String(id));
+    // Barvy medailí alba: 25 % bronz, 50 % zlato, 75 % vínová, 100 % diamant; celá sekce zlatá
+    BADGES.filter(badge => isAlbumBadge(badge.id) && (badge.group !== 'sberatel' || badge.goal === 50)).forEach(badge => { badge.tone = 'gold'; });
+    const BADGE_BY_ID =Object.fromEntries(BADGES.map(badge => [badge.id, badge]));
     const normalizeCounters = (counters) => ({ ...EMPTY_COUNTERS, ...(counters || {}), topics: { ...((counters && counters.topics) || {}) },
         topicRun: { ...((counters && counters.topicRun) || {}) }, topicBest: { ...((counters && counters.topicBest) || {}) } });
     // Odznaky, které podle počítadel a postupu hráč splnil (ids), v pořadí definice
@@ -2302,6 +2317,7 @@
 
     return {
         EMPTY_COUNTERS, BADGES, BADGE_GROUPS, BADGE_BY_ID, earnedBadgeIds, compactBadges, expandBadges, normalizeCounters,
+        ALBUM_MILESTONES, ALBUM_SECTION_TITLES, isAlbumBadge,
         MAX_LEVEL, LEVEL_XP, questionsForLevel, xpForLevel, levelFromXp, levelProgress, LEVEL_TITLES, titleForLevel, nextTitle, TITLE_OWL_FROM, titleOwlTier, answerXp, DAILY_XP, DAILY_ALL_XP, streakXp, MASTERY_STEPS, masteryStars, nextMastery,
         UNKNOWN_COUNTRY, INTERNATIONAL_WATERS, CZECHIA_QID, AFTER_SYMBOL_WORD, TILE_SIZE, COUNTRIES, CONTINENT_NAMES,
         SATELLITE_TILES, OSM_TILES,

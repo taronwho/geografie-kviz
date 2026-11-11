@@ -16,8 +16,13 @@ test('symboly odznaků: skupiny, obrázky, zdroje a mezipaměť', () => {
     const groups = new Set(core.BADGE_GROUPS.map(group => group.id));
     assert.ok(art.length >= 31);
     assert.deepEqual(art.filter(id => !groups.has(id)), [], 'každý symbol patří existující skupině');
-    const missing = core.BADGE_GROUPS.filter(group => !group.topic && !art.includes(group.id) && !/^(tema|zbehly)-/.test(group.id)).map(group => group.id);
-    assert.deepEqual(missing, [], 'každá skupina (kromě témat) má symbol');
+    // Odznaky alba sbírky mají zatím zástupný obrázek alba (album.js ALBUM_ART; TODO odznak-sberatel – pak 'sberatel' do BADGE_ART)
+    const album = (group) => group.badges.every(badge => core.isAlbumBadge(badge.id));
+    const missing = core.BADGE_GROUPS.filter(group => !group.topic && !art.includes(group.id) && !/^(tema|zbehly)-/.test(group.id) && !album(group)).map(group => group.id);
+    assert.deepEqual(missing, [], 'každá skupina (kromě témat a alba) má symbol');
+    const standIn = require('../album.js').ALBUM_ART;
+    assert.ok(fs.existsSync(path.join(ROOT, 'icons', 'topics', `${standIn}.webp`)), `zástupný symbol alba ${standIn}.webp`);
+    assert.ok(art.includes(standIn.replace(/^odznak-/, '')), 'zástupný symbol alba je v BADGE_ART (mezipaměť offline)');
     const swArt = listed(sw, /const BADGE_ART = \[([^\]]+)\]/);
     assert.match(sw, /\.\.\.BADGE_ART\.map\(id => `icons\/topics\/odznak-\$\{id\}\.webp`\)/);
     assert.deepEqual([...swArt].sort(), [...art].sort(), 'sw.js má stejný seznam');

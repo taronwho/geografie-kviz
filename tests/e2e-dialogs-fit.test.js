@@ -38,6 +38,7 @@ const SCHEME = process.env.FIT_SCHEME === 'dark' ? 'dark' : 'light';
 // zůstane vidět (lepkavě). Lepkavý nadpis okna se zavíráním (data-dialog-head) se hlídá u všech výjimek v #dialog-overlay.
 const EXEMPT = {
     'Všechny odznaky': { reason: 'seznam všech odznaků (stovky medailí po skupinách)', keep: '[data-back-progress]' },
+    'Album – Odznaky': { reason: 'všechny skupiny odznaků v albu sbírky (přes 50 dlaždic)', keep: '[data-back-progress]' },
     'Úrovně a tituly': { reason: 'seznam všech úrovní s tituly', keep: '[data-back-progress]' },
     'Rozpis otázek výzvy': { reason: 'seznam všech otázek s odpověďmi obou hráčů (záhlaví sloupců lepkavě)' },
     'Týdenní žebříček': { reason: 'žebříček hráčů' },
@@ -76,8 +77,8 @@ const CODES = ['ABC234', 'DEF567', 'GHJ892', 'KMN345', 'PQR678', 'STU923', 'VWX2
 const newDb = ({ quizDone = true } = {}) => {
     const db = {
         profiles: {
-            [ME]: player(1, 'Jana Nováková', '🦊', { color: 'emerald', xp: 26000, badges: BADGES.slice(0, 16), rating: 1380, rated_games: 40, rewards: null }),
-            [PETR]: player(2, 'Petr Svoboda', '🐼', { xp: 14200, badges: BADGES, rating: 1520, rated_games: 60 }),
+            [ME]: player(1, 'Jana Nováková', '🦊', { color: 'emerald', xp: 26000, badges: BADGES.slice(0, 16), rating: 1380, rated_games: 40, rewards: null, showcase: ['l:2026-10:diamant', 'b:vyhry-50'] }),
+            [PETR]: player(2, 'Petr Svoboda', '🐼', { xp: 14200, badges: BADGES, rating: 1520, rated_games: 60, showcase: ['l:2026-10:mistr', 'b:dokonale-14', 'd:zemepis'] }),
             [EVA]: player(3, 'Eva Mistrová', '🦉', { color: 'violet', xp: 90000, badges: BADGES, rating: 1720, rated_games: 120 }),
             [uid(4)]: player(4, 'Lenka Dvořáková', '🐸', { xp: 3000, rating: 1150 }),
             [TOMAS]: player(5, 'Tomáš Malý', '🐯', { xp: 9000, badges: BADGES.slice(4), rating: 1290, rated_games: 22 })
@@ -174,6 +175,11 @@ const backend = async (context, db) => {
             }
             if (name === 'search_players') return json([]);
             if (name === 'weekly_leaderboard') return json(db.weekly);
+            if (name === 'league_seasons') {
+                const leagues = ['diamant', 'platina', 'zlato', 'mistr', 'stribro', 'zlato', 'bronz', 'platina', 'zlato', 'diamant', 'stribro', 'zlato'];
+                const months = ['2026-10', '2026-09', '2026-08', '2026-07', '2026-06', '2026-05', '2026-04', '2026-03', '2026-02', '2026-01', '2025-12', '2025-11'];
+                return json({ month: '2026-11', seasons: [{ month: '2026-11', league: 'zlato', peak: 1380, games: 7, finished: false }, ...months.map((month, i) => ({ month, league: leagues[i], peak: 1100 + 50 * i, games: 3 + i, finished: true }))], best: { month: '2026-07', league: 'mistr', peak: 1720 } });
+            }
             if (name === 'claim_tournament_xp') return json([]);
             if (name === 'challenge_details') {
                 return json(db.progress.filter(r => r.challenge_id === body.code).map(({ challenge_id, ...rest }) => rest));
@@ -273,12 +279,16 @@ const pushStub = () => {
 
 // Bohatý stav v zařízení: úroveň, odznaky, naučená místa (hvězdy mistrovství), odměny (ochrana série, čekající truhla, diplom), cíle týdne
 const richStorage = () => {
-    const badges = Object.fromEntries(BADGES.map((id, i) => [id, `2026-10-${String(1 + i).padStart(2, '0')}`]));
+    // + milník alba sbírky, který tahle sbírka (asi 30 %) už má – oslava milníku by jinak na úvodu odsunula nabídku přezdívky
+    const badges = Object.fromEntries([...BADGES, 'sberatel-25'].map((id, i) => [id, `2026-10-${String(1 + i).padStart(2, '0')}`]));
     const learned = { zemepis: Array.from({ length: 320 }, (_, i) => `Q${900000 + i}`), historie: Array.from({ length: 140 }, (_, i) => `Q${800000 + i}`), vlajky: Array.from({ length: 60 }, (_, i) => `Q${700000 + i}`), biologie: Array.from({ length: 40 }, (_, i) => `Q${600000 + i}`) };
     return {
         'mudrlant.progress': JSON.stringify({ xp: 26000, counters: { correct: 2600, answered: 3400, bestRun: 52, topicBest: { zemepis: 10, historie: 9 }, challengesPlayed: 120, challengeWins: 64 }, badges }),
         'mudrlant.learned': JSON.stringify(learned),
-        'mudrlant.rewards': JSON.stringify({ v: 1, freezes: 2, name: 'Jana Nováková', ready: ['2026-11-02'], chests: { '2026-10-26': 'xp' }, diplomas: { zemepis: '2026-10-20' } })
+        // Sezóna Mudrlanta: od 15 000 XP (11 000 XP sezóny = stupeň 14), pět stupňů vyzvednutých; rámeček a titul z minulé sezóny
+        'mudrlant.rewards': JSON.stringify({ v: 1, freezes: 2, name: 'Jana Nováková', ready: ['2026-11-02'], chests: { '2026-10-26': 'xp' }, diplomas: { zemepis: '2026-10-20' },
+            gifts: { frames: ['sezona-10'], titles: ['sampion-sezony'] },
+            season: { id: '2026-11', startXp: 15000, claimed: { 1: 'robes:fialova', 2: 'accessories:kvetina', 3: 'freeze', 4: 'themes:fialova', 5: 'colors:ruzova' } } })
     };
 };
 
@@ -311,11 +321,12 @@ const setup = async (browser, { viewport, storage = {}, db = newDb(), query = ''
     return { context, tab, log, db };
 };
 
-const OVERLAYS = ['dialog-overlay', 'settings-overlay', 'play-chooser', 'place-info', 'chest-overlay'];
+const OVERLAYS = ['dialog-overlay', 'settings-overlay', 'play-chooser', 'place-info', 'chest-overlay', 'season-overlay'];
 // Přetečení posuvného panelu otevřeného okna (u obrazovky v #app-content jejího obsahu); vrátí i rozměry panelu a jeho hlavní akce
 const measure = (screen) => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(() => {
-    const overlay = screen ? null : ['dialog-overlay', 'settings-overlay', 'play-chooser', 'place-info', 'chest-overlay'].map(id => document.getElementById(id)).find(Boolean);
-    const panel = screen ? document.getElementById('app-content') : overlay && (overlay.id === 'chest-overlay' ? overlay.querySelector('[data-chest]') || overlay.firstElementChild : overlay.firstElementChild);
+    const overlay = screen ? null : ['dialog-overlay', 'settings-overlay', 'play-chooser', 'place-info', 'chest-overlay', 'season-overlay'].map(id => document.getElementById(id)).find(Boolean);
+    // Odměna sezóny: posouvá se celé okno (karta je ukotvená shora jako truhla)
+    const panel = screen ? document.getElementById('app-content') : overlay && (overlay.id === 'chest-overlay' ? overlay.querySelector('[data-chest]') || overlay.firstElementChild : overlay.id === 'season-overlay' ? overlay : overlay.firstElementChild);
     if (!panel) return resolve(null);
     const box = panel.getBoundingClientRect();
     // Dotykové plochy pod 40 px (tlačítka a odkazy v okně; skryté a mimo panel se nepočítají)
@@ -420,7 +431,7 @@ test('okna se vejdou bez posouvání', { skip: !chromium && 'Playwright není na
             await scene(tab, 'Profil hráče (přítel)', size, async () => {
                 await tab.click(`#friends-strip [data-player-id="${PETR}"]`);
                 await tab.waitForSelector('[data-rematch]');
-                await tab.waitForFunction(() => document.getElementById('player-league') && document.querySelector('#dialog-overlay [aria-label="Odznaky"]') && /Poslední reakce/.test(document.getElementById('dialog-overlay').textContent));
+                await tab.waitForFunction(() => document.getElementById('player-league') && document.querySelector('#dialog-overlay [aria-label="Odznaky"]') && /Poslední reakce/.test(document.getElementById('dialog-overlay').textContent) && document.querySelectorAll('#dialog-overlay [data-showcase-item]').length === 3);
             });
             await scene(tab, 'Profil hráče (žádost odeslána)', size, async () => {
                 await action(tab, 'challenge-open', { code: 'VWX234' });
@@ -522,8 +533,18 @@ test('okna se vejdou bez posouvání', { skip: !chromium && 'Playwright není na
             await scene(tab, 'Diplom', size, async () => { await progress(); await tab.click('[data-rewards-info="diplomas"]'); await tab.click('[data-diploma="zemepis"]'); await tab.waitForSelector('[data-diploma-preview] canvas'); });
             await scene(tab, 'Diplom (zamčený)', size, async () => { await progress(); await tab.click('[data-rewards-info="diplomas"]'); await tab.click('[data-diploma="historie"]'); await tab.waitForSelector('[data-diploma-locked]'); });
             await scene(tab, 'Ochrana série', size, async () => { await progress(); await tab.click('[data-rewards-info="freeze"]'); await tab.waitForSelector('[data-freeze-help]'); });
+            // Album sbírky (album.js): sekce s nejvíc věcmi (doplňky), Odznaky (posouvají se), podrobnosti postavičky (s Nasadit) a odměny alba
+            const album = async (section) => { await progress(); await tab.click('[data-rewards-info="album"]'); await tab.waitForSelector('[data-album]'); await tab.click(`[data-album-tab="${section}"]`); await tab.waitForSelector(`[data-album-section="${section}"]`); };
+            await scene(tab, 'Album sbírky', size, () => album('accessories'));
+            await scene(tab, 'Album – Odznaky', size, () => album('badges'));
+            await scene(tab, 'Album – podrobnosti', size, async () => { await album('avatars'); await tab.click('[data-album-item][data-state="owned"]'); await tab.waitForSelector('[data-album-detail] [data-album-wear]'); });
+            await scene(tab, 'Album – odměny', size, async () => { await album('avatars'); await tab.click('[data-album-rewards]'); await tab.waitForSelector('[data-album-rewards-list]'); });
             await scene(tab, 'Cíle týdne', size, async () => { await action(tab, 'goals-open'); await waitTitle(tab, 'Cíle týdne'); });
             await scene(tab, 'Truhla Mudrlanta', size, async () => { await action(tab, 'chest-open'); await tab.waitForSelector('#chest-overlay button'); });
+            // Sezóna Mudrlanta: okno s cestou 20 stupňů a odhalení odměny (zavřená pečeť, otevřená)
+            await scene(tab, 'Sezóna', size, async () => { await progress(); await tab.click('[data-season-open]'); await tab.waitForSelector('[data-season-path]'); });
+            await scene(tab, 'Sezóna – pečeť', size, async () => { await action(tab, 'season-claim'); await tab.waitForSelector('#season-overlay [data-season-go]'); });
+            await scene(tab, 'Sezóna – odměna', size, async () => { await action(tab, 'season-claim'); await tab.waitForSelector('#season-overlay [data-season-go]'); await tab.click('#season-overlay [data-season-go]'); await tab.waitForSelector('[data-season-reveal]'); });
             // Co hrát (výběr témat mixu a jednoho tématu)
             await scene(tab, 'Co hrát – mix', size, async () => { await action(tab, 'play-mix'); await tab.waitForSelector('#play-chooser [data-chooser-play]'); });
             await scene(tab, 'Co hrát – téma', size, async () => { await action(tab, 'home-tab', { tab: 'single' }); await tab.waitForSelector('[data-action="play-topic"]'); await tab.click('[data-action="play-topic"][data-topic="zemepis"]'); await tab.waitForSelector('#play-chooser [data-chooser-play]'); });
@@ -542,6 +563,20 @@ test('okna se vejdou bez posouvání', { skip: !chromium && 'Playwright není na
             });
             await scene(tab, 'Týdenní žebříček', size, async () => { await action(tab, 'weekly-board'); await waitTitle(tab, 'Týdenní žebříček'); await tab.waitForFunction(() => !/Načítám/.test(document.getElementById('dialog-overlay').textContent)); });
             await scene(tab, 'Jak fungují ligy', size, async () => { await action(tab, 'league-help'); await waitTitle(tab, 'Jak fungují ligy'); });
+            // Ligové sezóny a vitrína (schéma 18)
+            await scene(tab, 'Ligové sezóny', size, async () => { await action(tab, 'league-seasons'); await tab.waitForSelector('[data-league-seasons]'); await tab.waitForSelector('[data-season-month="2026-07"]:not([disabled])'); });
+            await scene(tab, 'Ligové sezóny (vybraná sezóna)', size, async () => {
+                await action(tab, 'league-seasons');
+                await tab.waitForSelector('[data-season-month="2026-07"]:not([disabled])');
+                await tab.click('[data-season-month="2026-07"]');
+                await tab.waitForSelector('[data-season-detail="2026-07"] [data-showcase-toggle]');
+            });
+            await scene(tab, 'Vitrína', size, async () => {
+                await tab.click('#btn-settings');
+                await tab.click('[data-me-tab="profile"]');
+                await tab.click('#settings-overlay [data-open-showcase]');
+                await tab.waitForSelector('[data-showcase-dialog] [data-showcase-item]');
+            });
             // Skupiny
             await scene(tab, 'Skupiny – seznam', size, async () => { await action(tab, 'groups-open'); await waitTitle(tab, 'Skupiny'); await tab.waitForSelector('[data-group-open]'); });
             await scene(tab, 'Skupiny – detail', size, async () => { await action(tab, 'groups-open'); await tab.waitForSelector('[data-group-open]'); await tab.click('[data-group-open]'); await tab.waitForSelector('[data-group-manage]'); await tab.waitForTimeout(300); });
