@@ -1418,6 +1418,319 @@ Přiložit **vygenerovanou zavřenou Sezónní truhlu** (č. 175), ať sedí tva
 Edit the attached image. Keep the chest EXACTLY the same size, position, perspective, colors and style. Only open the lid (tilted back) and fill the opening with a bright magical silver-and-purple glow, with sparkles and small stars rising out of the chest. Do not add anything else, no items inside. Keep the plain flat dark grey background #2d3034 and the thin cream sticker border.
 ```
 
+## 13. Sady doplňků k tématům (č. 177–204)
+
+Každé téma dostane ke stávajícímu doplňku za zběhlost ještě dva kusy na jiných místech, takže jedna sada obsadí tři ze čtyř míst (hlava, obličej, krk, ruka) a dá dohromady celý look Mudrlanta v tématu. Kusy jedné sady se k sobě hodí a nepřekážejí si.
+
+**Jak se kusy získají (návrh, doladím při zapojení):**
+
+1. První kus (stávající): zběhlost v tématu – 12 správně v řadě nebo 3 hvězdy mistrovství.
+2. Druhý kus: odznak tématu 3. stupně (300 správných odpovědí v tématu).
+3. Třetí kus: odznak tématu 5. stupně (1000 správných odpovědí v tématu). Odznaky počítají odpovědi, ne různé položky, takže je jde získat v každém tématu.
+4. Kompletní sada: v albu sbírky nová sekce Sady témat; kdo má všechny tři kusy a nasadí je najednou, Mudrlant v Profilu hráče ukáže název looku (např. „Cestovatel“).
+
+**Postup:** stejně jako u ostatních doplňků (`scripts/owl-accessories.py`). Soubor pojmenuj `branding/doplnky/<id>.jpg`.
+
+- Doplňky na **hlavu, krk a ruku**: přiložit `branding/sova-original.jpg`.
+- Doplňky na **obličej**: přiložit `branding/sova-bez-monoklu.jpg` (sova bez sklíčka), aby se sklíčko nepletlo s brýlemi nebo knírem.
+
+| Téma | Look | Stávající kus | Nové kusy |
+|---|---|---|---|
+| Zeměpis | Cestovatel | Kompas (krk) | Cestovatelský klobouk (hlava), Globus (ruka) |
+| Vlajky | Praporečník | Vlaječka (ruka) | Námořnická čepice (hlava), Signální praporky (krk) |
+| Historie | Vojevůdce | Svitek s pečetí (ruka) | Dvourohý klobouk (hlava), Krejzlík (krk) |
+| Mytologie | Hrdina bájí | Okřídlená helma (hlava) | Blesk vládce hromu (ruka), Zlaté rouno (krk) |
+| Biologie | Přírodovědec | Síťka na motýly (ruka) | Ptačí hnízdo (hlava), Dalekohled (krk) |
+| Geologie | Badatel podzemí | Horolezecká přilba (hlava) | Geologické kladívko (ruka), Krystal na šňůrce (krk) |
+| Chemie | Šílený chemik | Laboratorní brýle (obličej) | Baňka s lektvarem (ruka), Po výbuchu (hlava) |
+| Fyzika | Génius | Einsteinův knír (obličej) | Magnet (ruka), Newtonovo jablko (hlava) |
+| Výtvarné umění | Umělec | Malířský baret (hlava) | Malířská paleta (ruka), Kroucený knír (obličej) |
+| Architektura | Stavitel | Svinovací metr (krk) | Stavební plány (ruka), Tesařská tužka (hlava) |
+| Hudba | Rocková hvězda | Mikrofon (ruka) | Hvězdné brýle (obličej), Elektrická kytara (krk) |
+| Literatura | Spisovatel | Brk a kalamář (ruka) | Komínek knih (hlava), Půlměsícové brýle (obličej) |
+| Film | Filmový fanoušek | 3D brýle (obličej) | Kornout popcornu (ruka), Filmový pás (krk) |
+| Sport | Trenér | Sportovní čelenka (hlava) | Píšťalka (krk), Vítězný pohár (ruka) |
+
+### Zeměpis – Cestovatel
+
+Stávající kus: Kompas (krk).
+
+#### 177. `cestovatelsky-klobouk` – Cestovatelský klobouk (hlava)
+
+Odemkne: 300 správných v tématu (návrh). Přiložit: `branding/sova-original.jpg`
+
+```text
+Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same proportions, same colors, same outline style, same flat dark background. Do not redraw, move or recolor the owl. Only ADD the accessory described below, drawn in the same cartoon sticker style with the same thick dark outline and the same lighting, sitting naturally on the owl. The accessory should be mostly one dominant color (not wine red) so it can be recolored later. Do not add anything else. Accessory: A khaki explorer's pith helmet with a thin darker band, worn on the owl's head over its cap, like a 19th-century expedition explorer.
+```
+
+#### 178. `globus` – Globus (ruka)
+
+Odemkne: 1000 správných v tématu (návrh). Přiložit: `branding/sova-original.jpg`
+
+```text
+Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same proportions, same colors, same outline style, same flat dark background. Do not redraw, move or recolor the owl. Only ADD the accessory described below, drawn in the same cartoon sticker style with the same thick dark outline and the same lighting, sitting naturally on the owl. The accessory should be mostly one dominant color (not wine red) so it can be recolored later. Do not add anything else. Accessory: A small desk globe on a curved golden stand, held up in the owl's wing, the oceans in one solid blue color and the continents as simple light shapes without any text.
+```
+
+### Vlajky – Praporečník
+
+Stávající kus: Vlaječka (ruka).
+
+#### 179. `namornicka-cepice` – Námořnická čepice (hlava)
+
+Odemkne: 300 správných v tématu (návrh). Přiložit: `branding/sova-original.jpg`
+
+```text
+Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same proportions, same colors, same outline style, same flat dark background. Do not redraw, move or recolor the owl. Only ADD the accessory described below, drawn in the same cartoon sticker style with the same thick dark outline and the same lighting, sitting naturally on the owl. The accessory should be mostly one dominant color (not wine red) so it can be recolored later. Do not add anything else. Accessory: A white sailor's cap with a navy-blue band and a small golden anchor badge on the front, worn slightly tilted on the owl's head.
+```
+
+#### 180. `praporky` – Signální praporky (krk)
+
+Odemkne: 1000 správných v tématu (návrh). Přiložit: `branding/sova-original.jpg`
+
+```text
+Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same proportions, same colors, same outline style, same flat dark background. Do not redraw, move or recolor the owl. Only ADD the accessory described below, drawn in the same cartoon sticker style with the same thick dark outline and the same lighting, sitting naturally on the owl. The accessory should be mostly one dominant color (not wine red) so it can be recolored later. Do not add anything else. Accessory: A garland of small triangular pennant flags on a thin rope, draped around the owl's neck and chest like a festive necklace, all pennants in one solid color with thin white edges, no symbols or real national flags.
+```
+
+### Historie – Vojevůdce
+
+Stávající kus: Svitek s pečetí (ruka).
+
+#### 181. `dvourohy-klobouk` – Dvourohý klobouk (hlava)
+
+Odemkne: 300 správných v tématu (návrh). Přiložit: `branding/sova-original.jpg`
+
+```text
+Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same proportions, same colors, same outline style, same flat dark background. Do not redraw, move or recolor the owl. Only ADD the accessory described below, drawn in the same cartoon sticker style with the same thick dark outline and the same lighting, sitting naturally on the owl. The accessory should be mostly one dominant color (not wine red) so it can be recolored later. Do not add anything else. Accessory: A big black bicorne hat worn sideways across the owl's head like a 19th-century general, with a small round cockade on the side and thin golden edging.
+```
+
+#### 182. `krejzlik` – Krejzlík (krk)
+
+Odemkne: 1000 správných v tématu (návrh). Přiložit: `branding/sova-original.jpg`
+
+```text
+Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same proportions, same colors, same outline style, same flat dark background. Do not redraw, move or recolor the owl. Only ADD the accessory described below, drawn in the same cartoon sticker style with the same thick dark outline and the same lighting, sitting naturally on the owl. The accessory should be mostly one dominant color (not wine red) so it can be recolored later. Do not add anything else. Accessory: A large white pleated Renaissance ruff collar around the owl's neck, like in old royal portraits, crisp and round.
+```
+
+### Mytologie – Hrdina bájí
+
+Stávající kus: Okřídlená helma (hlava).
+
+#### 183. `blesk` – Blesk vládce hromu (ruka)
+
+Odemkne: 300 správných v tématu (návrh). Přiložit: `branding/sova-original.jpg`
+
+```text
+Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same proportions, same colors, same outline style, same flat dark background. Do not redraw, move or recolor the owl. Only ADD the accessory described below, drawn in the same cartoon sticker style with the same thick dark outline and the same lighting, sitting naturally on the owl. The accessory should be mostly one dominant color (not wine red) so it can be recolored later. Do not add anything else. Accessory: A big golden zigzag lightning bolt held up in the owl's wing like a thunder god, with a few tiny sparks around it.
+```
+
+#### 184. `zlate-rouno` – Zlaté rouno (krk)
+
+Odemkne: 1000 správných v tématu (návrh). Přiložit: `branding/sova-original.jpg`
+
+```text
+Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same proportions, same colors, same outline style, same flat dark background. Do not redraw, move or recolor the owl. Only ADD the accessory described below, drawn in the same cartoon sticker style with the same thick dark outline and the same lighting, sitting naturally on the owl. The accessory should be mostly one dominant color (not wine red) so it can be recolored later. Do not add anything else. Accessory: A fluffy shining golden fleece draped over the owl's shoulders and around its neck like a short cape, with soft curly wool texture and a little sparkle.
+```
+
+### Biologie – Přírodovědec
+
+Stávající kus: Síťka na motýly (ruka).
+
+#### 185. `hnizdo` – Ptačí hnízdo (hlava)
+
+Odemkne: 300 správných v tématu (návrh). Přiložit: `branding/sova-original.jpg`
+
+```text
+Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same proportions, same colors, same outline style, same flat dark background. Do not redraw, move or recolor the owl. Only ADD the accessory described below, drawn in the same cartoon sticker style with the same thick dark outline and the same lighting, sitting naturally on the owl. The accessory should be mostly one dominant color (not wine red) so it can be recolored later. Do not add anything else. Accessory: A cozy round bird's nest of woven twigs sitting on top of the owl's head, with one small speckled egg peeking out of it.
+```
+
+#### 186. `dalekohled` – Dalekohled (krk)
+
+Odemkne: 1000 správných v tématu (návrh). Přiložit: `branding/sova-original.jpg`
+
+```text
+Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same proportions, same colors, same outline style, same flat dark background. Do not redraw, move or recolor the owl. Only ADD the accessory described below, drawn in the same cartoon sticker style with the same thick dark outline and the same lighting, sitting naturally on the owl. The accessory should be mostly one dominant color (not wine red) so it can be recolored later. Do not add anything else. Accessory: A pair of birdwatching binoculars hanging on a strap around the owl's neck, resting on its chest, in one solid color with dark lenses.
+```
+
+### Geologie – Badatel podzemí
+
+Stávající kus: Horolezecká přilba (hlava).
+
+#### 187. `kladivko` – Geologické kladívko (ruka)
+
+Odemkne: 300 správných v tématu (návrh). Přiložit: `branding/sova-original.jpg`
+
+```text
+Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same proportions, same colors, same outline style, same flat dark background. Do not redraw, move or recolor the owl. Only ADD the accessory described below, drawn in the same cartoon sticker style with the same thick dark outline and the same lighting, sitting naturally on the owl. The accessory should be mostly one dominant color (not wine red) so it can be recolored later. Do not add anything else. Accessory: A geologist's rock hammer with a wooden handle and a pointed steel head, held in the owl's wing, with a small chip of rock flying off.
+```
+
+#### 188. `krystal` – Krystal na šňůrce (krk)
+
+Odemkne: 1000 správných v tématu (návrh). Přiložit: `branding/sova-original.jpg`
+
+```text
+Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same proportions, same colors, same outline style, same flat dark background. Do not redraw, move or recolor the owl. Only ADD the accessory described below, drawn in the same cartoon sticker style with the same thick dark outline and the same lighting, sitting naturally on the owl. The accessory should be mostly one dominant color (not wine red) so it can be recolored later. Do not add anything else. Accessory: A large glowing pointed crystal pendant (like an amethyst point) hanging on a thin leather cord around the owl's neck, resting on its chest.
+```
+
+### Chemie – Šílený chemik
+
+Stávající kus: Laboratorní brýle (obličej).
+
+#### 189. `banka` – Baňka s lektvarem (ruka)
+
+Odemkne: 300 správných v tématu (návrh). Přiložit: `branding/sova-original.jpg`
+
+```text
+Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same proportions, same colors, same outline style, same flat dark background. Do not redraw, move or recolor the owl. Only ADD the accessory described below, drawn in the same cartoon sticker style with the same thick dark outline and the same lighting, sitting naturally on the owl. The accessory should be mostly one dominant color (not wine red) so it can be recolored later. Do not add anything else. Accessory: A glass Erlenmeyer flask held in the owl's wing, filled with a bright bubbling liquid in one solid color, with a few bubbles and a tiny puff of vapor rising from the top.
+```
+
+#### 190. `vybuch` – Po výbuchu (hlava)
+
+Odemkne: 1000 správných v tématu (návrh). Přiložit: `branding/sova-original.jpg`
+
+```text
+Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same proportions, same colors, same outline style, same flat dark background. Do not redraw, move or recolor the owl. Only ADD the accessory described below, drawn in the same cartoon sticker style with the same thick dark outline and the same lighting, sitting naturally on the owl. The accessory should be mostly one dominant color (not wine red) so it can be recolored later. Do not add anything else. Accessory: A small comic cloud of grey smoke puffing above the owl's head with a few singed, frizzy feather tufts sticking up, as if a lab experiment just went boom. Keep it funny, no fire.
+```
+
+### Fyzika – Génius
+
+Stávající kus: Einsteinův knír (obličej).
+
+#### 191. `magnet` – Magnet (ruka)
+
+Odemkne: 300 správných v tématu (návrh). Přiložit: `branding/sova-original.jpg`
+
+```text
+Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same proportions, same colors, same outline style, same flat dark background. Do not redraw, move or recolor the owl. Only ADD the accessory described below, drawn in the same cartoon sticker style with the same thick dark outline and the same lighting, sitting naturally on the owl. The accessory should be mostly one dominant color (not wine red) so it can be recolored later. Do not add anything else. Accessory: A big red horseshoe magnet with silver tips held in the owl's wing, with two small curved lines showing the magnetic pull and a tiny paperclip stuck to it.
+```
+
+#### 192. `jablko` – Newtonovo jablko (hlava)
+
+Odemkne: 1000 správných v tématu (návrh). Přiložit: `branding/sova-original.jpg`
+
+```text
+Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same proportions, same colors, same outline style, same flat dark background. Do not redraw, move or recolor the owl. Only ADD the accessory described below, drawn in the same cartoon sticker style with the same thick dark outline and the same lighting, sitting naturally on the owl. The accessory should be mostly one dominant color (not wine red) so it can be recolored later. Do not add anything else. Accessory: A shiny round apple with one leaf sitting on top of the owl's head, as if it just fell from a tree, with a tiny bump star next to it.
+```
+
+### Výtvarné umění – Umělec
+
+Stávající kus: Malířský baret (hlava).
+
+#### 193. `paleta` – Malířská paleta (ruka)
+
+Odemkne: 300 správných v tématu (návrh). Přiložit: `branding/sova-original.jpg`
+
+```text
+Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same proportions, same colors, same outline style, same flat dark background. Do not redraw, move or recolor the owl. Only ADD the accessory described below, drawn in the same cartoon sticker style with the same thick dark outline and the same lighting, sitting naturally on the owl. The accessory should be mostly one dominant color (not wine red) so it can be recolored later. Do not add anything else. Accessory: A wooden painter's palette with a thumb hole held in the owl's wing, with a few dabs of paint and a thin paintbrush tucked into it. Keep the palette wood as the main color.
+```
+
+#### 194. `dali-knir` – Kroucený knír (obličej)
+
+Odemkne: 1000 správných v tématu (návrh). Přiložit: `branding/sova-bez-monoklu.jpg`
+
+```text
+Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same proportions, same colors, same outline style, same flat dark background. Do not redraw, move or recolor the owl. Only ADD the accessory described below, drawn in the same cartoon sticker style with the same thick dark outline and the same lighting, sitting naturally on the owl. The accessory should be mostly one dominant color (not wine red) so it can be recolored later. Do not add anything else. Accessory: A thin, long, glossy black waxed mustache with both ends curled sharply upward like a surrealist painter, placed under the owl's beak. Keep it elegant and funny.
+```
+
+### Architektura – Stavitel
+
+Stávající kus: Svinovací metr (krk).
+
+#### 195. `plany` – Stavební plány (ruka)
+
+Odemkne: 300 správných v tématu (návrh). Přiložit: `branding/sova-original.jpg`
+
+```text
+Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same proportions, same colors, same outline style, same flat dark background. Do not redraw, move or recolor the owl. Only ADD the accessory described below, drawn in the same cartoon sticker style with the same thick dark outline and the same lighting, sitting naturally on the owl. The accessory should be mostly one dominant color (not wine red) so it can be recolored later. Do not add anything else. Accessory: A rolled-up blue blueprint held under the owl's wing, partly unrolled at one end showing simple white lines of a building plan (no text, no numbers).
+```
+
+#### 196. `tuzka` – Tesařská tužka (hlava)
+
+Odemkne: 1000 správných v tématu (návrh). Přiložit: `branding/sova-original.jpg`
+
+```text
+Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same proportions, same colors, same outline style, same flat dark background. Do not redraw, move or recolor the owl. Only ADD the accessory described below, drawn in the same cartoon sticker style with the same thick dark outline and the same lighting, sitting naturally on the owl. The accessory should be mostly one dominant color (not wine red) so it can be recolored later. Do not add anything else. Accessory: A flat carpenter's pencil tucked behind the owl's ear tuft on its head, sharpened tip pointing forward, in one solid color.
+```
+
+### Hudba – Rocková hvězda
+
+Stávající kus: Mikrofon (ruka).
+
+#### 197. `hvezdne-bryle` – Hvězdné brýle (obličej)
+
+Odemkne: 300 správných v tématu (návrh). Přiložit: `branding/sova-bez-monoklu.jpg`
+
+```text
+Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same proportions, same colors, same outline style, same flat dark background. Do not redraw, move or recolor the owl. Only ADD the accessory described below, drawn in the same cartoon sticker style with the same thick dark outline and the same lighting, sitting naturally on the owl. The accessory should be mostly one dominant color (not wine red) so it can be recolored later. Do not add anything else. Accessory: Big star-shaped rock-star sunglasses worn over the owl's eyes, with a shiny frame in one solid color and dark lenses with a small glint.
+```
+
+#### 198. `kytara` – Elektrická kytara (krk)
+
+Odemkne: 1000 správných v tématu (návrh). Přiložit: `branding/sova-original.jpg`
+
+```text
+Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same proportions, same colors, same outline style, same flat dark background. Do not redraw, move or recolor the owl. Only ADD the accessory described below, drawn in the same cartoon sticker style with the same thick dark outline and the same lighting, sitting naturally on the owl. The accessory should be mostly one dominant color (not wine red) so it can be recolored later. Do not add anything else. Accessory: A small electric guitar hanging on a strap across the owl's chest, the guitar body in one solid bright color, the neck pointing up past the owl's shoulder.
+```
+
+### Literatura – Spisovatel
+
+Stávající kus: Brk a kalamář (ruka).
+
+#### 199. `knihy` – Komínek knih (hlava)
+
+Odemkne: 300 správných v tématu (návrh). Přiložit: `branding/sova-original.jpg`
+
+```text
+Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same proportions, same colors, same outline style, same flat dark background. Do not redraw, move or recolor the owl. Only ADD the accessory described below, drawn in the same cartoon sticker style with the same thick dark outline and the same lighting, sitting naturally on the owl. The accessory should be mostly one dominant color (not wine red) so it can be recolored later. Do not add anything else. Accessory: A small wobbly stack of three old hardcover books balanced on top of the owl's head, the books in one main color with lighter page edges and no text.
+```
+
+#### 200. `pulmesicove-bryle` – Půlměsícové brýle (obličej)
+
+Odemkne: 1000 správných v tématu (návrh). Přiložit: `branding/sova-bez-monoklu.jpg`
+
+```text
+Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same proportions, same colors, same outline style, same flat dark background. Do not redraw, move or recolor the owl. Only ADD the accessory described below, drawn in the same cartoon sticker style with the same thick dark outline and the same lighting, sitting naturally on the owl. The accessory should be mostly one dominant color (not wine red) so it can be recolored later. Do not add anything else. Accessory: Small half-moon reading glasses perched low on the owl's beak, with a thin golden frame and a thin chain hanging down from the sides, like a wise old professor.
+```
+
+### Film – Filmový fanoušek
+
+Stávající kus: 3D brýle (obličej).
+
+#### 201. `popcorn` – Kornout popcornu (ruka)
+
+Odemkne: 300 správných v tématu (návrh). Přiložit: `branding/sova-original.jpg`
+
+```text
+Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same proportions, same colors, same outline style, same flat dark background. Do not redraw, move or recolor the owl. Only ADD the accessory described below, drawn in the same cartoon sticker style with the same thick dark outline and the same lighting, sitting naturally on the owl. The accessory should be mostly one dominant color (not wine red) so it can be recolored later. Do not add anything else. Accessory: A striped cinema popcorn bucket overflowing with popcorn, held in the owl's wing, a few popcorn pieces popping out. The stripes in one solid color with white.
+```
+
+#### 202. `filmovy-pas` – Filmový pás (krk)
+
+Odemkne: 1000 správných v tématu (návrh). Přiložit: `branding/sova-original.jpg`
+
+```text
+Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same proportions, same colors, same outline style, same flat dark background. Do not redraw, move or recolor the owl. Only ADD the accessory described below, drawn in the same cartoon sticker style with the same thick dark outline and the same lighting, sitting naturally on the owl. The accessory should be mostly one dominant color (not wine red) so it can be recolored later. Do not add anything else. Accessory: A strip of old cinema film with sprocket holes draped around the owl's neck like a scarf, the frames empty (no pictures, no text).
+```
+
+### Sport – Trenér
+
+Stávající kus: Sportovní čelenka (hlava).
+
+#### 203. `pistalka` – Píšťalka (krk)
+
+Odemkne: 300 správných v tématu (návrh). Přiložit: `branding/sova-original.jpg`
+
+```text
+Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same proportions, same colors, same outline style, same flat dark background. Do not redraw, move or recolor the owl. Only ADD the accessory described below, drawn in the same cartoon sticker style with the same thick dark outline and the same lighting, sitting naturally on the owl. The accessory should be mostly one dominant color (not wine red) so it can be recolored later. Do not add anything else. Accessory: A shiny referee whistle hanging on a lanyard around the owl's neck, resting on its chest.
+```
+
+#### 204. `pohar` – Vítězný pohár (ruka)
+
+Odemkne: 1000 správných v tématu (návrh). Přiložit: `branding/sova-original.jpg`
+
+```text
+Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same proportions, same colors, same outline style, same flat dark background. Do not redraw, move or recolor the owl. Only ADD the accessory described below, drawn in the same cartoon sticker style with the same thick dark outline and the same lighting, sitting naturally on the owl. The accessory should be mostly one dominant color (not wine red) so it can be recolored later. Do not add anything else. Accessory: A shiny golden trophy cup with two handles held up proudly in the owl's wing, with a small sparkle on it, no text.
+```
+
 ## Co udělám po dodání
 
 1. Uložím soubory do `branding/ikony/`, vyříznu pozadí (`python3 scripts/topic-icons.py …`) a u sov vyrobím barvy obleku (`python3 scripts/owl-robes.py`).
