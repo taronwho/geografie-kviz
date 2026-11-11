@@ -11,6 +11,8 @@
     const SHORT = { zadny: 'Bez', bronz: 'Bronz', stribro: 'Stříbro', zlato: 'Zlato', vavrin: 'Vavřín', plamen: 'Plamen', diamant: 'Diamant', medailista: 'Medaile', 'mistr-turnaje': 'Mistr',
         // Rámečky ligových sezón (look.js LEAGUE_FRAMES)
         'liga-zlato': 'Sezóna Zlato', 'liga-platina': 'Sezóna Platina', 'liga-diamant': 'Sezóna Diamant', 'liga-mistr': 'Sezóna Mistr' };
+    // Rámeček za celé album sbírky (album.js)
+    SHORT.sberatel = 'Sběratel';
     const escapeHtml = (text) => Core && Core.escapeHtml ? Core.escapeHtml(text) : String(text).replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
 
     // Třídy rámečku pro obrázek hráče; neznámé id (a „bez rámečku“) nedá nic, takže cizí hodnota z databáze nic nerozbije

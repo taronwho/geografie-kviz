@@ -38,6 +38,7 @@ const SCHEME = process.env.FIT_SCHEME === 'dark' ? 'dark' : 'light';
 // zůstane vidět (lepkavě). Lepkavý nadpis okna se zavíráním (data-dialog-head) se hlídá u všech výjimek v #dialog-overlay.
 const EXEMPT = {
     'Všechny odznaky': { reason: 'seznam všech odznaků (stovky medailí po skupinách)', keep: '[data-back-progress]' },
+    'Album – Odznaky': { reason: 'všechny skupiny odznaků v albu sbírky (přes 50 dlaždic)', keep: '[data-back-progress]' },
     'Úrovně a tituly': { reason: 'seznam všech úrovní s tituly', keep: '[data-back-progress]' },
     'Rozpis otázek výzvy': { reason: 'seznam všech otázek s odpověďmi obou hráčů (záhlaví sloupců lepkavě)' },
     'Týdenní žebříček': { reason: 'žebříček hráčů' },
@@ -278,7 +279,8 @@ const pushStub = () => {
 
 // Bohatý stav v zařízení: úroveň, odznaky, naučená místa (hvězdy mistrovství), odměny (ochrana série, čekající truhla, diplom), cíle týdne
 const richStorage = () => {
-    const badges = Object.fromEntries(BADGES.map((id, i) => [id, `2026-10-${String(1 + i).padStart(2, '0')}`]));
+    // + milník alba sbírky, který tahle sbírka (asi 30 %) už má – oslava milníku by jinak na úvodu odsunula nabídku přezdívky
+    const badges = Object.fromEntries([...BADGES, 'sberatel-25'].map((id, i) => [id, `2026-10-${String(1 + i).padStart(2, '0')}`]));
     const learned = { zemepis: Array.from({ length: 320 }, (_, i) => `Q${900000 + i}`), historie: Array.from({ length: 140 }, (_, i) => `Q${800000 + i}`), vlajky: Array.from({ length: 60 }, (_, i) => `Q${700000 + i}`), biologie: Array.from({ length: 40 }, (_, i) => `Q${600000 + i}`) };
     return {
         'mudrlant.progress': JSON.stringify({ xp: 26000, counters: { correct: 2600, answered: 3400, bestRun: 52, topicBest: { zemepis: 10, historie: 9 }, challengesPlayed: 120, challengeWins: 64 }, badges }),
@@ -527,6 +529,12 @@ test('okna se vejdou bez posouvání', { skip: !chromium && 'Playwright není na
             await scene(tab, 'Diplom', size, async () => { await progress(); await tab.click('[data-rewards-info="diplomas"]'); await tab.click('[data-diploma="zemepis"]'); await tab.waitForSelector('[data-diploma-preview] canvas'); });
             await scene(tab, 'Diplom (zamčený)', size, async () => { await progress(); await tab.click('[data-rewards-info="diplomas"]'); await tab.click('[data-diploma="historie"]'); await tab.waitForSelector('[data-diploma-locked]'); });
             await scene(tab, 'Ochrana série', size, async () => { await progress(); await tab.click('[data-rewards-info="freeze"]'); await tab.waitForSelector('[data-freeze-help]'); });
+            // Album sbírky (album.js): sekce s nejvíc věcmi (doplňky), Odznaky (posouvají se), podrobnosti postavičky (s Nasadit) a odměny alba
+            const album = async (section) => { await progress(); await tab.click('[data-rewards-info="album"]'); await tab.waitForSelector('[data-album]'); await tab.click(`[data-album-tab="${section}"]`); await tab.waitForSelector(`[data-album-section="${section}"]`); };
+            await scene(tab, 'Album sbírky', size, () => album('accessories'));
+            await scene(tab, 'Album – Odznaky', size, () => album('badges'));
+            await scene(tab, 'Album – podrobnosti', size, async () => { await album('avatars'); await tab.click('[data-album-item][data-state="owned"]'); await tab.waitForSelector('[data-album-detail] [data-album-wear]'); });
+            await scene(tab, 'Album – odměny', size, async () => { await album('avatars'); await tab.click('[data-album-rewards]'); await tab.waitForSelector('[data-album-rewards-list]'); });
             await scene(tab, 'Cíle týdne', size, async () => { await action(tab, 'goals-open'); await waitTitle(tab, 'Cíle týdne'); });
             await scene(tab, 'Truhla Mudrlanta', size, async () => { await action(tab, 'chest-open'); await tab.waitForSelector('#chest-overlay button'); });
             // Co hrát (výběr témat mixu a jednoho tématu)
