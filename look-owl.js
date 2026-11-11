@@ -84,7 +84,8 @@
         const parsed = parseOwl(prefs);
         const parts = [`robe=${parsed ? parsed.robe : 'vinova'}`];
         if (parsed && parsed.pose) parts.push(`pose=${parsed.pose}`);
-        if (parsed) for (const slot of ORDER) if (parsed.acc[slot]) parts.push(`${slot}=${parsed.acc[slot].id}.${parsed.acc[slot].color}${parsed.acc[slot].flag ? `.${parsed.acc[slot].flag}` : ''}`);
+        // „Bez monoklu“ v obličeji je jen 'face=bez-monoklu' (bez barvy); starší aplikace ho nezná a ukáže sovu s monoklem
+        if (parsed) for (const slot of ORDER) if (parsed.acc[slot]) parts.push(parsed.acc[slot].id === Look.NO_MONOCLE ? `${slot}=${Look.NO_MONOCLE}` : `${slot}=${parsed.acc[slot].id}.${parsed.acc[slot].color}${parsed.acc[slot].flag ? `.${parsed.acc[slot].flag}` : ''}`);
         return parts.join(';').slice(0, OWL_MAX);
     };
     // Sova titulu, kterou hráč na dané úrovni smí mít: zvolená, když ji dosáhl; jinak nejvyšší dosažená (po ztrátě úrovně);
@@ -110,6 +111,7 @@
         // Sova titulu: jen titul-1 … titul-11 (Look.POSES), první platná; jiná hodnota se zahodí
         const takePose = (id) => { if (!pose && Look.findPose && Look.findPose(id)) { pose = id; known = true; } };
         const takeAcc = (slot, id, color, flag) => {
+            if (slot === 'face' && id === Look.NO_MONOCLE && !acc.face) { acc.face = { id }; known = true; return; }
             const item = Look.find('accessories', id);
             if (!item || item.slot !== slot || acc[slot]) return;
             acc[slot] = { id, color: validColor(color) ? color : 'original' };
@@ -158,25 +160,37 @@
         const parsed = parseOwl(parsedOrText);
         if (!parsed) return '';
         if (parsed.pose) return poseHtml(parsed.pose, parsed.robe);
-        const src = `icons/logo${parsed.robe === 'vinova' ? '' : `-${parsed.robe}`}.webp`;
-        return `<span class="relative inline-flex shrink-0 ${wrapClass}${hatClass(parsed.acc)}"><img data-keep src="${src}" alt="" class="${imgClass}">${layersHtml(parsed.acc, 'data-keep')}</span>`;
+        const src = `${logoBase(parsed.acc)}${parsed.robe === 'vinova' ? '' : `-${parsed.robe}`}.webp`;
+        return `<span class="relative inline-flex shrink-0 ${wrapClass}${maskClass(parsed.acc)}"><img data-keep src="${src}" alt="" class="${imgClass}">${layersHtml(parsed.acc, 'data-keep')}</span>`;
     };
 
     const currentAcc = () => (Look ? Look.prefs().acc : null) || {};
     // Logo sovy s vybranými doplňky; wrapClass patří obalu (okraje), imgClass samotné sově
-    // Doplněk na hlavě, který nahrazuje čepici (helma, přilba, baret): výchozí čepice se z loga maskou skryje (třída owl-nohat, src/input.css)
-    const hidesHat = (acc) => { const id = acc && acc.head && acc.head.id; const item = id && Look ? Look.find('accessories', id) : null; return Boolean(item && item.hidesHat); };
-    const hatClass = (acc) => hidesHat(acc) ? ' owl-nohat' : '';
+    // Doplněk na hlavě, který nahrazuje čepici (helma, přilba, baret, klobouky): výchozí čepice se z loga maskou skryje (třída owl-nohat,
+    // src/input.css); doplněk v ruce s jinou rukou (hrnek, hůlka, meč, pochodeň) stejně skryje zvednutou ruku (owl-nohand)
+    const slotItem = (acc, slot) => { const id = acc && acc[slot] && acc[slot].id; return id && Look ? Look.find('accessories', id) : null; };
+    const hidesHat = (acc) => Boolean((slotItem(acc, 'head') || {}).hidesHat);
+    const hidesHand = (acc) => Boolean((slotItem(acc, 'hand') || {}).hidesHand);
+    const maskClass = (acc) => `${hidesHat(acc) ? ' owl-nohat' : ''}${hidesHand(acc) ? ' owl-nohand' : ''}`;
+    // Logo s monoklem, nebo bez něj („Bez monoklu“ nebo doplněk v obličeji, který ho nahradí; Look.monocleShown); bez přípony .webp,
+    // barvu obleku k ní přidá look-robes.js (u mé sovy) nebo owlAvatarHtml (u cizí)
+    const logoBase = (acc) => (Look && Look.monocleShown && !Look.monocleShown(acc) ? 'icons/logo-bez-monoklu' : 'icons/logo');
     const logoHtml = (wrapClass, imgClass, acc = currentAcc()) =>
-        `<span data-owl class="relative inline-flex shrink-0 ${wrapClass}${hatClass(acc)}"><img src="icons/logo.webp" alt="" class="${imgClass}">${layersHtml(acc)}</span>`;
+        `<span data-owl class="relative inline-flex shrink-0 ${wrapClass}${maskClass(acc)}"><img src="${logoBase(acc)}.webp" alt="" class="${imgClass}">${layersHtml(acc)}</span>`;
 
-    // Po změně voleb se vrstvy všech sov na stránce přepíší na místě
+    // Po změně voleb se vrstvy všech sov na stránce přepíší na místě a logo se vymění za sovu s monoklem nebo bez něj
+    // (barva obleku v adrese zůstane, takže look-robes.js nemusí nic přepínat)
     const refresh = (acc) => {
         if (typeof document === 'undefined') return;
         document.querySelectorAll('[data-owl]').forEach(wrapper => {
             wrapper.querySelectorAll('[data-owl-layer]').forEach(layer => layer.remove());
             wrapper.insertAdjacentHTML('beforeend', layersHtml(acc));
             wrapper.classList.toggle('owl-nohat', hidesHat(acc));
+            wrapper.classList.toggle('owl-nohand', hidesHand(acc));
+            const logo = wrapper.querySelector('img');
+            const src = logo ? logo.getAttribute('src') || '' : '';
+            const next = src.replace(/^icons\/logo(?:-bez-monoklu)?(?=[-.])/, logoBase(acc));
+            if (logo && next !== src) logo.setAttribute('src', next);
         });
     };
 
@@ -201,11 +215,23 @@
     };
     const noneTile = (slot, selected) => `<button type="button" data-owl-pick="${slot}:none" aria-pressed="${selected}" title="Bez doplňku" aria-label="Bez doplňku" class="${TILE_HIT}">
         <span class="${TILE} text-lg font-black text-slate-500 dark:text-slate-400 ${selected ? TILE_ON : TILE_OFF}">–</span></button>`;
+    // Obličej začíná dvěma volbami bez doplňku: Monokl (výchozí sova, nic uloženo) a Bez monoklu; ikona monoklu je
+    // icons/doplnky/monokl-ikona.webp (scripts/owl-accessories.py --logo), u „Bez monoklu“ přeškrtnutá
+    const MONOCLE_ICON = '<img src="icons/doplnky/monokl-ikona.webp" alt="" class="h-7 w-7 object-contain">';
+    const NO_MONOCLE_ICON = '<span class="relative flex h-7 w-7 items-center justify-center"><img src="icons/doplnky/monokl-ikona.webp" alt="" class="h-7 w-7 object-contain opacity-40 grayscale"><span class="absolute h-0.5 w-8 rotate-45 rounded-full bg-slate-500 dark:bg-slate-300"></span></span>';
+    const monocleTiles = (chosen) => [['none', 'Monokl', MONOCLE_ICON], [Look.NO_MONOCLE, 'Bez monoklu', NO_MONOCLE_ICON]].map(([id, title, icon]) =>
+        `<button type="button" data-owl-pick="face:${id}" aria-pressed="${chosen === id}" title="${title}" aria-label="${title}" class="${TILE_HIT}">
+        <span class="${TILE} ${chosen === id ? TILE_ON : TILE_OFF}">${icon}</span></button>`).join('');
     // Čip místa vedle sovy (jako výbava ve hře): název místa a ikona nasazeného doplňku (nebo pomlčka); vpravo od sovy zrcadlově
     const slotChip = (slot, acc, open, right) => {
         const item = acc[slot.id] ? Look.find('accessories', acc[slot.id].id) : null;
-        const icon = item ? `<img src="icons/doplnky/${item.id}-ikona.webp" alt="" class="h-6 w-6 object-contain">` : '<span class="text-base font-black leading-none text-slate-600 dark:text-slate-300">–</span>';
-        return `<button type="button" data-owl-slot="${slot.id}" aria-pressed="${open}" aria-label="${escapeHtml(`${slot.title}: ${item ? item.title : 'bez doplňku'}`)}" title="${escapeHtml(item ? item.title : 'Bez doplňku')}"
+        // Obličej bez doplňku: monokl (výchozí), nebo „Bez monoklu“
+        const bare = slot.id === 'face' && !item ? (Look.monocleShown(acc) ? 'Monokl' : 'Bez monoklu') : null;
+        const icon = item ? `<img src="icons/doplnky/${item.id}-ikona.webp" alt="" class="h-6 w-6 object-contain">`
+            : bare === 'Monokl' ? '<img src="icons/doplnky/monokl-ikona.webp" alt="" class="h-6 w-6 object-contain">'
+                : '<span class="text-base font-black leading-none text-slate-600 dark:text-slate-300">–</span>';
+        const name = item ? item.title : bare || 'Bez doplňku';
+        return `<button type="button" data-owl-slot="${slot.id}" aria-pressed="${open}" aria-label="${escapeHtml(`${slot.title}: ${item ? item.title : bare ? bare.toLocaleLowerCase('cs') : 'bez doplňku'}`)}" title="${escapeHtml(name)}"
             class="flex h-11 w-full min-w-0 items-center gap-1.5 rounded-xl border-2 px-1 active:scale-95 ${right ? 'flex-row-reverse text-right' : 'text-left'} ${open ? 'border-brand-500 bg-brand-50 text-brand-800 dark:bg-brand-950 dark:text-brand-100' : 'border-transparent bg-slate-50 text-slate-700 dark:bg-slate-700/50 dark:text-slate-200'}">
             <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white shadow-sm dark:bg-slate-800">${icon}</span><span class="min-w-0 flex-1 truncate text-[12px] font-black leading-tight">${slot.title}</span></button>`;
     };
@@ -221,11 +247,13 @@
             <div class="flex min-w-0 flex-col gap-1.5">${slotChip(right1, acc, open === right1.id, true)}${slotChip(right2, acc, open === right2.id, true)}</div>
         </div>`;
         const chosen = acc[open] ? acc[open].id : 'none';
-        // Pravidelná mřížka sloupců aspoň 40 px (7 na 360 px, 8 na 390 px); první dlaždice je vždy „bez doplňku“. Výška na dva řádky
+        const first = open === 'face' ? monocleTiles(chosen) : noneTile(open, chosen === 'none');
+        // Pravidelná mřížka sloupců aspoň 40 px (7 na 360 px, 8 na 390 px); první dlaždice je vždy „bez doplňku“ (v obličeji Monokl
+        // a Bez monoklu). Výška na dva řádky
         // (nejvíc doplňků má hlava), ať se okno při přepnutí místa neposkakuje.
-        const items = `<div data-owl-items="${open}" class="grid min-h-[5rem] grid-cols-[repeat(auto-fill,minmax(2.5rem,1fr))] content-start" role="group" aria-label="${escapeHtml(`Doplňky: ${(Look.SLOTS.find(slot => slot.id === open) || {}).title || ''}`)}">${noneTile(open, chosen === 'none')}${Look.ACCESSORIES.filter(item => item.slot === open && (!item.exclusive || Look.isUnlocked(item, ctx))).map(item => tile(item, ctx, chosen === item.id)).join('')}</div>`;
+        const items = `<div data-owl-items="${open}" class="grid min-h-[5rem] grid-cols-[repeat(auto-fill,minmax(2.5rem,1fr))] content-start" role="group" aria-label="${escapeHtml(`Doplňky: ${(Look.SLOTS.find(slot => slot.id === open) || {}).title || ''}`)}">${first}${Look.ACCESSORIES.filter(item => item.slot === open && (!item.exclusive || Look.isUnlocked(item, ctx))).map(item => tile(item, ctx, chosen === item.id)).join('')}</div>`;
         // Barva patří doplňku v otevřeném místě
-        const target = acc[open] ? open : null;
+        const target = acc[open] && acc[open].id !== Look.NO_MONOCLE ? open : null;
         const targetItem = target ? Look.find('accessories', acc[target].id) : null;
         const current = target ? acc[target].color : null;
         const custom = current !== null && Look.customHue(current) !== null;
@@ -274,6 +302,7 @@
             note = '';
             activeSlot = slot;
             if (id === 'none') delete acc[slot];
+            else if (slot === 'face' && id === Look.NO_MONOCLE) acc.face = { id: Look.NO_MONOCLE };
             else {
                 const item = Look.find('accessories', id);
                 if (!item || item.slot !== slot) return false;

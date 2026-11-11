@@ -6,7 +6,8 @@
 // - Do sbírky patří jen to, co se dá získat: věci, které má každý od začátku (vínové téma a talár, Bez rámečku), se nepočítají ani neukazují.
 // - Odměny za album samo (položka s album: true – rámeček Sběratelský; odznaky alba z quiz-core isAlbumBadge) se ukazují, ale nepočítají,
 //   jinak by 100 % nešlo nikdy získat.
-// - Rámečky ligových sezón (league) jdou získat každý měsíc: jsou to běžné věci (chybí, dokud je hráč nemá).
+// - Rámečky ligových sezón (league) jdou získat každý měsíc: jsou to běžné věci (chybí, dokud je hráč nemá). Stejně Pochodeň vítěze (doplněk).
+// - Věci jen z Truhly Mudrlanta (chest v look.js: čepice s vrtulkou, páska, srdíčkové brýle, věnec, hrnek) jsou běžné věci s textem „Z Truhly Mudrlanta“.
 // - Tituly u jména (Look.CATALOG.titles, Šampion sezóny) nejsou sekce alba: jsou to vyznamenání za celou sezónu, 100 % by jinak
 //   vyžadovalo dohrát Sezónu Mudrlanta.
 // - Časově omezené věci (položka s exclusive nebo season, nebo available: false): dokud jdou získat, počítají se (chybí-li, jsou v albu šedé jako ostatní,
@@ -200,6 +201,8 @@
         if (entry.state === 'ended') return 'Sezónní – už nejde získat. Do sbírky se nepočítá.';
         const badge = item.badge && Core && Core.BADGE_BY_ID ? Core.BADGE_BY_ID[item.badge] : null;
         let text = item.album ? `Odměna za celé album sbírky (100${NB}%) spolu s titulem „${badgeTitle(item.badge)}“.`
+            : item.rare ? 'Vzácný dárek z Truhly Mudrlanta za splněné cíle týdne (občas místo běžné věci). Úrovní se neodemyká.'
+            : item.chest ? 'Z Truhly Mudrlanta za splněné cíle týdne (nebo ze stupně Sezóny Mudrlanta). Úrovní se neodemyká.'
             : badge ? `Za odznak „${badge.title}“: ${badge.text}`
                 : item.badge || !Number.isFinite(item.level) ? `${Look ? Look.unlockText(item, item.badge ? badgeTitle(item.badge) : null) : ''}.`
                     : `Od úrovně ${item.level}.${!entry.owned && CHEST_KINDS.includes(entry.category) && !entry.limited && !item.noGift ? ' Nebo dřív z Truhly Mudrlanta za splněné cíle týdne.' : ''}`;
@@ -238,6 +241,8 @@
     };
     const CORNER = 'pointer-events-none absolute -bottom-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full ring-2 ring-white dark:ring-slate-800';
     // Dlaždice věci: v albu barevná, chybějící šedá se zámkem, sezónní po konci s přesýpacími hodinami, nasazená orámovaná s fajfkou
+    // Sekce s víc než DENSE věcmi (doplňky Mudrlanta) má od šířky 385 px sedm sloupců místo šesti (dlaždice zůstanou aspoň 40 px)
+    const DENSE = 36;
     const tileHtml = (entry, h, worn) => {
         const on = worn && worn.has(entry.key);
         const dim = !entry.owned && entry.state !== 'reward';
@@ -280,7 +285,10 @@
         </button>`;
     }).join('')}</div>`;
     // Sekce: název, počet, ukazatel, titul za celou sekci a mřížka věcí
+    // Sekce s víc než DENSE věcmi (doplňky Mudrlanta) má na širším telefonu sedm sloupců, ať se okno na 390 × 780 vejde bez posouvání;
+    // na 360 × 640 se posouvá (jako Odznaky), dlaždice by jinak byly menší než 40 px
     const sectionHtml = (entry, badges, h, worn) => {
+        const dense = entry.entries.length > DENSE;
         const reward = entry.reward;
         const earned = reward && badges[reward.id];
         const note = entry.ended ? `<p class="text-[10.5px] font-semibold leading-snug text-slate-500 dark:text-slate-400">Sezónní věci, které už nejde získat, se do procent nepočítají.</p>` : '';
@@ -288,7 +296,7 @@
             <div class="flex items-baseline justify-between gap-2 px-0.5"><h3 class="min-w-0 truncate text-sm font-black text-slate-800 dark:text-slate-100">${esc(entry.title)}</h3><span data-album-count class="shrink-0 text-[12px] font-black tabular-nums ${entry.complete ? 'text-emerald-700 dark:text-emerald-400' : 'text-slate-600 dark:text-slate-300'}">${entry.owned} / ${entry.total}</span></div>
             <span class="px-0.5">${BAR(entry.percent, entry.complete ? 'bg-emerald-500' : 'bg-gold-500')}</span>
             ${reward ? `<p data-album-section-title class="flex items-center gap-1 px-0.5 text-[11px] font-bold leading-snug ${earned ? 'text-emerald-700 dark:text-emerald-400' : 'text-slate-500 dark:text-slate-400'}"><i data-lucide="${earned ? 'circle-check' : 'award'}" class="h-3.5 w-3.5 shrink-0"></i><span class="min-w-0 truncate">${earned ? `Celá sekce: titul „${esc(reward.title)}“ je tvůj` : `Za celou sekci titul „${esc(reward.title)}“`}</span></p>` : ''}
-            <ul class="grid grid-cols-6 gap-1 pt-0.5" aria-label="${esc(entry.title)}">${entry.entries.map(item => tileHtml(item, h, worn)).join('')}</ul>
+            <ul class="grid grid-cols-6 gap-1 pt-0.5 ${dense ? 'min-[385px]:grid-cols-7' : ''}" aria-label="${esc(entry.title)}">${entry.entries.map(item => tileHtml(item, h, worn)).join('')}</ul>
             ${note}
         </section>`;
     };

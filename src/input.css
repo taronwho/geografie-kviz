@@ -322,6 +322,9 @@ html.kb-open #settings-overlay > *, html.kb-open #dialog-overlay > * { max-heigh
 
 /* Výchozí čepice sovy se skryje, když doplněk na hlavě čepici nahrazuje (maska scripts/owl-hat-mask.py) */
 .owl-nohat > img:first-child { -webkit-mask-image: url(icons/logo-maska.webp); mask-image: url(icons/logo-maska.webp); -webkit-mask-size: 100% 100%; mask-size: 100% 100%; }
+/* Stejně zvednutá ruka, když ji doplněk v ruce kreslí jinak (hrnek, hůlka, meč, pochodeň); obojí najednou má vlastní masku (maska je jen jedna) */
+.owl-nohand > img:first-child { -webkit-mask-image: url(icons/logo-maska-ruka.webp); mask-image: url(icons/logo-maska-ruka.webp); -webkit-mask-size: 100% 100%; mask-size: 100% 100%; }
+.owl-nohat.owl-nohand > img:first-child { -webkit-mask-image: url(icons/logo-maska-oba.webp); mask-image: url(icons/logo-maska-oba.webp); }
 
 /* Vlajka státu na vlaječce sovy se maskou ořízne na tvar plátna (vnitřek bez obrysu, scripts/owl-accessories.py) */
 .owl-flag { -webkit-mask-image: url(icons/doplnky/vlajka-maska.webp); mask-image: url(icons/doplnky/vlajka-maska.webp); -webkit-mask-size: 100% 100%; mask-size: 100% 100%; }

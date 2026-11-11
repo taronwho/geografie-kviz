@@ -4,6 +4,8 @@
 # Pokrývky hlavy (helma, přilba, baret) a koruna se vyřezávají po plochách ohraničených obrysem (head_object, crown_object), síťka má horní část
 # jako konvexní obal (hull_top); přebarvení (recolor_layer) pracuje v Lab a zachovává stínování. Vlajka má vlastní postup (split_cloth, recolor).
 # Spuštění: python3 scripts/owl-accessories.py [id ...]   (Pillow, numpy, opencv-python-headless)
+# Sova bez monoklu: python3 scripts/owl-accessories.py --logo vyrobí icons/logo-bez-monoklu.webp (z branding/sova-bez-monoklu.jpg, viz monocle_free)
+# a ikonu volby Monokl icons/doplnky/monokl-ikona.webp; barvy obleku loga bez monoklu pak dělá scripts/owl-robes.py.
 # Ladění: WARP_CACHE=<složka> uloží zarovnání obrázků (pomalé) pro další běhy, DEBUG_DIR=<složka> uloží masky.
 import os, sys, glob, json
 import numpy as np
@@ -15,14 +17,24 @@ SRC = os.path.join(ROOT, 'branding', 'doplnky')
 OUT = os.path.join(ROOT, 'icons', 'doplnky')
 BASE = os.path.join(ROOT, 'branding', 'sova-original.jpg')
 CUT = os.path.join(ROOT, 'branding', 'sova.png')
+# Sova bez monoklu (generátor ji překreslil celou, proto se z ní bere jen okolí očí, viz monocle_free)
+NOMONO = os.path.join(ROOT, 'branding', 'sova-bez-monoklu.jpg')
+LOGO = os.path.join(ROOT, 'icons', 'logo.webp')
+LOGO_NOMONO = os.path.join(ROOT, 'icons', 'logo-bez-monoklu.webp')
+# Obrázky doplňků, na kterých generátor sově monokl vynechal: rozdíl se počítá proti sově bez monoklu, jinak by holé oko a peří
+# v místě monoklu byly součástí vrstvy (a překryly by monokl i tomu, kdo ho s doplňkem nosí)
+NO_MONOCLE = {'zlaty-retez', 'srdickove-bryle', 'hulka', 'hrnek', 'mec', 'maska', 'stetoskop', 'plast', 'letecke-bryle', 'pochoden', 'vencek'}
+# Levé oko (bez monoklu) se bere také ze sovy bez monoklu, ať mají obě oči stejnou kresbu: elipsa v podílu rámu loga (střed x, y, poloosy)
+LEFT_EYE = (0.415, 0.457, 0.115, 0.07)
 LOGO_SIZE = (258, 320)
 # Vrstva má rám loga rozšířený o okraje (koruna, sluchátka a lupa přesahují obrys sovy): podíl šířky/výšky loga
 PAD = {'l': 0.34, 'r': 0.22, 't': 0.26, 'b': 0.12}
 # Doplňky v obličeji zakrývají i oči a monokl pod sebou, proto se jejich plocha vyplní celá (bez děr)
-FILL = {'bryle', 'slunecni-bryle', 'koruna', 'lab-bryle', '3d-bryle', 'helma', 'prilba', 'baret'}
+FILL = {'bryle', 'slunecni-bryle', 'koruna', 'lab-bryle', '3d-bryle', 'helma', 'prilba', 'baret',
+        'kouzelnicky-klobouk', 'piratsky-klobouk', 'vrtulka', 'cylindr', 'paska', 'letecke-bryle', 'srdickove-bryle', 'maska'}
 # Doplňky v ruce posunou na obrázku celou sovu (obdélník sovy zahrnuje i předmět): zarovná se podle čepice a hlavy
 # Doplňky, které nahrazují čepici: v místě, kde byla výchozí čepice (icons/logo-maska.webp, scripts/owl-hat-mask.py), se přebírá i hlava sovy z obrázku doplňku
-HATS = {'helma', 'prilba', 'baret'}
+HATS = {'helma', 'prilba', 'baret', 'kouzelnicky-klobouk', 'piratsky-klobouk', 'vrtulka', 'cylindr'}
 # Doplňky s pevnou částí: barvu mění jen plátno (modrá plocha), zbytek (tyčka, ruka) je v samostatné vrstvě <id>-zaklad.webp, která se nikdy nepřebarvuje
 SPLIT = {'vlajka'}
 # Nejtmavší místo stínování vlajky státu (1 = bez stínu): stín nesmí vlajku příliš ztmavit
@@ -40,6 +52,26 @@ FLAG_OVERSCAN = 0.06
 FLAG_WAVE = 1.0
 FLAG_WAVE_SCALE = 0.5
 HAND = {'vlajka', 'svitek', 'brk', 'sitka'}
+# Doplňky v ruce, které ruku kreslí jinak než výchozí sova se vztyčeným prstem (hrnek drží níž, hůlku, meč a pochodeň pěstí): výchozí ruka
+# se v aplikaci skryje maskou (icons/logo-maska-ruka.webp, scripts/owl-hat-mask.py; hidesHand v look.js) a v její ploše se z obrázku doplňku
+# převezme celá nová ruka (jako hlava u HATS)
+HAND_POSE = {'hrnek', 'hulka', 'mec', 'pochoden'}
+# Doplňky, ve kterých nesmí zůstat vínová plocha obleku nebo čepice z obrázku (nad rukávem u nové ruky, čepice pod svatozáří): v jiné barvě
+# obleku (look-robes.js) by tam zůstala vínová skvrna; vínová (fialově červená) místa se z vrstvy vynechají a je vidět oblek sovy pod ní
+ROBE_FREE = {'hrnek', 'hulka', 'mec', 'pochoden', 'svatozar'}
+# Doplňky, které obdélník sovy rozšíří do strany (plášť vlaje za ramenem): zarovná se také podle čepice a hlavy
+WIDE = {'plast'}
+# Doplňky s tmavou plochou skoro v barvě pozadí (černý klobouk, cylindr, páska přes oko, tmavá skla brýlí): za pozadí se bere jen tmavá plocha
+# souvislá s okrajem obrázku, uzavřená tmavá plocha uvnitř obrysu patří doplňku
+OUTER_BG = {'piratsky-klobouk', 'cylindr', 'paska', 'srdickove-bryle'}
+# Doplňky se zářivou svatozáří kolem sebe (svatozář, plamen pochodně, hvězda hůlky): záře je v obrázku namíchaná do tmavého pozadí, ve vrstvě
+# se z ní stane poloprůhledná barva záře (glow_alpha), jinak by na světlém pozadí byla špinavě hnědá. id → barva záře (RGB)
+GLOW = {'svatozar': (255, 214, 120), 'pochoden': (255, 176, 72), 'hulka': (255, 222, 130)}
+# Z nich předmět v ruce (hůlka, pochodeň) má i tmavá místa skoro v barvě pozadí (dřevo hůlky): pevná část je celá maska doplňku kromě
+# pixelů, které nad pozadím přesně odpovídají záři (glow_alpha, solid_all). U svatozáře je pevná jen výrazná část (kruh a jiskry).
+GLOW_SOLID = {'hulka', 'pochoden'}
+# Doplňky, které přesahují rám vrstvy doprava (cíp pláště): část za hranou rámu se vodorovně stlačí, ať se neusekne
+SQUEEZE = {'plast'}
 # Doplněk zlaté barvy na zlatém podkladu (koruna přes knoflík čepice, stuha medaile přes zlatý límec) se od původní sovy skoro neliší:
 # silnější uzavření masky, ať se přebarví celý a nezůstanou zlaté kusy. Poloměr v pixelech původního obrázku.
 # Doplňky, které sedí na zlatém knoflíku čepice: knoflík se do masky přidá (jinak by prosvítal zlatý uprostřed přebarveného doplňku)
@@ -142,20 +174,146 @@ def align(base, img, border=BORDER, hat=False):
     return warped
 
 
-def hat_zone(frame, shape, border=BORDER):
-    """Plocha výchozí čepice v souřadnicích rozšířeného plátna (z masky loga)."""
+def hat_zone(frame, shape, border=BORDER, mask='logo-maska.webp'):
+    """Plocha výchozí čepice (nebo s mask='logo-maska-ruka.webp' zvednuté ruky) v souřadnicích rozšířeného plátna (z masky loga)."""
     x0, y0, w, h = frame
-    m = np.asarray(Image.open(os.path.join(ROOT, 'icons', 'logo-maska.webp')).convert('RGBA').getchannel('A').resize((w, h), Image.LANCZOS))
+    m = np.asarray(Image.open(os.path.join(ROOT, 'icons', mask)).convert('RGBA').getchannel('A').resize((w, h), Image.LANCZOS))
     zone = np.zeros(shape[:2], np.uint8)
     zone[y0 + border:y0 + border + h, x0 + border:x0 + border + w] = (m < 128).astype(np.uint8)
     return zone
 
 
-def background_of(warped):
-    """Barva pozadí obrázku doplňku (medián okraje) a vzdálenost každého pixelu od ní."""
+def monocle_free(base, frame):
+    """Původní sova bez monoklu v souřadnicích base a měkká maska místa, které se vyměnilo (0–1).
+    Obrázek sovy bez monoklu se zarovná na původní sovu; vymění se jen monokl s řetízkem (největší souvislý rozdíl) a levé oko (LEFT_EYE),
+    zbytek zůstává z původní sovy, takže sova bez monoklu je jinak pixel po pixelu stejná (obrys, čepice, ruka)."""
+    img = np.asarray(Image.open(NOMONO).convert('RGB'))
+    warped = align(base, img, border=0)
+    diff = np.abs(warped.astype(np.int16) - base.astype(np.int16)).max(axis=2).astype(np.uint8)
+    diff = cv2.GaussianBlur(diff, (0, 0), 1.5)
+    mask = (diff > 45).astype(np.uint8)
+    mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, np.ones((3, 3), np.uint8))
+    mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (25, 25)))
+    n, labels, stats, _ = cv2.connectedComponentsWithStats(mask, 8)
+    monocle = (labels == 1 + int(np.argmax(stats[1:, cv2.CC_STAT_AREA]))).astype(np.uint8)
+    global MONOCLE_AREA
+    MONOCLE_AREA = monocle.copy()  # pro ikonu monoklu (write_monocle_icon)
+    x0, y0, w, h = frame
+    cx, cy, rx, ry = LEFT_EYE
+    cv2.ellipse(monocle, (int(x0 + cx * w), int(y0 + cy * h)), (int(rx * w), int(ry * h)), 0, 0, 360, 1, -1)
+    monocle = cv2.dilate(monocle, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (31, 31)))
+    alpha = cv2.GaussianBlur(monocle.astype(np.float32), (0, 0), 5)
+    out = base.astype(np.float32) * (1 - alpha[..., None]) + warped.astype(np.float32) * alpha[..., None]
+    return np.clip(out, 0, 255).astype(np.uint8), alpha
+
+
+MONOCLE_AREA = None
+
+
+def write_monocle_icon(base):
+    """icons/doplnky/monokl-ikona.webp (ikona volby Monokl v Nastavení → Mudrlant): z původní sovy zlaté obroučky a řetízek monoklu
+    (zlaté pixely v místě, kde se sova bez monoklu liší), s vyplněným sklem a tmavým obrysem kolem."""
+    hsv = cv2.cvtColor(base, cv2.COLOR_RGB2HSV).astype(np.int16)
+    gold = (hsv[..., 0] >= 8) & (hsv[..., 0] <= 34) & (hsv[..., 1] > 90) & (hsv[..., 2] > 80) & (MONOCLE_AREA > 0)
+    gold = cv2.morphologyEx(gold.astype(np.uint8), cv2.MORPH_CLOSE, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (9, 9)))
+    gold = cv2.morphologyEx(gold, cv2.MORPH_CLOSE, cv2.getStructuringElement(cv2.MORPH_RECT, (3, 31)))  # řetízek (kuličky pod sebou)
+    n, labels, stats, _ = cv2.connectedComponentsWithStats(gold, 8)
+    big = np.zeros_like(gold)
+    for i in range(1, n):
+        if stats[i, cv2.CC_STAT_AREA] >= 150:
+            big[labels == i] = 1
+    flood = (1 - big).astype(np.uint8)
+    cv2.floodFill(flood, np.zeros((flood.shape[0] + 2, flood.shape[1] + 2), np.uint8), (0, 0), 2)
+    shape = cv2.dilate(((flood != 2)).astype(np.uint8), cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (13, 13)))
+    alpha = cv2.GaussianBlur(shape.astype(np.float32), (0, 0), 1.5)
+    ys, xs = np.nonzero(shape)
+    pad = 12
+    box = (xs.min() - pad, ys.min() - pad, xs.max() + pad, ys.max() + pad)
+    rgba = np.dstack([base.astype(np.float32), alpha * 255]).astype(np.uint8)[box[1]:box[3], box[0]:box[2]]
+    img = Image.fromarray(rgba, 'RGBA')
+    side = max(img.size)
+    sq = Image.new('RGBA', (side, side), (0, 0, 0, 0))
+    sq.alpha_composite(img, ((side - img.width) // 2, (side - img.height) // 2))
+    path = os.path.join(OUT, 'monokl-ikona.webp')
+    sq.resize((96, 96), Image.LANCZOS).save(path, 'WEBP', quality=92, alpha_quality=100, method=6)
+    print('ikona monoklu', path)
+
+
+def write_logo_nomono(base, frame):
+    """icons/logo-bez-monoklu.webp: logo sovy, ve kterém se místo monoklu (a levé oko) nahradí sovou bez monoklu zmenšenou na rám loga
+    s měkkým přechodem. Mimo vyměněné místo je logo beze změny (průhlednost je vždy z loga). Přičíst jen rozdíl obou sov nestačí: i při
+    přesném měřítku by po monoklu zůstal slabý stín (logo vzniklo převzorkováním v prohlížeči, ne prostým zmenšením)."""
+    nomono, alpha = monocle_free(base, frame)
+    x0, y0, w, h = frame
+    logo = Image.open(LOGO).convert('RGBA')
+    size = logo.size
+    # Logo má výšku 320 px a šířku zaokrouhlenou nahoru (scripts/render-app-icons.js): měřítko je stejné v obou směrech, takže se
+    # zmenšuje výřez o šířce size[0] / měřítko (o kousek širší než rám); jinak by se obrysy monoklu o půl pixelu minuly a zůstal by jeho stín
+    span = size[0] * h / size[1]
+    small = lambda arr: np.asarray(Image.fromarray(arr[y0:y0 + h, x0:x0 + int(np.ceil(span)) + 1]).resize(size, Image.LANCZOS, box=(0, 0, span, h))).astype(np.float32)
+    a = small((alpha * 255).astype(np.uint8)) / 255
+    rgba = np.asarray(logo).astype(np.float32)
+    rgba[..., :3] = rgba[..., :3] * (1 - a[..., None]) + small(nomono) * a[..., None]
+    Image.fromarray(rgba.round().astype(np.uint8), 'RGBA').save(LOGO_NOMONO, 'WEBP', quality=90, alpha_quality=100, method=6)
+    print('logo bez monoklu', LOGO_NOMONO)
+    return nomono
+
+
+def background_of(warped, outer=False):
+    """Barva pozadí obrázku doplňku (medián okraje) a vzdálenost každého pixelu od ní. S outer (OUTER_BG) je pozadím jen tmavá plocha
+    souvislá s okrajem obrázku: uzavřená tmavá plocha (černý klobouk, páska přes oko) dostane velkou vzdálenost, ať se nezahodí."""
     border_px = np.concatenate([warped[:8].reshape(-1, 3), warped[-8:].reshape(-1, 3), warped[:, :8].reshape(-1, 3), warped[:, -8:].reshape(-1, 3)])
     bgc = np.median(border_px.reshape(-1, 3), axis=0)
-    return np.sqrt(((warped.astype(np.float32) - bgc) ** 2).sum(axis=2))
+    away = np.sqrt(((warped.astype(np.float32) - bgc) ** 2).sum(axis=2))
+    if outer:
+        bgish = (away < 28).astype(np.uint8)
+        n, labels, stats, _ = cv2.connectedComponentsWithStats(bgish, connectivity=4)
+        h, w = bgish.shape
+        edge = (stats[:, 0] == 0) | (stats[:, 1] == 0) | (stats[:, 0] + stats[:, 2] >= w) | (stats[:, 1] + stats[:, 3] >= h)
+        away = np.where((bgish > 0) & ~edge[labels], 255.0, away)
+    return away
+
+
+def glow_alpha(base, warped, keep, away, color, solid_all=False):
+    """Záře kolem doplňku (GLOW): pevná část (výrazně odlišná od pozadí, s tmavým obrysem kolem) zůstane neprůhledná, okolí masky nad pozadím
+    se rozloží na barvu záře s průhledností: pozorovaná barva = pozadí · (1 − α) + záře · α. Nad sovou se záře vynechá (obrys čepice
+    v obrázku doplňku leží o pixel jinde a rozklad by z něj udělal šmouhu). Se solid_all je pevná celá maska kromě pixelů,
+    které rozklad na záři vysvětlí (odchylka do 16, aspoň trocha záře): tmavé dřevo hůlky tak zůstane, i když se od pozadí skoro neliší.
+    Vrací pevnou část (0/1), průhlednost záře (0–1) a plochu záře v souřadnicích rozšířeného plátna."""
+    g = np.array(color, np.float32)
+    behind = base.astype(np.float32)
+    seen = warped.astype(np.float32)
+    d = g - behind
+    a = np.clip(((seen - behind) * d).sum(axis=2) / np.maximum((d * d).sum(axis=2), 1.0), 0, 1)
+    base_bg = background_of(base) < 28
+    if solid_all:
+        residual = np.sqrt(((seen - behind - a[..., None] * d) ** 2).sum(axis=2))
+        glowish = (away < 150) & (residual < 16) & (a > 0.06)  # i nad sovou: čepice jen zabarvená září zůstane z loga
+        solid = ((keep > 0) & ~glowish).astype(np.uint8)
+        solid = cv2.morphologyEx(solid, cv2.MORPH_OPEN, np.ones((3, 3), np.uint8))
+    else:
+        # výrazná místa (kruh, jiskry, světlý okraj) a k nim jen tmavý obrys těsně vedle; zářením zabarvená čepice pod kruhem se nebere
+        strong = cv2.morphologyEx((away > 150).astype(np.uint8), cv2.MORPH_OPEN, np.ones((3, 3), np.uint8))
+        strong = cv2.morphologyEx(strong, cv2.MORPH_CLOSE, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (15, 15)))
+        dark = (cv2.cvtColor(warped, cv2.COLOR_RGB2HSV)[..., 2] < 90).astype(np.uint8)
+        solid = (strong | (cv2.dilate(strong, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (11, 11))) & dark)) & keep
+        # nad sovou jen to, co se od ní výrazně liší (kruh, jeho obrys); čepice jen zabarvená září zůstane z loga
+        far = np.abs(seen - behind).max(axis=2) > 85
+        solid &= (base_bg | far).astype(np.uint8)
+        # uvnitř kruhu (největší souvislá plocha) není nic z obrázku doplňku ani záře: je tam vidět sova pod ním (knoflík čepice)
+        n, labels, stats, _ = cv2.connectedComponentsWithStats(solid, 8)
+        ring = (labels == 1 + int(np.argmax(stats[1:, cv2.CC_STAT_AREA]))).astype(np.uint8)
+        flood = (1 - ring).astype(np.uint8)
+        cv2.floodFill(flood, np.zeros((flood.shape[0] + 2, flood.shape[1] + 2), np.uint8), (0, 0), 2)
+        inner = flood == 1
+        solid &= (~inner).astype(np.uint8)
+    zone = (cv2.dilate(keep, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (61, 61))) > 0) & base_bg
+    if not solid_all:
+        zone &= ~inner
+    glow = zone & (solid == 0)
+    a = np.where(glow, cv2.GaussianBlur(a, (0, 0), 1.0), 0)
+    a = np.where(a < 0.04, 0, a)
+    return solid, a, glow
 
 
 def regions_of(base, warped, away):
@@ -269,7 +427,7 @@ def hull_top(keep, away, warped, top=0.6):
     return out
 
 
-def extract(base, warped, fill=False, border=BORDER, close=9, knob=False, zone=None, hull=None, mode=None):
+def extract(base, warped, fill=False, border=BORDER, close=9, knob=False, zone=None, hull=None, mode=None, outer=False):
     base = cv2.copyMakeBorder(base, border, border, border, border, cv2.BORDER_REPLICATE)
     diff = np.abs(warped.astype(np.int16) - base.astype(np.int16)).max(axis=2).astype(np.uint8)
     diff = cv2.GaussianBlur(diff, (0, 0), 1.2)
@@ -292,7 +450,7 @@ def extract(base, warped, fill=False, border=BORDER, close=9, knob=False, zone=N
         gold = cv2.dilate(gold.astype(np.uint8), np.ones((9, 9), np.uint8))
         keep = np.maximum(keep, gold)
     # tam, kde je v obrázku doplňku jen pozadí, doplněk není (nic se nepřekrývá tmavou barvou pozadí)
-    away = background_of(warped)
+    away = background_of(warped, outer)
     keep = np.where(away < 28, 0, keep).astype(np.uint8)
     protect = np.zeros_like(keep)
     if mode == 'hat':
@@ -315,6 +473,44 @@ def extract(base, warped, fill=False, border=BORDER, close=9, knob=False, zone=N
     return keep, diff, protect
 
 
+def squeeze_right(frame, mask, arrays, border=BORDER):
+    """Část doplňku za pravou hranou rámu vrstvy (cíp pláště) se vodorovně stlačí: sloupce od `start` po poslední sloupec masky se namapují
+    do pásu od `start` po hranu rámu (start je dvakrát tak daleko před hranou, jak daleko za ni maska sahá). Vrací pole ve stejném pořadí."""
+    x0, y0, w, h = frame
+    edge = x0 + border + w + int(round(PAD['r'] * w)) - 4
+    last = int(np.nonzero(mask.any(axis=0))[0].max())
+    if last <= edge:
+        return arrays
+    start = edge - 2 * (last - edge)
+    xs = np.arange(mask.shape[1], dtype=np.float32)
+    src = np.where(xs < start, xs, start + (xs - start) * (last - start) / (edge - start))
+    src = np.where(xs > edge, last + 2 + (xs - edge), src).astype(np.float32)
+    map_x = np.repeat(src[None, :], mask.shape[0], axis=0)
+    map_y = np.repeat(np.arange(mask.shape[0], dtype=np.float32)[:, None], mask.shape[1], axis=1)
+    print(f'stlačení: sloupce {start}–{last} → {start}–{edge}')
+    return [cv2.remap(a, map_x, map_y, cv2.INTER_LINEAR if a.ndim == 3 else cv2.INTER_NEAREST, borderMode=cv2.BORDER_CONSTANT, borderValue=0) for a in arrays]
+
+
+def robe_pixels(warped):
+    """Vínová místa obleku a čepice (odstín do fialova, modrá složka nad zelenou, střední jas); plamen a dřevo jsou do oranžova, ty zůstanou."""
+    hsv = cv2.cvtColor(warped, cv2.COLOR_RGB2HSV).astype(np.int16)
+    rgb = warped.astype(np.int16)
+    robe = (hsv[..., 0] >= 158) & (hsv[..., 1] > 90) & (hsv[..., 2] >= 80) & (rgb[..., 2] > rgb[..., 1])
+    return cv2.morphologyEx(robe.astype(np.uint8), cv2.MORPH_OPEN, np.ones((3, 3), np.uint8)) > 0
+
+
+def hand_pixels(warped, zone):
+    """Ruka sovy převzatá z obrázku doplňku (HAND_POSE): zlatohnědé peří (odstín v Lab 35–100°) v ploše výchozí ruky a kousek kolem ní.
+    Při přebarvení doplňku (recolor_layer, protect) zůstane v barvě sovy; zlaté části předmětu v ruce (rukojeť pochodně, záštita meče)
+    zůstanou zlaté také, přebarví se zbytek (plamen, čepel, hrnek, hvězda hůlky)."""
+    lab = cv2.cvtColor(warped.astype(np.float32) / 255, cv2.COLOR_RGB2Lab)
+    chroma = np.hypot(lab[..., 1], lab[..., 2])
+    hue = np.degrees(np.arctan2(lab[..., 2], lab[..., 1]))
+    feather = (chroma > 12) & (hue >= 35) & (hue <= 100)
+    near = cv2.dilate(zone, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (81, 81))) > 0
+    return (feather & near).astype(np.uint8)
+
+
 def bleed_colors(rgb, mask, reach=5):
     """Pixely těsně vně masky dostanou barvu nejbližšího pixelu uvnitř: měkký okraj průhlednosti pak nemíchá barvu doplňku s tmavým pozadím obrázku
     (jinak by kolem doplňku zůstal tmavý až šedý lem, který se při přebarvení ukáže)."""
@@ -328,11 +524,14 @@ def bleed_colors(rgb, mask, reach=5):
     return out
 
 
-def layer(base, warped, mask, frame, border=BORDER, protect=None, bleed=False):
-    """Vrstva doplňku v rámu loga. S `protect` (plochy sovy ve vrstvě, které se nesmí přebarvit) vrací i jeho výřez stejné velikosti (0–255)."""
+def layer(base, warped, mask, frame, border=BORDER, protect=None, bleed=False, glow=None):
+    """Vrstva doplňku v rámu loga. S `protect` (plochy sovy ve vrstvě, které se nesmí přebarvit) vrací i jeho výřez stejné velikosti (0–255).
+    S `glow` (pevná část, průhlednost záře, barva záře; viz glow_alpha) se pevná část položí přes poloprůhlednou záři."""
     x0, y0, w, h = frame
     l, r, t, b = (int(round(PAD[k] * (w if k in 'lr' else h))) for k in 'lrtb')
     x0, y0 = x0 + border, y0 + border
+    if glow is not None:
+        mask = glow[0]
     m = cv2.dilate(mask, np.ones((3, 3), np.uint8))
     alpha = cv2.GaussianBlur(m.astype(np.float32), (0, 0), 1.0)
     alpha = np.clip(alpha * 1.4, 0, 1)
@@ -342,6 +541,12 @@ def layer(base, warped, mask, frame, border=BORDER, protect=None, bleed=False):
         sl = (slice(y0 - t, y0 + h + b), slice(x0 - l, x0 + w + r))
         color = warped.copy()
         color[sl] = bleed_colors(warped[sl], mask[sl])
+    if glow is not None:
+        # pevná část přes záři (skládání „over“): barva je vážený průměr podle průhledností
+        _, ga, gcolor = glow
+        total = alpha + ga * (1 - alpha)
+        mix = (color.astype(np.float32) * alpha[..., None] + np.array(gcolor, np.float32) * (ga * (1 - alpha))[..., None]) / np.maximum(total, 1e-6)[..., None]
+        color, alpha = np.clip(mix, 0, 255), total
     rgba = np.dstack([color.astype(np.float32), alpha * 255]).astype(np.uint8)
     crop = rgba[y0 - t:y0 + h + b, x0 - l:x0 + w + r]
     img = Image.fromarray(crop, 'RGBA')
@@ -496,12 +701,12 @@ LAB_COLORS = {
     'ruzova': (350, 0.85, 10, 1.0),
     'cerna': None,  # bez chroma a tmavší: stínování zůstane
 }
-TINT = {'knir': 1.0, 'mikrofon': 1.0, 'metr': 0.7, 'brk': 1.2, 'svitek': 0.6, 'kompas': 0.65, 'sitka': 0.5, 'lab-bryle': 0.9}
+TINT = {'knir': 1.0, 'mikrofon': 1.0, 'metr': 0.7, 'brk': 1.2, 'svitek': 0.6, 'kompas': 0.65, 'sitka': 0.5, 'lab-bryle': 0.9, 'mec': 0.7, 'stetoskop': 0.5}
 # Z nich krémový papír, brk a síť se koloruje celý (krémová je jejich plocha); u ostatních zůstává krémová vždy (nálepkový okraj, bílá nenasycená)
 CREAM_TINT = {'brk', 'svitek', 'kompas', 'sitka', 'lab-bryle'}
 TINT_DEFAULT = 0.0
-# Doplňky s tmavou výplní (inkoust v kalamáři): tlustá tmavá plocha (ne tenký obrys) se přebarví také
-DARKFILL = {'brk'}
+# Doplňky s tmavou výplní (inkoust v kalamáři, černý cylindr a pirátský klobouk, páska přes oko): tlustá tmavá plocha (ne tenký obrys) se přebarví také
+DARKFILL = {'brk', 'cylindr', 'piratsky-klobouk', 'paska'}
 
 
 def smooth(x, a, b):
@@ -607,26 +812,48 @@ def icon_of(img):
 
 def main(ids):
     os.makedirs(OUT, exist_ok=True)
-    base = load_base()
-    frame = logo_frame(base)
+    original = load_base()
+    frame = logo_frame(original)
     print('rám loga', frame)
+    nomono = None
+    if '--logo' in ids:
+        nomono = write_logo_nomono(original, frame)
+        write_monocle_icon(original)
+        ids = ids - {'--logo'}
+        if not ids:
+            return
     files = sorted(glob.glob(os.path.join(SRC, '*.jpg')))
     for f in files:
         name = os.path.splitext(os.path.basename(f))[0]
         if ids and name not in ids:
             continue
+        # sova bez monoklu na obrázku: rozdíl proti sově bez monoklu (jen jednou za běh, zarovnání je pomalé)
+        if name in NO_MONOCLE and nomono is None:
+            nomono, _ = monocle_free(original, frame)
+        base = nomono if name in NO_MONOCLE else original
         img = np.asarray(Image.open(f).convert('RGB'))
         cache = os.path.join(os.environ['WARP_CACHE'], name + '.npy') if os.environ.get('WARP_CACHE') else None  # jen pro ladění: zarovnání je pomalé
         if cache and os.path.exists(cache):
             warped = np.load(cache)
         else:
-            warped = align(base, img, hat=name in HAND)
+            warped = align(base, img, hat=name in HAND or name in WIDE)
             if cache:
                 os.makedirs(os.path.dirname(cache), exist_ok=True)
                 np.save(cache, warped)
-        mask, diff, protect = extract(base, warped, fill=name in FILL, close=CLOSE.get(name, 9), knob=name in KNOB, zone=hat_zone(frame, warped.shape) if name in HATS else None,
-                                      hull=HULL.get(name), mode=MODE.get(name))
-        out, protect_layer = layer(base, warped, mask, frame, protect=protect, bleed=name not in SPLIT)
+        mask, diff, protect = extract(base, warped, fill=name in FILL, close=CLOSE.get(name, 9), knob=name in KNOB, zone=hat_zone(frame, warped.shape) if name in HATS else hat_zone(frame, warped.shape, mask='logo-maska-ruka.webp') if name in HAND_POSE else None,
+                                      hull=HULL.get(name), mode=MODE.get(name), outer=name in OUTER_BG)
+        if name in SQUEEZE:
+            warped, mask, protect = squeeze_right(frame, mask, [warped, mask, protect])
+        if name in ROBE_FREE:
+            mask = np.where(robe_pixels(warped), 0, mask).astype(np.uint8)
+        if name in HAND_POSE:
+            protect = np.maximum(protect, hand_pixels(warped, hat_zone(frame, warped.shape, mask='logo-maska-ruka.webp')))
+        glow = None
+        if name in GLOW:
+            ext = cv2.copyMakeBorder(base, BORDER, BORDER, BORDER, BORDER, cv2.BORDER_REPLICATE)
+            solid, alpha_glow, _ = glow_alpha(ext, warped, mask, background_of(warped, name in OUTER_BG), GLOW[name], solid_all=name in GLOW_SOLID)
+            glow = (solid, alpha_glow, GLOW[name])
+        out, protect_layer = layer(base, warped, mask, frame, protect=protect, bleed=name not in SPLIT, glow=glow)
         if name in SPLIT:
             out, fixed, inner = split_cloth(out)
             save_webp(fixed, os.path.join(OUT, name + '-zaklad.webp'))

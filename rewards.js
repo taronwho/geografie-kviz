@@ -1,7 +1,7 @@
 // Odměny, které lákají hrát dál (bez peněz, nic se nekupuje):
 // - Truhla Mudrlanta: za všechny tři cíle týdne (goals.js) jedna truhla. Vždy v ní je věc pro Mudrlanta, kterou hráč ještě nemá:
 //   doplněk, barva doplňků, rámeček, talár nebo barevné téma z look.js – z věcí, které by jinak odemkl až vyšší úrovní (nejbližších
-//   NEAREST takových). Občas (RARE_CHANCE) místo ní vzácná věc, která jde získat jen z truhly (look.js chest: true, obrázkové rámečky).
+//   NEAREST takových). Občas (RARE_CHANCE) místo ní vzácná věc, která jde získat jen z truhly (look.js rare: true, obrázkové rámečky).
 //   Věci za odznaky (turnaje, zběhlost v tématu) truhla nedává, ty patří k úspěchu. K tomu ochrana série, dokud jich
 //   hráč nemá plný počet. Když už má všechno, dá CHEST_XP XP. Každá věc nejvýš jednou (žádné duplicity).
 // - Ochrana série: nejvýš MAX_FREEZES. Z truhly a za každých 7 dní v řadě dnešních otázek (některého tématu) nebo Kvízu dne (nejvýš
@@ -119,25 +119,27 @@
         if (!isDay(week) || s.chests[week] || s.ready.includes(week)) return s;
         return { ...s, ready: [...s.ready, week].sort().slice(-LIMITS.ready) };
     };
-    // Kandidáti do truhly: věci odemykané úrovní (ne odznakem), které hráč ještě nemá; od těch, které by odemkl nejdřív.
-    // ctx = { level, badges } jako u look.js
+    // Kandidáti do truhly: věci odemykané úrovní (ne odznakem) a věci jen z truhly (chest v look.js), které hráč ještě nemá; od těch,
+    // které by odemkl nejdřív. Věc jen z truhly se řadí podle svého čísla chest, jako by se odemykala na té úrovni (když už ji hráč
+    // přerostl, je mezi nejbližšími, dokud ji nedostane). ctx = { level, badges } jako u look.js
+    const giftRank = (item) => item.chest || item.level || 1;
     const candidates = (state, ctx) => {
         const s = parse(state);
         if (!Look) return [];
         return GIFT_CATEGORIES.flatMap(category => (Look.CATALOG[category] || [])
             // noGift: odměna jen za svůj cíl (Bílý talár až na úrovni 100), truhla ani sezóna ji nedají dřív;
-            // chest: vzácný dárek jen z truhly (rareCandidates), mezi běžné věci (ani do Sezóny) nepatří
-            .filter(item => !item.badge && !item.noGift && !item.chest && (item.level || 1) > 1 && !s.gifts[category].includes(item.id) && !Look.isUnlocked(item, { ...ctx, gifts: null }))
+            // rare: vzácný dárek jen z truhly (rareCandidates), mezi běžné věci (ani do Sezóny) nepatří
+            .filter(item => !item.badge && !item.noGift && !item.league && !item.rare && (item.chest || (item.level || 1) > 1) && !s.gifts[category].includes(item.id) && !Look.isUnlocked(item, { ...ctx, gifts: null }))
             .map(item => ({ category, item })))
-            .sort((a, b) => a.item.level - b.item.level || GIFT_CATEGORIES.indexOf(a.category) - GIFT_CATEGORIES.indexOf(b.category));
+            .sort((a, b) => giftRank(a.item) - giftRank(b.item) || GIFT_CATEGORIES.indexOf(a.category) - GIFT_CATEGORIES.indexOf(b.category));
     };
-    // Vzácné věci jen z truhly (look.js chest: true, např. obrázkové rámečky Duha s mráčky a Růže a trny), které hráč ještě nemá.
+    // Vzácné věci jen z truhly (look.js rare: true, např. obrázkové rámečky Duha s mráčky a Růže a trny), které hráč ještě nemá.
     // Truhla dá některou z nich s pravděpodobností RARE_CHANCE místo běžné věci, a když běžné věci došly, určitě (než začne dávat XP).
     const RARE_CHANCE = 0.1;
     const rareCandidates = (state) => {
         const s = parse(state);
         if (!Look) return [];
-        return GIFT_CATEGORIES.flatMap(category => (Look.CATALOG[category] || []).filter(item => item.chest && !s.gifts[category].includes(item.id)).map(item => ({ category, item })));
+        return GIFT_CATEGORIES.flatMap(category => (Look.CATALOG[category] || []).filter(item => item.rare && !s.gifts[category].includes(item.id)).map(item => ({ category, item })));
     };
     // Výběr věci: vzácná (viz výše), jinak los z NEAREST nejbližších, jiný druh než minulá truhla, když to jde.
     // Hod na vzácnou věc je vysoké číslo (rng() ≥ 1 − RARE_CHANCE), takže rng = () => 0 dá vždy běžnou věc jako dřív.
@@ -346,9 +348,9 @@
     const chestHtml = ({ opened = null } = {}, h = {}) => {
         const result = opened ? (opened.gift ? `
             <div data-chest-reveal class="chest-show-1 relative z-10 flex flex-col items-center gap-1 text-center">
-                <p class="text-[11px] font-black uppercase tracking-widest text-gold-300">${opened.gift.item.chest ? 'Vzácný ' : ''}${esc(KIND_NAMES[opened.gift.category])}</p>
+                <p class="text-[11px] font-black uppercase tracking-widest text-gold-300">${opened.gift.item.rare ? 'Vzácný ' : ''}${esc(KIND_NAMES[opened.gift.category])}</p>
                 <p data-chest-item class="text-2xl font-black leading-tight text-white">${esc(opened.gift.item.title)}</p>
-                <p class="text-xs font-semibold leading-snug text-white/80">${opened.gift.item.chest ? 'Vzácný dárek, který jde získat jen z truhly. Teď je tvůj.' : `Jinak by se odemkl až na úrovni ${opened.gift.item.level}. Teď je tvůj.`}</p>
+                <p class="text-xs font-semibold leading-snug text-white/80">${opened.gift.item.rare ? 'Vzácný dárek, který jde získat jen z truhly. Teď je tvůj.' : opened.gift.item.chest ? 'Tahle věc je jen v Truhle Mudrlanta. Teď je tvoje.' : `Jinak by se odemkl až na úrovni ${opened.gift.item.level}. Teď je tvůj.`}</p>
             </div>` : `
             <div data-chest-reveal class="chest-show-1 relative z-10 flex flex-col items-center gap-1 text-center">
                 <p data-chest-item class="text-3xl font-black text-gold-300">+${opened.xp} XP</p>

@@ -6,8 +6,8 @@
     const Look = window.MudrlantLook;
     if (!Look) return;
     const ROBE_IDS = Look.ROBES.map(robe => robe.id).filter(id => id !== 'vinova');
-    // Pózy sovy včetně sov titulů (sova-titul-1 … 11)
-    const OWL_SRC = /^(icons\/(?:logo|topics\/sova-[a-z0-9-]+?))(?:-(?:zelena|modra|ruzova|fialova|cerna|zlata|bila))?\.webp$/;
+    // Pózy sovy včetně sov titulů (sova-titul-1 … 11) a logo bez monoklu (icons/logo-bez-monoklu.webp, look-owl.js)
+    const OWL_SRC = /^(icons\/(?:logo(?:-bez-monoklu)?|topics\/sova-[a-z0-9-]+?))(?:-(?:zelena|modra|ruzova|fialova|cerna|zlata|bila))?\.webp$/;
     const owlSrc = (src, robe) => {
         const match = OWL_SRC.exec(src || '');
         return match ? `${match[1]}${robe && robe !== 'vinova' ? `-${robe}` : ''}.webp` : null;

@@ -53,7 +53,7 @@
         // Sezónní rámečky (exclusive) jen ty, které hráč má: zamčených by byla dlouhá řada a získat jdou jen v sezóně svého měsíce
         const tiles = Look.FRAMES.filter(item => !item.exclusive || Look.isUnlocked(item, ctx) || item.id === selected).map(item => {
             const unlocked = Look.isUnlocked(item, ctx);
-            const label = unlocked || item.id === 'zadny' ? (SHORT[item.id] || item.title) : (item.league ? 'Ligová sezóna' : item.badge ? 'Odznak' : item.exclusive ? 'Sezóna' : item.chest ? 'Truhla' : `Úr. ${item.level}`);
+            const label = unlocked || item.id === 'zadny' ? (SHORT[item.id] || item.title) : (item.league ? 'Ligová sezóna' : item.badge ? 'Odznak' : item.exclusive ? 'Sezóna' : item.chest || item.rare ? 'Truhla' : `Úr. ${item.level}`);
             const text = unlocked ? item.title : `${item.title}: ${Look.unlockText(item, item.badge ? badgeTitle(item.badge) : null)}`;
             // Obrázkový prsten je dvakrát širší než obrázek hráče (i po zmenšení .frame-art): v dlaždici je obrázek menší, ať se celý prsten i s ozdobami vejde
             return `<button type="button" data-frame="${item.id}" aria-pressed="${item.id === selected}" aria-label="${escapeHtml(unlocked ? item.title : `${text} (zamčeno)`)}" title="${escapeHtml(text)}" class="flex h-11 w-11 shrink-0 snap-start items-center justify-center rounded-xl border-2 active:scale-95 ${item.id === selected ? 'border-brand-600 bg-brand-50 dark:bg-brand-900/40' : 'border-transparent bg-slate-100 dark:bg-slate-700/60'} ${unlocked ? '' : 'opacity-50 grayscale'}">

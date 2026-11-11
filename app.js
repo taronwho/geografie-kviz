@@ -6289,7 +6289,11 @@
         if (!top) return;
         const when = cache.bestMonth && cache.best === fresh[0].league ? ` (${LeagueSeasons.monthLabel(cache.bestMonth)})` : '';
         const more = fresh.length - 1;
-        showCelebration('vitez', 'Nová odměna', `Rámeček ${top.title}${when}${more ? ` a ${more} další` : ''} – vyber si ${more ? 'je' : 'ho'} v ${rewardPlace('frames')}`, 'badge',
+        // Doplňky za ligovou sezónu (look.js league, Pochodeň vítěze za Diamant) se odemknou se stejnou ligou
+        const items = (Look.ACCESSORIES || []).filter(item => item.league && fresh.some(reward => reward.league === item.league));
+        const extra = items.length ? ` a doplněk ${items.map(item => item.title).join(', ')}` : '';
+        const place = items.length ? `${rewardPlace('frames')} a ${rewardPlace('accessories')}` : rewardPlace('frames');
+        showCelebration('vitez', 'Nová odměna', `Rámeček ${top.title}${when}${more ? ` a ${more} další` : ''}${extra} – vyber si ${more || items.length ? 'je' : 'ho'} v ${place}`, 'badge',
             framePreview(top.id, 'h-16 w-16 text-3xl -my-1 ml-1'));
     };
     // Sezóny ze serveru (nejvýš jednou za 5 minut, force po ohodnocené výzvě): nejlepší liga se zapamatuje v zařízení (rámečky platí i bez připojení)

@@ -79,9 +79,9 @@ test('obrázkové rámečky: deset, pět za úroveň (35–95, každý na jiné 
     for (const item of ART) assert.equal(Social.cleanFrame(item.id), item.id, 'id projde profiles_frame_format i Social.cleanFrame');
     const byLevel = ART.filter(item => item.level);
     const byBadge = ART.filter(item => item.badge);
-    const fromChest = ART.filter(item => item.chest);
+    const fromChest = ART.filter(item => item.rare);
     assert.deepEqual([byLevel.length, byBadge.length, fromChest.length], [5, 3, 2]);
-    assert.ok(ART.every(item => [item.level, item.badge, item.chest].filter(Boolean).length === 1), 'každý jen jedním způsobem');
+    assert.ok(ART.every(item => [item.level, item.badge, item.rare].filter(Boolean).length === 1), 'každý jen jedním způsobem');
     // Úrovně: vysoké, rostou, žádná jiná odměna (téma, talár, doplněk, postavička…) ani nová sova titulu na stejné úrovni
     const levels = byLevel.map(item => item.level);
     assert.deepEqual(levels, [...levels].sort((a, b) => a - b));

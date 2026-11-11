@@ -119,15 +119,15 @@ test('sova jako obrázek profilu', { skip: !chromium && 'Playwright není nainst
         assert.equal(await one.tab.evaluate(() => document.querySelector('[data-avatar-strip]').firstElementChild === document.querySelector('[data-pick-owl]')), true, 'dlaždice je první');
         assert.equal(await one.tab.getAttribute('[data-pick-owl]', 'aria-label'), 'Sova Mudrlant');
         assert.equal(await one.tab.getAttribute('[data-pick-owl]', 'aria-pressed'), 'false');
-        assert.equal(await one.tab.getAttribute('[data-pick-owl] img[data-keep]', 'src'), 'icons/logo-zelena.webp');
-        assert.ok(await one.tab.locator('[data-pick-owl] img[src="icons/doplnky/bryle.webp"]').count(), 'náhled má brýle');
+        assert.equal(await one.tab.getAttribute('[data-pick-owl] img[data-keep]', 'src'), 'icons/logo-bez-monoklu-zelena.webp');
+        assert.ok(await one.tab.locator('[data-pick-owl] img[src="icons/doplnky/bryle.webp"]').count(), 'náhled má brýle (a sova pod nimi monokl nemá)');
         await shot(one.tab, 'owl-avatar-profil-pred.png');
         await one.tab.click('[data-pick-owl]');
         await one.tab.waitForSelector('[data-pick-owl][aria-pressed="true"]');
         assert.equal(await one.tab.locator('[data-pick-avatar][aria-pressed="true"]').count(), 0, 'emoji není vybrané');
         // Hlavička okna už ukazuje sovu v kruhu s barvou hráče
-        assert.equal(await one.tab.locator('#settings-overlay > div > div:first-child span.rounded-full img[data-keep][src="icons/logo-zelena.webp"]').count(), 1);
-        assert.equal(await one.tab.locator('[data-look="frames"] [data-frame] img[data-keep][src="icons/logo-zelena.webp"]').count(), await one.tab.evaluate(() => window.MudrlantLook.FRAMES.filter(item => !item.exclusive).length), 'náhledy rámečků ukazují vybraný obrázek (všechny rámečky v řadě)');
+        assert.equal(await one.tab.locator('#settings-overlay > div > div:first-child span.rounded-full img[data-keep][src="icons/logo-bez-monoklu-zelena.webp"]').count(), 1);
+        assert.equal(await one.tab.locator('[data-look="frames"] [data-frame] img[data-keep][src="icons/logo-bez-monoklu-zelena.webp"]').count(), await one.tab.evaluate(() => window.MudrlantLook.FRAMES.filter(item => !item.exclusive).length), 'náhledy rámečků ukazují vybraný obrázek (všechny rámečky v řadě)');
         assert.equal(await fits(one.tab), true, 'okno Profil bez posouvání');
         await shot(one.tab, 'owl-avatar-profil-vybrano.png');
         assert.equal(db.profiles['u-1'].owl, null, 'nic se neuložilo před Uložit');
@@ -136,7 +136,7 @@ test('sova jako obrázek profilu', { skip: !chromium && 'Playwright není nainst
         assert.equal(db.profiles['u-1'].owl, 'robe=zelena;face=bryle.original');
         assert.equal(db.profiles['u-1'].avatar, '🦉', 'záloha pro starší aplikaci');
         await one.tab.click('#settings-overlay [data-close]');
-        await one.tab.waitForSelector('#btn-settings img[data-keep][src="icons/logo-zelena.webp"]');
+        await one.tab.waitForSelector('#btn-settings img[data-keep][src="icons/logo-bez-monoklu-zelena.webp"]');
         assert.equal(await one.tab.locator('#btn-settings').evaluate(button => button.textContent.trim()), '', 'v tlačítku není emoji');
 
         // Druhý hráč (jiný oblek, jiná barva) vidí sovu hráčky 1 tak, jak ji nastavila; příchozí výzva ji ukáže u tvůrce
@@ -144,9 +144,9 @@ test('sova jako obrázek profilu', { skip: !chromium && 'Playwright není nainst
         await two.tab.click('[data-action="home-tab"][data-tab="multi"]');
         await two.tab.waitForSelector('#challenges-section [data-player-id="u-1"]');
         const seen = await two.tab.$$eval('#challenges-section [data-player-id="u-1"] img', nodes => nodes.map(node => [node.getAttribute('src'), node.hasAttribute('data-keep')]));
-        assert.deepEqual(seen, [['icons/logo-zelena.webp', true], ['icons/doplnky/bryle.webp', true]]);
+        assert.deepEqual(seen, [['icons/logo-bez-monoklu-zelena.webp', true], ['icons/doplnky/bryle.webp', true]]);
         await two.tab.waitForTimeout(300);
-        assert.equal(await two.tab.getAttribute('#challenges-section [data-player-id="u-1"] img', 'src'), 'icons/logo-zelena.webp', 'pozorovatel look-robes.js cizí sovu nepřebarví na můj modrý oblek');
+        assert.equal(await two.tab.getAttribute('#challenges-section [data-player-id="u-1"] img', 'src'), 'icons/logo-bez-monoklu-zelena.webp', 'pozorovatel look-robes.js cizí sovu nepřebarví na můj modrý oblek');
         assert.equal(await two.tab.locator('#btn-settings img[data-keep]').count(), 0, 'druhý hráč má v tlačítku své emoji');
         await shot(two.tab, 'owl-avatar-cizi-hrac.png');
         assert.deepEqual(two.problems, []);
@@ -404,7 +404,7 @@ test('sova jako obrázek profilu', { skip: !chromium && 'Playwright není nainst
         assert.equal(db.profiles['u-1'].avatar, '🦉');
         assert.equal(await one.tab.locator('[data-owl-as-avatar]').count(), 0, 'tlačítko zmizí');
         // Hlavička okna ukazuje sovu místo emoji
-        assert.equal(await one.tab.locator('#settings-overlay span.rounded-full img[data-keep][src="icons/logo-zelena.webp"]').count(), 1);
+        assert.equal(await one.tab.locator('#settings-overlay span.rounded-full img[data-keep][src="icons/logo-bez-monoklu-zelena.webp"]').count(), 1, 'brýle monokl nahradí');
         await shot(one.tab, 'owl-avatar-zalozka-mudrlant.png');
         assert.deepEqual(one.problems, []);
         await one.context.close();

@@ -1,6 +1,7 @@
 # Barvy obleku sovy: z icons/logo.webp a icons/topics/sova-*.webp (vínový talár) vyrobí varianty <název>-<barva>.webp.
 # Přebarví se jen vínová/červená oblast (talár, čepice, kniha, tmavě vínové čáry); oči, zobák, růžový jazyk, peří a zlaté detaily zůstanou.
 # Spuštění: python3 scripts/owl-robes.py [barva …]   (Pillow, numpy; bez argumentů všechny barvy). Barvy musí odpovídat ROBES v look.js.
+# Jen některé obrázky: ONLY=logo-bez-monoklu python3 scripts/owl-robes.py (názvy bez přípony, oddělené čárkou).
 import os, glob, sys
 import numpy as np
 from PIL import Image
@@ -130,9 +131,12 @@ def recolor(im, spec, area=None):
 wanted = sys.argv[1:] or list(ROBES)
 unknown = [robe for robe in wanted if robe not in ROBES]
 if unknown: sys.exit(f'Neznámá barva: {", ".join(unknown)} (známé: {", ".join(ROBES)})')
-sources = [os.path.join(root, 'logo.webp')] + sorted(glob.glob(os.path.join(root, 'topics', 'sova-*.webp')))
+# Logo sovy bez monoklu (icons/logo-bez-monoklu.webp ze scripts/owl-accessories.py --logo) má stejné barvy obleku jako logo
+sources = [os.path.join(root, 'logo.webp'), os.path.join(root, 'logo-bez-monoklu.webp')] + sorted(glob.glob(os.path.join(root, 'topics', 'sova-*.webp')))
+only = set(filter(None, os.environ.get('ONLY', '').split(',')))
 for path in sources:
     base = os.path.splitext(os.path.basename(path))[0]
+    if only and base not in only: continue
     if base.rsplit('-', 1)[-1] in ROBES: continue  # už je to varianta
     im = Image.open(path)
     for robe in wanted:
