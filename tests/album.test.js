@@ -73,7 +73,11 @@ test('vlastnictví: úroveň, odznak, věc z truhly a diplom', () => {
     const level = 20;
     const album = Album.build(input({ level, badges: { vitez: '2026-11-01', 'prvni-krok': '2026-11-01' }, gifts: { themes: ['zlata'], accessories: ['koruna'] }, diplomas: { zemepis: '2026-11-02' } }));
     const avatars = sectionOf(album, 'avatars');
-    assert.equal(avatars.owned, Look.AVATARS.filter(item => !item.badge && item.level <= level).length);
+    // Úrovní odemčené postavičky a legendární Albatros mořeplavec za diplom Zeměpisu
+    assert.equal(avatars.owned, Look.AVATARS.filter(item => !item.badge && item.level <= level).length + 1);
+    assert.equal(avatars.entries.find(entry => entry.id === 'albatr').state, 'owned', 'legendární postavička za diplom');
+    assert.equal(avatars.entries.find(entry => entry.id === 'klokan').state, 'missing', 'bez diplomu Sportu chybí');
+    assert.match(Album.howText(avatars.entries.find(entry => entry.id === 'klokan')), /^Legendární postavička za diplom „Mistr sportu“: plné mistrovství tématu Sport \(5 hvězdiček\)/);
     const accessories = sectionOf(album, 'accessories');
     const expected = Look.ACCESSORIES.filter(item => (!item.badge && item.level <= level) || item.badge === 'vitez' || item.id === 'koruna').length;
     assert.equal(accessories.owned, expected, 'úroveň, Vavřínový věnec za Vítěze a Koruna z truhly');
@@ -95,11 +99,13 @@ test('100 % je opravdu všechno: celé album, každá sekce kompletní; odznaky 
     assert.equal(album.percent, 100);
     assert.deepEqual(album.complete, album.sections.map(section => section.id));
     assert.equal(sectionOf(album, 'frames').entries.find(entry => entry.id === 'sberatel').state, 'reward', 'rámeček za album přijde až s odznakem 100 %');
-    // Chybí jediný diplom: už ne 100 %
+    // Chybí jediný diplom: už ne 100 % (chybí diplom i legendární postavička za něj, Klokan šampion)
     const diplomas = { ...full.diplomas };
     delete diplomas.sport;
-    assert.equal(Album.build({ ...full, diplomas }).percent, 99, 'průměr sekcí: 7 × 100 % a 13/14 diplomů');
+    const avatars = Look.AVATARS.length;
+    assert.equal(Album.build({ ...full, diplomas }).percent, Math.floor((6 + (avatars - 1) / avatars + 13 / 14) / 8 * 100 + 1e-9), 'průměr sekcí: 6 × 100 %, postavičky bez jedné a 13/14 diplomů');
     assert.ok(!Album.build({ ...full, diplomas }).complete.includes('diplomas'));
+    assert.ok(!Album.build({ ...full, diplomas }).complete.includes('avatars'));
     // Bez rámečku letošní sezóny ani bez ligového vrcholu není album celé (obojí teď jde získat)
     assert.ok(Album.build({ ...full, gifts: { accessories: CHEST_ONLY } }).percent < 100, 'chybí listopadový rámeček');
     assert.ok(Album.build({ ...full, gifts: { frames: ['sezona-11'] } }).percent < 100, 'chybí věci z Truhly Mudrlanta');

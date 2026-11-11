@@ -8,6 +8,7 @@
 //   jinak by 100 % nešlo nikdy získat.
 // - Rámečky ligových sezón (league) jdou získat každý měsíc: jsou to běžné věci (chybí, dokud je hráč nemá). Stejně Pochodeň vítěze (doplněk).
 // - Věci jen z Truhly Mudrlanta (chest v look.js: čepice s vrtulkou, páska, srdíčkové brýle, věnec, hrnek) jsou běžné věci s textem „Z Truhly Mudrlanta“.
+// - Legendární postavičky (diploma v look.js) odemyká diplom tématu (vstup diplomas): běžné věci sekce Postavičky se zlatým lemem.
 // - Tituly u jména (Look.CATALOG.titles, Šampion sezóny) nejsou sekce alba: jsou to vyznamenání za celou sezónu, 100 % by jinak
 //   vyžadovalo dohrát Sezónu Mudrlanta.
 // - Časově omezené věci (položka s exclusive nebo season, nebo available: false): dokud jdou získat, počítají se (chybí-li, jsou v albu šedé jako ostatní,
@@ -106,7 +107,7 @@
     // Položky sekce z katalogu: { key, category, id, item, title, owned, state: 'owned' | 'missing' | 'ended' | 'reward', counted, limited, until }
     const catalogEntries = (category, input) => {
         if (!Look) return [];
-        const ctx = { level: input.level, badges: input.badges, gifts: input.gifts };
+        const ctx = { level: input.level, badges: input.badges, gifts: input.gifts, diplomas: input.diplomas };
         const entries = [];
         for (const item of Look.CATALOG[category] || []) {
             if (isStarter(item)) continue;
@@ -200,7 +201,10 @@
         const item = entry.item;
         if (entry.state === 'ended') return 'Sezónní – už nejde získat. Do sbírky se nepočítá.';
         const badge = item.badge && Core && Core.BADGE_BY_ID ? Core.BADGE_BY_ID[item.badge] : null;
-        let text = item.album ? `Odměna za celé album sbírky (100${NB}%) spolu s titulem „${badgeTitle(item.badge)}“.`
+        // Legendární postavička: diplom tématu (look.js diploma)
+        const topic = item.diploma ? { id: item.diploma, title: (Look && Look.DIPLOMA_TOPICS && Look.DIPLOMA_TOPICS[item.diploma]) || item.diploma } : null;
+        if (topic) return `Legendární postavička za diplom „${Rewards ? Rewards.diplomaTitle(topic) : topic.title}“: plné mistrovství tématu ${topic.title} (${MASTERY.length} hvězdiček). Úrovní ani truhlou se nezíská.`;
+        let text = item.album ?`Odměna za celé album sbírky (100${NB}%) spolu s titulem „${badgeTitle(item.badge)}“.`
             : item.rare ? 'Vzácný dárek z Truhly Mudrlanta za splněné cíle týdne (občas místo běžné věci). Úrovní se neodemyká.'
             : item.chest ? 'Z Truhly Mudrlanta za splněné cíle týdne (nebo ze stupně Sezóny Mudrlanta). Úrovní se neodemyká.'
             : badge ? `Za odznak „${badge.title}“: ${badge.text}`
@@ -240,15 +244,19 @@
         }
     };
     const CORNER = 'pointer-events-none absolute -bottom-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full ring-2 ring-white dark:ring-slate-800';
+    // Legendární postavička ve sbírce: zlatý lem (stejně jako v Nastavení → Profil → Legendy)
+    const LEGEND_TONE = 'bg-gold-50 ring-1 ring-gold-400 dark:bg-gold-900/20 dark:ring-gold-600';
+    const kindOf = (owner, entry) => (entry.item && entry.item.diploma ? `Legendární ${owner.kind.toLocaleLowerCase('cs')}` : owner.kind);
     // Dlaždice věci: v albu barevná, chybějící šedá se zámkem, sezónní po konci s přesýpacími hodinami, nasazená orámovaná s fajfkou
-    // Sekce s víc než DENSE věcmi (doplňky Mudrlanta) má od šířky 385 px sedm sloupců místo šesti (dlaždice zůstanou aspoň 40 px)
-    const DENSE = 36;
+    // Sekce s víc než DENSE věcmi (doplňky Mudrlanta, postavičky i s legendárními) má od šířky 385 px sedm sloupců místo šesti (dlaždice zůstanou aspoň 40 px)
+    const DENSE = 30;
     const tileHtml = (entry, h, worn) => {
         const on = worn && worn.has(entry.key);
         const dim = !entry.owned && entry.state !== 'reward';
         const tone = on ? 'bg-brand-50 ring-2 ring-brand-600 dark:bg-brand-900/40'
             : entry.state === 'reward' ? 'bg-gold-50 ring-1 ring-gold-300 dark:bg-gold-900/20 dark:ring-gold-700'
-                : entry.owned ? (entry.category === 'diplomas' ? `${h.styleOf ? h.styleOf(entry.topic).soft : 'bg-white'} ring-2 ring-gold-400` : 'bg-white ring-1 ring-slate-200 dark:bg-slate-700/70 dark:ring-slate-600')
+                : entry.owned ? (entry.category === 'diplomas' ? `${h.styleOf ? h.styleOf(entry.topic).soft : 'bg-white'} ring-2 ring-gold-400`
+                    : entry.item && entry.item.diploma ? LEGEND_TONE : 'bg-white ring-1 ring-slate-200 dark:bg-slate-700/70 dark:ring-slate-600')
                     : entry.state === 'ended' ? 'border border-dashed border-slate-300 bg-slate-100/70 dark:border-slate-600 dark:bg-slate-900/40' : 'bg-slate-100 dark:bg-slate-900/50';
         const corner = on ? `<span class="${CORNER} bg-brand-600 text-white"><i data-lucide="check" class="h-2.5 w-2.5"></i></span>`
             : entry.state === 'ended' ? `<span class="${CORNER} bg-slate-500 text-white dark:bg-slate-400 dark:text-slate-900"><i data-lucide="hourglass" class="h-2.5 w-2.5"></i></span>`
@@ -325,7 +333,7 @@
             <div class="flex items-center gap-3 rounded-2xl bg-white p-3 shadow-sm dark:bg-slate-800">
                 <span class="relative flex h-20 w-20 shrink-0 items-center justify-center rounded-2xl ${entry.owned ? 'bg-slate-50 dark:bg-slate-700/60' : entry.state === 'reward' ? 'bg-gold-50 ring-1 ring-gold-300 dark:bg-gold-900/20 dark:ring-gold-700' : 'bg-slate-100 dark:bg-slate-900/50'}"><span class="flex items-center justify-center ${entry.owned || entry.state === 'reward' || entry.category === 'badges' ? '' : 'opacity-40 grayscale'}">${artHtml(entry, h, true)}</span></span>
                 <div class="min-w-0 flex-1">
-                    <p class="text-[10.5px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">${esc(owner.kind)}</p>
+                    <p class="text-[10.5px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">${esc(kindOf(owner, entry))}</p>
                     <p data-album-detail-title class="text-lg font-black leading-tight text-slate-800 dark:text-slate-100">${esc(entry.title)}</p>
                     <p data-album-status="${entry.state}" class="mt-1 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-black ${status.tone}"><i data-lucide="${status.icon}" class="h-3 w-3"></i>${esc(status.text)}</p>
                 </div>

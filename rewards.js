@@ -128,8 +128,8 @@
         if (!Look) return [];
         return GIFT_CATEGORIES.flatMap(category => (Look.CATALOG[category] || [])
             // noGift: odměna jen za svůj cíl (Bílý talár až na úrovni 100), truhla ani sezóna ji nedají dřív;
-            // rare: vzácný dárek jen z truhly (rareCandidates), mezi běžné věci (ani do Sezóny) nepatří
-            .filter(item => !item.badge && !item.noGift && !item.league && !item.rare && (item.chest || (item.level || 1) > 1) && !s.gifts[category].includes(item.id) && !Look.isUnlocked(item, { ...ctx, gifts: null }))
+            // rare: vzácný dárek jen z truhly (rareCandidates), mezi běžné věci (ani do Sezóny) nepatří; diploma: legendární postavička jen za diplom
+            .filter(item => !item.badge && !item.diploma && !item.noGift && !item.league && !item.rare && (item.chest || (item.level || 1) > 1) && !s.gifts[category].includes(item.id) && !Look.isUnlocked(item, { ...ctx, gifts: null }))
             .map(item => ({ category, item })))
             .sort((a, b) => giftRank(a.item) - giftRank(b.item) || GIFT_CATEGORIES.indexOf(a.category) - GIFT_CATEGORIES.indexOf(b.category));
     };
@@ -412,7 +412,7 @@
         return `
         <div data-diplomas>
             <div class="mb-1.5 flex items-center justify-between gap-2"><h3 class="flex items-center gap-1.5 text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400"><img src="icons/topics/diplom.webp" alt="" class="h-6 w-6 shrink-0 object-contain drop-shadow-sm">Diplomy</h3><span class="text-[11px] font-bold text-slate-500 dark:text-slate-400">${have} / ${rows.length}</span></div>
-            <p class="mb-1.5 text-[11px] leading-snug text-slate-500 dark:text-slate-400">Za plné mistrovství tématu (5 hvězdiček) dostaneš diplom, který můžeš sdílet.</p>
+            <p class="mb-1.5 text-[11px] leading-snug text-slate-500 dark:text-slate-400">Za plné mistrovství tématu (5 hvězdiček) dostaneš diplom, který můžeš sdílet, a legendární postavičku.</p>
             <ul class="grid grid-cols-7 gap-1">${rows.map(row => `
                 <li><button type="button" data-diploma="${esc(row.topic.id)}" aria-label="${esc(`${row.title}: ${row.earned ? `získán ${formatDay(row.day)}` : `chybí ${row.missing} poznaných položek`}`)}" title="${esc(row.earned ? row.title : `${row.title}: poznej ještě ${row.missing} položek`)}" class="relative flex aspect-square w-full items-center justify-center rounded-xl ${row.earned ? `${h.styleOf(row.topic).soft} ring-2 ring-gold-400` : 'bg-slate-100 dark:bg-slate-700/60'}">
                     <span class="${row.earned ? '' : 'opacity-40 grayscale'}">${h.topicIcon(row.topic, 'h-7 w-7', '', 'h-5 w-5')}</span>
@@ -420,8 +420,25 @@
                 </button></li>`).join('')}</ul>
         </div>`;
     };
+    // Legendární postavička za diplom tématu (look.js diploma) v okně diplomu; obrázek kreslí h.avatar z app.js, bez něj (nebo bez postavičky) nic.
+    // Nezískaný diplom: řádek „Odměna: …“ se šedou postavičkou. Získaný: čtvercové tlačítko vedle Sdílet a Stáhnout (okno s náhledem diplomu
+    // se jinak na 360 × 640 nevejde), klepnutím app.js otevře výběr v Nastavení → Profil → Legendy.
+    const legendOf = (row) => (Look && Look.rewardsForDiploma ? Look.rewardsForDiploma(row.topic.id).find(reward => reward.category === 'avatars') : null);
+    const legendHtml = (row, h) => {
+        const entry = legendOf(row);
+        if (!entry || !h || !h.avatar) return '';
+        return `<p data-diploma-legend-info="${esc(entry.item.id)}" class="flex items-center gap-2.5 rounded-2xl bg-gold-50 px-2.5 py-1 text-[12px] font-semibold leading-snug text-gold-900 ring-1 ring-gold-300 dark:bg-gold-900/20 dark:text-gold-100 dark:ring-gold-700">
+            <span class="flex h-10 w-10 shrink-0 items-center justify-center opacity-50 grayscale">${h.avatar(entry.item.id, 'h-10 w-10')}</span>
+            <span class="min-w-0">Odměna: legendární postavička <b>${esc(entry.item.title)}</b> do profilového obrázku.</span></p>`;
+    };
+    const legendButton = (row, h) => {
+        const entry = legendOf(row);
+        if (!entry || !h || !h.avatar) return '';
+        const label = `Legendární postavička ${entry.item.title} je tvoje: vybrat jako profilový obrázek`;
+        return `<button type="button" data-diploma-legend="${esc(entry.item.id)}" aria-label="${esc(label)}" title="${esc(label)}" class="flex w-[3.25rem] shrink-0 items-center justify-center rounded-2xl bg-gold-50 ring-1 ring-gold-300 active:scale-95 dark:bg-gold-900/20 dark:ring-gold-700">${h.avatar(entry.item.id, 'h-11 w-11')}</button>`;
+    };
     // Okno jednoho diplomu: získaný = náhled (plátno vloží app.js do [data-diploma-preview]), jméno na diplomu, Sdílet a Stáhnout;
-    // nezískaný = co chybí
+    // nezískaný = co chybí; u obou legendární postavička za diplom
     const diplomaDialogHtml = (row, { name = '', needName = false } = {}, h) => row.earned ? `
         <div class="flex flex-col gap-2.5" data-diploma-dialog="${esc(row.topic.id)}">
             <div data-diploma-preview class="flex aspect-[4/5] w-full items-center short:mx-auto short:w-[90%] justify-center overflow-hidden rounded-2xl bg-slate-100 shadow-inner dark:bg-slate-900"><p class="text-xs font-semibold text-slate-500 dark:text-slate-400" role="status">Kreslím diplom…</p></div>
@@ -430,6 +447,7 @@
             <div class="flex gap-2">
                 <button type="button" data-diploma-share class="flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-2xl btn-3d bg-brand-700 px-3 py-3 text-[15px] font-black text-white"><i data-lucide="share-2" class="h-5 w-5"></i> Sdílet</button>
                 <button type="button" data-diploma-download class="flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-2xl bg-slate-200 px-3 py-3 text-[15px] font-bold text-slate-800 dark:bg-slate-700 dark:text-slate-100"><i data-lucide="download" class="h-5 w-5"></i> Stáhnout</button>
+                ${legendButton(row, h)}
             </div>
         </div>` : `
         <div class="flex flex-col gap-3" data-diploma-dialog="${esc(row.topic.id)}" data-diploma-locked>
@@ -438,6 +456,7 @@
                 <p class="text-[12px] font-semibold text-slate-600 dark:text-slate-300">Poznáno ${row.known} z ${row.needed} položek</p></div></div>
             <span class="block h-2 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700" aria-hidden="true"><span class="block h-full w-0 rounded-full bg-gold-500" data-progress="${Math.round(Math.min(1, row.known / row.needed) * 100)}"></span></span>
             <p class="text-[13px] leading-snug text-slate-700 dark:text-slate-200">Diplom dostaneš za plné mistrovství tématu: aspoň jednou správně poznej ${row.needed} různých položek. Chybí ti ještě <b>${row.missing}</b>.</p>
+            ${legendHtml(row, h)}
         </div>`;
 
     return {

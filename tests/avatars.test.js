@@ -20,9 +20,11 @@ const REPLACED = {
     '🎯': ['zabak', { badge: 'odhad-25' }], '🧩': ['myval', { badge: 'serad-25' }]
 };
 
-test('katalog: 21 postaviček s 1–2 částmi, id do 6 písmen, žádná odměna už není emoji', () => {
-    assert.equal(CHARACTERS.length, 21);
-    assert.equal(Look.AVATARS.length, 21);
+test('katalog: postavičky s 1–2 částmi, id do 6 písmen, žádná odměna už není emoji', () => {
+    // 21 za úrovně a odznaky a 14 legendárních za diplomy (sezónní exclusive se počítají zvlášť)
+    assert.equal(CHARACTERS.filter(item => !item.diploma && !item.exclusive).length, 21);
+    assert.equal(CHARACTERS.filter(item => item.diploma).length, 14);
+    assert.equal(CHARACTERS.length, Look.AVATARS.length);
     for (const item of CHARACTERS) {
         assert.match(item.id, /^[a-z]{1,6}$/, item.id);
         assert.ok(item.parts.length >= 1 && item.parts.length <= 2, item.id);
@@ -31,7 +33,7 @@ test('katalog: 21 postaviček s 1–2 částmi, id do 6 písmen, žádná odměn
         assert.equal(item.colors.length, item.parts.length, item.id);
         for (const list of item.colors) assert.ok(list.length >= 6 && list.every(color => Number.isInteger(color) && color >= 1 && color <= 9) && new Set(list).size === list.length, item.id);
     }
-    assert.equal(new Set(Look.AVATARS.map(item => item.id)).size, 21);
+    assert.equal(new Set(Look.AVATARS.map(item => item.id)).size, Look.AVATARS.length);
     // Chameleon jednička nahradil Stovku (💯): stejný odznak, obě části s vlastním výběrem barev
     const chameleon = Look.find('avatars', 'chamel');
     assert.deepEqual([chameleon.title, chameleon.badge, chameleon.parts], ['Chameleon jednička', 'kviz-perfekt', ['Kůže', 'Bříško']]);
@@ -145,4 +147,70 @@ test('service worker má v mezipaměti obrázky všech postaviček a obrázky i 
             for (let color = 1; color <= 9; color++) assert.ok(fs.existsSync(path.join(ROOT, 'icons', 'avatars', `${item.id}-${index + 1}${color}.webp`)), `${item.id}-${index + 1}${color}.webp`);
         });
     }
+});
+
+// Legendární postavičky za diplomy témat (docs/OBRAZKY.md č. 119–132): téma → id
+const LEGENDARY = {
+    zemepis: 'albatr', vlajky: 'gryf', historie: 'slon', mytologie: 'sfinga', biologie: 'jelen', geologie: 'golem', chemie: 'liska',
+    fyzika: 'chobot', umeni: 'pav', architektura: 'bobr', hudba: 'vlk', literatura: 'kndrak', film: 'panda', sport: 'klokan'
+};
+
+test('legendární postavičky: jedna za diplom každého tématu, odemyká je jen diplom (ne úroveň, odznak, truhla ani Sezóna)', () => {
+    const Rewards = require('../rewards.js');
+    const Album = require('../album.js');
+    const legendary = Look.AVATARS.filter(item => item.diploma);
+    assert.deepEqual(Object.fromEntries(legendary.map(item => [item.diploma, item.id])), LEGENDARY);
+    assert.deepEqual(Object.keys(LEGENDARY).sort(), Object.keys(Rewards.DIPLOMA_NAMES).sort(), 'každé téma s diplomem má svou');
+    assert.deepEqual(Object.keys(Look.DIPLOMA_TOPICS).sort(), Object.keys(Rewards.DIPLOMA_NAMES).sort());
+    const everything = { level: 100, badges: Object.fromEntries(core.BADGES.map(badge => [badge.id, '2026-11-01'])), gifts: null };
+    for (const item of legendary) {
+        assert.ok(Look.isLegendary(item), item.id);
+        assert.equal(item.level, undefined, item.id);
+        assert.equal(item.badge, undefined, item.id);
+        assert.equal(item.was, undefined, 'legendární nenahrazuje žádné staré emoji');
+        assert.equal(Look.isUnlocked(item, everything), false, `${item.id}: úroveň 100 a všechny odznaky nestačí`);
+        assert.equal(Look.isUnlocked(item, { level: 1, badges: {}, gifts: null, diplomas: { [item.diploma]: '2026-11-01' } }), true, item.id);
+        const other = Object.keys(LEGENDARY).find(topic => topic !== item.diploma);
+        assert.equal(Look.isUnlocked(item, { level: 1, badges: {}, gifts: null, diplomas: { [other]: '2026-11-01' } }), false, `${item.id}: jiný diplom ne`);
+        assert.equal(Look.unlockText(item), `Diplom: ${Look.DIPLOMA_TOPICS[item.diploma]}`);
+        assert.deepEqual(Look.rewardsForDiploma(item.diploma), [{ category: 'avatars', item }]);
+        assert.equal(Album.isStarter(item), false, `${item.id} do sbírky patří`);
+        // Zápis s barvami obou částí se vejde do sloupce profiles.avatar (1–8 znaků) a vykreslí se vrstvami
+        assert.ok(Look.formatAvatar(item.id, [9, 9]).length <= 8, item.id);
+        assert.deepEqual(Look.avatarPicture(`${item.id}12`).layers, [`icons/avatars/${item.id}-11.webp`, `icons/avatars/${item.id}-22.webp`]);
+    }
+    globalThis.MudrlantLook = Look;
+    try {
+        for (const id of Object.values(LEGENDARY)) assert.equal(Social.cleanAvatar(`${id}38`), `${id}38`, id);
+        assert.equal(Social.cleanAvatar('albatr123'), '🦊');
+    } finally { delete globalThis.MudrlantLook; }
+    assert.equal(Look.find('avatars', 'albatr').title, 'Albatros mořeplavec');
+    assert.equal(Look.find('avatars', 'gryf').title, 'Gryf praporečník');
+    assert.deepEqual(Look.rewardsForDiploma('neznamy'), []);
+    // Oslava nové odměny podle úrovně nebo odznaku je nikdy neukáže (slaví je oslava diplomu)
+    assert.deepEqual(Look.newRewards(0, 100, core.BADGES.map(badge => badge.id)).filter(entry => entry.item.diploma), []);
+    // Truhla Mudrlanta ani Sezóna (bere výběr truhly) je nedají, ani vzácně
+    for (const level of [1, 50, 100]) assert.equal(Rewards.candidates(Rewards.empty(), { level, badges: {} }).some(entry => entry.item.diploma), false, `úroveň ${level}`);
+    assert.equal(Rewards.rareCandidates(Rewards.empty()).some(entry => entry.item.diploma), false);
+    for (let month = 1; month <= 12; month++) assert.equal(Look.seasonBundle(month).some(entry => entry.item.diploma), false, `měsíc ${month}`);
+});
+
+test('legendární postavičky: okno diplomu ukáže odměnu (získanou i chybějící), Diplomy o ní mluví', () => {
+    const Rewards = require('../rewards.js');
+    const h = { topicIcon: () => '<i></i>', styleOf: () => ({ soft: 'bg-x' }), avatar: (id, cls) => `<span data-art="${id}" class="${cls}"></span>` };
+    const topic = { id: 'zemepis', title: 'Zeměpis' };
+    const locked = Rewards.diplomaDialogHtml({ topic, title: 'Mistr zeměpisu', earned: false, known: 10, needed: 300, missing: 290 }, {}, h);
+    // Nezískaný: řádek s šedou postavičkou; získaný: tlačítko s postavičkou vedle Sdílet a Stáhnout (otevře výběr v Profilu)
+    assert.match(locked, /data-diploma-legend-info="albatr"/);
+    assert.match(locked, /Odměna: legendární postavička <b>Albatros mořeplavec<\/b>/);
+    assert.match(locked, /opacity-50 grayscale"><span data-art="albatr"/);
+    assert.doesNotMatch(locked, /<button[^>]*data-diploma-legend=/);
+    const earned = Rewards.diplomaDialogHtml({ topic, title: 'Mistr zeměpisu', earned: true, day: '2026-11-01', known: 300, needed: 300, missing: 0 }, { name: 'Jana' }, h);
+    assert.match(earned, /data-diploma-download[\s\S]*<button type="button" data-diploma-legend="albatr" aria-label="Legendární postavička Albatros mořeplavec je tvoje: vybrat jako profilový obrázek"/);
+    assert.doesNotMatch(earned, /grayscale|data-diploma-legend-info/);
+    // Bez obrázku (h.avatar) nic
+    const plain = { topicIcon: h.topicIcon, styleOf: h.styleOf };
+    assert.doesNotMatch(Rewards.diplomaDialogHtml({ topic, title: 'Mistr zeměpisu', earned: false, known: 0, needed: 300, missing: 300 }, {}, plain), /data-diploma-legend/);
+    assert.doesNotMatch(Rewards.diplomaDialogHtml({ topic, title: 'Mistr zeměpisu', earned: true, day: '2026-11-01', known: 300, needed: 300, missing: 0 }, {}, plain), /data-diploma-legend/);
+    assert.match(Rewards.diplomasHtml([{ topic, title: 'Mistr zeměpisu', earned: false, missing: 300 }], h), /dostaneš diplom, který můžeš sdílet, a legendární postavičku/);
 });
