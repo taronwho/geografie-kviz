@@ -56,8 +56,12 @@ na dvou místech a stavba ve velkém českém městě („kde je Praha“) se ne
 plný počet (4, při psaní 8) do 3 % úhlopříčky výřezu (Česko asi 18 km, Evropa asi 210 km; u ostrovů, jezer a parků navíc
 poloměr podle rozlohy), pak ubývají až k nule na 20 % úhlopříčky; správně = aspoň bod. Výsledek ukáže tip, správné místo, čáru
 mezi nimi, kruh plných bodů a „Vedle o 37 km“. Otázka přijde v tréninku asi u každé osmé vhodné otázky (po 6 až 10 vhodných
-otázkách, počítadlo `mudrlant.mapGap` v zařízení) a nemá nápovědy. Dnešní otázky, výzvy a turnaje ji zatím nemají (stejné otázky
-pro všechny hráče i starší verze aplikace), chyby a opakování karet také ne.
+otázkách, počítadlo `mudrlant.mapGap` v zařízení) a nemá nápovědy. **Ve výzvě** (i výzvě skupině a odvetě) **a v zápase turnaje** je na mapě
+asi desetina otázek: rozhoduje semínko otázky (vlastní řada čísel `<semínko otázky>:mapa`, ne počítadlo), takže ji oba hráči dostanou stejnou,
+a jen u položky, která na mapu jde (jinak zůstane obyčejná). Mají ji jen hry, které to nesou: výzva se semínkem končícím `.mapa` (zakládá ji
+tahle verze aplikace) a turnaj od týdne 16. 11. 2026; výzvy a turnaje starších verzí zůstanou bez mapy. Starší aplikaci srovná uložená otázka
+na serveru (zamrzlé otázky): otázka na mapě má proto i jednu (správnou) možnost, aby ji přijala. Body nejvýš 4 (při psaní 8), v rozpisu otázek
+„Ukaž na mapě“, místo a „Vedle o 312 km“ s body. Dnešní otázky a Kvíz dne ji nemají, chyby a opakování karet také ne.
 
 **Číselné otázky** (`numeric-questions.js`) se v hraní tématu, v Mixu, ve výzvách a v turnajích přimíchají asi do každé osmé otázky, jen kde téma
 má spolehlivá čísla z dat (biologie a mytologie je nemají; dnešní otázky a učení nikdy). Bez nápověd, body za přesnost (ve variantě psaní dvojnásobek):
