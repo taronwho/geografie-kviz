@@ -223,7 +223,7 @@
         const chosen = acc[open] ? acc[open].id : 'none';
         // Pravidelná mřížka sloupců aspoň 40 px (7 na 360 px, 8 na 390 px); první dlaždice je vždy „bez doplňku“. Výška na dva řádky
         // (nejvíc doplňků má hlava), ať se okno při přepnutí místa neposkakuje.
-        const items = `<div data-owl-items="${open}" class="grid min-h-[5rem] grid-cols-[repeat(auto-fill,minmax(2.5rem,1fr))] content-start" role="group" aria-label="${escapeHtml(`Doplňky: ${(Look.SLOTS.find(slot => slot.id === open) || {}).title || ''}`)}">${noneTile(open, chosen === 'none')}${Look.ACCESSORIES.filter(item => item.slot === open).map(item => tile(item, ctx, chosen === item.id)).join('')}</div>`;
+        const items = `<div data-owl-items="${open}" class="grid min-h-[5rem] grid-cols-[repeat(auto-fill,minmax(2.5rem,1fr))] content-start" role="group" aria-label="${escapeHtml(`Doplňky: ${(Look.SLOTS.find(slot => slot.id === open) || {}).title || ''}`)}">${noneTile(open, chosen === 'none')}${Look.ACCESSORIES.filter(item => item.slot === open && (!item.exclusive || Look.isUnlocked(item, ctx))).map(item => tile(item, ctx, chosen === item.id)).join('')}</div>`;
         // Barva patří doplňku v otevřeném místě
         const target = acc[open] ? open : null;
         const targetItem = target ? Look.find('accessories', acc[target].id) : null;

@@ -127,7 +127,7 @@ test('sova jako obrázek profilu', { skip: !chromium && 'Playwright není nainst
         assert.equal(await one.tab.locator('[data-pick-avatar][aria-pressed="true"]').count(), 0, 'emoji není vybrané');
         // Hlavička okna už ukazuje sovu v kruhu s barvou hráče
         assert.equal(await one.tab.locator('#settings-overlay > div > div:first-child span.rounded-full img[data-keep][src="icons/logo-zelena.webp"]').count(), 1);
-        assert.equal(await one.tab.locator('[data-look="frames"] [data-frame] img[data-keep][src="icons/logo-zelena.webp"]').count(), 9, 'náhledy rámečků ukazují vybraný obrázek');
+        assert.equal(await one.tab.locator('[data-look="frames"] [data-frame] img[data-keep][src="icons/logo-zelena.webp"]').count(), 12, 'náhledy rámečků ukazují vybraný obrázek (9 a 3 za sérii dní)');
         assert.equal(await fits(one.tab), true, 'okno Profil bez posouvání');
         await shot(one.tab, 'owl-avatar-profil-vybrano.png');
         assert.equal(db.profiles['u-1'].owl, null, 'nic se neuložilo před Uložit');

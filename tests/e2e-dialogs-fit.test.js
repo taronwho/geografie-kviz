@@ -278,7 +278,10 @@ const richStorage = () => {
     return {
         'mudrlant.progress': JSON.stringify({ xp: 26000, counters: { correct: 2600, answered: 3400, bestRun: 52, topicBest: { zemepis: 10, historie: 9 }, challengesPlayed: 120, challengeWins: 64 }, badges }),
         'mudrlant.learned': JSON.stringify(learned),
-        'mudrlant.rewards': JSON.stringify({ v: 1, freezes: 2, name: 'Jana Nováková', ready: ['2026-11-02'], chests: { '2026-10-26': 'xp' }, diplomas: { zemepis: '2026-10-20' } })
+        // Sezóna Mudrlanta: od 15 000 XP (11 000 XP sezóny = stupeň 14), pět stupňů vyzvednutých; rámeček a titul z minulé sezóny
+        'mudrlant.rewards': JSON.stringify({ v: 1, freezes: 2, name: 'Jana Nováková', ready: ['2026-11-02'], chests: { '2026-10-26': 'xp' }, diplomas: { zemepis: '2026-10-20' },
+            gifts: { frames: ['sezona-10'], titles: ['sampion-sezony'] },
+            season: { id: '2026-11', startXp: 15000, claimed: { 1: 'robes:fialova', 2: 'accessories:kvetina', 3: 'freeze', 4: 'themes:fialova', 5: 'colors:ruzova' } } })
     };
 };
 
@@ -311,11 +314,12 @@ const setup = async (browser, { viewport, storage = {}, db = newDb(), query = ''
     return { context, tab, log, db };
 };
 
-const OVERLAYS = ['dialog-overlay', 'settings-overlay', 'play-chooser', 'place-info', 'chest-overlay'];
+const OVERLAYS = ['dialog-overlay', 'settings-overlay', 'play-chooser', 'place-info', 'chest-overlay', 'season-overlay'];
 // Přetečení posuvného panelu otevřeného okna (u obrazovky v #app-content jejího obsahu); vrátí i rozměry panelu a jeho hlavní akce
 const measure = (screen) => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(() => {
-    const overlay = screen ? null : ['dialog-overlay', 'settings-overlay', 'play-chooser', 'place-info', 'chest-overlay'].map(id => document.getElementById(id)).find(Boolean);
-    const panel = screen ? document.getElementById('app-content') : overlay && (overlay.id === 'chest-overlay' ? overlay.querySelector('[data-chest]') || overlay.firstElementChild : overlay.firstElementChild);
+    const overlay = screen ? null : ['dialog-overlay', 'settings-overlay', 'play-chooser', 'place-info', 'chest-overlay', 'season-overlay'].map(id => document.getElementById(id)).find(Boolean);
+    // Odměna sezóny: posouvá se celé okno (karta je ukotvená shora jako truhla)
+    const panel = screen ? document.getElementById('app-content') : overlay && (overlay.id === 'chest-overlay' ? overlay.querySelector('[data-chest]') || overlay.firstElementChild : overlay.id === 'season-overlay' ? overlay : overlay.firstElementChild);
     if (!panel) return resolve(null);
     const box = panel.getBoundingClientRect();
     // Dotykové plochy pod 40 px (tlačítka a odkazy v okně; skryté a mimo panel se nepočítají)
@@ -524,6 +528,10 @@ test('okna se vejdou bez posouvání', { skip: !chromium && 'Playwright není na
             await scene(tab, 'Ochrana série', size, async () => { await progress(); await tab.click('[data-rewards-info="freeze"]'); await tab.waitForSelector('[data-freeze-help]'); });
             await scene(tab, 'Cíle týdne', size, async () => { await action(tab, 'goals-open'); await waitTitle(tab, 'Cíle týdne'); });
             await scene(tab, 'Truhla Mudrlanta', size, async () => { await action(tab, 'chest-open'); await tab.waitForSelector('#chest-overlay button'); });
+            // Sezóna Mudrlanta: okno s cestou 20 stupňů a odhalení odměny (zavřená pečeť, otevřená)
+            await scene(tab, 'Sezóna', size, async () => { await progress(); await tab.click('[data-season-open]'); await tab.waitForSelector('[data-season-path]'); });
+            await scene(tab, 'Sezóna – pečeť', size, async () => { await action(tab, 'season-claim'); await tab.waitForSelector('#season-overlay [data-season-go]'); });
+            await scene(tab, 'Sezóna – odměna', size, async () => { await action(tab, 'season-claim'); await tab.waitForSelector('#season-overlay [data-season-go]'); await tab.click('#season-overlay [data-season-go]'); await tab.waitForSelector('[data-season-reveal]'); });
             // Co hrát (výběr témat mixu a jednoho tématu)
             await scene(tab, 'Co hrát – mix', size, async () => { await action(tab, 'play-mix'); await tab.waitForSelector('#play-chooser [data-chooser-play]'); });
             await scene(tab, 'Co hrát – téma', size, async () => { await action(tab, 'home-tab', { tab: 'single' }); await tab.waitForSelector('[data-action="play-topic"]'); await tab.click('[data-action="play-topic"][data-topic="zemepis"]'); await tab.waitForSelector('#play-chooser [data-chooser-play]'); });

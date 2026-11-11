@@ -122,8 +122,11 @@ test('odměny v Profilu: rámečky, titul a postavičky', { skip: !chromium && '
         assert.doesNotMatch(await tab.getAttribute('#btn-settings span', 'class'), /frame/, 'na začátku bez rámečku');
         await openLook(tab);
 
-        // Řada devíti rámečků; zamčené jsou šedé s podmínkou v popisku
-        assert.equal(await tab.locator('[data-frame]').count(), 9);
+        // Řada dvanácti rámečků (devět a tři za sérii dní: Jiskra, Stovka, Věčný oheň); zamčené jsou šedé s podmínkou v popisku.
+        // Rámečky Sezóny Mudrlanta jsou v řadě, jen když je hráč má
+        assert.equal(await tab.locator('[data-frame]').count(), 12);
+        assert.equal(await tab.locator('[data-frame^="sezona-"]').count(), 0);
+        assert.match(await tab.getAttribute('[data-frame="vecny-ohen"]', 'title'), /Věčný oheň: Odznak: Celý rok/);
         assert.equal(await tab.getAttribute('[data-frame="zadny"]', 'aria-pressed'), 'true');
         assert.match(await tab.getAttribute('[data-frame="zlato"]', 'aria-label'), /Zlatý: Úroveň 25 \(zamčeno\)/);
         assert.match(await tab.getAttribute('[data-frame="plamen"]', 'title'), /Odznak: .+/);
@@ -249,6 +252,13 @@ test('odměny v Profilu: rámečky, titul a postavičky', { skip: !chromium && '
         db.profiles['u-2'].title_pref = 'gladiator';
         await tab.click('#challenges-section [data-player-id="u-2"]');
         await tab.waitForFunction(() => /Gladiátor/.test((document.getElementById('dialog-overlay') || {}).textContent || ''));
+        await tab.click('#dialog-overlay [data-close]');
+        // Odměny Sezóny Mudrlanta: rámeček měsíce a titul Šampion sezóny (s korunkou) vidí i ostatní
+        db.profiles['u-2'].title_pref = 'sampion-sezony';
+        db.profiles['u-2'].frame = 'sezona-11';
+        await tab.click('#challenges-section [data-player-id="u-2"]');
+        await tab.waitForSelector('#dialog-overlay [data-own-title]');
+        assert.match(await tab.textContent('#dialog-overlay [data-own-title]'), /Šampion sezóny/);
         assert.deepEqual(log.errors, []);
         assert.deepEqual(log.csp, []);
         await context.close();

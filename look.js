@@ -124,6 +124,44 @@
         { id: 'zelena', title: 'Zelená', level: 8 }, { id: 'oranzova', title: 'Oranžová', level: 16 }, { id: 'zluta', title: 'Žlutá', level: 26 },
         { id: 'ruzova', title: 'Růžová', level: 38 }, { id: 'fialova', title: 'Fialová', level: 52 }, { id: 'cerna', title: 'Černá', level: 60 }, { id: 'vlastni', title: 'Vlastní barva (paleta)', level: 80 }
     ];
+    // --- Sezóna Mudrlanta (season.js) a odměny za sérii dní: exkluzivní věci ---
+    // exclusive = jen jako dárek (Look.setGifts z rewards.js), úrovní se neodemkne; month = měsíc sezóny (1–12), ve které se dá získat
+    // (každý rok znovu, kdo ji má, nechá si ji navždy). Album a přehledy podle toho poznají sezónní věci.
+    const SEASON_MONTHS = ['Leden', 'Únor', 'Březen', 'Duben', 'Květen', 'Červen', 'Červenec', 'Srpen', 'Září', 'Říjen', 'Listopad', 'Prosinec'];
+    const SEASON_ADJECTIVES = ['Lednový', 'Únorový', 'Březnový', 'Dubnový', 'Květnový', 'Červnový', 'Červencový', 'Srpnový', 'Zářijový', 'Říjnový', 'Listopadový', 'Prosincový'];
+    const pad2 = (month) => String(month).padStart(2, '0');
+    // Rámečky sezóny: CSS .frame-sezona-01 … -12 (barvy měsíce v src/input.css), jen ze Sezónní truhly svého měsíce
+    const SEASON_FRAMES = SEASON_ADJECTIVES.map((title, index) => ({ id: `sezona-${pad2(index + 1)}`, title, month: index + 1, exclusive: true, source: 'season' }));
+    // Rámečky za sérii dní dnešních otázek (odznaky skupiny 'serie' v quiz-core): 7 dní Jiskra, 30 dní Plamenný (výš ve FRAMES),
+    // 100 dní Stovka, 365 dní Věčný oheň. Animace v src/input.css (.frame-jiskra, .frame-stovka, .frame-vecny-ohen).
+    // TODO(obrázek): za 100 dní ještě doplněk „Hrdinský plášť“ – až bude obrázek icons/doplnky/plast-*.webp, stačí do ACCESSORIES
+    // přidat { id: 'plast', title: 'Hrdinský plášť', slot: 'neck', hue: 0, badge: 'serie-100' } (řádek o další odměně ho ukáže sám).
+    const STREAK_FRAMES = [
+        { id: 'jiskra', title: 'Jiskra', badge: 'tyden' },
+        { id: 'stovka', title: 'Stovka', badge: 'serie-100' },
+        { id: 'vecny-ohen', title: 'Věčný oheň', badge: 'serie-365' }
+    ];
+    FRAMES.push(...STREAK_FRAMES, ...SEASON_FRAMES);
+    // Titul u jména za celou sezónu (Sezónní truhla na 20. stupni); ukládá se jako title_pref stejně jako odznak
+    const TITLES = [{ id: 'sampion-sezony', title: 'Šampion sezóny', exclusive: true, source: 'season' }];
+    // Sezónní truhla (20. stupeň sezóny): pro každý měsíc doplněk, rámeček a postavička. Do truhly jde jen to, co už v katalogu je
+    // (doplněk v ACCESSORIES s obrázky v icons/doplnky, postavička v AVATARS s obrázky v icons/avatars, rámeček ve FRAMES), takže přidat
+    // novou věc = jen přidat její položku s exclusive: true a month (a obrázky). Plánovaná id (postavička jen písmena, nejvýš 6 znaků):
+    // obrázkový rámeček ramecek-sezona-01 … -12 může později nahradit CSS rámeček stejného id.
+    const SEASON_BUNDLES = {
+        '01': { accessory: 'cepice-zimni', frame: 'sezona-01', character: 'ramp' },
+        '02': { accessory: 'karneval', frame: 'sezona-02', character: 'kobliz' },
+        '03': { accessory: 'jarni-venecek', frame: 'sezona-03', character: 'snezen' },
+        '04': { accessory: 'destnik', frame: 'sezona-04', character: 'kapka' },
+        '05': { accessory: 'konvalinky', frame: 'sezona-05', character: 'pampel' },
+        '06': { accessory: 'slamak', frame: 'sezona-06', character: 'vysved' },
+        '07': { accessory: 'snorchl', frame: 'sezona-07', character: 'meloun' },
+        '08': { accessory: 'zmrzlina', frame: 'sezona-08', character: 'hvezda' },
+        '09': { accessory: 'tuzka', frame: 'sezona-09', character: 'aktovk' },
+        '10': { accessory: 'dyne', frame: 'sezona-10', character: 'drakpa' },
+        '11': { accessory: 'lampion', frame: 'sezona-11', character: 'caj' },
+        '12': { accessory: 'sala-zimni', frame: 'sezona-12', character: 'pernik' }
+    };
     const CUSTOM_HUE = /^h(\d{1,3})$/;
     // Odstín vlastní barvy (násobek 5, 0–355) nebo null
     const customHue = (color) => { const match = CUSTOM_HUE.exec(String(color)); const hue = match ? Number(match[1]) : NaN; return hue >= 0 && hue <= 355 && hue % 5 === 0 ? hue : null; };
@@ -136,6 +174,7 @@
     const POSES = (Core && Core.TITLE_OWL_FROM ? Core.TITLE_OWL_FROM : []).map((from, index) => ({ id: `titul-${index + 1}`, tier: index + 1, level: from }));
     const findPose = (id) => POSES.find(pose => pose.id === id) || null;
     const CATALOG = { themes: THEMES, robes: ROBES, frames: FRAMES, avatars: AVATARS, accessories: ACCESSORIES, colors: ACC_COLORS.filter(color => color.level > 1) };
+    CATALOG.titles = TITLES;
     const DEFAULTS = { theme: 'vinova', robe: 'vinova', frame: 'zadny', title: 'level', acc: {}, pose: null };
 
     // Barva doplňku: z katalogu (odemčená) nebo vlastní odstín z palety (když je paleta odemčená)
@@ -158,10 +197,11 @@
     const isUnlocked = (item, ctx) => {
         if (!item) return false;
         if (ctx && isGift(item, ctx.gifts !== undefined ? ctx.gifts : giftState)) return true;
+        if (item.exclusive) return false;
         if (item.badge) return Boolean(ctx && ctx.badges && ctx.badges[item.badge]);
         return Boolean(ctx) && ctx.level >= (item.level || 1);
     };
-    const unlockText = (item, badgeTitle = null) => item.badge ? `Odznak: ${badgeTitle || item.badge}` : `Úroveň ${item.level}`;
+    const unlockText = (item, badgeTitle = null) => item.exclusive ? (item.month ? `Sezóna Mudrlanta (${SEASON_MONTHS[item.month - 1].toLocaleLowerCase('cs')})` : 'Sezóna Mudrlanta') : item.badge ? `Odznak: ${badgeTitle || item.badge}` : `Úroveň ${item.level}`;
     const categoryOf = (item) => CATEGORY_OF.get(item) || null;
     const find = (category, id) => (CATALOG[category] || []).find(item => item.id === id) || null;
 
@@ -224,7 +264,7 @@
         }
         value.pose = findPose(source.pose) ? source.pose : null;
         if (source.title === 'none' || source.title === 'level') value.title = source.title;
-        else if (typeof source.title === 'string' && (!ctx || (ctx.badges && ctx.badges[source.title]))) value.title = source.title;
+        else if (typeof source.title === 'string' && (!ctx || (ctx.badges && ctx.badges[source.title]) || isUnlocked(find('titles', source.title), ctx))) value.title = source.title;
         return value;
     };
     let current = null;
@@ -268,9 +308,9 @@
         return result;
     };
     // Jak se druh odměny jmenuje v textech pro hráče
-    const REWARD_KINDS = { themes: 'barevné téma', robes: 'talár Mudrlanta', frames: 'rámeček', avatars: 'profilový obrázek', accessories: 'doplněk Mudrlanta', colors: 'barva doplňků' };
+    const REWARD_KINDS = { themes: 'barevné téma', robes: 'talár Mudrlanta', frames: 'rámeček', avatars: 'profilový obrázek', accessories: 'doplněk Mudrlanta', colors: 'barva doplňků', titles: 'titul u jména' };
     // Kde v Nastavení se odměna vybírá (záložka): téma ve Hře, rámeček a obrázek v Profilu, oblek, doplňky a jejich barvy u Mudrlanta
-    const SETTINGS_TAB = { themes: 'game', frames: 'profile', avatars: 'profile', robes: 'owl', accessories: 'owl', colors: 'owl' };
+    const SETTINGS_TAB = { themes: 'game', frames: 'profile', avatars: 'profile', robes: 'owl', accessories: 'owl', colors: 'owl', titles: 'profile' };
     const TAB_TITLES = { game: 'Hra', profile: 'Profil', owl: 'Mudrlant' };
     const settingsTab = (category) => SETTINGS_TAB[category] || 'owl';
     const settingsPlace = (category) => `Nastavení → ${TAB_TITLES[settingsTab(category)]}`;
@@ -283,7 +323,18 @@
     };
     // Odměny odemknuté na dané úrovni (pro přehled úrovní)
     const rewardsAtLevel = (level) => Object.entries(CATALOG).flatMap(([category, items]) => items.filter(item => !item.badge && item.level === level).map(item => ({ category, item })));
+    // Sezónní truhla měsíce (1–12): [{ category, item }] jen z toho, co v katalogu opravdu je (doplněk, rámeček, postavička), a titul
+    const seasonBundle = (month) => {
+        const plan = SEASON_BUNDLES[pad2(month)] || {};
+        return [['accessories', plan.accessory], ['frames', plan.frame], ['avatars', plan.character], ['titles', TITLES[0].id]]
+            .map(([category, id]) => ({ category, item: id ? find(category, id) : null }))
+            .filter(({ item }) => item && (item.exclusive || item.id === TITLES[0].id));
+    };
+    // Vlastní titul (ne odznak) podle id, nebo null
+    const titleItem = (id) => find('titles', id);
 
     return { setGifts, isGift: (item) => isGift(item, giftState), categoryOf, CATALOG, THEMES, ROBES, FRAMES, AVATARS, AVATAR_COLORS, ACCESSORIES, SLOTS, ACC_COLORS, POSES, findPose, customHue, colorOk, flagOk, DEFAULTS, isUnlocked, unlockText, find, normalize, prefs, setPref, onChange, register, getSections, apply, newRewards, rewardsAtLevel, REWARD_KINDS, settingsTab, settingsPlace, rewardsForBadge, badgeRewardText,
-        migrateAvatar, parseAvatar, formatAvatar, avatarCode, avatarPicture, avatarItem, partColors };
+        migrateAvatar, parseAvatar, formatAvatar, avatarCode, avatarPicture, avatarItem, partColors,
+        // Sezóna a série dní
+        SEASON_MONTHS, SEASON_ADJECTIVES, SEASON_FRAMES, STREAK_FRAMES, TITLES, SEASON_BUNDLES, seasonBundle, titleItem };
 });

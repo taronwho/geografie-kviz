@@ -8,7 +8,8 @@
 })(typeof self !== 'undefined' ? self : this, (Look, Core) => {
     'use strict';
     const HEADING = 'text-[11px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400';
-    const SHORT = { zadny: 'Bez', bronz: 'Bronz', stribro: 'Stříbro', zlato: 'Zlato', vavrin: 'Vavřín', plamen: 'Plamen', diamant: 'Diamant', medailista: 'Medaile', 'mistr-turnaje': 'Mistr' };
+    const SHORT = { zadny: 'Bez', bronz: 'Bronz', stribro: 'Stříbro', zlato: 'Zlato', vavrin: 'Vavřín', plamen: 'Plamen', diamant: 'Diamant', medailista: 'Medaile', 'mistr-turnaje': 'Mistr',
+        jiskra: 'Jiskra', stovka: 'Stovka', 'vecny-ohen': 'Oheň' };
     const escapeHtml = (text) => Core && Core.escapeHtml ? Core.escapeHtml(text) : String(text).replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
 
     // Třídy rámečku pro obrázek hráče; neznámé id (a „bez rámečku“) nedá nic, takže cizí hodnota z databáze nic nerozbije
@@ -18,12 +19,15 @@
     };
 
     // Možnosti výběru titulu: úroveň (výchozí), nic a získané odznaky (id → název); vybraný odznak je v nabídce vždy
-    const titleOptions = ({ level, levelTitle, earnedIds, current, badgeTitle }) => {
+    // ownTitles = vlastní tituly (Look.TITLES, např. Šampion sezóny), které hráč má: jdou před odznaky
+    const titleOptions = ({ level, levelTitle, earnedIds, current, badgeTitle, ownTitles = [] }) => {
+        const own = ownTitles.map(item => item.id);
         const ids = [...earnedIds];
-        if (current && current !== 'level' && current !== 'none' && !ids.includes(current)) ids.push(current);
+        if (current && current !== 'level' && current !== 'none' && !ids.includes(current) && !own.includes(current)) ids.push(current);
         return [
             { value: 'level', label: `Úr. ${level} · ${levelTitle}` },
             { value: 'none', label: 'Nic' },
+            ...ownTitles.map(item => ({ value: item.id, label: item.title, own: true })),
             ...ids.map(id => ({ value: id, label: badgeTitle(id) || id, badge: true }))
         ];
     };
@@ -38,9 +42,10 @@
     const renderFrames = (ctx) => {
         const player = previewPlayer(ctx);
         const selected = ctx.prefs.frame;
-        const tiles = Look.FRAMES.map(item => {
+        // Sezónní rámečky (exclusive) jen ty, které hráč má: zamčených by byla dlouhá řada a získat jdou jen v sezóně svého měsíce
+        const tiles = Look.FRAMES.filter(item => !item.exclusive || Look.isUnlocked(item, ctx) || item.id === selected).map(item => {
             const unlocked = Look.isUnlocked(item, ctx);
-            const label = unlocked || item.id === 'zadny' ? SHORT[item.id] : (item.badge ? 'Odznak' : `Úr. ${item.level}`);
+            const label = unlocked || item.id === 'zadny' ? (SHORT[item.id] || item.title) : (item.badge ? 'Odznak' : item.exclusive ? 'Sezóna' : `Úr. ${item.level}`);
             const text = unlocked ? item.title : `${item.title}: ${Look.unlockText(item, item.badge ? badgeTitle(item.badge) : null)}`;
             return `<button type="button" data-frame="${item.id}" aria-pressed="${item.id === selected}" aria-label="${escapeHtml(unlocked ? item.title : `${text} (zamčeno)`)}" title="${escapeHtml(text)}" class="flex h-11 w-11 shrink-0 snap-start items-center justify-center rounded-xl border-2 active:scale-95 ${item.id === selected ? 'border-brand-600 bg-brand-50 dark:bg-brand-900/40' : 'border-transparent bg-slate-100 dark:bg-slate-700/60'} ${unlocked ? '' : 'opacity-50 grayscale'}">
                 ${ctx.avatarHtml ? ctx.avatarHtml({ ...player, id: null, frame: item.id }, 'h-8 w-8 text-base') : ''}<span class="sr-only">${escapeHtml(label)}</span>
@@ -69,8 +74,9 @@
         return Core && Core.compactBadges ? Core.compactBadges(ids) : ids;
     };
     const renderTitle = (ctx) => {
+        const ownTitles = (Look.TITLES || []).filter(item => Look.isUnlocked(item, ctx));
         const options = titleOptions({
-            level: ctx.level, levelTitle: Core && Core.titleForLevel ? Core.titleForLevel(ctx.level) : '', earnedIds: earnedBadgeIds(ctx), current: ctx.prefs.title, badgeTitle
+            level: ctx.level, levelTitle: Core && Core.titleForLevel ? Core.titleForLevel(ctx.level) : '', earnedIds: earnedBadgeIds(ctx), current: ctx.prefs.title, badgeTitle, ownTitles
         });
         const optionHtml = (option) => `<option value="${escapeHtml(option.value)}"${option.value === ctx.prefs.title ? ' selected' : ''}>${escapeHtml(option.label)}</option>`;
         // Popisek vlevo, výběr vedle (jeden řádek); první možnost ukazuje přesně to, co bude u jména
@@ -78,7 +84,8 @@
                 <span class="${HEADING} shrink-0">Titul u jména</span>
                 <select data-title-select aria-label="Titul u jména: co se zobrazí u tvého jména" class="min-h-[2.5rem] min-w-0 flex-1 rounded-xl border-2 border-slate-200 bg-white px-2.5 py-1.5 text-sm font-bold text-slate-800 focus:border-brand-600 focus:outline-none dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100">
                     ${optionHtml(options[0])}${optionHtml(options[1])}
-                    ${options.length > 2 ? `<optgroup label="Získané odznaky">${options.slice(2).map(optionHtml).join('')}</optgroup>` : ''}
+                    ${options.some(option => option.own) ? `<optgroup label="Tituly">${options.filter(option => option.own).map(optionHtml).join('')}</optgroup>` : ''}
+                    ${options.some(option => option.badge) ? `<optgroup label="Získané odznaky">${options.filter(option => option.badge).map(optionHtml).join('')}</optgroup>` : ''}
                 </select>
             </label>`;
     };

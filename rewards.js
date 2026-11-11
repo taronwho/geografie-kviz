@@ -9,6 +9,8 @@
 //   jen série aspoň MIN_PROTECTED dní; dva vynechané dny v řadě ochrana nezachrání.
 // - Diplomy: za plné mistrovství tématu (5 hvězdiček) obrázek k sdílení (kreslí share-card.js); den zisku se pamatuje.
 // Čistá logika a HTML bez DOMu; okna, animaci truhly a napojení na hru dělá app.js (oddíl „Odměny“).
+// - Sezóna Mudrlanta (season.js): stav sezóny (season = tento měsíc, past = minulý kvůli dovybrání) je tady, ať se ukládá a slučuje
+//   s ostatními odměnami; počítání stupňů, odměny a okna jsou v season.js. Věci ze sezóny jsou v gifts (i postavičky a tituly).
 // Stav v zařízení (mudrlant.rewards), po přihlášení i v účtu (profiles.rewards, schéma 9): merge() sjednotí obě strany.
 (function (root, factory) {
     const isNode = typeof module === 'object' && module.exports;
@@ -25,7 +27,9 @@
     const NEAREST = 6;
     // Druhy věcí v truhle (klíče katalogu look.js) a jak se jmenují v textech
     const GIFT_CATEGORIES = ['accessories', 'colors', 'frames', 'robes', 'themes'];
-    const KIND_NAMES = { accessories: 'doplněk Mudrlanta', colors: 'barva doplňků', frames: 'rámeček profilu', robes: 'talár Mudrlanta', themes: 'barevné téma' };
+    const KIND_NAMES = { accessories: 'doplněk Mudrlanta', colors: 'barva doplňků', frames: 'rámeček profilu', robes: 'talár Mudrlanta', themes: 'barevné téma', avatars: 'postavička', titles: 'titul u jména' };
+    // Věci, které hráč může mít jako dárek: z truhly (GIFT_CATEGORIES) a navíc ze Sezónní truhly (postavička a titul)
+    const OWN_CATEGORIES = [...GIFT_CATEGORIES, 'avatars', 'titles'];
     const LIMITS = { chests: 80, ready: 12, frozen: 90, earned: 40 };
 
     // --- Dny (RRRR-MM-DD) ---
@@ -45,12 +49,46 @@
     };
     const lastDays = (list, limit) => [...new Set((Array.isArray(list) ? list : []).filter(isDay))].sort().slice(-limit);
     const REWARD = /^(?:xp|(accessories|colors|frames|robes|themes):[a-z0-9-]{1,30})$/;
-    const empty = () => ({ v: 1, gifts: Object.fromEntries(GIFT_CATEGORIES.map(category => [category, []])), chests: {}, ready: [], freezes: 0, freezesAt: 0, frozen: [], earned: [], checked: '', diplomas: {}, name: '' });
+    const empty = () => ({ v: 1, gifts: Object.fromEntries(OWN_CATEGORIES.map(category => [category, []])), chests: {}, ready: [], freezes: 0, freezesAt: 0, frozen: [], earned: [], checked: '', diplomas: {}, name: '', season: null, past: null });
+
+    // --- Sezóna (season.js): { id: 'RRRR-MM', startXp, claimed: { stupeň: odměna } }, minulá sezóna navíc endXp ---
+    // Odměna stupně: části spojené „+“: 'kategorie:id' (věc), 'freeze' (ochrana série), 'xp:N'
+    const SEASON_ID = /^\d{4}-(?:0[1-9]|1[0-2])$/;
+    const SEASON_PART = '(?:freeze|xp:\\d{1,4}|(?:accessories|colors|frames|robes|themes|avatars|titles):[a-z0-9-]{1,30})';
+    const SEASON_REWARD = new RegExp(`^${SEASON_PART}(?:\\+${SEASON_PART}){0,5}$`);
+    const SEASON_TIERS = 20;
+    const cleanSeason = (raw, past = false) => {
+        if (!raw || typeof raw !== 'object' || Array.isArray(raw) || !SEASON_ID.test(String(raw.id || ''))) return null;
+        const claimed = raw.claimed && typeof raw.claimed === 'object' && !Array.isArray(raw.claimed) ? raw.claimed : {};
+        const record = { id: raw.id, startXp: whole(raw.startXp, 1e9), claimed: Object.fromEntries(Object.entries(claimed)
+            .filter(([tier, reward]) => /^\d{1,2}$/.test(tier) && Number(tier) >= 1 && Number(tier) <= SEASON_TIERS && typeof reward === 'string' && SEASON_REWARD.test(reward))
+            .sort(([a], [b]) => Number(a) - Number(b))) };
+        if (past) record.endXp = Math.max(record.startXp, whole(raw.endXp, 1e9));
+        return record;
+    };
+    // Sloučení dvou záznamů téže sezóny: menší startXp (kdo ji začal počítat dřív), větší endXp (konec zapsaný zařízením, které viselo
+    // déle; přesnější je ten nižší jen u zařízení bez novějšího postupu, proto vyhrává větší) a všechny vybrané stupně (při shodě ten první)
+    const mergeSeasonRecord = (a, b) => {
+        const merged = { id: a.id, startXp: Math.min(a.startXp, b.startXp), claimed: Object.fromEntries(Object.entries({ ...b.claimed, ...a.claimed }).sort(([x], [y]) => Number(x) - Number(y))) };
+        if (a.endXp !== undefined || b.endXp !== undefined) merged.endXp = Math.max(merged.startXp, a.endXp ?? 0, b.endXp ?? 0);
+        return merged;
+    };
+    // Sezóna a minulá sezóna z obou stran: záznamy se seskupí podle měsíce (zařízení, které už přešlo do nového měsíce, má starou sezónu
+    // jako past), nejnovější je season, předchozí past. Novější sezóna tak nahradí starší a dovybrané stupně staré se neztratí.
+    const mergeSeasons = (sides) => {
+        const byId = new Map();
+        for (const record of sides.filter(Boolean)) byId.set(record.id, byId.has(record.id) ? mergeSeasonRecord(byId.get(record.id), record) : record);
+        const ids = [...byId.keys()].sort().reverse();
+        const season = ids[0] ? { ...byId.get(ids[0]) } : null;
+        if (season) delete season.endXp;
+        const pastRecord = ids[1] ? byId.get(ids[1]) : null;
+        return { season, past: pastRecord ? { ...pastRecord, endXp: pastRecord.endXp ?? pastRecord.startXp } : null };
+    };
     const parse = (raw) => {
         const data = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {};
         const state = empty();
         const gifts = data.gifts && typeof data.gifts === 'object' ? data.gifts : {};
-        for (const category of GIFT_CATEGORIES) state.gifts[category] = cleanIds(gifts[category], category);
+        for (const category of OWN_CATEGORIES) state.gifts[category] = cleanIds(gifts[category], category);
         const chests = data.chests && typeof data.chests === 'object' && !Array.isArray(data.chests) ? data.chests : {};
         state.chests = Object.fromEntries(Object.entries(chests).filter(([week, reward]) => isDay(week) && typeof reward === 'string' && REWARD.test(reward)).sort(([a], [b]) => a.localeCompare(b)).slice(-LIMITS.chests));
         state.ready = lastDays(data.ready, LIMITS.ready).filter(week => !state.chests[week]);
@@ -62,6 +100,9 @@
         const diplomas = data.diplomas && typeof data.diplomas === 'object' && !Array.isArray(data.diplomas) ? data.diplomas : {};
         state.diplomas = Object.fromEntries(Object.entries(diplomas).filter(([topic, day]) => ID.test(topic) && isDay(day)));
         state.name = typeof data.name === 'string' ? data.name.replace(/\s+/g, ' ').trim().slice(0, 30) : '';
+        state.season = cleanSeason(data.season);
+        state.past = cleanSeason(data.past, true);
+        if (state.past && state.season && state.past.id >= state.season.id) state.past = null;
         return state;
     };
 
@@ -176,12 +217,26 @@
     };
     const setName = (state, name) => ({ ...parse(state), name: String(name || '').replace(/\s+/g, ' ').trim().slice(0, 30) });
 
+    // --- Odměny za sérii dní: stupně skupiny odznaků „serie“ (quiz-core), ke kterým patří věc z katalogu (look.js: rámečky Jiskra
+    // za 7 dní, Plamenný za 30, Stovka za 100, Věčný oheň za 365; další věc se k odznaku jen připíše do katalogu) ---
+    // badges = stupně skupiny (Core.BADGE_GROUPS, id 'serie'), earned = získané odznaky { id: den }, streak = nejdelší běžící série dní.
+    // Vrátí nejbližší nezískanou odměnu { badge, goal, rewards: [{ category, item }], left } nebo null (všechny má)
+    const nextStreakReward = (badges, earned, streak) => {
+        if (!Look) return null;
+        const next = (badges || []).find(badge => Look.rewardsForBadge(badge.id).length && !(earned && earned[badge.id]));
+        if (!next) return null;
+        return { badge: next, goal: next.goal, rewards: Look.rewardsForBadge(next.id), left: Math.max(1, next.goal - Math.max(0, Math.floor(Number(streak) || 0))) };
+    };
+    // „Další odměna za sérii: Stovka za 100 dní (zbývá 37)“
+    const streakRewardText = (next) => `Další odměna za sérii: ${next.rewards.map(entry => entry.item.title).join(' a ')} za ${next.goal} dní (zbývá ${next.left})`;
+
     // --- Účet: co se ukládá do profiles.rewards a jak se spojí se zařízením ---
     const payload = (state) => {
         const s = parse(state);
-        return { v: 1, gifts: s.gifts, chests: s.chests, ready: s.ready, freezes: s.freezes, freezesAt: s.freezesAt, frozen: s.frozen, earned: s.earned, diplomas: s.diplomas };
+        return { v: 1, gifts: s.gifts, chests: s.chests, ready: s.ready, freezes: s.freezes, freezesAt: s.freezesAt, frozen: s.frozen, earned: s.earned, diplomas: s.diplomas, season: s.season, past: s.past };
     };
-    // Sjednocení: věci, truhly, zachráněné dny a diplomy se sčítají (u diplomu dřívější den); počet ochran platí z novější změny
+    // Sjednocení: věci, truhly, zachráněné dny a diplomy se sčítají (u diplomu dřívější den); počet ochran platí z novější změny;
+    // sezóna: tatáž sezóna = menší startXp a sjednocené stupně, novější sezóna nahradí starší (ta zůstane jako past)
     const merge = (localInput, remoteInput) => {
         const local = parse(localInput);
         const remote = parse(remoteInput);
@@ -191,13 +246,14 @@
         const newer = remote.freezesAt > local.freezesAt ? remote : local;
         return parse({
             ...local,
-            gifts: Object.fromEntries(GIFT_CATEGORIES.map(category => [category, [...new Set([...local.gifts[category], ...remote.gifts[category]])]])),
+            gifts: Object.fromEntries(OWN_CATEGORIES.map(category => [category, [...new Set([...local.gifts[category], ...remote.gifts[category]])]])),
             chests,
             ready: [...local.ready, ...remote.ready].filter(week => !chests[week]),
             freezes: newer.freezes, freezesAt: newer.freezesAt,
             frozen: [...local.frozen, ...remote.frozen],
             earned: [...new Set([...remote.earned, ...local.earned])].sort((a, b) => a.slice(2).localeCompare(b.slice(2))),
-            diplomas
+            diplomas,
+            ...mergeSeasons([local.season, local.past, remote.season, remote.past])
         });
     };
     const stable = (value) => JSON.stringify(value, (key, item) => item && typeof item === 'object' && !Array.isArray(item) ? Object.fromEntries(Object.entries(item).sort(([a], [b]) => a.localeCompare(b))) : item);
@@ -235,6 +291,12 @@
         if (category === 'frames') return `<span class="relative flex ${size} items-center justify-center rounded-full bg-white${h.frameClass ? h.frameClass(item.id) : ''}"><img src="icons/logo.webp" alt="" class="h-[78%] w-[78%] object-contain"></span>`;
         return '';
     };
+    // Řádek s další odměnou za sérii (výsledek dnešní otázky, okno ochrany série): ukázka věci a text; h.frameClass z app.js
+    const streakRewardHtml = (next, h = {}, cls = '') => !next ? '' : `
+        <p data-streak-reward class="flex min-w-0 items-center gap-1.5 text-[11px] font-bold leading-tight text-slate-600 dark:text-slate-300 ${cls}" title="${esc(streakRewardText(next))}">
+            <span class="flex h-5 w-5 shrink-0 items-center justify-center text-[0.75rem]">${previewHtml(next.rewards[0], h, 'h-5 w-5')}</span>
+            <span class="min-w-0 truncate">Další odměna za sérii: <b class="text-slate-800 dark:text-slate-100">${esc(next.rewards.map(entry => entry.item.title).join(' a '))}</b> za ${next.goal} dní <span class="whitespace-nowrap text-gold-700 dark:text-gold-300">(zbývá ${next.left})</span></span>
+        </p>`;
     // Okno truhly (animace v src/input.css, .chest-*). Zavřená: truhla je velké tlačítko, za ní pulzuje zlatá záře, kolem se třpytí
     // jiskry a pod ní je nápověda. Po otevření (opened) je na stejném místě otevřená truhla: obě truhly leží v jedné buňce mřížky ve
     // stejném měřítku (.chest-lid-open), takže výměna vypadá jako zvednutí víka; za ní paprsky a kruh světla, jiskry vyletí ven, z truhly
@@ -354,9 +416,10 @@
         </div>`;
 
     return {
-        KEY, MAX_FREEZES, MIN_PROTECTED, FREEZE_EVERY, CHEST_XP, NEAREST, GIFT_CATEGORIES, KIND_NAMES, DIPLOMA_NAMES,
+        KEY, MAX_FREEZES, MIN_PROTECTED, FREEZE_EVERY, CHEST_XP, NEAREST, GIFT_CATEGORIES, OWN_CATEGORIES, KIND_NAMES, DIPLOMA_NAMES, SEASON_TIERS, SEASON_REWARD, cleanSeason, mergeSeasons,
         isDay, addDays, formatDay, empty, parse, gifts, owns, pendingChest, addChest, candidates, pickGift, openChest, chestReward,
         earnFreeze, streakEndingAt, bridgedStreak, checkFreeze, streakFreeze, diplomaTitle, noteDiplomas, setName, payload, merge, samePayload,
+        nextStreakReward, streakRewardText, streakRewardHtml,
         freezeWord, freezeChip, freezeArt, chestSvg, chestStripHtml, previewHtml, chestHtml, progressHtml, freezeHelpHtml, chestHelpHtml, diplomasHtml, diplomaDialogHtml
     };
 });
