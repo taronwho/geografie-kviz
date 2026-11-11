@@ -14,6 +14,17 @@
     [data-theme="zlata"] { --brand-50: 252 249 242; --brand-100: 250 243 226; --brand-200: 245 230 194; --brand-300: 236 209 147; --brand-400: 211 160 42; --brand-500: 162 126 43; --brand-600: 140 106 27; --brand-700: 120 89 16; --brand-800: 100 74 13; --brand-900: 82 61 13; --brand-950: 49 35 3; }
     [data-theme="diamant"] { --brand-50: 242 251 252; --brand-100: 227 247 249; --brand-200: 196 238 243; --brand-300: 150 225 233; --brand-400: 48 189 205; --brand-500: 47 147 158; --brand-600: 31 125 136; --brand-700: 20 106 116; --brand-800: 17 88 96; --brand-900: 16 73 79; --brand-950: 4 43 48; }
     [data-theme="legenda"] { --brand-50: 253 242 241; --brand-100: 251 226 225; --brand-200: 247 194 192; --brand-300: 240 146 143; --brand-400: 228 93 88; --brand-500: 208 54 48; --brand-600: 181 33 28; --brand-700: 155 20 15; --brand-800: 129 16 12; --brand-900: 105 16 13; --brand-950: 64 3 1; }
+    /* Další témata: podobná světlost stupňů jako u témat výše (bílý text na brand-700 aspoň 7 : 1, brand-300 na tmavé kartě aspoň
+       6,7 : 1). Polární záře přechází od tyrkysové (světlé stupně) do fialové (tmavé), Lávová od žhavé oranžové do tmavě rudé;
+       --brand-glow je druhý konec přechodu na jejich tlačítkách (níže u .btn-3d). */
+    [data-theme="matova"] { --brand-50: 234 251 245; --brand-100: 215 245 233; --brand-200: 174 232 212; --brand-300: 123 217 189; --brand-400: 59 196 165; --brand-500: 0 151 127; --brand-600: 0 119 102; --brand-700: 0 98 86; --brand-800: 0 83 72; --brand-900: 8 67 59; --brand-950: 0 39 34; }
+    [data-theme="limetka"] { --brand-50: 247 249 230; --brand-100: 236 241 208; --brand-200: 214 224 164; --brand-300: 192 211 108; --brand-400: 162 192 41; --brand-500: 117 150 18; --brand-600: 83 114 0; --brand-700: 65 95 2; --brand-800: 55 79 16; --brand-900: 45 64 21; --brand-950: 23 38 3; }
+    [data-theme="levandule"] { --brand-50: 247 245 255; --brand-100: 237 234 255; --brand-200: 217 211 251; --brand-300: 186 177 241; --brand-400: 155 141 227; --brand-500: 124 106 200; --brand-600: 102 85 173; --brand-700: 84 68 148; --brand-800: 69 59 122; --brand-900: 56 49 96; --brand-950: 32 25 63; }
+    [data-theme="poust"] { --brand-50: 253 246 234; --brand-100: 247 235 217; --brand-200: 235 214 185; --brand-300: 222 186 144; --brand-400: 200 150 99; --brand-500: 161 112 64; --brand-600: 136 90 50; --brand-700: 112 70 36; --brand-800: 93 58 32; --brand-900: 78 50 30; --brand-950: 49 26 10; }
+    [data-theme="sakura"] { --brand-50: 255 243 248; --brand-100: 255 228 240; --brand-200: 253 202 225; --brand-300: 248 160 202; --brand-400: 233 115 175; --brand-500: 205 75 149; --brand-600: 166 48 120; --brand-700: 139 35 102; --brand-800: 114 35 85; --brand-900: 90 33 69; --brand-950: 57 12 42; }
+    [data-theme="pulnoc"] { --brand-50: 242 247 255; --brand-100: 229 237 252; --brand-200: 203 218 244; --brand-300: 164 187 232; --brand-400: 118 151 220; --brand-500: 85 120 201; --brand-600: 61 91 169; --brand-700: 41 66 136; --brand-800: 33 51 107; --brand-900: 23 37 82; --brand-950: 8 16 45; }
+    [data-theme="lava"] { --brand-50: 255 245 232; --brand-100: 255 233 207; --brand-200: 254 207 161; --brand-300: 255 176 114; --brand-400: 250 130 51; --brand-500: 221 84 6; --brand-600: 182 43 5; --brand-700: 129 12 4; --brand-800: 97 8 8; --brand-900: 73 4 5; --brand-950: 37 0 1; --brand-glow: 182 43 5; }
+    [data-theme="zare"] { --brand-50: 234 252 246; --brand-100: 214 245 236; --brand-200: 171 232 217; --brand-300: 107 223 202; --brand-400: 0 193 182; --brand-500: 0 134 186; --brand-600: 85 88 185; --brand-700: 86 58 155; --brand-800: 78 50 131; --brand-900: 66 40 105; --brand-950: 38 23 60; --brand-glow: 0 108 122; }
     * { -webkit-tap-highlight-color: transparent; }
     html { touch-action: manipulation; }
     /* Výška aplikace: starší prohlížeče bez dvh dostanou výšku viditelné plochy (ne 100vh, které sahá pod lištu prohlížeče), novější dynamickou */
@@ -108,6 +119,10 @@ html.kb-open #settings-overlay > *, html.kb-open #dialog-overlay > * { max-heigh
     }
     .btn-3d:disabled, .btn-3d-light:disabled { transform: none; }
 }
+/* Dvě nejvyšší témata (Lávová, Polární záře): plochy bg-brand-700 (hlavní tlačítka, vybraná záložka) mají místo jedné barvy přechod
+   do --brand-glow (žhavá oranžová, tyrkysová záře); bílý text má i na světlejším konci kontrast aspoň 6 : 1 */
+:is([data-theme="lava"], [data-theme="zare"]) .bg-brand-700 { background-image: linear-gradient(115deg, rgb(var(--brand-700)) 25%, rgb(var(--brand-glow))); }
+:is([data-theme="lava"], [data-theme="zare"]) .btn-3d.bg-brand-700 { background-image: linear-gradient(to bottom, rgb(255 255 255 / 0.16), rgb(255 255 255 / 0) 55%), linear-gradient(115deg, rgb(var(--brand-700)) 25%, rgb(var(--brand-glow))); }
 
 /* Rámečky profilu kolem obrázku hráče (look-frames.js): kroužek z přechodu je mimo obrázek, takže se emoji nezmění ani nezmenší.
    Tloušťka se přizpůsobí velikosti písma obrázku (h-7 až h-20). */

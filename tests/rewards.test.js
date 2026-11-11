@@ -65,6 +65,12 @@ test('truhla: bez duplicit, po všem XP; ochrana jen do stropu', () => {
     assert.equal(Rewards.openChest(Rewards.addChest(Rewards.empty(), '2026-11-02'), '2026-11-02', ctx(100)).xp, Rewards.CHEST_XP);
 });
 
+test('truhla nedá Bílý talár (noGift): ten je jen za úroveň 100', () => {
+    const all = Rewards.candidates(Rewards.empty(), ctx(1));
+    assert.ok(all.length > 10);
+    assert.equal(all.some(entry => entry.category === 'robes' && entry.item.id === 'bila'), false);
+});
+
 test('věc z truhly je ve Vzhledu odemčená (look.js setGifts), oslava úrovně ji znovu neohlásí', () => {
     const result = Rewards.openChest(Rewards.addChest(Rewards.empty(), '2026-11-02'), '2026-11-02', ctx(3), { rng: () => 0 });
     const item = result.gift.item;
