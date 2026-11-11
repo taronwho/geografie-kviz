@@ -12,7 +12,8 @@
     'use strict';
     const KEY = 'mudrlant.look';
 
-    // Katalog: level = od jaké úrovně je odměna k dispozici, badge = po kterém odznaku (id z quiz-core). Každá položka má id a title.
+    // Katalog: level = od jaké úrovně je odměna k dispozici, badge = po kterém odznaku (id z quiz-core), chest = jen vzácný dárek z Truhly
+    // Mudrlanta (rewards.js). Každá položka má id a title.
     // Barevná témata v pořadí úrovní (v tomto pořadí je ukazuje výběr v Nastavení → Hra, dvě řady po osmi)
     const THEMES = [
         { id: 'vinova', title: 'Vínová', level: 1 },
@@ -199,6 +200,23 @@
     // --- Album sbírky (album.js): rámeček Sběratelský za celé album (odznak Legenda sbírky, 100 %). album: true = odměna za album samo,
     // do počtu sbírky se nepočítá (jinak by 100 % nešlo získat). Animovaný rámeček je .frame-sberatel v src/input.css.
     FRAMES.push({ id: 'sberatel', title: 'Sběratelský', badge: 'sberatel-100', album: true });
+    // --- Obrázkové rámečky (docs/OBRAZKY.md č. 109–118): prsten z obrázku icons/frames/<id>.webp kolem obrázku hráče (art: true; CSS
+    // .frame-art a .frame-<id> v src/input.css, obrázky z branding/ramecky/<id>.jpg vyrábí scripts/frame-images.py, stejný seznam má sw.js
+    // FRAME_ART). Nejvzácnější rámečky: pět za vysoké úrovně, tři za těžké odznaky a dva jen jako vzácný dárek z Truhly Mudrlanta
+    // (chest: true): úrovní ani odznakem se neodemknou, truhla je dá jen občas (rewards.js RARE_CHANCE) a Sezóna je nedá vůbec.
+    const ART_FRAMES = [
+        { id: 'ohen', title: 'Ohnivý prstenec', level: 37 },
+        { id: 'more', title: 'Mořská vlna', level: 49 },
+        { id: 'soukoli', title: 'Steampunk soukolí', level: 63 },
+        { id: 'galaxie', title: 'Galaxie', level: 77 },
+        { id: 'kralovsky-vavrin', title: 'Královský vavřín', level: 94 },
+        { id: 'blesk', title: 'Bleskový prstenec', badge: 'bleskovka-20' },
+        { id: 'led', title: 'Ledová koruna', badge: 'preziti-50' },
+        { id: 'drak', title: 'Strážný drak', badge: 'vsechna-temata-3' },
+        { id: 'duha-mracky', title: 'Duha s mráčky', chest: true },
+        { id: 'ruze', title: 'Růže a trny', chest: true }
+    ].map(item => ({ ...item, art: true }));
+    FRAMES.push(...ART_FRAMES);
     // Sova titulu jako obrázek profilu (póza): 'titul-1' … 'titul-11' podle stupňů Core.TITLE_OWL_FROM (level = od jaké úrovně), null = sova
     // s doplňky. Volba se ukládá, jak ji hráč zvolil; na dosaženou úroveň se omezí až při vykreslení (MudrlantOwl.allowedPose), takže
     // po ztrátě úrovně (vývojářský reset) se ukáže nejvyšší dosažená sova a po návratu úrovně zase ta zvolená. Není v CATALOG:
@@ -229,13 +247,14 @@
     const isUnlocked = (item, ctx) => {
         if (!item) return false;
         if (ctx && isGift(item, ctx.gifts !== undefined ? ctx.gifts : giftState)) return true;
-        if (item.exclusive) return false;
+        if (item.exclusive || item.chest) return false;
         if (item.league) return leagueUnlocked(item, ctx);
         if (item.badge) return Boolean(ctx && ctx.badges && ctx.badges[item.badge]);
         return Boolean(ctx) && ctx.level >= (item.level || 1);
     };
     const unlockText = (item, badgeTitle = null) => item.exclusive ? (item.month ? `Sezóna Mudrlanta (${SEASON_MONTHS[item.month - 1].toLocaleLowerCase('cs')}, Sezónní truhla na 20. stupni)` : 'Sezóna Mudrlanta (celá cesta sezóny)')
-        : item.league ? `Ligová sezóna: vrchol ${item.leagueName}` : item.badge ? `Odznak: ${badgeTitle || item.badge}` : `Úroveň ${item.level}`;
+        : item.chest ? 'Vzácný dárek z Truhly Mudrlanta'
+            : item.league ? `Ligová sezóna: vrchol ${item.leagueName}` : item.badge ? `Odznak: ${badgeTitle || item.badge}` : `Úroveň ${item.level}`;
     const categoryOf = (item) => CATEGORY_OF.get(item) || null;
     const find = (category, id) => (CATALOG[category] || []).find(item => item.id === id) || null;
 
@@ -372,5 +391,7 @@
         // Sezóna a série dní
         SEASON_MONTHS, SEASON_ADJECTIVES, SEASON_FRAMES, STREAK_FRAMES, TITLES, SEASON_BUNDLES, seasonBundle, titleItem,
         // Rámečky ligových sezón (schéma 18)
-        LEAGUE_FRAMES, setLeagueBest, leagueBest: () => leagueBest };
+        LEAGUE_FRAMES, setLeagueBest, leagueBest: () => leagueBest,
+        // Obrázkové rámečky
+        ART_FRAMES };
 });

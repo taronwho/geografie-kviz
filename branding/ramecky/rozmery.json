@@ -1,0 +1,12 @@
+{"size": 256, "box": 0.5, "fit": 1.03, "frames": {
+  "blesk": {"hole": 0.9709, "ring": 1.4505, "reach": 1.9578, "round": [0.996, 1.005], "bytes": 19542},
+  "drak": {"hole": 0.9709, "ring": 1.6049, "reach": 1.8659, "round": [0.936, 1.014], "bytes": 18552},
+  "duha-mracky": {"hole": 0.9709, "ring": 1.4733, "reach": 1.8739, "round": [0.946, 1.007], "bytes": 16442},
+  "galaxie": {"hole": 0.9709, "ring": 1.6203, "reach": 1.7429, "round": [0.998, 1.002], "bytes": 17188},
+  "kralovsky-vavrin": {"hole": 0.9709, "ring": 1.5098, "reach": 1.6228, "round": [0.996, 1.005], "bytes": 19092},
+  "led": {"hole": 0.9709, "ring": 1.4748, "reach": 1.7336, "round": [0.996, 1.005], "bytes": 19188},
+  "more": {"hole": 0.9709, "ring": 1.5412, "reach": 1.6529, "round": [0.996, 1.005], "bytes": 18910},
+  "ohen": {"hole": 0.9709, "ring": 1.4714, "reach": 1.6366, "round": [0.996, 1.005], "bytes": 17950},
+  "ruze": {"hole": 0.9709, "ring": 1.5509, "reach": 1.6932, "round": [0.902, 1.013], "bytes": 19378},
+  "soukoli": {"hole": 0.9709, "ring": 1.5775, "reach": 1.7576, "round": [0.995, 1.005], "bytes": 20694}
+}}

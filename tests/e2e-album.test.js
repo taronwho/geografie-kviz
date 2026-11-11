@@ -45,11 +45,12 @@ const player = () => ({
 });
 // Celá sbírka: úroveň 100, všechny odznaky kromě odznaků alba, všechny diplomy
 // Celá sbírka: k úrovni 100, odznakům a diplomům i ligový vrchol Mistr (rámečky ligových sezón jdou získat každý měsíc) a rámeček
-// letošní Sezóny Mudrlanta (sezónní věc běžícího měsíce jde získat, tak k celému albu patří)
+// letošní Sezóny Mudrlanta (sezónní věc běžícího měsíce jde získat, tak k celému albu patří) a vzácné obrázkové rámečky z Truhly Mudrlanta
 const SEASON_FRAME = `sezona-${Season.pragueDay().slice(5, 7)}`;
+const CHEST_FRAMES = require('../look.js').FRAMES.filter(item => item.chest).map(item => item.id);
 const collector = () => ({
     'mudrlant.progress': { xp: Core.xpForLevel(100), counters: {}, badges: Object.fromEntries(Core.BADGES.filter(badge => !Core.isAlbumBadge(badge.id)).map(badge => [badge.id, DAY])) },
-    'mudrlant.rewards': { freezes: 2, diplomas: Object.fromEntries(TOPICS.map(id => [id, DAY])), gifts: { frames: [SEASON_FRAME] } },
+    'mudrlant.rewards': { freezes: 2, diplomas: Object.fromEntries(TOPICS.map(id => [id, DAY])), gifts: { frames: [SEASON_FRAME, ...CHEST_FRAMES] } },
     'mudrlant.leagueSeasons': { v: 1, best: 'mistr', bestMonth: '2026-10' }
 });
 
