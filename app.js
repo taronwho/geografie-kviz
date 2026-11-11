@@ -3042,7 +3042,8 @@
     // Řádek „Celkem: 16 bodů“ do výsledku otázky (jen tam, kde je čip)
     const scoreTotalLine = (tone) => {
         const total = runningScore();
-        return total === null ? '' : `<p data-score-total class="text-sm font-bold ${tone}">V této hře zatím: ${escapeHtml(formatPoints(total))}</p>`;
+        // Malý štítek v pravém horním rohu rámečku výsledku („26 b.“), roste s každou otázkou; rámeček má relative a nadpis místo vpravo
+        return total === null ? '' : `<span data-score-total title="Body v této hře" aria-label="Body v této hře: ${total}" class="absolute right-2 top-2 rounded-md bg-white/70 px-1.5 py-0.5 text-[11px] font-black leading-none tabular-nums dark:bg-black/25 ${tone}">${total} b.</span>`;
     };
     const renderQuestion = (keepScroll) => {
         if (isNumeric(current)) return renderNumeric(keepScroll);
@@ -3233,10 +3234,10 @@
         const levels = `${round.hintLevel - 1}/${data.hints.length}`;
         if (round.correct) {
             return `
-                <div data-verdict tabindex="-1" class="flex items-center gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 outline-none dark:border-emerald-800 dark:bg-emerald-900/30">
+                <div data-verdict tabindex="-1" class="relative flex items-center gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 outline-none dark:border-emerald-800 dark:bg-emerald-900/30">
                     ${uiArt('sova-radost', 'h-[4.5rem] w-[4.5rem] -my-3')}
                     <div>
-                        <p class="font-black text-emerald-800 dark:text-emerald-200">Správně! +${formatPoints(round.points)}</p>
+                        <p class="pr-10 font-black text-emerald-800 dark:text-emerald-200">Správně! +${formatPoints(round.points)}</p>
                         <p class="text-sm text-emerald-800 dark:text-emerald-300">${round.typed ? 'Napsaná odpověď' : 'Výběr z možností'}${data.hints.length ? ` · nápovědy ${levels}` : ''}</p>
                         ${scoreTotalLine('text-emerald-800 dark:text-emerald-300')}
                         ${answerStatsLine(data, 'text-emerald-800 dark:text-emerald-300')}
@@ -3255,10 +3256,10 @@
             ? `<button type="button" data-correct-answer data-action="item-info" data-topic="${escapeHtml(correctRef.topic)}" data-id="${escapeHtml(correctRef.id)}" aria-label="Správná odpověď: ${escapeHtml(data.question.answerLabel)} – ukázat popis" class="mt-1.5 flex w-full flex-col items-start rounded-xl border-2 border-emerald-500 bg-emerald-50 px-3 py-1.5 text-left transition-colors hover:bg-emerald-100 dark:border-emerald-500 dark:bg-emerald-900/50 dark:hover:bg-emerald-900">${correctBody}</button>`
             : `<div data-correct-answer class="mt-1.5 flex flex-col items-start rounded-xl border-2 border-emerald-500 bg-emerald-50 px-3 py-1.5 dark:border-emerald-500 dark:bg-emerald-900/50">${correctBody}</div>`;
         return `
-            <div data-verdict tabindex="-1" class="flex items-start gap-3 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 outline-none dark:border-rose-800 dark:bg-rose-900/30">
+            <div data-verdict tabindex="-1" class="relative flex items-start gap-3 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 outline-none dark:border-rose-800 dark:bg-rose-900/30">
                 ${uiArt('sova-smutek', 'h-14 w-14 shrink-0')}
                 <div class="min-w-0 flex-1">
-                    <p class="font-black text-rose-800 dark:text-rose-200">${round.gaveUp ? 'Tentokrát bez odpovědi' : 'Bohužel, to není ono'}</p>
+                    <p class="pr-10 font-black text-rose-800 dark:text-rose-200">${round.gaveUp ? 'Tentokrát bez odpovědi' : 'Bohužel, to není ono'}</p>
                     ${correctBox}
                     ${round.answer ? `
                         <p data-wrong-answer class="mt-1.5 flex items-start gap-1 text-sm text-rose-800 dark:text-rose-300"><i data-lucide="circle-x" class="mt-0.5 h-4 w-4 shrink-0"></i><span>Tvoje odpověď: <s class="font-semibold decoration-2">${escapeHtml(round.answer)}</s></span></p>` : ''}
