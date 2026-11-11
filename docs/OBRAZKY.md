@@ -1232,7 +1232,11 @@ Cartoon sticker illustration in exactly the same art style as the attached owl m
 
 Za poslední stupeň sezóny hráč dostane **balík**: měsíční doplněk Mudrlanta (č. 134–145), sezónní rámeček a podivnou sezónní postavičku do profilovky. Postavička není zvíře, je to oživlý předmět nebo jídlo. Balík se otevírá ze speciální **Sezónní truhly**. Stačí začít aktuálním měsícem (listopad, prosinec), ostatní můžeš dodávat průběžně.
 
+**Stav postaviček: všech dvanáct (č. 151–162) je dodaných a zapojených do hry.** Zdroje jsou v `branding/ikony/avatar-<id>.png` (dodané s průhledným pozadím jsou uložené položené na #2d3034; tmavý kruh nebo dlaždice za postavičkou má skoro barvu pozadí a vyřízne se s ním), `python3 scripts/avatar-icons.py <id>` z nich vyrobí `icons/avatars/<id>.webp` a vrstvy dvou přebarvitelných částí v devíti barvách. V katalogu jsou jako `SEASON_AVATARS` v `look.js` (jen dárek, `month` = měsíc sezóny), do Sezónní truhly jdou podle `SEASON_BUNDLES`; Truhla Mudrlanta, úrovně ani odznaky je nedají. Ve výběru obrázku (Nastavení → Profil → Postavičky) jsou jen vlastněné (víc než tři řádky se posouvají uvnitř mřížky), cizí profil je ukáže vždy a Album sbírky je má jako sezónní věci. Service worker ukládá jejich obrázky předem (`AVATAR_ART` v `sw.js`).
+
 #### 151. `avatar-ramp.png` – Rampouch (leden)
+
+Odemkne: Sezónní truhla v lednu (20. stupeň Sezóny Mudrlanta; id `ramp`, přebarvitelné části Šála a Led). Dodáno a zapojeno.
 
 Přiložit: `branding/sova-original.jpg` (vzor stylu)
 
@@ -1242,6 +1246,8 @@ Cartoon sticker character portrait in exactly the same art style as the attached
 
 #### 152. `avatar-kobliz.png` – Masopustní koblížek (únor)
 
+Odemkne: Sezónní truhla v únoru (20. stupeň Sezóny Mudrlanta; id `kobliz`, přebarvitelné části Maska a Serpentina). Dodáno a zapojeno. Dodaný koblížek má uprostřed díru (spíš americká kobliha); případná nová verze může být plný český koblížek bez díry.
+
 Přiložit: `branding/sova-original.jpg` (vzor stylu)
 
 ```text
@@ -1249,6 +1255,8 @@ Cartoon sticker character portrait in exactly the same art style as the attached
 ```
 
 #### 153. `avatar-snezen.png` – Sněženka (březen)
+
+Odemkne: Sezónní truhla ve březnu (20. stupeň Sezóny Mudrlanta; id `snezen`, přebarvitelné části Květ a Listy). Dodáno a zapojeno. Dodaný květ připomíná spíš poupě tulipánu; případná nová verze může mít převislé bílé zvonky sněženky. Paprsek slunce nemá krémový okraj.
 
 Přiložit: `branding/sova-original.jpg` (vzor stylu)
 
@@ -1258,6 +1266,8 @@ Cartoon sticker character portrait in exactly the same art style as the attached
 
 #### 154. `avatar-kapka.png` – Aprílová kapka (duben)
 
+Odemkne: Sezónní truhla v dubnu (20. stupeň Sezóny Mudrlanta; id `kapka`, přebarvitelné části Kapka a Deštník). Dodáno a zapojeno.
+
 Přiložit: `branding/sova-original.jpg` (vzor stylu)
 
 ```text
@@ -1265,6 +1275,8 @@ Cartoon sticker character portrait in exactly the same art style as the attached
 ```
 
 #### 155. `avatar-pampel.png` – Pampeliška (květen)
+
+Odemkne: Sezónní truhla v květnu (20. stupeň Sezóny Mudrlanta; id `pampel`, přebarvitelné části Chmýří a Listy). Dodáno a zapojeno. Šedý oblouk (chyba generátoru) vpravo nahoře je ze zdroje smazaný.
 
 Přiložit: `branding/sova-original.jpg` (vzor stylu)
 
@@ -1274,6 +1286,8 @@ Cartoon sticker character portrait in exactly the same art style as the attached
 
 #### 156. `avatar-vysved.png` – Vysvědčení (červen)
 
+Odemkne: Sezónní truhla v červnu (20. stupeň Sezóny Mudrlanta; id `vysved`, přebarvitelné části Mašle a Brýle). Dodáno a zapojeno.
+
 Přiložit: `branding/sova-original.jpg` (vzor stylu)
 
 ```text
@@ -1281,6 +1295,8 @@ Cartoon sticker character portrait in exactly the same art style as the attached
 ```
 
 #### 157. `avatar-meloun.png` – Meloun (červenec)
+
+Odemkne: Sezónní truhla v červenci (20. stupeň Sezóny Mudrlanta; id `meloun`, přebarvitelné části Dužina a Brýle). Dodáno a zapojeno.
 
 Přiložit: `branding/sova-original.jpg` (vzor stylu)
 
@@ -1290,6 +1306,8 @@ Cartoon sticker character portrait in exactly the same art style as the attached
 
 #### 158. `avatar-hvezda.png` – Padající hvězda (srpen)
 
+Odemkne: Sezónní truhla v srpnu (20. stupeň Sezóny Mudrlanta; id `hvezda`, přebarvitelné části Hvězda a Ohon). Dodáno a zapojeno.
+
 Přiložit: `branding/sova-original.jpg` (vzor stylu)
 
 ```text
@@ -1297,6 +1315,8 @@ Cartoon sticker character portrait in exactly the same art style as the attached
 ```
 
 #### 159. `avatar-aktovk.png` – Školní aktovka (září)
+
+Odemkne: Sezónní truhla v září (20. stupeň Sezóny Mudrlanta; id `aktovk`, přebarvitelné části Aktovka a Kapsa). Dodáno a zapojeno.
 
 Přiložit: `branding/sova-original.jpg` (vzor stylu)
 
@@ -1306,6 +1326,8 @@ Cartoon sticker character portrait in exactly the same art style as the attached
 
 #### 160. `avatar-drakpa.png` – Papírový drak (říjen)
 
+Odemkne: Sezónní truhla v říjnu (20. stupeň Sezóny Mudrlanta; id `drakpa`, přebarvitelné části Drak a Mašličky). Dodáno a zapojeno.
+
 Přiložit: `branding/sova-original.jpg` (vzor stylu)
 
 ```text
@@ -1314,6 +1336,8 @@ Cartoon sticker character portrait in exactly the same art style as the attached
 
 #### 161. `avatar-caj.png` – Hrnek čaje (listopad)
 
+Odemkne: Sezónní truhla v listopadu (20. stupeň Sezóny Mudrlanta; id `caj`, přebarvitelné části Hrnek a Citron). Dodáno a zapojeno.
+
 Přiložit: `branding/sova-original.jpg` (vzor stylu)
 
 ```text
@@ -1321,6 +1345,8 @@ Cartoon sticker character portrait in exactly the same art style as the attached
 ```
 
 #### 162. `avatar-pernik.png` – Perníček (prosinec)
+
+Odemkne: Sezónní truhla v prosinci (20. stupeň Sezóny Mudrlanta; id `pernik`, přebarvitelné části Poleva a Knoflíky). Dodáno a zapojeno.
 
 Přiložit: `branding/sova-original.jpg` (vzor stylu)
 

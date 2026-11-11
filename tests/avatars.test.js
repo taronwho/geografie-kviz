@@ -20,9 +20,10 @@ const REPLACED = {
     '🎯': ['zabak', { badge: 'odhad-25' }], '🧩': ['myval', { badge: 'serad-25' }]
 };
 
-test('katalog: 21 postaviček s 1–2 částmi, id do 6 písmen, žádná odměna už není emoji', () => {
-    assert.equal(CHARACTERS.length, 21);
-    assert.equal(Look.AVATARS.length, 21);
+test('katalog: postavičky s 1–2 částmi (21 místo emoji odměn, 12 sezónních), id do 6 písmen, žádná odměna už není emoji', () => {
+    assert.equal(CHARACTERS.length, Look.AVATARS.length);
+    assert.equal(Look.AVATARS.filter(item => item.was).length, 21);
+    assert.equal(Look.AVATARS.filter(item => item.source === 'season').length, 12);
     for (const item of CHARACTERS) {
         assert.match(item.id, /^[a-z]{1,6}$/, item.id);
         assert.ok(item.parts.length >= 1 && item.parts.length <= 2, item.id);
@@ -31,7 +32,7 @@ test('katalog: 21 postaviček s 1–2 částmi, id do 6 písmen, žádná odměn
         assert.equal(item.colors.length, item.parts.length, item.id);
         for (const list of item.colors) assert.ok(list.length >= 6 && list.every(color => Number.isInteger(color) && color >= 1 && color <= 9) && new Set(list).size === list.length, item.id);
     }
-    assert.equal(new Set(Look.AVATARS.map(item => item.id)).size, 21);
+    assert.equal(new Set(Look.AVATARS.map(item => item.id)).size, Look.AVATARS.length);
     // Chameleon jednička nahradil Stovku (💯): stejný odznak, obě části s vlastním výběrem barev
     const chameleon = Look.find('avatars', 'chamel');
     assert.deepEqual([chameleon.title, chameleon.badge, chameleon.parts], ['Chameleon jednička', 'kviz-perfekt', ['Kůže', 'Bříško']]);
@@ -145,4 +146,46 @@ test('service worker má v mezipaměti obrázky všech postaviček a obrázky i 
             for (let color = 1; color <= 9; color++) assert.ok(fs.existsSync(path.join(ROOT, 'icons', 'avatars', `${item.id}-${index + 1}${color}.webp`)), `${item.id}-${index + 1}${color}.webp`);
         });
     }
+});
+
+test('sezónní postavičky: jedna za každý měsíc jen ze Sezónní truhly, úrovní, odznakem ani Truhlou Mudrlanta ne; ve výběru jen vlastněné', () => {
+    const Rewards = require('../rewards.js');
+    const SEASONAL = Look.SEASON_AVATARS;
+    assert.deepEqual(SEASONAL.map(item => item.id), ['ramp', 'kobliz', 'snezen', 'kapka', 'pampel', 'vysved', 'meloun', 'hvezda', 'aktovk', 'drakpa', 'caj', 'pernik']);
+    assert.deepEqual(SEASONAL.map(item => item.month), [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
+    for (const item of SEASONAL) {
+        assert.equal(Look.find('avatars', item.id), item, `${item.id} v katalogu postaviček`);
+        assert.deepEqual([item.exclusive, item.source, item.level, item.badge, item.was], [true, 'season', undefined, undefined, undefined], item.id);
+        assert.equal(item.parts.length, 2, item.id);
+        // Sezónní truhla svého měsíce ji dá; nic jiného ji neodemkne
+        assert.equal(Look.SEASON_BUNDLES[String(item.month).padStart(2, '0')].character, item.id);
+        assert.ok(Look.seasonBundle(item.month).some(entry => entry.category === 'avatars' && entry.item === item), item.id);
+        assert.equal(Look.isUnlocked(item, { level: 100, badges: core.BADGE_BY_ID, gifts: null }), false, `${item.id}: ani úroveň 100 a všechny odznaky`);
+        assert.equal(Look.isUnlocked(item, { level: 1, badges: {}, gifts: { avatars: [item.id] } }), true, `${item.id}: ze Sezónní truhly`);
+        assert.equal(Look.unlockText(item), `Sezóna Mudrlanta (${Look.SEASON_MONTHS[item.month - 1].toLocaleLowerCase('cs')}, Sezónní truhla na 20. stupni)`);
+        // Zápis se vejde do databáze (1–8 znaků) a uloží se přes social.js
+        assert.ok(Look.formatAvatar(item.id, [9, 9]).length <= 8, item.id);
+        assert.deepEqual(Look.avatarPicture(`${item.id}12`).layers, [`icons/avatars/${item.id}-11.webp`, `icons/avatars/${item.id}-22.webp`]);
+    }
+    // Žádná oslava úrovně ani odměna za odznak, Truhla Mudrlanta je nedá ani jako vzácnost
+    assert.ok(Look.newRewards(0, 100, Object.keys(core.BADGE_BY_ID)).every(entry => !entry.item.exclusive));
+    assert.ok(Array.from({ length: 100 }, (_, i) => Look.rewardsAtLevel(i + 1)).flat().every(entry => entry.category !== 'avatars' || !entry.item.exclusive));
+    assert.ok(Rewards.candidates(Rewards.empty(), { level: 1, badges: {} }).every(entry => entry.category !== 'avatars'));
+    assert.ok(Rewards.rareCandidates(Rewards.empty()).every(entry => entry.category !== 'avatars'));
+    // Dárek ze Sezónní truhly se uloží v odměnách (i postavička), neznámé id ne
+    assert.deepEqual(Rewards.parse({ gifts: { avatars: ['caj', 'neznamy', 'drakpa'] } }).gifts.avatars, ['caj', 'drakpa']);
+    // Uložení do profilu (social.js): sezónní postavička s barvami projde, dlouhé id 'drakpa' se nesplete s 'drak'
+    globalThis.MudrlantLook = Look;
+    try {
+        assert.equal(Social.cleanAvatar('drakpa99'), 'drakpa99');
+        assert.equal(Social.cleanAvatar('caj07'), 'caj07');
+        assert.equal(Social.cleanAvatar('drak3'), 'drak3');
+        assert.equal(Social.cleanAvatar('drakpa123'), '🦊');
+    } finally { delete globalThis.MudrlantLook; }
+    assert.equal(Look.parseAvatar('drakpa3').item.id, 'drakpa');
+    // Výběr obrázku v Nastavení ukazuje sezónní postavičky jen vlastněné (nebo uloženou v profilu), jako sezónní rámečky
+    const app = fs.readFileSync(path.join(ROOT, 'app.js'), 'utf8');
+    assert.match(app, /group === 'postavicky'\) return Look \? Look\.AVATARS\.filter\(item => !item\.exclusive \|\| Look\.isUnlocked\(item, lookContext\(\)\)/);
+    // Zdroje obrázků jsou v branding/ikony (scripts/avatar-icons.py)
+    for (const item of SEASONAL) assert.ok(fs.existsSync(path.join(ROOT, 'branding', 'ikony', `avatar-${item.id}.png`)), item.id);
 });

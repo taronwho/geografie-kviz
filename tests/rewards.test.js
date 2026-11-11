@@ -53,6 +53,8 @@ test('truhla: bez duplicit, po všem XP; ochrana jen do stropu', () => {
             assert.ok(result.gift, `týden ${week}: věc`);
             const id = `${result.gift.category}:${result.gift.item.id}`;
             assert.ok(!seen.has(id), `duplicita ${id}`);
+            // Postavičky (i sezónní ze Sezónní truhly) a jiné exkluzivní věci truhla nedává
+            assert.ok(result.gift.category !== 'avatars' && !result.gift.item.exclusive, `týden ${week}: ${id} není z truhly`);
             seen.add(id);
         } else {
             assert.equal(result.gift, null, 'všechno má');

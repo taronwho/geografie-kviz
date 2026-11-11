@@ -80,7 +80,8 @@ const newDb = ({ quizDone = true } = {}) => {
         profiles: {
             // Obrázkové rámečky (look.js ART_FRAMES): já vzácnou Duhu s mráčky z truhly, Petr Strážného draka – okna se musí vejít i s nimi
             [ME]: player(1, 'Jana Nováková', '🦊', { color: 'emerald', frame: 'duha-mracky', xp: 26000, badges: BADGES.slice(0, 16), rating: 1380, rated_games: 40, rewards: null, showcase: ['l:2026-10:diamant', 'b:vyhry-50'] }),
-            [PETR]: player(2, 'Petr Svoboda', '🐼', { frame: 'drak', xp: 14200, badges: BADGES, rating: 1520, rated_games: 60, showcase: ['l:2026-10:mistr', 'b:dokonale-14', 'd:zemepis'] }),
+            // Petr má jako obrázek sezónní postavičku (Hrnek čaje s fialovým hrnkem), kterou já nemám: v jeho profilu se ukáže stejně
+            [PETR]: player(2, 'Petr Svoboda', 'caj7', { frame: 'drak', xp: 14200, badges: BADGES, rating: 1520, rated_games: 60, showcase: ['l:2026-10:mistr', 'b:dokonale-14', 'd:zemepis'] }),
             [EVA]: player(3, 'Eva Mistrová', '🦉', { color: 'violet', xp: 90000, badges: BADGES, rating: 1720, rated_games: 120 }),
             [uid(4)]: player(4, 'Lenka Dvořáková', '🐸', { xp: 3000, rating: 1150 }),
             [TOMAS]: player(5, 'Tomáš Malý', '🐯', { xp: 9000, badges: BADGES.slice(4), rating: 1290, rated_games: 22 })
@@ -287,9 +288,9 @@ const richStorage = () => {
     return {
         'mudrlant.progress': JSON.stringify({ xp: 26000, counters: { correct: 2600, answered: 3400, bestRun: 52, topicBest: { zemepis: 10, historie: 9 }, challengesPlayed: 120, challengeWins: 64 }, badges }),
         'mudrlant.learned': JSON.stringify(learned),
-        // Sezóna Mudrlanta: od 15 000 XP (11 000 XP sezóny = stupeň 14), pět stupňů vyzvednutých; rámeček a titul z minulé sezóny
+        // Sezóna Mudrlanta: od 15 000 XP (11 000 XP sezóny = stupeň 14), pět stupňů vyzvednutých; rámeček, postavička a titul z minulé sezóny
         'mudrlant.rewards': JSON.stringify({ v: 1, freezes: 2, name: 'Jana Nováková', ready: ['2026-11-02'], chests: { '2026-10-26': 'xp' }, diplomas: { zemepis: '2026-10-20' },
-            gifts: { frames: ['sezona-10', 'duha-mracky'], titles: ['sampion-sezony'] },
+            gifts: { frames: ['sezona-10', 'duha-mracky'], avatars: ['drakpa'], titles: ['sampion-sezony'] },
             season: { id: '2026-11', startXp: 15000, claimed: { 1: 'robes:fialova', 2: 'accessories:kvetina', 3: 'freeze', 4: 'themes:fialova', 5: 'colors:ruzova' } } })
     };
 };
@@ -434,6 +435,7 @@ test('okna se vejdou bez posouvání', { skip: !chromium && 'Playwright není na
                 await tab.click(`#friends-strip [data-player-id="${PETR}"]`);
                 await tab.waitForSelector('[data-rematch]');
                 await tab.waitForFunction(() => document.getElementById('player-league') && document.querySelector('#dialog-overlay [aria-label="Odznaky"]') && /Poslední reakce/.test(document.getElementById('dialog-overlay').textContent) && document.querySelectorAll('#dialog-overlay [data-showcase-item]').length === 3);
+                await tab.waitForSelector('#dialog-overlay [data-avatar-art="caj"] img[src="icons/avatars/caj-17.webp"]');
             });
             await scene(tab, 'Profil hráče (žádost odeslána)', size, async () => {
                 await action(tab, 'challenge-open', { code: 'VWX234' });
@@ -485,6 +487,9 @@ test('okna se vejdou bez posouvání', { skip: !chromium && 'Playwright není na
             await scene(tab, 'Nastavení – Profil (Postavičky, barva části)', size, async () => {
                 await settingsTab('profile');
                 await tab.click('[data-pic-group="postavicky"]');
+                // Sezónní postavička ze Sezónní truhly je mezi ostatními (jen ta vlastněná)
+                await tab.waitForSelector('[data-pick-avatar="drakpa"]');
+                assert.equal(await tab.locator('[data-pick-avatar="caj"], [data-locked-avatar="caj"]').count(), 0);
                 await tab.click('[data-pick-avatar="mamut"]');
                 await tab.click('[data-color-target="2"]');
                 await tab.click('[data-pick-part="2:5"]');
@@ -635,6 +640,23 @@ test('okna se vejdou bez posouvání', { skip: !chromium && 'Playwright není na
                 await tab.click('#fact-hint');
                 await tab.waitForSelector('#tip-dialog');
             });
+            await context.close();
+        });
+
+        // Sezónní truhla (20. stupeň): všechny věci měsíce vějířem (rámeček, postavička, titul a doplněk, až bude) se vejdou
+        await t.test(`Sezónní truhla (${size.width}×${size.height})`, async () => {
+            const claimed = Object.fromEntries(Array.from({ length: 19 }, (_, i) => [i + 1, 'xp:150']));
+            const storage = { 'mudrlant.rewards': JSON.stringify({ v: 1, freezes: 2, season: { id: '2026-11', startXp: 5000, claimed } }) };
+            const { context, tab, log } = await setup(browser, { viewport: size, storage });
+            await scene(tab, 'Sezónní truhla – odměna', size, async () => {
+                await action(tab, 'season-claim');
+                await tab.waitForSelector('#season-overlay [data-season-go]');
+                await tab.click('#season-overlay [data-season-go]');
+                await tab.waitForSelector('[data-season-reveal]');
+                assert.match(await tab.textContent('[data-season-item]'), /Listopadový rámeček · postavička Hrnek čaje · titul Šampion sezóny/);
+                await tab.waitForFunction(() => [...document.querySelectorAll('#season-overlay img')].every(img => img.complete));
+            });
+            assert.deepEqual(log.csp, []);
             await context.close();
         });
 

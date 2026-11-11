@@ -249,11 +249,12 @@
         if (part.category === 'titles') return `titul ${title}`;
         if (part.category === 'themes') return `téma ${title}`;
         if (part.category === 'colors') return `barva ${title.toLocaleLowerCase('cs')}`;
+        if (part.category === 'avatars') return `postavička ${title}`;
         return title;
     };
     // Věta pod odměnou (bez rodu hráče)
     const revealNote = (kind, parts) => {
-        if (kind === 'bundle') return 'Věci sezóny se jinak získat nedají. Patří ti navždy.';
+        if (kind === 'bundle') return `Věci sezóny se jinak získat nedají. Patří ti navždy${parts.some(part => part.category === 'avatars') ? ', postavičku najdeš v Nastavení → Profil' : ''}.`;
         const items = parts.filter(part => part.item);
         if (items.length === 1 && items[0].item.chest) return 'Tahle věc je jen v Truhle Mudrlanta a v Sezóně. Patří ti navždy.';
         if (items.length === 1 && items[0].item.level) return `Odemčeno dřív, jinak až od úrovně ${items[0].item.level}.`;
@@ -272,7 +273,7 @@
     };
     const TIER_TEXT = { item: 'Věc pro Mudrlanta, kterou ještě nemáš', freeze: 'Ochrana série (při plném počtu věc)', double: 'Truhla v půli sezóny: dvě věci naráz', bundle: 'Sezónní truhla: rámeček měsíce a titul Šampion sezóny' };
     const bundleText = (id) => {
-        const names = (Look ? Look.seasonBundle(monthOf(id)) : []).map(entry => (entry.category === 'titles' ? `titul ${entry.item.title}` : entry.category === 'frames' ? `${entry.item.title} rámeček` : entry.item.title));
+        const names = (Look ? Look.seasonBundle(monthOf(id)) : []).map(entry => (entry.category === 'titles' ? `titul ${entry.item.title}` : entry.category === 'frames' ? `${entry.item.title} rámeček` : entry.category === 'avatars' ? `postavička ${entry.item.title}` : entry.item.title));
         return names.length ? `Sezónní truhla: ${names.join(', ')}` : TIER_TEXT.bundle;
     };
     const tierText = (tier, id) => (kindOf(tier) === 'bundle' ? bundleText(id) : TIER_TEXT[kindOf(tier)]);
