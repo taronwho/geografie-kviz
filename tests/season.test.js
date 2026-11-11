@@ -154,7 +154,8 @@ test('celá cesta: pestré věci bez duplicit, Truhla v půli sezóny druhý rá
     assert.deepEqual(crown.parts.map(part => `${part.category}:${part.item.id}`), ['accessories:lampion', 'frames:sezona-11', 'avatars:caj', 'titles:sampion-sezony']);
     assert.ok(Rewards.owns(state, 'frames', 'sezona-11'));
     assert.ok(Rewards.owns(state, 'avatars', 'caj'), 'postavička měsíce mezi dárky');
-    assert.ok(results.filter(result => result.tier < 20).every(result => result.parts.every(part => part.category !== 'avatars' && !(part.item && part.item.exclusive))), 'postavičky a sezónní věci jen v Sezónní truhle');
+    // Sezónní věci jen v Sezónní truhle; výjimka je druhý rámeček měsíce v Truhle v půli sezóny
+    assert.ok(results.filter(result => result.tier < 20).every(result => result.parts.every(part => part.category !== 'avatars' && !(part.item && part.item.exclusive && !(result.tier === 10 && part.item.seasonTier === 10)))), 'postavičky a sezónní věci jen v Sezónní truhle');
     assert.ok(Rewards.owns(state, 'accessories', 'lampion'), 'listopadový doplněk Lampion');
     assert.ok(Rewards.owns(state, 'titles', 'sampion-sezony'));
     // Za sousední stupně se druh věci střídá, když to jde
@@ -206,7 +207,7 @@ test('Truhla v půli sezóny: druhý rámeček měsíce, dokud ho hráč nemá, 
     // Text na cestě: co na 10. stupni čeká (a když rámeček hráč má, dvě věci)
     assert.equal(Season.tierText(10, NOV), 'Truhla v půli sezóny: rámeček Listopadové lampiony a k tomu další věc');
     assert.equal(Season.tierText(10, NOV, null), 'Truhla v půli sezóny: dvě věci naráz');
-    assert.equal(Season.tierText(20, NOV), 'Sezónní truhla: Listopadový rámeček, titul Šampion sezóny');
+    assert.equal(Season.tierText(20, NOV), 'Sezónní truhla: Lampion, Listopadový rámeček, postavička Hrnek čaje, titul Šampion sezóny');
     assert.equal(Season.info(started(0), { today: '2026-11-20', xp }).midFrame.id, 'sezona-11-b');
     assert.equal(Season.info(first.state, { today: '2026-11-20', xp }).midFrame, null, 'už ho má');
     // Odhalení: obě věci vějířem, rámeček jako obrázkový prsten, věta bez rodu

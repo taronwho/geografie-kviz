@@ -155,7 +155,7 @@ test('sezóna: pruh, odhalení odměn, cesta, Sezónní truhla, dovybrání a od
             await shot(tab, `sezona-cesta-${tag}`);
             // Dopředu je vidět, co je na 10. a 20. stupni: druhý rámeček měsíce, Sezónní truhla se zdobnějším (znak v tom rámečku)
             assert.match(await tab.getAttribute('[data-season-tier="10"]', 'aria-label'), /^Stupeň 10: Truhla v půli sezóny: rámeček Listopadové lampiony a k tomu další věc, odměna čeká/);
-            assert.match(await tab.getAttribute('[data-season-tier="20"]', 'aria-label'), /^Stupeň 20: Sezónní truhla: Listopadový rámeček, titul Šampion sezóny, za 19\s100 XP/);
+            assert.match(await tab.getAttribute('[data-season-tier="20"]', 'aria-label'), /^Stupeň 20: Sezónní truhla: Lampion, Listopadový rámeček, postavička Hrnek čaje, titul Šampion sezóny, za 19\s100 XP/);
             assert.equal(await tab.locator('[data-season-tier="20"] .frame-art.frame-sezona-11').count(), 1);
             await tab.click('[data-season-tier="20"]');
             assert.match(await tab.textContent('[data-season-detail]'), /Stupeň 20:.*Sezónní truhla: Lampion, Listopadový rámeček, postavička Hrnek čaje, titul Šampion sezóny.*19\s100 XP/);
