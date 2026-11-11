@@ -153,8 +153,8 @@ test('album sbírky: sekce, podrobnosti, Nasadit a oslava milníku', { skip: !ch
                 }
                 const box = await overflow(tab);
                 assert.equal(box.x, 0, `${section}: bez vodorovného posouvání`);
-                // Doplňků Mudrlanta je 41: na 360×640 se sekce posouvá (dlaždice aspoň 40 px), na 390×780 se vejde
-                if (section === 'badges' || (section === 'accessories' && viewport.height < 780)) {
+                // Doplňků Mudrlanta je 68 (se sadami k tématům): sekce se posouvá na obou velikostech (dlaždice aspoň 40 px)
+                if (section === 'badges' || section === 'accessories') {
                     // Dlouhý seznam se posouvá, tlačítko zpět je lepkavé a zůstane vidět
                     assert.ok(box.y > 0);
                     await tab.evaluate(() => { const panel = document.getElementById('dialog-overlay').firstElementChild; panel.scrollTop = panel.scrollHeight / 2; });

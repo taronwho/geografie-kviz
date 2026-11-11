@@ -82,6 +82,41 @@ MODE = {'helma': 'hat', 'prilba': 'hat', 'baret': 'hat', 'koruna': 'crown'}
 HULL = {'sitka': 0.6}
 CLOSE = {'koruna': 45, 'medaile': 77, 'kvetina': 21, 'sala': 25}
 BORDER = 360  # okraj plátna při zarovnání, aby se vešlo i to, co přesahuje původní obrázek
+# Sady doplňků k tématům (č. 177–204, docs/OBRAZKY.md oddíl 13): obrázky 1024 × 1024 s průhledným pozadím (uložené na tmavé pozadí
+# #2d3034 a uložené jako JPEG), sova je na nich vždy bez monoklu. Obdélník sovy mění klobouk i předmět v ruce, proto se zarovnávají podle
+# významných bodů (SIFT_ALIGN: SIFT + RANSAC podobnost, pak ECC jen v ploše sovy bez doplňku).
+SETS = {'cestovatelsky-klobouk', 'globus', 'namornicka-cepice', 'praporky', 'krejzlik', 'blesk', 'zlate-rouno', 'hnizdo', 'dalekohled',
+        'kladivko', 'krystal', 'banka', 'vybuch', 'magnet', 'jablko', 'paleta', 'dali-knir', 'plany', 'tesarska-tuzka', 'hvezdne-bryle',
+        'kytara', 'knihy', 'pulmesicove-bryle', 'popcorn', 'filmovy-pas', 'pistalka', 'pohar'}
+NO_MONOCLE |= SETS
+SIFT_ALIGN = set(SETS)
+HATS |= {'cestovatelsky-klobouk', 'namornicka-cepice', 'hnizdo', 'knihy'}
+FILL |= {'cestovatelsky-klobouk', 'namornicka-cepice'}
+# Místo každého kusu sady: hlava se ořízne pod úrovní očí, obličej pod zobákem, nic mimo ruku nesmí zasahovat do zvednuté ruky (deghost, clip_set)
+SET_SLOT = {**{i: 'head' for i in ('cestovatelsky-klobouk', 'namornicka-cepice', 'hnizdo', 'vybuch', 'jablko', 'tesarska-tuzka', 'knihy')},
+            **{i: 'face' for i in ('dali-knir', 'hvezdne-bryle', 'pulmesicove-bryle')},
+            **{i: 'neck' for i in ('praporky', 'krejzlik', 'zlate-rouno', 'dalekohled', 'krystal', 'kytara', 'filmovy-pas', 'pistalka')},
+            **{i: 'hand' for i in ('globus', 'blesk', 'kladivko', 'banka', 'magnet', 'paleta', 'plany', 'popcorn', 'pohar')}}
+CLIP_BOTTOM = {'head': 0.42, 'face': 0.66}
+# Tenké zlaté obroučky a řetízek půlměsícových brýlí mají barvu peří kolem očí: deghost by je smazal, stačí oříznutí
+NO_DEGHOST = {'pulmesicove-bryle', 'dali-knir', 'hvezdne-bryle', 'tesarska-tuzka', 'kladivko'}
+# Zlatá kytara a krémový filmový pás mají barvu peří a límce: duchové se hledají jen s menší tolerancí
+DEGHOST_TOL = {'kytara': 20, 'filmovy-pas': 20}
+# Shora (obličej: nad obočím) a zleva (kladívko: druhá ruka je vpravo) v podílu rámu loga
+CLIP_TOP = {'face': 0.28}
+CLIP_LEFT = {'kladivko': 0.40}
+# Kouř po výbuchu je nad výchozí čepicí, překreslená čepice z obrázku se nebere (vínové čáry by v jiné barvě obleku zůstaly)
+ON_CAP = {'vybuch'}
+# Nová ruka drží předmět (pravá ruka se vztyčeným prstem se skryje); kladívko drží druhá ruka, prst zůstává
+HAND_POSE |= {'globus', 'blesk', 'banka', 'magnet', 'paleta', 'plany', 'popcorn', 'pohar'}
+ROBE_FREE |= {'globus', 'blesk', 'banka', 'magnet', 'paleta', 'plany', 'popcorn', 'pohar', 'kladivko', 'kytara', 'vybuch', 'jablko', 'tesarska-tuzka'}
+# Části doplňku, které se nepřebarví (popcorn, barvy na paletě…): odstín v Lab od–do (stupně) a nejmenší chroma; přidají se k protect
+PROTECT_HUE = {'popcorn': (40, 110, 14), 'kladivko': (40, 100, 12)}
+# Zlatý předmět v nové ruce: jasně žluté plochy nejsou peří ruky (hand_pixels bright), přebarví se
+GOLD_ITEM = {'blesk', 'pohar'}
+# Doplňky sad s pevnou částí: vše, co se nepřebarvuje (protect: nová ruka sovy, PROTECT_HUE), se uloží i do <id>-zaklad.webp, která se v aplikaci
+# kreslí nad barevnou vrstvou (fixed v look.js), takže vlastní barva z palety (CSS hue-rotate celé vrstvy) ruku ani pevnou část neotočí
+FIXED_SPLIT = (HAND_POSE & SETS) | set(PROTECT_HUE)
 
 
 def load_base():
@@ -126,8 +161,27 @@ def hat_box(a):
     return xs.min(), xs.max(), ys.min() + y0w
 
 
-def align(base, img, border=BORDER, hat=False):
+def sift_warp(base, img):
+    """Počáteční zarovnání podle významných bodů (SIFT, RANSAC podobnost): zobrazení img → base (2 × 3) a podíl shodných bodů.
+    Doplněk (klobouk, předmět v ruce) obdélník sovy rozšíří, body na sově samotné ale zůstávají."""
+    sift = cv2.SIFT_create(6000)
+    gb = cv2.cvtColor(base, cv2.COLOR_RGB2GRAY)
+    gi = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
+    kb, db = sift.detectAndCompute(gb, None)
+    ki, di = sift.detectAndCompute(gi, None)
+    pairs = cv2.BFMatcher(cv2.NORM_L2).knnMatch(di, db, k=2)
+    good = [m for m, n in (p for p in pairs if len(p) == 2) if m.distance < 0.75 * n.distance]
+    src = np.float32([ki[m.queryIdx].pt for m in good])
+    dst = np.float32([kb[m.trainIdx].pt for m in good])
+    warp, inliers = cv2.estimateAffinePartial2D(src, dst, method=cv2.RANSAC, ransacReprojThreshold=3.0, maxIters=5000, confidence=0.999)
+    print(f'  SIFT: {int(inliers.sum())} / {len(good)} shodných bodů')
+    return warp.astype(np.float32)
+
+
+def align(base, img, border=BORDER, hat=False, sift=False):
     """Zarovná img (2048²) na souřadnice base; vrátí obraz o rozměru base."""
+    if sift:
+        return align_sift(base, img, border)
     bx0, by0, bx1, by1, _ = owl_bbox(base)
     ix0, iy0, ix1, iy1, ibg = owl_bbox(img)
     # počáteční odhad: stejná výška a střed obdélníku sovy
@@ -172,6 +226,47 @@ def align(base, img, border=BORDER, hat=False):
     size = (base.shape[1] + 2 * border, base.shape[0] + 2 * border)
     warped = cv2.warpAffine(img, ext, size, flags=cv2.INTER_LINEAR | cv2.WARP_INVERSE_MAP, borderMode=cv2.BORDER_REPLICATE)
     return warped
+
+
+def align_sift(base, img, border=BORDER):
+    """Zarovnání obrázku sady (SIFT_ALIGN): počáteční odhad z významných bodů, upřesnění ECC jen v místech, kde se obrázek po odhadu
+    s původní sovou shoduje (doplněk a místo, kde sova změnila ruku nebo čepici, se do upřesnění nepočítají)."""
+    fwd = sift_warp(base, img)  # img → base
+    h, w = base.shape[:2]
+    first = cv2.warpAffine(img, fwd, (w, h), flags=cv2.INTER_LINEAR, borderMode=cv2.BORDER_REPLICATE)
+    diff = np.abs(first.astype(np.int16) - base.astype(np.int16)).max(axis=2)
+    away = background_of(base) >= 28
+    agree = ((diff < 40) & away).astype(np.uint8)
+    agree = cv2.erode(agree, np.ones((5, 5), np.uint8))
+    inv = cv2.invertAffineTransform(fwd)  # base → img
+    # ECC na zmenšených obrázcích stejné velikosti: obrázek se nejdřív přenese odhadem SIFT, ECC najde jen malou opravu C
+    # (zmenšená base → přenesený obrázek); celkem base → img: inv ∘ (1/k) ∘ C ∘ k
+    k = 0.5
+    size_small = (int(w * k), int(h * k))
+    fwd_small = fwd * k
+    pre = cv2.warpAffine(img, fwd_small, size_small, flags=cv2.INTER_AREA, borderMode=cv2.BORDER_REPLICATE)
+    g_base = cv2.GaussianBlur(cv2.cvtColor(cv2.resize(base, size_small, interpolation=cv2.INTER_AREA), cv2.COLOR_RGB2GRAY), (0, 0), 1.0).astype(np.float32)
+    g_pre = cv2.GaussianBlur(cv2.cvtColor(pre, cv2.COLOR_RGB2GRAY), (0, 0), 1.0).astype(np.float32)
+    mask_small = cv2.resize(agree, size_small, interpolation=cv2.INTER_NEAREST)
+    corr = np.eye(2, 3, dtype=np.float32)
+    try:
+        crit = (cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 200, 1e-7)
+        _, corr = cv2.findTransformECC(g_base, g_pre, corr.copy(), cv2.MOTION_AFFINE, crit, mask_small, 5)
+    except cv2.error as error:
+        print('  ECC selhalo, použit odhad SIFT:', str(error).strip().splitlines()[-1])
+        corr = np.eye(2, 3, dtype=np.float32)
+    # oprava má být malá (odhad SIFT je přesný na pár pixelů); velký skok znamená, že ECC uteklo
+    if np.abs(corr[:, 2]).max() > 12 or np.abs(corr[:, :2] - np.eye(2)).max() > 0.02:
+        print('  ECC oprava příliš velká, použit odhad SIFT')
+        corr = np.eye(2, 3, dtype=np.float32)
+    refined = np.zeros((2, 3), np.float32)
+    refined[:, :2] = inv[:, :2] @ corr[:, :2]
+    refined[:, 2] = inv[:, :2] @ corr[:, 2] / k + inv[:, 2]
+    print(f'  ECC oprava: posun {corr[0, 2] / k:.1f}, {corr[1, 2] / k:.1f} px')
+    ext = refined.copy()
+    ext[:, 2] = refined[:, 2] - refined[:, :2] @ np.array([border, border], np.float32)
+    size = (w + 2 * border, h + 2 * border)
+    return cv2.warpAffine(img, ext, size, flags=cv2.INTER_LINEAR | cv2.WARP_INVERSE_MAP, borderMode=cv2.BORDER_REPLICATE)
 
 
 def hat_zone(frame, shape, border=BORDER, mask='logo-maska.webp'):
@@ -499,16 +594,86 @@ def robe_pixels(warped):
     return cv2.morphologyEx(robe.astype(np.uint8), cv2.MORPH_OPEN, np.ones((3, 3), np.uint8)) > 0
 
 
-def hand_pixels(warped, zone):
+def hand_pixels(warped, zone, bright=None):
     """Ruka sovy převzatá z obrázku doplňku (HAND_POSE): zlatohnědé peří (odstín v Lab 35–100°) v ploše výchozí ruky a kousek kolem ní.
     Při přebarvení doplňku (recolor_layer, protect) zůstane v barvě sovy; zlaté části předmětu v ruce (rukojeť pochodně, záštita meče)
     zůstanou zlaté také, přebarví se zbytek (plamen, čepel, hrnek, hvězda hůlky)."""
     lab = cv2.cvtColor(warped.astype(np.float32) / 255, cv2.COLOR_RGB2Lab)
     chroma = np.hypot(lab[..., 1], lab[..., 2])
     hue = np.degrees(np.arctan2(lab[..., 2], lab[..., 1]))
-    feather = (chroma > 12) & (hue >= 35) & (hue <= 100)
+    feather = (chroma > 12) & (hue >= (48 if bright is not None else 35)) & (hue <= 100)
+    if bright:
+        # zlatý předmět v ruce (blesk, pohár): jasně žlutá místa nejsou peří (peří je okrové, světlá místa krémová), ta se přebarví
+        feather &= ~((lab[..., 0] > 70) & (chroma > 48))
     near = cv2.dilate(zone, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (81, 81))) > 0
     return (feather & near).astype(np.uint8)
+
+
+def deghost(base_ext, warped, mask, keep=None, reach=12, step=3, tol=42):
+    """Obrázky sad generátor celé překreslil: obrys sovy, peří a rukáv leží o pár pixelů jinde, takže rozdíl proti původní sově je plný
+    tenkých „duchů“ obrysů. Pixel masky, ke kterému má původní sova v okolí (posun do `reach` px) skoro stejnou barvu, je duch a vypadne;
+    doplněk (barva, kterou sova poblíž nemá) zůstane i s vlastním tmavým obrysem (vrácen jako okolí do 9 px). Plocha `keep` (čepice nebo
+    ruka převzatá z obrázku) se nemění."""
+    ys, xs = np.nonzero(mask)
+    if not len(ys):
+        return mask
+    y0, y1 = max(ys.min() - reach, 0), min(ys.max() + reach + 1, mask.shape[0])
+    x0, x1 = max(xs.min() - reach, 0), min(xs.max() + reach + 1, mask.shape[1])
+    w = cv2.GaussianBlur(warped[y0:y1, x0:x1], (0, 0), 1.0).astype(np.int16)
+    b = cv2.GaussianBlur(base_ext[y0:y1, x0:x1], (0, 0), 1.0).astype(np.int16)
+    best = np.full(w.shape[:2], 255, np.int16)
+    for dy in range(-reach, reach + 1, step):
+        for dx in range(-reach, reach + 1, step):
+            shifted = np.roll(np.roll(b, dy, axis=0), dx, axis=1)
+            best = np.minimum(best, np.abs(w - shifted).max(axis=2))
+    ghost = np.zeros_like(mask)
+    ghost[y0:y1, x0:x1] = (best < tol).astype(np.uint8)
+    real = ((mask > 0) & (ghost == 0)).astype(np.uint8)
+    real = cv2.morphologyEx(real, cv2.MORPH_OPEN, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5)))
+    n, labels, stats, _ = cv2.connectedComponentsWithStats(real, 8)
+    if n > 1:
+        big = stats[1:, cv2.CC_STAT_AREA].max()
+        for i in range(1, n):
+            if stats[i, cv2.CC_STAT_AREA] < max(400, big * 0.01):
+                real[labels == i] = 0
+    out = (mask > 0) & (cv2.dilate(real, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (19, 19))) > 0)
+    if keep is not None:
+        out |= (mask > 0) & (keep > 0)
+    return out.astype(np.uint8)
+
+
+def clip_set(name, base, warped, mask, frame, border=BORDER):
+    """Kus sady (SETS): bez duchů obrysu sovy (deghost), mimo ruku nic přes zvednutou ruku, hlava a obličej oříznuté zdola (CLIP_BOTTOM)."""
+    x0, y0, w, h = frame
+    slot = SET_SLOT[name]
+    hand = hat_zone(frame, warped.shape, mask='logo-maska-ruka.webp')
+    # nová ruka může přesahovat plochu výchozí ruky: její okolí zůstává celé
+    keep = hat_zone(frame, warped.shape) if name in HATS else cv2.dilate(hand, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (61, 61))) if name in HAND_POSE else None
+    if name not in NO_DEGHOST:
+        ext = cv2.copyMakeBorder(base, border, border, border, border, cv2.BORDER_REPLICATE)
+        mask = deghost(ext, warped, mask, keep, tol=DEGHOST_TOL.get(name, 42))
+    if slot != 'hand':
+        mask = np.where(hand > 0, 0, mask).astype(np.uint8)
+    if slot in CLIP_BOTTOM:
+        mask[y0 + border + int(CLIP_BOTTOM[slot] * h):, :] = 0
+    if name in ON_CAP:
+        # čepice zůstává ta výchozí: z obrázku se nebere nic uvnitř ní (kromě horního okraje, kde kouř sedí)
+        cap = cv2.erode(hat_zone(frame, warped.shape), cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (31, 31)))
+        mask = np.where(cap > 0, 0, mask).astype(np.uint8)
+    if slot in CLIP_TOP:
+        mask[:y0 + border + int(CLIP_TOP[slot] * h), :] = 0
+    if name in CLIP_LEFT:
+        mask[:, :x0 + border + int(CLIP_LEFT[name] * w)] = 0
+    return mask
+
+
+def hue_pixels(warped, lo, hi, chroma):
+    """Místa s odstínem v Lab mezi lo a hi (stupně) a chroma aspoň `chroma` (PROTECT_HUE), rozšířená o pixel (přechody k obrysu)."""
+    lab = cv2.cvtColor(warped.astype(np.float32) / 255, cv2.COLOR_RGB2Lab)
+    hue = np.degrees(np.arctan2(lab[..., 2], lab[..., 1])) % 360
+    sel = (np.hypot(lab[..., 1], lab[..., 2]) >= chroma) & (hue >= lo) & (hue <= hi)
+    sel = cv2.morphologyEx(sel.astype(np.uint8), cv2.MORPH_OPEN, np.ones((3, 3), np.uint8))
+    return cv2.dilate(sel, np.ones((3, 3), np.uint8))
 
 
 def bleed_colors(rgb, mask, reach=5):
@@ -707,6 +872,11 @@ CREAM_TINT = {'brk', 'svitek', 'kompas', 'sitka', 'lab-bryle'}
 TINT_DEFAULT = 0.0
 # Doplňky s tmavou výplní (inkoust v kalamáři, černý cylindr a pirátský klobouk, páska přes oko): tlustá tmavá plocha (ne tenký obrys) se přebarví také
 DARKFILL = {'brk', 'cylindr', 'piratsky-klobouk', 'paska'}
+# Sady témat: bílý krejzlík, šedý kouř, krémový filmový pás, bílá námořnická čepice a bílé okraje praporků se kolorují; černý knír jako cylindr
+TINT.update({'kladivko': 0.9, 'krejzlik': 1.0, 'vybuch': 0.9, 'filmovy-pas': 0.8, 'namornicka-cepice': 0.8, 'praporky': 1.0})
+# bílé praporky leží těsně u okraje vrstvy: border_zone by je vzala za krémový okraj nálepky, kolorují se celé
+CREAM_TINT |= {'praporky'}
+DARKFILL |= {'dali-knir'}
 
 
 def smooth(x, a, b):
@@ -836,7 +1006,7 @@ def main(ids):
         if cache and os.path.exists(cache):
             warped = np.load(cache)
         else:
-            warped = align(base, img, hat=name in HAND or name in WIDE)
+            warped = align(base, img, hat=name in HAND or name in WIDE, sift=name in SIFT_ALIGN)
             if cache:
                 os.makedirs(os.path.dirname(cache), exist_ok=True)
                 np.save(cache, warped)
@@ -844,10 +1014,14 @@ def main(ids):
                                       hull=HULL.get(name), mode=MODE.get(name), outer=name in OUTER_BG)
         if name in SQUEEZE:
             warped, mask, protect = squeeze_right(frame, mask, [warped, mask, protect])
+        if name in SETS:
+            mask = clip_set(name, base, warped, mask, frame)
         if name in ROBE_FREE:
             mask = np.where(robe_pixels(warped), 0, mask).astype(np.uint8)
         if name in HAND_POSE:
-            protect = np.maximum(protect, hand_pixels(warped, hat_zone(frame, warped.shape, mask='logo-maska-ruka.webp')))
+            protect = np.maximum(protect, hand_pixels(warped, hat_zone(frame, warped.shape, mask='logo-maska-ruka.webp'), bright=(name in GOLD_ITEM) if name in SETS else None))
+        if name in PROTECT_HUE:
+            protect = np.maximum(protect, hue_pixels(warped, *PROTECT_HUE[name]) & mask)
         glow = None
         if name in GLOW:
             ext = cv2.copyMakeBorder(base, BORDER, BORDER, BORDER, BORDER, cv2.BORDER_REPLICATE)
@@ -865,6 +1039,11 @@ def main(ids):
             fw, fh = out.size
             pct = lambda v, total: round(v / total * 100, 2)
             print(f'{name}: rám {fw}×{fh}, obrázek vlajky x={bx} y={by} w={bw} h={bh} → left-[{pct(bx, fw)}%] top-[{pct(by, fh)}%] w-[{pct(bw, fw)}%] h-[{pct(bh, fh)}%], aspect-[{fw}/{fh}]')
+        if name in FIXED_SPLIT:
+            # pevná část nad barevnou vrstvou (viz FIXED_SPLIT): stejné pixely, průhlednost násobená maskou protect
+            fixed = np.asarray(out).copy()
+            fixed[..., 3] = (fixed[..., 3].astype(np.float32) * protect_layer.astype(np.float32) / 255).astype(np.uint8)
+            save_webp(Image.fromarray(fixed, 'RGBA'), os.path.join(OUT, name + '-zaklad.webp'))
         save_webp(out, os.path.join(OUT, name + '.webp'))
         # ikony do výběru (<id>-ikona.webp) dělá scripts/owl-accessory-icons.py z vlastních obrázků doplňků
         for color, (hue, sat_mul, val_mul) in COLORS.items():

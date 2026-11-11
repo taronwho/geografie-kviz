@@ -3,7 +3,7 @@
 Ke každému ze 14 témat jeden vtipný doplněk. Hráč ho získá, když je v tématu zběhlý. Doplňky jsou ve čtyřech stávajících místech
 (hlava, obličej, krk, ruka), takže se vybírají stejně jako ostatní: v každém místě nejvýš jeden.
 
-Ke každému tématu přibudou ještě dva kusy na jiných místech, aby šel složit celý look v tématu (sady, prompty č. 177–204 v `docs/OBRAZKY.md`, oddíl 13).
+Ke každému tématu přibyly ještě dva kusy na jiných místech, aby šel složit celý look v tématu (sady, prompty č. 177–204 v `docs/OBRAZKY.md`, oddíl 13; stav níže v oddíle Sady k tématům).
 
 ## Jak se doplněk získá
 
@@ -67,6 +67,37 @@ Poznámky pro výběr obrázku:
 Hotovo: 14 doplňků má vrstvy a ikony (`scripts/owl-accessories.py`, `scripts/owl-accessory-icons.py`), jsou v katalogu `look.js` a odemykají se odznakem
 `zbehly-<téma>` (`quiz-core.js`: 12 správných v řadě v tématu, nebo 3 hvězdy mistrovství). Série v tématu se počítá v `counters.topicRun` / `topicBest`.
 Barvy a vlastní odstín fungují jen na barevných částech (bílý knír, šedý mikrofon a podobně se téměř nezmění).
+
+## Sady k tématům (č. 177–204): stav
+
+Dodáno a zapojeno 27 z 28 kusů. Kus sady se odemkne odznakem tématu: první nový kus (v tabulce níže vlevo) odznakem 3. stupně
+(300 správných odpovědí v tématu, `tema-<téma>-300`), druhý odznakem 5. stupně (1000 správných, `tema-<téma>-1000`). Oslava odznaku
+i jeho popis odměnu zmíní samy (`Look.badgeRewardText`), okno Mistrovství tématu (Můj postup) ukazuje celou sadu tématu s tím,
+jak se který kus získá, a kolik správných odpovědí v tématu hráč má (`Look.topicSet`).
+
+| Téma | Za 300 správných | Za 1000 správných |
+|---|---|---|
+| Zeměpis | Cestovatelský klobouk (hlava, místo čepice) | Globus (ruka, nová ruka) |
+| Vlajky | Námořnická čepice (hlava, místo čepice) | Signální praporky (krk) |
+| Historie | **Dvourohý klobouk – čeká na obrázek** (č. 181; odznak zatím nic nedává) | Krejzlík (krk) |
+| Mytologie | Blesk vládce hromu (ruka, nová ruka) | Zlaté rouno (krk) |
+| Biologie | Ptačí hnízdo (hlava, místo čepice) | Dalekohled (krk) |
+| Geologie | Geologické kladívko (ruka, drží ho druhá ruka, prst zůstává) | Krystal na šňůrce (krk) |
+| Chemie | Baňka s lektvarem (ruka, nová ruka) | Po výbuchu (hlava, kouř nad čepicí) |
+| Fyzika | Magnet (ruka, nová ruka) | Newtonovo jablko (hlava, na čepici) |
+| Výtvarné umění | Malířská paleta (ruka, nová ruka) | Kroucený knír (obličej, monokl zůstává) |
+| Architektura | Stavební plány (ruka, nová ruka) | Tesařská tužka (hlava, za uchem, čepice zůstává) |
+| Hudba | Hvězdné brýle (obličej) | Elektrická kytara (krk) |
+| Literatura | Komínek knih (hlava, místo čepice) | Půlměsícové brýle (obličej) |
+| Film | Kornout popcornu (ruka, nová ruka) | Filmový pás (krk) |
+| Sport | Píšťalka (krk) | Vítězný pohár (ruka, nová ruka) |
+
+Technicky: obrázky jsou v `branding/doplnky/<id>.jpg` (dodané PNG s průhledným pozadím položené na tmavé pozadí #2d3034), vrstvy, barvy
+a ikony dělá `scripts/owl-accessories.py` (sada `SETS`: sova na obrázcích je bez monoklu, zarovnání podle významných bodů SIFT, nová ruka
+a nepřebarvitelné části ve vrstvě `<id>-zaklad.webp`, `FIXED_SPLIT`) a `scripts/owl-accessory-icons.py` (ikona z vrstvy).
+Čeká jediný kus: **dvourohý klobouk** (`dvourohy-klobouk`, Historie, hlava, za 300 správných). Po dodání stačí uložit obrázek, přidat id do `SETS`
+(a `HATS`, nahrazuje-li čepici), spustit oba skripty a přidat položku do `ACCESSORIES` v `look.js` s `badge: 'tema-historie-300'`.
+Kompletní sada (název looku v Profilu, sekce Sady témat v albu) zatím zapojená není.
 
 ## Původní plán (pro zajímavost)
 

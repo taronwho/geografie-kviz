@@ -60,7 +60,7 @@ test('doplňky sovy v Nastavení', { skip: !chromium && 'Playwright není nainst
         await tab.click('#btn-settings');
         await tab.click('[data-me-tab="owl"]');
         await tab.waitForSelector('[data-owl-pick]');
-        // Čtyři místa kolem sovy; otevřené (hlava) ukazuje své doplňky, dohromady 3 × „bez doplňku“, Monokl a Bez monoklu + 41 doplňků
+        // Čtyři místa kolem sovy; otevřené (hlava) ukazuje své doplňky, dohromady 3 × „bez doplňku“, Monokl a Bez monoklu + 68 doplňků
         assert.deepEqual(await tab.$$eval('[data-owl-slot]', nodes => nodes.map(node => [node.dataset.owlSlot, node.getAttribute('aria-pressed')])), [['head', 'true'], ['face', 'false'], ['neck', 'false'], ['hand', 'false']]);
         let tiles = 0;
         for (const slot of ['head', 'face', 'neck', 'hand']) {
@@ -69,7 +69,7 @@ test('doplňky sovy v Nastavení', { skip: !chromium && 'Playwright není nainst
             assert.equal(await tab.locator(`[data-owl-pick]:not([data-owl-pick^="${slot}:"])`).count(), 0, 'jen doplňky otevřeného místa');
             tiles += await tab.locator('[data-owl-pick]').count();
         }
-        assert.equal(tiles, 46, '3 × „bez doplňku“, Monokl a Bez monoklu + 41 doplňků');
+        assert.equal(tiles, 73, '3 × „bez doplňku“, Monokl a Bez monoklu + 68 doplňků');
         // Zamčený doplněk se nenasadí a ukáže, jak se odemkne
         await pickAcc(tab, 'hand:lupa', { force: true });
         await tab.waitForFunction(() => /Lupa: Úroveň 24/.test(document.querySelector('[data-look="owl"]').textContent));

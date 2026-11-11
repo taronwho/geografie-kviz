@@ -288,6 +288,12 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         assert.match(mastery, /Do další hvězdičky chybí \d+ polož/);
         assert.match(mastery, /3 hvězdičky:.*Navigátor.*Kompas/);
         assert.match(mastery, /5 hvězdiček:.*Mistr oboru/);
+        // Sada doplňků tématu: kus za zběhlost, za 300 a za 1000 správných odpovědí v tématu (odznaky Objevitel a Pán zeměkoule)
+        assert.deepEqual(await tab.$$eval('[data-set-piece]', nodes => nodes.map(node => node.dataset.setPiece)), ['kompas', 'cestovatelsky-klobouk', 'globus']);
+        assert.match(mastery, /Sada pro Mudrlantasprávně v tématu: \d+/);
+        assert.match(mastery, /Kompas\s*3 hvězdičky nebo 12 správně v řadě/);
+        assert.match(mastery, /Cestovatelský klobouk\s*300 správných \(odznak Objevitel\)/);
+        assert.match(mastery, /Globus\s*1000 správných \(odznak Pán zeměkoule\)/);
         await tab.click('[data-dialog-back]');
         await tab.waitForSelector('[data-open-badges]');
         // Okno se všemi odznaky: skupiny se stupni, klepnutím na medaili podrobnosti
