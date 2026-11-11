@@ -1424,20 +1424,58 @@ Přiložit: `branding/sova-original.jpg` (vzor stylu)
 Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading. A circular decorative frame (a ring) seen straight from the front, perfectly round and centered, filling about 92 % of the image; the ring band is about 13 % of the image width thick and may have ornaments sticking out a little on the outside, never inside. The inside of the ring is an EMPTY perfect circle showing only the plain flat dark grey background, color #2d3034: nothing drawn inside, no character, no face, no text. A thin cream-colored sticker border runs along BOTH the outer edge and the inner edge of the ring. Plain solid flat dark grey background #2d3034 everywhere outside the ring, no gradient, no shadow. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference; do not draw the owl. Ring design: a festive ring of evergreen garland with red and gold baubles, gingerbread cookies and small twinkling lights. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
-#### 175. `sezonni-truhla.png` – Sezónní truhla (zavřená)
+#### 175–176. Sezónní truhly podle ročních období (zavřená a otevřená)
 
-Přiložit: `branding/sova-original.jpg` (vzor stylu)
+Sezónní truhla na 20. stupni sezóny má čtyři podoby podle ročního období měsíce: **zima** (prosinec–únor), **jaro** (březen–květen), **léto** (červen–srpen), **podzim** (září–listopad). Každá je zavřená (č. 175) a otevřená (č. 176). Soubory pojmenuj `branding/ikony/truhla-<období>.png` a `truhla-<období>-otevrena.png` (období: `zima`, `jaro`, `leto`, `podzim`). Dokud obrázky období nejsou, ukáže se obyčejná truhla. Dodat jde po jednom období.
+
+Postup: nejdřív zavřenou truhlu (přiložit `branding/sova-original.jpg` jako vzor stylu), pak otevřenou (přiložit **vygenerovanou zavřenou truhlu stejného období**, ať sedí tvar i pohled). Aby truhly k sobě ladily, je dobré pro další období přiložit i první hotovou truhlu jako vzor tvaru.
+
+##### 175-zima. `truhla-zima.png` – Zimní truhla (prosinec, leden, únor), zavřená
 
 ```text
-Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole object. Single centered subject filling about 80 % of the frame with even empty space around it. Plain solid flat dark grey background, color #2d3034, no gradient, no shadow on the background, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, colors, shading); do not draw the owl. Subject: A special festive treasure chest, more precious than an ordinary one: royal purple wood with polished silver bands and corners, a round silver medallion with a crescent moon and stars on the lid, a big sparkling gem lock, a few floating sparkles, lid firmly closed. Colors: royal purple, silver, deep blue gem. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole object. Single centered subject filling about 80 % of the frame with even empty space around it. Plain solid flat dark grey background, color #2d3034, no gradient, no shadow on the background, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, colors, shading); do not draw the owl. Subject: A special festive treasure chest, more precious than an ordinary one, seen from a slight three-quarter front view, lid firmly closed, a big sparkling gem lock in the front, simple bold shapes readable even as a small 64 px icon. Season: WINTER. Frosty pale-blue wood with polished silver bands and corners, a thick cap of fluffy white snow on the lid with a few small icicles hanging from its edge, a round silver medallion with a snowflake on the lid, an ice-blue crystal gem lock, a few tiny floating snowflakes. Colors: icy blue, white, silver. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
-#### 176. `sezonni-truhla-otevrena.png` – Sezónní truhla (otevřená)
-
-Přiložit **vygenerovanou zavřenou Sezónní truhlu** (č. 175), ať sedí tvar i pohled.
+##### 176-zima. `truhla-zima-otevrena.png` – Zimní truhla, otevřená
 
 ```text
-Edit the attached image. Keep the chest EXACTLY the same size, position, perspective, colors and style. Only open the lid (tilted back) and fill the opening with a bright magical silver-and-purple glow, with sparkles and small stars rising out of the chest. Do not add anything else, no items inside. Keep the plain flat dark grey background #2d3034 and the thin cream sticker border.
+Edit the attached image. Keep the chest EXACTLY the same size, position, perspective, colors and style. Only open the lid (tilted back) and fill the opening with a bright icy-blue and white glow, with small snowflakes and sparkles rising out of the chest. Do not add anything else, no items inside. Keep the plain flat dark grey background #2d3034 and the thin cream sticker border.
+```
+
+##### 175-jaro. `truhla-jaro.png` – Jarní truhla (březen, duben, květen), zavřená
+
+```text
+Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole object. Single centered subject filling about 80 % of the frame with even empty space around it. Plain solid flat dark grey background, color #2d3034, no gradient, no shadow on the background, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, colors, shading); do not draw the owl. Subject: A special festive treasure chest, more precious than an ordinary one, seen from a slight three-quarter front view, lid firmly closed, a big sparkling gem lock in the front, simple bold shapes readable even as a small 64 px icon. Season: SPRING. Light honey-colored wood with polished gold bands and corners, wrapped in a fresh green vine with small white snowdrops and yellow primroses blooming on the lid, a round gold medallion with a blossom on the lid, a pink gem lock, a few floating pink petals. Colors: fresh green, soft pink, warm gold. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+##### 176-jaro. `truhla-jaro-otevrena.png` – Jarní truhla, otevřená
+
+```text
+Edit the attached image. Keep the chest EXACTLY the same size, position, perspective, colors and style. Only open the lid (tilted back) and fill the opening with a soft warm golden-green glow, with pink petals, tiny flowers and sparkles rising out of the chest. Do not add anything else, no items inside. Keep the plain flat dark grey background #2d3034 and the thin cream sticker border.
+```
+
+##### 175-leto. `truhla-leto.png` – Letní truhla (červen, červenec, srpen), zavřená
+
+```text
+Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole object. Single centered subject filling about 80 % of the frame with even empty space around it. Plain solid flat dark grey background, color #2d3034, no gradient, no shadow on the background, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, colors, shading); do not draw the owl. Subject: A special festive treasure chest, more precious than an ordinary one, seen from a slight three-quarter front view, lid firmly closed, a big sparkling gem lock in the front, simple bold shapes readable even as a small 64 px icon. Season: SUMMER. Sun-bleached turquoise wood with polished gold bands and corners, a few seashells and a small starfish stuck to the lid, a round gold medallion with a simple sun symbol (no face) on the lid, a bright orange gem lock, a few sun sparkles. Colors: turquoise, sunny yellow, warm orange, gold. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+##### 176-leto. `truhla-leto-otevrena.png` – Letní truhla, otevřená
+
+```text
+Edit the attached image. Keep the chest EXACTLY the same size, position, perspective, colors and style. Only open the lid (tilted back) and fill the opening with a bright sunny yellow-orange glow, with sun sparkles and little golden rays rising out of the chest. Do not add anything else, no items inside. Keep the plain flat dark grey background #2d3034 and the thin cream sticker border.
+```
+
+##### 175-podzim. `truhla-podzim.png` – Podzimní truhla (září, říjen, listopad), zavřená
+
+```text
+Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole object. Single centered subject filling about 80 % of the frame with even empty space around it. Plain solid flat dark grey background, color #2d3034, no gradient, no shadow on the background, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, colors, shading); do not draw the owl. Subject: A special festive treasure chest, more precious than an ordinary one, seen from a slight three-quarter front view, lid firmly closed, a big sparkling gem lock in the front, simple bold shapes readable even as a small 64 px icon. Season: AUTUMN. Warm dark-brown wood with polished copper bands and corners, a few red, orange and yellow maple leaves and two acorns lying on the lid, a round copper medallion with a maple leaf on the lid, an amber gem lock, a few floating leaves. Colors: warm brown, orange, red, copper, amber. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+##### 176-podzim. `truhla-podzim-otevrena.png` – Podzimní truhla, otevřená
+
+```text
+Edit the attached image. Keep the chest EXACTLY the same size, position, perspective, colors and style. Only open the lid (tilted back) and fill the opening with a warm amber-orange glow, with small autumn leaves and sparkles swirling up out of the chest. Do not add anything else, no items inside. Keep the plain flat dark grey background #2d3034 and the thin cream sticker border.
 ```
 
 ## 13. Sady doplňků k tématům (č. 177–204)
