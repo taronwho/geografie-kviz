@@ -41,7 +41,7 @@
     // podzim září–listopad; obrázky icons/topics/truhla-<období>.webp a truhla-<období>-otevrena.webp. CHEST_READY = období, jejichž
     // obrázky už jsou dodané (přidat sem a do sw.js); ostatní zatím ukážou obyčejnou truhlu ve fialovo-stříbrném světle sezóny.
     const CHEST_PERIODS = ['zima', 'zima', 'jaro', 'jaro', 'jaro', 'leto', 'leto', 'leto', 'podzim', 'podzim', 'podzim', 'zima'];
-    const CHEST_READY = [];
+    const CHEST_READY = ['zima', 'jaro', 'leto', 'podzim'];
     const periodOf = (id) => CHEST_PERIODS[Number(String(id).slice(5, 7)) - 1] || null;
     const seasonChestArt = (id) => { const period = periodOf(id); return period && CHEST_READY.includes(period) ? { closed: `truhla-${period}`, open: `truhla-${period}-otevrena` } : null; };
     const MONTHS = Look ? Look.SEASON_MONTHS : ['Leden', 'Únor', 'Březen', 'Duben', 'Květen', 'Červen', 'Červenec', 'Srpen', 'Září', 'Říjen', 'Listopad', 'Prosinec'];

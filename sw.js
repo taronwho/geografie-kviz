@@ -31,7 +31,9 @@ const APP_SHELL = [
         // Režimy, Učení, Skupiny, Archiv turnajů a pózy sovy do prázdných míst (docs/OBRAZKY.md č. 79–89)
         'rezim-bleskovka', 'rezim-preziti', 'rezim-mapa', 'ucit-prohlizet', 'ucit-procvicit', 'skupiny', 'archiv-turnaju', 'sova-zvonek', 'sova-dalekohled', 'sova-ceka', 'sova-prazdna-posta', 'sova-cisty-sesit', 'sova-prach',
         // Sezóna, album sbírky a vitrína (docs/OBRAZKY.md č. 133, 148, 150; odznak Sběratel č. 149 je v BADGE_ART)
-        'sezona', 'album', 'vitrina'].map(id => `icons/topics/${id}.webp`),
+        'sezona', 'album', 'vitrina',
+        // Sezónní truhly podle ročního období (season.js CHEST_READY, docs/OBRAZKY.md č. 175–176)
+        'truhla-zima', 'truhla-zima-otevrena', 'truhla-jaro', 'truhla-jaro-otevrena', 'truhla-leto', 'truhla-leto-otevrena', 'truhla-podzim', 'truhla-podzim-otevrena'].map(id => `icons/topics/${id}.webp`),
     ...BADGE_ART.map(id => `icons/topics/odznak-${id}.webp`), ...AVATAR_ART.map(id => `icons/avatars/${id}.webp`), ...FRAME_ART.map(id => `icons/frames/${id}.webp`), 'icons/favicon-32.png', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png'
 ];
 
