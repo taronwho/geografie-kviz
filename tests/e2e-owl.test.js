@@ -270,4 +270,65 @@ test('doplňky sovy v Nastavení', { skip: !chromium && 'Playwright není nainst
         assert.deepEqual(broken, []);
         await context.close();
     });
+
+    await t.test('sezónní doplňky: ve výběru jen ze Sezónní truhly, nová čepice a ruka skryjí výchozí, pevné barvy, všechny vrstvy se načtou', async () => {
+        const SEASON = ['cepice-zimni', 'karneval', 'jarni-venecek', 'destnik', 'konvalinky', 'slamak', 'snorchl', 'zmrzlina', 'tuzka', 'dyne', 'lampion', 'sala-zimni'];
+        const owned = ['slamak', 'dyne', 'zmrzlina', 'snorchl'];
+        const context = await browser.newContext({ serviceWorkers: 'block', viewport: { width: 390, height: 780 } });
+        await context.addInitScript(entries => {
+            if (sessionStorage.getItem('seeded')) return;
+            sessionStorage.setItem('seeded', '1');
+            Object.entries(entries).forEach(([key, value]) => localStorage.setItem(key, value));
+        }, { 'mudrlant.account': JSON.stringify('host'), 'mudrlant.variant': 'choices', 'mudrlant.progress': PROGRESS, 'mudrlant.tutorial': JSON.stringify({ how: 'done' }), 'mudrlant.rewards': JSON.stringify({ v: 1, gifts: { accessories: owned } }) });
+        const tab = await context.newPage();
+        const problems = [];
+        tab.on('pageerror', error => problems.push(error.message));
+        tab.on('console', message => { if (/Content Security Policy/i.test(message.text())) problems.push(message.text()); });
+        await tab.goto(`${origin}/`);
+        await tab.waitForSelector('#btn-settings');
+        await tab.click('#btn-settings');
+        await tab.click('[data-me-tab="owl"]');
+        await tab.waitForSelector('[data-owl-pick]');
+        // Ve výběru jsou jen vlastněné sezónní doplňky (ostatní se nedají získat jinak než v sezóně svého měsíce, zamčené by jen překážely)
+        const offered = [];
+        for (const slot of ['head', 'face', 'neck', 'hand']) {
+            await tab.click(`[data-owl-slot="${slot}"]`);
+            await tab.waitForSelector(`[data-owl-items="${slot}"]`);
+            offered.push(...await tab.$$eval('[data-owl-pick]', (nodes, ids) => nodes.map(node => node.dataset.owlPick.split(':')[1]).filter(id => ids.includes(id)), SEASON));
+        }
+        assert.deepEqual(offered.sort(), [...owned].sort());
+        // Slaměný klobouk nahradí čepici, zmrzlina ruku: logo v hlavičce dostane obě masky
+        await pickAcc(tab, 'head:slamak');
+        await pickAcc(tab, 'hand:zmrzlina');
+        await tab.waitForSelector('[data-owl-pick="hand:zmrzlina"][aria-pressed="true"]');
+        await tab.waitForSelector('#status-icon-slot [data-owl].owl-nohat.owl-nohand');
+        assert.deepEqual(await layers(tab), ['icons/doplnky/slamak.webp', 'icons/doplnky/zmrzlina.webp']);
+        // Barva zmrzliny (příchuť) se změní; šnorchl v obličeji monokl nahradí
+        await tab.click('[data-owl-color="hand:zelena"]');
+        await tab.waitForSelector('#status-icon-slot [data-owl-layer][src="icons/doplnky/zmrzlina-zelena.webp"]');
+        await pickAcc(tab, 'face:snorchl');
+        await tab.waitForSelector('#status-icon-slot [data-owl] > img[src="icons/logo-bez-monoklu.webp"]');
+        // Dýně sedí na čepici (čepice zůstane vidět) a má pevné barvy: místo palety věta
+        await pickAcc(tab, 'head:dyne');
+        await tab.waitForSelector('[data-owl-pick="head:dyne"][aria-pressed="true"]');
+        await tab.waitForFunction(() => !document.querySelector('#status-icon-slot [data-owl]').classList.contains('owl-nohat'));
+        assert.match(await tab.textContent('[data-owl-fixed]'), /Dýně má pevné barvy/);
+        assert.equal(await tab.locator('[data-owl-color]').count(), 0);
+        assert.deepEqual(await layers(tab), ['icons/doplnky/snorchl.webp', 'icons/doplnky/dyne.webp', 'icons/doplnky/zmrzlina-zelena.webp']);
+        // Všechny vrstvy, barvy a ikony sezónních doplňků existují a dají se načíst (rám vrstvy 402 px)
+        const sizes = await tab.evaluate(async (ids) => {
+            const Look = window.MudrlantLook;
+            const urls = ids.flatMap(id => {
+                const item = Look.find('accessories', id);
+                const colors = item.noColors ? [] : Look.ACC_COLORS.filter(color => color.id !== 'original' && color.id !== 'vlastni').map(color => `icons/doplnky/${id}-${color.id}.webp`);
+                return [`icons/doplnky/${id}.webp`, `icons/doplnky/${id}-ikona.webp`, ...colors];
+            });
+            const load = (src) => new Promise(resolve => { const img = new Image(); img.onload = () => resolve([src, img.naturalWidth]); img.onerror = () => resolve([src, 0]); img.src = src; });
+            return Promise.all(urls.map(load));
+        }, SEASON);
+        assert.equal(sizes.length, 12 * 2 + 9 * 8, 'vrstva a ikona u všech, barvy u devíti (věneček, konvalinky a dýně mají pevné barvy)');
+        assert.deepEqual(sizes.filter(([src, width]) => (src.endsWith('-ikona.webp') ? width !== 96 : width !== 402)), []);
+        assert.deepEqual(problems, []);
+        await context.close();
+    });
 });

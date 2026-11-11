@@ -1110,7 +1110,11 @@ Cartoon sticker illustration in exactly the same art style as the attached owl m
 
 Každý měsíc jeden exkluzivní doplněk Mudrlanta za poslední stupeň sezóny, jen v daném měsíci. Postup jako u ostatních doplňků (`scripts/owl-accessories.py`, viz `docs/DOPLNKY-TEMAT.md`): přiložit `branding/sova-original.jpg`, soubor `branding/doplnky/<id>.jpg`.
 
+**Stav: všech dvanáct je dodaných a zapojených do hry.** Dodané byly jako průhledná PNG 1024 × 1024 se sovou bez monoklu; zdroje jsou v `branding/doplnky/<id>.png` (zmrzlina i s tmavou plochou kolem sovy, kterou skript zahodí jako pozadí). Vrstvy, barvy a ikony dělá `python3 scripts/owl-accessories.py <id>` a `python3 scripts/owl-accessory-icons.py <id>`: rozdíl se počítá proti „sezónní sově“ (medián všech dvanácti obrázků, sova je na nich kromě deštníku pixel po pixelu stejná), zarovnané na sovu bez monoklu. V katalogu jsou jako `SEASON_ACCESSORIES` v `look.js` (`exclusive`, `month`, `source: 'season'`): dá je jen Sezónní truhla na 20. stupni sezóny svého měsíce (s rámečkem měsíce a titulem), Truhla Mudrlanta, úrovně ani odznaky ne. V Albu sbírky jsou mezi sezónními věcmi (budoucí měsíce skryté, skončené šedé) a ve výběru doplňků v Nastavení → Mudrlant jen ty, které hráč má. Přebarvují se (8 barev) všechny kromě tří s pevnými barvami (`noColors`: věneček, konvalinky, dýně – více barev je jejich podstata, výběr barvy se u nich skryje).
+
 #### 134. `cepice-zimni` – leden (hlava)
+
+Dodáno a zapojeno: nahrazuje čepici (`hidesHat`); přebarví se pletená čepice (pastelové tóny), bambule a vločka zůstanou bílé.
 
 ```text
 Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same proportions, same colors, same outline style, same flat dark background. Do not redraw, move or recolor the owl. Only ADD the accessory described below, drawn in the same cartoon sticker style with the same thick dark outline and the same lighting, sitting naturally on the owl. The accessory should be mostly one dominant color (not wine red) so it can be recolored later. Do not add anything else. Accessory: A cozy knitted winter beanie in icy light blue with a big fluffy white pom-pom and a small white snowflake pattern, worn on the owl's head over its cap.
@@ -1118,11 +1122,15 @@ Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same p
 
 #### 135. `karneval` – únor (obličej)
 
+Dodáno a zapojeno: nahrazuje monokl; přebarví se maska, flitry i pera do jednoho odstínu.
+
 ```text
 Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same proportions, same colors, same outline style, same flat dark background. Do not redraw, move or recolor the owl. Only ADD the accessory described below, drawn in the same cartoon sticker style with the same thick dark outline and the same lighting, sitting naturally on the owl. The accessory should be mostly one dominant color (not wine red) so it can be recolored later. Do not add anything else. Accessory: A shiny carnival eye mask in purple with small golden sequins and three colorful feathers on one side, worn over the owl's eyes (the monocle may be hidden under it).
 ```
 
 #### 136. `jarni-venecek` – březen (hlava)
+
+Dodáno a zapojeno: sedí na čepici (ta je pod ním vidět v barvě obleku); pevné barvy (`noColors`).
 
 ```text
 Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same proportions, same colors, same outline style, same flat dark background. Do not redraw, move or recolor the owl. Only ADD the accessory described below, drawn in the same cartoon sticker style with the same thick dark outline and the same lighting, sitting naturally on the owl. The accessory should be mostly one dominant color (not wine red) so it can be recolored later. Do not add anything else. Accessory: A delicate spring flower crown of white snowdrops, yellow primroses and small green leaves, resting on top of the owl's cap.
@@ -1130,11 +1138,15 @@ Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same p
 
 #### 137. `destnik` – duben (ruka)
 
+Dodáno a zapojeno: nová ruka drží rukojeť (`hidesHand`), stříška je nad čepicí; přebarví se stříška, dřevěná tyčka, ruka a modré kapky zůstanou. Generátor sovu na obrázku zmenšil a posunul, zarovná se podle shodných bodů.
+
 ```text
 Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same proportions, same colors, same outline style, same flat dark background. Do not redraw, move or recolor the owl. Only ADD the accessory described below, drawn in the same cartoon sticker style with the same thick dark outline and the same lighting, sitting naturally on the owl. The accessory should be mostly one dominant color (not wine red) so it can be recolored later. Do not add anything else. Accessory: An open round umbrella in bright yellow with a curved wooden handle, held above the owl's head in its wing, a few blue raindrops bouncing off it.
 ```
 
 #### 138. `konvalinky` – květen (ruka)
+
+Dodáno a zapojeno: kytička v nové ruce (`hidesHand`); pevné barvy (`noColors`).
 
 ```text
 Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same proportions, same colors, same outline style, same flat dark background. Do not redraw, move or recolor the owl. Only ADD the accessory described below, drawn in the same cartoon sticker style with the same thick dark outline and the same lighting, sitting naturally on the owl. The accessory should be mostly one dominant color (not wine red) so it can be recolored later. Do not add anything else. Accessory: A small bouquet of white lily-of-the-valley flowers with green leaves tied with a thin ribbon, held in the owl's wing.
@@ -1142,11 +1154,15 @@ Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same p
 
 #### 139. `slamak` – červen (hlava)
 
+Dodáno a zapojeno: nahrazuje čepici (`hidesHat`); mezera mezi krempou a hlavou je vyplněná stínem pod krempou. Přebarví se jen stuha, sláma zůstane.
+
 ```text
 Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same proportions, same colors, same outline style, same flat dark background. Do not redraw, move or recolor the owl. Only ADD the accessory described below, drawn in the same cartoon sticker style with the same thick dark outline and the same lighting, sitting naturally on the owl. The accessory should be mostly one dominant color (not wine red) so it can be recolored later. Do not add anything else. Accessory: A wide-brimmed summer straw hat with a sky-blue ribbon band, worn on the owl's head over its cap, a small sun glint on the brim.
 ```
 
 #### 140. `snorchl` – červenec (obličej)
+
+Dodáno a zapojeno: nahrazuje monokl; přebarví se rámeček masky a šnorchl.
 
 ```text
 Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same proportions, same colors, same outline style, same flat dark background. Do not redraw, move or recolor the owl. Only ADD the accessory described below, drawn in the same cartoon sticker style with the same thick dark outline and the same lighting, sitting naturally on the owl. The accessory should be mostly one dominant color (not wine red) so it can be recolored later. Do not add anything else. Accessory: A diving mask with a turquoise frame and a matching snorkel tube on the side, worn over the owl's eyes, two tiny bubbles.
@@ -1154,11 +1170,15 @@ Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same p
 
 #### 141. `zmrzlina` – srpen (ruka)
 
+Dodáno a zapojeno: kornout v nové ruce (`hidesHand`); přebarví se kopečky (příchuť), kornout zůstane.
+
 ```text
 Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same proportions, same colors, same outline style, same flat dark background. Do not redraw, move or recolor the owl. Only ADD the accessory described below, drawn in the same cartoon sticker style with the same thick dark outline and the same lighting, sitting naturally on the owl. The accessory should be mostly one dominant color (not wine red) so it can be recolored later. Do not add anything else. Accessory: A crunchy waffle ice-cream cone with two scoops (pink strawberry and white vanilla) and a small drip, held in the owl's wing.
 ```
 
 #### 142. `tuzka` – září (ruka)
+
+Dodáno a zapojeno: tužka v nové ruce (`hidesHand`); přebarví se tělo tužky (pastelky), růžová guma a ruka zůstanou.
 
 ```text
 Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same proportions, same colors, same outline style, same flat dark background. Do not redraw, move or recolor the owl. Only ADD the accessory described below, drawn in the same cartoon sticker style with the same thick dark outline and the same lighting, sitting naturally on the owl. The accessory should be mostly one dominant color (not wine red) so it can be recolored later. Do not add anything else. Accessory: A big sharpened yellow school pencil with a pink eraser, held in the owl's wing like a scholar ready for the new school year.
@@ -1166,17 +1186,23 @@ Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same p
 
 #### 143. `dyne` – říjen (hlava)
 
+Dodáno a zapojeno: sedí na čepici (ta je kolem dýně vidět v barvě obleku); pevné barvy (`noColors`).
+
 ```text
 Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same proportions, same colors, same outline style, same flat dark background. Do not redraw, move or recolor the owl. Only ADD the accessory described below, drawn in the same cartoon sticker style with the same thick dark outline and the same lighting, sitting naturally on the owl. The accessory should be mostly one dominant color (not wine red) so it can be recolored later. Do not add anything else. Accessory: A funny small carved orange pumpkin worn as a hat on the owl's head over its cap, with a curly green stem and a friendly carved smile.
 ```
 
 #### 144. `lampion` – listopad (ruka)
 
+Dodáno a zapojeno: lampion na tyčce v nové ruce (`hidesHand`); záře je poloprůhledná barva, přebarví se papír lampionu i se září.
+
 ```text
 Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same proportions, same colors, same outline style, same flat dark background. Do not redraw, move or recolor the owl. Only ADD the accessory described below, drawn in the same cartoon sticker style with the same thick dark outline and the same lighting, sitting naturally on the owl. The accessory should be mostly one dominant color (not wine red) so it can be recolored later. Do not add anything else. Accessory: A round glowing paper lantern in warm orange on a short wooden stick, held in the owl's wing, soft light around it.
 ```
 
 #### 145. `sala-zimni` – prosinec (krk)
+
+Dodáno a zapojeno: přebarví se šála, bílé vločky zůstanou.
 
 ```text
 Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same proportions, same colors, same outline style, same flat dark background. Do not redraw, move or recolor the owl. Only ADD the accessory described below, drawn in the same cartoon sticker style with the same thick dark outline and the same lighting, sitting naturally on the owl. The accessory should be mostly one dominant color (not wine red) so it can be recolored later. Do not add anything else. Accessory: A cozy knitted winter scarf in emerald green with a white snowflake pattern and a tiny golden bell, wrapped around the owl's neck with ends hanging down.

@@ -133,7 +133,7 @@ test('vyzvednutí: jen dosažený stupeň, každý jednou; ochrana série na sv�
     assert.equal(Season.claim(state, { tier: 2, ctx: ctx(), xp, today: '2026-12-02' }).opened, false);
 });
 
-test('celá cesta: pestré věci bez duplicit, Truhla v půli sezóny dvě věci, Sezónní truhla rámeček měsíce a titul', () => {
+test('celá cesta: pestré věci bez duplicit, Truhla v půli sezóny dvě věci, Sezónní truhla doplněk a rámeček měsíce a titul', () => {
     const { state, results } = claimAll(started(0), { xp: 25000, level: 20 });
     assert.equal(results.length, 20);
     const items = results.flatMap(result => result.parts.filter(part => part.item));
@@ -148,8 +148,11 @@ test('celá cesta: pestré věci bez duplicit, Truhla v půli sezóny dvě věci
     assert.notEqual(mid.parts[0].category, mid.parts[1].category, 'dvě věci různého druhu');
     const crown = results.find(result => result.tier === 20);
     assert.equal(crown.kind, 'bundle');
-    assert.deepEqual(crown.parts.map(part => `${part.category}:${part.item.id}`), ['frames:sezona-11', 'titles:sampion-sezony']);
+    assert.deepEqual(crown.parts.map(part => `${part.category}:${part.item.id}`), ['accessories:lampion', 'frames:sezona-11', 'titles:sampion-sezony']);
+    assert.ok(Rewards.owns(state, 'accessories', 'lampion'), 'listopadový doplněk Lampion');
     assert.ok(Rewards.owns(state, 'frames', 'sezona-11'));
+    // Běžné stupně exkluzivní věci (sezónní doplňky a rámečky) nikdy nedají
+    assert.ok(results.filter(result => result.tier < 20).every(result => result.parts.every(part => !part.item || !part.item.exclusive)));
     assert.ok(Rewards.owns(state, 'titles', 'sampion-sezony'));
     // Za sousední stupně se druh věci střídá, když to jde
     const sequence = results.filter(result => result.kind === 'item' && result.parts[0].item).map(result => result.parts[0].category);
@@ -244,7 +247,7 @@ test('exkluzivní věci: rámečky sezóny a titul jen jako dárek, Sezónní tr
         assert.match(Look.unlockText(frame), /^Sezóna Mudrlanta/);
         assert.equal(Frames.frameClass(frame.id), ` frame frame-${frame.id}`);
     }
-    // Každý měsíc má svou Sezónní truhlu; do ní jde jen to, co v katalogu je (doplněk a postavička zatím chybí)
+    // Každý měsíc má svou Sezónní truhlu; do ní jde jen to, co v katalogu je (doplněk a rámeček měsíce, postavička zatím chybí)
     assert.deepEqual(Object.keys(Look.SEASON_BUNDLES).sort(), ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12']);
     for (const [month, plan] of Object.entries(Look.SEASON_BUNDLES)) {
         assert.equal(plan.frame, `sezona-${month}`);
@@ -252,7 +255,13 @@ test('exkluzivní věci: rámečky sezóny a titul jen jako dárek, Sezónní tr
         assert.match(plan.accessory, /^[a-z0-9-]{1,30}$/);
         const bundle = Look.seasonBundle(Number(month)).map(entry => `${entry.category}:${entry.item.id}`);
         assert.ok(bundle.includes(`frames:sezona-${month}`) && bundle.includes('titles:sampion-sezony'));
-        if (!Look.find('accessories', plan.accessory)) assert.ok(!bundle.some(key => key.startsWith('accessories:')));
+        // Doplněk měsíce (docs/OBRAZKY.md č. 134–145) je v katalogu jako exkluzivní věc svého měsíce a v truhle je první
+        const accessory = Look.find('accessories', plan.accessory);
+        assert.ok(accessory, `doplněk ${plan.accessory}`);
+        assert.equal(bundle[0], `accessories:${plan.accessory}`);
+        assert.equal(accessory.exclusive, true);
+        assert.equal(accessory.month, Number(month));
+        assert.equal(accessory.source, 'season');
         if (!Look.find('avatars', plan.character)) assert.ok(!bundle.some(key => key.startsWith('avatars:')));
     }
     // Titul: uloží se jen vlastněný (jako odznak), v nabídce je mezi tituly
@@ -262,9 +271,18 @@ test('exkluzivní věci: rámečky sezóny a titul jen jako dárek, Sezónní tr
     assert.equal(Look.normalize({ title: 'sampion-sezony' }, { level: 1, badges: {}, gifts: { titles: ['sampion-sezony'] } }).title, 'sampion-sezony');
     const options = Frames.titleOptions({ level: 3, levelTitle: 'Čtenář', earnedIds: ['vitez'], current: 'sampion-sezony', badgeTitle: (id) => id, ownTitles: [title] });
     assert.deepEqual(options.map(option => option.value), ['level', 'none', 'sampion-sezony', 'vitez']);
-    // Truhla Mudrlanta exkluzivní věci nikdy nedá
+    // Truhla Mudrlanta exkluzivní věci nikdy nedá (ani hráči na úrovni 100 se všemi odznaky, ani vzácným dárkem)
     const all = Rewards.candidates(Rewards.empty(), { level: 1, badges: {} });
     assert.ok(all.every(entry => !entry.item.exclusive));
+    const everyBadge = Object.fromEntries(core.BADGES.map(badge => [badge.id, 'x']));
+    assert.ok(Rewards.candidates(Rewards.empty(), { level: 100, badges: everyBadge }).every(entry => !entry.item.exclusive));
+    assert.ok(Rewards.rareCandidates(Rewards.empty()).every(entry => !entry.item.exclusive));
+    for (const accessory of Look.ACCESSORIES.filter(item => item.exclusive)) {
+        assert.equal(Look.isUnlocked(accessory, { level: 100, badges: everyBadge, gifts: null }), false, `${accessory.id}: úrovní ani odznakem ne`);
+        assert.equal(Look.isUnlocked(accessory, { level: 1, badges: {}, gifts: { accessories: [accessory.id] } }), true, `${accessory.id}: ze Sezónní truhly`);
+        assert.match(Look.unlockText(accessory), new RegExp(`^Sezóna Mudrlanta \\(${Look.SEASON_MONTHS[accessory.month - 1].toLocaleLowerCase('cs')}, Sezónní truhla na 20\\. stupni\\)$`));
+        assert.ok(!Look.newRewards(0, 100, Object.keys(everyBadge)).some(entry => entry.item === accessory), `${accessory.id} se úrovní ani odznakem neoslaví`);
+    }
     // Stav odměn drží i postavičky a tituly ze sezóny
     assert.ok(Rewards.OWN_CATEGORIES.includes('avatars') && Rewards.OWN_CATEGORIES.includes('titles'));
     assert.deepEqual(Rewards.parse({ gifts: { titles: ['sampion-sezony', 'neznamy'] } }).gifts.titles, ['sampion-sezony']);

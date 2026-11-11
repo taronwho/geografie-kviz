@@ -34,18 +34,18 @@
     const escapeHtml = (text) => Core && Core.escapeHtml ? Core.escapeHtml(text) : String(text).replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
     const badgeTitle = (id) => (Core && Core.BADGE_BY_ID && Core.BADGE_BY_ID[id] ? Core.BADGE_BY_ID[id].title : id);
 
-    // Adresa obrázku vrstvy; neznámé id a barva se nevykreslí (cizí hodnota nic nerozbije)
+    // Adresa obrázku vrstvy; neznámé id a barva se nevykreslí (cizí hodnota nic nerozbije). Doplněk s pevnými barvami (noColors) má jen původní.
     const layerSrc = (id, color) => {
         const item = Look ? Look.find('accessories', id) : null;
         if (!item) return null;
-        const known = Look.ACC_COLORS.some(entry => entry.id === color && entry.id !== 'vlastni') ? color : 'original';
+        const known = !item.noColors && Look.ACC_COLORS.some(entry => entry.id === color && entry.id !== 'vlastni') ? color : 'original';
         return `icons/doplnky/${item.id}${known === 'original' ? '' : `-${known}`}.webp`;
     };
     // Třída přebarvení pro vlastní odstín (o kolik se má otočit odstín původního obrázku doplňku)
     const hueClass = (id, color) => {
         const item = Look ? Look.find('accessories', id) : null;
         const hue = Look ? Look.customHue(color) : null;
-        if (!item || hue === null) return '';
+        if (!item || item.noColors || hue === null) return '';
         const turn = (((hue - (item.hue || 0)) % 360) + 360) % 360;
         return HUE_CLASSES[Math.round(turn / 5) * 5 % 360] || '';
     };
@@ -114,7 +114,7 @@
             if (slot === 'face' && id === Look.NO_MONOCLE && !acc.face) { acc.face = { id }; known = true; return; }
             const item = Look.find('accessories', id);
             if (!item || item.slot !== slot || acc[slot]) return;
-            acc[slot] = { id, color: validColor(color) ? color : 'original' };
+            acc[slot] = { id, color: !item.noColors && validColor(color) ? color : 'original' };
             if (item.flags && Look.flagOk(flag)) acc[slot].flag = flag;
             known = true;
         };
@@ -275,7 +275,10 @@
                 <select data-owl-flag="${flagSlot}" aria-label="Vlajka státu na vlaječce" class="h-9 min-w-0 flex-1 rounded-lg border-2 border-slate-200 bg-white px-2 text-sm font-bold text-slate-800 focus:border-brand-600 focus:outline-none dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100">
                     <option value=""${flagChosen ? '' : ' selected'}>Modré plátno (výchozí)</option>${Flags ? Flags.list().map(flag => `<option value="${flag.id}"${flag.id === flagChosen ? ' selected' : ''}>${escapeHtml(flag.name)}</option>`).join('') : ''}
                 </select></label>` : '';
-        const colors = targetItem && flagChosen ? '' : targetItem ? `
+        // Doplněk s pevnými barvami (noColors, třeba Dýně) barvu nemá: místo palety jen věta (stejná výška, okno neposkočí)
+        const colors = targetItem && flagChosen ? '' : targetItem && targetItem.noColors ? `
+            <p data-owl-fixed class="flex min-h-[2.25rem] items-center px-1 text-[11px] font-semibold text-slate-500 dark:text-slate-400"><span><b class="text-slate-700 dark:text-slate-200">${escapeHtml(targetItem.title)}</b> má pevné barvy.</span></p>`
+            : targetItem ? `
             <div class="flex flex-col gap-0.5"><p class="px-1 text-[11px] font-bold text-slate-500 dark:text-slate-400">Barva: <b class="text-slate-700 dark:text-slate-200">${escapeHtml(targetItem.title)}</b></p>
             <div class="grid grid-cols-10" role="group" aria-label="Barva doplňku">${Look.ACC_COLORS.map(dot).join('')}</div>${slider}</div>`
             : `<p class="flex min-h-[2.25rem] items-center px-1 text-[11px] font-semibold text-slate-500 dark:text-slate-400">${chosen === 'none' ? 'Vyber doplněk a pak jeho barvu.' : ''}</p>`;
@@ -314,7 +317,7 @@
         }
         if (color) {
             const [slot, id] = color.dataset.owlColor.split(':');
-            if (!acc[slot]) return false;
+            if (!acc[slot] || (Look.find('accessories', acc[slot].id) || {}).noColors) return false;
             const item = Look.ACC_COLORS.find(entry => entry.id === id);
             if (!item) return false;
             activeSlot = slot;

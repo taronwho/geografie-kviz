@@ -27,9 +27,11 @@ const ALL_DIPLOMAS = Object.fromEntries(TOPICS.map(topic => [topic.id, '2026-11-
 const RARE_FRAMES = Look.FRAMES.filter(item => item.rare).map(item => item.id);
 // Věci jen z Truhly Mudrlanta (chest v look.js): ty dá jen truhla, úroveň 100 nestačí
 const CHEST_ONLY = Look.ACCESSORIES.filter(item => item.chest).map(item => item.id);
+// Sezónní doplněk letošního listopadu (Lampion, jen ze Sezónní truhly): jde získat, takže k celému albu patří
+const NOVEMBER_ACC = Look.ACCESSORIES.filter(item => item.month === 11).map(item => item.id);
 const withEverything = (run, extra = {}) => {
     Look.setLeagueBest('mistr');
-    try { return run(input({ level: 100, badges: allBadges(), gifts: { frames: ['sezona-11', ...RARE_FRAMES], accessories: CHEST_ONLY }, diplomas: ALL_DIPLOMAS, ...extra })); } finally { Look.setLeagueBest(null); }
+    try { return run(input({ level: 100, badges: allBadges(), gifts: { frames: ['sezona-11', ...RARE_FRAMES], accessories: [...CHEST_ONLY, ...NOVEMBER_ACC] }, diplomas: ALL_DIPLOMAS, ...extra })); } finally { Look.setLeagueBest(null); }
 };
 // Dočasně přidané položky katalogu (jako sezónní permanentka jiného modulu); po testu se vrátí
 const withItems = (category, items, run) => {
@@ -46,7 +48,11 @@ test('sekce v pořadí a počty z katalogu: věci od začátku se nepočítají,
     assert.equal(sectionOf(album, 'themes').total, Look.THEMES.length - 1);
     assert.equal(sectionOf(album, 'robes').total, Look.ROBES.length - 1);
     assert.equal(sectionOf(album, 'avatars').total, Look.AVATARS.length);
-    assert.equal(sectionOf(album, 'accessories').total, Look.ACCESSORIES.length);
+    // Doplňky: bez sezónních z měsíců, které ještě nebyly (10. 11. 2026 jde získat jen listopadový Lampion)
+    assert.equal(sectionOf(album, 'accessories').total, Look.ACCESSORIES.length - 11, 'jedenáct sezónních doplňků je zatím skrytých');
+    assert.deepEqual(NOVEMBER_ACC, ['lampion']);
+    assert.ok(keys('accessories').includes('lampion') && !keys('accessories').includes('sala-zimni'), 'listopadový sezónní doplněk je ke sbírání, prosincový ještě ne');
+    assert.equal(sectionOf(album, 'accessories').entries.find(entry => entry.id === 'lampion').limited, true, 'sezónní (časově omezený)');
     assert.equal(sectionOf(album, 'colors').total, Look.CATALOG.colors.length);
     const reward = sectionOf(album, 'frames').entries.find(entry => entry.id === 'sberatel');
     assert.equal(reward.state, 'reward');
@@ -75,7 +81,7 @@ test('vlastnictví: úroveň, odznak, věc z truhly a diplom', () => {
     const avatars = sectionOf(album, 'avatars');
     assert.equal(avatars.owned, Look.AVATARS.filter(item => !item.badge && item.level <= level).length);
     const accessories = sectionOf(album, 'accessories');
-    const expected = Look.ACCESSORIES.filter(item => (!item.badge && item.level <= level) || item.badge === 'vitez' || item.id === 'koruna').length;
+    const expected = Look.ACCESSORIES.filter(item => (!item.badge && !item.exclusive && item.level <= level) || item.badge === 'vitez' || item.id === 'koruna').length;
     assert.equal(accessories.owned, expected, 'úroveň, Vavřínový věnec za Vítěze a Koruna z truhly');
     assert.ok(sectionOf(album, 'themes').entries.find(entry => entry.id === 'zlata').owned, 'téma z truhly');
     assert.ok(sectionOf(album, 'frames').entries.find(entry => entry.id === 'vavrin').owned, 'rámeček za odznak');
@@ -101,7 +107,8 @@ test('100 % je opravdu všechno: celé album, každá sekce kompletní; odznaky 
     assert.equal(Album.build({ ...full, diplomas }).percent, 99, 'průměr sekcí: 7 × 100 % a 13/14 diplomů');
     assert.ok(!Album.build({ ...full, diplomas }).complete.includes('diplomas'));
     // Bez rámečku letošní sezóny ani bez ligového vrcholu není album celé (obojí teď jde získat)
-    assert.ok(Album.build({ ...full, gifts: { accessories: CHEST_ONLY } }).percent < 100, 'chybí listopadový rámeček');
+    assert.ok(Album.build({ ...full, gifts: { accessories: [...CHEST_ONLY, ...NOVEMBER_ACC] } }).percent < 100, 'chybí listopadový rámeček');
+    assert.ok(Album.build({ ...full, gifts: { ...full.gifts, accessories: CHEST_ONLY } }).percent < 100, 'chybí listopadový doplněk (Lampion)');
     assert.ok(Album.build({ ...full, gifts: { frames: ['sezona-11'] } }).percent < 100, 'chybí věci z Truhly Mudrlanta');
     });
     assert.ok(Album.build(input({ level: 100, badges: allBadges(), gifts: { frames: ['sezona-11'] }, diplomas: ALL_DIPLOMAS })).percent < 100, 'chybí ligové rámečky');

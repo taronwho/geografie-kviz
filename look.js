@@ -117,6 +117,7 @@
     // Doplňky sovy: každý patří do jednoho místa (slot), v každém místě je nejvýš jeden; ke každému hráč zvolí barvu.
     // hidesHat = doplněk nahrazuje výchozí čepici (look-owl.js ji z loga skryje maskou), hidesHand = doplněk v ruce kreslí ruku jinak
     // (výchozí zvednutá ruka se skryje), keepsMonocle = doplněk v obličeji nezakrývá oči, takže sova k němu nosí monokl (viz monocleShown).
+    // noColors = doplněk má pevné barvy (několik barev je jeho podstata): nemá barevné varianty, výběr barvy se skryje a uloží se 'original'.
     // chest = věc jen z Truhly Mudrlanta (rewards.js) a stupňů Sezóny Mudrlanta (season.js), úrovní ani odznakem se neodemkne; číslo je
     // úroveň, podle které se v truhle řadí mezi věci odemykané úrovní (truhla losuje z nejbližších nad úrovní hráče).
     // league = jako rámečky ligových sezón (LEAGUE_FRAMES): vrchol skončené ligové sezóny aspoň v této lize.
@@ -170,6 +171,25 @@
         { id: 'paska', keepsMonocle: true, title: 'Pirátská páska', slot: 'face', hue: 0, chest: 40 },
         { id: 'hrnek', hidesHand: true, title: 'Hrnek kakaa', slot: 'hand', hue: 180, chest: 50 }
     ];
+    // Měsíční doplňky Sezóny Mudrlanta (docs/OBRAZKY.md č. 134–145): jen ze Sezónní truhly svého měsíce (SEASON_BUNDLES níže),
+    // úrovní, odznakem ani Truhlou Mudrlanta ne (exclusive, month a source jako rámečky sezóny SEASON_FRAMES). Ve výběru doplňků
+    // v Nastavení jsou, jen když je hráč má (look-owl.js). Vrstvy z průhledných PNG dělá scripts/owl-accessories.py (SEASON).
+    // Pevné barvy (noColors): jarní věneček (bílé a žluté kvítky v zelených lístcích), konvalinky a dýně se zelenou stopkou.
+    const SEASON_ACCESSORIES = [
+        { id: 'cepice-zimni', hidesHat: true, title: 'Zimní čepice', slot: 'head', hue: 205 },
+        { id: 'karneval', title: 'Karnevalová maska', slot: 'face', hue: 280 },
+        { id: 'jarni-venecek', noColors: true, title: 'Jarní věneček', slot: 'head', hue: 50 },
+        { id: 'destnik', hidesHand: true, title: 'Deštník', slot: 'hand', hue: 48 },
+        { id: 'konvalinky', noColors: true, hidesHand: true, title: 'Konvalinky', slot: 'hand', hue: 110 },
+        { id: 'slamak', hidesHat: true, title: 'Slaměný klobouk', slot: 'head', hue: 205 },
+        { id: 'snorchl', title: 'Šnorchl', slot: 'face', hue: 180 },
+        { id: 'zmrzlina', hidesHand: true, title: 'Zmrzlina', slot: 'hand', hue: 345 },
+        { id: 'tuzka', hidesHand: true, title: 'Školní tužka', slot: 'hand', hue: 48 },
+        { id: 'dyne', noColors: true, title: 'Dýně', slot: 'head', hue: 28 },
+        { id: 'lampion', hidesHand: true, title: 'Lampion', slot: 'hand', hue: 28 },
+        { id: 'sala-zimni', title: 'Zimní šála', slot: 'neck', hue: 140 }
+    ].map((item, index) => ({ ...item, month: index + 1, exclusive: true, source: 'season' }));
+    ACCESSORIES.push(...SEASON_ACCESSORIES);
     // Monokl: výchozí sova ho nosí (icons/logo.webp). V místě obličeje si hráč místo něj může vybrat „Bez monoklu“ (uloží se jako
     // { id: NO_MONOCLE }, logo icons/logo-bez-monoklu.webp) nebo doplněk, který monokl nahradí (brýle a maska; knír a páska ho nechají).
     // Uložené volby bez doplňku v obličeji dál znamenají monokl.
@@ -202,8 +222,9 @@
     const TITLES = [{ id: 'sampion-sezony', title: 'Šampion sezóny', exclusive: true, source: 'season' }];
     // Sezónní truhla (20. stupeň sezóny): pro každý měsíc doplněk, rámeček a postavička. Do truhly jde jen to, co už v katalogu je
     // (doplněk v ACCESSORIES s obrázky v icons/doplnky, postavička v AVATARS s obrázky v icons/avatars, rámeček ve FRAMES), takže přidat
-    // novou věc = jen přidat její položku s exclusive: true a month (a obrázky). Plánovaná id (postavička jen písmena, nejvýš 6 znaků):
-    // obrázkový rámeček ramecek-sezona-01 … -12 může později nahradit CSS rámeček stejného id.
+    // novou věc = jen přidat její položku s exclusive: true a month (a obrázky). Doplňky (SEASON_ACCESSORIES) a rámečky už v katalogu
+    // jsou, postavičky jsou plánovaná id (jen písmena, nejvýš 6 znaků); obrázkový rámeček ramecek-sezona-01 … -12 může později nahradit
+    // CSS rámeček stejného id.
     const SEASON_BUNDLES = {
         '01': { accessory: 'cepice-zimni', frame: 'sezona-01', character: 'ramp' },
         '02': { accessory: 'karneval', frame: 'sezona-02', character: 'kobliz' },
@@ -348,7 +369,7 @@
             if (slot.id === 'face' && entry && typeof entry === 'object' && entry.id === NO_MONOCLE) { value.acc.face = { id: NO_MONOCLE }; continue; }
             const item = entry && typeof entry === 'object' ? find('accessories', entry.id) : null;
             if (item && item.slot === slot.id && (!ctx || isUnlocked(item, ctx))) {
-                value.acc[slot.id] = { id: item.id, color: colorOk(entry.color, ctx) ? entry.color : 'original' };
+                value.acc[slot.id] = { id: item.id, color: !item.noColors && colorOk(entry.color, ctx) ? entry.color : 'original' };
                 if (item.flags && flagOk(entry.flag)) value.acc[slot.id].flag = entry.flag;
             }
         }
