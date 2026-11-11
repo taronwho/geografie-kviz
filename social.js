@@ -177,12 +177,15 @@
     // Obtížnost: level 1 Základní, 2 Mudrlant, 3 Mudrlant Expert (sloupec level od schématu 16; include_hard = aspoň Mudrlant
     // pro starší klienty). Bez sloupce level (starší databáze) se Expert založí jako Mudrlant.
     let levelMissing = false;
+    // Konec semínka nové výzvy: výzva smí mít otázky „Ukaž na mapě“ (question-map.js MULTIPLAYER_SEED_MARK); výzvy starších verzí aplikace
+    // ho nemají a zůstanou bez mapy na všech zařízeních
+    const CHALLENGE_SEED_MARK = '.mapa';
     const createChallenge = async (userId, { topic, count, invitedId = null, includeHard = false, level = null, categories = [], variant = null }) => {
         if (!COUNTS.includes(count)) throw new SocialError('Neplatný počet otázek.', 400);
         const wanted = [1, 2, 3].includes(level) ? level : includeHard ? 2 : 1;
         for (let attempt = 0; attempt < 4; attempt++) {
             const id = newCode();
-            const body = { id, creator_id: userId, topic, seed: `vyzva-${id}-${Date.now().toString(36)}`, count, invited_id: invitedId, include_hard: wanted >= 2, categories: (categories || []).slice(0, 20), variant: variant === 'typed' || variant === 'choices' ? variant : null };
+            const body = { id, creator_id: userId, topic, seed: `vyzva-${id}-${Date.now().toString(36)}${CHALLENGE_SEED_MARK}`, count, invited_id: invitedId, include_hard: wanted >= 2, categories: (categories || []).slice(0, 20), variant: variant === 'typed' || variant === 'choices' ? variant : null };
             try {
                 const rows = await request('POST', 'challenges', { body: wanted === 3 && !levelMissing ? { ...body, level: 3 } : body, prefer: 'return=representation' });
                 return rows[0];
