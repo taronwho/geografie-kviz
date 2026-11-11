@@ -1008,7 +1008,26 @@ Cartoon sticker illustration in exactly the same art style as the attached owl m
 
 ### Legendární postavy za diplomy (č. 119–132)
 
-Za diplom v tématu (plné mistrovství, 5 hvězdiček) jedna legendární postavička do profilovky, extrémně nastylovaná (zlatá záře, aura v barvě tématu). Budou mít přebarvitelné části jako ostatní postavičky. Přiložit `branding/sova-original.jpg` (vzor stylu).
+Za diplom v tématu (plné mistrovství, 5 hvězdiček) jedna legendární postavička do profilovky, extrémně nastylovaná (zlatá záře, aura v barvě tématu). Přiložit `branding/sova-original.jpg` (vzor stylu).
+
+**Dodáno a zapojeno všech 14.** Zdroje `branding/ikony/avatar-<název>.png`, obrázky a vrstvy částí vyrábí `scripts/avatar-icons.py` (`icons/avatars/<id>.webp`, `<id>-<část><barva>.webp`), katalog `look.js` AVATARS (`diploma: '<téma>'`), seznam v `sw.js` AVATAR_ART. Odemyká je jen diplom tématu (ne úroveň, odznak, truhla ani Sezóna), v Nastavení → Profil mají vlastní skupinu Legendy (zlatý lem), oslava diplomu i okno diplomu je ukazují. Id a přebarvitelné části:
+
+| č. | id | téma | části |
+|---|---|---|---|
+| 119 | `albatr` | Zeměpis | Uniforma, Moře a nebe |
+| 120 | `gryf` | Vlajky a znaky | Kabátec, Záře a prapory |
+| 121 | `slon` | Historie | Slon, Záře |
+| 122 | `sfinga` | Mytologie | Sfinga, Záře |
+| 123 | `jelen` | Biologie | Plášť, Les |
+| 124 | `golem` | Geologie | Krystaly, Záře |
+| 125 | `liska` | Chemie | Kabát, Brýle |
+| 126 | `chobot` | Fyzika | Chobotnice, Záře |
+| 127 | `pav` | Výtvarné umění | Baret a peří, Kabátek |
+| 128 | `bobr` | Architektura | Přilba, Plány a nebe |
+| 129 | `vlk` | Hudba | Frak, Nebe |
+| 130 | `kndrak` | Literatura | Dráček, Záře |
+| 131 | `panda` | Film | Šála, Záře |
+| 132 | `klokan` | Sport | Dres a čelenka, Záře |
 
 #### 119. `avatar-albatros.png` – Albatros mořeplavec (Zeměpis)
 

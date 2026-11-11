@@ -496,6 +496,16 @@ test('okna se vejdou bez posouvání', { skip: !chromium && 'Playwright není na
                 await tab.waitForSelector('[data-pick-part="2:5"][aria-pressed="true"]');
                 await settled();
             });
+            // Legendární postavičky za diplomy (14 dlaždic a věta o diplomu); Jana má diplom Zeměpisu, Albatros mořeplavec je odemčený
+            await scene(tab, 'Nastavení – Profil (Legendy)', size, async () => {
+                await settingsTab('profile');
+                await tab.click('[data-pic-group="legendy"]');
+                await tab.click('[data-pick-avatar="albatr"]');
+                await tab.waitForSelector('[data-pick-avatar="albatr"][aria-pressed="true"]');
+                await tab.click('[data-color-target="1"]');
+                await tab.waitForSelector('[data-pick-part="1:0"]');
+                await settled();
+            });
             await scene(tab, 'Nastavení – Profil (všechny barvy)', size, async () => { await settingsTab('profile'); await tab.click('[data-pick-hue-open]'); await tab.waitForSelector('[data-pick-hue]'); await settled(); });
             await scene(tab, 'Nastavení – Mudrlant (doplněk s barvou)', size, async () => {
                 await settingsTab('owl');

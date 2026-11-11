@@ -346,13 +346,14 @@ test('odměny v Profilu: rámečky, titul a postavičky', { skip: !chromium && '
         await tab.click('[data-me-tab="profile"]');
         await tab.waitForSelector('#profile-name');
         // Otevřená je skupina s vybraným obrázkem (liška = Zvířátka, 20 základních emoji zdarma)
-        assert.deepEqual(await tab.$$eval('[data-pic-group]', nodes => nodes.map(node => [node.textContent.trim(), node.getAttribute('aria-selected')])), [['Mudrlant', 'false'], ['Postavičky', 'false'], ['Zvířátka', 'true']]);
+        assert.deepEqual(await tab.$$eval('[data-pic-group]', nodes => nodes.map(node => [node.textContent.trim(), node.getAttribute('aria-selected')])), [['Mudrlant', 'false'], ['Postavičky', 'false'], ['Legendy', 'false'], ['Zvířátka', 'true']]);
         assert.equal(await tab.locator('[data-avatar-strip] > button').count(), 20);
         assert.equal(await tab.getAttribute('[data-pick-avatar="🦊"]', 'aria-pressed'), 'true');
         await tab.click('[data-pic-group="postavicky"]');
         await tab.waitForSelector('[data-pic-group="postavicky"][aria-selected="true"]');
         // Úroveň 20: Knihomol (3), Axolotl (8), Kaktus (13) a Drak čajník (20) jsou odemčené, Mamut DJ (28) ne; za odznaky (turnaje) zamčené s medailí
-        assert.equal(await tab.locator('[data-pick-avatar], [data-locked-avatar]').count(), 21, '20 postaviček a Stovka (zatím bez obrázku)');
+        assert.equal(await tab.locator('[data-pick-avatar], [data-locked-avatar]').count(), 21, '21 postaviček za úrovně a odznaky (legendární mají vlastní skupinu)');
+        assert.equal(await tab.locator('[data-avatar-strip] [data-locked-avatar="albatr"], [data-avatar-strip] [data-pick-avatar="albatr"]').count(), 0);
         assert.deepEqual(await tab.$$eval('[data-pick-avatar]', nodes => nodes.map(node => node.dataset.pickAvatar)), ['cervik', 'axolot', 'kaktus', 'drak']);
         assert.equal(await tab.getAttribute('[data-locked-avatar="mamut"]', 'aria-label'), 'Mamut DJ (zamčeno): Úroveň 28');
         assert.equal(await tab.getAttribute('[data-locked-avatar="mamut"]', 'title'), 'Mamut DJ: Úroveň 28');
@@ -523,6 +524,48 @@ test('odměny v Profilu: rámečky, titul a postavičky', { skip: !chromium && '
         state = await box();
         assert.equal(state.visible, true);
         assert.ok(state.top > 0);
+        assert.deepEqual(log.errors, []);
+        assert.deepEqual(log.csp, []);
+        await context.close();
+    });
+    await t.test('legendární postavičky: skupina Legendy, zamčené s čepicí absolventa, za diplom odemčená se zlatým lemem a uloží se', async () => {
+        const db = newDb();
+        // Diplom Zeměpisu (plné mistrovství) odemyká Albatrose mořeplavce, ostatní legendární jsou zamčené
+        const { context, tab, log } = await setup(browser, { ...login('tok-u1'), 'mudrlant.rewards': JSON.stringify({ v: 1, diplomas: { zemepis: '2026-10-01' } }) });
+        await backend(context, db);
+        await tab.goto(`${ORIGIN}/`);
+        await waitForHome(tab);
+        await tab.click('#btn-settings');
+        await tab.click('[data-me-tab="profile"]');
+        await tab.waitForSelector('#profile-name');
+        await tab.click('[data-pic-group="legendy"]');
+        await tab.waitForSelector('[data-pic-group="legendy"][aria-selected="true"]');
+        assert.equal(await tab.locator('[data-avatar-strip] [data-pick-avatar], [data-avatar-strip] [data-locked-avatar]').count(), 14);
+        assert.deepEqual(await tab.$$eval('[data-avatar-strip] [data-pick-avatar]', nodes => nodes.map(node => [node.dataset.pickAvatar, node.hasAttribute('data-legendary')])), [['albatr', true]]);
+        assert.match(await tab.getAttribute('[data-pick-avatar="albatr"]', 'class'), /border-gold-300/, 'odemčená legendární má zlatý lem');
+        assert.equal(await tab.getAttribute('[data-locked-avatar="klokan"]', 'aria-label'), 'Klokan šampion (legendární) (zamčeno): Diplom: Sport');
+        assert.equal(await tab.getAttribute('[data-locked-avatar="klokan"]', 'title'), 'Klokan šampion: Diplom: Sport');
+        assert.equal(await tab.locator('[data-locked-avatar="klokan"] svg, [data-locked-avatar="klokan"] [data-lucide="graduation-cap"]').count(), 1, 'za diplom čepice absolventa');
+        assert.match(await tab.textContent('[data-legend-note]'), /Legendární postavička za diplom tématu/);
+        assert.equal(await tab.evaluate(() => { const box = document.querySelector('#settings-overlay > div'); return box.scrollHeight <= box.clientHeight; }), true, 'okno bez posouvání');
+        // Zamčená se nevybere, jen řekne, jakým diplomem se odemkne
+        await tab.click('[data-locked-avatar="klokan"]', { force: true });
+        await tab.waitForFunction(() => /Klokan šampion se odemkne diplomem „Mistr sportu“ \(plné mistrovství tématu Sport\)\./.test(document.getElementById('settings-note').textContent));
+        // Odemčená: barvy obou částí jako u ostatních postaviček, uloží se jako krátký kód
+        await tab.click('[data-pick-avatar="albatr"]');
+        await tab.waitForSelector('[data-pick-avatar="albatr"][aria-pressed="true"]');
+        assert.deepEqual(await tab.$$eval('[data-color-target]', nodes => nodes.map(node => node.textContent.trim())), ['Pozadí', 'Uniforma', 'Moře a nebe']);
+        await tab.click('[data-color-target="2"]');
+        await tab.click('[data-pick-part="2:4"]');
+        await tab.waitForSelector('#settings-overlay [data-avatar-art="albatr"] img[src="icons/avatars/albatr-24.webp"]');
+        await tab.click('[data-save-profile]');
+        await tab.waitForFunction(() => /Uloženo/.test(document.getElementById('settings-overlay').textContent));
+        assert.equal(db.profiles['u-1'].avatar, 'albatr04');
+        // Po novém otevření je Profil ve skupině Legendy
+        await tab.click('#settings-overlay [data-close]');
+        await tab.click('#btn-settings');
+        await tab.waitForSelector('[data-pic-group="legendy"][aria-selected="true"]');
+        assert.equal(await tab.getAttribute('[data-pick-avatar="albatr"]', 'aria-pressed'), 'true');
         assert.deepEqual(log.errors, []);
         assert.deepEqual(log.csp, []);
         await context.close();

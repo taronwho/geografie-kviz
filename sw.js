@@ -10,6 +10,8 @@ const BADGE_ART = ['sberatel', 'odpovedi', 'rada', 'serie', 'dny', 'dokonale', '
 // Vrstvy přebarvených částí (<id>-<část><barva>.webp) se uloží až při použití.
 const AVATAR_ART = ['cervik', 'axolot', 'kaktus', 'drak', 'mamut', 'meduza', 'lenoch', 'tukan', 'lev', 'fenix', 'krecek', 'rytir', 'narval', 'zelva',
     'hodiny', 'chamel', 'gepard', 'zelvus', 'tucnak', 'zabak', 'myval',
+    // Legendární postavičky za diplomy témat
+    'albatr', 'gryf', 'slon', 'sfinga', 'jelen', 'golem', 'liska', 'chobot', 'pav', 'bobr', 'vlk', 'kndrak', 'panda', 'klokan',
     // Sezónní postavičky ze Sezónní truhly (look.js SEASON_AVATARS)
     'ramp', 'kobliz', 'snezen', 'kapka', 'pampel', 'vysved', 'meloun', 'hvezda', 'aktovk', 'drakpa', 'caj', 'pernik'];
 // Obrázkové rámečky profilu (icons/frames/<id>.webp); stejný seznam má look.js (FRAMES s art: true), hlídá tests/look-frames.test.js

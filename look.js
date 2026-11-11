@@ -103,8 +103,30 @@
         { id: 'zelvus', title: 'Želvušek v brnění', badge: 'preziti-20', was: '🐻', parts: ['Tělo', 'Srdíčka'], colors: [[3, 4, 5, 6, 7, 8, 9], [2, 3, 4, 5, 6, 7, 9]] },
         { id: 'tucnak', title: 'Tučňák badatel', badge: 'mapa-25', was: '🗺️', parts: ['Helma'], colors: [[1, 4, 5, 6, 7, 8, 9]] },
         { id: 'zabak', title: 'Žabí lučištník', badge: 'odhad-25', was: '🎯', parts: ['Žabák', 'Terč'], colors: [[1, 2, 3, 5, 6, 7, 8, 9], [3, 4, 5, 6, 7, 8, 9]] },
-        { id: 'myval', title: 'Mýval knihovník', badge: 'serad-25', was: '🧩', parts: ['Knihy'], colors: [ALL] }
+        { id: 'myval', title: 'Mýval knihovník', badge: 'serad-25', was: '🧩', parts: ['Knihy'], colors: [ALL] },
+        // Legendární postavičky (docs/OBRAZKY.md č. 119–132): jedna za diplom každého tématu (plné mistrovství, rewards.js noteDiplomas).
+        // diploma = id tématu; odemyká je ctx.diplomas (téma → den zisku), úrovní, odznakem, truhlou ani Sezónou se nezískají.
+        { id: 'albatr', title: 'Albatros mořeplavec', diploma: 'zemepis', parts: ['Uniforma', 'Moře a nebe'], colors: [[1, 2, 3, 4, 5, 6, 7, 8], [1, 2, 3, 4, 7, 8, 9]] },
+        { id: 'gryf', title: 'Gryf praporečník', diploma: 'vlajky', parts: ['Kabátec', 'Záře a prapory'], colors: [[2, 3, 4, 5, 6, 7, 8, 9], [2, 3, 4, 5, 6, 7, 9]] },
+        { id: 'slon', title: 'Slon kronikář', diploma: 'historie', parts: ['Slon', 'Záře'], colors: [ALL, [1, 4, 5, 6, 7, 8, 9]] },
+        { id: 'sfinga', title: 'Sfinga strážkyně', diploma: 'mytologie', parts: ['Sfinga', 'Záře'], colors: [ALL, [1, 2, 3, 4, 6, 7, 8, 9]] },
+        { id: 'jelen', title: 'Jelen pán lesa', diploma: 'biologie', parts: ['Plášť', 'Les'], colors: [[1, 2, 3, 4, 5, 6, 7, 8], [1, 2, 3, 5, 6, 7, 8, 9]] },
+        { id: 'golem', title: 'Krystalový golem', diploma: 'geologie', parts: ['Krystaly', 'Záře'], colors: [[1, 2, 3, 4, 5, 6, 8, 9], [1, 2, 3, 4, 5, 6, 8, 9]] },
+        { id: 'liska', title: 'Liška alchymistka', diploma: 'chemie', parts: ['Kabát', 'Brýle'], colors: [[1, 2, 3, 4, 5, 6, 7, 8], [1, 4, 5, 6, 7, 8, 9]] },
+        { id: 'chobot', title: 'Chobotnice fyzička', diploma: 'fyzika', parts: ['Chobotnice', 'Záře'], colors: [ALL, [1, 2, 3, 4, 6, 7, 8, 9]] },
+        { id: 'pav', title: 'Páv malíř', diploma: 'umeni', parts: ['Baret a peří', 'Kabátek'], colors: [[1, 2, 3, 4, 5, 6, 7, 8], [1, 2, 3, 4, 5, 6, 7, 8]] },
+        { id: 'bobr', title: 'Bobr stavitel', diploma: 'architektura', parts: ['Přilba', 'Plány a nebe'], colors: [[1, 4, 5, 6, 7, 8, 9], ALL] },
+        { id: 'vlk', title: 'Vlk dirigent', diploma: 'hudba', parts: ['Frak', 'Nebe'], colors: [[1, 2, 3, 4, 5, 6, 7, 8], [1, 2, 3, 4, 5, 6, 7, 8]] },
+        { id: 'kndrak', title: 'Knižní drak', diploma: 'literatura', parts: ['Dráček', 'Záře'], colors: [[1, 2, 3, 4, 5, 6, 7, 8], [1, 4, 5, 6, 7, 8, 9]] },
+        { id: 'panda', title: 'Panda režisér', diploma: 'film', parts: ['Šála', 'Záře'], colors: [[3, 4, 5, 6, 7, 8, 9], [3, 4, 5, 6, 7, 8, 9]] },
+        { id: 'klokan', title: 'Klokan šampion', diploma: 'sport', parts: ['Dres a čelenka', 'Záře'], colors: [[1, 2, 3, 4, 5, 6, 7, 8], [1, 4, 5, 6, 7, 8, 9]] }
     ];
+    // Témata diplomů legendárních postaviček (název pro „Diplom: Zeměpis“; app.js a rewards.js mají vlastní seznam témat)
+    const DIPLOMA_TOPICS = {
+        zemepis: 'Zeměpis', vlajky: 'Vlajky a znaky', historie: 'Historie', mytologie: 'Mytologie', biologie: 'Biologie', geologie: 'Geologie', chemie: 'Chemie',
+        fyzika: 'Fyzika', umeni: 'Výtvarné umění', architektura: 'Architektura', hudba: 'Hudba', literatura: 'Literatura', film: 'Film', sport: 'Sport'
+    };
+    const isLegendary = (item) => Boolean(item && item.diploma);
     // Barvy částí postaviček (číslo = číslice v uloženém obrázku, 0 = původní barva; pořadí = PALETTE ve scripts/avatar-icons.py).
     // Všechny jsou k dispozici, jakmile je postavička odemčená. Třída dot je vzorek barvy (vypsaná celá, ať ji Tailwind najde).
     const AVATAR_COLORS = [
@@ -310,17 +332,19 @@
         const category = CATEGORY_OF.get(item);
         return Boolean(category && gifts && Array.isArray(gifts[category]) && gifts[category].includes(item.id));
     };
-    // ctx = { level, badges, gifts? } (badges: objekt id → datum nebo true; gifts: věci z truhly, výchozí ze setGifts, null = bez nich)
+    // ctx = { level, badges, gifts?, diplomas? } (badges: objekt id → datum nebo true; gifts: věci z truhly, výchozí ze setGifts, null = bez nich;
+    // diplomas: téma → den zisku diplomu, odemyká legendární postavičky)
     const isUnlocked = (item, ctx) => {
         if (!item) return false;
         if (ctx && isGift(item, ctx.gifts !== undefined ? ctx.gifts : giftState)) return true;
         if (item.exclusive || item.chest || item.rare) return false;
         if (item.league) return leagueUnlocked(item, ctx);
+        if (item.diploma) return Boolean(ctx && ctx.diplomas && ctx.diplomas[item.diploma]);
         if (item.badge) return Boolean(ctx && ctx.badges && ctx.badges[item.badge]);
         return Boolean(ctx) && ctx.level >= (item.level || 1);
     };
     const unlockText = (item, badgeTitle = null) => item.exclusive ? (item.month ? `Sezóna Mudrlanta (${SEASON_MONTHS[item.month - 1].toLocaleLowerCase('cs')}, Sezónní truhla na 20. stupni)` : 'Sezóna Mudrlanta (celá cesta sezóny)')
-        : item.rare ? 'Vzácný dárek z Truhly Mudrlanta' : item.chest ? 'Z Truhly Mudrlanta'
+        : item.rare ? 'Vzácný dárek z Truhly Mudrlanta' : item.chest ? 'Z Truhly Mudrlanta' : item.diploma ? `Diplom: ${DIPLOMA_TOPICS[item.diploma] || item.diploma}`
             : item.league ? `Ligová sezóna: vrchol ${item.leagueName}` : item.badge ? `Odznak: ${badgeTitle || item.badge}` : `Úroveň ${item.level}`;
     const categoryOf = (item) => CATEGORY_OF.get(item) || null;
     const find = (category, id) => (CATALOG[category] || []).find(item => item.id === id) || null;
@@ -451,6 +475,8 @@
         const rewards = rewardsForBadge(badgeId);
         return rewards.length ? `Odměna: ${rewards.map(({ category, item }) => `${item.title} (${REWARD_KINDS[category]})`).join(', ')}` : '';
     };
+    // Odměny za diplom tématu (legendární postavička): [{ category, item }]
+    const rewardsForDiploma = (topicId) => Object.entries(CATALOG).flatMap(([category, items]) => items.filter(item => item.diploma === topicId).map(item => ({ category, item })));
     // Odměny odemknuté na dané úrovni (pro přehled úrovní)
     const rewardsAtLevel = (level) => Object.entries(CATALOG).flatMap(([category, items]) => items.filter(item => !item.badge && item.level === level).map(item => ({ category, item })));
     // Sezónní truhla měsíce (1–12): [{ category, item }] jen z toho, co v katalogu opravdu je (doplněk, rámeček, postavička), a titul
@@ -465,6 +491,8 @@
 
     return { setGifts, isGift: (item) => isGift(item, giftState), categoryOf, CATALOG, THEMES, ROBES, FRAMES, AVATARS, AVATAR_COLORS, ACCESSORIES, SLOTS, ACC_COLORS, NO_MONOCLE, monocleShown, POSES, findPose, customHue, colorOk, flagOk, DEFAULTS, isUnlocked, unlockText, find, normalize, prefs, setPref, onChange, register, getSections, apply, newRewards, rewardsAtLevel, REWARD_KINDS, settingsTab, settingsPlace, rewardsForBadge, badgeRewardText,
         migrateAvatar, parseAvatar, formatAvatar, avatarCode, avatarPicture, avatarItem, partColors,
+        // Legendární postavičky za diplom tématu
+        DIPLOMA_TOPICS, isLegendary, rewardsForDiploma,
         // Sezóna a série dní
         SEASON_MONTHS, SEASON_ADJECTIVES, SEASON_FRAMES, SEASON_AVATARS, STREAK_FRAMES, TITLES, SEASON_BUNDLES, seasonBundle, titleItem,
         // Rámečky ligových sezón (schéma 18)
