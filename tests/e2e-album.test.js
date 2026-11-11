@@ -50,10 +50,12 @@ const player = () => ({
 // Celá sbírka: k úrovni 100, odznakům a diplomům i ligový vrchol Mistr (rámečky ligových sezón jdou získat každý měsíc) a rámeček
 // letošní Sezóny Mudrlanta (sezónní věc běžícího měsíce jde získat, tak k celému albu patří) a vzácné obrázkové rámečky z Truhly Mudrlanta
 const SEASON_FRAME = `sezona-${Season.pragueDay().slice(5, 7)}`;
+// Postavička letošní sezóny (Sezónní truhla běžícího měsíce, look.js SEASON_BUNDLES)
+const SEASON_AVATAR = Look.SEASON_BUNDLES[Season.pragueDay().slice(5, 7)].character;
 const CHEST_FRAMES = require('../look.js').FRAMES.filter(item => item.rare).map(item => item.id);
 const collector = () => ({
     'mudrlant.progress': { xp: Core.xpForLevel(100), counters: {}, badges: Object.fromEntries(Core.BADGES.filter(badge => !Core.isAlbumBadge(badge.id)).map(badge => [badge.id, DAY])) },
-    'mudrlant.rewards': { freezes: 2, diplomas: Object.fromEntries(TOPICS.map(id => [id, DAY])), gifts: { frames: [SEASON_FRAME, ...CHEST_FRAMES], accessories: CHEST_ONLY } },
+    'mudrlant.rewards': { freezes: 2, diplomas: Object.fromEntries(TOPICS.map(id => [id, DAY])), gifts: { frames: [SEASON_FRAME, ...CHEST_FRAMES], accessories: CHEST_ONLY, avatars: [SEASON_AVATAR] } },
     'mudrlant.leagueSeasons': { v: 1, best: 'mistr', bestMonth: '2026-10' }
 });
 
@@ -255,6 +257,16 @@ test('album sbírky: sekce, podrobnosti, Nasadit a oslava milníku', { skip: !ch
         await tab.click('[data-album-item="avatars:drak"]');
         assert.equal(await tab.locator('[data-album-wear]').count(), 0);
         assert.match(await tab.textContent('[data-album-note]'), /po přihlášení/);
+        // Sezónní postavička běžícího měsíce chybí a říká, kde ji získat; ostatní měsíce ještě nebyly (od spuštění v listopadu 2026), tak nejsou vidět
+        await tab.click('[data-album-back]');
+        await tab.waitForSelector('[data-album-section="avatars"]');
+        const seasonal = Look.find('avatars', SEASON_AVATAR);
+        assert.equal(await tab.getAttribute(`[data-album-item="avatars:${SEASON_AVATAR}"]`, 'data-state'), 'missing');
+        assert.equal(await tab.locator('[data-album-section] [data-album-item^="avatars:"]').count(), Look.AVATARS.filter(item => Season.availability(item, 'avatars', Season.pragueDay()) !== 'upcoming').length);
+        await tab.click(`[data-album-item="avatars:${SEASON_AVATAR}"]`);
+        assert.equal(await tab.textContent('[data-album-detail-title]').then(text => text.trim()), seasonal.title);
+        assert.match(await tab.textContent('[data-album-how]'), new RegExp(`Sezóna Mudrlanta \\(${Look.SEASON_MONTHS[seasonal.month - 1].toLocaleLowerCase('cs')}, Sezónní truhla na 20\\. stupni\\)\\. Sezónní věc`));
+        assert.equal(await tab.locator(`[data-album-detail] img[src="icons/avatars/${SEASON_AVATAR}.webp"]`).count(), 1);
         assert.deepEqual(problems, []);
         await context.close();
     });

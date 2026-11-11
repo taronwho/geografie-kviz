@@ -94,6 +94,61 @@ CHARACTERS = {
         {'title': 'Bříško', 'rules': [{'hue': (40, 68), 'smin': 0.35, 'vmin': 0.6}]}]},
 }
 
+# Sezónní postavičky (Sezónní truhla měsíce, look.js SEASON_AVATARS; docs/OBRAZKY.md č. 151–162). Zdroje dodané s průhledným
+# pozadím (kobliz, snezen, aktovk, drakpa, caj, pernik) jsou v branding/ikony uložené už položené na #2d3034, tmavý kruh
+# nebo dlaždice za postavičkou (snezen, aktovk) má skoro barvu pozadí a vyřízne se s ním. U pampel je ze zdroje smazaný šedý oblouk
+# (chyba generátoru) vpravo nahoře u krémového okraje.
+# Přední kapsa aktovky (výřez uvnitř jejího obrysu, rohy seříznuté): k aktovce nepatří, je to druhá část
+AKTOVKA_KAPSA = [(0.307, 0.604), (0.555, 0.604), (0.573, 0.622), (0.573, 0.794), (0.555, 0.812), (0.307, 0.812), (0.289, 0.794), (0.289, 0.622)]
+AKTOVKA_ROHY = [[(0.289, 0.604), (0.307, 0.604), (0.289, 0.622)], [(0.555, 0.604), (0.573, 0.604), (0.573, 0.622)],
+                [(0.573, 0.794), (0.573, 0.812), (0.555, 0.812)], [(0.289, 0.794), (0.307, 0.812), (0.289, 0.812)]]
+# Pampeliška: odlétající semínka vpravo nahoře, bělma očí a krémový okraj mezi chmýřím a pravým listem do chmýří nepatří
+PAMPEL_OUT = [(0.7, 0.0, 1.0, 0.15), (0.8, 0.15, 1.0, 0.31), (0.262, 0.474, 0.37, 0.604), (0.428, 0.476, 0.56, 0.613), (0.55, 0.698, 0.67, 0.75)]
+CHARACTERS.update({
+    'ramp': {'src': 'ramp', 'parts': [
+        {'title': 'Šála', 'rules': [{'hue': (340, 20), 'smin': 0.45, 'vmin': 0.3}]},
+        {'title': 'Led', 'mode': 'tint', 'rules': [{'hue': (180, 230), 'smin': 0.06, 'vmin': 0.55, 'box': [(0.25, 0.05, 0.75, 0.95)]}]}]},
+    'kobliz': {'src': 'kobliz', 'parts': [
+        {'title': 'Maska', 'rules': [{'hue': (245, 305), 'smin': 0.25, 'vmin': 0.3}]},
+        {'title': 'Serpentina', 'rules': [{'hue': (320, 20), 'smin': 0.4, 'vmin': 0.35, 'box': [(0.76, 0.0, 1.0, 0.48)]}]}]},
+    'snezen': {'src': 'snezen', 'parts': [
+        {'title': 'Květ', 'rules': [{'smin': 0, 'smax': 0.16, 'vmin': 0.6, 'box': [(0.2, 0.12, 0.72, 0.66)]}]},
+        {'title': 'Listy', 'rules': [{'hue': (65, 150), 'smin': 0.3, 'vmin': 0.25, 'out': [(0.36, 0.3, 0.56, 0.46)]}]}]},
+    'kapka': {'src': 'kapka', 'parts': [
+        {'title': 'Kapka', 'rules': [{'hue': (185, 228), 'smin': 0.3, 'vmin': 0.3}]},
+        {'title': 'Deštník', 'rules': [{'hue': (35, 62), 'smin': 0.4, 'vmin': 0.4, 'box': [(0.0, 0.64, 0.42, 1.0)]}]}]},
+    'pampel': {'src': 'pampel', 'parts': [
+        {'title': 'Chmýří', 'rules': [{'smin': 0, 'smax': 0.1, 'vmin': 0.62, 'out': PAMPEL_OUT},
+                                       {'smin': 0, 'smax': 0.14, 'vmin': 0.62, 'out': PAMPEL_OUT, 'edge': 45}]},
+        {'title': 'Listy', 'rules': [{'hue': (70, 150), 'smin': 0.3, 'vmin': 0.25, 'box': [(0, 0.6, 1, 1)]}]}]},
+    'vysved': {'src': 'vysved', 'parts': [
+        {'title': 'Mašle', 'rules': [{'hue': (345, 18), 'smin': 0.45, 'vmin': 0.35, 'box': [(0.2, 0.45, 0.8, 0.86)]}]},
+        {'title': 'Brýle', 'rules': [{'smin': 0, 'smax': 0.3, 'vmin': 0, 'vmax': 0.42, 'box': [(0.2, 0.27, 0.72, 0.47)]}]}]},
+    'meloun': {'src': 'meloun', 'parts': [
+        {'title': 'Dužina', 'rules': [{'hue': (340, 20), 'smin': 0.3, 'vmin': 0.5, 'outpoly': [[(0.393, 0.66), (0.43, 0.62), (0.575, 0.62), (0.575, 0.65), (0.53, 0.68), (0.49, 0.693), (0.43, 0.694), (0.393, 0.69)]]}]},
+        {'title': 'Brýle', 'rules': [{'smin': 0, 'smax': 0.3, 'vmin': 0, 'vmax': 0.42, 'box': [(0.2, 0.15, 0.8, 0.38)]}]}]},
+    'hvezda': {'src': 'hvezda', 'parts': [
+        {'title': 'Hvězda', 'rules': [{'hue': (26, 64), 'smin': 0.4, 'vmin': 0.5, 'box': [(0.23, 0.08, 0.96, 0.7)],
+                                        'out': [(0.08, 0.545, 0.355, 0.88), (0.78, 0.08, 0.97, 0.3), (0.815, 0.555, 0.95, 0.66), (0.15, 0.2, 0.27, 0.31)]}]},
+        {'title': 'Ohon', 'rules': [{'hue': (205, 255), 'smin': 0.35, 'vmin': 0.1, 'vmax': 0.55}]}]},
+    'aktovk': {'src': 'aktovk', 'parts': [
+        {'title': 'Aktovka', 'rules': [{'hue': (10, 36), 'smin': 0.45, 'vmin': 0.3, 'box': [(0, 0.31, 1, 1)], 'outpoly': [AKTOVKA_KAPSA]}]},
+        {'title': 'Kapsa', 'rules': [{'hue': (10, 36), 'smin': 0.45, 'vmin': 0.3, 'box': [(0.289, 0.604, 0.573, 0.812)], 'outpoly': AKTOVKA_ROHY}]}]},
+    'drakpa': {'src': 'drakpa', 'parts': [
+        {'title': 'Drak', 'rules': [{'hue': (345, 62), 'smin': 0.45, 'vmin': 0.4, 'box': [(0.08, 0.0, 0.92, 0.68)],
+                                     'out': [(0.1, 0.03, 0.35, 0.21), (0.06, 0.46, 0.26, 0.63), (0.55, 0.6, 0.73, 0.76)]}]},
+        {'title': 'Mašličky', 'rules': [{'hue': (345, 62), 'smin': 0.45, 'vmin': 0.4, 'box': [(0.12, 0.68, 0.9, 0.97)],
+                                         'out': [(0.55, 0.6, 0.73, 0.76)]}]}]},
+    'caj': {'src': 'caj', 'parts': [
+        {'title': 'Hrnek', 'rules': [{'hue': (150, 205), 'smin': 0.18, 'vmin': 0.25}]},
+        {'title': 'Citron', 'rules': [{'hue': (38, 64), 'smin': 0.4, 'vmin': 0.5, 'box': [(0.0, 0.18, 0.44, 0.62)]}]}]},
+    'pernik': {'src': 'pernik', 'parts': [
+        {'title': 'Poleva', 'rules': [{'smin': 0, 'smax': 0.11, 'vmin': 0.7, 'outpoly': [[(0.26, 0.36), (0.45, 0.35), (0.51, 0.335), (0.66, 0.295),
+                                                                                         (0.71, 0.31), (0.71, 0.45), (0.65, 0.62), (0.42, 0.62), (0.26, 0.53)]]}]},
+        {'title': 'Knoflíky', 'mode': 'tint', 'rules': [{'hue': (330, 20), 'smin': 0.4, 'vmin': 0.45, 'box': [(0.42, 0.66, 0.58, 0.8)]},
+                                                        {'hue': (60, 160), 'smin': 0.3, 'vmin': 0.3, 'box': [(0.43, 0.8, 0.57, 0.91)]}]}]},
+})
+
 def rgb_to_hsv(a):
     r, g, b = a[..., 0], a[..., 1], a[..., 2]
     mx, mn = a.max(-1), a.min(-1)
@@ -151,6 +206,8 @@ def part_mask(a, rules):
         if 'box' in rule: r &= box_mask(h.shape, rule['box'])
         if 'out' in rule: r &= ~box_mask(h.shape, rule['out'])
         if 'outpoly' in rule: r &= ~poly_mask(h.shape, rule['outpoly'])
+        # edge = širší pruh u okraje samolepky (liché číslo v pixelech plátna WORK), kde pravidlo nehledá: krémový okraj bývá místy širší než EDGE
+        if 'edge' in rule: r &= np.asarray(Image.fromarray(((a[..., 3] > 0.5) * 255).astype(np.uint8)).filter(ImageFilter.MinFilter(rule['edge']))) > 0
         m |= r
     # Krémový okraj samolepky (pruh u průhledného pozadí) nikdy nepatří k části, i když má podobnou barvu (helma tučňáka)
     inner = Image.fromarray(((a[..., 3] > 0.5) * 255).astype(np.uint8)).filter(ImageFilter.MinFilter(EDGE))

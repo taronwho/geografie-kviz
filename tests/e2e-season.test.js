@@ -1,5 +1,5 @@
 // Sezóna Mudrlanta a odměny za sérii dní v prohlížeči (season.js, rewards.js, app.js): pruh s čekajícími odměnami na úvodu, odhalení
-// odměny (pečeť, Truhla v půli sezóny, Sezónní truhla s rámečkem a titulem, nasazení), karta v Mém postupu a okno s cestou 20 stupňů,
+// odměny (pečeť, Truhla v půli sezóny, Sezónní truhla s rámečkem, postavičkou a titulem, nasazení), karta v Mém postupu a okno s cestou 20 stupňů,
 // dovybrání minulé sezóny do 7. dne a pak propadnutí, omezený pohyb a řádek „Další odměna za sérii“. Telefon 390×780 i 360×640,
 // světlý i tmavý režim, okna bez posouvání a bez chyb CSP. MUDRLANT_SHOTS=adresář uloží snímky.
 const test = require('node:test');
@@ -149,7 +149,7 @@ test('sezóna: pruh, odhalení odměn, cesta, Sezónní truhla, dovybrání a od
             assert.equal(await dialogOverflow(tab), 0, 'okno sezóny bez posouvání');
             await shot(tab, `sezona-cesta-${tag}`);
             await tab.click('[data-season-tier="20"]');
-            assert.match(await tab.textContent('[data-season-detail]'), /Stupeň 20:.*Sezónní truhla: Listopadový rámeček, titul Šampion sezóny.*19\s100 XP/);
+            assert.match(await tab.textContent('[data-season-detail]'), /Stupeň 20:.*Sezónní truhla: Listopadový rámeček, postavička Hrnek čaje, titul Šampion sezóny.*19\s100 XP/);
             // Klepnutí na čekající stupeň ho rovnou otevře
             await tab.click('[data-season-tier="7"]');
             await tab.waitForSelector('#season-overlay [data-season-go]');
@@ -162,7 +162,7 @@ test('sezóna: pruh, odhalení odměn, cesta, Sezónní truhla, dovybrání a od
         });
     }
 
-    await t.test('Truhla v půli sezóny a Sezónní truhla: dvě věci, rámeček měsíce a titul, nasazení přežije nové načtení', async () => {
+    await t.test('Truhla v půli sezóny a Sezónní truhla: dvě věci, rámeček a postavička měsíce a titul, nasazení přežije nové načtení', async () => {
         const claimed = Object.fromEntries(Array.from({ length: 9 }, (_, i) => [i + 1, 'freeze']));
         const seed = { 'mudrlant.progress': { xp: 46000, counters: {}, badges: BADGES }, 'mudrlant.rewards': { season: { id: NOV, startXp: 21000, claimed }, freezes: 2 } };
         const { context, tab, problems } = await open({ seed });
@@ -193,10 +193,14 @@ test('sezóna: pruh, odhalení odměn, cesta, Sezónní truhla, dovybrání a od
         await tab.waitForSelector('[data-season-reveal]');
         await tab.waitForTimeout(2200);
         await shot(tab, 'sezonni-truhla-otevrena');
-        assert.match(await tab.textContent('[data-season-item]'), /Listopadový rámeček · titul Šampion sezóny/);
+        assert.match(await tab.textContent('[data-season-item]'), /Listopadový rámeček · postavička Hrnek čaje · titul Šampion sezóny/);
+        assert.match(await tab.textContent('[data-season-reveal]'), /postavičku najdeš v Nastavení → Profil\./);
+        // Postavička měsíce vyjde z truhly s ostatními věcmi (obrázek se načte)
+        assert.equal(await tab.locator('[data-season-prize] img[src="icons/avatars/caj.webp"]').count(), 1);
+        assert.ok(await tab.evaluate(() => { const img = document.querySelector('[data-season-prize] img[src="icons/avatars/caj.webp"]'); return img.complete && img.naturalWidth > 0; }), 'obrázek Hrnku čaje');
         const rewards = await storage(tab, 'mudrlant.rewards');
-        assert.equal(rewards.season.claimed[20], 'frames:sezona-11+titles:sampion-sezony');
-        assert.ok(rewards.gifts.frames.includes('sezona-11') && rewards.gifts.titles.includes('sampion-sezony'));
+        assert.equal(rewards.season.claimed[20], 'frames:sezona-11+avatars:caj+titles:sampion-sezony');
+        assert.ok(rewards.gifts.frames.includes('sezona-11') && rewards.gifts.titles.includes('sampion-sezony') && rewards.gifts.avatars.includes('caj'));
         await tab.click('[data-season-wear]');
         let look = await storage(tab, 'mudrlant.look');
         assert.equal(look.frame, 'sezona-11', 'exkluzivní rámeček nasazený');

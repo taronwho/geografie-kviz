@@ -133,7 +133,7 @@ test('vyzvednutí: jen dosažený stupeň, každý jednou; ochrana série na sv�
     assert.equal(Season.claim(state, { tier: 2, ctx: ctx(), xp, today: '2026-12-02' }).opened, false);
 });
 
-test('celá cesta: pestré věci bez duplicit, Truhla v půli sezóny dvě věci, Sezónní truhla rámeček měsíce a titul', () => {
+test('celá cesta: pestré věci bez duplicit, Truhla v půli sezóny dvě věci, Sezónní truhla rámeček a postavička měsíce a titul', () => {
     const { state, results } = claimAll(started(0), { xp: 25000, level: 20 });
     assert.equal(results.length, 20);
     const items = results.flatMap(result => result.parts.filter(part => part.item));
@@ -148,8 +148,10 @@ test('celá cesta: pestré věci bez duplicit, Truhla v půli sezóny dvě věci
     assert.notEqual(mid.parts[0].category, mid.parts[1].category, 'dvě věci různého druhu');
     const crown = results.find(result => result.tier === 20);
     assert.equal(crown.kind, 'bundle');
-    assert.deepEqual(crown.parts.map(part => `${part.category}:${part.item.id}`), ['frames:sezona-11', 'titles:sampion-sezony']);
+    assert.deepEqual(crown.parts.map(part => `${part.category}:${part.item.id}`), ['frames:sezona-11', 'avatars:caj', 'titles:sampion-sezony']);
     assert.ok(Rewards.owns(state, 'frames', 'sezona-11'));
+    assert.ok(Rewards.owns(state, 'avatars', 'caj'), 'postavička měsíce mezi dárky');
+    assert.ok(results.filter(result => result.tier < 20).every(result => result.parts.every(part => part.category !== 'avatars' && !(part.item && part.item.exclusive))), 'postavičky a sezónní věci jen v Sezónní truhle');
     assert.ok(Rewards.owns(state, 'titles', 'sampion-sezony'));
     // Za sousední stupně se druh věci střídá, když to jde
     const sequence = results.filter(result => result.kind === 'item' && result.parts[0].item).map(result => result.parts[0].category);
@@ -244,7 +246,7 @@ test('exkluzivní věci: rámečky sezóny a titul jen jako dárek, Sezónní tr
         assert.match(Look.unlockText(frame), /^Sezóna Mudrlanta/);
         assert.equal(Frames.frameClass(frame.id), ` frame frame-${frame.id}`);
     }
-    // Každý měsíc má svou Sezónní truhlu; do ní jde jen to, co v katalogu je (doplněk a postavička zatím chybí)
+    // Každý měsíc má svou Sezónní truhlu; do ní jde jen to, co v katalogu je (doplněk zatím chybí; postavička je pro každý měsíc)
     assert.deepEqual(Object.keys(Look.SEASON_BUNDLES).sort(), ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12']);
     for (const [month, plan] of Object.entries(Look.SEASON_BUNDLES)) {
         assert.equal(plan.frame, `sezona-${month}`);
@@ -254,6 +256,10 @@ test('exkluzivní věci: rámečky sezóny a titul jen jako dárek, Sezónní tr
         assert.ok(bundle.includes(`frames:sezona-${month}`) && bundle.includes('titles:sampion-sezony'));
         if (!Look.find('accessories', plan.accessory)) assert.ok(!bundle.some(key => key.startsWith('accessories:')));
         if (!Look.find('avatars', plan.character)) assert.ok(!bundle.some(key => key.startsWith('avatars:')));
+        const character = Look.find('avatars', plan.character);
+        assert.ok(character && bundle.includes(`avatars:${plan.character}`), `${month}: postavička ${plan.character} v Sezónní truhle`);
+        assert.deepEqual([character.exclusive, character.month, character.source], [true, Number(month), 'season']);
+        assert.match(Season.tierText(20, `2026-${month}`), new RegExp(`postavička ${character.title}`));
     }
     // Titul: uloží se jen vlastněný (jako odznak), v nabídce je mezi tituly
     const title = Look.titleItem('sampion-sezony');
@@ -314,7 +320,8 @@ test('napojení a HTML: season.js v index.html, service workeru, nasazení a Tai
     assert.match(Season.stripHtml({ id: '2026-10', count: 2, past: true, until: '2026-11-07' }), /Sezóna Říjen: 2 odměny jen do 7\. 11\./);
     assert.match(Season.cardHtml(view), /data-season-claim[\s\S]*data-season-count>\d+</);
     assert.equal((Season.pathHtml(view, { h }).match(/data-season-tier="/g) || []).length, 20);
-    assert.match(Season.revealHtml({ id: NOV, tier: 20, opened, h }), /Sezóna Listopad 2026[\s\S]*Sezónní truhla[\s\S]*Listopadový rámeček · titul Šampion sezóny/);
+    assert.match(Season.revealHtml({ id: NOV, tier: 20, opened, h }), /Sezóna Listopad 2026[\s\S]*Sezónní truhla[\s\S]*Listopadový rámeček · postavička Hrnek čaje · titul Šampion sezóny/);
+    assert.match(Season.revealHtml({ id: NOV, tier: 20, opened, h }), /<img src="icons\/avatars\/caj\.webp"[\s\S]*postavičku najdeš v Nastavení → Profil\./);
     // Jen obrázky, které existují (doplňky a postavičky sezóny se objeví, až budou v katalogu a na disku)
     for (const src of new Set([...html.matchAll(/src="([^"]+)"/g)].map(match => match[1]))) assert.ok(fs.existsSync(path.join(ROOT, src)), `obrázek ${src}`);
     // Sezónní truhla podle ročního období; dokud obrázky období nejsou dodané, obyčejná truhla

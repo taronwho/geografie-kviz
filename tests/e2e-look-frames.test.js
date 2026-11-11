@@ -435,6 +435,98 @@ test('odměny v Profilu: rámečky, titul a postavičky', { skip: !chromium && '
         assert.deepEqual(log.errors, []);
         await context.close();
     });
+    await t.test('sezónní postavička: ve výběru jen vlastněná ze Sezónní truhly, uloží se s barvami, cizí profil ji ukáže vždy', async () => {
+        const db = newDb();
+        // Petr má listopadový Hrnek čaje s fialovým hrnkem; Jana ho nemá, ze Sezónní truhly má jen říjnového Papírového draka
+        db.profiles['u-2'].avatar = 'caj7';
+        const { context, tab, log } = await setup(browser, { ...login('tok-u1'), 'mudrlant.rewards': JSON.stringify({ gifts: { avatars: ['drakpa'] } }) });
+        await backend(context, db);
+        await tab.goto(`${ORIGIN}/`);
+        await waitForHome(tab);
+        await tab.click('[data-action="home-tab"][data-tab="multi"]');
+        await tab.waitForSelector('#challenges-section [data-player-id="u-2"] [data-avatar-art="caj"] img[src="icons/avatars/caj-17.webp"]');
+        assert.equal(await tab.locator('#challenges-section [data-player-id="u-2"] [data-avatar-art="caj"] img[src="icons/avatars/caj.webp"]').count(), 1);
+        await tab.click('#challenges-section [data-player-id="u-2"]');
+        await tab.waitForSelector('#dialog-overlay [data-avatar-art="caj"] img[src="icons/avatars/caj-17.webp"]');
+        await tab.click('#dialog-overlay [data-close]');
+        // Výběr: 21 postaviček za úrovně a odznaky a jen vlastněná sezónní (cizí Hrnek čaje ani jiné měsíce tu nejsou, ani zamčené)
+        await tab.click('#btn-settings');
+        await tab.click('[data-me-tab="profile"]');
+        await tab.click('[data-pic-group="postavicky"]');
+        await tab.waitForSelector('[data-pick-avatar="drakpa"]');
+        assert.equal(await tab.locator('[data-pick-avatar], [data-locked-avatar]').count(), 22);
+        assert.equal(await tab.locator('[data-pick-avatar="caj"], [data-locked-avatar="caj"], [data-locked-avatar="drakpa"], [data-locked-avatar="ramp"]').count(), 0);
+        assert.equal(await tab.getAttribute('[data-pick-avatar="drakpa"]', 'title'), 'Papírový drak');
+        assert.equal(await tab.evaluate(() => { const box = document.querySelector('#settings-overlay > div'); return box.scrollHeight <= box.clientHeight; }), true, 'okno bez posouvání');
+        await tab.click('[data-pick-avatar="drakpa"]');
+        await tab.waitForSelector('[data-pick-avatar="drakpa"][aria-pressed="true"]');
+        assert.deepEqual(await tab.$$eval('[data-color-target]', nodes => nodes.map(node => node.textContent.trim())), ['Pozadí', 'Drak', 'Mašličky']);
+        await tab.click('[data-color-target="1"]');
+        assert.deepEqual(await tab.$$eval('[data-pick-part]', nodes => nodes.map(node => node.dataset.pickPart)), ['1:0', '1:4', '1:5', '1:6', '1:7', '1:8', '1:9']);
+        await tab.click('[data-pick-part="1:6"]');
+        await tab.waitForSelector('#settings-overlay [data-avatar-art="drakpa"] img[src="icons/avatars/drakpa-16.webp"]');
+        await tab.click('[data-save-profile]');
+        await tab.waitForFunction(() => /Uloženo/.test(document.getElementById('settings-overlay').textContent));
+        assert.equal(db.profiles['u-1'].avatar, 'drakpa6');
+        await tab.click('#settings-overlay [data-close]');
+        await tab.waitForSelector('#btn-settings [data-avatar-art="drakpa"] img[src="icons/avatars/drakpa-16.webp"]');
+        await tab.waitForFunction(() => [...document.querySelectorAll('#btn-settings img')].every(img => img.complete && img.naturalWidth > 0));
+        // Na zařízení, kde dárky ze sezóny ještě nejsou (jiný telefon před synchronizací), uložený obrázek ve výběru nezmizí
+        assert.deepEqual(db.profiles['u-1'].rewards && db.profiles['u-1'].rewards.gifts.avatars, ['drakpa'], 'dárek ze sezóny je i v účtu');
+        delete db.profiles['u-1'].rewards;
+        await tab.evaluate(() => localStorage.setItem('mudrlant.rewards', JSON.stringify({})));
+        await tab.reload();
+        await waitForHome(tab);
+        await tab.click('#btn-settings');
+        await tab.click('[data-me-tab="profile"]');
+        await tab.waitForSelector('[data-pic-group="postavicky"][aria-selected="true"]');
+        assert.equal(await tab.getAttribute('[data-pick-avatar="drakpa"]', 'aria-pressed'), 'true');
+        assert.deepEqual(log.errors, []);
+        assert.deepEqual(log.csp, []);
+        await context.close();
+    });
+    await t.test('všech 12 sezónních postaviček: mřížka se posouvá uvnitř (půl dalšího řádku), vybraná je vidět, okno bez posouvání', async () => {
+        const db = newDb();
+        db.profiles['u-1'].avatar = 'pernik2';
+        const seasonal = ['ramp', 'kobliz', 'snezen', 'kapka', 'pampel', 'vysved', 'meloun', 'hvezda', 'aktovk', 'drakpa', 'caj', 'pernik'];
+        const { context, tab, log } = await setup(browser, { ...login('tok-u1'), 'mudrlant.rewards': JSON.stringify({ gifts: { avatars: seasonal } }) });
+        await backend(context, db);
+        await tab.goto(`${ORIGIN}/`);
+        await waitForHome(tab);
+        await tab.waitForSelector('#btn-settings [data-avatar-art="pernik"] img[src="icons/avatars/pernik-12.webp"]');
+        await tab.click('#btn-settings');
+        await tab.click('[data-me-tab="profile"]');
+        await tab.waitForSelector('[data-pic-group="postavicky"][aria-selected="true"]');
+        assert.equal(await tab.locator('[data-pick-avatar], [data-locked-avatar]').count(), 33);
+        assert.deepEqual(await tab.$$eval('[data-pick-avatar]', nodes => nodes.slice(-12).map(node => node.dataset.pickAvatar)), seasonal, 'sezónní po řadě měsíců za ostatními');
+        const box = () => tab.evaluate(() => {
+            const strip = document.querySelector('[data-avatar-strip]');
+            const s = strip.getBoundingClientRect();
+            const on = strip.querySelector('[aria-pressed="true"]').getBoundingClientRect();
+            const panel = document.querySelector('#settings-overlay > div');
+            return { scrolls: strip.scrollHeight > strip.clientHeight, top: strip.scrollTop, height: s.height, visible: on.top >= s.top - 1 && on.bottom <= s.bottom + 1, window: panel.scrollHeight <= panel.clientHeight };
+        });
+        let state = await box();
+        assert.equal(state.scrolls, true, 'víc než tři řádky se posouvají v mřížce');
+        assert.ok(state.height > 3 * 42 && state.height < 4 * 42, `vidět je tři a půl řádku (${state.height} px)`);
+        assert.equal(state.visible, true, 'vybraný Perníček je vidět');
+        assert.ok(state.top > 0);
+        assert.equal(state.window, true, 'okno Nastavení bez posouvání');
+        // Výběr barvy překreslí okno: mřížka zůstane posunutá a Perníček vidět
+        await tab.click('[data-color-target="1"]');
+        await tab.click('[data-pick-part="1:6"]');
+        await tab.waitForSelector('#settings-overlay [data-avatar-art="pernik"] img[src="icons/avatars/pernik-16.webp"]');
+        assert.equal((await box()).top, state.top);
+        // Jiná postavička v posunuté mřížce: posun zůstane
+        await tab.click('[data-pick-avatar="caj"]');
+        await tab.waitForSelector('[data-pick-avatar="caj"][aria-pressed="true"]');
+        state = await box();
+        assert.equal(state.visible, true);
+        assert.ok(state.top > 0);
+        assert.deepEqual(log.errors, []);
+        assert.deepEqual(log.csp, []);
+        await context.close();
+    });
     await t.test('starší databáze bez sloupců frame a title_pref: nic nespadne, požadavky se zopakují bez nich', async () => {
         const db = newDb();
         const calls = [];

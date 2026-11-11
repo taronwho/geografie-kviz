@@ -1028,8 +1028,8 @@
             const on = Boolean(meDraft.owl && !meDraft.pose);
             return `<button type="button" data-pick-owl aria-label="Sova Mudrlant" title="Sova Mudrlant" aria-pressed="${on}" class="${AVATAR_TILE} ${on ? AVATAR_ON : AVATAR_OFF}">${Owl.owlAvatarHtml(ownOwlText(null), 'h-full w-auto', 'h-[88%]')}</button>${poseTiles()}`;
         }
-        // Sezónní postavičky (exclusive) jen ty, které hráč má (ze Sezónní truhly), jinak by tu visely zamčené bez cesty k nim
-        if (group === 'postavicky') return Look ? Look.AVATARS.filter(item => !item.exclusive || Look.isUnlocked(item, lookContext())).map(characterTile).join('') : '';
+        // Sezónní postavičky (exclusive) jen ty, které hráč má (ze Sezónní truhly) nebo už má v profilu, jinak by tu visely zamčené bez cesty k nim
+        if (group === 'postavicky') return Look ? Look.AVATARS.filter(item => !item.exclusive || Look.isUnlocked(item, lookContext()) || (myProfile && Look.avatarItem(myProfile.avatar) === item)).map(characterTile).join('') : '';
         return Social.AVATARS.map(emoji => {
             const on = !meDraft.owl && emoji === meDraft.avatar;
             return `<button type="button" data-pick-avatar="${emoji}" aria-label="Obrázek ${emoji}" aria-pressed="${on}" class="${AVATAR_TILE} ${on ? AVATAR_ON : AVATAR_OFF}">${emoji}</button>`;
@@ -1588,6 +1588,9 @@
         const scroll = reopened && overlay.firstElementChild ? overlay.firstElementChild.scrollTop : 0;
         // Vodorovné řady (rámečky, doplňky, barvy…) si po překreslení nechají posun, ať klepnutí na zamčenou věc neskočí na začátek řady
         const stripScroll = reopened && overlay.dataset.stripTab === meTab ? [...overlay.querySelectorAll('.overflow-x-auto')].map(el => el.scrollLeft) : null;
+        // Mřížka obrázků (víc než tři řádky se posouvají uvnitř): posun zůstane, dokud je otevřená stejná skupina
+        const oldStrip = reopened ? overlay.querySelector('[data-avatar-strip]') : null;
+        const pictureScroll = oldStrip && overlay.dataset.stripTab === meTab ? { group: oldStrip.dataset.group, top: oldStrip.scrollTop } : null;
         if (!overlay) overlay = createSettingsOverlay();
         const state = Auth ? Auth.getState() : { configured: false };
         const profile = user ? (myProfile || { display_name: user.name, avatar: '🦊', color: 'emerald' }) : null;
@@ -1641,7 +1644,7 @@
             <form id="profile-form" class="flex flex-col gap-2 short:gap-1.5" autocomplete="off">
                 <section data-picture aria-label="Profilový obrázek" class="flex min-w-0 flex-col gap-1.5 rounded-2xl bg-white p-1.5 shadow-sm dark:bg-slate-800">
                     <div role="tablist" aria-label="Profilový obrázek" class="grid grid-cols-3 gap-0.5 rounded-xl bg-slate-100 p-0.5 dark:bg-slate-900/60">${pictureGroups().map(([id, label]) => `<button type="button" role="tab" data-pic-group="${id}" aria-selected="${group === id}" class="min-h-[2.25rem] rounded-[0.6rem] px-1 text-[12px] font-black ${group === id ? 'bg-white text-brand-800 shadow-sm ring-1 ring-slate-200 dark:bg-slate-700 dark:text-white dark:ring-slate-600' : 'text-slate-600 dark:text-slate-300'}">${label}</button>`).join('')}</div>
-                    <div data-avatar-strip data-group="${group}" class="grid min-h-[7.75rem] grid-cols-[repeat(auto-fill,minmax(2.5rem,1fr))] content-start justify-items-center gap-0.5">${pictureTiles(group)}</div>
+                    <div data-avatar-strip data-group="${group}" class="grid max-h-[9.125rem] min-h-[7.75rem] grid-cols-[repeat(auto-fill,minmax(2.5rem,1fr))] content-start justify-items-center gap-0.5 overflow-y-auto overscroll-contain">${pictureTiles(group)}</div>
                     ${pictureColors()}
                 </section>
                 ${lookSections('profile', { ...lookContext(), profile: shown })}
@@ -1680,12 +1683,21 @@
             </div>`;
         overlay.firstElementChild.scrollTop = scroll;
         if (stripScroll) overlay.querySelectorAll('.overflow-x-auto').forEach((el, index) => { if (stripScroll[index]) el.scrollLeft = stripScroll[index]; });
+        const strip = overlay.querySelector('[data-avatar-strip]');
+        if (strip && pictureScroll && pictureScroll.group === strip.dataset.group) strip.scrollTop = pictureScroll.top;
+        else if (strip) {
+            // Nově otevřená skupina: vybraný obrázek, který je až pod viditelnými řádky, se posune do mřížky
+            const on = strip.querySelector('[aria-pressed="true"]');
+            const below = on ? on.getBoundingClientRect().bottom - strip.getBoundingClientRect().bottom : 0;
+            if (below > 0) strip.scrollTop += below + 2;
+        }
         overlay.dataset.stripTab = meTab;
         renderIcons(overlay);
         const target = focusSelector ? overlay.querySelector(focusSelector) : (meTab === 'game' ? overlay.querySelector('[data-variant][aria-pressed="true"]') : null);
         (target || overlay.querySelector('[data-close]')).focus({ preventScroll: true });
     };
-    // Dlaždice obrázku v Profilu: 40 × 40 px v mřížce (skupina má nejvýš 21 obrázků = tři řádky po sedmi i na 360 px, nic se neschová)
+    // Dlaždice obrázku v Profilu: 40 × 40 px v mřížce (21 obrázků = tři řádky po sedmi i na 360 px). Víc obrázků (vlastněné sezónní
+    // postavičky) se posouvá uvnitř mřížky: vidět je půl čtvrtého řádku, ať je jasné, že jich je víc, a okno Nastavení se neposouvá
     const AVATAR_TILE = 'flex h-10 w-10 items-center justify-center rounded-xl border-2 text-xl active:scale-95';
     const AVATAR_ON = 'border-brand-600 bg-brand-50 dark:bg-brand-900/40';
     const AVATAR_OFF = 'border-transparent bg-slate-50 dark:bg-slate-700/50';

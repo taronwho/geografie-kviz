@@ -219,6 +219,24 @@
         '11': { accessory: 'lampion', frame: 'sezona-11', character: 'caj' },
         '12': { accessory: 'sala-zimni', frame: 'sezona-12', character: 'pernik' }
     };
+    // Sezónní postavičky (docs/OBRAZKY.md č. 151–162): oživlé věci a jídlo, každá jen ze Sezónní truhly svého měsíce (exclusive a month
+    // jako rámečky sezóny, source 'season' pro Album sbírky). Obrázky a vrstvy částí jako u ostatních postaviček (scripts/avatar-icons.py,
+    // colors podle --colors). Ve výběru obrázku v Nastavení jsou jen ty, které hráč má; cizí profil je ukáže vždy.
+    const SEASON_AVATARS = [
+        { id: 'ramp', title: 'Rampouch', month: 1, parts: ['Šála', 'Led'], colors: [[2, 3, 4, 5, 6, 7, 8, 9], ALL] },
+        { id: 'kobliz', title: 'Masopustní koblížek', month: 2, parts: ['Maska', 'Serpentina'], colors: [[1, 2, 3, 4, 5, 6, 8, 9], [2, 3, 4, 5, 6, 7, 9]] },
+        { id: 'snezen', title: 'Sněženka', month: 3, parts: ['Květ', 'Listy'], colors: [ALL, ALL] },
+        { id: 'kapka', title: 'Aprílová kapka', month: 4, parts: ['Kapka', 'Deštník'], colors: [[1, 2, 3, 4, 7, 8, 9], [1, 4, 5, 6, 7, 8, 9]] },
+        { id: 'pampel', title: 'Pampeliška', month: 5, parts: ['Chmýří', 'Listy'], colors: [ALL, ALL] },
+        { id: 'vysved', title: 'Vysvědčení', month: 6, parts: ['Mašle', 'Brýle'], colors: [[3, 4, 5, 6, 7, 8, 9], [1, 2, 3, 4, 5, 6, 7, 8]] },
+        { id: 'meloun', title: 'Meloun', month: 7, parts: ['Dužina', 'Brýle'], colors: [[3, 4, 5, 6, 7, 8, 9], [1, 2, 3, 4, 5, 6, 7, 8]] },
+        { id: 'hvezda', title: 'Padající hvězda', month: 8, parts: ['Hvězda', 'Ohon'], colors: [[1, 4, 5, 6, 7, 8, 9], [1, 2, 3, 4, 5, 6, 7, 8]] },
+        { id: 'aktovk', title: 'Školní aktovka', month: 9, parts: ['Aktovka', 'Kapsa'], colors: [[3, 4, 5, 6, 7, 8, 9], [4, 5, 6, 7, 8, 9]] },
+        { id: 'drakpa', title: 'Papírový drak', month: 10, parts: ['Drak', 'Mašličky'], colors: [[4, 5, 6, 7, 8, 9], [3, 4, 5, 6, 7, 8, 9]] },
+        { id: 'caj', title: 'Hrnek čaje', month: 11, parts: ['Hrnek', 'Citron'], colors: [[1, 2, 3, 4, 6, 7, 8, 9], [1, 4, 5, 6, 7, 8, 9]] },
+        { id: 'pernik', title: 'Perníček', month: 12, parts: ['Poleva', 'Knoflíky'], colors: [ALL, ALL] }
+    ].map(item => ({ ...item, exclusive: true, source: 'season' }));
+    AVATARS.push(...SEASON_AVATARS);
     const CUSTOM_HUE = /^h(\d{1,3})$/;
     // Odstín vlastní barvy (násobek 5, 0–355) nebo null
     const customHue = (color) => { const match = CUSTOM_HUE.exec(String(color)); const hue = match ? Number(match[1]) : NaN; return hue >= 0 && hue <= 355 && hue % 5 === 0 ? hue : null; };
@@ -427,7 +445,7 @@
     return { setGifts, isGift: (item) => isGift(item, giftState), categoryOf, CATALOG, THEMES, ROBES, FRAMES, AVATARS, AVATAR_COLORS, ACCESSORIES, SLOTS, ACC_COLORS, NO_MONOCLE, monocleShown, POSES, findPose, customHue, colorOk, flagOk, DEFAULTS, isUnlocked, unlockText, find, normalize, prefs, setPref, onChange, register, getSections, apply, newRewards, rewardsAtLevel, REWARD_KINDS, settingsTab, settingsPlace, rewardsForBadge, badgeRewardText,
         migrateAvatar, parseAvatar, formatAvatar, avatarCode, avatarPicture, avatarItem, partColors,
         // Sezóna a série dní
-        SEASON_MONTHS, SEASON_ADJECTIVES, SEASON_FRAMES, STREAK_FRAMES, TITLES, SEASON_BUNDLES, seasonBundle, titleItem,
+        SEASON_MONTHS, SEASON_ADJECTIVES, SEASON_FRAMES, SEASON_AVATARS, STREAK_FRAMES, TITLES, SEASON_BUNDLES, seasonBundle, titleItem,
         // Rámečky ligových sezón (schéma 18)
         LEAGUE_FRAMES, setLeagueBest, leagueBest: () => leagueBest,
         // Obrázkové rámečky
