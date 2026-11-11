@@ -52,10 +52,12 @@ const player = () => ({
 const SEASON_FRAME = `sezona-${Season.pragueDay().slice(5, 7)}`;
 // Postavička letošní sezóny (Sezónní truhla běžícího měsíce, look.js SEASON_BUNDLES)
 const SEASON_AVATAR = Look.SEASON_BUNDLES[Season.pragueDay().slice(5, 7)].character;
+// Doplněk Sezónní truhly běžícího měsíce (listopad: Lampion) jde také získat, tak k celému albu patří
+const SEASON_ACC = Look.ACCESSORIES.filter(item => item.exclusive && item.month === Number(Season.pragueDay().slice(5, 7))).map(item => item.id);
 const CHEST_FRAMES = require('../look.js').FRAMES.filter(item => item.rare).map(item => item.id);
 const collector = () => ({
     'mudrlant.progress': { xp: Core.xpForLevel(100), counters: {}, badges: Object.fromEntries(Core.BADGES.filter(badge => !Core.isAlbumBadge(badge.id)).map(badge => [badge.id, DAY])) },
-    'mudrlant.rewards': { freezes: 2, diplomas: Object.fromEntries(TOPICS.map(id => [id, DAY])), gifts: { frames: [SEASON_FRAME, ...CHEST_FRAMES], accessories: CHEST_ONLY, avatars: [SEASON_AVATAR] } },
+    'mudrlant.rewards': { freezes: 2, diplomas: Object.fromEntries(TOPICS.map(id => [id, DAY])), gifts: { frames: [SEASON_FRAME, ...CHEST_FRAMES], accessories: [...CHEST_ONLY, ...SEASON_ACC], avatars: [SEASON_AVATAR] } },
     'mudrlant.leagueSeasons': { v: 1, best: 'mistr', bestMonth: '2026-10' }
 });
 
@@ -155,7 +157,8 @@ test('album sbírky: sekce, podrobnosti, Nasadit a oslava milníku', { skip: !ch
                 }
                 const box = await overflow(tab);
                 assert.equal(box.x, 0, `${section}: bez vodorovného posouvání`);
-                // Doplňků Mudrlanta je 41: na 360×640 se sekce posouvá (dlaždice aspoň 40 px), na 390×780 se vejde
+                // Doplňků Mudrlanta je 41 stálých a sezónní doplněk běžícího měsíce (ostatní měsíce jsou skryté, dokud nebyly):
+                // na 360×640 se sekce posouvá (dlaždice aspoň 40 px), na 390×780 se vejde
                 if (section === 'badges' || (section === 'accessories' && viewport.height < 780)) {
                     // Dlouhý seznam se posouvá, tlačítko zpět je lepkavé a zůstane vidět
                     assert.ok(box.y > 0);

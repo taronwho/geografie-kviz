@@ -39,7 +39,7 @@ const SCHEME = process.env.FIT_SCHEME === 'dark' ? 'dark' : 'light';
 const EXEMPT = {
     'Všechny odznaky': { reason: 'seznam všech odznaků (stovky medailí po skupinách)', keep: '[data-dialog-back]' },
     'Album – Odznaky': { reason: 'všechny skupiny odznaků v albu sbírky (přes 50 dlaždic)', keep: '[data-dialog-back]' },
-    'Album sbírky': { reason: 'sekce Doplňky Mudrlanta (41 dlaždic aspoň 40 px; na 390×780 se vejde)', size: '360×640', keep: '[data-dialog-back]' },
+    'Album sbírky': { reason: 'sekce Doplňky Mudrlanta (41 stálých a sezónní doplněk měsíce, dlaždice aspoň 40 px; na 390×780 se vejde)', size: '360×640', keep: '[data-dialog-back]' },
     'Úrovně a tituly': { reason: 'seznam všech úrovní s tituly', keep: '[data-dialog-back]' },
     'Rozpis otázek výzvy': { reason: 'seznam všech otázek s odpověďmi obou hráčů (záhlaví sloupců lepkavě)' },
     'Týdenní žebříček': { reason: 'žebříček hráčů' },
@@ -643,7 +643,7 @@ test('okna se vejdou bez posouvání', { skip: !chromium && 'Playwright není na
             await context.close();
         });
 
-        // Sezónní truhla (20. stupeň): všechny věci měsíce vějířem (rámeček, postavička, titul a doplněk, až bude) se vejdou
+        // Sezónní truhla (20. stupeň): všechny věci měsíce vějířem (doplněk, rámeček, postavička a titul) se vejdou
         await t.test(`Sezónní truhla (${size.width}×${size.height})`, async () => {
             const claimed = Object.fromEntries(Array.from({ length: 19 }, (_, i) => [i + 1, 'xp:150']));
             const storage = { 'mudrlant.rewards': JSON.stringify({ v: 1, freezes: 2, season: { id: '2026-11', startXp: 5000, claimed } }) };
@@ -653,8 +653,42 @@ test('okna se vejdou bez posouvání', { skip: !chromium && 'Playwright není na
                 await tab.waitForSelector('#season-overlay [data-season-go]');
                 await tab.click('#season-overlay [data-season-go]');
                 await tab.waitForSelector('[data-season-reveal]');
-                assert.match(await tab.textContent('[data-season-item]'), /Listopadový rámeček · postavička Hrnek čaje · titul Šampion sezóny/);
+                assert.match(await tab.textContent('[data-season-item]'), /Lampion · Listopadový rámeček · postavička Hrnek čaje · titul Šampion sezóny/);
                 await tab.waitForFunction(() => [...document.querySelectorAll('#season-overlay img')].every(img => img.complete));
+            });
+            assert.deepEqual(log.csp, []);
+            await context.close();
+        });
+
+        // Sběratel všech sezónních doplňků (12 ze Sezónních truhel): ve výběru doplňků je jich nejvíc (hlava 17 doplňků, ruka 14),
+        // okno se musí vejít i tak; u Dýně (pevné barvy) je místo palety věta
+        await t.test(`Nastavení – Mudrlant se všemi sezónními doplňky (${size.width}×${size.height})`, async () => {
+            const rewards = JSON.parse(richStorage()['mudrlant.rewards']);
+            rewards.gifts.accessories = ['cepice-zimni', 'karneval', 'jarni-venecek', 'destnik', 'konvalinky', 'slamak', 'snorchl', 'zmrzlina', 'tuzka', 'dyne', 'lampion', 'sala-zimni'];
+            const { context, tab, log } = await setup(browser, { viewport: size, storage: { 'mudrlant.rewards': JSON.stringify(rewards) } });
+            const openSlot = async (slot, pick = null) => {
+                await tab.click('#btn-settings');
+                await tab.waitForSelector('#settings-overlay');
+                await tab.click('[data-me-tab="owl"]');
+                await tab.waitForSelector('[data-me-tab="owl"][aria-selected="true"]');
+                await tab.click(`[data-owl-slot="${slot}"]`);
+                await tab.waitForSelector(`[data-owl-slot="${slot}"][aria-pressed="true"]`);
+                if (pick) { await tab.click(`[data-owl-pick="${slot}:${pick}"]`); await tab.waitForSelector(`[data-owl-pick="${slot}:${pick}"][aria-pressed="true"]`); }
+                await tab.waitForFunction(() => [...document.querySelectorAll('#settings-overlay img')].every(img => img.complete));
+            };
+            await scene(tab, 'Nastavení – Mudrlant (všechny sezónní, hlava)', size, async () => {
+                await openSlot('head', 'slamak');
+                assert.equal(await tab.locator('[data-owl-pick^="head:"]').count(), 18, '„bez doplňku“ a 17 doplňků na hlavu');
+                await tab.waitForSelector('[data-owl-color="head:modra"]');
+            });
+            await scene(tab, 'Nastavení – Mudrlant (všechny sezónní, ruka)', size, async () => {
+                await openSlot('hand', 'lampion');
+                assert.equal(await tab.locator('[data-owl-pick^="hand:"]').count(), 16, '„bez doplňku“ a 15 doplňků do ruky');
+            });
+            await scene(tab, 'Nastavení – Mudrlant (pevné barvy)', size, async () => {
+                await openSlot('head', 'dyne');
+                await tab.waitForSelector('[data-owl-fixed]');
+                assert.equal(await tab.locator('[data-owl-color]').count(), 0, 'Dýně nemá paletu');
             });
             assert.deepEqual(log.csp, []);
             await context.close();
