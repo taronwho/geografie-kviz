@@ -74,6 +74,22 @@
     const graceEnd = (id) => `${shiftSeason(id, 1)}-${pad2(GRACE_DAYS)}`;
     const inGrace = (id, today) => isSeason(id) && today > lastDay(id) && today <= graceEnd(id);
     const formatDay = (day) => { const m = DAY.exec(String(day || '')); return m ? `${Number(m[3])}. ${Number(m[2])}.` : ''; };
+    // První sezóna (spuštění Sezóny Mudrlanta)
+    const LAUNCH = '2026-11';
+    // Kdy jde sezónní věc (source 'season' s month, look.js) získat, pro Album sbírky (album.js setAvailability, napojuje app.js):
+    // 'active' = sezóna jejího měsíce právě běží, 'ended' = sezóna jejího měsíce od spuštění už proběhla (vrátí se za rok),
+    // 'upcoming' = ještě nebyla (v albu skrytá); jiná věc null (album rozhodne samo podle dat)
+    const availability = (item, category, today) => {
+        if (!item || item.source !== 'season' || !item.month || !DAY.test(String(today || ''))) return null;
+        const current = seasonOf(today);
+        if (monthOf(current) === item.month) return 'active';
+        for (let back = 1; back <= 11; back++) {
+            const id = shiftSeason(current, -back);
+            if (id < LAUNCH) break;
+            if (monthOf(id) === item.month) return 'ended';
+        }
+        return 'upcoming';
+    };
     const daysWord = (n) => (n === 1 ? 'den' : n >= 2 && n <= 4 ? 'dny' : 'dní');
 
     // --- Stupně ---
@@ -388,7 +404,7 @@
 
     return {
         TIERS, STEPS, THRESHOLDS, GRACE_DAYS, FREEZE_TIERS, DOUBLE_TIER, BUNDLE_TIER, FALLBACK_XP, SEASON_CHEST_ART, MONTHS, MONTHS_GEN,
-        pragueDay, isSeason, seasonOf, monthOf, shiftSeason, label, monthName, lastDay, daysLeft, graceEnd, inGrace, formatDay,
+        pragueDay, isSeason, seasonOf, monthOf, shiftSeason, label, monthName, lastDay, daysLeft, graceEnd, inGrace, formatDay, LAUNCH, availability,
         tierOf, progressOf, kindOf, xpOf, ensure, shift, pending, info, rngFor, encode, decode, pickItem, claim,
         emblemHtml, prizeHtml, partName, partKind, tierText, stripHtml, cardHtml, pathHtml, revealHtml
     };

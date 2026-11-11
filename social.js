@@ -915,6 +915,51 @@
         return true;
     });
 
+    // ===== Ligové sezóny a vitrína v profilu (schéma 18, league-seasons.js a showcase.js) =====
+    // Dokud je databáze nemá (funkce 404, sloupec 400), vrací se null (aplikace sezóny a vitrínu neukáže) a dál se o ně nežádá
+    // (po novém načtení stránky se zkusí znovu); jiné chyby (síť) se vyhodí.
+    let seasonsMissing = false;
+    // Sezóny přihlášeného hráče, nebo cizího (playerId): { month, seasons, best } jak je vrací league_seasons; čistí league-seasons.js
+    const leagueSeasons = async (playerId = null) => {
+        if (seasonsMissing) return null;
+        try {
+            const data = await request('POST', 'rpc/league_seasons', { body: playerId ? { player: needId(playerId) } : {} });
+            return data && typeof data === 'object' && !Array.isArray(data) ? data : null;
+        } catch (error) {
+            // Funkce chybí (PostgREST odpoví 404); jiná chyba (síť, špatný hráč) sezóny nevypne
+            if (error.status === 404) { seasonsMissing = true; return null; }
+            throw error;
+        }
+    };
+    // Položky vitríny: stejný tvar jako showcase.js a showcase_format_ok() v databázi, bez opakování, nejvýš 3
+    const SHOWCASE_ENTRY = /^(?:b:[a-z0-9-]{1,40}|d:[a-z0-9-]{1,24}|l:\d{4}-(?:0[1-9]|1[0-2]):(?:bronz|stribro|zlato|platina|diamant|mistr))$/;
+    const cleanShowcase = (value) => [...new Set((Array.isArray(value) ? value : []).filter(item => typeof item === 'string' && SHOWCASE_ENTRY.test(item)))].slice(0, 3);
+    let showcaseMissing = false;
+    // Vitrína hráče (cizího i vlastní); null = databáze vitrínu nemá
+    const getShowcase = async (userId) => {
+        if (showcaseMissing) return null;
+        try {
+            const row = ((await request('GET', `profiles?id=eq.${encodeURIComponent(needId(userId))}&select=showcase`)) || [])[0];
+            return row ? cleanShowcase(row.showcase) : [];
+        } catch (error) {
+            if (error.status === 400 || error.status === 404) { showcaseMissing = true; return null; }
+            throw error;
+        }
+    };
+    // Uloží moji vitrínu a vrátí, co server přijal (odznak, který v účtu není, nebo sezónu, která nebyla, tiše vyřadí); null = vitrína v databázi není
+    const saveShowcase = async (userId, list) => {
+        if (showcaseMissing) return null;
+        const clean = cleanShowcase(list);
+        try {
+            const rows = await request('PATCH', `profiles?id=eq.${encodeURIComponent(needId(userId))}&select=showcase`, { body: { showcase: clean }, prefer: 'return=representation' });
+            return Array.isArray(rows) && rows[0] ? cleanShowcase(rows[0].showcase) : clean;
+        } catch (error) {
+            // Tvar čistí cleanShowcase, takže 400 znamená chybějící sloupec (starší schéma)
+            if (error.status === 400 || error.status === 404) { showcaseMissing = true; return null; }
+            throw error;
+        }
+    };
+
     return { AVATARS, allAvatars, cleanAvatar, cleanColor, customHue, nearestColor, cleanFrame, cleanOwl, saveOwl, cleanTitlePref, saveLook, COLORS, COUNTS, NAME_MAX, SocialError, cleanName, isValidName, newCode, parseCode, getProfile, saveProfile, createChallenge, getChallenge, getResults, submitResult, myChallenges, searchPlayers, randomOpponent, incomingChallenges, playerStats, getProgress, saveProgress, getRating, getRatingChange, weeklyLeaderboard, getAccepts, saveAccepts,
         tournamentTick, getTournaments, tournamentArchive, ARCHIVE_PAGE, inTournament, devTournament, devClientErrors, isDevAdmin, schemaVersion, reportQuestion, getQuestionReports, deleteQuestionReport, exportMyData, deleteMyAccount, getTournamentEntries, getTournamentMatches, joinTournament, leaveTournament, startTournamentMatch, finishTournamentMatch, myTournamentStats, tournamentNotices, tournamentNoticesSeen,
         challengeProgress, saveChallengeProgress, tournamentAnswers, saveTournamentAnswer, claimTournamentXp, cleanAnswerLabel,
@@ -929,5 +974,7 @@
         // Skupiny (schéma 8)
         myGroups, groupDetail, groupCreate, groupPreview, groupJoin, groupLeave, groupUpdate, groupNewCode, groupRemoveMember, groupDelete, groupSetChallenge,
         // Odměny (schéma 9)
-        getRewards, saveRewards };
+        getRewards, saveRewards,
+        // Ligové sezóny a vitrína (schéma 18)
+        leagueSeasons, SHOWCASE_ENTRY, cleanShowcase, getShowcase, saveShowcase };
 });

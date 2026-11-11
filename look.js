@@ -53,6 +53,24 @@
         { id: 'medailista', title: 'Medailista turnaje', badge: 'turnaj-bronz' },
         { id: 'mistr-turnaje', title: 'Mistr turnaje', badge: 'turnaj-zlato' }
     ];
+    // Rámečky ligových sezón (league-seasons.js, schéma 18): za ligu Zlato, Platina, Diamant nebo Mistr jako vrchol skončené ligové sezóny
+    // (kalendářního měsíce); vyšší liga odemkne i rámečky nižších a rámeček zůstane navždy. Odemyká je setLeagueBest (nejlepší liga skončené
+    // sezóny, kterou app.js pamatuje v zařízení), ne úroveň ani odznak, takže je truhla nedává. leagueName = název ligy v textech.
+    const LEAGUE_FRAMES = [
+        { id: 'liga-zlato', title: 'Zlatá sezóna', league: 'zlato', leagueName: 'Zlato' },
+        { id: 'liga-platina', title: 'Platinová sezóna', league: 'platina', leagueName: 'Platina' },
+        { id: 'liga-diamant', title: 'Diamantová sezóna', league: 'diamant', leagueName: 'Diamant' },
+        { id: 'liga-mistr', title: 'Mistrovská sezóna', league: 'mistr', leagueName: 'Mistr' }
+    ];
+    FRAMES.push(...LEAGUE_FRAMES);
+    const LEAGUE_ORDER = ['bronz', 'stribro', 'zlato', 'platina', 'diamant', 'mistr'];
+    let leagueBest = null;
+    const setLeagueBest = (league) => { leagueBest = LEAGUE_ORDER.includes(league) ? league : null; };
+    // ctx.leagueBest (testy) má přednost před uloženou hodnotou
+    const leagueUnlocked = (item, ctx) => {
+        const best = ctx && ctx.leagueBest !== undefined ? ctx.leagueBest : leagueBest;
+        return LEAGUE_ORDER.includes(best) && LEAGUE_ORDER.indexOf(best) >= LEAGUE_ORDER.indexOf(item.league);
+    };
     // Postavičky: obrázky hráče za odměny (k základním emoji ze social.js AVATARS, ta jsou zdarma). Obrázek icons/avatars/<id>.webp
     // a přes něj vrstvy přebarvených částí icons/avatars/<id>-<část><barva>.webp (scripts/avatar-icons.py; části v pořadí parts = čísla 1, 2,
     // barvy = AVATAR_COLORS). Každá se odemyká stejně jako emoji, které nahradila (was): uložené staré emoji se ukáže jako postavička
@@ -177,6 +195,9 @@
     const customHue = (color) => { const match = CUSTOM_HUE.exec(String(color)); const hue = match ? Number(match[1]) : NaN; return hue >= 0 && hue <= 355 && hue % 5 === 0 ? hue : null; };
     // Vlajka státu na vlaječce: id z look-flags.js (malé q Wikidat, např. q101472); cokoli jiného se zahodí
     const flagOk = (flag) => typeof flag === 'string' && /^q\d{1,9}$/.test(flag) && Boolean(Flags) && Flags.has(flag);
+    // --- Album sbírky (album.js): rámeček Sběratelský za celé album (odznak Legenda sbírky, 100 %). album: true = odměna za album samo,
+    // do počtu sbírky se nepočítá (jinak by 100 % nešlo získat). Animovaný rámeček je .frame-sberatel v src/input.css.
+    FRAMES.push({ id: 'sberatel', title: 'Sběratelský', badge: 'sberatel-100', album: true });
     // Sova titulu jako obrázek profilu (póza): 'titul-1' … 'titul-11' podle stupňů Core.TITLE_OWL_FROM (level = od jaké úrovně), null = sova
     // s doplňky. Volba se ukládá, jak ji hráč zvolil; na dosaženou úroveň se omezí až při vykreslení (MudrlantOwl.allowedPose), takže
     // po ztrátě úrovně (vývojářský reset) se ukáže nejvyšší dosažená sova a po návratu úrovně zase ta zvolená. Není v CATALOG:
@@ -208,10 +229,12 @@
         if (!item) return false;
         if (ctx && isGift(item, ctx.gifts !== undefined ? ctx.gifts : giftState)) return true;
         if (item.exclusive) return false;
+        if (item.league) return leagueUnlocked(item, ctx);
         if (item.badge) return Boolean(ctx && ctx.badges && ctx.badges[item.badge]);
         return Boolean(ctx) && ctx.level >= (item.level || 1);
     };
-    const unlockText = (item, badgeTitle = null) => item.exclusive ? (item.month ? `Sezóna Mudrlanta (${SEASON_MONTHS[item.month - 1].toLocaleLowerCase('cs')})` : 'Sezóna Mudrlanta') : item.badge ? `Odznak: ${badgeTitle || item.badge}` : `Úroveň ${item.level}`;
+    const unlockText = (item, badgeTitle = null) => item.exclusive ? (item.month ? `Sezóna Mudrlanta (${SEASON_MONTHS[item.month - 1].toLocaleLowerCase('cs')}, Sezónní truhla na 20. stupni)` : 'Sezóna Mudrlanta (celá cesta sezóny)')
+        : item.league ? `Ligová sezóna: vrchol ${item.leagueName}` : item.badge ? `Odznak: ${badgeTitle || item.badge}` : `Úroveň ${item.level}`;
     const categoryOf = (item) => CATEGORY_OF.get(item) || null;
     const find = (category, id) => (CATALOG[category] || []).find(item => item.id === id) || null;
 
@@ -346,5 +369,7 @@
     return { setGifts, isGift: (item) => isGift(item, giftState), categoryOf, CATALOG, THEMES, ROBES, FRAMES, AVATARS, AVATAR_COLORS, ACCESSORIES, SLOTS, ACC_COLORS, POSES, findPose, customHue, colorOk, flagOk, DEFAULTS, isUnlocked, unlockText, find, normalize, prefs, setPref, onChange, register, getSections, apply, newRewards, rewardsAtLevel, REWARD_KINDS, settingsTab, settingsPlace, rewardsForBadge, badgeRewardText,
         migrateAvatar, parseAvatar, formatAvatar, avatarCode, avatarPicture, avatarItem, partColors,
         // Sezóna a série dní
-        SEASON_MONTHS, SEASON_ADJECTIVES, SEASON_FRAMES, STREAK_FRAMES, TITLES, SEASON_BUNDLES, seasonBundle, titleItem };
+        SEASON_MONTHS, SEASON_ADJECTIVES, SEASON_FRAMES, STREAK_FRAMES, TITLES, SEASON_BUNDLES, seasonBundle, titleItem,
+        // Rámečky ligových sezón (schéma 18)
+        LEAGUE_FRAMES, setLeagueBest, leagueBest: () => leagueBest };
 });

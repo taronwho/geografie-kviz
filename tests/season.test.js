@@ -214,6 +214,17 @@ test('XP z účtu se do sezóny nepočítá: posun začátku o XP načtené z ú
     assert.deepEqual(Season.shift(local, 0), Rewards.parse(local), 'bez posunu beze změny');
 });
 
+test('album: sezónní věc jde získat v sezóně svého měsíce, po ní skončila (vrátí se za rok), dřív než od spuštění skrytá', () => {
+    const november = Look.find('frames', 'sezona-11');
+    const january = Look.find('frames', 'sezona-01');
+    assert.equal(Season.availability(november, 'frames', '2026-11-10'), 'active');
+    assert.equal(Season.availability(january, 'frames', '2026-11-10'), 'upcoming', 'leden od spuštění (listopad 2026) ještě nebyl');
+    assert.equal(Season.availability(november, 'frames', '2026-12-01'), 'ended');
+    assert.equal(Season.availability(january, 'frames', '2027-02-01'), 'ended');
+    assert.equal(Season.availability(november, 'frames', '2027-11-01'), 'active', 'každý rok znovu');
+    assert.equal(Season.availability(Look.find('frames', 'bronz'), 'frames', '2026-11-10'), null, 'jiné věci řeší album samo');
+});
+
 test('účet: jen založená sezóna se do účtu nezapisuje (první přihlášení bez zápisu), s vyzvednutým stupněm ano', () => {
     assert.equal(Rewards.isEmpty({}), true);
     assert.equal(Rewards.isEmpty({ season: { id: NOV, startXp: 5000, claimed: {} } }), true);

@@ -356,19 +356,24 @@
             </div>`;
     };
     // Řádek v Mém postupu: ochrana série, truhla týdne a diplomy (každé otevře vlastní okno)
-    const progressHtml = ({ freezes = 0, chest = null, lastReward = null, diplomas = 0, topics = 14 } = {}) => {
+    // album = { percent, art } (album.js): čtvrtá dlaždice Album sbírky, dlaždice jsou pak ve dvou řadách po dvou
+    // S albem čtyři dlaždice: na vyšším displeji 2 × 2, na nízkém (short:) jedna řada svislých dlaždic s kratšími popisky, ať se Můj postup
+    // i s kartou sezóny vejde bez posouvání (na nízkém displeji se schová konec popisku, třída short:hidden)
+    const progressHtml = ({ freezes = 0, chest = null, lastReward = null, diplomas = 0, topics = 14, album = null } = {}) => {
+        const squeeze = Boolean(album);
         const tile = (kind, icon, title, value, extra = '', tone = 'bg-white dark:bg-slate-800') => `
-                <button type="button" data-rewards-info="${kind}" class="flex min-w-0 items-center gap-1.5 rounded-xl ${tone} p-1.5 text-left shadow-sm">
+                <button type="button" data-rewards-info="${kind}" class="flex min-w-0 items-center gap-1.5 rounded-xl ${tone} p-1.5 text-left shadow-sm${squeeze ? ' short:flex-col short:gap-0.5 short:px-0.5 short:py-1 short:text-center' : ''}">
                     ${icon}
-                    <span class="min-w-0"><span class="block truncate text-[11px] font-black leading-tight text-slate-800 dark:text-slate-100">${title}</span><span ${extra} class="block truncate text-[10.5px] font-bold leading-tight ${chest && kind === 'chest' ? 'text-gold-800 dark:text-gold-200' : 'text-slate-500 dark:text-slate-400'}">${value}</span></span>
+                    <span class="min-w-0${squeeze ? ' short:w-full' : ''}"><span class="block truncate text-[11px] font-black leading-tight text-slate-800 dark:text-slate-100">${title}</span><span ${extra} class="block truncate text-[10.5px] font-bold leading-tight ${chest && kind === 'chest' ? 'text-gold-800 dark:text-gold-200' : 'text-slate-500 dark:text-slate-400'}">${value}</span></span>
                 </button>`;
         return `
         <div data-rewards-section>
             <h3 class="mb-1 text-xs font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">Odměny</h3>
-            <div class="grid grid-cols-3 gap-1">
+            <div class="grid ${album ? 'grid-cols-2 short:grid-cols-4' : 'grid-cols-3'} gap-1">
                 ${tile('freeze', freezeArt(), 'Ochrana', `${freezes} z ${MAX_FREEZES}`, 'data-freeze-count')}
                 ${tile('chest', chestSvg('h-7 w-7 shrink-0'), 'Truhla', chest ? 'Čeká!' : lastReward ? esc(lastReward) : 'Za 3 cíle', '', chest ? 'bg-gold-100 ring-2 ring-gold-400 dark:bg-gold-900/40' : 'bg-white dark:bg-slate-800')}
                 ${tile('diplomas', '<img src="icons/topics/diplom.webp" alt="" class="h-7 w-7 shrink-0 object-contain drop-shadow-sm">', 'Diplomy', `${diplomas} / ${topics}`, 'data-diploma-count')}
+                ${album ? tile('album', `<img src="icons/topics/${esc(album.art)}.webp" alt="" class="h-7 w-7 shrink-0 object-contain drop-shadow-sm">`, 'Album<span class="short:hidden"> sbírky</span>', `${album.percent} %<span class="short:hidden"> sbírky</span>`, 'data-album-tile-value') : ''}
             </div>
         </div>`;
     };

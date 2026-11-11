@@ -122,11 +122,14 @@ test('odměny v Profilu: rámečky, titul a postavičky', { skip: !chromium && '
         assert.doesNotMatch(await tab.getAttribute('#btn-settings span', 'class'), /frame/, 'na začátku bez rámečku');
         await openLook(tab);
 
-        // Řada dvanácti rámečků (devět a tři za sérii dní: Jiskra, Stovka, Věčný oheň); zamčené jsou šedé s podmínkou v popisku.
-        // Rámečky Sezóny Mudrlanta jsou v řadě, jen když je hráč má
-        assert.equal(await tab.locator('[data-frame]').count(), 12);
+        // Řada rámečků z katalogu (devět základních, za sérii dní, ligové sezóny, Sběratelský za album sbírky); zamčené jsou šedé
+        // s podmínkou v popisku. Rámečky Sezóny Mudrlanta (exclusive) jsou v řadě, jen když je hráč má
+        assert.equal(await tab.locator('[data-frame]').count(), await tab.evaluate(() => window.MudrlantLook.FRAMES.filter(item => !item.exclusive).length));
+        assert.ok(await tab.locator('[data-frame]').count() >= 10);
         assert.equal(await tab.locator('[data-frame^="sezona-"]').count(), 0);
         assert.match(await tab.getAttribute('[data-frame="vecny-ohen"]', 'title'), /Věčný oheň: Odznak: Celý rok/);
+        assert.match(await tab.getAttribute('[data-frame="sberatel"]', 'aria-label'), /Sběratelský: Odznak: Legenda sbírky \(zamčeno\)/);
+        assert.match(await tab.getAttribute('[data-frame="liga-mistr"]', 'aria-label'), /Mistrovská sezóna: Ligová sezóna: vrchol Mistr \(zamčeno\)/);
         assert.equal(await tab.getAttribute('[data-frame="zadny"]', 'aria-pressed'), 'true');
         assert.match(await tab.getAttribute('[data-frame="zlato"]', 'aria-label'), /Zlatý: Úroveň 25 \(zamčeno\)/);
         assert.match(await tab.getAttribute('[data-frame="plamen"]', 'title'), /Odznak: .+/);
