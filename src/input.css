@@ -211,6 +211,25 @@ html.kb-open #settings-overlay > *, html.kb-open #dialog-overlay > * { max-heigh
     0%, 100% { filter: drop-shadow(0 0 0.18em rgb(249 115 22 / 0.8)) drop-shadow(0 0 0.08em rgb(124 58 237 / 0.9)); }
     50% { filter: drop-shadow(0 0 0.34em rgb(253 224 71 / 0.95)) drop-shadow(0 0 0.12em rgb(244 63 94 / 0.9)); }
 }
+/* Obrázkové rámečky (look.js ART_FRAMES, třída frame-art z look-frames.js): prsten z obrázku icons/frames/<id>.webp místo kroužku z přechodu.
+   Obrázek má díru uprostřed vždy na stejném místě (scripts/frame-images.py: obrázek hráče = polovina strany, střed díry uprostřed), takže
+   přesah -50 % na každou stranu dá prsten, jehož díru obrázek hráče přesně vyplní (okraj obrázku leží pod vnitřním krémovým obrysem),
+   při každé velikosti. Obrázek i s prstenem se zmenší na 80 % (vlastnost scale, nemění rozložení stránky ani se nepere s transform),
+   takže prsten zabere zhruba místo, kde byl obrázek: nepřekryje sousední text a v okně se neořízne. Ozdoby (koruna, hlava draka,
+   slunce) přesahují ven. */
+.frame-art { scale: 0.8; }
+.frame-art::before { content: none; }
+.frame-art::after { content: ''; position: absolute; inset: -50%; background: center / 100% 100% no-repeat; pointer-events: none; }
+.frame-ohen::after { background-image: url(icons/frames/ohen.webp); }
+.frame-more::after { background-image: url(icons/frames/more.webp); }
+.frame-soukoli::after { background-image: url(icons/frames/soukoli.webp); }
+.frame-galaxie::after { background-image: url(icons/frames/galaxie.webp); }
+.frame-kralovsky-vavrin::after { background-image: url(icons/frames/kralovsky-vavrin.webp); }
+.frame-blesk::after { background-image: url(icons/frames/blesk.webp); }
+.frame-led::after { background-image: url(icons/frames/led.webp); }
+.frame-drak::after { background-image: url(icons/frames/drak.webp); }
+.frame-duha-mracky::after { background-image: url(icons/frames/duha-mracky.webp); }
+.frame-ruze::after { background-image: url(icons/frames/ruze.webp); }
 
 /* Sezóna Mudrlanta (season.js): barvy měsíce pro rámeček sezóny (.frame-sezona-MM, look.js SEASON_FRAMES), kartu, pruh a odhalení
    odměny (.season-mMM). --s1 tmavá (pozadí s bílým písmem), --s2 hlavní, --s3 světlá, --s4 doplňková, --sx ozdoba rámečku. */
@@ -303,6 +322,9 @@ html.kb-open #settings-overlay > *, html.kb-open #dialog-overlay > * { max-heigh
 
 /* Výchozí čepice sovy se skryje, když doplněk na hlavě čepici nahrazuje (maska scripts/owl-hat-mask.py) */
 .owl-nohat > img:first-child { -webkit-mask-image: url(icons/logo-maska.webp); mask-image: url(icons/logo-maska.webp); -webkit-mask-size: 100% 100%; mask-size: 100% 100%; }
+/* Stejně zvednutá ruka, když ji doplněk v ruce kreslí jinak (hrnek, hůlka, meč, pochodeň); obojí najednou má vlastní masku (maska je jen jedna) */
+.owl-nohand > img:first-child { -webkit-mask-image: url(icons/logo-maska-ruka.webp); mask-image: url(icons/logo-maska-ruka.webp); -webkit-mask-size: 100% 100%; mask-size: 100% 100%; }
+.owl-nohat.owl-nohand > img:first-child { -webkit-mask-image: url(icons/logo-maska-oba.webp); mask-image: url(icons/logo-maska-oba.webp); }
 
 /* Vlajka státu na vlaječce sovy se maskou ořízne na tvar plátna (vnitřek bez obrysu, scripts/owl-accessories.py) */
 .owl-flag { -webkit-mask-image: url(icons/doplnky/vlajka-maska.webp); mask-image: url(icons/doplnky/vlajka-maska.webp); -webkit-mask-size: 100% 100%; mask-size: 100% 100%; }

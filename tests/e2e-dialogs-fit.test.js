@@ -37,9 +37,10 @@ const SCHEME = process.env.FIT_SCHEME === 'dark' ? 'dark' : 'light';
 // Dlouhé seznamy, které se posouvat smí: reason = proč, size = jen na této velikosti (jinak na obou), keep = hlavní akce, která při posouvání
 // zůstane vidět (lepkavě). Lepkavý nadpis okna se zavíráním (data-dialog-head) se hlídá u všech výjimek v #dialog-overlay.
 const EXEMPT = {
-    'Všechny odznaky': { reason: 'seznam všech odznaků (stovky medailí po skupinách)', keep: '[data-back-progress]' },
-    'Album – Odznaky': { reason: 'všechny skupiny odznaků v albu sbírky (přes 50 dlaždic)', keep: '[data-back-progress]' },
-    'Úrovně a tituly': { reason: 'seznam všech úrovní s tituly', keep: '[data-back-progress]' },
+    'Všechny odznaky': { reason: 'seznam všech odznaků (stovky medailí po skupinách)', keep: '[data-dialog-back]' },
+    'Album – Odznaky': { reason: 'všechny skupiny odznaků v albu sbírky (přes 50 dlaždic)', keep: '[data-dialog-back]' },
+    'Album sbírky': { reason: 'sekce Doplňky Mudrlanta (41 dlaždic aspoň 40 px; na 390×780 se vejde)', size: '360×640', keep: '[data-dialog-back]' },
+    'Úrovně a tituly': { reason: 'seznam všech úrovní s tituly', keep: '[data-dialog-back]' },
     'Rozpis otázek výzvy': { reason: 'seznam všech otázek s odpověďmi obou hráčů (záhlaví sloupců lepkavě)' },
     'Týdenní žebříček': { reason: 'žebříček hráčů' },
     'Turnaj (běží)': { reason: 'pavouk a pořadí desítek hráčů', keep: '[data-t-play]' },
@@ -77,8 +78,9 @@ const CODES = ['ABC234', 'DEF567', 'GHJ892', 'KMN345', 'PQR678', 'STU923', 'VWX2
 const newDb = ({ quizDone = true } = {}) => {
     const db = {
         profiles: {
-            [ME]: player(1, 'Jana Nováková', '🦊', { color: 'emerald', xp: 26000, badges: BADGES.slice(0, 16), rating: 1380, rated_games: 40, rewards: null, showcase: ['l:2026-10:diamant', 'b:vyhry-50'] }),
-            [PETR]: player(2, 'Petr Svoboda', '🐼', { xp: 14200, badges: BADGES, rating: 1520, rated_games: 60, showcase: ['l:2026-10:mistr', 'b:dokonale-14', 'd:zemepis'] }),
+            // Obrázkové rámečky (look.js ART_FRAMES): já vzácnou Duhu s mráčky z truhly, Petr Strážného draka – okna se musí vejít i s nimi
+            [ME]: player(1, 'Jana Nováková', '🦊', { color: 'emerald', frame: 'duha-mracky', xp: 26000, badges: BADGES.slice(0, 16), rating: 1380, rated_games: 40, rewards: null, showcase: ['l:2026-10:diamant', 'b:vyhry-50'] }),
+            [PETR]: player(2, 'Petr Svoboda', '🐼', { frame: 'drak', xp: 14200, badges: BADGES, rating: 1520, rated_games: 60, showcase: ['l:2026-10:mistr', 'b:dokonale-14', 'd:zemepis'] }),
             [EVA]: player(3, 'Eva Mistrová', '🦉', { color: 'violet', xp: 90000, badges: BADGES, rating: 1720, rated_games: 120 }),
             [uid(4)]: player(4, 'Lenka Dvořáková', '🐸', { xp: 3000, rating: 1150 }),
             [TOMAS]: player(5, 'Tomáš Malý', '🐯', { xp: 9000, badges: BADGES.slice(4), rating: 1290, rated_games: 22 })
@@ -287,7 +289,7 @@ const richStorage = () => {
         'mudrlant.learned': JSON.stringify(learned),
         // Sezóna Mudrlanta: od 15 000 XP (11 000 XP sezóny = stupeň 14), pět stupňů vyzvednutých; rámeček a titul z minulé sezóny
         'mudrlant.rewards': JSON.stringify({ v: 1, freezes: 2, name: 'Jana Nováková', ready: ['2026-11-02'], chests: { '2026-10-26': 'xp' }, diplomas: { zemepis: '2026-10-20' },
-            gifts: { frames: ['sezona-10'], titles: ['sampion-sezony'] },
+            gifts: { frames: ['sezona-10', 'duha-mracky'], titles: ['sampion-sezony'] },
             season: { id: '2026-11', startXp: 15000, claimed: { 1: 'robes:fialova', 2: 'accessories:kvetina', 3: 'freeze', 4: 'themes:fialova', 5: 'colors:ruzova' } } })
     };
 };
@@ -474,6 +476,11 @@ test('okna se vejdou bez posouvání', { skip: !chromium && 'Playwright není na
             for (const [id, title] of [['game', 'Hra'], ['profile', 'Profil'], ['owl', 'Mudrlant']]) {
                 await scene(tab, `Nastavení – ${title}`, size, async () => { await settingsTab(id); await settled(); await tab.waitForTimeout(300); });
             }
+            // Obrázkový rámeček z účtu je kolem obrázku v hlavičce Nastavení i v řadě rámečků (ta se posouvá do strany, okno ne)
+            await settingsTab('profile');
+            assert.equal(await tab.locator('#settings-overlay [data-frame="duha-mracky"][aria-pressed="true"] .frame-art').count(), 1, 'vybraná Duha s mráčky');
+            assert.ok(await tab.locator('#settings-overlay .frame-art.frame-duha-mracky').count() >= 2, 'i v hlavičce okna');
+            await closeAll(tab);
             await scene(tab, 'Nastavení – Profil (Mudrlant)', size, async () => { await settingsTab('profile'); await tab.click('[data-pic-group="mudrlant"]'); await tab.waitForSelector('[data-pick-owl="titul-1"]'); await settled(); });
             await scene(tab, 'Nastavení – Profil (Postavičky, barva části)', size, async () => {
                 await settingsTab('profile');

@@ -63,7 +63,7 @@ def drop_specks(img):
 
 def layer_ids():
     """Doplňky bez vlastního obrázku ikony (téma doplňky): ikona se vyrobí přímo z vrstvy icons/doplnky/<id>.webp."""
-    colors = ('cervena', 'oranzova', 'zluta', 'zelena', 'modra', 'fialova', 'ruzova', 'ikona')
+    colors = ('cervena', 'oranzova', 'zluta', 'zelena', 'modra', 'fialova', 'ruzova', 'cerna', 'ikona', 'maska', 'stin', 'vlna')
     names = {os.path.splitext(os.path.basename(p))[0] for p in glob.glob(os.path.join(OUT, '*.webp'))}
     have = {os.path.splitext(os.path.basename(p))[0] for p in glob.glob(os.path.join(SRC, '*.jpg'))}
     return sorted(n for n in names if not n.endswith(tuple('-' + c for c in colors + ('zaklad',))) and n not in have)

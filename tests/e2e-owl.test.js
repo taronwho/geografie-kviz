@@ -60,7 +60,7 @@ test('doplňky sovy v Nastavení', { skip: !chromium && 'Playwright není nainst
         await tab.click('#btn-settings');
         await tab.click('[data-me-tab="owl"]');
         await tab.waitForSelector('[data-owl-pick]');
-        // Čtyři místa kolem sovy; otevřené (hlava) ukazuje své doplňky, dohromady 4 × „bez doplňku“ + 24 doplňků
+        // Čtyři místa kolem sovy; otevřené (hlava) ukazuje své doplňky, dohromady 3 × „bez doplňku“, Monokl a Bez monoklu + 41 doplňků
         assert.deepEqual(await tab.$$eval('[data-owl-slot]', nodes => nodes.map(node => [node.dataset.owlSlot, node.getAttribute('aria-pressed')])), [['head', 'true'], ['face', 'false'], ['neck', 'false'], ['hand', 'false']]);
         let tiles = 0;
         for (const slot of ['head', 'face', 'neck', 'hand']) {
@@ -69,7 +69,7 @@ test('doplňky sovy v Nastavení', { skip: !chromium && 'Playwright není nainst
             assert.equal(await tab.locator(`[data-owl-pick]:not([data-owl-pick^="${slot}:"])`).count(), 0, 'jen doplňky otevřeného místa');
             tiles += await tab.locator('[data-owl-pick]').count();
         }
-        assert.equal(tiles, 28, '4 × „bez doplňku“ + 24 doplňků');
+        assert.equal(tiles, 46, '3 × „bez doplňku“, Monokl a Bez monoklu + 41 doplňků');
         // Zamčený doplněk se nenasadí a ukáže, jak se odemkne
         await pickAcc(tab, 'hand:lupa', { force: true });
         await tab.waitForFunction(() => /Lupa: Úroveň 24/.test(document.querySelector('[data-look="owl"]').textContent));
@@ -185,6 +185,72 @@ test('doplňky sovy v Nastavení', { skip: !chromium && 'Playwright není nainst
         // Zamčený doplněk se klepnutím nevybere
         await pickAcc(tab, 'head:helma', { force: true });
         assert.equal((await layers(tab)).length, 3);
+        assert.deepEqual(problems, []);
+        await context.close();
+    });
+
+    await t.test('monokl: doplněk v obličeji a „Bez monoklu“ ho sundají, knír ho nechá; logo bez monoklu i v barvě obleku', async () => {
+        const badges = { 'zbehly-fyzika': '2026-11-01', 'turnaj-postupy-15': '2026-11-01' };
+        const { context, tab, problems } = await open(JSON.stringify({ xp: 238000, counters: {}, badges }));
+        const logo = (scope = '#status-icon-slot') => tab.$eval(`${scope} [data-owl] > img`, img => img.getAttribute('src'));
+        const logoIs = (src) => tab.waitForFunction(wanted => ['#status-icon-slot', '[data-owl-slots]'].every(scope => {
+            const img = document.querySelector(`${scope} [data-owl] > img`);
+            return !img || img.getAttribute('src') === wanted;
+        }), src);
+        assert.equal(await logo(), 'icons/logo.webp', 'výchozí sova má monokl');
+        await tab.click('#btn-settings');
+        await tab.click('[data-me-tab="owl"]');
+        await tab.waitForSelector('[data-owl-pick]');
+        await tab.click('[data-owl-slot="face"]');
+        await tab.waitForSelector('[data-owl-pick="face:none"][aria-pressed="true"][title="Monokl"]');
+        assert.equal(await tab.getAttribute('[data-owl-pick="face:bez-monoklu"]', 'aria-pressed'), 'false');
+        assert.equal(await tab.getAttribute('[data-owl-slot="face"]', 'aria-label'), 'Obličej: monokl');
+        // Letecké brýle (úroveň 68) monokl nahradí: v hlavičce i v náhledu v okně je sova bez monoklu
+        await pickAcc(tab, 'face:letecke-bryle');
+        await tab.waitForSelector('[data-owl-pick="face:letecke-bryle"][aria-pressed="true"]');
+        await logoIs('icons/logo-bez-monoklu.webp');
+        assert.equal(await logo('[data-owl-slots]'), 'icons/logo-bez-monoklu.webp');
+        assert.deepEqual(await layers(tab), ['icons/doplnky/letecke-bryle.webp']);
+        // „Bez monoklu“: žádná vrstva, sova bez monoklu, bez výběru barvy
+        await pickAcc(tab, 'face:bez-monoklu');
+        await tab.waitForSelector('[data-owl-pick="face:bez-monoklu"][aria-pressed="true"]');
+        assert.deepEqual(await layers(tab), []);
+        await logoIs('icons/logo-bez-monoklu.webp');
+        assert.equal(await tab.getAttribute('[data-owl-slot="face"]', 'aria-label'), 'Obličej: bez monoklu');
+        assert.equal(await tab.locator('[data-owl-color]').count(), 0, '„Bez monoklu“ nemá barvu');
+        // Knír oči nezakrývá: monokl se vrátí
+        await pickAcc(tab, 'face:knir');
+        await tab.waitForSelector('[data-owl-pick="face:knir"][aria-pressed="true"]');
+        await logoIs('icons/logo.webp');
+        assert.deepEqual(await layers(tab), ['icons/doplnky/knir.webp']);
+        // Barva obleku: sova bez monoklu v zeleném taláru, s monoklem zase zelená
+        await pickAcc(tab, 'face:bez-monoklu');
+        await tab.click('[data-robe-pick="zelena"]');
+        await logoIs('icons/logo-bez-monoklu-zelena.webp');
+        await pickAcc(tab, 'face:none');
+        await logoIs('icons/logo-zelena.webp');
+        assert.deepEqual(await layers(tab), []);
+        // Volba přežije načtení a obrázek se opravdu načte
+        await pickAcc(tab, 'face:bez-monoklu');
+        await logoIs('icons/logo-bez-monoklu-zelena.webp');
+        await tab.click('[data-close]');
+        await tab.waitForSelector('#settings-overlay', { state: 'detached' });
+        await tab.reload();
+        await tab.waitForSelector('#status-icon-slot [data-owl]');
+        await logoIs('icons/logo-bez-monoklu-zelena.webp');
+        await tab.waitForFunction(() => { const img = document.querySelector('#status-icon-slot [data-owl] > img'); return img.complete && img.naturalWidth > 0; });
+        // Cylindr (úroveň 62) a meč (odznak 15 vyhraných zápasů v turnajích): skryje se čepice i zvednutá ruka jednou maskou
+        await tab.click('#btn-settings');
+        await tab.click('[data-me-tab="owl"]');
+        await tab.waitForSelector('[data-owl-pick]');
+        await pickAcc(tab, 'head:cylindr');
+        await pickAcc(tab, 'hand:mec');
+        await tab.waitForSelector('[data-owl-pick="hand:mec"][aria-pressed="true"]');
+        const mask = () => tab.evaluate(() => { const img = document.querySelector('#status-icon-slot [data-owl] > img'); const style = getComputedStyle(img); return `${img.parentElement.className} ${style.maskImage || style.webkitMaskImage}`; });
+        assert.match(await mask(), /owl-nohat owl-nohand .*logo-maska-oba\.webp/);
+        await pickAcc(tab, 'head:none');
+        await tab.waitForFunction(() => !document.querySelector('#status-icon-slot [data-owl]').classList.contains('owl-nohat'));
+        assert.match(await mask(), /logo-maska-ruka\.webp/);
         assert.deepEqual(problems, []);
         await context.close();
     });

@@ -255,6 +255,7 @@
     const revealNote = (kind, parts) => {
         if (kind === 'bundle') return 'Věci sezóny se jinak získat nedají. Patří ti navždy.';
         const items = parts.filter(part => part.item);
+        if (items.length === 1 && items[0].item.chest) return 'Tahle věc je jen v Truhle Mudrlanta a v Sezóně. Patří ti navždy.';
         if (items.length === 1 && items[0].item.level) return `Odemčeno dřív, jinak až od úrovně ${items[0].item.level}.`;
         if (items.length) return 'Odemčeno dřív, než by přišlo s úrovní.';
         if (parts.some(part => part.freeze)) return 'Zachrání ti jeden vynechaný den.';

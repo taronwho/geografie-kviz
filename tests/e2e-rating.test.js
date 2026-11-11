@@ -258,7 +258,7 @@ test('rating, ligy a týdenní žebříček', { skip: !chromium && 'Playwright n
                 assert.equal(await tab.locator(`#league-help [data-league="${league.id}"] img[data-league-emblem="${league.id}"]`).count(), 1, 'erb ligy jako na kartě');
             }
             assert.match(await tab.textContent('#league-help [data-league="stribro"]'), /\(ty\)/, 'moje liga je označená');
-            assert.equal(await tab.locator('#league-help [data-help-back]').count(), 0, 'z karty tlačítko Zpět není');
+            assert.equal(await tab.locator('#league-help [data-dialog-back]').count(), 0, 'z karty tlačítko Zpět není');
             const fit = await tab.evaluate(() => { const box = document.querySelector('#dialog-overlay > div'); return { scroll: box.scrollHeight - box.clientHeight, bottom: box.getBoundingClientRect().bottom, height: window.innerHeight }; });
             assert.ok(fit.scroll <= 1, `dialog se vejde bez posouvání (přesah ${fit.scroll}px)`);
             assert.ok(fit.bottom <= fit.height, 'dialog je celý na obrazovce');
@@ -275,7 +275,7 @@ test('rating, ligy a týdenní žebříček', { skip: !chromium && 'Playwright n
             assert.equal(await tab.locator('#league-help [data-league]').count(), Rating.LEAGUES.length);
             assert.equal(await tab.evaluate(() => { const box = document.querySelector('#dialog-overlay > div'); return box.scrollHeight - box.clientHeight <= 1; }), true, 'i se tlačítkem Zpět se vejde');
             await shot(tab, `liga-vysvetleni-zpet-${viewport.width}`);
-            await tab.click('#dialog-overlay [data-help-back]');
+            await tab.click('#dialog-overlay [data-dialog-back]');
             await tab.waitForSelector('#weekly-list');
             assert.match(await tab.textContent('#dialog-overlay'), /Týdenní žebříček/);
             await tab.keyboard.press('Escape');

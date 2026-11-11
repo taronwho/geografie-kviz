@@ -1,6 +1,8 @@
 # Maska čepice sovy: icons/logo-maska.webp (258×320, stejný rám jako logo). Průhledná je výchozí čepice (vínová, její obrys, zlatý knoflík
 # a světlý okraj nálepky kolem ní), zbytek je neprůhledný. Používá se jako CSS maska loga, když doplněk na hlavě čepici nahrazuje (helma, přilba, baret):
 # výchozí čepice pak za doplňkem není vidět. Spuštění: python3 scripts/owl-hat-mask.py   (Pillow, numpy, opencv-python-headless)
+# Stejně maska ruky icons/logo-maska-ruka.webp: průhledná je zvednutá ruka se vztyčeným prstem (bez rukávu), když doplněk v ruce kreslí
+# ruku jinak (hrnek drží níž, hůlku a pochodeň pěstí bez prstu); icons/logo-maska-oba.webp skryje čepici i ruku (CSS maska je na obrázku jen jedna).
 import os
 import numpy as np
 import cv2
@@ -9,7 +11,33 @@ from PIL import Image
 ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..')
 LOGO = os.path.join(ROOT, 'icons', 'logo.webp')
 OUT = os.path.join(ROOT, 'icons', 'logo-maska.webp')
+OUT_HAND = os.path.join(ROOT, 'icons', 'logo-maska-ruka.webp')
+OUT_BOTH = os.path.join(ROOT, 'icons', 'logo-maska-oba.webp')
 HAT_BOTTOM = 112  # pod touto řádkou už je hlava sovy (čepice sahá nejníž k obočí)
+# Zvednutá ruka v pixelech loga: mnohoúhelník vlevo od hlavy a límce, od špičky prstu po rukáv; vínový rukáv v něm zůstává (barva obleku)
+HAND_POLY = [(0, 128), (57, 128), (57, 186), (68, 200), (72, 246), (64, 272), (0, 272)]
+
+
+def save_mask(mask, path):
+    out = np.zeros(mask.shape + (4,), np.uint8)
+    out[..., :3] = 255
+    out[..., 3] = (np.clip(mask, 0, 1) * 255).astype(np.uint8)
+    Image.fromarray(out, 'RGBA').save(path, 'WEBP', lossless=True)
+
+
+def hand_mask(rgba):
+    """Maska ruky (1 = vidět, 0 = skrýt): neprůhledné pixely loga v HAND_POLY kromě vínového rukávu a jeho světlejších záhybů."""
+    from PIL import ImageDraw
+    poly = Image.new('L', (rgba.shape[1], rgba.shape[0]), 0)
+    ImageDraw.Draw(poly).polygon(HAND_POLY, fill=1)
+    zone = np.asarray(poly) > 0
+    hsv = cv2.cvtColor(rgba[..., :3], cv2.COLOR_RGB2HSV).astype(np.int32)
+    h, s, v = hsv[..., 0], hsv[..., 1], hsv[..., 2]
+    sleeve = ((h >= 160) | (h <= 6)) & (s > 90) & (v > 80)
+    sleeve = cv2.morphologyEx(sleeve.astype(np.uint8), cv2.MORPH_OPEN, np.ones((3, 3), np.uint8)) > 0
+    cut = zone & ~sleeve
+    cut = cv2.GaussianBlur(cut.astype(np.float32), (0, 0), 0.6)
+    return np.clip(1.0 - cut * 3.0, 0, 1)
 
 
 def build():
@@ -61,12 +89,23 @@ def build():
     near = cv2.dilate(cut, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7, 7)))
     fringe = (near > 0) & (alpha > 0) & (~below_hat)
     cut = np.maximum(cut, fringe.astype(np.uint8))
+    # Světlý okraj nálepky podél oušek vedle čepice: po odstranění čepice z něj zbudou tenké čáry nad hlavou (u klobouků bez křidélek
+    # trčí vedle krempy jako růžky). Co je nad spodním okrajem čepice a po otevření (9 × 9) zmizí, je takový zbytek a odstraní se také.
+    rest = ((alpha > 128) & (cut == 0)).astype(np.uint8)
+    thin = (rest > 0) & (cv2.morphologyEx(rest, cv2.MORPH_OPEN, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (9, 9))) == 0) & (ys < HAT_BOTTOM)
+    thin = cv2.dilate(thin.astype(np.uint8), np.ones((3, 3), np.uint8)) & (ys < HAT_BOTTOM).astype(np.uint8)
+    cut = np.maximum(cut, thin)
     cut = cv2.GaussianBlur(cut.astype(np.float32), (0, 0), 0.6)
     mask = np.clip(1.0 - cut * 3.0, 0, 1)
     out = np.zeros((rgba.shape[0], rgba.shape[1], 4), np.uint8)
     out[..., :3] = 255
     out[..., 3] = (mask * 255).astype(np.uint8)
     Image.fromarray(out, 'RGBA').save(OUT, 'WEBP', lossless=True)
+    hand = hand_mask(rgba)
+    save_mask(hand, OUT_HAND)
+    save_mask(np.minimum(mask, hand), OUT_BOTH)
+    if os.environ.get('HAND'):
+        mask = hand
     # náhled
     prev = rgba.copy()
     prev[..., 3] = (alpha.astype(np.float32) * mask).astype(np.uint8)

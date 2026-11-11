@@ -163,7 +163,7 @@ test('ligové sezóny a vitrína v profilu', { skip: !chromium && 'Playwright ne
             await tab.waitForSelector('#celebration');
             const party = await text(tab, '#celebration');
             assert.match(party, /Nová odměna/);
-            assert.match(party, /Rámeček Diamantová sezóna \(říjen 2026\) a 3 další – vyber si je v Nastavení → Profil/);
+            assert.match(party, /Rámeček Diamantová sezóna \(říjen 2026\) a 3 další a doplněk Pochodeň vítěze – vyber si je v Nastavení → Profil a Nastavení → Mudrlant/);
             assert.equal(await tab.locator('#celebration .frame-liga-diamant').count(), 1, 'oslava ukazuje můj obrázek v novém rámečku');
             await shot(tab, 'sezona-oslava', scheme);
             await tab.click('#celebration');
@@ -209,7 +209,10 @@ test('ligové sezóny a vitrína v profilu', { skip: !chromium && 'Playwright ne
             assert.match(await text(tab, '[data-help-seasons]'), /Ligová sezóna trvá kalendářní měsíc/);
             assert.ok(await fits(tab) <= 0);
             await shot(tab, 'sezona-jak-funguji-ligy', scheme);
-            await tab.click('[data-help-seasons-open]');
+            // Z nápovědy otevřené z okna sezón vede zpět jen jedno tlačítko (druhé do sezón by bylo navíc); křížek dělá totéž
+            assert.equal(await tab.locator('[data-help-seasons-open]').count(), 0);
+            assert.match(await text(tab, '#league-help [data-dialog-back]'), /Zpět na Ligové sezóny/);
+            await tab.click('#dialog-overlay [data-close]');
             await tab.waitForSelector('[data-league-seasons]');
             await tab.keyboard.press('Escape');
 
@@ -226,7 +229,7 @@ test('ligové sezóny a vitrína v profilu', { skip: !chromium && 'Playwright ne
             await until(() => db.profiles['u-1'].showcase.length === 2);
             assert.deepEqual(db.profiles['u-1'].showcase, ['l:2026-10:diamant', 'b:vyhry-25']);
             await shot(tab, 'vitrina-odznak', scheme);
-            await tab.keyboard.press('Escape');
+            await escapeAll(tab);
 
             // Diplom do vitríny (tlačítko vedle Diplomy, okno se nezvětší)
             await tab.click('#btn-settings');
@@ -240,7 +243,7 @@ test('ligové sezóny a vitrína v profilu', { skip: !chromium && 'Playwright ne
             assert.deepEqual(db.profiles['u-1'].showcase, ['l:2026-10:diamant', 'b:vyhry-25', 'd:zemepis']);
             assert.ok(await fits(tab) <= 0, 'okno diplomu se vejde');
             await shot(tab, 'vitrina-diplom', scheme);
-            await tab.keyboard.press('Escape');
+            await escapeAll(tab);
 
             // Nastavení → Profil: náhled vitríny vedle titulu a rámečky sezón (Diamant odemčený, Mistr zamčený); plná vitrína
             await tab.click('#btn-settings');
@@ -270,9 +273,25 @@ test('ligové sezóny a vitrína v profilu', { skip: !chromium && 'Playwright ne
             await tab.waitForFunction(() => /Odebráno/.test((document.getElementById('toast') || {}).textContent || ''));
             assert.deepEqual(db.profiles['u-1'].showcase, ['l:2026-10:diamant', 'd:zemepis']);
             assert.equal(await tab.locator('[data-showcase-dialog] [data-showcase-empty]').count(), 1);
+            // Okna z Vitríny vedou zpět do Vitríny (tlačítkem i křížkem), z Vitríny křížek vrátí do Nastavení
             await tab.click('[data-showcase-go="badges"]');
             await waitTitle(tab, 'Odznaky');
+            assert.match(await text(tab, '#dialog-overlay [data-dialog-back]'), /Zpět na Vitrínu/);
+            await tab.click('#dialog-overlay [data-close]');
+            await waitTitle(tab, 'Vitrína');
+            await tab.click('[data-showcase-go="diplomas"]');
+            await waitTitle(tab, 'Diplomy');
+            await tab.click('#dialog-overlay [data-dialog-back]');
+            await waitTitle(tab, 'Vitrína');
+            await tab.click('[data-showcase-go="seasons"]');
+            await tab.waitForSelector('[data-league-seasons]');
             await tab.keyboard.press('Escape');
+            await waitTitle(tab, 'Vitrína');
+            await tab.click('#dialog-overlay [data-close]');
+            await tab.waitForSelector('#settings-overlay [data-open-showcase]');
+            await tab.waitForSelector('#dialog-overlay', { state: 'detached' });
+            await tab.keyboard.press('Escape');
+            await tab.waitForSelector('#settings-overlay', { state: 'detached' });
 
             // Cizí profil: vitrína Petra (Mistr, odznak, diplom), bez tlačítek Odebrat
             await tab.click('#league-card [data-action="weekly-board"]');
@@ -285,7 +304,7 @@ test('ligové sezóny a vitrína v profilu', { skip: !chromium && 'Playwright ne
             await tab.waitForTimeout(300);
             assert.ok(await fits(tab) <= 0, 'profil s vitrínou se vejde');
             await shot(tab, 'profil-hrace-vitrina', scheme);
-            await tab.keyboard.press('Escape');
+            await escapeAll(tab);
 
             // Po obnovení stránky se oslava nezopakuje (pamatuje se v zařízení)
             await tab.reload();
@@ -362,6 +381,11 @@ test('ligové sezóny a vitrína v profilu', { skip: !chromium && 'Playwright ne
         await tab.click('[data-open-badges]');
         await tab.click('#dialog-overlay [data-badge="vyhry-25"]');
         assert.equal(await tab.locator('[data-showcase-toggle]').count(), 0, 'bez Vystavit');
+        // Odznaky → Můj postup → Nastavení → zavřeno
+        await tab.keyboard.press('Escape');
+        await tab.waitForSelector('#dialog-overlay [data-progress-dialog]');
+        await tab.keyboard.press('Escape');
+        await tab.waitForSelector('#settings-overlay');
         await tab.keyboard.press('Escape');
         await tab.click('#league-card [data-action="weekly-board"]');
         await tab.waitForSelector('#weekly-list');
@@ -375,4 +399,11 @@ test('ligové sezóny a vitrína v profilu', { skip: !chromium && 'Playwright ne
     });
 });
 
+// Escape krok za krokem (podokno → Můj postup → Nastavení), dokud je otevřené nějaké okno
+const escapeAll = async (tab) => {
+    for (let step = 0; step < 6 && await tab.evaluate(() => Boolean(document.getElementById('dialog-overlay') || document.getElementById('settings-overlay'))); step++) {
+        await tab.keyboard.press('Escape');
+        await tab.waitForTimeout(50);
+    }
+};
 const waitTitle = (tab, title) => tab.waitForFunction(expected => { const overlay = document.getElementById('dialog-overlay'); return overlay && overlay.dataset.title === expected; }, title);

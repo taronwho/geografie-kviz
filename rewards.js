@@ -1,7 +1,8 @@
 // Odměny, které lákají hrát dál (bez peněz, nic se nekupuje):
 // - Truhla Mudrlanta: za všechny tři cíle týdne (goals.js) jedna truhla. Vždy v ní je věc pro Mudrlanta, kterou hráč ještě nemá:
 //   doplněk, barva doplňků, rámeček, talár nebo barevné téma z look.js – z věcí, které by jinak odemkl až vyšší úrovní (nejbližších
-//   NEAREST takových). Věci za odznaky (turnaje, zběhlost v tématu) truhla nedává, ty patří k úspěchu. K tomu ochrana série, dokud jich
+//   NEAREST takových). Občas (RARE_CHANCE) místo ní vzácná věc, která jde získat jen z truhly (look.js rare: true, obrázkové rámečky).
+//   Věci za odznaky (turnaje, zběhlost v tématu) truhla nedává, ty patří k úspěchu. K tomu ochrana série, dokud jich
 //   hráč nemá plný počet. Když už má všechno, dá CHEST_XP XP. Každá věc nejvýš jednou (žádné duplicity).
 // - Ochrana série: nejvýš MAX_FREEZES. Z truhly a za každých 7 dní v řadě dnešních otázek (některého tématu) nebo Kvízu dne (nejvýš
 //   jedna za den z každého zdroje). Když hráč vynechá právě jeden den, ochrana se při dalším spuštění použije sama: jedna ochrana zachrání
@@ -118,20 +119,34 @@
         if (!isDay(week) || s.chests[week] || s.ready.includes(week)) return s;
         return { ...s, ready: [...s.ready, week].sort().slice(-LIMITS.ready) };
     };
-    // Kandidáti do truhly: věci odemykané úrovní (ne odznakem), které hráč ještě nemá; od těch, které by odemkl nejdřív.
-    // ctx = { level, badges } jako u look.js
+    // Kandidáti do truhly: věci odemykané úrovní (ne odznakem) a věci jen z truhly (chest v look.js), které hráč ještě nemá; od těch,
+    // které by odemkl nejdřív. Věc jen z truhly se řadí podle svého čísla chest, jako by se odemykala na té úrovni (když už ji hráč
+    // přerostl, je mezi nejbližšími, dokud ji nedostane). ctx = { level, badges } jako u look.js
+    const giftRank = (item) => item.chest || item.level || 1;
     const candidates = (state, ctx) => {
         const s = parse(state);
         if (!Look) return [];
         return GIFT_CATEGORIES.flatMap(category => (Look.CATALOG[category] || [])
-            // noGift: odměna jen za svůj cíl (Bílý talár až na úrovni 100), truhla ani sezóna ji nedají dřív
-            .filter(item => !item.badge && !item.noGift && (item.level || 1) > 1 && !s.gifts[category].includes(item.id) && !Look.isUnlocked(item, { ...ctx, gifts: null }))
+            // noGift: odměna jen za svůj cíl (Bílý talár až na úrovni 100), truhla ani sezóna ji nedají dřív;
+            // rare: vzácný dárek jen z truhly (rareCandidates), mezi běžné věci (ani do Sezóny) nepatří
+            .filter(item => !item.badge && !item.noGift && !item.league && !item.rare && (item.chest || (item.level || 1) > 1) && !s.gifts[category].includes(item.id) && !Look.isUnlocked(item, { ...ctx, gifts: null }))
             .map(item => ({ category, item })))
-            .sort((a, b) => a.item.level - b.item.level || GIFT_CATEGORIES.indexOf(a.category) - GIFT_CATEGORIES.indexOf(b.category));
+            .sort((a, b) => giftRank(a.item) - giftRank(b.item) || GIFT_CATEGORIES.indexOf(a.category) - GIFT_CATEGORIES.indexOf(b.category));
     };
-    // Výběr věci: los z NEAREST nejbližších, jiný druh než minulá truhla, když to jde
+    // Vzácné věci jen z truhly (look.js rare: true, např. obrázkové rámečky Duha s mráčky a Růže a trny), které hráč ještě nemá.
+    // Truhla dá některou z nich s pravděpodobností RARE_CHANCE místo běžné věci, a když běžné věci došly, určitě (než začne dávat XP).
+    const RARE_CHANCE = 0.1;
+    const rareCandidates = (state) => {
+        const s = parse(state);
+        if (!Look) return [];
+        return GIFT_CATEGORIES.flatMap(category => (Look.CATALOG[category] || []).filter(item => item.rare && !s.gifts[category].includes(item.id)).map(item => ({ category, item })));
+    };
+    // Výběr věci: vzácná (viz výše), jinak los z NEAREST nejbližších, jiný druh než minulá truhla, když to jde.
+    // Hod na vzácnou věc je vysoké číslo (rng() ≥ 1 − RARE_CHANCE), takže rng = () => 0 dá vždy běžnou věc jako dřív.
     const pickGift = (state, ctx, rng = Math.random) => {
         const list = candidates(state, ctx);
+        const rare = rareCandidates(state);
+        if (rare.length && (!list.length || rng() >= 1 - RARE_CHANCE)) return rare[Math.min(rare.length - 1, Math.floor(rng() * rare.length))];
         if (!list.length) return null;
         const s = parse(state);
         const last = Object.keys(s.chests).sort().map(week => s.chests[week]).filter(reward => reward !== 'xp').pop();
@@ -310,8 +325,9 @@
         // Kulatá věc (téma, barva, rámeček, XP) je menší a výš, ať nezakryje víko; téma a barva se lesknou (.chest-orb)
         const category = opened && opened.gift ? opened.gift.category : 'xp';
         const round = ['themes', 'colors', 'frames', 'xp'].includes(category);
-        // (u rámečku větší písmo = silnější kroužek, .frame v src/input.css)
-        const size = round ? `h-[4.5rem] w-[4.5rem]${category === 'frames' ? ' text-[2.5rem]' : ''}` : 'h-[5.5rem] w-[5.5rem]';
+        // (u rámečku větší písmo = silnější kroužek, .frame v src/input.css; obrázkový prsten je dvakrát širší než obrázek, proto menší obrázek)
+        const art = category === 'frames' && opened.gift.item.art;
+        const size = art ? 'h-16 w-16 text-[2rem]' : round ? `h-[4.5rem] w-[4.5rem]${category === 'frames' ? ' text-[2.5rem]' : ''}` : 'h-[5.5rem] w-[5.5rem]';
         const prize = !opened ? '' : opened.gift ? previewHtml(opened.gift, h, size) : `
             <span class="flex ${size} flex-col items-center justify-center rounded-full bg-gradient-to-br from-gold-200 to-gold-500 text-brand-950 shadow-lg ring-4 ring-white/70"><i data-lucide="star" class="h-7 w-7"></i><span class="text-sm font-black leading-none">+${opened.xp}</span></span>`;
         return `
@@ -332,9 +348,9 @@
     const chestHtml = ({ opened = null } = {}, h = {}) => {
         const result = opened ? (opened.gift ? `
             <div data-chest-reveal class="chest-show-1 relative z-10 flex flex-col items-center gap-1 text-center">
-                <p class="text-[11px] font-black uppercase tracking-widest text-gold-300">${esc(KIND_NAMES[opened.gift.category])}</p>
+                <p class="text-[11px] font-black uppercase tracking-widest text-gold-300">${opened.gift.item.rare ? 'Vzácný ' : ''}${esc(KIND_NAMES[opened.gift.category])}</p>
                 <p data-chest-item class="text-2xl font-black leading-tight text-white">${esc(opened.gift.item.title)}</p>
-                <p class="text-xs font-semibold leading-snug text-white/80">Jinak by se odemkl až na úrovni ${opened.gift.item.level}. Teď je tvůj.</p>
+                <p class="text-xs font-semibold leading-snug text-white/80">${opened.gift.item.rare ? 'Vzácný dárek, který jde získat jen z truhly. Teď je tvůj.' : opened.gift.item.chest ? 'Tahle věc je jen v Truhle Mudrlanta. Teď je tvoje.' : `Jinak by se odemkl až na úrovni ${opened.gift.item.level}. Teď je tvůj.`}</p>
             </div>` : `
             <div data-chest-reveal class="chest-show-1 relative z-10 flex flex-col items-center gap-1 text-center">
                 <p data-chest-item class="text-3xl font-black text-gold-300">+${opened.xp} XP</p>
@@ -387,7 +403,7 @@
     const chestHelpHtml = (lastReward) => `
         <div class="flex flex-col gap-2 text-[13px] leading-snug text-slate-700 dark:text-slate-200" data-chest-help>
             <div class="flex items-center gap-3">${chestSvg('h-14 w-14 shrink-0')}<p>Splň všechny tři cíle týdne a dostaneš Truhlu Mudrlanta.</p></div>
-            <p>V truhle je vždy něco nového pro Mudrlanta: doplněk, barva doplňků, rámeček, talár nebo barevné téma, které by se ti jinak odemklo až později. Nic se neopakuje. Často v ní najdeš i ochranu série.</p>
+            <p>V truhle je vždy něco nového pro Mudrlanta: doplněk, barva doplňků, rámeček, talár nebo barevné téma, které by se ti jinak odemklo až později. Občas v ní je vzácný rámeček, který jinde nezískáš. Nic se neopakuje. Často v ní najdeš i ochranu série.</p>
             ${lastReward ? `<p class="text-xs font-bold text-slate-500 dark:text-slate-400">Minule: ${esc(lastReward)}</p>` : ''}
         </div>`;
     // Diplomy v Mém postupu: mřížka 7 × 2 témat (získané barevně, ostatní šedé se zámkem), klepnutím podrobnosti
@@ -426,7 +442,7 @@
 
     return {
         KEY, MAX_FREEZES, MIN_PROTECTED, FREEZE_EVERY, CHEST_XP, NEAREST, GIFT_CATEGORIES, OWN_CATEGORIES, KIND_NAMES, DIPLOMA_NAMES, SEASON_TIERS, SEASON_REWARD, cleanSeason, mergeSeasons,
-        isDay, addDays, formatDay, empty, parse, gifts, owns, pendingChest, addChest, candidates, pickGift, openChest, chestReward,
+        isDay, addDays, formatDay, empty, parse, gifts, owns, pendingChest, addChest, candidates, RARE_CHANCE, rareCandidates, pickGift, openChest, chestReward,
         earnFreeze, streakEndingAt, bridgedStreak, checkFreeze, streakFreeze, diplomaTitle, noteDiplomas, setName, payload, merge, samePayload, isEmpty,
         nextStreakReward, streakRewardText, streakRewardHtml,
         freezeWord, freezeChip, freezeArt, chestSvg, chestStripHtml, previewHtml, chestHtml, progressHtml, freezeHelpHtml, chestHelpHtml, diplomasHtml, diplomaDialogHtml
