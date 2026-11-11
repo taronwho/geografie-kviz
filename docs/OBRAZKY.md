@@ -1072,6 +1072,352 @@ Cartoon sticker character portrait in exactly the same art style as the attached
 Cartoon sticker character portrait in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole character. LEGENDARY edition: a heroic, supremely confident original character shown from the chest up, big expressive face looking at the viewer, ornate gold trim on its outfit, a dramatic golden rim light, a radiant aura burst in its signature color behind it (inside the sticker border) and a few floating sparkles, still readable as a tiny 40 px profile picture (simple bold shapes). Centered, filling about 88 % of the frame. Plain solid flat dark grey background, color #2d3034, outside the sticker. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, shading); do not draw the owl and do not copy any existing cartoon, game or movie character. Character: A powerful kangaroo champion athlete with a golden laurel wreath, a winner's gold medal on a ribbon and a flaming victory torch, sweatband on the forehead. Signature color: champion gold and orange. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
+## 12. Motivace: Sezóna Mudrlanta, série, ligové sezóny, album a vitrína
+
+Obrázky k novým odměnám. Funkce fungují i bez nich (dočasně se použijí stávající obrázky), po dodání je zapojím.
+
+### 133. `sezona.png` – Sezóna Mudrlanta (karta a okno cesty odměn)
+
+Přiložit: `branding/sova-original.jpg` (vzor stylu)
+
+```text
+Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole object. Single centered subject filling about 80 % of the frame with even empty space around it, readable even as a small 48 px icon (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow on the background, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, colors, shading); do not draw the owl and do not copy any existing cartoon or game artwork. Subject: A winding path of golden stepping stones climbing a small green hill, little colorful pennant flags along the way, and a glowing treasure chest with sparkles waiting at the top. Colors: gold, fresh green, teal and orange flags. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+### Měsíční doplňky – hlavní odměna sezóny (č. 134–145)
+
+Každý měsíc jeden exkluzivní doplněk Mudrlanta za poslední stupeň sezóny, jen v daném měsíci. Postup jako u ostatních doplňků (`scripts/owl-accessories.py`, viz `docs/DOPLNKY-TEMAT.md`): přiložit `branding/sova-original.jpg`, soubor `branding/doplnky/<id>.jpg`.
+
+#### 134. `cepice-zimni` – leden (hlava)
+
+```text
+Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same proportions, same colors, same outline style, same flat dark background. Do not redraw, move or recolor the owl. Only ADD the accessory described below, drawn in the same cartoon sticker style with the same thick dark outline and the same lighting, sitting naturally on the owl. The accessory should be mostly one dominant color (not wine red) so it can be recolored later. Do not add anything else. Accessory: A cozy knitted winter beanie in icy light blue with a big fluffy white pom-pom and a small white snowflake pattern, worn on the owl's head over its cap.
+```
+
+#### 135. `karneval` – únor (obličej)
+
+```text
+Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same proportions, same colors, same outline style, same flat dark background. Do not redraw, move or recolor the owl. Only ADD the accessory described below, drawn in the same cartoon sticker style with the same thick dark outline and the same lighting, sitting naturally on the owl. The accessory should be mostly one dominant color (not wine red) so it can be recolored later. Do not add anything else. Accessory: A shiny carnival eye mask in purple with small golden sequins and three colorful feathers on one side, worn over the owl's eyes (the monocle may be hidden under it).
+```
+
+#### 136. `jarni-venecek` – březen (hlava)
+
+```text
+Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same proportions, same colors, same outline style, same flat dark background. Do not redraw, move or recolor the owl. Only ADD the accessory described below, drawn in the same cartoon sticker style with the same thick dark outline and the same lighting, sitting naturally on the owl. The accessory should be mostly one dominant color (not wine red) so it can be recolored later. Do not add anything else. Accessory: A delicate spring flower crown of white snowdrops, yellow primroses and small green leaves, resting on top of the owl's cap.
+```
+
+#### 137. `destnik` – duben (ruka)
+
+```text
+Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same proportions, same colors, same outline style, same flat dark background. Do not redraw, move or recolor the owl. Only ADD the accessory described below, drawn in the same cartoon sticker style with the same thick dark outline and the same lighting, sitting naturally on the owl. The accessory should be mostly one dominant color (not wine red) so it can be recolored later. Do not add anything else. Accessory: An open round umbrella in bright yellow with a curved wooden handle, held above the owl's head in its wing, a few blue raindrops bouncing off it.
+```
+
+#### 138. `konvalinky` – květen (ruka)
+
+```text
+Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same proportions, same colors, same outline style, same flat dark background. Do not redraw, move or recolor the owl. Only ADD the accessory described below, drawn in the same cartoon sticker style with the same thick dark outline and the same lighting, sitting naturally on the owl. The accessory should be mostly one dominant color (not wine red) so it can be recolored later. Do not add anything else. Accessory: A small bouquet of white lily-of-the-valley flowers with green leaves tied with a thin ribbon, held in the owl's wing.
+```
+
+#### 139. `slamak` – červen (hlava)
+
+```text
+Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same proportions, same colors, same outline style, same flat dark background. Do not redraw, move or recolor the owl. Only ADD the accessory described below, drawn in the same cartoon sticker style with the same thick dark outline and the same lighting, sitting naturally on the owl. The accessory should be mostly one dominant color (not wine red) so it can be recolored later. Do not add anything else. Accessory: A wide-brimmed summer straw hat with a sky-blue ribbon band, worn on the owl's head over its cap, a small sun glint on the brim.
+```
+
+#### 140. `snorchl` – červenec (obličej)
+
+```text
+Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same proportions, same colors, same outline style, same flat dark background. Do not redraw, move or recolor the owl. Only ADD the accessory described below, drawn in the same cartoon sticker style with the same thick dark outline and the same lighting, sitting naturally on the owl. The accessory should be mostly one dominant color (not wine red) so it can be recolored later. Do not add anything else. Accessory: A diving mask with a turquoise frame and a matching snorkel tube on the side, worn over the owl's eyes, two tiny bubbles.
+```
+
+#### 141. `zmrzlina` – srpen (ruka)
+
+```text
+Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same proportions, same colors, same outline style, same flat dark background. Do not redraw, move or recolor the owl. Only ADD the accessory described below, drawn in the same cartoon sticker style with the same thick dark outline and the same lighting, sitting naturally on the owl. The accessory should be mostly one dominant color (not wine red) so it can be recolored later. Do not add anything else. Accessory: A crunchy waffle ice-cream cone with two scoops (pink strawberry and white vanilla) and a small drip, held in the owl's wing.
+```
+
+#### 142. `tuzka` – září (ruka)
+
+```text
+Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same proportions, same colors, same outline style, same flat dark background. Do not redraw, move or recolor the owl. Only ADD the accessory described below, drawn in the same cartoon sticker style with the same thick dark outline and the same lighting, sitting naturally on the owl. The accessory should be mostly one dominant color (not wine red) so it can be recolored later. Do not add anything else. Accessory: A big sharpened yellow school pencil with a pink eraser, held in the owl's wing like a scholar ready for the new school year.
+```
+
+#### 143. `dyne` – říjen (hlava)
+
+```text
+Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same proportions, same colors, same outline style, same flat dark background. Do not redraw, move or recolor the owl. Only ADD the accessory described below, drawn in the same cartoon sticker style with the same thick dark outline and the same lighting, sitting naturally on the owl. The accessory should be mostly one dominant color (not wine red) so it can be recolored later. Do not add anything else. Accessory: A funny small carved orange pumpkin worn as a hat on the owl's head over its cap, with a curly green stem and a friendly carved smile.
+```
+
+#### 144. `lampion` – listopad (ruka)
+
+```text
+Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same proportions, same colors, same outline style, same flat dark background. Do not redraw, move or recolor the owl. Only ADD the accessory described below, drawn in the same cartoon sticker style with the same thick dark outline and the same lighting, sitting naturally on the owl. The accessory should be mostly one dominant color (not wine red) so it can be recolored later. Do not add anything else. Accessory: A round glowing paper lantern in warm orange on a short wooden stick, held in the owl's wing, soft light around it.
+```
+
+#### 145. `sala-zimni` – prosinec (krk)
+
+```text
+Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same proportions, same colors, same outline style, same flat dark background. Do not redraw, move or recolor the owl. Only ADD the accessory described below, drawn in the same cartoon sticker style with the same thick dark outline and the same lighting, sitting naturally on the owl. The accessory should be mostly one dominant color (not wine red) so it can be recolored later. Do not add anything else. Accessory: A cozy knitted winter scarf in emerald green with a white snowflake pattern and a tiny golden bell, wrapped around the owl's neck with ends hanging down.
+```
+
+### Série dní
+
+Za 100 dní série připadne doplněk **Hrdinský plášť** (prompt č. 103). Za 365 dní legendární rámeček:
+
+#### 146. `ramecek-vecny-ohen.png` – Věčný oheň (série 365 dní)
+
+Přiložit: `branding/sova-original.jpg` (vzor stylu)
+
+```text
+Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading. A circular decorative frame (a ring) seen straight from the front, perfectly round and centered, filling about 92 % of the image; the ring band is about 13 % of the image width thick and may have ornaments sticking out a little on the outside, never inside. The inside of the ring is an EMPTY perfect circle showing only the plain flat dark grey background, color #2d3034: nothing drawn inside, no character, no face, no text. A thin cream-colored sticker border runs along BOTH the outer edge and the inner edge of the ring. Plain solid flat dark grey background #2d3034 everywhere outside the ring, no gradient, no shadow. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference; do not draw the owl. Ring design: a majestic ring of eternal blue-and-gold fire, flames rising outward like a phoenix's feathers, small golden sparks and a tiny phoenix-wing motif at the top. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+### Ligové sezóny, album a vitrína
+
+#### 147. `ligova-sezona.png` – Ligová sezóna (karta ligy a výsledky sezón)
+
+Přiložit: `branding/sova-original.jpg` (vzor stylu)
+
+```text
+Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole object. Single centered subject filling about 80 % of the frame with even empty space around it, readable even as a small 48 px icon (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow on the background, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, colors, shading); do not draw the owl and do not copy any existing cartoon or game artwork. Subject: A golden league trophy cup with laurel leaves standing on a small podium with three steps, a ribbon banner without text and confetti around it. Colors: gold, royal blue, cream. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+#### 148. `album.png` – Album sbírky (dlaždice a okno)
+
+Přiložit: `branding/sova-original.jpg` (vzor stylu)
+
+```text
+Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole object. Single centered subject filling about 80 % of the frame with even empty space around it, readable even as a small 48 px icon (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow on the background, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, colors, shading); do not draw the owl and do not copy any existing cartoon or game artwork. Subject: A thick open collector's album with colorful round stickers and small cards peeking out of its pages, a few stickers flying out with sparkles. Colors: teal cover, cream pages, colorful stickers. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+#### 149. `odznak-sberatel.png` – Odznak Sběratel
+
+Přiložit: `branding/sova-original.jpg` (vzor stylu)
+
+```text
+Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole object. Single centered subject filling about 80 % of the frame with even empty space around it, readable even as a small 48 px icon (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow on the background, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, colors, shading); do not draw the owl and do not copy any existing cartoon or game artwork. Subject: A round golden badge medal with a ribbon, showing an embossed stack of three collectible cards with a small star, sparkling. Colors: gold, teal ribbon. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+#### 150. `vitrina.png` – Vitrína v profilu
+
+Přiložit: `branding/sova-original.jpg` (vzor stylu)
+
+```text
+Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole object. Single centered subject filling about 80 % of the frame with even empty space around it, readable even as a small 48 px icon (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow on the background, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, colors, shading); do not draw the owl and do not copy any existing cartoon or game artwork. Subject: A small elegant glass display case on a dark wooden pedestal with three little velvet stands inside holding a gold medal, a ribbon rosette and a tiny trophy, soft light reflections on the glass. Colors: wood brown, gold, royal blue velvet, light blue glass. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+### Sezónní balík – postavičky, rámečky a Sezónní truhla (č. 151–176)
+
+Za poslední stupeň sezóny hráč dostane **balík**: měsíční doplněk Mudrlanta (č. 134–145), sezónní rámeček a podivnou sezónní postavičku do profilovky. Postavička není zvíře, je to oživlý předmět nebo jídlo. Balík se otevírá ze speciální **Sezónní truhly**. Stačí začít aktuálním měsícem (listopad, prosinec), ostatní můžeš dodávat průběžně.
+
+#### 151. `avatar-ramp.png` – Rampouch (leden)
+
+Přiložit: `branding/sova-original.jpg` (vzor stylu)
+
+```text
+Cartoon sticker character portrait in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole character. A single funny, delightfully weird, original seasonal character (an object or food brought to life, NOT an animal and NOT a person), shown from the chest up or as a whole small figure, big expressive face looking at the viewer, centered and filling about 85 % of the frame, readable even as a tiny 40 px profile picture (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, shading); do not draw the owl and do not copy any existing cartoon character. Character: A living icicle with a frosty grumpy-but-cute face, bushy frost eyebrows, wearing a tiny red knitted scarf, a single drip hanging from its pointy tip, tiny snowflakes around. Colors: icy blue and white, red scarf. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+#### 152. `avatar-kobliz.png` – Masopustní koblížek (únor)
+
+Přiložit: `branding/sova-original.jpg` (vzor stylu)
+
+```text
+Cartoon sticker character portrait in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole character. A single funny, delightfully weird, original seasonal character (an object or food brought to life, NOT an animal and NOT a person), shown from the chest up or as a whole small figure, big expressive face looking at the viewer, centered and filling about 85 % of the frame, readable even as a tiny 40 px profile picture (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, shading); do not draw the owl and do not copy any existing cartoon character. Character: A round sugar-dusted doughnut with jam peeking out, wearing a small sparkly carnival eye mask and a party streamer, cheeky grin. Colors: golden brown, powdered white, raspberry red jam, purple mask. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+#### 153. `avatar-snezen.png` – Sněženka (březen)
+
+Přiložit: `branding/sova-original.jpg` (vzor stylu)
+
+```text
+Cartoon sticker character portrait in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole character. A single funny, delightfully weird, original seasonal character (an object or food brought to life, NOT an animal and NOT a person), shown from the chest up or as a whole small figure, big expressive face looking at the viewer, centered and filling about 85 % of the frame, readable even as a tiny 40 px profile picture (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, shading); do not draw the owl and do not copy any existing cartoon character. Character: A sleepy snowdrop flower bud waking up, yawning and stretching its two green leaf arms, a little patch of melting snow at its base, one sunbeam. Colors: white petals, fresh green, pale yellow sun. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+#### 154. `avatar-kapka.png` – Aprílová kapka (duben)
+
+Přiložit: `branding/sova-original.jpg` (vzor stylu)
+
+```text
+Cartoon sticker character portrait in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole character. A single funny, delightfully weird, original seasonal character (an object or food brought to life, NOT an animal and NOT a person), shown from the chest up or as a whole small figure, big expressive face looking at the viewer, centered and filling about 85 % of the frame, readable even as a tiny 40 px profile picture (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, shading); do not draw the owl and do not copy any existing cartoon character. Character: A mischievous blue raindrop with a prankster grin holding a tiny polka-dot umbrella upside down, a little rainbow arching behind it. Colors: bright blue, yellow umbrella, rainbow. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+#### 155. `avatar-pampel.png` – Pampeliška (květen)
+
+Přiložit: `branding/sova-original.jpg` (vzor stylu)
+
+```text
+Cartoon sticker character portrait in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole character. A single funny, delightfully weird, original seasonal character (an object or food brought to life, NOT an animal and NOT a person), shown from the chest up or as a whole small figure, big expressive face looking at the viewer, centered and filling about 85 % of the frame, readable even as a tiny 40 px profile picture (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, shading); do not draw the owl and do not copy any existing cartoon character. Character: A dandelion seed head with a wild fluffy white 'hairdo' of seeds blowing away in the wind, a happy face, green stem body with two leaf arms. Colors: fluffy white, fresh green, sunny yellow. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+#### 156. `avatar-vysved.png` – Vysvědčení (červen)
+
+Přiložit: `branding/sova-original.jpg` (vzor stylu)
+
+```text
+Cartoon sticker character portrait in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole character. A single funny, delightfully weird, original seasonal character (an object or food brought to life, NOT an animal and NOT a person), shown from the chest up or as a whole small figure, big expressive face looking at the viewer, centered and filling about 85 % of the frame, readable even as a tiny 40 px profile picture (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, shading); do not draw the owl and do not copy any existing cartoon character. Character: A rolled school report card scroll tied with a red ribbon bow, wearing cool sunglasses and cheering with tiny arms, confetti around — the joy of the last school day. Colors: cream paper, red ribbon, black sunglasses, colorful confetti. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+#### 157. `avatar-meloun.png` – Meloun (červenec)
+
+Přiložit: `branding/sova-original.jpg` (vzor stylu)
+
+```text
+Cartoon sticker character portrait in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole character. A single funny, delightfully weird, original seasonal character (an object or food brought to life, NOT an animal and NOT a person), shown from the chest up or as a whole small figure, big expressive face looking at the viewer, centered and filling about 85 % of the frame, readable even as a tiny 40 px profile picture (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, shading); do not draw the owl and do not copy any existing cartoon character. Character: A juicy watermelon slice with a big smiling face, black seeds like freckles, wearing tiny heart sunglasses, a drop of juice. Colors: watermelon red-pink, green rind, black seeds. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+#### 158. `avatar-hvezda.png` – Padající hvězda (srpen)
+
+Přiložit: `branding/sova-original.jpg` (vzor stylu)
+
+```text
+Cartoon sticker character portrait in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole character. A single funny, delightfully weird, original seasonal character (an object or food brought to life, NOT an animal and NOT a person), shown from the chest up or as a whole small figure, big expressive face looking at the viewer, centered and filling about 85 % of the frame, readable even as a tiny 40 px profile picture (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, shading); do not draw the owl and do not copy any existing cartoon character. Character: A cheerful golden shooting star zooming with a sparkly rainbow tail, winking, tiny stars around — the August night sky. Colors: gold, deep night blue tail, rainbow sparkles. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+#### 159. `avatar-aktovk.png` – Školní aktovka (září)
+
+Přiložit: `branding/sova-original.jpg` (vzor stylu)
+
+```text
+Cartoon sticker character portrait in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole character. A single funny, delightfully weird, original seasonal character (an object or food brought to life, NOT an animal and NOT a person), shown from the chest up or as a whole small figure, big expressive face looking at the viewer, centered and filling about 85 % of the frame, readable even as a tiny 40 px profile picture (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, shading); do not draw the owl and do not copy any existing cartoon character. Character: A school backpack brought to life with a big grin, colored pencils sticking out of the top like spiky hair, two strap arms waving, a ruler sticking out. Colors: bright orange backpack, colorful pencils. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+#### 160. `avatar-drakpa.png` – Papírový drak (říjen)
+
+Přiložit: `branding/sova-original.jpg` (vzor stylu)
+
+```text
+Cartoon sticker character portrait in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole character. A single funny, delightfully weird, original seasonal character (an object or food brought to life, NOT an animal and NOT a person), shown from the chest up or as a whole small figure, big expressive face looking at the viewer, centered and filling about 85 % of the frame, readable even as a tiny 40 px profile picture (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, shading); do not draw the owl and do not copy any existing cartoon character. Character: A diamond-shaped paper kite with a happy face soaring in the wind, its long tail made of little bows fluttering behind, a few autumn leaves around. Colors: red and yellow kite, orange and brown leaves. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+#### 161. `avatar-caj.png` – Hrnek čaje (listopad)
+
+Přiložit: `branding/sova-original.jpg` (vzor stylu)
+
+```text
+Cartoon sticker character portrait in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole character. A single funny, delightfully weird, original seasonal character (an object or food brought to life, NOT an animal and NOT a person), shown from the chest up or as a whole small figure, big expressive face looking at the viewer, centered and filling about 85 % of the frame, readable even as a tiny 40 px profile picture (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, shading); do not draw the owl and do not copy any existing cartoon character. Character: A cozy steaming mug of tea with a sleepy content smile, a lemon slice on the rim like a hat, a tea-bag tag hanging over the side, curly steam. Colors: warm teal mug, amber tea, yellow lemon. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+#### 162. `avatar-pernik.png` – Perníček (prosinec)
+
+Přiložit: `branding/sova-original.jpg` (vzor stylu)
+
+```text
+Cartoon sticker character portrait in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole character. A single funny, delightfully weird, original seasonal character (an object or food brought to life, NOT an animal and NOT a person), shown from the chest up or as a whole small figure, big expressive face looking at the viewer, centered and filling about 85 % of the frame, readable even as a tiny 40 px profile picture (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, shading); do not draw the owl and do not copy any existing cartoon character. Character: A gingerbread cookie figure with white icing decorations, gumdrop buttons and a mischievous grin, one bite missing from its ear. Colors: warm gingerbread brown, white icing, red and green gumdrops. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+#### 163. `ramecek-sezona-01.png` – sezónní rámeček (leden)
+
+Přiložit: `branding/sova-original.jpg` (vzor stylu)
+
+```text
+Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading. A circular decorative frame (a ring) seen straight from the front, perfectly round and centered, filling about 92 % of the image; the ring band is about 13 % of the image width thick and may have ornaments sticking out a little on the outside, never inside. The inside of the ring is an EMPTY perfect circle showing only the plain flat dark grey background, color #2d3034: nothing drawn inside, no character, no face, no text. A thin cream-colored sticker border runs along BOTH the outer edge and the inner edge of the ring. Plain solid flat dark grey background #2d3034 everywhere outside the ring, no gradient, no shadow. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference; do not draw the owl. Ring design: a ring of sparkling snowflakes and frosty ice crystals with small icicles hanging from the bottom edge. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+#### 164. `ramecek-sezona-02.png` – sezónní rámeček (únor)
+
+Přiložit: `branding/sova-original.jpg` (vzor stylu)
+
+```text
+Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading. A circular decorative frame (a ring) seen straight from the front, perfectly round and centered, filling about 92 % of the image; the ring band is about 13 % of the image width thick and may have ornaments sticking out a little on the outside, never inside. The inside of the ring is an EMPTY perfect circle showing only the plain flat dark grey background, color #2d3034: nothing drawn inside, no character, no face, no text. A thin cream-colored sticker border runs along BOTH the outer edge and the inner edge of the ring. Plain solid flat dark grey background #2d3034 everywhere outside the ring, no gradient, no shadow. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference; do not draw the owl. Ring design: a festive carnival ring of colorful confetti, streamers and small feathered masks. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+#### 165. `ramecek-sezona-03.png` – sezónní rámeček (březen)
+
+Přiložit: `branding/sova-original.jpg` (vzor stylu)
+
+```text
+Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading. A circular decorative frame (a ring) seen straight from the front, perfectly round and centered, filling about 92 % of the image; the ring band is about 13 % of the image width thick and may have ornaments sticking out a little on the outside, never inside. The inside of the ring is an EMPTY perfect circle showing only the plain flat dark grey background, color #2d3034: nothing drawn inside, no character, no face, no text. A thin cream-colored sticker border runs along BOTH the outer edge and the inner edge of the ring. Plain solid flat dark grey background #2d3034 everywhere outside the ring, no gradient, no shadow. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference; do not draw the owl. Ring design: a ring of fresh spring flowers: snowdrops, primroses, small green leaves and buds. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+#### 166. `ramecek-sezona-04.png` – sezónní rámeček (duben)
+
+Přiložit: `branding/sova-original.jpg` (vzor stylu)
+
+```text
+Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading. A circular decorative frame (a ring) seen straight from the front, perfectly round and centered, filling about 92 % of the image; the ring band is about 13 % of the image width thick and may have ornaments sticking out a little on the outside, never inside. The inside of the ring is an EMPTY perfect circle showing only the plain flat dark grey background, color #2d3034: nothing drawn inside, no character, no face, no text. A thin cream-colored sticker border runs along BOTH the outer edge and the inner edge of the ring. Plain solid flat dark grey background #2d3034 everywhere outside the ring, no gradient, no shadow. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference; do not draw the owl. Ring design: a ring of playful blue raindrops and small clouds with a rainbow arching over the top. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+#### 167. `ramecek-sezona-05.png` – sezónní rámeček (květen)
+
+Přiložit: `branding/sova-original.jpg` (vzor stylu)
+
+```text
+Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading. A circular decorative frame (a ring) seen straight from the front, perfectly round and centered, filling about 92 % of the image; the ring band is about 13 % of the image width thick and may have ornaments sticking out a little on the outside, never inside. The inside of the ring is an EMPTY perfect circle showing only the plain flat dark grey background, color #2d3034: nothing drawn inside, no character, no face, no text. A thin cream-colored sticker border runs along BOTH the outer edge and the inner edge of the ring. Plain solid flat dark grey background #2d3034 everywhere outside the ring, no gradient, no shadow. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference; do not draw the owl. Ring design: a ring of blooming apple blossoms in pink and white with fluttering petals and dandelion seeds. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+#### 168. `ramecek-sezona-06.png` – sezónní rámeček (červen)
+
+Přiložit: `branding/sova-original.jpg` (vzor stylu)
+
+```text
+Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading. A circular decorative frame (a ring) seen straight from the front, perfectly round and centered, filling about 92 % of the image; the ring band is about 13 % of the image width thick and may have ornaments sticking out a little on the outside, never inside. The inside of the ring is an EMPTY perfect circle showing only the plain flat dark grey background, color #2d3034: nothing drawn inside, no character, no face, no text. A thin cream-colored sticker border runs along BOTH the outer edge and the inner edge of the ring. Plain solid flat dark grey background #2d3034 everywhere outside the ring, no gradient, no shadow. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference; do not draw the owl. Ring design: a ring of bright summer sunflowers with school-end confetti and a small sun at the top. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+#### 169. `ramecek-sezona-07.png` – sezónní rámeček (červenec)
+
+Přiložit: `branding/sova-original.jpg` (vzor stylu)
+
+```text
+Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading. A circular decorative frame (a ring) seen straight from the front, perfectly round and centered, filling about 92 % of the image; the ring band is about 13 % of the image width thick and may have ornaments sticking out a little on the outside, never inside. The inside of the ring is an EMPTY perfect circle showing only the plain flat dark grey background, color #2d3034: nothing drawn inside, no character, no face, no text. A thin cream-colored sticker border runs along BOTH the outer edge and the inner edge of the ring. Plain solid flat dark grey background #2d3034 everywhere outside the ring, no gradient, no shadow. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference; do not draw the owl. Ring design: a beach ring made of a curling turquoise wave, seashells, a starfish and a tiny beach umbrella. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+#### 170. `ramecek-sezona-08.png` – sezónní rámeček (srpen)
+
+Přiložit: `branding/sova-original.jpg` (vzor stylu)
+
+```text
+Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading. A circular decorative frame (a ring) seen straight from the front, perfectly round and centered, filling about 92 % of the image; the ring band is about 13 % of the image width thick and may have ornaments sticking out a little on the outside, never inside. The inside of the ring is an EMPTY perfect circle showing only the plain flat dark grey background, color #2d3034: nothing drawn inside, no character, no face, no text. A thin cream-colored sticker border runs along BOTH the outer edge and the inner edge of the ring. Plain solid flat dark grey background #2d3034 everywhere outside the ring, no gradient, no shadow. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference; do not draw the owl. Ring design: a ring of deep night sky with shooting stars streaking around it and twinkling golden stars. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+#### 171. `ramecek-sezona-09.png` – sezónní rámeček (září)
+
+Přiložit: `branding/sova-original.jpg` (vzor stylu)
+
+```text
+Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading. A circular decorative frame (a ring) seen straight from the front, perfectly round and centered, filling about 92 % of the image; the ring band is about 13 % of the image width thick and may have ornaments sticking out a little on the outside, never inside. The inside of the ring is an EMPTY perfect circle showing only the plain flat dark grey background, color #2d3034: nothing drawn inside, no character, no face, no text. A thin cream-colored sticker border runs along BOTH the outer edge and the inner edge of the ring. Plain solid flat dark grey background #2d3034 everywhere outside the ring, no gradient, no shadow. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference; do not draw the owl. Ring design: a ring of colored pencils, a ruler and a few early autumn leaves around a school theme. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+#### 172. `ramecek-sezona-10.png` – sezónní rámeček (říjen)
+
+Přiložit: `branding/sova-original.jpg` (vzor stylu)
+
+```text
+Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading. A circular decorative frame (a ring) seen straight from the front, perfectly round and centered, filling about 92 % of the image; the ring band is about 13 % of the image width thick and may have ornaments sticking out a little on the outside, never inside. The inside of the ring is an EMPTY perfect circle showing only the plain flat dark grey background, color #2d3034: nothing drawn inside, no character, no face, no text. A thin cream-colored sticker border runs along BOTH the outer edge and the inner edge of the ring. Plain solid flat dark grey background #2d3034 everywhere outside the ring, no gradient, no shadow. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference; do not draw the owl. Ring design: a ring of swirling orange, red and brown autumn leaves with two small paper kites flying along it. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+#### 173. `ramecek-sezona-11.png` – sezónní rámeček (listopad)
+
+Přiložit: `branding/sova-original.jpg` (vzor stylu)
+
+```text
+Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading. A circular decorative frame (a ring) seen straight from the front, perfectly round and centered, filling about 92 % of the image; the ring band is about 13 % of the image width thick and may have ornaments sticking out a little on the outside, never inside. The inside of the ring is an EMPTY perfect circle showing only the plain flat dark grey background, color #2d3034: nothing drawn inside, no character, no face, no text. A thin cream-colored sticker border runs along BOTH the outer edge and the inner edge of the ring. Plain solid flat dark grey background #2d3034 everywhere outside the ring, no gradient, no shadow. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference; do not draw the owl. Ring design: a ring of glowing paper lanterns on a string with soft mist and falling autumn leaves. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+#### 174. `ramecek-sezona-12.png` – sezónní rámeček (prosinec)
+
+Přiložit: `branding/sova-original.jpg` (vzor stylu)
+
+```text
+Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading. A circular decorative frame (a ring) seen straight from the front, perfectly round and centered, filling about 92 % of the image; the ring band is about 13 % of the image width thick and may have ornaments sticking out a little on the outside, never inside. The inside of the ring is an EMPTY perfect circle showing only the plain flat dark grey background, color #2d3034: nothing drawn inside, no character, no face, no text. A thin cream-colored sticker border runs along BOTH the outer edge and the inner edge of the ring. Plain solid flat dark grey background #2d3034 everywhere outside the ring, no gradient, no shadow. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference; do not draw the owl. Ring design: a festive ring of evergreen garland with red and gold baubles, gingerbread cookies and small twinkling lights. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+#### 175. `sezonni-truhla.png` – Sezónní truhla (zavřená)
+
+Přiložit: `branding/sova-original.jpg` (vzor stylu)
+
+```text
+Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole object. Single centered subject filling about 80 % of the frame with even empty space around it. Plain solid flat dark grey background, color #2d3034, no gradient, no shadow on the background, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, colors, shading); do not draw the owl. Subject: A special festive treasure chest, more precious than an ordinary one: royal purple wood with polished silver bands and corners, a round silver medallion with a crescent moon and stars on the lid, a big sparkling gem lock, a few floating sparkles, lid firmly closed. Colors: royal purple, silver, deep blue gem. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+#### 176. `sezonni-truhla-otevrena.png` – Sezónní truhla (otevřená)
+
+Přiložit **vygenerovanou zavřenou Sezónní truhlu** (č. 175), ať sedí tvar i pohled.
+
+```text
+Edit the attached image. Keep the chest EXACTLY the same size, position, perspective, colors and style. Only open the lid (tilted back) and fill the opening with a bright magical silver-and-purple glow, with sparkles and small stars rising out of the chest. Do not add anything else, no items inside. Keep the plain flat dark grey background #2d3034 and the thin cream sticker border.
+```
+
 ## Co udělám po dodání
 
 1. Uložím soubory do `branding/ikony/`, vyříznu pozadí (`python3 scripts/topic-icons.py …`) a u sov vyrobím barvy obleku (`python3 scripts/owl-robes.py`).

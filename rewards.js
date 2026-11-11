@@ -124,7 +124,8 @@
         const s = parse(state);
         if (!Look) return [];
         return GIFT_CATEGORIES.flatMap(category => (Look.CATALOG[category] || [])
-            .filter(item => !item.badge && (item.level || 1) > 1 && !s.gifts[category].includes(item.id) && !Look.isUnlocked(item, { ...ctx, gifts: null }))
+            // noGift: odměna jen za svůj cíl (Bílý talár až na úrovni 100), truhla ani sezóna ji nedají dřív
+            .filter(item => !item.badge && !item.noGift && (item.level || 1) > 1 && !s.gifts[category].includes(item.id) && !Look.isUnlocked(item, { ...ctx, gifts: null }))
             .map(item => ({ category, item })))
             .sort((a, b) => a.item.level - b.item.level || GIFT_CATEGORIES.indexOf(a.category) - GIFT_CATEGORIES.indexOf(b.category));
     };
