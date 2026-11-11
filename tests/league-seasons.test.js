@@ -133,7 +133,7 @@ test('HTML pruhu a okna: bez inline stylů (CSP), escapované texty, vystavení 
     const data = Seasons.clean(DATA);
     const strip = Seasons.stripHtml({ data, best: 'diamant', rating: 1380, now: new Date('2026-11-11T10:00:00Z') }, h);
     assert.match(strip, /data-action="league-seasons"/);
-    assert.match(strip, /Sezóna listopad · ještě 20 dní/);
+    assert.match(strip, /Ligová sezóna listopad · ještě 20 dní/);
     assert.match(strip, /data-frame-preview="liga-mistr"/);
     const dialog = Seasons.dialogHtml({ data, best: 'diamant', rating: 1380, now: new Date('2026-11-11T10:00:00Z'), selected: '2026-10', showcase: { on: (entry) => entry === 'l:2026-10:diamant', toggle: (entry) => `<button data-showcase-toggle="${entry}"></button>` } }, h);
     assert.match(dialog, /Nejvýš zatím: Zlato/);

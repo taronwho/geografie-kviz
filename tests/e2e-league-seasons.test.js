@@ -173,7 +173,7 @@ test('ligové sezóny a vitrína v profilu', { skip: !chromium && 'Playwright ne
 
             // Pruh pod kartou ligy: sezóna listopad, 20 dní do konce (11. 11.), další odměna Mistr
             await tab.waitForSelector('#league-card [data-league-strip]');
-            assert.match(await text(tab, '#league-card [data-league-strip]'), /Sezóna listopad · ještě 20 dní ?Dosáhni Mistra a získáš rámeček$/);
+            assert.match(await text(tab, '#league-card [data-league-strip]'), /Ligová sezóna listopad · ještě 20 dní ?Dosáhni Mistra a získáš rámeček$/);
             assert.equal(await tab.locator('#league-card [data-league-strip] .frame-liga-mistr').count(), 1, 'náhled rámečku další odměny');
             assert.ok(await tab.evaluate(() => document.getElementById('league-card').getBoundingClientRect().height) < 120, 'karta zůstává kompaktní');
             await shot(tab, 'sezona-karta', scheme);
@@ -181,7 +181,7 @@ test('ligové sezóny a vitrína v profilu', { skip: !chromium && 'Playwright ne
             // Okno Ligové sezóny: běžící sezóna, další odměna, rámečky (3 získané, Mistr zamčený), minulé sezóny
             await tab.click('#league-card [data-league-strip]');
             await tab.waitForSelector('[data-league-seasons]');
-            assert.match(await text(tab, '[data-season-now]'), /Sezóna listopad 2026 Nejvýš zatím: Zlato 1380 · 7 výzev · ještě 20 dní/);
+            assert.match(await text(tab, '[data-season-now]'), /Ligová sezóna listopad 2026 Nejvýš zatím: Zlato 1380 · 7 výzev · ještě 20 dní/);
             assert.equal(await text(tab, '[data-season-goal] p'), 'Dosáhni Mistra do konce listopadu a získáš rámeček Mistrovská sezóna. Chybí ti 320 bodů ratingu.');
             assert.deepEqual(await tab.$$eval('[data-season-reward]', nodes => nodes.map(node => `${node.dataset.seasonReward}:${node.hasAttribute('data-earned')}`)), ['zlato:true', 'platina:true', 'diamant:true', 'mistr:false']);
             assert.equal(await tab.locator('[data-season-month]').count(), 12, '12 skončených měsíců');

@@ -134,7 +134,7 @@
         const g = goal(data, best, rating);
         const top = g.secured[g.secured.length - 1] || g.next;
         const line = g.secured.length ? `Rámeček ${frameTitle(top.frame)} máš jistý` : g.next ? `Dosáhni ${g.next.genitive} a získáš rámeček` : 'Máš všechny rámečky sezón';
-        const head = `Sezóna ${monthName(data.month)} · ${leftText(daysLeft(now))}`;
+        const head = `Ligová sezóna ${monthName(data.month)} · ${leftText(daysLeft(now))}`;
         return `<button type="button" data-action="league-seasons" aria-label="${h.esc(`Ligové sezóny: ${head}. ${line}`)}" class="flex min-h-[2.75rem] w-full items-center gap-2 rounded-xl bg-gold-50 px-2 py-1 text-left ring-1 ring-gold-300/70 active:scale-[0.98] dark:bg-slate-900/60 dark:ring-gold-700/60" data-league-strip>
             <span class="flex h-8 w-8 shrink-0 items-center justify-center">${top ? h.frameAvatar(top.frame, 'h-7 w-7 text-sm') : h.emblem('mistr', 'h-8 w-8')}</span>
             <span class="min-w-0 flex-1"><span class="block text-[12px] font-black leading-tight text-slate-800 dark:text-slate-100">${h.esc(head)}</span><span class="block text-[11px] font-bold leading-tight text-gold-800 dark:text-gold-300">${h.esc(line)}</span></span>
@@ -154,7 +154,7 @@
                 <div class="flex items-center gap-3">
                     <span class="flex h-14 w-14 shrink-0 items-center justify-center short:h-12 short:w-12">${cur ? h.emblem(cur.league, 'h-full w-full') : h.emblem('bronz', 'h-full w-full opacity-40 grayscale')}</span>
                     <div class="min-w-0 flex-1">
-                        <p class="text-[11px] font-black uppercase tracking-widest text-gold-300">Sezóna ${h.esc(monthLabel(data.month))}</p>
+                        <p class="text-[11px] font-black uppercase tracking-widest text-gold-300">Ligová sezóna ${h.esc(monthLabel(data.month))}</p>
                         <p class="text-lg font-black leading-tight" data-season-peak>${cur ? `Nejvýš zatím: ${h.esc(leagueName(cur.league))}` : 'Zatím bez výsledku'}</p>
                         <p class="text-[12px] font-semibold leading-snug text-white/85">${cur ? `${cur.peak} · ${plural(cur.games, 'výzva', 'výzvy', 'výzev')} · ` : 'Zahraj výzvu proti jinému hráči · '}${h.esc(leftText(left))}</p>
                     </div>
