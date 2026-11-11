@@ -122,8 +122,10 @@ test('odměny v Profilu: rámečky, titul a postavičky', { skip: !chromium && '
         assert.doesNotMatch(await tab.getAttribute('#btn-settings span', 'class'), /frame/, 'na začátku bez rámečku');
         await openLook(tab);
 
-        // Řada devíti rámečků; zamčené jsou šedé s podmínkou v popisku
-        assert.equal(await tab.locator('[data-frame]').count(), 9);
+        // Řada všech rámečků z katalogu (devět základních, Sběratelský za album sbírky a další přidané); zamčené jsou šedé s podmínkou v popisku
+        assert.equal(await tab.locator('[data-frame]').count(), await tab.evaluate(() => window.MudrlantLook.FRAMES.length));
+        assert.ok(await tab.locator('[data-frame]').count() >= 10);
+        assert.match(await tab.getAttribute('[data-frame="sberatel"]', 'aria-label'), /Sběratelský: Odznak: Legenda sbírky \(zamčeno\)/);
         assert.equal(await tab.getAttribute('[data-frame="zadny"]', 'aria-pressed'), 'true');
         assert.match(await tab.getAttribute('[data-frame="zlato"]', 'aria-label'), /Zlatý: Úroveň 25 \(zamčeno\)/);
         assert.match(await tab.getAttribute('[data-frame="plamen"]', 'title'), /Odznak: .+/);

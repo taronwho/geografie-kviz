@@ -323,7 +323,10 @@ language sql immutable set search_path = public as $$
         'bleskovka-8', 'bleskovka-12', 'bleskovka-16', 'bleskovka-20', 'bleskovka-25',
         'preziti-10', 'preziti-20', 'preziti-35', 'preziti-50', 'preziti-75',
         'mapa-5', 'mapa-25', 'mapa-100', 'mapa-250', 'mapa-500', 'odhad-5', 'odhad-25', 'odhad-100', 'odhad-250', 'odhad-500',
-        'serad-5', 'serad-25', 'serad-100', 'serad-250', 'serad-500'
+        'serad-5', 'serad-25', 'serad-100', 'serad-250', 'serad-500',
+        -- Schéma 18: Album sbírky (milníky sbírky a celé sekce alba)
+        'sberatel-25', 'sberatel-50', 'sberatel-75', 'sberatel-100',
+        'album-avatars', 'album-accessories', 'album-themes', 'album-badges', 'album-diplomas'
     ]::text[];
 $$;
 
@@ -3167,7 +3170,8 @@ grant execute on function public.question_snapshot_claim(text, jsonb), public.qu
 -- 17: Zamrzlé otázky (question_snapshots, question_snapshot_claim, question_snapshots_get: otázka výzvy, zápasu turnaje a Kvízu dne platí pro všechny
 --     tak, jak ji sestavil první hráč; export_my_data má i 'zamrzle_otazky'); upozornění „… odehrál tvoji výzvu“ ukáže výsledek, až když
 --     zakladatel výzvu sám dohrál (push_pending).
+-- 18: odznaky Album sbírky v badge_catalog() (milníky sberatel-25 … sberatel-100 a celé sekce album-*).
 create or replace function public.schema_version() returns integer
-language sql immutable as $$ select 17 $$;
+language sql immutable as $$ select 18 $$;
 revoke all on function public.schema_version() from public, anon;
 grant execute on function public.schema_version() to authenticated;

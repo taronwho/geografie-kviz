@@ -67,7 +67,8 @@
     // 10 = Rozpis otázek (podrobnosti odpovědí výzvy a zápasu turnaje, challenge_details a tournament_details; se starší databází jen vlastní odpovědi ze zařízení);
     // 17 = zamrzlé otázky (question_snapshot_claim, question_snapshots_get: výzva, turnaj a Kvíz dne mají pro všechny stejné otázky i po změně dat;
     // se starší databází se otázky skládají jen v zařízení jako dřív).
-    const REQUIRED_SCHEMA = 17;
+    // 18 = odznaky Album sbírky v katalogu odznaků (se starší databází zůstanou jen v zařízení, album je spočítá znovu).
+    const REQUIRED_SCHEMA = 18;
     const HISTORY_SIZE = 200;
     const REQUEST_TIMEOUT = 12000;
     const WIKI_TIMEOUT = 6000;
@@ -2466,6 +2467,7 @@
         notePushHomeTab();
         checkStreakFreeze();
         noteDiplomas(topicStarsNow());
+        noteAlbum();
         settleGoals();
         const stats = loadStats();
         const today = getDayKey();
@@ -3643,7 +3645,9 @@
             level: levelProgress(progress.xp).level,
             learned: TOPICS.reduce((sum, topic) => sum + (learnedMap[topic.id] || []).length, 0),
             topicStars: Object.fromEntries(TOPICS.map(topic => [topic.id, masteryStars((learnedMap[topic.id] || []).length)])),
-            topicCount: TOPICS.length
+            topicCount: TOPICS.length,
+            // Album sbírky: procenta celé sbírky a sekcí pro odznaky Sběratel (album.js)
+            album: albumBadgeContext(progress)
         };
     };
     // Získané odznaky podle počítadel; vrátí názvy nově získaných (a uloží je s dnešním dnem)
@@ -3653,6 +3657,8 @@
         const fresh = earnedBadgeIds(progress.counters, context).filter(id => !progress.badges[id]);
         fresh.forEach(id => { progress.badges[id] = getDayKey(); });
         noteDiplomas(context.topicStars);
+        // Album sbírky: nové odznaky a diplomy sbírku zvednou – milník nebo celá sekce se připíše hned, ne až po další odpovědi
+        albumDueBadges(progress).forEach(id => { progress.badges[id] = getDayKey(); fresh.push(id); });
         freshBadgeIds = fresh;
         return fresh.map(id => BADGE_BY_ID[id].title);
     };
@@ -3719,6 +3725,9 @@
         }
     }, 1000);
     const announce = (levelBefore, levelNow, badgeTitles) => {
+        // Album sbírky: milník sbírky a celá sekce mají vlastní oslavu (po ostatních odznacích) místo obecného „Nový odznak“
+        const albumFresh = freshBadgeIds.filter(id => Album && Album.isAlbumBadge(id) && BADGE_BY_ID[id]);
+        if (albumFresh.length) badgeTitles = badgeTitles.filter(title => !albumFresh.some(id => BADGE_BY_ID[id].title === title));
         if (levelNow > levelBefore) {
             const newTitle = titleForLevel(levelNow) !== titleForLevel(levelBefore);
             // Nový titul slaví sova jeho stupně (sova titulu v barvě mého obleku)
@@ -3726,6 +3735,7 @@
         }
         badgeTitles.slice(0, 3).forEach(title => showCelebration('oslava', 'Nový odznak', title, 'badge'));
         if (badgeTitles.length > 3) showCelebration('oslava', 'Další odznaky', `a ještě ${badgeTitles.length - 3}`);
+        albumFresh.forEach(celebrateAlbum);
         const kinds = Look.REWARD_KINDS;
         // Postavička se v oslavě ukáže místo sovy; text řekne, na které záložce Nastavení se odměna vybírá
         Look.newRewards(levelBefore, levelNow, freshBadgeIds).forEach(({ category, item }) => showCelebration('vitez', 'Nová odměna', `${item.title} (${kinds[category]}) – vyber si ji v ${rewardPlace(category)}`, null,
@@ -3938,6 +3948,8 @@
     // --- Odměny (rewards.js): Truhla Mudrlanta za cíle týdne, ochrana série a diplomy za mistrovství tématu ---
     // Stav v zařízení (mudrlant.rewards), po přihlášení i v účtu (profiles.rewards, schéma 9; se starší databází jen v zařízení)
     const Rewards = window.MudrlantRewards || null;
+    // Album sbírky (album.js): co všechno jde sbírat, co hráč má a co chybí; okno a napojení v oddílu „Album sbírky“ u Mého postupu
+    const Album = window.MudrlantAlbum || null;
     const loadRewards = () => (Rewards ? Rewards.parse(readJson(Rewards.KEY)) : null);
     const saveRewards = (state) => {
         if (!Rewards) return;
@@ -6869,14 +6881,16 @@
     const BADGE_ART = new Set(['odpovedi', 'rada', 'serie', 'dny', 'dokonale', 'dnes', 'bez-napovedy', 'psani', 'tezke', 'chyby', 'vyzvy', 'vyhry',
         'vyhry-v-rade', 'zalozene', 'perfektni-vyzvy', 'uroven', 'poznane', 'vsestrannost', 'hvezdy', 'vsechna-temata', 'turnaje', 'turnaj-postupy',
         'tydenni-cile', 'kviz-dne', 'kviz-serie', 'kviz-perfekt', 'bleskovka', 'preziti', 'mapa', 'odhad', 'serad']);
+    // Obrázek symbolu skupiny (bez přípony); odznaky alba sbírky zatím mají zástupný obrázek alba (Album.ALBUM_ART, TODO odznak-sberatel v album.js)
+    const badgeArtOf = (group) => BADGE_ART.has(group) ? `odznak-${group}` : Album && Album.isAlbumGroup(BADGE_GROUPS.find(entry => entry.id === group)) ? Album.ALBUM_ART : null;
     // Nezískaný odznak ukazuje svou ikonu zašedlou a ztlumenou, přes ni malý zámek v rohu
     const medalHtml = (badge, earned, size = 'h-11 w-11', iconSize = 'h-5 w-5') => {
         const dim = earned ? '' : ' opacity-50 grayscale';
         // Symbol odznaku: ikona tématu, ilustrace skupiny (icons/topics/odznak-<skupina>.webp), jinak čárová ikona
         const art = badge.topic && topicArt({ id: badge.topic })
             ? `<img src="icons/topics/${badge.topic}.webp" alt="" class="h-[72%] w-[72%] object-contain${dim}">`
-            : BADGE_ART.has(badge.group)
-                ? `<img src="icons/topics/odznak-${badge.group}.webp" alt="" data-badge-art class="h-[74%] w-[74%] object-contain drop-shadow-sm${dim}">`
+            : badgeArtOf(badge.group)
+                ? `<img src="icons/topics/${badgeArtOf(badge.group)}.webp" alt="" data-badge-art class="h-[74%] w-[74%] object-contain drop-shadow-sm${dim}">`
                 : `<i data-lucide="${badge.icon}" class="${iconSize}${dim}"></i>`;
         const lock = earned ? '' : '<span class="absolute -bottom-0.5 -right-0.5 flex h-[46%] w-[46%] items-center justify-center rounded-full bg-slate-600 text-white ring-1 ring-white dark:bg-slate-300 dark:text-slate-900 dark:ring-slate-800" data-medal-lock><i data-lucide="lock" class="h-[62%] w-[62%]"></i></span>';
         return `<span class="relative flex ${size} shrink-0 items-center justify-center rounded-full ring-2 ${earned
@@ -6988,6 +7002,7 @@
     const openProgress = () => {
         touchTip('progress');
         noteDiplomas(topicStarsNow());
+        noteAlbum();
         const progress = loadProgress();
         const xp = progress.xp;
         const earnedCount = BADGES.filter(badge => progress.badges[badge.id]).length;
@@ -7035,12 +7050,13 @@
                     <div class="mb-1 flex items-baseline justify-between gap-2"><h3 class="${CARD_TITLE}">Mistrovství témat</h3><span class="text-[10px] font-semibold text-slate-500 dark:text-slate-400">klepni na téma</span></div>
                     <ul class="grid grid-cols-7 gap-1">${rows}</ul>
                 </div>
-                ${Rewards ? Rewards.progressHtml({ freezes: rewardsState.freezes, chest: Rewards.pendingChest(rewardsState), lastReward: lastChestText(rewardsState), diplomas: Object.keys(rewardsState.diplomas).filter(id => TOPIC_BY_ID[id]).length, topics: TOPICS.length }) : ''}
+                ${Rewards ? Rewards.progressHtml({ freezes: rewardsState.freezes, chest: Rewards.pendingChest(rewardsState), lastReward: lastChestText(rewardsState), diplomas: Object.keys(rewardsState.diplomas).filter(id => TOPIC_BY_ID[id]).length, topics: TOPICS.length,
+                    album: Album ? { percent: Album.build(albumInput(progress)).percent, art: Album.ALBUM_ART } : null }) : ''}
             </div>`, { onClick: (event) => {
             if (event.target.closest('[data-open-badges]')) openBadges();
             if (event.target.closest('[data-open-levels]')) openLevels();
             const info = event.target.closest('[data-rewards-info]');
-            if (info) ({ freeze: openFreezeHelp, chest: openChestHelp, diplomas: openDiplomas })[info.dataset.rewardsInfo]();
+            if (info) ({ freeze: openFreezeHelp, chest: openChestHelp, diplomas: openDiplomas, album: () => openAlbum() })[info.dataset.rewardsInfo]();
             const mastery = event.target.closest('[data-mastery]');
             if (mastery) openMastery(mastery.dataset.mastery);
         } });
@@ -7057,6 +7073,143 @@
                 if (diploma) openDiploma(diploma.dataset.diploma);
             }
         });
+    };
+
+    // --- Album sbírky (album.js): okno z Mého postupu (dlaždice Album v řádku Odměny) se sekcemi, podrobnostmi věci a Nasadit,
+    // odznaky Sběratel za milníky sbírky (oslava jednou, při získání odznaku) ---
+    // Vstup alba z postupu (úroveň, odznaky) a odměn (věci z truhly, diplomy); výpočet si album pamatuje, opakované volání nic nestojí
+    const albumInput = (progress = loadProgress()) => {
+        const rewards = loadRewards();
+        return { level: levelProgress(progress.xp).level, badges: progress.badges, gifts: rewards ? rewards.gifts : {}, diplomas: rewards ? rewards.diplomas : {}, topics: TOPICS, today: getDayKey() };
+    };
+    const albumBadgeContext = (progress) => (Album ? Album.badgeContext(albumInput(progress)) : { percent: 0, sections: {} });
+    const albumDueBadges = (progress) => (Album ? Album.dueBadges(albumInput(progress)).filter(id => !progress.badges[id]) : []);
+    // Kontrola na úvodu, v Mém postupu a v albu: dosažený milník (třeba po truhle nebo po synchronizaci s účtem) se připíše a oslaví hned.
+    // Jen odznaky alba – ostatní odznaky přibývají při hře (grantBadges), tady se nepřepočítávají
+    const noteAlbum = () => {
+        if (!Album) return;
+        try {
+            const progress = loadProgress();
+            const due = albumDueBadges(progress);
+            if (!due.length) return;
+            due.forEach(id => { progress.badges[id] = getDayKey(); });
+            saveProgress(progress);
+            freshBadgeIds = due;
+            const level = levelProgress(progress.xp).level;
+            announce(level, level, due.map(id => BADGE_BY_ID[id].title));
+            syncProgress();
+        } catch (error) { console.error(error); }
+    };
+    // Oslava milníku alba nebo celé sekce (volá announce pro čerstvé odznaky alba)
+    const celebrateAlbum = (id) => {
+        const badge = BADGE_BY_ID[id];
+        if (!badge || !Album) return;
+        const milestone = Album.MILESTONES.find(entry => entry.id === id);
+        const owner = milestone ? null : Album.SECTIONS.find(entry => `album-${entry.id}` === id);
+        if (milestone) showCelebration('vitez', `Album sbírky: ${milestone.goal} %`, `Nový titul „${badge.title}“ – můžeš ho mít u jména`, 'badge');
+        else showCelebration('oslava', `Celá sekce: ${owner ? owner.title : 'album'}`, `Nový titul „${badge.title}“ – můžeš ho mít u jména`, 'badge');
+    };
+    const albumHelpers = () => ({
+        medal: medalHtml, avatar: (id, cls) => avatarArt(id, cls), topicIcon, styleOf,
+        frameClass: (id) => (window.MudrlantLookFrames ? window.MudrlantLookFrames.frameClass(id) : '')
+    });
+    // Co mám teď nasazené (klíče položek alba): téma, talár, rámeček, doplňky, titul u jména a postavička v profilu
+    const albumWorn = () => {
+        const worn = new Set();
+        if (!Look) return worn;
+        const prefs = lookContext().prefs;
+        ['theme:themes', 'robe:robes', 'frame:frames'].forEach(pair => { const [key, category] = pair.split(':'); if (prefs[key]) worn.add(`${category}:${prefs[key]}`); });
+        Object.values(prefs.acc || {}).forEach(entry => worn.add(`accessories:${entry.id}`));
+        if (prefs.title && BADGE_BY_ID[prefs.title]) worn.add(`badges:${BADGE_BY_ID[prefs.title].group}`);
+        const picture = signedUser() && myProfile && !myProfile.owl && Look.avatarPicture ? Look.avatarPicture(myProfile.avatar) : null;
+        if (picture) worn.add(`avatars:${picture.item.id}`);
+        return worn;
+    };
+    // Co jde s věcí ve sbírce udělat (tlačítko v podrobnostech): nasadit jako v Nastavení a v truhle, dát odznak jako titul, ukázat diplom
+    const albumWear = (entry, worn) => {
+        if (!entry.owned || !Look) return null;
+        const on = worn.has(entry.key);
+        if (entry.category === 'themes') return { label: 'Použít', on, onLabel: 'Používáš ho' };
+        if (['robes', 'frames', 'accessories'].includes(entry.category)) return { label: 'Nasadit', on, onLabel: 'Nasazeno' };
+        if (entry.category === 'avatars') return signedUser() && Social ? { label: 'Nasadit jako profilový obrázek', on, onLabel: 'Je to tvůj profilový obrázek' } : null;
+        if (entry.category === 'badges') return entry.top ? { label: `Titul u jména: ${entry.top.title}`, on: lookContext().prefs.title === entry.top.id, onLabel: `Titul u jména: ${entry.top.title}` } : null;
+        if (entry.category === 'diplomas') return Rewards ? { label: 'Ukázat diplom', on: false } : null;
+        return null;
+    };
+    // Věta pod tlačítkem, když věc nejde nasadit z alba
+    const albumHint = (entry) => {
+        if (!entry.owned) return '';
+        if (entry.category === 'avatars' && !(signedUser() && Social)) return 'Postavičku si dáš jako profilový obrázek po přihlášení.';
+        if (entry.category === 'colors') return `Barvu doplňku vybereš v ${rewardPlace('colors')}.`;
+        return '';
+    };
+    // Postavička jako profilový obrázek: stejně jako výběr v Nastavení → Profil (barvy částí, které hráč postavičce dal naposledy) a uložení
+    const wearAlbumAvatar = (id) => {
+        closeDialog();
+        openSettings('', null, 'profile');
+        if (!meDraft) return;
+        const same = !meDraft.owl && Look.avatarPicture(meDraft.avatar) && Look.avatarPicture(meDraft.avatar).item.id === id;
+        if (!same) { rememberPartColors(meDraft.avatar); meDraft.avatar = rememberedPartColors(id); }
+        meDraft.owl = false;
+        meDirty = true;
+        meNote = '';
+        saveMeProfile();
+    };
+    // Stav okna alba: sekce, otevřená věc (klíč), odměny alba, hláška po nasazení a posun mřížky (vrátí se po návratu z podrobností)
+    let albumView = { section: 'avatars', detail: null, rewards: false, note: '', scroll: 0 };
+    const openAlbum = (section = null) => {
+        if (!Album) return;
+        noteAlbum();
+        albumView = { ...albumView, section: section || albumView.section, detail: null, rewards: false, note: '', scroll: 0 };
+        renderAlbum(0);
+    };
+    const ALBUM_BACK = `<button type="button" data-album-back class="${SECONDARY_BUTTON} !py-2.5 text-sm"><i data-lucide="chevron-left" class="h-4 w-4"></i> Zpět do alba</button>`;
+    // Překreslí okno; scrollTo = posun panelu (null = nechat), focus = co dostane fokus (klávesnice a čtečka zůstanou na místě)
+    const renderAlbum = (scrollTo = null, focus = null) => {
+        const progress = loadProgress();
+        const album = Album.build(albumInput(progress));
+        const h = albumHelpers();
+        const found = albumView.detail ? Album.findEntry(album, albumView.detail) : null;
+        let body;
+        if (albumView.rewards) body = `${Album.rewardsHtml(album, progress.badges, h)}<div class="mt-2.5">${ALBUM_BACK}</div>`;
+        else if (found) body = `${Album.detailHtml(found, { badges: progress.badges, wear: albumWear(found.entry, albumWorn()), note: albumView.note || albumHint(found.entry) }, h)}<div class="mt-2.5">${ALBUM_BACK}</div>`;
+        else body = `${Album.albumHtml(album, { section: albumView.section, badges: progress.badges, worn: albumWorn() }, h)}${STICKY_BACK('Zpět na Můj postup')}`;
+        const overlay = showDialog('Album sbírky', body, { onClick: albumClick });
+        applyProgress(overlay);
+        if (scrollTo !== null) overlay.firstElementChild.scrollTop = scrollTo;
+        const target = focus ? overlay.querySelector(focus) : null;
+        if (target) target.focus({ preventScroll: scrollTo !== null });
+    };
+    const albumClick = (event) => {
+        const panel = document.getElementById('dialog-overlay').firstElementChild;
+        if (event.target.closest('[data-back-progress]')) { openProgress(); return; }
+        if (event.target.closest('[data-album-back]')) {
+            const from = albumView.detail;
+            albumView = { ...albumView, detail: null, rewards: false, note: '' };
+            renderAlbum(albumView.scroll, from ? `[data-album-item="${CSS.escape(from)}"]` : '[data-album-rewards]');
+            return;
+        }
+        const tab = event.target.closest('[data-album-tab]');
+        if (tab) { albumView = { ...albumView, section: tab.dataset.albumTab, scroll: 0 }; renderAlbum(0, `[data-album-tab="${CSS.escape(tab.dataset.albumTab)}"]`); return; }
+        if (event.target.closest('[data-album-rewards]')) { albumView = { ...albumView, rewards: true, scroll: panel.scrollTop }; renderAlbum(0, '[data-album-back]'); return; }
+        const item = event.target.closest('[data-album-item]');
+        if (item) { albumView = { ...albumView, detail: item.dataset.albumItem, note: '', scroll: panel.scrollTop }; renderAlbum(0, '[data-album-wear], [data-album-back]'); return; }
+        if (event.target.closest('[data-album-wear]') && albumView.detail) {
+            const found = Album.findEntry(Album.build(albumInput()), albumView.detail);
+            if (!found || !found.entry.owned) return;
+            const { entry } = found;
+            if (entry.category === 'avatars') { wearAlbumAvatar(entry.id); return; }
+            if (entry.category === 'diplomas') { openDiploma(entry.id); return; }
+            if (entry.category === 'badges') {
+                Look.setPref('title', entry.top.id, lookContext());
+                albumView.note = 'Titul se ukáže u tvého jména. Změníš ho v Nastavení → Profil.';
+            } else {
+                wearGift({ category: entry.category, item: entry.item });
+                albumView.note = `${entry.title}: hotovo. Změníš to v ${rewardPlace(entry.category)}.`;
+            }
+            updateControlsUI();
+            renderAlbum(null, '[data-album-back]');
+        }
     };
 
     // Mistrovství jednoho tématu: co to je, kolik už hráč poznal, kolik chybí do další hvězdičky a co hvězdičky přinášejí (jen to, co hra opravdu dává)

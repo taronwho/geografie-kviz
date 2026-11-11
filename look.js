@@ -129,6 +129,9 @@
     const customHue = (color) => { const match = CUSTOM_HUE.exec(String(color)); const hue = match ? Number(match[1]) : NaN; return hue >= 0 && hue <= 355 && hue % 5 === 0 ? hue : null; };
     // Vlajka státu na vlaječce: id z look-flags.js (malé q Wikidat, např. q101472); cokoli jiného se zahodí
     const flagOk = (flag) => typeof flag === 'string' && /^q\d{1,9}$/.test(flag) && Boolean(Flags) && Flags.has(flag);
+    // --- Album sbírky (album.js): rámeček Sběratelský za celé album (odznak Legenda sbírky, 100 %). album: true = odměna za album samo,
+    // do počtu sbírky se nepočítá (jinak by 100 % nešlo získat). Animovaný rámeček je .frame-sberatel v src/input.css.
+    FRAMES.push({ id: 'sberatel', title: 'Sběratelský', badge: 'sberatel-100', album: true });
     // Sova titulu jako obrázek profilu (póza): 'titul-1' … 'titul-11' podle stupňů Core.TITLE_OWL_FROM (level = od jaké úrovně), null = sova
     // s doplňky. Volba se ukládá, jak ji hráč zvolil; na dosaženou úroveň se omezí až při vykreslení (MudrlantOwl.allowedPose), takže
     // po ztrátě úrovně (vývojářský reset) se ukáže nejvyšší dosažená sova a po návratu úrovně zase ta zvolená. Není v CATALOG:
