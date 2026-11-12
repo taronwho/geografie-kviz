@@ -328,7 +328,9 @@ language sql immutable set search_path = public as $$
         'sberatel-25', 'sberatel-50', 'sberatel-75', 'sberatel-100',
         'album-avatars', 'album-accessories', 'album-themes', 'album-badges', 'album-diplomas',
         -- Schéma 19: Tajemná otázka dne (vyřešené tajemné otázky)
-        'detektiv', 'detektiv-7', 'detektiv-30', 'detektiv-100', 'detektiv-365'
+        'detektiv', 'detektiv-7', 'detektiv-30', 'detektiv-100', 'detektiv-365',
+        -- Schéma 21: Zlatá otázka (správně zodpovězené zlaté otázky)
+        'zlatokop-10', 'zlatokop-50', 'zlatokop-100'
     ]::text[];
 $$;
 
@@ -3437,6 +3439,12 @@ revoke all on function public.mystery_now(), public.mystery_today(), public.myst
 revoke all on function public.mystery_state(), public.mystery_guess(date, integer, boolean, integer), public.mystery_stats(date), public.mystery_friends(date) from public, anon;
 grant execute on function public.mystery_state(), public.mystery_guess(date, integer, boolean, integer), public.mystery_stats(date), public.mystery_friends(date) to authenticated;
 -- ===== Tajemná otázka dne (schéma 19) — KONEC BLOKU =====
+
+-- ===== 21: Zlatá otázka =====
+-- Jen odznaky Zlatokop I–III (zlatokop-10, zlatokop-50, zlatokop-100) v badge_catalog() výše; žádná tabulka ani funkce. Počítadlo zlatých
+-- otázek, střípky a Zlaté truhly jsou jen v zařízení (mudrlant.gold, gold.js); věc ze Zlaté truhly se ukládá s ostatními dárky truhel
+-- v profiles.rewards (schéma 9), takže se po přihlášení přenese jako ostatní odměny.
+-- ===== 21: Zlatá otázka — KONEC BLOKU =====
 
 -- ===== Verze schématu =====
 -- Číslo se zvyšuje při KAŽDÉ změně tohoto souboru (tabulka, sloupec, funkce, pravidlo) a zároveň konstanta REQUIRED_SCHEMA v app.js.

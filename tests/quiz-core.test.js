@@ -624,13 +624,14 @@ test('odznaky: skupiny se stupni, podmínky podle počítadel a postupu', () => 
     const topics12 = Object.fromEntries(Object.keys(topics).map(id => [id, 100]));
     // Celé album sbírky (procenta celé sbírky a sekcí dosazuje album.js)
     const fullAlbum = { percent: 100, sections: Object.fromEntries(core.ALBUM_SECTION_TITLES.map(([section]) => [section, 100])) };
-    const many = core.earnedBadgeIds({ tourBest: 6, tourWins: 60, weeksDone: 52, topicBest: topics12, correct: 10000, bestRun: 200, bestStreak: 365, days: 365, perfectDays: 60, dailyCorrect: 1000, noHint: 2500, typedCorrect: 2500, hardCorrect: 1000, fixed: 1000, challenges: 500, wins: 100, bestWinRun: 25, created: 250, perfectChallenges: 100, topics, quizDone: 365, quizBestStreak: 100, quizPerfect: 100, blitzBest: 25, survivalBest: 75, mapExact: 500, estimateGood: 500, orderPerfect: 500, mysterySolved: 365 }, { level: 100, learned: 10000, topicStars: stars, topicCount: 14, album: fullAlbum });
+    const many = core.earnedBadgeIds({ tourBest: 6, tourWins: 60, weeksDone: 52, topicBest: topics12, correct: 10000, bestRun: 200, bestStreak: 365, days: 365, perfectDays: 60, dailyCorrect: 1000, noHint: 2500, typedCorrect: 2500, hardCorrect: 1000, fixed: 1000, challenges: 500, wins: 100, bestWinRun: 25, created: 250, perfectChallenges: 100, topics, quizDone: 365, quizBestStreak: 100, quizPerfect: 100, blitzBest: 25, survivalBest: 75, mapExact: 500, estimateGood: 500, orderPerfect: 500, mysterySolved: 365, goldCorrect: 100 }, { level: 100, learned: 10000, topicStars: stars, topicCount: 14, album: fullAlbum });
     assert.equal(many.length, core.BADGES.length, 'všechny odznaky jdou získat');
     assert.ok(!core.earnedBadgeIds({ topics: { a: 1 } }, x).includes('vsestranny'));
     // Do účtu jen nejvyšší stupně a zpět
     const compact = core.compactBadges(many);
     assert.equal(compact.length, core.BADGE_GROUPS.length);
-    assert.ok(compact.filter(id => !core.isAlbumBadge(id)).length <= 60, 'vejde se do limitu databáze');
+    // Limit databáze (profiles_badges_len v supabase/schema.sql): nejvýš 500 odznaků a 12 000 znaků
+    assert.ok(compact.length <= 500 && compact.join(',').length <= 12000, 'vejde se do limitu databáze');
     assert.ok(compact.filter(id => core.isAlbumBadge(id)).length <= 10, 'album sbírky přidá nejvýš deset skupin');
     assert.deepEqual([...core.expandBadges(compact)].sort(), [...many].sort());
     assert.deepEqual(core.expandBadges(['stovka']).sort(), ['odpovedi-10', 'odpovedi-50', 'prvni-krok', 'stovka'].sort());
@@ -638,7 +639,10 @@ test('odznaky: skupiny se stupni, podmínky podle počítadel a postupu', () => 
 
 test('odznaky: skupiny jsou vyvážené (5 až 10 stupňů) a dřívější odznaky zůstaly se stejným id', () => {
     // Odznaky alba sbírky mají vlastní stupně: čtyři milníky (25–100 %) a jeden titul za celou sekci
+    // Zlatokop I–III (Zlatá otázka, docs/NOVE-MODY.md): tři stupně podle zadání
+    const FEW_TIERS = { zlatokop: 3 };
     for (const group of core.BADGE_GROUPS.filter(entry => !entry.badges.every(badge => core.isAlbumBadge(badge.id)))) {
+        if (FEW_TIERS[group.id]) { assert.equal(group.badges.length, FEW_TIERS[group.id], group.id); continue; }
         assert.ok(group.badges.length >= 5 && group.badges.length <= 10, `${group.id}: ${group.badges.length} stupňů`);
     }
     // Id odznaků, které hráči mohli získat před vyvážením; žádné nesmí zmizet

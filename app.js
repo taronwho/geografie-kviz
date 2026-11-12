@@ -915,7 +915,7 @@
         <div class="mt-3 rounded-2xl border-2 border-dashed border-amber-400/70 p-2.5">
             <p class="mb-1.5 flex items-center justify-between text-[11px] font-black uppercase tracking-widest text-amber-700 dark:text-amber-400"><span>Vývojářský režim</span><span class="font-bold normal-case tracking-normal">${devActive() ? 'zkušební postup' : 'tvůj postup'}</span></p>
             ${Social ? `<p data-dev-schema class="mb-1.5 text-[11px] font-semibold leading-snug ${schemaHave === REQUIRED_SCHEMA ? 'text-emerald-700 dark:text-emerald-300' : 'text-amber-800 dark:text-amber-200'}">Databáze: ${schemaHave === undefined ? 'verze schématu zatím nezjištěna' : schemaHave === null ? 'schéma bez verze (starší než 1)' : `schéma ${schemaHave}`} · aplikace potřebuje ${REQUIRED_SCHEMA}${schemaHave === REQUIRED_SCHEMA ? ' ✓' : schemaHave === undefined ? '' : schemaHave > REQUIRED_SCHEMA ? ' – aplikace je starší, obnov ji' : ' – spusť supabase/schema.sql'}</p>` : ''}
-            <div class="flex flex-wrap gap-1">${[['all', 'Odemknout úplně vše'], ['chest', 'Otevřít Truhlu Mudrlanta'], ['season', 'Sezóna: všech 20 stupňů'], ['max', 'Vše (úr. 100)'], ['level:10', 'Úr. 10'], ['level:25', 'Úr. 25'], ['level:50', 'Úr. 50'], ['level:75', 'Úr. 75'], ['badges', 'Všechny odznaky'], ['nobadges', 'Žádné odznaky'], ['nostars', 'Vymazat hvězdičky'], ['bulb', 'Vrátit žárovku'], ['tips', 'Obnovit tipy']].map(([kind, label]) => `<button type="button" data-dev="${kind}" class="rounded-lg bg-slate-200 px-2 py-1 text-[11px] font-bold text-slate-700 active:scale-95 dark:bg-slate-700 dark:text-slate-200">${label}</button>`).join('')}${devActive() ? '<button type="button" data-dev="restore" class="rounded-lg bg-amber-700 px-2 py-1 text-[11px] font-black text-white active:scale-95">Vrátit můj postup</button>' : ''}</div>
+            <div class="flex flex-wrap gap-1">${[['all', 'Odemknout úplně vše'], ['chest', 'Otevřít Truhlu Mudrlanta'], ['season', 'Sezóna: všech 20 stupňů'], ['max', 'Vše (úr. 100)'], ['level:10', 'Úr. 10'], ['level:25', 'Úr. 25'], ['level:50', 'Úr. 50'], ['level:75', 'Úr. 75'], ['badges', 'Všechny odznaky'], ['nobadges', 'Žádné odznaky'], ['nostars', 'Vymazat hvězdičky'], ['bulb', 'Vrátit žárovku'], ['tips', 'Obnovit tipy'], ['gold', 'Příští otázka zlatá'], ['gold-chest', 'Otevřít Zlatou truhlu']].map(([kind, label]) => `<button type="button" data-dev="${kind}" class="rounded-lg bg-slate-200 px-2 py-1 text-[11px] font-bold text-slate-700 active:scale-95 dark:bg-slate-700 dark:text-slate-200">${label}</button>`).join('')}${devActive() ? '<button type="button" data-dev="restore" class="rounded-lg bg-amber-700 px-2 py-1 text-[11px] font-black text-white active:scale-95">Vrátit můj postup</button>' : ''}</div>
             ${Social ? `<p class="mb-1 mt-2 text-[11px] font-black uppercase tracking-widest text-amber-700 dark:text-amber-400">Turnaj (boti)</p>
             <div class="flex flex-wrap gap-1">${[['tour-bots', '+31 botů'], ['tour-start', 'Spustit hned'], ['tour-play', 'Boti odehrají kolo'], ['tour-next', 'Další kolo'], ['tour-reset', 'Smazat odehraný turnaj'], ['tour-clear', 'Smazat boty']].map(([kind, label]) => `<button type="button" data-dev="${kind}" class="rounded-lg bg-emerald-100 px-2 py-1 text-[11px] font-bold text-emerald-900 active:scale-95 dark:bg-emerald-900/50 dark:text-emerald-100">${label}</button>`).join('')}</div>
             <p class="mb-1 mt-2 text-[11px] font-black uppercase tracking-widest text-amber-700 dark:text-amber-400">Provoz</p>
@@ -2043,6 +2043,9 @@
                 return;
             }
             if (devButton && devButton.dataset.dev === 'chest') { devApply('chest'); closeSettings(); updateControlsUI(); openChestOverlay(); return; }
+            // Zlatá otázka na zkoušku: příští otázka běžné hry je zlatá (pojistka), Zlatá truhla připravená k otevření
+            if (devButton && devButton.dataset.dev === 'gold' && Gold) { saveGold({ ...loadGold(), since: Gold.PITY - 1 }); openSettings('Hotovo: příští otázka bude zlatá', '[data-dev="gold"]'); return; }
+            if (devButton && devButton.dataset.dev === 'gold-chest' && Gold) { devApply('gold-chest'); saveGold({ ...loadGold(), ready: loadGold().ready + 1 }); closeSettings(); updateControlsUI(); openChestOverlay(true); return; }
             if (devButton && devButton.dataset.dev === 'season') { devApply('season'); closeSettings(); updateControlsUI(); openSeason(); return; }
             if (devButton) { devApply(devButton.dataset.dev); updateControlsUI(); openSettings(`Hotovo: ${devButton.textContent.trim()}`, `[data-dev="${devButton.dataset.dev}"]`); return; }
             const lockedOwl = event.target.closest('[data-locked-owl]');
@@ -3029,6 +3032,7 @@
         panel.remove();
         renderIcons(appContent);
         mountPanels();
+        paintGold();
     };
 
     // Turnaj: živý čas u každé otázky (rozhoduje při shodě bodů i správných odpovědí), přestane se počítat po odpovědi
@@ -3673,6 +3677,7 @@
         persistState();
         if (round.answered) renderResult(keepScroll);
         else renderQuestion(keepScroll);
+        paintGold();
         updateControlsUI();
     };
 
@@ -4251,6 +4256,9 @@
         const overlay = document.getElementById('chest-overlay');
         if (overlay) overlay.remove();
         if (screen === 'home') paintGoalsCard();
+        // Řádek Zlaté otázky ve výsledku: tlačítko otevřené Zlaté truhly zmizí
+        const goldRow = appContent.querySelector('[data-gold-result]');
+        if (goldRow) { goldRow.remove(); if (screen === 'mode') renderModeScreen(); else paintGold(); }
     };
     const chestHelpers = () => ({ frameClass: (id) => (window.MudrlantLookFrames ? window.MudrlantLookFrames.frameClass(id) : '') });
     // Nasazení věci z truhly (talár, téma, rámeček, doplněk do jeho místa); barva doplňků se volí v Nastavení. Do účtu (rámeček,
@@ -4263,21 +4271,22 @@
         else if (gift.category === 'accessories') Look.setPref('acc', { ...(ctx.prefs.acc || {}), [gift.item.slot]: { id: gift.item.id, color: 'original' } }, ctx);
         applyLook();
     };
-    const openChestOverlay = () => {
-        if (!Rewards) return;
-        const week = Rewards.pendingChest(loadRewards());
-        if (!week || document.getElementById('chest-overlay')) return;
+    // gold = Zlatá truhla za pět zlatých střípků (gold.js): stejné okno a otevírání, jiný vzhled a obsah (vzácná věc, jinak XP)
+    const openChestOverlay = (gold = false) => {
+        if (!Rewards || (gold && !(Gold && loadGold().ready))) return;
+        const week = gold ? null : Rewards.pendingChest(loadRewards());
+        if ((!gold && !week) || document.getElementById('chest-overlay')) return;
         const overlay = document.createElement('div');
         overlay.id = 'chest-overlay';
         overlay.setAttribute('role', 'dialog');
         overlay.setAttribute('aria-modal', 'true');
-        overlay.setAttribute('aria-label', 'Truhla Mudrlanta');
+        overlay.setAttribute('aria-label', gold ? 'Zlatá truhla' : 'Truhla Mudrlanta');
         // Ukotvené shora (odsazení v .chest-overlay): po otevření truhla zůstane na místě a obsah přibude pod ní
         overlay.className = 'chest-overlay fade-in fixed inset-0 z-[70] flex items-start justify-center overflow-y-auto px-4 pb-4';
         let opened = null;
         let opening = false;
         const paint = () => {
-            overlay.innerHTML = Rewards.chestHtml({ opened }, chestHelpers());
+            overlay.innerHTML = Rewards.chestHtml({ opened, look: gold ? Gold.chestOptions() : {} }, chestHelpers());
             renderIcons(overlay);
             const focus = overlay.querySelector(opened ? '[data-chest-wear], [data-chest-close]' : 'button[data-chest-go]:not([disabled])');
             if (focus) focus.focus({ preventScroll: true });
@@ -4286,10 +4295,14 @@
             // Okno zavřené během natřásání: truhla zůstane zavřená a čeká dál
             if (!overlay.isConnected) return;
             const progress = loadProgress();
-            const result = Rewards.openChest(loadRewards(), week, { level: levelProgress(progress.xp).level, badges: progress.badges });
+            const result = gold ? (() => {
+                const outcome = Gold.openChest(loadGold(), loadRewards());
+                if (outcome.opened) saveGold(outcome.gold);
+                return { opened: outcome.opened, state: outcome.rewards, gift: outcome.gift, xp: outcome.xp, freeze: false };
+            })() : Rewards.openChest(loadRewards(), week, { level: levelProgress(progress.xp).level, badges: progress.badges });
             if (!result.opened) { overlay.remove(); return; }
             saveRewards(result.state);
-            progress.counters.chestsOpened = (progress.counters.chestsOpened || 0) + 1;
+            if (!gold) progress.counters.chestsOpened = (progress.counters.chestsOpened || 0) + 1;
             const levelBefore = levelProgress(progress.xp).level;
             if (result.xp) { progress.xp += result.xp; chronicleLog({ xp: result.xp }); }
             const titles = grantBadges(progress);
@@ -4342,6 +4355,226 @@
         if (Rewards.pendingChest(loadRewards())) { closeDialog(); openChestOverlay(); return; }
         showDialog('Truhla Mudrlanta', `${Rewards.chestHelpHtml(lastChestText(loadRewards()))}<div class="mt-3 grid ${dialogTrail.length ? 'grid-cols-2' : 'grid-cols-1'} gap-2"><button type="button" data-goals-open class="${SECONDARY_BUTTON} !py-2.5 text-sm"><i data-lucide="target" class="h-4 w-4"></i> Cíle týdne</button>${dialogTrail.length ? dialogBackButton().replace('Zpět na ', '') : ''}</div>`,
             { onClick: (event) => { if (event.target.closest('[data-goals-open]')) openChild('Zpět na Truhlu', openChestHelp, openGoals); } });
+    };
+
+    // --- Zlatá otázka (gold.js): zhruba jednou za 50 otázek zlatá karta, trojnásobek XP, zlatý střípek a z pěti střípků Zlatá truhla ---
+    // Rozhoduje se při přípravě otázky (runRound, Bleskovka a Přežití: rollGold) a výsledek se ukládá s kolem (round.gold), takže zlatá otázka
+    // zůstane zlatá i po překreslení nebo návratu k dnešní otázce. Výzva a zápas turnaje: ze semínka výzvy (oba hráči stejně), body se nemění.
+    // Vzhled dodá paintGold po vykreslení otázky (třídy karty, štítek, bublina při první zlaté otázce v životě) a výsledku (řádek se střípky);
+    // jiskřičky a let střípku jsou element.animate (při omezeném pohybu nic), zvuky gold a shard ze sound.js. Zlatá truhla se otevírá
+    // stejným oknem jako Truhla Mudrlanta (openChestOverlay(true)).
+    const Gold = window.MudrlantGold || null;
+    const loadGold = () => (Gold ? Gold.parse(readJson(Gold.KEY)) : null);
+    const saveGold = (state) => { if (Gold) writeJson(Gold.KEY, state); };
+    const stillMotion = () => Boolean(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+    const GOLD_XP_LABEL = 'za zlatou otázku (3× XP)';
+    // Je další otázka zlatá? kind = mode (daily, practice, blitz, survival z místního počítadla; challenge ze semínka); jiné hry zlatou nemají
+    const rollGold = (kind = mode) => {
+        if (!Gold) return false;
+        if (kind === 'challenge') return Boolean(challenge && Gold.isChallengeGold(challenge.seed, challenge.count, challenge.index));
+        if (!Gold.LOCAL_MODES.includes(kind)) return false;
+        const result = Gold.roll(loadGold());
+        saveGold(result.state);
+        return result.gold;
+    };
+    // Efekty jen v paměti (ne v uloženém kole), po obnovení stránky se nic nepřehraje: kolo, které už zlatě vstoupilo (zvuk), kolo s bublinou
+    // vysvětlení (dokud ji hráč nezavře) a kolo, jehož střípek má po vykreslení výsledku přiletět do počítadla
+    let goldShownRound = null;
+    let goldBubbleRound = null;
+    let goldFxRound = null;
+    // Karta otázky: panel s popisem a nápovědami (i Bleskovka a Přežití), mapa otázky Ukaž na mapě, karta Seřaď a Odhadni
+    const goldCardOf = (root) => {
+        const panel = root.querySelector('#hint-tab-panel');
+        if (panel) return panel;
+        const map = root.querySelector('[data-map-question]');
+        return map ? map.closest('section') : root.querySelector('[data-numeric-question] > section');
+    };
+    const paintGold = () => {
+        if (!Gold || !round || !round.gold || !current) return;
+        const root = appContent.firstElementChild;
+        if (!root) return;
+        if (round.answered && screen !== 'mode') { paintGoldResult(root); return; }
+        const card = goldCardOf(root);
+        if (!card) return;
+        root.classList.add('gold-screen');
+        card.classList.add('gold-card');
+        const texture = Gold.textureUrl();
+        if (texture) { card.classList.add('gold-texture'); card.style.setProperty('--gold-texture', `url("${texture}")`); }
+        let ribbon = card.previousElementSibling && card.previousElementSibling.matches('[data-gold-ribbon]') ? card.previousElementSibling : null;
+        if (!ribbon) {
+            card.insertAdjacentHTML('beforebegin', Gold.ribbonHtml());
+            ribbon = card.previousElementSibling;
+            // Řádek štítku má nulovou výšku a záporný okraj vyrovná mezeru sloupce: karta zůstane, kde byla, štítek sedí na jejím okraji
+            ribbon.style.marginBottom = `${-(parseFloat(getComputedStyle(root).rowGap) || 0)}px`;
+            renderIcons(ribbon);
+        }
+        if (goldShownRound !== round) {
+            goldShownRound = round;
+            card.classList.add('gold-enter');
+            ribbon.querySelector('.gold-ribbon').classList.add('gold-enter');
+            if (Sound) Sound.play('gold');
+            const state = loadGold();
+            if (!state.intro) { saveGold(Gold.markIntro(state)); goldBubbleRound = round; }
+        }
+        if (goldBubbleRound === round && !round.answered && !ribbon.querySelector('#gold-bubble')) {
+            ribbon.insertAdjacentHTML('beforeend', Gold.bubbleHtml());
+            renderIcons(ribbon);
+            ribbon.querySelector('[data-gold-bubble-close]').addEventListener('click', () => {
+                goldBubbleRound = null;
+                const bubble = document.getElementById('gold-bubble');
+                if (bubble) bubble.remove();
+            });
+        }
+    };
+    // Výsledek zlaté otázky: řádek se střípky pod verdiktem; hned po odpovědi z verdiktu vyletí jiskřičky a střípek přiletí do počítadla
+    const paintGoldResult = (root) => {
+        if (root.querySelector('[data-gold-result]')) return;
+        const verdict = root.querySelector('[data-verdict]');
+        if (!verdict) return;
+        const outcome = round.goldOutcome || { shard: false, chest: false, filled: loadGold().shards };
+        const fx = goldFxRound === round && outcome.shard && !stillMotion();
+        verdict.insertAdjacentHTML('afterend', Gold.resultHtml({ correct: round.correct, shard: outcome.shard, filled: outcome.filled, ready: loadGold().ready, fresh: fx ? outcome.filled - 1 : -1 }));
+        renderIcons(root);
+        if (goldFxRound !== round) return;
+        goldFxRound = null;
+        if (!outcome.shard) return;
+        // Pátý střípek: Zlatá truhla se sama otevře (ve výzvě a zápasu turnaje ne, ať hra plyne; čeká ve výsledku a v Mém postupu)
+        const landed = () => { if (Sound) Sound.play('shard'); if (outcome.chest && mode !== 'challenge') setTimeout(() => { if (screen === 'round' && !document.getElementById('dialog-overlay')) openChestOverlay(true); }, 700); };
+        if (!fx) { landed(); return; }
+        const slot = root.querySelector('[data-gold-fresh]');
+        const owl = verdict.querySelector('img') || verdict;
+        requestAnimationFrame(() => {
+            const box = owl.getBoundingClientRect();
+            const from = { x: box.left + box.width / 2, y: box.top + box.height / 2 };
+            goldSparkles(from);
+            goldFly(from, slot, landed);
+        });
+    };
+    // Vrstva efektů přes celou obrazovku (jiskřičky a letící střípek), bez klepnutí
+    const goldLayer = () => {
+        let layer = document.getElementById('gold-fx');
+        if (!layer) {
+            layer = document.createElement('div');
+            layer.id = 'gold-fx';
+            layer.className = 'gold-fx';
+            layer.setAttribute('aria-hidden', 'true');
+            document.body.appendChild(layer);
+        }
+        return layer;
+    };
+    const goldSparkles = (from) => {
+        if (stillMotion() || !document.body.animate) return;
+        const layer = goldLayer();
+        Gold.burst(20).forEach(spark => {
+            const el = document.createElement('span');
+            el.className = spark.kind === 'dot' ? 'gold-spark gold-spark-dot' : 'gold-spark';
+            el.style.width = `${spark.size}px`;
+            el.style.height = `${spark.size}px`;
+            layer.appendChild(el);
+            const at = (dx, dy) => `translate(${Math.round(from.x + dx - spark.size / 2)}px, ${Math.round(from.y + dy - spark.size / 2)}px)`;
+            const animation = el.animate([
+                { transform: `${at(0, 0)} scale(0.2)`, opacity: 1 },
+                { transform: `${at(spark.x, spark.y)} scale(1.1) rotate(${spark.rotate / 2}deg)`, opacity: 1, offset: 0.45 },
+                { transform: `${at(spark.x * 1.12, spark.y + spark.fall)} scale(0.35) rotate(${spark.rotate}deg)`, opacity: 0 }
+            ], { duration: spark.duration, delay: spark.delay, easing: 'cubic-bezier(0.2, 0.75, 0.35, 1)', fill: 'both' });
+            animation.onfinish = () => el.remove();
+            animation.oncancel = () => el.remove();
+        });
+    };
+    // Střípek přiletí do okénka slot (počítadlo), pak se okénko rozzáří; done = po dosednutí
+    const goldFly = (from, slot, done) => {
+        const finish = () => {
+            if (slot && slot.isConnected) { slot.classList.add('gold-slot-full', 'gold-slot-pop'); slot.removeAttribute('data-gold-fresh'); }
+            done();
+        };
+        if (!slot || stillMotion() || !document.body.animate) { finish(); return; }
+        const target = slot.getBoundingClientRect();
+        const size = 32;
+        const flyer = document.createElement('span');
+        flyer.className = 'gold-flyer';
+        flyer.style.width = `${size}px`;
+        flyer.style.height = `${size}px`;
+        flyer.innerHTML = Gold.shardHtml('block h-full w-full');
+        goldLayer().appendChild(flyer);
+        const to = { x: target.left + target.width / 2, y: target.top + target.height / 2 };
+        const animation = flyer.animate(Gold.flightPath(from, to, { size, endSize: target.width }), { duration: 1000, delay: 120, easing: 'cubic-bezier(0.4, 0, 0.3, 1)', fill: 'both' });
+        animation.onfinish = () => { flyer.remove(); finish(); };
+        animation.oncancel = () => { flyer.remove(); finish(); };
+    };
+    // Odpověď na zlatou otázku v běžné hře (awardXp): střípek, počítadla, odznaky Zlatokop; vrátí řádek XP navíc (dvojnásobek základu)
+    const goldAnswer = (counters, baseXp) => {
+        if (!Gold || !round || !round.gold || round.goldOutcome) return null;
+        const result = Gold.answer(loadGold(), { correct: round.correct, hints: Math.max(0, (round.hintLevel || 1) - 1) });
+        saveGold(result.state);
+        round.goldOutcome = { shard: result.shard, chest: result.chest, filled: result.filled };
+        if (round.correct) counters.goldCorrect = (counters.goldCorrect || 0) + 1;
+        if (result.shard) goldFxRound = round;
+        const xp = Gold.xpBonus(baseXp);
+        return xp ? { label: GOLD_XP_LABEL, xp } : null;
+    };
+    // Bleskovka a Přežití: střípek hned po odpovědi do okénka nad hrou (výsledek otázky nemají); XP navíc se připíše na konci hry
+    const goldModeAnswer = (game, correct) => {
+        if (!Gold || !round || !round.gold || round.goldOutcome) return;
+        const result = Gold.answer(loadGold(), { correct, hints: 0 });
+        saveGold(result.state);
+        round.goldOutcome = { shard: result.shard, chest: result.chest, filled: result.filled };
+        game.gold = (game.gold || 0) + 1;
+        if (correct) {
+            game.goldXp = (game.goldXp || 0) + Gold.xpBonus(Modes.MODES[game.kind].xpPer);
+            game.goldShards = (game.goldShards || 0) + (result.shard ? 1 : 0);
+            const progress = loadProgress();
+            progress.counters.goldCorrect = (progress.counters.goldCorrect || 0) + 1;
+            const titles = grantBadges(progress);
+            saveProgress(progress);
+            announce(levelProgress(progress.xp).level, levelProgress(progress.xp).level, titles);
+        }
+        if (!result.shard) return;
+        const button = appContent.querySelector(`[data-action="mode-choice"][data-index="${game.picked}"]`);
+        const box = (button || appContent).getBoundingClientRect();
+        const from = { x: box.left + box.width / 2, y: box.top + box.height / 2 };
+        showGoldHud(result.filled, from);
+    };
+    // Okénko se střípky nad hrou: střípek do něj přiletí, pak okénko zmizí
+    let goldHudTimer = null;
+    const showGoldHud = (filled, from) => {
+        const old = document.getElementById('gold-hud');
+        if (old) old.remove();
+        clearTimeout(goldHudTimer);
+        const still = stillMotion();
+        document.body.insertAdjacentHTML('beforeend', Gold.hudHtml(filled, still ? -1 : filled - 1));
+        const hud = document.getElementById('gold-hud');
+        // Na řádek s časem (životy): mezi ně a počet správných, nic důležitého nezakryje
+        const status = appContent.querySelector('[data-mode-timer], [data-mode-lives]');
+        if (status) { const row = status.getBoundingClientRect(); hud.style.top = `${Math.round(row.top + row.height / 2 - hud.offsetHeight / 2)}px`; }
+        goldSparkles(from);
+        goldFly(from, hud.querySelector('[data-gold-fresh]'), () => { if (Sound) Sound.play('shard'); });
+        goldHudTimer = setTimeout(() => {
+            if (!hud.isConnected) return;
+            if (still || !hud.animate) { hud.remove(); return; }
+            hud.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 300, fill: 'forwards' }).onfinish = () => hud.remove();
+        }, still ? 1600 : 2000);
+    };
+    // XP za zlaté otázky Bleskovky a Přežití se přidá k XP hry (mimo denní strop režimu, zlatá je vzácná)
+    const withGoldXp = (xp, game) => (game && game.goldXp ? { ...xp, total: xp.total + game.goldXp, parts: [...xp.parts, { label: game.gold > 1 ? 'za zlaté otázky (3× XP)' : GOLD_XP_LABEL, xp: game.goldXp }] } : xp);
+    // Řádek střípků ve výsledku Bleskovky a Přežití (jen když v hře padla zlatá otázka nebo truhla čeká)
+    const goldModeResult = (game) => {
+        const hud = document.getElementById('gold-hud');
+        if (hud) hud.remove();
+        if (!Gold || !(game.gold || loadGold().ready)) return '';
+        const state = loadGold();
+        const won = game.goldShards || 0;
+        return Gold.resultHtml({ correct: won > 0, shard: won > 0, filled: state.ready ? Gold.SHARDS : state.shards, ready: state.ready,
+            title: won ? `Z této hry máš ${won === 1 ? 'zlatý střípek' : `${won} ${won <= 4 ? 'zlaté střípky' : 'zlatých střípků'}`}` : game.gold ? 'Zlatá otázka tentokrát bez střípku' : 'Zlatá truhla čeká',
+            text: state.ready ? 'Pět střípků je pohromadě. Otevři Zlatou truhlu!' : Gold.leftText(state.shards) });
+    };
+    // Okno Zlatá otázka (Můj postup → dlaždice Zlaté střípky, tip): pravidla, střípky, statistiky, čekající truhla
+    const openGoldInfo = () => {
+        if (!Gold) return;
+        touchTip('gold');
+        showDialog('Zlatá otázka', `${Gold.infoHtml(loadGold())}${dialogBackButton('mt-2.5')}`, {
+            onClick: (event) => { if (event.target.closest('[data-gold-open]')) { closeDialog(); openChestOverlay(true); } }
+        });
+        renderIcons(document.getElementById('dialog-overlay'));
     };
 
     // --- Sezóna Mudrlanta (season.js): měsíční cesta 20 stupňů odměn; stav je v odměnách (rewards.js season, past) ---
@@ -4700,6 +4933,9 @@
             if (MapQuestion && round.map.points >= MapQuestion.maxPoints(round.variant === 'typed')) counters.mapExact += 1;
         }
         const parts = [{ label: round.correct ? 'za správnou odpověď' : 'za pokus o odpověď', xp: answerXp(round) }];
+        // Zlatá otázka: trojnásobek XP za odpověď, střípek a odznaky Zlatokop
+        const goldPart = round.gold ? goldAnswer(counters, answerXp(round)) : null;
+        if (goldPart) parts.push(goldPart);
         if (mode === 'daily' && current.dailyDate && round.dailyFirst !== false) {
             parts.push({ label: 'za dnešní otázku tématu', xp: DAILY_XP });
             if (round.correct) {
@@ -4984,7 +5220,7 @@
         const stored = !outcome.error && playableSnapshot(outcome.stored) ? cleanSnapshot(outcome.stored) : null;
         if (!stored || stableText(stored) === stableText(shown)) return;
         if (current !== shown || !round || round.answered) return;
-        const keep = { timerStart: round.timerStart, shownAt: round.shownAt, variant: round.variant };
+        const keep = { timerStart: round.timerStart, shownAt: round.shownAt, variant: round.variant, gold: round.gold };
         current = upgradeRoundData(stored);
         round = Object.assign(createRound(), keep);
         // Nápovědy ukázané k předchozí verzi se nepočítají
@@ -5038,6 +5274,8 @@
             round = createRound();
             // Čas otázky do Rozpisu otázek se měří od jejího ukázání (uloží se s kolem, po obnovení stránky běží dál)
             round.shownAt = Date.now();
+            // Zlatá otázka (gold.js): z místního počítadla, ve výzvě ze semínka; Kvíz dne a jiné hry ne
+            round.gold = rollGold();
             // Výzva má pevný způsob odpovídání pro všechny hráče
             if (mode === 'challenge' && challenge && challenge.variant) round.variant = challenge.variant;
             // Kvíz dne: výběr z možností, čas a nápovědy jako před zavřením aplikace
@@ -5573,7 +5811,7 @@
     let modeTimer = null;
     let modeFeedbackTimer = null;
     // Okna, během kterých čas Bleskovky stojí (Nastavení, popis položky…)
-    const MODE_OVERLAYS = ['settings-overlay', 'dialog-overlay', 'play-chooser', 'place-info', 'photo-zoom', 'photo-source', 'fact-overlay'];
+    const MODE_OVERLAYS = ['settings-overlay', 'dialog-overlay', 'play-chooser', 'place-info', 'photo-zoom', 'photo-source', 'fact-overlay', 'gold-bubble', 'chest-overlay'];
     const MODE_BADGE = { blitz: 'bg-gold-500 text-brand-950', survival: 'bg-rose-600 text-white' };
     const modeTopicOf = (game) => game.pool.kind === 'topic' ? TOPIC_BY_ID[game.pool.topic] : MIX;
     const loadModeState = () => Modes.parse(readJson(Modes.STORAGE_KEY));
@@ -5701,7 +5939,7 @@
         game.lostLife = false;
         game.phase = 'question';
         current = slot.data;
-        round = { hintLevel: 1, variant: 'choices', answered: false, correct: false, points: 0, typed: false, answer: null, gaveUp: false, review: false };
+        round = { hintLevel: 1, variant: 'choices', answered: false, correct: false, points: 0, typed: false, answer: null, gaveUp: false, review: false, gold: rollGold(game.kind) };
         renderModeScreen();
         // Další otázka se chystá hned, dokud hráč přemýšlí
         game.next = queueModeQuestion(game);
@@ -5771,6 +6009,7 @@
         noteModeAnswer(current, Boolean(choice.correct));
         if (Sound) Sound.answer(Boolean(choice.correct));
         renderModeScreen();
+        if (round.gold) goldModeAnswer(game, Boolean(choice.correct));
         const over = game.kind === 'survival' ? game.lives <= 0 : Modes.clockLeft(game.clock, now) <= 0;
         modeFeedbackTimer = setTimeout(() => {
             if (!modeLive(game) || game.phase !== 'feedback') return;
@@ -5834,7 +6073,7 @@
             if (Sound) { Sound.play('record'); Sound.vibrate('record'); }
             showCelebration('vitez', 'Nový rekord!', `${def.title} · ${modeTopicOf(game).title}: ${Modes.scoreLabel(game.kind, game.score)}`);
         }
-        game.xp = awardModeXp(outcome.xp, game);
+        game.xp = awardModeXp(withGoldXp(outcome.xp, game), game);
         renderModeScreen();
         if (ShareCard) ShareCard.prepare(modeCardInput(game), modeCardName(game));
     };
@@ -6029,6 +6268,7 @@
                         ${game.xp && (game.xp.total || game.xp.note) ? `<div data-mode-xp class="min-w-0 flex-1 rounded-2xl bg-white px-3 py-2 shadow-sm ring-1 ring-slate-200/70 dark:bg-slate-800 dark:ring-slate-700/70">${xpLine(game.xp, 'text-slate-700 dark:text-slate-200')}${game.xp.note ? `<p class="mt-1 text-xs font-semibold text-slate-500 dark:text-slate-400">${escapeHtml(game.xp.note)}</p>` : ''}</div>` : ''}
                         ${ShareCard && game.score > 0 ? `<button type="button" data-action="mode-share-image" class="flex min-h-[2.75rem] ${game.xp && (game.xp.total || game.xp.note) ? 'w-[5.5rem] shrink-0 flex-col' : 'flex-1'} items-center justify-center gap-1 rounded-2xl btn-3d-light bg-white px-2 py-1.5 text-center text-[12px] font-bold leading-tight text-slate-800 dark:bg-slate-800 dark:text-slate-100"><i data-lucide="image" class="h-4 w-4 shrink-0"></i> Sdílet obrázek</button>` : ''}
                     </div>
+                    ${goldModeResult(game)}
                     ${missedHtml}
                 </div>
                 <div class="sticky bottom-0 z-20 flex gap-2 border-t border-slate-200/70 bg-slate-50/95 px-4 pb-4 pt-3 backdrop-blur-sm dark:border-slate-800 dark:bg-slate-900/95">
@@ -6048,6 +6288,7 @@
         else if (game.phase === 'error') renderModeError(game);
         else if (game.phase === 'result') renderModeResult(game);
         else renderModeQuestion(game);
+        if (game.phase === 'question' || game.phase === 'feedback') paintGold();
         if (game.phase !== 'question' && game.phase !== 'feedback') {
             applyProgress(appContent);
             renderIcons(appContent);
@@ -7637,7 +7878,9 @@
         'vyhry-v-rade', 'zalozene', 'perfektni-vyzvy', 'uroven', 'poznane', 'vsestrannost', 'hvezdy', 'vsechna-temata', 'turnaje', 'turnaj-postupy',
         'tydenni-cile', 'kviz-dne', 'kviz-serie', 'kviz-perfekt', 'bleskovka', 'preziti', 'mapa', 'odhad', 'serad', 'detektiv']);
     // Obrázek symbolu skupiny (bez přípony); odznaky alba sbírky mají obrázek Sběratel (Album.BADGE_ART)
-    const badgeArtOf = (group) => BADGE_ART.has(group) ? `odznak-${group}` : Album && Album.isAlbumGroup(BADGE_GROUPS.find(entry => entry.id === group)) ? Album.BADGE_ART : null;
+    const badgeArtOf = (group) => BADGE_ART.has(group) ? `odznak-${group}` : Album && Album.isAlbumGroup(BADGE_GROUPS.find(entry => entry.id === group)) ? Album.BADGE_ART
+        // Odznaky Zlatokop: symbol z gold.js (ART.badge, do dodání č. 211 zástupný obrázek)
+        : Gold && group === Gold.BADGE_GROUP ? Gold.ART.badge : null;
     // Nezískaný odznak ukazuje svou ikonu zašedlou a ztlumenou, přes ni malý zámek v rohu
     const medalHtml = (badge, earned, size = 'h-11 w-11', iconSize = 'h-5 w-5') => {
         const dim = earned ? '' : ' opacity-50 grayscale';
@@ -7819,7 +8062,7 @@
                     <ul class="grid grid-cols-7 gap-1">${rows}</ul>
                 </div>
                 ${Rewards ? Rewards.progressHtml({ freezes: rewardsState.freezes, chest: Rewards.pendingChest(rewardsState), lastReward: lastChestText(rewardsState), diplomas: Object.keys(rewardsState.diplomas).filter(id => TOPIC_BY_ID[id]).length, topics: TOPICS.length,
-                    album: Album ? { percent: Album.build(albumInput(progress)).percent, art: Album.ALBUM_ART } : null }) : ''}
+                    album: Album ? { percent: Album.build(albumInput(progress)).percent, art: Album.ALBUM_ART } : null, extra: Gold ? [Gold.progressTile(loadGold())] : [] }) : ''}
             </div>`, { aside: `<span data-total-xp class="rounded-full bg-gold-100 px-2 py-0.5 text-[11px] font-black leading-tight text-gold-800 dark:bg-slate-800 dark:text-gold-300" title="Celkem získané XP">celkem ${formatXp(xp)} XP</span>`, onClick: (event) => {
             const child = (open) => openChild('Zpět na Můj postup', openProgress, open);
             if (event.target.closest('[data-open-badges]')) child(openBadges);
@@ -7828,7 +8071,7 @@
             if (event.target.closest('[data-season-claim]')) { openSeasonReveal(null, openProgress); return; }
             if (event.target.closest('[data-season-open]')) { child(() => openSeason()); return; }
             const info = event.target.closest('[data-rewards-info]');
-            if (info) child(({ freeze: openFreezeHelp, chest: openChestHelp, diplomas: openDiplomas, album: () => openAlbum() })[info.dataset.rewardsInfo]);
+            if (info) child(({ freeze: openFreezeHelp, chest: openChestHelp, diplomas: openDiplomas, album: () => openAlbum(), gold: openGoldInfo })[info.dataset.rewardsInfo]);
             const mastery = event.target.closest('[data-mastery]');
             if (mastery) child(() => openMastery(mastery.dataset.mastery));
         } });
@@ -9850,6 +10093,7 @@
             signedIn: Boolean(signedUser()), multiAvailable: Boolean(Auth && Auth.isConfigured() && Social), reviewOn: reviewEnabled(),
             quiz: Boolean(DailyQuiz), mystery: Boolean(Mystery), modes: Boolean(Modes), goals: Boolean(Goals && Rewards), freezes: Rewards ? loadRewards().freezes : 0,
             season: Boolean(Season && Rewards), album: Boolean(Album), chronicle: Boolean(Chronicle), showcase: Boolean(Showcase && myShowcase !== null), leagueSeasons: Boolean(LeagueSeasons && leagueSeasons),
+            gold: Boolean(Gold && Rewards),
             maxStars: Math.max(0, ...Object.values(loadLearned()).map(ids => masteryStars((ids || []).length)))
         });
     };
@@ -9867,7 +10111,8 @@
         chronicle: () => { closeDialog(); openChronicle(); },
         mystery: () => { closeDialog(); openMystery(); },
         leagueSeasons: () => { closeDialog(); openLeagueSeasons(); },
-        groups: () => { closeDialog(); openHomeTabFromPush('multi'); if (GroupsUI) GroupsUI.openList(); }
+        groups: () => { closeDialog(); openHomeTabFromPush('multi'); if (GroupsUI) GroupsUI.openList(); },
+        gold: () => { closeDialog(); openGoldInfo(); }
     };
     const openTip = (tip) => {
         if (!tip || document.getElementById('dialog-overlay')) return;
@@ -11011,6 +11256,8 @@
         'season-open': () => openSeason(),
         'freeze-info': () => openFreezeHelp(),
         'clear-mistakes': () => clearMistakes(),
+        'gold-chest': () => openChestOverlay(true),
+        'gold-info': () => openGoldInfo(),
         'order-pick': (button) => numericPick(Number(button.dataset.index)),
         'order-confirm': () => numericConfirm(),
         choice: (button) => {

@@ -321,7 +321,9 @@
     // stejném měřítku (.chest-lid-open), takže výměna vypadá jako zvednutí víka; za ní paprsky a kruh světla, jiskry vyletí ven, z truhly
     // vystoupá věc (nebo XP) a pod ní se objeví popis, ochrana série a tlačítka. Otevřená truhla je v HTML už předem (načte se dopředu).
     const SPARKS = 8;
-    const chestStageHtml = (opened, h) => {
+    // look = vzhled jiné truhly se stejným otevíráním (Zlatá truhla, gold.js chestOptions): kicker, title, closed a open (obrázky),
+    // tint (pozlacení obrázku filtrem .gold-tint), card (třída karty) a note(opened) (věta pod věcí); bez něj Truhla Mudrlanta
+    const chestStageHtml = (opened, h, look = {}) => {
         // Kulatá věc (téma, barva, rámeček, XP) je menší a výš, ať nezakryje víko; téma a barva se lesknou (.chest-orb)
         const category = opened && opened.gift ? opened.gift.category : 'xp';
         const round = ['themes', 'colors', 'frames', 'xp'].includes(category);
@@ -338,23 +340,24 @@
                     ${opened ? '<span class="chest-rays" aria-hidden="true"></span>' : ''}
                     <span class="chest-ring" aria-hidden="true"></span>
                     <span class="chest-sparks" aria-hidden="true">${'<span class="chest-spark"></span>'.repeat(SPARKS)}</span>
-                    <span class="chest-body grid h-full w-full" aria-hidden="true">
-                        <img src="icons/topics/truhla.webp" alt="" class="chest-lid-closed h-full w-full object-contain drop-shadow-lg">
-                        <img src="icons/topics/truhla-otevrena.webp" alt="" class="chest-lid-open h-full w-full object-contain drop-shadow-lg">
+                    <span class="chest-body grid h-full w-full${look.tint ? ' gold-tint' : ''}" aria-hidden="true">
+                        <img src="icons/topics/${esc(look.closed || 'truhla')}.webp" alt="" class="chest-lid-closed h-full w-full object-contain drop-shadow-lg">
+                        <img src="icons/topics/${esc(look.open || 'truhla-otevrena')}.webp" alt="" class="chest-lid-open h-full w-full object-contain drop-shadow-lg">
                     </span>
                 </button>
             </div>`;
     };
-    const chestHtml = ({ opened = null } = {}, h = {}) => {
+    const chestHtml = ({ opened = null, look = {} } = {}, h = {}) => {
+        const note = opened && look.note ? look.note(opened) : '';
         const result = opened ? (opened.gift ? `
             <div data-chest-reveal class="chest-show-1 relative z-10 flex flex-col items-center gap-1 text-center">
                 <p class="text-[11px] font-black uppercase tracking-widest text-gold-300">${opened.gift.item.rare ? 'Vzácný ' : ''}${esc(KIND_NAMES[opened.gift.category])}</p>
                 <p data-chest-item class="text-2xl font-black leading-tight text-white">${esc(opened.gift.item.title)}</p>
-                <p class="text-xs font-semibold leading-snug text-white/80">${opened.gift.item.rare ? 'Vzácný dárek, který jde získat jen z truhly. Teď je tvůj.' : opened.gift.item.chest ? 'Tahle věc je jen v Truhle Mudrlanta. Teď je tvoje.' : `Jinak by se odemkl až na úrovni ${opened.gift.item.level}. Teď je tvůj.`}</p>
+                <p class="text-xs font-semibold leading-snug text-white/80">${note ? esc(note) : opened.gift.item.rare ? 'Vzácný dárek, který jde získat jen z truhly. Teď je tvůj.' : opened.gift.item.chest ? 'Tahle věc je jen v Truhle Mudrlanta. Teď je tvoje.' : `Jinak by se odemkl až na úrovni ${opened.gift.item.level}. Teď je tvůj.`}</p>
             </div>` : `
             <div data-chest-reveal class="chest-show-1 relative z-10 flex flex-col items-center gap-1 text-center">
                 <p data-chest-item class="text-3xl font-black text-gold-300">+${opened.xp} XP</p>
-                <p class="text-xs font-semibold leading-snug text-white/80">Všechny věci pro Mudrlanta už máš, tak aspoň body zkušeností.</p>
+                <p class="text-xs font-semibold leading-snug text-white/80">${esc(note || 'Všechny věci pro Mudrlanta už máš, tak aspoň body zkušeností.')}</p>
             </div>`) : '';
         const freeze = opened && opened.freeze ? `<p data-chest-freeze class="chest-show-2 relative z-10 flex items-center gap-1.5 rounded-xl bg-sky-500/20 px-3 py-1.5 text-xs font-black text-sky-100 ring-1 ring-sky-300/40">${freezeArt('h-6 w-6 -my-1')} A navíc ochrana série</p>` : '';
         const actions = opened
@@ -362,12 +365,12 @@
             : `<p class="chest-hint relative z-10 flex items-center gap-1.5 rounded-full bg-gold-400/15 px-3.5 py-1.5 text-sm font-black text-gold-200 ring-1 ring-gold-300/40"><i data-lucide="sparkles" class="h-4 w-4"></i> Klepni na truhlu</p>
                <button type="button" data-chest-close class="relative z-10 -mb-2 min-h-[2.5rem] px-4 text-xs font-bold text-white/70 underline underline-offset-2">Otevřu ji později</button>`;
         return `
-            <div data-chest-card class="flex w-full max-w-xs flex-col items-center gap-3 rounded-[1.8rem] bg-gradient-to-b from-brand-800 to-brand-950 p-5 text-white shadow-2xl ring-2 ring-gold-400">
+            <div data-chest-card class="${look.card ? `${esc(look.card)} ` : ''}flex w-full max-w-xs flex-col items-center gap-3 rounded-[1.8rem] bg-gradient-to-b from-brand-800 to-brand-950 p-5 text-white shadow-2xl ring-2 ring-gold-400">
                 <div class="relative z-10 text-center">
-                    <p class="text-[11px] font-black uppercase tracking-widest text-gold-300">Cíle týdne splněné</p>
-                    <h2 class="text-xl font-black leading-tight">Truhla Mudrlanta</h2>
+                    <p class="text-[11px] font-black uppercase tracking-widest text-gold-300">${esc(look.kicker || 'Cíle týdne splněné')}</p>
+                    <h2 class="text-xl font-black leading-tight">${esc(look.title || 'Truhla Mudrlanta')}</h2>
                 </div>
-                ${chestStageHtml(opened, h)}
+                ${chestStageHtml(opened, h, look)}
                 ${result}${freeze}${actions}
             </div>`;
     };
@@ -375,21 +378,28 @@
     // album = { percent, art } (album.js): čtvrtá dlaždice Album sbírky, dlaždice jsou pak ve dvou řadách po dvou
     // S albem čtyři dlaždice: na vyšším displeji 2 × 2, na nízkém (short:) jedna řada svislých dlaždic s kratšími popisky, ať se Můj postup
     // i s kartou sezóny vejde bez posouvání (na nízkém displeji se schová konec popisku, třída short:hidden)
-    const progressHtml = ({ freezes = 0, chest = null, lastReward = null, diplomas = 0, topics = 14, album = null } = {}) => {
-        const squeeze = Boolean(album);
-        const tile = (kind, icon, title, value, extra = '', tone = 'bg-white dark:bg-slate-800') => `
-                <button type="button" data-rewards-info="${kind}" class="flex min-w-0 items-center gap-1.5 rounded-xl ${tone} p-1.5 text-left shadow-sm${squeeze ? ' short:flex-col short:gap-0.5 short:px-0.5 short:py-1 short:text-center' : ''}">
+    // extra = další dlaždice z jiných modulů (Zlatá otázka, gold.js progressTile): { kind, icon (HTML), title, short (název na nízkém
+    // displeji), value, ready (zvýrazněná jako čekající truhla) }; pátá dlaždice je na vyšším displeji přes celou šířku
+    const progressHtml = ({ freezes = 0, chest = null, lastReward = null, diplomas = 0, topics = 14, album = null, extra = [] } = {}) => {
+        const count = 3 + (album ? 1 : 0) + extra.length;
+        const squeeze = count >= 4;
+        const READY = 'bg-gold-100 ring-2 ring-gold-400 dark:bg-gold-900/40';
+        const tile = (kind, icon, title, value, attrs = '', tone = 'bg-white dark:bg-slate-800', ready = false, wide = false) => `
+                <button type="button" data-rewards-info="${kind}" class="${wide ? 'col-span-2 short:col-span-1 ' : ''}flex min-w-0 items-center gap-1.5 rounded-xl ${tone} p-1.5 text-left shadow-sm${squeeze ? ' short:flex-col short:gap-0.5 short:px-0.5 short:py-1 short:text-center' : ''}">
                     ${icon}
-                    <span class="min-w-0${squeeze ? ' short:w-full' : ''}"><span class="block truncate text-[11px] font-black leading-tight text-slate-800 dark:text-slate-100">${title}</span><span ${extra} class="block truncate text-[10.5px] font-bold leading-tight ${chest && kind === 'chest' ? 'text-gold-800 dark:text-gold-200' : 'text-slate-500 dark:text-slate-400'}">${value}</span></span>
+                    <span class="min-w-0${squeeze ? ' short:w-full' : ''}"><span class="block truncate text-[11px] font-black leading-tight text-slate-800 dark:text-slate-100">${title}</span><span ${attrs} class="block truncate text-[10.5px] font-bold leading-tight ${ready ? 'text-gold-800 dark:text-gold-200' : 'text-slate-500 dark:text-slate-400'}">${value}</span></span>
                 </button>`;
+        const more = extra.map((entry, index) => tile(esc(entry.kind), entry.icon, entry.short ? `<span class="short:hidden">${esc(entry.title)}</span><span class="hidden short:inline">${esc(entry.short)}</span>` : esc(entry.title),
+            esc(entry.value), `data-${esc(entry.kind)}-tile-value`, entry.ready ? READY : 'bg-white dark:bg-slate-800', Boolean(entry.ready), count === 5 && index === extra.length - 1));
         return `
         <div data-rewards-section>
             <h3 class="mb-1 text-xs font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">Odměny</h3>
-            <div class="grid ${album ? 'grid-cols-2 short:grid-cols-4' : 'grid-cols-3'} gap-1">
+            <div class="grid ${count >= 5 ? 'grid-cols-2 short:grid-cols-5' : count === 4 ? 'grid-cols-2 short:grid-cols-4' : 'grid-cols-3'} gap-1">
                 ${tile('freeze', freezeArt(), 'Ochrana', `${freezes} z ${MAX_FREEZES}`, 'data-freeze-count')}
-                ${tile('chest', chestSvg('h-7 w-7 shrink-0'), 'Truhla', chest ? 'Čeká!' : lastReward ? esc(lastReward) : 'Za 3 cíle', '', chest ? 'bg-gold-100 ring-2 ring-gold-400 dark:bg-gold-900/40' : 'bg-white dark:bg-slate-800')}
+                ${tile('chest', chestSvg('h-7 w-7 shrink-0'), 'Truhla', chest ? 'Čeká!' : lastReward ? esc(lastReward) : 'Za 3 cíle', '', chest ? READY : 'bg-white dark:bg-slate-800', Boolean(chest))}
                 ${tile('diplomas', '<img src="icons/topics/diplom.webp" alt="" class="h-7 w-7 shrink-0 object-contain drop-shadow-sm">', 'Diplomy', `${diplomas} / ${topics}`, 'data-diploma-count')}
                 ${album ? tile('album', `<img src="icons/topics/${esc(album.art)}.webp" alt="" class="h-7 w-7 shrink-0 object-contain drop-shadow-sm">`, 'Album<span class="short:hidden"> sbírky</span>', `${album.percent} %<span class="short:hidden"> sbírky</span>`, 'data-album-tile-value') : ''}
+                ${more.join('')}
             </div>
         </div>`;
     };
