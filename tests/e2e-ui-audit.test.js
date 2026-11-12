@@ -317,7 +317,9 @@ test('rozhraní na úzkém telefonu', { skip: !chromium && 'Playwright není nai
             assert.ok(sizes.icons >= 32, `${scheme} / ${scene}: ikona tématu ${sizes.icons} px`);
             assert.ok(sizes.labels >= 10, `${scheme} / ${scene}: popisek tématu ${sizes.labels} px`);
             const fitShort = await tab.evaluate(() => document.documentElement.classList.contains('fit-short'));
-            assert.equal(fitShort, viewport.width === 360 && viewport.height > 770, `${scheme} / ${scene}: zhuštění navíc jen tam, kde se běžné rozložení nevejde`);
+            // Zhuštění navíc: na úzkém vyšším telefonu ano, na velkém (412×915) ne; 390×780 je na hraně (podle obsahu řady Výzvy)
+            if (viewport.width === 360 && viewport.height > 770) assert.equal(fitShort, true, `${scheme} / ${scene}: úzký vyšší telefon se zhustí`);
+            if (viewport.height >= 900) assert.equal(fitShort, false, `${scheme} / ${scene}: velký displej zůstává beze zhuštění`);
             assert.equal(sizes.status, viewport.height > 770 && !fitShort ? sizes.count : 0, `${scheme} / ${scene}: popisek stavu dnešní otázky jen na vyšším displeji`);
             // Záložka Více hráčů (host: nabídka přihlášení) projde stejnými kontrolami
             await tab.click('[data-action="home-tab"][data-tab="multi"]');

@@ -2592,6 +2592,26 @@
             if (wrap && wrap.scrollHeight !== fitSeen) fitHome();
         });
     }) : null;
+    // Řada Výzvy na úvodu (docs/NOVE-MODY.md): tři stejné dlaždice Kvíz dne | Řetězovka dne | Boss týdne. Obrázek, název
+    // a krátký stav; celý stav v popisku pro čtečku. dot = atribut zlaté tečky „dnes ještě nehráno“, extra = obsah navíc
+    // umístěný absolutně (třeba tenká lišta životů bosse u spodního okraje), aby neměnil výšku. Na nízkém displeji (short:)
+    // obrázek vedle textu: řada je pak nižší než dřívější karta Kvízu dne a úvod se vejde i na 360×640.
+    const specialTile = ({ id, action, art, title, text, label = '', ring = 'ring-slate-200/80 dark:ring-slate-700/70', tone = 'bg-white dark:bg-slate-800', titleTone = 'text-slate-800 dark:text-slate-100', textTone = 'text-slate-500 dark:text-slate-400', dot = '', attrs = '', extra = '' }) => `
+            <button type="button" id="${id}" data-action="${action}" data-special-tile ${attrs} aria-label="${escapeHtml(label || `${title}: ${text}`)}" class="relative flex min-w-0 flex-col items-center justify-center gap-0.5 overflow-hidden rounded-[1.2rem] px-1 pb-1.5 pt-1.5 text-center shadow-sm ring-2 transition-transform active:scale-[0.97] short:flex-row short:justify-start short:gap-1.5 short:rounded-2xl short:px-1.5 short:py-1 short:text-left ${tone} ${ring}">
+                <span class="relative flex shrink-0">${uiArt(art, 'h-9 w-9 short:h-6 short:w-6')}${dot ? `<span aria-hidden="true" ${dot} class="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-gold-500 ring-2 ring-white dark:ring-slate-800"></span>` : ''}</span>
+                <span class="flex min-w-0 max-w-full flex-col items-center short:items-start">
+                    <span class="block max-w-full truncate text-[12px] font-black leading-tight short:text-[11.5px] ${titleTone}">${escapeHtml(title)}</span>
+                    <span class="block max-w-full truncate text-[10.5px] font-bold leading-tight short:text-[10px] ${textTone}">${escapeHtml(text)}</span>
+                </span>
+                ${extra}
+            </button>`;
+    // Dlaždice Řetězovky dne a Bosse týdne (doplní je jejich moduly; prázdný řetězec = dlaždice se nevykreslí)
+    const chainHomeTile = () => '';
+    const bossHomeTile = () => '';
+    const specialsRow = () => {
+        const tiles = [quizHomeCard(), chainHomeTile(), bossHomeTile()].filter(Boolean);
+        return tiles.length ? `<section id="home-specials" aria-label="Výzvy" class="grid ${['', 'grid-cols-1', 'grid-cols-2', 'grid-cols-3'][tiles.length]} gap-2 short:gap-1.5">${tiles.join('')}</section>` : '';
+    };
     const renderHome = () => {
         screen = 'home';
         closePlaceInfo();
@@ -2656,7 +2676,7 @@
         appContent.innerHTML = `
             <div class="fade-in flex min-h-full w-full flex-col gap-2 bg-slate-50 p-3 pb-4 short:gap-1.5 short:pb-3 dark:bg-slate-900">
                 ${renderHomeTabs()}
-                ${homeTab() === 'multi' ? renderChallengesSection() : `${quizHomeCard()}${mysteryHomeCard()}<section class="rounded-[1.4rem] bg-white p-2.5 shadow-sm ring-1 ring-slate-200/70 short:p-1.5 dark:bg-slate-800/70 dark:ring-slate-700/70">
+                ${homeTab() === 'multi' ? renderChallengesSection() : `${specialsRow()}${mysteryHomeCard()}<section class="rounded-[1.4rem] bg-white p-2.5 shadow-sm ring-1 ring-slate-200/70 short:p-1.5 dark:bg-slate-800/70 dark:ring-slate-700/70">
                     <div class="mb-2 flex items-center justify-between gap-2 short:mb-1.5">
                         <h2 class="flex min-w-0 items-center gap-2 whitespace-nowrap text-slate-800 dark:text-slate-100">${uiArt('dnes', 'h-8 w-8 short:h-7 short:w-7')}<span class="min-w-0"><span class="block text-[13px] font-black leading-tight">Dnešní otázky</span><span class="flex items-center gap-1 text-[11px] font-bold leading-tight text-slate-500 dark:text-slate-400">${answered}/${TOPICS.length} splněno${Rewards && loadRewards().freezes ? `<button type="button" data-action="freeze-info" class="ml-0.5 rounded-md">${Rewards.freezeChip(loadRewards().freezes)}</button>` : ''}</span></span></h2>
                         ${left ? `
@@ -9023,7 +9043,12 @@
         const streak = Math.max(server ? server.streak : 0, quizStreakOf(DailyQuiz.playedDays(state, today), today));
         return { status, answered: summary ? summary.answered : 0, summary, rank: attempt && attempt.rank ? attempt.rank.rank : null, streak };
     };
-    const quizHomeCard = () => (DailyQuiz ? DailyQuiz.homeCardHtml(quizHomeView()) : '');
+    const quizHomeCard = () => {
+        if (!DailyQuiz) return '';
+        const view = quizHomeView();
+        const tile = DailyQuiz.homeTile(view);
+        return specialTile({ id: 'quiz-card', action: 'quiz-open', art: 'stopky', title: 'Kvíz dne', text: tile.text, label: tile.label, ring: 'ring-gold-400/70 dark:ring-gold-500/50', dot: tile.fresh ? 'data-quiz-new' : '', attrs: `data-quiz-status="${view.status}"` });
+    };
     const paintQuizCard = () => {
         const card = document.getElementById('quiz-card');
         if (!card || screen !== 'home') return;
