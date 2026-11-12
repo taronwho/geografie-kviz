@@ -1924,6 +1924,7 @@
             const groupButton = event.target.closest('[data-pic-group]');
             if (groupButton && meDraft) {
                 pictureGroup = groupButton.dataset.picGroup;
+                if (pictureGroup === 'legendy') touchTip('legends');
                 openSettings(meNote, `[data-pic-group="${pictureGroup}"]`);
                 return;
             }
@@ -4533,6 +4534,7 @@
         closeDialog();
         openSettings('', null, 'profile');
         pictureGroup = 'legendy';
+        touchTip('legends');
         openSettings('', `[data-pick-avatar="${id}"], [data-locked-avatar="${id}"]`, 'profile');
     };
     // Diplomy: řádek za každé téma (získaný, kdy, kolik chybí do plného mistrovství)
@@ -6661,6 +6663,7 @@
     // Okno Ligové sezóny (z pruhu pod kartou ligy, z Jak fungují ligy a z Vitríny)
     let seasonPick = null;
     const openLeagueSeasons = async () => {
+        touchTip('leagueSeasons');
         const user = signedUser();
         if (!user || !Social || !LeagueSeasons) { openLoginDialog(); return; }
         if (!leagueSeasons) leagueSeasons = LeagueSeasons.cachedData(leagueCache(), user.id);
@@ -7944,6 +7947,7 @@
     const openMastery = (topicId) => {
         const topic = TOPIC_BY_ID[topicId];
         if (!topic) return;
+        touchTip('looks');
         const known = (loadLearned()[topic.id] || []).length;
         const stars = masteryStars(known);
         const goal = nextMastery(known);
@@ -9790,7 +9794,7 @@
             counters: loadProgress().counters, today: getDayKey(), now: Date.now(), launches: promoLaunches,
             signedIn: Boolean(signedUser()), multiAvailable: Boolean(Auth && Auth.isConfigured() && Social), reviewOn: reviewEnabled(),
             quiz: Boolean(DailyQuiz), mystery: Boolean(Mystery), modes: Boolean(Modes), goals: Boolean(Goals && Rewards), freezes: Rewards ? loadRewards().freezes : 0,
-            season: Boolean(Season && Rewards), album: Boolean(Album), chronicle: Boolean(Chronicle), showcase: Boolean(Showcase && myShowcase !== null),
+            season: Boolean(Season && Rewards), album: Boolean(Album), chronicle: Boolean(Chronicle), showcase: Boolean(Showcase && myShowcase !== null), leagueSeasons: Boolean(LeagueSeasons && leagueSeasons),
             maxStars: Math.max(0, ...Object.values(loadLearned()).map(ids => masteryStars((ids || []).length)))
         });
     };
@@ -9806,7 +9810,9 @@
         modes: () => { closeDialog(); openChooser({ kind: 'mix' }); },
         goals: () => { closeDialog(); openGoals(); },
         chronicle: () => { closeDialog(); openChronicle(); },
-        mystery: () => { closeDialog(); openMystery(); }
+        mystery: () => { closeDialog(); openMystery(); },
+        leagueSeasons: () => { closeDialog(); openLeagueSeasons(); },
+        groups: () => { closeDialog(); openHomeTabFromPush('multi'); if (GroupsUI) GroupsUI.openList(); }
     };
     const openTip = (tip) => {
         if (!tip || document.getElementById('dialog-overlay')) return;
@@ -10851,7 +10857,7 @@
         },
         'open-profile': () => openProfile(),
         'open-accept': () => openAccepted(),
-        'groups-open': () => { if (GroupsUI) GroupsUI.openList(); },
+        'groups-open': () => { touchTip('groups'); if (GroupsUI) GroupsUI.openList(); },
         // Přátelé a reakce (friends.js)
         'friend-accept': (button) => answerFriendRequest(button.dataset.id, true),
         'friend-decline': (button) => answerFriendRequest(button.dataset.id, false),
