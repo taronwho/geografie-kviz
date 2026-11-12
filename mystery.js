@@ -1,5 +1,5 @@
 // Tajemná otázka dne: každý den (pražský čas) jedna tajemná položka (místo, osobnost, věc) pro všechny hráče. Nápovědy se odkrývají
-// během dne podle hodin (1. o půlnoci, 2. ve 4:00, pak každé dvě hodiny až 8. v 16:00); poslední je nejsilnější (první písmeno a čtyři možnosti).
+// během dne podle hodin (1. o půlnoci, 2. v 7:00, pak každé dvě hodiny do 17:00 a 8. ve 20:00); poslední je nejsilnější (ostrá fotka).
 // Hráč má na celý den 3 tipy (psaná odpověď, v poslední nápovědě i výběr z možností). Body: uhodnuto s 1. nápovědou 10 bodů, s každou
 // další o bod méně (s 8. 3 body), každý předchozí špatný tip ubere bod (nejméně 1). Druhý den se na úvodu ukáže odpověď a jak si vedli ostatní.
 // Čistá logika bez DOMu a sítě (výběr položky ze semínka dne, rozvrh nápověd v pražském čase i při změně času, body, XP, uložený stav, text
@@ -13,7 +13,7 @@
     'use strict';
     const CLUES = 8;
     // Hodina (pražský čas), od které je nápověda n (index n - 1) vidět; stejné pole má server (mystery_clues_at v supabase/schema.sql)
-    const CLUE_HOURS = [0, 4, 6, 8, 10, 12, 14, 16];
+    const CLUE_HOURS = [0, 7, 9, 11, 13, 15, 17, 20];
     const MAX_TIPS = 3;
     const MAX_POINTS = 10;
     // XP za vyřešení: základ a 2 XP za každý bod (10 bodů = 30 XP jako dokončený Kvíz dne, 3 body = 16 XP)

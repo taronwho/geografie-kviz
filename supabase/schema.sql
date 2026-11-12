@@ -3296,10 +3296,10 @@ create or replace function public.mystery_today() returns date
 language sql stable set search_path = public as $$
     select (public.mystery_now() at time zone 'Europe/Prague')::date
 $$;
--- Kolik nápověd je v okamžiku ts vidět (1–8): hodiny 0, 4, 6, 8, 10, 12, 14 a 16 pražského času
+-- Kolik nápověd je v okamžiku ts vidět (1–8): hodiny 0, 7, 9, 11, 13, 15, 17 a 20 pražského času (schéma 20; dřív končilo v 16)
 create or replace function public.mystery_clues_at(ts timestamptz) returns integer
 language sql stable set search_path = public as $$
-    select greatest(1, (select count(*)::integer from unnest(array[0, 4, 6, 8, 10, 12, 14, 16]) h
+    select greatest(1, (select count(*)::integer from unnest(array[0, 7, 9, 11, 13, 15, 17, 20]) h
         where h <= extract(hour from (ts at time zone 'Europe/Prague'))))
 $$;
 -- Stav hráče jako JSON pro aplikaci (r bez řádku = dnes ještě netipoval)
@@ -3469,7 +3469,8 @@ grant execute on function public.mystery_state(), public.mystery_guess(date, int
 --     odznaky Album sbírky v badge_catalog() (milníky sberatel-25 … sberatel-100 a celé sekce album-*).
 -- 19: Tajemná otázka dne (mystery_results, mystery_state/guess/stats/friends; pomocné mystery_now, mystery_today, mystery_clues_at, mystery_json
 --     a mystery_visible; export_my_data má i 'tajemna_otazka') a odznaky Detektiv (detektiv, detektiv-7, detektiv-30, detektiv-100, detektiv-365) v badge_catalog().
+-- 20: Tajemná otázka dne – nápovědy rozprostřené přes celý den (0, 7, 9, 11, 13, 15, 17, 20; mystery_clues_at).
 create or replace function public.schema_version() returns integer
-language sql immutable as $$ select 19 $$;
+language sql immutable as $$ select 20 $$;
 revoke all on function public.schema_version() from public, anon;
 grant execute on function public.schema_version() to authenticated;

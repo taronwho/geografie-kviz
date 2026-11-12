@@ -626,7 +626,7 @@ sloupec 400) a jinak funguje jako dřív; rámečky ligových sezón zůstanou z
 
 - **Pravidla** (`mystery.js`): každý den (pražský čas) jedna tajemná položka pro všechny – téma se střídá (každé jednou za 14 dní, nikdy dvakrát
   po sobě), v něm známá položka s fotkou a fakty z první poloviny kategorie, nejmenší otisk semínka dne. Osm nápověd se odkrývá podle hodin:
-  0:00, 4:00, 6:00, 8:00, 10:00, 12:00, 14:00 a 16:00 (stejné pole má server, změna času je nezmění). 1. téma a druh (a první fakt), pak fakta,
+  0:00, 7:00, 9:00, 11:00, 13:00, 15:00, 17:00 a 20:00 (schéma 20) (stejné pole má server, změna času je nezmění). 1. téma a druh (a první fakt), pak fakta,
   věty popisu z Wikipedie se zakrytou odpovědí, obrazová nápověda tématu (slepá mapa, osa…), 7. rozmazaná fotka, 8. první písmeno s počtem písmen,
   ostrá fotka a čtyři možnosti. Hráč má na den **3 tipy** (psaná odpověď se porovnává jako jinde: diakritika, překlepy, další názvy; v 8. nápovědě
   i výběr z možností). **Body**: 11 − počet odkrytých nápověd − počet předchozích špatných tipů, nejméně 1 (s 1. nápovědou 10, s 8. 3).
