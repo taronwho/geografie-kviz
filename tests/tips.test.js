@@ -6,7 +6,7 @@ const path = require('node:path');
 const Tips = require('../tips.js');
 
 const NOW = Date.parse('2026-11-09T10:00:00Z');
-const ACTIONS = ['settings', 'learn', 'progress', 'multi', 'single', 'quiz', 'mystery', 'modes', 'goals', 'chronicle'];
+const ACTIONS = ['settings', 'learn', 'progress', 'multi', 'single', 'quiz', 'mystery', 'modes', 'goals', 'chronicle', 'leagueSeasons', 'groups'];
 const base = (over = {}) => ({ counters: { answered: 0 }, today: '2026-11-09', now: NOW, launches: 1, signedIn: false, multiAvailable: true, reviewOn: true, ...over });
 
 test('každý tip má id, titulek, text a ikonu, která existuje v icons.js; akce míří na známé místo', () => {
@@ -58,7 +58,7 @@ test('funkci, kterou hráč už používá, tip nenabídne; tip se ukáže jen j
         quizDone: 9, blitzGames: 2, orderAnswered: 8, mapAnswered: 6, sharedImages: 1, freezesUsed: 1, chestsOpened: 1, mysterySolved: 2 };
     const ctx = base({ counters: player, signedIn: true });
     const offered = [];
-    let state = { ...Tips.EMPTY, visited: { learn: true, progress: true, look: true, diplomas: true, season: true, album: true, showcase: true } };
+    let state = { ...Tips.EMPTY, visited: { learn: true, progress: true, look: true, diplomas: true, season: true, album: true, showcase: true, leagueSeasons: true, legends: true, looks: true, groups: true } };
     let now = NOW;
     for (let day = 0; day < 20; day++) {
         const tip = Tips.pick(state, { ...ctx, today: `2026-12-${String(day + 1).padStart(2, '0')}`, now });
@@ -109,7 +109,7 @@ test('tipy na Kvíz dne, Bleskovku a Přežití, Seřaď a Odhadni, mapu, sdíle
     // Kvíz dne: brzy, pro hosta s textem o přihlášení; kdo ho hrál, tip nedostane; bez Kvízu dne v aplikaci také ne
     assert.equal(at('kviz-dne', base({ counters: { answered: 4 } })).id, 'kviz-dne');
     assert.match(Tips.textFor(Tips.BY_ID.get('kviz-dne'), false), /Po přihlášení/);
-    assert.match(Tips.textFor(Tips.BY_ID.get('kviz-dne'), true), /kolikátý/);
+    assert.match(Tips.textFor(Tips.BY_ID.get('kviz-dne'), true), /své pořadí/);
     assert.equal(at('kviz-dne', base({ counters: { answered: 40, quizDone: 1 } })), null);
     assert.equal(at('kviz-dne', base({ counters: { answered: 40 }, quiz: false })), null);
     assert.equal(Tips.BY_ID.get('kviz-dne').action.kind, 'quiz');
@@ -117,16 +117,16 @@ test('tipy na Kvíz dne, Bleskovku a Přežití, Seřaď a Odhadni, mapu, sdíle
     assert.equal(at('kviz-poradi', base({ counters: { answered: 40, quizDone: 1 } })), null, 'host ne');
     assert.equal(at('kviz-poradi', base({ counters: { answered: 40, quizDone: 1 }, signedIn: true })).id, 'kviz-poradi');
     assert.equal(at('kviz-poradi', base({ counters: { answered: 40 }, signedIn: true })), null, 'ještě nehrál');
-    // Bleskovka a Přežití: kde je najít (okno Co hrát), kdo hrál, nedostane
-    assert.match(Tips.BY_ID.get('rezimy').text, /Co hrát/);
+    // Bleskovka a Přežití: kde je najít (okno po klepnutí na dlaždici tématu nebo Mix), kdo hrál, nedostane
+    assert.match(Tips.BY_ID.get('rezimy').text, /dlaždici tématu nebo na Mix/);
     assert.equal(at('rezimy', base({ counters: { answered: 10 } })).action.kind, 'modes');
     assert.equal(at('rezimy', base({ counters: { answered: 10, survivalGames: 1 } })), null);
     // Seřaď, Odhadni a mapa: až po první takové otázce, body za přesnost
     assert.equal(at('ciselne', base({ counters: { answered: 30 } })), null);
     assert.equal(at('ciselne', base({ counters: { answered: 30, estimateAnswered: 1 } })).id, 'ciselne');
-    assert.match(Tips.BY_ID.get('ciselne').text, /přesnost/);
+    assert.match(Tips.BY_ID.get('ciselne').text, /čím blíž správné hodnotě/);
     assert.equal(at('mapa', base({ counters: { answered: 30, mapAnswered: 1 } })).id, 'mapa');
-    assert.match(Tips.BY_ID.get('mapa').text, /vzdálenost/);
+    assert.match(Tips.BY_ID.get('mapa').text, /Čím blíž se trefíš/);
     assert.equal(at('mapa', base({ counters: { answered: 30, mapAnswered: 5 } })), null);
     // Jak odpověděli ostatní: jen přihlášenému (statistiky se ukazují jen jemu)
     assert.equal(at('ostatni', base({ counters: { answered: 40 } })), null);

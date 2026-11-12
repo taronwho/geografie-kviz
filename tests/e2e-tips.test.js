@@ -117,4 +117,30 @@ test('tipy od Mudrlanta', { skip: !chromium && 'Playwright není nainstalovaný'
         assert.equal(await bulbVisible(second.tab), false);
         await second.context.close();
     });
+
+    await t.test('každý tip se vejde do okna bez posouvání i na malém telefonu (360x640, tmavý)', async () => {
+        const { context, tab, problems } = await open({ viewport: { width: 360, height: 640 }, colorScheme: 'dark' });
+        await tab.waitForFunction(() => { const el = document.getElementById('fact-hint'); return el && !el.classList.contains('hidden'); });
+        await tab.click('#fact-hint');
+        await tab.waitForSelector('#tip-dialog');
+        // Okno se stejným rozložením postupně dostane nadpis a text každého tipu (nejdelší verze: pro přihlášené i hosty)
+        const tooTall = await tab.evaluate(() => {
+            const Tips = window.MudrlantTips;
+            const [title, text] = document.querySelectorAll('#tip-dialog .min-w-0 > p');
+            const box = document.querySelector('#dialog-overlay > div');
+            const bad = [];
+            for (const tip of Tips.TIPS) {
+                for (const body of [tip.text, tip.guestText].filter(Boolean)) {
+                    title.textContent = tip.title;
+                    text.textContent = body;
+                    const rect = box.getBoundingClientRect();
+                    if (box.scrollHeight > box.clientHeight + 1 || rect.bottom > window.innerHeight + 1 || rect.top < -1) bad.push(tip.id);
+                }
+            }
+            return bad;
+        });
+        assert.deepEqual(tooTall, [], 'tipy, které se nevejdou');
+        assert.deepEqual(problems, []);
+        await context.close();
+    });
 });
