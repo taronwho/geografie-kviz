@@ -128,6 +128,15 @@ Pravidla pro všechno nové (platí v celé hře):
   - životy bosse klesnou na 0 = výhra;
   - dojdou srdce nebo otázky = prohra (počítá se uštědřené poškození).
 - **Pokusy**: 3 za týden, počítá se nejlepší.
+- **Boss se mění, jak mu ubývají životy**:
+  - 1. Plná síla (100–67 %): sebevědomý portrét;
+  - 2. Zraněný (66–34 %): odřený, natržený kostým, pot, pořád bojuje;
+  - 3. V koncích (33–1 %): kostým v cárech, rozbitá rekvizita, zoufalý vztek;
+  - 4. Poražený (0).
+  - Při změně fáze: velký záblesk, otřes, prolnutí obrázku a hláška fáze.
+  - Posměšky po chybách hráče se mění podle fáze: nafoukaně → nervózně → zoufale.
+  - Efekty navíc: pot a prasklina (fáze 2), rudá pulzující viněta, obláček kouře a třes (fáze 3).
+  - Dlaždice na úvodu ukazuje fázi nejlepšího pokusu týdne.
 - **Animace**:
   - zásah: boss se zatřese, problikne a vyletí číslo poškození;
   - lišta životů ubývá plynule;
@@ -155,35 +164,47 @@ Pravidla pro všechno nové (platí v celé hře):
   - sousedství podle společné hranice a navíc námořní spoje (Velká Británie–Francie, Irsko–Velká Británie, Island–Norsko a Velká Británie, Dánsko–Švédsko a Norsko, Kypr–Řecko a Turecko, Estonsko–Finsko, Itálie–Albánie, Sardinie a Korsika podle států);
   - sousedství se předpočítá a uloží do `data/dobyvani.json`, aby server i klient měli stejný graf.
 - **Start**: kdo v týdnu poprvé otevře mapu, dostane náhodné volné domovské území, co nejdál od ostatních.
-- **Útoky**:
-  - 5 útoků denně (obnova o půlnoci);
-  - útočí se na území, které sousedí s některým tvým;
-  - útok = otázka o tom státu: hlavní město, vlajka, najdi na mapě, stavba nebo místo v tom státě, osobnost z něj… Využij generátory otázek témat (zeměpis, vlajky, architektura…) s filtrem na stát.
-  - Správně: neutrální území nebo území soupeře bez hradby je tvoje. U území s hradbou útok zboří hradbu a teprve další úspěšný útok ho dobude.
-  - Špatně: útok propadne.
-- **Obrana**: otázka na vlastním území (stojí 1 útok) postaví hradbu, nejvýš jednu na území.
-- **Konec týdne**:
-  - vyhrává nejvíc území, při shodě ten, kdo poslední území získal dřív;
-  - vítěz dostane odznak Dobyvatel a obrázkový rámeček `ramecek-dobyvatel`;
-  - konečná mapa se uloží do Kroniky.
+- **Tahy**: 5 denně (obnova o půlnoci, nevyužité propadají) a bonusy: +1 za každý celý region, +1 jednorázově za dobytý
+  poklad, +1 další den za dobyté hlavní město soupeře (kořist).
+- **Opevnění** (úroveň 0–3): 1 Palisáda, 2 Hradba, 3 Pevnost. Běžné území nejvýš 2, domovské území (hlavní město
+  s hradem) nejvýš 3. „Opevnit“ = 1 tah, otázka na vlastním území, správně +1 úroveň.
+- **Útok** („Zaútočit“, 1 tah, jedna otázka): na území sousedící s některým tvým; hráč vybere, odkud útočí (výchozí
+  nejbližší vlastní území), šipka vede odtud. Správně na opevněné území = opevnění o úroveň klesne (praskne a spadne);
+  správně na území s úrovní 0 (neutrální nebo soupeře) = území je tvoje. Špatně = útok propadne. Čím vyšší opevnění,
+  tím těžší otázka. Otázky o státu: hlavní město, vlajka, najdi na mapě, stavba nebo místo v tom státě, osobnost z něj…
+  (generátory otázek témat s filtrem na stát).
+- **Regiony** (jako kontinenty v Risku): asi 8–9 skupin (Britské ostrovy, Skandinávie, Pobaltí, Pyrenejský poloostrov,
+  Západní Evropa, Střední Evropa, Itálie a Středomoří, Balkán, Východní Evropa). Celý region = zlatě zářící obrys
+  s fanfárou, +1 tah denně a +2 body na konci.
+- **Poklady**: 5 náhodných neutrálních území na mapě má truhličku; dobytí = +1 tah hned.
+- **Domovské území**: každý začíná jedním (hrad). Kdo přijde o všechna území, dostane další den náhodné neutrální
+  („Návrat do hry“) – nikdo nevypadne na zbytek týdne.
+- **Konec týdne** (neděle 20:00): body = 1 za území + 2 za celý region, při shodě dřívější dosažení. Závěrečný ceremoniál:
+  rychlé přehrání týdne na mapě (dobývání den po dni) a stupně vítězů. 1. místo: odznak Dobyvatel a rámeček
+  `ramecek-dobyvatel`, 2. a 3. místo XP. Konečná mapa se uloží do Kroniky.
+- **Kronika tažení**: přehled událostí u mapy („Německo dobyto · Eva“, „Hradba ve Francii pobořena · Petr“).
 - **Vzhled, aby to bylo opravdu hezké**:
   - SVG mapa na textuře starého pergamenu;
   - moře s texturou starých map a jemnými vlnkami;
-  - území v barvách hráčů s jemným šrafováním, na území vlaječka s avatarem;
+  - území v barvě hráče „vpité“ do pergamenu a se vzorem šrafování podle hráče (barva není jediné rozlišení), vlastní území se silnějším inkoustovým obrysem;
+  - na území vlaječka s avatarem a ikona opevnění: palisáda, hradba, pevnost, hrad u domovského území, truhlička u pokladu;
   - větrná růžice, kartuše s názvem, mořská příšerka a loď jako ozdoby;
   - **Animace**:
-    - dobytí: barva se rozlije od místa útoku jako inkoust (maska s rostoucím kruhem) a zapíchne se vlaječka;
-    - hradba vyroste;
-    - neúspěšný útok: území se zatřese a šipka útoku se zlomí.
-  - Přiblížení mapy prsty a dvojitým klepnutím (malé státy na Balkáně). Klepnutí na území otevře kartu s majitelem, hradbou a tlačítkem Zaútočit.
+    - útok: mapa ztmavne, z výchozího území se vykreslí obloukovitá čárkovaná šipka a otázka se ukáže ve spodním listu;
+    - úspěch: záblesk dopadu, pak buď opevnění praskne a spadne o úroveň, nebo se barva rozlije od místa útoku jako inkoust (maska s rostoucím kruhem) a zapíchne se vlaječka;
+    - neúspěch: šipka se zlomí a území se zatřese;
+    - opevnění: ikona vyroste ze země s obláčkem prachu;
+    - celý region: zlatě zářící obrys, fanfára a stuha s názvem regionu;
+    - poklad: truhlička se otevře a zajiskří.
+  - Přiblížení mapy prsty a dvojitým klepnutím (malé státy na Balkáně). Klepnutí na území otevře kartu s majitelem, opevněním a tlačítky Zaútočit a Opevnit.
   - Na 360×640 je mapa celá vidět; karta území se zobrazí jako spodní list.
-- **Karta ve Více hráčích**: malá mapa skupiny (moje barva), „Útoky 5/5“ a „Hrát“. Při více skupinách je přepínač skupiny.
+- **Karta ve Více hráčích**: malá mapa skupiny (moje barva), „Tahy 5/5“ a „Hrát“. Při více skupinách je přepínač skupiny.
 - **Server** (`-- 21: Dobývání Evropy`):
-  - tabulky `conquest_maps (id, group_id, week, created_at)`, `conquest_territories (map_id, territory, owner, wall, captured_at)` a `conquest_moves (map_id, user_id, day, territory, kind, success, at)`;
+  - tabulky `conquest_maps (id, group_id, week, created_at)`, `conquest_territories (map_id, territory, owner, level, home, treasure, captured_at)` a `conquest_moves (map_id, user_id, day, territory, kind, success, at)`;
   - funkce:
     - `conquest_open(group_id)`: založí mapu týdne a přidělí domovské území;
-    - `conquest_state(map_id)`: území, hráči a moje zbývající útoky;
-    - `conquest_move(map_id, territory, kind, success)`: kontrola členství, sousedství, denního limitu, hradby a konce týdne.
+    - `conquest_state(map_id)`: území, hráči, regiony a moje zbývající tahy;
+    - `conquest_move(map_id, territory, kind, success)`: kontrola členství, sousedství, denního rozpočtu tahů (základ, regiony, poklady, kořist), opevnění, návratu do hry a konce týdne.
   - Správnost odpovědi posílá klient (hrají se kamarádi ve skupině). Sousedství ze stejného `data/dobyvani.json`, vložené do SQL jako tabulka `conquest_links`.
 - **Push** (volitelně, pokud zbude čas): „Tvé území napadl …“ přes stávající push mechanismus.
 
