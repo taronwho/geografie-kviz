@@ -274,8 +274,14 @@ Do dodání hra používá existující obrázky. Po dodání stačí vyměnit k
 | 236 | `kartuse` | Prázdná ozdobná kartuše na název |
 | 237 | `morska-prisera` | Roztomilá mořská příšerka |
 | 238 | `plachetnice` | Plachetnice |
-| 239 | `hradba` | Kamenná hradba s věží |
+| 239 | `hradba` | Kamenná hradba s věží (opevnění 2. stupně) |
 | 240 | `ramecek-dobyvatel` | Obrázkový rámeček vítěze |
 | 241 | `mince` | Mince s Mudrlantem |
 | 242 | `mince-hromadka` | Hromádka mincí |
 | 243 | `sova-sazka` | Sova s měšcem mincí (tip, odznak Sázkař) |
+| 244–251 | `boss-<id>-zraneny` | Bossové ve 2. fázi Zraněný (66–34 % životů): odřený, natržený kostým, pot, náplast, pořád bojují |
+| 252–259 | `boss-<id>-vkoncich` | Bossové ve 3. fázi V koncích (33–1 % životů): kostým v cárech, rozbitá rekvizita, zoufalý vztek |
+| 260 | `palisada` | Dřevěná palisáda (opevnění 1. stupně) |
+| 261 | `pevnost` | Kamenná pevnost s praporkem (opevnění 3. stupně) |
+| 262 | `hrad-domov` | Hrádek na domovském území (hlavní město) |
+| 263 | `poklad` | Truhlička přetékající zlatem (poklad na neutrálním území) |
