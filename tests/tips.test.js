@@ -6,7 +6,7 @@ const path = require('node:path');
 const Tips = require('../tips.js');
 
 const NOW = Date.parse('2026-11-09T10:00:00Z');
-const ACTIONS = ['settings', 'learn', 'progress', 'multi', 'single', 'quiz', 'modes', 'goals', 'chronicle'];
+const ACTIONS = ['settings', 'learn', 'progress', 'multi', 'single', 'quiz', 'mystery', 'modes', 'goals', 'chronicle'];
 const base = (over = {}) => ({ counters: { answered: 0 }, today: '2026-11-09', now: NOW, launches: 1, signedIn: false, multiAvailable: true, reviewOn: true, ...over });
 
 test('každý tip má id, titulek, text a ikonu, která existuje v icons.js; akce míří na známé místo', () => {
@@ -55,7 +55,7 @@ test('rozpočet za den klesá se zkušeností hráče', () => {
 
 test('funkci, kterou hráč už používá, tip nenabídne; tip se ukáže jen jednou', () => {
     const player = { answered: 700, typedCorrect: 5, created: 2, challenges: 4, tourPlayed: 1, reviewed: 3, noHint: 40, bestStreak: 9, wins: 20, weeksDone: 1,
-        quizDone: 9, blitzGames: 2, orderAnswered: 8, mapAnswered: 6, sharedImages: 1, freezesUsed: 1, chestsOpened: 1 };
+        quizDone: 9, blitzGames: 2, orderAnswered: 8, mapAnswered: 6, sharedImages: 1, freezesUsed: 1, chestsOpened: 1, mysterySolved: 2 };
     const ctx = base({ counters: player, signedIn: true });
     const offered = [];
     let state = { ...Tips.EMPTY, visited: { learn: true, progress: true, look: true, diplomas: true, season: true, album: true, showcase: true } };
@@ -148,4 +148,15 @@ test('tipy na Kvíz dne, Bleskovku a Přežití, Seřaď a Odhadni, mapu, sdíle
     const visited = Tips.touch(Tips.EMPTY, 'diplomas');
     assert.equal(visited.visited.diplomas, true);
     assert.equal(Tips.pick({ ...visited, seen: Tips.TIPS.filter(tip => tip.id !== 'diplomy').map(tip => tip.id) }, base({ counters: { answered: 60 }, maxStars: 5 })), null);
+});
+
+test('tip na Tajemnou otázku dne: brzy, vede na ni; kdo ji vyřešil nebo ji aplikace nemá, tip nedostane', () => {
+    const at = (ctx) => Tips.pick({ ...Tips.EMPTY, seen: Tips.TIPS.filter(tip => tip.id !== 'tajemna').map(tip => tip.id) }, ctx);
+    assert.equal(at(base({ counters: { answered: 8 } })), null, 'až po 9 odpovědích');
+    const tip = at(base({ counters: { answered: 9 } }));
+    assert.equal(tip.id, 'tajemna');
+    assert.deepEqual(tip.action, { kind: 'mystery', label: 'Hádat' });
+    assert.equal(tip.art, 'sova-dalekohled');
+    assert.equal(at(base({ counters: { answered: 50, mysterySolved: 1 } })), null);
+    assert.equal(at(base({ counters: { answered: 50 }, mystery: false })), null);
 });

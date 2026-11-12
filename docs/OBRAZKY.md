@@ -412,6 +412,17 @@ Přiložit: `branding/sova-original.jpg` (vzor stylu)
 Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole object. Single centered subject filling about 80 % of the frame with even empty space around it. Plain solid flat dark grey background, color #2d3034, no gradient, no shadow on the background, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, colors, shading); do not draw the owl. Subject: A shiny golden pocket stopwatch standing in front of a small cream tear-off calendar page, with a tiny sparkle on the stopwatch button. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
+### 47a. `odznak-detektiv.png` – Detektiv (Tajemná otázka dne)
+
+**Stav: zatím zástupný obrázek** (kopie `sova-dalekohled.png`, sova s dalekohledem z pruhu Tajemné otázky dne). Až vznikne vlastní symbol, nahradí se soubor
+a spustí `python3 scripts/topic-icons.py odznak-detektiv`.
+
+Přiložit: `branding/sova-original.jpg` (vzor stylu)
+
+```text
+Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole object. Single centered subject filling about 80 % of the frame with even empty space around it. Plain solid flat dark grey background, color #2d3034, no gradient, no shadow on the background, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, colors, shading); do not draw the owl. Subject: A brass magnifying glass held over a small folded violet envelope with a golden wax seal, a few tiny golden sparkles around the lens. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
 ### 48. `odznak-kviz-serie.png` – Série Kvízu dne
 
 Přiložit: `branding/sova-original.jpg` (vzor stylu)
