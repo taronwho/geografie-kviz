@@ -1891,6 +1891,16 @@ Odemkne: odznak Pán stadionů – 1000 správných odpovědí v tématu (`tema-
 Edit the attached image. Keep the owl mascot EXACTLY as it is: same pose, same proportions, same colors, same outline style, same flat dark background. Do not redraw, move or recolor the owl. Only ADD the accessory described below, drawn in the same cartoon sticker style with the same thick dark outline and the same lighting, sitting naturally on the owl. The accessory should be mostly one dominant color (not wine red) so it can be recolored later. Do not add anything else. Accessory: A shiny golden trophy cup with two handles held up proudly in the owl's wing, with a small sparkle on it, no text.
 ```
 
+### Mudrlantova kronika
+
+#### 205. `sova-kronika.png` – Sova s kronikou týdne – čeká na dodání
+
+Kam: pruh „Tvůj týden v kostce je hotový“ na úvodu (neděle večer a pondělí). Do dodání je v pruhu sova titulu týdne; po dodání stačí v `chronicle.js` nastavit `STRIP_ART = 'sova-kronika'` (a vyrobit barvy obleku). Přiložit: `branding/sova-original.jpg` (postava)
+
+```text
+Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole object. Single centered subject filling about 80 % of the frame with even empty space around it. Plain solid flat dark grey background, color #2d3034, no gradient, no shadow on the background, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl mascot as the character: keep its face, monocle with chain, white eyebrows and whiskers, golden-brown feathers and wine-red academic robe with cap exactly as they are; change only the pose and props described here. The wine-red color must appear only on the robe and cap: all props must be in other colors (no red, pink or wine-colored props). Subject: The owl mascot happily holding a big open teal leather-bound chronicle book, one page shows a simple row of seven golden check-mark circles and a tiny bar chart with three bars, a golden quill tucked behind its ear, small sparkles around the book. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
 ## Co udělám po dodání
 
 1. Uložím soubory do `branding/ikony/`, vyříznu pozadí (`python3 scripts/topic-icons.py …`) a u sov vyrobím barvy obleku (`python3 scripts/owl-robes.py`).

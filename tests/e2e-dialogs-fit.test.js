@@ -29,8 +29,8 @@ const MON = '2026-11-09';
 const SIZES = [{ width: 390, height: 780 }, { width: 360, height: 640 }];
 // Na 360×640 smí okno přetéct nejvýš o tolik (víc než stejná tvrdá nula by znamenalo skládat obsah do sloupců, které se nevejdou)
 const SMALL_TOLERANCE = 24;
-// Záložky Nastavení (a jejich stavy) se musí vejít bez posouvání na obou velikostech, bez rezervy
-const SETTINGS_STRICT = /^Nastavení/;
+// Záložky Nastavení (a jejich stavy) a karty Kroniky týdne se musí vejít bez posouvání na obou velikostech, bez rezervy
+const SETTINGS_STRICT = /^(Nastavení|Kronika týdne)/;
 // FIT_SCHEME=dark projde okna v tmavém režimu (snímky pro kontrolu vzhledu)
 const SCHEME = process.env.FIT_SCHEME === 'dark' ? 'dark' : 'light';
 
@@ -292,6 +292,10 @@ const richStorage = () => {
         'mudrlant.learned': JSON.stringify(learned),
         // Celý look Cestovatel už oslavený (oblečení v okně Nastavení by jinak po zavření ukázalo oslavu přes další okna)
         'mudrlant.looks': JSON.stringify(['zemepis']),
+        // Mudrlantova kronika: minulý týden (2.–8. 11.) se všemi pěti kartami a dlouhým názvem objevu týdne
+        'mudrlant.week': JSON.stringify({ v: 1, days: {
+            '2026-11-02': { a: 1240, c: 1004, p: 3100, xp: 12400, run: 48, h: [0, 900, 340, 0], t: { architektura: [700, 600], historie: [540, 404] }, n: 312, ex: ['Chrám Svaté rodiny (Sagrada Família) v Barceloně', 'architektura'], cw: 12, cl: 9, cp: 21, tw: 3 },
+            '2026-11-05': { a: 30, c: 20, xp: 300, t: { hudba: [30, 20] }, q: 10 } } }),
         // Sezóna Mudrlanta: od 15 000 XP (11 000 XP sezóny = stupeň 14), pět stupňů vyzvednutých; oba rámečky, postavička a titul z minulé sezóny
         'mudrlant.rewards': JSON.stringify({ v: 1, freezes: 2, name: 'Jana Nováková', ready: ['2026-11-02'], chests: { '2026-10-26': 'xp' }, diplomas: { zemepis: '2026-10-20' },
             gifts: { frames: ['sezona-10', 'sezona-10-b', 'duha-mracky'], avatars: ['drakpa'], titles: ['sampion-sezony'] },
@@ -573,6 +577,15 @@ test('okna se vejdou bez posouvání', { skip: !chromium && 'Playwright není na
             await scene(tab, 'Diplom', size, async () => { await progress(); await tab.click('[data-rewards-info="diplomas"]'); await tab.click('[data-diploma="zemepis"]'); await tab.waitForSelector('[data-diploma-preview] canvas'); });
             await scene(tab, 'Diplom (zamčený)', size, async () => { await progress(); await tab.click('[data-rewards-info="diplomas"]'); await tab.click('[data-diploma="historie"]'); await tab.waitForSelector('[data-diploma-locked]'); });
             await scene(tab, 'Ochrana série', size, async () => { await progress(); await tab.click('[data-rewards-info="freeze"]'); await tab.waitForSelector('[data-freeze-help]'); });
+            // Mudrlantova kronika (chronicle.js): každá karta příběhu (s přepínačem Minulý / Tento týden) se vejde bez posouvání
+            const chronicle = async (pageName) => {
+                await progress();
+                await tab.click('[data-open-chronicle]');
+                await tab.waitForSelector('[data-chronicle]');
+                for (let i = 0; i < 5 && await tab.getAttribute('[data-chronicle]', 'data-kr-page') !== pageName; i++) await tab.click('[data-kr-next]');
+                await tab.waitForSelector(`[data-chronicle][data-kr-page="${pageName}"]`);
+            };
+            for (const pageName of ['titul', 'cisla', 'tema', 'souboje', 'zaver']) await scene(tab, `Kronika týdne – ${pageName}`, size, () => chronicle(pageName));
             // Album sbírky (album.js): sekce s nejvíc věcmi (doplňky), Odznaky (posouvají se), podrobnosti postavičky (s Nasadit) a odměny alba
             const album = async (section) => { await progress(); await tab.click('[data-rewards-info="album"]'); await tab.waitForSelector('[data-album]'); await tab.click(`[data-album-tab="${section}"]`); await tab.waitForSelector(`[data-album-section="${section}"]`); };
             await scene(tab, 'Album sbírky', size, () => album('accessories'));
@@ -754,8 +767,8 @@ test('okna se vejdou bez posouvání', { skip: !chromium && 'Playwright není na
         }
         assert.deepEqual(over, [], 'okna bez posouvání');
         // Přepracovaný profil hráče a nahlášení: všechna tlačítka aspoň 40 px
-        const tiny = Object.entries(table).filter(([name]) => /^(Profil hráče|Nahlásit hráče|Zablokovat hráče)/.test(name))
+        const tiny = Object.entries(table).filter(([name]) => /^(Profil hráče|Nahlásit hráče|Zablokovat hráče|Kronika týdne)/.test(name))
             .flatMap(([name, row]) => Object.entries(row.detail || {}).flatMap(([key, found]) => found.small.map(item => `${name} ${key}: ${item}`)));
-        assert.deepEqual(tiny, [], 'dotykové plochy v profilu hráče aspoň 40 px');
+        assert.deepEqual(tiny, [], 'dotykové plochy v profilu hráče a v Kronice týdne aspoň 40 px');
     });
 });

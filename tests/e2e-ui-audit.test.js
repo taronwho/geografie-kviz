@@ -51,8 +51,8 @@ const inspect = () => {
         // Hlavní akce a hlavička: aspoň 44 px (ostatní drobná tlačítka se nehlídají)
         if (el.matches('#app-header button, [data-action="next"], [data-action="choice"], [data-action="hint"], [data-chooser-play], #answer-form button, [data-chooser-mode], [data-action="mode-choice"], [data-action="mode-start"], [data-action="mode-again"]')
             && Math.min(box.width, box.height) < 43.5) out.small.push(`${name(el)} ${Math.round(box.width)}×${Math.round(box.height)}`);
-        // Zavírání oken, medaile, výběr vzhledu, doplňky sovy, obrázky v Profilu, přepínače, cíle týdne a odkazy pod okny: aspoň 40 px
-        if (el.matches('[data-close][aria-label], [data-fact-close], [data-badge], #weekly-goals, [data-tip-off], [data-update-app], [data-theme-pick], [data-frame], #settings-overlay a[href], [data-owl-pick], [data-pick-avatar], [data-pick-owl], [data-locked-avatar], [data-locked-owl], [role="switch"], [data-tutorial-restart], [data-chooser-category], [data-chooser-topic]')
+        // Zavírání oken, medaile, výběr vzhledu, doplňky sovy, obrázky v Profilu, přepínače, cíle týdne, odkazy pod okny a Kronika týdne: aspoň 40 px
+        if (el.matches('[data-close][aria-label], [data-fact-close], [data-badge], #weekly-goals, [data-tip-off], [data-update-app], [data-theme-pick], [data-frame], #settings-overlay a[href], [data-owl-pick], [data-pick-avatar], [data-pick-owl], [data-locked-avatar], [data-locked-owl], [role="switch"], [data-tutorial-restart], [data-chooser-category], [data-chooser-topic], [data-chronicle] button, [data-chronicle-strip] button')
             && Math.min(box.width, box.height) < 39.5) out.small.push(`${name(el)} ${Math.round(box.width)}×${Math.round(box.height)}`);
         el.scrollIntoView({ block: 'center', inline: 'nearest' });
         const at = el.getBoundingClientRect();
@@ -122,12 +122,13 @@ test('rozhraní na úzkém telefonu', { skip: !chromium && 'Playwright není nai
 
     // fact = zajímavost dne (data/fakt.json), jinak ji server nemá
     // signedIn = přihlášený hráč (falešné Supabase: jeho profil, jinak prázdné odpovědi) – v Nastavení má tři záložky
-    const open = async (scheme, { viewport = VIEWPORT, fact = null, signedIn = false } = {}) => {
+    // now = čas v prohlížeči, storage = další uložená data
+    const open = async (scheme, { viewport = VIEWPORT, fact = null, signedIn = false, now = '2026-10-16T10:00:00', storage = {} } = {}) => {
         const context = await browser.newContext({ serviceWorkers: 'block', viewport, colorScheme: scheme, reducedMotion: 'reduce', hasTouch: true });
         if (fact) await context.route('**/data/fakt.json', route => route.fulfill({ json: fact }));
         const auth = signedIn ? JSON.stringify({ access_token: 'tok', refresh_token: 'r', expires_at: 4102444800, user: { id: 'u-1', email: 'jana@example.com', name: 'Jana Nováková' } }) : null;
         await context.addInitScript(() => { window.MUDRLANT_NUMERIC_RATE = 0; }); // jen obyčejné otázky (Seřaď a Odhadni číslo: e2e-numeric)
-        await context.addInitScript((auth) => {
+        await context.addInitScript(([auth, storage]) => {
             if (sessionStorage.getItem('seeded')) return;
             sessionStorage.setItem('seeded', '1');
             localStorage.setItem('mudrlant.account', JSON.stringify('host'));
@@ -135,7 +136,8 @@ test('rozhraní na úzkém telefonu', { skip: !chromium && 'Playwright není nai
             localStorage.setItem('mudrlant.tutorial', JSON.stringify({ how: 'done' }));
             localStorage.setItem('mudrlant.tips', JSON.stringify({ off: true }));
             if (auth) localStorage.setItem('mudrlant.auth', auth);
-        }, auth);
+            for (const [key, value] of Object.entries(storage)) localStorage.setItem(key, JSON.stringify(value));
+        }, [auth, storage]);
         const tab = await context.newPage();
         const problems = [];
         tab.on('pageerror', error => problems.push(error.message));
@@ -151,7 +153,7 @@ test('rozhraní na úzkém telefonu', { skip: !chromium && 'Playwright není nai
             if (/\.(png|jpe?g|webp)$/.test(url.pathname) || url.hostname === 'upload.wikimedia.org' || url.hostname === 'tile.openstreetmap.org') return route.fulfill({ contentType: 'image/png', body: PNG });
             return route.abort();
         });
-        await tab.clock.setFixedTime(new Date('2026-10-16T10:00:00'));
+        await tab.clock.setFixedTime(new Date(now));
         await tab.goto(`${origin}/`);
         await tab.waitForSelector('[data-action="daily"][data-topic="zemepis"]', { timeout: 30000 });
         return { context, tab, problems };
@@ -319,6 +321,30 @@ test('rozhraní na úzkém telefonu', { skip: !chromium && 'Playwright není nai
             await tab.waitForSelector('[data-action="auth-login"]');
             await check(tab, `${scene}: více hráčů`, scheme);
             await fitsScreen(tab, `${scene}: více hráčů`, scheme);
+            assert.deepEqual(problems, [], 'bez chyb v konzoli a bez porušení CSP');
+            await context.close();
+        });
+    }
+
+    // Mudrlantova kronika (chronicle.js): pruh na úvodu v neděli večer (místo cílů týdne) a každá karta okna: kontrast, dotykové plochy, bez posouvání
+    for (const scheme of ['light', 'dark']) {
+        await t.test(`Mudrlantova kronika: pruh na úvodu a karty okna (${scheme})`, async () => {
+            const week = { v: 1, days: {
+                '2026-10-12': { a: 20, c: 15, p: 40, xp: 200, run: 6, h: [0, 20, 0, 0], t: { zemepis: [12, 10], historie: [8, 5] }, n: 3, ex: ['Mongolsko', 'zemepis'], cw: 1, cp: 1 },
+                '2026-10-15': { a: 9, c: 6, p: 18, xp: 80, h: [0, 0, 9, 0], t: { hudba: [9, 6] } } } };
+            const { context, tab, problems } = await open(scheme, { now: '2026-10-18T19:30:00', storage: { 'mudrlant.week': week, 'mudrlant.homeTab': 'single' } });
+            await tab.waitForSelector('[data-chronicle-strip]');
+            await check(tab, 'úvod s kronikou', scheme);
+            await fitsScreen(tab, 'úvod s kronikou', scheme);
+            await tab.click('[data-action="chronicle-open"]');
+            for (let i = 0; i < 5; i++) {
+                await tab.waitForSelector('[data-chronicle]');
+                const page = await tab.getAttribute('[data-chronicle]', 'data-kr-page');
+                await check(tab, `kronika: ${page}`, scheme);
+                if (page === 'zaver') break;
+                await tab.click('[data-kr-next]');
+            }
+            assert.equal(await tab.getAttribute('[data-chronicle]', 'data-kr-page'), 'zaver');
             assert.deepEqual(problems, [], 'bez chyb v konzoli a bez porušení CSP');
             await context.close();
         });
