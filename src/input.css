@@ -531,6 +531,9 @@ html.kb-open #settings-overlay > *, html.kb-open #dialog-overlay > * { max-heigh
 @keyframes chestFloat { 0%, 100% { translate: 0 0; } 50% { translate: 0 -0.3rem; } }
 @keyframes chestFadeUp { from { opacity: 0; translate: 0 0.5rem; } to { opacity: 1; translate: 0 0; } }
 
+/* Měření úvodu (app.js fitHome) bez přechodů: třída fit-short se přepne a výška změří hned v konečné podobě */
+.fit-measure, .fit-measure * { transition: none !important; }
+
 /* Zlatá otázka (gold.js, app.js oddíl „Zlatá otázka“). Obrazovka má nahoře teplou zlatou záři (.gold-screen), karta otázky zlatý rámeček
    s jemnou texturou zlaté fólie (.gold-card; do dodání obrázku č. 210 z přechodů) a jednou za pár sekund ji přejede třpyt (::after);
    na horním okraji karty je zlatý štítek (.gold-ribbon). Po správné odpovědi vyletí z místa odpovědi zlaté jiskřičky (.gold-spark)

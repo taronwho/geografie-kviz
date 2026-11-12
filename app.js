@@ -2581,10 +2581,14 @@
         const wrap = appContent.firstElementChild;
         if (screen !== 'home' || homeTab() === 'multi' || !wrap) return;
         const wasShort = root.classList.contains(FIT_SHORT);
+        // Měří se bez přechodů (dlaždice mají transition-all): jinak by se hned po odebrání třídy změřila ještě zhuštěná výška
+        // a úvod by po doběhnutí přechodu přetekl (fit-measure v src/input.css)
+        root.classList.add('fit-measure');
         root.classList.remove(FIT_SHORT);
         if (!window.matchMedia('(max-height: 770px)').matches && wrap.scrollHeight > appContent.clientHeight + 1) root.classList.add(FIT_SHORT);
         if (root.classList.contains(FIT_SHORT) !== wasShort) appContent.scrollTo(0, 0);
         fitSeen = wrap.scrollHeight;
+        root.classList.remove('fit-measure');
     };
     let fitFrame = 0;
     const homeFitObserver = typeof MutationObserver === 'function' ? new MutationObserver(() => {
