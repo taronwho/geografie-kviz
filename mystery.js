@@ -137,16 +137,21 @@
     // Skutečná fotka z Commons (ne vlajka, mapa či znak ve formátu SVG/PNG)
     const hasPhoto = (item) => Boolean(item && item.ih && /\.(jpe?g|webp)$/i.test(String(item.im || '')));
     const factCount = (item) => (item && item.f && typeof item.f === 'object' ? Object.keys(item.f).length : 0);
-    // Kandidáti: známé položky (k: 1), na které se dá ptát, s fotkou a aspoň jedním faktem, z první poloviny kategorie
-    // (data témat jsou v kategorii seřazená podle známosti); bez nich postupně volnější výběr
-    const candidatesOf = (items) => {
+    // Kandidáti: známé položky (k: 1), na které se dá ptát, s fotkou a aspoň dvěma fakty, z první čtvrtiny kategorie
+    // (data témat jsou v kategorii seřazená podle známosti – tajemná otázka má být hádanka na to nejznámější, ne na podrobnosti);
+    // bez nich postupně volnější výběr
+    // Od 13. 11. 2026 jen nejznámější čtvrtina kategorie a aspoň dva fakty; dřívější dny (už rozehrané) zůstávají, jak byly
+    const EASY_FROM = '2026-11-13';
+    const candidatesOf = (items, day = EASY_FROM) => {
+        const easy = String(day) >= EASY_FROM;
         const list = (items || []).filter(item => item && item.q && item.n);
         const known = list.filter(item => item.k === 1 && !item.nq);
         const byCategory = new Map();
         known.forEach(item => { if (!byCategory.has(item.c)) byCategory.set(item.c, []); byCategory.get(item.c).push(item); });
         const famous = new Set();
-        byCategory.forEach(group => group.slice(0, Math.max(1, Math.ceil(group.length / 2))).forEach(item => famous.add(item.q)));
+        byCategory.forEach(group => group.slice(0, Math.max(1, Math.ceil(group.length / (easy ? 4 : 2)))).forEach(item => famous.add(item.q)));
         const tiers = [
+            ...(easy ? [known.filter(item => famous.has(item.q) && hasPhoto(item) && factCount(item) > 1)] : []),
             known.filter(item => famous.has(item.q) && hasPhoto(item) && factCount(item) > 0),
             known.filter(item => hasPhoto(item) && factCount(item) > 0),
             known.filter(item => hasPhoto(item)),
@@ -160,7 +165,7 @@
     const pickItem = (day, topicId, items) => {
         let best = null;
         let bestHash = Infinity;
-        for (const item of candidatesOf(items)) {
+        for (const item of candidatesOf(items, day)) {
             const value = hash32(`${seedFor(day)}|${topicId}|${item.q}`);
             if (value < bestHash || (value === bestHash && String(item.q) < String(best.q))) { best = item; bestHash = value; }
         }
@@ -180,7 +185,7 @@
     const wordCount = (name) => String(name || '').trim().split(/\s+/).filter(Boolean).length;
     // Osm nápověd z dat otázky (tvar createRoundData v app.js): data = { typeLabel, questionText, hints, leadFacts, photoUrl, questionImage,
     // name, question: { choices } }. 1. druh a téma (a první fakt), pak fakta, věty popisu (odpověď zakrytá), obrazová nápověda tématu
-    // (slepá mapa, osa…), další věty; předposlední rozmazaná fotka; poslední první písmeno, ostrá fotka a čtyři možnosti.
+    // (slepá mapa, osa…), další věty; předposlední rozmazaná fotka; poslední ostrá fotka.
     // Každá nápověda: { n, hour, title, icon, parts: [{ type: 'type' | 'facts' | 'text' | 'visual' | 'photo' | 'pattern' | 'choices' | 'note', … }] }
     const buildClues = (data, { topicTitle = '' } = {}) => {
         const hints = (data && Array.isArray(data.hints)) ? data.hints : [];
@@ -194,7 +199,6 @@
         const visuals = hints.filter(hint => hint.kind === 'visual' && hint.spec).map(hint => ({ spec: hint.spec, label: hint.label || 'obrázek', icon: hint.icon || 'map' }));
         const photo = (data && data.questionImage && data.questionImage.url) || (hints.some(hint => hint.kind === 'photo') && data.photoUrl) || null;
         const name = (data && data.name) || '';
-        const choices = data && data.question && Array.isArray(data.question.choices) ? data.question.choices.map(choice => choice.label) : [];
         // Fronta středních nápověd od nejslabší: fakt, první věta, fakt, obrázek tématu, další věty, zbytek faktů
         const queue = [];
         const factQueue = facts.slice(1);
@@ -207,12 +211,9 @@
         extraTexts.slice(0, 1).forEach(text => queue.push({ title: 'Z článku', icon: 'book-open', parts: [{ type: 'text', text }] }));
         visuals.slice(1, 2).forEach(visual => queue.push({ title: visual.label.charAt(0).toUpperCase() + visual.label.slice(1), icon: visual.icon, parts: [{ type: 'visual', spec: visual.spec }] }));
         while (factQueue.length) takeFacts(2);
-        // Záložní nápovědy, když data nestačí: počet slov a písmen, pak konec odpovědi (poslední písmeno, dvě, tři…)
-        const letters = String(name).match(/[\p{L}\p{N}]/gu) || [];
-        const ending = (count) => letters.slice(-count).join('').toLocaleLowerCase('cs');
+        // Záložní nápověda, když data nestačí: jen počet slov (žádná písmena ani konce odpovědi – hádanka má zůstat hádankou)
         const fallbacks = [
-            { title: 'Délka odpovědi', icon: 'ruler', parts: [{ type: 'note', text: `Odpověď má ${plural(wordCount(name), 'slovo', 'slova', 'slov')} a ${plural(letterCount(name), 'písmeno', 'písmena', 'písmen')}.` }] },
-            ...Array.from({ length: Math.max(0, Math.min(5, letters.length - 2)) }, (_, i) => ({ title: i ? 'Konec odpovědi' : 'Poslední písmeno', icon: 'type', parts: [{ type: 'note', text: `Odpověď končí na „${ending(i + 1)}“.` }] }))
+            { title: 'Délka odpovědi', icon: 'ruler', parts: [{ type: 'note', text: `Odpověď má ${plural(wordCount(name), 'slovo', 'slova', 'slov')}.` }] }
         ];
         const middle = photo ? CLUES - 3 : CLUES - 2;
         const slots = [];
@@ -231,11 +232,11 @@
         }
         const first = { title: 'Co hledáme', icon: 'telescope', parts: [{ type: 'type', topic: topicTitle, label: (data && data.typeLabel) || '' }, ...(facts[0] ? [{ type: 'facts', facts: [facts[0]] }] : [])] };
         const blurred = photo ? [{ title: 'Rozmazaná fotka', icon: 'image', parts: [{ type: 'photo', url: photo, blur: true }] }] : [];
-        const final = { title: 'Poslední nápověda', icon: 'sparkles', parts: [
-            { type: 'pattern', text: answerPattern(name), letters: letterCount(name) },
-            ...(photo ? [{ type: 'photo', url: photo, blur: false }] : []),
-            ...(choices.length > 1 ? [{ type: 'choices', choices }] : [])
-        ] };
+        // Poslední nápověda: ostrá fotka (bez možností a bez písmen – ty hádanku úplně prozradily); bez fotky další věty popisu
+        const finalParts = photo ? [{ type: 'photo', url: photo, blur: false }]
+            : sentences.length > 3 ? [{ type: 'text', text: sentences.slice(3, 5).join(' ') }]
+                : [{ type: 'note', text: 'Víc už Mudrlant neprozradí. Zkus to s tím, co víš.' }];
+        const final = { title: photo ? 'Ostrá fotka' : 'Poslední nápověda', icon: photo ? 'image' : 'sparkles', parts: finalParts };
         return [first, ...slots, ...blurred, final].map((clue, index) => ({ ...clue, n: index + 1, hour: CLUE_HOURS[index] }));
     };
 
