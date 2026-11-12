@@ -4397,9 +4397,11 @@
         const card = goldCardOf(root);
         if (!card) return;
         root.classList.add('gold-screen');
-        card.classList.add('gold-card');
+        // Mapa si nechá své pozadí (moře), dostane jen zlatý rámeček a třpyt; ostatní karty i zlatou fólii
+        const map = Boolean(card.querySelector('[data-map-question]'));
+        card.classList.add(map ? 'gold-frame' : 'gold-card');
         const texture = Gold.textureUrl();
-        if (texture) { card.classList.add('gold-texture'); card.style.setProperty('--gold-texture', `url("${texture}")`); }
+        if (texture && !map) { card.classList.add('gold-texture'); card.style.setProperty('--gold-texture', `url("${texture}")`); }
         let ribbon = card.previousElementSibling && card.previousElementSibling.matches('[data-gold-ribbon]') ? card.previousElementSibling : null;
         if (!ribbon) {
             card.insertAdjacentHTML('beforebegin', Gold.ribbonHtml());
@@ -4439,16 +4441,19 @@
         goldFxRound = null;
         if (!outcome.shard) return;
         // Pátý střípek: Zlatá truhla se sama otevře (ve výzvě a zápasu turnaje ne, ať hra plyne; čeká ve výsledku a v Mém postupu)
-        const landed = () => { if (Sound) Sound.play('shard'); if (outcome.chest && mode !== 'challenge') setTimeout(() => { if (screen === 'round' && !document.getElementById('dialog-overlay')) openChestOverlay(true); }, 700); };
+        const shown = round;
+        const landed = () => { if (Sound) Sound.play('shard'); if (outcome.chest && mode !== 'challenge') setTimeout(() => { if (screen === 'round' && round === shown && !document.getElementById('dialog-overlay')) openChestOverlay(true); }, 700); };
         if (!fx) { landed(); return; }
         const slot = root.querySelector('[data-gold-fresh]');
         const owl = verdict.querySelector('img') || verdict;
-        requestAnimationFrame(() => {
+        // Až výsledek z větší části prolne (fade-in), vyletí jiskřičky a střípek
+        setTimeout(() => {
+            if (!owl.isConnected) return;
             const box = owl.getBoundingClientRect();
             const from = { x: box.left + box.width / 2, y: box.top + box.height / 2 };
             goldSparkles(from);
             goldFly(from, slot, landed);
-        });
+        }, 220);
     };
     // Vrstva efektů přes celou obrazovku (jiskřičky a letící střípek), bez klepnutí
     const goldLayer = () => {

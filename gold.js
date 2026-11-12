@@ -277,7 +277,7 @@
         <div data-gold-info class="flex flex-col gap-2.5 short:gap-2">
             <div class="flex items-center gap-3">
                 ${owlHtml('-my-1 h-16 w-16 short:h-14 short:w-14')}
-                <p class="text-[13px] font-semibold leading-snug text-slate-700 dark:text-slate-200">Zhruba jednou za 50 otázek přijde <b class="text-gold-800 dark:text-gold-300">Zlatá otázka</b>. Poznáš ji podle zlatého rámečku. Může přijít v běžné hře, v Bleskovce, v Přežití i ve výzvách.</p>
+                <p class="text-[13px] font-semibold leading-snug text-slate-700 dark:text-slate-200">Zhruba jednou za 50 otázek přijde <b class="text-gold-800 dark:text-gold-300">Zlatá otázka</b>. Poznáš ji podle zlatého rámečku. Objevuje se v dnešních otázkách, tématech, Mixu, Bleskovce, Přežití i ve výzvách.</p>
             </div>
             <ul class="flex flex-col gap-1.5 rounded-2xl bg-white p-2.5 shadow-sm ring-1 ring-slate-200/70 dark:bg-slate-800 dark:ring-slate-700/70">
                 ${RULES.map(rule => `<li class="flex items-center gap-2.5 text-[12.5px] font-semibold leading-snug text-slate-700 dark:text-slate-200"><span class="flex w-6 shrink-0 justify-center">${icon(rule)}</span><span>${esc(rule.text)}</span></li>`).join('')}
@@ -304,7 +304,7 @@
         return {
             kicker: `${SHARDS} zlatých střípků`, title: 'Zlatá truhla', closed: art.closed, open: art.open, tint: art.tint, card: 'gold-chest',
             note: (opened) => (!opened.gift ? 'Všechny vzácné věci už máš, tak aspoň body zkušeností navíc.'
-                : opened.gift.category === 'frames' ? 'Vzácný rámeček, který jinak najdeš jen v truhlách. Teď je tvůj.' : 'Vzácná věc, která je jinak jen v truhlách. Teď je tvoje.')
+                : opened.gift.category === 'frames' ? 'Vzácný rámeček, který jinak najdeš jen v truhlách. Teď je tvůj.' : 'Vzácný doplněk, který jinak najdeš jen v truhlách. Teď je tvůj.')
         };
     };
 

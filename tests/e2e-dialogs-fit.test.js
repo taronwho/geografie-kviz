@@ -299,7 +299,9 @@ const richStorage = () => {
         // Sezóna Mudrlanta: od 15 000 XP (11 000 XP sezóny = stupeň 14), pět stupňů vyzvednutých; oba rámečky, postavička a titul z minulé sezóny
         'mudrlant.rewards': JSON.stringify({ v: 1, freezes: 2, name: 'Jana Nováková', ready: ['2026-11-02'], chests: { '2026-10-26': 'xp' }, diplomas: { zemepis: '2026-10-20' },
             gifts: { frames: ['sezona-10', 'sezona-10-b', 'duha-mracky'], avatars: ['drakpa'], titles: ['sampion-sezony'] },
-            season: { id: '2026-11', startXp: 15000, claimed: { 1: 'robes:fialova', 2: 'accessories:kvetina', 3: 'freeze', 4: 'themes:fialova', 5: 'colors:ruzova' } } })
+            season: { id: '2026-11', startXp: 15000, claimed: { 1: 'robes:fialova', 2: 'accessories:kvetina', 3: 'freeze', 4: 'themes:fialova', 5: 'colors:ruzova' } } }),
+        // Zlatá otázka (gold.js): Zlatá truhla čeká (nejvyšší podoba okna Zlatá otázka i dlaždice v Mém postupu), minule dala rámeček
+        'mudrlant.gold': JSON.stringify({ v: 1, total: 14, correct: 11, found: 10, shards: 0, ready: 1, chests: 1, intro: true, last: 'frames:ruze' })
     };
 };
 
@@ -594,6 +596,10 @@ test('okna se vejdou bez posouvání', { skip: !chromium && 'Playwright není na
             await scene(tab, 'Album – odměny', size, async () => { await album('avatars'); await tab.click('[data-album-rewards]'); await tab.waitForSelector('[data-album-rewards-list]'); });
             await scene(tab, 'Cíle týdne', size, async () => { await action(tab, 'goals-open'); await waitTitle(tab, 'Cíle týdne'); });
             await scene(tab, 'Truhla Mudrlanta', size, async () => { await action(tab, 'chest-open'); await tab.waitForSelector('#chest-overlay button'); });
+            // Zlatá otázka: okno z Mého postupu (dlaždice Zlatá truhla), Zlatá truhla zavřená a otevřená (stejné okno jako Truhla Mudrlanta)
+            await scene(tab, 'Zlatá otázka', size, async () => { await progress(); await tab.click('[data-rewards-info="gold"]'); await tab.waitForSelector('[data-gold-info] [data-gold-open]'); });
+            await scene(tab, 'Zlatá truhla', size, async () => { await action(tab, 'gold-chest'); await tab.waitForSelector('#chest-overlay .gold-chest [data-chest-go]'); }, { keep: true });
+            await scene(tab, 'Zlatá truhla – odměna', size, async () => { await tab.click('#chest-overlay [data-chest-go]'); await tab.waitForSelector('#chest-overlay [data-chest-reveal]'); await tab.waitForFunction(() => [...document.querySelectorAll('#chest-overlay img')].every(img => img.complete)); });
             // Sezóna Mudrlanta: okno s cestou 20 stupňů a odhalení odměny (zavřená pečeť, otevřená)
             await scene(tab, 'Sezóna', size, async () => { await progress(); await tab.click('[data-season-open]'); await tab.waitForSelector('[data-season-path]'); });
             await scene(tab, 'Sezóna – pečeť', size, async () => { await action(tab, 'season-claim'); await tab.waitForSelector('#season-overlay [data-season-go]'); });

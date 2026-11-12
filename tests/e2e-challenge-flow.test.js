@@ -724,4 +724,35 @@ test('hra více hráčů: výzvy, obnova, okna a profil', { skip: !chromium && '
         assert.deepEqual(log.errors, []);
         await context.close();
     });
+
+    // Zlatá otázka (gold.js): ve výzvě ji určí semínko (oba hráči ji mají na stejném místě), body výzvy se nemění, zlatá dává jen XP a střípek
+    await t.test('zlatá otázka ve výzvě: ze semínka, stejné body jako obyčejná otázka, XP navíc a střípek; místní počítadlo se nemění', async () => {
+        const Gold = require('../gold.js');
+        const seed = Array.from({ length: 1000 }, (_, i) => `zlata-${i}`).find(text => Gold.challengeIndex(text, 5) === 0);
+        const db = newDb();
+        db.challenges.GGGGGG = { id: 'GGGGGG', creator_id: 'u-2', invited_id: 'u-1', topic: 'zemepis', count: 5, seed, include_hard: false, categories: [], variant: 'choices', created_at: '2026-11-03T10:00:00Z' };
+        const { context, tab, log } = await start(db);
+        await tab.click('[data-action="challenge-open"][data-code="GGGGGG"]');
+        await tab.click('[data-ch-play]');
+        await tab.waitForSelector('[data-action="choice"]', { timeout: 30000 });
+        assert.equal(await tab.locator('#hint-tab-panel.gold-card').count(), 1, 'první otázka výzvy je zlatá');
+        assert.match(await compact(tab, '[data-gold-ribbon]'), /Zlatá otázka · 3× XP/);
+        assert.ok(await opponentHeader(tab), 'soupeř v záhlaví zůstává');
+        const right = await tab.evaluate(() => JSON.parse(localStorage.getItem('mudrlant.session')).data.question.choices.findIndex(choice => choice.correct));
+        await tab.click(`[data-action="choice"][data-index="${right}"]`);
+        await tab.waitForSelector('[data-gold-result="shard"]');
+        const verdict = await compact(tab, '[data-verdict]');
+        assert.match(verdict, /Správně! \+4 body/, 'body výzvy jako u obyčejné otázky');
+        assert.match(verdict, /\+60 XP za zlatou otázku \(3× XP\)/);
+        await tab.waitForTimeout(400);
+        assert.deepEqual(db.progress.filter(row => row.challenge_id === 'GGGGGG').map(row => [row.idx, row.points]), [[0, 4]], 'na server jdou obyčejné body');
+        const gold = await tab.evaluate(() => JSON.parse(localStorage.getItem('mudrlant.gold')));
+        assert.deepEqual([gold.since, gold.total, gold.correct, gold.shards], [0, 1, 1, 1], 'výzva místní počítadlo nezvyšuje');
+        await tab.click('[data-action="next"]');
+        await tab.waitForSelector('[data-action="choice"]', { timeout: 30000 });
+        assert.equal(await tab.locator('.gold-card, [data-gold-ribbon]').count(), 0, 'další otázka výzvy zlatá není');
+        assert.deepEqual(log.errors, []);
+        assert.deepEqual(log.csp, []);
+        await context.close();
+    });
 });

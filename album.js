@@ -218,8 +218,8 @@
         const topic = item.diploma ? { id: item.diploma, title: (Look && Look.DIPLOMA_TOPICS && Look.DIPLOMA_TOPICS[item.diploma]) || item.diploma } : null;
         if (topic) return `Legendární postavička za diplom „${Rewards ? Rewards.diplomaTitle(topic) : topic.title}“: plné mistrovství tématu ${topic.title} (${MASTERY.length} hvězdiček). Úrovní ani truhlou se nezíská.`;
         let text = item.album ?`Odměna za celé album sbírky (100${NB}%) spolu s titulem „${badgeTitle(item.badge)}“.`
-            : item.rare ? 'Vzácný dárek z Truhly Mudrlanta za splněné cíle týdne (občas místo běžné věci). Úrovní se neodemyká.'
-            : item.chest ? 'Z Truhly Mudrlanta za splněné cíle týdne (nebo ze stupně Sezóny Mudrlanta). Úrovní se neodemyká.'
+            : item.rare ? 'Vzácný dárek z Truhly Mudrlanta za splněné cíle týdne (občas místo běžné věci) a ze Zlaté truhly za pět zlatých střípků. Úrovní se neodemyká.'
+            : item.chest ? 'Z Truhly Mudrlanta za splněné cíle týdne, ze stupně Sezóny Mudrlanta a ze Zlaté truhly za pět zlatých střípků. Úrovní se neodemyká.'
             : badge ? `Za odznak „${badge.title}“: ${badge.text}`
                 : item.badge || !Number.isFinite(item.level) ? `${Look ? Look.unlockText(item, item.badge ? badgeTitle(item.badge) : null) : ''}.`
                     : `Od úrovně ${item.level}.${!entry.owned && CHEST_KINDS.includes(entry.category) && !entry.limited && !item.noGift ? ' Nebo dřív z Truhly Mudrlanta za splněné cíle týdne.' : ''}`;
