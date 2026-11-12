@@ -282,7 +282,7 @@
     const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
     const freezeWord = (count) => (count === 1 ? 'ochrana' : count >= 2 && count <= 4 ? 'ochrany' : 'ochran');
     // Štít s počtem ochran u série (jen když nějakou má)
-    const freezeChip = (count, attrs = '') => (count > 0 ? `<span ${attrs} data-freeze-chip class="inline-flex shrink-0 items-center gap-0.5 rounded-md bg-sky-100 px-1 py-px text-[10px] font-black leading-tight text-sky-800 ring-1 ring-sky-200 dark:bg-sky-900/50 dark:text-sky-200 dark:ring-sky-800" title="Ochrana série: ${count} z ${MAX_FREEZES}" aria-label="Ochrana série: ${count} z ${MAX_FREEZES}"><i data-lucide="shield-check" class="h-3 w-3"></i>${count}</span>` : '');
+    const freezeChip = (count, attrs = '') => (count > 0 ? `<span ${attrs} data-freeze-chip class="inline-flex shrink-0 items-center gap-0.5 rounded-md bg-sky-100 py-px pl-0.5 pr-1 text-[10px] font-black leading-tight text-sky-800 ring-1 ring-sky-200 dark:bg-sky-900/50 dark:text-sky-200 dark:ring-sky-800" title="Ochrana série: ${count} z ${MAX_FREEZES}" aria-label="Ochrana série: ${count} z ${MAX_FREEZES}"><img src="icons/topics/ochrana-serie.webp" alt="" class="h-4 w-4 shrink-0 object-contain">${count}</span>` : '');
     // Malá truhla (pruh na úvodu, Můj postup, vysvětlení): obrázek icons/topics/truhla.webp; v pruhu se pohupuje (src/input.css, .chest-mini)
     const chestSvg = (cls = 'h-40 w-40') => `
         <span class="${cls} chest-svg relative inline-flex items-center justify-center" aria-hidden="true">
