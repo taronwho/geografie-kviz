@@ -232,6 +232,8 @@
     return {
         id: 'umeni',
         title: 'Výtvarné umění',
+        // Krátký název na dlaždici úvodu na nízkém či úzkém displeji (app.js tileTitle)
+        shortTitle: 'Umění',
         icon: 'palette',
         emoji: '🎨',
         color: 'orange',

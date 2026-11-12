@@ -12,7 +12,7 @@
 
     // after = kolik odpovědí má hráč mít za sebou, než se tip nabídne; ready = podmínka, aby tip dával smysl;
     // used = hráč funkci už zná (tip se neukáže); multi = tip o hře více hráčů; account = vyžaduje přihlášení
-    // action: kam tlačítko „Zkusit“ zavede (settings, learn, progress, multi, single, quiz = Kvíz dne, modes = okno Co hrát
+    // action: kam tlačítko „Zkusit“ zavede (settings, learn, progress, multi, single, quiz = Kvíz dne, mystery = Tajemná otázka dne, modes = okno Co hrát
     // s Bleskovkou a Přežitím, goals = cíle týdne a truhla)
     const TIPS = [
         { id: 'napoveda', icon: 'lightbulb', after: 2, title: 'Nevíš si rady?', text: 'Klepni na žlutou Nápovědu. Každá ti sice ubere bod, ale často stačí, aby ses dostal k odpovědi. Čím méně nápověd, tím víc bodů.',
@@ -25,6 +25,8 @@
         { id: 'kviz-dne', icon: 'timer', after: 4, title: 'Kvíz dne', text: 'Každý den čeká 10 stejných otázek z různých témat pro všechny hráče. Máš jen jeden pokus, počítají se body i čas a uvidíš, kolikátý jsi dnes byl.',
             guestText: 'Každý den čeká 10 stejných otázek z různých témat pro všechny hráče. Máš jen jeden pokus. Po přihlášení uvidíš i své pořadí dne a mezi přáteli.',
             action: { kind: 'quiz', label: 'Zahrát Kvíz dne' }, ready: (u) => u.quiz, used: (u) => num(u.counters.quizDone) > 0 },
+        { id: 'tajemna', icon: 'telescope', art: 'sova-dalekohled', after: 9, title: 'Tajemná otázka dne', text: 'Každý den čeká na úvodu jedna tajemná otázka pro všechny. Nápovědy přibývají během dne a máš 3 tipy: čím dřív uhodneš, tím víc bodů. Druhý den uvidíš odpověď a kolik hráčů ji uhodlo.',
+            action: { kind: 'mystery', label: 'Hádat' }, ready: (u) => u.mystery, used: (u) => num(u.counters.mysterySolved) > 0 },
         { id: 'psani', icon: 'keyboard', after: 12, title: 'Těžší varianta', text: 'V Nastavení můžeš zapnout Psaní odpovědí. Body se zdvojnásobí a na diakritice ani drobném překlepu nezáleží.',
             action: { kind: 'settings', label: 'Otevřít Nastavení' }, used: (u) => num(u.counters.typedCorrect) > 0 },
         { id: 'uceni', icon: 'graduation-cap', after: 6, title: 'Učení', text: 'V Učení si projdeš celé okruhy a uvidíš, co už znáš. Dobré na přípravu před výzvou.',
@@ -110,7 +112,7 @@
         if (!allowedToday(state, today, num(ctx.launches))) return null;
         if (ctx.now - state.lastAt < MIN_GAP_MS) return null;
         const u = { counters: ctx.counters || {}, visited: state.visited, reviewOn: ctx.reviewOn !== false, friends: ctx.friends, signedIn: Boolean(ctx.signedIn),
-            quiz: ctx.quiz !== false, modes: ctx.modes !== false, goals: ctx.goals !== false, freezes: ctx.freezes, maxStars: ctx.maxStars,
+            quiz: ctx.quiz !== false, mystery: ctx.mystery !== false, modes: ctx.modes !== false, goals: ctx.goals !== false, freezes: ctx.freezes, maxStars: ctx.maxStars,
             season: ctx.season !== false, album: ctx.album !== false, showcase: ctx.showcase !== false };
         const answered = num(u.counters.answered);
         return TIPS.find(tip => {

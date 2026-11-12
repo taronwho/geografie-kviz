@@ -790,6 +790,44 @@
         const data = (await request('POST', 'rpc/daily_quiz_friends', { body: { for_day: cleanDay(day) } })) || {};
         return { day: cleanDay(data.day), friends: wholeNumber(data.friends, 100000), rows: (Array.isArray(data.rows) ? data.rows : []).map(cleanQuizRow) };
     });
+    // --- Tajemná otázka dne (schéma 19, mystery.js): můj stav, tip, statistiky dne a výsledky přátel ---
+    // Databáze bez funkcí (404): vrací se null a dál se o ně nežádá (aplikace hraje jen v zařízení, bez výsledků ostatních); jiné chyby se vyhodí
+    let mysteryMissing = false;
+    const guardMystery = async (run) => {
+        if (mysteryMissing) return null;
+        try { return await run(); } catch (error) {
+            if (error.status === 404) { mysteryMissing = true; return null; }
+            throw error;
+        }
+    };
+    const clockText = (value) => (typeof value === 'string' && /^\d{1,2}:\d{2}$/.test(value) ? value : null);
+    const cleanMysteryState = (row) => (row && typeof row === 'object' ? {
+        day: cleanDay(row.day), guesses: wholeNumber(row.guesses, 3), solved: row.solved === true, clues: wholeNumber(row.clues, 8), points: wholeNumber(row.points, 10),
+        solved_at: clockText(row.solved_at), finished: row.finished === true, clues_now: wholeNumber(row.clues_now, 8)
+    } : null);
+    const mysteryState = () => guardMystery(async () => cleanMysteryState(await request('POST', 'rpc/mystery_state', { body: {} })));
+    // Tip idx (0–2) na dnešní otázku: správně / špatně a kolik nápověd hráč viděl (body počítá server)
+    const mysteryGuess = (day, idx, correct, clues) => guardMystery(async () => cleanMysteryState(await request('POST', 'rpc/mystery_guess', {
+        body: { for_day: cleanDay(day), idx: wholeNumber(idx, 2), is_correct: Boolean(correct), clues: Math.max(1, wholeNumber(clues, 8)) }
+    })));
+    const mysteryStats = (day = null) => guardMystery(async () => {
+        const data = (await request('POST', 'rpc/mystery_stats', { body: { for_day: cleanDay(day) } })) || {};
+        if (data.hidden) return { day: cleanDay(data.day), hidden: true };
+        const avg = Number(data.avg_clues);
+        return { day: cleanDay(data.day), hidden: false, players: wholeNumber(data.players, 10000000), solved: wholeNumber(data.solved, 10000000), solved_pct: wholeNumber(data.solved_pct, 100),
+            fastest: clockText(data.fastest), avg_clues: Number.isFinite(avg) && avg > 0 ? Math.round(Math.min(8, avg) * 10) / 10 : null,
+            me: data.me && typeof data.me === 'object' ? { solved: data.me.solved === true, clues: wholeNumber(data.me.clues, 8), guesses: wholeNumber(data.me.guesses, 3), points: wholeNumber(data.me.points, 10), solved_at: clockText(data.me.solved_at) } : null };
+    });
+    const mysteryFriends = (day = null) => guardMystery(async () => {
+        const data = (await request('POST', 'rpc/mystery_friends', { body: { for_day: cleanDay(day) } })) || {};
+        if (data.hidden) return { day: cleanDay(data.day), hidden: true, friends: 0, rank: null, rows: [] };
+        const rows = (Array.isArray(data.rows) ? data.rows : []).map(row => ({
+            rank: wholeNumber(row.rank, 100000) || 1, id: String(row.id), display_name: String(row.display_name || 'Hráč'), avatar: row.avatar, color: row.color,
+            frame: cleanFrame(row.frame), title_pref: cleanTitlePref(row.title_pref), owl: cleanOwl(row.owl),
+            solved: row.solved === true, clues: wholeNumber(row.clues, 8), guesses: wholeNumber(row.guesses, 3), points: wholeNumber(row.points, 10), solved_at: clockText(row.solved_at), me: row.me === true
+        }));
+        return { day: cleanDay(data.day), hidden: false, friends: wholeNumber(data.friends, 100000), rank: wholeNumber(data.rank, 100000) || null, rows };
+    });
     // --- Skupiny (schéma 8, groups.js): moje skupiny, detail s pořadím, založení, přidání kódem a správa zakladatelem ---
     // Databáze bez funkcí (404): seznam vrací null (aplikace Skupiny nenabídne) a dál se o ně nežádá; ostatní volání skončí srozumitelnou chybou.
     // Hlášky databáze jsou česky (limit skupin, plná skupina, jen zakladatel…) a předají se dál; jiné chyby nahradí obecný text.
@@ -974,6 +1012,7 @@
         submitAnswerStats, answerStatsTopic, devSuspiciousQuestions,
         // Kvíz dne (schéma 7)
         dailyQuizState, dailyQuizStart, dailyQuizAnswer, dailyQuizDetails, dailyQuizBoard, dailyQuizFriends,
+        mysteryState, mysteryGuess, mysteryStats, mysteryFriends,
         // Skupiny (schéma 8)
         myGroups, groupDetail, groupCreate, groupPreview, groupJoin, groupLeave, groupUpdate, groupNewCode, groupRemoveMember, groupDelete, groupSetChallenge,
         // Odměny (schéma 9)

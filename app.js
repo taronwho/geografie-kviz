@@ -69,7 +69,7 @@
     // se starší databází se otázky skládají jen v zařízení jako dřív).
     // 18 = ligové sezóny (league_seasons) a vitrína v profilu (profiles.showcase), odznaky Album sbírky v katalogu odznaků (se starší databází
     // se sezóny a vitrína jen nenabídnou, odznaky alba zůstanou v zařízení a album je spočítá znovu).
-    const REQUIRED_SCHEMA = 18;
+    const REQUIRED_SCHEMA = 19;
     const HISTORY_SIZE = 200;
     const REQUEST_TIMEOUT = 12000;
     const WIKI_TIMEOUT = 6000;
@@ -512,7 +512,8 @@
     const createRoundData = async (item, ctx, rng, options = {}) => {
         const { topic, items } = ctx;
         // Pořadí volání rng je stálé, aby dnešní otázka vyšla všem stejně
-        const special = (await mapQuestionFor(item, ctx, options)) || (topic.specialQuestion ? topic.specialQuestion(item, ctx, rng) : null);
+        // options.plain = vždy základní otázka „Co je to?“ bez mapy a zvláštních druhů (Tajemná otázka dne, mystery.js)
+        const special = options.plain ? null : (await mapQuestionFor(item, ctx, options)) || (topic.specialQuestion ? topic.specialQuestion(item, ctx, rng) : null);
         const category = categoryOf(topic, item.c);
         const question = special || {
             type: 'name',
@@ -2331,6 +2332,7 @@
         if (screen === 'challenge-done') return { icon: 'trophy', text: challenge && challenge.tournament ? 'Zápas hotový' : 'Výzva hotová', topic: null };
         if (screen === 'quiz' || screen === 'quiz-done') return { icon: 'timer', text: `Kvíz dne · ${shortDay(quiz ? quiz.day : getDayKey())}`, topic: null };
         if (screen === 'mode' && modeGame) return modePlace(modeGame);
+        if (screen === 'mystery') return { icon: 'telescope', text: 'Tajemná otázka', topic: null };
         // Úvod: sova z loga, název a dnešní datum
         if (screen !== 'round' || !current) return { logo: true, text: `${APP_NAME} · ${shortDay(getDayKey())}`, date: shortDay(getDayKey()), topic: null };
         const topic = TOPIC_BY_ID[current.topic];
@@ -2597,19 +2599,24 @@
             const chosen = selectedCategories(topic);
             return chosen.length === topic.categories.length ? '' : chosen.length === 1 ? categoryOf(topic, chosen[0]).label : `${chosen.length} z ${topic.categories.length}`;
         };
+        // Na nízkém nebo úzkém displeji se název vejde na jeden řádek (dlaždice pak stačí 48 px a úvod se vejde bez posouvání):
+        // dlouhý název („Výtvarné umění“) tam ukáže krátký název tématu (shortTitle), celý zůstane v popisku pro čtečku
+        const tileTitle = (topic) => (topic.shortTitle
+            ? `<span class="short:hidden max-[400px]:hidden">${escapeHtml(topic.title)}</span><span class="hidden short:inline max-[400px]:inline" aria-label="${escapeHtml(topic.title)}">${escapeHtml(topic.shortTitle)}</span>`
+            : escapeHtml(topic.title));
         // Dlaždice tématu: ikona a název, omezený výběr kategorií jako malý štítek
         const tile = (topic) => {
             const scope = scopeOf(topic);
             return `
-                <button type="button" data-action="play-topic" data-topic="${topic.id}"${scope ? ` title="${escapeHtml(`${topic.title} · ${scope}`)}"` : ''} class="relative flex min-h-[4rem] min-w-0 flex-col items-center justify-center gap-1 overflow-hidden rounded-2xl bg-gradient-to-br p-1 text-center text-white shadow-md ring-1 ring-black/5 transition-all active:scale-[0.97] short:min-h-[3.5rem] short:gap-0.5 short:p-0.5 ${styleOf(topic).tile}">
+                <button type="button" data-action="play-topic" data-topic="${topic.id}"${scope ? ` title="${escapeHtml(`${topic.title} · ${scope}`)}"` : ''} class="relative flex min-h-[4rem] min-w-0 flex-col items-center justify-center gap-1 overflow-hidden rounded-2xl bg-gradient-to-br p-1 text-center text-white shadow-md ring-1 ring-black/5 transition-all active:scale-[0.97] short:min-h-[3rem] short:gap-0.5 short:p-0.5 ${styleOf(topic).tile}">
                     ${topicArt(topic) ? topicIcon(topic, 'h-10 w-10 short:h-8 short:w-8') : `<i data-lucide="${topic.icon}" class="h-[1.625rem] w-[1.625rem]"></i>`}
-                    <span class="block ${topic.title.length > 10 ? 'text-[10px]' : 'text-[11.5px]'} font-black leading-tight tracking-tight short:leading-none">${escapeHtml(topic.title)}</span>
+                    <span class="block ${topic.title.length > 10 ? 'text-[10px]' : 'text-[11.5px]'} font-black leading-tight tracking-tight short:leading-none">${tileTitle(topic)}</span>
                 </button>`;
         };
         const mixScope = settings.topics.length === TOPICS.length ? 'Otázky ze všech témat' : `${settings.topics.length} z ${TOPICS.length} témat`;
         const mixTile = `
-            <button type="button" data-action="play-mix" title="${escapeHtml(`Mix · ${mixScope}`)}" class="relative col-span-2 flex min-h-[4rem] min-w-0 items-center justify-center gap-2.5 overflow-hidden rounded-2xl bg-gradient-to-br p-2.5 text-left text-white shadow-md ring-1 ring-black/5 transition-all active:scale-[0.97] short:min-h-[3.5rem] short:p-1.5 ${styleOf(MIX).tile}">
-                ${topicIcon(MIX, 'h-12 w-12 short:h-10 short:w-10')}
+            <button type="button" data-action="play-mix" title="${escapeHtml(`Mix · ${mixScope}`)}" class="relative col-span-2 flex min-h-[4rem] min-w-0 items-center justify-center gap-2.5 overflow-hidden rounded-2xl bg-gradient-to-br p-2.5 text-left text-white shadow-md ring-1 ring-black/5 transition-all active:scale-[0.97] short:min-h-[3rem] short:p-1.5 ${styleOf(MIX).tile}">
+                ${topicIcon(MIX, 'h-12 w-12 short:h-9 short:w-9')}
                 <span class="min-w-0 text-base font-black leading-tight">${escapeHtml(MIX.title)}</span>
             </button>`;
         const ordered = groupedTopics().flatMap(group => group.topics);
@@ -2617,7 +2624,7 @@
         appContent.innerHTML = `
             <div class="fade-in flex min-h-full w-full flex-col gap-2 bg-slate-50 p-3 pb-4 short:gap-1.5 short:pb-3 dark:bg-slate-900">
                 ${renderHomeTabs()}
-                ${homeTab() === 'multi' ? renderChallengesSection() : `${quizHomeCard()}<section class="rounded-[1.4rem] bg-white p-2.5 shadow-sm ring-1 ring-slate-200/70 short:p-1.5 dark:bg-slate-800/70 dark:ring-slate-700/70">
+                ${homeTab() === 'multi' ? renderChallengesSection() : `${quizHomeCard()}${mysteryHomeCard()}<section class="rounded-[1.4rem] bg-white p-2.5 shadow-sm ring-1 ring-slate-200/70 short:p-1.5 dark:bg-slate-800/70 dark:ring-slate-700/70">
                     <div class="mb-2 flex items-center justify-between gap-2 short:mb-1.5">
                         <h2 class="flex min-w-0 items-center gap-2 whitespace-nowrap text-slate-800 dark:text-slate-100">${uiArt('dnes', 'h-8 w-8 short:h-7 short:w-7')}<span class="min-w-0"><span class="block text-[13px] font-black leading-tight">Dnešní otázky</span><span class="flex items-center gap-1 text-[11px] font-bold leading-tight text-slate-500 dark:text-slate-400">${answered}/${TOPICS.length} splněno${Rewards && loadRewards().freezes ? `<button type="button" data-action="freeze-info" class="-my-1 rounded-md p-0.5">${Rewards.freezeChip(loadRewards().freezes)}</button>` : ''}</span></span></h2>
                         ${left ? `
@@ -2637,6 +2644,7 @@
         updateControlsUI();
         refreshChallenges();
         if (DailyQuiz) refreshQuizServer();
+        if (Mystery) refreshMysteryReveal();
         // Tutoriál až po výběru varianty: úvod jde otevřít i z uvítání (Domů), otázka by se ale nespustila a bublina by čekala
         if (Tutorial && gameVariant) Tutorial.maybeStart({ ready: factLoading });
     };
@@ -2732,7 +2740,7 @@
         photoSourceOpener = null;
     };
     // Před odpovědí = obrázek je v otázce, na kterou hráč ještě neodpověděl (ne v okně s popisem ani v atlasu učení)
-    const photoBeforeAnswer = (button) => appContent.contains(button) && screen !== 'learn' && Boolean(round) && !round.answered;
+    const photoBeforeAnswer = (button) => appContent.contains(button) && screen !== 'learn' && (screen === 'mystery' ? mysteryHidden() : Boolean(round) && !round.answered);
     const openPhotoSource = (button) => {
         const fileName = PhotoSource && PhotoSource.fileFromUrl(button.dataset.url);
         if (!fileName) return;
@@ -3797,7 +3805,7 @@
         // Otevřené okno (třeba rozpis otázek po výzvě, nebo Nastavení, kde hráč obléká Mudrlanta) má přednost: oslavy počkají, až se zavře
         if (document.getElementById('dialog-overlay') || document.getElementById('settings-overlay')) return false;
         if (mode === 'blitz' || mode === 'survival') return !modeGame || modeGame.phase === 'result' || screen !== 'mode';
-        if (screen === 'home' || screen === 'learn' || screen === 'challenge-done' || screen === 'quiz-done' || screen === 'welcome') return true;
+        if (screen === 'home' || screen === 'learn' || screen === 'challenge-done' || screen === 'quiz-done' || screen === 'welcome' || screen === 'mystery') return true;
         if (mode === 'challenge' || mode === 'quiz') return false;
         return Boolean(round && round.answered);
     };
@@ -7480,7 +7488,7 @@
     // Skupiny odznaků s ilustrovaným symbolem (branding/ikony/odznak-<skupina>.png → scripts/topic-icons.py; stejný seznam má sw.js)
     const BADGE_ART = new Set(['sberatel', 'odpovedi', 'rada', 'serie', 'dny', 'dokonale', 'dnes', 'bez-napovedy', 'psani', 'tezke', 'chyby', 'vyzvy', 'vyhry',
         'vyhry-v-rade', 'zalozene', 'perfektni-vyzvy', 'uroven', 'poznane', 'vsestrannost', 'hvezdy', 'vsechna-temata', 'turnaje', 'turnaj-postupy',
-        'tydenni-cile', 'kviz-dne', 'kviz-serie', 'kviz-perfekt', 'bleskovka', 'preziti', 'mapa', 'odhad', 'serad']);
+        'tydenni-cile', 'kviz-dne', 'kviz-serie', 'kviz-perfekt', 'bleskovka', 'preziti', 'mapa', 'odhad', 'serad', 'detektiv']);
     // Obrázek symbolu skupiny (bez přípony); odznaky alba sbírky mají obrázek Sběratel (Album.BADGE_ART)
     const badgeArtOf = (group) => BADGE_ART.has(group) ? `odznak-${group}` : Album && Album.isAlbumGroup(BADGE_GROUPS.find(entry => entry.id === group)) ? Album.BADGE_ART : null;
     // Nezískaný odznak ukazuje svou ikonu zašedlou a ztlumenou, přes ni malý zámek v rohu
@@ -9172,6 +9180,310 @@
         const { attempt, summary, streak } = quizResultData();
         shareImageCounted(quizCardInput(attempt, summary, streak), { name: ShareCard.fileName('kviz-dne', attempt.day), text: DailyQuiz.shareText({ appName: APP_NAME, day: attempt.day, summary, url: appUrl() }), toast: showToast });
     };
+
+    // --- Tajemná otázka dne (mystery.js): jedna tajemná položka denně pro všechny, nápovědy přibývají podle hodin, 3 tipy na den ---
+    // Stav (tipy, vyřešení, XP, skrytí včerejší odpovědi) drží zařízení v mudrlant.mystery i s otázkou dne (data z createRoundData, ať se
+    // nápovědy během dne nemění). Přihlášenému se každý tip uloží i na server (schéma 19, mystery_*): body a čas vyřešení počítá server,
+    // po dořešení (a za minulé dny) ukáže, kolik hráčů otázku uhodlo, nejrychlejší vyřešení, průměr nápověd a výsledky přátel.
+    // Starší databáze bez funkcí: hraje se jen v zařízení, bez výsledků ostatních.
+    const Mystery = window.MudrlantMystery || null;
+    let mysteryView = null; // obrazovka: { day, past, stats, friends, notice } – stats/friends null = načítá se, false = nedostupné
+    let mysteryTimer = 0;
+    let mysteryBusy = false;
+    const mysteryRanked = () => Boolean(Mystery && Social && Auth && Auth.isConfigured() && signedUser());
+    const loadMystery = () => Mystery.parseState(readJson(Mystery.KEY));
+    const saveMystery = (state) => writeJson(Mystery.KEY, state);
+    const mysteryToday = () => Mystery.pragueDay(Date.now());
+    const mysteryTopicIds = () => TOPICS.map(topic => topic.id);
+    // Položka dne: téma ze semínka dne, v něm známá položka s fotkou (stejně pro všechny)
+    const mysteryPick = async (day) => {
+        const topicId = Mystery.topicForDay(day, mysteryTopicIds());
+        const ctx = await loadTopic(topicId);
+        return { ctx, item: Mystery.pickItem(day, topicId, ctx.items) };
+    };
+    // Otázka dne (zakrytý popis, fakta, fotka, obrazová nápověda, možnosti a přijímané odpovědi); jednou sestavená se pamatuje
+    const mysteryRoundFor = async (day) => {
+        const state = loadMystery();
+        if (state.rounds[day]) return state.rounds[day];
+        const { ctx, item } = await mysteryPick(day);
+        if (!item) throw new Error('Tajemná otázka nemá položku');
+        const data = await createRoundData(item, ctx, createSeededRandom(Mystery.seedFor(day)), { plain: true });
+        const fresh = loadMystery();
+        fresh.rounds[day] = data;
+        if (!fresh.days[day] && day === mysteryToday()) fresh.days[day] = Mystery.newEntry({ topic: ctx.topic.id, q: item.q, name: item.n });
+        else if (fresh.days[day] && !fresh.days[day].name) Object.assign(fresh.days[day], { topic: ctx.topic.id, q: item.q, name: item.n });
+        saveMystery(fresh);
+        return data;
+    };
+    // Odpověď je pro hráče ještě tajná (zdroj fotky neprozradí autora ani název souboru): dnešní, nevyřešená
+    const mysteryHidden = () => {
+        if (!Mystery || !mysteryView || mysteryView.past) return false;
+        const entry = loadMystery().days[mysteryView.day];
+        return !entry || !entry.solved;
+    };
+    // Včerejší odpověď na úvodu: jen když ji hráč hrál (nebo aspoň otevřel) a ještě ji neskryl
+    const mysteryReveal = (state, today) => {
+        const day = Mystery.addDays(today, -1);
+        const entry = state.days[day];
+        return entry && entry.name && !entry.dismissed ? { day, entry } : null;
+    };
+    let mysteryRevealStats = null; // { day, stats } pro kartu na úvodu
+    const mysteryHomeView = () => {
+        const now = Date.now();
+        const today = Mystery.pragueDay(now);
+        const state = loadMystery();
+        const reveal = mysteryReveal(state, today);
+        if (reveal) return { kind: 'reveal', status: Mystery.statusOf(reveal.entry), name: reveal.entry.name, stats: mysteryRevealStats && mysteryRevealStats.day === reveal.day ? mysteryRevealStats.stats : null };
+        const entry = state.days[today] || null;
+        const status = Mystery.statusOf(entry);
+        return { kind: 'today', status, shown: Mystery.cluesAt(now), next: Mystery.nextClue(now), entry, solvedAt: entry && entry.solved ? Mystery.formatClock(entry.at) : '' };
+    };
+    const mysteryHomeCard = () => (Mystery ? Mystery.homeCardHtml(mysteryHomeView()) : '');
+    const paintMysteryCard = () => {
+        const card = document.getElementById('mystery-card');
+        if (!card || screen !== 'home') return;
+        card.outerHTML = mysteryHomeCard();
+        renderIcons(appContent);
+    };
+    // Statistiky včerejška pro kartu na úvodu (jednou za den)
+    const refreshMysteryReveal = async () => {
+        if (!Mystery || !mysteryRanked()) return;
+        const reveal = mysteryReveal(loadMystery(), mysteryToday());
+        if (!reveal || (mysteryRevealStats && mysteryRevealStats.day === reveal.day)) return;
+        mysteryRevealStats = { day: reveal.day, stats: null };
+        const stats = await Social.mysteryStats(reveal.day).catch(() => null);
+        mysteryRevealStats = { day: reveal.day, stats: stats && !stats.hidden ? stats : null };
+        paintMysteryCard();
+    };
+    const dismissMysteryReveal = () => {
+        const state = loadMystery();
+        const reveal = mysteryReveal(state, mysteryToday());
+        if (reveal) { state.days[reveal.day].dismissed = true; saveMystery(state); }
+        if (screen === 'mystery') openMystery();
+        else paintMysteryCard();
+    };
+
+    // Tipy na server po sobě (od prvního neodeslaného); stav serveru (jiné zařízení) se převezme, když má víc tipů
+    let mysterySync = Promise.resolve();
+    const adoptMysteryServer = (day, server) => {
+        if (!server || server.day !== day) return;
+        const state = loadMystery();
+        const entry = state.days[day];
+        if (!entry || server.guesses <= entry.tips.length) return;
+        const at = server.solved_at ? Mystery.pragueTime(day, ...server.solved_at.split(':').map(Number)) : Date.now();
+        const tips = Array.from({ length: server.guesses }, (_, i) => entry.tips[i] || { text: '', correct: false, clues: server.clues, at });
+        if (server.solved) tips[server.guesses - 1] = { ...tips[server.guesses - 1], correct: true, clues: server.clues, at };
+        state.days[day] = Mystery.cleanEntry({ ...entry, tips, synced: server.guesses });
+        saveMystery(state);
+    };
+    const pushMystery = async (day) => {
+        if (!mysteryRanked() || day !== mysteryToday()) return;
+        for (let guard = 0; guard < Mystery.MAX_TIPS; guard++) {
+            const state = loadMystery();
+            const entry = state.days[day];
+            if (!entry || entry.synced >= entry.tips.length) return;
+            const idx = entry.synced;
+            const tip = entry.tips[idx];
+            let server;
+            try { server = await Social.mysteryGuess(day, idx, tip.correct, tip.clues); } catch (error) {
+                // Server tip odmítl (má jiný, jiné zařízení): převezme se jeho stav a dál se nezkouší
+                const current = await Social.mysteryState().catch(() => null);
+                if (current) { adoptMysteryServer(day, current); const fresh = loadMystery(); if (fresh.days[day]) { fresh.days[day].synced = Math.min(fresh.days[day].tips.length, current.guesses); saveMystery(fresh); } }
+                return;
+            }
+            if (!server) return;
+            const fresh = loadMystery();
+            if (fresh.days[day]) { fresh.days[day].synced = Math.max(fresh.days[day].synced, idx + 1); saveMystery(fresh); }
+        }
+    };
+    const syncMystery = (day) => { mysterySync = mysterySync.then(() => pushMystery(day)).catch(() => {}); return mysterySync; };
+
+    // XP za vyřešení jednou za den a zařízení, počítadlo odznaků Detektiv
+    const awardMysteryXp = (day) => {
+        const state = loadMystery();
+        const entry = state.days[day];
+        if (!entry || !entry.solved || entry.xp) return;
+        const xp = Mystery.xpFor(entry.points);
+        entry.xp = xp;
+        saveMystery(state);
+        const before = loadProgress();
+        const progress = { ...before, xp: before.xp + xp };
+        progress.counters.mysterySolved = (progress.counters.mysterySolved || 0) + 1;
+        const titles = grantBadges(progress);
+        saveProgress(progress);
+        announce(levelProgress(before.xp).level, levelProgress(progress.xp).level, titles);
+        settleGoals();
+        applyLook();
+        syncProgress();
+    };
+
+    const mysteryHelpers = () => ({
+        avatarHtml, xpLine: (xp) => xpLine(xp, 'text-white/90'), photoFrame,
+        visualFrame: (spec, id) => renderVisualFrame(spec, { id, height: 'h-44' })
+    });
+    const renderMystery = () => {
+        if (!Mystery || !mysteryView) return;
+        const view = mysteryView;
+        const state = loadMystery();
+        const data = state.rounds[view.day];
+        if (!data) return;
+        const now = Date.now();
+        const entry = state.days[view.day] || Mystery.newEntry({ name: data.name });
+        const status = Mystery.statusOf(entry);
+        const shown = view.past ? Mystery.CLUES : Mystery.cluesAt(now);
+        const keep = screen === 'mystery' ? appContent.scrollTop : 0;
+        screen = 'mystery';
+        closePlaceInfo();
+        const topic = TOPIC_BY_ID[data.topic];
+        appContent.innerHTML = Mystery.screenHtml({
+            day: view.day, past: view.past, shown, next: view.past ? null : Mystery.nextClue(now),
+            clues: Mystery.buildClues(data, { topicTitle: topic ? topic.title : '' }), entry, name: entry.name || data.name,
+            canGuess: !view.past && (status === 'new' || status === 'open'), finished: view.past || status === 'solved',
+            guest: !mysteryRanked(), canLogin: Boolean(Auth && Auth.isConfigured() && Social) && !signedUser(),
+            stats: view.stats, friends: view.friends, notice: view.notice,
+            xp: entry.xp && !view.past ? { total: entry.xp, parts: [{ label: 'za Tajemnou otázku dne', xp: entry.xp }] } : null,
+            placeholder: data.question.placeholder, pointsNow: Mystery.pointsFor(shown, Mystery.wrongTips(entry))
+        }, mysteryHelpers());
+        renderIcons(appContent);
+        // Adresa fotky (název souboru bývá názvem místa) v atributu nezůstane
+        appContent.querySelectorAll('[data-mystery-photo="blur"]').forEach(element => { element.style.backgroundImage = cssUrl(element.dataset.url); delete element.dataset.url; });
+        appContent.querySelectorAll('[data-mystery-photo="sharp"]').forEach(element => { const url = element.dataset.url; delete element.dataset.url; showPhoto(element, url, null, false, data.photoMasks); });
+        appContent.querySelectorAll('[id^="mystery-visual-"]').forEach(element => {
+            const clue = Mystery.buildClues(data).find(entry => `mystery-visual-${entry.n}` === element.id);
+            const part = clue && clue.parts.find(item => item.type === 'visual');
+            if (part) Visuals.render(element, part.spec, visualDeps);
+        });
+        appContent.scrollTo(0, keep);
+        updateControlsUI();
+        // Další nápověda se odkryje sama, když hráč zůstane na obrazovce
+        clearTimeout(mysteryTimer);
+        if (!view.past && shown < Mystery.CLUES && status !== 'solved') {
+            const wait = Math.max(1000, Mystery.clueTime(view.day, shown + 1) - now + 500);
+            if (wait < 2 ** 31 - 1) mysteryTimer = setTimeout(() => { if (screen === 'mystery' && mysteryView === view) { view.notice = ''; markMysterySeen(view.day); renderMystery(); } }, wait);
+        }
+    };
+    const markMysterySeen = (day) => {
+        const state = loadMystery();
+        const entry = state.days[day];
+        const shown = Mystery.cluesAt(Date.now());
+        if (entry && day === Mystery.pragueDay(Date.now()) && entry.seen < shown) { entry.seen = shown; saveMystery(state); }
+    };
+    // Statistiky a přátelé (po dořešení nebo za minulý den)
+    const loadMysteryStats = async () => {
+        const view = mysteryView;
+        if (!view || !mysteryRanked()) return;
+        const entry = loadMystery().days[view.day];
+        const status = Mystery.statusOf(entry);
+        if (!view.past && status !== 'solved' && status !== 'failed') return;
+        await within(mysterySync, 8000);
+        const [stats, friends] = await Promise.all([Social.mysteryStats(view.day).catch(() => false), Social.mysteryFriends(view.day).catch(() => false)]);
+        if (mysteryView !== view) return;
+        view.stats = stats === null ? false : stats;
+        view.friends = friends || false;
+        if (screen === 'mystery') renderMystery();
+    };
+    const openMystery = async ({ past = false } = {}) => {
+        if (!Mystery || mysteryBusy) return;
+        mysteryBusy = true;
+        try {
+            const today = mysteryToday();
+            const state = loadMystery();
+            const reveal = past ? mysteryReveal(state, today) : null;
+            const day = reveal ? reveal.day : today;
+            mysteryView = { day, past: Boolean(reveal), stats: null, friends: null, notice: '' };
+            screen = 'mystery';
+            closePlaceInfo();
+            appContent.innerHTML = `<div class="flex min-h-full flex-col items-center justify-center gap-3 p-6 text-center">${uiArt(Mystery.ART, 'h-24 w-24')}<p class="text-sm font-bold text-slate-600 dark:text-slate-300">Načítám tajemnou otázku…</p></div>`;
+            updateControlsUI();
+            try { await mysteryRoundFor(day); } catch (error) {
+                console.error(error);
+                if (screen === 'mystery') { showToast('Tajemnou otázku se teď nepodařilo načíst.'); renderHome(); }
+                return;
+            }
+            if (!reveal) {
+                const fresh = loadMystery();
+                if (!fresh.days[day]) { fresh.days[day] = Mystery.newEntry({ name: fresh.rounds[day].name, q: fresh.rounds[day].id, topic: fresh.rounds[day].topic }); saveMystery(fresh); }
+                markMysterySeen(day);
+                if (mysteryRanked()) {
+                    const server = await within(Social.mysteryState().catch(() => undefined), 5000);
+                    if (server) adoptMysteryServer(day, server);
+                    syncMystery(day);
+                    if (Mystery.statusOf(loadMystery().days[day]) === 'solved') awardMysteryXp(day);
+                }
+            }
+            if (screen !== 'mystery' || !mysteryView || mysteryView.day !== day) return;
+            renderMystery();
+            loadMysteryStats();
+        } finally {
+            mysteryBusy = false;
+        }
+    };
+    // Tip: psaný (stejné porovnání jako psaná odpověď: diakritika, překlepy, přijímané názvy) nebo výběr z možností v poslední nápovědě
+    const submitMysteryTip = async ({ text = '', choice = null }) => {
+        const view = mysteryView;
+        if (!Mystery || !view || view.past || screen !== 'mystery') return;
+        const state = loadMystery();
+        const data = state.rounds[view.day];
+        const entry = state.days[view.day];
+        const status = Mystery.statusOf(entry);
+        if (!data || !entry || (status !== 'new' && status !== 'open')) return;
+        if (view.day !== mysteryToday()) { showToast('Tahle tajemná otázka už skončila. Dnes je nová.'); openMystery(); return; }
+        const now = Date.now();
+        const shown = Mystery.cluesAt(now);
+        let label = text;
+        let correct;
+        if (choice !== null) {
+            const option = shown >= Mystery.CLUES ? data.question.choices[choice] : null;
+            if (!option) return;
+            label = option.label;
+            correct = Boolean(option.correct);
+        } else {
+            if (!text) return;
+            correct = checkAnswer(text, data.question);
+            // Přesně název jiné položky tématu (Slovinsko u Slovenska) není překlep, ale jiná odpověď
+            const ctx = loadedTopics.get(data.topic);
+            const item = ctx && ctx.byId.get(data.id);
+            if (correct && item) {
+                const otherId = findAnswerItem(text, item, ctx.items);
+                const other = otherId && ctx.byId.get(otherId);
+                const exactlyOwn = data.question.accepted.some(accepted => normalizeAnswer(accepted) === normalizeAnswer(text));
+                if (other && !exactlyOwn && normalizeAnswer(other.n) === normalizeAnswer(text)) correct = false;
+            }
+        }
+        // Stejný špatný tip podruhé se nepočítá
+        if (!correct && entry.tips.some(tip => normalizeAnswer(tip.text) === normalizeAnswer(label))) {
+            view.notice = `„${label}“ už jsi zkoušel(a). Zkus něco jiného.`;
+            renderMystery();
+            return;
+        }
+        state.days[view.day] = Mystery.addTip(entry, { text: label, correct, clues: shown, at: now });
+        saveMystery(state);
+        const after = state.days[view.day];
+        const left = Mystery.tipsLeft(after);
+        view.notice = correct ? '' : left ? `„${label}“ to není. ${left === 1 ? 'Zbývá poslední tip.' : `${Mystery.leftWord(left).replace(/^z/, 'Z')}.`}` : `„${label}“ to není. Tipy na dnešek došly, odpověď se dozvíš zítra.`;
+        if (Sound) Sound.play(correct ? 'correct' : 'wrong');
+        if (!correct && Sound) Sound.vibrate('wrong');
+        if (correct) awardMysteryXp(view.day);
+        renderMystery();
+        if (mysteryRanked()) syncMystery(view.day);
+        if (correct || !left) loadMysteryStats();
+    };
+    const mysteryShareEntry = () => {
+        if (!mysteryView) return null;
+        const entry = loadMystery().days[mysteryView.day];
+        return entry && entry.tips.length ? entry : null;
+    };
+    const shareMystery = () => {
+        const entry = mysteryShareEntry();
+        if (!entry || !ShareCard) { if (!entry) showToast('Ještě nemáš žádný tip, není co sdílet.'); return; }
+        ShareCard.shareText({ text: Mystery.shareText({ appName: APP_NAME, day: mysteryView.day, entry, url: appUrl() }) }, { toast: showToast, copied: 'Výsledek je zkopírovaný ve schránce' });
+    };
+    const shareMysteryImage = () => {
+        const entry = mysteryShareEntry();
+        if (!entry || !ShareCard) { if (!entry) showToast('Ještě nemáš žádný tip, není co sdílet.'); return; }
+        const input = Mystery.cardInput({ day: mysteryView.day, entry, robe: robeNow(), url: appUrl(), appName: APP_NAME });
+        shareImageCounted(input, { name: ShareCard.fileName('tajemna-otazka', mysteryView.day), text: Mystery.shareText({ appName: APP_NAME, day: mysteryView.day, entry, url: appUrl() }), toast: showToast });
+    };
     // Obrázek k výsledku dnešní otázky tématu (bez názvu položky, ať nikomu nic neprozradí)
     const dailyCardInput = () => {
         const dayKey = current && current.dailyDate;
@@ -9377,7 +9689,7 @@
         return Tips.pick(readTipsState(), {
             counters: loadProgress().counters, today: getDayKey(), now: Date.now(), launches: promoLaunches,
             signedIn: Boolean(signedUser()), multiAvailable: Boolean(Auth && Auth.isConfigured() && Social), reviewOn: reviewEnabled(),
-            quiz: Boolean(DailyQuiz), modes: Boolean(Modes), goals: Boolean(Goals && Rewards), freezes: Rewards ? loadRewards().freezes : 0,
+            quiz: Boolean(DailyQuiz), mystery: Boolean(Mystery), modes: Boolean(Modes), goals: Boolean(Goals && Rewards), freezes: Rewards ? loadRewards().freezes : 0,
             season: Boolean(Season && Rewards), album: Boolean(Album), showcase: Boolean(Showcase && myShowcase !== null),
             maxStars: Math.max(0, ...Object.values(loadLearned()).map(ids => masteryStars((ids || []).length)))
         });
@@ -9392,7 +9704,8 @@
         single: () => { closeDialog(); openHomeTabFromPush('single'); },
         quiz: () => { closeDialog(); openQuiz(); },
         modes: () => { closeDialog(); openChooser({ kind: 'mix' }); },
-        goals: () => { closeDialog(); openGoals(); }
+        goals: () => { closeDialog(); openGoals(); },
+        mystery: () => { closeDialog(); openMystery(); }
     };
     const openTip = (tip) => {
         if (!tip || document.getElementById('dialog-overlay')) return;
@@ -10481,6 +10794,15 @@
         'quiz-share-image': () => shareQuizImage(),
         'quiz-login': () => { writeJson(QUIZ_LOGIN_KEY, DailyQuiz.pragueDay()); if (Auth) startLogin(); },
         'share-image': () => shareDailyImage(),
+        // Tajemná otázka dne (mystery.js)
+        'mystery-open': () => openMystery(),
+        'mystery-reveal': () => openMystery({ past: true }),
+        'mystery-dismiss': () => dismissMysteryReveal(),
+        'mystery-home': () => renderHome(),
+        'mystery-choice': (button) => submitMysteryTip({ choice: Number(button.dataset.index) }),
+        'mystery-share': () => shareMystery(),
+        'mystery-share-image': () => shareMysteryImage(),
+        'mystery-login': () => { if (Auth) startLogin(); },
         'challenge-retry': () => finishChallenge(true),
         'challenge-home': () => challengeHome(),
         'challenge-breakdown': () => { if (challenge && !challenge.tournament) openChallengeBreakdown(challenge, challenge.lastResults || []); },
@@ -10554,6 +10876,7 @@
 
     appContent.addEventListener('submit', (event) => {
         if (event.target.id === 'estimate-form') { event.preventDefault(); numericEstimate(event.target); return; }
+        if (event.target.id === 'mystery-form') { event.preventDefault(); submitMysteryTip({ text: event.target.elements.answer.value.trim() }); return; }
         if (event.target.id !== 'answer-form') return;
         event.preventDefault();
         if (!round || round.variant !== 'typed') return;
@@ -10663,7 +10986,7 @@
             else renderHome();
         } else if (screen === 'challenge-done') {
             challengeHome();
-        } else if (screen === 'quiz' || screen === 'quiz-done') {
+        } else if (screen === 'quiz' || screen === 'quiz-done' || screen === 'mystery') {
             renderHome();
         } else if (screen === 'mode') {
             leaveMode();
