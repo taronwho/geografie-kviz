@@ -37,5 +37,7 @@ module.exports = {
     },
     // short: = nízký displej (telefon 360×640 a podobné, okno do 770 px výšky). Úvod a okna se na něm zhustí, aby se vešly bez posouvání;
     // vyšší displeje (390×780, 412×915) zůstávají beze změny. Vlastní varianta, ne položka v screens: s ní by přestaly fungovat max-[…]: varianty.
-    plugins: [({ addVariant }) => addVariant('short', '@media (max-height: 770px)')]
+    // Třída fit-short na <html> zapne totéž zhuštění i na vyšším displeji, kde se úvod přesto nevejde (app.js fitHome: telefon
+    // s aplikací až k okrajům, kde systémové lišty ukrojí z výšky okna, nebo úzký displej se zalomenými názvy)
+    plugins: [({ addVariant }) => addVariant('short', ['@media (max-height: 770px)', '.fit-short &'])]
 };

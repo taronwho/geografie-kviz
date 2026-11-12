@@ -2564,6 +2564,34 @@
         if (screen === 'home') renderHome();
     };
 
+    // Úvod se musí vejít bez posouvání. Na nízkém displeji (do 770 px) se zhustí sám (varianta short:); na vyšším se nejdřív
+    // změří běžné rozložení, a když se nevejde (systémové lišty u aplikace až k okrajům ukrojí z výšky, úzký displej zalomí
+    // názvy), zapne se stejné zhuštění třídou fit-short na <html> (tailwind.config.js). Přeměřuje se po vykreslení úvodu
+    // a po změně velikosti okna; mimo úvod (a na záložce Více hráčů, která se smí posouvat) zůstane poslední rozhodnutí.
+    // Měří se výška obsahu obalu úvodu (scrollHeight obalu, ne #app-content: náběhová animace fade-in posouvá celý obal
+    // a scrollHeight rodiče by přecenila). Karty, které se doplní později (Kvíz dne, Tajemná otázka, cíle), hlídá
+    // MutationObserver; přeměří se v dalším snímku a jen když se výška obsahu od posledního měření změnila.
+    const FIT_SHORT = 'fit-short';
+    let fitSeen = -1;
+    const fitHome = () => {
+        const root = document.documentElement;
+        const wrap = appContent.firstElementChild;
+        if (screen !== 'home' || homeTab() === 'multi' || !wrap) return;
+        const wasShort = root.classList.contains(FIT_SHORT);
+        root.classList.remove(FIT_SHORT);
+        if (!window.matchMedia('(max-height: 770px)').matches && wrap.scrollHeight > appContent.clientHeight + 1) root.classList.add(FIT_SHORT);
+        if (root.classList.contains(FIT_SHORT) !== wasShort) appContent.scrollTo(0, 0);
+        fitSeen = wrap.scrollHeight;
+    };
+    let fitFrame = 0;
+    const homeFitObserver = typeof MutationObserver === 'function' ? new MutationObserver(() => {
+        if (fitFrame) return;
+        fitFrame = requestAnimationFrame(() => {
+            fitFrame = 0;
+            const wrap = appContent.firstElementChild;
+            if (wrap && wrap.scrollHeight !== fitSeen) fitHome();
+        });
+    }) : null;
     const renderHome = () => {
         screen = 'home';
         closePlaceInfo();
@@ -2644,6 +2672,8 @@
             </div>`;
         applyProgress(appContent);
         renderIcons(appContent);
+        fitHome();
+        if (homeFitObserver) { homeFitObserver.disconnect(); homeFitObserver.observe(appContent.firstElementChild, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['class', 'hidden', 'src'] }); }
         appContent.scrollTo(0, 0);
         updateControlsUI();
         refreshChallenges();
@@ -11262,10 +11292,13 @@
         if (root.classList.contains('kb-open')) return;
         const visible = viewport && viewport.scale < 1.05 ? viewport.height : window.innerHeight;
         if (visible > 200) root.style.setProperty('--app-h', `${Math.round(visible)}px`);
+        fitHome();
     };
     if (viewport) viewport.addEventListener('resize', syncAppHeight);
     document.addEventListener('focusout', () => setTimeout(() => { if (viewport) viewport.dispatchEvent(new Event('resize')); else syncAppHeight(); }, 250));
     window.addEventListener('resize', syncAppHeight);
+    // Načtené písmo může zalomit názvy dlaždic jinak než náhradní: úvod se přeměří
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => fitHome()).catch(() => {});
     window.addEventListener('pageshow', syncAppHeight);
     window.addEventListener('orientationchange', () => setTimeout(syncAppHeight, 300));
     document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') { syncAppHeight(); setTimeout(syncAppHeight, 400); } });
