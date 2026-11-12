@@ -53,7 +53,7 @@ test('rozvrh nápověd v den změny času (29. 3. a 25. 10. 2026)', () => {
 });
 
 test('výběr: téma dne se střídá (každé jednou za 14 dní, nikdy dva dny po sobě), položka známá s fotkou, stejná pro všechny', () => {
-    const days = Array.from({ length: 140 }, (_, i) => M.addDays('2026-11-01', i));
+    const days = Array.from({ length: 140 }, (_, i) => M.addDays('2026-11-13', i));
     const topics = days.map(day => M.topicForDay(day, TOPICS));
     for (let i = 1; i < topics.length; i++) assert.notEqual(topics[i], topics[i - 1], `${days[i]}: stejné téma jako včera`);
     // V každém bloku 14 dní (podle čísla dne) je každé téma právě jednou
@@ -70,9 +70,9 @@ test('výběr: téma dne se střídá (každé jednou za 14 dní, nikdy dva dny 
         assert.equal(item.k, 1);
         assert.ok(!item.nq && /\.jpg$/.test(item.im) && Object.keys(item.f).length, item.q);
         const index = items.filter(other => other.c === item.c && other.k === 1 && !other.nq).indexOf(item);
-        assert.ok(index < 15, `${item.q} je z první poloviny kategorie`);
+        assert.ok(index < 4, `${item.q} je z první čtvrtiny kategorie (nejznámější)`);
     }
-    assert.ok(picks.size >= 8, `různé položky v různé dny (${picks.size})`);
+    assert.ok(picks.size >= 4, `různé položky v různé dny (${picks.size}; v testu jen pár nejznámějších)`);
     // Bez vhodných položek volnější výběr; prázdná data null
     assert.equal(M.pickItem('2026-11-12', 'x', [{ q: 'A', n: 'A', k: 0 }]).q, 'A');
     assert.equal(M.pickItem('2026-11-12', 'x', []), null);
@@ -98,30 +98,28 @@ const roundData = (over = {}) => ({
     ...over
 });
 
-test('nápovědy: osm od nejslabší po nejsilnější, poslední první písmeno, ostrá fotka a možnosti, nikde odpověď', () => {
+test('nápovědy: osm od nejslabší po nejsilnější, poslední ostrá fotka (bez možností a písmen), nikde odpověď', () => {
     const clues = M.buildClues(roundData(), { topicTitle: 'Zeměpis' });
     assert.equal(clues.length, 8);
     assert.deepEqual(clues.map(clue => clue.hour), M.CLUE_HOURS);
     assert.deepEqual(clues[0].parts[0], { type: 'type', topic: 'Zeměpis', label: 'hora' });
     assert.deepEqual(clues[0].parts[1], { type: 'facts', facts: [{ label: 'Výška', value: '4 478 m' }] });
     assert.deepEqual(clues[6].parts, [{ type: 'photo', url: 'https://upload.wikimedia.org/foto.jpg', blur: true }], '7. rozmazaná fotka');
-    assert.deepEqual(clues[7].parts.map(part => part.type), ['pattern', 'photo', 'choices']);
-    assert.equal(clues[7].parts[0].text, 'M _ _ _ _ _ _ _ _ _');
-    assert.equal(clues[7].parts[1].blur, false);
-    assert.deepEqual(clues[7].parts[2].choices, ['Matterhorn', 'Eiger', 'Mont Blanc', 'Ortler']);
+    assert.deepEqual(clues[7].parts, [{ type: 'photo', url: 'https://upload.wikimedia.org/foto.jpg', blur: false }], '8. ostrá fotka, nic víc');
+    assert.ok(!clues.some(clue => clue.parts.some(part => part.type === 'choices' || part.type === 'pattern')), 'žádné možnosti ani písmena');
     const types = clues.slice(1, 6).flatMap(clue => clue.parts.map(part => part.type));
     assert.ok(types.includes('text') && types.includes('visual') && types.includes('facts'), types.join());
     // Všechna fakta a věty se použijí, nic dvakrát
     const facts = clues.flatMap(clue => clue.parts.filter(part => part.type === 'facts').flatMap(part => part.facts.map(fact => fact.label)));
     assert.deepEqual([...facts].sort(), ['Prvovýstup', 'Pohoří', 'Stát', 'Výška'].sort());
-    assert.ok(!JSON.stringify(clues.slice(0, 7)).includes('Matterhorn'), 'odpověď není v nápovědách 1–7');
-    // Chudá data: doplní se délkou odpovědi a posledním písmenem, bez fotky není rozmazaná fotka
+    assert.ok(!JSON.stringify(clues).includes('Matterhorn'), 'odpověď není v žádné nápovědě');
+    // Chudá data: jen počet slov (žádná písmena ani konce odpovědi), bez fotky není rozmazaná fotka
     const poor = M.buildClues(roundData({ name: 'Karel IV.', hints: [], questionText: '', photoUrl: null, question: { choices: [] } }), { topicTitle: 'Historie' });
     assert.equal(poor.length, 8);
     assert.ok(!poor.some(clue => clue.parts.some(part => part.type === 'photo')));
-    assert.match(JSON.stringify(poor), /Odpověď má 2 slova a 7 písmen/);
-    assert.deepEqual(poor.slice(1, 7).map(clue => clue.parts[0].text), ['Odpověď má 2 slova a 7 písmen.', 'Odpověď končí na „v“.', 'Odpověď končí na „iv“.', 'Odpověď končí na „liv“.', 'Odpověď končí na „eliv“.', 'Odpověď končí na „reliv“.'], 'každá hodina přidá něco nového');
-    assert.equal(poor[7].parts[0].text, 'K _ _ _ _   _ _ .');
+    assert.match(JSON.stringify(poor), /Odpověď má 2 slova\./);
+    assert.doesNotMatch(JSON.stringify(poor), /písmen|končí na/);
+    assert.equal(poor[7].parts[0].type, 'note', 'bez fotky závěrečná poznámka');
     // Obrázek otázky (obraz, vlajka) je fotkou nápovědy
     const shown = M.buildClues(roundData({ hints: [], questionImage: { url: 'https://upload.wikimedia.org/obraz.jpg' } }));
     assert.equal(shown[6].parts[0].url, 'https://upload.wikimedia.org/obraz.jpg');
@@ -213,9 +211,9 @@ test('karta na úvodu: nápověda a další čas, vyřešeno, nevyšlo, včerej�
     assert.equal((screen.match(/data-mystery-clue="\d"(?! data-locked)/g) || []).length, 5, 'pět odkrytých');
     assert.match(screen, /data-mystery-clue="6" data-locked[\s\S]*v 12:00/);
     assert.ok(!screen.includes('Matterhorn'), 'před vyřešením bez odpovědi');
-    assert.doesNotMatch(screen, /data-action="mystery-choice"/, 'možnosti až v poslední nápovědě');
+    assert.doesNotMatch(screen, /data-action="mystery-choice"/, 'bez možností');
     const last = M.screenHtml({ day: '2026-11-12', shown: 8, next: null, clues, entry: M.newEntry({}), canGuess: true, pointsNow: 3 }, h);
-    assert.equal((last.match(/data-action="mystery-choice"/g) || []).length, 4);
+    assert.equal((last.match(/data-action="mystery-choice"/g) || []).length, 0, 'ani v poslední nápovědě možnosti nejsou');
     assert.match(last, /data-mystery-photo="sharp"/);
     const stats = M.statsHtml({ stats: { players: 50, solved: 17, solved_pct: 34, fastest: '0:12', avg_clues: 3 }, friends: { friends: 2, rank: 2, rows: [{ id: 'a', rank: 1, display_name: 'Eva', solved: true, points: 10, clues: 1 }, { id: 'b', rank: 2, display_name: 'Já', me: true, solved: true, points: 7, clues: 4 }, { id: 'c', rank: 3, display_name: 'Petr', solved: false }] } }, h);
     assert.match(stats, /Uhodlo 34 % hráčů, nejrychlejší v 0:12, průměrně s 3 nápovědami/);

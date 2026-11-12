@@ -212,16 +212,15 @@ test('Tajemná otázka dne v prohlížeči', { skip: !chromium && 'Playwright ne
         assert.match(await compact(tab, '[data-mystery-summary]'), /^Nápověda 8\/8$/);
         assert.equal(await tab.$('[data-mystery-clue][data-locked]'), null);
         const round = await roundOf(tab);
-        const pattern = await tab.textContent('[data-mystery-pattern]');
-        assert.equal(pattern.trim(), M.answerPattern(round.name));
+        // Poslední nápověda je ostrá fotka – bez písmen a bez možností
+        assert.equal(await tab.$('[data-mystery-pattern]'), null);
+        assert.equal(await tab.$('[data-action="mystery-choice"]'), null);
         assert.ok(await tab.$('[data-mystery-photo="sharp"]'), 'ostrá fotka v poslední nápovědě');
         assert.ok(await tab.$('[data-mystery-photo="blur"]'), 'rozmazaná v předposlední');
-        const labels = await tab.$$eval('[data-action="mystery-choice"]', items => items.map(item => item.textContent.trim()));
-        assert.equal(labels.length, 4);
-        assert.ok(labels.includes(round.name));
-        await audit(tab, 'poslední nápověda s možnostmi (360×640)');
+        await audit(tab, 'poslední nápověda (360×640)');
         await shot(tab, 'posledni-napoveda-360x640');
-        await tab.click(`[data-action="mystery-choice"][data-index="${round.question.choices.findIndex(choice => choice.correct)}"]`);
+        await tab.fill('#mystery-form input', round.name);
+        await tab.click('#mystery-form button[type="submit"]');
         await tab.waitForSelector('#mystery-screen[data-mystery-status="solved"]');
         const summary = await compact(tab, '[data-mystery-summary]');
         assert.match(summary, /^Vyřešeno v 16:\d\d s 8 nápovědami · 3 body$/);
