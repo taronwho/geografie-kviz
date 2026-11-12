@@ -13,7 +13,7 @@
     // after = kolik odpovědí má hráč mít za sebou, než se tip nabídne; ready = podmínka, aby tip dával smysl;
     // used = hráč funkci už zná (tip se neukáže); multi = tip o hře více hráčů; account = vyžaduje přihlášení
     // action: kam tlačítko „Zkusit“ zavede (settings, learn, progress, multi, single, quiz = Kvíz dne, mystery = Tajemná otázka dne, modes = okno Co hrát
-    // s Bleskovkou a Přežitím, goals = cíle týdne a truhla)
+    // s Bleskovkou a Přežitím, goals = cíle týdne a truhla, boss = Boss týdne)
     const TIPS = [
         { id: 'napoveda', icon: 'lightbulb', after: 2, title: 'Nevíš si rady?', text: 'Klepni na žluté tlačítko Nápověda. Každá nápověda sice sníží body za správnou odpověď, ale často tě k ní dovede. Čím méně nápověd použiješ, tím víc bodů získáš.',
             used: (u) => num(u.counters.noHint) >= 15 },
@@ -83,7 +83,10 @@
         { id: 'skupiny', icon: 'users', art: 'skupiny', multi: true, account: true, after: 25, title: 'Skupiny', text: 'Založ si skupinu s kamarády, rodinou nebo spolužáky. Budete mít společné výzvy, vlastní týdenní žebříček a přehled, kdo z vás hrál. Ostatní pozveš odkazem.',
             action: { kind: 'groups', label: 'Skupiny' }, ready: (u) => num(u.counters.challenges) >= 1, used: (u) => Boolean(u.visited.groups) },
         { id: 'vitrina', icon: 'gem', art: 'vitrina', multi: true, account: true, after: 80, title: 'Vitrína v profilu', text: 'V Nastavení na záložce Profil si vyber až 3 trofeje, které ostatní uvidí ve tvém profilu: odznak, diplom nebo výsledek ligové sezóny.',
-            action: { kind: 'settings', label: 'Nastavení', tab: 'profile' }, ready: (u) => u.showcase, used: (u) => Boolean(u.visited.showcase) }
+            action: { kind: 'settings', label: 'Nastavení', tab: 'profile' }, ready: (u) => u.showcase, used: (u) => Boolean(u.visited.showcase) },
+        // Boss týdne (boss.js); obrázek do dodání portrétu bosse (docs/NOVE-MODY.md č. 215) sova s výzvou
+        { id: 'boss', icon: 'swords', art: 'sova-vyzva', after: 8, title: 'Boss týdne', text: 'Každý týden tě na úvodu vyzve jiný boss, Mudrlant v převleku. Sraz mu správnými odpověďmi všech 700 životů, rychlé odpovědi ho zasáhnou víc. Máš 3 pokusy za týden a za výhru získáš emblém, titul a 150 XP.',
+            action: { kind: 'boss', label: 'Do arény' }, ready: (u) => u.boss, used: (u) => num(u.counters.bossFights) > 0 }
     ];
     const BY_ID = new Map(TIPS.map(tip => [tip.id, tip]));
 
@@ -123,7 +126,8 @@
         if (ctx.now - state.lastAt < MIN_GAP_MS) return null;
         const u = { counters: ctx.counters || {}, visited: state.visited, reviewOn: ctx.reviewOn !== false, friends: ctx.friends, signedIn: Boolean(ctx.signedIn),
             quiz: ctx.quiz !== false, mystery: ctx.mystery !== false, modes: ctx.modes !== false, goals: ctx.goals !== false, freezes: ctx.freezes, maxStars: ctx.maxStars,
-            season: ctx.season !== false, album: ctx.album !== false, showcase: ctx.showcase !== false, chronicle: ctx.chronicle !== false, leagueSeasons: Boolean(ctx.leagueSeasons) };
+            season: ctx.season !== false, album: ctx.album !== false, showcase: ctx.showcase !== false, chronicle: ctx.chronicle !== false, leagueSeasons: Boolean(ctx.leagueSeasons),
+            boss: ctx.boss !== false };
         const answered = num(u.counters.answered);
         return TIPS.find(tip => {
             if (state.seen.includes(tip.id)) return false;

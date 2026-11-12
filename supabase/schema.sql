@@ -328,7 +328,9 @@ language sql immutable set search_path = public as $$
         'sberatel-25', 'sberatel-50', 'sberatel-75', 'sberatel-100',
         'album-avatars', 'album-accessories', 'album-themes', 'album-badges', 'album-diplomas',
         -- Schéma 19: Tajemná otázka dne (vyřešené tajemné otázky)
-        'detektiv', 'detektiv-7', 'detektiv-30', 'detektiv-100', 'detektiv-365'
+        'detektiv', 'detektiv-7', 'detektiv-30', 'detektiv-100', 'detektiv-365',
+        -- Schéma 21: Boss týdne (emblémy poražených bossů)
+        'boss-kapitan', 'boss-rytir', 'boss-alchymista', 'boss-amper', 'boss-maestro', 'boss-druid', 'boss-olympan', 'boss-reziser'
     ]::text[];
 $$;
 
@@ -1503,7 +1505,9 @@ begin
         'zamrzle_otazky', coalesce((select jsonb_agg(jsonb_build_object('seminko', s.seed, 'vytvoreno', s.created_at) order by s.created_at)
             from public.question_snapshots s where s.created_by = uid), '[]'::jsonb),
         -- Tajemná otázka dne (schéma 19): moje tipy po dnech (bez odpovědí, ty server nezná)
-        'tajemna_otazka', coalesce((select jsonb_agg(to_jsonb(m) order by m.day) from public.mystery_results m where m.user_id = uid), '[]'::jsonb)
+        'tajemna_otazka', coalesce((select jsonb_agg(to_jsonb(m) order by m.day) from public.mystery_results m where m.user_id = uid), '[]'::jsonb),
+        -- Boss týdne (schéma 21): moje výsledky po týdnech (nejlepší poškození, výhra, pokusy, vyzvednutý společný bonus)
+        'boss_tydne', coalesce((select jsonb_agg(to_jsonb(b) order by b.week) from public.boss_results b where b.user_id = uid), '[]'::jsonb)
     ) into result;
     return result;
 end;
@@ -3474,3 +3478,144 @@ create or replace function public.schema_version() returns integer
 language sql immutable as $$ select 20 $$;
 revoke all on function public.schema_version() from public, anon;
 grant execute on function public.schema_version() to authenticated;
+
+-- 21: Boss týdne
+-- ===== Boss týdne (schéma 21) — ZAČÁTEK BLOKU =====
+-- Každý ISO týden (pražský čas, pondělí–neděle) jiný boss pro všechny hráče; kterého a jaké otázky určuje aplikace (boss.js), server zná jen týden.
+-- Hráč má na týden 3 pokusy, počítá se nejlepší: jeden řádek na hráče a týden (week = pondělí týdne). Každý dohraný souboj aplikace pošle
+-- přes boss_submit (poškození 0–700, výhra = 700); idx = kolikátý pokus to podle aplikace je (od 0), opakované odeslání téhož pokusu
+-- (ztracená odpověď serveru) nic nezmění. Souboj dohraný těsně po půlnoci z neděle na pondělí se přijme ještě 30 minut.
+-- Společná lišta (boss_week_stats): kolik hráčů, kteří to zkusili, bosse porazilo. Když do konce týdne porazí bosse aspoň polovina z nich,
+-- vyzvedne si každý z nich příští týden 50 XP (boss_claim_bonus, jednou za týden; XP si připíše aplikace jako ostatní XP).
+-- Tabulku hráč jen čte (svůj řádek); zapisují jen funkce níže.
+create table if not exists public.boss_results (
+    user_id uuid not null references public.profiles (id) on delete cascade,
+    week date not null,
+    best_damage smallint not null default 0,
+    defeated boolean not null default false,
+    attempts smallint not null default 0,
+    bonus_claimed boolean not null default false,
+    -- volání boss_submit v tomto týdnu (limit proti zahlcení, opakované odeslání téhož pokusu)
+    calls smallint not null default 0,
+    created_at timestamptz not null default now(),
+    updated_at timestamptz not null default now(),
+    primary key (user_id, week)
+);
+alter table public.boss_results drop constraint if exists boss_results_values;
+alter table public.boss_results add constraint boss_results_values check (
+    extract(isodow from week) = 1 and attempts between 1 and 3 and best_damage between 0 and 700 and defeated = (best_damage = 700)
+    and calls between 0 and 1000);
+create index if not exists boss_results_week on public.boss_results (week, defeated);
+alter table public.boss_results enable row level security;
+drop policy if exists "boss týdne: vlastní řádky" on public.boss_results;
+create policy "boss týdne: vlastní řádky" on public.boss_results for select to authenticated using (user_id = auth.uid());
+revoke all on public.boss_results from anon, authenticated;
+grant select on public.boss_results to authenticated;
+
+-- Čas a týden bosse (Praha); mudrlant.test_now používají jen testy (z API ho klient nastavit nemůže)
+create or replace function public.boss_now() returns timestamptz
+language sql stable set search_path = public as $$
+    select coalesce(nullif(current_setting('mudrlant.test_now', true), '')::timestamptz, now())
+$$;
+-- Pondělí ISO týdne, do kterého v Praze patří okamžik ts (stejně počítá boss.js weekOf)
+create or replace function public.boss_week(ts timestamptz) returns date
+language sql stable set search_path = public as $$
+    select date_trunc('week', (ts at time zone 'Europe/Prague'))::date
+$$;
+-- Stav hráče v týdnu jako JSON pro aplikaci (r bez řádku = v týdnu ještě nehrál)
+create or replace function public.boss_json(r public.boss_results, w date) returns jsonb
+language sql stable set search_path = public as $$
+    select jsonb_build_object('week', w, 'attempts', coalesce(r.attempts, 0), 'best_damage', coalesce(r.best_damage, 0), 'defeated', coalesce(r.defeated, false),
+        'bonus_claimed', coalesce(r.bonus_claimed, false))
+$$;
+
+-- Dohraný souboj: týden (pondělí; ten běžící, nebo minulý ještě 30 minut po půlnoci), idx = kolikátý pokus (0–2), uštědřené poškození
+-- a výhra (jen s plnými 700). Nejvýš 3 pokusy za týden; počítá se nejlepší poškození, výhra už zůstane. first_win = tímto pokusem padl
+-- boss poprvé (aplikace podle toho připíše XP za výhru jen jednou za účet).
+create or replace function public.boss_submit(for_week date, idx integer, damage integer, is_defeated boolean) returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare uid uuid := auth.uid(); t timestamptz := public.boss_now(); r public.boss_results; first boolean;
+begin
+    if uid is null then raise exception 'Přihlas se.' using errcode = '42501'; end if;
+    if for_week is null or for_week not in (public.boss_week(t), public.boss_week(t - interval '30 minutes')) then
+        raise exception 'Tenhle boss už odešel. Tento týden je nový.' using errcode = '22023';
+    end if;
+    if idx is null or idx < 0 or idx > 2 or damage is null or damage < 0 or damage > 700 or is_defeated is null or is_defeated <> (damage = 700) then
+        raise exception 'Neplatný výsledek souboje.' using errcode = '22023';
+    end if;
+    select * into r from public.boss_results where user_id = uid and week = for_week for update;
+    if r.calls >= 30 then raise exception 'Příliš mnoho pokusů o uložení. Zkus to příští týden.' using errcode = '22023'; end if;
+    if idx < coalesce(r.attempts, 0) then
+        -- Opakované odeslání: pokus už je uložený, nic se nemění
+        update public.boss_results set calls = calls + 1 where user_id = uid and week = for_week returning * into r;
+        return public.boss_json(r, for_week) || jsonb_build_object('first_win', false);
+    end if;
+    if coalesce(r.attempts, 0) >= 3 then raise exception 'Pokusy na tento týden došly.' using errcode = '22023'; end if;
+    first := is_defeated and not coalesce(r.defeated, false);
+    if r.user_id is null then
+        -- První pokus v týdnu založí řádek (souběžný první pokus z druhého zařízení skončí chybou klíče a aplikace stav načte znovu)
+        insert into public.boss_results (user_id, week, best_damage, defeated, attempts, calls, updated_at)
+        values (uid, for_week, damage, is_defeated, 1, 1, t)
+        returning * into r;
+    else
+        update public.boss_results set
+            attempts = attempts + 1,
+            best_damage = greatest(best_damage, damage),
+            defeated = defeated or is_defeated,
+            calls = calls + 1,
+            updated_at = t
+        where user_id = uid and week = for_week
+        returning * into r;
+    end if;
+    return public.boss_json(r, for_week) || jsonb_build_object('first_win', first);
+end;
+$$;
+
+-- Společná lišta týdne: kolik hráčů to zkusilo (aspoň jeden pokus), kolik bosse porazilo (a procenta), jestli je splněná polovina,
+-- jestli týden skončil, a můj stav. Bez jmen hráčů. Týden: běžící (výchozí) nebo nejvýš 12 týdnů zpět.
+create or replace function public.boss_week_stats(for_week date default null) returns jsonb
+language plpgsql stable security definer set search_path = public as $$
+declare uid uuid := auth.uid(); t timestamptz := public.boss_now(); now_week date := public.boss_week(t); w date := coalesce(for_week, public.boss_week(t)); result jsonb;
+begin
+    if uid is null then raise exception 'Přihlas se.' using errcode = '42501'; end if;
+    if extract(isodow from w) <> 1 or w > now_week or w < now_week - 84 then raise exception 'Boss týdne je jen za posledních 12 týdnů.' using errcode = '22023'; end if;
+    select jsonb_build_object(
+        'week', w,
+        'players', count(*),
+        'defeated', count(*) filter (where b.defeated),
+        'defeated_pct', case when count(*) > 0 then round(100.0 * count(*) filter (where b.defeated) / count(*))::integer else 0 end,
+        'reached', count(*) > 0 and 2 * count(*) filter (where b.defeated) >= count(*),
+        'over', w < public.boss_week(t - interval '30 minutes'),
+        'me', (select public.boss_json(m, w) from public.boss_results m where m.user_id = uid and m.week = w)
+    ) into result
+    from public.boss_results b where b.week = w;
+    return result;
+end;
+$$;
+
+-- Společný bonus za skončený týden: hráč, který bosse aspoň jednou zkusil, si vyzvedne 50 XP, když ho porazila aspoň polovina hráčů,
+-- kteří to zkusili. Jen jednou za týden (bonus_claimed), nejvýš 12 týdnů zpět. xp = kolik XP si aplikace má připsat (0 = nic).
+create or replace function public.boss_claim_bonus(for_week date) returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare uid uuid := auth.uid(); t timestamptz := public.boss_now(); r public.boss_results; players integer; beaten integer; reached boolean;
+begin
+    if uid is null then raise exception 'Přihlas se.' using errcode = '42501'; end if;
+    if for_week is null or extract(isodow from for_week) <> 1 or for_week >= public.boss_week(t - interval '30 minutes') or for_week < public.boss_week(t) - 84 then
+        raise exception 'Bonus jde vyzvednout jen za skončený týden (nejvýš 12 týdnů zpět).' using errcode = '22023';
+    end if;
+    select count(*), count(*) filter (where b.defeated) into players, beaten from public.boss_results b where b.week = for_week;
+    reached := players > 0 and 2 * beaten >= players;
+    select * into r from public.boss_results where user_id = uid and week = for_week for update;
+    if r.user_id is null then return jsonb_build_object('week', for_week, 'played', false, 'reached', reached, 'claimed', false, 'xp', 0); end if;
+    if r.bonus_claimed then return jsonb_build_object('week', for_week, 'played', true, 'reached', reached, 'claimed', true, 'xp', 0); end if;
+    if not reached then return jsonb_build_object('week', for_week, 'played', true, 'reached', false, 'claimed', false, 'xp', 0); end if;
+    update public.boss_results set bonus_claimed = true, updated_at = t where user_id = uid and week = for_week;
+    return jsonb_build_object('week', for_week, 'played', true, 'reached', true, 'claimed', true, 'xp', 50);
+end;
+$$;
+
+-- Pomocné funkce jen interně; hráč volá jen odeslání, statistiky a bonus (anon nic)
+revoke all on function public.boss_now(), public.boss_week(timestamptz), public.boss_json(public.boss_results, date) from public, anon, authenticated;
+revoke all on function public.boss_submit(date, integer, integer, boolean), public.boss_week_stats(date), public.boss_claim_bonus(date) from public, anon;
+grant execute on function public.boss_submit(date, integer, integer, boolean), public.boss_week_stats(date), public.boss_claim_bonus(date) to authenticated;
+-- ===== Boss týdne (schéma 21) — KONEC BLOKU =====

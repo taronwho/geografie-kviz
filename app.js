@@ -32,6 +32,8 @@
     const Numeric = window.MudrlantNumeric || null;
     // Zdroj obrázku z Wikimedia Commons (photo-source.js): tlačítko „i“ u obrázků; bez skriptu se jen neukáže
     const PhotoSource = window.MudrlantPhotoSource || null;
+    // Boss týdne (boss.js): souboj s bossem na úvodu (řada Výzvy); bez skriptu se dlaždice nevykreslí
+    const Boss = window.MudrlantBoss || null;
     const TOPICS = window.MudrlantTopics || [];
     const TOPIC_BY_ID = Object.fromEntries(TOPICS.map(topic => [topic.id, topic]));
     const APP_NAME = 'Mudrlant';
@@ -2337,6 +2339,7 @@
         if (screen === 'quiz' || screen === 'quiz-done') return { icon: 'timer', text: `Kvíz dne · ${shortDay(quiz ? quiz.day : getDayKey())}`, topic: null };
         if (screen === 'mode' && modeGame) return modePlace(modeGame);
         if (screen === 'mystery') return { icon: 'telescope', text: 'Tajemná otázka', topic: null };
+        if ((screen === 'boss' || screen === 'boss-done') && Boss) return { icon: 'swords', art: Boss.artFor(Boss.bossForWeek(Boss.weekOf()).id, 1), text: 'Boss týdne', topic: null };
         // Úvod: sova z loga, název a dnešní datum
         if (screen !== 'round' || !current) return { logo: true, text: `${APP_NAME} · ${shortDay(getDayKey())}`, date: shortDay(getDayKey()), topic: null };
         const topic = TOPIC_BY_ID[current.topic];
@@ -2607,7 +2610,7 @@
             </button>`;
     // Dlaždice Řetězovky dne a Bosse týdne (doplní je jejich moduly; prázdný řetězec = dlaždice se nevykreslí)
     const chainHomeTile = () => '';
-    const bossHomeTile = () => '';
+    const bossHomeTile = () => (Boss ? bossTileHtml() : '');
     const specialsRow = () => {
         const tiles = [quizHomeCard(), chainHomeTile(), bossHomeTile()].filter(Boolean);
         return tiles.length ? `<section id="home-specials" aria-label="Výzvy" class="grid ${['', 'grid-cols-1', 'grid-cols-2', 'grid-cols-3'][tiles.length]} gap-2 short:gap-1.5">${tiles.join('')}</section>` : '';
@@ -2699,6 +2702,7 @@
         refreshChallenges();
         if (DailyQuiz) refreshQuizServer();
         if (Mystery) refreshMysteryReveal();
+        if (Boss) refreshBossServer();
         // Tutoriál až po výběru varianty: úvod jde otevřít i z uvítání (Domů), otázka by se ale nespustila a bublina by čekala
         if (Tutorial && gameVariant) Tutorial.maybeStart({ ready: factLoading });
     };
@@ -3816,7 +3820,9 @@
             topicStars: Object.fromEntries(TOPICS.map(topic => [topic.id, masteryStars((learnedMap[topic.id] || []).length)])),
             topicCount: TOPICS.length,
             // Album sbírky: procenta celé sbírky a sekcí pro odznaky Sběratel (album.js)
-            album: albumBadgeContext(progress)
+            album: albumBadgeContext(progress),
+            // Boss týdne: poražení bossové pro emblémy boss-<id> (boss.js)
+            bosses: Boss ? Boss.emblemsOf(Boss.parseState(readJson(Boss.KEY))) : {}
         };
     };
     // Získané odznaky podle počítadel; vrátí názvy nově získaných (a uloží je s dnešním dnem)
@@ -3859,6 +3865,9 @@
         // Otevřené okno (třeba rozpis otázek po výzvě, nebo Nastavení, kde hráč obléká Mudrlanta) má přednost: oslavy počkají, až se zavře
         if (document.getElementById('dialog-overlay') || document.getElementById('settings-overlay')) return false;
         if (mode === 'blitz' || mode === 'survival') return !modeGame || modeGame.phase === 'result' || screen !== 'mode';
+        // Boss týdne: během souboje ne, na úvodu a výsledku ano
+        if (screen === 'boss') return !bossFight;
+        if (screen === 'boss-done') return true;
         if (screen === 'home' || screen === 'learn' || screen === 'challenge-done' || screen === 'quiz-done' || screen === 'welcome' || screen === 'mystery') return true;
         if (mode === 'challenge' || mode === 'quiz') return false;
         return Boolean(round && round.answered);
@@ -3898,6 +3907,9 @@
         // Album sbírky: milník sbírky a celá sekce mají vlastní oslavu (po ostatních odznacích) místo obecného „Nový odznak“
         const albumFresh = freshBadgeIds.filter(id => Album && Album.isAlbumBadge(id) && BADGE_BY_ID[id]);
         if (albumFresh.length) badgeTitles = badgeTitles.filter(title => !albumFresh.some(id => BADGE_BY_ID[id].title === title));
+        // Boss týdne: emblém a titul slaví obrazovka výsledku souboje
+        const bossFresh = freshBadgeIds.filter(id => Boss && Boss.isBossBadge(id) && BADGE_BY_ID[id]);
+        if (bossFresh.length) badgeTitles = badgeTitles.filter(title => !bossFresh.some(id => BADGE_BY_ID[id].title === title));
         if (levelNow > levelBefore) {
             const newTitle = titleForLevel(levelNow) !== titleForLevel(levelBefore);
             // Nový titul slaví sova jeho stupně (sova titulu v barvě mého obleku)
@@ -3945,6 +3957,8 @@
             if (Season && Rewards && merged.xp > local.xp) saveRewards(Season.shift(loadRewards(), merged.xp - local.xp));
             if (changedLocal) { saveProgress(merged); updateControlsUI(); }
             progressSyncedFor = user.id;
+            // Společný bonus Bosse týdne až po sloučení XP s účtem (jinak by ho přebilo větší XP z účtu)
+            if (Boss) claimBossBonus();
             const compact = compactBadges(Object.keys(merged.badges));
             const sameRemote = (remote.xp || 0) === merged.xp && [...compact].sort().join() === [...(remote.badges || [])].filter(id => BADGE_BY_ID[id]).sort().join();
             if (!sameRemote) await Social.saveProgress(user.id, { xp: merged.xp, badges: compact });
@@ -7642,7 +7656,11 @@
     const medalHtml = (badge, earned, size = 'h-11 w-11', iconSize = 'h-5 w-5') => {
         const dim = earned ? '' : ' opacity-50 grayscale';
         // Symbol odznaku: ikona tématu, ilustrace skupiny (icons/topics/odznak-<skupina>.webp), jinak čárová ikona
-        const art = badge.topic && topicArt({ id: badge.topic })
+        const boss = Boss ? Boss.bossOfBadge(badge.id) : null;
+        // Emblém bosse týdne: portrét bosse v kulatém rámu v barvě bosse
+        const art = boss
+            ? `<span data-badge-art class="boss-emblem boss-theme-${boss.id} absolute inset-[8%] overflow-hidden rounded-full${dim}"><img src="icons/topics/${Boss.artFor(boss.id, 1)}.webp" alt="" data-keep class="h-full w-full origin-[50%_22%] scale-[1.5] object-contain"></span>`
+            : badge.topic && topicArt({ id: badge.topic })
             ? `<img src="icons/topics/${badge.topic}.webp" alt="" class="h-[72%] w-[72%] object-contain${dim}">`
             : badgeArtOf(badge.group)
                 ? `<img src="icons/topics/${badgeArtOf(badge.group)}.webp" alt="" data-badge-art class="h-[74%] w-[74%] object-contain drop-shadow-sm${dim}">`
@@ -9673,6 +9691,708 @@
         if (input && ShareCard) shareImageCounted(input, { name: ShareCard.fileName('vyzva', input.day), text: `Vyhrál jsem výzvu v Mudrlantu: ${input.headline}. Zvládneš to líp?\n${challengeLink(challenge.code)}`, toast: showToast });
     };
 
+    // --- Boss týdne (boss.js): souboj s bossem týdne v aréně (dlaždice v řadě Výzvy na úvodu) ---
+    // Stav (pokusy po týdnech, rozehraný souboj s otázkou na obrazovce, emblémy) drží zařízení v mudrlant.boss. Otázky se sestaví jako
+    // v běžné hře (createRoundData) ze semínka týdne a pokusu (boss.js candidatesFor), další se chystá už během té současné. Čas otázky
+    // se měří od jejího ukázání a běží dál i po odchodu z obrazovky: po návratu se pokračuje stejnou otázkou (pokus se tak nedá „resetovat“).
+    // Přihlášenému se každý dohraný souboj pošle na server (schéma 21, boss_submit), který hlídá 3 pokusy za týden a počítá společnou lištu;
+    // společný bonus za minulý týden si aplikace vyzvedne sama (boss_claim_bonus). Host hraje jen v zařízení, bez společné lišty.
+    // Chyby jdou do Mých chyb a správné odpovědi do poznaných položek jako v Bleskovce (noteModeAnswer). Obrazovky: 'boss' (úvod a souboj),
+    // 'boss-done' (výsledek). Boss se během souboje mění podle zbývajících životů (stupně 1–4, boss.js stageOf).
+    let bossFight = null; // { week, boss, phase: 'loading' | 'question' | 'feedback' | 'error' | 'end', slot, at, limit, next, shown, lastLine }
+    let bossTimer = null;
+    let bossFeedbackTimer = null;
+    let bossTypeTimer = null;
+    let bossServer = null; // { userId, week, at, stats (null = databáze Bosse nemá nebo se nenačetlo) }
+    let bossResult = null; // výsledek posledního souboje pro obrazovku výsledku
+    let bossSyncing = null;
+    let bossOpening = false;
+    let bossSpeech = null; // { boss, week, text } – úvodní řeč (stejná při překreslení úvodu)
+    const BOSS_GRACE_MS = 30 * 60000;
+    const loadBoss = () => Boss.rollover(Boss.parseState(readJson(Boss.KEY)), Boss.weekOf());
+    const saveBoss = (state) => writeJson(Boss.KEY, state);
+    const bossRanked = () => Boolean(Boss && Social && Auth && Auth.isConfigured() && signedUser());
+    const bossServerStats = (week) => { const user = signedUser(); return user && bossServer && bossServer.userId === user.id && bossServer.week === week ? bossServer.stats : null; };
+    const bossServerMe = (week) => { const stats = bossServerStats(week); return stats ? stats.me : null; };
+    const bossView = (state = loadBoss()) => {
+        const week = Boss.weekOf();
+        const me = bossServerMe(week);
+        return { week, used: Boss.attemptsUsed(state, week, me), best: Boss.bestDamage(state, week, me), defeated: Boss.isDefeated(state, week, me), open: Boolean(state.open && state.open.week === week) };
+    };
+    const bossLive = (fight) => Boolean(fight) && fight === bossFight && screen === 'boss';
+    const stopBossTimers = () => {
+        clearInterval(bossTimer);
+        clearTimeout(bossFeedbackTimer);
+        clearInterval(bossTypeTimer);
+        bossTimer = null;
+        bossFeedbackTimer = null;
+        bossTypeTimer = null;
+    };
+    const bossTopicTitle = (id) => (TOPIC_BY_ID[id] ? TOPIC_BY_ID[id].title : '');
+    const bossHelpers = () => ({
+        topicIcon: (id) => (TOPIC_BY_ID[id] ? topicIcon(TOPIC_BY_ID[id], 'h-5 w-5', `rounded-full p-0.5 ${styleOf(TOPIC_BY_ID[id]).soft}`, 'h-3.5 w-3.5') : ''),
+        // Boss vlastní rozpis XP: bez odznaků (emblém a titul ukazuje obrazovka výsledku sama)
+        xpLine: (xp) => xpLine({ ...xp, badges: (xp.badges || []).filter(title => !Boss.BOSSES.some(boss => boss.title === title)) }, 'text-white')
+    });
+    // Dlaždice v řadě Výzvy: portrét podle stupně nejlepšího pokusu, stav a tenká lišta životů bosse
+    const bossTileStatus = (view) => (view.defeated ? 'defeated' : view.open ? 'open' : view.used >= Boss.ATTEMPTS ? 'out' : view.used ? 'played' : 'new');
+    const bossTileHtml = () => {
+        const view = bossView();
+        const tile = Boss.homeTile(view);
+        const bar = `<span aria-hidden="true" class="pointer-events-none absolute inset-x-2 bottom-0.5 h-1 overflow-hidden rounded-full bg-white/20"><span class="boss-tile-hp block h-full w-0 rounded-full" data-progress="${tile.percent}"></span></span>`;
+        // Portrét bosse se nepřebarví podle obleku Mudrlanta (data-keep, look-robes.js)
+        return specialTile({ id: 'boss-card', action: 'boss-open', art: tile.art, title: 'Boss týdne', text: tile.text, label: tile.label, tone: 'boss-tile', ring: 'ring-rose-500/80 dark:ring-rose-400/60',
+            titleTone: 'text-white', textTone: view.defeated ? 'text-gold-200' : 'text-rose-100', dot: tile.fresh ? 'data-boss-new' : '',
+            attrs: `data-boss-status="${bossTileStatus(view)}" data-boss-stage="${tile.stage}"${tile.standIn ? ' data-boss-standin' : ''}`, extra: bar }).replace('<img src=', '<img data-keep src=');
+    };
+    const paintBossCard = () => {
+        const card = document.getElementById('boss-card');
+        if (!card || screen !== 'home' || !Boss) return;
+        card.outerHTML = bossTileHtml();
+        const fresh = document.getElementById('boss-card');
+        if (fresh) { applyProgress(fresh); renderIcons(fresh); }
+    };
+    const bossCommunity = (week) => Boss.communityHtml({
+        stats: bossServerStats(week), signedIn: bossRanked(), canLogin: Boolean(Auth && Auth.isConfigured() && Social) && !signedUser(),
+        loading: bossRanked() && !(bossServer && bossServer.week === week && bossServer.done), over: Boss.weekOf() !== week
+    });
+
+    // Odeslání dohraných soubojů na server (po sobě): každý pokus dostane číslo (idx) podle serveru, opakované odeslání nic nezmění.
+    // Pokus hosta se po přihlášení zapíše na účet. Pozdě (po týdnu a 30 minutách) nebo odmítnutý pokus se už neposílá.
+    const patchBossAttempt = (week, index, patch) => {
+        const fresh = loadBoss();
+        const row = fresh.weeks[week] && fresh.weeks[week].attempts[index];
+        if (row) { Object.assign(row, patch); saveBoss(fresh); }
+    };
+    const pushBossAttempts = () => {
+        const user = signedUser();
+        if (!bossRanked()) return Promise.resolve(null);
+        if (bossSyncing) return bossSyncing;
+        bossSyncing = (async () => {
+            const state = loadBoss();
+            const live = [Boss.weekOf(), Boss.weekOf(Date.now() - BOSS_GRACE_MS)];
+            const pending = [];
+            Object.keys(state.weeks).sort().forEach(week => state.weeks[week].attempts.forEach((attempt, index) => {
+                if (!attempt.synced && (attempt.owner === 'host' || attempt.owner === user.id)) pending.push({ week, index, attempt });
+            }));
+            let last = null;
+            for (const { week, index, attempt } of pending) {
+                if (!live.includes(week)) { patchBossAttempt(week, index, { synced: true }); continue; }
+                try {
+                    let idx = attempt.idx;
+                    if (!Number.isInteger(idx)) {
+                        const stats = await Social.bossWeekStats(week);
+                        if (stats === null) return null;
+                        idx = Math.min(Boss.ATTEMPTS - 1, stats.me ? stats.me.attempts : 0);
+                        patchBossAttempt(week, index, { idx, owner: user.id });
+                    }
+                    const me = await Social.bossSubmit(week, idx, attempt.damage, attempt.defeated);
+                    if (me === null) return null;
+                    patchBossAttempt(week, index, { synced: true, owner: user.id });
+                    last = { week, me };
+                } catch (error) {
+                    // Server pokus odmítl (pokusy došly, týden skončil): už se neposílá; bez spojení se zkusí příště
+                    if (error && error.status >= 400 && error.status < 500 && error.status !== 401) { patchBossAttempt(week, index, { synced: true }); continue; }
+                    return last;
+                }
+            }
+            return last;
+        })().catch(() => null).finally(() => { bossSyncing = null; });
+        return bossSyncing;
+    };
+    // Stav serveru (společná lišta, moje pokusy) nejvýš jednou za 5 minut; po souboji a přihlášení hned
+    const refreshBossServer = async (force = false) => {
+        if (!bossRanked()) return;
+        const user = signedUser();
+        const week = Boss.weekOf();
+        if (!force && bossServer && bossServer.userId === user.id && bossServer.week === week && Date.now() - bossServer.at < 5 * 60000) return;
+        const keep = bossServer && bossServer.userId === user.id && bossServer.week === week ? bossServer.stats : null;
+        bossServer = { userId: user.id, week, at: Date.now(), stats: keep, done: false };
+        let stats;
+        try {
+            await pushBossAttempts();
+            stats = await Social.bossWeekStats(week);
+        } catch (error) { bossServer = { ...bossServer, at: 0, done: true }; repaintBossServer(); return; }
+        if (!signedUser() || signedUser().id !== user.id) return;
+        bossServer = { userId: user.id, week, at: Date.now(), stats: stats || null, done: true };
+        repaintBossServer();
+        claimBossBonus();
+    };
+    const repaintBossServer = () => {
+        if (screen === 'home') paintBossCard();
+        else if (screen === 'boss' && !bossFight) paintBossIntroServer();
+        else if (screen === 'boss-done') renderBossResult();
+    };
+    // Úvod po odpovědi serveru: jen společná lišta (nástup bosse doběhne), celé překreslení jen když server zná víc pokusů nebo výhru
+    let bossIntroSig = '';
+    const bossSig = (view) => `${view.week}|${view.used}|${view.best}|${view.defeated}|${view.open}`;
+    const paintBossIntroServer = () => {
+        const view = bossView();
+        if (bossSig(view) !== bossIntroSig) { renderBossIntro(); return; }
+        const box = appContent.querySelector('#boss-intro [data-boss-community]');
+        if (!box) return;
+        box.outerHTML = bossCommunity(view.week);
+        const intro = document.getElementById('boss-intro');
+        if (intro) { applyProgress(intro); renderIcons(intro); }
+    };
+    // Společný bonus za minulý týden (jednou za hráče a týden; až po půlhodině po konci týdne, kdy se ještě přijímají souboje)
+    let bossClaiming = false;
+    const claimBossBonus = async () => {
+        if (!bossRanked() || progressSyncedFor !== signedUser().id || bossClaiming) return;
+        bossClaiming = true;
+        try { await claimBossBonusNow(); } finally { bossClaiming = false; }
+    };
+    const claimBossBonusNow = async () => {
+        const user = signedUser();
+        const week = Boss.weekOf(Date.now() - BOSS_GRACE_MS);
+        const last = Boss.addWeeks(week, -1);
+        if (loadBoss().claims[user.id] === last) return;
+        let result;
+        try { result = await Social.bossClaimBonus(last); } catch (error) { if (!(error && error.status >= 400 && error.status < 500 && error.status !== 401)) return; result = { xp: 0 }; }
+        if (result === null || !signedUser() || signedUser().id !== user.id) return;
+        const state = loadBoss();
+        state.claims[user.id] = last;
+        if (state.weeks[last]) state.weeks[last].bonus = result.xp ? 'claimed' : 'none';
+        saveBoss(state);
+        if (result.xp > 0) {
+            const boss = Boss.bossForWeek(last);
+            awardBossProgress({ xp: { total: result.xp, parts: [{ label: 'za společnou výhru nad bossem', xp: result.xp }] } });
+            showCelebration('oslava', 'Společná výhra!', `${boss.name} padl pod náporem hráčů: +${result.xp} XP pro každého, kdo to zkusil`, 'badge', uiArt(Boss.artFor(boss.id, 4), 'h-20 w-20 -my-4 drop-shadow-lg').replace('<img src=', '<img data-keep src='));
+        }
+    };
+    // XP, počítadla (souboje, výhry, den hraní) a odznaky (emblém bosse přes x.bosses v badgeContext)
+    const awardBossProgress = ({ xp = null, fought = false, won = false } = {}) => {
+        const before = loadProgress();
+        const progress = { ...before, xp: before.xp + (xp ? xp.total : 0) };
+        if (fought) {
+            progress.counters.bossFights += 1;
+            if (progress.counters.lastDay !== getDayKey()) { progress.counters.days += 1; progress.counters.lastDay = getDayKey(); }
+        }
+        if (won) progress.counters.bossWins += 1;
+        const badges = grantBadges(progress);
+        saveProgress(progress);
+        announce(levelProgress(before.xp).level, levelProgress(progress.xp).level, badges);
+        settleGoals();
+        applyLook();
+        syncProgress();
+        return xp ? { ...xp, badges } : null;
+    };
+
+    // --- Úvod: aréna, nástup bosse, řeč a tlačítko Do souboje ---
+    const openBoss = () => {
+        if (!Boss || isLoading || bossOpening) return;
+        bossOpening = true;
+        try {
+            stopBossTimers();
+            closePlaceInfo();
+            closeChooser();
+            closeSettings();
+            saveBoss(loadBoss());
+            bossSpeech = null;
+            renderBossIntro({ enter: true });
+            refreshBossServer(true);
+        } finally {
+            bossOpening = false;
+        }
+    };
+    const renderBossIntro = ({ enter = false } = {}) => {
+        const state = loadBoss();
+        const view = bossView(state);
+        const boss = Boss.bossForWeek(view.week);
+        if (!bossSpeech || bossSpeech.boss !== boss.id || bossSpeech.week !== view.week) {
+            const kind = view.defeated ? 'defeat' : view.used >= Boss.ATTEMPTS && !view.open ? 'win' : 'intro';
+            bossSpeech = { boss: boss.id, week: view.week, text: Boss.lineFor(boss, kind), enter: true };
+        }
+        stopBossTimers();
+        screen = 'boss';
+        mode = 'boss';
+        bossFight = null;
+        current = null;
+        round = null;
+        bossIntroSig = bossSig(view);
+        appContent.innerHTML = Boss.introHtml({
+            ...view, boss, answered: state.open ? state.open.results.length : 0, speech: bossSpeech.text, community: bossCommunity(view.week),
+            next: Boss.bossForWeek(Boss.addWeeks(view.week, 1)), topicTitle: bossTopicTitle(boss.topic), enter
+        }, bossHelpers());
+        applyProgress(appContent);
+        renderIcons(appContent);
+        appContent.scrollTo(0, 0);
+        updateControlsUI();
+        if (enter) bossEntrance();
+    };
+    // Nástup: boss spadne do arény (CSS), zařve a řeč se píše po písmenech (bez pohybu se ukáže celá hned)
+    const bossEntrance = () => {
+        if (Sound) Sound.play('bossRoar');
+        const target = appContent.querySelector('[data-boss-speech-text]');
+        if (!target || reducedMotion()) return;
+        const text = target.textContent;
+        let shown = 0;
+        target.textContent = '';
+        clearInterval(bossTypeTimer);
+        const started = Date.now() + 550;
+        bossTypeTimer = setInterval(() => {
+            if (!target.isConnected) { clearInterval(bossTypeTimer); return; }
+            if (Date.now() < started) return;
+            shown = Math.min(text.length, shown + 2);
+            target.textContent = text.slice(0, shown);
+            if (shown >= text.length) clearInterval(bossTypeTimer);
+        }, 28);
+    };
+    const openBossRules = () => {
+        const boss = Boss.bossForWeek(Boss.weekOf());
+        showDialog('Pravidla souboje', `${Boss.rulesHtml(boss, bossTopicTitle(boss.topic))}${dialogBackButton('mt-3')}`);
+    };
+    const openBossHall = () => {
+        if (!Boss) return;
+        const progress = loadProgress();
+        showDialog('Síň bossů', `${Boss.hallHtml({ week: Boss.weekOf(), emblems: Boss.emblemsOf(loadBoss(), progress.badges) }, {
+            medal: (id, have, cls) => (BADGE_BY_ID[id] ? medalHtml(BADGE_BY_ID[id], have, cls, 'h-5 w-5') : ''), topicTitle: bossTopicTitle
+        })}${dialogBackButton('mt-3')}`);
+    };
+
+    // --- Souboj ---
+    const startBossFight = () => {
+        if (!Boss || isLoading) return;
+        const user = signedUser();
+        let state = loadBoss();
+        const week = Boss.weekOf();
+        if (!state.open || state.open.week !== week) {
+            const next = Boss.startAttempt(state, week, { now: Date.now(), owner: user ? user.id : 'host', server: bossServerMe(week) });
+            if (!next) { renderBossIntro(); return; }
+            state = next;
+            saveBoss(state);
+        }
+        if (Sound) Sound.unlock();
+        beginBossFight(state.open);
+    };
+    const beginBossFight = (open) => {
+        stopBossTimers();
+        closePlaceInfo();
+        screen = 'boss';
+        mode = 'boss';
+        bossFight = { week: open.week, boss: Boss.BY_ID[open.boss], phase: 'loading', slot: open.results.length, at: 0, limit: Boss.TIME_MS, next: null, lastLine: '', clock: 0 };
+        renderBossFight();
+        bossTimer = setInterval(bossTick, 100);
+        showBossQuestion(bossFight);
+    };
+    // Celý souboj: horní pruh s bossem (zůstává, ať lišty a animace běží plynule) a místo pro otázku
+    const renderBossFight = () => {
+        const fight = bossFight;
+        const open = loadBoss().open;
+        if (!fight || !open) return;
+        const status = Boss.fightStatus(open.results);
+        appContent.innerHTML = `
+            <div id="boss-fight" data-boss-fight class="flex min-h-full w-full flex-col bg-slate-50 dark:bg-slate-900">
+                ${Boss.stripHtml({ boss: fight.boss, status, slot: open.results.length, limit: Boss.timeLimit(Math.min(Boss.QUESTIONS - 1, open.results.length)) })}
+                <div id="boss-question" class="relative flex flex-1 flex-col gap-2 p-3 pt-2 short:gap-1.5 short:p-2.5 short:pt-1.5"></div>
+            </div>`;
+        applyProgress(appContent);
+        renderIcons(appContent);
+        appContent.scrollTo(0, 0);
+        updateControlsUI();
+    };
+    // Otázka slot: položky v pořadí ze semínka (boss.js candidatesFor); jen otázka s výběrem z možností (u psaní s přijímanými odpověďmi),
+    // chudý popis (bez nápověd by nešlo odpovědět) nejvýš dvakrát vymění; každý kandidát má vlastní semínko otázky
+    const prepareBossQuestion = async (slot) => {
+        const open = loadBoss().open;
+        if (!open) throw new Error('Souboj neběží');
+        const boss = Boss.BY_ID[open.boss];
+        const ctx = await loadTopic(boss.topic);
+        const used = open.plan.filter((entry, index) => entry && index !== slot).map(entry => entry.q);
+        const saved = open.plan[slot] && ctx.byId.get(open.plan[slot].q);
+        const candidates = Boss.candidatesFor(open.week, open.n, slot, ctx.items, ctx.topic.categories.map(category => category.key), used);
+        const ordered = saved ? [saved, ...candidates.filter(item => item.q !== saved.q)] : candidates;
+        const typed = Boss.isTyped(slot);
+        let fallback = null;
+        for (let tries = 0; tries < Math.min(6, ordered.length); tries++) {
+            const data = await createRoundData(ordered[tries], ctx, createSeededRandom(Boss.questionSeed(open.week, open.n, slot, tries)));
+            const choices = data && data.question && Array.isArray(data.question.choices) ? data.question.choices : [];
+            const playable = choices.length >= 2 && choices.filter(choice => choice && choice.correct).length === 1;
+            const typeable = !typed || Boolean(data.question.match) || (Array.isArray(data.question.accepted) && data.question.accepted.length > 0);
+            if (!playable || !typeable) continue;
+            if (!fallback) fallback = data;
+            if (data.thin && tries < 2 && !wikiPaused()) continue;
+            return data;
+        }
+        if (fallback) return fallback;
+        throw new Error('Není z čeho vybírat');
+    };
+    const queueBossQuestion = (slot) => {
+        const job = { slot, data: null };
+        job.promise = prepareBossQuestion(slot).then(data => { job.data = data; return data; });
+        job.promise.catch(() => {});
+        return job;
+    };
+    const showBossQuestion = async (fight) => {
+        if (!bossLive(fight)) return;
+        let state = loadBoss();
+        if (!state.open) { renderBossIntro(); return; }
+        if (Boss.fightStatus(state.open.results).over) { finishBossFight(fight); return; }
+        const slot = state.open.results.length;
+        // Otázka už na obrazovce byla (návrat do souboje): stejná, její čas běží dál
+        if (state.open.shown && state.open.shown.slot === slot) { presentBossQuestion(fight, upgradeRoundData(state.open.shown.data), state.open.shown.at, slot); return; }
+        const job = fight.next && fight.next.slot === slot ? fight.next : queueBossQuestion(slot);
+        fight.next = null;
+        if (!job.data) {
+            fight.phase = 'loading';
+            paintBossLoading(fight);
+            try { await job.promise; } catch (error) {
+                if (!bossLive(fight)) return;
+                console.error(error);
+                fight.phase = 'error';
+                paintBossError(error);
+                return;
+            }
+            if (!bossLive(fight)) return;
+        }
+        state = loadBoss();
+        if (!state.open || state.open.results.length !== slot) return;
+        const at = Date.now();
+        state.open.shown = { slot, at, data: job.data };
+        state.open.plan[slot] = { topic: job.data.topic, q: job.data.id };
+        saveBoss(state);
+        presentBossQuestion(fight, job.data, at, slot);
+    };
+    const presentBossQuestion = (fight, data, at, slot) => {
+        current = data;
+        round = { hintLevel: 1, variant: Boss.isTyped(slot) ? 'typed' : 'choices', answered: false, correct: false, points: 0, typed: false, answer: null, gaveUp: false, review: false, shownAt: at };
+        Object.assign(fight, { phase: 'question', slot, at, limit: Boss.timeLimit(slot), picked: null, clock: 0 });
+        paintBossQuestion(fight);
+        // Další otázka se chystá hned, dokud hráč přemýšlí
+        if (slot + 1 < Boss.QUESTIONS) fight.next = queueBossQuestion(slot + 1);
+        bossTick();
+    };
+    const paintBossLoading = (fight) => {
+        const box = document.getElementById('boss-question');
+        if (!box) return;
+        const topic = TOPIC_BY_ID[fight.boss.topic];
+        box.innerHTML = `<div data-boss-loading class="flex flex-1 flex-col items-center justify-center gap-2 py-8 text-center">${topic && topicArt(topic) ? topicIcon(topic, 'bob h-16 w-16') : LOADING_OWL}<p class="text-sm font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300">${fight.slot ? 'Boss chystá další otázku…' : 'Boss chystá otázky…'}</p><p class="text-xs font-semibold text-slate-500 dark:text-slate-400">Čas zatím stojí</p></div>`;
+    };
+    const paintBossError = (error) => {
+        const box = document.getElementById('boss-question');
+        if (!box) return;
+        const offline = error instanceof NetworkError || !navigator.onLine;
+        box.innerHTML = `<div data-boss-error class="flex flex-1 flex-col items-center justify-center gap-2 p-4 text-center">
+            <i data-lucide="${offline ? 'wifi-off' : 'search-x'}" class="h-12 w-12 text-slate-300 dark:text-slate-600"></i>
+            <p class="font-bold text-slate-700 dark:text-slate-200">${offline ? 'Otázku se nepodařilo načíst. Zkontroluj připojení a zkus to znovu.' : 'Otázku se nepodařilo připravit. Zkus to prosím znovu.'}</p>
+            <p class="text-xs font-semibold text-slate-500 dark:text-slate-400">Čas mezitím stojí.</p>
+            <button type="button" data-action="boss-retry" class="${PRIMARY_BUTTON} mt-1 max-w-xs">Zkusit znovu</button>
+        </div>`;
+        renderIcons(box);
+    };
+    // Otázka: schválnost, otázka a popis (jako v běžné hře, bez nápověd), možnosti nebo pole na psaní
+    const paintBossQuestion = (fight) => {
+        let box = document.getElementById('boss-question');
+        if (!box) { renderBossFight(); box = document.getElementById('boss-question'); }
+        if (!box || !current) return;
+        const data = current;
+        const typed = round.variant === 'typed';
+        const choices = data.question.choices.map((choice, index) => `
+            <button type="button" data-action="boss-choice" data-index="${index}" class="btn-3d-light min-h-[3rem] rounded-xl bg-white px-3 py-1.5 text-sm font-bold leading-tight text-slate-700 dark:bg-slate-700 dark:text-slate-100">${escapeHtml(choice.label)}</button>`).join('');
+        const form = `
+            <form id="boss-form" class="flex gap-2" autocomplete="off">
+                <label for="boss-input" class="sr-only">Odpověď</label>
+                <input id="boss-input" name="answer" type="text" enterkeyhint="send" placeholder="${escapeHtml(data.question.placeholder || 'Napiš odpověď')}" class="min-w-0 flex-1 rounded-xl border border-slate-200 bg-white px-3 py-3 text-[16px] text-slate-800 placeholder:text-slate-500 focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-rose-400/40 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:placeholder:text-slate-400">
+                <button type="submit" aria-label="Odeslat odpověď" class="boss-cta flex w-12 shrink-0 items-center justify-center rounded-xl btn-3d text-white"><i data-lucide="send" class="h-5 w-5"></i></button>
+                <button type="button" data-action="boss-skip" class="flex min-h-[2.75rem] shrink-0 items-center justify-center rounded-xl bg-slate-200 px-3 text-[13px] font-bold text-slate-700 dark:bg-slate-700 dark:text-slate-200">Nevím</button>
+            </form>`;
+        box.innerHTML = `
+            ${Boss.trickHtml(fight.slot)}
+            <h2 class="text-center text-[19px] font-black leading-tight tracking-tight text-slate-800 short:text-[17px] dark:text-slate-50">${escapeHtml(data.question.title)}</h2>
+            ${questionPanel(data)}
+            <section data-boss-answers class="shrink-0">${typed ? form : `<div class="grid grid-cols-2 gap-2">${choices}</div>`}</section>
+            <p class="sr-only" role="status" data-boss-verdict></p>`;
+        const count = appContent.querySelector('[data-boss-count]');
+        if (count) count.textContent = `Otázka ${fight.slot + 1}/${Boss.QUESTIONS}`;
+        renderIcons(box);
+        mountPanels();
+        if (typed) { const input = document.getElementById('boss-input'); if (input) input.focus({ preventScroll: true }); }
+    };
+    // Hodiny: běží od ukázání otázky; v posledních 5 sekundách tikají, po vypršení se počítá chyba
+    const bossTick = () => {
+        const fight = bossFight;
+        if (!fight) { stopBossTimers(); return; }
+        if (screen !== 'boss') {
+            // Hráč odešel jinam: souboj zůstává rozehraný (čas otázky běží dál); dohraný se uzavře hned
+            stopBossTimers();
+            bossFight = null;
+            const state = loadBoss();
+            if (state.open && Boss.fightStatus(state.open.results).over) finishBossFight(fight, { silent: true });
+            return;
+        }
+        if (fight.phase !== 'question') return;
+        const left = Math.max(0, Math.min(fight.limit, fight.limit - (Date.now() - fight.at)));
+        paintBossClock(fight, left);
+        if (left <= 0) answerBoss({ timeout: true });
+    };
+    document.addEventListener('visibilitychange', () => { if (bossFight && screen === 'boss') bossTick(); });
+    const paintBossClock = (fight, left) => {
+        const clock = appContent.querySelector('[data-boss-clock]');
+        const bar = appContent.querySelector('[data-boss-timer]');
+        if (!clock || !bar) return;
+        const shown = Math.ceil(left / 1000);
+        if (clock.textContent !== String(shown)) {
+            if (fight.clock && shown < fight.clock && shown >= 1 && shown <= 5 && Sound) Sound.play(shown === 1 ? 'tickLast' : 'tick');
+            clock.textContent = String(shown);
+        }
+        fight.clock = shown;
+        bar.style.width = `${Math.max(0, Math.min(100, (left / fight.limit) * 100))}%`;
+        const urgent = shown <= 5;
+        bar.classList.toggle('boss-timer-urgent', urgent);
+        const chip = appContent.querySelector('[data-boss-clock-chip]');
+        if (chip) chip.classList.toggle('text-rose-300', urgent);
+    };
+    // Psaná odpověď: stejné porovnání jako v běžné hře (překlepy, přijímané názvy); přesně název jiné položky ze sady se nepočítá
+    const bossTypedCorrect = (answer, data) => {
+        let correct = checkAnswer(answer, data.question);
+        const ctx = loadedTopics.get(data.topic);
+        const item = ctx && ctx.byId.get(data.id);
+        if (correct && item) {
+            let ref = ctx.topic.findAnswer ? ctx.topic.findAnswer(data.question.type, answer, item, ctx) : null;
+            if (!ref && data.question.type === 'name') { const id = findAnswerItem(answer, item, ctx.items); ref = id ? { topic: data.topic, id } : null; }
+            const other = ref && loadedTopics.get(ref.topic) && loadedTopics.get(ref.topic).byId.get(ref.id);
+            const exactlyOwn = (data.question.accepted || []).some(accepted => normalizeAnswer(accepted) === normalizeAnswer(answer));
+            if (other && !exactlyOwn && normalizeAnswer(other.n) === normalizeAnswer(answer)) correct = false;
+        }
+        return correct;
+    };
+    // Odpověď (výběr, psaní, Nevím nebo vypršený čas): zápis do souboje, pak efekty, hláška bosse a další otázka
+    const answerBoss = ({ index = null, text = '', timeout = false, skip = false }) => {
+        const fight = bossFight;
+        if (!bossLive(fight) || fight.phase !== 'question' || !current || !round) return;
+        const state = loadBoss();
+        const open = state.open;
+        if (!open || open.results.length !== fight.slot) return;
+        const elapsed = Math.max(0, Date.now() - fight.at);
+        const late = elapsed > fight.limit + 400;
+        const typed = round.variant === 'typed';
+        let correct = false;
+        let answer = '';
+        if (!timeout && !late && !skip) {
+            if (typed) {
+                if (!text) return;
+                answer = text;
+                correct = bossTypedCorrect(text, current);
+            } else {
+                const choice = current.question.choices[index];
+                if (!choice) return;
+                answer = choice.label;
+                correct = Boolean(choice.correct);
+                fight.picked = index;
+            }
+        }
+        const before = Boss.fightStatus(open.results);
+        state.open = Boss.addResult(open, { correct, ms: Math.min(elapsed, fight.limit), typed, timeout: timeout || late, answer });
+        saveBoss(state);
+        const after = Boss.fightStatus(state.open.results);
+        Object.assign(round, { answered: true, correct, answer });
+        fight.phase = 'feedback';
+        noteModeAnswer(current, correct);
+        paintBossAnswer(fight, { correct, timeout: timeout || late, typed, answer });
+        bossFeedback(fight, before, after, { correct, ms: Math.min(elapsed, fight.limit) });
+    };
+    // Výsledek odpovědi na obrazovce: správná možnost zeleně, zvolená špatná červeně; u psaní věta se správnou odpovědí
+    const paintBossAnswer = (fight, { correct, timeout, typed, answer }) => {
+        const box = document.getElementById('boss-question');
+        if (!box || !current) return;
+        const right = current.question.answerLabel || (current.question.choices.find(choice => choice.correct) || {}).label || '';
+        const answers = box.querySelector('[data-boss-answers]');
+        if (answers && !typed) {
+            answers.querySelectorAll('[data-action="boss-choice"]').forEach(button => {
+                const choice = current.question.choices[Number(button.dataset.index)];
+                button.disabled = true;
+                button.classList.remove('bg-white', 'text-slate-700', 'dark:bg-slate-700', 'dark:text-slate-100');
+                if (choice && choice.correct) button.classList.add('border-emerald-700', 'bg-emerald-600', 'text-white', 'dark:bg-emerald-700');
+                else if (Number(button.dataset.index) === fight.picked) button.classList.add('border-rose-800', 'bg-rose-600', 'text-white', 'dark:bg-rose-700');
+                else button.classList.add('bg-white', 'text-slate-700', 'opacity-50', 'dark:bg-slate-700', 'dark:text-slate-100');
+            });
+        } else if (answers) {
+            answers.innerHTML = `<p data-boss-typed="${correct ? 'correct' : 'wrong'}" class="flex min-h-[3rem] items-center justify-center gap-2 rounded-xl px-3 py-2 text-center text-[15px] font-black leading-tight text-white ${correct ? 'bg-emerald-600 dark:bg-emerald-700' : 'bg-rose-600 dark:bg-rose-700'}"><i data-lucide="${correct ? 'check' : 'x'}" class="h-5 w-5 shrink-0"></i><span>${correct ? `Správně: ${escapeHtml(answer)}` : `Správně je ${escapeHtml(right)}`}</span></p>`;
+            renderIcons(answers);
+        }
+        const verdict = box.querySelector('[data-boss-verdict]');
+        if (verdict) verdict.textContent = correct ? 'Správně! Zásah.' : `${timeout ? 'Čas vypršel.' : 'Špatně.'} Správně je ${right}.`;
+        if (timeout && !correct) {
+            const title = box.querySelector('h2');
+            if (title) title.insertAdjacentHTML('beforebegin', '<p data-boss-timeout class="self-center rounded-full bg-rose-600 px-3 py-1 text-[12px] font-black text-white shadow">Čas vypršel!</p>');
+        }
+    };
+    // Restart animace třídou (odebrat, přepočítat, přidat)
+    const replay = (element, cls, ms = 800) => {
+        if (!element) return;
+        element.classList.remove(cls);
+        void element.offsetWidth;
+        element.classList.add(cls);
+        setTimeout(() => element.classList.remove(cls), ms);
+    };
+    // Lišta životů, stupeň bosse (portrét se prolne do obrázku dalšího stupně, efekty podle stupně) a srdce
+    const paintBossStatus = (status, { breaking = -1 } = {}) => {
+        const strip = document.getElementById('boss-strip');
+        if (!strip || !bossFight) return;
+        const fill = strip.querySelector('[data-boss-hp-fill]');
+        const ghost = strip.querySelector('[data-boss-hp-ghost]');
+        if (fill) fill.style.width = `${status.percent}%`;
+        if (ghost) ghost.style.width = `${status.percent}%`;
+        const meter = strip.querySelector('[data-boss-hp]');
+        if (meter) { meter.dataset.bossHp = String(status.hp); meter.setAttribute('aria-valuenow', String(status.hp)); meter.setAttribute('aria-valuetext', `${status.hp} z ${Boss.HP} životů`); }
+        const text = strip.querySelector('[data-boss-hp-text]');
+        if (text) text.textContent = `${status.hp} / ${Boss.HP}`;
+        const hearts = strip.querySelector('[data-boss-hearts]');
+        if (hearts) hearts.outerHTML = Boss.heartsHtml(status.hearts, breaking);
+        const stage = String(status.stage);
+        if (strip.dataset.stage !== stage) {
+            const boss = bossFight.boss;
+            strip.dataset.stage = stage;
+            strip.classList.remove('boss-strip-stage-1', 'boss-strip-stage-2', 'boss-strip-stage-3', 'boss-strip-stage-4');
+            strip.classList.add(`boss-strip-stage-${stage}`);
+            const label = strip.querySelector('[data-boss-stage-label]');
+            if (label) label.textContent = Boss.stageName(status.stage);
+            const portrait = strip.querySelector('[data-boss-portrait]');
+            if (portrait) {
+                portrait.dataset.stage = stage;
+                portrait.classList.remove('boss-stage-1', 'boss-stage-2', 'boss-stage-3', 'boss-stage-4', 'boss-standin-2', 'boss-standin-3');
+                portrait.classList.add(`boss-stage-${stage}`);
+                if (Boss.isStandIn(boss.id, status.stage)) portrait.classList.add(`boss-standin-${stage}`);
+                // Prolnutí do obrázku nového stupně
+                const body = portrait.querySelector('.boss-body');
+                const old = body && body.querySelector('[data-boss-face]');
+                if (body && old) {
+                    const next = document.createElement('img');
+                    next.src = `icons/topics/${Boss.artFor(boss.id, status.stage)}.webp`;
+                    next.alt = '';
+                    next.className = 'boss-face';
+                    next.dataset.bossFace = stage;
+                    next.setAttribute('data-keep', '');
+                    body.appendChild(next);
+                    if (next.animate) {
+                        next.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 450, easing: 'ease-out' });
+                        old.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 450, easing: 'ease-out' }).onfinish = () => old.remove();
+                    } else old.remove();
+                }
+                if (status.stage === 4) portrait.querySelector('.boss-body').classList.remove('boss-idle');
+            }
+        }
+    };
+    // Bublina s hláškou bosse přes otázku (po odpovědi otázka už číst netřeba; možnosti se správnou odpovědí zůstanou vidět)
+    const showBossBubble = (text, kind) => {
+        const box = document.getElementById('boss-question');
+        if (!box || !text || !bossFight) return;
+        const old = box.querySelector('[data-boss-bubble]');
+        if (old) old.remove();
+        box.insertAdjacentHTML('afterbegin', Boss.bubbleHtml(bossFight.boss, text, kind));
+    };
+    // Efekty zásahu: záblesk, otřes, letící číslo poškození (u plného bonusu „Rychlý zásah!“), jiskry
+    const bossHitFx = (damage, fast, big) => {
+        const strip = document.getElementById('boss-strip');
+        if (!strip) return;
+        replay(strip.querySelector('[data-boss-flash]'), big ? 'boss-flash-big' : 'boss-flash-on');
+        replay(strip.querySelector('.boss-body'), big ? 'boss-hit-big' : 'boss-hit');
+        const fx = strip.querySelector('[data-boss-fx]');
+        if (fx) {
+            fx.insertAdjacentHTML('beforeend', `<span class="boss-spark"></span><span class="boss-dmg${fast ? ' boss-dmg-big' : ''}">−${damage}</span>${fast ? '<span class="boss-dmg-tag">Rychlý zásah!</span>' : ''}`);
+            setTimeout(() => { fx.innerHTML = ''; }, 1300);
+        }
+        if (Sound) { Sound.play(big ? 'bossStage' : 'bossHit'); Sound.vibrate(big ? 'bossStage' : 'bossHit'); }
+    };
+    // Chyba: srdce praskne, boss se posměje, okraj obrazovky zčervená
+    const bossMissFx = () => {
+        const strip = document.getElementById('boss-strip');
+        if (strip) replay(strip.querySelector('.boss-body'), 'boss-laugh');
+        replay(document.getElementById('boss-fight'), 'boss-ouch');
+        if (Sound) { Sound.play('bossLaugh'); Sound.vibrate('wrong'); }
+    };
+    const bossFeedback = (fight, before, after, { correct, ms }) => {
+        const boss = fight.boss;
+        const stageChanged = after.stage !== before.stage;
+        let line;
+        let kind;
+        let wait;
+        if (correct) {
+            bossHitFx(before.hp - after.hp, Boss.speedBonus(ms) >= Boss.SPEED_BONUS, stageChanged);
+            paintBossStatus(after);
+            if (after.won) { line = Boss.lineFor(boss, 'defeat', 4, Math.random, fight.lastLine); kind = 'defeat'; wait = 2800; }
+            else if (stageChanged) { line = Boss.lineFor(boss, 'stage', after.stage, Math.random, fight.lastLine); kind = 'stage'; wait = 2400; }
+            else { line = Boss.lineFor(boss, 'hit', after.stage, Math.random, fight.lastLine); kind = 'hit'; wait = 1500; }
+        } else {
+            bossMissFx();
+            paintBossStatus(after, { breaking: after.hearts });
+            line = after.hearts <= 0 ? Boss.lineFor(boss, 'win', after.stage, Math.random, fight.lastLine) : Boss.lineFor(boss, 'taunt', after.stage, Math.random, fight.lastLine);
+            kind = 'taunt';
+            wait = 2500;
+        }
+        // Došly otázky a boss stojí: vítězná řeč bosse
+        if (after.over && !after.won && after.hearts > 0) line = Boss.lineFor(boss, 'win', after.stage, Math.random, fight.lastLine);
+        fight.lastLine = line;
+        showBossBubble(line, kind);
+        bossFeedbackTimer = setTimeout(() => {
+            if (!bossLive(fight) || fight.phase !== 'feedback') return;
+            if (after.over) finishBossFight(fight);
+            else showBossQuestion(fight);
+        }, wait);
+    };
+    // Konec souboje: pokus se zapíše (v zařízení i na server), XP a emblém za první výhru v týdnu, pak obrazovka výsledku.
+    // silent = hráč mezitím odešel jinam (výsledek se jen uloží)
+    const finishBossFight = async (fight, { silent = false } = {}) => {
+        if (fight && fight.phase === 'end') return;
+        if (fight) fight.phase = 'end';
+        if (!silent) stopBossTimers();
+        let state = loadBoss();
+        if (!state.open) { if (!silent) renderBossIntro(); return; }
+        const open = state.open;
+        const done = Boss.finishAttempt(state, Date.now());
+        state = done.state;
+        const entry = state.weeks[open.week];
+        const payXp = done.status.won && done.firstWin && !entry.xp;
+        if (payXp) entry.xp = true;
+        saveBoss(state);
+        const boss = Boss.BY_ID[open.boss];
+        const xp = awardBossProgress({ xp: payXp ? Boss.winXp() : null, fought: true, won: done.status.won && done.firstWin });
+        bossResult = { week: open.week, boss, status: done.status, n: open.n, firstWin: done.firstWin, xp,
+            line: (fight && fight.lastLine) || Boss.lineFor(boss, done.status.won ? 'defeat' : 'win') };
+        if (bossRanked()) pushBossAttempts().then(() => refreshBossServer(true));
+        if (silent) return;
+        current = null;
+        round = null;
+        bossFight = null;
+        renderBossResult({ fresh: true });
+    };
+    const renderBossResult = ({ fresh = false } = {}) => {
+        const result = bossResult;
+        if (!result || !Boss) { renderHome(); return; }
+        stopBossTimers();
+        screen = 'boss-done';
+        mode = 'boss';
+        const state = loadBoss();
+        const me = bossServerMe(result.week);
+        const won = result.status.won;
+        const badge = BADGE_BY_ID[Boss.badgeId(result.boss.id)];
+        const user = signedUser();
+        if (won && user && Showcase && myShowcase === null) loadMyShowcase(user).then(() => { if (screen === 'boss-done' && bossResult === result) renderBossResult(); });
+        const toggle = won && result.firstWin && Showcase ? showcaseToggle(Showcase.badge(Boss.badgeId(result.boss.id)), true).replace('<button type="button"', '<button type="button" data-action="boss-showcase"') : '';
+        appContent.innerHTML = Boss.resultHtml({
+            boss: result.boss, status: result.status, n: result.n, used: Boss.attemptsUsed(state, result.week, me), best: Boss.bestDamage(state, result.week, me),
+            firstWin: result.firstWin, xp: result.xp, line: result.line, community: bossCommunity(result.week), next: Boss.bossForWeek(Boss.addWeeks(result.week, 1)),
+            emblemHtml: badge ? medalHtml(badge, true, 'h-16 w-16', 'h-7 w-7') : '', showcase: toggle
+        }, bossHelpers());
+        applyProgress(appContent);
+        renderIcons(appContent);
+        appContent.scrollTo(0, 0);
+        updateControlsUI();
+        if (!fresh) return;
+        const verdict = appContent.querySelector('[data-boss-verdict]');
+        if (verdict) verdict.focus({ preventScroll: true });
+        if (Sound) {
+            if (won) { Sound.play('bossDown'); Sound.play('record'); Sound.vibrate('record'); } else Sound.play('bossLaugh');
+        }
+    };
+    const leaveBoss = () => {
+        stopBossTimers();
+        bossFight = null;
+        current = null;
+        round = null;
+        renderHome();
+    };
+
     // --- Týdenní turnaje ---
     // Pravidla a posun kol dělá databáze (supabase/schema.sql) a čistá logika je v tournament.js; tady se zobrazí karta na záložce Více hráčů,
     // okno s koly a zápasy a hra zápasu (otázky z pevného semínka stejně jako ve výzvě, ale bez zápisu do tabulky výzev).
@@ -9850,6 +10570,7 @@
             signedIn: Boolean(signedUser()), multiAvailable: Boolean(Auth && Auth.isConfigured() && Social), reviewOn: reviewEnabled(),
             quiz: Boolean(DailyQuiz), mystery: Boolean(Mystery), modes: Boolean(Modes), goals: Boolean(Goals && Rewards), freezes: Rewards ? loadRewards().freezes : 0,
             season: Boolean(Season && Rewards), album: Boolean(Album), chronicle: Boolean(Chronicle), showcase: Boolean(Showcase && myShowcase !== null), leagueSeasons: Boolean(LeagueSeasons && leagueSeasons),
+            boss: Boolean(Boss),
             maxStars: Math.max(0, ...Object.values(loadLearned()).map(ids => masteryStars((ids || []).length)))
         });
     };
@@ -9866,6 +10587,7 @@
         goals: () => { closeDialog(); openGoals(); },
         chronicle: () => { closeDialog(); openChronicle(); },
         mystery: () => { closeDialog(); openMystery(); },
+        boss: () => { closeDialog(); openBoss(); },
         leagueSeasons: () => { closeDialog(); openLeagueSeasons(); },
         groups: () => { closeDialog(); openHomeTabFromPush('multi'); if (GroupsUI) GroupsUI.openList(); }
     };
@@ -10965,6 +11687,21 @@
         'mystery-share': () => shareMystery(),
         'mystery-share-image': () => shareMysteryImage(),
         'mystery-login': () => { if (Auth) startLogin(); },
+        // Boss týdne (boss.js)
+        'boss-open': () => openBoss(),
+        'boss-start': () => startBossFight(),
+        'boss-again': () => startBossFight(),
+        'boss-home': () => leaveBoss(),
+        'boss-rules': () => openBossRules(),
+        'boss-hall': () => openBossHall(),
+        'boss-login': () => { if (Auth) startLogin(); },
+        'boss-choice': (button) => answerBoss({ index: Number(button.dataset.index) }),
+        'boss-skip': () => answerBoss({ skip: true }),
+        'boss-retry': () => { if (bossFight) showBossQuestion(bossFight); },
+        'boss-showcase': (button) => {
+            toggleShowcase(button.dataset.showcaseToggle).then(message => { if (message) showToast(message); if (screen === 'boss-done') renderBossResult(); });
+            renderBossResult();
+        },
         'challenge-retry': () => finishChallenge(true),
         'challenge-home': () => challengeHome(),
         'challenge-breakdown': () => { if (challenge && !challenge.tournament) openChallengeBreakdown(challenge, challenge.lastResults || []); },
@@ -11041,6 +11778,7 @@
     appContent.addEventListener('submit', (event) => {
         if (event.target.id === 'estimate-form') { event.preventDefault(); numericEstimate(event.target); return; }
         if (event.target.id === 'mystery-form') { event.preventDefault(); submitMysteryTip({ text: event.target.elements.answer.value.trim() }); return; }
+        if (event.target.id === 'boss-form') { event.preventDefault(); answerBoss({ text: event.target.elements.answer.value.trim() }); return; }
         if (event.target.id !== 'answer-form') return;
         event.preventDefault();
         if (!round || round.variant !== 'typed') return;
@@ -11154,6 +11892,8 @@
             renderHome();
         } else if (screen === 'mode') {
             leaveMode();
+        } else if (screen === 'boss' || screen === 'boss-done') {
+            leaveBoss();
         } else if (screen === 'learn') {
             const up = { atlas: 'collection', collection: 'topic', topic: 'home', mistakes: 'home' }[learn.view];
             if (up) openLearn(up);

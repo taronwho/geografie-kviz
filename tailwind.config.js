@@ -3,7 +3,7 @@
 // neutrální šedá podle tmavého pozadí loga. Šedá přepisuje Tailwind „slate“, takže třídy v kódu zůstávají slate-*;
 // světlé odstíny mají teplý nádech krémového obrysu, tmavé jsou grafitové jako pozadí loga (#2d3034 = slate-800).
 module.exports = {
-    content: ['./index.html', './licence.html', './soukromi.html', './licence.js', './app.js', './mystery.js', './friends.js', './groups.js', './look*.js', './tutorial.js', './visuals.js', './photo-source.js', './question-map.js', './numeric-questions.js', './topics/*.js', './daily-quiz.js', './rewards.js', './league-seasons.js', './showcase.js', './album.js', './season.js', './chronicle.js'],
+    content: ['./index.html', './licence.html', './soukromi.html', './licence.js', './app.js', './mystery.js', './friends.js', './groups.js', './look*.js', './tutorial.js', './visuals.js', './photo-source.js', './question-map.js', './numeric-questions.js', './topics/*.js', './daily-quiz.js', './rewards.js', './league-seasons.js', './showcase.js', './album.js', './season.js', './chronicle.js', './boss.js'],
     darkMode: 'media',
     // Najetí myší jen tam, kde myš je – na telefonu by po klepnutí „hover“ zůstal viset (bílé tlačítko v tmavém režimu)
     future: { hoverOnlyWhenSupported: true },
