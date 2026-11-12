@@ -293,7 +293,8 @@ test('rozhraní na úzkém telefonu', { skip: !chromium && 'Playwright není nai
     // Úvod (záložka Jeden hráč) se vejde bez posouvání i na nízkém telefonu 360×640: tam je rozvržení kompaktní (varianta short:
     // v tailwind.config.js) – dnešní otázky jen jako ikony se stavem v odznaku, menší dlaždice témat; na vyšších displejích zůstává
     // popisek stavu („čeká“) a velké ikony. Dlaždice mají aspoň 40 px, ikony témat aspoň 32 px a popisky aspoň 10 px.
-    for (const [viewport, scheme] of [[{ width: 360, height: 640 }, 'light'], [{ width: 360, height: 640 }, 'dark'], [{ width: 390, height: 780 }, 'light'], [{ width: 412, height: 915 }, 'dark']]) {
+    // Úzký vyšší telefon (360×800, často s aplikací až k okrajům): běžné rozložení by se nevešlo, úvod zapne zhuštění sám (fit-short).
+    for (const [viewport, scheme] of [[{ width: 360, height: 640 }, 'light'], [{ width: 360, height: 640 }, 'dark'], [{ width: 360, height: 800 }, 'dark'], [{ width: 390, height: 780 }, 'light'], [{ width: 412, height: 915 }, 'dark']]) {
         await t.test(`úvod bez posouvání (${viewport.width}×${viewport.height}, ${scheme})`, async () => {
             const { context, tab, problems } = await open(scheme, { viewport });
             const scene = `úvod ${viewport.width}×${viewport.height}`;
@@ -315,7 +316,9 @@ test('rozhraní na úzkém telefonu', { skip: !chromium && 'Playwright není nai
             assert.ok(sizes.tiles >= 48, `${scheme} / ${scene}: dlaždice tématu ${sizes.tiles} px`);
             assert.ok(sizes.icons >= 32, `${scheme} / ${scene}: ikona tématu ${sizes.icons} px`);
             assert.ok(sizes.labels >= 10, `${scheme} / ${scene}: popisek tématu ${sizes.labels} px`);
-            assert.equal(sizes.status, viewport.height > 770 ? sizes.count : 0, `${scheme} / ${scene}: popisek stavu dnešní otázky jen na vyšším displeji`);
+            const fitShort = await tab.evaluate(() => document.documentElement.classList.contains('fit-short'));
+            assert.equal(fitShort, viewport.width === 360 && viewport.height > 770, `${scheme} / ${scene}: zhuštění navíc jen tam, kde se běžné rozložení nevejde`);
+            assert.equal(sizes.status, viewport.height > 770 && !fitShort ? sizes.count : 0, `${scheme} / ${scene}: popisek stavu dnešní otázky jen na vyšším displeji`);
             // Záložka Více hráčů (host: nabídka přihlášení) projde stejnými kontrolami
             await tab.click('[data-action="home-tab"][data-tab="multi"]');
             await tab.waitForSelector('[data-action="auth-login"]');
