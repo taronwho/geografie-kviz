@@ -155,6 +155,6 @@ test('SQL: ligové sezóny a vitrína v profilu', { skip: !available && 'Postgre
         denied(as('anon', null, `select showcase from profiles where id = '${A}'`), 'anon profily nečte');
         // Export dat obsahuje vitrínu (celý řádek profilu)
         assert.match(last(ok(asUser(A, 'select export_my_data()'))), /"showcase": \["b:vitez"\]/);
-        assert.equal(q('select schema_version()'), '18');
+        assert.ok(Number(q('select schema_version()')) >= 18, 'schéma s ligovými sezónami (18) nebo novější');
     });
 });

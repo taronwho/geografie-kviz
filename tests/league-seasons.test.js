@@ -232,7 +232,7 @@ test('napojení: moduly v index.html (po rating.js a look.js, před app.js), ser
     assert.match(sql, /grant update \(showcase\) on public\.profiles to authenticated/);
     assert.match(sql, /create or replace function public\.league_seasons\(player uuid default null\) returns jsonb\s+language plpgsql stable security definer/);
     assert.match(sql, /grant execute on function public\.league_seasons\(uuid\) to authenticated/);
-    assert.match(sql, /language sql immutable as \$\$ select 18 \$\$/);
+    assert.ok(Number(/language sql immutable as \$\$ select (\d+) \$\$/.exec(sql)[1]) >= 18, 'schéma 18 nebo novější');
     assert.match(fs.readFileSync(path.join(ROOT, 'docs', 'SUPABASE.md'), 'utf8'), /## Ligové sezóny a vitrína v profilu \(schéma 18\)/);
     // Rámečky sezón mají styly (erb ligy přes obrázek z vlastního webu, CSP img-src 'self')
     const css = fs.readFileSync(path.join(ROOT, 'src', 'input.css'), 'utf8');

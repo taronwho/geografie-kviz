@@ -5,7 +5,7 @@ const CACHE_NAME = 'mudrlant-v3';
 // Symboly odznaků (icons/topics/odznak-<skupina>.webp); stejný seznam má app.js (BADGE_ART), hlídá tests/badge-art.test.js
 const BADGE_ART = ['sberatel', 'odpovedi', 'rada', 'serie', 'dny', 'dokonale', 'dnes', 'bez-napovedy', 'psani', 'tezke', 'chyby', 'vyzvy', 'vyhry', 'vyhry-v-rade', 'zalozene',
     'perfektni-vyzvy', 'uroven', 'poznane', 'vsestrannost', 'hvezdy', 'vsechna-temata', 'turnaje', 'turnaj-postupy', 'tydenni-cile', 'kviz-dne',
-    'kviz-serie', 'kviz-perfekt', 'bleskovka', 'preziti', 'mapa', 'odhad', 'serad'];
+    'kviz-serie', 'kviz-perfekt', 'bleskovka', 'preziti', 'mapa', 'odhad', 'serad', 'detektiv'];
 // Postavičky (profilové obrázky za odměny, icons/avatars/<id>.webp); stejný seznam má look.js (AVATARS s parts), hlídá tests/avatars.test.js.
 // Vrstvy přebarvených částí (<id>-<část><barva>.webp) se uloží až při použití.
 const AVATAR_ART = ['cervik', 'axolot', 'kaktus', 'drak', 'mamut', 'meduza', 'lenoch', 'tukan', 'lev', 'fenix', 'krecek', 'rytir', 'narval', 'zelva',
@@ -18,7 +18,7 @@ const AVATAR_ART = ['cervik', 'axolot', 'kaktus', 'drak', 'mamut', 'meduza', 'le
 const FRAME_ART = ['vecny-ohen', 'sezona-01', 'sezona-01-b', 'sezona-02', 'sezona-02-b', 'sezona-03', 'sezona-03-b', 'sezona-04', 'sezona-04-b', 'sezona-05', 'sezona-05-b', 'sezona-06', 'sezona-06-b', 'sezona-07', 'sezona-07-b', 'sezona-08', 'sezona-08-b', 'sezona-09', 'sezona-09-b', 'sezona-10', 'sezona-10-b', 'sezona-11', 'sezona-11-b', 'sezona-12', 'sezona-12-b',
     'ohen', 'more', 'soukoli', 'galaxie', 'kralovsky-vavrin', 'blesk', 'led', 'drak', 'duha-mracky', 'ruze'];
 const APP_SHELL = [
-    './', 'index.html', 'styles.css', 'config.js', 'friends.js', 'groups.js', 'soukromi.html', 'licence.html', 'licence.js', 'question-report.js', 'answer-stats.js', 'monitor.js', 'auth.js', 'social.js', 'icons.js', 'quiz-core.js', 'photo-source.js', 'visuals.js', 'question-map.js', 'numeric-questions.js', 'look-flags.js', 'look.js', 'look-themes.js', 'look-robes.js', 'look-frames.js', 'look-owl.js', 'rating.js', 'league-seasons.js', 'showcase.js', 'tournament.js', 'review.js', 'goals.js', 'chronicle.js', 'tips.js', 'tutorial.js', 'push.js', 'daily-quiz.js', 'share-card.js', 'rewards.js', 'season.js', 'app.js', 'manifest.webmanifest', 'album.js',
+    './', 'index.html', 'styles.css', 'config.js', 'friends.js', 'groups.js', 'soukromi.html', 'licence.html', 'licence.js', 'question-report.js', 'answer-stats.js', 'monitor.js', 'auth.js', 'social.js', 'icons.js', 'quiz-core.js', 'mystery.js', 'photo-source.js', 'visuals.js', 'question-map.js', 'numeric-questions.js', 'look-flags.js', 'look.js', 'look-themes.js', 'look-robes.js', 'look-frames.js', 'look-owl.js', 'rating.js', 'league-seasons.js', 'showcase.js', 'tournament.js', 'review.js', 'goals.js', 'chronicle.js', 'tips.js', 'tutorial.js', 'push.js', 'daily-quiz.js', 'share-card.js', 'rewards.js', 'season.js', 'app.js', 'manifest.webmanifest', 'album.js',
     'topics/zemepis.js', 'data/zemepis.json', 'topics/historie.js', 'data/historie.json', 'topics/biologie.js', 'data/biologie.json',
     'topics/chemie.js', 'data/chemie.json', 'topics/fyzika.js', 'data/fyzika.json',
     'topics/vlajky.js', 'data/vlajky.json', 'topics/mytologie.js', 'data/mytologie.json', 'topics/geologie.js', 'data/geologie.json',

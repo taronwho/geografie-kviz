@@ -618,3 +618,30 @@ sloupec 400) a jinak funguje jako dřív; rámečky ligových sezón zůstanou z
   (Můj postup → Odznaky) a diplom (okno diplomu). Svou vitrínu vidíš v hlavičce Nastavení → Profil (okno **Vitrína** s Odebrat), cizí v Profilu hráče.
 - Testy: `tests/sql-league-seasons.test.js` (hranice pražského měsíce, skončená a běžící sezóna, kontrola vitríny, pravidla řádků),
   `tests/league-seasons.test.js`, `tests/e2e-league-seasons.test.js`, okna v `tests/e2e-dialogs-fit.test.js`.
+
+## Tajemná otázka dne (schéma 19)
+
+**Po aktualizaci spusť znovu celý `supabase/schema.sql` (verze 19).** Dokud ho nespustíš, Tajemná otázka dne funguje jen v zařízení (funkce vrátí
+404 a aplikace se na ně dál neptá): tipy, body, XP a odznaky fungují, chybí jen to, jak si vedli ostatní a přátelé.
+
+- **Pravidla** (`mystery.js`): každý den (pražský čas) jedna tajemná položka pro všechny – téma se střídá (každé jednou za 14 dní, nikdy dvakrát
+  po sobě), v něm známá položka s fotkou a fakty z první poloviny kategorie, nejmenší otisk semínka dne. Osm nápověd se odkrývá podle hodin:
+  0:00, 4:00, 6:00, 8:00, 10:00, 12:00, 14:00 a 16:00 (stejné pole má server, změna času je nezmění). 1. téma a druh (a první fakt), pak fakta,
+  věty popisu z Wikipedie se zakrytou odpovědí, obrazová nápověda tématu (slepá mapa, osa…), 7. rozmazaná fotka, 8. první písmeno s počtem písmen,
+  ostrá fotka a čtyři možnosti. Hráč má na den **3 tipy** (psaná odpověď se porovnává jako jinde: diakritika, překlepy, další názvy; v 8. nápovědě
+  i výběr z možností). **Body**: 11 − počet odkrytých nápověd − počet předchozích špatných tipů, nejméně 1 (s 1. nápovědou 10, s 8. 3).
+  **XP** 10 + 2 × body (jednou za den a zařízení), odznaky **Detektiv** za 1, 7, 30, 100 a 365 vyřešených dní (`detektiv` … `detektiv-365`).
+- Tabulka `mystery_results` (hráč, den, tipy 1–3, vyřešeno, nápovědy, body, čas vyřešení, počet volání): jeden řádek na hráče a den, hráč čte jen
+  svůj, zapisují jen funkce. Kontrola `mystery_results_values` (vyřešená má body 1–10 a čas, nevyřešená 0 bodů a bez času).
+- `mystery_guess(for_day, idx, is_correct, clues)`: tip idx (0–2) na dnešní otázku (den a čas určuje server, `mystery_today`/`mystery_now`). Jen další tip
+  v pořadí, po vyřešení nebo třetím tipu nic; stejný tip poslaný znovu se jen potvrdí, jiný se odmítne; nejvýš 40 volání za den. Body a čas
+  vyřešení počítá server; nápovědy se počítají aspoň tolik, kolik jich bylo vidět 10 minut před odesláním (`mystery_clues_at`).
+- `mystery_state()` – můj dnešní stav. `mystery_stats(for_day)` – hráči s tipem, kolik uhodlo (a %), nejrychlejší vyřešení (pražský čas), průměr
+  nápověd u úspěšných a můj výsledek; `mystery_friends(for_day)` – přátelé a já seřazení podle vyřešení, bodů a času (jen veřejné údaje profilu)
+  a moje místo. Obojí za dnešek až po dořešení (jinak `{ hidden: true }`), za posledních 30 dní vždy. Anon nic.
+- Export dat má `tajemna_otazka`, smazání účtu řádky smaže (cizí klíč na profil).
+- Aplikace: na úvodu kompaktní pruh „Tajemná otázka dne · Nápověda 3/8 · další v 14:00“ (zlatá tečka = nová nápověda), po vyřešení „Vyřešeno
+  v 9:41 s 2 nápovědami“. Druhý den pruh ukáže včerejší odpověď a kolik hráčů ji uhodlo, dokud ho hráč neskryje (křížek). Sdílení textem
+  („Tajemná otázka 12. 11. · 🔍🔍❌✅ · 3. nápověda · 7 bodů“) i obrázkem bez odpovědi. Stav v zařízení `mudrlant.mystery`.
+- Testy: `tests/sql-mystery.test.js` (hodiny nápověd i při změně času, pořadí a počet tipů, body, opakované odeslání, limit, statistiky a přátelé
+  až po dořešení, pravidla řádků, export a smazání), `tests/mystery.test.js` a `tests/e2e-mystery.test.js`.

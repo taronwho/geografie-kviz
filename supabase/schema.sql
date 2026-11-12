@@ -326,7 +326,9 @@ language sql immutable set search_path = public as $$
         'serad-5', 'serad-25', 'serad-100', 'serad-250', 'serad-500',
         -- Schéma 18: Album sbírky (milníky sbírky a celé sekce alba)
         'sberatel-25', 'sberatel-50', 'sberatel-75', 'sberatel-100',
-        'album-avatars', 'album-accessories', 'album-themes', 'album-badges', 'album-diplomas'
+        'album-avatars', 'album-accessories', 'album-themes', 'album-badges', 'album-diplomas',
+        -- Schéma 19: Tajemná otázka dne (vyřešené tajemné otázky)
+        'detektiv', 'detektiv-7', 'detektiv-30', 'detektiv-100', 'detektiv-365'
     ]::text[];
 $$;
 
@@ -1499,7 +1501,9 @@ begin
         'xp_tydny', coalesce((select jsonb_agg(to_jsonb(x) order by x.week) from public.xp_weekly x where x.user_id = uid), '[]'::jsonb),
         -- Zamrzlé otázky (schéma 17), které hráč sestavil jako první (jen semínko a čas; otázka sama osobní údaj není)
         'zamrzle_otazky', coalesce((select jsonb_agg(jsonb_build_object('seminko', s.seed, 'vytvoreno', s.created_at) order by s.created_at)
-            from public.question_snapshots s where s.created_by = uid), '[]'::jsonb)
+            from public.question_snapshots s where s.created_by = uid), '[]'::jsonb),
+        -- Tajemná otázka dne (schéma 19): moje tipy po dnech (bez odpovědí, ty server nezná)
+        'tajemna_otazka', coalesce((select jsonb_agg(to_jsonb(m) order by m.day) from public.mystery_results m where m.user_id = uid), '[]'::jsonb)
     ) into result;
     return result;
 end;
@@ -3248,6 +3252,192 @@ revoke all on function public.league_seasons(uuid) from public, anon;
 grant execute on function public.league_seasons(uuid) to authenticated;
 -- ===== Ligové sezóny a vitrína v profilu (schéma 18) — KONEC BLOKU =====
 
+-- ===== Tajemná otázka dne (schéma 19) — ZAČÁTEK BLOKU =====
+-- Každý den (pražský čas) jedna tajemná položka pro všechny hráče: vybírá ji aplikace ze semínka dne (mystery.js), odpověď server nezná.
+-- Nápovědy se odkrývají podle hodin (1. o půlnoci, 2. ve 4:00, pak každé dvě hodiny až 8. v 16:00 – stejné pole CLUE_HOURS má mystery.js).
+-- Hráč má na den 3 tipy; každý tip se uloží zvlášť (mystery_guess): jen další tip v pořadí, nic přeskočit ani přepsat, po správném tipu
+-- nebo třetím špatném je hotovo. Body počítá server: 11 − počet odkrytých nápověd − počet předchozích špatných tipů, nejméně 1 (10 bodů
+-- s 1. nápovědou, 3 body s 8.). Nápověda, kterou hráč při tipu viděl, nesmí být starší než 10 minut (pozdě odeslaný tip se počítá s tolika
+-- nápovědami, kolik jich bylo vidět 10 minut před odesláním); čas vyřešení určuje server. Jeden řádek na hráče a den.
+-- Statistiky dne (podíl úspěšných, nejrychlejší vyřešení, průměr nápověd) a výsledky přátel jsou vidět až hráči, který dnešní otázku
+-- dořešil (uhodl nebo vyčerpal tipy), a za minulé dny (nejvýš 30 dní zpět) vždy. Tabulku hráč jen čte (svůj řádek); zapisují jen funkce níže.
+create table if not exists public.mystery_results (
+    user_id uuid not null references public.profiles (id) on delete cascade,
+    day date not null,
+    guesses smallint not null default 0,
+    solved boolean not null default false,
+    -- kolik nápověd bylo vidět při posledním (u vyřešené při správném) tipu
+    clues smallint not null default 1,
+    points smallint not null default 0,
+    solved_at timestamptz,
+    -- volání mystery_guess v tomto dni (limit proti zahlcení, opakované odeslání téhož tipu)
+    calls smallint not null default 0,
+    created_at timestamptz not null default now(),
+    last_at timestamptz not null default now(),
+    primary key (user_id, day)
+);
+alter table public.mystery_results drop constraint if exists mystery_results_values;
+alter table public.mystery_results add constraint mystery_results_values check (
+    guesses between 1 and 3 and clues between 1 and 8 and calls between 0 and 1000
+    and ((solved and points between 1 and 10 and solved_at is not null) or (not solved and points = 0 and solved_at is null)));
+create index if not exists mystery_results_day on public.mystery_results (day, solved, points desc, solved_at);
+alter table public.mystery_results enable row level security;
+drop policy if exists "tajemná otázka: vlastní řádky" on public.mystery_results;
+create policy "tajemná otázka: vlastní řádky" on public.mystery_results for select to authenticated using (user_id = auth.uid());
+revoke all on public.mystery_results from anon, authenticated;
+grant select on public.mystery_results to authenticated;
+
+-- Čas a den tajemné otázky (Praha); mudrlant.test_now používají jen testy (z API ho klient nastavit nemůže)
+create or replace function public.mystery_now() returns timestamptz
+language sql stable set search_path = public as $$
+    select coalesce(nullif(current_setting('mudrlant.test_now', true), '')::timestamptz, now())
+$$;
+create or replace function public.mystery_today() returns date
+language sql stable set search_path = public as $$
+    select (public.mystery_now() at time zone 'Europe/Prague')::date
+$$;
+-- Kolik nápověd je v okamžiku ts vidět (1–8): hodiny 0, 4, 6, 8, 10, 12, 14 a 16 pražského času
+create or replace function public.mystery_clues_at(ts timestamptz) returns integer
+language sql stable set search_path = public as $$
+    select greatest(1, (select count(*)::integer from unnest(array[0, 4, 6, 8, 10, 12, 14, 16]) h
+        where h <= extract(hour from (ts at time zone 'Europe/Prague'))))
+$$;
+-- Stav hráče jako JSON pro aplikaci (r bez řádku = dnes ještě netipoval)
+create or replace function public.mystery_json(r public.mystery_results, d date) returns jsonb
+language sql stable set search_path = public as $$
+    select jsonb_build_object('day', d, 'guesses', coalesce(r.guesses, 0), 'solved', coalesce(r.solved, false), 'clues', coalesce(r.clues, 0),
+        'points', coalesce(r.points, 0), 'solved_at', case when r.solved_at is not null then to_char(r.solved_at at time zone 'Europe/Prague', 'FMHH24:MI') end,
+        'finished', coalesce(r.solved or r.guesses >= 3, false), 'clues_now', public.mystery_clues_at(public.mystery_now()))
+$$;
+
+-- Dnešní stav přihlášeného hráče (nic nezakládá)
+create or replace function public.mystery_state() returns jsonb
+language plpgsql stable security definer set search_path = public as $$
+declare uid uuid := auth.uid(); d date := public.mystery_today(); r public.mystery_results;
+begin
+    if uid is null then raise exception 'Přihlas se.' using errcode = '42501'; end if;
+    select * into r from public.mystery_results where user_id = uid and day = d;
+    return public.mystery_json(r, d);
+end;
+$$;
+
+-- Tip idx (od 0) na dnešní tajemnou otázku; for_day = den, pro který aplikace otázku vybrala (po půlnoci už neplatí);
+-- clues = kolik nápověd hráč při tipu viděl. Stejný tip poslaný znovu (ztracená odpověď serveru) nic nezmění; jiný server odmítne.
+create or replace function public.mystery_guess(for_day date, idx integer, is_correct boolean, clues integer) returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare uid uuid := auth.uid(); t timestamptz := public.mystery_now(); d date := public.mystery_today(); r public.mystery_results; seen integer; gained integer;
+begin
+    if uid is null then raise exception 'Přihlas se.' using errcode = '42501'; end if;
+    if for_day is distinct from d then raise exception 'Tahle tajemná otázka už skončila. Dnes je nová.' using errcode = '22023'; end if;
+    if idx is null or idx < 0 or idx > 2 or is_correct is null or clues is null or clues < 1 or clues > 8 then raise exception 'Neplatný tip.' using errcode = '22023'; end if;
+    -- Nápovědy: aspoň tolik, kolik jich bylo vidět před 10 minutami (pozdě odeslaný tip si nepřisvojí dřívější čas)
+    seen := greatest(clues, public.mystery_clues_at(t - interval '10 minutes'));
+    select * into r from public.mystery_results where user_id = uid and day = d for update;
+    if r.calls >= 40 then raise exception 'Příliš mnoho pokusů o uložení tipu. Zkus to zítra.' using errcode = '22023'; end if;
+    if idx < coalesce(r.guesses, 0) then
+        -- Opakované odeslání: poslední tip se shoduje (správně / špatně), dřívější tipy jsou vždy špatné
+        if (idx = r.guesses - 1 and r.solved = is_correct) or (idx < r.guesses - 1 and not is_correct) then
+            update public.mystery_results set calls = calls + 1 where user_id = uid and day = d returning * into r;
+            return public.mystery_json(r, d);
+        end if;
+        raise exception 'Tenhle tip už máš uložený.' using errcode = '22023';
+    end if;
+    if r.solved then raise exception 'Tajemnou otázku už máš vyřešenou.' using errcode = '22023'; end if;
+    if coalesce(r.guesses, 0) >= 3 then raise exception 'Tipy na dnešek došly.' using errcode = '22023'; end if;
+    if idx > coalesce(r.guesses, 0) then raise exception 'Nejdřív se musí uložit předchozí tip.' using errcode = '22023'; end if;
+    gained := case when is_correct then greatest(1, 11 - seen - idx) else 0 end;
+    if r.user_id is null then
+        -- První tip dne založí řádek (souběžný první tip z druhého zařízení skončí chybou porušení klíče a aplikace stav načte znovu)
+        insert into public.mystery_results (user_id, day, guesses, solved, clues, points, solved_at, last_at, calls)
+        values (uid, d, 1, is_correct, seen, gained, case when is_correct then t end, t, 1)
+        returning * into r;
+    else
+        update public.mystery_results set
+            guesses = idx + 1,
+            solved = is_correct,
+            clues = seen,
+            points = gained,
+            solved_at = case when is_correct then t end,
+            last_at = t,
+            calls = calls + 1
+        where user_id = uid and day = d
+        returning * into r;
+    end if;
+    return public.mystery_json(r, d);
+end;
+$$;
+
+-- Smí hráč vidět výsledky ostatních za den d? Minulé dny (30 zpět) ano, dnešek až po dořešení
+create or replace function public.mystery_visible(uid uuid, d date) returns boolean
+language plpgsql stable set search_path = public as $$
+declare today date := public.mystery_today();
+begin
+    if d > today or d < today - 30 then raise exception 'Výsledky tajemné otázky jsou jen za posledních 30 dní.' using errcode = '22023'; end if;
+    return d < today or exists (select 1 from public.mystery_results r where r.user_id = uid and r.day = d and (r.solved or r.guesses >= 3));
+end;
+$$;
+
+-- Jak si vedli ostatní: hráči s aspoň jedním tipem, kolik uhodlo (a procenta), nejrychlejší vyřešení (pražský čas), průměr nápověd
+-- u úspěšných a můj výsledek; dnešek až po dořešení (jinak jen { day, hidden: true }). Bez jmen hráčů.
+create or replace function public.mystery_stats(for_day date default null) returns jsonb
+language plpgsql stable security definer set search_path = public as $$
+declare uid uuid := auth.uid(); d date := coalesce(for_day, public.mystery_today()); result jsonb;
+begin
+    if uid is null then raise exception 'Přihlas se.' using errcode = '42501'; end if;
+    if not public.mystery_visible(uid, d) then return jsonb_build_object('day', d, 'hidden', true); end if;
+    select jsonb_build_object(
+        'day', d, 'hidden', false,
+        'players', count(*),
+        'solved', count(*) filter (where r.solved),
+        'solved_pct', case when count(*) > 0 then round(100.0 * count(*) filter (where r.solved) / count(*))::integer else 0 end,
+        'fastest', to_char(min(r.solved_at) at time zone 'Europe/Prague', 'FMHH24:MI'),
+        'avg_clues', round(avg(r.clues) filter (where r.solved), 1),
+        'me', (select jsonb_build_object('solved', m.solved, 'clues', m.clues, 'guesses', m.guesses, 'points', m.points,
+                'solved_at', to_char(m.solved_at at time zone 'Europe/Prague', 'FMHH24:MI'))
+            from public.mystery_results m where m.user_id = uid and m.day = d)
+    ) into result
+    from public.mystery_results r where r.day = d;
+    return result;
+end;
+$$;
+
+-- Výsledky přátel (přijatá přátelství oběma směry) a můj: pořadí podle vyřešení, bodů a času vyřešení; rank = moje místo mezi nimi;
+-- friends = počet přátel. Jen veřejné údaje profilu; dnešek až po dořešení.
+create or replace function public.mystery_friends(for_day date default null) returns jsonb
+language plpgsql stable security definer set search_path = public as $$
+declare uid uuid := auth.uid(); d date := coalesce(for_day, public.mystery_today()); result jsonb;
+begin
+    if uid is null then raise exception 'Přihlas se.' using errcode = '42501'; end if;
+    if not public.mystery_visible(uid, d) then return jsonb_build_object('day', d, 'hidden', true); end if;
+    with circle as (
+        select case when f.user_id = uid then f.friend_id else f.user_id end as id
+        from public.friendships f where f.status = 'accepted' and uid in (f.user_id, f.friend_id)
+    ), ranked as (
+        select r.user_id, r.solved, r.clues, r.guesses, r.points, r.solved_at,
+            (rank() over (order by r.solved desc, r.points desc, r.solved_at nulls last))::integer as place,
+            (row_number() over (order by r.solved desc, r.points desc, r.solved_at nulls last, r.user_id))::integer as pos
+        from public.mystery_results r where r.day = d and (r.user_id = uid or r.user_id in (select id from circle))
+    )
+    select jsonb_build_object(
+        'day', d, 'hidden', false,
+        'friends', (select count(*) from circle),
+        'rank', (select k.place from ranked k where k.user_id = uid),
+        'rows', coalesce((select jsonb_agg(jsonb_build_object('rank', k.place, 'id', p.id, 'display_name', p.display_name, 'avatar', p.avatar, 'color', p.color,
+                'frame', p.frame, 'title_pref', p.title_pref, 'owl', p.owl, 'solved', k.solved, 'clues', k.clues, 'guesses', k.guesses, 'points', k.points,
+                'solved_at', to_char(k.solved_at at time zone 'Europe/Prague', 'FMHH24:MI'), 'me', k.user_id = uid) order by k.pos)
+            from ranked k join public.profiles p on p.id = k.user_id where k.pos <= 200), '[]'::jsonb)
+    ) into result;
+    return result;
+end;
+$$;
+
+-- Pomocné funkce jen interně; hráč volá jen stav, tip, statistiky a přátele (anon nic)
+revoke all on function public.mystery_now(), public.mystery_today(), public.mystery_clues_at(timestamptz), public.mystery_json(public.mystery_results, date),
+    public.mystery_visible(uuid, date) from public, anon, authenticated;
+revoke all on function public.mystery_state(), public.mystery_guess(date, integer, boolean, integer), public.mystery_stats(date), public.mystery_friends(date) from public, anon;
+grant execute on function public.mystery_state(), public.mystery_guess(date, integer, boolean, integer), public.mystery_stats(date), public.mystery_friends(date) to authenticated;
+-- ===== Tajemná otázka dne (schéma 19) — KONEC BLOKU =====
+
 -- ===== Verze schématu =====
 -- Číslo se zvyšuje při KAŽDÉ změně tohoto souboru (tabulka, sloupec, funkce, pravidlo) a zároveň konstanta REQUIRED_SCHEMA v app.js.
 -- Aplikace ho po přihlášení porovná a správci (dev_admins nebo vývojářský režim) ukáže v Nastavení, že má schéma spustit znovu;
@@ -3277,7 +3467,9 @@ grant execute on function public.league_seasons(uuid) to authenticated;
 --     a league_month_peak) a vitrína v profilu (profiles.showcase: nejvýš 3 položky b:<odznak>, d:<téma>, l:<RRRR-MM>:<liga>; kontrola tvaru
 --     showcase_format_ok a obsahu check_showcase);
 --     odznaky Album sbírky v badge_catalog() (milníky sberatel-25 … sberatel-100 a celé sekce album-*).
+-- 19: Tajemná otázka dne (mystery_results, mystery_state/guess/stats/friends; pomocné mystery_now, mystery_today, mystery_clues_at, mystery_json
+--     a mystery_visible; export_my_data má i 'tajemna_otazka') a odznaky Detektiv (detektiv, detektiv-7, detektiv-30, detektiv-100, detektiv-365) v badge_catalog().
 create or replace function public.schema_version() returns integer
-language sql immutable as $$ select 18 $$;
+language sql immutable as $$ select 19 $$;
 revoke all on function public.schema_version() from public, anon;
 grant execute on function public.schema_version() to authenticated;
