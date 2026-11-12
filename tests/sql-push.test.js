@@ -199,7 +199,8 @@ test('SQL: web push (odběry, tajemství, push_due, push_mark)', { skip: !availa
         q(`delete from push_sent`);
         q(`insert into challenges (id, creator_id, invited_id, topic, seed, count) values ('ABCDE2', '${id(3)}', '${id(1)}', 'zemepis', 'seed1', 5)`);
         q(`insert into challenges (id, creator_id, invited_id, topic, seed, count) values ('ABCDE3', '${id(3)}', '${id(1)}', 'mix', 'seed2', 10)`);
-        q(`update challenges set created_at = '${MON}T10:00:00Z'::timestamptz + (case id when 'ABCDE2' then interval '0' else interval '1 minute' end)`);
+        // Čas založení relativně k teď: upozornění se posílá jen 3 dny od založení (pevné datum by test za pár dní rozbilo)
+        q(`update challenges set created_at = now() - interval '2 hours' + (case id when 'ABCDE2' then interval '0' else interval '1 minute' end)`);
         // výzva pro kohokoli (bez invited_id) a stará výzva se neposílají
         q(`insert into challenges (id, creator_id, topic, seed, count) values ('ABCDE4', '${id(3)}', 'mix', 'seed3', 10)`);
         q(`insert into challenges (id, creator_id, invited_id, topic, seed, count) values ('ABCDE5', '${id(3)}', '${id(1)}', 'mix', 'seed4', 10)`);
