@@ -71,7 +71,8 @@
     // se starší databází se otázky skládají jen v zařízení jako dřív).
     // 18 = ligové sezóny (league_seasons) a vitrína v profilu (profiles.showcase), odznaky Album sbírky v katalogu odznaků (se starší databází
     // se sezóny a vitrína jen nenabídnou, odznaky alba zůstanou v zařízení a album je spočítá znovu).
-    const REQUIRED_SCHEMA = 19;
+    // 19 = Tajemná otázka dne (mystery_*), odznaky Detektiv; 20 = nápovědy Tajemné otázky přes celý den (poslední ve 20:00).
+    const REQUIRED_SCHEMA = 20;
     const HISTORY_SIZE = 200;
     const REQUEST_TIMEOUT = 12000;
     const WIKI_TIMEOUT = 6000;

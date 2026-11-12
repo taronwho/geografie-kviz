@@ -1,4 +1,4 @@
-// Tajemná otázka dne v prohlížeči (mystery.js) s falešným Supabase v paměti: pruh na úvodu (nápověda 5/8 · další v 12:00, nová nápověda,
+// Tajemná otázka dne v prohlížeči (mystery.js) s falešným Supabase v paměti: pruh na úvodu (nápověda 5/8 · další v 15:00, nová nápověda,
 // vyřešeno), obrazovka s nápovědami podle hodin (posunuté hodiny odkryjí další nápovědu samy), psaný tip (špatný, opakovaný, správný),
 // možnosti v poslední nápovědě, body, XP a odznak Detektiv, sdílení textem i obrázkem bez odpovědi, host s pozvánkou k přihlášení,
 // přihlášený s tipy na serveru, statistikami dne a přáteli, druhý den včerejší odpověď na úvodu (do skrytí), starší databáze bez funkcí.
@@ -93,7 +93,7 @@ const backend = async (context, db) => {
     });
 };
 
-const open = async (browser, storage, { viewport = { width: 360, height: 640 }, colorScheme = 'light', db = null, time = prague('10:00'), install = false } = {}) => {
+const open = async (browser, storage, { viewport = { width: 360, height: 640 }, colorScheme = 'light', db = null, time = prague('13:00'), install = false } = {}) => {
     const context = await browser.newContext({ serviceWorkers: 'block', colorScheme, viewport, deviceScaleFactor: 1, acceptDownloads: true, reducedMotion: 'reduce' });
     await context.grantPermissions(['clipboard-read', 'clipboard-write'], { origin: ORIGIN });
     await context.addInitScript(entries => {
@@ -160,7 +160,7 @@ test('Tajemná otázka dne v prohlížeči', { skip: !chromium && 'Playwright ne
     await t.test('host: pruh na úvodu, nápovědy podle hodin, špatný a opakovaný tip, úvod bez posouvání (360×640)', async () => {
         const { context, tab, log } = await open(browser, {});
         assert.equal(await tab.getAttribute('#mystery-card', 'data-mystery-status'), 'new');
-        assert.equal(await compact(tab, '#mystery-card'), 'Tajemná otázka dne Nápověda 5/8 · další v 12:00');
+        assert.equal(await compact(tab, '#mystery-card'), 'Tajemná otázka dne Nápověda 5/8 · další v 15:00');
         assert.ok(await tab.$('#mystery-card [data-mystery-new]'), 'zlatá tečka: nová nápověda');
         assert.ok(await tab.$('#mystery-card img[src$="sova-dalekohled.webp"]'));
         await fitsScreen(tab, 'úvod s pruhem tajemné otázky (360×640)');
@@ -168,10 +168,10 @@ test('Tajemná otázka dne v prohlížeči', { skip: !chromium && 'Playwright ne
         await shot(tab, 'uvod-360x640');
         await openScreen(tab);
         assert.match(await compact(tab, '#app-header'), /Tajemná otázka/);
-        assert.match(await compact(tab, '[data-mystery-summary]'), /^Nápověda 5\/8 · další v 12:00$/);
+        assert.match(await compact(tab, '[data-mystery-summary]'), /^Nápověda 5\/8 · další v 15:00$/);
         assert.deepEqual(await tab.$$eval('[data-mystery-clue]:not([data-locked])', items => items.map(item => Number(item.dataset.mysteryClue))), [5, 4, 3, 2, 1], 'odkryté nápovědy, nejnovější nahoře');
-        assert.match(await compact(tab, '[data-mystery-clue][data-locked]'), /6\. nápověda\s*v 12:00/);
-        assert.equal(await tab.$('[data-action="mystery-choice"]'), null, 'možnosti až v 16:00');
+        assert.match(await compact(tab, '[data-mystery-clue][data-locked]'), /6\. nápověda\s*v 15:00/);
+        assert.equal(await tab.$('[data-action="mystery-choice"]'), null, 'bez možností');
         const round = await roundOf(tab);
         assert.equal(round.topic, 'zemepis');
         const screenText = await compact(tab, '#mystery-screen');
@@ -192,7 +192,7 @@ test('Tajemná otázka dne v prohlížeči', { skip: !chromium && 'Playwright ne
         await shot(tab, 'spatny-tip-360x640');
         await tab.click('[data-action="mystery-home"]');
         await tab.waitForSelector('#mystery-card');
-        assert.equal(await compact(tab, '#mystery-card [data-mystery-text]'), 'Nápověda 5/8 · další v 12:00');
+        assert.equal(await compact(tab, '#mystery-card [data-mystery-text]'), 'Nápověda 5/8 · další v 15:00');
         assert.equal(await tab.$('#mystery-card [data-mystery-new]'), null, 'nápovědu už hráč viděl');
         await fitsScreen(tab, 'úvod po tipu (360×640)');
         assert.deepEqual(log.errors, []);
@@ -200,14 +200,14 @@ test('Tajemná otázka dne v prohlížeči', { skip: !chromium && 'Playwright ne
         await context.close();
     });
 
-    await t.test('host: hodiny běží – další nápověda se odkryje sama, v 16:00 možnosti, vyřešení, XP, odznak, sdílení bez odpovědi', async () => {
-        const { context, tab, log } = await open(browser, {}, { time: prague('11:59'), install: true });
+    await t.test('host: hodiny běží – další nápověda se odkryje sama, ve 20:00 ostrá fotka, vyřešení, XP, odznak, sdílení bez odpovědi', async () => {
+        const { context, tab, log } = await open(browser, {}, { time: prague('14:59'), install: true });
         await openScreen(tab);
         assert.equal(await tab.$$eval('[data-mystery-clue]:not([data-locked])', items => items.length), 5);
         await tab.clock.fastForward('01:30');
         await tab.waitForFunction(() => document.querySelectorAll('[data-mystery-clue]:not([data-locked])').length === 6);
-        assert.match(await compact(tab, '[data-mystery-summary]'), /Nápověda 6\/8 · další v 14:00/);
-        await tab.clock.fastForward('04:30:00');
+        assert.match(await compact(tab, '[data-mystery-summary]'), /Nápověda 6\/8 · další v 17:00/);
+        await tab.clock.fastForward('05:30:00');
         await tab.waitForFunction(() => document.querySelectorAll('[data-mystery-clue]:not([data-locked])').length === 8, null, { timeout: 15000 });
         assert.match(await compact(tab, '[data-mystery-summary]'), /^Nápověda 8\/8$/);
         assert.equal(await tab.$('[data-mystery-clue][data-locked]'), null);
@@ -223,7 +223,7 @@ test('Tajemná otázka dne v prohlížeči', { skip: !chromium && 'Playwright ne
         await tab.click('#mystery-form button[type="submit"]');
         await tab.waitForSelector('#mystery-screen[data-mystery-status="solved"]');
         const summary = await compact(tab, '[data-mystery-summary]');
-        assert.match(summary, /^Vyřešeno v 16:\d\d s 8 nápovědami · 3 body$/);
+        assert.match(summary, /^Vyřešeno v 20:\d\d s 8 nápovědami · 3 body$/);
         assert.equal(await compact(tab, '[data-mystery-answer]'), round.name);
         assert.match(await compact(tab, '#mystery-screen'), /\+16 XP za Tajemnou otázku dne/);
         assert.match(await compact(tab, '#mystery-stats'), /Po přihlášení uvidíš/);
@@ -242,7 +242,7 @@ test('Tajemná otázka dne v prohlížeči', { skip: !chromium && 'Playwright ne
         await shot(tab, 'vyreseno-host-360x640');
         await tab.click('[data-action="mystery-home"]');
         await tab.waitForSelector('#mystery-card[data-mystery-status="solved"]');
-        assert.match(await compact(tab, '#mystery-card'), /Vyřešeno v 16:\d\d s 8 nápovědami/);
+        assert.match(await compact(tab, '#mystery-card'), /Vyřešeno v 20:\d\d s 8 nápovědami/);
         await fitsScreen(tab, 'úvod po vyřešení (360×640)');
         assert.deepEqual(log.errors, []);
         assert.deepEqual(log.csp, []);
@@ -251,14 +251,14 @@ test('Tajemná otázka dne v prohlížeči', { skip: !chromium && 'Playwright ne
 
     await t.test('přihlášený: tip na server, jak si vedli ostatní a přátelé; druhý den včerejší odpověď na úvodu, skrytí (390×780)', async () => {
         const db = newDb();
-        const { context, tab, log } = await open(browser, login('tok-u1'), { viewport: { width: 390, height: 780 }, db, time: prague('9:41') });
-        assert.equal(await compact(tab, '#mystery-card [data-mystery-text]'), 'Nápověda 4/8 · další v 10:00');
+        const { context, tab, log } = await open(browser, login('tok-u1'), { viewport: { width: 390, height: 780 }, db, time: prague('12:41') });
+        assert.equal(await compact(tab, '#mystery-card [data-mystery-text]'), 'Nápověda 4/8 · další v 13:00');
         await fitsScreen(tab, 'úvod s pruhem tajemné otázky (390×780)');
         await openScreen(tab);
         const round = await roundOf(tab);
         await typeTip(tab, round.name.toLocaleUpperCase('cs'));
         await tab.waitForSelector('#mystery-screen[data-mystery-status="solved"]');
-        assert.match(await compact(tab, '[data-mystery-summary]'), /^Vyřešeno v 9:41 s 4 nápovědami · 7 bodů$/);
+        assert.match(await compact(tab, '[data-mystery-summary]'), /^Vyřešeno v 12:41 s 4 nápovědami · 7 bodů$/);
         await tab.waitForSelector('[data-mystery-community]');
         const guess = db.calls.find(call => call.name === 'mystery_guess');
         assert.deepEqual(guess.body, { for_day: TODAY, idx: 0, is_correct: true, clues: 4 });
@@ -270,7 +270,7 @@ test('Tajemná otázka dne v prohlížeči', { skip: !chromium && 'Playwright ne
         await shot(tab, 'vyreseno-statistiky-390x780');
         // Druhý den: na úvodu včerejší odpověď a kolik hráčů ji uhodlo
         db.dayOver = true;
-        await tab.clock.setFixedTime(prague('8:00', TOMORROW));
+        await tab.clock.setFixedTime(prague('11:00', TOMORROW));
         await tab.goto(`${ORIGIN}/`);
         await tab.waitForSelector('#mystery-card[data-mystery-kind="reveal"]');
         await tab.waitForFunction(() => /uhodlo 34 %/.test(document.querySelector('#mystery-card').textContent));
@@ -290,7 +290,7 @@ test('Tajemná otázka dne v prohlížeči', { skip: !chromium && 'Playwright ne
         await tab.waitForFunction(day => document.querySelector('#mystery-screen') && /Tajemná otázka dne · 14\. 11\. 2026/.test(document.querySelector('#mystery-screen').textContent), TOMORROW, { timeout: 30000 });
         await tab.click('[data-action="mystery-home"]');
         await tab.waitForSelector('#mystery-card[data-mystery-kind="today"]');
-        assert.equal(await compact(tab, '#mystery-card [data-mystery-text]'), 'Nápověda 4/8 · další v 10:00');
+        assert.equal(await compact(tab, '#mystery-card [data-mystery-text]'), 'Nápověda 4/8 · další v 13:00');
         assert.equal((await store(tab)).days[TODAY].dismissed, true);
         assert.deepEqual(log.errors, []);
         assert.deepEqual(log.csp, []);
@@ -298,29 +298,29 @@ test('Tajemná otázka dne v prohlížeči', { skip: !chromium && 'Playwright ne
     });
 
     await t.test('druhý den skrytí křížkem přímo na úvodu (360×640, tmavý režim)', async () => {
-        const solved = M.addTip(M.newEntry({ topic: 'zemepis', q: 'Q4242', name: 'Testovací hora' }), { text: 'Testovací hora', correct: true, clues: 3, at: prague('7:05').getTime() });
-        const { context, tab, log } = await open(browser, { 'mudrlant.mystery': JSON.stringify({ days: { [TODAY]: { ...solved, xp: 26 } }, rounds: {} }) }, { colorScheme: 'dark', time: prague('8:00', TOMORROW) });
+        const solved = M.addTip(M.newEntry({ topic: 'zemepis', q: 'Q4242', name: 'Testovací hora' }), { text: 'Testovací hora', correct: true, clues: 3, at: prague('10:05').getTime() });
+        const { context, tab, log } = await open(browser, { 'mudrlant.mystery': JSON.stringify({ days: { [TODAY]: { ...solved, xp: 26 } }, rounds: {} }) }, { colorScheme: 'dark', time: prague('11:00', TOMORROW) });
         assert.equal(await compact(tab, '#mystery-card'), 'Včerejší tajemná otázka Odpověď: Testovací hora');
         await fitsScreen(tab, 'úvod se včerejší odpovědí (360×640, tmavý)');
         await audit(tab, 'úvod se včerejší odpovědí (360×640, tmavý)');
         await shot(tab, 'vcerejsi-odpoved-tmavy-360x640');
         await tab.click('[data-action="mystery-dismiss"]');
         await tab.waitForSelector('#mystery-card[data-mystery-kind="today"]');
-        assert.equal(await compact(tab, '#mystery-card [data-mystery-text]'), 'Nápověda 4/8 · další v 10:00');
+        assert.equal(await compact(tab, '#mystery-card [data-mystery-text]'), 'Nápověda 4/8 · další v 13:00');
         assert.deepEqual(log.errors, []);
         await context.close();
     });
 
     await t.test('starší databáze bez funkcí: hraje se v zařízení, výsledky ostatních nejsou k dispozici', async () => {
         const db = { ...newDb(), missing: true };
-        const { context, tab, log } = await open(browser, login('tok-u1'), { db, time: prague('14:30') });
+        const { context, tab, log } = await open(browser, login('tok-u1'), { db, time: prague('17:45') });
         await openScreen(tab);
         const round = await roundOf(tab);
         await typeTip(tab, 'Atlantida');
         await tab.waitForSelector('[data-mystery-notice]');
         await typeTip(tab, round.name);
         await tab.waitForSelector('#mystery-screen[data-mystery-status="solved"]');
-        assert.match(await compact(tab, '[data-mystery-summary]'), /^Vyřešeno v 14:30 s 7 nápovědami · 3 body$/);
+        assert.match(await compact(tab, '[data-mystery-summary]'), /^Vyřešeno v 17:45 s 7 nápovědami · 3 body$/);
         await tab.waitForFunction(() => /nejsou k dispozici/.test(document.querySelector('#mystery-stats').textContent));
         assert.deepEqual(db.calls.map(call => call.name), ['mystery_state'], 'po 404 se na server už neptá');
         assert.deepEqual(log.errors, []);

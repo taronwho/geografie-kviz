@@ -20,25 +20,25 @@ test('pražský čas: den, minuty a hodiny nápověd (zimní i letní čas)', ()
     assert.equal(M.pragueDay(iso('2026-07-12T22:30:00Z')), '2026-07-13', 'v létě je Praha o dvě hodiny napřed');
     assert.equal(M.formatClock(iso('2026-11-12T08:41:00Z')), '9:41');
     assert.equal(M.formatClock(iso('2026-11-11T23:12:00Z')), '0:12');
-    assert.deepEqual(M.CLUE_HOURS, [0, 4, 6, 8, 10, 12, 14, 16]);
+    assert.deepEqual(M.CLUE_HOURS, [0, 7, 9, 11, 13, 15, 17, 20]);
     // Zimní čas (UTC+1)
     const at = (utc) => M.cluesAt(iso(utc));
-    assert.deepEqual(['2026-11-11T23:00:00Z', '2026-11-12T02:59:00Z', '2026-11-12T03:00:00Z', '2026-11-12T09:00:00Z', '2026-11-12T14:59:59Z', '2026-11-12T15:00:00Z', '2026-11-12T22:59:00Z'].map(at), [1, 1, 2, 5, 7, 8, 8]);
-    // Letní čas (UTC+2): 4:00 v Praze = 2:00 UTC
-    assert.equal(at('2026-07-12T01:59:00Z'), 1);
-    assert.equal(at('2026-07-12T02:00:00Z'), 2);
-    assert.deepEqual(M.nextClue(iso('2026-11-12T09:00:00Z')), { n: 6, label: '12:00' });
-    assert.equal(M.nextClue(iso('2026-11-12T15:30:00Z')), null, 'po 16:00 je všech osm venku');
+    assert.deepEqual(['2026-11-11T23:00:00Z', '2026-11-12T05:59:00Z', '2026-11-12T06:00:00Z', '2026-11-12T12:00:00Z', '2026-11-12T18:59:59Z', '2026-11-12T19:00:00Z', '2026-11-12T22:59:00Z'].map(at), [1, 1, 2, 5, 7, 8, 8]);
+    // Letní čas (UTC+2): 7:00 v Praze = 5:00 UTC
+    assert.equal(at('2026-07-12T04:59:00Z'), 1);
+    assert.equal(at('2026-07-12T05:00:00Z'), 2);
+    assert.deepEqual(M.nextClue(iso('2026-11-12T12:00:00Z')), { n: 6, label: '15:00' });
+    assert.equal(M.nextClue(iso('2026-11-12T19:30:00Z')), null, 'po 20:00 je všech osm venku');
 });
 
 test('rozvrh nápověd v den změny času (29. 3. a 25. 10. 2026)', () => {
-    // Jaro: 2:00 → 3:00, půlnoc je ještě zimní (UTC+1), 4:00 už letní (UTC+2)
+    // Jaro: 2:00 → 3:00, půlnoc je ještě zimní (UTC+1), 7:00 už letní (UTC+2)
     assert.equal(new Date(M.clueTime('2026-03-29', 1)).toISOString(), '2026-03-28T23:00:00.000Z');
-    assert.equal(new Date(M.clueTime('2026-03-29', 2)).toISOString(), '2026-03-29T02:00:00.000Z');
-    assert.equal(new Date(M.clueTime('2026-03-29', 8)).toISOString(), '2026-03-29T14:00:00.000Z');
-    // Podzim: 3:00 → 2:00, půlnoc letní (UTC+2), 4:00 zimní (UTC+1)
+    assert.equal(new Date(M.clueTime('2026-03-29', 2)).toISOString(), '2026-03-29T05:00:00.000Z');
+    assert.equal(new Date(M.clueTime('2026-03-29', 8)).toISOString(), '2026-03-29T18:00:00.000Z');
+    // Podzim: 3:00 → 2:00, půlnoc letní (UTC+2), 7:00 zimní (UTC+1)
     assert.equal(new Date(M.clueTime('2026-10-25', 1)).toISOString(), '2026-10-24T22:00:00.000Z');
-    assert.equal(new Date(M.clueTime('2026-10-25', 2)).toISOString(), '2026-10-25T03:00:00.000Z');
+    assert.equal(new Date(M.clueTime('2026-10-25', 2)).toISOString(), '2026-10-25T06:00:00.000Z');
     for (const day of ['2026-03-29', '2026-10-25', '2026-11-12', '2026-07-01']) {
         for (let n = 1; n <= 8; n++) {
             const unlock = M.clueTime(day, n);
@@ -189,9 +189,9 @@ test('sdílení: text a obrázek bez odpovědi (🔍 nápovědy, ❌ špatný ti
 });
 
 test('karta na úvodu: nápověda a další čas, vyřešeno, nevyšlo, včerejší odpověď; obrazovka bez inline stylů', () => {
-    const now = iso('2026-11-12T09:00:00Z');
+    const now = iso('2026-11-12T12:00:00Z');
     const base = { kind: 'today', shown: M.cluesAt(now), next: M.nextClue(now) };
-    assert.equal(M.homeText({ ...base, status: 'new', entry: null }), 'Nápověda 5/8 · další v 12:00');
+    assert.equal(M.homeText({ ...base, status: 'new', entry: null }), 'Nápověda 5/8 · další v 15:00');
     assert.match(M.homeCardHtml({ ...base, status: 'new', entry: null }), /data-mystery-new/, 'nová nápověda');
     assert.doesNotMatch(M.homeCardHtml({ ...base, status: 'open', entry: { ...M.newEntry({}), seen: 5 } }), /data-mystery-new/);
     assert.equal(M.homeText({ ...base, next: null, shown: 8, status: 'open', entry: M.addTip(M.newEntry({}), { text: 'x', correct: false, clues: 8, at: 1 }) }), 'Nápověda 8/8 · zbývají 2 tipy');
@@ -205,11 +205,11 @@ test('karta na úvodu: nápověda a další čas, vyřešeno, nevyšlo, včerej�
     assert.match(reveal, /data-action="mystery-reveal"[\s\S]*Včerejší tajemná otázka[\s\S]*data-action="mystery-dismiss"/);
     const h = { photoFrame: (attrs) => `<div ${attrs}></div>`, visualFrame: (spec, id) => `<div id="${id}"></div>`, avatarHtml: () => '<span></span>', xpLine: () => '' };
     const clues = M.buildClues(roundData(), { topicTitle: 'Zeměpis' });
-    const screen = M.screenHtml({ day: '2026-11-12', shown: 5, next: { n: 6, label: '12:00' }, clues, entry: M.newEntry({}), name: 'Matterhorn', canGuess: true, pointsNow: 6 }, h);
+    const screen = M.screenHtml({ day: '2026-11-12', shown: 5, next: { n: 6, label: '15:00' }, clues, entry: M.newEntry({}), name: 'Matterhorn', canGuess: true, pointsNow: 6 }, h);
     assert.match(screen, /id="mystery-form"/);
     assert.match(screen, /3 tipy na celý den · teď za 6 bodů/);
     assert.equal((screen.match(/data-mystery-clue="\d"(?! data-locked)/g) || []).length, 5, 'pět odkrytých');
-    assert.match(screen, /data-mystery-clue="6" data-locked[\s\S]*v 12:00/);
+    assert.match(screen, /data-mystery-clue="6" data-locked[\s\S]*v 15:00/);
     assert.ok(!screen.includes('Matterhorn'), 'před vyřešením bez odpovědi');
     assert.doesNotMatch(screen, /data-action="mystery-choice"/, 'bez možností');
     const last = M.screenHtml({ day: '2026-11-12', shown: 8, next: null, clues, entry: M.newEntry({}), canGuess: true, pointsNow: 3 }, h);
@@ -223,7 +223,7 @@ test('karta na úvodu: nápověda a další čas, vyřešeno, nevyšlo, včerej�
     for (const html of [screen, last, stats, reveal]) assert.doesNotMatch(html, /style=|on[a-z]+=/i, 'CSP: bez inline stylů a skriptů');
 });
 
-test('napojení: modul v index.html, service workeru, nasazení a Tailwindu; schéma 19, odznaky Detektiv, tip a karta na úvodu', () => {
+test('napojení: modul v index.html, service workeru, nasazení a Tailwindu; schéma 20, odznaky Detektiv, tip a karta na úvodu', () => {
     const index = read('index.html');
     assert.match(index, /<script src="mystery\.js" defer><\/script>/);
     assert.ok(index.indexOf('mystery.js') < index.indexOf('app.js') && index.indexOf('quiz-core.js') < index.indexOf('mystery.js'));
@@ -233,9 +233,9 @@ test('napojení: modul v index.html, service workeru, nasazení a Tailwindu; sch
     const sql = read('supabase/schema.sql');
     assert.match(sql, /create table if not exists public\.mystery_results/);
     assert.match(sql, /grant execute on function public\.mystery_state\(\), public\.mystery_guess\(date, integer, boolean, integer\), public\.mystery_stats\(date\), public\.mystery_friends\(date\) to authenticated/);
-    assert.match(sql, /array\[0, 4, 6, 8, 10, 12, 14, 16\]/, 'stejné hodiny nápověd jako mystery.js');
-    assert.match(sql, /language sql immutable as \$\$ select 19 \$\$/);
-    assert.match(read('app.js'), /const REQUIRED_SCHEMA = 19;/);
+    assert.match(sql, /array\[0, 7, 9, 11, 13, 15, 17, 20\]/, 'stejné hodiny nápověd jako mystery.js');
+    assert.match(sql, /language sql immutable as \$\$ select 20 \$\$/);
+    assert.match(read('app.js'), /const REQUIRED_SCHEMA = 20;/);
     assert.deepEqual(core.BADGE_GROUPS.find(group => group.id === 'detektiv').badges.map(badge => [badge.id, badge.goal]), [['detektiv', 1], ['detektiv-7', 7], ['detektiv-30', 30], ['detektiv-100', 100], ['detektiv-365', 365]]);
     assert.equal(core.EMPTY_COUNTERS.mysterySolved, 0);
     const Tips = require('../tips.js');
