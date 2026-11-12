@@ -21,6 +21,8 @@
     // Tipy od Mudrlanta (tips.js): žárovka u sovy, když má hráč na co upozornit; bez skriptu se jen nezobrazí
     const Tips = window.MudrlantTips || null;
     const Goals = window.MudrlantGoals || null;
+    // Mudrlantova kronika (chronicle.js): týden v kostce z denních záznamů v zařízení; bez skriptu se jen nenabídne
+    const Chronicle = window.MudrlantChronicle || null;
     // Režimy Bleskovka a Přežití (modes.js) a zvuky s vibracemi (sound.js); bez skriptu se jen nenabídnou, hra zůstane potichu
     const Modes = window.MudrlantModes || null;
     const Sound = window.MudrlantSound || null;
@@ -3922,6 +3924,7 @@
             if (!result.awards.length && !result.bonus) return;
             const levelBefore = levelProgress(progress.xp).level;
             progress.xp += result.xp;
+            chronicleLog({ xp: result.xp });
             if (result.bonus) progress.counters.weeksDone = (progress.counters.weeksDone || 0) + 1;
             const titles = grantBadges(progress);
             saveProgress(progress);
@@ -3966,6 +3969,9 @@
         // Čekající odměna Sezóny Mudrlanta: stejný pruh (vyzvedne se jedním klepnutím, pak jsou tu zase cíle)
         const seasonStrip = seasonStripHtml();
         if (seasonStrip) return seasonStrip;
+        // Od neděle 18:00 do konce pondělí: pruh Mudrlantovy kroniky (týden v kostce), jednou za týden
+        const chronicleStrip = chronicleStripHtml();
+        if (chronicleStrip) return chronicleStrip;
         const { state, rows } = goalRows();
         const done = rows.filter(row => row.done).length;
         const chip = ({ goal, value, done }) => `
@@ -4225,7 +4231,7 @@
             saveRewards(result.state);
             progress.counters.chestsOpened = (progress.counters.chestsOpened || 0) + 1;
             const levelBefore = levelProgress(progress.xp).level;
-            if (result.xp) progress.xp += result.xp;
+            if (result.xp) { progress.xp += result.xp; chronicleLog({ xp: result.xp }); }
             const titles = grantBadges(progress);
             saveProgress(progress);
             opened = result;
@@ -4363,7 +4369,7 @@
             if (!result.opened) { overlay.remove(); return; }
             saveRewards(result.state);
             const levelBefore = levelProgress(progress.xp).level;
-            if (result.xp) progress.xp += result.xp;
+            if (result.xp) { progress.xp += result.xp; chronicleLog({ xp: result.xp }); }
             const titles = grantBadges(progress);
             saveProgress(progress);
             opened = result;
@@ -4426,6 +4432,90 @@
         if (!view || !view.pending.length) return '';
         const past = view.pastPending.length > 0;
         return Season.stripHtml({ id: past ? view.past.id : view.id, count: past ? view.pastPending.length : view.pending.length, past, until: view.pastUntil });
+    };
+    // --- Mudrlantova kronika (chronicle.js): týden v kostce. Denní záznamy (mudrlant.week) jsou jen v zařízení; dny před kronikou
+    // doplní dnešní otázky a Kvíz dne. Pruh na úvodu (místo pruhu cílů) od neděle 18:00 do konce pondělí, jednou za týden; okno i z Mého postupu ---
+    const chronicleLog = (event) => {
+        if (!Chronicle) return;
+        try { writeJson(Chronicle.KEY, Chronicle.record(readJson(Chronicle.KEY), event)); } catch (error) { console.error(error); }
+    };
+    const chronicleLegacy = () => {
+        const quiz = window.MudrlantDailyQuiz;
+        return { daily: loadStats().daily, quiz: quiz ? quiz.parseState(readJson(quiz.KEY)).days : {} };
+    };
+    const chronicleTitles = () => Object.fromEntries(TOPICS.map(topic => [topic.id, topic.title]));
+    const chronicleView = (week) => {
+        const state = readJson(Chronicle.KEY);
+        const legacy = chronicleLegacy();
+        const summary = Chronicle.summarize(state, week, legacy);
+        return {
+            summary, verdict: Chronicle.verdict(summary, chronicleTitles()), pages: Chronicle.pagesFor(summary),
+            comparison: Chronicle.compare(summary, Chronicle.summarize(state, Chronicle.addDays(week, -7), legacy)),
+            goal: Chronicle.nextGoal(summary, groupedTopics().flatMap(group => group.topics))
+        };
+    };
+    const chronicleStripHtml = () => {
+        if (!Chronicle) return '';
+        try {
+            const summary = Chronicle.stripSummary(readJson(Chronicle.KEY), chronicleLegacy());
+            return summary ? Chronicle.stripHtml(summary, Chronicle.verdict(summary, chronicleTitles()), { uiArt }) : '';
+        } catch (error) { console.error(error); return ''; }
+    };
+    const markChronicleSeen = (week) => writeJson(Chronicle.KEY, Chronicle.markSeen(readJson(Chronicle.KEY), week));
+    const dismissChronicle = () => {
+        const week = Chronicle && Chronicle.stripWeek();
+        if (week) markChronicleSeen(week);
+        paintGoalsCard();
+    };
+    const openChronicleFromStrip = () => {
+        const week = Chronicle && Chronicle.stripWeek();
+        if (!week) { paintGoalsCard(); return; }
+        markChronicleSeen(week);
+        paintGoalsCard();
+        openChronicle(week);
+    };
+    const chronicleCard = (view) => Chronicle.cardInput(view.summary, view.verdict, { robe: robeNow(), url: appUrl(), appName: APP_NAME });
+    const chronicleFile = (view) => ShareCard.fileName('tyden', view.summary.week);
+    // week = týden z pruhu; bez něj (z Mého postupu) s přepínačem Minulý / Tento týden. Příběh ve 3–5 kartách: klepnutí na kartu nebo Dál
+    let chronicleNav = null;
+    const openChronicle = (week = null) => {
+        if (!Chronicle) return;
+        touchTip('chronicle');
+        const now = Chronicle.thisWeek();
+        const toggle = week ? null : Chronicle.stripWeek() === now ? 'this' : 'last';
+        chronicleNav = { week: week || (toggle === 'this' ? now : Chronicle.lastWeek()), toggle, page: 0 };
+        paintChronicle();
+    };
+    const paintChronicle = () => {
+        const nav = chronicleNav;
+        if (!nav) return;
+        const view = chronicleView(nav.week);
+        nav.page = Math.max(0, Math.min(nav.page, view.pages.length - 1));
+        const last = nav.page === view.pages.length - 1;
+        showDialog('Kronika týdne', Chronicle.pageHtml(view.summary, { ...view, page: nav.page, toggle: nav.toggle }, { topicIcon, uiArt, topicById: TOPIC_BY_ID }), {
+            onClick: (event) => {
+                const pick = event.target.closest('[data-kr-week]');
+                if (pick) {
+                    nav.toggle = pick.dataset.krWeek;
+                    nav.week = nav.toggle === 'this' ? Chronicle.thisWeek() : Chronicle.lastWeek();
+                    nav.page = 0;
+                    paintChronicle();
+                    return;
+                }
+                if (event.target.closest('[data-kr-share]')) {
+                    if (ShareCard) shareImageCounted(chronicleCard(view), { name: chronicleFile(view), text: Chronicle.shareText(view.summary, view.verdict, appUrl()), toast: showToast });
+                    return;
+                }
+                if (event.target.closest('[data-kr-prev]')) { nav.page -= 1; paintChronicle(); return; }
+                const next = event.target.closest('[data-kr-next]');
+                // Klepnutí na kartu (mimo tlačítka) = další karta jako v příběhu
+                const card = !next && !event.target.closest('button') && event.target.closest('[data-kr-card]');
+                if (next && last) { chronicleNav = null; dialogStepBack(); return; }
+                if ((next || card) && !last) { nav.page += 1; paintChronicle(); }
+            }
+        });
+        // Obrázek do sdílení se kreslí dopředu, ať ho Safari po klepnutí pustí do sdílení
+        if (last && ShareCard) ShareCard.prepare(chronicleCard(view), chronicleFile(view));
     };
     // Legendární postavička z okna diplomu: Nastavení → Profil se skupinou Legendy a fokusem na ní (vybere a uloží si ji hráč sám);
     // bez účtu jen věta (profilový obrázek mají přihlášení)
@@ -4573,6 +4663,8 @@
         const badgeTitles = grantBadges(progress);
         round.xp = { total: gained, parts: parts.filter(part => part.xp > 0), badges: badgeTitles };
         saveProgress(progress);
+        chronicleLog({ answered: true, correct: round.correct, points: round.points, xp: gained, topic: current.topic, run: counters.run,
+            map: Boolean(current.question && current.question.type === 'map'), quiz: mode === 'quiz', learned: round.newLearned ? { name: current.name, topic: current.topic } : null });
         announce(levelProgress(before.xp).level, levelProgress(progress.xp).level, badgeTitles);
         settleGoals();
         applyLook();
@@ -4632,6 +4724,7 @@
         if (round.correct) {
             const learned = loadLearned();
             const ids = new Set(learned[current.topic] || []);
+            round.newLearned = !ids.has(current.id);
             ids.add(current.id);
             learned[current.topic] = [...ids];
             writeJson(KEYS.learned, learned);
@@ -7658,7 +7751,9 @@
                     <ul class="flex flex-col gap-1">${goals.map(badgeRow).join('')}</ul>
                 </div>
                 <div>
-                    <div class="mb-1 flex items-baseline justify-between gap-2"><h3 class="${CARD_TITLE}">Mistrovství témat</h3><span class="text-[10px] font-semibold text-slate-500 dark:text-slate-400">klepni na téma</span></div>
+                    <div class="mb-1 flex items-center justify-between gap-2"><h3 class="${CARD_TITLE} whitespace-nowrap">Mistrovství témat</h3>${Chronicle
+                        ? '<button type="button" data-open-chronicle aria-label="Kronika týdne: můj týden v kostce" class="-my-2.5 flex min-h-[2.25rem] shrink-0 items-center gap-1 whitespace-nowrap rounded-lg px-1.5 text-[12px] font-black text-brand-700 dark:text-brand-300"><i data-lucide="book-open" class="h-3.5 w-3.5"></i>Kronika týdne<i data-lucide="chevron-right" class="h-3.5 w-3.5"></i></button>'
+                        : '<span class="text-[10px] font-semibold text-slate-500 dark:text-slate-400">klepni na téma</span>'}</div>
                     <ul class="grid grid-cols-7 gap-1">${rows}</ul>
                 </div>
                 ${Rewards ? Rewards.progressHtml({ freezes: rewardsState.freezes, chest: Rewards.pendingChest(rewardsState), lastReward: lastChestText(rewardsState), diplomas: Object.keys(rewardsState.diplomas).filter(id => TOPIC_BY_ID[id]).length, topics: TOPICS.length,
@@ -7667,6 +7762,7 @@
             const child = (open) => openChild('Zpět na Můj postup', openProgress, open);
             if (event.target.closest('[data-open-badges]')) child(openBadges);
             if (event.target.closest('[data-open-levels]')) child(openLevels);
+            if (event.target.closest('[data-open-chronicle]')) { child(() => openChronicle()); return; }
             if (event.target.closest('[data-season-claim]')) { openSeasonReveal(null, openProgress); return; }
             if (event.target.closest('[data-season-open]')) { child(() => openSeason()); return; }
             const info = event.target.closest('[data-rewards-info]');
@@ -8756,6 +8852,7 @@
                 counters.challenges += 1;
                 if (won) { counters.wins += 1; counters.winRun += 1; counters.bestWinRun = Math.max(counters.bestWinRun, counters.winRun); }
                 else if (rivals.length) counters.winRun = 0;
+                chronicleLog({ challenge: won ? 'win' : rivals.length ? 'loss' : 'played' });
                 if (correct === c.count) counters.perfectChallenges += 1;
                 const titles = grantBadges(progress);
                 saveProgress(progress);
@@ -9298,7 +9395,9 @@
         if (!fresh.length && !remote) { settle(); return; }
         const progress = loadProgress();
         const levelBefore = levelProgress(progress.xp).level;
-        progress.xp += fresh.reduce((sum, row) => sum + Tournament.winXp(row.round), 0);
+        const tourXp = fresh.reduce((sum, row) => sum + Tournament.winXp(row.round), 0);
+        progress.xp += tourXp;
+        chronicleLog({ xp: tourXp, tourWins: fresh.length });
         if (remote) {
             progress.counters.tourBest = Math.max(progress.counters.tourBest || 0, remote.best);
             progress.counters.tourWins = Math.max(progress.counters.tourWins || 0, remote.wins);
@@ -9378,7 +9477,7 @@
             counters: loadProgress().counters, today: getDayKey(), now: Date.now(), launches: promoLaunches,
             signedIn: Boolean(signedUser()), multiAvailable: Boolean(Auth && Auth.isConfigured() && Social), reviewOn: reviewEnabled(),
             quiz: Boolean(DailyQuiz), modes: Boolean(Modes), goals: Boolean(Goals && Rewards), freezes: Rewards ? loadRewards().freezes : 0,
-            season: Boolean(Season && Rewards), album: Boolean(Album), showcase: Boolean(Showcase && myShowcase !== null),
+            season: Boolean(Season && Rewards), album: Boolean(Album), chronicle: Boolean(Chronicle), showcase: Boolean(Showcase && myShowcase !== null),
             maxStars: Math.max(0, ...Object.values(loadLearned()).map(ids => masteryStars((ids || []).length)))
         });
     };
@@ -9392,7 +9491,8 @@
         single: () => { closeDialog(); openHomeTabFromPush('single'); },
         quiz: () => { closeDialog(); openQuiz(); },
         modes: () => { closeDialog(); openChooser({ kind: 'mix' }); },
-        goals: () => { closeDialog(); openGoals(); }
+        goals: () => { closeDialog(); openGoals(); },
+        chronicle: () => { closeDialog(); openChronicle(); }
     };
     const openTip = (tip) => {
         if (!tip || document.getElementById('dialog-overlay')) return;
@@ -10520,6 +10620,8 @@
         'practice-mistakes': () => startPractice({ kind: 'mistakes' }),
         'review-start': () => startReview(),
         'goals-open': () => openGoals(),
+        'chronicle-open': () => openChronicleFromStrip(),
+        'chronicle-dismiss': () => dismissChronicle(),
         'chest-open': () => openChestOverlay(),
         'season-claim': () => openSeasonReveal(),
         'season-open': () => openSeason(),
