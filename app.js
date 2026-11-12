@@ -2583,15 +2583,22 @@
         if (root.classList.contains(FIT_SHORT) !== wasShort) appContent.scrollTo(0, 0);
         fitSeen = wrap.scrollHeight;
     };
+    // Plocha úvodu se může zmenšit i beze změny jeho obsahu (hlavička aplikace doroste po načtení profilu): hlídá ji
+    // ResizeObserver na #app-content. Přepnutí zhuštění velikost plochy nemění, takže nevzniká smyčka.
     let fitFrame = 0;
-    const homeFitObserver = typeof MutationObserver === 'function' ? new MutationObserver(() => {
+    let fitForce = false;
+    const scheduleFit = (force) => {
+        fitForce = fitForce || force;
         if (fitFrame) return;
         fitFrame = requestAnimationFrame(() => {
             fitFrame = 0;
             const wrap = appContent.firstElementChild;
-            if (wrap && wrap.scrollHeight !== fitSeen) fitHome();
+            if (wrap && (fitForce || wrap.scrollHeight !== fitSeen)) fitHome();
+            fitForce = false;
         });
-    }) : null;
+    };
+    const homeFitObserver = typeof MutationObserver === 'function' ? new MutationObserver(() => scheduleFit(false)) : null;
+    if (typeof ResizeObserver === 'function') new ResizeObserver(() => scheduleFit(true)).observe(appContent);
     // Řada Výzvy na úvodu (docs/NOVE-MODY.md): tři stejné dlaždice Kvíz dne | Řetězovka dne | Boss týdne. Obrázek, název
     // a krátký stav; celý stav v popisku pro čtečku. dot = atribut zlaté tečky „dnes ještě nehráno“, extra = obsah navíc
     // umístěný absolutně (třeba tenká lišta životů bosse u spodního okraje), aby neměnil výšku. Na nízkém displeji (short:)
