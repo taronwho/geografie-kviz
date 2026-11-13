@@ -198,14 +198,20 @@ Hra více hráčů o území na mapě. Hráči si hry sami zakládají a přidá
   - správně na území s úrovní 0 = území je tvoje;
   - špatně = útok propadne;
   - čím vyšší opevnění, tím těžší otázka.
-- **Otázky o území**: napřed se losuje obor (zeměpis 30 %, kultura 25 %, historie 20 %, věda 10 %, sport 10 %, příroda a mytologie 5 %; obor bez dat pro území svůj podíl předá ostatním), pak druh otázky v něm; žádný druh nad 12 % otázek území.
-  - zeměpis: hlavní město, vlajka, soused, najdi na mapě, města, stavby, hory, řeky, jezera, ostrovy, regiony, počet obyvatel, rozloha;
-  - historie: panovníci, osobnosti politiky, historické osobnosti, bitvy, události („Která z těchto událostí se odehrála ve Francii?“);
-  - kultura: literatura, hudba, kapely, opery (podle skladatele), výtvarné umění, obrazy a sochy (podle autora), architekti, režie, herectví, filmy;
-  - věda: osobnosti fyziky, astronomie a kosmonautiky, chemie, vynálezy; sport: sportovci, kluby, sportoviště, olympiády;
-  - příroda a mytologie: plemena psů podle původu, postavy mytologií, které k území jednoznačně patří (řecká – Řecko, severská – Norsko, Švédsko, Dánsko, Island, české pověsti – Česko…);
-  - na úrovni 0–1 jsou odpověď i nesprávné možnosti známé, výš i méně známé, nikdy pro znalce; obor bez známé odpovědi se pro území neptá;
-  - u krajů krajské město, místa, hrady a zámky, bitvy, kapely, kluby a sportoviště v kraji.
+- **Otázky o území**: záhlaví („Útok na Francii“, „Opevnění Francie“, hvězdy podle opevnění) území prozradí, samotná otázka ho nejmenuje.
+  - skupina **Mudrlant** (asi 60 %): otázky jako v hlavní hře o věcech, které k území patří (stavby, osobnosti, díla, místa, události, kluby,
+    plemena…): popis z Wikipedie se zakrytým názvem, fakta („1802–1885 · spisovatel · Bídníci“), letopočet („V jakém roce se narodil…?“);
+    všechny čtyři možnosti jsou ze stejného území, rodiny i tématu (u osob stejného pohlaví), štítek druhu jen když ho mají všechny,
+    takže podle národnosti ani druhu nejde nic vyloučit; položka bez tří takových možností se neptá;
+  - **formy** (asi 25 %): obrázek („Co je to za stavbu?“, „Kdo je na obrázku?“, vlajka či znak regionu), bod na mapě, odhad čísla
+    (výška hory nebo věže, délka řeky, rozloha ostrova, kapacita stadionu, obyvatelé české obce, obyvatelé a rozloha státu, největší město);
+  - **stát** (asi 15 %): vlajka, hlavní město, soused;
+  - vztahové otázky („Která z těchto staveb stojí ve Francii?“, přes 40 rodin v šesti oborech) převezmou podíl skupiny Mudrlant, když území
+    nemá dost známých položek (nejvýš 25 %), jinak jsou jen zálohou;
+  - na úrovni 0–1 jsou odpověď i nesprávné možnosti známé, výš i méně známé, nikdy pro znalce; výš víc popisu a faktů, méně obrázků;
+  - položka se ve hře nezopakuje a stejná forma nejde dvakrát po sobě; otázka se chystá už při klepnutí na území (popis a obrázek se
+    načítají předem), bez sítě nebo po 4 s přijde místní otázka ze stejného semínka; otázka Mudrlanta je přes celou obrazovku hry;
+  - u krajů krajská města, místa, hrady a zámky, bitvy, kapely, kluby a sportoviště v kraji.
 - **Regiony** (jako kontinenty v Risku): celý region = zlatý obrys, +1 tah za období a +2 body na konci.
 - **Poklady**: 5 neutrálních území s truhličkou; dobytí = +1 tah hned.
 - **Domovské území**: každý začíná jedním (hrad). Kdo přijde o všechna území, dostane v dalším období nové neutrální („Návrat do hry“).
@@ -222,7 +228,7 @@ Hra více hráčů o území na mapě. Hráči si hry sami zakládají a přidá
   - vlaječky se znakem hráče, ikony opevnění (palisáda, hradba, pevnost, hrad, truhlička);
   - větrná růžice, kartuše, mořská příšerka a loď.
 - Animace:
-  - útok: oblouková šipka, otázka ve spodním listu;
+  - útok: oblouková šipka, otázka ve spodním listu (otázka Mudrlanta přes celou obrazovku hry na pergamenu);
   - úspěch: prasknutí opevnění, nebo rozlití barvy jako inkoust a zapíchnutí vlaječky;
   - neúspěch: zlomená šipka a otřes;
   - opevnění vyroste s obláčkem prachu;

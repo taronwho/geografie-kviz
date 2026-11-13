@@ -1,8 +1,8 @@
 // Dobývání: hry o mapu pro 2–8 hráčů (lobby, Rychlá hra, vlastní hry s nastavením). Čistá logika bez DOMu a sítě: pravidla (zrcadlo
 // serveru, supabase/schema.sql blok „21: Dobývání“), barvy a znaky hráčů, mapa (sousedé, regiony, zobrazení bodů), otázky o území
-// z dat témat (přes 40 rodin v šesti oborech: zeměpis, historie, kultura, věda, sport, příroda a mytologie; hlavní město, vlajka,
-// soused, najdi na mapě, místa, osobnosti podle oboru, díla, události, vynálezy, plemena psů, mytologie, kluby, olympiády, bitvy,
-// čísla…), kronika tažení, přehrání a odměny.
+// z dat témat (otázky Mudrlanta o stavbách, osobnostech, dílech, místech a událostech území: popis se zakrytým názvem, fakta, obrázek,
+// letopočet; k tomu bod na mapě, odhad čísla, vlajka, hlavní město, soused a jako záloha přes 40 vztahových rodin v šesti oborech),
+// kronika tažení, přehrání a odměny.
 // Vykreslení jako HTML a SVG (mapa na pergamenu, šrafy hráčů, vlaječky se znaky, opevnění, poklady, ozdoby). Ovládání v prohlížeči
 // (přiblížení, animace, okna) je v conquest-ui.js. Mapy: data/dobyvani-<mapa>.json (scripts/build-dobyvani.js). Testy: tests/conquest.test.js.
 (function (root, factory) {
@@ -319,12 +319,14 @@
 
     // --- Otázky o území (4 možnosti, jedna správná) ---
     // topics = { zemepis, vlajky, architektura, historie, literatura, hudba, umeni, film, sport, fyzika, chemie, biologie, mytologie }
-    // (pole položek z data/<téma>.json; chybějící téma znamená jen méně druhů otázek). Každá otázka patří do rodiny (FAMILIES níž)
-    // a rodina do oboru (DOMAINS): zeměpis (hlavní město, vlajka nebo znak, soused, mapa, místa podle druhu, řeky, regiony, čísla),
-    // historie (panovníci, osobnosti politiky, historické osobnosti, bitvy, události), kultura (literatura, hudba, opery, výtvarné
-    // umění, sochy, architekti, film, herectví), věda (fyzika, astronomie, chemie, vynálezy), sport (sportovci, kluby, sportoviště,
-    // olympiády) a příroda s mytologií (plemena psů podle původu, postavy mytologií, které k území jednoznačně patří).
-    // Pro tah jako by se losoval napřed obor (podle podílu v DOMAINS) a pak rodina v něm (podle vah): obor, který pro území nejde,
+    // (pole položek z data/<téma>.json; chybějící téma znamená jen méně druhů otázek). Tah se ptá ve formách (FORMS níž: otázky
+    // Mudrlanta o položkách území, mapa, odhad, vlajka, hlavní město, soused); položky území dávají rodiny (FAMILIES), ze kterých jsou
+    // i vztahové otázky („Která z těchto staveb stojí ve Francii?“, záloha). Rodina patří do oboru (DOMAINS): zeměpis (hlavní město,
+    // vlajka nebo znak, soused, mapa, místa podle druhu, řeky, regiony, čísla), historie (panovníci, osobnosti politiky, historické
+    // osobnosti, bitvy, události), kultura (literatura, hudba, opery, výtvarné umění, sochy, architekti, film, herectví), věda (fyzika,
+    // astronomie, chemie, vynálezy), sport (sportovci, kluby, sportoviště, olympiády) a příroda s mytologií (plemena psů podle původu,
+    // postavy mytologií, které k území jednoznačně patří).
+    // Rodina pro otázku jako by se losovala napřed podle oboru (podle podílu v DOMAINS) a pak v něm (podle vah): obor, který pro území nejde,
     // svůj podíl předá ostatním a žádná rodina nedostane víc než FAMILY_CAP otázek území (zbytek připadne ostatním).
     // Obtížnost roste s úrovní opevnění cíle (0–3): nízko známější položky a nesprávné možnosti z dálky, výš méně známé a z okolí.
     // Známost: na úrovni 0–1 jsou odpověď i nesprávné možnosti známé (k = 1), výš i méně známé, ale nikdy pro znalce (x = 1);
@@ -568,8 +570,9 @@
             list(topic).forEach(item => { const i = seen.get(group(item)) || 0; seen.set(group(item), i + 1); fame.set(item, (item.k === 1 ? 0 : 1) + i / counts.get(group(item))); });
         }
         const fameOf = (item) => (fame.has(item) ? fame.get(item) : 1.5);
-        // Společná pole položky rodiny: název, známost (fame k řazení, known = k 1, expert = x 1) a téma
-        const about = (item, topic) => ({ label: item.n, q: item.q, fame: fameOf(item), known: item.k === 1 && item.x !== 1, expert: item.x === 1, topic });
+        // Společná pole položky rodiny: název, známost (fame k řazení, known = k 1, expert = x 1), téma a položka z dat podle tématu
+        // (srcs: otázky Mudrlanta berou položku i nesprávné možnosti ze stejného tématu)
+        const about = (item, topic) => ({ label: item.n, q: item.q, fame: fameOf(item), known: item.k === 1 && item.x !== 1, expert: item.x === 1, topic, srcs: { [topic]: item } });
         // Státy podle názvu (osobnosti a díla mají zemi názvem)
         const stateByName = new Map(Object.entries(CLEAN_LANDS));
         const capitals = new Map();
@@ -618,8 +621,13 @@
             if (!entry.key) return;
             if (!families.has(id)) families.set(id, { entries: [], byQ: new Map() });
             const family = families.get(id);
-            // Stejná položka z druhého tématu (stavba v Zeměpisu i v Architektuře): jen doplní státy
-            if (entry.q && family.byQ.has(entry.q)) { entry.rel.forEach(at => family.byQ.get(entry.q).rel.add(at)); return; }
+            // Stejná položka z druhého tématu (stavba v Zeměpisu i v Architektuře): jen doplní státy a položku tématu
+            if (entry.q && family.byQ.has(entry.q)) {
+                const known = family.byQ.get(entry.q);
+                entry.rel.forEach(at => known.rel.add(at));
+                if (entry.srcs) known.srcs = { ...entry.srcs, ...known.srcs };
+                return;
+            }
             if (entry.q) family.byQ.set(entry.q, entry);
             family.entries.push(entry);
         };
@@ -1234,38 +1242,390 @@
         const shares = familyShares(families, ctx.level);
         return families.map((family, i) => ({ id: family.id, domain: family.domain, share: shares[i] }));
     };
-    // Otázka pro tah: semínko = hra, území, druh tahu a pořadí tahu (stejná otázka i po zavření aplikace); only = jen tato rodina
-    // (testy a ladění)
-    // Správná odpověď otázky (pro hlídání opakování): u mapy název místa, jinak popisek správné možnosti
-    const answerKey = (question) => namePlain(question.kind === 'map' ? question.answerLabel : ((question.choices || []).find(choice => choice.correct) || {}).label || '');
-    // avoid = { answers: [klíče odpovědí, které hráč v této hře už dostal], families: [rodiny posledních otázek, nejnovější na konci] }:
-    // stejná odpověď se ve hře nezopakuje a stejná rodina nejde dvakrát po sobě; když jinak otázka nejde, pravidla se postupně uvolní
-    const buildQuestion = ({ data, territory, level = 0, topics = {}, seed = '', only = null, avoid = null }) => {
-        const item = indexMap(data).byId.get(territory);
-        if (!item) return null;
-        const lv = Math.max(0, Math.min(3, Math.round(Number(level) || 0)));
-        const rng = seededRandom(`dobyvani|${seed}|${territory}|${level}`);
-        const ctx = contextOf(data, item, lv, topics, rng);
-        const families = readyFamilies(ctx).filter(family => !only || family.id === only);
-        const order = weightedOrder(families, familyShares(families, lv), rng);
-        const used = new Set(((avoid && avoid.answers) || []).map(namePlain));
-        const recent = new Set(((avoid && avoid.families) || []).slice(-2));
-        const finish = (question, family) => ({ ...question, family: family.id, domain: family.domain, level, difficulty: Math.min(3, Math.max(1, level + 1)) });
-        const passes = avoid ? [{ fresh: true, varied: true }, { fresh: true, varied: false }, { fresh: false, varied: false }] : [{ fresh: false, varied: false }];
-        for (const pass of passes) {
-            for (const family of order) {
-                if (pass.varied && recent.has(family.id) && order.length > recent.size) continue;
-                // Rodina staví z náhodného výběru: na novou odpověď má až tři pokusy
-                for (let attempt = 0; attempt < (pass.fresh ? 3 : 1); attempt++) {
-                    const question = family.build(ctx, family);
-                    if (!question) break;
-                    if (pass.fresh && used.has(answerKey(question))) continue;
-                    return finish(question, family);
-                }
+    // --- Otázky Mudrlanta o položkách území: formy a skupiny ---
+    // Tah se ptá jako hlavní hra na věci, které k území patří (stavby, osobnosti, díla, místa, události): popis se zakrytým názvem,
+    // fakta, obrázek, letopočet. Záhlaví („Útok na Francii“) území prozradí, proto jsou všechny čtyři možnosti ze stejného území,
+    // rodiny a tématu (u osob i stejného pohlaví, popis ho prozradí tvarem slov): podle národnosti ani druhu nejde nic vyloučit.
+    // Položka, ke které se tři takové možnosti nenajdou (se známostí podle úrovně: na 0–1 jen známé, výš i méně známé, nikdy pro
+    // znalce), se neptá; rodina bez takové položky také ne. Skupiny: mudrlant (asi 60 %: popis, fakta, letopočet), formy (asi 25 %:
+    // obrázek, bod na mapě, odhad čísla) a stát (asi 15 %: vlajka, hlavní město, soused). Území bez položek pro skupinu mudrlant
+    // dostane její podíl vztahovými rodinami („Která z těchto staveb stojí ve Francii?“); jinak jsou jen poslední zálohou.
+    // Popis a obrázek potřebují síť: buildQuestion vrátí rozpracovanou otázku (pending: možnosti už jsou dané) a prepareQuestion ji
+    // doplní přes roundFor (app.js: createRoundData jako v hlavní hře); když roundFor selže, nevrátí, co forma potřebuje, nebo
+    // nestihne ROUND_TIMEOUT, přijde místní otázka ze stejného semínka (local: bez forem, které potřebují síť).
+    const cached = (ctx, key, compute) => {
+        if (!ctx.memo) ctx.memo = new Map();
+        if (!ctx.memo.has(key)) ctx.memo.set(key, compute());
+        return ctx.memo.get(key);
+    };
+    // ask = otázka u popisu a faktů, photo = otázka u obrázku (rodina bez ní na obrázek nejde: obal knihy, plakát filmu, znak klubu
+    // nesou název, řeka a jezero se z fotky nepoznají), noText = text před odpovědí téma neukazuje (regiony), person = osoby
+    const PERSON_ASK = { ask: 'Kdo to je?', photo: 'Kdo je na obrázku?', person: true };
+    // Hory a sopky, nebo pohoří (podle toho, co mezi možnostmi je)
+    const PEAK_TYPES = new Set(['hora', 'sopka', 'stratovulkán', 'kopec']);
+    const mountainWord = (found) => (found.every(entry => PEAK_TYPES.has(entry.sub)) ? 'Která hora' : found.every(entry => entry.sub === 'pohoří') ? 'Které pohoří' : 'Která hora nebo pohoří');
+    const MUDRLANT = {
+        city: { ask: 'Které město to je?', photo: 'Které město je na fotce?' },
+        building: { ask: 'Která stavba to je?', photo: 'Co je to za stavbu?' },
+        castle: { ask: 'Který hrad nebo zámek to je?', photo: 'Který hrad nebo zámek je na fotce?' },
+        mountain: { ask: (src, found) => `${mountainWord(found)} to je?`, photo: (src, found) => `${mountainWord(found)} je na fotce?` },
+        lake: { ask: 'Která vodní plocha to je?' },
+        island: { ask: 'Který ostrov to je?', photo: 'Který ostrov je na fotce?' },
+        nature: { ask: 'Které přírodní místo to je?', photo: 'Které přírodní místo je na fotce?' },
+        river: { ask: 'Která řeka to je?' },
+        region: { ask: 'Který region to je?', noText: true, photo: (src) => (src.it === 'v' ? 'Kterému regionu patří tato vlajka?' : 'Kterému regionu patří tento znak?') },
+        band: { ask: 'Která kapela to je?', photo: 'Která kapela je na fotce?' },
+        book: { ask: 'Které literární dílo to je?' },
+        'music-work': { ask: 'Které hudební dílo to je?' },
+        opera: { ask: (src, found) => (found.every(entry => entry.sub === 'opera') ? 'Která opera to je?' : 'Která opera nebo opereta to je?') },
+        painting: { ask: 'Který obraz to je?', photo: 'Který obraz to je?' },
+        sculpture: { ask: 'Která socha to je?', photo: 'Která socha to je?' },
+        film: { ask: 'Který film to je?' },
+        invention: { ask: 'Který vynález to je?' },
+        club: { ask: 'Který sportovní klub to je?' },
+        venue: { ask: 'Které sportoviště to je?', photo: 'Které sportoviště je na fotce?' },
+        battle: { ask: 'Která bitva to je?' },
+        event: { ask: 'Která událost to je?' },
+        dog: { ask: 'Které plemeno psa to je?', photo: 'Které plemeno psa je na fotce?' }
+    };
+    PEOPLE.forEach(([id]) => { if (!MUDRLANT[id]) MUDRLANT[id] = PERSON_ASK; });
+    const MUDRLANT_IDS = Object.keys(MUDRLANT);
+    const srcOf = (entry, topic = entry.topic) => entry.srcs[topic];
+    const hasImage = (entry) => { const src = srcOf(entry); return Boolean(src && src.im && src.ih); };
+    // Položky rodiny, pro které je území správnou odpovědí (vazba bez dvojí národnosti, jmenovců a sporů) a které jdou na této
+    // úrovni, od nejznámější
+    const ownEntries = (ctx, id) => cached(ctx, `own|${id}`, () => {
+        const family = ctx.pools.families.get(id);
+        const found = family && family.byTerritory ? family.byTerritory.get(ctx.item.id) : null;
+        return found ? found.filter(entry => entry.ok.includes(ctx.item.id) && usable(entry, ctx.level)) : [];
+    });
+    // Rodiny, ze kterých jde pro území otázka Mudrlanta v dané formě: aspoň čtyři použitelné položky jednoho tématu (u obrázku
+    // aspoň jedna s obrázkem); jako rodiny pro losování podle oborů (familyShares)
+    const mudrlantFamilies = (ctx, form) => cached(ctx, `mudrlant|${form}`, () => MUDRLANT_IDS.filter(id => {
+        const spec = MUDRLANT[id];
+        if ((form === 'photo' && !spec.photo) || (form === 'text' && spec.noText)) return false;
+        const own = ownEntries(ctx, id);
+        const byTopic = new Map();
+        own.forEach(entry => Object.keys(entry.srcs).forEach(topic => byTopic.set(topic, (byTopic.get(topic) || 0) + 1)));
+        return [...byTopic.values()].some(count => count >= 4) && (form !== 'photo' || own.some(hasImage));
+    }).map(id => ({ id, domain: FAMILY_DOMAIN[id], w: [1, 1, 1, 1] })));
+    // Tři nesprávné možnosti k položce: ze stejného území, rodiny i tématu, osoby stejného pohlaví; napřed stejná kategorie a druh
+    // (ke katedrále katedrály: druh je u otázky vidět a popis ho říká), nízko nejznámější, výš podobně známé; názvy různé a žádný není
+    // částí jiného (Louvre – Palais du Louvre) ani jen jiným tvarem téhož (Pařížská mírová smlouva – Pařížské mírové smlouvy)
+    const sexOf = (src) => (src && src.sx === 'f' ? 'f' : 'm');
+    const stemsOf = (text) => namePlain(text).split(' ').filter(Boolean).map(word => (word.length >= 5 ? word.slice(0, word.length - 2) : word));
+    const sameStems = (a, b) => { const x = stemsOf(a); const y = stemsOf(b); return x.length === y.length && x.every((stem, i) => stem === y[i]); };
+    const clash = (a, b) => namePlain(a) === namePlain(b) || sameStems(a, b) || Boolean(core && core.isNamePart && core.isNamePart(a, b));
+    const distractorsFor = (pick, own, spec, ctx) => {
+        const topic = pick.topic;
+        const src = srcOf(pick);
+        const ranked = own.filter(entry => entry !== pick && entry.srcs[topic] && (!spec.person || sexOf(entry.srcs[topic]) === sexOf(src)))
+            .map(entry => {
+                const other = entry.srcs[topic];
+                const fame = ctx.level <= 1 ? entry.fame : Math.abs(entry.fame - pick.fame);
+                return { entry, score: (other.c === src.c ? 0 : 4) + (other.ty && other.ty === src.ty ? 0 : 3) + fame + ctx.rng() * 0.8 };
+            }).sort((a, b) => a.score - b.score);
+        const chosen = [];
+        for (const { entry } of ranked) {
+            if ([pick, ...chosen].some(other => clash(other.label, entry.label))) continue;
+            chosen.push(entry);
+            if (chosen.length === 3) break;
+        }
+        return chosen.length === 3 ? chosen : null;
+    };
+    // Otázka Mudrlanta (popis, fakta, obrázek): rodina podle oborů, položka podle úrovně, možnosti z území; obsah doplní prepareQuestion
+    const mudrlantQuestion = (ctx, form, used) => {
+        const { level, rng } = ctx;
+        const families = mudrlantFamilies(ctx, form);
+        for (const family of weightedOrder(families, familyShares(families, level), rng).slice(0, 8)) {
+            const spec = MUDRLANT[family.id];
+            const own = ownEntries(ctx, family.id);
+            const fresh = own.filter(entry => !used.has(entry.key) && (form !== 'photo' || hasImage(entry)));
+            const picks = [...new Set([...shuffle(levelWindow(fresh, level), rng), ...shuffle(fresh, rng)])].slice(0, 6);
+            for (const pick of picks) {
+                const wrong = distractorsFor(pick, own, spec, ctx);
+                const choices = wrong && options({ label: pick.label }, wrong.map(entry => ({ label: entry.label })), rng);
+                if (!choices) continue;
+                const ask = form === 'photo' ? spec.photo : spec.ask;
+                // Štítek druhu („katedrála“) se ukáže, jen když ho mají všechny čtyři možnosti (jinak by odpověď napověděl)
+                const sameType = wrong.every(entry => (srcOf(entry, pick.topic).ty || '') === (srcOf(pick).ty || ''));
+                return {
+                    kind: 'mudrlant', form, family: family.id, prompt: typeof ask === 'function' ? ask(srcOf(pick), [pick, ...wrong]) : ask, choices, topic: pick.topic,
+                    answerItem: pick.label, sameType, pending: true, request: { form, topic: pick.topic, q: pick.q, wrong: wrong.map(entry => entry.q) }
+                };
             }
         }
         return null;
     };
+
+    // --- Letopočet: „V jakém roce se narodil Victor Hugo?“ (položka území, čtyři roky po stejném kroku, správný na náhodném místě) ---
+    // field = pole z dat (první, které položka má), min = nejstarší rok (stavby až od roku 1800: u starších data míchají začátek
+    // a konec stavby), latest = nejpozdější rok mezi možnostmi, when = jen některé názvy. Název s letopočtem (olympiády) ne
+    const YEARS = {
+        book: { field: 'year', ask: (label) => `V jakém roce vzniklo literární dílo ${label}?` },
+        'music-work': { field: 'year', ask: (label) => `V jakém roce vzniklo hudební dílo ${label}?` },
+        opera: { field: 'year', ask: (label, src) => `V jakém roce vznikla ${src.ty === 'opereta' ? 'opereta' : 'opera'} ${label}?` },
+        painting: { field: 'year', ask: (label) => `V jakém roce vznikl obraz ${label}?` },
+        sculpture: { field: 'year', ask: (label) => `V jakém roce vznikla socha ${label}?` },
+        film: { field: 'year', ask: (label) => `V jakém roce měl premiéru film ${label}?` },
+        band: { field: 'from', ask: (label) => `V jakém roce vznikla kapela ${label}?` },
+        club: { field: 'from', ask: (label) => `V jakém roce byl založen klub ${label}?` },
+        venue: { field: 'opened', ask: (label) => `V jakém roce bylo otevřeno sportoviště ${label}?` },
+        battle: { field: 'year', when: (label) => /^Bitva /.test(label), ask: (label) => `V jakém roce se odehrála ${label.charAt(0).toLocaleLowerCase('cs')}${label.slice(1)}?` },
+        event: { field: 'year', ask: (label) => `V jakém roce se odehrála událost ${label}?` },
+        building: { field: ['year', 'y'], min: 1800, ask: (label) => `Ze kterého roku pochází ${label}?` }
+    };
+    const THIS_YEAR = new Date().getFullYear();
+    // Osoby: rok narození (žádná možnost mladší než 16 let)
+    PEOPLE.forEach(([id]) => { if (MUDRLANT[id] === PERSON_ASK) YEARS[id] = { field: 'born', latest: THIS_YEAR - 16, ask: (label, src) => `V jakém roce se ${src.sx === 'f' ? 'narodila' : 'narodil'} ${label}?` }; });
+    // Krok mezi roky podle doby (u dávných dějin větší) a úrovně (nízko daleko od sebe)
+    const YEAR_STEP = [3, 2.2, 1.6, 1.2];
+    const yearGap = (value) => (value >= 1900 ? 10 : value >= 1700 ? 15 : value >= 1400 ? 30 : 60);
+    const yearText = (value) => (core && core.formatYear ? core.formatYear(value) : String(value));
+    const yearOf = (id, entry) => {
+        const spec = YEARS[id];
+        if (spec.when && !spec.when(entry.label)) return null;
+        if (/\d{3,4}/.test(entry.label)) return null;
+        for (const src of Object.values(entry.srcs)) {
+            for (const key of [].concat(spec.field)) {
+                const value = (src.f || {})[key];
+                if (Number.isInteger(value) && value >= (spec.min || 1000) && value <= (spec.latest || THIS_YEAR)) return value;
+            }
+        }
+        return null;
+    };
+    const yearEntries = (ctx) => cached(ctx, 'years', () => Object.keys(YEARS).flatMap(id => ownEntries(ctx, id).map(entry => ({ id, entry, value: yearOf(id, entry) })).filter(row => row.value !== null)));
+    // Čtyři roky po kroku, žádný v budoucnosti (ani po latest)
+    const yearChoices = (year, level, rng, latest = THIS_YEAR) => {
+        const step = Math.max(2, Math.round(yearGap(year) * YEAR_STEP[level]));
+        const lowest = Math.max(0, 3 - Math.floor((latest - year) / step));
+        const at = lowest + Math.floor(rng() * (4 - lowest));
+        const choices = [0, 1, 2, 3].map(i => ({ label: yearText(year + step * (i - at)), correct: i === at }));
+        return distinctLabels(choices) ? choices : null;
+    };
+    // Položka podle rodin (losování podle oborů, ať nepřeváží spisovatelé) a úrovně
+    const pickByFamily = (ctx, rows) => {
+        const families = [...new Set(rows.map(row => row.id))].map(id => ({ id, domain: FAMILY_DOMAIN[id] || 'geo', w: [1, 1, 1, 1] }));
+        const family = weightedOrder(families, familyShares(families, ctx.level), ctx.rng)[0];
+        if (!family) return null;
+        const own = rows.filter(row => row.id === family.id);
+        const pick = shuffle(levelWindow(own.map(row => row.entry), ctx.level), ctx.rng)[0];
+        return own.find(row => row.entry === pick) || null;
+    };
+    const yearQuestion = (ctx, used) => {
+        const row = pickByFamily(ctx, yearEntries(ctx).filter(other => !used.has(other.entry.key)));
+        const choices = row && yearChoices(row.value, ctx.level, ctx.rng, YEARS[row.id].latest);
+        if (!choices) return null;
+        const src = Object.values(row.entry.srcs).find(other => other.sx) || srcOf(row.entry);
+        return { kind: 'year', form: 'year', family: row.id, prompt: YEARS[row.id].ask(row.entry.label, src), choices, topic: row.entry.topic, answerItem: row.entry.label };
+    };
+
+    // --- Odhad čísla: výška hory nebo věže, délka řeky, rozloha ostrova či jezera, kapacita stadionu, obyvatelé české obce; jinak
+    // obyvatelé a rozloha státu nebo největší město (rodiny population, area, bigcity). Čtyři hodnoty po násobcích (nízko daleko od sebe),
+    // zaokrouhlené na 2 platné číslice; max = víc nemá smysl nabízet (hora nad Mount Everestem)
+    const TOWER_TYPES = new Set(['mrakodrap', 'rozhledna', 'věž', 'vysílač', 'televizní věž', 'šikmá věž']);
+    const MAGNITUDES = [
+        { id: 'mountain', field: 'elev', unit: ' m', min: 300, max: 8900, when: (src) => PEAK_TYPES.has(src.ty), ask: (label) => `Jakou nadmořskou výšku přibližně má ${label}?` },
+        { id: 'river', field: 'len', unit: ' km', min: 80, max: 7000, ask: (label) => `Jak dlouhá je přibližně řeka ${label}?` },
+        { id: 'building', field: 'h', unit: ' m', min: 100, max: 900, when: (src) => TOWER_TYPES.has(src.ty), ask: (label) => `Kolik metrů přibližně měří ${label}?` },
+        { id: 'island', field: 'area', unit: ' km²', min: 20, when: (src) => src.ty === 'ostrov', ask: (label) => `Jakou rozlohu přibližně má ${label}?` },
+        { id: 'lake', field: 'area', unit: ' km²', min: 5, when: (src) => src.ty === 'jezero', ask: (label) => `Jakou rozlohu přibližně má ${label}?` },
+        { id: 'venue', field: 'capacity', unit: '', min: 5000, when: (src) => /^(?:stadion|aréna)$/.test(src.ty || ''), ask: (label) => `Kolik diváků přibližně pojme ${label}?` },
+        // Počet obyvatel měst jen u českých obcí (u velkoměst světa záleží na tom, co se za město počítá)
+        { id: 'city', field: 'pop', unit: '', min: 3000, czech: true, ask: (label) => `Kolik obyvatel přibližně má ${label}?` }
+    ];
+    const MAGNITUDE_RATIO = [1.8, 1.55, 1.35, 1.25];
+    const magnitudeEntries = (ctx) => cached(ctx, 'magnitudes', () => MAGNITUDES.flatMap(spec => {
+        if (spec.czech && !(ctx.kraje || ctx.item.id === 'Q213')) return [];
+        return ownEntries(ctx, spec.id).map(entry => {
+            const src = Object.values(entry.srcs).find(other => Number.isFinite((other.f || {})[spec.field]) && (!spec.when || spec.when(other)));
+            const value = src ? src.f[spec.field] : 0;
+            return value >= spec.min && !(spec.max && value > spec.max) && !/\d/.test(entry.label) ? { id: spec.id, spec, entry, value } : null;
+        }).filter(Boolean);
+    }));
+    const magnitudeQuestion = (ctx, used) => {
+        const { level, rng } = ctx;
+        const row = pickByFamily(ctx, magnitudeEntries(ctx).filter(other => !used.has(other.entry.key)));
+        if (!row) return null;
+        const ratio = MAGNITUDE_RATIO[level];
+        const room = row.spec.max ? Math.floor(Math.log(row.spec.max / row.value) / Math.log(ratio)) : 3;
+        const lowest = Math.max(0, 3 - Math.max(0, room));
+        const at = lowest + Math.floor(rng() * (4 - lowest));
+        const choices = [0, 1, 2, 3].map(i => ({ label: `${numberText(row.value * ratio ** (i - at))}${row.spec.unit}`, correct: i === at }));
+        return distinctLabels(choices) ? { kind: 'number', form: 'estimate', family: row.id, prompt: row.spec.ask(row.entry.label), choices, topic: row.entry.topic, answerItem: row.entry.label } : null;
+    };
+    // Odhad: napůl čísla položek území, napůl čísla státu (obyvatelé, rozloha, největší město)
+    const estimateQuestion = (ctx, used) => {
+        const own = (question, family) => (question && !used.has(answerKey(question)) ? { ...question, family } : null);
+        const variants = shuffle([() => magnitudeQuestion(ctx, used), () => magnitudeQuestion(ctx, used), () => own(numberQuestion('population', ctx), 'population'),
+            () => own(numberQuestion('area', ctx), 'area'), () => own(cityQuestion(ctx), 'bigcity')], ctx.rng);
+        for (const variant of variants) { const question = variant(); if (question) return question; }
+        return null;
+    };
+
+    // --- Formy otázek ---
+    // Vztahové rodiny („Která z těchto staveb stojí ve Francii?“): podíl skupiny mudrlant, když ta pro území nejde, jinak záloha
+    const RELATIONAL = new Set(FAMILY_IDS.filter(id => !['capital', 'flag', 'neighbour', 'map', 'population', 'area', 'bigcity'].includes(id)));
+    // Až tři pokusy o otázku s odpovědí, která ve hře ještě nebyla (used prázdné = bez hlídání)
+    const retried = (used, build) => {
+        for (let attempt = 0; attempt < (used.size ? 3 : 1); attempt++) {
+            const question = build();
+            if (!question) return null;
+            if (!used.has(answerKey(question))) return question;
+        }
+        return null;
+    };
+    const relationalQuestion = (ctx, used) => {
+        const families = readyFamilies(ctx).filter(family => RELATIONAL.has(family.id));
+        for (const family of weightedOrder(families, familyShares(families, ctx.level), ctx.rng)) {
+            const question = retried(used, () => family.build(ctx, family));
+            if (question) return { ...question, family: family.id };
+        }
+        return null;
+    };
+    const simple = (family, build) => (ctx, used) => { const question = retried(used, () => build(ctx)); return question && { ...question, family }; };
+    // Skupiny a jejich podíl na otázkách území (skupina, která pro území nejde, svůj podíl rozdělí mezi ostatní)
+    const GROUPS = { mudrlant: 0.6, forms: 0.25, state: 0.15 };
+    // w = váha formy ve skupině podle úrovně 0–3: výš víc popisu a faktů, méně obrázků a letopočtů; remote = potřebuje síť (roundFor)
+    const FORMS = [
+        { id: 'text', group: 'mudrlant', w: [0.42, 0.43, 0.45, 0.48], remote: true, ready: (ctx) => mudrlantFamilies(ctx, 'text').length > 0, build: (ctx, used) => mudrlantQuestion(ctx, 'text', used) },
+        { id: 'facts', group: 'mudrlant', w: [0.32, 0.33, 0.35, 0.36], remote: true, ready: (ctx) => mudrlantFamilies(ctx, 'facts').length > 0, build: (ctx, used) => mudrlantQuestion(ctx, 'facts', used) },
+        { id: 'year', group: 'mudrlant', w: [0.26, 0.24, 0.2, 0.16], ready: (ctx) => yearEntries(ctx).length > 0, build: yearQuestion },
+        { id: 'photo', group: 'forms', w: [0.45, 0.4, 0.32, 0.25], remote: true, ready: (ctx) => mudrlantFamilies(ctx, 'photo').length > 0, build: (ctx, used) => mudrlantQuestion(ctx, 'photo', used) },
+        { id: 'map', group: 'forms', w: [0.25, 0.28, 0.32, 0.35], build: simple('map', mapQuestion) },
+        { id: 'estimate', group: 'forms', w: [0.3, 0.32, 0.36, 0.4], build: estimateQuestion,
+            ready: (ctx) => magnitudeEntries(ctx).length > 0 || ctx.pools.stats.has(ctx.item.id) || (ctx.pools.cities.get(ctx.item.id) || []).length >= 4 },
+        { id: 'flag', group: 'state', w: [1, 1, 1, 1], ready: (ctx) => Boolean(ctx.item.fl), build: simple('flag', flagQuestion) },
+        { id: 'capital', group: 'state', w: [1, 1, 1, 1], ready: (ctx) => Boolean(ctx.item.loc ? ctx.item.seat : ctx.pools.capitals.get(ctx.item.id)), build: simple('capital', capitalQuestion) },
+        { id: 'neighbour', group: 'state', w: [1, 1, 1, 1], build: simple('neighbour', neighbourQuestion) },
+        { id: 'relational', group: 'relational', w: [1, 1, 1, 1], ready: (ctx) => readyFamilies(ctx).some(family => RELATIONAL.has(family.id)), build: relationalQuestion }
+    ];
+    const FORM_IDS = FORMS.map(form => form.id);
+    const FORM_BY_ID = Object.fromEntries(FORMS.map(form => [form.id, form]));
+    // Forma otázky staré rodiny (only = rodina)
+    const FORM_OF_FAMILY = { capital: 'capital', flag: 'flag', neighbour: 'neighbour', map: 'map', population: 'estimate', area: 'estimate', bigcity: 'estimate' };
+    const readyForms = (ctx, local) => FORMS.filter(form => !(local && form.remote) && (!form.ready || form.ready(ctx)));
+    // Podíly forem: podíl skupiny podle vah forem úrovně. Podíl forem skupiny mudrlant, které pro území nejdou (málo známých položek,
+    // bez sítě), převezmou vztahové rodiny (také otázky na položky území), ale nejvýš RELATIONAL_CAP otázek; zbytek a podíl ostatních
+    // chybějících forem se rozdělí mezi všechny přítomné formy
+    const RELATIONAL_CAP = 0.25;
+    const formShares = (forms, level) => {
+        const ready = new Set(forms.map(form => form.id));
+        const base = (form) => (GROUPS[form.group] || 0) * form.w[level] / FORMS.filter(other => other.group === form.group).reduce((sum, other) => sum + other.w[level], 0);
+        const missing = FORMS.filter(form => form.group === 'mudrlant' && !ready.has(form.id)).reduce((sum, form) => sum + base(form), 0);
+        const others = forms.filter(form => form.group !== 'relational').reduce((sum, form) => sum + base(form), 0);
+        const relational = !(others > 0) ? 1 : ready.has('relational') ? Math.min(RELATIONAL_CAP, missing) : 0;
+        return forms.map(form => (form.group === 'relational' ? relational : (1 - relational) * base(form) / others));
+    };
+    const clampLevel = (level) => Math.max(0, Math.min(3, Math.round(Number(level) || 0)));
+    // Plán forem území na úrovni: formy, které jdou, a jejich podíly (pro testy a ladění); local = bez forem, které potřebují síť
+    const formPlan = ({ data, territory, level = 0, topics = {}, local = false }) => {
+        const item = indexMap(data).byId.get(territory);
+        if (!item) return [];
+        const ctx = contextOf(data, item, clampLevel(level), topics, () => 0.5);
+        const forms = readyForms(ctx, local);
+        const shares = formShares(forms, ctx.level);
+        return forms.map((form, i) => ({ id: form.id, group: form.group, share: shares[i] }));
+    };
+
+    // Správná odpověď otázky (pro hlídání opakování): položka, na kterou se otázka ptá (i u letopočtu a odhadu), u mapy název místa,
+    // jinak popisek správné možnosti
+    const answerKey = (question) => namePlain(question.answerItem || (question.kind === 'map' ? question.answerLabel : ((question.choices || []).find(choice => choice.correct) || {}).label) || '');
+    // Otázka pro tah: semínko = hra, území, druh tahu a pořadí tahu (stejná otázka i po zavření aplikace). avoid = { answers: [klíče
+    // odpovědí, které hráč v této hře už dostal], forms: [formy posledních otázek, nejnovější na konci] }: stejná položka se ve hře
+    // nezopakuje a stejná forma nejde dvakrát po sobě; když jinak otázka nejde, pravidla se postupně uvolní. local = jen formy bez
+    // sítě; only = jen tato forma nebo stará rodina (testy a ladění)
+    const buildQuestion = ({ data, territory, level = 0, topics = {}, seed = '', only = null, avoid = null, local = false }) => {
+        const item = indexMap(data).byId.get(territory);
+        if (!item) return null;
+        const lv = clampLevel(level);
+        const rng = seededRandom(`dobyvani|${seed}|${territory}|${level}`);
+        const ctx = contextOf(data, item, lv, topics, rng);
+        const finish = (question) => {
+            const form = question.form || FORM_OF_FAMILY[question.family] || 'relational';
+            return { ...question, form, group: (FORM_BY_ID[form] || FORM_BY_ID.relational).group, domain: FAMILY_DOMAIN[question.family] || 'geo', level, difficulty: Math.min(3, Math.max(1, level + 1)) };
+        };
+        // Jedna stará rodina (testy a ladění)
+        if (only && !FORM_BY_ID[only]) {
+            const family = readyFamilies(ctx).find(entry => entry.id === only);
+            const question = family && family.build(ctx, family);
+            return question ? finish({ ...question, family: family.id }) : null;
+        }
+        const forms = readyForms(ctx, local).filter(form => !only || form.id === only);
+        const order = weightedOrder(forms, formShares(forms, lv), rng);
+        const used = new Set(((avoid && avoid.answers) || []).map(namePlain));
+        const last = ((avoid && (avoid.forms || avoid.families)) || []).slice(-1)[0] || null;
+        const none = new Set();
+        const passes = avoid ? [{ fresh: true, varied: true }, { fresh: true, varied: false }, { fresh: false, varied: false }] : [{ fresh: false, varied: false }];
+        for (const pass of passes) {
+            for (const form of order) {
+                if (pass.varied && form.id === last && order.length > 1) continue;
+                const question = form.build(ctx, pass.fresh ? used : none);
+                if (question) return finish({ ...question, form: question.form || form.id });
+            }
+        }
+        return null;
+    };
+
+    // --- Doplnění otázky Mudrlanta obsahem z hlavní hry ---
+    // roundFor({ form, topic, q, wrong, seed }) → { text, origin ('article' = úvod článku z Wikipedie), facts: [{ label, value }],
+    // typeLabel, image } nebo null; app.js ho staví z createRoundData (popis se zakrytým názvem a jmény nesprávných možností, fakta
+    // bez prozrazení odpovědi a bez hodnot, které mají všechny možnosti, ověřený obrázek bez napsané odpovědi)
+    const ROUND_TIMEOUT = 4000;
+    const MIN_TEXT_WORDS = (core && core.MIN_DESCRIPTION_WORDS) || 14;
+    const realWords = (text) => String(text || '').replace(/\[\*\*\*\]/g, ' ').split(/\s+/).filter(word => /\p{L}{2,}/u.test(word)).length;
+    // Popis musí být z článku a dost dlouhý; jinak (krátký popis z Wikidat) aspoň se dvěma fakty. Fakta aspoň dvě, obrázek načtený.
+    // Otázka na fakta, ke které jich je málo, se zeptá popisem (když předchozí otázka nebyla popis: last = forma předchozí otázky)
+    const completeQuestion = (question, data, last = null) => {
+        if (!question || !question.pending || !data) return null;
+        const seen = new Set();
+        const facts = (Array.isArray(data.facts) ? data.facts : []).filter(fact => fact && fact.label && (typeof fact.value === 'string' || typeof fact.value === 'number'))
+            .map(fact => ({ label: String(fact.label), value: String(fact.value) })).filter(fact => !seen.has(fact.label) && seen.add(fact.label));
+        const text = String(data.text || '').trim();
+        let content = null;
+        if (question.form === 'text' && text) {
+            if (data.origin === 'article' && realWords(text) >= MIN_TEXT_WORDS) content = { text };
+            else if (facts.length >= 2) content = { text, facts: facts.slice(0, 3) };
+        } else if (question.form === 'facts') {
+            if (facts.length >= 2) content = { facts: facts.slice(0, 4) };
+            else if (last !== 'text' && text && data.origin === 'article' && realWords(text) >= MIN_TEXT_WORDS) return completeQuestion({ ...question, form: 'text' }, { ...data, facts: [] });
+        } else if (question.form === 'photo' && data.image) content = { image: String(data.image) };
+        if (!content) return null;
+        const { pending, request, ...rest } = question;
+        return { ...rest, content: { ...content, type: question.sameType ? String(data.typeLabel || '') : '' } };
+    };
+    // Otázka pro tah i s obsahem: rozpracovanou otázku doplní roundFor, při chybě nebo po timeout ms místní otázka (fallback: true)
+    const prepareQuestion = async ({ roundFor = null, timeout = ROUND_TIMEOUT, ...args }) => {
+        const question = buildQuestion(args);
+        if (!question || !question.pending) return question;
+        let data = null;
+        if (typeof roundFor === 'function') {
+            let timer = null;
+            try {
+                data = await Promise.race([
+                    Promise.resolve().then(() => roundFor({ ...question.request, seed: `${args.seed || ''}|${args.territory}` })),
+                    new Promise(resolve => { timer = setTimeout(() => resolve(null), timeout); })
+                ]);
+            } catch (error) { data = null; } finally { clearTimeout(timer); }
+        }
+        const done = completeQuestion(question, data, ((args.avoid && (args.avoid.forms || args.avoid.families)) || []).slice(-1)[0] || null);
+        if (done) return done;
+        // Místní otázka; jen jedna forma, která potřebuje síť (only, testy), se pro zálohu neuplatní
+        const local = buildQuestion({ ...args, only: FORM_BY_ID[args.only] && FORM_BY_ID[args.only].remote ? null : args.only, local: true });
+        return local && { ...local, fallback: true };
+    };
+    // Otázka přes celou obrazovku hry (Mudrlant s popisem, fakty nebo obrázkem); ostatní ve spodním listu
+    const isFullQuestion = (question) => Boolean(question && question.content);
+    // 4. pád názvu území („Útok na Francii“, „na Saúdskou Arábii“, „na Guineu-Bissau“): mění se jen ženský rod (přídavné jméno -á → -ou,
+    // podstatné jméno -ie/-ye → -ii/-yi, -a → -u; u spojovníku jen první část)
+    const accusativeOf = (item) => {
+        if (!item) return '';
+        if (item.g !== 'f') return item.n;
+        const word = (part) => (/[ýí]$/.test(part) ? part : /á$/.test(part) ? `${part.slice(0, -1)}ou` : /[iy]e$/.test(part) ? `${part.slice(0, -1)}i` : /a$/.test(part) ? `${part.slice(0, -1)}u` : part);
+        return item.n.split(' ').map(part => (part.length < 2 ? part : part.includes('-') ? part.replace(/^[^-]+/, word) : word(part))).join(' ');
+    };
+    // Záhlaví otázky tahu: „Útok na Francii“, „Opevnění Francie“
+    const moveTitle = (kind, item) => (kind === 'fortify' ? `Opevnění ${formsOf(item).of}` : `Útok na ${accusativeOf(item)}`);
 
     // --- Kronika tažení a přehrání ---
     const PARTICIPLE = { n: ['dobyto', 'opevněno'], f: ['dobyta', 'opevněna'], m: ['dobyt', 'opevněn'], p: ['dobyty', 'opevněny'] };
@@ -1990,9 +2350,12 @@
         </div>`;
     };
 
-    // Otázka tahu ve spodním listu
-    const questionHtml = (question, { title, item, data, answered = null }) => {
-        const stars = '<span class="flex gap-0.5" aria-label="Obtížnost">' + [1, 2, 3].map(n => `<i data-lucide="star" class="h-3.5 w-3.5 ${n <= question.difficulty ? 'fill-gold-400 text-gold-500' : 'text-slate-300 dark:text-slate-600'}"></i>`).join('') + '</span>';
+    // Otázka tahu: ve spodním listu, otázka Mudrlanta s obsahem (popis, fakta, obrázek) přes celou obrazovku hry (fullQuestionHtml)
+    const starsHtml = (difficulty) => '<span class="flex shrink-0 gap-0.5" role="img" aria-label="Obtížnost ' + difficulty + ' ze 3">' + [1, 2, 3].map(n => `<i data-lucide="star" class="h-3.5 w-3.5 ${n <= difficulty ? 'fill-gold-400 text-gold-500' : 'text-slate-300 dark:text-slate-600'}"></i>`).join('') + '</span>';
+    const choiceState = (choice, i, answered) => (answered === null ? '' : choice.correct ? ' cq-choice-ok' : answered === i ? ' cq-choice-bad' : ' opacity-60');
+    const questionHtml = (question, { title, item, data, answered = null, kind = 'attack' }) => {
+        if (isFullQuestion(question)) return fullQuestionHtml(question, { title, answered, kind });
+        const stars = starsHtml(question.difficulty);
         let visual = '';
         if (question.kind === 'map') {
             const [x0, y0, x1, y1] = item.b;
@@ -2004,21 +2367,48 @@
             }).join('');
             visual = `<svg viewBox="${(x0 - pad).toFixed(1)} ${(y0 - pad).toFixed(1)} ${(x1 - x0 + pad * 2).toFixed(1)} ${(y1 - y0 + pad * 2).toFixed(1)}" class="cq-qmap cq-paper mx-auto h-32 w-full rounded-xl short:h-24" aria-hidden="true"><path d="${item.d}" class="cq-qmap-land"/>${dots}</svg>`;
         }
-        const grid = question.images ? 'grid grid-cols-2 gap-1.5' : question.kind === 'map' ? 'grid grid-cols-4 gap-1.5' : 'grid grid-cols-1 gap-1.5';
+        // Krátké možnosti (letopočty, čísla) ve dvou sloupcích
+        const grid = question.images || question.kind === 'year' || question.kind === 'number' ? 'grid grid-cols-2 gap-1.5' : question.kind === 'map' ? 'grid grid-cols-4 gap-1.5' : 'grid grid-cols-1 gap-1.5';
         const options = question.choices.map((choice, i) => {
-            const state = answered === null ? '' : choice.correct ? ' cq-choice-ok' : answered === i ? ' cq-choice-bad' : ' opacity-60';
             // Náhled z Commons; když nejde, conquest-ui.js podle data-fallback načte původní soubor
             const inner = question.images ? `<img src="${esc(choice.image)}"${choice.fallback ? ` data-fallback="${esc(choice.fallback)}"` : ''} alt="" class="h-12 w-full object-contain short:h-10" referrerpolicy="no-referrer"><span class="sr-only">Možnost ${i + 1}</span>` : esc(choice.label);
-            return `<button type="button" data-cq-answer="${i}" ${answered !== null ? 'disabled' : ''} class="cq-choice${state} flex min-h-[2.75rem] items-center justify-center rounded-xl px-2 py-1 text-center text-[14px] font-bold leading-tight text-slate-800 dark:text-slate-100">${inner}</button>`;
+            return `<button type="button" data-cq-answer="${i}" ${answered !== null ? 'disabled' : ''} class="cq-choice${choiceState(choice, i, answered)} flex min-h-[2.75rem] items-center justify-center rounded-xl px-2 py-1 text-center text-[14px] font-bold leading-tight text-slate-800 dark:text-slate-100">${inner}</button>`;
         }).join('');
         const after = answered === null ? '' : question.kind === 'map' ? `<p class="text-center text-[12.5px] font-bold text-slate-600 dark:text-slate-300">${esc(question.answerLabel)} je bod ${esc(question.choices.find(c => c.correct).label)}.</p>`
             : question.images ? `<p class="text-center text-[12.5px] font-bold text-slate-600 dark:text-slate-300">Správně: ${esc(question.choices.find(c => c.correct).label)}</p>` : '';
-        return `<div class="cq-sheet cq-sheet-in rounded-t-2xl p-2.5 pb-3" role="dialog" aria-label="Otázka">
+        // Po odpovědi se list jen překreslí (bez nového vyjetí)
+        return `<div class="cq-sheet${answered === null ? ' cq-sheet-in' : ''} rounded-t-2xl p-2.5 pb-3" role="dialog" aria-label="Otázka">
             <div class="flex items-center gap-2"><span class="min-w-0 flex-1 truncate text-[11.5px] font-black uppercase tracking-wider text-amber-900 dark:text-amber-200">${esc(title)}</span>${stars}</div>
             <p class="mt-1 text-[15px] font-black leading-snug text-slate-900 dark:text-white">${esc(question.prompt)}</p>
             ${visual ? `<div class="mt-1.5">${visual}</div>` : ''}
             <div class="mt-2 ${grid}">${options}</div>
             ${after ? `<div class="mt-1.5">${after}</div>` : ''}
+        </div>`;
+    };
+    // Otázka Mudrlanta přes celou obrazovku hry (pergamen): záhlaví s tahem a hvězdami, otázka, rámeček s popisem (posouvá se uvnitř),
+    // fakty nebo obrázkem a štítkem druhu, pod ním čtyři možnosti ve dvou sloupcích; po odpovědi správná možnost
+    const fullQuestionHtml = (question, { title, answered, kind }) => {
+        const content = question.content;
+        const type = content.type ? `<span class="cq-qtype mb-1.5 inline-flex max-w-full items-center gap-1 rounded-lg px-2 py-0.5 text-[11.5px] font-black"><i data-lucide="tag" class="h-3.5 w-3.5 shrink-0"></i><span class="truncate">${esc(content.type)}</span></span>` : '';
+        const facts = (list) => `<dl class="flex flex-col gap-1" aria-label="Fakta">${list.map(fact => `<div class="cq-fact flex items-baseline gap-2 rounded-lg px-2 py-1"><dt class="w-[36%] shrink-0 text-[11px] font-black uppercase leading-tight tracking-wide text-amber-900/80 dark:text-gold-200/80">${esc(fact.label)}</dt><dd class="min-w-0 break-words text-[14px] font-bold leading-snug text-slate-900 dark:text-white">${esc(fact.value)}</dd></div>`).join('')}</dl>`;
+        let body;
+        if (content.image) {
+            body = `<div class="cq-qimg relative min-h-0 flex-1 overflow-hidden rounded-xl"><img src="${esc(content.image)}" alt="Obrázek k otázce" class="absolute inset-0 h-full w-full object-contain" referrerpolicy="no-referrer">${content.type ? `<div class="absolute left-1.5 top-1.5 max-w-[80%]">${type}</div>` : ''}</div>`;
+        } else if (content.text) {
+            body = `<div data-cq-qtext class="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-2.5">${type ? `<div>${type}</div>` : ''}<p class="text-[15px] font-medium italic leading-snug text-slate-800 dark:text-slate-100">„${esc(content.text)}“</p>${content.facts ? `<div class="mt-2">${facts(content.facts)}</div>` : ''}</div>`;
+        } else {
+            body = `<div class="flex min-h-0 flex-1 flex-col justify-center overflow-y-auto overscroll-contain px-2.5 py-2">${type ? `<div>${type}</div>` : ''}${facts(content.facts || [])}</div>`;
+        }
+        const options = question.choices.map((choice, i) => `<button type="button" data-cq-answer="${i}" ${answered !== null ? 'disabled' : ''} class="cq-choice${choiceState(choice, i, answered)} flex min-h-[3rem] min-w-0 items-center justify-center break-words rounded-xl px-2 py-1 text-center text-[13.5px] font-bold leading-tight text-slate-800 short:min-h-[2.75rem] dark:text-slate-100">${esc(choice.label)}</button>`).join('');
+        const right = question.choices.find(choice => choice.correct);
+        const after = answered === null ? '' : `<p class="mt-1.5 shrink-0 text-center text-[12.5px] font-bold text-slate-600 dark:text-slate-300">${question.choices[answered] && question.choices[answered].correct ? 'Správně!' : `Správně: ${esc(right.label)}`}</p>`;
+        return `<div data-cq-full class="cq-sheet cq-qfull${answered === null ? ' cq-sheet-in' : ''} flex h-full flex-col rounded-t-2xl p-2.5 pb-3 short:p-2" role="dialog" aria-label="Otázka">
+            <div class="flex shrink-0 items-center gap-2"><span class="cq-tone cq-tone-${kind === 'fortify' ? 'fortify' : 'capture'} flex h-7 w-7 shrink-0 items-center justify-center rounded-full"><i data-lucide="${kind === 'fortify' ? 'castle' : 'swords'}" class="h-4 w-4"></i></span>
+                <h2 class="cq-ledger-title min-w-0 flex-1 truncate">${esc(title)}</h2>${starsHtml(question.difficulty)}</div>
+            <p class="mt-1.5 shrink-0 text-[16px] font-black leading-snug text-slate-900 dark:text-white">${esc(question.prompt)}</p>
+            <div class="cq-qbox mt-1.5 flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl">${body}</div>
+            <div class="mt-2 grid shrink-0 grid-cols-2 gap-1.5">${options}</div>
+            ${after}
         </div>`;
     };
 
@@ -2084,9 +2474,10 @@
             ['Tahy', 'V každém období máš několik tahů. Kolik ti jich zbývá, ukazuje počítadlo s meči vpravo nahoře (3/5 = zbývají 3 z 5). Jeden tah je jedna otázka: útok, nebo opevnění. Nevyužité tahy na konci období propadnou.']
         ],
         utok: [
-            ['Útok', 'Klepni na volné nebo cizí území, které sousedí s některým tvým (má s ním společnou hranici, nebo ho s ním spojuje tečkovaná námořní cesta), pak na „Zaútočit“ a odpověz na otázku.'],
-            ['Správně', 'Neopevněné území je hned tvoje. U opevněného území klesne opevnění o jednu úroveň a území zůstane soupeři. Dobýt ho jde, až už opevnění nemá.'],
-            ['Špatně', 'Útok nevyjde a tah propadne. Čím víc je cíl opevněný, tím je otázka těžší.'],
+            ['Útok', 'Klepni na volné nebo cizí území sousedící s tvým (společnou hranicí nebo tečkovanou námořní cestou), pak na „Zaútočit“ a odpověz na otázku.'],
+            ['Otázky', 'Hlavně o tom, co k území patří: stavby, osobnosti, díla, místa, události. Všechny možnosti jsou z téhož území. Občas i mapa, odhad čísla nebo vlajka.'],
+            ['Správně', 'Neopevněné území je hned tvoje. U opevněného klesne opevnění o jednu úroveň a území zůstane soupeři. Dobýt ho jde, až opevnění nemá.'],
+            ['Špatně', 'Útok nevyjde a tah propadne. Čím víc je cíl opevněný, tím těžší je otázka.'],
             ['Opevnění', 'Klepni na své území a pak na „Opevnit“. Správná odpověď přidá jednu úroveň: Palisáda (1), Hradba (2), Pevnost (3, jen na domovském území). Každou úroveň musí útočník nejdřív pobourat.']
         ],
         regiony: [
@@ -2120,7 +2511,8 @@
         durationLabel, periodLabel, actionsLabel, timeLeft, movesWord, pointsWord, playersWord, territoriesWord, regionsWord, nextPeriodAt, agoLabel, periodLine,
         budgetTitle, budgetInnerHtml, periodStartText, PENALTY_TEXT,
         indexMap, parseRings, pointInRings, project, territoryAt, isAdjacent, viewOf, rank, sourcesFor, actionsFor,
-        buildQuestion, answerKey, familyPlan, kindsFor, placesOf, poolsOf, formsOf, FAMILY_IDS, FAMILY_DOMAIN, DOMAINS, FAMILY_CAP, flagUrl, flagFallback, THUMB, feedItems, replaySteps, capturedWord, hatchPattern, levelIcon, iconMarkup,
+        buildQuestion, prepareQuestion, completeQuestion, isFullQuestion, moveTitle, accusativeOf, ROUND_TIMEOUT, formPlan, FORM_IDS, GROUPS, RELATIONAL_CAP, MUDRLANT_IDS,
+        answerKey, familyPlan, kindsFor, placesOf, poolsOf, formsOf, FAMILY_IDS, FAMILY_DOMAIN, DOMAINS, FAMILY_CAP, flagUrl, flagFallback, THUMB, feedItems, replaySteps, capturedWord, hatchPattern, levelIcon, iconMarkup,
         pennantSvg, pennantGroup, emblemSvg, sealSvg, mapSvg, thumbSvg, marksFor, homeCardHtml, hubHtml, mineHtml, lobbyHtml, createHtml, lookHtml, lobbyDetailHtml,
         gameScreenHtml, playersStripHtml, recentHtml, sheetHtml, devBarHtml, questionHtml, feedHtml, resultHtml, helpHtml, HELP_TABS, mapTitle, paramChips,
         // Pozvánky přátel (blok 24)
