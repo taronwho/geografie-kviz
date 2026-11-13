@@ -157,11 +157,16 @@ const overflow = (tab, selector = '#settings-overlay > div') => tab.evaluate((se
 const status = (tab) => tab.textContent('[data-push-status]');
 const advice = async (tab) => ((await tab.$('[data-push-advice]')) ? tab.textContent('[data-push-advice]') : '');
 // Rada u přepínače se ukáže, je vidět bez posouvání (v okně Nastavení) a nic nepřetéká do strany
+// Výsledek je vidět bez posouvání: u přepínače, nebo (zhuštěné Nastavení na nízkém displeji, short:/fit-short, kde se úspěch u přepínače
+// skryje, aby se karta vešla) v toastu nad oknem
 const visibleNear = (tab, selector) => tab.evaluate((selector) => {
     const el = document.querySelector(selector);
     const box = document.querySelector('#settings-overlay > div').getBoundingClientRect();
     const rect = el.getBoundingClientRect();
-    return rect.top >= box.top && rect.bottom <= box.bottom && rect.height > 0;
+    if (rect.top >= box.top && rect.bottom <= box.bottom && rect.height > 0) return true;
+    const toast = document.getElementById('toast');
+    const shown = toast && !toast.classList.contains('opacity-0') && toast.getBoundingClientRect().height > 0;
+    return Boolean(rect.height === 0 && shown && toast.textContent.trim() === el.textContent.trim().replace(/^Hotovo: /, '') || (shown && toast.textContent.includes(el.textContent.trim())));
 }, selector);
 
 test('upozornění (push) v Nastavení', { skip: !chromium && 'Playwright není nainstalovaný' }, async (t) => {
@@ -238,8 +243,10 @@ test('upozornění (push) v Nastavení', { skip: !chromium && 'Playwright není 
         await context.close();
     });
 
-    await t.test('skutečné povolení prohlížeče (grantPermissions): zapne se; když databáze funkce nemá (404), hráč to vidí i s radou', async () => {
+    await t.test('skutečné povolení prohlížeče (grantPermissions): zapne se; když databáze funkce nemá (404), hráč to vidí i s radou', async (st) => {
         const granted = await start({ grant: true, realNotification: true });
+        // Některé bezhlavé Chromium povolení upozornění přes grantPermissions nedá (zůstane „denied“): tehdy se tahle část přeskočí
+        if (await granted.tab.evaluate(() => Notification.permission) !== 'granted') { await granted.context.close(); st.skip('prohlížeč v tomto prostředí povolení upozornění nedá'); return; }
         assert.equal(await granted.tab.evaluate(() => Notification.permission), 'granted');
         await openSettings(granted.tab);
         await granted.tab.click('[data-push-toggle="on"]');
