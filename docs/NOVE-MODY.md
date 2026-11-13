@@ -180,7 +180,10 @@ Hra více hráčů o území na mapě. Hráči si hry sami zakládají a přidá
 - **Tahy**: počet tahů za den nebo za hodinu (podle nastavení hry). Nevyužité tahy propadají. Bonusy navíc:
   - +1 za každý celý region;
   - +1 jednorázově za dobytý poklad;
-  - +1 další období za dobyté hlavní město soupeře (kořist).
+  - +1 další období za dobyté hlavní město soupeře (kořist);
+  - −1 další období, když soupeř dobude tvůj domovský hrad (schéma 23; v liště hry červené „−1“ s hradem a toast).
+- **Upozornění na útok** (schéma 23): na koho soupeř zaútočí (dobytí, pobourání opevnění, odražený útok), dostane push „Dobývání: …“
+  s útočníkem a radou (opevni se, nebo vrať úder); za hru jedno souhrnné, nejvýš jednou za 10 minut; v Nastavení dlaždice Dobývání.
 - **Opevnění** (úroveň 0–3):
   - 1 Palisáda, 2 Hradba, 3 Pevnost;
   - běžné území nejvýš 2, domovské území (hrad) nejvýš 3;

@@ -92,6 +92,9 @@
             action: { kind: 'boss', label: 'Do arény' }, ready: (u) => u.boss, used: (u) => num(u.counters.bossFights) > 0 },
         { id: 'dobyvani', icon: 'swords', art: 'dobyvani', multi: true, account: true, after: 20, title: 'Dobývání', text: 'Na záložce Více hráčů najdeš Dobývání: s dalšími hráči dobýváte mapu otázkami a opevňujete svá území. Přidej se k Rychlé hře v Lobby, nebo založ vlastní a pozvi kamarády kódem.',
             action: { kind: 'conquest', label: 'Otevřít Dobývání' }, used: (u) => Boolean(u.visited.conquest) },
+        // Dobývání (schéma 23): ztracený hrad stojí tah, upozornění na útoky; pro toho, kdo už Dobývání otevřel (pravidlo je nové pro všechny)
+        { id: 'dobyvani-hrad', icon: 'castle', art: 'hrad-domov', multi: true, account: true, after: 20, title: 'Braň svůj hrad', text: 'V Dobývání se vyplatí opevnit domovský hrad: kdo o něj přijde, má v dalším období o 1 tah méně. Se zapnutými upozorněními se o útoku na tvá území dozvíš hned a můžeš se opevnit, nebo vrátit úder.',
+            action: { kind: 'conquest', label: 'Otevřít Dobývání' }, ready: (u) => Boolean(u.visited.conquest), used: () => false },
         // Kamarádské sázky (bets.js): obrázek sova-vyzva do dodání č. 243 sova-sazka (bets.js ART.owl)
         { id: 'sazky', icon: 'gem', art: 'sova-vyzva', multi: true, account: true, after: 30, title: 'Kamarádské sázky', text: 'Klepni na Vyzvat a vyber konkrétního hráče. V řádku Sázka můžeš vsadit 10, 25 nebo 50 XP a přidat vtipnou hlášku. Kdo vyhraje, vklad získá. Úroveň ti nikdy neklesne.',
             action: { kind: 'multi', label: 'Zkusit' }, ready: (u) => u.bets && num(u.counters.challenges) >= 2, used: (u) => Boolean(u.visited.bets) || num(u.counters.bets) > 0 },

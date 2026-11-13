@@ -1011,7 +1011,9 @@ grant select, insert, delete on public.push_subscriptions to authenticated;
 -- Co hráč chce dostávat (výchozí všechno); vypnutí odběru v aplikaci maže řádky push_subscriptions, tyhle sloupce jsou jemnější volba
 alter table public.profiles add column if not exists push_tournament boolean not null default true;
 alter table public.profiles add column if not exists push_challenge boolean not null default true;
-grant update (push_tournament, push_challenge) on public.profiles to authenticated;
+-- útoky soupeřů v Dobývání (blok 23)
+alter table public.profiles add column if not exists push_conquest boolean not null default true;
+grant update (push_tournament, push_challenge, push_conquest) on public.profiles to authenticated;
 
 -- Odběr přes funkci: stejný endpoint (totéž zařízení) přejde na právě přihlášeného hráče a počítadlo chyb se vynuluje; nejvýš 10 zařízení na hráče
 drop function if exists public.push_subscribe(text, text, text);
@@ -1091,8 +1093,10 @@ language sql immutable as $$
             when 8 then 'čtvrtfinále' when 4 then 'semifinále' when 2 then 'finále' else 'kolo' end end
 $$;
 
--- Co poslat: (a) dnešní neodehraný turnajový zápas, (b) nevyřízená příchozí výzva mladší než 3 dny a výsledek výzvy, kterou hráč založil, (c) nepřečtená zpráva o turnaji.
--- Jeden řádek na odběr (zařízení); z každého druhu nejvýš jedna věc na hráče a běh a nic, co téhož druhu dostal v poslední hodině.
+-- Co poslat: (a) dnešní neodehraný turnajový zápas, (b) nevyřízená příchozí výzva mladší než 3 dny a výsledek výzvy, kterou hráč založil, (c) nepřečtená zpráva o turnaji,
+-- (e) útoky soupeřů v Dobývání (conquest_push_items, blok 23).
+-- Jeden řádek na odběr (zařízení); z každého druhu nejvýš jedna věc na hráče a běh a nic, co téhož druhu dostal v poslední hodině
+-- (útoky v Dobývání: v posledních 10 minutách, období hry bývá jen hodina).
 -- push_pending() je interní (bez ověření tajemství a bez posunu turnajů): totéž, co by teď vrátilo push_due, a totéž, podle čeho
 -- push_kick pozná, že je co poslat – pravidla jsou tak na jednom místě. Práva volajícího (spouští ji jen push_due a push_kick), přes API nejde.
 create or replace function public.push_pending() returns table (
@@ -1156,11 +1160,15 @@ begin
             public.push_test_key(pt.user_id, pt.requested_at), pt.requested_at::text
         from public.push_tests pt
         where pt.requested_at > now() - interval '1 day'
+        union all
+        -- (e) útoky soupeřů v Dobývání: jedno souhrnné upozornění za hru (tabulky Dobývání vznikají níž, plpgsql je hledá až při běhu)
+        select c.user_id, c.kind, c.title, c.body, c.url, c.dedupe_key, c.sort_at from public.conquest_push_items() c
     ), fresh as (
         select i.*, row_number() over (partition by i.user_id, i.kind order by i.sort_at, i.dedupe_key) as rn
         from items i
         where not exists (select 1 from public.push_sent s where s.dedupe_key = i.dedupe_key)
-            and (i.kind = 'test' or not exists (select 1 from public.push_sent s where s.user_id = i.user_id and s.kind = i.kind and s.sent_at > now() - interval '55 minutes'))
+            and (i.kind = 'test' or not exists (select 1 from public.push_sent s where s.user_id = i.user_id and s.kind = i.kind
+                and s.sent_at > now() - case when i.kind = 'conquest' then interval '10 minutes' else interval '55 minutes' end))
     )
     select f.user_id, s.endpoint, s.p256dh, s.auth, f.kind, f.title, f.body, f.url, f.dedupe_key
     from fresh f join public.push_subscriptions s on s.user_id = f.user_id and s.fails < 3
@@ -1192,7 +1200,8 @@ begin
     perform public.push_check_secret(secret);
     insert into public.push_sent (dedupe_key, user_id, kind)
     select k, case when split_part(k, ':', 3) ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then split_part(k, ':', 3)::uuid end,
-        case split_part(k, ':', 1) when 'tour' then 'tournament' when 'chal' then 'challenge' when 'chalr' then 'challenge' when 'notice' then 'notice' when 'test' then 'test' end
+        case split_part(k, ':', 1) when 'tour' then 'tournament' when 'chal' then 'challenge' when 'chalr' then 'challenge' when 'notice' then 'notice' when 'test' then 'test'
+            when 'cq' then 'conquest' end
     from unnest(coalesce(keys, '{}')) k where char_length(k) between 1 and 200
     on conflict (dedupe_key) do nothing;
     -- Odeslaná zkušební zpráva je vyřízená; novější žádost (jiný čas, jiný klíč) zůstane čekat. Nevyřízené žádosti starší než den se zahodí.
@@ -3894,7 +3903,8 @@ grant execute on function public.boss_submit(date, integer, integer, boolean), p
 -- od ostatních, na neutrálních územích se rozmístí poklady. Tah = otázka (správnost posílá aplikace, hrají spolu lidé, kteří se znají
 -- z lobby); útok jen na území sousedící s vlastním, opevnění jen vlastního. Úroveň opevnění 0–3 (palisáda, hradba, pevnost; pevnost
 -- jen na domovském území); úspěšný útok na opevněné území ubere úroveň, na neopevněné ho dobude. Tahy za období: základ hry, +1 za každý
--- celý region, +1 za poklad dobytý v tomto období a +1 za každé domovské území soupeře dobyté v minulém období (kořist). Kdo přijde
+-- celý region, +1 za poklad dobytý v tomto období a +1 za každé domovské území soupeře dobyté v minulém období (kořist); komu soupeř
+-- v minulém období dobyl domovské území, má o 1 tah méně (blok 23). Kdo přijde
 -- o všechna území, dostane v dalším období nové (Návrat do hry). Konec v ends_at: body = území + 2 za celý region, při shodě vyhrává,
 -- kdo konečného počtu bodů dosáhl dřív. Pro „Rychlou hru“ drží server pro každou předvolbu jednu otevřenou veřejnou hru.
 -- Lobby, které nezačalo do 7 dní, zmizí. Hráč je nejvýš v 6 hrách najednou a má nejvýš 2 vlastní otevřené hry.
@@ -5130,9 +5140,10 @@ begin
 end;
 $$;
 -- Tahy hráče v tomto období: základ + celé regiony + poklady dobyté v tomto období + kořist (domovská území soupeřů dobytá v minulém období)
+-- − ztráta hradu (penalty 1, když hráči soupeř v minulém období dobyl domovské území; blok 23); nikdy méně než 0
 create or replace function public.conquest_budget(gid uuid, uid uuid) returns jsonb
 language plpgsql stable set search_path = public as $$
-declare g public.conquest_games; p integer; regions integer; treasures integer; loot integer; used integer;
+declare g public.conquest_games; p integer; regions integer; treasures integer; loot integer; used integer; penalty integer; total integer;
 begin
     select * into g from public.conquest_games where id = gid;
     if g.id is null or g.status <> 'running' then return null; end if;
@@ -5143,8 +5154,12 @@ begin
            count(*) filter (where m.period = p and m.kind in ('attack', 'fortify'))
       into treasures, loot, used
       from public.conquest_moves m where m.game_id = gid and m.user_id = uid and m.period >= p - 1;
-    return jsonb_build_object('period', p, 'base', g.actions, 'regions', regions, 'treasures', treasures, 'loot', loot, 'used', used,
-        'total', g.actions + regions + treasures + loot, 'left', greatest(0, g.actions + regions + treasures + loot - used),
+    -- Ztracený hrad: o 1 tah méně, nejvýš o jeden (rychle díky indexu conquest_moves_home_lost_idx z bloku 23)
+    penalty := case when uid is not null and exists (select 1 from public.conquest_moves m where m.game_id = gid and m.victim = uid and m.period = p - 1
+        and m.home and m.result = 'capture' and m.user_id is distinct from uid) then 1 else 0 end;
+    total := greatest(0, g.actions + regions + treasures + loot - penalty);
+    return jsonb_build_object('period', p, 'base', g.actions, 'regions', regions, 'treasures', treasures, 'loot', loot, 'penalty', penalty, 'used', used,
+        'total', total, 'left', greatest(0, total - used),
         'period_ends_at', least(g.ends_at, g.started_at + (p + 1) * public.conquest_period_length(g.period)));
 end;
 $$;
@@ -5712,6 +5727,82 @@ revoke all on function public.chain_submit(date, integer, integer, boolean), pub
 grant execute on function public.chain_submit(date, integer, integer, boolean), public.chain_day_stats(date) to authenticated;
 -- ===== Řetězovka dne (blok 21) — KONEC BLOKU =====
 
+-- ===== 23: Dobývání – ztracený hrad a upozornění na útoky =====
+-- Ztracený hrad: komu soupeř v období P dobyl domovské území, má v období P + 1 o 1 tah méně (conquest_budget vrací penalty 0/1, tahů nikdy
+-- méně než 0; boti počítají se stejným rozpočtem). Upozornění na útoky (push_pending, druh 'conquest'): hráč, na jehož území zaútočil jiný hráč
+-- (dobytí, pobourání opevnění i odražený útok), dostane za každou rozehranou hru jedno souhrnné upozornění. Nadpis jmenuje nejzávažnější
+-- událost (padlý domovský hrad > dobytá území > pobořené opevnění > odražený útok) a kolik dalších útoků přišlo, text útočníka a co dělat.
+-- Počítají se jen útoky, které hráč v upozornění ještě neměl (číslo posledního ohlášeného tahu je 4. částí klíče cq:hra:hráč:tah v push_sent),
+-- a jen čerstvé: ve hře s obdobím hodina 2 hodiny, s obdobím den 12 hodin (útoky z nočního klidu tak přijdou ráno). Upozornění z Dobývání
+-- přijde nejvýš jednou za 10 minut (ostatní druhy jednou za 55 minut); vypne ho profiles.push_conquest (Nastavení, dlaždice Dobývání).
+-- Boti upozornění nedostávají. Názvy území databáze nezná (jsou jen v data/dobyvani-<mapa>.json), texty proto území nejmenují.
+create index if not exists conquest_moves_home_lost_idx on public.conquest_moves (game_id, victim, period) where home and result = 'capture';
+create index if not exists conquest_moves_attacks_idx on public.conquest_moves (at) where kind = 'attack' and victim is not null;
+
+-- „ (+2 další útoky)“: kolik dalších útoků upozornění shrnuje (1 další útok, 2–4 další útoky, 5 a víc dalších útoků)
+create or replace function public.conquest_push_more(n integer) returns text
+language sql immutable as $$
+    select case when coalesce(n, 0) <= 0 then '' else ' (+' || n || ' ' || case when n = 1 then 'další útok' when n between 2 and 4 then 'další útoky' else 'dalších útoků' end || ')' end
+$$;
+
+-- Upozornění na útoky soupeřů (řádky ve tvaru položek push_pending); volá ho jen push_pending
+create or replace function public.conquest_push_items() returns table (user_id uuid, kind text, title text, body text, url text, dedupe_key text, sort_at text)
+language sql stable set search_path = public as $$
+    with sent as (
+        select s.user_id, split_part(s.dedupe_key, ':', 2) as game, max(split_part(s.dedupe_key, ':', 4)::bigint) as last_id
+        from public.push_sent s
+        where s.kind = 'conquest' and s.dedupe_key ~ '^cq:[0-9a-f-]{36}:[0-9a-f-]{36}:[0-9]{1,18}$'
+        group by s.user_id, split_part(s.dedupe_key, ':', 2)
+    ), hits as (
+        select m.id, m.game_id, m.victim, m.user_id as attacker, m.territory, m.level, m.at, g.map, g.code,
+            case when m.result = 'capture' and m.home then 4 when m.result = 'capture' then 3 when m.result = 'breach' then 2 else 1 end as severity
+        from public.conquest_moves m
+        join public.conquest_games g on g.id = m.game_id and g.status = 'running'
+        join public.profiles me on me.id = m.victim and me.push_conquest
+        left join sent s on s.user_id = m.victim and s.game = m.game_id::text
+        where m.kind = 'attack' and m.victim is not null and m.at > now() - interval '12 hours'
+            and m.at > now() - case when g.period = 'hour' then interval '2 hours' else interval '12 hours' end
+            and m.user_id is distinct from m.victim and m.result in ('capture', 'breach', 'fail')
+            and m.id > coalesce(s.last_id, 0) and not public.dev_is_bot(m.victim)
+    ), ranked as (
+        select h.*, row_number() over (partition by h.game_id, h.victim order by h.severity desc, h.id desc) as rk,
+            count(*) over (partition by h.game_id, h.victim) as total,
+            count(*) filter (where h.severity = 3) over (partition by h.game_id, h.victim) as captures,
+            max(h.id) over (partition by h.game_id, h.victim) as top_id,
+            min(h.at) over (partition by h.game_id, h.victim) as first_at
+        from hits h
+    )
+    select r.victim, 'conquest'::text,
+        'Dobývání: ' || case r.severity
+            when 4 then 'padl tvůj domovský hrad'
+            when 3 then case when r.captures = 1 then 'jedno tvé území padlo' when r.captures <= 4 then 'padla ' || r.captures || ' tvá území' else 'padlo ' || r.captures || ' tvých území' end
+            when 2 then 'tvoje ' || (array['palisáda', 'hradba', 'pevnost'])[least(r.level + 1, 3)] || ' je pobořená'
+            else 'útok na tvé území odražen' end
+            || public.conquest_push_more((r.total - case when r.severity = 3 then r.captures else 1 end)::integer),
+        'Útočník: ' || coalesce(nullif(btrim(a.display_name), ''), 'Soupeř') || '. ' || case
+            when r.severity = 4 and not x.landed then 'V dalším období dostaneš nové domovské území, ale o tah méně.'
+            when r.severity = 4 then 'V dalším období máš o tah méně. Opevni se, nebo vrať úder.'
+            when r.severity = 3 and not x.landed then 'V dalším období dostaneš nové domovské území.'
+            when r.severity = 3 and r.captures = 1 and x.near then 'Území sousedí s tvými, můžeš ho dobýt zpět.'
+            when r.severity = 3 then 'Opevni ostatní území, nebo vrať úder.'
+            when r.severity = 2 and r.level > 0 then 'Zbývá ' || (array['palisáda', 'hradba', 'pevnost'])[least(r.level, 3)] || ', opevni se znovu.'
+            when r.severity = 2 then 'Další úspěšný útok území dobude, opevni se.'
+            else 'Možná to zkusí znovu, opevni se.' end,
+        './?dobyvani=' || r.code,
+        'cq:' || r.game_id || ':' || r.victim || ':' || r.top_id,
+        r.first_at::text
+    from ranked r
+    left join public.profiles a on a.id = r.attacker
+    -- landed = hráč ve hře ještě něco drží; near = dobyté území sousedí s některým jeho územím (jde dobýt zpět)
+    cross join lateral (select
+        exists (select 1 from public.conquest_territories t where t.game_id = r.game_id and t.owner = r.victim) as landed,
+        exists (select 1 from public.conquest_links l join public.conquest_territories t on t.game_id = r.game_id and t.territory = l.b and t.owner = r.victim
+            where l.map = r.map and l.a = r.territory) as near) x
+    where r.rk = 1
+$$;
+revoke all on function public.conquest_push_more(integer), public.conquest_push_items() from public, anon, authenticated;
+-- ===== 23: Dobývání – ztracený hrad a upozornění na útoky — KONEC BLOKU =====
+
 -- ===== Verze schématu =====
 -- Číslo se zvyšuje při KAŽDÉ změně tohoto souboru (tabulka, sloupec, funkce, pravidlo) a zároveň konstanta REQUIRED_SCHEMA v app.js.
 -- Aplikace ho po přihlášení porovná a správci (dev_admins nebo vývojářský režim) ukáže v Nastavení, že má schéma spustit znovu;
@@ -5752,7 +5843,10 @@ grant execute on function public.chain_submit(date, integer, integer, boolean), 
 --     challenge_stake_stats; odznaky sazky-* v badge_catalog()).
 -- 22: Vývojářští boti v Dobývání (dev_conquest_add_bots, dev_conquest_bots_play, dev_conquest_next_period; boti hrají sami přes conquest_state
 --     a tournament_tick; tah za hráče conquest_move_by; dev_tournament_clear_bots smaže i hry Dobývání s boty).
+-- 23: Dobývání – kdo přijde o domovský hrad, má v dalším období o 1 tah méně (conquest_budget: penalty); upozornění na útoky soupeřů
+--     (profiles.push_conquest, conquest_push_items a conquest_push_more, druh 'conquest' a klíč cq: v push_pending a push_mark, limit 10 minut;
+--     indexy conquest_moves_home_lost_idx a conquest_moves_attacks_idx).
 create or replace function public.schema_version() returns integer
-language sql immutable as $$ select 22 $$;
+language sql immutable as $$ select 23 $$;
 revoke all on function public.schema_version() from public, anon;
 grant execute on function public.schema_version() to authenticated;

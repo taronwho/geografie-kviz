@@ -1405,8 +1405,7 @@
                         <span class="max-w-full truncate text-[10.5px] font-bold leading-3 text-amber-900/80" data-cq-clock>${esc(status)}</span>
                     </div>
                 </div>
-                ${budget ? `<span data-cq-budget class="flex h-10 shrink-0 items-center gap-1 rounded-xl bg-white px-2 text-[13px] font-black text-slate-800 shadow-sm ring-1 ring-slate-200/70 dark:bg-slate-800 dark:text-slate-100 dark:ring-slate-700" title="Tahy v tomto období">
-                    <i data-lucide="swords" class="h-4 w-4 text-brand-700 dark:text-gold-300"></i><span class="sr-only">Tahy </span>${budget.left}/${budget.total}</span>` : ''}
+                ${budget ? `<span data-cq-budget class="flex h-10 shrink-0 items-center gap-1 rounded-xl bg-white px-2 text-[13px] font-black text-slate-800 shadow-sm ring-1 ring-slate-200/70 dark:bg-slate-800 dark:text-slate-100 dark:ring-slate-700" title="${esc(budgetTitle(budget))}">${budgetInnerHtml(budget)}</span>` : ''}
                 <button type="button" data-cq="feed" class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl btn-3d-light bg-white text-slate-700 dark:bg-slate-800 dark:text-slate-200" aria-label="Kronika tažení"><i data-lucide="scroll-text" class="h-5 w-5"></i></button>
             </div>
             <div data-cq-wrap class="cq-map-wrap relative min-h-0 w-full shrink overflow-hidden rounded-2xl">
@@ -1422,6 +1421,19 @@
             </div>
             <div data-cq-sheet class="absolute inset-x-0 bottom-0 z-20"></div>
         </div>`;
+    };
+    // Počítadlo tahů v liště hry (3/5); po ztrátě domovského hradu (server: budget.penalty) navíc červené „−1“ s hradem
+    const budgetTitle = (budget) => (budget && budget.penalty ? 'Tahy v tomto období (o 1 méně kvůli ztracenému hradu)' : 'Tahy v tomto období');
+    const budgetInnerHtml = (budget) => `<i data-lucide="swords" class="h-4 w-4 text-brand-700 dark:text-gold-300"></i><span class="sr-only">Tahy </span>${budget.left}/${budget.total}${budget.penalty
+        ? '<span data-cq-penalty class="flex items-center text-[11px] font-black text-rose-700 dark:text-rose-300"><i data-lucide="castle" class="h-3.5 w-3.5"></i><span aria-hidden="true">−1</span><span class="sr-only">, o 1 méně kvůli ztracenému hradu</span></span>' : ''}`;
+    // Toast na začátku období (Začal 3. den hry.) a po otevření hry v období, kdy hráč kvůli ztracenému hradu má o tah méně
+    const PENALTY_TEXT = 'Kvůli ztracenému hradu máš v tomto období o tah méně.';
+    const periodStartText = (state) => {
+        const budget = state && state.budget;
+        if (!budget) return 'Začalo další období.';
+        const number = budget.period + 1;
+        const start = state.period === 'hour' ? `Začala ${number}. hodina hry.` : `Začal ${number}. den hry.`;
+        return budget.penalty ? `${start} Kvůli ztracenému hradu máš o tah méně.` : start;
     };
     // Začátek dalšího období (nové tahy), pokud ještě do konce hry nějaké přijde
     const nextPeriodAt = (state) => {
@@ -1604,7 +1616,8 @@
             ['Region', 'Skupina sousedních území. Například na mapě Evropy Britské ostrovy (Spojené království a Irsko) nebo Pobaltí (Estonsko, Lotyšsko, Litva), na mapě Česka Střední Čechy (Praha a Středočeský kraj).'],
             ['Kde ho uvidíš', 'Klepni na území: pod jeho názvem je napsané, do kterého regionu patří a jestli ho už někdo drží celý.'],
             ['Celý region', 'Držíš všechna jeho území. Region se pak na mapě zlatě obtáhne a dokud ho držíš, máš v každém období +1 tah a na konci hry 2 body navíc.'],
-            ['Další tahy navíc', '+1 tah hned, když dobudeš území s pokladem (truhla na mapě, platí jen v tom období). +1 tah v příštím období, když dobudeš domovské území soupeře.']
+            ['Další tahy navíc', '+1 tah hned, když dobudeš území s pokladem (truhla na mapě, platí jen v tom období). +1 tah v příštím období, když dobudeš domovské území soupeře.'],
+            ['Ztráta hradu', 'Kdo přijde o domovský hrad, má v dalším období o 1 tah méně. Hrad se proto vyplatí opevnit.']
         ],
         konec: [
             ['Konec', 'Hra skončí po čase nastaveném při založení. Kolik zbývá, ukazuje nápis pod názvem mapy.'],
@@ -1628,6 +1641,7 @@
         ART, MAPS, MAP_BY_ID, DURATIONS, PERIODS, MIN_PLAYERS, MAX_PLAYERS, MAX_ACTIONS, MAX_GAMES, MAX_OWN_LOBBIES, REGION_POINTS, LEVELS, REWARD_XP,
         COLORS, COLOR_BY_ID, EMBLEMS, EMBLEM_BY_ID, colorOf, emblemOf, inkOf, emblemInk, luminance, maxLevel, rewardFor,
         durationLabel, periodLabel, actionsLabel, timeLeft, movesWord, pointsWord, playersWord, territoriesWord, regionsWord, nextPeriodAt, agoLabel, periodLine,
+        budgetTitle, budgetInnerHtml, periodStartText, PENALTY_TEXT,
         indexMap, parseRings, pointInRings, project, territoryAt, isAdjacent, viewOf, rank, sourcesFor, actionsFor,
         buildQuestion, kindsFor, placesOf, poolsOf, formsOf, FAMILY_IDS, flagUrl, flagFallback, THUMB, feedItems, replaySteps, capturedWord, hatchPattern, levelIcon, iconMarkup,
         pennantSvg, pennantGroup, emblemSvg, mapSvg, thumbSvg, marksFor, homeCardHtml, hubHtml, mineHtml, lobbyHtml, createHtml, lookHtml, lobbyDetailHtml,
