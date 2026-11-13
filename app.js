@@ -12139,7 +12139,8 @@
     }
 
     // Dobývání (conquest.js, conquest-ui.js): karta na záložce Více hráčů, rozcestník her a obrazovka hry 'conquest'.
-    // Mapa se načte až při použití (data/dobyvani-<mapa>.json), otázky z dat témat Zeměpis, Vlajky a znaky a Architektura.
+    // Mapa se načte až při použití (data/dobyvani-<mapa>.json), otázky z dat témat Zeměpis, Vlajky a znaky, Architektura, Historie,
+    // Literatura, Hudba, Umění, Film a Sport (osobnosti, díla, kluby, olympiády, bitvy). Téma, které se nenačte, jen ubere druhy otázek.
     // Odměna po konci hry (server ji vydá jen jednou): XP a za 1. místo počítadlo odznaku Dobyvatel.
     const loadConquestMap = memoizeBy((id) => fetchJson(`data/dobyvani-${id}.json`));
     if (window.MudrlantConquest && window.MudrlantConquestUI && Social) {
@@ -12150,8 +12151,9 @@
             enter: () => { screen = 'conquest'; closePlaceInfo(); closeDialog(); updateControlsUI(); },
             loadMap: (id) => loadConquestMap(id),
             loadTopics: async () => {
-                const [zemepis, vlajky, architektura] = await Promise.all(['zemepis', 'vlajky', 'architektura'].map(id => (TOPIC_BY_ID[id] ? loadTopic(id).catch(() => null) : null)));
-                return { zemepis: zemepis ? zemepis.items : [], vlajky: vlajky ? vlajky.items : [], architektura: architektura ? architektura.items : [] };
+                const ids = ['zemepis', 'vlajky', 'architektura', 'historie', 'literatura', 'hudba', 'umeni', 'film', 'sport'];
+                const loaded = await Promise.all(ids.map(id => (TOPIC_BY_ID[id] ? loadTopic(id).catch(() => null) : null)));
+                return Object.fromEntries(ids.map((id, i) => [id, loaded[i] ? loaded[i].items : []]));
             },
             award: ({ xp = 0, badge = false }) => {
                 const before = loadProgress();

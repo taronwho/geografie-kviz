@@ -359,7 +359,8 @@
                 if (state.status === 'lobby') { upsertMine(state); openLobby(id); return; }
                 game = { id, state, data, view: viewFor(state, data), vb: null, selected: null, source: null, move: null };
                 renderGame();
-                topics().catch(() => null);
+                // Témata a zásoby otázek pro mapu se připraví hned (první otázka pak nečeká na jejich sestavení)
+                topics().then(loaded => { if (game && game.data === data) C.poolsOf(data, loaded); }).catch(() => null);
                 if (game.view.finished) { if (!state.claimed) claim(id); showResult(); }
                 schedule();
             } catch (error) {
@@ -718,6 +719,12 @@
             const move = game && game.move;
             if (!holder || !move || !move.question) return;
             holder.innerHTML = C.questionHtml(move.question, { title: questionTitle(move), item: game.view.index.byId.get(move.target), data: game.data, answered: move.answered });
+            // Náhled vlajky nebo znaku z Commons, který nejde načíst, nahradí původní soubor (data-fallback, jednou)
+            holder.querySelectorAll('img[data-fallback]').forEach(img => {
+                const swap = () => { const next = img.dataset.fallback; img.removeAttribute('data-fallback'); if (next && img.src !== next) img.src = next; };
+                if (img.complete && img.naturalWidth === 0 && img.src) swap();
+                else img.addEventListener('error', swap, { once: true });
+            });
             deps.renderIcons(holder);
         };
         const answer = async (index) => {
