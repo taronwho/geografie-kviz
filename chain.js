@@ -746,23 +746,41 @@
     };
     // Tři nesprávné možnosti: stejný druh, vazbu nesplňují, různá jména (i od uzlů řetězu); z nejpodobnějších náhodně.
     // Vazba (pomalejší kontrola) se ověřuje až u kandidátů v pořadí podobnosti, dokud nejsou tři.
+    // Nejdřív se projde jen 16 nejpodobnějších (bez řazení celého seznamu), celý seznam se seřadí, jen když mezi nimi nejsou tři vhodné.
+    const TOP = 16;
     const pickDistractors = (graph, rel, a, b, rng, avoid = new Set(), count = 3) => {
         const names = new Set([norm(b.name), ...[...avoid].map(id => graph.nodes.get(id)).filter(Boolean).map(node => norm(node.name))]);
-        const candidates = [];
-        for (const x of poolOf(graph, rel, b)) {
-            if (x === b || x === a || avoid.has(x.id)) continue;
-            candidates.push({ x, score: similarity(b, x) + rng() * 1.5 });
+        const pool = poolOf(graph, rel, b);
+        const scores = new Float64Array(pool.length);
+        const top = [];
+        for (let i = 0; i < pool.length; i++) {
+            const x = pool[i];
+            if (x === b || x === a || avoid.has(x.id)) { scores[i] = -Infinity; continue; }
+            const score = similarity(b, x) + rng() * 1.5;
+            scores[i] = score;
+            if (top.length < TOP || score > scores[top[top.length - 1]]) {
+                let at = top.length < TOP ? top.length : TOP - 1;
+                while (at > 0 && scores[top[at - 1]] < score) { if (at < TOP) top[at] = top[at - 1]; at -= 1; }
+                top[at] = i;
+                if (top.length > TOP) top.length = TOP;
+            }
         }
-        candidates.sort((p, q) => q.score - p.score);
         const chosen = [];
-        for (const { x } of candidates) {
+        const tried = new Set();
+        const consider = (i) => {
+            const x = pool[i];
+            tried.add(i);
             const key = norm(x.name);
-            if (names.has(key) || linked(graph, rel.id, a, x) || rel.fits(a, x, graph)) continue;
+            if (names.has(key) || linked(graph, rel.id, a, x) || rel.fits(a, x, graph)) return;
             names.add(key);
             chosen.push(x);
-            if (chosen.length >= count) break;
-        }
-        return chosen.length >= count ? chosen : null;
+        };
+        for (const i of top) { consider(i); if (chosen.length >= count) return chosen; }
+        const rest = [];
+        for (let i = 0; i < pool.length; i++) if (!tried.has(i) && scores[i] > -Infinity) rest.push(i);
+        rest.sort((p, q) => scores[q] - scores[p]);
+        for (const i of rest) { consider(i); if (chosen.length >= count) return chosen; }
+        return null;
     };
     const brief = (node) => ({ id: node.id, name: node.name, kind: node.kind, topic: node.topic });
     // Otázka článku: { rel, from, to, text, options: [{ id, name }], answer (index správné) }
@@ -837,17 +855,20 @@
     // otázku se třemi nesprávnými možnostmi i záchranu. Když přísné hledání řetěz nenajde, zkusí se volnější (stále stejně pro všechny).
     // share = podíl uzlů, které jsou v daném řetězu k dispozici (každý den jiné): slavné státy a města tak nejsou v každém řetězu;
     // avoid = uzly, které v řetězu být nesmí (předchozí den); poslední úroveň je jen nouzová a nevyhýbá se ničemu
+    // avoid: 'all' = žádný uzel ze včerejška, 'people' = státy a města se opakovat smí (osobnosti, díla a stavby ne), 'none' = nouzově nic
     const LEVELS = [
-        { breadth: 5, repeat: (rel) => (REPEATABLE.has(rel) ? 2 : 1), families: 3, practice: false, share: 0.55, avoid: true },
-        { breadth: 8, repeat: () => 2, families: 3, practice: false, share: 0.75, avoid: true },
-        { breadth: 8, repeat: () => 2, families: 4, practice: true, share: 1, avoid: true },
-        { breadth: 8, repeat: () => 2, families: 4, practice: true, share: 1, avoid: false }
+        { breadth: 6, repeat: (rel) => (REPEATABLE.has(rel) ? 2 : 1), families: 3, practice: false, share: 0.75, avoid: 'all' },
+        { breadth: 8, repeat: () => 2, families: 4, practice: true, share: 1, avoid: 'all' },
+        { breadth: 8, repeat: () => 2, families: 4, practice: true, share: 1, avoid: 'people' },
+        { breadth: 8, repeat: () => 2, families: 4, practice: true, share: 1, avoid: 'none' }
     ];
+    const PLACES = new Set(['country', 'city']);
     const search = (graph, { seed, links, practice, budget, level, avoid }) => {
         const rules = LEVELS[level];
         const loose = practice || rules.practice;
         const rng = seededRandom(level ? `${seed}:${level}` : seed);
-        const available = (node) => !(rules.avoid && avoid.has(node.id)) && (rules.share >= 1 || hash32(`${seed}|k|${node.id}`) / 4294967296 < rules.share);
+        const blocked = (node) => avoid.has(node.id) && (rules.avoid === 'all' || (rules.avoid === 'people' && !PLACES.has(node.kind)));
+        const available = (node) => !blocked(node) && (rules.share >= 1 || hash32(`${seed}|k|${node.id}`) / 4294967296 < rules.share);
         // Chuť řetězu: každý řetěz má jiné oblíbené vazby (jeden den víc staveb, jiný víc hudby), ať se dny neopakují
         const taste = new Map(RELATIONS.map(rel => [rel.id, rng()]));
         const starts = shuffle(START_KINDS.flatMap(kind => (graph.byKind.get(kind) || []).filter(node => available(node) && node.fame <= (FAME_LIMIT[node.kind] || 0.3) * (loose ? 1 : 0.6))), rng);
@@ -858,55 +879,75 @@
         const rels = new Map();
         const families = new Map();
         const bump = (map, key, by) => map.set(key, (map.get(key) || 0) + by);
-        // Záchrana se nesmí ptát na pozdější článek řetězu ani na něj vést – prozradila by ho („Kdo navrhl stavbu Most Mehmeda Sokoloviće?“
-        // jako záchrana, když je most odpovědí dalšího článku). Uzly, na které se záchrany ptají (a odpovědi jiných záchran), jsou proto
-        // pro další články řetězu zamčené. (Pozdější článek jako nesprávná možnost dřívější otázky nevadí: u jiné otázky nic neprozradí.)
-        const reserved = new Map();
-        const rescueNodes = (question) => [question.rescue.from.id !== question.from.id ? question.rescue.from.id : null, question.rescue.same ? null : question.rescue.to.id].filter(Boolean);
+        // Záchrana se nemá ptát na pozdější článek řetězu ani na něj vést – prozradila by ho („Kdo navrhl stavbu Most Mehmeda Sokoloviće?“
+        // jako záchrana, když je most odpovědí dalšího článku). Záchrana článku se proto sestaví, až je známý další článek (ten se jí vyhne),
+        // a hotový řetěz se zkontroluje celý. (Pozdější článek jako nesprávná možnost dřívější otázky nevadí: u jiné otázky nic neprozradí.)
+        const reveals = (question, ids) => (ids.has(question.rescue.from.id) && question.rescue.from.id !== question.from.id)
+            || (!question.rescue.same && ids.has(question.rescue.to.id));
+        const finish = () => {
+            const ids = new Set(used);
+            const lastQuestion = questions[questions.length - 1];
+            const lastRescue = buildRescue(graph, lastQuestion, ids, rng);
+            if (!lastRescue) return false;
+            lastQuestion.rescue = lastRescue;
+            // Záchrana, která se ptá na pozdější článek, se sestaví znovu bez něj; když to nejde, zůstane (bezprostředně další článek
+            // to nikdy není, ten se vyloučil už při sestavení)
+            for (const question of questions) {
+                if (!reveals(question, ids)) continue;
+                const rescue = buildRescue(graph, question, ids, rng);
+                if (rescue) question.rescue = rescue;
+            }
+            return true;
+        };
         const walk = (node) => {
-            if (questions.length >= links) return true;
+            if (questions.length >= links) { left -= 3; return finish(); }
             if (--left <= 0) return false;
             const step = questions.length + 1;
-            const last = questions.length ? questions[questions.length - 1].rel : '';
+            const previous = questions.length ? questions[questions.length - 1] : null;
+            const last = previous ? previous.rel : '';
             // Vazba nejvýš jednou (spojovací dvakrát), ne dvakrát za sebou a skupina vazeb nejvýš třikrát v řetězu
             const options = edgesFrom(graph, node).filter(({ rel, to }) => to && !used.has(to.id) && rel !== last && (rels.get(rel) || 0) < rules.repeat(rel)
-                && (kinds.get(to.kind) || 0) < (KIND_MAX[to.kind] || 2) && famousEnough(to, step, loose) && (families.get(FAMILY[rel]) || 0) < rules.families && available(to)
-                && !reserved.has(to.id))
+                && (kinds.get(to.kind) || 0) < (KIND_MAX[to.kind] || 2) && famousEnough(to, step, loose) && (families.get(FAMILY[rel]) || 0) < rules.families && available(to))
                 // Váha: náhoda, chuť řetězu, oblíbenost uzlu v tomto řetězu (jiný den jiné uzly, i když jsou slavné), nový druh a skupina
                 .map(entry => ({ ...entry, weight: rng() + 1.5 * taste.get(entry.rel) + 2 * hash32(`${seed}|${entry.to.id}`) / 4294967296
                     + ((kinds.get(entry.to.kind) || 0) ? 0 : 0.5) + ((families.get(FAMILY[entry.rel]) || 0) ? 0 : 0.4) - 0.5 * entry.to.fame }))
                 .sort((p, q) => q.weight - p.weight)
                 .slice(0, rules.breadth);
             for (const { rel, to } of options) {
-                // Otázka se třemi nesprávnými možnostmi (žádná není uzel řetězu) a záchrana; bez nich článek nejde
-                const ids = new Set([...used, to.id, ...reserved.keys()]);
+                // Otázka se třemi nesprávnými možnostmi (žádná není uzel řetězu); záchrana předchozího článku se vyhne i tomuto
+                const ids = new Set([...used, to.id]);
                 const question = buildQuestion(graph, rel, node, to, rng, ids);
                 if (!question) continue;
                 question.k = step;
-                question.rescue = buildRescue(graph, question, ids, rng);
-                if (!question.rescue) continue;
+                question.rescue = null;
+                if (previous) {
+                    previous.rescue = buildRescue(graph, previous, ids, rng);
+                    if (!previous.rescue) continue;
+                }
                 used.add(to.id); questions.push(question);
                 bump(kinds, to.kind, 1); bump(rels, rel, 1); bump(families, FAMILY[rel], 1);
-                const locked = rescueNodes(question);
-                locked.forEach(id => bump(reserved, id, 1));
                 if (walk(to)) return true;
                 used.delete(to.id); questions.pop();
                 bump(kinds, to.kind, -1); bump(rels, rel, -1); bump(families, FAMILY[rel], -1);
-                locked.forEach(id => { bump(reserved, id, -1); if (!reserved.get(id)) reserved.delete(id); });
                 if (left <= 0) return false;
             }
             return false;
         };
-        for (const start of starts.slice(0, 80)) {
-            used.clear(); kinds.clear(); rels.clear(); families.clear(); reserved.clear(); questions.length = 0;
+        // Rozpočet kroků: na jeden začátek nejvýš budget, na celou úroveň dvacetinásobek (začátek, ze kterého řetěz nevede, se rychle vzdá)
+        let total = budget * 20;
+        for (const start of starts.slice(0, 60)) {
+            if (total <= 0) break;
+            used.clear(); kinds.clear(); rels.clear(); families.clear(); questions.length = 0;
             used.add(start.id);
             kinds.set(start.kind, 1);
             left = budget;
-            if (walk(start)) return { seed: String(seed), level, start: brief(start), questions: [...questions] };
+            const found = walk(start);
+            total -= budget - Math.max(0, left);
+            if (found) return { seed: String(seed), level, start: brief(start), questions: questions.map(question => ({ ...question })) };
         }
         return null;
     };
-    const generate = (graph, { seed, links = LINKS, practice = false, budget = 3000, avoid = new Set() } = {}) => {
+    const generate = (graph, { seed, links = LINKS, practice = false, budget = 400, avoid = new Set() } = {}) => {
         for (let level = 0; level < LEVELS.length; level++) {
             const chain = search(graph, { seed, links, practice, budget, level, avoid });
             if (chain) return chain;
