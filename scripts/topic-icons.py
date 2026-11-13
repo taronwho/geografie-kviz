@@ -101,17 +101,22 @@ def cut(path, name=''):
     im = Image.fromarray(np.dstack([rgb, alpha * 255]).round().astype(np.uint8), 'RGBA')
     return im.crop(im.getchannel('A').point(lambda v: 255 if v > 8 else 0).getbbox())
 
+def icon(path, name=''):
+    # Vyříznutá ikona ve čtverci SIZE×SIZE (sova v pózách 320×320, zobrazuje se velká); používá i scripts/building-art.py
+    im = cut(path, name)
+    size = 320 if name.startswith('sova-') else SIZE
+    inner = size - 8
+    scale = inner / max(im.size)
+    im = im.resize((max(1, round(im.width * scale)), max(1, round(im.height * scale))), Image.LANCZOS)
+    canvas = Image.new('RGBA', (size, size), (0, 0, 0, 0))
+    canvas.paste(im, ((size - im.width) // 2, (size - im.height) // 2), im)
+    return canvas
+
 def main(wanted):
     for path in sorted(glob.glob(os.path.join(root, 'branding', 'ikony', '*.png'))):
         name = os.path.splitext(os.path.basename(path))[0]
         if (wanted and name not in wanted) or name.startswith('avatar-'): continue  # avatary: scripts/avatar-icons.py
-        im = cut(path, name)
-        size = 320 if name.startswith('sova-') else SIZE  # sova v pózách je větší (zobrazuje se velká)
-        inner = size - 8
-        scale = inner / max(im.size)
-        im = im.resize((max(1, round(im.width * scale)), max(1, round(im.height * scale))), Image.LANCZOS)
-        canvas = Image.new('RGBA', (size, size), (0, 0, 0, 0))
-        canvas.paste(im, ((size - im.width) // 2, (size - im.height) // 2), im)
+        canvas = icon(path, name)
         out = os.path.join(root, 'icons', 'topics', name + '.webp')
         canvas.save(out, 'WEBP', quality=90, method=6)
         print(name, os.path.getsize(out), 'B')

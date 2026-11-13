@@ -693,6 +693,34 @@ test('ztracený hrad: nápověda (záložka Regiony) říká, že kdo přijde o 
     assert.equal(C.PENALTY_TEXT, 'Kvůli ztracenému hradu máš v tomto období o tah méně.');
 });
 
+test('stavby: domovský hrad podle úrovně (č. 275–277), střechy a vlaječky v barvě majitele, obrázky v mezipaměti', () => {
+    // Domovský hrad roste s opevněním, ostatní území mají palisádu, hradbu a pevnost
+    assert.deepEqual([0, 1, 2, 3].map(level => C.levelIcon(level, true)), ['castle', 'castle1', 'castle2', 'castle3']);
+    assert.deepEqual([0, 1, 2, 3].map(level => C.levelIcon(level, false)), ['', 'palisade', 'wall', 'fortress']);
+    // Každá stavba: základ a vrstva barvy v icons/stavby, obojí v mezipaměti service workeru
+    const sw = fs.readFileSync(path.join(ROOT, 'sw.js'), 'utf8');
+    const cached = sw.match(/\.\.\.\[([^\]]+)\]\.flatMap\(id => \[`icons\/stavby/)[1].match(/'[^']+'/g).map(id => id.slice(1, -1));
+    for (const kind of ['palisade', 'wall', 'fortress', 'castle', 'castle1', 'castle2', 'castle3']) {
+        const markup = C.iconMarkup(kind, 'zelena');
+        const [base, tint] = [...markup.matchAll(/href="icons\/stavby\/([^"]+)\.webp"/g)].map(m => m[1]);
+        assert.ok(base && tint === `${base}-barva`, `${kind}: základ a vrstva barvy`);
+        assert.match(markup, /class="cq-tint"[^>]*filter="url\(#cqb-zelena\)"/);
+        for (const file of [base, tint]) assert.ok(fs.existsSync(path.join(ROOT, 'icons', 'stavby', `${file}.webp`)), `${file}.webp existuje`);
+        assert.ok(cached.includes(base), `${base}: v mezipaměti`);
+        // Bez majitele zůstanou střechy a vlajky v původních barvách obrázku
+        assert.doesNotMatch(C.iconMarkup(kind), /cq-tint|filter=/);
+    }
+    // Mapa: filtr pro barvu každého hráče, ikony domovů a opevnění s vrstvou barvy majitele; kamínky úrovně jen u hradu bez obrázku úrovně
+    const state = sampleState();
+    state.territories = state.territories.map(t => (t.t === 'Q36' ? { ...t, l: 3 } : t));
+    const svg = C.mapSvg(maps.evropa, C.viewOf(state, maps.evropa, 'A'));
+    assert.match(svg, /<filter id="cqb-cervena" color-interpolation-filters="sRGB"><feColorMatrix type="matrix" values="[\d.]+ 0 0 0 0 0 [\d.]+ 0 0 0 0 0 [\d.]+ 0 0 0 0 0 1 0"\/><\/filter>/);
+    assert.match(svg, /<filter id="cqb-modra"/);
+    assert.match(svg, /data-mark="Q36"[^]*?data-icon="castle3"[^]*?hrad-domov-3-barva\.webp" x="0" y="0" width="24" height="24" filter="url\(#cqb-modra\)"/);
+    assert.match(svg, /data-mark="Q183"[^]*?data-icon="wall"[^]*?hradba-barva\.webp"[^>]*filter="url\(#cqb-modra\)"/);
+    assert.doesNotMatch(svg.match(/data-mark="Q36"[^]*?<\/g><\/g><\/g>/)[0], /<rect /);
+});
+
 test('vykreslení: mapa, náhled, obrazovky a okna bez inline stylů (CSP), klepací plocha pro každé území', () => {
     const state = sampleState();
     const view = C.viewOf(state, maps.evropa, 'A');
