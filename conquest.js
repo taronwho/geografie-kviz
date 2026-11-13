@@ -474,9 +474,9 @@
     const CONSORT = /manžel|choť|chotí|provdan|vévodkyn|princezn|kněžn|arcivévodkyn|hraběnk|císařovn|carevn|královn/i;
     const SPOUSE = /manžel|choť|chotí/i;
     const isPolitician = (item) => item.c === 'statnik' || (item.c === 'osobnost' && /^(?:politik|revolucionář|diplomat)$/.test(item.ty || '') && POLITICS.test(item.d || ''));
-    // Známé osobnosti narozené jinde, než říká jejich národnost v datech (Rilke a Stifter z Čech, Tesla z dnešního Chorvatska):
-    // nesprávnou možností pro zemi narození nejsou
-    const PERSON_ALSO = { 'Rainer Maria Rilke': ['Q213'], 'Adalbert Stifter': ['Q213'], 'Nikola Tesla': ['Q224'] };
+    // Známé osobnosti narozené jinde, než říká jejich národnost v datech (Rilke a Stifter z Čech, Tesla z dnešního Chorvatska,
+    // Lagrange z Turína): patří ke dvěma zemím, takže nejsou správnou odpovědí ani nesprávnou možností pro žádnou z nich
+    const PERSON_ALSO = { 'Rainer Maria Rilke': ['Q213'], 'Adalbert Stifter': ['Q213'], 'Nikola Tesla': ['Q224'], 'Joseph-Louis Lagrange': ['Q38'] };
     // Osobnosti podle oboru: rodina, téma, kategorie, výběr; confirm = správnou ani nesprávnou možností jen s národností v popisu
     // (u historických osobností bývá v datech země úmrtí nebo exilu: Trockij „z Mexika“)
     const PEOPLE = [
@@ -694,7 +694,7 @@
                     // Kapela vzniklá jinde, než je její země (Kinto Sol: mexická skupina z Wisconsinu)
                     const cityLands = f.city ? [...(placeNames.get(namePlain(f.city)) || [])] : [];
                     const person = { clean: land.clean, rel: new Set([...land.rel, ...nations, ...cityLands, ...(PERSON_ALSO[item.n] || [])]),
-                        pure: land.clean.size === 1 && own.every(q => land.clean.has(q)) && (!cityLands.length || cityLands.some(q => land.clean.has(q))) };
+                        pure: land.clean.size === 1 && own.every(q => land.clean.has(q)) && (!cityLands.length || cityLands.some(q => land.clean.has(q))) && !PERSON_ALSO[item.n] };
                     people.set(`${topic}:${item.q}`, person);
                     if (!personByQ.has(item.q)) personByQ.set(item.q, person);
                     if (nationalitiesIn(item.n).length) continue;
@@ -736,12 +736,14 @@
                 const id = item.c === 'opery' && OPERA_TYPES.has(item.ty) ? 'opera' : 'music-work';
                 work(id, item, 'hudba', people.get(`hudba:${(item.f || {}).byq}`), (item.f || {}).land);
             }
-            for (const item of list('umeni')) if (item.c === 'obrazy' && PAINT_TYPES.has(item.ty)) work('painting', item, 'umeni', people.get(`umeni:${(item.f || {}).bq}`), (item.f || {}).land);
-            // Sochy podle sochaře (jediný autor: Q, jinak jméno v Umění); pravěké sošky bez autora ne („vytvořil sochař z …“)
+            // Malíř a sochař podle Q z Umění, jinak z jiného tématu (Michelangelo má zemi jen mezi architekty)
+            const artistOf = (q) => people.get(`umeni:${q}`) || personByQ.get(q);
+            for (const item of list('umeni')) if (item.c === 'obrazy' && PAINT_TYPES.has(item.ty)) work('painting', item, 'umeni', artistOf((item.f || {}).bq), (item.f || {}).land);
+            // Sochy podle sochaře (jediný autor: Q, jinak jméno); pravěké sošky bez autora ne („vytvořil sochař z …“)
             for (const item of list('umeni')) {
                 const f = item.f || {};
                 if (item.c !== 'sochy' || !f.by || /\sa\s|,/.test(f.by)) continue;
-                const author = (f.bq && people.get(`umeni:${f.bq}`)) || (!f.bq && personNamed(f.by)) || null;
+                const author = (f.bq ? artistOf(f.bq) : personNamed(f.by)) || null;
                 work('sculpture', item, 'umeni', author, f.land);
             }
             for (const item of list('film')) if (item.c === 'filmy' || item.c === 'animovane') work('film', item, 'film', people.get(`film:${(item.f || {}).dirq}`), (item.f || {}).land || []);
@@ -930,15 +932,19 @@
             tries += 1;
             const used = new Set([pick.key]);
             const wrong = [];
-            for (const other of order) {
-                const found = family.byTerritory.get(other.id);
-                if (!found) continue;
-                const ranked = found.map(entry => ({ entry, score: wrongScore(entry, pick, level, rng) })).sort((a, b) => a.score - b.score);
-                const hit = ranked.find(({ entry }) => !used.has(entry.key) && wrongOk(entry));
-                if (!hit) continue;
-                used.add(hit.entry.key);
-                wrong.push(hit.entry);
-                if (wrong.length >= 3) break;
+            // Z každého území jedna nesprávná možnost; když území s položkami rodiny nestačí (herci jen z USA, Kanady
+            // a Mexika), ve druhém kole i další ze stejných území
+            for (let round = 0; round < 3 && wrong.length < 3; round++) {
+                for (const other of order) {
+                    const found = family.byTerritory.get(other.id);
+                    if (!found) continue;
+                    const ranked = found.map(entry => ({ entry, score: wrongScore(entry, pick, level, rng) })).sort((a, b) => a.score - b.score);
+                    const hit = ranked.find(({ entry }) => !used.has(entry.key) && wrongOk(entry));
+                    if (!hit) continue;
+                    used.add(hit.entry.key);
+                    wrong.push(hit.entry);
+                    if (wrong.length >= 3) break;
+                }
             }
             const choices = options({ label: pick.label }, wrong.map(entry => ({ label: entry.label })), rng);
             if (!choices) continue;

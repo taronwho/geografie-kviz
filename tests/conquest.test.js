@@ -377,13 +377,17 @@ test('otázky ze všech témat: správná možnost vazbu splňuje, nesprávné n
     const czechTown = new Map(t.zemepis.filter(it => it.c === 'mesto' && (it.co || []).includes('Q213')).map(it => [it.n, it]));
     const nations = (text) => Chain.nationalitiesIn(text || '');
     const personFits = (it, item) => Boolean(it) && [...landNames((it.f || {}).land), ...nations(`${it.ty || ''} ${it.d || ''}`)].includes(item.n);
-    // Autor díla: Q z dat, u soch i jméno; vynálezce podle jména (všechny osobnosti toho jména)
+    // Autor díla: Q z dat (malíř a sochař i z jiného tématu, Michelangelo je se zemí jen mezi architekty), u soch i jméno;
+    // vynálezce podle jména (všechny osobnosti toho jména)
     const authorsOf = (family, it) => {
         const f = it.f || {};
-        const q = { book: `literatura:${f.byq}`, 'music-work': `hudba:${f.byq}`, opera: `hudba:${f.byq}`, painting: `umeni:${f.bq}`, sculpture: `umeni:${f.bq}`, film: `film:${f.dirq}` }[family];
-        const own = q && byQ.get(q);
+        if (family === 'painting' || family === 'sculpture') {
+            const found = f.bq ? PERSON_TOPICS.map(topic => byQ.get(`${topic}:${f.bq}`)).filter(Boolean) : [];
+            return found.length ? found : family === 'sculpture' && f.by ? personNamed.get(plain(f.by)) || [] : [];
+        }
+        const own = byQ.get({ book: `literatura:${f.byq}`, 'music-work': `hudba:${f.byq}`, opera: `hudba:${f.byq}`, film: `film:${f.dirq}` }[family]);
         if (own) return [own];
-        return (family === 'sculpture' || family === 'invention') && f.by ? personNamed.get(plain(f.by)) || [] : [];
+        return family === 'invention' && f.by ? personNamed.get(plain(f.by)) || [] : [];
     };
     // Splňuje položka vazbu na území (u nesprávných možností i podle popisu)?
     const fits = (family, it, item, map) => {
