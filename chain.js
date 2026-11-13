@@ -1218,6 +1218,8 @@
         return `${i ? '<li aria-hidden="true" class="text-gold-300/80">→</li>' : ''}<li data-chain-node="${i}" class="${last ? `rounded-lg bg-gold-300 px-1.5 py-0.5 font-black text-gold-950 shadow-sm${fresh ? ' chain-node-in' : ''}` : 'rounded-lg bg-white/10 px-1.5 py-0.5 text-gold-100'}">${esc(name)}</li>`;
     }).join('')}
         </ol>`;
+    // Vodoznak v kartě otázky: dva velké zlaté články v rohu (jen ozdoba)
+    const WATERMARK = '<svg aria-hidden="true" viewBox="0 0 120 70" class="chain-watermark pointer-events-none absolute -bottom-3 -right-4 h-24 w-40"><rect x="6" y="14" width="70" height="40" rx="20"/><rect x="48" y="27" width="66" height="14" rx="7"/></svg>';
     const rescueChip = (attempt) => (attempt.rescueUsed
         ? '<span data-chain-rescue="used" class="flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-bold text-slate-500 ring-1 ring-slate-200 dark:text-slate-400 dark:ring-slate-700"><i data-lucide="shield-check" class="h-3.5 w-3.5"></i> Záchrana použita</span>'
         : '<span data-chain-rescue="ready" class="flex shrink-0 items-center gap-1 rounded-full bg-gold-100 px-2 py-0.5 text-[11px] font-black text-gold-900 ring-1 ring-gold-300 dark:bg-gold-900/60 dark:text-gold-100 dark:ring-gold-700"><i data-lucide="shield-check" class="h-3.5 w-3.5"></i> Záchrana</span>');
@@ -1243,7 +1245,7 @@
                     <div data-chain-strip class="mt-1${view.panel ? ' chain-still' : ''}">${linkSvg(stripStates(attempt, view), { fresh: view.fresh ?? -1, label: stripLabel(attempt) })}</div>
                     ${pathHtml(names, { fresh: view.fresh >= 0 })}
                 </div>
-                <section id="chain-question" class="chain-card flex min-h-[6rem] flex-1 flex-col gap-1.5 rounded-[1.4rem] bg-white p-3 shadow-sm ring-1 ${rescue ? 'ring-2 ring-gold-500 dark:ring-gold-400' : 'ring-slate-200/70 dark:ring-slate-700/70'} dark:bg-slate-800/70">
+                <section id="chain-question" class="chain-card relative flex min-h-[6rem] flex-1 flex-col gap-1.5 overflow-hidden rounded-[1.4rem] bg-white p-3 shadow-sm ring-1 ${rescue ? 'ring-2 ring-gold-500 dark:ring-gold-400' : 'ring-slate-200/70 dark:ring-slate-700/70'} dark:bg-slate-800/70">
                     <div class="flex items-center justify-between gap-2">
                         <p class="flex min-w-0 items-center gap-1.5 text-[11px] font-black uppercase tracking-widest ${rescue ? 'text-gold-800 dark:text-gold-300' : 'text-slate-500 dark:text-slate-400'}">
                             <i data-lucide="${rescue ? 'shield-check' : iconFor(source ? source.from.kind : '')}" class="h-3.5 w-3.5 shrink-0"></i>
@@ -1251,7 +1253,8 @@
                         </p>
                         ${rescue ? '' : rescueChip(attempt)}
                     </div>
-                    <div class="flex flex-1 items-center"><h2 data-chain-text class="text-[18px] font-black leading-snug text-slate-900 short:text-[16.5px] dark:text-white">${esc(source ? source.text : '')}</h2></div>
+                    <div class="relative flex flex-1 items-center"><h2 data-chain-text class="text-[18px] font-black leading-snug text-slate-900 short:text-[16.5px] dark:text-white">${esc(source ? source.text : '')}</h2></div>
+                    ${WATERMARK}
                 </section>
                 <div id="chain-options" class="flex shrink-0 flex-col gap-2 short:gap-1.5">${options}</div>
                 <div id="chain-panel" class="hidden shrink-0"></div>
@@ -1356,7 +1359,7 @@
         const verdict = !row ? 'Na tenhle článek už nedošlo.' : row.rescued ? (row.correct ? 'Zachráněno Záchranou, za 0 bodů.' : 'Záchrana nevyšla, tady se řetěz přetrhl.') : row.correct ? `Správně, ${pointsWord(row.points)}.` : 'Tady se řetěz přetrhl.';
         return `
             <div data-chain-step="${k}" class="flex flex-col gap-2.5">
-                <p class="${LABEL}">${k}. článek · ${esc(question.from.name)} → ${esc(question.to.name)}</p>
+                <p class="${LABEL}">${esc(question.from.name)} → ${esc(question.to.name)}</p>
                 <p class="text-[16px] font-black leading-snug text-slate-900 dark:text-white">${esc(question.text)}</p>
                 <ul class="flex flex-col gap-1">${question.options.map(option).join('')}</ul>
                 <p class="text-[13px] font-semibold text-slate-600 dark:text-slate-300">${esc(verdict)}</p>

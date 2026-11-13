@@ -555,6 +555,9 @@ html.kb-open #settings-overlay > *, html.kb-open #dialog-overlay > * { max-heigh
     .chain-dot-broken { background: #4c0519; color: #fecdd3; }
     .chain-dot-todo { color: #9d9a95; box-shadow: inset 0 0 0 1.5px #41454a; }
 }
+/* Vodoznak karty otázky: obrys dvou článků řetězu */
+.chain-watermark rect { fill: none; stroke: #d69725; stroke-width: 9; opacity: 0.13; }
+@media (prefers-color-scheme: dark) { .chain-watermark rect { stroke: #efc55c; opacity: 0.1; } }
 /* Odpovědi: správně, špatně, správná odpověď po přetržení, ostatní ztlumené */
 .chain-option.chain-right { background: #059669; border-color: #047857 #047857 #065f46; color: #fff; }
 .chain-option.chain-wrong { background: #e11d48; border-color: #be123c #be123c #9f1239; color: #fff; }
