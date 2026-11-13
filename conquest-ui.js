@@ -376,7 +376,7 @@
                 if (penaltyNews(state)) deps.showToast(C.PENALTY_TEXT);
                 // Témata a zásoby otázek pro mapu se připraví hned (první otázka pak nečeká na jejich sestavení)
                 topics().then(loaded => { if (game && game.data === data) C.poolsOf(data, loaded); }).catch(() => null);
-                if (game.view.finished) { if (!state.claimed) claim(id); showResult(); }
+                if (game.view.finished) { if (!state.claimed) claim(id); finale(); }
                 schedule();
             } catch (error) {
                 deps.showToast(errorText(error, 'Hru se nepodařilo načíst.'));
@@ -588,6 +588,7 @@
         const closeSheet = () => {
             const holder = sheet();
             if (holder) holder.innerHTML = '';
+            clearFinale();
             if (game) { game.selected = null; game.source = null; }
             highlight();
         };
@@ -849,7 +850,7 @@
                 const finishedNow = state.status === 'finished' && !game.view.finished;
                 const newPeriod = state.budget && game.state.budget && state.budget.period !== game.state.budget.period;
                 setState(state);
-                if (finishedNow) { renderGame(); claim(id); showResult(); return; }
+                if (finishedNow) { renderGame(); claim(id); finale(); return; }
                 if (changed) repaintMap();
                 updateClock();
                 // Hra zůstala otevřená do dalšího období: nové tahy (a po ztrátě hradu o tah méně)
@@ -869,11 +870,59 @@
         const showResult = () => {
             const holder = sheet();
             if (!holder || !game) return;
-            holder.innerHTML = `<div class="cq-sheet cq-sheet-in max-h-[75vh] overflow-y-auto rounded-t-2xl p-2.5 pb-3" role="dialog" aria-label="Výsledky">
-                <div class="mb-1 flex items-center gap-2"><h2 class="min-w-0 flex-1 text-[17px] font-black text-slate-900 dark:text-white">Konec hry</h2>
-                <button type="button" data-cq="sheet-close" class="flex h-10 w-10 items-center justify-center rounded-xl text-slate-500 dark:text-slate-400" aria-label="Zavřít"><i data-lucide="x" class="h-5 w-5"></i></button></div>
+            holder.innerHTML = `<div class="cq-sheet cq-result-sheet cq-sheet-in max-h-[78vh] overflow-y-auto rounded-t-2xl p-2.5 pb-3" role="dialog" aria-label="Výsledky">
+                <div class="flex items-start gap-1"><span class="w-10 shrink-0"></span>
+                <div class="flex min-w-0 flex-1 justify-center"><div class="cq-cartouche-art aspect-[29/10] h-16 max-w-full px-[15%] pb-[3px] flex min-w-0 flex-col items-center justify-center text-center"><h2 class="cq-cartouche-title max-w-full truncate">Konec tažení</h2><span class="max-w-full truncate text-[10.5px] font-bold leading-3 text-amber-900/80">${esc(C.mapTitle(game.state.map))}</span></div></div>
+                <button type="button" data-cq="sheet-close" class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-slate-500 dark:text-slate-400" aria-label="Zavřít"><i data-lucide="x" class="h-5 w-5"></i></button></div>
                 ${C.resultHtml(game.view, { reward: rewards.get(game.id) || null })}</div>`;
             deps.renderIcons(holder);
+        };
+        // Konec hry (poprvé): celá mapa, ostatní území zešednou a území vítěze se postupně rozzáří, přes mapu se rozvine kartuše
+        // s vítězem (při vítězství sova s praporcem) a jiskry, pak vyjede list výsledků. Napodruhé (a při omezeném pohybu) hned list.
+        const FINALE_KEY = 'mudrlant.conquestFinale';
+        const finaleSeen = (id) => { try { const s = storage(); const list = s ? JSON.parse(s.getItem(FINALE_KEY) || '[]') : []; return Array.isArray(list) && list.includes(id); } catch (error) { return false; } };
+        const markFinale = (id) => { try { const s = storage(); if (!s) return; const list = JSON.parse(s.getItem(FINALE_KEY) || '[]'); s.setItem(FINALE_KEY, JSON.stringify([id, ...(Array.isArray(list) ? list : []).filter(other => other !== id)].slice(0, 30))); } catch (error) { /* příště znovu */ } };
+        const clearFinale = () => {
+            const wrap = app.querySelector('[data-cq-wrap]');
+            if (wrap) { wrap.classList.remove('cq-finale'); wrap.querySelectorAll('[data-cq-finale]').forEach(element => element.remove()); }
+            const layer = fx();
+            if (layer) layer.querySelectorAll('.cq-win-glow').forEach(element => element.remove());
+        };
+        const finale = async () => {
+            if (!game) return;
+            const id = game.id;
+            const winner = game.view.ranking[0];
+            if (!winner || finaleSeen(id) || reduced()) { showResult(); return; }
+            markFinale(id);
+            game.vb = { x: 0, y: 0, w: game.data.w, h: game.data.h };
+            applyView();
+            const wrap = app.querySelector('[data-cq-wrap]');
+            const layer = fx();
+            if (!wrap || !layer) { showResult(); return; }
+            const winners = game.view.ranking.filter(player => player.place === 1);
+            const ids = winners.flatMap(player => game.view.territoriesOf(player.id).map(tid => [tid, player]));
+            wrap.classList.add('cq-finale');
+            layer.insertAdjacentHTML('beforeend', ids.map(([tid, player]) => `<path class="cq-win-glow" d="${game.view.index.byId.get(tid).d}" fill="${player.color.hex}"/>`).join(''));
+            layer.querySelectorAll('.cq-win-glow').forEach((element, i) => { element.style.animationDelay = `${Math.min(i * 70, 1400)}ms`; });
+            await wait(1100);
+            if (!game || game.id !== id || !wrap.isConnected) return;
+            const me = winners.some(player => player.me);
+            const title = me ? 'Vítězství!' : winners.length > 1 ? 'Vítězové tažení' : 'Vítěz tažení';
+            const names = winners.map(player => (player.me ? 'Ty' : player.display_name || 'Hráč')).join(', ');
+            wrap.insertAdjacentHTML('beforeend', `<div data-cq-finale class="cq-finale-banner pointer-events-none absolute inset-x-0 top-[12%] flex flex-col items-center px-3" role="status">
+                ${me ? '<img src="icons/topics/sova-vitez.webp" alt="" class="cq-finale-owl h-20 w-20 object-contain">' : `<span class="cq-finale-flag">${C.pennantSvg(winner.flag_color, winner.emblem, 'h-14 w-[4.7rem]')}</span>`}
+                <div class="cq-finale-scroll cq-cartouche-art aspect-[29/10] h-16 max-w-full px-[15%] pb-[3px] flex flex-col items-center justify-center text-center"><span class="cq-cartouche-title text-[18px]">${esc(title)}</span><span class="max-w-full truncate text-[11px] font-bold text-amber-900/85">${esc(names)} · ${esc(C.pointsWord(winner.score))}</span></div>
+                ${Array.from({ length: 10 }, () => '<i class="cq-finale-spark" aria-hidden="true"></i>').join('')}</div>`);
+            wrap.querySelectorAll('.cq-finale-spark').forEach((spark, i) => {
+                const angle = (i / 10) * Math.PI * 2;
+                spark.style.left = `${50 + Math.cos(angle) * (30 + (i % 3) * 8)}%`;
+                spark.style.top = `${32 + Math.sin(angle) * (16 + (i % 2) * 6)}%`;
+                spark.style.animationDelay = `${(i % 5) * 120}ms`;
+            });
+            await wait(2300);
+            if (!game || game.id !== id || !wrap.isConnected) return;
+            wrap.querySelectorAll('[data-cq-finale]').forEach(element => element.classList.add('cq-finale-out'));
+            showResult();
         };
         let replaying = 0;
         const replay = async () => {
@@ -938,7 +987,7 @@
             const finishedNow = state.status === 'finished' && !game.view.finished;
             setState(state);
             renderGame();
-            if (finishedNow) { claim(state.id); showResult(); return; }
+            if (finishedNow) { claim(state.id); finale(); return; }
             penaltyNews(state);
             deps.showToast(C.periodStartText(state));
         });

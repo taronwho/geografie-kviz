@@ -547,4 +547,31 @@ test('Dobývání', { skip: !chromium && 'Playwright není nainstalovaný' }, as
         assert.deepEqual(log.csp, []);
         await context.close();
     });
+
+    await t.test('konec hry poprvé: území vítěze se rozzáří, kartuše s vítězem, pak list výsledků (napodruhé hned list)', async () => {
+        const db = running();
+        const g = db.games[0];
+        g.status = 'finished';
+        g.ends_at = '2026-11-11T09:00:00Z';
+        g.players.find(p => p.user === 'u-1').place = 1;
+        g.players.find(p => p.user === 'u-2').place = 2;
+        const { context, tab, log } = await start(db, { viewport: { width: 390, height: 780 }, colorScheme: 'dark' });
+        await tab.click('#conquest-card [data-action="conquest-open"]');
+        await tab.click(`[data-cq-play="${uuid(1)}"]`);
+        await tab.waitForSelector('.cq-finale-banner');
+        assert.ok(await tab.locator('.cq-win-glow').count() > 0, 'území vítěze září');
+        assert.match(await tab.textContent('.cq-finale-banner'), /Vítězství!/);
+        await tab.waitForTimeout(700);
+        await shot(tab, 'konec-animace-390-dark');
+        await tab.waitForSelector('[data-cq-result]', { timeout: 8000 });
+        await tab.waitForTimeout(500);
+        await shot(tab, 'konec-390-dark');
+        // Zavření listu vrátí mapu do běžného stavu, nové otevření hry už animaci nepřehraje
+        await tab.click('[data-cq="sheet-close"]');
+        assert.equal(await tab.locator('.cq-win-glow, .cq-finale-banner').count(), 0);
+        assert.equal(await tab.evaluate(() => JSON.parse(localStorage.getItem('mudrlant.conquestFinale')).length), 1);
+        assert.deepEqual(log.errors, []);
+        assert.deepEqual(log.csp, []);
+        await context.close();
+    });
 });
