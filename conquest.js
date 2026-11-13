@@ -308,7 +308,7 @@
         mesto: ['Které z těchto měst leží', 'Které z těchto měst leží'],
         hora: ['Která z těchto hor je', 'Která z těchto hor je'],
         jezero: ['Které z těchto jezer je', 'Které z těchto jezer je'],
-        ostrov: ['Který z těchto ostrovů patří k území', 'Který z těchto ostrovů leží'],
+        ostrov: ['Který z těchto ostrovů leží', 'Který z těchto ostrovů leží'],
         priroda: ['Které z těchto míst leží', 'Které z těchto míst leží'],
         stavba: ['Která z těchto staveb stojí', 'Která z těchto staveb stojí'],
         stavby: ['Která z těchto staveb stojí', 'Která z těchto staveb stojí']
@@ -991,7 +991,8 @@
         <p><b>Zaútočit</b> jde na území, které sousedí s tvým. Správná odpověď neopevněné území dobude. Opevněné jen pobourá o jednu úroveň a otázka je těžší.</p>
         <p><b>Opevnit</b> jde vlastní území: Palisáda, Hradba a na domovském území i Pevnost.</p>
         <p><b>Navíc:</b> +1 tah za každý celý region, +1 tah hned za poklad a +1 tah v dalším období za dobytý domov soupeře. Kdo přijde o všechna území, dostane v dalším období nové.</p>
-        <p><b>Konec:</b> 1 bod za území a ${REGION_POINTS} za celý region. Při shodě vyhrává, kdo svých bodů dosáhl dřív. Vítěz dostane odznak Dobyvatel, 2. a 3. místo XP (ve hře aspoň 3 hráčů, nebo ve hře na den a déle).</p>
+        <p><b>Konec:</b> 1 bod za území a ${REGION_POINTS} za celý region. Při shodě vyhrává, kdo svých bodů dosáhl dřív.</p>
+        <p><b>Odměny:</b> 1. místo odznak Dobyvatel a ${REWARD_XP[0]} XP, 2. místo ${REWARD_XP[1]} XP, 3. místo ${REWARD_XP[2]} XP, poslední místo nic. Platí ve hře aspoň 3 hráčů nebo ve hře na den a déle, když máš aspoň 3 vlastní tahy.</p>
     </div>`;
 
     return {

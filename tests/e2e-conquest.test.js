@@ -205,6 +205,14 @@ test('Dobývání', { skip: !chromium && 'Playwright není nainstalovaný' }, as
         assert.match(await tab.textContent('#status-text'), /Dobývání/);
         await tab.waitForSelector('#conquest-hub [data-cq-tab="mine"][aria-selected="true"]');
         await tab.waitForFunction(() => /Zatím nehraješ žádnou hru/.test(document.getElementById('conquest-hub').textContent));
+        // Jak se hraje: okno se vejde na 360×640
+        await tab.click('[data-cq="help"]');
+        await tab.waitForFunction(() => (document.getElementById('dialog-overlay') || { dataset: {} }).dataset.title === 'Jak se hraje Dobývání');
+        const helpFit = await tab.evaluate(() => { const box = document.querySelector('#dialog-overlay > div'); return box.scrollHeight - box.clientHeight; });
+        assert.ok(helpFit <= 0, `nápověda se vejde (přesah ${helpFit} px)`);
+        await shot(tab, 'napoveda-360');
+        await tab.keyboard.press('Escape');
+        await tab.waitForFunction(() => !document.getElementById('dialog-overlay'));
         await tab.click('[role="tab"][data-cq-tab="lobby"]');
         await tab.waitForSelector(`[data-cq-join="${uuid(1)}"]`);
         assert.equal(await tab.locator('[data-cq-join]').count(), 2);

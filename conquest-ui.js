@@ -197,7 +197,7 @@
                         upsertMine(joined);
                         if (!lobby) await loadLobby();
                         await ensureMap(joined.map).catch(() => null);
-                        deps.showToast(joined.status === 'running' ? 'Hra je plná a právě začala!' : 'Jsi ve hře. Počkej na ostatní, nebo dej Chci hrát.');
+                        deps.showToast(joined.status === 'running' ? 'Hra je plná a právě začala!' : 'Jsi ve hře. Počkej na ostatní, nebo klepni na Chci hrát.');
                         if (joined.status === 'running') openGame(joined.id); else openLobby(joined.id);
                         paintCard();
                     } catch (error) {
