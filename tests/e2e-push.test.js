@@ -83,7 +83,7 @@ const pushStub = ({ permission, answer, realNotification, delay, subscribeError,
 // Otevřený turnaj (přihlášky do příštího pondělí), do kterého se hráč může přihlásit
 const TID = '11111111-2222-3333-4444-555555555555';
 const nextMonday = () => { const day = new Date(); day.setUTCDate(day.getUTCDate() + (((8 - day.getUTCDay()) % 7) || 7)); return day.toISOString().slice(0, 10); };
-const newDb = () => ({ subscribed: [], deleted: [], patches: [], devTests: 0, statusCalls: 0, pushStatus: undefined, subscribeStatus: 0, devAdmin: true, devices: 1, entries: [], joins: 0, profile: { id: 'u-1', display_name: 'Jana Nováková', avatar: '🦊', color: 'emerald', xp: 0, badges: [], push_tournament: true, push_challenge: true },
+const newDb = () => ({ subscribed: [], deleted: [], patches: [], devTests: 0, statusCalls: 0, pushStatus: undefined, subscribeStatus: 0, devAdmin: true, devices: 1, entries: [], joins: 0, profile: { id: 'u-1', display_name: 'Jana Nováková', avatar: '🦊', color: 'emerald', xp: 0, badges: [], push_tournament: true, push_challenge: true, push_conquest: true },
     tournament: { id: TID, topic: 'mix', week_start: nextMonday(), started_on: null, capacity: 32, status: 'open', size: null, rounds: null, seed: 's1' } });
 const backend = async (context, db, key) => {
     await context.route('**/config.js', route => route.fulfill({ contentType: 'text/javascript', body: config(key) }));
@@ -215,7 +215,16 @@ test('upozornění (push) v Nastavení', { skip: !chromium && 'Playwright není 
         assert.equal(await tab.getAttribute('[data-push-pref="challenge"]', 'aria-checked'), 'true');
         await tab.click('[data-push-pref="challenge"]');
         await tab.waitForFunction(() => document.querySelector('[data-push-pref="challenge"]').getAttribute('aria-checked') === 'false');
-        assert.deepEqual(db.patches, [{ push_tournament: true, push_challenge: false }]);
+        assert.deepEqual(db.patches, [{ push_tournament: true, push_challenge: false, push_conquest: true }]);
+        // Třetí dlaždice: útoky v Dobývání (hrad); popisek se do dlaždice vejde celý
+        assert.deepEqual(await tab.$$eval('[data-push-pref]', els => els.map(el => el.dataset.pushPref)), ['tournament', 'challenge', 'conquest']);
+        assert.equal(await tab.getAttribute('[data-push-pref="conquest"]', 'title'), 'Upozornění: útoky v Dobývání');
+        assert.equal((await tab.textContent('[data-push-pref="conquest"]')).trim(), 'Dobývání');
+        assert.ok(await tab.$eval('[data-push-pref="conquest"] span', el => el.scrollWidth <= el.clientWidth + 0.5 && el.getBoundingClientRect().width <= el.parentElement.getBoundingClientRect().width), 'popisek Dobývání se vejde');
+        await tab.click('[data-push-pref="conquest"]');
+        await tab.waitForFunction(() => document.querySelector('[data-push-pref="conquest"]').getAttribute('aria-checked') === 'false');
+        assert.deepEqual(db.patches[1], { push_tournament: true, push_challenge: false, push_conquest: false });
+        assert.equal(await tab.evaluate(() => { const box = document.querySelector('#settings-overlay > div'); return box.scrollHeight - box.clientHeight; }), 0, 'karta Hra se třemi dlaždicemi bez posouvání');
 
         // vypnout
         await tab.click('[data-push-toggle="off"]');
@@ -367,6 +376,10 @@ test('upozornění (push) v Nastavení', { skip: !chromium && 'Playwright není 
         // Panel s upozorněním se vejde do šířky, názvy voleb nejsou uříznuté a karta Hra se zapnutými upozorněními se vejde i na 360×640 bez posouvání
         assert.deepEqual(await tab.evaluate(() => { const panel = document.querySelector('[data-push-toggle]').parentElement; const box = document.querySelector('#settings-overlay > div'); return { page: document.documentElement.scrollWidth - document.documentElement.clientWidth, panel: panel.scrollWidth - panel.clientWidth, outside: [...panel.querySelectorAll('button')].filter(el => el.getBoundingClientRect().right > box.getBoundingClientRect().right).length }; }), { page: 0, panel: 0, outside: 0 });
         assert.deepEqual(await tab.$$eval('[data-push-pref] span.truncate', nodes => nodes.filter(node => node.scrollWidth > node.clientWidth).map(node => node.textContent)), []);
+        // Tři dlaždice (Turnaje, Výzvy, Dobývání): popisky se vejdou do dlaždic, nápis Upozornění vedle nich není uříznutý
+        assert.deepEqual(await tab.$$eval('[data-push-pref] span', nodes => nodes.map(node => ({ text: node.textContent, fits: node.scrollWidth <= node.clientWidth + 0.5 && node.getBoundingClientRect().width <= node.parentElement.getBoundingClientRect().width + 0.5 }))),
+            [{ text: 'Turnaje', fits: true }, { text: 'Výzvy', fits: true }, { text: 'Dobývání', fits: true }]);
+        assert.ok(await tab.$eval('[data-push-toggle] .font-black', el => el.scrollWidth <= el.clientWidth + 0.5), 'nápis Upozornění se vejde');
         assert.equal(await tab.evaluate(() => { const box = document.querySelector('#settings-overlay > div'); return box.scrollHeight - box.clientHeight; }), 0, 'karta Hra bez posouvání na 360×640');
         await tab.click('#settings-overlay [data-me-tab="game"]');
         await tab.click('[data-auth-logout]');

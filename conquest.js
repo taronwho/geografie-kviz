@@ -1342,17 +1342,41 @@
         </form>`;
     };
 
-    // Okno Barva a znak: přepínač Barva (3 × 3 políčka) / Znak (6 × 4 políčka), obsazené barvy ve hře nejdou; náhled vlaječky
+    // Vosková pečeť v barvě hráče s vytlačeným znakem (výběr barvy v okně Barva a znak): nepravidelný okraj s kapkami vosku, stín,
+    // vtlačený kruh a znak tmavší barvou s jemným světlým okrajem (vypadá vytlačeně). Do dodání obrázku pečeti (č. 265) jen SVG.
+    const SEAL_EDGE = (() => {
+        const points = [];
+        for (let i = 0; i < 48; i++) {
+            const angle = i / 48 * Math.PI * 2;
+            const r = 20 + 1.3 * Math.sin(angle * 9) + 0.7 * Math.sin(angle * 5 + 1.3) + (i % 11 === 3 ? 1.6 : 0);
+            points.push(`${(24 + r * Math.cos(angle)).toFixed(2)} ${(24 + r * Math.sin(angle)).toFixed(2)}`);
+        }
+        return `M${points.join('L')}Z`;
+    })();
+    const sealSvg = (colorId, emblemId, cls = 'h-14 w-14') => {
+        const hex = colorOf(colorId).hex;
+        const dark = mix(hex, '#000000', 0.38), deep = mix(hex, '#000000', 0.55), light = mix(hex, '#ffffff', 0.38);
+        const emblem = emblemOf(emblemId);
+        return `<svg viewBox="0 0 48 50" class="${cls}" aria-hidden="true" focusable="false">`
+            + `<path d="${SEAL_EDGE}" fill="${deep}" transform="translate(0 2)" opacity="0.55"/>`
+            + `<path d="${SEAL_EDGE}" fill="${hex}" stroke="${dark}" stroke-width="1.2" stroke-linejoin="round"/>`
+            + `<circle cx="24" cy="24" r="14.2" fill="${mix(hex, '#000000', 0.12)}" stroke="${dark}" stroke-width="1.4"/>`
+            + `<circle cx="24" cy="24" r="12.4" fill="none" stroke="${light}" stroke-width="0.7" stroke-opacity="0.55"/>`
+            + `<path d="M10.5 17.5A15.5 15.5 0 0 1 20 9.2" fill="none" stroke="#ffffff" stroke-opacity="0.45" stroke-width="2" stroke-linecap="round"/>`
+            + `<g transform="translate(14.6 15.2) scale(0.78)">${emblem.draw(light)}</g><g transform="translate(14.6 14.6) scale(0.78)">${emblem.draw(deep)}</g></svg>`;
+    };
+    // Okno Barva a znak ve stylu map Dobývání: pergamen, náhled praporce s pečetí, přepínač Barva / Znak jako kožené záložky.
+    // Barvy jako voskové pečeti 3 × 3 (obsazené jiným hráčem zašedlé a nejdou), znaky jako razítka na pergamenu 6 × 4
     const lookHtml = ({ color, emblem, taken = [], tab = 'color', error = '' }) => `
-        <div class="flex flex-col gap-2" data-cq-look>
-            <div class="flex items-center justify-center gap-3">${pennantSvg(color, emblem, 'h-12 w-16')}<span class="text-[14px] font-black text-slate-800 dark:text-slate-100">${esc(colorOf(color).name)} · ${esc(emblemOf(emblem).name)}</span></div>
-            <div role="tablist" class="flex gap-1 rounded-2xl bg-slate-200/70 p-1 dark:bg-slate-800">${[['color', 'Barva'], ['emblem', 'Znak']].map(([id, label]) => `<button type="button" role="tab" aria-selected="${tab === id}" data-cq-look-tab="${id}" class="flex min-h-[2.5rem] flex-1 items-center justify-center rounded-xl text-[13px] font-black ${tab === id ? 'btn-3d bg-brand-700 text-white' : 'text-slate-600 dark:text-slate-300'}">${label}</button>`).join('')}</div>
-            ${tab === 'color' ? `<div role="radiogroup" aria-label="Barva" class="grid grid-cols-3 gap-1.5">${COLORS.map(item => {
+        <div class="cq-look cq-card-paper flex flex-col gap-2 rounded-2xl p-2.5" data-cq-look>
+            <div class="flex items-center justify-center gap-3">${pennantSvg(color, emblem, 'h-12 w-16')}<span class="flex flex-col"><span class="cq-ledger-title text-[16px]">${esc(colorOf(color).name)} · ${esc(emblemOf(emblem).name)}</span><span class="text-[11.5px] font-semibold text-amber-900/75 dark:text-gold-200/80">Takhle tě uvidí ostatní na mapě</span></span></div>
+            <div role="tablist" class="cq-look-tabs flex gap-1 rounded-xl p-1">${[['color', 'Barva', 'palette'], ['emblem', 'Znak', 'shield']].map(([id, label, icon]) => `<button type="button" role="tab" aria-selected="${tab === id}" data-cq-look-tab="${id}" class="cq-look-tab flex min-h-[2.5rem] flex-1 items-center justify-center gap-1.5 rounded-lg text-[13px] font-black"><i data-lucide="${icon}" class="h-4 w-4"></i>${label}</button>`).join('')}</div>
+            ${tab === 'color' ? `<div role="radiogroup" aria-label="Barva" class="grid grid-cols-3 gap-1">${COLORS.map(item => {
                 const off = taken.includes(item.id) && item.id !== color;
-                return `<button type="button" role="radio" aria-checked="${item.id === color}" aria-label="${esc(item.name)}${off ? ' (má jiný hráč)' : ''}" data-cq-color="${item.id}" ${off ? 'disabled' : ''} class="relative h-11 rounded-xl disabled:opacity-25 ${item.id === color ? 'ring-[3px] ring-brand-700 ring-offset-2 dark:ring-gold-300 dark:ring-offset-slate-900' : 'ring-1 ring-black/15'}"><svg viewBox="0 0 10 10" preserveAspectRatio="none" class="h-full w-full rounded-xl" aria-hidden="true"><rect width="10" height="10" fill="${item.hex}"/></svg>${off ? `<i data-lucide="x" class="absolute inset-0 m-auto h-5 w-5 ${emblemInk(item.id) === '#ffffff' ? 'text-white' : 'text-slate-900'}"></i>` : ''}</button>`;
+                return `<button type="button" role="radio" aria-checked="${item.id === color}" aria-label="${esc(item.name)}${off ? ' (má jiný hráč)' : ''}" data-cq-color="${item.id}" ${off ? 'disabled' : ''} class="cq-seal-pick relative flex h-[4.25rem] items-center justify-center rounded-xl">${sealSvg(item.id, emblem, 'h-14 w-14')}${off ? '<i data-lucide="lock" class="cq-seal-lock absolute bottom-1 right-2 h-4 w-4"></i>' : ''}</button>`;
             }).join('')}</div>`
-            : `<div role="radiogroup" aria-label="Znak" class="grid grid-cols-6 gap-1.5">${EMBLEMS.map(item => `<button type="button" role="radio" aria-checked="${item.id === emblem}" aria-label="${esc(item.name)}" title="${esc(item.name)}" data-cq-emblem="${item.id}" class="flex h-11 items-center justify-center rounded-xl ${item.id === emblem ? 'ring-[3px] ring-brand-700 ring-offset-2 dark:ring-gold-300 dark:ring-offset-slate-900' : 'ring-1 ring-black/15'}"><svg viewBox="0 0 24 24" class="h-11 w-full rounded-xl" aria-hidden="true"><rect width="24" height="24" fill="${colorOf(color).hex}"/><g transform="translate(3 3) scale(0.75)">${item.draw(emblemInk(color))}</g></svg></button>`).join('')}</div>`}
-            <button type="button" data-cq="look-done" class="${BRAND_BUTTON} w-full py-2.5 text-[15px]"><i data-lucide="check" class="h-5 w-5"></i> Hotovo</button>
+            : `<div role="radiogroup" aria-label="Znak" class="grid grid-cols-6 gap-1">${EMBLEMS.map(item => `<button type="button" role="radio" aria-checked="${item.id === emblem}" aria-label="${esc(item.name)}" title="${esc(item.name)}" data-cq-emblem="${item.id}" class="cq-stamp flex h-11 items-center justify-center rounded-lg">${item.id === emblem ? sealSvg(color, item.id, 'h-10 w-10') : emblemSvg(item.id, 'currentColor', 'h-6 w-6 text-[#5a3416] dark:text-[#e2cfa4]')}</button>`).join('')}</div>`}
+            <button type="button" data-cq="look-done" class="${GOLD_BUTTON} w-full py-2.5 text-[15px]"><i data-lucide="check" class="h-5 w-5"></i> Hotovo</button>
             ${error ? `<p class="text-[13px] font-semibold text-rose-700 dark:text-rose-400" role="status">${esc(error)}</p>` : ''}
         </div>`;
 
@@ -1412,8 +1436,7 @@
                         <span class="max-w-full truncate text-[10.5px] font-bold leading-3 text-amber-900/80" data-cq-clock>${esc(status)}</span>
                     </div>
                 </div>
-                ${budget ? `<span data-cq-budget class="flex h-10 shrink-0 items-center gap-1 rounded-xl bg-white px-2 text-[13px] font-black text-slate-800 shadow-sm ring-1 ring-slate-200/70 dark:bg-slate-800 dark:text-slate-100 dark:ring-slate-700" title="Tahy v tomto období">
-                    <i data-lucide="swords" class="h-4 w-4 text-brand-700 dark:text-gold-300"></i><span class="sr-only">Tahy </span>${budget.left}/${budget.total}</span>` : ''}
+                ${budget ? `<span data-cq-budget class="flex h-10 shrink-0 items-center gap-1 rounded-xl bg-white px-2 text-[13px] font-black text-slate-800 shadow-sm ring-1 ring-slate-200/70 dark:bg-slate-800 dark:text-slate-100 dark:ring-slate-700" title="${esc(budgetTitle(budget))}">${budgetInnerHtml(budget)}</span>` : ''}
                 <button type="button" data-cq="feed" class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl btn-3d-light bg-white text-slate-700 dark:bg-slate-800 dark:text-slate-200" aria-label="Kronika tažení"><i data-lucide="scroll-text" class="h-5 w-5"></i></button>
             </div>
             <div data-cq-wrap class="cq-map-wrap relative min-h-0 w-full shrink overflow-hidden rounded-2xl">
@@ -1429,6 +1452,19 @@
             </div>
             <div data-cq-sheet class="absolute inset-x-0 bottom-0 z-20"></div>
         </div>`;
+    };
+    // Počítadlo tahů v liště hry (3/5); po ztrátě domovského hradu (server: budget.penalty) navíc červené „−1“ s hradem
+    const budgetTitle = (budget) => (budget && budget.penalty ? 'Tahy v tomto období (o 1 méně kvůli ztracenému hradu)' : 'Tahy v tomto období');
+    const budgetInnerHtml = (budget) => `<i data-lucide="swords" class="h-4 w-4 text-brand-700 dark:text-gold-300"></i><span class="sr-only">Tahy </span>${budget.left}/${budget.total}${budget.penalty
+        ? '<span data-cq-penalty class="flex items-center text-[11px] font-black text-rose-700 dark:text-rose-300"><i data-lucide="castle" class="h-3.5 w-3.5"></i><span aria-hidden="true">−1</span><span class="sr-only">, o 1 méně kvůli ztracenému hradu</span></span>' : ''}`;
+    // Toast na začátku období (Začal 3. den hry.) a po otevření hry v období, kdy hráč kvůli ztracenému hradu má o tah méně
+    const PENALTY_TEXT = 'Kvůli ztracenému hradu máš v tomto období o tah méně.';
+    const periodStartText = (state) => {
+        const budget = state && state.budget;
+        if (!budget) return 'Začalo další období.';
+        const number = budget.period + 1;
+        const start = state.period === 'hour' ? `Začala ${number}. hodina hry.` : `Začal ${number}. den hry.`;
+        return budget.penalty ? `${start} Kvůli ztracenému hradu máš o tah méně.` : start;
     };
     // Začátek dalšího období (nové tahy), pokud ještě do konce hry nějaké přijde
     const nextPeriodAt = (state) => {
@@ -1611,7 +1647,8 @@
             ['Region', 'Skupina sousedních území. Například na mapě Evropy Britské ostrovy (Spojené království a Irsko) nebo Pobaltí (Estonsko, Lotyšsko, Litva), na mapě Česka Střední Čechy (Praha a Středočeský kraj).'],
             ['Kde ho uvidíš', 'Klepni na území: pod jeho názvem je napsané, do kterého regionu patří a jestli ho už někdo drží celý.'],
             ['Celý region', 'Držíš všechna jeho území. Region se pak na mapě zlatě obtáhne a dokud ho držíš, máš v každém období +1 tah a na konci hry 2 body navíc.'],
-            ['Další tahy navíc', '+1 tah hned, když dobudeš území s pokladem (truhla na mapě, platí jen v tom období). +1 tah v příštím období, když dobudeš domovské území soupeře.']
+            ['Další tahy navíc', '+1 tah hned, když dobudeš území s pokladem (truhla na mapě, platí jen v tom období). +1 tah v příštím období, když dobudeš domovské území soupeře.'],
+            ['Ztráta hradu', 'Kdo přijde o domovský hrad, má v dalším období o 1 tah méně. Hrad se proto vyplatí opevnit.']
         ],
         konec: [
             ['Konec', 'Hra skončí po čase nastaveném při založení. Kolik zbývá, ukazuje nápis pod názvem mapy.'],
@@ -1635,9 +1672,10 @@
         ART, MAPS, MAP_BY_ID, DURATIONS, PERIODS, MIN_PLAYERS, MAX_PLAYERS, MAX_ACTIONS, MAX_GAMES, MAX_OWN_LOBBIES, REGION_POINTS, LEVELS, REWARD_XP,
         COLORS, COLOR_BY_ID, EMBLEMS, EMBLEM_BY_ID, colorOf, emblemOf, inkOf, emblemInk, luminance, maxLevel, rewardFor,
         durationLabel, periodLabel, actionsLabel, timeLeft, movesWord, pointsWord, playersWord, territoriesWord, regionsWord, nextPeriodAt, agoLabel, periodLine,
+        budgetTitle, budgetInnerHtml, periodStartText, PENALTY_TEXT,
         indexMap, parseRings, pointInRings, project, territoryAt, isAdjacent, viewOf, rank, sourcesFor, actionsFor,
         buildQuestion, kindsFor, placesOf, poolsOf, formsOf, FAMILY_IDS, flagUrl, flagFallback, THUMB, feedItems, replaySteps, capturedWord, hatchPattern, levelIcon, iconMarkup,
-        pennantSvg, pennantGroup, emblemSvg, mapSvg, thumbSvg, marksFor, homeCardHtml, hubHtml, mineHtml, lobbyHtml, createHtml, lookHtml, lobbyDetailHtml,
+        pennantSvg, pennantGroup, emblemSvg, sealSvg, mapSvg, thumbSvg, marksFor, homeCardHtml, hubHtml, mineHtml, lobbyHtml, createHtml, lookHtml, lobbyDetailHtml,
         gameScreenHtml, playersStripHtml, recentHtml, sheetHtml, devBarHtml, questionHtml, feedHtml, resultHtml, helpHtml, HELP_TABS, mapTitle, paramChips
     };
 });

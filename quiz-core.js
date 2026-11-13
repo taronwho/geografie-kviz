@@ -867,6 +867,18 @@
         if (!found.length) return { text, restore: value => value };
         return { text: marked, restore: value => { let index = 0; return value.replace(new RegExp(SHOWN_NAME_MARK, 'g'), () => found[index++] || ''); } };
     };
+    // Jiný název hledané věci hned za zakrytou odpovědí („[***] nebo iont je…“, „[***], též Wilsonova komora, …“, „[***] (zvaný X)“)
+    // ji prozradí stejně jako odpověď sama: patří do stejného bloku. „Nebo“ jen před slovesem nebo čárkou (výčet „[***] nebo
+    // kladně nabité“ uprostřed věty zůstane), jiné názvy uvedené slovem též, také, zvaný, neboli, alias, známý jako…
+    const ALIAS_WORDS = '(?:též|také|rovněž|zvan[ýáéí]|neboli|čili|alias|zkráceně|znám[ýáéí] (?:též )?jako|nazývan[ýáéí])';
+    const ALIAS_NAME = "(?:[\\p{L}\\p{N}\\-'’.]+\\s){0,3}?[\\p{L}\\p{N}\\-'’.]+";
+    const ALIAS_VERB = '(?:je|jsou|byl|byla|bylo|byli|byly|bývá|bývají|se\\s+nazývá)(?![\\p{L}])';
+    const ALIAS_PATTERNS = [
+        new RegExp(`\\[\\*\\*\\*\\]\\s+(?:nebo|neboli|čili|aneb)\\s+${ALIAS_NAME}(?:\\s*,(?=\\s+${ALIAS_VERB}))?(?=\\s+${ALIAS_VERB}|\\s*,)`, 'gu'),
+        new RegExp(`\\[\\*\\*\\*\\](?:\\s*,\\s*|\\s*\\(\\s*)${ALIAS_WORDS}\\s+${ALIAS_NAME}\\s*[,)]`, 'gu')
+    ];
+    const swallowAliases = (text) => ALIAS_PATTERNS.reduce((result, pattern) => result.replace(pattern, '[***]'), String(text ?? ''));
+
     const hideAnswer = (text, question, item, ctx, { keep = [] } = {}) => {
         if (!text) return '';
         const shown = protectShownName(text, question.showName ? item.n : '');
@@ -874,7 +886,7 @@
         const hidden = hideOtherChoices(shown.text, question, ctx, [item.ty, category.one].filter(Boolean).join(' '));
         const censored = mergeCensored(censorForItem(question.type, hidden, item, ctx).replaceAll(CHOICE_MARK, '[***]'));
         const masked = maskLeaks(censored, answerNamesFor(question, item, ctx), { isGeneric: (word) => isGenericWord(word, genericWordsOf(ctx)), keep: [question.title, question.showName ? item.n : '', item.ty, ...(ctx.topic.keepWords ? ctx.topic.keepWords(question.type, item, ctx) : []), ...keep] });
-        return shown.restore(sealStructure(masked, question));
+        return shown.restore(sealStructure(mergeCensored(swallowAliases(masked)), question));
     };
 
     // Věta vytržená z kontextu („Doprovázejí boha Rea…“, „Část odborníků se k tomuto výkladu kloní…“) nedává smysl
@@ -2368,7 +2380,7 @@
         censorForItem, answerNamesOf, answerNamesFor, hideAnswer, OUT_OF_CONTEXT, buildQuestionTexts, factRevealsAnswer, GENERIC_NAME_WORDS,
         JOINING_WORDS, distinctiveTokens, structureLeaks, sealStructure, contentWords, newWords, addsInformation, commonChoiceText,
         choicePoints, choicesView, fitMapToChoices, FIT_SHARE, WORLD_MIN_SPAN, buildHints, planRound, MIN_DESCRIPTION_WORDS, MIN_EXCERPT_WORDS,
-        setCountries, landOf, landsOf, landFromDescription, cultureDistance, CULTURE_GROUPS, cultureScore, cultureLandsFor, getWordStems, censorName, mergeCensored, censorCountry, isKnownCountry, processWikiText, stripFactSentences, takeLeadFacts, normalizeAnswer, levenshtein, isAnswerMatch, isSymbolMatch, isCenturyMatch, isFormulaMatch, formulaCounts, checkAnswer,
+        setCountries, landOf, landsOf, landFromDescription, cultureDistance, CULTURE_GROUPS, cultureScore, cultureLandsFor, getWordStems, censorName, mergeCensored, swallowAliases, censorCountry, isKnownCountry, processWikiText, stripFactSentences, takeLeadFacts, normalizeAnswer, levenshtein, isAnswerMatch, isSymbolMatch, isCenturyMatch, isFormulaMatch, formulaCounts, checkAnswer,
         inCollection, filterItems, levelOf, tierLevel, pickItem, sortItems, getCountryNames, getContinent, continentAt, getCountryAliases,
         distanceKm, nearness, STATE_STEPS, sharesGroup, eraNearness, personSimilarity, rankBySimilarity, takeDistinct,
         buildItemChoices, buildCountryChoices, findAnswerItem, findAnswerCountry, updateMistakes, nameAnswers, countryAnswers,

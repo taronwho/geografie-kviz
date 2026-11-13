@@ -209,7 +209,7 @@
                 }
             });
         };
-        const openCode = (initial = '') => {
+        const openCode = (initial = '', lookup = true) => {
             if (!deps.signedUser()) {
                 const saved = parseCode(initial);
                 if (saved) { try { const s = storage(); if (s) s.setItem(PENDING_KEY, saved); } catch (error) { /* kód se nezapamatuje */ } }
@@ -219,6 +219,20 @@
                 return;
             }
             const state = { code: parseCode(initial) || '', error: '' };
+            // Hra, kterou hráč už hraje (odkaz z upozornění na útok, vlastní pozvánka): rovnou mapa (nebo lobby), bez okna s kódem a barvou.
+            // Rozehraný tah (otázka) se nepřeruší, otevřená hra se jen obnoví. Kód cizí hry otevře okno s kódem jako dřív.
+            if (lookup && state.code) {
+                const known = () => (lobby ? lobby.mine.find(found => found.code === state.code) : null);
+                const go = (found) => {
+                    if (game && game.move) return;
+                    if (game && game.id === found.id && ui.kind === 'game' && active()) { reloadGame(); return; }
+                    openGame(found.id);
+                };
+                const found = known();
+                if (found) { go(found); return; }
+                loadLobby().then(() => { const later = known(); if (later) go(later); else openCode(state.code, false); });
+                return;
+            }
             const render = () => deps.showDialog('Mám kód hry', `<form data-cq-code-form class="flex flex-col gap-3" autocomplete="off">
                     <input id="conquest-code" data-autofocus type="text" inputmode="text" autocapitalize="characters" maxlength="200" placeholder="Např. K7M2QX" value="${esc(state.code)}" aria-label="Kód hry" class="w-full rounded-xl border-2 border-slate-200 bg-white px-3 py-3 text-center font-mono text-xl font-black uppercase tracking-widest text-slate-800 focus:border-brand-600 focus:outline-none dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100">
                     <button type="submit" class="flex min-h-[2.75rem] w-full items-center justify-center gap-2 rounded-xl btn-3d bg-brand-700 px-3 text-base font-black text-white"><i data-lucide="user-plus" class="h-5 w-5"></i> Přidat se</button>
@@ -359,6 +373,7 @@
                 if (state.status === 'lobby') { upsertMine(state); openLobby(id); return; }
                 game = { id, state, data, view: viewFor(state, data), vb: null, selected: null, source: null, move: null };
                 renderGame();
+                if (penaltyNews(state)) deps.showToast(C.PENALTY_TEXT);
                 // Témata a zásoby otázek pro mapu se připraví hned (první otázka pak nečeká na jejich sestavení)
                 topics().then(loaded => { if (game && game.data === data) C.poolsOf(data, loaded); }).catch(() => null);
                 if (game.view.finished) { if (!state.claimed) claim(id); showResult(); }
@@ -369,6 +384,15 @@
             }
         };
         const stopGame = () => { if (game && game.move) clearFx(); game = null; };
+        // Ztracený hrad (budget.penalty): o tahu méně řekne toast jednou za období hry (po otevření hry, nebo se začátkem období)
+        const penaltySeen = new Set();
+        const penaltyNews = (state) => {
+            const budget = state && state.budget;
+            const key = budget ? `${state.id}:${budget.period}` : '';
+            if (!budget || !budget.penalty || penaltySeen.has(key)) return false;
+            penaltySeen.add(key);
+            return true;
+        };
 
         // Vykreslení obrazovky hry (přiblížení zůstane)
         const renderGame = () => {
@@ -391,7 +415,7 @@
             const recent = app.querySelector('[data-cq-recent]');
             if (recent) recent.innerHTML = C.recentHtml(game.view, { now: Date.now() });
             const budget = app.querySelector('[data-cq-budget]');
-            if (budget && game.view.budget) budget.innerHTML = `<i data-lucide="swords" class="h-4 w-4 text-brand-700 dark:text-gold-300"></i><span class="sr-only">Tahy </span>${game.view.budget.left}/${game.view.budget.total}`;
+            if (budget && game.view.budget) { budget.innerHTML = C.budgetInnerHtml(game.view.budget); budget.title = C.budgetTitle(game.view.budget); }
             deps.renderIcons(app.querySelector('[data-cq-panel]') || app);
             if (budget) deps.renderIcons(budget);
             mountMap();
@@ -823,10 +847,13 @@
                 if (!game || game.id !== id || game.move) return;
                 const changed = JSON.stringify([state.status, state.territories, (state.moves || []).slice(-1), state.budget]) !== JSON.stringify([game.state.status, game.state.territories, (game.state.moves || []).slice(-1), game.state.budget]);
                 const finishedNow = state.status === 'finished' && !game.view.finished;
+                const newPeriod = state.budget && game.state.budget && state.budget.period !== game.state.budget.period;
                 setState(state);
                 if (finishedNow) { renderGame(); claim(id); showResult(); return; }
                 if (changed) repaintMap();
                 updateClock();
+                // Hra zůstala otevřená do dalšího období: nové tahy (a po ztrátě hradu o tah méně)
+                if (newPeriod) { penaltyNews(state); deps.showToast(C.periodStartText(state)); }
             } catch (error) { /* další pokus při příštím obnovení */ }
         };
         const updateClock = () => {
@@ -912,8 +939,8 @@
             setState(state);
             renderGame();
             if (finishedNow) { claim(state.id); showResult(); return; }
-            const number = state.budget ? state.budget.period + 1 : null;
-            deps.showToast(number ? (state.period === 'hour' ? `Začala ${number}. hodina hry.` : `Začal ${number}. den hry.`) : 'Začalo další období.');
+            penaltyNews(state);
+            deps.showToast(C.periodStartText(state));
         });
 
         // Jak se hraje: okno se záložkami (Základy, Útok, Regiony, Konec), přepínají se klepnutím i tlačítkem Dál

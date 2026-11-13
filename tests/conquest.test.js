@@ -527,6 +527,31 @@ test('texty času a nastavení', () => {
     assert.equal(C.actionsLabel(1, 'day'), '1 tah za den');
 });
 
+test('ztracený hrad: nápověda (záložka Regiony) říká, že kdo přijde o domovský hrad, má v dalším období o 1 tah méně; počítadlo tahů a toast', () => {
+    const regiony = C.helpHtml('regiony');
+    assert.match(regiony, /<b[^>]*>Ztráta hradu:<\/b> Kdo přijde o domovský hrad, má v dalším období o 1 tah méně\./);
+    // Tahy navíc zůstaly (poklad, kořist) a žádná záložka nemluví o rodu hráče
+    assert.match(regiony, /\+1 tah v příštím období, když dobudeš domovské území soupeře/);
+    const all = C.HELP_TABS.map(([id]) => C.helpHtml(id)).join('');
+    assert.doesNotMatch(all, /\b(přišel jsi|přišla jsi|ztratil jsi|ztratila jsi|dobyl jsi|dobyla jsi)\b/);
+    // Počítadlo v liště: bez postihu jen 4/5, s postihem 3/4 a červené −1 s hradem (i pro čtečku a v nápovědě po najetí)
+    const state = sampleState();
+    const plain = C.gameScreenHtml(C.viewOf(state, maps.evropa, 'A'));
+    assert.match(plain, /data-cq-budget[^>]*title="Tahy v tomto období">/);
+    assert.doesNotMatch(plain, /data-cq-penalty/);
+    const lost = { ...state, budget: { ...state.budget, penalty: 1, total: 4, left: 3 } };
+    const html = C.gameScreenHtml(C.viewOf(lost, maps.evropa, 'A'));
+    assert.match(html, /title="Tahy v tomto období \(o 1 méně kvůli ztracenému hradu\)"/);
+    assert.match(html, /3\/4<span data-cq-penalty[^>]*><i data-lucide="castle"[^>]*><\/i><span aria-hidden="true">−1<\/span><span class="sr-only">, o 1 méně kvůli ztracenému hradu<\/span>/);
+    assert.doesNotMatch(html, /\sstyle=/);
+    // Toast na začátku období: den i hodina, po ztrátě hradu s větou o tahu méně
+    assert.equal(C.periodStartText({ ...state, budget: { ...state.budget, period: 2 } }), 'Začal 3. den hry.');
+    assert.equal(C.periodStartText({ ...state, period: 'hour', budget: { ...state.budget, period: 0 } }), 'Začala 1. hodina hry.');
+    assert.equal(C.periodStartText({ ...lost, budget: { ...lost.budget, period: 2 } }), 'Začal 3. den hry. Kvůli ztracenému hradu máš o tah méně.');
+    assert.equal(C.periodStartText({ ...state, budget: null }), 'Začalo další období.');
+    assert.equal(C.PENALTY_TEXT, 'Kvůli ztracenému hradu máš v tomto období o tah méně.');
+});
+
 test('vykreslení: mapa, náhled, obrazovky a okna bez inline stylů (CSP), klepací plocha pro každé území', () => {
     const state = sampleState();
     const view = C.viewOf(state, maps.evropa, 'A');

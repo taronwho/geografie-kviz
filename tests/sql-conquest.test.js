@@ -1,6 +1,6 @@
 // Dobývání v databázi (PostgreSQL 16, blok „21: Dobývání“): mapy a sousedství shodné s data/dobyvani-*.json, lobby s Rychlými hrami,
 // založení a přidání (barva jen jednou, soukromá hra jen kódem, limity), Chci hrát a plná hra (domovy, poklady, body), pravidla řádků,
-// tahy (sousedství, vlastní území, opevnění 0–3, pobourání, dobytí, tahy za období, region, poklad, kořist, Návrat do hry), konec hry
+// tahy (sousedství, vlastní území, opevnění 0–3, pobourání, dobytí, tahy za období, region, poklad, kořist, ztracený hrad, Návrat do hry), konec hry
 // (pořadí, shoda), odměna jen jednou, odchod z lobby a vypršení. Spouští se jen s psql a serverem (viz tests/sql-rating.test.js), jinak se přeskočí.
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -393,6 +393,47 @@ test('SQL: Dobývání', { skip: !available && 'PostgreSQL není dostupný' }, a
         ok(as(DEV, 'select dev_tournament_clear_bots();'));
         assert.equal(q(`select count(*) from conquest_games where id = '${game.id}'`), '0');
         assert.equal(q(`select count(*) from auth.users where email like 'bot-%'`), '0');
+    });
+
+    await t.test('ztracený hrad (blok 23): komu soupeř dobude domovské území, má v dalším období o 1 tah méně; pobourání ani odražený útok nevadí; nikdy méně než 0', () => {
+        clock = '2026-12-05T08:00:00Z';
+        const [X, Y] = [id(30), id(31)];
+        q(`insert into auth.users (id, email, raw_user_meta_data) values ('${X}', 'x@example.com', '{"full_name": "Hráč X"}'), ('${Y}', 'y@example.com', '{"full_name": "Hráč Y"}')`);
+        const game = json(create(X, { map: 'evropa', players: 2, hours: 12, per: 'hour', actions: 2, vis: 'private' }));
+        ok(join(Y, { code: game.code, colour: 'modra' }));
+        assert.equal(json(state(X, game.id)).status, 'running', 'plná hra začala');
+        const budget = (uid) => json(state(uid, game.id)).budget;
+        clearMap(game.id);
+        place(game.id, 'Q213', X, { home: true });   // Česko: domov X
+        place(game.id, 'Q40', X, {});                // Rakousko
+        place(game.id, 'Q36', Y, { home: true });    // Polsko: domov Y
+        assert.deepEqual([budget(X).penalty, budget(X).total], [0, 2], 'na začátku bez postihu');
+        // Období 0: Y dobude domov X; postih platí až od dalšího období (v tomtéž období ne)
+        const taken = json(move(Y, game.id, 'Q213', 'attack', true, 'Q36'));
+        assert.deepEqual([taken.move.r, taken.move.h, taken.move.v], ['capture', true, X]);
+        assert.deepEqual([budget(X).period, budget(X).penalty, budget(X).total, budget(X).left], [0, 0, 2, 2]);
+        // Období 1: X má o tah méně (2 − 1), Y kořist (2 + 1)
+        clock = '2026-12-05T09:05:00Z';
+        const lost = budget(X);
+        assert.deepEqual([lost.period, lost.base, lost.penalty, lost.total, lost.left], [1, 2, 1, 1, 1]);
+        assert.deepEqual([budget(Y).penalty, budget(Y).loot, budget(Y).total], [0, 1, 3]);
+        assert.equal(lobby(X).mine.find(g => g.id === game.id).budget.penalty, 1, 'i v Mých hrách');
+        // Nikdy méně než 0: s jediným tahem za období po ztrátě hradu žádný tah
+        q(`update conquest_games set actions = 1 where id = '${game.id}'`);
+        assert.deepEqual([budget(X).total, budget(X).left], [0, 0]);
+        denied(move(X, game.id, 'Q40', 'fortify', true), /Tahy na tohle období už nemáš/);
+        q(`update conquest_games set actions = 2 where id = '${game.id}'`);
+        // Období 1: nový domov X (Rakousko s palisádou); Y ho jen pobourá a pak neuspěje – v období 2 je X bez postihu
+        place(game.id, 'Q40', X, { home: true, level: 1 });
+        place(game.id, 'Q213', Y, {});
+        assert.equal(json(move(Y, game.id, 'Q40', 'attack', true, 'Q213')).move.r, 'breach');
+        assert.equal(json(move(Y, game.id, 'Q40', 'attack', false, 'Q213')).move.r, 'fail');
+        clock = '2026-12-05T10:05:00Z';
+        assert.deepEqual([budget(X).period, budget(X).penalty, budget(X).total], [2, 0, 2]);
+        // Postih platí, i když útočník mezitím smazal účet (tah bez hráče)
+        q(`insert into conquest_moves (game_id, user_id, period, kind, territory, success, result, victim, home) values ('${game.id}', null, 2, 'attack', 'Q40', true, 'capture', '${X}', true)`);
+        clock = '2026-12-05T11:05:00Z';
+        assert.deepEqual([budget(X).period, budget(X).penalty, budget(X).total], [3, 1, 1]);
     });
 });
 // Osmý hráč scénáře (Rychlá hra Česko)

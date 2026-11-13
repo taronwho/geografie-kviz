@@ -66,7 +66,8 @@ const backend = async (context, db) => {
         const summary = (g) => ({ id: g.id, map: g.map, max_players: g.max_players, hours: g.hours, period: g.period, actions: g.actions, visibility: g.visibility, preset: g.preset, status: g.status,
             created_at: g.created_at, started_at: g.started_at || null, ends_at: g.ends_at || null, mine: g.players.some(p => p.user === me.id), creator: g.creator === me.id, code: g.code, players: players(g) });
         const mine = (g) => g.players.find(p => p.user === me.id);
-        const budget = (g) => { const used = (g.moves || []).filter(m => m.u === me.id && ['attack', 'fortify'].includes(m.k) && (m.n || 0) === (g.periodNo || 0)).length; return { period: g.periodNo || 0, base: g.actions, regions: 0, treasures: 0, loot: 0, used, total: g.actions, left: Math.max(0, g.actions - used), period_ends_at: '2026-11-12T10:00:00Z' }; };
+        // penalty: v období g.penaltyPeriod hráč kvůli ztracenému hradu o tah méně (schéma 23)
+        const budget = (g) => { const used = (g.moves || []).filter(m => m.u === me.id && ['attack', 'fortify'].includes(m.k) && (m.n || 0) === (g.periodNo || 0)).length; const penalty = g.penaltyPeriod !== undefined && g.penaltyPeriod === (g.periodNo || 0) ? 1 : 0; return { period: g.periodNo || 0, base: g.actions, regions: 0, treasures: 0, loot: 0, penalty, used, total: g.actions - penalty, left: Math.max(0, g.actions - penalty - used), period_ends_at: '2026-11-12T10:00:00Z' }; };
         const rescore = (g) => g.players.forEach(p => { const score = g.territories.filter(t => t.o === p.user).length; if (score !== p.score) { p.score = score; p.score_at = NOW; } });
         const start = (g) => {
             g.status = 'running'; g.started_at = NOW; g.ends_at = '2026-11-14T10:00:00Z';
@@ -108,6 +109,7 @@ const backend = async (context, db) => {
         if (name === 'dev_conquest_next_period') {
             const g = find(body.game);
             g.periodNo = (g.periodNo || 0) + 1;
+            if (db.loseHome) g.penaltyPeriod = g.periodNo;
             return json(state(g));
         }
         if (name === 'conquest_lobby') {
@@ -327,9 +329,48 @@ test('Dobývání', { skip: !chromium && 'Playwright není nainstalovaný' }, as
         await tab.click('[data-cq="dev-period"]');
         await tab.waitForFunction(() => /Začal 2\. den hry\./.test((document.getElementById('toast') || {}).textContent || ''));
         assert.ok(db.calls.some(call => call.name === 'dev_conquest_next_period'));
+        assert.equal(await tab.locator('[data-cq-penalty]').count(), 0, 'bez ztráty hradu bez −1');
+        // Ztracený hrad: v dalším období o tah méně – toast a počítadlo s červeným −1; lišta se vejde na 360×640
+        db.loseHome = true;
+        await tab.click('[data-cq="dev-period"]');
+        await tab.waitForFunction(() => /^Začal 3\. den hry\. Kvůli ztracenému hradu máš o tah méně\.$/.test(((document.getElementById('toast') || {}).textContent || '').trim()));
+        await tab.waitForSelector('[data-cq-budget] [data-cq-penalty]');
+        assert.equal((await tab.textContent('[data-cq-budget]')).replace(/\s+/g, ' ').trim(), 'Tahy 4/4−1, o 1 méně kvůli ztracenému hradu');
+        assert.equal(await tab.getAttribute('[data-cq-budget]', 'title'), 'Tahy v tomto období (o 1 méně kvůli ztracenému hradu)');
+        assert.deepEqual(await fits(tab), { vertical: 0, page: 0, content: 0 }, 'hra s −1 se vejde na 360×640');
+        const bar = await tab.evaluate(() => {
+            const box = (el) => el.getBoundingClientRect();
+            const feed = box(document.querySelector('#conquest-game [data-cq="feed"]'));
+            const chip = box(document.querySelector('[data-cq-budget]'));
+            const title = document.querySelector('.cq-cartouche-title');
+            return { feedRight: feed.right, chipRight: chip.right, feedLeft: feed.left, title: box(title).width, titleFull: title.scrollWidth <= title.clientWidth + 1 };
+        });
+        assert.ok(bar.feedRight <= 360 && bar.chipRight <= bar.feedLeft && bar.title > 40 && bar.titleFull, `lišta hry: ${JSON.stringify(bar)}`);
+        await shot(tab, 'ztraceny-hrad-360');
+        // Klepnutí na upozornění na útok (aplikace běží): service worker pošle push-open s kódem hry a hra se otevře rovnou
+        const code = db.games.find(g => g.status === 'running').code;
+        await tab.click('#conquest-game [data-cq="hub"]');
+        await tab.waitForSelector('#conquest-hub');
+        await tab.evaluate((value) => navigator.serviceWorker.dispatchEvent(new MessageEvent('message', { data: { type: 'push-open', tab: '', vyzva: '', dobyvani: value, kind: 'conquest' } })), code);
+        await tab.waitForSelector('#conquest-game [data-cq-map] svg');
+        assert.equal(await tab.locator('#dialog-overlay').count(), 0, 'bez okna s kódem a barvou');
+        // Kód cizí hry otevře okno Mám kód hry (s vyplněným kódem) jako dřív
+        await tab.evaluate(() => navigator.serviceWorker.dispatchEvent(new MessageEvent('message', { data: { type: 'push-open', dobyvani: 'EVR234', kind: 'conquest' } })));
+        await tab.waitForFunction(() => (document.getElementById('dialog-overlay') || { dataset: {} }).dataset.title === 'Mám kód hry');
+        assert.equal(await tab.inputValue('#conquest-code'), 'EVR234');
         assert.deepEqual(log.errors, []);
         assert.deepEqual(log.csp, []);
         await context.close();
+        // Klepnutí na upozornění, když aplikace neběží: odkaz …?dobyvani=KÓD otevře rovnou hru a toast řekne, že je o tah méně
+        const cold = await setup(browser, { storage: { 'mudrlant.dev': '1' } });
+        await backend(cold.context, db);
+        await cold.tab.goto(`${ORIGIN}/?dobyvani=${code}`);
+        await cold.tab.waitForSelector('#conquest-game [data-cq-map] svg', { timeout: 30000 });
+        await cold.tab.waitForFunction(() => /Kvůli ztracenému hradu máš v tomto období o tah méně\./.test((document.getElementById('toast') || {}).textContent || ''));
+        assert.equal(await cold.tab.locator('#dialog-overlay').count(), 0);
+        assert.doesNotMatch(cold.tab.url(), /dobyvani=/, 'kód z adresy zmizí');
+        assert.deepEqual(cold.log.errors, []);
+        await cold.context.close();
         // Bez vývojářského režimu žádná lišta
         const plain = newDb();
         plain.autoJoin = true;

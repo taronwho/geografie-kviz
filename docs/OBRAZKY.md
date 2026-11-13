@@ -2414,7 +2414,7 @@ Kam: truhlička na neutrálním území s pokladem (na mapě je jich pět, dobyt
 Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole object. Single centered subject filling about 80 % of the frame with even empty space around it, readable even as a tiny 28 px map icon (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow on the background, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, colors, shading); do not draw the owl and do not copy any existing cartoon or game artwork. Subject: A small, open wooden treasure chest with golden bands, overflowing with a heap of shiny gold coins and a few colorful gems (blue, green, violet), two coins spilled on the ground in front of it, a bright sparkle on top; smaller and simpler than a reward chest. Colors: warm wood brown, gold, blue, green, violet. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
-## 21. Dobývání – vybarvení území (č. 264)
+## 21. Dobývání – vybarvení území a pečeť (č. 264–265)
 
 Obsazená území se barví jako ručně kolorovaná stará mapa: světlá lazura barvou hráče a sytější pruh barvy podél hranice uvnitř území. Textura přidá lazuře nerovnoměrnost skutečného akvarelu (místa, kde se barva slila, jemná zrnitost papíru). Je šedá, barvu hráče jí dá aplikace, takže jedna textura slouží všem barvám.
 
@@ -2424,6 +2424,14 @@ Kam: barva obsazených území na mapě Dobývání (lazura barvou hráče se to
 
 ```text
 Seamless tileable background texture, painted watercolor on cold-press paper, in pure neutral grayscale only (no hue at all, every pixel grey). NOT a sticker: no outline, no border, no frame, no objects, no shapes, no characters, no symbols. Texture: one single even layer of watercolor wash covering the whole image: soft uneven pigment pooling, a few gentle cauliflower blooms with slightly darker soft rims, fine pigment granulation and visible paper grain, faint brush streaks in random directions. Mostly light grey (between #d8d8d8 and #f4f4f4) with a few softly blended mid-grey pools (around #b0b0b0); no pure white unpainted gaps, no hard edges, no lines, no stains with sharp borders. Even lighting with no vignette and no central focal point; the left edge must continue seamlessly into the right edge and the top edge into the bottom edge, so the image can be repeated as a tile without visible seams. Subtle and low contrast, because it will be tinted with a player color and laid over territories on an antique map under flags and icons. No text, no letters, no numbers, no logo, no watermark. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1 --tile
+```
+
+#### 265. `pecet.png` – Prázdná vosková pečeť (šedá) – čeká na dodání
+
+Kam: výběr barvy v Dobývání (okno Barva a znak) – pečeť se přebarví na barvu hráče a do středu se vytlačí jeho znak; později i pečeť u výsledku hry. Do dodání pečeť kreslená v SVG. Přiložit: `branding/sova-original.jpg` (vzor stylu)
+
+```text
+Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole object. Single centered subject filling about 80 % of the frame with even empty space around it, readable even as a small 48 px icon (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow on the background, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, shading); do not draw the owl and do not copy any existing cartoon or game artwork. Subject: A single blank round sealing-wax seal seen straight from the top: a thick blob of wax with an irregular wavy edge and two or three small rounded drips, a raised rim and a smooth slightly sunken circular stamp area in the middle that is completely EMPTY (no symbol, no letter, no pattern). The wax is in pure neutral light grey only (no hue at all, light grey #c8c8c8 with lighter highlights and mid-grey shadows), because the app will tint it to each player's color; a soft glossy highlight on the upper left edge. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
 ## Co udělám po dodání

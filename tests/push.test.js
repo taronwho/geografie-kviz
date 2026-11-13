@@ -43,7 +43,7 @@ const makeRoot = ({ permission = 'default', answer = 'granted', existing = null,
             if (failed instanceof Error) throw failed;
             if (failed) return { ok: false, status: typeof failed === 'number' ? failed : 500, text: async () => '' };
             if (reply) { const body = reply(url, init); if (body !== undefined) return { ok: true, status: 200, text: async () => JSON.stringify(body) }; }
-            return { ok: true, status: 200, text: async () => (url.includes('profiles?') && init.method === 'GET' ? JSON.stringify([{ push_tournament: true, push_challenge: false }]) : '') };
+            return { ok: true, status: 200, text: async () => (url.includes('profiles?') && init.method === 'GET' ? JSON.stringify([{ push_tournament: true, push_challenge: false, push_conquest: true }]) : '') };
         }
     };
     return { root, calls, manager, api: Push.make(root) };
@@ -113,14 +113,20 @@ test('push.js: vypnutí smaže řádek v databázi (jen svůj endpoint) i předp
     assert.deepEqual(await makeRoot().api.disable(), { ok: true }, 'bez odběru není co rušit');
 });
 
-test('push.js: volby turnaje a výzev se čtou a ukládají jen k vlastnímu profilu', async () => {
+test('push.js: volby turnaje, výzev a Dobývání se čtou a ukládají jen k vlastnímu profilu', async () => {
     const env = makeRoot();
-    assert.deepEqual(await env.api.getPrefs('u-1'), { tournament: true, challenge: false });
-    assert.deepEqual(await env.api.savePrefs('u-1', { tournament: false, challenge: true }), { tournament: false, challenge: true });
+    assert.deepEqual(await env.api.getPrefs('u-1'), { tournament: true, challenge: false, conquest: true });
+    assert.equal(env.calls.find(call => call.method === 'GET').url, 'https://proj.supabase.co/rest/v1/profiles?id=eq.u-1&select=push_tournament,push_challenge,push_conquest');
+    assert.deepEqual(await env.api.savePrefs('u-1', { tournament: false, challenge: true, conquest: false }), { tournament: false, challenge: true, conquest: false });
     const patch = env.calls.find(call => call.method === 'PATCH');
     assert.equal(patch.url, 'https://proj.supabase.co/rest/v1/profiles?id=eq.u-1');
-    assert.deepEqual(patch.body, { push_tournament: false, push_challenge: true });
+    assert.deepEqual(patch.body, { push_tournament: false, push_challenge: true, push_conquest: false });
     assert.equal(await makeRoot({ fail: () => true }).api.getPrefs('u-1'), null, 'starší databáze bez sloupců');
+    // Databáze před schématem 23 (bez push_conquest): turnaje a výzvy ano, Dobývání null (dlaždice se neukáže a neukládá se)
+    const old = makeRoot({ fail: (url) => url.includes('push_conquest'), reply: (url, init) => (url.includes('profiles?') && init.method === 'GET' ? [{ push_tournament: false, push_challenge: true }] : undefined) });
+    assert.deepEqual(await old.api.getPrefs('u-1'), { tournament: false, challenge: true, conquest: null });
+    assert.deepEqual(await old.api.savePrefs('u-1', { tournament: true, challenge: true, conquest: null }), { tournament: true, challenge: true, conquest: null });
+    assert.deepEqual(old.calls.find(call => call.method === 'PATCH').body, { push_tournament: true, push_challenge: true });
 });
 
 test('push.js: chyby nesou druh (kind), podle kterého aplikace ukáže konkrétní příčinu a radu', async () => {
@@ -271,15 +277,22 @@ test('sw: klepnutí otevře aplikaci na záložce Více hráčů (nové okno), n
     const running = makeWorker({ windows: ['https://app.test/app/'] });
     await running.click('./?tab=multi');
     assert.equal(running.opened.length, 0);
-    assert.deepEqual(JSON.parse(JSON.stringify(running.messages)), [{ url: 'https://app.test/app/', message: { type: 'push-open', tab: 'multi', vyzva: '', kind: '' } }]);
+    assert.deepEqual(JSON.parse(JSON.stringify(running.messages)), [{ url: 'https://app.test/app/', message: { type: 'push-open', tab: 'multi', vyzva: '', dobyvani: '', kind: '' } }]);
     // druh upozornění jde s klepnutím do aplikace (zkušební upozornění tak potvrdí, že klepnutí funguje)
     const test = makeWorker({ windows: ['https://app.test/app/'] });
     await test.click(undefined, { url: './?tab=multi', kind: 'test' });
-    assert.deepEqual(JSON.parse(JSON.stringify(test.messages[0].message)), { type: 'push-open', tab: 'multi', vyzva: '', kind: 'test' });
+    assert.deepEqual(JSON.parse(JSON.stringify(test.messages[0].message)), { type: 'push-open', tab: 'multi', vyzva: '', dobyvani: '', kind: 'test' });
     // Upozornění k výzvě nese kód: běžící aplikace otevře rovnou okno výzvy
     const result = makeWorker({ windows: ['https://app.test/app/'] });
     await result.click(undefined, { url: './?tab=multi&vyzva=ABC234', kind: 'challenge' });
-    assert.deepEqual(JSON.parse(JSON.stringify(result.messages[0].message)), { type: 'push-open', tab: 'multi', vyzva: 'ABC234', kind: 'challenge' });
+    assert.deepEqual(JSON.parse(JSON.stringify(result.messages[0].message)), { type: 'push-open', tab: 'multi', vyzva: 'ABC234', dobyvani: '', kind: 'challenge' });
+    // Upozornění na útok v Dobývání nese kód hry: běžící aplikace otevře rovnou hru, zavřená ji otevře z odkazu
+    const attack = makeWorker({ windows: ['https://app.test/app/'] });
+    await attack.click(undefined, { url: './?dobyvani=K7M2QX', kind: 'conquest' });
+    assert.deepEqual(JSON.parse(JSON.stringify(attack.messages[0].message)), { type: 'push-open', tab: '', vyzva: '', dobyvani: 'K7M2QX', kind: 'conquest' });
+    const cold = makeWorker();
+    await cold.click(undefined, { url: './?dobyvani=K7M2QX', kind: 'conquest' });
+    assert.deepEqual(cold.opened, ['https://app.test/app/?dobyvani=K7M2QX']);
     const foreign = makeWorker();
     await foreign.click('https://evil.example/phish?tab=multi');
     assert.deepEqual(foreign.opened, ['https://app.test/app/'], 'cizí adresa se nikdy neotevře');
