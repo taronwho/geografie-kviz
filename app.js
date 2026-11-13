@@ -4267,7 +4267,8 @@
         const topic = goal.kind === 'tema' ? TOPIC_BY_ID[goal.id.slice('tema-'.length)] : null;
         const mix = { label: 'Hrát Mix', run: () => startPractice({ kind: 'mix' }) };
         const daily = nextDailyTopic();
-        const multi = (run) => () => { writeJson(KEYS.homeTab, 'multi'); run(); };
+        // Cíl pro více hráčů: přihlášený rovnou do hry, host na záložku Více hráčů (tam je pozvánka k přihlášení), ne „nic se nestalo“
+        const multi = (run) => () => { if (signedUser()) { writeJson(KEYS.homeTab, 'multi'); run(); } else { if (screen !== 'home') renderHome(); openHomeTabFromPush('multi'); } };
         const plans = {
             spravne: { text: 'Počítá se každá správná odpověď v jakékoli hře: procvičování, dnešní otázky, výzvy, turnaj i Kvíz dne.', ...mix },
             tema: topic ? { text: `Počítají se správné odpovědi v tématu ${topic.title}, ať hraješ procvičování, dnešní otázku nebo Mix.`, label: `Hrát ${topic.title}`, run: () => playTopic(topic.id) } : mix,
