@@ -386,6 +386,7 @@
         { id: 'blesk', title: 'Bleskový prstenec', badge: 'bleskovka-20' },
         { id: 'led', title: 'Ledová koruna', badge: 'preziti-50' },
         { id: 'drak', title: 'Strážný drak', badge: 'vsechna-temata-3' },
+        { id: 'dobyvatel', title: 'Dobyvatel', badge: 'dobyvatel' },
         { id: 'duha-mracky', title: 'Duha s mráčky', rare: true },
         { id: 'ruze', title: 'Růže a trny', rare: true }
     ].map(item => ({ ...item, art: true }));

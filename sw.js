@@ -5,7 +5,7 @@ const CACHE_NAME = 'mudrlant-v3';
 // Symboly odznaků (icons/topics/odznak-<skupina>.webp); stejný seznam má app.js (BADGE_ART), hlídá tests/badge-art.test.js
 const BADGE_ART = ['sberatel', 'odpovedi', 'rada', 'serie', 'dny', 'dokonale', 'dnes', 'bez-napovedy', 'psani', 'tezke', 'chyby', 'vyzvy', 'vyhry', 'vyhry-v-rade', 'zalozene',
     'perfektni-vyzvy', 'uroven', 'poznane', 'vsestrannost', 'hvezdy', 'vsechna-temata', 'turnaje', 'turnaj-postupy', 'tydenni-cile', 'kviz-dne',
-    'kviz-serie', 'kviz-perfekt', 'bleskovka', 'preziti', 'mapa', 'odhad', 'serad', 'detektiv'];
+    'kviz-serie', 'kviz-perfekt', 'bleskovka', 'preziti', 'mapa', 'odhad', 'serad', 'detektiv', 'dobyvatel'];
 // Postavičky (profilové obrázky za odměny, icons/avatars/<id>.webp); stejný seznam má look.js (AVATARS s parts), hlídá tests/avatars.test.js.
 // Vrstvy přebarvených částí (<id>-<část><barva>.webp) se uloží až při použití.
 const AVATAR_ART = ['cervik', 'axolot', 'kaktus', 'drak', 'mamut', 'meduza', 'lenoch', 'tukan', 'lev', 'fenix', 'krecek', 'rytir', 'narval', 'zelva',
@@ -16,7 +16,7 @@ const AVATAR_ART = ['cervik', 'axolot', 'kaktus', 'drak', 'mamut', 'meduza', 'le
     'ramp', 'kobliz', 'snezen', 'kapka', 'pampel', 'vysved', 'meloun', 'hvezda', 'aktovk', 'drakpa', 'caj', 'pernik'];
 // Obrázkové rámečky profilu (icons/frames/<id>.webp); stejný seznam má look.js (FRAMES s art: true), hlídá tests/look-frames.test.js
 const FRAME_ART = ['vecny-ohen', 'sezona-01', 'sezona-01-b', 'sezona-02', 'sezona-02-b', 'sezona-03', 'sezona-03-b', 'sezona-04', 'sezona-04-b', 'sezona-05', 'sezona-05-b', 'sezona-06', 'sezona-06-b', 'sezona-07', 'sezona-07-b', 'sezona-08', 'sezona-08-b', 'sezona-09', 'sezona-09-b', 'sezona-10', 'sezona-10-b', 'sezona-11', 'sezona-11-b', 'sezona-12', 'sezona-12-b',
-    'ohen', 'more', 'soukoli', 'galaxie', 'kralovsky-vavrin', 'blesk', 'led', 'drak', 'duha-mracky', 'ruze'];
+    'ohen', 'more', 'soukoli', 'galaxie', 'kralovsky-vavrin', 'blesk', 'led', 'drak', 'dobyvatel', 'duha-mracky', 'ruze'];
 const APP_SHELL = [
     './', 'index.html', 'styles.css', 'config.js', 'friends.js', 'groups.js', 'soukromi.html', 'licence.html', 'licence.js', 'question-report.js', 'answer-stats.js', 'monitor.js', 'auth.js', 'social.js', 'icons.js', 'quiz-core.js', 'mystery.js', 'photo-source.js', 'visuals.js', 'question-map.js', 'numeric-questions.js', 'look-flags.js', 'look.js', 'look-themes.js', 'look-robes.js', 'look-frames.js', 'look-owl.js', 'rating.js', 'league-seasons.js', 'showcase.js', 'tournament.js', 'review.js', 'goals.js', 'chronicle.js', 'tips.js', 'tutorial.js', 'push.js', 'daily-quiz.js', 'share-card.js', 'rewards.js', 'season.js', 'app.js', 'manifest.webmanifest', 'album.js', 'gold.js', 'boss.js', 'bets.js', 'chain.js',
     'topics/zemepis.js', 'data/zemepis.json', 'topics/historie.js', 'data/historie.json', 'topics/biologie.js', 'data/biologie.json',
@@ -43,12 +43,13 @@ const APP_SHELL = [
         'zlata-otazka', 'zlaty-stripek', 'zlata-truhla', 'zlata-truhla-otevrena', 'zlatokop',
         // Dobývání (conquest.js ART, č. 234–239 a 260–263)
         'dobyvani', 'palisada', 'hradba', 'pevnost', 'hrad-domov', 'poklad', 'vetrna-ruzice', 'plachetnice', 'morska-prisera', 'kartuse-sirka',
+        'pecet', 'vavrin', 'sova-dobyvatel', 'mince', 'mince-hromadka', 'sova-sazka',
         // Řetězovka (chain.js ART a výsledek, č. 212 a 214: sova s řetězem, prasklý článek)
         'retezovka', 'clanek-prasknuty'].map(id => `icons/topics/${id}.webp`),
     // Články řetězu v pásu Řetězovky (chain.js linkSvg, scripts/chain-links.py)
     ...['celem', 'bokem', 'prasknuty'].map(id => `icons/retez/${id}.webp`),
     // Bezešvé textury (zlatá fólie Zlaté otázky, pergamen a moře map Dobývání; č. 210, 232, 233)
-    ...['textura-zlato', 'textura-pergamen', 'textura-pergamen-svetly', 'textura-more'].map(id => `icons/textury/${id}.webp`),
+    ...['textura-zlato', 'textura-pergamen', 'textura-pergamen-svetly', 'textura-more', 'textura-akvarel'].map(id => `icons/textury/${id}.webp`),
     ...BADGE_ART.map(id => `icons/topics/odznak-${id}.webp`), ...AVATAR_ART.map(id => `icons/avatars/${id}.webp`), ...FRAME_ART.map(id => `icons/frames/${id}.webp`), 'icons/favicon-32.png', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png'
 ];
 

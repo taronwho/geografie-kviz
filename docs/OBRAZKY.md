@@ -2208,7 +2208,7 @@ Kam: ikona opevnění 2. stupně (Hradba) na území mapy Dobývání (vyroste z
 Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole object. Single centered subject filling about 80 % of the frame with even empty space around it, readable even as a tiny 28 px map icon (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow on the background, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, colors, shading); do not draw the owl and do not copy any existing cartoon or game artwork. Subject: This is one of three matching fortification icons that clearly escalate in strength (level 1: a low wooden stake palisade, level 2: a stone wall with a small tower, level 3: a tall stone fortress tower with a pennant); all three share the same three-quarter front view, the same base width (about 80 % of the image width), the bottom edge on the same flat ground line (no grass, no ground patch) and the same colors of stone and wood, and each level is taller and grander than the one before. If an image of another level is attached, match its view, size and style exactly. LEVEL 2: a sturdy, medium-height section of grey stone castle wall with crenellations and a small round stone tower with battlements on one side, a small arched wooden gate in the wall, big simple stone blocks, no flag. Colors: warm grey stone, wood brown. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
-#### 240. `ramecek-dobyvatel.png` – Obrázkový rámeček Dobyvatel – čeká na dodání
+#### 240. `ramecek-dobyvatel.png` – Obrázkový rámeček Dobyvatel – ✅ dodáno, zapojeno
 
 Kam: obrázkový rámeček kolem profilovky; dostane ho, kdo skončí ve hře Dobývání první, spolu s odznakem Dobyvatel. Do dodání kroužek z CSS. Přiložit: `branding/sova-original.jpg` (vzor stylu)
 
@@ -2218,7 +2218,7 @@ Cartoon sticker illustration in exactly the same art style as the attached owl m
 
 ## 18. Kamarádské sázky (č. 241–243)
 
-#### 241. `mince.png` – Mince s Mudrlantem – čeká na dodání
+#### 241. `mince.png` – Mince s Mudrlantem – ✅ dodáno, zapojeno
 
 Kam: mince u výzvy se sázkou v seznamu výzev, volba vkladu v okně Vyzvat a výsledek sázky. Musí být čitelná i jako malá ikona 24–32 px. Do dodání emoji 🪙. Přiložit: `branding/sova-original.jpg` (vzor stylu)
 
@@ -2226,7 +2226,7 @@ Kam: mince u výzvy se sázkou v seznamu výzev, volba vkladu v okně Vyzvat a v
 Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole object. Single centered subject filling about 80 % of the frame with even empty space around it, readable even as a tiny 24 px icon (one simple bold shape, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow on the background, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, colors, shading); do not draw the owl character itself and do not copy any existing cartoon or game artwork. Subject: A single shiny gold coin seen straight from the front, a thick raised rim with small notches, in the middle a simple embossed relief of the owl mascot's face (big round eyes, two ear tufts, a monocle on one eye), a bright glint on the rim. No letters and no numbers on the coin. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
-#### 242. `mince-hromadka.png` – Hromádka mincí – čeká na dodání
+#### 242. `mince-hromadka.png` – Hromádka mincí – ✅ dodáno, zapojeno
 
 Kam: výsledek sázky po zápase (hromádka mincí se přesype k vítězi) a sázková bilance v Profilu. Musí být čitelná i jako malá ikona 24–32 px. Do dodání emoji 🪙. Přiložit: `branding/sova-original.jpg` (vzor stylu)
 
@@ -2234,7 +2234,7 @@ Kam: výsledek sázky po zápase (hromádka mincí se přesype k vítězi) a sá
 Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole object. Single centered subject filling about 80 % of the frame with even empty space around it, readable even as a tiny 24 px icon (one simple bold shape, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow on the background, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, colors, shading); do not draw the owl character itself and do not copy any existing cartoon or game artwork. Subject: A small pile of shiny gold coins: a neat stack of five coins leaning slightly, two loose coins lying in front of it and one coin standing on its edge, the front coins showing the same simple embossed owl face (big round eyes, two ear tufts, a monocle), a few sparkles. One compact shape. No letters and no numbers on the coins. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
-#### 243. `sova-sazka.png` – Sova s měšcem mincí – čeká na dodání
+#### 243. `sova-sazka.png` – Sova s měšcem mincí – ✅ dodáno, zapojeno
 
 Kam: tip ke Kamarádským sázkám a symbol odznaku Sázkař (bez kolečka medaile). Do dodání `sova-vyzva`. Přiložit: `branding/sova-original.jpg` (postava)
 
@@ -2418,7 +2418,7 @@ Cartoon sticker illustration in exactly the same art style as the attached owl m
 
 Obsazená území se barví jako ručně kolorovaná stará mapa: světlá lazura barvou hráče a sytější pruh barvy podél hranice uvnitř území. Textura přidá lazuře nerovnoměrnost skutečného akvarelu (místa, kde se barva slila, jemná zrnitost papíru). Je šedá, barvu hráče jí dá aplikace, takže jedna textura slouží všem barvám.
 
-#### 264. `textura-akvarel.png` – Akvarelová lazura (šedá) – čeká na dodání
+#### 264. `textura-akvarel.png` – Akvarelová lazura (šedá) – ✅ dodáno, zapojeno
 
 Kam: barva obsazených území na mapě Dobývání (lazura barvou hráče se touto texturou zvlní jako akvarel, násobením přes barvu). Do dodání rovnoměrná lazura s pruhem podél hranic. Nic nepřikládat.
 
@@ -2426,7 +2426,7 @@ Kam: barva obsazených území na mapě Dobývání (lazura barvou hráče se to
 Seamless tileable background texture, painted watercolor on cold-press paper, in pure neutral grayscale only (no hue at all, every pixel grey). NOT a sticker: no outline, no border, no frame, no objects, no shapes, no characters, no symbols. Texture: one single even layer of watercolor wash covering the whole image: soft uneven pigment pooling, a few gentle cauliflower blooms with slightly darker soft rims, fine pigment granulation and visible paper grain, faint brush streaks in random directions. Mostly light grey (between #d8d8d8 and #f4f4f4) with a few softly blended mid-grey pools (around #b0b0b0); no pure white unpainted gaps, no hard edges, no lines, no stains with sharp borders. Even lighting with no vignette and no central focal point; the left edge must continue seamlessly into the right edge and the top edge into the bottom edge, so the image can be repeated as a tile without visible seams. Subtle and low contrast, because it will be tinted with a player color and laid over territories on an antique map under flags and icons. No text, no letters, no numbers, no logo, no watermark. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1 --tile
 ```
 
-#### 265. `pecet.png` – Prázdná vosková pečeť (šedá) – čeká na dodání
+#### 265. `pecet.png` – Prázdná vosková pečeť (šedá) – ✅ dodáno, zapojeno
 
 Kam: výběr barvy v Dobývání (okno Barva a znak) – pečeť se přebarví na barvu hráče a do středu se vytlačí jeho znak; později i pečeť u výsledku hry. Do dodání pečeť kreslená v SVG. Přiložit: `branding/sova-original.jpg` (vzor stylu)
 
@@ -2438,7 +2438,7 @@ Cartoon sticker illustration in exactly the same art style as the attached owl m
 
 Konec hry: území vítěze se na mapě rozzáří a přes mapu se rozvine kartuše s vítězem; pak vyjede list výsledků s kamennými stupni vítězů, praporci na žerdích a vavřínem.
 
-#### 266. `vavrin.png` – Zlatý vavřínový věnec – čeká na dodání
+#### 266. `vavrin.png` – Zlatý vavřínový věnec – ✅ dodáno, zapojeno
 
 Kam: věnec kolem praporce vítěze na stupních vítězů v Dobývání (a kolem vítěze v kartuši nad mapou). Do dodání jednoduchý věnec v SVG. Přiložit: `branding/sova-original.jpg` (vzor stylu)
 
@@ -2446,7 +2446,7 @@ Kam: věnec kolem praporce vítěze na stupních vítězů v Dobývání (a kole
 Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole object. Single centered subject filling about 80 % of the frame with even empty space around it, readable even as a small 48 px icon (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow on the background, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, colors, shading); do not draw the owl and do not copy any existing cartoon or game artwork. Subject: An open golden laurel wreath seen from the front: two curved branches of glossy golden leaves meeting at the bottom where they are tied with a small wine-red ribbon bow, open at the top, symmetric, the inside of the wreath completely EMPTY (nothing inside, so a flag can be placed in it). Colors: warm gold with darker gold shading, wine-red ribbon. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
-#### 267. `sova-dobyvatel.png` – Sova dobyvatel s vlajkou na hradbě – čeká na dodání
+#### 267. `sova-dobyvatel.png` – Sova dobyvatel s vlajkou na hradbě – ✅ dodáno, zapojeno
 
 Kam: vítězství v Dobývání (nad mapou při vítězství a v listu výsledků). Do dodání sova s pohárem (`sova-vitez`). Přiložit: `branding/sova-original.jpg` (postava) a hotovou `dobyvani.png` (č. 234, sova s helmou a mapou – vzor výstroje)
 

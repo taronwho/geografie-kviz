@@ -910,7 +910,7 @@
             const title = me ? 'Vítězství!' : winners.length > 1 ? 'Vítězové tažení' : 'Vítěz tažení';
             const names = winners.map(player => (player.me ? 'Ty' : player.display_name || 'Hráč')).join(', ');
             wrap.insertAdjacentHTML('beforeend', `<div data-cq-finale class="cq-finale-banner pointer-events-none absolute inset-x-0 top-[12%] flex flex-col items-center px-3" role="status">
-                ${me ? '<img src="icons/topics/sova-vitez.webp" alt="" class="cq-finale-owl h-20 w-20 object-contain">' : `<span class="cq-finale-flag">${C.pennantSvg(winner.flag_color, winner.emblem, 'h-14 w-[4.7rem]')}</span>`}
+                ${me ? `<img src="icons/topics/${C.ART.victory || 'sova-vitez'}.webp" alt="" class="cq-finale-owl h-24 w-24 object-contain">` : `<span class="cq-finale-flag relative flex h-20 w-24 items-center justify-center">${C.ART.laurel ? `<img src="icons/topics/${C.ART.laurel}.webp" alt="" class="absolute inset-0 h-full w-full object-contain">` : ''}<span class="relative -mt-2">${C.pennantSvg(winner.flag_color, winner.emblem, 'h-10 w-[3.4rem]')}</span></span>`}
                 <div class="cq-finale-scroll cq-cartouche-art aspect-[29/10] h-16 max-w-full px-[15%] pb-[3px] flex flex-col items-center justify-center text-center"><span class="cq-cartouche-title text-[18px]">${esc(title)}</span><span class="max-w-full truncate text-[11px] font-bold text-amber-900/85">${esc(names)} · ${esc(C.pointsWord(winner.score))}</span></div>
                 ${Array.from({ length: 10 }, () => '<i class="cq-finale-spark" aria-hidden="true"></i>').join('')}</div>`);
             wrap.querySelectorAll('.cq-finale-spark').forEach((spark, i) => {

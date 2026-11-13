@@ -30,7 +30,11 @@
         // Textury (icons/textury/<název>.webp): pergamen je background-image ve třídě .cq-paper (src/input.css), moře vzor v SVG
         paper: 'textura-pergamen', // č. 232
         sea: 'textura-more',      // č. 233
-        frame: null               // č. 240 'ramecek-dobyvatel' – rámeček vítěze (look.js ART_FRAMES s badge: 'dobyvatel', až bude obrázek)
+        watercolor: 'textura-akvarel', // č. 264 šedá akvarelová lazura násobená přes barvu obsazených území
+        seal: 'pecet',            // č. 265 prázdná šedá pečeť, sealSvg ji přebarví (scripts/conquest-art.py)
+        laurel: 'vavrin',         // č. 266 vavřínový věnec vítěze (stupně vítězů, kartuše konce tažení)
+        victory: 'sova-dobyvatel', // č. 267 sova s vlajkou na hradbě (vítězství)
+        frame: 'dobyvatel'        // č. 240 rámeček Dobyvatel (icons/frames, look.js ART_FRAMES s badge: 'dobyvatel')
     };
     const artUrl = (name) => `icons/topics/${name}.webp`;
 
@@ -1142,7 +1146,17 @@
                 inks.push(`<path class="cq-ink${owner.me ? ' cq-ink-me' : ''}" data-ink="${item.id}" d="${item.d}" stroke="${inkOf(owner.flag_color)}"/>`);
             }
         }
-        parts.push(`<g class="cq-washes" pointer-events="none">${washes.join('')}</g><g pointer-events="none">${hatches.join('')}</g>`);
+        // Akvarelová lazura (č. 264): šedá textura řídí, jak silně barva hráče na území drží (maska) – kde se v textuře barva slila
+        // (tmavší skvrny), je lazura plná, jinde o čtvrtinu slabší; barva tak zůstane čistá a jen nerovnoměrná jako skutečný akvarel
+        let aqua = '';
+        if (ART.watercolor && washes.length) {
+            const tile = Math.round(Math.max(w, h) / 2.4);
+            defs.push(`<pattern id="${prefix}-aqua" width="${tile}" height="${tile}" patternUnits="userSpaceOnUse"><image href="icons/textury/${ART.watercolor}.webp" width="${tile}" height="${tile}"/></pattern>`
+                + `<filter id="${prefix}-aqua-f" color-interpolation-filters="sRGB"><feColorMatrix type="matrix" values="-1 0 0 0 1.75 -1 0 0 0 1.75 -1 0 0 0 1.75 0 0 0 1 0"/></filter>`
+                + `<mask id="${prefix}-aqua-m" maskUnits="userSpaceOnUse" x="0" y="0" width="${w}" height="${h}"><rect width="${w}" height="${h}" fill="url(#${prefix}-aqua)" filter="url(#${prefix}-aqua-f)"/></mask>`);
+            aqua = ` mask="url(#${prefix}-aqua-m)"`;
+        }
+        parts.push(`<g class="cq-washes" pointer-events="none"${aqua}>${washes.join('')}</g><g pointer-events="none">${hatches.join('')}</g>`);
         // Celé regiony: zlatá záře obrysu (pod hranicemi)
         if (view) for (const region of data.regions) {
             const owner = view.ownerOf(region.t[0]);
@@ -1353,7 +1367,7 @@
         }
         return `M${points.join('L')}Z`;
     })();
-    const sealSvg = (colorId, emblemId, cls = 'h-14 w-14') => {
+    const sealDrawn = (colorId, emblemId, cls = 'h-14 w-14') => {
         const hex = colorOf(colorId).hex;
         const dark = mix(hex, '#000000', 0.38), deep = mix(hex, '#000000', 0.55), light = mix(hex, '#ffffff', 0.38);
         const emblem = emblemOf(emblemId);
@@ -1364,6 +1378,19 @@
             + `<circle cx="24" cy="24" r="12.4" fill="none" stroke="${light}" stroke-width="0.7" stroke-opacity="0.55"/>`
             + `<path d="M10.5 17.5A15.5 15.5 0 0 1 20 9.2" fill="none" stroke="#ffffff" stroke-opacity="0.45" stroke-width="2" stroke-linecap="round"/>`
             + `<g transform="translate(14.6 15.2) scale(0.78)">${emblem.draw(light)}</g><g transform="translate(14.6 14.6) scale(0.78)">${emblem.draw(deep)}</g></svg>`;
+    };
+    // Pečeť z obrázku (č. 265): šedý vosk se přebarví násobením barvou hráče (feColorMatrix, světlejší o pětinu, aby šedý vosk nebyl
+    // tmavší než barva) a do vtlačeného kruhu (poloměr asi 0,23 strany) se vytiskne znak. Bez obrázku SVG kresba výš.
+    const sealSvg = (colorId, emblemId, cls = 'h-14 w-14') => {
+        if (!ART.seal) return sealDrawn(colorId, emblemId, cls);
+        const color = colorOf(colorId);
+        const hex = color.hex;
+        const [r, g, b] = hexRgb(hex).map(value => Math.min(1.4, value / 255 * 1.22).toFixed(3));
+        const emblem = emblemOf(emblemId);
+        const deep = mix(hex, '#000000', 0.55), light = mix(hex, '#ffffff', 0.45);
+        return `<svg viewBox="0 0 48 48" class="${cls}" aria-hidden="true" focusable="false"><defs><filter id="cqt-${color.id}" color-interpolation-filters="sRGB"><feColorMatrix type="matrix" values="${r} 0 0 0 0 0 ${g} 0 0 0 0 0 ${b} 0 0 0 0 0 1 0"/></filter></defs>`
+            + `<image href="${artUrl(ART.seal)}" x="0" y="0" width="48" height="48" filter="url(#cqt-${color.id})"/>`
+            + `<g transform="translate(15.6 16.2) scale(0.7)">${emblem.draw(light)}</g><g transform="translate(15.6 15.6) scale(0.7)">${emblem.draw(deep)}</g></svg>`;
     };
     // Okno Barva a znak ve stylu map Dobývání: pergamen, náhled praporce s pečetí, přepínač Barva / Znak jako kožené záložky.
     // Barvy jako voskové pečeti 3 × 3 (obsazené jiným hráčem zašedlé a nejdou), znaky jako razítka na pergamenu 6 × 4
@@ -1633,7 +1660,7 @@
             if (!player) return '<span class="flex-1"></span>';
             const height = ['h-14', 'h-[4.75rem]', 'h-10'][slot];
             const first = player.place === 1;
-            const flag = `<span class="relative flex h-16 w-16 items-end justify-center">${first ? LAUREL : ''}<svg viewBox="0 0 40 52" class="relative h-14 w-11" aria-hidden="true" focusable="false"><path d="M4 2V50" stroke="#4a2f16" stroke-width="2.4" stroke-linecap="round"/><circle cx="4" cy="2.5" r="2.4" fill="#d69725" stroke="#7a461b" stroke-width="0.8"/><g class="cq-wave" transform="translate(5 4) scale(1.05)">${pennantGroup(player.flag_color, player.emblem)}</g></svg></span>`;
+            const flag = `<span class="relative flex h-16 w-16 items-end justify-center">${first ? (ART.laurel ? `<img src="${artUrl(ART.laurel)}" alt="" class="cq-laurel-art">` : LAUREL) : ''}<svg viewBox="0 0 40 52" class="relative h-14 w-11" aria-hidden="true" focusable="false"><path d="M4 2V50" stroke="#4a2f16" stroke-width="2.4" stroke-linecap="round"/><circle cx="4" cy="2.5" r="2.4" fill="#d69725" stroke="#7a461b" stroke-width="0.8"/><g class="cq-wave" transform="translate(5 4) scale(1.05)">${pennantGroup(player.flag_color, player.emblem)}</g></svg></span>`;
             return `<div class="cq-podium-step flex min-w-0 flex-1 flex-col items-center" data-place="${player.place}">${flag}
                 <span class="cq-ledger-title max-w-full truncate text-[13px]">${esc(player.me ? 'Ty' : player.display_name || 'Hráč')}</span>
                 <span class="text-[11px] font-black text-amber-900/80 dark:text-gold-200/80">${esc(pointsWord(player.score))}</span>
