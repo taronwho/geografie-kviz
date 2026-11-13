@@ -264,7 +264,11 @@
             previous = result;
             result = result.replace(JOINED_MARKS, '[***]');
         }
-        return result;
+        // Řadové číslo panovníka za zakrytým jménem patří ke jménu (u Přemysla Otakara I. a II. by prozradilo odpověď);
+        // jeho tečka uprostřed věty (Karel IV. byl → [***] byl) nezůstane, na konci věty ano
+        return result
+            .replace(/\[\*\*\*\][ \u00a0]+[IVXL]{1,5}\.(?=[ \u00a0]+\p{Ll}|[,;:)]|$)/gu, '[***].')
+            .replace(/\[\*\*\*\]\.(?=[ \u00a0]+\p{Ll}|[,;:)])/gu, '[***]');
     };
 
     const censorName = (text, name) => {
