@@ -884,7 +884,12 @@
                 family.ready.set(at, { known: own.filter(entry => entry.known).length, usable: own.filter(entry => !entry.expert).length });
             }
         }
-        return { families, places, capitals, cities, stats, placeNames, myths: mythPools(list('mytologie'), fameOf) };
+        // Kmeny jmen měst a území (Poznań u Lecha i Warty Poznań) a druhů položek (vodní nádrž, rašeliniště): dvě různé věci je
+        // sdílet smějí (nameStemsOf)
+        const types = [...families.values()].flatMap(family => family.entries.map(entry => entry.sub || ''));
+        const placeStems = new Set([...list('zemepis').filter(item => item.c === 'mesto' && item.n).map(item => item.n), ...data.t.map(item => item.n), ...types]
+            .flatMap(name => namePlain(name).split(' ')).filter(word => word.length >= 5).map(word => word.slice(0, 5)));
+        return { families, places, capitals, cities, stats, placeNames, placeStems, myths: mythPools(list('mytologie'), fameOf) };
     };
     // Postavy mytologií podle kultury (nezávisle na mapě), od nejznámější; stejně pojmenované postavy dvou kultur ne
     const mythPools = (list, fameOf) => {
@@ -979,7 +984,9 @@
                     const found = family.byTerritory.get(other.id);
                     if (!found) continue;
                     const ranked = found.map(entry => ({ entry, score: wrongScore(entry, pick, level, rng) })).sort((a, b) => a.score - b.score);
-                    const hit = ranked.find(({ entry }) => !used.has(entry.key) && wrongOk(entry));
+                    // Ani druhé jméno odpovědi nebo jiné možnosti (stejné místo, stejný výrazný kmen jména)
+                    const hit = ranked.find(({ entry }) => !used.has(entry.key) && wrongOk(entry)
+                        && ![pick, ...wrong].some(other => clash(other.label, entry.label) || nearDuplicate(other, entry, spec.id, ctx, spec.kind === 'person' && spec.id !== 'band')));
                     if (!hit) continue;
                     used.add(hit.entry.key);
                     wrong.push(hit.entry);
@@ -1275,8 +1282,9 @@
     // fakta, obrázek, letopočet. Záhlaví („Útok na Francii“) území prozradí, proto jsou všechny čtyři možnosti ze stejného území,
     // rodiny a tématu (u osob i stejného pohlaví, popis ho prozradí tvarem slov): podle národnosti ani druhu nejde nic vyloučit.
     // Položka, ke které se tři takové možnosti nenajdou (se známostí podle úrovně: na 0–1 jen známé, výš i méně známé, nikdy pro
-    // znalce), se neptá; rodina bez takové položky také ne. Skupiny: mudrlant (asi 60 %: popis, fakta, letopočet), formy (asi 25 %:
-    // obrázek, bod na mapě, odhad čísla) a stát (asi 15 %: vlajka, hlavní město, soused). Území bez položek pro skupinu mudrlant
+    // znalce), se neptá; rodina bez takové položky také ne. Skupiny: mudrlant (asi 70 %: popis, fakta, letopočet, obrázek – jeden
+    // obrázek a čtyři možnosti textem), formy (asi 15 %: bod na mapě, odhad čísla) a stát (asi 15 %: vlajka, hlavní město, soused). Dvě
+    // jména téže věci (stejné místo, stejný výrazný kmen jména) mezi možnostmi nejsou (nearDuplicate). Území bez položek pro skupinu mudrlant
     // dostane její podíl vztahovými rodinami („Která z těchto staveb stojí ve Francii?“); jinak jsou jen poslední zálohou.
     // Popis a obrázek potřebují síť: buildQuestion vrátí rozpracovanou otázku (pending: možnosti už jsou dané) a prepareQuestion ji
     // doplní přes roundFor (app.js: createRoundData jako v hlavní hře); když roundFor selže, nevrátí, co forma potřebuje, nebo
@@ -1286,8 +1294,10 @@
         if (!ctx.memo.has(key)) ctx.memo.set(key, compute());
         return ctx.memo.get(key);
     };
-    // ask = otázka u popisu a faktů, photo = otázka u obrázku (rodina bez ní na obrázek nejde: obal knihy, plakát filmu, znak klubu
-    // nesou název, řeka a jezero se z fotky nepoznají), noText = text před odpovědí téma neukazuje (regiony), person = osoby
+    // ask = otázka u popisu a faktů, photo = otázka u obrázku: jeden obrázek a čtyři možnosti textem, u každé rodiny, jejíž obrázek
+    // název nenese (stavby, místa, osoby, díla výtvarného umění, plemena); rodina bez ní na obrázek nejde: obal knihy, plakát filmu,
+    // znak klubu a emblém olympiády nesou název, bitva, událost a vynález mívají obraz scény, tabuli nebo nákres s popiskem;
+    // photoKnown = obrázek jen u známé položky (jezero, řeka), noText = text před odpovědí téma neukazuje (regiony), person = osoby
     const PERSON_ASK = { ask: 'Kdo to je?', photo: 'Kdo je na obrázku?', person: true };
     // Hory a sopky, nebo pohoří (podle toho, co mezi možnostmi je)
     const PEAK_TYPES = new Set(['hora', 'sopka', 'stratovulkán', 'kopec']);
@@ -1297,10 +1307,10 @@
         building: { ask: 'Která stavba to je?', photo: 'Co je to za stavbu?' },
         castle: { ask: 'Který hrad nebo zámek to je?', photo: 'Který hrad nebo zámek je na fotce?' },
         mountain: { ask: (src, found) => `${mountainWord(found)} to je?`, photo: (src, found) => `${mountainWord(found)} je na fotce?` },
-        lake: { ask: 'Která vodní plocha to je?' },
+        lake: { ask: 'Která vodní plocha to je?', photoKnown: true, photo: (src, found) => (found.every(entry => entry.sub === 'jezero') ? 'Které jezero je na fotce?' : 'Která vodní plocha je na fotce?') },
         island: { ask: 'Který ostrov to je?', photo: 'Který ostrov je na fotce?' },
         nature: { ask: 'Které přírodní místo to je?', photo: 'Které přírodní místo je na fotce?' },
-        river: { ask: 'Která řeka to je?' },
+        river: { ask: 'Která řeka to je?', photoKnown: true, photo: 'Která řeka je na fotce?' },
         region: { ask: 'Který region to je?', noText: true, photo: (src) => (src.it === 'v' ? 'Kterému regionu patří tato vlajka?' : 'Kterému regionu patří tento znak?') },
         band: { ask: 'Která kapela to je?', photo: 'Která kapela je na fotce?' },
         book: { ask: 'Které literární dílo to je?' },
@@ -1319,7 +1329,16 @@
     PEOPLE.forEach(([id]) => { if (!MUDRLANT[id]) MUDRLANT[id] = PERSON_ASK; });
     const MUDRLANT_IDS = Object.keys(MUDRLANT);
     const srcOf = (entry, topic = entry.topic) => entry.srcs[topic];
-    const hasImage = (entry) => { const src = srcOf(entry); return Boolean(src && src.im && src.ih); };
+    // Obrázek, který otázka na obrázek opravdu ukáže (app.js conquestRound jako hlavní hra): u staveb Architektury, obrazů a soch
+    // Umění a vlajek a znaků obrázek otázky, jinak jen skutečná fotka (.jpg, .webp; kresbu, mapu ani .png či .tif hlavní hra
+    // za fotku nebere a otázka by skončila místní zálohou); jezero a řeka jen známé (photoKnown)
+    const SHOWN_IMAGE = { architektura: (src) => src.c === 'stavby', umeni: (src) => src.c === 'obrazy' || src.c === 'sochy', vlajky: () => true };
+    const hasImage = (entry, spec = null) => {
+        const src = srcOf(entry);
+        if (!src || !src.im || !src.ih || (spec && spec.photoKnown && !entry.known)) return false;
+        const shown = SHOWN_IMAGE[entry.topic];
+        return Boolean(shown && shown(src)) || !(core && core.isRealPhoto) || core.isRealPhoto(src.im);
+    };
     // Položky rodiny, pro které je území správnou odpovědí (vazba bez dvojí národnosti, jmenovců a sporů) a které jdou na této
     // úrovni, od nejznámější
     const ownEntries = (ctx, id) => cached(ctx, `own|${id}`, () => {
@@ -1335,7 +1354,7 @@
         const own = ownEntries(ctx, id);
         const byTopic = new Map();
         own.forEach(entry => Object.keys(entry.srcs).forEach(topic => byTopic.set(topic, (byTopic.get(topic) || 0) + 1)));
-        return [...byTopic.values()].some(count => count >= 4) && (form !== 'photo' || own.some(hasImage));
+        return [...byTopic.values()].some(count => count >= 4) && (form !== 'photo' || own.some(entry => hasImage(entry, spec)));
     }).map(id => ({ id, domain: FAMILY_DOMAIN[id], w: [1, 1, 1, 1] })));
     // Tři nesprávné možnosti k položce: ze stejného území, rodiny i tématu, osoby stejného pohlaví; napřed stejná kategorie a druh
     // (ke katedrále katedrály: druh je u otázky vidět a popis ho říká), nízko nejznámější, výš podobně známé; názvy různé a žádný není
@@ -1344,7 +1363,52 @@
     const stemsOf = (text) => namePlain(text).split(' ').filter(Boolean).map(word => (word.length >= 5 ? word.slice(0, word.length - 2) : word));
     const sameStems = (a, b) => { const x = stemsOf(a); const y = stemsOf(b); return x.length === y.length && x.every((stem, i) => stem === y[i]); };
     const clash = (a, b) => namePlain(a) === namePlain(b) || sameStems(a, b) || Boolean(core && core.isNamePart && core.isNamePart(a, b));
-    const distractorsFor = (pick, own, spec, ctx) => {
+    // Dvě jména téže věci (Puskás Aréna a Stadion Ference Puskáse: nový a starý stadion na stejném místě, dvě katedrály na jednom
+    // místě s jiným názvem): stavby, sportoviště a místa blíž než NEAR_KM od sebe, nebo jména se stejným výrazným kmenem (aspoň
+    // 5 písmen bez diakritiky). Kmen se nepočítá u obecných slov druhu a zasvěcení (stadion, katedrála, Saint, svatého), běžných
+    // přídavných jmen názvů (Městský, Národní) a jmen měst a území (Lech Poznań – Warta Poznań); u osob jen příjmení (ne Václav)
+    const NEAR_KM = 1;
+    const COORD_FAMILIES = new Set(['city', 'building', 'castle', 'mountain', 'lake', 'island', 'nature', 'venue']);
+    const STEM_SKIP = new Set([...((core && core.GENERIC_NAME_WORDS) || []), 'stadium', 'stadio', 'estadio', 'stade', 'arena', 'château', 'chateau', 'schloss', 'castello',
+        'castillo', 'castle', 'palazzo', 'palacio', 'palais', 'palace', 'kathedrale', 'cathédrale', 'cathedral', 'catedral', 'cattedrale', 'basilica', 'basilique', 'kirche',
+        'church', 'église', 'iglesia', 'chiesa', 'tower', 'torre', 'bridge', 'brücke', 'ponte', 'puente', 'museum', 'musée', 'museo', 'theatre', 'theater', 'teatro',
+        'národní', 'national', 'městský', 'městská', 'městské', 'olympijský', 'olympijská', 'olympijské', 'královský', 'královská', 'královské', 'státní', 'hlavní', 'velký',
+        'velká', 'velké', 'starý', 'stará', 'staré', 'nový', 'nová', 'nové', 'horní', 'dolní', 'severní', 'jižní', 'východní', 'západní', 'střední', 'svatého', 'svaté',
+        'svatý', 'svatá', 'svatých', 'saint', 'sainte', 'santa', 'santo', 'sankt', 'notre', 'nuestra', 'señora', 'panny', 'marie', 'nejsvětější', 'mount', 'monte',
+        'lake', 'lago', 'isola', 'island', 'insel', 'river', 'parque', 'fotbalový', 'fotbalová', 'sportovní', 'zahrada', 'památník', 'memorial', 'monument', 'univerzita',
+        'university', 'kostela', 'katedrály', 'chrámu', 'hradu', 'zámku', 'paláce', 'stadionu', 'vodní', 'dílo', 'letní', 'zimní', 'circuit', 'circuito', 'autodromo',
+        'autódromo', 'estádio', 'international', 'municipal', 'street', 'centre', 'center', 'centrum', 'garden', 'gardens', 'square', 'piazza', 'plaza', 'grand', 'great',
+        'royal', 'památka', 'skály', 'vysočina', 'rašeliniště', 'rašeliny', 'jeskyně', 'propast', 'údolí', 'soutěska', 'vrchoviště'].map(word => namePlain(word)).filter(word => word.length >= 5).map(word => word.slice(0, 5)));
+    const PLACE_PREPOSITIONS = new Set(['v', 've', 'na', 'nad', 'pod', 'u', 'z', 'ze', 'do', 'pri', 'mezi', 'in', 'de', 'di', 'du', 'am', 'an', 'im', 'of', 'upon', 'sur']);
+    const stemMemo = new Map();
+    const nameStemsOf = (label, person, places) => {
+        const key = `${person ? 1 : 0}\u0001${label}`;
+        if (!stemMemo.has(key)) {
+            // Slovo za předložkou je místo (v Praze, nad Rýnem, v Poznani): dvě stavby jednoho města jsou dvě různé věci
+            const words = namePlain(label).split(' ').filter(Boolean).filter((word, i, all) => !(i > 0 && PLACE_PREPOSITIONS.has(all[i - 1])));
+            stemMemo.set(key, new Set((person ? words.slice(1) : words).filter(word => word.length >= 5 && !/\d/.test(word)).map(word => word.slice(0, 5)).filter(stem => !STEM_SKIP.has(stem))));
+        }
+        return [...stemMemo.get(key)].filter(stem => !places.has(stem));
+    };
+    const coordsOf = (entry) => {
+        for (const src of Object.values(entry.srcs || {})) if (Number.isFinite(src.la) && Number.isFinite(src.lo)) return { la: src.la, lo: src.lo };
+        return null;
+    };
+    const distanceKm = (a, b) => (core && core.distanceKm ? core.distanceKm(a, b) : Math.hypot(a.la - b.la, (a.lo - b.lo) * Math.cos(a.la * Math.PI / 180)) * 111.2);
+    // Jmenovci s jiným pořadovým číslem (Přemysl Otakar I. a II., Fridrich Vilém I. a III.) jsou dvě různé osoby
+    const ordinalOf = (label) => (/(?<![\p{L}])([IVXLC]+)(?:\.|$)/u.exec(String(label || '')) || [])[1] || '';
+    const nearDuplicate = (a, b, family, ctx, person = false) => {
+        if (COORD_FAMILIES.has(family)) {
+            const x = coordsOf(a);
+            const y = coordsOf(b);
+            if (x && y && distanceKm(x, y) < NEAR_KM) return true;
+        }
+        if (person && ordinalOf(a.label) && ordinalOf(b.label) && ordinalOf(a.label) !== ordinalOf(b.label)) return false;
+        const places = (ctx.pools && ctx.pools.placeStems) || new Set();
+        const own = new Set(nameStemsOf(a.label, person, places));
+        return own.size > 0 && nameStemsOf(b.label, person, places).some(stem => own.has(stem));
+    };
+    const distractorsFor = (pick, own, spec, ctx, family = '') => {
         const topic = pick.topic;
         const src = srcOf(pick);
         const ranked = own.filter(entry => entry !== pick && entry.srcs[topic] && (!spec.person || sexOf(entry.srcs[topic]) === sexOf(src)))
@@ -1355,7 +1419,7 @@
             }).sort((a, b) => a.score - b.score);
         const chosen = [];
         for (const { entry } of ranked) {
-            if ([pick, ...chosen].some(other => clash(other.label, entry.label))) continue;
+            if ([pick, ...chosen].some(other => clash(other.label, entry.label) || nearDuplicate(other, entry, family, ctx, Boolean(spec.person)))) continue;
             chosen.push(entry);
             if (chosen.length === 3) break;
         }
@@ -1368,10 +1432,10 @@
         for (const family of weightedOrder(families, familyShares(families, level), rng).slice(0, 8)) {
             const spec = MUDRLANT[family.id];
             const own = ownEntries(ctx, family.id);
-            const fresh = own.filter(entry => !used.has(entry.key) && (form !== 'photo' || hasImage(entry)));
+            const fresh = own.filter(entry => !used.has(entry.key) && (form !== 'photo' || hasImage(entry, spec)));
             const picks = [...new Set([...shuffle(levelWindow(fresh, level), rng), ...shuffle(fresh, rng)])].slice(0, 6);
             for (const pick of picks) {
-                const wrong = distractorsFor(pick, own, spec, ctx);
+                const wrong = distractorsFor(pick, own, spec, ctx, family.id);
                 const choices = wrong && options({ label: pick.label }, wrong.map(entry => ({ label: entry.label })), rng);
                 if (!choices) continue;
                 const ask = form === 'photo' ? spec.photo : spec.ask;
@@ -1513,13 +1577,15 @@
     };
     const simple = (family, build) => (ctx, used) => { const question = retried(used, () => build(ctx)); return question && { ...question, family }; };
     // Skupiny a jejich podíl na otázkách území (skupina, která pro území nejde, svůj podíl rozdělí mezi ostatní)
-    const GROUPS = { mudrlant: 0.6, forms: 0.25, state: 0.15 };
-    // w = váha formy ve skupině podle úrovně 0–3: výš víc popisu a faktů, méně obrázků a letopočtů; remote = potřebuje síť (roundFor)
+    // Skupina mudrlant: popis, fakta, letopočet a obrázek (jeden obrázek, čtyři možnosti textem); formy: bod na mapě a odhad čísla
+    const GROUPS = { mudrlant: 0.7, forms: 0.15, state: 0.15 };
+    // w = váha formy ve skupině podle úrovně 0–3: výš víc popisu a faktů, méně obrázků a letopočtů (obrázek asi čtvrtina otázek
+    // skupiny mudrlant, výš asi pětina); remote = potřebuje síť (roundFor)
     const FORMS = [
-        { id: 'text', group: 'mudrlant', w: [0.42, 0.43, 0.45, 0.48], remote: true, ready: (ctx) => mudrlantFamilies(ctx, 'text').length > 0, build: (ctx, used) => mudrlantQuestion(ctx, 'text', used) },
-        { id: 'facts', group: 'mudrlant', w: [0.32, 0.33, 0.35, 0.36], remote: true, ready: (ctx) => mudrlantFamilies(ctx, 'facts').length > 0, build: (ctx, used) => mudrlantQuestion(ctx, 'facts', used) },
-        { id: 'year', group: 'mudrlant', w: [0.26, 0.24, 0.2, 0.16], ready: (ctx) => yearEntries(ctx).length > 0, build: yearQuestion },
-        { id: 'photo', group: 'forms', w: [0.45, 0.4, 0.32, 0.25], remote: true, ready: (ctx) => mudrlantFamilies(ctx, 'photo').length > 0, build: (ctx, used) => mudrlantQuestion(ctx, 'photo', used) },
+        { id: 'text', group: 'mudrlant', w: [0.31, 0.33, 0.35, 0.37], remote: true, ready: (ctx) => mudrlantFamilies(ctx, 'text').length > 0, build: (ctx, used) => mudrlantQuestion(ctx, 'text', used) },
+        { id: 'facts', group: 'mudrlant', w: [0.23, 0.24, 0.26, 0.28], remote: true, ready: (ctx) => mudrlantFamilies(ctx, 'facts').length > 0, build: (ctx, used) => mudrlantQuestion(ctx, 'facts', used) },
+        { id: 'year', group: 'mudrlant', w: [0.23, 0.21, 0.19, 0.17], ready: (ctx) => yearEntries(ctx).length > 0, build: yearQuestion },
+        { id: 'photo', group: 'mudrlant', w: [0.28, 0.26, 0.23, 0.2], remote: true, ready: (ctx) => mudrlantFamilies(ctx, 'photo').length > 0, build: (ctx, used) => mudrlantQuestion(ctx, 'photo', used) },
         { id: 'map', group: 'forms', w: [0.25, 0.28, 0.32, 0.35], build: simple('map', mapQuestion) },
         { id: 'estimate', group: 'forms', w: [0.3, 0.32, 0.36, 0.4], build: estimateQuestion,
             ready: (ctx) => magnitudeEntries(ctx).length > 0 || ctx.pools.stats.has(ctx.item.id) || (ctx.pools.cities.get(ctx.item.id) || []).length >= 4 },
@@ -1602,6 +1668,9 @@
     const ROUND_TIMEOUT = 4000;
     const MIN_TEXT_WORDS = (core && core.MIN_DESCRIPTION_WORDS) || 14;
     const realWords = (text) => String(text || '').replace(/\[\*\*\*\]/g, ' ').split(/\s+/).filter(word => /\p{L}{2,}/u.test(word)).length;
+    // Podíl zakrytých míst mezi slovy popisu: nad MAX_MASK_SHARE je popis z velké části zakrytý a hráči nic neřekne
+    const MAX_MASK_SHARE = 0.34;
+    const maskShare = (text) => { const marks = (String(text || '').match(/\[\*\*\*\]/g) || []).length; const total = marks + realWords(text); return total ? marks / total : 1; };
     // Popis musí být z článku a dost dlouhý; jinak (krátký popis z Wikidat) aspoň se dvěma fakty. Fakta aspoň dvě, obrázek načtený.
     // Otázka na fakta, ke které jich je málo, se zeptá popisem (když předchozí otázka nebyla popis: last = forma předchozí otázky)
     const completeQuestion = (question, data, last = null) => {
@@ -1609,14 +1678,25 @@
         const seen = new Set();
         const facts = (Array.isArray(data.facts) ? data.facts : []).filter(fact => fact && fact.label && (typeof fact.value === 'string' || typeof fact.value === 'number'))
             .map(fact => ({ label: String(fact.label), value: String(fact.value) })).filter(fact => !seen.has(fact.label) && seen.add(fact.label));
-        const text = String(data.text || '').trim();
+        // Poslední pojistka: slovo správné možnosti, které nesprávné nemají (Poznani u Městského stadionu v Poznani), v popisu
+        // nezůstane (core.sealAnswerWords, stejně jako v hlavní hře); popis, který je pak z velké části zakrytý nebo ve kterém
+        // nezávislá kontrola (core.answerWordsLeft) takové slovo přesto najde, se nepoužije: otázka dostane fakta, jinak místní otázku
+        const raw = String(data.text || '').trim();
+        const keep = [question.prompt, data.typeLabel || ''];
+        const isGeneric = (word) => Boolean(core && core.isGenericWord && core.isGenericWord(word));
+        const text = raw && core && core.sealAnswerWords ? core.sealAnswerWords(raw, question.choices, { isGeneric, keep }) : raw;
+        const leaks = text && core && core.answerWordsLeft ? core.answerWordsLeft(text, question.choices, { isGeneric, keep }) : [];
+        const readable = Boolean(text) && !leaks.length && maskShare(text) <= MAX_MASK_SHARE;
+        const article = readable && data.origin === 'article' && realWords(text) >= MIN_TEXT_WORDS;
         let content = null;
-        if (question.form === 'text' && text) {
-            if (data.origin === 'article' && realWords(text) >= MIN_TEXT_WORDS) content = { text };
-            else if (facts.length >= 2) content = { text, facts: facts.slice(0, 3) };
+        if (question.form === 'text') {
+            if (article) content = { text };
+            else if (readable && facts.length >= 2) content = { text, facts: facts.slice(0, 3) };
+            // Popis po zakrytí skoro samé [***] nebo žádný: otázka na fakta (když předchozí otázka nebyla na fakta), jinak místní otázka
+            else if (last !== 'facts' && facts.length >= 2) return completeQuestion({ ...question, form: 'facts' }, { ...data, text: '' }, last);
         } else if (question.form === 'facts') {
             if (facts.length >= 2) content = { facts: facts.slice(0, 4) };
-            else if (last !== 'text' && text && data.origin === 'article' && realWords(text) >= MIN_TEXT_WORDS) return completeQuestion({ ...question, form: 'text' }, { ...data, facts: [] });
+            else if (last !== 'text' && article) return completeQuestion({ ...question, form: 'text' }, { ...data, facts: [] });
         } else if (question.form === 'photo' && data.image) content = { image: String(data.image) };
         if (!content) return null;
         const { pending, request, ...rest } = question;
@@ -2798,7 +2878,7 @@
         durationLabel, periodLabel, actionsLabel, timeLeft, movesWord, pointsWord, playersWord, territoriesWord, regionsWord, nextPeriodAt, agoLabel, periodLine,
         budgetTitle, budgetInnerHtml, periodStartText, PENALTY_TEXT,
         indexMap, parseRings, pointInRings, project, territoryAt, isAdjacent, viewOf, rank, sourcesFor, actionsFor,
-        buildQuestion, prepareQuestion, completeQuestion, isFullQuestion, moveTitle, accusativeOf, ROUND_TIMEOUT, formPlan, FORM_IDS, GROUPS, RELATIONAL_CAP, MUDRLANT_IDS,
+        buildQuestion, prepareQuestion, completeQuestion, isFullQuestion, moveTitle, accusativeOf, ROUND_TIMEOUT, formPlan, FORM_IDS, GROUPS, RELATIONAL_CAP, MUDRLANT_IDS, nearDuplicate,
         answerKey, familyPlan, kindsFor, placesOf, poolsOf, formsOf, FAMILY_IDS, FAMILY_DOMAIN, DOMAINS, FAMILY_CAP, flagUrl, flagFallback, THUMB, feedItems, replaySteps, capturedWord, hatchPattern, levelIcon, iconMarkup,
         pennantSvg, pennantGroup, emblemSvg, sealSvg, mapSvg, thumbSvg, marksFor, clockText, localTime, roundHtml, roundChipHtml, ROUND_COUNTDOWN, fastPeriod, battleWaitHtml, battleResultHtml, joinedHtml, fightersHtml, siegeChipsHtml, RISK_TEXT, homeCardHtml, hubHtml, mineHtml, lobbyHtml, createHtml, lookHtml, lobbyDetailHtml,
         gameScreenHtml, playersStripHtml, recentHtml, sheetHtml, devBarHtml, questionHtml, feedHtml, resultHtml, helpHtml, HELP_TABS, mapTitle, paramChips,

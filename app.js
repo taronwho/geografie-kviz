@@ -12231,7 +12231,11 @@
         const factsOf = (plan) => [...(plan.leadFacts || []), ...plan.hints.filter(hint => hint.kind === 'facts').flatMap(hint => hint.facts)];
         const facts = form === 'facts' ? factsOf(planRound({ item, ctx, question: data.question, texts: { questionText: '', moreText: '', origin: 'withheld' }, typeLabel: data.typeLabel,
             describeVisual, photoMasks, textPhotos: ctx.textPhotos || new Set() })) : factsOf(data);
-        return { text: data.questionText || '', origin: data.textOrigin, facts, typeLabel: data.typeLabel, image: image || null };
+        // Krátký popis (podmět úvodu je jeden blok [***], jiné názvy zmizely) doplní další věty úvodu, zakryté stejně jako popis
+        const excerpt = (data.hints.find(hint => hint.kind === 'excerpt') || {}).text || '';
+        const words = (value) => String(value || '').replace(/\[\*\*\*\]/g, ' ').split(/\s+/).filter(word => /\p{L}{2,}/u.test(word)).length;
+        const text = data.questionText && excerpt && data.textOrigin === 'article' && words(data.questionText) < (window.MudrlantCore.MIN_DESCRIPTION_WORDS || 14) ? `${data.questionText} ${excerpt}` : data.questionText || '';
+        return { text, origin: data.textOrigin, facts, typeLabel: data.typeLabel, image: image || null };
     };
     if (window.MudrlantConquest && window.MudrlantConquestUI && Social) {
         ConquestUI = window.MudrlantConquestUI.createUI({

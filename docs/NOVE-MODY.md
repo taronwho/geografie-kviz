@@ -234,12 +234,40 @@ Hra více hráčů o území na mapě. Hráči si hry sami zakládají a přidá
 - **Pevnost na domovském hradu**: +1 tah za období (`conquest_budget`: fortress). Domovský hrad se s opevněním mění (č. 275–277)
   a střechy a praporky všech staveb mají barvu majitele (`scripts/building-art.py`).
 - **Otázky o území**: záhlaví („Útok na Francii“, „Opevnění Francie“, hvězdy podle opevnění) území prozradí, samotná otázka ho nejmenuje.
-  - skupina **Mudrlant** (asi 60 %): otázky jako v hlavní hře o věcech, které k území patří (stavby, osobnosti, díla, místa, události, kluby,
-    plemena…): popis z Wikipedie se zakrytým názvem, fakta („1802–1885 · spisovatel · Bídníci“), letopočet („V jakém roce se narodil…?“);
-    všechny čtyři možnosti jsou ze stejného území, rodiny i tématu (u osob stejného pohlaví), štítek druhu jen když ho mají všechny,
-    takže podle národnosti ani druhu nejde nic vyloučit; položka bez tří takových možností se neptá;
-  - **formy** (asi 25 %): obrázek („Co je to za stavbu?“, „Kdo je na obrázku?“, vlajka či znak regionu), bod na mapě, odhad čísla
-    (výška hory nebo věže, délka řeky, rozloha ostrova, kapacita stadionu, obyvatelé české obce, obyvatelé a rozloha státu, největší město);
+  - skupina **Mudrlant** (asi 70 %): otázky jako v hlavní hře o věcech, které k území patří (stavby, osobnosti, díla, místa, události, kluby,
+    plemena…): popis z Wikipedie se zakrytým názvem, fakta („1802–1885 · spisovatel · Bídníci“), letopočet („V jakém roce se narodil…?“)
+    a obrázek; všechny čtyři možnosti jsou ze stejného území, rodiny i tématu (u osob stejného pohlaví), štítek druhu jen když ho mají
+    všechny, takže podle národnosti ani druhu nejde nic vyloučit; položka bez tří takových možností se neptá;
+  - **obrázek**: jeden obrázek a čtyři možnosti textem („Co je to za stavbu?“, „Kdo je na obrázku?“, „Která hora je na fotce?“, vlajka
+    či znak regionu), asi pětina až čtvrtina otázek skupiny Mudrlant, kde to data dovolí (Evropa 24 %, Asie 21 %, Amerika 23 %,
+    Česko 24 % otázek skupiny, tj. Evropa asi 13 % a Česko asi 17 % všech otázek; dřív asi polovina; Afrika má fotek málo, asi 8 %),
+    na úrovni 0 víc, na úrovni 3 méně:
+    - každá rodina, kde obrázek název nenese: stavby, hrady a zámky, sportoviště, hory, ostrovy, přírodní místa, známá jezera a řeky,
+      města, osobnosti (portrét), kapely, obrazy, sochy, plemena psů, vlajky a znaky regionů; ne obal knihy, plakát filmu, znak klubu,
+      emblém olympiády a hudební dílo (nesou název), ani bitva, událost a vynález (obraz scény, tabule nebo nákres s popiskem);
+    - fotku potřebuje jen správná odpověď (skutečná fotka .jpg či .webp, u staveb Architektury, obrazů, soch a vlajek obrázek otázky),
+      nesprávné možnosti stačí textem; obrázek s napsanou nebo rozmazanou odpovědí se nevrátí, obrázek, který se nenačte, a chyba či
+      timeout roundFor dají místní otázku;
+  - **dvě jména téže věci** mezi možnostmi nejsou (otázky Mudrlanta i vztahové): stavby, sportoviště a místa blíž než 1 km od sebe
+    (Puskás Aréna a Stadion Ference Puskáse, katedrála a kaple v ní), ani jména se stejným výrazným kmenem (aspoň 5 písmen bez
+    diakritiky: Puskás – Puskáse, Bernoulli); obecná slova druhu a zasvěcení (stadion, katedrála, svatého), běžná přídavná jména názvů
+    (Městský, Národní), místo za předložkou (v Praze) a jména měst se nepočítají (Lech a Warta Poznań spolu smějí), u osob jen příjmení
+    a jmenovci s jiným pořadovým číslem smějí (Přemysl Otakar I. a II.); bez tří takových možností se vybere jiná položka;
+  - **popis bez odpovědi** (quiz-core.js hideAnswer, stejně v hlavní hře):
+    - podmět úvodní věty (vše před prvním je, jsou, byl…, i „X nebo také Y“, „X, též Y“, „X, vlastním jménem Y“) je jeden blok [***];
+      druh před názvem, který v možnosti není („Vlajka [***] je…“), a popisná přístavka („[***], nejdelší česká řeka, je…“) zůstanou;
+    - další názvy ze závorky úvodu (polsky…, německy…, latinsky…, malajsky…, též…, alternativní názvy:…, pchin-jinem…) a z podmětu
+      se zakryjí v celém textu (Miejski, INEA, Wisła, Nusantara); přídavné jméno z jiného názvu jen ve svých tvarech (Indo-Australské
+      souostroví nezakryje Austrálii);
+    - přezdívka dál v textu („cyklista, přezdívaný [***]“, „Byla často přezdívána [***].“, „Získala přezdívku [***]“), ne „oblast
+      zvaná Arkádie“ (jiná věc);
+    - obecné slovo druhu, které má většina možností, zůstane čitelné („je fotbalový stadion [***]“, ne „fotbalový [***]“);
+    - poslední pojistka: slovo správné možnosti, které nesprávné nemají, v textu nezůstane ani v jiném pádě (v Poznani → Poznaň,
+      nad Rýnem → Rýna); sousední [***] se slijí do jednoho; v Dobývání pak ještě nezávislá kontrola (quiz-core.js answerWordsLeft:
+      tvar výrazného slova odpovědi, i přídavné jméno jako poznaňský nebo zelenou u Leguána zeleného); popis, ve kterém kontrola něco
+      najde, který je z velké části zakrytý (přes třetinu) nebo krátký, nahradí fakta, jinak přijde místní otázka;
+  - **formy** (asi 15 %): bod na mapě, odhad čísla (výška hory nebo věže, délka řeky, rozloha ostrova, kapacita stadionu, obyvatelé české
+    obce, obyvatelé a rozloha státu, největší město);
   - **stát** (asi 15 %): vlajka, hlavní město, soused;
   - vztahové otázky („Která z těchto staveb stojí ve Francii?“, přes 40 rodin v šesti oborech) převezmou podíl skupiny Mudrlant, když území
     nemá dost známých položek (nejvýš 25 %), jinak jsou jen zálohou;
