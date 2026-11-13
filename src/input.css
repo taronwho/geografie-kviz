@@ -974,8 +974,14 @@ html.kb-open #settings-overlay > *, html.kb-open #dialog-overlay > * { max-heigh
 .cq-hit { fill: rgb(0 0 0 / 0); stroke: none; cursor: pointer; }
 .cq-hit:focus { outline: none; }
 .cq-select path { fill: rgb(255 236 170 / 0.25); stroke: #c8961d; stroke-width: 2.6; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
-/* Obrys regionu vybraného území: tenčí čárkovaná linka a jen náznak výplně, ať vybrané území zůstane výraznější */
-.cq-select .cq-select-region { fill: rgb(255 236 170 / 0.1); stroke: #b07d14; stroke-width: 1.8; stroke-dasharray: 7 4; stroke-opacity: 0.85; }
+/* Obrys regionu vybraného území: světlé podsvícení (v tmavém režimu tmavé) a přes něj čárkovaná linka, výplň jen jemně zesvětlí region;
+   vybrané území (zlaté, pulzující) zůstane výraznější */
+.cq-select .cq-select-region-halo { fill: rgb(255 240 190 / 0.28); stroke: #fff7dc; stroke-width: 6; stroke-opacity: 0.85; }
+.cq-select .cq-select-region { fill: none; stroke: #7a4a06; stroke-width: 2.4; stroke-dasharray: 8 5; stroke-linecap: round; }
+@media (prefers-color-scheme: dark) {
+    .cq-select .cq-select-region-halo { fill: rgb(255 230 160 / 0.22); stroke: #2b1d0c; stroke-opacity: 0.8; }
+    .cq-select .cq-select-region { stroke: #ffd36b; }
+}
 .cq-region-glow { fill: none; stroke: #f0c14b; stroke-width: 6; stroke-opacity: 0.55; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
 .cq-label { font-family: Georgia, 'Times New Roman', serif; font-style: italic; font-weight: 700; fill: #3b2a1a; text-anchor: middle; paint-order: stroke; stroke: rgb(246 234 206 / 0.9); stroke-width: 2.4px; stroke-linejoin: round; letter-spacing: 0.02em; }
 .cq-label.cq-hide, .cq-mark.cq-hide { display: none; }

@@ -1236,16 +1236,33 @@
     };
     // Otázka pro tah: semínko = hra, území, druh tahu a pořadí tahu (stejná otázka i po zavření aplikace); only = jen tato rodina
     // (testy a ladění)
-    const buildQuestion = ({ data, territory, level = 0, topics = {}, seed = '', only = null }) => {
+    // Správná odpověď otázky (pro hlídání opakování): u mapy název místa, jinak popisek správné možnosti
+    const answerKey = (question) => namePlain(question.kind === 'map' ? question.answerLabel : ((question.choices || []).find(choice => choice.correct) || {}).label || '');
+    // avoid = { answers: [klíče odpovědí, které hráč v této hře už dostal], families: [rodiny posledních otázek, nejnovější na konci] }:
+    // stejná odpověď se ve hře nezopakuje a stejná rodina nejde dvakrát po sobě; když jinak otázka nejde, pravidla se postupně uvolní
+    const buildQuestion = ({ data, territory, level = 0, topics = {}, seed = '', only = null, avoid = null }) => {
         const item = indexMap(data).byId.get(territory);
         if (!item) return null;
         const lv = Math.max(0, Math.min(3, Math.round(Number(level) || 0)));
         const rng = seededRandom(`dobyvani|${seed}|${territory}|${level}`);
         const ctx = contextOf(data, item, lv, topics, rng);
         const families = readyFamilies(ctx).filter(family => !only || family.id === only);
-        for (const family of weightedOrder(families, familyShares(families, lv), rng)) {
-            const question = family.build(ctx, family);
-            if (question) return { ...question, family: family.id, domain: family.domain, level, difficulty: Math.min(3, Math.max(1, level + 1)) };
+        const order = weightedOrder(families, familyShares(families, lv), rng);
+        const used = new Set(((avoid && avoid.answers) || []).map(namePlain));
+        const recent = new Set(((avoid && avoid.families) || []).slice(-2));
+        const finish = (question, family) => ({ ...question, family: family.id, domain: family.domain, level, difficulty: Math.min(3, Math.max(1, level + 1)) });
+        const passes = avoid ? [{ fresh: true, varied: true }, { fresh: true, varied: false }, { fresh: false, varied: false }] : [{ fresh: false, varied: false }];
+        for (const pass of passes) {
+            for (const family of order) {
+                if (pass.varied && recent.has(family.id) && order.length > recent.size) continue;
+                // Rodina staví z náhodného výběru: na novou odpověď má až tři pokusy
+                for (let attempt = 0; attempt < (pass.fresh ? 3 : 1); attempt++) {
+                    const question = family.build(ctx, family);
+                    if (!question) break;
+                    if (pass.fresh && used.has(answerKey(question))) continue;
+                    return finish(question, family);
+                }
+            }
         }
         return null;
     };
@@ -2103,7 +2120,7 @@
         durationLabel, periodLabel, actionsLabel, timeLeft, movesWord, pointsWord, playersWord, territoriesWord, regionsWord, nextPeriodAt, agoLabel, periodLine,
         budgetTitle, budgetInnerHtml, periodStartText, PENALTY_TEXT,
         indexMap, parseRings, pointInRings, project, territoryAt, isAdjacent, viewOf, rank, sourcesFor, actionsFor,
-        buildQuestion, familyPlan, kindsFor, placesOf, poolsOf, formsOf, FAMILY_IDS, FAMILY_DOMAIN, DOMAINS, FAMILY_CAP, flagUrl, flagFallback, THUMB, feedItems, replaySteps, capturedWord, hatchPattern, levelIcon, iconMarkup,
+        buildQuestion, answerKey, familyPlan, kindsFor, placesOf, poolsOf, formsOf, FAMILY_IDS, FAMILY_DOMAIN, DOMAINS, FAMILY_CAP, flagUrl, flagFallback, THUMB, feedItems, replaySteps, capturedWord, hatchPattern, levelIcon, iconMarkup,
         pennantSvg, pennantGroup, emblemSvg, sealSvg, mapSvg, thumbSvg, marksFor, homeCardHtml, hubHtml, mineHtml, lobbyHtml, createHtml, lookHtml, lobbyDetailHtml,
         gameScreenHtml, playersStripHtml, recentHtml, sheetHtml, devBarHtml, questionHtml, feedHtml, resultHtml, helpHtml, HELP_TABS, mapTitle, paramChips,
         // Pozvánky přátel (blok 24)

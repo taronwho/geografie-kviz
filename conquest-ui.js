@@ -700,7 +700,7 @@
             const item = game.selected ? game.view.index.byId.get(game.selected) : null;
             // Vybrané území a pod ním jemně obrys celého jeho regionu (celý region = +1 tah za období a body navíc)
             const region = item ? game.view.index.regionById.get(item.reg) : null;
-            const outline = region && region.d && region.t.length > 1 ? `<path class="cq-select-region" d="${region.d}"/>` : '';
+            const outline = region && region.d && region.t.length > 1 ? `<path class="cq-select-region-halo" d="${region.d}"/><path class="cq-select-region" d="${region.d}"/>` : '';
             layer.innerHTML = item ? `${outline}<path class="cq-select-item" d="${item.d}"/>` : '';
             updateDetail();
         };
@@ -862,14 +862,36 @@
             let loaded = {};
             try { loaded = await topics(); } catch (error) { loaded = {}; }
             if (!game || game.move !== move) return;
-            move.question = C.buildQuestion({ data: game.data, territory: target, level: info.level || 0, topics: loaded, seed: `${game.id}|${kind}|${budget.period}|${budget.used}` });
+            const asked = askedIn(game.id);
+            move.question = C.buildQuestion({ data: game.data, territory: target, level: info.level || 0, topics: loaded, seed: `${game.id}|${kind}|${budget.period}|${budget.used}|${asked.answers.length}`, avoid: asked });
             if (!move.question) { game.move = null; deps.showToast('Otázku se nepodařilo připravit. Zkus jiné území.'); showSheet(target); return; }
+            rememberAsked(game.id, move.question);
             move.phase = 'question';
             showMoveFx(move);
             if (holder) holder.innerHTML = '';
             await wait(kind === 'attack' ? 700 : 250);
             if (!game || game.move !== move) return;
             renderQuestion();
+        };
+        // Otázky, které hráč v této hře už dostal (v zařízení): odpovědi se ve hře neopakují a stejný druh otázky nejde dvakrát po sobě
+        const ASKED_KEY = 'mudrlant.conquestAsked';
+        const askedAll = () => { try { const s = storage(); const value = s ? JSON.parse(s.getItem(ASKED_KEY) || '{}') : {}; return value && typeof value === 'object' && !Array.isArray(value) ? value : {}; } catch (error) { return {}; } };
+        const askedIn = (gameId) => {
+            const entry = askedAll()[gameId] || {};
+            return { answers: Array.isArray(entry.a) ? entry.a.map(String) : [], families: Array.isArray(entry.f) ? entry.f.map(String) : [] };
+        };
+        const rememberAsked = (gameId, question) => {
+            try {
+                const s = storage();
+                if (!s) return;
+                const all = askedAll();
+                const entry = askedIn(gameId);
+                const key = C.answerKey(question);
+                all[gameId] = { a: [...entry.answers, key].filter(Boolean).slice(-300), f: [...entry.families, question.family].slice(-6), t: Date.now() };
+                // Jen posledních 20 her
+                const keep = Object.entries(all).sort((x, y) => (y[1].t || 0) - (x[1].t || 0)).slice(0, 20);
+                s.setItem(ASKED_KEY, JSON.stringify(Object.fromEntries(keep)));
+            } catch (error) { /* bez úložiště se jen může otázka zopakovat */ }
         };
         const questionTitle = (move) => {
             const name = game.view.index.byId.get(move.target).n;
