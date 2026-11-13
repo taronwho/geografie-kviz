@@ -95,8 +95,8 @@
         // Kamarádské sázky (bets.js): obrázek sova-vyzva do dodání č. 243 sova-sazka (bets.js ART.owl)
         { id: 'sazky', icon: 'gem', art: 'sova-vyzva', multi: true, account: true, after: 30, title: 'Kamarádské sázky', text: 'Klepni na Vyzvat a vyber konkrétního hráče. V řádku Sázka můžeš vsadit 10, 25 nebo 50 XP a přidat vtipnou hlášku. Kdo vyhraje, vklad získá. Úroveň ti nikdy neklesne.',
             action: { kind: 'multi', label: 'Zkusit' }, ready: (u) => u.bets && num(u.counters.challenges) >= 2, used: (u) => Boolean(u.visited.bets) || num(u.counters.bets) > 0 },
-        // Řetězovka dne (chain.js); art = č. 212 retezovka, do dodání sova-vyzva (jako chain.js ART.tile)
-        { id: 'retezovka', icon: 'trophy', art: 'sova-vyzva', after: 7, title: 'Řetězovka dne', text: 'V řadě Výzvy na úvodu čeká Řetězovka: 7 otázek, kde odpověď na jednu je začátkem další. Článek 1 dává 1 bod, článek 7 sedm bodů. Špatná odpověď řetěz přetrhne, jednou za hru ale pomůže Záchrana.',
+        // Řetězovka dne (chain.js); art = č. 212 retezovka (jako chain.js ART.tile)
+        { id: 'retezovka', icon: 'trophy', art: 'retezovka', after: 7, title: 'Řetězovka dne', text: 'V řadě Výzvy na úvodu čeká Řetězovka: 7 otázek, kde odpověď na jednu je začátkem další. Článek 1 dává 1 bod, článek 7 sedm bodů. Špatná odpověď řetěz přetrhne, jednou za hru ale pomůže Záchrana.',
             action: { kind: 'chain', label: 'Zkusit Řetězovku' }, ready: (u) => u.chain, used: (u) => num(u.counters.chainDone) > 0 }
     ];
     const BY_ID = new Map(TIPS.map(tip => [tip.id, tip]));

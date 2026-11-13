@@ -1968,7 +1968,7 @@ Cartoon sticker illustration in exactly the same art style as the attached owl m
 
 ## 15. Řetězovka (č. 212–214)
 
-#### 212. `retezovka.png` – Sova se zlatým řetězem – čeká na dodání
+#### 212. `retezovka.png` – Sova se zlatým řetězem – ✅ dodáno, zapojeno
 
 Kam: dlaždice Řetězovka v řadě Výzvy na úvodu, úvod Řetězovky a tip. Do dodání `serie`. Přiložit: `branding/sova-original.jpg` (postava)
 
@@ -1976,7 +1976,7 @@ Kam: dlaždice Řetězovka v řadě Výzvy na úvodu, úvod Řetězovky a tip. D
 Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole object. Single centered subject filling about 80 % of the frame with even empty space around it, readable even as a small 48 px icon (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow on the background, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl mascot as the character: keep its face, monocle with chain, white eyebrows and whiskers, golden-brown feathers and wine-red academic robe with cap exactly as they are; change only the pose and props described here. The wine-red color must appear only on the robe and cap: all props must be in other colors (no red, pink or wine-colored props). Subject: The owl mascot proudly holding up a long shiny golden chain of big chunky oval links stretched between both wings like a garland, the last link at one end just clicking into place with a small bright sparkle, a satisfied, confident smile. The big golden chain is separate from the thin monocle chain. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
-#### 213. `clanek.png` – Zlatý článek řetězu – čeká na dodání
+#### 213. `clanek.png` – Zlatý článek řetězu – ✅ dodáno, zapojeno (ve čtyřech pohledech: `clanek`, `clanek-celem`, `clanek-bokem`, `clanek-sikmo`; pás řetězu skládá `scripts/chain-links.py` do `icons/retez`)
 
 Kam: řetěz v Řetězovce, který se skládá článek po článku (nový článek zacvakne), a celý řetěz ve výsledku. Musí být čitelný i jako malá ikona 24–32 px. Do dodání emoji 🔗. Přiložit: `branding/sova-original.jpg` (vzor stylu)
 
@@ -1984,7 +1984,7 @@ Kam: řetěz v Řetězovce, který se skládá článek po článku (nový člá
 Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole object. Single centered subject filling about 80 % of the frame with even empty space around it, readable even as a tiny 24 px icon (one simple bold shape, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow on the background, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, colors, shading); do not draw the owl and do not copy any existing cartoon or game artwork. Subject: A single chunky golden chain link: one thick oval ring of polished gold, slightly tilted so it looks three-dimensional, a bright glint on its upper edge. Only one link, nothing else. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
-#### 214. `clanek-prasknuty.png` – Prasklý článek – čeká na dodání
+#### 214. `clanek-prasknuty.png` – Prasklý článek – ✅ dodáno, zapojeno
 
 Kam: přetržený řetěz po špatné odpovědi (článek se s krátkým zatřesením rozlomí) a konec řetězu ve výsledku. Musí být čitelný i jako malá ikona 24–32 px. Do dodání emoji 💥. Přiložit: `branding/sova-original.jpg` (vzor stylu) a hotový `clanek.png` (č. 213, vzor tvaru)
 

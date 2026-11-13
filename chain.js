@@ -15,10 +15,10 @@
     'use strict';
     // Obrázky (icons/topics/<název>.webp): do dodání vlastních (docs/NOVE-MODY.md č. 212–214) stávající; vyměnit stačí tady
     const ART = {
-        tile: 'sova-vyzva', // č. 212 retezovka – sova se zlatým řetězem (dlaždice na úvodu, úvod Řetězovky, tip)
-        intro: 'sova-vyzva', // č. 212 retezovka
+        tile: 'retezovka', // č. 212 sova se zlatým řetězem (dlaždice na úvodu, úvod Řetězovky, tip)
+        intro: 'retezovka', // č. 212
         full: 'sova-vitez', // celý řetěz
-        broken: 'sova-smutek' // přetržený řetěz (č. 213 clanek a č. 214 clanek-prasknuty kreslí zatím SVG v linkSvg)
+        broken: 'sova-smutek' // přetržený řetěz (články řetězu č. 213 a 214 kreslí linkSvg z icons/retez)
     };
     const LINKS = 7;
     const MAX_SCORE = LINKS * (LINKS + 1) / 2;
@@ -1139,32 +1139,28 @@
     };
     const iconFor = (kind) => KIND_ICON[kind] || 'sparkles';
 
-    // Řetěz jako SVG: články vedle sebe, střídavě zepředu (ovál) a z boku (úzká příčka), takže do sebe zapadají.
+    // Řetěz z obrázků článků (č. 213 a 214): články vedle sebe, střídavě zepředu (icons/retez/celem) a z boku na ležato (bokem), takže
+    // do sebe zapadají (boční se kreslí až po předních, konce jim vedou otvorem). Prasklý článek je icons/retez/prasknuty, zachráněný
+    // článek CSS přebarví do tyrkysové, příští článek a ty, které teprve přijdou, jsou jen světlé obrysy (vybělený a ztlumený obrázek).
     // states: 'done' | 'rescued' | 'broken' | 'current' | 'todo' po článcích; fresh = index článku, který právě zacvakl.
+    // Obrázky vyrábí scripts/chain-links.py z branding/ikony/clanek-*.png.
     const LINK_STEP = 31;
+    const LINK_WIDTH = 44;
+    const LINK_ART = { face: ['icons/retez/celem.webp', 54 / 128], side: ['icons/retez/bokem.webp', 40 / 128], broken: ['icons/retez/prasknuty.webp', 67 / 128] };
     const linkSvg = (states, { fresh = -1, label = '', className = 'h-auto w-full' } = {}) => {
-        const uid = `cg${Math.abs(hash32(`${states.join('')}|${fresh}|${label}`)) % 100000}`;
-        const width = 12 + (states.length - 1) * LINK_STEP + 42;
+        const width = 12 + (states.length - 1) * LINK_STEP + LINK_WIDTH;
         const parts = states.map((state, i) => {
+            const kind = state === 'broken' ? 'broken' : i % 2 === 0 ? 'face' : 'side';
+            const [href, ratio] = LINK_ART[kind];
+            const h = LINK_WIDTH * ratio;
             const x = 6 + i * LINK_STEP;
-            const face = i % 2 === 0;
-            const y = face ? 5 : 13;
-            const h = face ? 22 : 6;
-            const r = h / 2;
-            const cls = `chain-link chain-link-${state}${i === fresh ? ' chain-click' : ''}`;
-            if (state === 'broken') {
-                // Prasklý článek: dvě poloviny, které se od sebe odklopí
-                const mid = x + 21;
-                const left = `M${mid - 4} ${y}H${x + r}A${r} ${r} 0 0 0 ${x + r} ${y + h}H${mid - 2}`;
-                const right = `M${mid + 2} ${y}H${x + 42 - r}A${r} ${r} 0 0 1 ${x + 42 - r} ${y + h}H${mid + 4}`;
-                return `<g class="${cls}" data-link="${i + 1}"><path class="chain-half chain-half-l" d="${left}"/><path class="chain-half chain-half-r" d="${right}"/><path class="chain-spark" d="M${mid - 3} ${y - 3}l2 4M${mid + 3} ${y + h + 3}l-2 -4M${mid} ${y - 4}v3"/></g>`;
-            }
-            const gold = state === 'done' || state === 'rescued';
-            return `<g class="${cls}" data-link="${i + 1}">${gold ? `<rect class="chain-edge" x="${x}" y="${y}" width="42" height="${h}" rx="${r}"/>` : ''}<rect class="chain-face" x="${x}" y="${y}" width="42" height="${h}" rx="${r}"${gold ? ` stroke="url(#${uid})"` : ''}/>${gold && face ? `<path class="chain-shine" d="M${x + r} ${y + 3}H${x + 30}"/>` : ''}</g>`;
+            const y = 16 - h / 2;
+            const cls = `chain-link chain-link-${state}${kind === 'broken' ? '' : ` chain-link-${kind}`}${i === fresh ? ' chain-click' : ''}`;
+            return `<g class="${cls}" data-link="${i + 1}"><image href="${href}" x="${x}" y="${y.toFixed(2)}" width="${LINK_WIDTH}" height="${h.toFixed(2)}" preserveAspectRatio="none"/></g>`;
         });
-        // Boční příčky se kreslí až po oválech, ať přes ně vedou (řetěz do sebe zapadá)
-        const order = [...parts.keys()].sort((a, b) => (a % 2) - (b % 2) || a - b);
-        return `<svg viewBox="0 0 ${width} 32" class="${className}" role="img" aria-label="${esc(label)}"><defs><linearGradient id="${uid}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff3b0"/><stop offset="0.45" stop-color="#efc55c"/><stop offset="1" stop-color="#b9771b"/></linearGradient></defs>${order.map(i => parts[i]).join('')}</svg>`;
+        // Boční články se kreslí až po předních (a prasklých), ať jim vedou otvorem
+        const order = [...parts.keys()].sort((a, b) => (a % 2 && states[a] !== 'broken' ? 1 : 0) - (b % 2 && states[b] !== 'broken' ? 1 : 0) || a - b);
+        return `<svg viewBox="0 0 ${width} 32" class="${className}" role="img" aria-label="${esc(label)}">${order.map(i => parts[i]).join('')}</svg>`;
     };
     const stripStates = (attempt, { phase = 'ask' } = {}) => Array.from({ length: LINKS }, (_, i) => {
         const row = attempt.results.find(entry => entry.k === i + 1);
@@ -1294,7 +1290,7 @@
             return `<li><button type="button" data-action="chain-step" data-k="${i + 1}" aria-label="${esc(label)}" class="flex min-h-[1.9rem] w-full items-center gap-2 rounded-xl px-1.5 text-left short:min-h-[1.75rem]">
                 <span aria-hidden="true" class="chain-dot chain-dot-${state} flex h-[1.4rem] w-[1.4rem] shrink-0 items-center justify-center rounded-full text-[11px] font-black">${i + 1}</span>
                 <span class="min-w-0 flex-1 text-[13.5px] font-bold leading-tight ${tone}">${esc(question.to.name)}</span>
-                <span aria-hidden="true" class="shrink-0 text-[12px] font-black ${state === 'rescued' ? 'text-gold-800 dark:text-gold-300' : state === 'done' ? 'text-emerald-700 dark:text-emerald-300' : tone}">${esc(points)}</span>
+                <span aria-hidden="true" class="shrink-0 text-[12px] font-black ${state === 'rescued' ? 'text-gold-800 dark:text-gold-300' : state === 'done' ? 'text-emerald-700 dark:text-emerald-300' : tone}">${state === 'broken' ? '<img src="icons/topics/clanek-prasknuty.webp" alt="" class="h-6 w-6 object-contain">' : esc(points)}</span>
             </button></li>`;
         });
         return `<ol data-chain-rows class="flex flex-col">

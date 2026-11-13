@@ -42,7 +42,11 @@ const APP_SHELL = [
         // Zlatá otázka (gold.js ART, č. 206–209 a 211)
         'zlata-otazka', 'zlaty-stripek', 'zlata-truhla', 'zlata-truhla-otevrena', 'zlatokop',
         // Dobývání (conquest.js ART, č. 234–239 a 260–263)
-        'dobyvani', 'palisada', 'hradba', 'pevnost', 'hrad-domov', 'poklad', 'vetrna-ruzice', 'plachetnice', 'morska-prisera', 'kartuse-sirka'].map(id => `icons/topics/${id}.webp`),
+        'dobyvani', 'palisada', 'hradba', 'pevnost', 'hrad-domov', 'poklad', 'vetrna-ruzice', 'plachetnice', 'morska-prisera', 'kartuse-sirka',
+        // Řetězovka (chain.js ART a výsledek, č. 212 a 214: sova s řetězem, prasklý článek)
+        'retezovka', 'clanek-prasknuty'].map(id => `icons/topics/${id}.webp`),
+    // Články řetězu v pásu Řetězovky (chain.js linkSvg, scripts/chain-links.py)
+    ...['celem', 'bokem', 'prasknuty'].map(id => `icons/retez/${id}.webp`),
     // Bezešvé textury (zlatá fólie Zlaté otázky, pergamen a moře map Dobývání; č. 210, 232, 233)
     ...['textura-zlato', 'textura-pergamen', 'textura-pergamen-svetly', 'textura-more'].map(id => `icons/textury/${id}.webp`),
     ...BADGE_ART.map(id => `icons/topics/odznak-${id}.webp`), ...AVATAR_ART.map(id => `icons/avatars/${id}.webp`), ...FRAME_ART.map(id => `icons/frames/${id}.webp`), 'icons/favicon-32.png', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png'
