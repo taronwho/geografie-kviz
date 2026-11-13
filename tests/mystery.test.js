@@ -243,3 +243,18 @@ test('napojení: modul v index.html, service workeru, nasazení a Tailwindu; sch
     assert.equal((read('app.js').match(/\$\{mysteryHomeCard\(\)\}/g) || []).length, 1);
     assert.match(read('docs/SUPABASE.md'), /## Tajemná otázka dne \(schéma 19\)/);
 });
+
+test('nápovědy se řadí podle toho, jak moc prozrazují: popis s letopočty a jmény až po slepé mapě, obecná věta dřív', () => {
+    const berlin = '[***] byla střežená betonová bariéra, která v letech 1961–1989 obklopovala Západní [***] a oddělovala jej od Východního [***] a Německé demokratické republiky.';
+    assert.ok(M.textScore(berlin) > 0.9, 'věta s letopočty, vlastními jmény a třemi zakrytými výskyty prozrazuje hodně');
+    assert.ok(M.textScore('Je to zřícenina hradu na skalnatém ostrohu nad řekou.') < 0.4, 'obecná věta prozrazuje málo');
+    const data = { typeLabel: 'stavba', name: 'Berlínská zeď', questionText: `${berlin} Při pokusu o její překonání zemřelo nejméně 140 lidí.`,
+        leadFacts: [{ label: 'Délka', value: '155 km' }], hints: [{ kind: 'facts', facts: [{ label: 'Výška', value: '4 m' }] }, { kind: 'visual', spec: { type: 'map' }, label: 'slepá mapa', icon: 'map' }], photoUrl: null };
+    const clues = M.buildClues(data, { topicTitle: 'Zeměpis' });
+    const at = (match) => clues.findIndex(clue => clue.parts.some(match));
+    const map = at(part => part.type === 'visual');
+    const revealing = at(part => part.type === 'text' && part.text.startsWith('[***] byla'));
+    assert.ok(map > 0 && revealing > map, `prozrazující popis (${revealing + 1}.) až po slepé mapě (${map + 1}.)`);
+    assert.equal(clues.find(clue => clue.parts.some(part => part.type === 'text')).title, 'Z popisu', 'první zobrazená věta je Z popisu');
+    assert.equal(clues.length, 8);
+});

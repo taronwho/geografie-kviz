@@ -16,6 +16,10 @@ const maps = Object.fromEntries(MAP_IDS.map(id => [id, load(id)]));
 const items = (topic) => JSON.parse(fs.readFileSync(path.join(ROOT, 'data', `${topic}.json`), 'utf8')).items;
 let topics = null;
 const loadTopics = () => (topics = topics || { zemepis: items('zemepis'), vlajky: items('vlajky'), architektura: items('architektura') });
+// Všechna témata, ze kterých Dobývání skládá otázky (app.js loadTopics)
+const ALL_TOPICS = ['zemepis', 'vlajky', 'architektura', 'historie', 'literatura', 'hudba', 'umeni', 'film', 'sport'];
+let allTopics = null;
+const loadAllTopics = () => (allTopics = allTopics || Object.fromEntries(ALL_TOPICS.map(id => [id, items(id)])));
 const schema = fs.readFileSync(path.join(ROOT, 'supabase', 'schema.sql'), 'utf8');
 const sqlList = (name) => [...new RegExp(`function public\\.${name}\\(\\) returns text\\[\\]\\s+language sql immutable as \\$\\$ select array\\[([^\\]]+)\\]`).exec(schema)[1].matchAll(/'([a-z]+)'/g)].map(m => m[1]);
 
@@ -208,10 +212,256 @@ test('otázky: na každé mapě pro každé území a úroveň 4 možnosti, jedn
     // Kraj: krajské město, místo v kraji
     const brno = C.buildQuestion({ data: maps.cesko, territory: 'Q192697', level: 0, topics: t, seed: 'kraj' });
     assert.ok(brno);
-    const seat = [0, 1, 2, 3, 4, 5, 6, 7].map(n => C.buildQuestion({ data: maps.cesko, territory: 'Q192697', level: 0, topics: t, seed: `s${n}` })).find(q => q.kind === 'capital');
+    const seat = Array.from({ length: 80 }, (_, n) => C.buildQuestion({ data: maps.cesko, territory: 'Q192697', level: 0, topics: t, seed: `s${n}` })).find(q => q.kind === 'capital');
     assert.ok(seat, 'otázka na krajské město');
     assert.equal(seat.prompt, 'Které město je krajským městem Jihomoravského kraje?');
     assert.equal(seat.choices.find(choice => choice.correct).label, 'Brno');
+});
+
+// --- Rodiny otázek ze všech témat: rozložení, jednoznačnost, obtížnost, čeština ---
+const Chain = require('../chain.js');
+const core = require('../quiz-core.js');
+const plain = (text) => core.normalizeAnswer(text);
+// Otázky jako při měření: každé území každé mapy × úroveň 0–2 × 6 semínek
+let built = null;
+const allQuestions = () => {
+    if (built) return built;
+    const t = loadAllTopics();
+    built = [];
+    for (const id of MAP_IDS) for (const item of maps[id].t) for (const level of [0, 1, 2]) for (let s = 0; s < 6; s++) {
+        built.push({ map: id, item, level, question: C.buildQuestion({ data: maps[id], territory: item.id, level, topics: t, seed: `rozlozeni|${s}` }) });
+    }
+    return built;
+};
+
+test('otázky: rodiny rozložené (žádná nad 20 %, vlajka a hlavní město spolu nejvýš 25 %, Evropa aspoň 20 rodin, ostatní aspoň 12)', () => {
+    const counts = {};
+    for (const { map, item, level, question } of allQuestions()) {
+        assert.ok(question, `${map} ${item.n} úroveň ${level}`);
+        counts[map] = counts[map] || {};
+        counts[map][question.family] = (counts[map][question.family] || 0) + 1;
+    }
+    for (const id of MAP_IDS) {
+        const total = Object.values(counts[id]).reduce((a, b) => a + b, 0);
+        const share = (family) => (counts[id][family] || 0) / total;
+        const families = Object.keys(counts[id]);
+        assert.ok(families.length >= (id === 'evropa' ? 20 : 12), `${id}: ${families.length} rodin`);
+        for (const family of families) assert.ok(share(family) <= 0.2, `${id}: ${family} ${(share(family) * 100).toFixed(1)} %`);
+        assert.ok(share('flag') + share('capital') <= 0.25, `${id}: vlajka a hlavní město ${((share('flag') + share('capital')) * 100).toFixed(1)} %`);
+        families.forEach(family => assert.ok(C.FAMILY_IDS.includes(family), family));
+    }
+    // Nové rodiny se na Evropě opravdu objevují
+    for (const family of ['river', 'region', 'writer', 'musician', 'artist', 'filmmaker', 'athlete', 'ruler', 'book', 'film', 'painting', 'club', 'venue', 'olympics', 'battle', 'population', 'area', 'bigcity']) {
+        assert.ok(counts.evropa[family] > 0, `Evropa: rodina ${family}`);
+    }
+    for (const family of ['castle', 'club', 'venue', 'battle', 'band', 'bigcity', 'neighbour']) assert.ok(counts.cesko[family] > 0, `Česko: rodina ${family}`);
+});
+
+test('otázky ze všech témat: 4 různé možnosti, jedna správná, odpověď nezazní v otázce a neprozradí území ani jeho (krajské) hlavní město', () => {
+    const capitals = new Map(loadAllTopics().zemepis.filter(it => it.c === 'stat').map(it => [it.q, (it.f || {}).cap]));
+    const GENERIC = new Set(['kraj', 'republika', 'demokraticka', 'spojene', 'staty', 'americke', 'kralovstvi', 'severni', 'jizni', 'vychodni', 'zapadni', 'rovnikova', 'arabske', 'emiraty']);
+    const stems = (name) => plain(name).split(' ').filter(word => word.length >= 4 && !GENERIC.has(word)).map(word => word.slice(0, 5));
+    for (const { map, item, question } of allQuestions()) {
+        const where = `${map} ${item.n}: ${question.prompt}`;
+        assert.equal(question.choices.length, 4, where);
+        assert.equal(question.choices.filter(choice => choice.correct).length, 1, where);
+        assert.equal(new Set(question.choices.map(choice => plain(choice.label))).size, 4, where);
+        assert.ok(question.prompt.endsWith('?'), where);
+        assert.ok(question.difficulty >= 1 && question.difficulty <= 3);
+        if (question.kind === 'map' || question.images) continue;
+        const answer = question.choices.find(choice => choice.correct).label;
+        assert.ok(!` ${plain(question.prompt)} `.includes(` ${plain(answer)} `), `${where} → ${answer}`);
+        const words = plain(answer).split(' ');
+        const giveaways = [item.n, ...(question.family === 'capital' ? [] : [item.loc ? item.seat : capitals.get(item.id)])].filter(Boolean);
+        for (const stem of giveaways.flatMap(stems)) assert.ok(!words.some(word => word.startsWith(stem)), `${where} → ${answer} (${stem})`);
+    }
+});
+
+test('otázky ze všech témat: správná možnost vazbu splňuje, nesprávné ne (ani jmenovec v datech, dvojí národnost, popis)', () => {
+    const t = loadAllTopics();
+    const UK = 'Spojené království';
+    const SOVIET = ['Rusko', 'Ukrajina', 'Bělorusko', 'Moldavsko', 'Lotyšsko', 'Litva', 'Estonsko', 'Gruzie', 'Arménie', 'Ázerbájdžán', 'Kazachstán', 'Uzbekistán', 'Turkmenistán', 'Tádžikistán', 'Kyrgyzstán'];
+    const YUGO = ['Srbsko', 'Chorvatsko', 'Slovinsko', 'Bosna a Hercegovina', 'Černá Hora', 'Severní Makedonie', 'Kosovo'];
+    const LAND = { USA: ['Spojené státy americké'], Anglie: [UK], Skotsko: [UK], Wales: [UK], 'Severní Irsko': [UK], 'Království Velké Británie': [UK], 'Spojené království Velké Británie a Irska': [UK, 'Irsko'],
+        'Západní Německo': ['Německo'], 'Německá demokratická republika': ['Německo'], 'Italské království': ['Itálie'], 'Nizozemské království': ['Nizozemsko'], 'Rumunské království': ['Rumunsko'],
+        'Protektorát Čechy a Morava': ['Česko'], 'Československo': ['Česko', 'Slovensko'], 'Sovětský svaz': SOVIET, 'Jugoslávie': YUGO, 'Socialistická federativní republika Jugoslávie': YUGO,
+        'Srbsko a Černá Hora': ['Srbsko', 'Černá Hora', 'Kosovo'], Flandry: ['Belgie', 'Nizozemsko', 'Francie'] };
+    const landNames = (land) => (Array.isArray(land) ? land : String(land || '').split(/,\s*/)).filter(Boolean).flatMap(name => LAND[name] || [name]);
+    const SOURCES = { city: ['zemepis:mesto'], building: ['zemepis:stavba', 'architektura:stavby'], castle: ['zemepis:stavba', 'architektura:stavby'], mountain: ['zemepis:hora'], lake: ['zemepis:jezero'],
+        island: ['zemepis:ostrov'], nature: ['zemepis:priroda'], river: ['zemepis:reka'], region: ['vlajky:regiony'], writer: ['literatura:spisovatele'], musician: ['hudba:skladatele', 'hudba:hudebnici'],
+        band: ['hudba:kapely'], artist: ['umeni:umelci', 'umeni:fotografove', 'umeni:ilustratori'], architect: ['architektura:architekti'], filmmaker: ['film:reziseri', 'film:herci'], athlete: ['sport:sportovci'],
+        ruler: ['historie:statnik', 'historie:panovnik'], historic: ['historie:osobnost'], book: ['literatura:dila'], 'music-work': ['hudba:dila', 'hudba:opery'], painting: ['umeni:obrazy'],
+        film: ['film:filmy', 'film:animovane'], club: ['sport:kluby'], venue: ['sport:sportoviste'], olympics: ['sport:olympiady'], battle: ['historie:bitva'] };
+    const byName = new Map();
+    const byQ = new Map();
+    for (const topic of ALL_TOPICS) for (const it of t[topic]) {
+        const key = `${topic}:${it.c}|${plain(it.n)}`;
+        if (!byName.has(key)) byName.set(key, []);
+        byName.get(key).push(it);
+        byQ.set(`${topic}:${it.q}`, it);
+    }
+    const named = (family, label) => SOURCES[family].flatMap(source => byName.get(`${source}|${plain(label)}`) || []);
+    // Kraj: obec podle Vlajek a znaků (f.kraj), jinak podle polohy
+    const krajIds = new Map(maps.cesko.t.map(item => [item.n, item.id]));
+    const krajOfTown = new Map();
+    for (const it of t.vlajky) if (it.c === 'cesko' && (it.f || {}).kraj) { const key = plain(it.n); krajOfTown.set(key, krajOfTown.has(key) ? null : krajIds.get(it.f.kraj)); }
+    const krajOf = (it) => (it.c === 'mesto' && krajOfTown.get(plain(it.n)) !== undefined ? krajOfTown.get(plain(it.n)) : Number.isFinite(it.la) ? C.territoryAt(maps.cesko, it.la, it.lo) : null);
+    const czechTown = new Map(t.zemepis.filter(it => it.c === 'mesto' && (it.co || []).includes('Q213')).map(it => [it.n, it]));
+    const nations = (text) => Chain.nationalitiesIn(text || '');
+    const personFits = (it, item) => it && [...landNames((it.f || {}).land), ...nations(`${it.ty || ''} ${it.d || ''}`)].includes(item.n);
+    // Splňuje položka vazbu na území (u nesprávných možností i podle popisu)?
+    const fits = (family, it, item, map) => {
+        const f = it.f || {};
+        if (map === 'cesko') {
+            if (family === 'band') return krajOf(czechTown.get(f.city) || {}) === item.id;
+            return krajOf(it) === item.id;
+        }
+        if (['book', 'music-work', 'painting', 'film'].includes(family)) {
+            const author = byQ.get({ book: `literatura:${f.byq}`, 'music-work': `hudba:${f.byq}`, painting: `umeni:${f.bq}`, film: `film:${f.dirq}` }[family]);
+            return personFits(author, item) || landNames(f.land).includes(item.n) || nations(it.d).includes(item.n);
+        }
+        if (SOURCES[family][0].startsWith('zemepis') || ['region', 'olympics', 'battle', 'building', 'castle'].includes(family)) {
+            return (it.co || []).includes(item.id) || landNames(f.land).includes(item.n) || nations(it.d).includes(item.n);
+        }
+        if (family === 'club' || family === 'venue') return landNames(f.land).includes(item.n) || nations(it.d).includes(item.n);
+        return personFits(it, item);
+    };
+    const stat = new Map(t.zemepis.filter(it => it.c === 'stat').map(it => [it.q, it.f]));
+    const statByName = new Map(t.zemepis.filter(it => it.c === 'stat').map(it => [it.n, it.f]));
+    // „68 milionů“, „4,4 milionu“, „620 tisíc“, „9 300 km²“ → číslo
+    const parseNumber = (label) => {
+        const value = Number(label.replace(/km²/, '').replace(/[^\d,]/g, '').replace(',', '.'));
+        return value * (/miliard/.test(label) ? 1e9 : /milion/.test(label) ? 1e6 : /tisíc/.test(label) ? 1e3 : 1);
+    };
+    const checked = {};
+    for (const { map, item, question } of allQuestions()) {
+        const family = question.family;
+        const where = `${map} ${item.n}: ${question.prompt} [${question.choices.map(choice => `${choice.correct ? '*' : ''}${choice.label}`).join(' | ')}]`;
+        const right = question.choices.find(choice => choice.correct);
+        const wrong = question.choices.filter(choice => !choice.correct);
+        if (SOURCES[family]) {
+            assert.ok(named(family, right.label).some(it => fits(family, it, item, map)), `správně: ${where}`);
+            for (const choice of wrong) {
+                const found = named(family, choice.label);
+                assert.ok(found.length > 0, `v datech: ${choice.label} (${where})`);
+                assert.ok(!found.some(it => fits(family, it, item, map)), `nesprávně ${choice.label}: ${where}`);
+            }
+        } else if (family === 'capital') {
+            const own = item.loc ? item.seat : stat.get(item.id).cap;
+            assert.equal(right.label, own, where);
+        } else if (family === 'neighbour') {
+            assert.ok(item.nb.includes(maps[map].t.find(other => other.n === right.label).id), where);
+            for (const choice of wrong) assert.ok(!item.nb.includes(maps[map].t.find(other => other.n === choice.label).id), where);
+        } else if (family === 'population' || family === 'area') {
+            const field = family === 'population' ? 'pop' : 'area';
+            const value = stat.get(item.id)[field];
+            if (/než/.test(question.prompt)) {
+                const more = /víc|větší/.test(question.prompt);
+                const side = (choice) => (statByName.get(choice.label)[field] > value) === more;
+                assert.ok(side(right), where);
+                wrong.forEach(choice => assert.ok(!side(choice), where));
+            } else {
+                // Správná hodnota je ze čtyř nejblíž skutečné (aspoň dvojnásobek od ostatních)
+                const distance = (choice) => Math.abs(Math.log(parseNumber(choice.label) / value));
+                wrong.forEach(choice => assert.ok(distance(right) < Math.log(1.5) && distance(choice) > Math.log(1.5), where));
+            }
+        } else if (family === 'bigcity') {
+            const popOf = (label) => (t.zemepis.find(it => it.c === 'mesto' && it.n === label && (map === 'cesko' ? (it.co || []).includes('Q213') : (it.co || [])[0] === item.id)) || {}).f.pop;
+            const pops = question.choices.map(choice => popOf(choice.label));
+            const most = /nejvíc/.test(question.prompt);
+            assert.equal(popOf(right.label), most ? Math.max(...pops) : Math.min(...pops), where);
+        }
+        checked[family] = (checked[family] || 0) + 1;
+    }
+    for (const family of [...Object.keys(SOURCES), 'capital', 'neighbour', 'population', 'area', 'bigcity']) assert.ok(checked[family] > 0, `ověřeno: ${family}`);
+});
+
+test('otázky: sporné a matoucí případy (dvojí národnost, řeka po hranici, krajské město v názvu kraje, sporné hlavní město, obec u hranice kraje)', () => {
+    const t = loadAllTopics();
+    const many = (mapId, territory, levels = [0, 1, 2, 3], count = 60) => {
+        const out = [];
+        for (const level of levels) for (let s = 0; s < count; s++) out.push(C.buildQuestion({ data: maps[mapId], territory, level, topics: t, seed: `spor|${s}` }));
+        return out;
+    };
+    // Krajské město, které prozradí název kraje (Plzeň, Ústí nad Labem, Hradec Králové, Karlovy Vary), se neptá
+    for (const kraj of ['Q46070', 'Q192702', 'Q193295', 'Q191091']) assert.ok(!many('cesko', kraj, [0, 1]).some(q => q.family === 'capital'), kraj);
+    // Izrael a Jihoafrická republika: hlavní město není jednoznačné
+    assert.ok(!many('asie', 'Q801', [0, 1]).some(q => q.family === 'capital'));
+    assert.ok(!many('afrika', 'Q258', [0, 1]).some(q => q.family === 'capital'));
+    // Černošice leží ve Středočeském kraji těsně u Prahy: nikdy odpovědí pro Prahu
+    for (const q of many('cesko', 'Q1085')) assert.ok(!q.choices.some(c => c.correct && c.label === 'Černošice'));
+    // Dunaj teče i po hranici Ukrajiny (data ji u něj nemají): pro Ukrajinu nesprávnou možností není
+    const ukraine = many('evropa', 'Q212');
+    assert.ok(ukraine.some(q => q.family === 'river'));
+    for (const q of ukraine) assert.ok(!q.choices.some(c => !c.correct && c.label === 'Dunaj'));
+    // Dvojí národnost (polsko-česká zpěvačka, český a rakouský skladatel, český německy píšící spisovatel): ani u jedné ze zemí
+    for (const territory of ['Q36', 'Q213', 'Q40', 'Q183']) {
+        for (const q of many('evropa', territory)) assert.ok(!q.choices.some(c => !c.correct && ['Ewa Farna', 'Gustav Mahler', 'Franz Kafka'].includes(c.label)), `${territory}: ${q.prompt}`);
+    }
+    // Sporná území (Krym, Západní Sahara) nejsou ani odpovědí, ani nesprávnou možností
+    for (const [mapId, territory] of [['evropa', 'Q212'], ['evropa', 'Q159'], ['afrika', 'Q1028']]) {
+        for (const q of many(mapId, territory)) assert.ok(!q.choices.some(c => /Krym|Sevastopol|Ajún|Dachla/.test(c.label)), q.prompt);
+    }
+    // Soused po souši má přednost před námořním spojením mapy
+    for (const q of many('asie', 'Q851', [0, 1, 2]).filter(q => q.family === 'neighbour')) assert.notEqual(q.choices.find(c => c.correct).label, 'Írán');
+});
+
+test('otázky: obtížnost roste s úrovní (nízko známější odpovědi a vzdálenější nesprávné možnosti)', () => {
+    const t = loadAllTopics();
+    const known = new Set();
+    for (const topic of ALL_TOPICS) for (const it of t[topic]) if (it.k === 1) known.add(plain(it.n));
+    const data = maps.evropa;
+    const byName = new Map(data.t.map(item => [item.n, item]));
+    const stats = [0, 3].map(level => {
+        let facts = 0, famous = 0, far = 0, flags = 0;
+        for (const item of data.t) for (let s = 0; s < 8; s++) {
+            const q = C.buildQuestion({ data, territory: item.id, level, topics: t, seed: `obtiznost|${s}` });
+            if (['place', 'person', 'work', 'sport', 'history'].includes(q.kind)) { facts += 1; if (known.has(plain(q.choices.find(c => c.correct).label))) famous += 1; }
+            if (q.family === 'flag' || q.family === 'neighbour') {
+                for (const choice of q.choices.filter(c => !c.correct)) { const other = byName.get(choice.label); far += Math.hypot(other.a[0] - item.a[0], other.a[1] - item.a[1]); flags += 1; }
+            }
+        }
+        return { famous: famous / facts, far: far / flags };
+    });
+    assert.ok(stats[0].famous > stats[1].famous + 0.15, `známé odpovědi: úroveň 0 ${stats[0].famous.toFixed(2)}, úroveň 3 ${stats[1].famous.toFixed(2)}`);
+    assert.ok(stats[0].far > stats[1].far * 1.2, `vzdálenost nesprávných: úroveň 0 ${stats[0].far.toFixed(0)}, úroveň 3 ${stats[1].far.toFixed(0)}`);
+});
+
+test('otázky: čeština (tvary názvů států a krajů, otázky na osobnosti bez rodu, obrazy podle malíře)', () => {
+    const forms = (mapId, name) => { const f = C.formsOf(maps[mapId].t.find(item => item.n === name)); return [f.in, f.from, f.of, f.with]; };
+    assert.deepEqual(forms('evropa', 'Francie'), ['ve Francii', 'z Francie', 'Francie', 'se státem Francie']);
+    assert.deepEqual(forms('evropa', 'Slovensko'), ['na Slovensku', 'ze Slovenska', 'Slovenska', 'se státem Slovensko']);
+    assert.deepEqual(forms('amerika', 'Spojené státy americké').slice(0, 3), ['ve Spojených státech amerických', 'ze Spojených států amerických', 'Spojených států amerických']);
+    assert.deepEqual(forms('afrika', 'Mali').slice(0, 3), ['ve státě Mali', 'ze státu Mali', 'státu Mali']);
+    assert.deepEqual(forms('cesko', 'Jihočeský kraj'), ['v Jihočeském kraji', 'z Jihočeského kraje', 'Jihočeského kraje', 's Jihočeským krajem']);
+    assert.deepEqual(forms('cesko', 'Středočeský kraj'), ['ve Středočeském kraji', 'ze Středočeského kraje', 'Středočeského kraje', 'se Středočeským krajem']);
+    assert.deepEqual(forms('cesko', 'Zlínský kraj').slice(1), ['ze Zlínského kraje', 'Zlínského kraje', 'se Zlínským krajem']);
+    assert.deepEqual(forms('cesko', 'Praha'), ['v Praze', 'z Prahy', 'Prahy', 's Prahou']);
+    assert.deepEqual(forms('cesko', 'Kraj Vysočina'), ['v Kraji Vysočina', 'z Kraje Vysočina', 'Kraje Vysočina', 's Krajem Vysočina']);
+    const prompts = new Set(allQuestions().map(entry => entry.question.prompt));
+    for (const prompt of prompts) {
+        // Bez rodu u lidí („Kdo z těchto spisovatelů“ by vyloučil spisovatelky), bez zdvojených mezer a neznámých tvarů
+        assert.doesNotMatch(prompt, /spisovatelů|skladatelů|hudebníků|sportovců|malířů|herců|režisérů|architektů|státníků/, prompt);
+        assert.doesNotMatch(prompt, /\s{2}|undefined|null/, prompt);
+        assert.doesNotMatch(prompt, /ve státě (?:Francie|Německo|Česko|Polsko|Rakousko|Itálie|Španělsko|Japonsko|Čína|Indie|Brazílie|Kanada)\b/, prompt);
+    }
+    assert.ok([...prompts].some(prompt => /^Která z těchto literárních osobností pochází z /.test(prompt)));
+    assert.ok([...prompts].some(prompt => /^Která z těchto řek teče ve Francii\?$/.test(prompt) || /^Která z těchto řek teče v /.test(prompt)));
+    assert.ok([...prompts].some(prompt => /^Který z těchto obrazů namaloval malíř nebo malířka z /.test(prompt)));
+    assert.ok([...prompts].some(prompt => /^Která z těchto osobností stála v čele /.test(prompt)));
+    assert.ok([...prompts].some(prompt => /^Který z těchto krajů sousedí s/.test(prompt)));
+});
+
+test('otázky: vlajky a znaky ve standardní šířce náhledu s původním souborem jako zálohou', () => {
+    const flag = allQuestions().find(entry => entry.question.family === 'flag');
+    assert.ok(flag);
+    for (const choice of flag.question.choices) {
+        assert.match(choice.image, /^https:\/\/upload\.wikimedia\.org\/wikipedia\/commons\/thumb\/[0-9a-f]\/[0-9a-f]{2}\/[^/]+\/250px-/);
+        assert.match(choice.fallback, /^https:\/\/upload\.wikimedia\.org\/wikipedia\/commons\/[0-9a-f]\/[0-9a-f]{2}\/[^/]+$/);
+    }
+    const html = C.questionHtml(flag.question, { title: 'Útok', item: flag.item, data: maps[flag.map] });
+    assert.match(html, /data-fallback="https:\/\/upload\.wikimedia\.org\//);
+    assert.doesNotMatch(html, /\sstyle=|\son[a-z]+=/i);
 });
 
 test('kronika tažení: rod názvu, opevnění, pobourání, odražený útok, poklad, domov, návrat do hry', () => {
@@ -294,4 +544,21 @@ test('vykreslení: mapa, náhled, obrazovky a okna bez inline stylů (CSP), klep
     // Karta bez her zve do lobby, s rozehranou hrou ukazuje tahy
     assert.match(C.homeCardHtml({ games: [], maps }), /Najdi hru nebo založ vlastní/);
     assert.match(C.homeCardHtml({ games: [{ ...state, budget: state.budget }], maps }), /Tahy 4\/5/);
+});
+
+test('vlajky a znaky v otázkách: náhled ve standardní šířce Commons (160 px Wikimedia odmítá), záloha na původní soubor', () => {
+    const fl = ['Flag of Serbia.svg', 'ff'];
+    assert.equal(C.THUMB, 250);
+    assert.equal(C.flagUrl(fl), 'https://upload.wikimedia.org/wikipedia/commons/thumb/f/ff/Flag_of_Serbia.svg/250px-Flag_of_Serbia.svg.png');
+    assert.equal(C.flagFallback(fl), 'https://upload.wikimedia.org/wikipedia/commons/f/ff/Flag_of_Serbia.svg');
+    // Otázka na vlajku má u každé možnosti obrázek i zálohu a HTML zálohu nese (conquest-ui.js ji použije, když se náhled nenačte)
+    const data = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'data', 'dobyvani-evropa.json'), 'utf8'));
+    const serbia = data.t.find(item => item.n === 'Srbsko');
+    let question = null;
+    for (let seed = 0; seed < 80 && !(question && question.kind === 'flag'); seed++) question = C.buildQuestion({ data, territory: serbia.id, level: 1, topics: {}, seed: `v${seed}` });
+    assert.equal(question && question.kind, 'flag', 'některé semínko dá otázku na vlajku');
+    {
+        assert.ok(question.choices.every(choice => /\/250px-/.test(choice.image) && /^https:\/\/upload\.wikimedia\.org\/wikipedia\/commons\/[0-9a-f]\//.test(choice.fallback)));
+        assert.match(C.questionHtml(question, { title: 'Útok', item: serbia, data, answered: null }), /data-fallback="https:\/\/upload\.wikimedia\.org/);
+    }
 });

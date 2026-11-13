@@ -359,7 +359,8 @@
                 if (state.status === 'lobby') { upsertMine(state); openLobby(id); return; }
                 game = { id, state, data, view: viewFor(state, data), vb: null, selected: null, source: null, move: null };
                 renderGame();
-                topics().catch(() => null);
+                // Témata a zásoby otázek pro mapu se připraví hned (první otázka pak nečeká na jejich sestavení)
+                topics().then(loaded => { if (game && game.data === data) C.poolsOf(data, loaded); }).catch(() => null);
                 if (game.view.finished) { if (!state.claimed) claim(id); showResult(); }
                 schedule();
             } catch (error) {
@@ -386,9 +387,9 @@
             if (!holder || !game) { renderGame(); return; }
             holder.innerHTML = C.mapSvg(game.data, game.view);
             const players = app.querySelector('[data-cq-players]');
-            if (players) players.innerHTML = C.playersStripHtml(game.view);
+            if (players) players.innerHTML = C.playersStripHtml(game.view, { now: Date.now() });
             const recent = app.querySelector('[data-cq-recent]');
-            if (recent) recent.innerHTML = C.recentHtml(game.view);
+            if (recent) recent.innerHTML = C.recentHtml(game.view, { now: Date.now() });
             const budget = app.querySelector('[data-cq-budget]');
             if (budget && game.view.budget) budget.innerHTML = `<i data-lucide="swords" class="h-4 w-4 text-brand-700 dark:text-gold-300"></i><span class="sr-only">Tahy </span>${game.view.budget.left}/${game.view.budget.total}`;
             deps.renderIcons(app.querySelector('[data-cq-panel]') || app);
@@ -454,13 +455,13 @@
             const zoom = zoomOf();
             const markScale = (13 * Math.pow(zoom, 0.35) * upp) / 16.5;
             svg.querySelectorAll('.cq-mark-scale').forEach(element => element.setAttribute('transform', `scale(${markScale.toFixed(3)})`));
+            // Název jen u vybraného území (ostatní názvy by napovídaly), vždy aspoň 12 a nejvýš 16 px na displeji
             svg.querySelectorAll('.cq-label').forEach(element => {
                 const base = Number(element.dataset.size) || 10;
-                const px = base / upp;
-                const hide = px < 8;
+                const hide = element.dataset.label !== game.selected;
                 element.classList.toggle('cq-hide', hide);
                 if (hide) return;
-                const size = Math.min(base, 15 * upp);
+                const size = Math.max(12 * upp, Math.min(base, 16 * upp));
                 const item = game.view.index.byId.get(element.dataset.label);
                 element.setAttribute('font-size', size.toFixed(2));
                 if (item) element.setAttribute('y', (item.a[1] + size * 1.2).toFixed(2));
@@ -541,6 +542,7 @@
             if (!layer || !game) return;
             const item = game.selected ? game.view.index.byId.get(game.selected) : null;
             layer.innerHTML = item ? `<path d="${item.d}"/>` : '';
+            updateDetail();
         };
         const sheet = () => app.querySelector('[data-cq-sheet]');
         const selectTerritory = (id) => {
@@ -662,7 +664,10 @@
         const openChest = (id) => {
             const chest = svg && svg.querySelector(`[data-mark="${id}"] .cq-treasure`);
             if (!chest) return;
-            chest.insertAdjacentHTML('beforeend', `<g class="cq-lid-open">${C.iconMarkup('treasure').match(/<path d="M3 11c[^>]*\/>/)[0]}</g>${Array.from({ length: 6 }, (_, i) => `<circle class="cq-sparkle cq-sparkle-fly" cx="${6 + i * 2.4}" cy="8" r="1.3"/>`).join('')}`);
+            // Kresba truhly má víko, které se odklopí; obrázek truhly (č. 263) jen poskočí. Jiskry vyletí v obou případech
+            const lid = C.iconMarkup('treasure').match(/<path d="M3 11c[^>]*\/>/);
+            chest.insertAdjacentHTML('beforeend', `${lid ? `<g class="cq-lid-open">${lid[0]}</g>` : ''}${Array.from({ length: 6 }, (_, i) => `<circle class="cq-sparkle cq-sparkle-fly" cx="${6 + i * 2.4}" cy="8" r="1.3"/>`).join('')}`);
+            if (!lid) chest.classList.add('cq-chest-pop');
             chest.querySelectorAll('.cq-sparkle-fly').forEach((spark, i) => { spark.style.setProperty('--dx', `${(i - 2.5) * 3}px`); spark.style.setProperty('--dy', `${-10 - (i % 3) * 4}px`); });
         };
         // Po překreslení: vlaječka se zapíchne, opevnění vyroste s obláčkem prachu
@@ -718,6 +723,12 @@
             const move = game && game.move;
             if (!holder || !move || !move.question) return;
             holder.innerHTML = C.questionHtml(move.question, { title: questionTitle(move), item: game.view.index.byId.get(move.target), data: game.data, answered: move.answered });
+            // Náhled vlajky nebo znaku z Commons, který nejde načíst, nahradí původní soubor (data-fallback, jednou)
+            holder.querySelectorAll('img[data-fallback]').forEach(img => {
+                const swap = () => { const next = img.dataset.fallback; img.removeAttribute('data-fallback'); if (next && img.src !== next) img.src = next; };
+                if (img.complete && img.naturalWidth === 0 && img.src) swap();
+                else img.addEventListener('error', swap, { once: true });
+            });
             deps.renderIcons(holder);
         };
         const answer = async (index) => {
@@ -820,6 +831,8 @@
             if (!clock || !game) return;
             const end = Date.parse(game.state.ends_at || '');
             clock.textContent = game.view.finished ? 'Hra skončila' : Number.isFinite(end) ? `zbývá ${C.timeLeft(end - Date.now())}` : '';
+            const next = app.querySelector('[data-cq-next]');
+            if (next) next.textContent = C.periodLine(game.view, Date.now());
         };
 
         // --- Konec hry: stupně vítězů, odměna, přehrání ---
@@ -900,6 +913,11 @@
             deps.showToast(number ? (state.period === 'hour' ? `Začala ${number}. hodina hry.` : `Začal ${number}. den hry.`) : 'Začalo další období.');
         });
 
+        // Jak se hraje: okno se záložkami (Základy, Útok, Regiony, Konec), přepínají se klepnutím i tlačítkem Dál
+        const openHelp = (tab) => deps.showDialog('Jak se hraje Dobývání', C.helpHtml(tab), {
+            onClick: (event) => { const next = event.target.closest('[data-cq-help-tab]'); if (next) openHelp(next.dataset.cqHelpTab); }
+        });
+
         // --- Klepnutí (rozcestník i hra) ---
         const onClick = (event) => {
             if (!active()) return;
@@ -939,7 +957,7 @@
             const action = target.closest('[data-cq]');
             if (!action) return;
             const name = action.dataset.cq;
-            if (name === 'help') deps.showDialog('Jak se hraje Dobývání', C.helpHtml());
+            if (name === 'help') openHelp('zaklady');
             else if (name === 'code') openCode();
             else if (name === 'look') { if (ui.kind === 'lobby') changeLook(); else pickLook({ onDone: () => renderHub() }); }
             else if (name === 'ready') toggleReady();

@@ -1,31 +1,35 @@
 // Dobývání: hry o mapu pro 2–8 hráčů (lobby, Rychlá hra, vlastní hry s nastavením). Čistá logika bez DOMu a sítě: pravidla (zrcadlo
 // serveru, supabase/schema.sql blok „21: Dobývání“), barvy a znaky hráčů, mapa (sousedé, regiony, zobrazení bodů), otázky o území
-// z dat témat (hlavní město, vlajka nebo znak, místo ve státě či kraji, najdi na mapě, soused), kronika tažení, přehrání a odměny.
+// z dat témat (víc než 30 rodin: hlavní město, vlajka nebo znak, soused, najdi na mapě, města, stavby, hory, řeky, regiony, osobnosti
+// podle oboru, díla, kluby, olympiády, bitvy, počet obyvatel, rozloha…), kronika tažení, přehrání a odměny.
 // Vykreslení jako HTML a SVG (mapa na pergamenu, šrafy hráčů, vlaječky se znaky, opevnění, poklady, ozdoby). Ovládání v prohlížeči
 // (přiblížení, animace, okna) je v conquest-ui.js. Mapy: data/dobyvani-<mapa>.json (scripts/build-dobyvani.js). Testy: tests/conquest.test.js.
 (function (root, factory) {
     const isNode = typeof module === 'object' && module.exports;
-    const api = factory(isNode ? require('./quiz-core.js') : root.MudrlantCore);
+    // Tvary názvů států („ve Francii“, „z Francie“) a národnosti v popisech má chain.js; v prohlížeči se načítá až za tímto
+    // skriptem, proto se vezme až při první otázce (bez něj otázky o osobnostech a dílech nejsou a státy mají „ve státě X“)
+    const chain = () => (isNode ? require('./chain.js') : root.MudrlantChain || null);
+    const api = factory(isNode ? require('./quiz-core.js') : root.MudrlantCore, chain);
     if (isNode) module.exports = api;
     else root.MudrlantConquest = api;
-})(typeof self !== 'undefined' ? self : this, (core) => {
+})(typeof self !== 'undefined' ? self : this, (core, chainModule) => {
     'use strict';
 
     // --- Obrázky (docs/OBRAZKY.md): do dodání existující obrázky nebo kresby SVG; po dodání stačí doplnit název souboru ---
     const ART = {
-        card: 'sova-dalekohled',  // č. 234 'dobyvani' – sova dobyvatel s helmou a mapou (karta, tip, odznak)
-        palisade: null,           // č. 260 'palisada' – opevnění 1 (do dodání kresba SVG)
-        wall: null,               // č. 239 'hradba' – opevnění 2
-        fortress: null,           // č. 261 'pevnost' – opevnění 3 (jen domovské území)
-        castle: null,             // č. 262 'hrad-domov' – domovské území
-        treasure: null,           // č. 263 'poklad' – truhla s pokladem
-        compass: null,            // č. 235 'vetrna-ruzice'
-        ship: null,               // č. 238 'plachetnice'
-        monster: null,            // č. 237 'morska-prisera'
-        cartouche: null,          // č. 236 'kartuse' – kartuše s názvem mapy (do dodání CSS .cq-cartouche)
-        // Textury (icons/textury/<název>.webp): pergamen doplní background-image ve třídě .cq-paper (src/input.css), moře vzor v SVG
-        paper: null,              // č. 232 'textura-pergamen'
-        sea: null,                // č. 233 'textura-more'
+        card: 'dobyvani',         // č. 234 sova dobyvatel s helmou a mapou (karta, tip)
+        palisade: 'palisada',     // č. 260 opevnění 1 (null = kresba SVG, ICON_SHAPES)
+        wall: 'hradba',           // č. 239 opevnění 2
+        fortress: 'pevnost',      // č. 261 opevnění 3 (jen domovské území)
+        castle: 'hrad-domov',     // č. 262 domovské území
+        treasure: 'poklad',       // č. 263 truhla s pokladem
+        compass: 'vetrna-ruzice', // č. 235
+        ship: 'plachetnice',      // č. 238
+        monster: 'morska-prisera', // č. 237
+        cartouche: 'kartuse',     // č. 236 kartuše s názvem mapy v liště hry (větší náhled icons/topics/kartuse-sirka.webp, .cq-cartouche-art)
+        // Textury (icons/textury/<název>.webp): pergamen je background-image ve třídě .cq-paper (src/input.css), moře vzor v SVG
+        paper: 'textura-pergamen', // č. 232
+        sea: 'textura-more',      // č. 233
         frame: null               // č. 240 'ramecek-dobyvatel' – rámeček vítěze (look.js ART_FRAMES s badge: 'dobyvatel', až bude obrázek)
     };
     const artUrl = (name) => `icons/topics/${name}.webp`;
@@ -164,6 +168,7 @@
     const playersWord = (count) => plural(count, 'hráč', 'hráči', 'hráčů');
     const pointsWord = (count) => plural(count, 'bod', 'body', 'bodů');
     const territoriesWord = (count) => plural(count, 'území', 'území', 'území');
+    const regionsWord = (count) => plural(count, 'region', 'regiony', 'regionů');
     const hash32 = (text) => {
         let hash = 2166136261;
         for (let i = 0; i < text.length; i++) hash = Math.imul(hash ^ text.charCodeAt(i), 16777619);
@@ -238,10 +243,9 @@
         const x = k * Math.cos(phi) * Math.sin(dl), y = k * (cos0 * Math.sin(phi) - sin0 * Math.cos(phi) * Math.cos(dl));
         return [(x - data.proj.x0) * data.proj.k, (data.proj.y1 - y) * data.proj.k];
     };
-    // Území, ve kterém leží bod (šířka, délka), nebo null
-    const territoryAt = (data, lat, lon) => {
+    // Území, ve kterém leží bod mapy (x, y), nebo null
+    const territoryAtPoint = (data, x, y) => {
         const index = indexMap(data);
-        const [x, y] = project(data, lat, lon);
         for (const item of data.t) {
             const [x0, y0, x1, y1] = item.b;
             if (x < x0 || x > x1 || y < y0 || y > y1) continue;
@@ -249,6 +253,8 @@
         }
         return null;
     };
+    // Území, ve kterém leží bod (šířka, délka), nebo null
+    const territoryAt = (data, lat, lon) => { const [x, y] = project(data, lat, lon); return territoryAtPoint(data, x, y); };
     const isAdjacent = (data, a, b) => { const index = indexMap(data); return Boolean(index && index.neighbours.get(a) && index.neighbours.get(a).has(b)); };
 
     // --- Stav hry (ze serveru) jako pohled: hráči s barvami, území, sousedé, regiony, body, pořadí ---
@@ -301,51 +307,397 @@
         return { attack: left > 0, fortify: false, reason: left > 0 ? '' : 'Tahy na tohle období už nemáš.' };
     };
 
-    // --- Otázky o území (4 možnosti). Obtížnost roste s úrovní opevnění cíle ---
-    // topics = { zemepis, vlajky, architektura } (pole položek z data/<téma>.json, chybějící se vynechá)
-    const flagUrl = (fl, width = 160) => (fl && core && core.commonsPhotoUrl ? core.commonsPhotoUrl(fl[0], fl[1], width) : '');
-    const PLACE_KINDS = {
-        mesto: ['Které z těchto měst leží', 'Které z těchto měst leží'],
-        hora: ['Která z těchto hor je', 'Která z těchto hor je'],
-        jezero: ['Které z těchto jezer je', 'Které z těchto jezer je'],
-        ostrov: ['Který z těchto ostrovů leží', 'Který z těchto ostrovů leží'],
-        priroda: ['Které z těchto míst leží', 'Které z těchto míst leží'],
-        stavba: ['Která z těchto staveb stojí', 'Která z těchto staveb stojí'],
-        stavby: ['Která z těchto staveb stojí', 'Která z těchto staveb stojí']
+    // --- Otázky o území (4 možnosti, jedna správná) ---
+    // topics = { zemepis, vlajky, architektura, historie, literatura, hudba, umeni, film, sport } (pole položek z data/<téma>.json;
+    // chybějící téma znamená jen méně druhů otázek). Každá otázka patří do rodiny (FAMILIES níž): hlavní město, vlajka nebo znak,
+    // soused, mapa, místa podle druhu, řeky, regiony, osobnosti podle oboru, díla, kluby, sportoviště, olympiády, bitvy a čísla.
+    // Pro tah se rodina losuje (skoro) se stejnou vahou ze všech, které pro území jdou sestavit, takže žádná nepřeváží.
+    // Obtížnost roste s úrovní opevnění cíle (0–3): nízko známější položky a nesprávné možnosti z dálky, výš méně známé a z okolí.
+    // Jednoznačnost: nesprávná možnost vazbu nesplňuje (ani dvojí národností, řekou přes víc států, popisem, který cíl zmiňuje),
+    // stejně pojmenované položky se vyřadí a odpověď neprozradí název území, jeho hlavní ani krajské město.
+    // Náhled z Commons ve standardní šířce (jinou šířku Wikimedia odmítne); fallback = původní soubor, když náhled nejde
+    const THUMB = 250;
+    const flagUrl = (fl, width = THUMB) => (fl && core && core.commonsPhotoUrl ? core.commonsPhotoUrl(fl[0], fl[1], width) : '');
+    const flagFallback = (fl) => (fl && core && core.commonsFileUrl ? core.commonsFileUrl(fl[0], fl[1]) : '');
+    const isKraje = (data) => Boolean(MAP_BY_ID[data.id] && MAP_BY_ID[data.id].kraje);
+    const chainApi = () => { try { return (chainModule && chainModule()) || null; } catch (error) { return null; } };
+    const countryWords = (name) => { const api = chainApi(); return (api && api.COUNTRY_WORDS && api.COUNTRY_WORDS[name]) || null; };
+    const nationalitiesIn = (text) => { const api = chainApi(); return api && api.nationalitiesIn ? api.nationalitiesIn(text) : []; };
+    // Tvary názvu území v otázce: in „ve Francii“ / „v Jihočeském kraji“, from „z Francie“, of 2. pád „Francie“, adj kmen přídavného
+    // jména „francouzsk“ (jen státy z tabulky chain.js), with 7. pád se „s“ („se Středočeským krajem“, „se státem Mali“)
+    const ZE = /^[sSzZšŠžŽ][^aáeéěiíoóuúůyý]/;
+    const withPhrase = (item) => {
+        if (!item.loc) return `se státem ${item.n}`;
+        if (item.n === 'Praha') return 's Prahou';
+        if (/^Kraj /.test(item.n)) return `s Krajem ${item.n.slice(5)}`;
+        const adjective = item.n.split(' ')[0].replace(/ý$/, 'ým');
+        return `${ZE.test(adjective) ? 'se' : 's'} ${adjective} krajem`;
     };
-    // „ve státě Francie“, u krajů „v Jihočeském kraji“
-    const inPhrase = (item) => item.loc || `ve státě ${item.n}`;
-    const questionPools = new WeakMap();
-    // Místa z dat témat podle území mapy (u států podle státu položky, u krajů podle polohy)
-    const placesOf = (data, topics) => {
-        const key = topics;
-        if (!questionPools.has(key)) questionPools.set(key, new WeakMap());
-        const cache = questionPools.get(key);
-        if (cache.has(data)) return cache.get(data);
-        const kraje = MAP_BY_ID[data.id] && MAP_BY_ID[data.id].kraje;
-        const ids = new Set(data.t.map(item => item.id));
-        const byTerritory = new Map(data.t.map(item => [item.id, []]));
-        const add = (item, topic) => {
-            if (!item.n || !PLACE_KINDS[item.c]) return;
-            if (item.ty && /moře|oceán|záliv|zátoka|průliv/.test(item.ty)) return;
-            let territory = null;
-            if (kraje) {
-                if (!(item.co || []).includes('Q213') || !Number.isFinite(item.la)) return;
-                territory = territoryAt(data, item.la, item.lo);
-            } else if ((item.co || []).length === 1 && ids.has(item.co[0])) territory = item.co[0];
-            if (territory) byTerritory.get(territory).push({ item, topic });
-        };
-        (topics.zemepis || []).forEach(item => add(item, 'zemepis'));
-        (topics.architektura || []).forEach(item => add(item, 'architektura'));
-        const capitals = new Map();
-        if (!kraje) (topics.zemepis || []).forEach(item => { if (item.c === 'stat' && ids.has(item.q) && item.f && item.f.cap) capitals.set(item.q, item.f.cap); });
-        const result = { byTerritory, capitals };
-        cache.set(data, result);
-        return result;
+    const formsOf = (item) => {
+        if (item.loc) { const of = item.gen || item.n; return { in: item.loc, of, from: `${ZE.test(of) ? 'ze' : 'z'} ${of}`, adj: '', with: withPhrase(item) }; }
+        const words = countryWords(item.n);
+        if (words) return { in: words[1], from: words[0], of: words[0].replace(/^ze? /, ''), adj: words[2] || '', with: withPhrase(item) };
+        return { in: `ve státě ${item.n}`, from: `ze státu ${item.n}`, of: `státu ${item.n}`, adj: '', with: withPhrase(item) };
     };
-    // Názvy, které by odpověď prozradily (místo s názvem státu) nebo se pletou (stejný název ve dvou územích)
+    const inPhrase = (item) => formsOf(item).in;
+    const verbHas = (item) => (item.g === 'p' ? 'mají' : 'má');
+
+    // --- Prozrazení odpovědi a zmínky v popisu ---
     const namePlain = (text) => (core && core.normalizeAnswer ? core.normalizeAnswer(text) : String(text).toLowerCase());
     const distinctLabels = (choices) => new Set(choices.map(choice => namePlain(choice.label))).size === choices.length;
+    const revealCache = new Map();
+    const memo = (key, compute) => { if (!revealCache.has(key)) revealCache.set(key, compute()); return revealCache.get(key); };
+    // Jméno v textu i skloněné nebo jako přídavné jméno (core.censorName); rychlé síto: text obsahuje začátek některého slova jména
+    const revealsName = (text, name) => Boolean(text && name) && memo(`n\u0001${text}\u0001${name}`, () => {
+        const folded = namePlain(text);
+        if (!namePlain(name).split(' ').filter(word => word.length >= 3).some(word => folded.includes(word.slice(0, 3)))) return false;
+        return Boolean(core && core.censorName) && core.censorName(String(text), String(name)).includes('[***]');
+    });
+    // Stejný začátek slova (Lucemburk – Lucembursko, Plzeň – Plzeňský kraj): aspoň 5 písmen, kratší slovo celé; nebo slovo
+    // názvu uvnitř jiného slova (Antilibanon – Libanon); obecná slova ne
+    const GENERIC_WORDS = new Set(['kraj', 'kraje', 'republika', 'demokraticka', 'spojene', 'staty', 'americke', 'kralovstvi', 'severni', 'jizni', 'vychodni', 'zapadni',
+        'stredni', 'nova', 'novy', 'nove', 'velka', 'velky', 'rovnikova', 'arabske', 'emiraty', 'ostrovy', 'svaty', 'svata', 'ceske', 'cesky', 'ceska', 'horni', 'dolni',
+        'mala', 'maly', 'male', 'stara', 'stary', 'stare']);
+    const wordsOf = (text) => namePlain(text).split(/[^a-z0-9]+/).filter(word => word.length >= 4 && !GENERIC_WORDS.has(word));
+    const prefixLength = (a, b) => { let i = 0; while (i < a.length && i < b.length && a[i] === b[i]) i++; return i; };
+    const stemHit = (text, name) => {
+        const names = wordsOf(name);
+        return names.length > 0 && wordsOf(text).some(a => names.some(b => prefixLength(a, b) >= Math.min(5, a.length, b.length) || (b.length >= 5 && a.includes(b))));
+    };
+    // Další názvy států v názvech míst, klubů a osobností (původní jazyk, části státu)
+    const TERRITORY_ALIASES = {
+        Q974: ['Kongo'], Q971: ['Kongo'], Q96: ['México', 'Mexico'], Q30: ['USA', 'Amerika', 'America', 'American'], Q145: ['Británie', 'Britain', 'British', 'Anglie', 'England', 'English', 'Skotsko', 'Scotland', 'Wales', 'Severní Irsko', 'UK'],
+        Q183: ['Deutschland', 'Deutsch', 'German', 'Germany'], Q142: ['France', 'French'], Q38: ['Italia', 'Italy', 'Italian'], Q29: ['España', 'Spain', 'Spanish'], Q55: ['Holandsko', 'Holland', 'Netherlands', 'Nederland', 'Dutch'],
+        Q36: ['Polska', 'Poland', 'Polish'], Q213: ['Čechy', 'Morava', 'Czech', 'Bohemia', 'Československo'], Q214: ['Slovakia', 'Slovak', 'Československo'], Q40: ['Österreich', 'Austria'], Q28: ['Magyar', 'Hungary', 'Uhry'],
+        Q159: ['Russia', 'Rossija'], Q212: ['Ukraine'], Q41: ['Hellas', 'Greece', 'Hellenic'], Q43: ['Türkiye', 'Turkey'], Q17: ['Japan', 'Nippon'], Q148: ['China'], Q668: ['India', 'Bhárat'], Q16: ['Canada'], Q155: ['Brasil', 'Brazil'],
+        Q39: ['Swiss', 'Suisse', 'Schweiz', 'Helvetia'], Q31: ['Belgique', 'België'], Q20: ['Norge', 'Norway'], Q34: ['Sverige', 'Sweden', 'Swedish'], Q35: ['Danmark', 'Denmark', 'Danish'], Q33: ['Suomi', 'Finland'],
+        Q189: ['Iceland'], Q27: ['Ireland', 'Éire', 'Irish'], Q884: ['Korea'], Q423: ['Korea'], Q865: ['Taiwan'], Q1246: ['Kosova'], Q225: ['Bosna', 'Hercegovina'], Q236: ['Montenegro'], Q221: ['Makedonie', 'Macedonia']
+    };
+    // Původní názvy hlavních měst (Paris Saint-Germain, Wiener Staatsoper)
+    const CAPITAL_FORMS = { 'Paříž': ['Paris'], 'Řím': ['Roma', 'Rome'], 'Vídeň': ['Wien', 'Vienna', 'Wiener'], 'Londýn': ['London'], 'Lisabon': ['Lisboa', 'Lisbon'], 'Kodaň': ['København', 'Copenhagen'],
+        'Moskva': ['Moscow'], 'Varšava': ['Warszawa', 'Warsaw'], 'Bělehrad': ['Beograd', 'Belgrade'], 'Záhřeb': ['Zagreb'], 'Athény': ['Athens', 'Athína'], 'Kyjev': ['Kyiv', 'Kiev'],
+        'Bukurešť': ['București', 'Bucharest'], 'Budapešť': ['Budapest'], 'Praha': ['Prague', 'Prag'], 'Brusel': ['Bruxelles', 'Brussel', 'Brussels'], 'Peking': ['Beijing'], 'Soul': ['Seoul'],
+        'Tokio': ['Tokyo'], 'Ciudad de México': ['Mexico City'], 'Washington, D.C.': ['Washington'], 'Káhira': ['Cairo'], 'Havana': ['La Habana'], 'Bogotá': ['Bogota'] };
+    // Názvy, které odpověď prozradí: název území (i jinak), hlavní nebo krajské město, národnost
+    const territoryNames = (item) => [item.n, ...(TERRITORY_ALIASES[item.id] || [])];
+    const capitalNames = (item, pools) => { const capital = item.loc ? item.seat : pools.capitals.get(item.id); return capital ? [capital, ...(CAPITAL_FORMS[capital] || [])] : []; };
+    const hitsAny = (label, names) => names.some(name => revealsName(label, name) || stemHit(label, name));
+    const revealsTerritory = (label, item, pools) => memo(`t\u0001${label}\u0001${item.id}`, () =>
+        hitsAny(label, territoryNames(item)) || hitsAny(label, capitalNames(item, pools)) || nationalitiesIn(label).includes(item.n));
+    // Popis položky zmiňuje území („řeka v Indii a Bangladéši“)
+    const mentions = (text, item) => Boolean(text) && memo(`m\u0001${text}\u0001${item.id}`, () =>
+        territoryNames(item).some(name => revealsName(text, name)) || nationalitiesIn(text).includes(item.n));
+    // Název připomíná jiné území mapy („Britská Kolumbie“, „Makedonie“): u regionů a ostrovů by mátl
+    const revealsOther = (label, home, data, pools) => data.t.some(other => !home.includes(other.id) && revealsTerritory(label, other, pools));
+
+    // --- Státy z dat témat: země osobností a děl (f.land), historické státy pro vyloučení z nesprávných možností ---
+    const SOVIET = ['Q159', 'Q212', 'Q184', 'Q217', 'Q211', 'Q37', 'Q191', 'Q230', 'Q399', 'Q227', 'Q232', 'Q265', 'Q874', 'Q863', 'Q813'];
+    const YUGOSLAV = ['Q403', 'Q224', 'Q215', 'Q225', 'Q236', 'Q221', 'Q1246'];
+    const HABSBURG = ['Q40', 'Q28', 'Q213', 'Q214', 'Q215', 'Q224', 'Q225', 'Q36', 'Q212', 'Q218', 'Q38', 'Q403'];
+    // Země, která je dnešním státem (část státu, starší název téhož státu)
+    const CLEAN_LANDS = { USA: 'Q30', Anglie: 'Q145', Skotsko: 'Q145', Wales: 'Q145', 'Severní Irsko': 'Q145', 'Království Velké Británie': 'Q145', 'Západní Německo': 'Q183',
+        'Německá demokratická republika': 'Q183', 'Italské království': 'Q38', 'Nizozemské království': 'Q55', 'Rumunské království': 'Q218', 'Protektorát Čechy a Morava': 'Q213' };
+    // Historický stát → dnešní státy na jeho území (osobnost, dílo nebo olympiáda s ním nesmí být nesprávnou možností žádného z nich)
+    const HISTORIC_LANDS = {
+        'Československo': ['Q213', 'Q214'], 'Sovětský svaz': SOVIET, 'Ruské impérium': [...SOVIET, 'Q33', 'Q36'], 'Ruské carství': SOVIET, 'Ruská sovětská federativní socialistická republika': ['Q159'],
+        'Jugoslávie': YUGOSLAV, 'Socialistická federativní republika Jugoslávie': YUGOSLAV, 'Srbsko a Černá Hora': ['Q403', 'Q236', 'Q1246'], 'Rakousko-Uhersko': HABSBURG, 'Rakouské císařství': HABSBURG,
+        'Habsburská monarchie': [...HABSBURG, 'Q29', 'Q31', 'Q55'], 'Předlitavsko': ['Q40', 'Q213', 'Q215', 'Q36', 'Q212', 'Q38'], 'Pruské království': ['Q183', 'Q36', 'Q159', 'Q37'],
+        'Německé císařství': ['Q183', 'Q36', 'Q142', 'Q35', 'Q159'], 'nacistické Německo': ['Q183', 'Q40', 'Q36', 'Q213'], 'Spojené království Velké Británie a Irska': ['Q145', 'Q27'],
+        'Britské impérium': ['Q145'], 'Anglické království': ['Q145'], 'Skotské království': ['Q145'], 'Flandry': ['Q31', 'Q55', 'Q142'], 'Vlámsko': ['Q31'], 'Starověké Řecko': ['Q41'],
+        'Starověký Řím': ['Q38'], 'starověký Řím': ['Q38'], 'České království': ['Q213'], 'Francouzské království': ['Q142'], 'Portugalské království': ['Q45'], 'Dánské království': ['Q35']
+    };
+    // Města, u kterých „ve státě“ není samozřejmé (zámořská území, zvláštní správní oblasti; jako chain.js)
+    const SKIP_CITIES = new Set(['Gibraltar', 'Hongkong', 'Macao', 'Nuuk']);
+    // Sporná území (komu patří, záleží na tom, koho se ptáte): ani správnou, ani nesprávnou možností
+    const DISPUTED = /Krym|Kuril|Golan|Kašmír|Senkak|Spratl|Paracel|Falkland|Malvín|Abcház|Osetie|Karabach|Podněstř|Západní Sahar|Essequib|Esequib|Aksai|Arunáčal|Gibraltar|Tchaj-wan|Ajún|Dachla|Smara|Sevastopol|Simferopol|Jalta|Kerč/i;
+    // Státy, kde „hlavní město“ není jednoznačné (víc hlavních měst, sídlo vlády jinde, sporné; jako chain.js)
+    const UNCLEAR_CAPITAL = new Set(['Jihoafrická republika', 'Bolívie', 'Izrael', 'Srí Lanka', 'Pobřeží slonoviny', 'Benin', 'Tanzanie', 'Burundi', 'Malajsie', 'Nizozemsko', 'Svazijsko', 'Rovníková Guinea']);
+    // Obecné názvy staveb, které stojí v mnoha městech (Národní divadlo, Stará radnice, Olympijský stadion) a zasvěcení bez místa
+    // (Kostel svatého Jakuba, Notre-Dame): nejde poznat, který je myšlen
+    const GENERIC_LABEL = /^(?:Národní|Olympijsk\p{L}*|Městsk\p{L}*|Centrální|Hlavní|Královsk\p{L}*|Státní|Velk\p{L}*|Nov\p{L}*|Star\p{L}*|Zimní|Letní|Sportovní|Fotbalov\p{L}*|Biskupsk\p{L}*|Arcibiskupsk\p{L}*|Prezidentsk\p{L}*)(?:\s+[\p{Ll}\d][\p{L}\d-]*)+$/u;
+    const DEDICATION = /(?:^|\s)(?:svat\p{L}*|sv\.|Panny Marie|Nejsvětější\p{L}*|Notre[- ]Dame|Santa|San|Saint|Sainte|St\.|Nanebevzetí|Narození|Božího|Matky Boží)(?:\s|$)/u;
+    const PLACE_IN_NAME = /\s(?:v|ve|na|u|nad|pod|při)\s/;
+    const genericBuilding = (label) => GENERIC_LABEL.test(label) || (DEDICATION.test(label) && !PLACE_IN_NAME.test(label));
+    // Dvojí národnost v popisu („kanadsko-srílanský prozaik“, „polsko-česká zpěvačka“): tabulka kmenů ji nemusí poznat celou
+    const COMPOUND_NATION = /\p{L}{3,}(?:sko|cko|ko)-\p{L}{3,}/u;
+    // Regiony se španělským členem nebo světcem (La Libertad, San Martín, Santa Cruz) mívají jmenovce v sousedních státech
+    const COMMON_REGION_NAME = /^(?:San|Santa|Santo|São|La|El|Los|Las)\s/;
+    // Olympiády, které se konaly i jinde, než říkají data (jezdecké soutěže LOH 1956 ve Stockholmu)
+    const GAMES_ALSO = { 'Letní olympijské hry 1956': ['Q34'] };
+    // Druhy z dat témat pro rodiny míst
+    const SKIP_BUILDING_TYPES = new Set(['archeologická lokalita', 'starověké město', 'náměstí', 'posvátné místo', 'průplav', 'ulice', 'park', 'zahrada', 'kromlech']);
+    const CASTLE_TYPES = /^(?:hrad|zámek|zřícenina hradu|skalní hrad|tvrz|hrádek|zámeček|lovecký zámek|vodní hrad|vodní tvrz)$/;
+    const LAKE_TYPES = new Set(['jezero', 'přehradní nádrž', 'rybník']);
+    const ISLAND_TYPES = new Set(['ostrov', 'souostroví']);
+    const PAINT_TYPES = new Set(['obraz', 'freska', 'triptych', 'oltářní obraz', 'nástěnná malba']);
+    const EMPEROR = /(?:^|[^\p{L}])(?:císař\p{L}*|imperátor\p{L}*|car|carevna)(?:[^\p{L}]|$)/iu;
+    const TOPIC_IDS = ['zemepis', 'vlajky', 'architektura', 'historie', 'literatura', 'hudba', 'umeni', 'film', 'sport'];
+    // Osobnosti podle oboru: rodina, téma, kategorie
+    const PEOPLE = [
+        ['writer', 'literatura', ['spisovatele']], ['musician', 'hudba', ['skladatele', 'hudebnici']], ['band', 'hudba', ['kapely']],
+        ['artist', 'umeni', ['umelci', 'fotografove', 'ilustratori']], ['architect', 'architektura', ['architekti']], ['filmmaker', 'film', ['reziseri', 'herci']],
+        ['athlete', 'sport', ['sportovci']], ['ruler', 'historie', ['statnik', 'panovnik']], ['historic', 'historie', ['osobnost']]
+    ];
+
+    // --- Zásoby otázek pro mapu (z dat témat; pamatují se pro dvojici témata + mapa) ---
+    const questionPools = new WeakMap();
+    // Města pro „Najdi na mapě“ a hlavní města (u států podle státu položky, u krajů podle polohy)
+    const PLACE_CATEGORIES = new Set(['mesto', 'hora', 'jezero', 'ostrov', 'priroda', 'stavba', 'stavby']);
+    const placesOf = (data, topics) => poolsOf(data, topics).places;
+    const poolsOf = (data, topics) => {
+        if (!questionPools.has(topics)) questionPools.set(topics, new WeakMap());
+        const cache = questionPools.get(topics);
+        if (!cache.has(data)) cache.set(data, buildPools(data, topics));
+        return cache.get(data);
+    };
+    const buildPools = (data, topics) => {
+        const kraje = isKraje(data);
+        const ids = new Set(data.t.map(item => item.id));
+        const list = (topic) => (topics && Array.isArray(topics[topic]) ? topics[topic] : []);
+        // Poloha → území; u krajů se bod blíž než asi 2,5 km k hranici jiného kraje nebere (Černošice těsně u Prahy)
+        const located = (item) => {
+            if (!Number.isFinite(item.la) || !Number.isFinite(item.lo)) return null;
+            const [x, y] = project(data, item.la, item.lo);
+            const at = territoryAtPoint(data, x, y);
+            if (!at || !kraje) return at;
+            const r = Math.max(data.w, data.h) * 0.005;
+            for (let i = 0; i < 8; i++) {
+                const other = territoryAtPoint(data, x + r * Math.cos(i * Math.PI / 4), y + r * Math.sin(i * Math.PI / 4));
+                if (other && other !== at) return null;
+            }
+            return at;
+        };
+        // Kraj obce podle Vlajek a znaků (f.kraj), stejně pojmenované obce ve dvou krajích = null; jinak podle polohy
+        const krajByName = new Map();
+        if (kraje) {
+            const byName = new Map(data.t.map(item => [item.n, item.id]));
+            for (const item of list('vlajky')) {
+                const kraj = item.c === 'cesko' && item.n ? byName.get((item.f || {}).kraj) : null;
+                if (!kraj) continue;
+                const key = namePlain(item.n);
+                krajByName.set(key, krajByName.has(key) && krajByName.get(key) !== kraj ? null : kraj);
+            }
+        }
+        const krajOf = (item) => {
+            if (!(item.co || []).includes('Q213')) return null;
+            const key = namePlain(item.n);
+            return item.c === 'mesto' && krajByName.has(key) ? krajByName.get(key) : located(item);
+        };
+        // Známost: pořadí v kategorii (data jsou seřazená podle známosti), známé (k = 1) před ostatními; 0 = nejznámější, < 1 známé
+        const fame = new Map();
+        for (const topic of TOPIC_IDS) {
+            const counts = new Map();
+            const seen = new Map();
+            const group = (item) => `${item.c}|${item.k === 1 ? 1 : 0}`;
+            list(topic).forEach(item => counts.set(group(item), (counts.get(group(item)) || 0) + 1));
+            list(topic).forEach(item => { const i = seen.get(group(item)) || 0; seen.set(group(item), i + 1); fame.set(item, (item.k === 1 ? 0 : 1) + i / counts.get(group(item))); });
+        }
+        const fameOf = (item) => (fame.has(item) ? fame.get(item) : 1.5);
+        // Státy podle názvu (osobnosti a díla mají zemi názvem)
+        const stateByName = new Map(Object.entries(CLEAN_LANDS));
+        const capitals = new Map();
+        const stats = new Map();
+        for (const item of list('zemepis')) {
+            if (item.c !== 'stat' || !item.q) continue;
+            stateByName.set(item.n, item.q);
+            const f = item.f || {};
+            if (f.cap) capitals.set(item.q, f.cap);
+            if (f.pop > 0 && f.area > 0) stats.set(item.q, { pop: f.pop, area: f.area });
+        }
+        if (kraje) capitals.clear();
+        const nationQ = (text) => nationalitiesIn(text).map(name => stateByName.get(name)).filter(Boolean);
+        const landsOf = (raw) => {
+            const names = (Array.isArray(raw) ? raw : String(raw || '').split(/,\s*/)).map(name => String(name).trim()).filter(Boolean);
+            const clean = new Set();
+            const rel = new Set();
+            let bad = !names.length;
+            for (const name of names) {
+                const q = stateByName.get(name);
+                if (q) { clean.add(q); rel.add(q); } else if (HISTORIC_LANDS[name]) HISTORIC_LANDS[name].forEach(other => rel.add(other));
+                else bad = true;
+            }
+            return { clean, rel, bad };
+        };
+        // Názvy míst a jejich území (stejně pojmenované místo v cíli nesmí být nesprávnou možností: Córdoba ve Španělsku i v Argentině)
+        const placeNames = new Map();
+        const nameAt = (name, territory) => { const key = namePlain(name); if (!key || !territory) return; if (!placeNames.has(key)) placeNames.set(key, new Set()); placeNames.get(key).add(territory); };
+        for (const topic of ['zemepis', 'architektura', 'vlajky']) {
+            for (const item of list(topic)) {
+                if (!item.n || item.c === 'stat' || item.c === 'vlajka' || item.c === 'znak' || item.c === 'uzemi' || item.c === 'historie' || item.c === 'slohy' || item.c === 'prvky' || item.c === 'architekti') continue;
+                if (kraje) nameAt(item.n, item.c === 'cesko' ? krajByName.get(namePlain(item.n)) || located({ ...item, co: ['Q213'] }) : krajOf(item));
+                else (item.co || []).forEach(q => nameAt(item.n, q));
+            }
+        }
+        // Obce se stejným názvem ve dvou krajích (Hranice na Moravě a u Aše)
+        if (kraje) for (const [key, kraj] of krajByName) if (kraj === null) { if (!placeNames.has(key)) placeNames.set(key, new Set()); placeNames.get(key).add('?'); }
+        // Rodiny: položky { label, key, q, fame, home (území mapy, kam patří), ok (pro která je správnou odpovědí), rel (státy nebo kraje,
+        // pro které nesmí být nesprávnou možností), text (popis), multi (víc států), clean (název nesmí připomínat jiné území) }
+        const families = new Map();
+        const add = (id, entry) => {
+            if (!entry.label || /[()]/.test(entry.label) || !entry.home.length) return;
+            entry.key = namePlain(entry.label);
+            if (!entry.key) return;
+            if (!families.has(id)) families.set(id, { entries: [], byQ: new Map() });
+            const family = families.get(id);
+            // Stejná položka z druhého tématu (stavba v Zeměpisu i v Architektuře): jen doplní státy
+            if (entry.q && family.byQ.has(entry.q)) { entry.rel.forEach(at => family.byQ.get(entry.q).rel.add(at)); return; }
+            if (entry.q) family.byQ.set(entry.q, entry);
+            family.entries.push(entry);
+        };
+        // Místa (Zeměpis a Architektura)
+        const geoFamily = (item) => {
+            const ty = item.ty || '';
+            if (item.c === 'mesto') return 'city';
+            if (item.c === 'stavba' || item.c === 'stavby') return SKIP_BUILDING_TYPES.has(ty) ? null : kraje && CASTLE_TYPES.test(ty) ? 'castle' : 'building';
+            if (item.c === 'hora') return /ostrov/i.test(item.n) ? null : 'mountain';
+            if (item.c === 'jezero') return LAKE_TYPES.has(ty) ? 'lake' : null;
+            if (item.c === 'ostrov') return ISLAND_TYPES.has(ty) ? 'island' : null;
+            if (item.c === 'priroda') return 'nature';
+            if (item.c === 'reka') return !kraje && ty === 'řeka' ? 'river' : null;
+            return null;
+        };
+        const places = { byTerritory: new Map(data.t.map(item => [item.id, []])), capitals };
+        for (const topic of ['zemepis', 'architektura']) {
+            for (const item of list(topic)) {
+                const id = geoFamily(item);
+                if (!id || !item.n || DISPUTED.test(item.n) || (id === 'city' && SKIP_CITIES.has(item.n)) || ((id === 'building' || id === 'castle') && genericBuilding(item.n))) continue;
+                const co = (item.co || []).filter(Boolean);
+                let home;
+                if (kraje) { const at = krajOf(item); home = at ? [at] : []; } else home = (id === 'city' || id === 'building') && co.length !== 1 ? [] : co.filter(q => ids.has(q));
+                if (!home.length) continue;
+                const multi = !kraje && co.length > 1;
+                add(id, { label: item.n, q: item.q, fame: fameOf(item), home, ok: home, rel: new Set(kraje ? home : [...co, ...nationQ(item.d)]), text: kraje ? '' : item.d || '', multi, sub: item.ty || '', topic, place: true });
+                // Najdi na mapě: město v území (u států jen v jednom státě)
+                if (PLACE_CATEGORIES.has(item.c) && !multi && !(item.ty && /moře|oceán|záliv|zátoka|průliv/.test(item.ty))) places.byTerritory.get(home[0]).push({ item, topic });
+            }
+        }
+        // Velká města pro „Které z těchto měst má nejvíc obyvatel?“
+        const cities = new Map();
+        for (const item of list('zemepis')) {
+            if (item.c !== 'mesto' || !item.n || !((item.f || {}).pop > 0) || DISPUTED.test(item.n)) continue;
+            const co = item.co || [];
+            const at = kraje ? krajOf(item) : co.length === 1 && ids.has(co[0]) && !SKIP_CITIES.has(item.n) ? co[0] : null;
+            if (!at) continue;
+            if (!cities.has(at)) cities.set(at, []);
+            cities.get(at).push({ label: item.n, key: namePlain(item.n), pop: item.f.pop, k: item.k });
+        }
+        for (const [at, found] of cities) {
+            const counts = new Map();
+            found.forEach(city => counts.set(city.key, (counts.get(city.key) || 0) + 1));
+            cities.set(at, found.filter(city => counts.get(city.key) === 1 && !/[()]/.test(city.label)).sort((a, b) => b.pop - a.pop));
+        }
+        if (!kraje) {
+            // Regiony států (Vlajky a znaky: kraje, spolkové země, provincie)
+            for (const item of list('vlajky')) {
+                if (item.c !== 'regiony' || (item.co || []).length !== 1 || !ids.has(item.co[0]) || !item.n || DISPUTED.test(item.n) || COMMON_REGION_NAME.test(item.n)) continue;
+                add('region', { label: item.n, q: item.q, fame: fameOf(item), home: [item.co[0]], ok: [item.co[0]], rel: new Set(item.co), text: item.d || '', clean: true, place: true });
+            }
+            // Osobnosti: země původu z dat; popis s jinou národností nebo dvě země = správnou odpovědí není, nesprávnou ani pro jednu z nich
+            const people = new Map();
+            const nameOfQ = new Map([...stateByName].filter(([name]) => !CLEAN_LANDS[name]).map(([name, q]) => [q, name]));
+            for (const [id, topic, categories] of PEOPLE) {
+                for (const item of list(topic)) {
+                    if (!categories.includes(item.c) || !item.n) continue;
+                    const f = item.f || {};
+                    const land = landsOf(f.land);
+                    if (land.bad || !land.clean.size || COMPOUND_NATION.test(`${item.ty || ''} ${item.d || ''}`)) continue;
+                    const nations = nationQ(`${item.ty || ''} ${item.d || ''}`);
+                    // Kapela vzniklá jinde, než je její země (Kinto Sol: mexická skupina z Wisconsinu)
+                    const cityLands = f.city ? [...(placeNames.get(namePlain(f.city)) || [])] : [];
+                    const person = { clean: land.clean, rel: new Set([...land.rel, ...nations, ...cityLands]),
+                        pure: land.clean.size === 1 && nations.every(q => land.clean.has(q)) && (!cityLands.length || cityLands.some(q => land.clean.has(q))) };
+                    people.set(`${topic}:${item.q}`, person);
+                    if (nationalitiesIn(item.n).length) continue;
+                    let ok = person.pure;
+                    let noWrong = false;
+                    if (id === 'ruler') {
+                        // V čele státu: druh („britská královna“, „prezident Turecka“) musí stát potvrdit; císaři vládli víc zemím
+                        const landName = nameOfQ.get([...land.clean][0]) || '';
+                        const words = countryWords(landName);
+                        const type = String(item.ty || '').toLocaleLowerCase('cs');
+                        if (!((words && type.startsWith(words[2])) || revealsName(item.ty, landName))) continue;
+                        noWrong = EMPEROR.test(`${item.ty || ''} ${item.d || ''}`);
+                    }
+                    const home = [...land.clean].filter(q => ids.has(q));
+                    add(id, { label: item.n, q: item.q, fame: fameOf(item), home, ok: ok ? home : [], rel: person.rel, text: item.d || '', noWrong, topic });
+                }
+            }
+            // Díla: země autora (dílo jiné země než autor, nebo s popisem jiné národnosti, správnou odpovědí není)
+            const work = (id, item, topic, author, raw) => {
+                if (!author || !item.n || nationalitiesIn(item.n).length || COMPOUND_NATION.test(item.d || '')) return;
+                const land = raw === undefined || raw === null || raw === '' || (Array.isArray(raw) && !raw.length) ? null : landsOf(raw);
+                if (land && land.bad) return;
+                // Země díla patří i k autorovi (Kafkova Proměna je v datech z Rakouska: Kafka pak není nesprávnou možností pro Rakousko)
+                if (land) land.rel.forEach(q => author.rel.add(q));
+                const nations = nationQ(item.d || '');
+                const own = [...author.clean][0];
+                const pure = author.pure && (!land || (land.rel.size === 1 && land.clean.has(own))) && nations.every(q => q === own);
+                const home = [...author.clean].filter(q => ids.has(q));
+                add(id, { label: item.n, q: item.q, fame: fameOf(item), home, ok: pure ? home : [], rel: new Set([...author.rel, ...(land ? land.rel : []), ...nations]), text: item.d || '', topic, sub: item.ty || '' });
+            };
+            for (const item of list('literatura')) if (item.c === 'dila') work('book', item, 'literatura', people.get(`literatura:${(item.f || {}).byq}`), (item.f || {}).land);
+            for (const item of list('hudba')) if (item.c === 'dila' || item.c === 'opery') work('music-work', item, 'hudba', people.get(`hudba:${(item.f || {}).byq}`), (item.f || {}).land);
+            for (const item of list('umeni')) if (item.c === 'obrazy' && PAINT_TYPES.has(item.ty)) work('painting', item, 'umeni', people.get(`umeni:${(item.f || {}).bq}`), (item.f || {}).land);
+            for (const item of list('film')) if (item.c === 'filmy' || item.c === 'animovane') work('film', item, 'film', people.get(`film:${(item.f || {}).dirq}`), (item.f || {}).land || []);
+            // Olympijské hry (pořadatelský stát; historický stát v datech vyloučí i dnešní státy na jeho území)
+            for (const item of list('sport')) {
+                if (item.c !== 'olympiady' || (item.co || []).length !== 1 || !ids.has(item.co[0])) continue;
+                const f = item.f || {};
+                const rel = new Set([...item.co, ...(HISTORIC_LANDS[f.land] || []), ...(GAMES_ALSO[item.n] || [])]);
+                add('olympics', { label: item.n, q: item.q, fame: fameOf(item), home: [item.co[0]], ok: [item.co[0]], rel, text: '', topic: 'sport' });
+            }
+        }
+        // Sportovní kluby a sportoviště (země z dat, poloha musí ležet v ní), bitvy (stát a poloha souhlasí)
+        for (const item of list('sport')) {
+            if ((item.c !== 'kluby' && item.c !== 'sportoviste') || !item.n || genericBuilding(item.n)) continue;
+            const land = landsOf((item.f || {}).land);
+            if (land.bad || land.clean.size !== 1) continue;
+            const q = [...land.clean][0];
+            const id = item.c === 'kluby' ? 'club' : 'venue';
+            if (kraje) {
+                const at = q === 'Q213' ? located(item) : null;
+                if (at) add(id, { label: item.n, q: item.q, fame: fameOf(item), home: [at], ok: [at], rel: new Set([at]), text: '', topic: 'sport' });
+                continue;
+            }
+            if (!ids.has(q) || (Number.isFinite(item.la) && located(item) !== q)) continue;
+            const nations = nationQ(item.d || '');
+            const cityLands = (item.f || {}).city ? [...(placeNames.get(namePlain(item.f.city)) || [])] : [];
+            add(id, { label: item.n, q: item.q, fame: fameOf(item), home: [q], ok: nations.every(other => other === q) ? [q] : [], rel: new Set([...land.rel, ...nations, ...cityLands]), text: item.d || '', topic: 'sport' });
+        }
+        for (const item of list('historie')) {
+            if (item.c !== 'bitva' || item.ty !== 'bitva' || (item.co || []).length !== 1 || !item.n) continue;
+            const at = located(item);
+            if (!at || (kraje ? item.co[0] !== 'Q213' : item.co[0] !== at)) continue;
+            add('battle', { label: item.n, q: item.q, fame: fameOf(item), home: [at], ok: [at], rel: new Set(kraje ? [at] : [...item.co, ...nationQ(item.d || '')]), text: kraje ? '' : item.d || '', topic: 'historie' });
+        }
+        if (kraje) {
+            // Kapely podle města vzniku (město v Česku podle Zeměpisu)
+            const czechCities = new Map();
+            for (const item of list('zemepis')) if (item.c === 'mesto' && (item.co || []).includes('Q213')) czechCities.set(item.n, czechCities.has(item.n) ? null : item);
+            for (const item of list('hudba')) {
+                const f = item.f || {};
+                if (item.c !== 'kapely' || !/^(?:Česko|Československo)$/.test(f.land || '') || !czechCities.get(f.city)) continue;
+                const at = krajOf(czechCities.get(f.city));
+                if (at) add('band', { label: item.n, q: item.q, fame: fameOf(item), home: [at], ok: [at], rel: new Set([at]), text: '', topic: 'hudba' });
+            }
+        }
+        // Stejně pojmenované položky v rodině (Birmingham v Anglii i v USA) nejsou ani správnou, ani nesprávnou možností;
+        // místo, jehož jméno nese i místo v jiném státě nebo kraji (Córdoba, Victoria, Hranice), také ne
+        for (const family of families.values()) {
+            const counts = new Map();
+            family.entries.forEach(entry => counts.set(entry.key, (counts.get(entry.key) || 0) + 1));
+            family.byTerritory = new Map();
+            for (const entry of family.entries) {
+                if (counts.get(entry.key) > 1) continue;
+                if (entry.place && [...(placeNames.get(entry.key) || [])].some(at => !entry.rel.has(at))) continue;
+                for (const at of entry.home) { if (!family.byTerritory.has(at)) family.byTerritory.set(at, []); family.byTerritory.get(at).push(entry); }
+            }
+            for (const found of family.byTerritory.values()) found.sort((a, b) => a.fame - b.fame);
+        }
+        return { families, places, capitals, cities, stats, placeNames };
+    };
+
+    // --- Výběr podle úrovně ---
     // Území podle vzdálenosti od cíle (sousedé napřed), bez cíle
     const nearbyTerritories = (data, id) => {
         const index = indexMap(data);
@@ -354,100 +706,266 @@
             .map(item => ({ item, d: Math.hypot(item.a[0] - from.a[0], item.a[1] - from.a[1]) * (index.neighbours.get(id).has(item.id) ? 0.5 : 1) }))
             .sort((a, b) => a.d - b.d).map(entry => entry.item);
     };
-    const kindsFor = (level) => (level <= 0 ? ['capital', 'flag', 'place-known', 'neighbour'] : level === 1 ? ['flag', 'place-known', 'map-known', 'capital'] : level === 2 ? ['place', 'map', 'flag', 'neighbour'] : ['place-hard', 'map', 'place']);
-    const tryQuestion = (kind, { data, item, topics, rng }) => {
-        const index = indexMap(data);
-        const kraje = MAP_BY_ID[data.id] && MAP_BY_ID[data.id].kraje;
-        const nearby = nearbyTerritories(data, item.id);
-        const options = (correct, wrong) => {
-            if (wrong.length < 3) return null;
-            const choices = shuffle([{ ...correct, correct: true }, ...wrong.slice(0, 3).map(choice => ({ ...choice, correct: false }))], rng);
-            return distinctLabels(choices) ? choices : null;
-        };
-        if (kind === 'capital') {
-            if (kraje) {
-                if (!item.seat) return null;
-                const wrong = nearby.filter(other => other.seat && other.seat !== item.seat).map(other => ({ label: other.seat }));
-                const choices = options({ label: item.seat }, wrong);
-                return choices && { kind, prompt: `Které město je krajským městem ${item.gen}?`, choices };
+    // Odkud brát nesprávné možnosti: na nízké úrovni z dálky (snazší), na vyšší z okolí; near = false: ne od sousedů (hory, řeky
+    // a přírodní místa u hranice by mohly ležet i v cíli)
+    const wrongTerritories = (data, item, level, rng, near = true) => {
+        const neighbours = indexMap(data).neighbours.get(item.id);
+        const all = nearbyTerritories(data, item.id).filter(other => near || !neighbours.has(other.id));
+        if (level <= 0) return [...shuffle(all.slice(3, 18), rng), ...all.slice(0, 3), ...all.slice(18)];
+        if (level === 1) return [...shuffle(all.slice(0, 12), rng), ...all.slice(12)];
+        return [...shuffle(all.slice(0, 5), rng), ...all.slice(5)];
+    };
+    // Správná odpověď podle úrovně ze seznamu seřazeného od nejznámější
+    const levelWindow = (found, level) => {
+        const n = found.length;
+        if (level <= 0) { const known = found.filter(entry => entry.fame < 1); const base = known.length ? known : found; return base.slice(0, Math.max(1, Math.min(12, Math.ceil(base.length * 0.4)))); }
+        if (level === 1) return found.slice(0, Math.max(1, Math.min(30, Math.ceil(n * 0.65))));
+        return found.slice(Math.min(n - 1, Math.floor(n * (level === 2 ? 0.2 : 0.45))));
+    };
+    // Pořadí nesprávných možností v území: nízko nejznámější, výš podobně známé jako odpověď
+    const wrongScore = (entry, pick, level, rng) => (level <= 0 ? entry.fame + rng() * 0.6 : level === 1 ? entry.fame * 0.5 + rng() : Math.abs(entry.fame - pick.fame) + rng() * (level === 2 ? 0.8 : 0.4));
+    const options = (correct, wrong, rng) => {
+        if (wrong.length < 3) return null;
+        const choices = shuffle([{ ...correct, correct: true }, ...wrong.slice(0, 3).map(choice => ({ ...choice, correct: false }))], rng);
+        return distinctLabels(choices) ? choices : null;
+    };
+    // Otázka „Která z těchto … (vazba na území)?“ z rodiny položek
+    const factQuestion = (spec, ctx) => {
+        const { data, item, level, rng, pools } = ctx;
+        const family = pools.families.get(spec.pool || spec.id);
+        if (!family) return null;
+        const neighbours = indexMap(data).neighbours.get(item.id);
+        // Název nesmí prozradit cíl (ani připomínat jiné území mapy, u regionů)
+        const fine = (entry) => !revealsTerritory(entry.label, item, pools) && !(entry.clean && revealsOther(entry.label, entry.home, data, pools));
+        const own = (family.byTerritory.get(item.id) || []).filter(entry => entry.ok.includes(item.id));
+        if (!own.length) return null;
+        const names = pools.placeNames;
+        // Nesprávná možnost: vazbu nesplňuje ani podle popisu, stejně pojmenované místo v cíli není, u přírody ne od sousedů
+        const wrongOk = (entry) => !entry.noWrong && !entry.home.includes(item.id) && !entry.rel.has(item.id)
+            && (spec.near !== false || (!entry.home.some(at => neighbours.has(at)) && ![...entry.rel].some(at => neighbours.has(at))))
+            && !(spec.places && names.has(entry.key) && names.get(entry.key).has(item.id)) && !mentions(entry.text, item) && fine(entry);
+        const order = wrongTerritories(data, item, level, rng, spec.near !== false);
+        // Odpověď podle úrovně (když okno nevyjde, kterákoli jiná), nejvýš čtyři pokusy
+        const picks = [...new Set([...shuffle(levelWindow(own, level), rng), ...shuffle(own, rng)])];
+        let tries = 0;
+        for (const pick of picks.slice(0, 16)) {
+            if (tries >= 4) break;
+            if (!fine(pick)) continue;
+            tries += 1;
+            const used = new Set([pick.key]);
+            const wrong = [];
+            for (const other of order) {
+                const found = family.byTerritory.get(other.id);
+                if (!found) continue;
+                const ranked = found.map(entry => ({ entry, score: wrongScore(entry, pick, level, rng) })).sort((a, b) => a.score - b.score);
+                const hit = ranked.find(({ entry }) => !used.has(entry.key) && wrongOk(entry));
+                if (!hit) continue;
+                used.add(hit.entry.key);
+                wrong.push(hit.entry);
+                if (wrong.length >= 3) break;
             }
-            const { capitals } = placesOf(data, topics);
-            const own = capitals.get(item.id);
-            if (!own) return null;
-            const wrong = nearby.map(other => capitals.get(other.id)).filter(name => name && namePlain(name) !== namePlain(own)).map(label => ({ label }));
-            const choices = options({ label: own }, wrong);
-            return choices && { kind, prompt: `Které město je hlavním městem státu ${item.n}?`, choices };
-        }
-        if (kind === 'flag') {
-            if (!item.fl) return null;
-            const wrong = nearby.filter(other => other.fl).slice(0, 6);
-            const picked = shuffle(wrong.slice(0, 5), rng).slice(0, 3);
-            const choices = options({ label: item.n, image: flagUrl(item.fl) }, picked.map(other => ({ label: other.n, image: flagUrl(other.fl) })));
-            return choices && { kind, prompt: kraje ? `Který znak má ${item.n}?` : `Kterou vlajku má ${item.n}?`, choices, images: true };
-        }
-        if (kind === 'neighbour') {
-            if (kraje) return null;
-            const near = index.neighbours.get(item.id);
-            const correct = shuffle([...near], rng)[0];
-            if (!correct) return null;
-            const wrong = nearby.filter(other => !near.has(other.id)).slice(0, 6);
-            const choices = options({ label: index.byId.get(correct).n }, shuffle(wrong, rng).map(other => ({ label: other.n })));
-            return choices && { kind, prompt: `Který z těchto států sousedí se státem ${item.n} (na této mapě)?`, choices };
-        }
-        if (kind.startsWith('place')) {
-            const { byTerritory } = placesOf(data, topics);
-            const level = kind === 'place-known' ? 'known' : kind === 'place-hard' ? 'hard' : 'any';
-            const fits = (entry) => (level === 'known' ? entry.item.k === 1 : level === 'hard' ? entry.item.k !== 1 : true);
-            const own = shuffle((byTerritory.get(item.id) || []).filter(fits), rng).filter(entry => !namePlain(entry.item.n).includes(namePlain(item.n.split(' ')[0])));
-            for (const pick of own.slice(0, 4)) {
-                const category = pick.item.c;
-                const wrong = [];
-                const seen = new Set([namePlain(pick.item.n)]);
-                for (const other of nearby) {
-                    const pool = shuffle((byTerritory.get(other.id) || []).filter(entry => entry.item.c === category && (level === 'hard' || entry.item.k === pick.item.k || entry.item.k === 1)), rng);
-                    const candidate = pool.find(entry => !seen.has(namePlain(entry.item.n)) && !(entry.item.co || []).includes(item.id));
-                    if (candidate) { seen.add(namePlain(candidate.item.n)); wrong.push({ label: candidate.item.n }); }
-                    if (wrong.length >= 3) break;
-                }
-                const choices = options({ label: pick.item.n }, wrong);
-                if (choices) return { kind: 'place', prompt: `${PLACE_KINDS[category][kraje ? 1 : 0]} ${inPhrase(item)}?`, choices, topic: pick.topic };
-            }
-            return null;
-        }
-        if (kind.startsWith('map')) {
-            // Najdi na mapě: obrys území a čtyři body (A–D); správný je skutečná poloha města, ostatní jiná místa v území
-            const { byTerritory } = placesOf(data, topics);
-            const rings = ringsOf(index, item.id);
-            const [x0, y0, x1, y1] = item.b;
-            const span = Math.hypot(x1 - x0, y1 - y0);
-            const all = (byTerritory.get(item.id) || []).filter(entry => Number.isFinite(entry.item.la))
-                .map(entry => ({ ...entry, xy: project(data, entry.item.la, entry.item.lo) })).filter(entry => pointInRings(entry.xy[0], entry.xy[1], rings));
-            const targets = shuffle(all.filter(entry => entry.item.c === 'mesto' && (kind === 'map-known' ? entry.item.k === 1 : true)), rng);
-            for (const pick of targets.slice(0, 3)) {
-                const points = [pick.xy];
-                for (const other of shuffle(all, rng)) {
-                    if (points.length >= 4) break;
-                    if (points.every(point => Math.hypot(point[0] - other.xy[0], point[1] - other.xy[1]) > span * 0.16)) points.push(other.xy);
-                }
-                if (points.length < 4) continue;
-                const letters = ['A', 'B', 'C', 'D'];
-                const order = shuffle([0, 1, 2, 3], rng);
-                const choices = order.map((source, slot) => ({ label: letters[slot], correct: source === 0, point: points[source] }));
-                return { kind: 'map', prompt: `Kde ${inPhrase(item)} leží ${pick.item.n}?`, choices, territory: item.id, answerLabel: pick.item.n };
-            }
-            return null;
+            const choices = options({ label: pick.label }, wrong.map(entry => ({ label: entry.label })), rng);
+            if (!choices) continue;
+            const prompt = spec.prompt(ctx.forms, item, [pick, ...wrong]);
+            if (!prompt) return null;
+            return { kind: spec.kind, prompt, choices, topic: pick.topic };
         }
         return null;
     };
+
+    // --- Čísla: obyvatelé a rozloha státu, velikost měst ---
+    // Zaokrouhlení na 2 platné číslice a čeština: „68 milionů“, „4,4 milionu“, „2 miliony“, „620 tisíc“, „9 300“
+    const twoDigits = (value) => { if (!(value > 0)) return 0; const step = 10 ** (Math.floor(Math.log10(value)) - 1); return Math.round(value / step) * step; };
+    const decimalText = (value) => (Number.isInteger(value) ? String(value) : String(Math.round(value * 10) / 10).replace('.', ','));
+    const unitWord = (value, [one, few, many, part]) => `${decimalText(value)} ${!Number.isInteger(value) ? part : value === 1 ? one : value >= 2 && value <= 4 ? few : many}`;
+    const numberText = (raw) => {
+        const value = twoDigits(raw);
+        if (value >= 1e9) return unitWord(Math.round(value / 1e8) / 10, ['miliarda', 'miliardy', 'miliard', 'miliardy']);
+        if (value >= 1e6) return unitWord(Math.round(value / 1e5) / 10, ['milion', 'miliony', 'milionů', 'milionu']);
+        if (value >= 1e4) return unitWord(Math.round(value / 1e2) / 10, ['tisíc', 'tisíce', 'tisíc', 'tisíce']);
+        return String(Math.round(value)).replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+    };
+    const NUMBER_SPECS = {
+        population: { field: 'pop', format: numberText, ask: (item) => `Kolik obyvatel ${verbHas(item)} přibližně ${item.n}?`,
+            compare: (item, more) => `Který z těchto států má ${more ? 'víc' : 'méně'} obyvatel než ${item.n}?` },
+        area: { field: 'area', format: (value) => `${numberText(value)} km²`, ask: (item) => `Jakou rozlohu ${verbHas(item)} přibližně ${item.n}?`,
+            compare: (item, more) => `Který z těchto států má ${more ? 'větší' : 'menší'} rozlohu než ${item.n}?` }
+    };
+    const numberQuestion = (field, ctx) => {
+        const { data, item, level, rng, pools } = ctx;
+        const spec = NUMBER_SPECS[field];
+        const own = pools.stats.get(item.id);
+        if (!own) return null;
+        const value = own[spec.field];
+        const ladder = () => {
+            // Čtyři hodnoty po násobcích (nízko 3×, výš 2×), správná na náhodném místě
+            const ratio = [3, 2.5, 2, 2][level];
+            const at = Math.floor(rng() * 4);
+            const choices = [0, 1, 2, 3].map(i => ({ label: spec.format(value * ratio ** (i - at)), correct: i === at }));
+            return distinctLabels(choices) ? { kind: 'number', prompt: spec.ask(item), choices } : null;
+        };
+        const compare = (more) => {
+            // Jeden stát jasně nad cílem, tři jasně pod ním (nebo naopak); nízko velký rozdíl
+            const gap = [2, 1.6, 1.35, 1.25][level];
+            const order = wrongTerritories(data, item, level, rng, true).filter(other => pools.stats.has(other.id) && !sameNamed(other, item));
+            const valueOf = (other) => pools.stats.get(other.id)[spec.field];
+            const right = order.find(other => (more ? valueOf(other) >= value * gap : valueOf(other) <= value / gap));
+            const wrong = order.filter(other => (more ? valueOf(other) <= value / gap : valueOf(other) >= value * gap)).slice(0, 3);
+            if (!right) return null;
+            const choices = options({ label: right.n }, wrong.map(other => ({ label: other.n })), rng);
+            return choices && { kind: 'number', prompt: spec.compare(item, more), choices };
+        };
+        const more = rng() < 0.5;
+        const variants = rng() < 0.5 ? [ladder, () => compare(more), () => compare(!more)] : [() => compare(more), () => compare(!more), ladder];
+        for (const variant of variants) { const question = variant(); if (question) return question; }
+        return null;
+    };
+    const cityQuestion = (ctx) => {
+        const { item, level, rng, pools, forms } = ctx;
+        const capital = item.loc ? item.seat : pools.capitals.get(item.id);
+        const all = (pools.cities.get(item.id) || []).filter(city => (!capital || namePlain(city.label) !== namePlain(capital)) && !revealsTerritory(city.label, item, pools));
+        const top = all.slice(0, [8, 12, 18, 30][level]);
+        if (top.length < 4) return null;
+        // Mezi státy velký rozdíl (počet obyvatel města bez předměstí a s nimi se liší: Marseille – Lyon), u českých obcí menší
+        const gap = item.loc ? [1.6, 1.45, 1.3, 1.25][level] : 2;
+        const most = rng() < 0.6;
+        for (let attempt = 0; attempt < 10; attempt++) {
+            const picked = shuffle(top, rng).slice(0, 4).sort((a, b) => b.pop - a.pop);
+            if (most ? picked[0].pop < picked[1].pop * gap : picked[2].pop < picked[3].pop * gap) continue;
+            const answer = most ? picked[0] : picked[3];
+            const choices = options({ label: answer.label }, picked.filter(city => city !== answer).map(city => ({ label: city.label })), rng);
+            if (choices) return { kind: 'number', prompt: `Které z těchto měst ${forms.in} má ${most ? 'nejvíc' : 'nejméně'} obyvatel?`, choices };
+        }
+        return null;
+    };
+
+    // --- Hlavní město, vlajka, soused, mapa ---
+    const capitalQuestion = ({ data, item, level, rng, pools, forms }) => {
+        const capitalOf = (other) => (other.loc ? other.seat : pools.capitals.get(other.id));
+        const own = capitalOf(item);
+        if (!own || UNCLEAR_CAPITAL.has(item.n)) return null;
+        // Hlavní město, které název území prozradí (Lucemburk, Tunis, Plzeň, Ústí nad Labem), nemá smysl
+        const first = (text) => namePlain(text).split(' ').find(word => word.length >= 3 && !GENERIC_WORDS.has(word)) || '';
+        if (hitsAny(own, territoryNames(item)) || nationalitiesIn(own).includes(item.n) || (item.loc && first(own).slice(0, 3) === first(item.n).slice(0, 3))) return null;
+        const wrong = [];
+        const seen = new Set([namePlain(own)]);
+        for (const other of wrongTerritories(data, item, level, rng)) {
+            const name = capitalOf(other);
+            if (!name || seen.has(namePlain(name))) continue;
+            seen.add(namePlain(name));
+            wrong.push({ label: name });
+            if (wrong.length >= 3) break;
+        }
+        const choices = options({ label: own }, wrong, rng);
+        return choices && { kind: 'capital', prompt: item.loc ? `Které město je krajským městem ${item.gen}?` : `Které město je hlavním městem ${forms.of}?`, choices };
+    };
+    const flagQuestion = ({ data, item, level, rng, kraje }) => {
+        if (!item.fl) return null;
+        const wrong = wrongTerritories(data, item, level, rng).filter(other => other.fl).slice(0, 3);
+        const choice = (other) => ({ label: other.n, image: flagUrl(other.fl), fallback: flagFallback(other.fl) });
+        const choices = options(choice(item), wrong.map(choice), rng);
+        return choices && { kind: 'flag', prompt: kraje ? `Který znak má ${item.n}?` : `Kterou vlajku má ${item.n}?`, choices, images: true };
+    };
+    // Stát se jménem cíle (Guinea – Guinea-Bissau, Súdán – Jižní Súdán, Niger – Nigérie) by odpověď napověděl
+    // (kraje se jménem nepřekrývají, jen slovem „kraj“, které by censorName vzal za shodu)
+    const sameNamed = (other, item) => !item.loc && (hitsAny(other.n, territoryNames(item)) || hitsAny(item.n, territoryNames(other)));
+    const neighbourQuestion = ({ data, item, level, rng, kraje, forms }) => {
+        const index = indexMap(data);
+        const near = index.neighbours.get(item.id);
+        // Správně soused po souši; námořní spojení mapy (Saúdská Arábie – Írán) jen u ostrovů bez sousedů po souši
+        const named = [...near].filter(other => !sameNamed(index.byId.get(other), item));
+        const land = named.filter(other => !index.sea.has(item.id < other ? `${item.id}|${other}` : `${other}|${item.id}`));
+        const correct = shuffle(land.length ? land : named, rng)[0];
+        if (!correct) return null;
+        const far = nearbyTerritories(data, item.id).filter(other => !near.has(other.id) && !sameNamed(other, item));
+        // Nízko státy z dálky, výš nejbližší (nesousedí, ale leží hned vedle)
+        const pool = level <= 0 && far.length >= 7 ? far.slice(4, 14) : far.slice(0, level <= 1 ? 9 : 5);
+        const choices = options({ label: index.byId.get(correct).n }, shuffle(pool, rng).map(other => ({ label: other.n })), rng);
+        return choices && { kind: 'neighbour', prompt: kraje ? `Který z těchto krajů sousedí ${forms.with}?` : `Který z těchto států sousedí se státem ${item.n} (na této mapě)?`, choices };
+    };
+    // Najdi na mapě: obrys území a čtyři body (A–D); správný je skutečná poloha města, ostatní jiná místa v území
+    const mapQuestion = ({ data, item, level, rng, pools, forms }) => {
+        const index = indexMap(data);
+        const rings = ringsOf(index, item.id);
+        const [x0, y0, x1, y1] = item.b;
+        const span = Math.hypot(x1 - x0, y1 - y0);
+        const all = (pools.places.byTerritory.get(item.id) || []).filter(entry => Number.isFinite(entry.item.la))
+            .map(entry => ({ ...entry, xy: project(data, entry.item.la, entry.item.lo) })).filter(entry => pointInRings(entry.xy[0], entry.xy[1], rings));
+        const targets = shuffle(all.filter(entry => entry.item.c === 'mesto' && (level <= 1 ? entry.item.k === 1 : true)), rng);
+        for (const pick of targets.slice(0, 3)) {
+            const points = [pick.xy];
+            for (const other of shuffle(all, rng)) {
+                if (points.length >= 4) break;
+                if (points.every(point => Math.hypot(point[0] - other.xy[0], point[1] - other.xy[1]) > span * 0.16)) points.push(other.xy);
+            }
+            if (points.length < 4) continue;
+            const letters = ['A', 'B', 'C', 'D'];
+            const order = shuffle([0, 1, 2, 3], rng);
+            const choices = order.map((source, slot) => ({ label: letters[slot], correct: source === 0, point: points[source] }));
+            return { kind: 'map', prompt: `Kde ${forms.in} leží ${pick.item.n}?`, choices, territory: item.id, answerLabel: pick.item.n };
+        }
+        return null;
+    };
+
+    // --- Rodiny otázek ---
+    // w = váhy podle úrovně 0–3 (snadné rodiny nízko víc, mapa a čísla výš víc); states / kraje = na které mapě rodina je.
+    // Fakta: prompt(forms, item, choices), near = false: nesprávné možnosti ne od sousedů, places: hlídat stejný název místa v cíli
+    const fact = (id, kind, prompt, extra = {}) => ({ id, kind, w: [1, 1, 1, 1], states: true, kraje: false, build: (ctx, spec) => factQuestion(spec, ctx), prompt, ...extra });
+    const FAMILIES = [
+        { id: 'capital', w: [1.15, 1, 0.8, 0.5], states: true, kraje: true, build: capitalQuestion },
+        { id: 'flag', w: [1.15, 1, 0.8, 0.5], states: true, kraje: true, build: flagQuestion },
+        { id: 'neighbour', w: [1.1, 1, 0.8, 0.6], states: true, kraje: true, build: neighbourQuestion },
+        { id: 'map', w: [0.7, 1, 1.2, 1.3], states: true, kraje: true, build: mapQuestion },
+        fact('city', 'place', (f) => `Které z těchto měst leží ${f.in}?`, { kraje: true, places: true }),
+        fact('building', 'place', (f) => `Která z těchto staveb stojí ${f.in}?`, { kraje: true, places: true }),
+        fact('castle', 'place', (f) => `Který z těchto hradů a zámků stojí ${f.in}?`, { states: false, kraje: true, places: true }),
+        fact('mountain', 'place', (f) => `Která z těchto hor leží ${f.in}?`, { kraje: true, near: false, places: true }),
+        fact('lake', 'place', (f, item, found) => (found.every(entry => entry.sub === 'jezero') ? `Které z těchto jezer leží ${f.in}?` : `Která z těchto vodních ploch leží ${f.in}?`), { kraje: true, near: false, places: true }),
+        fact('island', 'place', (f) => `Který z těchto ostrovů leží ${f.in}?`, { near: false, places: true, w: [0.8, 1, 1, 1] }),
+        fact('nature', 'place', (f) => `Které z těchto přírodních míst leží ${f.in}?`, { kraje: true, near: false, places: true }),
+        fact('river', 'place', (f) => `Která z těchto řek teče ${f.in}?`, { near: false, places: true }),
+        fact('region', 'place', (f) => `Který z těchto regionů leží ${f.in}?`, { near: false, places: true, w: [0.8, 1, 1.1, 1.1] }),
+        fact('writer', 'person', (f) => `Která z těchto literárních osobností pochází ${f.from}?`),
+        fact('musician', 'person', (f) => `Která z těchto hudebních osobností pochází ${f.from}?`),
+        fact('band', 'person', (f, item) => (item.loc ? `Která z těchto kapel vznikla ${f.in}?` : `Která z těchto kapel pochází ${f.from}?`), { kraje: true, w: [0.8, 0.8, 0.8, 0.8] }),
+        fact('artist', 'person', (f) => `Která z těchto osobností výtvarného umění pochází ${f.from}?`),
+        fact('architect', 'person', (f) => `Která z těchto osobností architektury pochází ${f.from}?`, { w: [0.6, 0.7, 0.8, 0.8] }),
+        fact('filmmaker', 'person', (f) => `Která z těchto filmových osobností pochází ${f.from}?`),
+        fact('athlete', 'person', (f) => `Která z těchto sportovních osobností pochází ${f.from}?`),
+        fact('ruler', 'person', (f) => `Která z těchto osobností stála v čele ${f.of}?`),
+        fact('historic', 'person', (f) => `Která z těchto osobností pochází ${f.from}?`, { w: [0.7, 0.8, 0.8, 0.8] }),
+        fact('book', 'work', (f) => `Které z těchto literárních děl pochází ${f.from}?`),
+        fact('music-work', 'work', (f) => `Které z těchto hudebních děl pochází ${f.from}?`, { w: [0.8, 0.8, 0.8, 0.8] }),
+        // Obraz „z Francie“ by mohl znamenat i obraz v Louvru nebo namalovaný v Paříži cizincem: proto podle malíře
+        fact('painting', 'work', (f) => `Který z těchto obrazů namaloval malíř nebo malířka ${f.from}?`, { w: [0.8, 0.8, 0.8, 0.8] }),
+        fact('film', 'work', (f) => `Který z těchto filmů pochází ${f.from}?`),
+        fact('club', 'sport', (f) => `Který z těchto sportovních klubů sídlí ${f.in}?`, { kraje: true }),
+        fact('venue', 'sport', (f) => `Které z těchto sportovišť se nachází ${f.in}?`, { kraje: true, w: [0.8, 0.9, 1, 1] }),
+        fact('olympics', 'sport', (f) => `Které z těchto olympijských her se konaly ${f.in}?`),
+        fact('battle', 'history', (f) => `Která z těchto bitev se odehrála ${f.in}?`, { kraje: true, w: [0.8, 1, 1, 1] }),
+        { id: 'population', w: [0.8, 1, 1.1, 1.1], states: true, kraje: false, build: (ctx) => numberQuestion('population', ctx) },
+        { id: 'area', w: [0.8, 1, 1.1, 1.1], states: true, kraje: false, build: (ctx) => numberQuestion('area', ctx) },
+        { id: 'bigcity', w: [0.8, 1, 1.1, 1.1], states: true, kraje: true, build: cityQuestion }
+    ];
+    const FAMILY_IDS = FAMILIES.map(family => family.id);
+    // Rodiny dostupné na mapě (states / kraje) seřazené podle váhy pro úroveň
+    const kindsFor = (level, kraje = false) => {
+        const lv = Math.max(0, Math.min(3, Math.round(Number(level) || 0)));
+        return FAMILIES.filter(family => (kraje ? family.kraje : family.states)).sort((a, b) => b.w[lv] - a.w[lv]).map(family => family.id);
+    };
+    // Pořadí rodin pro tah: náhodně podle vah (rodina, která pro území nejde, se přeskočí)
+    const weightedOrder = (families, level, rng) => families.map(family => ({ family, key: rng() ** (1 / Math.max(0.01, family.w[level])) })).sort((a, b) => b.key - a.key).map(entry => entry.family);
     // Otázka pro tah: semínko = hra, území, druh tahu a pořadí tahu (stejná otázka i po zavření aplikace)
     const buildQuestion = ({ data, territory, level = 0, topics = {}, seed = '' }) => {
         const item = indexMap(data).byId.get(territory);
         if (!item) return null;
+        const lv = Math.max(0, Math.min(3, Math.round(Number(level) || 0)));
         const rng = seededRandom(`dobyvani|${seed}|${territory}|${level}`);
-        const kinds = [...shuffle(kindsFor(level), rng), 'capital', 'flag', 'neighbour', 'place', 'map'];
-        for (const kind of kinds) {
-            const question = tryQuestion(kind, { data, item, topics, rng });
-            if (question) return { ...question, level, difficulty: Math.min(3, Math.max(1, level + 1)) };
+        const kraje = isKraje(data);
+        const ctx = { data, item, level: lv, rng, kraje, topics, pools: poolsOf(data, topics || {}), forms: formsOf(item) };
+        for (const family of weightedOrder(FAMILIES.filter(entry => (kraje ? entry.kraje : entry.states)), lv, rng)) {
+            const question = family.build(ctx, family);
+            if (question) return { ...question, family: family.id, level, difficulty: Math.min(3, Math.max(1, level + 1)) };
         }
         return null;
     };
@@ -583,7 +1101,9 @@
         const defs = [];
         // Moře: vlnky starých map; po dodání textury obrázek (č. 233)
         defs.push(`<pattern id="${prefix}-waves" width="40" height="22" patternUnits="userSpaceOnUse"><path d="M2 8q4.5-4 9 0t9 0M22 19q4.5-4 9 0t9 0" fill="none" stroke="#3f6a7d" stroke-width="1" stroke-opacity="0.3" stroke-linecap="round"/></pattern>`);
-        if (ART.sea) defs.push(`<pattern id="${prefix}-seatex" width="256" height="256" patternUnits="userSpaceOnUse"><image href="icons/textury/${ART.sea}.webp" width="256" height="256"/></pattern>`);
+        // Dlaždice textury ~ třetina šířky mapy (vlnky zůstanou čitelné i bez přiblížení); průsvitná, ať moře prosvítá pergamenem
+        const tile = Math.round(Math.max(w, h) / 3);
+        if (ART.sea) defs.push(`<pattern id="${prefix}-seatex" width="${tile}" height="${tile}" patternUnits="userSpaceOnUse"><image href="icons/textury/${ART.sea}.webp" width="${tile}" height="${tile}" class="cq-seatex"/></pattern>`);
         players.forEach(player => defs.push(hatchPattern(player.seat, player.flag_color, prefix)));
         const kraje = MAP_BY_ID[data.id] && MAP_BY_ID[data.id].kraje;
         // U krajů je „mořem“ cizina kolem Česka (pozadí dat je celý výřez)
@@ -639,10 +1159,10 @@
         parts.push(`<g class="cq-hits">${data.t.map(item => `<path class="cq-hit" data-t="${item.id}" d="${item.d}"/>`).join('')}</g>`);
         if (!opts.thumb) {
             parts.push('<g class="cq-select" pointer-events="none"></g>');
-            // Popisky (velikost podle místa v území; malé se schovají, dokud se mapa nepřiblíží)
+            // Popisky: na mapě nejsou (názvy států by napovídaly), ukáže se jen název území, na které hráč klepne (conquest-ui.js updateDetail)
             const labels = data.t.map(item => {
                 const size = Math.max(7, Math.min(30, item.r * 0.5));
-                return `<text class="cq-label" data-label="${item.id}" data-size="${size.toFixed(1)}" x="${item.a[0]}" y="${(item.a[1] + size * 1.25).toFixed(1)}" font-size="${size.toFixed(1)}">${esc(item.n)}</text>`;
+                return `<text class="cq-label cq-hide" data-label="${item.id}" data-size="${size.toFixed(1)}" x="${item.a[0]}" y="${(item.a[1] + size * 1.25).toFixed(1)}" font-size="${size.toFixed(1)}">${esc(item.n)}</text>`;
             });
             parts.push(`<g class="cq-labels" pointer-events="none">${labels.join('')}</g>`);
             parts.push(`<g class="cq-marks" pointer-events="none">${view ? data.t.map(item => marksFor(item, view)).join('') : ''}</g>`);
@@ -653,6 +1173,7 @@
     };
     // Značky na území: opevnění nebo domovský hrad, poklad, vlaječka majitele (velikost 24 jednotek mapy; aplikace je při přiblížení zmenšuje)
     const MARK = 22;
+    const ICON_SCALE = { castle: 1.3, fortress: 1.25, wall: 1.18, palisade: 1.12, treasure: 0.7 };
     const marksFor = (item, view) => {
         const info = view.owners.get(item.id);
         if (!info) return '';
@@ -660,8 +1181,10 @@
         const [x, y] = item.a;
         let inner = '';
         const icon = levelIcon(info.level, info.home);
-        if (icon) inner += `<g class="cq-icon" data-icon="${icon}" transform="translate(${-MARK * 0.05} ${-MARK * 0.95}) scale(${(MARK / 24).toFixed(3)})">${iconMarkup(icon)}${info.home && info.level ? levelPips(info.level) : ''}</g>`;
-        if (info.treasure && !owner) inner += `<g class="cq-icon cq-treasure" data-icon="treasure" transform="translate(${-MARK * 0.5} ${-MARK * 0.95}) scale(${(MARK / 24).toFixed(3)})">${iconMarkup('treasure')}</g>`;
+        // Hrad a opevnění větší, poklad menší (je to jen bonus, ne stavba); spodní okraj ikon zůstává na stejné čáře
+        const iconAt = (k, left) => `translate(${(left * k * MARK).toFixed(2)} ${(-(k - 0.05) * MARK).toFixed(2)}) scale(${(k * MARK / 24).toFixed(3)})`;
+        if (icon) inner += `<g class="cq-icon" data-icon="${icon}" transform="${iconAt(ICON_SCALE[icon] || 1, -0.05)}">${iconMarkup(icon)}${info.home && info.level ? levelPips(info.level) : ''}</g>`;
+        if (info.treasure && !owner) inner += `<g class="cq-icon cq-treasure" data-icon="treasure" transform="${iconAt(ICON_SCALE.treasure, -0.5)}">${iconMarkup('treasure')}</g>`;
         if (owner) inner += `<g class="cq-pin" data-pin="${item.id}" transform="translate(${icon ? -MARK * 0.55 : -MARK * 0.1} 0)"><path d="M0 2V${-MARK * 1.25}" stroke="#3b2a1a" stroke-width="1.6" stroke-linecap="round"/><circle cx="0" cy="${-MARK * 1.25}" r="1.6" fill="#c9a227"/>`
             + `<g transform="translate(0.8 ${-MARK * 1.22}) scale(${(MARK * 0.75 / 30).toFixed(3)})">${pennantGroup(owner.flag_color, owner.emblem)}</g></g>`;
         return `<g class="cq-mark" data-mark="${item.id}" transform="translate(${x} ${y})"><g class="cq-mark-scale">${inner}</g></g>`;
@@ -876,9 +1399,11 @@
         return `<div id="conquest-game" data-game="${esc(game.id)}" class="cq-screen relative flex h-full min-h-0 flex-col gap-1.5 overflow-hidden p-2 short:gap-1 short:p-1.5">
             <div class="flex shrink-0 items-center gap-1.5">
                 <button type="button" data-cq="hub" class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl btn-3d-light bg-white text-slate-700 dark:bg-slate-800 dark:text-slate-200" aria-label="Moje hry"><i data-lucide="chevron-left" class="h-5 w-5"></i></button>
-                <div class="cq-cartouche flex h-10 min-w-0 flex-1 flex-col items-center justify-center rounded-xl px-2 text-center">
-                    <span class="cq-cartouche-title max-w-full truncate">${esc(mapTitle(game.map))}</span>
-                    <span class="max-w-full truncate text-[10.5px] font-bold leading-3 text-amber-900/80" data-cq-clock>${esc(status)}</span>
+                <div class="flex min-w-0 flex-1 justify-center">
+                    <div class="${ART.cartouche ? 'cq-cartouche-art aspect-[29/10] h-14 max-w-full px-[15%] pb-[3px]' : 'cq-cartouche h-10 w-full rounded-xl px-2'} flex min-w-0 flex-col items-center justify-center text-center">
+                        <span class="cq-cartouche-title max-w-full truncate">${esc(mapTitle(game.map))}</span>
+                        <span class="max-w-full truncate text-[10.5px] font-bold leading-3 text-amber-900/80" data-cq-clock>${esc(status)}</span>
+                    </div>
                 </div>
                 ${budget ? `<span data-cq-budget class="flex h-10 shrink-0 items-center gap-1 rounded-xl bg-white px-2 text-[13px] font-black text-slate-800 shadow-sm ring-1 ring-slate-200/70 dark:bg-slate-800 dark:text-slate-100 dark:ring-slate-700" title="Tahy v tomto období">
                     <i data-lucide="swords" class="h-4 w-4 text-brand-700 dark:text-gold-300"></i><span class="sr-only">Tahy </span>${budget.left}/${budget.total}</span>` : ''}
@@ -890,24 +1415,83 @@
                 <button type="button" data-cq="zoom-reset" class="absolute right-1.5 top-1.5 hidden h-10 w-10 items-center justify-center rounded-xl bg-white/90 text-slate-700 shadow ring-1 ring-black/10 dark:bg-slate-800/90 dark:text-slate-200" aria-label="Celá mapa"><i data-lucide="expand" class="h-4 w-4"></i></button>
                 <div data-cq-banner class="pointer-events-none absolute inset-x-0 top-2 flex justify-center px-2"></div>
             </div>
-            <div data-cq-panel class="flex min-h-[2.25rem] flex-1 flex-col gap-1 overflow-hidden">
-                <ul data-cq-players class="flex shrink-0 gap-1 overflow-x-auto pb-0.5">${playersStripHtml(view)}</ul>
-                <button type="button" data-cq="feed" data-cq-recent class="flex min-h-0 flex-1 flex-col gap-0.5 overflow-hidden rounded-xl text-left">${recentHtml(view)}</button>
+            <div data-cq-panel class="flex min-h-[2.25rem] flex-1 flex-col gap-1.5 overflow-hidden short:gap-1">
+                <section data-cq-players class="cq-ledger shrink-0 rounded-2xl px-2 pb-1.5 pt-1 short:pb-1" aria-label="Pořadí">${playersStripHtml(view, { now })}</section>
+                <button type="button" data-cq="feed" data-cq-recent class="cq-ledger flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl px-2 pb-1 pt-1 text-left">${recentHtml(view, { now })}</button>
                 ${dev && !view.finished ? devBarHtml({ kind: 'game' }) : ''}
             </div>
             <div data-cq-sheet class="absolute inset-x-0 bottom-0 z-20"></div>
         </div>`;
     };
-    const playersStripHtml = (view) => view.ranking.map(player => `<li class="flex min-w-0 shrink-0 items-center gap-1 rounded-xl bg-white px-1.5 py-1 shadow-sm dark:bg-slate-800 ${player.me ? 'ring-2 ring-brand-600 dark:ring-gold-300' : 'ring-1 ring-slate-200/70 dark:ring-slate-700'}" title="${esc(player.display_name)}">
-            ${pennantSvg(player.flag_color, player.emblem, 'h-5 w-[1.6rem]')}<span class="max-w-[4.5rem] truncate text-[11.5px] font-bold text-slate-700 dark:text-slate-200">${esc(player.me ? 'Ty' : player.display_name)}</span><span class="text-[12px] font-black text-slate-900 dark:text-white">${player.score}</span></li>`).join('');
-    // Poslední události pod mapou (klepnutí otevře celou kroniku)
-    const recentHtml = (view) => {
-        const items = feedItems(view.state.moves || [], view).slice(0, 4);
-        if (!items.length) return '';
-        return `<span class="px-1 text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">Kronika tažení</span>${items.map(item => `<span class="flex min-w-0 items-center gap-1.5 px-1 text-[12px] leading-tight text-slate-700 dark:text-slate-200">${item.actor ? pennantSvg(item.actor.flag_color, item.actor.emblem, 'h-3.5 w-[1.15rem]') : ''}<span class="min-w-0 truncate"><b>${esc(item.title)}:</b> ${esc(item.text)}${item.actor ? ` · ${esc(item.actor.me ? 'ty' : item.actor.display_name)}` : ''}</span></span>`).join('')}`;
+    // Začátek dalšího období (nové tahy), pokud ještě do konce hry nějaké přijde
+    const nextPeriodAt = (state) => {
+        const start = parseTime(state.started_at), end = parseTime(state.ends_at);
+        if (start === null || !state.budget) return null;
+        const at = start + (state.budget.period + 1) * (state.period === 'hour' ? 3600e3 : 86400e3);
+        return end !== null && at >= end ? null : at;
+    };
+    // Jak dávno se událost stala (kronika)
+    const agoLabel = (at, now) => {
+        const time = parseTime(at);
+        if (time === null) return '';
+        const minutes = Math.max(0, Math.floor((now - time) / 60000));
+        if (minutes < 1) return 'teď';
+        if (minutes < 60) return `před ${minutes} min`;
+        if (minutes < 1440) return `před ${Math.floor(minutes / 60)} h`;
+        return `před ${Math.floor(minutes / 1440)} d`;
+    };
+    const periodLine = (view, now) => {
+        if (view.finished) return 'Konečné pořadí';
+        const next = view.running ? nextPeriodAt(view.state) : null;
+        return next ? `Nové tahy za ${timeLeft(next - now)}` : view.running ? 'Poslední období hry' : '';
+    };
+    // Pořadí pod mapou: místo (medaile pro první tři), praporec, jméno, kolik území a regionů drží, podíl na mapě v barvě hráče a body.
+    // Do tří hráčů po řádcích, víc hráčů ve dvou sloupcích (vejde se i osm na nejmenší displej)
+    const playersStripHtml = (view, { now = Date.now() } = {}) => {
+        const total = view.data.t.length || 1;
+        const compact = view.ranking.length > 3;
+        const rows = view.ranking.map(player => {
+            const count = view.territoriesOf(player.id).length;
+            const regions = view.regionsOf(player.id).length;
+            const share = Math.round(count / total * 1000) / 10;
+            const name = player.me ? 'Ty' : player.display_name || 'Hráč';
+            const medal = `<span class="cq-medal cq-medal-${player.place <= 3 ? player.place : 'x'} flex ${compact ? 'h-5 w-5 text-[10.5px]' : 'h-6 w-6 text-[12px]'} shrink-0 items-center justify-center rounded-full font-black" aria-hidden="true">${player.place}</span>`;
+            const bar = `<span class="cq-bar mt-0.5 block h-1 overflow-hidden rounded-full" aria-hidden="true"><svg viewBox="0 0 100 1" preserveAspectRatio="none" class="block h-full w-full"><rect width="${count ? Math.max(2, share) : 0}" height="1" fill="${player.color.hex}"/></svg></span>`;
+            const label = `${player.place}. ${name}: ${pointsWord(player.score)}, ${territoriesWord(count)}${regions ? `, ${regionsWord(regions)}` : ''}`;
+            if (compact) {
+                return `<li class="cq-rank-row${player.me ? ' cq-rank-me' : ''} flex min-w-0 items-center gap-1.5 rounded-lg px-1 py-0.5" aria-label="${esc(label)}">${medal}${pennantSvg(player.flag_color, player.emblem, 'h-4 w-5 shrink-0')}
+                    <span class="min-w-0 flex-1"><span class="flex items-baseline gap-1"><span class="min-w-0 flex-1 truncate text-[12px] font-bold text-slate-800 dark:text-slate-100">${esc(name)}</span><b class="shrink-0 text-[13px] font-black text-slate-900 dark:text-white">${player.score}</b></span>${bar}</span></li>`;
+            }
+            const detail = `${territoriesWord(count)}${regions ? ` · ${regionsWord(regions)}` : ''}`;
+            return `<li class="cq-rank-row${player.me ? ' cq-rank-me' : ''} flex min-w-0 items-center gap-2 rounded-xl px-1.5 py-1 short:py-0.5" aria-label="${esc(label)}">${medal}${pennantSvg(player.flag_color, player.emblem, 'h-5 w-[1.6rem] shrink-0')}
+                <span class="min-w-0 flex-1"><span class="flex items-baseline gap-1.5"><span class="min-w-0 truncate text-[13.5px] font-black text-slate-800 dark:text-slate-100">${esc(name)}</span><span class="shrink-0 truncate text-[11px] font-semibold text-slate-500 dark:text-slate-400">${esc(detail)}</span></span>${bar}</span>
+                <span class="flex w-9 shrink-0 flex-col items-end leading-none"><b class="text-[17px] font-black text-slate-900 dark:text-white">${player.score}</b><span class="mt-0.5 text-[9px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">${esc(pointsWord(player.score).replace(/^\d+ /, ''))}</span></span></li>`;
+        }).join('');
+        return `<div class="flex items-baseline justify-between gap-2"><h2 class="cq-ledger-title">Pořadí</h2><span data-cq-next class="truncate text-[11px] font-bold text-amber-900/75 dark:text-gold-200/80">${esc(periodLine(view, now))}</span></div>
+            <ol class="mt-0.5 ${compact ? 'grid grid-cols-2 gap-x-1.5 gap-y-0.5' : 'flex flex-col gap-0.5'}">${rows}</ol>`;
+    };
+    // Poslední události pod mapou (klepnutí otevře celou kroniku); karta vyplní zbytek obrazovky, kolik se vejde, tolik je vidět
+    const recentHtml = (view, { now = Date.now() } = {}) => {
+        const items = feedItems(view.state.moves || [], view).slice(0, 8);
+        const head = `<span class="flex w-full shrink-0 items-baseline justify-between gap-2"><span class="cq-ledger-title">Kronika tažení</span>${items.length ? '<span class="flex items-center gap-0.5 text-[11px] font-bold text-amber-900/75 dark:text-gold-200/80">Celá kronika<i data-lucide="chevron-right" class="h-3.5 w-3.5"></i></span>' : ''}</span>`;
+        if (!items.length) return `${head}<span class="flex min-h-0 flex-1 items-center justify-center px-2 text-center text-[12px] font-semibold text-slate-500 dark:text-slate-400">Zatím je klid. Každé dobytí, opevnění i odražený útok se zapíše sem.</span>`;
+        const rows = items.map(item => `<span class="cq-feed-row flex min-w-0 shrink-0 items-center gap-1.5 py-[3px]">
+                <span class="cq-tone cq-tone-${item.tone} flex h-5 w-5 shrink-0 items-center justify-center rounded-full"><i data-lucide="${item.icon}" class="h-3 w-3"></i></span>
+                <span class="min-w-0 flex-1 truncate text-[12px] leading-tight text-slate-700 dark:text-slate-200"><b class="font-black text-slate-900 dark:text-white">${esc(item.title)}</b> · ${esc(item.text)}</span>
+                ${item.actor ? `<span class="flex shrink-0 items-center gap-1 text-[11px] font-semibold text-slate-500 dark:text-slate-400">${pennantSvg(item.actor.flag_color, item.actor.emblem, 'h-3 w-4')}<span class="max-w-[4.5rem] truncate">${esc(item.actor.me ? 'ty' : item.actor.display_name)}</span></span>` : ''}
+                <span class="w-12 shrink-0 text-right text-[10.5px] font-semibold tabular-nums text-slate-400 dark:text-slate-500">${esc(agoLabel(item.at, now))}</span></span>`).join('');
+        return `${head}<span class="cq-feed-list flex min-h-0 w-full flex-1 flex-col overflow-hidden">${rows}</span>`;
     };
 
     // Spodní list území: majitel, opevnění, region, poklad; Zaútočit (s výběrem, odkud) / Opevnit
+    // Region území v listu: název a kdo ho drží celý, jinak kolik jeho území je moje (celý region = +1 tah za období a body navíc)
+    const regionLine = (view, region, regionOwner) => {
+        const me = (view.state.players || []).find(player => player.me);
+        const mine = me ? region.t.filter(t => view.ownerOf(t) === me.id).length : 0;
+        const status = regionOwner ? (regionOwner.me ? 'celý je tvůj' : `celý drží ${regionOwner.display_name || 'soupeř'}`)
+            : mine ? `tvoje ${mine} z ${region.t.length} území` : `${territoriesWord(region.t.length)}`;
+        return `Region ${region.n} · ${status}`;
+    };
     const sheetHtml = (view, id, { source = null } = {}) => {
         const item = view.index.byId.get(id);
         const info = view.owners.get(id) || { owner: null, level: 0, home: false, treasure: false };
@@ -916,15 +1500,15 @@
         const regionOwner = region && region.t.every(t => view.ownerOf(t) && view.ownerOf(t) === view.ownerOf(region.t[0])) ? view.byId.get(view.ownerOf(region.t[0])) : null;
         const actions = actionsFor(view, id);
         const sources = actions.attack || view.targets.has(id) ? sourcesFor(view, id) : [];
+        // Odkud útok vede, na výsledek ani otázku vliv nemá (jen kudy vede šipka na mapě): z nejbližšího vlastního území, bez volby
         const from = source && sources.includes(source) ? source : sources[0];
         const levelName = info.level ? LEVELS[info.level].name : 'Bez opevnění';
         const facts = [
             `<span class="flex items-center gap-1">${owner ? pennantSvg(owner.flag_color, owner.emblem, 'h-4 w-5') : '<i data-lucide="map-pin" class="h-4 w-4"></i>'}${esc(owner ? (owner.me ? 'Tvoje území' : owner.display_name) : 'Neutrální území')}</span>`,
             `<span class="flex items-center gap-1"><i data-lucide="${info.home ? 'castle' : 'shield'}" class="h-4 w-4"></i>${esc(info.home ? `Domov · ${levelName}` : levelName)}</span>`,
-            region ? `<span class="flex items-center gap-1"><i data-lucide="map" class="h-4 w-4"></i>${esc(region.n)}${regionOwner ? ` · celý: ${esc(regionOwner.me ? 'tvůj' : regionOwner.display_name)}` : ''}</span>` : '',
+            region ? `<span class="flex items-center gap-1" data-cq-region><i data-lucide="map" class="h-4 w-4"></i>${esc(regionLine(view, region, regionOwner))}</span>` : '',
             info.treasure && !owner ? '<span class="flex items-center gap-1 text-amber-700 dark:text-amber-300"><i data-lucide="gem" class="h-4 w-4"></i>Poklad: +1 tah</span>' : ''
         ].filter(Boolean).join('');
-        const pick = sources.length > 1 ? `<div class="flex items-center gap-1.5 overflow-x-auto"><span class="shrink-0 text-[11px] font-bold text-slate-500 dark:text-slate-400">Odkud:</span>${sources.map(sid => `<button type="button" data-cq-source="${esc(sid)}" aria-pressed="${sid === from}" class="min-h-[2.25rem] shrink-0 rounded-full px-2.5 text-[12px] font-black ${sid === from ? 'bg-brand-700 text-white' : 'bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-200'}">${esc(view.index.byId.get(sid).n)}</button>`).join('')}</div>` : '';
         const buttons = actions.fortify
             ? `<button type="button" data-cq="fortify" class="${GOLD_BUTTON} w-full py-2.5 text-[15px]"><i data-lucide="castle" class="h-5 w-5"></i> Opevnit na ${esc(LEVELS[info.level + 1].acc)}</button>`
             : actions.attack ? `<button type="button" data-cq="attack" data-source="${esc(from || '')}" class="${GOLD_BUTTON} w-full py-2.5 text-[15px]"><i data-lucide="swords" class="h-5 w-5"></i> Zaútočit</button>` : '';
@@ -934,7 +1518,7 @@
             <div class="flex items-start gap-2"><div class="min-w-0 flex-1"><h2 class="truncate text-[17px] font-black leading-tight text-slate-900 dark:text-white">${esc(item.n)}</h2>
                 <div class="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-[12px] font-semibold text-slate-600 dark:text-slate-300">${facts}</div></div>
                 <button type="button" data-cq="sheet-close" class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-slate-500 dark:text-slate-400" aria-label="Zavřít"><i data-lucide="x" class="h-5 w-5"></i></button></div>
-            <div class="mt-2 flex flex-col gap-1.5">${pick}${harder}${buttons}${hint}</div>
+            <div class="mt-2 flex flex-col gap-1.5">${harder}${buttons}${hint}</div>
         </div>`;
     };
 
@@ -955,7 +1539,8 @@
         const grid = question.images ? 'grid grid-cols-2 gap-1.5' : question.kind === 'map' ? 'grid grid-cols-4 gap-1.5' : 'grid grid-cols-1 gap-1.5';
         const options = question.choices.map((choice, i) => {
             const state = answered === null ? '' : choice.correct ? ' cq-choice-ok' : answered === i ? ' cq-choice-bad' : ' opacity-60';
-            const inner = question.images ? `<img src="${esc(choice.image)}" alt="" class="h-12 w-full object-contain short:h-10" referrerpolicy="no-referrer"><span class="sr-only">Možnost ${i + 1}</span>` : esc(choice.label);
+            // Náhled z Commons; když nejde, conquest-ui.js podle data-fallback načte původní soubor
+            const inner = question.images ? `<img src="${esc(choice.image)}"${choice.fallback ? ` data-fallback="${esc(choice.fallback)}"` : ''} alt="" class="h-12 w-full object-contain short:h-10" referrerpolicy="no-referrer"><span class="sr-only">Možnost ${i + 1}</span>` : esc(choice.label);
             return `<button type="button" data-cq-answer="${i}" ${answered !== null ? 'disabled' : ''} class="cq-choice${state} flex min-h-[2.75rem] items-center justify-center rounded-xl px-2 py-1 text-center text-[14px] font-bold leading-tight text-slate-800 dark:text-slate-100">${inner}</button>`;
         }).join('');
         const after = answered === null ? '' : question.kind === 'map' ? `<p class="text-center text-[12.5px] font-bold text-slate-600 dark:text-slate-300">${esc(question.answerLabel)} je bod ${esc(question.choices.find(c => c.correct).label)}.</p>`
@@ -1000,23 +1585,52 @@
     };
 
     // Jak se hraje (okno)
-    const helpHtml = () => `<div class="flex flex-col gap-2 text-[13px] leading-snug text-slate-700 dark:text-slate-200">
-        <p><b>Hra:</b> 2 až 8 hráčů dobývá jednu mapu. Každý začíná na svém domovském území s hradem. Hra trvá podle nastavení (6 hodin až 7 dní).</p>
-        <p><b>Tahy:</b> za den nebo za hodinu (podle hry) máš několik tahů. Tah je jedna otázka o území. Nevyužité tahy se nepřevádějí.</p>
-        <p><b>Zaútočit</b> jde na území, které sousedí s tvým. Správná odpověď neopevněné území dobude. Opevněné jen pobourá o jednu úroveň a otázka je těžší.</p>
-        <p><b>Opevnit</b> jde vlastní území: Palisáda, Hradba a na domovském území i Pevnost.</p>
-        <p><b>Navíc:</b> +1 tah za každý celý region, +1 tah hned za poklad a +1 tah v dalším období za dobytý domov soupeře. Kdo přijde o všechna území, dostane v dalším období nové.</p>
-        <p><b>Konec:</b> 1 bod za území a ${REGION_POINTS} za celý region. Při shodě vyhrává, kdo svých bodů dosáhl dřív.</p>
-        <p><b>Odměny:</b> 1. místo odznak Dobyvatel a ${REWARD_XP[0]} XP, 2. místo ${REWARD_XP[1]} XP, 3. místo ${REWARD_XP[2]} XP, poslední místo nic. Platí ve hře aspoň 3 hráčů nebo ve hře na den a déle, když máš aspoň 3 vlastní tahy.</p>
-    </div>`;
+    // Jak se hraje: čtyři záložky (každá se vejde na 360×640 bez posouvání), dole tlačítko na další záložku
+    const HELP_TABS = [['zaklady', 'Základy'], ['utok', 'Útok'], ['regiony', 'Regiony'], ['konec', 'Konec']];
+    const HELP_PAGES = {
+        zaklady: [
+            ['Cíl', 'Mít na konci hry co nejvíc bodů. Body jsou za území, která na konci držíš (víc v záložce Konec).'],
+            ['Začátek', 'Hra začne, až je plná, nebo až jsou v ní aspoň 2 hráči a všichni klepli na „Chci hrát“. Každý dostane jedno domovské území s hradem, ostatní území jsou volná.'],
+            ['Období', 'Hra je rozdělená na období. Podle nastavení je období den (24 hodin), nebo hodina. První začíná startem hry, každé další o den (nebo hodinu) později.'],
+            ['Tahy', 'V každém období máš několik tahů. Kolik ti jich zbývá, ukazuje počítadlo s meči vpravo nahoře (3/5 = zbývají 3 z 5). Jeden tah je jedna otázka: útok, nebo opevnění. Nevyužité tahy na konci období propadnou.']
+        ],
+        utok: [
+            ['Útok', 'Klepni na volné nebo cizí území, které sousedí s některým tvým (má s ním společnou hranici, nebo ho s ním spojuje tečkovaná námořní cesta), pak na „Zaútočit“ a odpověz na otázku.'],
+            ['Správně', 'Neopevněné území je hned tvoje. U opevněného území klesne opevnění o jednu úroveň a území zůstane soupeři. Dobýt ho jde, až už opevnění nemá.'],
+            ['Špatně', 'Útok nevyjde a tah propadne. Čím víc je cíl opevněný, tím je otázka těžší.'],
+            ['Opevnění', 'Klepni na své území a pak na „Opevnit“. Správná odpověď přidá jednu úroveň: Palisáda (1), Hradba (2), Pevnost (3, jen na domovském území). Každou úroveň musí útočník nejdřív pobourat.']
+        ],
+        regiony: [
+            ['Region', 'Skupina sousedních území. Například na mapě Evropy Britské ostrovy (Spojené království a Irsko) nebo Pobaltí (Estonsko, Lotyšsko, Litva), na mapě Česka Střední Čechy (Praha a Středočeský kraj).'],
+            ['Kde ho uvidíš', 'Klepni na území: pod jeho názvem je napsané, do kterého regionu patří a jestli ho už někdo drží celý.'],
+            ['Celý region', 'Držíš všechna jeho území. Region se pak na mapě zlatě obtáhne a dokud ho držíš, máš v každém období +1 tah a na konci hry 2 body navíc.'],
+            ['Další tahy navíc', '+1 tah hned, když dobudeš území s pokladem (truhla na mapě, platí jen v tom období). +1 tah v příštím období, když dobudeš domovské území soupeře.']
+        ],
+        konec: [
+            ['Konec', 'Hra skončí po čase nastaveném při založení. Kolik zbývá, ukazuje nápis pod názvem mapy.'],
+            ['Body', `1 bod za každé území, které na konci držíš, a ${REGION_POINTS} body navíc za každý celý region. Vyhrává, kdo má nejvíc bodů. Při shodě rozhoduje, kdo svého počtu bodů dosáhl dřív.`],
+            ['Návrat do hry', 'Když přijdeš o všechna území, dostaneš na začátku dalšího období nové domovské území a hraješ dál.'],
+            ['Odměny', `1. místo: odznak Dobyvatel a ${REWARD_XP[0]} XP, 2. místo: ${REWARD_XP[1]} XP, 3. místo: ${REWARD_XP[2]} XP. Poslední místo nedostane nic, ve hře dvou hráčů tedy dostane odměnu jen 1. místo. Odměny jsou jen ve hře aspoň 3 hráčů nebo ve hře, která trvá aspoň den, a jen když máš aspoň 3 vlastní tahy a aspoň 1 bod.`]
+        ]
+    };
+    const helpHtml = (tab = 'zaklady') => {
+        const current = HELP_PAGES[tab] ? tab : 'zaklady';
+        const index = HELP_TABS.findIndex(([id]) => id === current);
+        const next = HELP_TABS[index + 1];
+        return `<div data-cq-help="${current}" class="flex flex-col gap-2.5">
+            <div role="tablist" class="grid grid-cols-4 gap-1 rounded-2xl bg-slate-200/70 p-1 dark:bg-slate-800">${HELP_TABS.map(([id, label]) => `<button type="button" role="tab" aria-selected="${id === current}" data-cq-help-tab="${id}" class="flex min-h-[2.5rem] items-center justify-center rounded-xl px-1 text-[12.5px] font-black ${id === current ? 'btn-3d bg-brand-700 text-white' : 'text-slate-600 dark:text-slate-300'}">${label}</button>`).join('')}</div>
+            <div class="flex flex-col gap-2 text-[13px] leading-snug text-slate-700 dark:text-slate-200">${HELP_PAGES[current].map(([title, text]) => `<p><b class="text-slate-900 dark:text-white">${title}:</b> ${text}</p>`).join('')}</div>
+            ${next ? `<button type="button" data-cq-help-tab="${next[0]}" class="${LIGHT_BUTTON} w-full">Dál: ${next[1]} <i data-lucide="chevron-right" class="h-4 w-4"></i></button>` : ''}
+        </div>`;
+    };
 
     return {
         ART, MAPS, MAP_BY_ID, DURATIONS, PERIODS, MIN_PLAYERS, MAX_PLAYERS, MAX_ACTIONS, MAX_GAMES, MAX_OWN_LOBBIES, REGION_POINTS, LEVELS, REWARD_XP,
         COLORS, COLOR_BY_ID, EMBLEMS, EMBLEM_BY_ID, colorOf, emblemOf, inkOf, emblemInk, luminance, maxLevel, rewardFor,
-        durationLabel, periodLabel, actionsLabel, timeLeft, movesWord, pointsWord, playersWord, territoriesWord,
+        durationLabel, periodLabel, actionsLabel, timeLeft, movesWord, pointsWord, playersWord, territoriesWord, regionsWord, nextPeriodAt, agoLabel, periodLine,
         indexMap, parseRings, pointInRings, project, territoryAt, isAdjacent, viewOf, rank, sourcesFor, actionsFor,
-        buildQuestion, kindsFor, placesOf, feedItems, replaySteps, capturedWord, hatchPattern, levelIcon, iconMarkup,
+        buildQuestion, kindsFor, placesOf, poolsOf, formsOf, FAMILY_IDS, flagUrl, flagFallback, THUMB, feedItems, replaySteps, capturedWord, hatchPattern, levelIcon, iconMarkup,
         pennantSvg, pennantGroup, emblemSvg, mapSvg, thumbSvg, marksFor, homeCardHtml, hubHtml, mineHtml, lobbyHtml, createHtml, lookHtml, lobbyDetailHtml,
-        gameScreenHtml, playersStripHtml, recentHtml, sheetHtml, devBarHtml, questionHtml, feedHtml, resultHtml, helpHtml, mapTitle, paramChips
+        gameScreenHtml, playersStripHtml, recentHtml, sheetHtml, devBarHtml, questionHtml, feedHtml, resultHtml, helpHtml, HELP_TABS, mapTitle, paramChips
     };
 });

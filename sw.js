@@ -36,7 +36,15 @@ const APP_SHELL = [
         // Sezóna, album sbírky a vitrína (docs/OBRAZKY.md č. 133, 148, 150; odznak Sběratel č. 149 je v BADGE_ART)
         'sezona', 'album', 'vitrina',
         // Sezónní truhly podle ročního období (season.js CHEST_READY, docs/OBRAZKY.md č. 175–176)
-        'truhla-zima', 'truhla-zima-otevrena', 'truhla-jaro', 'truhla-jaro-otevrena', 'truhla-leto', 'truhla-leto-otevrena', 'truhla-podzim', 'truhla-podzim-otevrena'].map(id => `icons/topics/${id}.webp`),
+        'truhla-zima', 'truhla-zima-otevrena', 'truhla-jaro', 'truhla-jaro-otevrena', 'truhla-leto', 'truhla-leto-otevrena', 'truhla-podzim', 'truhla-podzim-otevrena',
+        // Ligová sezóna a Mudrlantova kronika (docs/OBRAZKY.md č. 147 a 205)
+        'ligova-sezona', 'sova-kronika',
+        // Zlatá otázka (gold.js ART, č. 206–209 a 211)
+        'zlata-otazka', 'zlaty-stripek', 'zlata-truhla', 'zlata-truhla-otevrena', 'zlatokop',
+        // Dobývání (conquest.js ART, č. 234–239 a 260–263)
+        'dobyvani', 'palisada', 'hradba', 'pevnost', 'hrad-domov', 'poklad', 'vetrna-ruzice', 'plachetnice', 'morska-prisera', 'kartuse-sirka'].map(id => `icons/topics/${id}.webp`),
+    // Bezešvé textury (zlatá fólie Zlaté otázky, pergamen a moře map Dobývání; č. 210, 232, 233)
+    ...['textura-zlato', 'textura-pergamen', 'textura-pergamen-svetly', 'textura-more'].map(id => `icons/textury/${id}.webp`),
     ...BADGE_ART.map(id => `icons/topics/odznak-${id}.webp`), ...AVATAR_ART.map(id => `icons/avatars/${id}.webp`), ...FRAME_ART.map(id => `icons/frames/${id}.webp`), 'icons/favicon-32.png', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png'
 ];
 

@@ -239,9 +239,17 @@ test('Dobývání', { skip: !chromium && 'Playwright není nainstalovaný' }, as
         // Jak se hraje: okno se vejde na 360×640
         await tab.click('[data-cq="help"]');
         await tab.waitForFunction(() => (document.getElementById('dialog-overlay') || { dataset: {} }).dataset.title === 'Jak se hraje Dobývání');
-        const helpFit = await tab.evaluate(() => { const box = document.querySelector('#dialog-overlay > div'); return box.scrollHeight - box.clientHeight; });
-        assert.ok(helpFit <= 0, `nápověda se vejde (přesah ${helpFit} px)`);
-        await shot(tab, 'napoveda-360');
+        // Čtyři záložky (Základy, Útok, Regiony, Konec), každá se vejde; tlačítko Dál vede na další
+        for (const [tabId, pattern] of [['zaklady', /Období:[\s\S]*Tahy:/], ['utok', /Správně:[\s\S]*Opevnění:/], ['regiony', /Region: Skupina sousedních území[\s\S]*Britské ostrovy/], ['konec', /Body:[\s\S]*Odměny:/]]) {
+            await tab.waitForSelector(`[data-cq-help="${tabId}"]`);
+            assert.match(await tab.textContent('[data-cq-help]'), pattern, tabId);
+            const helpFit = await tab.evaluate(() => { const box = document.querySelector('#dialog-overlay > div'); const rect = box.getBoundingClientRect(); return { over: box.scrollHeight - box.clientHeight, top: rect.top, bottom: rect.bottom }; });
+            assert.ok(helpFit.over <= 0 && helpFit.top >= 0 && helpFit.bottom <= 640, `nápověda ${tabId} se vejde: ${JSON.stringify(helpFit)}`);
+            await shot(tab, `napoveda-${tabId}-360`);
+            if (tabId !== 'konec') await tab.click('[data-cq-help] button[data-cq-help-tab]:not([role="tab"])');
+        }
+        await tab.click('[data-cq-help-tab="regiony"][role="tab"]');
+        await tab.waitForSelector('[data-cq-help="regiony"]');
         await tab.keyboard.press('Escape');
         await tab.waitForFunction(() => !document.getElementById('dialog-overlay'));
         await tab.click('[role="tab"][data-cq-tab="lobby"]');
@@ -367,7 +375,8 @@ test('Dobývání', { skip: !chromium && 'Playwright není nainstalovaný' }, as
             await tapTerritory(tab, 'Q40');
             await tab.waitForSelector('[data-cq-sheet] [data-cq="attack"]');
             assert.match(await tab.textContent('[data-cq-sheet]'), /Rakousko[\s\S]*Neutrální území[\s\S]*Poklad: \+1 tah/);
-            assert.ok(await tab.locator('[data-cq-source]').count() >= 2, 'výběr, odkud útočit');
+            assert.equal(await tab.locator('[data-cq-source]').count(), 0, 'odkud útok vede, se nevybírá (na výsledek vliv nemá)');
+            assert.match(await tab.textContent('[data-cq-sheet] [data-cq-region]'), /^Region Střední Evropa · /);
             await shot(tab, `list-${width}-${colorScheme}`);
             db.force.push('capture');
             await tab.click('[data-cq-sheet] [data-cq="attack"]');

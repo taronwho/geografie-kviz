@@ -18,9 +18,9 @@
     // Pruh jen za týden, ve kterém se hrálo aspoň tolik dní (jinak není co shrnovat; kronika jde otevřít z Mého postupu vždy)
     const STRIP_MIN_DAYS = 2;
     const DAY_MS = 86400000;
-    // Vlastní obrázek pruhu na úvodu (sova s kronikou, docs/OBRAZKY.md č. 205): po dodání sem 'sova-kronika'
-    // (icons/topics/sova-kronika.webp); do té doby je v pruhu sova titulu týdne
-    const STRIP_ART = null;
+    // Vlastní obrázek pruhu na úvodu (sova s kronikou, docs/OBRAZKY.md č. 205; barvy obleku scripts/owl-robes.py)
+    // (icons/topics/sova-kronika.webp); null = v pruhu sova titulu týdne
+    const STRIP_ART = 'sova-kronika';
     const WEEKDAYS = ['Po', 'Út', 'St', 'Čt', 'Pá', 'So', 'Ne'];
     // Denní doba odpovědi (hodina v Praze): 0 = ráno (5–9), 1 = den (9–17), 2 = večer (17–22), 3 = noc (22–5)
     const partOfDay = (hour) => (hour >= 5 && hour < 9 ? 0 : hour >= 9 && hour < 17 ? 1 : hour >= 17 && hour < 22 ? 2 : 3);
