@@ -57,7 +57,7 @@ const backend = async (context, db) => {
         const rpc = /^\/rest\/v1\/rpc\/(.+)$/.exec(url.pathname);
         const name = rpc ? rpc[1] : '';
         if (url.pathname === '/rest/v1/profiles') return json(db.profiles[(url.searchParams.get('id') || '').replace('eq.', '')] ? [db.profiles['u-1']] : []);
-        if (!name.startsWith('conquest_')) return json(/^(friends_list|reactions|my_groups)$/.test(name) ? [] : {});
+        if (!name.startsWith('conquest_') && !name.startsWith('dev_conquest_')) return json(/^(friends_list|reactions|my_groups)$/.test(name) ? [] : {});
         db.calls.push({ name, body });
         const fail = (message, status = 400) => json({ code: 'P0001', message }, status);
         const find = (id) => db.games.find(g => g.id === id);
@@ -66,7 +66,7 @@ const backend = async (context, db) => {
         const summary = (g) => ({ id: g.id, map: g.map, max_players: g.max_players, hours: g.hours, period: g.period, actions: g.actions, visibility: g.visibility, preset: g.preset, status: g.status,
             created_at: g.created_at, started_at: g.started_at || null, ends_at: g.ends_at || null, mine: g.players.some(p => p.user === me.id), creator: g.creator === me.id, code: g.code, players: players(g) });
         const mine = (g) => g.players.find(p => p.user === me.id);
-        const budget = (g) => { const used = (g.moves || []).filter(m => m.u === me.id && ['attack', 'fortify'].includes(m.k)).length; return { period: 0, base: g.actions, regions: 0, treasures: 0, loot: 0, used, total: g.actions, left: Math.max(0, g.actions - used), period_ends_at: '2026-11-12T10:00:00Z' }; };
+        const budget = (g) => { const used = (g.moves || []).filter(m => m.u === me.id && ['attack', 'fortify'].includes(m.k) && (m.n || 0) === (g.periodNo || 0)).length; return { period: g.periodNo || 0, base: g.actions, regions: 0, treasures: 0, loot: 0, used, total: g.actions, left: Math.max(0, g.actions - used), period_ends_at: '2026-11-12T10:00:00Z' }; };
         const rescore = (g) => g.players.forEach(p => { const score = g.territories.filter(t => t.o === p.user).length; if (score !== p.score) { p.score = score; p.score_at = NOW; } });
         const start = (g) => {
             g.status = 'running'; g.started_at = NOW; g.ends_at = '2026-11-14T10:00:00Z';
@@ -79,6 +79,37 @@ const backend = async (context, db) => {
         };
         const state = (g) => ({ ...summary(g), now: NOW, ...(g.status === 'lobby' ? {} : { territories: g.territories, budget: g.status === 'running' ? budget(g) : null, moves: g.moves.slice(-150), claimed: Boolean(mine(g) && mine(g).claimed),
             history: g.status === 'finished' ? g.moves.filter(m => ['home', 'respawn', 'capture'].includes(m.r)) : null }) });
+        // Vývojářští boti (blok 22): do lobby (chtějí hrát, plná hra začne), jejich tahy hned (každý bot dobude jedno volné území), další období
+        if (name === 'dev_conquest_add_bots') {
+            const g = find(body.game);
+            const colours = ['zelena', 'zluta', 'fialova', 'oranzova', 'tyrkysova', 'hneda', 'cerna'].filter(c => !g.players.some(p => p.flag_color === c));
+            const count = Math.min(body.how_many, g.max_players - g.players.length);
+            for (let i = 0; i < count; i++) {
+                const bot = `bot-${db.seq++}`;
+                db.profiles[bot] = player(bot, `Bot ${['Adam', 'Dana', 'Emil'][(g.players.length - 1) % 3]}`, '🤖');
+                g.players.push({ user: bot, seat: g.players.length, flag_color: colours[i], emblem: 'drak', ready: true });
+            }
+            if (g.players.length >= g.max_players) start(g);
+            return json(summary(g));
+        }
+        if (name === 'dev_conquest_bots_play') {
+            const g = find(body.game);
+            let made = 0;
+            g.players.filter(p => p.user.startsWith('bot-')).forEach(p => {
+                const free = g.territories.find(t => !t.o && !t.p);
+                if (!free) return;
+                free.o = p.user;
+                g.moves.push({ id: db.seq++, u: p.user, k: 'attack', t: free.t, s: null, ok: true, r: 'capture', v: null, n: g.periodNo || 0, at: NOW, p: false, h: false, l: 0 });
+                made += 1;
+            });
+            rescore(g);
+            return json(made);
+        }
+        if (name === 'dev_conquest_next_period') {
+            const g = find(body.game);
+            g.periodNo = (g.periodNo || 0) + 1;
+            return json(state(g));
+        }
         if (name === 'conquest_lobby') {
             return json({ open: db.games.filter(g => g.status === 'lobby' && g.visibility === 'public').map(summary),
                 mine: db.games.filter(g => mine(g)).map(g => ({ ...summary(g), budget: g.status === 'running' ? budget(g) : null, claimed: Boolean(mine(g).claimed),
@@ -137,14 +168,14 @@ const backend = async (context, db) => {
     });
 };
 
-const setup = async (browser, { viewport = { width: 360, height: 640 }, colorScheme = 'light', reducedMotion = 'no-preference' } = {}) => {
+const setup = async (browser, { viewport = { width: 360, height: 640 }, colorScheme = 'light', reducedMotion = 'no-preference', storage = {} } = {}) => {
     const context = await browser.newContext({ serviceWorkers: 'block', colorScheme, viewport, reducedMotion, deviceScaleFactor: 1 });
     await context.addInitScript(() => { window.MUDRLANT_NUMERIC_RATE = 0; });
     await context.addInitScript(entries => {
         if (sessionStorage.getItem('test-storage-set')) return;
         sessionStorage.setItem('test-storage-set', '1');
         Object.entries(entries).forEach(([key, value]) => localStorage.setItem(key, value));
-    }, { 'mudrlant.tutorial': JSON.stringify({ how: 'done' }), 'mudrlant.variant': 'choices', 'mudrlant.account': JSON.stringify('host'), 'mudrlant.homeTab': JSON.stringify('multi'), 'mudrlant.tips': JSON.stringify({ off: true }), ...login('tok-u1') });
+    }, { 'mudrlant.tutorial': JSON.stringify({ how: 'done' }), 'mudrlant.variant': 'choices', 'mudrlant.account': JSON.stringify('host'), 'mudrlant.homeTab': JSON.stringify('multi'), 'mudrlant.tips': JSON.stringify({ off: true }), ...login('tok-u1'), ...storage });
     const tab = await context.newPage();
     const log = { errors: [], csp: [] };
     tab.on('pageerror', error => log.errors.push(error.message));
@@ -254,6 +285,54 @@ test('Dobývání', { skip: !chromium && 'Playwright není nainstalovaný' }, as
         assert.deepEqual(log.errors, []);
         assert.deepEqual(log.csp, []);
         await context.close();
+    });
+
+    await t.test('vývojář: boti do lobby (+1 bot, Doplnit boty), plná hra začne; ve hře Boti odehrají tahy a Další období; bez vývojářského režimu lišta není', async () => {
+        const db = newDb();
+        const { context, tab, log } = await start(db, { storage: { 'mudrlant.dev': '1' } });
+        await tab.click('#conquest-card [data-action="conquest-open"]');
+        await tab.waitForSelector('#conquest-hub');
+        await tab.click('[role="tab"][data-cq-tab="create"]');
+        await tab.click('[data-cq-set="map"][data-value="evropa"]');
+        await tab.waitForSelector('[data-cq-form] button[type="submit"]');
+        while (Number(await tab.textContent('[data-cq-value="players"]')) > 4) await tab.click('[data-cq-step="players"][data-delta="-1"]');
+        while (Number(await tab.textContent('[data-cq-value="players"]')) < 4) await tab.click('[data-cq-step="players"][data-delta="1"]');
+        await tab.click('[data-cq-form] button[type="submit"]');
+        await tab.waitForSelector('[data-cq-lobby-detail] [data-cq-dev]');
+        assert.match(await tab.textContent('[data-cq-dev]'), /Vývojář\s*\+1 bot\s*Doplnit boty \(3\)/);
+        assert.deepEqual(await fits(tab), { vertical: 0, page: 0, content: 0 }, 'lobby s lištou vývojáře se vejde na 360×640');
+        await shot(tab, 'vyvojar-lobby-360');
+        await tab.click('[data-cq="dev-bot"]');
+        await tab.waitForFunction(() => /Bot je ve hře a chce hrát/.test((document.getElementById('toast') || {}).textContent || ''));
+        assert.match((await tab.textContent('[data-cq-lobby-detail]')).replace(/\s+/g, ' '), /Bot Adam Chce hrát/);
+        assert.match(await tab.textContent('[data-cq-dev]'), /Doplnit boty \(2\)/);
+        await tab.click('[data-cq="dev-bots-full"]');
+        await tab.waitForSelector('#conquest-game [data-cq-map] svg');
+        assert.deepEqual(db.calls.filter(call => call.name === 'dev_conquest_add_bots').map(call => call.body.how_many), [1, 2]);
+        await tab.waitForSelector('#conquest-game [data-cq-dev]');
+        assert.match(await tab.textContent('#conquest-game [data-cq-dev]'), /Boti odehrají tahy\s*Další období/);
+        assert.deepEqual(await fits(tab), { vertical: 0, page: 0, content: 0 }, 'hra s lištou vývojáře se vejde na 360×640');
+        await shot(tab, 'vyvojar-hra-360');
+        await tab.click('[data-cq="dev-play"]');
+        await tab.waitForFunction(() => /Boti odehráli 3 tahy\./.test((document.getElementById('toast') || {}).textContent || ''));
+        await tab.waitForFunction(() => /Bot/.test(document.querySelector('[data-cq-recent]').textContent));
+        await tab.click('[data-cq="dev-period"]');
+        await tab.waitForFunction(() => /Začal 2\. den hry\./.test((document.getElementById('toast') || {}).textContent || ''));
+        assert.ok(db.calls.some(call => call.name === 'dev_conquest_next_period'));
+        assert.deepEqual(log.errors, []);
+        assert.deepEqual(log.csp, []);
+        await context.close();
+        // Bez vývojářského režimu žádná lišta
+        const plain = newDb();
+        plain.autoJoin = true;
+        const second = await start(plain);
+        await second.tab.click('#conquest-card [data-action="conquest-open"]');
+        await second.tab.waitForSelector('#conquest-hub');
+        await second.tab.click('[role="tab"][data-cq-tab="create"]');
+        await second.tab.click('[data-cq-form] button[type="submit"]');
+        await second.tab.waitForSelector('[data-cq-lobby-detail]');
+        assert.equal(await second.tab.locator('[data-cq-dev]').count(), 0);
+        await second.context.close();
     });
 
     // Rozehraná hra na Evropě (já Česko, Petr Norsko)

@@ -39,6 +39,8 @@
         const wait = (ms) => new Promise(resolve => setTimeout(resolve, reduced() ? Math.min(ms, 80) : ms));
         const active = () => deps.isActive();
         const errorText = (error, fallback) => (error && error.message ? error.message : fallback);
+        // Vývojářský režim (app.js devOn): lišta s boty v lobby a ve hře
+        const devOn = () => Boolean(deps.dev && deps.dev());
         const sound = (name) => { try { if (deps.sound) deps.sound(name); } catch (error) { /* bez zvuku */ } };
 
         // --- Mapy (data/dobyvani-<mapa>.json, načtou se, až jsou potřeba) ---
@@ -126,7 +128,7 @@
             let body;
             if (ui.kind === 'lobby') {
                 const found = findGame(ui.gameId);
-                body = found ? C.lobbyDetailHtml({ game: found, maps, busy: ui.confirmLeave ? 'leave' : ui.busy, error: ui.error }) : C.mineHtml({ games: lobby ? lobby.mine : null, maps, now, error: lobbyError });
+                body = found ? C.lobbyDetailHtml({ game: found, maps, busy: ui.confirmLeave ? 'leave' : ui.busy, error: ui.error, dev: devOn() }) : C.mineHtml({ games: lobby ? lobby.mine : null, maps, now, error: lobbyError });
             } else if (ui.tab === 'lobby') body = C.lobbyHtml({ games: lobby ? lobby.open : null, maps, now, error: lobbyError });
             else if (ui.tab === 'create') body = C.createHtml({ draft, maps, busy: ui.busy, error: ui.error });
             else body = C.mineHtml({ games: lobby ? lobby.mine : null, maps, now, error: lobbyError });
@@ -370,7 +372,7 @@
         // Vykreslení obrazovky hry (přiblížení zůstane)
         const renderGame = () => {
             if (!game || !active()) return;
-            app.innerHTML = C.gameScreenHtml(game.view);
+            app.innerHTML = C.gameScreenHtml(game.view, { dev: devOn() });
             app.scrollTop = 0;
             deps.renderIcons(app);
             const wrap = app.querySelector('[data-cq-wrap]');
@@ -856,6 +858,48 @@
             showResult();
         };
 
+        // --- Vývojář (vývojářský režim, účet v dev_admins): boti do lobby, jejich tahy hned, skok na další období ---
+        // Server pustí jen účet z dev_admins a jen do hry, kterou sám hraje; boti pak hrají i sami (rozloží si tahy do období)
+        let devBusy = false;
+        const devRun = async (work) => {
+            if (devBusy) return;
+            devBusy = true;
+            const buttons = [...app.querySelectorAll('[data-cq-dev] button')];
+            buttons.forEach(button => { button.disabled = true; });
+            try { await work(); } catch (error) { deps.showToast(errorText(error, 'Nepodařilo se.')); } finally {
+                devBusy = false;
+                buttons.forEach(button => { button.disabled = false; });
+            }
+        };
+        const devAddBots = (count) => devRun(async () => {
+            const found = findGame(ui.gameId);
+            if (!found) return;
+            const before = found.players.length;
+            const updated = await Social.devConquestAddBots(found.id, count);
+            upsertMine(updated);
+            if (updated.status === 'running') { deps.showToast('Hra s boty začala!'); openGame(updated.id); return; }
+            const added = updated.players.length - before;
+            deps.showToast(added === 1 ? 'Bot je ve hře a chce hrát. Hra začne, až klepneš na Chci hrát.' : `Boti jsou ve hře (${added}) a chtějí hrát. Hra začne, až klepneš na Chci hrát.`);
+            if (active() && ui.kind === 'lobby') renderHub();
+        });
+        const devBotsPlay = () => devRun(async () => {
+            if (!game) return;
+            const made = await Social.devConquestBotsPlay(game.id);
+            deps.showToast(made ? `Boti odehráli ${C.movesWord(made)}.` : 'Boti už v tomhle období žádné tahy nemají.');
+            await reloadGame();
+        });
+        const devNextPeriod = () => devRun(async () => {
+            if (!game) return;
+            const state = await Social.devConquestNextPeriod(game.id);
+            if (!game || !state || game.id !== state.id) return;
+            const finishedNow = state.status === 'finished' && !game.view.finished;
+            setState(state);
+            renderGame();
+            if (finishedNow) { claim(state.id); showResult(); return; }
+            const number = state.budget ? state.budget.period + 1 : null;
+            deps.showToast(number ? (state.period === 'hour' ? `Začala ${number}. hodina hry.` : `Začal ${number}. den hry.`) : 'Začalo další období.');
+        });
+
         // --- Klepnutí (rozcestník i hra) ---
         const onClick = (event) => {
             if (!active()) return;
@@ -908,6 +952,10 @@
             else if (name === 'attack') startMove('attack', action.dataset.source || game.source);
             else if (name === 'fortify') startMove('fortify');
             else if (name === 'replay') replay();
+            else if (name === 'dev-bot') devAddBots(1);
+            else if (name === 'dev-bots-full') { const found = findGame(ui.gameId); if (found) devAddBots(found.max_players - found.players.length); }
+            else if (name === 'dev-play') devBotsPlay();
+            else if (name === 'dev-period') devNextPeriod();
         };
         const onSubmit = (event) => {
             if (!active() || !event.target.closest('[data-cq-form]')) return;

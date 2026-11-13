@@ -1106,6 +1106,17 @@
     const conquestMove = async (game, territory, kind, correct, source = null) => conquestGame(await conquestCall('conquest_move', {
         game: conquestId(game), target: conquestText(territory, 16), move_kind: kind === 'fortify' ? 'fortify' : 'attack', is_correct: Boolean(correct), source: source ? conquestText(source, 16) : null
     }, 'Tah se nepodařilo uložit. Zkontroluj připojení.'));
+    // Vývojářští boti v Dobývání (blok 22, jen účet v dev_admins a jen ve hře, kterou sám hraje): boti do lobby, jejich tahy hned, další období
+    const devConquest = async (name, body) => {
+        try { return await request('POST', `rpc/${name}`, { body }); } catch (error) {
+            if (error.status === 404) throw new SocialError('Boti pro Dobývání v databázi chybí: spusť znovu supabase/schema.sql.', 404);
+            if (error.status === 401 || error.status === 403 || /dev_admins/.test(String(error.message))) throw new SocialError('Tenhle účet není v dev_admins (návod v docs/SUPABASE.md).', 403);
+            throw error;
+        }
+    };
+    const devConquestAddBots = async (game, count) => conquestGame(await devConquest('dev_conquest_add_bots', { game: conquestId(game), how_many: Math.max(1, wholeNumber(count, 7)) }));
+    const devConquestBotsPlay = async (game) => wholeNumber(await devConquest('dev_conquest_bots_play', { game: conquestId(game) }), 1000);
+    const devConquestNextPeriod = async (game) => conquestGame(await devConquest('dev_conquest_next_period', { game: conquestId(game) }));
     const conquestClaim = async (game) => {
         const data = (await conquestCall('conquest_claim', { game: conquestId(game) }, 'Výsledek se nepodařilo načíst.')) || {};
         return { place: wholeNumber(data.place, 8) || null, players: wholeNumber(data.players, 8), score: wholeNumber(data.score, 1000), eligible: data.eligible === true, claimed_now: data.claimed_now === true };
@@ -1133,6 +1144,8 @@
         bossSubmit, bossWeekStats, bossClaimBonus,
         // Dobývání (schéma 21)
         conquestLobby, conquestCreate, conquestJoin, conquestSetLook, conquestReady, conquestLeave, conquestState, conquestMove, conquestClaim,
+        // Vývojářští boti v Dobývání (blok 22)
+        devConquestAddBots, devConquestBotsPlay, devConquestNextPeriod,
         // Řetězovka dne (blok 21)
         chainSubmit, chainDayStats };
 });

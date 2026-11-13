@@ -335,6 +335,65 @@ test('SQL: Dobývání', { skip: !available && 'PostgreSQL není dostupný' }, a
         assert.deepEqual(after.open.map(g => g.preset).sort(), ['afrika-7d', 'cesko-12h', 'evropa-3d']);
         assert.ok(after.open.every(g => g.players.length === 0));
     });
+
+    await t.test('vývojářští boti: jen dev_admins a jen ve vlastní hře; do plna, hrají sami podle času, na pokyn hned, další období, smazání', () => {
+        clock = '2026-12-01T08:00:00Z';
+        const DEV = id(20);
+        const OTHER = id(21);
+        q(`insert into auth.users (id, email, raw_user_meta_data) values ('${DEV}', 'dev@example.com', '{"full_name": "Vývojář"}'), ('${OTHER}', 'jiny@example.com', '{"full_name": "Jiný"}')`);
+        const game = json(create(DEV, { map: 'evropa', players: 4, hours: 120, per: 'day', actions: 5, vis: 'private' }));
+        denied(as(DEV, `select dev_conquest_add_bots('${game.id}', 1);`), /dev_admins/, 'bez dev_admins ne');
+        q(`insert into dev_admins (user_id) values ('${DEV}')`);
+        const other = json(create(OTHER, { map: 'cesko', players: 3, hours: 12, per: 'hour', actions: 3 }));
+        denied(as(DEV, `select dev_conquest_add_bots('${other.id}', 1);`), /sám hraješ/, 'cizí hra ne');
+        denied(as(DEV, `select conquest_bots_due('${game.id}', true);`), /permission denied/, 'pomocná funkce zvenčí ne');
+        // Jeden bot: volná barva, chce hrát; hra čeká, dokud nechci hrát i já
+        let summary = json(as(DEV, `select dev_conquest_add_bots('${game.id}', 1);`));
+        assert.equal(summary.status, 'lobby');
+        const bot = summary.players.find(player => !player.me);
+        assert.equal(bot.ready, true);
+        assert.match(bot.display_name, /Bot/);
+        assert.notEqual(bot.flag_color, 'cervena', 'barvu hráče bot nevezme');
+        // Do plna (víc, než se vejde, se nepřidá): plná hra začne sama
+        summary = json(as(DEV, `select dev_conquest_add_bots('${game.id}', 7);`));
+        assert.equal(summary.status, 'running');
+        assert.equal(summary.players.length, 4);
+        assert.equal(new Set(summary.players.map(player => player.flag_color)).size, 4);
+        denied(as(DEV, `select dev_conquest_add_bots('${game.id}', 1);`), /nezačala/);
+        const botMoves = (st, period = null) => st.moves.filter(m => m.u !== DEV && (m.k === 'attack' || m.k === 'fortify') && (period === null || m.n === period)).length;
+        // Botům, kteří mají území, nezbyl v období žádný tah (čas hry přes mudrlant.test_now)
+        const idle = () => q(`set mudrlant.test_now = '${clock}'; select count(*) from conquest_players p where p.game_id = '${game.id}' and p.user_id <> '${DEV}'
+            and exists (select 1 from conquest_territories t where t.game_id = p.game_id and t.owner = p.user_id) and (conquest_budget(p.game_id, p.user_id) ->> 'left')::integer > 0`);
+        // Na začátku období boti ještě nehrají, ve 3/4 období mají odehráno všechno; moje tahy zůstanou
+        assert.equal(botMoves(json(state(DEV, game.id))), 0, 'hned po začátku nic');
+        clock = '2026-12-02T02:00:00Z';
+        let st = json(state(DEV, game.id));
+        assert.ok(botMoves(st, 0) >= 3 * 5 - 3, `boti hráli sami (${botMoves(st, 0)})`);
+        assert.equal(idle(), '0', 'boti s územím vyčerpali tahy období');
+        assert.equal(st.budget.left, 5, 'moje tahy zůstaly');
+        assert.ok(st.moves.filter(m => m.u !== DEV && m.k === 'attack').every(m => m.s), 'útok bota vede z jeho území');
+        // Další období: hra je o den dál a o den kratší
+        const endsBefore = Date.parse(st.ends_at);
+        st = json(as(DEV, `select dev_conquest_next_period('${game.id}');`));
+        assert.equal(st.budget.period, 1);
+        assert.equal(endsBefore - Date.parse(st.ends_at), 24 * 3600 * 1000);
+        assert.equal(st.budget.left, 5, 'v novém období mám znovu všechny tahy');
+        assert.ok(botMoves(st, 1) > 0, 'boti hráli i v novém období');
+        // Na pokyn hned: na začátku dalšího období boti sami ještě nehrají, tlačítko vývojáře je pošle odehrát všechno
+        clock = '2026-12-02T08:01:00Z';
+        const made = Number(last(ok(as(DEV, `select dev_conquest_bots_play('${game.id}');`))));
+        assert.ok(made > 0, `boti odehráli ${made} tahů`);
+        assert.equal(idle(), '0');
+        assert.equal(Number(last(ok(as(DEV, `select dev_conquest_bots_play('${game.id}');`)))), 0, 'podruhé už nic');
+        // Sami i bez otevřené hry (tournament_tick při otevření aplikace)
+        clock = '2026-12-03T20:00:00Z';
+        ok(as(DEV, 'select tournament_tick();'));
+        assert.ok(Number(q(`select count(*) from conquest_moves where game_id = '${game.id}' and period = 3 and user_id <> '${DEV}' and kind in ('attack', 'fortify')`)) > 0, 'tick');
+        // Smazání botů: rozehraná hra s boty zmizí celá
+        ok(as(DEV, 'select dev_tournament_clear_bots();'));
+        assert.equal(q(`select count(*) from conquest_games where id = '${game.id}'`), '0');
+        assert.equal(q(`select count(*) from auth.users where email like 'bot-%'`), '0');
+    });
 });
 // Osmý hráč scénáře (Rychlá hra Česko)
 function H() { return id(8); }
