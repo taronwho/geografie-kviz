@@ -1,5 +1,5 @@
 // Kamarádské sázky: k výzvě konkrétnímu hráči (podle přezdívky, příteli, odveta) jde vsadit 10, 25 nebo 50 XP a přidat jednu z 8 hlášek.
-// Vyzvaný sázku před hrou přijme, nebo hraje bez ní. Až dohrají oba, vítěz vklad získá a poražený o něj přijde (nikdy pod hranici své úrovně),
+// Vyzvaný sázku před hrou přijme, nebo hraje bez ní. Až dohrají oba, kdo vyhraje, vklad získá, a kdo prohraje, o něj přijde (nikdy pod hranici své úrovně),
 // remíza nic. Vsadit jde nejvýš tolik, kolik hráč získal za posledních 7 dní. Server (supabase/schema.sql, blok 21) hlídá pravidla a mění XP
 // v účtu; tady je čistá logika (vklady, hlášky, stav sázky pro řádek výzvy, sladění XP v zařízení se součty výher a proher v účtu), vykreslení
 // jako HTML, sypání mincí k vítězi (Web Animations API) a volání serveru. app.js napojí okno Vyzvat, detail a výsledek výzvy, seznam výzev
@@ -194,7 +194,7 @@
                 <div class="grid grid-cols-4 gap-1.5" role="group" aria-label="Sázka">${stakeOptions(state.limit).map(chip).join('')}</div>
                 ${tauntRow}
                 <div class="mt-1.5 flex items-center gap-2">
-                    <p data-stake-note class="min-w-0 flex-1 text-[11px] font-semibold leading-snug ${state.note ? 'text-rose-700 dark:text-rose-300' : 'text-slate-500 dark:text-slate-400'}">${h.esc(note || 'Vítěz získá vklad, poražený o něj přijde. Úroveň nikdy neklesne.')}</p>
+                    <p data-stake-note class="min-w-0 flex-1 text-[11px] font-semibold leading-snug ${state.note ? 'text-rose-700 dark:text-rose-300' : 'text-slate-500 dark:text-slate-400'}">${h.esc(note || 'Kdo vyhraje, vklad získá. Kdo prohraje, o něj přijde. Úroveň nikdy neklesne.')}</p>
                     <button type="button" data-stake-help aria-label="Jak fungují sázky" title="Jak to funguje?" class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gold-50 text-base font-black text-brand-950 ring-1 ring-gold-300/70 active:scale-95 dark:bg-gold-900/20 dark:text-gold-200 dark:ring-gold-700/60">?</button>
                 </div>
             </div>` : '';
@@ -307,7 +307,7 @@
                 <ul class="flex flex-col gap-1.5">
                     <li class="${POINT}">${DOT}<span>Vsadit jde <b class="text-slate-800 dark:text-slate-100">10, 25 nebo 50 XP</b>, nejvýš tolik, kolik máš z posledních 7 dní.</span></li>
                     <li class="${POINT}">${DOT}<span>Soupeř sázku přijme, nebo zvolí <b class="text-slate-800 dark:text-slate-100">Hrát bez sázky</b>.</span></li>
-                    <li class="${POINT}">${DOT}<span>Až dohrajete oba, vítěz vklad získá a poražený o něj přijde. Při remíze se nic nemění.</span></li>
+                    <li class="${POINT}">${DOT}<span>Až dohrajete oba, kdo vyhraje, vklad získá, a kdo prohraje, o něj přijde. Při remíze se nic nemění.</span></li>
                     <li class="${POINT}">${DOT}<span>Tvoje <b class="text-slate-800 dark:text-slate-100">úroveň nikdy neklesne</b>: odečte se jen to, co máš nad její hranicí.</span></li>
                 </ul>
                 ${o ? `<div class="rounded-2xl bg-white p-2.5 shadow-sm dark:bg-slate-800" data-bet-mine>
@@ -368,7 +368,7 @@
             if (missing) return null;
             const auth = win && win.MudrlantAuth;
             const token = auth ? await auth.accessToken(retried) : null;
-            if (!token) throw new BetsError('Nejsi přihlášený.', 401);
+            if (!token) throw new BetsError('Přihlas se.', 401);
             const base = String(config().supabaseUrl || '').replace(/\/+$/, '');
             const response = await (env.fetch || win.fetch)(`${base}/rest/v1/rpc/${name}`, {
                 method: 'POST', headers: { apikey: config().supabaseAnonKey, Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify(body || {})
@@ -420,12 +420,12 @@
                 let result = null;
                 await h.withProgress(async () => {
                     result = await h.api.settle(code);
-                    if (result && result.fresh) {
-                        const state = ledger();
-                        state.users[user.id] = settledLocally(state.users[user.id], result);
-                        saveLedger(state);
-                        h.applyXp(result.delta || 0);
-                    }
+                    if (!result || !result.fresh) return false;
+                    const state = ledger();
+                    state.users[user.id] = settledLocally(state.users[user.id], result);
+                    saveLedger(state);
+                    h.applyXp(result.delta || 0);
+                    return true;
                 });
                 if (result) remember(result);
                 if (result && result.fresh) {

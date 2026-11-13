@@ -3581,7 +3581,7 @@ begin
     if uid is null then raise exception 'Přihlas se.' using errcode = '42501'; end if;
     select * into c from public.challenges ch where ch.id = code for update;
     if c.id is null then raise exception 'Výzva neexistuje.' using errcode = '22023'; end if;
-    if c.creator_id <> uid then raise exception 'Sázku nabízí jen ten, kdo výzvu založil.' using errcode = '42501'; end if;
+    if c.creator_id <> uid then raise exception 'Tuhle sázku nabídnout nemůžeš: výzva není tvoje.' using errcode = '42501'; end if;
     if c.invited_id is null or exists (select 1 from public.group_challenges g where g.challenge_id = c.id) then
         raise exception 'Sázka jde jen ve výzvě konkrétnímu hráči.' using errcode = '22023';
     end if;
@@ -3613,7 +3613,7 @@ begin
     if accept is null then raise exception 'Chybí odpověď.' using errcode = '22023'; end if;
     select * into c from public.challenges ch where ch.id = code for update;
     if c.id is null then raise exception 'Výzva neexistuje.' using errcode = '22023'; end if;
-    if c.invited_id is distinct from uid then raise exception 'Na sázku odpovídá jen vyzvaný hráč.' using errcode = '42501'; end if;
+    if c.invited_id is distinct from uid then raise exception 'Na tuhle sázku odpovědět nemůžeš.' using errcode = '42501'; end if;
     if c.stake_state is null then raise exception 'U téhle výzvy žádná sázka není.' using errcode = '22023'; end if;
     if c.stake_state = wanted then return public.stake_json(c, uid); end if;
     if c.stake_state <> 'offered' then raise exception 'Na sázku už je odpověď.' using errcode = '22023'; end if;

@@ -109,7 +109,7 @@ test('SQL: Kamarádské sázky', { skip: !available && 'PostgreSQL není dostupn
         setWeek(A, 30, 70); // 30 + 70 × 3/7 = 60 → nejvýš 50
         setWeek(B, 12, 0);
         const code = challenge(A, B);
-        denied(offer(B, code, 10), /jen ten, kdo výzvu založil/);
+        denied(offer(B, code, 10), /nabídnout nemůžeš: výzva není tvoje/);
         denied(offer(A, challenge(A), 10), /konkrétnímu hráči/, 'výzva přes odkaz');
         const group = challenge(A);
         q(`insert into groups (id, name, icon, code, owner_id) values ('${id(900)}', 'Třída', '🏫', 'GRPABC', '${A}'); insert into group_challenges (challenge_id, group_id) values ('${group}', '${id(900)}');`);
@@ -138,8 +138,8 @@ test('SQL: Kamarádské sázky', { skip: !available && 'PostgreSQL není dostupn
         setWeek(A, 200); setWeek(B, 20); setWeek(C, 200);
         const code = challenge(A, B);
         ok(offer(A, code, 25, 0));
-        denied(answer(A, code, true), /jen vyzvaný hráč/);
-        denied(answer(C, code, true), /jen vyzvaný hráč/);
+        denied(answer(A, code, true), /odpovědět nemůžeš/);
+        denied(answer(C, code, true), /odpovědět nemůžeš/);
         denied(answer(B, code, true), /nejvýš 20 XP/, 'vyzvaný má za 7 dní jen 20 XP');
         assert.equal(json(answer(B, code, false)).state, 'declined', 'hrát bez sázky jde vždy');
         assert.equal(json(answer(B, code, false)).state, 'declined', 'stejná odpověď znovu nic nemění');

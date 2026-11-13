@@ -3926,12 +3926,13 @@
     const Bets = window.MudrlantBets || null;
     const BetsApi = Bets && window.MudrlantSocial ? Bets.createApi({ window }) : null;
     const levelFloorOf = (xp) => xp - levelProgress(xp).into;
-    // Úloha, během které neběží syncProgress (počká na dokončení rozběhnutého, nejvýš 4 s); po ní se postup sladí s účtem
+    // Úloha, během které neběží syncProgress (počká na dokončení rozběhnutého, nejvýš 4 s); změnila-li XP (vrátí true), postup se pak sladí s účtem
     const withProgressIdle = async (task) => {
         for (let waited = 0; syncingProgress && waited < 4000; waited += 100) await new Promise(resolve => setTimeout(resolve, 100));
         const mine = !syncingProgress;
         if (mine) syncingProgress = true;
-        try { return await task(); } finally { if (mine) syncingProgress = false; syncProgress(); }
+        let changed = false;
+        try { changed = (await task()) === true; return changed; } finally { if (mine) syncingProgress = false; if (changed) syncProgress(); }
     };
     const BetsCtl = BetsApi ? Bets.createController({
         api: BetsApi, user: () => signedUser(), read: readJson, write: writeJson, withProgress: withProgressIdle, floorOf: levelFloorOf,
@@ -4030,7 +4031,8 @@
     const betPourIn = (root) => {
         const panel = root && root.querySelector('[data-bet-result]');
         if (!panel) return false;
-        return Bets.pour(panel, { reduced: reducedMotion(), sound: Sound ? (name) => { Sound.play(name); if (name === 'coins') Sound.vibrate('record'); } : null });
+        const won = panel.dataset.betResult === 'won';
+        return Bets.pour(panel, { reduced: reducedMotion(), sound: Sound ? () => { Sound.play('coins'); if (won) Sound.vibrate('record'); } : null });
     };
     // Detail výzvy: nabídka sázky (vyzvaný ještě nehrál), stav sázky, nebo výsledek s mincemi
     const betDetail = ({ code, def, user, info, results, mine }) => {

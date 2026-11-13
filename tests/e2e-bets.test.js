@@ -70,7 +70,7 @@ const betRpc = (db, me, name, body) => {
     if (name === 'challenge_stake_stats') return { status: 200, body: db.profiles[body.player] ? stats(body.player) : null };
     if (!c) return fail('Výzva neexistuje.');
     if (name === 'challenge_offer_stake') {
-        if (c.creator_id !== me) return fail('Sázku nabízí jen ten, kdo výzvu založil.', 403);
+        if (c.creator_id !== me) return fail('Tuhle sázku nabídnout nemůžeš: výzva není tvoje.', 403);
         if (!c.invited_id) return fail('Sázka jde jen ve výzvě konkrétnímu hráči.');
         if (c.stake) return fail('Sázka už je nabídnutá.');
         if (![10, 25, 50].includes(body.amount)) return fail('Vsadit jde 10, 25 nebo 50 XP.');
@@ -80,7 +80,7 @@ const betRpc = (db, me, name, body) => {
         return { status: 200, body: json(c, me) };
     }
     if (name === 'challenge_answer_stake') {
-        if (c.invited_id !== me) return fail('Na sázku odpovídá jen vyzvaný hráč.', 403);
+        if (c.invited_id !== me) return fail('Na tuhle sázku odpovědět nemůžeš.', 403);
         if (c.stake_state !== 'offered') return c.stake_state === (body.accept ? 'accepted' : 'declined') ? { status: 200, body: json(c, me) } : fail('Na sázku už je odpověď.');
         if (body.accept && c.stake > available(me, c.id)) return fail(`Vsadit můžeš nejvýš ${available(me, c.id)} XP (tolik máš z posledních 7 dní).`);
         c.stake_state = body.accept ? 'accepted' : 'declined';
@@ -231,7 +231,10 @@ test('Kamarádské sázky', { skip: !chromium && 'Playwright není nainstalovan�
         await page.tab.waitForSelector('[data-action="new-challenge"]');
         return page;
     };
-    const SIZES = [[{ width: 390, height: 780 }, 'light'], [{ width: 360, height: 640 }, 'dark']];
+    // SAZKY_SIZES=all: obě velikosti ve světlém i tmavém režimu (snímky ke kontrole vzhledu), jinak 390×780 světle a 360×640 tmavě
+    const SIZES = process.env.SAZKY_SIZES === 'all'
+        ? [[{ width: 390, height: 780 }, 'light'], [{ width: 390, height: 780 }, 'dark'], [{ width: 360, height: 640 }, 'light'], [{ width: 360, height: 640 }, 'dark']]
+        : [[{ width: 390, height: 780 }, 'light'], [{ width: 360, height: 640 }, 'dark']];
 
     await t.test('okno Nová výzva: sázka jen u konkrétního hráče, limit, hláška, pravidla s návratem; po založení se nabídne', async () => {
         for (const [viewport, colorScheme] of SIZES) {
@@ -459,5 +462,25 @@ test('Kamarádské sázky', { skip: !chromium && 'Playwright není nainstalovan�
         assert.deepEqual(ledger.users['u-1'], { won: 0, lost: 25 });
         assert.deepEqual(log.errors, []);
         await context.close();
+    });
+
+    await t.test('profil hráče se sázkovou bilancí se vejde ve všech velikostech a režimech', async () => {
+        for (const [viewport, colorScheme] of SIZES) {
+            const db = newDb();
+            db.challenges.PRF234 = { id: 'PRF234', creator_id: 'u-2', invited_id: 'u-1', topic: 'zemepis', count: 5, seed: 'f', include_hard: false, categories: [], variant: 'choices', created_at: '2026-11-10T08:00:00Z', stake: 25, stake_state: 'accepted', taunt: null, stake_settled_creator: true, stake_delta_creator: 25, stake_settled_opponent: true, stake_delta_opponent: -25 };
+            db.challenges.PRG234 = { id: 'PRG234', creator_id: 'u-1', invited_id: 'u-2', topic: 'vlajky', count: 5, seed: 'g', include_hard: false, categories: [], variant: 'choices', created_at: '2026-11-11T08:00:00Z', stake: 10, stake_state: 'accepted', taunt: null, stake_settled_creator: true, stake_delta_creator: 10, stake_settled_opponent: true, stake_delta_opponent: -10 };
+            db.results.push({ challenge_id: 'PRF234', user_id: 'u-1', correct: 1, points: 3, finished_at: '2026-11-10T08:10:00Z' }, { challenge_id: 'PRF234', user_id: 'u-2', correct: 4, points: 12, finished_at: '2026-11-10T09:10:00Z' },
+                { challenge_id: 'PRG234', user_id: 'u-1', correct: 4, points: 12, finished_at: '2026-11-11T08:10:00Z' }, { challenge_id: 'PRG234', user_id: 'u-2', correct: 1, points: 3, finished_at: '2026-11-11T09:10:00Z' });
+            const { context, tab, log } = await start(db, 'tok-u1', { viewport, colorScheme, storage: { 'mudrlant.bets': JSON.stringify({ users: { 'u-1': { won: 10, lost: 25 } }, shown: ['PRF234', 'PRG234'] }) } });
+            await tab.waitForSelector('[data-code="PRF234"] [data-stake-badge="lost"]');
+            await tab.click('[data-action="challenge-open"][data-code="PRF234"] [data-player-id="u-2"]');
+            await tab.waitForSelector('[data-bet-balance]');
+            assert.match(await compact(tab, '[data-bet-balance]'), /Sázky\s*\+15 XP\s*1 výhra\s*1 prohra/);
+            await shot(tab, `profil-${viewport.width}-${colorScheme}`);
+            assert.ok(await overflow(tab) <= (viewport.height < 700 ? 24 : 0), `profil se vejde: ${await overflow(tab)} px`);
+            assert.deepEqual(log.errors, []);
+            assert.deepEqual(log.csp, []);
+            await context.close();
+        }
     });
 });
