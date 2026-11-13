@@ -8382,7 +8382,7 @@
                     <div class="rounded-2xl bg-white p-2 shadow-sm dark:bg-slate-800" data-player-stats>
                         <div class="grid grid-cols-3 divide-x divide-slate-200 dark:divide-slate-700">${stat('Výzvy', stats.games)}${stat('Úspěšnost', percent)}${stat('Nejlepší', stats.best ? `${stats.best.correct}/${stats.best.count}` : '–')}</div>
                         <div class="mt-2 border-t border-slate-200 pt-2 dark:border-slate-700">${versus}</div>
-                        ${theirBets && theirBets.bets ? `<div class="mt-2 border-t border-slate-200 pt-2 dark:border-slate-700${menuOpen ? ' short:hidden' : ''}">${Bets.balanceHtml(theirBets, betHelpers())}</div>` : ''}
+                        ${theirBets && theirBets.bets ? `<div class="mt-2 border-t border-slate-200 pt-2 dark:border-slate-700${menuOpen || view === 'block' ? ' short:hidden' : ''}">${Bets.balanceHtml(theirBets, betHelpers())}</div>` : ''}
                     </div>
                     <div>
                         <button type="button" data-rematch ${busy ? 'disabled' : ''} class="${PRIMARY_BUTTON}">${uiArt('vyzva', 'h-7 w-7')} ${busy ? 'Zakládám…' : stats.last ? 'Vyzvat k odvetě' : 'Vyzvat'}</button>
