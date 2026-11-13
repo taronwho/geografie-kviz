@@ -217,7 +217,13 @@ const giveUp = async (tab) => {
 const localXp = (tab) => tab.evaluate(() => JSON.parse(localStorage.getItem('mudrlant.progress')).xp);
 const overflow = (tab) => tab.evaluate(() => { const panel = document.querySelector('#dialog-overlay > div'); return panel.scrollHeight - panel.clientHeight; });
 const fitsScreen = (tab) => tab.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth && document.getElementById('app-content').scrollWidth <= document.getElementById('app-content').clientWidth);
-const shot = async (tab, name) => { if (SHOTS) { fs.mkdirSync(SHOTS, { recursive: true }); await tab.screenshot({ path: path.join(SHOTS, `sazky-${name}.png`) }); } };
+// Snímek bez přechodných oslav a zpráv (odznaky z testovacího postupu by zakryly to, co se kontroluje)
+const shot = async (tab, name) => {
+    if (!SHOTS) return;
+    fs.mkdirSync(SHOTS, { recursive: true });
+    await tab.evaluate(() => document.querySelectorAll('#celebration, #celebration-mini, #toast').forEach(el => el.remove()));
+    await tab.screenshot({ path: path.join(SHOTS, `sazky-${name}.png`) });
+};
 const closeDialogs = async (tab) => { for (let i = 0; i < 3 && await tab.locator('#dialog-overlay').count(); i++) { await tab.keyboard.press('Escape'); await tab.waitForTimeout(80); } };
 
 test('Kamarádské sázky', { skip: !chromium && 'Playwright není nainstalovaný' }, async (t) => {
@@ -402,7 +408,9 @@ test('Kamarádské sázky', { skip: !chromium && 'Playwright není nainstalovan�
             await tab.click('[data-action="challenge-open"][data-code="MUJ234"]');
             await tab.waitForSelector('#dialog-overlay [data-bet-result="lost"]');
             assert.match(await compact(tab, '[data-bet-result]'), /Sázka 25 XP nevyšla. −10 XP/);
-            await tab.evaluate(() => document.querySelectorAll('#toast, #celebration').forEach(el => el.remove()));
+            // Mince se v detailu sypou při prvním otevření: snímek až po dosypání
+            await tab.waitForFunction(() => !document.querySelector('.bet-flying'), null, { timeout: 5000 });
+            await tab.waitForTimeout(700);
             await shot(tab, `detail-${viewport.width}-${colorScheme}`);
             assert.ok(await overflow(tab) <= (viewport.height < 700 ? 24 : 0), `detail s výsledkem sázky se vejde: ${await overflow(tab)} px`);
             assert.deepEqual(log.errors, []);
