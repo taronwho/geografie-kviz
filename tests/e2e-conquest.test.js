@@ -82,7 +82,7 @@ const backend = async (context, db) => {
         // Vývojářští boti (blok 22): do lobby (chtějí hrát, plná hra začne), jejich tahy hned (každý bot dobude jedno volné území), další období
         if (name === 'dev_conquest_add_bots') {
             const g = find(body.game);
-            const colours = ['zelena', 'zluta', 'fialova', 'oranzova', 'tyrkysova', 'hneda', 'cerna'].filter(c => !g.players.some(p => p.flag_color === c));
+            const colours = ['zelena', 'zluta', 'fialova', 'oranzova', 'tyrkysova', 'ruzova', 'cerna'].filter(c => !g.players.some(p => p.flag_color === c));
             const count = Math.min(body.how_many, g.max_players - g.players.length);
             for (let i = 0; i < count; i++) {
                 const bot = `bot-${db.seq++}`;

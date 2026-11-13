@@ -143,7 +143,7 @@ test('SQL: Dobývání', { skip: !available && 'PostgreSQL není dostupný' }, a
 
     await t.test('jiná barva a znak před začátkem; limity vlastních a všech her', () => {
         denied(as(B, `select conquest_set_look('${game.id}', 'cervena', 'orel');`), /barvu už má/);
-        assert.equal(json(as(B, `select conquest_set_look('${game.id}', 'azurova', 'kotva');`)).players[1].emblem, 'kotva');
+        assert.equal(json(as(B, `select conquest_set_look('${game.id}', 'tyrkysova', 'kotva');`)).players[1].emblem, 'kotva');
         // C už má jednu vlastní (soukromou), druhou smí, třetí ne
         const second = json(create(C, { colour: 'zluta', emblem: 'vez' }));
         denied(create(C, { colour: 'zluta', emblem: 'vez' }), /nejvýš 2 vlastní/);
@@ -154,9 +154,9 @@ test('SQL: Dobývání', { skip: !available && 'PostgreSQL není dostupný' }, a
         const g2 = json(create(G, { colour: 'cerna', emblem: 'vlk' }));
         denied(create(G, { colour: 'cerna', emblem: 'vlk' }), /nejvýš 2 vlastní/);
         const presets = lobby(F).open.filter(g => g.preset);
-        for (const g of [...presets, g1, g2]) ok(join(F, { game: g.id, colour: 'hneda', emblem: 'vlk' }));
-        const own = json(create(F, { colour: 'hneda', emblem: 'vlk' }));
-        denied(join(F, { game: game.id, colour: 'hneda' }), /nejvýš 6 her/);
+        for (const g of [...presets, g1, g2]) ok(join(F, { game: g.id, colour: 'ruzova', emblem: 'vlk' }));
+        const own = json(create(F, { colour: 'ruzova', emblem: 'vlk' }));
+        denied(join(F, { game: game.id, colour: 'ruzova' }), /nejvýš 6 her/);
         for (const g of [...presets, g1, g2, own]) ok(as(F, `select conquest_leave('${g.id}');`));
         assert.equal(q(`select count(*) from conquest_games where id = '${own.id}'`), '0');
         assert.equal(q(`select count(*) from conquest_games where preset is not null`), '3', 'Rychlé hry zůstanou i prázdné');
