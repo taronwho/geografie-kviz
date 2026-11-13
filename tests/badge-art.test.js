@@ -22,7 +22,9 @@ test('symboly odznaků: skupiny, obrázky, zdroje a mezipaměť', () => {
     const Gold = require('../gold.js');
     assert.ok(fs.existsSync(path.join(ROOT, 'icons', 'topics', `${Gold.ART.badge}.webp`)), `symbol Zlatokopa ${Gold.ART.badge}.webp`);
     assert.ok(sw.includes(`'${Gold.ART.badge}'`), 'symbol Zlatokopa je v mezipaměti');
-    const missing = core.BADGE_GROUPS.filter(group => !group.topic && !art.includes(group.id) && !/^(tema|zbehly)-/.test(group.id) && !album(group) && group.id !== Gold.BADGE_GROUP && !core.isBossBadge(group.id)).map(group => group.id);
+    // Skupiny, jejichž obrázek se teprve kreslí (docs/NOVE-MODY.md): do dodání mají čárovou ikonu
+    const PENDING_ART = new Set(['dobyvatel']);
+    const missing = core.BADGE_GROUPS.filter(group => !group.topic && !art.includes(group.id) && !PENDING_ART.has(group.id) && !/^(tema|zbehly)-/.test(group.id) && !album(group) && group.id !== Gold.BADGE_GROUP && !core.isBossBadge(group.id)).map(group => group.id);
     assert.deepEqual(missing, [], 'každá skupina (kromě témat, alba a bossů) má symbol');
     // Emblémy bossů týdne: portrét bosse (boss.js ART, do dodání ilustrací zástupná sova) existuje
     const Boss = require('../boss.js');

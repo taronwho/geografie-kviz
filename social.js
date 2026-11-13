@@ -1031,6 +1031,49 @@
         }
     };
 
+    // ===== Dobývání (schéma 21, conquest.js a conquest-ui.js): lobby, založení, přidání, Chci hrát, odchod, stav, tah a odměna =====
+    // Databáze bez funkcí (404): srozumitelná chyba a dál se o ně nežádá (po novém načtení stránky se zkusí znovu). České hlášky databáze
+    // (plná hra, obsazená barva, limity, tahy na období) se předají dál, jiné chyby nahradí obecný text.
+    let conquestMissing = false;
+    const CONQUEST_MISSING = 'Dobývání zatím není k dispozici (databáze potřebuje nejnovější schema.sql).';
+    const conquestCall = async (name, body, fallback) => {
+        if (conquestMissing) throw new SocialError(CONQUEST_MISSING, 404);
+        try { return await request('POST', `rpc/${name}`, { body }); } catch (error) {
+            if (error instanceof SocialError && error.status === 404) { conquestMissing = true; throw new SocialError(CONQUEST_MISSING, 404); }
+            if (error instanceof SocialError && error.status === 401) throw new SocialError('Nejsi přihlášený.', 401);
+            if (error instanceof SocialError && error.status < 500 && CZECH_MESSAGE.test(error.message)) throw error;
+            throw new SocialError(fallback, error && error.status);
+        }
+    };
+    const conquestId = (value) => { if (!isUuid(value)) throw new SocialError('Neplatná hra.', 400); return value; };
+    const conquestText = (value, max = 24) => String(value || '').slice(0, max);
+    const conquestGame = (value) => (value && typeof value === 'object' && isUuid(value.id) ? { ...value, players: Array.isArray(value.players) ? value.players.filter(row => row && row.id) : [] } : null);
+    // { open: [hra], mine: [hra s budget, owners, claimed] }
+    const conquestLobby = async () => {
+        const data = (await conquestCall('conquest_lobby', {}, 'Hry se nepodařilo načíst. Zkontroluj připojení.')) || {};
+        return { open: (Array.isArray(data.open) ? data.open : []).map(conquestGame).filter(Boolean), mine: (Array.isArray(data.mine) ? data.mine : []).map(conquestGame).filter(Boolean) };
+    };
+    const conquestCreate = async ({ map, players, hours, period, actions, visibility, color, emblem }) => conquestGame(await conquestCall('conquest_create', {
+        map_id: conquestText(map), players: wholeNumber(players, 8), hours: wholeNumber(hours, 168), per: conquestText(period, 8), actions_per: wholeNumber(actions, 10),
+        vis: conquestText(visibility, 8), colour: conquestText(color), emblem_id: conquestText(emblem)
+    }, 'Hru se nepodařilo založit. Zkus to znovu.'));
+    // Přidání: veřejná hra podle id, soukromá kódem
+    const conquestJoin = async ({ game = null, code = '', color, emblem }) => conquestGame(await conquestCall('conquest_join', {
+        game: game ? conquestId(game) : null, join_code: conquestText(code, 12), colour: conquestText(color), emblem_id: conquestText(emblem)
+    }, 'Přidat se do hry se nepodařilo. Zkus to znovu.'));
+    const conquestSetLook = async (game, color, emblem) => conquestGame(await conquestCall('conquest_set_look', { game: conquestId(game), colour: conquestText(color), emblem_id: conquestText(emblem) }, 'Barvu a znak se nepodařilo uložit.'));
+    const conquestReady = async (game, ready) => conquestGame(await conquestCall('conquest_ready', { game: conquestId(game), is_ready: Boolean(ready) }, 'Nepodařilo se. Zkus to znovu.'));
+    const conquestLeave = (game) => conquestCall('conquest_leave', { game: conquestId(game) }, 'Odejít ze hry se nepodařilo. Zkus to znovu.');
+    const conquestState = async (game) => conquestGame(await conquestCall('conquest_state', { game: conquestId(game) }, 'Hru se nepodařilo načíst. Zkontroluj připojení.'));
+    // Tah: kind = 'attack' | 'fortify', correct = odpověď na otázku, source = vlastní území, odkud útok vede
+    const conquestMove = async (game, territory, kind, correct, source = null) => conquestGame(await conquestCall('conquest_move', {
+        game: conquestId(game), target: conquestText(territory, 16), move_kind: kind === 'fortify' ? 'fortify' : 'attack', is_correct: Boolean(correct), source: source ? conquestText(source, 16) : null
+    }, 'Tah se nepodařilo uložit. Zkontroluj připojení.'));
+    const conquestClaim = async (game) => {
+        const data = (await conquestCall('conquest_claim', { game: conquestId(game) }, 'Výsledek se nepodařilo načíst.')) || {};
+        return { place: wholeNumber(data.place, 8) || null, players: wholeNumber(data.players, 8), score: wholeNumber(data.score, 1000), eligible: data.eligible === true, claimed_now: data.claimed_now === true };
+    };
+
     return { AVATARS, allAvatars, cleanAvatar, cleanColor, customHue, nearestColor, cleanFrame, cleanOwl, saveOwl, cleanTitlePref, saveLook, COLORS, COUNTS, NAME_MAX, SocialError, cleanName, isValidName, newCode, parseCode, getProfile, saveProfile, createChallenge, getChallenge, getResults, submitResult, myChallenges, searchPlayers, randomOpponent, incomingChallenges, playerStats, getProgress, saveProgress, getRating, getRatingChange, weeklyLeaderboard, getAccepts, saveAccepts,
         tournamentTick, getTournaments, tournamentArchive, ARCHIVE_PAGE, inTournament, devTournament, devClientErrors, isDevAdmin, schemaVersion, reportQuestion, getQuestionReports, deleteQuestionReport, exportMyData, deleteMyAccount, getTournamentEntries, getTournamentMatches, joinTournament, leaveTournament, startTournamentMatch, finishTournamentMatch, myTournamentStats, tournamentNotices, tournamentNoticesSeen,
         challengeProgress, saveChallengeProgress, tournamentAnswers, saveTournamentAnswer, claimTournamentXp, cleanAnswerLabel,
@@ -1050,5 +1093,7 @@
         // Ligové sezóny a vitrína (schéma 18)
         leagueSeasons, SHOWCASE_ENTRY, cleanShowcase, getShowcase, saveShowcase,
         // Boss týdne (schéma 21)
-        bossSubmit, bossWeekStats, bossClaimBonus };
+        bossSubmit, bossWeekStats, bossClaimBonus,
+        // Dobývání (schéma 21)
+        conquestLobby, conquestCreate, conquestJoin, conquestSetLook, conquestReady, conquestLeave, conquestState, conquestMove, conquestClaim };
 });

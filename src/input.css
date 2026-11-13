@@ -856,3 +856,134 @@ html.kb-open #settings-overlay > *, html.kb-open #dialog-overlay > * { max-heigh
 @keyframes bossEmblem { 0% { opacity: 0; scale: 0.2; rotate: -200deg; } 70% { opacity: 1; scale: 1.15; rotate: 10deg; } 100% { opacity: 1; scale: 1; rotate: 0deg; } }
 @keyframes bossVictory { 0% { opacity: 0; scale: 0.3; } 70% { opacity: 1; scale: 1.12; } 100% { opacity: 1; scale: 1; } }
 @keyframes bossShine { 0% { translate: -120% 0; } 45%, 100% { translate: 120% 0; } }
+
+/* ===== Dobývání (conquest.js, conquest-ui.js): mapa na starém pergamenu, šrafy a vlaječky hráčů, opevnění, animace tahů =====
+   Textury přijdou jako bezešvé dlaždice icons/textury/<název>.webp (docs/OBRAZKY.md č. 232–233): pergamenu stačí doplnit do .cq-paper
+   řádek background-image (před přechody), moře má vzor v SVG (conquest.js ART.sea). Mapa je pergamen i v tmavém režimu (jen tmavší). */
+.cq-paper {
+    background-color: #efe0bd;
+    background-image: radial-gradient(ellipse at 30% 25%, rgb(255 248 228 / 0.85), transparent 60%),
+        radial-gradient(ellipse at 80% 85%, rgb(196 160 104 / 0.35), transparent 55%),
+        radial-gradient(circle at 15% 90%, rgb(160 120 70 / 0.18), transparent 35%),
+        repeating-linear-gradient(115deg, rgb(140 100 50 / 0.035) 0 2px, transparent 2px 7px);
+}
+.cq-card-paper { background-image: linear-gradient(100deg, rgb(250 240 214 / 0.9), rgb(255 255 255 / 0) 70%); }
+@media (prefers-color-scheme: dark) {
+    .cq-paper { background-color: #cdb98f; background-image: radial-gradient(ellipse at 30% 25%, rgb(232 214 172 / 0.7), transparent 60%), radial-gradient(ellipse at 80% 85%, rgb(120 90 50 / 0.45), transparent 55%), repeating-linear-gradient(115deg, rgb(90 60 30 / 0.05) 0 2px, transparent 2px 7px); }
+    .cq-card-paper { background-image: linear-gradient(100deg, rgb(120 96 56 / 0.28), rgb(0 0 0 / 0) 70%); }
+}
+.cq-map-wrap { box-shadow: 0 0 0 1px rgb(107 74 42 / 0.45), 0 8px 18px -10px rgb(60 40 20 / 0.6); }
+.cq-vignette { box-shadow: inset 0 0 28px rgb(92 60 26 / 0.45), inset 0 0 3px rgb(92 60 26 / 0.6); }
+.cq-map { cursor: grab; }
+.cq-svg { display: block; width: 100%; height: 100%; overflow: visible; }
+.cq-sea { fill: rgb(77 133 150 / 0.26); }
+.cq-coast { fill: none; stroke: #3f6a7d; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
+.cq-coast-1 { stroke-width: 1.4; stroke-opacity: 0.45; }
+.cq-coast-2 { stroke-width: 5; stroke-opacity: 0.16; }
+.cq-coast-3 { stroke-width: 11; stroke-opacity: 0.08; }
+.cq-bgland { fill: rgb(122 92 52 / 0.14); stroke: rgb(107 74 42 / 0.35); stroke-width: 0.6; vector-effect: non-scaling-stroke; }
+.cq-abroad { fill: rgb(150 112 62 / 0.2); }
+.cq-frontier-1 { stroke: #6b4a2a; stroke-width: 2.2; stroke-opacity: 0.7; }
+.cq-frontier-2 { stroke: #8a6a3e; stroke-width: 8; stroke-opacity: 0.15; }
+.cq-neat { fill: none; stroke: #5b3a1e; stroke-width: 2.4; vector-effect: non-scaling-stroke; }
+.cq-neat-inner { fill: none; stroke: #5b3a1e; stroke-opacity: 0.55; stroke-width: 0.8; vector-effect: non-scaling-stroke; }
+.cq-washes { mix-blend-mode: multiply; }
+.cq-wash { fill-opacity: 0.62; }
+.cq-borders path { fill: none; stroke: #6b4a2a; stroke-opacity: 0.75; stroke-width: 0.8; stroke-dasharray: 3 2; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
+.cq-inks path { fill: none; stroke-width: 1.6; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
+.cq-inks .cq-ink-me { stroke-width: 2.6; }
+.cq-routes path { fill: none; stroke: #5b3a1e; stroke-opacity: 0.6; stroke-width: 1.4; stroke-dasharray: 0.5 4; stroke-linecap: round; vector-effect: non-scaling-stroke; }
+.cq-hit { fill: rgb(0 0 0 / 0); stroke: none; cursor: pointer; }
+.cq-hit:focus { outline: none; }
+.cq-select path { fill: rgb(255 236 170 / 0.25); stroke: #c8961d; stroke-width: 2.6; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
+.cq-region-glow { fill: none; stroke: #f0c14b; stroke-width: 6; stroke-opacity: 0.55; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
+.cq-label { font-family: Georgia, 'Times New Roman', serif; font-style: italic; font-weight: 700; fill: #3b2a1a; text-anchor: middle; paint-order: stroke; stroke: rgb(246 234 206 / 0.9); stroke-width: 2.4px; stroke-linejoin: round; letter-spacing: 0.02em; }
+.cq-label.cq-hide, .cq-mark.cq-hide { display: none; }
+.cq-deco-letter { font-family: Georgia, 'Times New Roman', serif; font-weight: 700; fill: #5b3a1e; }
+.cq-deco { opacity: 0.85; }
+.cq-cartouche { background: linear-gradient(#f7ecd0, #e9d6aa); box-shadow: inset 0 0 0 1.5px #a47b45, inset 0 0 0 3px #f7ecd0, inset 0 0 0 4px #a47b45, 0 2px 6px -3px rgb(60 40 20 / 0.6); }
+.cq-cartouche-title { font-family: Georgia, 'Times New Roman', serif; font-variant: small-caps; font-weight: 700; font-size: 17px; line-height: 1.1; letter-spacing: 0.08em; color: #4a2c12; }
+@media (prefers-color-scheme: dark) { .cq-cartouche { background: linear-gradient(#d9c596, #bfa36d); } }
+.cq-sheet { background: linear-gradient(#fffaf0, #f7ecd5); box-shadow: 0 -10px 24px -12px rgb(60 40 20 / 0.55), inset 0 1px 0 #fff; border-top: 2px solid #c9a46a; }
+@media (prefers-color-scheme: dark) { .cq-sheet { background: linear-gradient(#2d3034, #262a2e); border-top-color: #8a6a3a; box-shadow: 0 -10px 24px -12px rgb(0 0 0 / 0.8); } }
+.cq-choice { background: #fff; box-shadow: 0 0 0 1px #d8c39b, 0 3px 0 #c9a46a; transition: transform 80ms ease; }
+.cq-choice:active:not(:disabled) { transform: translateY(2px); box-shadow: 0 0 0 1px #d8c39b, 0 1px 0 #c9a46a; }
+.cq-choice-ok { background: #dcfce7; box-shadow: 0 0 0 2px #16a34a; }
+.cq-choice-bad { background: #ffe4e6; box-shadow: 0 0 0 2px #e11d48; }
+@media (prefers-color-scheme: dark) {
+    .cq-choice { background: #41454a; box-shadow: 0 0 0 1px #585b60, 0 3px 0 #161719; }
+    .cq-choice-ok { background: #14532d; box-shadow: 0 0 0 2px #4ade80; }
+    .cq-choice-bad { background: #4c0519; box-shadow: 0 0 0 2px #fb7185; }
+}
+.cq-qmap-land { fill: #f3e4c2; stroke: #6b4a2a; stroke-width: 1.4; vector-effect: non-scaling-stroke; }
+.cq-dot circle { fill: #fffaf0; stroke: #5b3a1e; stroke-width: 1.6; vector-effect: non-scaling-stroke; }
+.cq-dot text { font-family: system-ui, sans-serif; font-weight: 900; fill: #3b2a1a; }
+.cq-dot-ok circle { fill: #16a34a; } .cq-dot-ok text { fill: #fff; }
+.cq-dot-bad circle { fill: #e11d48; } .cq-dot-bad text { fill: #fff; }
+.cq-thumb-frame { background: linear-gradient(#cfe0e0, #b9d2d4); box-shadow: inset 0 0 0 1px rgb(107 74 42 / 0.4); }
+.cq-thumb-bg { fill: #d8c7a3; }
+.cq-thumb-land { fill: #f1e2bf; stroke: #8a6d4a; stroke-width: 0.6; vector-effect: non-scaling-stroke; }
+.cq-thumb-owned { stroke: #3b2a1a; stroke-width: 0.8; vector-effect: non-scaling-stroke; fill-opacity: 0.9; }
+.cq-podium-1 { background: linear-gradient(#ffe066, #d69725); color: #3b1e0a; }
+.cq-podium-2 { background: linear-gradient(#f1f5f9, #94a3b8); color: #1e293b; }
+.cq-podium-3 { background: linear-gradient(#f0b27a, #a8652a); color: #3b1e0a; }
+.cq-podium-x { background: #e1dfda; color: #41454a; }
+.cq-banner { background: linear-gradient(#fff6d6, #f2d27a); box-shadow: inset 0 0 0 1.5px #a47b45, 0 6px 16px -6px rgb(60 40 20 / 0.7); color: #4a2c12; font-family: Georgia, 'Times New Roman', serif; font-weight: 700; }
+.cq-dimmer { fill: rgb(40 26 10 / 0.28); }
+.cq-focus-line { fill: none; stroke: #f6d27a; stroke-width: 2.4; vector-effect: non-scaling-stroke; }
+.cq-arrow { fill: none; stroke: #7a1f12; stroke-width: 3.2; stroke-dasharray: 7 5; stroke-linecap: round; vector-effect: non-scaling-stroke; }
+.cq-arrow-head { fill: #7a1f12; }
+.cq-burst { fill: none; stroke: #f6d27a; stroke-width: 3; vector-effect: non-scaling-stroke; }
+.cq-burst-ray { stroke: #c8961d; stroke-width: 2.4; stroke-linecap: round; vector-effect: non-scaling-stroke; }
+.cq-dust { fill: #c9b48f; }
+.cq-sparkle { fill: #ffe066; }
+.cq-crack { fill: none; stroke: #2a1d10; stroke-width: 1.4; stroke-linecap: round; }
+/* Přechody a animace jen bez omezení pohybu; bez nich je vidět rovnou výsledek */
+@media (prefers-reduced-motion: no-preference) {
+    .cq-sheet-in { animation: cqSheetIn 0.26s cubic-bezier(0.2, 0.9, 0.3, 1.05); }
+    .cq-bob { animation: cqBob 4s ease-in-out infinite; }
+    .cq-select path { animation: cqSelect 1.6s ease-in-out infinite; }
+    .cq-region-glow { animation: cqGlow 2.8s ease-in-out infinite; }
+    .cq-region-new { animation: cqGlowNew 1.2s ease-out 3, cqGlow 2.8s ease-in-out 3.6s infinite; }
+    .cq-arrow-draw { animation: cqDraw 0.65s ease-out both; }
+    .cq-arrow-break-a { transform-box: fill-box; transform-origin: 100% 50%; animation: cqBreakA 0.7s ease-in forwards; }
+    .cq-arrow-break-b { transform-box: fill-box; transform-origin: 0% 50%; animation: cqBreakB 0.7s ease-in forwards; }
+    .cq-ink-grow { transform-box: fill-box; transform-origin: center; animation: cqInk 1.1s cubic-bezier(0.3, 0.7, 0.3, 1) both; }
+    .cq-pin-drop { animation: cqPinDrop 0.7s cubic-bezier(0.3, 1.4, 0.5, 1) both; }
+    .cq-burst-ring { transform-box: fill-box; transform-origin: center; animation: cqBurst 0.55s ease-out forwards; }
+    .cq-burst-rays { transform-box: fill-box; transform-origin: center; animation: cqBurstRays 0.55s ease-out forwards; }
+    .cq-shake { animation: cqShake 0.5s ease-in-out; }
+    .cq-rise { transform-box: fill-box; transform-origin: 50% 100%; animation: cqRise 0.6s cubic-bezier(0.3, 1.3, 0.5, 1) both; }
+    .cq-dust-puff { transform-box: fill-box; transform-origin: center; animation: cqDust 0.8s ease-out forwards; }
+    .cq-crumble { transform-box: fill-box; transform-origin: 50% 100%; animation: cqCrumble 0.75s ease-in forwards; }
+    .cq-crack-in { animation: cqCrackIn 0.25s ease-out both; }
+    .cq-lid-open { transform-box: fill-box; transform-origin: 0% 100%; animation: cqLid 0.5s ease-out forwards; }
+    .cq-sparkle-fly { transform-box: fill-box; transform-origin: center; animation: cqSparkle 0.9s ease-out forwards; }
+    .cq-fade-out { animation: cqFadeOut 0.6s ease-in forwards; }
+    .cq-banner-in { animation: cqBannerIn 2.6s ease-in-out forwards; }
+    .cq-dimmer-in { animation: cqFadeIn 0.3s ease-out both; }
+    .cq-replay-flash { animation: cqFlash 0.5s ease-out; }
+}
+@keyframes cqSheetIn { from { transform: translateY(100%); } to { transform: translateY(0); } }
+@keyframes cqBob { 0%, 100% { translate: 0 0; } 50% { translate: 0 -4px; } }
+@keyframes cqSelect { 0%, 100% { stroke-opacity: 1; } 50% { stroke-opacity: 0.45; } }
+@keyframes cqGlow { 0%, 100% { stroke-opacity: 0.45; } 50% { stroke-opacity: 0.8; } }
+@keyframes cqGlowNew { 0% { stroke-width: 2; stroke-opacity: 1; } 60% { stroke-width: 14; stroke-opacity: 0.9; } 100% { stroke-width: 6; stroke-opacity: 0.6; } }
+@keyframes cqDraw { from { stroke-dashoffset: 100; } to { stroke-dashoffset: 0; } }
+@keyframes cqBreakA { to { translate: -6px 14px; rotate: -24deg; opacity: 0; } }
+@keyframes cqBreakB { to { translate: 6px 16px; rotate: 30deg; opacity: 0; } }
+@keyframes cqInk { from { scale: 0; } to { scale: 1; } }
+@keyframes cqPinDrop { 0% { translate: 0 -46px; opacity: 0; } 50% { opacity: 1; } 75% { translate: 0 3px; } 100% { translate: 0 0; } }
+@keyframes cqBurst { from { scale: 0.2; opacity: 1; } to { scale: 1.6; opacity: 0; } }
+@keyframes cqBurstRays { from { scale: 0.4; opacity: 1; rotate: 0deg; } to { scale: 1.4; opacity: 0; rotate: 20deg; } }
+@keyframes cqShake { 0%, 100% { translate: 0 0; } 20% { translate: -5px 0; } 40% { translate: 5px 0; } 60% { translate: -3px 0; } 80% { translate: 3px 0; } }
+@keyframes cqRise { from { scale: 1 0; opacity: 0.3; } to { scale: 1 1; opacity: 1; } }
+@keyframes cqDust { from { scale: 0.3; opacity: 0.9; } to { scale: 1.8; opacity: 0; } }
+@keyframes cqCrumble { 0% { translate: 0 0; rotate: 0deg; } 25% { translate: -1px 0; rotate: -4deg; } 45% { translate: 1px 0; rotate: 4deg; } 100% { translate: 0 10px; rotate: 0deg; scale: 1 0.2; opacity: 0; } }
+@keyframes cqCrackIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes cqLid { to { rotate: -38deg; translate: 0 -2px; } }
+@keyframes cqSparkle { from { translate: 0 0; scale: 0.4; opacity: 1; } to { translate: var(--dx, 0) var(--dy, -14px); scale: 1.1; opacity: 0; } }
+@keyframes cqFadeOut { to { opacity: 0; } }
+@keyframes cqFadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes cqBannerIn { 0% { opacity: 0; transform: translateY(-12px) scale(0.9); } 12%, 82% { opacity: 1; transform: translateY(0) scale(1); } 100% { opacity: 0; transform: translateY(-6px) scale(0.98); } }
+@keyframes cqFlash { from { fill-opacity: 1; } to { fill-opacity: 0.62; } }

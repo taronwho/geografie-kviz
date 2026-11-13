@@ -332,7 +332,9 @@ language sql immutable set search_path = public as $$
         -- Schéma 21: Zlatá otázka (správně zodpovězené zlaté otázky)
         'zlatokop-10', 'zlatokop-50', 'zlatokop-100',
         -- Schéma 21: Boss týdne (emblémy poražených bossů)
-        'boss-kapitan', 'boss-rytir', 'boss-alchymista', 'boss-amper', 'boss-maestro', 'boss-druid', 'boss-olympan', 'boss-reziser'
+        'boss-kapitan', 'boss-rytir', 'boss-alchymista', 'boss-amper', 'boss-maestro', 'boss-druid', 'boss-olympan', 'boss-reziser',
+        -- Schéma 21: Dobývání (vyhrané hry)
+        'dobyvatel', 'dobyvatel-3', 'dobyvatel-10', 'dobyvatel-25', 'dobyvatel-50'
     ]::text[];
 $$;
 
@@ -3627,3 +3629,1554 @@ revoke all on function public.boss_now(), public.boss_week(timestamptz), public.
 revoke all on function public.boss_submit(date, integer, integer, boolean), public.boss_week_stats(date), public.boss_claim_bonus(date) from public, anon;
 grant execute on function public.boss_submit(date, integer, integer, boolean), public.boss_week_stats(date), public.boss_claim_bonus(date) to authenticated;
 -- ===== Boss týdne (schéma 21) — KONEC BLOKU =====
+
+-- ===== 21: Dobývání — ZAČÁTEK BLOKU =====
+-- Hry o mapu (conquest.js, conquest-ui.js): kdokoli přihlášený založí hru s mapou (Evropa, Afrika, Asie, Amerika, Česko), délkou
+-- (6 h až 7 dní), počtem hráčů (2–8), počtem tahů za období (1–10, období = den nebo hodina od začátku hry) a viditelností (veřejná
+-- v lobby, nebo soukromá jen kódem). Hráč si při založení i přidání vybere barvu (v jedné hře každou jen jeden hráč) a znak.
+-- Hra začne sama, když je plná, nebo když jsou v ní aspoň 2 hráči a všichni mají „Chci hrát“: každý dostane domovské území co nejdál
+-- od ostatních, na neutrálních územích se rozmístí poklady. Tah = otázka (správnost posílá aplikace, hrají spolu lidé, kteří se znají
+-- z lobby); útok jen na území sousedící s vlastním, opevnění jen vlastního. Úroveň opevnění 0–3 (palisáda, hradba, pevnost; pevnost
+-- jen na domovském území); úspěšný útok na opevněné území ubere úroveň, na neopevněné ho dobude. Tahy za období: základ hry, +1 za každý
+-- celý region, +1 za poklad dobytý v tomto období a +1 za každé domovské území soupeře dobyté v minulém období (kořist). Kdo přijde
+-- o všechna území, dostane v dalším období nové (Návrat do hry). Konec v ends_at: body = území + 2 za celý region, při shodě vyhrává,
+-- kdo konečného počtu bodů dosáhl dřív. Pro „Rychlou hru“ drží server pro každou předvolbu jednu otevřenou veřejnou hru.
+-- Lobby, které nezačalo do 7 dní, zmizí. Hráč je nejvýš v 6 hrách najednou a má nejvýš 2 vlastní otevřené hry.
+-- Data hry vidí jen její hráči (RLS), souhrn otevřených veřejných her každý přihlášený; zapisuje se jen přes funkce níže.
+
+-- Mapy: katalog, regiony a sousedství (vkládá je vygenerovaná část níže, stejně jako data/dobyvani-<mapa>.json)
+create table if not exists public.conquest_maps (
+    id text primary key,
+    title text not null,
+    territories smallint not null,
+    treasures smallint not null,
+    max_players smallint not null
+);
+create table if not exists public.conquest_regions (
+    map text not null references public.conquest_maps (id) on delete cascade,
+    territory text not null,
+    region text not null,
+    primary key (map, territory)
+);
+create table if not exists public.conquest_links (
+    map text not null references public.conquest_maps (id) on delete cascade,
+    a text not null,
+    b text not null,
+    primary key (map, a, b)
+);
+
+create table if not exists public.conquest_games (
+    id uuid primary key default gen_random_uuid(),
+    creator uuid references public.profiles (id) on delete set null,
+    map text not null references public.conquest_maps (id),
+    max_players smallint not null,
+    duration_hours integer not null,
+    period text not null,
+    actions smallint not null,
+    visibility text not null,
+    code text not null,
+    -- předvolba Rychlé hry (hru drží server), jinak null
+    preset text,
+    status text not null default 'lobby',
+    seed text not null default replace(gen_random_uuid()::text, '-', ''),
+    created_at timestamptz not null default now(),
+    started_at timestamptz,
+    ends_at timestamptz
+);
+alter table public.conquest_games drop constraint if exists conquest_games_values;
+alter table public.conquest_games add constraint conquest_games_values check (
+    max_players between 2 and 8 and duration_hours in (6, 12, 24, 48, 72, 120, 168) and period in ('day', 'hour') and actions between 1 and 10
+    and visibility in ('public', 'private') and status in ('lobby', 'running', 'finished') and code ~ '^[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{6}$'
+    and (status = 'lobby' or (started_at is not null and ends_at is not null)));
+create unique index if not exists conquest_games_code_key on public.conquest_games (code);
+create index if not exists conquest_games_status_idx on public.conquest_games (status, visibility, created_at desc);
+create index if not exists conquest_games_preset_idx on public.conquest_games (preset, status);
+
+create table if not exists public.conquest_players (
+    game_id uuid not null references public.conquest_games (id) on delete cascade,
+    user_id uuid not null references public.profiles (id) on delete cascade,
+    -- pořadí přidání 0–7 (vzor šrafování), barva a znak z nabídky (conquest_colors, conquest_emblems)
+    seat smallint not null,
+    color text not null,
+    emblem text not null,
+    ready boolean not null default false,
+    joined_at timestamptz not null default now(),
+    score smallint not null default 0,
+    -- kdy hráč dosáhl současného počtu bodů (rozhoduje při shodě)
+    score_at timestamptz,
+    -- období, ve kterém hráč přišel o všechna území (v dalším dostane nové), jinak null
+    lost_period integer,
+    place smallint,
+    claimed boolean not null default false,
+    primary key (game_id, user_id)
+);
+alter table public.conquest_players drop constraint if exists conquest_players_values;
+alter table public.conquest_players add constraint conquest_players_values check (seat between 0 and 7 and score between 0 and 1000 and (place is null or place between 1 and 8));
+create unique index if not exists conquest_players_color_key on public.conquest_players (game_id, color);
+create unique index if not exists conquest_players_seat_key on public.conquest_players (game_id, seat);
+create index if not exists conquest_players_user_idx on public.conquest_players (user_id);
+
+create table if not exists public.conquest_territories (
+    game_id uuid not null references public.conquest_games (id) on delete cascade,
+    territory text not null,
+    owner uuid references public.profiles (id) on delete set null,
+    level smallint not null default 0,
+    home boolean not null default false,
+    treasure boolean not null default false,
+    captured_at timestamptz,
+    primary key (game_id, territory)
+);
+alter table public.conquest_territories drop constraint if exists conquest_territories_values;
+alter table public.conquest_territories add constraint conquest_territories_values check (level between 0 and 3 and (level <= 2 or home));
+
+-- Tahy a události hry (kronika tažení a závěrečné přehrání): kind = home | respawn | attack | fortify;
+-- result = home | respawn | capture (dobytí) | breach (opevnění o úroveň níž) | fortify | fail
+create table if not exists public.conquest_moves (
+    id bigserial primary key,
+    game_id uuid not null references public.conquest_games (id) on delete cascade,
+    user_id uuid references public.profiles (id) on delete set null,
+    period integer not null,
+    kind text not null,
+    territory text not null,
+    source text,
+    success boolean not null,
+    result text not null,
+    victim uuid references public.profiles (id) on delete set null,
+    -- úroveň opevnění po tahu
+    level smallint not null default 0,
+    -- dobytý poklad / dobyté domovské území soupeře
+    treasure boolean not null default false,
+    home boolean not null default false,
+    at timestamptz not null default now()
+);
+alter table public.conquest_moves drop constraint if exists conquest_moves_values;
+alter table public.conquest_moves add constraint conquest_moves_values check (kind in ('home', 'respawn', 'attack', 'fortify') and result in ('home', 'respawn', 'capture', 'breach', 'fortify', 'fail') and level between 0 and 3);
+create index if not exists conquest_moves_game_idx on public.conquest_moves (game_id, id);
+create index if not exists conquest_moves_user_idx on public.conquest_moves (game_id, user_id, period);
+
+-- dobyvani:data:start (vygenerováno: node scripts/build-dobyvani.js, ručně neupravovat)
+delete from public.conquest_links where map not in ('evropa', 'afrika', 'asie', 'amerika', 'cesko');
+delete from public.conquest_regions where map not in ('evropa', 'afrika', 'asie', 'amerika', 'cesko');
+delete from public.conquest_maps where id not in ('evropa', 'afrika', 'asie', 'amerika', 'cesko');
+-- Mapa Evropa: 41 území, 9 regionů
+insert into public.conquest_maps (id, title, territories, treasures, max_players) values ('evropa', 'Evropa', 41, 5, 8)
+    on conflict (id) do update set title = excluded.title, territories = excluded.territories, treasures = excluded.treasures, max_players = excluded.max_players;
+delete from public.conquest_regions where map = 'evropa';
+insert into public.conquest_regions (map, territory, region) values
+    ('evropa', 'Q145', 'britske-ostrovy'),
+    ('evropa', 'Q27', 'britske-ostrovy'),
+    ('evropa', 'Q189', 'severske-zeme'),
+    ('evropa', 'Q20', 'severske-zeme'),
+    ('evropa', 'Q34', 'severske-zeme'),
+    ('evropa', 'Q33', 'severske-zeme'),
+    ('evropa', 'Q35', 'severske-zeme'),
+    ('evropa', 'Q191', 'pobalti'),
+    ('evropa', 'Q211', 'pobalti'),
+    ('evropa', 'Q37', 'pobalti'),
+    ('evropa', 'Q29', 'pyrenejsky-poloostrov'),
+    ('evropa', 'Q45', 'pyrenejsky-poloostrov'),
+    ('evropa', 'Q142', 'zapadni-evropa'),
+    ('evropa', 'Q31', 'zapadni-evropa'),
+    ('evropa', 'Q55', 'zapadni-evropa'),
+    ('evropa', 'Q32', 'zapadni-evropa'),
+    ('evropa', 'Q39', 'zapadni-evropa'),
+    ('evropa', 'Q183', 'stredni-evropa'),
+    ('evropa', 'Q36', 'stredni-evropa'),
+    ('evropa', 'Q213', 'stredni-evropa'),
+    ('evropa', 'Q214', 'stredni-evropa'),
+    ('evropa', 'Q40', 'stredni-evropa'),
+    ('evropa', 'Q28', 'stredni-evropa'),
+    ('evropa', 'Q215', 'stredni-evropa'),
+    ('evropa', 'Q224', 'balkan'),
+    ('evropa', 'Q225', 'balkan'),
+    ('evropa', 'Q403', 'balkan'),
+    ('evropa', 'Q236', 'balkan'),
+    ('evropa', 'Q1246', 'balkan'),
+    ('evropa', 'Q222', 'balkan'),
+    ('evropa', 'Q221', 'balkan'),
+    ('evropa', 'Q159', 'vychodni-evropa'),
+    ('evropa', 'Q184', 'vychodni-evropa'),
+    ('evropa', 'Q212', 'vychodni-evropa'),
+    ('evropa', 'Q217', 'vychodni-evropa'),
+    ('evropa', 'Q218', 'vychodni-evropa'),
+    ('evropa', 'Q219', 'vychodni-evropa'),
+    ('evropa', 'Q38', 'stredomori'),
+    ('evropa', 'Q41', 'stredomori'),
+    ('evropa', 'Q229', 'stredomori'),
+    ('evropa', 'Q43', 'stredomori');
+delete from public.conquest_links where map = 'evropa';
+insert into public.conquest_links (map, a, b) values
+    ('evropa', 'Q145', 'Q142'),
+    ('evropa', 'Q145', 'Q189'),
+    ('evropa', 'Q145', 'Q27'),
+    ('evropa', 'Q27', 'Q145'),
+    ('evropa', 'Q189', 'Q145'),
+    ('evropa', 'Q189', 'Q20'),
+    ('evropa', 'Q20', 'Q159'),
+    ('evropa', 'Q20', 'Q189'),
+    ('evropa', 'Q20', 'Q33'),
+    ('evropa', 'Q20', 'Q34'),
+    ('evropa', 'Q20', 'Q35'),
+    ('evropa', 'Q34', 'Q20'),
+    ('evropa', 'Q34', 'Q33'),
+    ('evropa', 'Q34', 'Q35'),
+    ('evropa', 'Q33', 'Q159'),
+    ('evropa', 'Q33', 'Q191'),
+    ('evropa', 'Q33', 'Q20'),
+    ('evropa', 'Q33', 'Q34'),
+    ('evropa', 'Q35', 'Q183'),
+    ('evropa', 'Q35', 'Q20'),
+    ('evropa', 'Q35', 'Q34'),
+    ('evropa', 'Q191', 'Q159'),
+    ('evropa', 'Q191', 'Q211'),
+    ('evropa', 'Q191', 'Q33'),
+    ('evropa', 'Q211', 'Q159'),
+    ('evropa', 'Q211', 'Q184'),
+    ('evropa', 'Q211', 'Q191'),
+    ('evropa', 'Q211', 'Q37'),
+    ('evropa', 'Q37', 'Q159'),
+    ('evropa', 'Q37', 'Q184'),
+    ('evropa', 'Q37', 'Q211'),
+    ('evropa', 'Q37', 'Q36'),
+    ('evropa', 'Q29', 'Q142'),
+    ('evropa', 'Q29', 'Q45'),
+    ('evropa', 'Q45', 'Q29'),
+    ('evropa', 'Q142', 'Q145'),
+    ('evropa', 'Q142', 'Q183'),
+    ('evropa', 'Q142', 'Q29'),
+    ('evropa', 'Q142', 'Q31'),
+    ('evropa', 'Q142', 'Q32'),
+    ('evropa', 'Q142', 'Q38'),
+    ('evropa', 'Q142', 'Q39'),
+    ('evropa', 'Q31', 'Q142'),
+    ('evropa', 'Q31', 'Q183'),
+    ('evropa', 'Q31', 'Q32'),
+    ('evropa', 'Q31', 'Q55'),
+    ('evropa', 'Q55', 'Q183'),
+    ('evropa', 'Q55', 'Q31'),
+    ('evropa', 'Q32', 'Q142'),
+    ('evropa', 'Q32', 'Q183'),
+    ('evropa', 'Q32', 'Q31'),
+    ('evropa', 'Q39', 'Q142'),
+    ('evropa', 'Q39', 'Q183'),
+    ('evropa', 'Q39', 'Q38'),
+    ('evropa', 'Q39', 'Q40'),
+    ('evropa', 'Q183', 'Q142'),
+    ('evropa', 'Q183', 'Q213'),
+    ('evropa', 'Q183', 'Q31'),
+    ('evropa', 'Q183', 'Q32'),
+    ('evropa', 'Q183', 'Q35'),
+    ('evropa', 'Q183', 'Q36'),
+    ('evropa', 'Q183', 'Q39'),
+    ('evropa', 'Q183', 'Q40'),
+    ('evropa', 'Q183', 'Q55'),
+    ('evropa', 'Q36', 'Q159'),
+    ('evropa', 'Q36', 'Q183'),
+    ('evropa', 'Q36', 'Q184'),
+    ('evropa', 'Q36', 'Q212'),
+    ('evropa', 'Q36', 'Q213'),
+    ('evropa', 'Q36', 'Q214'),
+    ('evropa', 'Q36', 'Q37'),
+    ('evropa', 'Q213', 'Q183'),
+    ('evropa', 'Q213', 'Q214'),
+    ('evropa', 'Q213', 'Q36'),
+    ('evropa', 'Q213', 'Q40'),
+    ('evropa', 'Q214', 'Q212'),
+    ('evropa', 'Q214', 'Q213'),
+    ('evropa', 'Q214', 'Q28'),
+    ('evropa', 'Q214', 'Q36'),
+    ('evropa', 'Q214', 'Q40'),
+    ('evropa', 'Q40', 'Q183'),
+    ('evropa', 'Q40', 'Q213'),
+    ('evropa', 'Q40', 'Q214'),
+    ('evropa', 'Q40', 'Q215'),
+    ('evropa', 'Q40', 'Q28'),
+    ('evropa', 'Q40', 'Q38'),
+    ('evropa', 'Q40', 'Q39'),
+    ('evropa', 'Q28', 'Q212'),
+    ('evropa', 'Q28', 'Q214'),
+    ('evropa', 'Q28', 'Q215'),
+    ('evropa', 'Q28', 'Q218'),
+    ('evropa', 'Q28', 'Q224'),
+    ('evropa', 'Q28', 'Q40'),
+    ('evropa', 'Q28', 'Q403'),
+    ('evropa', 'Q215', 'Q224'),
+    ('evropa', 'Q215', 'Q28'),
+    ('evropa', 'Q215', 'Q38'),
+    ('evropa', 'Q215', 'Q40'),
+    ('evropa', 'Q224', 'Q215'),
+    ('evropa', 'Q224', 'Q225'),
+    ('evropa', 'Q224', 'Q236'),
+    ('evropa', 'Q224', 'Q28'),
+    ('evropa', 'Q224', 'Q403'),
+    ('evropa', 'Q225', 'Q224'),
+    ('evropa', 'Q225', 'Q236'),
+    ('evropa', 'Q225', 'Q403'),
+    ('evropa', 'Q403', 'Q1246'),
+    ('evropa', 'Q403', 'Q218'),
+    ('evropa', 'Q403', 'Q219'),
+    ('evropa', 'Q403', 'Q221'),
+    ('evropa', 'Q403', 'Q224'),
+    ('evropa', 'Q403', 'Q225'),
+    ('evropa', 'Q403', 'Q236'),
+    ('evropa', 'Q403', 'Q28'),
+    ('evropa', 'Q236', 'Q1246'),
+    ('evropa', 'Q236', 'Q222'),
+    ('evropa', 'Q236', 'Q224'),
+    ('evropa', 'Q236', 'Q225'),
+    ('evropa', 'Q236', 'Q403'),
+    ('evropa', 'Q1246', 'Q221'),
+    ('evropa', 'Q1246', 'Q222'),
+    ('evropa', 'Q1246', 'Q236'),
+    ('evropa', 'Q1246', 'Q403'),
+    ('evropa', 'Q222', 'Q1246'),
+    ('evropa', 'Q222', 'Q221'),
+    ('evropa', 'Q222', 'Q236'),
+    ('evropa', 'Q222', 'Q38'),
+    ('evropa', 'Q222', 'Q41'),
+    ('evropa', 'Q221', 'Q1246'),
+    ('evropa', 'Q221', 'Q219'),
+    ('evropa', 'Q221', 'Q222'),
+    ('evropa', 'Q221', 'Q403'),
+    ('evropa', 'Q221', 'Q41'),
+    ('evropa', 'Q159', 'Q184'),
+    ('evropa', 'Q159', 'Q191'),
+    ('evropa', 'Q159', 'Q20'),
+    ('evropa', 'Q159', 'Q211'),
+    ('evropa', 'Q159', 'Q212'),
+    ('evropa', 'Q159', 'Q33'),
+    ('evropa', 'Q159', 'Q36'),
+    ('evropa', 'Q159', 'Q37'),
+    ('evropa', 'Q184', 'Q159'),
+    ('evropa', 'Q184', 'Q211'),
+    ('evropa', 'Q184', 'Q212'),
+    ('evropa', 'Q184', 'Q36'),
+    ('evropa', 'Q184', 'Q37'),
+    ('evropa', 'Q212', 'Q159'),
+    ('evropa', 'Q212', 'Q184'),
+    ('evropa', 'Q212', 'Q214'),
+    ('evropa', 'Q212', 'Q217'),
+    ('evropa', 'Q212', 'Q218'),
+    ('evropa', 'Q212', 'Q28'),
+    ('evropa', 'Q212', 'Q36'),
+    ('evropa', 'Q217', 'Q212'),
+    ('evropa', 'Q217', 'Q218'),
+    ('evropa', 'Q218', 'Q212'),
+    ('evropa', 'Q218', 'Q217'),
+    ('evropa', 'Q218', 'Q219'),
+    ('evropa', 'Q218', 'Q28'),
+    ('evropa', 'Q218', 'Q403'),
+    ('evropa', 'Q219', 'Q218'),
+    ('evropa', 'Q219', 'Q221'),
+    ('evropa', 'Q219', 'Q403'),
+    ('evropa', 'Q219', 'Q41'),
+    ('evropa', 'Q219', 'Q43'),
+    ('evropa', 'Q38', 'Q142'),
+    ('evropa', 'Q38', 'Q215'),
+    ('evropa', 'Q38', 'Q222'),
+    ('evropa', 'Q38', 'Q39'),
+    ('evropa', 'Q38', 'Q40'),
+    ('evropa', 'Q41', 'Q219'),
+    ('evropa', 'Q41', 'Q221'),
+    ('evropa', 'Q41', 'Q222'),
+    ('evropa', 'Q41', 'Q229'),
+    ('evropa', 'Q41', 'Q43'),
+    ('evropa', 'Q229', 'Q41'),
+    ('evropa', 'Q229', 'Q43'),
+    ('evropa', 'Q43', 'Q219'),
+    ('evropa', 'Q43', 'Q229'),
+    ('evropa', 'Q43', 'Q41');
+-- Mapa Afrika: 49 území, 9 regionů
+insert into public.conquest_maps (id, title, territories, treasures, max_players) values ('afrika', 'Afrika', 49, 5, 8)
+    on conflict (id) do update set title = excluded.title, territories = excluded.territories, treasures = excluded.treasures, max_players = excluded.max_players;
+delete from public.conquest_regions where map = 'afrika';
+insert into public.conquest_regions (map, territory, region) values
+    ('afrika', 'Q1028', 'severni-afrika'),
+    ('afrika', 'Q262', 'severni-afrika'),
+    ('afrika', 'Q948', 'severni-afrika'),
+    ('afrika', 'Q1016', 'severni-afrika'),
+    ('afrika', 'Q79', 'severni-afrika'),
+    ('afrika', 'Q1025', 'sahel'),
+    ('afrika', 'Q912', 'sahel'),
+    ('afrika', 'Q965', 'sahel'),
+    ('afrika', 'Q1032', 'sahel'),
+    ('afrika', 'Q657', 'sahel'),
+    ('afrika', 'Q1049', 'sahel'),
+    ('afrika', 'Q1041', 'zapadni-pobrezi'),
+    ('afrika', 'Q1005', 'zapadni-pobrezi'),
+    ('afrika', 'Q1007', 'zapadni-pobrezi'),
+    ('afrika', 'Q1006', 'zapadni-pobrezi'),
+    ('afrika', 'Q1044', 'zapadni-pobrezi'),
+    ('afrika', 'Q1014', 'zapadni-pobrezi'),
+    ('afrika', 'Q1008', 'guinejsky-zaliv'),
+    ('afrika', 'Q117', 'guinejsky-zaliv'),
+    ('afrika', 'Q945', 'guinejsky-zaliv'),
+    ('afrika', 'Q962', 'guinejsky-zaliv'),
+    ('afrika', 'Q1033', 'guinejsky-zaliv'),
+    ('afrika', 'Q1009', 'stredni-afrika'),
+    ('afrika', 'Q983', 'stredni-afrika'),
+    ('afrika', 'Q1000', 'stredni-afrika'),
+    ('afrika', 'Q971', 'stredni-afrika'),
+    ('afrika', 'Q974', 'stredni-afrika'),
+    ('afrika', 'Q929', 'stredni-afrika'),
+    ('afrika', 'Q115', 'africky-roh'),
+    ('afrika', 'Q986', 'africky-roh'),
+    ('afrika', 'Q977', 'africky-roh'),
+    ('afrika', 'Q1045', 'africky-roh'),
+    ('afrika', 'Q958', 'africky-roh'),
+    ('afrika', 'Q114', 'vychodni-afrika'),
+    ('afrika', 'Q1036', 'vychodni-afrika'),
+    ('afrika', 'Q1037', 'vychodni-afrika'),
+    ('afrika', 'Q967', 'vychodni-afrika'),
+    ('afrika', 'Q924', 'vychodni-afrika'),
+    ('afrika', 'Q258', 'jizni-afrika'),
+    ('afrika', 'Q1013', 'jizni-afrika'),
+    ('afrika', 'Q1050', 'jizni-afrika'),
+    ('afrika', 'Q1030', 'jizni-afrika'),
+    ('afrika', 'Q963', 'jizni-afrika'),
+    ('afrika', 'Q954', 'jizni-afrika'),
+    ('afrika', 'Q916', 'zambezi'),
+    ('afrika', 'Q953', 'zambezi'),
+    ('afrika', 'Q1020', 'zambezi'),
+    ('afrika', 'Q1029', 'zambezi'),
+    ('afrika', 'Q1019', 'zambezi');
+delete from public.conquest_links where map = 'afrika';
+insert into public.conquest_links (map, a, b) values
+    ('afrika', 'Q1028', 'Q262'),
+    ('afrika', 'Q262', 'Q1016'),
+    ('afrika', 'Q262', 'Q1025'),
+    ('afrika', 'Q262', 'Q1028'),
+    ('afrika', 'Q262', 'Q1032'),
+    ('afrika', 'Q262', 'Q912'),
+    ('afrika', 'Q262', 'Q948'),
+    ('afrika', 'Q948', 'Q1016'),
+    ('afrika', 'Q948', 'Q262'),
+    ('afrika', 'Q1016', 'Q1032'),
+    ('afrika', 'Q1016', 'Q1049'),
+    ('afrika', 'Q1016', 'Q262'),
+    ('afrika', 'Q1016', 'Q657'),
+    ('afrika', 'Q1016', 'Q79'),
+    ('afrika', 'Q1016', 'Q948'),
+    ('afrika', 'Q79', 'Q1016'),
+    ('afrika', 'Q79', 'Q1049'),
+    ('afrika', 'Q1025', 'Q1041'),
+    ('afrika', 'Q1025', 'Q262'),
+    ('afrika', 'Q1025', 'Q912'),
+    ('afrika', 'Q912', 'Q1006'),
+    ('afrika', 'Q912', 'Q1008'),
+    ('afrika', 'Q912', 'Q1025'),
+    ('afrika', 'Q912', 'Q1032'),
+    ('afrika', 'Q912', 'Q1041'),
+    ('afrika', 'Q912', 'Q262'),
+    ('afrika', 'Q912', 'Q965'),
+    ('afrika', 'Q965', 'Q1008'),
+    ('afrika', 'Q965', 'Q1032'),
+    ('afrika', 'Q965', 'Q117'),
+    ('afrika', 'Q965', 'Q912'),
+    ('afrika', 'Q965', 'Q945'),
+    ('afrika', 'Q965', 'Q962'),
+    ('afrika', 'Q1032', 'Q1009'),
+    ('afrika', 'Q1032', 'Q1016'),
+    ('afrika', 'Q1032', 'Q1033'),
+    ('afrika', 'Q1032', 'Q262'),
+    ('afrika', 'Q1032', 'Q657'),
+    ('afrika', 'Q1032', 'Q912'),
+    ('afrika', 'Q1032', 'Q962'),
+    ('afrika', 'Q1032', 'Q965'),
+    ('afrika', 'Q657', 'Q1009'),
+    ('afrika', 'Q657', 'Q1016'),
+    ('afrika', 'Q657', 'Q1032'),
+    ('afrika', 'Q657', 'Q1033'),
+    ('afrika', 'Q657', 'Q1049'),
+    ('afrika', 'Q657', 'Q929'),
+    ('afrika', 'Q1049', 'Q1016'),
+    ('afrika', 'Q1049', 'Q115'),
+    ('afrika', 'Q1049', 'Q657'),
+    ('afrika', 'Q1049', 'Q79'),
+    ('afrika', 'Q1049', 'Q929'),
+    ('afrika', 'Q1049', 'Q958'),
+    ('afrika', 'Q1049', 'Q986'),
+    ('afrika', 'Q1041', 'Q1005'),
+    ('afrika', 'Q1041', 'Q1006'),
+    ('afrika', 'Q1041', 'Q1007'),
+    ('afrika', 'Q1041', 'Q1025'),
+    ('afrika', 'Q1041', 'Q912'),
+    ('afrika', 'Q1005', 'Q1041'),
+    ('afrika', 'Q1007', 'Q1006'),
+    ('afrika', 'Q1007', 'Q1041'),
+    ('afrika', 'Q1006', 'Q1007'),
+    ('afrika', 'Q1006', 'Q1008'),
+    ('afrika', 'Q1006', 'Q1014'),
+    ('afrika', 'Q1006', 'Q1041'),
+    ('afrika', 'Q1006', 'Q1044'),
+    ('afrika', 'Q1006', 'Q912'),
+    ('afrika', 'Q1044', 'Q1006'),
+    ('afrika', 'Q1044', 'Q1014'),
+    ('afrika', 'Q1014', 'Q1006'),
+    ('afrika', 'Q1014', 'Q1008'),
+    ('afrika', 'Q1014', 'Q1044'),
+    ('afrika', 'Q1008', 'Q1006'),
+    ('afrika', 'Q1008', 'Q1014'),
+    ('afrika', 'Q1008', 'Q117'),
+    ('afrika', 'Q1008', 'Q912'),
+    ('afrika', 'Q1008', 'Q965'),
+    ('afrika', 'Q117', 'Q1008'),
+    ('afrika', 'Q117', 'Q945'),
+    ('afrika', 'Q117', 'Q965'),
+    ('afrika', 'Q945', 'Q117'),
+    ('afrika', 'Q945', 'Q962'),
+    ('afrika', 'Q945', 'Q965'),
+    ('afrika', 'Q962', 'Q1032'),
+    ('afrika', 'Q962', 'Q1033'),
+    ('afrika', 'Q962', 'Q945'),
+    ('afrika', 'Q962', 'Q965'),
+    ('afrika', 'Q1033', 'Q1009'),
+    ('afrika', 'Q1033', 'Q1032'),
+    ('afrika', 'Q1033', 'Q657'),
+    ('afrika', 'Q1033', 'Q962'),
+    ('afrika', 'Q1009', 'Q1000'),
+    ('afrika', 'Q1009', 'Q1032'),
+    ('afrika', 'Q1009', 'Q1033'),
+    ('afrika', 'Q1009', 'Q657'),
+    ('afrika', 'Q1009', 'Q929'),
+    ('afrika', 'Q1009', 'Q971'),
+    ('afrika', 'Q1009', 'Q983'),
+    ('afrika', 'Q983', 'Q1000'),
+    ('afrika', 'Q983', 'Q1009'),
+    ('afrika', 'Q1000', 'Q1009'),
+    ('afrika', 'Q1000', 'Q971'),
+    ('afrika', 'Q1000', 'Q983'),
+    ('afrika', 'Q971', 'Q1000'),
+    ('afrika', 'Q971', 'Q1009'),
+    ('afrika', 'Q971', 'Q916'),
+    ('afrika', 'Q971', 'Q929'),
+    ('afrika', 'Q971', 'Q974'),
+    ('afrika', 'Q974', 'Q1036'),
+    ('afrika', 'Q974', 'Q1037'),
+    ('afrika', 'Q974', 'Q916'),
+    ('afrika', 'Q974', 'Q924'),
+    ('afrika', 'Q974', 'Q929'),
+    ('afrika', 'Q974', 'Q953'),
+    ('afrika', 'Q974', 'Q958'),
+    ('afrika', 'Q974', 'Q967'),
+    ('afrika', 'Q974', 'Q971'),
+    ('afrika', 'Q929', 'Q1009'),
+    ('afrika', 'Q929', 'Q1049'),
+    ('afrika', 'Q929', 'Q657'),
+    ('afrika', 'Q929', 'Q958'),
+    ('afrika', 'Q929', 'Q971'),
+    ('afrika', 'Q929', 'Q974'),
+    ('afrika', 'Q115', 'Q1045'),
+    ('afrika', 'Q115', 'Q1049'),
+    ('afrika', 'Q115', 'Q114'),
+    ('afrika', 'Q115', 'Q958'),
+    ('afrika', 'Q115', 'Q977'),
+    ('afrika', 'Q115', 'Q986'),
+    ('afrika', 'Q986', 'Q1049'),
+    ('afrika', 'Q986', 'Q115'),
+    ('afrika', 'Q986', 'Q977'),
+    ('afrika', 'Q977', 'Q1045'),
+    ('afrika', 'Q977', 'Q115'),
+    ('afrika', 'Q977', 'Q986'),
+    ('afrika', 'Q1045', 'Q114'),
+    ('afrika', 'Q1045', 'Q115'),
+    ('afrika', 'Q1045', 'Q977'),
+    ('afrika', 'Q958', 'Q1036'),
+    ('afrika', 'Q958', 'Q1049'),
+    ('afrika', 'Q958', 'Q114'),
+    ('afrika', 'Q958', 'Q115'),
+    ('afrika', 'Q958', 'Q929'),
+    ('afrika', 'Q958', 'Q974'),
+    ('afrika', 'Q114', 'Q1036'),
+    ('afrika', 'Q114', 'Q1045'),
+    ('afrika', 'Q114', 'Q115'),
+    ('afrika', 'Q114', 'Q924'),
+    ('afrika', 'Q114', 'Q958'),
+    ('afrika', 'Q1036', 'Q1037'),
+    ('afrika', 'Q1036', 'Q114'),
+    ('afrika', 'Q1036', 'Q924'),
+    ('afrika', 'Q1036', 'Q958'),
+    ('afrika', 'Q1036', 'Q974'),
+    ('afrika', 'Q1037', 'Q1036'),
+    ('afrika', 'Q1037', 'Q924'),
+    ('afrika', 'Q1037', 'Q967'),
+    ('afrika', 'Q1037', 'Q974'),
+    ('afrika', 'Q967', 'Q1037'),
+    ('afrika', 'Q967', 'Q924'),
+    ('afrika', 'Q967', 'Q974'),
+    ('afrika', 'Q924', 'Q1020'),
+    ('afrika', 'Q924', 'Q1029'),
+    ('afrika', 'Q924', 'Q1036'),
+    ('afrika', 'Q924', 'Q1037'),
+    ('afrika', 'Q924', 'Q114'),
+    ('afrika', 'Q924', 'Q953'),
+    ('afrika', 'Q924', 'Q967'),
+    ('afrika', 'Q924', 'Q974'),
+    ('afrika', 'Q258', 'Q1013'),
+    ('afrika', 'Q258', 'Q1029'),
+    ('afrika', 'Q258', 'Q1030'),
+    ('afrika', 'Q258', 'Q1050'),
+    ('afrika', 'Q258', 'Q954'),
+    ('afrika', 'Q258', 'Q963'),
+    ('afrika', 'Q1013', 'Q258'),
+    ('afrika', 'Q1050', 'Q1029'),
+    ('afrika', 'Q1050', 'Q258'),
+    ('afrika', 'Q1030', 'Q258'),
+    ('afrika', 'Q1030', 'Q916'),
+    ('afrika', 'Q1030', 'Q953'),
+    ('afrika', 'Q1030', 'Q963'),
+    ('afrika', 'Q963', 'Q1030'),
+    ('afrika', 'Q963', 'Q258'),
+    ('afrika', 'Q963', 'Q953'),
+    ('afrika', 'Q963', 'Q954'),
+    ('afrika', 'Q954', 'Q1029'),
+    ('afrika', 'Q954', 'Q258'),
+    ('afrika', 'Q954', 'Q953'),
+    ('afrika', 'Q954', 'Q963'),
+    ('afrika', 'Q916', 'Q1030'),
+    ('afrika', 'Q916', 'Q953'),
+    ('afrika', 'Q916', 'Q971'),
+    ('afrika', 'Q916', 'Q974'),
+    ('afrika', 'Q953', 'Q1020'),
+    ('afrika', 'Q953', 'Q1029'),
+    ('afrika', 'Q953', 'Q1030'),
+    ('afrika', 'Q953', 'Q916'),
+    ('afrika', 'Q953', 'Q924'),
+    ('afrika', 'Q953', 'Q954'),
+    ('afrika', 'Q953', 'Q963'),
+    ('afrika', 'Q953', 'Q974'),
+    ('afrika', 'Q1020', 'Q1029'),
+    ('afrika', 'Q1020', 'Q924'),
+    ('afrika', 'Q1020', 'Q953'),
+    ('afrika', 'Q1029', 'Q1019'),
+    ('afrika', 'Q1029', 'Q1020'),
+    ('afrika', 'Q1029', 'Q1050'),
+    ('afrika', 'Q1029', 'Q258'),
+    ('afrika', 'Q1029', 'Q924'),
+    ('afrika', 'Q1029', 'Q953'),
+    ('afrika', 'Q1029', 'Q954'),
+    ('afrika', 'Q1019', 'Q1029');
+-- Mapa Asie: 45 území, 9 regionů
+insert into public.conquest_maps (id, title, territories, treasures, max_players) values ('asie', 'Asie', 45, 5, 8)
+    on conflict (id) do update set title = excluded.title, territories = excluded.territories, treasures = excluded.treasures, max_players = excluded.max_players;
+delete from public.conquest_regions where map = 'asie';
+insert into public.conquest_regions (map, territory, region) values
+    ('asie', 'Q43', 'blizky-vychod'),
+    ('asie', 'Q858', 'blizky-vychod'),
+    ('asie', 'Q822', 'blizky-vychod'),
+    ('asie', 'Q801', 'blizky-vychod'),
+    ('asie', 'Q810', 'blizky-vychod'),
+    ('asie', 'Q796', 'blizky-vychod'),
+    ('asie', 'Q851', 'arabie'),
+    ('asie', 'Q805', 'arabie'),
+    ('asie', 'Q842', 'arabie'),
+    ('asie', 'Q878', 'arabie'),
+    ('asie', 'Q846', 'arabie'),
+    ('asie', 'Q817', 'arabie'),
+    ('asie', 'Q230', 'kavkaz'),
+    ('asie', 'Q399', 'kavkaz'),
+    ('asie', 'Q227', 'kavkaz'),
+    ('asie', 'Q794', 'kavkaz'),
+    ('asie', 'Q159', 'sibir-step'),
+    ('asie', 'Q232', 'sibir-step'),
+    ('asie', 'Q711', 'sibir-step'),
+    ('asie', 'Q265', 'stredni-asie'),
+    ('asie', 'Q874', 'stredni-asie'),
+    ('asie', 'Q863', 'stredni-asie'),
+    ('asie', 'Q813', 'stredni-asie'),
+    ('asie', 'Q889', 'stredni-asie'),
+    ('asie', 'Q843', 'indicky-subkontinent'),
+    ('asie', 'Q668', 'indicky-subkontinent'),
+    ('asie', 'Q837', 'indicky-subkontinent'),
+    ('asie', 'Q917', 'indicky-subkontinent'),
+    ('asie', 'Q902', 'indicky-subkontinent'),
+    ('asie', 'Q854', 'indicky-subkontinent'),
+    ('asie', 'Q148', 'dalny-vychod'),
+    ('asie', 'Q423', 'dalny-vychod'),
+    ('asie', 'Q884', 'dalny-vychod'),
+    ('asie', 'Q17', 'dalny-vychod'),
+    ('asie', 'Q865', 'dalny-vychod'),
+    ('asie', 'Q836', 'indocina'),
+    ('asie', 'Q869', 'indocina'),
+    ('asie', 'Q819', 'indocina'),
+    ('asie', 'Q424', 'indocina'),
+    ('asie', 'Q881', 'indocina'),
+    ('asie', 'Q833', 'malajske-souostrovi'),
+    ('asie', 'Q921', 'malajske-souostrovi'),
+    ('asie', 'Q252', 'malajske-souostrovi'),
+    ('asie', 'Q574', 'malajske-souostrovi'),
+    ('asie', 'Q928', 'malajske-souostrovi');
+delete from public.conquest_links where map = 'asie';
+insert into public.conquest_links (map, a, b) values
+    ('asie', 'Q43', 'Q230'),
+    ('asie', 'Q43', 'Q399'),
+    ('asie', 'Q43', 'Q794'),
+    ('asie', 'Q43', 'Q796'),
+    ('asie', 'Q43', 'Q858'),
+    ('asie', 'Q858', 'Q43'),
+    ('asie', 'Q858', 'Q796'),
+    ('asie', 'Q858', 'Q801'),
+    ('asie', 'Q858', 'Q810'),
+    ('asie', 'Q858', 'Q822'),
+    ('asie', 'Q822', 'Q801'),
+    ('asie', 'Q822', 'Q858'),
+    ('asie', 'Q801', 'Q810'),
+    ('asie', 'Q801', 'Q822'),
+    ('asie', 'Q801', 'Q858'),
+    ('asie', 'Q810', 'Q796'),
+    ('asie', 'Q810', 'Q801'),
+    ('asie', 'Q810', 'Q851'),
+    ('asie', 'Q810', 'Q858'),
+    ('asie', 'Q796', 'Q43'),
+    ('asie', 'Q796', 'Q794'),
+    ('asie', 'Q796', 'Q810'),
+    ('asie', 'Q796', 'Q817'),
+    ('asie', 'Q796', 'Q851'),
+    ('asie', 'Q796', 'Q858'),
+    ('asie', 'Q851', 'Q794'),
+    ('asie', 'Q851', 'Q796'),
+    ('asie', 'Q851', 'Q805'),
+    ('asie', 'Q851', 'Q810'),
+    ('asie', 'Q851', 'Q817'),
+    ('asie', 'Q851', 'Q842'),
+    ('asie', 'Q851', 'Q846'),
+    ('asie', 'Q851', 'Q878'),
+    ('asie', 'Q805', 'Q842'),
+    ('asie', 'Q805', 'Q851'),
+    ('asie', 'Q842', 'Q794'),
+    ('asie', 'Q842', 'Q805'),
+    ('asie', 'Q842', 'Q851'),
+    ('asie', 'Q842', 'Q878'),
+    ('asie', 'Q878', 'Q794'),
+    ('asie', 'Q878', 'Q842'),
+    ('asie', 'Q878', 'Q846'),
+    ('asie', 'Q878', 'Q851'),
+    ('asie', 'Q846', 'Q851'),
+    ('asie', 'Q846', 'Q878'),
+    ('asie', 'Q817', 'Q796'),
+    ('asie', 'Q817', 'Q851'),
+    ('asie', 'Q230', 'Q159'),
+    ('asie', 'Q230', 'Q227'),
+    ('asie', 'Q230', 'Q399'),
+    ('asie', 'Q230', 'Q43'),
+    ('asie', 'Q399', 'Q227'),
+    ('asie', 'Q399', 'Q230'),
+    ('asie', 'Q399', 'Q43'),
+    ('asie', 'Q399', 'Q794'),
+    ('asie', 'Q227', 'Q159'),
+    ('asie', 'Q227', 'Q230'),
+    ('asie', 'Q227', 'Q399'),
+    ('asie', 'Q227', 'Q794'),
+    ('asie', 'Q794', 'Q227'),
+    ('asie', 'Q794', 'Q399'),
+    ('asie', 'Q794', 'Q43'),
+    ('asie', 'Q794', 'Q796'),
+    ('asie', 'Q794', 'Q842'),
+    ('asie', 'Q794', 'Q843'),
+    ('asie', 'Q794', 'Q851'),
+    ('asie', 'Q794', 'Q874'),
+    ('asie', 'Q794', 'Q878'),
+    ('asie', 'Q794', 'Q889'),
+    ('asie', 'Q159', 'Q148'),
+    ('asie', 'Q159', 'Q17'),
+    ('asie', 'Q159', 'Q227'),
+    ('asie', 'Q159', 'Q230'),
+    ('asie', 'Q159', 'Q232'),
+    ('asie', 'Q159', 'Q423'),
+    ('asie', 'Q159', 'Q711'),
+    ('asie', 'Q232', 'Q148'),
+    ('asie', 'Q232', 'Q159'),
+    ('asie', 'Q232', 'Q265'),
+    ('asie', 'Q232', 'Q813'),
+    ('asie', 'Q232', 'Q874'),
+    ('asie', 'Q711', 'Q148'),
+    ('asie', 'Q711', 'Q159'),
+    ('asie', 'Q265', 'Q232'),
+    ('asie', 'Q265', 'Q813'),
+    ('asie', 'Q265', 'Q863'),
+    ('asie', 'Q265', 'Q874'),
+    ('asie', 'Q265', 'Q889'),
+    ('asie', 'Q874', 'Q232'),
+    ('asie', 'Q874', 'Q265'),
+    ('asie', 'Q874', 'Q794'),
+    ('asie', 'Q874', 'Q889'),
+    ('asie', 'Q863', 'Q148'),
+    ('asie', 'Q863', 'Q265'),
+    ('asie', 'Q863', 'Q813'),
+    ('asie', 'Q863', 'Q889'),
+    ('asie', 'Q813', 'Q148'),
+    ('asie', 'Q813', 'Q232'),
+    ('asie', 'Q813', 'Q265'),
+    ('asie', 'Q813', 'Q863'),
+    ('asie', 'Q889', 'Q148'),
+    ('asie', 'Q889', 'Q265'),
+    ('asie', 'Q889', 'Q794'),
+    ('asie', 'Q889', 'Q843'),
+    ('asie', 'Q889', 'Q863'),
+    ('asie', 'Q889', 'Q874'),
+    ('asie', 'Q843', 'Q148'),
+    ('asie', 'Q843', 'Q668'),
+    ('asie', 'Q843', 'Q794'),
+    ('asie', 'Q843', 'Q889'),
+    ('asie', 'Q668', 'Q148'),
+    ('asie', 'Q668', 'Q836'),
+    ('asie', 'Q668', 'Q837'),
+    ('asie', 'Q668', 'Q843'),
+    ('asie', 'Q668', 'Q854'),
+    ('asie', 'Q668', 'Q902'),
+    ('asie', 'Q668', 'Q917'),
+    ('asie', 'Q837', 'Q148'),
+    ('asie', 'Q837', 'Q668'),
+    ('asie', 'Q917', 'Q148'),
+    ('asie', 'Q917', 'Q668'),
+    ('asie', 'Q902', 'Q668'),
+    ('asie', 'Q902', 'Q836'),
+    ('asie', 'Q854', 'Q668'),
+    ('asie', 'Q148', 'Q159'),
+    ('asie', 'Q148', 'Q232'),
+    ('asie', 'Q148', 'Q423'),
+    ('asie', 'Q148', 'Q668'),
+    ('asie', 'Q148', 'Q711'),
+    ('asie', 'Q148', 'Q813'),
+    ('asie', 'Q148', 'Q819'),
+    ('asie', 'Q148', 'Q836'),
+    ('asie', 'Q148', 'Q837'),
+    ('asie', 'Q148', 'Q843'),
+    ('asie', 'Q148', 'Q863'),
+    ('asie', 'Q148', 'Q865'),
+    ('asie', 'Q148', 'Q881'),
+    ('asie', 'Q148', 'Q889'),
+    ('asie', 'Q148', 'Q917'),
+    ('asie', 'Q423', 'Q148'),
+    ('asie', 'Q423', 'Q159'),
+    ('asie', 'Q423', 'Q884'),
+    ('asie', 'Q884', 'Q17'),
+    ('asie', 'Q884', 'Q423'),
+    ('asie', 'Q17', 'Q159'),
+    ('asie', 'Q17', 'Q884'),
+    ('asie', 'Q865', 'Q148'),
+    ('asie', 'Q836', 'Q148'),
+    ('asie', 'Q836', 'Q668'),
+    ('asie', 'Q836', 'Q819'),
+    ('asie', 'Q836', 'Q869'),
+    ('asie', 'Q836', 'Q902'),
+    ('asie', 'Q869', 'Q424'),
+    ('asie', 'Q869', 'Q819'),
+    ('asie', 'Q869', 'Q833'),
+    ('asie', 'Q869', 'Q836'),
+    ('asie', 'Q819', 'Q148'),
+    ('asie', 'Q819', 'Q424'),
+    ('asie', 'Q819', 'Q836'),
+    ('asie', 'Q819', 'Q869'),
+    ('asie', 'Q819', 'Q881'),
+    ('asie', 'Q424', 'Q819'),
+    ('asie', 'Q424', 'Q869'),
+    ('asie', 'Q424', 'Q881'),
+    ('asie', 'Q881', 'Q148'),
+    ('asie', 'Q881', 'Q424'),
+    ('asie', 'Q881', 'Q819'),
+    ('asie', 'Q833', 'Q252'),
+    ('asie', 'Q833', 'Q869'),
+    ('asie', 'Q833', 'Q921'),
+    ('asie', 'Q833', 'Q928'),
+    ('asie', 'Q921', 'Q833'),
+    ('asie', 'Q252', 'Q574'),
+    ('asie', 'Q252', 'Q833'),
+    ('asie', 'Q574', 'Q252'),
+    ('asie', 'Q928', 'Q833');
+-- Mapa Amerika: 28 území, 6 regionů
+insert into public.conquest_maps (id, title, territories, treasures, max_players) values ('amerika', 'Amerika', 28, 3, 8)
+    on conflict (id) do update set title = excluded.title, territories = excluded.territories, treasures = excluded.treasures, max_players = excluded.max_players;
+delete from public.conquest_regions where map = 'amerika';
+insert into public.conquest_regions (map, territory, region) values
+    ('amerika', 'Q16', 'severni-amerika'),
+    ('amerika', 'Q30', 'severni-amerika'),
+    ('amerika', 'Q96', 'severni-amerika'),
+    ('amerika', 'Q774', 'stredni-amerika'),
+    ('amerika', 'Q242', 'stredni-amerika'),
+    ('amerika', 'Q783', 'stredni-amerika'),
+    ('amerika', 'Q792', 'stredni-amerika'),
+    ('amerika', 'Q811', 'stredni-amerika'),
+    ('amerika', 'Q800', 'stredni-amerika'),
+    ('amerika', 'Q804', 'stredni-amerika'),
+    ('amerika', 'Q241', 'karibik'),
+    ('amerika', 'Q778', 'karibik'),
+    ('amerika', 'Q766', 'karibik'),
+    ('amerika', 'Q790', 'karibik'),
+    ('amerika', 'Q786', 'karibik'),
+    ('amerika', 'Q754', 'karibik'),
+    ('amerika', 'Q739', 'sever-jizni-ameriky'),
+    ('amerika', 'Q717', 'sever-jizni-ameriky'),
+    ('amerika', 'Q734', 'sever-jizni-ameriky'),
+    ('amerika', 'Q730', 'sever-jizni-ameriky'),
+    ('amerika', 'Q736', 'andy'),
+    ('amerika', 'Q419', 'andy'),
+    ('amerika', 'Q750', 'andy'),
+    ('amerika', 'Q298', 'andy'),
+    ('amerika', 'Q155', 'brazilie-jih'),
+    ('amerika', 'Q414', 'brazilie-jih'),
+    ('amerika', 'Q77', 'brazilie-jih'),
+    ('amerika', 'Q733', 'brazilie-jih');
+delete from public.conquest_links where map = 'amerika';
+insert into public.conquest_links (map, a, b) values
+    ('amerika', 'Q16', 'Q30'),
+    ('amerika', 'Q30', 'Q16'),
+    ('amerika', 'Q30', 'Q241'),
+    ('amerika', 'Q30', 'Q778'),
+    ('amerika', 'Q30', 'Q96'),
+    ('amerika', 'Q96', 'Q241'),
+    ('amerika', 'Q96', 'Q242'),
+    ('amerika', 'Q96', 'Q30'),
+    ('amerika', 'Q96', 'Q774'),
+    ('amerika', 'Q774', 'Q242'),
+    ('amerika', 'Q774', 'Q783'),
+    ('amerika', 'Q774', 'Q792'),
+    ('amerika', 'Q774', 'Q96'),
+    ('amerika', 'Q242', 'Q774'),
+    ('amerika', 'Q242', 'Q96'),
+    ('amerika', 'Q783', 'Q774'),
+    ('amerika', 'Q783', 'Q792'),
+    ('amerika', 'Q783', 'Q811'),
+    ('amerika', 'Q792', 'Q774'),
+    ('amerika', 'Q792', 'Q783'),
+    ('amerika', 'Q792', 'Q811'),
+    ('amerika', 'Q811', 'Q783'),
+    ('amerika', 'Q811', 'Q792'),
+    ('amerika', 'Q811', 'Q800'),
+    ('amerika', 'Q800', 'Q804'),
+    ('amerika', 'Q800', 'Q811'),
+    ('amerika', 'Q804', 'Q739'),
+    ('amerika', 'Q804', 'Q800'),
+    ('amerika', 'Q241', 'Q30'),
+    ('amerika', 'Q241', 'Q766'),
+    ('amerika', 'Q241', 'Q778'),
+    ('amerika', 'Q241', 'Q790'),
+    ('amerika', 'Q241', 'Q96'),
+    ('amerika', 'Q778', 'Q241'),
+    ('amerika', 'Q778', 'Q30'),
+    ('amerika', 'Q766', 'Q241'),
+    ('amerika', 'Q766', 'Q790'),
+    ('amerika', 'Q790', 'Q241'),
+    ('amerika', 'Q790', 'Q766'),
+    ('amerika', 'Q790', 'Q786'),
+    ('amerika', 'Q786', 'Q790'),
+    ('amerika', 'Q754', 'Q717'),
+    ('amerika', 'Q754', 'Q734'),
+    ('amerika', 'Q739', 'Q155'),
+    ('amerika', 'Q739', 'Q419'),
+    ('amerika', 'Q739', 'Q717'),
+    ('amerika', 'Q739', 'Q736'),
+    ('amerika', 'Q739', 'Q804'),
+    ('amerika', 'Q717', 'Q155'),
+    ('amerika', 'Q717', 'Q734'),
+    ('amerika', 'Q717', 'Q739'),
+    ('amerika', 'Q717', 'Q754'),
+    ('amerika', 'Q734', 'Q155'),
+    ('amerika', 'Q734', 'Q717'),
+    ('amerika', 'Q734', 'Q730'),
+    ('amerika', 'Q734', 'Q754'),
+    ('amerika', 'Q730', 'Q155'),
+    ('amerika', 'Q730', 'Q734'),
+    ('amerika', 'Q736', 'Q419'),
+    ('amerika', 'Q736', 'Q739'),
+    ('amerika', 'Q419', 'Q155'),
+    ('amerika', 'Q419', 'Q298'),
+    ('amerika', 'Q419', 'Q736'),
+    ('amerika', 'Q419', 'Q739'),
+    ('amerika', 'Q419', 'Q750'),
+    ('amerika', 'Q750', 'Q155'),
+    ('amerika', 'Q750', 'Q298'),
+    ('amerika', 'Q750', 'Q414'),
+    ('amerika', 'Q750', 'Q419'),
+    ('amerika', 'Q750', 'Q733'),
+    ('amerika', 'Q298', 'Q414'),
+    ('amerika', 'Q298', 'Q419'),
+    ('amerika', 'Q298', 'Q750'),
+    ('amerika', 'Q155', 'Q414'),
+    ('amerika', 'Q155', 'Q419'),
+    ('amerika', 'Q155', 'Q717'),
+    ('amerika', 'Q155', 'Q730'),
+    ('amerika', 'Q155', 'Q733'),
+    ('amerika', 'Q155', 'Q734'),
+    ('amerika', 'Q155', 'Q739'),
+    ('amerika', 'Q155', 'Q750'),
+    ('amerika', 'Q155', 'Q77'),
+    ('amerika', 'Q414', 'Q155'),
+    ('amerika', 'Q414', 'Q298'),
+    ('amerika', 'Q414', 'Q733'),
+    ('amerika', 'Q414', 'Q750'),
+    ('amerika', 'Q414', 'Q77'),
+    ('amerika', 'Q77', 'Q155'),
+    ('amerika', 'Q77', 'Q414'),
+    ('amerika', 'Q733', 'Q155'),
+    ('amerika', 'Q733', 'Q414'),
+    ('amerika', 'Q733', 'Q750');
+-- Mapa Česko: 14 území, 6 regionů
+insert into public.conquest_maps (id, title, territories, treasures, max_players) values ('cesko', 'Česko', 14, 1, 6)
+    on conflict (id) do update set title = excluded.title, territories = excluded.territories, treasures = excluded.treasures, max_players = excluded.max_players;
+delete from public.conquest_regions where map = 'cesko';
+insert into public.conquest_regions (map, territory, region) values
+    ('cesko', 'Q1085', 'stredni-cechy'),
+    ('cesko', 'Q188399', 'stredni-cechy'),
+    ('cesko', 'Q188373', 'jihozapad'),
+    ('cesko', 'Q46070', 'jihozapad'),
+    ('cesko', 'Q191091', 'severozapad'),
+    ('cesko', 'Q192702', 'severozapad'),
+    ('cesko', 'Q193266', 'severovychod'),
+    ('cesko', 'Q193295', 'severovychod'),
+    ('cesko', 'Q193317', 'severovychod'),
+    ('cesko', 'Q190930', 'jihovychod'),
+    ('cesko', 'Q192697', 'jihovychod'),
+    ('cesko', 'Q193307', 'morava'),
+    ('cesko', 'Q192536', 'morava'),
+    ('cesko', 'Q190550', 'morava');
+delete from public.conquest_links where map = 'cesko';
+insert into public.conquest_links (map, a, b) values
+    ('cesko', 'Q1085', 'Q188399'),
+    ('cesko', 'Q188399', 'Q1085'),
+    ('cesko', 'Q188399', 'Q188373'),
+    ('cesko', 'Q188399', 'Q190930'),
+    ('cesko', 'Q188399', 'Q192702'),
+    ('cesko', 'Q188399', 'Q193266'),
+    ('cesko', 'Q188399', 'Q193295'),
+    ('cesko', 'Q188399', 'Q193317'),
+    ('cesko', 'Q188399', 'Q46070'),
+    ('cesko', 'Q188373', 'Q188399'),
+    ('cesko', 'Q188373', 'Q190930'),
+    ('cesko', 'Q188373', 'Q192697'),
+    ('cesko', 'Q188373', 'Q46070'),
+    ('cesko', 'Q46070', 'Q188373'),
+    ('cesko', 'Q46070', 'Q188399'),
+    ('cesko', 'Q46070', 'Q191091'),
+    ('cesko', 'Q191091', 'Q192702'),
+    ('cesko', 'Q191091', 'Q46070'),
+    ('cesko', 'Q192702', 'Q188399'),
+    ('cesko', 'Q192702', 'Q191091'),
+    ('cesko', 'Q192702', 'Q193266'),
+    ('cesko', 'Q193266', 'Q188399'),
+    ('cesko', 'Q193266', 'Q192702'),
+    ('cesko', 'Q193266', 'Q193295'),
+    ('cesko', 'Q193295', 'Q188399'),
+    ('cesko', 'Q193295', 'Q193266'),
+    ('cesko', 'Q193295', 'Q193317'),
+    ('cesko', 'Q193317', 'Q188399'),
+    ('cesko', 'Q193317', 'Q190930'),
+    ('cesko', 'Q193317', 'Q192697'),
+    ('cesko', 'Q193317', 'Q193295'),
+    ('cesko', 'Q193317', 'Q193307'),
+    ('cesko', 'Q190930', 'Q188373'),
+    ('cesko', 'Q190930', 'Q188399'),
+    ('cesko', 'Q190930', 'Q192697'),
+    ('cesko', 'Q190930', 'Q193317'),
+    ('cesko', 'Q192697', 'Q188373'),
+    ('cesko', 'Q192697', 'Q190930'),
+    ('cesko', 'Q192697', 'Q192536'),
+    ('cesko', 'Q192697', 'Q193307'),
+    ('cesko', 'Q192697', 'Q193317'),
+    ('cesko', 'Q193307', 'Q190550'),
+    ('cesko', 'Q193307', 'Q192536'),
+    ('cesko', 'Q193307', 'Q192697'),
+    ('cesko', 'Q193307', 'Q193317'),
+    ('cesko', 'Q192536', 'Q190550'),
+    ('cesko', 'Q192536', 'Q192697'),
+    ('cesko', 'Q192536', 'Q193307'),
+    ('cesko', 'Q190550', 'Q192536'),
+    ('cesko', 'Q190550', 'Q193307');
+-- dobyvani:data:end
+
+-- Je přihlášený hráč ve hře? (pravidla řádků; s právy vlastníka, ať se pravidlo conquest_players nevolá samo na sebe)
+create or replace function public.conquest_is_player(gid uuid) returns boolean
+language sql stable security definer set search_path = public as $$
+    select exists (select 1 from public.conquest_players p where p.game_id = gid and p.user_id = auth.uid());
+$$;
+create or replace function public.conquest_is_open(gid uuid) returns boolean
+language sql stable security definer set search_path = public as $$
+    select exists (select 1 from public.conquest_games g where g.id = gid and g.status = 'lobby' and g.visibility = 'public');
+$$;
+alter table public.conquest_maps enable row level security;
+alter table public.conquest_regions enable row level security;
+alter table public.conquest_links enable row level security;
+alter table public.conquest_games enable row level security;
+alter table public.conquest_players enable row level security;
+alter table public.conquest_territories enable row level security;
+alter table public.conquest_moves enable row level security;
+drop policy if exists "dobývání mapy: čtení" on public.conquest_maps;
+create policy "dobývání mapy: čtení" on public.conquest_maps for select to authenticated using (true);
+drop policy if exists "dobývání regiony: čtení" on public.conquest_regions;
+create policy "dobývání regiony: čtení" on public.conquest_regions for select to authenticated using (true);
+drop policy if exists "dobývání sousedství: čtení" on public.conquest_links;
+create policy "dobývání sousedství: čtení" on public.conquest_links for select to authenticated using (true);
+drop policy if exists "dobývání hry: hráči a otevřené" on public.conquest_games;
+create policy "dobývání hry: hráči a otevřené" on public.conquest_games for select to authenticated using ((status = 'lobby' and visibility = 'public') or public.conquest_is_player(id));
+drop policy if exists "dobývání hráči: hráči a otevřené" on public.conquest_players;
+create policy "dobývání hráči: hráči a otevřené" on public.conquest_players for select to authenticated using (public.conquest_is_open(game_id) or public.conquest_is_player(game_id));
+drop policy if exists "dobývání území: hráči" on public.conquest_territories;
+create policy "dobývání území: hráči" on public.conquest_territories for select to authenticated using (public.conquest_is_player(game_id));
+drop policy if exists "dobývání tahy: hráči" on public.conquest_moves;
+create policy "dobývání tahy: hráči" on public.conquest_moves for select to authenticated using (public.conquest_is_player(game_id));
+revoke all on public.conquest_maps, public.conquest_regions, public.conquest_links, public.conquest_games, public.conquest_players,
+    public.conquest_territories, public.conquest_moves from anon, authenticated;
+grant select on public.conquest_maps, public.conquest_regions, public.conquest_links, public.conquest_games, public.conquest_players,
+    public.conquest_territories, public.conquest_moves to authenticated;
+revoke all on sequence public.conquest_moves_id_seq from anon, authenticated;
+
+-- Čas hry; mudrlant.test_now používají jen testy (z API ho klient nastavit nemůže)
+create or replace function public.conquest_now() returns timestamptz
+language sql stable set search_path = public as $$
+    select coalesce(nullif(current_setting('mudrlant.test_now', true), '')::timestamptz, now())
+$$;
+-- Barvy a znaky hráčů (stejné seznamy má conquest.js: COLORS a EMBLEMS, hlídá tests/conquest.test.js)
+create or replace function public.conquest_colors() returns text[]
+language sql immutable as $$ select array['cervena', 'karminova', 'ruzova', 'malinova', 'oranzova', 'cihlova', 'jantarova', 'zluta', 'olivova', 'limetkova',
+    'zelena', 'lesni', 'smaragdova', 'tyrkysova', 'petrolejova', 'azurova', 'modra', 'namornicka', 'indigova', 'fialova', 'levandulova', 'hneda', 'bridlicova', 'cerna']::text[] $$;
+create or replace function public.conquest_emblems() returns text[]
+language sql immutable as $$ select array['lev', 'orel', 'sova', 'drak', 'koruna', 'mec', 'kotva', 'strom', 'hvezda', 'slunce', 'mesic', 'blesk',
+    'vez', 'klic', 'kladivo', 'lod', 'jelen', 'medved', 'vlk', 'lilie', 'stit', 'srdce', 'plamen', 'kosatka']::text[] $$;
+-- Předvolby Rychlé hry: server drží pro každou jednu otevřenou veřejnou hru
+create or replace function public.conquest_presets() returns table (preset text, map text, max_players integer, hours integer, period text, actions integer)
+language sql immutable as $$
+    select * from (values ('evropa-3d', 'evropa', 6, 72, 'day', 5), ('cesko-12h', 'cesko', 4, 12, 'hour', 3), ('afrika-7d', 'afrika', 8, 168, 'day', 5))
+        v (preset, map, max_players, hours, period, actions)
+$$;
+create or replace function public.conquest_check_look(colour text, emblem_id text) returns void
+language plpgsql immutable set search_path = public as $$
+begin
+    if colour is null or not (colour = any (public.conquest_colors())) then raise exception 'Vyber barvu z nabídky.' using errcode = '22023'; end if;
+    if emblem_id is null or not (emblem_id = any (public.conquest_emblems())) then raise exception 'Vyber znak z nabídky.' using errcode = '22023'; end if;
+end;
+$$;
+-- Kód hry: 6 znaků bez zaměnitelných (jako kód skupiny)
+create or replace function public.conquest_new_code() returns text
+language plpgsql volatile set search_path = public as $$
+declare alphabet text := 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'; raw bytea; candidate text; attempt integer := 0;
+begin
+    loop
+        raw := uuid_send(gen_random_uuid());
+        candidate := '';
+        for i in 0..5 loop candidate := candidate || substr(alphabet, 1 + get_byte(raw, i) % 31, 1); end loop;
+        exit when not exists (select 1 from public.conquest_games where code = candidate);
+        attempt := attempt + 1;
+        if attempt > 20 then raise exception 'Kód hry se nepodařilo vytvořit, zkus to znovu.' using errcode = 'P0001'; end if;
+    end loop;
+    return candidate;
+end;
+$$;
+
+-- Období hry (od 0): kolik celých dní nebo hodin uplynulo od začátku
+create or replace function public.conquest_period_length(per text) returns interval
+language sql immutable as $$ select case when per = 'hour' then interval '1 hour' else interval '1 day' end $$;
+create or replace function public.conquest_period(g public.conquest_games) returns integer
+language sql stable set search_path = public as $$
+    select greatest(0, floor(extract(epoch from (public.conquest_now() - g.started_at)) / extract(epoch from public.conquest_period_length(g.period))))::integer
+$$;
+-- Kolik celých regionů hráč drží
+create or replace function public.conquest_regions_owned(gid uuid, map_id text, uid uuid) returns integer
+language sql stable set search_path = public as $$
+    select count(*)::integer from (
+        select r.region from public.conquest_regions r
+        left join public.conquest_territories t on t.game_id = gid and t.territory = r.territory
+        where r.map = map_id and uid is not null
+        group by r.region
+        having bool_and(coalesce(t.owner = uid, false))
+    ) x
+$$;
+-- Body hráče (území + 2 za celý region); čas se mění, jen když se body změní
+create or replace function public.conquest_rescore(gid uuid, uid uuid) returns void
+language plpgsql set search_path = public as $$
+declare m text; s integer;
+begin
+    if uid is null then return; end if;
+    select map into m from public.conquest_games where id = gid;
+    s := (select count(*) from public.conquest_territories where game_id = gid and owner = uid) + 2 * public.conquest_regions_owned(gid, m, uid);
+    update public.conquest_players set score = s, score_at = public.conquest_now() where game_id = gid and user_id = uid and (score <> s or score_at is null);
+end;
+$$;
+-- Volné území co nejdál (počet kroků po sousedech) od všech obsazených; přednost mají území bez pokladu, při shodě náhoda ze semínka hry
+create or replace function public.conquest_far_territory(gid uuid, salt text) returns text
+language plpgsql volatile set search_path = public as $$
+declare g public.conquest_games; pick text;
+begin
+    select * into g from public.conquest_games where id = gid;
+    with recursive dist (territory, hops) as (
+        select t.territory, 0 from public.conquest_territories t where t.game_id = gid and t.owner is not null
+        union
+        select l.b, d.hops + 1 from dist d join public.conquest_links l on l.map = g.map and l.a = d.territory where d.hops < 12
+    ), best as (select dist.territory, min(dist.hops) as hops from dist group by dist.territory)
+    select t.territory into pick from public.conquest_territories t left join best b on b.territory = t.territory
+    where t.game_id = gid and t.owner is null
+    order by t.treasure, coalesce(b.hops, 99) desc, md5(g.seed || coalesce(salt, '') || t.territory)
+    limit 1;
+    return pick;
+end;
+$$;
+-- Začátek hry: území, domovy (po jednom, každý co nejdál od dosavadních), poklady (pokud možno ne vedle domova), body
+create or replace function public.conquest_start(gid uuid) returns void
+language plpgsql set search_path = public as $$
+declare g public.conquest_games; p record; home_id text; treasure_count integer;
+begin
+    select * into g from public.conquest_games where id = gid for update;
+    if g.id is null or g.status <> 'lobby' then return; end if;
+    update public.conquest_games set status = 'running', started_at = public.conquest_now(), ends_at = public.conquest_now() + make_interval(hours => g.duration_hours)
+    where id = gid returning * into g;
+    insert into public.conquest_territories (game_id, territory) select gid, r.territory from public.conquest_regions r where r.map = g.map on conflict do nothing;
+    for p in select * from public.conquest_players where game_id = gid order by seat loop
+        home_id := public.conquest_far_territory(gid, p.user_id::text);
+        update public.conquest_territories set owner = p.user_id, home = true, level = 0, captured_at = public.conquest_now() where game_id = gid and territory = home_id;
+        insert into public.conquest_moves (game_id, user_id, period, kind, territory, success, result, at) values (gid, p.user_id, 0, 'home', home_id, true, 'home', public.conquest_now());
+    end loop;
+    select m.treasures into treasure_count from public.conquest_maps m where m.id = g.map;
+    update public.conquest_territories t set treasure = true where t.game_id = gid and t.territory in (
+        select c.territory from public.conquest_territories c where c.game_id = gid and c.owner is null
+        order by exists (select 1 from public.conquest_links l join public.conquest_territories h on h.game_id = gid and h.territory = l.b and h.home where l.map = g.map and l.a = c.territory),
+            md5(g.seed || 'poklad' || c.territory)
+        limit treasure_count);
+    for p in select * from public.conquest_players where game_id = gid loop perform public.conquest_rescore(gid, p.user_id); end loop;
+    if g.preset is not null then perform public.conquest_ensure_lobbies(); end if;
+end;
+$$;
+-- Konec hry v ends_at: pořadí podle bodů, při shodě dřív dosažené body; jednou (další volání nic nezmění)
+create or replace function public.conquest_finish(gid uuid) returns void
+language plpgsql set search_path = public as $$
+declare g public.conquest_games;
+begin
+    select * into g from public.conquest_games where id = gid for update;
+    if g.id is null or g.status <> 'running' or public.conquest_now() < g.ends_at then return; end if;
+    update public.conquest_players pl set place = x.place from (
+        select c.user_id, rank() over (order by c.score desc, c.score_at nulls last)::smallint as place from public.conquest_players c where c.game_id = gid
+    ) x where pl.game_id = gid and pl.user_id = x.user_id;
+    update public.conquest_games set status = 'finished' where id = gid;
+end;
+$$;
+-- Návrat do hry: kdo v minulém období přišel o všechna území, dostane nové domovské území co nejdál od ostatních
+create or replace function public.conquest_respawn(gid uuid) returns void
+language plpgsql set search_path = public as $$
+declare g public.conquest_games; p integer; r record; pick text;
+begin
+    select * into g from public.conquest_games where id = gid;
+    if g.id is null or g.status <> 'running' then return; end if;
+    p := public.conquest_period(g);
+    for r in select pl.user_id from public.conquest_players pl where pl.game_id = gid and pl.lost_period is not null and pl.lost_period < p
+            and not exists (select 1 from public.conquest_territories t where t.game_id = gid and t.owner = pl.user_id) order by pl.seat loop
+        pick := public.conquest_far_territory(gid, r.user_id::text || p::text);
+        exit when pick is null;
+        update public.conquest_territories set owner = r.user_id, home = true, level = 0, treasure = false, captured_at = public.conquest_now() where game_id = gid and territory = pick;
+        insert into public.conquest_moves (game_id, user_id, period, kind, territory, success, result, at) values (gid, r.user_id, p, 'respawn', pick, true, 'respawn', public.conquest_now());
+        update public.conquest_players set lost_period = null where game_id = gid and user_id = r.user_id;
+        perform public.conquest_rescore(gid, r.user_id);
+    end loop;
+end;
+$$;
+create or replace function public.conquest_housekeep(gid uuid) returns void
+language plpgsql set search_path = public as $$
+begin
+    perform public.conquest_finish(gid);
+    perform public.conquest_respawn(gid);
+end;
+$$;
+-- Tahy hráče v tomto období: základ + celé regiony + poklady dobyté v tomto období + kořist (domovská území soupeřů dobytá v minulém období)
+create or replace function public.conquest_budget(gid uuid, uid uuid) returns jsonb
+language plpgsql stable set search_path = public as $$
+declare g public.conquest_games; p integer; regions integer; treasures integer; loot integer; used integer;
+begin
+    select * into g from public.conquest_games where id = gid;
+    if g.id is null or g.status <> 'running' then return null; end if;
+    p := public.conquest_period(g);
+    regions := public.conquest_regions_owned(gid, g.map, uid);
+    select count(*) filter (where m.period = p and m.treasure and m.result = 'capture'),
+           count(*) filter (where m.period = p - 1 and m.home and m.result = 'capture'),
+           count(*) filter (where m.period = p and m.kind in ('attack', 'fortify'))
+      into treasures, loot, used
+      from public.conquest_moves m where m.game_id = gid and m.user_id = uid and m.period >= p - 1;
+    return jsonb_build_object('period', p, 'base', g.actions, 'regions', regions, 'treasures', treasures, 'loot', loot, 'used', used,
+        'total', g.actions + regions + treasures + loot, 'left', greatest(0, g.actions + regions + treasures + loot - used),
+        'period_ends_at', least(g.ends_at, g.started_at + (p + 1) * public.conquest_period_length(g.period)));
+end;
+$$;
+-- Souhrn hry: nastavení, hráči (veřejné údaje profilu, barva hry flag_color, znak, připravenost, body, místo); kód soukromé hry jen hráčům
+create or replace function public.conquest_summary(g public.conquest_games, uid uuid) returns jsonb
+language sql stable set search_path = public as $$
+    select jsonb_build_object('id', g.id, 'map', g.map, 'max_players', g.max_players, 'hours', g.duration_hours, 'period', g.period, 'actions', g.actions,
+        'visibility', g.visibility, 'preset', g.preset, 'status', g.status, 'created_at', g.created_at, 'started_at', g.started_at, 'ends_at', g.ends_at,
+        'mine', exists (select 1 from public.conquest_players c where c.game_id = g.id and c.user_id = uid), 'creator', g.creator is not null and g.creator = uid,
+        'code', case when g.visibility = 'public' or exists (select 1 from public.conquest_players c where c.game_id = g.id and c.user_id = uid) then g.code end,
+        'players', coalesce((select jsonb_agg(public.group_player_json(p) || jsonb_build_object('seat', c.seat, 'flag_color', c.color, 'emblem', c.emblem, 'ready', c.ready,
+                'score', c.score, 'score_at', c.score_at, 'place', c.place, 'me', c.user_id = uid) order by c.seat)
+            from public.conquest_players c join public.profiles p on p.id = c.user_id where c.game_id = g.id), '[]'::jsonb))
+$$;
+-- Otevřená Rychlá hra pro každou předvolbu (bez zakladatele); souběžné volání hlídá zámek
+create or replace function public.conquest_ensure_lobbies() returns void
+language plpgsql set search_path = public as $$
+declare p record;
+begin
+    perform pg_advisory_xact_lock(hashtext('conquest:lobbies'));
+    for p in select * from public.conquest_presets() loop
+        if exists (select 1 from public.conquest_maps m where m.id = p.map)
+            and not exists (select 1 from public.conquest_games g where g.preset = p.preset and g.status = 'lobby') then
+            insert into public.conquest_games (creator, map, max_players, duration_hours, period, actions, visibility, code, preset, created_at)
+            values (null, p.map, p.max_players, p.hours, p.period, p.actions, 'public', public.conquest_new_code(), p.preset, public.conquest_now());
+        end if;
+    end loop;
+end;
+$$;
+-- Hry, ve kterých hráč je (rozehrané a otevřené), proti limitu 6
+create or replace function public.conquest_active_count(uid uuid) returns integer
+language sql stable set search_path = public as $$
+    select count(*)::integer from public.conquest_players c join public.conquest_games g on g.id = c.game_id where c.user_id = uid and g.status in ('lobby', 'running')
+$$;
+-- Hráč do hry (zámek hry drží volající): nejnižší volné místo, kontrola barvy, plná hra začne
+create or replace function public.conquest_add_player(g public.conquest_games, uid uuid, colour text, emblem_id text) returns void
+language plpgsql set search_path = public as $$
+declare seat_no integer;
+begin
+    perform public.conquest_check_look(colour, emblem_id);
+    if (select count(*) from public.conquest_players where game_id = g.id) >= g.max_players then raise exception 'Hra je už plná.' using errcode = 'P0001'; end if;
+    if exists (select 1 from public.conquest_players where game_id = g.id and color = colour) then raise exception 'Tuhle barvu už má jiný hráč. Vyber jinou.' using errcode = '22023'; end if;
+    if public.conquest_active_count(uid) >= 6 then raise exception 'Hrát můžeš nejvýš 6 her najednou. Nejdřív nějakou dohraj, nebo z lobby odejdi.' using errcode = 'P0001'; end if;
+    select min(s) into seat_no from generate_series(0, 7) s where s not in (select c.seat from public.conquest_players c where c.game_id = g.id);
+    insert into public.conquest_players (game_id, user_id, seat, color, emblem, joined_at) values (g.id, uid, seat_no, colour, emblem_id, public.conquest_now());
+    if (select count(*) from public.conquest_players where game_id = g.id) >= g.max_players then perform public.conquest_start(g.id); end if;
+end;
+$$;
+
+-- Lobby: otevřené veřejné hry (Rychlé hry napřed) a moje hry (otevřené, rozehrané s mými tahy a majiteli území, dohrané do 7 dnů)
+create or replace function public.conquest_lobby() returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare uid uuid := auth.uid();
+begin
+    if uid is null then raise exception 'Přihlas se.' using errcode = '42501'; end if;
+    delete from public.conquest_games where status = 'lobby' and created_at < public.conquest_now() - interval '7 days';
+    perform public.conquest_ensure_lobbies();
+    perform public.conquest_housekeep(g.id) from public.conquest_games g join public.conquest_players c on c.game_id = g.id and c.user_id = uid where g.status = 'running';
+    return jsonb_build_object(
+        'open', coalesce((select jsonb_agg(public.conquest_summary(x, uid) order by x.preset is null, (select count(*) from public.conquest_players c where c.game_id = x.id) desc, x.created_at desc)
+            from public.conquest_games x where x.id in (select y.id from public.conquest_games y where y.status = 'lobby' and y.visibility = 'public'
+                order by y.preset is null, y.created_at desc limit 40)), '[]'::jsonb),
+        'mine', coalesce((select jsonb_agg(public.conquest_summary(g, uid) || jsonb_build_object('budget', public.conquest_budget(g.id, uid), 'claimed', c.claimed,
+                'owners', case when g.status <> 'lobby' then (select jsonb_object_agg(t.territory, o.seat) from public.conquest_territories t join public.conquest_players o on o.game_id = t.game_id and o.user_id = t.owner where t.game_id = g.id) end)
+            order by case g.status when 'running' then 0 when 'lobby' then 1 else 2 end, g.ends_at, g.created_at desc)
+            from public.conquest_games g join public.conquest_players c on c.game_id = g.id and c.user_id = uid
+            where g.status in ('lobby', 'running') or (g.status = 'finished' and g.ends_at > public.conquest_now() - interval '7 days')), '[]'::jsonb));
+end;
+$$;
+
+-- Založení hry: zakladatel je hned jejím hráčem
+create or replace function public.conquest_create(map_id text, players integer, hours integer, per text, actions_per integer, vis text, colour text, emblem_id text) returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare uid uuid := auth.uid(); m public.conquest_maps; g public.conquest_games;
+begin
+    if uid is null then raise exception 'Přihlas se.' using errcode = '42501'; end if;
+    select * into m from public.conquest_maps where id = map_id;
+    if m.id is null then raise exception 'Tahle mapa neexistuje.' using errcode = '22023'; end if;
+    if players is null or players < 2 or players > m.max_players then raise exception 'Na mapě % může hrát 2 až % hráčů.', m.title, m.max_players using errcode = '22023'; end if;
+    if hours is null or not (hours = any (array[6, 12, 24, 48, 72, 120, 168])) then raise exception 'Vyber délku hry z nabídky.' using errcode = '22023'; end if;
+    if per is null or per not in ('day', 'hour') then raise exception 'Tahy jsou za den, nebo za hodinu.' using errcode = '22023'; end if;
+    if actions_per is null or actions_per < 1 or actions_per > 10 then raise exception 'Tahů za období může být 1 až 10.' using errcode = '22023'; end if;
+    if vis is null or vis not in ('public', 'private') then raise exception 'Hra je veřejná, nebo soukromá.' using errcode = '22023'; end if;
+    perform public.conquest_check_look(colour, emblem_id);
+    perform pg_advisory_xact_lock(hashtext('conquest:' || uid::text));
+    if (select count(*) from public.conquest_games x where x.creator = uid and x.status = 'lobby' and exists (select 1 from public.conquest_players c where c.game_id = x.id and c.user_id = uid)) >= 2 then
+        raise exception 'Otevřené můžeš mít nejvýš 2 vlastní hry. Počkej, až některá začne, nebo z ní odejdi.' using errcode = 'P0001';
+    end if;
+    if public.conquest_active_count(uid) >= 6 then raise exception 'Hrát můžeš nejvýš 6 her najednou. Nejdřív nějakou dohraj, nebo z lobby odejdi.' using errcode = 'P0001'; end if;
+    insert into public.conquest_games (creator, map, max_players, duration_hours, period, actions, visibility, code, created_at)
+    values (uid, m.id, players, hours, per, actions_per, vis, public.conquest_new_code(), public.conquest_now()) returning * into g;
+    perform public.conquest_add_player(g, uid, colour, emblem_id);
+    select * into g from public.conquest_games where id = g.id;
+    return public.conquest_summary(g, uid);
+end;
+$$;
+
+-- Přidání do hry: veřejné podle id, soukromé (i veřejné) kódem; kdo už ve hře je, dostane souhrn beze změny
+create or replace function public.conquest_join(game uuid, join_code text, colour text, emblem_id text) returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare uid uuid := auth.uid(); g public.conquest_games; c text := upper(regexp_replace(coalesce(join_code, ''), '[\s-]', '', 'g'));
+begin
+    if uid is null then raise exception 'Přihlas se.' using errcode = '42501'; end if;
+    if c <> '' then select * into g from public.conquest_games where code = c for update;
+    elsif game is not null then select * into g from public.conquest_games where id = game for update; end if;
+    if g.id is null or (c = '' and g.visibility = 'private' and not exists (select 1 from public.conquest_players p where p.game_id = g.id and p.user_id = uid)) then
+        raise exception 'Hra s tímhle kódem není. Zkontroluj ho.' using errcode = '22023';
+    end if;
+    if exists (select 1 from public.conquest_players p where p.game_id = g.id and p.user_id = uid) then return public.conquest_summary(g, uid); end if;
+    if g.status <> 'lobby' then raise exception 'Tahle hra už začala. Vyber jinou, nebo založ vlastní.' using errcode = 'P0001'; end if;
+    if g.creator is not null and public.is_blocked(g.creator, uid) then raise exception 'Do téhle hry se přidat nemůžeš.' using errcode = 'P0001'; end if;
+    perform public.conquest_add_player(g, uid, colour, emblem_id);
+    select * into g from public.conquest_games where id = g.id;
+    return public.conquest_summary(g, uid);
+end;
+$$;
+
+-- Jiná barva nebo znak (jen před začátkem hry)
+create or replace function public.conquest_set_look(game uuid, colour text, emblem_id text) returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare uid uuid := auth.uid(); g public.conquest_games;
+begin
+    if uid is null then raise exception 'Přihlas se.' using errcode = '42501'; end if;
+    perform public.conquest_check_look(colour, emblem_id);
+    select * into g from public.conquest_games where id = game for update;
+    if g.id is null or not exists (select 1 from public.conquest_players p where p.game_id = game and p.user_id = uid) then raise exception 'Tuhle hru nehraješ.' using errcode = '42501'; end if;
+    if g.status <> 'lobby' then raise exception 'Barvu a znak jde změnit jen před začátkem hry.' using errcode = 'P0001'; end if;
+    if exists (select 1 from public.conquest_players p where p.game_id = game and p.color = colour and p.user_id <> uid) then raise exception 'Tuhle barvu už má jiný hráč. Vyber jinou.' using errcode = '22023'; end if;
+    update public.conquest_players set color = colour, emblem = emblem_id where game_id = game and user_id = uid;
+    return public.conquest_summary(g, uid);
+end;
+$$;
+
+-- Chci hrát: když jsou ve hře aspoň 2 hráči a všichni chtějí hrát, hra začne
+create or replace function public.conquest_ready(game uuid, is_ready boolean) returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare uid uuid := auth.uid(); g public.conquest_games;
+begin
+    if uid is null then raise exception 'Přihlas se.' using errcode = '42501'; end if;
+    select * into g from public.conquest_games where id = game for update;
+    if g.id is null or not exists (select 1 from public.conquest_players p where p.game_id = game and p.user_id = uid) then raise exception 'Tuhle hru nehraješ.' using errcode = '42501'; end if;
+    if g.status <> 'lobby' then return public.conquest_summary(g, uid); end if;
+    update public.conquest_players set ready = coalesce(is_ready, false) where game_id = game and user_id = uid;
+    if (select count(*) from public.conquest_players where game_id = game) >= 2 and not exists (select 1 from public.conquest_players where game_id = game and not ready) then
+        perform public.conquest_start(game);
+    end if;
+    select * into g from public.conquest_games where id = game;
+    return public.conquest_summary(g, uid);
+end;
+$$;
+
+-- Odchod z lobby (rozehranou hru opustit nejde); prázdná vlastní hra zmizí, Rychlá hra zůstane otevřená
+create or replace function public.conquest_leave(game uuid) returns void
+language plpgsql security definer set search_path = public as $$
+declare uid uuid := auth.uid(); g public.conquest_games;
+begin
+    if uid is null then raise exception 'Přihlas se.' using errcode = '42501'; end if;
+    select * into g from public.conquest_games where id = game for update;
+    if g.id is null or not exists (select 1 from public.conquest_players p where p.game_id = game and p.user_id = uid) then raise exception 'Tuhle hru nehraješ.' using errcode = '42501'; end if;
+    if g.status <> 'lobby' then raise exception 'Rozehranou hru opustit nejde.' using errcode = 'P0001'; end if;
+    delete from public.conquest_players where game_id = game and user_id = uid;
+    if g.preset is null and not exists (select 1 from public.conquest_players where game_id = game) then delete from public.conquest_games where id = game; end if;
+end;
+$$;
+
+-- Stav hry: souhrn; hráčům rozehrané nebo dohrané hry navíc území (t, o = majitel, l = úroveň, h = domov, p = poklad), moje tahy
+-- v období, posledních 150 událostí pro kroniku a po konci všechny změny majitelů pro přehrání (nejvýš 3000)
+create or replace function public.conquest_move_json(m public.conquest_moves) returns jsonb
+language sql stable set search_path = public as $$
+    select jsonb_build_object('id', m.id, 'u', m.user_id, 'k', m.kind, 't', m.territory, 's', m.source, 'ok', m.success, 'r', m.result, 'v', m.victim,
+        'l', m.level, 'p', m.treasure, 'h', m.home, 'n', m.period, 'at', m.at)
+$$;
+create or replace function public.conquest_state(game uuid) returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare uid uuid := auth.uid(); g public.conquest_games; member boolean;
+begin
+    if uid is null then raise exception 'Přihlas se.' using errcode = '42501'; end if;
+    select * into g from public.conquest_games where id = game;
+    member := g.id is not null and exists (select 1 from public.conquest_players p where p.game_id = game and p.user_id = uid);
+    if g.id is null or (not member and not (g.status = 'lobby' and g.visibility = 'public')) then raise exception 'Tahle hra neexistuje, nebo ji nehraješ.' using errcode = '42501'; end if;
+    if g.status = 'running' then
+        perform public.conquest_housekeep(game);
+        select * into g from public.conquest_games where id = game;
+    end if;
+    if g.status = 'lobby' or not member then return public.conquest_summary(g, uid) || jsonb_build_object('now', public.conquest_now()); end if;
+    return public.conquest_summary(g, uid) || jsonb_build_object(
+        'now', public.conquest_now(),
+        'territories', coalesce((select jsonb_agg(jsonb_build_object('t', t.territory, 'o', t.owner, 'l', t.level, 'h', t.home, 'p', t.treasure) order by t.territory)
+            from public.conquest_territories t where t.game_id = game), '[]'::jsonb),
+        'budget', public.conquest_budget(game, uid),
+        'claimed', (select p.claimed from public.conquest_players p where p.game_id = game and p.user_id = uid),
+        'moves', coalesce((select jsonb_agg(public.conquest_move_json(m) order by m.id) from (select * from public.conquest_moves where game_id = game order by id desc limit 150) m), '[]'::jsonb),
+        'history', case when g.status = 'finished' then coalesce((select jsonb_agg(public.conquest_move_json(m) order by m.id)
+            from (select * from public.conquest_moves where game_id = game and result in ('home', 'respawn', 'capture') order by id limit 3000) m), '[]'::jsonb) end);
+end;
+$$;
+
+-- Tah: útok (na území sousedící s vlastním; source = vlastní území, odkud útok vede, nepovinné) nebo opevnění vlastního území.
+-- is_correct = odpověď na otázku tahu. Vrací stav hry a výsledek tahu (move).
+create or replace function public.conquest_move(game uuid, target text, move_kind text, is_correct boolean, source text default null) returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare uid uuid := auth.uid(); g public.conquest_games; t public.conquest_territories; p integer; budget jsonb; victim uuid; res text; lvl integer;
+    took_home boolean := false; took_treasure boolean := false; mv public.conquest_moves;
+begin
+    if uid is null then raise exception 'Přihlas se.' using errcode = '42501'; end if;
+    select * into g from public.conquest_games where id = game for update;
+    if g.id is null or not exists (select 1 from public.conquest_players c where c.game_id = game and c.user_id = uid) then raise exception 'Tahle hra neexistuje, nebo ji nehraješ.' using errcode = '42501'; end if;
+    if g.status = 'lobby' then raise exception 'Hra ještě nezačala.' using errcode = 'P0001'; end if;
+    perform public.conquest_housekeep(game);
+    select * into g from public.conquest_games where id = game;
+    if g.status <> 'running' then raise exception 'Hra už skončila.' using errcode = 'P0001'; end if;
+    if move_kind is null or move_kind not in ('attack', 'fortify') or is_correct is null then raise exception 'Neplatný tah.' using errcode = '22023'; end if;
+    select * into t from public.conquest_territories where game_id = game and territory = target for update;
+    if t.territory is null then raise exception 'Tohle území na mapě není.' using errcode = '22023'; end if;
+    budget := public.conquest_budget(game, uid);
+    if (budget ->> 'left')::integer <= 0 then raise exception 'Tahy na tohle období už nemáš. Další přibudou v příštím období.' using errcode = 'P0001'; end if;
+    p := (budget ->> 'period')::integer;
+    lvl := t.level;
+    if move_kind = 'attack' then
+        if t.owner = uid then raise exception 'Na vlastní území útočit nejde.' using errcode = '22023'; end if;
+        if source is not null and not exists (select 1 from public.conquest_territories s join public.conquest_links l on l.map = g.map and l.a = s.territory and l.b = target
+                where s.game_id = game and s.territory = source and s.owner = uid) then
+            raise exception 'Útok musí vést z tvého sousedního území.' using errcode = '22023';
+        end if;
+        if not exists (select 1 from public.conquest_territories s join public.conquest_links l on l.map = g.map and l.a = s.territory and l.b = target where s.game_id = game and s.owner = uid) then
+            raise exception 'Útočit jde jen na území, které sousedí s tvým.' using errcode = '22023';
+        end if;
+        victim := t.owner;
+        if not is_correct then res := 'fail';
+        elsif t.level > 0 then
+            res := 'breach'; lvl := t.level - 1;
+            update public.conquest_territories set level = lvl where game_id = game and territory = target;
+        else
+            res := 'capture'; took_home := t.home and t.owner is not null; took_treasure := t.treasure;
+            update public.conquest_territories set owner = uid, level = 0, home = false, treasure = false, captured_at = public.conquest_now() where game_id = game and territory = target;
+            if victim is not null and not exists (select 1 from public.conquest_territories x where x.game_id = game and x.owner = victim) then
+                update public.conquest_players set lost_period = p where game_id = game and user_id = victim;
+            end if;
+            perform public.conquest_rescore(game, uid);
+            perform public.conquest_rescore(game, victim);
+        end if;
+    else
+        if t.owner is distinct from uid then raise exception 'Opevnit jde jen vlastní území.' using errcode = '22023'; end if;
+        if t.level >= (case when t.home then 3 else 2 end) then raise exception 'Tohle území už je opevněné naplno.' using errcode = '22023'; end if;
+        if is_correct then
+            res := 'fortify'; lvl := t.level + 1;
+            update public.conquest_territories set level = lvl where game_id = game and territory = target;
+        else res := 'fail'; end if;
+    end if;
+    insert into public.conquest_moves (game_id, user_id, period, kind, territory, source, success, result, victim, level, treasure, home, at)
+    values (game, uid, p, move_kind, target, case when move_kind = 'attack' then source end, is_correct, res, victim, lvl, took_treasure, took_home, public.conquest_now())
+    returning * into mv;
+    return public.conquest_state(game) || jsonb_build_object('move', public.conquest_move_json(mv));
+end;
+$$;
+
+-- Výsledek po konci: moje místo, počet hráčů a jestli hra odměnu dává (aspoň 3 hráči, nebo hra aspoň na den; aspoň 3 vlastní tahy
+-- a aspoň 1 bod). claimed_now je true jen jednou: jen tehdy si aplikace odměnu připíše (conquest.js rewardFor).
+create or replace function public.conquest_claim(game uuid) returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare uid uuid := auth.uid(); g public.conquest_games; me public.conquest_players; total integer; moves integer; eligible boolean; fresh boolean;
+begin
+    if uid is null then raise exception 'Přihlas se.' using errcode = '42501'; end if;
+    perform public.conquest_finish(game);
+    select * into g from public.conquest_games where id = game;
+    select * into me from public.conquest_players where game_id = game and user_id = uid for update;
+    if g.id is null or me.user_id is null then raise exception 'Tahle hra neexistuje, nebo ji nehraješ.' using errcode = '42501'; end if;
+    if g.status <> 'finished' then raise exception 'Hra ještě neskončila.' using errcode = 'P0001'; end if;
+    select count(*) into total from public.conquest_players where game_id = game;
+    select count(*) into moves from public.conquest_moves where game_id = game and user_id = uid and kind in ('attack', 'fortify');
+    eligible := (total >= 3 or g.duration_hours >= 24) and moves >= 3 and me.score > 0;
+    fresh := not me.claimed;
+    if fresh then update public.conquest_players set claimed = true where game_id = game and user_id = uid; end if;
+    return jsonb_build_object('place', me.place, 'players', total, 'score', me.score, 'moves', moves, 'eligible', eligible, 'claimed_now', fresh);
+end;
+$$;
+
+-- Oprávnění: hráč volá jen funkce hry (anon nic); pomocné funkce zvenčí nikdo, conquest_is_player a conquest_is_open jen kvůli pravidlům řádků
+revoke all on function public.conquest_now(), public.conquest_colors(), public.conquest_emblems(), public.conquest_presets(), public.conquest_check_look(text, text),
+    public.conquest_new_code(), public.conquest_period_length(text), public.conquest_period(public.conquest_games), public.conquest_regions_owned(uuid, text, uuid),
+    public.conquest_rescore(uuid, uuid), public.conquest_far_territory(uuid, text), public.conquest_start(uuid), public.conquest_finish(uuid), public.conquest_respawn(uuid),
+    public.conquest_housekeep(uuid), public.conquest_budget(uuid, uuid), public.conquest_summary(public.conquest_games, uuid), public.conquest_ensure_lobbies(),
+    public.conquest_active_count(uuid), public.conquest_add_player(public.conquest_games, uuid, text, text), public.conquest_move_json(public.conquest_moves)
+    from public, anon, authenticated;
+revoke all on function public.conquest_is_player(uuid), public.conquest_is_open(uuid), public.conquest_lobby(), public.conquest_create(text, integer, integer, text, integer, text, text, text),
+    public.conquest_join(uuid, text, text, text), public.conquest_set_look(uuid, text, text), public.conquest_ready(uuid, boolean), public.conquest_leave(uuid),
+    public.conquest_state(uuid), public.conquest_move(uuid, text, text, boolean, text), public.conquest_claim(uuid) from public, anon;
+grant execute on function public.conquest_is_player(uuid), public.conquest_is_open(uuid), public.conquest_lobby(), public.conquest_create(text, integer, integer, text, integer, text, text, text),
+    public.conquest_join(uuid, text, text, text), public.conquest_set_look(uuid, text, text), public.conquest_ready(uuid, boolean), public.conquest_leave(uuid),
+    public.conquest_state(uuid), public.conquest_move(uuid, text, text, boolean, text), public.conquest_claim(uuid) to authenticated;
+-- ===== 21: Dobývání — KONEC BLOKU =====

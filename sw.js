@@ -27,6 +27,8 @@ const APP_SHELL = [
     'data/countries.json', 'data/world.json', 'data/mapa.json', 'data/mapa-tvary.json', 'data/mapa-opravy.json', 'data/regiony.json', 'data/photo-text.json', 'data/photo-masks.json',
     // Režimy Bleskovka a Přežití, zvuky a vibrace
     'modes.js', 'sound.js',
+    // Dobývání (conquest.js, conquest-ui.js) a jeho mapy (scripts/build-dobyvani.js)
+    'conquest.js', 'conquest-ui.js', 'data/dobyvani-evropa.json', 'data/dobyvani-afrika.json', 'data/dobyvani-asie.json', 'data/dobyvani-amerika.json', 'data/dobyvani-cesko.json',
     // Masky loga (čepice, ruka, obojí: bez načtené masky by se sova nevykreslila) a logo bez monoklu
     'icons/logo.webp', 'icons/logo-maska.webp', 'icons/logo-maska-ruka.webp', 'icons/logo-maska-oba.webp', 'icons/logo-bez-monoklu.webp', ...['zemepis', 'vlajky', 'historie', 'mytologie', 'biologie', 'geologie', 'chemie', 'fyzika', 'umeni', 'architektura', 'hudba', 'literatura', 'film', 'sport', 'mix', 'chyby', 'dnes', 'vyzva', 'napoveda', 'stopky', 'serie', 'sova-radost', 'sova-smutek', 'sova-premysleni', 'sova-oslava', 'sova-vitez', 'sova-prohra', 'sova-vitej', 'sova-vyzva', 'sova-serie', 'sova-spi', 'liga-bronz', 'liga-stribro', 'liga-zlato', 'liga-platina', 'liga-diamant', 'liga-mistr', 'turnaj', 'nahodny', 'kod', 'cile', 'procvicovani', 'sova-tip', 'sova-titul-1', 'sova-titul-2', 'sova-titul-3', 'sova-titul-4', 'sova-titul-5', 'sova-titul-6', 'sova-titul-7', 'sova-titul-8', 'sova-titul-9', 'sova-titul-10', 'sova-titul-11', 'truhla', 'ochrana-serie', 'diplom', 'truhla-otevrena',
         // Režimy, Učení, Skupiny, Archiv turnajů a pózy sovy do prázdných míst (docs/OBRAZKY.md č. 79–89)
