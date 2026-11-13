@@ -548,6 +548,12 @@
         // Nápovědy, fakta ukázaná hned u chudého popisu a „thin“ (popis nestačí k odpovědi) – společně s auditem
         const { hints, leadFacts, thin, visual } = planRound({ item, ctx, question, texts: { questionText, moreText, origin }, typeLabel, shown, special: Boolean(special),
             photoUrl, describeVisual, photoMasks, textPhotos: ctx.textPhotos || new Set() });
+        const resultFacts = topic.facts(item, ctx, 'result');
+        // Tajemná otázka (options.plain): krátké nápovědy z dat položky – ano/ne, doba, indicie a související jméno (mystery.js riddleOf);
+        // options.year = rok dne otázky (stáří a „žije ještě“)
+        const Riddles = window.MudrlantMystery;
+        const riddle = options.plain && Riddles && Riddles.riddleOf
+            ? Riddles.riddleOf(item, { ctx, question, typeLabel, facts: resultFacts, year: options.year || new Date().getFullYear() }) : null;
         return {
             topic: topic.id,
             id: item.q,
@@ -566,10 +572,11 @@
             visual,
             // Ve výsledku už odpověď známe, takže nápověda může ukázat vše (u otázky na století časovou osu)
             resultVisual: topic.visual ? topic.visual(item, ctx, 'result') : null,
-            resultFacts: topic.facts(item, ctx, 'result'),
+            resultFacts,
             // Fotka, kterou otázka ukazuje hned, už nápovědou není; fotka s napsanou odpovědí také ne
             hints,
             leadFacts,
+            ...(riddle ? { riddle } : {}),
             subtitle: topic.subtitle(item, ctx),
             coords: topic.coords ? topic.coords(item, ctx) : null,
             isCzech: Boolean(topic.isCzech && topic.isCzech(item, ctx)),
@@ -9859,7 +9866,7 @@
         if (state.rounds[day]) return state.rounds[day];
         const { ctx, item } = await mysteryPick(day);
         if (!item) throw new Error('Tajemná otázka nemá položku');
-        const data = await createRoundData(item, ctx, createSeededRandom(Mystery.seedFor(day)), { plain: true });
+        const data = await createRoundData(item, ctx, createSeededRandom(Mystery.seedFor(day)), { plain: true, year: Number(day.slice(0, 4)) });
         const fresh = loadMystery();
         fresh.rounds[day] = data;
         if (!fresh.days[day] && day === mysteryToday()) fresh.days[day] = Mystery.newEntry({ topic: ctx.topic.id, q: item.q, name: item.n });
