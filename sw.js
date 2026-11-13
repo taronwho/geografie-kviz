@@ -44,6 +44,8 @@ const APP_SHELL = [
         // Dobývání (conquest.js ART, č. 234–239 a 260–263)
         'dobyvani', 'palisada', 'hradba', 'pevnost', 'hrad-domov', 'poklad', 'vetrna-ruzice', 'plachetnice', 'morska-prisera', 'kartuse-sirka',
         'pecet', 'vavrin', 'sova-dobyvatel', 'mince', 'mince-hromadka', 'sova-sazka',
+        // Boss týdne (boss.js ART): čtyři stupně každého bosse a jeho aréna
+        ...['kapitan', 'rytir', 'alchymista', 'amper', 'maestro', 'druid', 'olympan', 'reziser'].flatMap(id => [`boss-${id}`, `boss-${id}-zraneny`, `boss-${id}-vkoncich`, `boss-${id}-porazeny`, `arena-${id}`]),
         // Řetězovka (chain.js ART a výsledek, č. 212 a 214: sova s řetězem, prasklý článek)
         'retezovka', 'clanek-prasknuty'].map(id => `icons/topics/${id}.webp`),
     // Články řetězu v pásu Řetězovky (chain.js linkSvg, scripts/chain-links.py)

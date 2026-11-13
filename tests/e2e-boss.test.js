@@ -265,7 +265,9 @@ test('Boss týdne v prohlížeči', { skip: !chromium && 'Playwright není nains
         assert.equal(await compact(tab, '#boss-strip [data-boss-stage-label]'), 'Zraněný');
         assert.equal(await tab.getAttribute('[data-boss-bubble]', 'data-boss-bubble'), 'stage');
         assert.ok(Boss.BY_ID.kapitan.stage[2].includes(await compact(tab, '[data-boss-bubble] p:last-child')), 'hláška stupně 2');
-        assert.ok(await tab.$('#boss-portrait.boss-standin-2'), 'zástupný obrázek s filtrem stupně 2');
+        // Vlastní ilustrace zraněného bosse (už ne zástupný obrázek s filtrem)
+        await tab.waitForFunction(() => /boss-kapitan-zraneny\.webp$/.test(document.querySelector('#boss-portrait [data-boss-face]:last-child').getAttribute('src')));
+        assert.equal(await tab.$('#boss-portrait.boss-standin-2'), null);
         await shot(tab, 'stupen-2-360x640');
         await wait(tab, 3000);
         // Vypršený čas: chyba, srdce praskne; posměšek ve stupni 2 je nervózní
@@ -291,7 +293,7 @@ test('Boss týdne v prohlížeči', { skip: !chromium && 'Playwright není nains
         assert.equal(status.stage, 3);
         assert.equal(await tab.getAttribute('#boss-strip', 'data-stage'), '3');
         assert.equal(await compact(tab, '#boss-strip [data-boss-stage-label]'), 'V koncích');
-        assert.ok(await tab.$('#boss-portrait.boss-standin-3'));
+        await tab.waitForFunction(() => /boss-kapitan-vkoncich\.webp$/.test(document.querySelector('#boss-portrait [data-boss-face]:last-child').getAttribute('src')));
         await shot(tab, 'stupen-3-360x640');
         await wait(tab, 3000);
         // 10. otázka správně, ale boss vydrží: prohra, počítá se uštědřené poškození
@@ -326,7 +328,7 @@ test('Boss týdne v prohlížeči', { skip: !chromium && 'Playwright není nains
         assert.equal(await hp(tab), 0);
         assert.equal(await tab.getAttribute('#boss-portrait', 'data-stage'), '4');
         assert.equal(await tab.getAttribute('[data-boss-bubble]', 'data-boss-bubble'), 'defeat');
-        assert.ok(await tab.$('#boss-portrait img[src$="sova-prohra-modra.webp"]'), 'obrázek poraženého bosse');
+        await tab.waitForSelector('#boss-portrait img[src$="boss-kapitan-porazeny.webp"]');
         await shot(tab, 'porazeny-360x640');
         await wait(tab, 3500);
         await tab.waitForSelector('#boss-result[data-boss-outcome="won"]');
