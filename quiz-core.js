@@ -1962,7 +1962,9 @@
         quizDone: 0, quizBestStreak: 0, quizPerfect: 0, blitzBest: 0, survivalBest: 0, blitzGames: 0, survivalGames: 0, blitzTen: 0, survivalFifteen: 0,
         mapAnswered: 0, mapExact: 0, estimateAnswered: 0, estimateGood: 0, orderAnswered: 0, orderPerfect: 0, sharedImages: 0, chestsOpened: 0, freezesUsed: 0,
         // Tajemná otázka dne (mystery.js): vyřešené dny
-        mysterySolved: 0
+        mysterySolved: 0,
+        // Dobývání (conquest.js): vyhrané hry (1. místo ve hře, která odměnu dává)
+        conquestWins: 0
     };
     const number = (value) => Number.isFinite(value) ? value : 0;
     // Barva medaile podle stupně ve skupině: bronz, stříbro, zlato, vínová a nejvyšší diamantová
@@ -2092,6 +2094,9 @@
     // Tajemná otázka dne (mystery.js): vyřešené tajemné otázky (jednou za den)
     addGroup('detektiv', 'Detektiv', 'telescope', (c) => c.mysterySolved, (g) => g === 1 ? 'Vyřeš svou první Tajemnou otázku dne.' : `Vyřeš ${g} Tajemných otázek dne.`,
         [T(1, 'Detektiv', 'detektiv'), T(7, 'Bystrý detektiv'), T(30, 'Mistr detektiv'), T(100, 'Slavný detektiv'), T(365, 'Legenda detektivů')]);
+    // Dobývání (conquest.js): vyhrané hry o mapu (1. místo ve hře aspoň 3 hráčů, nebo ve hře na den a déle)
+    addGroup('dobyvatel', 'Dobyvatel', 'swords', (c) => c.conquestWins, (g) => g === 1 ? 'Vyhraj hru Dobývání.' : `Vyhraj ${g} her Dobývání.`,
+        [T(1, 'Dobyvatel', 'dobyvatel'), T(3, 'Vojevůdce'), T(10, 'Stratég'), T(25, 'Vládce map'), T(50, 'Císař světa')]);
     // --- Album sbírky (album.js): milníky celé sbírky a celé sekce alba. Hodnotu dosazuje aplikace: x.album = { percent, sections: { sekce: procenta } }
     // (procenta jsou zaokrouhlená dolů, 100 znamená opravdu všechno). Odznaky alba se do alba samy nepočítají (album.js), jinak by 100 % nešlo
     // získat. Tituly jsou bez rodu (popisují sbírku, ne hráče; „Sběratel“ už je odznak geologie), jde je mít jako titul u jména.

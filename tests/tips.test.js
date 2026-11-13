@@ -6,7 +6,7 @@ const path = require('node:path');
 const Tips = require('../tips.js');
 
 const NOW = Date.parse('2026-11-09T10:00:00Z');
-const ACTIONS = ['settings', 'learn', 'progress', 'multi', 'single', 'quiz', 'mystery', 'modes', 'goals', 'chronicle', 'leagueSeasons', 'groups'];
+const ACTIONS = ['settings', 'learn', 'progress', 'multi', 'single', 'quiz', 'mystery', 'modes', 'goals', 'chronicle', 'leagueSeasons', 'groups', 'conquest'];
 const base = (over = {}) => ({ counters: { answered: 0 }, today: '2026-11-09', now: NOW, launches: 1, signedIn: false, multiAvailable: true, reviewOn: true, ...over });
 
 test('každý tip má id, titulek, text a ikonu, která existuje v icons.js; akce míří na známé místo', () => {
@@ -58,7 +58,7 @@ test('funkci, kterou hráč už používá, tip nenabídne; tip se ukáže jen j
         quizDone: 9, blitzGames: 2, orderAnswered: 8, mapAnswered: 6, sharedImages: 1, freezesUsed: 1, chestsOpened: 1, mysterySolved: 2 };
     const ctx = base({ counters: player, signedIn: true });
     const offered = [];
-    let state = { ...Tips.EMPTY, visited: { learn: true, progress: true, look: true, diplomas: true, season: true, album: true, showcase: true, leagueSeasons: true, legends: true, looks: true, groups: true } };
+    let state = { ...Tips.EMPTY, visited: { learn: true, progress: true, look: true, diplomas: true, season: true, album: true, showcase: true, leagueSeasons: true, legends: true, looks: true, groups: true, conquest: true } };
     let now = NOW;
     for (let day = 0; day < 20; day++) {
         const tip = Tips.pick(state, { ...ctx, today: `2026-12-${String(day + 1).padStart(2, '0')}`, now });

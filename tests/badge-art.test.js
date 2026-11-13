@@ -18,7 +18,9 @@ test('symboly odznaků: skupiny, obrázky, zdroje a mezipaměť', () => {
     assert.deepEqual(art.filter(id => !groups.has(id)), [], 'každý symbol patří existující skupině');
     // Odznaky alba sbírky mají obrázek Sběratel (album.js BADGE_ART, docs/OBRAZKY.md č. 149), skupina sberatel je i v BADGE_ART
     const album = (group) => group.badges.every(badge => core.isAlbumBadge(badge.id));
-    const missing = core.BADGE_GROUPS.filter(group => !group.topic && !art.includes(group.id) && !/^(tema|zbehly)-/.test(group.id) && !album(group)).map(group => group.id);
+    // Skupiny, jejichž obrázek se teprve kreslí (docs/NOVE-MODY.md): do dodání mají čárovou ikonu
+    const PENDING_ART = new Set(['dobyvatel']);
+    const missing = core.BADGE_GROUPS.filter(group => !group.topic && !art.includes(group.id) && !PENDING_ART.has(group.id) && !/^(tema|zbehly)-/.test(group.id) && !album(group)).map(group => group.id);
     assert.deepEqual(missing, [], 'každá skupina (kromě témat a alba) má symbol');
     const standIn = require('../album.js').BADGE_ART;
     assert.equal(standIn, 'odznak-sberatel');

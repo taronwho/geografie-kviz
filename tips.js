@@ -83,13 +83,15 @@
         { id: 'skupiny', icon: 'users', art: 'skupiny', multi: true, account: true, after: 25, title: 'Skupiny', text: 'Založ si skupinu s kamarády, rodinou nebo spolužáky. Budete mít společné výzvy, vlastní týdenní žebříček a přehled, kdo z vás hrál. Ostatní pozveš odkazem.',
             action: { kind: 'groups', label: 'Skupiny' }, ready: (u) => num(u.counters.challenges) >= 1, used: (u) => Boolean(u.visited.groups) },
         { id: 'vitrina', icon: 'gem', art: 'vitrina', multi: true, account: true, after: 80, title: 'Vitrína v profilu', text: 'V Nastavení na záložce Profil si vyber až 3 trofeje, které ostatní uvidí ve tvém profilu: odznak, diplom nebo výsledek ligové sezóny.',
-            action: { kind: 'settings', label: 'Nastavení', tab: 'profile' }, ready: (u) => u.showcase, used: (u) => Boolean(u.visited.showcase) }
+            action: { kind: 'settings', label: 'Nastavení', tab: 'profile' }, ready: (u) => u.showcase, used: (u) => Boolean(u.visited.showcase) },
+        { id: 'dobyvani', icon: 'swords', art: 'sova-dalekohled', multi: true, account: true, after: 20, title: 'Dobývání', text: 'Na záložce Více hráčů najdeš Dobývání: s dalšími hráči dobýváte mapu otázkami a opevňujete svá území. Přidej se k Rychlé hře v Lobby, nebo založ vlastní a pozvi kamarády kódem.',
+            action: { kind: 'conquest', label: 'Otevřít Dobývání' }, used: (u) => Boolean(u.visited.conquest) }
     ];
     const BY_ID = new Map(TIPS.map(tip => [tip.id, tip]));
 
     const EMPTY = { seen: [], day: '', n: 0, lastAt: 0, off: false, visited: {} };
     // Navštívené části hry (tip o nich už není potřeba): Učení, Můj postup, Vzhled, Diplomy, Sezóna, Album, Vitrína, Kronika týdne
-    const VISITED = ['learn', 'progress', 'look', 'diplomas', 'season', 'album', 'showcase', 'leagueSeasons', 'legends', 'looks', 'groups', 'chronicle'];
+    const VISITED = ['learn', 'progress', 'look', 'diplomas', 'season', 'album', 'showcase', 'leagueSeasons', 'legends', 'looks', 'groups', 'chronicle', 'conquest'];
     const parse = (value) => {
         const v = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
         const visited = {};

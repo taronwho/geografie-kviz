@@ -328,7 +328,9 @@ language sql immutable set search_path = public as $$
         'sberatel-25', 'sberatel-50', 'sberatel-75', 'sberatel-100',
         'album-avatars', 'album-accessories', 'album-themes', 'album-badges', 'album-diplomas',
         -- Schéma 19: Tajemná otázka dne (vyřešené tajemné otázky)
-        'detektiv', 'detektiv-7', 'detektiv-30', 'detektiv-100', 'detektiv-365'
+        'detektiv', 'detektiv-7', 'detektiv-30', 'detektiv-100', 'detektiv-365',
+        -- Schéma 21: Dobývání (vyhrané hry)
+        'dobyvatel', 'dobyvatel-3', 'dobyvatel-10', 'dobyvatel-25', 'dobyvatel-50'
     ]::text[];
 $$;
 

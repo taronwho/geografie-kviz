@@ -15,6 +15,7 @@ const world = require('../data/world.json');
 const countries = require('../data/countries.json').countries;
 const regiony = require('../data/regiony.json');
 const vlajky = require('../data/vlajky.json').items;
+const ownFlags = require('../look-flags.js').list();
 const SCHEMA = path.join(ROOT, 'supabase', 'schema.sql');
 const SQL_START = '-- dobyvani:data:start (vygenerováno: node scripts/build-dobyvani.js, ručně neupravovat)';
 const SQL_END = '-- dobyvani:data:end';
@@ -310,8 +311,11 @@ const buildMap = (config) => {
             nb: []
         };
         if (kraj) Object.assign(entry, { loc: kraj[1], gen: kraj[2], ...(kraj[3] ? { seat: kraj[3] } : {}) });
+        // Vlajka státu (u krajů znak) z tématu Vlajky a znaky; chybí-li tam, z vlaječek sovy (look-flags.js, Švýcarsko)
         const flag = vlajky.find(item => (kraj ? item.q === qid && item.c === 'cesko' : item.c === 'vlajka' && (item.co || []).length === 1 && item.co[0] === qid));
+        const owlFlag = kraj ? null : ownFlags.find(item => item.name === name);
         if (flag && flag.im && flag.ih) entry.fl = [flag.im, flag.ih];
+        else if (owlFlag) entry.fl = [owlFlag.file, owlFlag.hash];
         territories.push(entry);
     }
     // Sousedství po souši: společný bod hranice (stejné souřadnice v datech po zaokrouhlení), u krajů blízké body
@@ -366,12 +370,59 @@ const buildMap = (config) => {
     const land = config.kraje ? [[[box.x0, box.y0], [box.x1, box.y0], [box.x1, box.y1], [box.x0, box.y1]]]
         : bgRings.map(ring => clipRing(ring.map(([lon, lat]) => toMap(lon, lat)), box)).filter(ring => ring.length >= 3 && Math.abs(ringArea(ring)) > 0.5);
     const treasures = Math.max(1, Math.min(5, Math.floor(ids.length / 8)));
+    // Obrys regionu (zlatá záře celého regionu): hrany, které nesdílí dvě území regionu, spojené do prstenců
+    const outlineOf = (members) => {
+        const key = ([x, y]) => `${round1(x)},${round1(y)}`;
+        const edges = new Map();
+        for (const qid of members) for (const polygon of geometry.get(qid)) for (const ring of polygon.rings) {
+            for (let i = 0; i < ring.length; i++) {
+                const a = key(ring[i]), b = key(ring[(i + 1) % ring.length]);
+                if (a === b) continue;
+                const undirected = a < b ? `${a}|${b}` : `${b}|${a}`;
+                const entry = edges.get(undirected);
+                if (entry) entry.count++; else edges.set(undirected, { a, b, count: 1 });
+            }
+        }
+        const next = new Map();
+        for (const { a, b, count } of edges.values()) if (count === 1) { if (!next.has(a)) next.set(a, []); next.get(a).push(b); }
+        const rings = [];
+        for (const start of [...next.keys()]) {
+            while (next.get(start) && next.get(start).length) {
+                const ring = [start];
+                let at = next.get(start).pop();
+                while (at !== start && next.get(at) && next.get(at).length && ring.length < 100000) { ring.push(at); at = next.get(at).pop(); }
+                if (ring.length >= 3) rings.push(ring.map(text => text.split(',').map(Number)));
+            }
+        }
+        return ringsPath(rings);
+    };
+    // Místa na moři pro ozdoby (větrná růžice, loď, mořská příšerka): body co nejdál od pevniny, navzájem vzdálené
+    const coast = [...land, ...[...geometry.values()].flatMap(polygons => polygons.flatMap(p => p.rings))];
+    const isLand = (x, y) => coast.some(ring => pointInRing(x, y, ring));
+    const coastPoints = coast.flatMap(ring => ring.filter((_, i) => i % 2 === 0));
+    const deco = [];
+    if (!config.kraje) {
+        const candidates = [];
+        for (let x = 30; x < width - 30; x += 15) for (let y = 30; y < height - 30; y += 15) {
+            if (isLand(x, y)) continue;
+            let d = Math.min(x, y, width - x, height - y) * 1.6;
+            for (const [px, py] of coastPoints) { const e = Math.hypot(px - x, py - y); if (e < d) d = e; }
+            candidates.push([x, y, d]);
+        }
+        candidates.sort((a, b) => b[2] - a[2]);
+        for (const c of candidates) {
+            if (deco.length >= 3) break;
+            if (c[2] < 28) break;
+            if (deco.every(o => Math.hypot(o[0] - c[0], o[1] - c[1]) > 160)) deco.push([Math.round(c[0]), Math.round(c[1]), Math.round(c[2])]);
+        }
+    }
     return {
         id: config.id, title: config.title, w: width, h: height,
         // Zobrazení pro body z dat témat (najdi na mapě, místo v kraji): laea se středem c, posun a měřítko
         proj: { c: config.center, x0: Number(x0.toFixed(6)), y1: Number(y1.toFixed(6)), k: Number(scale.toFixed(4)) },
         maxPlayers: Math.min(config.maxPlayers, Math.floor(ids.length / 2)), treasures,
-        regions: Object.entries(config.regions).map(([id, [name, members]]) => ({ id, n: name, t: members })),
+        regions: Object.entries(config.regions).map(([id, [name, members]]) => ({ id, n: name, t: members, d: outlineOf(members) })),
+        deco,
         t: territories, sea,
         land: land.length ? ringsPath(land) : ''
     };

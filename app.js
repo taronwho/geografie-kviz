@@ -2337,6 +2337,7 @@
         if (screen === 'quiz' || screen === 'quiz-done') return { icon: 'timer', text: `Kvíz dne · ${shortDay(quiz ? quiz.day : getDayKey())}`, topic: null };
         if (screen === 'mode' && modeGame) return modePlace(modeGame);
         if (screen === 'mystery') return { icon: 'telescope', text: 'Tajemná otázka', topic: null };
+        if (screen === 'conquest') return { icon: 'swords', text: 'Dobývání', topic: null };
         // Úvod: sova z loga, název a dnešní datum
         if (screen !== 'round' || !current) return { logo: true, text: `${APP_NAME} · ${shortDay(getDayKey())}`, date: shortDay(getDayKey()), topic: null };
         const topic = TOPIC_BY_ID[current.topic];
@@ -3860,6 +3861,7 @@
         if (document.getElementById('dialog-overlay') || document.getElementById('settings-overlay')) return false;
         if (mode === 'blitz' || mode === 'survival') return !modeGame || modeGame.phase === 'result' || screen !== 'mode';
         if (screen === 'home' || screen === 'learn' || screen === 'challenge-done' || screen === 'quiz-done' || screen === 'welcome' || screen === 'mystery') return true;
+        if (screen === 'conquest') return !(ConquestUI && ConquestUI.busy());
         if (mode === 'challenge' || mode === 'quiz') return false;
         return Boolean(round && round.answered);
     };
@@ -6123,6 +6125,7 @@
     const Friends = window.MudrlantFriends;
     // Skupiny (groups.js): okna a čip na záložce Více hráčů; vytvoří se u ACTIONS, až jsou pomocné funkce oken hotové
     let GroupsUI = null;
+    let ConquestUI = null;
     let friendRows = null;
     let recentReactions = [];
     let myBlocks = null;
@@ -6841,6 +6844,7 @@
         const tournamentFirst = tournamentWaits();
         return `
             <div class="flex flex-col gap-2.5">
+                ${ConquestUI ? ConquestUI.cardHtml() : ''}
                 ${resume}
                 ${tournamentFirst ? tournamentCard() : ''}
                 ${waiting}
@@ -6953,6 +6957,7 @@
             // Přátelé a reakce až po hlavním obsahu (záložka se vykreslí dřív); poslední aktivita se zapíše nejvýš jednou za 5 minut
             if (Friends) Social.touchSeen().catch(() => {});
             if (GroupsUI) GroupsUI.refresh();
+            if (ConquestUI) ConquestUI.refresh();
             await loadFriends(user);
             paintChallenges();
         } finally {
@@ -9867,7 +9872,8 @@
         chronicle: () => { closeDialog(); openChronicle(); },
         mystery: () => { closeDialog(); openMystery(); },
         leagueSeasons: () => { closeDialog(); openLeagueSeasons(); },
-        groups: () => { closeDialog(); openHomeTabFromPush('multi'); if (GroupsUI) GroupsUI.openList(); }
+        groups: () => { closeDialog(); openHomeTabFromPush('multi'); if (GroupsUI) GroupsUI.openList(); },
+        conquest: () => { closeDialog(); if (ConquestUI) ConquestUI.openHub(); }
     };
     const openTip = (tip) => {
         if (!tip || document.getElementById('dialog-overlay')) return;
@@ -10902,6 +10908,39 @@
         });
     }
 
+    // Dobývání (conquest.js, conquest-ui.js): karta na záložce Více hráčů, rozcestník her a obrazovka hry 'conquest'.
+    // Mapa se načte až při použití (data/dobyvani-<mapa>.json), otázky z dat témat Zeměpis, Vlajky a znaky a Architektura.
+    // Odměna po konci hry (server ji vydá jen jednou): XP a za 1. místo počítadlo odznaku Dobyvatel.
+    const loadConquestMap = memoizeBy((id) => fetchJson(`data/dobyvani-${id}.json`));
+    if (window.MudrlantConquest && window.MudrlantConquestUI && Social) {
+        ConquestUI = window.MudrlantConquestUI.createUI({
+            Conquest: window.MudrlantConquest, Social, appContent, signedUser, renderIcons, showDialog, closeDialog, showToast,
+            login: () => { if (Auth) startLogin(); },
+            isActive: () => screen === 'conquest',
+            enter: () => { screen = 'conquest'; closePlaceInfo(); closeDialog(); updateControlsUI(); },
+            loadMap: (id) => loadConquestMap(id),
+            loadTopics: async () => {
+                const [zemepis, vlajky, architektura] = await Promise.all(['zemepis', 'vlajky', 'architektura'].map(id => (TOPIC_BY_ID[id] ? loadTopic(id).catch(() => null) : null)));
+                return { zemepis: zemepis ? zemepis.items : [], vlajky: vlajky ? vlajky.items : [], architektura: architektura ? architektura.items : [] };
+            },
+            award: ({ xp = 0, badge = false }) => {
+                const before = loadProgress();
+                const progress = { ...before, xp: before.xp + xp };
+                if (badge) progress.counters.conquestWins = (progress.counters.conquestWins || 0) + 1;
+                if (xp) chronicleLog({ xp });
+                const titles = grantBadges(progress);
+                saveProgress(progress);
+                announce(levelProgress(before.xp).level, levelProgress(progress.xp).level, titles);
+                settleGoals();
+                applyLook();
+                syncProgress();
+            },
+            share: (payload) => ShareCard ? ShareCard.shareText(payload, { toast: showToast, copied: 'Odkaz na hru zkopírován', failed: 'Kopírování se nepodařilo' }) : null,
+            sound: (name) => { if (Sound) Sound.play(name); },
+            touchTip
+        });
+    }
+
     // Všechny akce přes delegaci událostí – stránka nepotřebuje inline JavaScript (kvůli CSP)
     const ACTIONS = {
         daily: (button) => { lastDailyTopic = button.dataset.topic; startDaily(button.dataset.topic); },
@@ -10913,6 +10952,8 @@
         'open-profile': () => openProfile(),
         'open-accept': () => openAccepted(),
         'groups-open': () => { touchTip('groups'); if (GroupsUI) GroupsUI.openList(); },
+        'conquest-open': () => { if (ConquestUI) ConquestUI.openHub(); },
+        'conquest-play': (button) => { if (ConquestUI) ConquestUI.openGame(button.dataset.game); },
         // Přátelé a reakce (friends.js)
         'friend-accept': (button) => answerFriendRequest(button.dataset.id, true),
         'friend-decline': (button) => answerFriendRequest(button.dataset.id, false),
@@ -11152,6 +11193,8 @@
             challengeHome();
         } else if (screen === 'quiz' || screen === 'quiz-done' || screen === 'mystery') {
             renderHome();
+        } else if (screen === 'conquest') {
+            if (!ConquestUI || !ConquestUI.back()) renderHome();
         } else if (screen === 'mode') {
             leaveMode();
         } else if (screen === 'learn') {
@@ -11245,6 +11288,7 @@
         const invite = takeInviteCode();
         if (invite) writeJson(KEYS.pendingChallenge, invite);
         const groupInvite = GroupsUI ? GroupsUI.takeLink() : '';
+        const conquestInvite = ConquestUI ? ConquestUI.takeLink() : '';
         let shownUserId = null;
         Auth.onChange((state) => {
             if (document.getElementById('settings-overlay')) openSettings();
@@ -11259,6 +11303,7 @@
                 quizServer = null; quizServerAt = 0;
                 leagueSeasons = null; leagueSeasonsAt = 0; myShowcase = null; myShowcaseAt = 0; seasonPick = null;
                 if (GroupsUI) GroupsUI.reset();
+                if (ConquestUI) ConquestUI.reset();
                 updateProfileButton();
                 paintChallenges();
             }
@@ -11269,6 +11314,7 @@
                 try { localStorage.removeItem(KEYS.pendingChallenge); } catch (e) { /* bez úložiště se kód nepamatuje */ }
                 openChallenge(pending);
             } else if (GroupsUI) GroupsUI.afterLogin();
+            if (ConquestUI) ConquestUI.afterLogin();
             refreshChallenges();
             if (state.user) { flushReports(); flushAnswerStats(); }
             // Přihlášení z výsledku Kvízu dne („Přihlas se a uvidíš se v pořadí“): výsledek se otevře znovu a zapíše na účet
@@ -11284,6 +11330,8 @@
             if (!state.user && invite) openChallenge(invite);
             // Odkaz do skupiny: přihlášený se rovnou přidá (náhled a Přidat se), nepřihlášený se nejdřív přihlásí
             else if (groupInvite && GroupsUI) GroupsUI.openJoin(groupInvite);
+            // Odkaz do hry Dobývání: přihlášený vybere barvu a znak a přidá se, nepřihlášený se nejdřív přihlásí
+            if (conquestInvite && ConquestUI) ConquestUI.openCode(conquestInvite);
         });
     }
     // Klávesnice na telefonu: Chrome i Safari při jejím otevření zmenší jen viditelnou plochu, okna zarovnaná ke spodku by zůstala pod ní.
