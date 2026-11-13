@@ -164,6 +164,7 @@
     const playersWord = (count) => plural(count, 'hráč', 'hráči', 'hráčů');
     const pointsWord = (count) => plural(count, 'bod', 'body', 'bodů');
     const territoriesWord = (count) => plural(count, 'území', 'území', 'území');
+    const regionsWord = (count) => plural(count, 'region', 'regiony', 'regionů');
     const hash32 = (text) => {
         let hash = 2166136261;
         for (let i = 0; i < text.length; i++) hash = Math.imul(hash ^ text.charCodeAt(i), 16777619);
@@ -898,21 +899,72 @@
                 <button type="button" data-cq="zoom-reset" class="absolute right-1.5 top-1.5 hidden h-10 w-10 items-center justify-center rounded-xl bg-white/90 text-slate-700 shadow ring-1 ring-black/10 dark:bg-slate-800/90 dark:text-slate-200" aria-label="Celá mapa"><i data-lucide="expand" class="h-4 w-4"></i></button>
                 <div data-cq-banner class="pointer-events-none absolute inset-x-0 top-2 flex justify-center px-2"></div>
             </div>
-            <div data-cq-panel class="flex min-h-[2.25rem] flex-1 flex-col gap-1 overflow-hidden">
-                <ul data-cq-players class="flex shrink-0 gap-1 overflow-x-auto pb-0.5">${playersStripHtml(view)}</ul>
-                <button type="button" data-cq="feed" data-cq-recent class="flex min-h-0 flex-1 flex-col gap-0.5 overflow-hidden rounded-xl text-left">${recentHtml(view)}</button>
+            <div data-cq-panel class="flex min-h-[2.25rem] flex-1 flex-col gap-1.5 overflow-hidden short:gap-1">
+                <section data-cq-players class="cq-ledger shrink-0 rounded-2xl px-2 pb-1.5 pt-1 short:pb-1" aria-label="Pořadí">${playersStripHtml(view, { now })}</section>
+                <button type="button" data-cq="feed" data-cq-recent class="cq-ledger flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl px-2 pb-1 pt-1 text-left">${recentHtml(view, { now })}</button>
                 ${dev && !view.finished ? devBarHtml({ kind: 'game' }) : ''}
             </div>
             <div data-cq-sheet class="absolute inset-x-0 bottom-0 z-20"></div>
         </div>`;
     };
-    const playersStripHtml = (view) => view.ranking.map(player => `<li class="flex min-w-0 shrink-0 items-center gap-1 rounded-xl bg-white px-1.5 py-1 shadow-sm dark:bg-slate-800 ${player.me ? 'ring-2 ring-brand-600 dark:ring-gold-300' : 'ring-1 ring-slate-200/70 dark:ring-slate-700'}" title="${esc(player.display_name)}">
-            ${pennantSvg(player.flag_color, player.emblem, 'h-5 w-[1.6rem]')}<span class="max-w-[4.5rem] truncate text-[11.5px] font-bold text-slate-700 dark:text-slate-200">${esc(player.me ? 'Ty' : player.display_name)}</span><span class="text-[12px] font-black text-slate-900 dark:text-white">${player.score}</span></li>`).join('');
-    // Poslední události pod mapou (klepnutí otevře celou kroniku)
-    const recentHtml = (view) => {
-        const items = feedItems(view.state.moves || [], view).slice(0, 4);
-        if (!items.length) return '';
-        return `<span class="px-1 text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">Kronika tažení</span>${items.map(item => `<span class="flex min-w-0 items-center gap-1.5 px-1 text-[12px] leading-tight text-slate-700 dark:text-slate-200">${item.actor ? pennantSvg(item.actor.flag_color, item.actor.emblem, 'h-3.5 w-[1.15rem]') : ''}<span class="min-w-0 truncate"><b>${esc(item.title)}:</b> ${esc(item.text)}${item.actor ? ` · ${esc(item.actor.me ? 'ty' : item.actor.display_name)}` : ''}</span></span>`).join('')}`;
+    // Začátek dalšího období (nové tahy), pokud ještě do konce hry nějaké přijde
+    const nextPeriodAt = (state) => {
+        const start = parseTime(state.started_at), end = parseTime(state.ends_at);
+        if (start === null || !state.budget) return null;
+        const at = start + (state.budget.period + 1) * (state.period === 'hour' ? 3600e3 : 86400e3);
+        return end !== null && at >= end ? null : at;
+    };
+    // Jak dávno se událost stala (kronika)
+    const agoLabel = (at, now) => {
+        const time = parseTime(at);
+        if (time === null) return '';
+        const minutes = Math.max(0, Math.floor((now - time) / 60000));
+        if (minutes < 1) return 'teď';
+        if (minutes < 60) return `před ${minutes} min`;
+        if (minutes < 1440) return `před ${Math.floor(minutes / 60)} h`;
+        return `před ${Math.floor(minutes / 1440)} d`;
+    };
+    const periodLine = (view, now) => {
+        if (view.finished) return 'Konečné pořadí';
+        const next = view.running ? nextPeriodAt(view.state) : null;
+        return next ? `Nové tahy za ${timeLeft(next - now)}` : view.running ? 'Poslední období hry' : '';
+    };
+    // Pořadí pod mapou: místo (medaile pro první tři), praporec, jméno, kolik území a regionů drží, podíl na mapě v barvě hráče a body.
+    // Do tří hráčů po řádcích, víc hráčů ve dvou sloupcích (vejde se i osm na nejmenší displej)
+    const playersStripHtml = (view, { now = Date.now() } = {}) => {
+        const total = view.data.t.length || 1;
+        const compact = view.ranking.length > 3;
+        const rows = view.ranking.map(player => {
+            const count = view.territoriesOf(player.id).length;
+            const regions = view.regionsOf(player.id).length;
+            const share = Math.round(count / total * 1000) / 10;
+            const name = player.me ? 'Ty' : player.display_name || 'Hráč';
+            const medal = `<span class="cq-medal cq-medal-${player.place <= 3 ? player.place : 'x'} flex ${compact ? 'h-5 w-5 text-[10.5px]' : 'h-6 w-6 text-[12px]'} shrink-0 items-center justify-center rounded-full font-black" aria-hidden="true">${player.place}</span>`;
+            const bar = `<span class="cq-bar mt-0.5 block h-1 overflow-hidden rounded-full" aria-hidden="true"><svg viewBox="0 0 100 1" preserveAspectRatio="none" class="block h-full w-full"><rect width="${count ? Math.max(2, share) : 0}" height="1" fill="${player.color.hex}"/></svg></span>`;
+            const label = `${player.place}. ${name}: ${pointsWord(player.score)}, ${territoriesWord(count)}${regions ? `, ${regionsWord(regions)}` : ''}`;
+            if (compact) {
+                return `<li class="cq-rank-row${player.me ? ' cq-rank-me' : ''} flex min-w-0 items-center gap-1.5 rounded-lg px-1 py-0.5" aria-label="${esc(label)}">${medal}${pennantSvg(player.flag_color, player.emblem, 'h-4 w-5 shrink-0')}
+                    <span class="min-w-0 flex-1"><span class="flex items-baseline gap-1"><span class="min-w-0 flex-1 truncate text-[12px] font-bold text-slate-800 dark:text-slate-100">${esc(name)}</span><b class="shrink-0 text-[13px] font-black text-slate-900 dark:text-white">${player.score}</b></span>${bar}</span></li>`;
+            }
+            const detail = `${territoriesWord(count)}${regions ? ` · ${regionsWord(regions)}` : ''}`;
+            return `<li class="cq-rank-row${player.me ? ' cq-rank-me' : ''} flex min-w-0 items-center gap-2 rounded-xl px-1.5 py-1 short:py-0.5" aria-label="${esc(label)}">${medal}${pennantSvg(player.flag_color, player.emblem, 'h-5 w-[1.6rem] shrink-0')}
+                <span class="min-w-0 flex-1"><span class="flex items-baseline gap-1.5"><span class="min-w-0 truncate text-[13.5px] font-black text-slate-800 dark:text-slate-100">${esc(name)}</span><span class="shrink-0 truncate text-[11px] font-semibold text-slate-500 dark:text-slate-400">${esc(detail)}</span></span>${bar}</span>
+                <span class="flex w-9 shrink-0 flex-col items-end leading-none"><b class="text-[17px] font-black text-slate-900 dark:text-white">${player.score}</b><span class="mt-0.5 text-[9px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">${esc(pointsWord(player.score).replace(/^\d+ /, ''))}</span></span></li>`;
+        }).join('');
+        return `<div class="flex items-baseline justify-between gap-2"><h2 class="cq-ledger-title">Pořadí</h2><span data-cq-next class="truncate text-[11px] font-bold text-amber-900/75 dark:text-gold-200/80">${esc(periodLine(view, now))}</span></div>
+            <ol class="mt-0.5 ${compact ? 'grid grid-cols-2 gap-x-1.5 gap-y-0.5' : 'flex flex-col gap-0.5'}">${rows}</ol>`;
+    };
+    // Poslední události pod mapou (klepnutí otevře celou kroniku); karta vyplní zbytek obrazovky, kolik se vejde, tolik je vidět
+    const recentHtml = (view, { now = Date.now() } = {}) => {
+        const items = feedItems(view.state.moves || [], view).slice(0, 8);
+        const head = `<span class="flex w-full shrink-0 items-baseline justify-between gap-2"><span class="cq-ledger-title">Kronika tažení</span>${items.length ? '<span class="flex items-center gap-0.5 text-[11px] font-bold text-amber-900/75 dark:text-gold-200/80">Celá kronika<i data-lucide="chevron-right" class="h-3.5 w-3.5"></i></span>' : ''}</span>`;
+        if (!items.length) return `${head}<span class="flex min-h-0 flex-1 items-center justify-center px-2 text-center text-[12px] font-semibold text-slate-500 dark:text-slate-400">Zatím je klid. Každé dobytí, opevnění i odražený útok se zapíše sem.</span>`;
+        const rows = items.map(item => `<span class="cq-feed-row flex min-w-0 shrink-0 items-center gap-1.5 py-[3px]">
+                <span class="cq-tone cq-tone-${item.tone} flex h-5 w-5 shrink-0 items-center justify-center rounded-full"><i data-lucide="${item.icon}" class="h-3 w-3"></i></span>
+                <span class="min-w-0 flex-1 truncate text-[12px] leading-tight text-slate-700 dark:text-slate-200"><b class="font-black text-slate-900 dark:text-white">${esc(item.title)}</b> · ${esc(item.text)}</span>
+                ${item.actor ? `<span class="flex shrink-0 items-center gap-1 text-[11px] font-semibold text-slate-500 dark:text-slate-400">${pennantSvg(item.actor.flag_color, item.actor.emblem, 'h-3 w-4')}<span class="max-w-[4.5rem] truncate">${esc(item.actor.me ? 'ty' : item.actor.display_name)}</span></span>` : ''}
+                <span class="w-12 shrink-0 text-right text-[10.5px] font-semibold tabular-nums text-slate-400 dark:text-slate-500">${esc(agoLabel(item.at, now))}</span></span>`).join('');
+        return `${head}<span class="cq-feed-list flex min-h-0 w-full flex-1 flex-col overflow-hidden">${rows}</span>`;
     };
 
     // Spodní list území: majitel, opevnění, region, poklad; Zaútočit (s výběrem, odkud) / Opevnit
@@ -1058,7 +1110,7 @@
     return {
         ART, MAPS, MAP_BY_ID, DURATIONS, PERIODS, MIN_PLAYERS, MAX_PLAYERS, MAX_ACTIONS, MAX_GAMES, MAX_OWN_LOBBIES, REGION_POINTS, LEVELS, REWARD_XP,
         COLORS, COLOR_BY_ID, EMBLEMS, EMBLEM_BY_ID, colorOf, emblemOf, inkOf, emblemInk, luminance, maxLevel, rewardFor,
-        durationLabel, periodLabel, actionsLabel, timeLeft, movesWord, pointsWord, playersWord, territoriesWord,
+        durationLabel, periodLabel, actionsLabel, timeLeft, movesWord, pointsWord, playersWord, territoriesWord, regionsWord, nextPeriodAt, agoLabel, periodLine,
         indexMap, parseRings, pointInRings, project, territoryAt, isAdjacent, viewOf, rank, sourcesFor, actionsFor,
         buildQuestion, kindsFor, placesOf, flagUrl, flagFile, FLAG_WIDTH, feedItems, replaySteps, capturedWord, hatchPattern, levelIcon, iconMarkup,
         pennantSvg, pennantGroup, emblemSvg, mapSvg, thumbSvg, marksFor, homeCardHtml, hubHtml, mineHtml, lobbyHtml, createHtml, lookHtml, lobbyDetailHtml,

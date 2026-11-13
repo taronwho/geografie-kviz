@@ -885,6 +885,37 @@ html.kb-open #settings-overlay > *, html.kb-open #dialog-overlay > * { max-heigh
     .cq-paper { background-color: #cdb98f; background-size: auto, auto, auto, 320px; background-blend-mode: normal, normal, normal, multiply; background-image: radial-gradient(ellipse at 30% 25%, rgb(232 214 172 / 0.7), transparent 60%), radial-gradient(ellipse at 80% 85%, rgb(120 90 50 / 0.45), transparent 55%), repeating-linear-gradient(115deg, rgb(90 60 30 / 0.05) 0 2px, transparent 2px 7px), url(icons/textury/textura-pergamen.webp); }
     .cq-card-paper { background-image: linear-gradient(100deg, rgb(120 96 56 / 0.28), rgb(0 0 0 / 0) 70%); }
 }
+/* Karty pod mapou (pořadí, kronika): světlý pergamen s hnědou linkou jako mapa, v tmavém režimu tmavá deska se zlatou linkou */
+.cq-ledger { background-color: #fbf3e0; background-image: linear-gradient(rgb(255 252 244 / 0.5), rgb(255 252 244 / 0.5)), url(icons/textury/textura-pergamen-svetly.webp); background-size: auto, 320px; box-shadow: inset 0 0 0 1px rgb(164 123 69 / 0.5), inset 0 0 0 3px rgb(255 250 238 / 0.55), 0 2px 6px -3px rgb(60 40 20 / 0.35); }
+.cq-ledger-title { font-family: Georgia, 'Times New Roman', serif; font-variant: small-caps; font-weight: 700; font-size: 14px; line-height: 1.35; letter-spacing: 0.06em; color: #5a3416; }
+.cq-rank-me { background: rgb(255 255 255 / 0.72); box-shadow: inset 0 0 0 1.5px #d69725; }
+.cq-medal-1 { background: linear-gradient(#ffe066, #d69725); color: #3b1e0a; box-shadow: inset 0 0 0 1px rgb(122 70 27 / 0.55); }
+.cq-medal-2 { background: linear-gradient(#f8fafc, #a3b1c2); color: #1e293b; box-shadow: inset 0 0 0 1px rgb(71 85 105 / 0.45); }
+.cq-medal-3 { background: linear-gradient(#f3bd8a, #b06d30); color: #3b1e0a; box-shadow: inset 0 0 0 1px rgb(122 70 27 / 0.5); }
+.cq-medal-x { background: rgb(120 90 50 / 0.12); color: #6b4a2a; }
+.cq-bar { background: rgb(120 90 50 / 0.16); }
+.cq-feed-row + .cq-feed-row { border-top: 1px dashed rgb(164 123 69 / 0.32); }
+.cq-feed-list { mask-image: linear-gradient(#000 calc(100% - 12px), transparent); }
+.cq-tone-neutral { background: rgb(120 90 50 / 0.14); color: #6b4a2a; }
+.cq-tone-capture { background: #fde2e4; color: #b4232f; }
+.cq-tone-gold { background: #fdf0c4; color: #a16207; }
+.cq-tone-breach { background: #ffe8d1; color: #c2410c; }
+.cq-tone-fortify { background: #dcf3e6; color: #15803d; }
+.cq-tone-defend { background: #dbeafe; color: #1d4ed8; }
+@media (prefers-color-scheme: dark) {
+    .cq-ledger { background: linear-gradient(#2c2f34, #25282c); box-shadow: inset 0 0 0 1px rgb(214 151 37 / 0.3), 0 2px 8px -4px rgb(0 0 0 / 0.7); }
+    .cq-ledger-title { color: #ead7ab; }
+    .cq-rank-me { background: rgb(214 151 37 / 0.12); box-shadow: inset 0 0 0 1.5px rgb(239 197 92 / 0.85); }
+    .cq-medal-x { background: rgb(255 255 255 / 0.08); color: #cbd5e1; }
+    .cq-bar { background: rgb(255 255 255 / 0.1); }
+    .cq-feed-row + .cq-feed-row { border-top-color: rgb(255 255 255 / 0.08); }
+    .cq-tone-neutral { background: rgb(255 255 255 / 0.08); color: #d6c7a6; }
+    .cq-tone-capture { background: rgb(225 29 72 / 0.2); color: #fda4af; }
+    .cq-tone-gold { background: rgb(234 179 8 / 0.2); color: #fde68a; }
+    .cq-tone-breach { background: rgb(249 115 22 / 0.2); color: #fdba74; }
+    .cq-tone-fortify { background: rgb(34 197 94 / 0.18); color: #86efac; }
+    .cq-tone-defend { background: rgb(59 130 246 / 0.2); color: #93c5fd; }
+}
 .cq-map-wrap { box-shadow: 0 0 0 1px rgb(107 74 42 / 0.45), 0 8px 18px -10px rgb(60 40 20 / 0.6); }
 .cq-vignette { box-shadow: inset 0 0 28px rgb(92 60 26 / 0.45), inset 0 0 3px rgb(92 60 26 / 0.6); }
 .cq-map { cursor: grab; }

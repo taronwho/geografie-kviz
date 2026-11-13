@@ -386,9 +386,9 @@
             if (!holder || !game) { renderGame(); return; }
             holder.innerHTML = C.mapSvg(game.data, game.view);
             const players = app.querySelector('[data-cq-players]');
-            if (players) players.innerHTML = C.playersStripHtml(game.view);
+            if (players) players.innerHTML = C.playersStripHtml(game.view, { now: Date.now() });
             const recent = app.querySelector('[data-cq-recent]');
-            if (recent) recent.innerHTML = C.recentHtml(game.view);
+            if (recent) recent.innerHTML = C.recentHtml(game.view, { now: Date.now() });
             const budget = app.querySelector('[data-cq-budget]');
             if (budget && game.view.budget) budget.innerHTML = `<i data-lucide="swords" class="h-4 w-4 text-brand-700 dark:text-gold-300"></i><span class="sr-only">Tahy </span>${game.view.budget.left}/${game.view.budget.total}`;
             deps.renderIcons(app.querySelector('[data-cq-panel]') || app);
@@ -829,6 +829,8 @@
             if (!clock || !game) return;
             const end = Date.parse(game.state.ends_at || '');
             clock.textContent = game.view.finished ? 'Hra skončila' : Number.isFinite(end) ? `zbývá ${C.timeLeft(end - Date.now())}` : '';
+            const next = app.querySelector('[data-cq-next]');
+            if (next) next.textContent = C.periodLine(game.view, Date.now());
         };
 
         // --- Konec hry: stupně vítězů, odměna, přehrání ---
