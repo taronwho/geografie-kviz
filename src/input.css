@@ -882,6 +882,7 @@ html.kb-open #settings-overlay > *, html.kb-open #dialog-overlay > * { max-heigh
 }
 .cq-card-paper { background-image: linear-gradient(100deg, rgb(250 240 214 / 0.55), rgb(255 255 255 / 0.85) 70%), url(icons/textury/textura-pergamen-svetly.webp); background-size: auto, 260px; }
 @media (prefers-color-scheme: dark) {
+    .cq-wash { fill-opacity: 0.5; }
     .cq-paper { background-color: #cdb98f; background-size: auto, auto, auto, 320px; background-blend-mode: normal, normal, normal, multiply; background-image: radial-gradient(ellipse at 30% 25%, rgb(232 214 172 / 0.7), transparent 60%), radial-gradient(ellipse at 80% 85%, rgb(120 90 50 / 0.45), transparent 55%), repeating-linear-gradient(115deg, rgb(90 60 30 / 0.05) 0 2px, transparent 2px 7px), url(icons/textury/textura-pergamen.webp); }
     .cq-card-paper { background-image: linear-gradient(100deg, rgb(120 96 56 / 0.28), rgb(0 0 0 / 0) 70%); }
 }
@@ -933,7 +934,9 @@ html.kb-open #settings-overlay > *, html.kb-open #dialog-overlay > * { max-heigh
 .cq-neat { fill: none; stroke: #5b3a1e; stroke-width: 2.4; vector-effect: non-scaling-stroke; }
 .cq-neat-inner { fill: none; stroke: #5b3a1e; stroke-opacity: 0.55; stroke-width: 0.8; vector-effect: non-scaling-stroke; }
 .cq-washes { mix-blend-mode: multiply; }
-.cq-wash { fill-opacity: 0.62; }
+.cq-wash { fill-opacity: 0.4; }
+/* Pruh barvy podél hranice uvnitř území (polovina tahu je za hranicí a ořízne ji obrys území) */
+.cq-band { fill: none; stroke-width: 9; stroke-opacity: 0.62; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
 .cq-borders path { fill: none; stroke: #6b4a2a; stroke-opacity: 0.75; stroke-width: 0.8; stroke-dasharray: 3 2; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
 .cq-inks path { fill: none; stroke-width: 1.6; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
 .cq-inks .cq-ink-me { stroke-width: 2.6; }
@@ -941,6 +944,8 @@ html.kb-open #settings-overlay > *, html.kb-open #dialog-overlay > * { max-heigh
 .cq-hit { fill: rgb(0 0 0 / 0); stroke: none; cursor: pointer; }
 .cq-hit:focus { outline: none; }
 .cq-select path { fill: rgb(255 236 170 / 0.25); stroke: #c8961d; stroke-width: 2.6; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
+/* Obrys regionu vybraného území: tenčí čárkovaná linka a jen náznak výplně, ať vybrané území zůstane výraznější */
+.cq-select .cq-select-region { fill: rgb(255 236 170 / 0.1); stroke: #b07d14; stroke-width: 1.8; stroke-dasharray: 7 4; stroke-opacity: 0.85; }
 .cq-region-glow { fill: none; stroke: #f0c14b; stroke-width: 6; stroke-opacity: 0.55; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
 .cq-label { font-family: Georgia, 'Times New Roman', serif; font-style: italic; font-weight: 700; fill: #3b2a1a; text-anchor: middle; paint-order: stroke; stroke: rgb(246 234 206 / 0.9); stroke-width: 2.4px; stroke-linejoin: round; letter-spacing: 0.02em; }
 .cq-label.cq-hide, .cq-mark.cq-hide { display: none; }
@@ -991,7 +996,7 @@ html.kb-open #settings-overlay > *, html.kb-open #dialog-overlay > * { max-heigh
 @media (prefers-reduced-motion: no-preference) {
     .cq-sheet-in { animation: cqSheetIn 0.26s cubic-bezier(0.2, 0.9, 0.3, 1.05); }
     .cq-bob { animation: cqBob 4s ease-in-out infinite; }
-    .cq-select path { animation: cqSelect 1.6s ease-in-out infinite; }
+    .cq-select .cq-select-item { animation: cqSelect 1.6s ease-in-out infinite; }
     .cq-region-glow { animation: cqGlow 2.8s ease-in-out infinite; }
     .cq-region-new { animation: cqGlowNew 1.2s ease-out 3, cqGlow 2.8s ease-in-out 3.6s infinite; }
     .cq-arrow-draw { animation: cqDraw 0.65s ease-out both; }

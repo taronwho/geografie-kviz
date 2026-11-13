@@ -1124,13 +1124,15 @@
         }
         // Ozdoby na moři
         if (!opts.thumb && data.deco) ['compass', 'ship', 'monster'].forEach((kind, i) => { if (data.deco[i]) parts.push(decoMarkup(kind, data.deco[i])); });
-        // Území: neutrální jen pergamen; obsazené barvou hráče (násobení) a šrafou
+        // Území: neutrální jen pergamen; obsazené jako ručně kolorovaná stará mapa: světlá lazura barvou hráče, sytý pruh barvy podél
+        // hranice uvnitř území (ořezaný obrysem území), šrafa a inkoustová linka (vše násobením, pergamen prosvítá)
         const washes = [], hatches = [], inks = [];
         for (const item of data.t) {
             const info = view ? view.owners.get(item.id) : null;
             const owner = info && info.owner ? view.byId.get(info.owner) : null;
             if (owner) {
-                washes.push(`<path class="cq-wash" data-wash="${item.id}" d="${item.d}" fill="${owner.color.hex}"/>`);
+                defs.push(`<clipPath id="${prefix}-in-${item.id}"><path d="${item.d}"/></clipPath>`);
+                washes.push(`<path class="cq-wash" data-wash="${item.id}" d="${item.d}" fill="${owner.color.hex}"/><path class="cq-band" data-band="${item.id}" d="${item.d}" stroke="${owner.color.hex}" clip-path="url(#${prefix}-in-${item.id})"/>`);
                 hatches.push(`<path data-hatch="${item.id}" d="${item.d}" fill="url(#${prefix}-hatch-${owner.seat})"/>`);
                 inks.push(`<path class="cq-ink${owner.me ? ' cq-ink-me' : ''}" data-ink="${item.id}" d="${item.d}" stroke="${inkOf(owner.flag_color)}"/>`);
             }

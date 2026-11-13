@@ -2414,6 +2414,18 @@ Kam: truhlička na neutrálním území s pokladem (na mapě je jich pět, dobyt
 Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole object. Single centered subject filling about 80 % of the frame with even empty space around it, readable even as a tiny 28 px map icon (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow on the background, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, colors, shading); do not draw the owl and do not copy any existing cartoon or game artwork. Subject: A small, open wooden treasure chest with golden bands, overflowing with a heap of shiny gold coins and a few colorful gems (blue, green, violet), two coins spilled on the ground in front of it, a bright sparkle on top; smaller and simpler than a reward chest. Colors: warm wood brown, gold, blue, green, violet. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
+## 21. Dobývání – vybarvení území (č. 264)
+
+Obsazená území se barví jako ručně kolorovaná stará mapa: světlá lazura barvou hráče a sytější pruh barvy podél hranice uvnitř území. Textura přidá lazuře nerovnoměrnost skutečného akvarelu (místa, kde se barva slila, jemná zrnitost papíru). Je šedá, barvu hráče jí dá aplikace, takže jedna textura slouží všem barvám.
+
+#### 264. `textura-akvarel.png` – Akvarelová lazura (šedá) – čeká na dodání
+
+Kam: barva obsazených území na mapě Dobývání (lazura barvou hráče se touto texturou zvlní jako akvarel, násobením přes barvu). Do dodání rovnoměrná lazura s pruhem podél hranic. Nic nepřikládat.
+
+```text
+Seamless tileable background texture, painted watercolor on cold-press paper, in pure neutral grayscale only (no hue at all, every pixel grey). NOT a sticker: no outline, no border, no frame, no objects, no shapes, no characters, no symbols. Texture: one single even layer of watercolor wash covering the whole image: soft uneven pigment pooling, a few gentle cauliflower blooms with slightly darker soft rims, fine pigment granulation and visible paper grain, faint brush streaks in random directions. Mostly light grey (between #d8d8d8 and #f4f4f4) with a few softly blended mid-grey pools (around #b0b0b0); no pure white unpainted gaps, no hard edges, no lines, no stains with sharp borders. Even lighting with no vignette and no central focal point; the left edge must continue seamlessly into the right edge and the top edge into the bottom edge, so the image can be repeated as a tile without visible seams. Subtle and low contrast, because it will be tinted with a player color and laid over territories on an antique map under flags and icons. No text, no letters, no numbers, no logo, no watermark. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1 --tile
+```
+
 ## Co udělám po dodání
 
 1. Uložím soubory do `branding/ikony/`, vyříznu pozadí (`python3 scripts/topic-icons.py …`) a u sov vyrobím barvy obleku (`python3 scripts/owl-robes.py`).

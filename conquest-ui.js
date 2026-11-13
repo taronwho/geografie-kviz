@@ -541,7 +541,10 @@
             const layer = svg && svg.querySelector('.cq-select');
             if (!layer || !game) return;
             const item = game.selected ? game.view.index.byId.get(game.selected) : null;
-            layer.innerHTML = item ? `<path d="${item.d}"/>` : '';
+            // Vybrané území a pod ním jemně obrys celého jeho regionu (celý region = +1 tah za období a body navíc)
+            const region = item ? game.view.index.regionById.get(item.reg) : null;
+            const outline = region && region.d && region.t.length > 1 ? `<path class="cq-select-region" d="${region.d}"/>` : '';
+            layer.innerHTML = item ? `${outline}<path class="cq-select-item" d="${item.d}"/>` : '';
             updateDetail();
         };
         const sheet = () => app.querySelector('[data-cq-sheet]');
