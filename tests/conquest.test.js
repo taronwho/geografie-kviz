@@ -693,6 +693,79 @@ test('ztracený hrad: nápověda (záložka Regiony) říká, že kdo přijde o 
     assert.equal(C.PENALTY_TEXT, 'Kvůli ztracenému hradu máš v tomto období o tah méně.');
 });
 
+test('bitvy o území (blok 25): obléhané území na mapě, okno bitvy s varováním, odpočet a účastníci v otázce, čekání, výsledek, štítky', () => {
+    const NOW = Date.parse('2026-11-12T10:20:00Z');
+    const at = (seconds) => new Date(NOW + seconds * 1000).toISOString();
+    const fighter = (id, name, seat, color, extra = {}) => ({ id, display_name: name, seat, flag_color: color, emblem: 'lev', joined_at: at(-10), deadline: at(50), answered: false, ...extra });
+    // Petr (B) obléhá Rakousko; já (A) s ním sousedím (Česko) a můžu se přidat
+    const siege = { id: '00000000-0000-4000-8000-000000000099', territory: 'Q40', status: 'open', started_by: 'B', started_at: at(-10), join_until: at(50), ends_at: at(50),
+        mine: false, answered: false, can_join: true, participants: [fighter('B', 'Petr', 1, 'modra')] };
+    const state = { ...sampleState(), sieges: [siege] };
+    const view = C.viewOf(state, maps.evropa, 'A');
+    assert.ok(view.battles && view.sieges.get('Q40') === siege);
+    assert.ok(C.viewOf(sampleState(), maps.evropa, 'A').battles === false, 'databáze bez bitev: útok postaru');
+    // Na obléhané území nejde zaútočit jinak než přidáním, majitel ho neopevní
+    assert.deepEqual(C.actionsFor(view, 'Q40'), { attack: false, fortify: false, siege: true, reason: '' });
+    const owned = C.viewOf({ ...state, sieges: [{ ...siege, territory: 'Q214' }] }, maps.evropa, 'A');
+    assert.equal(C.actionsFor(owned, 'Q214').reason, 'Obléhané území teď nejde opevnit.');
+    // Mapa: rudý lem a pečeť s meči a praporkem účastníka
+    const svg = C.mapSvg(maps.evropa, view);
+    assert.match(svg, /<g class="cq-sieges" pointer-events="none"><path class="cq-siege-zone" data-siege-zone="Q40" d="/);
+    assert.match(svg, /data-mark="Q40"[^]*?<g class="cq-siege-badge" data-siege="Q40"[^>]*><circle class="cq-siege-pulse" r="9.5"\/><circle class="cq-siege-seal" r="8.5"\/>/);
+    // List území: okno bitvy, kolik zbývá na přidání, varování před rizikem a Přidat se do bitvy (místo Zaútočit)
+    const sheet = C.sheetHtml(view, 'Q40', { now: NOW });
+    assert.match(sheet, /Probíhá bitva[^]*přidat se: <span data-cq-until="\d+">0:50<\/span>[^]*Petr/);
+    assert.match(sheet, /Riskantní: všichni dostanou stejnou otázku a 60 s\. Území získá nejrychlejší správná odpověď\. Kdo odpoví správně, ale pomaleji, nezíská nic a tah ztratí\./);
+    assert.match(sheet, /data-cq="siege-join"[^>]*>[^]*Přidat se do bitvy/);
+    assert.doesNotMatch(sheet, /data-cq="attack"/);
+    // Po uplynutí okna pro přidání, bez sousedství nebo pro majitele vysvětlení
+    assert.match(C.sheetHtml(view, 'Q40', { now: NOW + 60000 }), /Přidat se do bitvy už nejde\./);
+    assert.match(C.sheetHtml(C.viewOf({ ...state, sieges: [{ ...siege, can_join: false }] }, maps.evropa, 'A'), 'Q40', { now: NOW }), /Přidat se teď nejde\./);
+    assert.match(C.sheetHtml(owned, 'Q214', { now: NOW }), /Tvoje území je obléhané\. Opevnit ho teď nejde/);
+    // Moje rozehraná bitva: Vrátit se do bitvy; po odpovědi čekání
+    const mine = C.viewOf({ ...state, sieges: [{ ...siege, mine: true, can_join: false, participants: [...siege.participants, fighter('A', 'Jana', 0, 'cervena', { me: true })] }] }, maps.evropa, 'A');
+    assert.match(C.sheetHtml(mine, 'Q40', { now: NOW }), /data-cq="siege-resume"[^]*Vrátit se do bitvy/);
+    // Útok jinam: upozornění, že se ostatní můžou přidat
+    assert.match(C.sheetHtml(view, 'Q183', { now: NOW }), /Na odpověď máš 60 s\. Kdo s územím sousedí, může se k bitvě přidat; vyhraje nejrychlejší správná odpověď\./);
+    assert.doesNotMatch(C.sheetHtml(C.viewOf(sampleState(), maps.evropa, 'A'), 'Q183'), /60 s/);
+    // Otázka v bitvě: odpočet, účastníci, místo pro „Do bitvy vstupuje…“; správnou možnost zná jen server (correctIndex)
+    const question = { kind: 'text', prompt: 'Hlavní město Rakouska?', difficulty: 1, choices: ['Vídeň', 'Graz', 'Linec', 'Salcburk'].map(label => ({ label })) };
+    const battle = { deadline: NOW + 42000, now: NOW, fighters: [fighter('B', 'Petr', 1, 'modra'), fighter('A', 'Jana', 0, 'cervena', { me: true })] };
+    const asked = C.questionHtml(question, { title: 'Bitva: Rakousko', item: C.indexMap(maps.evropa).byId.get('Q40'), data: maps.evropa, battle, view });
+    assert.match(asked, /data-cq-joined[^]*data-cq-timer>[^]*data-cq-timer-text>0:42<[^]*data-cq-fighters>[^]*Petr[^]*ty/);
+    const picked = C.questionHtml(question, { title: 'x', item: C.indexMap(maps.evropa).byId.get('Q40'), data: maps.evropa, battle, view, answered: 2 });
+    assert.match(picked, /data-cq-answer="2" disabled class="cq-choice cq-choice-picked/, 'před verdiktem serveru jen vybraná');
+    const judged = C.questionHtml(question, { title: 'x', item: C.indexMap(maps.evropa).byId.get('Q40'), data: maps.evropa, battle, view, answered: 2, correctIndex: 0 });
+    assert.match(judged, /data-cq-answer="0" disabled class="cq-choice cq-choice-ok/);
+    assert.match(judged, /data-cq-answer="2" disabled class="cq-choice cq-choice-bad/);
+    assert.match(C.questionHtml(question, { title: 'x', item: C.indexMap(maps.evropa).byId.get('Q40'), data: maps.evropa, battle, view, answered: -1, correctIndex: 0 }), /Čas vypršel\./);
+    assert.match(C.joinedHtml(view, fighter('B', 'Petr', 1, 'modra')), /Do bitvy vstupuje Petr!/);
+    // Čekání: místo možností jen moje a správná odpověď
+    const compact = C.questionHtml(question, { title: 'x', item: C.indexMap(maps.evropa).byId.get('Q40'), data: maps.evropa, battle, view, answered: 2, correctIndex: 0, footer: '<div data-cq-wait></div>', compact: true });
+    assert.match(compact, /Tvoje odpověď: Linec[^]*Správně: Vídeň[^]*data-cq-wait/);
+    assert.doesNotMatch(compact, /data-cq-answer/);
+    // Čekání: moje odpověď a čas, ostatní přemýšlí s odpočtem
+    const wait = C.battleWaitHtml(view, { ...siege, participants: [fighter('A', 'Jana', 0, 'cervena', { me: true, answered: true }), fighter('B', 'Petr', 1, 'modra')] }, { correct: true, answerMs: 4200, now: NOW });
+    assert.match(wait.replace(/\s+/g, ' '), /Čeká se na ostatní[^]*ty[^]*správně · 4,2 s[^]*Petr[^]*přemýšlí · <span class="tabular-nums" data-cq-until="\d+">0:50<\/span>[^]*Teď rozhoduje čas/);
+    assert.match(C.battleWaitHtml(view, siege, { correct: false, now: NOW }), /Tuhle bitvu už nevyhraješ/);
+    // Výsledek: vítěz s časem, pomalejší správná odpověď, špatně a bez odpovědi
+    const resolved = { ...siege, status: 'resolved', outcome: 'capture', participants: [
+        fighter('A', 'Jana', 0, 'cervena', { me: true, answered: true, correct: true, answer_ms: 4200, result: 'outrun', winner: false }),
+        fighter('B', 'Petr', 1, 'modra', { answered: true, correct: true, answer_ms: 2100, result: 'capture', winner: true }),
+        fighter('C', 'Eva', 2, 'zelena', { answered: false, correct: false, answer_ms: null, result: 'fail', winner: false })] };
+    const result = C.battleResultHtml(view, resolved).replace(/\s+/g, ' ');
+    assert.match(result, /Výsledek bitvy[^]*Rakousko[^]*Vyhrává Petr a získává území\.[^]*Petr[^]*vítězství · 2,1 s[^]*ty[^]*správně, pomaleji · 4,2 s[^]*Eva[^]*bez odpovědi/);
+    assert.match(C.battleResultHtml(view, { ...resolved, outcome: 'fail', participants: resolved.participants.map(p => ({ ...p, winner: false, correct: false, result: 'fail' })) }), /Nikdo neodpověděl správně, útok je odražen\./);
+    assert.match(C.battleResultHtml(view, { ...resolved, outcome: 'breach', participants: resolved.participants.map(p => ({ ...p, winner: p.id === 'A' })) }), /Vyhráváš: opevnění je pobořené\./);
+    // Štítky na mapě: bitva, do které se můžu přidat, a moje nedokončená bitva
+    assert.match(C.siegeChipsHtml(view, { now: NOW }), /data-cq-siege-open="Q40"[^]*Bitva: Rakousko[^]*data-cq-until="\d+">0:50/);
+    assert.equal(C.siegeChipsHtml(view, { now: NOW + 60000 }), '', 'po okně pro přidání štítek zmizí');
+    assert.match(C.siegeChipsHtml(C.viewOf({ ...state, sieges: [{ ...siege, mine: true, answered: false, deadline: at(30) }] }, maps.evropa, 'A'), { now: NOW }), /Vrátit se do bitvy[^]*0:30/);
+    assert.equal(C.clockText(61000), '1:01');
+    assert.equal(C.clockText(-5), '0:00');
+    for (const html of [svg, sheet, asked, judged, wait, result, C.gameScreenHtml(view, { now: NOW })]) assert.doesNotMatch(html, /\sstyle=/);
+});
+
 test('stavby: domovský hrad podle úrovně (č. 275–277), střechy a vlaječky v barvě majitele, obrázky v mezipaměti', () => {
     // Domovský hrad roste s opevněním, ostatní území mají palisádu, hradbu a pevnost
     assert.deepEqual([0, 1, 2, 3].map(level => C.levelIcon(level, true)), ['castle', 'castle1', 'castle2', 'castle3']);

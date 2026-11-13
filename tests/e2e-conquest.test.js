@@ -72,7 +72,8 @@ const backend = async (context, db) => {
             invited: g.status === 'lobby' && g.players.some(p => p.user === me.id) ? waiting(g).map(i => ({ ...db.profiles[i.user], by_me: i.by === me.id })) : null });
         const mine = (g) => g.players.find(p => p.user === me.id);
         // penalty: v období g.penaltyPeriod hráč kvůli ztracenému hradu o tah méně (schéma 23)
-        const budget = (g) => { const used = (g.moves || []).filter(m => m.u === me.id && ['attack', 'fortify'].includes(m.k) && (m.n || 0) === (g.periodNo || 0)).length; const penalty = g.penaltyPeriod !== undefined && g.penaltyPeriod === (g.periodNo || 0) ? 1 : 0; return { period: g.periodNo || 0, base: g.actions, regions: 0, treasures: 0, loot: 0, penalty, used, total: g.actions - penalty, left: Math.max(0, g.actions - penalty - used), period_ends_at: '2026-11-12T10:00:00Z' }; };
+        const budget = (g) => { const used = (g.moves || []).filter(m => m.u === me.id && ['attack', 'fortify'].includes(m.k) && (m.n || 0) === (g.periodNo || 0)).length
+            + (g.sieges || []).filter(s => s.status === 'open' && s.participants.some(p => p.user === me.id)).length; const penalty = g.penaltyPeriod !== undefined && g.penaltyPeriod === (g.periodNo || 0) ? 1 : 0; return { period: g.periodNo || 0, base: g.actions, regions: 0, treasures: 0, loot: 0, penalty, used, total: g.actions - penalty, left: Math.max(0, g.actions - penalty - used), period_ends_at: '2026-11-12T10:00:00Z' }; };
         const rescore = (g) => g.players.forEach(p => { const score = g.territories.filter(t => t.o === p.user).length; if (score !== p.score) { p.score = score; p.score_at = NOW; } });
         const start = (g) => {
             g.status = 'running'; g.started_at = NOW; g.ends_at = '2026-11-14T10:00:00Z';
@@ -83,8 +84,45 @@ const backend = async (context, db) => {
             if (treasure) treasure.p = true;
             rescore(g);
         };
+        // Bitvy o území (blok 25), jen s db.battles: stav hry má sieges a version. g.sieges = [{ id, territory, started_by, question, correct, status,
+        // participants: [{ user, source, answered, picked, correct, answer_ms, result, move }], winner, outcome }]; čas stojí (NOW), termíny NOW + 50 s
+        const LATER = '2026-11-11T10:00:50Z';
+        const siegeJson = (g, s) => {
+            const t = g.territories.find(x => x.t === s.territory);
+            const mineP = s.participants.find(p => p.user === me.id);
+            const done = s.status === 'resolved';
+            return { id: s.id, game: g.id, territory: s.territory, status: s.status, started_by: s.started_by, started_at: NOW, join_until: LATER, ends_at: LATER, resolved_at: done ? NOW : null,
+                winner: s.winner || null, outcome: s.outcome || null, mine: Boolean(mineP), answered: Boolean(mineP && mineP.answered), joined_at: mineP ? NOW : null, deadline: mineP ? LATER : null,
+                can_join: !done && !mineP && t.o !== me.id,
+                participants: s.participants.map(p => { const gp = g.players.find(x => x.user === p.user); return { ...db.profiles[p.user], seat: gp.seat, flag_color: gp.flag_color, emblem: gp.emblem, source: p.source || null, joined_at: NOW, deadline: LATER, answered: Boolean(p.answered), me: p.user === me.id,
+                    ...(done ? { correct: Boolean(p.correct), answer_ms: p.answered ? p.answer_ms : null, result: p.result, winner: s.winner === p.user, move: p.move } : {}) }; }) };
+        };
+        const siegeView = (g, s) => {
+            const mineP = s.participants.find(p => p.user === me.id);
+            return { ...siegeJson(g, s), now: NOW, ...(mineP ? { question: s.question, answer: mineP.answered ? { choice: mineP.picked, correct: Boolean(mineP.correct), answer_ms: mineP.answer_ms, late: false } : null,
+                correct_choice: mineP.answered || s.status === 'resolved' ? s.correct : null, result: mineP.result || null, move: mineP.move || null } : {}) };
+        };
+        const battles = (g) => (db.battles && g.status !== 'lobby' ? { sieges: (g.sieges || []).filter(s => s.status === 'open').map(s => siegeJson(g, s)), version: `${g.moves.length}.${g.siegeRev || 0}.${g.status}` } : {});
         const state = (g) => ({ ...summary(g), now: NOW, ...(g.status === 'lobby' ? {} : { territories: g.territories, budget: g.status === 'running' ? budget(g) : null, moves: g.moves.slice(-150), claimed: Boolean(mine(g) && mine(g).claimed),
-            history: g.status === 'finished' ? g.moves.filter(m => ['home', 'respawn', 'capture'].includes(m.r)) : null }) });
+            history: g.status === 'finished' ? g.moves.filter(m => ['home', 'respawn', 'capture'].includes(m.r)) : null, ...battles(g) }) });
+        // Vyhodnocení bitvy: vítěz = správně s nejkratším časem (dobude, nebo pobourá), ostatní fail / outrun
+        const resolveSiege = (g, s) => {
+            const t = g.territories.find(x => x.t === s.territory);
+            const win = s.participants.filter(p => p.correct).sort((a, b) => a.answer_ms - b.answer_ms)[0] || null;
+            for (const p of s.participants.filter(x => x !== win)) {
+                const move = { id: db.seq++, u: p.user, k: 'attack', t: t.t, s: p.source || null, ok: Boolean(p.correct), v: t.o, n: 0, at: NOW, p: false, h: false, l: t.l, r: p.correct ? 'outrun' : 'fail' };
+                g.moves.push(move); p.result = move.r; p.move = move;
+            }
+            if (win) {
+                const move = { id: db.seq++, u: win.user, k: 'attack', t: t.t, s: win.source || null, ok: true, v: t.o, n: 0, at: NOW, p: false, h: false, l: t.l };
+                if (t.l > 0) { t.l -= 1; move.r = 'breach'; } else { move.p = t.p; move.h = t.h && Boolean(t.o); Object.assign(t, { o: win.user, l: 0, h: false, p: false }); move.r = 'capture'; }
+                move.l = t.l; g.moves.push(move); win.result = move.r; win.move = move;
+            }
+            Object.assign(s, { status: 'resolved', winner: win ? win.user : null, outcome: win ? win.result : 'fail' });
+            g.siegeRev = (g.siegeRev || 0) + 1;
+            rescore(g);
+        };
+        const siegeOf = (id) => { for (const g of db.games) { const s = (g.sieges || []).find(x => x.id === id); if (s) return { g, s }; } return {}; };
         // Vývojářští boti (blok 22): do lobby (chtějí hrát, plná hra začne), jejich tahy hned (každý bot dobude jedno volné území), další období
         if (name === 'dev_conquest_add_bots') {
             const g = find(body.game);
@@ -168,6 +206,42 @@ const backend = async (context, db) => {
         if (name === 'conquest_set_look') { const g = find(body.game); Object.assign(mine(g), { flag_color: body.colour, emblem: body.emblem_id }); return json(summary(g)); }
         if (name === 'conquest_leave') { const g = find(body.game); g.players = g.players.filter(p => p.user !== me.id); return route.fulfill({ status: 204, body: '' }); }
         if (name === 'conquest_state') return json(state(find(body.game)));
+        if (name === 'conquest_pulse') {
+            if (!db.battles) return fail('Not found', 404);
+            const g = find(body.game);
+            return json({ id: g.id, now: NOW, status: g.status, ends_at: g.ends_at, ...battles(g), results: (g.sieges || []).filter(s => s.status === 'resolved' && s.participants.some(p => p.user === me.id)).map(s => siegeJson(g, s)) });
+        }
+        if (name === 'conquest_siege_begin') {
+            const g = find(body.game);
+            if ((g.sieges || []).some(s => s.status === 'open' && s.territory === body.target)) return fail('Na území právě probíhá bitva. Můžeš se přidat.');
+            const s = { id: uuid(db.seq++), territory: body.target, started_by: me.id, question: body.question, correct: body.correct, status: 'open', participants: [{ user: me.id, source: body.source }] };
+            g.sieges = [...(g.sieges || []), s];
+            g.siegeRev = (g.siegeRev || 0) + 1;
+            return json({ ...siegeView(g, s), budget: budget(g) });
+        }
+        if (name === 'conquest_siege_join') {
+            const { g, s } = siegeOf(body.siege);
+            if (s.status !== 'open') return fail('Bitva už skončila.');
+            if (!s.participants.some(p => p.user === me.id)) s.participants.push({ user: me.id, source: body.source });
+            g.siegeRev += 1;
+            return json({ ...siegeView(g, s), budget: budget(g) });
+        }
+        if (name === 'conquest_siege_answer') {
+            const { g, s } = siegeOf(body.siege);
+            const p = s.participants.find(x => x.user === me.id);
+            if (!p.answered && s.status === 'open') {
+                Object.assign(p, { answered: true, picked: body.choice, correct: body.choice === s.correct, answer_ms: (db.answerMs || {})[me.id] || 4200 });
+                g.siegeRev += 1;
+                if (s.participants.every(x => x.answered)) resolveSiege(g, s);
+            }
+            const done = s.status === 'resolved';
+            return json({ correct: Boolean(p.correct), status: done ? 'resolved' : 'waiting', late: false, answer_ms: p.answer_ms, correct_choice: s.correct, siege: siegeView(g, s), now: NOW, ...(done ? { move: p.move, state: state(g) } : {}) });
+        }
+        if (name === 'conquest_siege_status') {
+            const { g, s } = siegeOf(body.siege);
+            if (s.status === 'open' && s.participants.every(x => x.answered)) resolveSiege(g, s);
+            return json(siegeView(g, s));
+        }
         if (name === 'conquest_move') {
             const g = find(body.game);
             const t = g.territories.find(x => x.t === body.target);
@@ -520,6 +594,110 @@ test('Dobývání', { skip: !chromium && 'Playwright není nainstalovaný' }, as
             await context.close();
         });
     }
+
+    // Bitvy o území (blok 25): stejný server s db.battles (puls, obléhání, přidání, odpověď, stav bitvy)
+    await t.test('bitva o území, útočník na 360×640: odpočet, „Do bitvy vstupuje…“, čekání na ostatní, pomalejší správná odpověď prohrává', async () => {
+        const db = running();
+        db.battles = true;
+        db.answerMs = { 'u-1': 4200, 'u-2': 2100 };
+        const g = db.games[0];
+        const { context, tab, log } = await start(db);
+        await tab.waitForFunction(() => /Tahy 5\/5/.test(document.getElementById('conquest-card').textContent), null, { timeout: 15000 });
+        await tab.click('#conquest-card [data-action="conquest-play"]');
+        await tab.waitForSelector('#conquest-game [data-cq-map] svg');
+        await tapTerritory(tab, 'Q40');
+        await tab.waitForSelector('[data-cq-sheet] [data-cq="attack"]');
+        assert.match(await tab.textContent('[data-cq-sheet]'), /Na odpověď máš 60 s\. Kdo s územím sousedí, může se k bitvě přidat/);
+        await tab.click('[data-cq-sheet] [data-cq="attack"]');
+        await tab.waitForSelector('[data-cq-answer]', { timeout: 30000 });
+        const begin = db.calls.find(call => call.name === 'conquest_siege_begin').body;
+        assert.equal(begin.target, 'Q40');
+        assert.ok(Number.isInteger(begin.correct) && !/"correct"/.test(JSON.stringify(begin.question)), 'správná odpověď jde zvlášť, ne v otázce');
+        assert.equal(await tab.textContent('[data-cq-timer-text]'), '0:50');
+        assert.match(await tab.textContent('[data-cq-sheet]'), /Bitva: Rakousko/);
+        assert.match(await tab.textContent('[data-cq-budget]'), /4\/5/, 'tah je rezervovaný');
+        // Petr se přidá: během otázky vyskočí zpráva a jeho praporek přibude mezi účastníky
+        const siege = g.sieges[0];
+        siege.participants.push({ user: 'u-2', source: 'Q183' });
+        g.siegeRev += 1;
+        await tab.waitForSelector('[data-cq-joined] .cq-joined', { timeout: 10000 });
+        assert.match(await tab.textContent('[data-cq-joined]'), /Do bitvy vstupuje Petr Svoboda!/);
+        assert.match(await tab.textContent('[data-cq-fighters]'), /ty[\s\S]*Petr Svoboda/);
+        assert.deepEqual(await fits(tab), { vertical: 0, page: 0, content: 0 });
+        await shot(tab, 'bitva-otazka-360');
+        // Odpovím správně, Petr ještě přemýšlí: čekání s odpočtem
+        await tab.click(`[data-cq-answer="${begin.correct}"]`);
+        await tab.waitForSelector('[data-cq-wait]');
+        assert.ok(await tab.evaluate(() => document.querySelector('[data-cq-wait]').getBoundingClientRect().bottom <= window.innerHeight), 'čekání je celé vidět');
+        assert.match((await tab.textContent('[data-cq-wait]')).replace(/\s+/g, ' '), /Čeká se na ostatní[\s\S]*ty\s*správně · 4,2 s[\s\S]*Petr Svoboda\s*přemýšlí · 0:50[\s\S]*Teď rozhoduje čas/);
+        assert.deepEqual(await fits(tab), { vertical: 0, page: 0, content: 0 });
+        await tab.waitForTimeout(400);
+        await shot(tab, 'bitva-cekani-360');
+        // Petr odpoví správně rychleji: území je jeho, můj tah propadl
+        Object.assign(siege.participants[1], { answered: true, picked: siege.correct, correct: true, answer_ms: 2100 });
+        await tab.waitForFunction(() => /Správně, ale rychlejší odpověď: Petr Svoboda\. Tah propadl\./.test((document.querySelector('[data-cq-banner]') || {}).textContent || ''), null, { timeout: 15000 });
+        await tab.waitForSelector('[data-cq-sheet] [aria-label="Výsledek bitvy"]', { timeout: 15000 });
+        assert.match((await tab.textContent('[data-cq-sheet]')).replace(/\s+/g, ' '), /Rakousko\s*Vyhrává Petr Svoboda a získává území\.[\s\S]*Petr Svoboda\s*vítězství · 2,1 s[\s\S]*ty\s*správně, pomaleji · 4,2 s/);
+        assert.equal(g.territories.find(x => x.t === 'Q40').o, 'u-2');
+        assert.match(await tab.textContent('[data-cq-budget]'), /4\/5/);
+        assert.equal(await tab.locator('.cq-siege-zone').count(), 0, 'po bitvě už území obléhané není');
+        assert.deepEqual(await fits(tab), { vertical: 0, page: 0, content: 0 });
+        await tab.waitForTimeout(400);
+        await shot(tab, 'bitva-vysledek-360');
+        assert.deepEqual(log.errors, []);
+        assert.deepEqual(log.csp, []);
+        await context.close();
+    });
+
+    await t.test('bitva o území, kdo se přidá, na 390×780 (tmavý režim): obléhání na mapě a štítek, okno bitvy s varováním, Přidat se, stejná otázka, vítězství', async () => {
+        const db = running();
+        db.battles = true;
+        db.answerMs = { 'u-2': 3100 };
+        const g = db.games[0];
+        const question = { kind: 'text', family: 'capital', prompt: 'Které město je hlavním městem tohoto státu?', difficulty: 1, choices: ['Vídeň', 'Štýrský Hradec', 'Linec', 'Salcburk'].map(label => ({ label })) };
+        g.sieges = [{ id: uuid(77), territory: 'Q40', started_by: 'u-1', question, correct: 0, status: 'open', participants: [{ user: 'u-1', source: 'Q213' }] }];
+        g.siegeRev = 1;
+        const { context, tab, log } = await start(db, { viewport: { width: 390, height: 780 }, colorScheme: 'dark', storage: login('tok-u2') });
+        await tab.waitForFunction(() => /Tahy 5\/5/.test(document.getElementById('conquest-card').textContent), null, { timeout: 15000 });
+        await tab.click('#conquest-card [data-action="conquest-play"]');
+        await tab.waitForSelector('#conquest-game [data-cq-map] svg');
+        assert.equal(await tab.locator('[data-siege-zone="Q40"]').count(), 1, 'obléhané území má rudý lem');
+        assert.equal(await tab.locator('[data-mark="Q40"] .cq-siege-badge').count(), 1, 'pečeť se zkříženými meči');
+        await tab.waitForSelector('[data-cq-siege-open="Q40"]');
+        assert.match(await tab.textContent('[data-cq-siege-open="Q40"]'), /Bitva: Rakousko\s*0:50/);
+        assert.deepEqual(await fits(tab), { vertical: 0, page: 0, content: 0 });
+        await shot(tab, 'bitva-mapa-390-dark');
+        await tab.click('[data-cq-siege-open="Q40"]');
+        await tab.waitForSelector('[data-cq-sheet] [data-cq="siege-join"]');
+        assert.match((await tab.textContent('[data-cq-sheet]')).replace(/\s+/g, ' '), /Probíhá bitva\s*přidat se: 0:50[\s\S]*Jana Nováková[\s\S]*Riskantní: [\s\S]*nezíská nic a tah ztratí\.[\s\S]*Přidat se do bitvy/);
+        assert.equal(await tab.locator('[data-cq-sheet] [data-cq="attack"]').count(), 0, 'zaútočit jinak než přidáním nejde');
+        assert.deepEqual(await fits(tab), { vertical: 0, page: 0, content: 0 });
+        await tab.waitForTimeout(400);
+        await shot(tab, 'bitva-pridat-390-dark');
+        await tab.click('[data-cq-sheet] [data-cq="siege-join"]');
+        await tab.waitForSelector('[data-cq-answer]');
+        const join = db.calls.filter(call => call.name === 'conquest_siege_join').pop().body;
+        assert.deepEqual([join.siege, join.source], [uuid(77), 'Q183']);
+        assert.match(await tab.textContent('[data-cq-sheet]'), /Bitva: Rakousko[\s\S]*Které město je hlavním městem tohoto státu\?[\s\S]*Vídeň/);
+        assert.match(await tab.textContent('[data-cq-budget]'), /4\/5/);
+        await shot(tab, 'bitva-otazka-390-dark');
+        await tab.click('[data-cq-answer="0"]');
+        await tab.waitForSelector('[data-cq-wait]');
+        assert.match(await tab.textContent('[data-cq-sheet]'), /Tvoje odpověď: Vídeň/, 'při čekání jen moje odpověď (vejde se i seznam účastníků)');
+        assert.equal(await tab.locator('[data-cq-answer]').count(), 0);
+        // Jana odpoví špatně: vyhrávám, území s pokladem je moje
+        Object.assign(g.sieges[0].participants[0], { answered: true, picked: 2, correct: false, answer_ms: 5000 });
+        await tab.waitForSelector('[data-cq-sheet] [aria-label="Výsledek bitvy"]', { timeout: 15000 });
+        assert.match((await tab.textContent('[data-cq-sheet]')).replace(/\s+/g, ' '), /Vyhráváš a území je tvoje\.[\s\S]*ty\s*vítězství · 3,1 s[\s\S]*Jana Nováková\s*špatně/);
+        assert.equal(g.territories.find(x => x.t === 'Q40').o, 'u-2');
+        assert.ok(await tab.locator('[data-wash="Q40"]').count() === 1);
+        assert.deepEqual(await fits(tab), { vertical: 0, page: 0, content: 0 });
+        await tab.waitForTimeout(400);
+        await shot(tab, 'bitva-vitezstvi-390-dark');
+        assert.deepEqual(log.errors, []);
+        assert.deepEqual(log.csp, []);
+        await context.close();
+    });
 
     await t.test('Česko na 360×640: mapa krajů, hodinové tahy, otázka o kraji', async () => {
         const db = newDb();

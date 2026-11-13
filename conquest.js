@@ -290,7 +290,9 @@
         const targets = new Set();
         for (const id of mine) for (const next of index.neighbours.get(id) || []) if (!mine.has(next)) targets.add(next);
         const ranking = rank(players.map(player => ({ ...player, score: Number.isFinite(player.score) ? player.score : scoreOf(player.id) })));
-        return { state, data, index, players, bySeat, byId, me, owners, ownerOf, regionsOf, territoriesOf, scoreOf, mine, targets, ranking,
+        // Otevřené bitvy o území (blok 25; conquest_state a conquest_pulse: sieges). battles = databáze bitvy umí (jinak útok postaru).
+        const sieges = new Map((Array.isArray(state.sieges) ? state.sieges : []).filter(siege => siege && siege.status !== 'resolved' && index.byId.has(siege.territory)).map(siege => [siege.territory, siege]));
+        return { state, data, index, players, bySeat, byId, me, owners, ownerOf, regionsOf, territoriesOf, scoreOf, mine, targets, ranking, sieges, battles: Array.isArray(state.sieges),
             running: state.status === 'running', finished: state.status === 'finished', budget: state.budget || null };
     };
     // Pořadí: body, při shodě dřív dosažené (score_at), místa se sdílí při úplné shodě
@@ -312,6 +314,8 @@
         const info = view.owners.get(id) || { owner: null, level: 0, home: false };
         const left = view.budget ? view.budget.left : 0;
         if (!view.running || !view.me) return { attack: false, fortify: false, reason: view.finished ? 'Hra skončila.' : '' };
+        // Obléhané území: majitel ho neopevní, ostatní se jen přidají do bitvy (okno bitvy v sheetHtml)
+        if (view.sieges && view.sieges.has(id)) return { attack: false, fortify: false, siege: true, reason: info.owner === view.me.id ? 'Obléhané území teď nejde opevnit.' : '' };
         if (info.owner === view.me.id) {
             const max = maxLevel(info.home);
             if (info.level >= max) return { attack: false, fortify: false, reason: info.home ? 'Domovské území je opevněné naplno (Pevnost).' : 'Území je opevněné naplno (Hradba). Pevnost jde postavit jen na domovském území.' };
@@ -1503,6 +1507,8 @@
                 return `<text class="cq-label cq-hide" data-label="${item.id}" data-size="${size.toFixed(1)}" x="${item.a[0]}" y="${(item.a[1] + size * 1.25).toFixed(1)}" font-size="${size.toFixed(1)}">${esc(item.n)}</text>`;
             });
             parts.push(`<g class="cq-labels" pointer-events="none">${labels.join('')}</g>`);
+            // Obléhaná území: rudý přerušovaný lem, který obíhá kolem hranice (značka se zkříženými meči je u značek území)
+            if (view && view.sieges.size) parts.push(`<g class="cq-sieges" pointer-events="none">${[...view.sieges.keys()].map(id => `<path class="cq-siege-zone" data-siege-zone="${id}" d="${index.byId.get(id).d}"/>`).join('')}</g>`);
             parts.push(`<g class="cq-marks" pointer-events="none">${view ? data.t.map(item => marksFor(item, view)).join('') : ''}</g>`);
             parts.push('<g class="cq-fx" pointer-events="none"></g>');
         }
@@ -1523,9 +1529,21 @@
         const iconAt = (k, left) => `translate(${(left * k * MARK).toFixed(2)} ${(-(k - 0.05) * MARK).toFixed(2)}) scale(${(k * MARK / 24).toFixed(3)})`;
         if (icon) inner += `<g class="cq-icon" data-icon="${icon}" transform="${iconAt(ICON_SCALE[icon] || 1, -0.05)}">${iconMarkup(icon, owner ? owner.flag_color : null)}${icon === 'castle' && info.level ? levelPips(info.level) : ''}</g>`;
         if (info.treasure && !owner) inner += `<g class="cq-icon cq-treasure" data-icon="treasure" transform="${iconAt(ICON_SCALE.treasure, -0.5)}">${iconMarkup('treasure')}</g>`;
+        if (view.sieges && view.sieges.has(item.id)) inner += siegeBadge(view.sieges.get(item.id), view, icon);
         if (owner) inner += `<g class="cq-pin" data-pin="${item.id}" transform="translate(${icon ? -MARK * 0.55 : -MARK * 0.1} 0)"><path d="M0 2V${-MARK * 1.25}" stroke="#3b2a1a" stroke-width="1.6" stroke-linecap="round"/><circle cx="0" cy="${-MARK * 1.25}" r="1.6" fill="#c9a227"/>`
             + `<g transform="translate(0.8 ${-MARK * 1.22}) scale(${(MARK * 0.75 / 30).toFixed(3)})">${pennantGroup(owner.flag_color, owner.emblem)}</g></g>`;
         return `<g class="cq-mark" data-mark="${item.id}" transform="translate(${x} ${y})"><g class="cq-mark-scale">${inner}</g></g>`;
+    };
+    // Bitva na území: pečeť se zkříženými meči nad značkou (pulzující kruh) a pod ní praporky účastníků (nejvýš 4)
+    const SWORDS = '<path d="M14.5 17.5L3 6V3h3l11.5 11.5M13 19l6-6M16 16l4 4M19 21l2-2M14.5 6.5L18 3h3v3l-3.5 3.5M5 14l4 4M7 17l-3 3M3 19l2 2"/>';
+    const siegeBadge = (siege, view, icon) => {
+        const flags = siege.participants.slice(0, 4).map((player, i) => {
+            const known = view.byId.get(player.id) || player;
+            return `<g transform="translate(${(i * 7 - (Math.min(siege.participants.length, 4) - 1) * 3.5 - 4).toFixed(1)} 6.5) scale(0.27)">${pennantGroup(known.flag_color, known.emblem)}</g>`;
+        }).join('');
+        return `<g class="cq-siege-badge" data-siege="${siege.territory}" transform="translate(${icon ? (MARK * 0.62).toFixed(1) : (MARK * 0.3).toFixed(1)} ${(-MARK * 1.55).toFixed(1)})">`
+            + `<circle class="cq-siege-pulse" r="9.5"/><circle class="cq-siege-seal" r="8.5"/>`
+            + `<g class="cq-siege-swords" transform="translate(-6.6 -6.6) scale(0.55)">${SWORDS}</g>${flags}</g>`;
     };
     // Úroveň opevnění domovského hradu: kamínky pod hradem
     const levelPips = (level) => Array.from({ length: level }, (_, i) => `<rect x="${7 + i * 3.6}" y="23" width="2.8" height="2.8" rx="0.6" fill="#c9a227" stroke="#3d3428" stroke-width="0.6"/>`).join('');
@@ -1898,6 +1916,7 @@
                 <div class="cq-vignette pointer-events-none absolute inset-0 rounded-2xl"></div>
                 <button type="button" data-cq="zoom-reset" class="absolute right-1.5 top-1.5 hidden h-10 w-10 items-center justify-center rounded-xl bg-white/90 text-slate-700 shadow ring-1 ring-black/10 dark:bg-slate-800/90 dark:text-slate-200" aria-label="Celá mapa"><i data-lucide="expand" class="h-4 w-4"></i></button>
                 <div data-cq-banner class="pointer-events-none absolute inset-x-0 top-2 flex justify-center px-2"></div>
+                <div data-cq-chips class="pointer-events-none absolute bottom-1.5 left-1.5 right-1.5 flex flex-col items-start gap-1">${view.sieges.size ? siegeChipsHtml(view, { now }) : ''}</div>
             </div>
             <div data-cq-panel class="flex min-h-[2.25rem] flex-1 flex-col gap-1.5 overflow-hidden short:gap-1">
                 <section data-cq-players class="cq-ledger shrink-0 rounded-2xl px-2 pb-1.5 pt-1 short:pb-1" aria-label="Pořadí">${playersStripHtml(view, { now })}</section>
@@ -1989,7 +2008,40 @@
             : mine ? `tvoje ${mine} z ${region.t.length} území` : `${territoriesWord(region.t.length)}`;
         return `Region ${region.n} · ${status}`;
     };
-    const sheetHtml = (view, id, { source = null } = {}) => {
+    // --- Bitvy o území (blok 25) ---
+    // Odpočet m:ss (zbývající milisekundy); conquest-ui.js ho každou sekundu přepíše u prvků s data-cq-until (místní čas konce v ms)
+    const clockText = (ms) => { const total = Math.max(0, Math.ceil(ms / 1000)); return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`; };
+    // Místní čas (ms) ze serverového času: offset = čas serveru − čas zařízení
+    const localTime = (value, offset = 0) => { const time = parseTime(value); return time === null ? null : time - offset; };
+    const fighterName = (view, player) => { const known = view.byId.get(player.id) || player; return known.me || player.me ? 'ty' : known.display_name || 'Hráč'; };
+    const fighterFlag = (view, player, cls = 'h-3.5 w-[1.15rem]') => { const known = view.byId.get(player.id) || player; return pennantSvg(known.flag_color, known.emblem, cls); };
+    const seconds = (ms) => `${(Math.max(0, ms) / 1000).toLocaleString('cs-CZ', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} s`;
+    const RISK_TEXT = 'Riskantní: všichni dostanou stejnou otázku a 60 s. Území získá nejrychlejší správná odpověď. Kdo odpoví správně, ale pomaleji, nezíská nic a tah ztratí.';
+    // Okno bitvy v listu území: kdo bojuje, kolik zbývá na přidání, Přidat se do bitvy (s varováním), nebo proč to nejde
+    const siegeBoxHtml = (view, id, siege, { offset = 0, now = Date.now() } = {}) => {
+        const info = view.owners.get(id) || {};
+        const joinUntil = localTime(siege.join_until, offset);
+        const open = joinUntil !== null && joinUntil > now;
+        const mineOwner = view.me && info.owner === view.me.id;
+        const fighters = siege.participants.map(player => `<span class="flex items-center gap-1">${fighterFlag(view, player)}${esc(fighterName(view, player))}</span>`).join('');
+        let action = '';
+        if (siege.mine && !siege.answered) action = `<button type="button" data-cq="siege-resume" class="${GOLD_BUTTON} w-full py-2.5 text-[15px]"><i data-lucide="swords" class="h-5 w-5"></i> Vrátit se do bitvy</button>`;
+        else if (siege.mine) action = '<p class="text-[12.5px] font-semibold text-slate-600 dark:text-slate-300">Odpověď máš odeslanou. Výsledek přijde, až odpoví ostatní.</p>';
+        else if (mineOwner) action = '<p class="text-[12.5px] font-semibold text-slate-600 dark:text-slate-300">Tvoje území je obléhané. Opevnit ho teď nejde, výsledek uvidíš na mapě.</p>';
+        else if (siege.can_join && open) action = `<p class="cq-risk flex gap-1.5 rounded-lg px-2 py-1.5 text-[11.5px] font-semibold leading-snug"><i data-lucide="triangle-alert" class="mt-px h-3.5 w-3.5 shrink-0"></i><span>${esc(RISK_TEXT)}</span></p>`
+            + `<button type="button" data-cq="siege-join" class="${GOLD_BUTTON} w-full py-2.5 text-[15px]"><i data-lucide="swords" class="h-5 w-5"></i> Přidat se do bitvy</button>`;
+        else {
+            const left = view.budget ? view.budget.left : 0;
+            const why = !open ? 'Přidat se do bitvy už nejde.' : !view.targets.has(id) ? 'Přidat se může jen ten, komu území sousedí s jeho vlastním.' : left <= 0 ? 'Tahy na tohle období už nemáš.' : 'Přidat se teď nejde.';
+            action = `<p class="text-[12.5px] font-semibold text-slate-600 dark:text-slate-300">${esc(why)}</p>`;
+        }
+        return `<div class="cq-siege-box rounded-xl px-2.5 py-2" data-cq-siege-box="${esc(siege.id)}">
+            <div class="flex items-center gap-1.5"><i data-lucide="swords" class="h-4 w-4 shrink-0"></i><span class="min-w-0 flex-1 truncate text-[13px] font-black">Probíhá bitva</span>
+                ${open && !siege.mine && !mineOwner ? `<span class="shrink-0 text-[12px] font-black tabular-nums">přidat se: <span data-cq-until="${joinUntil}">${clockText(joinUntil - now)}</span></span>` : ''}</div>
+            <div class="mt-1 flex flex-wrap gap-x-2.5 gap-y-0.5 text-[12px] font-bold">${fighters}</div>
+        </div>${action}`;
+    };
+    const sheetHtml = (view, id, { source = null, offset = 0, now = Date.now() } = {}) => {
         const item = view.index.byId.get(id);
         const info = view.owners.get(id) || { owner: null, level: 0, home: false, treasure: false };
         const owner = info.owner ? view.byId.get(info.owner) : null;
@@ -2011,16 +2063,25 @@
             : actions.attack ? `<button type="button" data-cq="attack" data-source="${esc(from || '')}" class="${GOLD_BUTTON} w-full py-2.5 text-[15px]"><i data-lucide="swords" class="h-5 w-5"></i> Zaútočit</button>` : '';
         const hint = !buttons && actions.reason ? `<p class="text-[12.5px] font-semibold leading-snug text-slate-600 dark:text-slate-300">${esc(actions.reason)}</p>` : '';
         const harder = actions.attack && info.level ? `<p class="text-[11.5px] font-semibold text-slate-500 dark:text-slate-400">Opevněné území: správná odpověď opevnění jen pobourá o jednu úroveň, otázka je těžší.</p>` : '';
+        const siege = view.sieges && view.sieges.get(id);
+        const battle = siege ? siegeBoxHtml(view, id, siege, { offset, now }) : '';
+        // Útok s bitvami: ostatní se můžou přidat, vyhraje nejrychlejší správná odpověď
+        const race = actions.attack && view.battles ? '<p class="text-[11.5px] font-semibold text-slate-500 dark:text-slate-400">Na odpověď máš 60 s. Kdo s územím sousedí, může se k bitvě přidat; vyhraje nejrychlejší správná odpověď.</p>' : '';
         return `<div class="cq-sheet cq-sheet-in rounded-t-2xl p-2.5 pb-3" role="dialog" aria-label="${esc(item.n)}">
             <div class="flex items-start gap-2"><div class="min-w-0 flex-1"><h2 class="truncate text-[17px] font-black leading-tight text-slate-900 dark:text-white">${esc(item.n)}</h2>
                 <div class="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-[12px] font-semibold text-slate-600 dark:text-slate-300">${facts}</div></div>
                 <button type="button" data-cq="sheet-close" class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-slate-500 dark:text-slate-400" aria-label="Zavřít"><i data-lucide="x" class="h-5 w-5"></i></button></div>
-            <div class="mt-2 flex flex-col gap-1.5">${harder}${buttons}${hint}</div>
+            <div class="mt-2 flex flex-col gap-1.5">${battle}${harder}${race}${buttons}${hint}</div>
         </div>`;
     };
 
     // Otázka tahu ve spodním listu
-    const questionHtml = (question, { title, item, data, answered = null }) => {
+    // battle = { deadline (místní ms), now, fighters: [hráč] } ukáže odpočet 60 s a účastníky bitvy; correctIndex = správná možnost od serveru
+    // (kdo se do bitvy přidal, ji v otázce nemá); answered = -1: čas vypršel; footer = čekání na ostatní pod otázkou
+    // compact = čekání v bitvě: místo možností jen moje odpověď (a správná), aby se pod otázku vešlo, kdo ještě odpovídá
+    const questionHtml = (question, { title, item, data, answered = null, correctIndex = null, battle = null, view = null, footer = '', compact = false }) => {
+        const flagged = question.choices.findIndex(choice => choice && choice.correct === true);
+        const right = correctIndex !== null && correctIndex !== undefined ? correctIndex : flagged >= 0 ? flagged : null;
         const stars = '<span class="flex gap-0.5" aria-label="Obtížnost">' + [1, 2, 3].map(n => `<i data-lucide="star" class="h-3.5 w-3.5 ${n <= question.difficulty ? 'fill-gold-400 text-gold-500' : 'text-slate-300 dark:text-slate-600'}"></i>`).join('') + '</span>';
         let visual = '';
         if (question.kind === 'map') {
@@ -2028,28 +2089,108 @@
             const pad = Math.max(x1 - x0, y1 - y0) * 0.12;
             const r = Math.max(x1 - x0, y1 - y0) * 0.035;
             const dots = question.choices.map((choice, i) => {
-                const state = answered === null ? '' : choice.correct ? ' cq-dot-ok' : answered === i ? ' cq-dot-bad' : '';
+                const state = answered === null ? '' : right === null ? (answered === i ? ' cq-dot-picked' : '') : right === i ? ' cq-dot-ok' : answered === i ? ' cq-dot-bad' : '';
                 return `<g class="cq-dot${state}"><circle cx="${choice.point[0].toFixed(1)}" cy="${choice.point[1].toFixed(1)}" r="${r.toFixed(1)}"/><text x="${choice.point[0].toFixed(1)}" y="${(choice.point[1] + r * 0.42).toFixed(1)}" font-size="${(r * 1.25).toFixed(1)}" text-anchor="middle">${choice.label}</text></g>`;
             }).join('');
             visual = `<svg viewBox="${(x0 - pad).toFixed(1)} ${(y0 - pad).toFixed(1)} ${(x1 - x0 + pad * 2).toFixed(1)} ${(y1 - y0 + pad * 2).toFixed(1)}" class="cq-qmap cq-paper mx-auto h-32 w-full rounded-xl short:h-24" aria-hidden="true"><path d="${item.d}" class="cq-qmap-land"/>${dots}</svg>`;
         }
         const grid = question.images ? 'grid grid-cols-2 gap-1.5' : question.kind === 'map' ? 'grid grid-cols-4 gap-1.5' : 'grid grid-cols-1 gap-1.5';
         const options = question.choices.map((choice, i) => {
-            const state = answered === null ? '' : choice.correct ? ' cq-choice-ok' : answered === i ? ' cq-choice-bad' : ' opacity-60';
+            const state = answered === null ? '' : right === null ? (answered === i ? ' cq-choice-picked' : ' opacity-60') : right === i ? ' cq-choice-ok' : answered === i ? ' cq-choice-bad' : ' opacity-60';
             // Náhled z Commons; když nejde, conquest-ui.js podle data-fallback načte původní soubor
             const inner = question.images ? `<img src="${esc(choice.image)}"${choice.fallback ? ` data-fallback="${esc(choice.fallback)}"` : ''} alt="" class="h-12 w-full object-contain short:h-10" referrerpolicy="no-referrer"><span class="sr-only">Možnost ${i + 1}</span>` : esc(choice.label);
             return `<button type="button" data-cq-answer="${i}" ${answered !== null ? 'disabled' : ''} class="cq-choice${state} flex min-h-[2.75rem] items-center justify-center rounded-xl px-2 py-1 text-center text-[14px] font-bold leading-tight text-slate-800 dark:text-slate-100">${inner}</button>`;
         }).join('');
-        const after = answered === null ? '' : question.kind === 'map' ? `<p class="text-center text-[12.5px] font-bold text-slate-600 dark:text-slate-300">${esc(question.answerLabel)} je bod ${esc(question.choices.find(c => c.correct).label)}.</p>`
-            : question.images ? `<p class="text-center text-[12.5px] font-bold text-slate-600 dark:text-slate-300">Správně: ${esc(question.choices.find(c => c.correct).label)}</p>` : '';
-        return `<div class="cq-sheet cq-sheet-in rounded-t-2xl p-2.5 pb-3" role="dialog" aria-label="Otázka">
+        const solved = right !== null ? question.choices[right] : null;
+        if (compact) {
+            const label = (choice) => esc(choice && (choice.label || choice.answerLabel) || '');
+            const mine = answered !== null && answered >= 0 ? question.choices[answered] : null;
+            const ok = mine && right === answered;
+            const lines = [
+                mine ? `<span class="flex items-center gap-1 ${right === null ? '' : ok ? 'text-emerald-700 dark:text-emerald-300' : 'text-rose-700 dark:text-rose-300'}"><i data-lucide="${right === null ? 'circle-dot' : ok ? 'circle-check' : 'circle-x'}" class="h-4 w-4 shrink-0"></i>Tvoje odpověď: ${label(mine)}</span>` : '<span class="text-rose-700 dark:text-rose-300">Bez odpovědi: čas vypršel.</span>',
+                solved && !ok ? `<span class="flex items-center gap-1 text-emerald-700 dark:text-emerald-300"><i data-lucide="circle-check" class="h-4 w-4 shrink-0"></i>Správně: ${label(solved)}</span>` : ''
+            ].join('');
+            return `<div class="cq-sheet relative rounded-t-2xl p-2.5 pb-3" role="dialog" aria-label="Otázka">
+                <div data-cq-joined class="pointer-events-none absolute inset-x-2 -top-11 flex justify-center" aria-live="polite"></div>
+                <div class="flex items-center gap-2"><span class="min-w-0 flex-1 truncate text-[11.5px] font-black uppercase tracking-wider text-amber-900 dark:text-amber-200">${esc(title)}</span>${stars}</div>
+                <p class="mt-1 line-clamp-2 text-[13.5px] font-bold leading-snug text-slate-700 dark:text-slate-200">${esc(question.prompt)}</p>
+                <div class="mt-1 flex flex-col gap-0.5 text-[13px] font-black">${lines}</div>
+                ${footer}
+            </div>`;
+        }
+        const after = [
+            answered === -1 ? '<p class="text-center text-[12.5px] font-black text-rose-700 dark:text-rose-300">Čas vypršel.</p>' : '',
+            answered === null || !solved ? '' : question.kind === 'map' ? `<p class="text-center text-[12.5px] font-bold text-slate-600 dark:text-slate-300">${esc(question.answerLabel)} je bod ${esc(solved.label)}.</p>`
+                : question.images ? `<p class="text-center text-[12.5px] font-bold text-slate-600 dark:text-slate-300">Správně: ${esc(solved.label)}</p>` : ''
+        ].join('');
+        // Bitva: odpočet (pruh se zkracuje, conquest-ui.js ho posouvá) a praporky účastníků; nad listem vyskočí, kdo se právě přidal
+        const timer = battle ? `<div class="mt-1 flex items-center gap-2"><div class="cq-timer relative h-2 min-w-0 flex-1 overflow-hidden rounded-full"><div class="cq-timer-fill absolute inset-0" data-cq-timer></div></div>
+                <span class="w-9 shrink-0 text-right text-[12.5px] font-black tabular-nums text-slate-800 dark:text-slate-100" data-cq-timer-text>${clockText(battle.deadline - battle.now)}</span></div>
+            <div class="mt-1 flex min-w-0 items-center gap-1.5 text-[11.5px] font-bold text-slate-600 dark:text-slate-300" data-cq-fighters>${fightersHtml(view, battle.fighters)}</div>` : '';
+        return `<div class="cq-sheet cq-sheet-in relative rounded-t-2xl p-2.5 pb-3" role="dialog" aria-label="Otázka">
+            ${battle ? '<div data-cq-joined class="pointer-events-none absolute inset-x-2 -top-11 flex justify-center" aria-live="polite"></div>' : ''}
             <div class="flex items-center gap-2"><span class="min-w-0 flex-1 truncate text-[11.5px] font-black uppercase tracking-wider text-amber-900 dark:text-amber-200">${esc(title)}</span>${stars}</div>
+            ${timer}
             <p class="mt-1 text-[15px] font-black leading-snug text-slate-900 dark:text-white">${esc(question.prompt)}</p>
             ${visual ? `<div class="mt-1.5">${visual}</div>` : ''}
             <div class="mt-2 ${grid}">${options}</div>
             ${after ? `<div class="mt-1.5">${after}</div>` : ''}
+            ${footer}
         </div>`;
     };
+    // Účastníci bitvy v otázce: praporky a jména (já = „ty“)
+    const fightersHtml = (view, fighters = []) => `<i data-lucide="swords" class="h-3.5 w-3.5 shrink-0 text-rose-700 dark:text-rose-300"></i><span class="sr-only">V bitvě: </span>`
+        + fighters.map(player => `<span class="flex min-w-0 items-center gap-1">${view ? fighterFlag(view, player, 'h-3 w-4') : ''}<span class="truncate">${esc(view ? fighterName(view, player) : player.display_name || 'Hráč')}</span></span>`).join('<span aria-hidden="true">·</span>');
+    // Vyskakovací zpráva během otázky: kdo se k bitvě právě přidal
+    const joinedHtml = (view, player) => `<div class="cq-joined cq-joined-in flex max-w-full items-center gap-1.5 rounded-xl px-3 py-1.5 text-[13.5px]" role="status"><i data-lucide="swords" class="h-4 w-4 shrink-0"></i>${fighterFlag(view, player, 'h-4 w-5')}<span class="min-w-0 truncate">Do bitvy vstupuje ${esc(fighterName(view, player))}!</span></div>`;
+    // Čekání po odpovědi: moje odpověď (správně a čas, nebo špatně), ostatní (odpovězeno, nebo kolik jim zbývá) a co teď rozhodne
+    const battleWaitHtml = (view, siege, { correct = false, answerMs = null, late = false, offset = 0, now = Date.now() } = {}) => {
+        const rows = siege.participants.map(player => {
+            const mine = player.me || (view.me && player.id === view.me.id);
+            const deadline = localTime(player.deadline, offset);
+            const status = mine ? (correct ? `<span class="text-emerald-700 dark:text-emerald-300">správně${answerMs !== null ? ` · ${seconds(answerMs)}` : ''}</span>` : `<span class="text-rose-700 dark:text-rose-300">${late ? 'pozdě' : 'špatně'}</span>`)
+                : player.answered ? '<span class="flex items-center gap-0.5"><i data-lucide="check" class="h-3.5 w-3.5"></i>odpovězeno</span>'
+                    : `<span class="flex items-center gap-0.5"><i data-lucide="hourglass" class="h-3.5 w-3.5"></i>přemýšlí${deadline !== null ? ` · <span class="tabular-nums" data-cq-until="${deadline}">${clockText(deadline - now)}</span>` : ''}</span>`;
+            return `<li class="flex items-center gap-1.5">${fighterFlag(view, player)}<span class="min-w-0 flex-1 truncate">${esc(fighterName(view, player))}</span><span class="shrink-0">${status}</span></li>`;
+        }).join('');
+        const text = correct ? 'Teď rozhoduje čas: území získá nejrychlejší správná odpověď.' : 'Tuhle bitvu už nevyhraješ. Výsledek uvidíš, jakmile skončí.';
+        return `<div class="cq-wait mt-2 rounded-xl px-2.5 py-2" data-cq-wait>
+            <div class="flex items-center gap-1.5 text-[12.5px] font-black"><i data-lucide="hourglass" class="h-4 w-4 shrink-0"></i><span class="min-w-0 flex-1">Čeká se na ostatní</span>
+                <button type="button" data-cq="battle-hide" class="-my-1 flex h-8 shrink-0 items-center rounded-lg px-2 text-[11.5px] font-black underline">Zavřít</button></div>
+            <ul class="mt-1 flex flex-col gap-0.5 text-[12px] font-bold">${rows}</ul>
+            <p class="mt-1 text-[11.5px] font-semibold leading-snug opacity-80">${esc(text)}</p></div>`;
+    };
+    // Výsledek bitvy s více účastníky: kdo vyhrál (a s jakým časem), kdo byl pomalejší, kdo odpověděl špatně
+    const battleResultHtml = (view, siege) => {
+        const item = view.index.byId.get(siege.territory);
+        const order = (player) => (player.winner ? 0 : player.result === 'outrun' ? 1 : player.answered ? 2 : 3);
+        const fighters = [...siege.participants].sort((a, b) => order(a) - order(b) || (a.answer_ms ?? Infinity) - (b.answer_ms ?? Infinity));
+        const winner = fighters.find(player => player.winner) || null;
+        const meWon = winner && fighterName(view, winner) === 'ty';
+        const outcome = !winner ? 'Nikdo neodpověděl správně, útok je odražen.'
+            : siege.outcome === 'breach' ? (meWon ? 'Vyhráváš: opevnění je pobořené.' : `Vyhrává ${fighterName(view, winner)}: opevnění je pobořené.`)
+                : meWon ? 'Vyhráváš a území je tvoje.' : `Vyhrává ${fighterName(view, winner)} a získává území.`;
+        const label = (player) => (player.winner ? `<span class="flex items-center gap-0.5 text-amber-700 dark:text-gold-300"><i data-lucide="crown" class="h-3.5 w-3.5"></i>vítězství${player.answer_ms !== null && player.answer_ms !== undefined ? ` · ${seconds(player.answer_ms)}` : ''}</span>`
+            : player.result === 'outrun' ? `<span class="text-slate-600 dark:text-slate-300">správně, pomaleji${player.answer_ms !== null && player.answer_ms !== undefined ? ` · ${seconds(player.answer_ms)}` : ''}</span>`
+                : `<span class="text-rose-700 dark:text-rose-300">${player.answered ? 'špatně' : 'bez odpovědi'}</span>`);
+        return `<div class="cq-sheet cq-sheet-in rounded-t-2xl p-2.5 pb-3" role="dialog" aria-label="Výsledek bitvy">
+            <div class="flex items-start gap-2"><div class="min-w-0 flex-1"><span class="block text-[11.5px] font-black uppercase tracking-wider text-amber-900 dark:text-amber-200">Výsledek bitvy</span>
+                <h2 class="truncate text-[17px] font-black leading-tight text-slate-900 dark:text-white">${esc(item ? item.n : '')}</h2></div>
+                <button type="button" data-cq="sheet-close" class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-slate-500 dark:text-slate-400" aria-label="Zavřít"><i data-lucide="x" class="h-5 w-5"></i></button></div>
+            <p class="mt-1 text-[13px] font-bold leading-snug text-slate-700 dark:text-slate-200">${esc(outcome)}</p>
+            <ol class="cq-ledger mt-1.5 flex flex-col gap-0.5 rounded-xl px-2 py-1.5 text-[12.5px] font-bold">${fighters.map(player => `<li class="flex items-center gap-1.5">${fighterFlag(view, player, 'h-4 w-5')}<span class="min-w-0 flex-1 truncate">${esc(fighterName(view, player))}</span><span class="shrink-0">${label(player)}</span></li>`).join('')}</ol>
+        </div>`;
+    };
+    // Bitvy, do kterých se můžu přidat (nebo se do své vrátit), jako štítky dole na mapě; klepnutí otevře list území s oknem bitvy
+    const siegeChipsHtml = (view, { offset = 0, now = Date.now() } = {}) => [...view.sieges.values()]
+        .filter(siege => (siege.mine && !siege.answered) || (siege.can_join && !siege.mine && (localTime(siege.join_until, offset) || 0) > now))
+        .slice(0, 2).map(siege => {
+            const item = view.index.byId.get(siege.territory);
+            const until = siege.mine ? localTime(siege.deadline, offset) : localTime(siege.join_until, offset);
+            return `<button type="button" data-cq-siege-open="${esc(siege.territory)}" class="cq-siege-chip pointer-events-auto flex max-w-full items-center gap-1.5 rounded-full py-1 pl-2 pr-2.5 text-[12.5px] font-black">
+                <i data-lucide="swords" class="h-4 w-4 shrink-0"></i><span class="min-w-0 truncate">${esc(siege.mine ? 'Vrátit se do bitvy' : `Bitva: ${item ? item.n : ''}`)}</span>
+                ${until !== null ? `<span class="shrink-0 tabular-nums opacity-80" data-cq-until="${until}">${clockText(until - now)}</span>` : ''}</button>`;
+        }).join('');
 
     // Kronika tažení (okno)
     const feedHtml = (items, { avatarHtml = null } = {}) => {
@@ -2151,7 +2292,7 @@
         budgetTitle, budgetInnerHtml, periodStartText, PENALTY_TEXT,
         indexMap, parseRings, pointInRings, project, territoryAt, isAdjacent, viewOf, rank, sourcesFor, actionsFor,
         buildQuestion, answerKey, familyPlan, kindsFor, placesOf, poolsOf, formsOf, FAMILY_IDS, FAMILY_DOMAIN, DOMAINS, FAMILY_CAP, flagUrl, flagFallback, THUMB, feedItems, replaySteps, capturedWord, hatchPattern, levelIcon, iconMarkup,
-        pennantSvg, pennantGroup, emblemSvg, sealSvg, mapSvg, thumbSvg, marksFor, homeCardHtml, hubHtml, mineHtml, lobbyHtml, createHtml, lookHtml, lobbyDetailHtml,
+        pennantSvg, pennantGroup, emblemSvg, sealSvg, mapSvg, thumbSvg, marksFor, clockText, localTime, battleWaitHtml, battleResultHtml, joinedHtml, fightersHtml, siegeChipsHtml, RISK_TEXT, homeCardHtml, hubHtml, mineHtml, lobbyHtml, createHtml, lookHtml, lobbyDetailHtml,
         gameScreenHtml, playersStripHtml, recentHtml, sheetHtml, devBarHtml, questionHtml, feedHtml, resultHtml, helpHtml, HELP_TABS, mapTitle, paramChips,
         // Pozvánky přátel (blok 24)
         friendsPickerHtml, inviteCardHtml
