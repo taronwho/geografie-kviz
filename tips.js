@@ -13,7 +13,7 @@
     // after = kolik odpovědí má hráč mít za sebou, než se tip nabídne; ready = podmínka, aby tip dával smysl;
     // used = hráč funkci už zná (tip se neukáže); multi = tip o hře více hráčů; account = vyžaduje přihlášení
     // action: kam tlačítko „Zkusit“ zavede (settings, learn, progress, multi, single, quiz = Kvíz dne, mystery = Tajemná otázka dne, modes = okno Co hrát
-    // s Bleskovkou a Přežitím, goals = cíle týdne a truhla)
+    // s Bleskovkou a Přežitím, goals = cíle týdne a truhla, gold = okno Zlatá otázka, boss = Boss týdne, chain = Řetězovka dne)
     const TIPS = [
         { id: 'napoveda', icon: 'lightbulb', after: 2, title: 'Nevíš si rady?', text: 'Klepni na žluté tlačítko Nápověda. Každá nápověda sice sníží body za správnou odpověď, ale často tě k ní dovede. Čím méně nápověd použiješ, tím víc bodů získáš.',
             used: (u) => num(u.counters.noHint) >= 15 },
@@ -83,13 +83,27 @@
         { id: 'skupiny', icon: 'users', art: 'skupiny', multi: true, account: true, after: 25, title: 'Skupiny', text: 'Založ si skupinu s kamarády, rodinou nebo spolužáky. Budete mít společné výzvy, vlastní týdenní žebříček a přehled, kdo z vás hrál. Ostatní pozveš odkazem.',
             action: { kind: 'groups', label: 'Skupiny' }, ready: (u) => num(u.counters.challenges) >= 1, used: (u) => Boolean(u.visited.groups) },
         { id: 'vitrina', icon: 'gem', art: 'vitrina', multi: true, account: true, after: 80, title: 'Vitrína v profilu', text: 'V Nastavení na záložce Profil si vyber až 3 trofeje, které ostatní uvidí ve tvém profilu: odznak, diplom nebo výsledek ligové sezóny.',
-            action: { kind: 'settings', label: 'Nastavení', tab: 'profile' }, ready: (u) => u.showcase, used: (u) => Boolean(u.visited.showcase) }
+            action: { kind: 'settings', label: 'Nastavení', tab: 'profile' }, ready: (u) => u.showcase, used: (u) => Boolean(u.visited.showcase) },
+        // Zlatá otázka (gold.js): art = stejný obrázek jako gold.js ART.owl (hlídá tests/gold.test.js)
+        { id: 'zlata', icon: 'sparkles', art: 'sova-dalekohled', after: 12, title: 'Zlatá otázka', text: 'Zhruba jednou za 50 otázek přijde Zlatá otázka se zlatým rámečkem. Dává trojnásobek XP a za správnou odpověď bez nápovědy i zlatý střípek. Pět střípků otevře Zlatou truhlu se vzácnou věcí.',
+            action: { kind: 'gold', label: 'Ukázat střípky' }, ready: (u) => u.gold, used: (u) => Boolean(u.visited.gold) || num(u.counters.goldCorrect) >= 3 },
+        // Boss týdne (boss.js); obrázek do dodání portrétu bosse (docs/NOVE-MODY.md č. 215) sova s výzvou
+        { id: 'boss', icon: 'swords', art: 'sova-vyzva', after: 8, title: 'Boss týdne', text: 'Každý týden tě na úvodu vyzve jiný boss, Mudrlant v převleku. Sraz mu správnými odpověďmi všech 700 životů, rychlé odpovědi ho zasáhnou víc. Máš 3 pokusy za týden a za výhru získáš emblém, titul a 150 XP.',
+            action: { kind: 'boss', label: 'Do arény' }, ready: (u) => u.boss, used: (u) => num(u.counters.bossFights) > 0 },
+        { id: 'dobyvani', icon: 'swords', art: 'sova-dalekohled', multi: true, account: true, after: 20, title: 'Dobývání', text: 'Na záložce Více hráčů najdeš Dobývání: s dalšími hráči dobýváte mapu otázkami a opevňujete svá území. Přidej se k Rychlé hře v Lobby, nebo založ vlastní a pozvi kamarády kódem.',
+            action: { kind: 'conquest', label: 'Otevřít Dobývání' }, used: (u) => Boolean(u.visited.conquest) },
+        // Kamarádské sázky (bets.js): obrázek sova-vyzva do dodání č. 243 sova-sazka (bets.js ART.owl)
+        { id: 'sazky', icon: 'gem', art: 'sova-vyzva', multi: true, account: true, after: 30, title: 'Kamarádské sázky', text: 'Klepni na Vyzvat a vyber konkrétního hráče. V řádku Sázka můžeš vsadit 10, 25 nebo 50 XP a přidat vtipnou hlášku. Kdo vyhraje, vklad získá. Úroveň ti nikdy neklesne.',
+            action: { kind: 'multi', label: 'Zkusit' }, ready: (u) => u.bets && num(u.counters.challenges) >= 2, used: (u) => Boolean(u.visited.bets) || num(u.counters.bets) > 0 },
+        // Řetězovka dne (chain.js); art = č. 212 retezovka, do dodání sova-vyzva (jako chain.js ART.tile)
+        { id: 'retezovka', icon: 'trophy', art: 'sova-vyzva', after: 7, title: 'Řetězovka dne', text: 'V řadě Výzvy na úvodu čeká Řetězovka: 7 otázek, kde odpověď na jednu je začátkem další. Článek 1 dává 1 bod, článek 7 sedm bodů. Špatná odpověď řetěz přetrhne, jednou za hru ale pomůže Záchrana.',
+            action: { kind: 'chain', label: 'Zkusit Řetězovku' }, ready: (u) => u.chain, used: (u) => num(u.counters.chainDone) > 0 }
     ];
     const BY_ID = new Map(TIPS.map(tip => [tip.id, tip]));
 
     const EMPTY = { seen: [], day: '', n: 0, lastAt: 0, off: false, visited: {} };
     // Navštívené části hry (tip o nich už není potřeba): Učení, Můj postup, Vzhled, Diplomy, Sezóna, Album, Vitrína, Kronika týdne
-    const VISITED = ['learn', 'progress', 'look', 'diplomas', 'season', 'album', 'showcase', 'leagueSeasons', 'legends', 'looks', 'groups', 'chronicle'];
+    const VISITED = ['learn', 'progress', 'look', 'diplomas', 'season', 'album', 'showcase', 'leagueSeasons', 'legends', 'looks', 'groups', 'chronicle', 'gold', 'conquest', 'bets'];
     const parse = (value) => {
         const v = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
         const visited = {};
@@ -123,7 +137,11 @@
         if (ctx.now - state.lastAt < MIN_GAP_MS) return null;
         const u = { counters: ctx.counters || {}, visited: state.visited, reviewOn: ctx.reviewOn !== false, friends: ctx.friends, signedIn: Boolean(ctx.signedIn),
             quiz: ctx.quiz !== false, mystery: ctx.mystery !== false, modes: ctx.modes !== false, goals: ctx.goals !== false, freezes: ctx.freezes, maxStars: ctx.maxStars,
-            season: ctx.season !== false, album: ctx.album !== false, showcase: ctx.showcase !== false, chronicle: ctx.chronicle !== false, leagueSeasons: Boolean(ctx.leagueSeasons) };
+            season: ctx.season !== false, album: ctx.album !== false, showcase: ctx.showcase !== false, chronicle: ctx.chronicle !== false, leagueSeasons: Boolean(ctx.leagueSeasons),
+            gold: ctx.gold !== false,
+            boss: ctx.boss !== false,
+            bets: Boolean(ctx.bets),
+            chain: ctx.chain !== false };
         const answered = num(u.counters.answered);
         return TIPS.find(tip => {
             if (state.seen.includes(tip.id)) return false;

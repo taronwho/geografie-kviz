@@ -170,15 +170,17 @@ test('souhrn pokusu: server má přednost, když má všechny odpovědi (jeho č
     assert.equal(DQ.attemptSummary(attempt).answered, 3, 'neodeslaná odpověď se počítá z místních');
 });
 
-test('vykreslení: karta na úvodu, úvod, výsledek s pořadím a pozvánka pro hosta (bez inline stylů)', () => {
+test('vykreslení: dlaždice na úvodu, úvod, výsledek s pořadím a pozvánka pro hosta (bez inline stylů)', () => {
     const h = { avatarHtml: (row) => `<span data-avatar="${row.id}"></span>`, topicIcon: (id) => `<img data-topic="${id}">`, xpLine: (xp) => `<p data-xp>+${xp.total} XP</p>`, meRow: { id: 'u-1', display_name: 'Jana' } };
-    const fresh = DQ.homeCardHtml({ status: 'new' });
-    assert.match(fresh, /data-quiz-new/);
-    assert.match(fresh, /10 otázek pro všechny · pořadí/);
-    assert.match(DQ.homeCardHtml({ status: 'progress', answered: 3 }), /Rozehráno · otázka 4\/10/);
-    const done = DQ.homeCardHtml({ status: 'done', summary: { correct: 8, score: 26 }, rank: 23, streak: 4 });
-    assert.match(done, /26 bodů · 8\/10 · 23\. místo/);
-    assert.doesNotMatch(done, /data-quiz-new/);
+    const fresh = DQ.homeTile({ status: 'new' });
+    assert.deepEqual([fresh.text, fresh.fresh], ['10 otázek', true]);
+    assert.match(fresh.label, /10 otázek pro všechny, pořadí/);
+    assert.equal(DQ.homeTile({ status: 'progress', answered: 3 }).text, 'Otázka 4/10');
+    const done = DQ.homeTile({ status: 'done', summary: { correct: 8, score: 26 }, rank: 23, streak: 4 });
+    assert.equal(done.text, '23. místo · 8/10');
+    assert.match(done.label, /26 bodů · 8\/10 · 23\. místo/);
+    assert.equal(done.fresh, false);
+    assert.equal(DQ.homeTile({ status: 'done', summary: { correct: 8, score: 26 } }).text, '8/10 · 26 bodů');
     const intro = DQ.introHtml({ day: '2026-11-08', topics: ['zemepis', 'hudba'], guest: true }, h);
     assert.match(intro, /Dnešní otázky \(jedna z každého tématu\) zůstávají zvlášť/);
     assert.match(intro, /Hraješ bez přihlášení/);
@@ -198,7 +200,7 @@ test('vykreslení: karta na úvodu, úvod, výsledek s pořadím a pozvánka pro
     const guest = DQ.resultHtml({ day: '2026-11-08', summary: DQ.summarize([]), guest: true, canLogin: true }, h);
     assert.match(guest, /Přihlas se a uvidíš se v pořadí/);
     assert.match(guest, /data-action="quiz-login"/);
-    for (const html of [fresh, done, intro, result, guest]) assert.doesNotMatch(html, /style=|<script/);
+    for (const html of [intro, result, guest]) assert.doesNotMatch(html, /style=|<script/);
 });
 
 test('daily-quiz.js a share-card.js jsou zapojené: index.html, service worker, nasazení a Tailwind', () => {

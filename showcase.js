@@ -43,7 +43,9 @@
         if (!item || !h) return null;
         if (item.kind === 'badge') {
             const found = h.badge(item.id);
-            return found ? { kind: 'badge', title: found.title, caption: 'Odznak', label: `Odznak ${found.title}`, art: h.medal(found, artCls) } : null;
+            // Emblém poraženého bosse týdne (odznak boss-<id>, boss.js) má vlastní popisek
+            const caption = found && found.emblem ? 'Emblém bosse' : 'Odznak';
+            return found ? { kind: 'badge', title: found.title, caption, label: `${caption} ${found.title}`, art: h.medal(found, artCls) } : null;
         }
         if (item.kind === 'diploma') {
             const topic = h.topic(item.id);

@@ -224,6 +224,10 @@ const backend = async (context, db) => {
                 return none();
             }
             if (name === 'export_my_data') return json({ ucet: { id: me.id } });
+            // Kamarádské sázky (schéma 21): přehled s limitem, nabídka sázky u výzvy db.stakeOffer a sázková bilance Petra (profil hráče)
+            if (name === 'challenge_stakes') return json({ limit: 50, week_xp: 120, open: 0, stats: { bets: 7, wins: 5, losses: 2, draws: 0, balance: 45, best: 3, streak: 1 }, rows: [] });
+            if (name === 'challenge_settle_stake') return json(db.stakeOffer === body.code ? { id: body.code, stake: 25, state: 'offered', taunt: 1, role: 'opponent', other: EVA, done: false, other_done: true, fresh: false } : { id: body.code, stake: null, state: null, fresh: false });
+            if (name === 'challenge_stake_stats') return json(body.player === PETR ? { bets: 6, wins: 4, losses: 2, draws: 0, balance: 30, best: 3, streak: 0 } : null);
             return json(null);
         }
         if (/^\/rest\/v1\/(friendships|player_blocks|player_reports|question_reports)$/.test(url.pathname)) {
@@ -299,7 +303,9 @@ const richStorage = () => {
         // Sezóna Mudrlanta: od 15 000 XP (11 000 XP sezóny = stupeň 14), pět stupňů vyzvednutých; oba rámečky, postavička a titul z minulé sezóny
         'mudrlant.rewards': JSON.stringify({ v: 1, freezes: 2, name: 'Jana Nováková', ready: ['2026-11-02'], chests: { '2026-10-26': 'xp' }, diplomas: { zemepis: '2026-10-20' },
             gifts: { frames: ['sezona-10', 'sezona-10-b', 'duha-mracky'], avatars: ['drakpa'], titles: ['sampion-sezony'] },
-            season: { id: '2026-11', startXp: 15000, claimed: { 1: 'robes:fialova', 2: 'accessories:kvetina', 3: 'freeze', 4: 'themes:fialova', 5: 'colors:ruzova' } } })
+            season: { id: '2026-11', startXp: 15000, claimed: { 1: 'robes:fialova', 2: 'accessories:kvetina', 3: 'freeze', 4: 'themes:fialova', 5: 'colors:ruzova' } } }),
+        // Zlatá otázka (gold.js): Zlatá truhla čeká (nejvyšší podoba okna Zlatá otázka i dlaždice v Mém postupu), minule dala rámeček
+        'mudrlant.gold': JSON.stringify({ v: 1, total: 14, correct: 11, found: 10, shards: 0, ready: 1, chests: 1, intro: true, last: 'frames:ruze' })
     };
 };
 
@@ -434,7 +440,7 @@ test('okna se vejdou bez posouvání', { skip: !chromium && 'Playwright není na
 
     for (const size of SIZES) {
         await t.test(`okna přihlášeného hráče s plnými daty (${size.width}×${size.height})`, async () => {
-            const { context, tab, log } = await setup(browser, { viewport: size });
+            const { context, tab, log, db } = await setup(browser, { viewport: size });
             await tab.waitForSelector('#friends-strip [data-player-id]', { timeout: 20000 });
             await tab.waitForTimeout(800);
             await closeAll(tab);
@@ -444,6 +450,8 @@ test('okna se vejdou bez posouvání', { skip: !chromium && 'Playwright není na
                 await tab.waitForSelector('[data-rematch]');
                 await tab.waitForFunction(() => document.getElementById('player-league') && document.querySelector('#dialog-overlay [aria-label="Odznaky"]') && /Poslední reakce/.test(document.getElementById('dialog-overlay').textContent) && document.querySelectorAll('#dialog-overlay [data-showcase-item]').length === 3);
                 await tab.waitForSelector('#dialog-overlay [data-avatar-art="caj"] img[src="icons/avatars/caj-17.webp"]');
+                // Kamarádské sázky: sázková bilance hráče v kartě statistik
+                await tab.waitForSelector('#dialog-overlay [data-bet-balance]');
             });
             await scene(tab, 'Profil hráče (žádost odeslána)', size, async () => {
                 await action(tab, 'challenge-open', { code: 'VWX234' });
@@ -594,6 +602,10 @@ test('okna se vejdou bez posouvání', { skip: !chromium && 'Playwright není na
             await scene(tab, 'Album – odměny', size, async () => { await album('avatars'); await tab.click('[data-album-rewards]'); await tab.waitForSelector('[data-album-rewards-list]'); });
             await scene(tab, 'Cíle týdne', size, async () => { await action(tab, 'goals-open'); await waitTitle(tab, 'Cíle týdne'); });
             await scene(tab, 'Truhla Mudrlanta', size, async () => { await action(tab, 'chest-open'); await tab.waitForSelector('#chest-overlay button'); });
+            // Zlatá otázka: okno z Mého postupu (dlaždice Zlatá truhla), Zlatá truhla zavřená a otevřená (stejné okno jako Truhla Mudrlanta)
+            await scene(tab, 'Zlatá otázka', size, async () => { await progress(); await tab.click('[data-rewards-info="gold"]'); await tab.waitForSelector('[data-gold-info] [data-gold-open]'); });
+            await scene(tab, 'Zlatá truhla', size, async () => { await action(tab, 'gold-chest'); await tab.waitForSelector('#chest-overlay .gold-chest [data-chest-go]'); }, { keep: true });
+            await scene(tab, 'Zlatá truhla – odměna', size, async () => { await tab.click('#chest-overlay [data-chest-go]'); await tab.waitForSelector('#chest-overlay [data-chest-reveal]'); await tab.waitForFunction(() => [...document.querySelectorAll('#chest-overlay img')].every(img => img.complete)); });
             // Sezóna Mudrlanta: okno s cestou 20 stupňů a odhalení odměny (zavřená pečeť, otevřená)
             await scene(tab, 'Sezóna', size, async () => { await progress(); await tab.click('[data-season-open]'); await tab.waitForSelector('[data-season-path]'); });
             await scene(tab, 'Sezóna – pečeť', size, async () => { await action(tab, 'season-claim'); await tab.waitForSelector('#season-overlay [data-season-go]'); });
@@ -604,6 +616,22 @@ test('okna se vejdou bez posouvání', { skip: !chromium && 'Playwright není na
             await action(tab, 'home-tab', { tab: 'multi' });
             // Výzvy
             await scene(tab, 'Nová výzva', size, async () => { await action(tab, 'new-challenge'); await waitTitle(tab, 'Nová výzva'); await tab.waitForTimeout(300); });
+            // Kamarádské sázky (bets.js): řádek Sázka s vybranou sázkou a hláškou, pravidla sázek a nabídka sázky u vyzvaného
+            const stakeRow = async (expand = false) => {
+                await action(tab, 'new-challenge');
+                await waitTitle(tab, 'Nová výzva');
+                await tab.click(`#dialog-overlay [data-pick-opp="${PETR}"]`);
+                await tab.waitForSelector('[data-stake-card]');
+                await tab.click('[data-ch-open="stake"]');
+                await tab.click('[data-stake-pick="25"]');
+                await tab.click('[aria-label="Další hláška"]');
+                if (!expand) await tab.click('[data-ch-open="stake"]');
+                await tab.waitForTimeout(200);
+            };
+            await scene(tab, 'Nová výzva – sázka', size, () => stakeRow());
+            await scene(tab, 'Kamarádské sázky', size, async () => { await stakeRow(true); await tab.click('[data-stake-help]'); await tab.waitForSelector('[data-bet-help] [data-bet-mine]'); });
+            await scene(tab, 'Výzva – nabídka sázky', size, async () => { db.stakeOffer = 'HJK567'; await action(tab, 'challenge-open', { code: 'HJK567' }); await tab.waitForSelector('[data-stake-offer]'); });
+            db.stakeOffer = null;
             await scene(tab, 'Zadat kód', size, async () => { await action(tab, 'join-challenge'); await waitTitle(tab, 'Zadat kód výzvy'); });
             await scene(tab, 'Výzva – detail (dohraná)', size, async () => { await action(tab, 'challenge-open', { code: 'ABC234' }); await tab.waitForSelector(`#dialog-overlay [data-player-id="${PETR}"]`); await tab.waitForTimeout(300); });
             await scene(tab, 'Výzva – detail (čeká na mě)', size, async () => { await action(tab, 'challenge-open', { code: 'HJK567' }); await tab.waitForSelector('[data-ch-play]'); });

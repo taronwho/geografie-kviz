@@ -645,3 +645,53 @@ sloupec 400) a jinak funguje jako dřív; rámečky ligových sezón zůstanou z
   („Tajemná otázka 12. 11. · 🔍🔍❌✅ · 3. nápověda · 7 bodů“) i obrázkem bez odpovědi. Stav v zařízení `mudrlant.mystery`.
 - Testy: `tests/sql-mystery.test.js` (hodiny nápověd i při změně času, pořadí a počet tipů, body, opakované odeslání, limit, statistiky a přátelé
   až po dořešení, pravidla řádků, export a smazání), `tests/mystery.test.js` a `tests/e2e-mystery.test.js`.
+
+## Boss týdne (schéma 21)
+
+**Po aktualizaci spusť znovu celý `supabase/schema.sql`.** Dokud ho nespustíš, Boss týdne funguje jen v zařízení (funkce vrátí 404 a aplikace
+se na ně dál neptá): souboje, XP, emblémy a titul fungují, chybí jen společná lišta hráčů a společný bonus.
+
+- **Pravidla** (`boss.js`): každý ISO týden (pražský čas, pondělí–neděle) jiný boss – Mudrlant v převleku: Kapitán Mudrlant (Zeměpis), Rytíř
+  Mudrlant (Historie), Alchymista (Chemie), Profesor Ampér (Fyzika), Maestro (Hudba), Druid (Biologie), Olympan (Mytologie) a Režisér (Film).
+  Souboj: 10 těžkých otázek z tématu bosse (známé položky ze střední a nejméně známé třetiny kategorie), stejných pro všechny (semínko = týden
+  a číslo pokusu). Boss má **700 životů**, správná odpověď mu ubere **50 + bonus za rychlost** (až 30: plný do 6 s, do 20 s klesá k nule),
+  hráč má **3 srdce** (chyba i vypršený čas jedno ubere). Čas na otázku 30 s (psaná 40 s); schválnosti: 4. a 8. otázka bez možností (odpověď se
+  píše), poslední 3 otázky poloviční čas. **3 pokusy za týden**, počítá se nejlepší; rozehraný souboj jde dohrát později, čas otázky ale běží dál.
+  Boss se mění podle životů: Plná síla (100–67 %), Zraněný (66–34 %), V koncích (33–1 %), Poražený (0).
+- **Výhra**: emblém bosse (odznak `boss-<id>` v `badge_catalog()`, portrét v kulatém rámu – Album, Vitrína `b:boss-<id>`), titul u jména
+  „Přemožitel …“ a **150 XP** za první výhru v týdnu.
+- Tabulka `boss_results` (hráč, týden = pondělí, nejlepší poškození, výhra, pokusy 1–3, vyzvednutý bonus, počet volání): jeden řádek na hráče
+  a týden, hráč čte jen svůj, zapisují jen funkce. Kontrola `boss_results_values` (pondělí, výhra = 700).
+- `boss_submit(for_week, idx, damage, is_defeated)`: dohraný souboj (týden běžící, nebo minulý ještě 30 minut po půlnoci), idx = kolikátý pokus
+  (0–2); stejný pokus poslaný znovu nic nezmění; nejvýš 3 pokusy a 30 volání za týden. Vrací můj stav týdne a `first_win`.
+- `boss_week_stats(for_week)`: hráči, kteří to zkusili, kolik bosse porazilo (a %), splněná polovina (`reached`), konec týdne (`over`) a můj stav;
+  běžící týden a 12 týdnů zpět, bez jmen.
+- `boss_claim_bonus(for_week)`: za skončený týden 50 XP každému, kdo to zkusil, když bosse porazila aspoň polovina z nich; jen jednou (`bonus_claimed`).
+  XP si připíše aplikace (příští týden při otevření, po sloučení XP s účtem).
+- Export dat má `boss_tydne`, smazání účtu řádky smaže (cizí klíč na profil). Anon nic.
+- Aplikace: dlaždice „Boss týdne“ v řadě Výzvy na úvodu (portrét podle stupně nejlepšího pokusu, „3 pokusy“ / „Souboj běží“ / „❤ 62 %“ /
+  „Poraženo!“, tenká lišta životů), úvod v aréně (nástup bosse, řeč, Pravidla, Síň bossů), souboj s animacemi (zásah, číslo poškození, prasklé
+  srdce, hlášky podle stupně) a výsledek. Stav v zařízení `mudrlant.boss`.
+- Testy: `tests/sql-boss.test.js` (týden v Praze, rozsahy, pokusy, opakované odeslání, půlnoc, společná lišta a bonus, pravidla řádků, export
+  a smazání), `tests/boss.test.js` a `tests/e2e-boss.test.js`.
+
+## Kamarádské sázky (schéma 21)
+
+**Po aktualizaci spusť znovu celý `supabase/schema.sql`.** Dokud ho nespustíš, funkce sázek vrátí 404 a aplikace sázky vůbec neukáže.
+
+- **Pravidla** (`bets.js`): ve výzvě konkrétnímu hráči (podle přezdívky, příteli, odveta přes Upravit) jde v okně Nová výzva v řádku **Sázka**
+  vsadit 10, 25 nebo 50 XP a vybrat jednu z 8 hlášek (žádný volný text). Náhodný soupeř, výzva přes odkaz ani výzva skupině sázku nemají.
+  Vsadit (i přijmout) jde nejvýš tolik, kolik hráč získal za posledních 7 dní (odhad z `xp_weekly`: tento týden a poměrná část minulého),
+  bez sázek, které má ještě otevřené. Vyzvaný před první otázkou zvolí **Přijmout sázku**, nebo **Hrát bez sázky**; kdo začne hrát bez odpovědi,
+  hraje bez sázky (spoušť `challenge_progress_close_offer`), nabídka platí 7 dní.
+- **Vyrovnání** `challenge_settle_stake(code)`: až mají výsledek oba, každý hráč si svou část vyrovná jednou (`stake_settled_creator`,
+  `stake_settled_opponent`, skutečná změna ve `stake_delta_*`): výhra +vklad, prohra −vklad, ale jen nad hranicí aktuální úrovně
+  (`stake_level_floor`, stejná tabulka jako `LEVEL_XP` v `quiz-core.js`), remíza nic. XP v účtu mění jen tahle funkce; prohra se odečte i z
+  `xp_weekly`, výhru tam připíše `count_weekly_xp`. Součty `profiles.bet_won` a `bet_lost` (jen pro čtení) čte aplikace spolu s XP a sladí podle
+  nich XP v zařízení (prohra vyrovnaná na jiném zařízení se tak starším XP nepřepíše). Jinak funkce jen vrátí stav sázky.
+- `challenge_offer_stake(code, amount, taunt_id)` jen zakladatel a jen před začátkem hry; `challenge_answer_stake(code, accept)` jen vyzvaný;
+  `challenge_stakes()` limit, statistika a moje sázky (mince u výzev, vyrovnání na pozadí); `challenge_stake_stats(player)` sázková bilance hráče
+  do profilu. Sloupce sázky při založení výzvy klient nezapíše (spoušť `guard_challenge_stake`). Anon nic.
+- Odznaky **Kamarádské sázky** (`sazky-1`, `sazkar` = Sázkař za 5 sázek, `sazky-15`, `sazky-30`, `sazky-60`) a **Vyhrané sázky v řadě**
+  (`sazky-v-rade-3`, `sazky-v-rade-5` = Neomylný sázkař, `-7`, `-10`, `-15`) v `badge_catalog()`. Export dat má sázky ve výzvách a součty v profilu.
+- Testy: `tests/sql-bets.test.js`, `tests/bets.test.js` a `tests/e2e-bets.test.js`.

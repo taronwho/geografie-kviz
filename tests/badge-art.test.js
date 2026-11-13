@@ -18,8 +18,28 @@ test('symboly odznaků: skupiny, obrázky, zdroje a mezipaměť', () => {
     assert.deepEqual(art.filter(id => !groups.has(id)), [], 'každý symbol patří existující skupině');
     // Odznaky alba sbírky mají obrázek Sběratel (album.js BADGE_ART, docs/OBRAZKY.md č. 149), skupina sberatel je i v BADGE_ART
     const album = (group) => group.badges.every(badge => core.isAlbumBadge(badge.id));
-    const missing = core.BADGE_GROUPS.filter(group => !group.topic && !art.includes(group.id) && !/^(tema|zbehly)-/.test(group.id) && !album(group)).map(group => group.id);
-    assert.deepEqual(missing, [], 'každá skupina (kromě témat a alba) má symbol');
+    // Odznaky Zlatokop mají symbol z gold.js (ART.badge: do dodání obrázku č. 211 zástupný obrázek, který už je v mezipaměti)
+    const Gold = require('../gold.js');
+    // Kamarádské sázky mají do dodání vlastního symbolu zástupný obrázek z bets.js (ART.badges, existující soubor v mezipaměti)
+    const betArt = require('../bets.js').ART.badges;
+    assert.ok(fs.existsSync(path.join(ROOT, 'icons', 'topics', `${Gold.ART.badge}.webp`)), `symbol Zlatokopa ${Gold.ART.badge}.webp`);
+    assert.ok(sw.includes(`'${Gold.ART.badge}'`), 'symbol Zlatokopa je v mezipaměti');
+    // Skupiny, jejichž obrázek se teprve kreslí (docs/NOVE-MODY.md): do dodání mají čárovou ikonu
+    const PENDING_ART = new Set(['dobyvatel']);
+    const missing = core.BADGE_GROUPS.filter(group => !group.topic && !art.includes(group.id) && !PENDING_ART.has(group.id) && !/^(tema|zbehly)-/.test(group.id) && !album(group) && !betArt[group.id] && group.id !== Gold.BADGE_GROUP && !core.isBossBadge(group.id)).map(group => group.id);
+    assert.deepEqual(missing, [], 'každá skupina (kromě témat, alba a bossů) má symbol');
+    // Emblémy bossů týdne: portrét bosse (boss.js ART, do dodání ilustrací zástupná sova) existuje
+    const Boss = require('../boss.js');
+    for (const group of core.BADGE_GROUPS.filter(entry => core.isBossBadge(entry.id))) {
+        const boss = Boss.bossOfBadge(group.id);
+        assert.ok(boss, `${group.id} patří bossovi`);
+        assert.ok(fs.existsSync(path.join(ROOT, 'icons', 'topics', `${Boss.artFor(boss.id, 1)}.webp`)), `portrét ${group.id}`);
+    }
+    for (const [group, name] of Object.entries(betArt)) {
+        assert.ok(groups.has(group), `skupina ${group}`);
+        assert.ok(fs.existsSync(path.join(ROOT, 'icons', 'topics', `${name}.webp`)), `zástupný symbol ${name}.webp`);
+        assert.ok(sw.includes(`'${name}'`) || sw.includes(`'${name.replace(/^odznak-/, '')}'`), `${name} je v mezipaměti`);
+    }
     const standIn = require('../album.js').BADGE_ART;
     assert.equal(standIn, 'odznak-sberatel');
     assert.ok(fs.existsSync(path.join(ROOT, 'icons', 'topics', `${standIn}.webp`)), `symbol alba ${standIn}.webp`);

@@ -1962,7 +1962,15 @@
         quizDone: 0, quizBestStreak: 0, quizPerfect: 0, blitzBest: 0, survivalBest: 0, blitzGames: 0, survivalGames: 0, blitzTen: 0, survivalFifteen: 0,
         mapAnswered: 0, mapExact: 0, estimateAnswered: 0, estimateGood: 0, orderAnswered: 0, orderPerfect: 0, sharedImages: 0, chestsOpened: 0, freezesUsed: 0,
         // Tajemná otázka dne (mystery.js): vyřešené dny
-        mysterySolved: 0
+        mysterySolved: 0,
+        // Zlatá otázka (gold.js): správně zodpovězené zlaté otázky
+        goldCorrect: 0,
+        // Boss týdne (boss.js): dohrané souboje a týdny s výhrou
+        bossFights: 0, bossWins: 0,
+        // Dobývání (conquest.js): vyhrané hry (1. místo ve hře, která odměnu dává)
+        conquestWins: 0,
+        // Kamarádské sázky (bets.js): rozhodnuté sázky a nejdelší řada vyhraných sázek (dosazuje aplikace z databáze)
+        bets: 0, betBestRun: 0
     };
     const number = (value) => Number.isFinite(value) ? value : 0;
     // Barva medaile podle stupně ve skupině: bronz, stříbro, zlato, vínová a nejvyšší diamantová
@@ -2092,6 +2100,17 @@
     // Tajemná otázka dne (mystery.js): vyřešené tajemné otázky (jednou za den)
     addGroup('detektiv', 'Detektiv', 'telescope', (c) => c.mysterySolved, (g) => g === 1 ? 'Vyřeš svou první Tajemnou otázku dne.' : `Vyřeš ${g} Tajemných otázek dne.`,
         [T(1, 'Detektiv', 'detektiv'), T(7, 'Bystrý detektiv'), T(30, 'Mistr detektiv'), T(100, 'Slavný detektiv'), T(365, 'Legenda detektivů')]);
+    // Zlatá otázka (gold.js): správně zodpovězené zlaté otázky
+    addGroup('zlatokop', 'Zlatokop', 'pickaxe', (c) => c.goldCorrect, (g) => `${g} správně zodpovězených zlatých otázek.`,
+        [T(10, 'Zlatokop I'), T(50, 'Zlatokop II'), T(100, 'Zlatokop III')]);
+    // Dobývání (conquest.js): vyhrané hry o mapu (1. místo ve hře aspoň 3 hráčů, nebo ve hře na den a déle)
+    addGroup('dobyvatel', 'Dobyvatel', 'swords', (c) => c.conquestWins, (g) => g === 1 ? 'Vyhraj hru Dobývání.' : `Vyhraj ${g} ${g < 5 ? 'hry' : 'her'} Dobývání.`,
+        [T(1, 'Dobyvatel území', 'dobyvatel'), T(3, 'Vojevůdce'), T(10, 'Stratég'), T(25, 'Vládce map'), T(50, 'Císař světa')]);
+    // Kamarádské sázky (bets.js): odehrané výzvy se sázkou a vyhrané sázky v řadě („Neomylný“ už je odznak za odpovědi v řadě, proto „sázkař“)
+    addGroup('sazky', 'Kamarádské sázky', 'gem', (c) => c.bets, (g) => g === 1 ? 'Odehraj první výzvu se sázkou.' : `Odehraj ${g} výzev se sázkou.`,
+        [T(1, 'První sázka'), T(5, 'Sázkař', 'sazkar'), T(15, 'Cinkající měšec'), T(30, 'Plná pokladnice'), T(60, 'Zlatý důl')]);
+    addGroup('sazky-v-rade', 'Vyhrané sázky v řadě', 'crown', (c) => c.betBestRun, (g) => `Vyhraj ${g} ${g < 5 ? 'sázky' : 'sázek'} v řadě.`,
+        [T(3, 'Šťastná ruka'), T(5, 'Neomylný sázkař'), T(7, 'Sázková smršť'), T(10, 'Zlatá ruka'), T(15, 'Legenda sázek')]);
     // --- Album sbírky (album.js): milníky celé sbírky a celé sekce alba. Hodnotu dosazuje aplikace: x.album = { percent, sections: { sekce: procenta } }
     // (procenta jsou zaokrouhlená dolů, 100 znamená opravdu všechno). Odznaky alba se do alba samy nepočítají (album.js), jinak by 100 % nešlo
     // získat. Tituly jsou bez rodu (popisují sbírku, ne hráče; „Sběratel“ už je odznak geologie), jde je mít jako titul u jména.
@@ -2107,6 +2126,20 @@
     const isAlbumBadge = (id) => /^(sberatel-\d+|album-[a-z]+)$/.test(String(id));
     // Barvy medailí alba: 25 % bronz, 50 % zlato, 75 % vínová, 100 % diamant; celá sekce zlatá
     BADGES.filter(badge => isAlbumBadge(badge.id) && (badge.group !== 'sberatel' || badge.goal === 50)).forEach(badge => { badge.tone = 'gold'; });
+    // --- Boss týdne (boss.js): emblém za každého poraženého bosse (portrét v kulatém rámu), jeden stupeň na bosse. Hodnotu dosazuje aplikace:
+    // x.bosses = { id bosse: týden první výhry }. Titul „Přemožitel …“ jde mít u jména a emblém vystavit ve Vitríně (b:boss-<id>).
+    // Stejná id a pořadí jako BOSSES v boss.js (hlídá tests/boss.test.js); bossové budou přibývat po tématech, skupiny jen na konec.
+    const BOSS_EMBLEMS = [
+        ['kapitan', 'Kapitán Mudrlant', 'Kapitána Mudrlanta', 'Přemožitel Kapitána'], ['rytir', 'Rytíř Mudrlant', 'Rytíře Mudrlanta', 'Přemožitel Rytíře'],
+        ['alchymista', 'Alchymista', 'Alchymistu', 'Přemožitel Alchymisty'], ['amper', 'Profesor Ampér', 'Profesora Ampéra', 'Přemožitel Profesora Ampéra'],
+        ['maestro', 'Maestro', 'Maestra', 'Přemožitel Maestra'], ['druid', 'Druid', 'Druida', 'Přemožitel Druida'],
+        ['olympan', 'Olympan', 'Olympana', 'Přemožitel Olympana'], ['reziser', 'Režisér', 'Režiséra', 'Přemožitel Režiséra']
+    ];
+    BOSS_EMBLEMS.forEach(([id, name, whom, title]) => addGroup(`boss-${id}`, `Boss týdne: ${name}`, 'swords', (c, x) => (x && x.bosses && x.bosses[id] ? 1 : 0),
+        () => `Poraz bosse týdne ${whom}.`, [T(1, title, `boss-${id}`)]));
+    const isBossBadge = (id) => /^boss-[a-z]+$/.test(String(id));
+    BADGES.filter(badge => isBossBadge(badge.id)).forEach(badge => { badge.tone = 'gold'; badge.emblem = true; });
+    BADGE_GROUPS.filter(group => isBossBadge(group.id)).forEach(group => { group.emblem = true; });
     const BADGE_BY_ID =Object.fromEntries(BADGES.map(badge => [badge.id, badge]));
     const normalizeCounters = (counters) => ({ ...EMPTY_COUNTERS, ...(counters || {}), topics: { ...((counters && counters.topics) || {}) },
         topicRun: { ...((counters && counters.topicRun) || {}) }, topicBest: { ...((counters && counters.topicBest) || {}) } });
@@ -2323,6 +2356,8 @@
     return {
         EMPTY_COUNTERS, BADGES, BADGE_GROUPS, BADGE_BY_ID, earnedBadgeIds, compactBadges, expandBadges, normalizeCounters,
         ALBUM_MILESTONES, ALBUM_SECTION_TITLES, isAlbumBadge,
+        // Boss týdne: emblémy poražených bossů (odznaky boss-<id>)
+        BOSS_EMBLEMS, isBossBadge,
         MAX_LEVEL, LEVEL_XP, questionsForLevel, xpForLevel, levelFromXp, levelProgress, LEVEL_TITLES, titleForLevel, nextTitle, TITLE_OWL_FROM, titleOwlTier, answerXp, DAILY_XP, DAILY_ALL_XP, streakXp, MASTERY_STEPS, masteryStars, nextMastery,
         UNKNOWN_COUNTRY, INTERNATIONAL_WATERS, CZECHIA_QID, AFTER_SYMBOL_WORD, TILE_SIZE, COUNTRIES, CONTINENT_NAMES,
         SATELLITE_TILES, OSM_TILES,

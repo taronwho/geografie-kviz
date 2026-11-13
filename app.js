@@ -32,6 +32,8 @@
     const Numeric = window.MudrlantNumeric || null;
     // Zdroj obrázku z Wikimedia Commons (photo-source.js): tlačítko „i“ u obrázků; bez skriptu se jen neukáže
     const PhotoSource = window.MudrlantPhotoSource || null;
+    // Boss týdne (boss.js): souboj s bossem na úvodu (řada Výzvy); bez skriptu se dlaždice nevykreslí
+    const Boss = window.MudrlantBoss || null;
     const TOPICS = window.MudrlantTopics || [];
     const TOPIC_BY_ID = Object.fromEntries(TOPICS.map(topic => [topic.id, topic]));
     const APP_NAME = 'Mudrlant';
@@ -72,7 +74,7 @@
     // 18 = ligové sezóny (league_seasons) a vitrína v profilu (profiles.showcase), odznaky Album sbírky v katalogu odznaků (se starší databází
     // se sezóny a vitrína jen nenabídnou, odznaky alba zůstanou v zařízení a album je spočítá znovu).
     // 19 = Tajemná otázka dne (mystery_*), odznaky Detektiv; 20 = nápovědy Tajemné otázky přes celý den (poslední ve 20:00).
-    const REQUIRED_SCHEMA = 20;
+    const REQUIRED_SCHEMA = 21;
     const HISTORY_SIZE = 200;
     const REQUEST_TIMEOUT = 12000;
     const WIKI_TIMEOUT = 6000;
@@ -915,7 +917,7 @@
         <div class="mt-3 rounded-2xl border-2 border-dashed border-amber-400/70 p-2.5">
             <p class="mb-1.5 flex items-center justify-between text-[11px] font-black uppercase tracking-widest text-amber-700 dark:text-amber-400"><span>Vývojářský režim</span><span class="font-bold normal-case tracking-normal">${devActive() ? 'zkušební postup' : 'tvůj postup'}</span></p>
             ${Social ? `<p data-dev-schema class="mb-1.5 text-[11px] font-semibold leading-snug ${schemaHave === REQUIRED_SCHEMA ? 'text-emerald-700 dark:text-emerald-300' : 'text-amber-800 dark:text-amber-200'}">Databáze: ${schemaHave === undefined ? 'verze schématu zatím nezjištěna' : schemaHave === null ? 'schéma bez verze (starší než 1)' : `schéma ${schemaHave}`} · aplikace potřebuje ${REQUIRED_SCHEMA}${schemaHave === REQUIRED_SCHEMA ? ' ✓' : schemaHave === undefined ? '' : schemaHave > REQUIRED_SCHEMA ? ' – aplikace je starší, obnov ji' : ' – spusť supabase/schema.sql'}</p>` : ''}
-            <div class="flex flex-wrap gap-1">${[['all', 'Odemknout úplně vše'], ['chest', 'Otevřít Truhlu Mudrlanta'], ['season', 'Sezóna: všech 20 stupňů'], ['max', 'Vše (úr. 100)'], ['level:10', 'Úr. 10'], ['level:25', 'Úr. 25'], ['level:50', 'Úr. 50'], ['level:75', 'Úr. 75'], ['badges', 'Všechny odznaky'], ['nobadges', 'Žádné odznaky'], ['nostars', 'Vymazat hvězdičky'], ['bulb', 'Vrátit žárovku'], ['tips', 'Obnovit tipy']].map(([kind, label]) => `<button type="button" data-dev="${kind}" class="rounded-lg bg-slate-200 px-2 py-1 text-[11px] font-bold text-slate-700 active:scale-95 dark:bg-slate-700 dark:text-slate-200">${label}</button>`).join('')}${devActive() ? '<button type="button" data-dev="restore" class="rounded-lg bg-amber-700 px-2 py-1 text-[11px] font-black text-white active:scale-95">Vrátit můj postup</button>' : ''}</div>
+            <div class="flex flex-wrap gap-1">${[['all', 'Odemknout úplně vše'], ['chest', 'Otevřít Truhlu Mudrlanta'], ['season', 'Sezóna: všech 20 stupňů'], ['max', 'Vše (úr. 100)'], ['level:10', 'Úr. 10'], ['level:25', 'Úr. 25'], ['level:50', 'Úr. 50'], ['level:75', 'Úr. 75'], ['badges', 'Všechny odznaky'], ['nobadges', 'Žádné odznaky'], ['nostars', 'Vymazat hvězdičky'], ['bulb', 'Vrátit žárovku'], ['tips', 'Obnovit tipy'], ['gold', 'Příští otázka zlatá'], ['gold-chest', 'Otevřít Zlatou truhlu']].map(([kind, label]) => `<button type="button" data-dev="${kind}" class="rounded-lg bg-slate-200 px-2 py-1 text-[11px] font-bold text-slate-700 active:scale-95 dark:bg-slate-700 dark:text-slate-200">${label}</button>`).join('')}${devActive() ? '<button type="button" data-dev="restore" class="rounded-lg bg-amber-700 px-2 py-1 text-[11px] font-black text-white active:scale-95">Vrátit můj postup</button>' : ''}</div>
             ${Social ? `<p class="mb-1 mt-2 text-[11px] font-black uppercase tracking-widest text-amber-700 dark:text-amber-400">Turnaj (boti)</p>
             <div class="flex flex-wrap gap-1">${[['tour-bots', '+31 botů'], ['tour-start', 'Spustit hned'], ['tour-play', 'Boti odehrají kolo'], ['tour-next', 'Další kolo'], ['tour-reset', 'Smazat odehraný turnaj'], ['tour-clear', 'Smazat boty']].map(([kind, label]) => `<button type="button" data-dev="${kind}" class="rounded-lg bg-emerald-100 px-2 py-1 text-[11px] font-bold text-emerald-900 active:scale-95 dark:bg-emerald-900/50 dark:text-emerald-100">${label}</button>`).join('')}</div>
             <p class="mb-1 mt-2 text-[11px] font-black uppercase tracking-widest text-amber-700 dark:text-amber-400">Provoz</p>
@@ -2043,6 +2045,9 @@
                 return;
             }
             if (devButton && devButton.dataset.dev === 'chest') { devApply('chest'); closeSettings(); updateControlsUI(); openChestOverlay(); return; }
+            // Zlatá otázka na zkoušku: příští otázka běžné hry je zlatá (pojistka), Zlatá truhla připravená k otevření
+            if (devButton && devButton.dataset.dev === 'gold' && Gold) { saveGold({ ...loadGold(), since: Gold.PITY - 1 }); openSettings('Hotovo: příští otázka bude zlatá', '[data-dev="gold"]'); return; }
+            if (devButton && devButton.dataset.dev === 'gold-chest' && Gold) { devApply('gold-chest'); saveGold({ ...loadGold(), ready: loadGold().ready + 1 }); closeSettings(); updateControlsUI(); openChestOverlay(true); return; }
             if (devButton && devButton.dataset.dev === 'season') { devApply('season'); closeSettings(); updateControlsUI(); openSeason(); return; }
             if (devButton) { devApply(devButton.dataset.dev); updateControlsUI(); openSettings(`Hotovo: ${devButton.textContent.trim()}`, `[data-dev="${devButton.dataset.dev}"]`); return; }
             const lockedOwl = event.target.closest('[data-locked-owl]');
@@ -2337,6 +2342,9 @@
         if (screen === 'quiz' || screen === 'quiz-done') return { icon: 'timer', text: `Kvíz dne · ${shortDay(quiz ? quiz.day : getDayKey())}`, topic: null };
         if (screen === 'mode' && modeGame) return modePlace(modeGame);
         if (screen === 'mystery') return { icon: 'telescope', text: 'Tajemná otázka', topic: null };
+        if ((screen === 'boss' || screen === 'boss-done') && Boss) return { icon: 'swords', art: Boss.artFor(Boss.bossForWeek(Boss.weekOf()).id, 1), text: 'Boss týdne', topic: null };
+        if (screen === 'conquest') return { icon: 'swords', text: 'Dobývání', topic: null };
+        if (screen === 'chain' && chainCtl) return { ...chainCtl.place(), topic: null };
         // Úvod: sova z loga, název a dnešní datum
         if (screen !== 'round' || !current) return { logo: true, text: `${APP_NAME} · ${shortDay(getDayKey())}`, date: shortDay(getDayKey()), topic: null };
         const topic = TOPIC_BY_ID[current.topic];
@@ -2428,9 +2436,11 @@
             text.className = 'min-w-[2.25rem] text-left';
         } else {
             text.textContent = place.text;
-            // Dlouhé slovo (ARCHITEKTURA) se nesmí zlomit uprostřed: menší písmo, zlom až jako poslední možnost
+            // Dlouhé slovo (ARCHITEKTURA) se nesmí zlomit uprostřed: menší písmo, zlom až jako poslední možnost. Na úzkém displeji (360 px)
+            // zmenší písmo už slovo delší než 6 písmen (ZEMĚPIS, MYTOLOGIE) a šipka změny tématu se skryje (index.html), ať se slovo vejde celé
             const longest = Math.max(0, ...String(place.text).split(/\s+/).map(word => word.length));
-            text.className = `line-clamp-2 break-words text-left uppercase leading-tight ${longest > 10 ? 'text-[10px] tracking-tight' : 'text-[11px]'} ${style ? '' : 'text-slate-700 dark:text-slate-200'}`;
+            const size = longest > 10 ? 'text-[10px] tracking-tight max-[370px]:text-[9px]' : longest > 6 ? 'text-[11px] max-[370px]:text-[10px] max-[370px]:tracking-tight' : 'text-[11px]';
+            text.className = `line-clamp-2 break-words text-left uppercase leading-tight ${size} ${style ? '' : 'text-slate-700 dark:text-slate-200'}`;
         }
     };
 
@@ -2578,20 +2588,52 @@
         const wrap = appContent.firstElementChild;
         if (screen !== 'home' || homeTab() === 'multi' || !wrap) return;
         const wasShort = root.classList.contains(FIT_SHORT);
+        // Měří se bez přechodů (dlaždice mají transition-all): jinak by se hned po odebrání třídy změřila ještě zhuštěná výška
+        // a úvod by po doběhnutí přechodu přetekl (fit-measure v src/input.css)
+        root.classList.add('fit-measure');
         root.classList.remove(FIT_SHORT);
         if (!window.matchMedia('(max-height: 770px)').matches && wrap.scrollHeight > appContent.clientHeight + 1) root.classList.add(FIT_SHORT);
         if (root.classList.contains(FIT_SHORT) !== wasShort) appContent.scrollTo(0, 0);
         fitSeen = wrap.scrollHeight;
+        root.classList.remove('fit-measure');
     };
+    // Plocha úvodu se může zmenšit i beze změny jeho obsahu (hlavička aplikace doroste po načtení profilu): hlídá ji
+    // ResizeObserver na #app-content. Přepnutí zhuštění velikost plochy nemění, takže nevzniká smyčka.
     let fitFrame = 0;
-    const homeFitObserver = typeof MutationObserver === 'function' ? new MutationObserver(() => {
+    let fitForce = false;
+    const scheduleFit = (force) => {
+        fitForce = fitForce || force;
         if (fitFrame) return;
         fitFrame = requestAnimationFrame(() => {
             fitFrame = 0;
             const wrap = appContent.firstElementChild;
-            if (wrap && wrap.scrollHeight !== fitSeen) fitHome();
+            if (wrap && (fitForce || wrap.scrollHeight !== fitSeen)) fitHome();
+            fitForce = false;
         });
-    }) : null;
+    };
+    const homeFitObserver = typeof MutationObserver === 'function' ? new MutationObserver(() => scheduleFit(false)) : null;
+    if (typeof ResizeObserver === 'function') new ResizeObserver(() => scheduleFit(true)).observe(appContent);
+    // Řada Výzvy na úvodu (docs/NOVE-MODY.md): tři stejné dlaždice Kvíz dne | Řetězovka dne | Boss týdne. Obrázek, název
+    // a krátký stav; celý stav v popisku pro čtečku. dot = atribut zlaté tečky „dnes ještě nehráno“, extra = obsah navíc
+    // umístěný absolutně (třeba tenká lišta životů bosse u spodního okraje), aby neměnil výšku. Na nízkém displeji (short:)
+    // obrázek vedle textu: řada je pak nižší než dřívější karta Kvízu dne a úvod se vejde i na 360×640.
+    const specialTile = ({ id, action, art, title, text, label = '', ring = 'ring-slate-200/80 dark:ring-slate-700/70', tone = 'bg-white dark:bg-slate-800', titleTone = 'text-slate-800 dark:text-slate-100', textTone = 'text-slate-500 dark:text-slate-400', dot = '', attrs = '', extra = '' }) => `
+            <button type="button" id="${id}" data-action="${action}" data-special-tile ${attrs} aria-label="${escapeHtml(label || `${title}: ${text}`)}" class="relative flex min-w-0 flex-col items-center justify-center gap-0.5 overflow-hidden rounded-[1.2rem] px-1 pb-1.5 pt-1.5 text-center shadow-sm ring-2 transition-transform active:scale-[0.97] short:flex-row short:justify-start short:gap-1.5 short:rounded-2xl short:px-1.5 short:py-1 short:text-left ${tone} ${ring}">
+                <span class="relative flex shrink-0">${uiArt(art, 'h-9 w-9 short:h-6 short:w-6')}${dot ? `<span aria-hidden="true" ${dot} class="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-gold-500 ring-2 ring-white dark:ring-slate-800"></span>` : ''}</span>
+                <span class="flex min-w-0 max-w-full flex-col items-center short:items-start">
+                    <span class="block max-w-full truncate text-[12px] font-black leading-tight short:text-[11.5px] ${titleTone}">${escapeHtml(title)}</span>
+                    <span class="block max-w-full truncate text-[10.5px] font-bold leading-tight short:text-[10px] ${textTone}">${escapeHtml(text)}</span>
+                </span>
+                ${extra}
+            </button>`;
+    // Dlaždice Řetězovky dne a Bosse týdne (doplní je jejich moduly; prázdný řetězec = dlaždice se nevykreslí)
+    let chainCtl = null; // ovladač Řetězovky (chain.js), založí se níž u Kvízu dne a Tajemné otázky
+    const chainHomeTile = () => (chainCtl ? chainCtl.homeTile() : '');
+    const bossHomeTile = () => (Boss ? bossTileHtml() : '');
+    const specialsRow = () => {
+        const tiles = [quizHomeCard(), chainHomeTile(), bossHomeTile()].filter(Boolean);
+        return tiles.length ? `<section id="home-specials" aria-label="Výzvy" class="grid ${['', 'grid-cols-1', 'grid-cols-2', 'grid-cols-3'][tiles.length]} gap-2 short:gap-1.5">${tiles.join('')}</section>` : '';
+    };
     const renderHome = () => {
         screen = 'home';
         closePlaceInfo();
@@ -2656,7 +2698,7 @@
         appContent.innerHTML = `
             <div class="fade-in flex min-h-full w-full flex-col gap-2 bg-slate-50 p-3 pb-4 short:gap-1.5 short:pb-3 dark:bg-slate-900">
                 ${renderHomeTabs()}
-                ${homeTab() === 'multi' ? renderChallengesSection() : `${quizHomeCard()}${mysteryHomeCard()}<section class="rounded-[1.4rem] bg-white p-2.5 shadow-sm ring-1 ring-slate-200/70 short:p-1.5 dark:bg-slate-800/70 dark:ring-slate-700/70">
+                ${homeTab() === 'multi' ? renderChallengesSection() : `${specialsRow()}${mysteryHomeCard()}<section class="rounded-[1.4rem] bg-white p-2.5 shadow-sm ring-1 ring-slate-200/70 short:p-1.5 dark:bg-slate-800/70 dark:ring-slate-700/70">
                     <div class="mb-2 flex items-center justify-between gap-2 short:mb-1.5">
                         <h2 class="flex min-w-0 items-center gap-2 whitespace-nowrap text-slate-800 dark:text-slate-100">${uiArt('dnes', 'h-8 w-8 short:h-7 short:w-7')}<span class="min-w-0"><span class="block text-[13px] font-black leading-tight">Dnešní otázky</span><span class="flex items-center gap-1 text-[11px] font-bold leading-tight text-slate-500 dark:text-slate-400">${answered}/${TOPICS.length} splněno${Rewards && loadRewards().freezes ? `<button type="button" data-action="freeze-info" class="ml-0.5 rounded-md">${Rewards.freezeChip(loadRewards().freezes)}</button>` : ''}</span></span></h2>
                         ${left ? `
@@ -2679,6 +2721,8 @@
         refreshChallenges();
         if (DailyQuiz) refreshQuizServer();
         if (Mystery) refreshMysteryReveal();
+        if (Boss) refreshBossServer();
+        if (chainCtl) chainCtl.refresh();
         // Tutoriál až po výběru varianty: úvod jde otevřít i z uvítání (Domů), otázka by se ale nespustila a bublina by čekala
         if (Tutorial && gameVariant) Tutorial.maybeStart({ ready: factLoading });
     };
@@ -3009,6 +3053,7 @@
         panel.remove();
         renderIcons(appContent);
         mountPanels();
+        paintGold();
     };
 
     // Turnaj: živý čas u každé otázky (rozhoduje při shodě bodů i správných odpovědí), přestane se počítat po odpovědi
@@ -3653,6 +3698,7 @@
         persistState();
         if (round.answered) renderResult(keepScroll);
         else renderQuestion(keepScroll);
+        paintGold();
         updateControlsUI();
     };
 
@@ -3796,7 +3842,9 @@
             topicStars: Object.fromEntries(TOPICS.map(topic => [topic.id, masteryStars((learnedMap[topic.id] || []).length)])),
             topicCount: TOPICS.length,
             // Album sbírky: procenta celé sbírky a sekcí pro odznaky Sběratel (album.js)
-            album: albumBadgeContext(progress)
+            album: albumBadgeContext(progress),
+            // Boss týdne: poražení bossové pro emblémy boss-<id> (boss.js)
+            bosses: Boss ? Boss.emblemsOf(Boss.parseState(readJson(Boss.KEY))) : {}
         };
     };
     // Získané odznaky podle počítadel; vrátí názvy nově získaných (a uloží je s dnešním dnem)
@@ -3839,7 +3887,12 @@
         // Otevřené okno (třeba rozpis otázek po výzvě, nebo Nastavení, kde hráč obléká Mudrlanta) má přednost: oslavy počkají, až se zavře
         if (document.getElementById('dialog-overlay') || document.getElementById('settings-overlay')) return false;
         if (mode === 'blitz' || mode === 'survival') return !modeGame || modeGame.phase === 'result' || screen !== 'mode';
+        // Boss týdne: během souboje ne, na úvodu a výsledku ano
+        if (screen === 'boss') return !bossFight;
+        if (screen === 'boss-done') return true;
         if (screen === 'home' || screen === 'learn' || screen === 'challenge-done' || screen === 'quiz-done' || screen === 'welcome' || screen === 'mystery') return true;
+        if (screen === 'conquest') return !(ConquestUI && ConquestUI.busy());
+        if (screen === 'chain') return !(chainCtl && chainCtl.isPlaying());
         if (mode === 'challenge' || mode === 'quiz') return false;
         return Boolean(round && round.answered);
     };
@@ -3878,6 +3931,9 @@
         // Album sbírky: milník sbírky a celá sekce mají vlastní oslavu (po ostatních odznacích) místo obecného „Nový odznak“
         const albumFresh = freshBadgeIds.filter(id => Album && Album.isAlbumBadge(id) && BADGE_BY_ID[id]);
         if (albumFresh.length) badgeTitles = badgeTitles.filter(title => !albumFresh.some(id => BADGE_BY_ID[id].title === title));
+        // Boss týdne: emblém a titul slaví obrazovka výsledku souboje
+        const bossFresh = freshBadgeIds.filter(id => Boss && Boss.isBossBadge(id) && BADGE_BY_ID[id]);
+        if (bossFresh.length) badgeTitles = badgeTitles.filter(title => !bossFresh.some(id => BADGE_BY_ID[id].title === title));
         if (levelNow > levelBefore) {
             const newTitle = titleForLevel(levelNow) !== titleForLevel(levelBefore);
             // Nový titul slaví sova jeho stupně (sova titulu v barvě mého obleku)
@@ -3900,6 +3956,146 @@
         const gap = Math.round((Date.parse(`${getDayKey()}T12:00:00`) - Date.parse(`${last}T12:00:00`)) / 86400000);
         if (gap >= 3) showCelebration('spi', 'Mudrlant na tebe čekal', `Naposledy jsi hrál před ${gap} dny. Zahraj si dnešní otázky!`);
     };
+    // ===== Kamarádské sázky (bets.js, schéma 21): sázka XP ve výzvě konkrétnímu hráči, vyrovnání po dohrání obou =====
+    // XP sázky mění server (challenge_settle_stake); zařízení si změnu připíše hned a pod zámkem postupu, ať ji souběžné syncProgress
+    // se starším XP nepřepíše. Výhry a prohry vyrovnané na jiném zařízení sladí syncProgress podle součtů v účtu (bets.js reconcile).
+    const Bets = window.MudrlantBets || null;
+    const BetsApi = Bets && window.MudrlantSocial ? Bets.createApi({ window }) : null;
+    const levelFloorOf = (xp) => xp - levelProgress(xp).into;
+    // Úloha, během které neběží syncProgress (počká na dokončení rozběhnutého, nejvýš 4 s); změnila-li XP (vrátí true), postup se pak sladí s účtem
+    const withProgressIdle = async (task) => {
+        for (let waited = 0; syncingProgress && waited < 4000; waited += 100) await new Promise(resolve => setTimeout(resolve, 100));
+        const mine = !syncingProgress;
+        if (mine) syncingProgress = true;
+        let changed = false;
+        try { changed = (await task()) === true; return changed; } finally { if (mine) syncingProgress = false; if (changed) syncProgress(); }
+    };
+    const BetsCtl = BetsApi ? Bets.createController({
+        api: BetsApi, user: () => signedUser(), read: readJson, write: writeJson, withProgress: withProgressIdle, floorOf: levelFloorOf,
+        applyXp: (delta) => {
+            const progress = loadProgress();
+            const before = levelProgress(progress.xp).level;
+            progress.xp = Bets.applyDelta(progress.xp, delta, levelFloorOf);
+            if (delta > 0) chronicleLog({ xp: delta });
+            saveProgress(progress);
+            announce(before, levelProgress(progress.xp).level, []);
+            updateControlsUI();
+        },
+        // Odznaky Sázkař a Neomylný sázkař z přehledu sázek v účtu
+        setCounters: ({ bets, betBestRun }) => {
+            const progress = loadProgress();
+            const c = progress.counters;
+            if ((c.bets || 0) >= bets && (c.betBestRun || 0) >= betBestRun) return;
+            c.bets = Math.max(c.bets || 0, bets);
+            c.betBestRun = Math.max(c.betBestRun || 0, betBestRun);
+            const titles = grantBadges(progress);
+            saveProgress(progress);
+            announce(1, 1, titles);
+            if (titles.length) syncProgress();
+        },
+        paint: () => paintChallenges(),
+        // Sázka vyrovnaná na pozadí (po načtení výzev): výhra oslavou, prohra a remíza krátkou zprávou
+        notify: (result) => {
+            if (result.delta > 0) showCelebration('vitez', 'Sázka je tvoje!', `${Bets.formatDelta(result.delta)} za vyhranou sázku`, 'badge');
+            else if (result.outcome === 'loss') showToast(result.delta ? `Sázka nevyšla: ${Bets.formatDelta(result.delta)}. Úroveň zůstává.` : 'Sázka nevyšla, ale úroveň je v bezpečí.');
+            else if (result.outcome === 'draw') showToast('Sázka skončila remízou, XP zůstávají.');
+        }
+    }) : null;
+    const betsOn = () => Boolean(BetsCtl && BetsCtl.available() && signedUser() && !devActive());
+    const betHelpers = () => ({ esc: escapeHtml, art: uiArt, avatar: (player, cls) => avatarHtml(player, cls), name: playerName });
+    const betBadge = (code) => (betsOn() ? Bets.badgeHtml(BetsCtl.view(code)) : '');
+    // Okno Kamarádské sázky: pravidla, moje bilance a kolik teď můžu vsadit (z okna Vyzvat a z nabídky sázky)
+    const openBetsHelp = () => {
+        if (!Bets) return;
+        touchTip('bets');
+        const draw = () => showDialog('Kamarádské sázky', `${Bets.helpHtml(BetsCtl ? BetsCtl.overview() : null, betHelpers())}${dialogTrail.length ? dialogBackButton('mt-3') : ''}`);
+        draw();
+        if (betsOn()) BetsCtl.refresh().then(() => { const overlay = document.getElementById('dialog-overlay'); if (overlay && overlay.dataset.title === 'Kamarádské sázky') draw(); });
+    };
+    // Okno Vyzvat: sázka jen u výzvy konkrétnímu hráči (ne náhodnému, ne přes odkaz, ne skupině)
+    // Přehled sázek se načetl: databáze sázky zná (bez něj se volba sázky ani tip neukážou)
+    const betsReady = () => betsOn() && BetsCtl.overview() !== null;
+    const betPickerShown = (draft) => betsReady() && draft.who === 'player' && Boolean(draft.opponent) && !draft.group;
+    const betPickerHtml = (draft) => (betPickerShown(draft) ? Bets.pickerHtml({ stake: draft.stake, taunt: draft.taunt, limit: BetsCtl.limit(), open: draft.open === 'stake', note: draft.stakeNote }, betHelpers()) : '');
+    // Klepnutí v řádku Sázka; true = vyřízeno. help = otevře pravidla (s návratem do rozpracované výzvy)
+    const betPickerClick = (event, draft, render, help) => {
+        const pick = event.target.closest('[data-stake-pick]');
+        if (pick) {
+            const value = Bets.cleanStake(pick.dataset.stakePick);
+            const limit = BetsCtl.limit();
+            if (value && limit !== null && value > limit) draft.stakeNote = Bets.limitNote(limit);
+            else { draft.stake = value; draft.stakeNote = ''; if (!value) draft.taunt = null; }
+            touchTip('bets');
+            render();
+            return true;
+        }
+        const step = event.target.closest('[data-taunt-step]');
+        if (step) { draft.taunt = Bets.nextTaunt(draft.taunt, Number(step.dataset.tauntStep)); render(); return true; }
+        if (event.target.closest('[data-stake-help]')) { help(); return true; }
+        return false;
+    };
+    // Po založení výzvy: nabídka sázky (když nevyjde, hraje se bez ní a hráč se to dozví)
+    const offerStake = async (code, draft) => {
+        const amount = betPickerShown(draft) ? Bets.cleanStake(draft.stake) : 0;
+        if (!amount) return null;
+        try {
+            const row = await BetsApi.offer(code, amount, draft.taunt);
+            if (row) BetsCtl.remember(row);
+            return row;
+        } catch (error) {
+            showToast(`${error && error.message ? error.message : 'Sázku se nepodařilo nabídnout.'} Hraje se bez sázky.`);
+            return null;
+        }
+    };
+    // Výsledek sázky po dohrání (obrazovka výsledku): vyrovná se hned, panel s mincemi se uloží k výzvě (překreslení ho neztratí)
+    const betSettleChallenge = async (c, results) => {
+        if (!betsOn() || !c || !c.invited || c.tournament) return;
+        const info = await BetsCtl.settle(c.code).catch(() => null);
+        const view = info ? Bets.viewOf(info) : null;
+        if (!view) return;
+        const user = signedUser();
+        const me = user ? (results || []).find(row => row.user_id === user.id) : null;
+        const other = (results || []).find(row => !user || row.user_id !== user.id);
+        const otherPlayer = (other && other.player) || (c.creator && user && c.creator.id !== user.id ? c.creator : c.invited);
+        c.betView = view;
+        c.betPanel = ['won', 'lost', 'draw'].includes(view.kind)
+            ? Bets.resultHtml({ view, me: (me && me.player) || myProfile, other: otherPlayer }, betHelpers())
+            : Bets.statusHtml(view, playerName(otherPlayer), betHelpers());
+        c.betPour = (view.kind === 'won' || view.kind === 'lost') && BetsCtl.firstShow(c.code);
+    };
+    // Mince se sypou k vítězi (jednou); při omezeném pohybu výsledek jen stojí
+    const betPourIn = (root) => {
+        const panel = root && root.querySelector('[data-bet-result]');
+        if (!panel) return false;
+        const won = panel.dataset.betResult === 'won';
+        return Bets.pour(panel, { reduced: reducedMotion(), sound: Sound ? () => { Sound.play('coins'); if (won) Sound.vibrate('record'); } : null });
+    };
+    // Detail výzvy: nabídka sázky (vyzvaný ještě nehrál), stav sázky, nebo výsledek s mincemi
+    const betDetail = ({ code, def, user, info, results, mine }) => {
+        const view = info ? Bets.viewOf(info) : null;
+        if (!view) return { html: '', offer: false };
+        const otherPlayer = info.role === 'creator' ? def.invited : def.creator;
+        if (view.kind === 'offer' && !mine) {
+            touchTip('bets');
+            return { offer: true, html: Bets.offerHtml({ stake: view.stake, taunt: info.taunt, name: playerName(def.creator), limit: BetsCtl.limit() }, betHelpers()) };
+        }
+        if (['won', 'lost', 'draw'].includes(view.kind)) {
+            const me = results.find(row => row.user_id === user.id);
+            return { offer: false, pour: (view.kind === 'won' || view.kind === 'lost') && BetsCtl.firstShow(code), html: Bets.resultHtml({ view, me: (me && me.player) || myProfile, other: otherPlayer, compact: true }, betHelpers()) };
+        }
+        return { offer: false, html: Bets.statusHtml(view, playerName(otherPlayer), betHelpers()) };
+    };
+    // Odpověď na nabídku sázky před hrou; při chybě (limit, spojení) vrátí text chyby
+    const answerStake = async (code, accept) => {
+        try {
+            const row = await BetsApi.answer(code, accept);
+            if (row) BetsCtl.remember(row);
+            return null;
+        } catch (error) {
+            return error && error.message ? error.message : 'Sázku se nepodařilo potvrdit. Zkus to znovu.';
+        }
+    };
+
     // Úroveň a odznaky se po přihlášení ukládají i do účtu (viditelné ostatním, platí na všech zařízeních); chyba spojení nevadí
     let syncingProgress = false;
     // Účet, jehož postup se v tomto spuštění už sloučil se zařízením: odměny (se sezónou) se slučují až po něm, ať začátek sezóny
@@ -3914,6 +4110,11 @@
             let remote = null;
             try { remote = await Social.getProgress(user.id); } catch (error) { return; }
             if (!remote) return;
+            // Kamarádské sázky (bets.js): výhry a prohry sázek, které zařízení ještě nemá (vyrovnané na jiném zařízení), se připíšou dřív,
+            // než se XP sloučí – jinak by starší vyšší XP ze zařízení prohru v účtu přepsalo
+            const betXp = BetsCtl ? BetsCtl.reconcileXp(user.id, local.xp, remote) : local.xp;
+            const betChanged = betXp !== local.xp;
+            local.xp = betXp;
             // Větší XP a sjednocení odznaků: na novém zařízení se postup načte z účtu, na starém se do účtu nahraje
             // (do účtu jde jen nejvyšší stupeň každé skupiny, nižší se dopočítají)
             const merged = { ...local, xp: Math.max(local.xp, remote.xp || 0), badges: { ...local.badges } };
@@ -3923,8 +4124,10 @@
             // XP z účtu (získané na jiném zařízení) se do sezóny tady nepočítá: začátek sezóny se posune o totéž (season.js shift);
             // sloučení odměn s účtem pak vezme menší začátek, takže XP sezóny z jiného zařízení se vrátí přes jeho zápis v účtu
             if (Season && Rewards && merged.xp > local.xp) saveRewards(Season.shift(loadRewards(), merged.xp - local.xp));
-            if (changedLocal) { saveProgress(merged); updateControlsUI(); }
+            if (changedLocal || betChanged) { saveProgress(merged); updateControlsUI(); }
             progressSyncedFor = user.id;
+            // Společný bonus Bosse týdne až po sloučení XP s účtem (jinak by ho přebilo větší XP z účtu)
+            if (Boss) claimBossBonus();
             const compact = compactBadges(Object.keys(merged.badges));
             const sameRemote = (remote.xp || 0) === merged.xp && [...compact].sort().join() === [...(remote.badges || [])].filter(id => BADGE_BY_ID[id]).sort().join();
             if (!sameRemote) await Social.saveProgress(user.id, { xp: merged.xp, badges: compact });
@@ -4064,7 +4267,8 @@
         const topic = goal.kind === 'tema' ? TOPIC_BY_ID[goal.id.slice('tema-'.length)] : null;
         const mix = { label: 'Hrát Mix', run: () => startPractice({ kind: 'mix' }) };
         const daily = nextDailyTopic();
-        const multi = (run) => () => { writeJson(KEYS.homeTab, 'multi'); run(); };
+        // Cíl pro více hráčů: přihlášený rovnou do hry, host na záložku Více hráčů (tam je pozvánka k přihlášení), ne „nic se nestalo“
+        const multi = (run) => () => { if (signedUser()) { writeJson(KEYS.homeTab, 'multi'); run(); } else { if (screen !== 'home') renderHome(); openHomeTabFromPush('multi'); } };
         const plans = {
             spravne: { text: 'Počítá se každá správná odpověď v jakékoli hře: procvičování, dnešní otázky, výzvy, turnaj i Kvíz dne.', ...mix },
             tema: topic ? { text: `Počítají se správné odpovědi v tématu ${topic.title}, ať hraješ procvičování, dnešní otázku nebo Mix.`, label: `Hrát ${topic.title}`, run: () => playTopic(topic.id) } : mix,
@@ -4231,6 +4435,9 @@
         const overlay = document.getElementById('chest-overlay');
         if (overlay) overlay.remove();
         if (screen === 'home') paintGoalsCard();
+        // Řádek Zlaté otázky ve výsledku: tlačítko otevřené Zlaté truhly zmizí
+        const goldRow = appContent.querySelector('[data-gold-result]');
+        if (goldRow) { goldRow.remove(); if (screen === 'mode') renderModeScreen(); else paintGold(); }
     };
     const chestHelpers = () => ({ frameClass: (id) => (window.MudrlantLookFrames ? window.MudrlantLookFrames.frameClass(id) : '') });
     // Nasazení věci z truhly (talár, téma, rámeček, doplněk do jeho místa); barva doplňků se volí v Nastavení. Do účtu (rámeček,
@@ -4243,21 +4450,22 @@
         else if (gift.category === 'accessories') Look.setPref('acc', { ...(ctx.prefs.acc || {}), [gift.item.slot]: { id: gift.item.id, color: 'original' } }, ctx);
         applyLook();
     };
-    const openChestOverlay = () => {
-        if (!Rewards) return;
-        const week = Rewards.pendingChest(loadRewards());
-        if (!week || document.getElementById('chest-overlay')) return;
+    // gold = Zlatá truhla za pět zlatých střípků (gold.js): stejné okno a otevírání, jiný vzhled a obsah (vzácná věc, jinak XP)
+    const openChestOverlay = (gold = false) => {
+        if (!Rewards || (gold && !(Gold && loadGold().ready))) return;
+        const week = gold ? null : Rewards.pendingChest(loadRewards());
+        if ((!gold && !week) || document.getElementById('chest-overlay')) return;
         const overlay = document.createElement('div');
         overlay.id = 'chest-overlay';
         overlay.setAttribute('role', 'dialog');
         overlay.setAttribute('aria-modal', 'true');
-        overlay.setAttribute('aria-label', 'Truhla Mudrlanta');
+        overlay.setAttribute('aria-label', gold ? 'Zlatá truhla' : 'Truhla Mudrlanta');
         // Ukotvené shora (odsazení v .chest-overlay): po otevření truhla zůstane na místě a obsah přibude pod ní
         overlay.className = 'chest-overlay fade-in fixed inset-0 z-[70] flex items-start justify-center overflow-y-auto px-4 pb-4';
         let opened = null;
         let opening = false;
         const paint = () => {
-            overlay.innerHTML = Rewards.chestHtml({ opened }, chestHelpers());
+            overlay.innerHTML = Rewards.chestHtml({ opened, look: gold ? Gold.chestOptions() : {} }, chestHelpers());
             renderIcons(overlay);
             const focus = overlay.querySelector(opened ? '[data-chest-wear], [data-chest-close]' : 'button[data-chest-go]:not([disabled])');
             if (focus) focus.focus({ preventScroll: true });
@@ -4266,10 +4474,14 @@
             // Okno zavřené během natřásání: truhla zůstane zavřená a čeká dál
             if (!overlay.isConnected) return;
             const progress = loadProgress();
-            const result = Rewards.openChest(loadRewards(), week, { level: levelProgress(progress.xp).level, badges: progress.badges });
+            const result = gold ? (() => {
+                const outcome = Gold.openChest(loadGold(), loadRewards());
+                if (outcome.opened) saveGold(outcome.gold);
+                return { opened: outcome.opened, state: outcome.rewards, gift: outcome.gift, xp: outcome.xp, freeze: false };
+            })() : Rewards.openChest(loadRewards(), week, { level: levelProgress(progress.xp).level, badges: progress.badges });
             if (!result.opened) { overlay.remove(); return; }
             saveRewards(result.state);
-            progress.counters.chestsOpened = (progress.counters.chestsOpened || 0) + 1;
+            if (!gold) progress.counters.chestsOpened = (progress.counters.chestsOpened || 0) + 1;
             const levelBefore = levelProgress(progress.xp).level;
             if (result.xp) { progress.xp += result.xp; chronicleLog({ xp: result.xp }); }
             const titles = grantBadges(progress);
@@ -4322,6 +4534,232 @@
         if (Rewards.pendingChest(loadRewards())) { closeDialog(); openChestOverlay(); return; }
         showDialog('Truhla Mudrlanta', `${Rewards.chestHelpHtml(lastChestText(loadRewards()))}<div class="mt-3 grid ${dialogTrail.length ? 'grid-cols-2' : 'grid-cols-1'} gap-2"><button type="button" data-goals-open class="${SECONDARY_BUTTON} !py-2.5 text-sm"><i data-lucide="target" class="h-4 w-4"></i> Cíle týdne</button>${dialogTrail.length ? dialogBackButton().replace('Zpět na ', '') : ''}</div>`,
             { onClick: (event) => { if (event.target.closest('[data-goals-open]')) openChild('Zpět na Truhlu', openChestHelp, openGoals); } });
+    };
+
+    // --- Zlatá otázka (gold.js): zhruba jednou za 50 otázek zlatá karta, trojnásobek XP, zlatý střípek a z pěti střípků Zlatá truhla ---
+    // Rozhoduje se při přípravě otázky (runRound, Bleskovka a Přežití: rollGold) a výsledek se ukládá s kolem (round.gold), takže zlatá otázka
+    // zůstane zlatá i po překreslení nebo návratu k dnešní otázce. Výzva a zápas turnaje: ze semínka výzvy (oba hráči stejně), body se nemění.
+    // Vzhled dodá paintGold po vykreslení otázky (třídy karty, štítek, bublina při první zlaté otázce v životě) a výsledku (řádek se střípky);
+    // jiskřičky a let střípku jsou element.animate (při omezeném pohybu nic), zvuky gold a shard ze sound.js. Zlatá truhla se otevírá
+    // stejným oknem jako Truhla Mudrlanta (openChestOverlay(true)).
+    const Gold = window.MudrlantGold || null;
+    const loadGold = () => (Gold ? Gold.parse(readJson(Gold.KEY)) : null);
+    const saveGold = (state) => { if (Gold) writeJson(Gold.KEY, state); };
+    const stillMotion = () => Boolean(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+    const GOLD_XP_LABEL = 'za zlatou otázku (3× XP)';
+    // Je další otázka zlatá? kind = mode (daily, practice, blitz, survival z místního počítadla; challenge ze semínka); jiné hry zlatou nemají
+    const rollGold = (kind = mode) => {
+        if (!Gold) return false;
+        if (kind === 'challenge') return Boolean(challenge && Gold.isChallengeGold(challenge.seed, challenge.count, challenge.index));
+        if (!Gold.LOCAL_MODES.includes(kind)) return false;
+        const result = Gold.roll(loadGold());
+        saveGold(result.state);
+        return result.gold;
+    };
+    // Efekty jen v paměti (ne v uloženém kole), po obnovení stránky se nic nepřehraje: kolo, které už zlatě vstoupilo (zvuk), kolo s bublinou
+    // vysvětlení (dokud ji hráč nezavře) a kolo, jehož střípek má po vykreslení výsledku přiletět do počítadla
+    let goldShownRound = null;
+    let goldBubbleRound = null;
+    let goldFxRound = null;
+    // Karta otázky: panel s popisem a nápovědami (i Bleskovka a Přežití), mapa otázky Ukaž na mapě, karta Seřaď a Odhadni
+    const goldCardOf = (root) => {
+        const panel = root.querySelector('#hint-tab-panel');
+        if (panel) return panel;
+        const map = root.querySelector('[data-map-question]');
+        return map ? map.closest('section') : root.querySelector('[data-numeric-question] > section');
+    };
+    const paintGold = () => {
+        if (!Gold || !round || !round.gold || !current) return;
+        const root = appContent.firstElementChild;
+        if (!root) return;
+        if (round.answered && screen !== 'mode') { paintGoldResult(root); return; }
+        const card = goldCardOf(root);
+        if (!card) return;
+        root.classList.add('gold-screen');
+        // Mapa si nechá své pozadí (moře), dostane jen zlatý rámeček a třpyt; ostatní karty i zlatou fólii
+        const map = Boolean(card.querySelector('[data-map-question]'));
+        card.classList.add(map ? 'gold-frame' : 'gold-card');
+        const texture = Gold.textureUrl();
+        if (texture && !map) { card.classList.add('gold-texture'); card.style.setProperty('--gold-texture', `url("${texture}")`); }
+        let ribbon = card.previousElementSibling && card.previousElementSibling.matches('[data-gold-ribbon]') ? card.previousElementSibling : null;
+        if (!ribbon) {
+            card.insertAdjacentHTML('beforebegin', Gold.ribbonHtml());
+            ribbon = card.previousElementSibling;
+            // Řádek štítku má nulovou výšku a záporný okraj vyrovná mezeru sloupce: karta zůstane, kde byla, štítek sedí na jejím okraji
+            ribbon.style.marginBottom = `${-(parseFloat(getComputedStyle(root).rowGap) || 0)}px`;
+            renderIcons(ribbon);
+        }
+        if (goldShownRound !== round) {
+            goldShownRound = round;
+            card.classList.add('gold-enter');
+            ribbon.querySelector('.gold-ribbon').classList.add('gold-enter');
+            if (Sound) Sound.play('gold');
+            // Vysvětlení při první zlaté otázce, ne ve výzvě a zápasu turnaje (čas tam rozhoduje při shodě); vysvětlí se pak v běžné hře
+            const state = loadGold();
+            if (!state.intro && mode !== 'challenge') { saveGold(Gold.markIntro(state)); goldBubbleRound = round; }
+        }
+        if (goldBubbleRound === round && !round.answered && !ribbon.querySelector('#gold-bubble')) {
+            ribbon.insertAdjacentHTML('beforeend', Gold.bubbleHtml());
+            renderIcons(ribbon);
+            ribbon.querySelector('[data-gold-bubble-close]').addEventListener('click', () => {
+                goldBubbleRound = null;
+                const bubble = document.getElementById('gold-bubble');
+                if (bubble) bubble.remove();
+            });
+        }
+    };
+    // Výsledek zlaté otázky: řádek se střípky pod verdiktem; hned po odpovědi z verdiktu vyletí jiskřičky a střípek přiletí do počítadla
+    const paintGoldResult = (root) => {
+        if (root.querySelector('[data-gold-result]')) return;
+        const verdict = root.querySelector('[data-verdict]');
+        if (!verdict) return;
+        const outcome = round.goldOutcome || { shard: false, chest: false, filled: loadGold().shards };
+        const fx = goldFxRound === round && outcome.shard && !stillMotion();
+        verdict.insertAdjacentHTML('afterend', Gold.resultHtml({ correct: round.correct, shard: outcome.shard, filled: outcome.filled, ready: loadGold().ready, fresh: fx ? outcome.filled - 1 : -1 }));
+        renderIcons(root);
+        if (goldFxRound !== round) return;
+        goldFxRound = null;
+        if (!outcome.shard) return;
+        // Pátý střípek: Zlatá truhla se sama otevře (ve výzvě a zápasu turnaje ne, ať hra plyne; čeká ve výsledku a v Mém postupu)
+        const shown = round;
+        const landed = () => { if (Sound) Sound.play('shard'); if (outcome.chest && mode !== 'challenge') setTimeout(() => { if (screen === 'round' && round === shown && !document.getElementById('dialog-overlay')) openChestOverlay(true); }, 700); };
+        if (!fx) { landed(); return; }
+        const slot = root.querySelector('[data-gold-fresh]');
+        const owl = verdict.querySelector('img') || verdict;
+        // Až výsledek z větší části prolne (fade-in), vyletí jiskřičky a střípek
+        setTimeout(() => {
+            if (!owl.isConnected) return;
+            const box = owl.getBoundingClientRect();
+            const from = { x: box.left + box.width / 2, y: box.top + box.height / 2 };
+            goldSparkles(from);
+            goldFly(from, slot, landed);
+        }, 220);
+    };
+    // Vrstva efektů přes celou obrazovku (jiskřičky a letící střípek), bez klepnutí
+    const goldLayer = () => {
+        let layer = document.getElementById('gold-fx');
+        if (!layer) {
+            layer = document.createElement('div');
+            layer.id = 'gold-fx';
+            layer.className = 'gold-fx';
+            layer.setAttribute('aria-hidden', 'true');
+            document.body.appendChild(layer);
+        }
+        return layer;
+    };
+    const goldSparkles = (from) => {
+        if (stillMotion() || !document.body.animate) return;
+        const layer = goldLayer();
+        Gold.burst(20).forEach(spark => {
+            const el = document.createElement('span');
+            el.className = spark.kind === 'dot' ? 'gold-spark gold-spark-dot' : 'gold-spark';
+            el.style.width = `${spark.size}px`;
+            el.style.height = `${spark.size}px`;
+            layer.appendChild(el);
+            const at = (dx, dy) => `translate(${Math.round(from.x + dx - spark.size / 2)}px, ${Math.round(from.y + dy - spark.size / 2)}px)`;
+            const animation = el.animate([
+                { transform: `${at(0, 0)} scale(0.2)`, opacity: 1 },
+                { transform: `${at(spark.x, spark.y)} scale(1.1) rotate(${spark.rotate / 2}deg)`, opacity: 1, offset: 0.45 },
+                { transform: `${at(spark.x * 1.12, spark.y + spark.fall)} scale(0.35) rotate(${spark.rotate}deg)`, opacity: 0 }
+            ], { duration: spark.duration, delay: spark.delay, easing: 'cubic-bezier(0.2, 0.75, 0.35, 1)', fill: 'both' });
+            animation.onfinish = () => el.remove();
+            animation.oncancel = () => el.remove();
+        });
+    };
+    // Střípek přiletí do okénka slot (počítadlo), pak se okénko rozzáří; done = po dosednutí
+    const goldFly = (from, slot, done) => {
+        const finish = () => {
+            if (slot && slot.isConnected) { slot.classList.add('gold-slot-full', 'gold-slot-pop'); slot.removeAttribute('data-gold-fresh'); }
+            done();
+        };
+        if (!slot || stillMotion() || !document.body.animate) { finish(); return; }
+        const target = slot.getBoundingClientRect();
+        const size = 32;
+        const flyer = document.createElement('span');
+        flyer.className = 'gold-flyer';
+        flyer.style.width = `${size}px`;
+        flyer.style.height = `${size}px`;
+        flyer.innerHTML = Gold.shardHtml('block h-full w-full');
+        goldLayer().appendChild(flyer);
+        const to = { x: target.left + target.width / 2, y: target.top + target.height / 2 };
+        const animation = flyer.animate(Gold.flightPath(from, to, { size, endSize: target.width }), { duration: 1000, delay: 120, easing: 'cubic-bezier(0.4, 0, 0.3, 1)', fill: 'both' });
+        animation.onfinish = () => { flyer.remove(); finish(); };
+        animation.oncancel = () => { flyer.remove(); finish(); };
+    };
+    // Odpověď na zlatou otázku v běžné hře (awardXp): střípek, počítadla, odznaky Zlatokop; vrátí řádek XP navíc (dvojnásobek základu)
+    const goldAnswer = (counters, baseXp) => {
+        if (!Gold || !round || !round.gold || round.goldOutcome) return null;
+        const result = Gold.answer(loadGold(), { correct: round.correct, hints: Math.max(0, (round.hintLevel || 1) - 1) });
+        saveGold(result.state);
+        round.goldOutcome = { shard: result.shard, chest: result.chest, filled: result.filled };
+        if (round.correct) counters.goldCorrect = (counters.goldCorrect || 0) + 1;
+        if (result.shard) goldFxRound = round;
+        const xp = Gold.xpBonus(baseXp);
+        return xp ? { label: GOLD_XP_LABEL, xp } : null;
+    };
+    // Bleskovka a Přežití: střípek hned po odpovědi do okénka nad hrou (výsledek otázky nemají); XP navíc se připíše na konci hry
+    const goldModeAnswer = (game, correct) => {
+        if (!Gold || !round || !round.gold || round.goldOutcome) return;
+        const result = Gold.answer(loadGold(), { correct, hints: 0 });
+        saveGold(result.state);
+        round.goldOutcome = { shard: result.shard, chest: result.chest, filled: result.filled };
+        game.gold = (game.gold || 0) + 1;
+        if (correct) {
+            game.goldXp = (game.goldXp || 0) + Gold.xpBonus(Modes.MODES[game.kind].xpPer);
+            game.goldShards = (game.goldShards || 0) + (result.shard ? 1 : 0);
+            const progress = loadProgress();
+            progress.counters.goldCorrect = (progress.counters.goldCorrect || 0) + 1;
+            const titles = grantBadges(progress);
+            saveProgress(progress);
+            announce(levelProgress(progress.xp).level, levelProgress(progress.xp).level, titles);
+        }
+        if (!result.shard) return;
+        const button = appContent.querySelector(`[data-action="mode-choice"][data-index="${game.picked}"]`);
+        const box = (button || appContent).getBoundingClientRect();
+        const from = { x: box.left + box.width / 2, y: box.top + box.height / 2 };
+        showGoldHud(result.filled, from);
+    };
+    // Okénko se střípky nad hrou: střípek do něj přiletí, pak okénko zmizí
+    let goldHudTimer = null;
+    const showGoldHud = (filled, from) => {
+        const old = document.getElementById('gold-hud');
+        if (old) old.remove();
+        clearTimeout(goldHudTimer);
+        const still = stillMotion();
+        document.body.insertAdjacentHTML('beforeend', Gold.hudHtml(filled, still ? -1 : filled - 1));
+        const hud = document.getElementById('gold-hud');
+        // Na řádek s časem (životy): mezi ně a počet správných, nic důležitého nezakryje
+        const status = appContent.querySelector('[data-mode-timer], [data-mode-lives]');
+        if (status) { const row = status.getBoundingClientRect(); hud.style.top = `${Math.round(row.top + row.height / 2 - hud.offsetHeight / 2)}px`; }
+        goldSparkles(from);
+        goldFly(from, hud.querySelector('[data-gold-fresh]'), () => { if (Sound) Sound.play('shard'); });
+        goldHudTimer = setTimeout(() => {
+            if (!hud.isConnected) return;
+            if (still || !hud.animate) { hud.remove(); return; }
+            hud.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 300, fill: 'forwards' }).onfinish = () => hud.remove();
+        }, still ? 1600 : 2000);
+    };
+    // XP za zlaté otázky Bleskovky a Přežití se přidá k XP hry (mimo denní strop režimu, zlatá je vzácná)
+    const withGoldXp = (xp, game) => (game && game.goldXp ? { ...xp, total: xp.total + game.goldXp, parts: [...xp.parts, { label: game.gold > 1 ? 'za zlaté otázky (3× XP)' : GOLD_XP_LABEL, xp: game.goldXp }] } : xp);
+    // Řádek střípků ve výsledku Bleskovky a Přežití (jen když v hře padla zlatá otázka nebo truhla čeká)
+    const goldModeResult = (game) => {
+        const hud = document.getElementById('gold-hud');
+        if (hud) hud.remove();
+        if (!Gold || !(game.gold || loadGold().ready)) return '';
+        const state = loadGold();
+        const won = game.goldShards || 0;
+        return Gold.resultHtml({ correct: won > 0, shard: won > 0, filled: state.ready ? Gold.SHARDS : state.shards, ready: state.ready,
+            title: won ? `Z této hry máš ${won === 1 ? 'zlatý střípek' : `${won} ${won <= 4 ? 'zlaté střípky' : 'zlatých střípků'}`}` : game.gold ? 'Zlatá otázka tentokrát bez střípku' : 'Zlatá truhla čeká',
+            text: state.ready ? 'Pět střípků je pohromadě. Otevři Zlatou truhlu!' : Gold.leftText(state.shards) });
+    };
+    // Okno Zlatá otázka (Můj postup → dlaždice Zlaté střípky, tip): pravidla, střípky, statistiky, čekající truhla
+    const openGoldInfo = () => {
+        if (!Gold) return;
+        touchTip('gold');
+        showDialog('Zlatá otázka', `${Gold.infoHtml(loadGold())}${dialogBackButton('mt-2.5')}`, {
+            onClick: (event) => { if (event.target.closest('[data-gold-open]')) { closeDialog(); openChestOverlay(true); } }
+        });
+        renderIcons(document.getElementById('dialog-overlay'));
     };
 
     // --- Sezóna Mudrlanta (season.js): měsíční cesta 20 stupňů odměn; stav je v odměnách (rewards.js season, past) ---
@@ -4680,6 +5118,9 @@
             if (MapQuestion && round.map.points >= MapQuestion.maxPoints(round.variant === 'typed')) counters.mapExact += 1;
         }
         const parts = [{ label: round.correct ? 'za správnou odpověď' : 'za pokus o odpověď', xp: answerXp(round) }];
+        // Zlatá otázka: trojnásobek XP za odpověď, střípek a odznaky Zlatokop
+        const goldPart = round.gold ? goldAnswer(counters, answerXp(round)) : null;
+        if (goldPart) parts.push(goldPart);
         if (mode === 'daily' && current.dailyDate && round.dailyFirst !== false) {
             parts.push({ label: 'za dnešní otázku tématu', xp: DAILY_XP });
             if (round.correct) {
@@ -4964,7 +5405,7 @@
         const stored = !outcome.error && playableSnapshot(outcome.stored) ? cleanSnapshot(outcome.stored) : null;
         if (!stored || stableText(stored) === stableText(shown)) return;
         if (current !== shown || !round || round.answered) return;
-        const keep = { timerStart: round.timerStart, shownAt: round.shownAt, variant: round.variant };
+        const keep = { timerStart: round.timerStart, shownAt: round.shownAt, variant: round.variant, gold: round.gold };
         current = upgradeRoundData(stored);
         round = Object.assign(createRound(), keep);
         // Nápovědy ukázané k předchozí verzi se nepočítají
@@ -5018,6 +5459,8 @@
             round = createRound();
             // Čas otázky do Rozpisu otázek se měří od jejího ukázání (uloží se s kolem, po obnovení stránky běží dál)
             round.shownAt = Date.now();
+            // Zlatá otázka (gold.js): z místního počítadla, ve výzvě ze semínka; Kvíz dne a jiné hry ne
+            round.gold = rollGold();
             // Výzva má pevný způsob odpovídání pro všechny hráče
             if (mode === 'challenge' && challenge && challenge.variant) round.variant = challenge.variant;
             // Kvíz dne: výběr z možností, čas a nápovědy jako před zavřením aplikace
@@ -5553,7 +5996,7 @@
     let modeTimer = null;
     let modeFeedbackTimer = null;
     // Okna, během kterých čas Bleskovky stojí (Nastavení, popis položky…)
-    const MODE_OVERLAYS = ['settings-overlay', 'dialog-overlay', 'play-chooser', 'place-info', 'photo-zoom', 'photo-source', 'fact-overlay'];
+    const MODE_OVERLAYS = ['settings-overlay', 'dialog-overlay', 'play-chooser', 'place-info', 'photo-zoom', 'photo-source', 'fact-overlay', 'gold-bubble', 'chest-overlay'];
     const MODE_BADGE = { blitz: 'bg-gold-500 text-brand-950', survival: 'bg-rose-600 text-white' };
     const modeTopicOf = (game) => game.pool.kind === 'topic' ? TOPIC_BY_ID[game.pool.topic] : MIX;
     const loadModeState = () => Modes.parse(readJson(Modes.STORAGE_KEY));
@@ -5681,7 +6124,7 @@
         game.lostLife = false;
         game.phase = 'question';
         current = slot.data;
-        round = { hintLevel: 1, variant: 'choices', answered: false, correct: false, points: 0, typed: false, answer: null, gaveUp: false, review: false };
+        round = { hintLevel: 1, variant: 'choices', answered: false, correct: false, points: 0, typed: false, answer: null, gaveUp: false, review: false, gold: rollGold(game.kind) };
         renderModeScreen();
         // Další otázka se chystá hned, dokud hráč přemýšlí
         game.next = queueModeQuestion(game);
@@ -5751,6 +6194,7 @@
         noteModeAnswer(current, Boolean(choice.correct));
         if (Sound) Sound.answer(Boolean(choice.correct));
         renderModeScreen();
+        if (round.gold) goldModeAnswer(game, Boolean(choice.correct));
         const over = game.kind === 'survival' ? game.lives <= 0 : Modes.clockLeft(game.clock, now) <= 0;
         modeFeedbackTimer = setTimeout(() => {
             if (!modeLive(game) || game.phase !== 'feedback') return;
@@ -5814,7 +6258,7 @@
             if (Sound) { Sound.play('record'); Sound.vibrate('record'); }
             showCelebration('vitez', 'Nový rekord!', `${def.title} · ${modeTopicOf(game).title}: ${Modes.scoreLabel(game.kind, game.score)}`);
         }
-        game.xp = awardModeXp(outcome.xp, game);
+        game.xp = awardModeXp(withGoldXp(outcome.xp, game), game);
         renderModeScreen();
         if (ShareCard) ShareCard.prepare(modeCardInput(game), modeCardName(game));
     };
@@ -6009,6 +6453,7 @@
                         ${game.xp && (game.xp.total || game.xp.note) ? `<div data-mode-xp class="min-w-0 flex-1 rounded-2xl bg-white px-3 py-2 shadow-sm ring-1 ring-slate-200/70 dark:bg-slate-800 dark:ring-slate-700/70">${xpLine(game.xp, 'text-slate-700 dark:text-slate-200')}${game.xp.note ? `<p class="mt-1 text-xs font-semibold text-slate-500 dark:text-slate-400">${escapeHtml(game.xp.note)}</p>` : ''}</div>` : ''}
                         ${ShareCard && game.score > 0 ? `<button type="button" data-action="mode-share-image" class="flex min-h-[2.75rem] ${game.xp && (game.xp.total || game.xp.note) ? 'w-[5.5rem] shrink-0 flex-col' : 'flex-1'} items-center justify-center gap-1 rounded-2xl btn-3d-light bg-white px-2 py-1.5 text-center text-[12px] font-bold leading-tight text-slate-800 dark:bg-slate-800 dark:text-slate-100"><i data-lucide="image" class="h-4 w-4 shrink-0"></i> Sdílet obrázek</button>` : ''}
                     </div>
+                    ${goldModeResult(game)}
                     ${missedHtml}
                 </div>
                 <div class="sticky bottom-0 z-20 flex gap-2 border-t border-slate-200/70 bg-slate-50/95 px-4 pb-4 pt-3 backdrop-blur-sm dark:border-slate-800 dark:bg-slate-900/95">
@@ -6028,6 +6473,7 @@
         else if (game.phase === 'error') renderModeError(game);
         else if (game.phase === 'result') renderModeResult(game);
         else renderModeQuestion(game);
+        if (game.phase === 'question' || game.phase === 'feedback') paintGold();
         if (game.phase !== 'question' && game.phase !== 'feedback') {
             applyProgress(appContent);
             renderIcons(appContent);
@@ -6103,6 +6549,7 @@
     const Friends = window.MudrlantFriends;
     // Skupiny (groups.js): okna a čip na záložce Více hráčů; vytvoří se u ACTIONS, až jsou pomocné funkce oken hotové
     let GroupsUI = null;
+    let ConquestUI = null;
     let friendRows = null;
     let recentReactions = [];
     let myBlocks = null;
@@ -6395,6 +6842,7 @@
                 <span class="flex shrink-0 -space-x-2">${rivals || `<span class="flex h-7 w-7 items-center justify-center rounded-full bg-slate-100 text-slate-500 dark:text-slate-400 dark:bg-slate-700"><i data-lucide="users" class="h-4 w-4"></i></span>`}</span>
                 <span class="min-w-0 flex-1 truncate text-[13px] font-bold text-slate-800 dark:text-slate-100">${escapeHtml(row.challenge ? challengeTopicTitle(row.challenge.topic) : '')}</span>
                 ${Friends && signedUser() ? Friends.reactionBadge(Friends.reactionFor(recentReactions, row.challenge_id, signedUser().id), row.others[0] ? playerName(row.others[0].player) : '') : ''}
+                ${betBadge(row.challenge_id)}
                 <span class="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-black ${look[1]}">${outcome}</span>
                 <span class="w-12 shrink-0 text-right leading-tight tabular-nums"><span class="block text-[15px] font-black text-slate-800 dark:text-slate-100">${Number(row.points) || 0} b</span><span class="block text-[10px] font-semibold text-slate-500 dark:text-slate-400">${row.correct}/${count}</span></span>
             </button>`;
@@ -6404,7 +6852,7 @@
             ${avatarHtml(invite.creator, 'h-10 w-10 text-xl', true)}
             <span class="min-w-0 flex-1">
                 <span class="block truncate text-[13px] font-black text-slate-800 dark:text-slate-100">${escapeHtml(playerName(invite.creator))} tě vyzývá</span>
-                <span class="block truncate text-[11px] font-semibold text-slate-600 dark:text-slate-400">${escapeHtml(challengeTopicTitle(invite.topic))} · ${invite.count} otázek</span>
+                <span class="flex min-w-0 items-center gap-1.5 text-[11px] font-semibold text-slate-600 dark:text-slate-400"><span class="truncate">${escapeHtml(challengeTopicTitle(invite.topic))} · ${invite.count} otázek</span>${betBadge(invite.id)}</span>
             </span>
             <span class="flex shrink-0 items-center gap-1 rounded-xl bg-gold-500 px-3.5 py-2 text-[13px] font-black text-brand-950 shadow-sm"><i data-lucide="play" class="h-3.5 w-3.5"></i>Hrát</span>
         </button>`;
@@ -6821,6 +7269,7 @@
         const tournamentFirst = tournamentWaits();
         return `
             <div class="flex flex-col gap-2.5">
+                ${ConquestUI ? ConquestUI.cardHtml() : ''}
                 ${resume}
                 ${tournamentFirst ? tournamentCard() : ''}
                 ${waiting}
@@ -6927,12 +7376,15 @@
             myRating = rating;
             incomingList = incoming;
             paintChallenges();
+            // Kamarádské sázky (bets.js): mince u výzev a vyrovnání dohraných sázek (databáze bez sázek nic neukáže)
+            if (betsOn()) BetsCtl.refresh(user);
             // Ligové sezóny a moje vitrína (schéma 18; starší databáze vrátí null a nic se neukáže)
             refreshLeagueSeasons(user);
             loadMyShowcase(user);
             // Přátelé a reakce až po hlavním obsahu (záložka se vykreslí dřív); poslední aktivita se zapíše nejvýš jednou za 5 minut
             if (Friends) Social.touchSeen().catch(() => {});
             if (GroupsUI) GroupsUI.refresh();
+            if (ConquestUI) ConquestUI.refresh();
             await loadFriends(user);
             paintChallenges();
         } finally {
@@ -7293,7 +7745,9 @@
     const openNewChallenge = (preset = null) => {
         if (!signedUser()) return;
         // group = výzva skupině (groups.js): výzva pro kohokoli s kódem, kterou server připojí ke skupině
-        const draft = { topics: [], count: 10, who: 'player', opponent: null, blocked: null, mixOk: true, query: '', found: null, level: 1, variant: 'choices', cats: null, open: null, group: null };
+        const draft = { topics: [], count: 10, who: 'player', opponent: null, blocked: null, mixOk: true, query: '', found: null, level: 1, variant: 'choices', cats: null, open: null, group: null,
+            // Kamarádské sázky (bets.js): vklad (0 = bez sázky), hláška 0–7 a upozornění na limit
+            stake: 0, taunt: null, stakeNote: '' };
         let busy = false;
         let note = '';
         let searchToken = 0;
@@ -7343,7 +7797,7 @@
         };
         const opponentSearch = () => {
             if (draft.opponent) {
-                return `<div class="mt-2"><div class="flex items-center gap-3 rounded-xl bg-white p-2 shadow-sm ring-2 ring-brand-600 dark:bg-slate-800">${avatarHtml(draft.opponent, 'h-8 w-8 text-base')}<span class="min-w-0 flex-1 truncate text-sm font-black text-slate-800 dark:text-slate-100">${escapeHtml(playerName(draft.opponent))}</span><button type="button" data-clear-opp class="rounded-lg px-2 py-1 text-xs font-bold text-slate-500 underline dark:text-slate-400">Změnit</button></div>${blockNote()}</div>`;
+                return `<div class="mt-2 short:mt-1.5"><div class="flex items-center gap-3 rounded-xl bg-white p-2 shadow-sm ring-2 ring-brand-600 short:py-1.5 dark:bg-slate-800">${avatarHtml(draft.opponent, 'h-8 w-8 text-base')}<span class="min-w-0 flex-1 truncate text-sm font-black text-slate-800 dark:text-slate-100">${escapeHtml(playerName(draft.opponent))}</span><button type="button" data-clear-opp class="rounded-lg px-2 py-1 text-xs font-bold text-slate-500 underline dark:text-slate-400">Změnit</button></div>${blockNote()}</div>`;
             }
             // Přátelé k rychlému výběru (friends.js) nad hledáním podle přezdívky
             const quick = Friends ? Friends.quickFriends(Friends.split(friendRows).friends, friendsHelpers()) : '';
@@ -7356,7 +7810,7 @@
                 <div>
                     <button type="button" data-ch-who="${id}" role="radio" aria-checked="${active}" class="flex min-h-[2.75rem] w-full items-center gap-3 rounded-2xl border-2 px-3 py-1.5 text-left active:scale-[0.99] ${active ? 'border-brand-600 bg-brand-50 dark:bg-brand-900/40' : 'border-transparent bg-white dark:bg-slate-800'}">
                         <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full short:h-7 short:w-7 ${active ? 'bg-brand-600 text-white' : 'bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-300'}"><i data-lucide="${icon}" class="h-[1.125rem] w-[1.125rem]"></i></span>
-                        <span class="min-w-0 flex-1"><span class="block text-[14px] font-black leading-tight text-slate-800 dark:text-slate-100">${title}</span><span class="block truncate text-[11px] text-slate-500 dark:text-slate-400${active ? '' : ' short:hidden'}">${text}</span></span>
+                        <span class="min-w-0 flex-1"><span class="block text-[14px] font-black leading-tight text-slate-800 dark:text-slate-100">${title}</span><span class="block truncate text-[11px] text-slate-500 dark:text-slate-400${active && !(id === 'player' && draft.opponent) ? '' : ' short:hidden'}">${text}</span></span>
                         <span class="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 ${active ? 'border-brand-600 bg-brand-600 text-white' : 'border-slate-300 dark:border-slate-600'}">${active ? '<i data-lucide="check" class="h-3 w-3"></i>' : ''}</span>
                     </button>
                     ${active && id === 'player' ? opponentSearch() : ''}
@@ -7417,6 +7871,7 @@
                     <div class="grid grid-cols-3 gap-1">${Social.COUNTS.map(count => chip('data-ch-count', count, draft.count === count, `<span class="px-1.5 font-black">${count}</span>`)).join('')}</div>
                 </div>
                 ${accordion('settings', 'pencil', 'Nastavení', settingsSummary(), settingsBody())}
+                ${betPickerHtml(draft)}
                 <div class="sticky -bottom-5 -mx-5 mt-1 bg-slate-50/95 px-5 pb-5 pt-3 backdrop-blur short:pt-2 dark:bg-slate-900/95">
                     <button type="button" data-ch-create ${busy ? 'disabled' : ''} class="${PRIMARY_BUTTON} short:py-2.5">${uiArt('vyzva', 'h-7 w-7')} ${busy ? 'Zakládám…' : 'Vytvořit a hrát'}</button>
                     ${note ? (Object.values(NO_RANDOM_OPPONENT).includes(note) ? lookoutNote(note) : DIALOG_NOTE(note)) : ''}
@@ -7431,6 +7886,8 @@
                 const category = event.target.closest('[data-ch-cat]');
                 const hard = event.target.closest('[data-ch-level]');
                 const variant = event.target.closest('[data-ch-variant]');
+                // Řádek Sázka: vklad, hláška a pravidla (z pravidel se vrátí do rozpracované výzvy)
+                if (Bets && betPickerClick(event, draft, render, () => openChild('Zpět na Novou výzvu', () => openNewChallenge({ draft: { ...draft } }), openBetsHelp))) return;
                 if (open) { draft.open = draft.open === open.dataset.chOpen ? null : open.dataset.chOpen; render(); }
                 if (topic) {
                     const id = topic.dataset.chTopic;
@@ -7501,6 +7958,8 @@
                         const created = await Social.createChallenge(signedUser().id, { topic: resolved.value, count: draft.count, invitedId: opponent ? opponent.id : null, includeHard: draft.level >= 2, level: draft.level, categories: cats, variant: draft.variant });
                         // Výzva skupině: připojí se ke skupině (členové ji uvidí v detailu skupiny); když to nevyjde, hraje se jako výzva přes odkaz
                         if (draft.group) await Social.groupSetChallenge(draft.group.id, created.id).catch(error => showToast(error && error.message ? error.message : 'Výzvu se nepodařilo poslat skupině.'));
+                        // Kamarádská sázka: nabídne se hned po založení, dřív než kdokoli začne hrát
+                        if (Bets && draft.who === 'player') await offerStake(created.id, draft);
                         closeDialog();
                         await loadMyProfile();
                         startChallenge({ ...created, creator: myProfile, invited: opponent, group: draft.group || null, fresh: true }, 0, []);
@@ -7536,6 +7995,8 @@
             }
         });
         if (preset && preset.who === 'random') draft.who = 'random';
+        // Návrat z pravidel sázek: rozpracovaná výzva se obnoví, jak byla
+        if (preset && preset.draft) Object.assign(draft, preset.draft);
         if (preset && preset.group) { draft.who = 'anyone'; draft.group = preset.group; }
         if (preset && preset.opponent) {
             const last = preset.last;
@@ -7552,6 +8013,8 @@
             Social.getAccepts(id).then(accepts => { if (draft.opponent && draft.opponent.id === id) { draft.blocked = accepts.blocked; draft.mixOk = accepts.mix; render(); } }).catch(() => {});
         }
         render();
+        // Limit sázky (XP z posledních 7 dní) se dotáhne, pokud ještě není načtený
+        if (betsOn() && BetsCtl.limit() === null) BetsCtl.refresh().then(() => render()).catch(() => {});
     };
 
     // Zadání kódu výzvy od kamaráda (nebo celého odkazu)
@@ -7617,12 +8080,20 @@
         'vyhry-v-rade', 'zalozene', 'perfektni-vyzvy', 'uroven', 'poznane', 'vsestrannost', 'hvezdy', 'vsechna-temata', 'turnaje', 'turnaj-postupy',
         'tydenni-cile', 'kviz-dne', 'kviz-serie', 'kviz-perfekt', 'bleskovka', 'preziti', 'mapa', 'odhad', 'serad', 'detektiv']);
     // Obrázek symbolu skupiny (bez přípony); odznaky alba sbírky mají obrázek Sběratel (Album.BADGE_ART)
-    const badgeArtOf = (group) => BADGE_ART.has(group) ? `odznak-${group}` : Album && Album.isAlbumGroup(BADGE_GROUPS.find(entry => entry.id === group)) ? Album.BADGE_ART : null;
+    const badgeArtOf = (group) => BADGE_ART.has(group) ? `odznak-${group}` : Album && Album.isAlbumGroup(BADGE_GROUPS.find(entry => entry.id === group)) ? Album.BADGE_ART
+        // Odznaky Zlatokop: symbol z gold.js (ART.badge, do dodání č. 211 zástupný obrázek)
+        : Gold && group === Gold.BADGE_GROUP ? Gold.ART.badge
+        // Kamarádské sázky: zástupný obrázek z bets.js (ART.badges), než přijde vlastní symbol
+        : Bets && Bets.ART.badges[group] ? Bets.ART.badges[group] : null;
     // Nezískaný odznak ukazuje svou ikonu zašedlou a ztlumenou, přes ni malý zámek v rohu
     const medalHtml = (badge, earned, size = 'h-11 w-11', iconSize = 'h-5 w-5') => {
         const dim = earned ? '' : ' opacity-50 grayscale';
         // Symbol odznaku: ikona tématu, ilustrace skupiny (icons/topics/odznak-<skupina>.webp), jinak čárová ikona
-        const art = badge.topic && topicArt({ id: badge.topic })
+        const boss = Boss ? Boss.bossOfBadge(badge.id) : null;
+        // Emblém bosse týdne: portrét bosse v kulatém rámu v barvě bosse
+        const art = boss
+            ? `<span data-badge-art class="boss-emblem boss-theme-${boss.id} absolute inset-[8%] overflow-hidden rounded-full${dim}"><img src="icons/topics/${Boss.artFor(boss.id, 1)}.webp" alt="" data-keep class="h-full w-full origin-[50%_22%] scale-[1.5] object-contain"></span>`
+            : badge.topic && topicArt({ id: badge.topic })
             ? `<img src="icons/topics/${badge.topic}.webp" alt="" class="h-[72%] w-[72%] object-contain${dim}">`
             : badgeArtOf(badge.group)
                 ? `<img src="icons/topics/${badgeArtOf(badge.group)}.webp" alt="" data-badge-art class="h-[74%] w-[74%] object-contain drop-shadow-sm${dim}">`
@@ -7799,7 +8270,7 @@
                     <ul class="grid grid-cols-7 gap-1">${rows}</ul>
                 </div>
                 ${Rewards ? Rewards.progressHtml({ freezes: rewardsState.freezes, chest: Rewards.pendingChest(rewardsState), lastReward: lastChestText(rewardsState), diplomas: Object.keys(rewardsState.diplomas).filter(id => TOPIC_BY_ID[id]).length, topics: TOPICS.length,
-                    album: Album ? { percent: Album.build(albumInput(progress)).percent, art: Album.ALBUM_ART } : null }) : ''}
+                    album: Album ? { percent: Album.build(albumInput(progress)).percent, art: Album.ALBUM_ART } : null, extra: Gold ? [Gold.progressTile(loadGold())] : [] }) : ''}
             </div>`, { aside: `<span data-total-xp class="rounded-full bg-gold-100 px-2 py-0.5 text-[11px] font-black leading-tight text-gold-800 dark:bg-slate-800 dark:text-gold-300" title="Celkem získané XP">celkem ${formatXp(xp)} XP</span>`, onClick: (event) => {
             const child = (open) => openChild('Zpět na Můj postup', openProgress, open);
             if (event.target.closest('[data-open-badges]')) child(openBadges);
@@ -7808,7 +8279,7 @@
             if (event.target.closest('[data-season-claim]')) { openSeasonReveal(null, openProgress); return; }
             if (event.target.closest('[data-season-open]')) { child(() => openSeason()); return; }
             const info = event.target.closest('[data-rewards-info]');
-            if (info) child(({ freeze: openFreezeHelp, chest: openChestHelp, diplomas: openDiplomas, album: () => openAlbum() })[info.dataset.rewardsInfo]);
+            if (info) child(({ freeze: openFreezeHelp, chest: openChestHelp, diplomas: openDiplomas, album: () => openAlbum(), gold: openGoldInfo })[info.dataset.rewardsInfo]);
             const mastery = event.target.closest('[data-mastery]');
             if (mastery) child(() => openMastery(mastery.dataset.mastery));
         } });
@@ -8063,6 +8534,8 @@
         let theirRating = null;
         // Vitrína hráče (schéma 18): nejvýš 3 trofeje; null = nenačtená nebo databáze vitrínu nemá
         let theirShowcase = null;
+        // Sázková bilance hráče (bets.js, schéma 21); null = bez sázek nebo databáze sázky nemá
+        let theirBets = null;
         let failed = false;
         let busy = false;
         let note = '';
@@ -8199,6 +8672,7 @@
                     <div class="rounded-2xl bg-white p-2 shadow-sm dark:bg-slate-800" data-player-stats>
                         <div class="grid grid-cols-3 divide-x divide-slate-200 dark:divide-slate-700">${stat('Výzvy', stats.games)}${stat('Úspěšnost', percent)}${stat('Nejlepší', stats.best ? `${stats.best.correct}/${stats.best.count}` : '–')}</div>
                         <div class="mt-2 border-t border-slate-200 pt-2 dark:border-slate-700">${versus}</div>
+                        ${theirBets && theirBets.bets ? `<div class="mt-2 border-t border-slate-200 pt-2 dark:border-slate-700${menuOpen || view === 'block' ? ' short:hidden' : ''}">${Bets.balanceHtml(theirBets, betHelpers())}</div>` : ''}
                     </div>
                     <div>
                         <button type="button" data-rematch ${busy ? 'disabled' : ''} class="${PRIMARY_BUTTON}">${uiArt('vyzva', 'h-7 w-7')} ${busy ? 'Zakládám…' : stats.last ? 'Vyzvat k odvetě' : 'Vyzvat'}</button>
@@ -8278,6 +8752,7 @@
         // Úroveň a odznaky hráče (bez nových sloupců v databázi se prostě nezobrazí)
         if (Rating) Social.getRating(playerId).then(value => { theirRating = value; if (document.getElementById('dialog-overlay')) render(); }).catch(() => {});
         Social.getProgress(playerId).then(value => { theirProgress = value; if (stats && document.getElementById('dialog-overlay')) render(); }).catch(() => {});
+        if (betsOn()) BetsApi.stats(playerId).then(value => { theirBets = value; if (stats && value && value.bets && isOpen()) render(); }).catch(() => {});
         if (Showcase && Social.getShowcase) Social.getShowcase(playerId).then(value => { theirShowcase = value; if (value && value.length && document.getElementById('dialog-overlay')) render(); }).catch(() => {});
         try {
             stats = await Social.playerStats(user.id, playerId);
@@ -8395,8 +8870,11 @@
         let results;
         // Průběh ze serveru (schéma 3): pole odpovědí, null = databáze ho neeviduje, undefined = nepodařilo se ho načíst
         let progress;
+        // Kamarádská sázka (bets.js): stav sázky pro mě, dohraná sázka se tím rovnou vyrovná; null = žádná (nebo hraje někdo jiný)
+        let stakeInfo = null;
         try {
-            [def, results, progress] = await Promise.all([Social.getChallenge(code), Social.getResults(code), Social.challengeProgress(user.id, code).catch(() => undefined)]);
+            [def, results, progress, stakeInfo] = await Promise.all([Social.getChallenge(code), Social.getResults(code), Social.challengeProgress(user.id, code).catch(() => undefined),
+                betsOn() ? BetsCtl.settle(code).catch(() => null) : null]);
         } catch (error) {
             if (stillOpen()) showDialog('Výzva', DIALOG_NOTE('Výzvu se nepodařilo načíst. Zkontroluj připojení a zkus to znovu.'));
             return;
@@ -8415,7 +8893,22 @@
         // Server zná rozehraný průběh (i po smazání dat nebo z jiného zařízení): pokračuje se podle něj, ne od první otázky
         if (!mine && Array.isArray(progress) && progress.length) resumable = mergeAnswers(resumable || makeChallenge({ ...def, owner: user.id }), progress);
         const text = `${own ? 'Vyzývám tě' : 'Hraju'} v Mudrlantu: ${challengeTopicTitle(def.topic)}, ${def.count} otázek.`;
-        showDialog(own ? 'Tvoje výzva' : 'Výzva', `
+        // Kamarádská sázka: nabídka (místo Hrát výzvu tlačítka Přijmout sázku a Hrát bez sázky), stav, nebo výsledek s mincemi
+        const bet = Bets ? betDetail({ code, def, user, info: stakeInfo, results, mine }) : { html: '', offer: false };
+        let betBusy = false;
+        let betNote = '';
+        const playNow = () => {
+            closeDialog();
+            // Tahle výzva je už rozehraná: pokračuje se od další otázky (ne znovu od první)
+            if (resumable) { challenge = resumable; if (group && !challenge.group) challenge.group = challengeGroup(group); continueChallenge(); }
+            else startChallenge({ ...def, group, synced: Array.isArray(progress) ? 0 : -1 }, 0, []);
+        };
+        const betButtons = () => `<div class="flex flex-col gap-2" data-stake-buttons>
+                <button type="button" data-stake-answer="yes" ${betBusy ? 'disabled' : ''} class="flex w-full items-center justify-center gap-2 rounded-2xl btn-3d bg-gradient-to-b from-gold-400 to-gold-600 px-4 py-3 text-base font-black text-brand-950 disabled:opacity-60">${Bets.coinHtml('h-6 w-6')} ${betBusy ? 'Potvrzuji…' : 'Přijmout sázku'}</button>
+                <button type="button" data-stake-answer="no" ${betBusy ? 'disabled' : ''} class="${SECONDARY_BUTTON} disabled:opacity-60"><i data-lucide="play" class="h-5 w-5"></i> Hrát bez sázky</button>
+                ${betNote ? `<p data-stake-error class="text-sm font-semibold leading-snug text-rose-700 dark:text-rose-400" role="status">${escapeHtml(betNote)}</p>` : ''}
+            </div>`;
+        const draw = () => showDialog(own ? 'Tvoje výzva' : 'Výzva', `
             <div class="flex flex-col gap-4">
                 <div class="flex items-center gap-3">
                     ${avatarHtml(def.creator, 'h-12 w-12 text-2xl', true)}
@@ -8429,24 +8922,40 @@
                         ...(def.categories || []).length && topicDef ? [`Okruh: ${def.categories.map(key => categoryOf(topicDef, key).label).join(', ')}`] : []].filter(Boolean);
                     return `<div class="flex flex-wrap gap-1.5">${tags.map(tag => `<span class="rounded-full bg-slate-200 px-2.5 py-1 text-[11px] font-bold text-slate-600 dark:bg-slate-700 dark:text-slate-300">${escapeHtml(tag)}</span>`).join('')}</div>`;
                 })()}
-                ${def.invited ? `<p class="flex items-center gap-2 text-sm font-semibold text-slate-600 dark:text-slate-300">Vyzvaný hráč: ${avatarHtml(def.invited, 'h-6 w-6 text-sm')} <b>${escapeHtml(def.invited.id === user.id ? 'ty' : playerName(def.invited))}</b></p>` : ''}
-                ${mine || !canPlay ? (results.length ? `<ol class="flex flex-col gap-1.5">${rankingRows(results, def.count, user.id)}</ol>` : NOBODY_PLAYED) : waitingPlayers(def, results, user.id)}
+                ${def.invited && !bet.offer ? `<p class="flex items-center gap-2 text-sm font-semibold text-slate-600 dark:text-slate-300">Vyzvaný hráč: ${avatarHtml(def.invited, 'h-6 w-6 text-sm')} <b>${escapeHtml(def.invited.id === user.id ? 'ty' : playerName(def.invited))}</b></p>` : ''}
+                ${mine || !canPlay ? (results.length ? `<ol class="flex flex-col gap-1.5">${rankingRows(results, def.count, user.id)}</ol>` : NOBODY_PLAYED)
+                    // S nabídkou sázky na nízkém displeji místo seznamu hráčů jen karta sázky (jméno vyzyvatele je v ní)
+                    : bet.offer ? `<div class="short:hidden">${waitingPlayers(def, results, user.id)}</div>` : waitingPlayers(def, results, user.id)}
+                ${bet.html}
                 ${myChange ? `<p class="text-sm font-bold text-slate-600 dark:text-slate-300">Tvůj rating: <b class="${myChange.delta > 0 ? 'text-emerald-700 dark:text-emerald-400' : myChange.delta < 0 ? 'text-rose-700 dark:text-rose-400' : ''}">${Rating.formatDelta(myChange.delta)}</b> (${myChange.after})</p>` : ''}
                 ${mine && results.some(row => row.user_id !== user.id) ? `<button type="button" data-ch-breakdown class="${SECONDARY_BUTTON}"><i data-lucide="list-ordered" class="h-5 w-5"></i> Rozpis otázek</button>` : ''}
-                ${mine ? '' : `<button type="button" data-ch-play class="${PRIMARY_BUTTON}"><i data-lucide="play" class="h-5 w-5"></i> ${resumable ? resumeLabel(resumable) : 'Hrát výzvu'}</button>`}
+                ${mine ? '' : bet.offer ? betButtons() : `<button type="button" data-ch-play class="${PRIMARY_BUTTON}"><i data-lucide="play" class="h-5 w-5"></i> ${resumable ? resumeLabel(resumable) : 'Hrát výzvu'}</button>`}
                 <button type="button" data-ch-share class="${SECONDARY_BUTTON}"><i data-lucide="share-2" class="h-5 w-5"></i> Sdílet výzvu · ${code}</button>
             </div>`, {
             onClick: (event) => {
                 if (event.target.closest('[data-ch-share]')) shareChallenge(code, text);
                 if (event.target.closest('[data-ch-breakdown]')) openChallengeBreakdown({ ...def, code }, results);
-                if (event.target.closest('[data-ch-play]')) {
-                    closeDialog();
-                    // Tahle výzva je už rozehraná: pokračuje se od další otázky (ne znovu od první)
-                    if (resumable) { challenge = resumable; if (group && !challenge.group) challenge.group = challengeGroup(group); continueChallenge(); }
-                    else startChallenge({ ...def, group, synced: Array.isArray(progress) ? 0 : -1 }, 0, []);
+                if (event.target.closest('[data-ch-play]')) playNow();
+                // Nabídka sázky: přijetí (do limitu) i hra bez sázky se nejdřív zapíše, pak se hraje; nepřijatá sázka ukáže proč
+                const answer = event.target.closest('[data-stake-answer]');
+                if (answer && !betBusy) {
+                    const accept = answer.dataset.stakeAnswer === 'yes';
+                    betBusy = true;
+                    betNote = '';
+                    draw();
+                    answerStake(code, accept).then(error => {
+                        betBusy = false;
+                        const overlay = document.getElementById('dialog-overlay');
+                        if (!overlay || token !== challengeToken) return;
+                        if (error && accept) { betNote = error; draw(); return; }
+                        playNow();
+                    });
                 }
+                if (event.target.closest('[data-stake-help]')) openChild('Zpět na výzvu', () => openChallenge(code, group), openBetsHelp);
             }
         });
+        draw();
+        if (bet.pour) requestAnimationFrame(() => betPourIn(document.getElementById('dialog-overlay')));
     };
 
     // Rozehraná výzva z řádku výzvy (nebo z dřívější rozehrané): co a kým se hraje, odpovědi a kolik jich potvrdil server
@@ -8590,7 +9099,7 @@
         // Rozpis otázek se po dohrání otevře sám (jednou na výzvu), jakmile je s kým srovnávat; tlačítko na výsledku zůstává
         if (state === 'ok' && !c.tournament && rivals.length && !c.breakdownShown) {
             c.breakdownShown = true;
-            setTimeout(() => { if (challenge === c && screen === 'challenge-done' && !document.getElementById('dialog-overlay')) openChallengeBreakdown(c, results); }, 700);
+            setTimeout(() => { if (challenge === c && screen === 'challenge-done' && !document.getElementById('dialog-overlay')) openChallengeBreakdown(c, results); }, c.betPour ? 2800 : 700);
         }
         // Upozornění, že vyzvaný hráč výzvu uvidí: ne vyzvanému samotnému a ne potom, co už ji dohrál
         const invitedWaiting = Boolean(c.invited && c.invited.id && (!user || c.invited.id !== user.id) && !(results || []).some(row => row.user_id === c.invited.id));
@@ -8603,6 +9112,7 @@
                     <p data-result-correct class="mt-1 text-sm font-bold text-white/90">${correct}/${c.count} správně</p>
                     ${ratingNote(c, results)}
                 </div>
+                ${state === 'ok' && c.betPanel ? `<div id="bet-result">${c.betPanel}</div>` : ''}
                 ${body}
                 ${invitedWaiting ? `<p data-invited-note class="text-center text-sm font-semibold leading-relaxed text-slate-600 dark:text-slate-300"><span class="inline-flex max-w-full items-center gap-1.5 align-middle">${avatarHtml(c.invited, 'h-6 w-6 text-sm')}<b class="truncate">${escapeHtml(playerName(c.invited))}</b></span> uvidí výzvu na úvodní stránce.</p>` : ''}
                 ${state === 'ok' && rivals.length ? `<button type="button" data-action="challenge-breakdown" class="${SECONDARY_BUTTON}"><i data-lucide="list-ordered" class="h-5 w-5"></i> Rozpis otázek</button>` : ''}
@@ -8613,6 +9123,8 @@
         renderIcons(appContent);
         appContent.scrollTo(0, 0);
         updateControlsUI();
+        // Kamarádská sázka: mince se k vítězi sypou jen při prvním zobrazení výsledku
+        if (state === 'ok' && c.betPour) { c.betPour = false; requestAnimationFrame(() => betPourIn(document.getElementById('bet-result'))); }
         // Vyhraná výzva: obrázek ke sdílení se připraví hned (share-card.js)
         if (outcome === 'vyhra' && ShareCard) { const card = challengeCardInput(c); if (card) ShareCard.prepare(card, ShareCard.fileName('vyzva', card.day)); }
         // Dohraná výzva, na jejíhož soupeře se čeká (i právě založená): nabídka upozornění, ať se hráč dozví, až soupeř dohraje
@@ -8879,6 +9391,8 @@
             // Až uložený výsledek: dohraná výzva se zapamatuje a úvod ji už nenabízí
             markChallengeFinished(c.code);
             const results = await Social.getResults(c.code);
+            // Kamarádská sázka (bets.js): dohráli-li oba, vyrovná se hned (XP do zařízení) a výsledek ukáže mince; jinak jen stav sázky
+            if (Bets && !c.betView) await betSettleChallenge(c, results);
             // Rating po výzvě počítá databáze; změnu (a nový rating do karty ligy) načteme, ať ji hráč vidí hned
             if (Rating && results.length > 1 && !c.ratingChange) {
                 c.ratingChange = await Social.getRatingChange(user.id, c.code).catch(() => null);
@@ -9023,7 +9537,12 @@
         const streak = Math.max(server ? server.streak : 0, quizStreakOf(DailyQuiz.playedDays(state, today), today));
         return { status, answered: summary ? summary.answered : 0, summary, rank: attempt && attempt.rank ? attempt.rank.rank : null, streak };
     };
-    const quizHomeCard = () => (DailyQuiz ? DailyQuiz.homeCardHtml(quizHomeView()) : '');
+    const quizHomeCard = () => {
+        if (!DailyQuiz) return '';
+        const view = quizHomeView();
+        const tile = DailyQuiz.homeTile(view);
+        return specialTile({ id: 'quiz-card', action: 'quiz-open', art: 'stopky', title: 'Kvíz dne', text: tile.text, label: tile.label, ring: 'ring-gold-400/70 dark:ring-gold-500/50', dot: tile.fresh ? 'data-quiz-new' : '', attrs: `data-quiz-status="${view.status}"` });
+    };
     const paintQuizCard = () => {
         const card = document.getElementById('quiz-card');
         if (!card || screen !== 'home') return;
@@ -9648,6 +10167,739 @@
         if (input && ShareCard) shareImageCounted(input, { name: ShareCard.fileName('vyzva', input.day), text: `Vyhrál jsem výzvu v Mudrlantu: ${input.headline}. Zvládneš to líp?\n${challengeLink(challenge.code)}`, toast: showToast });
     };
 
+    // --- Boss týdne (boss.js): souboj s bossem týdne v aréně (dlaždice v řadě Výzvy na úvodu) ---
+    // Stav (pokusy po týdnech, rozehraný souboj s otázkou na obrazovce, emblémy) drží zařízení v mudrlant.boss. Otázky se sestaví jako
+    // v běžné hře (createRoundData) ze semínka týdne a pokusu (boss.js candidatesFor), další se chystá už během té současné. Čas otázky
+    // se měří od jejího ukázání a běží dál i po odchodu z obrazovky: po návratu se pokračuje stejnou otázkou (pokus se tak nedá „resetovat“).
+    // Přihlášenému se každý dohraný souboj pošle na server (schéma 21, boss_submit), který hlídá 3 pokusy za týden a počítá společnou lištu;
+    // společný bonus za minulý týden si aplikace vyzvedne sama (boss_claim_bonus). Host hraje jen v zařízení, bez společné lišty.
+    // Chyby jdou do Mých chyb a správné odpovědi do poznaných položek jako v Bleskovce (noteModeAnswer). Obrazovky: 'boss' (úvod a souboj),
+    // 'boss-done' (výsledek). Boss se během souboje mění podle zbývajících životů (stupně 1–4, boss.js stageOf).
+    let bossFight = null; // { week, boss, phase: 'loading' | 'question' | 'feedback' | 'error' | 'end', slot, at, limit, next, shown, lastLine }
+    let bossTimer = null;
+    let bossFeedbackTimer = null;
+    let bossTypeTimer = null;
+    let bossServer = null; // { userId, week, at, stats (null = databáze Bosse nemá nebo se nenačetlo) }
+    let bossResult = null; // výsledek posledního souboje pro obrazovku výsledku
+    let bossSyncing = null;
+    let bossOpening = false;
+    let bossSpeech = null; // { boss, week, text } – úvodní řeč (stejná při překreslení úvodu)
+    const BOSS_GRACE_MS = 30 * 60000;
+    const loadBoss = () => Boss.rollover(Boss.parseState(readJson(Boss.KEY)), Boss.weekOf());
+    const saveBoss = (state) => writeJson(Boss.KEY, state);
+    const bossRanked = () => Boolean(Boss && Social && Auth && Auth.isConfigured() && signedUser());
+    const bossServerStats = (week) => { const user = signedUser(); return user && bossServer && bossServer.userId === user.id && bossServer.week === week ? bossServer.stats : null; };
+    const bossServerMe = (week) => { const stats = bossServerStats(week); return stats ? stats.me : null; };
+    const bossView = (state = loadBoss()) => {
+        const week = Boss.weekOf();
+        const me = bossServerMe(week);
+        return { week, used: Boss.attemptsUsed(state, week, me), best: Boss.bestDamage(state, week, me), defeated: Boss.isDefeated(state, week, me), open: Boolean(state.open && state.open.week === week) };
+    };
+    const bossLive = (fight) => Boolean(fight) && fight === bossFight && screen === 'boss';
+    const stopBossTimers = () => {
+        clearInterval(bossTimer);
+        clearTimeout(bossFeedbackTimer);
+        clearInterval(bossTypeTimer);
+        bossTimer = null;
+        bossFeedbackTimer = null;
+        bossTypeTimer = null;
+    };
+    const bossTopicTitle = (id) => (TOPIC_BY_ID[id] ? TOPIC_BY_ID[id].title : '');
+    const bossHelpers = () => ({
+        topicIcon: (id) => (TOPIC_BY_ID[id] ? topicIcon(TOPIC_BY_ID[id], 'h-5 w-5', `rounded-full p-0.5 ${styleOf(TOPIC_BY_ID[id]).soft}`, 'h-3.5 w-3.5') : ''),
+        // Boss vlastní rozpis XP: bez odznaků (emblém a titul ukazuje obrazovka výsledku sama)
+        xpLine: (xp) => xpLine({ ...xp, badges: (xp.badges || []).filter(title => !Boss.BOSSES.some(boss => boss.title === title)) }, 'text-white')
+    });
+    // Dlaždice v řadě Výzvy: portrét podle stupně nejlepšího pokusu, stav a tenká lišta životů bosse
+    const bossTileStatus = (view) => (view.defeated ? 'defeated' : view.open ? 'open' : view.used >= Boss.ATTEMPTS ? 'out' : view.used ? 'played' : 'new');
+    const bossTileHtml = () => {
+        const view = bossView();
+        const tile = Boss.homeTile(view);
+        const bar = `<span aria-hidden="true" class="pointer-events-none absolute inset-x-2 bottom-0.5 h-1 overflow-hidden rounded-full bg-white/20"><span class="boss-tile-hp block h-full w-0 rounded-full" data-progress="${tile.percent}"></span></span>`;
+        // Portrét bosse se nepřebarví podle obleku Mudrlanta (data-keep, look-robes.js)
+        return specialTile({ id: 'boss-card', action: 'boss-open', art: tile.art, title: 'Boss týdne', text: tile.text, label: tile.label, tone: 'boss-tile', ring: 'ring-rose-500/80 dark:ring-rose-400/60',
+            titleTone: 'text-white', textTone: view.defeated ? 'text-gold-200' : 'text-rose-100', dot: tile.fresh ? 'data-boss-new' : '',
+            attrs: `data-boss-status="${bossTileStatus(view)}" data-boss-stage="${tile.stage}"${tile.standIn ? ' data-boss-standin' : ''}`, extra: bar }).replace('<img src=', '<img data-keep src=');
+    };
+    const paintBossCard = () => {
+        const card = document.getElementById('boss-card');
+        if (!card || screen !== 'home' || !Boss) return;
+        card.outerHTML = bossTileHtml();
+        const fresh = document.getElementById('boss-card');
+        if (fresh) { applyProgress(fresh); renderIcons(fresh); }
+    };
+    const bossCommunity = (week) => Boss.communityHtml({
+        stats: bossServerStats(week), signedIn: bossRanked(), canLogin: Boolean(Auth && Auth.isConfigured() && Social) && !signedUser(),
+        loading: bossRanked() && !(bossServer && bossServer.week === week && bossServer.done), over: Boss.weekOf() !== week
+    });
+
+    // Odeslání dohraných soubojů na server (po sobě): každý pokus dostane číslo (idx) podle serveru, opakované odeslání nic nezmění.
+    // Pokus hosta se po přihlášení zapíše na účet. Pozdě (po týdnu a 30 minutách) nebo odmítnutý pokus se už neposílá.
+    const patchBossAttempt = (week, index, patch) => {
+        const fresh = loadBoss();
+        const row = fresh.weeks[week] && fresh.weeks[week].attempts[index];
+        if (row) { Object.assign(row, patch); saveBoss(fresh); }
+    };
+    const pushBossAttempts = () => {
+        const user = signedUser();
+        if (!bossRanked()) return Promise.resolve(null);
+        if (bossSyncing) return bossSyncing;
+        bossSyncing = (async () => {
+            const state = loadBoss();
+            const live = [Boss.weekOf(), Boss.weekOf(Date.now() - BOSS_GRACE_MS)];
+            const pending = [];
+            Object.keys(state.weeks).sort().forEach(week => state.weeks[week].attempts.forEach((attempt, index) => {
+                if (!attempt.synced && (attempt.owner === 'host' || attempt.owner === user.id)) pending.push({ week, index, attempt });
+            }));
+            let last = null;
+            for (const { week, index, attempt } of pending) {
+                if (!live.includes(week)) { patchBossAttempt(week, index, { synced: true }); continue; }
+                try {
+                    let idx = attempt.idx;
+                    if (!Number.isInteger(idx)) {
+                        const stats = await Social.bossWeekStats(week);
+                        if (stats === null) return null;
+                        idx = Math.min(Boss.ATTEMPTS - 1, stats.me ? stats.me.attempts : 0);
+                        patchBossAttempt(week, index, { idx, owner: user.id });
+                    }
+                    const me = await Social.bossSubmit(week, idx, attempt.damage, attempt.defeated);
+                    if (me === null) return null;
+                    patchBossAttempt(week, index, { synced: true, owner: user.id });
+                    last = { week, me };
+                } catch (error) {
+                    // Server pokus odmítl (pokusy došly, týden skončil): už se neposílá; bez spojení se zkusí příště
+                    if (error && error.status >= 400 && error.status < 500 && error.status !== 401) { patchBossAttempt(week, index, { synced: true }); continue; }
+                    return last;
+                }
+            }
+            return last;
+        })().catch(() => null).finally(() => { bossSyncing = null; });
+        return bossSyncing;
+    };
+    // Stav serveru (společná lišta, moje pokusy) nejvýš jednou za 5 minut; po souboji a přihlášení hned
+    const refreshBossServer = async (force = false) => {
+        if (!bossRanked()) return;
+        const user = signedUser();
+        const week = Boss.weekOf();
+        if (!force && bossServer && bossServer.userId === user.id && bossServer.week === week && Date.now() - bossServer.at < 5 * 60000) return;
+        const keep = bossServer && bossServer.userId === user.id && bossServer.week === week ? bossServer.stats : null;
+        bossServer = { userId: user.id, week, at: Date.now(), stats: keep, done: false };
+        let stats;
+        try {
+            await pushBossAttempts();
+            stats = await Social.bossWeekStats(week);
+        } catch (error) { bossServer = { ...bossServer, at: 0, done: true }; repaintBossServer(); return; }
+        if (!signedUser() || signedUser().id !== user.id) return;
+        bossServer = { userId: user.id, week, at: Date.now(), stats: stats || null, done: true };
+        repaintBossServer();
+        claimBossBonus();
+    };
+    const repaintBossServer = () => {
+        if (screen === 'home') paintBossCard();
+        else if (screen === 'boss' && !bossFight) paintBossIntroServer();
+        else if (screen === 'boss-done') renderBossResult();
+    };
+    // Úvod po odpovědi serveru: jen společná lišta (nástup bosse doběhne), celé překreslení jen když server zná víc pokusů nebo výhru
+    let bossIntroSig = '';
+    const bossSig = (view) => `${view.week}|${view.used}|${view.best}|${view.defeated}|${view.open}`;
+    const paintBossIntroServer = () => {
+        const view = bossView();
+        if (bossSig(view) !== bossIntroSig) { renderBossIntro(); return; }
+        const box = appContent.querySelector('#boss-intro [data-boss-community]');
+        if (!box) return;
+        box.outerHTML = bossCommunity(view.week);
+        const intro = document.getElementById('boss-intro');
+        if (intro) { applyProgress(intro); renderIcons(intro); }
+    };
+    // Společný bonus za minulý týden (jednou za hráče a týden; až po půlhodině po konci týdne, kdy se ještě přijímají souboje)
+    let bossClaiming = false;
+    const claimBossBonus = async () => {
+        if (!bossRanked() || progressSyncedFor !== signedUser().id || bossClaiming) return;
+        bossClaiming = true;
+        try { await claimBossBonusNow(); } finally { bossClaiming = false; }
+    };
+    const claimBossBonusNow = async () => {
+        const user = signedUser();
+        const week = Boss.weekOf(Date.now() - BOSS_GRACE_MS);
+        const last = Boss.addWeeks(week, -1);
+        if (loadBoss().claims[user.id] === last) return;
+        let result;
+        try { result = await Social.bossClaimBonus(last); } catch (error) { if (!(error && error.status >= 400 && error.status < 500 && error.status !== 401)) return; result = { xp: 0 }; }
+        if (result === null || !signedUser() || signedUser().id !== user.id) return;
+        const state = loadBoss();
+        state.claims[user.id] = last;
+        if (state.weeks[last]) state.weeks[last].bonus = result.xp ? 'claimed' : 'none';
+        saveBoss(state);
+        if (result.xp > 0) {
+            const boss = Boss.bossForWeek(last);
+            awardBossProgress({ xp: { total: result.xp, parts: [{ label: 'za společnou výhru nad bossem', xp: result.xp }] } });
+            showCelebration('oslava', 'Společná výhra!', `${boss.name} padl pod náporem hráčů: +${result.xp} XP pro každého, kdo to zkusil`, 'badge', uiArt(Boss.artFor(boss.id, 4), 'h-20 w-20 -my-4 drop-shadow-lg').replace('<img src=', '<img data-keep src='));
+        }
+    };
+    // XP, počítadla (souboje, výhry, den hraní) a odznaky (emblém bosse přes x.bosses v badgeContext)
+    const awardBossProgress = ({ xp = null, fought = false, won = false } = {}) => {
+        const before = loadProgress();
+        const progress = { ...before, xp: before.xp + (xp ? xp.total : 0) };
+        if (fought) {
+            progress.counters.bossFights += 1;
+            if (progress.counters.lastDay !== getDayKey()) { progress.counters.days += 1; progress.counters.lastDay = getDayKey(); }
+        }
+        if (won) progress.counters.bossWins += 1;
+        const badges = grantBadges(progress);
+        saveProgress(progress);
+        announce(levelProgress(before.xp).level, levelProgress(progress.xp).level, badges);
+        settleGoals();
+        applyLook();
+        syncProgress();
+        return xp ? { ...xp, badges } : null;
+    };
+
+    // --- Úvod: aréna, nástup bosse, řeč a tlačítko Do souboje ---
+    const openBoss = () => {
+        if (!Boss || isLoading || bossOpening) return;
+        bossOpening = true;
+        try {
+            stopBossTimers();
+            closePlaceInfo();
+            closeChooser();
+            closeSettings();
+            saveBoss(loadBoss());
+            bossSpeech = null;
+            renderBossIntro({ enter: true });
+            refreshBossServer(true);
+        } finally {
+            bossOpening = false;
+        }
+    };
+    const renderBossIntro = ({ enter = false } = {}) => {
+        const state = loadBoss();
+        const view = bossView(state);
+        const boss = Boss.bossForWeek(view.week);
+        if (!bossSpeech || bossSpeech.boss !== boss.id || bossSpeech.week !== view.week) {
+            const kind = view.defeated ? 'defeat' : view.used >= Boss.ATTEMPTS && !view.open ? 'win' : 'intro';
+            bossSpeech = { boss: boss.id, week: view.week, text: Boss.lineFor(boss, kind), enter: true };
+        }
+        stopBossTimers();
+        screen = 'boss';
+        mode = 'boss';
+        bossFight = null;
+        current = null;
+        round = null;
+        bossIntroSig = bossSig(view);
+        appContent.innerHTML = Boss.introHtml({
+            ...view, boss, answered: state.open ? state.open.results.length : 0, speech: bossSpeech.text, community: bossCommunity(view.week),
+            next: Boss.bossForWeek(Boss.addWeeks(view.week, 1)), topicTitle: bossTopicTitle(boss.topic), enter
+        }, bossHelpers());
+        applyProgress(appContent);
+        renderIcons(appContent);
+        appContent.scrollTo(0, 0);
+        updateControlsUI();
+        if (enter) bossEntrance();
+    };
+    // Nástup: boss spadne do arény (CSS), zařve a řeč se píše po písmenech (bez pohybu se ukáže celá hned)
+    const bossEntrance = () => {
+        if (Sound) Sound.play('bossRoar');
+        const target = appContent.querySelector('[data-boss-speech-text]');
+        if (!target || reducedMotion()) return;
+        // Zbytek řeči je v bublině neviditelně od začátku: bublina má hned plnou výšku a nic pod ní neposkakuje
+        const text = target.textContent;
+        const typed = document.createTextNode('');
+        const rest = document.createElement('span');
+        rest.className = 'opacity-0';
+        rest.textContent = text;
+        target.replaceChildren(typed, rest);
+        let shown = 0;
+        clearInterval(bossTypeTimer);
+        const started = Date.now() + 550;
+        bossTypeTimer = setInterval(() => {
+            if (!target.isConnected) { clearInterval(bossTypeTimer); return; }
+            if (Date.now() < started) return;
+            shown = Math.min(text.length, shown + 2);
+            typed.data = text.slice(0, shown);
+            rest.textContent = text.slice(shown);
+            if (shown >= text.length) clearInterval(bossTypeTimer);
+        }, 28);
+    };
+    const openBossRules = () => {
+        const boss = Boss.bossForWeek(Boss.weekOf());
+        showDialog('Pravidla souboje', `${Boss.rulesHtml(boss, bossTopicTitle(boss.topic))}${dialogBackButton('mt-3')}`);
+    };
+    const openBossHall = () => {
+        if (!Boss) return;
+        const progress = loadProgress();
+        showDialog('Síň bossů', `${Boss.hallHtml({ week: Boss.weekOf(), emblems: Boss.emblemsOf(loadBoss(), progress.badges) }, {
+            medal: (id, have, cls) => (BADGE_BY_ID[id] ? medalHtml(BADGE_BY_ID[id], have, cls, 'h-5 w-5') : ''), topicTitle: bossTopicTitle
+        })}${dialogBackButton('mt-3')}`);
+    };
+
+    // --- Souboj ---
+    const startBossFight = () => {
+        if (!Boss || isLoading) return;
+        const user = signedUser();
+        let state = loadBoss();
+        const week = Boss.weekOf();
+        if (!state.open || state.open.week !== week) {
+            const next = Boss.startAttempt(state, week, { now: Date.now(), owner: user ? user.id : 'host', server: bossServerMe(week) });
+            if (!next) { renderBossIntro(); return; }
+            state = next;
+            saveBoss(state);
+        }
+        if (Sound) Sound.unlock();
+        beginBossFight(state.open);
+    };
+    const beginBossFight = (open) => {
+        stopBossTimers();
+        closePlaceInfo();
+        screen = 'boss';
+        mode = 'boss';
+        bossFight = { week: open.week, boss: Boss.BY_ID[open.boss], phase: 'loading', slot: open.results.length, at: 0, limit: Boss.TIME_MS, next: null, lastLine: '', clock: 0 };
+        renderBossFight();
+        bossTimer = setInterval(bossTick, 100);
+        showBossQuestion(bossFight);
+    };
+    // Celý souboj: horní pruh s bossem (zůstává, ať lišty a animace běží plynule) a místo pro otázku
+    const renderBossFight = () => {
+        const fight = bossFight;
+        const open = loadBoss().open;
+        if (!fight || !open) return;
+        const status = Boss.fightStatus(open.results);
+        appContent.innerHTML = `
+            <div id="boss-fight" data-boss-fight class="flex min-h-full w-full flex-col bg-slate-50 dark:bg-slate-900">
+                ${Boss.stripHtml({ boss: fight.boss, status, slot: open.results.length, limit: Boss.timeLimit(Math.min(Boss.QUESTIONS - 1, open.results.length)) })}
+                <div id="boss-question" class="relative flex flex-1 flex-col gap-2 p-3 pt-2 [@media(max-height:770px)]:gap-1.5 [@media(max-height:770px)]:p-2.5 [@media(max-height:770px)]:pt-1.5"></div>
+            </div>`;
+        applyProgress(appContent);
+        renderIcons(appContent);
+        appContent.scrollTo(0, 0);
+        updateControlsUI();
+    };
+    // Otázka slot: položky v pořadí ze semínka (boss.js candidatesFor); jen otázka s výběrem z možností (u psaní s přijímanými odpověďmi),
+    // chudý popis (bez nápověd by nešlo odpovědět) nejvýš dvakrát vymění; každý kandidát má vlastní semínko otázky
+    const prepareBossQuestion = async (slot) => {
+        const open = loadBoss().open;
+        if (!open) throw new Error('Souboj neběží');
+        const boss = Boss.BY_ID[open.boss];
+        const ctx = await loadTopic(boss.topic);
+        const used = open.plan.filter((entry, index) => entry && index !== slot).map(entry => entry.q);
+        const saved = open.plan[slot] && ctx.byId.get(open.plan[slot].q);
+        const candidates = Boss.candidatesFor(open.week, open.n, slot, ctx.items, ctx.topic.categories.map(category => category.key), used);
+        const ordered = saved ? [saved, ...candidates.filter(item => item.q !== saved.q)] : candidates;
+        const typed = Boss.isTyped(slot);
+        let fallback = null;
+        for (let tries = 0; tries < Math.min(6, ordered.length); tries++) {
+            const data = await createRoundData(ordered[tries], ctx, createSeededRandom(Boss.questionSeed(open.week, open.n, slot, tries)));
+            const choices = data && data.question && Array.isArray(data.question.choices) ? data.question.choices : [];
+            const playable = choices.length >= 2 && choices.filter(choice => choice && choice.correct).length === 1;
+            const typeable = !typed || Boolean(data.question.match) || (Array.isArray(data.question.accepted) && data.question.accepted.length > 0);
+            if (!playable || !typeable) continue;
+            if (!fallback) fallback = data;
+            if (data.thin && tries < 2 && !wikiPaused()) continue;
+            return data;
+        }
+        if (fallback) return fallback;
+        throw new Error('Není z čeho vybírat');
+    };
+    const queueBossQuestion = (slot) => {
+        const job = { slot, data: null };
+        job.promise = prepareBossQuestion(slot).then(data => { job.data = data; return data; });
+        job.promise.catch(() => {});
+        return job;
+    };
+    const showBossQuestion = async (fight) => {
+        if (!bossLive(fight)) return;
+        let state = loadBoss();
+        if (!state.open) { renderBossIntro(); return; }
+        if (Boss.fightStatus(state.open.results).over) { finishBossFight(fight); return; }
+        const slot = state.open.results.length;
+        // Otázka už na obrazovce byla (návrat do souboje): stejná, její čas běží dál
+        if (state.open.shown && state.open.shown.slot === slot) { presentBossQuestion(fight, upgradeRoundData(state.open.shown.data), state.open.shown.at, slot); return; }
+        const job = fight.next && fight.next.slot === slot ? fight.next : queueBossQuestion(slot);
+        fight.next = null;
+        if (!job.data) {
+            fight.phase = 'loading';
+            paintBossLoading(fight);
+            try { await job.promise; } catch (error) {
+                if (!bossLive(fight)) return;
+                console.error(error);
+                fight.phase = 'error';
+                paintBossError(error);
+                return;
+            }
+            if (!bossLive(fight)) return;
+        }
+        state = loadBoss();
+        if (!state.open || state.open.results.length !== slot) return;
+        const at = Date.now();
+        state.open.shown = { slot, at, data: job.data };
+        state.open.plan[slot] = { topic: job.data.topic, q: job.data.id };
+        saveBoss(state);
+        presentBossQuestion(fight, job.data, at, slot);
+    };
+    const presentBossQuestion = (fight, data, at, slot) => {
+        current = data;
+        round = { hintLevel: 1, variant: Boss.isTyped(slot) ? 'typed' : 'choices', answered: false, correct: false, points: 0, typed: false, answer: null, gaveUp: false, review: false, shownAt: at };
+        Object.assign(fight, { phase: 'question', slot, at, limit: Boss.timeLimit(slot), picked: null, clock: 0 });
+        paintBossQuestion(fight);
+        // Další otázka se chystá hned, dokud hráč přemýšlí
+        if (slot + 1 < Boss.QUESTIONS) fight.next = queueBossQuestion(slot + 1);
+        bossTick();
+    };
+    const paintBossLoading = (fight) => {
+        const box = document.getElementById('boss-question');
+        if (!box) return;
+        const topic = TOPIC_BY_ID[fight.boss.topic];
+        box.innerHTML = `<div data-boss-loading class="flex flex-1 flex-col items-center justify-center gap-2 py-8 text-center">${topic && topicArt(topic) ? topicIcon(topic, 'bob h-16 w-16') : LOADING_OWL}<p class="text-sm font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300">${fight.slot ? 'Boss chystá další otázku…' : 'Boss chystá otázky…'}</p><p class="text-xs font-semibold text-slate-500 dark:text-slate-400">Čas zatím stojí</p></div>`;
+    };
+    const paintBossError = (error) => {
+        const box = document.getElementById('boss-question');
+        if (!box) return;
+        const offline = error instanceof NetworkError || !navigator.onLine;
+        box.innerHTML = `<div data-boss-error class="flex flex-1 flex-col items-center justify-center gap-2 p-4 text-center">
+            <i data-lucide="${offline ? 'wifi-off' : 'search-x'}" class="h-12 w-12 text-slate-300 dark:text-slate-600"></i>
+            <p class="font-bold text-slate-700 dark:text-slate-200">${offline ? 'Otázku se nepodařilo načíst. Zkontroluj připojení a zkus to znovu.' : 'Otázku se nepodařilo připravit. Zkus to prosím znovu.'}</p>
+            <p class="text-xs font-semibold text-slate-500 dark:text-slate-400">Čas mezitím stojí.</p>
+            <button type="button" data-action="boss-retry" class="${PRIMARY_BUTTON} mt-1 max-w-xs">Zkusit znovu</button>
+        </div>`;
+        renderIcons(box);
+    };
+    // Otázka: schválnost, otázka a popis (jako v běžné hře, bez nápověd), možnosti nebo pole na psaní
+    const paintBossQuestion = (fight) => {
+        let box = document.getElementById('boss-question');
+        if (!box) { renderBossFight(); box = document.getElementById('boss-question'); }
+        if (!box || !current) return;
+        const data = current;
+        const typed = round.variant === 'typed';
+        const choices = data.question.choices.map((choice, index) => `
+            <button type="button" data-action="boss-choice" data-index="${index}" class="btn-3d-light min-h-[3rem] rounded-xl bg-white px-3 py-1.5 text-sm font-bold leading-tight text-slate-700 dark:bg-slate-700 dark:text-slate-100">${escapeHtml(choice.label)}</button>`).join('');
+        const form = `
+            <form id="boss-form" class="flex gap-2" autocomplete="off">
+                <label for="boss-input" class="sr-only">Odpověď</label>
+                <input id="boss-input" name="answer" type="text" enterkeyhint="send" placeholder="${escapeHtml(data.question.placeholder || 'Napiš odpověď')}" class="min-w-0 flex-1 rounded-xl border border-slate-200 bg-white px-3 py-3 text-[16px] text-slate-800 placeholder:text-slate-500 focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-rose-400/40 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:placeholder:text-slate-400">
+                <button type="submit" aria-label="Odeslat odpověď" class="boss-cta flex w-12 shrink-0 items-center justify-center rounded-xl btn-3d text-white"><i data-lucide="send" class="h-5 w-5"></i></button>
+                <button type="button" data-action="boss-skip" class="flex min-h-[2.75rem] shrink-0 items-center justify-center rounded-xl bg-slate-200 px-3 text-[13px] font-bold text-slate-700 dark:bg-slate-700 dark:text-slate-200">Nevím</button>
+            </form>`;
+        box.innerHTML = `
+            ${Boss.trickHtml(fight.slot)}
+            <h2 class="text-center text-[19px] font-black leading-tight tracking-tight text-slate-800 [@media(max-height:770px)]:text-[17px] dark:text-slate-50">${escapeHtml(data.question.title)}</h2>
+            ${questionPanel(data)}
+            <section data-boss-answers class="shrink-0">${typed ? form : `<div class="grid grid-cols-2 gap-2">${choices}</div>`}</section>
+            <p class="sr-only" role="status" data-boss-verdict></p>`;
+        const count = appContent.querySelector('[data-boss-count]');
+        if (count) count.textContent = `Otázka ${fight.slot + 1}/${Boss.QUESTIONS}`;
+        renderIcons(box);
+        mountPanels();
+        if (typed) { const input = document.getElementById('boss-input'); if (input) input.focus({ preventScroll: true }); }
+    };
+    // Hodiny: běží od ukázání otázky; v posledních 5 sekundách tikají, po vypršení se počítá chyba
+    const bossTick = () => {
+        const fight = bossFight;
+        if (!fight) { stopBossTimers(); return; }
+        if (screen !== 'boss') {
+            // Hráč odešel jinam: souboj zůstává rozehraný (čas otázky běží dál); dohraný se uzavře hned
+            stopBossTimers();
+            bossFight = null;
+            const state = loadBoss();
+            if (state.open && Boss.fightStatus(state.open.results).over) finishBossFight(fight, { silent: true });
+            return;
+        }
+        if (fight.phase !== 'question') return;
+        const left = Math.max(0, Math.min(fight.limit, fight.limit - (Date.now() - fight.at)));
+        paintBossClock(fight, left);
+        if (left <= 0) answerBoss({ timeout: true });
+    };
+    document.addEventListener('visibilitychange', () => { if (bossFight && screen === 'boss') bossTick(); });
+    const paintBossClock = (fight, left) => {
+        const clock = appContent.querySelector('[data-boss-clock]');
+        const bar = appContent.querySelector('[data-boss-timer]');
+        if (!clock || !bar) return;
+        const shown = Math.ceil(left / 1000);
+        if (clock.textContent !== String(shown)) {
+            if (fight.clock && shown < fight.clock && shown >= 1 && shown <= 5 && Sound) Sound.play(shown === 1 ? 'tickLast' : 'tick');
+            clock.textContent = String(shown);
+        }
+        fight.clock = shown;
+        bar.style.width = `${Math.max(0, Math.min(100, (left / fight.limit) * 100))}%`;
+        const urgent = shown <= 5;
+        bar.classList.toggle('boss-timer-urgent', urgent);
+        const chip = appContent.querySelector('[data-boss-clock-chip]');
+        if (chip) chip.classList.toggle('text-rose-300', urgent);
+    };
+    // Psaná odpověď: stejné porovnání jako v běžné hře (překlepy, přijímané názvy); přesně název jiné položky ze sady se nepočítá
+    const bossTypedCorrect = (answer, data) => {
+        let correct = checkAnswer(answer, data.question);
+        const ctx = loadedTopics.get(data.topic);
+        const item = ctx && ctx.byId.get(data.id);
+        if (correct && item) {
+            let ref = ctx.topic.findAnswer ? ctx.topic.findAnswer(data.question.type, answer, item, ctx) : null;
+            if (!ref && data.question.type === 'name') { const id = findAnswerItem(answer, item, ctx.items); ref = id ? { topic: data.topic, id } : null; }
+            const other = ref && loadedTopics.get(ref.topic) && loadedTopics.get(ref.topic).byId.get(ref.id);
+            const exactlyOwn = (data.question.accepted || []).some(accepted => normalizeAnswer(accepted) === normalizeAnswer(answer));
+            if (other && !exactlyOwn && normalizeAnswer(other.n) === normalizeAnswer(answer)) correct = false;
+        }
+        return correct;
+    };
+    // Odpověď (výběr, psaní, Nevím nebo vypršený čas): zápis do souboje, pak efekty, hláška bosse a další otázka
+    const answerBoss = ({ index = null, text = '', timeout = false, skip = false }) => {
+        const fight = bossFight;
+        if (!bossLive(fight) || fight.phase !== 'question' || !current || !round) return;
+        const state = loadBoss();
+        const open = state.open;
+        if (!open || open.results.length !== fight.slot) return;
+        const elapsed = Math.max(0, Date.now() - fight.at);
+        const late = elapsed > fight.limit + 400;
+        const typed = round.variant === 'typed';
+        let correct = false;
+        let answer = '';
+        if (!timeout && !late && !skip) {
+            if (typed) {
+                if (!text) return;
+                answer = text;
+                correct = bossTypedCorrect(text, current);
+            } else {
+                const choice = current.question.choices[index];
+                if (!choice) return;
+                answer = choice.label;
+                correct = Boolean(choice.correct);
+                fight.picked = index;
+            }
+        }
+        const before = Boss.fightStatus(open.results);
+        state.open = Boss.addResult(open, { correct, ms: Math.min(elapsed, fight.limit), typed, timeout: timeout || late, answer });
+        saveBoss(state);
+        const after = Boss.fightStatus(state.open.results);
+        Object.assign(round, { answered: true, correct, answer });
+        fight.phase = 'feedback';
+        noteModeAnswer(current, correct);
+        paintBossAnswer(fight, { correct, timeout: timeout || late, typed, answer });
+        bossFeedback(fight, before, after, { correct, ms: Math.min(elapsed, fight.limit) });
+    };
+    // Výsledek odpovědi na obrazovce: správná možnost zeleně, zvolená špatná červeně; u psaní věta se správnou odpovědí
+    const paintBossAnswer = (fight, { correct, timeout, typed, answer }) => {
+        const box = document.getElementById('boss-question');
+        if (!box || !current) return;
+        const right = current.question.answerLabel || (current.question.choices.find(choice => choice.correct) || {}).label || '';
+        const answers = box.querySelector('[data-boss-answers]');
+        if (answers && !typed) {
+            answers.querySelectorAll('[data-action="boss-choice"]').forEach(button => {
+                const choice = current.question.choices[Number(button.dataset.index)];
+                button.disabled = true;
+                button.classList.remove('bg-white', 'text-slate-700', 'dark:bg-slate-700', 'dark:text-slate-100');
+                if (choice && choice.correct) button.classList.add('border-emerald-700', 'bg-emerald-600', 'text-white', 'dark:bg-emerald-700');
+                else if (Number(button.dataset.index) === fight.picked) button.classList.add('border-rose-800', 'bg-rose-600', 'text-white', 'dark:bg-rose-700');
+                else button.classList.add('bg-white', 'text-slate-700', 'opacity-50', 'dark:bg-slate-700', 'dark:text-slate-100');
+            });
+        } else if (answers) {
+            answers.innerHTML = `<p data-boss-typed="${correct ? 'correct' : 'wrong'}" class="flex min-h-[3rem] items-center justify-center gap-2 rounded-xl px-3 py-2 text-center text-[15px] font-black leading-tight text-white ${correct ? 'bg-emerald-600 dark:bg-emerald-700' : 'bg-rose-600 dark:bg-rose-700'}"><i data-lucide="${correct ? 'check' : 'x'}" class="h-5 w-5 shrink-0"></i><span>${correct ? `Správně: ${escapeHtml(answer)}` : `Správně je ${escapeHtml(right)}`}</span></p>`;
+            renderIcons(answers);
+        }
+        const verdict = box.querySelector('[data-boss-verdict]');
+        if (verdict) verdict.textContent = correct ? 'Správně! Zásah.' : `${timeout ? 'Čas vypršel.' : 'Špatně.'} Správně je ${right}.`;
+        if (timeout && !correct) {
+            const title = box.querySelector('h2');
+            if (title) title.insertAdjacentHTML('beforebegin', '<p data-boss-timeout class="self-center rounded-full bg-rose-600 px-3 py-1 text-[12px] font-black text-white shadow">Čas vypršel!</p>');
+        }
+    };
+    // Restart animace třídou (odebrat, přepočítat, přidat)
+    const replay = (element, cls, ms = 800) => {
+        if (!element) return;
+        element.classList.remove(cls);
+        void element.offsetWidth;
+        element.classList.add(cls);
+        setTimeout(() => element.classList.remove(cls), ms);
+    };
+    // Lišta životů, stupeň bosse (portrét se prolne do obrázku dalšího stupně, efekty podle stupně) a srdce
+    const paintBossStatus = (status, { breaking = -1 } = {}) => {
+        const strip = document.getElementById('boss-strip');
+        if (!strip || !bossFight) return;
+        const fill = strip.querySelector('[data-boss-hp-fill]');
+        const ghost = strip.querySelector('[data-boss-hp-ghost]');
+        if (fill) fill.style.width = `${status.percent}%`;
+        if (ghost) ghost.style.width = `${status.percent}%`;
+        const meter = strip.querySelector('[data-boss-hp]');
+        if (meter) { meter.dataset.bossHp = String(status.hp); meter.setAttribute('aria-valuenow', String(status.hp)); meter.setAttribute('aria-valuetext', `${status.hp} z ${Boss.HP} životů`); }
+        const text = strip.querySelector('[data-boss-hp-text]');
+        if (text) text.textContent = `${status.hp} / ${Boss.HP}`;
+        const hearts = strip.querySelector('[data-boss-hearts]');
+        if (hearts) hearts.outerHTML = Boss.heartsHtml(status.hearts, breaking);
+        const stage = String(status.stage);
+        if (strip.dataset.stage !== stage) {
+            const boss = bossFight.boss;
+            strip.dataset.stage = stage;
+            strip.classList.remove('boss-strip-stage-1', 'boss-strip-stage-2', 'boss-strip-stage-3', 'boss-strip-stage-4');
+            strip.classList.add(`boss-strip-stage-${stage}`);
+            const label = strip.querySelector('[data-boss-stage-label]');
+            if (label) label.textContent = Boss.stageName(status.stage);
+            const portrait = strip.querySelector('[data-boss-portrait]');
+            if (portrait) {
+                portrait.dataset.stage = stage;
+                portrait.classList.remove('boss-stage-1', 'boss-stage-2', 'boss-stage-3', 'boss-stage-4', 'boss-standin-2', 'boss-standin-3');
+                portrait.classList.add(`boss-stage-${stage}`);
+                if (Boss.isStandIn(boss.id, status.stage)) portrait.classList.add(`boss-standin-${stage}`);
+                // Prolnutí do obrázku nového stupně
+                const body = portrait.querySelector('.boss-body');
+                const old = body && body.querySelector('[data-boss-face]');
+                if (body && old) {
+                    const next = document.createElement('img');
+                    next.src = `icons/topics/${Boss.artFor(boss.id, status.stage)}.webp`;
+                    next.alt = '';
+                    next.className = 'boss-face';
+                    next.dataset.bossFace = stage;
+                    next.setAttribute('data-keep', '');
+                    body.appendChild(next);
+                    if (next.animate) {
+                        next.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 450, easing: 'ease-out' });
+                        old.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 450, easing: 'ease-out' }).onfinish = () => old.remove();
+                    } else old.remove();
+                }
+                if (status.stage === 4) portrait.querySelector('.boss-body').classList.remove('boss-idle');
+            }
+        }
+    };
+    // Bublina s hláškou bosse přes otázku (po odpovědi otázka už číst netřeba; možnosti se správnou odpovědí zůstanou vidět)
+    const showBossBubble = (text, kind) => {
+        const box = document.getElementById('boss-question');
+        if (!box || !text || !bossFight) return;
+        const old = box.querySelector('[data-boss-bubble]');
+        if (old) old.remove();
+        box.insertAdjacentHTML('afterbegin', Boss.bubbleHtml(bossFight.boss, text, kind));
+    };
+    // Efekty zásahu: záblesk, otřes, letící číslo poškození (u plného bonusu „Rychlý zásah!“), jiskry
+    const bossHitFx = (damage, fast, big) => {
+        const strip = document.getElementById('boss-strip');
+        if (!strip) return;
+        replay(strip.querySelector('[data-boss-flash]'), big ? 'boss-flash-big' : 'boss-flash-on');
+        replay(strip.querySelector('.boss-body'), big ? 'boss-hit-big' : 'boss-hit');
+        const fx = strip.querySelector('[data-boss-fx]');
+        if (fx) {
+            fx.insertAdjacentHTML('beforeend', `<span class="boss-spark"></span><span class="boss-dmg${fast ? ' boss-dmg-big' : ''}">−${damage}</span>${fast ? '<span class="boss-dmg-tag">Rychlý zásah!</span>' : ''}`);
+            setTimeout(() => { fx.innerHTML = ''; }, 1300);
+        }
+        if (Sound) { Sound.play(big ? 'bossStage' : 'bossHit'); Sound.vibrate(big ? 'bossStage' : 'bossHit'); }
+    };
+    // Chyba: srdce praskne, boss se posměje, okraj obrazovky zčervená
+    const bossMissFx = () => {
+        const strip = document.getElementById('boss-strip');
+        if (strip) replay(strip.querySelector('.boss-body'), 'boss-laugh');
+        replay(document.getElementById('boss-fight'), 'boss-ouch');
+        if (Sound) { Sound.play('bossLaugh'); Sound.vibrate('wrong'); }
+    };
+    const bossFeedback = (fight, before, after, { correct, ms }) => {
+        const boss = fight.boss;
+        const stageChanged = after.stage !== before.stage;
+        let line;
+        let kind;
+        let wait;
+        if (correct) {
+            bossHitFx(before.hp - after.hp, Boss.speedBonus(ms) >= Boss.SPEED_BONUS, stageChanged);
+            paintBossStatus(after);
+            if (after.won) { line = Boss.lineFor(boss, 'defeat', 4, Math.random, fight.lastLine); kind = 'defeat'; wait = 2800; }
+            else if (stageChanged) { line = Boss.lineFor(boss, 'stage', after.stage, Math.random, fight.lastLine); kind = 'stage'; wait = 2400; }
+            else { line = Boss.lineFor(boss, 'hit', after.stage, Math.random, fight.lastLine); kind = 'hit'; wait = 1500; }
+        } else {
+            bossMissFx();
+            paintBossStatus(after, { breaking: after.hearts });
+            line = after.hearts <= 0 ? Boss.lineFor(boss, 'win', after.stage, Math.random, fight.lastLine) : Boss.lineFor(boss, 'taunt', after.stage, Math.random, fight.lastLine);
+            kind = 'taunt';
+            wait = 2500;
+        }
+        // Došly otázky a boss stojí: vítězná řeč bosse
+        if (after.over && !after.won && after.hearts > 0) line = Boss.lineFor(boss, 'win', after.stage, Math.random, fight.lastLine);
+        fight.lastLine = line;
+        showBossBubble(line, kind);
+        bossFeedbackTimer = setTimeout(() => {
+            if (!bossLive(fight) || fight.phase !== 'feedback') return;
+            if (after.over) finishBossFight(fight);
+            else showBossQuestion(fight);
+        }, wait);
+    };
+    // Konec souboje: pokus se zapíše (v zařízení i na server), XP a emblém za první výhru v týdnu, pak obrazovka výsledku.
+    // silent = hráč mezitím odešel jinam (výsledek se jen uloží)
+    const finishBossFight = async (fight, { silent = false } = {}) => {
+        if (fight && fight.phase === 'end') return;
+        if (fight) fight.phase = 'end';
+        if (!silent) stopBossTimers();
+        let state = loadBoss();
+        if (!state.open) { if (!silent) renderBossIntro(); return; }
+        const open = state.open;
+        const emblemNew = !Boss.emblemsOf(state, loadProgress().badges)[open.boss];
+        const done = Boss.finishAttempt(state, Date.now());
+        state = done.state;
+        const entry = state.weeks[open.week];
+        const payXp = done.status.won && done.firstWin && !entry.xp;
+        if (payXp) entry.xp = true;
+        saveBoss(state);
+        const boss = Boss.BY_ID[open.boss];
+        const xp = awardBossProgress({ xp: payXp ? Boss.winXp() : null, fought: true, won: done.status.won && done.firstWin });
+        bossResult = { week: open.week, boss, status: done.status, n: open.n, firstWin: done.firstWin, emblemNew: done.status.won && emblemNew, xp,
+            line: (fight && fight.lastLine) || Boss.lineFor(boss, done.status.won ? 'defeat' : 'win') };
+        if (bossRanked()) pushBossAttempts().then(() => refreshBossServer(true));
+        if (silent) return;
+        current = null;
+        round = null;
+        bossFight = null;
+        renderBossResult({ fresh: true });
+    };
+    const renderBossResult = ({ fresh = false } = {}) => {
+        const result = bossResult;
+        if (!result || !Boss) { renderHome(); return; }
+        stopBossTimers();
+        screen = 'boss-done';
+        mode = 'boss';
+        const state = loadBoss();
+        const me = bossServerMe(result.week);
+        const won = result.status.won;
+        const badge = BADGE_BY_ID[Boss.badgeId(result.boss.id)];
+        const user = signedUser();
+        if (won && user && Showcase && myShowcase === null) loadMyShowcase(user).then(() => { if (screen === 'boss-done' && bossResult === result) renderBossResult(); });
+        const toggle = won && Showcase ? showcaseToggle(Showcase.badge(Boss.badgeId(result.boss.id)), true).replace('<button type="button"', '<button type="button" data-action="boss-showcase"') : '';
+        appContent.innerHTML = Boss.resultHtml({
+            boss: result.boss, status: result.status, n: result.n, used: Boss.attemptsUsed(state, result.week, me), best: Boss.bestDamage(state, result.week, me),
+            emblemNew: result.emblemNew, xp: result.xp, line: result.line, community: bossCommunity(result.week), next: Boss.bossForWeek(Boss.addWeeks(result.week, 1)),
+            emblemHtml: badge ? medalHtml(badge, true, 'h-16 w-16', 'h-7 w-7') : '', showcase: toggle
+        }, bossHelpers());
+        applyProgress(appContent);
+        renderIcons(appContent);
+        appContent.scrollTo(0, 0);
+        updateControlsUI();
+        if (!fresh) return;
+        const verdict = appContent.querySelector('[data-boss-verdict]');
+        if (verdict) verdict.focus({ preventScroll: true });
+        if (Sound) {
+            if (won) { Sound.play('bossDown'); Sound.play('record'); Sound.vibrate('record'); } else Sound.play('bossLaugh');
+        }
+    };
+    const leaveBoss = () => {
+        stopBossTimers();
+        bossFight = null;
+        current = null;
+        round = null;
+        renderHome();
+    };
+    // --- Řetězovka dne (chain.js): odpověď je začátkem další otázky, 7 článků stejných pro všechny, Záchrana, cvičná řetězovka ---
+    // Graf vazeb, řetěz, body, obrazovky i klepnutí má chain.js; sem patří jen napojení na zbytek aplikace (data témat, server, XP).
+    // Přihlášenému se výsledek dne zapíše na server (social.js chainSubmit, blok „21: Řetězovka“ ve schema.sql) a ukáže se pořadí dne.
+    const Chain = window.MudrlantChain || null;
+    if (Chain) {
+        chainCtl = Chain.createController({
+            appContent, setScreen: (name) => { screen = name; }, getScreen: () => screen, renderHome, renderIcons, updateControlsUI, closePlaceInfo, showToast, showDialog, closeDialog,
+            uiArt, specialTile, avatarHtml, xpLine, meRow: () => quizHelpers().meRow, loadTopic, loadCountries, readJson, writeJson, signedUser, social: Social, auth: Auth, startLogin,
+            shareCard: ShareCard, shareImageCounted, robeNow, appUrl, appName: APP_NAME, sound: Sound, isLoading: () => isLoading,
+            // XP jednou za den a zařízení (chain.js to hlídá) a počítadla dohraných a celých řetězů
+            awardXp: (xp, summary) => {
+                const before = loadProgress();
+                const progress = { ...before, xp: before.xp + xp.total };
+                progress.counters.chainDone = (progress.counters.chainDone || 0) + 1;
+                if (summary.full) progress.counters.chainFull = (progress.counters.chainFull || 0) + 1;
+                const titles = grantBadges(progress);
+                saveProgress(progress);
+                announce(levelProgress(before.xp).level, levelProgress(progress.xp).level, titles);
+                settleGoals();
+                applyLook();
+                syncProgress();
+            }
+        });
+    }
+
     // --- Týdenní turnaje ---
     // Pravidla a posun kol dělá databáze (supabase/schema.sql) a čistá logika je v tournament.js; tady se zobrazí karta na záložce Více hráčů,
     // okno s koly a zápasy a hra zápasu (otázky z pevného semínka stejně jako ve výzvě, ale bez zápisu do tabulky výzev).
@@ -9825,7 +11077,12 @@
             signedIn: Boolean(signedUser()), multiAvailable: Boolean(Auth && Auth.isConfigured() && Social), reviewOn: reviewEnabled(),
             quiz: Boolean(DailyQuiz), mystery: Boolean(Mystery), modes: Boolean(Modes), goals: Boolean(Goals && Rewards), freezes: Rewards ? loadRewards().freezes : 0,
             season: Boolean(Season && Rewards), album: Boolean(Album), chronicle: Boolean(Chronicle), showcase: Boolean(Showcase && myShowcase !== null), leagueSeasons: Boolean(LeagueSeasons && leagueSeasons),
-            maxStars: Math.max(0, ...Object.values(loadLearned()).map(ids => masteryStars((ids || []).length)))
+            gold: Boolean(Gold && Rewards),
+            boss: Boolean(Boss),
+            maxStars: Math.max(0, ...Object.values(loadLearned()).map(ids => masteryStars((ids || []).length))),
+            // Kamarádské sázky: tip jen s databází, která sázky má
+            bets: betsReady(),
+            chain: Boolean(chainCtl)
         });
     };
     // Záložka Nastavení, kterou otevře tlačítko tipu (tip „Obleč si Mudrlanta“ → Mudrlant); bez ní poslední otevřená
@@ -9841,8 +11098,12 @@
         goals: () => { closeDialog(); openGoals(); },
         chronicle: () => { closeDialog(); openChronicle(); },
         mystery: () => { closeDialog(); openMystery(); },
+        boss: () => { closeDialog(); openBoss(); },
+        chain: () => { closeDialog(); if (chainCtl) chainCtl.open(); },
         leagueSeasons: () => { closeDialog(); openLeagueSeasons(); },
-        groups: () => { closeDialog(); openHomeTabFromPush('multi'); if (GroupsUI) GroupsUI.openList(); }
+        groups: () => { closeDialog(); openHomeTabFromPush('multi'); if (GroupsUI) GroupsUI.openList(); },
+        gold: () => { closeDialog(); openGoldInfo(); },
+        conquest: () => { closeDialog(); if (ConquestUI) ConquestUI.openHub(); }
     };
     const openTip = (tip) => {
         if (!tip || document.getElementById('dialog-overlay')) return;
@@ -10877,6 +12138,39 @@
         });
     }
 
+    // Dobývání (conquest.js, conquest-ui.js): karta na záložce Více hráčů, rozcestník her a obrazovka hry 'conquest'.
+    // Mapa se načte až při použití (data/dobyvani-<mapa>.json), otázky z dat témat Zeměpis, Vlajky a znaky a Architektura.
+    // Odměna po konci hry (server ji vydá jen jednou): XP a za 1. místo počítadlo odznaku Dobyvatel.
+    const loadConquestMap = memoizeBy((id) => fetchJson(`data/dobyvani-${id}.json`));
+    if (window.MudrlantConquest && window.MudrlantConquestUI && Social) {
+        ConquestUI = window.MudrlantConquestUI.createUI({
+            Conquest: window.MudrlantConquest, Social, appContent, signedUser, renderIcons, showDialog, closeDialog, showToast,
+            login: () => { if (Auth) startLogin(); },
+            isActive: () => screen === 'conquest',
+            enter: () => { screen = 'conquest'; closePlaceInfo(); closeDialog(); updateControlsUI(); },
+            loadMap: (id) => loadConquestMap(id),
+            loadTopics: async () => {
+                const [zemepis, vlajky, architektura] = await Promise.all(['zemepis', 'vlajky', 'architektura'].map(id => (TOPIC_BY_ID[id] ? loadTopic(id).catch(() => null) : null)));
+                return { zemepis: zemepis ? zemepis.items : [], vlajky: vlajky ? vlajky.items : [], architektura: architektura ? architektura.items : [] };
+            },
+            award: ({ xp = 0, badge = false }) => {
+                const before = loadProgress();
+                const progress = { ...before, xp: before.xp + xp };
+                if (badge) progress.counters.conquestWins = (progress.counters.conquestWins || 0) + 1;
+                if (xp) chronicleLog({ xp });
+                const titles = grantBadges(progress);
+                saveProgress(progress);
+                announce(levelProgress(before.xp).level, levelProgress(progress.xp).level, titles);
+                settleGoals();
+                applyLook();
+                syncProgress();
+            },
+            share: (payload) => ShareCard ? ShareCard.shareText(payload, { toast: showToast, copied: 'Odkaz na hru zkopírován', failed: 'Kopírování se nepodařilo' }) : null,
+            sound: (name) => { if (Sound) Sound.play(name); },
+            touchTip
+        });
+    }
+
     // Všechny akce přes delegaci událostí – stránka nepotřebuje inline JavaScript (kvůli CSP)
     const ACTIONS = {
         daily: (button) => { lastDailyTopic = button.dataset.topic; startDaily(button.dataset.topic); },
@@ -10888,6 +12182,8 @@
         'open-profile': () => openProfile(),
         'open-accept': () => openAccepted(),
         'groups-open': () => { touchTip('groups'); if (GroupsUI) GroupsUI.openList(); },
+        'conquest-open': () => { if (ConquestUI) ConquestUI.openHub(); },
+        'conquest-play': (button) => { if (ConquestUI) ConquestUI.openGame(button.dataset.game); },
         // Přátelé a reakce (friends.js)
         'friend-accept': (button) => answerFriendRequest(button.dataset.id, true),
         'friend-decline': (button) => answerFriendRequest(button.dataset.id, false),
@@ -10940,6 +12236,23 @@
         'mystery-share': () => shareMystery(),
         'mystery-share-image': () => shareMysteryImage(),
         'mystery-login': () => { if (Auth) startLogin(); },
+        // Boss týdne (boss.js)
+        'boss-open': () => openBoss(),
+        'boss-start': () => startBossFight(),
+        'boss-again': () => startBossFight(),
+        'boss-home': () => leaveBoss(),
+        'boss-rules': () => openBossRules(),
+        'boss-hall': () => openBossHall(),
+        'boss-login': () => { if (Auth) startLogin(); },
+        'boss-choice': (button) => answerBoss({ index: Number(button.dataset.index) }),
+        'boss-skip': () => answerBoss({ skip: true }),
+        'boss-retry': () => { if (bossFight) showBossQuestion(bossFight); },
+        'boss-showcase': (button) => {
+            toggleShowcase(button.dataset.showcaseToggle).then(message => { if (message) showToast(message); if (screen === 'boss-done') renderBossResult(); });
+            renderBossResult();
+        },
+        // Řetězovka dne (chain.js)
+        ...(chainCtl ? chainCtl.actions : {}),
         'challenge-retry': () => finishChallenge(true),
         'challenge-home': () => challengeHome(),
         'challenge-breakdown': () => { if (challenge && !challenge.tournament) openChallengeBreakdown(challenge, challenge.lastResults || []); },
@@ -10986,6 +12299,8 @@
         'season-open': () => openSeason(),
         'freeze-info': () => openFreezeHelp(),
         'clear-mistakes': () => clearMistakes(),
+        'gold-chest': () => openChestOverlay(true),
+        'gold-info': () => openGoldInfo(),
         'order-pick': (button) => numericPick(Number(button.dataset.index)),
         'order-confirm': () => numericConfirm(),
         choice: (button) => {
@@ -11016,6 +12331,7 @@
     appContent.addEventListener('submit', (event) => {
         if (event.target.id === 'estimate-form') { event.preventDefault(); numericEstimate(event.target); return; }
         if (event.target.id === 'mystery-form') { event.preventDefault(); submitMysteryTip({ text: event.target.elements.answer.value.trim() }); return; }
+        if (event.target.id === 'boss-form') { event.preventDefault(); answerBoss({ text: event.target.elements.answer.value.trim() }); return; }
         if (event.target.id !== 'answer-form') return;
         event.preventDefault();
         if (!round || round.variant !== 'typed') return;
@@ -11127,8 +12443,14 @@
             challengeHome();
         } else if (screen === 'quiz' || screen === 'quiz-done' || screen === 'mystery') {
             renderHome();
+        } else if (screen === 'conquest') {
+            if (!ConquestUI || !ConquestUI.back()) renderHome();
+        } else if (screen === 'chain') {
+            if (chainCtl) chainCtl.leave(); else renderHome();
         } else if (screen === 'mode') {
             leaveMode();
+        } else if (screen === 'boss' || screen === 'boss-done') {
+            leaveBoss();
         } else if (screen === 'learn') {
             const up = { atlas: 'collection', collection: 'topic', topic: 'home', mistakes: 'home' }[learn.view];
             if (up) openLearn(up);
@@ -11220,6 +12542,7 @@
         const invite = takeInviteCode();
         if (invite) writeJson(KEYS.pendingChallenge, invite);
         const groupInvite = GroupsUI ? GroupsUI.takeLink() : '';
+        const conquestInvite = ConquestUI ? ConquestUI.takeLink() : '';
         let shownUserId = null;
         Auth.onChange((state) => {
             if (document.getElementById('settings-overlay')) openSettings();
@@ -11234,6 +12557,7 @@
                 quizServer = null; quizServerAt = 0;
                 leagueSeasons = null; leagueSeasonsAt = 0; myShowcase = null; myShowcaseAt = 0; seasonPick = null;
                 if (GroupsUI) GroupsUI.reset();
+                if (ConquestUI) ConquestUI.reset();
                 updateProfileButton();
                 paintChallenges();
             }
@@ -11244,6 +12568,7 @@
                 try { localStorage.removeItem(KEYS.pendingChallenge); } catch (e) { /* bez úložiště se kód nepamatuje */ }
                 openChallenge(pending);
             } else if (GroupsUI) GroupsUI.afterLogin();
+            if (ConquestUI) ConquestUI.afterLogin();
             refreshChallenges();
             if (state.user) { flushReports(); flushAnswerStats(); }
             // Přihlášení z výsledku Kvízu dne („Přihlas se a uvidíš se v pořadí“): výsledek se otevře znovu a zapíše na účet
@@ -11259,6 +12584,8 @@
             if (!state.user && invite) openChallenge(invite);
             // Odkaz do skupiny: přihlášený se rovnou přidá (náhled a Přidat se), nepřihlášený se nejdřív přihlásí
             else if (groupInvite && GroupsUI) GroupsUI.openJoin(groupInvite);
+            // Odkaz do hry Dobývání: přihlášený vybere barvu a znak a přidá se, nepřihlášený se nejdřív přihlásí
+            if (conquestInvite && ConquestUI) ConquestUI.openCode(conquestInvite);
         });
     }
     // Klávesnice na telefonu: Chrome i Safari při jejím otevření zmenší jen viditelnou plochu, okna zarovnaná ke spodku by zůstala pod ní.

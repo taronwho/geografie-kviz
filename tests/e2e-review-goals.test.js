@@ -88,7 +88,9 @@ test('opakování s rozestupy a týdenní cíle', { skip: !chromium && 'Playwrig
             await tab.waitForSelector('#dialog-overlay [data-goal-play]');
             await tab.click('#dialog-overlay [data-goal-play]');
             await tab.waitForFunction(() => document.querySelector('[data-action="choice"], #answer-form, [data-action="mode-start"], #quiz-intro, #chooser-overlay, #challenge-overlay, [data-action="give-up"]')
-                || (document.getElementById('dialog-overlay') && !document.querySelector('#dialog-overlay [data-goal-info]')), null, { timeout: 30000 });
+                || (document.getElementById('dialog-overlay') && !document.querySelector('#dialog-overlay [data-goal-info]'))
+                // Cíl výzev nebo turnaje u hosta: záložka Více hráčů s pozvánkou k přihlášení
+                || Boolean(document.querySelector('[data-action="home-tab"][data-tab="multi"][aria-selected="true"]')), null, { timeout: 30000 });
             assert.deepEqual(problems, []);
             await context.close();
         });

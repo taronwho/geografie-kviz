@@ -366,8 +366,10 @@ test('Bleskovka, Přežití, zvuky a vibrace', { skip: !chromium && 'Playwright 
             assert.equal(await tab.getAttribute('[data-vibration-toggle]', 'aria-checked'), 'true');
             assert.equal(await tab.getAttribute('[data-sound-toggle]', 'role'), 'switch');
             const sizes = await tab.evaluate(() => [...document.querySelectorAll('[data-sound-toggle], [data-vibration-toggle]')].map(el => { const r = el.getBoundingClientRect(); return Math.min(r.width, r.height); }));
-            // Řádek přepínače: 44 px, na nízkém displeji (360×640) 40 px, ať se karta Hra vejde bez posouvání
-            for (const size of sizes) assert.ok(size >= (viewport.height > 770 ? 44 : 40), `přepínač ${size} px`);
+            // Řádek přepínače: 44 px, na nízkém displeji (360×640, nebo když se úvod nevejde a aplikace se zhustí třídou fit-short) 40 px,
+            // ať se karta Hra vejde bez posouvání
+            const short = await tab.evaluate(() => matchMedia('(max-height: 770px)').matches || document.documentElement.classList.contains('fit-short'));
+            for (const size of sizes) assert.ok(size >= (short ? 40 : 44), `přepínač ${size} px`);
             // Karta Hra se neposouvá na 390×780 ani na 360×640 (host)
             const over = await tab.evaluate(() => { const box = document.querySelector('#settings-overlay > div'); return box.scrollHeight - box.clientHeight; });
             assert.ok(over <= limit, `karta Hra ${viewport.width}×${viewport.height}: posun ${over} px (nejvýš ${limit})`);

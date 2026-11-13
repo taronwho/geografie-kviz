@@ -300,21 +300,15 @@
     const LABEL = 'text-[11px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400';
 
     // Karta na úvodní stránce (Jeden hráč): stav dne a jedno tlačítko; zlatá tečka = dnes ještě nehráno
-    const homeCardHtml = ({ status = 'new', answered = 0, summary = null, rank = null, streak = 0 }) => {
-        const done = status === 'done';
+    // Dlaždice Kvízu dne v řadě Výzvy na úvodu (vykreslí app.js specialTile): krátký stav pod názvem, celý v popisku pro čtečku
+    const homeTile = ({ status = 'new', answered = 0, summary = null, rank = null }) => {
+        const done = status === 'done' && summary;
         const progress = status === 'progress';
-        const text = done ? `${pointsWord(summary.score)} · ${summary.correct}/${QUESTIONS}${rank ? ` · ${rank}. místo` : ''}`
-            : progress ? `Rozehráno · otázka ${Math.min(answered + 1, QUESTIONS)}/${QUESTIONS}` : `${QUESTIONS} otázek pro všechny · pořadí`;
-        const label = done ? 'Výsledek' : progress ? 'Pokračovat' : 'Hrát';
-        return `
-            <button type="button" id="quiz-card" data-action="quiz-open" data-quiz-status="${status}" aria-label="Kvíz dne: ${esc(text)}" class="relative flex w-full shrink-0 items-center gap-2.5 rounded-[1.4rem] bg-white px-2.5 py-1.5 text-left shadow-sm ring-2 ring-gold-400 transition-all active:scale-[0.99] dark:bg-slate-800/70 dark:ring-gold-500/70">
-                <span class="relative flex shrink-0">${art('stopky', 'h-8 w-8 short:h-7 short:w-7')}${!done && !progress ? '<span aria-hidden="true" data-quiz-new class="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-gold-500 ring-2 ring-white dark:ring-slate-800"></span>' : ''}${streak > 1 ? `<span class="absolute -bottom-1.5 -right-2 flex items-center rounded-lg bg-slate-900/85 py-px pl-0 pr-1 text-[10px] font-black text-white shadow ring-1 ring-white/20" title="Moje série Kvízu dne">${art('serie', 'h-3.5 w-3.5')}${streak}</span>` : ''}</span>
-                <span class="min-w-0 flex-1">
-                    <span class="block text-[13px] font-black leading-tight text-slate-800 dark:text-slate-100">Kvíz dne</span>
-                    <span class="block text-[11px] font-bold leading-tight text-slate-500 dark:text-slate-400">${esc(text)}</span>
-                </span>
-                <span class="flex shrink-0 items-center gap-1.5 rounded-xl px-3 py-1.5 text-[13px] font-black short:py-1 ${done ? 'bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-100' : 'btn-3d bg-brand-700 text-white'}"><i data-lucide="${done ? 'trophy' : 'play'}" class="h-4 w-4"></i>${label}</span>
-            </button>`;
+        const text = done ? (rank ? `${rank}. místo · ${summary.correct}/${QUESTIONS}` : `${summary.correct}/${QUESTIONS} · ${pointsWord(summary.score)}`)
+            : progress ? `Otázka ${Math.min(answered + 1, QUESTIONS)}/${QUESTIONS}` : `${QUESTIONS} otázek`;
+        const label = done ? `Kvíz dne: ${pointsWord(summary.score)} · ${summary.correct}/${QUESTIONS}${rank ? ` · ${rank}. místo` : ''}`
+            : progress ? `Kvíz dne: rozehráno, otázka ${Math.min(answered + 1, QUESTIONS)} z ${QUESTIONS}` : `Kvíz dne: ${QUESTIONS} otázek pro všechny, pořadí`;
+        return { text, label, fresh: !done && !progress };
     };
 
     // Úvod: co Kvíz dne je, pravidla a tlačítko Začít / Pokračovat; topics = 10 témat dne (ikony)
@@ -430,6 +424,6 @@
         slotsFor, tiersOf, pickFor, previousPicks, planDay,
         summarize, bitsOf, emojiGrid, shareText, poseFor, streakOf, bestStreakOf, xpFor,
         parseState, newAttempt, attemptSummary, rollover, playedDays, nextIndex,
-        homeCardHtml, introHtml, rankingHtml, resultHtml
+        homeTile, introHtml, rankingHtml, resultHtml
     };
 });

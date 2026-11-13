@@ -208,7 +208,7 @@ test('Kvíz dne v prohlížeči', { skip: !chromium && 'Playwright není nainsta
         const { context, tab, log } = await setup(browser, { 'mudrlant.variant': 'typed' }, { viewport: { width: 360, height: 640 } });
         assert.equal(await tab.getAttribute('#quiz-card', 'data-quiz-status'), 'new');
         assert.ok(await tab.$('#quiz-card [data-quiz-new]'), 'zlatá tečka: dnes ještě nehráno');
-        assert.match(await compact(tab, '#quiz-card'), /Kvíz dne 10 otázek pro všechny · pořadí Hrát/);
+        assert.match(await compact(tab, '#quiz-card'), /Kvíz dne 10 otázek/);
         await fitsScreen(tab, 'úvod s kartou Kvízu dne (360×640)');
         await tab.click('#quiz-card');
         await tab.waitForSelector('#quiz-intro');
@@ -298,7 +298,7 @@ test('Kvíz dne v prohlížeči', { skip: !chromium && 'Playwright není nainsta
         // Zavření aplikace uprostřed otázky
         await tab.reload();
         await tab.waitForSelector('#quiz-card[data-quiz-status="progress"]');
-        assert.match(await compact(tab, '#quiz-card'), /Rozehráno · otázka 3\/10 Pokračovat/);
+        assert.match(await compact(tab, '#quiz-card'), /Otázka 3\/10/);
         await tab.click('#quiz-card');
         await tab.waitForSelector('#quiz-intro');
         assert.match(await compact(tab, '[data-action="quiz-start"]'), /Pokračovat · otázka 3\/10/);
@@ -378,7 +378,7 @@ test('Kvíz dne v prohlížeči', { skip: !chromium && 'Playwright není nainsta
         await tab.click('[data-action="quiz-home"]');
         await tab.waitForSelector('#quiz-card[data-quiz-status="done"]');
         // 8 správně bez nápověd = 32 bodů: za Evou (40), před Petrem (30)
-        assert.match(await compact(tab, '#quiz-card'), /32 bodů · 8\/10 · 2\. místo/);
+        assert.match(await compact(tab, '#quiz-card'), /2\. místo · 8\/10/);
         assert.deepEqual(log.errors, []);
         assert.deepEqual(log.csp, []);
         await context.close();

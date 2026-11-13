@@ -230,7 +230,17 @@
     };
 
     // Úroveň (XP) a odznaky v účtu; sloupce přibyly pozdější verzí schématu, bez nich volající chybu ignoruje
-    const getProgress = async (userId) => (await withExtras(extras => request('GET', `profiles?id=eq.${encodeURIComponent(userId)}&select=xp,badges${extras ? ',title_pref' : ''}`)) || [])[0] || null;
+    // Kamarádské sázky (schéma 21): se XP i součty vyhraných a prohraných XP ze sázek (bet_won, bet_lost), ať je zařízení sladí ve stejném
+    // okamžiku jako XP (bets.js reconcile); databáze bez nich odpoví 400 a dál se o ně nežádá
+    let betTotalsMissing = false;
+    const getProgress = async (userId) => {
+        const run = () => withExtras(extras => request('GET', `profiles?id=eq.${encodeURIComponent(userId)}&select=xp,badges${extras ? ',title_pref' : ''}${betTotalsMissing ? '' : ',bet_won,bet_lost'}`));
+        try { return ((await run()) || [])[0] || null; } catch (error) {
+            if (error.status !== 400 || betTotalsMissing) throw error;
+            betTotalsMissing = true;
+            return ((await run()) || [])[0] || null;
+        }
+    };
     const saveProgress = (userId, { xp, badges }) => request('PATCH', `profiles?id=eq.${encodeURIComponent(userId)}`, {
         body: { xp: wholeNumber(xp, 500000), badges: badges.filter(id => typeof id === 'string' && /^[a-z0-9-]{1,40}$/.test(id)).slice(0, 200) }, prefer: 'return=minimal'
     });
@@ -828,6 +838,63 @@
         }));
         return { day: cleanDay(data.day), hidden: false, friends: wholeNumber(data.friends, 100000), rank: wholeNumber(data.rank, 100000) || null, rows };
     });
+    // --- Boss týdne (schéma 21, boss.js): odeslání dohraného souboje, společná lišta týdne a společný bonus za skončený týden ---
+    // Databáze bez funkcí (404): vrací se null a dál se o ně nežádá (aplikace hraje jen v zařízení, bez společné lišty); jiné chyby se vyhodí
+    let bossMissing = false;
+    const guardBoss = async (run) => {
+        if (bossMissing) return null;
+        try { return await run(); } catch (error) {
+            if (error.status === 404) { bossMissing = true; return null; }
+            throw error;
+        }
+    };
+    const cleanWeek = (value) => (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : null);
+    const cleanBossMe = (row) => (row && typeof row === 'object' ? {
+        week: cleanWeek(row.week), attempts: wholeNumber(row.attempts, 3), best_damage: wholeNumber(row.best_damage, 700), defeated: row.defeated === true,
+        bonus_claimed: row.bonus_claimed === true, first_win: row.first_win === true
+    } : null);
+    // Dohraný souboj: týden (pondělí), idx = kolikátý pokus (0–2), poškození 0–700, výhra; vrátí můj stav týdne s first_win
+    const bossSubmit = (week, idx, damage, defeated) => guardBoss(async () => cleanBossMe(await request('POST', 'rpc/boss_submit', {
+        body: { for_week: cleanWeek(week), idx: wholeNumber(idx, 2), damage: wholeNumber(damage, 700), is_defeated: Boolean(defeated) }
+    })));
+    // Společná lišta týdne (null = běžící týden): hráči, kteří to zkusili, kolik bosse porazilo, splněná polovina, konec týdne a můj stav
+    const bossWeekStats = (week = null) => guardBoss(async () => {
+        const data = (await request('POST', 'rpc/boss_week_stats', { body: { for_week: cleanWeek(week) } })) || {};
+        return { week: cleanWeek(data.week), players: wholeNumber(data.players, 10000000), defeated: wholeNumber(data.defeated, 10000000), defeated_pct: wholeNumber(data.defeated_pct, 100),
+            reached: data.reached === true, over: data.over === true, me: cleanBossMe(data.me) };
+    });
+    // Společný bonus za skončený týden: { xp (kolik si připsat), reached, played, claimed }
+    const bossClaimBonus = (week) => guardBoss(async () => {
+        const data = (await request('POST', 'rpc/boss_claim_bonus', { body: { for_week: cleanWeek(week) } })) || {};
+        return { week: cleanWeek(data.week), xp: Math.min(50, wholeNumber(data.xp, 50)), reached: data.reached === true, played: data.played === true, claimed: data.claimed === true };
+    });
+    // --- Řetězovka dne (blok 21 ve schema.sql, chain.js): odeslání výsledku dne a pořadí dne ---
+    // Databáze bez funkcí (404): vrací se null a dál se o ně nežádá (hraje se jen v zařízení, bez pořadí); jiné chyby se vyhodí
+    let chainMissing = false;
+    const guardChain = async (run) => {
+        if (chainMissing) return null;
+        try { return await run(); } catch (error) {
+            if (error.status === 404) { chainMissing = true; return null; }
+            throw error;
+        }
+    };
+    const cleanChainMe = (row) => (row && typeof row === 'object'
+        ? { links: wholeNumber(row.links, 7), score: wholeNumber(row.score, 28), rescued: row.rescued === true, rank: wholeNumber(row.rank, 10000000) || null } : null);
+    // Výsledek dne (články, body, Záchrana); server přijme jen první výsledek dne a vrátí ten uložený
+    const chainSubmit = (day, links, score, rescued) => guardChain(async () => cleanChainMe(await request('POST', 'rpc/chain_submit', {
+        body: { for_day: cleanDay(day), links: wholeNumber(links, 7), score: wholeNumber(score, 28), rescued: Boolean(rescued) }
+    })));
+    // Hráči dne, podíl celých řetězů, nejlepší výsledek, moje místo a nejlepší hráči (top)
+    const chainDayStats = (day = null) => guardChain(async () => {
+        const data = (await request('POST', 'rpc/chain_day_stats', { body: { for_day: cleanDay(day) } })) || {};
+        const top = (Array.isArray(data.top) ? data.top : []).filter(row => row && row.id).map(row => ({
+            rank: wholeNumber(row.rank, 10000000) || 1, id: String(row.id), display_name: String(row.display_name || 'Hráč'), avatar: row.avatar, color: row.color,
+            frame: cleanFrame(row.frame), title_pref: cleanTitlePref(row.title_pref), owl: cleanOwl(row.owl),
+            links: wholeNumber(row.links, 7), score: wholeNumber(row.score, 28), rescued: row.rescued === true, me: row.me === true
+        }));
+        return { day: cleanDay(data.day), players: wholeNumber(data.players, 10000000), full: wholeNumber(data.full, 10000000), full_pct: wholeNumber(data.full_pct, 100),
+            best: wholeNumber(data.best, 28), me: cleanChainMe(data.me), top };
+    });
     // --- Skupiny (schéma 8, groups.js): moje skupiny, detail s pořadím, založení, přidání kódem a správa zakladatelem ---
     // Databáze bez funkcí (404): seznam vrací null (aplikace Skupiny nenabídne) a dál se o ně nežádá; ostatní volání skončí srozumitelnou chybou.
     // Hlášky databáze jsou česky (limit skupin, plná skupina, jen zakladatel…) a předají se dál; jiné chyby nahradí obecný text.
@@ -1001,6 +1068,49 @@
         }
     };
 
+    // ===== Dobývání (schéma 21, conquest.js a conquest-ui.js): lobby, založení, přidání, Chci hrát, odchod, stav, tah a odměna =====
+    // Databáze bez funkcí (404): srozumitelná chyba a dál se o ně nežádá (po novém načtení stránky se zkusí znovu). České hlášky databáze
+    // (plná hra, obsazená barva, limity, tahy na období) se předají dál, jiné chyby nahradí obecný text.
+    let conquestMissing = false;
+    const CONQUEST_MISSING = 'Dobývání zatím není k dispozici (databáze potřebuje nejnovější schema.sql).';
+    const conquestCall = async (name, body, fallback) => {
+        if (conquestMissing) throw new SocialError(CONQUEST_MISSING, 404);
+        try { return await request('POST', `rpc/${name}`, { body }); } catch (error) {
+            if (error instanceof SocialError && error.status === 404) { conquestMissing = true; throw new SocialError(CONQUEST_MISSING, 404); }
+            if (error instanceof SocialError && error.status === 401) throw new SocialError('Nejsi přihlášený.', 401);
+            if (error instanceof SocialError && error.status < 500 && CZECH_MESSAGE.test(error.message)) throw error;
+            throw new SocialError(fallback, error && error.status);
+        }
+    };
+    const conquestId = (value) => { if (!isUuid(value)) throw new SocialError('Neplatná hra.', 400); return value; };
+    const conquestText = (value, max = 24) => String(value || '').slice(0, max);
+    const conquestGame = (value) => (value && typeof value === 'object' && isUuid(value.id) ? { ...value, players: Array.isArray(value.players) ? value.players.filter(row => row && row.id) : [] } : null);
+    // { open: [hra], mine: [hra s budget, owners, claimed] }
+    const conquestLobby = async () => {
+        const data = (await conquestCall('conquest_lobby', {}, 'Hry se nepodařilo načíst. Zkontroluj připojení.')) || {};
+        return { open: (Array.isArray(data.open) ? data.open : []).map(conquestGame).filter(Boolean), mine: (Array.isArray(data.mine) ? data.mine : []).map(conquestGame).filter(Boolean) };
+    };
+    const conquestCreate = async ({ map, players, hours, period, actions, visibility, color, emblem }) => conquestGame(await conquestCall('conquest_create', {
+        map_id: conquestText(map), players: wholeNumber(players, 8), hours: wholeNumber(hours, 168), per: conquestText(period, 8), actions_per: wholeNumber(actions, 10),
+        vis: conquestText(visibility, 8), colour: conquestText(color), emblem_id: conquestText(emblem)
+    }, 'Hru se nepodařilo založit. Zkus to znovu.'));
+    // Přidání: veřejná hra podle id, soukromá kódem
+    const conquestJoin = async ({ game = null, code = '', color, emblem }) => conquestGame(await conquestCall('conquest_join', {
+        game: game ? conquestId(game) : null, join_code: conquestText(code, 12), colour: conquestText(color), emblem_id: conquestText(emblem)
+    }, 'Přidat se do hry se nepodařilo. Zkus to znovu.'));
+    const conquestSetLook = async (game, color, emblem) => conquestGame(await conquestCall('conquest_set_look', { game: conquestId(game), colour: conquestText(color), emblem_id: conquestText(emblem) }, 'Barvu a znak se nepodařilo uložit.'));
+    const conquestReady = async (game, ready) => conquestGame(await conquestCall('conquest_ready', { game: conquestId(game), is_ready: Boolean(ready) }, 'Nepodařilo se. Zkus to znovu.'));
+    const conquestLeave = (game) => conquestCall('conquest_leave', { game: conquestId(game) }, 'Odejít ze hry se nepodařilo. Zkus to znovu.');
+    const conquestState = async (game) => conquestGame(await conquestCall('conquest_state', { game: conquestId(game) }, 'Hru se nepodařilo načíst. Zkontroluj připojení.'));
+    // Tah: kind = 'attack' | 'fortify', correct = odpověď na otázku, source = vlastní území, odkud útok vede
+    const conquestMove = async (game, territory, kind, correct, source = null) => conquestGame(await conquestCall('conquest_move', {
+        game: conquestId(game), target: conquestText(territory, 16), move_kind: kind === 'fortify' ? 'fortify' : 'attack', is_correct: Boolean(correct), source: source ? conquestText(source, 16) : null
+    }, 'Tah se nepodařilo uložit. Zkontroluj připojení.'));
+    const conquestClaim = async (game) => {
+        const data = (await conquestCall('conquest_claim', { game: conquestId(game) }, 'Výsledek se nepodařilo načíst.')) || {};
+        return { place: wholeNumber(data.place, 8) || null, players: wholeNumber(data.players, 8), score: wholeNumber(data.score, 1000), eligible: data.eligible === true, claimed_now: data.claimed_now === true };
+    };
+
     return { AVATARS, allAvatars, cleanAvatar, cleanColor, customHue, nearestColor, cleanFrame, cleanOwl, saveOwl, cleanTitlePref, saveLook, COLORS, COUNTS, NAME_MAX, SocialError, cleanName, isValidName, newCode, parseCode, getProfile, saveProfile, createChallenge, getChallenge, getResults, submitResult, myChallenges, searchPlayers, randomOpponent, incomingChallenges, playerStats, getProgress, saveProgress, getRating, getRatingChange, weeklyLeaderboard, getAccepts, saveAccepts,
         tournamentTick, getTournaments, tournamentArchive, ARCHIVE_PAGE, inTournament, devTournament, devClientErrors, isDevAdmin, schemaVersion, reportQuestion, getQuestionReports, deleteQuestionReport, exportMyData, deleteMyAccount, getTournamentEntries, getTournamentMatches, joinTournament, leaveTournament, startTournamentMatch, finishTournamentMatch, myTournamentStats, tournamentNotices, tournamentNoticesSeen,
         challengeProgress, saveChallengeProgress, tournamentAnswers, saveTournamentAnswer, claimTournamentXp, cleanAnswerLabel,
@@ -1018,5 +1128,11 @@
         // Odměny (schéma 9)
         getRewards, saveRewards,
         // Ligové sezóny a vitrína (schéma 18)
-        leagueSeasons, SHOWCASE_ENTRY, cleanShowcase, getShowcase, saveShowcase };
+        leagueSeasons, SHOWCASE_ENTRY, cleanShowcase, getShowcase, saveShowcase,
+        // Boss týdne (schéma 21)
+        bossSubmit, bossWeekStats, bossClaimBonus,
+        // Dobývání (schéma 21)
+        conquestLobby, conquestCreate, conquestJoin, conquestSetLook, conquestReady, conquestLeave, conquestState, conquestMove, conquestClaim,
+        // Řetězovka dne (blok 21)
+        chainSubmit, chainDayStats };
 });
