@@ -233,8 +233,7 @@ test('napojení: modul v index.html před app.js, v mezipaměti, v nasazení, v 
     const sql = read('supabase/schema.sql');
     assert.match(sql, /-- ===== 21: Kamarádské sázky =====/);
     assert.ok(sql.indexOf('-- ===== 21: Kamarádské sázky =====') < sql.indexOf('create or replace function public.schema_version()'), 'verze schématu zůstává na konci souboru');
-    assert.match(sql, /language sql immutable as \$\$ select 20 \$\$/, 'verzi schématu nastaví slučování');
-    assert.match(read('app.js'), /const REQUIRED_SCHEMA = 20;/);
+    assert.ok(Number(/language sql immutable as \$\$ select (\d+) \$\$/.exec(sql)[1]) >= 21 && /language sql immutable as \$\$ select (\d+) \$\$/.exec(sql)[1] === /const REQUIRED_SCHEMA = (\d+);/.exec(read('app.js'))[1], 'schéma aspoň 21 a stejná verze v app.js');
     for (const id of ['sazkar', 'sazky-v-rade-5']) assert.ok(core.BADGE_BY_ID[id], id);
     assert.equal(core.BADGE_BY_ID.sazkar.title, 'Sázkař');
     assert.equal(core.BADGE_BY_ID.sazkar.goal, 5);

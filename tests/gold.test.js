@@ -262,7 +262,7 @@ test('napojení: modul, service worker, nasazení, Tailwind, odznaky Zlatokop (a
     const sql = read('supabase/schema.sql');
     for (const badge of group.badges) assert.ok(sql.includes(`'${badge.id}'`), `${badge.id} v badge_catalog()`);
     assert.match(sql, /-- ===== 21: Zlatá otázka =====/);
-    assert.match(sql, /language sql immutable as \$\$ select 20 \$\$/, 'verzi schématu nastaví slučování');
+    assert.ok(Number(/language sql immutable as \$\$ select (\d+) \$\$/.exec(sql)[1]) >= 21 && /language sql immutable as \$\$ select (\d+) \$\$/.exec(sql)[1] === /const REQUIRED_SCHEMA = (\d+);/.exec(read('app.js'))[1], 'schéma aspoň 21 a stejná verze v app.js');
     // Zvuky existují a jsou krátké
     const Sound = require('../sound.js');
     for (const name of ['gold', 'shard']) assert.ok(Sound.SOUNDS[name] && Sound.lengthOf(name) <= 1.2, name);

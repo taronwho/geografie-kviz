@@ -6,7 +6,7 @@ const path = require('node:path');
 const Tips = require('../tips.js');
 
 const NOW = Date.parse('2026-11-09T10:00:00Z');
-const ACTIONS = ['settings', 'learn', 'progress', 'multi', 'single', 'quiz', 'mystery', 'modes', 'goals', 'chronicle', 'leagueSeasons', 'groups', 'gold', 'boss', 'conquest'];
+const ACTIONS = ['settings', 'learn', 'progress', 'multi', 'single', 'quiz', 'mystery', 'modes', 'goals', 'chronicle', 'leagueSeasons', 'groups', 'gold', 'boss', 'conquest', 'chain'];
 const base = (over = {}) => ({ counters: { answered: 0 }, today: '2026-11-09', now: NOW, launches: 1, signedIn: false, multiAvailable: true, reviewOn: true, ...over });
 
 test('každý tip má id, titulek, text a ikonu, která existuje v icons.js; akce míří na známé místo', () => {
@@ -55,7 +55,7 @@ test('rozpočet za den klesá se zkušeností hráče', () => {
 
 test('funkci, kterou hráč už používá, tip nenabídne; tip se ukáže jen jednou', () => {
     const player = { answered: 700, typedCorrect: 5, created: 2, challenges: 4, tourPlayed: 1, reviewed: 3, noHint: 40, bestStreak: 9, wins: 20, weeksDone: 1,
-        quizDone: 9, blitzGames: 2, orderAnswered: 8, mapAnswered: 6, sharedImages: 1, freezesUsed: 1, chestsOpened: 1, mysterySolved: 2, goldCorrect: 3, bossFights: 1 };
+        quizDone: 9, blitzGames: 2, orderAnswered: 8, mapAnswered: 6, sharedImages: 1, freezesUsed: 1, chestsOpened: 1, mysterySolved: 2, goldCorrect: 3, bossFights: 1, chainDone: 3 };
     const ctx = base({ counters: player, signedIn: true });
     const offered = [];
     let state = { ...Tips.EMPTY, visited: { learn: true, progress: true, look: true, diplomas: true, season: true, album: true, showcase: true, leagueSeasons: true, legends: true, looks: true, groups: true, conquest: true } };
@@ -171,4 +171,15 @@ test('tip na Zlatou otázku: po 12 odpovědích, vede do okna Zlatá otázka; kd
     assert.equal(at(base({ counters: { answered: 50, goldCorrect: 3 } })), null);
     assert.equal(at(base({ counters: { answered: 50 } }), Tips.touch(Tips.EMPTY, 'gold')), null, 'okno Zlatá otázka už hráč viděl');
     assert.equal(at(base({ counters: { answered: 50 }, gold: false })), null, 'bez modulu Zlaté otázky ne');
+});
+
+test('tip na Řetězovku dne: brzy, vede na ni; kdo ji dohrál nebo ji aplikace nemá, tip nedostane', () => {
+    const at = (ctx) => Tips.pick({ ...Tips.EMPTY, seen: Tips.TIPS.filter(tip => tip.id !== 'retezovka').map(tip => tip.id) }, ctx);
+    assert.equal(at(base({ counters: { answered: 6 } })), null, 'až po 7 odpovědích');
+    const tip = at(base({ counters: { answered: 7 } }));
+    assert.equal(tip.id, 'retezovka');
+    assert.deepEqual(tip.action, { kind: 'chain', label: 'Zkusit Řetězovku' });
+    assert.match(tip.text, /Záchrana/);
+    assert.equal(at(base({ counters: { answered: 50, chainDone: 1 } })), null);
+    assert.equal(at(base({ counters: { answered: 50 }, chain: false })), null);
 });

@@ -1513,7 +1513,9 @@ begin
         -- Tajemná otázka dne (schéma 19): moje tipy po dnech (bez odpovědí, ty server nezná)
         'tajemna_otazka', coalesce((select jsonb_agg(to_jsonb(m) order by m.day) from public.mystery_results m where m.user_id = uid), '[]'::jsonb),
         -- Boss týdne (schéma 21): moje výsledky po týdnech (nejlepší poškození, výhra, pokusy, vyzvednutý společný bonus)
-        'boss_tydne', coalesce((select jsonb_agg(to_jsonb(b) order by b.week) from public.boss_results b where b.user_id = uid), '[]'::jsonb)
+        'boss_tydne', coalesce((select jsonb_agg(to_jsonb(b) order by b.week) from public.boss_results b where b.user_id = uid), '[]'::jsonb),
+        -- Řetězovka dne (schéma 21): moje výsledky po dnech
+        'retezovka', coalesce((select jsonb_agg(to_jsonb(r) order by r.day) from public.chain_results r where r.user_id = uid), '[]'::jsonb)
     ) into result;
     return result;
 end;
@@ -3737,44 +3739,6 @@ grant execute on function public.challenge_offer_stake(text, integer, integer), 
     public.challenge_stakes(), public.challenge_stake_stats(uuid) to authenticated;
 -- ===== 21: Kamarádské sázky — KONEC BLOKU =====
 
--- ===== Verze schématu =====
--- Číslo se zvyšuje při KAŽDÉ změně tohoto souboru (tabulka, sloupec, funkce, pravidlo) a zároveň konstanta REQUIRED_SCHEMA v app.js.
--- Aplikace ho po přihlášení porovná a správci (dev_admins nebo vývojářský režim) ukáže v Nastavení, že má schéma spustit znovu;
--- tests/sql-monitor.test.js hlídá, že se obě čísla shodují. Funkce patří na konec souboru: když spuštění skončí chybou dřív, verze zůstane stará.
--- 3: průběh výzev a zápasů turnaje na serveru (challenge_progress, tournament_answers), XP za výhry v turnaji jednou za účet (tournament_xp_claims).
--- 4: zkušební upozornění přes server pro dev_admins (push_tests, dev_push_test, druh 'test' v push_due a push_mark).
--- 5: okamžité odesílání upozornění (push_kick přes pg_cron a pg_net, push_kick_state, push_pending sdílené s push_due, dev_push_status).
--- 6: Jak odpověděli ostatní (answer_stats, answer_stats_limits, answer_stats_submit, answer_stats_topic, dev_suspicious_questions).
--- 7: Kvíz dne (daily_quiz_results, daily_quiz_state/start/answer/board/friends; export_my_data má i 'kviz_dne').
--- 8: Skupiny (groups, group_members, group_challenges, group_join_tries, xp_weekly, funkce group_* a my_groups; export_my_data má i 'skupiny', 'skupiny_vyzvy' a 'xp_tydny';
---    výzva skupině se nepočítá do ratingu).
--- 9: Odměny (profiles.rewards: Truhla Mudrlanta, ochrana série, diplomy; export_my_data je má v řádku profilu) a odznaky Kvízu dne, Bleskovky, Přežití,
---    mapy, odhadu a Seřaď v badge_catalog().
--- 10: Rozpis otázek (challenge_progress a tournament_answers: answer, hints, ms; challenge_progress_save a tournament_answer_save s nepovinnými
---     podrobnostmi; challenge_details a tournament_details vrací soupeřovy odpovědi až po dohrání).
--- 11: upozornění na dohranou výzvu otevřou rovnou její výsledek (push_pending: odkaz s &vyzva=KÓD).
--- 12: boti v turnajích hrají sami každý den od 9:00 (tournament_clock, tournament_bots_due v tournament_tick) a vývojářské dev_tournament_bots_play;
---     o vítězi výzvy i zápasu turnaje rozhodují body, počet správných odpovědí až při shodě (rate_challenge, tournament_pick_winner, friends_list, group_detail).
--- 13: tournament_details ukáže rozpis i cizího rozhodnutého zápasu (ne hráči, který má v tomtéž kole vlastní zápas neodehraný).
--- 14: boti v turnaji ukládají odpovědi po otázkách (správně, body, nápovědy, čas) – rozpis zápasu je ukáže i u nich.
--- 15: Rozpis Kvízu dne (daily_quiz_answers, daily_quiz_answer s textem odpovědi a nápovědami, daily_quiz_details).
--- 16: Obtížnost výzvy ve třech úrovních (challenges.level: Základní, Mudrlant, Mudrlant Expert).
--- 17: Zamrzlé otázky (question_snapshots, question_snapshot_claim, question_snapshots_get: otázka výzvy, zápasu turnaje a Kvízu dne platí pro všechny
---     tak, jak ji sestavil první hráč; export_my_data má i 'zamrzle_otazky'); upozornění „… odehrál tvoji výzvu“ ukáže výsledek, až když
---     zakladatel výzvu sám dohrál (push_pending).
--- 18: Ligové sezóny (league_seasons: nejvyšší liga hráče v každém měsíci podle pražského času, nejlepší skončená sezóna; pomocné league_peaks
---     a league_month_peak) a vitrína v profilu (profiles.showcase: nejvýš 3 položky b:<odznak>, d:<téma>, l:<RRRR-MM>:<liga>; kontrola tvaru
---     showcase_format_ok a obsahu check_showcase);
---     odznaky Album sbírky v badge_catalog() (milníky sberatel-25 … sberatel-100 a celé sekce album-*).
--- 19: Tajemná otázka dne (mystery_results, mystery_state/guess/stats/friends; pomocné mystery_now, mystery_today, mystery_clues_at, mystery_json
---     a mystery_visible; export_my_data má i 'tajemna_otazka') a odznaky Detektiv (detektiv, detektiv-7, detektiv-30, detektiv-100, detektiv-365) v badge_catalog().
--- 20: Tajemná otázka dne – nápovědy rozprostřené přes celý den (0, 7, 9, 11, 13, 15, 17, 20; mystery_clues_at).
-create or replace function public.schema_version() returns integer
-language sql immutable as $$ select 20 $$;
-revoke all on function public.schema_version() from public, anon;
-grant execute on function public.schema_version() to authenticated;
-
--- 21: Boss týdne
 -- ===== Boss týdne (schéma 21) — ZAČÁTEK BLOKU =====
 -- Každý ISO týden (pražský čas, pondělí–neděle) jiný boss pro všechny hráče; kterého a jaké otázky určuje aplikace (boss.js), server zná jen týden.
 -- Hráč má na týden 3 pokusy, počítá se nejlepší: jeden řádek na hráče a týden (week = pondělí týdne). Každý dohraný souboj aplikace pošle
@@ -5465,3 +5429,141 @@ grant execute on function public.conquest_is_player(uuid), public.conquest_is_op
     public.conquest_join(uuid, text, text, text), public.conquest_set_look(uuid, text, text), public.conquest_ready(uuid, boolean), public.conquest_leave(uuid),
     public.conquest_state(uuid), public.conquest_move(uuid, text, text, boolean, text), public.conquest_claim(uuid) to authenticated;
 -- ===== 21: Dobývání — KONEC BLOKU =====
+
+-- ===== Řetězovka dne (blok 21) — ZAČÁTEK BLOKU =====
+-- Každý den (pražský čas) stejný řetěz sedmi otázek pro všechny: odpověď na jednu je začátkem další (chain.js ho sestaví z dat témat,
+-- server otázky nezná). Článek k dává k bodů (celý řetěz 28), špatná odpověď řetěz přetrhne, jednou za hru Záchrana (jiná otázka na stejný
+-- článek za 0 bodů). Jeden řádek na hráče a den: první odeslaný výsledek platí, další se jen vrátí. Body a články musí sedět: bez Záchrany
+-- přesně 1 + 2 + … + články, se Záchranou o jeden zachráněný článek méně (nebo stejně, když Záchrana nevyšla). Tabulku hráč jen čte
+-- (svůj řádek); zapisuje jen chain_submit. Pořadí dne (chain_day_stats) za posledních 30 dní: hráči, podíl celých řetězů, nejlepší
+-- výsledek, moje místo a nejlepší hráči (jen veřejné údaje profilu).
+create table if not exists public.chain_results (
+    day date not null,
+    user_id uuid not null references public.profiles (id) on delete cascade,
+    links smallint not null,
+    score smallint not null,
+    rescued boolean not null default false,
+    created_at timestamptz not null default now(),
+    primary key (user_id, day)
+);
+alter table public.chain_results drop constraint if exists chain_results_values;
+alter table public.chain_results add constraint chain_results_values check (
+    links between 0 and 7 and score between 0 and 28
+    and ((not rescued and score = links * (links + 1) / 2)
+        or (rescued and score between links * (links + 1) / 2 - links and links * (links + 1) / 2)));
+create index if not exists chain_results_day on public.chain_results (day, score desc, created_at);
+alter table public.chain_results enable row level security;
+drop policy if exists "řetězovka: vlastní řádky" on public.chain_results;
+create policy "řetězovka: vlastní řádky" on public.chain_results for select to authenticated using (user_id = auth.uid());
+revoke all on public.chain_results from anon, authenticated;
+grant select on public.chain_results to authenticated;
+
+-- Den Řetězovky (Praha); čas bere z mystery_now (testy ho nastaví přes mudrlant.test_now)
+create or replace function public.chain_today() returns date
+language sql stable set search_path = public as $$
+    select (public.mystery_now() at time zone 'Europe/Prague')::date
+$$;
+
+-- Výsledek a místo hráče v pořadí dne jako JSON (místo = počet lepších + 1, stejné body = stejné místo)
+create or replace function public.chain_json(r public.chain_results) returns jsonb
+language sql stable set search_path = public as $$
+    select case when r.user_id is null then null else jsonb_build_object('day', r.day, 'links', r.links, 'score', r.score, 'rescued', r.rescued,
+        'rank', 1 + (select count(*) from public.chain_results o where o.day = r.day and o.score > r.score)) end
+$$;
+
+-- Výsledek dne: for_day = den řetězu (dnešek, nebo včerejšek, když se hra dohrála těsně před půlnocí a odesílá se až po ní).
+-- Odeslání podruhé (jiné zařízení, ztracená odpověď) nic nezmění a vrátí uložený výsledek.
+create or replace function public.chain_submit(for_day date, links integer, score integer, rescued boolean) returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare uid uuid := auth.uid(); d date := public.chain_today(); r public.chain_results; tri integer;
+begin
+    if uid is null then raise exception 'Přihlas se.' using errcode = '42501'; end if;
+    if for_day is null or for_day > d or for_day < d - 1 then raise exception 'Tahle Řetězovka už skončila.' using errcode = '22023'; end if;
+    if links is null or score is null or rescued is null or links < 0 or links > 7 then raise exception 'Neplatný výsledek.' using errcode = '22023'; end if;
+    tri := links * (links + 1) / 2;
+    if (not rescued and score <> tri) or (rescued and (score < tri - links or score > tri)) then raise exception 'Neplatný výsledek.' using errcode = '22023'; end if;
+    insert into public.chain_results (day, user_id, links, score, rescued) values (for_day, uid, links, score, rescued)
+    on conflict (user_id, day) do nothing;
+    select * into r from public.chain_results c where c.user_id = uid and c.day = for_day;
+    return public.chain_json(r);
+end;
+$$;
+
+-- Jak si vedli ostatní za den (dnešek nebo nejvýš 30 dní zpět): počet hráčů, kolik dalo celý řetěz (a procenta), nejlepší body,
+-- můj výsledek s místem a nejlepších 10 hráčů (místo podle bodů, při shodě dřívější odeslání výš)
+create or replace function public.chain_day_stats(for_day date default null) returns jsonb
+language plpgsql stable security definer set search_path = public as $$
+declare uid uuid := auth.uid(); today date := public.chain_today(); d date := coalesce(for_day, public.chain_today()); mine public.chain_results; result jsonb;
+begin
+    if uid is null then raise exception 'Přihlas se.' using errcode = '42501'; end if;
+    if d > today or d < today - 30 then raise exception 'Pořadí Řetězovky je jen za posledních 30 dní.' using errcode = '22023'; end if;
+    select * into mine from public.chain_results c where c.user_id = uid and c.day = d;
+    with ranked as (
+        select c.user_id, c.links, c.score, c.rescued, c.created_at,
+            (rank() over (order by c.score desc))::integer as place,
+            (row_number() over (order by c.score desc, c.links desc, c.created_at, c.user_id))::integer as pos
+        from public.chain_results c where c.day = d
+    )
+    select jsonb_build_object(
+        'day', d,
+        'players', (select count(*) from ranked),
+        'full', (select count(*) from ranked where links = 7),
+        'full_pct', coalesce((select round(100.0 * count(*) filter (where links = 7) / nullif(count(*), 0))::integer from ranked), 0),
+        'best', coalesce((select max(score) from ranked), 0),
+        'me', public.chain_json(mine),
+        'top', coalesce((select jsonb_agg(jsonb_build_object('rank', k.place, 'id', p.id, 'display_name', p.display_name, 'avatar', p.avatar, 'color', p.color,
+                'frame', p.frame, 'title_pref', p.title_pref, 'owl', p.owl, 'links', k.links, 'score', k.score, 'rescued', k.rescued, 'me', k.user_id = uid) order by k.pos)
+            from ranked k join public.profiles p on p.id = k.user_id where k.pos <= 10), '[]'::jsonb)
+    ) into result;
+    return result;
+end;
+$$;
+
+-- Pomocné funkce jen interně; hráč volá jen odeslání výsledku a pořadí dne (anon nic)
+revoke all on function public.chain_today(), public.chain_json(public.chain_results) from public, anon, authenticated;
+revoke all on function public.chain_submit(date, integer, integer, boolean), public.chain_day_stats(date) from public, anon;
+grant execute on function public.chain_submit(date, integer, integer, boolean), public.chain_day_stats(date) to authenticated;
+-- ===== Řetězovka dne (blok 21) — KONEC BLOKU =====
+
+-- ===== Verze schématu =====
+-- Číslo se zvyšuje při KAŽDÉ změně tohoto souboru (tabulka, sloupec, funkce, pravidlo) a zároveň konstanta REQUIRED_SCHEMA v app.js.
+-- Aplikace ho po přihlášení porovná a správci (dev_admins nebo vývojářský režim) ukáže v Nastavení, že má schéma spustit znovu;
+-- tests/sql-monitor.test.js hlídá, že se obě čísla shodují. Funkce patří na konec souboru: když spuštění skončí chybou dřív, verze zůstane stará.
+-- 3: průběh výzev a zápasů turnaje na serveru (challenge_progress, tournament_answers), XP za výhry v turnaji jednou za účet (tournament_xp_claims).
+-- 4: zkušební upozornění přes server pro dev_admins (push_tests, dev_push_test, druh 'test' v push_due a push_mark).
+-- 5: okamžité odesílání upozornění (push_kick přes pg_cron a pg_net, push_kick_state, push_pending sdílené s push_due, dev_push_status).
+-- 6: Jak odpověděli ostatní (answer_stats, answer_stats_limits, answer_stats_submit, answer_stats_topic, dev_suspicious_questions).
+-- 7: Kvíz dne (daily_quiz_results, daily_quiz_state/start/answer/board/friends; export_my_data má i 'kviz_dne').
+-- 8: Skupiny (groups, group_members, group_challenges, group_join_tries, xp_weekly, funkce group_* a my_groups; export_my_data má i 'skupiny', 'skupiny_vyzvy' a 'xp_tydny';
+--    výzva skupině se nepočítá do ratingu).
+-- 9: Odměny (profiles.rewards: Truhla Mudrlanta, ochrana série, diplomy; export_my_data je má v řádku profilu) a odznaky Kvízu dne, Bleskovky, Přežití,
+--    mapy, odhadu a Seřaď v badge_catalog().
+-- 10: Rozpis otázek (challenge_progress a tournament_answers: answer, hints, ms; challenge_progress_save a tournament_answer_save s nepovinnými
+--     podrobnostmi; challenge_details a tournament_details vrací soupeřovy odpovědi až po dohrání).
+-- 11: upozornění na dohranou výzvu otevřou rovnou její výsledek (push_pending: odkaz s &vyzva=KÓD).
+-- 12: boti v turnajích hrají sami každý den od 9:00 (tournament_clock, tournament_bots_due v tournament_tick) a vývojářské dev_tournament_bots_play;
+--     o vítězi výzvy i zápasu turnaje rozhodují body, počet správných odpovědí až při shodě (rate_challenge, tournament_pick_winner, friends_list, group_detail).
+-- 13: tournament_details ukáže rozpis i cizího rozhodnutého zápasu (ne hráči, který má v tomtéž kole vlastní zápas neodehraný).
+-- 14: boti v turnaji ukládají odpovědi po otázkách (správně, body, nápovědy, čas) – rozpis zápasu je ukáže i u nich.
+-- 15: Rozpis Kvízu dne (daily_quiz_answers, daily_quiz_answer s textem odpovědi a nápovědami, daily_quiz_details).
+-- 16: Obtížnost výzvy ve třech úrovních (challenges.level: Základní, Mudrlant, Mudrlant Expert).
+-- 17: Zamrzlé otázky (question_snapshots, question_snapshot_claim, question_snapshots_get: otázka výzvy, zápasu turnaje a Kvízu dne platí pro všechny
+--     tak, jak ji sestavil první hráč; export_my_data má i 'zamrzle_otazky'); upozornění „… odehrál tvoji výzvu“ ukáže výsledek, až když
+--     zakladatel výzvu sám dohrál (push_pending).
+-- 18: Ligové sezóny (league_seasons: nejvyšší liga hráče v každém měsíci podle pražského času, nejlepší skončená sezóna; pomocné league_peaks
+--     a league_month_peak) a vitrína v profilu (profiles.showcase: nejvýš 3 položky b:<odznak>, d:<téma>, l:<RRRR-MM>:<liga>; kontrola tvaru
+--     showcase_format_ok a obsahu check_showcase);
+--     odznaky Album sbírky v badge_catalog() (milníky sberatel-25 … sberatel-100 a celé sekce album-*).
+-- 19: Tajemná otázka dne (mystery_results, mystery_state/guess/stats/friends; pomocné mystery_now, mystery_today, mystery_clues_at, mystery_json
+--     a mystery_visible; export_my_data má i 'tajemna_otazka') a odznaky Detektiv (detektiv, detektiv-7, detektiv-30, detektiv-100, detektiv-365) v badge_catalog().
+-- 20: Tajemná otázka dne – nápovědy rozprostřené přes celý den (0, 7, 9, 11, 13, 15, 17, 20; mystery_clues_at).
+-- 21: Nové módy. Zlatá otázka (jen odznaky zlatokop-* v badge_catalog()); Řetězovka dne (chain_results, chain_submit, chain_day_stats;
+--     export_my_data má i 'retezovka'); Boss týdne (boss_results, boss_submit, boss_week_stats, boss_claim_bonus; emblémy boss-* v badge_catalog(),
+--     export_my_data má i 'boss_tydne'); Dobývání (conquest_maps, conquest_regions, conquest_links, conquest_games, conquest_players,
+--     conquest_territories, conquest_moves; conquest_lobby/create/join/set_look/ready/leave/state/move/claim; odznaky dobyvatel-*);
+--     Kamarádské sázky (challenges.stake*, taunt, profiles.bet_won/bet_lost, challenge_offer/answer/settle_stake, challenge_stakes,
+--     challenge_stake_stats; odznaky sazky-* v badge_catalog()).
+create or replace function public.schema_version() returns integer
+language sql immutable as $$ select 21 $$;
+revoke all on function public.schema_version() from public, anon;
+grant execute on function public.schema_version() to authenticated;

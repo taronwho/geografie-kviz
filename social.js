@@ -868,6 +868,33 @@
         const data = (await request('POST', 'rpc/boss_claim_bonus', { body: { for_week: cleanWeek(week) } })) || {};
         return { week: cleanWeek(data.week), xp: Math.min(50, wholeNumber(data.xp, 50)), reached: data.reached === true, played: data.played === true, claimed: data.claimed === true };
     });
+    // --- Řetězovka dne (blok 21 ve schema.sql, chain.js): odeslání výsledku dne a pořadí dne ---
+    // Databáze bez funkcí (404): vrací se null a dál se o ně nežádá (hraje se jen v zařízení, bez pořadí); jiné chyby se vyhodí
+    let chainMissing = false;
+    const guardChain = async (run) => {
+        if (chainMissing) return null;
+        try { return await run(); } catch (error) {
+            if (error.status === 404) { chainMissing = true; return null; }
+            throw error;
+        }
+    };
+    const cleanChainMe = (row) => (row && typeof row === 'object'
+        ? { links: wholeNumber(row.links, 7), score: wholeNumber(row.score, 28), rescued: row.rescued === true, rank: wholeNumber(row.rank, 10000000) || null } : null);
+    // Výsledek dne (články, body, Záchrana); server přijme jen první výsledek dne a vrátí ten uložený
+    const chainSubmit = (day, links, score, rescued) => guardChain(async () => cleanChainMe(await request('POST', 'rpc/chain_submit', {
+        body: { for_day: cleanDay(day), links: wholeNumber(links, 7), score: wholeNumber(score, 28), rescued: Boolean(rescued) }
+    })));
+    // Hráči dne, podíl celých řetězů, nejlepší výsledek, moje místo a nejlepší hráči (top)
+    const chainDayStats = (day = null) => guardChain(async () => {
+        const data = (await request('POST', 'rpc/chain_day_stats', { body: { for_day: cleanDay(day) } })) || {};
+        const top = (Array.isArray(data.top) ? data.top : []).filter(row => row && row.id).map(row => ({
+            rank: wholeNumber(row.rank, 10000000) || 1, id: String(row.id), display_name: String(row.display_name || 'Hráč'), avatar: row.avatar, color: row.color,
+            frame: cleanFrame(row.frame), title_pref: cleanTitlePref(row.title_pref), owl: cleanOwl(row.owl),
+            links: wholeNumber(row.links, 7), score: wholeNumber(row.score, 28), rescued: row.rescued === true, me: row.me === true
+        }));
+        return { day: cleanDay(data.day), players: wholeNumber(data.players, 10000000), full: wholeNumber(data.full, 10000000), full_pct: wholeNumber(data.full_pct, 100),
+            best: wholeNumber(data.best, 28), me: cleanChainMe(data.me), top };
+    });
     // --- Skupiny (schéma 8, groups.js): moje skupiny, detail s pořadím, založení, přidání kódem a správa zakladatelem ---
     // Databáze bez funkcí (404): seznam vrací null (aplikace Skupiny nenabídne) a dál se o ně nežádá; ostatní volání skončí srozumitelnou chybou.
     // Hlášky databáze jsou česky (limit skupin, plná skupina, jen zakladatel…) a předají se dál; jiné chyby nahradí obecný text.
@@ -1105,5 +1132,7 @@
         // Boss týdne (schéma 21)
         bossSubmit, bossWeekStats, bossClaimBonus,
         // Dobývání (schéma 21)
-        conquestLobby, conquestCreate, conquestJoin, conquestSetLook, conquestReady, conquestLeave, conquestState, conquestMove, conquestClaim };
+        conquestLobby, conquestCreate, conquestJoin, conquestSetLook, conquestReady, conquestLeave, conquestState, conquestMove, conquestClaim,
+        // Řetězovka dne (blok 21)
+        chainSubmit, chainDayStats };
 });

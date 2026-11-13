@@ -234,8 +234,7 @@ test('napojení: modul v index.html, service workeru, nasazení a Tailwindu; sch
     assert.match(sql, /create table if not exists public\.mystery_results/);
     assert.match(sql, /grant execute on function public\.mystery_state\(\), public\.mystery_guess\(date, integer, boolean, integer\), public\.mystery_stats\(date\), public\.mystery_friends\(date\) to authenticated/);
     assert.match(sql, /array\[0, 7, 9, 11, 13, 15, 17, 20\]/, 'stejné hodiny nápověd jako mystery.js');
-    assert.match(sql, /language sql immutable as \$\$ select 20 \$\$/);
-    assert.match(read('app.js'), /const REQUIRED_SCHEMA = 20;/);
+    assert.ok(Number(/language sql immutable as \$\$ select (\d+) \$\$/.exec(sql)[1]) >= 20 && /language sql immutable as \$\$ select (\d+) \$\$/.exec(sql)[1] === /const REQUIRED_SCHEMA = (\d+);/.exec(read('app.js'))[1], 'schéma aspoň 20 a stejná verze v app.js');
     assert.deepEqual(core.BADGE_GROUPS.find(group => group.id === 'detektiv').badges.map(badge => [badge.id, badge.goal]), [['detektiv', 1], ['detektiv-7', 7], ['detektiv-30', 30], ['detektiv-100', 100], ['detektiv-365', 365]]);
     assert.equal(core.EMPTY_COUNTERS.mysterySolved, 0);
     const Tips = require('../tips.js');

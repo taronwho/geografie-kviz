@@ -1019,3 +1019,77 @@ html.kb-open #settings-overlay > *, html.kb-open #dialog-overlay > * { max-heigh
     0%, 100% { box-shadow: 0 0 0 0 rgb(232 174 56 / 0.4), 0 6px 18px rgb(214 151 37 / 0.22); }
     50% { box-shadow: 0 0 0 5px rgb(232 174 56 / 0.18), 0 6px 26px rgb(214 151 37 / 0.4); }
 }
+
+/* Řetězovka (chain.js): zlatý řetěz z článků v SVG. Ovál (zepředu) a příčka (z boku) se střídají; hotový článek má zlatý přechod
+   s tmavým okrajem a odleskem, další článek na řadě pulzuje, nedohraný je jen tečkovaný obrys, prasklý se rozlomí na dvě poloviny. */
+.chain-link rect, .chain-link path { fill: none; stroke-linecap: round; stroke-linejoin: round; }
+.chain-link .chain-edge { stroke: #5a3212; stroke-width: 7; }
+.chain-link .chain-face { stroke-width: 4.5; }
+.chain-link .chain-shine { stroke: rgb(255 255 255 / 0.7); stroke-width: 1.4; }
+.chain-link-todo .chain-face { stroke: rgb(255 255 255 / 0.32); stroke-width: 2.5; stroke-dasharray: 2 4; }
+.chain-link-current .chain-face { stroke: #fde68a; stroke-width: 3; stroke-dasharray: 5 4; }
+.chain-link-rescued .chain-edge { stroke: #1f5f53; }
+.chain-link-broken .chain-half { stroke: #fb7185; stroke-width: 4.5; }
+.chain-link-broken .chain-spark { stroke: #fecdd3; stroke-width: 1.6; }
+.chain-link, .chain-half { transform-box: fill-box; transform-origin: center; }
+.chain-half-l { transform: translate(-2px, 1px) rotate(-9deg); }
+.chain-half-r { transform: translate(2px, -1px) rotate(9deg); }
+/* Výsledek: tečka s číslem článku podle stavu */
+.chain-dot-done { background: linear-gradient(180deg, #fff3b0, #efc55c 45%, #b9771b); color: #3b1e0a; box-shadow: inset 0 0 0 1.5px #7a461b; }
+.chain-dot-rescued { background: #ccfbf1; color: #134e4a; box-shadow: inset 0 0 0 1.5px #0f766e; }
+.chain-dot-broken { background: #ffe4e6; color: #9f1239; box-shadow: inset 0 0 0 1.5px #e11d48; }
+.chain-dot-todo { background: transparent; color: #686a6e; box-shadow: inset 0 0 0 1.5px #c9c6c0; }
+@media (prefers-color-scheme: dark) {
+    .chain-dot-rescued { background: #134e4a; color: #ccfbf1; }
+    .chain-dot-broken { background: #4c0519; color: #fecdd3; }
+    .chain-dot-todo { color: #9d9a95; box-shadow: inset 0 0 0 1.5px #41454a; }
+}
+/* Vodoznak karty otázky: obrys dvou článků řetězu */
+.chain-watermark rect { fill: none; stroke: #d69725; stroke-width: 9; opacity: 0.13; }
+@media (prefers-color-scheme: dark) { .chain-watermark rect { stroke: #efc55c; opacity: 0.1; } }
+/* Odpovědi: správně, špatně, správná odpověď po přetržení, ostatní ztlumené */
+.chain-option.chain-right { background: #059669; border-color: #047857 #047857 #065f46; color: #fff; }
+.chain-option.chain-wrong { background: #e11d48; border-color: #be123c #be123c #9f1239; color: #fff; }
+.chain-option.chain-reveal { box-shadow: 0 0 0 3px #10b981; }
+.chain-option.chain-dim { opacity: 0.55; }
+.chain-option:disabled { cursor: default; }
+/* Body za článek vyletí nad stav */
+[data-chain-status] { position: relative; }
+.chain-plus { position: absolute; right: calc(100% + 0.35rem); top: -0.1rem; opacity: 0; color: #fde68a; font-weight: 900; pointer-events: none; text-shadow: 0 1px 2px rgb(0 0 0 / 0.4); }
+/* Načítání: řetěz se jemně leskne */
+.chain-loading { opacity: 0.85; }
+@media (prefers-reduced-motion: no-preference) {
+    /* Nový článek zacvakne: spadne do řetězu, přehoupne se a usadí */
+    .chain-click { animation: chainClick 0.55s cubic-bezier(0.2, 1.5, 0.35, 1) both; }
+    .chain-click .chain-face { animation: chainGlow 0.9s ease-out both; }
+    .chain-link-current { animation: chainPulse 1.6s ease-in-out infinite; }
+    .chain-link-broken .chain-half-l { animation: chainCrackL 0.55s cubic-bezier(0.3, 1.4, 0.5, 1) both; }
+    .chain-link-broken .chain-half-r { animation: chainCrackR 0.55s cubic-bezier(0.3, 1.4, 0.5, 1) both; }
+    .chain-link-broken .chain-spark { animation: chainSpark 0.6s ease-out both; }
+    .chain-shake { animation: chainShake 0.45s ease-in-out; }
+    .chain-plus { animation: chainPlus 1s ease-out 0.15s both; }
+    .chain-node-in { animation: chainNodeIn 0.45s cubic-bezier(0.2, 1.3, 0.4, 1) 0.2s both; }
+    .chain-panel-in { animation: chainPanelIn 0.35s ease-out both; }
+    .chain-loading .chain-link { animation: chainLoad 1.4s ease-in-out infinite; }
+    .chain-loading .chain-link:nth-child(2) { animation-delay: 0.1s; } .chain-loading .chain-link:nth-child(3) { animation-delay: 0.2s; }
+    .chain-loading .chain-link:nth-child(4) { animation-delay: 0.3s; } .chain-loading .chain-link:nth-child(5) { animation-delay: 0.4s; }
+    .chain-loading .chain-link:nth-child(6) { animation-delay: 0.5s; } .chain-loading .chain-link:nth-child(7) { animation-delay: 0.6s; }
+}
+/* Překreslení s panelem (Záchrana, přetržený řetěz): prasklý článek už se znovu nelomí */
+.chain-still .chain-link, .chain-still .chain-half, .chain-still .chain-spark { animation: none !important; }
+@media (prefers-reduced-motion: reduce) {
+    .chain-plus { opacity: 1; }
+    .chain-node-in, .chain-panel-in { animation: chainFade 0.2s ease-out both; }
+}
+@keyframes chainClick { 0% { opacity: 0; transform: translateY(-9px) scale(1.5) rotate(-25deg); } 55% { opacity: 1; transform: translateY(1px) scale(0.9) rotate(6deg); } 80% { transform: scale(1.06) rotate(-2deg); } 100% { opacity: 1; transform: none; } }
+@keyframes chainGlow { 0% { filter: drop-shadow(0 0 0 rgb(253 230 138 / 0)); } 35% { filter: drop-shadow(0 0 5px rgb(253 230 138 / 1)); } 100% { filter: drop-shadow(0 0 0 rgb(253 230 138 / 0)); } }
+@keyframes chainPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.45; } }
+@keyframes chainCrackL { 0% { transform: none; } 30% { transform: translate(1px, 0) rotate(3deg); } 100% { transform: translate(-2px, 1px) rotate(-9deg); } }
+@keyframes chainCrackR { 0% { transform: none; } 30% { transform: translate(-1px, 0) rotate(-3deg); } 100% { transform: translate(2px, -1px) rotate(9deg); } }
+@keyframes chainSpark { 0% { opacity: 0; transform: scale(0.4); } 40% { opacity: 1; transform: scale(1.3); } 100% { opacity: 0.8; transform: scale(1); } }
+@keyframes chainShake { 0%, 100% { transform: translateX(0); } 15% { transform: translateX(-7px) rotate(-0.6deg); } 35% { transform: translateX(6px) rotate(0.5deg); } 55% { transform: translateX(-4px); } 75% { transform: translateX(3px); } }
+@keyframes chainPlus { 0% { opacity: 0; transform: translateY(6px) scale(0.6); } 25% { opacity: 1; transform: translateY(-4px) scale(1.25); } 100% { opacity: 0; transform: translateY(-18px) scale(1); } }
+@keyframes chainNodeIn { 0% { opacity: 0; transform: translateX(-10px) scale(0.7); } 100% { opacity: 1; transform: none; } }
+@keyframes chainPanelIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@keyframes chainLoad { 0%, 100% { opacity: 0.35; } 50% { opacity: 1; } }
+@keyframes chainFade { from { opacity: 0; } to { opacity: 1; } }
