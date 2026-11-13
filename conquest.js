@@ -2374,6 +2374,13 @@
     };
     // Pořadí pod mapou: místo (medaile pro první tři), praporec, jméno, kolik území a regionů drží, podíl na mapě v barvě hráče a body.
     // Do tří hráčů po řádcích, víc hráčů ve dvou sloupcích (vejde se i osm na nejmenší displej)
+    // Tahy hráče v tomto kole (schéma 27: state.budgets) jako „⚔ 3/5“; kdo je dohrál, má je zašedlé
+    const movesChip = (view, player, small = false) => {
+        const budget = view.running && view.state.budgets ? view.state.budgets[player.id] : null;
+        if (!budget || !Number.isFinite(budget.total)) return '';
+        const left = Math.max(0, budget.left);
+        return `<span class="cq-moves${left ? '' : ' cq-moves-done'} flex shrink-0 items-center gap-0.5 rounded-full ${small ? 'px-1 text-[10.5px]' : 'px-1.5 text-[11.5px]'} font-black tabular-nums" title="Tahy v tomto kole: zbývá ${left} z ${budget.total}" aria-label="tahy ${left} z ${budget.total}"><i data-lucide="swords" class="${small ? 'h-2.5 w-2.5' : 'h-3 w-3'}"></i>${left}/${budget.total}</span>`;
+    };
     const playersStripHtml = (view, { now = Date.now() } = {}) => {
         const total = view.data.t.length || 1;
         const compact = view.ranking.length > 3;
@@ -2387,11 +2394,11 @@
             const label = `${player.place}. ${name}: ${pointsWord(player.score)}, ${territoriesWord(count)}${regions ? `, ${regionsWord(regions)}` : ''}`;
             if (compact) {
                 return `<li class="cq-rank-row${player.me ? ' cq-rank-me' : ''} flex min-w-0 items-center gap-1.5 rounded-lg px-1 py-0.5" aria-label="${esc(label)}">${medal}${pennantSvg(player.flag_color, player.emblem, 'h-4 w-5 shrink-0')}
-                    <span class="min-w-0 flex-1"><span class="flex items-baseline gap-1"><span class="min-w-0 flex-1 truncate text-[12px] font-bold text-slate-800 dark:text-slate-100">${esc(name)}</span><b class="shrink-0 text-[13px] font-black text-slate-900 dark:text-white">${player.score}</b></span>${bar}</span></li>`;
+                    <span class="min-w-0 flex-1"><span class="flex items-center gap-1"><span class="min-w-0 flex-1 truncate text-[12px] font-bold text-slate-800 dark:text-slate-100">${esc(name)}</span>${movesChip(view, player, true)}<b class="shrink-0 text-[13px] font-black text-slate-900 dark:text-white">${player.score}</b></span>${bar}</span></li>`;
             }
             const detail = `${territoriesWord(count)}${regions ? ` · ${regionsWord(regions)}` : ''}`;
             return `<li class="cq-rank-row${player.me ? ' cq-rank-me' : ''} flex min-w-0 items-center gap-2 rounded-xl px-1.5 py-1 short:py-0.5" aria-label="${esc(label)}">${medal}${pennantSvg(player.flag_color, player.emblem, 'h-5 w-[1.6rem] shrink-0')}
-                <span class="min-w-0 flex-1"><span class="flex items-baseline gap-1.5"><span class="min-w-0 truncate text-[13.5px] font-black text-slate-800 dark:text-slate-100">${esc(name)}</span><span class="shrink-0 truncate text-[11px] font-semibold text-slate-500 dark:text-slate-400">${esc(detail)}</span></span>${bar}</span>
+                <span class="min-w-0 flex-1"><span class="flex items-center gap-1.5"><span class="min-w-0 truncate text-[13.5px] font-black text-slate-800 dark:text-slate-100">${esc(name)}</span><span class="min-w-0 flex-1 truncate text-[11px] font-semibold text-slate-500 dark:text-slate-400">${esc(detail)}</span>${movesChip(view, player)}</span>${bar}</span>
                 <span class="flex w-9 shrink-0 flex-col items-end leading-none"><b class="text-[17px] font-black text-slate-900 dark:text-white">${player.score}</b><span class="mt-0.5 text-[9px] font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">${esc(pointsWord(player.score).replace(/^\d+ /, ''))}</span></span></li>`;
         }).join('');
         return `<div class="flex items-baseline justify-between gap-2"><h2 class="cq-ledger-title">Pořadí</h2><span data-cq-next class="truncate text-[11px] font-bold text-amber-900/75 dark:text-gold-200/80">${esc(periodLine(view, now))}</span></div>
@@ -2402,11 +2409,12 @@
         const items = feedItems(view.state.moves || [], view).slice(0, 8);
         const head = `<span class="flex w-full shrink-0 items-baseline justify-between gap-2"><span class="cq-ledger-title">Kronika tažení</span>${items.length ? '<span class="flex items-center gap-0.5 text-[11px] font-bold text-amber-900/75 dark:text-gold-200/80">Celá kronika<i data-lucide="chevron-right" class="h-3.5 w-3.5"></i></span>' : ''}</span>`;
         if (!items.length) return `${head}<span class="flex min-h-0 flex-1 items-center justify-center px-2 text-center text-[12px] font-semibold text-slate-500 dark:text-slate-400">Zatím je klid. Každé dobytí, opevnění i odražený útok se zapíše sem.</span>`;
-        const rows = items.map(item => `<span class="cq-feed-row flex min-w-0 shrink-0 items-center gap-1.5 py-[3px]">
-                <span class="cq-tone cq-tone-${item.tone} flex h-5 w-5 shrink-0 items-center justify-center rounded-full"><i data-lucide="${item.icon}" class="h-3 w-3"></i></span>
-                <span class="min-w-0 flex-1 truncate text-[12px] leading-tight text-slate-700 dark:text-slate-200"><b class="font-black text-slate-900 dark:text-white">${esc(item.title)}</b> · ${esc(item.text)}</span>
-                ${item.actor ? `<span class="flex shrink-0 items-center gap-1 text-[11px] font-semibold text-slate-500 dark:text-slate-400">${pennantSvg(item.actor.flag_color, item.actor.emblem, 'h-3 w-4')}<span class="max-w-[4.5rem] truncate">${esc(item.actor.me ? 'ty' : item.actor.display_name)}</span></span>` : ''}
-                <span class="w-12 shrink-0 text-right text-[10.5px] font-semibold tabular-nums text-slate-400 dark:text-slate-500">${esc(agoLabel(item.at, now))}</span></span>`).join('');
+        // Dva řádky: území a co se stalo vlevo, vpravo kdo (jméno, za ním praporec, praporce pod sebou v jednom sloupci) a kdy
+        const rows = items.map(item => `<span class="cq-feed-row flex min-w-0 shrink-0 items-center gap-2 py-1">
+                <span class="cq-tone cq-tone-${item.tone} flex h-6 w-6 shrink-0 items-center justify-center rounded-full"><i data-lucide="${item.icon}" class="h-3.5 w-3.5"></i></span>
+                <span class="min-w-0 flex-1 leading-tight"><b class="block truncate text-[12.5px] font-black text-slate-900 dark:text-white">${esc(item.title)}</b><span class="block truncate text-[11.5px] font-semibold text-slate-600 dark:text-slate-300">${esc(item.text)}</span></span>
+                <span class="flex min-w-0 max-w-[45%] shrink-0 flex-col items-end leading-tight">${item.actor ? `<span class="flex min-w-0 max-w-full items-center gap-1 text-[11.5px] font-bold text-slate-700 dark:text-slate-200"><span class="min-w-0 truncate">${esc(item.actor.me ? 'ty' : item.actor.display_name)}</span>${pennantSvg(item.actor.flag_color, item.actor.emblem, 'h-3 w-4')}</span>` : ''}
+                    <span class="text-[10.5px] font-semibold tabular-nums text-slate-400 dark:text-slate-500">${esc(agoLabel(item.at, now))}</span></span></span>`).join('');
         return `${head}<span class="cq-feed-list flex min-h-0 w-full flex-1 flex-col overflow-hidden">${rows}</span>`;
     };
 
@@ -2697,7 +2705,7 @@
         return `<ol class="flex flex-col gap-1">${items.map(item => `<li class="flex items-center gap-2 rounded-xl bg-white px-2 py-1.5 shadow-sm dark:bg-slate-800">
             <i data-lucide="${item.icon}" class="h-4 w-4 shrink-0 ${TONES[item.tone] || ''}"></i>
             <span class="min-w-0 flex-1"><span class="block truncate text-[13px] font-black leading-tight text-slate-800 dark:text-slate-100">${esc(item.title)}: ${esc(item.text)}</span>
-            <span class="flex items-center gap-1 text-[11px] font-semibold text-slate-500 dark:text-slate-400">${item.actor ? `${pennantSvg(item.actor.flag_color, item.actor.emblem, 'h-3 w-4')}${esc(item.actor.me ? 'ty' : item.actor.display_name)}` : ''}${item.victim && item.victim !== item.actor ? ` · dosud ${esc(item.victim.me ? 'ty' : item.victim.display_name)}` : ''}${item.at ? ` · ${esc(clock(item.at))}` : ''}</span></span></li>`).join('')}</ol>`;
+            <span class="flex items-center gap-1 text-[11px] font-semibold text-slate-500 dark:text-slate-400">${item.actor ? `${esc(item.actor.me ? 'ty' : item.actor.display_name)}${pennantSvg(item.actor.flag_color, item.actor.emblem, 'h-3 w-4')}` : ''}${item.victim && item.victim !== item.actor ? ` · dosud ${esc(item.victim.me ? 'ty' : item.victim.display_name)}` : ''}${item.at ? ` · ${esc(clock(item.at))}` : ''}</span></span></li>`).join('')}</ol>`;
     };
     const clock = (at) => {
         const time = parseTime(at);

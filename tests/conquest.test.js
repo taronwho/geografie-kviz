@@ -927,6 +927,21 @@ test('další kolo (blok 26): okno s hráči a fajfkami, Chci další kolo / če
     for (const html of [open, waiting, counting]) assert.doesNotMatch(html, /\sstyle=|NaN|undefined/);
 });
 
+test('pořadí u mapy s tahy každého hráče (schéma 27), kronika ve dvou řádcích s jménem a praporcem vpravo', () => {
+    const state = { ...sampleState(), budgets: { A: { left: 4, total: 5 }, B: { left: 0, total: 5 } } };
+    const view = C.viewOf(state, maps.evropa, 'A');
+    const strip = C.playersStripHtml(view);
+    assert.match(strip, /Ty[^]*class="cq-moves flex[^"]*"[^>]*aria-label="tahy 4 z 5">[^]*4\/5/);
+    assert.match(strip, /Petr[^]*class="cq-moves cq-moves-done[^"]*"[^>]*aria-label="tahy 0 z 5">[^]*0\/5/);
+    assert.doesNotMatch(C.playersStripHtml(C.viewOf(sampleState(), maps.evropa, 'A')), /cq-moves/, 'bez tahů soupeřů (starší databáze) nic');
+    assert.doesNotMatch(C.playersStripHtml(C.viewOf({ ...state, status: 'finished' }, maps.evropa, 'A')), /cq-moves/, 'po konci hry ne');
+    const many = { ...state, players: [...state.players, { id: 'C', display_name: 'Eva', seat: 2, flag_color: 'zelena', emblem: 'drak' }, { id: 'D', display_name: 'Dan', seat: 3, flag_color: 'zluta', emblem: 'sova' }], budgets: { ...state.budgets, C: { left: 2, total: 5 } } };
+    assert.match(C.playersStripHtml(C.viewOf(many, maps.evropa, 'A')), /Eva[^]*2\/5/, 'i v užším pořadí pro víc hráčů');
+    // Kronika: území a událost vlevo, vpravo jméno, za ním praporec, pod ním čas
+    const recent = C.recentHtml(view, { now: Date.parse('2026-11-12T10:20:00Z') });
+    assert.match(recent, /cq-feed-row[^]*<b class="block truncate[^>]*>Česko<\/b><span class="block truncate[^>]*>[^<]+<\/span><\/span>[^]*<span class="min-w-0 truncate">Petr<\/span><svg[^]*před 10 min/);
+});
+
 test('stavby: domovský hrad podle úrovně (č. 275–277), střechy a vlaječky v barvě majitele, obrázky v mezipaměti', () => {
     // Domovský hrad roste s opevněním, ostatní území mají palisádu, hradbu a pevnost
     assert.deepEqual([0, 1, 2, 3].map(level => C.levelIcon(level, true)), ['castle', 'castle1', 'castle2', 'castle3']);
