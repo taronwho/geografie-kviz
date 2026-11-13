@@ -221,7 +221,12 @@ const backend = async (context, db) => {
             if (!g.round.done) return fail('Další kolo jde chtít, až všichni dohrají své tahy.');
             if (!g.round.next_at) {
                 g.round.ready = body.ready === false ? g.round.ready.filter(id => id !== me.id) : [...new Set([...g.round.ready, me.id])];
-                if (g.players.every(p => g.round.ready.includes(p.user))) g.round.next_at = new Date(Date.parse(db.now || NOW) + 10000).toISOString();
+                if (g.players.every(p => g.round.ready.includes(p.user))) {
+                    const next = Date.parse(db.now || NOW) + 10000;
+                    g.round.next_at = new Date(next).toISOString();
+                    // Přeskočený zbytek kola se odečte i z konce hry (schéma 28)
+                    g.ends_at = new Date(Date.parse(g.ends_at) - Math.max(0, Date.parse(g.round.ends_at) - next)).toISOString();
+                }
             }
             return json(g.round);
         }
@@ -894,6 +899,9 @@ test('Dobývání', { skip: !chromium && 'Playwright není nainstalovaný' }, as
         await tab.waitForFunction(() => document.querySelector('[data-cq-round]').classList.contains('hidden'), null, { timeout: 10000 });
         await tab.waitForFunction(() => /Začalo 2\. kolo\./.test(document.body.textContent), null, { timeout: 10000 });
         assert.match(await tab.textContent('[data-cq-next]'), /^Další kolo za 4:59$/);
+        // Přeskočený zbytek kola 1 (2:50) se odečetl z konce hry: místo 20 min hra končí 10:17:10
+        assert.equal(g.ends_at, '2026-11-11T10:17:10.000Z');
+        assert.equal(await tab.textContent('[data-cq-clock]'), 'zbývá 16 min', 'bez odečtení by bylo 19 min');
         assert.deepEqual(log.errors, []);
         assert.deepEqual(log.csp, []);
         await context.close();

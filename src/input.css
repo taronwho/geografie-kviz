@@ -1052,7 +1052,8 @@ html.kb-open #settings-overlay > *, html.kb-open #dialog-overlay > * { max-heigh
    řádkování 1 a malá mezera, aby velká písmena nenarážela na horní ornament */
 .cq-cartouche-art .cq-cartouche-title { font-size: 13.5px; line-height: 1; }
 .cq-cartouche-art .cq-cartouche-big { font-size: 16px; }
-.cq-cartouche-art [data-cq-clock] { font-size: 9.5px; line-height: 1.15; margin-top: 2px; }
+/* Dva řádky (název mapy a kolik zbývá) přesně do světlého pergamenu kartuše (26–76 % výšky obrázku), ani jeden nenaráží na ornament */
+.cq-cartouche-art [data-cq-clock] { font-size: 9.5px; line-height: 1; margin-top: 2px; }
 .cq-cartouche-title { font-family: Georgia, 'Times New Roman', serif; font-variant: small-caps; font-weight: 700; font-size: 17px; line-height: 1.1; letter-spacing: 0.08em; color: #4a2c12; }
 @media (prefers-color-scheme: dark) { .cq-cartouche { background: linear-gradient(#d9c596, #bfa36d); } }
 .cq-sheet { background: linear-gradient(#fffaf0, #f7ecd5); box-shadow: 0 -10px 24px -12px rgb(60 40 20 / 0.55), inset 0 1px 0 #fff; border-top: 2px solid #c9a46a; }

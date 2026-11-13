@@ -1035,13 +1035,14 @@ test('SQL: Dobývání', { skip: !available && 'PostgreSQL není dostupný' }, a
         assert.deepEqual([st.budget.period, st.budget.left, at(st.budget.period_ends_at)], [0, 0, '2026-12-20T11:00:30.000Z']);
         denied(move(R1, fast.id, 'Q213', 'fortify', true), /Tahy na tohle období už nemáš/);
         const vCountdown = pulse(R1, fast.id).version;
-        // Nové kolo: znovu 2 tahy, nikdo zatím nechce další kolo, konec kola za 5 minut od předčasného začátku, konec hry stejný
+        // Nové kolo: znovu 2 tahy, nikdo zatím nechce další kolo, konec kola za 5 minut od předčasného začátku; přeskočený zbytek kola 0
+        // (11:00:30–11:05) se odečetl i z konce hry (schéma 28): hra končí 11:15:30 místo 11:20, počet kol zůstal stejný
         clock = '2026-12-20T11:00:31Z';
         st = json(state(R1, fast.id));
         assert.deepEqual([st.budget.period, st.budget.used, st.budget.left, at(st.budget.period_ends_at)], [1, 0, 2, '2026-12-20T11:05:30.000Z']);
         assert.deepEqual(roundView(st.round), { period: 1, started_at: '2026-12-20T11:00:30.000Z', ends_at: '2026-12-20T11:05:30.000Z', done: false, ready: [],
             next_at: null, can_ready: false, last: false });
-        assert.equal(at(st.ends_at), '2026-12-20T11:20:00.000Z');
+        assert.equal(at(st.ends_at), '2026-12-20T11:15:30.000Z');
         assert.notEqual(pulse(R1, fast.id).version, vCountdown, 'nové kolo změní značku verze');
         assert.equal(json(state(R2, fast.id)).budget.left, 2);
         // Další kola jdou po 5 minutách od předčasného začátku
@@ -1098,17 +1099,19 @@ test('SQL: Dobývání', { skip: !available && 'PostgreSQL není dostupný' }, a
         q(`update conquest_territories set owner = '${R1}', level = case when home then 3 else 2 end where game_id = '${fast.id}'`);
         assert.deepEqual([playerDone(R1), playerDone(R2), json(state(R1, fast.id)).round.done], ['t', 't', true]);
         assert.ok(json(state(R1, fast.id)).budget.left > 0);
-        // Poslední kolo (kola 3, 4 a 5 od 11:06:10, kolo 5 končí s hrou v 11:20): další kolo chtít nejde
-        clock = '2026-12-20T11:17:00Z';
+        // Poslední kolo: přeskočené zbytky kol 0 (4:30) a 2 (4:20) se odečetly z konce hry (schéma 28), hra má pořád 4 kola po 5 minutách
+        // a kolo 3 (od 11:06:10) končí s hrou v 11:11:10; další kolo chtít nejde
+        clock = '2026-12-20T11:08:00Z';
         st = json(state(R1, fast.id));
-        assert.deepEqual([st.round.period, st.round.last, at(st.round.ends_at), at(st.budget.period_ends_at)], [5, true, '2026-12-20T11:20:00.000Z', '2026-12-20T11:20:00.000Z']);
-        q(`insert into conquest_moves (game_id, user_id, period, kind, territory, success, result) select '${fast.id}', u, 5, 'fortify', 'Q40', false, 'fail'
+        assert.equal(at(st.ends_at), '2026-12-20T11:11:10.000Z');
+        assert.deepEqual([st.round.period, st.round.last, at(st.round.ends_at), at(st.budget.period_ends_at)], [3, true, '2026-12-20T11:11:10.000Z', '2026-12-20T11:11:10.000Z']);
+        q(`insert into conquest_moves (game_id, user_id, period, kind, territory, success, result) select '${fast.id}', u, 3, 'fortify', 'Q40', false, 'fail'
             from unnest(array['${R1}', '${R2}']::uuid[]) u, generate_series(1, 6)`);
         st = json(state(R1, fast.id));
         assert.deepEqual([st.round.done, st.round.can_ready, st.round.last], [true, false, true]);
         denied(roundReady(R1, fast.id), /Tohle kolo je poslední\. Hra skončí, až vyprší čas\./);
-        // Konec hry v ends_at jako dosud: kolo už není
-        clock = '2026-12-20T11:20:01Z';
+        // Konec hry v (posunutém) ends_at: kolo už není
+        clock = '2026-12-20T11:11:11Z';
         const final = json(state(R1, fast.id));
         assert.deepEqual([final.status, final.round], ['finished', null]);
         assert.equal(pulse(R2, fast.id).round, null);

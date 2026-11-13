@@ -79,7 +79,8 @@
     // se starší databází se Pozvat přátele neukáže).
     // 26 = Dobývání: rychlé hry (kolo 10 nebo 5 minut, délka v minutách) a Chci další kolo (conquest_round_ready; se starší databází se nenabídnou).
     // 27 = Dobývání: tahy všech hráčů ve stavu hry (budgets; bez nich pořadí tahy soupeřů neukáže).
-    const REQUIRED_SCHEMA = 27;
+    // 28 = Dobývání: přeskočený zbytek kola (Chci další kolo) se odečte i z konce hry.
+    const REQUIRED_SCHEMA = 28;
     const HISTORY_SIZE = 200;
     const REQUEST_TIMEOUT = 12000;
     const WIKI_TIMEOUT = 6000;
