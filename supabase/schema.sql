@@ -1011,7 +1011,7 @@ grant select, insert, delete on public.push_subscriptions to authenticated;
 -- Co hráč chce dostávat (výchozí všechno); vypnutí odběru v aplikaci maže řádky push_subscriptions, tyhle sloupce jsou jemnější volba
 alter table public.profiles add column if not exists push_tournament boolean not null default true;
 alter table public.profiles add column if not exists push_challenge boolean not null default true;
--- útoky soupeřů v Dobývání (blok 23)
+-- útoky soupeřů v Dobývání (blok 23) a pozvánky přátel do hry (blok 24)
 alter table public.profiles add column if not exists push_conquest boolean not null default true;
 grant update (push_tournament, push_challenge, push_conquest) on public.profiles to authenticated;
 
@@ -1094,9 +1094,9 @@ language sql immutable as $$
 $$;
 
 -- Co poslat: (a) dnešní neodehraný turnajový zápas, (b) nevyřízená příchozí výzva mladší než 3 dny a výsledek výzvy, kterou hráč založil, (c) nepřečtená zpráva o turnaji,
--- (e) útoky soupeřů v Dobývání (conquest_push_items, blok 23).
+-- (e) útoky soupeřů v Dobývání (conquest_push_items, blok 23), (f) pozvánky přátel do hry Dobývání (conquest_invite_push_items, blok 24).
 -- Jeden řádek na odběr (zařízení); z každého druhu nejvýš jedna věc na hráče a běh a nic, co téhož druhu dostal v poslední hodině
--- (útoky v Dobývání: v posledních 10 minutách, období hry bývá jen hodina).
+-- (útoky a pozvánky v Dobývání: v posledních 10 minutách, období hry bývá jen hodina a pozvaný se má přidat, dokud je místo).
 -- push_pending() je interní (bez ověření tajemství a bez posunu turnajů): totéž, co by teď vrátilo push_due, a totéž, podle čeho
 -- push_kick pozná, že je co poslat – pravidla jsou tak na jednom místě. Práva volajícího (spouští ji jen push_due a push_kick), přes API nejde.
 create or replace function public.push_pending() returns table (
@@ -1163,12 +1163,15 @@ begin
         union all
         -- (e) útoky soupeřů v Dobývání: jedno souhrnné upozornění za hru (tabulky Dobývání vznikají níž, plpgsql je hledá až při běhu)
         select c.user_id, c.kind, c.title, c.body, c.url, c.dedupe_key, c.sort_at from public.conquest_push_items() c
+        union all
+        -- (f) pozvánky přátel do hry Dobývání: jedno upozornění za pozvánku (druh 'conquest_invite', blok 24)
+        select c.user_id, c.kind, c.title, c.body, c.url, c.dedupe_key, c.sort_at from public.conquest_invite_push_items() c
     ), fresh as (
         select i.*, row_number() over (partition by i.user_id, i.kind order by i.sort_at, i.dedupe_key) as rn
         from items i
         where not exists (select 1 from public.push_sent s where s.dedupe_key = i.dedupe_key)
             and (i.kind = 'test' or not exists (select 1 from public.push_sent s where s.user_id = i.user_id and s.kind = i.kind
-                and s.sent_at > now() - case when i.kind = 'conquest' then interval '10 minutes' else interval '55 minutes' end))
+                and s.sent_at > now() - case when i.kind in ('conquest', 'conquest_invite') then interval '10 minutes' else interval '55 minutes' end))
     )
     select f.user_id, s.endpoint, s.p256dh, s.auth, f.kind, f.title, f.body, f.url, f.dedupe_key
     from fresh f join public.push_subscriptions s on s.user_id = f.user_id and s.fails < 3
@@ -1201,7 +1204,7 @@ begin
     insert into public.push_sent (dedupe_key, user_id, kind)
     select k, case when split_part(k, ':', 3) ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then split_part(k, ':', 3)::uuid end,
         case split_part(k, ':', 1) when 'tour' then 'tournament' when 'chal' then 'challenge' when 'chalr' then 'challenge' when 'notice' then 'notice' when 'test' then 'test'
-            when 'cq' then 'conquest' end
+            when 'cq' then 'conquest' when 'cqi' then 'conquest_invite' end
     from unnest(coalesce(keys, '{}')) k where char_length(k) between 1 and 200
     on conflict (dedupe_key) do nothing;
     -- Odeslaná zkušební zpráva je vyřízená; novější žádost (jiný čas, jiný klíč) zůstane čekat. Nevyřízené žádosti starší než den se zahodí.
@@ -3898,7 +3901,7 @@ grant execute on function public.boss_submit(date, integer, integer, boolean), p
 -- ===== 21: Dobývání — ZAČÁTEK BLOKU =====
 -- Hry o mapu (conquest.js, conquest-ui.js): kdokoli přihlášený založí hru s mapou (Evropa, Afrika, Asie, Amerika, Česko), délkou
 -- (6 h až 7 dní), počtem hráčů (2–8), počtem tahů za období (1–10, období = den nebo hodina od začátku hry) a viditelností (veřejná
--- v lobby, nebo soukromá jen kódem). Hráč si při založení i přidání vybere barvu (v jedné hře každou jen jeden hráč) a znak.
+-- v lobby, nebo soukromá jen kódem či pozvánkou od přítele, blok 24). Hráč si při založení i přidání vybere barvu (v jedné hře každou jen jeden hráč) a znak.
 -- Hra začne sama, když je plná, nebo když jsou v ní aspoň 2 hráči a všichni mají „Chci hrát“: každý dostane domovské území co nejdál
 -- od ostatních, na neutrálních územích se rozmístí poklady. Tah = otázka (správnost posílá aplikace, hrají spolu lidé, kteří se znají
 -- z lobby); útok jen na území sousedící s vlastním, opevnění jen vlastního. Úroveň opevnění 0–3 (palisáda, hradba, pevnost; pevnost
@@ -5097,6 +5100,8 @@ begin
             md5(g.seed || 'poklad' || c.territory)
         limit treasure_count);
     for p in select * from public.conquest_players where game_id = gid loop perform public.conquest_rescore(gid, p.user_id); end loop;
+    -- Pozvánky do hry (blok 24) začátkem hry končí
+    if to_regclass('public.conquest_invites') is not null then delete from public.conquest_invites where game_id = gid; end if;
     if g.preset is not null then perform public.conquest_ensure_lobbies(); end if;
 end;
 $$;
@@ -5163,7 +5168,21 @@ begin
         'period_ends_at', least(g.ends_at, g.started_at + (p + 1) * public.conquest_period_length(g.period)));
 end;
 $$;
--- Souhrn hry: nastavení, hráči (veřejné údaje profilu, barva hry flag_color, znak, připravenost, body, místo); kód soukromé hry jen hráčům
+-- Pozvaní přátelé, kteří se do hry ještě nepřidali (pozvánky z bloku 24; v lobby „Pozváno“): jen hráčům hry a jen před začátkem, jinak null.
+-- Tabulka conquest_invites vzniká až v bloku 24 (plpgsql ji hledá až při běhu; dokud není, prázdný seznam).
+create or replace function public.conquest_invited_json(g public.conquest_games, uid uuid) returns jsonb
+language plpgsql stable set search_path = public as $$
+begin
+    if g.status <> 'lobby' or uid is null or not exists (select 1 from public.conquest_players c where c.game_id = g.id and c.user_id = uid) then return null; end if;
+    if to_regclass('public.conquest_invites') is null then return '[]'::jsonb; end if;
+    return coalesce((select jsonb_agg(public.group_player_json(p) || jsonb_build_object('invited_at', i.created_at, 'by_me', i.invited_by = uid) order by i.created_at, p.display_name)
+        from public.conquest_invites i join public.profiles p on p.id = i.user_id
+        where i.game_id = g.id and i.declined_at is null
+            and not exists (select 1 from public.conquest_players c where c.game_id = g.id and c.user_id = i.user_id)), '[]'::jsonb);
+end;
+$$;
+-- Souhrn hry: nastavení, hráči (veřejné údaje profilu, barva hry flag_color, znak, připravenost, body, místo); kód soukromé hry jen hráčům;
+-- invited = čekající pozvaní přátelé (jen hráčům, conquest_invited_json)
 create or replace function public.conquest_summary(g public.conquest_games, uid uuid) returns jsonb
 language sql stable set search_path = public as $$
     select jsonb_build_object('id', g.id, 'map', g.map, 'max_players', g.max_players, 'hours', g.duration_hours, 'period', g.period, 'actions', g.actions,
@@ -5172,7 +5191,8 @@ language sql stable set search_path = public as $$
         'code', case when g.visibility = 'public' or exists (select 1 from public.conquest_players c where c.game_id = g.id and c.user_id = uid) then g.code end,
         'players', coalesce((select jsonb_agg(public.group_player_json(p) || jsonb_build_object('seat', c.seat, 'flag_color', c.color, 'emblem', c.emblem, 'ready', c.ready,
                 'score', c.score, 'score_at', c.score_at, 'place', c.place, 'me', c.user_id = uid) order by c.seat)
-            from public.conquest_players c join public.profiles p on p.id = c.user_id where c.game_id = g.id), '[]'::jsonb))
+            from public.conquest_players c join public.profiles p on p.id = c.user_id where c.game_id = g.id), '[]'::jsonb),
+        'invited', public.conquest_invited_json(g, uid))
 $$;
 -- Otevřená Rychlá hra pro každou předvolbu (bez zakladatele); souběžné volání hlídá zámek
 create or replace function public.conquest_ensure_lobbies() returns void
@@ -5257,21 +5277,27 @@ begin
 end;
 $$;
 
--- Přidání do hry: veřejné podle id, soukromé (i veřejné) kódem; kdo už ve hře je, dostane souhrn beze změny
+-- Přidání do hry: veřejné podle id, soukromé (i veřejné) kódem, soukromé i podle id, když má hráč čekající pozvánku (blok 24);
+-- kdo už ve hře je, dostane souhrn beze změny. Přidáním pozvánka do hry zmizí (i odmítnutá).
 create or replace function public.conquest_join(game uuid, join_code text, colour text, emblem_id text) returns jsonb
 language plpgsql security definer set search_path = public as $$
-declare uid uuid := auth.uid(); g public.conquest_games; c text := upper(regexp_replace(coalesce(join_code, ''), '[\s-]', '', 'g'));
+declare uid uuid := auth.uid(); g public.conquest_games; c text := upper(regexp_replace(coalesce(join_code, ''), '[\s-]', '', 'g')); invites boolean := to_regclass('public.conquest_invites') is not null;
+    invited boolean := false;
 begin
     if uid is null then raise exception 'Přihlas se.' using errcode = '42501'; end if;
     if c <> '' then select * into g from public.conquest_games where code = c for update;
     elsif game is not null then select * into g from public.conquest_games where id = game for update; end if;
-    if g.id is null or (c = '' and g.visibility = 'private' and not exists (select 1 from public.conquest_players p where p.game_id = g.id and p.user_id = uid)) then
+    if g.id is not null and invites then
+        invited := exists (select 1 from public.conquest_invites i where i.game_id = g.id and i.user_id = uid and i.declined_at is null);
+    end if;
+    if g.id is null or (c = '' and g.visibility = 'private' and not invited and not exists (select 1 from public.conquest_players p where p.game_id = g.id and p.user_id = uid)) then
         raise exception 'Hra s tímhle kódem není. Zkontroluj ho.' using errcode = '22023';
     end if;
     if exists (select 1 from public.conquest_players p where p.game_id = g.id and p.user_id = uid) then return public.conquest_summary(g, uid); end if;
     if g.status <> 'lobby' then raise exception 'Tahle hra už začala. Vyber jinou, nebo založ vlastní.' using errcode = 'P0001'; end if;
     if g.creator is not null and public.is_blocked(g.creator, uid) then raise exception 'Do téhle hry se přidat nemůžeš.' using errcode = 'P0001'; end if;
     perform public.conquest_add_player(g, uid, colour, emblem_id);
+    if invites then delete from public.conquest_invites where game_id = g.id and user_id = uid; end if;
     select * into g from public.conquest_games where id = g.id;
     return public.conquest_summary(g, uid);
 end;
@@ -5452,7 +5478,7 @@ $$;
 revoke all on function public.conquest_now(), public.conquest_colors(), public.conquest_emblems(), public.conquest_presets(), public.conquest_check_look(text, text),
     public.conquest_new_code(), public.conquest_period_length(text), public.conquest_period(public.conquest_games), public.conquest_regions_owned(uuid, text, uuid),
     public.conquest_rescore(uuid, uuid), public.conquest_far_territory(uuid, text), public.conquest_start(uuid), public.conquest_finish(uuid), public.conquest_respawn(uuid),
-    public.conquest_housekeep(uuid), public.conquest_budget(uuid, uuid), public.conquest_summary(public.conquest_games, uuid), public.conquest_ensure_lobbies(),
+    public.conquest_housekeep(uuid), public.conquest_budget(uuid, uuid), public.conquest_invited_json(public.conquest_games, uuid), public.conquest_summary(public.conquest_games, uuid), public.conquest_ensure_lobbies(),
     public.conquest_active_count(uuid), public.conquest_add_player(public.conquest_games, uuid, text, text), public.conquest_move_json(public.conquest_moves)
     from public, anon, authenticated;
 revoke all on function public.conquest_is_player(uuid), public.conquest_is_open(uuid), public.conquest_lobby(), public.conquest_create(text, integer, integer, text, integer, text, text, text),
@@ -5803,6 +5829,129 @@ $$;
 revoke all on function public.conquest_push_more(integer), public.conquest_push_items() from public, anon, authenticated;
 -- ===== 23: Dobývání – ztracený hrad a upozornění na útoky — KONEC BLOKU =====
 
+-- ===== 24: Dobývání – pozvánky pro přátele =====
+-- Hráč hry, která ještě nezačala, pozve do ní jednotlivé přátele (conquest_invite; při zakládání hry je aplikace pozve hned po založení).
+-- Pozvat jde jen přijaté přátele a čekajících pozvánek smí být nejvýš tolik, kolik je ve hře volných míst (odmítnuté se nepočítají);
+-- přítele, kterého zakladatel hry blokuje (nebo on jeho), pozvánka mine. Pozvaný vidí pozvánku v aplikaci (conquest_invites_mine: hra
+-- v lobby s místem, kód a kdo zve), přidá se bez kódu i do soukromé hry (conquest_join s id hry; přidáním pozvánka zmizí), nebo ji odmítne
+-- (conquest_decline_invite). Odmítnutého přítele jde pozvat znovu (odmítnutí se tím zruší). Hráči hry vidí čekající pozvané v souhrnu
+-- (conquest_summary: invited, „Pozváno“), ostatní ne; začátkem hry pozvánky končí. Upozornění (push_pending, druh 'conquest_invite', klíč
+-- cqi:hra:pozvaný v push_sent): „X tě zve do hry“ jednou za pozvánku (i po opětovném pozvání), jen do 3 dnů od pozvání a jen dokud hra čeká
+-- a má místo; vypíná ho profiles.push_conquest (dlaždice Dobývání v Nastavení) jako upozornění na útoky. Tabulku nikdo nečte ani nepíše
+-- přímo, jen přes funkce níže; jeden hráč pošle nejvýš 30 pozvánek za hodinu.
+create table if not exists public.conquest_invites (
+    game_id uuid not null references public.conquest_games (id) on delete cascade,
+    user_id uuid not null references public.profiles (id) on delete cascade,
+    invited_by uuid not null references public.profiles (id) on delete cascade,
+    created_at timestamptz not null default now(),
+    declined_at timestamptz,
+    primary key (game_id, user_id)
+);
+create index if not exists conquest_invites_user_idx on public.conquest_invites (user_id) where declined_at is null;
+create index if not exists conquest_invites_by_idx on public.conquest_invites (invited_by, created_at);
+create index if not exists conquest_invites_fresh_idx on public.conquest_invites (created_at) where declined_at is null;
+alter table public.conquest_invites enable row level security;
+revoke all on public.conquest_invites from public, anon, authenticated;
+
+-- Pozvat přátele do hry: jen hráč hry, která ještě nezačala; friends = id přátel (nejvýš 7 najednou). Kdo už ve hře je nebo pozvánku
+-- čeká, se přeskočí, odmítnutá pozvánka se obnoví. Vrací souhrn hry (s pozvanými v invited).
+create or replace function public.conquest_invite(game uuid, friends uuid[]) returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare uid uuid := auth.uid(); g public.conquest_games; wanted uuid[]; seats integer; waiting integer;
+begin
+    if uid is null then raise exception 'Přihlas se.' using errcode = '42501'; end if;
+    select * into g from public.conquest_games where id = game for update;
+    if g.id is null or not exists (select 1 from public.conquest_players p where p.game_id = game and p.user_id = uid) then raise exception 'Tuhle hru nehraješ.' using errcode = '42501'; end if;
+    if g.status <> 'lobby' then raise exception 'Pozvat jde jen do hry, která ještě nezačala.' using errcode = 'P0001'; end if;
+    wanted := array(select distinct f from unnest(coalesce(friends, '{}'::uuid[])) f where f is not null);
+    if cardinality(wanted) = 0 then raise exception 'Vyber, koho chceš pozvat.' using errcode = '22023'; end if;
+    if cardinality(wanted) > 7 then raise exception 'Najednou jde pozvat nejvýš 7 přátel.' using errcode = '22023'; end if;
+    if exists (select 1 from unnest(wanted) f where not exists (select 1 from public.friendships s where s.status = 'accepted'
+            and ((s.user_id = uid and s.friend_id = f) or (s.user_id = f and s.friend_id = uid)))) then
+        raise exception 'Pozvat můžeš jen své přátele.' using errcode = '22023';
+    end if;
+    -- Noví pozvaní: ne hráči, ne s čekající pozvánkou, ne blokovaní se zakladatelem (do hry by se stejně nepřidali)
+    wanted := array(select f from unnest(wanted) f
+        where not exists (select 1 from public.conquest_players p where p.game_id = game and p.user_id = f)
+            and not exists (select 1 from public.conquest_invites i where i.game_id = game and i.user_id = f and i.declined_at is null)
+            and not (g.creator is not null and public.is_blocked(g.creator, f)));
+    if cardinality(wanted) > 0 then
+        seats := g.max_players - (select count(*) from public.conquest_players p where p.game_id = game);
+        waiting := (select count(*) from public.conquest_invites i where i.game_id = game and i.declined_at is null
+            and not exists (select 1 from public.conquest_players p where p.game_id = game and p.user_id = i.user_id));
+        if seats - waiting <= 0 then raise exception 'Volná místa ve hře už čekají na pozvané přátele.' using errcode = 'P0001'; end if;
+        if waiting + cardinality(wanted) > seats then raise exception 'Volná místa ve hře: %. Vyber méně přátel.', seats - waiting using errcode = 'P0001'; end if;
+        if (select count(*) from public.conquest_invites i where i.invited_by = uid and i.created_at > now() - interval '1 hour') + cardinality(wanted) > 30 then
+            raise exception 'Pozvánek je teď moc. Zkus to za chvíli.' using errcode = 'P0001';
+        end if;
+        insert into public.conquest_invites (game_id, user_id, invited_by, created_at)
+        select game, f, uid, now() from unnest(wanted) f
+        on conflict (game_id, user_id) do update set invited_by = excluded.invited_by, created_at = excluded.created_at, declined_at = null;
+    end if;
+    return public.conquest_summary(g, uid);
+end;
+$$;
+
+-- Moje čekající pozvánky (nejnovější první, nejvýš 20): souhrn hry, kód, kdo zve (veřejné údaje profilu) a kdy. Jen hry, které ještě
+-- nezačaly, mají volné místo a nejsem v nich; bez pozvánek od blokovaných a do her blokovaného zakladatele.
+create or replace function public.conquest_invites_mine() returns jsonb
+language plpgsql stable security definer set search_path = public as $$
+declare uid uuid := auth.uid();
+begin
+    if uid is null then raise exception 'Přihlas se.' using errcode = '42501'; end if;
+    return coalesce((select jsonb_agg(public.conquest_summary(x.g, uid) || jsonb_build_object('code', (x.g).code, 'invited_at', x.created_at,
+            'invited_by', case when a.id is null then null else public.group_player_json(a) end) order by x.created_at desc)
+        from (select g, i.created_at, i.invited_by from public.conquest_invites i join public.conquest_games g on g.id = i.game_id and g.status = 'lobby'
+              where i.user_id = uid and i.declined_at is null and g.created_at > public.conquest_now() - interval '7 days'
+                  and not exists (select 1 from public.conquest_players c where c.game_id = g.id and c.user_id = uid)
+                  and (select count(*) from public.conquest_players c where c.game_id = g.id) < g.max_players
+                  and not (g.creator is not null and public.is_blocked(g.creator, uid)) and not public.is_blocked(i.invited_by, uid)
+              order by i.created_at desc limit 20) x
+        left join public.profiles a on a.id = x.invited_by), '[]'::jsonb);
+end;
+$$;
+
+-- Odmítnutí pozvánky (pozvánka zmizí z mých pozvánek; znovu pozvat mě jde). Bez pozvánky nic.
+create or replace function public.conquest_decline_invite(game uuid) returns void
+language plpgsql security definer set search_path = public as $$
+declare uid uuid := auth.uid();
+begin
+    if uid is null then raise exception 'Přihlas se.' using errcode = '42501'; end if;
+    update public.conquest_invites set declined_at = now() where game_id = game and user_id = uid and declined_at is null;
+end;
+$$;
+
+-- Délka hry do upozornění („hra na 12 hodin“, „na 1 den“, „na 3 dny“, „na 7 dní“)
+create or replace function public.conquest_push_length(hours integer) returns text
+language sql immutable as $$
+    select case when hours < 24 then hours || ' hodin' when hours / 24 = 1 then '1 den' when hours / 24 between 2 and 4 then (hours / 24) || ' dny' else (hours / 24) || ' dní' end
+$$;
+
+-- Upozornění na pozvánky (řádky ve tvaru položek push_pending); volá ho jen push_pending. Bez rodu: „X tě zve do hry“.
+create or replace function public.conquest_invite_push_items() returns table (user_id uuid, kind text, title text, body text, url text, dedupe_key text, sort_at text)
+language sql stable set search_path = public as $$
+    select i.user_id, 'conquest_invite'::text,
+        'Dobývání: ' || coalesce(nullif(btrim(a.display_name), ''), 'Kamarád') || ' tě zve do hry',
+        'Mapa ' || m.title || ' · hra na ' || public.conquest_push_length(g.duration_hours) || '. Vyber si barvu a přidej se.',
+        './?dobyvani=' || g.code,
+        'cqi:' || i.game_id || ':' || i.user_id,
+        i.created_at::text
+    from public.conquest_invites i
+    join public.conquest_games g on g.id = i.game_id and g.status = 'lobby'
+    join public.conquest_maps m on m.id = g.map
+    join public.profiles me on me.id = i.user_id and me.push_conquest
+    left join public.profiles a on a.id = i.invited_by
+    where i.declined_at is null and i.created_at > now() - interval '3 days' and not public.dev_is_bot(i.user_id)
+        and not exists (select 1 from public.conquest_players c where c.game_id = i.game_id and c.user_id = i.user_id)
+        and (select count(*) from public.conquest_players c where c.game_id = g.id) < g.max_players
+$$;
+
+-- Oprávnění: hráč volá jen pozvání, své pozvánky a odmítnutí (anon nic); pomocné funkce jen interně
+revoke all on function public.conquest_push_length(integer), public.conquest_invite_push_items() from public, anon, authenticated;
+revoke all on function public.conquest_invite(uuid, uuid[]), public.conquest_invites_mine(), public.conquest_decline_invite(uuid) from public, anon;
+grant execute on function public.conquest_invite(uuid, uuid[]), public.conquest_invites_mine(), public.conquest_decline_invite(uuid) to authenticated;
+-- ===== 24: Dobývání – pozvánky pro přátele — KONEC BLOKU =====
+
 -- ===== Verze schématu =====
 -- Číslo se zvyšuje při KAŽDÉ změně tohoto souboru (tabulka, sloupec, funkce, pravidlo) a zároveň konstanta REQUIRED_SCHEMA v app.js.
 -- Aplikace ho po přihlášení porovná a správci (dev_admins nebo vývojářský režim) ukáže v Nastavení, že má schéma spustit znovu;
@@ -5846,7 +5995,10 @@ revoke all on function public.conquest_push_more(integer), public.conquest_push_
 -- 23: Dobývání – kdo přijde o domovský hrad, má v dalším období o 1 tah méně (conquest_budget: penalty); upozornění na útoky soupeřů
 --     (profiles.push_conquest, conquest_push_items a conquest_push_more, druh 'conquest' a klíč cq: v push_pending a push_mark, limit 10 minut;
 --     indexy conquest_moves_home_lost_idx a conquest_moves_attacks_idx).
+-- 24: Dobývání – pozvánky pro přátele (conquest_invites; conquest_invite, conquest_invites_mine, conquest_decline_invite; conquest_join pustí
+--     pozvaného do soukromé hry bez kódu a pozvánku smaže, conquest_start pozvánky hry smaže; conquest_summary: invited přes conquest_invited_json;
+--     upozornění druhu 'conquest_invite' s klíčem cqi: v push_pending a push_mark přes conquest_invite_push_items a conquest_push_length, limit 10 minut).
 create or replace function public.schema_version() returns integer
-language sql immutable as $$ select 23 $$;
+language sql immutable as $$ select 24 $$;
 revoke all on function public.schema_version() from public, anon;
 grant execute on function public.schema_version() to authenticated;
