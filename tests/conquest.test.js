@@ -257,7 +257,7 @@ const familyQuestions = () => {
     return byFamily;
 };
 
-test('otázky: skupiny a formy (Evropa a Asie hlavně otázky Mudrlanta o položkách území, pak obrázek, mapa a odhad, nejméně stát; vztahové rodiny jen záloha)', () => {
+test('otázky: skupiny a formy (Evropa a Asie hlavně otázky Mudrlanta o položkách území včetně obrázku, pak mapa a odhad, nejméně stát; vztahové rodiny jen záloha)', () => {
     const t = loadAllTopics();
     const percent = (value) => `${(value * 100).toFixed(1)} %`;
     const groups = {};
@@ -274,10 +274,11 @@ test('otázky: skupiny a formy (Evropa a Asie hlavně otázky Mudrlanta o polož
         if (question.group === 'mudrlant' || question.form === 'photo') { families[map] = families[map] || new Set(); families[map].add(question.family); }
     }
     const share = (counts, key) => (counts[key] || 0) / Object.values(counts).reduce((a, b) => a + b, 0);
-    // Rozložení skupin (úrovně 0–2): na Evropě nejvíc otázek Mudrlanta, stát asi pětina, vztahové rodiny menšina; v Asii mají malé
-    // státy málo známých položek (na úrovni 0–1 jen známé), takže víc státu a vztahových rodin
-    const LIMITS = { evropa: { mudrlant: [0.45, 0.62], forms: [0.18, 0.3], state: [0.12, 0.24], relational: [0, 0.12] },
-        asie: { mudrlant: [0.28, 0.5], forms: [0.15, 0.3], state: [0.15, 0.33], relational: [0.05, 0.25] } };
+    // Rozložení skupin (úrovně 0–2): na Evropě nejvíc otázek Mudrlanta (popis, fakta, letopočet, obrázek), stát asi pětina, mapa
+    // a odhad asi šestina, vztahové rodiny menšina; v Asii mají malé státy málo známých položek (na úrovni 0–1 jen známé), takže
+    // víc státu a vztahových rodin
+    const LIMITS = { evropa: { mudrlant: [0.48, 0.68], forms: [0.1, 0.22], state: [0.12, 0.26], relational: [0, 0.12] },
+        asie: { mudrlant: [0.28, 0.52], forms: [0.1, 0.25], state: [0.15, 0.33], relational: [0.05, 0.25] } };
     for (const [map, limits] of Object.entries(LIMITS)) {
         for (const [group, [low, high]] of Object.entries(limits)) {
             const value = share(groups[map], group);
@@ -289,6 +290,14 @@ test('otázky: skupiny a formy (Evropa a Asie hlavně otázky Mudrlanta o polož
     }
     // Žádná forma (kromě popisu) nepřeváží: letopočet, fakta i obrázek nejvýš čtvrtina otázek
     for (const map of MAP_IDS) for (const form of ['year', 'facts', 'photo', 'estimate', 'flag', 'capital', 'neighbour', 'map']) assert.ok(share(forms[map], form) <= 0.25, `${map}: ${form} ${percent(share(forms[map], form))}`);
+    // Obrázek (jeden obrázek, čtyři možnosti textem) je asi pětina až čtvrtina otázek skupiny Mudrlant tam, kde to data dovolí
+    // (Evropa, Česko; dřív asi 6 % všech otázek), letopočet, odhad, mapa a stát si podíl drží
+    for (const map of ['evropa', 'cesko']) {
+        const photo = (forms[map].photo || 0) / groups[map].mudrlant;
+        assert.ok(photo >= 0.18 && photo <= 0.3, `${map}: obrázek ${percent(photo)} otázek Mudrlanta`);
+        assert.ok(share(forms[map], 'photo') >= 0.1, `${map}: obrázek ${percent(share(forms[map], 'photo'))} všech otázek`);
+        assert.ok(share(forms[map], 'year') >= 0.1 && share(forms[map], 'estimate') >= 0.07 && share(forms[map], 'map') >= 0.05, `${map}: letopočet, odhad a mapa zůstanou`);
+    }
     // Plán Francie: skupiny 60/25/15 %, vztahové rodiny nic (jen záloha), podíly dávají 1; bez sítě (local) jen místní formy
     // a podíl popisu a faktů převezmou vztahové rodiny (nejvýš RELATIONAL_CAP)
     const plan = C.formPlan({ data: maps.evropa, territory: 'Q142', level: 2, topics: t });
@@ -301,11 +310,16 @@ test('otázky: skupiny a formy (Evropa a Asie hlavně otázky Mudrlanta o polož
     const local = C.formPlan({ data: maps.evropa, territory: 'Q142', level: 2, topics: t, local: true });
     assert.deepEqual(local.map(entry => entry.id).filter(id => ['text', 'facts', 'photo'].includes(id)), []);
     assert.ok(Math.abs(local.find(entry => entry.id === 'relational').share - C.RELATIONAL_CAP) < 1e-9, JSON.stringify(local));
-    // Výš víc popisu a faktů, méně obrázků (těžší formy)
+    // Výš víc popisu a faktů, méně obrázků (těžší formy); obrázek je ve skupině mudrlant, plán Francie asi čtvrtina jejích otázek
     const low = C.formPlan({ data: maps.evropa, territory: 'Q142', level: 0, topics: t });
     const high = C.formPlan({ data: maps.evropa, territory: 'Q142', level: 3, topics: t });
     const of = (list, id) => list.find(entry => entry.id === id).share;
     assert.ok(of(high, 'text') > of(low, 'text') && of(high, 'photo') < of(low, 'photo'), 'úroveň 3: víc popisu, méně obrázků');
+    assert.equal(low.find(entry => entry.id === 'photo').group, 'mudrlant');
+    for (const [list, lowest, highest] of [[low, 0.24, 0.3], [high, 0.18, 0.24]]) {
+        const photo = of(list, 'photo') / C.GROUPS.mudrlant;
+        assert.ok(photo >= lowest && photo <= highest, `plán Francie: obrázek ${percent(photo)} skupiny Mudrlant`);
+    }
     // Malý stát bez položek pro otázky Mudrlanta (Litva): vztahové rodiny převezmou nejvýš RELATIONAL_CAP, zbytek stát, mapa a odhad
     const small = C.formPlan({ data: maps.evropa, territory: 'Q37', level: 0, topics: t });
     assert.ok(!small.some(entry => ['text', 'facts', 'photo'].includes(entry.id)), small.map(entry => entry.id).join(', '));
@@ -1105,6 +1119,27 @@ test('prepareQuestion: roundFor doplní popis, fakta nebo obrázek; chyba, práz
     // Štítek druhu jen tehdy, když ho mají všechny čtyři možnosti (jinak by napověděl)
     assert.equal(C.completeQuestion({ ...pending, sameType: true }, article).content.type, 'věc');
     assert.equal(C.completeQuestion({ ...pending, sameType: false }, article).content.type, '');
+    // Popis, který je po zakrytí skoro samé [***], se nepoužije: otázka na fakta (po otázce na fakta místní otázka)
+    const masked = { ...article, text: '[***] [***] je [***] [***] v [***]. [***] má [***] a [***], [***] i [***] na každém [***].' };
+    assert.equal(C.completeQuestion(pending, masked).form, 'facts');
+    assert.equal(C.completeQuestion(pending, masked).content.facts.length, 2);
+    assert.equal(C.completeQuestion(pending, masked, 'facts'), null);
+    // Pojistka: slovo správné možnosti, které nesprávné nemají, v popisu nezůstane (ani když ho roundFor nezakryl)
+    const right = pending.choices.find(choice => choice.correct).label;
+    const word = right.split(/\s+/).filter(part => /^\p{Lu}\p{L}{3,}/u.test(part) && !pending.choices.some(choice => !choice.correct && choice.label.includes(part))).pop();
+    assert.ok(word, right);
+    const leaked = C.completeQuestion(pending, { ...article, text: `${article.text} Ve městě se o ${word} mluví každý den a lidé ho rádi navštěvují znovu a znovu.` });
+    assert.ok(!leaked.content.text.includes(word), leaked.content.text);
+    // Nezávislá kontrola po zakrytí: kdyby zakrytí slovo odpovědi přesto nechalo, popis se nepoužije (fakta, po faktech místní otázka)
+    const seal = core.sealAnswerWords;
+    try {
+        core.sealAnswerWords = (text) => text;
+        const unsealed = { ...article, text: `${article.text} Ve městě se o ${word} mluví každý den a lidé ho rádi navštěvují znovu a znovu.` };
+        assert.equal(C.completeQuestion(pending, unsealed).form, 'facts');
+        assert.ok(!JSON.stringify(C.completeQuestion(pending, unsealed).content).includes(word));
+        assert.equal(C.completeQuestion(pending, unsealed, 'facts'), null);
+        assert.equal(C.completeQuestion(pending, article).form, 'text', 'popis bez slova odpovědi zůstane');
+    } finally { core.sealAnswerWords = seal; }
 });
 
 test('otázky Mudrlanta: známost podle úrovně (0–1 jen známé, výš i méně známé, nikdy pro znalce) a rodina bez tří možností z území se neptá', () => {
@@ -1129,4 +1164,98 @@ test('otázky Mudrlanta: známost podle úrovně (0–1 jen známé, výš i mé
     assert.ok(known.high / known.highAll < 0.85, `výš i méně známé: ${(known.high / known.highAll).toFixed(2)}`);
     // Malý stát s jedním známým městem (Litva): otázka Mudrlanta ani obrázek se neptá, nesmí přijít ani s only
     for (const form of ['text', 'facts', 'photo']) assert.equal(C.buildQuestion({ data: maps.evropa, territory: 'Q37', level: 0, topics: t, seed: 'x', only: form }), null, form);
+});
+
+test('obrázek: jeden obrázek a čtyři možnosti textem; rodiny, kde obrázek název nenese, a jen položka se skutečnou fotkou (nesprávné možnosti stačí textem)', () => {
+    const t = loadAllTopics();
+    const byKey = new Map(ALL_TOPICS.flatMap(topic => t[topic].map(it => [`${topic}:${it.q}`, it])));
+    // Obal knihy, plakát filmu, znak klubu a emblém olympiády nesou název; bitva, událost a vynález mívají obraz scény, tabuli nebo
+    // nákres s popiskem
+    const NO_PHOTO = new Set(['book', 'music-work', 'opera', 'film', 'club', 'olympics', 'battle', 'event', 'invention']);
+    const families = new Set();
+    let count = 0;
+    for (const id of ['evropa', 'asie', 'amerika', 'cesko']) for (const item of maps[id].t) for (const level of [0, 2]) {
+        const question = C.buildQuestion({ data: maps[id], territory: item.id, level, topics: t, seed: 'foto', only: 'photo' });
+        if (!question) continue;
+        count++;
+        families.add(question.family);
+        const where = `${id} ${item.n} L${level}: ${question.prompt} [${question.choices.map(choice => choice.label).join(' | ')}]`;
+        assert.equal(question.group, 'mudrlant', where);
+        assert.ok(!NO_PHOTO.has(question.family), where);
+        assert.ok(!question.images && question.choices.every(choice => !choice.image && choice.label), `možnosti textem: ${where}`);
+        // Fotka správné odpovědi: skutečná fotka (.jpg, .webp), u staveb Architektury, obrazů a soch a vlajek obrázek otázky
+        const src = byKey.get(`${question.request.topic}:${question.request.q}`);
+        assert.ok(src && src.im && src.ih, where);
+        const shown = (question.request.topic === 'architektura' && src.c === 'stavby') || question.request.topic === 'umeni' || question.request.topic === 'vlajky';
+        assert.ok(shown || core.isRealPhoto(src.im), `${where}: ${src.im}`);
+        if (question.family === 'lake' || question.family === 'river') assert.equal(src.k, 1, `jezero a řeka jen známé: ${where}`);
+        // Doplněná otázka: jen obrázek (a štítek druhu), možnosti beze změny
+        const done = C.completeQuestion(question, { image: 'https://upload.wikimedia.org/wikipedia/commons/a/ab/x.jpg', text: '[***] je místo.', origin: 'article', facts: [], typeLabel: '' });
+        assert.deepEqual(Object.keys(done.content).sort(), ['image', 'type']);
+        assert.deepEqual(done.choices, question.choices);
+    }
+    assert.ok(count > 120, `otázek na obrázek: ${count}`);
+    for (const family of ['building', 'castle', 'mountain', 'island', 'nature', 'lake', 'river', 'city', 'region', 'venue', 'painting', 'athlete', 'writer', 'ruler', 'musician']) {
+        assert.ok(families.has(family), `rodina ${family}: ${[...families].join(', ')}`);
+    }
+});
+
+test('možnosti: dvě jména téže věci mezi nimi nejsou (stejné místo do 1 km, stejný výrazný kmen jména), různé věci jednoho města ano', () => {
+    const t = loadAllTopics();
+    // Maďarsko: Puskás Aréna a Stadion Ference Puskáse (nový a starý stadion na stejném místě) nikdy spolu; v datech jsou jen čtyři
+    // maďarská sportoviště, bez dvojice zbudou tři: otázka Mudrlanta na sportoviště se tam neptá, vztahová (z ciziny) ano
+    let questions = 0;
+    for (const form of ['text', 'facts', 'photo', 'relational']) for (const level of [0, 1, 2, 3]) for (let s = 0; s < 12; s++) {
+        for (const territory of ['Q28', 'Q36', 'Q40', 'Q214']) {
+            const question = C.buildQuestion({ data: maps.evropa, territory, level, topics: t, seed: `puskas|${s}`, only: form });
+            if (!question) continue;
+            questions++;
+            assert.ok(question.choices.filter(choice => /Puskás/.test(choice.label)).length <= 1, question.choices.map(choice => choice.label).join(' | '));
+        }
+    }
+    assert.ok(questions > 300, `otázek: ${questions}`);
+    // Vlastní data: dvě katedrály se stejnou polohou a jiným jménem, dva stadiony se stejným kmenem jména jinde, dva kluby jednoho města
+    // (Zeměpis jen se státy a městem Poznaň: jméno města z dat se ve jménech klubů nepočítá jako společný kmen)
+    const states = t.zemepis.filter(it => it.c === 'stat' || it.n === 'Poznaň');
+    const building = (q, n, la, lo) => ({ q, n, t: n, c: 'stavby', k: 1, ty: 'katedrála', co: ['Q213'], la, lo, im: `${q}.jpg`, ih: 'ab' });
+    const venue = (q, n, la, lo) => ({ q, n, t: n, c: 'sportoviste', k: 1, ty: 'stadion', la, lo, im: `${q}.jpg`, ih: 'ab', f: { land: 'Maďarsko' } });
+    const club = (q, n) => ({ q, n, t: n, c: 'kluby', k: 1, ty: 'fotbalový klub', f: { land: 'Polsko' } });
+    const topics = {
+        zemepis: states,
+        architektura: [building('X1', 'Katedrála svatého Víta v Praze', 50.091, 14.401), building('X2', 'Svatovítský chrám v Praze', 50.0912, 14.4013),
+            building('X3', 'Katedrála svatého Bartoloměje v Plzni', 49.748, 13.378), building('X4', 'Katedrála svatého Petra a Pavla v Brně', 49.191, 16.607),
+            building('X5', 'Katedrála svatého Václava v Olomouci', 49.596, 17.257), building('X6', 'Katedrála svatého Ducha v Hradci Králové', 50.209, 15.832)],
+        sport: [venue('V1', 'Puskás Aréna', 47.503, 19.098), venue('V2', 'Stadion Ference Puskáse', 47.62, 19.3), venue('V3', 'Groupama Arena', 47.48, 19.08),
+            venue('V4', 'Hungaroring', 47.58, 19.25), venue('V5', 'Nagyerdei Stadion', 47.55, 21.62), venue('V6', 'ETO Park', 47.68, 17.65),
+            club('K1', 'Lech Poznań'), club('K2', 'Warta Poznań'), club('K3', 'Legia Varšava'), club('K4', 'Wisła Kraków'), club('K5', 'Śląsk Wrocław')]
+    };
+    const sets = (territory) => {
+        const found = [];
+        for (const form of ['text', 'photo']) for (const level of [0, 2]) for (let s = 0; s < 30; s++) {
+            const question = C.buildQuestion({ data: maps.evropa, territory, level, topics, seed: `dvojice|${s}`, only: form });
+            if (question) found.push(question.choices.map(choice => choice.label));
+        }
+        return found;
+    };
+    const czech = sets('Q213');
+    assert.ok(czech.length > 20, `otázek o katedrálách: ${czech.length}`);
+    czech.forEach(labels => assert.ok(!(labels.includes('Katedrála svatého Víta v Praze') && labels.includes('Svatovítský chrám v Praze')), labels.join(' | ')));
+    assert.ok(czech.some(labels => labels.includes('Svatovítský chrám v Praze')) && czech.some(labels => labels.includes('Katedrála svatého Víta v Praze')), 'obě katedrály se ptají, jen ne spolu');
+    const hungary = sets('Q28');
+    assert.ok(hungary.length > 20, `otázek o sportovištích: ${hungary.length}`);
+    hungary.forEach(labels => assert.ok(labels.filter(label => /Puskás/.test(label)).length <= 1, labels.join(' | ')));
+    // Přímo: stejné místo (do 1 km) i jiným jménem, stejný výrazný kmen jména, ne město z dat, ne jmenovci s jiným pořadovým číslem
+    const at = (label, la, lo) => ({ label, srcs: { sport: { la, lo } } });
+    const plainCtx = { pools: { placeStems: new Set(['pozna']) } };
+    assert.equal(C.nearDuplicate(at('Puskás Aréna', 47.503, 19.098), at('Stadion Ference Puskáse', 47.62, 19.3), 'venue', plainCtx), true, 'kmen Puskás');
+    assert.equal(C.nearDuplicate(at('Népstadion', 47.503, 19.098), at('Groupama Arena', 47.5055, 19.1), 'venue', plainCtx), true, 'do 1 km');
+    assert.equal(C.nearDuplicate(at('Népstadion', 47.503, 19.098), at('Groupama Arena', 47.48, 19.08), 'venue', plainCtx), false);
+    assert.equal(C.nearDuplicate(at('Městský stadion v Poznani', 52.39, 16.86), at('Městský stadion ve Vratislavi', 51.14, 16.94), 'venue', plainCtx), false, 'obecná slova a místo');
+    assert.equal(C.nearDuplicate({ label: 'Lech Poznań', srcs: {} }, { label: 'Warta Poznań', srcs: {} }, 'club', plainCtx), false, 'jméno města');
+    assert.equal(C.nearDuplicate({ label: 'Bobby Charlton', srcs: {} }, { label: 'Jack Charlton', srcs: {} }, 'athlete', plainCtx, true), true, 'stejné příjmení');
+    assert.equal(C.nearDuplicate({ label: 'Václav Havel', srcs: {} }, { label: 'Václav Klaus', srcs: {} }, 'politician', plainCtx, true), false, 'jen křestní jméno');
+    assert.equal(C.nearDuplicate({ label: 'Přemysl Otakar I.', srcs: {} }, { label: 'Přemysl Otakar II.', srcs: {} }, 'ruler', plainCtx, true), false, 'jiné pořadové číslo');
+    // Kluby jednoho města (Poznań) jsou dvě různé věci: jméno města se jako kmen nepočítá
+    const poland = sets('Q36');
+    assert.ok(poland.some(labels => labels.includes('Lech Poznań') && labels.includes('Warta Poznań')), 'Lech a Warta Poznań spolu smějí');
 });

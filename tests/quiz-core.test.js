@@ -516,7 +516,11 @@ test('kontinent místa: zámoří a státy na dvou kontinentech podle polohy', (
 });
 
 test('zakrývání: římské číslice a členy zůstanou, rody v množném čísle, značka po slově „značka“, vzorce z Wikipedie', () => {
-    assert.equal(core.censorName('Karel IV. byl otec Václava IV.', 'Karel IV.'), '[***] IV. byl otec Václava IV.');
+    // Číslice samostatně zůstane (Václava IV.), za zakrytým jménem k němu patří i s tečkou (u Přemysla Otakara I. a II. by prozradila odpověď)
+    assert.equal(core.censorName('Karel IV. byl otec Václava IV.', 'Karel IV.'), '[***] byl otec Václava IV.');
+    assert.equal(core.mergeCensored('Po něm vládl [***] VIII.'), 'Po něm vládl [***].');
+    assert.equal(core.mergeCensored('Za vlády [***] II., zvaného železný, rostla říše.'), 'Za vlády [***], zvaného železný, rostla říše.');
+    assert.equal(core.mergeCensored('Stojí blízko [***]. Je sídlem [***] V. Havla.'), 'Stojí blízko [***]. Je sídlem [***] V. Havla.');
     assert.equal(core.censorName('Ale vůdce al-Káidy', 'Abú Bakr al-Bagdádí'), 'Ale vůdce al-Káidy');
     assert.equal(core.censorName('Přemyslovec Václav z přemyslovského rodu', 'Přemyslovci'), '[***] Václav z [***] rodu');
     assert.ok(!core.processWikiText('Energie {\\displaystyle E=mc^{2}} je veličina. Další věta je tady.').description.includes('displaystyle'));

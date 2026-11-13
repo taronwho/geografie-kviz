@@ -158,7 +158,7 @@ const EXTRACTS = {
         'Ve 20. století zde vznikla lanovka vedoucí až na vrchol hory.',
     'Testov': 'Testov je statutární město v Česku, leží v Jihomoravském kraji na řece Svratce. Je to známé české univerzitní město s bohatou historií. ' +
         'Ve městě sídlí několik vysokých škol a velký výstavní areál, který každoročně hostí mnoho veletrhů.',
-    'Švýcarsko': 'Švýcarsko, oficiálně Švýcarská konfederace, je vnitrozemský stát ve střední Evropě. Hlavním městem je Bern, největším městem Curych. ' +
+    'Švýcarsko': 'Švýcarsko, oficiálně Švýcarská konfederace, je vnitrozemský horský stát ve střední Evropě. Hlavním městem je Bern, největším městem Curych. ' +
         'Švýcarská neutralita má dlouhou tradici a země je známá hodinkami, sýry a čokoládou.'
 };
 const extractFor = (title) => EXTRACTS[title] || `${title} je položka, o které se píše v testu. <img src=x onerror=__xss=1> ` +

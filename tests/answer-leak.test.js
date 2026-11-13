@@ -143,3 +143,93 @@ test('starý postup měl v tomto vzorku netěsnosti, nový žádné', () => {
     assert.ok(legacy > 0, 'starý postup má ve vzorku aspoň jednu netěsnost (Poea u Havrana, sportovci…)');
     assert.equal(current, 0);
 });
+
+// --- Dobývání a hlavní hra: podmět úvodu je název, jiné názvy a původní jazyk, obecná slova druhu zůstanou ---
+// Otázka „Co je to?“ se čtyřmi danými možnostmi (jako app.js createRoundData s options.wrong) a popis z daného úvodu článku
+const describe = (topicId, qid, wrongIds, extract) => {
+    const ctx = P.loadContext(topicId);
+    const item = ctx.byId.get(qid);
+    const others = wrongIds.map(id => ctx.byId.get(id));
+    const category = P.categoryOf(ctx.topic, item.c);
+    const question = { type: 'name', title: category.question || ctx.topic.words.question, showName: false, answerLabel: item.n,
+        choices: [item, ...others].map(other => ({ id: other.q, label: other.n, correct: other === item })), accepted: [item.n] };
+    const { questionText, moreText } = core.buildQuestionTexts(item, ctx, question, core.processWikiText(extract));
+    return `${questionText} ${moreText}`.trim();
+};
+
+test('podmět úvodní věty je název: jeden blok i s „nebo také“ a původním názvem, „fotbalový stadion“ zůstane čitelný (Městský stadion v Poznani)', () => {
+    // Skutečná otázka z Dobývání (Polsko): Městský stadion v Poznani | Městský stadion ve Vratislavi | PGE Arena | Slezský stadion
+    const wrong = ['Q188706', 'Q182385', 'Q599592'];
+    const text = 'Stadion Miejski nebo také INEA Stadion je fotbalový stadion v Poznani. Na tomto stadionu hraje své domácí zápasy polský fotbalový klub Lech Poznań.';
+    assert.equal(describe('sport', 'Q188699', wrong, text),
+        '[***] je fotbalový stadion [***]. Na tomto stadionu hraje své domácí zápasy polský fotbalový klub Lech [***].');
+    // Úvod z Wikipedie i se závorkou (česky …) a dalšími větami: Miejski, INEA ani Poznań nikde, žádné „[***] [***]“
+    const article = describe('sport', 'Q188699', wrong, 'Stadion Miejski (česky Městský stadion) nebo také INEA Stadion je fotbalový stadion v Poznani. Na tomto stadionu hraje své domácí zápasy polský fotbalový klub Lech Poznań. Rekordní návštěva byla v roce 1984 při zápase Lech Poznań – Widzew Łódź, kdy přišlo 45 000 diváků.');
+    assert.match(article, /^\[\*\*\*\] je fotbalový stadion/);
+    assert.doesNotMatch(article, /Miejski|INEA|Pozna|fotbalový \[\*\*\*\]|\[\*\*\*\]\s+\[\*\*\*\]/);
+    // Původní název dál v textu se zakryje, obecné „Stadion“ ne
+    const later = describe('sport', 'Q188699', wrong, 'Stadion Miejski nebo také INEA Stadion je fotbalový stadion v Poznani. Miejski byl otevřen v osmdesátých letech a INEA ho později přejmenovala. Stadion leží blízko řeky Warty.');
+    assert.doesNotMatch(later, /Miejski|INEA/, later);
+    assert.match(later, /Stadion leží blízko řeky Warty/, later);
+});
+
+test('jiné názvy odpovědi: katedrála (německy …), osobnost s přezdívkou a rodným jménem, řeka (latinsky …)', () => {
+    // Katedrála svatého Petra v Kolíně nad Rýnem | v Řezně | Neuschwanstein | Katedrála svatého Víta v Praze
+    const dom = describe('architektura', 'Q4176', ['Q280268', 'Q4152', 'Q5949'], 'Katedrála svatého Petra (německy Kölner Dom, krátce Kolínský dóm) je gotická katedrála v Kolíně nad Rýnem a sídlo kolínského arcibiskupa. Stojí na západním břehu Rýna. Kölner Dom patří k nejnavštěvovanějším památkám Německa.');
+    assert.match(dom, /^\[\*\*\*\] je gotická katedrála/, dom);
+    assert.doesNotMatch(dom, /Kölner|Kolín|kolín|Rýn/, dom);
+    // Pelé | Neymar | Ronaldo | Ronaldinho: přezdívka je název, vlastní jméno se zakryje i dál v textu
+    const pele = describe('sport', 'Q12897', ['Q142794', 'Q529207', 'Q39444'], 'Pelé, vlastním jménem Edson Arantes do Nascimento, byl brazilský fotbalista, který je často označován jako nejlepší fotbalista všech dob. Edson Arantes se narodil v Três Corações.');
+    assert.match(pele, /^\[\*\*\*\] byl brazilský fotbalista/, pele);
+    assert.doesNotMatch(pele, /Edson|Arantes|Nascimento|Pel/, pele);
+    // Přezdívka dál v textu (úvody z Wikipedie): za čárkou ve větě se zakrytou odpovědí a ve větě bez podmětu; „oblast zvaná Arkádie“ ne
+    const intro = (key) => P.loadIntros()[key].extract;
+    const korbut = describe('sport', 'Q221575', ['Q10118', 'Q23448791', 'Q210879'], intro('sport:Q221575'));
+    assert.match(korbut, /Byla často přezdívána \[\*\*\*\]\./, korbut);
+    assert.doesNotMatch(korbut, /Vrabec|Minsk/, korbut);
+    const pantani = describe('sport', 'Q273860', ['Q219912', 'Q155010', 'Q312322'], intro('sport:Q273860'));
+    assert.match(pantani, /^\[\*\*\*\] byl italský profesionální cyklista, přezdívaný \[\*\*\*\]\./, pantani);
+    const goat = describe('sport', 'Q7520267', ['Q10118', 'Q23448791', 'Q210879'], 'Simone Arianne Bilesová je americká sportovní gymnastka. Získala rovněž přezdívku G.O.A.T., z anglického „Greatest Of All Time“.');
+    assert.match(goat, /Získala rovněž přezdívku \[\*\*\*\], z anglického/, goat);
+    assert.equal(core.hideAnswer('[***] je nymfa. Žila v jižní oblasti Řecka zvané Arkádie.', { type: 'name', choices: [] }, { n: 'Pleione', t: 'Pleione' }, P.loadContext('mytologie')),
+        '[***] je nymfa. Žila v jižní oblasti Řecka zvané Arkádie.');
+    // Dlouhý podmět se všemi podobami jména je jeden blok (John Fitzgerald Kennedy, známý jako John F. Kennedy, J. F. Kennedy, Jack Kennedy či JFK)
+    const jfk = describe('historie', 'Q9696', [], intro('historie:Q9696'));
+    assert.match(jfk, /^\[\*\*\*\] byl americký politik/, jfk);
+    assert.doesNotMatch(jfk, /JFK|Jack|Kennedy/, jfk);
+    // Ferenc Puskás: přezdívka, maďarské pořadí jména a rodné jméno v závorce
+    const puskas = describe('sport', 'Q482931', ['Q233572', 'Q667655', 'Q12897'], 'Ferenc Puskás, přezdívaný Cválající major (maďarsky Puskás Ferenc, rozený Purczeld Ferenc), byl maďarský fotbalista a trenér. Purczeld začínal v Kispestu.');
+    assert.match(puskas, /^\[\*\*\*\] byl maďarský fotbalista a trenér/, puskas);
+    assert.doesNotMatch(puskas, /Puskás|Purczeld|Ferenc|Cválající/, puskas);
+    // Visla | Odra | Varta | Západní Bug: polský, německý a latinský název ze závorky zakrytý v celém textu, „řeka“ zůstane
+    const visla = describe('zemepis', 'Q548', ['Q552', 'Q201823', 'Q156237'], 'Visla (polsky Wisła, německy Weichsel, latinsky Vistula) je nejdůležitější a nejdelší řeka v Polsku. Do Baltského moře se Wisła vlévá u Gdaňsku. Římané ji nazývali Vistula, Němci Weichsel.');
+    assert.match(visla, /^\[\*\*\*\] je nejdůležitější a nejdelší řeka v Polsku/, visla);
+    assert.doesNotMatch(visla, /Wis|Weichsel|Vistul/, visla);
+});
+
+test('podmět úvodu: druh před názvem zůstane, popisná přístavka také, věta s dalším slovesem se nezakryje celá; pojistka slov odpovědi', () => {
+    assert.equal(core.leadSubject('Vlajka Ghany je list o poměru stran 2:3.', ['Ghana', 'Vlajka Ghany'], { label: 'Ghana' }).text, 'Vlajka [***] je list o poměru stran 2:3.');
+    assert.equal(core.leadSubject('Vltava, nejdelší česká řeka, je řeka v Čechách.', ['Vltava']).text, '[***], nejdelší česká řeka, je řeka v Čechách.');
+    assert.equal(core.leadSubject('Ladislav Pohrobek, nebo Holec z rodu Habsburků, byl český král.', ['Ladislav Pohrobek']).text, '[***] byl český král.');
+    assert.equal(core.leadSubject('Ghana je stát.', ['Ghana']).text, '[***] je stát.');
+    // Podmět bez názvu, s jiným slovesem nebo předložkou na začátku se nechá na běžném zakrývání
+    assert.equal(core.leadSubject('Alexandrit patří mezi nejcennější drahokamy a je varietou chryzoberylu.', ['Alexandrit']), null);
+    assert.equal(core.leadSubject('Nejvyšší horou Česka je Sněžka.', ['Sněžka']), null);
+    assert.equal(core.leadSubject('V Poznani je fotbalový stadion.', ['Městský stadion v Poznani']), null);
+    // Další názvy ze závorky úvodu (processWikiText): jen se značkou jazyka nebo jiného názvu, bez dat
+    assert.deepEqual(core.processWikiText('Visla (polsky Wisła, německy Weichsel, latinsky Vistula) je nejdelší řeka v Polsku.').aliases, ['Wisła', 'Weichsel', 'Vistula']);
+    assert.deepEqual(core.processWikiText('Ferenc Puskás (1. dubna 1927 Budapešť – 17. listopadu 2006 Budapešť) byl maďarský fotbalista.').aliases, []);
+    // Pojistka: slovo správné možnosti, které nesprávné nemají, v textu nezůstane ani v jiném pádě (v Kolíně → Kolína, nad Rýnem → Rýna)
+    const choices = [{ label: 'Katedrála svatého Petra v Kolíně nad Rýnem', correct: true }, { label: 'Katedrála svatého Petra v Řezně' }, { label: 'Neuschwanstein' }, { label: 'Katedrála svatého Víta v Praze' }];
+    assert.equal(core.sealAnswerWords('Katedrála svatého Petra stojí blízko Rýna. Je sídlem kolínského arcibiskupa.', choices, { isGeneric: (word) => core.isGenericWord(word) }),
+        'Katedrála svatého Petra stojí blízko [***]. Je sídlem [***] arcibiskupa.');
+    // Nezávislá kontrola po zakrytí (Dobývání: jinak fakta nebo místní otázka): tvary výrazných slov správné možnosti, ne obecná slova,
+    // slova nesprávných možností, slova zadání ani běžná slova se stejným začátkem malým písmenem (poznat u Poznaně)
+    const isGeneric = (word) => core.isGenericWord(word);
+    const stadium = [{ label: 'Městský stadion v Poznani', correct: true }, { label: 'Městský stadion ve Vratislavi' }, { label: 'PGE Arena' }, { label: 'Slezský stadion' }];
+    assert.deepEqual(core.answerWordsLeft('[***] je fotbalový stadion [***]. Hraje tu Lech Poznań a poznaňští fanoušci ho poznají zdaleka.', stadium, { isGeneric }), ['Poznań', 'poznaňští']);
+    assert.deepEqual(core.answerWordsLeft('[***] je fotbalový stadion [***]. Městský stadion je poznat zdaleka.', stadium, { isGeneric }), []);
+    assert.deepEqual(core.answerWordsLeft('Stojí na západním břehu Rýna, v Kolíně. Je sídlem kolínského arcibiskupa.', choices, { isGeneric }), ['Rýna', 'Kolíně', 'kolínského']);
+    assert.deepEqual(core.answerWordsLeft('Stojí na západním břehu Rýna.', choices, { isGeneric, keep: ['Která stavba stojí blízko Rýna?'] }), []);
+    assert.deepEqual(core.answerWordsLeft(describe('sport', 'Q188699', ['Q188706', 'Q182385', 'Q599592'], 'Stadion Miejski nebo také INEA Stadion je fotbalový stadion v Poznani. Na tomto stadionu hraje své domácí zápasy polský fotbalový klub Lech Poznań.'), stadium, { isGeneric }), []);
+});
