@@ -182,6 +182,8 @@ test('SQL: Dobývání', { skip: !available && 'PostgreSQL není dostupný' }, a
         assert.ok(running.territories.filter(item => item.p).every(item => !item.o), 'poklady na neutrálních územích');
         assert.deepEqual(running.players.map(p => p.score), [1, 1]);
         assert.deepEqual(running.budget && [running.budget.left, running.budget.total, running.budget.period], [5, 5, 0]);
+        // Tahy všech hráčů (schéma 27): pořadí u mapy ukazuje, kolik kdo ještě má
+        assert.deepEqual(running.budgets, { [A]: { left: 5, total: 5 }, [B]: { left: 5, total: 5 } });
         assert.equal(running.moves.length, 2);
         assert.ok(running.moves.every(m => m.r === 'home'));
         // Domovy co nejdál od sebe: aspoň 3 kroky

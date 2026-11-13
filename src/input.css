@@ -889,6 +889,13 @@ html.kb-open #settings-overlay > *, html.kb-open #dialog-overlay > * { max-heigh
 }
 /* Karty pod mapou (pořadí, kronika): světlý pergamen s hnědou linkou jako mapa, v tmavém režimu tmavá deska se zlatou linkou */
 .cq-ledger { background-color: #fbf3e0; background-image: linear-gradient(rgb(255 252 244 / 0.5), rgb(255 252 244 / 0.5)), url(icons/textury/textura-pergamen-svetly.webp); background-size: auto, 320px; box-shadow: inset 0 0 0 1px rgb(164 123 69 / 0.5), inset 0 0 0 3px rgb(255 250 238 / 0.55), 0 2px 6px -3px rgb(60 40 20 / 0.35); }
+/* Tahy hráče v pořadí u mapy (⚔ 3/5), kdo dohrál, zašedle */
+.cq-moves { background: rgb(214 151 37 / 0.16); color: #7a4a06; box-shadow: inset 0 0 0 1px rgb(164 110 30 / 0.35); }
+.cq-moves-done { background: rgb(120 90 50 / 0.1); color: rgb(107 74 42 / 0.65); box-shadow: none; }
+@media (prefers-color-scheme: dark) {
+    .cq-moves { background: rgb(214 151 37 / 0.18); color: #f6d27a; box-shadow: inset 0 0 0 1px rgb(214 151 37 / 0.35); }
+    .cq-moves-done { background: rgb(255 255 255 / 0.06); color: rgb(234 215 171 / 0.5); box-shadow: none; }
+}
 /* Další kolo (blok 26): okno přes hru (ztmavené pozadí), pergamenová karta, hráči s políčky (fajfka = chce další kolo), odpočet 10 s
    s kruhem, který se každou sekundu vybije, a číslem, které poskočí */
 .cq-round-backdrop { background: rgb(30 20 10 / 0.45); backdrop-filter: blur(1.5px); }

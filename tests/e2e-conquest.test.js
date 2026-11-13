@@ -106,7 +106,9 @@ const backend = async (context, db) => {
         // Další kolo (blok 26), jen s db.rounds: stav hry a puls mají round (g.round řídí test); db.now = čas serveru (jinak NOW)
         const rounds = (g) => (db.rounds && g.round ? { round: g.round } : {});
         const state = (g) => ({ ...summary(g), now: db.now || NOW, ...rounds(g), ...(g.status === 'lobby' ? {} : { territories: g.territories, budget: g.status === 'running' ? budget(g) : null, moves: g.moves.slice(-150), claimed: Boolean(mine(g) && mine(g).claimed),
-            history: g.status === 'finished' ? g.moves.filter(m => ['home', 'respawn', 'capture'].includes(m.r)) : null, ...battles(g) }) });
+            history: g.status === 'finished' ? g.moves.filter(m => ['home', 'respawn', 'capture'].includes(m.r)) : null, ...battles(g),
+            // Tahy všech hráčů v tomto kole (schéma 27)
+            budgets: g.status === 'running' ? Object.fromEntries(g.players.map(p => { const used = g.moves.filter(m => m.u === p.user && ['attack', 'fortify'].includes(m.k) && (m.n || 0) === (g.periodNo || 0)).length; return [p.user, { left: Math.max(0, g.actions - used), total: g.actions }]; })) : null }) });
         // Vyhodnocení bitvy: vítěz = správně s nejkratším časem (dobude, nebo pobourá), ostatní fail / outrun
         const resolveSiege = (g, s) => {
             const t = g.territories.find(x => x.t === s.territory);
@@ -591,6 +593,9 @@ test('Dobývání', { skip: !chromium && 'Playwright není nainstalovaný' }, as
             await tab.click('[data-cq-answer="3"]');
             await tab.waitForFunction(() => /Útok odražen/.test((document.querySelector('[data-cq-banner]') || {}).textContent || ''), null, { timeout: 15000 });
             assert.match(await tab.textContent('[data-cq-budget]'), /1\/5/);
+            // Pořadí ukazuje tahy každého hráče, kronika jméno a za ním praporec
+            assert.match((await tab.textContent('[data-cq-players]')).replace(/\s+/g, ' '), /Ty[^]*1\/5[^]*Petr Svoboda[^]*5\/5/);
+            assert.equal(await tab.locator('[data-cq-players] .cq-moves').count(), 2);
             // Přiblížení kolečkem a zpět na celou mapu
             const map = await tab.$('[data-cq-map]');
             const rect = await map.boundingBox();

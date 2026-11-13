@@ -78,7 +78,8 @@
     // Dobývání v upozorněních neukáže). 24 = Dobývání: pozvánky pro přátele (conquest_invite, conquest_invites_mine, conquest_decline_invite;
     // se starší databází se Pozvat přátele neukáže).
     // 26 = Dobývání: rychlé hry (kolo 10 nebo 5 minut, délka v minutách) a Chci další kolo (conquest_round_ready; se starší databází se nenabídnou).
-    const REQUIRED_SCHEMA = 26;
+    // 27 = Dobývání: tahy všech hráčů ve stavu hry (budgets; bez nich pořadí tahy soupeřů neukáže).
+    const REQUIRED_SCHEMA = 27;
     const HISTORY_SIZE = 200;
     const REQUEST_TIMEOUT = 12000;
     const WIKI_TIMEOUT = 6000;

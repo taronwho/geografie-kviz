@@ -5465,6 +5465,9 @@ begin
         'territories', coalesce((select jsonb_agg(jsonb_build_object('t', t.territory, 'o', t.owner, 'l', t.level, 'h', t.home, 'p', t.treasure) order by t.territory)
             from public.conquest_territories t where t.game_id = game), '[]'::jsonb),
         'budget', public.conquest_budget(game, uid),
+        -- Kolik tahů zbývá v tomto kole každému hráči (pořadí u mapy ukazuje „3/5“; schéma 27): { id hráče: { left, total } }
+        'budgets', case when g.status = 'running' then coalesce((select jsonb_object_agg(p.user_id, jsonb_build_object('left', (x.b ->> 'left')::integer, 'total', (x.b ->> 'total')::integer))
+            from public.conquest_players p cross join lateral (select public.conquest_budget(game, p.user_id) b) x where p.game_id = game), '{}'::jsonb) end,
         'claimed', (select p.claimed from public.conquest_players p where p.game_id = game and p.user_id = uid),
         'moves', coalesce((select jsonb_agg(public.conquest_move_json(m) order by m.id) from (select * from public.conquest_moves where game_id = game order by id desc limit 150) m), '[]'::jsonb),
         'history', case when g.status = 'finished' then coalesce((select jsonb_agg(public.conquest_move_json(m) order by m.id)
@@ -6660,7 +6663,8 @@ grant execute on function public.conquest_round_ready(uuid, boolean) to authenti
 --     kola po předčasném začátku v conquest_period, conquest_period_start a conquest_period_end; conquest_round_marks a conquest_round_ready,
 --     round v conquest_state a conquest_pulse přes conquest_round_json, conquest_round_done a conquest_round_player_done; boti dohrají tahy, když
 --     lidé dohráli; conquest_version s round_rev a číslem kola; upozornění rychlých her o dalším kole).
+-- 27: Dobývání – conquest_state posílá v budgets tahy všech hráčů v tomto kole (zbývá a celkem), pořadí u mapy je ukazuje.
 create or replace function public.schema_version() returns integer
-language sql immutable as $$ select 26 $$;
+language sql immutable as $$ select 27 $$;
 revoke all on function public.schema_version() from public, anon;
 grant execute on function public.schema_version() to authenticated;
