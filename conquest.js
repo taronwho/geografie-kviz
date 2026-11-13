@@ -1961,7 +1961,7 @@
         .map(player => `<span class="rounded-full ring-2 ring-white dark:ring-slate-800">${avatarFn(avatar)(player, cls)}</span>`).join('')}</span>`;
     const shortName = (name, max = 12) => { const text = String(name || 'Hráč').trim(); return text.length <= max ? text : `${text.slice(0, max - 1).trimEnd()}…`; };
     const inviterName = (invite) => (invite && invite.invited_by && invite.invited_by.display_name) || 'Kamarád';
-    const inviteFacts = (invite) => `${mapTitle(invite.map)} · ${durationLabel(invite.hours)} · ${(invite.players || []).length}/${invite.max_players}`;
+    const inviteFacts = (invite) => `${mapTitle(invite.map)} · ${minutesLabel(gameMinutes(invite))} · ${(invite.players || []).length}/${invite.max_players}`;
     // „Petr Svoboda tě zve do hry“, „Pozvánka od Petr Svoboda“: dlouhé jméno se zkrátí, zbytek věty zůstane vidět
     const nameLine = (invite, { before = '', after = '', cls = '' } = {}) => `<span class="flex min-w-0 ${cls}">${before ? `<span class="shrink-0 whitespace-pre">${esc(before)}</span>` : ''}<span class="truncate">${esc(inviterName(invite))}</span>${after ? `<span class="shrink-0 whitespace-pre">${esc(after)}</span>` : ''}</span>`;
     // „Pozvánka od Petr Svoboda“; bez toho, kdo zve (smazaný účet), jen „Pozvánka do hry“ (ne „od Kamarád“)
@@ -1995,7 +1995,7 @@
                 <div class="flex items-center gap-2.5">${row}</div>
                 <div data-cq-card-invite="${esc(invite.id)}" class="flex items-center gap-2 border-t border-amber-900/15 pt-1.5 dark:border-gold-200/15">
                     ${draw(invite.invited_by || {}, 'h-8 w-8 text-base')}
-                    <span class="flex min-w-0 flex-1 flex-col leading-tight">${fromLine(invite, 'text-[12px] font-bold text-slate-700 dark:text-slate-200')}<span class="truncate text-[11px] font-semibold text-slate-500 dark:text-slate-400">${esc(mapTitle(invite.map))} · ${esc(durationLabel(invite.hours))}${esc(moreInvites)}</span></span>
+                    <span class="flex min-w-0 flex-1 flex-col leading-tight">${fromLine(invite, 'text-[12px] font-bold text-slate-700 dark:text-slate-200')}<span class="truncate text-[11px] font-semibold text-slate-500 dark:text-slate-400">${esc(mapTitle(invite.map))} · ${esc(minutesLabel(gameMinutes(invite)))}${esc(moreInvites)}</span></span>
                     <button type="button" data-action="conquest-invite" data-game="${esc(invite.id)}" class="${BRAND_BUTTON} min-h-[2.25rem] shrink-0"><i data-lucide="user-plus" class="h-4 w-4"></i> Přidat se</button>
                 </div>
             </div>`;
@@ -2005,7 +2005,7 @@
                 <button type="button" data-action="conquest-open" class="flex min-w-0 flex-1 items-center gap-2.5 text-left" aria-label="Otevřít Dobývání">
                     <span class="relative shrink-0">${art(ART.card, 'h-11 w-11 -my-1')}<span class="absolute -bottom-1.5 -right-1.5 rounded-full ring-2 ring-white dark:ring-slate-800">${draw(invite.invited_by || {}, 'h-6 w-6 text-xs')}</span></span>
                     ${head}${fromLine(invite, 'text-[12px] font-bold text-slate-600 dark:text-slate-300')}
-                    <span class="truncate text-[11px] font-semibold text-slate-500 dark:text-slate-400">${esc(mapTitle(invite.map))} · ${esc(durationLabel(invite.hours))}${esc(moreInvites)}</span></span>
+                    <span class="truncate text-[11px] font-semibold text-slate-500 dark:text-slate-400">${esc(mapTitle(invite.map))} · ${esc(minutesLabel(gameMinutes(invite)))}${esc(moreInvites)}</span></span>
                 </button>
                 <button type="button" data-action="conquest-invite" data-game="${esc(invite.id)}" class="${GOLD_BUTTON} shrink-0"><i data-lucide="user-plus" class="h-4 w-4"></i> Přidat se</button>
             </div>`;
@@ -2060,7 +2060,7 @@
             <span class="cq-thumb-frame flex h-12 w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl">${data ? thumbSvg(data, game.owners || {}, seatColors) : ''}</span>
             <span class="flex min-w-0 flex-1 flex-col gap-0.5">
                 <span class="flex min-w-0 items-center gap-1.5"><span class="truncate text-[14px] font-black leading-tight text-slate-800 dark:text-slate-100">${esc(mapTitle(game.map))}</span>${game.preset ? chip(PRESET_NAMES[game.preset] || 'Rychlá hra', 'zap') : ''}${game.visibility === 'private' ? '<i data-lucide="lock" class="h-3.5 w-3.5 shrink-0 text-slate-400"></i>' : ''}</span>
-                <span class="truncate text-[11px] font-semibold text-slate-500 dark:text-slate-400">${esc(game.status === 'lobby' ? `${durationLabel(game.hours)} · ${actionsLabel(game.actions, game.period)}` : status)}</span>
+                <span class="truncate text-[11px] font-semibold text-slate-500 dark:text-slate-400">${esc(game.status === 'lobby' ? `${minutesLabel(gameMinutes(game))} · ${actionsLabel(game.actions, game.period)}` : status)}</span>
                 <span class="flex min-w-0 items-center gap-1.5">${playerDots(game)}${game.status === 'lobby' ? `<span class="truncate text-[11px] font-bold text-slate-600 dark:text-slate-300">${esc(status)}</span>` : ''}</span>
             </span>
             ${button}
@@ -2629,7 +2629,7 @@
             return `<li class="flex min-w-0 flex-col items-center gap-0.5" data-cq-round-player="${esc(player.id)}">
                 <span class="relative">${avatarFn(avatar)(player, 'h-11 w-11 text-xl')}<span class="absolute -bottom-1 -left-1">${pennantSvg(player.flag_color, player.emblem, 'h-3.5 w-[1.15rem]')}</span>
                     <span class="cq-tick ${on ? 'cq-tick-on' : 'cq-tick-off'} absolute -bottom-1 -right-1 flex h-5 w-5 items-center justify-center rounded-md" aria-label="${on ? 'chce další kolo' : 'zatím ne'}">${on ? '<i data-lucide="check" class="h-3.5 w-3.5"></i>' : ''}</span></span>
-                <span class="max-w-full truncate text-[11.5px] font-black leading-tight">${esc(player.me ? 'Ty' : shortName(player.display_name, 10))}</span></li>`;
+                <span class="max-w-full truncate text-[11.5px] font-black leading-tight">${esc(player.me ? 'Ty' : player.display_name || 'Hráč')}</span></li>`;
         }).join('')}</ul>`;
         if (next !== null) {
             const left = Math.max(0, Math.ceil((next - now) / 1000));
@@ -2645,7 +2645,7 @@
             <div class="flex flex-col items-center gap-0.5 px-8 text-center"><span class="cq-ledger-title text-[17px]">Kolo ${round.period + 1} dohráno</span>
                 <span class="text-[12.5px] font-semibold leading-snug text-amber-950/75 dark:text-gold-100/75">Všichni odehráli své tahy. Až budou fajfky u všech, další kolo začne za ${ROUND_COUNTDOWN} s.</span></div>
             ${people}
-            ${mine ? `<div class="flex flex-col items-center gap-1"><span class="cq-round-wait flex w-full items-center justify-center gap-1.5 rounded-xl py-2 text-[14px] font-black"><i data-lucide="hourglass" class="h-4 w-4"></i>Čekáš na ostatní · ${count}/${players.length}</span>
+            ${round.can_ready === false && !mine ? '' : mine ? `<div class="flex flex-col items-center gap-1"><span class="cq-round-wait flex w-full items-center justify-center gap-1.5 rounded-xl py-2 text-[14px] font-black"><i data-lucide="hourglass" class="h-4 w-4"></i>Čekáš na ostatní · ${count}/${players.length}</span>
                 <button type="button" data-cq="round-unready" class="cq-form-link px-2 py-1">Ještě ne</button></div>`
                 : `<button type="button" data-cq="round-ready" class="${GOLD_BUTTON} w-full py-2.5 text-[15px]"><i data-lucide="check" class="h-5 w-5"></i> Chci další kolo</button>`}
             ${ends !== null ? `<span class="text-center text-[11.5px] font-semibold text-amber-950/60 dark:text-gold-100/60">Jinak začne samo za <span class="tabular-nums" data-cq-until="${ends}">${clockText(ends - now)}</span></span>` : ''}
@@ -2653,7 +2653,7 @@
     };
     // Štítek na mapě po zavření okna: Další kolo? (kolik hráčů už chce)
     const roundChipHtml = (view, round) => {
-        if (!round || !round.done || round.next_at) return '';
+        if (!round || !round.done || round.next_at || round.last) return '';
         const ready = new Set(round.ready || []);
         return `<button type="button" data-cq="round-open" class="cq-siege-chip cq-round-chip pointer-events-auto flex max-w-full items-center gap-1.5 rounded-full py-1 pl-2 pr-2.5 text-[12.5px] font-black"><i data-lucide="repeat" class="h-4 w-4 shrink-0"></i><span class="min-w-0 truncate">Další kolo?</span><span class="shrink-0 tabular-nums opacity-80">${view.players.filter(player => ready.has(player.id)).length}/${view.players.length}</span></button>`;
     };

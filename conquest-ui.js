@@ -418,7 +418,7 @@
             if (!found || !found.code || !deps.share) return;
             const place = root.location;
             const url = `${place ? `${place.origin}${place.pathname}` : ''}?${LINK_PARAM}=${found.code}`;
-            deps.share({ title: 'Dobývání v Mudrlantovi', text: `Pojď si zahrát Dobývání (${C.mapTitle(found.map)}, ${C.durationLabel(found.hours)}).\nKód hry: ${found.code}`, url });
+            deps.share({ title: 'Dobývání v Mudrlantovi', text: `Pojď si zahrát Dobývání (${C.mapTitle(found.map)}, ${C.minutesLabel(C.gameMinutes(found))}).\nKód hry: ${found.code}`, url });
         };
 
         const createGame = async () => {
@@ -1311,7 +1311,8 @@
             if (!holder || !game) return;
             const round = roundsOn() ? game.state.round : null;
             const counting = Boolean(round && C.localTime(round.next_at, game.offset) !== null);
-            const show = Boolean(round && round.done && !game.view.finished && (counting || (!game.roundHidden.has(round.period) && !game.move)));
+            // V posledním kole další kolo nejde (hra skončí podle času)
+            const show = Boolean(round && round.done && !round.last && !game.view.finished && (counting || (!game.roundHidden.has(round.period) && !game.move)));
             const key = show ? JSON.stringify([round.period, round.ready, round.next_at]) : '';
             if (holder.dataset.key === key) return;
             const mode = show ? `${round.period}:${counting}` : '';
@@ -1356,8 +1357,10 @@
             } catch (error) { deps.showToast(errorText(error, 'Nepodařilo se. Zkus to znovu.')); }
         };
         // Puls hry: nové bitvy (upozornění, štítky, značky na mapě), kdo se přidal k mé bitvě, výsledky mých bitev a změny hry (version)
+        // Puls běží, když databáze umí bitvy (blok 25) nebo další kolo (blok 26)
+        const pulseOn = () => battlesOn() || roundsOn();
         const pulse = async () => {
-            if (!game || !battlesOn()) return;
+            if (!game || !pulseOn()) return;
             const id = game.id;
             let res;
             try { res = await serverCall(() => Social.conquestPulse(id)); } catch (error) { return; }
@@ -1666,13 +1669,13 @@
             clearTimeout(timer);
             if (!active()) return;
             const battling = game && (game.move ? game.move.battle : game.view.sieges.size > 0 || Boolean(game.state.round && game.state.round.done));
-            const delay = ui.kind === 'game' ? (battlesOn() ? (battling ? POLL_BATTLE : POLL_PULSE) : POLL_GAME) : ui.kind === 'lobby' ? POLL_LOBBY : 30000;
+            const delay = ui.kind === 'game' ? (pulseOn() ? (battling ? POLL_BATTLE : POLL_PULSE) : POLL_GAME) : ui.kind === 'lobby' ? POLL_LOBBY : 30000;
             timer = setTimeout(tick, delay);
         };
         const tick = async () => {
             if (!active()) return;
             if (!doc.hidden) {
-                if (ui.kind === 'game' && game && !replaying && battlesOn()) {
+                if (ui.kind === 'game' && game && !replaying && pulseOn()) {
                     await pulse();
                     // Pojistka: celý stav aspoň jednou za minutu
                     if (game && !game.move && Date.now() - (game.loadedAt || 0) > 60000) await reloadGame();

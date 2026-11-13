@@ -209,7 +209,7 @@ const backend = async (context, db) => {
         if (name === 'conquest_leave') { const g = find(body.game); g.players = g.players.filter(p => p.user !== me.id); return route.fulfill({ status: 204, body: '' }); }
         if (name === 'conquest_state') return json(state(find(body.game)));
         if (name === 'conquest_pulse') {
-            if (!db.battles) return fail('Not found', 404);
+            if (!db.battles && !db.rounds) return fail('Not found', 404);
             const g = find(body.game);
             return json({ id: g.id, now: db.now || NOW, status: g.status, ends_at: g.ends_at, ...battles(g), ...rounds(g), results: (g.sieges || []).filter(s => s.status === 'resolved' && s.participants.some(p => p.user === me.id)).map(s => siegeJson(g, s)) });
         }
@@ -872,6 +872,7 @@ test('Dobývání', { skip: !chromium && 'Playwright není nainstalovaný' }, as
         assert.equal(await tab.textContent('[data-cq-count]'), '10');
         assert.match(await tab.textContent('[data-cq-round]'), /Další kolo začíná/);
         assert.equal(await tab.locator('[data-cq-round] .cq-tick-on').count(), 2);
+        await tab.waitForTimeout(450);
         await shot(tab, 'dalsi-kolo-odpocet-360');
         // Po odpočtu nové kolo: okno zmizí, toast Začalo 2. kolo.
         g.periodNo = 1;
