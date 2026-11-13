@@ -334,7 +334,9 @@ language sql immutable set search_path = public as $$
         -- Schéma 21: Boss týdne (emblémy poražených bossů)
         'boss-kapitan', 'boss-rytir', 'boss-alchymista', 'boss-amper', 'boss-maestro', 'boss-druid', 'boss-olympan', 'boss-reziser',
         -- Schéma 21: Dobývání (vyhrané hry)
-        'dobyvatel', 'dobyvatel-3', 'dobyvatel-10', 'dobyvatel-25', 'dobyvatel-50'
+        'dobyvatel', 'dobyvatel-3', 'dobyvatel-10', 'dobyvatel-25', 'dobyvatel-50',
+        -- Schéma 21: Kamarádské sázky (rozhodnuté sázky a vyhrané sázky v řadě)
+        'sazky-1', 'sazkar', 'sazky-15', 'sazky-30', 'sazky-60', 'sazky-v-rade-3', 'sazky-v-rade-5', 'sazky-v-rade-7', 'sazky-v-rade-10', 'sazky-v-rade-15'
     ]::text[];
 $$;
 
@@ -3451,6 +3453,289 @@ grant execute on function public.mystery_state(), public.mystery_guess(date, int
 -- otázek, střípky a Zlaté truhly jsou jen v zařízení (mudrlant.gold, gold.js); věc ze Zlaté truhly se ukládá s ostatními dárky truhel
 -- v profiles.rewards (schéma 9), takže se po přihlášení přenese jako ostatní odměny.
 -- ===== 21: Zlatá otázka — KONEC BLOKU =====
+
+-- ===== 21: Kamarádské sázky =====
+-- Výzva konkrétnímu hráči (podle přezdívky, příteli, odveta) může mít sázku 10, 25 nebo 50 XP; náhodný soupeř, výzva přes odkaz ani výzva skupině ne
+-- (server pustí sázku jen u výzvy s vyzvaným hráčem, náhodného soupeře hlídá aplikace). Zakladatel ji nabídne hned po založení výzvy, dřív než
+-- kdokoli začne hrát (challenge_offer_stake, s nepovinnou hláškou 0–7 z pevného seznamu v bets.js, žádný volný text). Vyzvaný ji před svou první
+-- otázkou přijme, nebo hraje bez sázky (challenge_answer_stake); kdo začne hrát bez odpovědi, hraje bez sázky (spoušť na první odpovědi), nabídka
+-- platí 7 dní. Vsadit i přijmout jde nejvýš tolik, kolik hráč získal za posledních 7 dní (odhad z xp_weekly: tento týden a poměrná část minulého),
+-- bez sázek, které má ještě otevřené. Až mají výsledek oba, každý si svou část vyrovná sám a jen jednou (challenge_settle_stake, příznaky
+-- stake_settled_creator a stake_settled_opponent, skutečná změna ve stake_delta_*): vítěz +vklad, poražený −vklad, ale nikdy pod hranici své
+-- aktuální úrovně (stake_level_floor, stejná tabulka jako LEVEL_XP v quiz-core.js), remíza nic. XP sázky mění jen tahle funkce (s právy vlastníka;
+-- jinak klient profiles.xp jen zvyšuje). Součty profiles.bet_won a bet_lost řeknou aplikaci na každém zařízení, co z výher a proher ještě
+-- nepřipsala (bets.js reconcile), takže starší XP z jiného zařízení prohru nepřepíše. Prohra se odečte i z týdenních XP (xp_weekly), výhru tam
+-- připíše spoušť count_weekly_xp. Sloupce sázky klient přímo nezapíše (spoušť guard_challenge_stake je při založení výzvy vynuluje).
+alter table public.challenges add column if not exists stake integer;
+alter table public.challenges add column if not exists stake_state text;
+alter table public.challenges add column if not exists taunt smallint;
+alter table public.challenges add column if not exists stake_settled_creator boolean not null default false;
+alter table public.challenges add column if not exists stake_settled_opponent boolean not null default false;
+alter table public.challenges add column if not exists stake_delta_creator integer;
+alter table public.challenges add column if not exists stake_delta_opponent integer;
+alter table public.challenges drop constraint if exists challenges_stake_values;
+alter table public.challenges add constraint challenges_stake_values check (
+    ((stake is null and stake_state is null and taunt is null)
+        or (stake in (10, 25, 50) and stake_state in ('offered', 'accepted', 'declined') and (taunt is null or taunt between 0 and 7)))
+    and (stake_state = 'accepted' or not (stake_settled_creator or stake_settled_opponent))
+    and (stake_delta_creator is null or stake_delta_creator between -50 and 50)
+    and (stake_delta_opponent is null or stake_delta_opponent between -50 and 50));
+create index if not exists challenges_stake_creator_idx on public.challenges (creator_id, created_at desc) where stake is not null;
+create index if not exists challenges_stake_invited_idx on public.challenges (invited_id, created_at desc) where stake is not null;
+-- Součet vyhraných a prohraných XP ze sázek (jen roste; klient ho číst smí, zapsat ne: sloupce nejsou v grant update)
+alter table public.profiles add column if not exists bet_won integer not null default 0;
+alter table public.profiles add column if not exists bet_lost integer not null default 0;
+alter table public.profiles drop constraint if exists profiles_bet_totals;
+alter table public.profiles add constraint profiles_bet_totals check (bet_won between 0 and 100000000 and bet_lost between 0 and 100000000);
+
+-- Výzvu zakládá klient přímo (insert do challenges): sloupce sázky při tom vždy začínají prázdné
+create or replace function public.guard_challenge_stake() returns trigger
+language plpgsql set search_path = public as $$
+begin
+    if current_user in ('authenticated', 'anon') then
+        new.stake := null;
+        new.stake_state := null;
+        new.taunt := null;
+        new.stake_settled_creator := false;
+        new.stake_settled_opponent := false;
+        new.stake_delta_creator := null;
+        new.stake_delta_opponent := null;
+    end if;
+    return new;
+end;
+$$;
+drop trigger if exists challenges_guard_stake on public.challenges;
+create trigger challenges_guard_stake before insert on public.challenges for each row execute function public.guard_challenge_stake();
+
+-- Vyzvaný začal hrát (první odpověď) a na nabídku neodpověděl: hraje se bez sázky
+create or replace function public.stake_close_offer() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+    update public.challenges set stake_state = 'declined' where id = new.challenge_id and invited_id = new.user_id and stake_state = 'offered';
+    return null;
+end;
+$$;
+drop trigger if exists challenge_progress_close_offer on public.challenge_progress;
+create trigger challenge_progress_close_offer after insert on public.challenge_progress for each row when (new.idx = 0) execute function public.stake_close_offer();
+
+-- Hranice aktuální úrovně (XP, od kterých úroveň platí): pod ni prohraná sázka XP nesníží. Stejná tabulka jako LEVEL_XP v quiz-core.js
+-- (hlídá tests/sql-bets.test.js).
+create or replace function public.stake_level_floor(xp integer) returns integer
+language sql immutable set search_path = public as $$
+    select coalesce(max(v), 0)::integer from unnest(array[0, 90, 250, 480, 750, 1150, 1550, 2000, 2600, 3200, 3900, 4700, 5500, 6400, 7300, 8300, 9400, 10500,
+        12000, 13000, 14500, 16000, 17500, 19000, 20500, 22000, 24000, 25500, 27500, 29500, 31500, 33500, 36000, 38000, 40500, 42500, 45000, 47500,
+        50000, 53000, 55000, 58000, 61000, 64000, 67000, 70000, 73000, 76000, 79000, 82000, 86000, 89000, 93000, 96000, 100000, 103000, 107000,
+        111000, 115000, 119000, 123000, 127000, 131000, 135000, 139000, 144000, 148000, 152000, 157000, 162000, 166000, 171000, 176000, 181000,
+        185000, 190000, 196000, 201000, 206000, 211000, 216000, 222000, 227000, 233000, 238000, 244000, 250000, 255000, 261000, 267000, 273000,
+        279000, 285000, 292000, 298000, 304000, 310000, 317000, 323000, 330000]::integer[]) v where v <= greatest(coalesce(xp, 0), 0)
+$$;
+
+-- XP za posledních 7 dní (odhad z týdenních součtů): tento týden celý a z minulého týdne poměr dní, které do posledních 7 dní ještě patří
+-- (v pondělí 6/7, v neděli nic)
+create or replace function public.stake_week_xp(uid uuid) returns integer
+language plpgsql stable set search_path = public as $$
+declare today date := public.daily_quiz_today(); ws date; this_week integer; last_week integer;
+begin
+    ws := public.group_week_start(today);
+    select coalesce(sum(x.gained), 0) into this_week from public.xp_weekly x where x.user_id = uid and x.week = ws;
+    select coalesce(sum(x.gained), 0) into last_week from public.xp_weekly x where x.user_id = uid and x.week = ws - 7;
+    return (this_week + last_week * (7 - extract(isodow from today)::integer) / 7)::integer;
+end;
+$$;
+
+-- Vklady, které hráč ještě má ve hře (nabídnuté nebo přijaté, nevyrovnané, z posledních 7 dní); skip = výzva, o kterou právě jde
+create or replace function public.stake_open(uid uuid, skip text default null) returns integer
+language sql stable set search_path = public as $$
+    select coalesce(sum(c.stake), 0)::integer from public.challenges c
+    where c.stake is not null and c.created_at > now() - interval '7 days' and c.id is distinct from skip
+      and ((c.creator_id = uid and c.stake_state in ('offered', 'accepted') and not c.stake_settled_creator)
+        or (c.invited_id = uid and c.stake_state = 'accepted' and not c.stake_settled_opponent))
+$$;
+
+-- Kolik hráč může právě vsadit (nejvýš 50)
+create or replace function public.stake_available(uid uuid, skip text default null) returns integer
+language sql stable set search_path = public as $$
+    select least(50, greatest(0, public.stake_week_xp(uid) - public.stake_open(uid, skip)))::integer
+$$;
+
+-- Výsledek sázky z pohledu hráče: víc bodů, při shodě víc správných (jako rate_challenge)
+create or replace function public.stake_outcome(mine_points integer, mine_correct integer, their_points integer, their_correct integer) returns text
+language sql immutable as $$
+    select case when mine_points > their_points then 'win' when mine_points < their_points then 'loss'
+        when mine_correct > their_correct then 'win' when mine_correct < their_correct then 'loss' else 'draw' end
+$$;
+
+-- Sázka výzvy jako JSON pro hráče uid (role, stav, vklad, hláška, moje vyrovnání a výsledek, když dohráli oba)
+create or replace function public.stake_json(c public.challenges, uid uuid) returns jsonb
+language plpgsql stable set search_path = public as $$
+declare
+    creator boolean := uid = c.creator_id;
+    other uuid := case when uid = c.creator_id then c.invited_id else c.creator_id end;
+    mine public.challenge_results; theirs public.challenge_results;
+begin
+    select * into mine from public.challenge_results r where r.challenge_id = c.id and r.user_id = uid;
+    select * into theirs from public.challenge_results r where r.challenge_id = c.id and r.user_id = other;
+    return jsonb_build_object(
+        'id', c.id, 'stake', c.stake, 'state', c.stake_state, 'taunt', c.taunt, 'role', case when creator then 'creator' else 'opponent' end,
+        'other', other, 'created_at', c.created_at,
+        'expired', coalesce(c.stake_state = 'offered' and c.created_at <= now() - interval '7 days', false),
+        'settled', case when creator then c.stake_settled_creator else c.stake_settled_opponent end,
+        'delta', case when creator then c.stake_delta_creator else c.stake_delta_opponent end,
+        'other_settled', case when creator then c.stake_settled_opponent else c.stake_settled_creator end,
+        'done', mine.user_id is not null, 'other_done', theirs.user_id is not null,
+        'outcome', case when mine.user_id is not null and theirs.user_id is not null then public.stake_outcome(mine.points, mine.correct, theirs.points, theirs.correct) end);
+end;
+$$;
+
+-- Nabídka sázky: jen zakladatel výzvy konkrétnímu hráči, jen jednou a jen dřív, než kdokoli začne hrát; vklad do limitu
+create or replace function public.challenge_offer_stake(code text, amount integer, taunt_id integer default null) returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare uid uuid := auth.uid(); c public.challenges; free integer;
+begin
+    if uid is null then raise exception 'Přihlas se.' using errcode = '42501'; end if;
+    select * into c from public.challenges ch where ch.id = code for update;
+    if c.id is null then raise exception 'Výzva neexistuje.' using errcode = '22023'; end if;
+    if c.creator_id <> uid then raise exception 'Tuhle sázku nabídnout nemůžeš: výzva není tvoje.' using errcode = '42501'; end if;
+    if c.invited_id is null or exists (select 1 from public.group_challenges g where g.challenge_id = c.id) then
+        raise exception 'Sázka jde jen ve výzvě konkrétnímu hráči.' using errcode = '22023';
+    end if;
+    if c.stake is not null then
+        if c.stake = amount and c.taunt is not distinct from taunt_id::smallint then return public.stake_json(c, uid); end if;
+        raise exception 'Sázka už je nabídnutá.' using errcode = '22023';
+    end if;
+    if amount is null or amount not in (10, 25, 50) then raise exception 'Vsadit jde 10, 25 nebo 50 XP.' using errcode = '22023'; end if;
+    if taunt_id is not null and (taunt_id < 0 or taunt_id > 7) then raise exception 'Neplatná hláška.' using errcode = '22023'; end if;
+    if exists (select 1 from public.challenge_progress p where p.challenge_id = c.id) or exists (select 1 from public.challenge_results r where r.challenge_id = c.id) then
+        raise exception 'Sázku jde nabídnout jen před začátkem hry.' using errcode = '22023';
+    end if;
+    perform pg_advisory_xact_lock(hashtext('stake:' || uid::text));
+    free := public.stake_available(uid, c.id);
+    if amount > free then
+        raise exception 'Vsadit můžeš nejvýš % XP (tolik máš z posledních 7 dní).', free using errcode = 'P0001';
+    end if;
+    update public.challenges set stake = amount, stake_state = 'offered', taunt = taunt_id where id = c.id returning * into c;
+    return public.stake_json(c, uid);
+end;
+$$;
+
+-- Odpověď vyzvaného: přijmout (do jeho limitu), nebo hrát bez sázky; jen před jeho první otázkou a do 7 dní od založení. Stejná odpověď znovu nic nemění.
+create or replace function public.challenge_answer_stake(code text, accept boolean) returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare uid uuid := auth.uid(); c public.challenges; free integer; wanted text := case when accept then 'accepted' else 'declined' end;
+begin
+    if uid is null then raise exception 'Přihlas se.' using errcode = '42501'; end if;
+    if accept is null then raise exception 'Chybí odpověď.' using errcode = '22023'; end if;
+    select * into c from public.challenges ch where ch.id = code for update;
+    if c.id is null then raise exception 'Výzva neexistuje.' using errcode = '22023'; end if;
+    if c.invited_id is distinct from uid then raise exception 'Na tuhle sázku odpovědět nemůžeš.' using errcode = '42501'; end if;
+    if c.stake_state is null then raise exception 'U téhle výzvy žádná sázka není.' using errcode = '22023'; end if;
+    if c.stake_state = wanted then return public.stake_json(c, uid); end if;
+    if c.stake_state <> 'offered' then raise exception 'Na sázku už je odpověď.' using errcode = '22023'; end if;
+    if exists (select 1 from public.challenge_progress p where p.challenge_id = c.id and p.user_id = uid) or exists (select 1 from public.challenge_results r where r.challenge_id = c.id and r.user_id = uid) then
+        raise exception 'Na sázku jde odpovědět jen před začátkem hry.' using errcode = '22023';
+    end if;
+    if c.created_at <= now() - interval '7 days' then raise exception 'Nabídka sázky vypršela.' using errcode = '22023'; end if;
+    if accept then
+        perform pg_advisory_xact_lock(hashtext('stake:' || uid::text));
+        free := public.stake_available(uid, c.id);
+        if c.stake > free then
+            raise exception 'Vsadit můžeš nejvýš % XP (tolik máš z posledních 7 dní).', free using errcode = 'P0001';
+        end if;
+    end if;
+    update public.challenges set stake_state = wanted where id = c.id returning * into c;
+    return public.stake_json(c, uid);
+end;
+$$;
+
+-- Vyrovnání sázky za přihlášeného hráče: až mají výsledek oba, připíše (výhra) nebo odečte (prohra, jen nad hranicí úrovně) vklad, jednou.
+-- Jinak jen vrátí stav (čeká se na soupeře, sázka nebyla přijata). fresh = vyrovnáno právě teď; xp, won a lost = stav účtu po něm.
+create or replace function public.challenge_settle_stake(code text) returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare
+    uid uuid := auth.uid(); c public.challenges; info jsonb; creator boolean; outcome text;
+    old_xp integer; new_xp integer; delta integer; p public.profiles;
+begin
+    if uid is null then raise exception 'Přihlas se.' using errcode = '42501'; end if;
+    select * into c from public.challenges ch where ch.id = code for update;
+    if c.id is null then raise exception 'Výzva neexistuje.' using errcode = '22023'; end if;
+    if uid is distinct from c.creator_id and uid is distinct from c.invited_id then raise exception 'Tahle sázka ti nepatří.' using errcode = '42501'; end if;
+    info := public.stake_json(c, uid);
+    if c.stake_state is distinct from 'accepted' or (info ->> 'outcome') is null then return info || jsonb_build_object('fresh', false); end if;
+    creator := uid = c.creator_id;
+    if (creator and c.stake_settled_creator) or (not creator and c.stake_settled_opponent) then return info || jsonb_build_object('fresh', false); end if;
+    outcome := info ->> 'outcome';
+    select xp into old_xp from public.profiles where id = uid for update;
+    if old_xp is null then raise exception 'Profil chybí.' using errcode = '22023'; end if;
+    new_xp := case outcome when 'win' then least(old_xp + c.stake, 500000)
+        when 'loss' then old_xp - least(c.stake, greatest(old_xp - public.stake_level_floor(old_xp), 0)) else old_xp end;
+    delta := new_xp - old_xp;
+    update public.profiles set xp = new_xp, bet_won = bet_won + greatest(delta, 0), bet_lost = bet_lost + greatest(-delta, 0) where id = uid returning * into p;
+    if delta < 0 then
+        update public.xp_weekly set gained = greatest(0, gained + delta) where user_id = uid and week = public.group_week_start(public.daily_quiz_today());
+    end if;
+    if creator then update public.challenges set stake_settled_creator = true, stake_delta_creator = delta where id = c.id returning * into c;
+    else update public.challenges set stake_settled_opponent = true, stake_delta_opponent = delta where id = c.id returning * into c; end if;
+    return public.stake_json(c, uid) || jsonb_build_object('fresh', true, 'xp', p.xp, 'won', p.bet_won, 'lost', p.bet_lost);
+end;
+$$;
+
+-- Statistika sázek hráče (rozhodnuté přijaté sázky): počet, výhry, prohry, remízy, bilance XP (vyrovnané části), nejdelší a současná řada výher
+create or replace function public.stake_stats(uid uuid) returns jsonb
+language sql stable set search_path = public as $$
+    with s as (
+        select c.id, greatest(m.finished_at, o.finished_at) as decided_at,
+            public.stake_outcome(m.points, m.correct, o.points, o.correct) as outcome,
+            case when c.creator_id = uid then c.stake_delta_creator else c.stake_delta_opponent end as delta
+        from public.challenges c
+        join public.challenge_results m on m.challenge_id = c.id and m.user_id = uid
+        join public.challenge_results o on o.challenge_id = c.id and o.user_id = case when c.creator_id = uid then c.invited_id else c.creator_id end
+        where c.stake_state = 'accepted' and (c.creator_id = uid or c.invited_id = uid)
+    ), islands as (
+        select outcome, row_number() over (order by decided_at, id) - row_number() over (partition by outcome = 'win' order by decided_at, id) as grp from s
+    )
+    select jsonb_build_object(
+        'bets', (select count(*) from s), 'wins', (select count(*) from s where outcome = 'win'),
+        'losses', (select count(*) from s where outcome = 'loss'), 'draws', (select count(*) from s where outcome = 'draw'),
+        'balance', (select coalesce(sum(delta), 0) from s),
+        'best', coalesce((select max(n) from (select count(*) as n from islands where outcome = 'win' group by grp) runs), 0),
+        'streak', (select count(*) from s where outcome = 'win' and decided_at > coalesce((select max(decided_at) from s where outcome <> 'win'), '-infinity'::timestamptz)))
+$$;
+
+-- Moje sázky: kolik můžu vsadit, statistika a sázky výzev z posledních 30 dní (a nevyrovnané starší), nejnovější první
+create or replace function public.challenge_stakes() returns jsonb
+language plpgsql stable security definer set search_path = public as $$
+declare uid uuid := auth.uid();
+begin
+    if uid is null then raise exception 'Přihlas se.' using errcode = '42501'; end if;
+    return jsonb_build_object(
+        'limit', public.stake_available(uid), 'week_xp', public.stake_week_xp(uid), 'open', public.stake_open(uid),
+        'stats', public.stake_stats(uid),
+        'rows', coalesce((select jsonb_agg(public.stake_json(c, uid) order by c.created_at desc) from public.challenges c where c.id in (
+            select r.id from public.challenges r
+            where r.stake is not null and (r.creator_id = uid or r.invited_id = uid)
+              and (r.created_at > now() - interval '30 days' or (r.stake_state = 'accepted' and not (case when r.creator_id = uid then r.stake_settled_creator else r.stake_settled_opponent end)))
+            order by r.created_at desc limit 40)), '[]'::jsonb));
+end;
+$$;
+
+-- Sázková bilance jiného hráče (profil hráče): jen souhrn, ne jednotlivé sázky
+create or replace function public.challenge_stake_stats(player uuid) returns jsonb
+language plpgsql stable security definer set search_path = public as $$
+begin
+    if auth.uid() is null then raise exception 'Přihlas se.' using errcode = '42501'; end if;
+    if player is null or not exists (select 1 from public.profiles where id = player) then return null; end if;
+    return public.stake_stats(player);
+end;
+$$;
+
+revoke all on function public.guard_challenge_stake(), public.stake_close_offer(), public.stake_level_floor(integer), public.stake_week_xp(uuid),
+    public.stake_open(uuid, text), public.stake_available(uuid, text), public.stake_outcome(integer, integer, integer, integer),
+    public.stake_json(public.challenges, uuid), public.stake_stats(uuid) from public, anon, authenticated;
+revoke all on function public.challenge_offer_stake(text, integer, integer), public.challenge_answer_stake(text, boolean), public.challenge_settle_stake(text),
+    public.challenge_stakes(), public.challenge_stake_stats(uuid) from public, anon;
+grant execute on function public.challenge_offer_stake(text, integer, integer), public.challenge_answer_stake(text, boolean), public.challenge_settle_stake(text),
+    public.challenge_stakes(), public.challenge_stake_stats(uuid) to authenticated;
+-- ===== 21: Kamarádské sázky — KONEC BLOKU =====
 
 -- ===== Verze schématu =====
 -- Číslo se zvyšuje při KAŽDÉ změně tohoto souboru (tabulka, sloupec, funkce, pravidlo) a zároveň konstanta REQUIRED_SCHEMA v app.js.

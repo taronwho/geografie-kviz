@@ -674,3 +674,24 @@ se na ně dál neptá): souboje, XP, emblémy a titul fungují, chybí jen spole
   srdce, hlášky podle stupně) a výsledek. Stav v zařízení `mudrlant.boss`.
 - Testy: `tests/sql-boss.test.js` (týden v Praze, rozsahy, pokusy, opakované odeslání, půlnoc, společná lišta a bonus, pravidla řádků, export
   a smazání), `tests/boss.test.js` a `tests/e2e-boss.test.js`.
+
+## Kamarádské sázky (schéma 21)
+
+**Po aktualizaci spusť znovu celý `supabase/schema.sql`.** Dokud ho nespustíš, funkce sázek vrátí 404 a aplikace sázky vůbec neukáže.
+
+- **Pravidla** (`bets.js`): ve výzvě konkrétnímu hráči (podle přezdívky, příteli, odveta přes Upravit) jde v okně Nová výzva v řádku **Sázka**
+  vsadit 10, 25 nebo 50 XP a vybrat jednu z 8 hlášek (žádný volný text). Náhodný soupeř, výzva přes odkaz ani výzva skupině sázku nemají.
+  Vsadit (i přijmout) jde nejvýš tolik, kolik hráč získal za posledních 7 dní (odhad z `xp_weekly`: tento týden a poměrná část minulého),
+  bez sázek, které má ještě otevřené. Vyzvaný před první otázkou zvolí **Přijmout sázku**, nebo **Hrát bez sázky**; kdo začne hrát bez odpovědi,
+  hraje bez sázky (spoušť `challenge_progress_close_offer`), nabídka platí 7 dní.
+- **Vyrovnání** `challenge_settle_stake(code)`: až mají výsledek oba, každý hráč si svou část vyrovná jednou (`stake_settled_creator`,
+  `stake_settled_opponent`, skutečná změna ve `stake_delta_*`): výhra +vklad, prohra −vklad, ale jen nad hranicí aktuální úrovně
+  (`stake_level_floor`, stejná tabulka jako `LEVEL_XP` v `quiz-core.js`), remíza nic. XP v účtu mění jen tahle funkce; prohra se odečte i z
+  `xp_weekly`, výhru tam připíše `count_weekly_xp`. Součty `profiles.bet_won` a `bet_lost` (jen pro čtení) čte aplikace spolu s XP a sladí podle
+  nich XP v zařízení (prohra vyrovnaná na jiném zařízení se tak starším XP nepřepíše). Jinak funkce jen vrátí stav sázky.
+- `challenge_offer_stake(code, amount, taunt_id)` jen zakladatel a jen před začátkem hry; `challenge_answer_stake(code, accept)` jen vyzvaný;
+  `challenge_stakes()` limit, statistika a moje sázky (mince u výzev, vyrovnání na pozadí); `challenge_stake_stats(player)` sázková bilance hráče
+  do profilu. Sloupce sázky při založení výzvy klient nezapíše (spoušť `guard_challenge_stake`). Anon nic.
+- Odznaky **Kamarádské sázky** (`sazky-1`, `sazkar` = Sázkař za 5 sázek, `sazky-15`, `sazky-30`, `sazky-60`) a **Vyhrané sázky v řadě**
+  (`sazky-v-rade-3`, `sazky-v-rade-5` = Neomylný sázkař, `-7`, `-10`, `-15`) v `badge_catalog()`. Export dat má sázky ve výzvách a součty v profilu.
+- Testy: `tests/sql-bets.test.js`, `tests/bets.test.js` a `tests/e2e-bets.test.js`.

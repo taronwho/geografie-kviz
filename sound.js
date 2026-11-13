@@ -40,7 +40,12 @@
         bossHit: [n(185, 0, 0.13, { to: 87.31, gain: 0.24 }), n(1567.98, 0.02, 0.08, { type: 'sine', gain: 0.12 }), n(1975.53, 0.06, 0.07, { type: 'sine', gain: 0.08 })],
         bossStage: [n(440, 0, 0.4, { to: 110, gain: 0.18 }), n(220, 0.05, 0.45, { gain: 0.16 }), n(164.81, 0.05, 0.5, { type: 'sine', gain: 0.16 })],
         bossLaugh: [n(392, 0, 0.09, { to: 349.23 }), n(392, 0.13, 0.09, { to: 349.23 }), n(466.16, 0.26, 0.16, { to: 311.13 })],
-        bossDown: [n(392, 0, 0.24, { to: 370, gain: 0.16 }), n(349.23, 0.26, 0.24, { to: 329.63, gain: 0.16 }), n(293.66, 0.52, 0.5, { to: 196, gain: 0.16 }), n(98, 0.52, 0.5, { type: 'sine', gain: 0.2 })]
+        bossDown: [n(392, 0, 0.24, { to: 370, gain: 0.16 }), n(349.23, 0.26, 0.24, { to: 329.63, gain: 0.16 }), n(293.66, 0.52, 0.5, { to: 196, gain: 0.16 }), n(98, 0.52, 0.5, { type: 'sine', gain: 0.2 })],
+        // Kamarádské sázky (bets.js): mince se sypou k vítězi a cinkají (krátké vysoké tóny s tichým podtónem, nepravidelně po sobě)
+        coins: [n(1975.53, 0, 0.06, { type: 'sine', gain: 0.16 }), n(1318.51, 0, 0.05, { type: 'sine', gain: 0.06 }), n(1760, 0.1, 0.06, { type: 'sine', gain: 0.15 }),
+            n(1174.66, 0.1, 0.05, { type: 'sine', gain: 0.05 }), n(1864.66, 0.19, 0.05, { type: 'sine', gain: 0.14 }), n(1567.98, 0.27, 0.07, { type: 'sine', gain: 0.15 }),
+            n(1046.5, 0.27, 0.05, { type: 'sine', gain: 0.05 }), n(1975.53, 0.36, 0.05, { type: 'sine', gain: 0.13 }), n(1760, 0.45, 0.12, { type: 'sine', gain: 0.16 }),
+            n(1318.51, 0.45, 0.12, { type: 'sine', gain: 0.07 })]
     };
     // Vibrace: krátké cvrnknutí při chybě, rytmus při novém rekordu
     const VIBRATIONS = { wrong: 40, record: [70, 50, 70, 50, 160], bossHit: 25, bossStage: [60, 40, 110] };

@@ -230,7 +230,17 @@
     };
 
     // Úroveň (XP) a odznaky v účtu; sloupce přibyly pozdější verzí schématu, bez nich volající chybu ignoruje
-    const getProgress = async (userId) => (await withExtras(extras => request('GET', `profiles?id=eq.${encodeURIComponent(userId)}&select=xp,badges${extras ? ',title_pref' : ''}`)) || [])[0] || null;
+    // Kamarádské sázky (schéma 21): se XP i součty vyhraných a prohraných XP ze sázek (bet_won, bet_lost), ať je zařízení sladí ve stejném
+    // okamžiku jako XP (bets.js reconcile); databáze bez nich odpoví 400 a dál se o ně nežádá
+    let betTotalsMissing = false;
+    const getProgress = async (userId) => {
+        const run = () => withExtras(extras => request('GET', `profiles?id=eq.${encodeURIComponent(userId)}&select=xp,badges${extras ? ',title_pref' : ''}${betTotalsMissing ? '' : ',bet_won,bet_lost'}`));
+        try { return ((await run()) || [])[0] || null; } catch (error) {
+            if (error.status !== 400 || betTotalsMissing) throw error;
+            betTotalsMissing = true;
+            return ((await run()) || [])[0] || null;
+        }
+    };
     const saveProgress = (userId, { xp, badges }) => request('PATCH', `profiles?id=eq.${encodeURIComponent(userId)}`, {
         body: { xp: wholeNumber(xp, 500000), badges: badges.filter(id => typeof id === 'string' && /^[a-z0-9-]{1,40}$/.test(id)).slice(0, 200) }, prefer: 'return=minimal'
     });
