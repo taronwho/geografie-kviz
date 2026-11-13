@@ -1109,9 +1109,11 @@
     const conquestReady = async (game, ready) => conquestGame(await conquestCall('conquest_ready', { game: conquestId(game), is_ready: Boolean(ready) }, 'Nepodařilo se. Zkus to znovu.'));
     const conquestLeave = (game) => conquestCall('conquest_leave', { game: conquestId(game) }, 'Odejít ze hry se nepodařilo. Zkus to znovu.');
     const conquestState = async (game) => conquestGame(await conquestCall('conquest_state', { game: conquestId(game) }, 'Hru se nepodařilo načíst. Zkontroluj připojení.'));
-    // Tah: kind = 'attack' | 'fortify', correct = odpověď na otázku, source = vlastní území, odkud útok vede
-    const conquestMove = async (game, territory, kind, correct, source = null) => conquestGame(await conquestCall('conquest_move', {
-        game: conquestId(game), target: conquestText(territory, 16), move_kind: kind === 'fortify' ? 'fortify' : 'attack', is_correct: Boolean(correct), source: source ? conquestText(source, 16) : null
+    // Tah: kind = 'attack' | 'fortify', correct = odpověď na otázku, source = vlastní území, odkud útok vede,
+    // seen = { owner, level } území, když se ukázala otázka (schéma 25): změnilo-li se mezitím, server tah odmítne a nespotřebuje
+    const conquestMove = async (game, territory, kind, correct, source = null, seen = null) => conquestGame(await conquestCall('conquest_move', {
+        game: conquestId(game), target: conquestText(territory, 16), move_kind: kind === 'fortify' ? 'fortify' : 'attack', is_correct: Boolean(correct), source: source ? conquestText(source, 16) : null,
+        seen: seen ? { o: seen.owner ? conquestId(seen.owner) : null, l: Math.max(0, Math.min(3, Math.round(Number(seen.level) || 0))) } : null
     }, 'Tah se nepodařilo uložit. Zkontroluj připojení.'));
     // Vývojářští boti v Dobývání (blok 22, jen účet v dev_admins a jen ve hře, kterou sám hraje): boti do lobby, jejich tahy hned, další období
     const devConquest = async (name, body) => {
