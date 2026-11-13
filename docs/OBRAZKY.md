@@ -2541,6 +2541,258 @@ Kam: domovské území opevněné naplno (Pevnost) na mapě Dobývání (`icons/
 Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole object. Single centered subject filling about 80 % of the frame with even empty space around it, readable even as a tiny 32 px map icon (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow on the background, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, colors, shading); do not draw the owl and do not copy any existing cartoon or game artwork. The second attached image is the same castle at its basic level: keep exactly the same castle in the middle (same central keep with the slate-blue cone roof, the two round towers, the wooden gate, the golden flag with a white star, same three-quarter front view, same colors and line style); only add the fortifications described here around and in front of it, so the castle visibly grows from level to level. The whole group stands on the same flat ground line at the bottom (no grass, no ground patch) and fills the frame a bit more than the basic castle. Subject: LEVEL 3 of 3 (the maximum): the castle has become a mighty citadel: a double ring of tall crenellated stone walls with four big round towers with slate-blue cone roofs, a massive gatehouse with an iron-banded gate, the central keep raised one storey higher with a golden crown-shaped top, a large golden banner with a white star on the keep and golden pennants on all towers, a few warm lit windows. Grand, proud and clearly the strongest of the three levels, while it is still recognizably the same castle. Colors: warm grey stone, slate blue roofs, wood brown, gold. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
+## 24. Dobývání – odměny: vzory praporců, vzácné znaky a sady hradů (č. 278–308)
+
+Celý návrh odměn je v docs/ODMENY-DOBYVANI.md. Vzory (č. 278–284) jsou bezešvé textury: šedé se v aplikaci násobí barvou hráče, dvě barevné (Brokát, Duha) se použijí jak jsou. Znaky (č. 285–296) jsou černé siluety na bílém, skript z nich udělá masku, která se tiskne do pečeti a na praporec. Sady hradů (č. 297–308) jsou čtyři stupně domovského hradu jiného stylu; generujte je postupně a ke každému dalšímu stupni přiložte předchozí, ať jde vidět, že je to tentýž hrad.
+
+#### 278. `vzor-hvezdna-noc.png` – Vzor praporce Hvězdná noc (šedá textura) – čeká na dodání
+
+Kam: vzor (látka) praporce, pečeti a vlaječek hráče v Dobývání (Kvíz dne: série 30 dní; docs/ODMENY-DOBYVANI.md). Šedá textura se násobí barvou hráče, barevná se použije jak je. Přiložit: nic (textura)
+
+```text
+Seamless tileable square texture, 1024 × 1024 px, the edges must tile perfectly in both directions (no visible seams when repeated). Grayscale only: from white to medium grey, no pure black areas and no color at all, because the app multiplies it with the player's color. Soft hand-painted look that fits an old parchment map, gentle shading, even density over the whole tile (no big empty areas, no focal point). No text, no letters, no numbers, no logo, no watermark, no border, no vignette. Subject: a night sky full of small five-pointed and four-pointed stars of different sizes, a few thin dotted constellation lines and tiny swirls of stardust, drawn in light grey on a slightly darker grey background. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+#### 279. `vzor-plameny.png` – Vzor praporce Plameny (šedá textura) – čeká na dodání
+
+Kam: vzor (látka) praporce, pečeti a vlaječek hráče v Dobývání (10 vyhraných bitev; docs/ODMENY-DOBYVANI.md). Šedá textura se násobí barvou hráče, barevná se použije jak je. Přiložit: nic (textura)
+
+```text
+Seamless tileable square texture, 1024 × 1024 px, the edges must tile perfectly in both directions (no visible seams when repeated). Grayscale only: from white to medium grey, no pure black areas and no color at all, because the app multiplies it with the player's color. Soft hand-painted look that fits an old parchment map, gentle shading, even density over the whole tile (no big empty areas, no focal point). No text, no letters, no numbers, no logo, no watermark, no border, no vignette. Subject: rows of stylized heraldic flames, like embroidered fabric on a medieval banner, alternating light and medium grey tongues of fire with soft inner highlights. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+#### 280. `vzor-mramor.png` – Vzor praporce Mramor (šedá textura) – čeká na dodání
+
+Kam: vzor (látka) praporce, pečeti a vlaječek hráče v Dobývání (Boss týdne 4×; docs/ODMENY-DOBYVANI.md). Šedá textura se násobí barvou hráče, barevná se použije jak je. Přiložit: nic (textura)
+
+```text
+Seamless tileable square texture, 1024 × 1024 px, the edges must tile perfectly in both directions (no visible seams when repeated). Grayscale only: from white to medium grey, no pure black areas and no color at all, because the app multiplies it with the player's color. Soft hand-painted look that fits an old parchment map, gentle shading, even density over the whole tile (no big empty areas, no focal point). No text, no letters, no numbers, no logo, no watermark, no border, no vignette. Subject: polished white marble with soft grey veins running diagonally, subtle cloudy patches, elegant and calm. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+#### 281. `vzor-brokat.png` – Vzor praporce Zlatý brokát (barevná textura) – čeká na dodání
+
+Kam: vzor (látka) praporce, pečeti a vlaječek hráče v Dobývání (10 výher; docs/ODMENY-DOBYVANI.md). Šedá textura se násobí barvou hráče, barevná se použije jak je. Přiložit: nic (textura)
+
+```text
+Seamless tileable square texture, 1024 × 1024 px, the edges must tile perfectly in both directions (no visible seams when repeated). Rich but not neon colors, soft hand-painted look that fits an old parchment map, gentle shading, even density over the whole tile (no big empty areas, no focal point). No text, no letters, no numbers, no logo, no watermark, no border, no vignette. Subject: rich royal brocade fabric: deep burgundy silk with an ornate golden damask pattern of pomegranates and acanthus leaves woven in shiny gold thread, slight fabric weave visible. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+#### 282. `vzor-duha.png` – Vzor praporce Duha (barevná textura) – čeká na dodání
+
+Kam: vzor (látka) praporce, pečeti a vlaječek hráče v Dobývání (vzácnost z Truhly Mudrlanta, 3× Šampion sezóny; docs/ODMENY-DOBYVANI.md). Šedá textura se násobí barvou hráče, barevná se použije jak je. Přiložit: nic (textura)
+
+```text
+Seamless tileable square texture, 1024 × 1024 px, the edges must tile perfectly in both directions (no visible seams when repeated). Rich but not neon colors, soft hand-painted look that fits an old parchment map, gentle shading, even density over the whole tile (no big empty areas, no focal point). No text, no letters, no numbers, no logo, no watermark, no border, no vignette. Subject: soft rainbow fabric: diagonal bands of red, orange, yellow, green, blue and violet that blend gently into each other, painted with watercolor texture and a subtle silk sheen, pastel-rich (not neon). Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+#### 283. `vzor-listi.png` – Vzor praporce Listí (šedá textura) – čeká na dodání
+
+Kam: vzor (látka) praporce, pečeti a vlaječek hráče v Dobývání (Řetězovka 25 článků; docs/ODMENY-DOBYVANI.md). Šedá textura se násobí barvou hráče, barevná se použije jak je. Přiložit: nic (textura)
+
+```text
+Seamless tileable square texture, 1024 × 1024 px, the edges must tile perfectly in both directions (no visible seams when repeated). Grayscale only: from white to medium grey, no pure black areas and no color at all, because the app multiplies it with the player's color. Soft hand-painted look that fits an old parchment map, gentle shading, even density over the whole tile (no big empty areas, no focal point). No text, no letters, no numbers, no logo, no watermark, no border, no vignette. Subject: a dense pattern of oak leaves and a few acorns overlapping each other, drawn like a woodcut / embroidered textile, light grey leaves with medium grey veins. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+#### 284. `vzor-led.png` – Vzor praporce Ledové krystaly (šedá textura) – čeká na dodání
+
+Kam: vzor (látka) praporce, pečeti a vlaječek hráče v Dobývání (zimní sezóna, 15. stupeň; docs/ODMENY-DOBYVANI.md). Šedá textura se násobí barvou hráče, barevná se použije jak je. Přiložit: nic (textura)
+
+```text
+Seamless tileable square texture, 1024 × 1024 px, the edges must tile perfectly in both directions (no visible seams when repeated). Grayscale only: from white to medium grey, no pure black areas and no color at all, because the app multiplies it with the player's color. Soft hand-painted look that fits an old parchment map, gentle shading, even density over the whole tile (no big empty areas, no focal point). No text, no letters, no numbers, no logo, no watermark, no border, no vignette. Subject: frost flowers and ice crystals on a window pane, delicate branching feathery frost patterns and small six-pointed snowflakes, light grey and white. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+#### 285. `znak-gryf.png` – Vzácný znak Gryf – čeká na dodání
+
+Kam: vzácný znak hráče v Dobývání (výhra na mapě Evropa; docs/ODMENY-DOBYVANI.md): silueta se převede na masku a tiskne do pečeti a na praporec v barvě hráče. Přiložit: nic (silueta)
+
+```text
+Heraldic emblem as ONE flat solid black silhouette on a pure white background, square 1024 × 1024 px, centered, filling about 80 % of the frame. Crisp clean edges, no gradients, no grey, no colored outline, no texture, no shadow, no shield or frame around it. Only a few small white negative-space cuts inside the silhouette (eye, wing feathers, mane or tail strands) so that it stays readable as a tiny 24 px wax-seal stamp. Classic medieval heraldry style, bold, simple and elegant. No text, no letters, no numbers, no logo, no watermark. Subject: a griffin rampant (eagle head, wings raised, lion body and tail), side view facing left. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+#### 286. `znak-sfinga.png` – Vzácný znak Sfinga – čeká na dodání
+
+Kam: vzácný znak hráče v Dobývání (výhra na mapě Afrika; docs/ODMENY-DOBYVANI.md): silueta se převede na masku a tiskne do pečeti a na praporec v barvě hráče. Přiložit: nic (silueta)
+
+```text
+Heraldic emblem as ONE flat solid black silhouette on a pure white background, square 1024 × 1024 px, centered, filling about 80 % of the frame. Crisp clean edges, no gradients, no grey, no colored outline, no texture, no shadow, no shield or frame around it. Only a few small white negative-space cuts inside the silhouette (eye, wing feathers, mane or tail strands) so that it stays readable as a tiny 24 px wax-seal stamp. Classic medieval heraldry style, bold, simple and elegant. No text, no letters, no numbers, no logo, no watermark. Subject: an Egyptian sphinx lying in profile with the classic nemes headdress, calm and proud. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+#### 287. `znak-cinsky-drak.png` – Vzácný znak Čínský drak – čeká na dodání
+
+Kam: vzácný znak hráče v Dobývání (výhra na mapě Asie; docs/ODMENY-DOBYVANI.md): silueta se převede na masku a tiskne do pečeti a na praporec v barvě hráče. Přiložit: nic (silueta)
+
+```text
+Heraldic emblem as ONE flat solid black silhouette on a pure white background, square 1024 × 1024 px, centered, filling about 80 % of the frame. Crisp clean edges, no gradients, no grey, no colored outline, no texture, no shadow, no shield or frame around it. Only a few small white negative-space cuts inside the silhouette (eye, wing feathers, mane or tail strands) so that it stays readable as a tiny 24 px wax-seal stamp. Classic medieval heraldry style, bold, simple and elegant. No text, no letters, no numbers, no logo, no watermark. Subject: a coiled Chinese dragon with long whiskers, serpentine body forming an S curve, small claws and a flaming pearl. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+#### 288. `znak-orel-belohlavy.png` – Vzácný znak Orel bělohlavý – čeká na dodání
+
+Kam: vzácný znak hráče v Dobývání (výhra na mapě Amerika; docs/ODMENY-DOBYVANI.md): silueta se převede na masku a tiskne do pečeti a na praporec v barvě hráče. Přiložit: nic (silueta)
+
+```text
+Heraldic emblem as ONE flat solid black silhouette on a pure white background, square 1024 × 1024 px, centered, filling about 80 % of the frame. Crisp clean edges, no gradients, no grey, no colored outline, no texture, no shadow, no shield or frame around it. Only a few small white negative-space cuts inside the silhouette (eye, wing feathers, mane or tail strands) so that it stays readable as a tiny 24 px wax-seal stamp. Classic medieval heraldry style, bold, simple and elegant. No text, no letters, no numbers, no logo, no watermark. Subject: a bald eagle with spread wings and head turned to the side, heraldic displayed pose. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+#### 289. `znak-dvouocasy-lev.png` – Vzácný znak Dvouocasý lev – čeká na dodání
+
+Kam: vzácný znak hráče v Dobývání (výhra na mapě Česko; docs/ODMENY-DOBYVANI.md): silueta se převede na masku a tiskne do pečeti a na praporec v barvě hráče. Přiložit: nic (silueta)
+
+```text
+Heraldic emblem as ONE flat solid black silhouette on a pure white background, square 1024 × 1024 px, centered, filling about 80 % of the frame. Crisp clean edges, no gradients, no grey, no colored outline, no texture, no shadow, no shield or frame around it. Only a few small white negative-space cuts inside the silhouette (eye, wing feathers, mane or tail strands) so that it stays readable as a tiny 24 px wax-seal stamp. Classic medieval heraldry style, bold, simple and elegant. No text, no letters, no numbers, no logo, no watermark. Subject: a rampant lion with a double crossed tail (the Bohemian lion) and a small crown, facing left. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+#### 290. `znak-pegas.png` – Vzácný znak Pegas – čeká na dodání
+
+Kam: vzácný znak hráče v Dobývání (výhra v Blesku; docs/ODMENY-DOBYVANI.md): silueta se převede na masku a tiskne do pečeti a na praporec v barvě hráče. Přiložit: nic (silueta)
+
+```text
+Heraldic emblem as ONE flat solid black silhouette on a pure white background, square 1024 × 1024 px, centered, filling about 80 % of the frame. Crisp clean edges, no gradients, no grey, no colored outline, no texture, no shadow, no shield or frame around it. Only a few small white negative-space cuts inside the silhouette (eye, wing feathers, mane or tail strands) so that it stays readable as a tiny 24 px wax-seal stamp. Classic medieval heraldry style, bold, simple and elegant. No text, no letters, no numbers, no logo, no watermark. Subject: a winged horse (Pegasus) rearing up with wings spread wide, side view facing left. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+#### 291. `znak-fenix.png` – Vzácný znak Fénix – čeká na dodání
+
+Kam: vzácný znak hráče v Dobývání (výhra po Návratu do hry; docs/ODMENY-DOBYVANI.md): silueta se převede na masku a tiskne do pečeti a na praporec v barvě hráče. Přiložit: nic (silueta)
+
+```text
+Heraldic emblem as ONE flat solid black silhouette on a pure white background, square 1024 × 1024 px, centered, filling about 80 % of the frame. Crisp clean edges, no gradients, no grey, no colored outline, no texture, no shadow, no shield or frame around it. Only a few small white negative-space cuts inside the silhouette (eye, wing feathers, mane or tail strands) so that it stays readable as a tiny 24 px wax-seal stamp. Classic medieval heraldry style, bold, simple and elegant. No text, no letters, no numbers, no logo, no watermark. Subject: a phoenix rising from stylized flames, wings spread up, long flowing tail feathers. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+#### 292. `znak-kraken.png` – Vzácný znak Kraken – čeká na dodání
+
+Kam: vzácný znak hráče v Dobývání (40 území přes moře; docs/ODMENY-DOBYVANI.md): silueta se převede na masku a tiskne do pečeti a na praporec v barvě hráče. Přiložit: nic (silueta)
+
+```text
+Heraldic emblem as ONE flat solid black silhouette on a pure white background, square 1024 × 1024 px, centered, filling about 80 % of the frame. Crisp clean edges, no gradients, no grey, no colored outline, no texture, no shadow, no shield or frame around it. Only a few small white negative-space cuts inside the silhouette (eye, wing feathers, mane or tail strands) so that it stays readable as a tiny 24 px wax-seal stamp. Classic medieval heraldry style, bold, simple and elegant. No text, no letters, no numbers, no logo, no watermark. Subject: a giant kraken / octopus with curling tentacles arranged symmetrically around its head. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+#### 293. `znak-jednorozec.png` – Vzácný znak Jednorožec – čeká na dodání
+
+Kam: vzácný znak hráče v Dobývání (5 her bez ztráty domovského hradu; docs/ODMENY-DOBYVANI.md): silueta se převede na masku a tiskne do pečeti a na praporec v barvě hráče. Přiložit: nic (silueta)
+
+```text
+Heraldic emblem as ONE flat solid black silhouette on a pure white background, square 1024 × 1024 px, centered, filling about 80 % of the frame. Crisp clean edges, no gradients, no grey, no colored outline, no texture, no shadow, no shield or frame around it. Only a few small white negative-space cuts inside the silhouette (eye, wing feathers, mane or tail strands) so that it stays readable as a tiny 24 px wax-seal stamp. Classic medieval heraldry style, bold, simple and elegant. No text, no letters, no numbers, no logo, no watermark. Subject: a rearing unicorn with a long spiral horn and flowing mane, side view facing left. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+#### 294. `znak-dvouhlavy-orel.png` – Vzácný znak Dvouhlavý orel – čeká na dodání
+
+Kam: vzácný znak hráče v Dobývání (50 vyhraných bitev; docs/ODMENY-DOBYVANI.md): silueta se převede na masku a tiskne do pečeti a na praporec v barvě hráče. Přiložit: nic (silueta)
+
+```text
+Heraldic emblem as ONE flat solid black silhouette on a pure white background, square 1024 × 1024 px, centered, filling about 80 % of the frame. Crisp clean edges, no gradients, no grey, no colored outline, no texture, no shadow, no shield or frame around it. Only a few small white negative-space cuts inside the silhouette (eye, wing feathers, mane or tail strands) so that it stays readable as a tiny 24 px wax-seal stamp. Classic medieval heraldry style, bold, simple and elegant. No text, no letters, no numbers, no logo, no watermark. Subject: a double-headed eagle displayed with spread wings, heads turned outward, small crowns. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+#### 295. `znak-svatovaclavska-koruna.png` – Vzácný znak Svatováclavská koruna – čeká na dodání
+
+Kam: vzácný znak hráče v Dobývání (25 výher; docs/ODMENY-DOBYVANI.md): silueta se převede na masku a tiskne do pečeti a na praporec v barvě hráče. Přiložit: nic (silueta)
+
+```text
+Heraldic emblem as ONE flat solid black silhouette on a pure white background, square 1024 × 1024 px, centered, filling about 80 % of the frame. Crisp clean edges, no gradients, no grey, no colored outline, no texture, no shadow, no shield or frame around it. Only a few small white negative-space cuts inside the silhouette (eye, wing feathers, mane or tail strands) so that it stays readable as a tiny 24 px wax-seal stamp. Classic medieval heraldry style, bold, simple and elegant. No text, no letters, no numbers, no logo, no watermark. Subject: the Czech royal crown of Saint Wenceslas: a closed crown with four fleur-de-lis lilies on the band, crossed arches and a small cross on top. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+#### 296. `znak-sova-mudrlant.png` – Vzácný znak Sova Mudrlant – čeká na dodání
+
+Kam: vzácný znak hráče v Dobývání (úroveň 50; docs/ODMENY-DOBYVANI.md): silueta se převede na masku a tiskne do pečeti a na praporec v barvě hráče. Přiložit: nic (silueta)
+
+```text
+Heraldic emblem as ONE flat solid black silhouette on a pure white background, square 1024 × 1024 px, centered, filling about 80 % of the frame. Crisp clean edges, no gradients, no grey, no colored outline, no texture, no shadow, no shield or frame around it. Only a few small white negative-space cuts inside the silhouette (eye, wing feathers, mane or tail strands) so that it stays readable as a tiny 24 px wax-seal stamp. Classic medieval heraldry style, bold, simple and elegant. No text, no letters, no numbers, no logo, no watermark. Subject: a wise owl sitting on an open book, front view, big round eyes (white cuts), small ear tufts, wings folded. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+#### 297. `hrad-goticky-0.png` – Gotický hrad, stupeň 0 – čeká na dodání
+
+Kam: sada domovského hradu v Dobývání (Postav Pevnost na domovském hradu 10×; docs/ODMENY-DOBYVANI.md), stupeň opevnění 0 (0 = bez opevnění, 3 = Pevnost). Střechy a praporky se v aplikaci přebarví barvou hráče (scripts/building-art.py). Přiložit: `branding/sova-original.jpg` (vzor stylu), hotový `hrad-domov.png` (č. 262).
+
+```text
+Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole object. Single centered subject filling about 80 % of the frame with even empty space around it, readable even as a tiny 32 px map icon (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow on the background, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, colors, shading); do not draw the owl and do not copy any existing cartoon or game artwork. The second attached image is the basic home castle of the game (č. 262): match its three-quarter front view, size and sticker style. All roofs must be slate blue and all flags and banners plain solid gold without any symbol (the app recolors roofs and flags to the player's color). The whole group stands on one flat ground line at the bottom (no grass, no ground patch). Subject: LEVEL 0 of 3: a small Gothic castle: a slender tall keep with a very steep pointed slate-blue spire, narrow lancet windows, two small corner turrets with pointed roofs, a pointed-arch wooden gate and one plain golden pennant on the top spire. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+#### 298. `hrad-goticky-1.png` – Gotický hrad, stupeň 1 – čeká na dodání
+
+Kam: sada domovského hradu v Dobývání (Postav Pevnost na domovském hradu 10×; docs/ODMENY-DOBYVANI.md), stupeň opevnění 1 (0 = bez opevnění, 3 = Pevnost). Střechy a praporky se v aplikaci přebarví barvou hráče (scripts/building-art.py). Přiložit: `branding/sova-original.jpg` (vzor stylu), hotový `hrad-domov.png` (č. 262) a předchozí stupeň téže sady (č. 297).
+
+```text
+Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole object. Single centered subject filling about 80 % of the frame with even empty space around it, readable even as a tiny 32 px map icon (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow on the background, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, colors, shading); do not draw the owl and do not copy any existing cartoon or game artwork. The second attached image is the basic home castle of the game (č. 262): match its three-quarter front view, size and sticker style. All roofs must be slate blue and all flags and banners plain solid gold without any symbol (the app recolors roofs and flags to the player's color). The whole group stands on one flat ground line at the bottom (no grass, no ground patch). Subject: LEVEL 1 of 3: the same Gothic castle, now with a low ring of sharpened wooden stakes (palisade) tied with rope in front of it and a small wooden gate in line with the castle gate. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+#### 299. `hrad-goticky-2.png` – Gotický hrad, stupeň 2 – čeká na dodání
+
+Kam: sada domovského hradu v Dobývání (Postav Pevnost na domovském hradu 10×; docs/ODMENY-DOBYVANI.md), stupeň opevnění 2 (0 = bez opevnění, 3 = Pevnost). Střechy a praporky se v aplikaci přebarví barvou hráče (scripts/building-art.py). Přiložit: `branding/sova-original.jpg` (vzor stylu), hotový `hrad-domov.png` (č. 262) a předchozí stupeň téže sady (č. 298).
+
+```text
+Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole object. Single centered subject filling about 80 % of the frame with even empty space around it, readable even as a tiny 32 px map icon (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow on the background, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, colors, shading); do not draw the owl and do not copy any existing cartoon or game artwork. The second attached image is the basic home castle of the game (č. 262): match its three-quarter front view, size and sticker style. All roofs must be slate blue and all flags and banners plain solid gold without any symbol (the app recolors roofs and flags to the player's color). The whole group stands on one flat ground line at the bottom (no grass, no ground patch). Subject: LEVEL 2 of 3: the same Gothic castle surrounded by a crenellated stone wall with two slim Gothic corner towers with steep slate-blue spires and a pointed-arch gatehouse; golden pennants on the corner towers. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+#### 300. `hrad-goticky-3.png` – Gotický hrad, stupeň 3 – čeká na dodání
+
+Kam: sada domovského hradu v Dobývání (Postav Pevnost na domovském hradu 10×; docs/ODMENY-DOBYVANI.md), stupeň opevnění 3 (0 = bez opevnění, 3 = Pevnost). Střechy a praporky se v aplikaci přebarví barvou hráče (scripts/building-art.py). Přiložit: `branding/sova-original.jpg` (vzor stylu), hotový `hrad-domov.png` (č. 262) a předchozí stupeň téže sady (č. 299).
+
+```text
+Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole object. Single centered subject filling about 80 % of the frame with even empty space around it, readable even as a tiny 32 px map icon (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow on the background, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, colors, shading); do not draw the owl and do not copy any existing cartoon or game artwork. The second attached image is the basic home castle of the game (č. 262): match its three-quarter front view, size and sticker style. All roofs must be slate blue and all flags and banners plain solid gold without any symbol (the app recolors roofs and flags to the player's color). The whole group stands on one flat ground line at the bottom (no grass, no ground patch). Subject: LEVEL 3 of 3 (the maximum): the Gothic castle grown into a grand cathedral-like citadel: double crenellated walls, four tall towers with steep slate-blue spires, flying buttresses, a big rose window on the keep, a stone bridge to a massive pointed-arch gatehouse, a large golden banner on the highest spire and golden pennants on all towers. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+#### 301. `hrad-orientalni-0.png` – Orientální palác, stupeň 0 – čeká na dodání
+
+Kam: sada domovského hradu v Dobývání (25 vyhraných bitev; docs/ODMENY-DOBYVANI.md), stupeň opevnění 0 (0 = bez opevnění, 3 = Pevnost). Střechy a praporky se v aplikaci přebarví barvou hráče (scripts/building-art.py). Přiložit: `branding/sova-original.jpg` (vzor stylu), hotový `hrad-domov.png` (č. 262).
+
+```text
+Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole object. Single centered subject filling about 80 % of the frame with even empty space around it, readable even as a tiny 32 px map icon (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow on the background, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, colors, shading); do not draw the owl and do not copy any existing cartoon or game artwork. The second attached image is the basic home castle of the game (č. 262): match its three-quarter front view, size and sticker style. All roofs must be slate blue and all flags and banners plain solid gold without any symbol (the app recolors roofs and flags to the player's color). The whole group stands on one flat ground line at the bottom (no grass, no ground patch). Subject: LEVEL 0 of 3: a small oriental palace: a sandstone hall with one big slate-blue onion dome topped with a small golden pennant, two slim minaret towers with small slate-blue onion domes, horseshoe-arch doorway, warm sandstone colors. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+#### 302. `hrad-orientalni-1.png` – Orientální palác, stupeň 1 – čeká na dodání
+
+Kam: sada domovského hradu v Dobývání (25 vyhraných bitev; docs/ODMENY-DOBYVANI.md), stupeň opevnění 1 (0 = bez opevnění, 3 = Pevnost). Střechy a praporky se v aplikaci přebarví barvou hráče (scripts/building-art.py). Přiložit: `branding/sova-original.jpg` (vzor stylu), hotový `hrad-domov.png` (č. 262) a předchozí stupeň téže sady (č. 301).
+
+```text
+Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole object. Single centered subject filling about 80 % of the frame with even empty space around it, readable even as a tiny 32 px map icon (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow on the background, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, colors, shading); do not draw the owl and do not copy any existing cartoon or game artwork. The second attached image is the basic home castle of the game (č. 262): match its three-quarter front view, size and sticker style. All roofs must be slate blue and all flags and banners plain solid gold without any symbol (the app recolors roofs and flags to the player's color). The whole group stands on one flat ground line at the bottom (no grass, no ground patch). Subject: LEVEL 1 of 3: the same oriental palace, now behind a low fence of sharpened wooden stakes tied with rope, with a simple wooden gate in line with the palace doorway. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+#### 303. `hrad-orientalni-2.png` – Orientální palác, stupeň 2 – čeká na dodání
+
+Kam: sada domovského hradu v Dobývání (25 vyhraných bitev; docs/ODMENY-DOBYVANI.md), stupeň opevnění 2 (0 = bez opevnění, 3 = Pevnost). Střechy a praporky se v aplikaci přebarví barvou hráče (scripts/building-art.py). Přiložit: `branding/sova-original.jpg` (vzor stylu), hotový `hrad-domov.png` (č. 262) a předchozí stupeň téže sady (č. 302).
+
+```text
+Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole object. Single centered subject filling about 80 % of the frame with even empty space around it, readable even as a tiny 32 px map icon (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow on the background, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, colors, shading); do not draw the owl and do not copy any existing cartoon or game artwork. The second attached image is the basic home castle of the game (č. 262): match its three-quarter front view, size and sticker style. All roofs must be slate blue and all flags and banners plain solid gold without any symbol (the app recolors roofs and flags to the player's color). The whole group stands on one flat ground line at the bottom (no grass, no ground patch). Subject: LEVEL 2 of 3: the same oriental palace surrounded by a crenellated sandstone wall with two round corner towers topped with small slate-blue onion domes and a horseshoe-arch gatehouse; golden pennants on the corner towers. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+#### 304. `hrad-orientalni-3.png` – Orientální palác, stupeň 3 – čeká na dodání
+
+Kam: sada domovského hradu v Dobývání (25 vyhraných bitev; docs/ODMENY-DOBYVANI.md), stupeň opevnění 3 (0 = bez opevnění, 3 = Pevnost). Střechy a praporky se v aplikaci přebarví barvou hráče (scripts/building-art.py). Přiložit: `branding/sova-original.jpg` (vzor stylu), hotový `hrad-domov.png` (č. 262) a předchozí stupeň téže sady (č. 303).
+
+```text
+Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole object. Single centered subject filling about 80 % of the frame with even empty space around it, readable even as a tiny 32 px map icon (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow on the background, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, colors, shading); do not draw the owl and do not copy any existing cartoon or game artwork. The second attached image is the basic home castle of the game (č. 262): match its three-quarter front view, size and sticker style. All roofs must be slate blue and all flags and banners plain solid gold without any symbol (the app recolors roofs and flags to the player's color). The whole group stands on one flat ground line at the bottom (no grass, no ground patch). Subject: LEVEL 3 of 3 (the maximum): the oriental palace grown into a magnificent citadel: double sandstone walls, four tall minarets with slate-blue onion domes, a huge central slate-blue onion dome, arcades with horseshoe arches, a monumental gatehouse, a large golden banner on the central dome and golden pennants on all minarets. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+#### 305. `hrad-japonsky-0.png` – Japonský hrad, stupeň 0 – čeká na dodání
+
+Kam: sada domovského hradu v Dobývání (15. stupeň Sezóny ve 3 různých sezónách; docs/ODMENY-DOBYVANI.md), stupeň opevnění 0 (0 = bez opevnění, 3 = Pevnost). Střechy a praporky se v aplikaci přebarví barvou hráče (scripts/building-art.py). Přiložit: `branding/sova-original.jpg` (vzor stylu), hotový `hrad-domov.png` (č. 262).
+
+```text
+Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole object. Single centered subject filling about 80 % of the frame with even empty space around it, readable even as a tiny 32 px map icon (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow on the background, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, colors, shading); do not draw the owl and do not copy any existing cartoon or game artwork. The second attached image is the basic home castle of the game (č. 262): match its three-quarter front view, size and sticker style. All roofs must be slate blue and all flags and banners plain solid gold without any symbol (the app recolors roofs and flags to the player's color). The whole group stands on one flat ground line at the bottom (no grass, no ground patch). Subject: LEVEL 0 of 3: a small Japanese castle: a two-storey white-walled tower (tenshu) with curved slate-blue tiled roofs and upturned eaves, standing on a sloped grey stone base, a dark wooden gate, and one plain golden nobori banner on a pole beside it. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+#### 306. `hrad-japonsky-1.png` – Japonský hrad, stupeň 1 – čeká na dodání
+
+Kam: sada domovského hradu v Dobývání (15. stupeň Sezóny ve 3 různých sezónách; docs/ODMENY-DOBYVANI.md), stupeň opevnění 1 (0 = bez opevnění, 3 = Pevnost). Střechy a praporky se v aplikaci přebarví barvou hráče (scripts/building-art.py). Přiložit: `branding/sova-original.jpg` (vzor stylu), hotový `hrad-domov.png` (č. 262) a předchozí stupeň téže sady (č. 305).
+
+```text
+Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole object. Single centered subject filling about 80 % of the frame with even empty space around it, readable even as a tiny 32 px map icon (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow on the background, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, colors, shading); do not draw the owl and do not copy any existing cartoon or game artwork. The second attached image is the basic home castle of the game (č. 262): match its three-quarter front view, size and sticker style. All roofs must be slate blue and all flags and banners plain solid gold without any symbol (the app recolors roofs and flags to the player's color). The whole group stands on one flat ground line at the bottom (no grass, no ground patch). Subject: LEVEL 1 of 3: the same Japanese castle, now with a low bamboo-and-wood stake fence tied with rope in front of it and a small wooden gate in line with the castle gate. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+#### 307. `hrad-japonsky-2.png` – Japonský hrad, stupeň 2 – čeká na dodání
+
+Kam: sada domovského hradu v Dobývání (15. stupeň Sezóny ve 3 různých sezónách; docs/ODMENY-DOBYVANI.md), stupeň opevnění 2 (0 = bez opevnění, 3 = Pevnost). Střechy a praporky se v aplikaci přebarví barvou hráče (scripts/building-art.py). Přiložit: `branding/sova-original.jpg` (vzor stylu), hotový `hrad-domov.png` (č. 262) a předchozí stupeň téže sady (č. 306).
+
+```text
+Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole object. Single centered subject filling about 80 % of the frame with even empty space around it, readable even as a tiny 32 px map icon (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow on the background, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, colors, shading); do not draw the owl and do not copy any existing cartoon or game artwork. The second attached image is the basic home castle of the game (č. 262): match its three-quarter front view, size and sticker style. All roofs must be slate blue and all flags and banners plain solid gold without any symbol (the app recolors roofs and flags to the player's color). The whole group stands on one flat ground line at the bottom (no grass, no ground patch). Subject: LEVEL 2 of 3: the same Japanese castle surrounded by white plastered walls with slate-blue tiled wall roofs on stone bases, two small corner turrets with curved slate-blue roofs and a wooden gatehouse; golden nobori banners at the corners. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+#### 308. `hrad-japonsky-3.png` – Japonský hrad, stupeň 3 – čeká na dodání
+
+Kam: sada domovského hradu v Dobývání (15. stupeň Sezóny ve 3 různých sezónách; docs/ODMENY-DOBYVANI.md), stupeň opevnění 3 (0 = bez opevnění, 3 = Pevnost). Střechy a praporky se v aplikaci přebarví barvou hráče (scripts/building-art.py). Přiložit: `branding/sova-original.jpg` (vzor stylu), hotový `hrad-domov.png` (č. 262) a předchozí stupeň téže sady (č. 307).
+
+```text
+Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole object. Single centered subject filling about 80 % of the frame with even empty space around it, readable even as a tiny 32 px map icon (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow on the background, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, colors, shading); do not draw the owl and do not copy any existing cartoon or game artwork. The second attached image is the basic home castle of the game (č. 262): match its three-quarter front view, size and sticker style. All roofs must be slate blue and all flags and banners plain solid gold without any symbol (the app recolors roofs and flags to the player's color). The whole group stands on one flat ground line at the bottom (no grass, no ground patch). Subject: LEVEL 3 of 3 (the maximum): the Japanese castle grown into a grand five-storey tenshu with many layered curved slate-blue roofs and upturned eaves on a tall stone base, double walls with turrets, a big gatehouse, a moat with a small arched bridge, a large golden banner on top and golden nobori banners along the walls. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
 ## Co udělám po dodání
 
 1. Uložím soubory do `branding/ikony/`, vyříznu pozadí (`python3 scripts/topic-icons.py …`) a u sov vyrobím barvy obleku (`python3 scripts/owl-robes.py`).
