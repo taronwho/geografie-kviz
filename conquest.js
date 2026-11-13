@@ -1613,18 +1613,39 @@
     };
 
     // Výsledek: stupně vítězů a celé pořadí
+    // Výsledek ve stylu map: stupně vítězů jako kamenné podstavce s praporci na žerdích (vítěz s vavřínovým věncem), odměna jako zlatá
+    // pečeť, celé pořadí v kartě jako ve hře (medaile, území, regiony, podíl na mapě, body) a pravidla bodování
+    const ROMAN = ['I', 'II', 'III'];
+    const LAUREL = (() => {
+        const leaves = [];
+        for (let side = -1; side <= 1; side += 2) {
+            for (let i = 0; i < 7; i++) {
+                const angle = (200 - i * 22) * Math.PI / 180;
+                const x = 30 + side * 24 * Math.cos(angle), y = 30 + 24 * Math.sin(angle) * -1;
+                const rotate = side * (i * 22 - 70);
+                leaves.push(`<ellipse cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" rx="5.2" ry="2.4" transform="rotate(${rotate.toFixed(0)} ${x.toFixed(1)} ${y.toFixed(1)})"/>`);
+            }
+        }
+        return `<svg viewBox="0 0 60 60" class="cq-laurel" aria-hidden="true" focusable="false"><path d="M12 46Q30 58 48 46" fill="none" stroke-width="2"/><g>${leaves.join('')}</g></svg>`;
+    })();
     const resultHtml = (view, { reward = null } = {}) => {
         const podium = [1, 0, 2].map(i => view.ranking[i]).map((player, slot) => {
             if (!player) return '<span class="flex-1"></span>';
-            const height = ['h-14', 'h-20', 'h-10'][slot];
-            return `<div class="flex min-w-0 flex-1 flex-col items-center gap-1 cq-podium-step" data-place="${player.place}">${pennantSvg(player.flag_color, player.emblem, 'h-8 w-11')}<span class="max-w-full truncate text-[12px] font-black text-slate-800 dark:text-slate-100">${esc(player.me ? 'Ty' : player.display_name)}</span>
-                <span class="flex w-full ${height} items-start justify-center rounded-t-xl pt-1 text-[18px] font-black cq-podium-${player.place <= 3 ? player.place : 'x'}">${player.place}.</span></div>`;
+            const height = ['h-14', 'h-[4.75rem]', 'h-10'][slot];
+            const first = player.place === 1;
+            const flag = `<span class="relative flex h-16 w-16 items-end justify-center">${first ? LAUREL : ''}<svg viewBox="0 0 40 52" class="relative h-14 w-11" aria-hidden="true" focusable="false"><path d="M4 2V50" stroke="#4a2f16" stroke-width="2.4" stroke-linecap="round"/><circle cx="4" cy="2.5" r="2.4" fill="#d69725" stroke="#7a461b" stroke-width="0.8"/><g class="cq-wave" transform="translate(5 4) scale(1.05)">${pennantGroup(player.flag_color, player.emblem)}</g></svg></span>`;
+            return `<div class="cq-podium-step flex min-w-0 flex-1 flex-col items-center" data-place="${player.place}">${flag}
+                <span class="cq-ledger-title max-w-full truncate text-[13px]">${esc(player.me ? 'Ty' : player.display_name || 'Hráč')}</span>
+                <span class="text-[11px] font-black text-amber-900/80 dark:text-gold-200/80">${esc(pointsWord(player.score))}</span>
+                <span class="cq-pedestal cq-pedestal-${player.place <= 3 ? player.place : 'x'} mt-0.5 flex w-full ${height} items-start justify-center rounded-t-lg pt-1">${player.place <= 3 ? ROMAN[player.place - 1] : player.place}</span></div>`;
         }).join('');
-        const rows = view.ranking.map(player => `<li class="flex items-center gap-2 rounded-xl bg-white px-2 py-1 shadow-sm dark:bg-slate-800 ${player.me ? 'ring-2 ring-brand-600' : ''}"><span class="w-6 text-center text-[13px] font-black text-slate-500">${player.place}.</span>${pennantSvg(player.flag_color, player.emblem, 'h-4 w-5')}<span class="min-w-0 flex-1 truncate text-[13px] font-bold text-slate-800 dark:text-slate-100">${esc(player.display_name)}${player.me ? ' (ty)' : ''}</span><span class="text-[12.5px] font-black text-slate-800 dark:text-slate-100">${esc(pointsWord(player.score))}</span></li>`).join('');
-        const prize = reward && (reward.badge || reward.xp) ? `<p class="rounded-xl bg-gold-50 px-2 py-1.5 text-center text-[13px] font-black text-brand-950 ring-1 ring-gold-300 dark:bg-gold-900/30 dark:text-gold-100 dark:ring-gold-700">${reward.badge ? 'Odznak Dobyvatel' : ''}${reward.badge && reward.xp ? ' a ' : ''}${reward.xp ? `+${reward.xp} XP` : ''}</p>` : '';
-        return `<div class="flex flex-col gap-2" data-cq-result><div class="flex items-end gap-1.5 px-2">${podium}</div>${prize}<ol class="flex flex-col gap-1">${rows}</ol>
-            <p class="text-[11.5px] font-semibold text-slate-500 dark:text-slate-400">Body: 1 za každé území a ${REGION_POINTS} za celý region. Při shodě vyhrává, kdo svého počtu bodů dosáhl dřív.</p>
-            <button type="button" data-cq="replay" class="${LIGHT_BUTTON} w-full"><i data-lucide="repeat" class="h-4 w-4"></i> Přehrát celou hru</button></div>`;
+        const prize = reward && (reward.badge || reward.xp) ? `<div class="cq-reward flex items-center gap-2.5 rounded-2xl px-2.5 py-1.5">${sealSvg('zluta', 'koruna', 'h-11 w-11 shrink-0')}<span class="min-w-0 flex-1"><span class="block text-[11px] font-black uppercase tracking-wider text-amber-900/75 dark:text-gold-200/80">Odměna za tažení</span><span class="block text-[14.5px] font-black text-slate-900 dark:text-white">${reward.badge ? 'Odznak Dobyvatel' : ''}${reward.badge && reward.xp ? ' · ' : ''}${reward.xp ? `+${reward.xp} XP` : ''}</span></span></div>` : '';
+        return `<div class="flex flex-col gap-2" data-cq-result>
+            <div class="cq-podium flex items-end gap-1.5 px-1 pt-1">${podium}</div>
+            ${prize}
+            <section class="cq-ledger rounded-2xl px-2 pb-1.5 pt-1" aria-label="Konečné pořadí">${playersStripHtml(view)}</section>
+            <p class="px-1 text-[11.5px] font-semibold leading-snug text-slate-500 dark:text-slate-400">Body: 1 za každé území a ${REGION_POINTS} za celý region. Při shodě vyhrává, kdo svého počtu bodů dosáhl dřív.</p>
+            <button type="button" data-cq="replay" class="${GOLD_BUTTON} w-full py-2.5 text-[15px]"><i data-lucide="repeat" class="h-5 w-5"></i> Přehrát celé tažení</button></div>`;
     };
 
     // Jak se hraje (okno)

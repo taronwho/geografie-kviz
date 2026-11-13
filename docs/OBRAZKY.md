@@ -2434,6 +2434,26 @@ Kam: výběr barvy v Dobývání (okno Barva a znak) – pečeť se přebarví n
 Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole object. Single centered subject filling about 80 % of the frame with even empty space around it, readable even as a small 48 px icon (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow on the background, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, shading); do not draw the owl and do not copy any existing cartoon or game artwork. Subject: A single blank round sealing-wax seal seen straight from the top: a thick blob of wax with an irregular wavy edge and two or three small rounded drips, a raised rim and a smooth slightly sunken circular stamp area in the middle that is completely EMPTY (no symbol, no letter, no pattern). The wax is in pure neutral light grey only (no hue at all, light grey #c8c8c8 with lighter highlights and mid-grey shadows), because the app will tint it to each player's color; a soft glossy highlight on the upper left edge. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
+## 22. Dobývání – konec tažení (č. 266–267)
+
+Konec hry: území vítěze se na mapě rozzáří a přes mapu se rozvine kartuše s vítězem; pak vyjede list výsledků s kamennými stupni vítězů, praporci na žerdích a vavřínem.
+
+#### 266. `vavrin.png` – Zlatý vavřínový věnec – čeká na dodání
+
+Kam: věnec kolem praporce vítěze na stupních vítězů v Dobývání (a kolem vítěze v kartuši nad mapou). Do dodání jednoduchý věnec v SVG. Přiložit: `branding/sova-original.jpg` (vzor stylu)
+
+```text
+Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole object. Single centered subject filling about 80 % of the frame with even empty space around it, readable even as a small 48 px icon (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow on the background, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, colors, shading); do not draw the owl and do not copy any existing cartoon or game artwork. Subject: An open golden laurel wreath seen from the front: two curved branches of glossy golden leaves meeting at the bottom where they are tied with a small wine-red ribbon bow, open at the top, symmetric, the inside of the wreath completely EMPTY (nothing inside, so a flag can be placed in it). Colors: warm gold with darker gold shading, wine-red ribbon. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
+#### 267. `sova-dobyvatel.png` – Sova dobyvatel s vlajkou na hradbě – čeká na dodání
+
+Kam: vítězství v Dobývání (nad mapou při vítězství a v listu výsledků). Do dodání sova s pohárem (`sova-vitez`). Přiložit: `branding/sova-original.jpg` (postava) a hotovou `dobyvani.png` (č. 234, sova s helmou a mapou – vzor výstroje)
+
+```text
+Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole object. Single centered subject filling about 80 % of the frame with even empty space around it, readable even as a small 48 px icon (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow on the background, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl mascot as the character: keep its face, monocle with chain, white eyebrows and whiskers, golden-brown feathers and wine-red academic robe exactly as they are; if a second image of the owl with a bronze crested helmet is attached, give the owl the same helmet. The wine-red color must appear only on the robe: all props must be in other colors. Subject: The owl standing triumphantly on top of a small grey stone castle battlement, planting a tall wooden flagpole with a big plain golden-yellow pennant (no symbol on it) with one wing, the other wing raised in a victory gesture, a proud happy smile, a few golden sparkles around the pennant. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
+```
+
 ## Co udělám po dodání
 
 1. Uložím soubory do `branding/ikony/`, vyříznu pozadí (`python3 scripts/topic-icons.py …`) a u sov vyrobím barvy obleku (`python3 scripts/owl-robes.py`).
