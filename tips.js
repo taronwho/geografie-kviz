@@ -95,6 +95,9 @@
         // Dobývání (schéma 23): ztracený hrad stojí tah, upozornění na útoky; pro toho, kdo už Dobývání otevřel (pravidlo je nové pro všechny)
         { id: 'dobyvani-hrad', icon: 'castle', art: 'hrad-domov', multi: true, account: true, after: 20, title: 'Braň svůj hrad', text: 'V Dobývání se vyplatí opevnit domovský hrad: s každým stupněm roste a Pevnost na něm dává +1 tah za období. Kdo o hrad přijde, má v dalším období o 1 tah méně. Se zapnutými upozorněními se o útoku dozvíš hned.',
             action: { kind: 'conquest', label: 'Otevřít Dobývání' }, ready: (u) => Boolean(u.visited.conquest), used: () => false },
+        // Dobývání (schéma 26): rychlé hry a další kolo; pro toho, kdo Dobývání už otevřel
+        { id: 'dobyvani-blesk', icon: 'zap', art: 'dobyvani', multi: true, account: true, after: 20, title: 'Dobývání za 20 minut', text: 'Při zakládání hry v Dobývání zvol tempo Blesk: hra trvá 20 minut a kola 5 minut. Když všichni dohrají své tahy dřív, klepnou na Chci další kolo a další začne po odpočtu 10 s.',
+            action: { kind: 'conquest', label: 'Otevřít Dobývání' }, ready: (u) => Boolean(u.visited.conquest), used: () => false },
         // Dobývání (schéma 25): bitvy o území; pro toho, kdo Dobývání už otevřel (pravidlo je nové pro všechny)
         { id: 'dobyvani-bitvy', icon: 'swords', art: 'dobyvani', multi: true, account: true, after: 20, title: 'Bitvy o území', text: 'Když v Dobývání někdo zaútočí na území, se kterým sousedíš, uvidíš na mapě bitvu a můžeš se přidat. Všichni dostanou stejnou otázku a 60 s, území získá nejrychlejší správná odpověď. Riskantní: správně, ale pomaleji znamená tah bez zisku.',
             action: { kind: 'conquest', label: 'Otevřít Dobývání' }, ready: (u) => Boolean(u.visited.conquest), used: () => false },

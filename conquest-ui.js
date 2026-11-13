@@ -539,7 +539,9 @@
                 game = { id, state, data, view: viewFor(state, data), vb: null, selected: null, source: null, move: null,
                     offset: 0, version: state.version || '', loadedAt: Date.now(), siegeKey: siegeKey(state.sieges),
                     // Bitvy, o kterých hráč už ví (při otevření hry ty, co už běží), a výsledky, které už viděl
-                    seenSieges: new Set((state.sieges || []).map(siege => siege.id)), seenResults: new Set() };
+                    seenSieges: new Set((state.sieges || []).map(siege => siege.id)), seenResults: new Set(),
+                    // Kola, jejichž okno Další kolo hráč zavřel (dá se otevřít štítkem na mapě)
+                    roundHidden: new Set() };
                 renderGame();
                 if (penaltyNews(state)) deps.showToast(C.PENALTY_TEXT);
                 // Témata a zásoby otázek pro mapu se připraví hned (první otázka pak nečeká na jejich sestavení)
@@ -573,6 +575,7 @@
             mountMap();
             if (game.selected) showSheet(game.selected);
             paintChips();
+            paintRound();
             startClock();
         };
         // Jen mapa a čísla (po tahu, při obnovení), bez přestavby celé obrazovky
@@ -595,6 +598,7 @@
         const setState = (state) => {
             game.state = state;
             game.view = viewFor(state, game.data);
+            paintRound();
             const me = state.players.find(player => player.me);
             if (lobby && me) upsertMine({ ...state, budget: state.budget, owners: Object.fromEntries((state.territories || []).filter(row => row.o).map(row => [row.t, (state.players.find(p => p.id === row.o) || {}).seat])) });
         };
@@ -1052,6 +1056,8 @@
             } else banner(move.kind === 'attack' ? (info.owner ? 'Útok odražen.' : 'Útok nevyšel.') : 'Opevnění se nepovedlo.', 'x');
             game.move = null;
             paintCard();
+            // Poslední tah kola: okno Další kolo (až skončí animace tahu)
+            setTimeout(() => { if (game && !game.move) { paintRound(); paintChips(); } }, reduced() ? 50 : 1600);
         };
 
         // --- Bitvy o území (blok 25): obléhání, přidání, odpočet 60 s, čekání na ostatní a výsledek ---
@@ -1258,7 +1264,9 @@
         const paintChips = () => {
             const holder = app.querySelector('[data-cq-chips]');
             if (!holder || !game) return;
-            const html = game.move ? '' : C.siegeChipsHtml(game.view, { offset: game.offset, now: Date.now() });
+            const round = game.state.round;
+            const html = game.move ? '' : C.siegeChipsHtml(game.view, { offset: game.offset, now: Date.now() })
+                + (round && game.roundHidden.has(round.period) ? C.roundChipHtml(game.view, round) : '');
             if (holder.dataset.html === html) return;
             holder.dataset.html = html;
             holder.innerHTML = html;
@@ -1291,6 +1299,61 @@
                 if (left <= 0) expired = true;
             });
             if (expired && !game.move) paintChips();
+            countdownTick();
+            // Rychlé hry: odpočet do dalšího kola po sekundách
+            if (C.fastPeriod(game.state.period) && now - (game.clockAt || 0) >= 1000) { game.clockAt = now; updateClock(); }
+        };
+
+        // --- Další kolo (blok 26): okno, když všichni odehráli tahy (fajfky u hráčů), Chci další kolo a odpočet 10 s ---
+        const roundsOn = () => Boolean(game && game.state.round && Social.conquestRoundReady && !(Social.conquestRoundsMissing && Social.conquestRoundsMissing()));
+        const paintRound = () => {
+            const holder = app.querySelector('[data-cq-round]');
+            if (!holder || !game) return;
+            const round = roundsOn() ? game.state.round : null;
+            const counting = Boolean(round && C.localTime(round.next_at, game.offset) !== null);
+            const show = Boolean(round && round.done && !game.view.finished && (counting || (!game.roundHidden.has(round.period) && !game.move)));
+            const key = show ? JSON.stringify([round.period, round.ready, round.next_at]) : '';
+            if (holder.dataset.key === key) return;
+            const mode = show ? `${round.period}:${counting}` : '';
+            const again = holder.dataset.mode === mode;
+            holder.dataset.key = key;
+            holder.dataset.mode = mode;
+            holder.classList.toggle('hidden', !show);
+            holder.classList.toggle('pointer-events-none', !show);
+            if (!show) { holder.innerHTML = ''; return; }
+            holder.innerHTML = `<div class="cq-round-backdrop absolute inset-0 flex items-center justify-center p-3">${C.roundHtml(game.view, round, { avatar: deps.avatarHtml, now: Date.now(), offset: game.offset })}</div>`;
+            // Stejné okno jen s novou fajfkou nevyjede znovu
+            if (again) { const card = holder.querySelector('.cq-round-in'); if (card) card.classList.remove('cq-round-in'); }
+            else if (!counting) sound('badge');
+            deps.renderIcons(holder);
+            countdownTick(true);
+        };
+        // Odpočet: číslo poskočí a kruh se vybije každou sekundu, poslední tři sekundy tikají výš; na nule se načte nové kolo
+        const restart = (element) => { if (!element) return; element.classList.remove('cq-count-go'); void element.getBoundingClientRect(); element.classList.add('cq-count-go'); };
+        const countdownTick = (fresh = false) => {
+            const count = app.querySelector('[data-cq-count]');
+            if (!count || !game) return;
+            const left = Math.max(0, Math.ceil((Number(count.dataset.cqNext) - Date.now()) / 1000));
+            if (!fresh && String(left) === count.textContent) return;
+            count.textContent = String(Math.min(C.ROUND_COUNTDOWN, left));
+            restart(count);
+            restart(app.querySelector('[data-cq-count-ring]'));
+            if (left > 0) sound(left <= 3 ? 'tickLast' : 'tick');
+            else if (!game.roundStarting) {
+                game.roundStarting = true;
+                setTimeout(() => { if (game) { game.roundStarting = false; reloadGame(); } }, 400);
+            }
+        };
+        const roundReady = async (ready) => {
+            if (!game || !Social.conquestRoundReady) return;
+            const id = game.id;
+            try {
+                const round = await Social.conquestRoundReady(id, ready);
+                if (!game || game.id !== id || !round) return;
+                game.state = { ...game.state, round };
+                paintRound();
+                paintChips();
+            } catch (error) { deps.showToast(errorText(error, 'Nepodařilo se. Zkus to znovu.')); }
         };
         // Puls hry: nové bitvy (upozornění, štítky, značky na mapě), kdo se přidal k mé bitvě, výsledky mých bitev a změny hry (version)
         const pulse = async () => {
@@ -1326,7 +1389,13 @@
             // Výsledky mých bitev, na které jsem nečekal v listu (zavřené čekání, návrat do hry)
             const results = res.results.filter(siege => !game.seenResults.has(siege.id) && !(move && move.siege && move.siege.id === siege.id));
             results.forEach(siege => game.seenResults.add(siege.id));
-            const changed = res.version && res.version !== game.version;
+            // Další kolo: fajfky a odpočet hned; nové kolo (jiné období) = celý stav hry
+            let periodChanged = false;
+            if (res.round && game.state.round) {
+                periodChanged = res.round.period !== game.state.round.period;
+                if (!periodChanged && JSON.stringify(res.round) !== JSON.stringify(game.state.round)) { game.state = { ...game.state, round: res.round }; paintRound(); paintChips(); }
+            }
+            const changed = (res.version && res.version !== game.version) || periodChanged;
             if (res.version) game.version = res.version;
             if (!move && (changed || results.length || (res.status === 'finished' && !game.view.finished))) {
                 await reloadGame(true);
@@ -1430,7 +1499,7 @@
             fillSheet('');
             const final = game.state;
             const owners = {};
-            const unit = final.period === 'hour' ? 'Hodina' : 'Den';
+            const unit = C.fastPeriod(final.period) ? 'Kolo' : final.period === 'hour' ? 'Hodina' : 'Den';
             for (const step of steps) {
                 if (!game || replaying !== token || !active()) return;
                 const changed = [];
@@ -1572,6 +1641,10 @@
             else if (name === 'siege-join') joinBattle();
             else if (name === 'siege-resume' && game && game.selected) resumeBattle(game.selected);
             else if (name === 'battle-hide') hideBattle();
+            else if (name === 'round-ready') roundReady(true);
+            else if (name === 'round-unready') roundReady(false);
+            else if (name === 'round-close' && game && game.state.round) { game.roundHidden.add(game.state.round.period); paintRound(); paintChips(); }
+            else if (name === 'round-open' && game && game.state.round) { game.roundHidden.delete(game.state.round.period); paintRound(); paintChips(); }
             else if (name === 'replay') replay();
             else if (name === 'dev-bot') devAddBots(1);
             else if (name === 'dev-bots-full') { const found = findGame(ui.gameId); if (found) devAddBots(found.max_players - found.players.length); }
@@ -1592,7 +1665,7 @@
         const schedule = () => {
             clearTimeout(timer);
             if (!active()) return;
-            const battling = game && (game.move ? game.move.battle : game.view.sieges.size > 0);
+            const battling = game && (game.move ? game.move.battle : game.view.sieges.size > 0 || Boolean(game.state.round && game.state.round.done));
             const delay = ui.kind === 'game' ? (battlesOn() ? (battling ? POLL_BATTLE : POLL_PULSE) : POLL_GAME) : ui.kind === 'lobby' ? POLL_LOBBY : 30000;
             timer = setTimeout(tick, delay);
         };
@@ -1620,6 +1693,12 @@
 
         // Zpět (tlačítko telefonu, app.js goBack): list → mapa → rozcestník → úvod
         const back = () => {
+            // Okno Další kolo jde zavřít (během odpočtu ne)
+            const roundBox = app.querySelector('[data-cq-round]');
+            if (game && game.state.round && roundBox && !roundBox.classList.contains('hidden')) {
+                if (!game.state.round.next_at) { game.roundHidden.add(game.state.round.period); paintRound(); paintChips(); }
+                return true;
+            }
             if (game && game.move && game.move.battle) {
                 // Bitva běží na serveru: otázku nejde zahodit (tah je rezervovaný), čekání jde zavřít
                 if (game.move.phase === 'waiting') hideBattle(); else if (game.move.phase === 'question') deps.showToast('Bitva běží: odpověz, než vyprší čas.');

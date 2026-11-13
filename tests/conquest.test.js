@@ -895,6 +895,37 @@ test('Založit hru: tempo (Blesk, Rychlovka, Odpoledne, Tažení, Vlastní), shr
     for (const html of [blesk, custom]) { assert.doesNotMatch(html, /\sstyle=|NaN|undefined/); }
 });
 
+test('další kolo (blok 26): okno s hráči a fajfkami, Chci další kolo / čekání, odpočet 10 s, štítek; rychlá kola po sekundách', () => {
+    const text = (html) => html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
+    const NOW = Date.parse('2026-11-12T10:20:00Z');
+    const state = { ...sampleState(), period: 'min5', started_at: '2026-11-12T10:00:00Z', ends_at: '2026-11-12T10:40:00Z',
+        round: { period: 3, started_at: '2026-11-12T10:15:00Z', ends_at: '2026-11-12T10:22:30Z', done: true, ready: ['B'], next_at: null, can_ready: true } };
+    const view = C.viewOf(state, maps.evropa, 'A');
+    const open = C.roundHtml(view, state.round, { now: NOW });
+    assert.match(text(open), /Kolo 4 dohráno Všichni odehráli své tahy\. Až budou fajfky u všech, další kolo začne za 10 s\./);
+    assert.match(open, /data-cq-round-player="A"[^]*cq-tick-off[^]*data-cq-round-player="B"[^]*cq-tick-on[^]*data-lucide="check"/);
+    assert.match(open, /data-cq="round-ready"[^>]*>[^]*Chci další kolo/);
+    assert.match(text(open), /Jinak začne samo za 2:30/);
+    // Já už chci: čekání (1/2 → 2/2 by spustilo odpočet na serveru) a Ještě ne
+    const waiting = C.roundHtml(view, { ...state.round, ready: ['A'] }, { now: NOW });
+    assert.match(text(waiting), /Čekáš na ostatní · 1\/2 Ještě ne/);
+    assert.doesNotMatch(waiting, /data-cq="round-ready"/);
+    // Všichni chtějí: odpočet s kruhem a fajfky u všech
+    const counting = C.roundHtml(view, { ...state.round, ready: ['A', 'B'], next_at: '2026-11-12T10:20:07Z' }, { now: NOW });
+    assert.match(counting, /Další kolo začíná[^]*data-cq-count-ring[^]*data-cq-count data-cq-next="\d+">7</);
+    assert.equal((counting.match(/cq-tick-on/g) || []).length, 2);
+    // Štítek po zavření okna; po odpočtu ani před dohráním ne
+    assert.match(text(C.roundChipHtml(view, state.round)), /Další kolo\? 1\/2/);
+    assert.equal(C.roundChipHtml(view, { ...state.round, done: false }), '');
+    assert.equal(C.roundChipHtml(view, { ...state.round, next_at: '2026-11-12T10:20:07Z' }), '');
+    // Konec kola od serveru (kolo mohlo začít dřív), rychlá kola po sekundách, texty v kolech
+    assert.equal(C.nextPeriodAt(state), Date.parse('2026-11-12T10:22:30Z'));
+    assert.equal(C.periodLine(view, NOW), 'Další kolo za 2:30');
+    assert.equal(C.periodStartText({ ...state, budget: { ...state.budget, period: 4 } }), 'Začalo 5. kolo.');
+    assert.equal(C.nextPeriodAt({ ...state, round: null, budget: { ...state.budget, period: 1 } }), Date.parse('2026-11-12T10:10:00Z'));
+    for (const html of [open, waiting, counting]) assert.doesNotMatch(html, /\sstyle=|NaN|undefined/);
+});
+
 test('stavby: domovský hrad podle úrovně (č. 275–277), střechy a vlaječky v barvě majitele, obrázky v mezipaměti', () => {
     // Domovský hrad roste s opevněním, ostatní území mají palisádu, hradbu a pevnost
     assert.deepEqual([0, 1, 2, 3].map(level => C.levelIcon(level, true)), ['castle', 'castle1', 'castle2', 'castle3']);

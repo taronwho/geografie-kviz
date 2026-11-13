@@ -67,7 +67,7 @@ test('funkci, kterou hráč už používá, tip nenabídne; tip se ukáže jen j
         state = Tips.markShown(state, tip.id, `2026-12-${String(day + 1).padStart(2, '0')}`, now);
         now += 86400000;
     }
-    assert.deepEqual(offered, ['reakce', 'pratele', 'dobyvani-hrad', 'dobyvani-bitvy'], 'zkušený hráč dostane jen to, co ještě nezná (nová pravidla Dobývání zná málokdo)');
+    assert.deepEqual(offered, ['reakce', 'pratele', 'dobyvani-hrad', 'dobyvani-blesk', 'dobyvani-bitvy'], 'zkušený hráč dostane jen to, co ještě nezná (nová pravidla Dobývání zná málokdo)');
     assert.equal(new Set(offered).size, offered.length);
 });
 
