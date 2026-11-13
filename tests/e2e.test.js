@@ -337,35 +337,37 @@ test('aplikace v prohlížeči', { skip: !chromium && 'Playwright není nainstal
         await context.close();
     });
 
-    await t.test('procvičení okruhu ve variantě psaní: otázka na stát, zakrytý stát, dvojnásobek bodů', async () => {
+    await t.test('procvičení okruhu ve variantě psaní: u místa v Česku otázka na název, u dalšího města na stát; dvojnásobek bodů', async () => {
         const { context, tab, log } = await setup(browser, { variant: 'typed', fixedRandom: true });
         await tab.goto(`${ORIGIN}/`);
         await waitForHome(tab);
         await practiceCollection(tab, 'zemepis', 'c:mesto');
         const data = await readRound(tab);
         assert.equal(data.name, 'Testov');
-        assert.equal(data.question.type, 'location');
+        // Místo v Česku: na stát se neptá (český název a popis by odpověď prozradily), ptá se na název
+        assert.equal(data.question.type, 'name');
         assert.equal(await tab.textContent('#status-text'), 'Zeměpis · Města');
-        assert.match(await tab.textContent('h2'), /Ve kterém státě to je\?/);
-        assert.match(await appText(tab), /Název: Testov/);
         const description = await tab.textContent('p.italic');
-        assert.doesNotMatch(description, /Česk|česk|Jihomoravsk/, description);
+        assert.doesNotMatch(description, /Testov/, description);
         assert.match(description, /na řece Svratce/);
         assert.equal(await tab.locator('[data-action="choice"]').count(), 0, 've variantě psaní nejsou možnosti');
         assert.match(await appText(tab), /Za 8 bodů/);
 
-        await tab.fill('#answer-input', 'Česká republika');
+        await tab.fill('#answer-input', 'Testov');
         await tab.press('#answer-input', 'Enter');
         await waitForResult(tab);
         assert.match(await appText(tab), /Správně! \+8 bodů/);
         assert.match(await appText(tab), /Napsaná odpověď/);
         assert.match(await appText(tab), /Česká stopa/);
 
-        // Další z okruhu se neopakuje; napsaný jiný stát výsledek pozná a nabídne o něm popis
+        // Další město z okruhu (neopakuje se): otázka na stát s viditelným názvem; napsaný jiný stát výsledek pozná a nabídne o něm popis
         assert.match(await tab.textContent('[data-action="next"]'), /Další z okruhu/);
         await tab.click('[data-action="next"]');
         await waitForQuestion(tab);
         const next = await readRound(tab);
+        assert.equal(next.question.type, 'location');
+        assert.match(await tab.textContent('h2'), /Ve kterém státě to je\?/);
+        assert.match(await appText(tab), new RegExp(`Název: ${next.name}`));
         assert.notEqual(next.name, 'Testov');
         assert.equal(next.category, 'mesto');
         await tab.fill('#answer-input', 'Rakousko');

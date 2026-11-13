@@ -827,7 +827,20 @@
         </div>`;
 
     // Detail otevřené hry (lobby): hráči, Chci hrát, Odejít, kód a pozvánka
-    const lobbyDetailHtml = ({ game, maps = {}, busy = false, error = '' }) => {
+    // Lišta vývojáře (vývojářský režim, účet v dev_admins; blok 22 ve schema.sql): v lobby boti do hry, ve hře jejich tahy hned a další období
+    const DEV_CHIP = 'rounded-lg bg-amber-100 px-2 py-1 text-[11px] font-bold text-amber-900 active:scale-95 disabled:opacity-50 dark:bg-amber-900/50 dark:text-amber-100';
+    const devBarHtml = ({ kind, free = 0 }) => {
+        const buttons = kind === 'lobby'
+            ? [['dev-bot', '+1 bot', free >= 1], ['dev-bots-full', `Doplnit boty (${free})`, free >= 2]]
+            : [['dev-play', 'Boti odehrají tahy', true], ['dev-period', 'Další období', true]];
+        const shown = buttons.filter(([, , show]) => show);
+        if (!shown.length) return '';
+        return `<div data-cq-dev class="flex shrink-0 flex-wrap items-center gap-1 rounded-xl border-2 border-dashed border-amber-400/70 px-2 py-1">
+            <span class="mr-0.5 text-[10px] font-black uppercase tracking-widest text-amber-700 dark:text-amber-400">Vývojář</span>
+            ${shown.map(([action, label]) => `<button type="button" data-cq="${action}" class="${DEV_CHIP}">${esc(label)}</button>`).join('')}
+        </div>`;
+    };
+    const lobbyDetailHtml = ({ game, maps = {}, busy = false, error = '', dev = false }) => {
         const data = maps[game.map];
         const me = (game.players || []).find(player => player.me);
         const rows = (game.players || []).map(player => `<li class="flex items-center gap-2 rounded-2xl bg-white p-1.5 pr-2.5 shadow-sm dark:bg-slate-800 ${player.me ? 'ring-2 ring-brand-600 dark:ring-brand-400' : ''}">
@@ -840,6 +853,7 @@
                 <span class="flex min-w-0 flex-1 flex-wrap gap-1">${paramChips(game)}</span>
             </div>
             <ul class="flex flex-col gap-1.5">${rows}${empty ? `<li class="px-2 text-[12px] font-semibold text-slate-500 dark:text-slate-400">Volná místa: ${empty}. Hra začne, až bude plná, nebo až budou chtít hrát všichni (aspoň dva).</li>` : ''}</ul>
+            ${dev && me ? devBarHtml({ kind: 'lobby', free: empty }) : ''}
             ${me ? `<button type="button" role="switch" aria-checked="${Boolean(me.ready)}" data-cq="ready" ${busy ? 'disabled' : ''} class="${me.ready ? BRAND_BUTTON : GOLD_BUTTON} w-full py-2.5 text-[15px]"><i data-lucide="${me.ready ? 'square-check-big' : 'square'}" class="h-5 w-5"></i> Chci hrát${me.ready ? ': ano' : ''}</button>` : ''}
             <div class="grid grid-cols-2 gap-2">
                 <button type="button" data-cq="share" class="${LIGHT_BUTTON}"><i data-lucide="share-2" class="h-4 w-4"></i> Pozvat</button>
@@ -854,7 +868,7 @@
 
     // Obrazovka hry: lišta (zpět, kartuše s mapou a časem, tahy, kronika), mapa (výška podle tvaru mapy, nastaví conquest-ui.js), pod ní
     // hráči a poslední události; spodní list (území, otázka, výsledek) přes spodek obrazovky
-    const gameScreenHtml = (view, { now = Date.now() } = {}) => {
+    const gameScreenHtml = (view, { now = Date.now(), dev = false } = {}) => {
         const game = view.state;
         const budget = view.budget;
         const end = parseTime(game.ends_at);
@@ -879,6 +893,7 @@
             <div data-cq-panel class="flex min-h-[2.25rem] flex-1 flex-col gap-1 overflow-hidden">
                 <ul data-cq-players class="flex shrink-0 gap-1 overflow-x-auto pb-0.5">${playersStripHtml(view)}</ul>
                 <button type="button" data-cq="feed" data-cq-recent class="flex min-h-0 flex-1 flex-col gap-0.5 overflow-hidden rounded-xl text-left">${recentHtml(view)}</button>
+                ${dev && !view.finished ? devBarHtml({ kind: 'game' }) : ''}
             </div>
             <div data-cq-sheet class="absolute inset-x-0 bottom-0 z-20"></div>
         </div>`;
@@ -1002,6 +1017,6 @@
         indexMap, parseRings, pointInRings, project, territoryAt, isAdjacent, viewOf, rank, sourcesFor, actionsFor,
         buildQuestion, kindsFor, placesOf, feedItems, replaySteps, capturedWord, hatchPattern, levelIcon, iconMarkup,
         pennantSvg, pennantGroup, emblemSvg, mapSvg, thumbSvg, marksFor, homeCardHtml, hubHtml, mineHtml, lobbyHtml, createHtml, lookHtml, lobbyDetailHtml,
-        gameScreenHtml, playersStripHtml, recentHtml, sheetHtml, questionHtml, feedHtml, resultHtml, helpHtml, mapTitle, paramChips
+        gameScreenHtml, playersStripHtml, recentHtml, sheetHtml, devBarHtml, questionHtml, feedHtml, resultHtml, helpHtml, mapTitle, paramChips
     };
 });

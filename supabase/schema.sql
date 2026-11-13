@@ -708,6 +708,8 @@ begin
         perform public.tournament_progress(t.id);
     end loop;
     perform public.tournament_bots_due();
+    -- vývojářští boti v Dobývání (blok 22) hrají sami i bez otevřené hry
+    if to_regprocedure('public.conquest_bots_tick()') is not null then perform public.conquest_bots_tick(); end if;
 end;
 $$;
 
@@ -899,13 +901,18 @@ begin
 end;
 $$;
 
--- Smaže všechny boty; turnaje, které už běžely nebo skončily s boty, se smažou celé (jejich pavouk by bez botů nedával smysl), otevřené turnaje přijdou jen o boty
+-- Smaže všechny boty; turnaje, které už běžely nebo skončily s boty, se smažou celé (jejich pavouk by bez botů nedával smysl), otevřené turnaje přijdou jen o boty;
+-- stejně hry Dobývání (blok 22)
 create or replace function public.dev_tournament_clear_bots() returns integer
 language plpgsql security definer set search_path = public as $$
 declare removed integer;
 begin
     perform public.dev_check();
     delete from public.tournaments where status <> 'open' and id in (select e.tournament_id from public.tournament_entries e where public.dev_is_bot(e.user_id));
+    -- Dobývání (blok 22): rozehrané a dohrané hry s boty zmizí celé, hry v lobby přijdou jen o boty
+    if to_regclass('public.conquest_games') is not null then
+        delete from public.conquest_games where status <> 'lobby' and id in (select pl.game_id from public.conquest_players pl where public.dev_is_bot(pl.user_id));
+    end if;
     delete from auth.users where email like 'bot-%@bots.invalid';
     get diagnostics removed = row_count;
     return removed;
@@ -5320,6 +5327,8 @@ begin
     if g.id is null or (not member and not (g.status = 'lobby' and g.visibility = 'public')) then raise exception 'Tahle hra neexistuje, nebo ji nehraješ.' using errcode = '42501'; end if;
     if g.status = 'running' then
         perform public.conquest_housekeep(game);
+        -- vývojářští boti (blok 22) odehrají, co jim podle času v období patří
+        if member then perform public.conquest_bots_due(game); end if;
         select * into g from public.conquest_games where id = game;
     end if;
     if g.status = 'lobby' or not member then return public.conquest_summary(g, uid) || jsonb_build_object('now', public.conquest_now()); end if;
@@ -5336,13 +5345,12 @@ end;
 $$;
 
 -- Tah: útok (na území sousedící s vlastním; source = vlastní území, odkud útok vede, nepovinné) nebo opevnění vlastního území.
--- is_correct = odpověď na otázku tahu. Vrací stav hry a výsledek tahu (move).
-create or replace function public.conquest_move(game uuid, target text, move_kind text, is_correct boolean, source text default null) returns jsonb
-language plpgsql security definer set search_path = public as $$
-declare uid uuid := auth.uid(); g public.conquest_games; t public.conquest_territories; p integer; budget jsonb; victim uuid; res text; lvl integer;
+-- is_correct = odpověď na otázku tahu. Tah za hráče uid (hráč přes conquest_move, bot přes conquest_bot_move); vrací zapsaný tah.
+create or replace function public.conquest_move_by(uid uuid, game uuid, target text, move_kind text, is_correct boolean, source text default null) returns public.conquest_moves
+language plpgsql set search_path = public as $$
+declare g public.conquest_games; t public.conquest_territories; p integer; budget jsonb; victim uuid; res text; lvl integer;
     took_home boolean := false; took_treasure boolean := false; mv public.conquest_moves;
 begin
-    if uid is null then raise exception 'Přihlas se.' using errcode = '42501'; end if;
     select * into g from public.conquest_games where id = game for update;
     if g.id is null or not exists (select 1 from public.conquest_players c where c.game_id = game and c.user_id = uid) then raise exception 'Tahle hra neexistuje, nebo ji nehraješ.' using errcode = '42501'; end if;
     if g.status = 'lobby' then raise exception 'Hra ještě nezačala.' using errcode = 'P0001'; end if;
@@ -5390,6 +5398,16 @@ begin
     insert into public.conquest_moves (game_id, user_id, period, kind, territory, source, success, result, victim, level, treasure, home, at)
     values (game, uid, p, move_kind, target, case when move_kind = 'attack' then source end, is_correct, res, victim, lvl, took_treasure, took_home, public.conquest_now())
     returning * into mv;
+    return mv;
+end;
+$$;
+-- Tah hráče (tah za něj udělá conquest_move_by); vrací stav hry a výsledek tahu (move)
+create or replace function public.conquest_move(game uuid, target text, move_kind text, is_correct boolean, source text default null) returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare uid uuid := auth.uid(); mv public.conquest_moves;
+begin
+    if uid is null then raise exception 'Přihlas se.' using errcode = '42501'; end if;
+    mv := public.conquest_move_by(uid, game, target, move_kind, is_correct, source);
     return public.conquest_state(game) || jsonb_build_object('move', public.conquest_move_json(mv));
 end;
 $$;
@@ -5429,6 +5447,175 @@ grant execute on function public.conquest_is_player(uuid), public.conquest_is_op
     public.conquest_join(uuid, text, text, text), public.conquest_set_look(uuid, text, text), public.conquest_ready(uuid, boolean), public.conquest_leave(uuid),
     public.conquest_state(uuid), public.conquest_move(uuid, text, text, boolean, text), public.conquest_claim(uuid) to authenticated;
 -- ===== 21: Dobývání — KONEC BLOKU =====
+
+-- ===== 22: Vývojářští boti v Dobývání =====
+-- Boti jsou stejní jako v turnajích: řádky v auth.users s e-mailem bot-…@bots.invalid (dev_is_bot), přidává je jen účet z dev_admins
+-- do hry, kterou sám hraje (dev_conquest_add_bots). Každý bot má vlastní úspěšnost 45–80 % (jako v turnaji), u opevněného cíle o 8 bodů
+-- za úroveň nižší. Hrají sami: tahy si rozloží do období (začnou v prvních 20 % období, do 70 % mají odehráno), kdykoli se na hru někdo
+-- podívá (conquest_state) nebo aplikace zavolá tournament_tick (otevření aplikace, plánovač). Vývojář je může popohnat
+-- (dev_conquest_bots_play: hned všechny tahy období) a posunout hru o období (dev_conquest_next_period).
+create or replace function public.conquest_bot_skill(uid uuid) returns numeric
+language sql immutable as $$ select 0.45 + 0.35 * (('x' || substr(md5(uid::text), 1, 6))::bit(24)::integer % 1000) / 1000.0 $$;
+-- Kdy v období bot začne hrát (podíl období 0–0,2)
+create or replace function public.conquest_bot_offset(uid uuid) returns numeric
+language sql immutable as $$ select 0.2 * (('x' || substr(md5(uid::text || 'tempo'), 1, 6))::bit(24)::integer % 1000) / 1000.0 $$;
+-- Jeden tah bota: útok (poklad > neutrální území > domov soupeře, opevnění cíl odrazuje, trocha náhody), zhruba každý pátý tah
+-- (nebo když není kam útočit) opevnění ohroženého území, nejradši domova. Vrací false, když bot nemá co hrát.
+create or replace function public.conquest_bot_move(gid uuid, bot uuid) returns boolean
+language plpgsql set search_path = public as $$
+declare g public.conquest_games; target text; src text; lvl integer := 0; kind text := 'attack'; fort_t text; fort_l integer; ok boolean;
+begin
+    select * into g from public.conquest_games where id = gid;
+    if g.id is null or g.status <> 'running' then return false; end if;
+    select c.territory, c.level into target, lvl
+      from public.conquest_territories c
+     where c.game_id = gid and c.owner is distinct from bot
+       and exists (select 1 from public.conquest_territories s join public.conquest_links l on l.map = g.map and l.a = s.territory and l.b = c.territory
+                    where s.game_id = gid and s.owner = bot)
+     order by (case when c.treasure then 6 else 0 end) + (case when c.owner is null then 3 else 0 end) + (case when c.home and c.owner is not null then 1.5 else 0 end)
+              - 2.5 * c.level + 3 * random() desc
+     limit 1;
+    if target is null or random() < 0.2 then
+        select t.territory, t.level into fort_t, fort_l
+          from public.conquest_territories t
+         where t.game_id = gid and t.owner = bot and t.level < (case when t.home then 3 else 2 end)
+         order by (case when t.home then 2 else 0 end)
+                  + (case when exists (select 1 from public.conquest_links l join public.conquest_territories e on e.game_id = gid and e.territory = l.b
+                          where l.map = g.map and l.a = t.territory and e.owner is not null and e.owner <> bot) then 2 else 0 end)
+                  + random() desc
+         limit 1;
+        if fort_t is not null then kind := 'fortify'; target := fort_t; lvl := fort_l; end if;
+    end if;
+    if target is null then return false; end if;
+    if kind = 'attack' then
+        select s.territory into src from public.conquest_territories s join public.conquest_links l on l.map = g.map and l.a = s.territory and l.b = target
+         where s.game_id = gid and s.owner = bot order by s.level desc, random() limit 1;
+        ok := random() < public.conquest_bot_skill(bot) - 0.08 * lvl;
+    else
+        ok := random() < public.conquest_bot_skill(bot);
+    end if;
+    begin
+        perform public.conquest_move_by(bot, gid, target, kind, ok, src);
+    exception when others then return false;
+    end;
+    return true;
+end;
+$$;
+-- Boti hry odehrají, co jim podle času v období patří (play_all = hned všechny tahy období). Vrací počet tahů.
+create or replace function public.conquest_bots_due(gid uuid, play_all boolean default false) returns integer
+language plpgsql set search_path = public as $$
+declare g public.conquest_games; p integer; frac numeric; b record; budget jsonb; total integer; want integer; steps integer; made integer := 0;
+begin
+    select * into g from public.conquest_games where id = gid;
+    if g.id is null or g.status <> 'running' then return 0; end if;
+    if not exists (select 1 from public.conquest_players pl where pl.game_id = gid and public.dev_is_bot(pl.user_id)) then return 0; end if;
+    perform 1 from public.conquest_games where id = gid for update;
+    perform public.conquest_housekeep(gid);
+    select * into g from public.conquest_games where id = gid;
+    if g.status <> 'running' then return 0; end if;
+    p := public.conquest_period(g);
+    frac := extract(epoch from (public.conquest_now() - (g.started_at + p * public.conquest_period_length(g.period)))) / extract(epoch from public.conquest_period_length(g.period));
+    for b in select pl.user_id from public.conquest_players pl where pl.game_id = gid order by pl.seat loop
+        continue when not public.dev_is_bot(b.user_id);
+        steps := 0;
+        loop
+            budget := public.conquest_budget(gid, b.user_id);
+            total := (budget ->> 'total')::integer;
+            want := case when play_all then total else least(total, ceil(total * greatest(0, frac - public.conquest_bot_offset(b.user_id)) / 0.5)::integer) end;
+            exit when (budget ->> 'left')::integer <= 0 or (budget ->> 'used')::integer >= want or steps >= 15;
+            exit when not public.conquest_bot_move(gid, b.user_id);
+            steps := steps + 1;
+            made := made + 1;
+        end loop;
+    end loop;
+    return made;
+end;
+$$;
+-- Boti ve všech rozehraných hrách (volá tournament_tick)
+create or replace function public.conquest_bots_tick() returns void
+language plpgsql set search_path = public as $$
+declare r record;
+begin
+    for r in select distinct pl.game_id from public.conquest_players pl join public.conquest_games g on g.id = pl.game_id
+              where g.status = 'running' and public.dev_is_bot(pl.user_id) loop
+        perform public.conquest_bots_due(r.game_id);
+    end loop;
+end;
+$$;
+-- Vývojář: účet musí být v dev_admins a hru musí sám hrát; vrací hru (zamčenou pro změnu)
+create or replace function public.dev_conquest_check(game uuid) returns public.conquest_games
+language plpgsql set search_path = public as $$
+declare g public.conquest_games;
+begin
+    perform public.dev_check();
+    select * into g from public.conquest_games where id = game for update;
+    if g.id is null or not exists (select 1 from public.conquest_players p where p.game_id = game and p.user_id = auth.uid()) then
+        raise exception 'Boty jde ovládat jen ve hře, kterou sám hraješ.' using errcode = '42501';
+    end if;
+    return g;
+end;
+$$;
+-- Vývojář: boti do hry, která ještě nezačala (nejvýš do plna). Bot dostane volnou barvu, náhodný znak a hned chce hrát;
+-- plná hra začne sama, jinak až klepneš na Chci hrát. Vrací souhrn hry.
+create or replace function public.dev_conquest_add_bots(game uuid, how_many integer default 1) returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare g public.conquest_games; i integer; bot uuid; colour text; emblem_id text; free integer;
+    names text[] := array['Adam', 'Barbora', 'Cyril', 'Dana', 'Emil', 'Fanda', 'Gita', 'Honza', 'Ivana', 'Jirka', 'Klára', 'Libor', 'Marta', 'Nikola', 'Ondra', 'Petra',
+        'Radek', 'Soňa', 'Tomáš', 'Uršula', 'Viktor', 'Wanda', 'Xaver', 'Yvona', 'Zdeněk', 'Alena', 'Bořek', 'Cecílie', 'David', 'Eliška', 'Filip', 'Gabriela'];
+    colors text[] := array['emerald', 'sky', 'violet', 'rose', 'amber', 'teal', 'orange', 'indigo'];
+begin
+    g := public.dev_conquest_check(game);
+    if g.status <> 'lobby' then raise exception 'Boty jde přidat jen do hry, která ještě nezačala.' using errcode = 'P0001'; end if;
+    free := g.max_players - (select count(*) from public.conquest_players where game_id = game)::integer;
+    if free <= 0 then raise exception 'Hra je už plná.' using errcode = 'P0001'; end if;
+    for i in 1 .. least(greatest(coalesce(how_many, 1), 1), free) loop
+        bot := gen_random_uuid();
+        insert into auth.users (id, email, raw_user_meta_data)
+            values (bot, 'bot-' || bot || '@bots.invalid', jsonb_build_object('full_name', 'Bot ' || names[1 + floor(random() * array_length(names, 1))::integer]));
+        update public.profiles set avatar = '🤖', color = colors[1 + floor(random() * array_length(colors, 1))::integer] where id = bot;
+        select c into colour from unnest(public.conquest_colors()) c where c not in (select p.color from public.conquest_players p where p.game_id = game) order by random() limit 1;
+        select e into emblem_id from unnest(public.conquest_emblems()) e order by random() limit 1;
+        perform public.conquest_add_player(g, bot, colour, emblem_id);
+        update public.conquest_players set ready = true where game_id = game and user_id = bot;
+        select * into g from public.conquest_games where id = game;
+        exit when g.status <> 'lobby';
+    end loop;
+    if g.status = 'lobby' and (select count(*) from public.conquest_players where game_id = game) >= 2
+            and not exists (select 1 from public.conquest_players where game_id = game and not ready) then
+        perform public.conquest_start(game);
+    end if;
+    select * into g from public.conquest_games where id = game;
+    return public.conquest_summary(g, auth.uid());
+end;
+$$;
+-- Vývojář: boti hned odehrají všechny tahy, které jim v tomto období zbývají. Vrací počet tahů.
+create or replace function public.dev_conquest_bots_play(game uuid) returns integer
+language plpgsql security definer set search_path = public as $$
+declare g public.conquest_games;
+begin
+    g := public.dev_conquest_check(game);
+    if g.status <> 'running' then raise exception 'Hra neběží.' using errcode = 'P0001'; end if;
+    return public.conquest_bots_due(game, true);
+end;
+$$;
+-- Vývojář: skok na další období (začátek i konec hry se posunou o jedno období dozadu, takže hra je o období dál a o období kratší);
+-- pak se hra uklidí (konec, Návrat do hry) a boti odehrají, co jim v novém období patří. Vrací stav hry.
+create or replace function public.dev_conquest_next_period(game uuid) returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare g public.conquest_games;
+begin
+    g := public.dev_conquest_check(game);
+    if g.status <> 'running' then raise exception 'Hra neběží.' using errcode = 'P0001'; end if;
+    update public.conquest_games set started_at = started_at - public.conquest_period_length(period), ends_at = ends_at - public.conquest_period_length(period) where id = game;
+    perform public.conquest_housekeep(game);
+    return public.conquest_state(game);
+end;
+$$;
+revoke all on function public.conquest_move_by(uuid, uuid, text, text, boolean, text), public.conquest_bot_skill(uuid), public.conquest_bot_offset(uuid),
+    public.conquest_bot_move(uuid, uuid), public.conquest_bots_due(uuid, boolean), public.conquest_bots_tick(), public.dev_conquest_check(uuid) from public, anon, authenticated;
+revoke all on function public.dev_conquest_add_bots(uuid, integer), public.dev_conquest_bots_play(uuid), public.dev_conquest_next_period(uuid) from public, anon;
+grant execute on function public.dev_conquest_add_bots(uuid, integer), public.dev_conquest_bots_play(uuid), public.dev_conquest_next_period(uuid) to authenticated;
+-- ===== 22: Vývojářští boti v Dobývání — KONEC BLOKU =====
 
 -- ===== Řetězovka dne (blok 21) — ZAČÁTEK BLOKU =====
 -- Každý den (pražský čas) stejný řetěz sedmi otázek pro všechny: odpověď na jednu je začátkem další (chain.js ho sestaví z dat témat,
@@ -5563,7 +5750,9 @@ grant execute on function public.chain_submit(date, integer, integer, boolean), 
 --     conquest_territories, conquest_moves; conquest_lobby/create/join/set_look/ready/leave/state/move/claim; odznaky dobyvatel-*);
 --     Kamarádské sázky (challenges.stake*, taunt, profiles.bet_won/bet_lost, challenge_offer/answer/settle_stake, challenge_stakes,
 --     challenge_stake_stats; odznaky sazky-* v badge_catalog()).
+-- 22: Vývojářští boti v Dobývání (dev_conquest_add_bots, dev_conquest_bots_play, dev_conquest_next_period; boti hrají sami přes conquest_state
+--     a tournament_tick; tah za hráče conquest_move_by; dev_tournament_clear_bots smaže i hry Dobývání s boty).
 create or replace function public.schema_version() returns integer
-language sql immutable as $$ select 21 $$;
+language sql immutable as $$ select 22 $$;
 revoke all on function public.schema_version() from public, anon;
 grant execute on function public.schema_version() to authenticated;
