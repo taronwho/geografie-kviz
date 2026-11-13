@@ -117,14 +117,14 @@ test('řetěz dne: dny po sobě se neopakují a za dva měsíce se vystřídá d
         chainFor(DAYS[i]).questions.forEach(question => rels.add(question.rel));
         if (i) {
             const shared = ids.filter(id => nodesOf(chainFor(DAYS[i - 1])).includes(id)).length;
-            assert.ok(shared <= 5, `${DAYS[i]}: se včerejškem sdílí ${shared} uzlů`);
+            assert.ok(shared <= 4, `${DAYS[i]}: se včerejškem sdílí ${shared} uzlů`);
             if (shared >= 3) close += 1;
             overlap += shared;
             assert.notEqual(chainFor(DAYS[i]).start.id, chainFor(DAYS[i - 1]).start.id, `${DAYS[i]}: jiný začátek`);
         }
     }
-    assert.ok(overlap / (DAYS.length - 1) < 1, `průměrně sdílí ${overlap / (DAYS.length - 1)}`);
-    assert.ok(close <= 10, `dnů s aspoň třemi stejnými uzly jako včera: ${close}`);
+    assert.ok(overlap / (DAYS.length - 1) < 0.7, `průměrně sdílí ${overlap / (DAYS.length - 1)}`);
+    assert.ok(close <= 6, `dnů s aspoň třemi stejnými uzly jako včera: ${close}`);
     assert.ok(uses.size > 110, `různých uzlů ${uses.size}`);
     assert.ok(rels.size >= 20, `různých vazeb ${rels.size}`);
 });

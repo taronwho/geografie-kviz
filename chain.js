@@ -843,11 +843,15 @@
         architect: 0.35, director: 0.45, athlete: 0.25, band: 0.35, music: 0.4, book: 0.35, artwork: 0.45, film: 0.25, club: 0.4, games: 0.6, character: 0.6 };
     const famousEnough = (node, step, practice) => node.fame <= Math.min(0.95, (FAME_LIMIT[node.kind] || 0.3) * (practice ? 1.4 : 1) * (step <= 2 ? 0.8 : 1));
     // Kolikrát smí být druh uzlu v řetězu (státy a města jsou uzly, přes které vede skoro všechno)
-    const KIND_MAX = { country: 2, city: 2, landmark: 2 };
+    // Obrazy a muzea do sebe zapadají nejsnáz (obraz → muzeum → město), proto nejvýš jeden obraz a jedna vazba muzea v řetězu
+    const KIND_MAX = { country: 2, city: 2, landmark: 2, artwork: 1 };
+    const FAMILY_MAX = { muzeum: 1 };
     // Vazby, které smí být v řetězu dvakrát (spojují témata: autor díla, země osobnosti, hlavní město)
     const REPEATABLE = new Set(['capital', 'capitalOf', 'cityCountry', 'countryCity', 'workAuthor', 'personCountry']);
     // Začátek řetězu: slavná stavba, dílo nebo osobnost (začátek se jen ukáže, otázka na něj není)
     const START_KINDS = ['landmark', 'music', 'book', 'artwork', 'film', 'composer', 'writer', 'artist', 'band', 'club', 'peak', 'range', 'river', 'lake', 'island', 'character', 'games'];
+    // Začátek se střídá po skupinách (každý řetěz má svou skupinu na prvním místě): stavby, hudba, knihy, výtvarné umění, film a sport, příroda
+    const START_GROUPS = [['landmark'], ['music', 'band', 'composer'], ['book', 'writer', 'character'], ['artwork', 'artist'], ['film', 'club', 'games'], ['peak', 'range', 'river', 'lake', 'island']];
     const edgesFrom = (graph, node) => RELATIONS.filter(rel => rel.from.includes(node.kind))
         .flatMap(rel => (graph.edges.get(rel.id).get(node.id) || []).map(to => ({ rel: rel.id, to: graph.nodes.get(to) })));
     // Řetěz dne (semínko dne) nebo cvičný (náhodné semínko): { seed, start, questions: [{ k, rel, from, to, text, options, answer, rescue }] }
@@ -860,7 +864,9 @@
         { breadth: 6, repeat: (rel) => (REPEATABLE.has(rel) ? 2 : 1), families: 3, practice: false, share: 0.75, avoid: 'all' },
         { breadth: 8, repeat: () => 2, families: 4, practice: true, share: 1, avoid: 'all' },
         { breadth: 8, repeat: () => 2, families: 4, practice: true, share: 1, avoid: 'people' },
-        { breadth: 8, repeat: () => 2, families: 4, practice: true, share: 1, avoid: 'none' }
+        { breadth: 8, repeat: () => 2, families: 4, practice: true, share: 1, avoid: 'none' },
+        // Úplně nouzově i bez omezení obrazů a muzeí (řetěz dne musí vyjít vždy)
+        { breadth: 10, repeat: () => 2, families: 5, practice: true, share: 1, avoid: 'none', free: true }
     ];
     const PLACES = new Set(['country', 'city']);
     const search = (graph, { seed, links, practice, budget, level, avoid }) => {
@@ -871,7 +877,9 @@
         const available = (node) => !blocked(node) && (rules.share >= 1 || hash32(`${seed}|k|${node.id}`) / 4294967296 < rules.share);
         // Chuť řetězu: každý řetěz má jiné oblíbené vazby (jeden den víc staveb, jiný víc hudby), ať se dny neopakují
         const taste = new Map(RELATIONS.map(rel => [rel.id, rng()]));
-        const starts = shuffle(START_KINDS.flatMap(kind => (graph.byKind.get(kind) || []).filter(node => available(node) && node.fame <= (FAME_LIMIT[node.kind] || 0.3) * (loose ? 1 : 0.6))), rng);
+        const group = START_GROUPS[hash32(`${seed}|skupina`) % START_GROUPS.length];
+        const startable = (kind) => (graph.byKind.get(kind) || []).filter(node => available(node) && node.fame <= (FAME_LIMIT[node.kind] || 0.3) * (loose ? 1 : 0.6));
+        const starts = [...shuffle(group.flatMap(startable), rng).slice(0, 30), ...shuffle(START_KINDS.filter(kind => !group.includes(kind)).flatMap(startable), rng)];
         let left = budget;
         const questions = [];
         const used = new Set();
@@ -907,7 +915,7 @@
             const last = previous ? previous.rel : '';
             // Vazba nejvýš jednou (spojovací dvakrát), ne dvakrát za sebou a skupina vazeb nejvýš třikrát v řetězu
             const options = edgesFrom(graph, node).filter(({ rel, to }) => to && !used.has(to.id) && rel !== last && (rels.get(rel) || 0) < rules.repeat(rel)
-                && (kinds.get(to.kind) || 0) < (KIND_MAX[to.kind] || 2) && famousEnough(to, step, loose) && (families.get(FAMILY[rel]) || 0) < rules.families && available(to))
+                && (kinds.get(to.kind) || 0) < ((rules.free ? 2 : KIND_MAX[to.kind]) || 2) && famousEnough(to, step, loose) && (families.get(FAMILY[rel]) || 0) < Math.min(rules.families, (!rules.free && FAMILY_MAX[FAMILY[rel]]) || 9) && available(to))
                 // Váha: náhoda, chuť řetězu, oblíbenost uzlu v tomto řetězu (jiný den jiné uzly, i když jsou slavné), nový druh a skupina
                 .map(entry => ({ ...entry, weight: rng() + 1.5 * taste.get(entry.rel) + 2 * hash32(`${seed}|${entry.to.id}`) / 4294967296
                     + ((kinds.get(entry.to.kind) || 0) ? 0 : 0.5) + ((families.get(FAMILY[entry.rel]) || 0) ? 0 : 0.4) - 0.5 * entry.to.fame }))
