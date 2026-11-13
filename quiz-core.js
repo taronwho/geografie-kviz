@@ -1973,6 +1973,8 @@
         // Ukaž na mapě, Odhadni a Seřaď (zodpovězené, s plnými body nebo do 10 %), sdílené obrázky, otevřené truhly a použité ochrany série
         quizDone: 0, quizBestStreak: 0, quizPerfect: 0, blitzBest: 0, survivalBest: 0, blitzGames: 0, survivalGames: 0, blitzTen: 0, survivalFifteen: 0,
         mapAnswered: 0, mapExact: 0, estimateAnswered: 0, estimateGood: 0, orderAnswered: 0, orderPerfect: 0, sharedImages: 0, chestsOpened: 0, freezesUsed: 0,
+        // Časové souvislosti (time-questions.js): zodpovězené otázky
+        timeAnswered: 0,
         // Tajemná otázka dne (mystery.js): vyřešené dny
         mysterySolved: 0,
         // Zlatá otázka (gold.js): správně zodpovězené zlaté otázky

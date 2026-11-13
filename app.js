@@ -30,6 +30,8 @@
     const MapQuestion = window.MudrlantMapQuestion || null;
     // Číselné otázky Seřaď a Odhadni číslo (numeric-questions.js); bez skriptu jen nejsou
     const Numeric = window.MudrlantNumeric || null;
+    // Časové souvislosti (time-questions.js): Co bylo dřív, Mohli se potkat, Za života…; bez skriptu nebo dat jen nejsou
+    const TimeQ = window.MudrlantTime || null;
     // Zdroj obrázku z Wikimedia Commons (photo-source.js): tlačítko „i“ u obrázků; bez skriptu se jen neukáže
     const PhotoSource = window.MudrlantPhotoSource || null;
     // Boss týdne (boss.js): souboj s bossem na úvodu (řada Výzvy); bez skriptu se dlaždice nevykreslí
@@ -2944,14 +2946,18 @@
     // Výška panelu otázky: vyplní místo, které na obrazovce zbude (dvouřádková otázka nebo delší možnosti ho zmenší, ať se nic
     // neposouvá), nejvýš asi 18 rem plochy, na malém telefonu aspoň 7 rem. Výsledek má pevnou výšku podle obrazovky.
     const QUESTION_PANEL_HEIGHT = 'fill';
+    // Časové souvislosti mají dvouřádkové zadání a delší možnosti: panel se smí zmenšit až na 4 rem (obsah se v něm posune), ať záložky
+    // ani konec osobnosti neuřízne okraj karty
+    const TIME_PANEL_HEIGHT = 'fill-tight';
     const RESULT_PANEL_HEIGHT = 'h-[clamp(13rem,42dvh,24rem)]';
     // Vybraná záložka s názvem, ostatní jen ikonou (s popiskem pro čtečku) – vejdou se i na úzký displej;
     // jediná plocha záložky nepotřebuje, jen nadpis
     const renderTabbedPanel = (panes, active, action, height) => {
         const style = styleOf(TOPIC_BY_ID[current.topic]);
         const pane = panes.find(candidate => candidate.key === active) || panes[0];
+        const fill = height === 'fill' || height === TIME_PANEL_HEIGHT;
         const tabs = panes.length > 1 ? `
-            <div class="flex items-center gap-1 overflow-x-auto border-b border-slate-100 p-1.5 dark:border-slate-700" role="tablist">
+            <div class="flex shrink-0 items-center gap-1 overflow-x-auto border-b border-slate-100 p-1.5 dark:border-slate-700" role="tablist">
                 ${panes.map(candidate => {
                     const selected = candidate.key === pane.key;
                     return `
@@ -2960,11 +2966,11 @@
                         </button>`;
                 }).join('')}
             </div>` : `
-            <h3 class="${CARD_TITLE} min-h-[2.75rem] border-b border-slate-100 px-4 dark:border-slate-700"><i data-lucide="${pane.icon}" class="h-4 w-4 ${style.text}"></i> ${escapeHtml(pane.label)}</h3>`;
+            <h3 class="${CARD_TITLE} min-h-[2.75rem] shrink-0 border-b border-slate-100 px-4 dark:border-slate-700"><i data-lucide="${pane.icon}" class="h-4 w-4 ${style.text}"></i> ${escapeHtml(pane.label)}</h3>`;
         return `
-            <section id="${action}-panel" class="${CARD} ${height === 'fill' ? 'flex max-h-[21rem] flex-1 flex-col' : 'shrink-0'} overflow-hidden">
+            <section id="${action}-panel" class="${CARD} ${fill ? 'flex max-h-[21rem] flex-1 flex-col' : 'shrink-0'} overflow-hidden">
                 ${tabs}
-                <div class="relative ${height === 'fill' ? 'min-h-[7rem] flex-1' : height} overflow-hidden" role="tabpanel">${pane.html}</div>
+                <div class="relative ${fill ? `${height === TIME_PANEL_HEIGHT ? 'min-h-[4rem]' : 'min-h-[7rem]'} flex-1` : height} overflow-hidden" role="tabpanel">${pane.html}</div>
             </section>`;
     };
 
@@ -2989,9 +2995,11 @@
         // Volný popis jen u otázky bez obrázku; u otázky s obrázkem je popis nápovědou, a když žádný skutečný popis není
         // (náhradní nebo zadržený text), záložka Popis vůbec není
         const textAsHint = data.hints.some(hint => hint.kind === 'text');
-        const free = !textAsHint && !data.questionImage ? [{ key: 'text', label: 'Popis', icon: 'quote', html: textPane(data, style) }] : [];
+        // Časové souvislosti: místo popisu osobnost či věc, na kterou se otázka ptá (u otázek bez ní čtyři položky s obrázky)
+        const free = isTime(data) ? [{ key: 'text', label: TimeQ.leadLabel(data), icon: TimeQ.ICON, html: TimeQ.leadHtml(data) }]
+            : !textAsHint && !data.questionImage ? [{ key: 'text', label: 'Popis', icon: 'quote', html: textPane(data, style) }] : [];
         const panes = [...image, ...free, ...hintPanes(unlocked, data, style)];
-        return renderTabbedPanel(panes, round.tab || panes[0].key, 'hint-tab', QUESTION_PANEL_HEIGHT);
+        return renderTabbedPanel(panes, round.tab || panes[0].key, 'hint-tab', isTime(data) ? TIME_PANEL_HEIGHT : QUESTION_PANEL_HEIGHT);
     };
     // Tlačítko další nápovědy přes celou šířku pod popisem: co odemkne a za kolik pak bude odpověď
     const nextHintButton = (data) => {
@@ -3011,9 +3019,11 @@
             </button>`;
     };
 
+    // Otázka jen s výběrem (Časové souvislosti): možnosti i ve variantě psaní
+    const choicesOnly = (data) => Boolean(data && data.question && data.question.choicesOnly);
     const renderAnswerInput = (data) => {
         const style = styleOf(TOPIC_BY_ID[data.topic]);
-        if (round.variant === 'typed') {
+        if (round.variant === 'typed' && !choicesOnly(data)) {
             return `
                 <form id="answer-form" class="flex gap-2" autocomplete="off">
                     <label for="answer-input" class="sr-only">Odpověď</label>
@@ -3025,7 +3035,7 @@
         }
         const choicesHtml = data.question.choices.map((choice, index) => `
             <button type="button" data-action="choice" data-index="${index}" class="btn-3d-light min-h-[3rem] rounded-xl bg-white px-3 py-1.5 text-sm font-bold leading-tight text-slate-700 dark:bg-slate-700 dark:text-slate-100">
-                ${escapeHtml(choice.label)}
+                ${escapeHtml(choice.label)}${choice.detail ? `<span class="mt-0.5 block text-[11px] font-semibold leading-tight text-slate-500 dark:text-slate-300">${escapeHtml(choice.detail)}</span>` : ''}
             </button>
         `).join('');
         return `<div class="grid grid-cols-2 gap-2">${choicesHtml}</div>`;
@@ -3034,6 +3044,7 @@
     // Obsah panelů dokreslíme až v DOM (fotka se načítá, mapa a nápovědy potřebují rozměry)
     const mountPanels = () => {
         if (!current) return;
+        if (isTime(current)) TimeQ.mount(appContent);
         // Vybraná záložka musí být vidět, i když se řádek záložek na úzký displej nevejde
         appContent.querySelectorAll('[role="tablist"]').forEach(list => {
             const active = list.querySelector('[aria-selected="true"]');
@@ -3224,7 +3235,7 @@
                     </span>
                     <h2 class="text-[22px] font-black leading-tight tracking-tight text-slate-800 dark:text-slate-50">${escapeHtml(data.question.title)}</h2>
                 </div>
-                ${typed ? `${answerCard}${questionPanel(data)}${nextHintButton(data)}` : `${questionPanel(data)}${nextHintButton(data)}${answerCard}`}
+                ${typed && !choicesOnly(data) ? `${answerCard}${questionPanel(data)}${nextHintButton(data)}` : `${questionPanel(data)}${nextHintButton(data)}${answerCard}`}
                 <div class="flex items-center justify-center gap-1">
                     <button type="button" data-action="give-up" class="flex min-h-[2.75rem] items-center gap-2 px-3 text-sm font-semibold text-slate-500 underline-offset-4 hover:underline dark:text-slate-400">
                         <i data-lucide="eye" class="w-4 h-4"></i> Nevím, ukázat odpověď
@@ -3426,7 +3437,7 @@
 
     // Nabízené možnosti z otázky: co jsou zač, ať se hráč učí i z těch, které nezvolil
     const renderOtherChoices = (data) => {
-        if (round.variant !== 'choices') return '';
+        if (round.variant !== 'choices' && !choicesOnly(data)) return '';
         const answered = round.answerRef && round.answerRef.id;
         const others = data.question.choices
             .map(choice => ({ ...choice, topic: choice.topic || data.topic }))
@@ -3524,8 +3535,8 @@
         }
         const spec = data.resultVisual || data.visual;
         const visual = Visuals.info(spec);
-        // Slepou mapu nahradí skutečná mapa s polohou
-        if (visual && !(spec.type === 'map' && data.coords)) panes.push({ key: 'visual', label: capitalize(visual.name), icon: visual.icon, html: visualPane('result-visual', spec) });
+        // Slepou mapu nahradí skutečná mapa s polohou; osa Časových souvislostí je vysvětlením, proto první
+        if (visual && !(spec.type === 'map' && data.coords)) panes[isTime(data) ? 'unshift' : 'push']({ key: 'visual', label: capitalize(visual.name), icon: visual.icon, html: visualPane('result-visual', spec) });
         return panes;
     };
     const resultPanel = (data) => {
@@ -3585,25 +3596,26 @@
                     ${mode === 'daily' && data.dailyDate ? renderStatsCard(data) : ''}
 
                     <div>
-                        <div class="mb-1.5 flex flex-wrap items-center gap-1.5">
+                        ${isTime(data) ? '' : `<div class="mb-1.5 flex flex-wrap items-center gap-1.5">
                             <span class="inline-flex items-center gap-1.5 rounded-lg border px-2 py-1 text-[10px] font-black uppercase tracking-widest text-white ${style.solid}">
                                 <i data-lucide="${category.icon}" class="h-3.5 w-3.5"></i> ${escapeHtml(data.typeLabel)}
                             </span>
                             ${originBadge}
-                        </div>
+                        </div>`}
                         ${data.question && data.question.title ? `<p data-result-question class="mb-2 rounded-xl bg-slate-100 px-3 py-1.5 text-[13px] font-semibold leading-snug text-slate-600 dark:bg-slate-800 dark:text-slate-300"><span class="font-black text-slate-500 dark:text-slate-400">Otázka:</span> ${escapeHtml(data.question.title)}</p>` : ''}
+                        ${isTime(data) ? `<h1 class="sr-only">${escapeHtml(data.name)}</h1>${TimeQ.explainHtml(data)}` : `
                         <h1 class="text-3xl font-black leading-tight tracking-tight text-slate-800 dark:text-slate-50">${escapeHtml(data.name)}</h1>
                         <p class="mt-1 flex items-center gap-1.5 text-sm font-semibold text-slate-500 dark:text-slate-400">
                             <i data-lucide="${topic.subtitleIcon || 'navigation'}" class="h-4 w-4 shrink-0 ${style.text}"></i> ${escapeHtml(data.subtitle)}
-                        </p>
+                        </p>`}
                     </div>
 
                     ${resultPanel(data)}
                     ${renderOtherChoices(data)}
 
-                    ${data.description ? `<p class="text-[15px] font-medium leading-relaxed text-slate-700 dark:text-slate-200">${escapeHtml(data.description)}</p>` : ''}
+                    ${data.description && !isTime(data) ? `<p class="text-[15px] font-medium leading-relaxed text-slate-700 dark:text-slate-200">${escapeHtml(data.description)}</p>` : ''}
 
-                    ${resultFacts.length ? `
+                    ${resultFacts.length && !isTime(data) ? `
                         <section class="${CARD} p-4">
                             <h3 class="${CARD_TITLE} mb-3"><i data-lucide="info" class="w-4 h-4 ${style.text}"></i> Čísla a fakta</h3>
                             ${renderFactsList(resultFacts)}
@@ -3708,6 +3720,25 @@
         round.score = Numeric.scoreEstimate(current, guess);
         const points = Numeric.pointsFor(round.score.base, round.variant);
         submitAnswer({ correct: points > 0, typed: false, answer: Numeric.formatGuess(current, guess), points });
+    };
+
+    // --- Časové souvislosti (time-questions.js): obyčejná obrazovka otázky se čtyřmi možnostmi (vždy výběr, i ve variantě psaní), místo popisu
+    // osobnost či věc, nápovědy (osa s ní, roky jedné nesprávné možnosti) a ve výsledku vysvětlení s osou všech možností. Plán dělá výběr otázky:
+    // trénink tématu a mixu (asi desetina otázek, ne místo číselné) a Kvíz dne (od TimeQ.QUIZ_FROM jedna až dvě otázky denně podle semínka dne).
+    // Dnešní otázky, učení, chyby, výzvy a turnaje je nemají. Data (data/souvislosti.json) se načtou s první takovou otázkou.
+    const isTime = (data) => Boolean(TimeQ && TimeQ.isKind(data));
+    const loadTimeIndex = () => (TimeQ ? TimeQ.load(fetchJson) : Promise.resolve(null));
+    const timePlan = async (ctx, item, pool, rng) => {
+        if (!TimeQ || !ctx || !item || !(TimeQ.force || TimeQ.rate > 0)) return null;
+        if (!(await loadTimeIndex())) return null;
+        return TimeQ.plan({ ctx, item, pool, rng });
+    };
+    // Kvíz dne: pozice s Časovými souvislostmi určí semínko dne (stejné pro všechny), otázku vlastní řada čísel ze semínka otázky
+    const quizTime = async (day, index, ctx, item) => {
+        if (!TimeQ || !DailyQuiz || !ctx || !item) return null;
+        const topics = DailyQuiz.slotsFor(day, quizGroups()).map(slot => slot.topic);
+        if (!TimeQ.quizSlots(day, topics).includes(index) || !(await loadTimeIndex())) return null;
+        return TimeQ.quizPlan(DailyQuiz.questionSeed(day, index), ctx, item);
     };
 
     // --- Průběh hry ---
@@ -5134,6 +5165,7 @@
             if (current.numeric.kind === 'order') { counters.orderAnswered += 1; if (round.score.base === Numeric.MAX_BASE) counters.orderPerfect += 1; }
             else { counters.estimateAnswered += 1; if (round.score.base >= 3) counters.estimateGood += 1; }
         }
+        if (isTime(current) && !round.gaveUp) counters.timeAnswered = (counters.timeAnswered || 0) + 1;
         if (current.question && current.question.type === 'map' && round.map && !round.gaveUp) {
             counters.mapAnswered += 1;
             if (MapQuestion && round.map.points >= MapQuestion.maxPoints(round.variant === 'typed')) counters.mapExact += 1;
@@ -5212,8 +5244,8 @@
             recordPracticeRun();
         }
         writeJson(KEYS.stats, stats);
-        // Číselná otázka se ptá na čísla, ne na položku: do chyb, opakování ani poznaných položek nejde
-        if (isNumeric(current)) { awardXp(stats); return; }
+        // Číselná otázka se ptá na čísla, ne na položku, Časové souvislosti na vztah v čase: do chyb, opakování ani poznaných položek nejdou
+        if (isNumeric(current) || isTime(current)) { awardXp(stats); return; }
         // Neuhodnutá položka jde do seznamu chyb v učení, správně uhodnutá z něj zmizí a počítá se do postupu v okruzích
         round.wasMistake = loadMistakes().includes(`${current.topic}:${current.id}`);
         writeJson(KEYS.mistakes, updateMistakes(loadMistakes(), `${current.topic}:${current.id}`, round.correct));
@@ -5367,7 +5399,7 @@
     };
     // Položky, na které se uložená otázka ptá (u Seřaď všechny čtyři): dál ve hře se už neopakují
     const snapshotIds = (data) => [data.id, ...(data.numeric && Array.isArray(data.numeric.items) ? data.numeric.items.map(entry => entry && entry.id) : []),
-        ...(data.numeric && data.numeric.item ? [data.numeric.item.id] : [])].filter(id => typeof id === 'string');
+        ...(data.numeric && data.numeric.item ? [data.numeric.item.id] : []), ...(isTime(data) ? TimeQ.idsOf(data) : [])].filter(id => typeof id === 'string');
     // Porovnání dvou verzí otázky bez ohledu na pořadí klíčů (databáze je v jsonb přeskládá)
     const stableText = (value) => (Array.isArray(value) ? `[${value.map(stableText).join(',')}]`
         : value && typeof value === 'object' ? `{${Object.keys(value).sort().map(key => `${JSON.stringify(key)}:${stableText(value[key])}`).join(',')}}` : JSON.stringify(value));
@@ -5462,7 +5494,8 @@
             if (!data) {
                 if (!picked.item) throw new Error('Není z čeho vybírat');
                 // Číselná otázka, když ji výběr naplánoval (bez popisu z Wikipedie, takže chudý popis se jí netýká)
-                data = (picked.numeric && Numeric && Numeric.buildRound(picked.numeric, picked.ctx)) || await createRoundData(picked.item, picked.ctx, picked.rng, { map: Boolean(picked.map) });
+                data = (picked.numeric && Numeric && Numeric.buildRound(picked.numeric, picked.ctx)) || (picked.time && TimeQ && TimeQ.buildRound(picked.time, picked.ctx))
+                    || await createRoundData(picked.item, picked.ctx, picked.rng, { map: Boolean(picked.map) });
                 // Chudý popis: vybere se jiná otázka (u dnešní otázky další určená položka), nejvýš třikrát; pak se vezme, co je
                 // (výzva ne: všichni hráči musí dostat stejné otázky, i když se někomu Wikipedie nenačte)
                 for (let attempt = 1; data.thin && mode !== 'challenge' && mode !== 'quiz' && !wikiPaused() && attempt <= MAX_THIN_RETRIES; attempt++) {
@@ -5572,6 +5605,7 @@
             let ctx;
             let item;
             let numeric = null;
+            let time = null;
             if (pool.kind === 'mistakes') {
                 // Chyba, jejíž položka v nových datech už není, se ze seznamu vyřadí a zkusí se jiná
                 let keys = loadMistakes();
@@ -5643,9 +5677,11 @@
                 item = pickItem(playableItems(ctx), Math.random, history, ctx.topic.categories.map(c => c.key), answerStatsWeigher(ctx.topic.id));
                 // Tu a tam Seřaď nebo Odhadni číslo z vybraných kategorií (v okruzích, chybách a opakování z učení ne)
                 numeric = numericPlan(ctx, item, playableItems(ctx), Math.random);
+                // Tu a tam Časové souvislosti (Co bylo dřív, Mohli se potkat…) – ne místo číselné otázky
+                if (!numeric) time = await timePlan(ctx, item, playableItems(ctx), Math.random).catch(() => null);
             }
             if (item) rememberPlayed(item);
-            return { item, ctx, rng: Math.random, numeric };
+            return { item, ctx, rng: Math.random, numeric, time };
         }, pool.kind === 'topic' || pool.kind === 'collection' || (pool.kind === 'map' && pool.topic) ? TOPIC_BY_ID[pool.topic] : pool.kind === 'mix' || pool.kind === 'map' ? MIX : null);
     };
 
@@ -7682,7 +7718,7 @@
     const answerStatsWeigher = (topicId) => (AnswerStats ? AnswerStats.weigher(answerStatsIndex(topicId), { level: levelProgress(loadProgress().xp).level }) : null);
     // Řádek pod verdiktem („Správně odpovědělo 23 % hráčů“); jen z aspoň 20 odpovědí a jen se sítí
     const answerStatsLine = (data, tone) => {
-        if (!AnswerStats || !round || navigator.onLine === false) return '';
+        if (!AnswerStats || !round || navigator.onLine === false || isTime(data)) return '';
         const stat = AnswerStats.statFor(answerStatsIndex(data.topic), data.id, data.question.type, round.variant);
         const text = AnswerStats.lineFor(stat, round.variant);
         return text ? `<p data-answer-stats title="${escapeHtml(AnswerStats.sampleText(stat))}" class="mt-0.5 flex items-center gap-1 text-xs font-semibold leading-tight ${tone}"><i data-lucide="users" class="h-3.5 w-3.5 shrink-0"></i><span class="truncate">${escapeHtml(text)}</span></p>` : '';
@@ -7695,6 +7731,8 @@
         if (mode === 'daily' && round.dailyFirst === false) return;
         // Seřaď se ptá na čtyři položky naráz: žádná z nich otázku sama neurčuje (Odhadni číslo patří jedné položce, ten se zapíše)
         if (isNumeric(current) && current.numeric.kind === 'order') return;
+        // Časové souvislosti: každá otázka je jiná kombinace položek, souhrn podle položky by nic neřekl
+        if (isTime(current)) return;
         const waiting = AnswerStats.record(statsStorage(), user.id, { topic: current.topic, itemId: current.id, kind: current.question.type, variant: round.variant,
             correct, wrongId: !correct && !gaveUp && answerRef ? answerRef.id : null });
         // Dlouhý trénink: plná dávka se pošle hned (jinak až po hře)
@@ -9161,10 +9199,12 @@
     // Otázka do rozpisu: zadání, u otázky „ve kterém státě“ i místo, správná odpověď a položka pro okno s popisem
     // Otázka na mapě v rozpisu: „Ukaž na mapě“ a místo (odpověď hráče je „Vedle o 312 km“ a body)
     const MAP_BREAKDOWN_TITLE = 'Ukaž na mapě';
-    const describeChallengeQuestion = ({ item, ctx, rng, numeric }) => {
+    const describeChallengeQuestion = ({ item, ctx, rng, numeric, time }) => {
         if (!item || !ctx) return null;
         const built = numeric && Numeric ? Numeric.buildRound(numeric, ctx) : null;
         if (built) return { topic: ctx.topic.id, id: built.id, title: built.question.title, subject: built.numeric.kind === 'estimate' ? built.name : '', answer: built.question.answerLabel };
+        const timed = time && TimeQ ? TimeQ.buildRound(time, ctx) : null;
+        if (timed) return { topic: ctx.topic.id, id: timed.id, title: timed.question.title, subject: timed.time.subject ? timed.time.subject.name : '', answer: timed.question.answerLabel };
         // Stejné pořadí losování jako createRoundData (otázka na mapě rng nebere, tu řeší describeChallengeStep)
         const special = ctx.topic.specialQuestion ? ctx.topic.specialQuestion(item, ctx, rng) : null;
         const category = categoryOf(ctx.topic, item.c);
@@ -9182,7 +9222,8 @@
     // Zadání do rozpisu z otázky uložené na serveru (zamrzlé otázky): stejné údaje jako describeChallengeQuestion
     const describeSnapshot = (data) => (data.question.type === 'map' ? { topic: data.topic, id: data.id, title: MAP_BREAKDOWN_TITLE, subject: '', answer: data.question.answerLabel, map: true } : {
         topic: data.topic, id: data.id, title: data.question.title, answer: data.question.answerLabel,
-        subject: isNumeric(data) ? (data.numeric.kind === 'estimate' ? data.name || '' : '') : data.question.showName ? data.name || '' : ''
+        subject: isNumeric(data) ? (data.numeric.kind === 'estimate' ? data.name || '' : '') : isTime(data) ? (data.time.subject ? data.time.subject.name || '' : '')
+            : data.question.showName ? data.name || '' : ''
     });
     // Otázky výzvy (zápasu) do rozpisu: uložené na serveru, jak je hráči opravdu hráli; jen chybějící (starší hry, databáze bez nich) se sestaví ze semínka
     const challengeQuestionList = (def) => {
@@ -9591,13 +9632,14 @@
         const contexts = new Map(loaded.map(ctx => [ctx.topic.id, ctx]));
         const own = quiz && quiz.day === day ? quiz.plan : [];
         const plan = DailyQuiz.planDay(day, groups, (id) => { const ctx = contexts.get(id); return ctx ? { items: ctx.items, categories: ctx.topic.categories.map(category => category.key) } : null; }, DailyQuiz.QUESTIONS - 1);
-        return Array.from({ length: DailyQuiz.QUESTIONS }, (_, index) => {
+        return Promise.all(Array.from({ length: DailyQuiz.QUESTIONS }, async (_, index) => {
             if (frozen[seeds[index]]) { try { return describeSnapshot(frozen[seeds[index]]); } catch (error) { console.error(error); } }
             const pick = own[index] && contexts.get(own[index].topic) ? own[index] : plan[index];
             const ctx = pick ? contexts.get(pick.topic) : null;
             const item = ctx ? ctx.byId.get(pick.q) : null;
-            try { return describeChallengeQuestion({ item, ctx, rng: createSeededRandom(DailyQuiz.questionSeed(day, index)) }); } catch (error) { console.error(error); return null; }
-        });
+            const time = await quizTime(day, index, ctx, item).catch(() => null);
+            try { return describeChallengeQuestion({ item, ctx, rng: createSeededRandom(DailyQuiz.questionSeed(day, index)), time }); } catch (error) { console.error(error); return null; }
+        }));
     };
     // Rozpis Kvízu dne z pořadí: klepnutý hráč vedle mě (moje odpovědi i z tohoto zařízení); cizí odpovědi pošle server až po dohrání
     const openQuizBreakdown = (playerId) => {
@@ -9693,14 +9735,15 @@
                 if (saved && TOPIC_BY_ID[saved.topic]) {
                     const ctx = await loadTopic(saved.topic);
                     const item = ctx.byId.get(saved.q);
-                    if (item) return { item, ctx, rng };
+                    if (item) return { item, ctx, rng, time: await quizTime(attempt.day, index, ctx, item).catch(() => null) };
                 }
                 const ids = [...new Set(DailyQuiz.slotsFor(attempt.day, groups).slice(0, index + 1).map(entry => entry.topic))].filter(id => TOPIC_BY_ID[id]);
                 const contexts = new Map((await Promise.all(ids.map(id => loadTopic(id)))).map(ctx => [ctx.topic.id, ctx]));
                 const plan = DailyQuiz.planDay(attempt.day, groups, (id) => { const ctx = contexts.get(id); return ctx ? { items: ctx.items, categories: ctx.topic.categories.map(category => category.key) } : null; }, index);
                 const pick = plan[index];
                 const ctx = pick ? contexts.get(pick.topic) : null;
-                return { item: ctx ? ctx.byId.get(pick.q) : null, ctx, rng };
+                const item = ctx ? ctx.byId.get(pick.q) : null;
+                return { item, ctx, rng, time: await quizTime(attempt.day, index, ctx, item).catch(() => null) };
             };
             return { ...(await local()), snapshotSeed: seed };
         }, slot ? TOPIC_BY_ID[slot.topic] || null : null);
@@ -12364,10 +12407,12 @@
         'order-pick': (button) => numericPick(Number(button.dataset.index)),
         'order-confirm': () => numericConfirm(),
         choice: (button) => {
-            if (!round || round.variant === 'typed') return;
+            if (!round || (round.variant === 'typed' && !choicesOnly(current))) return;
             const choice = current && current.question.choices[Number(button.dataset.index)];
             if (!choice) return;
-            submitAnswer({ correct: choice.correct, typed: false, answer: choice.label, answerRef: choice.id ? { topic: choice.topic || current.topic, id: choice.id } : null });
+            // Otázka jen s výběrem ve variantě psaní: body jako u psaní (jako u číselných otázek), napsaná odpověď to není
+            const points = choicesOnly(current) && round.variant === 'typed' ? pointsFor(round.hintLevel, true) : null;
+            submitAnswer({ correct: choice.correct, typed: false, answer: choice.label, answerRef: choice.id ? { topic: choice.topic || current.topic, id: choice.id } : null, points });
         }
     };
 

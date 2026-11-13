@@ -75,7 +75,25 @@ má spolehlivá čísla z dat (biologie a mytologie je nemají; dnešní otázky
   do 25 % 2, do 50 % 1), letopočty podle rozdílu let (u 20. století rok, u starších dob víc), protonové číslo podle rozdílu. Výsledek ukáže odhad na stupnici.
 
 Do chyb, opakování ani poznaných položek se nepočítají, v režimech Bleskovka a Přežití nejsou. Ve výzvě plán otázky určuje semínko výzvy (vlastní řada čísel),
-takže všichni dostanou stejnou. Otázka je vždy jen jednoho druhu: Ukaž na mapě, číselná, nebo obyčejná.
+takže všichni dostanou stejnou. Otázka je vždy jen jednoho druhu: Ukaž na mapě, číselná, Časové souvislosti, nebo obyčejná.
+
+**Časové souvislosti** (`time-questions.js`) se v hraní tématu a v Mixu přimíchají asi do každé desáté otázky (ne místo číselné), v Kvízu dne od 14. 11. 2026
+jedna až dvě otázky denně (pozice ze semínka dne, jen u témat, která je umí). Vždy čtyři možnosti (i ve variantě psaní, body pak jako u psaní), po odpovědi
+vysvětlení s roky a časová osa všech možností (`visuals.js`, typ `chronology`):
+
+- **Co bylo dřív** – Co bylo vynalezeno (objeveno) nejdřív? Která opera (film) měla premiéru nejdřív? I nejpozději: čtyři věci stejného druhu z hraného tématu,
+  sousední roky aspoň 10 let od sebe (před rokem 1500 aspoň 50, od roku 1900 u filmů, vynálezů a událostí 5, u staveb 25).
+- **Mohli se potkat** – Kdo z nich mohl potkat tuto osobnost? (i Kdo z nich se s touto osobností potkat nemohl?): právě jedna osoba žila současně (jako dospělí
+  aspoň 10 let), ostatní vůbec ne a s odstupem.
+- **Za života** – Co vzniklo (bylo vynalezeno, objeveno, se stalo) až po smrti této osobnosti? Co už existovalo za života…? Odstup od narození i úmrtí aspoň
+  10 let, vlastní díla osobnosti se nenabízejí.
+- **Ve stejném století** jako událost, vynález či dílo (roky daleko od přelomu století, i před naším letopočtem), **Kdo se narodil nejdřív**, **Kdo žil nejdéle**,
+  **Kolik let bylo autorovi (autorce, režisérovi), když dílo vzniklo** (čtyři věky po 5 letech) a **Kdo žil v době**, kdy vznikl vynález, dílo, stavba, objev či událost.
+
+Osobnost či věc je v panelu otázky (zadání ji nemá v pádě a je bez sloves ve shodě s pohlavím hráče). Nápověda 1 je osa s osobností či věcí (bez let možností),
+nápověda 2 roky jedné nesprávné možnosti. Položky hraného tématu podle nastavení, z ostatních témat jen známé (`data/souvislosti.json`) a slavné objevy
+a vynálezy (`data/vynalezy.json`, roky ověřené proti Wikidatům). Do chyb ani opakování se nepočítají. Pravidla a data podrobně v
+[docs/CASOVE-SOUVISLOSTI.md](docs/CASOVE-SOUVISLOSTI.md), kontrola a ukázky na skutečných datech: `npm run audit:souvislosti -- --sample=30`.
 
 Nápovědy jdou postupně a každá ubere bod: **popis** z české Wikipedie (je vidět hned, odpověď je v něm zakrytá), **fotka**, **obrazová nápověda** tématu a **čísla a fakta** z Wikidat. Obrazové nápovědy:
 
@@ -98,6 +116,7 @@ Statická stránka bez serveru a bez build kroku. Nasazuje se na **GitHub Pages*
 | `app.js` | Rozhraní: obrazovky, otázka s nápovědami, výsledek, okno s popisem, učení, nastavení, ukládání stavu |
 | `quiz-core.js` | Čistá logika bez DOM (výběr položek, okruhy, zakrývání, odpovědi, body, fakta, slepá mapa, časová osa, periodická tabulka, série) – testovaná |
 | `numeric-questions.js` | Číselné otázky Seřaď a Odhadni číslo: vlastnosti témat, výběr položek, body, čtení odhadu a vzhled otázky i výsledku – testované |
+| `time-questions.js` | Časové souvislosti: spolehlivé roky z dat témat, výběr a kontrola otázek (Co bylo dřív, Mohli se potkat, Za života…), nápovědy, vysvětlení a rozvržení osy – testované |
 | `visuals.js` | Vykreslení obrazových nápověd (mapa, časová osa, obrázek, periodická tabulka) |
 | `modes.js` | Bleskovka a Přežití bez DOM: pravidla, hodiny s trestem, obtížnost Přežití, rekordy a XP s denním stropem – testovaná |
 | `sound.js` | Zvuky (Web Audio, bez zvukových souborů) a vibrace, přepínače v Nastavení – testovaná |
@@ -110,6 +129,7 @@ Statická stránka bez serveru a bez build kroku. Nasazuje se na **GitHub Pages*
 | `topics/<téma>.js` | Jedno téma: kategorie, otázky, fakta, nápovědy a zakrývání (viz níže) |
 | `data/<téma>.json` | Položky a okruhy tématu (generované z Wikidat) |
 | `data/countries.json`, `data/world.json` | Státy a jejich obrysy pro slepou mapu (generované) |
+| `data/souvislosti.json`, `data/vynalezy.json` | Známé osobnosti a datované věci všech témat pro Časové souvislosti a slavné objevy a vynálezy (generované) |
 | `data/mapa.json` | Slepé mapy otázky „Ukaž na mapě“: cesty SVG každé oblasti už v jejím zobrazení (generované) |
 | `icons.js` | Použité ikony z Lucide (generované) |
 | `styles.css` | Styly z Tailwindu (generované ze `src/input.css`) |
@@ -238,6 +258,8 @@ npm run build:historie   # data/historie.json
 npm run build:biologie   # data/biologie.json
 npm run build:chemie     # data/chemie.json
 npm run build:fyzika     # data/fyzika.json
+npm run build:vynalezy   # data/vynalezy.json (slavné objevy a vynálezy, roky ověřené proti Wikidatům)
+npm run build:souvislosti # data/souvislosti.json (Časové souvislosti; po datech témat a build:vynalezy)
 ```
 
 Logo je sova v talároku (`branding/sova-original.jpg`). Z tmavého pozadí ji vyřízne `python3 scripts/logo-cutout.py branding/sova-original.jpg branding/sova.png` (Pillow, numpy) a ikony aplikace, favicon i průhledné logo `icons/logo.webp` z ní vykreslí `node scripts/render-app-icons.js` (Playwright). Barvy aplikace podle loga (vínová `brand`, zlatá `gold`, grafitová šedá místo `slate`) jsou v `tailwind.config.js`.

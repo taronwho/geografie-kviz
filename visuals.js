@@ -188,6 +188,37 @@
         container.prepend(svg);
     };
 
+    // Časové souvislosti (time-questions.js): osobnost či věc a čtyři možnosti pod sebou na jedné ose let – pruh života, bod roku,
+    // správná zeleně, osobnost zlatě, ostatní šedě; podklad (band) ukáže dobu, ke které se možnosti vztahují (život, století, rok)
+    const CHRONOLOGY_FILL = { subject: 'fill-amber-500', correct: 'fill-emerald-500', wrong: 'fill-slate-400 dark:fill-slate-500' };
+    const CHRONOLOGY_TEXT = { subject: 'fill-slate-800 dark:fill-slate-100', correct: 'fill-emerald-800 dark:fill-emerald-300', wrong: 'fill-slate-600 dark:fill-slate-300' };
+    const renderChronology = async (container, spec) => {
+        const Time = root.MudrlantTime;
+        const width = Math.round(container.clientWidth) || 360;
+        const height = Math.round(container.clientHeight) || 224;
+        const layout = Time && Time.chronologyLayout(spec, width, height);
+        if (!layout) throw new Error('Osu nejde rozvrhnout');
+        const svg = svgElement('svg', { viewBox: `0 0 ${width} ${Math.max(height, layout.height)}`, class: 'absolute inset-0 h-full w-full', 'aria-hidden': 'true' });
+        if (layout.band) {
+            svg.appendChild(svgElement('rect', { x: layout.band.x1, y: 0, width: layout.band.x2 - layout.band.x1, height: layout.axisY, class: 'fill-amber-200/60 dark:fill-amber-900/40' }));
+        }
+        svg.appendChild(svgElement('line', { x1: 8, x2: width - 8, y1: layout.axisY, y2: layout.axisY, 'stroke-width': 2, class: 'stroke-slate-400 dark:stroke-slate-500' }));
+        for (const tick of layout.ticks) {
+            svg.appendChild(svgElement('line', { x1: tick.x, x2: tick.x, y1: layout.axisY - 4, y2: layout.axisY + 4, 'stroke-width': 1.5, class: 'stroke-slate-400 dark:stroke-slate-500' }));
+            svg.appendChild(svgText(tick.label, { x: tick.x, y: layout.axisY + 17, 'text-anchor': 'middle', 'font-size': 11, 'font-weight': 600, class: 'fill-slate-500 dark:fill-slate-400' }));
+        }
+        for (const row of layout.rows) {
+            const fill = CHRONOLOGY_FILL[row.role] || CHRONOLOGY_FILL.wrong;
+            if (row.point) svg.appendChild(svgElement('circle', { cx: row.x1, cy: row.barY + 4, r: 6, 'stroke-width': 2, class: `${fill} stroke-white dark:stroke-slate-800` }));
+            else svg.appendChild(svgElement('rect', { x: row.x1, y: row.barY, width: Math.max(row.x2 - row.x1, 6), height: 8, rx: 4, class: fill }));
+            svg.appendChild(svgText(row.text, {
+                x: row.tx, y: row.textY, 'text-anchor': row.anchor, 'font-size': 12, 'font-weight': row.role === 'wrong' ? 600 : 800,
+                'paint-order': 'stroke', 'stroke-width': 3, 'stroke-linejoin': 'round', class: `${CHRONOLOGY_TEXT[row.role] || CHRONOLOGY_TEXT.wrong} stroke-white dark:stroke-slate-800`
+            }));
+        }
+        container.prepend(svg);
+    };
+
     // Obrázek z Wikimedia Commons (mapa rozšíření, strukturní vzorec): náhled, a když ho Commons nevrátí, původní soubor;
     // když se nenačte ani ten, ukáže se zpráva jako u jiných nápověd
     const loadImage = (url) => new Promise((resolve, reject) => {
@@ -384,6 +415,14 @@
             frame: 'border-amber-200 bg-amber-50 dark:border-slate-700 dark:bg-slate-800',
             describe: (spec) => spec.blind ? 'Časová osa bez letopočtů: hádané období mezi známými událostmi.' : 'Časová osa s roky a s několika známými událostmi pro orientaci.',
             render: renderTimeline
+        },
+        // Výsledek otázky Časové souvislosti: všechny možnosti na jedné ose
+        chronology: {
+            name: 'časová osa',
+            icon: 'calendar-range',
+            frame: 'border-amber-200 bg-amber-50 dark:border-slate-700 dark:bg-slate-800',
+            describe: (spec) => spec.describe || 'Časová osa s možnostmi otázky.',
+            render: renderChronology
         },
         periodic: {
             name: 'periodická tabulka',
