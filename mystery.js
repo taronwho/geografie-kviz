@@ -181,6 +181,21 @@
         const words = String(name || '').trim().split(/\s+/).filter(Boolean);
         return words.map((word, wi) => [...word].map((char, ci) => (wi === 0 && ci === 0 ? char.toLocaleUpperCase('cs') : /[\p{L}\p{N}]/u.test(char) ? '_' : char)).join(' ')).join('   ');
     };
+    // Jak moc nápověda prozrazuje odpověď (zhruba 0 = skoro nic, 1 = skoro jistě). Věta popisu: zakryté výskyty odpovědi (každý dává
+    // kontext, třeba „Západní [***]“), vlastní jména uprostřed věty, letopočty a délka; fakt: vlastní jméno nebo letopočet v hodnotě
+    // prozradí víc než číslo; obrázek tématu (slepá mapa, osa) je uprostřed.
+    const YEAR = /(?<![\d.,])(1\d{3}|20\d{2})(?![\d.,])/g;
+    const textScore = (text) => {
+        const plain = String(text || '');
+        const masks = (plain.match(/\[\*\*\*\]/g) || []).length;
+        const words = plain.replace(/\[\*\*\*\]/g, ' ').split(/\s+/).filter(word => /\p{L}/u.test(word));
+        const proper = words.filter((word, i) => i > 0 && /^\p{Lu}/u.test(word.replace(/^[„"“(‚']+/u, ''))).length;
+        const years = (plain.match(YEAR) || []).length;
+        return 0.2 + Math.min(0.32, masks * 0.08) + Math.min(0.42, proper * 0.07) + Math.min(0.3, years * 0.1) + Math.min(0.2, words.length / 120);
+    };
+    const factScore = (fact) => 0.12 + (/\p{Lu}/u.test(fact.value) ? 0.12 : 0) + ((String(fact.value).match(YEAR) || []).length ? 0.06 : 0);
+    const revealScore = (clue) => clue.parts.reduce((sum, part) => sum + (part.type === 'facts' ? part.facts.reduce((total, fact) => total + factScore(fact), 0)
+        : part.type === 'text' ? textScore(part.text) : part.type === 'visual' ? 0.55 : 0.3), 0);
     const letterCount = (name) => (String(name || '').match(/[\p{L}\p{N}]/gu) || []).length;
     const wordCount = (name) => String(name || '').trim().split(/\s+/).filter(Boolean).length;
     // Osm nápověd z dat otázky (tvar createRoundData v app.js): data = { typeLabel, questionText, hints, leadFacts, photoUrl, questionImage,
@@ -199,18 +214,23 @@
         const visuals = hints.filter(hint => hint.kind === 'visual' && hint.spec).map(hint => ({ spec: hint.spec, label: hint.label || 'obrázek', icon: hint.icon || 'map' }));
         const photo = (data && data.questionImage && data.questionImage.url) || (hints.some(hint => hint.kind === 'photo') && data.photoUrl) || null;
         const name = (data && data.name) || '';
-        // Fronta středních nápověd od nejslabší: fakt, první věta, fakt, obrázek tématu, další věty, zbytek faktů
+        // Střední nápovědy: fakta, věty popisu (každá zvlášť), obrázky tématu (slepá mapa, osa…) a úryvek z článku; seřadí se podle toho,
+        // jak moc odpověď prozrazují (revealScore), od nejslabší. Popis s letopočty, vlastními jmény a několika zakrytými výskyty odpovědi
+        // („Západní [***]… Východního [***]“) tak přijde až po slepé mapě, krátká obecná věta naopak brzy.
         const queue = [];
         const factQueue = facts.slice(1);
         const takeFacts = (count) => { const part = factQueue.splice(0, count); if (part.length) queue.push({ title: 'Fakta', icon: 'info', parts: [{ type: 'facts', facts: part }] }); };
         takeFacts(1);
-        if (sentences[0]) queue.push({ title: 'Z popisu', icon: 'quote', parts: [{ type: 'text', text: sentences[0] }] });
+        sentences.slice(0, 3).forEach(text => queue.push({ title: 'Z popisu', icon: 'quote', sentence: true, parts: [{ type: 'text', text }] }));
         takeFacts(2);
-        visuals.slice(0, 1).forEach(visual => queue.push({ title: visual.label.charAt(0).toUpperCase() + visual.label.slice(1), icon: visual.icon, parts: [{ type: 'visual', spec: visual.spec }] }));
-        if (sentences.length > 1) queue.push({ title: 'Další věty popisu', icon: 'book-open', parts: [{ type: 'text', text: sentences.slice(1, 3).join(' ') }] });
+        visuals.slice(0, 2).forEach(visual => queue.push({ title: visual.label.charAt(0).toUpperCase() + visual.label.slice(1), icon: visual.icon, parts: [{ type: 'visual', spec: visual.spec }] }));
         extraTexts.slice(0, 1).forEach(text => queue.push({ title: 'Z článku', icon: 'book-open', parts: [{ type: 'text', text }] }));
-        visuals.slice(1, 2).forEach(visual => queue.push({ title: visual.label.charAt(0).toUpperCase() + visual.label.slice(1), icon: visual.icon, parts: [{ type: 'visual', spec: visual.spec }] }));
         while (factQueue.length) takeFacts(2);
+        queue.forEach((entry, index) => { entry.order = index; entry.score = revealScore(entry); });
+        queue.sort((a, b) => a.score - b.score || a.order - b.order);
+        // První zobrazená věta je „Z popisu“, další „Další věta popisu“
+        let sentenceSeen = false;
+        queue.forEach(entry => { if (entry.sentence) { if (sentenceSeen) { entry.title = 'Další věta popisu'; entry.icon = 'book-open'; } sentenceSeen = true; } delete entry.sentence; delete entry.order; delete entry.score; });
         // Záložní nápověda, když data nestačí: jen počet slov (žádná písmena ani konce odpovědi – hádanka má zůstat hádankou)
         const fallbacks = [
             { title: 'Délka odpovědi', icon: 'ruler', parts: [{ type: 'note', text: `Odpověď má ${plural(wordCount(name), 'slovo', 'slova', 'slov')}.` }] }
@@ -460,7 +480,7 @@
         CLUES, CLUE_HOURS, MAX_TIPS, MAX_POINTS, XP_BASE, XP_PER_POINT, KEY, ART,
         isDay, addDays, pragueClock, pragueDay, pragueTime, cluesAt, clueTime, hourLabel, nextClue, formatClock, formatDay, pointsWord, tipsWord, withClues, cluesWord,
         hash32, seededRandom, seedFor, topicForDay, hasPhoto, candidatesOf, pickItem, leftWord,
-        sentencesOf, answerPattern, letterCount, buildClues, pointsFor, xpFor,
+        sentencesOf, answerPattern, letterCount, textScore, revealScore, buildClues, pointsFor, xpFor,
         parseState, newEntry, cleanEntry, statusOf, tipsLeft, addTip, wrongTips, shareGrid, shareText, cardInput,
         homeText, homeCardHtml, statsHtml, screenHtml, MARK
     };
