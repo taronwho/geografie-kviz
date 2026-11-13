@@ -1503,7 +1503,9 @@ begin
         'zamrzle_otazky', coalesce((select jsonb_agg(jsonb_build_object('seminko', s.seed, 'vytvoreno', s.created_at) order by s.created_at)
             from public.question_snapshots s where s.created_by = uid), '[]'::jsonb),
         -- Tajemná otázka dne (schéma 19): moje tipy po dnech (bez odpovědí, ty server nezná)
-        'tajemna_otazka', coalesce((select jsonb_agg(to_jsonb(m) order by m.day) from public.mystery_results m where m.user_id = uid), '[]'::jsonb)
+        'tajemna_otazka', coalesce((select jsonb_agg(to_jsonb(m) order by m.day) from public.mystery_results m where m.user_id = uid), '[]'::jsonb),
+        -- Řetězovka dne (blok 21): moje výsledky po dnech
+        'retezovka', coalesce((select jsonb_agg(to_jsonb(r) order by r.day) from public.chain_results r where r.user_id = uid), '[]'::jsonb)
     ) into result;
     return result;
 end;
@@ -3474,3 +3476,99 @@ create or replace function public.schema_version() returns integer
 language sql immutable as $$ select 20 $$;
 revoke all on function public.schema_version() from public, anon;
 grant execute on function public.schema_version() to authenticated;
+
+-- 21: Řetězovka
+-- ===== Řetězovka dne (blok 21) — ZAČÁTEK BLOKU =====
+-- Každý den (pražský čas) stejný řetěz sedmi otázek pro všechny: odpověď na jednu je začátkem další (chain.js ho sestaví z dat témat,
+-- server otázky nezná). Článek k dává k bodů (celý řetěz 28), špatná odpověď řetěz přetrhne, jednou za hru Záchrana (jiná otázka na stejný
+-- článek za 0 bodů). Jeden řádek na hráče a den: první odeslaný výsledek platí, další se jen vrátí. Body a články musí sedět: bez Záchrany
+-- přesně 1 + 2 + … + články, se Záchranou o jeden zachráněný článek méně (nebo stejně, když Záchrana nevyšla). Tabulku hráč jen čte
+-- (svůj řádek); zapisuje jen chain_submit. Pořadí dne (chain_day_stats) za posledních 30 dní: hráči, podíl celých řetězů, nejlepší
+-- výsledek, moje místo a nejlepší hráči (jen veřejné údaje profilu).
+create table if not exists public.chain_results (
+    day date not null,
+    user_id uuid not null references public.profiles (id) on delete cascade,
+    links smallint not null,
+    score smallint not null,
+    rescued boolean not null default false,
+    created_at timestamptz not null default now(),
+    primary key (user_id, day)
+);
+alter table public.chain_results drop constraint if exists chain_results_values;
+alter table public.chain_results add constraint chain_results_values check (
+    links between 0 and 7 and score between 0 and 28
+    and ((not rescued and score = links * (links + 1) / 2)
+        or (rescued and score between links * (links + 1) / 2 - links and links * (links + 1) / 2)));
+create index if not exists chain_results_day on public.chain_results (day, score desc, created_at);
+alter table public.chain_results enable row level security;
+drop policy if exists "řetězovka: vlastní řádky" on public.chain_results;
+create policy "řetězovka: vlastní řádky" on public.chain_results for select to authenticated using (user_id = auth.uid());
+revoke all on public.chain_results from anon, authenticated;
+grant select on public.chain_results to authenticated;
+
+-- Den Řetězovky (Praha); čas bere z mystery_now (testy ho nastaví přes mudrlant.test_now)
+create or replace function public.chain_today() returns date
+language sql stable set search_path = public as $$
+    select (public.mystery_now() at time zone 'Europe/Prague')::date
+$$;
+
+-- Výsledek a místo hráče v pořadí dne jako JSON (místo = počet lepších + 1, stejné body = stejné místo)
+create or replace function public.chain_json(r public.chain_results) returns jsonb
+language sql stable set search_path = public as $$
+    select case when r.user_id is null then null else jsonb_build_object('day', r.day, 'links', r.links, 'score', r.score, 'rescued', r.rescued,
+        'rank', 1 + (select count(*) from public.chain_results o where o.day = r.day and o.score > r.score)) end
+$$;
+
+-- Výsledek dne: for_day = den řetězu (dnešek, nebo včerejšek, když se hra dohrála těsně před půlnocí a odesílá se až po ní).
+-- Odeslání podruhé (jiné zařízení, ztracená odpověď) nic nezmění a vrátí uložený výsledek.
+create or replace function public.chain_submit(for_day date, links integer, score integer, rescued boolean) returns jsonb
+language plpgsql security definer set search_path = public as $$
+declare uid uuid := auth.uid(); d date := public.chain_today(); r public.chain_results; tri integer;
+begin
+    if uid is null then raise exception 'Přihlas se.' using errcode = '42501'; end if;
+    if for_day is null or for_day > d or for_day < d - 1 then raise exception 'Tahle Řetězovka už skončila.' using errcode = '22023'; end if;
+    if links is null or score is null or rescued is null or links < 0 or links > 7 then raise exception 'Neplatný výsledek.' using errcode = '22023'; end if;
+    tri := links * (links + 1) / 2;
+    if (not rescued and score <> tri) or (rescued and (score < tri - links or score > tri)) then raise exception 'Neplatný výsledek.' using errcode = '22023'; end if;
+    insert into public.chain_results (day, user_id, links, score, rescued) values (for_day, uid, links, score, rescued)
+    on conflict (user_id, day) do nothing;
+    select * into r from public.chain_results c where c.user_id = uid and c.day = for_day;
+    return public.chain_json(r);
+end;
+$$;
+
+-- Jak si vedli ostatní za den (dnešek nebo nejvýš 30 dní zpět): počet hráčů, kolik dalo celý řetěz (a procenta), nejlepší body,
+-- můj výsledek s místem a nejlepších 10 hráčů (místo podle bodů, při shodě dřívější odeslání výš)
+create or replace function public.chain_day_stats(for_day date default null) returns jsonb
+language plpgsql stable security definer set search_path = public as $$
+declare uid uuid := auth.uid(); today date := public.chain_today(); d date := coalesce(for_day, public.chain_today()); mine public.chain_results; result jsonb;
+begin
+    if uid is null then raise exception 'Přihlas se.' using errcode = '42501'; end if;
+    if d > today or d < today - 30 then raise exception 'Pořadí Řetězovky je jen za posledních 30 dní.' using errcode = '22023'; end if;
+    select * into mine from public.chain_results c where c.user_id = uid and c.day = d;
+    with ranked as (
+        select c.user_id, c.links, c.score, c.rescued, c.created_at,
+            (rank() over (order by c.score desc))::integer as place,
+            (row_number() over (order by c.score desc, c.links desc, c.created_at, c.user_id))::integer as pos
+        from public.chain_results c where c.day = d
+    )
+    select jsonb_build_object(
+        'day', d,
+        'players', (select count(*) from ranked),
+        'full', (select count(*) from ranked where links = 7),
+        'full_pct', coalesce((select round(100.0 * count(*) filter (where links = 7) / nullif(count(*), 0))::integer from ranked), 0),
+        'best', coalesce((select max(score) from ranked), 0),
+        'me', public.chain_json(mine),
+        'top', coalesce((select jsonb_agg(jsonb_build_object('rank', k.place, 'id', p.id, 'display_name', p.display_name, 'avatar', p.avatar, 'color', p.color,
+                'frame', p.frame, 'title_pref', p.title_pref, 'owl', p.owl, 'links', k.links, 'score', k.score, 'rescued', k.rescued, 'me', k.user_id = uid) order by k.pos)
+            from ranked k join public.profiles p on p.id = k.user_id where k.pos <= 10), '[]'::jsonb)
+    ) into result;
+    return result;
+end;
+$$;
+
+-- Pomocné funkce jen interně; hráč volá jen odeslání výsledku a pořadí dne (anon nic)
+revoke all on function public.chain_today(), public.chain_json(public.chain_results) from public, anon, authenticated;
+revoke all on function public.chain_submit(date, integer, integer, boolean), public.chain_day_stats(date) from public, anon;
+grant execute on function public.chain_submit(date, integer, integer, boolean), public.chain_day_stats(date) to authenticated;
+-- ===== Řetězovka dne (blok 21) — KONEC BLOKU =====

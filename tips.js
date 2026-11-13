@@ -13,7 +13,7 @@
     // after = kolik odpovědí má hráč mít za sebou, než se tip nabídne; ready = podmínka, aby tip dával smysl;
     // used = hráč funkci už zná (tip se neukáže); multi = tip o hře více hráčů; account = vyžaduje přihlášení
     // action: kam tlačítko „Zkusit“ zavede (settings, learn, progress, multi, single, quiz = Kvíz dne, mystery = Tajemná otázka dne, modes = okno Co hrát
-    // s Bleskovkou a Přežitím, goals = cíle týdne a truhla)
+    // s Bleskovkou a Přežitím, goals = cíle týdne a truhla, chain = Řetězovka dne)
     const TIPS = [
         { id: 'napoveda', icon: 'lightbulb', after: 2, title: 'Nevíš si rady?', text: 'Klepni na žluté tlačítko Nápověda. Každá nápověda sice sníží body za správnou odpověď, ale často tě k ní dovede. Čím méně nápověd použiješ, tím víc bodů získáš.',
             used: (u) => num(u.counters.noHint) >= 15 },
@@ -83,7 +83,10 @@
         { id: 'skupiny', icon: 'users', art: 'skupiny', multi: true, account: true, after: 25, title: 'Skupiny', text: 'Založ si skupinu s kamarády, rodinou nebo spolužáky. Budete mít společné výzvy, vlastní týdenní žebříček a přehled, kdo z vás hrál. Ostatní pozveš odkazem.',
             action: { kind: 'groups', label: 'Skupiny' }, ready: (u) => num(u.counters.challenges) >= 1, used: (u) => Boolean(u.visited.groups) },
         { id: 'vitrina', icon: 'gem', art: 'vitrina', multi: true, account: true, after: 80, title: 'Vitrína v profilu', text: 'V Nastavení na záložce Profil si vyber až 3 trofeje, které ostatní uvidí ve tvém profilu: odznak, diplom nebo výsledek ligové sezóny.',
-            action: { kind: 'settings', label: 'Nastavení', tab: 'profile' }, ready: (u) => u.showcase, used: (u) => Boolean(u.visited.showcase) }
+            action: { kind: 'settings', label: 'Nastavení', tab: 'profile' }, ready: (u) => u.showcase, used: (u) => Boolean(u.visited.showcase) },
+        // Řetězovka dne (chain.js); art = č. 212 retezovka, do dodání sova-vyzva (jako chain.js ART.tile)
+        { id: 'retezovka', icon: 'trophy', art: 'sova-vyzva', after: 7, title: 'Řetězovka dne', text: 'V řadě Výzvy na úvodu čeká Řetězovka: 7 otázek, kde odpověď na jednu je začátkem další. Článek 1 dává 1 bod, článek 7 sedm bodů. Špatná odpověď řetěz přetrhne, jednou za hru ale pomůže Záchrana.',
+            action: { kind: 'chain', label: 'Zkusit Řetězovku' }, ready: (u) => u.chain, used: (u) => num(u.counters.chainDone) > 0 }
     ];
     const BY_ID = new Map(TIPS.map(tip => [tip.id, tip]));
 
@@ -123,7 +126,8 @@
         if (ctx.now - state.lastAt < MIN_GAP_MS) return null;
         const u = { counters: ctx.counters || {}, visited: state.visited, reviewOn: ctx.reviewOn !== false, friends: ctx.friends, signedIn: Boolean(ctx.signedIn),
             quiz: ctx.quiz !== false, mystery: ctx.mystery !== false, modes: ctx.modes !== false, goals: ctx.goals !== false, freezes: ctx.freezes, maxStars: ctx.maxStars,
-            season: ctx.season !== false, album: ctx.album !== false, showcase: ctx.showcase !== false, chronicle: ctx.chronicle !== false, leagueSeasons: Boolean(ctx.leagueSeasons) };
+            season: ctx.season !== false, album: ctx.album !== false, showcase: ctx.showcase !== false, chronicle: ctx.chronicle !== false, leagueSeasons: Boolean(ctx.leagueSeasons),
+            chain: ctx.chain !== false };
         const answered = num(u.counters.answered);
         return TIPS.find(tip => {
             if (state.seen.includes(tip.id)) return false;

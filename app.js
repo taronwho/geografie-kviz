@@ -2337,6 +2337,7 @@
         if (screen === 'quiz' || screen === 'quiz-done') return { icon: 'timer', text: `Kvíz dne · ${shortDay(quiz ? quiz.day : getDayKey())}`, topic: null };
         if (screen === 'mode' && modeGame) return modePlace(modeGame);
         if (screen === 'mystery') return { icon: 'telescope', text: 'Tajemná otázka', topic: null };
+        if (screen === 'chain' && chainCtl) return { ...chainCtl.place(), topic: null };
         // Úvod: sova z loga, název a dnešní datum
         if (screen !== 'round' || !current) return { logo: true, text: `${APP_NAME} · ${shortDay(getDayKey())}`, date: shortDay(getDayKey()), topic: null };
         const topic = TOPIC_BY_ID[current.topic];
@@ -2606,7 +2607,8 @@
                 ${extra}
             </button>`;
     // Dlaždice Řetězovky dne a Bosse týdne (doplní je jejich moduly; prázdný řetězec = dlaždice se nevykreslí)
-    const chainHomeTile = () => '';
+    let chainCtl = null; // ovladač Řetězovky (chain.js), založí se níž u Kvízu dne a Tajemné otázky
+    const chainHomeTile = () => (chainCtl ? chainCtl.homeTile() : '');
     const bossHomeTile = () => '';
     const specialsRow = () => {
         const tiles = [quizHomeCard(), chainHomeTile(), bossHomeTile()].filter(Boolean);
@@ -2699,6 +2701,7 @@
         refreshChallenges();
         if (DailyQuiz) refreshQuizServer();
         if (Mystery) refreshMysteryReveal();
+        if (chainCtl) chainCtl.refresh();
         // Tutoriál až po výběru varianty: úvod jde otevřít i z uvítání (Domů), otázka by se ale nespustila a bublina by čekala
         if (Tutorial && gameVariant) Tutorial.maybeStart({ ready: factLoading });
     };
@@ -3860,6 +3863,7 @@
         if (document.getElementById('dialog-overlay') || document.getElementById('settings-overlay')) return false;
         if (mode === 'blitz' || mode === 'survival') return !modeGame || modeGame.phase === 'result' || screen !== 'mode';
         if (screen === 'home' || screen === 'learn' || screen === 'challenge-done' || screen === 'quiz-done' || screen === 'welcome' || screen === 'mystery') return true;
+        if (screen === 'chain') return !(chainCtl && chainCtl.isPlaying());
         if (mode === 'challenge' || mode === 'quiz') return false;
         return Boolean(round && round.answered);
     };
@@ -9673,6 +9677,31 @@
         if (input && ShareCard) shareImageCounted(input, { name: ShareCard.fileName('vyzva', input.day), text: `Vyhrál jsem výzvu v Mudrlantu: ${input.headline}. Zvládneš to líp?\n${challengeLink(challenge.code)}`, toast: showToast });
     };
 
+    // --- Řetězovka dne (chain.js): odpověď je začátkem další otázky, 7 článků stejných pro všechny, Záchrana, cvičná řetězovka ---
+    // Graf vazeb, řetěz, body, obrazovky i klepnutí má chain.js; sem patří jen napojení na zbytek aplikace (data témat, server, XP).
+    // Přihlášenému se výsledek dne zapíše na server (social.js chainSubmit, blok „21: Řetězovka“ ve schema.sql) a ukáže se pořadí dne.
+    const Chain = window.MudrlantChain || null;
+    if (Chain) {
+        chainCtl = Chain.createController({
+            appContent, setScreen: (name) => { screen = name; }, getScreen: () => screen, renderHome, renderIcons, updateControlsUI, closePlaceInfo, showToast, showDialog, closeDialog,
+            uiArt, specialTile, avatarHtml, xpLine, meRow: () => quizHelpers().meRow, loadTopic, loadCountries, readJson, writeJson, signedUser, social: Social, auth: Auth, startLogin,
+            shareCard: ShareCard, shareImageCounted, robeNow, appUrl, appName: APP_NAME, sound: Sound, isLoading: () => isLoading,
+            // XP jednou za den a zařízení (chain.js to hlídá) a počítadla dohraných a celých řetězů
+            awardXp: (xp, summary) => {
+                const before = loadProgress();
+                const progress = { ...before, xp: before.xp + xp.total };
+                progress.counters.chainDone = (progress.counters.chainDone || 0) + 1;
+                if (summary.full) progress.counters.chainFull = (progress.counters.chainFull || 0) + 1;
+                const titles = grantBadges(progress);
+                saveProgress(progress);
+                announce(levelProgress(before.xp).level, levelProgress(progress.xp).level, titles);
+                settleGoals();
+                applyLook();
+                syncProgress();
+            }
+        });
+    }
+
     // --- Týdenní turnaje ---
     // Pravidla a posun kol dělá databáze (supabase/schema.sql) a čistá logika je v tournament.js; tady se zobrazí karta na záložce Více hráčů,
     // okno s koly a zápasy a hra zápasu (otázky z pevného semínka stejně jako ve výzvě, ale bez zápisu do tabulky výzev).
@@ -9850,6 +9879,7 @@
             signedIn: Boolean(signedUser()), multiAvailable: Boolean(Auth && Auth.isConfigured() && Social), reviewOn: reviewEnabled(),
             quiz: Boolean(DailyQuiz), mystery: Boolean(Mystery), modes: Boolean(Modes), goals: Boolean(Goals && Rewards), freezes: Rewards ? loadRewards().freezes : 0,
             season: Boolean(Season && Rewards), album: Boolean(Album), chronicle: Boolean(Chronicle), showcase: Boolean(Showcase && myShowcase !== null), leagueSeasons: Boolean(LeagueSeasons && leagueSeasons),
+            chain: Boolean(chainCtl),
             maxStars: Math.max(0, ...Object.values(loadLearned()).map(ids => masteryStars((ids || []).length)))
         });
     };
@@ -9866,6 +9896,7 @@
         goals: () => { closeDialog(); openGoals(); },
         chronicle: () => { closeDialog(); openChronicle(); },
         mystery: () => { closeDialog(); openMystery(); },
+        chain: () => { closeDialog(); if (chainCtl) chainCtl.open(); },
         leagueSeasons: () => { closeDialog(); openLeagueSeasons(); },
         groups: () => { closeDialog(); openHomeTabFromPush('multi'); if (GroupsUI) GroupsUI.openList(); }
     };
@@ -10965,6 +10996,8 @@
         'mystery-share': () => shareMystery(),
         'mystery-share-image': () => shareMysteryImage(),
         'mystery-login': () => { if (Auth) startLogin(); },
+        // Řetězovka dne (chain.js)
+        ...(chainCtl ? chainCtl.actions : {}),
         'challenge-retry': () => finishChallenge(true),
         'challenge-home': () => challengeHome(),
         'challenge-breakdown': () => { if (challenge && !challenge.tournament) openChallengeBreakdown(challenge, challenge.lastResults || []); },
@@ -11152,6 +11185,8 @@
             challengeHome();
         } else if (screen === 'quiz' || screen === 'quiz-done' || screen === 'mystery') {
             renderHome();
+        } else if (screen === 'chain') {
+            if (chainCtl) chainCtl.leave(); else renderHome();
         } else if (screen === 'mode') {
             leaveMode();
         } else if (screen === 'learn') {
