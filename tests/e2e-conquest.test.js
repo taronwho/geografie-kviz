@@ -270,9 +270,13 @@ const backend = async (context, db) => {
     });
 };
 
-const setup = async (browser, { viewport = { width: 360, height: 640 }, colorScheme = 'light', reducedMotion = 'no-preference', storage = {} } = {}) => {
+// only = jen tato forma otázky tahu (window.MUDRLANT_CONQUEST_ONLY), wiki = 'article' (úvod článku s názvem položky), 'abort' (bez sítě)
+// nebo 'hang' (neodpoví), images = 'abort' (obrázky z Commons nejdou)
+const ARTICLE = (title) => `${title} je velmi známé místo nebo osobnost, o které se píše v učebnicích, průvodcích i novinách celého světa. ${title} patří k tomu nejznámějšímu, co území nabízí, a každý rok přibývají další knihy, filmy a výstavy. Popis pokračuje dalšími větami o historii, lidech a místech, aby byl delší než rámeček otázky na malém telefonu a posouval se uvnitř něj, ne celá stránka. Další věta přidává podrobnosti o tom, jak se o něm mluví doma i v cizině, a ještě jedna o tom, proč ho zná skoro každý.`;
+const setup = async (browser, { viewport = { width: 360, height: 640 }, colorScheme = 'light', reducedMotion = 'no-preference', storage = {}, only = null, wiki = null, images = null } = {}) => {
     const context = await browser.newContext({ serviceWorkers: 'block', colorScheme, viewport, reducedMotion, deviceScaleFactor: 1 });
     await context.addInitScript(() => { window.MUDRLANT_NUMERIC_RATE = 0; });
+    if (only) await context.addInitScript(value => { window.MUDRLANT_CONQUEST_ONLY = value; }, only);
     await context.addInitScript(entries => {
         if (sessionStorage.getItem('test-storage-set')) return;
         sessionStorage.setItem('test-storage-set', '1');
@@ -286,8 +290,14 @@ const setup = async (browser, { viewport = { width: 360, height: 640 }, colorSch
     await context.route('**/*', route => {
         const url = new URL(route.request().url());
         if (url.origin === ORIGIN || url.hostname === 'proj.supabase.co') return route.fallback();
-        if (url.hostname === 'cs.wikipedia.org') return route.fulfill({ json: { query: { pages: {} } } });
-        if (/\.(png|jpe?g|webp)$/.test(url.pathname)) return route.fulfill({ contentType: 'image/png', body: PNG });
+        if (url.hostname === 'cs.wikipedia.org') {
+            if (wiki === 'abort') return route.abort();
+            if (wiki === 'hang') return null;
+            const title = url.searchParams.get('titles') || '';
+            return route.fulfill({ json: { query: { pages: wiki === 'article' ? { 1: { title, extract: ARTICLE(title) } } : {} } } });
+        }
+        if (url.hostname === 'upload.wikimedia.org' && images === 'abort') return route.abort();
+        if (/\.(png|jpe?g|webp)$/i.test(url.pathname)) return route.fulfill({ contentType: 'image/png', body: PNG });
         return route.abort();
     });
     await tab.clock.setFixedTime(new Date(NOW));
@@ -614,7 +624,7 @@ test('Dobývání', { skip: !chromium && 'Playwright není nainstalovaný' }, as
         assert.equal(begin.target, 'Q40');
         assert.ok(Number.isInteger(begin.correct) && !/"correct"/.test(JSON.stringify(begin.question)), 'správná odpověď jde zvlášť, ne v otázce');
         assert.equal(await tab.textContent('[data-cq-timer-text]'), '0:50');
-        assert.match(await tab.textContent('[data-cq-sheet]'), /Bitva: Rakousko/);
+        assert.match(await tab.textContent('[data-cq-sheet]'), /Bitva o Rakousko/);
         assert.match(await tab.textContent('[data-cq-budget]'), /4\/5/, 'tah je rezervovaný');
         // Petr se přidá: během otázky vyskočí zpráva a jeho praporek přibude mezi účastníky
         const siege = g.sieges[0];
@@ -664,7 +674,7 @@ test('Dobývání', { skip: !chromium && 'Playwright není nainstalovaný' }, as
         assert.equal(await tab.locator('[data-siege-zone="Q40"]').count(), 1, 'obléhané území má rudý lem');
         assert.equal(await tab.locator('[data-mark="Q40"] .cq-siege-badge').count(), 1, 'pečeť se zkříženými meči');
         await tab.waitForSelector('[data-cq-siege-open="Q40"]');
-        assert.match(await tab.textContent('[data-cq-siege-open="Q40"]'), /Bitva: Rakousko\s*0:50/);
+        assert.match(await tab.textContent('[data-cq-siege-open="Q40"]'), /Bitva o Rakousko\s*0:50/);
         assert.deepEqual(await fits(tab), { vertical: 0, page: 0, content: 0 });
         await shot(tab, 'bitva-mapa-390-dark');
         await tab.click('[data-cq-siege-open="Q40"]');
@@ -678,7 +688,7 @@ test('Dobývání', { skip: !chromium && 'Playwright není nainstalovaný' }, as
         await tab.waitForSelector('[data-cq-answer]');
         const join = db.calls.filter(call => call.name === 'conquest_siege_join').pop().body;
         assert.deepEqual([join.siege, join.source], [uuid(77), 'Q183']);
-        assert.match(await tab.textContent('[data-cq-sheet]'), /Bitva: Rakousko[\s\S]*Které město je hlavním městem tohoto státu\?[\s\S]*Vídeň/);
+        assert.match(await tab.textContent('[data-cq-sheet]'), /Bitva o Rakousko[\s\S]*Které město je hlavním městem tohoto státu\?[\s\S]*Vídeň/);
         assert.match(await tab.textContent('[data-cq-budget]'), /4\/5/);
         await shot(tab, 'bitva-otazka-390-dark');
         await tab.click('[data-cq-answer="0"]');
@@ -697,6 +707,114 @@ test('Dobývání', { skip: !chromium && 'Playwright není nainstalovaný' }, as
         assert.deepEqual(log.errors, []);
         assert.deepEqual(log.csp, []);
         await context.close();
+    });
+
+    // Otázka Mudrlanta přes celou obrazovku hry: vejde se (stránka ani obrazovka hry se neposouvá, popis se posouvá ve svém rámečku)
+    const fullFits = (tab, height) => tab.evaluate((h) => {
+        const full = document.querySelector('[data-cq-full]');
+        const rect = full.getBoundingClientRect();
+        const answers = [...full.querySelectorAll('[data-cq-answer]')].map(button => button.getBoundingClientRect());
+        const game = document.getElementById('conquest-game');
+        return { top: rect.top >= 0, bottom: rect.bottom <= h + 0.5, answers: answers.every(box => box.bottom <= rect.bottom + 0.5 && box.height >= 40), over: full.scrollHeight - full.clientHeight, game: game.scrollHeight - game.clientHeight };
+    }, height);
+    const openRunning = async (options) => {
+        const db = running();
+        const page = await start(db, options);
+        await page.tab.waitForFunction(() => /Tahy 5\/5/.test(document.getElementById('conquest-card').textContent), null, { timeout: 15000 });
+        await page.tab.click('#conquest-card [data-action="conquest-play"]');
+        await page.tab.waitForSelector('#conquest-game [data-cq-map] svg');
+        return { db, ...page };
+    };
+    const attackWith = async (tab, db, territory, form) => {
+        if (form) await tab.evaluate((value) => { window.MUDRLANT_CONQUEST_ONLY = value; }, form);
+        await tapTerritory(tab, territory);
+        await tab.waitForSelector('[data-cq-sheet] [data-cq="attack"]');
+        db.force.push('capture');
+        await tab.click('[data-cq-sheet] [data-cq="attack"]');
+    };
+    // Odpověď a konec tahu (dobytí: vlaječka se zapíchne, další klepnutí na mapu už jde)
+    const answerCapture = async (tab, index, territory) => {
+        await tab.click(`[data-cq-answer="${index}"]`);
+        await tab.waitForSelector(`[data-pin="${territory}"].cq-pin-drop`, { timeout: 15000 });
+        await tab.waitForSelector('[data-cq-banner] .cq-banner');
+    };
+    for (const [width, height, colorScheme] of [[360, 640, 'light'], [390, 780, 'dark']]) {
+        await t.test(`otázka Mudrlanta ${width}×${height} (${colorScheme === 'dark' ? 'tmavý' : 'světlý'} režim): popis se zakrytým názvem, fakta a obrázek přes celou obrazovku hry, záhlaví „Útok na…“, vejde se bez posouvání, odpověď`, async () => {
+            const { db, context, tab, log } = await openRunning({ viewport: { width, height }, colorScheme, only: 'text', wiki: 'article' });
+            // Popis: Rakousko (neutrální, bez opevnění)
+            await attackWith(tab, db, 'Q40', null);
+            await tab.waitForSelector('[data-cq-full] [data-cq-qtext]', { timeout: 20000 });
+            assert.equal((await tab.textContent('[data-cq-full] h2')).trim(), 'Útok na Rakousko');
+            assert.equal(await tab.locator('[data-cq-full] [aria-label="Obtížnost 1 ze 3"]').count(), 1, 'hvězdy obtížnosti');
+            assert.match(await tab.textContent('[data-cq-full] [data-cq-qtext]'), /„\[\*\*\*\] je velmi známé místo nebo osobnost/);
+            assert.doesNotMatch(await tab.textContent('[data-cq-full] [data-cq-qtext]'), /Rakousko je velmi/);
+            assert.equal(await tab.locator('[data-cq-full] [data-cq-answer]').count(), 4);
+            assert.match(await tab.textContent('[data-cq-full] p'), /\?$/);
+            // Po vyjetí listu (animace cq-sheet-in)
+            await tab.waitForTimeout(400);
+            await shot(tab, `mudrlant-popis-${width}-${colorScheme}`);
+            assert.deepEqual(await fullFits(tab, height), { top: true, bottom: true, answers: true, over: 0, game: 0 }, 'popis se vejde');
+            assert.deepEqual(await fits(tab), { vertical: 0, page: 0, content: 0 }, 'stránka se neposouvá');
+            const scroll = await tab.evaluate(() => { const box = document.querySelector('[data-cq-qtext]'); return getComputedStyle(box).overflowY; });
+            assert.equal(scroll, 'auto', 'popis se posouvá ve svém rámečku');
+            await answerCapture(tab, 0, 'Q40');
+            assert.equal(await tab.locator('[data-cq-full]').count(), 0, 'po odpovědi zpět na mapu');
+            assert.equal(await tab.evaluate(() => document.querySelector('[data-cq-sheet]').classList.contains('top-0')), false);
+            // Fakta: Polsko
+            await attackWith(tab, db, 'Q36', 'facts');
+            await tab.waitForSelector('[data-cq-full] dl', { timeout: 20000 });
+            assert.ok(await tab.locator('[data-cq-full] .cq-fact').count() >= 2, 'aspoň dvě fakta');
+            assert.equal((await tab.textContent('[data-cq-full] h2')).trim(), 'Útok na Polsko');
+            await tab.waitForTimeout(400);
+            await shot(tab, `mudrlant-fakta-${width}-${colorScheme}`);
+            assert.deepEqual(await fullFits(tab, height), { top: true, bottom: true, answers: true, over: 0, game: 0 }, 'fakta se vejdou');
+            await answerCapture(tab, 1, 'Q36');
+            // Obrázek: Maďarsko
+            await attackWith(tab, db, 'Q28', 'photo');
+            await tab.waitForSelector('[data-cq-full] .cq-qimg img', { timeout: 20000 });
+            assert.match(await tab.getAttribute('[data-cq-full] .cq-qimg img', 'src'), /^https:\/\/upload\.wikimedia\.org\//);
+            assert.ok(await tab.evaluate(() => { const img = document.querySelector('[data-cq-full] .cq-qimg img'); return img.getBoundingClientRect().height > 120; }), 'obrázek je velký');
+            await tab.waitForTimeout(400);
+            await shot(tab, `mudrlant-obrazek-${width}-${colorScheme}`);
+            assert.deepEqual(await fullFits(tab, height), { top: true, bottom: true, answers: true, over: 0, game: 0 }, 'obrázek se vejde');
+            await tab.click('[data-cq-full] [data-cq-answer="2"]');
+            await tab.waitForFunction(() => document.querySelector('[data-cq-full] .cq-choice-ok') && /Správně/.test(document.querySelector('[data-cq-full]').textContent), null, { timeout: 5000 });
+            await tab.waitForSelector('[data-pin="Q28"].cq-pin-drop', { timeout: 15000 });
+            assert.deepEqual(db.calls.filter(call => call.name === 'conquest_move').map(call => call.body.target), ['Q40', 'Q36', 'Q28']);
+            // Otázky se v zařízení pamatují podle položky a formy (žádná položka dvakrát)
+            const asked = await tab.evaluate(() => Object.values(JSON.parse(localStorage.getItem('mudrlant.conquestAsked')))[0]);
+            assert.equal(new Set(asked.a).size, 3);
+            assert.deepEqual(asked.f.slice(-3), ['text', 'facts', 'photo']);
+            assert.deepEqual(log.errors, []);
+            assert.deepEqual(log.csp, []);
+            await context.close();
+        });
+    }
+
+    await t.test('bez sítě: když Wikipedie a obrázky nejdou, nebo Wikipedie neodpoví do 4 s, přijde místní otázka ve spodním listu', async () => {
+        // Obrázky ani Wikipedie nejdou: otázka na obrázek se nesloží a hned přijde místní otázka
+        const blocked = await openRunning({ only: 'photo', wiki: 'abort', images: 'abort' });
+        const started = Date.now();
+        await attackWith(blocked.tab, blocked.db, 'Q40', null);
+        await blocked.tab.waitForSelector('[data-cq-answer]', { timeout: 15000 });
+        assert.ok(Date.now() - started < 8000, `místní otázka do 8 s (${Date.now() - started} ms)`);
+        assert.equal(await blocked.tab.locator('[data-cq-full]').count(), 0, 'místo obrázku místní otázka');
+        assert.deepEqual(await fits(blocked.tab), { vertical: 0, page: 0, content: 0 });
+        await shot(blocked.tab, 'mudrlant-bez-site-360');
+        await answerCapture(blocked.tab, 0, 'Q40');
+        assert.deepEqual(blocked.log.errors, []);
+        await blocked.context.close();
+        // Wikipedie neodpoví: po ROUND_TIMEOUT (4 s) místní otázka, ne čekání na Wikipedii
+        const slow = await openRunning({ only: 'text', wiki: 'hang' });
+        const begun = Date.now();
+        await attackWith(slow.tab, slow.db, 'Q40', null);
+        await slow.tab.waitForSelector('[data-cq-answer]', { timeout: 15000 });
+        const waited = Date.now() - begun;
+        assert.ok(waited >= 3000 && waited < 9000, `místní otázka po asi 4 s (${waited} ms)`);
+        assert.equal(await slow.tab.locator('[data-cq-full]').count(), 0);
+        assert.deepEqual(slow.log.errors, []);
+        assert.deepEqual(slow.log.csp, []);
+        await slow.context.close();
     });
 
     await t.test('Česko na 360×640: mapa krajů, hodinové tahy, otázka o kraji', async () => {

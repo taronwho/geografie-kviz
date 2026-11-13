@@ -1053,6 +1053,19 @@ html.kb-open #settings-overlay > *, html.kb-open #dialog-overlay > * { max-heigh
 .cq-thumb-bg { fill: #d8c7a3; }
 .cq-thumb-land { fill: #f1e2bf; stroke: #8a6d4a; stroke-width: 0.6; vector-effect: non-scaling-stroke; }
 .cq-thumb-owned { stroke: #3b2a1a; stroke-width: 0.8; vector-effect: non-scaling-stroke; fill-opacity: 0.9; }
+/* Otázka Mudrlanta přes celou obrazovku hry: pergamen, rámeček s popisem nebo fakty jako list v knize, obrázek na tmavém plátně */
+.cq-qfull { background: linear-gradient(rgb(255 250 238 / 0.62), rgb(247 236 213 / 0.9)), url(icons/textury/textura-pergamen-svetly.webp); background-size: auto, 320px; }
+.cq-qbox { background: rgb(255 252 244 / 0.82); box-shadow: inset 0 0 0 1px rgb(164 123 69 / 0.5), inset 0 0 0 3px rgb(255 250 238 / 0.6); }
+.cq-qimg { background: #2a2219; }
+.cq-fact { background: rgb(255 255 255 / 0.62); box-shadow: inset 0 0 0 1px rgb(164 123 69 / 0.28); }
+.cq-qtype { background: rgb(250 240 214 / 0.95); color: #5a3416; box-shadow: inset 0 0 0 1px rgb(164 123 69 / 0.45); }
+@media (prefers-color-scheme: dark) {
+    .cq-qfull { background: linear-gradient(#2d3034, #262a2e); }
+    .cq-qbox { background: rgb(0 0 0 / 0.2); box-shadow: inset 0 0 0 1px rgb(214 151 37 / 0.3); }
+    .cq-qimg { background: #161719; }
+    .cq-fact { background: rgb(255 255 255 / 0.05); box-shadow: inset 0 0 0 1px rgb(214 151 37 / 0.2); }
+    .cq-qtype { background: rgb(45 48 52 / 0.95); color: #ead7ab; box-shadow: inset 0 0 0 1px rgb(214 151 37 / 0.4); }
+}
 /* Výsledek: kamenné podstavce (zlatý, stříbrný, bronzový lem), vavřínový věnec vítěze, vlající praporce a zlatá pečeť odměny */
 .cq-result-sheet { background: linear-gradient(rgb(255 250 238 / 0.6), rgb(247 236 213 / 0.85)), url(icons/textury/textura-pergamen-svetly.webp); background-size: auto, 320px; }
 .cq-podium { border-bottom: 2px solid rgb(107 74 42 / 0.45); }

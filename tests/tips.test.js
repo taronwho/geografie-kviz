@@ -67,7 +67,7 @@ test('funkci, kterou hráč už používá, tip nenabídne; tip se ukáže jen j
         state = Tips.markShown(state, tip.id, `2026-12-${String(day + 1).padStart(2, '0')}`, now);
         now += 86400000;
     }
-    assert.deepEqual(offered, ['reakce', 'pratele', 'dobyvani-hrad'], 'zkušený hráč dostane jen to, co ještě nezná (nové pravidlo Dobývání zná málokdo)');
+    assert.deepEqual(offered, ['reakce', 'pratele', 'dobyvani-hrad', 'dobyvani-bitvy'], 'zkušený hráč dostane jen to, co ještě nezná (nová pravidla Dobývání zná málokdo)');
     assert.equal(new Set(offered).size, offered.length);
 });
 
@@ -184,6 +184,14 @@ test('tip na Řetězovku dne: brzy, vede na ni; kdo ji dohrál nebo ji aplikace 
     assert.equal(at(base({ counters: { answered: 50 }, chain: false })), null);
 });
 
+test('tip Bitvy o území (Dobývání): přihlášenému, který Dobývání už otevřel; přidání do bitvy, stejná otázka, 60 s a riziko', () => {
+    const tip = Tips.pick({ ...Tips.touch(Tips.EMPTY, 'conquest'), seen: Tips.TIPS.filter(item => item.id !== 'dobyvani-bitvy').map(item => item.id) }, base({ counters: { answered: 50 }, signedIn: true }));
+    assert.equal(tip.id, 'dobyvani-bitvy');
+    assert.deepEqual(tip.action, { kind: 'conquest', label: 'Otevřít Dobývání' });
+    assert.match(tip.text, /můžeš se přidat\. Všichni dostanou stejnou otázku a 60 s, území získá nejrychlejší správná odpověď\. Riskantní/);
+    assert.doesNotMatch(tip.text, /\b(zaútočil|zaútočila|odpověděl|odpověděla|přidal|přidala)\b/);
+});
+
 test('tip Braň svůj hrad (Dobývání): jen přihlášenému, který Dobývání už otevřel; pravidlo o tahu méně a upozornění na útoky', () => {
     const at = (ctx, state = Tips.EMPTY) => Tips.pick({ ...state, seen: Tips.TIPS.filter(tip => tip.id !== 'dobyvani-hrad').map(tip => tip.id) }, ctx);
     const visited = Tips.touch(Tips.EMPTY, 'conquest');
@@ -194,8 +202,9 @@ test('tip Braň svůj hrad (Dobývání): jen přihlášenému, který Dobýván
     assert.equal(tip.id, 'dobyvani-hrad');
     assert.deepEqual(tip.action, { kind: 'conquest', label: 'Otevřít Dobývání' });
     assert.equal(tip.art, 'hrad-domov');
-    assert.match(tip.text, /kdo o něj přijde, má v dalším období o 1 tah méně/);
-    assert.match(tip.text, /upozorněními se o útoku na tvá území dozvíš hned/);
+    assert.match(tip.text, /Kdo o hrad přijde, má v dalším období o 1 tah méně/);
+    assert.match(tip.text, /Pevnost na něm dává \+1 tah za období/);
+    assert.match(tip.text, /upozorněními se o útoku dozvíš hned/);
     // Bez rodu hráče (žádné „přišel jsi“, „dozvěděl ses“)
     assert.doesNotMatch(tip.text, /\b(přišel|přišla|dozvěděl|dozvěděla|byl jsi|byla jsi)\b/);
 });

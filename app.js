@@ -517,6 +517,8 @@
         : mode !== 'practice' || pool.kind === 'mistakes' || pool.kind === 'review' ? null
         : MapQuestion.nextQuestion(item, ctx, { storage: { read: () => readJson(MapQuestion.GAP_KEY), write: (value) => writeJson(MapQuestion.GAP_KEY, value) }, loadMap: loadMapData });
     // options.map = výzva (zápas turnaje) určila podle semínka, že otázka má být na mapě (když na ni položka jde)
+    // options.wrong = nesprávné možnosti, které vybral volající (Dobývání: tři položky ze stejného území a tématu); popis pak zakryje
+    // i jejich jména a fakta, která mají všechny čtyři, se nenabídnou
     const createRoundData = async (item, ctx, rng, options = {}) => {
         const { topic, items } = ctx;
         // Pořadí volání rng je stálé, aby dnešní otázka vyšla všem stejně
@@ -528,7 +530,8 @@
             title: category.question || topic.words.question,
             showName: false,
             // Nesprávné možnosti co nejpodobnější (podle tématu), aby správná nebyla poznat na první pohled
-            choices: buildItemChoices(item, items, rng, other => topic.similarity ? topic.similarity(item, other, ctx) : 0, cultureLandsFor(topic, ctx)),
+            choices: options.wrong ? shuffle([item, ...options.wrong].map(other => ({ id: other.q, label: other.n, correct: other === item })), rng)
+                : buildItemChoices(item, items, rng, other => topic.similarity ? topic.similarity(item, other, ctx) : 0, cultureLandsFor(topic, ctx)),
             accepted: nameAnswers(item, topic.nameAliases ? topic.nameAliases(item, ctx) : []),
             placeholder: category.placeholder || topic.words.placeholder,
             answerLabel: item.n
@@ -555,7 +558,7 @@
         // Tajemná otázka (options.plain): krátké nápovědy z dat položky – ano/ne, doba, indicie a související jméno (mystery.js riddleOf);
         // options.year = rok dne otázky (stáří a „žije ještě“)
         const Riddles = window.MudrlantMystery;
-        const riddle = options.plain && Riddles && Riddles.riddleOf
+        const riddle = options.plain && !options.wrong && Riddles && Riddles.riddleOf
             ? Riddles.riddleOf(item, { ctx, question, typeLabel, facts: resultFacts, year: options.year || new Date().getFullYear() }) : null;
         return {
             topic: topic.id,
@@ -567,6 +570,8 @@
             typeLabel,
             question,
             questionText,
+            // Odkud popis je: 'article' (úvod článku z Wikipedie), 'fallback' (krátký popis z Wikidat), 'withheld' (téma ho neukazuje)
+            textOrigin: origin,
             photoUrl,
             // label a icon = záložka obrázku (Obraz, Vlajka…); url null = obrázek se nenačetl
             questionImage: shown ? { url: shownUrl, label: shown.label || 'Obrázek', icon: shown.icon || 'image', same: shown.file === item.im, masks: photoMasks[shown.file] || null } : null,
@@ -12155,11 +12160,32 @@
 
     // Dobývání (conquest.js, conquest-ui.js): karta na záložce Více hráčů, rozcestník her a obrazovka hry 'conquest'.
     // Mapa se načte až při použití (data/dobyvani-<mapa>.json), otázky z dat témat Zeměpis, Vlajky a znaky, Architektura, Historie,
-    // Literatura, Hudba, Umění, Film, Sport, Fyzika, Chemie, Biologie a Mytologie (osobnosti, díla, události, vynálezy, plemena psů,
-    // mytologie, kluby, olympiády, bitvy). Témata se načítají souběžně na pozadí (conquest-ui.js je chce hned po otevření hry);
-    // téma, které se nenačte, jen ubere druhy otázek.
+    // Literatura, Hudba, Umění, Film, Sport, Fyzika, Chemie, Biologie a Mytologie (stavby, osobnosti, díla, místa, události: popis,
+    // fakta, obrázek a letopočet jako v běžné hře přes conquestRound; k tomu mapa, odhad čísla, vlajka, hlavní město a soused).
+    // Témata se načítají souběžně na pozadí (conquest-ui.js je chce hned po otevření hry); téma, které se nenačte, jen ubere otázky.
     // Odměna po konci hry (server ji vydá jen jednou): XP a za 1. místo počítadlo odznaku Dobyvatel.
     const loadConquestMap = memoizeBy((id) => fetchJson(`data/dobyvani-${id}.json`));
+    // Otázka Mudrlanta o položce území (conquest.js prepareQuestion): stejně jako v běžné hře (createRoundData), jen s nesprávnými
+    // možnostmi, které vybralo Dobývání (wrong: tři položky ze stejného území a tématu). Vrací jen to, co Dobývání ukáže: popis se
+    // zakrytým názvem a jeho původ, fakta (nápovědy faktů bez prozrazení odpovědi), štítek druhu a ověřený obrázek. Obrázek s napsanou
+    // odpovědí (OCR) nebo s rozmazanými nápisy se nevrátí: Dobývání masky nekreslí. Načtení popisu hlídá Dobývání (ROUND_TIMEOUT).
+    const conquestRound = async ({ form = 'text', topic: topicId, q, wrong = [], seed = '' }) => {
+        if (!TOPIC_BY_ID[topicId]) return null;
+        const ctx = await loadTopic(topicId);
+        const item = ctx.byId.get(q);
+        const others = wrong.map(id => ctx.byId.get(id));
+        if (!item || others.length !== 3 || others.some(other => !other)) return null;
+        const data = await createRoundData(item, ctx, createSeededRandom(`dobyvani|${seed}`), { plain: true, wrong: others });
+        const blocked = (file) => !file || (ctx.textPhotos || new Set()).has(file) || Boolean(photoMasks[file]);
+        const shown = ctx.topic.questionImage ? ctx.topic.questionImage(item, ctx, 'name') : null;
+        const image = data.questionImage && data.questionImage.url && shown && !blocked(shown.file) ? data.questionImage.url
+            : !data.questionImage && data.photoUrl && data.hints.some(hint => hint.kind === 'photo') && !blocked(item.im) ? await probePhoto(data.photoUrl) : null;
+        // Fakta k popisu nevynechají, co popis už říká; otázka jen s fakty (form 'facts') popis neukáže, proto se k ní fakta sestaví bez něj
+        const factsOf = (plan) => [...(plan.leadFacts || []), ...plan.hints.filter(hint => hint.kind === 'facts').flatMap(hint => hint.facts)];
+        const facts = form === 'facts' ? factsOf(planRound({ item, ctx, question: data.question, texts: { questionText: '', moreText: '', origin: 'withheld' }, typeLabel: data.typeLabel,
+            describeVisual, photoMasks, textPhotos: ctx.textPhotos || new Set() })) : factsOf(data);
+        return { text: data.questionText || '', origin: data.textOrigin, facts, typeLabel: data.typeLabel, image: image || null };
+    };
     if (window.MudrlantConquest && window.MudrlantConquestUI && Social) {
         ConquestUI = window.MudrlantConquestUI.createUI({
             Conquest: window.MudrlantConquest, Social, appContent, signedUser, renderIcons, showDialog, closeDialog, showToast,
@@ -12167,6 +12193,7 @@
             isActive: () => screen === 'conquest',
             enter: () => { screen = 'conquest'; closePlaceInfo(); closeDialog(); updateControlsUI(); },
             loadMap: (id) => loadConquestMap(id),
+            roundFor: conquestRound,
             loadTopics: async () => {
                 const ids = ['zemepis', 'vlajky', 'architektura', 'historie', 'literatura', 'hudba', 'umeni', 'film', 'sport', 'fyzika', 'chemie', 'biologie', 'mytologie'];
                 const loaded = await Promise.all(ids.map(id => (TOPIC_BY_ID[id] ? loadTopic(id).catch(() => null) : null)));

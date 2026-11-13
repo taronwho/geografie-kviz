@@ -198,14 +198,34 @@ Hra více hráčů o území na mapě. Hráči si hry sami zakládají a přidá
   - správně na území s úrovní 0 = území je tvoje;
   - špatně = útok propadne;
   - čím vyšší opevnění, tím těžší otázka.
-- **Otázky o území**: napřed se losuje obor (zeměpis 30 %, kultura 25 %, historie 20 %, věda 10 %, sport 10 %, příroda a mytologie 5 %; obor bez dat pro území svůj podíl předá ostatním), pak druh otázky v něm; žádný druh nad 12 % otázek území.
-  - zeměpis: hlavní město, vlajka, soused, najdi na mapě, města, stavby, hory, řeky, jezera, ostrovy, regiony, počet obyvatel, rozloha;
-  - historie: panovníci, osobnosti politiky, historické osobnosti, bitvy, události („Která z těchto událostí se odehrála ve Francii?“);
-  - kultura: literatura, hudba, kapely, opery (podle skladatele), výtvarné umění, obrazy a sochy (podle autora), architekti, režie, herectví, filmy;
-  - věda: osobnosti fyziky, astronomie a kosmonautiky, chemie, vynálezy; sport: sportovci, kluby, sportoviště, olympiády;
-  - příroda a mytologie: plemena psů podle původu, postavy mytologií, které k území jednoznačně patří (řecká – Řecko, severská – Norsko, Švédsko, Dánsko, Island, české pověsti – Česko…);
-  - na úrovni 0–1 jsou odpověď i nesprávné možnosti známé, výš i méně známé, nikdy pro znalce; obor bez známé odpovědi se pro území neptá;
-  - u krajů krajské město, místa, hrady a zámky, bitvy, kapely, kluby a sportoviště v kraji.
+- **Bitvy o území** (schéma 25, blok 25): útok začne obléhání území (`conquest_siege_begin`) a otázka se ukáže hned s odpočtem 60 s.
+  - Obléhání vidí všichni hráči hry skoro hned (puls `conquest_pulse` každé 3 s, v bitvě 1,5 s): rudý obíhající lem území, pečeť se
+    zkříženými meči a praporky účastníků, štítek „Bitva o …“ s odpočtem dole na mapě a upozornění.
+  - Přidat se (`conquest_siege_join`, 1 tah) může, kdo s územím sousedí a není jeho majitel, nejvýš 60 s od začátku obléhání
+    a dokud bitva trvá. Okno bitvy v listu území ukáže účastníky, kolik zbývá, varování „Riskantní…“ a „Přidat se do bitvy“.
+  - Všichni dostanou stejnou otázku, každý má 60 s od chvíle, kdy se mu otázka ukázala; správnou odpověď zná jen server.
+  - Kdo už bojuje, tomu během otázky vyskočí „Do bitvy vstupuje …!“ (zvuk, vibrace) a praporek přibude mezi účastníky.
+  - Vítěz = správná odpověď s nejkratším časem (při shodě kdo se přidal dřív); útok má stejný účinek jako dřív (dobytí, nebo pobourání).
+    Kdo odpoví správně, ale pomaleji, nezíská nic a tah ztratí („Prohraná bitva“), stejně jako při špatné odpovědi nebo po čase.
+  - Po odpovědi čekání na ostatní (kdo odpověděl, kdo přemýšlí s odpočtem); jde zavřít, výsledek přijde s pulsem. U bitvy více
+    hráčů pak list „Výsledek bitvy“ s pořadím a časy. Majitel obléhané území neopevní.
+  - Bez bloku 25 v databázi útočí aplikace postaru (okamžitá otázka přes `conquest_move`).
+- **Pevnost na domovském hradu**: +1 tah za období (`conquest_budget`: fortress). Domovský hrad se s opevněním mění (č. 275–277)
+  a střechy a praporky všech staveb mají barvu majitele (`scripts/building-art.py`).
+- **Otázky o území**: záhlaví („Útok na Francii“, „Opevnění Francie“, hvězdy podle opevnění) území prozradí, samotná otázka ho nejmenuje.
+  - skupina **Mudrlant** (asi 60 %): otázky jako v hlavní hře o věcech, které k území patří (stavby, osobnosti, díla, místa, události, kluby,
+    plemena…): popis z Wikipedie se zakrytým názvem, fakta („1802–1885 · spisovatel · Bídníci“), letopočet („V jakém roce se narodil…?“);
+    všechny čtyři možnosti jsou ze stejného území, rodiny i tématu (u osob stejného pohlaví), štítek druhu jen když ho mají všechny,
+    takže podle národnosti ani druhu nejde nic vyloučit; položka bez tří takových možností se neptá;
+  - **formy** (asi 25 %): obrázek („Co je to za stavbu?“, „Kdo je na obrázku?“, vlajka či znak regionu), bod na mapě, odhad čísla
+    (výška hory nebo věže, délka řeky, rozloha ostrova, kapacita stadionu, obyvatelé české obce, obyvatelé a rozloha státu, největší město);
+  - **stát** (asi 15 %): vlajka, hlavní město, soused;
+  - vztahové otázky („Která z těchto staveb stojí ve Francii?“, přes 40 rodin v šesti oborech) převezmou podíl skupiny Mudrlant, když území
+    nemá dost známých položek (nejvýš 25 %), jinak jsou jen zálohou;
+  - na úrovni 0–1 jsou odpověď i nesprávné možnosti známé, výš i méně známé, nikdy pro znalce; výš víc popisu a faktů, méně obrázků;
+  - položka se ve hře nezopakuje a stejná forma nejde dvakrát po sobě; otázka se chystá už při klepnutí na území (popis a obrázek se
+    načítají předem), bez sítě nebo po 4 s přijde místní otázka ze stejného semínka; otázka Mudrlanta je přes celou obrazovku hry;
+  - u krajů krajská města, místa, hrady a zámky, bitvy, kapely, kluby a sportoviště v kraji.
 - **Regiony** (jako kontinenty v Risku): celý region = zlatý obrys, +1 tah za období a +2 body na konci.
 - **Poklady**: 5 neutrálních území s truhličkou; dobytí = +1 tah hned.
 - **Domovské území**: každý začíná jedním (hrad). Kdo přijde o všechna území, dostane v dalším období nové neutrální („Návrat do hry“).
@@ -222,7 +242,7 @@ Hra více hráčů o území na mapě. Hráči si hry sami zakládají a přidá
   - vlaječky se znakem hráče, ikony opevnění (palisáda, hradba, pevnost, hrad, truhlička);
   - větrná růžice, kartuše, mořská příšerka a loď.
 - Animace:
-  - útok: oblouková šipka, otázka ve spodním listu;
+  - útok: oblouková šipka, otázka ve spodním listu (otázka Mudrlanta přes celou obrazovku hry na pergamenu);
   - úspěch: prasknutí opevnění, nebo rozlití barvy jako inkoust a zapíchnutí vlaječky;
   - neúspěch: zlomená šipka a otřes;
   - opevnění vyroste s obláčkem prachu;

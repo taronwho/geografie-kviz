@@ -150,8 +150,8 @@ test('kronika: prohraná bitva (správně, ale pomaleji) s meči; odražený út
 test('nápověda: záložka Útok s pravidly bitvy, Pevnost na domovském hradu +1 tah, bez rodu', () => {
     const text = (html) => html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
     const utok = text(C.helpHtml('utok'));
-    for (const sentence of ['Kdo zaútočí, začne území obléhat. Ostatní to hned vidí na mapě a mohou se k bitvě přidat, když s územím sousedí. Všichni dostanou stejnou otázku a každý má 60 s.',
-        'Území získá, kdo odpoví správně nejrychleji. Počítá se čas od zobrazení otázky.', 'Pozor: Kdo odpoví správně, ale pomaleji, nezíská nic a tah ztratí.', 'Obléhané území nejde opevnit.']) {
+    for (const sentence of ['Útok začne obléhání. Kdo s územím sousedí, může se přidat. Všichni dostanou stejnou otázku a každý má 60 s.',
+        'Území získá nejrychlejší správná odpověď.', 'Pozor: Kdo odpoví správně, ale pomaleji, nezíská nic a tah ztratí.', 'Obléhané území nejde opevnit.']) {
         assert.ok(utok.includes(sentence), sentence);
     }
     assert.match(utok, /Správně:[\s\S]*Opevnění:/, 'záložky, které hlídá e2e test');
