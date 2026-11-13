@@ -1079,11 +1079,12 @@ html.kb-open #settings-overlay > *, html.kb-open #dialog-overlay > * { max-heigh
 /* Řetězovka (chain.js): zlatý řetěz z článků v SVG. Ovál (zepředu) a příčka (z boku) se střídají; hotový článek má zlatý přechod
    s tmavým okrajem a odleskem, další článek na řadě pulzuje, nedohraný je jen tečkovaný obrys, prasklý se rozlomí na dvě poloviny. */
 /* Články řetězu jsou obrázky (chain.js linkSvg): zachráněný tyrkysový, příští a budoucí jen jako světlý obrys */
-.chain-link, .chain-link image { transform-box: fill-box; transform-origin: center; }
+/* chain-front = bližší polovina tyčky přes obruč sousedních článků (provlečení); má stejný stav jako svůj článek */
+.chain-link, .chain-link image, .chain-front, .chain-front image { transform-box: fill-box; transform-origin: center; }
 .chain-link image { filter: drop-shadow(0 1px 1px rgb(40 20 5 / 0.45)); }
-.chain-link-rescued image { filter: hue-rotate(118deg) saturate(0.85) brightness(1.05) drop-shadow(0 1px 1px rgb(40 20 5 / 0.45)); }
-.chain-link-current image { filter: grayscale(1) brightness(2.6); opacity: 0.6; }
-.chain-link-todo image { filter: grayscale(1) brightness(2.6); opacity: 0.2; }
+.chain-link-rescued image, .chain-front-rescued image { filter: hue-rotate(118deg) saturate(0.85) brightness(1.05) drop-shadow(0 1px 1px rgb(40 20 5 / 0.45)); }
+.chain-link-current image, .chain-front-current image { filter: grayscale(1) brightness(2.6); opacity: 0.6; }
+.chain-link-todo image, .chain-front-todo image { filter: grayscale(1) brightness(2.6); opacity: 0.2; }
 /* Výsledek: tečka s číslem článku podle stavu */
 .chain-dot-done { background: linear-gradient(180deg, #fff3b0, #efc55c 45%, #b9771b); color: #3b1e0a; box-shadow: inset 0 0 0 1.5px #7a461b; }
 .chain-dot-rescued { background: #ccfbf1; color: #134e4a; box-shadow: inset 0 0 0 1.5px #0f766e; }
@@ -1111,19 +1112,19 @@ html.kb-open #settings-overlay > *, html.kb-open #dialog-overlay > * { max-heigh
 @media (prefers-reduced-motion: no-preference) {
     /* Nový článek zacvakne: spadne do řetězu, přehoupne se a usadí */
     .chain-click { animation: chainClick 0.55s cubic-bezier(0.2, 1.5, 0.35, 1) both, chainGlow 0.9s ease-out both; }
-    .chain-link-current { animation: chainPulse 1.6s ease-in-out infinite; }
+    .chain-link-current, .chain-front-current { animation: chainPulse 1.6s ease-in-out infinite; }
     .chain-link-broken image { animation: chainSnap 0.6s ease-out both; }
     .chain-shake { animation: chainShake 0.45s ease-in-out; }
     .chain-plus { animation: chainPlus 1s ease-out 0.15s both; }
     .chain-node-in { animation: chainNodeIn 0.45s cubic-bezier(0.2, 1.3, 0.4, 1) 0.2s both; }
     .chain-panel-in { animation: chainPanelIn 0.35s ease-out both; }
-    .chain-loading .chain-link { animation: chainLoad 1.4s ease-in-out infinite; }
-    .chain-loading .chain-link:nth-child(2) { animation-delay: 0.1s; } .chain-loading .chain-link:nth-child(3) { animation-delay: 0.2s; }
-    .chain-loading .chain-link:nth-child(4) { animation-delay: 0.3s; } .chain-loading .chain-link:nth-child(5) { animation-delay: 0.4s; }
-    .chain-loading .chain-link:nth-child(6) { animation-delay: 0.5s; } .chain-loading .chain-link:nth-child(7) { animation-delay: 0.6s; }
+    .chain-loading .chain-link, .chain-loading .chain-front { animation: chainLoad 1.4s ease-in-out infinite; }
+    .chain-loading [data-link="2"], .chain-loading [data-front="2"] { animation-delay: 0.1s; } .chain-loading [data-link="3"] { animation-delay: 0.2s; }
+    .chain-loading [data-link="4"], .chain-loading [data-front="4"] { animation-delay: 0.3s; } .chain-loading [data-link="5"] { animation-delay: 0.4s; }
+    .chain-loading [data-link="6"], .chain-loading [data-front="6"] { animation-delay: 0.5s; } .chain-loading [data-link="7"] { animation-delay: 0.6s; }
 }
 /* Překreslení s panelem (Záchrana, přetržený řetěz): prasklý článek už se znovu nelomí */
-.chain-still .chain-link, .chain-still .chain-link image { animation: none !important; }
+.chain-still .chain-link, .chain-still .chain-link image, .chain-still .chain-front { animation: none !important; }
 @media (prefers-reduced-motion: reduce) {
     .chain-plus { opacity: 1; }
     .chain-node-in, .chain-panel-in { animation: chainFade 0.2s ease-out both; }
