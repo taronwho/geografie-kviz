@@ -2562,8 +2562,9 @@
                 <i data-lucide="swords" class="h-4 w-4 shrink-0"></i><span class="min-w-0 truncate">${esc(siege.mine ? 'Vrátit se do bitvy' : `Bitva o ${accusativeOf(item)}`)}</span>
                 ${until !== null ? `<span class="shrink-0 tabular-nums opacity-80" data-cq-until="${until}">${clockText(until - now)}</span>` : ''}</button>`;
         }).join('');
-    // Otázka Mudrlanta přes celou obrazovku hry (pergamen): záhlaví s tahem a hvězdami, otázka, rámeček s popisem (posouvá se uvnitř),
-    // fakty nebo obrázkem a štítkem druhu, pod ním čtyři možnosti ve dvou sloupcích; po odpovědi správná možnost
+    // Otázka Mudrlanta na pergamenu: záhlaví s tahem a hvězdami, otázka, rámeček s popisem, fakty nebo obrázkem a štítkem druhu, pod ním
+    // čtyři možnosti ve dvou sloupcích; po odpovědi správná možnost. Popis a fakta: list je vysoký podle obsahu (krátký popis = list
+    // dole, nad ním je vidět mapa), nejvýš přes celou obrazovku hry, delší text se pak posouvá ve svém rámečku. Obrázek: celá obrazovka.
     const fullQuestionHtml = (question, { title, answered, kind, right = null, battle = null, view = null }) => {
         const content = question.content;
         const type = content.type ? `<span class="cq-qtype mb-1.5 inline-flex max-w-full items-center gap-1 rounded-lg px-2 py-0.5 text-[11.5px] font-black"><i data-lucide="tag" class="h-3.5 w-3.5 shrink-0"></i><span class="truncate">${esc(content.type)}</span></span>` : '';
@@ -2572,22 +2573,23 @@
         if (content.image) {
             body = `<div class="cq-qimg relative min-h-0 flex-1 overflow-hidden rounded-xl"><img src="${esc(content.image)}" alt="Obrázek k otázce" class="absolute inset-0 h-full w-full object-contain" referrerpolicy="no-referrer">${content.type ? `<div class="absolute left-1.5 top-1.5 max-w-[80%]">${type}</div>` : ''}</div>`;
         } else if (content.text) {
-            body = `<div data-cq-qtext class="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 py-2.5">${type ? `<div>${type}</div>` : ''}<p class="text-[15px] font-medium italic leading-snug text-slate-800 dark:text-slate-100">„${esc(content.text)}“</p>${content.facts ? `<div class="mt-2">${facts(content.facts)}</div>` : ''}</div>`;
+            body = `<div data-cq-qtext class="min-h-0 overflow-y-auto overscroll-contain px-3 py-2.5">${type ? `<div>${type}</div>` : ''}<p class="text-[15px] font-medium italic leading-snug text-slate-800 dark:text-slate-100">„${esc(content.text)}“</p>${content.facts ? `<div class="mt-2">${facts(content.facts)}</div>` : ''}</div>`;
         } else {
-            body = `<div class="flex min-h-0 flex-1 flex-col justify-center overflow-y-auto overscroll-contain px-2.5 py-2">${type ? `<div>${type}</div>` : ''}${facts(content.facts || [])}</div>`;
+            body = `<div class="flex min-h-0 flex-col overflow-y-auto overscroll-contain px-2.5 py-2">${type ? `<div>${type}</div>` : ''}${facts(content.facts || [])}</div>`;
         }
         const options = question.choices.map((choice, i) => `<button type="button" data-cq-answer="${i}" ${answered !== null ? 'disabled' : ''} class="cq-choice${choiceState(i, answered, right)} flex min-h-[3rem] min-w-0 items-center justify-center break-words rounded-xl px-2 py-1 text-center text-[13.5px] font-bold leading-tight text-slate-800 short:min-h-[2.75rem] dark:text-slate-100">${esc(choice.label)}</button>`).join('');
         const solved = right !== null ? question.choices[right] : null;
         const fortify = kind === 'fortify';
         const icon = fortify ? 'castle' : 'swords';
         const after = answered === null || (!solved && answered !== -1) ? '' : `<p class="mt-1.5 shrink-0 text-center text-[12.5px] font-bold text-slate-600 dark:text-slate-300">${answered === -1 ? `Čas vypršel.${solved ? ` Správně: ${esc(solved.label)}` : ''}` : right === answered ? 'Správně!' : `Správně: ${esc(solved.label)}`}</p>`;
-        return `<div data-cq-full class="cq-sheet cq-qfull${answered === null ? ' cq-sheet-in' : ''} relative flex h-full flex-col rounded-t-2xl p-2.5 pb-3 short:p-2" role="dialog" aria-label="Otázka">
-            ${battle ? joinedSlot('top-24') : ''}
+        const tall = Boolean(content.image);
+        return `<div data-cq-full class="cq-sheet cq-qfull${answered === null ? ' cq-sheet-in' : ''} pointer-events-auto relative flex ${tall ? 'h-full' : 'max-h-full'} flex-col rounded-t-2xl p-2.5 pb-3 short:p-2" role="dialog" aria-label="Otázka">
+            ${battle ? joinedSlot('top-11') : ''}
             <div class="flex shrink-0 items-center gap-2"><span class="cq-tone cq-tone-${fortify ? 'fortify' : 'capture'} flex h-7 w-7 shrink-0 items-center justify-center rounded-full"><i data-lucide="${icon}" class="h-4 w-4"></i></span>
                 <h2 class="cq-ledger-title min-w-0 flex-1 truncate">${esc(title)}</h2>${starsHtml(question.difficulty)}</div>
             ${battleBarHtml(battle, view)}
             <p class="mt-1.5 shrink-0 text-[16px] font-black leading-snug text-slate-900 dark:text-white">${esc(question.prompt)}</p>
-            <div class="cq-qbox mt-1.5 flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl">${body}</div>
+            <div class="cq-qbox mt-1.5 flex min-h-0 ${tall ? 'flex-1' : 'shrink'} flex-col overflow-hidden rounded-xl">${body}</div>
             <div class="mt-2 grid shrink-0 grid-cols-2 gap-1.5">${options}</div>
             ${after}
         </div>`;

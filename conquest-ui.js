@@ -741,7 +741,8 @@
         const fillSheet = (html, full = false) => {
             const holder = sheet();
             if (!holder) return null;
-            holder.classList.toggle('top-0', Boolean(full));
+            // Otázka Mudrlanta: list smí sahat až nahoru, ale je vysoký podle obsahu (prázdné místo nad ním propouští klepnutí na mapu)
+            ['top-0', 'flex', 'flex-col', 'justify-end', 'pointer-events-none'].forEach(name => holder.classList.toggle(name, Boolean(full)));
             holder.innerHTML = html;
             if (html) deps.renderIcons(holder);
             return holder;
