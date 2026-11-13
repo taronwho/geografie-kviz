@@ -318,14 +318,14 @@ test('Dobývání', { skip: !chromium && 'Playwright není nainstalovaný' }, as
             await tab.waitForSelector('[data-cq-answer]');
             await tab.click('[data-cq-answer="2"]');
             await tab.waitForFunction(() => document.querySelector('[data-mark="Q213"] .cq-rise'), null, { timeout: 15000 });
-            // Odražený útok na Polsko
-            await tapTerritory(tab, 'Q36');
+            // Odražený útok na Německo (Petrova palisáda)
+            await tapTerritory(tab, 'Q183');
             await tab.waitForSelector('[data-cq-sheet] [data-cq="attack"]');
             db.force.push('fail');
             await tab.click('[data-cq-sheet] [data-cq="attack"]');
             await tab.waitForSelector('[data-cq-answer]');
             await tab.click('[data-cq-answer="3"]');
-            await tab.waitForFunction(() => /Útok nevyšel/.test((document.querySelector('[data-cq-banner]') || {}).textContent || ''), null, { timeout: 15000 });
+            await tab.waitForFunction(() => /Útok odražen/.test((document.querySelector('[data-cq-banner]') || {}).textContent || ''), null, { timeout: 15000 });
             assert.match(await tab.textContent('[data-cq-budget]'), /1\/5/);
             // Přiblížení kolečkem a zpět na celou mapu
             const map = await tab.$('[data-cq-map]');
@@ -340,7 +340,8 @@ test('Dobývání', { skip: !chromium && 'Playwright není nainstalovaný' }, as
             await tab.click('#conquest-game button[aria-label="Kronika tažení"]');
             await tab.waitForFunction(() => (document.getElementById('dialog-overlay') || {}).dataset && document.getElementById('dialog-overlay').dataset.title === 'Kronika tažení');
             const feed = (await tab.textContent('#dialog-overlay')).replace(/\s+/g, ' ');
-            assert.match(feed, /Polsko: Útok odražen/);
+            assert.match(feed, /Německo: Útok odražen ty · dosud Petr Svoboda/);
+            assert.match(feed, /Rakousko: Dobyto ty · 11\. 11\./);
             assert.match(feed, /Česko: Opevněno na Palisádu/);
             assert.match(feed, /Německo: Hradba pobořena/);
             assert.match(feed, /Rakousko: Dobyto/);

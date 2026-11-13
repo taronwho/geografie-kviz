@@ -455,7 +455,7 @@
             svg.querySelectorAll('.cq-label').forEach(element => {
                 const base = Number(element.dataset.size) || 10;
                 const px = base / upp;
-                const hide = px < 7.5;
+                const hide = px < 8;
                 element.classList.toggle('cq-hide', hide);
                 if (hide) return;
                 const size = Math.min(base, 15 * upp);

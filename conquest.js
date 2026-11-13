@@ -467,6 +467,7 @@
             const actor = player(move.u);
             const victim = move.v ? player(move.v) : null;
             const t = move.t;
+            const first = items.length;
             if (move.r === 'home') items.push({ icon: 'flag', tone: 'neutral', title: name(t), text: 'Výprava začíná', actor });
             else if (move.r === 'respawn') items.push({ icon: 'repeat', tone: 'neutral', title: name(t), text: 'Návrat do hry', actor });
             else if (move.r === 'capture') {
@@ -477,9 +478,7 @@
             else if (move.r === 'fortify') items.push({ icon: 'shield', tone: 'fortify', title: name(t), text: `${PARTICIPLE[genderOf(t)][1].charAt(0).toUpperCase()}${PARTICIPLE[genderOf(t)][1].slice(1)} na ${LEVELS[move.l].acc}`, actor });
             else if (move.r === 'fail' && move.k === 'attack' && move.v) items.push({ icon: 'shield-check', tone: 'defend', title: name(t), text: 'Útok odražen', actor, victim });
             else continue;
-            const entry = items[items.length - 1];
-            entry.id = move.id;
-            entry.at = move.at;
+            items.slice(first).forEach((entry, i) => { entry.id = `${move.id}${i ? `-${i}` : ''}`; entry.at = move.at; });
         }
         return items.reverse();
     };
@@ -642,7 +641,7 @@
             parts.push('<g class="cq-select" pointer-events="none"></g>');
             // Popisky (velikost podle místa v území; malé se schovají, dokud se mapa nepřiblíží)
             const labels = data.t.map(item => {
-                const size = Math.max(7, Math.min(17, item.r * 0.42));
+                const size = Math.max(7, Math.min(30, item.r * 0.5));
                 return `<text class="cq-label" data-label="${item.id}" data-size="${size.toFixed(1)}" x="${item.a[0]}" y="${(item.a[1] + size * 1.25).toFixed(1)}" font-size="${size.toFixed(1)}">${esc(item.n)}</text>`;
             });
             parts.push(`<g class="cq-labels" pointer-events="none">${labels.join('')}</g>`);
