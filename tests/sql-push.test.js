@@ -1,5 +1,5 @@
 // Web push v databázi (PostgreSQL 16): odběry (RLS, tvar, přepis stejného zařízení), tajemství v app_secrets, push_due (turnajový zápas dne,
-// příchozí výzva, nepřečtená zpráva, útoky v Dobývání; dedupe, část dne, hodinový a desetiminutový limit, předvolby) a push_mark (odeslané klíče,
+// příchozí výzva, nepřečtená zpráva, útoky a kola v Dobývání; dedupe, část dne, hodinový, desetiminutový a tříminutový limit, předvolby) a push_mark (odeslané klíče,
 // chyby, smazání odběrů).
 // Čas se simuluje nastavením mudrlant.test_today a mudrlant.test_hour. Spouští se jen když je dostupný psql a server (viz tests/sql-rating.test.js).
 const test = require('node:test');
@@ -443,5 +443,57 @@ test('SQL: web push (odběry, tajemství, push_due, push_mark)', { skip: !availa
             ['', ' (+1 další útok)', ' (+2 další útoky)', ' (+4 další útoky)', ' (+5 dalších útoků)', ' (+21 dalších útoků)']);
         denied(as(VICTIM, TUE, `select * from conquest_push_items();`), 'pomocná funkce není pro hráče');
         q(`delete from push_sent; delete from push_subscriptions where user_id in ('${VICTIM}', '${ATTACKER}', '${BOT}');`);
+    });
+
+    await t.test('Dobývání (blok 29): všichni dohráli kolo a kolo brzy končí v push_due vedle útoku (řazení podle druhu); push_mark zapíše druhy; jednou za kolo, limit 3 minuty', () => {
+        const [ONE, TWO] = [id(11), id(12)];
+        q(`delete from push_sent`);
+        const play = (uid, sql) => JSON.parse(last(ok(as(uid, TUE, sql))));
+        const conquest = (uid) => dueRows(TUE, 9).filter(row => row.user === uid && row.kind.startsWith('conquest'));
+        const fastGame = () => {
+            const game = play(ONE, `select conquest_create('evropa', 2, null, 'min5', 2, 'private', 'cervena', 'lev', 20);`);
+            play(TWO, `select conquest_join(null, '${game.code}', 'modra', 'orel');`);
+            assert.equal(q(`select status from conquest_games where id = '${game.id}'`), 'running');
+            return game;
+        };
+        for (const [uid, n] of [[ONE, 70], [TWO, 71]]) ok(as(uid, TUE, `select push_subscribe('${endpointOf(n)}', '${P256DH}', '${AUTH}');`));
+        // Hra X: TWO dobude Slovensko hráče ONE a pak útočí marně, ONE dvakrát marně útočí: oba dohráli kolo 0
+        const x = fastGame();
+        q(`update conquest_territories set owner = null, level = 0, home = false, treasure = false where game_id = '${x.id}';
+           update conquest_territories set owner = '${ONE}', home = (territory = 'Q213') where game_id = '${x.id}' and territory in ('Q213', 'Q214');
+           update conquest_territories set owner = '${TWO}', home = true where game_id = '${x.id}' and territory = 'Q36';`);
+        assert.equal(play(TWO, `select conquest_move('${x.id}', 'Q214', 'attack', true, 'Q36');`).move.r, 'capture');
+        play(TWO, `select conquest_move('${x.id}', 'Q213', 'attack', false, 'Q36');`);
+        assert.deepEqual(conquest(ONE).map(row => row.kind), ['conquest'], 'zatím jen útok');
+        play(ONE, `select conquest_move('${x.id}', 'Q40', 'attack', false, 'Q213');`);
+        play(ONE, `select conquest_move('${x.id}', 'Q40', 'attack', false, 'Q213');`);
+        // Hra Y: kolo 0 skončí za minutu a půl (začalo před 3,5 minutami)
+        const y = fastGame();
+        q(`update conquest_games set started_at = now() - interval '3 minutes 30 seconds', ends_at = now() + interval '16 minutes 30 seconds' where id = '${y.id}'`);
+        // Každý druh jedna položka na hráče a běh; řádky podle hráče a druhu (útok, konec kola, další kolo)
+        const rows = conquest(ONE);
+        assert.deepEqual(rows.map(row => row.kind), ['conquest', 'conquest_ending', 'conquest_round'], JSON.stringify(rows));
+        assert.deepEqual(rows.map(row => [row.title, row.body, row.url, row.key, row.endpoint]).slice(1), [
+            ['Dobývání: kolo brzy končí', 'Hra Evropa: zbývají ti 2 tahy, kolo skončí za 2 min.', `./?dobyvani=${y.code}`, `cqe:${y.id}:${ONE}:0`, endpointOf(70)],
+            ['Dobývání: všichni dohráli kolo', 'Hra Evropa: chceš další kolo hned? Klepni na „Chci další kolo“.', `./?dobyvani=${x.code}`, `cqr:${x.id}:${ONE}:0`, endpointOf(70)]]);
+        assert.deepEqual(conquest(TWO).map(row => row.key), [`cqe:${y.id}:${TWO}:0`, `cqr:${x.id}:${TWO}:0`]);
+        // Odesláno: push_mark zapíše druh a hráče z klíče; tatáž kola se neopakují
+        const keys = [...rows, ...conquest(TWO)].map(row => row.key);
+        mark(keys, { okEndpoints: [endpointOf(70), endpointOf(71)] });
+        assert.deepEqual(q(`select string_agg(kind || ' ' || (user_id = '${ONE}'), ',' order by kind) from push_sent where dedupe_key like 'cq_:%' and user_id = '${ONE}'`),
+            'conquest_ending true,conquest_round true');
+        assert.deepEqual(conquest(ONE), []);
+        assert.deepEqual(conquest(TWO), []);
+        // Další kolo hry Y (za minutu a půl konec): nové upozornění až 3 minuty po posledním téhož druhu (ne 10 jako útoky, ne 55)
+        q(`update conquest_games set started_at = started_at - interval '5 minutes', ends_at = ends_at - interval '5 minutes' where id = '${y.id}'`);
+        assert.deepEqual(conquest(ONE), [], 'do 3 minut nic');
+        q(`update push_sent set sent_at = sent_at - interval '4 minutes'`);
+        assert.deepEqual(conquest(ONE).map(row => [row.kind, row.key]), [['conquest_ending', `cqe:${y.id}:${ONE}:1`]]);
+        // Vypnuté upozornění z Dobývání: nic z kol ani útoků
+        ok(as(ONE, TUE, `update profiles set push_conquest = false where id = '${ONE}';`));
+        assert.deepEqual(conquest(ONE), []);
+        ok(as(ONE, TUE, `update profiles set push_conquest = true where id = '${ONE}';`));
+        denied(as(ONE, TUE, `select * from conquest_round_push_items();`), 'pomocná funkce není pro hráče');
+        q(`update conquest_games set status = 'finished' where id in ('${x.id}', '${y.id}'); delete from push_sent; delete from push_subscriptions where user_id in ('${ONE}', '${TWO}');`);
     });
 });

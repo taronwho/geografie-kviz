@@ -1094,9 +1094,11 @@ language sql immutable as $$
 $$;
 
 -- Co poslat: (a) dnešní neodehraný turnajový zápas, (b) nevyřízená příchozí výzva mladší než 3 dny a výsledek výzvy, kterou hráč založil, (c) nepřečtená zpráva o turnaji,
--- (e) útoky soupeřů v Dobývání (conquest_push_items, blok 23), (f) pozvánky přátel do hry Dobývání (conquest_invite_push_items, blok 24).
+-- (e) útoky soupeřů v Dobývání (conquest_push_items, blok 23), (f) pozvánky přátel do hry Dobývání (conquest_invite_push_items, blok 24),
+-- (g) kola v Dobývání: všichni dohráli kolo a kolo brzy končí (conquest_round_push_items, blok 29).
 -- Jeden řádek na odběr (zařízení); z každého druhu nejvýš jedna věc na hráče a běh a nic, co téhož druhu dostal v poslední hodině
--- (útoky a pozvánky v Dobývání: v posledních 10 minutách, období hry bývá jen hodina a pozvaný se má přidat, dokud je místo).
+-- (útoky a pozvánky v Dobývání: v posledních 10 minutách, období hry bývá jen hodina a pozvaný se má přidat, dokud je místo;
+-- kola v Dobývání: v posledních 3 minutách, kolo rychlé hry trvá 5 minut).
 -- push_pending() je interní (bez ověření tajemství a bez posunu turnajů): totéž, co by teď vrátilo push_due, a totéž, podle čeho
 -- push_kick pozná, že je co poslat – pravidla jsou tak na jednom místě. Práva volajícího (spouští ji jen push_due a push_kick), přes API nejde.
 create or replace function public.push_pending() returns table (
@@ -1166,12 +1168,16 @@ begin
         union all
         -- (f) pozvánky přátel do hry Dobývání: jedno upozornění za pozvánku (druh 'conquest_invite', blok 24)
         select c.user_id, c.kind, c.title, c.body, c.url, c.dedupe_key, c.sort_at from public.conquest_invite_push_items() c
+        union all
+        -- (g) kola v Dobývání: všichni dohráli kolo (druh 'conquest_round') a kolo brzy končí (druh 'conquest_ending'), blok 29
+        select c.user_id, c.kind, c.title, c.body, c.url, c.dedupe_key, c.sort_at from public.conquest_round_push_items() c
     ), fresh as (
         select i.*, row_number() over (partition by i.user_id, i.kind order by i.sort_at, i.dedupe_key) as rn
         from items i
         where not exists (select 1 from public.push_sent s where s.dedupe_key = i.dedupe_key)
             and (i.kind = 'test' or not exists (select 1 from public.push_sent s where s.user_id = i.user_id and s.kind = i.kind
-                and s.sent_at > now() - case when i.kind in ('conquest', 'conquest_invite') then interval '10 minutes' else interval '55 minutes' end))
+                and s.sent_at > now() - case when i.kind in ('conquest', 'conquest_invite') then interval '10 minutes'
+                    when i.kind in ('conquest_round', 'conquest_ending') then interval '3 minutes' else interval '55 minutes' end))
     )
     select f.user_id, s.endpoint, s.p256dh, s.auth, f.kind, f.title, f.body, f.url, f.dedupe_key
     from fresh f join public.push_subscriptions s on s.user_id = f.user_id and s.fails < 3
@@ -1204,7 +1210,7 @@ begin
     insert into public.push_sent (dedupe_key, user_id, kind)
     select k, case when split_part(k, ':', 3) ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then split_part(k, ':', 3)::uuid end,
         case split_part(k, ':', 1) when 'tour' then 'tournament' when 'chal' then 'challenge' when 'chalr' then 'challenge' when 'notice' then 'notice' when 'test' then 'test'
-            when 'cq' then 'conquest' when 'cqi' then 'conquest_invite' end
+            when 'cq' then 'conquest' when 'cqi' then 'conquest_invite' when 'cqr' then 'conquest_round' when 'cqe' then 'conquest_ending' end
     from unnest(coalesce(keys, '{}')) k where char_length(k) between 1 and 200
     on conflict (dedupe_key) do nothing;
     -- Odeslaná zkušební zpráva je vyřízená; novější žádost (jiný čas, jiný klíč) zůstane čekat. Nevyřízené žádosti starší než den se zahodí.
@@ -6609,6 +6615,95 @@ revoke all on function public.conquest_round_ready(uuid, boolean) from public, a
 grant execute on function public.conquest_round_ready(uuid, boolean) to authenticated;
 -- ===== 26: Dobývání – rychlé hry a další kolo — KONEC BLOKU =====
 
+-- ===== 29: Dobývání – upozornění na konec kola a další kolo =====
+-- Dvě upozornění ke kolům (push_pending přes conquest_round_push_items stejně jako útoky z bloku 23; vypíná je profiles.push_conquest,
+-- noční klid hlídá odesílač, boti nic nedostanou; klepnutí otevře hru odkazem ./?dobyvani=KÓD):
+-- (a) „Všichni dohráli kolo“ (druh 'conquest_round', klíč cqr:hra:hráč:kolo): kolo běžící hry je hotové (conquest_round_done), není poslední
+--     a neběží odpočet do dalšího kola. Přijde každému člověku ve hře, který další kolo ještě nechce (nemá značku v conquest_round_marks),
+--     tedy tomu, komu aplikace právě nabízí „Chci další kolo“ (can_ready v conquest_round_json); okno dalšího kola se po otevření hry ukáže samo.
+-- (b) „Kolo brzy končí“ (druh 'conquest_ending', klíč cqe:hra:hráč:kolo): hráči, který v kole ještě má tahy (budget left > 0) a co hrát
+--     (conquest_round_player_done je false), když do konce kola (conquest_period_end) zbývá nejvýš: kolo 5 minut 2 minuty, 10 minut 3 minuty,
+--     hodina 15 minut, den 3 hodiny (conquest_push_warn), a jen když kolo běží aspoň stejně dlouho (ne hned po předčasném začátku).
+--     Text říká, kolik tahů zbývá (conquest_push_moves) a za jak dlouho kolo skončí (conquest_push_time: minuty, nebo hodiny); v posledním
+--     kole hry „hra brzy končí“ a „hra skončí za …“.
+-- Obojí nejvýš jednou za hru, kolo a hráče (klíč v push_sent). Položky se počítají z aktuálního stavu hry, takže když kolo skončí (nebo začne
+-- odpočet), hráč dohraje tahy nebo chce další kolo, zmizí a pozdě se nepošlou; upozornění na kola přijdou nejvýš jednou za 3 minuty
+-- od posledního téhož druhu (kolo rychlé hry trvá 5 minut) a odesílač jim dává platnost jen 10 minut (scripts/send-push.mjs, ttlFor).
+-- Počítá se jen u lidí s funkčním odběrem (push_subscriptions), ať push_kick každou minutu neprochází všechny hry.
+
+-- Jak dlouho před koncem kola přijde „Kolo brzy končí“ (podle délky kola)
+create or replace function public.conquest_push_warn(per text) returns interval
+language sql immutable as $$
+    select case per when 'min5' then interval '2 minutes' when 'min10' then interval '3 minutes' when 'hour' then interval '15 minutes' else interval '3 hours' end
+$$;
+-- Zbývající tahy do upozornění: „zbývá ti 1 tah“, „zbývají ti 3 tahy“, „zbývá ti 5 tahů“
+create or replace function public.conquest_push_moves(n integer) returns text
+language sql immutable as $$
+    select case when n = 1 then 'zbývá ti 1 tah' when n between 2 and 4 then 'zbývají ti ' || n || ' tahy' else 'zbývá ti ' || n || ' tahů' end
+$$;
+-- Zbývající čas do upozornění (nahoru na celé minuty): do hodiny „2 min“, jinak „3 h“ nebo „2 h 15 min“
+create or replace function public.conquest_push_time(left_time interval) returns text
+language sql immutable as $$
+    select case when m < 60 then m || ' min' else (m / 60) || ' h' || case when m % 60 > 0 then ' ' || (m % 60) || ' min' else '' end end
+    from (select greatest(1, ceil(extract(epoch from left_time) / 60))::integer as m) x
+$$;
+
+-- Upozornění ke kolům (řádky ve tvaru položek push_pending); volá ho jen push_pending. Čas hry podle conquest_now (testy ho nastaví).
+create or replace function public.conquest_round_push_items() returns table (user_id uuid, kind text, title text, body text, url text, dedupe_key text, sort_at text)
+language sql stable set search_path = public as $$
+    with people as (
+        -- lidé v běžících hrách, kteří upozornění z Dobývání chtějí a mají kam je poslat
+        select pl.game_id, pl.user_id
+        from public.conquest_players pl
+        join public.conquest_games g on g.id = pl.game_id and g.status = 'running'
+        join public.profiles me on me.id = pl.user_id and me.push_conquest
+        where exists (select 1 from public.push_subscriptions s where s.user_id = pl.user_id and s.fails < 3)
+            and not public.dev_is_bot(pl.user_id)
+    ), rounds as (
+        -- běžící kolo těchto her (bez odpočtu do dalšího kola): číslo, začátek, konec a jestli je poslední
+        select g, m.title as map_title, x.p, x.starts, x.ends, x.ends >= g.ends_at as last, x.now_ts
+        from public.conquest_games g
+        join public.conquest_maps m on m.id = g.map
+        cross join lateral (select y.p, public.conquest_period_start(g, y.p) as starts, public.conquest_period_end(g, y.p) as ends, y.now_ts
+            from (select public.conquest_period(g) as p, public.conquest_now() as now_ts) y) x
+        where g.status = 'running' and g.ends_at > x.now_ts and (g.round_at is null or g.round_at <= x.now_ts)
+            and exists (select 1 from people c where c.game_id = g.id)
+    ), done as (
+        select r.* from rounds r
+        where not r.last
+            and exists (select 1 from people c where c.game_id = (r.g).id
+                and not exists (select 1 from public.conquest_round_marks k where k.game_id = c.game_id and k.period = r.p and k.user_id = c.user_id))
+            and public.conquest_round_done(r.g)
+    ), ending as (
+        select r.* from rounds r
+        where r.ends > r.now_ts and r.ends - r.now_ts <= public.conquest_push_warn((r.g).period) and r.now_ts - r.starts >= public.conquest_push_warn((r.g).period)
+    )
+    select c.user_id, 'conquest_round'::text, 'Dobývání: všichni dohráli kolo'::text,
+        'Hra ' || d.map_title || ': chceš další kolo hned? Klepni na „Chci další kolo“.',
+        './?dobyvani=' || (d.g).code,
+        'cqr:' || (d.g).id || ':' || c.user_id || ':' || d.p,
+        d.starts::text
+    from done d
+    join people c on c.game_id = (d.g).id
+    where not exists (select 1 from public.conquest_round_marks k where k.game_id = c.game_id and k.period = d.p and k.user_id = c.user_id)
+    union all
+    select c.user_id, 'conquest_ending'::text,
+        case when e.last then 'Dobývání: hra brzy končí' else 'Dobývání: kolo brzy končí' end,
+        'Hra ' || e.map_title || ': ' || public.conquest_push_moves(b.moves) || ', ' || case when e.last then 'hra' else 'kolo' end
+            || ' skončí za ' || public.conquest_push_time(e.ends - e.now_ts) || '.',
+        './?dobyvani=' || (e.g).code,
+        'cqe:' || (e.g).id || ':' || c.user_id || ':' || e.p,
+        e.ends::text
+    from ending e
+    join people c on c.game_id = (e.g).id
+    cross join lateral (select coalesce((public.conquest_budget((e.g).id, c.user_id) ->> 'left')::integer, 0) as moves) b
+    where b.moves > 0 and not public.conquest_round_player_done(e.g, c.user_id)
+$$;
+-- Pomocné funkce jen interně (volá je push_pending, ne hráč)
+revoke all on function public.conquest_push_warn(text), public.conquest_push_moves(integer), public.conquest_push_time(interval),
+    public.conquest_round_push_items() from public, anon, authenticated;
+-- ===== 29: Dobývání – upozornění na konec kola a další kolo — KONEC BLOKU =====
+
 -- ===== Verze schématu =====
 -- Číslo se zvyšuje při KAŽDÉ změně tohoto souboru (tabulka, sloupec, funkce, pravidlo) a zároveň konstanta REQUIRED_SCHEMA v app.js.
 -- Aplikace ho po přihlášení porovná a správci (dev_admins nebo vývojářský režim) ukáže v Nastavení, že má schéma spustit znovu;
@@ -6667,7 +6762,9 @@ grant execute on function public.conquest_round_ready(uuid, boolean) to authenti
 --     lidé dohráli; conquest_version s round_rev a číslem kola; upozornění rychlých her o dalším kole).
 -- 27: Dobývání – conquest_state posílá v budgets tahy všech hráčů v tomto kole (zbývá a celkem), pořadí u mapy je ukazuje.
 -- 28: Dobývání – Chci další kolo: přeskočený zbytek kola se odečte i z konce hry (conquest_round_ready posune ends_at).
+-- 29: Dobývání – upozornění „Všichni dohráli kolo“ (druh 'conquest_round', klíč cqr:) a „Kolo brzy končí“ (druh 'conquest_ending', klíč cqe:)
+--     v push_pending a push_mark přes conquest_round_push_items, conquest_push_warn, conquest_push_moves a conquest_push_time, limit 3 minuty.
 create or replace function public.schema_version() returns integer
-language sql immutable as $$ select 28 $$;
+language sql immutable as $$ select 29 $$;
 revoke all on function public.schema_version() from public, anon;
 grant execute on function public.schema_version() to authenticated;

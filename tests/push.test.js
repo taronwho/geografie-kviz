@@ -293,6 +293,12 @@ test('sw: klepnutí otevře aplikaci na záložce Více hráčů (nové okno), n
     const cold = makeWorker();
     await cold.click(undefined, { url: './?dobyvani=K7M2QX', kind: 'conquest' });
     assert.deepEqual(cold.opened, ['https://app.test/app/?dobyvani=K7M2QX']);
+    // Upozornění ke kolu (všichni dohráli kolo, kolo brzy končí; blok 29) mají stejný odkaz: otevřou hru, okno dalšího kola ukáže hra sama
+    for (const kind of ['conquest_round', 'conquest_ending']) {
+        const round = makeWorker({ windows: ['https://app.test/app/'] });
+        await round.click(undefined, { url: './?dobyvani=K7M2QX', kind });
+        assert.deepEqual(JSON.parse(JSON.stringify(round.messages[0].message)), { type: 'push-open', tab: '', vyzva: '', dobyvani: 'K7M2QX', kind });
+    }
     const foreign = makeWorker();
     await foreign.click('https://evil.example/phish?tab=multi');
     assert.deepEqual(foreign.opened, ['https://app.test/app/'], 'cizí adresa se nikdy neotevře');
@@ -329,14 +335,15 @@ test('sw: zkouška ze stránky (push-test) ukáže upozornění stejnou funkcí 
 
 // --- odesílač ---
 test('send-push: runOnce pošle, zapíše jen doručené klíče a rozliší zrušené odběry', async () => {
-    const { runOnce, payloadFor, classifyError, readConfig, isQuietHour } = await import('../scripts/send-push.mjs');
+    const { runOnce, payloadFor, classifyError, readConfig, isQuietHour, ttlFor } = await import('../scripts/send-push.mjs');
     const row = (n, extra = {}) => ({ user_id: `u${n}`, endpoint: `https://p.example/${n}`, p256dh: P256DH, auth: AUTH, kind: 'challenge', title: `T${n}`, body: `B${n}`, url: './?tab=multi', dedupe_key: `chal:${n}`, ...extra });
     const rpcCalls = [];
     const rows = [row(1), row(2), row(3), row(4, { dedupe_key: 'chal:1', endpoint: 'https://p.example/4' })];
     const rpc = async (name, body) => { rpcCalls.push({ name, body }); return name === 'push_due' ? rows : null; };
     const sentTo = [];
-    const send = async (sub, payload) => {
+    const send = async (sub, payload, sentRow) => {
         sentTo.push(sub.endpoint);
+        assert.equal(sentRow.endpoint, sub.endpoint, 'odesílač dostane i řádek (kvůli platnosti upozornění)');
         if (sub.endpoint.endsWith('/2')) throw Object.assign(new Error('gone'), { statusCode: 410 });
         if (sub.endpoint.endsWith('/3')) throw Object.assign(new Error('boom'), { statusCode: 500 });
         assert.deepEqual(JSON.parse(payload), { title: sub.endpoint.endsWith('/1') ? 'T1' : 'T4', body: sub.endpoint.endsWith('/1') ? 'B1' : 'B4', url: './?tab=multi', kind: 'challenge' });
@@ -359,6 +366,10 @@ test('send-push: runOnce pošle, zapíše jen doručené klíče a rozliší zru
     assert.equal(classifyError({ statusCode: 429 }), 'failed');
     assert.equal(classifyError(new Error('síť')), 'failed');
     assert.equal(payloadFor({ title: 'x'.repeat(300), body: 'y'.repeat(300) }).length < 400, true);
+    // Platnost v push službě: upozornění ke kolu v Dobývání (blok 29) 10 minut, ostatní 6 hodin
+    assert.deepEqual(['conquest_round', 'conquest_ending', 'conquest', 'conquest_invite', 'challenge', 'test', undefined].map(kind => ttlFor({ kind })), [600, 600, 21600, 21600, 21600, 21600, 21600]);
+    assert.equal(ttlFor(null), 21600);
+    assert.match(read('scripts/send-push.mjs'), /sendNotification\(subscription, payload, \{ TTL: ttlFor\(row\), urgency: 'normal' \}\)/);
     assert.deepEqual(readConfig(read('config.js')).url, 'https://huddetwgroskdhozlkcf.supabase.co');
     // noční klid podle pražského času (leden = UTC+1, červenec = UTC+2)
     assert.equal(isQuietHour(new Date('2026-01-15T05:30:00Z')), true);   // 6:30
