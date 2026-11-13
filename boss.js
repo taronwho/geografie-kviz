@@ -237,11 +237,11 @@
         { stage: 3, name: 'V koncích' },
         { stage: 4, name: 'Poražený' }
     ];
-    // Schválnosti v řeči bosse (stejné pro všechny)
-    const TRICK_LINES = {
-        typed: 'Schválnost! Možnosti jsem schoval. Odpověď napiš!',
-        half: 'Schválnost! Teď máš jen poloviční čas!',
-        both: 'Dvojitá schválnost! Bez možností a za poloviční čas!'
+    // Štítek schválnosti nad otázkou
+    const TRICKS = {
+        typed: 'Schválnost: bez možností, piš!',
+        half: 'Schválnost: poloviční čas!',
+        both: 'Schválnost: piš a za poloviční čas!'
     };
 
     // --- Dny a týdny (Praha) ---
@@ -573,7 +573,7 @@
         const goal = Math.round(COMMUNITY_SHARE * 100);
         const headline = stats.players ? `Bosse tento týden porazilo ${percent} % hráčů` : 'Zatím to nikdo nezkusil. Buď první!';
         const note = reached
-            ? (over ? `Cíl splněn! Každý, kdo to zkusil, dostane ${COMMUNITY_XP} XP navíc.` : `Cíl splněn! Kdo to zkusí, dostane příští týden ${COMMUNITY_XP} XP navíc.`)
+            ? (over ? `Cíl splněn! Každý, kdo to zkusil, dostane ${COMMUNITY_XP} XP navíc.` : `Zatím splněno! Když to vydrží do neděle, dostane každý, kdo to zkusil, ${COMMUNITY_XP} XP navíc.`)
             : `Když ho do neděle porazí aspoň polovina hráčů, kteří to zkusili, dostane každý z nich ${COMMUNITY_XP} XP navíc.`;
         return `<div data-boss-community="${reached ? 'reached' : 'open'}" class="rounded-2xl bg-black/30 px-3 py-2 ring-1 ${reached ? 'ring-gold-300/70' : 'ring-white/15'}">
             <p class="flex items-baseline justify-between gap-2 text-[12px] font-black leading-tight"><span data-boss-community-text class="min-w-0">${esc(headline)}</span>${stats.players ? `<span class="shrink-0 text-[11px] font-bold text-white/75">${stats.defeated} z ${stats.players}</span>` : ''}</p>
@@ -593,7 +593,7 @@
             ${rule('heart', `Máš ${HEARTS} srdce. Každá chyba i vypršený čas jedno ubere. Bez srdcí souboj končí.`)}
             ${rule('timer', `Na odpověď máš ${TIME_MS / 1000} s, na psanou ${TYPED_TIME_MS / 1000} s.`)}
             ${rule('eye-off', 'Bossovy schválnosti: u 4. a 8. otázky schová možnosti a odpověď se píše. Poslední 3 otázky mají poloviční čas.')}
-            ${rule('repeat', `Na boss týdne máš ${ATTEMPTS} pokusy, počítá se nejlepší. Rozehraný souboj dohraješ později, čas ale běží dál.`)}
+            ${rule('repeat', `Každý týden máš na bosse ${ATTEMPTS} pokusy, počítá se nejlepší. Rozehraný souboj dohraješ později, čas u otázky ale běží dál.`)}
             ${rule('trophy', `Za výhru: emblém bosse do Alba a Vitríny, titul „${esc(boss.title)}“ a ${WIN_XP} XP za první výhru v týdnu.`)}
         </ul>`;
     };
@@ -672,7 +672,7 @@
     const trickHtml = (slot) => {
         const trick = trickOf(slot);
         if (!trick) return '';
-        const text = trick === 'both' ? 'Schválnost: piš odpověď a máš poloviční čas' : trick === 'typed' ? 'Schválnost: možnosti jsou schované, odpověď napiš' : 'Schválnost: poloviční čas';
+        const text = TRICKS[trick];
         const icon = trick === 'half' ? 'hourglass' : 'eye-off';
         return `<p data-boss-trick="${trick}" class="boss-trick flex items-center gap-1.5 self-center rounded-full px-3 py-1 text-[11.5px] font-black text-white shadow-sm"><i data-lucide="${icon}" class="h-3.5 w-3.5 shrink-0"></i>${esc(text)}</p>`;
     };
@@ -683,9 +683,9 @@
             <p class="text-[15px] font-black leading-snug">${esc(text)}</p>
         </div>`;
     // Výsledek souboje: výhra (poražený boss, emblém, titul, XP, ohňostroj) nebo prohra (boss se směje, poškození, další pokus)
-    // view = { boss, status, n, used, best, firstWin, xp, line, community, next, emblemHtml, showcase (HTML přepínače Vitríny) }
+    // view = { boss, status, n, used, best, emblemNew (emblém poprvé), xp, line, community, next, emblemHtml, showcase (HTML přepínače Vitríny) }
     const resultHtml = (view, h = {}) => {
-        const { boss, status, used = 0, best = 0, firstWin = false, line = '', next = null } = view;
+        const { boss, status, used = 0, best = 0, emblemNew = false, line = '', next = null } = view;
         const won = status.won;
         const left = Math.max(0, ATTEMPTS - used);
         const stage = won ? 4 : status.stage;
@@ -694,7 +694,7 @@
             <div class="rounded-xl bg-black/30 px-1 py-1.5 ring-1 ring-white/10"><p class="text-[10px] font-black uppercase tracking-wider text-white/75">Správně</p><p class="text-lg font-black tabular-nums leading-tight">${status.correct}/${status.answered}</p></div>
             <div class="rounded-xl bg-black/30 px-1 py-1.5 ring-1 ring-white/10"><p class="text-[10px] font-black uppercase tracking-wider text-white/75">Srdce</p><p class="flex justify-center pt-0.5">${heartsHtml(status.hearts)}</p></div>
         </div>`;
-        const reward = won ? (firstWin ? `
+        const reward = won ? (emblemNew ? `
             <div data-boss-reward class="boss-reward relative flex items-center gap-3 overflow-hidden rounded-2xl bg-gradient-to-br from-gold-300 to-gold-500 p-2.5 text-brand-950 shadow-lg ring-2 ring-gold-200">
                 <span class="boss-emblem-in shrink-0">${view.emblemHtml || ''}</span>
                 <span class="min-w-0 flex-1">
@@ -702,7 +702,7 @@
                     <span class="block text-[15px] font-black leading-tight">Titul „${esc(boss.title)}“</span>
                     <span class="mt-0.5 block text-[11px] font-bold leading-snug opacity-90">U jména ho nastavíš v Nastavení → Profil.</span>
                 </span>
-            </div>` : `<p class="rounded-2xl bg-black/30 px-3 py-2 text-center text-[12.5px] font-bold text-white/90 ring-1 ring-white/15">Emblém a titul už máš. Výhra se počítá!</p>`) : '';
+            </div>` : `<p data-boss-reward="again" class="rounded-2xl bg-black/30 px-3 py-2 text-center text-[12.5px] font-bold text-white/90 ring-1 ring-white/15">Emblém a titul „${esc(boss.title)}“ už máš z dřívějška. I tahle výhra se počítá!</p>`) : '';
         const again = !won && left > 0;
         return `
             <div id="boss-result" data-boss="${esc(boss.id)}" data-boss-outcome="${won ? 'won' : 'lost'}" class="boss-arena boss-theme-${esc(boss.id)} relative flex min-h-full w-full flex-col gap-2.5 overflow-hidden px-4 pb-4 pt-3 text-white short:gap-2 short:px-3 short:pb-3 short:pt-2">
@@ -751,14 +751,14 @@
             </li>`;
         };
         return `<div data-boss-hall-list class="flex flex-col gap-2">
-            <p class="text-[13px] leading-snug text-slate-600 dark:text-slate-300">Každý týden přijde jiný boss. Za výhru získáš jeho emblém do Alba a Vitríny a titul u jména. <b class="text-slate-800 dark:text-slate-100">${count} z ${BOSSES.length}</b> emblémů máš.</p>
+            <p class="text-[13px] leading-snug text-slate-600 dark:text-slate-300">Každý týden přijde jiný boss. Za výhru získáš jeho emblém do Alba a Vitríny a titul u jména. Máš <b class="text-slate-800 dark:text-slate-100">${count} z ${BOSSES.length}</b> emblémů.</p>
             <ul class="flex flex-col gap-1">${BOSSES.map(row).join('')}</ul>
         </div>`;
     };
 
     return {
         ART, HP, BASE_DAMAGE, SPEED_BONUS, FULL_BONUS_MS, ZERO_BONUS_MS, HEARTS, QUESTIONS, ATTEMPTS, TYPED_SLOTS, HALF_TIME_FROM, TIME_MS, TYPED_TIME_MS, TIERS,
-        WIN_XP, COMMUNITY_XP, COMMUNITY_SHARE, KEY, ROTATION_START, BOSSES, BY_ID, STAGES, TRICK_LINES,
+        WIN_XP, COMMUNITY_XP, COMMUNITY_SHARE, KEY, ROTATION_START, BOSSES, BY_ID, STAGES, TRICKS,
         pragueDay, mondayOf, isWeek, weekOf, addWeeks, weekSerial, bossForWeek, weekLabel, formatDay, attemptsWord, attemptsLeftText,
         hash32, seededRandom, seedFor, questionSeed, tiersOf, candidatesFor,
         isTyped, isHalfTime, timeLimit, trickOf, speedBonus, damageFor, hpPercent, stageOf, stageName, fightStatus, artFor, isStandIn, pickLine, lineFor,

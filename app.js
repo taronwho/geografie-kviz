@@ -9925,16 +9925,22 @@
         if (Sound) Sound.play('bossRoar');
         const target = appContent.querySelector('[data-boss-speech-text]');
         if (!target || reducedMotion()) return;
+        // Zbytek řeči je v bublině neviditelně od začátku: bublina má hned plnou výšku a nic pod ní neposkakuje
         const text = target.textContent;
+        const typed = document.createTextNode('');
+        const rest = document.createElement('span');
+        rest.className = 'opacity-0';
+        rest.textContent = text;
+        target.replaceChildren(typed, rest);
         let shown = 0;
-        target.textContent = '';
         clearInterval(bossTypeTimer);
         const started = Date.now() + 550;
         bossTypeTimer = setInterval(() => {
             if (!target.isConnected) { clearInterval(bossTypeTimer); return; }
             if (Date.now() < started) return;
             shown = Math.min(text.length, shown + 2);
-            target.textContent = text.slice(0, shown);
+            typed.data = text.slice(0, shown);
+            rest.textContent = text.slice(shown);
             if (shown >= text.length) clearInterval(bossTypeTimer);
         }, 28);
     };
@@ -10339,6 +10345,7 @@
         let state = loadBoss();
         if (!state.open) { if (!silent) renderBossIntro(); return; }
         const open = state.open;
+        const emblemNew = !Boss.emblemsOf(state, loadProgress().badges)[open.boss];
         const done = Boss.finishAttempt(state, Date.now());
         state = done.state;
         const entry = state.weeks[open.week];
@@ -10347,7 +10354,7 @@
         saveBoss(state);
         const boss = Boss.BY_ID[open.boss];
         const xp = awardBossProgress({ xp: payXp ? Boss.winXp() : null, fought: true, won: done.status.won && done.firstWin });
-        bossResult = { week: open.week, boss, status: done.status, n: open.n, firstWin: done.firstWin, xp,
+        bossResult = { week: open.week, boss, status: done.status, n: open.n, firstWin: done.firstWin, emblemNew: done.status.won && emblemNew, xp,
             line: (fight && fight.lastLine) || Boss.lineFor(boss, done.status.won ? 'defeat' : 'win') };
         if (bossRanked()) pushBossAttempts().then(() => refreshBossServer(true));
         if (silent) return;
@@ -10368,10 +10375,10 @@
         const badge = BADGE_BY_ID[Boss.badgeId(result.boss.id)];
         const user = signedUser();
         if (won && user && Showcase && myShowcase === null) loadMyShowcase(user).then(() => { if (screen === 'boss-done' && bossResult === result) renderBossResult(); });
-        const toggle = won && result.firstWin && Showcase ? showcaseToggle(Showcase.badge(Boss.badgeId(result.boss.id)), true).replace('<button type="button"', '<button type="button" data-action="boss-showcase"') : '';
+        const toggle = won && Showcase ? showcaseToggle(Showcase.badge(Boss.badgeId(result.boss.id)), true).replace('<button type="button"', '<button type="button" data-action="boss-showcase"') : '';
         appContent.innerHTML = Boss.resultHtml({
             boss: result.boss, status: result.status, n: result.n, used: Boss.attemptsUsed(state, result.week, me), best: Boss.bestDamage(state, result.week, me),
-            firstWin: result.firstWin, xp: result.xp, line: result.line, community: bossCommunity(result.week), next: Boss.bossForWeek(Boss.addWeeks(result.week, 1)),
+            emblemNew: result.emblemNew, xp: result.xp, line: result.line, community: bossCommunity(result.week), next: Boss.bossForWeek(Boss.addWeeks(result.week, 1)),
             emblemHtml: badge ? medalHtml(badge, true, 'h-16 w-16', 'h-7 w-7') : '', showcase: toggle
         }, bossHelpers());
         applyProgress(appContent);

@@ -2121,7 +2121,8 @@
     BOSS_EMBLEMS.forEach(([id, name, whom, title]) => addGroup(`boss-${id}`, `Boss týdne: ${name}`, 'swords', (c, x) => (x && x.bosses && x.bosses[id] ? 1 : 0),
         () => `Poraz bosse týdne ${whom}.`, [T(1, title, `boss-${id}`)]));
     const isBossBadge = (id) => /^boss-[a-z]+$/.test(String(id));
-    BADGES.filter(badge => isBossBadge(badge.id)).forEach(badge => { badge.tone = 'gold'; });
+    BADGES.filter(badge => isBossBadge(badge.id)).forEach(badge => { badge.tone = 'gold'; badge.emblem = true; });
+    BADGE_GROUPS.filter(group => isBossBadge(group.id)).forEach(group => { group.emblem = true; });
     const BADGE_BY_ID =Object.fromEntries(BADGES.map(badge => [badge.id, badge]));
     const normalizeCounters = (counters) => ({ ...EMPTY_COUNTERS, ...(counters || {}), topics: { ...((counters && counters.topics) || {}) },
         topicRun: { ...((counters && counters.topicRun) || {}) }, topicBest: { ...((counters && counters.topicBest) || {}) } });

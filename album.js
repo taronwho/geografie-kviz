@@ -259,7 +259,8 @@
     const CORNER = 'pointer-events-none absolute -bottom-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full ring-2 ring-white dark:ring-slate-800';
     // Legendární postavička ve sbírce: zlatý lem (stejně jako v Nastavení → Profil → Legendy)
     const LEGEND_TONE = 'bg-gold-50 ring-1 ring-gold-400 dark:bg-gold-900/20 dark:ring-gold-600';
-    const kindOf = (owner, entry) => (entry.item && entry.item.diploma ? `Legendární ${owner.kind.toLocaleLowerCase('cs')}` : owner.kind);
+    const kindOf = (owner, entry) => (entry.item && entry.item.diploma ? `Legendární ${owner.kind.toLocaleLowerCase('cs')}`
+        : entry.group && entry.group.emblem ? 'Emblém bosse týdne' : owner.kind);
     // Dlaždice věci: v albu barevná, chybějící šedá se zámkem, sezónní po konci s přesýpacími hodinami, nasazená orámovaná s fajfkou
     // Sekce s víc než DENSE věcmi (doplňky Mudrlanta, postavičky i s legendárními) má od šířky 385 px sedm sloupců místo šesti (dlaždice zůstanou aspoň 40 px)
     const DENSE = 30;
