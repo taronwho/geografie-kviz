@@ -908,6 +908,14 @@
     };
 
     // Spodní list území: majitel, opevnění, region, poklad; Zaútočit (s výběrem, odkud) / Opevnit
+    // Region území v listu: název a kdo ho drží celý, jinak kolik jeho území je moje (celý region = +1 tah za období a body navíc)
+    const regionLine = (view, region, regionOwner) => {
+        const me = (view.state.players || []).find(player => player.me);
+        const mine = me ? region.t.filter(t => view.ownerOf(t) === me.id).length : 0;
+        const status = regionOwner ? (regionOwner.me ? 'celý je tvůj' : `celý drží ${regionOwner.display_name || 'soupeř'}`)
+            : mine ? `tvoje ${mine} z ${region.t.length} území` : `${territoriesWord(region.t.length)}`;
+        return `Region ${region.n} · ${status}`;
+    };
     const sheetHtml = (view, id, { source = null } = {}) => {
         const item = view.index.byId.get(id);
         const info = view.owners.get(id) || { owner: null, level: 0, home: false, treasure: false };
@@ -916,15 +924,15 @@
         const regionOwner = region && region.t.every(t => view.ownerOf(t) && view.ownerOf(t) === view.ownerOf(region.t[0])) ? view.byId.get(view.ownerOf(region.t[0])) : null;
         const actions = actionsFor(view, id);
         const sources = actions.attack || view.targets.has(id) ? sourcesFor(view, id) : [];
+        // Odkud útok vede, na výsledek ani otázku vliv nemá (jen kudy vede šipka na mapě): z nejbližšího vlastního území, bez volby
         const from = source && sources.includes(source) ? source : sources[0];
         const levelName = info.level ? LEVELS[info.level].name : 'Bez opevnění';
         const facts = [
             `<span class="flex items-center gap-1">${owner ? pennantSvg(owner.flag_color, owner.emblem, 'h-4 w-5') : '<i data-lucide="map-pin" class="h-4 w-4"></i>'}${esc(owner ? (owner.me ? 'Tvoje území' : owner.display_name) : 'Neutrální území')}</span>`,
             `<span class="flex items-center gap-1"><i data-lucide="${info.home ? 'castle' : 'shield'}" class="h-4 w-4"></i>${esc(info.home ? `Domov · ${levelName}` : levelName)}</span>`,
-            region ? `<span class="flex items-center gap-1"><i data-lucide="map" class="h-4 w-4"></i>${esc(region.n)}${regionOwner ? ` · celý: ${esc(regionOwner.me ? 'tvůj' : regionOwner.display_name)}` : ''}</span>` : '',
+            region ? `<span class="flex items-center gap-1" data-cq-region><i data-lucide="map" class="h-4 w-4"></i>${esc(regionLine(view, region, regionOwner))}</span>` : '',
             info.treasure && !owner ? '<span class="flex items-center gap-1 text-amber-700 dark:text-amber-300"><i data-lucide="gem" class="h-4 w-4"></i>Poklad: +1 tah</span>' : ''
         ].filter(Boolean).join('');
-        const pick = sources.length > 1 ? `<div class="flex items-center gap-1.5 overflow-x-auto"><span class="shrink-0 text-[11px] font-bold text-slate-500 dark:text-slate-400">Odkud:</span>${sources.map(sid => `<button type="button" data-cq-source="${esc(sid)}" aria-pressed="${sid === from}" class="min-h-[2.25rem] shrink-0 rounded-full px-2.5 text-[12px] font-black ${sid === from ? 'bg-brand-700 text-white' : 'bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-200'}">${esc(view.index.byId.get(sid).n)}</button>`).join('')}</div>` : '';
         const buttons = actions.fortify
             ? `<button type="button" data-cq="fortify" class="${GOLD_BUTTON} w-full py-2.5 text-[15px]"><i data-lucide="castle" class="h-5 w-5"></i> Opevnit na ${esc(LEVELS[info.level + 1].acc)}</button>`
             : actions.attack ? `<button type="button" data-cq="attack" data-source="${esc(from || '')}" class="${GOLD_BUTTON} w-full py-2.5 text-[15px]"><i data-lucide="swords" class="h-5 w-5"></i> Zaútočit</button>` : '';
@@ -934,7 +942,7 @@
             <div class="flex items-start gap-2"><div class="min-w-0 flex-1"><h2 class="truncate text-[17px] font-black leading-tight text-slate-900 dark:text-white">${esc(item.n)}</h2>
                 <div class="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-[12px] font-semibold text-slate-600 dark:text-slate-300">${facts}</div></div>
                 <button type="button" data-cq="sheet-close" class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-slate-500 dark:text-slate-400" aria-label="Zavřít"><i data-lucide="x" class="h-5 w-5"></i></button></div>
-            <div class="mt-2 flex flex-col gap-1.5">${pick}${harder}${buttons}${hint}</div>
+            <div class="mt-2 flex flex-col gap-1.5">${harder}${buttons}${hint}</div>
         </div>`;
     };
 
@@ -1000,15 +1008,44 @@
     };
 
     // Jak se hraje (okno)
-    const helpHtml = () => `<div class="flex flex-col gap-2 text-[13px] leading-snug text-slate-700 dark:text-slate-200">
-        <p><b>Hra:</b> 2 až 8 hráčů dobývá jednu mapu. Každý začíná na svém domovském území s hradem. Hra trvá podle nastavení (6 hodin až 7 dní).</p>
-        <p><b>Tahy:</b> za den nebo za hodinu (podle hry) máš několik tahů. Tah je jedna otázka o území. Nevyužité tahy se nepřevádějí.</p>
-        <p><b>Zaútočit</b> jde na území, které sousedí s tvým. Správná odpověď neopevněné území dobude. Opevněné jen pobourá o jednu úroveň a otázka je těžší.</p>
-        <p><b>Opevnit</b> jde vlastní území: Palisáda, Hradba a na domovském území i Pevnost.</p>
-        <p><b>Navíc:</b> +1 tah za každý celý region, +1 tah hned za poklad a +1 tah v dalším období za dobytý domov soupeře. Kdo přijde o všechna území, dostane v dalším období nové.</p>
-        <p><b>Konec:</b> 1 bod za území a ${REGION_POINTS} za celý region. Při shodě vyhrává, kdo svých bodů dosáhl dřív.</p>
-        <p><b>Odměny:</b> 1. místo odznak Dobyvatel a ${REWARD_XP[0]} XP, 2. místo ${REWARD_XP[1]} XP, 3. místo ${REWARD_XP[2]} XP, poslední místo nic. Platí ve hře aspoň 3 hráčů nebo ve hře na den a déle, když máš aspoň 3 vlastní tahy.</p>
-    </div>`;
+    // Jak se hraje: čtyři záložky (každá se vejde na 360×640 bez posouvání), dole tlačítko na další záložku
+    const HELP_TABS = [['zaklady', 'Základy'], ['utok', 'Útok'], ['regiony', 'Regiony'], ['konec', 'Konec']];
+    const HELP_PAGES = {
+        zaklady: [
+            ['Cíl', 'Mít na konci hry co nejvíc bodů. Body jsou za území, která na konci držíš (víc v záložce Konec).'],
+            ['Začátek', 'Hra začne, až je plná, nebo až jsou v ní aspoň 2 hráči a všichni klepli na „Chci hrát“. Každý dostane jedno domovské území s hradem, ostatní území jsou volná.'],
+            ['Období', 'Hra je rozdělená na období. Podle nastavení je období den (24 hodin), nebo hodina. První začíná startem hry, každé další o den (nebo hodinu) později.'],
+            ['Tahy', 'V každém období máš několik tahů. Kolik ti jich zbývá, ukazuje počítadlo s meči vpravo nahoře (3/5 = zbývají 3 z 5). Jeden tah je jedna otázka: útok, nebo opevnění. Nevyužité tahy na konci období propadnou.']
+        ],
+        utok: [
+            ['Útok', 'Klepni na volné nebo cizí území, které sousedí s některým tvým (má s ním společnou hranici, nebo ho s ním spojuje tečkovaná námořní cesta), pak na „Zaútočit“ a odpověz na otázku.'],
+            ['Správně', 'Neopevněné území je hned tvoje. U opevněného území klesne opevnění o jednu úroveň a území zůstane soupeři. Dobýt ho jde, až už opevnění nemá.'],
+            ['Špatně', 'Útok nevyjde a tah propadne. Čím víc je cíl opevněný, tím je otázka těžší.'],
+            ['Opevnění', 'Klepni na své území a pak na „Opevnit“. Správná odpověď přidá jednu úroveň: Palisáda (1), Hradba (2), Pevnost (3, jen na domovském území). Každou úroveň musí útočník nejdřív pobourat.']
+        ],
+        regiony: [
+            ['Region', 'Skupina sousedních území. Například na mapě Evropy Britské ostrovy (Spojené království a Irsko) nebo Pobaltí (Estonsko, Lotyšsko, Litva), na mapě Česka Střední Čechy (Praha a Středočeský kraj).'],
+            ['Kde ho uvidíš', 'Klepni na území: pod jeho názvem je napsané, do kterého regionu patří a jestli ho už někdo drží celý.'],
+            ['Celý region', 'Držíš všechna jeho území. Region se pak na mapě zlatě obtáhne a dokud ho držíš, máš v každém období +1 tah a na konci hry 2 body navíc.'],
+            ['Další tahy navíc', '+1 tah hned, když dobudeš území s pokladem (truhla na mapě, platí jen v tom období). +1 tah v příštím období, když dobudeš domovské území soupeře.']
+        ],
+        konec: [
+            ['Konec', 'Hra skončí po čase nastaveném při založení. Kolik zbývá, ukazuje nápis pod názvem mapy.'],
+            ['Body', `1 bod za každé území, které na konci držíš, a ${REGION_POINTS} body navíc za každý celý region. Vyhrává, kdo má nejvíc bodů. Při shodě rozhoduje, kdo svého počtu bodů dosáhl dřív.`],
+            ['Návrat do hry', 'Když přijdeš o všechna území, dostaneš na začátku dalšího období nové domovské území a hraješ dál.'],
+            ['Odměny', `1. místo: odznak Dobyvatel a ${REWARD_XP[0]} XP, 2. místo: ${REWARD_XP[1]} XP, 3. místo: ${REWARD_XP[2]} XP. Poslední místo nedostane nic, ve hře dvou hráčů tedy dostane odměnu jen 1. místo. Odměny jsou jen ve hře aspoň 3 hráčů nebo ve hře, která trvá aspoň den, a jen když máš aspoň 3 vlastní tahy a aspoň 1 bod.`]
+        ]
+    };
+    const helpHtml = (tab = 'zaklady') => {
+        const current = HELP_PAGES[tab] ? tab : 'zaklady';
+        const index = HELP_TABS.findIndex(([id]) => id === current);
+        const next = HELP_TABS[index + 1];
+        return `<div data-cq-help="${current}" class="flex flex-col gap-2.5">
+            <div role="tablist" class="grid grid-cols-4 gap-1 rounded-2xl bg-slate-200/70 p-1 dark:bg-slate-800">${HELP_TABS.map(([id, label]) => `<button type="button" role="tab" aria-selected="${id === current}" data-cq-help-tab="${id}" class="flex min-h-[2.5rem] items-center justify-center rounded-xl px-1 text-[12.5px] font-black ${id === current ? 'btn-3d bg-brand-700 text-white' : 'text-slate-600 dark:text-slate-300'}">${label}</button>`).join('')}</div>
+            <div class="flex flex-col gap-2 text-[13px] leading-snug text-slate-700 dark:text-slate-200">${HELP_PAGES[current].map(([title, text]) => `<p><b class="text-slate-900 dark:text-white">${title}:</b> ${text}</p>`).join('')}</div>
+            ${next ? `<button type="button" data-cq-help-tab="${next[0]}" class="${LIGHT_BUTTON} w-full">Dál: ${next[1]} <i data-lucide="chevron-right" class="h-4 w-4"></i></button>` : ''}
+        </div>`;
+    };
 
     return {
         ART, MAPS, MAP_BY_ID, DURATIONS, PERIODS, MIN_PLAYERS, MAX_PLAYERS, MAX_ACTIONS, MAX_GAMES, MAX_OWN_LOBBIES, REGION_POINTS, LEVELS, REWARD_XP,
@@ -1017,6 +1054,6 @@
         indexMap, parseRings, pointInRings, project, territoryAt, isAdjacent, viewOf, rank, sourcesFor, actionsFor,
         buildQuestion, kindsFor, placesOf, feedItems, replaySteps, capturedWord, hatchPattern, levelIcon, iconMarkup,
         pennantSvg, pennantGroup, emblemSvg, mapSvg, thumbSvg, marksFor, homeCardHtml, hubHtml, mineHtml, lobbyHtml, createHtml, lookHtml, lobbyDetailHtml,
-        gameScreenHtml, playersStripHtml, recentHtml, sheetHtml, devBarHtml, questionHtml, feedHtml, resultHtml, helpHtml, mapTitle, paramChips
+        gameScreenHtml, playersStripHtml, recentHtml, sheetHtml, devBarHtml, questionHtml, feedHtml, resultHtml, helpHtml, HELP_TABS, mapTitle, paramChips
     };
 });

@@ -900,6 +900,11 @@
             deps.showToast(number ? (state.period === 'hour' ? `Začala ${number}. hodina hry.` : `Začal ${number}. den hry.`) : 'Začalo další období.');
         });
 
+        // Jak se hraje: okno se záložkami (Základy, Útok, Regiony, Konec), přepínají se klepnutím i tlačítkem Dál
+        const openHelp = (tab) => deps.showDialog('Jak se hraje Dobývání', C.helpHtml(tab), {
+            onClick: (event) => { const next = event.target.closest('[data-cq-help-tab]'); if (next) openHelp(next.dataset.cqHelpTab); }
+        });
+
         // --- Klepnutí (rozcestník i hra) ---
         const onClick = (event) => {
             if (!active()) return;
@@ -939,7 +944,7 @@
             const action = target.closest('[data-cq]');
             if (!action) return;
             const name = action.dataset.cq;
-            if (name === 'help') deps.showDialog('Jak se hraje Dobývání', C.helpHtml());
+            if (name === 'help') openHelp('zaklady');
             else if (name === 'code') openCode();
             else if (name === 'look') { if (ui.kind === 'lobby') changeLook(); else pickLook({ onDone: () => renderHub() }); }
             else if (name === 'ready') toggleReady();
