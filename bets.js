@@ -10,14 +10,14 @@
     else root.MudrlantBets = api;
 })(typeof self !== 'undefined' ? self : this, (root) => {
     'use strict';
-    // Obrázky (docs/NOVE-MODY.md č. 241–243): do dodání mince a hromádka z CSS (třídy .bet-coin a .bet-pile v src/input.css)
-    // a sova s pohárem; po dodání stačí doplnit jména souborů icons/topics/<jméno>.webp
+    // Obrázky (docs/OBRAZKY.md č. 241–243): mince, hromádka mincí a sova s měšcem (bez obrázku by mince a hromádka byly z CSS,
+    // třídy .bet-coin a .bet-pile v src/input.css)
     const ART = {
-        coin: null, // č. 241 mince
-        pile: null, // č. 242 mince-hromadka
-        owl: 'sova-vyzva', // č. 243 sova-sazka
-        // Symboly skupin odznaků (icons/topics/<jméno>.webp, app.js badgeArtOf): truhla s pokladem a koruna řady výher, do dodání č. 243 sova-sazka
-        badges: { sazky: 'truhla', 'sazky-v-rade': 'odznak-vyhry-v-rade' }
+        coin: 'mince', // č. 241 mince s Mudrlantem
+        pile: 'mince-hromadka', // č. 242 mince-hromadka (hromádka mincí)
+        owl: 'sova-sazka', // č. 243 sova-sazka (sova s měšcem)
+        // Symboly skupin odznaků (icons/topics/<jméno>.webp, app.js badgeArtOf): sova s měšcem za výhry v sázkách, hromádka mincí za řadu výher
+        badges: { sazky: 'sova-sazka', 'sazky-v-rade': 'mince-hromadka' }
     };
     const STAKES = [10, 25, 50];
     const MAX_STAKE = 50;

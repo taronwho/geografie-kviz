@@ -2130,15 +2130,74 @@ Kam: konec vyhraného souboje s Režisérem (boss padne a přijde oslava) a dla�
 Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole object. Single centered subject filling about 90 % of the frame, readable even as a small 64 px picture (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow on the background, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl mascot as the character: keep its face, monocle with chain, white eyebrows and whiskers and golden-brown feathers exactly as they are. This is a BOSS costume: the wine-red academic robe and cap may be fully replaced by the costume described here, and the costume and props may use any colors, including red (this image will not be recolored, so the rule about wine red only on the robe and cap does not apply). If a second image of the owl in this boss costume is attached, keep exactly that costume, its colors and its props. Boss costume (keep it identical in every image of this boss): the Director, a dramatic film director who reshoots every question again and again: a black beret with sunglasses pushed up on it, a black turtleneck, a long flowing orange scarf, a big red-and-white megaphone and a black-and-white clapperboard (only blank stripes, no text and no numbers) as the main props. Colors: black, white, orange, red. Stage 4 of 4, DEFEATED: the same costume, the boss sitting on the ground dazed after losing the battle, legs stretched out, cartoon stars and spirals circling around its head, dizzy swirly eyes, the monocle hanging slightly askew on its chain, the costume slightly askew, a few loose feathers floating; still cute and good-humored with a sheepish, dizzy smile, not hurt. The beret sits crooked, the scarf is tangled, the broken megaphone and the clapperboard (blank, no text) lie beside it. No blood, no wounds. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
-### Aréna (č. 231)
+### Arény bossů (č. 231 a 268–274)
 
-#### 231. `textura-arena.png` – Pozadí arény (na výšku) – čeká na dodání
+Každý boss má vlastní arénu: pozadí úvodu souboje a výsledku přes celou obrazovku (na výšku). Uprostřed trochu pod středem je prázdné místo ve světle, kam aplikace postaví bosse; horní a dolní třetina jsou klidné, protože tam je text, ukazatel životů a tlačítka odpovědí. Do dodání CSS přechod v barvách bosse. Ke každé přiložit: `branding/sova-original.jpg` (vzor stylu, jen kvůli barvám).
 
-Kam: pozadí úvodu souboje a souboje s bossem přes celou obrazovku. Do dodání CSS přechod. Přiložit: `branding/sova-original.jpg` (vzor stylu, jen kvůli barvám)
+#### 231. `arena-maestro.png` – Aréna: Maestro (hudba): koncertní jeviště – čeká na dodání
+
+Kam: aréna souboje s bossem (dřívější „Pozadí arény“, divadelní jeviště se k Maestrovi hodí nejvíc). Do dodání CSS přechod `.boss-arena`.
 
 ```text
-Tall background illustration for a mobile game screen, in painterly hand-painted game-UI quality. Use the attached owl mascot image only as a loose color reference; do not draw the owl and do not copy its outline or sticker style. NOT a sticker: no outline, no border, no frame. Scene: an empty, dramatic boss-battle arena seen from the front like a theatre stage, a dark wooden stage floor, heavy deep navy-blue velvet curtains on both sides, a warm golden spotlight beam from above making a bright, empty round pool of light on the floor slightly below the middle of the image, where a character will be placed later, a few faint stage lights high up and soft dust glittering in the beam, darkness fading in at the top and bottom. No characters, no audience, no people, no animals, nothing standing in the spotlight. Overall dark and calm (deep navy, dark teal and charcoal close to #2d3034, with the warm gold of the spotlight); keep the top third and the bottom third low in contrast, because the game places text, a health bar and answer buttons there and the image will be used as a background behind them. Keep the important parts near the middle, the top and bottom may be cropped on shorter phones. No text, no letters, no numbers, no logo, no watermark. Tall portrait image, aspect ratio 9:16 (for example 1080 × 1920 px). --ar 9:16
+Tall background illustration for a mobile game screen, in painterly hand-painted game-UI quality. Use the attached owl mascot image only as a loose color reference; do not draw the owl and do not copy its outline or sticker style. NOT a sticker: no outline, no border, no frame. Scene: an empty, dramatic concert stage seen from the front like a theatre stage, a dark wooden stage floor, heavy deep navy-blue velvet curtains on both sides, a black grand piano lid and a few music stands softly visible at the edges in the shadows, a warm golden spotlight beam from above making a bright, empty round pool of light on the floor slightly below the middle of the image, where a character will be placed later, a few faint stage lights high up and soft dust glittering in the beam, a few faint golden music notes drifting in the air, darkness fading in at the top and bottom. Colors: deep navy, dark teal and charcoal close to #2d3034, with the warm gold of the spotlight. No characters, no people, no animals, no audience, nothing standing in the empty spot in the middle. Overall dark and calm so white text stays readable; keep the top third and the bottom third low in contrast, because the game places text, a health bar and answer buttons there and the image will be used as a background behind them. Keep the important parts near the middle, the top and bottom may be cropped on shorter phones. No text, no letters, no numbers, no logo, no watermark. Tall portrait image, aspect ratio 9:16 (for example 1080 × 1920 px). --ar 9:16
 ```
+
+#### 268. `arena-kapitan.png` – Aréna: Kapitán Mudrlant (zeměpis): paluba lodi v noci – čeká na dodání
+
+Kam: aréna souboje s bossem. Do dodání CSS přechod `.boss-arena`.
+
+```text
+Tall background illustration for a mobile game screen, in painterly hand-painted game-UI quality. Use the attached owl mascot image only as a loose color reference; do not draw the owl and do not copy its outline or sticker style. NOT a sticker: no outline, no border, no frame. Scene: the empty wooden deck of an old sailing ship at night seen from the stern, the big main mast and furled sails rising into the dark, coiled ropes, a ship's wheel and an old brass compass at the edges, a warm lantern light making a bright, empty round pool of light on the deck planks slightly below the middle of the image, where a character will be placed later, a stormy dark sea with moonlit waves and a few stars beyond the railing, darkness fading in at the top and bottom. Colors: deep navy, dark teal and charcoal close to #2d3034, with the warm gold of the lantern and cold silver moonlight. No characters, no people, no animals, no audience, nothing standing in the empty spot in the middle. Overall dark and calm so white text stays readable; keep the top third and the bottom third low in contrast, because the game places text, a health bar and answer buttons there and the image will be used as a background behind them. Keep the important parts near the middle, the top and bottom may be cropped on shorter phones. No text, no letters, no numbers, no logo, no watermark. Tall portrait image, aspect ratio 9:16 (for example 1080 × 1920 px). --ar 9:16
+```
+
+#### 269. `arena-rytir.png` – Aréna: Rytíř Mudrlant (historie): rytířské kolbiště u hradu – čeká na dodání
+
+Kam: aréna souboje s bossem. Do dodání CSS přechod `.boss-arena`.
+
+```text
+Tall background illustration for a mobile game screen, in painterly hand-painted game-UI quality. Use the attached owl mascot image only as a loose color reference; do not draw the owl and do not copy its outline or sticker style. NOT a sticker: no outline, no border, no frame. Scene: an empty medieval tournament ground in front of a dark stone castle at dusk, wooden lists and fences with striped pennants and heraldic banners (plain, no symbols) on both sides, a few torches, a warm torchlight making a bright, empty round pool of light on the trampled sand slightly below the middle of the image, where a character will be placed later, castle towers and battlements against a deep evening sky, darkness fading in at the top and bottom. Colors: deep wine-red banners, stone grey, dark blue and charcoal close to #2d3034, with the warm orange-gold of the torches. No characters, no people, no animals, no audience, nothing standing in the empty spot in the middle. Overall dark and calm so white text stays readable; keep the top third and the bottom third low in contrast, because the game places text, a health bar and answer buttons there and the image will be used as a background behind them. Keep the important parts near the middle, the top and bottom may be cropped on shorter phones. No text, no letters, no numbers, no logo, no watermark. Tall portrait image, aspect ratio 9:16 (for example 1080 × 1920 px). --ar 9:16
+```
+
+#### 270. `arena-alchymista.png` – Aréna: Alchymista (chemie): alchymistická laboratoř – čeká na dodání
+
+Kam: aréna souboje s bossem. Do dodání CSS přechod `.boss-arena`.
+
+```text
+Tall background illustration for a mobile game screen, in painterly hand-painted game-UI quality. Use the attached owl mascot image only as a loose color reference; do not draw the owl and do not copy its outline or sticker style. NOT a sticker: no outline, no border, no frame. Scene: an empty, mysterious alchemist's laboratory in a vaulted stone cellar, wooden shelves with glowing glass flasks, retorts and bubbling potions in green, violet and amber on both sides, a brick furnace with a soft fire, scrolls and old books, a glowing green light from a large round alembic making a bright, empty round pool of light on the stone floor slightly below the middle of the image, where a character will be placed later, faint coloured smoke and sparkles in the air, darkness fading in at the top and bottom. Colors: dark green, deep violet and charcoal close to #2d3034, with glowing emerald and amber highlights. No characters, no people, no animals, no audience, nothing standing in the empty spot in the middle. Overall dark and calm so white text stays readable; keep the top third and the bottom third low in contrast, because the game places text, a health bar and answer buttons there and the image will be used as a background behind them. Keep the important parts near the middle, the top and bottom may be cropped on shorter phones. No text, no letters, no numbers, no logo, no watermark. Tall portrait image, aspect ratio 9:16 (for example 1080 × 1920 px). --ar 9:16
+```
+
+#### 271. `arena-amper.png` – Aréna: Profesor Ampér (fyzika): elektrická laboratoř – čeká na dodání
+
+Kam: aréna souboje s bossem. Do dodání CSS přechod `.boss-arena`.
+
+```text
+Tall background illustration for a mobile game screen, in painterly hand-painted game-UI quality. Use the attached owl mascot image only as a loose color reference; do not draw the owl and do not copy its outline or sticker style. NOT a sticker: no outline, no border, no frame. Scene: an empty, dramatic old physics laboratory like a 19th-century inventor's workshop, two tall Tesla coils on the left and right throwing thin bright blue-white electric arcs toward each other high above, brass machines, dials, cables and glass bulbs at the edges, a cold electric light making a bright, empty round pool of light on the wooden floor slightly below the middle of the image, where a character will be placed later, small sparks drifting in the air, darkness fading in at the top and bottom. Colors: deep navy, steel blue and charcoal close to #2d3034, with electric cyan-white arcs and warm brass. No characters, no people, no animals, no audience, nothing standing in the empty spot in the middle. Overall dark and calm so white text stays readable; keep the top third and the bottom third low in contrast, because the game places text, a health bar and answer buttons there and the image will be used as a background behind them. Keep the important parts near the middle, the top and bottom may be cropped on shorter phones. No text, no letters, no numbers, no logo, no watermark. Tall portrait image, aspect ratio 9:16 (for example 1080 × 1920 px). --ar 9:16
+```
+
+#### 272. `arena-druid.png` – Aréna: Druid (biologie): kamenný kruh v kouzelném lese – čeká na dodání
+
+Kam: aréna souboje s bossem. Do dodání CSS přechod `.boss-arena`.
+
+```text
+Tall background illustration for a mobile game screen, in painterly hand-painted game-UI quality. Use the attached owl mascot image only as a loose color reference; do not draw the owl and do not copy its outline or sticker style. NOT a sticker: no outline, no border, no frame. Scene: an empty clearing in an ancient magical forest at night, a ring of mossy standing stones, huge old trees with twisted roots and hanging moss on both sides, ferns and glowing mushrooms at the edges, soft moonlight falling through the leaves making a bright, empty round pool of light on the mossy ground slightly below the middle of the image, where a character will be placed later, fireflies and floating glowing pollen in the air, darkness fading in at the top and bottom. Colors: deep forest green, dark teal and charcoal close to #2d3034, with soft silver moonlight and warm golden fireflies. No characters, no people, no animals, no audience, nothing standing in the empty spot in the middle. Overall dark and calm so white text stays readable; keep the top third and the bottom third low in contrast, because the game places text, a health bar and answer buttons there and the image will be used as a background behind them. Keep the important parts near the middle, the top and bottom may be cropped on shorter phones. No text, no letters, no numbers, no logo, no watermark. Tall portrait image, aspect ratio 9:16 (for example 1080 × 1920 px). --ar 9:16
+```
+
+#### 273. `arena-olympan.png` – Aréna: Olympan (mytologie): chrám na Olympu v oblacích – čeká na dodání
+
+Kam: aréna souboje s bossem. Do dodání CSS přechod `.boss-arena`.
+
+```text
+Tall background illustration for a mobile game screen, in painterly hand-painted game-UI quality. Use the attached owl mascot image only as a loose color reference; do not draw the owl and do not copy its outline or sticker style. NOT a sticker: no outline, no border, no frame. Scene: an empty ancient Greek temple terrace high on Mount Olympus above the clouds at twilight, tall white marble columns on both sides, a marble floor, a stormy sky with distant golden lightning behind a sea of clouds, a warm divine golden light from above making a bright, empty round pool of light on the marble floor slightly below the middle of the image, where a character will be placed later, faint golden sparkles in the air, darkness fading in at the top and bottom. Colors: deep indigo, slate blue and charcoal close to #2d3034, with white marble and the warm gold of the divine light and lightning. No characters, no people, no animals, no audience, nothing standing in the empty spot in the middle. Overall dark and calm so white text stays readable; keep the top third and the bottom third low in contrast, because the game places text, a health bar and answer buttons there and the image will be used as a background behind them. Keep the important parts near the middle, the top and bottom may be cropped on shorter phones. No text, no letters, no numbers, no logo, no watermark. Tall portrait image, aspect ratio 9:16 (for example 1080 × 1920 px). --ar 9:16
+```
+
+#### 274. `arena-reziser.png` – Aréna: Režisér (film): filmový ateliér – čeká na dodání
+
+Kam: aréna souboje s bossem. Do dodání CSS přechod `.boss-arena`.
+
+```text
+Tall background illustration for a mobile game screen, in painterly hand-painted game-UI quality. Use the attached owl mascot image only as a loose color reference; do not draw the owl and do not copy its outline or sticker style. NOT a sticker: no outline, no border, no frame. Scene: an empty old film studio set, big film spotlights on tall stands and an old movie camera on a tripod on the left and right in the shadows, a director's chair, coiled cables and a film clapperboard (blank, no writing) at the edges, a red velvet curtain at the back, a bright white studio spotlight making an empty round pool of light on the dark studio floor slightly below the middle of the image, where a character will be placed later, faint film-reel and dust sparkles in the beam, darkness fading in at the top and bottom. Colors: deep burgundy, dark grey and charcoal close to #2d3034, with the warm white-gold of the studio lights. No characters, no people, no animals, no audience, nothing standing in the empty spot in the middle. Overall dark and calm so white text stays readable; keep the top third and the bottom third low in contrast, because the game places text, a health bar and answer buttons there and the image will be used as a background behind them. Keep the important parts near the middle, the top and bottom may be cropped on shorter phones. No text, no letters, no numbers, no logo, no watermark. Tall portrait image, aspect ratio 9:16 (for example 1080 × 1920 px). --ar 9:16
+```
+
 
 ## 17. Dobývání (č. 232–240)
 
@@ -2208,7 +2267,7 @@ Kam: ikona opevnění 2. stupně (Hradba) na území mapy Dobývání (vyroste z
 Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole object. Single centered subject filling about 80 % of the frame with even empty space around it, readable even as a tiny 28 px map icon (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow on the background, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, colors, shading); do not draw the owl and do not copy any existing cartoon or game artwork. Subject: This is one of three matching fortification icons that clearly escalate in strength (level 1: a low wooden stake palisade, level 2: a stone wall with a small tower, level 3: a tall stone fortress tower with a pennant); all three share the same three-quarter front view, the same base width (about 80 % of the image width), the bottom edge on the same flat ground line (no grass, no ground patch) and the same colors of stone and wood, and each level is taller and grander than the one before. If an image of another level is attached, match its view, size and style exactly. LEVEL 2: a sturdy, medium-height section of grey stone castle wall with crenellations and a small round stone tower with battlements on one side, a small arched wooden gate in the wall, big simple stone blocks, no flag. Colors: warm grey stone, wood brown. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
-#### 240. `ramecek-dobyvatel.png` – Obrázkový rámeček Dobyvatel – čeká na dodání
+#### 240. `ramecek-dobyvatel.png` – Obrázkový rámeček Dobyvatel – ✅ dodáno, zapojeno
 
 Kam: obrázkový rámeček kolem profilovky; dostane ho, kdo skončí ve hře Dobývání první, spolu s odznakem Dobyvatel. Do dodání kroužek z CSS. Přiložit: `branding/sova-original.jpg` (vzor stylu)
 
@@ -2218,7 +2277,7 @@ Cartoon sticker illustration in exactly the same art style as the attached owl m
 
 ## 18. Kamarádské sázky (č. 241–243)
 
-#### 241. `mince.png` – Mince s Mudrlantem – čeká na dodání
+#### 241. `mince.png` – Mince s Mudrlantem – ✅ dodáno, zapojeno
 
 Kam: mince u výzvy se sázkou v seznamu výzev, volba vkladu v okně Vyzvat a výsledek sázky. Musí být čitelná i jako malá ikona 24–32 px. Do dodání emoji 🪙. Přiložit: `branding/sova-original.jpg` (vzor stylu)
 
@@ -2226,7 +2285,7 @@ Kam: mince u výzvy se sázkou v seznamu výzev, volba vkladu v okně Vyzvat a v
 Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole object. Single centered subject filling about 80 % of the frame with even empty space around it, readable even as a tiny 24 px icon (one simple bold shape, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow on the background, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, colors, shading); do not draw the owl character itself and do not copy any existing cartoon or game artwork. Subject: A single shiny gold coin seen straight from the front, a thick raised rim with small notches, in the middle a simple embossed relief of the owl mascot's face (big round eyes, two ear tufts, a monocle on one eye), a bright glint on the rim. No letters and no numbers on the coin. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
-#### 242. `mince-hromadka.png` – Hromádka mincí – čeká na dodání
+#### 242. `mince-hromadka.png` – Hromádka mincí – ✅ dodáno, zapojeno
 
 Kam: výsledek sázky po zápase (hromádka mincí se přesype k vítězi) a sázková bilance v Profilu. Musí být čitelná i jako malá ikona 24–32 px. Do dodání emoji 🪙. Přiložit: `branding/sova-original.jpg` (vzor stylu)
 
@@ -2234,7 +2293,7 @@ Kam: výsledek sázky po zápase (hromádka mincí se přesype k vítězi) a sá
 Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole object. Single centered subject filling about 80 % of the frame with even empty space around it, readable even as a tiny 24 px icon (one simple bold shape, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow on the background, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, colors, shading); do not draw the owl character itself and do not copy any existing cartoon or game artwork. Subject: A small pile of shiny gold coins: a neat stack of five coins leaning slightly, two loose coins lying in front of it and one coin standing on its edge, the front coins showing the same simple embossed owl face (big round eyes, two ear tufts, a monocle), a few sparkles. One compact shape. No letters and no numbers on the coins. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
-#### 243. `sova-sazka.png` – Sova s měšcem mincí – čeká na dodání
+#### 243. `sova-sazka.png` – Sova s měšcem mincí – ✅ dodáno, zapojeno
 
 Kam: tip ke Kamarádským sázkám a symbol odznaku Sázkař (bez kolečka medaile). Do dodání `sova-vyzva`. Přiložit: `branding/sova-original.jpg` (postava)
 
@@ -2418,7 +2477,7 @@ Cartoon sticker illustration in exactly the same art style as the attached owl m
 
 Obsazená území se barví jako ručně kolorovaná stará mapa: světlá lazura barvou hráče a sytější pruh barvy podél hranice uvnitř území. Textura přidá lazuře nerovnoměrnost skutečného akvarelu (místa, kde se barva slila, jemná zrnitost papíru). Je šedá, barvu hráče jí dá aplikace, takže jedna textura slouží všem barvám.
 
-#### 264. `textura-akvarel.png` – Akvarelová lazura (šedá) – čeká na dodání
+#### 264. `textura-akvarel.png` – Akvarelová lazura (šedá) – ✅ dodáno, zapojeno
 
 Kam: barva obsazených území na mapě Dobývání (lazura barvou hráče se touto texturou zvlní jako akvarel, násobením přes barvu). Do dodání rovnoměrná lazura s pruhem podél hranic. Nic nepřikládat.
 
@@ -2426,7 +2485,7 @@ Kam: barva obsazených území na mapě Dobývání (lazura barvou hráče se to
 Seamless tileable background texture, painted watercolor on cold-press paper, in pure neutral grayscale only (no hue at all, every pixel grey). NOT a sticker: no outline, no border, no frame, no objects, no shapes, no characters, no symbols. Texture: one single even layer of watercolor wash covering the whole image: soft uneven pigment pooling, a few gentle cauliflower blooms with slightly darker soft rims, fine pigment granulation and visible paper grain, faint brush streaks in random directions. Mostly light grey (between #d8d8d8 and #f4f4f4) with a few softly blended mid-grey pools (around #b0b0b0); no pure white unpainted gaps, no hard edges, no lines, no stains with sharp borders. Even lighting with no vignette and no central focal point; the left edge must continue seamlessly into the right edge and the top edge into the bottom edge, so the image can be repeated as a tile without visible seams. Subtle and low contrast, because it will be tinted with a player color and laid over territories on an antique map under flags and icons. No text, no letters, no numbers, no logo, no watermark. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1 --tile
 ```
 
-#### 265. `pecet.png` – Prázdná vosková pečeť (šedá) – čeká na dodání
+#### 265. `pecet.png` – Prázdná vosková pečeť (šedá) – ✅ dodáno, zapojeno
 
 Kam: výběr barvy v Dobývání (okno Barva a znak) – pečeť se přebarví na barvu hráče a do středu se vytlačí jeho znak; později i pečeť u výsledku hry. Do dodání pečeť kreslená v SVG. Přiložit: `branding/sova-original.jpg` (vzor stylu)
 
@@ -2438,7 +2497,7 @@ Cartoon sticker illustration in exactly the same art style as the attached owl m
 
 Konec hry: území vítěze se na mapě rozzáří a přes mapu se rozvine kartuše s vítězem; pak vyjede list výsledků s kamennými stupni vítězů, praporci na žerdích a vavřínem.
 
-#### 266. `vavrin.png` – Zlatý vavřínový věnec – čeká na dodání
+#### 266. `vavrin.png` – Zlatý vavřínový věnec – ✅ dodáno, zapojeno
 
 Kam: věnec kolem praporce vítěze na stupních vítězů v Dobývání (a kolem vítěze v kartuši nad mapou). Do dodání jednoduchý věnec v SVG. Přiložit: `branding/sova-original.jpg` (vzor stylu)
 
@@ -2446,7 +2505,7 @@ Kam: věnec kolem praporce vítěze na stupních vítězů v Dobývání (a kole
 Cartoon sticker illustration in exactly the same art style as the attached owl mascot image: thick dark maroon outline, flat bold colors with simple cel shading, a thin cream-colored sticker border around the whole object. Single centered subject filling about 80 % of the frame with even empty space around it, readable even as a small 48 px icon (simple bold shapes, no tiny details). Plain solid flat dark grey background, color #2d3034, no gradient, no shadow on the background, no floor, no frame. No text, no letters, no numbers, no logo, no watermark. Use the attached owl image only as a style reference (line weight, colors, shading); do not draw the owl and do not copy any existing cartoon or game artwork. Subject: An open golden laurel wreath seen from the front: two curved branches of glossy golden leaves meeting at the bottom where they are tied with a small wine-red ribbon bow, open at the top, symmetric, the inside of the wreath completely EMPTY (nothing inside, so a flag can be placed in it). Colors: warm gold with darker gold shading, wine-red ribbon. Square image, aspect ratio 1:1, 1024 × 1024 px. --ar 1:1
 ```
 
-#### 267. `sova-dobyvatel.png` – Sova dobyvatel s vlajkou na hradbě – čeká na dodání
+#### 267. `sova-dobyvatel.png` – Sova dobyvatel s vlajkou na hradbě – ✅ dodáno, zapojeno
 
 Kam: vítězství v Dobývání (nad mapou při vítězství a v listu výsledků). Do dodání sova s pohárem (`sova-vitez`). Přiložit: `branding/sova-original.jpg` (postava) a hotovou `dobyvani.png` (č. 234, sova s helmou a mapou – vzor výstroje)
 

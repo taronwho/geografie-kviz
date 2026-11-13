@@ -550,6 +550,12 @@
         // Nápovědy, fakta ukázaná hned u chudého popisu a „thin“ (popis nestačí k odpovědi) – společně s auditem
         const { hints, leadFacts, thin, visual } = planRound({ item, ctx, question, texts: { questionText, moreText, origin }, typeLabel, shown, special: Boolean(special),
             photoUrl, describeVisual, photoMasks, textPhotos: ctx.textPhotos || new Set() });
+        const resultFacts = topic.facts(item, ctx, 'result');
+        // Tajemná otázka (options.plain): krátké nápovědy z dat položky – ano/ne, doba, indicie a související jméno (mystery.js riddleOf);
+        // options.year = rok dne otázky (stáří a „žije ještě“)
+        const Riddles = window.MudrlantMystery;
+        const riddle = options.plain && Riddles && Riddles.riddleOf
+            ? Riddles.riddleOf(item, { ctx, question, typeLabel, facts: resultFacts, year: options.year || new Date().getFullYear() }) : null;
         return {
             topic: topic.id,
             id: item.q,
@@ -568,10 +574,11 @@
             visual,
             // Ve výsledku už odpověď známe, takže nápověda může ukázat vše (u otázky na století časovou osu)
             resultVisual: topic.visual ? topic.visual(item, ctx, 'result') : null,
-            resultFacts: topic.facts(item, ctx, 'result'),
+            resultFacts,
             // Fotka, kterou otázka ukazuje hned, už nápovědou není; fotka s napsanou odpovědí také ne
             hints,
             leadFacts,
+            ...(riddle ? { riddle } : {}),
             subtitle: topic.subtitle(item, ctx),
             coords: topic.coords ? topic.coords(item, ctx) : null,
             isCzech: Boolean(topic.isCzech && topic.isCzech(item, ctx)),
@@ -8083,7 +8090,7 @@
     // Skupiny odznaků s ilustrovaným symbolem (branding/ikony/odznak-<skupina>.png → scripts/topic-icons.py; stejný seznam má sw.js)
     const BADGE_ART = new Set(['sberatel', 'odpovedi', 'rada', 'serie', 'dny', 'dokonale', 'dnes', 'bez-napovedy', 'psani', 'tezke', 'chyby', 'vyzvy', 'vyhry',
         'vyhry-v-rade', 'zalozene', 'perfektni-vyzvy', 'uroven', 'poznane', 'vsestrannost', 'hvezdy', 'vsechna-temata', 'turnaje', 'turnaj-postupy',
-        'tydenni-cile', 'kviz-dne', 'kviz-serie', 'kviz-perfekt', 'bleskovka', 'preziti', 'mapa', 'odhad', 'serad', 'detektiv']);
+        'tydenni-cile', 'kviz-dne', 'kviz-serie', 'kviz-perfekt', 'bleskovka', 'preziti', 'mapa', 'odhad', 'serad', 'detektiv', 'dobyvatel']);
     // Obrázek symbolu skupiny (bez přípony); odznaky alba sbírky mají obrázek Sběratel (Album.BADGE_ART)
     const badgeArtOf = (group) => BADGE_ART.has(group) ? `odznak-${group}` : Album && Album.isAlbumGroup(BADGE_GROUPS.find(entry => entry.id === group)) ? Album.BADGE_ART
         // Odznaky Zlatokop: symbol z gold.js (ART.badge, do dodání č. 211 zástupný obrázek)
@@ -9863,7 +9870,7 @@
         if (state.rounds[day]) return state.rounds[day];
         const { ctx, item } = await mysteryPick(day);
         if (!item) throw new Error('Tajemná otázka nemá položku');
-        const data = await createRoundData(item, ctx, createSeededRandom(Mystery.seedFor(day)), { plain: true });
+        const data = await createRoundData(item, ctx, createSeededRandom(Mystery.seedFor(day)), { plain: true, year: Number(day.slice(0, 4)) });
         const fresh = loadMystery();
         fresh.rounds[day] = data;
         if (!fresh.days[day] && day === mysteryToday()) fresh.days[day] = Mystery.newEntry({ topic: ctx.topic.id, q: item.q, name: item.n });
@@ -12145,7 +12152,9 @@
 
     // Dobývání (conquest.js, conquest-ui.js): karta na záložce Více hráčů, rozcestník her a obrazovka hry 'conquest'.
     // Mapa se načte až při použití (data/dobyvani-<mapa>.json), otázky z dat témat Zeměpis, Vlajky a znaky, Architektura, Historie,
-    // Literatura, Hudba, Umění, Film a Sport (osobnosti, díla, kluby, olympiády, bitvy). Téma, které se nenačte, jen ubere druhy otázek.
+    // Literatura, Hudba, Umění, Film, Sport, Fyzika, Chemie, Biologie a Mytologie (osobnosti, díla, události, vynálezy, plemena psů,
+    // mytologie, kluby, olympiády, bitvy). Témata se načítají souběžně na pozadí (conquest-ui.js je chce hned po otevření hry);
+    // téma, které se nenačte, jen ubere druhy otázek.
     // Odměna po konci hry (server ji vydá jen jednou): XP a za 1. místo počítadlo odznaku Dobyvatel.
     const loadConquestMap = memoizeBy((id) => fetchJson(`data/dobyvani-${id}.json`));
     if (window.MudrlantConquest && window.MudrlantConquestUI && Social) {
@@ -12156,7 +12165,7 @@
             enter: () => { screen = 'conquest'; closePlaceInfo(); closeDialog(); updateControlsUI(); },
             loadMap: (id) => loadConquestMap(id),
             loadTopics: async () => {
-                const ids = ['zemepis', 'vlajky', 'architektura', 'historie', 'literatura', 'hudba', 'umeni', 'film', 'sport'];
+                const ids = ['zemepis', 'vlajky', 'architektura', 'historie', 'literatura', 'hudba', 'umeni', 'film', 'sport', 'fyzika', 'chemie', 'biologie', 'mytologie'];
                 const loaded = await Promise.all(ids.map(id => (TOPIC_BY_ID[id] ? loadTopic(id).catch(() => null) : null)));
                 return Object.fromEntries(ids.map((id, i) => [id, loaded[i] ? loaded[i].items : []]));
             },

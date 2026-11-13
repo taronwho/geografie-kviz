@@ -1,7 +1,8 @@
 // Dobývání: hry o mapu pro 2–8 hráčů (lobby, Rychlá hra, vlastní hry s nastavením). Čistá logika bez DOMu a sítě: pravidla (zrcadlo
 // serveru, supabase/schema.sql blok „21: Dobývání“), barvy a znaky hráčů, mapa (sousedé, regiony, zobrazení bodů), otázky o území
-// z dat témat (víc než 30 rodin: hlavní město, vlajka nebo znak, soused, najdi na mapě, města, stavby, hory, řeky, regiony, osobnosti
-// podle oboru, díla, kluby, olympiády, bitvy, počet obyvatel, rozloha…), kronika tažení, přehrání a odměny.
+// z dat témat (přes 40 rodin v šesti oborech: zeměpis, historie, kultura, věda, sport, příroda a mytologie; hlavní město, vlajka,
+// soused, najdi na mapě, místa, osobnosti podle oboru, díla, události, vynálezy, plemena psů, mytologie, kluby, olympiády, bitvy,
+// čísla…), kronika tažení, přehrání a odměny.
 // Vykreslení jako HTML a SVG (mapa na pergamenu, šrafy hráčů, vlaječky se znaky, opevnění, poklady, ozdoby). Ovládání v prohlížeči
 // (přiblížení, animace, okna) je v conquest-ui.js. Mapy: data/dobyvani-<mapa>.json (scripts/build-dobyvani.js). Testy: tests/conquest.test.js.
 (function (root, factory) {
@@ -30,7 +31,11 @@
         // Textury (icons/textury/<název>.webp): pergamen je background-image ve třídě .cq-paper (src/input.css), moře vzor v SVG
         paper: 'textura-pergamen', // č. 232
         sea: 'textura-more',      // č. 233
-        frame: null               // č. 240 'ramecek-dobyvatel' – rámeček vítěze (look.js ART_FRAMES s badge: 'dobyvatel', až bude obrázek)
+        watercolor: 'textura-akvarel', // č. 264 šedá akvarelová lazura násobená přes barvu obsazených území
+        seal: 'pecet',            // č. 265 prázdná šedá pečeť, sealSvg ji přebarví (scripts/conquest-art.py)
+        laurel: 'vavrin',         // č. 266 vavřínový věnec vítěze (stupně vítězů, kartuše konce tažení)
+        victory: 'sova-dobyvatel', // č. 267 sova s vlajkou na hradbě (vítězství)
+        frame: 'dobyvatel'        // č. 240 rámeček Dobyvatel (icons/frames, look.js ART_FRAMES s badge: 'dobyvatel')
     };
     const artUrl = (name) => `icons/topics/${name}.webp`;
 
@@ -313,11 +318,18 @@
     };
 
     // --- Otázky o území (4 možnosti, jedna správná) ---
-    // topics = { zemepis, vlajky, architektura, historie, literatura, hudba, umeni, film, sport } (pole položek z data/<téma>.json;
-    // chybějící téma znamená jen méně druhů otázek). Každá otázka patří do rodiny (FAMILIES níž): hlavní město, vlajka nebo znak,
-    // soused, mapa, místa podle druhu, řeky, regiony, osobnosti podle oboru, díla, kluby, sportoviště, olympiády, bitvy a čísla.
-    // Pro tah se rodina losuje (skoro) se stejnou vahou ze všech, které pro území jdou sestavit, takže žádná nepřeváží.
+    // topics = { zemepis, vlajky, architektura, historie, literatura, hudba, umeni, film, sport, fyzika, chemie, biologie, mytologie }
+    // (pole položek z data/<téma>.json; chybějící téma znamená jen méně druhů otázek). Každá otázka patří do rodiny (FAMILIES níž)
+    // a rodina do oboru (DOMAINS): zeměpis (hlavní město, vlajka nebo znak, soused, mapa, místa podle druhu, řeky, regiony, čísla),
+    // historie (panovníci, osobnosti politiky, historické osobnosti, bitvy, události), kultura (literatura, hudba, opery, výtvarné
+    // umění, sochy, architekti, film, herectví), věda (fyzika, astronomie, chemie, vynálezy), sport (sportovci, kluby, sportoviště,
+    // olympiády) a příroda s mytologií (plemena psů podle původu, postavy mytologií, které k území jednoznačně patří).
+    // Pro tah jako by se losoval napřed obor (podle podílu v DOMAINS) a pak rodina v něm (podle vah): obor, který pro území nejde,
+    // svůj podíl předá ostatním a žádná rodina nedostane víc než FAMILY_CAP otázek území (zbytek připadne ostatním).
     // Obtížnost roste s úrovní opevnění cíle (0–3): nízko známější položky a nesprávné možnosti z dálky, výš méně známé a z okolí.
+    // Známost: na úrovni 0–1 jsou odpověď i nesprávné možnosti známé (k = 1), výš i méně známé, ale nikdy pro znalce (x = 1);
+    // rodina mimo zeměpis, která pro území nemá dost známých odpovědí (minKnown), se pro ně neptá vůbec (ani výš). Místa jsou
+    // mírnější (lenient u factReady): území bez známé řeky nebo hory dostane nejznámější ze svých.
     // Jednoznačnost: nesprávná možnost vazbu nesplňuje (ani dvojí národností, řekou přes víc států, popisem, který cíl zmiňuje),
     // stejně pojmenované položky se vyřadí a odpověď neprozradí název území, jeho hlavní ani krajské město.
     // Náhled z Commons ve standardní šířce (jinou šířku Wikimedia odmítne); fallback = původní soubor, když náhled nejde
@@ -400,16 +412,31 @@
     const YUGOSLAV = ['Q403', 'Q224', 'Q215', 'Q225', 'Q236', 'Q221', 'Q1246'];
     const HABSBURG = ['Q40', 'Q28', 'Q213', 'Q214', 'Q215', 'Q224', 'Q225', 'Q36', 'Q212', 'Q218', 'Q38', 'Q403'];
     // Země, která je dnešním státem (část státu, starší název téhož státu)
+    // (německé země a italské státy celé uvnitř dnešního Německa a Itálie: Württembersko, Bavorsko, Toskánsko, Florencie…)
     const CLEAN_LANDS = { USA: 'Q30', Anglie: 'Q145', Skotsko: 'Q145', Wales: 'Q145', 'Severní Irsko': 'Q145', 'Království Velké Británie': 'Q145', 'Západní Německo': 'Q183',
-        'Německá demokratická republika': 'Q183', 'Italské království': 'Q38', 'Nizozemské království': 'Q55', 'Rumunské království': 'Q218', 'Protektorát Čechy a Morava': 'Q213' };
-    // Historický stát → dnešní státy na jeho území (osobnost, dílo nebo olympiáda s ním nesmí být nesprávnou možností žádného z nich)
+        'Německá demokratická republika': 'Q183', 'Italské království': 'Q38', 'Nizozemské království': 'Q55', 'Rumunské království': 'Q218', 'Protektorát Čechy a Morava': 'Q213',
+        'Württemberské království': 'Q183', 'Bavorské království': 'Q183', 'Saské království': 'Q183', 'Hesenské velkovévodství': 'Q183', 'Hesensko-Kasselsko': 'Q183', Hamburk: 'Q183',
+        'Sasko-výmarsko-eisenašské vévodství': 'Q183', 'Toskánské velkovévodství': 'Q38', 'Florentská republika': 'Q38', Florencie: 'Q38', 'Neapolské království': 'Q38', 'Sicilské království': 'Q38',
+        'Spojené provincie nizozemské': 'Q55', 'Gdaňsk': 'Q36', 'starověký Egypt': 'Q79', 'Ptolemaiovský Egypt': 'Q79' };
+    // Historický stát → dnešní státy na jeho území (osobnost, dílo nebo olympiáda s ním nesmí být nesprávnou možností žádného z nich);
+    // osobnost z historického státu pochází z dnešního státu, jen když ho potvrdí jediná národnost v popisu (Bismarck: Pruské
+    // království a „německý politik“ = z Německa), jinak správnou odpovědí není
+    const HRE = ['Q183', 'Q40', 'Q213', 'Q39', 'Q31', 'Q55', 'Q32', 'Q38', 'Q142', 'Q36', 'Q215', 'Q224'];
     const HISTORIC_LANDS = {
         'Československo': ['Q213', 'Q214'], 'Sovětský svaz': SOVIET, 'Ruské impérium': [...SOVIET, 'Q33', 'Q36'], 'Ruské carství': SOVIET, 'Ruská sovětská federativní socialistická republika': ['Q159'],
         'Jugoslávie': YUGOSLAV, 'Socialistická federativní republika Jugoslávie': YUGOSLAV, 'Srbsko a Černá Hora': ['Q403', 'Q236', 'Q1246'], 'Rakousko-Uhersko': HABSBURG, 'Rakouské císařství': HABSBURG,
         'Habsburská monarchie': [...HABSBURG, 'Q29', 'Q31', 'Q55'], 'Předlitavsko': ['Q40', 'Q213', 'Q215', 'Q36', 'Q212', 'Q38'], 'Pruské království': ['Q183', 'Q36', 'Q159', 'Q37'],
         'Německé císařství': ['Q183', 'Q36', 'Q142', 'Q35', 'Q159'], 'nacistické Německo': ['Q183', 'Q40', 'Q36', 'Q213'], 'Spojené království Velké Británie a Irska': ['Q145', 'Q27'],
         'Britské impérium': ['Q145'], 'Anglické království': ['Q145'], 'Skotské království': ['Q145'], 'Flandry': ['Q31', 'Q55', 'Q142'], 'Vlámsko': ['Q31'], 'Starověké Řecko': ['Q41'],
-        'Starověký Řím': ['Q38'], 'starověký Řím': ['Q38'], 'České království': ['Q213'], 'Francouzské království': ['Q142'], 'Portugalské království': ['Q45'], 'Dánské království': ['Q35']
+        'Starověký Řím': ['Q38'], 'starověký Řím': ['Q38'], 'České království': ['Q213'], 'Francouzské království': ['Q142'], 'Portugalské království': ['Q45'],
+        // Dánsko-norské království, Skåne a Island patřily k Dánsku
+        'Dánské království': ['Q35', 'Q20', 'Q34', 'Q189'], 'Výmarská republika': ['Q183', 'Q36', 'Q159', 'Q37'], 'Německá říše': ['Q183', 'Q36', 'Q142', 'Q35', 'Q159', 'Q37', 'Q40', 'Q213'],
+        'Svatá říše římská': HRE, 'Rýnský spolek': ['Q183', 'Q36'], 'Saské kurfiřtství': ['Q183', 'Q36'], 'Papežský stát': ['Q38', 'Q142'], 'Milánské vévodství': ['Q38', 'Q39'],
+        'Benátská republika': ['Q38', 'Q224', 'Q215', 'Q236', 'Q41', 'Q229'], 'Janovská republika': ['Q38', 'Q142'], 'Habsburské Nizozemí': ['Q31', 'Q32', 'Q55', 'Q142'],
+        'Polské království': ['Q36', 'Q37', 'Q184', 'Q212'], 'Polsko-litevská unie': ['Q36', 'Q37', 'Q184', 'Q212', 'Q211', 'Q159'], 'Syrakusy': ['Q38', 'Q41'], 'Athény': ['Q41'],
+        'Britská Indie': ['Q668', 'Q843', 'Q902', 'Q836'], 'Čínská republika': ['Q148', 'Q865', 'Q711'], Persie: ['Q794', 'Q889', 'Q863', 'Q265', 'Q874'],
+        // Čínské dynastie (čínský císař z dynastie Čching = v čele Číny; mongolský chán dynastie Jüan ne)
+        'Čching': ['Q148', 'Q711', 'Q865'], 'Jüan': ['Q148', 'Q711'], 'Čchin': ['Q148'], 'Ming': ['Q148'], 'Chan': ['Q148'], 'Tchang': ['Q148'], 'Sung': ['Q148']
     };
     // Města, u kterých „ve státě“ není samozřejmé (zámořská území, zvláštní správní oblasti; jako chain.js)
     const SKIP_CITIES = new Set(['Gibraltar', 'Hongkong', 'Macao', 'Nuuk']);
@@ -435,14 +462,57 @@
     const LAKE_TYPES = new Set(['jezero', 'přehradní nádrž', 'rybník']);
     const ISLAND_TYPES = new Set(['ostrov', 'souostroví']);
     const PAINT_TYPES = new Set(['obraz', 'freska', 'triptych', 'oltářní obraz', 'nástěnná malba']);
+    const OPERA_TYPES = new Set(['opera', 'opereta']);
+    // Vynálezy, které patří i k jinému státu, než mají v datech (Fermiho reaktor: Ital v Chicagu): správnou odpovědí nejsou
+    // a nesprávnou ani pro ten stát
+    const INVENTION_ALSO = { 'Jaderný reaktor': ['Q30'] };
+    // Druhy panovníků, které stát potvrdí samy (faraon = v čele Egypta; perští králové s druhem faraon mají v datech Persii)
+    const RULER_TITLES = { faraon: 'Q79', faraonka: 'Q79' };
     const EMPEROR = /(?:^|[^\p{L}])(?:císař\p{L}*|imperátor\p{L}*|car|carevna)(?:[^\p{L}]|$)/iu;
-    const TOPIC_IDS = ['zemepis', 'vlajky', 'architektura', 'historie', 'literatura', 'hudba', 'umeni', 'film', 'sport'];
-    // Osobnosti podle oboru: rodina, téma, kategorie
+    const TOPIC_IDS = ['zemepis', 'vlajky', 'architektura', 'historie', 'literatura', 'hudba', 'umeni', 'film', 'sport', 'fyzika', 'chemie', 'biologie', 'mytologie'];
+    // Osobnost politiky z Historie: státník, nebo osobnost s druhem politik či revolucionář a politikou v popisu (Dante je
+    // v datech „politik“, ale popis říká „italský básník“: zůstane mezi historickými osobnostmi)
+    const POLITICS = /politi|státní|diplomat|revolucion|prezident|premiér|kancléř|ministr|diktátor/i;
+    // Manželky a manželé panovníků („francouzská císařovna“ Marie Luisa z Vídně, „norská královna“ Maud z Londýna): titul není
+    // původ (historické osobnosti a politika) ani vláda (u panovníků jen výslovná manželka nebo choť)
+    const CONSORT = /manžel|choť|chotí|provdan|vévodkyn|princezn|kněžn|arcivévodkyn|hraběnk|císařovn|carevn|královn/i;
+    const SPOUSE = /manžel|choť|chotí/i;
+    const isPolitician = (item) => item.c === 'statnik' || (item.c === 'osobnost' && /^(?:politik|revolucionář|diplomat)$/.test(item.ty || '') && POLITICS.test(item.d || ''));
+    // Známé osobnosti narozené jinde, než říká jejich národnost v datech (Rilke a Stifter z Čech, Tesla z dnešního Chorvatska,
+    // Lagrange z Turína): patří ke dvěma zemím, takže nejsou správnou odpovědí ani nesprávnou možností pro žádnou z nich
+    const PERSON_ALSO = { 'Rainer Maria Rilke': ['Q213'], 'Adalbert Stifter': ['Q213'], 'Nikola Tesla': ['Q224'], 'Joseph-Louis Lagrange': ['Q38'] };
+    // Osobnosti podle oboru: rodina, téma, kategorie, výběr; confirm = správnou ani nesprávnou možností jen s národností v popisu
+    // (u historických osobností bývá v datech země úmrtí nebo exilu: Trockij „z Mexika“)
     const PEOPLE = [
         ['writer', 'literatura', ['spisovatele']], ['musician', 'hudba', ['skladatele', 'hudebnici']], ['band', 'hudba', ['kapely']],
-        ['artist', 'umeni', ['umelci', 'fotografove', 'ilustratori']], ['architect', 'architektura', ['architekti']], ['filmmaker', 'film', ['reziseri', 'herci']],
-        ['athlete', 'sport', ['sportovci']], ['ruler', 'historie', ['statnik', 'panovnik']], ['historic', 'historie', ['osobnost']]
+        ['artist', 'umeni', ['umelci', 'fotografove', 'ilustratori']], ['architect', 'architektura', ['architekti']], ['filmmaker', 'film', ['reziseri']], ['actor', 'film', ['herci']],
+        ['athlete', 'sport', ['sportovci']], ['ruler', 'historie', ['statnik', 'panovnik']], ['politician', 'historie', ['statnik', 'osobnost'], isPolitician, true],
+        ['historic', 'historie', ['osobnost'], (item) => !isPolitician(item), true], ['physicist', 'fyzika', ['fyzici']], ['astronomer', 'fyzika', ['astronomove']], ['chemist', 'chemie', ['chemici']]
     ];
+    // Události z Historie: kategorie události a z válek jen to, co se odehrálo na jednom místě (revoluce, povstání, obléhání…)
+    const EVENT_WAR_TYPES = new Set(['revoluce', 'povstání', 'obléhání', 'útok', 'letecké bombardování města', 'občanská válka']);
+    // Názvy událostí, které nesou i jiné známé události (Krvavá neděle v Petrohradu 1905 i v Derry 1972)
+    const EVENT_AMBIGUOUS = new Set(['Krvavá neděle']);
+    // Mytologie (Mytologie: f.myk, české pověsti, artušovské legendy) → území, kam jednoznačně patří, a příbuzné kultury
+    // (jejich postavy nejsou nesprávnou možností: Jupiter je řeckému Diovi protějškem, artušovské legendy vycházejí z keltských);
+    // slovanská, mayská, kanaánská a biblická mytologie k jednomu území nepatří: jen nesprávné možnosti jinde
+    const MYTHS = {
+        recka: { lands: ['Q41'], name: 'do řecké mytologie', near: ['rimska'] }, rimska: { lands: ['Q38'], name: 'do římské mytologie', near: ['recka'] },
+        egyptska: { lands: ['Q79'], name: 'do egyptské mytologie' }, severska: { lands: ['Q20', 'Q34', 'Q35', 'Q189'], name: 'do severské mytologie' },
+        keltska: { lands: ['Q27'], name: 'do keltské mytologie', near: ['artus'] }, artus: { lands: ['Q145'], name: 'do artušovských legend', near: ['keltska'] },
+        ceske: { lands: ['Q213'], name: 'do českých pověstí', near: ['slovanska'] }, slovanska: { lands: [], near: ['ceske'] },
+        indicka: { lands: ['Q668'], name: 'do indické mytologie', near: ['perska'] }, perska: { lands: ['Q794'], name: 'do perské mytologie', near: ['indicka', 'mezopotamska'] },
+        cinska: { lands: ['Q148'], name: 'do čínské mytologie', near: ['japonska'] }, japonska: { lands: ['Q17'], name: 'do japonské mytologie', near: ['cinska'] },
+        aztecka: { lands: ['Q96'], name: 'do aztécké mytologie', near: ['mayska'] }, mayska: { lands: [], near: ['aztecka'] }, incka: { lands: ['Q419'], name: 'do incké mytologie' },
+        mezopotamska: { lands: ['Q796'], name: 'do mezopotámské mytologie', near: ['kanaanska', 'biblicka', 'perska'] },
+        kanaanska: { lands: [], near: ['mezopotamska', 'biblicka'] }, biblicka: { lands: [], near: ['mezopotamska', 'kanaanska'] }
+    };
+    const MYTH_CATEGORIES = new Set(['recka', 'egyptska', 'severska', 'keltska', 'slovanska', 'indicka', 'orient', 'vychod', 'amerika', 'bytosti']);
+    const mythCulture = (item) => {
+        const f = item.f || {};
+        if (f.myk) return MYTHS[f.myk] ? f.myk : null;
+        return f.my === 'české pověsti' ? 'ceske' : f.my === 'artušovské legendy' ? 'artus' : null;
+    };
 
     // --- Zásoby otázek pro mapu (z dat témat; pamatují se pro dvojici témata + mapa) ---
     const questionPools = new WeakMap();
@@ -498,6 +568,8 @@
             list(topic).forEach(item => { const i = seen.get(group(item)) || 0; seen.set(group(item), i + 1); fame.set(item, (item.k === 1 ? 0 : 1) + i / counts.get(group(item))); });
         }
         const fameOf = (item) => (fame.has(item) ? fame.get(item) : 1.5);
+        // Společná pole položky rodiny: název, známost (fame k řazení, known = k 1, expert = x 1) a téma
+        const about = (item, topic) => ({ label: item.n, q: item.q, fame: fameOf(item), known: item.k === 1 && item.x !== 1, expert: item.x === 1, topic });
         // Státy podle názvu (osobnosti a díla mají zemi názvem)
         const stateByName = new Map(Object.entries(CLEAN_LANDS));
         const capitals = new Map();
@@ -510,6 +582,8 @@
             if (f.pop > 0 && f.area > 0) stats.set(item.q, { pop: f.pop, area: f.area });
         }
         if (kraje) capitals.clear();
+        // Dnešní státy (Q z Zeměpisu): ostatní státy v datech míst a událostí jsou historické (Sovětský svaz, Anglické království)
+        const modernStates = new Set(list('zemepis').filter(item => item.c === 'stat' && item.q).map(item => item.q));
         const nationQ = (text) => nationalitiesIn(text).map(name => stateByName.get(name)).filter(Boolean);
         const landsOf = (raw) => {
             const names = (Array.isArray(raw) ? raw : String(raw || '').split(/,\s*/)).map(name => String(name).trim()).filter(Boolean);
@@ -571,7 +645,7 @@
                 if (kraje) { const at = krajOf(item); home = at ? [at] : []; } else home = (id === 'city' || id === 'building') && co.length !== 1 ? [] : co.filter(q => ids.has(q));
                 if (!home.length) continue;
                 const multi = !kraje && co.length > 1;
-                add(id, { label: item.n, q: item.q, fame: fameOf(item), home, ok: home, rel: new Set(kraje ? home : [...co, ...nationQ(item.d)]), text: kraje ? '' : item.d || '', multi, sub: item.ty || '', topic, place: true });
+                add(id, { ...about(item, topic), home, ok: home, rel: new Set(kraje ? home : [...co, ...nationQ(item.d)]), text: kraje ? '' : item.d || '', multi, sub: item.ty || '', place: true });
                 // Najdi na mapě: město v území (u států jen v jednom státě)
                 if (PLACE_CATEGORIES.has(item.c) && !multi && !(item.ty && /moře|oceán|záliv|zátoka|průliv/.test(item.ty))) places.byTerritory.get(home[0]).push({ item, topic });
             }
@@ -595,23 +669,38 @@
             // Regiony států (Vlajky a znaky: kraje, spolkové země, provincie)
             for (const item of list('vlajky')) {
                 if (item.c !== 'regiony' || (item.co || []).length !== 1 || !ids.has(item.co[0]) || !item.n || DISPUTED.test(item.n) || COMMON_REGION_NAME.test(item.n)) continue;
-                add('region', { label: item.n, q: item.q, fame: fameOf(item), home: [item.co[0]], ok: [item.co[0]], rel: new Set(item.co), text: item.d || '', clean: true, place: true });
+                add('region', { ...about(item, 'vlajky'), home: [item.co[0]], ok: [item.co[0]], rel: new Set(item.co), text: item.d || '', clean: true, place: true });
             }
             // Osobnosti: země původu z dat; popis s jinou národností nebo dvě země = správnou odpovědí není, nesprávnou ani pro jednu z nich
             const people = new Map();
+            // Osobnosti podle jména (vynálezce, autor sochy): jméno → Q všech osobností toho jména, Q → přijatá osobnost
+            const nameQs = new Map();
+            const personByQ = new Map();
             const nameOfQ = new Map([...stateByName].filter(([name]) => !CLEAN_LANDS[name]).map(([name, q]) => [q, name]));
-            for (const [id, topic, categories] of PEOPLE) {
+            for (const [id, topic, categories, pickOf, confirm] of PEOPLE) {
                 for (const item of list(topic)) {
                     if (!categories.includes(item.c) || !item.n) continue;
+                    const nameKey = namePlain(item.n);
+                    if (!nameQs.has(nameKey)) nameQs.set(nameKey, new Set());
+                    nameQs.get(nameKey).add(item.q);
+                    if (pickOf && !pickOf(item)) continue;
                     const f = item.f || {};
+                    const text = `${item.ty || ''} ${item.d || ''}`;
                     const land = landsOf(f.land);
-                    if (land.bad || !land.clean.size || COMPOUND_NATION.test(`${item.ty || ''} ${item.d || ''}`)) continue;
-                    const nations = nationQ(`${item.ty || ''} ${item.d || ''}`);
+                    if (land.bad || COMPOUND_NATION.test(text)) continue;
+                    const nations = nationQ(text);
+                    // „Československý“ není „český“ (Husák, Dubček): o původu rozhoduje národnost bez něj, nesprávnou možností
+                    // osobnost nebude pro žádný ze dvou států
+                    const own = nationQ(text.replace(/československ\p{L}*/giu, ''));
+                    // Historický stát (Pruské království, Sovětský svaz): dnešní stát podle jediné národnosti v popisu, leží-li na jeho území
+                    if (!land.clean.size && own.length === 1 && land.rel.has(own[0])) land.clean.add(own[0]);
+                    if (!land.clean.size || (confirm && (!nations.length || CONSORT.test(text))) || (id === 'ruler' && SPOUSE.test(text))) continue;
                     // Kapela vzniklá jinde, než je její země (Kinto Sol: mexická skupina z Wisconsinu)
                     const cityLands = f.city ? [...(placeNames.get(namePlain(f.city)) || [])] : [];
-                    const person = { clean: land.clean, rel: new Set([...land.rel, ...nations, ...cityLands]),
-                        pure: land.clean.size === 1 && nations.every(q => land.clean.has(q)) && (!cityLands.length || cityLands.some(q => land.clean.has(q))) };
+                    const person = { clean: land.clean, rel: new Set([...land.rel, ...nations, ...cityLands, ...(PERSON_ALSO[item.n] || [])]),
+                        pure: land.clean.size === 1 && own.every(q => land.clean.has(q)) && (!cityLands.length || cityLands.some(q => land.clean.has(q))) && !PERSON_ALSO[item.n] };
                     people.set(`${topic}:${item.q}`, person);
+                    if (!personByQ.has(item.q)) personByQ.set(item.q, person);
                     if (nationalitiesIn(item.n).length) continue;
                     let ok = person.pure;
                     let noWrong = false;
@@ -620,11 +709,11 @@
                         const landName = nameOfQ.get([...land.clean][0]) || '';
                         const words = countryWords(landName);
                         const type = String(item.ty || '').toLocaleLowerCase('cs');
-                        if (!((words && type.startsWith(words[2])) || revealsName(item.ty, landName))) continue;
+                        if (!((words && type.startsWith(words[2])) || revealsName(item.ty, landName) || RULER_TITLES[type] === [...land.clean][0])) continue;
                         noWrong = EMPEROR.test(`${item.ty || ''} ${item.d || ''}`);
                     }
                     const home = [...land.clean].filter(q => ids.has(q));
-                    add(id, { label: item.n, q: item.q, fame: fameOf(item), home, ok: ok ? home : [], rel: person.rel, text: item.d || '', noWrong, topic });
+                    add(id, { ...about(item, topic), home, ok: ok ? home : [], rel: person.rel, text: item.d || '', noWrong, sub: item.ty || '' });
                 }
             }
             // Díla: země autora (dílo jiné země než autor, nebo s popisem jiné národnosti, správnou odpovědí není)
@@ -636,20 +725,63 @@
                 if (land) land.rel.forEach(q => author.rel.add(q));
                 const nations = nationQ(item.d || '');
                 const own = [...author.clean][0];
-                const pure = author.pure && (!land || (land.rel.size === 1 && land.clean.has(own))) && nations.every(q => q === own);
+                // Země díla souhlasí s autorem: tentýž dnešní stát, nebo historický stát, na jehož území autorův stát leží
+                const sameLand = !land || (land.rel.size === 1 && land.clean.has(own)) || (!land.clean.size && land.rel.has(own));
+                const pure = author.pure && sameLand && nations.every(q => q === own);
                 const home = [...author.clean].filter(q => ids.has(q));
-                add(id, { label: item.n, q: item.q, fame: fameOf(item), home, ok: pure ? home : [], rel: new Set([...author.rel, ...(land ? land.rel : []), ...nations]), text: item.d || '', topic, sub: item.ty || '' });
+                add(id, { ...about(item, topic), home, ok: pure ? home : [], rel: new Set([...author.rel, ...(land ? land.rel : []), ...nations]), text: item.d || '', sub: item.ty || '' });
             };
+            // Osobnost podle jména (undefined = v datech není, null = nejasná: víc osobností toho jména, nebo bez jasné země)
+            const personNamed = (name) => { const qs = nameQs.get(namePlain(name || '')); return !qs ? undefined : qs.size === 1 ? personByQ.get([...qs][0]) || null : null; };
             for (const item of list('literatura')) if (item.c === 'dila') work('book', item, 'literatura', people.get(`literatura:${(item.f || {}).byq}`), (item.f || {}).land);
-            for (const item of list('hudba')) if (item.c === 'dila' || item.c === 'opery') work('music-work', item, 'hudba', people.get(`hudba:${(item.f || {}).byq}`), (item.f || {}).land);
-            for (const item of list('umeni')) if (item.c === 'obrazy' && PAINT_TYPES.has(item.ty)) work('painting', item, 'umeni', people.get(`umeni:${(item.f || {}).bq}`), (item.f || {}).land);
+            // Hudební díla (alba, písně, muzikály) a zvlášť opery s operetami (podle skladatele)
+            for (const item of list('hudba')) {
+                if (item.c !== 'dila' && item.c !== 'opery') continue;
+                const id = item.c === 'opery' && OPERA_TYPES.has(item.ty) ? 'opera' : 'music-work';
+                work(id, item, 'hudba', people.get(`hudba:${(item.f || {}).byq}`), (item.f || {}).land);
+            }
+            // Malíř a sochař podle Q z Umění, jinak z jiného tématu (Michelangelo má zemi jen mezi architekty)
+            const artistOf = (q) => people.get(`umeni:${q}`) || personByQ.get(q);
+            for (const item of list('umeni')) if (item.c === 'obrazy' && PAINT_TYPES.has(item.ty)) work('painting', item, 'umeni', artistOf((item.f || {}).bq), (item.f || {}).land);
+            // Sochy podle sochaře (jediný autor: Q, jinak jméno); pravěké sošky bez autora ne („vytvořil sochař z …“)
+            for (const item of list('umeni')) {
+                const f = item.f || {};
+                if (item.c !== 'sochy' || !f.by || /\sa\s|,/.test(f.by)) continue;
+                const author = (f.bq ? artistOf(f.bq) : personNamed(f.by)) || null;
+                work('sculpture', item, 'umeni', author, f.land);
+            }
             for (const item of list('film')) if (item.c === 'filmy' || item.c === 'animovane') work('film', item, 'film', people.get(`film:${(item.f || {}).dirq}`), (item.f || {}).land || []);
+            // Vynálezy (Fyzika): země vynálezu; sporné prvenství (f.xn: vynalezli i jiní) ani dva vynálezci ne; vynálezce mezi
+            // osobnostmi musí pocházet z téže země (jinak vynález správnou odpovědí není a nesprávnou ani pro jeho zemi)
+            for (const item of list('fyzika')) {
+                const f = item.f || {};
+                if (item.c !== 'vynalezy' || !item.n || (f.xn || []).length || nationalitiesIn(item.n).length || COMPOUND_NATION.test(item.d || '')) continue;
+                const land = landsOf(f.land);
+                if (land.bad || land.clean.size !== 1) continue;
+                const q = [...land.clean][0];
+                const inventor = f.by && !/\sa\s|,/.test(f.by) ? personNamed(f.by) : undefined;
+                const nations = nationQ(item.d || '');
+                const pure = inventor !== null && (!inventor || (inventor.pure && inventor.clean.has(q))) && nations.every(other => other === q) && !INVENTION_ALSO[item.n];
+                add('invention', { ...about(item, 'fyzika'), home: [q].filter(at => ids.has(at)), ok: pure ? [q] : [],
+                    rel: new Set([...land.rel, ...nations, ...(inventor ? inventor.rel : []), ...(INVENTION_ALSO[item.n] || [])]), text: item.d || '' });
+            }
+            // Plemena psů (Biologie) podle země původu; název s národností („Německý ovčák“) odpověď prozradí. Kočky ne: známá
+            // plemena mají zemi v názvu (perská, britská, ruská, norská…) a ostatních je na otázku málo
+            for (const item of list('biologie')) {
+                const f = item.f || {};
+                if (item.c !== 'plemena' || f.kind !== 'pes' || !item.n || nationalitiesIn(item.n).length || COMPOUND_NATION.test(item.d || '')) continue;
+                const land = landsOf(f.land);
+                if (land.bad || land.clean.size !== 1) continue;
+                const q = [...land.clean][0];
+                const nations = nationQ(item.d || '');
+                add('dog', { ...about(item, 'biologie'), home: [q].filter(at => ids.has(at)), ok: nations.every(other => other === q) ? [q] : [], rel: new Set([...land.rel, ...nations]), text: item.d || '' });
+            }
             // Olympijské hry (pořadatelský stát; historický stát v datech vyloučí i dnešní státy na jeho území)
             for (const item of list('sport')) {
                 if (item.c !== 'olympiady' || (item.co || []).length !== 1 || !ids.has(item.co[0])) continue;
                 const f = item.f || {};
                 const rel = new Set([...item.co, ...(HISTORIC_LANDS[f.land] || []), ...(GAMES_ALSO[item.n] || [])]);
-                add('olympics', { label: item.n, q: item.q, fame: fameOf(item), home: [item.co[0]], ok: [item.co[0]], rel, text: '', topic: 'sport' });
+                add('olympics', { ...about(item, 'sport'), home: [item.co[0]], ok: [item.co[0]], rel, text: '' });
             }
         }
         // Sportovní kluby a sportoviště (země z dat, poloha musí ležet v ní), bitvy (stát a poloha souhlasí)
@@ -661,19 +793,30 @@
             const id = item.c === 'kluby' ? 'club' : 'venue';
             if (kraje) {
                 const at = q === 'Q213' ? located(item) : null;
-                if (at) add(id, { label: item.n, q: item.q, fame: fameOf(item), home: [at], ok: [at], rel: new Set([at]), text: '', topic: 'sport' });
+                if (at) add(id, { ...about(item, 'sport'), home: [at], ok: [at], rel: new Set([at]), text: '' });
                 continue;
             }
             if (!ids.has(q) || (Number.isFinite(item.la) && located(item) !== q)) continue;
             const nations = nationQ(item.d || '');
             const cityLands = (item.f || {}).city ? [...(placeNames.get(namePlain(item.f.city)) || [])] : [];
-            add(id, { label: item.n, q: item.q, fame: fameOf(item), home: [q], ok: nations.every(other => other === q) ? [q] : [], rel: new Set([...land.rel, ...nations, ...cityLands]), text: item.d || '', topic: 'sport' });
+            add(id, { ...about(item, 'sport'), home: [q], ok: nations.every(other => other === q) ? [q] : [], rel: new Set([...land.rel, ...nations, ...cityLands]), text: item.d || '' });
         }
         for (const item of list('historie')) {
             if (item.c !== 'bitva' || item.ty !== 'bitva' || (item.co || []).length !== 1 || !item.n) continue;
             const at = located(item);
             if (!at || (kraje ? item.co[0] !== 'Q213' : item.co[0] !== at)) continue;
-            add('battle', { label: item.n, q: item.q, fame: fameOf(item), home: [at], ok: [at], rel: new Set(kraje ? [at] : [...item.co, ...nationQ(item.d || '')]), text: kraje ? '' : item.d || '', topic: 'historie' });
+            add('battle', { ...about(item, 'historie'), home: [at], ok: [at], rel: new Set(kraje ? [at] : [...item.co, ...nationQ(item.d || '')]), text: kraje ? '' : item.d || '' });
+        }
+        // Události (smlouvy, konference, katastrofy, revoluce…): mezi státy v datech jediný dnešní a poloha leží v něm (historické
+        // státy jako Sovětský svaz u Černobylu nevadí); celostátní nebo vícestátní události (Pražské jaro, Holokaust) ne
+        for (const item of list('historie')) {
+            const event = item.c === 'udalosti' || (item.c === 'bitva' && EVENT_WAR_TYPES.has(item.ty || ''));
+            if (!event || !item.n || DISPUTED.test(item.n) || EVENT_AMBIGUOUS.has(item.n)) continue;
+            const modern = (item.co || []).filter(q => modernStates.has(q));
+            if (modern.length !== 1) continue;
+            const at = located(item);
+            if (!at || (kraje ? modern[0] !== 'Q213' : modern[0] !== at)) continue;
+            add('event', { ...about(item, 'historie'), home: [at], ok: [at], rel: new Set(kraje ? [at] : [...modern, ...nationQ(item.d || '')]), text: kraje ? '' : item.d || '' });
         }
         if (kraje) {
             // Kapely podle města vzniku (město v Česku podle Zeměpisu)
@@ -683,7 +826,7 @@
                 const f = item.f || {};
                 if (item.c !== 'kapely' || !/^(?:Česko|Československo)$/.test(f.land || '') || !czechCities.get(f.city)) continue;
                 const at = krajOf(czechCities.get(f.city));
-                if (at) add('band', { label: item.n, q: item.q, fame: fameOf(item), home: [at], ok: [at], rel: new Set([at]), text: '', topic: 'hudba' });
+                if (at) add('band', { ...about(item, 'hudba'), home: [at], ok: [at], rel: new Set([at]), text: '' });
             }
         }
         // Stejně pojmenované položky v rodině (Birmingham v Anglii i v USA) nejsou ani správnou, ani nesprávnou možností;
@@ -697,9 +840,29 @@
                 if (entry.place && [...(placeNames.get(entry.key) || [])].some(at => !entry.rel.has(at))) continue;
                 for (const at of entry.home) { if (!family.byTerritory.has(at)) family.byTerritory.set(at, []); family.byTerritory.get(at).push(entry); }
             }
-            for (const found of family.byTerritory.values()) found.sort((a, b) => a.fame - b.fame);
+            // Kolik má území správných odpovědí známých (k = 1) a použitelných (ne pro znalce): rozhoduje, jestli rodina pro území jde
+            family.ready = new Map();
+            for (const [at, found] of family.byTerritory) {
+                found.sort((a, b) => a.fame - b.fame);
+                const own = found.filter(entry => entry.ok.includes(at));
+                family.ready.set(at, { known: own.filter(entry => entry.known).length, usable: own.filter(entry => !entry.expert).length });
+            }
         }
-        return { families, places, capitals, cities, stats, placeNames };
+        return { families, places, capitals, cities, stats, placeNames, myths: mythPools(list('mytologie'), fameOf) };
+    };
+    // Postavy mytologií podle kultury (nezávisle na mapě), od nejznámější; stejně pojmenované postavy dvou kultur ne
+    const mythPools = (list, fameOf) => {
+        const counts = new Map();
+        list.forEach(item => { if (item.n) counts.set(namePlain(item.n), (counts.get(namePlain(item.n)) || 0) + 1); });
+        const byCulture = new Map();
+        for (const item of list) {
+            const culture = MYTH_CATEGORIES.has(item.c) ? mythCulture(item) : null;
+            if (!culture || !item.n || /[()]/.test(item.n) || counts.get(namePlain(item.n)) > 1 || nationalitiesIn(item.n).length) continue;
+            if (!byCulture.has(culture)) byCulture.set(culture, []);
+            byCulture.get(culture).push({ label: item.n, key: namePlain(item.n), culture, fame: fameOf(item), known: item.k === 1 && item.x !== 1, expert: item.x === 1 });
+        }
+        for (const found of byCulture.values()) found.sort((a, b) => a.fame - b.fame);
+        return byCulture;
     };
 
     // --- Výběr podle úrovně ---
@@ -734,6 +897,18 @@
         const choices = shuffle([{ ...correct, correct: true }, ...wrong.slice(0, 3).map(choice => ({ ...choice, correct: false }))], rng);
         return distinctLabels(choices) ? choices : null;
     };
+    // Známost podle úrovně: na 0–1 jen známé položky (odpověď i nesprávné možnosti), výš i méně známé, nikdy pro znalce
+    const usable = (entry, level) => (level <= 1 ? entry.known : !entry.expert);
+    // Rodina jde pro území, když má dost známých správných odpovědí (minKnown) a na této úrovni aspoň jednu použitelnou.
+    // Místa (lenient: řeky, hory, města…) jdou i bez známé odpovědi: území bez známé řeky dostane nejznámější ze svých
+    // (ne pro znalce) a nesprávné možnosti zůstanou na úrovni 0–1 známé, takže jde odpovědět i vyloučením
+    const factReady = (ctx, spec) => {
+        const family = ctx.pools.families.get(spec.pool || spec.id);
+        const count = family && family.ready.get(ctx.item.id);
+        if (!count) return false;
+        if (spec.lenient) return count.usable > 0;
+        return count.known >= (spec.minKnown || 1) && (ctx.level <= 1 ? count.known : count.usable) > 0;
+    };
     // Otázka „Která z těchto … (vazba na území)?“ z rodiny položek
     const factQuestion = (spec, ctx) => {
         const { data, item, level, rng, pools } = ctx;
@@ -742,11 +917,13 @@
         const neighbours = indexMap(data).neighbours.get(item.id);
         // Název nesmí prozradit cíl (ani připomínat jiné území mapy, u regionů)
         const fine = (entry) => !revealsTerritory(entry.label, item, pools) && !(entry.clean && revealsOther(entry.label, entry.home, data, pools));
-        const own = (family.byTerritory.get(item.id) || []).filter(entry => entry.ok.includes(item.id));
+        const mine = (family.byTerritory.get(item.id) || []).filter(entry => entry.ok.includes(item.id));
+        let own = mine.filter(entry => usable(entry, level));
+        if (!own.length && spec.lenient) own = mine.filter(entry => !entry.expert);
         if (!own.length) return null;
         const names = pools.placeNames;
         // Nesprávná možnost: vazbu nesplňuje ani podle popisu, stejně pojmenované místo v cíli není, u přírody ne od sousedů
-        const wrongOk = (entry) => !entry.noWrong && !entry.home.includes(item.id) && !entry.rel.has(item.id)
+        const wrongOk = (entry) => usable(entry, level) && !entry.noWrong && !entry.home.includes(item.id) && !entry.rel.has(item.id)
             && (spec.near !== false || (!entry.home.some(at => neighbours.has(at)) && ![...entry.rel].some(at => neighbours.has(at))))
             && !(spec.places && names.has(entry.key) && names.get(entry.key).has(item.id)) && !mentions(entry.text, item) && fine(entry);
         const order = wrongTerritories(data, item, level, rng, spec.near !== false);
@@ -759,15 +936,19 @@
             tries += 1;
             const used = new Set([pick.key]);
             const wrong = [];
-            for (const other of order) {
-                const found = family.byTerritory.get(other.id);
-                if (!found) continue;
-                const ranked = found.map(entry => ({ entry, score: wrongScore(entry, pick, level, rng) })).sort((a, b) => a.score - b.score);
-                const hit = ranked.find(({ entry }) => !used.has(entry.key) && wrongOk(entry));
-                if (!hit) continue;
-                used.add(hit.entry.key);
-                wrong.push(hit.entry);
-                if (wrong.length >= 3) break;
+            // Z každého území jedna nesprávná možnost; když území s položkami rodiny nestačí (herci jen z USA, Kanady
+            // a Mexika), ve druhém kole i další ze stejných území
+            for (let round = 0; round < 3 && wrong.length < 3; round++) {
+                for (const other of order) {
+                    const found = family.byTerritory.get(other.id);
+                    if (!found) continue;
+                    const ranked = found.map(entry => ({ entry, score: wrongScore(entry, pick, level, rng) })).sort((a, b) => a.score - b.score);
+                    const hit = ranked.find(({ entry }) => !used.has(entry.key) && wrongOk(entry));
+                    if (!hit) continue;
+                    used.add(hit.entry.key);
+                    wrong.push(hit.entry);
+                    if (wrong.length >= 3) break;
+                }
             }
             const choices = options({ label: pick.label }, wrong.map(entry => ({ label: entry.label })), rng);
             if (!choices) continue;
@@ -912,65 +1093,159 @@
         return null;
     };
 
+    // --- Mytologie: „Která z těchto postav patří do řecké mytologie?“ (nesprávné možnosti z nepříbuzných kultur) ---
+    // Kultura jde pro území, má-li aspoň MYTH_MIN_KNOWN známých postav
+    const MYTH_MIN_KNOWN = 3;
+    const mythCulturesFor = ({ item, pools, level }) => Object.keys(MYTHS).filter(culture => {
+        const found = pools.myths.get(culture) || [];
+        return MYTHS[culture].name && MYTHS[culture].lands.includes(item.id) && found.filter(entry => entry.known).length >= MYTH_MIN_KNOWN && found.some(entry => usable(entry, level));
+    });
+    const mythQuestion = (ctx) => {
+        const { item, level, rng, pools } = ctx;
+        for (const culture of shuffle(mythCulturesFor(ctx), rng)) {
+            const related = new Set([culture, ...(MYTHS[culture].near || [])]);
+            const own = pools.myths.get(culture).filter(entry => usable(entry, level) && !revealsTerritory(entry.label, item, pools));
+            const others = [...pools.myths.keys()].filter(other => !related.has(other));
+            for (const pick of shuffle(levelWindow(own, level), rng).slice(0, 4)) {
+                // Nesprávné možnosti ze tří různých nepříbuzných kultur (Zeus, Thór, Anubis, Šiva)
+                const used = new Set([pick.key]);
+                const wrong = [];
+                for (const other of shuffle(others, rng)) {
+                    const found = pools.myths.get(other).filter(entry => usable(entry, level) && !used.has(entry.key));
+                    if (!found.length) continue;
+                    const hit = found[Math.floor(rng() * found.length)];
+                    used.add(hit.key);
+                    wrong.push(hit);
+                    if (wrong.length >= 3) break;
+                }
+                const choices = options({ label: pick.label }, wrong.map(entry => ({ label: entry.label })), rng);
+                if (choices) return { kind: 'myth', prompt: `Která z těchto postav patří ${MYTHS[culture].name}?`, choices, topic: 'mytologie' };
+            }
+        }
+        return null;
+    };
+
     // --- Rodiny otázek ---
-    // w = váhy podle úrovně 0–3 (snadné rodiny nízko víc, mapa a čísla výš víc); states / kraje = na které mapě rodina je.
-    // Fakta: prompt(forms, item, choices), near = false: nesprávné možnosti ne od sousedů, places: hlídat stejný název místa v cíli
-    const fact = (id, kind, prompt, extra = {}) => ({ id, kind, w: [1, 1, 1, 1], states: true, kraje: false, build: (ctx, spec) => factQuestion(spec, ctx), prompt, ...extra });
+    // Obory a jejich podíl na otázkách (obor, který pro území nejde, svůj podíl rozdělí mezi ostatní); rodina nejvýš FAMILY_CAP
+    const DOMAINS = { geo: 0.3, history: 0.2, culture: 0.25, science: 0.1, sport: 0.1, nature: 0.05 };
+    const FAMILY_CAP = 0.12;
+    // w = váhy rodiny v oboru podle úrovně 0–3 (snadné rodiny nízko víc, mapa a čísla výš víc); states / kraje = na které mapě
+    // rodina je; ready(ctx, spec) = jde pro území (bez ready vždy, jen může otázku nesložit). Fakta: prompt(forms, item, choices),
+    // near = false: nesprávné možnosti ne od sousedů, places: hlídat stejný název místa v cíli, minKnown: kolik známých odpovědí
+    // území potřebuje, lenient: místa (zeměpis) jdou i bez známé odpovědi (factReady)
+    const fact = (id, domain, kind, prompt, extra = {}) => ({ id, domain, kind, w: [1, 1, 1, 1], states: true, kraje: false, minKnown: 1, lenient: domain === 'geo',
+        ready: factReady, build: (ctx, spec) => factQuestion(spec, ctx), prompt, ...extra });
+    // „Která z těchto osobností astronomie (a kosmonautiky) …“ podle toho, kdo mezi možnostmi je
+    const astronomyWord = (found) => {
+        const kinds = new Set(found.map(entry => (/^kosmonaut/.test(entry.sub) ? 'kosmonautiky' : 'astronomie')));
+        return kinds.size > 1 ? 'astronomie a kosmonautiky' : [...kinds][0];
+    };
     const FAMILIES = [
-        { id: 'capital', w: [1.15, 1, 0.8, 0.5], states: true, kraje: true, build: capitalQuestion },
-        { id: 'flag', w: [1.15, 1, 0.8, 0.5], states: true, kraje: true, build: flagQuestion },
-        { id: 'neighbour', w: [1.1, 1, 0.8, 0.6], states: true, kraje: true, build: neighbourQuestion },
-        { id: 'map', w: [0.7, 1, 1.2, 1.3], states: true, kraje: true, build: mapQuestion },
-        fact('city', 'place', (f) => `Které z těchto měst leží ${f.in}?`, { kraje: true, places: true }),
-        fact('building', 'place', (f) => `Která z těchto staveb stojí ${f.in}?`, { kraje: true, places: true }),
-        fact('castle', 'place', (f) => `Který z těchto hradů a zámků stojí ${f.in}?`, { states: false, kraje: true, places: true }),
-        fact('mountain', 'place', (f) => `Která z těchto hor leží ${f.in}?`, { kraje: true, near: false, places: true }),
-        fact('lake', 'place', (f, item, found) => (found.every(entry => entry.sub === 'jezero') ? `Které z těchto jezer leží ${f.in}?` : `Která z těchto vodních ploch leží ${f.in}?`), { kraje: true, near: false, places: true }),
-        fact('island', 'place', (f) => `Který z těchto ostrovů leží ${f.in}?`, { near: false, places: true, w: [0.8, 1, 1, 1] }),
-        fact('nature', 'place', (f) => `Které z těchto přírodních míst leží ${f.in}?`, { kraje: true, near: false, places: true }),
-        fact('river', 'place', (f) => `Která z těchto řek teče ${f.in}?`, { near: false, places: true }),
-        fact('region', 'place', (f) => `Který z těchto regionů leží ${f.in}?`, { near: false, places: true, w: [0.8, 1, 1.1, 1.1] }),
-        fact('writer', 'person', (f) => `Která z těchto literárních osobností pochází ${f.from}?`),
-        fact('musician', 'person', (f) => `Která z těchto hudebních osobností pochází ${f.from}?`),
-        fact('band', 'person', (f, item) => (item.loc ? `Která z těchto kapel vznikla ${f.in}?` : `Která z těchto kapel pochází ${f.from}?`), { kraje: true, w: [0.8, 0.8, 0.8, 0.8] }),
-        fact('artist', 'person', (f) => `Která z těchto osobností výtvarného umění pochází ${f.from}?`),
-        fact('architect', 'person', (f) => `Která z těchto osobností architektury pochází ${f.from}?`, { w: [0.6, 0.7, 0.8, 0.8] }),
-        fact('filmmaker', 'person', (f) => `Která z těchto filmových osobností pochází ${f.from}?`),
-        fact('athlete', 'person', (f) => `Která z těchto sportovních osobností pochází ${f.from}?`),
-        fact('ruler', 'person', (f) => `Která z těchto osobností stála v čele ${f.of}?`),
-        fact('historic', 'person', (f) => `Která z těchto osobností pochází ${f.from}?`, { w: [0.7, 0.8, 0.8, 0.8] }),
-        fact('book', 'work', (f) => `Které z těchto literárních děl pochází ${f.from}?`),
-        fact('music-work', 'work', (f) => `Které z těchto hudebních děl pochází ${f.from}?`, { w: [0.8, 0.8, 0.8, 0.8] }),
-        // Obraz „z Francie“ by mohl znamenat i obraz v Louvru nebo namalovaný v Paříži cizincem: proto podle malíře
-        fact('painting', 'work', (f) => `Který z těchto obrazů namaloval malíř nebo malířka ${f.from}?`, { w: [0.8, 0.8, 0.8, 0.8] }),
-        fact('film', 'work', (f) => `Který z těchto filmů pochází ${f.from}?`),
-        fact('club', 'sport', (f) => `Který z těchto sportovních klubů sídlí ${f.in}?`, { kraje: true }),
-        fact('venue', 'sport', (f) => `Které z těchto sportovišť se nachází ${f.in}?`, { kraje: true, w: [0.8, 0.9, 1, 1] }),
-        fact('olympics', 'sport', (f) => `Které z těchto olympijských her se konaly ${f.in}?`),
-        fact('battle', 'history', (f) => `Která z těchto bitev se odehrála ${f.in}?`, { kraje: true, w: [0.8, 1, 1, 1] }),
-        { id: 'population', w: [0.8, 1, 1.1, 1.1], states: true, kraje: false, build: (ctx) => numberQuestion('population', ctx) },
-        { id: 'area', w: [0.8, 1, 1.1, 1.1], states: true, kraje: false, build: (ctx) => numberQuestion('area', ctx) },
-        { id: 'bigcity', w: [0.8, 1, 1.1, 1.1], states: true, kraje: true, build: cityQuestion }
+        // Zeměpis
+        { id: 'capital', domain: 'geo', w: [1.15, 1, 0.8, 0.5], states: true, kraje: true, build: capitalQuestion },
+        { id: 'flag', domain: 'geo', w: [1.15, 1, 0.8, 0.5], states: true, kraje: true, build: flagQuestion },
+        { id: 'neighbour', domain: 'geo', w: [1.1, 1, 0.8, 0.6], states: true, kraje: true, build: neighbourQuestion },
+        { id: 'map', domain: 'geo', w: [0.7, 1, 1.2, 1.3], states: true, kraje: true, build: mapQuestion },
+        fact('city', 'geo', 'place', (f) => `Které z těchto měst leží ${f.in}?`, { kraje: true, places: true }),
+        fact('building', 'geo', 'place', (f) => `Která z těchto staveb stojí ${f.in}?`, { kraje: true, places: true }),
+        fact('castle', 'geo', 'place', (f) => `Který z těchto hradů a zámků stojí ${f.in}?`, { states: false, kraje: true, places: true }),
+        fact('mountain', 'geo', 'place', (f) => `Která z těchto hor leží ${f.in}?`, { kraje: true, near: false, places: true }),
+        fact('lake', 'geo', 'place', (f, item, found) => (found.every(entry => entry.sub === 'jezero') ? `Které z těchto jezer leží ${f.in}?` : `Která z těchto vodních ploch leží ${f.in}?`), { kraje: true, near: false, places: true }),
+        fact('island', 'geo', 'place', (f) => `Který z těchto ostrovů leží ${f.in}?`, { near: false, places: true, w: [0.8, 1, 1, 1] }),
+        fact('nature', 'geo', 'place', (f) => `Které z těchto přírodních míst leží ${f.in}?`, { kraje: true, near: false, places: true }),
+        fact('river', 'geo', 'place', (f) => `Která z těchto řek teče ${f.in}?`, { near: false, places: true }),
+        fact('region', 'geo', 'place', (f) => `Který z těchto regionů leží ${f.in}?`, { near: false, places: true, w: [0.8, 1, 1.1, 1.1] }),
+        { id: 'population', domain: 'geo', w: [0.8, 1, 1.1, 1.1], states: true, kraje: false, build: (ctx) => numberQuestion('population', ctx) },
+        { id: 'area', domain: 'geo', w: [0.8, 1, 1.1, 1.1], states: true, kraje: false, build: (ctx) => numberQuestion('area', ctx) },
+        { id: 'bigcity', domain: 'geo', w: [0.8, 1, 1.1, 1.1], states: true, kraje: true, build: cityQuestion },
+        // Historie
+        fact('ruler', 'history', 'person', (f) => `Která z těchto osobností stála v čele ${f.of}?`),
+        fact('politician', 'history', 'person', (f) => `Která z těchto osobností politiky pochází ${f.from}?`),
+        fact('historic', 'history', 'person', (f) => `Která z těchto osobností pochází ${f.from}?`, { w: [0.7, 0.8, 0.8, 0.8] }),
+        fact('battle', 'history', 'history', (f) => `Která z těchto bitev se odehrála ${f.in}?`, { kraje: true, w: [0.8, 1, 1, 1] }),
+        // Události v krajích ne: v datech jsou jen čtyři (tři v Praze s Prahou v názvu), na čtyři možnosti nestačí
+        fact('event', 'history', 'history', (f) => `Která z těchto událostí se odehrála ${f.in}?`),
+        // Kultura
+        fact('writer', 'culture', 'person', (f) => `Která z těchto literárních osobností pochází ${f.from}?`),
+        fact('book', 'culture', 'work', (f) => `Které z těchto literárních děl pochází ${f.from}?`),
+        fact('musician', 'culture', 'person', (f) => `Která z těchto hudebních osobností pochází ${f.from}?`),
+        fact('band', 'culture', 'person', (f, item) => (item.loc ? `Která z těchto kapel vznikla ${f.in}?` : `Která z těchto kapel pochází ${f.from}?`), { kraje: true, w: [0.8, 0.8, 0.8, 0.8] }),
+        fact('music-work', 'culture', 'work', (f) => `Které z těchto hudebních děl pochází ${f.from}?`, { w: [0.8, 0.8, 0.8, 0.8] }),
+        // Opera „z Itálie“ by mohla znamenat i operu, která se v Itálii odehrává (Carmen ve Španělsku): proto podle skladatele
+        fact('opera', 'culture', 'work', (f, item, found) => `Kterou z těchto ${found.every(entry => entry.sub === 'opera') ? 'oper' : 'oper a operet'} složil skladatel nebo skladatelka ${f.from}?`, { w: [0.8, 0.8, 0.8, 0.8] }),
+        fact('artist', 'culture', 'person', (f) => `Která z těchto osobností výtvarného umění pochází ${f.from}?`),
+        // Obraz „z Francie“ by mohl znamenat i obraz v Louvru nebo namalovaný v Paříži cizincem: proto podle malíře (a socha podle sochaře)
+        fact('painting', 'culture', 'work', (f) => `Který z těchto obrazů namaloval malíř nebo malířka ${f.from}?`, { w: [0.8, 0.8, 0.8, 0.8] }),
+        fact('sculpture', 'culture', 'work', (f) => `Kterou z těchto soch vytvořil sochař nebo sochařka ${f.from}?`, { w: [0.7, 0.7, 0.7, 0.7] }),
+        fact('architect', 'culture', 'person', (f) => `Která z těchto osobností architektury pochází ${f.from}?`, { w: [0.6, 0.7, 0.8, 0.8] }),
+        fact('filmmaker', 'culture', 'person', (f) => `Která z těchto osobností filmové režie pochází ${f.from}?`, { w: [0.8, 0.8, 0.8, 0.8] }),
+        fact('actor', 'culture', 'person', (f) => `Která z těchto hereckých osobností pochází ${f.from}?`),
+        fact('film', 'culture', 'work', (f) => `Který z těchto filmů pochází ${f.from}?`),
+        // Věda
+        fact('physicist', 'science', 'person', (f) => `Která z těchto osobností fyziky pochází ${f.from}?`),
+        fact('astronomer', 'science', 'person', (f, item, found) => `Která z těchto osobností ${astronomyWord(found)} pochází ${f.from}?`),
+        fact('chemist', 'science', 'person', (f) => `Která z těchto osobností chemie pochází ${f.from}?`),
+        fact('invention', 'science', 'work', (f) => `Který z těchto vynálezů pochází ${f.from}?`),
+        // Sport
+        fact('athlete', 'sport', 'person', (f) => `Která z těchto sportovních osobností pochází ${f.from}?`),
+        fact('club', 'sport', 'sport', (f) => `Který z těchto sportovních klubů sídlí ${f.in}?`, { kraje: true }),
+        fact('venue', 'sport', 'sport', (f) => `Které z těchto sportovišť se nachází ${f.in}?`, { kraje: true, w: [0.8, 0.9, 1, 1] }),
+        fact('olympics', 'sport', 'sport', (f) => `Které z těchto olympijských her se konaly ${f.in}?`),
+        // Příroda a mytologie
+        fact('dog', 'nature', 'nature', (f) => `Které z těchto plemen psů pochází ${f.from}?`),
+        { id: 'myth', domain: 'nature', kind: 'myth', w: [1, 1, 1, 1], states: true, kraje: false, ready: (ctx) => mythCulturesFor(ctx).length > 0, build: mythQuestion }
     ];
     const FAMILY_IDS = FAMILIES.map(family => family.id);
+    const FAMILY_DOMAIN = Object.fromEntries(FAMILIES.map(family => [family.id, family.domain]));
     // Rodiny dostupné na mapě (states / kraje) seřazené podle váhy pro úroveň
     const kindsFor = (level, kraje = false) => {
         const lv = Math.max(0, Math.min(3, Math.round(Number(level) || 0)));
         return FAMILIES.filter(family => (kraje ? family.kraje : family.states)).sort((a, b) => b.w[lv] - a.w[lv]).map(family => family.id);
     };
-    // Pořadí rodin pro tah: náhodně podle vah (rodina, která pro území nejde, se přeskočí)
-    const weightedOrder = (families, level, rng) => families.map(family => ({ family, key: rng() ** (1 / Math.max(0.01, family.w[level])) })).sort((a, b) => b.key - a.key).map(entry => entry.family);
-    // Otázka pro tah: semínko = hra, území, druh tahu a pořadí tahu (stejná otázka i po zavření aplikace)
-    const buildQuestion = ({ data, territory, level = 0, topics = {}, seed = '' }) => {
+    // Podíly rodin pro území: obor podle DOMAINS (podíly chybějících oborů se rozdělí mezi přítomné), v oboru podle vah úrovně;
+    // rodina nad FAMILY_CAP dostane FAMILY_CAP a přebytek se rozdělí mezi ostatní (u území s málo rodinami jen tolik, kolik jde)
+    const familyShares = (families, level) => {
+        const inDomain = {};
+        families.forEach(family => { inDomain[family.domain] = (inDomain[family.domain] || 0) + family.w[level]; });
+        const total = Object.keys(inDomain).reduce((sum, domain) => sum + DOMAINS[domain], 0);
+        const shares = families.map(family => (DOMAINS[family.domain] / total) * (family.w[level] / inDomain[family.domain]));
+        const capped = new Set();
+        for (let round = 0; round < families.length; round++) {
+            const over = shares.map((share, i) => (!capped.has(i) && share > FAMILY_CAP ? i : -1)).filter(i => i >= 0);
+            if (!over.length) break;
+            let excess = 0;
+            over.forEach(i => { excess += shares[i] - FAMILY_CAP; shares[i] = FAMILY_CAP; capped.add(i); });
+            const free = shares.reduce((sum, share, i) => sum + (capped.has(i) ? 0 : share), 0);
+            if (!(free > 0)) break;
+            shares.forEach((share, i) => { if (!capped.has(i)) shares[i] = share * (free + excess) / free; });
+        }
+        return shares;
+    };
+    // Pořadí rodin pro tah: náhodně podle podílů (Efraimidis–Spirakis); rodina, která otázku nesloží, předá tah další v pořadí
+    const weightedOrder = (families, shares, rng) => families.map((family, i) => ({ family, key: rng() ** (1 / Math.max(1e-6, shares[i])) })).sort((a, b) => b.key - a.key).map(entry => entry.family);
+    const contextOf = (data, item, level, topics, rng) => ({ data, item, level, rng, kraje: isKraje(data), topics, pools: poolsOf(data, topics || {}), forms: formsOf(item) });
+    const readyFamilies = (ctx) => FAMILIES.filter(entry => (ctx.kraje ? entry.kraje : entry.states) && (!entry.ready || entry.ready(ctx, entry)));
+    // Plán otázek území na úrovni: rodiny, které jdou, a jejich podíly (pro testy a ladění)
+    const familyPlan = ({ data, territory, level = 0, topics = {} }) => {
+        const item = indexMap(data).byId.get(territory);
+        if (!item) return [];
+        const ctx = contextOf(data, item, Math.max(0, Math.min(3, Math.round(Number(level) || 0))), topics, () => 0.5);
+        const families = readyFamilies(ctx);
+        const shares = familyShares(families, ctx.level);
+        return families.map((family, i) => ({ id: family.id, domain: family.domain, share: shares[i] }));
+    };
+    // Otázka pro tah: semínko = hra, území, druh tahu a pořadí tahu (stejná otázka i po zavření aplikace); only = jen tato rodina
+    // (testy a ladění)
+    const buildQuestion = ({ data, territory, level = 0, topics = {}, seed = '', only = null }) => {
         const item = indexMap(data).byId.get(territory);
         if (!item) return null;
         const lv = Math.max(0, Math.min(3, Math.round(Number(level) || 0)));
         const rng = seededRandom(`dobyvani|${seed}|${territory}|${level}`);
-        const kraje = isKraje(data);
-        const ctx = { data, item, level: lv, rng, kraje, topics, pools: poolsOf(data, topics || {}), forms: formsOf(item) };
-        for (const family of weightedOrder(FAMILIES.filter(entry => (kraje ? entry.kraje : entry.states)), lv, rng)) {
+        const ctx = contextOf(data, item, lv, topics, rng);
+        const families = readyFamilies(ctx).filter(family => !only || family.id === only);
+        for (const family of weightedOrder(families, familyShares(families, lv), rng)) {
             const question = family.build(ctx, family);
-            if (question) return { ...question, family: family.id, level, difficulty: Math.min(3, Math.max(1, level + 1)) };
+            if (question) return { ...question, family: family.id, domain: family.domain, level, difficulty: Math.min(3, Math.max(1, level + 1)) };
         }
         return null;
     };
@@ -1142,7 +1417,17 @@
                 inks.push(`<path class="cq-ink${owner.me ? ' cq-ink-me' : ''}" data-ink="${item.id}" d="${item.d}" stroke="${inkOf(owner.flag_color)}"/>`);
             }
         }
-        parts.push(`<g class="cq-washes" pointer-events="none">${washes.join('')}</g><g pointer-events="none">${hatches.join('')}</g>`);
+        // Akvarelová lazura (č. 264): šedá textura řídí, jak silně barva hráče na území drží (maska) – kde se v textuře barva slila
+        // (tmavší skvrny), je lazura plná, jinde o čtvrtinu slabší; barva tak zůstane čistá a jen nerovnoměrná jako skutečný akvarel
+        let aqua = '';
+        if (ART.watercolor && washes.length) {
+            const tile = Math.round(Math.max(w, h) / 2.4);
+            defs.push(`<pattern id="${prefix}-aqua" width="${tile}" height="${tile}" patternUnits="userSpaceOnUse"><image href="icons/textury/${ART.watercolor}.webp" width="${tile}" height="${tile}"/></pattern>`
+                + `<filter id="${prefix}-aqua-f" color-interpolation-filters="sRGB"><feColorMatrix type="matrix" values="-1 0 0 0 1.75 -1 0 0 0 1.75 -1 0 0 0 1.75 0 0 0 1 0"/></filter>`
+                + `<mask id="${prefix}-aqua-m" maskUnits="userSpaceOnUse" x="0" y="0" width="${w}" height="${h}"><rect width="${w}" height="${h}" fill="url(#${prefix}-aqua)" filter="url(#${prefix}-aqua-f)"/></mask>`);
+            aqua = ` mask="url(#${prefix}-aqua-m)"`;
+        }
+        parts.push(`<g class="cq-washes" pointer-events="none"${aqua}>${washes.join('')}</g><g pointer-events="none">${hatches.join('')}</g>`);
         // Celé regiony: zlatá záře obrysu (pod hranicemi)
         if (view) for (const region of data.regions) {
             const owner = view.ownerOf(region.t[0]);
@@ -1353,7 +1638,7 @@
         }
         return `M${points.join('L')}Z`;
     })();
-    const sealSvg = (colorId, emblemId, cls = 'h-14 w-14') => {
+    const sealDrawn = (colorId, emblemId, cls = 'h-14 w-14') => {
         const hex = colorOf(colorId).hex;
         const dark = mix(hex, '#000000', 0.38), deep = mix(hex, '#000000', 0.55), light = mix(hex, '#ffffff', 0.38);
         const emblem = emblemOf(emblemId);
@@ -1364,6 +1649,19 @@
             + `<circle cx="24" cy="24" r="12.4" fill="none" stroke="${light}" stroke-width="0.7" stroke-opacity="0.55"/>`
             + `<path d="M10.5 17.5A15.5 15.5 0 0 1 20 9.2" fill="none" stroke="#ffffff" stroke-opacity="0.45" stroke-width="2" stroke-linecap="round"/>`
             + `<g transform="translate(14.6 15.2) scale(0.78)">${emblem.draw(light)}</g><g transform="translate(14.6 14.6) scale(0.78)">${emblem.draw(deep)}</g></svg>`;
+    };
+    // Pečeť z obrázku (č. 265): šedý vosk se přebarví násobením barvou hráče (feColorMatrix, světlejší o pětinu, aby šedý vosk nebyl
+    // tmavší než barva) a do vtlačeného kruhu (poloměr asi 0,23 strany) se vytiskne znak. Bez obrázku SVG kresba výš.
+    const sealSvg = (colorId, emblemId, cls = 'h-14 w-14') => {
+        if (!ART.seal) return sealDrawn(colorId, emblemId, cls);
+        const color = colorOf(colorId);
+        const hex = color.hex;
+        const [r, g, b] = hexRgb(hex).map(value => Math.min(1.4, value / 255 * 1.22).toFixed(3));
+        const emblem = emblemOf(emblemId);
+        const deep = mix(hex, '#000000', 0.55), light = mix(hex, '#ffffff', 0.45);
+        return `<svg viewBox="0 0 48 48" class="${cls}" aria-hidden="true" focusable="false"><defs><filter id="cqt-${color.id}" color-interpolation-filters="sRGB"><feColorMatrix type="matrix" values="${r} 0 0 0 0 0 ${g} 0 0 0 0 0 ${b} 0 0 0 0 0 1 0"/></filter></defs>`
+            + `<image href="${artUrl(ART.seal)}" x="0" y="0" width="48" height="48" filter="url(#cqt-${color.id})"/>`
+            + `<g transform="translate(15.6 16.2) scale(0.7)">${emblem.draw(light)}</g><g transform="translate(15.6 15.6) scale(0.7)">${emblem.draw(deep)}</g></svg>`;
     };
     // Okno Barva a znak ve stylu map Dobývání: pergamen, náhled praporce s pečetí, přepínač Barva / Znak jako kožené záložky.
     // Barvy jako voskové pečeti 3 × 3 (obsazené jiným hráčem zašedlé a nejdou), znaky jako razítka na pergamenu 6 × 4
@@ -1633,7 +1931,7 @@
             if (!player) return '<span class="flex-1"></span>';
             const height = ['h-14', 'h-[4.75rem]', 'h-10'][slot];
             const first = player.place === 1;
-            const flag = `<span class="relative flex h-16 w-16 items-end justify-center">${first ? LAUREL : ''}<svg viewBox="0 0 40 52" class="relative h-14 w-11" aria-hidden="true" focusable="false"><path d="M4 2V50" stroke="#4a2f16" stroke-width="2.4" stroke-linecap="round"/><circle cx="4" cy="2.5" r="2.4" fill="#d69725" stroke="#7a461b" stroke-width="0.8"/><g class="cq-wave" transform="translate(5 4) scale(1.05)">${pennantGroup(player.flag_color, player.emblem)}</g></svg></span>`;
+            const flag = `<span class="relative flex h-16 w-16 items-end justify-center">${first ? (ART.laurel ? `<img src="${artUrl(ART.laurel)}" alt="" class="cq-laurel-art">` : LAUREL) : ''}<svg viewBox="0 0 40 52" class="relative h-14 w-11" aria-hidden="true" focusable="false"><path d="M4 2V50" stroke="#4a2f16" stroke-width="2.4" stroke-linecap="round"/><circle cx="4" cy="2.5" r="2.4" fill="#d69725" stroke="#7a461b" stroke-width="0.8"/><g class="cq-wave" transform="translate(5 4) scale(1.05)">${pennantGroup(player.flag_color, player.emblem)}</g></svg></span>`;
             return `<div class="cq-podium-step flex min-w-0 flex-1 flex-col items-center" data-place="${player.place}">${flag}
                 <span class="cq-ledger-title max-w-full truncate text-[13px]">${esc(player.me ? 'Ty' : player.display_name || 'Hráč')}</span>
                 <span class="text-[11px] font-black text-amber-900/80 dark:text-gold-200/80">${esc(pointsWord(player.score))}</span>
@@ -1695,7 +1993,7 @@
         durationLabel, periodLabel, actionsLabel, timeLeft, movesWord, pointsWord, playersWord, territoriesWord, regionsWord, nextPeriodAt, agoLabel, periodLine,
         budgetTitle, budgetInnerHtml, periodStartText, PENALTY_TEXT,
         indexMap, parseRings, pointInRings, project, territoryAt, isAdjacent, viewOf, rank, sourcesFor, actionsFor,
-        buildQuestion, kindsFor, placesOf, poolsOf, formsOf, FAMILY_IDS, flagUrl, flagFallback, THUMB, feedItems, replaySteps, capturedWord, hatchPattern, levelIcon, iconMarkup,
+        buildQuestion, familyPlan, kindsFor, placesOf, poolsOf, formsOf, FAMILY_IDS, FAMILY_DOMAIN, DOMAINS, FAMILY_CAP, flagUrl, flagFallback, THUMB, feedItems, replaySteps, capturedWord, hatchPattern, levelIcon, iconMarkup,
         pennantSvg, pennantGroup, emblemSvg, sealSvg, mapSvg, thumbSvg, marksFor, homeCardHtml, hubHtml, mineHtml, lobbyHtml, createHtml, lookHtml, lobbyDetailHtml,
         gameScreenHtml, playersStripHtml, recentHtml, sheetHtml, devBarHtml, questionHtml, feedHtml, resultHtml, helpHtml, HELP_TABS, mapTitle, paramChips
     };

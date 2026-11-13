@@ -200,10 +200,10 @@ test('odměny v Profilu: rámečky, titul a postavičky', { skip: !chromium && '
         await waitForHome(tab);
         await openLook(tab);
         const art = await tab.evaluate(() => window.MudrlantLook.ART_FRAMES.map(item => item.id));
-        assert.equal(art.length, 10);
+        assert.equal(art.length, 11);
         for (const id of art) assert.equal(await tab.locator(`[data-frame="${id}"] .frame-art.frame-${id}`).count(), 1, `náhled ${id}`);
         const locked = async (id) => /grayscale/.test(await tab.getAttribute(`[data-frame="${id}"]`, 'class'));
-        assert.deepEqual(await Promise.all(['ohen', 'blesk', 'ruze', 'more', 'led', 'duha-mracky', 'kralovsky-vavrin'].map(locked)), [false, false, false, true, true, true, true]);
+        assert.deepEqual(await Promise.all(['ohen', 'blesk', 'ruze', 'more', 'led', 'duha-mracky', 'kralovsky-vavrin', 'dobyvatel'].map(locked)), [false, false, false, true, true, true, true, true]);
         assert.match(await tab.getAttribute('[data-frame="more"]', 'aria-label'), /Mořská vlna: Úroveň 49 \(zamčeno\)/);
         assert.match(await tab.getAttribute('[data-frame="led"]', 'aria-label'), /Ledová koruna: Odznak: Nesmrtelný \(zamčeno\)/);
         assert.match(await tab.getAttribute('[data-frame="duha-mracky"]', 'aria-label'), /Duha s mráčky: Vzácný dárek z Truhly Mudrlanta \(zamčeno\)/);

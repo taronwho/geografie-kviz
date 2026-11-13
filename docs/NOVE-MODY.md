@@ -193,7 +193,14 @@ Hra více hráčů o území na mapě. Hráči si hry sami zakládají a přidá
   - správně na území s úrovní 0 = území je tvoje;
   - špatně = útok propadne;
   - čím vyšší opevnění, tím těžší otázka.
-- **Otázky o území**: hlavní město, vlajka, najdi na mapě, stavba nebo místo, osobnost; u krajů krajské město a místa v kraji.
+- **Otázky o území**: napřed se losuje obor (zeměpis 30 %, kultura 25 %, historie 20 %, věda 10 %, sport 10 %, příroda a mytologie 5 %; obor bez dat pro území svůj podíl předá ostatním), pak druh otázky v něm; žádný druh nad 12 % otázek území.
+  - zeměpis: hlavní město, vlajka, soused, najdi na mapě, města, stavby, hory, řeky, jezera, ostrovy, regiony, počet obyvatel, rozloha;
+  - historie: panovníci, osobnosti politiky, historické osobnosti, bitvy, události („Která z těchto událostí se odehrála ve Francii?“);
+  - kultura: literatura, hudba, kapely, opery (podle skladatele), výtvarné umění, obrazy a sochy (podle autora), architekti, režie, herectví, filmy;
+  - věda: osobnosti fyziky, astronomie a kosmonautiky, chemie, vynálezy; sport: sportovci, kluby, sportoviště, olympiády;
+  - příroda a mytologie: plemena psů podle původu, postavy mytologií, které k území jednoznačně patří (řecká – Řecko, severská – Norsko, Švédsko, Dánsko, Island, české pověsti – Česko…);
+  - na úrovni 0–1 jsou odpověď i nesprávné možnosti známé, výš i méně známé, nikdy pro znalce; obor bez známé odpovědi se pro území neptá;
+  - u krajů krajské město, místa, hrady a zámky, bitvy, kapely, kluby a sportoviště v kraji.
 - **Regiony** (jako kontinenty v Risku): celý region = zlatý obrys, +1 tah za období a +2 body na konci.
 - **Poklady**: 5 neutrálních území s truhličkou; dobytí = +1 tah hned.
 - **Domovské území**: každý začíná jedním (hrad). Kdo přijde o všechna území, dostane v dalším období nové neutrální („Návrat do hry“).
@@ -269,7 +276,7 @@ Do dodání hra používá existující obrázky. Po dodání stačí vyměnit k
 | 214 | `clanek-prasknuty` | Prasklý článek |
 | 215–222 | `boss-<id>` | Portréty osmi bossů (útočná póza) |
 | 223–230 | `boss-<id>-porazeny` | Poražení bossové (hvězdičky kolem hlavy) |
-| 231 | `textura-arena` | Pozadí arény (na výšku) |
+| 231, 268–274 | `arena-<boss>` | Arény bossů (na výšku): Maestro jeviště, Kapitán paluba, Rytíř kolbiště, Alchymista laboratoř, Ampér elektrická laboratoř, Druid kamenný kruh, Olympan chrám na Olympu, Režisér filmový ateliér |
 | 232 | `textura-pergamen` | Bezešvý starý pergamen |
 | 233 | `textura-more` | Bezešvé moře starých map |
 | 234 | `dobyvani` | Sova dobyvatel s helmou a mapou (karta, tip, odznak) |

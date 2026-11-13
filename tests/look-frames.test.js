@@ -77,16 +77,16 @@ const ALL_ART = Look.FRAMES.filter(item => item.art);
 const MONTHS = Array.from({ length: 12 }, (_, index) => String(index + 1).padStart(2, '0'));
 const SEASON_ART = MONTHS.flatMap(month => [`sezona-${month}`, `sezona-${month}-b`]);
 
-test('obrázkové rámečky: deset, pět za úroveň (35–95, každý na jiné úrovni než ostatní odměny), tři za těžké odznaky, dva z truhly', () => {
-    assert.equal(ART.length, 10);
+test('obrázkové rámečky: jedenáct, pět za úroveň (35–95, každý na jiné úrovni než ostatní odměny), čtyři za těžké odznaky (i Dobyvatel), dva z truhly', () => {
+    assert.equal(ART.length, 11);
     assert.deepEqual(ALL_ART.map(item => item.id), ['vecny-ohen', ...SEASON_ART, ...ART.map(item => item.id)], 'obrázkové jsou odměny, Věčný oheň a rámečky sezóny');
     assert.equal(Look.find('frames', 'vecny-ohen').badge, 'serie-365');
-    assert.deepEqual(ART.map(item => item.id), ['ohen', 'more', 'soukoli', 'galaxie', 'kralovsky-vavrin', 'blesk', 'led', 'drak', 'duha-mracky', 'ruze']);
+    assert.deepEqual(ART.map(item => item.id), ['ohen', 'more', 'soukoli', 'galaxie', 'kralovsky-vavrin', 'blesk', 'led', 'drak', 'dobyvatel', 'duha-mracky', 'ruze']);
     for (const item of ART) assert.equal(Social.cleanFrame(item.id), item.id, 'id projde profiles_frame_format i Social.cleanFrame');
     const byLevel = ART.filter(item => item.level);
     const byBadge = ART.filter(item => item.badge);
     const fromChest = ART.filter(item => item.rare);
-    assert.deepEqual([byLevel.length, byBadge.length, fromChest.length], [5, 3, 2]);
+    assert.deepEqual([byLevel.length, byBadge.length, fromChest.length], [5, 4, 2]);
     assert.ok(ART.every(item => [item.level, item.badge, item.rare].filter(Boolean).length === 1), 'každý jen jedním způsobem');
     // Úrovně: vysoké, rostou, žádná jiná odměna (téma, talár, doplněk, postavička…) ani nová sova titulu na stejné úrovni
     const levels = byLevel.map(item => item.level);
@@ -102,7 +102,8 @@ test('obrázkové rámečky: deset, pět za úroveň (35–95, každý na jiné 
         assert.ok(schema.includes(`'${item.badge}'`), `${item.badge} v badge_catalog`);
         assert.deepEqual(Look.rewardsForBadge(item.badge).map(entry => entry.item.id), [item.id], `${item.badge} dává jen ${item.id}`);
         const group = Core.BADGE_GROUPS.find(entry => entry.badges.some(badge => badge.id === item.badge));
-        assert.ok(group.badges.findIndex(badge => badge.id === item.badge) >= group.badges.length - 3, `${item.badge} je těžký stupeň`);
+        // Rámeček Dobyvatel je odměna za první výhru v Dobývání (č. 240), ostatní za těžké stupně odznaků
+        if (item.id !== 'dobyvatel') assert.ok(group.badges.findIndex(badge => badge.id === item.badge) >= group.badges.length - 3, `${item.badge} je těžký stupeň`);
     }
     assert.match(Look.badgeRewardText('bleskovka-20'), /Bleskový prstenec \(rámeček\)/);
 });

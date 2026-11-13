@@ -25,7 +25,7 @@
         { id: 'kviz-dne', icon: 'timer', after: 4, title: 'Kvíz dne', text: 'Každý den čeká 10 otázek z různých témat, stejných pro všechny hráče. Máš na ně jen jeden pokus. Počítají se body i čas a na konci uvidíš své pořadí.',
             guestText: 'Každý den čeká 10 otázek z různých témat, stejných pro všechny hráče. Máš na ně jen jeden pokus. Po přihlášení uvidíš i své pořadí mezi všemi hráči a mezi přáteli.',
             action: { kind: 'quiz', label: 'Zahrát Kvíz dne' }, ready: (u) => u.quiz, used: (u) => num(u.counters.quizDone) > 0 },
-        { id: 'tajemna', icon: 'telescope', art: 'sova-dalekohled', after: 9, title: 'Tajemná otázka dne', text: 'Na úvodní obrazovce čeká každý den jedna tajemná otázka, stejná pro všechny. Během dne přibývají nápovědy. Máš 3 pokusy a čím dřív uhodneš, tím víc bodů získáš. Druhý den uvidíš správnou odpověď a kolik hráčů ji uhodlo.',
+        { id: 'tajemna', icon: 'telescope', art: 'sova-dalekohled', after: 9, title: 'Tajemná otázka dne', text: 'Na úvodní obrazovce je každý den tajemná otázka, stejná pro všechny. Nápovědy přibývají během dne: ano/ne, vzdálenost od Prahy, doba, indicie, nakonec fotka. Máš 3 pokusy a čím dřív uhodneš, tím víc bodů. Druhý den uvidíš odpověď a kolik hráčů ji uhodlo.',
             action: { kind: 'mystery', label: 'Hádat' }, ready: (u) => u.mystery, used: (u) => num(u.counters.mysterySolved) > 0 },
         { id: 'psani', icon: 'keyboard', after: 12, title: 'Těžší varianta: psaní', text: 'V Nastavení na záložce Hra můžeš místo výběru z možností zvolit Psaní odpovědi. Za správnou odpověď pak dostaneš dvojnásobek bodů. Na diakritice, velkých písmenech ani drobném překlepu nezáleží.',
             action: { kind: 'settings', tab: 'game', label: 'Otevřít Nastavení' }, used: (u) => num(u.counters.typedCorrect) > 0 },
@@ -95,8 +95,8 @@
         // Dobývání (schéma 23): ztracený hrad stojí tah, upozornění na útoky; pro toho, kdo už Dobývání otevřel (pravidlo je nové pro všechny)
         { id: 'dobyvani-hrad', icon: 'castle', art: 'hrad-domov', multi: true, account: true, after: 20, title: 'Braň svůj hrad', text: 'V Dobývání se vyplatí opevnit domovský hrad: kdo o něj přijde, má v dalším období o 1 tah méně. Se zapnutými upozorněními se o útoku na tvá území dozvíš hned a můžeš se opevnit, nebo vrátit úder.',
             action: { kind: 'conquest', label: 'Otevřít Dobývání' }, ready: (u) => Boolean(u.visited.conquest), used: () => false },
-        // Kamarádské sázky (bets.js): obrázek sova-vyzva do dodání č. 243 sova-sazka (bets.js ART.owl)
-        { id: 'sazky', icon: 'gem', art: 'sova-vyzva', multi: true, account: true, after: 30, title: 'Kamarádské sázky', text: 'Klepni na Vyzvat a vyber konkrétního hráče. V řádku Sázka můžeš vsadit 10, 25 nebo 50 XP a přidat vtipnou hlášku. Kdo vyhraje, vklad získá. Úroveň ti nikdy neklesne.',
+        // Kamarádské sázky (bets.js): obrázek č. 243 sova-sazka (bets.js ART.owl)
+        { id: 'sazky', icon: 'gem', art: 'sova-sazka', multi: true, account: true, after: 30, title: 'Kamarádské sázky', text: 'Klepni na Vyzvat a vyber konkrétního hráče. V řádku Sázka můžeš vsadit 10, 25 nebo 50 XP a přidat vtipnou hlášku. Kdo vyhraje, vklad získá. Úroveň ti nikdy neklesne.',
             action: { kind: 'multi', label: 'Zkusit' }, ready: (u) => u.bets && num(u.counters.challenges) >= 2, used: (u) => Boolean(u.visited.bets) || num(u.counters.bets) > 0 },
         // Řetězovka dne (chain.js); art = č. 212 retezovka (jako chain.js ART.tile)
         { id: 'retezovka', icon: 'trophy', art: 'retezovka', after: 7, title: 'Řetězovka dne', text: 'V řadě Výzvy na úvodu čeká Řetězovka: 7 otázek, kde odpověď na jednu je začátkem další. Článek 1 dává 1 bod, článek 7 sedm bodů. Špatná odpověď řetěz přetrhne, jednou za hru ale pomůže Záchrana.',

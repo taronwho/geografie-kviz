@@ -1,5 +1,6 @@
 {"size": 256, "box": 0.5, "fit": 1.03, "frames": {
   "blesk": {"hole": 0.9709, "ring": 1.4505, "reach": 1.9578, "round": [0.996, 1.005], "bytes": 19542},
+  "dobyvatel": {"hole": 0.9709, "ring": 1.6345, "reach": 1.8395, "round": [0.996, 1.011], "bytes": 21864},
   "drak": {"hole": 0.9709, "ring": 1.6049, "reach": 1.8659, "round": [0.936, 1.014], "bytes": 18552},
   "duha-mracky": {"hole": 0.9709, "ring": 1.4733, "reach": 1.8739, "round": [0.946, 1.007], "bytes": 16442},
   "galaxie": {"hole": 0.9709, "ring": 1.6203, "reach": 1.7429, "round": [0.998, 1.002], "bytes": 17188},
