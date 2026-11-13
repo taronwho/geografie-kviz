@@ -1,5 +1,6 @@
 // Tajemná otázka dne (mystery.js): výběr položky ze semínka dne (stejný pro všechny, témata se střídají), rozvrh nápověd v pražském čase
-// i při změně času, osm nápověd z dat otázky (od slabé po nejsilnější), body a XP, porovnání tipu (diakritika, překlepy, přijímané názvy),
+// i při změně času, osm nápověd z dat otázky (od slabé po nejsilnější), krátké nápovědy (vzdálenost a směr od Prahy, ano/ne, doba,
+// indicie a související jméno – správnost na skutečných datech, nic z odpovědi), body a XP, porovnání tipu (diakritika, překlepy, přijímané názvy),
 // uložený stav (poškozená data, tipy po vyřešení), text a obrázek ke sdílení bez odpovědi, karta na úvodu a obrazovka (bez inline stylů)
 // a zapojení do stránky (index.html, service worker, nasazení, Tailwind, schéma 19, odznaky, tip).
 const test = require('node:test');
@@ -269,4 +270,302 @@ test('přísné zakrytí textových nápověd: státy, národnosti, vlastní jm�
     const texts = M.buildClues(data).flatMap(clue => clue.parts.filter(part => part.type === 'text').map(part => part.text));
     assert.equal(texts.filter(text => text.includes('symbolem studené války')).length, 1, 'věta z popisu se v úryvku neopakuje');
     assert.ok(texts.every(text => !/Německ|německ/.test(text)));
+});
+
+test('přísné zakrytí: národnost i v množném čísle (Řečtí, Čeští, Nizozemští), obecná slova zůstanou', () => {
+    assert.equal(M.strongMask('Je to jeden z bohů, které uctívali staří Řekové. Řečtí bohové sídlili na hoře.'), 'Je to jeden z bohů, které uctívali staří [***]. [***] bohové sídlili na hoře.');
+    assert.equal(M.strongMask('Čeští panovníci a nizozemští malíři.'), '[***] panovníci a [***] malíři.');
+    assert.equal(M.strongMask('Olympští bohové a vodní mlýny.'), 'Olympští bohové a vodní mlýny.');
+});
+
+// --- Krátké nápovědy: vzdálenost a směr od Prahy, ano/ne, doba, indicie, související jméno ---
+const COUNTRIES = JSON.parse(read('data/countries.json')).countries;
+const contexts = new Map();
+// Kontext tématu jako v app.js (loadTopic) a otázka „Co je to?“ jako createRoundData s options.plain. Přezdívky z celého tématu
+// (příjmení umělců a herců) se v Node počítají sekundy, v testu stačí přezdívky z dat položky (al)
+const contextOf = (id) => {
+    if (!contexts.has(id)) {
+        core.setCountries(COUNTRIES);
+        const topic = { ...require(`../topics/${id}.js`), nameAliases: (item) => [...(item.al || [])] };
+        const data = JSON.parse(read(`data/${id}.json`));
+        contexts.set(id, { topic, items: data.items, collections: data.collections || [], countries: COUNTRIES, byId: new Map(data.items.map(item => [item.q, item])) });
+    }
+    return contexts.get(id);
+};
+// withChoices = nesprávné možnosti jako ve hře (pomalé: podobnost se všemi položkami), jinak jen správná
+const questionOf = (item, ctx, withChoices = false) => ({ type: 'name', title: ctx.topic.words.question, showName: false, answerLabel: item.n,
+    accepted: core.nameAnswers(item, ctx.topic.nameAliases ? ctx.topic.nameAliases(item, ctx) : []),
+    choices: withChoices ? core.buildItemChoices(item, ctx.items, core.createSeededRandom(`test-${item.q}`), other => (ctx.topic.similarity ? ctx.topic.similarity(item, other, ctx) : 0), core.cultureLandsFor(ctx.topic, ctx))
+        : [{ label: item.n, correct: true, id: item.q }] });
+const riddleFor = (topicId, name, { year = 2026, withChoices = false } = {}) => {
+    const ctx = contextOf(topicId);
+    const item = ctx.items.find(entry => entry.n === name);
+    assert.ok(item, `${topicId}: ${name}`);
+    const category = ctx.topic.categories.find(entry => entry.key === item.c) || {};
+    return { item, ctx, riddle: M.riddleOf(item, { ctx, question: questionOf(item, ctx, withChoices), typeLabel: item.ty || category.one, facts: ctx.topic.facts(item, ctx, 'result'), year }) };
+};
+const fold = (text) => String(text).toLocaleLowerCase('cs').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+// Čísla mají nezlomitelnou mezeru („9 100 km“ se nezalomí); v testu obyčejná
+const sp = (text) => String(text).replace(/\u00a0/g, ' ');
+
+test('vzdálenost a směr od Prahy: haversine, zaokrouhlení podle velikosti, osm směrů jako na mapě; řeka, Česko a Praha v názvu bez ní', () => {
+    assert.ok(Math.abs(M.haversineKm(M.PRAGUE, { lat: 52.52, lon: 13.405 }) - 280) < 5, 'Praha–Berlín asi 280 km');
+    assert.deepEqual([4, 37, 95, 98, 280, 327, 975, 1040, 7342].map(M.roundKm), [0, 40, 100, 100, 300, 350, 1000, 1000, 7300], 'do 100 km na 10, do 1 000 na 50, dál na 100');
+    const at = (lat, lon) => { const compass = M.compassOf({ lat, lon }); return compass && { ...compass, text: sp(compass.text) }; };
+    assert.equal(at(52.52, 13.405).text, 'Asi 300 km na sever od Prahy');
+    assert.equal(at(48.2082, 16.3738).text, 'Asi 250 km na jihovýchod od Prahy', 'Vídeň');
+    assert.equal(at(49.1951, 16.6068).text, 'Asi 200 km na jihovýchod od Prahy', 'Brno');
+    assert.equal(at(49.9394, 14.1883).text, 'Asi 20 km na jihozápad od Prahy', 'Karlštejn');
+    assert.equal(at(41.9028, 12.4964).text, 'Asi 900 km na jih od Prahy', 'Řím');
+    // Směr jako na mapě (loxodroma), ne po nejkratší cestě přes sever: Tokio na východ, New York na západ
+    assert.equal(at(35.6762, 139.6503).text, 'Asi 9 100 km na východ od Prahy');
+    assert.equal(at(40.7128, -74.006).text, 'Asi 6 600 km na západ od Prahy');
+    assert.equal(at(-33.8688, 151.2093).dir, 'na jihovýchod', 'Sydney');
+    assert.equal(at(21.3069, -157.8583).dir, 'na západ', 'Honolulu: kratší cestou, přes Atlantik');
+    assert.equal(at(-33.9249, 18.4241).dir, 'na jih', 'Kapské Město');
+    // Všech osm směrů po 45°
+    const dirs = [[51, 14.42], [50.7, 15.4], [50.09, 16], [49.5, 15.3], [49, 14.42], [49.5, 13.5], [50.09, 12.8], [50.7, 13.4]].map(([lat, lon]) => at(lat, lon));
+    assert.deepEqual(dirs.map(entry => entry.dir), ['na sever', 'na severovýchod', 'na východ', 'na jihovýchod', 'na jih', 'na jihozápad', 'na západ', 'na severozápad']);
+    assert.deepEqual(dirs.map(entry => entry.deg), [0, 45, 90, 135, 180, 225, 270, 315]);
+    assert.deepEqual(at(50.0875, 14.4213), { km: 0, deg: 0, dir: '', text: 'Méně než 10 km od středu Prahy' }, 'v Praze bez směru');
+    for (const bad of [null, {}, { lat: 'x', lon: 1 }, { lat: 91, lon: 0 }, { lat: 10, lon: 200 }]) assert.equal(M.compassOf(bad), null);
+    // Kdy ne: řeka (jeden bod dlouhého toku), Česko samo, odpověď s Prahou v názvu („od Prahy“ by ji prozradilo)
+    const round = (over) => ({ topic: 'zemepis', category: 'hora', name: 'Sněžka', isCzech: true, coords: { lat: 50.736, lon: 15.74 }, ...over });
+    assert.equal(sp(M.compassFor(round()).text), 'Asi 100 km na severovýchod od Prahy');
+    assert.equal(M.compassFor(round({ category: 'reka', name: 'Vltava' })), null);
+    assert.equal(M.compassFor(round({ category: 'stat', name: 'Česko' })), null);
+    for (const name of ['Praha', 'Pražský hrad', 'Praha 5', 'Pražské jaro']) assert.equal(M.compassFor(round({ name, coords: { lat: 50.09, lon: 14.4 } })), null, name);
+    assert.equal(M.compassFor(round({ coords: null })), null, 'starší otázka bez souřadnic');
+});
+
+test('doba: desetiletí od 1800, polovina století od 1000, století, tisíciletí př. n. l.; rozpětí působení a války', () => {
+    const years = [[1961, '60. léta 20. století'], [1883, '80. léta 19. století'], [2015, '10. léta 21. století'], [1905, 'začátek 20. století'], [2005, 'začátek 21. století'],
+        [1900, 'přelom 19. a 20. století'], [1800, 'přelom 18. a 19. století'], [1600, 'přelom 16. a 17. století'], [1550, '1. polovina 16. století'], [1551, '2. polovina 16. století'],
+        [1348, '1. polovina 14. století'], [800, '8. století'], [100, '1. století'], [82, '1. století'], [-781, '8. století př. n. l.'], [-1000, '1. tisíciletí př. n. l.'], [-2560, '3. tisíciletí př. n. l.']];
+    for (const [year, text] of years) assert.equal(M.eraOfYear(year), text, String(year));
+    assert.equal(M.eraOfYear(0), '');
+    assert.equal(M.eraOfYear(-20000), '', 'pravěk bez doby');
+    const spans = [[[1939, 1945], '30. a 40. léta 20. století'], [[1960, 1969], '60. léta 20. století'], [[1903, 1924], '1. polovina 20. století'], [[2009, 2017], '1. polovina 21. století'],
+        [[1346, 1378], '14. století'], [[1880, 1911], '19.–20. století'], [[-246, -220], '3. století př. n. l.'], [[-258, -150], '3.–2. století př. n. l.'], [[-27, 395], '1. století př. n. l. – 4. století n. l.']];
+    for (const [[from, to], text] of spans) assert.equal(M.eraOfSpan(from, to), text, `${from}–${to}`);
+    // Osobnost: od úřadu (vlády, kariéry), jinak od dvaceti let; do konce, smrti, nebo dodnes; dlouhé působení jen nakouknuté do dalšího století
+    const era = (f, topic = 'hudba', c = 'skladatele') => M.eraOf({ c, f }, topic, 2026);
+    assert.deepEqual(era({ born: 1813, died: 1901 }), { label: 'Doba působení', value: '19. století' }, 'Verdi 1833–1901 je 19. století');
+    assert.deepEqual(era({ born: 1841, died: 1904 }), { label: 'Doba působení', value: '19.–20. století' }, 'Dvořák');
+    assert.deepEqual(era({ born: 1984 }, 'film', 'herci'), { label: 'Doba působení', value: '1. polovina 21. století' }, 'žijící: dodnes');
+    assert.deepEqual(era({ born: 1316, died: 1378, from: 1346, to: 1378 }, 'historie', 'panovnik'), { label: 'Doba vlády', value: '14. století' });
+    assert.deepEqual(M.eraOf({ c: 'stavby', f: { y: 1961 } }, 'architektura', 2026), { label: 'Doba vzniku', value: '60. léta 20. století' });
+    assert.deepEqual(M.eraOf({ c: 'bitva', f: { year: 1618, end: 1648 } }, 'historie', 2026), { label: 'Doba', value: '1. polovina 17. století' });
+    assert.deepEqual(M.eraOf({ c: 'prvky', f: { year: 1868 } }, 'chemie', 2026), { label: 'Doba objevu', value: '60. léta 19. století' });
+    assert.deepEqual(M.eraOf({ c: 'mise', f: { year: 1969 } }, 'fyzika', 2026), { label: 'Doba', value: '60. léta 20. století' }, 'mise je událost');
+    // Kde rok neznamená vznik (hora, park), nebo téma doby nemá, doba není
+    assert.equal(M.eraOf({ c: 'hora', f: { year: 1865 } }, 'zemepis', 2026), null);
+    assert.equal(M.eraOf({ c: 'obdobi', f: { from: -541, to: -252 } }, 'geologie', 2026), null);
+    assert.equal(M.eraOf({ c: 'stavby', f: { y: 2030 } }, 'architektura', 2026), null, 'budoucí rok ne');
+});
+
+test('ano/ne: jen jisté výroky z dat (kontinent, polokoule, žije, stáří, velikost, ocenění, vlastnosti), nanejvýš tři', () => {
+    const yes = (item, more = {}) => M.yesNoOf({ g: [], f: {}, ...item }, { topicId: 'zemepis', year: 2026, ...more });
+    const q = (list) => list.map(entry => sp(`${entry.q} ${entry.a ? 'Ano' : 'Ne'}`));
+    // Kontinent jen daleko od Prahy, na pomezí Evropy a Asie vůbec; polokoule jen mimo Evropu a jen když je celé místo na jedné straně rovníku
+    assert.deepEqual(q(yes({ c: 'mesto', co: ['Q142'] }, { coords: { lat: 48.86, lon: 2.35 }, continent: 'EU' })), ['Je to v Evropě? Ano']);
+    assert.deepEqual(q(yes({ c: 'mesto', co: ['Q183'] }, { coords: { lat: 52.52, lon: 13.4 }, continent: 'EU' })), [], 'Berlín: Evropa je jasná ze vzdálenosti');
+    assert.deepEqual(q(yes({ c: 'mesto', co: ['Q43'] }, { coords: { lat: 39.93, lon: 32.86 }, continent: 'AS' })), ['Je to na jižní polokouli? Ne'], 'Turecko: na pomezí se na Evropu neptá');
+    assert.deepEqual(q(yes({ c: 'mesto', co: ['Q408'] }, { coords: { lat: -33.87, lon: 151.21 }, continent: 'OC' })), ['Je to v Evropě? Ne', 'Je to na jižní polokouli? Ano']);
+    assert.deepEqual(q(yes({ c: 'stat', co: ['Q155'], f: { area: 8515767 } }, { coords: { lat: -10, lon: -53 }, continent: 'SA' })), ['Je to v Evropě? Ne', 'Je větší než Česko? Ano'], 'Brazílie přes rovník: na polokouli se neptá');
+    assert.deepEqual(q(yes({ c: 'reka', co: ['Q79'], f: { len: 6650 } }, { coords: { lat: 31.5, lon: 30.4 }, continent: 'AF' })), ['Je to v Evropě? Ne', 'Je delší než 5 000 km? Ano'], 'řeka bez polokoule');
+    // Osobnost: „Žije ještě? Ne“ jen se smrtí v datech nebo narozením před víc než 110 lety; žijící bez výroku (smrt může v datech chybět)
+    assert.deepEqual(q(yes({ c: 'herci', f: { born: 1889, died: 1977 } }, { topicId: 'film' })), ['Žije ještě? Ne']);
+    assert.deepEqual(q(yes({ c: 'herci', f: { born: 1890 } }, { topicId: 'film' })), ['Žije ještě? Ne']);
+    assert.deepEqual(q(yes({ c: 'herci', f: { born: 1984 } }, { topicId: 'film' })), []);
+    // Stáří: kulatá hranice nejblíž, ne těsně u hodnoty; událost a objev jinými slovy
+    assert.deepEqual(q(yes({ c: 'stavby', f: { y: 1961 } }, { topicId: 'architektura' })), ['Je to starší než 50 let? Ano']);
+    assert.deepEqual(q(yes({ c: 'stavby', f: { y: 1882 } }, { topicId: 'architektura' })), ['Je to starší než 200 let? Ne']);
+    assert.deepEqual(q(yes({ c: 'stavby', f: { y: 1926 } }, { topicId: 'architektura' })), ['Je to starší než 50 let? Ano'], '100 let přesně: hranice 100 se nepoužije');
+    assert.deepEqual(q(yes({ c: 'bitva', f: { year: 1620 } }, { topicId: 'historie' })), ['Stalo se to před víc než 500 lety? Ne']);
+    assert.deepEqual(q(yes({ c: 'udalosti', f: { year: 1932, end: 1933 } }, { topicId: 'historie' })), [], 'těsně u stovky: nic');
+    assert.deepEqual(q(yes({ c: 'prvky', f: { year: 1766, fam: 'nekovy' } }, { topicId: 'chemie' })), ['Je objev starší než 200 let? Ano', 'Je to kov? Ne']);
+    assert.deepEqual(q(yes({ c: 'vynalezy', f: { year: 1876 } }, { topicId: 'fyzika' })), ['Je vynález starší než 200 let? Ne'], '150 let: bližší je 200');
+    // Velikost: výška hory, počet obyvatel, rozloha proti Česku (ne Česko samo, ne skoro stejná), délka řeky
+    assert.deepEqual(q(yes({ c: 'hora', f: { elev: 4478 } })), ['Je vyšší než 5 000 m? Ne'], 'Matterhorn: nejbližší kulatá hranice');
+    assert.deepEqual(q(yes({ c: 'mesto', f: { pop: 120000 } })), ['Má víc než 100 000 obyvatel? Ano']);
+    assert.deepEqual(q(yes({ c: 'mesto', f: { pop: 1400000 } })), ['Má víc než milion obyvatel? Ano']);
+    assert.deepEqual(q(yes({ c: 'stat', f: { pop: 1.4e9 } })), ['Má víc než miliardu obyvatel? Ano']);
+    assert.deepEqual(q(yes({ c: 'stat', q: 'Q213', f: { area: 78871 } })), []);
+    assert.deepEqual(q(yes({ c: 'jezero', f: { area: 82350 } })), [], 'Hořejší jezero je skoro jako Česko');
+    assert.deepEqual(q(yes({ c: 'stavba', f: { h: 46 } })), ['Je vyšší než 50 m? Ne']);
+    // Ocenění a vlastnosti, které data uvádějí přesně
+    assert.deepEqual(q(yes({ c: 'savci', f: { iucn: 'EN', mass: 180 }, g: ['nase-priroda'] }, { topicId: 'biologie' })), ['Je to ohrožený druh? Ano', 'Může vážit víc než 100 kg? Ano', 'Vyskytuje se v naší přírodě? Ano']);
+    assert.deepEqual(q(yes({ c: 'savci', f: { iucn: 'NT' } }, { topicId: 'biologie' })), [], 'téměř ohrožený: ani ano, ani ne');
+    assert.deepEqual(q(yes({ c: 'ptaci', f: { mass: 0.016 } }, { topicId: 'biologie' })), ['Může vážit víc než 10 g? Ano']);
+    assert.deepEqual(q(yes({ c: 'prvky', f: { fam: 'vzacne-plyny' } }, { topicId: 'chemie' })), ['Je to kov? Ne', 'Je za pokojové teploty plyn? Ano']);
+    assert.deepEqual(q(yes({ c: 'prvky', f: { fam: 'prechodne-kovy', melt: 1538 } }, { topicId: 'chemie' })), ['Je to kov? Ano', 'Je za pokojové teploty plyn? Ne']);
+    assert.deepEqual(q(yes({ c: 'kameny', f: { h: [8, 8] } }, { topicId: 'geologie' })), ['Poškrábe se nehtem? Ne', 'Je tvrdší než sklo? Ano']);
+    assert.deepEqual(q(yes({ c: 'nerosty', f: { h: [1, 1] } }, { topicId: 'geologie' })), ['Poškrábe se nehtem? Ano', 'Je tvrdší než sklo? Ne']);
+    assert.deepEqual(q(yes({ c: 'nerosty', f: { h: [2.5, 3] } }, { topicId: 'geologie' })), ['Je tvrdší než sklo? Ne'], 'nehet 2,5: hraniční tvrdost bez výroku');
+    assert.deepEqual(q(yes({ c: 'sportovci', f: { born: 1986, gold: 8 } }, { topicId: 'sport' })), ['Má olympijské zlato? Ano']);
+    assert.deepEqual(q(yes({ c: 'spisovatele', f: { born: 1883, died: 1924, nobel: 1 } }, { topicId: 'literatura' })), ['Žije ještě? Ne', 'Má Nobelovu cenu? Ano']);
+    assert.deepEqual(q(yes({ c: 'mesto', g: ['hlavni-mesta'] })), ['Je to hlavní město státu? Ano']);
+    assert.deepEqual(q(yes({ c: 'mesto', g: ['hlavni-mesta'] }, { typeLabel: 'hlavní město' })), [], 'druh už to říká');
+    // Nanejvýš tři, střídavě kde, kdy a co
+    const many = yes({ c: 'mesto', co: ['Q408'], f: { year: 1788, pop: 5e6 }, g: ['unesco'] }, { coords: { lat: -33.87, lon: 151.21 }, continent: 'OC' });
+    assert.deepEqual(q(many), ['Je to v Evropě? Ne', 'Je to starší než 200 let? Ano', 'Má víc než 10 milionů obyvatel? Ne'], '5 milionů: bližší je 10 milionů');
+});
+
+test('ano/ne na skutečných datech: výroky odpovídají datům (kontinent, polokoule, smrt, rok vzniku)', () => {
+    for (const topicId of ['zemepis', 'architektura', 'historie', 'literatura', 'biologie']) {
+        const ctx = contextOf(topicId);
+        for (const item of M.candidatesOf(ctx.items, '2026-11-13').filter((entry, i) => i % 5 === 0)) {
+            const coords = ctx.topic.coords ? ctx.topic.coords(item, ctx) : null;
+            const continent = (item.co || []).length ? core.getContinent(item, COUNTRIES) : '';
+            const list = M.yesNoOf(item, { topicId, coords: coords && Number.isFinite(coords.lat) ? coords : null, continent, year: 2026 });
+            assert.ok(list.length <= 3, item.n);
+            const f = item.f || {};
+            for (const entry of list) {
+                if (entry.q === 'Je to v Evropě?') assert.equal(entry.a, continent === 'EU', item.n);
+                if (entry.q === 'Je to na jižní polokouli?') assert.equal(entry.a, coords.lat < 0, item.n);
+                if (entry.q === 'Žije ještě?') assert.ok(!entry.a && (f.died !== undefined || f.born < 1916), item.n);
+                const age = /(\d[\d\u00a0]*) let(?:y)?\?/.exec(entry.q);
+                if (age) {
+                    const limit = Number(age[1].replace(/\u00a0/g, ''));
+                    const made = f.year ?? f.y ?? f.from ?? f.opened;
+                    assert.equal(entry.a, 2026 - made > limit, `${item.n}: ${entry.q} (${made})`);
+                }
+            }
+        }
+    }
+});
+
+test('indicie a související jméno ze skutečných dat: krátká, bez odpovědi, státu a národnosti, bez opakování druhu', () => {
+    const { riddle: zeus } = riddleFor('mytologie', 'Zeus');
+    assert.deepEqual(zeus.keywords, ['blesk', 'mytický býk', 'Olympští bohové']);
+    assert.deepEqual(zeus.related, { name: 'Kronos a Rheia', strong: false });
+    const { riddle: poe } = riddleFor('literatura', 'Edgar Allan Poe');
+    assert.deepEqual(poe.keywords, ['romantismus', 'detektivka', 'angličtina'].filter(word => poe.keywords.includes(word)));
+    assert.ok(poe.keywords.length >= 2);
+    assert.deepEqual(poe.related, { name: 'Havran', strong: true }, 'slavné dílo je silné');
+    assert.deepEqual(poe.yesno, [{ q: 'Žije ještě?', a: false }]);
+    assert.deepEqual(poe.era, { label: 'Doba působení', value: '1. polovina 19. století' });
+    const { riddle: tiger } = riddleFor('biologie', 'Tygr', { withChoices: true });
+    assert.deepEqual(tiger.keywords, ['šelmy', 'kočkovití'], 'jméno nesprávné možnosti (Kočka bažinná) indicii nevadí – možnosti se neukazují');
+    const { riddle: gaudi } = riddleFor('architektura', 'Sagrada Família');
+    assert.deepEqual(gaudi.related, { name: 'Antoni Gaudí', strong: false });
+    assert.ok(gaudi.yesno.some(entry => entry.q === 'Je na seznamu UNESCO?' && entry.a));
+    const { riddle: vietnam } = riddleFor('zemepis', 'Vietnam');
+    assert.deepEqual(vietnam.related, { name: 'Hanoj', strong: true }, 'hlavní město');
+    const { riddle: football } = riddleFor('sport', 'Fotbal');
+    assert.deepEqual(football.keywords, ['kopačky', 'Míčové hry', 'branka']);
+    // Kandidáti několika témat: nic z odpovědi, žádný stát, kontinent ani národnost, indicie aspoň dvě a nanejvýš tři
+    const countryNames = Object.values(COUNTRIES).map(country => fold(country.name));
+    for (const topicId of ['zemepis', 'historie', 'hudba', 'film', 'umeni', 'sport', 'mytologie']) {
+        const ctx = contextOf(topicId);
+        for (const item of M.candidatesOf(ctx.items, '2026-11-13').filter((entry, i) => i % 9 === 0)) {
+            const { riddle } = riddleFor(topicId, item.n);
+            assert.ok(riddle && Array.isArray(riddle.yesno) && Array.isArray(riddle.keywords), item.n);
+            assert.ok(riddle.keywords.length === 0 || (riddle.keywords.length >= 2 && riddle.keywords.length <= 3), item.n);
+            const stems = fold(item.n).split(/[^\p{L}]+/u).filter(word => word.length >= 5).map(word => word.slice(0, 5));
+            for (const text of [...riddle.keywords, ...(riddle.related ? [riddle.related.name] : [])]) {
+                const words = fold(text).split(/[^\p{L}]+/u);
+                assert.ok(!words.some(word => word.length >= 5 && stems.includes(word.slice(0, 5))), `${item.n}: „${text}“ prozrazuje odpověď`);
+                assert.ok(!countryNames.some(name => ` ${words.join(' ')} `.includes(` ${name} `)), `${item.n}: „${text}“ je stát`);
+                assert.ok(!/(?<![\p{L}])(evrop|asi[ei]|afri|ameri)/u.test(fold(text)), `${item.n}: „${text}“ je kontinent`);
+            }
+            for (const word of riddle.keywords) {
+                assert.equal(M.strongMask(word), word, `${item.n}: „${word}“ má národnost nebo vlastní jméno`);
+                assert.ok(word.length <= 28 && !/\d/.test(word), word);
+            }
+        }
+    }
+    // Bez položky nebo jádra nic nespadne
+    assert.equal(M.riddleOf(null, {}), null);
+    assert.equal(M.answerGuard(null, null, {}, {})('cokoli'), true, 'bez jádra je podezřelé všechno');
+});
+
+// Otázka s krátkými nápovědami (jako createRoundData s options.plain)
+const riddleRound = (over = {}) => roundData({
+    topic: 'architektura', category: 'stavby', name: 'Karlův most', typeLabel: 'most', isCzech: true, coords: { lat: 50.0865, lon: 14.4114 },
+    questionText: '[***] je kamenný most přes řeku. Stavba začala roku 1357 za vlády krále. Most zdobí třicet soch světců.',
+    hints: [
+        { key: 'photo', kind: 'photo', label: 'fotka', icon: 'image' },
+        { key: 'visual', kind: 'visual', spec: { type: 'map', lat: 50.0865, lon: 14.4114 }, label: 'slepá mapa', icon: 'map' },
+        { key: 'facts', kind: 'facts', facts: [{ label: 'Sloh', value: 'Gotika' }, { label: 'Vznik', value: '1357' }, { label: 'Délka', value: '516 m' }, { label: 'Architekt', value: 'Petr Parléř' }, { label: 'Město', value: 'Praha' }] }
+    ],
+    riddle: { yesno: [{ q: 'Je to starší než 500 let?', a: true }], era: { label: 'Doba vzniku', value: '2. polovina 14. století' }, keywords: ['Gotika', 'Mosty a přehrady'], related: { name: 'Petr Parléř', strong: false } },
+    ...over
+});
+
+test('pořadí: krátké nápovědy brzy, přesný fakt až po hrubé nápovědě, souvislost a text pozdě, fotky nakonec; nic dvakrát', () => {
+    const clues = M.buildClues(riddleRound(), { topicTitle: 'Architektura' });
+    assert.equal(clues.length, 8);
+    assert.deepEqual(clues.map(clue => clue.hour), M.CLUE_HOURS);
+    const at = (type) => clues.findIndex(clue => clue.parts.some(part => part.type === type));
+    const atFact = (label) => clues.findIndex(clue => clue.parts.some(part => part.type === 'facts' && part.facts.some(fact => fact.label === label)));
+    assert.equal(clues[0].title, 'Co hledáme');
+    assert.deepEqual(clues[0].parts[1], { type: 'facts', facts: [{ label: 'Délka', value: '516 m' }] }, 'první nápověda: nejslabší fakt (ne rok, o kterém mluví doba, ani město)');
+    for (const type of ['yesno', 'compass', 'era', 'keywords', 'related']) assert.ok(at(type) > 0 && at(type) < 6, `${type} ve středních nápovědách`);
+    assert.ok(at('yesno') <= 2 && at('compass') <= 2, 'ano/ne a vzdálenost u místa v Česku brzy');
+    assert.ok(atFact('Vznik') > at('era') && atFact('Vznik') > at('yesno'), 'rok až po době vzniku a stáří');
+    assert.ok(at('related') >= at('keywords') && at('text') > at('keywords'), 'souvislost a text až po indiciích');
+    for (const type of ['yesno', 'compass', 'era', 'keywords']) assert.ok(at(type) <= at('text'), `${type} před textem`);
+    assert.ok(atFact('Město') === -1 || atFact('Město') > at('visual'), 'město až po mapě (nebo se nevejde)');
+    assert.deepEqual(clues[6].parts, [{ type: 'photo', url: 'https://upload.wikimedia.org/foto.jpg', blur: true }]);
+    assert.deepEqual(clues[7].parts, [{ type: 'photo', url: 'https://upload.wikimedia.org/foto.jpg', blur: false }]);
+    // Indicie a související jméno se ve faktech neopakují; vzdálenost v Praze bez směru
+    const factLabels = clues.flatMap(clue => clue.parts.filter(part => part.type === 'facts').flatMap(part => part.facts.map(fact => fact.label)));
+    assert.ok(!factLabels.includes('Sloh') && !factLabels.includes('Architekt'), factLabels.join());
+    assert.equal(clues[at('compass')].parts.find(part => part.type === 'compass').text, 'Méně než 10 km od středu Prahy');
+    assert.ok(!JSON.stringify(clues).includes('Karlův'), 'odpověď nikde');
+    // Přesný fakt nikdy ve stejné nápovědě jako hrubá nápověda o něm
+    for (const clue of clues) assert.ok(!(clue.parts.some(part => part.type === 'era') && clue.parts.some(part => part.type === 'facts' && part.facts.some(fact => fact.label === 'Vznik'))), clue.title);
+    // Kousků je víc než míst: nanejvýš dva v jedné nápovědě, spojené tituly s tečkou
+    assert.ok(clues.slice(1, 6).every(clue => clue.parts.length <= 2), clues.map(clue => clue.parts.length).join());
+    assert.ok(clues.some(clue => / · /.test(clue.title)));
+    // Silné souvislosti (slavné dílo, hlavní město) přijdou až po textu
+    const strong = M.buildClues(riddleRound({ riddle: { ...riddleRound().riddle, related: { name: 'Praha', strong: true } } }), { topicTitle: 'Architektura' });
+    const strongAt = strong.findIndex(clue => clue.parts.some(part => part.type === 'related'));
+    assert.ok(strongAt >= strong.findIndex(clue => clue.parts.some(part => part.type === 'text')), 'silná souvislost po první větě');
+    assert.ok(strongAt <= 5);
+    // Řazení podle síly: krátké nápovědy slabší než text, vzdálenost do světa uprostřed
+    const score = (parts) => M.revealScore({ parts });
+    assert.ok(score([{ type: 'yesno', items: [{ q: 'x', a: true }] }]) < score([{ type: 'text', text: 'Je to most přes řeku.' }]));
+    assert.ok(score([{ type: 'compass', km: 20 }]) < score([{ type: 'compass', km: 6600 }]));
+    assert.ok(score([{ type: 'compass', km: 6600 }]) < score([{ type: 'visual', spec: {} }]));
+    assert.ok(score([{ type: 'era', value: 'x' }]) < score([{ type: 'keywords', words: ['a', 'b'] }]));
+    assert.ok(score([{ type: 'related', strong: false }]) < score([{ type: 'related', strong: true }]));
+});
+
+test('starší uložená otázka bez krátkých nápověd i poškozená data: nic nespadne, zbytek jako dřív (vzdálenost ze souřadnic)', () => {
+    const clues = M.buildClues(riddleRound({ riddle: undefined }), { topicTitle: 'Architektura' });
+    assert.equal(clues.length, 8);
+    const types = clues.flatMap(clue => clue.parts.map(part => part.type));
+    assert.ok(types.includes('compass'), 'souřadnice měla otázka i dřív');
+    assert.ok(!types.some(type => ['yesno', 'era', 'keywords', 'related'].includes(type)));
+    for (const riddle of [null, 'x', 5, { yesno: 'x', era: 7, keywords: 'abc', related: [] }, { yesno: [{ q: 3, a: 'ano' }, null], keywords: [1, null], era: { label: '', value: 'x' } }]) {
+        const broken = M.buildClues(riddleRound({ riddle }), { topicTitle: 'Architektura' });
+        assert.equal(broken.length, 8);
+        assert.ok(!broken.some(clue => clue.parts.some(part => ['yesno', 'era', 'keywords', 'related'].includes(part.type))), JSON.stringify(riddle));
+    }
+    // Jedna indicie nestačí; příliš dlouhý text z uložených dat se zkrátí
+    assert.ok(!M.buildClues(riddleRound({ riddle: { keywords: ['Gotika'] } })).some(clue => clue.parts.some(part => part.type === 'keywords')));
+    const long = M.buildClues(riddleRound({ riddle: { yesno: [{ q: 'x'.repeat(500), a: true }] } }));
+    assert.ok(long.some(clue => clue.parts.some(part => part.type === 'yesno' && part.items[0].q.length === 80)));
+});
+
+test('vykreslení krátkých nápověd: ano/ne, růžice se šipkou, doba, indicie a souvislost bez inline stylů', () => {
+    const h = { photoFrame: (attrs) => `<div ${attrs}></div>`, visualFrame: (spec, id) => `<div id="${id}"></div>`, avatarHtml: () => '<span></span>', xpLine: () => '' };
+    const clues = M.buildClues(riddleRound({ coords: { lat: 50.736, lon: 15.74 } }), { topicTitle: 'Architektura' });
+    const screen = M.screenHtml({ day: '2026-11-13', shown: 6, next: { n: 7, label: '17:00' }, clues, entry: M.newEntry({}), canGuess: true, pointsNow: 5 }, h);
+    assert.match(screen, /data-mystery-yesno[\s\S]*Je to starší než 500 let\?[\s\S]*data-lucide="check"[\s\S]*Ano/);
+    assert.match(sp(screen), /data-mystery-compass[\s\S]*<svg[\s\S]*transform="rotate\(45\)"[\s\S]*Asi 100 km[\s\S]*na severovýchod od Prahy/);
+    assert.match(screen, /data-mystery-era[\s\S]*Doba vzniku[\s\S]*2\. polovina 14\. století/);
+    assert.match(screen, /data-mystery-keywords[\s\S]*<li[^>]*>Gotika<\/li>[\s\S]*<li[^>]*>Mosty a přehrady<\/li>/);
+    assert.match(screen, /data-mystery-related[\s\S]*Souvisí s:[\s\S]*Petr Parléř/);
+    assert.doesNotMatch(screen, /style=|on[a-z]+=/i, 'CSP: bez inline stylů a skriptů');
+    const prague = M.screenHtml({ day: '2026-11-13', shown: 8, next: null, clues: M.buildClues(riddleRound({ riddle: { yesno: [{ q: 'Je to v Evropě?', a: false }] }, coords: { lat: 50.09, lon: 14.42 } })), entry: M.newEntry({}), canGuess: true, pointsNow: 3 }, h);
+    assert.match(prague, /data-lucide="x"[^>]*><\/i>Ne/);
+    assert.match(prague, /Do 10 km[\s\S]*od středu Prahy/);
+    assert.doesNotMatch(prague, /transform="rotate/, 'v Praze bez šipky');
+    // Barvy růžice a odznaků jsou v sestaveném CSS (Tailwind je najde v mystery.js)
+    const css = read('styles.css');
+    for (const cls of ['fill-violet-50', 'stroke-violet-200', 'fill-violet-700', 'fill-gold-400', 'bg-emerald-100', 'text-emerald-800', 'bg-rose-100', 'text-rose-800']) assert.ok(css.includes(`.${cls}`), cls);
 });
