@@ -153,13 +153,14 @@ test('tip Pozvi přátele do Dobývání: jen kdo Dobývání otevřel a má př
     assert.equal(at({ friends: 2 }, Tips.touch(visited, 'conquestInvite')), null, 'kdo už pozval, tip nepotřebuje');
 });
 
-test('schema.sql: blok 24 před verzí schématu, verze 24 v app.js; pozvánky jen přes funkce', () => {
+test('schema.sql: blok 24 před verzí schématu, verze aspoň 24 a stejná v app.js; pozvánky jen přes funkce', () => {
     const schema = fs.readFileSync(path.join(ROOT, 'supabase', 'schema.sql'), 'utf8');
     const start = schema.indexOf('-- ===== 24: Dobývání – pozvánky pro přátele =====');
     assert.ok(start > schema.indexOf('-- ===== 23: Dobývání – ztracený hrad a upozornění na útoky — KONEC BLOKU ====='));
     assert.ok(start < schema.indexOf('-- ===== Verze schématu ====='));
-    assert.match(schema, /language sql immutable as \$\$ select 24 \$\$;/);
-    assert.match(fs.readFileSync(path.join(ROOT, 'app.js'), 'utf8'), /const REQUIRED_SCHEMA = 24;/);
+    const version = Number(/language sql immutable as \$\$ select (\d+) \$\$;/.exec(schema)[1]);
+    assert.ok(version >= 24, `schéma ${version}`);
+    assert.match(fs.readFileSync(path.join(ROOT, 'app.js'), 'utf8'), new RegExp(`const REQUIRED_SCHEMA = ${version};`));
     assert.match(schema, /revoke all on public\.conquest_invites from public, anon, authenticated;/);
     assert.match(schema, /grant execute on function public\.conquest_invite\(uuid, uuid\[\]\), public\.conquest_invites_mine\(\), public\.conquest_decline_invite\(uuid\) to authenticated;/);
     assert.doesNotMatch(schema, /grant [^;]*conquest_invite_push_items/, 'upozornění jen interně');

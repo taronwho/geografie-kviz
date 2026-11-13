@@ -1292,6 +1292,8 @@
             } else if (move.r === 'breach') items.push({ icon: 'hammer', tone: 'breach', title: name(t), text: `${LEVELS[move.l + 1] ? LEVELS[move.l + 1].name : 'Opevnění'} pobořena`, actor, victim });
             else if (move.r === 'fortify') items.push({ icon: 'shield', tone: 'fortify', title: name(t), text: `${PARTICIPLE[genderOf(t)][1].charAt(0).toUpperCase()}${PARTICIPLE[genderOf(t)][1].slice(1)} na ${LEVELS[move.l].acc}`, actor });
             else if (move.r === 'fail' && move.k === 'attack' && move.v) items.push({ icon: 'shield-check', tone: 'defend', title: name(t), text: 'Útok odražen', actor, victim });
+            // Bitva o území (blok 25): správně, ale pomaleji než vítěz
+            else if (move.r === 'outrun') items.push({ icon: 'swords', tone: 'neutral', title: name(t), text: 'Prohraná bitva', actor, victim });
             else continue;
             items.slice(first).forEach((entry, i) => { entry.id = `${move.id}${i ? `-${i}` : ''}`; entry.at = move.at; });
         }
@@ -2084,16 +2086,17 @@
             ['Tahy', 'V každém období máš několik tahů. Kolik ti jich zbývá, ukazuje počítadlo s meči vpravo nahoře (3/5 = zbývají 3 z 5). Jeden tah je jedna otázka: útok, nebo opevnění. Nevyužité tahy na konci období propadnou.']
         ],
         utok: [
-            ['Útok', 'Klepni na volné nebo cizí území, které sousedí s některým tvým (má s ním společnou hranici, nebo ho s ním spojuje tečkovaná námořní cesta), pak na „Zaútočit“ a odpověz na otázku.'],
-            ['Správně', 'Neopevněné území je hned tvoje. U opevněného území klesne opevnění o jednu úroveň a území zůstane soupeři. Dobýt ho jde, až už opevnění nemá.'],
-            ['Špatně', 'Útok nevyjde a tah propadne. Čím víc je cíl opevněný, tím je otázka těžší.'],
-            ['Opevnění', 'Klepni na své území a pak na „Opevnit“. Správná odpověď přidá jednu úroveň: Palisáda (1), Hradba (2), Pevnost (3, jen na domovském území). Každou úroveň musí útočník nejdřív pobourat.']
+            ['Útok', 'Klepni na volné nebo cizí území, které sousedí s tvým (i přes tečkovanou námořní cestu), a pak na „Zaútočit“.'],
+            ['Bitva', 'Kdo zaútočí, začne území obléhat. Ostatní to hned vidí na mapě a mohou se k bitvě přidat, když s územím sousedí. Všichni dostanou stejnou otázku a každý má 60 s.'],
+            ['Správně', 'Území získá, kdo odpoví správně nejrychleji. Počítá se čas od zobrazení otázky. U opevněného území vítěz ubere jednu úroveň opevnění.'],
+            ['Pozor', 'Kdo odpoví správně, ale pomaleji, nezíská nic a tah ztratí. Tah ztratí i ten, kdo odpoví špatně nebo nestihne čas.'],
+            ['Opevnění', 'Klepni na své území a pak na „Opevnit“. Správná odpověď přidá jednu úroveň: Palisáda, Hradba, Pevnost (jen na domovském území). Obléhané území nejde opevnit.']
         ],
         regiony: [
             ['Region', 'Skupina sousedních území. Například na mapě Evropy Britské ostrovy (Spojené království a Irsko) nebo Pobaltí (Estonsko, Lotyšsko, Litva), na mapě Česka Střední Čechy (Praha a Středočeský kraj).'],
-            ['Kde ho uvidíš', 'Klepni na území: pod jeho názvem je napsané, do kterého regionu patří a jestli ho už někdo drží celý.'],
+            ['Kde ho uvidíš', 'Klepni na území: pod názvem je jeho region a jestli ho někdo drží celý.'],
             ['Celý region', 'Držíš všechna jeho území. Region se pak na mapě zlatě obtáhne a dokud ho držíš, máš v každém období +1 tah a na konci hry 2 body navíc.'],
-            ['Další tahy navíc', '+1 tah hned, když dobudeš území s pokladem (truhla na mapě, platí jen v tom období). +1 tah v příštím období, když dobudeš domovské území soupeře.'],
+            ['Další tahy navíc', '+1 tah hned, když dobudeš území s pokladem (truhla na mapě, platí jen v tom období). +1 tah v příštím období, když dobudeš domovské území soupeře. Pevnost na domovském hradu: +1 tah za období.'],
             ['Ztráta hradu', 'Kdo přijde o domovský hrad, má v dalším období o 1 tah méně. Hrad se proto vyplatí opevnit.']
         ],
         konec: [
