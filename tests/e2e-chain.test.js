@@ -160,7 +160,7 @@ test('Řetězovka dne v prohlížeči', { skip: !chromium && 'Playwright není n
         assert.equal(await tab.getAttribute('#chain-card', 'data-chain-status'), 'new');
         assert.equal(await compact(tab, '#chain-card'), 'Řetězovka 7 článků');
         assert.ok(await tab.$('#chain-card [data-chain-new]'), 'zlatá tečka: dnes ještě nehráno');
-        assert.equal(await tab.$$eval('#home-specials [data-special-tile]', tiles => tiles.length), 2);
+        assert.equal(await tab.$$eval('#home-specials [data-special-tile]', tiles => tiles.map(tile => tile.id).sort().join(' ')), 'boss-card chain-card quiz-card', 'řada Výzvy: Kvíz dne, Řetězovka, Boss týdne');
         await tab.waitForTimeout(600);
         await fitsScreen(tab, 'úvod s dlaždicí Řetězovky (360×640)');
         await audit(tab, 'úvod s dlaždicí Řetězovky');
