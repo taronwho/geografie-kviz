@@ -25,6 +25,11 @@ export const isQuietHour = (now = new Date()) => { const hour = pragueHour(now);
 // Obsah upozornění; sw.js bere title, body, url a kind (tag)
 export const payloadFor = (row) => JSON.stringify({ title: String(row.title || '').slice(0, 80), body: String(row.body || '').slice(0, 200), url: String(row.url || './'), kind: String(row.kind || '') });
 
+// Jak dlouho push služba upozornění drží, když zařízení není dostupné (s): upozornění ke kolu v Dobývání (druhy 'conquest_round' a
+// 'conquest_ending', blok 29 v supabase/schema.sql) jen 10 minut – pozdě doručené by mluvilo o kole, které už skončilo; ostatní 6 hodin
+const SHORT_LIVED = new Set(['conquest_round', 'conquest_ending']);
+export const ttlFor = (row) => (row && SHORT_LIVED.has(row.kind) ? 10 * 60 : 6 * 3600);
+
 // 404 a 410 = odběr už neexistuje (hráč ho v prohlížeči zrušil), ostatní chyby se jen počítají
 export const classifyError = (error) => (error && (error.statusCode === 404 || error.statusCode === 410) ? 'gone' : 'failed');
 
@@ -34,7 +39,7 @@ export const planRun = ({ now = new Date(), manual = false, force = false } = {}
     return manual ? { send: true, kinds: ['test'] } : { send: false, kinds: null };
 };
 
-// Jeden běh: rpc(name, body) volá databázi, send(row, payload) posílá jedno upozornění (a při chybě vyhodí výjimku se statusCode);
+// Jeden běh: rpc(name, body) volá databázi, send(subscription, payload, row) posílá jedno upozornění (a při chybě vyhodí výjimku se statusCode);
 // kinds = pošlou se jen tyto druhy, ostatní zůstanou v databázi neoznačené a přijdou při dalším běhu
 export const runOnce = async ({ rpc, send, secret, dryRun = false, kinds = null, log = console.log }) => {
     const all = await rpc('push_due', { secret });
@@ -48,7 +53,7 @@ export const runOnce = async ({ rpc, send, secret, dryRun = false, kinds = null,
     const keys = new Set();
     for (const row of rows) {
         try {
-            await send({ endpoint: row.endpoint, keys: { p256dh: row.p256dh, auth: row.auth } }, payloadFor(row));
+            await send({ endpoint: row.endpoint, keys: { p256dh: row.p256dh, auth: row.auth } }, payloadFor(row), row);
             okEndpoints.add(row.endpoint);
             keys.add(row.dedupe_key);
         } catch (error) {
@@ -80,7 +85,7 @@ const main = async () => {
         const text = await response.text();
         return text ? JSON.parse(text) : null;
     };
-    await runOnce({ rpc, send: (subscription, payload) => webpush.sendNotification(subscription, payload, { TTL: 6 * 3600, urgency: 'normal' }), secret, dryRun: process.env.DRY_RUN === 'true', kinds: plan.kinds });
+    await runOnce({ rpc, send: (subscription, payload, row) => webpush.sendNotification(subscription, payload, { TTL: ttlFor(row), urgency: 'normal' }), secret, dryRun: process.env.DRY_RUN === 'true', kinds: plan.kinds });
 };
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

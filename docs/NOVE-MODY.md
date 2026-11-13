@@ -195,6 +195,10 @@ Hra více hráčů o území na mapě. Hráči si hry sami zakládají a přidá
   - −1 další období, když soupeř dobude tvůj domovský hrad (schéma 23; v liště hry červené „−1“ s hradem a toast).
 - **Upozornění na útok** (schéma 23): na koho soupeř zaútočí (dobytí, pobourání opevnění, odražený útok), dostane push „Dobývání: …“
   s útočníkem a radou (opevni se, nebo vrať úder); za hru jedno souhrnné, nejvýš jednou za 10 minut; v Nastavení dlaždice Dobývání.
+- **Upozornění na kola** (schéma 29, blok 29): „Dobývání: všichni dohráli kolo“ (kdo ještě neklepl na „Chci další kolo“; ne v posledním kole
+  a ne během odpočtu) a „Dobývání: kolo brzy končí“ s počtem zbývajících tahů a časem do konce (kolo 5 minut 2 minuty předem, 10 minut 3 minuty,
+  hodina 15 minut, den 3 hodiny; v posledním kole „hra brzy končí“). Jednou za hru, kolo a hráče, botům ne; klepnutí otevře hru a okno dalšího kola
+  se ukáže samo. Vypíná je stejná dlaždice Dobývání.
 - **Opevnění** (úroveň 0–3):
   - 1 Palisáda, 2 Hradba, 3 Pevnost;
   - běžné území nejvýš 2, domovské území (hrad) nejvýš 3;

@@ -1,6 +1,7 @@
 // Rychlé hry a Chci další kolo v Dobývání (blok 26): volání v social.js (založení s minutes, Chci další kolo, kolo ve stavu hry a v pulsu;
 // české hlášky databáze projdou, databáze bez bloku 26 Dobývání nevypne a obyčejná hra se založí postaru) a blok 26 ve schema.sql
-// (pořadí, verze 26 i v app.js, oprávnění, značky jen přes funkce, texty bez rodu). Chování v databázi hlídá tests/sql-conquest.test.js.
+// (pořadí, verze 26 i v app.js, oprávnění, značky jen přes funkce, texty bez rodu) a blok 29 (upozornění na kola: pořadí, verze, jen interně,
+// push_pending a push_mark, texty bez rodu). Chování v databázi hlídají tests/sql-conquest.test.js a tests/sql-push.test.js.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -176,4 +177,37 @@ test('schema.sql: blok 26 před verzí schématu, verze 26 i v app.js; Chci dal�
     for (const message of messages) assert.ok(schema.includes(`'${message}'`), message);
     assert.doesNotMatch(messages.join(' '), /\b(zvolil|zvolila|jsi|dohrál|dohrála|chtěl|chtěla)\b/);
     assert.ok(schema.includes("'V dalším kole'"), 'upozornění rychlé hry o dalším kole');
+});
+
+test('schema.sql: blok 29 (upozornění na kola) před verzí schématu, verze aspoň 29 i v app.js; jen interně, v push_pending a push_mark; texty bez rodu', () => {
+    const schema = fs.readFileSync(path.join(ROOT, 'supabase', 'schema.sql'), 'utf8');
+    const start = schema.indexOf('-- ===== 29: Dobývání – upozornění na konec kola a další kolo =====');
+    const end = schema.indexOf('-- ===== 29: Dobývání – upozornění na konec kola a další kolo — KONEC BLOKU =====');
+    assert.ok(start > schema.indexOf('-- ===== 26: Dobývání – rychlé hry a další kolo — KONEC BLOKU ====='));
+    assert.ok(end > start && end < schema.indexOf('-- ===== Verze schématu ====='));
+    const version = Number(/language sql immutable as \$\$ select (\d+) \$\$;/.exec(schema)[1]);
+    assert.ok(version >= 29);
+    const app = fs.readFileSync(path.join(ROOT, 'app.js'), 'utf8');
+    assert.equal(Number(/const REQUIRED_SCHEMA = (\d+);/.exec(app)[1]), version);
+    assert.match(schema, /^-- 29: Dobývání – upozornění „Všichni dohráli kolo“/m, 'řádek v seznamu verzí');
+    const block = schema.slice(start, end);
+    assert.match(block, /revoke all on function public\.conquest_push_warn\(text\), public\.conquest_push_moves\(integer\), public\.conquest_push_time\(interval\),\s+public\.conquest_round_push_items\(\) from public, anon, authenticated;/);
+    for (const name of ['conquest_round_push_items', 'conquest_push_warn', 'conquest_push_moves', 'conquest_push_time']) {
+        assert.doesNotMatch(schema, new RegExp(`grant [^;]*${name}\\(`), `${name} jen interně`);
+    }
+    assert.doesNotMatch(block, /service_role|app_secrets/, 'bez tajných klíčů');
+    // Položky tečou přes push_pending (jako útoky a pozvánky), push_mark zná klíče cqr: a cqe:, limit kol 3 minuty
+    const pending = schema.slice(schema.indexOf('create or replace function public.push_pending()'), schema.indexOf('-- Odesílač (GitHub Actions) si řekne'));
+    assert.match(pending, /from public\.conquest_round_push_items\(\) c/);
+    assert.match(pending, /when i\.kind in \('conquest_round', 'conquest_ending'\) then interval '3 minutes'/);
+    assert.match(schema, /when 'cqr' then 'conquest_round' when 'cqe' then 'conquest_ending'/);
+    // Texty česky a bez rodu (žádné „dohrál jsi“); odkaz do hry jako u ostatních upozornění z Dobývání
+    for (const text of ["'Dobývání: všichni dohráli kolo'", "': chceš další kolo hned? Klepni na „Chci další kolo“.'", "'Dobývání: hra brzy končí'", "'Dobývání: kolo brzy končí'", "' skončí za '"]) {
+        assert.ok(block.includes(text), text);
+    }
+    const code = block.split('\n').filter(line => !line.trim().startsWith('--')).join('\n');
+    assert.doesNotMatch(code, /\b(dohrál|dohrála|zahrál|zahrála|jsi|byl|byla|mohl|mohla|chtěl|chtěla)\b/);
+    assert.equal((code.match(/'\.\/\?dobyvani=' \|\| \([de]\.g\)\.code/g) || []).length, 2);
+    // Nastavení: dlaždice Dobývání zmiňuje i nová upozornění
+    assert.match(app, /pref\('conquest', 'castle', 'Dobývání', 'Upozornění: útoky, pozvánky a konec kola v Dobývání'\)/);
 });
