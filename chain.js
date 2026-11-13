@@ -1139,28 +1139,38 @@
     };
     const iconFor = (kind) => KIND_ICON[kind] || 'sparkles';
 
-    // Řetěz z obrázků článků (č. 213 a 214): články vedle sebe, střídavě zepředu (icons/retez/celem) a z boku na ležato (bokem), takže
-    // do sebe zapadají (boční se kreslí až po předních, konce jim vedou otvorem). Prasklý článek je icons/retez/prasknuty, zachráněný
-    // článek CSS přebarví do tyrkysové, příští článek a ty, které teprve přijdou, jsou jen světlé obrysy (vybělený a ztlumený obrázek).
+    // Řetěz z obrázků článků (č. 213 a 214), opravdu provlečený: liché články mají velký otvor (icons/retez/celem), sudé jsou tenké
+    // tyčky z boku (bokem), které otvory sousedů procházejí. Kreslí se tyčky, přes ně velké články a nakonec ještě jednou bližší
+    // (spodní) polovina každé tyčky, takže horní hrana tyčky vede za obručí a spodní před ní. Prasklý článek je icons/retez/prasknuty,
+    // zachráněný CSS přebarví do tyrkysové, příští a budoucí jsou jen světlé obrysy (vybělený a ztlumený obrázek).
     // states: 'done' | 'rescued' | 'broken' | 'current' | 'todo' po článcích; fresh = index článku, který právě zacvakl.
-    // Obrázky vyrábí scripts/chain-links.py z branding/ikony/clanek-*.png.
-    const LINK_STEP = 31;
-    const LINK_WIDTH = 44;
-    const LINK_ART = { face: ['icons/retez/celem.webp', 54 / 128], side: ['icons/retez/bokem.webp', 40 / 128], broken: ['icons/retez/prasknuty.webp', 67 / 128] };
+    // Obrázky vyrábí scripts/chain-links.py z branding/ikony/clanek*.png.
+    const LINK_PITCH = 25; // vzdálenost středů sousedních článků (velký článek – tyčka)
+    const LINK_ART = {
+        ring: { href: 'icons/retez/celem.webp', w: 40, h: 40 * 102 / 160 },
+        bar: { href: 'icons/retez/bokem.webp', w: 44, h: 44 / 5 },
+        broken: { href: 'icons/retez/prasknuty.webp', w: 38, h: 38 * 84 / 160 },
+        brokenBar: { href: 'icons/retez/prasknuty.webp', w: 30, h: 30 * 84 / 160 }
+    };
     const linkSvg = (states, { fresh = -1, label = '', className = 'h-auto w-full' } = {}) => {
-        const width = 12 + (states.length - 1) * LINK_STEP + LINK_WIDTH;
-        const parts = states.map((state, i) => {
-            const kind = state === 'broken' ? 'broken' : i % 2 === 0 ? 'face' : 'side';
-            const [href, ratio] = LINK_ART[kind];
-            const h = LINK_WIDTH * ratio;
-            const x = 6 + i * LINK_STEP;
-            const y = 16 - h / 2;
-            const cls = `chain-link chain-link-${state}${kind === 'broken' ? '' : ` chain-link-${kind}`}${i === fresh ? ' chain-click' : ''}`;
-            return `<g class="${cls}" data-link="${i + 1}"><image href="${href}" x="${x}" y="${y.toFixed(2)}" width="${LINK_WIDTH}" height="${h.toFixed(2)}" preserveAspectRatio="none"/></g>`;
+        const uid = `cg${Math.abs(hash32(`${states.join('')}|${fresh}|${label}`)) % 100000}`;
+        const width = 12 + (states.length - 1) * LINK_PITCH + LINK_ART.ring.w;
+        const cy = 16;
+        const image = (art, cx, extra = '') => `<image href="${art.href}" x="${(cx - art.w / 2).toFixed(2)}" y="${(cy - art.h / 2).toFixed(2)}" width="${art.w}" height="${art.h.toFixed(2)}" preserveAspectRatio="none"${extra}/>`;
+        const bars = [], rings = [], fronts = [];
+        states.forEach((state, i) => {
+            const cx = 6 + LINK_ART.ring.w / 2 + i * LINK_PITCH;
+            const bar = i % 2 === 1;
+            const click = i === fresh ? ' chain-click' : '';
+            if (state === 'broken') {
+                rings.push(`<g class="chain-link chain-link-broken${click}" data-link="${i + 1}">${image(bar ? LINK_ART.brokenBar : LINK_ART.broken, cx)}</g>`);
+                return;
+            }
+            if (!bar) { rings.push(`<g class="chain-link chain-link-${state} chain-link-ring${click}" data-link="${i + 1}">${image(LINK_ART.ring, cx)}</g>`); return; }
+            bars.push(`<g class="chain-link chain-link-${state} chain-link-bar${click}" data-link="${i + 1}">${image(LINK_ART.bar, cx)}</g>`);
+            fronts.push(`<g class="chain-front chain-front-${state}${click}" data-front="${i + 1}">${image(LINK_ART.bar, cx, ` clip-path="url(#${uid}-near)"`)}</g>`);
         });
-        // Boční články se kreslí až po předních (a prasklých), ať jim vedou otvorem
-        const order = [...parts.keys()].sort((a, b) => (a % 2 && states[a] !== 'broken' ? 1 : 0) - (b % 2 && states[b] !== 'broken' ? 1 : 0) || a - b);
-        return `<svg viewBox="0 0 ${width} 32" class="${className}" role="img" aria-label="${esc(label)}">${order.map(i => parts[i]).join('')}</svg>`;
+        return `<svg viewBox="0 0 ${width} 32" class="${className}" role="img" aria-label="${esc(label)}"><defs><clipPath id="${uid}-near"><rect x="0" y="${cy}" width="${width}" height="${32 - cy}"/></clipPath></defs>${bars.join('')}${rings.join('')}${fronts.join('')}</svg>`;
     };
     const stripStates = (attempt, { phase = 'ask' } = {}) => Array.from({ length: LINKS }, (_, i) => {
         const row = attempt.results.find(entry => entry.k === i + 1);
