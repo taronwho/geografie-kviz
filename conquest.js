@@ -2401,9 +2401,11 @@
         }
         const options = question.choices.map((choice, i) => `<button type="button" data-cq-answer="${i}" ${answered !== null ? 'disabled' : ''} class="cq-choice${choiceState(choice, i, answered)} flex min-h-[3rem] min-w-0 items-center justify-center break-words rounded-xl px-2 py-1 text-center text-[13.5px] font-bold leading-tight text-slate-800 short:min-h-[2.75rem] dark:text-slate-100">${esc(choice.label)}</button>`).join('');
         const right = question.choices.find(choice => choice.correct);
+        const fortify = kind === 'fortify';
+        const icon = fortify ? 'castle' : 'swords';
         const after = answered === null ? '' : `<p class="mt-1.5 shrink-0 text-center text-[12.5px] font-bold text-slate-600 dark:text-slate-300">${question.choices[answered] && question.choices[answered].correct ? 'Správně!' : `Správně: ${esc(right.label)}`}</p>`;
         return `<div data-cq-full class="cq-sheet cq-qfull${answered === null ? ' cq-sheet-in' : ''} flex h-full flex-col rounded-t-2xl p-2.5 pb-3 short:p-2" role="dialog" aria-label="Otázka">
-            <div class="flex shrink-0 items-center gap-2"><span class="cq-tone cq-tone-${kind === 'fortify' ? 'fortify' : 'capture'} flex h-7 w-7 shrink-0 items-center justify-center rounded-full"><i data-lucide="${kind === 'fortify' ? 'castle' : 'swords'}" class="h-4 w-4"></i></span>
+            <div class="flex shrink-0 items-center gap-2"><span class="cq-tone cq-tone-${fortify ? 'fortify' : 'capture'} flex h-7 w-7 shrink-0 items-center justify-center rounded-full"><i data-lucide="${icon}" class="h-4 w-4"></i></span>
                 <h2 class="cq-ledger-title min-w-0 flex-1 truncate">${esc(title)}</h2>${starsHtml(question.difficulty)}</div>
             <p class="mt-1.5 shrink-0 text-[16px] font-black leading-snug text-slate-900 dark:text-white">${esc(question.prompt)}</p>
             <div class="cq-qbox mt-1.5 flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl">${body}</div>
