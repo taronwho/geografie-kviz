@@ -1334,7 +1334,7 @@
         const countdownTick = (fresh = false) => {
             const count = app.querySelector('[data-cq-count]');
             if (!count || !game) return;
-            const left = Math.max(0, Math.ceil((Number(count.dataset.cqNext) - Date.now()) / 1000));
+            const left = Math.max(0, Math.ceil((Number(count.dataset.cqCountAt) - Date.now()) / 1000));
             if (!fresh && String(left) === count.textContent) return;
             count.textContent = String(Math.min(C.ROUND_COUNTDOWN, left));
             restart(count);

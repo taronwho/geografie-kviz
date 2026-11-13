@@ -874,6 +874,13 @@ test('Dobývání', { skip: !chromium && 'Playwright není nainstalovaný' }, as
         assert.equal(await tab.locator('[data-cq-round] .cq-tick-on').count(), 2);
         await tab.waitForTimeout(450);
         await shot(tab, 'dalsi-kolo-odpocet-360');
+        // Odpočet běží po sekundách a hodiny kola pod mapou ho nepřepíšou (dřív se do čísla vypsalo „Další kolo za …“)
+        db.now = '2026-11-11T10:00:01.200Z';
+        await tab.clock.setFixedTime(new Date(db.now));
+        await tab.waitForFunction(() => document.querySelector('[data-cq-count]').textContent === '9', null, { timeout: 5000 });
+        await tab.waitForTimeout(1300);
+        assert.equal(await tab.textContent('[data-cq-count]'), '9');
+        assert.match(await tab.textContent('[data-cq-next]'), /^Další kolo za \d:\d\d$/);
         // Po odpočtu nové kolo: okno zmizí, toast Začalo 2. kolo.
         g.periodNo = 1;
         g.round = { period: 1, started_at: '2026-11-11T10:00:10Z', ends_at: '2026-11-11T10:05:10Z', done: false, ready: [], next_at: null, can_ready: false };

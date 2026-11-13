@@ -912,8 +912,9 @@ test('další kolo (blok 26): okno s hráči a fajfkami, Chci další kolo / če
     assert.doesNotMatch(waiting, /data-cq="round-ready"/);
     // Všichni chtějí: odpočet s kruhem a fajfky u všech
     const counting = C.roundHtml(view, { ...state.round, ready: ['A', 'B'], next_at: '2026-11-12T10:20:07Z' }, { now: NOW });
-    assert.match(counting, /Další kolo začíná[^]*data-cq-count-ring[^]*data-cq-count data-cq-next="\d+">7</);
+    assert.match(counting, /Další kolo začíná[^]*data-cq-count-ring[^]*data-cq-count data-cq-count-at="\d+">7</);
     assert.equal((counting.match(/cq-tick-on/g) || []).length, 2);
+    assert.doesNotMatch(counting, /data-cq-next/, 'hodiny kola (data-cq-next) nesmí přepsat číslo odpočtu');
     // Štítek po zavření okna; po odpočtu ani před dohráním ne
     assert.match(text(C.roundChipHtml(view, state.round)), /Další kolo\? 1\/2/);
     assert.equal(C.roundChipHtml(view, { ...state.round, done: false }), '');
