@@ -170,7 +170,8 @@ test('Řetězovka dne v prohlížeči', { skip: !chromium && 'Playwright není n
         await openChain(tab);
         assert.ok(await tab.$('#chain-intro'), 'úvod s pravidly');
         assert.match(await compact(tab, '#chain-intro'), /Řetěz má 7 článků.*Celý řetěz má 28 bodů.*Záchranu/);
-        assert.match(await compact(tab, '#app-header'), /Řetězovka · 13\. 11\./i);
+        assert.match(await compact(tab, '#app-header'), /Řetězovka/i);
+        assert.match(await compact(tab, '#app-content'), /Řetězovka dne · 13\. 11\./i, 'datum dne pod hlavičkou');
         assert.equal(await store(tab).then(state => state.attempt), null, 'pokus začne až klepnutím na Začít řetěz');
         await fitsScreen(tab, 'úvod Řetězovky');
         await audit(tab, 'úvod Řetězovky');

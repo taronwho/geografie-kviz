@@ -99,7 +99,7 @@ test('tutorial při prvním spuštění', { skip: !chromium && 'Playwright není
     });
     // Prohlídka od kroku s hlavičkou po poslední vysvětlující krok (Nastavení) až k výzvě zkusit otázku
     const tourFromBadge = async (tab, prefix = '') => {
-        for (const [wanted, name] of [['Úroveň a XP', '2-hlavicka'], ['Dnešní otázky', '3-dnes'], ['Kvíz dne', '3b-kviz'], ['Tajemná otázka dne', '3c-zahada'], ['Témata a Mix', '4-temata'], ['Více hráčů', '4b-multi'], ['Nastavení', '5-nastaveni']]) {
+        for (const [wanted, name] of [['Úroveň a XP', '2-hlavicka'], ['Dnešní otázky', '3-dnes'], ['Výzvy dne', '3b-vyzvy'], ['Tajemná otázka dne', '3c-zahada'], ['Témata a Mix', '4-temata'], ['Více hráčů', '4b-multi'], ['Nastavení', '5-nastaveni']]) {
             await waitTitle(tab, wanted);
             assert.equal(await inside(tab), true, wanted);
             await shot(tab, `${prefix}${name}`);
@@ -478,7 +478,7 @@ test('tutorial při prvním spuštění', { skip: !chromium && 'Playwright není
         await waitTitle(tab, 'Dnešní otázky');
         assert.match(await tab.textContent('[data-tut-count]'), /Krok 2 z 12/);
         await next(tab);
-        await waitTitle(tab, 'Kvíz dne');
+        await waitTitle(tab, 'Výzvy dne');
         await next(tab);
         await waitTitle(tab, 'Tajemná otázka dne');
         await next(tab);

@@ -2104,8 +2104,8 @@
     addGroup('zlatokop', 'Zlatokop', 'pickaxe', (c) => c.goldCorrect, (g) => `${g} správně zodpovězených zlatých otázek.`,
         [T(10, 'Zlatokop I'), T(50, 'Zlatokop II'), T(100, 'Zlatokop III')]);
     // Dobývání (conquest.js): vyhrané hry o mapu (1. místo ve hře aspoň 3 hráčů, nebo ve hře na den a déle)
-    addGroup('dobyvatel', 'Dobyvatel', 'swords', (c) => c.conquestWins, (g) => g === 1 ? 'Vyhraj hru Dobývání.' : `Vyhraj ${g} her Dobývání.`,
-        [T(1, 'Dobyvatel', 'dobyvatel'), T(3, 'Vojevůdce'), T(10, 'Stratég'), T(25, 'Vládce map'), T(50, 'Císař světa')]);
+    addGroup('dobyvatel', 'Dobyvatel', 'swords', (c) => c.conquestWins, (g) => g === 1 ? 'Vyhraj hru Dobývání.' : `Vyhraj ${g} ${g < 5 ? 'hry' : 'her'} Dobývání.`,
+        [T(1, 'Dobyvatel území', 'dobyvatel'), T(3, 'Vojevůdce'), T(10, 'Stratég'), T(25, 'Vládce map'), T(50, 'Císař světa')]);
     // Kamarádské sázky (bets.js): odehrané výzvy se sázkou a vyhrané sázky v řadě („Neomylný“ už je odznak za odpovědi v řadě, proto „sázkař“)
     addGroup('sazky', 'Kamarádské sázky', 'gem', (c) => c.bets, (g) => g === 1 ? 'Odehraj první výzvu se sázkou.' : `Odehraj ${g} výzev se sázkou.`,
         [T(1, 'První sázka'), T(5, 'Sázkař', 'sazkar'), T(15, 'Cinkající měšec'), T(30, 'Plná pokladnice'), T(60, 'Zlatý důl')]);

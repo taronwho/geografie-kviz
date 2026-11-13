@@ -714,7 +714,7 @@
                 <button type="button" data-action="conquest-play" data-game="${esc(first.id)}" class="${GOLD_BUTTON} shrink-0 px-3.5"><i data-lucide="play" class="h-4 w-4"></i> Hrát</button>
             </div>`;
         }
-        const text = loading && !games ? 'Načítám hry…' : waiting.length ? `Čekáš na hráče: ${plural(waiting.length, 'hra', 'hry', 'her')}` : 'Najdi hru nebo založ vlastní';
+        const text = loading && !games ? 'Načítám hry…' : waiting.length ? (waiting.length === 1 ? 'Tvoje hra čeká na další hráče' : `Tvoje hry čekají na další hráče (${waiting.length})`) : 'Najdi hru nebo založ vlastní';
         return `<div id="conquest-card" class="flex items-center gap-2.5 ${CARD} cq-card-paper p-1.5 pr-2">
             <button type="button" data-action="conquest-open" class="flex min-w-0 flex-1 items-center gap-2.5 text-left">
                 ${art(ART.card, 'h-11 w-11 -my-1')}${head}<span class="truncate text-[12px] font-bold text-slate-600 dark:text-slate-300">${esc(text)}</span></span>

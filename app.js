@@ -2436,9 +2436,11 @@
             text.className = 'min-w-[2.25rem] text-left';
         } else {
             text.textContent = place.text;
-            // Dlouhé slovo (ARCHITEKTURA) se nesmí zlomit uprostřed: menší písmo, zlom až jako poslední možnost
+            // Dlouhé slovo (ARCHITEKTURA) se nesmí zlomit uprostřed: menší písmo, zlom až jako poslední možnost. Na úzkém displeji (360 px)
+            // zmenší písmo už slovo delší než 6 písmen (ZEMĚPIS, MYTOLOGIE) a šipka změny tématu se skryje (index.html), ať se slovo vejde celé
             const longest = Math.max(0, ...String(place.text).split(/\s+/).map(word => word.length));
-            text.className = `line-clamp-2 break-words text-left uppercase leading-tight ${longest > 10 ? 'text-[10px] tracking-tight' : 'text-[11px]'} ${style ? '' : 'text-slate-700 dark:text-slate-200'}`;
+            const size = longest > 10 ? 'text-[10px] tracking-tight max-[370px]:text-[9px]' : longest > 6 ? 'text-[11px] max-[370px]:text-[10px] max-[370px]:tracking-tight' : 'text-[11px]';
+            text.className = `line-clamp-2 break-words text-left uppercase leading-tight ${size} ${style ? '' : 'text-slate-700 dark:text-slate-200'}`;
         }
     };
 
