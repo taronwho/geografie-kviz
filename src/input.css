@@ -530,3 +530,35 @@ html.kb-open #settings-overlay > *, html.kb-open #dialog-overlay > * { max-heigh
 @keyframes chestRise { 0% { translate: 0 4.75rem; scale: 0.15; opacity: 0; } 20% { opacity: 1; } 100% { translate: 0 0; scale: 1; opacity: 1; } }
 @keyframes chestFloat { 0%, 100% { translate: 0 0; } 50% { translate: 0 -0.3rem; } }
 @keyframes chestFadeUp { from { opacity: 0; translate: 0 0.5rem; } to { opacity: 1; translate: 0 0; } }
+
+/* Kamarádské sázky (bets.js): mince a hromádka mincí z CSS (do dodání obrázků č. 241 a 242), zlatá záře nabídky sázky, letící mince
+   (pohyb dělá element.animate v bets.js pour; při „omezit pohyb“ se nespustí a záře nepulzuje) */
+.bet-coin {
+    position: relative; display: inline-block; flex-shrink: 0; border-radius: 9999px;
+    background: radial-gradient(circle at 34% 28%, #fff8dc 0 10%, #f7d76b 26%, #e8ae38 55%, #b9771b 82%, #7a461b 100%);
+    box-shadow: inset 0 0 0 1.5px #94571a, inset 0 0 0 2.5px #f5dc93, 0 1px 2px rgb(59 30 10 / 0.35);
+}
+.bet-coin::after { content: ''; position: absolute; inset: 27%; border-radius: 9999px; border: 1.5px solid rgb(148 87 26 / 0.55); box-shadow: inset 0 1px 0 rgb(255 248 220 / 0.6); }
+.bet-flying { position: absolute; z-index: 30; pointer-events: none; opacity: 0; }
+.bet-pile { position: relative; display: inline-flex; align-items: flex-end; gap: 1px; height: 2.6rem; padding-top: 0.6rem; filter: drop-shadow(0 2px 2px rgb(59 30 10 / 0.25)); }
+.bet-pile-sm { transform: scale(0.85); transform-origin: left center; }
+/* Sloupeček mincí z boku: zlaté pruhy s tmavším okrajem (opakovaný přechod), navrchu mince čelem */
+.bet-stack {
+    position: relative; width: 1.45rem; border-radius: 0 0 50% 50% / 0 0 0.3rem 0.3rem;
+    background: repeating-linear-gradient(to bottom, #f5dc93 0 0.12rem, #d69725 0.12rem 0.3rem, #94571a 0.3rem 0.36rem);
+}
+.bet-stack::before {
+    content: ''; position: absolute; left: 0; right: 0; top: -0.3rem; height: 0.6rem; border-radius: 50%;
+    background: radial-gradient(ellipse at 40% 35%, #fff8dc 0 15%, #f7d76b 40%, #d69725 80%); box-shadow: inset 0 0 0 1px #b9771b;
+}
+.bet-stack-2 { height: 0.75rem; }
+.bet-stack-3 { height: 1.1rem; }
+.bet-stack-5 { height: 1.75rem; }
+.bet-glow { box-shadow: 0 0 0 0 rgb(232 174 56 / 0.4), 0 6px 18px rgb(214 151 37 / 0.22); }
+@media (prefers-reduced-motion: no-preference) {
+    .bet-glow { animation: betGlow 2.4s ease-in-out infinite; }
+}
+@keyframes betGlow {
+    0%, 100% { box-shadow: 0 0 0 0 rgb(232 174 56 / 0.4), 0 6px 18px rgb(214 151 37 / 0.22); }
+    50% { box-shadow: 0 0 0 5px rgb(232 174 56 / 0.18), 0 6px 26px rgb(214 151 37 / 0.4); }
+}

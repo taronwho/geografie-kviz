@@ -1962,7 +1962,9 @@
         quizDone: 0, quizBestStreak: 0, quizPerfect: 0, blitzBest: 0, survivalBest: 0, blitzGames: 0, survivalGames: 0, blitzTen: 0, survivalFifteen: 0,
         mapAnswered: 0, mapExact: 0, estimateAnswered: 0, estimateGood: 0, orderAnswered: 0, orderPerfect: 0, sharedImages: 0, chestsOpened: 0, freezesUsed: 0,
         // Tajemná otázka dne (mystery.js): vyřešené dny
-        mysterySolved: 0
+        mysterySolved: 0,
+        // Kamarádské sázky (bets.js): rozhodnuté sázky a nejdelší řada vyhraných sázek (dosazuje aplikace z databáze)
+        bets: 0, betBestRun: 0
     };
     const number = (value) => Number.isFinite(value) ? value : 0;
     // Barva medaile podle stupně ve skupině: bronz, stříbro, zlato, vínová a nejvyšší diamantová
@@ -2092,6 +2094,11 @@
     // Tajemná otázka dne (mystery.js): vyřešené tajemné otázky (jednou za den)
     addGroup('detektiv', 'Detektiv', 'telescope', (c) => c.mysterySolved, (g) => g === 1 ? 'Vyřeš svou první Tajemnou otázku dne.' : `Vyřeš ${g} Tajemných otázek dne.`,
         [T(1, 'Detektiv', 'detektiv'), T(7, 'Bystrý detektiv'), T(30, 'Mistr detektiv'), T(100, 'Slavný detektiv'), T(365, 'Legenda detektivů')]);
+    // Kamarádské sázky (bets.js): odehrané výzvy se sázkou a vyhrané sázky v řadě („Neomylný“ už je odznak za odpovědi v řadě, proto „sázkař“)
+    addGroup('sazky', 'Kamarádské sázky', 'gem', (c) => c.bets, (g) => g === 1 ? 'Odehraj první výzvu se sázkou.' : `Odehraj ${g} výzev se sázkou.`,
+        [T(1, 'První sázka'), T(5, 'Sázkař', 'sazkar'), T(15, 'Cinkající měšec'), T(30, 'Plná pokladnice'), T(60, 'Zlatý důl')]);
+    addGroup('sazky-v-rade', 'Vyhrané sázky v řadě', 'crown', (c) => c.betBestRun, (g) => `Vyhraj ${g} ${g < 5 ? 'sázky' : 'sázek'} v řadě.`,
+        [T(3, 'Šťastná ruka'), T(5, 'Neomylný sázkař'), T(7, 'Sázková smršť'), T(10, 'Zlatá ruka'), T(15, 'Legenda sázek')]);
     // --- Album sbírky (album.js): milníky celé sbírky a celé sekce alba. Hodnotu dosazuje aplikace: x.album = { percent, sections: { sekce: procenta } }
     // (procenta jsou zaokrouhlená dolů, 100 znamená opravdu všechno). Odznaky alba se do alba samy nepočítají (album.js), jinak by 100 % nešlo
     // získat. Tituly jsou bez rodu (popisují sbírku, ne hráče; „Sběratel“ už je odznak geologie), jde je mít jako titul u jména.

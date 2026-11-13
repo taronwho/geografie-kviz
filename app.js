@@ -3920,6 +3920,144 @@
         const gap = Math.round((Date.parse(`${getDayKey()}T12:00:00`) - Date.parse(`${last}T12:00:00`)) / 86400000);
         if (gap >= 3) showCelebration('spi', 'Mudrlant na tebe čekal', `Naposledy jsi hrál před ${gap} dny. Zahraj si dnešní otázky!`);
     };
+    // ===== Kamarádské sázky (bets.js, schéma 21): sázka XP ve výzvě konkrétnímu hráči, vyrovnání po dohrání obou =====
+    // XP sázky mění server (challenge_settle_stake); zařízení si změnu připíše hned a pod zámkem postupu, ať ji souběžné syncProgress
+    // se starším XP nepřepíše. Výhry a prohry vyrovnané na jiném zařízení sladí syncProgress podle součtů v účtu (bets.js reconcile).
+    const Bets = window.MudrlantBets || null;
+    const BetsApi = Bets && window.MudrlantSocial ? Bets.createApi({ window }) : null;
+    const levelFloorOf = (xp) => xp - levelProgress(xp).into;
+    // Úloha, během které neběží syncProgress (počká na dokončení rozběhnutého, nejvýš 4 s); po ní se postup sladí s účtem
+    const withProgressIdle = async (task) => {
+        for (let waited = 0; syncingProgress && waited < 4000; waited += 100) await new Promise(resolve => setTimeout(resolve, 100));
+        const mine = !syncingProgress;
+        if (mine) syncingProgress = true;
+        try { return await task(); } finally { if (mine) syncingProgress = false; syncProgress(); }
+    };
+    const BetsCtl = BetsApi ? Bets.createController({
+        api: BetsApi, user: () => signedUser(), read: readJson, write: writeJson, withProgress: withProgressIdle, floorOf: levelFloorOf,
+        applyXp: (delta) => {
+            const progress = loadProgress();
+            const before = levelProgress(progress.xp).level;
+            progress.xp = Bets.applyDelta(progress.xp, delta, levelFloorOf);
+            if (delta > 0) chronicleLog({ xp: delta });
+            saveProgress(progress);
+            announce(before, levelProgress(progress.xp).level, []);
+            updateControlsUI();
+        },
+        // Odznaky Sázkař a Neomylný sázkař z přehledu sázek v účtu
+        setCounters: ({ bets, betBestRun }) => {
+            const progress = loadProgress();
+            const c = progress.counters;
+            if ((c.bets || 0) >= bets && (c.betBestRun || 0) >= betBestRun) return;
+            c.bets = Math.max(c.bets || 0, bets);
+            c.betBestRun = Math.max(c.betBestRun || 0, betBestRun);
+            const titles = grantBadges(progress);
+            saveProgress(progress);
+            announce(1, 1, titles);
+            if (titles.length) syncProgress();
+        },
+        paint: () => paintChallenges(),
+        // Sázka vyrovnaná na pozadí (po načtení výzev): výhra oslavou, prohra a remíza krátkou zprávou
+        notify: (result) => {
+            if (result.delta > 0) showCelebration('vitez', 'Sázka je tvoje!', `${Bets.formatDelta(result.delta)} za vyhranou sázku`, 'badge');
+            else if (result.outcome === 'loss') showToast(result.delta ? `Sázka nevyšla: ${Bets.formatDelta(result.delta)}. Úroveň zůstává.` : 'Sázka nevyšla, ale úroveň je v bezpečí.');
+            else if (result.outcome === 'draw') showToast('Sázka skončila remízou, XP zůstávají.');
+        }
+    }) : null;
+    const betsOn = () => Boolean(BetsCtl && BetsCtl.available() && signedUser() && !devActive());
+    const betHelpers = () => ({ esc: escapeHtml, art: uiArt, avatar: (player, cls) => avatarHtml(player, cls), name: playerName });
+    const betBadge = (code) => (betsOn() ? Bets.badgeHtml(BetsCtl.view(code)) : '');
+    // Okno Kamarádské sázky: pravidla, moje bilance a kolik teď můžu vsadit (z okna Vyzvat a z nabídky sázky)
+    const openBetsHelp = () => {
+        if (!Bets) return;
+        touchTip('bets');
+        const draw = () => showDialog('Kamarádské sázky', `${Bets.helpHtml(BetsCtl ? BetsCtl.overview() : null, betHelpers())}${dialogTrail.length ? dialogBackButton('mt-3') : ''}`);
+        draw();
+        if (betsOn()) BetsCtl.refresh().then(() => { const overlay = document.getElementById('dialog-overlay'); if (overlay && overlay.dataset.title === 'Kamarádské sázky') draw(); });
+    };
+    // Okno Vyzvat: sázka jen u výzvy konkrétnímu hráči (ne náhodnému, ne přes odkaz, ne skupině)
+    // Přehled sázek se načetl: databáze sázky zná (bez něj se volba sázky ani tip neukážou)
+    const betsReady = () => betsOn() && BetsCtl.overview() !== null;
+    const betPickerShown = (draft) => betsReady() && draft.who === 'player' && Boolean(draft.opponent) && !draft.group;
+    const betPickerHtml = (draft) => (betPickerShown(draft) ? Bets.pickerHtml({ stake: draft.stake, taunt: draft.taunt, limit: BetsCtl.limit(), open: draft.open === 'stake', note: draft.stakeNote }, betHelpers()) : '');
+    // Klepnutí v řádku Sázka; true = vyřízeno. help = otevře pravidla (s návratem do rozpracované výzvy)
+    const betPickerClick = (event, draft, render, help) => {
+        const pick = event.target.closest('[data-stake-pick]');
+        if (pick) {
+            const value = Bets.cleanStake(pick.dataset.stakePick);
+            const limit = BetsCtl.limit();
+            if (value && limit !== null && value > limit) draft.stakeNote = Bets.limitNote(limit);
+            else { draft.stake = value; draft.stakeNote = ''; if (!value) draft.taunt = null; }
+            touchTip('bets');
+            render();
+            return true;
+        }
+        const step = event.target.closest('[data-taunt-step]');
+        if (step) { draft.taunt = Bets.nextTaunt(draft.taunt, Number(step.dataset.tauntStep)); render(); return true; }
+        if (event.target.closest('[data-stake-help]')) { help(); return true; }
+        return false;
+    };
+    // Po založení výzvy: nabídka sázky (když nevyjde, hraje se bez ní a hráč se to dozví)
+    const offerStake = async (code, draft) => {
+        const amount = betPickerShown(draft) ? Bets.cleanStake(draft.stake) : 0;
+        if (!amount) return null;
+        try {
+            const row = await BetsApi.offer(code, amount, draft.taunt);
+            if (row) BetsCtl.remember(row);
+            return row;
+        } catch (error) {
+            showToast(`${error && error.message ? error.message : 'Sázku se nepodařilo nabídnout.'} Hraje se bez sázky.`);
+            return null;
+        }
+    };
+    // Výsledek sázky po dohrání (obrazovka výsledku): vyrovná se hned, panel s mincemi se uloží k výzvě (překreslení ho neztratí)
+    const betSettleChallenge = async (c, results) => {
+        if (!betsOn() || !c || !c.invited || c.tournament) return;
+        const info = await BetsCtl.settle(c.code).catch(() => null);
+        const view = info ? Bets.viewOf(info) : null;
+        if (!view) return;
+        const user = signedUser();
+        const me = user ? (results || []).find(row => row.user_id === user.id) : null;
+        const other = (results || []).find(row => !user || row.user_id !== user.id);
+        const otherPlayer = (other && other.player) || (c.creator && user && c.creator.id !== user.id ? c.creator : c.invited);
+        c.betView = view;
+        c.betPanel = ['won', 'lost', 'draw'].includes(view.kind)
+            ? Bets.resultHtml({ view, me: (me && me.player) || myProfile, other: otherPlayer }, betHelpers())
+            : Bets.statusHtml(view, playerName(otherPlayer), betHelpers());
+        c.betPour = (view.kind === 'won' || view.kind === 'lost') && BetsCtl.firstShow(c.code);
+    };
+    // Mince se sypou k vítězi (jednou); při omezeném pohybu výsledek jen stojí
+    const betPourIn = (root) => {
+        const panel = root && root.querySelector('[data-bet-result]');
+        if (!panel) return false;
+        return Bets.pour(panel, { reduced: reducedMotion(), sound: Sound ? (name) => { Sound.play(name); if (name === 'coins') Sound.vibrate('record'); } : null });
+    };
+    // Detail výzvy: nabídka sázky (vyzvaný ještě nehrál), stav sázky, nebo výsledek s mincemi
+    const betDetail = ({ code, def, user, info, results, mine }) => {
+        const view = info ? Bets.viewOf(info) : null;
+        if (!view) return { html: '', offer: false };
+        const otherPlayer = info.role === 'creator' ? def.invited : def.creator;
+        if (view.kind === 'offer' && !mine) {
+            touchTip('bets');
+            return { offer: true, html: Bets.offerHtml({ stake: view.stake, taunt: info.taunt, name: playerName(def.creator), limit: BetsCtl.limit() }, betHelpers()) };
+        }
+        if (['won', 'lost', 'draw'].includes(view.kind)) {
+            const me = results.find(row => row.user_id === user.id);
+            return { offer: false, pour: (view.kind === 'won' || view.kind === 'lost') && BetsCtl.firstShow(code), html: Bets.resultHtml({ view, me: (me && me.player) || myProfile, other: otherPlayer, compact: true }, betHelpers()) };
+        }
+        return { offer: false, html: Bets.statusHtml(view, playerName(otherPlayer), betHelpers()) };
+    };
+    // Odpověď na nabídku sázky před hrou; při chybě (limit, spojení) vrátí text chyby
+    const answerStake = async (code, accept) => {
+        try {
+            const row = await BetsApi.answer(code, accept);
+            if (row) BetsCtl.remember(row);
+            return null;
+        } catch (error) {
+            return error && error.message ? error.message : 'Sázku se nepodařilo potvrdit. Zkus to znovu.';
+        }
+    };
+
     // Úroveň a odznaky se po přihlášení ukládají i do účtu (viditelné ostatním, platí na všech zařízeních); chyba spojení nevadí
     let syncingProgress = false;
     // Účet, jehož postup se v tomto spuštění už sloučil se zařízením: odměny (se sezónou) se slučují až po něm, ať začátek sezóny
@@ -3934,6 +4072,11 @@
             let remote = null;
             try { remote = await Social.getProgress(user.id); } catch (error) { return; }
             if (!remote) return;
+            // Kamarádské sázky (bets.js): výhry a prohry sázek, které zařízení ještě nemá (vyrovnané na jiném zařízení), se připíšou dřív,
+            // než se XP sloučí – jinak by starší vyšší XP ze zařízení prohru v účtu přepsalo
+            const betXp = BetsCtl ? BetsCtl.reconcileXp(user.id, local.xp, remote) : local.xp;
+            const betChanged = betXp !== local.xp;
+            local.xp = betXp;
             // Větší XP a sjednocení odznaků: na novém zařízení se postup načte z účtu, na starém se do účtu nahraje
             // (do účtu jde jen nejvyšší stupeň každé skupiny, nižší se dopočítají)
             const merged = { ...local, xp: Math.max(local.xp, remote.xp || 0), badges: { ...local.badges } };
@@ -3943,7 +4086,7 @@
             // XP z účtu (získané na jiném zařízení) se do sezóny tady nepočítá: začátek sezóny se posune o totéž (season.js shift);
             // sloučení odměn s účtem pak vezme menší začátek, takže XP sezóny z jiného zařízení se vrátí přes jeho zápis v účtu
             if (Season && Rewards && merged.xp > local.xp) saveRewards(Season.shift(loadRewards(), merged.xp - local.xp));
-            if (changedLocal) { saveProgress(merged); updateControlsUI(); }
+            if (changedLocal || betChanged) { saveProgress(merged); updateControlsUI(); }
             progressSyncedFor = user.id;
             const compact = compactBadges(Object.keys(merged.badges));
             const sameRemote = (remote.xp || 0) === merged.xp && [...compact].sort().join() === [...(remote.badges || [])].filter(id => BADGE_BY_ID[id]).sort().join();
@@ -6415,6 +6558,7 @@
                 <span class="flex shrink-0 -space-x-2">${rivals || `<span class="flex h-7 w-7 items-center justify-center rounded-full bg-slate-100 text-slate-500 dark:text-slate-400 dark:bg-slate-700"><i data-lucide="users" class="h-4 w-4"></i></span>`}</span>
                 <span class="min-w-0 flex-1 truncate text-[13px] font-bold text-slate-800 dark:text-slate-100">${escapeHtml(row.challenge ? challengeTopicTitle(row.challenge.topic) : '')}</span>
                 ${Friends && signedUser() ? Friends.reactionBadge(Friends.reactionFor(recentReactions, row.challenge_id, signedUser().id), row.others[0] ? playerName(row.others[0].player) : '') : ''}
+                ${betBadge(row.challenge_id)}
                 <span class="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-black ${look[1]}">${outcome}</span>
                 <span class="w-12 shrink-0 text-right leading-tight tabular-nums"><span class="block text-[15px] font-black text-slate-800 dark:text-slate-100">${Number(row.points) || 0} b</span><span class="block text-[10px] font-semibold text-slate-500 dark:text-slate-400">${row.correct}/${count}</span></span>
             </button>`;
@@ -6424,7 +6568,7 @@
             ${avatarHtml(invite.creator, 'h-10 w-10 text-xl', true)}
             <span class="min-w-0 flex-1">
                 <span class="block truncate text-[13px] font-black text-slate-800 dark:text-slate-100">${escapeHtml(playerName(invite.creator))} tě vyzývá</span>
-                <span class="block truncate text-[11px] font-semibold text-slate-600 dark:text-slate-400">${escapeHtml(challengeTopicTitle(invite.topic))} · ${invite.count} otázek</span>
+                <span class="flex min-w-0 items-center gap-1.5 text-[11px] font-semibold text-slate-600 dark:text-slate-400"><span class="truncate">${escapeHtml(challengeTopicTitle(invite.topic))} · ${invite.count} otázek</span>${betBadge(invite.id)}</span>
             </span>
             <span class="flex shrink-0 items-center gap-1 rounded-xl bg-gold-500 px-3.5 py-2 text-[13px] font-black text-brand-950 shadow-sm"><i data-lucide="play" class="h-3.5 w-3.5"></i>Hrát</span>
         </button>`;
@@ -6947,6 +7091,8 @@
             myRating = rating;
             incomingList = incoming;
             paintChallenges();
+            // Kamarádské sázky (bets.js): mince u výzev a vyrovnání dohraných sázek (databáze bez sázek nic neukáže)
+            if (betsOn()) BetsCtl.refresh(user);
             // Ligové sezóny a moje vitrína (schéma 18; starší databáze vrátí null a nic se neukáže)
             refreshLeagueSeasons(user);
             loadMyShowcase(user);
@@ -7313,7 +7459,9 @@
     const openNewChallenge = (preset = null) => {
         if (!signedUser()) return;
         // group = výzva skupině (groups.js): výzva pro kohokoli s kódem, kterou server připojí ke skupině
-        const draft = { topics: [], count: 10, who: 'player', opponent: null, blocked: null, mixOk: true, query: '', found: null, level: 1, variant: 'choices', cats: null, open: null, group: null };
+        const draft = { topics: [], count: 10, who: 'player', opponent: null, blocked: null, mixOk: true, query: '', found: null, level: 1, variant: 'choices', cats: null, open: null, group: null,
+            // Kamarádské sázky (bets.js): vklad (0 = bez sázky), hláška 0–7 a upozornění na limit
+            stake: 0, taunt: null, stakeNote: '' };
         let busy = false;
         let note = '';
         let searchToken = 0;
@@ -7363,7 +7511,7 @@
         };
         const opponentSearch = () => {
             if (draft.opponent) {
-                return `<div class="mt-2"><div class="flex items-center gap-3 rounded-xl bg-white p-2 shadow-sm ring-2 ring-brand-600 dark:bg-slate-800">${avatarHtml(draft.opponent, 'h-8 w-8 text-base')}<span class="min-w-0 flex-1 truncate text-sm font-black text-slate-800 dark:text-slate-100">${escapeHtml(playerName(draft.opponent))}</span><button type="button" data-clear-opp class="rounded-lg px-2 py-1 text-xs font-bold text-slate-500 underline dark:text-slate-400">Změnit</button></div>${blockNote()}</div>`;
+                return `<div class="mt-2 short:mt-1.5"><div class="flex items-center gap-3 rounded-xl bg-white p-2 shadow-sm ring-2 ring-brand-600 short:py-1.5 dark:bg-slate-800">${avatarHtml(draft.opponent, 'h-8 w-8 text-base')}<span class="min-w-0 flex-1 truncate text-sm font-black text-slate-800 dark:text-slate-100">${escapeHtml(playerName(draft.opponent))}</span><button type="button" data-clear-opp class="rounded-lg px-2 py-1 text-xs font-bold text-slate-500 underline dark:text-slate-400">Změnit</button></div>${blockNote()}</div>`;
             }
             // Přátelé k rychlému výběru (friends.js) nad hledáním podle přezdívky
             const quick = Friends ? Friends.quickFriends(Friends.split(friendRows).friends, friendsHelpers()) : '';
@@ -7376,7 +7524,7 @@
                 <div>
                     <button type="button" data-ch-who="${id}" role="radio" aria-checked="${active}" class="flex min-h-[2.75rem] w-full items-center gap-3 rounded-2xl border-2 px-3 py-1.5 text-left active:scale-[0.99] ${active ? 'border-brand-600 bg-brand-50 dark:bg-brand-900/40' : 'border-transparent bg-white dark:bg-slate-800'}">
                         <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full short:h-7 short:w-7 ${active ? 'bg-brand-600 text-white' : 'bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-300'}"><i data-lucide="${icon}" class="h-[1.125rem] w-[1.125rem]"></i></span>
-                        <span class="min-w-0 flex-1"><span class="block text-[14px] font-black leading-tight text-slate-800 dark:text-slate-100">${title}</span><span class="block truncate text-[11px] text-slate-500 dark:text-slate-400${active ? '' : ' short:hidden'}">${text}</span></span>
+                        <span class="min-w-0 flex-1"><span class="block text-[14px] font-black leading-tight text-slate-800 dark:text-slate-100">${title}</span><span class="block truncate text-[11px] text-slate-500 dark:text-slate-400${active && !(id === 'player' && draft.opponent) ? '' : ' short:hidden'}">${text}</span></span>
                         <span class="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 ${active ? 'border-brand-600 bg-brand-600 text-white' : 'border-slate-300 dark:border-slate-600'}">${active ? '<i data-lucide="check" class="h-3 w-3"></i>' : ''}</span>
                     </button>
                     ${active && id === 'player' ? opponentSearch() : ''}
@@ -7437,6 +7585,7 @@
                     <div class="grid grid-cols-3 gap-1">${Social.COUNTS.map(count => chip('data-ch-count', count, draft.count === count, `<span class="px-1.5 font-black">${count}</span>`)).join('')}</div>
                 </div>
                 ${accordion('settings', 'pencil', 'Nastavení', settingsSummary(), settingsBody())}
+                ${betPickerHtml(draft)}
                 <div class="sticky -bottom-5 -mx-5 mt-1 bg-slate-50/95 px-5 pb-5 pt-3 backdrop-blur short:pt-2 dark:bg-slate-900/95">
                     <button type="button" data-ch-create ${busy ? 'disabled' : ''} class="${PRIMARY_BUTTON} short:py-2.5">${uiArt('vyzva', 'h-7 w-7')} ${busy ? 'Zakládám…' : 'Vytvořit a hrát'}</button>
                     ${note ? (Object.values(NO_RANDOM_OPPONENT).includes(note) ? lookoutNote(note) : DIALOG_NOTE(note)) : ''}
@@ -7451,6 +7600,8 @@
                 const category = event.target.closest('[data-ch-cat]');
                 const hard = event.target.closest('[data-ch-level]');
                 const variant = event.target.closest('[data-ch-variant]');
+                // Řádek Sázka: vklad, hláška a pravidla (z pravidel se vrátí do rozpracované výzvy)
+                if (Bets && betPickerClick(event, draft, render, () => openChild('Zpět na Novou výzvu', () => openNewChallenge({ draft: { ...draft } }), openBetsHelp))) return;
                 if (open) { draft.open = draft.open === open.dataset.chOpen ? null : open.dataset.chOpen; render(); }
                 if (topic) {
                     const id = topic.dataset.chTopic;
@@ -7521,6 +7672,8 @@
                         const created = await Social.createChallenge(signedUser().id, { topic: resolved.value, count: draft.count, invitedId: opponent ? opponent.id : null, includeHard: draft.level >= 2, level: draft.level, categories: cats, variant: draft.variant });
                         // Výzva skupině: připojí se ke skupině (členové ji uvidí v detailu skupiny); když to nevyjde, hraje se jako výzva přes odkaz
                         if (draft.group) await Social.groupSetChallenge(draft.group.id, created.id).catch(error => showToast(error && error.message ? error.message : 'Výzvu se nepodařilo poslat skupině.'));
+                        // Kamarádská sázka: nabídne se hned po založení, dřív než kdokoli začne hrát
+                        if (Bets && draft.who === 'player') await offerStake(created.id, draft);
                         closeDialog();
                         await loadMyProfile();
                         startChallenge({ ...created, creator: myProfile, invited: opponent, group: draft.group || null, fresh: true }, 0, []);
@@ -7556,6 +7709,8 @@
             }
         });
         if (preset && preset.who === 'random') draft.who = 'random';
+        // Návrat z pravidel sázek: rozpracovaná výzva se obnoví, jak byla
+        if (preset && preset.draft) Object.assign(draft, preset.draft);
         if (preset && preset.group) { draft.who = 'anyone'; draft.group = preset.group; }
         if (preset && preset.opponent) {
             const last = preset.last;
@@ -7572,6 +7727,8 @@
             Social.getAccepts(id).then(accepts => { if (draft.opponent && draft.opponent.id === id) { draft.blocked = accepts.blocked; draft.mixOk = accepts.mix; render(); } }).catch(() => {});
         }
         render();
+        // Limit sázky (XP z posledních 7 dní) se dotáhne, pokud ještě není načtený
+        if (betsOn() && BetsCtl.limit() === null) BetsCtl.refresh().then(() => render()).catch(() => {});
     };
 
     // Zadání kódu výzvy od kamaráda (nebo celého odkazu)
@@ -7637,7 +7794,9 @@
         'vyhry-v-rade', 'zalozene', 'perfektni-vyzvy', 'uroven', 'poznane', 'vsestrannost', 'hvezdy', 'vsechna-temata', 'turnaje', 'turnaj-postupy',
         'tydenni-cile', 'kviz-dne', 'kviz-serie', 'kviz-perfekt', 'bleskovka', 'preziti', 'mapa', 'odhad', 'serad', 'detektiv']);
     // Obrázek symbolu skupiny (bez přípony); odznaky alba sbírky mají obrázek Sběratel (Album.BADGE_ART)
-    const badgeArtOf = (group) => BADGE_ART.has(group) ? `odznak-${group}` : Album && Album.isAlbumGroup(BADGE_GROUPS.find(entry => entry.id === group)) ? Album.BADGE_ART : null;
+    const badgeArtOf = (group) => BADGE_ART.has(group) ? `odznak-${group}` : Album && Album.isAlbumGroup(BADGE_GROUPS.find(entry => entry.id === group)) ? Album.BADGE_ART
+        // Kamarádské sázky: zástupný obrázek z bets.js (ART.badges), než přijde vlastní symbol
+        : Bets && Bets.ART.badges[group] ? Bets.ART.badges[group] : null;
     // Nezískaný odznak ukazuje svou ikonu zašedlou a ztlumenou, přes ni malý zámek v rohu
     const medalHtml = (badge, earned, size = 'h-11 w-11', iconSize = 'h-5 w-5') => {
         const dim = earned ? '' : ' opacity-50 grayscale';
@@ -8083,6 +8242,8 @@
         let theirRating = null;
         // Vitrína hráče (schéma 18): nejvýš 3 trofeje; null = nenačtená nebo databáze vitrínu nemá
         let theirShowcase = null;
+        // Sázková bilance hráče (bets.js, schéma 21); null = bez sázek nebo databáze sázky nemá
+        let theirBets = null;
         let failed = false;
         let busy = false;
         let note = '';
@@ -8219,6 +8380,7 @@
                     <div class="rounded-2xl bg-white p-2 shadow-sm dark:bg-slate-800" data-player-stats>
                         <div class="grid grid-cols-3 divide-x divide-slate-200 dark:divide-slate-700">${stat('Výzvy', stats.games)}${stat('Úspěšnost', percent)}${stat('Nejlepší', stats.best ? `${stats.best.correct}/${stats.best.count}` : '–')}</div>
                         <div class="mt-2 border-t border-slate-200 pt-2 dark:border-slate-700">${versus}</div>
+                        ${theirBets && theirBets.bets ? `<div class="mt-2 border-t border-slate-200 pt-2 dark:border-slate-700${menuOpen ? ' short:hidden' : ''}">${Bets.balanceHtml(theirBets, betHelpers())}</div>` : ''}
                     </div>
                     <div>
                         <button type="button" data-rematch ${busy ? 'disabled' : ''} class="${PRIMARY_BUTTON}">${uiArt('vyzva', 'h-7 w-7')} ${busy ? 'Zakládám…' : stats.last ? 'Vyzvat k odvetě' : 'Vyzvat'}</button>
@@ -8298,6 +8460,7 @@
         // Úroveň a odznaky hráče (bez nových sloupců v databázi se prostě nezobrazí)
         if (Rating) Social.getRating(playerId).then(value => { theirRating = value; if (document.getElementById('dialog-overlay')) render(); }).catch(() => {});
         Social.getProgress(playerId).then(value => { theirProgress = value; if (stats && document.getElementById('dialog-overlay')) render(); }).catch(() => {});
+        if (betsOn()) BetsApi.stats(playerId).then(value => { theirBets = value; if (stats && value && value.bets && isOpen()) render(); }).catch(() => {});
         if (Showcase && Social.getShowcase) Social.getShowcase(playerId).then(value => { theirShowcase = value; if (value && value.length && document.getElementById('dialog-overlay')) render(); }).catch(() => {});
         try {
             stats = await Social.playerStats(user.id, playerId);
@@ -8415,8 +8578,11 @@
         let results;
         // Průběh ze serveru (schéma 3): pole odpovědí, null = databáze ho neeviduje, undefined = nepodařilo se ho načíst
         let progress;
+        // Kamarádská sázka (bets.js): stav sázky pro mě, dohraná sázka se tím rovnou vyrovná; null = žádná (nebo hraje někdo jiný)
+        let stakeInfo = null;
         try {
-            [def, results, progress] = await Promise.all([Social.getChallenge(code), Social.getResults(code), Social.challengeProgress(user.id, code).catch(() => undefined)]);
+            [def, results, progress, stakeInfo] = await Promise.all([Social.getChallenge(code), Social.getResults(code), Social.challengeProgress(user.id, code).catch(() => undefined),
+                betsOn() ? BetsCtl.settle(code).catch(() => null) : null]);
         } catch (error) {
             if (stillOpen()) showDialog('Výzva', DIALOG_NOTE('Výzvu se nepodařilo načíst. Zkontroluj připojení a zkus to znovu.'));
             return;
@@ -8435,7 +8601,22 @@
         // Server zná rozehraný průběh (i po smazání dat nebo z jiného zařízení): pokračuje se podle něj, ne od první otázky
         if (!mine && Array.isArray(progress) && progress.length) resumable = mergeAnswers(resumable || makeChallenge({ ...def, owner: user.id }), progress);
         const text = `${own ? 'Vyzývám tě' : 'Hraju'} v Mudrlantu: ${challengeTopicTitle(def.topic)}, ${def.count} otázek.`;
-        showDialog(own ? 'Tvoje výzva' : 'Výzva', `
+        // Kamarádská sázka: nabídka (místo Hrát výzvu tlačítka Přijmout sázku a Hrát bez sázky), stav, nebo výsledek s mincemi
+        const bet = Bets ? betDetail({ code, def, user, info: stakeInfo, results, mine }) : { html: '', offer: false };
+        let betBusy = false;
+        let betNote = '';
+        const playNow = () => {
+            closeDialog();
+            // Tahle výzva je už rozehraná: pokračuje se od další otázky (ne znovu od první)
+            if (resumable) { challenge = resumable; if (group && !challenge.group) challenge.group = challengeGroup(group); continueChallenge(); }
+            else startChallenge({ ...def, group, synced: Array.isArray(progress) ? 0 : -1 }, 0, []);
+        };
+        const betButtons = () => `<div class="flex flex-col gap-2" data-stake-buttons>
+                <button type="button" data-stake-answer="yes" ${betBusy ? 'disabled' : ''} class="flex w-full items-center justify-center gap-2 rounded-2xl btn-3d bg-gradient-to-b from-gold-400 to-gold-600 px-4 py-3 text-base font-black text-brand-950 disabled:opacity-60">${Bets.coinHtml('h-6 w-6')} ${betBusy ? 'Potvrzuji…' : 'Přijmout sázku'}</button>
+                <button type="button" data-stake-answer="no" ${betBusy ? 'disabled' : ''} class="${SECONDARY_BUTTON} disabled:opacity-60"><i data-lucide="play" class="h-5 w-5"></i> Hrát bez sázky</button>
+                ${betNote ? `<p data-stake-error class="text-sm font-semibold leading-snug text-rose-700 dark:text-rose-400" role="status">${escapeHtml(betNote)}</p>` : ''}
+            </div>`;
+        const draw = () => showDialog(own ? 'Tvoje výzva' : 'Výzva', `
             <div class="flex flex-col gap-4">
                 <div class="flex items-center gap-3">
                     ${avatarHtml(def.creator, 'h-12 w-12 text-2xl', true)}
@@ -8449,24 +8630,40 @@
                         ...(def.categories || []).length && topicDef ? [`Okruh: ${def.categories.map(key => categoryOf(topicDef, key).label).join(', ')}`] : []].filter(Boolean);
                     return `<div class="flex flex-wrap gap-1.5">${tags.map(tag => `<span class="rounded-full bg-slate-200 px-2.5 py-1 text-[11px] font-bold text-slate-600 dark:bg-slate-700 dark:text-slate-300">${escapeHtml(tag)}</span>`).join('')}</div>`;
                 })()}
-                ${def.invited ? `<p class="flex items-center gap-2 text-sm font-semibold text-slate-600 dark:text-slate-300">Vyzvaný hráč: ${avatarHtml(def.invited, 'h-6 w-6 text-sm')} <b>${escapeHtml(def.invited.id === user.id ? 'ty' : playerName(def.invited))}</b></p>` : ''}
-                ${mine || !canPlay ? (results.length ? `<ol class="flex flex-col gap-1.5">${rankingRows(results, def.count, user.id)}</ol>` : NOBODY_PLAYED) : waitingPlayers(def, results, user.id)}
+                ${def.invited && !bet.offer ? `<p class="flex items-center gap-2 text-sm font-semibold text-slate-600 dark:text-slate-300">Vyzvaný hráč: ${avatarHtml(def.invited, 'h-6 w-6 text-sm')} <b>${escapeHtml(def.invited.id === user.id ? 'ty' : playerName(def.invited))}</b></p>` : ''}
+                ${mine || !canPlay ? (results.length ? `<ol class="flex flex-col gap-1.5">${rankingRows(results, def.count, user.id)}</ol>` : NOBODY_PLAYED)
+                    // S nabídkou sázky na nízkém displeji místo seznamu hráčů jen karta sázky (jméno vyzyvatele je v ní)
+                    : bet.offer ? `<div class="short:hidden">${waitingPlayers(def, results, user.id)}</div>` : waitingPlayers(def, results, user.id)}
+                ${bet.html}
                 ${myChange ? `<p class="text-sm font-bold text-slate-600 dark:text-slate-300">Tvůj rating: <b class="${myChange.delta > 0 ? 'text-emerald-700 dark:text-emerald-400' : myChange.delta < 0 ? 'text-rose-700 dark:text-rose-400' : ''}">${Rating.formatDelta(myChange.delta)}</b> (${myChange.after})</p>` : ''}
                 ${mine && results.some(row => row.user_id !== user.id) ? `<button type="button" data-ch-breakdown class="${SECONDARY_BUTTON}"><i data-lucide="list-ordered" class="h-5 w-5"></i> Rozpis otázek</button>` : ''}
-                ${mine ? '' : `<button type="button" data-ch-play class="${PRIMARY_BUTTON}"><i data-lucide="play" class="h-5 w-5"></i> ${resumable ? resumeLabel(resumable) : 'Hrát výzvu'}</button>`}
+                ${mine ? '' : bet.offer ? betButtons() : `<button type="button" data-ch-play class="${PRIMARY_BUTTON}"><i data-lucide="play" class="h-5 w-5"></i> ${resumable ? resumeLabel(resumable) : 'Hrát výzvu'}</button>`}
                 <button type="button" data-ch-share class="${SECONDARY_BUTTON}"><i data-lucide="share-2" class="h-5 w-5"></i> Sdílet výzvu · ${code}</button>
             </div>`, {
             onClick: (event) => {
                 if (event.target.closest('[data-ch-share]')) shareChallenge(code, text);
                 if (event.target.closest('[data-ch-breakdown]')) openChallengeBreakdown({ ...def, code }, results);
-                if (event.target.closest('[data-ch-play]')) {
-                    closeDialog();
-                    // Tahle výzva je už rozehraná: pokračuje se od další otázky (ne znovu od první)
-                    if (resumable) { challenge = resumable; if (group && !challenge.group) challenge.group = challengeGroup(group); continueChallenge(); }
-                    else startChallenge({ ...def, group, synced: Array.isArray(progress) ? 0 : -1 }, 0, []);
+                if (event.target.closest('[data-ch-play]')) playNow();
+                // Nabídka sázky: přijetí (do limitu) i hra bez sázky se nejdřív zapíše, pak se hraje; nepřijatá sázka ukáže proč
+                const answer = event.target.closest('[data-stake-answer]');
+                if (answer && !betBusy) {
+                    const accept = answer.dataset.stakeAnswer === 'yes';
+                    betBusy = true;
+                    betNote = '';
+                    draw();
+                    answerStake(code, accept).then(error => {
+                        betBusy = false;
+                        const overlay = document.getElementById('dialog-overlay');
+                        if (!overlay || token !== challengeToken) return;
+                        if (error && accept) { betNote = error; draw(); return; }
+                        playNow();
+                    });
                 }
+                if (event.target.closest('[data-stake-help]')) openChild('Zpět na výzvu', () => openChallenge(code, group), openBetsHelp);
             }
         });
+        draw();
+        if (bet.pour) requestAnimationFrame(() => betPourIn(document.getElementById('dialog-overlay')));
     };
 
     // Rozehraná výzva z řádku výzvy (nebo z dřívější rozehrané): co a kým se hraje, odpovědi a kolik jich potvrdil server
@@ -8610,7 +8807,7 @@
         // Rozpis otázek se po dohrání otevře sám (jednou na výzvu), jakmile je s kým srovnávat; tlačítko na výsledku zůstává
         if (state === 'ok' && !c.tournament && rivals.length && !c.breakdownShown) {
             c.breakdownShown = true;
-            setTimeout(() => { if (challenge === c && screen === 'challenge-done' && !document.getElementById('dialog-overlay')) openChallengeBreakdown(c, results); }, 700);
+            setTimeout(() => { if (challenge === c && screen === 'challenge-done' && !document.getElementById('dialog-overlay')) openChallengeBreakdown(c, results); }, c.betPour ? 2800 : 700);
         }
         // Upozornění, že vyzvaný hráč výzvu uvidí: ne vyzvanému samotnému a ne potom, co už ji dohrál
         const invitedWaiting = Boolean(c.invited && c.invited.id && (!user || c.invited.id !== user.id) && !(results || []).some(row => row.user_id === c.invited.id));
@@ -8623,6 +8820,7 @@
                     <p data-result-correct class="mt-1 text-sm font-bold text-white/90">${correct}/${c.count} správně</p>
                     ${ratingNote(c, results)}
                 </div>
+                ${state === 'ok' && c.betPanel ? `<div id="bet-result">${c.betPanel}</div>` : ''}
                 ${body}
                 ${invitedWaiting ? `<p data-invited-note class="text-center text-sm font-semibold leading-relaxed text-slate-600 dark:text-slate-300"><span class="inline-flex max-w-full items-center gap-1.5 align-middle">${avatarHtml(c.invited, 'h-6 w-6 text-sm')}<b class="truncate">${escapeHtml(playerName(c.invited))}</b></span> uvidí výzvu na úvodní stránce.</p>` : ''}
                 ${state === 'ok' && rivals.length ? `<button type="button" data-action="challenge-breakdown" class="${SECONDARY_BUTTON}"><i data-lucide="list-ordered" class="h-5 w-5"></i> Rozpis otázek</button>` : ''}
@@ -8633,6 +8831,8 @@
         renderIcons(appContent);
         appContent.scrollTo(0, 0);
         updateControlsUI();
+        // Kamarádská sázka: mince se k vítězi sypou jen při prvním zobrazení výsledku
+        if (state === 'ok' && c.betPour) { c.betPour = false; requestAnimationFrame(() => betPourIn(document.getElementById('bet-result'))); }
         // Vyhraná výzva: obrázek ke sdílení se připraví hned (share-card.js)
         if (outcome === 'vyhra' && ShareCard) { const card = challengeCardInput(c); if (card) ShareCard.prepare(card, ShareCard.fileName('vyzva', card.day)); }
         // Dohraná výzva, na jejíhož soupeře se čeká (i právě založená): nabídka upozornění, ať se hráč dozví, až soupeř dohraje
@@ -8899,6 +9099,8 @@
             // Až uložený výsledek: dohraná výzva se zapamatuje a úvod ji už nenabízí
             markChallengeFinished(c.code);
             const results = await Social.getResults(c.code);
+            // Kamarádská sázka (bets.js): dohráli-li oba, vyrovná se hned (XP do zařízení) a výsledek ukáže mince; jinak jen stav sázky
+            if (Bets && !c.betView) await betSettleChallenge(c, results);
             // Rating po výzvě počítá databáze; změnu (a nový rating do karty ligy) načteme, ať ji hráč vidí hned
             if (Rating && results.length > 1 && !c.ratingChange) {
                 c.ratingChange = await Social.getRatingChange(user.id, c.code).catch(() => null);
@@ -9850,7 +10052,9 @@
             signedIn: Boolean(signedUser()), multiAvailable: Boolean(Auth && Auth.isConfigured() && Social), reviewOn: reviewEnabled(),
             quiz: Boolean(DailyQuiz), mystery: Boolean(Mystery), modes: Boolean(Modes), goals: Boolean(Goals && Rewards), freezes: Rewards ? loadRewards().freezes : 0,
             season: Boolean(Season && Rewards), album: Boolean(Album), chronicle: Boolean(Chronicle), showcase: Boolean(Showcase && myShowcase !== null), leagueSeasons: Boolean(LeagueSeasons && leagueSeasons),
-            maxStars: Math.max(0, ...Object.values(loadLearned()).map(ids => masteryStars((ids || []).length)))
+            maxStars: Math.max(0, ...Object.values(loadLearned()).map(ids => masteryStars((ids || []).length))),
+            // Kamarádské sázky: tip jen s databází, která sázky má
+            bets: betsReady()
         });
     };
     // Záložka Nastavení, kterou otevře tlačítko tipu (tip „Obleč si Mudrlanta“ → Mudrlant); bez ní poslední otevřená

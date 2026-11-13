@@ -29,7 +29,12 @@
         // Odznak: třpytivé dva tóny a třetí výš
         badge: [n(783.99, 0, 0.1, { type: 'sine' }), n(987.77, 0.08, 0.1, { type: 'sine' }), n(1567.98, 0.16, 0.28, { type: 'sine', gain: 0.16 })],
         // Nový rekord: krátká fanfára
-        record: [n(392, 0, 0.1), n(523.25, 0.1, 0.1), n(659.25, 0.2, 0.1), n(783.99, 0.3, 0.16), n(659.25, 0.46, 0.08), n(1046.5, 0.54, 0.45), n(523.25, 0.54, 0.45, { type: 'sine', gain: 0.12 })]
+        record: [n(392, 0, 0.1), n(523.25, 0.1, 0.1), n(659.25, 0.2, 0.1), n(783.99, 0.3, 0.16), n(659.25, 0.46, 0.08), n(1046.5, 0.54, 0.45), n(523.25, 0.54, 0.45, { type: 'sine', gain: 0.12 })],
+        // Kamarádské sázky (bets.js): mince se sypou k vítězi a cinkají (krátké vysoké tóny s tichým podtónem, nepravidelně po sobě)
+        coins: [n(1975.53, 0, 0.06, { type: 'sine', gain: 0.16 }), n(1318.51, 0, 0.05, { type: 'sine', gain: 0.06 }), n(1760, 0.1, 0.06, { type: 'sine', gain: 0.15 }),
+            n(1174.66, 0.1, 0.05, { type: 'sine', gain: 0.05 }), n(1864.66, 0.19, 0.05, { type: 'sine', gain: 0.14 }), n(1567.98, 0.27, 0.07, { type: 'sine', gain: 0.15 }),
+            n(1046.5, 0.27, 0.05, { type: 'sine', gain: 0.05 }), n(1975.53, 0.36, 0.05, { type: 'sine', gain: 0.13 }), n(1760, 0.45, 0.12, { type: 'sine', gain: 0.16 }),
+            n(1318.51, 0.45, 0.12, { type: 'sine', gain: 0.07 })]
     };
     // Vibrace: krátké cvrnknutí při chybě, rytmus při novém rekordu
     const VIBRATIONS = { wrong: 40, record: [70, 50, 70, 50, 160] };

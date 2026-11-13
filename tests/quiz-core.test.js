@@ -624,13 +624,15 @@ test('odznaky: skupiny se stupni, podmínky podle počítadel a postupu', () => 
     const topics12 = Object.fromEntries(Object.keys(topics).map(id => [id, 100]));
     // Celé album sbírky (procenta celé sbírky a sekcí dosazuje album.js)
     const fullAlbum = { percent: 100, sections: Object.fromEntries(core.ALBUM_SECTION_TITLES.map(([section]) => [section, 100])) };
-    const many = core.earnedBadgeIds({ tourBest: 6, tourWins: 60, weeksDone: 52, topicBest: topics12, correct: 10000, bestRun: 200, bestStreak: 365, days: 365, perfectDays: 60, dailyCorrect: 1000, noHint: 2500, typedCorrect: 2500, hardCorrect: 1000, fixed: 1000, challenges: 500, wins: 100, bestWinRun: 25, created: 250, perfectChallenges: 100, topics, quizDone: 365, quizBestStreak: 100, quizPerfect: 100, blitzBest: 25, survivalBest: 75, mapExact: 500, estimateGood: 500, orderPerfect: 500, mysterySolved: 365 }, { level: 100, learned: 10000, topicStars: stars, topicCount: 14, album: fullAlbum });
+    const many = core.earnedBadgeIds({ tourBest: 6, tourWins: 60, weeksDone: 52, topicBest: topics12, correct: 10000, bestRun: 200, bestStreak: 365, days: 365, perfectDays: 60, dailyCorrect: 1000, noHint: 2500, typedCorrect: 2500, hardCorrect: 1000, fixed: 1000, challenges: 500, wins: 100, bestWinRun: 25, created: 250, perfectChallenges: 100, topics, quizDone: 365, quizBestStreak: 100, quizPerfect: 100, blitzBest: 25, survivalBest: 75, mapExact: 500, estimateGood: 500, orderPerfect: 500, mysterySolved: 365, bets: 60, betBestRun: 15 }, { level: 100, learned: 10000, topicStars: stars, topicCount: 14, album: fullAlbum });
     assert.equal(many.length, core.BADGES.length, 'všechny odznaky jdou získat');
     assert.ok(!core.earnedBadgeIds({ topics: { a: 1 } }, x).includes('vsestranny'));
     // Do účtu jen nejvyšší stupně a zpět
     const compact = core.compactBadges(many);
     assert.equal(compact.length, core.BADGE_GROUPS.length);
-    assert.ok(compact.filter(id => !core.isAlbumBadge(id)).length <= 60, 'vejde se do limitu databáze');
+    // Databáze bere nejvýš 500 položek a 12 000 znaků (profiles_badges_len); jedna položka na skupinu zabere asi 1 kB
+    assert.ok(compact.filter(id => !core.isAlbumBadge(id)).length <= 80, 'vejde se do limitu databáze');
+    assert.ok(compact.join(',').length <= 4000, 'vejde se do limitu databáze (znaky)');
     assert.ok(compact.filter(id => core.isAlbumBadge(id)).length <= 10, 'album sbírky přidá nejvýš deset skupin');
     assert.deepEqual([...core.expandBadges(compact)].sort(), [...many].sort());
     assert.deepEqual(core.expandBadges(['stovka']).sort(), ['odpovedi-10', 'odpovedi-50', 'prvni-krok', 'stovka'].sort());
