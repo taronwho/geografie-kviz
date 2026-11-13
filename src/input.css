@@ -531,6 +531,9 @@ html.kb-open #settings-overlay > *, html.kb-open #dialog-overlay > * { max-heigh
 @keyframes chestFloat { 0%, 100% { translate: 0 0; } 50% { translate: 0 -0.3rem; } }
 @keyframes chestFadeUp { from { opacity: 0; translate: 0 0.5rem; } to { opacity: 1; translate: 0 0; } }
 
+/* Měření úvodu (app.js fitHome): bez přechodů, ať se změří konečné výšky dlaždic, ne rozběhnutý přechod */
+.fit-measure #app-content *, .fit-measure #app-content *::before, .fit-measure #app-content *::after { transition: none !important; }
+
 /* ===== Boss týdne (boss.js) =====
    Aréna: tmavé pozadí s reflektorem shora, barevnou září bosse zespodu a stínem na zemi (do dodání textury textura-arena, č. 231).
    Barva bosse je v proměnných --boss a --boss-2 (třída boss-theme-<id>). Portrét má vrstvy: záře, stín, tělo (obrázek stupně), praskliny,
