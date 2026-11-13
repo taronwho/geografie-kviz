@@ -211,11 +211,12 @@ test('Zlatá otázka', { skip: !chromium && 'Playwright není nainstalovaný' },
             await tab.click(`[data-action="choice"][data-index="${await rightChoice(tab)}"]`);
             await tab.waitForSelector('[data-gold-result="shard"]');
             assert.match(await tab.textContent('[data-gold-result]'), /Máš všech pět\. Zlatá truhla je tvoje!/);
-            // Truhla se otevře sama, zavřená zlatá truhla s pozlaceným obrázkem
+            // Truhla se otevře sama, zavřená Zlatá truhla (vlastní obrázek č. 208, bez pozlacení filtrem)
             await tab.waitForSelector('#chest-overlay [data-chest-go]');
             assert.equal(await tab.getAttribute('#chest-overlay', 'aria-label'), 'Zlatá truhla');
             assert.match(await tab.textContent('#chest-overlay'), /5 zlatých střípků[\s\S]*Zlatá truhla[\s\S]*Klepni na truhlu/);
-            assert.equal(await tab.locator('#chest-overlay .gold-chest .chest-body.gold-tint').count(), 1);
+            assert.equal(await tab.locator('#chest-overlay .gold-chest .chest-body.gold-tint').count(), 0);
+            assert.ok(await tab.locator('#chest-overlay .gold-chest img[src*="zlata-truhla"]').count() >= 1, 'obrázek Zlaté truhly');
             await shot(tab, `zlata-truhla-${viewport.width}-${colorScheme}`);
             await tab.click('#chest-overlay [data-chest-go]');
             await tab.waitForSelector('[data-chest-reveal]');

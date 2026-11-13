@@ -663,7 +663,10 @@
         const openChest = (id) => {
             const chest = svg && svg.querySelector(`[data-mark="${id}"] .cq-treasure`);
             if (!chest) return;
-            chest.insertAdjacentHTML('beforeend', `<g class="cq-lid-open">${C.iconMarkup('treasure').match(/<path d="M3 11c[^>]*\/>/)[0]}</g>${Array.from({ length: 6 }, (_, i) => `<circle class="cq-sparkle cq-sparkle-fly" cx="${6 + i * 2.4}" cy="8" r="1.3"/>`).join('')}`);
+            // Kresba truhly má víko, které se odklopí; obrázek truhly (č. 263) jen poskočí. Jiskry vyletí v obou případech
+            const lid = C.iconMarkup('treasure').match(/<path d="M3 11c[^>]*\/>/);
+            chest.insertAdjacentHTML('beforeend', `${lid ? `<g class="cq-lid-open">${lid[0]}</g>` : ''}${Array.from({ length: 6 }, (_, i) => `<circle class="cq-sparkle cq-sparkle-fly" cx="${6 + i * 2.4}" cy="8" r="1.3"/>`).join('')}`);
+            if (!lid) chest.classList.add('cq-chest-pop');
             chest.querySelectorAll('.cq-sparkle-fly').forEach((spark, i) => { spark.style.setProperty('--dx', `${(i - 2.5) * 3}px`); spark.style.setProperty('--dy', `${-10 - (i % 3) * 4}px`); });
         };
         // Po překreslení: vlaječka se zapíchne, opevnění vyroste s obláčkem prachu

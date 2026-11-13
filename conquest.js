@@ -587,7 +587,9 @@
         const defs = [];
         // Moře: vlnky starých map; po dodání textury obrázek (č. 233)
         defs.push(`<pattern id="${prefix}-waves" width="40" height="22" patternUnits="userSpaceOnUse"><path d="M2 8q4.5-4 9 0t9 0M22 19q4.5-4 9 0t9 0" fill="none" stroke="#3f6a7d" stroke-width="1" stroke-opacity="0.3" stroke-linecap="round"/></pattern>`);
-        if (ART.sea) defs.push(`<pattern id="${prefix}-seatex" width="256" height="256" patternUnits="userSpaceOnUse"><image href="icons/textury/${ART.sea}.webp" width="256" height="256"/></pattern>`);
+        // Dlaždice textury ~ třetina šířky mapy (vlnky zůstanou čitelné i bez přiblížení); průsvitná, ať moře prosvítá pergamenem
+        const tile = Math.round(Math.max(w, h) / 3);
+        if (ART.sea) defs.push(`<pattern id="${prefix}-seatex" width="${tile}" height="${tile}" patternUnits="userSpaceOnUse"><image href="icons/textury/${ART.sea}.webp" width="${tile}" height="${tile}" class="cq-seatex"/></pattern>`);
         players.forEach(player => defs.push(hatchPattern(player.seat, player.flag_color, prefix)));
         const kraje = MAP_BY_ID[data.id] && MAP_BY_ID[data.id].kraje;
         // U krajů je „mořem“ cizina kolem Česka (pozadí dat je celý výřez)
@@ -881,7 +883,7 @@
             <div class="flex shrink-0 items-center gap-1.5">
                 <button type="button" data-cq="hub" class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl btn-3d-light bg-white text-slate-700 dark:bg-slate-800 dark:text-slate-200" aria-label="Moje hry"><i data-lucide="chevron-left" class="h-5 w-5"></i></button>
                 <div class="flex min-w-0 flex-1 justify-center">
-                    <div class="${ART.cartouche ? 'cq-cartouche-art aspect-[29/10] h-12 max-w-full px-[14%]' : 'cq-cartouche h-10 w-full rounded-xl px-2'} flex min-w-0 flex-col items-center justify-center text-center">
+                    <div class="${ART.cartouche ? 'cq-cartouche-art aspect-[29/10] h-14 max-w-full px-[15%] pb-[3px]' : 'cq-cartouche h-10 w-full rounded-xl px-2'} flex min-w-0 flex-col items-center justify-center text-center">
                         <span class="cq-cartouche-title max-w-full truncate">${esc(mapTitle(game.map))}</span>
                         <span class="max-w-full truncate text-[10.5px] font-bold leading-3 text-amber-900/80" data-cq-clock>${esc(status)}</span>
                     </div>
