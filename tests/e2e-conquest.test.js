@@ -370,11 +370,16 @@ test('Dobývání', { skip: !chromium && 'Playwright není nainstalovaný' }, as
         assert.match((await tab.textContent(`[data-cq-game="${uuid(2)}"]`)).replace(/\s+/g, ' '), /Česko\s*Rychlá hra\s*12 h · 3 tahy za hodinu/);
         await tab.waitForFunction(() => document.querySelectorAll('[data-cq-game] .cq-thumb path').length > 10, null, { timeout: 15000 });
         await shot(tab, 'lobby-360');
-        // Založit hru: Česko, 12 h, hodina, soukromá; barva a znak
+        // Založit hru: Česko, tempo Blesk ve shrnutí, pak Vlastní: kolo 1 h, hra 12 h, soukromá; barva a znak
         await tab.click('[role="tab"][data-cq-tab="create"]');
         await tab.click('[data-cq-set="map"][data-value="cesko"]');
-        await tab.click('[data-cq-set="hours"][data-value="12"]');
+        await tab.click('[data-cq-tempo="blesk"]');
+        assert.match((await tab.textContent('[data-cq-form]')).replace(/\s+/g, ' '), /Česko\s*Blesk\s*Hra 20 min · 4 kola po 5 min\s*5 tahů za kolo/);
+        await shot(tab, 'zalozit-tempo-360');
+        await tab.click('[data-cq="tempo-custom"]');
         await tab.click('[data-cq-set="period"][data-value="hour"]');
+        await tab.click('[data-cq-set="minutes"][data-value="720"]');
+        assert.match(await tab.textContent('[data-cq-summary]'), /Hra 12 h · 12 kol po 1 h/);
         await tab.click('[data-cq-set="visibility"][data-value="private"]');
         for (let i = 0; i < 6; i++) await tab.click('[data-cq-step="players"][data-delta="1"]:not([disabled])').catch(() => {});
         assert.equal(await tab.textContent('[data-cq-value="players"]'), '6', 'Česko: nejvýš 6 hráčů');

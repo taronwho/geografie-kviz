@@ -52,8 +52,23 @@
         { id: 'cesko', title: 'Česko', icon: 'house', kraje: true }
     ];
     const MAP_BY_ID = Object.fromEntries(MAPS.map(map => [map.id, map]));
+    // Délka hry v hodinách (hry na hodiny a dny; server je zná od začátku)
     const DURATIONS = [6, 12, 24, 48, 72, 120, 168];
-    const PERIODS = ['day', 'hour'];
+    // Tempo hry (blok 26): délka kola (období) a délka hry v minutách. Kola po 5 a 10 minutách jsou pro rychlé hry na desítky minut.
+    const PERIODS = ['min5', 'min10', 'hour', 'day'];
+    const PERIOD_MINUTES = { min5: 5, min10: 10, hour: 60, day: 1440 };
+    // Délky hry podle kola (minuty), vždy aspoň 3 kola
+    const LENGTHS = { min5: [20, 30, 45, 60], min10: [30, 60, 90, 120], hour: [360, 720, 1440, 2880], day: [4320, 7200, 10080] };
+    // Předvolby tempa na obrazovce Založit hru (tahy za kolo jdou upravit zvlášť)
+    const TEMPOS = [
+        { id: 'blesk', name: 'Blesk', icon: 'zap', period: 'min5', minutes: 20, actions: 5 },
+        { id: 'rychlovka', name: 'Rychlovka', icon: 'timer', period: 'min10', minutes: 60, actions: 5 },
+        { id: 'odpoledne', name: 'Odpoledne', icon: 'sun', period: 'hour', minutes: 360, actions: 3 },
+        { id: 'tazeni', name: 'Tažení', icon: 'castle', period: 'day', minutes: 4320, actions: 5 }
+    ];
+    // Výchozí délka hry pro kolo: jako v předvolbě s tím kolem
+    const defaultMinutes = (period) => (TEMPOS.find(tempo => tempo.period === period) || { minutes: LENGTHS[period][0] }).minutes;
+    const tempoOf = (period, minutes) => TEMPOS.find(tempo => tempo.period === period && tempo.minutes === minutes) || null;
     const MIN_PLAYERS = 2;
     const MAX_PLAYERS = 8;
     const MAX_ACTIONS = 10;
@@ -74,7 +89,7 @@
         // Poslední místo XP nedostane (ve hře dvou hráčů tedy jen vítěz)
         return { badge: place === 1, xp: place <= 3 && (place === 1 || place < players) ? REWARD_XP[place - 1] : 0 };
     };
-    const PRESET_NAMES = { 'evropa-3d': 'Rychlá hra', 'cesko-12h': 'Rychlá hra', 'afrika-7d': 'Rychlá hra' };
+    const PRESET_NAMES = { 'evropa-3d': 'Rychlá hra', 'cesko-12h': 'Rychlá hra', 'afrika-7d': 'Rychlá hra', 'blesk-20m': 'Blesk' };
 
     // --- Barvy hráčů (stejný seznam má server: conquest_colors) ---
     // Jen devět co nejodlišnějších barev (hráčů je nejvýš osm), aby se na mapě nepletly; speciální vzory můžou přibýt jako odměny
@@ -192,9 +207,14 @@
     const seededRandom = (seed) => (core && core.createSeededRandom ? core.createSeededRandom(seed) : (() => { let s = hash32(seed); return () => { s = (s + 0x6D2B79F5) >>> 0; let t = Math.imul(s ^ (s >>> 15), s | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; })());
     const shuffle = (list, rng) => { const out = [...list]; for (let i = out.length - 1; i > 0; i--) { const j = Math.floor(rng() * (i + 1)); [out[i], out[j]] = [out[j], out[i]]; } return out; };
 
-    // „6 h“, „3 dny“, „7 dní“
-    const durationLabel = (hours) => (hours < 24 ? `${hours} h` : plural(hours / 24, 'den', 'dny', 'dní'));
-    const periodLabel = (period) => (period === 'hour' ? 'za hodinu' : 'za den');
+    // „20 min“, „1 h 30 min“, „6 h“, „3 dny“, „7 dní“
+    const minutesLabel = (minutes) => (minutes < 60 ? `${minutes} min` : minutes < 1440 ? `${Math.floor(minutes / 60)} h${minutes % 60 ? ` ${minutes % 60} min` : ''}` : plural(Math.round(minutes / 1440), 'den', 'dny', 'dní'));
+    const durationLabel = (hours) => minutesLabel(hours * 60);
+    // Délka hry v minutách (server od bloku 26 posílá minutes, starší hry jen hours)
+    const gameMinutes = (game) => (Number(game && game.minutes) > 0 ? Number(game.minutes) : Number(game && game.hours) * 60 || 0);
+    const periodLabel = (period) => ({ min5: 'za 5 min', min10: 'za 10 min', hour: 'za hodinu' }[period] || 'za den');
+    // Délka kola: „5 min“, „10 min“, „1 h“, „1 den“
+    const roundLabel = (period) => ({ min5: '5 min', min10: '10 min', hour: '1 h' }[period] || '1 den');
     const actionsLabel = (actions, period) => `${movesWord(actions)} ${periodLabel(period)}`;
     // Zbývající čas: „2 d 5 h“, „3 h 20 min“, „12 min“, „méně než minuta“
     const timeLeft = (ms) => {
@@ -1928,7 +1948,7 @@
     const art = (name, cls) => `<img src="${artUrl(name)}" alt="" class="${cls} shrink-0 object-contain drop-shadow-sm">`;
     const chip = (text, icon = '') => `<span class="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-bold text-amber-900 ring-1 ring-amber-200/80 dark:bg-amber-900/30 dark:text-amber-100 dark:ring-amber-700/60">${icon ? `<i data-lucide="${icon}" class="h-3 w-3"></i>` : ''}${esc(text)}</span>`;
     const mapTitle = (id) => (MAP_BY_ID[id] ? MAP_BY_ID[id].title : id);
-    const paramChips = (game) => [chip(mapTitle(game.map), 'map'), chip(durationLabel(game.hours), 'hourglass'), chip(`${(game.players || []).length}/${game.max_players}`, 'users'),
+    const paramChips = (game) => [chip(mapTitle(game.map), 'map'), chip(minutesLabel(gameMinutes(game)), 'hourglass'), chip(`${(game.players || []).length}/${game.max_players}`, 'users'),
         chip(actionsLabel(game.actions, game.period), 'swords'), ...(game.visibility === 'private' ? [chip('Soukromá', 'lock')] : [])].join('');
     const playerDots = (game) => `<span class="flex -space-x-1">${(game.players || []).map(player => `<span title="${esc(player.display_name)}" class="flex h-6 w-6 items-center justify-center rounded-full bg-white ring-1 ring-slate-200 dark:bg-slate-700 dark:ring-slate-600">${pennantSvg(player.flag_color, player.emblem, 'h-4 w-5')}</span>`).join('')}</span>`;
 
@@ -2090,30 +2110,56 @@
         <button type="button" data-cq-step="${key}" data-delta="1" ${value >= max ? 'disabled' : ''} class="flex h-9 w-10 items-center justify-center rounded-lg text-slate-700 active:scale-95 disabled:opacity-30 dark:text-slate-200" aria-label="${esc(name)}: víc"><i data-lucide="plus" class="h-4 w-4"></i></button></div>`;
     const field = (label, inner, extra = '') => `<div class="flex min-w-0 flex-col gap-0.5 ${extra}"><span class="px-1 text-[10px] font-black uppercase leading-3 tracking-widest text-slate-500 dark:text-slate-400">${esc(label)}</span>${inner}</div>`;
     // Řádek-tlačítko formuláře (popisek a hodnota); half = polovina šířky vedle Pozvat přátele (bez tužky, popisek se zkrátí)
-    const pickRow = (action, icon, label, value, half) => `<button type="button" data-cq="${action}" class="flex min-h-[2.75rem] min-w-0 items-center gap-2 ${CARD} ${half ? 'px-2' : 'px-2.5'} text-left">${icon}<span class="min-w-0 flex-1"><span class="block truncate text-[10px] font-black uppercase leading-3 ${half ? 'tracking-wider' : 'tracking-widest'} text-slate-500 dark:text-slate-400">${esc(label)}</span><span class="block truncate text-[13px] font-bold text-slate-700 dark:text-slate-200">${esc(value)}</span></span>${half ? '' : '<i data-lucide="pencil" class="h-4 w-4 text-brand-700 dark:text-cream"></i>'}</button>`;
+    const pickRow = (action, icon, label, value, half) => `<button type="button" data-cq="${action}" class="cq-pick flex min-h-[2.75rem] min-w-0 items-center gap-2 ${CARD} ${half ? 'px-2' : 'px-2.5'} text-left">${icon}<span class="min-w-0 flex-1"><span class="block truncate text-[10px] font-black uppercase leading-3 ${half ? 'tracking-wider' : 'tracking-widest'} text-slate-500 dark:text-slate-400">${esc(label)}</span><span class="block truncate text-[13px] font-bold text-slate-700 dark:text-slate-200">${esc(value)}</span></span>${half ? '' : '<i data-lucide="pencil" class="h-4 w-4 text-brand-700 dark:text-cream"></i>'}</button>`;
     const lookRow = (draft, half) => pickRow('look', pennantSvg(draft.color, draft.emblem, 'h-7 w-9'), 'Barva a znak', `${colorOf(draft.color).name} · ${emblemOf(draft.emblem).name}`, half);
     const inviteRow = (invites, avatar) => pickRow('invite-pick', invites.length ? avatarStack(invites, avatar)
         : '<span class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gold-100 text-gold-800 dark:bg-gold-900/40 dark:text-gold-200"><i data-lucide="user-plus" class="h-4 w-4"></i></span>',
         invites.length ? `Pozvánky (${invites.length})` : 'Pozvat přátele', invites.length ? invites.map(friend => shortName(friend.display_name)).join(', ') : 'Zatím nikoho', true);
-    // invites = vybraní přátelé (pozvou se hned po založení), invitable = databáze pozvánky zná (blok 24); avatar = obrázek hráče z app.js
+    // Založit hru ve stylu map Dobývání: pergamenová karta se shrnutím (náhled mapy, tempo, délka hry a kola, tahy, hráči), pod ní
+    // mapa, tempo (předvolby Blesk, Rychlovka, Odpoledne, Tažení, nebo Vlastní: délka kola a hry), hráči a tahy za kolo, kdo se
+    // přidá, barva a znak a pozvánky. Vejde se na 360×640 bez posouvání. draft = { map, period, minutes, players, actions,
+    // visibility, color, emblem, custom }; invites = vybraní přátelé (pozvou se hned po založení), invitable = databáze pozvánky
+    // zná (blok 24); avatar = obrázek hráče z app.js
+    const formLabel = (text, extra = '') => `<span class="cq-form-label flex items-center justify-between gap-2 px-0.5">${esc(text)}${extra}</span>`;
+    const optionRow = (name, key, options, current, cls = '') => `<div role="radiogroup" aria-label="${esc(name)}" class="grid gap-1 ${cls}">${options.map(([id, label]) => `
+        <button type="button" role="radio" aria-checked="${String(id) === String(current)}" data-cq-set="${key}" data-value="${esc(id)}" class="cq-opt flex min-h-[2.125rem] min-w-0 items-center justify-center rounded-lg px-1 text-[13px] font-black">${esc(label)}</button>`).join('')}</div>`;
+    const formStepper = (name, key, value, min, max, unit) => `<div class="cq-opt-box flex items-center justify-between gap-1 rounded-lg p-0.5" role="group" aria-label="${esc(name)}">
+        <button type="button" data-cq-step="${key}" data-delta="-1" ${value <= min ? 'disabled' : ''} class="flex h-8 w-9 items-center justify-center rounded-md disabled:opacity-30" aria-label="Méně"><i data-lucide="minus" class="h-4 w-4"></i></button>
+        <span class="min-w-0 truncate text-center text-[13px] font-black"><output class="text-[16px]" data-cq-value="${key}">${value}</output> ${esc(unit)}</span>
+        <button type="button" data-cq-step="${key}" data-delta="1" ${value >= max ? 'disabled' : ''} class="flex h-8 w-9 items-center justify-center rounded-md disabled:opacity-30" aria-label="Víc"><i data-lucide="plus" class="h-4 w-4"></i></button></div>`;
     const createHtml = ({ draft, maps = {}, busy = false, error = '', invites = [], invitable = false, avatar = null }) => {
         const map = MAP_BY_ID[draft.map] || MAPS[0];
         const data = maps[map.id];
         const maxPlayers = data ? data.maxPlayers : MAX_PLAYERS;
         const players = Math.min(draft.players, maxPlayers);
-        const preview = { map: map.id, hours: draft.hours, max_players: players, actions: draft.actions, period: draft.period, visibility: draft.visibility, players: [{ flag_color: draft.color, emblem: draft.emblem }] };
-        const shortDuration = (hours) => (hours < 24 ? `${hours} h` : `${hours / 24} d`);
-        return `<form data-cq-form class="flex flex-col gap-1.5" autocomplete="off">
-            <div class="flex items-center gap-2 ${CARD} cq-card-paper p-1.5">
-                <span class="cq-thumb-frame flex h-14 w-16 shrink-0 items-center justify-center overflow-hidden rounded-xl">${data ? thumbSvg(data, {}, {}, 'h-14 w-16') : ''}</span>
-                <span class="flex min-w-0 flex-1 flex-wrap gap-1" data-cq-preview>${paramChips(preview)}</span>
-            </div>
-            ${field('Mapa', segment('Mapa', 'map', MAPS.map(item => [item.id, item.title]), map.id))}
-            ${field('Délka hry', segment('Délka hry', 'hours', DURATIONS.map(hours => [hours, shortDuration(hours)]), draft.hours))}
-            <div class="grid grid-cols-2 gap-2">${field('Nejvýš hráčů', stepper('Nejvýš hráčů', 'players', players, MIN_PLAYERS, maxPlayers))}${field('Tahů za období', stepper('Tahů za období', 'actions', draft.actions, 1, MAX_ACTIONS))}</div>
-            <div class="grid grid-cols-2 gap-2">${field('Období', segment('Období', 'period', [['day', 'Den'], ['hour', 'Hodina']], draft.period))}${field('Kdo se přidá', segment('Kdo se přidá', 'visibility', [['public', 'Kdokoli'], ['private', 'S kódem']], draft.visibility))}</div>
-            ${invitable ? `<div class="grid grid-cols-2 gap-2">${lookRow(draft, true)}${inviteRow(invites, avatar)}</div>` : lookRow(draft, false)}
-            <button type="submit" ${busy ? 'disabled' : ''} class="${GOLD_BUTTON} w-full py-2.5 text-[15px]"><i data-lucide="flag" class="h-5 w-5"></i> ${busy ? 'Zakládám…' : 'Založit hru'}</button>
+        const period = PERIODS.includes(draft.period) ? draft.period : 'day';
+        const minutes = LENGTHS[period].includes(Number(draft.minutes)) ? Number(draft.minutes) : defaultMinutes(period);
+        const tempo = draft.custom ? null : tempoOf(period, minutes);
+        const custom = !tempo;
+        const rounds = Math.floor(minutes / PERIOD_MINUTES[period]);
+        const summary = `<div class="flex items-center gap-2.5">
+                <span class="cq-thumb-frame flex h-12 w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl">${data ? thumbSvg(data, {}, {}, 'h-12 w-14') : ''}</span>
+                <span class="min-w-0 flex-1">
+                    <span class="flex min-w-0 items-center gap-1.5"><span class="cq-ledger-title truncate text-[16px] leading-tight">${esc(map.title)}</span><span class="cq-tempo-badge inline-flex shrink-0 items-center gap-1 rounded-full px-1.5 py-px text-[11px] font-black"><i data-lucide="${tempo ? tempo.icon : 'settings-2'}" class="h-3 w-3"></i>${esc(tempo ? tempo.name : 'Vlastní')}</span></span>
+                    <span class="block truncate text-[12px] font-bold text-amber-950/80 dark:text-gold-100/85" data-cq-summary>Hra ${esc(minutesLabel(minutes))} · ${esc(plural(rounds, 'kolo', 'kola', 'kol'))} po ${esc(roundLabel(period))}</span>
+                    <span class="block truncate text-[12px] font-semibold text-amber-950/65 dark:text-gold-100/65">${esc(movesWord(draft.actions))} za kolo · až ${players} hráčů · ${draft.visibility === 'private' ? 'jen s kódem' : 'kdokoli'}</span>
+                </span></div>`;
+        const tempos = custom
+            ? `<div class="flex items-center gap-1"><span class="cq-form-label w-9 shrink-0" aria-hidden="true">Kolo</span>${optionRow('Délka kola', 'period', PERIODS.map(id => [id, roundLabel(id)]), period, 'min-w-0 flex-1 grid-cols-4')}</div>
+               <div class="flex items-center gap-1"><span class="cq-form-label w-9 shrink-0" aria-hidden="true">Hra</span>${optionRow('Délka hry', 'minutes', LENGTHS[period].map(value => [value, minutesLabel(value)]), minutes, `min-w-0 flex-1 ${LENGTHS[period].length === 3 ? 'grid-cols-3' : 'grid-cols-4'}`)}</div>`
+            : `<div role="radiogroup" aria-label="Tempo" class="grid grid-cols-4 gap-1">${TEMPOS.map(item => `<button type="button" role="radio" aria-checked="${item.id === tempo.id}" data-cq-tempo="${item.id}" class="cq-opt cq-tempo flex min-w-0 flex-col items-center justify-center rounded-lg px-0.5 py-0.5">
+                <i data-lucide="${item.icon}" class="h-4 w-4"></i><span class="max-w-full truncate text-[12.5px] font-black leading-tight">${esc(item.name)}</span><span class="max-w-full truncate text-[11px] font-bold leading-tight opacity-80">${esc(minutesLabel(item.minutes))}</span></button>`).join('')}</div>`;
+        const toggle = `<button type="button" data-cq="tempo-custom" class="cq-form-link flex items-center gap-0.5 normal-case tracking-normal">${custom ? '<i data-lucide="chevron-left" class="h-3.5 w-3.5"></i>Předvolby' : 'Vlastní<i data-lucide="chevron-right" class="h-3.5 w-3.5"></i>'}</button>`;
+        return `<form data-cq-form class="cq-form flex flex-col gap-[5px] rounded-2xl p-2" autocomplete="off">
+            ${summary}
+            <div class="cq-form-rule"></div>
+            ${formLabel('Mapa')}${optionRow('Mapa', 'map', MAPS.map(item => [item.id, item.title]), map.id, 'grid-cols-5')}
+            ${formLabel(custom ? 'Vlastní tempo' : 'Tempo', toggle)}${tempos}
+            <div class="grid grid-cols-2 gap-1.5"><div class="flex min-w-0 flex-col gap-[5px]">${formLabel('Nejvýš hráčů')}${formStepper('Nejvýš hráčů', 'players', players, MIN_PLAYERS, maxPlayers, plural(players, 'hráč', 'hráči', 'hráčů').replace(/^\d+ /, ''))}</div>
+                <div class="flex min-w-0 flex-col gap-[5px]">${formLabel('Tahů za kolo')}${formStepper('Tahů za kolo', 'actions', draft.actions, 1, MAX_ACTIONS, plural(draft.actions, 'tah', 'tahy', 'tahů').replace(/^\d+ /, ''))}</div></div>
+            ${formLabel('Kdo se přidá')}${optionRow('Kdo se přidá', 'visibility', [['public', 'Kdokoli z Lobby'], ['private', 'Jen s kódem']], draft.visibility, 'grid-cols-2')}
+            ${invitable ? `<div class="grid grid-cols-2 gap-1.5">${lookRow(draft, true)}${inviteRow(invites, avatar)}</div>` : lookRow(draft, false)}
+            <button type="submit" ${busy ? 'disabled' : ''} class="${GOLD_BUTTON} mt-0.5 w-full py-2 text-[15px]"><i data-lucide="flag" class="h-5 w-5"></i> ${busy ? 'Zakládám…' : 'Založit hru'}</button>
             ${error ? `<p class="text-[13px] font-semibold text-rose-700 dark:text-rose-400" role="status">${esc(error)}</p>` : ''}
         </form>`;
     };
@@ -2690,7 +2736,7 @@
     };
 
     return {
-        ART, MAPS, MAP_BY_ID, DURATIONS, PERIODS, MIN_PLAYERS, MAX_PLAYERS, MAX_ACTIONS, MAX_GAMES, MAX_OWN_LOBBIES, REGION_POINTS, LEVELS, REWARD_XP,
+        ART, MAPS, MAP_BY_ID, DURATIONS, PERIODS, PERIOD_MINUTES, LENGTHS, TEMPOS, tempoOf, defaultMinutes, minutesLabel, gameMinutes, roundLabel, MIN_PLAYERS, MAX_PLAYERS, MAX_ACTIONS, MAX_GAMES, MAX_OWN_LOBBIES, REGION_POINTS, LEVELS, REWARD_XP,
         COLORS, COLOR_BY_ID, EMBLEMS, EMBLEM_BY_ID, colorOf, emblemOf, inkOf, emblemInk, luminance, maxLevel, rewardFor,
         durationLabel, periodLabel, actionsLabel, timeLeft, movesWord, pointsWord, playersWord, territoriesWord, regionsWord, nextPeriodAt, agoLabel, periodLine,
         budgetTitle, budgetInnerHtml, periodStartText, PENALTY_TEXT,

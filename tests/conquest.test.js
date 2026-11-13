@@ -872,6 +872,29 @@ test('bitvy o území (blok 25): obléhané území na mapě, okno bitvy s varov
     for (const html of [svg, sheet, asked, judged, wait, result, C.gameScreenHtml(view, { now: NOW })]) assert.doesNotMatch(html, /\sstyle=/);
 });
 
+test('Založit hru: tempo (Blesk, Rychlovka, Odpoledne, Tažení, Vlastní), shrnutí, délky hry podle kola, popisky v minutách', () => {
+    const text = (html) => html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
+    const draft = { map: 'evropa', period: 'min5', minutes: 20, players: 4, actions: 5, visibility: 'public', color: 'modra', emblem: 'vlk' };
+    const blesk = C.createHtml({ draft, maps });
+    assert.match(text(blesk), /Evropa Blesk Hra 20 min · 4 kola po 5 min 5 tahů za kolo · až 4 hráčů · kdokoli/);
+    assert.deepEqual([...blesk.matchAll(/data-cq-tempo="([^"]+)"/g)].map(m => m[1]), ['blesk', 'rychlovka', 'odpoledne', 'tazeni']);
+    assert.match(blesk, /aria-checked="true" data-cq-tempo="blesk"/);
+    assert.doesNotMatch(blesk, /data-cq-set="minutes"/, 'předvolby bez řádků délky');
+    // Vlastní: délka kola a délka hry z nabídky pro to kolo (vždy aspoň 3 kola)
+    const custom = C.createHtml({ draft: { ...draft, custom: true, period: 'hour', minutes: 720 }, maps });
+    assert.match(text(custom), /Vlastní tempo[^]*Kolo 5 min 10 min 1 h 1 den Hra 6 h 12 h 1 den 2 dny/);
+    assert.match(custom, /aria-checked="true" data-cq-set="minutes" data-value="720"/);
+    for (const period of C.PERIODS) for (const minutes of C.LENGTHS[period]) assert.ok(minutes / C.PERIOD_MINUTES[period] >= 3, `${period} ${minutes}`);
+    // Hodiny a dny jsou délky, které server zná (hodiny), rychlé hry v minutách
+    for (const minutes of [...C.LENGTHS.hour, ...C.LENGTHS.day]) assert.ok(C.DURATIONS.includes(minutes / 60), String(minutes));
+    assert.deepEqual(C.TEMPOS.map(tempo => [tempo.period, C.minutesLabel(tempo.minutes)]), [['min5', '20 min'], ['min10', '1 h'], ['hour', '6 h'], ['day', '3 dny']]);
+    assert.equal(C.minutesLabel(90), '1 h 30 min');
+    assert.equal(C.gameMinutes({ hours: 12 }), 720);
+    assert.equal(C.gameMinutes({ minutes: 20, hours: 0 }), 20);
+    assert.match(C.paramChips({ map: 'evropa', minutes: 20, max_players: 4, players: [], actions: 5, period: 'min5', visibility: 'public' }), /20 min[^]*5 tahů za 5 min/);
+    for (const html of [blesk, custom]) { assert.doesNotMatch(html, /\sstyle=|NaN|undefined/); }
+});
+
 test('stavby: domovský hrad podle úrovně (č. 275–277), střechy a vlaječky v barvě majitele, obrázky v mezipaměti', () => {
     // Domovský hrad roste s opevněním, ostatní území mají palisádu, hradbu a pevnost
     assert.deepEqual([0, 1, 2, 3].map(level => C.levelIcon(level, true)), ['castle', 'castle1', 'castle2', 'castle3']);

@@ -889,6 +889,29 @@ html.kb-open #settings-overlay > *, html.kb-open #dialog-overlay > * { max-heigh
 }
 /* Karty pod mapou (pořadí, kronika): světlý pergamen s hnědou linkou jako mapa, v tmavém režimu tmavá deska se zlatou linkou */
 .cq-ledger { background-color: #fbf3e0; background-image: linear-gradient(rgb(255 252 244 / 0.5), rgb(255 252 244 / 0.5)), url(icons/textury/textura-pergamen-svetly.webp); background-size: auto, 320px; box-shadow: inset 0 0 0 1px rgb(164 123 69 / 0.5), inset 0 0 0 3px rgb(255 250 238 / 0.55), 0 2px 6px -3px rgb(60 40 20 / 0.35); }
+/* Založit hru: pergamenová karta jako pořadí u mapy, volby jako kožené záložky (vybraná tmavá kůže se zlatým písmem), tempo s ikonou,
+   štítek tempa ve shrnutí, odkaz Vlastní / Předvolby, řádky Barva a znak a Pozvat přátele na pergamenu */
+.cq-form { background-color: #fbf3e0; background-image: linear-gradient(rgb(255 252 244 / 0.45), rgb(255 252 244 / 0.45)), url(icons/textury/textura-pergamen-svetly.webp); background-size: auto, 320px; box-shadow: inset 0 0 0 1px rgb(164 123 69 / 0.55), inset 0 0 0 3px rgb(255 250 238 / 0.55), 0 3px 10px -5px rgb(60 40 20 / 0.45); }
+.cq-form-label { font-family: Georgia, 'Times New Roman', serif; font-variant: small-caps; font-weight: 700; font-size: 12.5px; line-height: 1; letter-spacing: 0.08em; color: #7a4a1e; }
+.cq-form-link { font-family: system-ui, sans-serif; font-variant: normal; font-size: 11.5px; font-weight: 900; color: #8f1d2c; min-height: 1.25rem; }
+.cq-form-rule { height: 1px; background: linear-gradient(90deg, transparent, rgb(164 123 69 / 0.55), transparent); }
+.cq-opt, .cq-opt-box { background: rgb(255 252 244 / 0.78); box-shadow: inset 0 0 0 1px rgb(164 123 69 / 0.45), 0 1px 0 rgb(164 123 69 / 0.35); color: #4a2c12; }
+.cq-opt { transition: transform 80ms ease; }
+.cq-opt:active { transform: translateY(1px); }
+.cq-opt[aria-checked="true"] { background: linear-gradient(#7a4f2c, #5c3a1e); color: #fbeacb; box-shadow: inset 0 0 0 1px rgb(255 230 180 / 0.25), 0 2px 4px -1px rgb(60 40 20 / 0.5); }
+.cq-tempo[aria-checked="true"] svg { color: #f2c14e; }
+.cq-tempo-badge { background: linear-gradient(#fff3c4, #f2d27a); color: #6b3f0e; box-shadow: inset 0 0 0 1px rgb(164 110 30 / 0.5); }
+.cq-form button.cq-pick { background: rgb(255 252 244 / 0.78); box-shadow: inset 0 0 0 1px rgb(164 123 69 / 0.45), 0 1px 0 rgb(164 123 69 / 0.35); }
+@media (prefers-color-scheme: dark) {
+    .cq-form { background: linear-gradient(#2c2f34, #25282c); box-shadow: inset 0 0 0 1px rgb(214 151 37 / 0.32), 0 2px 8px -4px rgb(0 0 0 / 0.7); }
+    .cq-form-label { color: #e2c48a; }
+    .cq-form-link { color: #f2c14e; }
+    .cq-form-rule { background: linear-gradient(90deg, transparent, rgb(214 151 37 / 0.45), transparent); }
+    .cq-opt, .cq-opt-box, .cq-form button.cq-pick { background: rgb(255 255 255 / 0.05); box-shadow: inset 0 0 0 1px rgb(214 151 37 / 0.28); color: #ead7ab; }
+    .cq-opt[aria-checked="true"] { background: linear-gradient(#a8742f, #7a4f1c); color: #fff6dc; box-shadow: inset 0 0 0 1px rgb(255 230 180 / 0.3), 0 2px 4px -1px rgb(0 0 0 / 0.6); }
+    .cq-tempo[aria-checked="true"] svg { color: #ffe08a; }
+    .cq-tempo-badge { background: rgb(214 151 37 / 0.2); color: #f6d27a; box-shadow: inset 0 0 0 1px rgb(214 151 37 / 0.45); }
+}
 .cq-ledger-title { font-family: Georgia, 'Times New Roman', serif; font-variant: small-caps; font-weight: 700; font-size: 14px; line-height: 1.35; letter-spacing: 0.06em; color: #5a3416; }
 .cq-rank-me { background: rgb(255 255 255 / 0.72); box-shadow: inset 0 0 0 1.5px #d69725; }
 .cq-medal-1 { background: linear-gradient(#ffe066, #d69725); color: #3b1e0a; box-shadow: inset 0 0 0 1px rgb(122 70 27 / 0.55); }

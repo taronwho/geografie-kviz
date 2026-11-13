@@ -157,8 +157,12 @@
             color: C.COLOR_BY_ID[prefs.color] ? prefs.color : 'cervena', emblem: C.EMBLEM_BY_ID[prefs.emblem] ? prefs.emblem : 'lev'
         };
         if (!C.MAP_BY_ID[draft.map]) draft.map = 'evropa';
-        if (!C.DURATIONS.includes(Number(draft.hours))) draft.hours = 72;
-        const saveDraft = () => writePrefs({ draft: { map: draft.map, hours: draft.hours, players: draft.players, actions: draft.actions, period: draft.period, visibility: draft.visibility } });
+        // Tempo: délka kola a hry v minutách (dřívější volba v hodinách se převede); neplatná kombinace = výchozí délka pro to kolo
+        if (!C.PERIODS.includes(draft.period)) draft.period = 'day';
+        draft.minutes = Number(draft.minutes) || Number(draft.hours) * 60 || 4320;
+        if (!C.LENGTHS[draft.period].includes(draft.minutes)) draft.minutes = C.defaultMinutes(draft.period);
+        draft.custom = Boolean(draft.custom);
+        const saveDraft = () => writePrefs({ draft: { map: draft.map, minutes: draft.minutes, players: draft.players, actions: draft.actions, period: draft.period, visibility: draft.visibility, custom: draft.custom } });
 
         const renderHub = () => {
             if (!active() || ui.kind === 'game') return;
@@ -425,7 +429,9 @@
             try {
                 const data = await ensureMap(draft.map).catch(() => null);
                 const players = Math.min(draft.players, data ? data.maxPlayers : C.MAX_PLAYERS);
-                let created = await Social.conquestCreate({ map: draft.map, players, hours: draft.hours, period: draft.period, actions: draft.actions, visibility: draft.visibility, color: draft.color, emblem: draft.emblem });
+                // Rychlé hry (kola po 5 a 10 minutách) mají délku v minutách, ostatní v hodinách
+                const fast = draft.minutes < 360;
+                let created = await Social.conquestCreate({ map: draft.map, players, hours: fast ? null : draft.minutes / 60, minutes: fast ? draft.minutes : null, period: draft.period, actions: draft.actions, visibility: draft.visibility, color: draft.color, emblem: draft.emblem });
                 // Vybraní přátelé dostanou pozvánku hned po založení; když se to nepovede, hra zůstane a pozvat jde z jejího detailu
                 const friends = ui.invites.map(friend => friend.id).slice(0, players - 1);
                 let invited = 0;
@@ -1508,8 +1514,19 @@
             const set = target.closest('[data-cq-set]');
             if (set && !set.disabled) {
                 const key = set.dataset.cqSet;
-                draft[key] = ['hours', 'players'].includes(key) ? Number(set.dataset.value) : set.dataset.value;
+                draft[key] = ['minutes', 'players'].includes(key) ? Number(set.dataset.value) : set.dataset.value;
                 if (key === 'map') { const data = maps[draft.map]; if (data) draft.players = Math.min(draft.players, data.maxPlayers); }
+                // Jiná délka kola: délka hry z nabídky pro to kolo (blíž původní, jinak výchozí)
+                if (key === 'period' && !C.LENGTHS[draft.period].includes(draft.minutes)) draft.minutes = C.defaultMinutes(draft.period);
+                saveDraft();
+                renderHub();
+                return;
+            }
+            // Tempo: předvolba (Blesk, Rychlovka, Odpoledne, Tažení) nastaví kolo, délku hry a tahy
+            const tempo = target.closest('[data-cq-tempo]');
+            if (tempo) {
+                const preset = C.TEMPOS.find(item => item.id === tempo.dataset.cqTempo);
+                if (preset) Object.assign(draft, { period: preset.period, minutes: preset.minutes, actions: preset.actions, custom: false });
                 saveDraft();
                 renderHub();
                 return;
@@ -1540,6 +1557,7 @@
             const name = action.dataset.cq;
             if (name === 'help') openHelp('zaklady');
             else if (name === 'code') openCode();
+            else if (name === 'tempo-custom') { draft.custom = !draft.custom; if (!draft.custom && !C.tempoOf(draft.period, draft.minutes)) Object.assign(draft, { period: C.TEMPOS[0].period, minutes: C.TEMPOS[0].minutes }); saveDraft(); renderHub(); }
             else if (name === 'look') { if (ui.kind === 'lobby') changeLook(); else pickLook({ onDone: () => renderHub() }); }
             else if (name === 'invite-pick') openInvitePicker(ui.kind === 'lobby' ? ui.gameId : null);
             else if (name === 'ready') toggleReady();
