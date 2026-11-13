@@ -738,6 +738,7 @@ test('hra více hráčů: výzvy, obnova, okna a profil', { skip: !chromium && '
         assert.equal(await tab.locator('#hint-tab-panel.gold-card').count(), 1, 'první otázka výzvy je zlatá');
         assert.match(await compact(tab, '[data-gold-ribbon]'), /Zlatá otázka · 3× XP/);
         assert.ok(await opponentHeader(tab), 'soupeř v záhlaví zůstává');
+        assert.equal(await tab.locator('#gold-bubble').count(), 0, 've výzvě se vysvětlení neukazuje (čas při shodě rozhoduje), počká na běžnou hru');
         const right = await tab.evaluate(() => JSON.parse(localStorage.getItem('mudrlant.session')).data.question.choices.findIndex(choice => choice.correct));
         await tab.click(`[data-action="choice"][data-index="${right}"]`);
         await tab.waitForSelector('[data-gold-result="shard"]');
@@ -747,7 +748,7 @@ test('hra více hráčů: výzvy, obnova, okna a profil', { skip: !chromium && '
         await tab.waitForTimeout(400);
         assert.deepEqual(db.progress.filter(row => row.challenge_id === 'GGGGGG').map(row => [row.idx, row.points]), [[0, 4]], 'na server jdou obyčejné body');
         const gold = await tab.evaluate(() => JSON.parse(localStorage.getItem('mudrlant.gold')));
-        assert.deepEqual([gold.since, gold.total, gold.correct, gold.shards], [0, 1, 1, 1], 'výzva místní počítadlo nezvyšuje');
+        assert.deepEqual([gold.since, gold.total, gold.correct, gold.shards, gold.intro], [0, 1, 1, 1, false], 'výzva místní počítadlo nezvyšuje');
         await tab.click('[data-action="next"]');
         await tab.waitForSelector('[data-action="choice"]', { timeout: 30000 });
         assert.equal(await tab.locator('.gold-card, [data-gold-ribbon]').count(), 0, 'další otázka výzvy zlatá není');

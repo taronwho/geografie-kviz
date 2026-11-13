@@ -4419,8 +4419,9 @@
             card.classList.add('gold-enter');
             ribbon.querySelector('.gold-ribbon').classList.add('gold-enter');
             if (Sound) Sound.play('gold');
+            // Vysvětlení při první zlaté otázce, ne ve výzvě a zápasu turnaje (čas tam rozhoduje při shodě); vysvětlí se pak v běžné hře
             const state = loadGold();
-            if (!state.intro) { saveGold(Gold.markIntro(state)); goldBubbleRound = round; }
+            if (!state.intro && mode !== 'challenge') { saveGold(Gold.markIntro(state)); goldBubbleRound = round; }
         }
         if (goldBubbleRound === round && !round.answered && !ribbon.querySelector('#gold-bubble')) {
             ribbon.insertAdjacentHTML('beforeend', Gold.bubbleHtml());
